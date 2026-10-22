@@ -7,12 +7,12 @@ import {
   cancelOwnShift,
   failEvidence,
 } from "./db";
-import { expect, test } from "./fixtures";
+import { expect, menuLink, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
 // The evidence email to the strikes team in a real browser (12C.4): a casual of this spec's own
 // cancels a session a day away (a strike); its evidence email is marked failed, as the job leaves
-// one that may have arrived. A resourcer sees it in Needs attention under "Strike evidence" (the bell counts it and opens it), opens the record
+// one that may have arrived. A resourcer sees it in Needs attention under "Strike evidence" (the menu counts it and opens it), opens the record
 // from there and selects "Resend evidence". Nothing on the way offers Approve, Decline or Deny. The
 // session, its site, the casual and the resourcer are made up and this spec's own; a retry makes a
 // new session (the run's suffix).
@@ -67,10 +67,13 @@ test("a failed evidence email shows on the dashboard, and its record resends it"
     await failEvidence("acme", assignmentId);
     await officeLogin(page);
 
-    // The bell in the top bar counts it, and goes to Needs attention.
-    const bell = page.getByRole("link", { name: /^Needs attention, \d+\+?$/ });
-    await expect(bell).toHaveAttribute("href", "/office/needs-attention");
-    await bell.click();
+    // Needs attention in the menu counts it (Phase 20; the bell before), and goes there.
+    const item = await menuLink(page, "Needs attention");
+    await expect(item).toHaveAttribute("href", "/office/needs-attention");
+    await expect(item.locator("xpath=following-sibling::span[1]")).toHaveText(
+      /^\d+\+? to deal with$/,
+    );
+    await item.click();
     const section = page.getByRole("region", { name: "Strike evidence" });
     await expect(section).toContainText("Erin Evidence's strike record couldn't be emailed");
     await noSidewaysScroll(page);

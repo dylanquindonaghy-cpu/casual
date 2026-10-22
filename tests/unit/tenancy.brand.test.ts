@@ -75,8 +75,12 @@ describe("the colours", () => {
       "--firm-ink": "#1d4ed8",
       "--firm-bar": "#1d4ed8",
       "--firm-on-bar": "#ffffff",
+      // The pass's second line (Phase 20): white a fifth of the way to the blue, still 4.5:1.
+      "--firm-on-bar-soft": "#d2dcf7",
+      // The gate's white plate: the band's blue reads on white, so its words are the blue.
+      "--firm-on-plate": "#1d4ed8",
       "--firm-dark-fill": expect.stringMatching(/^#[0-9a-f]{6}$/),
-      "--firm-dark-on-fill": "#13233a",
+      "--firm-dark-on-fill": "#15171a",
       "--firm-dark-ink": expect.stringMatching(/^#[0-9a-f]{6}$/),
     });
     // Yellow is too pale for words or a white-worded button in light: darkened until it reads.
@@ -90,9 +94,21 @@ describe("the colours", () => {
     expect(brandStyle({ own: true, background: "red; x: url(y)" })).toBeUndefined();
   });
 
+  // brand-soft, as globals.css mixes it: 12% of the brand over the card.
+  const tint = (brand: string, card: string) =>
+    `#${[1, 3, 5]
+      .map((i) =>
+        Math.round(
+          parseInt(brand.slice(i, i + 2), 16) * 0.12 + parseInt(card.slice(i, i + 2), 16) * 0.88,
+        )
+          .toString(16)
+          .padStart(2, "0"),
+      )
+      .join("")}`;
+
   it("every firm colour gives readable pairs in both themes, across the whole colour cube", () => {
-    const LIGHT = ["#f2f4f7", "#ffffff"]; // canvas, card
-    const DARK = ["#1b2642", "#22304f", "#0f1626"]; // card, raised, canvas
+    const LIGHT = ["#eef0f3", "#ffffff"]; // canvas, card
+    const DARK = ["#18191c", "#232529", "#0b0c0e"]; // card, raised, canvas (Phase 20's greys)
     const failing: string[] = [];
     for (let r = 0; r <= 255; r += 17) {
       for (let g = 0; g <= 255; g += 17) {
@@ -102,7 +118,14 @@ describe("the colours", () => {
           const pairs: [string, string, string][] = [
             ["light fill", light.onFill, light.fill],
             ["band", light.onBar, light.bar],
+            ["band's second line", light.onBarSoft, light.bar],
+            // The gate on the pass: a white plate, its words readable on it (Phase 20).
+            ["gate plate", light.onPlate, "#ffffff"],
             ["dark fill", dark.onFill, dark.fill],
+            // The firm's colour as words on its own pale tint (brand-soft: 12% of it over the
+            // card), as on a sign plate and an open Details button.
+            ["light words on the tint", light.ink, tint(light.fill, "#ffffff")],
+            ["dark words on the tint", dark.ink, tint(dark.fill, "#18191c")],
             ...LIGHT.map((g2): [string, string, string] => ["light words", light.ink, g2]),
             ...DARK.map((g2): [string, string, string] => ["dark words", dark.ink, g2]),
           ];
@@ -124,8 +147,14 @@ describe("the colours", () => {
       ink: "#1d4ed8",
       bar: "#1d4ed8",
       onBar: "#ffffff",
+      onBarSoft: "#d2dcf7",
+      onPlate: "#1d4ed8",
     });
-    expect(contrastRatio(acme.dark.ink, "#22304f")).toBeGreaterThanOrEqual(4.5);
+    // A pale firm colour: ink on its band, and ink on the gate's white plate (white words
+    // wouldn't read on it, nor the yellow on white).
+    const yellow = firmPalette("#ffff00").light;
+    expect([yellow.bar, yellow.onBar, yellow.onPlate]).toEqual(["#ffff00", "#15171a", "#15171a"]);
+    expect(contrastRatio(acme.dark.ink, "#232529")).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(acme.dark.fill, "#1d4ed8")).toBeGreaterThan(1); // lighter than the colour
     const northline = firmPalette("#0f766e");
     expect(northline.light.fill).toBe("#0f766e");

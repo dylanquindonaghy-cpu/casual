@@ -5,6 +5,8 @@ import {
   addSteward,
   bookAndCancel,
   cancelOwnShift,
+  eraseCasual,
+  withdrawStrikeAs,
 } from "./db";
 import { expect, menuLink, test } from "./fixtures";
 import { sentTo } from "./outbox";
@@ -13,23 +15,32 @@ import { sentTo } from "./outbox";
 // session a day away (a strike). A resourcer opens Strikes from the menu, finds them, opens the
 // strike's record from there, keeps it (marked as reviewed), then withdraws it with a reason: the
 // record then says who kept it, who withdrew it, when and why, and the Strikes page shows it
-// withdrawn. Nothing offers Approve, Decline or Deny. The
-// session, its site, the casual and the resourcer are made up and this spec's own; a retry makes a
-// new session (the run's suffix).
+// withdrawn. Nothing offers Approve, Decline or Deny. Every answer stays on screen after the record
+// refreshes, though its button goes (19.1): kept on a deleted casual's strike, and "already
+// withdrawn" when someone else withdrew it while the form was open. The sessions, their sites, the
+// casuals and the office users are made up and this spec's own; a retry makes new sessions (the
+// run's suffix).
 
 const acme = "http://acme.localhost:3100";
 const RUN = Date.now().toString(36);
+// Each test logs in as its own office user: a link sent to the same address in the test before can
+// still look new (the second's grace below), and each address gets 3 links every 15 minutes.
 const RESOURCER = "strikes.resourcer@example.com";
+const REVIEWER = { email: "strikes.reviewer@example.com", name: "Strikes Reviewer" };
+const SECOND = { email: "strikes.second@example.com", name: "Strikes Second" };
+const ADMIN = "strikes.admin@example.com";
 const CASUAL = { firstName: "Sian", lastName: "Strike", mobileE164: "+447700900617" };
+const ERASED = { firstName: "Erin", lastName: "Strike", mobileE164: "+447700900622" };
+const LATE = { firstName: "Lewis", lastName: "Strike", mobileE164: "+447700900623" };
 const REASON = "She rang the office before the cut-off; booked by mistake";
 
-async function officeLogin(page: Page) {
+async function officeLogin(page: Page, email = RESOURCER) {
   const asked = new Date(Date.now() - 1000);
   await page.goto(`${acme}/office/login`);
-  await page.getByLabel("Your work email").fill(RESOURCER);
+  await page.getByLabel("Your work email").fill(email);
   await page.getByRole("button", { name: "Send me a link" }).click();
   await expect(page.getByText("Check your email.")).toBeVisible();
-  const link = await sentTo(RESOURCER, asked, /(https?:\/\/\S+\/office\/l#[A-Za-z0-9_-]{43})/);
+  const link = await sentTo(email, asked, /(https?:\/\/\S+\/office\/l#[A-Za-z0-9_-]{43})/);
   await page.goto(link);
   await page.getByRole("button", { name: "Log me in" }).click();
   await expect(page).toHaveURL(`${acme}/office`);
@@ -95,6 +106,11 @@ test("a resourcer withdraws a strike from the Strikes page, with a reason", asyn
     await expect(
       page.getByRole("heading", { name: "Strike: Issued, then withdrawn" }),
     ).toBeVisible();
+    // The answer outlives the refresh that drew the withdrawn record, though the buttons go (19.1).
+    await expect(page.getByRole("status")).toHaveText(
+      "Withdrawn. It no longer counts, and the casual sees it as withdrawn.",
+    );
+    await expect(page.getByRole("button", { name: "Withdraw strike…" })).toHaveCount(0);
     await expect(page.getByText(`Why: ${REASON}`)).toBeVisible();
     await expect(page.getByText(/^Withdrawn by Strikes Resourcer at /)).toBeVisible();
     await noApproval(page);
@@ -105,6 +121,91 @@ test("a resourcer withdraws a strike from the Strikes page, with a reason", asyn
       has: page.getByRole("heading", { name: "Sian Strike" }),
     });
     await expect(row).toContainText("Withdrawn");
+  } finally {
+    await cancelOwnShift("acme", shiftId);
+  }
+});
+
+// A deleted casual's strike: the record says it can't be withdrawn and offers only "Keep strike".
+// Keeping it takes that last button away when the record refreshes; the answer stays (19.1).
+test("a deleted casual's strike is kept, and the answer stays after the refresh", async ({
+  page,
+}) => {
+  const { shiftId } = await addEventWithSession("acme", {
+    name: `Strikes Erased Event ${RUN}`,
+    site: `Strikes Erased Hall ${RUN}`,
+    role: "steward",
+    daysAhead: 1,
+  });
+  const workerId = await addSteward("acme", ERASED);
+  await addOfficeUser("acme", { ...REVIEWER, role: "resourcer" });
+  await addOfficeUser("acme", { email: ADMIN, name: "Strikes Admin", role: "admin" });
+  try {
+    const { assignmentId } = await bookAndCancel("acme", {
+      shiftId,
+      workerId,
+      reason: "Travel problem",
+      warning: "strike",
+    });
+    await eraseCasual("acme", { workerId, adminEmail: ADMIN });
+    await officeLogin(page, REVIEWER.email);
+    await page.goto(`${acme}/office/cancellations/${assignmentId}`);
+    await expect(
+      page.getByRole("heading", { name: /^Strike: Issued \(counts until/ }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("This casual's details were deleted, so their strikes can't be withdrawn."),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Withdraw strike…" })).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Keep strike" }).click();
+    await expect(page.getByText(/^Kept after a review by Strikes Reviewer at /)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Keep strike" })).toHaveCount(0);
+    await expect(page.getByRole("status")).toHaveText("Kept, and marked as reviewed.");
+  } finally {
+    await cancelOwnShift("acme", shiftId);
+  }
+});
+
+// The withdraw form is open when someone else withdraws the strike: "Withdraw strike" then answers
+// that it's already withdrawn, the record refreshes, the form closes and the answer stays (19.1).
+test("withdrawing a strike someone else has just withdrawn says so, and the form closes", async ({
+  page,
+}) => {
+  const { shiftId } = await addEventWithSession("acme", {
+    name: `Strikes Late Event ${RUN}`,
+    site: `Strikes Late Hall ${RUN}`,
+    role: "steward",
+    daysAhead: 1,
+  });
+  const workerId = await addSteward("acme", LATE);
+  await addOfficeUser("acme", { ...SECOND, role: "resourcer" });
+  await addOfficeUser("acme", { email: ADMIN, name: "Strikes Admin", role: "admin" });
+  try {
+    const { assignmentId } = await bookAndCancel("acme", {
+      shiftId,
+      workerId,
+      reason: "Travel problem",
+      warning: "strike",
+    });
+    await officeLogin(page, SECOND.email);
+    await page.goto(`${acme}/office/cancellations/${assignmentId}`);
+    await page.getByRole("button", { name: "Withdraw strike…" }).click();
+    await page.getByLabel("Why are you withdrawing it?").fill(REASON);
+    await withdrawStrikeAs("acme", {
+      assignmentId,
+      byEmail: ADMIN,
+      reason: "Withdrawn from another screen",
+    });
+
+    await page.getByRole("button", { name: "Withdraw strike", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "Strike: Issued, then withdrawn" }),
+    ).toBeVisible();
+    await expect(page.getByText(/^Withdrawn by Strikes Admin at /)).toBeVisible();
+    await expect(page.getByLabel("Why are you withdrawing it?")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Withdraw strike", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("status")).toHaveText("This strike has already been withdrawn.");
   } finally {
     await cancelOwnShift("acme", shiftId);
   }

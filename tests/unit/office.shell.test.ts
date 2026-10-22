@@ -37,10 +37,11 @@ const text = (html: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
-describe("the office menu (v2 groups; Phase 18's regrouping)", () => {
-  it("admins see every link, in groups: today's first, the records and settings folded", () => {
+describe("the office menu (v2 groups; Phases 18 and 20)", () => {
+  it("admins see every link, in groups: the dashboard and Needs attention first, then today's, the records and settings folded", () => {
     expect(labels("admin")).toEqual([
-      ["Today", ["Dashboard", "Events & sessions", "Cancellations", "Enquiries"]],
+      ["Home", ["Dashboard", "Needs attention"]],
+      ["Today", ["Events & sessions", "Cancellations", "Enquiries"]],
       ["Pay", ["Pay dashboard", "Pay queries", "Import pay records"]],
       ["People", ["Casuals", "Strikes", "Notice report"]],
       [
@@ -49,20 +50,28 @@ describe("the office menu (v2 groups; Phase 18's regrouping)", () => {
       ],
       ["Help", ["How-to guide"]],
     ]);
-    expect(officeMenu("admin").map((g) => [g.label, g.folded ?? false, g.bottom ?? false])).toEqual(
-      [
-        ["Today", false, false],
-        ["Pay", false, false],
-        ["People", false, false],
-        ["Admin and records", true, false],
-        ["Help", false, true],
-      ],
-    );
+    expect(
+      officeMenu("admin").map((g) => [
+        g.label,
+        g.folded ?? false,
+        g.bottom ?? false,
+        g.top ?? false,
+      ]),
+    ).toEqual([
+      // Phase 20: at the top, with no label of its own (Needs attention in the bell's place).
+      ["Home", false, false, true],
+      ["Today", false, false, false],
+      ["Pay", false, false, false],
+      ["People", false, false, false],
+      ["Admin and records", true, false, false],
+      ["Help", false, true, false],
+    ]);
   });
 
   it("resourcers don't see pay or configuration links", () => {
     expect(labels("resourcer")).toEqual([
-      ["Today", ["Dashboard", "Events & sessions", "Cancellations", "Enquiries"]],
+      ["Home", ["Dashboard", "Needs attention"]],
+      ["Today", ["Events & sessions", "Cancellations", "Enquiries"]],
       ["People", ["Casuals", "Strikes", "Notice report"]],
       ["Admin and records", ["Action log", "Pilot metrics"]],
       ["Help", ["How-to guide"]],
@@ -110,6 +119,22 @@ describe("the office menu (v2 groups; Phase 18's regrouping)", () => {
       words: "4 to check",
       needs: true,
     });
+    // Needs attention (Phase 20): the one count, its items and the enquiries that need a person,
+    // pale yellow; "50+" when a list stopped at 50; none when there's nothing or it couldn't be read.
+    expect(
+      menuBadges("resourcer", { ...counts, attention: { count: 9, more: false } })[
+        "/office/needs-attention"
+      ],
+    ).toEqual({ count: 9, more: false, words: "9 to deal with", needs: true });
+    expect(
+      menuBadges("admin", { ...counts, attention: { count: 50, more: true } })[
+        "/office/needs-attention"
+      ],
+    ).toEqual({ count: 50, more: true, words: "50+ to deal with", needs: true });
+    for (const attention of [null, { count: 0, more: false }])
+      expect(
+        menuBadges("admin", { ...counts, attention })["/office/needs-attention"],
+      ).toBeUndefined();
     // None: no badge.
     expect(menuBadges("admin", { payQueries: 0, needPerson: 0, uploads: 0 })).toEqual({});
     // Drawn: the yellow plate for one that needs you, the grey one otherwise.
@@ -125,6 +150,19 @@ describe("the office menu (v2 groups; Phase 18's regrouping)", () => {
     expect(badgeOf("/office/casuals")).toContain("bg-hivis text-on-hivis");
     expect(badgeOf("/office/pay-queries")).toContain("bg-raised text-ink-muted");
     expect(badgeOf("/office/pay-queries")).not.toContain("bg-hivis");
+    // "50+": the plus sits in the drawn count, the words say the same.
+    const more = renderToStaticMarkup(
+      createElement(OfficeNav, {
+        groups: officeMenu(
+          "admin",
+          menuBadges("admin", { ...counts, attention: { count: 50, more: true } }),
+        ),
+      }),
+    );
+    expect(more).toMatch(
+      /<a [^>]*href="\/office\/needs-attention"[^>]*>[\s\S]*?<span aria-hidden="true" class="[^"]*bg-hivis text-on-hivis[^"]*">50\+<\/span>/,
+    );
+    expect(more).toContain('<span class="sr-only">50+ to deal with</span>');
   });
 
   it("links have no query strings (tests compare the address after a click)", () => {
@@ -139,6 +177,8 @@ describe("the current page in the menu", () => {
     ["/office", "/office"],
     ["/office/today", "/office"],
     ["/office/offer/11111111-1111-4111-8111-111111111111", "/office"],
+    // Needs attention marks its own link (Phase 20; the dashboard's before).
+    ["/office/needs-attention", "/office/needs-attention"],
     // The shift pages sit inside Events & sessions (12B.5).
     ["/office/events", "/office/events"],
     ["/office/events/11111111-1111-4111-8111-111111111111", "/office/events"],
@@ -218,8 +258,8 @@ describe("the menu's markup", () => {
     expect(marked(html, "true")).toEqual([]);
     expect(marked(html, "page")).toHaveLength(1);
     expect(marked(html, "page")[0]).toContain('href="/office/events"');
-    // Phase 18: lifted off the menu's ground, on the card colour with a hairline, in bold.
-    expect(marked(html, "page")[0]).toMatch(/bg-card font-semibold text-ink ring-1 ring-line/);
+    // Phases 18 and 20: lifted off the menu's ground on the card colour, in bold.
+    expect(marked(html, "page")[0]).toMatch(/bg-card font-semibold shadow-lift/);
     expect(marked(html, "page")[0]).not.toMatch(/before:/);
   });
 

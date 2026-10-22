@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { HomeView, type HomeViewProps } from "@/app/home-view";
 import { BookedView, type BookedViewProps } from "@/app/shifts/booked-view";
 import { TabBar } from "@/app/tab-bar";
-import { staffBtn, staffBtnSmall, switchTrack, tapRow } from "@/app/ui/classes";
+import { staffBtn, switchTrack } from "@/app/ui/classes";
 import { payWords, roleAndEvent } from "@/lib/portal/format";
 import type { OpenShift, OpenShiftsList } from "@/lib/portal/open-shifts";
 import { isOnNow, mapLink, roleLabel, shiftWhen, siteAddress } from "@/lib/portal/format";
@@ -85,6 +85,7 @@ const shift = (o: Partial<MyShift> & Pick<MyShift, "startsAt" | "endsAt">): MySh
 });
 
 const base: BookedViewProps = {
+  firmName: "Acme Events",
   timeZone: TZ,
   now: at("2026-11-02T09:00:00Z"),
   view: "upcoming",
@@ -104,6 +105,9 @@ const noOpen: OpenShiftsList = {
 };
 const homeBase: HomeViewProps = {
   firstName: "Sam",
+  firmName: "Acme Events",
+  // The Friday after the week of Mon 2 Nov (D8).
+  payDay: "2026-11-13",
   timeZone: TZ,
   now: at("2026-11-02T09:00:00Z"),
   next: null,
@@ -124,7 +128,9 @@ const text = (html: string) =>
 describe("Home and Booked: the empty pages", () => {
   it("Home greets her, and says so plainly when nothing is booked, with a way to open shifts", () => {
     const html = home({});
-    expect(text(html)).toContain("Hello Sam");
+    // Phase 20: "Hi Sam", in the greeting's serif.
+    expect(text(html)).toContain("Hi Sam");
+    expect(html).toMatch(/<h1 class="font-greet text-4xl text-ink">Hi Sam<\/h1>/);
     expect(text(html)).toContain("Updated 09:00");
     // Phase 18: an empty pass, and the way to find a shift.
     expect(text(html)).toContain(
@@ -132,10 +138,10 @@ describe("Home and Booked: the empty pages", () => {
     );
     expect(html).toMatch(/<a class="[^"]*bg-brand[^"]*" href="\/shifts\/open">Find a shift<\/a>/);
     expect(text(html)).toContain(
-      "No open shifts right now We'll message you when something matches.",
+      "To apply for None right now We'll message you when something matches.",
     );
     expect(text(home({ open: { ...noOpen, offerAlerts: false } }))).toContain(
-      "No open shifts right now Check back later.",
+      "To apply for None right now Check back later.",
     );
   });
   it("Booked is on the Shifts tab: Open | Booked, then Upcoming | Past 30 days at /shifts", () => {
@@ -182,23 +188,23 @@ describe("Booked: the bookings themselves", () => {
     });
     const html = render({ shifts: [next, later] });
     const words = text(html);
-    // A hairline card, like Home's (Phase 17), with its date tile and the time in sign figures
-    // (Phase 18).
+    // Phase 20: the same pass as Home's, its heading shown above it.
     expect(html).toMatch(
-      /<section aria-labelledby="next-heading" class="mt-6 rounded-2xl bg-card p-4 border border-line">/,
+      /<section aria-labelledby="next-heading" data-pass="" class="flex flex-col gap-3">/,
     );
-    expect(words).toContain("Your next shift");
-    expect(html).toContain('role="img" aria-label="Saturday 7 November"');
-    expect(words).toContain("Sat 7 Nov 14:00–22:00 Door supervisor");
+    expect(html).toMatch(/<h2 id="next-heading" class="text-lg[^"]*">Your next shift<\/h2>/);
+    expect(words).toContain(
+      "Acme Events In 5 days Saturday 7 November 14:00–22:00 Door supervisor",
+    );
     expect(words).toContain("Demo Arena");
-    expect(words).toContain("1 Test Road, Leeds, LS1 1AA");
+    expect(words).toContain("Demo Arena, 1 Test Road, Leeds, LS1 1AA");
     expect(html).toContain(
       'href="https://www.google.com/maps/search/?api=1&amp;query=Demo%20Arena',
     );
     expect(words).toContain("Open in maps");
     expect(words).toContain("Instructions");
     expect(words).toContain("Report to Gate C at 13:30.");
-    expect(words).toContain("Coming up");
+    expect(words).toContain("Later");
     expect(words).toContain("Sat 14 09:00–17:00 Steward Demo Racecourse");
     // Every upcoming shift opens to its own details (no JavaScript: <details>).
     expect(html).toMatch(/<details>.*Demo Racecourse.*<\/details>/s);
@@ -223,13 +229,16 @@ describe("Booked: the bookings themselves", () => {
         shift({ startsAt: at("2026-11-08T14:00:00Z"), endsAt: at("2026-11-08T22:00:00Z") }),
       ],
     });
-    // Phase 18: "Can't make it?" opens the sheet that cancels it.
+    // Phase 18: "Can't make it?" opens the sheet that cancels it (on the pass, one of its three
+    // buttons: Phase 20).
     expect(html.match(/>Can&#x27;t make it\?</g)).toHaveLength(2);
-    // And "Ask for a change" (a time change or swap request) for each, side by side with it.
+    // And "Ask for a change" (a time change or swap request) for each: in the pass's Details, and
+    // side by side with it on a later row.
     expect(html.match(/href="\/requests\/new\?shift=[^"]+"[^>]*>Ask for a change</g)).toHaveLength(
       2,
     );
-    expect(html.match(/<div class="mt-3 grid grid-cols-2 gap-2.5">/g)).toHaveLength(2);
+    expect(html.match(/<div class="mt-3 grid grid-cols-2 gap-2.5">/g)).toHaveLength(1);
+    expect(html).toMatch(/<\/svg>Can&#x27;t make it\?<\/button>/);
   });
   it("shows the last 30 days with what happened, or says there's nothing", () => {
     const worked = shift({
@@ -270,12 +279,14 @@ describe("Booked: the bookings themselves", () => {
       expect(marked).toEqual([
         { home: "/", shifts: "/shifts", pay: "/pay", profile: "/profile" }[current],
       ]);
-      // Its icon on a pill of the firm's pale tint, its word bold in the firm's colour (Phase 18):
-      // not colour alone.
+      // Its icon on a pill filled in the firm's colour, its word bold (Phase 20): not colour alone.
       const here = links.find((m) => m[0].includes('aria-current="page"'))?.[0] ?? "";
-      expect(here).toMatch(/<span class="[^"]*(?<![\w-])bg-brand-soft(?![\w-])/);
-      expect(here).toMatch(/class="[^"]*font-semibold text-brand-ink/);
-      expect(html.match(/bg-brand-soft/g)).toHaveLength(1);
+      expect(here).toMatch(/<span class="[^"]*(?<![\w-])bg-brand text-on-brand(?![\w-])/);
+      expect(here).toMatch(/class="[^"]*font-semibold text-ink/);
+      expect(html.match(/bg-brand text-on-brand/g)).toHaveLength(1);
+      // It floats over the page: the bar depth token, no line.
+      expect(html).toMatch(/<nav aria-label="Main" class="[^"]*shadow-bar"/);
+      expect(html).not.toContain("border-t");
       // The words at 15px.
       expect(html.match(/text-base/g)?.length).toBeGreaterThanOrEqual(4);
       expect(html).toContain('aria-label="Main"');
@@ -295,7 +306,7 @@ describe("Booked: the bookings themselves", () => {
       renderToStaticMarkup(createElement(TabBar, { current: "home", profileCount: 1 })),
     ).toContain('aria-label="Profile, 1 thing needs doing"');
   });
-  it("names the later list 'Coming up', with its count beside the heading, not in it", () => {
+  it("names the later list 'Later', with its count beside the heading, not in it; kept, with Find open shifts, when nothing else is booked", () => {
     const html = render({
       shifts: [
         shift({ startsAt: at("2026-11-07T14:00:00Z"), endsAt: at("2026-11-07T22:00:00Z") }),
@@ -305,7 +316,14 @@ describe("Booked: the bookings themselves", () => {
     });
     // The section is named by the heading's words alone; the 2 sits right after the </h2>.
     expect(html).toContain('aria-labelledby="later-heading"');
-    expect(html).toMatch(/<h2 id="later-heading"[^>]*>Coming up<\/h2><span[^>]*>2<\/span>/);
+    expect(html).toMatch(/<h2 id="later-heading"[^>]*>Later<\/h2><span[^>]*>2<\/span>/);
+    // Nothing else booked: "Later" keeps its place, says so, with the way to open shifts.
+    const one = render({
+      shifts: [shift({ startsAt: at("2026-11-07T14:00:00Z"), endsAt: at("2026-11-07T22:00:00Z") })],
+    });
+    expect(one).toMatch(/<h2 id="later-heading"[^>]*>Later<\/h2><\/div>/);
+    expect(text(one)).toContain("Later Nothing else booked yet. Find open shifts");
+    expect(one).toMatch(/<a class="[^"]*" href="\/shifts\/open">Find open shifts<svg/);
   });
 
   it("gives every bullet-free list role=list, so Safari still announces it as a list", () => {
@@ -341,15 +359,15 @@ describe("Booked: the bookings themselves", () => {
       "Needs doing now 5 things need doing SIA door supervisor licence expires on 5 Nov, and your door supervisor shift on Fri 6 Nov needs it. Upload the new one, or contact the office. And 4 more.",
     );
     expect(many).toMatch(/href="\/profile"/);
-    // Something that stops her working: a red tile; otherwise sign yellow.
-    expect(many).toContain("bg-urgent-fill");
+    // Something that stops her working: a pale red tile; otherwise the to-do yellow (Phase 20).
+    expect(many).toContain("bg-urgent-tile text-urgent-ink");
     // One she can sort herself: straight to its upload.
     const one = row(home({ needs: EVERY_LEVEL.slice(3, 4) })) ?? "";
     expect(text(one)).toContain(
       "Needs doing Renew your SIA security guard licence SIA security guard licence expires on 25 Nov. Renew it to keep getting security officer shifts.",
     );
     expect(one).toContain('href="/profile/upload/SIA_SG"');
-    expect(one).toContain("bg-hivis");
+    expect(one).toContain("bg-hivis text-on-hivis");
     // One the office records (CSAS): to Profile.
     expect(row(home({ needs: EVERY_LEVEL.slice(4) })) ?? "").toContain('href="/profile"');
     // Nothing to do: no row.
@@ -416,7 +434,7 @@ const open = (o: Partial<OpenShift> & { shiftId: string }): OpenShift => ({
 });
 
 describe("Home: what she can take, and her next shift in full", () => {
-  it("For you: the urgent shifts she can take, then the others she can apply for, each one row", () => {
+  it("For you: the urgent shifts she can take, then the others she can apply for, then pay day, each one tile", () => {
     const shifts = [
       open({ shiftId: "u1", isUrgent: true, payRatePence: 1550 }),
       open({ shiftId: "u2", isUrgent: true, startsAt: at("2026-11-08T09:30:00Z") }),
@@ -431,12 +449,13 @@ describe("Home: what she can take, and her next shift in full", () => {
       (m) => [m[1], text(m[2] ?? "").trim()],
     );
     expect(rowsOf).toEqual([
-      ["urgent", "Urgent 2 shifts you can take Sat 7 and Sun 8 Nov, up to £15.50 an hour"],
+      ["urgent", "Urgent near you 2 shifts Sat 7 and Sun 8 Nov, up to £15.50 an hour"],
       [
         "offline",
-        "Open shifts need signal 2 were urgent at 09:00 on Mon 2 Nov. We'll check again when you're online.",
+        "Open shifts Need signal 2 were urgent at 09:00 on Mon 2 Nov. We'll check again when you're online.",
       ],
-      ["apply", "3 more shifts you can apply for Sat 7 and Tue 10 Nov"],
+      ["apply", "More to apply for 3 shifts Sat 7 and Tue 10 Nov"],
+      ["pay", "Pay day Fri 13 Nov For this week's shifts"],
     ]);
     expect(section).toMatch(
       /<li data-online-only="" data-for-you="urgent"><a class="[^"]*" href="\/urgent"/,
@@ -445,21 +464,28 @@ describe("Home: what she can take, and her next shift in full", () => {
     expect(section).toMatch(
       /<li data-online-only="" data-for-you="apply"><a class="[^"]*" href="\/shifts\/open"/,
     );
-    // One card of rows (Phase 17), each a big tap target with its tile.
-    expect(section).toContain(
-      '<ul role="list" class="divide-y divide-line overflow-hidden rounded-xl border border-line bg-card">',
-    );
-    expect(
-      section.match(new RegExp(tapRow.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")),
-    ).toHaveLength(2);
+    // Tiles two to a row (Phase 20), each in the colour of what it is, lifted off the page.
+    expect(section).toContain('<ul role="list" class="grid grid-cols-2 gap-2.5">');
+    const tone = (kind: string) =>
+      new RegExp(`data-for-you="${kind}"><(?:a|div) class="([^"]*)"`).exec(section)?.[1] ?? "";
+    expect(tone("urgent")).toContain("bg-urgent-tile text-urgent-ink");
+    expect(tone("offline")).toContain("bg-raised text-ink");
+    expect(tone("apply")).toContain("bg-wait-tile text-wait-ink");
+    expect(tone("pay")).toContain("bg-done-tile text-done-ink");
+    for (const kind of ["urgent", "offline", "apply", "pay"])
+      expect(tone(kind)).toContain("shadow-lift");
+    expect(section).toMatch(/<li data-for-you="pay"><a class="[^"]*" href="\/pay"/);
     // No shift's own travel line on Home: that's on each shift.
     expect(html).not.toContain("data-travel-line");
   });
-  it("with no home area: a row to add one", () => {
+  it("with no home area: a tile to add one, in the waiting blue", () => {
     const html = home({ open: { ...noOpen, area: null, shifts: [open({ shiftId: "a1" })] } });
     const at = html.indexOf('data-for-you="area"');
     expect(text(html.slice(at, html.indexOf("</li>", at)))).toContain(
-      "Add your home area Add your home area to see how far each shift is",
+      "Your home area Add your home area Add your home area to see how far each shift is",
+    );
+    expect(html.slice(at, html.indexOf("</li>", at))).toMatch(
+      /^data-for-you="area"><a class="[^"]*shadow-lift bg-wait-tile text-wait-ink[^"]*"/,
     );
     expect(html.slice(at)).toContain('href="/profile/travel"');
     expect(text(home({ open: { ...noOpen, shifts: [open({ shiftId: "a1" })] } }))).not.toContain(
@@ -495,49 +521,82 @@ describe("Home: what she can take, and her next shift in full", () => {
     const html = home({ next });
     const card = html.slice(html.indexOf('aria-labelledby="next-heading"'));
     const pass = card.slice(0, card.indexOf("</section>"));
-    // The pass: the band, then when, what and where, closed; a <details> (no JavaScript needed).
+    // Phase 20: the pass is a card in the firm's colour, lifted off the page; its heading is for
+    // screen readers (the pass speaks for itself).
     expect(pass).toMatch(
-      /^aria-labelledby="next-heading" data-pass="" class="overflow-hidden rounded-2xl border border-line bg-card shadow-pass">/,
+      /^aria-labelledby="next-heading" data-pass="" class="flex flex-col gap-3">/,
     );
-    const summary = pass.slice(pass.indexOf("<summary"), pass.indexOf("</summary>"));
-    expect(summary).toContain(
-      'aria-label="Steward, Saturday 7 November, 14:00 to 22:00, Raceday, Gate B. Details"',
-    );
-    expect(text(pass.slice(0, pass.indexOf("<details")))).toContain("Your next shift In 5 days");
-    expect(text(summary)).toContain("Sat 7 Nov 14:00–22:00 Steward");
-    // Closed, no travel time: a drive alone would mislead someone without a car (12G.3).
-    expect(text(summary)).toContain("Raceday Demo Arena Gate B Details Hide details");
-    expect(text(summary)).not.toContain("by car");
-    // Opened: the address, getting there as three figures, report to, the uniform as tiles (hi-vis
-    // first), the pay, the instructions, then the actions.
-    const details = text(pass.slice(pass.indexOf("</summary>")));
-    expect(details).toContain("Gate B Raceday 1 Test Road, Leeds, LS1 1AA");
-    expect(details).toContain("3.1 miles · 12 min by car · 24 min by public transport");
-    expect(details).toContain("12 min by car 24 min by public transport 3.1 mi away");
-    expect(details).toContain("Report to Staff entrance, Gate B");
-    expect(details).toContain("Bring and wear Hi-vis tabard We provide it Black trousers");
-    expect(pass).toMatch(/<li class="[^"]*col-span-2 bg-hivis text-on-hivis">/);
-    expect(details).toContain("Pay £12.60 an hour, about £100.80");
-    expect(details).toContain("Instructions Ask for the steward lead.");
-    expect(pass).toMatch(/class="[^"]*">.*Open in maps<\/a>/);
-    expect(pass).toContain(`class="${staffBtn.primary}"`);
-    const pair =
-      /<div class="grid grid-cols-2 gap-2.5">(.*?)<\/div><\/div><\/div><\/details>/.exec(
+    expect(pass).toContain('<h2 id="next-heading" class="sr-only">Your next shift</h2>');
+    const band =
+      /<div class="[^"]*rounded-3xl bg-brand-bar[^"]*text-on-brand-bar shadow-pass[^"]*">([\s\S]*?)<\/div><div class="grid/.exec(
         pass,
       )?.[1] ?? "";
-    expect(pair).toMatch(
+    // The firm and how soon; the date in words, the time large, the role and event; the gate on
+    // a white plate, and the place.
+    expect(text(band).trim()).toBe(
+      "A Acme Events In 5 days Saturday 7 November 14:00–22:00 Steward, Raceday Gate B Demo Arena",
+    );
+    expect(band).toMatch(/<p class="font-sign text-4xl leading-tight">14:00–22:00<\/p>/);
+    // The gate on a white plate (Phase 20), its words the band's colour (or ink on a pale band).
+    expect(band).toMatch(/<span class="[^"]*bg-pass-plate[^"]*text-on-pass-plate">Gate B<\/span>/);
+    expect(band).toMatch(/text-on-brand-bar-soft">In 5 days</);
+    // No travel time on the pass itself: a drive alone would mislead someone without a car (12G.3).
+    expect(text(band)).not.toContain("by car");
+    // Under it, one tap each: Directions (the maps link), Details, Can't make it?.
+    const buttons =
+      /<div class="grid auto-cols-fr grid-flow-col gap-2">([\s\S]*?)<\/div><div id="pass-details"/.exec(
+        pass,
+      )?.[1] ?? "";
+    expect(text(buttons).trim().replace(/\s+/g, " ")).toBe(
+      "Directions Details Hide details Can't make it?",
+    );
+    expect(buttons).toMatch(
+      /<a href="https:\/\/www\.google\.com\/maps\/search\/\?api=1&amp;query=Demo%20Arena[^"]*" target="_blank" rel="noopener noreferrer" class="[^"]*shadow-lift[^"]*">/,
+    );
+    // Details is a <details> whose summary is the button: it opens without JavaScript, and the
+    // card under the buttons shows while it's open (a :has() rule on the pass).
+    expect(buttons).toMatch(
+      /<details data-pass-more="" class="group"><summary aria-controls="pass-details" class="[^"]*"><svg[\s\S]*?<\/summary><\/details>/,
+    );
+    expect(buttons).toMatch(
+      /<button type="button" disabled="" class="[^"]*text-urgent-ink[^"]*"><svg[\s\S]*?<\/svg>Can&#x27;t make it\?<\/button>/,
+    );
+    expect(pass).toMatch(
+      /<div id="pass-details" class="[^"]*hidden animate-open \[\[data-pass\]:has\(\[data-pass-more\]\[open\]\)_&amp;\]:flex">/,
+    );
+    // The card: getting there as three figures, report to (with where), the uniform (what the firm
+    // gives in hi-vis yellow), the pay, the instructions, then Open in maps and Ask for a change.
+    const details = text(pass.slice(pass.indexOf('id="pass-details"'))).replace(/\s+/g, " ");
+    expect(details).toContain(
+      "Getting there, from your home area 3.1 miles · 12 min by car · 24 min by public transport 12 min by car 24 min by public transport 3.1 mi away",
+    );
+    expect(details).toContain(
+      "Report to Staff entrance, Gate B Demo Arena, 1 Test Road, Leeds, LS1 1AA",
+    );
+    expect(details).toContain("Bring and wear Hi-vis tabard We provide it Black trousers");
+    expect(pass).toMatch(/<span class="[^"]*bg-hivis[^"]*text-on-hivis">We provide it<\/span>/);
+    expect(details).toContain(
+      "Pay £12.60 an hour, about £100.80 £12.60 an hour About £100.80 for the 8 hours",
+    );
+    expect(details).toContain("Instructions Ask for the steward lead.");
+    expect(pass).toMatch(
       new RegExp(
-        `<a class="${staffBtnSmall.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}" href="/requests/new\\?shift=[^"]+">Ask for a change</a>`,
+        `<a href="[^"]*" target="_blank" rel="noopener noreferrer" class="${staffBtn.primary.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}">`,
       ),
     );
-    expect(pair).toMatch(
-      /<button type="button" disabled="" class="[^"]*text-urgent-ink">Can&#x27;t make it\?<\/button>/,
+    expect(details).toContain("Open in maps Ask for a change");
+    expect(pass).toMatch(
+      new RegExp(
+        `<a class="${staffBtn.secondary.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}" href="/requests/new\\?shift=[^"]+">Ask for a change</a>`,
+      ),
     );
     expect(text(html)).not.toContain("No shifts booked");
-    // On now: the band says so, and there's nothing to cancel.
+    // On now: the pass and its heading say so, and there's nothing to cancel or change.
     const onNow = home({ next, now: at("2026-11-07T15:00:00Z") });
-    expect(text(onNow)).toContain("On now On now");
+    expect(onNow).toContain('<h2 id="next-heading" class="sr-only">On now</h2>');
+    expect(text(onNow)).toContain("Acme Events On now Saturday 7 November");
     expect(onNow).not.toContain("Can&#x27;t make it?");
+    expect(onNow).not.toContain("Ask for a change");
   });
   it("puts pay and the event into words", () => {
     expect(payWords(1260, at("2026-11-07T14:00:00Z"), at("2026-11-07T22:00:00Z"))).toBe(
@@ -621,14 +680,15 @@ describe("Booked, after taking a shift (Phase 18)", () => {
     expect([marked(next), news(next)]).toEqual([1, 1]);
     const card = next.slice(
       next.lastIndexOf("<section", next.indexOf("Your next shift")),
-      next.indexOf("Coming up"),
+      next.indexOf('id="later-heading"'),
     );
-    expect(card).toContain("animate-move border-2 border-brand-ink");
-    expect(text(card)).toContain("New");
-    // It's later: its row under Coming up.
+    // The pass moves into its place (Phase 20: the pass itself), "New" beside its heading.
+    expect(card).toMatch(/rounded-3xl bg-brand-bar[^"]*animate-move"/);
+    expect(card).toMatch(/Your next shift<\/h2><span class="[^"]*">New<\/span>/);
+    // It's later: its row under Later.
     const later = render({ shifts: [first, second], newShiftId: second.shiftId });
     expect([marked(later), news(later)]).toEqual([1, 1]);
-    const rows = later.slice(later.indexOf("Coming up"));
+    const rows = later.slice(later.indexOf('id="later-heading"'));
     expect(rows).toMatch(/<li class="px-3\.5 animate-move rounded-xl border-2 border-brand-ink">/);
     // Not one of hers (or none given): nothing marked.
     for (const html of [

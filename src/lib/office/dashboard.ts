@@ -11,11 +11,12 @@ import { rulesSettingsSchema } from "../roster/eligibility-input";
 import { addDays, localDateOf, mondayOf, wallTimeOf, zonedToUtc } from "../time/zoned";
 import { loadCancellations } from "./cancellations";
 import type { CancellationRow } from "./cancellations-copy";
-import { waitingCount } from "./casuals";
-import { loadEnquiries, type EnquiryRow } from "./enquiries";
+import { waitingCount, waitingUploads, type WaitingUpload } from "./casuals";
+import { loadEnquiries, needPersonCount, type EnquiryRow } from "./enquiries";
 import { bookedJoin, loadEventCards, placeFree, urgentGap, type EventCardData } from "./events";
 import { officeUserMay, parts, type OfficeContext } from "./office-context";
 import {
+  LIST_MAX,
   loadBookingsToCheck,
   loadEvidence,
   loadSheetIssues,
@@ -127,6 +128,7 @@ export interface NeedsAttention {
   expired: ExpiredOnBooking[];
   expiredMore: boolean;
   uploads: number; // uploads waiting for a check (12F.2)
+  uploadList: WaitingUpload[]; // the first LIST_MAX of them, oldest first (Phase 20)
   evidence: TodayEvidence;
   plannerRefused: PlannerRefusal[];
   plannerRefusedMore: boolean;
@@ -185,6 +187,28 @@ export function needsCount(n: NeedsAttention): { count: number; more: boolean } 
       n.evidence.failedMore ||
       n.plannerRefusedMore,
   };
+}
+
+// One count of what needs a person in the office (Phase 20): Needs attention's items and the
+// enquiries that need a person, as the menu's "Needs attention" shows it and the dashboard's
+// headline adds the urgent places to.
+export function attentionCount(
+  n: NeedsAttention,
+  needPerson: number,
+): { count: number; more: boolean } {
+  const items = needsCount(n);
+  return { count: items.count + needPerson, more: items.more };
+}
+
+// Needs attention's page count from its parts: null when the items couldn't be read; "at least"
+// (`more`) when the enquiries that need a person couldn't be.
+export function attentionOf(
+  needs: Part<NeedsAttention>,
+  needPerson: Part<number>,
+): { count: number; more: boolean } | null {
+  if (!needs.ok) return null;
+  const n = attentionCount(needs.data, needPerson.ok ? needPerson.data : 0);
+  return { ...n, more: n.more || !needPerson.ok };
 }
 
 export async function part<T>(
@@ -557,6 +581,7 @@ export async function loadNeedsAttention(
     expired: expired.items,
     expiredMore: expired.more,
     uploads: await waitingCount(tx),
+    uploadList: await waitingUploads(tx, LIST_MAX),
     evidence: await loadEvidence(tx, now),
     plannerRefused: plannerRefused.items,
     plannerRefusedMore: plannerRefused.more,
@@ -638,8 +663,9 @@ export async function officeDashboard(ctx: OfficeContext): Promise<Dashboard | n
   );
 }
 
-// The bell in the top bar: how many items Needs attention holds (null for anyone without the
-// dashboard; a null count when it couldn't be read: the bell then shows no number).
+// Needs attention's items, for the menu's count (Phase 20; the bell's before): how many items it
+// holds (null for anyone without the dashboard; a null count when it couldn't be read: the menu
+// then shows no number). The layout adds the enquiries that need a person (attentionCount).
 export async function needsAttentionBell(
   ctx: OfficeContext,
 ): Promise<{ count: number | null; more: boolean } | null> {
@@ -655,10 +681,14 @@ export async function needsAttentionBell(
 
 // Needs attention on its own page (Phase 18; the bell opens it), for an admin or resourcer, or
 // null (anyone else, or logged out): its items, or that they couldn't be read.
+// Phase 20: with the enquiries that need a person (they count here too) and the urgent places
+// ("Also needs you"), so the page's count and the dashboard's add up.
 export async function officeNeedsAttention(ctx: OfficeContext): Promise<{
   timeZone: string;
   today: string;
   needs: Part<NeedsAttention>;
+  needPerson: Part<number>;
+  urgent: DashboardCounts["urgent"];
 } | null> {
   const { run } = parts(ctx);
   const now = (ctx.clock ?? systemClock).now();
@@ -669,6 +699,8 @@ export async function officeNeedsAttention(ctx: OfficeContext): Promise<{
       timeZone,
       today: localDateOf(now, timeZone),
       needs: await part(tx, "needs", (sp) => loadNeedsAttention(sp, now, timeZone)),
+      needPerson: await part(tx, "need-person", (sp) => needPersonCount(sp, now)),
+      urgent: await part(tx, "urgent-count", (sp) => urgentCount(sp, now)),
     };
   });
 }

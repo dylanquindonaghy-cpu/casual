@@ -17,7 +17,9 @@ const settled = (status: string) =>
 // casual's details were deleted) and, until someone has reviewed it, "Keep strike" (on any live
 // strike, flagged or not, so the log's entry doesn't tell which were flagged). The page is
 // refreshed after every answer but an error, so it shows where the strike stands. Waits for the
-// page (docs/ui-design.md "Forms wait for the page").
+// page (docs/ui-design.md "Forms wait for the page"). The page always renders it in the same place
+// (it shows nothing without a button or an answer), so an answer stays on screen after that
+// refresh, when the strike no longer takes the button that gave it (19.1).
 export function StrikeActions({
   assignmentId,
   canWithdraw,
@@ -34,9 +36,12 @@ export function StrikeActions({
   const [pending, startTransition] = useTransition();
   const ready = useHydrated();
   const busy = pending || !ready;
+  if (!canWithdraw && !canKeep && !message) return null;
+  // The form closes once the strike can't be withdrawn (withdrawn, or the casual's details deleted).
+  const asking = open && canWithdraw;
   return (
     <div className="flex flex-col gap-3">
-      {!open && (
+      {!asking && (canWithdraw || canKeep) && (
         <div className="flex flex-wrap gap-3">
           {canWithdraw && (
             <button
@@ -69,7 +74,7 @@ export function StrikeActions({
           )}
         </div>
       )}
-      {open && (
+      {asking && (
         <form
           className="flex max-w-xl flex-col gap-3"
           onSubmit={(e) => {

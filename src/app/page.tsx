@@ -4,6 +4,7 @@ import { requireWorker } from "@/lib/auth/current-worker";
 import { appEnv, offlineCopyOn } from "@/lib/env";
 import { myNeedsAndPhoto, myShifts, needsDoingCount } from "@/lib/portal/my-shifts";
 import { openShiftsFor } from "@/lib/portal/open-shifts";
+import { payWeekNow } from "@/lib/pay/pay-week";
 import { parseHost } from "@/lib/tenancy/host";
 import { HomeView } from "./home-view";
 import { OfflineCopy } from "./offline-copy";
@@ -36,12 +37,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
         <OfflineCopy enabled={offlineCopyOn(appEnv())} renderedAt={now.getTime()} />
         <HomeView
           firstName={worker.firstName}
+          firmName={firm.name}
           timeZone={firm.timezone}
           now={now}
           next={upcoming[0] ?? null}
           needs={needs.needs}
           photo={needs.photo}
           open={open}
+          payDay={payWeekNow(now, firm.timezone).payDay}
         />
         <TabBarSpace />
         <TabBar current="home" profileCount={needsDoingCount(needs)} />

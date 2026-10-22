@@ -319,6 +319,7 @@ describe("the Needs attention item: the dashboard's row and the Needs attention 
     expired: [],
     expiredMore: false,
     uploads: 0,
+    uploadList: [],
     evidence,
     plannerRefused: [],
     plannerRefusedMore: false,
@@ -342,7 +343,13 @@ describe("the Needs attention item: the dashboard's row and the Needs attention 
   });
   // The dashboard's rows are the same for admins and resourcers.
   const dashboard = (v: Dashboard) =>
-    renderToStaticMarkup(createElement(DashboardContent, { d: v }));
+    renderToStaticMarkup(
+      createElement(DashboardContent, {
+        d: v,
+        firmName: "Acme Events",
+        now: new Date("2026-11-02T10:00:00Z"),
+      }),
+    );
   // The Needs attention page's items (the page around them only loads the data).
   const render = (v: Dashboard, isAdmin: boolean) =>
     renderToStaticMarkup(
@@ -382,14 +389,14 @@ describe("the Needs attention item: the dashboard's row and the Needs attention 
     ).not.toContain("Strike evidence");
   });
 
-  it("an unconfirmed address and a failed email: its part, its count (the bell's too), each linking where it's dealt with", () => {
+  it("an unconfirmed address and a failed email: its part, its count (the menu's too), each linking where it's dealt with", () => {
     const evidence = { addressConfirmed: false, waiting: 2, failed: [failed], failedMore: false };
     const v = view(evidence);
     const admin = render(v, true);
     expect(admin).toContain('<h3 id="evidence"');
     expect(text(admin)).toContain("Strike evidence 2");
     expect(needsCount(needs(evidence))).toEqual({ count: 2, more: false });
-    // On the dashboard, a row in "After that" with its count, to its part of Needs attention.
+    // On the dashboard, a row in its Needs attention with its count, to its part of the page.
     expect(text(dashboard(v))).toContain(
       "Strike evidence Strike records the strikes team hasn't had 2",
     );

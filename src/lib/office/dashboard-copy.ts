@@ -124,10 +124,6 @@ export function urgentLine(s: Pick<UrgentSessionCard, "offered" | "stopped">): s
 // On a hidden event's card when it has an urgent gap.
 export const HIDDEN_WARNING = "Hidden from casuals: nobody can see this gap.";
 
-// The bell in the top bar: its accessible name and the number it shows.
-export const bellLabel = (n: number | null, more: boolean) =>
-  n === null ? "Needs attention" : `Needs attention, ${more ? `${n}+` : n}`;
-
 // Needs attention's parts, each a heading over its items (only when it has some).
 export const NEEDS_HEADINGS = {
   "to-check": "Bookings to check",
@@ -138,6 +134,8 @@ export const NEEDS_HEADINGS = {
   evidence: "Strike evidence",
   "planner-refused": "Your planner's change was refused",
   webhook: "Your planner's webhook is failing",
+  // Phase 20: counted with Needs attention's items (the one count).
+  enquiries: "Enquiries that need a person",
 } as const;
 export type NeedsKey = keyof typeof NEEDS_HEADINGS;
 

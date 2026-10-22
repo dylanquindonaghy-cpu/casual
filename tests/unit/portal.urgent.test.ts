@@ -57,8 +57,13 @@ describe("the urgent board", () => {
     const words = text(html);
     expect(words).toContain("Urgent shifts");
     expect(words).toContain("Shifts starting soon that need someone now.");
-    // Phase 18's card: the date tile, "Urgent." read out, the time, the role, then where.
-    expect(words).toContain("Sat 7 Urgent. 08:00–16:00 Door supervisor Acme Demo Arena");
+    // The card (Phases 18 and 20): the date tile, "Urgent." read out, the time, the role, then
+    // where; the date tile pale red, the places left red.
+    expect(words).toContain("Sat 7 Nov Urgent. 08:00–16:00 Door supervisor Acme Demo Arena");
+    expect(html).toMatch(/<span aria-hidden="true" class="[^"]*bg-urgent-tile text-urgent-ink">/);
+    expect(html).toMatch(
+      /<span class="text-base font-semibold text-urgent-ink">1 place left<\/span>/,
+    );
     expect(html).toContain('<span class="sr-only">Urgent. </span>');
     expect(words).toContain("1 place left");
     expect(html).toMatch(/<a class="[^"]*" href="\/shifts\/11111111-1111-4111-8111-111111111111">/);
@@ -113,6 +118,8 @@ describe("Home", () => {
     text(
       renderToStaticMarkup(
         createElement(HomeView, {
+          firmName: "Acme Events",
+          payDay: "2026-11-13",
           firstName: "Sam",
           timeZone: TZ,
           now: NOW,
@@ -127,9 +134,12 @@ describe("Home", () => {
   it("shows the urgent shifts the worker could take as one row, in plain words, to the urgent board", () => {
     const shifts = [shift(), shift({ shiftId: "33333333-3333-4333-8333-333333333333" })];
     const words = home(shifts);
-    expect(words).toContain("For you Urgent 2 shifts you can take Sat 7 Nov");
+    // A tile (Phase 20): near you, as her home area chose them.
+    expect(words).toContain("For you Urgent near you 2 shifts Sat 7 Nov");
     const html = renderToStaticMarkup(
       createElement(HomeView, {
+        firmName: "Acme Events",
+        payDay: "2026-11-13",
         firstName: "Sam",
         timeZone: TZ,
         now: NOW,

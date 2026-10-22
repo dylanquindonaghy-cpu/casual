@@ -52,6 +52,8 @@ const home = (shifts: OpenShift[]) => {
   };
   return renderToStaticMarkup(
     createElement(HomeView, {
+      firmName: "Acme Events",
+      payDay: "2026-11-13",
       firstName: "Zoe",
       timeZone: TZ,
       now: NOW,
@@ -69,7 +71,7 @@ const text = (html: string) =>
     .trim();
 
 describe("Home's open shifts, in For you", () => {
-  it("the urgent ones as one row to the urgent board, the others as one row to Open shifts; no shift's requirements", () => {
+  it("the urgent ones as one tile to the urgent board, the others as one tile to Open shifts; no shift's requirements", () => {
     const html = home([
       shift(1, {
         isUrgent: true,
@@ -84,20 +86,25 @@ describe("Home's open shifts, in For you", () => {
       html.match(new RegExp(`<li[^>]*data-for-you="${key}"[^>]*>.*?</li>`))?.[0] ?? "";
     expect(row("urgent")).toContain('href="/urgent"');
     expect(row("urgent")).toContain("data-online-only");
-    expect(text(row("urgent"))).toBe("Urgent 1 shift you can take Sat 7 Nov");
+    // Near you: her home area chose them (Phase 20: a tile, its label, its count, its days).
+    expect(text(row("urgent"))).toBe("Urgent near you 1 shift Sat 7 Nov");
     expect(row("apply")).toContain('href="/shifts/open"');
-    expect(text(row("apply"))).toBe("1 more shift you can apply for Sat 7 Nov");
+    expect(text(row("apply"))).toBe("More to apply for 1 shift Sat 7 Nov");
     // The kept copy says they need signal instead (shown only there), with the day it was saved.
     expect(row("offline")).toContain("data-offline-only");
     expect(text(row("offline"))).toBe(
-      "Open shifts need signal 1 was urgent at 09:00 on Mon 2 Nov. We&#x27;ll check again when you&#x27;re online.",
+      "Open shifts Need signal 1 was urgent at 09:00 on Mon 2 Nov. We&#x27;ll check again when you&#x27;re online.",
     );
+    // Pay day (Phase 20): the pay week's Friday, to the Pay tab, online and offline.
+    expect(row("pay")).toContain('href="/pay"');
+    expect(row("pay")).not.toMatch(/data-o(n|ff)line-only/);
+    expect(text(row("pay"))).toBe("Pay day Fri 13 Nov For this week&#x27;s shifts");
     expect(html).not.toContain("data-requirements");
     expect(text(html)).not.toMatch(/SIA DS|CSAS/);
     // Nothing urgent: no urgent row, and the others are "shifts you can apply for".
     const calm = home([shift(2, {})]);
     expect(calm).not.toContain('data-for-you="urgent"');
-    expect(text(calm)).toContain("1 shift you can apply for Sat 7 Nov");
+    expect(text(calm)).toContain("To apply for 1 shift Sat 7 Nov");
   });
 });
 
@@ -105,6 +112,8 @@ describe("Home with travel areas switched off for the firm (13.4)", () => {
   it("no 'up to N minutes' line, no prompt for an area and no travel lines", () => {
     const html = renderToStaticMarkup(
       createElement(HomeView, {
+        firmName: "Acme Events",
+        payDay: "2026-11-13",
         firstName: "Zoe",
         timeZone: TZ,
         now: NOW,
@@ -130,16 +139,19 @@ describe("Home with travel areas switched off for the firm (13.4)", () => {
     expect(html).not.toContain("data-travel-line");
     expect(html).not.toContain('href="/profile/travel"');
     expect(html).not.toContain('data-for-you="area"');
-    // The open shifts still show, without how far.
-    expect(words).toContain("1 shift you can take Sat 7 Nov");
-    expect(words).toContain("1 more shift you can apply for Sat 7 Nov");
+    // The open shifts still show, without how far (and not "near you": there's no area).
+    expect(words).toContain("Urgent 1 shift Sat 7 Nov");
+    expect(words).not.toContain("Urgent near you");
+    expect(words).toContain("More to apply for 1 shift Sat 7 Nov");
   });
 });
 
-describe("For you: at most four rows", () => {
-  it("with everything at once: urgent, needs doing, her home area, the rest; offline, one row instead of the urgent one", () => {
+describe("For you: at most five tiles", () => {
+  it("with everything at once: urgent, needs doing, her home area, the rest, pay day; offline, one tile instead of the urgent one", () => {
     const html = renderToStaticMarkup(
       createElement(HomeView, {
+        firmName: "Acme Events",
+        payDay: "2026-11-13",
         firstName: "Zoe",
         timeZone: TZ,
         now: NOW,
@@ -163,14 +175,15 @@ describe("For you: at most four rows", () => {
       online: (m[1] ?? "").includes("data-online-only"),
       offline: (m[1] ?? "").includes("data-offline-only"),
     }));
-    // Online (the offline row hidden): four, in this order.
+    // Online (the offline tile hidden): five, in this order.
     expect(rows.filter((r) => !r.offline).map((r) => r.kind)).toEqual([
       "urgent",
       "needs",
       "area",
       "apply",
+      "pay",
     ]);
-    // In the kept copy (online rows hidden): the offline row and what needs doing.
-    expect(rows.filter((r) => !r.online).map((r) => r.kind)).toEqual(["offline", "needs"]);
+    // In the kept copy (online tiles hidden): the offline tile, what needs doing and pay day.
+    expect(rows.filter((r) => !r.online).map((r) => r.kind)).toEqual(["offline", "needs", "pay"]);
   });
 });

@@ -13481,3 +13481,145 @@ picks it up within a few minutes of the image being built. Then open
 `https://acme.staffingresourcingtest.uk` on your phone (Home, Shifts) and
 `https://acme.staffingresourcingtest.uk/office` on a laptop (Dashboard, Needs attention, Events &
 sessions).
+
+## 2026-10-21 · Phase 19: the strike's answer stays on screen (19.1)
+
+Time spent: 1.2 hours (see the Hours log in PLAN.md).
+
+### The result
+
+- Verify: `VERIFIED tree=bace7884f6b1e3b6 e2e=true` (the check script, with the browser tests, on
+  the files the auditor read; the tick and these notes came after it).
+- Tests: 5,159 unit and integration tests pass, none skipped; 96 browser tests and the boss
+  walkthrough's 6 pass.
+- Auditor: round 1 NOT DONE: the code did what the task says, but three behaviours had no test
+  (which buttons a deleted casual's or a withdrawn strike's record shows; "Kept, …" outliving the
+  refresh on a deleted casual's strike; the withdraw form closing once the strike can't be
+  withdrawn). Round 2, after those tests: DONE, every claim proven, no fakes.
+
+### What was wrong, in plain words
+
+On a cancellation's record, "Withdraw strike…" answers "Withdrawn. It no longer counts, and the
+casual sees it as withdrawn." and then refreshes the record. The page only drew the strike's
+buttons while the strike was live, and the answer lived inside the buttons' box, so the refresh
+removed the box and the answer with it. Whether anyone saw the answer depended on how fast the
+refresh came back, which is why `tests/e2e/office.strikes.spec.ts` failed now and then (it caused
+the NOT VERIFIED on `36b7468`). "Keep strike" on a deleted casual's strike had the same problem.
+
+### What changed
+
+- `src/app/office/cancellations/[ref]/page.tsx`: the strike's buttons are always rendered, in the
+  same place, for whoever may change strikes, so React keeps their answer across the refresh (the
+  way "Resend evidence" already worked, 12E.1).
+- `src/app/office/cancellations/[ref]/strike-actions.tsx`: shows nothing when there's no button and
+  no answer; the withdraw form shows only while the strike can still be withdrawn.
+- `src/lib/office/strike-actions-copy.ts`: `strikeButtons()`, the one rule for which buttons show
+  ("Withdraw strike…" while live and the casual's details aren't deleted; "Keep strike" while live
+  and not reviewed).
+- Tests: `tests/unit/strikes.page.test.ts` (the rule for every case; the buttons both, one or none,
+  and nothing at all); `tests/e2e/office.strikes.spec.ts` (the answer still there once the heading
+  reads "Strike: Issued, then withdrawn"; a deleted casual's strike kept; a strike withdrawn
+  elsewhere while the form was open); `tests/e2e/db.ts` (`eraseCasual`, `withdrawStrikeAs`, both
+  through the real code).
+- `docs/screens.md`: the answer stays on screen after the record refreshes.
+
+### What the tests prove (each seen to fail with its bug put back)
+
+- Before the fix, the strengthened browser test failed every time, at "the answer is still there".
+- The old page rule put back: all three strike browser tests fail at the answer check.
+- The form's close rule taken out: the new form test fails at "the form has closed".
+- "Keep strike" allowed on a withdrawn strike: the rule's unit test fails.
+
+### Setup notes for a fresh container (none of this changes the repo)
+
+- Playwright 1.63 asks for browser build 1243; `/root/pw-compat` links it to the installed 1194
+  (`PLAYWRIGHT_BROWSERS_PATH=/root/pw-compat`).
+- The CI-mode browser run is a production server, which refuses `.env.example`'s
+  `SESSION_SECRET`: give the local `.env` a random one.
+- `dockerd` started by hand; `caddy:2.10` from `mirror.gcr.io` (Docker Hub answered 429).
+
+### What needs Dylan
+
+- Nothing for this task. Separately, the reference-based redesign mock-up ("ShiftDesk Pass
+  Redesign") waits for his answers: build it or not, the dark theme, the Pay day tile, one count
+  of 10 for the office, and moving the board's show/hide switch.
+
+### Follow-up: the browser test on GitHub (2026-10-21)
+
+- **What failed.** PR #19's `e2e` check failed in `office.strikes.spec.ts`: the second and third
+  tests logged in as the same office user as the first. Their login link was looked for from one
+  second before "Send me a link" (the spec's grace for clock drift), so the first test's link,
+  already used, could be picked up ("This link has expired or was already used."); Playwright's
+  retry then asked for a fourth link to that address inside 15 minutes, which the login limit
+  refuses (3 per address: "Too many tries. Try again in 14 minutes.").
+- **Fix.** Each test logs in as its own made-up office user (`strikes.resourcer`,
+  `strikes.reviewer`, `strikes.second`); nothing in the app changed.
+- **Proof.** With `--repeat-each=2` the old spec failed its second round with "Too many tries";
+  the fixed spec passed 6 of 6.
+- **Result.** `RUN_E2E=1 ./scripts/verify.sh`: VERIFIED tree=1a56724f8c7be140 e2e=true.
+
+## 2026-10-21 · Phase 20: the pass redesign (20.1 to 20.5)
+
+Time spent: 5.0 hours (1.3 for the analysis and the two mock-ups, 3.7 to build; see the Hours log
+in PLAN.md).
+
+### The result
+
+- Verify: `VERIFIED tree=cf01097b770298dd e2e=true` on the files the round-2 auditors read
+  (`VERIFIED tree=049ad1d7cff10222 e2e=true` for round 1). The ticks and these notes came after;
+  20.5's tick has its own stamp, as the edit that ticked 20.2 and 20.4 changed the files first.
+- Tests: 5,175 unit and integration tests pass, none skipped; 96 browser tests and the
+  walkthrough's 6 pass, none flaky.
+- Auditor: 20.1 and 20.3 DONE in round 1. 20.2, 20.4 and 20.5 NOT DONE in round 1, all for tests
+  that were missing, not code: the reasons as four large buttons, the notice's box, and the gate
+  "on a white plate" (the code reversed the band's colours, dark on a pale firm colour); the
+  "Also needs you" panel and the page's count line, and the menu's count checked only when above
+  0; today's bar and the weekends, the key under the filters, the opened row's darker ground.
+  Round 2, after those tests (and the white plate): DONE, every claim proven, no fakes.
+
+### What changed, in plain words
+
+- **The look (20.1):** Instrument Sans and Instrument Serif (the greetings only) in place of
+  Public Sans and Barlow Condensed; true dark greys in place of navy (D7 changed); the status
+  colours as tiles with their words; five depth tokens and no other shadow; a quieter shade for the
+  pass's second line. The firm's colour as words now reads on its own pale tint too, for every
+  colour (1,410 of the 4,096 test colours fell just under 4.5:1 there, a gap from Phase 17).
+- **The casual app (20.2, 20.3):** "Hi Zoe"; the next shift as a pass in the firm's colour with
+  Directions, Details and "Can't make it?"; Details opens a card under it without JavaScript; For
+  you as tiles, with Pay day; the tab bar floating; the sheet's four reason buttons, the problem
+  right under them with the focus on the first (on every press), the notice in its own box and a
+  handle that pulls it down (it stays at the top while a long sheet scrolls on a small phone);
+  Open shifts' strip of lifted days with the filters under it, urgent first then date order; a
+  shift's page as one card with Take shift in a floating bar; Booked with the same pass.
+- **The office (20.4, 20.5):** no top bar from 1024px (the page a white sheet on the grey frame,
+  you and dark mode at the menu's foot); "Needs attention" in the menu in place of the bell, with
+  the same count as the Dashboard's Needs attention, now with the enquiries that need a person;
+  the Dashboard's greeting with "N things need you" (the urgent places plus that count), four
+  tiles, every urgent place soonest first with "Offer to someone" and "…", this week's bars, and
+  panels; Needs attention's page with each upload by name and "Also needs you"; the events
+  board's show/hide switch only in the opened row, sessions on two lines.
+- **Docs:** `docs/screens.md` "The pass redesign (Phase 20)", `docs/ui-design.md` "Phase 20" and
+  its tokens (with the office shell brought up to date), the D7 row here and in
+  `docs/office-v2.md`, and the How-to guide (no bell, no Next up).
+
+### What the reviews found (each fixed, with a test that fails with it put back)
+
+- Code review: red words on the dark Today pill when today had an urgent gap; "Not urgent"'s
+  answer lost as its row left (the confirmation at the foot of the screen is back); urgent places
+  not soonest first, so "Start with …" could name a later one; "…" buttons named alike, and
+  "mark as filled" named where only "Not urgent" is offered; the start line saying urgent places
+  were sorted when only their list couldn't load; focus not moving on a second press.
+- The browser tests caught a pull test measuring the handle mid-spring and a "Site" lookup that
+  also matched the filter form; both were the tests', not the app's.
+- Safety review: SAFE TO COMMIT. Hardening done: a test that every role with Needs attention may
+  see casuals and enquiries (the page shows both); the page's count marked "+" when the enquiries
+  can't be read; the cross-firm test now covers Needs attention's own reads.
+
+### What needs Dylan
+
+- PR #19 (Phase 19) is green and waiting for him. Phase 20's commits are on the same branch,
+  local only, so they don't land in #19: merge #19 and they go up as their own PR, or say to add
+  them to #19.
+- The menu's "Needs attention" count is that page's items (with enquiries); the Dashboard's
+  "N things need you" adds the urgent places. If he meant the menu to show the full number, it's
+  a small change.

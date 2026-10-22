@@ -197,6 +197,7 @@ describe("Booked (My shifts' upcoming)", () => {
     text(
       renderToStaticMarkup(
         createElement(BookedView, {
+          firmName: "Acme Events",
           timeZone: TZ,
           now: NOW,
           view: "upcoming",
@@ -205,7 +206,7 @@ describe("Booked (My shifts' upcoming)", () => {
       ),
     );
 
-  it("the next shift and each row coming up carry the travel line", () => {
+  it("the next shift (in its pass's Details) and each row coming up carry the travel line", () => {
     const words = render([
       booked(),
       booked({
@@ -213,8 +214,9 @@ describe("Booked (My shifts' upcoming)", () => {
         travel: { kind: "straight", straightMetres: 12000 },
       }),
     ]);
+    // The pass (Phase 20): getting there in its Details card, both ways, then the three figures.
     expect(words).toContain(
-      "Door supervisor 7.2 miles · 18 min by car · 41 min by public transport Demo Arena",
+      "Getting there, from your home area 7.2 miles · 18 min by car · 41 min by public transport 18 min by car 41 min by public transport 7.2 mi away",
     );
     expect(words).toContain(
       "Door supervisor Demo Arena about 7 miles (straight line) · Travel time not known yet",

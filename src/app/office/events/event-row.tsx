@@ -4,14 +4,16 @@ import { useState, type ReactNode } from "react";
 import type { Pill, PillTone } from "@/lib/office/events-board";
 import { Icon } from "../../ui/icons";
 
-// One event's row on the rota board (Phase 18): its name and its line (open places, urgent gaps,
-// hidden), its "show to casuals" switch, then its sessions as pills on their days. The name and
-// each pill open the row in place into the event's sessions (`panel`, drawn by the server: the
-// table, its switches and menus); the arrow turns as it opens.
+// One event's row on the rota board (Phases 18 and 20): its name in full (on two lines when it
+// needs them) and its line (open places, urgent gaps; "Hidden from casuals" with its mark), then
+// its sessions as pills on their days. No switch on the row (Phase 20): "show to casuals" is in
+// the opened row, so a slip can't hide an event. The name and each pill open the row in place
+// into the event's sessions (`panel`, drawn by the server: its switch, the table, its switches
+// and menus), set into the board a step darker; the arrow turns as it opens.
 
 const PILL: Record<PillTone, string> = {
   urgent: "bg-urgent-fill text-on-urgent",
-  open: "border-[1.5px] border-ink bg-card text-ink",
+  open: "border-[1.5px] border-ink-muted bg-card text-ink",
   full: "bg-raised text-ink-muted",
 };
 
@@ -21,7 +23,6 @@ export function EventRow({
   note,
   urgent,
   hidden,
-  showingSwitch,
   cells,
   weekend,
   panel,
@@ -32,7 +33,6 @@ export function EventRow({
   note: string;
   urgent: boolean;
   hidden: boolean;
-  showingSwitch: ReactNode;
   cells: Pill[][];
   weekend: boolean[];
   panel: ReactNode;
@@ -42,9 +42,9 @@ export function EventRow({
   const panelId = `event-${eventId}-sessions`;
   const toggle = () => setOpen((o) => !o);
   return (
-    <div className={`${first ? "" : "border-t border-line"} ${open ? "bg-canvas" : ""}`}>
-      <div className="grid grid-cols-[18rem_repeat(14,minmax(0,1fr))] items-stretch">
-        <div className="flex min-w-0 items-center gap-2 py-2 pr-2.5 pl-1.5">
+    <div className={first ? "" : "border-t border-line"}>
+      <div className="grid grid-cols-[16rem_repeat(14,minmax(0,1fr))] items-stretch">
+        <div className="flex min-h-16 min-w-0 items-center gap-2 py-2 pr-2.5 pl-2">
           <button
             type="button"
             aria-expanded={open}
@@ -58,22 +58,24 @@ export function EventRow({
               className={`text-ink-muted transition-transform duration-200 ease-sd ${open ? "rotate-90" : ""}`}
             />
             <span className="min-w-0">
-              <span className={`block truncate font-semibold ${hidden ? "text-ink-muted" : ""}`}>
+              <span
+                className={`block leading-snug font-semibold break-words ${hidden ? "text-ink-muted" : ""}`}
+              >
                 {name}
               </span>
               <span
-                className={`block truncate text-sm ${urgent ? "font-semibold text-urgent" : "text-ink-muted"}`}
+                className={`flex items-center gap-1 text-sm ${urgent ? "font-semibold text-urgent-ink" : "text-ink-muted"}`}
               >
+                {hidden && <Icon name="hidden" size={15} />}
                 {note}
               </span>
             </span>
           </button>
-          {showingSwitch}
         </div>
         {cells.map((pills, i) => (
           <div
             key={i}
-            className={`flex flex-col justify-center gap-[3px] border-l border-line px-[3px] py-1.5 ${weekend[i] ? "bg-canvas" : ""}`}
+            className={`flex flex-col justify-center gap-[3px] px-[3px] py-1.5 ${weekend[i] ? "bg-canvas" : ""}`}
           >
             {pills.map((p) => (
               <button
@@ -86,7 +88,7 @@ export function EventRow({
                 className={`flex flex-col items-center ${hidden ? "opacity-50" : ""}`}
               >
                 <span
-                  className={`flex h-6 w-full items-center justify-center rounded font-sign text-base ${PILL[p.tone]}`}
+                  className={`flex h-7 w-full items-center justify-center rounded-[9px] font-sign text-sm ${PILL[p.tone]}`}
                 >
                   {p.text}
                 </span>
@@ -99,7 +101,7 @@ export function EventRow({
         ))}
       </div>
       <div id={panelId} hidden={!open}>
-        {open && <div className="mx-3 mb-3.5 ml-8.5 animate-in">{panel}</div>}
+        {open && <div className="mx-3 mb-3.5 animate-in">{panel}</div>}
       </div>
     </div>
   );

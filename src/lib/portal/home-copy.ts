@@ -7,8 +7,8 @@ import { pounds } from "./pay-format";
 import { needsText, needsUpload } from "./qualification-copy";
 import { datePartsOfDay } from "./sign-copy";
 
-// The words of Home's redesign (Phase 18; docs/screens.md `/`): the "For you" rows, the pass's
-// travel strip and its "Bring and wear" tiles. Pure.
+// The words of Home's redesign (Phases 18 and 20; docs/screens.md `/`): the "For you" tiles, the
+// pass's travel figures and its "Bring and wear" items. Pure.
 
 const METRES_PER_MILE = 1609.344;
 
@@ -28,30 +28,59 @@ export function daysText(shifts: Pick<OpenShift, "startsAt">[], timeZone: string
 
 const shiftsWord = (n: number) => (n === 1 ? "1 shift" : `${n} shifts`);
 
-// "2 shifts you can take", "Thu 22 and Fri 23 Oct, up to £15.50 an hour".
-export function urgentRowText(
+// One of Home's "For you" tiles (Phase 20): what it's about (a small label), the one thing to read
+// (large), and a line under it. Read in that order, so a screen reader hears "Urgent near you, 2
+// shifts, Thu 22 and Fri 23 Oct, up to £15.50 an hour".
+export interface TileText {
+  label: string;
+  value: string;
+  caption: string;
+}
+
+// The urgent shifts she can take: "Urgent near you" when they're the ones within her home area
+// (`near`), "2 shifts", their days and the best pay.
+export function urgentTileText(
   urgent: Pick<OpenShift, "startsAt" | "payRatePence">[],
+  near: boolean,
   timeZone: string,
-): { title: string; sub: string } {
+): TileText {
   const rates = urgent.map((s) => s.payRatePence).filter((p): p is number => p != null);
   const top = rates.length > 0 ? Math.max(...rates) : null;
   const days = daysText(urgent, timeZone);
   return {
-    title: `${shiftsWord(urgent.length)} you can take`,
-    sub: top !== null ? `${days}, up to ${pounds(top)} an hour` : days,
+    label: near ? "Urgent near you" : "Urgent",
+    value: shiftsWord(urgent.length),
+    caption: top !== null ? `${days}, up to ${pounds(top)} an hour` : days,
   };
 }
 
-// "3 more shifts you can apply for" ("more" when the urgent row is above it), and their days.
-export function applyRowText(
+// The other shifts she can apply for ("More to apply for" under the urgent tile), and their days;
+// with none, when she'll hear of the next.
+export function applyTileText(
   shifts: Pick<OpenShift, "startsAt">[],
   afterUrgent: boolean,
+  offerAlerts: boolean,
   timeZone: string,
-): { title: string; sub: string } {
-  const n = shifts.length;
+): TileText {
+  const label = afterUrgent ? "More to apply for" : "To apply for";
+  if (shifts.length === 0) {
+    return {
+      label,
+      value: afterUrgent ? "No others now" : "None right now",
+      caption: offerAlerts ? "We'll message you when something matches." : "Check back later.",
+    };
+  }
+  return { label, value: shiftsWord(shifts.length), caption: daysText(shifts, timeZone) };
+}
+
+// Pay day (D8: the pay week runs Monday to Sunday and is paid the Friday after it): "Fri 30 Oct",
+// for the shifts of the week she's in.
+export function payDayTileText(payDay: string): TileText {
+  const p = datePartsOfDay(payDay);
   return {
-    title: `${n === 1 ? "1" : n}${afterUrgent ? " more" : ""} ${n === 1 ? "shift" : "shifts"} you can apply for`,
-    sub: daysText(shifts, timeZone),
+    label: "Pay day",
+    value: `${p.dow} ${p.day} ${p.month}`,
+    caption: "For this week's shifts",
   };
 }
 

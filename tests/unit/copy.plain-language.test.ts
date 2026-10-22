@@ -243,6 +243,7 @@ const shiftPages: ShiftPage[] = [
 ];
 const myShifts = (o: Partial<Parameters<typeof BookedView>[0]>) =>
   createElement(BookedView, {
+    firmName: "Acme Events",
     timeZone: TZ,
     now: NOW,
     view: "upcoming",
@@ -262,6 +263,8 @@ const openList = (o: Partial<Parameters<typeof OpenShiftsView>[0]["list"]> = {})
 // Home (12H.1): her next shift, Needs updating, urgent shifts and the shifts she can apply for.
 const homeScreen = (o: Partial<Parameters<typeof HomeView>[0]>) =>
   createElement(HomeView, {
+    firmName: "Acme Events",
+    payDay: "2026-11-13",
     firstName: "Sam",
     timeZone: TZ,
     now: NOW,

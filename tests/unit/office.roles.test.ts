@@ -17,6 +17,16 @@ describe("office roles", () => {
     expect([...OFFICE_AREAS.enquiries].sort()).toEqual([...OFFICE_ROLES_THAT_PLACE].sort());
   });
 
+  it("Needs attention's page shows enquiries and casuals' uploads only to roles that may see those too", () => {
+    // It's gated by "today" (Phase 20: it lists each upload by the casual's name and counts the
+    // enquiries that need a person), so every "today" role must also have "casuals" and
+    // "enquiries"; if they ever differ, the page has to check those areas itself.
+    for (const role of OFFICE_AREAS.today) {
+      expect(canAccess(role, "casuals")).toBe(true);
+      expect(canAccess(role, "enquiries")).toBe(true);
+    }
+  });
+
   it("payroll may open /office (sent on to the pay dashboard) but not the dashboard's to-dos", () => {
     expect(canAccess("payroll", "dashboard")).toBe(true);
     expect(canAccess("payroll", "today")).toBe(false);
@@ -57,6 +67,7 @@ describe("office roles", () => {
     for (const area of MENU_AREAS) expect(Object.keys(OFFICE_AREAS)).toContain(area);
     const AREA_OF_HREF: Record<string, readonly string[]> = {
       "/office": ["today"],
+      "/office/needs-attention": ["today"],
       "/office/pay": ["pay"],
       "/office/events": ["shifts"],
       "/office/enquiries": ["enquiries"],

@@ -26,6 +26,17 @@ function colours(block: string): Map<string, string> {
   );
 }
 const themeTokens = () => colours(css.match(/@theme\s*\{([^}]*)\}/)?.[1] ?? "");
+// Those, and the @theme inline block's mixed one (brand-soft: the firm's colour mixed into the
+// card), which a class can name too.
+const classTokens = () =>
+  new Set([
+    ...themeTokens().keys(),
+    ...[
+      ...(css.match(/@theme inline\s*\{([^}]*)\}/)?.[1] ?? "").matchAll(
+        /--color-([a-z-]+): color-mix/g,
+      ),
+    ].map((m) => m[1]!),
+  ]);
 const darkTokens = () => colours(css.match(/:root\[data-theme="dark"\]\s*\{([^}]*)\}/)?.[1] ?? "");
 
 // The doc's token table: "| `urgent` / `urgent-soft` | `#b91c1c` / `#fef2f2` | `#ff8b80` /
@@ -91,7 +102,8 @@ describe("the shared pieces (src/app/ui/)", () => {
   const BUILT_IN = /^(transparent|current)$/;
 
   it("every colour class names a token (a typo would style nothing; a palette colour ignores the theme)", () => {
-    const tokens = themeTokens();
+    const tokens = classTokens();
+    expect(tokens.has("brand-soft")).toBe(true);
     const unknown: string[] = [];
     let checked = 0;
     for (const file of uiFiles) {

@@ -24,7 +24,7 @@ async function logIn(page: Page, typed: string, e164: string) {
   await expect(page).toHaveURL(`${acme}/`);
 }
 
-// The kept page's HTML, without the markers React puts between pieces of text ("Hello <!-- -->Sam").
+// The kept page's HTML, without the markers React puts between pieces of text ("Hi <!-- -->Sam").
 const keptText = (page: Page) =>
   page.evaluate(async (name) => {
     const kept = await (await caches.open(name)).match("/");
@@ -65,15 +65,19 @@ test("Home (her next shift) and Booked open with no signal, marked as copies; lo
   // request then, and the server answered it.)
   await context.setOffline(true);
   await page.reload();
-  await expect(page.getByRole("heading", { name: /^Hello / })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Hi / })).toBeVisible();
   await expect(page.getByText("No signal.")).toBeVisible();
   await expect(
     page.getByText(
       /^This is your saved copy from \d\d:\d\d on .+\. It updates when you're back online\.$/,
     ),
   ).toBeVisible();
-  // The parts that need signal say so instead (Phase 18: For you's offline row; the header's plate).
-  await expect(page.getByText("Open shifts need signal")).toBeVisible();
+  // The parts that need signal say so instead (Phase 18: For you's offline row, a tile since Phase
+  // 20; the header's plate).
+  const offline = page.locator('[data-for-you="offline"]');
+  await expect(offline).toBeVisible();
+  await expect(offline).toContainText("Open shifts");
+  await expect(offline).toContainText("Need signal");
   await expect(page.getByTestId("brand-bar").getByText("Offline")).toBeVisible();
   await expect(page.getByText("Taking or cancelling a shift needs signal.")).toBeVisible();
   // The copy still has her next shift in full.
@@ -106,7 +110,7 @@ test("a new login on the same phone never shows the last worker's copy", async (
   browser,
 }, testInfo) => {
   await logIn(page, "07700 900106", "+447700900106");
-  const first = (await page.getByRole("heading", { name: /^Hello / }).textContent()) ?? "";
+  const first = (await page.getByRole("heading", { name: /^Hi / }).textContent()) ?? "";
   await expect.poll(() => keptText(page), { timeout: 15_000 }).toContain(first);
 
   // Someone else asks for a link from their own phone and opens it on this one, without the
@@ -130,7 +134,7 @@ test("a new login on the same phone never shows the last worker's copy", async (
   await page.goto(link);
   await page.getByRole("button", { name: "Log me in" }).click();
   await expect(page).toHaveURL(`${acme}/`);
-  const second = (await page.getByRole("heading", { name: /^Hello / }).textContent()) ?? "";
+  const second = (await page.getByRole("heading", { name: /^Hi / }).textContent()) ?? "";
   expect(second).not.toBe(first);
   await expect.poll(() => keptText(page), { timeout: 15_000 }).toContain(second);
   expect(await keptText(page)).not.toContain(first);
@@ -230,7 +234,7 @@ test("on an iPhone, My shifts suggests the home screen until 'Don't show again'"
     await page.getByRole("button", { name: "Don't show again" }).click();
     await expect(hint).toBeHidden();
     await page.reload();
-    await expect(page.getByRole("heading", { name: /^Hello / })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^Hi / })).toBeVisible();
     await expect(hint).toBeHidden();
   } finally {
     await iphone.close();
@@ -239,7 +243,7 @@ test("on an iPhone, My shifts suggests the home screen until 'Don't show again'"
 
 test("on Android, no home screen hint", async ({ page }) => {
   await logIn(page, "07700 900105", "+447700900105");
-  await expect(page.getByRole("heading", { name: /^Hello / })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Hi / })).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Put your shifts on your home screen" }),
   ).toHaveCount(0);

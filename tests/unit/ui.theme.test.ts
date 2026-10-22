@@ -5,8 +5,8 @@ import { THEME_COOKIE, themeFromCookie } from "@/app/theme";
 
 // The theme, the type scale and the fonts (docs/office-v2.md 3.1; PLAN.md 12A.1, Phase 18): the
 // sd-theme cookie's reading and its wiring into <html>, no colour or text size outside the tokens
-// anywhere in src/, and Public Sans and Barlow Condensed served from the app itself. tests/e2e/theme.spec.ts checks the
-// pages a browser gets.
+// anywhere in src/, and Instrument Sans and Instrument Serif (Phase 20) served from the app itself.
+// tests/e2e/theme.spec.ts checks the pages a browser gets.
 
 const ROOT = process.cwd();
 const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
@@ -76,8 +76,8 @@ describe("colours: tokens only", () => {
       (line) =>
         hasColour.test(line) &&
         !/^\s*--color-[a-z-]+: #[0-9a-f]{6};/.test(line) &&
-        // The pass's shadow (Phase 18): a token too, in the ink's own colour.
-        !/^\s*--shadow-pass: [^;]+;$/.test(line),
+        // The five depth tokens (Phase 20; the pass's since Phase 18): tokens too.
+        !/^\s*--(?:shadow-(?:lift|panel|pass|bar)|inset-shadow-sunk): [^;]+;$/.test(line),
     );
     expect(outside).toEqual([]);
   });
@@ -115,7 +115,7 @@ describe("one type scale", () => {
     expect(outside).toEqual([]);
   });
 
-  it("40px only for the sign figures (a shift's time, its date tile)", () => {
+  it("40px only for the sign figures (a shift's time, a count) and the greetings (Phase 20)", () => {
     const uses = SOURCE.flatMap((file) =>
       [...read(file).matchAll(/"[^"\n]*(?<![\w-])text-4xl(?![\w-])[^"\n]*"/g)].map((m) => [
         file,
@@ -125,10 +125,18 @@ describe("one type scale", () => {
     expect(uses.length).toBeGreaterThan(2);
     // The date tile's sizes live in a table beside its font-sign day.
     const notSign = uses.filter(
-      ([file, cls]) => !/(?<![\w-])font-sign(?![\w-])/.test(cls!) && file !== "src/app/ui/sign.tsx",
+      ([file, cls]) =>
+        !/(?<![\w-])font-(?:sign|greet)(?![\w-])/.test(cls!) && file !== "src/app/ui/sign.tsx",
     );
     expect(notSign).toEqual([]);
     expect(read("src/app/ui/sign.tsx")).toMatch(/className=\{`block font-sign [^`]*\$\{t\.day\}/);
+    // The greetings: Home's and the dashboard's, each in the serif at 40px.
+    expect(read("src/app/home-view.tsx")).toMatch(
+      /className="font-greet text-4xl[^"]*">Hi \{firstName\}/,
+    );
+    expect(read("src/app/office/dashboard-view.tsx")).toMatch(
+      /className="block font-greet text-4xl"/,
+    );
   });
 
   it("every digit fixed-width; office fields don't make a phone zoom in", () => {
@@ -142,31 +150,41 @@ describe("one type scale", () => {
 });
 
 describe("the font", () => {
-  it("Public Sans and Barlow Condensed from their npm packages, through next/font/local", () => {
+  it("Instrument Sans and Instrument Serif from their npm packages, through next/font/local", () => {
     const fonts = read("src/app/fonts.ts");
     expect(fonts).toMatch(/^import localFont from "next\/font\/local";/m);
     const sources = [...fonts.matchAll(/src: "([^"]+)"/g)].map((m) => m[1]);
     expect(sources).toEqual([
-      "../../node_modules/@fontsource-variable/public-sans/files/public-sans-latin-wght-normal.woff2",
-      "../../node_modules/@fontsource-variable/public-sans/files/public-sans-latin-ext-wght-normal.woff2",
-      "../../node_modules/@fontsource/barlow-condensed/files/barlow-condensed-latin-700-normal.woff2",
-      "../../node_modules/@fontsource/barlow-condensed/files/barlow-condensed-latin-ext-700-normal.woff2",
+      "../../node_modules/@fontsource-variable/instrument-sans/files/instrument-sans-latin-wght-normal.woff2",
+      "../../node_modules/@fontsource-variable/instrument-sans/files/instrument-sans-latin-ext-wght-normal.woff2",
+      "../../node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2",
+      "../../node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-ext-400-normal.woff2",
     ]);
     for (const src of sources)
       expect(statSync(join(ROOT, "src/app", src!)).size).toBeGreaterThan(5000);
     const pkg = JSON.parse(read("package.json")) as { dependencies: Record<string, string> };
-    expect(pkg.dependencies["@fontsource-variable/public-sans"]).toMatch(/^\d+\.\d+\.\d+$/);
-    expect(pkg.dependencies["@fontsource/barlow-condensed"]).toMatch(/^\d+\.\d+\.\d+$/);
-    expect(pkg.dependencies["@fontsource-variable/plus-jakarta-sans"]).toBeUndefined();
+    expect(pkg.dependencies["@fontsource-variable/instrument-sans"]).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(pkg.dependencies["@fontsource/instrument-serif"]).toMatch(/^\d+\.\d+\.\d+$/);
+    // The faces before them are gone (Phase 18's, and 12A.1's).
+    for (const old of [
+      "@fontsource-variable/public-sans",
+      "@fontsource/barlow-condensed",
+      "@fontsource-variable/plus-jakarta-sans",
+    ])
+      expect(pkg.dependencies[old], old).toBeUndefined();
     // Only the latin faces are fetched before they're needed.
     expect(fonts.match(/preload: false/g)).toHaveLength(2);
     expect(read("src/app/layout.tsx")).toContain("className={fontVariables}");
     expect(read("src/app/global-error.tsx")).toContain("className={fontVariables}");
-    // Words in Public Sans, the sign figures in Barlow Condensed with fixed-width digits.
+    // Words in Instrument Sans; the sign figures in its semibold with fixed-width digits; the
+    // greetings in Instrument Serif.
     const css = read("src/app/globals.css");
-    expect(css).toMatch(/--font-sans:\s*var\(--font-public\), var\(--font-public-ext\),/);
+    expect(css).toMatch(/--font-sans:\s*var\(--font-instrument\), var\(--font-instrument-ext\),/);
     expect(css).toMatch(
-      /@utility font-sign \{\s*font-family:\s*var\(--font-barlow\), var\(--font-barlow-ext\),[^}]*font-weight: 700;\s*font-variant-numeric: tabular-nums;/,
+      /@utility font-sign \{\s*font-family:\s*var\(--font-instrument\), var\(--font-instrument-ext\),[^}]*font-weight: 600;\s*font-variant-numeric: tabular-nums;/,
+    );
+    expect(css).toMatch(
+      /@utility font-greet \{\s*font-family:\s*var\(--font-instrument-serif\), var\(--font-instrument-serif-ext\),[^}]*font-weight: 400;/,
     );
   });
 

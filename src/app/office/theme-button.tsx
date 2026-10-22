@@ -50,13 +50,13 @@ export function ThemeButton({ initial }: { initial: Theme | undefined }) {
         aria-label={label}
         disabled={!hydrated}
         onClick={choose}
-        className="inline-flex size-11 items-center justify-center rounded-lg text-ink hover:bg-quiet-soft disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex size-11 items-center justify-center rounded-full text-ink-muted hover:bg-quiet-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
       >
         <Icon name={shown === "dark" ? "sun" : "moon"} />
       </button>
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute top-full right-0 z-30 mt-1 hidden rounded-md border border-line bg-ink px-2 py-1 text-sm whitespace-nowrap text-on-ink group-hover:block group-focus-within:block"
+        className="pointer-events-none absolute top-full right-0 z-30 mt-1 hidden rounded-lg border border-line bg-ink px-2 py-1 text-sm whitespace-nowrap text-on-ink group-hover:block group-focus-within:block lg:top-auto lg:bottom-full lg:mt-0 lg:mb-1"
       >
         {label}
       </span>

@@ -26,7 +26,7 @@ import { confirmedStrikesEmail } from "../strikes/team-email";
 // At most 50 in each list; `more` says there were others.
 
 export const TODAY_MARK_DAYS = 7; // "Who worked?" looks back this far
-const LIST_MAX = 50;
+export const LIST_MAX = 50;
 
 // An urgent session's offers (the dashboard's urgent cards).
 export interface UrgentOffers {

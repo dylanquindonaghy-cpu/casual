@@ -3,9 +3,9 @@ import { e2eAdminUrl } from "./db";
 import { expect, test } from "./fixtures";
 
 // Each firm's own bar at the top of its portal and office pages (Phase 8 branding; Phase 18: a
-// white header): its initial on its colour (the demo seed's), readable, then its name, and its
-// logo once one is set with the owner's script. The logo address uses the reserved .invalid name,
-// so the browser never fetches anything.
+// white header; Phase 20: on the page's grey, with no line under it): its initial on its colour
+// (the demo seed's), readable, then its name, and its logo once one is set with the owner's
+// script. The logo address uses the reserved .invalid name, so the browser never fetches anything.
 
 const acme = "http://acme.localhost:3100";
 const northline = "http://northline.localhost:3100";
@@ -15,7 +15,7 @@ test("each firm's pages open with its own bar: name, colour and readable text", 
 }) => {
   await page.goto(`${acme}/login`);
   const bar = page.getByTestId("brand-bar");
-  await expect(bar).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expect(bar).toHaveCSS("background-color", "rgb(238, 240, 243)"); // the page's grey (Phase 20)
   await expect(page.getByTestId("brand-name")).toHaveText("Acme Events");
   const mark = page.getByTestId("brand-mark");
   await expect(mark).toHaveText("A");

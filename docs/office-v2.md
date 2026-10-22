@@ -35,7 +35,9 @@ work each task", step 2). **"D" numbers** are the decisions in section 8, all se
 reference (an in-house tool, not named here), with ShiftDesk's own name, logo, colours and made-up
 data, never a copy. It has a top bar with the pay week, a "needs attention" bell, the theme button
 and the account menu, and a menu that is a sidebar on a computer and a drawer behind a "Menu"
-button on a phone.
+button on a phone. (Phase 20: from 1024px there's no top bar, the pay week, theme button and account
+sit at the menu's foot, and the bell became the menu's "Needs attention" item with its count:
+`docs/screens.md` "The pass redesign".)
 
 **The resourcer dashboard** shows four counts and five sections:
 - **Urgent shifts not filled.**
@@ -224,7 +226,8 @@ they keep what they do today, in the new look.
 - "Cancellation & strike rules" becomes "Settings" (the strikes-team email and site postcodes), and
   "Integrations" is added (3.10).
 - Photo renewal is every 3 years by default, not 2 (D3).
-- The dark theme is navy, not graphite (D7). Colours change where contrast failed (3.1).
+- The dark theme is navy, not graphite (D7; changed to true dark greys in Phase 20). Colours
+  change where contrast failed (3.1).
 - Travel says "by public transport", not "by bus" or "by train".
 - "Mark as dealt with" becomes "Close without a reply", which asks for a reason code (3.6).
 - The pay-week pill follows one rule (ISO week, paid the Friday after: D8); the font is
@@ -332,7 +335,9 @@ assume AWS (none has ever run).
 3. **Pay-week pill.** "Week 41 · 5 Oct – 11 Oct · Pay Fri 16 Oct": the ISO week (Monday to Sunday)
    and the Friday after it (D8). Hidden on phones. Built with the pay dashboard (12A.3).
 4. **Bell.** "Needs attention, N", a link to the dashboard's Needs attention section (3.9). Admins
-   and resourcers. Built with the dashboard (12E.1).
+   and resourcers. Built with the dashboard (12E.1). Phase 20 took it out: "Needs attention" is a
+   menu item under Dashboard with its count (its items and the enquiries that need a person; the
+   Dashboard's headline adds the urgent places to fill).
 5. **Moon/sun button.** Switches between light and dark, with a visible tooltip.
 6. **Account button** (initials, name, role). It opens: How-to guide, Log out.
 
@@ -403,7 +408,9 @@ no hard-coded colours; today there are 29 `bg-white` uses in 16 files under `src
 | Chips, switches, current-page bar | A transparent 1px border, so they keep an edge in Windows high-contrast mode |
 
 - **Dark theme:** navy (D7): page #0f1626, panel #16203a, card #1b2642, raised #22304f, muted text
-  #a3b0c8, switch off #7c8aa8.
+  #a3b0c8, switch off #7c8aa8. Phase 20 changed D7 to true dark greys: page #0b0c0e, card and panel
+  #18191c, raised #232529, muted text #a9adb4, switch off #7d8189 (`docs/ui-design.md` "Phase
+  20").
 - **Type sizes:** one scale of 12 · 13 · 15 · 18 · 24 · 30px. Fixed-width digits on every time,
   rate and count.
 - **Font:** Plus Jakarta Sans, self-hosted with `next/font`, so nothing is requested from Google
@@ -839,7 +846,8 @@ The to-do parts of today's Today page, plus Phase 12's new ones. Its items:
 
 Each item links to where it is dealt with. The bell's count is the number of items. This keeps the
 existing logic and the regions the tests pin, in one section of the dashboard. Admins and
-resourcers.
+resourcers. (Phase 18 gave it its own page, `/office/needs-attention`; Phase 20 added the enquiries
+that need a person to its items and moved its count from the bell to its menu item.)
 
 ### 3.10 Configuration (admin only)
 
@@ -2032,7 +2040,7 @@ waiting for Dylan"; to change one, tell Claude.
 | D4 | Strike details | **48 hours** (its own setting), measured at the cancellation; **no strike** when the office, the planner or the sheet cancelled, on a booking the office made ("Assign", including over a rules check), or after the office or the planner changed the session; "I'm unwell" and "Family or caring" still get a strike but are **flagged for a person to review**; every reason that leaves ShiftDesk reads "Casual's own reason (see ShiftDesk)"; counts **90 days**, row kept 12 months (not during a hold), log entries as long as the action log; nothing happens automatically; casuals see their strikes and can tell us what happened; a DPIA before a real firm uses strikes. Cut by debloat: the 15-minute grace and the review flag for a session taken inside 48 hours (the office withdraws a mis-tap's strike), notice counted from a first message, the alert at 3, the strike messages | Legal 16 |
 | D5 | Telling planners about cancellations | **Replaced by Dylan:** the planner API and signed webhooks (5.3). No sheet column and no daily email | Sheets 16 |
 | D6 | "Reply 1 or 2 to take one" | **Deferred** to the Parking lot: a new way of proving who the casual is (an auth change) that also needs live WhatsApp. Replies carry links | Messages 28 |
-| D7 | Dark theme: navy (the original brief) or graphite (the mock-up) | **Navy**: page #0f1626, panel #16203a, card #1b2642, raised #22304f, muted text #a3b0c8, switch off #7c8aa8 (all checked for contrast). A colour-token swap, so easy to change | Product 10 |
+| D7 | Dark theme: navy (the original brief) or graphite (the mock-up) | **Navy** at first: page #0f1626, panel #16203a, card #1b2642, raised #22304f, muted text #a3b0c8, switch off #7c8aa8. **Changed 2026-10-21** (Dylan, "yes build this", on the Phase 20 mock-up): true dark greys, page #0b0c0e, card and panel #18191c, raised #232529, muted text #a9adb4, switch off #7d8189 (all checked for contrast). A colour-token swap, so easy to change | Product 10 |
 | D8 | Pay week number and pay day in the top bar | **ISO weeks, Monday to Sunday; pay the Friday after the week ends** ("Week 41 · 5 Oct – 11 Oct · Pay Fri 16 Oct"). One rule for every firm (the per-firm setting was cut) | Pay 10 |
 | D9 | Email provider (new, from "no AWS") | **Any provider over SMTP**; which one is chosen when the accounts are created | Deploy 8 |
 

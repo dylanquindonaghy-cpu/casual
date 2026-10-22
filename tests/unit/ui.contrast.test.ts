@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
 
 // Contrast in both themes (docs/office-v2.md 3.1 and D7; PLAN.md 12A.1): every pair of tokens a
 // page puts together meets WCAG AA, text 4.5:1 and borders and controls 3:1, in the light theme
-// (the @theme block of src/app/globals.css) and the navy dark theme (its two dark blocks, which
-// must hold the same values).
+// (the @theme block of src/app/globals.css) and the dark theme of greys (its two dark blocks,
+// which must hold the same values; navy until Phase 20).
 
 const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
 
@@ -80,6 +80,12 @@ const TEXT: [string, string][] = [
   ["brand-ink", "canvas"],
   ["brand-ink", "card"],
   ["on-brand-bar", "brand-bar"],
+  // Phase 20: the pass's second line, and the status tiles with their words.
+  ["on-brand-bar-soft", "brand-bar"],
+  ["on-pass-plate", "pass-plate"],
+  ["urgent-ink", "urgent-tile"],
+  ["wait-ink", "wait-tile"],
+  ["done-ink", "done-tile"],
   ["on-hivis", "hivis"],
   ["on-done", "done-fill"],
   ["on-demo", "demo"],
@@ -119,7 +125,7 @@ describe("the themes (src/app/globals.css)", () => {
     );
   });
 
-  it("dark is D7's navy, with 3.1's fixes", () => {
+  it("dark is D7's true greys (Dylan's change in Phase 20, from navy)", () => {
     expect(
       Object.fromEntries(
         ["canvas", "panel", "card", "raised", "ink-muted", "switch-off"].map((t) => [
@@ -128,16 +134,21 @@ describe("the themes (src/app/globals.css)", () => {
         ]),
       ),
     ).toEqual({
-      canvas: "#0f1626",
-      panel: "#16203a",
-      card: "#1b2642",
-      raised: "#22304f",
-      "ink-muted": "#a3b0c8",
-      "switch-off": "#7c8aa8",
+      canvas: "#0b0c0e",
+      panel: "#18191c",
+      card: "#18191c",
+      raised: "#232529",
+      "ink-muted": "#a9adb4",
+      "switch-off": "#7d8189",
     });
-    expect([dark.get("urgent-fill"), dark.get("on-urgent")]).toEqual(["#d92d20", "#ffffff"]);
-    expect(contrast("#d92d20", "#ffffff")).toBeGreaterThanOrEqual(4.83);
-    expect(light.get("switch-off")).toBe("#7a8396");
+    // Greys: no channel more than a few steps from the others (navy's blue was 30 above its red).
+    for (const t of ["canvas", "card", "raised", "line", "ink-muted"]) {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(dark.get(t)!.slice(i, i + 2), 16));
+      expect(Math.max(r!, g!, b!) - Math.min(r!, g!, b!), t).toBeLessThanOrEqual(12);
+    }
+    expect([dark.get("urgent-fill"), dark.get("on-urgent")]).toEqual(["#cf3a33", "#ffffff"]);
+    expect(contrast("#cf3a33", "#ffffff")).toBeGreaterThanOrEqual(4.87);
+    expect(light.get("switch-off")).toBe("#767b83");
   });
 
   for (const [name, theme] of Object.entries(THEMES)) {
@@ -189,6 +200,12 @@ describe("the themes (src/app/globals.css)", () => {
         .map(([brand, ratio]) => `${name}: ink on ${brand}'s tint: ${ratio.toFixed(2)}`),
     );
     expect(failing).toEqual([]);
+    // And the firm's colour as words on its own tint, as on a sign plate (the defaults here; a
+    // firm's own set in tests/unit/tenancy.brand.test.ts).
+    for (const theme of Object.values(THEMES))
+      expect(
+        contrast(theme.get("brand-ink")!, mix(theme.get("brand")!, theme.get("card")!)),
+      ).toBeGreaterThanOrEqual(4.5);
   });
 
   it("every token but the decorative line and scrim is in a checked pair", () => {

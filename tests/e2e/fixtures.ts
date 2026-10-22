@@ -14,9 +14,11 @@ export const test = base.extend({
 });
 export { expect } from "@playwright/test";
 
-// The office dashboard's heading (Phase 18): how many things need you, every part loaded ("At
-// least …" is a part that couldn't load, which no test expects).
-export const DASHBOARD_HEADING = /^(Nothing needs you right now|\d+ things? needs? you)$/;
+// The office dashboard's heading (Phase 18; Phase 20's greeting first): "Evening, Acme Events." then
+// how many things need you, every part loaded ("At least …" is a part that couldn't load, which no
+// test expects).
+export const DASHBOARD_HEADING =
+  /^(Morning|Afternoon|Evening), .+\. (Nothing needs you right now|\d+ things? needs? you)\.$/;
 
 // A link in the office menu (docs/office-v2.md 3.1). The browser tests run at phone width, where
 // the menu is a drawer: this opens it with "Menu" first (waiting for the page to be ready), then

@@ -261,6 +261,24 @@ const PATHS = {
       <circle cx="12" cy="12" r="3" />
     </>
   ),
+  // Phase 20: the pass's buttons (Details, Can't make it?), a hidden event, a row's "…", "go to".
+  info: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5M12 8h.01" />
+    </>
+  ),
+  dropout: (
+    <>
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M3 10h18M8 3v4M16 3v4M10 13.5l4 4M14 13.5l-4 4" />
+    </>
+  ),
+  hidden: (
+    <path d="M3 3l18 18M10.6 6.1A9.8 9.8 0 0 1 12 6c5 0 9 6 9 6a16 16 0 0 1-2.6 3.2M6.2 7.6C3.9 9.3 3 12 3 12s4 6 9 6a8.7 8.7 0 0 0 3.6-.8" />
+  ),
+  dots: <path d="M5 12h.01M12 12h.01M19 12h.01" strokeWidth="3" />,
+  arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
   // ShiftDesk's own mark, in the office's top bar: a calendar with a tick.
   mark: (
     <>

@@ -56,9 +56,9 @@ test("Profile shows Zoe's qualifications: one Valid, one Expiring soon, one Miss
   await page.getByRole("button", { name: "Send me a link" }).click();
   await page.goto(await loginLinkSentTo(ZOE.mobileE164, asked));
   await page.getByRole("button", { name: "Log me in" }).click();
-  await expect(page.getByRole("heading", { name: "Hello Zoe" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Hi Zoe" })).toBeVisible();
 
-  // Home's For you (Phase 18): what needs doing as one row, the expiring one (level 3) first, then
+  // Home's For you (Phases 18 and 20): what needs doing as one tile, the expiring one (level 3) first, then
   // how many more (the missing one, level 4), to Profile, where each is listed.
   const needs = page.getByRole("region", { name: "For you" }).locator('[data-for-you="needs"]');
   await expect(needs).toContainText("Needs doing");
@@ -94,9 +94,9 @@ test("Profile shows Zoe's qualifications: one Valid, one Expiring soon, one Miss
   await noSidewaysScroll(page);
 });
 
-// Home (12H.1; docs/office-v2.md 4.2; Phase 18): For you's photo row (its date), the urgent row to
-// the urgent board (where the card has its site and both travel times), her next shift as a pass
-// that opens into its facts and actions, and the tab bar with the Profile count.
+// Home (12H.1; docs/office-v2.md 4.2; Phases 18 and 20): For you's photo tile (its date), the urgent
+// tile to the urgent board (where the card has its site and both travel times), pay day, her next
+// shift as a pass whose Details open its facts and actions, and the tab bar with the Profile count.
 test("Home shows Holly's photo row, the urgent row and her next shift in full", async ({
   page,
 }) => {
@@ -107,7 +107,7 @@ test("Home shows Holly's photo row, the urgent row and her next shift in full", 
   await page.getByRole("button", { name: "Send me a link" }).click();
   await page.goto(await loginLinkSentTo(HOLLY.mobileE164, asked));
   await page.getByRole("button", { name: "Log me in" }).click();
-  await expect(page.getByRole("heading", { name: "Hello Holly" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Hi Holly" })).toBeVisible();
 
   // The date her photo was uploaded (the firm's calendar), as Profile's photo card says it.
   // ("3 Sep 2023": the app's own short months, not the browser's "Sept".)
@@ -125,23 +125,32 @@ test("Home shows Holly's photo row, the urgent row and her next shift in full", 
   await expect(needs).toContainText(/It was due by \d{1,2} [A-Z][a-z]{2}\. Take a new photo\./);
   await expect(needs.getByRole("link")).toHaveAttribute("href", "/profile#photo-heading");
 
-  // The urgent row: how many and when, the top rate, to the urgent board.
-  const urgentRow = forYou.getByRole("link", { name: /^Urgent 1 shift you can take / });
+  // The urgent tile (Phase 20): near her home area, how many and when, the top rate, to the urgent
+  // board.
+  const urgentRow = forYou.getByRole("link", { name: /^Urgent near you 1 shift / });
   await expect(urgentRow).toContainText("up to £13.00 an hour");
   await expect(urgentRow).toHaveAttribute("href", "/urgent");
-  // Nothing else in her role is open, so the apply row says so (to Open shifts).
-  await expect(forYou.getByRole("link", { name: /^No other shifts open/ })).toHaveAttribute(
+  // Nothing else in her role is open, so the apply tile says so (to Open shifts).
+  await expect(
+    forYou.getByRole("link", { name: /^More to apply for No others now / }),
+  ).toHaveAttribute("href", "/shifts/open");
+  // Pay day: the pay week's Friday (D8), to Pay.
+  await expect(forYou.locator('[data-for-you="pay"]').getByRole("link")).toHaveAttribute(
     "href",
-    "/shifts/open",
+    "/pay",
   );
+  const pay = forYou.locator('[data-for-you="pay"]');
+  await expect(pay).toContainText("Pay day");
+  await expect(pay).toContainText(/Fri \d{1,2} [A-Z][a-z]{2}/);
+  await expect(pay).toContainText("For this week's shifts");
 
-  // Her next shift: a pass, closed (when, what, where, the gate), opening into the rest.
+  // Her next shift: a pass (when, what, where, the gate), its Details opening the card under it.
   const next = page.getByRole("region", { name: "Your next shift" });
   await expect(next).toContainText("Home check");
   await expect(next).toContainText(scene.booked.site);
   await expect(next).toContainText("Gate 3");
   await expect(next.getByRole("link", { name: "Ask for a change" })).toBeHidden();
-  await next.locator("summary").click();
+  await next.locator("[data-pass-more] summary").click();
   await expect(next).toContainText(/£12\.60 an hour, about £100\.80/);
   await expect(next).toContainText("Staff entrance on Mill Lane");
   await expect(next).toContainText("Black trousers and your hi-vis");
@@ -155,10 +164,10 @@ test("Home shows Holly's photo row, the urgent row and her next shift in full", 
   await expect(tabs.getByRole("link", { name: "Profile, 1 thing needs doing" })).toBeVisible();
   await noSidewaysScroll(page);
 
-  // The theme follows the phone (§4.1; 12H.1 audit): no cookie set, so a dark phone gets the navy
-  // page and tab bar, a light one the canvas grey and a white tab bar (Phase 18).
-  const LIGHT = { page: "rgb(242, 244, 247)", bar: "rgb(255, 255, 255)" }; // #f2f4f7, #ffffff
-  const DARK = { page: "rgb(15, 22, 38)", bar: "rgb(27, 38, 66)" }; // #0f1626, #1b2642
+  // The theme follows the phone (§4.1; 12H.1 audit): no cookie set, so a dark phone gets the dark
+  // grey page and tab bar (Phase 20; D7), a light one the canvas grey and a white tab bar.
+  const LIGHT = { page: "rgb(238, 240, 243)", bar: "rgb(255, 255, 255)" }; // #eef0f3, #ffffff
+  const DARK = { page: "rgb(11, 12, 14)", bar: "rgb(24, 25, 28)" }; // #0b0c0e, #18191c
   await page.emulateMedia({ colorScheme: "dark" });
   await expect(page.locator("body")).toHaveCSS("background-color", DARK.page);
   await expect(tabs).toHaveCSS("background-color", DARK.bar);
@@ -205,7 +214,7 @@ test("Shifts: Zoe sees the Arena shift with its travel line, and its page in ful
   await page.getByRole("button", { name: "Send me a link" }).click();
   await page.goto(await loginLinkSentTo(ZOE_PARK.mobileE164, asked));
   await page.getByRole("button", { name: "Log me in" }).click();
-  await expect(page.getByRole("heading", { name: "Hello Zoe" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Hi Zoe" })).toBeVisible();
 
   // Open: two of her three sessions (the third needs what she hasn't got).
   await page.goto(`${acme}/shifts/open`);
@@ -224,14 +233,17 @@ test("Shifts: Zoe sees the Arena shift with its travel line, and its page in ful
   await expect(page.getByText("Manual handling")).toHaveCount(0);
   await noSidewaysScroll(page);
 
-  // The site filter, as built (folded away under "Choose a day, site or role"), narrows the list:
+  // The site filter, right under the strip (Phase 20: no longer folded away), narrows the list:
   // the other hall, then the Arena.
-  await page.getByText("Choose a day, site or role").click();
-  await page.getByLabel("Site").selectOption({ label: scene.arena.replace("Arena", "Other Hall") });
+  const filter = page.getByRole("form", { name: "Choose a day, site or role" });
+  await expect(filter).toBeVisible();
+  await filter
+    .getByLabel("Site")
+    .selectOption({ label: scene.arena.replace("Arena", "Other Hall") });
   await page.getByRole("button", { name: "Show shifts" }).click();
   await expect(rows).toHaveCount(1);
   await expect(rows).not.toContainText("Gate A");
-  await page.getByLabel("Site").selectOption({ label: scene.arena });
+  await filter.getByLabel("Site").selectOption({ label: scene.arena });
   await page.getByRole("button", { name: "Show shifts" }).click();
   await expect(rows).toHaveCount(1);
   await expect(rows).toContainText("Gate A");

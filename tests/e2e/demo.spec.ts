@@ -113,7 +113,7 @@ test("a casual logs in from the Demo phone", async ({ browser }) => {
   await expect(message).toContainText("07700 900150");
   await message.getByRole("link", { name: /\/l#/ }).click();
   await page.getByRole("button", { name: "Log me in" }).click();
-  await expect(page.getByRole("heading", { name: `Hello ${casual.firstName}` })).toBeVisible();
+  await expect(page.getByRole("heading", { name: `Hi ${casual.firstName}` })).toBeVisible();
   await expect(page.getByRole("complementary", { name: "Demo" })).toBeVisible();
 });
 

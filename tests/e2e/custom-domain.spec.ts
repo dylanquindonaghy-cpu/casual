@@ -113,7 +113,7 @@ test("a worker logs in on Acme's own domain and stays logged in there", async ({
     await expect(page).toHaveURL(`${portal}/l`);
     await page.getByRole("button", { name: "Log me in" }).click();
     await expect(page).toHaveURL(`${portal}/`);
-    await expect(page.getByRole("heading", { name: /^Hello / })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^Hi / })).toBeVisible();
     await expect(page.getByTestId("brand-name")).toHaveText("Acme Events");
     expect(await sessionsOn(context, portal, SESSION.worker)).toHaveLength(1);
     expect(await sessionsOn(context, "http://acme.localhost:3100", SESSION.worker)).toHaveLength(0);
@@ -127,7 +127,7 @@ test("a worker logs in on Acme's own domain and stays logged in there", async ({
     await expect(page).toHaveURL(`${portal}/requests`);
     await page.goto(`${portal}/`);
     await expect(page).toHaveURL(`${portal}/`);
-    await expect(page.getByRole("heading", { name: /^Hello / })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^Hi / })).toBeVisible();
   } finally {
     await clear();
   }

@@ -35,6 +35,7 @@ export default async function BookedPage({
       <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
       <OfflineCopy enabled={offlineCopyOn(appEnv())} renderedAt={now.getTime()} page="/shifts" />
       <BookedView
+        firmName={firm.name}
         timeZone={firm.timezone}
         now={now}
         view={view}

@@ -26,13 +26,26 @@ const { SessionsTable } = await import("@/app/office/events/sessions-table");
 const { ShowingSwitch } = await import("@/app/office/events/showing-switch");
 const { SessionItem } = await import("@/app/office/events/session-row");
 const { boardDays, eventCells, eventNote } = await import("@/lib/office/events-board");
+const { BoardDays, BoardKey } = await import("@/app/office/events/board-parts");
 
 // The board's two weeks from Saturday 7 November, and an event's open row in them.
 const DAYS = boardDays("2026-11-07", "2026-11-07");
 const WINDOW = { first: "2026-11-07", last: "2026-11-20" };
 const table = (e: EventCardData, hasPlanner = false) =>
   renderToStaticMarkup(
-    createElement(SessionsTable, { event: e, timeZone: TZ, hasPlanner, window: WINDOW }),
+    createElement(SessionsTable, {
+      event: e,
+      timeZone: TZ,
+      hasPlanner,
+      window: WINDOW,
+      showingSwitch: createElement(ShowingSwitch, {
+        target: "event",
+        id: e.eventId,
+        showing: e.showing,
+        label: eventSwitchLabel(e),
+        small: true,
+      }),
+    }),
   );
 const row = (e: EventCardData) =>
   renderToStaticMarkup(
@@ -45,13 +58,6 @@ const row = (e: EventCardData) =>
       first: true,
       weekend: DAYS.map((d) => d.weekend),
       cells: eventCells(e, DAYS, TZ),
-      showingSwitch: createElement(ShowingSwitch, {
-        target: "event",
-        id: e.eventId,
-        showing: e.showing,
-        label: eventSwitchLabel(e),
-        small: true,
-      }),
       panel: createElement("p", null, "PANEL"),
     }),
   );
@@ -152,7 +158,7 @@ describe("an event card's words", () => {
     expect(eventSwitchLabel(event())).toBe("Show Northern Lights Live to casuals");
   });
 
-  it("its row on the board: the name opens it (shut at first), its line, its switch, a pill on its day", () => {
+  it("its row on the board: the name opens it (shut at first), its line, no switch, a pill on its day", () => {
     const html = row(event());
     const words = text(html);
     // The name and its line are one button that opens the row into its sessions.
@@ -161,11 +167,13 @@ describe("an event card's words", () => {
     );
     expect(words).toContain("Northern Lights Live");
     expect(words).toContain(eventNote(event()).text);
+    // Phase 20: no switch on the row (it's in the opened row, so a slip can't hide an event).
+    expect(html).not.toContain('role="switch"');
+    // The name in full: it wraps rather than being cut short.
     expect(html).toMatch(
-      /role="switch" aria-checked="true" aria-label="Show Northern Lights Live to casuals"/,
+      /<span class="block leading-snug font-semibold break-words ">Northern Lights Live<\/span>/,
     );
-    // The board's only switch is the event's (the sessions' are on the event's own page).
-    expect(html.match(/role="switch"/g)).toHaveLength(1);
+    expect(html).not.toContain("truncate");
     // Both sessions are on Saturday 7: one pill each, named for screen readers.
     const pills = [
       ...html.matchAll(/<button type="button" aria-label="([^"]+)" aria-expanded/g),
@@ -176,13 +184,59 @@ describe("an event card's words", () => {
       /<div id="event-22222222-2222-4222-8222-222222222222-sessions" hidden="">/,
     );
     expect(html).not.toContain("PANEL");
-    // Hidden: its line says so, its name and pills fade.
+    // Hidden: its line says so, with its mark; its name and pills fade.
     const hidden = row(event({ showing: false, urgentGap: false }));
     expect(text(hidden)).toContain("Hidden from casuals");
+    expect(hidden).toMatch(/<svg [^>]*>[\s\S]*?<\/svg>Hidden from casuals/);
     expect(hidden).toContain("opacity-50");
+    expect(html).not.toMatch(/<svg [^>]*>[\s\S]*?<\/svg>Hidden from casuals/);
     // An automatic event's name is its place and day: said once.
     const automatic = text(row(event({ name: "Acme Demo Arena · Sat 7 Nov" })));
     expect(automatic.split("Acme Demo Arena · Sat 7 Nov")).toHaveLength(2);
+    // Its 14 days' cells: the weekends (Sat 7, Sun 8, Sat 14, Sun 15) a shade darker, as their
+    // headers are (Phase 20).
+    const cells = [
+      ...html.matchAll(
+        /<div class="flex flex-col justify-center gap-\[3px\] px-\[3px\] py-1\.5 ?([^"]*)">/g,
+      ),
+    ].map((m) => m[1]);
+    expect(cells).toHaveLength(14);
+    expect(cells.flatMap((c, i) => (c === "bg-canvas" ? [i] : []))).toEqual([0, 1, 7, 8]);
+  });
+
+  it("the board's days (Phase 20): today marked in the firm's colour, weekends a shade darker", () => {
+    const html = renderToStaticMarkup(
+      createElement(BoardDays, { days: boardDays("2026-11-07", "2026-11-09") }),
+    );
+    const days = [
+      ...html.matchAll(/<div data-day="([^"]+)" class="([^"]*)">([\s\S]*?)<\/div><\/div>/g),
+    ].map((m) => ({ date: m[1], cls: m[2] ?? "", inner: m[3] ?? "" }));
+    expect(days).toHaveLength(14);
+    // Today (Monday 9): a bar in the firm's colour along its top, "Today" bold; no other day.
+    const barred = days.filter((d) =>
+      d.inner.includes('class="absolute inset-x-0 top-0 h-[3px] bg-brand"'),
+    );
+    expect(barred.map((d) => d.date)).toEqual(["2026-11-09"]);
+    expect(barred[0]?.inner).toContain('<div class="text-xs font-semibold text-ink">Today');
+    expect(html.match(/bg-brand/g)).toHaveLength(1);
+    // The weekends on the canvas grey, a shade darker than the board's card; weekdays not.
+    expect(days.filter((d) => d.cls.split(" ").includes("bg-canvas")).map((d) => d.date)).toEqual([
+      "2026-11-07",
+      "2026-11-08",
+      "2026-11-14",
+      "2026-11-15",
+    ]);
+  });
+
+  it("the board's key, in plain words", () => {
+    const key = renderToStaticMarkup(createElement(BoardKey));
+    expect(text(key).trim().replace(/\s+/g, " ")).toBe(
+      "Urgent gap Places open Full Pills show places filled out of places needed.",
+    );
+    // Each mark is the pill it explains: red, outlined, grey.
+    expect(key).toContain('class="size-3.5 rounded-[4px] bg-urgent-fill"');
+    expect(key).toContain('class="size-3.5 rounded-[4px] border-[1.5px] border-ink-muted"');
+    expect(key).toContain('class="size-3.5 rounded-[4px] bg-raised"');
   });
 });
 
@@ -210,8 +264,24 @@ describe("an event's open row: its sessions in the board's two weeks (Phase 18)"
       }),
     );
     const words = text(html);
-    expect(words).toContain("Acme Demo Arena 4 sessions to come Showing to casuals");
-    const rows = [...html.matchAll(/<tr data-session="([^"]+)"[^>]*>([\s\S]*?)<\/tr>/g)];
+    // Set into the board a step darker (the canvas grey, sunk), not a card of its own.
+    expect(html).toMatch(/^<div class="[^"]*rounded-\[18px\] bg-canvas[^"]*inset-shadow-sunk/);
+    expect(html.slice(0, html.indexOf(">"))).not.toContain("bg-card");
+    // Its head: where, how many to come, then its "show to casuals" switch (Phase 20: here, not on
+    // the row), Add a session and its own page.
+    expect(words).toContain(
+      "Acme Demo Arena 4 sessions to come Show to casuals Add a session Open the event's page",
+    );
+    expect(html).toMatch(
+      /role="switch" aria-checked="true" aria-label="Show Northern Lights Live to casuals"/,
+    );
+    // Each session a body of its own, on two lines: the session, then its post, meeting point and
+    // uniform.
+    const rows = [...html.matchAll(/<tbody data-session="([^"]+)"[^>]*>([\s\S]*?)<\/tbody>/g)];
+    expect(rows.map((r) => (r[2]?.match(/<tr>/g) ?? []).length)).toEqual([2, 2, 2]);
+    expect(text(rows[0]?.[2] ?? "")).toContain(
+      "Gate A · Meet at main gate · Black trousers, boots",
+    );
     expect(rows.map((r) => r[1])).toEqual([
       "a1111111-1111-4111-8111-111111111111",
       "b1111111-1111-4111-8111-111111111111",
@@ -221,9 +291,15 @@ describe("an event's open row: its sessions in the board's two weeks (Phase 18)"
     expect(rows.map((r) => text(r[2] ?? "").match(/\d+\/4/)?.[0])).toEqual(["1/4", "4/4", "4/4"]);
     expect(rows[0]?.[2]).toContain('data-seat="free"');
     expect(rows[1]?.[2]).not.toContain('data-seat="free"');
-    // Every session keeps its "…" menu and its urgent switch.
+    // Every session keeps its "…" menu and its urgent switch (and the event's own switch).
     expect(html.match(/aria-label="More for /g)).toHaveLength(3);
-    expect(html.match(/role="switch"/g)).toHaveLength(3);
+    expect(html.match(/role="switch"/g)).toHaveLength(4);
+    // Pay on the right.
+    expect(html).toMatch(/<th scope="col" class="[^"]*text-right">Pay an hour<\/th>/);
+    // A session with no post, meeting point or uniform says so on its second line.
+    expect(text(table(event({ sessions: [event().sessions[1]!] })))).toContain(
+      "No post, meeting point or uniform",
+    );
     expect(words).toContain("1 more session to come, outside these two weeks.");
     // Pay an hour; the role links to the session; its own page; Add a session (no planner).
     expect(words).toContain("Pay an hour");

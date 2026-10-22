@@ -5,7 +5,7 @@ import { sentTo } from "./outbox";
 
 // Marking who worked a shift in a real browser: a shift that ran 3 days ago with three people
 // booked shows under "Who worked?" in Needs attention (its own page, which the dashboard's row and
-// the bell open: Phase 18); the resourcer marks one as not attended, the rest as
+// the menu open: Phases 18 and 20); the resourcer marks one as not attended, the rest as
 // worked in one go, then puts a mistake right. The resourcer is this spec's own (the seeded ones'
 // login links are used up by the other office specs: 3 per email every 15 minutes).
 
@@ -39,7 +39,7 @@ test("mark who worked a shift that ended: one not attended, the rest worked, a m
   // Needs attention lists it under "Who worked?"; the dashboard's row goes there.
   await page.goto(`${acme}/office`);
   await page
-    .getByRole("list", { name: "After that" })
+    .getByRole("list", { name: "Needs attention" })
     .getByRole("link", { name: /^Who worked\?/ })
     .click();
   await expect(page).toHaveURL(`${acme}/office/needs-attention#to-mark`);

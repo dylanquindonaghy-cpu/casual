@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import type { Dashboard, NeedsAttention } from "@/lib/office/dashboard";
 import {
   afterRows,
+  attentionText,
   headline,
+  oneCount,
   sortedRows,
   subline,
-  thingsCount,
+  urgentDaysText,
   weekCells,
+  weekSummary,
 } from "@/lib/office/dashboard-home";
 import {
   boardDays,
@@ -19,13 +22,14 @@ import {
 import type { EventCardData, SessionRow } from "@/lib/office/events";
 import { placesFreeText } from "@/lib/office/focus-copy";
 import {
-  applyRowText,
+  applyTileText,
   daysText,
   needsRowText,
   offlineUrgentText,
+  payDayTileText,
   travelStrip,
   uniformItems,
-  urgentRowText,
+  urgentTileText,
 } from "@/lib/portal/home-copy";
 import { shiftsStrip } from "@/lib/portal/shifts-strip";
 import { dateParts, inDays, placesLeftText, shiftLine, timeRange } from "@/lib/portal/sign-copy";
@@ -127,24 +131,50 @@ describe("Home's For you rows", () => {
     ).toBe("Sun 25, Tue 27, Wed 28 Oct and more");
   });
 
-  it("the urgent row: how many, the days and the best pay", () => {
+  it("the urgent tile (Phase 20): near you when her home area chose them, how many, the days and the best pay", () => {
     expect(
-      urgentRowText([shift("2026-10-22T07:00:00Z", 1550), shift("2026-10-23T18:00:00Z", 1500)], TZ),
+      urgentTileText(
+        [shift("2026-10-22T07:00:00Z", 1550), shift("2026-10-23T18:00:00Z", 1500)],
+        true,
+        TZ,
+      ),
     ).toEqual({
-      title: "2 shifts you can take",
-      sub: "Thu 22 and Fri 23 Oct, up to £15.50 an hour",
+      label: "Urgent near you",
+      value: "2 shifts",
+      caption: "Thu 22 and Fri 23 Oct, up to £15.50 an hour",
     });
-    expect(urgentRowText([shift("2026-10-22T07:00:00Z", null)], TZ)).toEqual({
-      title: "1 shift you can take",
-      sub: "Thu 22 Oct",
+    expect(urgentTileText([shift("2026-10-22T07:00:00Z", null)], false, TZ)).toEqual({
+      label: "Urgent",
+      value: "1 shift",
+      caption: "Thu 22 Oct",
     });
   });
 
-  it("the apply row says 'more' only under the urgent row; offline, the urgent row's count", () => {
+  it("the apply tile says 'more' only under the urgent one, and with none when she'll hear; offline, the urgent count", () => {
     const three = ["2026-10-25", "2026-10-27", "2026-10-28"].map((d) => shift(`${d}T10:00:00Z`));
-    expect(applyRowText(three, true, TZ).title).toBe("3 more shifts you can apply for");
-    expect(applyRowText(three, false, TZ).title).toBe("3 shifts you can apply for");
-    expect(applyRowText(three.slice(0, 1), false, TZ).title).toBe("1 shift you can apply for");
+    expect(applyTileText(three, true, true, TZ)).toEqual({
+      label: "More to apply for",
+      value: "3 shifts",
+      caption: "Sun 25, Tue 27 and Wed 28 Oct",
+    });
+    expect(applyTileText(three, false, true, TZ).label).toBe("To apply for");
+    expect(applyTileText(three.slice(0, 1), false, true, TZ).value).toBe("1 shift");
+    expect(applyTileText([], true, true, TZ)).toEqual({
+      label: "More to apply for",
+      value: "No others now",
+      caption: "We'll message you when something matches.",
+    });
+    expect(applyTileText([], false, false, TZ)).toEqual({
+      label: "To apply for",
+      value: "None right now",
+      caption: "Check back later.",
+    });
+    // Pay day: the pay week's Friday (D8), for the week she's in.
+    expect(payDayTileText("2026-10-30")).toEqual({
+      label: "Pay day",
+      value: "Fri 30 Oct",
+      caption: "For this week's shifts",
+    });
     expect(offlineUrgentText(2, "14:49")).toBe(
       "2 were urgent at 14:49. We'll check again when you're online.",
     );
@@ -297,6 +327,7 @@ const emptyNeeds = (): NeedsAttention => ({
   expired: [],
   expiredMore: false,
   uploads: 0,
+  uploadList: [],
   evidence: { addressConfirmed: true, waiting: 0, failed: [], failedMore: false },
   plannerRefused: [],
   plannerRefusedMore: false,
@@ -308,8 +339,10 @@ describe("the dashboard's headline, week and rows", () => {
     expect(headline(0)).toBe("Nothing needs you right now");
     expect(headline(1)).toBe("1 thing needs you");
     expect(headline(3)).toBe("3 things need you");
-    expect(thingsCount(3, 2)).toBe(3);
-    expect(thingsCount(0, 2)).toBe(2);
+    // The one count (Phase 20): each urgent place still to fill, and each item of Needs attention.
+    expect(oneCount(3, 7)).toBe(10);
+    expect(oneCount(0, 2)).toBe(2);
+    expect(oneCount(0, 0)).toBe(0);
     expect(subline(2, 3)).toBe(
       "Start with the urgent places. Casuals see these first and get an alert.",
     );
@@ -347,6 +380,52 @@ describe("the dashboard's headline, week and rows", () => {
     expect(cells[4]?.label).toBe("Sat 24 Oct: 1 urgent, 2 open, 19 of 21 places filled");
     expect(cells[2]?.label).toBe("Wed 21 Oct, today: Nothing on");
     expect(cells[0]?.label).toBe("Mon 19 Oct: 4 of 6 filled");
+    // Phase 20: each day's places, filled and open, and whether it's gone by.
+    expect(cells.map((c) => [c.places, c.filled, c.open, c.past])).toEqual([
+      [6, 4, 0, true],
+      [5, 5, 0, true],
+      [0, 0, 0, false],
+      [4, 3, 1, false],
+      [21, 19, 2, false],
+      [41, 30, 11, false],
+      [2, 2, 0, false],
+    ]);
+    // From today on: 14 places still to fill; 54 of 68 filled, over the days with places.
+    expect(weekSummary(cells)).toEqual({ toFill: 14, filled: 54, places: 68, days: "Thu to Mon" });
+    // A day gone by never counts, even with open places left in the data.
+    expect(
+      weekSummary(weekCells([{ ...days[0]!, open: 3 }, days[2]!], [], "2026-10-21", TZ)),
+    ).toEqual({ toFill: 0, filled: 0, places: 0, days: null });
+    expect(weekSummary(weekCells([days[2]!, days[3]!], [], "2026-10-21", TZ)).days).toBe("Thu");
+  });
+
+  it("the dashboard's tiles: the urgent places' days, and what Needs attention's count is made of", () => {
+    const item = (dow: string, day: string, shiftId: string) => ({ dow, day, shiftId });
+    expect(urgentDaysText([])).toBe("");
+    expect(urgentDaysText([item("Thu", "22", "a")])).toBe("Thu 22");
+    expect(
+      urgentDaysText([item("Thu", "22", "a"), item("Thu", "22", "b"), item("Fri", "23", "c")]),
+    ).toBe("Thu 22 and Fri 23");
+    expect(urgentDaysText(["22", "23", "24", "25"].map((d, i) => item("Thu", d, String(i))))).toBe(
+      "Thu 22, Thu 23, Thu 24 and more",
+    );
+    const row = (key: string, count: string | null) => ({
+      key,
+      title: "",
+      sub: "",
+      count,
+      href: "",
+    });
+    expect(attentionText([row("to-mark", "5"), row("uploads", "2")])).toBe(
+      "5 sessions to mark, 2 uploads",
+    );
+    expect(attentionText([row("to-mark", "1"), row("uploads", "1")])).toBe(
+      "1 session to mark, 1 upload",
+    );
+    expect(
+      attentionText([row("to-check", "50+"), row("webhook", null), row("enquiries", "2")]),
+    ).toBe("50+ bookings to check, webhook failing and more");
+    expect(attentionText([])).toBe("Nothing waiting for you");
   });
 
   it("After that: a row per kind of to-do, in Needs attention's order, each to where it's dealt with", () => {

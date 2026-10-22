@@ -3,10 +3,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { officeMenu } from "@/app/office/office-menu";
 import type { Dashboard, NeedsAttention } from "@/lib/office/dashboard";
-import { needsCount } from "@/lib/office/dashboard";
+import { attentionCount, attentionOf, needsCount } from "@/lib/office/dashboard";
 import {
-  bellLabel,
   cancelledByText,
+  COUNT_ERROR,
   countLine,
   COUNTS,
   expiredText,
@@ -50,8 +50,10 @@ vi.mock("@/app/office/shifts/actions", () => ({
 }));
 
 const { DashboardContent } = await import("@/app/office/dashboard-view");
-const { NeedsItems } = await import("@/app/office/needs-items");
-const { focusItems } = await import("@/lib/office/dashboard-home");
+const { AlsoNeedsYou, NeedsItems, needsPageLine, toMarkGroups } =
+  await import("@/app/office/needs-items");
+const { attentionText, focusItems, greeting, moreLabels, startLine } =
+  await import("@/lib/office/dashboard-home");
 
 const TZ = "Europe/London";
 const at = (iso: string) => new Date(iso);
@@ -68,6 +70,7 @@ const noNeeds: NeedsAttention = {
   expired: [],
   expiredMore: false,
   uploads: 0,
+  uploadList: [],
   evidence: { addressConfirmed: true, waiting: 0, failed: [], failedMore: false },
   plannerRefused: [],
   plannerRefusedMore: false,
@@ -346,6 +349,26 @@ const full: Dashboard = {
       },
     ],
     uploads: 2,
+    uploadList: [
+      {
+        id: "up1",
+        workerId: "w6",
+        name: "Ben Fraser",
+        kind: "photo",
+        qualificationType: null,
+        qualificationName: null,
+        sentAt: at("2026-11-02T01:29:00Z"),
+      },
+      {
+        id: "up2",
+        workerId: "w7",
+        name: "Leah Ward",
+        kind: "certificate",
+        qualificationType: "SIA_DS",
+        qualificationName: "SIA door supervisor licence",
+        sentAt: at("2026-10-31T15:29:00Z"),
+      },
+    ],
     evidence: {
       addressConfirmed: false,
       waiting: 1,
@@ -384,8 +407,11 @@ const render = (
   renderToStaticMarkup(
     createElement(DashboardContent, {
       d,
+      firmName: "Acme Events",
       shiftsLine: o.shiftsLine,
       payQueriesWaiting: o.payQueriesWaiting ?? 0,
+      // Monday 2 November, 18:30 in London: the evening.
+      now: at("2026-11-02T18:30:00Z"),
     }),
   );
 const words = (html: string) =>
@@ -537,58 +563,196 @@ describe("the words", () => {
         TZ,
       ),
     ).toContain("the door supervisor session on Sat 6 Jun was refused");
-    // Each refused session is one of the bell's items; a list stopped at 50 shows "50+".
+    // Each refused session is one of Needs attention's items; a list stopped at 50 shows "50+".
     expect(needsCount({ ...noNeeds, plannerRefused: [p, p], plannerRefusedMore: true })).toEqual({
       count: 2,
       more: true,
     });
-    expect(bellLabel(3, false)).toBe("Needs attention, 3");
-    expect(bellLabel(50, true)).toBe("Needs attention, 50+");
-    expect(bellLabel(null, false)).toBe("Needs attention");
+    // The one count (Phase 20): those items and the enquiries that need a person, as the menu shows.
+    expect(
+      attentionCount({ ...noNeeds, plannerRefused: [p, p], plannerRefusedMore: true }, 3),
+    ).toEqual({ count: 5, more: true });
+    expect(attentionCount(noNeeds, 0)).toEqual({ count: 0, more: false });
+    // Needs attention's page: unread items give no count; unread enquiries make it "at least".
+    expect(attentionOf(ok(noNeeds), ok(3))).toEqual({ count: 3, more: false });
+    expect(attentionOf(ok(noNeeds), failed)).toEqual({ count: 0, more: true });
+    expect(attentionOf(failed, ok(3))).toBeNull();
   });
 });
 
-describe("the page (Phase 18's dashboard)", () => {
+describe("the page (Phases 18 and 20: the dashboard)", () => {
   const h1s = (html: string) =>
     [...html.matchAll(/<h1[^>]*>([\s\S]*?)<\/h1>/g)].map((m) => words(m[1] ?? ""));
-  // The rows of a list of rows ("After that", "Waiting on others", "Sorted today").
+  // The rows of a list of rows ("Needs attention", "Waiting on others", "Sorted today").
   const rows = (html: string, label: string) => {
     const list =
       new RegExp(`<ul role="list" aria-label="${label}"[^>]*>([\\s\\S]*?)</ul>`).exec(html)?.[1] ??
       "";
     return links(list).map((l) => `${l.name} → ${l.href}`);
   };
+  // The four count tiles, in order: their words and where each goes.
+  const tiles = (html: string) =>
+    [
+      ...html.matchAll(
+        /<(a|div) ([^>]*class="flex min-h-33 flex-col rounded-\[22px\][^"]*"[^>]*)>([\s\S]*?)<\/\1>/g,
+      ),
+    ].map((m) => {
+      const href = /href="([^"]*)"/.exec(m[2] ?? "")?.[1];
+      return `${words(m[3] ?? "")}${href ? ` → ${href}` : ""}`;
+    });
+  // The urgent places listed, each a lifted row.
+  const places = (html: string) =>
+    [
+      ...section(html, "urgent-places").matchAll(/<li data-urgent-place=""[^>]*>([\s\S]*?)<\/li>/g),
+    ].map((m) => m[1] ?? "");
 
-  it("the headline: how many things need you (the urgent places as one, then each row after them), and where to start", () => {
+  it("the greeting and the one count: the urgent places and Needs attention's items, then where to start", () => {
     const html = render(full, { shiftsLine: "Shifts line 07700 900123" });
-    expect(h1s(html)).toEqual(["9 things need you"]);
+    // 3 urgent places + 9 of Needs attention's items + 2 enquiries that need a person.
+    expect(h1s(html)).toEqual(["Evening, Acme Events. 14 things need you."]);
     expect(words(html)).toContain(
-      "9 things need you Start with the urgent places. Casuals see these first and get an alert. Shifts line 07700 900123",
+      "14 things need you. Start with Saturday's door supervisor at 06:00: offered to 4 casuals. Monday 2 November · Week 45 · Pay on Fri 13 Nov Shifts line 07700 900123",
     );
-    // Only urgent places: one thing.
+    // Only urgent places: each place to fill counts.
     const onlyUrgent = render({
       ...full,
       needs: ok(noNeeds),
       counts: { ...full.counts, enquiries: ok({ total: 0, automatic: 0, needPerson: 0 }) },
     });
-    expect(h1s(onlyUrgent)).toEqual(["1 thing needs you"]);
+    expect(h1s(onlyUrgent)).toEqual(["Evening, Acme Events. 3 things need you."]);
     // Nothing urgent, other things: sorted first.
-    const noUrgent = render({ ...full, urgent: ok({ events: [], more: false }) });
-    expect(h1s(noUrgent)).toEqual(["8 things need you"]);
+    const noUrgent = render({
+      ...full,
+      urgent: ok({ events: [], more: false }),
+      counts: { ...full.counts, urgent: ok({ sessions: 0, places: 0, firstStartsAt: null }) },
+    });
+    expect(h1s(noUrgent)).toEqual(["Evening, Acme Events. 11 things need you."]);
     expect(words(noUrgent)).toContain("Urgent places are sorted. The rest is below.");
     // Nothing at all.
     const calm = render(empty);
-    expect(h1s(calm)).toEqual(["Nothing needs you right now"]);
+    expect(h1s(calm)).toEqual(["Evening, Acme Events. Nothing needs you right now."]);
     expect(words(calm)).toContain(
       "Every urgent place is filled, and nothing else is waiting for you.",
     );
+    // Not offered yet: where to start says so.
+    expect(
+      startLine({ ...focusItems(full)[0]!, notOffered: true, offered: "Offered to 0 casuals" }, 3),
+    ).toBe("Start with Saturday's door supervisor at 06:00: not offered to anyone yet.");
   });
 
-  it("this week: seven days, each a link to its shifts (or to the sessions to mark), how full, its urgent gaps", () => {
-    const nav = /<nav aria-label="This week">([\s\S]*?)<\/nav>/.exec(render(full))?.[1] ?? "";
+  it("Needs attention's page: its count line, and Also needs you with the urgent places (Phase 20)", () => {
+    expect(needsPageLine({ count: 6, more: false })).toBe(
+      "6 things for you. Each item links to where it's dealt with.",
+    );
+    expect(needsPageLine({ count: 1, more: false })).toBe(
+      "1 thing for you. Each item links to where it's dealt with.",
+    );
+    expect(needsPageLine({ count: 50, more: true })).toBe(
+      "50+ things for you. Each item links to where it's dealt with.",
+    );
+    expect(needsPageLine(null)).toBe("Each item links to where it's dealt with.");
+    const also = (urgent: { places: number; firstStartsAt: Date | null } | null) =>
+      renderToStaticMarkup(createElement(AlsoNeedsYou, { urgent, timeZone: TZ }));
+    // Urgent places: how many and the day of the first, with the way to the dashboard.
+    const some = also({ places: 3, firstStartsAt: at("2026-11-05T07:00:00Z") });
+    expect(some).toMatch(/^<section aria-labelledby="also-needs-you"/);
+    expect(words(some)).toBe(
+      "Also needs you 3 urgent places to fill, the first on Thu 5 Nov. Go to the Dashboard",
+    );
+    expect(some).toMatch(/<a class="[^"]*" href="\/office">Go to the Dashboard<\/a>/);
+    expect(words(also({ places: 1, firstStartsAt: null }))).toBe(
+      "Also needs you 1 urgent place to fill. Go to the Dashboard",
+    );
+    // None: said so, with no link.
+    const none = also({ places: 0, firstStartsAt: null });
+    expect(words(none)).toBe("Also needs you No urgent places to fill.");
+    expect(none).not.toContain("<a ");
+    // Their count unread: said so.
+    expect(words(also(null))).toBe(`Also needs you ${COUNT_ERROR}`);
+    expect(also(null)).not.toContain("<a ");
+  });
+
+  it("names each urgent place's … button apart: its day, role and time, keeping an acronym in capitals", () => {
+    const first = focusItems(full)[0]!;
+    expect(
+      moreLabels([
+        first,
+        { ...first, role: "CSAS officer" },
+        // The same day, role and time again: numbered.
+        first,
+        // A Google Sheet's or a planner's place: only "Not urgent" is under its "…".
+        { ...first, range: "16:00–22:00", fromSheet: true },
+        { ...first, range: "17:00–22:00", fromPlanner: true },
+      ]),
+    ).toEqual([
+      "More for Saturday's door supervisor at 06:00: mark as filled, not urgent",
+      "More for Saturday's CSAS officer at 06:00: mark as filled, not urgent",
+      "More for Saturday's door supervisor at 06:00 (2): mark as filled, not urgent",
+      "More for Saturday's door supervisor at 16:00: not urgent",
+      "More for Saturday's door supervisor at 17:00: not urgent",
+    ]);
+  });
+
+  it("lists the urgent places soonest first, whatever order their events come in", () => {
+    if (!full.urgent.ok) throw new Error("fixture");
+    // Events come in the order of their first session to come: here the later urgent one first.
+    const reversed: Dashboard = {
+      ...full,
+      urgent: ok({ ...full.urgent.data, events: [...full.urgent.data.events].reverse() }),
+    };
+    expect(focusItems(reversed).map((i) => i.shiftId)).toEqual(["u1", "u2"]);
+    const html = render(reversed);
+    expect(words(html)).toContain("Start with Saturday's door supervisor at 06:00");
+    expect(places(html).map((p) => /href="\/office\/shifts\/(u\d)"/.exec(p)?.[1])).toEqual([
+      "u1",
+      "u2",
+    ]);
+    expect(tiles(html)[0]).toBe("Urgent places 3 Sat 7 and Sun 8 → /office/events?view=urgent");
+  });
+
+  it("the list of urgent places unread, its count read: where to start says to start with them", () => {
+    const html = render({ ...full, urgent: failed });
+    expect(h1s(html)).toEqual(["Evening, Acme Events. 14 things need you."]);
+    expect(words(html)).toContain(
+      "Start with the urgent places. Casuals see these first and get an alert.",
+    );
+    expect(words(html)).not.toContain("Urgent places are sorted.");
+  });
+
+  it("the greeting by the firm's clock: morning, afternoon, evening", () => {
+    expect(greeting(at("2026-11-02T09:00:00Z"), TZ)).toBe("Morning");
+    expect(greeting(at("2026-11-02T11:59:00Z"), TZ)).toBe("Morning");
+    expect(greeting(at("2026-11-02T12:00:00Z"), TZ)).toBe("Afternoon");
+    expect(greeting(at("2026-11-02T18:00:00Z"), TZ)).toBe("Evening");
+    // Summer: 11:30 GMT is 12:30 in London.
+    expect(greeting(at("2026-07-01T11:30:00Z"), TZ)).toBe("Afternoon");
+  });
+
+  it("four count tiles: urgent places, needs attention, waiting on others, sorted today", () => {
+    expect(tiles(render(full, { payQueriesWaiting: 3 }))).toEqual([
+      "Urgent places 3 Sat 7 and Sun 8 → /office/events?view=urgent",
+      "Needs attention 11 1 booking to check, 1 change from your sheet and more → /office/needs-attention",
+      "Waiting on others 3 Pay queries with payroll → /office/pay-queries",
+      "Sorted today 20 2 cancellations, 18 enquiries → #sorted",
+    ]);
+    expect(tiles(render(empty))).toEqual([
+      "Urgent places 0 Every urgent place is filled → /office/events?view=urgent",
+      "Needs attention 0 Nothing waiting for you → /office/needs-attention",
+      "Waiting on others 0 Nothing waiting on others",
+      "Sorted today 0 0 cancellations, 0 enquiries → #sorted",
+    ]);
+    expect(attentionText([])).toBe("Nothing waiting for you");
+  });
+
+  it("this week: the places still to fill, then a bar per day, each a link to its shifts (or to the sessions to mark)", () => {
+    const html = render(full);
+    expect(words(section(html, "this-week"))).toContain(
+      "This week 9 places still to fill. 14 of 23 filled, Tue to Sat.",
+    );
+    const nav = /<nav aria-label="This week">([\s\S]*?)<\/nav>/.exec(html)?.[1] ?? "";
     const days = [
       ...nav.matchAll(/<a aria-label="([^"]*)" class="([^"]*)" href="([^"]*)">([\s\S]*?)<\/a>/g),
-    ].map((m) => ({ label: m[1], cls: m[2] ?? "", href: m[3], shown: words(m[4] ?? "") }));
+    ].map((m) => ({ label: m[1], href: m[3], inner: m[4] ?? "", shown: words(m[4] ?? "") }));
     expect(days.map((d) => [d.href, d.label])).toEqual([
       ["/office/shifts?from=2026-11-02", "Mon 2 Nov, today: Nothing on"],
       ["/office/shifts?from=2026-11-03", "Tue 3 Nov: All filled, 4 of 4 places filled"],
@@ -599,21 +763,40 @@ describe("the page (Phase 18's dashboard)", () => {
       ["/office/shifts?from=2026-11-08", "Sun 8 Nov: Nothing on"],
     ]);
     expect(days.map((d) => d.shown)).toEqual([
-      "2 Today Nothing on",
-      "3 Tue All filled",
-      "4 Wed 2 urgent 3 open",
-      "5 Thu 4 open",
-      "6 Fri Nothing on",
-      "7 Sat 2 urgent",
-      "8 Sun Nothing on",
+      "Today –",
+      "Tue 4/4",
+      "Wed 3/6",
+      "Thu 6/10",
+      "Fri –",
+      "Sat 1/3",
+      "Sun –",
     ]);
-    // Today marked by a bar along its top; a day with urgent gaps on the red tint.
-    expect(days[0]?.cls).toContain("border-t-ink");
-    expect(days.filter((d) => d.cls.includes("bg-urgent-soft")).map((d) => d.href)).toEqual([
+    // Today in a dark pill; a day with urgent gaps in the urgent red, its bar too.
+    expect(days[0]?.inner).toMatch(/bg-ink font-semibold text-on-ink[^"]*">Today</);
+    // Today with urgent gaps keeps the pill's own text colour (red on it fails the contrast test).
+    if (!full.week.ok) throw new Error("fixture");
+    const week = full.week.data;
+    const urgentToday = render({
+      ...full,
+      week: ok(week.map((w) => (w.date === "2026-11-02" ? { ...week[2]!, date: w.date } : w))),
+    });
+    const todayPill =
+      /<span class="([^"]*)">Today<\/span>/.exec(
+        /<nav aria-label="This week">([\s\S]*?)<\/nav>/.exec(urgentToday)?.[1] ?? "",
+      )?.[1] ?? "";
+    expect(todayPill).toContain("bg-ink font-semibold text-on-ink");
+    expect(todayPill).not.toContain("text-urgent");
+    expect(urgentToday).toMatch(
+      /aria-label="Mon 2 Nov, today: 2 urgent, 3 open, 3 of 6 places filled"/,
+    );
+    expect(days.filter((d) => /text-urgent/.test(d.inner)).map((d) => d.href)).toEqual([
       "/office/shifts?from=2026-11-04",
       "/office/shifts?from=2026-11-07",
     ]);
-    // Later in the week: a day gone by with sessions to mark goes to them, on a sign-yellow plate.
+    expect(days[2]?.inner).toContain("bg-urgent-fill");
+    expect(days[3]?.inner).toMatch(/bg-brand" style="width:60%"/);
+    // Later in the week: a day gone by with sessions to mark goes to them, on a yellow plate; a
+    // day gone by is "done", its bar grey.
     if (!full.needs.ok) throw new Error("fixture");
     const thursday: Dashboard = {
       ...full,
@@ -628,41 +811,50 @@ describe("the page (Phase 18's dashboard)", () => {
       /aria-label="Tue 3 Nov: 1 to mark, 4 of 4 places filled"[^>]*href="\/office\/needs-attention#to-mark"/,
     );
     expect(later).toMatch(/bg-hivis text-on-hivis[^"]*">1 to mark</);
+    expect(later).toMatch(/aria-label="Wed 4 Nov: [^"]*"[^>]*>[\s\S]*?bg-line-strong[\s\S]*?done</);
     expect(later).toContain('aria-label="Thu 5 Nov, today: 4 open, 6 of 10 places filled"');
   });
 
-  it("Next up: one urgent place at a time, its seats, who it was offered to and its actions, then the way to them all", () => {
+  it("every urgent place listed: its seats, who it was offered to, Offer to someone and the rest under …", () => {
     const html = render(full);
-    const next = section(html, "next-up");
-    const card = /<article[^>]*data-focus=""[^>]*>([\s\S]*?)<\/article>/.exec(next)?.[1] ?? "";
-    expect(words(card)).toContain("Urgent place to fill 1 of 2");
-    expect(card).toContain('aria-label="Previous urgent place"');
-    expect(card).toContain('aria-label="Next urgent place"');
-    expect(card).toContain('role="img" aria-label="Saturday 7 November"');
-    expect(words(card)).toContain(
-      "06:00–14:00 Door supervisor Northern Lights Live, Acme Demo Arena",
+    const [first, second] = places(html);
+    expect(places(html)).toHaveLength(2);
+    expect(words(section(html, "urgent-places"))).toMatch(
+      /^Urgent places to fill 2 All on Events & sessions/,
     );
-    expect(card).toMatch(/href="\/office\/shifts\/u1"/);
-    expect(card.match(/data-seat="taken"/g)).toHaveLength(1);
-    expect(card.match(/data-seat="free"/g)).toHaveLength(2);
-    expect(words(card)).toContain("2 of 3 places free");
-    expect(words(card)).toContain("Offered to 4 casuals");
-    expect(words(card)).not.toContain("Hidden from casuals");
-    expect(words(card)).not.toContain("The office was emailed about it.");
-    // Its actions: offer it (the main one), mark it as filled, not urgent.
-    expect(card).toMatch(/<a class="[^"]*" href="\/office\/offer\/u1">Offer to someone<\/a>/);
-    expect(words(card)).toContain("Mark as filled");
-    expect(words(card)).toContain("Not urgent");
-    expect(links(next).at(-1)).toEqual({
-      href: "/office/events?view=urgent",
-      name: "All urgent places on Events & sessions",
-    });
+    expect(section(html, "urgent-places")).toMatch(
+      /<a class="[^"]*" href="\/office\/events\?view=urgent">All on Events &amp; sessions<\/a>/,
+    );
+    expect(first).toContain('role="img" aria-label="Saturday 7 November"');
+    expect(words(first!)).toContain(
+      "06:00–14:00 Door supervisor Northern Lights Live, Acme Demo Arena 2 of 3 places free · Offered to 4 casuals",
+    );
+    expect(first).toMatch(/href="\/office\/shifts\/u1"/);
+    expect(first!.match(/data-seat="taken"/g)).toHaveLength(1);
+    expect(first!.match(/data-seat="free"/g)).toHaveLength(2);
+    expect(words(first!)).not.toContain("Hidden from casuals");
+    expect(words(first!)).not.toContain("The office was emailed about it.");
+    // Its actions: offer it (the main one); "…" opens mark as filled and not urgent.
+    expect(first).toMatch(/<a class="[^"]*" href="\/office\/offer\/u1">Offer to someone<\/a>/);
+    expect(first!.replace(/&#x27;/g, "'")).toMatch(
+      /<summary aria-label="More for Saturday's door supervisor at 06:00: mark as filled, not urgent"/,
+    );
+    const more =
+      /<summary aria-label="More for[^"]*"[^>]*>[\s\S]*?<\/summary>([\s\S]*?)<\/details>\s*<\/div>/.exec(
+        first!.replace(/&#x27;/g, "'"),
+      )?.[1];
+    expect(words(more ?? "")).toContain("Mark as filled");
+    expect(words(more ?? "")).toContain("Not urgent");
+    // The second: hidden, offers stopped, the office emailed.
+    expect(words(second!)).toContain("Hidden from casuals: nobody can see this gap.");
+    expect(words(second!)).toContain("Offers stopped: nobody else can take it.");
+    expect(words(second!)).toContain("The office was emailed about it.");
     // None: said so, with the way to the events.
-    const calm = section(render(empty), "next-up");
+    const calm = section(render(empty), "urgent-places");
     expect(words(calm)).toContain(
       "Every urgent place is filled. Nobody needs finding right now. See events",
     );
-    expect(calm).not.toContain("data-focus");
+    expect(calm).not.toContain("data-urgent-place");
   });
 
   it("each urgent place's warnings: hidden from casuals (the event's or the session's own), offers stopped, the office emailed", () => {
@@ -683,13 +875,11 @@ describe("the page (Phase 18's dashboard)", () => {
     // The hidden event's place, shown on its own.
     const card = section(
       render({ ...full, urgent: ok({ events: [hidden], more: false }) }),
-      "next-up",
+      "urgent-places",
     );
-    expect(words(card)).toContain("Urgent place to fill 1 of 1");
     expect(words(card)).toContain("Hidden from casuals: nobody can see this gap.");
     expect(words(card)).toContain("Offers stopped: nobody else can take it.");
     expect(words(card)).toContain("The office was emailed about it.");
-    expect(card).not.toContain('aria-label="Next urgent place"');
     // A session hidden on its own, in an event casuals can see: only that place warns.
     const session = shown.sessions[0];
     if (!session) throw new Error("fixture");
@@ -709,36 +899,47 @@ describe("the page (Phase 18's dashboard)", () => {
       ["u1", false, false],
       ["u3", true, true],
     ]);
+    // More than the list holds: said so.
+    expect(words(render({ ...full, urgent: ok({ ...full.urgent.data, more: true }) }))).toContain(
+      "More urgent places are on Events & sessions.",
+    );
   });
 
-  it("After that: a row per kind of thing that needs you, with its count, each to where it's dealt with", () => {
-    expect(rows(render(full, { isAdmin: true }), "After that")).toEqual([
-      "Bookings to check Booked, but can't work these shifts as things stand 1 → /office/needs-attention#to-check",
-      "From your rota sheet Changes your rota sheet asked for that the app couldn't do 1 → /office/needs-attention#from-sheet",
-      "Who worked? 1 session on Sat 31 Oct to mark 1 → /office/needs-attention#to-mark",
-      "Qualifications out of date on a booking A booked casual's qualification runs out before their shift 1 → /office/needs-attention#expired",
-      "Uploads to check Photos and documents from casuals 2 → /office/casuals?view=uploads",
-      "Strike evidence Strike records the strikes team hasn't had 2 → /office/needs-attention#evidence",
-      "Your planner's change was refused Changes to booked sessions that weren't made 1 → /office/needs-attention#planner-refused",
-      "Enquiries that need a person Messages and requests the shifts line couldn't answer 2 → /office/enquiries",
+  it("Needs attention: a row per kind of thing that needs you, with its count and what to do, each to where it's dealt with", () => {
+    expect(rows(render(full, { isAdmin: true }), "Needs attention")).toEqual([
+      "Bookings to check Booked, but can't work these shifts as things stand 1 Check them → /office/needs-attention#to-check",
+      "From your rota sheet Changes your rota sheet asked for that the app couldn't do 1 See them → /office/needs-attention#from-sheet",
+      "Who worked? 1 session on Sat 31 Oct to mark 1 Mark who worked → /office/needs-attention#to-mark",
+      "Qualifications out of date on a booking A booked casual's qualification runs out before their shift 1 See them → /office/needs-attention#expired",
+      "Uploads to check Photos and documents from casuals 2 Check → /office/casuals?view=uploads",
+      "Strike evidence Strike records the strikes team hasn't had 2 See them → /office/needs-attention#evidence",
+      "Your planner's change was refused Changes to booked sessions that weren't made 1 See them → /office/needs-attention#planner-refused",
+      "Enquiries that need a person Messages and requests the shifts line couldn't answer 2 Answer → /office/enquiries",
     ]);
-    // The bell (→ Needs attention's page) counts every item, as the page lists them.
-    expect(full.needs.ok && needsCount(full.needs.data)).toEqual({ count: 9, more: false });
+    // Its count is the menu's: every item, and the enquiries that need a person.
+    expect(full.needs.ok && attentionCount(full.needs.data, 2)).toEqual({ count: 11, more: false });
+    expect(words(section(render(full), "needs-attention"))).toMatch(/^Needs attention 11 /);
+    expect(section(render(full), "needs-attention")).toMatch(
+      /<a class="[^"]*" href="\/office\/needs-attention">Open Needs attention/,
+    );
     // A list stopped at 50 says so.
     if (!full.needs.ok) throw new Error("fixture");
     const many = render({ ...full, needs: ok({ ...full.needs.data, toCheckMore: true }) });
-    expect(rows(many, "After that")[0]).toContain("as things stand 1+ →");
+    expect(rows(many, "Needs attention")[0]).toContain("as things stand 1+ Check them →");
+    expect(words(section(many, "needs-attention"))).toMatch(/^Needs attention 11\+ /);
     // Nothing: said so.
-    const calm = section(render(empty), "after-that");
+    const calm = section(render(empty), "needs-attention");
     expect(words(calm)).toContain(SECTIONS.needs.empty);
   });
 
-  it("Waiting on others (pay queries with payroll, when there are some); Sorted today: cancellations recorded, enquiries, what casuals can see", () => {
+  it("Waiting on others (pay queries with payroll, or that nothing is); Sorted today: cancellations recorded, enquiries, what casuals can see", () => {
     const html = render(full, { payQueriesWaiting: 3 });
     expect(rows(html, "Waiting on others")).toEqual([
       "Pay queries With payroll, nothing for you to do 3 → /office/pay-queries",
     ]);
-    expect(render(full)).not.toContain("Waiting on others");
+    expect(words(section(render(full), "waiting"))).toBe(
+      "Waiting on others Nothing is waiting on anyone else.",
+    );
     expect(rows(html, "Sorted today")).toEqual([
       "2 cancellations today 1 under 48 hours' notice, 1 strike issued. Recorded automatically, never approved or declined. → /office/cancellations?day=today",
       "18 enquiries today 16 answered automatically. 2 need a person. → /office/enquiries?day=today",
@@ -756,35 +957,46 @@ describe("the page (Phase 18's dashboard)", () => {
   it("a part that couldn't be read says so where it shows, the rest still shows, and nothing claims all is well", () => {
     const broken: Dashboard = {
       ...full,
-      counts: { ...full.counts, showing: failed, enquiries: failed },
+      counts: { ...full.counts, urgent: failed, showing: failed, enquiries: failed },
       urgent: failed,
       needs: failed,
       week: failed,
     };
     const html = render(broken);
     // Not "Nothing needs you" or "Every urgent place is filled": it can't know.
-    expect(h1s(html)).toEqual(["Some of the dashboard couldn't load"]);
+    expect(h1s(html)).toEqual(["Evening, Acme Events. Some of the dashboard couldn't load."]);
     expect(words(html)).toContain("Reload the page to try again. What could load is below.");
     expect(words(html)).not.toMatch(/Every urgent place is filled|Nothing needs you/);
-    expect(words(section(html, "next-up"))).toContain(SECTION_ERROR);
-    expect(words(section(html, "after-that"))).toContain(SECTION_ERROR);
+    expect(tiles(html).slice(0, 2)).toEqual([
+      "Urgent places – Couldn't load → /office/events?view=urgent",
+      "Needs attention – Couldn't load → /office/needs-attention",
+    ]);
+    expect(words(section(html, "urgent-places"))).toContain(SECTION_ERROR);
+    expect(words(section(html, "needs-attention"))).toContain(SECTION_ERROR);
     expect(html).not.toContain('<nav aria-label="This week">');
-    expect(words(html)).toContain(SECTION_ERROR);
+    expect(words(section(html, "this-week"))).toContain(SECTION_ERROR);
     expect(rows(html, "Sorted today")).toEqual([
       "2 cancellations today 1 under 48 hours' notice, 1 strike issued. Recorded automatically, never approved or declined. → /office/cancellations?day=today",
       "Enquiries today Couldn't load → /office/enquiries?day=today",
       "Events showing to casuals Couldn't load → /office/events?view=showing",
     ]);
-    // Only Needs attention unread: what it could count is "at least", with the enquiries row.
+    // Only Needs attention unread: what it could count is "at least" (the 3 urgent places and
+    // the 2 enquiries), with the enquiries row.
     const part = render({ ...full, needs: failed });
-    expect(h1s(part)).toEqual(["At least 2 things need you"]);
-    expect(words(section(part, "after-that"))).toContain(SECTION_ERROR);
-    expect(rows(part, "After that")).toHaveLength(1);
+    expect(h1s(part)).toEqual(["Evening, Acme Events. At least 5 things need you."]);
+    expect(words(section(part, "needs-attention"))).toContain(SECTION_ERROR);
+    expect(rows(part, "Needs attention")).toHaveLength(1);
+    // A list stopped at 50: "at least" too.
+    if (!full.needs.ok) throw new Error("fixture");
+    expect(h1s(render({ ...full, needs: ok({ ...full.needs.data, toMarkMore: true }) }))).toEqual([
+      "Evening, Acme Events. At least 14 things need you.",
+    ]);
   });
 
   it("no dashboard link repeats a menu link's name", () => {
     const menu = officeMenu("admin").flatMap((g) => g.links.map((l) => l.label));
     expect(menu).toContain("Dashboard");
+    expect(menu).toContain("Needs attention");
     const names = links(render(full, { isAdmin: true, payQueriesWaiting: 2 })).map((l) => l.name);
     for (const label of menu) expect(names).not.toContain(label);
   });
@@ -877,6 +1089,86 @@ describe("Needs attention's page (Phase 18: the bell opens it; the dashboard's A
     const resourcer = failing(false);
     expect(resourcer).not.toContain('href="/office/settings/integrations"');
     expect(words(resourcer)).toContain("An admin can check it in Integrations.");
+  });
+
+  it("Phase 20: each upload by name and time with its own Check; alike sessions to mark in one row; the enquiries that need a person", () => {
+    const html = page();
+    // Each upload: whose and what (mid-sentence), when, and its own Check to their page.
+    const uploads = [...section(html, "uploads").matchAll(/<li[^>]*>([\s\S]*?)<\/li>/g)].map(
+      (m) => m[1] ?? "",
+    );
+    expect(uploads.map((u) => words(u))).toEqual([
+      "Ben Fraser's staff photo Uploaded at 01:29 on Mon 2 Nov Check",
+      "Leah Ward's SIA door supervisor licence Uploaded at 15:29 on Sat 31 Oct Check",
+    ]);
+    expect(uploads[0]).toMatch(
+      /<a aria-label="Check Ben Fraser&#x27;s upload" class="[^"]*" href="\/office\/casuals\/w6#uploads">Check<\/a>/,
+    );
+    expect(uploads[1]).toMatch(/href="\/office\/casuals\/w7#uploads"/);
+    // More than the first 50: said so.
+    if (!full.needs.ok) throw new Error("fixture");
+    const lots = renderToStaticMarkup(
+      createElement(NeedsItems, {
+        n: { ...full.needs.data, uploads: 60 },
+        timeZone: TZ,
+        today: full.today,
+        isAdmin: true,
+      }),
+    );
+    expect(words(section(lots, "uploads"))).toContain("Showing the first 2.");
+    // Sessions alike (role, place, times): one row, how many sessions, the people summed, and
+    // each session's way in.
+    const m1 = full.needs.data.toMark[0]!;
+    const alike = [
+      m1,
+      { ...m1, shiftId: "m2", unmarked: 1 },
+      { ...m1, shiftId: "m3", unmarked: 2 },
+    ];
+    expect(
+      toMarkGroups([...alike, { ...m1, shiftId: "m4", site: "Elsewhere" }]).map((g) => [
+        g.sessions.map((t) => t.shiftId),
+        g.unmarked,
+      ]),
+    ).toEqual([
+      [["m1", "m2", "m3"], 6],
+      [["m4"], m1.unmarked],
+    ]);
+    const grouped = section(
+      renderToStaticMarkup(
+        createElement(NeedsItems, {
+          n: { ...noNeeds, toMark: alike },
+          timeZone: TZ,
+          today: full.today,
+          isAdmin: true,
+        }),
+      ),
+      "to-mark",
+    );
+    const row = [...grouped.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/g)];
+    expect(row).toHaveLength(1);
+    expect(words(row[0]?.[1] ?? "")).toContain(
+      "· 3 sessions 6 people not marked yet. Mark who worked: Session 1 Session 2 Session 3",
+    );
+    expect([...grouped.matchAll(/href="\/office\/shifts\/(m\d)"/g)].map((m) => m[1])).toEqual([
+      "m1",
+      "m2",
+      "m3",
+    ]);
+    // The enquiries that need a person: a part of their own, counted, to Enquiries.
+    const asked = renderToStaticMarkup(
+      createElement(NeedsItems, {
+        n: noNeeds,
+        timeZone: TZ,
+        today: full.today,
+        isAdmin: true,
+        needPerson: 2,
+      }),
+    );
+    expect(words(section(asked, "enquiries"))).toBe(
+      "Enquiries that need a person 2 2 messages and requests the shifts line couldn't answer. Open Enquiries",
+    );
+    expect(section(asked, "enquiries")).toMatch(/href="\/office\/enquiries"/);
+    expect(words(asked)).not.toContain(SECTIONS.needs.empty);
   });
 
   it("nothing: says so", () => {

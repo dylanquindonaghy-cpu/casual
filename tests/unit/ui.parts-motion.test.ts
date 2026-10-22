@@ -25,7 +25,7 @@ function files(dir: string): string[] {
 }
 
 describe("the date tile", () => {
-  it("the weekday on a band, the day in sign figures, the month; one image for screen readers, or none", () => {
+  it("a small raised card: the weekday, the day in sign figures, the month; one image for screen readers, or none", () => {
     const named = html(
       createElement(DateTile, {
         dow: "Sat",
@@ -36,34 +36,34 @@ describe("the date tile", () => {
       }),
     );
     expect(named).toMatch(/^<span role="img" aria-label="Saturday 24 October" class="/);
-    expect(named).toContain(
-      '<span class="block py-px font-semibold text-base bg-ink text-on-ink">Sat</span>',
-    );
-    // The large tile's day is the 40px size, in the sign font.
-    expect(named).toMatch(
-      /<span class="block font-sign leading-none text-ink pt-1\.5 text-4xl ">24<\/span>/,
-    );
-    expect(named).toContain(">Oct</span>");
+    // Phase 20: on the raised grey, not an ink band.
+    expect(named).toMatch(/^<span[^>]*class="[^"]*\bbg-raised text-ink\b/);
+    expect(named).toContain('<span class="block font-medium text-sm">Sat</span>');
+    // The large tile's day is 30px, in the sign font.
+    expect(named).toMatch(/<span class="block font-sign leading-tight text-3xl">24<\/span>/);
+    expect(named).toContain('<span class="block text-xs text-ink-muted">Oct</span>');
     // Without a label it sits beside words that say the date: hidden from screen readers.
     const plain = html(createElement(DateTile, { dow: "Thu", day: "22" }));
     expect(plain).toMatch(/^<span aria-hidden="true" class="/);
-    expect(plain).toContain("text-3xl");
+    expect(plain).toContain("text-2xl");
     expect(plain).not.toContain("Oct");
-    // Urgent: the band and the edge in the urgent red.
-    const urgent = html(createElement(DateTile, { dow: "Thu", day: "22", urgent: true }));
-    expect(urgent).toContain("border-urgent-fill");
-    expect(urgent).toContain("bg-urgent-fill text-on-urgent");
-    expect(urgent).not.toContain("bg-ink text-on-ink");
+    // Urgent: the whole tile pale red, with the urgent words.
+    const urgent = html(
+      createElement(DateTile, { dow: "Thu", day: "22", month: "Oct", urgent: true }),
+    );
+    expect(urgent).toContain("bg-urgent-tile text-urgent-ink");
+    expect(urgent).toContain('<span class="block text-xs text-urgent-ink">Oct</span>');
+    expect(urgent).not.toContain("bg-raised");
   });
 });
 
 // The plates are hook-free, so they're called directly (their children are a required prop).
 describe("the sign plate and the status plate", () => {
-  it("a gate as a sign: light on dark, in the sign font, two sizes", () => {
+  it("a gate as a plate in the firm's pale tint, two sizes (Phase 20)", () => {
     const md = html(SignPlate({ children: "Gate 2" }));
-    expect(md).toContain("bg-ink font-sign text-on-ink h-9 px-3 text-2xl");
+    expect(md).toContain("bg-brand-soft font-semibold text-brand-ink min-h-8 px-2.5 text-base");
     expect(md).toContain(">Gate 2</span>");
-    expect(html(SignPlate({ size: "sm", children: "Gate 2" }))).toContain("h-7 px-2 text-lg");
+    expect(html(SignPlate({ size: "sm", children: "Gate 2" }))).toContain("min-h-6 px-2 text-sm");
   });
 
   it("a status plate's colours by its role, its words always there", () => {
@@ -91,10 +91,13 @@ describe("the seats", () => {
     const h = seats({ taken: 3, total: 4 });
     expect(h).toMatch(/^<span aria-hidden="true" data-seats=""/);
     expect([count(h, "taken"), count(h, "free")]).toEqual([3, 1]);
-    // Free seats in ink, or the urgent red; dashed from the middle size up.
-    expect(h).toContain("border-2  border-ink");
+    // Taken in ink; free ones outlined in the muted grey, or the urgent red (Phase 20).
+    expect(h).toContain('data-seat="taken" class="size-3 rounded-[3px] bg-ink"');
+    expect(h).toContain(
+      'data-seat="free" class="size-3 rounded-[3px] border-[1.5px] border-ink-muted"',
+    );
     expect(seats({ taken: 1, total: 2, urgent: true, size: "md" })).toContain(
-      "border-2 border-dashed border-urgent-fill",
+      'data-seat="free" class="size-5 rounded-[5px] border-[1.5px] border-urgent"',
     );
   });
 
@@ -117,7 +120,7 @@ describe("motion (the design's spec)", () => {
 
   it("each animation: a keyframes of its own, 150, 200 or 250ms, the one easing", () => {
     expect(tokens.map((t) => t.name).sort()).toEqual(
-      ["bar", "enter", "fade", "in", "move", "open", "open-late", "sheet", "toast"].sort(),
+      ["bar", "fade", "in", "move", "open", "open-late", "sheet", "toast"].sort(),
     );
     for (const t of tokens) {
       const [keyframes, duration] = t.value.split(/\s+/);

@@ -43,7 +43,8 @@ brief changes), link and action is as before. The casual app is unchanged.
   card beside them.
 - **Every other page:** its headline in the serif; the main button near-black, the others grey
   pills; cards, lists and tables white with the soft edge; the board's filters in one row that
-  scrolls sideways on a phone. While a page picked in the menu is on its way, its skeleton.
+  scrolls sideways on a phone. While a page picked in the menu is on its way, its skeleton (the
+  drawer shuts as you pick on a phone). A record's facts (a cancellation's) in one white card.
 
 ## The pass redesign (Phase 20)
 

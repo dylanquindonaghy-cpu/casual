@@ -64,15 +64,15 @@ office file uses only what's below (`tests/unit/ui.office-system.test.ts`).
   every place is filled; today's name filled; the big number bottom left). Shopify: the soft
   white cards, the grey count badges in the menu. Neo Financial: the large serif headline, label
   and value rows, grey-fill buttons, destructive words in red on grey.
-- **States.** A page picked in the menu shows its skeleton in the page's place while it's on its
-  way, once it has taken longer than 150ms (`office-skeleton.tsx`: the page's own layout in flat
-  grey bars, nothing moving; `menu-pending.tsx` and `office-frame.tsx` show it, from each menu
-  link's pending state). Not a route-wide `loading.tsx`: that starts every page's answer before
+- **States.** A page picked in the menu shows a skeleton in the page's place while it's on its
+  way, once it has taken longer than 150ms (`office-skeleton.tsx`, flat grey bars, nothing moving:
+  the dashboard's own, a part for every section; every other page shares one, a headline, a line
+  and a card of rows). `menu-pending.tsx` and `office-frame.tsx` show it: the link says it's
+  picked (`onNavigate`), the drawer shuts at once on a phone so the skeleton is seen, and it goes
+  when the page arrives, when the link that saw it on its way says it no longer is, or on Back. Not a route-wide `loading.tsx`: that starts every page's answer before
   its access check, so a page a role can't open would answer 200, not 404 (the browser tests
   caught it; ADR-016 in docs/decisions.md warns the same of the login check). So a page opened
-  from a link inside another page (a shift, a casual, a record) loads as it did, without one. The
-  dashboard's skeleton has a part for every section (its headline, cards, urgent places, week and
-  three panels). Every dashboard section says when it's empty and when it couldn't load, in the
+  from a link inside another page (a shift, a casual, a record) loads as it did, without one. Every dashboard section says when it's empty and when it couldn't load, in the
   section (Waiting on others too: a pay-queries count that couldn't be read).
 - **Phone (390px).** The top bar with Menu (the drawer), 44px targets everywhere, the four cards
   two by two, the urgent places' buttons under their words, this week's bars lying down a row a

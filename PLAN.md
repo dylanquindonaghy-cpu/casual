@@ -1449,7 +1449,7 @@ and review. Docs: `docs/ui-design.md`, `docs/screens.md`.
       focus and pressed states; AA contrast in both themes. Tests: the office's tokens and their
       contrast in both themes, the fonts, and that no office file uses a size, gap, corner or
       shadow outside the system (21.1)
-- [ ] The menu and the shared parts: the menu on the page's ground with a grey pill for the page
+- [x] The menu and the shared parts: the menu on the page's ground with a grey pill for the page
       you're on, small grey group labels, one count style (a grey pill), and a tidy week and pay
       day at its foot; below 1024px the top bar and the drawer with 44px targets; buttons (main
       near-black, others grey pills, destructive red words on grey), cards, rows, tables, chips
@@ -1466,7 +1466,7 @@ and review. Docs: `docs/ui-design.md`, `docs/screens.md`.
       a loading skeleton, and an empty and an error state, for every section. Tests: the
       dashboard's parts, the counts still adding up, every link and action, the browser tests
       (21.3)
-- [ ] Every other office page on the system: Needs attention, Events & sessions, Casuals,
+- [x] Every other office page on the system: Needs attention, Events & sessions, Casuals,
       Enquiries, Cancellations, Pay, the records and settings, each with its loading skeleton,
       at 390px and 1440px in both themes. Tests: the browser tests of every office flow (21.4)
 

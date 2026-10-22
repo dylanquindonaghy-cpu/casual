@@ -7,17 +7,25 @@ dark. They were compared with Dylan's five references and reviewed with the tast
 (`.claude/skills/design-taste-frontend`: its app-screen rubric and inspector, `inspect.mjs --app`);
 what each round found is below.
 
+Each page is one sheet: 1440px light and dark above, 390px light and dark below, all taken on
+the final code.
+
 | File | What it shows |
 |---|---|
 | `before-dashboard-1440-light.jpg`, `before-dashboard-390-light.jpg` | The dashboard before Phase 21 (Phase 20's look) |
-| `dashboard-1440-light.jpg`, `dashboard-1440-dark.jpg` | The date line over the serif greeting; the four tinted cards; the urgent places as one rounded list; the menu's grey pill and grey counts |
-| `dashboard-390-light.jpg`, `dashboard-390-dark.jpg` | The same on a phone: the top bar, the cards two by two |
-| `menu-390-light.jpg` | The drawer: 44px rows, small grey group names, the one grey count pill |
-| `needs-attention-1440-light.jpg` | Needs attention's amber panels of white rows |
-| `events-1440-light.jpg`, `events-390-dark.jpg` | Events & sessions: the board in its white card, the filters in their grey track |
-| `casuals-1440-dark.jpg` | Casuals in dark: the table card and the chips |
-| `pay-1440-light.jpg` | The pay dashboard: its figures in Geist Mono on white cards, grey pill buttons, a list card of rows |
-| `login-390-light.jpg` | The office's login on a phone: the serif headline, the field, the near-black button |
+| `dashboard.jpg` | The date line over the serif greeting; the four tinted cards; the urgent places as one rounded list; the menu's grey pill and grey counts |
+| `needs-attention.jpg` | Needs attention's amber panels of near-white rows, "Also needs you" in pale red |
+| `events.jpg` | Events & sessions: the board in its white card, the filters in their grey track |
+| `casuals.jpg` | Casuals: the table card (cards on a phone) and the chips |
+| `enquiries.jpg` | Enquiries: the filters as grey pills, the list card with its chips |
+| `cancellations.jpg` | Cancellations: the record list and its filters |
+| `pay.jpg` | The pay dashboard: its figures in Geist Mono on white cards, grey pill buttons, a list card of rows |
+| `log.jpg` | The action log's table card |
+| `settings.jpg` | Settings: white cards of fields, a near-black main button, grey pill buttons |
+| `team.jpg` | The office team |
+| `casual-record.jpg`, `cancellation-record.jpg` | Two records opened from inside a page: a casual's page; a cancellation's facts as label and value rows in one white card |
+| `login.jpg` | The office's login: the serif headline, the field, the near-black button, the white card from 640px |
+| `skeleton-page.jpg`, `skeleton-dashboard.jpg` | The skeletons while a page picked in the menu is held back (on a phone the drawer has shut) |
 | `numbers-geist-vs-geist-mono.jpg` | The big numbers tried both ways (A: heavy Geist 800, B: Geist Mono 600, picked) |
 
 ## Against the references
@@ -46,6 +54,10 @@ what each round found is below.
    white (now the one grey pill, as beside a section's name); shared parts with the casual app's
    corners and spacing (now their office values, `office:`); the office's login on the casual
    app's field and button (now the office's).
+4. With every page checked in the browser: a 55-character qualification chip ran Casuals 9px
+   sideways at 390px (a chip now wraps rather than run off); a cancellation's record had its
+   facts bare on the ground (now one white card); on a phone the skeleton sat behind the open
+   drawer (the drawer now shuts as a page is picked).
 
 Kept on purpose, where the brief wins over the skill: the uppercase tracked labels and date line,
 the 40px serif greeting, the mono figures. The inspector also flags "Acme" as a placeholder name:

@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { useHydrated } from "@/app/use-hydrated";
 import { countPill } from "../ui/classes";
 import { Icon, type IconName } from "../ui/icons";
-import { MenuPendingReporter } from "./menu-pending";
+import { MenuPending, MenuPendingReporter } from "./menu-pending";
 
 // The office menu's links (docs/office-v2.md 3.1; docs/ui-design.md "Office shell"), in groups:
 // the sidebar from 1024px, and the same <nav> inside the drawer below that (office-frame.tsx moves
@@ -86,12 +86,15 @@ function NavLink({
   pathname: string;
 }) {
   const on = link.href === current;
+  // Picked: its page is on its way (its skeleton, and the drawer shuts: menu-pending.tsx).
+  const { start } = useContext(MenuPending);
   return (
     <div>
       <Link
         href={link.href}
         aria-current={on ? ariaCurrent(link.href, pathname) : undefined}
         className={on ? ACTIVE : IDLE}
+        onNavigate={() => start(link.href)}
       >
         <Icon name={link.icon} size={18} className={on ? "text-ink" : "text-ink-muted"} />
         <span className="min-w-0 flex-1">{link.label}</span>

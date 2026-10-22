@@ -183,6 +183,15 @@ describe("the office menu (v2 groups; Phases 18 and 20)", () => {
     expect(labels.map((m) => m[2])).toEqual(expect.arrayContaining(["Today", "Pay", "People"]));
     for (const [, cls] of labels)
       expect(cls).toBe("px-3 pt-6 pb-2 text-xs font-medium text-ink-muted");
+    // The others: half the grey pill under the pointer, the whole pill while pressed.
+    const idle = [...html.matchAll(/<a [^>]*class="([^"]*)"[^>]*>/g)]
+      .filter((m) => !/aria-current=/.test(m[0]))
+      .map((m) => m[1] ?? "");
+    expect(idle.length).toBeGreaterThan(10);
+    for (const cls of idle) {
+      expect(cls).toMatch(/(?<![\w-])hover:bg-active\/60(?![\w-])/);
+      expect(cls).toMatch(/(?<![\w-])active:bg-active(?![\w-])/);
+    }
     // The page you're on: the grey pill.
     expect(html).toMatch(
       /<a [^>]*aria-current="page"[^>]*class="[^"]*(?<![\w-])bg-active(?![\w-])[^"]*"|<a [^>]*class="[^"]*(?<![\w-])bg-active(?![\w-])[^"]*"[^>]*aria-current="page"/,

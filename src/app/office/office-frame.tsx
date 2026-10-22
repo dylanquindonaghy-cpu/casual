@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { LogoutButton } from "../logout-button";
 import { SessionKeeper } from "../session-keeper";
 import type { Theme } from "../theme";
@@ -12,7 +12,8 @@ import {
   MenuPending,
   nextPending,
   pendingPage,
-  type MenuPendingReport,
+  SKELETON_AFTER_MS,
+  type MenuPendingApi,
   type MenuPendingState,
 } from "./menu-pending";
 import { OfficeNav, type MenuGroup } from "./office-nav";
@@ -96,13 +97,37 @@ export function OfficeFrame({
   const shownAt = useRef(pathname);
   const [open, setOpen] = useState(false);
   const [week, payDay] = payWeekLines(payWeek);
-  // A page picked in the menu and still on its way: its skeleton in the page's place (Phase 21).
+  // A page picked in the menu and still on its way: its skeleton in the page's place (Phase 21),
+  // once it has taken longer than SKELETON_AFTER_MS (`late` is the pick that has). Picked in the
+  // drawer, the drawer shuts at once, so the skeleton is seen on a phone too.
   const [pending, setPending] = useState<MenuPendingState>(null);
-  const report = useCallback<MenuPendingReport>(
-    (href, on, from) => setPending((state) => nextPending(state, href, on, from)),
+  const [late, setLate] = useState<MenuPendingState>(null);
+  const start = useCallback(
+    (href: string) => {
+      setPending((state) => nextPending(state, href, true, pathname));
+      drawer.current?.close();
+    },
+    [pathname],
+  );
+  const end = useCallback(
+    (href: string) => setPending((state) => nextPending(state, href, false, "")),
     [],
   );
-  const loading = pendingPage(pending, pathname);
+  const menuPending = useMemo<MenuPendingApi>(() => ({ start, end }), [start, end]);
+  const loading = pending !== null && late === pending ? pendingPage(pending, pathname) : null;
+
+  useEffect(() => {
+    if (!pending) return;
+    const slow = setTimeout(() => setLate(pending), SKELETON_AFTER_MS);
+    return () => clearTimeout(slow);
+  }, [pending]);
+
+  // Back (or forward) before the page arrived: that pick is given up.
+  useEffect(() => {
+    const given = () => setPending(null);
+    window.addEventListener("popstate", given);
+    return () => window.removeEventListener("popstate", given);
+  }, []);
 
   // The drawer opens once its <nav> is in it.
   useEffect(() => {
@@ -136,7 +161,7 @@ export function OfficeFrame({
       >
         Skip to content
       </a>
-      <MenuPending.Provider value={report}>
+      <MenuPending.Provider value={menuPending}>
         <div
           data-shell="office"
           className="flex flex-1 flex-col bg-canvas text-base text-ink lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)]"

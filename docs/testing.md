@@ -257,10 +257,14 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   office's light and dark. `office.dashboard.test.ts`: the dashboard's parts as drawn (the cards'
   jumps, "3 of 4 filled", "Not offered yet" in red, the week's dashed line and grey pill, the tinted
   panels, the one count pill and the urgent places' red one, Waiting on others couldn't load).
-  `office.shell.test.ts`: the menu's 44px rows, grey labels and one count pill. Browser:
-  `office.look.spec.ts` (every page in an admin's menu at 390px and 1440px, light and dark: the
-  office's ground, the serif headline, nothing sideways); `office.shell.spec.ts` (the drawer's
-  rows 44px at 390px; every menu page shows its skeleton while held back);
+  `office.shell.test.ts`: the menu's 44px rows, their hover and pressed fills, grey labels and one
+  count pill. Browser: `office.look.spec.ts` (every page in an admin's menu and two records, a
+  casual's and a cancellation's, at 390px and 1440px, light and dark: the office's ground, the
+  serif headline and Geist loaded, a card in the card's fill, every main button near-black,
+  nothing sideways, with a casual whose 55-character qualification once ran a phone sideways);
+  `office.shell.spec.ts` (the top bar's buttons and the drawer's rows 44px at 390px; every menu
+  page shows its skeleton while held back; on a phone in dark, the drawer shuts as a page is
+  picked and its skeleton shows);
   `office.dashboard.spec.ts` (a card jumps to its section; "Open the rota board").
 
 ## Fixtures and the demo seed

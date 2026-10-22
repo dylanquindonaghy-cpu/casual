@@ -59,8 +59,18 @@ for (const device of ["light", "dark"] as const) {
       }
 
       // Escape shuts it, and focus goes back to Menu. Every row in it is a thumb's 44px tall, on
-      // the brief's 390px phone (Phase 21).
+      // the brief's 390px phone (Phase 21), and so is every button in the top bar.
       await page.setViewportSize({ width: 390, height: 844 });
+      const bar = await page
+        .getByRole("banner")
+        .locator("button")
+        .evaluateAll((els) =>
+          els
+            .filter((el) => el.checkVisibility())
+            .map((el) => [el.textContent ?? "", Number.parseFloat(getComputedStyle(el).height)]),
+        );
+      expect(bar.length).toBeGreaterThanOrEqual(3); // Menu, moon/sun, you
+      for (const [name, height] of bar) expect(height, String(name)).toBeGreaterThanOrEqual(44);
       await menuButton.click();
       await expect(drawer).toBeVisible();
       // (The folded group opened first, so its links are measured too.)
@@ -233,4 +243,35 @@ test("every page picked in the menu shows its skeleton while it's on its way", a
     await expect(skeleton, href).toHaveCount(0);
   }
   expect(held).toBeGreaterThanOrEqual(links.length);
+});
+
+// On a phone (the brief's 390px, in dark): a page picked in the drawer shuts the drawer at once and
+// shows its skeleton while it's on its way, then the page (Phase 21).
+test.describe("on a phone, in dark", () => {
+  test.use({ colorScheme: "dark" });
+
+  test("a page picked in the drawer: the drawer shuts and its skeleton shows", async ({ page }) => {
+    await page.route(/\/office\/casuals(\?|$)/, async (route) => {
+      const request = route.request();
+      if (request.headers()["rsc"] === "1" && request.headers()["next-router-prefetch"] !== "1")
+        await new Promise((done) => setTimeout(done, 1500));
+      await route.continue();
+    });
+    await officeLogin(page, "skeleton.phone");
+    await page.setViewportSize({ width: 390, height: 844 });
+    const drawer = page.getByRole("dialog", { name: "Menu" });
+    const skeleton = page.locator("[data-skeleton]");
+    await (await menuLink(page, "Casuals")).click();
+    await expect(drawer).toBeHidden();
+    await expect(skeleton).toBeVisible();
+    await expect(skeleton.getByText("Loading the page…")).toBeAttached();
+    await expect(page.locator("body")).toHaveCSS("background-color", CANVAS.dark);
+    await expect(page).toHaveURL(`${acme}/office/casuals`);
+    await expect(page.getByRole("heading", { level: 1, name: "Casuals" })).toBeVisible();
+    await expect(skeleton).toHaveCount(0);
+    // Back on the dashboard, nothing left over: no skeleton, the page itself.
+    await page.goBack();
+    await expect(page).toHaveURL(`${acme}/office`);
+    await expect(skeleton).toHaveCount(0);
+  });
 });

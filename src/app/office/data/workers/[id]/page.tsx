@@ -82,7 +82,7 @@ export default async function OfficeWorkerDataPage({
         <div
           className={
             canErase
-              ? `${headingGap} rounded-xl border-2 border-urgent bg-card p-4`
+              ? `${headingGap} rounded-row border border-urgent-line bg-urgent-soft p-4`
               : `${card} ${headingGap}`
           }
         >

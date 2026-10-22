@@ -1425,6 +1425,57 @@ flow's browser test still passes); `docs/screens.md` says what each changed scre
 `docs/ui-design.md` has the new tokens; the D7 row says what Dylan chose; the `claims-auditor`
 checks the phase against this line.
 
+## Phase 21 — The office's look
+
+Added 2026-10-22, Dylan's brief: "Redesign the visual layer of the office dashboard and every page
+that shares its components. Keep all features, routes, data and labels working exactly as they do
+now. This is a visual and layout pass only." With the taste and ui-ux-pro-max skills and his five
+references (hilos, Apple Wallet, Steep, Shopify, Neo Financial), and his list for the dashboard,
+the menu, the colours and the system ("Build the system first ... Every component uses these
+tokens. No one-off values."). The office only: every page under `/office`; the casual app keeps
+its Phase 20 look (Dylan approved it). Where the brief names a change of words, the brief wins:
+an urgent place says "3 of 4 filled" (not "1 of 4 places free") and its button shows "Offer" (still
+named "Offer to someone"), and the dashboard's four cards jump to their own sections. His brief
+asks for no mock-up first: it says screenshot, plan, build, then screenshot beside the references
+and review. Docs: `docs/ui-design.md`, `docs/screens.md`.
+
+- [ ] The office's system: its own tokens for every office page (light and dark, from one set):
+      a warm off-white page, white cards, near-black main buttons, and red, amber, blue and green
+      only for statuses and the dashboard's tinted cards, each tint with a 1px border a shade
+      darker; Geist for words (tabular figures), Instrument Serif for each page's headline only,
+      and one face for the big numbers (heavy Geist or Geist Mono, both tried and one picked);
+      sizes 12, 13, 15, 17, 20, 28 and 40px; spacing 4, 8, 12, 16, 24, 32 and 48px; corners 20px
+      for cards, 14px for rows and round for pills; one soft shadow; 150–200ms transitions; hover,
+      focus and pressed states; AA contrast in both themes. Tests: the office's tokens and their
+      contrast in both themes, the fonts, and that no office file uses a size, gap, corner or
+      shadow outside the system (21.1)
+- [ ] The menu and the shared parts: the menu on the page's ground with a grey pill for the page
+      you're on, small grey group labels, one count style (a grey pill), and a tidy week and pay
+      day at its foot; below 1024px the top bar and the drawer with 44px targets; buttons (main
+      near-black, others grey pills, destructive red words on grey), cards, rows, tables, chips
+      and page headers; and the dark round button over the menu's foot fixed where it comes from.
+      Tests: the menu's states, the parts' classes, the browser tests (21.2)
+- [ ] The dashboard: a small date line over the headline, the shifts line quiet with its phone;
+      four tinted cards (an icon, the label, the number, one grey line), each jumping to its
+      section; the urgent places as one rounded list (a neutral date tile, the role as the title,
+      the place and time in grey, a slim bar with "3 of 4 filled", "Not offered yet" in red, a
+      small black "Offer" and a quiet "…"); this week as a bar per day, Monday to Sunday (filled
+      against places, a dashed line for every place filled, red only on a day with urgent gaps,
+      today's label filled, "No sessions" on an empty day) with "Open the rota board" as a grey
+      pill; Needs attention, Waiting on others and Sorted today as tinted panels of white rows;
+      a loading skeleton, and an empty and an error state, for every section. Tests: the
+      dashboard's parts, the counts still adding up, every link and action, the browser tests
+      (21.3)
+- [ ] Every other office page on the system: Needs attention, Events & sessions, Casuals,
+      Enquiries, Cancellations, Pay, the records and settings, each with its loading skeleton,
+      at 390px and 1440px in both themes. Tests: the browser tests of every office flow (21.4)
+
+Done when: all four tasks are ticked with a stamp that includes the browser tests;
+`scripts/verify.sh` with `RUN_E2E=1` prints VERIFIED; no route, label (but the two the brief
+changes), link or action is lost; screenshots at 390px and 1440px, light and dark, are compared
+with the references and reviewed with the taste skill; `docs/ui-design.md` has the office's
+tokens; the `claims-auditor` checks the phase against this line.
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify

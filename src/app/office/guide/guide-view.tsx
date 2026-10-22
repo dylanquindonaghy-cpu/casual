@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { Name, Points, Step, Steps } from "@/app/help/guide-parts";
 import { canAccess, type OfficeArea, type OfficeRole } from "@/lib/auth/roles";
 import { FROM_PLANNER_WORDS } from "@/lib/office/shifts-copy";
-import { btn, h2, meta, page, rows } from "../../ui/classes";
+import { btn, card, h2, meta, page, rows } from "../../ui/classes";
 import { Icon, type IconName } from "../../ui/icons";
 import { PageHeader } from "../../ui/page-header";
 import { StatusChip, type StatusTone } from "../../ui/status-chip";
@@ -83,7 +83,7 @@ export function GuideView({ role, menu }: { role: OfficeRole; menu: MenuGroup[] 
       {/* Wide screens: the contents stay in view beside the guide, as a rail with a line on its
           left. Narrower: they come first, as one card of divided rows with an arrow, like /help's
           contents (never pills: on a phone, pills are the office menu). */}
-      <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_14rem] xl:items-start xl:gap-14">
+      <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_14rem] xl:items-start xl:gap-12">
         <nav
           aria-labelledby="guide-contents"
           className="mb-8 xl:sticky xl:top-8 xl:col-start-2 xl:row-start-1 xl:mb-0"
@@ -93,13 +93,13 @@ export function GuideView({ role, menu }: { role: OfficeRole; menu: MenuGroup[] 
           </h2>
           <ul
             role="list"
-            className={`${rows} mt-2 xl:divide-y-0 xl:rounded-none xl:border-0 xl:border-l-2 xl:border-line xl:bg-transparent`}
+            className={`${rows} mt-2 xl:divide-y-0 xl:rounded-none xl:bg-transparent xl:shadow-none`}
           >
             {sections.map((s) => (
               <li key={s.id}>
                 <a
                   href={`#${s.id}`}
-                  className="flex min-h-12 items-center justify-between gap-3 px-4 py-2 font-semibold text-ink hover:bg-quiet-soft xl:-ml-0.5 xl:min-h-11 xl:border-l-2 xl:border-transparent xl:py-0 xl:font-medium xl:text-ink-muted xl:hover:border-ink xl:hover:bg-transparent xl:hover:text-ink"
+                  className="flex min-h-12 items-center justify-between gap-3 px-4 py-2 font-semibold text-ink transition-colors hover:bg-quiet-soft xl:min-h-11 xl:border-l-2 xl:border-line xl:py-0 xl:font-medium xl:text-ink-muted xl:hover:border-ink xl:hover:bg-transparent xl:hover:text-ink"
                 >
                   {s.title}
                   <Icon name="chevron" className="text-ink-muted xl:hidden" />
@@ -114,7 +114,7 @@ export function GuideView({ role, menu }: { role: OfficeRole; menu: MenuGroup[] 
               key={s.id}
               id={s.id}
               aria-labelledby={`${s.id}-title`}
-              className="scroll-mt-6 rounded-xl border border-line bg-card p-5 sm:p-6"
+              className={`${card} scroll-mt-6`}
             >
               <h2 id={`${s.id}-title`} className={h2}>
                 {s.title}
@@ -137,7 +137,7 @@ function Para({ children }: { children: ReactNode }) {
 function Task({ title, children }: { title: string; children: ReactNode }) {
   return (
     <>
-      <h3 className="mt-6 text-base font-bold text-ink">{title}</h3>
+      <h3 className="mt-6 text-base font-semibold text-ink">{title}</h3>
       {children}
     </>
   );
@@ -164,7 +164,7 @@ function GoTo({ href, icon, children }: { href: string; icon: IconName; children
 }
 
 function Links({ children }: { children: ReactNode }) {
-  return <div className="mt-5 flex flex-wrap gap-x-6 border-t border-line pt-3">{children}</div>;
+  return <div className="mt-6 flex flex-wrap gap-x-6 border-t border-line pt-3">{children}</div>;
 }
 
 // --- Sections -----------------------------------------------------------------------------------
@@ -209,7 +209,7 @@ function GettingAround({ role, menu }: { role: OfficeRole; menu: MenuGroup[] }) 
           ? " Records and settings are under Admin and records: select it to show them."
           : null}
       </Para>
-      <div className="mt-5 sm:columns-2 sm:gap-8">
+      <div className="mt-6 sm:columns-2 sm:gap-8">
         {menu.map((group) => (
           <div key={group.label ?? "start"} className="mb-6 break-inside-avoid">
             {/* The top group (Dashboard, Needs attention) has no heading in the menu either. */}
@@ -219,7 +219,9 @@ function GettingAround({ role, menu }: { role: OfficeRole; menu: MenuGroup[] }) 
             <ul role="list" className="flex flex-col gap-3">
               {group.links.map((link) => (
                 <li key={link.href} className="flex gap-3">
-                  <Icon name={link.icon} className="mt-0.5 text-ink-muted" />
+                  <span className="flex h-6 items-center">
+                    <Icon name={link.icon} className="text-ink-muted" />
+                  </span>
                   <div className="min-w-0">
                     <p className="font-semibold text-ink">{link.label}</p>
                     {MENU_WORDS[link.label] ? (
@@ -251,15 +253,15 @@ function GettingAround({ role, menu }: { role: OfficeRole; menu: MenuGroup[] }) 
 const DASHBOARD_SECTIONS: [string, ReactNode][] = [
   [
     "The four counts",
-    "Urgent places, Needs attention, Waiting on others and Sorted today. Select one to go to its list.",
+    "Urgent places, Needs attention, Waiting on others and Sorted today. Select one to go to its section below.",
   ],
   [
     "Urgent places to fill",
-    "Every urgent place: its seats, and who it was offered to or why offers stopped. Offer it to someone, or use … to mark it as filled or make it not urgent.",
+    "Every urgent place: how many of its places are filled, and who it was offered to or why offers stopped. Select Offer to offer it to someone, or use … to mark it as filled or make it not urgent.",
   ],
   [
     "This week",
-    "Seven days. Each shows how full it is, and its urgent gaps or sessions to mark. Select a day to see its shifts.",
+    "Seven days, a bar each: how full it is (red when it has urgent gaps), or its sessions to mark. Select a day to see its shifts.",
   ],
   [
     "Needs attention",
@@ -351,7 +353,8 @@ function FillAGap({ role }: { role: OfficeRole }) {
       <Task title="To offer it to someone">
         <Steps>
           <Step>
-            Select <Name>Offer to someone</Name>.
+            Select <Name>Offer</Name> (on the dashboard) or <Name>Offer to someone</Name> (on the
+            shift&apos;s page).
           </Step>
           <Step>
             <Name>Who can take it</Name> lists only people the rules allow, who want offers and

@@ -156,10 +156,10 @@ export default async function ActionLogPage({
           {log.entries.map((e, i) => (
             <li
               key={i}
-              className={`${row} grid gap-x-6 gap-y-0.5 sm:grid-cols-[14rem_minmax(0,1fr)] xl:grid-cols-[19rem_minmax(0,1fr)]`}
+              className={`${row} grid gap-x-6 gap-y-1 sm:grid-cols-[14rem_minmax(0,1fr)] xl:grid-cols-[19rem_minmax(0,1fr)]`}
             >
               <p
-                className={`text-sm text-ink-muted tabular-nums sm:pt-0.5${e.shift ? " sm:row-span-2" : ""}`}
+                className={`text-sm text-ink-muted tabular-nums sm:pt-1${e.shift ? " sm:row-span-2" : ""}`}
               >
                 {timeOnDay(e.at, log.timeZone)} · <span className="font-semibold">{e.type}</span>
               </p>
@@ -168,7 +168,7 @@ export default async function ActionLogPage({
                 <p className="min-w-0 text-sm sm:col-start-2">
                   <Link
                     href={`/office/shifts/${e.shift.id}`}
-                    className="inline-block py-0.5 underline underline-offset-4 hover:text-ink-muted"
+                    className="inline-block py-1 underline underline-offset-4 hover:text-ink-muted"
                   >
                     {e.shift.label}
                   </Link>
@@ -183,7 +183,7 @@ export default async function ActionLogPage({
           Older
         </Link>
       )}
-      <p className="mt-10">
+      <p className="mt-12">
         <Link href="/office" className={btn.link}>
           Back to the dashboard
         </Link>

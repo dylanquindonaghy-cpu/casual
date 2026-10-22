@@ -1,4 +1,4 @@
-// The dashboard's urgent place (Phase 18): "1 of 4 places free". Pure and browser-safe (the
-// focus card is a client component).
-export const placesFreeText = (free: number, total: number) =>
-  `${free} of ${total} ${total === 1 ? "place" : "places"} free`;
+// The dashboard's urgent place (Phase 18; Phase 21's words, from Dylan's brief): "3 of 4 filled",
+// beside its bar. Pure and browser-safe (the urgent places are a client component).
+export const placesFilledText = (free: number, total: number) =>
+  `${Math.max(0, total - free)} of ${total} filled`;

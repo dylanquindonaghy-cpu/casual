@@ -44,7 +44,7 @@ export default async function NeedsAttentionPage() {
           ) : (
             <p
               role="status"
-              className="rounded-2xl bg-attention-soft px-3.5 py-3 text-attention-ink"
+              className="rounded-row border border-attention-line bg-attention-soft px-4 py-3 text-attention-ink"
             >
               {SECTION_ERROR}
             </p>

@@ -4,7 +4,7 @@ import { roleLabel } from "@/lib/portal/format";
 import type { OpenShiftFilters, OpenShiftsList } from "@/lib/portal/open-shifts";
 import type { StripDay } from "@/lib/portal/shifts-strip";
 import { dayLabel } from "@/lib/rules/reasons";
-import { btn, h2, muted } from "../../ui/classes";
+import { btn, h2, muted, staffBtnInline } from "../../ui/classes";
 import { Icon } from "../../ui/icons";
 import { PageHeader } from "../../ui/page-header";
 import { ShiftsSwitch } from "../../my-shifts-view";
@@ -196,7 +196,7 @@ export function OpenShiftsView({
               ))}
             </select>
           </Chip>
-          <button type="submit" className={btn.secondary}>
+          <button type="submit" className={staffBtnInline}>
             Show shifts
           </button>
         </form>

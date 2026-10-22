@@ -45,7 +45,7 @@ export function FiguresForm({
   const id = (key: string) => `${kind}-${key}`;
   return (
     <form
-      className="mt-5 flex flex-col gap-5"
+      className="mt-6 flex flex-col gap-6"
       onSubmit={(e) => {
         e.preventDefault();
         save();

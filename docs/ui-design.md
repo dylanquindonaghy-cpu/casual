@@ -19,6 +19,85 @@ Principles, in order:
 6. **Works without JavaScript** where pages already do (server-action forms, `<details>`
    confirmations, GET filter forms, anchor links).
 
+## Phase 21: the office's system
+
+Built from Dylan's brief of 2026-10-22 ("Redesign the visual layer of the office dashboard and
+every page that shares its components ... a visual and layout pass only"), with the taste and
+ui-ux-pro-max skills and his five references. The office only: every page under `/office` (the
+office's login pages too) carries `[data-office]` (`src/app/office/layout.tsx`), and
+`src/app/globals.css` gives `body:has([data-office])` its own values of the same tokens, so a
+class means the same thing in both places and the casual app keeps its Phase 20 look. Every
+office file uses only what's below (`tests/unit/ui.office-system.test.ts`).
+
+- **Colour.** A warm off-white page (`canvas` `#f6f5f3`) with the menu on the same ground, white
+  cards on it, near-black main buttons (`ink`; white in dark), and red, amber, blue and green only
+  for statuses and the dashboard's tinted cards, each tint with its 1px edge a shade darker
+  (`urgent-line`, `attention-line`, `wait-line`, `done-line`). The firm's colour stays on its
+  initial at the top of the menu and on no button (`brand` is `ink` in the office). Other buttons
+  are grey pills (`button`, `button-hover`, `button-press`), a destructive step's opener red words
+  on grey, its final click red (`urgent-fill`). The page you're on in the menu is a grey pill
+  (`active`). The values for both themes are in the table below; every pair is checked in both
+  (`tests/unit/ui.contrast.test.ts`).
+- **Type.** Geist for every word (its own fixed-width digits, checked in a browser: tabular
+  figures change its digit widths), self-hosted from its npm package (SIL Open Font License) in
+  `src/app/office/office-fonts.ts`, so only office pages fetch it. Each page's headline in
+  Instrument Serif (`text-title`, 28px; the dashboard's greeting `font-display`, 40px). The
+  dashboard's big counts in Geist Mono semibold (`font-stat`): tried beside heavy Geist (800) at
+  40px, picked because its flat-footed 1 and marked 0 read as counts rather than a headline and
+  every digit is one width, so the three faces each have one job. The scale's seven steps are 12,
+  13, 15, 17, 20, 28 and 40px in the office (`text-lg`, `text-2xl` and `text-3xl` change);
+  headings semibold, `tracking-heading` (-0.015em).
+- **Spacing** 4, 8, 12, 16, 24, 32 and 48px (Tailwind's 1, 2, 3, 4, 6, 8 and 12); one measure
+  apart, the room under the menu for its fixed foot. **Corners:** cards 20px (`rounded-card`),
+  rows and fields 14px (`rounded-row`), pills and buttons round. **Depth:** one token, `soft`
+  (a hairline ring and a soft fall under 8%; in dark the ring is what shows), on the office's
+  white cards and what floats over its page. **Motion:** 150ms colour changes on everything you
+  can press, 200ms turns; every button has hover, focus (the ink ring) and pressed states.
+- **Where each reference went.** hilos: the dashboard's small tracked date line over the
+  headline, its four tinted cards (an icon top-left, a tracked label top-right, the number, one
+  grey line), the count pills beside section titles, the quiet grey links to whole lists, and
+  Needs attention, Waiting on others and Sorted today as tinted panels of near-white rows (Needs
+  attention's page too). Apple Wallet: the urgent places as one rounded list with hairlines
+  starting at the words, a neutral date tile, the role with grey lines under it, status as
+  coloured words ("Not offered yet" in red), the grey pill buttons and the quiet "…". Steep: this
+  week's bars (one colour, red on a day with urgent gaps, grey once gone; a dashed line where
+  every place is filled; today's name filled; the big number bottom left). Shopify: the soft
+  white cards, the grey count badges in the menu. Neo Financial: the large serif headline, label
+  and value rows, grey-fill buttons, destructive words in red on grey.
+- **States.** A page picked in the menu shows its skeleton in the page's place while it's on its
+  way, once it has taken longer than 150ms (`office-skeleton.tsx`: the page's own layout in flat
+  grey bars, nothing moving; `menu-pending.tsx` and `office-frame.tsx` show it, from each menu
+  link's pending state). Not a route-wide `loading.tsx`: that starts every page's answer before
+  its access check, so a page a role can't open would answer 200, not 404 (the browser tests
+  caught it; ADR-016 in docs/decisions.md warns the same of the login check). Every
+  dashboard section says when it's empty and when it couldn't load, in the section.
+- **Phone (390px).** The top bar with Menu (the drawer), 44px targets everywhere, the four cards
+  two by two, the urgent places' buttons under their words, this week's bars lying down a row a
+  day, the board's filters scrolling sideways in their track.
+- **The dark round button over the menu's foot** was Next's own development button (drawn only by
+  `next dev`), bottom-left by default, which is where the menu's foot has sat since Phase 20:
+  `next.config.ts` now draws it bottom-right.
+
+| Token (office) | Light | Dark | Use in the office |
+|---|---|---|---|
+| `ink` / `ink-muted` / `ink-hover` / `on-ink` | `#1c1b18` / `#63605a` / `#34322d` / `#ffffff` | `#f2f1ee` / `#a8a59e` / `#dcdad5` / `#121211` | Words, grey words, an ink button under the pointer, words on ink |
+| `line` / `line-strong` | `#e7e5e0` / `#8c887f` | `#2c2c29` / `#77746d` | Hairlines; field and control borders (3:1) |
+| `canvas` / `card` / `panel` / `raised` | `#f6f5f3` / `#ffffff` / `#f6f5f3` / `#efeeeb` | `#121211` / `#1c1c1a` / `#121211` / `#262624` | The page and menu; cards; the top bar and drawer; tracks, tiles, skeleton bars |
+| `switch-off` / `scrim` | `#7b776f` / `#1c1b18` | `#807d76` / `#000000` | A switch that's off; behind the drawer |
+| `brand` / `on-brand` / `brand-ink` | `#1c1b18` / `#ffffff` / `#1c1b18` | `#f2f1ee` / `#121211` / `#f2f1ee` | Ink: the firm's colour fills no office button |
+| `urgent` / `urgent-soft` / `urgent-ink` / `urgent-tile` | `#b42318` / `#fdf3f1` / `#7a2116` / `#fbe6e2` | `#ff8a7a` / `#211514` / `#ffc8bf` / `#3a1e1b` | Red words; an urgent wash; its dark words; the urgent card |
+| `urgent-fill` / `urgent-fill-hover` / `on-urgent` | `#c4242a` / `#a51d22` / `#ffffff` | `#cf3a33` / `#b02e28` / `#ffffff` | Urgent bars and pills; the final destructive button |
+| `attention` / `attention-soft` / `attention-ink` | `#a15c07` / `#fdf8ec` / `#5e4106` | `#f0a742` / `#1f1a10` / `#f8dfa0` | Amber: an icon; Needs attention's panel; its dark words |
+| `hivis` / `on-hivis` | `#faefd2` / `#5e4106` | `#362c12` / `#f8dfa0` | The Needs attention card; "to mark" |
+| `wait-tile` / `wait-ink` / `wait-soft` | `#e6edf8` / `#1d3c6b` / `#f3f6fb` | `#1a2638` / `#c9dbf7` / `#141a22` | Blue: the Waiting card, its words, its panel |
+| `done` / `done-soft` / `done-ink` / `done-tile` | `#1f7a47` / `#f1f8f3` / `#17502f` / `#e2f1e7` | `#5fd08b` / `#111a14` / `#bfeccd` / `#16291d` | Green: a tick; the Sorted panel; its words; the Sorted card |
+| `done-fill` / `on-done` | `#1f7a47` / `#ffffff` | `#1f7a47` / `#ffffff` | A done fill |
+| `quiet-soft` / `quiet-ink` | `#f3f2ef` / `#4a4741` | `#232321` / `#d6d4cf` | Hover on white rows; a closed chip |
+| `urgent-line` / `attention-line` / `wait-line` / `done-line` / `quiet-line` | `#f0cdc6` / `#ecd8a0` / `#c9d7ee` / `#c0dfca` / `#dedbd5` | `#55302b` / `#54461f` / `#2c3d57` / `#27452f` / `#3a3a37` | Each tint's 1px edge, a shade darker |
+| `active` | `#ebeae6` | `#262624` | The grey pill of the page you're on |
+| `button` / `button-line` / `button-hover` / `button-press` | `#efeeeb` / `#efeeeb` / `#e6e5e0` / `#dcdad5` | `#262624` / `#262624` / `#2f2f2c` / `#383834` | A grey pill button, at rest, under the pointer, pressed |
+| `ink-press` | `#000000` | `#ffffff` | An ink button pressed |
+
 ## Phase 20: the pass redesign's type, colour and depth
 
 Built from the mock-up Dylan approved on 2026-10-21 ("yes build this"), made from his five
@@ -125,6 +204,11 @@ tokens. Every pair a page uses meets its contrast in both (`tests/unit/ui.contra
 | `done-fill` / `on-done` | `#1f7a47` / `#ffffff` | `#1f7a47` / `#ffffff` | The booked tick (white on it 5.3:1) |
 | `quiet-soft` / `quiet-ink` | `#f1f2f4` / `#464b52` | `#222428` / `#d4d6da` | Information, closed |
 | `demo` / `on-demo` | `#3d2e0a` / `#fde7b0` | `#3d2e0a` / `#fde7b0` | The demo bar |
+| `urgent-line` / `attention-line` / `wait-line` / `done-line` / `quiet-line` | `#c4242a` / `#b45309` / `#a9c1e8` / `#1f7a47` / `#7c8189` | `#ff8b80` / `#f2a541` / `#2c4166` / `#5fd08b` / `#6f737b` | A status's edge (Phase 21): a chip's border (here the status colour itself); in the office, a tint's 1px edge a shade darker (decorative: the words say the status) |
+| `wait-soft` | `#f2f6fd` | `#111a28` | A waiting panel's wash (the office's Waiting on others: Phase 21) |
+| `active` | `#e3e5e9` | `#232529` | The grey pill of the page you're on (the office menu: Phase 21) |
+| `button` / `button-line` / `button-hover` / `button-press` | `#ffffff` / `#7c8189` / `#f1f2f4` / `#f1f2f4` | `#18191c` / `#6f737b` / `#222428` / `#222428` | Any other office button, its edge, under the pointer and pressed (Phase 21): here the outlined button it was; in the office a grey pill |
+| `ink-press` | `#000000` | `#ffffff` | An ink button pressed (Phase 21) |
 
 **Depth (Phase 20).** Five shadow tokens and no other shadow anywhere in `src/`
 (`tests/unit/ui.flat.test.ts` holds where each is used): `shadow-lift` (a card, row, tile or the
@@ -241,11 +325,13 @@ you on to `/office` as before.
   elsewhere close it, and it works before the page's scripts load. It holds the name and role,
   "How-to guide" and the office's one "Log out".
 - **Desktop (1024px and wider; Phase 20):** no top bar. The same `<header>` sits at the menu's
-  foot, fixed at the bottom left: the pay week, the account button (initials, name and role; its
-  menu opens above it) and the moon/sun button. The menu is a 248px sidebar on the canvas frame
-  that stays in view, with the firm at its top on a lifted card; the page is a white sheet with
-  rounded corners raised on the frame (`shadow-lift`), content up to 1152px wide. Forms stay
-  within 672px; lists, tables and reports use the full width.
+  foot, fixed at the bottom left: the pay week (Phase 21: the week and its dates, then the pay
+  day, two lines that each stay whole), the account button (initials, name and role; its menu
+  opens above it) and the moon/sun button, those two on a white row. The menu is a 248px sidebar
+  that stays in view, with the firm at its top (its initial on its own colour, then its name).
+  Phase 21: the menu and the page share the warm off-white ground (no sheet), the page's white
+  cards on it, content up to 1152px wide. Forms stay within 672px; lists, tables and reports use
+  the full width.
 - **Phone and tablet:** "Menu" opens the same menu as a drawer from the left: a native `<dialog>`
   opened with `showModal()`, so the page behind it is shut off and dimmed (`scrim` at half
   strength). Escape, a tap on the dimmed page, "Close menu" or choosing a link closes it, and the
@@ -267,14 +353,16 @@ you on to `/office` as before.
   | Admin and records (folded) | Action log, Pilot metrics, Office team, Settings, Integrations, Data requests |
   | Help | How-to guide |
 
-- The current page's link has `aria-current="page"`, bold text on a white pill lifted off the
-  menu (Phase 20; before it, a pale tint of the firm's colour) and its icon filled in. On a page inside a section, the section's link
+- The current page's link has `aria-current="page"`, on a grey pill (Phase 21; a white pill
+  lifted off the menu in Phase 20, a pale tint of the firm's colour before it) with its icon in
+  ink. Group labels are small grey words. On a page inside a section, the section's link
   looks the same but has `aria-current="true"` (it isn't the page you're on): a shift or a new
   shift marks Events & sessions, the offer page marks Dashboard, a casual marks Casuals, a
   cancellation's record marks Cancellations, a worker's data page marks Data requests.
-- **Badges:** a link can carry a count. The number sits inside the link but hidden from screen
-  readers, and its words ("3 waiting") follow the link as visually hidden text, so the link's name
-  stays exactly its label. Needs attention's (Phase 20) is the Dashboard's Needs attention count:
+- **Badges:** a link can carry a count, one style (Phase 21): a small white pill, its number in
+  ink when it needs you and grey otherwise (no count in the menu is an urgent one, so none is red).
+  The number sits inside the link but hidden from screen readers, and its words ("3 waiting")
+  follow the link as visually hidden text, so the link's name stays exactly its label. Needs attention's (Phase 20) is the Dashboard's Needs attention count:
   "{12} to deal with", and "50+" when a list stopped at 50.
 - **Session keeper:** in the frame, so a session is kept alive on every office page.
 - **Test rules the shell must keep:** the menu is built from plain links (no list items, headings,

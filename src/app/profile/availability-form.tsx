@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
-import { btn, labelStack, muted, staffBtn, staffField } from "@/app/ui/classes";
+import { labelStack, muted, staffBtn, staffBtnInline, staffField } from "@/app/ui/classes";
 import { useHydrated } from "@/app/use-hydrated";
 import type { AvailabilityOutcome } from "@/lib/portal/profile-kinds";
 import { dayLabel } from "@/lib/rules/reasons";
@@ -98,7 +98,7 @@ export function AvailabilityForm({
                 disabled={pending || !ready}
                 onClick={() => change(d.day, false)}
                 aria-label={`Remove ${dayLabel(d.day)}`}
-                className={`${btn.secondary} shrink-0`}
+                className={`${staffBtnInline} shrink-0`}
               >
                 Remove
               </button>

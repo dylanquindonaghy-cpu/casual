@@ -24,10 +24,10 @@ export function EraseForm({ workerId, name }: { workerId: string; name: string }
       if (result.status === "erased" || result.status === "already") setDone(true);
     });
   return (
-    <div className="mt-5 flex flex-col items-start gap-4">
+    <div className="mt-6 flex flex-col items-start gap-4">
       {!done && (
         <>
-          <label className="flex min-h-11 w-full items-center gap-3 rounded-lg bg-urgent-soft px-3 py-2 font-semibold text-urgent-ink">
+          <label className="flex min-h-11 w-full items-center gap-3 rounded-row bg-urgent-soft px-3 py-2 font-semibold text-urgent-ink">
             <input
               type="checkbox"
               className="h-6 w-6 shrink-0 accent-urgent"

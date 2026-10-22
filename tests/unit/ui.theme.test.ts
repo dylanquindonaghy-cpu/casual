@@ -76,8 +76,9 @@ describe("colours: tokens only", () => {
       (line) =>
         hasColour.test(line) &&
         !/^\s*--color-[a-z-]+: #[0-9a-f]{6};/.test(line) &&
-        // The five depth tokens (Phase 20; the pass's since Phase 18): tokens too.
-        !/^\s*--(?:shadow-(?:lift|panel|pass|bar)|inset-shadow-sunk): [^;]+;$/.test(line),
+        // The five depth tokens (Phase 20; the pass's since Phase 18), and the office's one
+        // (Phase 21): tokens too.
+        !/^\s*--(?:shadow-(?:lift|panel|pass|bar|soft)|inset-shadow-sunk): [^;]+;$/.test(line),
     );
     expect(outside).toEqual([]);
   });
@@ -115,7 +116,7 @@ describe("one type scale", () => {
     expect(outside).toEqual([]);
   });
 
-  it("40px only for the sign figures (a shift's time, a count) and the greetings (Phase 20)", () => {
+  it("40px only for the sign figures (a shift's time, a count), the greetings (Phase 20) and the office's counts (Phase 21)", () => {
     const uses = SOURCE.flatMap((file) =>
       [...read(file).matchAll(/"[^"\n]*(?<![\w-])text-4xl(?![\w-])[^"\n]*"/g)].map((m) => [
         file,
@@ -123,19 +124,22 @@ describe("one type scale", () => {
       ]),
     );
     expect(uses.length).toBeGreaterThan(2);
-    // The date tile's sizes live in a table beside its font-sign day.
+    // The date tile's sizes live in a table beside its font-sign day. In the office (Phase 21), its
+    // greeting in the display serif and its big counts in their own figures.
     const notSign = uses.filter(
       ([file, cls]) =>
-        !/(?<![\w-])font-(?:sign|greet)(?![\w-])/.test(cls!) && file !== "src/app/ui/sign.tsx",
+        !/(?<![\w-])font-(?:sign|greet|display|stat)(?![\w-])/.test(cls!) &&
+        file !== "src/app/ui/sign.tsx",
     );
     expect(notSign).toEqual([]);
     expect(read("src/app/ui/sign.tsx")).toMatch(/className=\{`block font-sign [^`]*\$\{t\.day\}/);
-    // The greetings: Home's and the dashboard's, each in the serif at 40px.
+    // The greetings: Home's and the dashboard's, each in the serif at 40px (the dashboard's in the
+    // office's display utility, the same face: Phase 21).
     expect(read("src/app/home-view.tsx")).toMatch(
       /className="font-greet text-4xl[^"]*">Hi \{firstName\}/,
     );
     expect(read("src/app/office/dashboard-view.tsx")).toMatch(
-      /className="block font-greet text-4xl"/,
+      /className="block font-display text-4xl"/,
     );
   });
 

@@ -50,8 +50,8 @@ export function SessionsTable({
   // The "…" menu stays in reach at the table's right edge when the table is wider than the page.
   const pinned = "sticky right-0 bg-canvas";
   return (
-    <div className="rounded-[18px] bg-canvas px-4 pt-3.5 pb-2.5 inset-shadow-sunk">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-1.5">
+    <div className="rounded-row bg-canvas px-4 py-3">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-2">
         {e.place && <span className="font-semibold">{e.place}</span>}
         <span className="text-sm text-ink-muted">
           {e.sessionCount === 1 ? "1 session" : `${e.sessionCount} sessions`} to come
@@ -134,7 +134,7 @@ export function SessionsTable({
                           urgent={s.urgentGap && free > 0}
                           className="max-w-24"
                         />
-                        <span className="font-sign text-sm">
+                        <span className="text-sm font-semibold tabular-nums">
                           {filled}/{s.headcount}
                         </span>
                       </span>
@@ -166,7 +166,7 @@ export function SessionsTable({
         </div>
       )}
       {outside > 0 && (
-        <p className="border-t border-line py-2.5 text-ink-muted">
+        <p className="border-t border-line py-3 text-ink-muted">
           {outside === 1 ? "1 more session" : `${outside} more sessions`} to come, outside these two
           weeks.
         </p>

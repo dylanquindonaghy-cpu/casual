@@ -3,9 +3,11 @@ import { Icon } from "./icons";
 
 // The top of every page (docs/ui-design.md "Page header"): the way back to the list it belongs to
 // (`back`, on a record's own page), the page's one <h1>, meta and intro lines (children), then the
-// actions, main one first. No label above the heading and no divider under it (Phase 17): the
-// firm's bar or the office's top bar already names the firm, and space does the separating. Adds
-// no words and no other heading. Hook-free, imports nothing from src/lib: safe for every page.
+// actions, main one first. The headline is `text-title`: 24px semibold in the casual app, the
+// office's display serif at 28px (Phase 21). No label above the heading and no divider under it
+// (Phase 17): the firm's bar or the office's top bar already names the firm, and space does the
+// separating. Adds no words and no other heading. Hook-free, imports nothing from src/lib: safe
+// for every page.
 export function PageHeader({
   back,
   title,
@@ -31,7 +33,7 @@ export function PageHeader({
           {back.label}
         </a>
       ) : null}
-      <h1 id={titleId} className="text-2xl font-semibold tracking-tight text-balance text-ink">
+      <h1 id={titleId} className="text-title text-balance text-ink">
         {title}
       </h1>
       {children ? <div className="mt-2 flex max-w-prose flex-col gap-2">{children}</div> : null}

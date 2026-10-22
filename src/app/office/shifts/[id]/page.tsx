@@ -126,7 +126,7 @@ export default async function OfficeShiftPage({
           </p>
         )}
         {shift.instructions && (
-          <p className="rounded-lg border border-line bg-card px-3 py-2 whitespace-pre-line">
+          <p className="rounded-row border border-line bg-card px-3 py-2 whitespace-pre-line">
             <span className="font-semibold">Instructions:</span> {shift.instructions}
           </p>
         )}
@@ -239,12 +239,12 @@ export default async function OfficeShiftPage({
             )}
             {page.check && (
               <div
-                className={`mt-4 rounded-lg border-2 p-4 ${
+                className={`mt-4 rounded-row border p-4 ${
                   page.check.ok
-                    ? "border-done bg-done-soft"
+                    ? "border-done-line bg-done-soft"
                     : page.check.overridable
-                      ? "border-attention bg-attention-soft"
-                      : "border-urgent bg-urgent-soft"
+                      ? "border-attention-line bg-attention-soft"
+                      : "border-urgent-line bg-urgent-soft"
                 }`}
               >
                 {page.check.ok ? (

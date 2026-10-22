@@ -53,14 +53,14 @@ export function EditShiftForm({
     });
   return (
     <form
-      className={`${card} ${headingGap} flex max-w-2xl flex-col gap-5 sm:p-6`}
+      className={`${card} ${headingGap} flex max-w-2xl flex-col gap-6`}
       onSubmit={(e) => {
         e.preventDefault();
         save();
       }}
     >
       {lockTimes && (
-        <p className="rounded-lg bg-quiet-soft px-3 py-2 text-quiet-ink">
+        <p className="rounded-row bg-quiet-soft px-3 py-2 text-quiet-ink">
           People are booked on this shift, so only the places and instructions can change here. To
           move or shorten it, use &quot;Move, shorten or cancel&quot; below.
         </p>

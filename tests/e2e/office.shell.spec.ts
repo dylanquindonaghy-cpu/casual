@@ -11,10 +11,10 @@ import { sentTo } from "./outbox";
 // no top bar (Phase 20). Everything runs with the device set to light and again set to dark.
 
 const acme = "http://acme.localhost:3100";
-// The office's page: the card colour (Phase 18; Phase 20's dark grey, D7). From 1024px it's a sheet
-// on the frame, which is the canvas grey, like the menu.
-const CANVAS = { light: "rgb(255, 255, 255)", dark: "rgb(24, 25, 28)" }; // #ffffff, #18191c
-const FRAME = { light: "rgb(238, 240, 243)", dark: "rgb(11, 12, 14)" }; // #eef0f3, #0b0c0e
+// The office's page (Phase 21, the office's look): its warm off-white ground (a near-black in dark),
+// the menu's too at every width; from 1024px no sheet on a frame (Phase 20's), the page's white
+// cards sit on the ground itself.
+const CANVAS = { light: "rgb(246, 245, 243)", dark: "rgb(18, 18, 17)" }; // #f6f5f3, #121211
 
 // Each test logs in as a resourcer of its own (the seeded users allow 3 login links per 15
 // minutes, and this spec logs in six times).
@@ -154,7 +154,7 @@ for (const device of ["light", "dark"] as const) {
       await expect(account.getByText("Sam Rota", { exact: true })).toBeVisible();
       await expect(account.getByText("SR", { exact: true })).toBeVisible();
       // No top bar from 1024px (Phase 20): the account and moon/sun buttons are at the menu's foot
-      // (the menu is 248px wide), and the page is a white sheet on the grey frame.
+      // (the menu is 248px wide), and the page and menu share the one ground (Phase 21).
       const foot = async (button: typeof account) => {
         const box = await button.boundingBox();
         expect(box).not.toBeNull();
@@ -165,11 +165,44 @@ for (const device of ["light", "dark"] as const) {
       await foot(page.getByRole("button", { name: /^Switch to (light|dark) mode$/ }));
       await expect(page.locator('[data-shell="office"]')).toHaveCSS(
         "background-color",
-        FRAME[device],
+        CANVAS[device],
       );
-      await expect(page.locator("#main")).toHaveCSS("background-color", CANVAS[device]);
+      await expect(page.locator("body")).toHaveCSS("background-color", CANVAS[device]);
+      await expect(page.locator("#main")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
       await (await accountMenu(page)).getByRole("link", { name: "How-to guide" }).click();
       await expect(page).toHaveURL(`${acme}/office/guide`);
     });
   });
 }
+
+// A page picked in the menu shows its skeleton in the page's place while it's on its way (Phase
+// 21; docs/ui-design.md "States"): the page's answer is held back here so the wait is long enough
+// to see. Then the page, and the skeleton gone. The dashboard has its own.
+test("a page picked in the menu shows its skeleton while it's on its way", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  let held = 0;
+  await page.route(/\/office(\/casuals)?(\?|$)/, async (route) => {
+    const request = route.request();
+    if (request.headers()["rsc"] === "1" && request.headers()["next-router-prefetch"] !== "1") {
+      held += 1;
+      await new Promise((done) => setTimeout(done, 1500));
+    }
+    await route.continue();
+  });
+  await officeLogin(page, "skeleton");
+  const skeleton = page.locator("[data-skeleton]");
+  await expect(skeleton).toHaveCount(0);
+
+  await (await menuLink(page, "Casuals")).click();
+  await expect(skeleton).toBeVisible();
+  await expect(skeleton.getByText("Loading the page…")).toBeAttached();
+  await expect(page.getByRole("heading", { level: 1, name: "Casuals" })).toBeVisible();
+  await expect(page).toHaveURL(`${acme}/office/casuals`);
+  await expect(skeleton).toHaveCount(0);
+
+  await (await menuLink(page, "Dashboard")).click();
+  await expect(skeleton.getByText("Loading the dashboard…")).toBeAttached();
+  await expect(page).toHaveURL(`${acme}/office`);
+  await expect(skeleton).toHaveCount(0);
+  expect(held).toBeGreaterThanOrEqual(2);
+});

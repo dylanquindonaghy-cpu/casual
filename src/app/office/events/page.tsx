@@ -71,10 +71,10 @@ export default async function EventsPage({
   const filters = view === "showing" ? [...FILTERS, "showing" as const] : FILTERS;
   return (
     <main className={`${page.office} flex flex-col gap-4`}>
-      <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
+      <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
         <div className="min-w-64 flex-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Events &amp; sessions</h1>
-          <p className="mt-1 text-ink-muted">
+          <h1 className="text-title text-ink">Events &amp; sessions</h1>
+          <p className="mt-2 text-ink-muted">
             <span className="tabular-nums">{openPlaces}</span>{" "}
             {openPlaces === 1 ? "open place" : "open places"} across{" "}
             <span className="tabular-nums">{openSessions}</span>{" "}
@@ -105,20 +105,21 @@ export default async function EventsPage({
         )}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        {/* One row: on a phone it scrolls sideways inside its track, never the page. */}
         <nav
           aria-label="Show"
-          className="flex flex-wrap gap-1 rounded-full bg-raised p-1 inset-shadow-sunk"
+          className="flex max-w-full gap-1 overflow-x-auto rounded-full bg-raised p-1"
         >
           {filters.map((v) => (
             <Link
               key={v}
               href={viewHref(v, from === today ? undefined : from)}
               aria-current={v === view ? "page" : undefined}
-              className={`inline-flex min-h-9 items-center gap-2 rounded-full px-3.5 ${
+              className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-4 whitespace-nowrap transition-colors ${
                 v === view
-                  ? "bg-card font-semibold text-ink shadow-lift"
-                  : "font-medium text-ink-muted hover:text-ink"
+                  ? "bg-card font-semibold text-ink shadow-soft"
+                  : "font-medium text-ink-muted hover:bg-card/60 hover:text-ink active:bg-card"
               }`}
             >
               {EVENT_VIEW_WORDS[v]}
@@ -131,14 +132,14 @@ export default async function EventsPage({
             <Link
               href={viewHref(view, earlier === "today" ? undefined : earlier)}
               aria-label="Earlier"
-              className="flex size-10 items-center justify-center rounded-full border-[1.5px] border-line-strong bg-card hover:bg-quiet-soft"
+              className="flex size-11 items-center justify-center rounded-full bg-button text-ink transition-colors hover:bg-button-hover active:bg-button-press"
             >
               <Icon name="chevron" size={17} className="rotate-180" />
             </Link>
           ) : (
             <span
               aria-hidden="true"
-              className="flex size-10 items-center justify-center rounded-full border border-line text-line-strong"
+              className="flex size-11 items-center justify-center rounded-full bg-raised text-line-strong"
             >
               <Icon name="chevron" size={17} className="rotate-180" />
             </span>
@@ -147,7 +148,7 @@ export default async function EventsPage({
           <Link
             href={viewHref(view, later)}
             aria-label="Later"
-            className="flex size-10 items-center justify-center rounded-full border-[1.5px] border-line-strong bg-card hover:bg-quiet-soft"
+            className="flex size-11 items-center justify-center rounded-full bg-button text-ink transition-colors hover:bg-button-hover active:bg-button-press"
           >
             <Icon name="chevron" size={17} />
           </Link>
@@ -159,7 +160,7 @@ export default async function EventsPage({
         role="region"
         aria-label="Rota board"
         tabIndex={0}
-        className="overflow-x-auto rounded-[22px] border border-line bg-card shadow-panel"
+        className="overflow-x-auto rounded-card bg-card shadow-soft"
       >
         <div className="min-w-[58rem]">
           <BoardDays days={days} />

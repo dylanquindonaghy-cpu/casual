@@ -594,7 +594,7 @@ describe("the page (Phases 18 and 20: the dashboard)", () => {
   const tiles = (html: string) =>
     [
       ...html.matchAll(
-        /<(a|div) ([^>]*class="flex min-h-33 flex-col rounded-\[22px\][^"]*"[^>]*)>([\s\S]*?)<\/\1>/g,
+        /<(a|div) ([^>]*class="grid min-h-32 [^"]*rounded-card [^"]*"[^>]*)>([\s\S]*?)<\/\1>/g,
       ),
     ].map((m) => {
       const href = /href="([^"]*)"/.exec(m[2] ?? "")?.[1];
@@ -610,8 +610,9 @@ describe("the page (Phases 18 and 20: the dashboard)", () => {
     const html = render(full, { shiftsLine: "Shifts line 07700 900123" });
     // 3 urgent places + 9 of Needs attention's items + 2 enquiries that need a person.
     expect(h1s(html)).toEqual(["Evening, Acme Events. 14 things need you."]);
+    // Phase 21: the date line (today, the week, its pay day) comes first, over the greeting.
     expect(words(html)).toContain(
-      "14 things need you. Start with Saturday's door supervisor at 06:00: offered to 4 casuals. Monday 2 November · Week 45 · Pay on Fri 13 Nov Shifts line 07700 900123",
+      "Monday 2 November · Week 45 · Pay Fri 13 Nov Evening, Acme Events. 14 things need you. Start with Saturday's door supervisor at 06:00: offered to 4 casuals. Shifts line 07700 900123",
     );
     // Only urgent places: each place to fill counts.
     const onlyUrgent = render({
@@ -707,7 +708,7 @@ describe("the page (Phases 18 and 20: the dashboard)", () => {
       "u1",
       "u2",
     ]);
-    expect(tiles(html)[0]).toBe("Urgent places 3 Sat 7 and Sun 8 → /office/events?view=urgent");
+    expect(tiles(html)[0]).toBe("Urgent places 3 Sat 7 and Sun 8 → #urgent-places");
   });
 
   it("the list of urgent places unread, its count read: where to start says to start with them", () => {
@@ -728,19 +729,25 @@ describe("the page (Phases 18 and 20: the dashboard)", () => {
     expect(greeting(at("2026-07-01T11:30:00Z"), TZ)).toBe("Afternoon");
   });
 
+  // Phase 21 (Dylan's brief): each card jumps to its own section on the page; the sections keep
+  // their links to the whole lists.
   it("four count tiles: urgent places, needs attention, waiting on others, sorted today", () => {
     expect(tiles(render(full, { payQueriesWaiting: 3 }))).toEqual([
-      "Urgent places 3 Sat 7 and Sun 8 → /office/events?view=urgent",
-      "Needs attention 11 1 booking to check, 1 change from your sheet and more → /office/needs-attention",
-      "Waiting on others 3 Pay queries with payroll → /office/pay-queries",
+      "Urgent places 3 Sat 7 and Sun 8 → #urgent-places",
+      "Needs attention 11 1 booking to check, 1 change from your sheet and more → #needs-attention",
+      "Waiting on others 3 Pay queries with payroll → #waiting",
       "Sorted today 20 2 cancellations, 18 enquiries → #sorted",
     ]);
     expect(tiles(render(empty))).toEqual([
-      "Urgent places 0 Every urgent place is filled → /office/events?view=urgent",
-      "Needs attention 0 Nothing waiting for you → /office/needs-attention",
-      "Waiting on others 0 Nothing waiting on others",
+      "Urgent places 0 Every urgent place is filled → #urgent-places",
+      "Needs attention 0 Nothing waiting for you → #needs-attention",
+      "Waiting on others 0 Nothing waiting on others → #waiting",
       "Sorted today 0 0 cancellations, 0 enquiries → #sorted",
     ]);
+    // Each one's section is there, its heading the place the card jumps to.
+    const page = render(full, { payQueriesWaiting: 3 });
+    for (const id of ["urgent-places", "needs-attention", "waiting", "sorted"])
+      expect(page).toMatch(new RegExp(`<h2 id="${id}" class="scroll-mt-20 `));
     expect(attentionText([])).toBe("Nothing waiting for you");
   });
 
@@ -749,7 +756,7 @@ describe("the page (Phases 18 and 20: the dashboard)", () => {
     expect(words(section(html, "this-week"))).toContain(
       "This week 9 places still to fill. 14 of 23 filled, Tue to Sat.",
     );
-    const nav = /<nav aria-label="This week">([\s\S]*?)<\/nav>/.exec(html)?.[1] ?? "";
+    const nav = /<nav aria-label="This week"[^>]*>([\s\S]*?)<\/nav>/.exec(html)?.[1] ?? "";
     const days = [
       ...nav.matchAll(/<a aria-label="([^"]*)" class="([^"]*)" href="([^"]*)">([\s\S]*?)<\/a>/g),
     ].map((m) => ({ label: m[1], href: m[3], inner: m[4] ?? "", shown: words(m[4] ?? "") }));
@@ -762,17 +769,18 @@ describe("the page (Phases 18 and 20: the dashboard)", () => {
       ["/office/shifts?from=2026-11-07", "Sat 7 Nov: 2 urgent, 1 of 3 places filled"],
       ["/office/shifts?from=2026-11-08", "Sun 8 Nov: Nothing on"],
     ]);
+    // An empty day says so (Phase 21).
     expect(days.map((d) => d.shown)).toEqual([
-      "Today –",
+      "Today No sessions",
       "Tue 4/4",
       "Wed 3/6",
       "Thu 6/10",
-      "Fri –",
+      "Fri No sessions",
       "Sat 1/3",
-      "Sun –",
+      "Sun No sessions",
     ]);
     // Today in a dark pill; a day with urgent gaps in the urgent red, its bar too.
-    expect(days[0]?.inner).toMatch(/bg-ink font-semibold text-on-ink[^"]*">Today</);
+    expect(days[0]?.inner).toMatch(/bg-ink[^"]*font-semibold[^"]*text-on-ink[^"]*">Today</);
     // Today with urgent gaps keeps the pill's own text colour (red on it fails the contrast test).
     if (!full.week.ok) throw new Error("fixture");
     const week = full.week.data;
@@ -782,9 +790,9 @@ describe("the page (Phases 18 and 20: the dashboard)", () => {
     });
     const todayPill =
       /<span class="([^"]*)">Today<\/span>/.exec(
-        /<nav aria-label="This week">([\s\S]*?)<\/nav>/.exec(urgentToday)?.[1] ?? "",
+        /<nav aria-label="This week"[^>]*>([\s\S]*?)<\/nav>/.exec(urgentToday)?.[1] ?? "",
       )?.[1] ?? "";
-    expect(todayPill).toContain("bg-ink font-semibold text-on-ink");
+    expect(todayPill).toContain("bg-ink px-2 font-semibold text-on-ink");
     expect(todayPill).not.toContain("text-urgent");
     expect(urgentToday).toMatch(
       /aria-label="Mon 2 Nov, today: 2 urgent, 3 open, 3 of 6 places filled"/,
@@ -794,7 +802,8 @@ describe("the page (Phases 18 and 20: the dashboard)", () => {
       "/office/shifts?from=2026-11-07",
     ]);
     expect(days[2]?.inner).toContain("bg-urgent-fill");
-    expect(days[3]?.inner).toMatch(/bg-brand" style="width:60%"/);
+    // A bar's height (its width below 640px) is the share of its places filled, in ink (Phase 21).
+    expect(days[3]?.inner).toMatch(/style="--fill:60%" class="[^"]*(?<![\w-])bg-ink(?![\w-])/);
     // Later in the week: a day gone by with sessions to mark goes to them, on a yellow plate; a
     // day gone by is "done", its bar grey.
     if (!full.needs.ok) throw new Error("fixture");
@@ -806,16 +815,17 @@ describe("the page (Phases 18 and 20: the dashboard)", () => {
         toMark: [{ ...full.needs.data.toMark[0]!, startsAt: at("2026-11-03T10:00:00Z") }],
       }),
     };
-    const later = /<nav aria-label="This week">([\s\S]*?)<\/nav>/.exec(render(thursday))?.[1] ?? "";
+    const later =
+      /<nav aria-label="This week"[^>]*>([\s\S]*?)<\/nav>/.exec(render(thursday))?.[1] ?? "";
     expect(later).toMatch(
       /aria-label="Tue 3 Nov: 1 to mark, 4 of 4 places filled"[^>]*href="\/office\/needs-attention#to-mark"/,
     );
-    expect(later).toMatch(/bg-hivis text-on-hivis[^"]*">1 to mark</);
+    expect(later).toMatch(/bg-hivis[^"]*text-on-hivis[^"]*">1 to mark</);
     expect(later).toMatch(/aria-label="Wed 4 Nov: [^"]*"[^>]*>[\s\S]*?bg-line-strong[\s\S]*?done</);
     expect(later).toContain('aria-label="Thu 5 Nov, today: 4 open, 6 of 10 places filled"');
   });
 
-  it("every urgent place listed: its seats, who it was offered to, Offer to someone and the rest under …", () => {
+  it("every urgent place listed: its places filled, who it was offered to, Offer and the rest under …", () => {
     const html = render(full);
     const [first, second] = places(html);
     expect(places(html)).toHaveLength(2);
@@ -823,19 +833,27 @@ describe("the page (Phases 18 and 20: the dashboard)", () => {
       /^Urgent places to fill 2 All on Events & sessions/,
     );
     expect(section(html, "urgent-places")).toMatch(
-      /<a class="[^"]*" href="\/office\/events\?view=urgent">All on Events &amp; sessions<\/a>/,
+      /<a class="[^"]*" href="\/office\/events\?view=urgent">All on Events &amp; sessions<svg/,
     );
     expect(first).toContain('role="img" aria-label="Saturday 7 November"');
+    // Phase 21: the role first (a link, no underline until the pointer is on it), where and when
+    // in grey, then a slim bar of the places filled with "1 of 3 filled" (Dylan's words, in place
+    // of "2 of 3 places free" and the seats).
     expect(words(first!)).toContain(
-      "06:00–14:00 Door supervisor Northern Lights Live, Acme Demo Arena 2 of 3 places free · Offered to 4 casuals",
+      "Sat 7 Nov Door supervisor Northern Lights Live, Acme Demo Arena 06:00–14:00 1 of 3 filled Offered to 4 casuals",
     );
-    expect(first).toMatch(/href="\/office\/shifts\/u1"/);
-    expect(first!.match(/data-seat="taken"/g)).toHaveLength(1);
-    expect(first!.match(/data-seat="free"/g)).toHaveLength(2);
+    expect(first).toMatch(
+      /<a class="underline-offset-4 hover:underline" href="\/office\/shifts\/u1">/,
+    );
+    expect(first).toContain('style="width:33%"');
+    expect(first).not.toContain("data-seat");
     expect(words(first!)).not.toContain("Hidden from casuals");
     expect(words(first!)).not.toContain("The office was emailed about it.");
-    // Its actions: offer it (the main one); "…" opens mark as filled and not urgent.
-    expect(first).toMatch(/<a class="[^"]*" href="\/office\/offer\/u1">Offer to someone<\/a>/);
+    // Its actions: offer it (the main one: "Offer", a small black pill, still named "Offer to
+    // someone"); "…" opens mark as filled and not urgent.
+    expect(first).toMatch(
+      /<a aria-label="Offer to someone" class="[^"]*min-h-11[^"]*" href="\/office\/offer\/u1"><span class="[^"]*bg-ink[^"]*">Offer<\/span><\/a>/,
+    );
     expect(first!.replace(/&#x27;/g, "'")).toMatch(
       /<summary aria-label="More for Saturday's door supervisor at 06:00: mark as filled, not urgent"/,
     );
@@ -968,12 +986,12 @@ describe("the page (Phases 18 and 20: the dashboard)", () => {
     expect(words(html)).toContain("Reload the page to try again. What could load is below.");
     expect(words(html)).not.toMatch(/Every urgent place is filled|Nothing needs you/);
     expect(tiles(html).slice(0, 2)).toEqual([
-      "Urgent places – Couldn't load → /office/events?view=urgent",
-      "Needs attention – Couldn't load → /office/needs-attention",
+      "Urgent places – Couldn't load → #urgent-places",
+      "Needs attention – Couldn't load → #needs-attention",
     ]);
     expect(words(section(html, "urgent-places"))).toContain(SECTION_ERROR);
     expect(words(section(html, "needs-attention"))).toContain(SECTION_ERROR);
-    expect(html).not.toContain('<nav aria-label="This week">');
+    expect(html).not.toMatch(/<nav aria-label="This week"/);
     expect(words(section(html, "this-week"))).toContain(SECTION_ERROR);
     expect(rows(html, "Sorted today")).toEqual([
       "2 cancellations today 1 under 48 hours' notice, 1 strike issued. Recorded automatically, never approved or declined. → /office/cancellations?day=today",

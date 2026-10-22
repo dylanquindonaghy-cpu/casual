@@ -3,17 +3,17 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { FocusItem } from "@/lib/office/dashboard-home";
-import { placesFreeText } from "@/lib/office/focus-copy";
-import { textLink } from "../ui/classes";
+import { placesFilledText } from "@/lib/office/focus-copy";
 import { Icon } from "../ui/icons";
-import { DateTile, Seats } from "../ui/sign";
 import { ShiftActions } from "./shift-actions";
 
-// The dashboard's urgent places (Phase 20; docs/screens.md `/office`): every one the list holds,
-// soonest first, each a row lifted off its panel: its date tile, time, role and where; its seats
-// and who it was offered to; then "Offer to someone" and "…" (named apart by `labels`, one per
-// place). A place that leaves (marked not urgent) takes its row with it, so the answers show as a
-// confirmation at the foot of the screen for 3 seconds (as Phase 18's Next up did), not in the row.
+// The dashboard's urgent places (Phases 20 and 21; docs/screens.md `/office`): every one the list
+// holds, soonest first, in one rounded white list with hairlines that start at the words (Apple
+// Wallet's): a neutral date tile; the role (a link to the session) and, in grey, where and when;
+// a slim bar of the places filled with "3 of 4 filled"; who it was offered to, or "Not offered
+// yet" in red; then "Offer" and "…" (named apart by `labels`, one per place). A place that leaves
+// (marked not urgent) takes its row with it, so the answers show as a confirmation at the foot of
+// the screen for 3 seconds (as Phase 18's Next up did), not in the row.
 export function UrgentPlaces({ items, labels }: { items: FocusItem[]; labels: string[] }) {
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => {
@@ -23,72 +23,89 @@ export function UrgentPlaces({ items, labels }: { items: FocusItem[]; labels: st
   }, [toast]);
   return (
     <>
-      <ul role="list" className="flex flex-col gap-2">
-        {items.map((item, i) => (
-          <li
-            key={item.shiftId}
-            data-urgent-place=""
-            className="flex flex-col gap-3 rounded-2xl border border-line bg-card p-3.5 shadow-lift sm:flex-row sm:items-center"
-          >
-            <div className="flex min-w-0 flex-1 items-start gap-3.5">
-              <DateTile
-                dow={item.dow}
-                day={item.day}
-                month={item.month}
-                urgent
-                label={item.dateLong}
-              />
-              <div className="min-w-0">
-                <p className="font-sign text-lg leading-tight">{item.range}</p>
-                <p className="font-medium">
-                  <Link href={`/office/shifts/${item.shiftId}`} className={textLink}>
-                    {item.role}
-                  </Link>
-                </p>
-                <p className="text-sm text-ink-muted">{item.where}</p>
-                <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-                  <Seats taken={item.headcount - item.placesLeft} total={item.headcount} urgent />
-                  <span className="tabular-nums">
-                    {placesFreeText(item.placesLeft, item.headcount)}
-                  </span>
-                  <span
-                    className={
-                      item.notOffered ? "font-semibold text-attention-ink" : "text-ink-muted"
-                    }
-                  >
-                    · {item.notOffered ? "Not offered yet" : item.offered}
-                  </span>
-                </p>
-                {item.escalated && (
-                  <p className="text-sm text-ink-muted">The office was emailed about it.</p>
-                )}
-                {item.hidden && (
-                  <p className="mt-1 text-sm font-semibold text-urgent">{item.hidden}</p>
-                )}
-                {(item.fromSheet || item.fromPlanner) && (
-                  <p className="mt-1 text-sm text-ink-muted">
-                    {item.fromSheet ? "From your Google Sheet" : "From your planner"}: change its
-                    places there.
+      <ul role="list" className="rounded-card bg-card shadow-soft">
+        {items.map((item, i) => {
+          const filled = Math.max(0, item.headcount - item.placesLeft);
+          const share = item.headcount > 0 ? Math.round((filled / item.headcount) * 100) : 0;
+          return (
+            <li key={item.shiftId} data-urgent-place="" className="group/row flex gap-4 pl-4">
+              <span
+                role="img"
+                aria-label={item.dateLong}
+                className="my-3 flex size-14 shrink-0 flex-col items-center justify-center self-start rounded-row bg-raised text-ink"
+              >
+                <span className="text-xs leading-4 font-medium text-ink-muted">{item.dow}</span>
+                <span className="text-lg leading-5 font-semibold tabular-nums">{item.day}</span>
+                <span className="text-xs leading-4 text-ink-muted">{item.month}</span>
+              </span>
+              <div className="flex min-w-0 flex-1 flex-col gap-3 border-t border-line py-3 pr-4 group-first/row:border-t-0 md:flex-row md:flex-wrap md:items-start lg:flex-nowrap lg:items-center lg:gap-6">
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-ink">
+                    <Link
+                      href={`/office/shifts/${item.shiftId}`}
+                      className="underline-offset-4 hover:underline"
+                    >
+                      {item.role}
+                    </Link>
                   </p>
-                )}
+                  <p className="text-sm text-ink-muted">{item.where}</p>
+                  <p className="text-sm text-ink-muted tabular-nums">{item.range}</p>
+                  {item.escalated && (
+                    <p className="text-sm text-ink-muted">The office was emailed about it.</p>
+                  )}
+                  {item.hidden && (
+                    <p className="mt-1 text-sm font-semibold text-urgent">{item.hidden}</p>
+                  )}
+                  {(item.fromSheet || item.fromPlanner) && (
+                    <p className="mt-1 text-sm text-ink-muted">
+                      {item.fromSheet ? "From your Google Sheet" : "From your planner"}: change its
+                      places there.
+                    </p>
+                  )}
+                </div>
+                {/* Under the words on a phone and a tablet (the buttons beside them from 768px);
+                    from 1024px, columns of the row. */}
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 md:order-last md:w-full lg:contents">
+                  <div className="flex w-40 flex-col gap-1">
+                    <span
+                      aria-hidden="true"
+                      className="block h-1.5 w-full overflow-hidden rounded-full bg-raised"
+                    >
+                      <span
+                        className="block h-full rounded-full bg-ink"
+                        style={{ width: `${share}%` }}
+                      />
+                    </span>
+                    <span className="text-sm text-ink-muted tabular-nums">
+                      {placesFilledText(item.placesLeft, item.headcount)}
+                    </span>
+                  </div>
+                  <p
+                    className={`text-sm lg:w-40 ${
+                      item.notOffered ? "font-semibold text-urgent" : "text-ink-muted"
+                    }`}
+                  >
+                    {item.notOffered ? "Not offered yet" : item.offered}
+                  </p>
+                </div>
+                <ShiftActions
+                  shiftId={item.shiftId}
+                  isUrgent
+                  fromSheet={item.fromSheet}
+                  fromPlanner={item.fromPlanner}
+                  className="shrink-0 md:order-2"
+                  more={labels[i]}
+                  onMessage={setToast}
+                />
               </div>
-            </div>
-            <ShiftActions
-              shiftId={item.shiftId}
-              isUrgent
-              fromSheet={item.fromSheet}
-              fromPlanner={item.fromPlanner}
-              className="shrink-0"
-              more={labels[i]}
-              onMessage={setToast}
-            />
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ul>
       {toast && (
         <p
           role="status"
-          className="fixed bottom-6 left-1/2 z-30 flex w-[min(30rem,calc(100vw-2rem))] -translate-x-1/2 animate-toast items-center gap-2.5 rounded-2xl bg-ink px-4 py-3 font-medium text-on-ink shadow-panel"
+          className="fixed inset-x-4 bottom-6 z-30 mx-auto flex max-w-md animate-toast items-center gap-3 rounded-row bg-ink px-4 py-3 font-medium text-on-ink shadow-soft"
         >
           <Icon name="check" size={18} />
           {toast}

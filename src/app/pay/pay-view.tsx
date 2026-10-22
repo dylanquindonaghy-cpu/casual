@@ -5,10 +5,10 @@ import {
   meta,
   muted,
   nums,
-  row,
-  rows,
   sectionGap,
   staffBtn,
+  staffRow,
+  staffRows,
 } from "@/app/ui/classes";
 import { StatusChip, type StatusTone } from "@/app/ui/status-chip";
 import { hoursText, pounds, type PayLine } from "@/lib/portal/pay-format";
@@ -67,11 +67,11 @@ export function PayView({ lines, firmName }: { lines: PayLine[]; firmName: strin
           <h2 id="earlier-pay" className={h2}>
             Earlier weeks
           </h2>
-          <ul role="list" className={`${rows} ${headingGap} ${nums}`}>
+          <ul role="list" className={`${staffRows} ${headingGap} ${nums}`}>
             {earlier.map((line) => (
               <li
                 key={`${line.periodStart}:${line.periodEnd}:${line.ratePence}`}
-                className={`${row} flex items-start justify-between gap-3`}
+                className={`${staffRow} flex items-start justify-between gap-3`}
               >
                 <div className="min-w-0">
                   <p className="font-semibold">
@@ -134,9 +134,9 @@ export function PayQueries({
       {queries.length === 0 ? (
         <p className={headingGap}>None in the last 90 days.</p>
       ) : (
-        <ul role="list" className={`${rows} ${headingGap}`}>
+        <ul role="list" className={`${staffRows} ${headingGap}`}>
           {queries.map((q) => (
-            <li key={q.ref} className={row}>
+            <li key={q.ref} className={staffRow}>
               <StatusChip tone={q.sortedOn ? "done" : (TONES[q.status] ?? "quiet")}>
                 {q.sortedOn
                   ? `Sorted on ${dayLabel(q.sortedOn)}`

@@ -47,18 +47,18 @@ export function SessionItem({
   const unmarked = booked.filter((b) => b.status === "confirmed").length;
   return (
     <li
-      className={`relative flex flex-col gap-2 rounded-lg border bg-raised px-3 py-2.5 ${
+      className={`relative flex flex-col gap-2 rounded-row border bg-raised p-3 ${
         s.urgentGap ? "border-urgent" : "border-line"
       }`}
     >
       <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-2">
           {full ? (
-            <h3 className="font-bold">{roleLabel(s.role)}</h3>
+            <h3 className="font-semibold">{roleLabel(s.role)}</h3>
           ) : (
-            <span className="font-bold">{roleLabel(s.role)}</span>
+            <span className="font-semibold">{roleLabel(s.role)}</span>
           )}
-          <span className="rounded-full border border-line-strong px-2 py-0.5 text-sm tabular-nums">
+          <span className="inline-flex h-6 items-center rounded-full border border-line-strong px-2 text-sm tabular-nums">
             {sessionTime(s, timeZone, withDay)}
           </span>
           {s.urgentGap && <StatusChip tone="urgent">Urgent</StatusChip>}
@@ -68,7 +68,7 @@ export function SessionItem({
           {s.requirements.map((r) => (
             <span
               key={r.code}
-              className="rounded-full bg-quiet-soft px-2 py-0.5 text-sm font-semibold text-quiet-ink"
+              className="inline-flex h-6 items-center rounded-full bg-quiet-soft px-2 text-sm font-semibold text-quiet-ink"
             >
               {requirementChip(r)}
             </span>
@@ -76,7 +76,7 @@ export function SessionItem({
         </div>
         <div className="flex items-start gap-2">
           <span
-            className={`flex min-h-11 items-center whitespace-nowrap text-sm font-bold tabular-nums ${short && !s.ended ? "text-urgent" : "text-ink"}`}
+            className={`flex min-h-11 items-center whitespace-nowrap text-sm font-semibold tabular-nums ${short && !s.ended ? "text-urgent" : "text-ink"}`}
           >
             {filledText(s)}
           </span>
@@ -84,7 +84,7 @@ export function SessionItem({
         </div>
       </div>
       {details.length > 0 && (
-        <p className="flex flex-wrap gap-x-3 gap-y-0.5 text-sm text-ink-muted tabular-nums">
+        <p className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-ink-muted tabular-nums">
           {details.map((d) => (
             <span key={d}>{d}</span>
           ))}

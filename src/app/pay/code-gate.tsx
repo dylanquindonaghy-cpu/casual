@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { btn, card, label, staffBtn } from "@/app/ui/classes";
+import { btn, label, staffBtn, staffCard } from "@/app/ui/classes";
 import { useHydrated } from "@/app/use-hydrated";
 import { TooManyTries } from "../too-many-tries";
 import { requestCodeAction, verifyCodeAction } from "./actions";
@@ -74,7 +74,7 @@ export function CodeGate({ codeWaiting }: { codeWaiting: boolean }) {
 
   if (!hasCode) {
     return (
-      <div className={card}>
+      <div className={staffCard}>
         {notice.kind === "stopped" ? (
           <p role="alert" className="font-semibold text-urgent">
             This code has stopped working.
@@ -101,7 +101,7 @@ export function CodeGate({ codeWaiting }: { codeWaiting: boolean }) {
 
   return (
     <form
-      className={card}
+      className={staffCard}
       onSubmit={(e) => {
         e.preventDefault();
         checkCode();

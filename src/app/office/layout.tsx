@@ -8,15 +8,26 @@ import { enquiriesWaiting } from "@/lib/office/enquiries";
 import { officePayQueriesWaiting } from "@/lib/office/pay-dashboard";
 import { payWeekLabel, payWeekNow } from "@/lib/pay/pay-week";
 import { THEME_COOKIE, themeFromCookie } from "../theme";
+import { officeFontVariables } from "./office-fonts";
 import { menuBadges, OfficeShell, officeMenu } from "./office-shell";
 
 // Every office page sits in the office shell (the top bar, the menu, the account menu) once
 // someone is logged in. With no session (/office/login, /office/l, or a page that's about to send
 // you to log in) the page shows on its own. Display only, so it never redirects or hides a page:
 // each page checks its own access (requireOfficeArea), and each action its own.
+// Either way the page is wrapped in [data-office] (Phase 21): the office's look (its tokens in
+// globals.css) and its faces (office-fonts.ts). The wrapper draws no box of its own (contents).
+function OfficeLook({ children }: { children: ReactNode }) {
+  return (
+    <div data-office="" className={`contents ${officeFontVariables}`}>
+      {children}
+    </div>
+  );
+}
+
 export default async function OfficeLayout({ children }: { children: ReactNode }) {
   const s = await getOfficeSession();
-  if (!s) return <>{children}</>;
+  if (!s) return <OfficeLook>{children}</OfficeLook>;
   // The Pay queries badge: how many are waiting (admins and payroll).
   const waiting = await officePayQueriesWaiting({ firm: s.firm }, s.officeUser.role);
   // The Casuals badge: uploads waiting for a check (admins and resourcers; 12F.2).
@@ -44,16 +55,18 @@ export default async function OfficeLayout({ children }: { children: ReactNode }
     attention,
   });
   return (
-    <OfficeShell
-      name={s.officeUser.name}
-      roleLabel={ROLE_LABELS[s.officeUser.role]}
-      firmName={s.firm.name}
-      payWeek={payWeekLabel(payWeekNow(new Date(), s.firm.timezone))}
-      menu={officeMenu(s.officeUser.role, badges)}
-      theme={themeFromCookie((await cookies()).get(THEME_COOKIE)?.value)}
-      rotationDue={s.session.rotationDue}
-    >
-      {children}
-    </OfficeShell>
+    <OfficeLook>
+      <OfficeShell
+        name={s.officeUser.name}
+        roleLabel={ROLE_LABELS[s.officeUser.role]}
+        firmName={s.firm.name}
+        payWeek={payWeekLabel(payWeekNow(new Date(), s.firm.timezone))}
+        menu={officeMenu(s.officeUser.role, badges)}
+        theme={themeFromCookie((await cookies()).get(THEME_COOKIE)?.value)}
+        rotationDue={s.session.rotationDue}
+      >
+        {children}
+      </OfficeShell>
+    </OfficeLook>
   );
 }

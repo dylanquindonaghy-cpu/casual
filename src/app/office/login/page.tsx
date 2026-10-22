@@ -23,7 +23,7 @@ export default async function OfficeLoginPage({
         {out === "1" && (
           <p
             role="status"
-            className="mt-4 rounded-lg border border-line bg-quiet-soft p-4 text-quiet-ink"
+            className="mt-4 rounded-row border border-line bg-quiet-soft p-4 text-quiet-ink"
           >
             You&apos;re logged out.
           </p>

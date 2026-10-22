@@ -2,13 +2,21 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { LogoutButton } from "../logout-button";
 import { SessionKeeper } from "../session-keeper";
 import type { Theme } from "../theme";
 import { Icon } from "../ui/icons";
 import { useHydrated } from "../use-hydrated";
+import {
+  MenuPending,
+  nextPending,
+  pendingPage,
+  type MenuPendingReport,
+  type MenuPendingState,
+} from "./menu-pending";
 import { OfficeNav, type MenuGroup } from "./office-nav";
+import { DashboardSkeleton, PageSkeleton } from "./office-skeleton";
 import { ThemeButton } from "./theme-button";
 
 // The frame around every office page once someone is logged in (docs/office-v2.md 3.1;
@@ -20,10 +28,11 @@ import { ThemeButton } from "./theme-button";
 // <dialog>: the same <nav> moves into it while it's open (so a page never has two), Escape, the
 // dimmed backdrop and "Close menu" close it, and so does moving to another page or widening the
 // window to 1024px. Closed, the drawer is empty, so nothing in it can be reached with the Tab key.
-// From 1024px (Phase 20) there's no top bar: the menu is a 248px sidebar on the grey frame, the
-// page a white sheet raised on it, and the same <header> sits at the menu's foot with the pay week
-// (D8), you (the account button) and the moon/sun button. Needs attention is a menu link with its
-// count (the bell's place until Phase 20).
+// From 1024px (Phase 20) there's no top bar: the menu is a 248px sidebar, and the same <header>
+// sits at the menu's foot with the pay week (D8) and you (the account button, a white row) with
+// the moon/sun button. Needs attention is a menu link with its count (the bell's place until Phase
+// 20). Phase 21 (the office's look): the menu and the page on one warm off-white ground, the
+// page's white cards on it (no sheet), and the pay week on two lines that don't break mid-date.
 //
 // The page keeps its own <main>: the frame wraps it in <div id="main"> (the skip link's target),
 // and the top bar and menu sit outside it.
@@ -44,6 +53,13 @@ export function redrawOnArrival(previous: string, pathname: string): boolean {
 }
 
 // "Sam Rota" → "SR"; one name → its first letter.
+// "Week 41 · 5 Oct – 11 Oct · Pay Fri 16 Oct" (payWeekLabel) → the week and its dates, then the
+// pay day: the two lines at the menu's foot (Phase 21), each kept whole.
+export function payWeekLines(label: string): [string, string] {
+  const at = label.lastIndexOf(" · ");
+  return at < 0 ? [label, ""] : [label.slice(0, at), label.slice(at + 3)];
+}
+
 export function initials(name: string): string {
   const words = name.split(/\s+/).filter((w) => /\p{L}/u.test(w));
   const letters = [words[0], words.length > 1 ? words[words.length - 1] : undefined]
@@ -79,6 +95,14 @@ export function OfficeFrame({
   const drawer = useRef<HTMLDialogElement>(null);
   const shownAt = useRef(pathname);
   const [open, setOpen] = useState(false);
+  const [week, payDay] = payWeekLines(payWeek);
+  // A page picked in the menu and still on its way: its skeleton in the page's place (Phase 21).
+  const [pending, setPending] = useState<MenuPendingState>(null);
+  const report = useCallback<MenuPendingReport>(
+    (href, on, from) => setPending((state) => nextPending(state, href, on, from)),
+    [],
+  );
+  const loading = pendingPage(pending, pathname);
 
   // The drawer opens once its <nav> is in it.
   useEffect(() => {
@@ -112,118 +136,128 @@ export function OfficeFrame({
       >
         Skip to content
       </a>
-      <div
-        data-shell="office"
-        className="flex flex-1 flex-col bg-card text-base text-ink lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)] lg:bg-canvas"
-      >
-        <header className="sticky top-0 z-20 flex min-h-14 items-center gap-2 border-b border-line bg-panel px-3 sm:gap-3 lg:fixed lg:top-auto lg:bottom-0 lg:left-0 lg:w-62 lg:flex-col lg:items-stretch lg:gap-1.5 lg:border-0 lg:bg-canvas lg:px-3 lg:pt-2 lg:pb-3">
-          <button
-            type="button"
-            aria-controls={DRAWER_ID}
-            aria-expanded={open}
-            aria-haspopup="dialog"
-            disabled={!hydrated}
-            onClick={() => setOpen(true)}
-            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line-strong bg-card px-3.5 font-semibold text-ink hover:bg-quiet-soft disabled:cursor-not-allowed disabled:opacity-60 lg:hidden"
-          >
-            <Icon name="menu" />
-            Menu
-          </button>
-          {/* The firm's name: in the menu from 1024px (Phase 18), here below that. */}
-          <p className="min-w-0 truncate leading-tight font-semibold text-ink lg:hidden">
-            {firmName}
-          </p>
-          {/* The pay week (docs/office-v2.md D8), at the menu's foot from 1024px (Phase 20). Not
-              on phones or tablets: no room beside Menu. */}
-          <p className="hidden border-t border-line px-2 pt-3 text-sm text-ink-muted tabular-nums lg:block">
-            {payWeek}
-          </p>
-          <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2 lg:ml-0 lg:justify-between">
-            <ThemeButton initial={theme} />
+      <MenuPending.Provider value={report}>
+        <div
+          data-shell="office"
+          className="flex flex-1 flex-col bg-canvas text-base text-ink lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)]"
+        >
+          <header className="sticky top-0 z-20 flex min-h-14 items-center gap-2 border-b border-line bg-panel px-3 sm:gap-3 lg:fixed lg:top-auto lg:bottom-0 lg:left-0 lg:w-62 lg:flex-col lg:items-stretch lg:gap-3 lg:border-0 lg:bg-canvas lg:px-3 lg:pt-2 lg:pb-3">
             <button
               type="button"
-              popoverTarget={ACCOUNT_MENU_ID}
-              className="inline-flex min-h-11 items-center gap-2 rounded-full px-1.5 text-left hover:bg-quiet-soft sm:px-2 lg:order-first lg:min-w-0 lg:flex-1 lg:rounded-xl"
+              aria-controls={DRAWER_ID}
+              aria-expanded={open}
+              aria-haspopup="dialog"
+              disabled={!hydrated}
+              onClick={() => setOpen(true)}
+              className="inline-flex min-h-11 items-center gap-2 rounded-full bg-button px-4 font-semibold text-ink transition-colors hover:bg-button-hover active:bg-button-press disabled:cursor-not-allowed disabled:opacity-60 lg:hidden"
             >
-              <span
-                aria-hidden="true"
-                className="flex size-8 shrink-0 items-center justify-center rounded-full bg-wait-tile text-sm font-semibold text-wait-ink"
-              >
-                {initials(name)}
-              </span>
-              <span className="sr-only leading-tight sm:not-sr-only lg:min-w-0">
-                <span className="block max-w-48 truncate text-sm font-semibold text-ink">
-                  {name}
-                </span>
-                <span className="block text-sm text-ink-muted">{roleLabel}</span>
-              </span>
-              <Icon name="chevron" className="hidden rotate-90 text-ink-muted sm:block lg:hidden" />
+              <Icon name="menu" />
+              Menu
             </button>
-            <div
-              id={ACCOUNT_MENU_ID}
-              popover="auto"
-              className="inset-auto top-14 right-3 m-0 w-60 rounded-2xl border border-line bg-card p-2 text-base text-ink shadow-panel lg:top-auto lg:right-auto lg:bottom-24 lg:left-3"
-            >
-              <p className="px-3 pt-2 pb-1 leading-tight">
-                <span className="block font-semibold break-words">{name}</span>
-                <span className="block text-sm text-ink-muted">{roleLabel}</span>
-              </p>
-              <Link
-                href="/office/guide"
-                className="flex min-h-11 items-center gap-3 rounded-xl px-3 font-medium hover:bg-quiet-soft"
+            {/* The firm's name: in the menu from 1024px (Phase 18), here below that. */}
+            <p className="min-w-0 truncate leading-tight font-semibold text-ink lg:hidden">
+              {firmName}
+            </p>
+            {/* The pay week (docs/office-v2.md D8), at the menu's foot from 1024px (Phase 20), on two
+              lines (Phase 21). Not on phones or tablets: no room beside Menu. */}
+            <p className="hidden border-t border-line px-3 pt-3 text-sm text-ink-muted tabular-nums lg:block">
+              <span className="block whitespace-nowrap">{week}</span>
+              {payDay && (
+                <>
+                  <span className="sr-only"> · </span>
+                  <span className="block font-medium whitespace-nowrap text-ink">{payDay}</span>
+                </>
+              )}
+            </p>
+            <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2 lg:ml-0 lg:justify-between lg:gap-1 lg:rounded-row lg:bg-card lg:p-1 lg:shadow-soft">
+              <ThemeButton initial={theme} />
+              <button
+                type="button"
+                popoverTarget={ACCOUNT_MENU_ID}
+                className="inline-flex min-h-11 items-center gap-2 rounded-full px-1 text-left transition-colors hover:bg-quiet-soft active:bg-raised sm:px-2 lg:order-first lg:min-w-0 lg:flex-1 lg:rounded-row"
               >
-                <Icon name="guide" className="text-ink-muted" />
-                How-to guide
-              </Link>
-              <LogoutButton
-                kind="office"
-                after="/office/login?out=1"
-                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 font-medium text-ink hover:bg-quiet-soft"
-                icon={<Icon name="logout" className="text-ink-muted" />}
-              />
+                <span
+                  aria-hidden="true"
+                  className="flex size-8 shrink-0 items-center justify-center rounded-full bg-active text-xs font-semibold text-ink"
+                >
+                  {initials(name)}
+                </span>
+                <span className="sr-only leading-tight sm:not-sr-only lg:min-w-0">
+                  <span className="block max-w-48 truncate text-sm font-semibold text-ink">
+                    {name}
+                  </span>
+                  <span className="block text-sm text-ink-muted">{roleLabel}</span>
+                </span>
+                <Icon
+                  name="chevron"
+                  className="hidden rotate-90 text-ink-muted sm:block lg:hidden"
+                />
+              </button>
+              <div
+                id={ACCOUNT_MENU_ID}
+                popover="auto"
+                className="inset-auto top-14 right-3 m-0 w-60 rounded-card bg-card p-2 text-base text-ink shadow-soft lg:top-auto lg:right-auto lg:bottom-24 lg:left-3"
+              >
+                <p className="px-3 pt-2 pb-1 leading-tight">
+                  <span className="block font-semibold break-words">{name}</span>
+                  <span className="block text-sm text-ink-muted">{roleLabel}</span>
+                </p>
+                <Link
+                  href="/office/guide"
+                  className="flex min-h-11 items-center gap-3 rounded-row px-3 font-medium transition-colors hover:bg-quiet-soft active:bg-raised"
+                >
+                  <Icon name="guide" className="text-ink-muted" />
+                  How-to guide
+                </Link>
+                <LogoutButton
+                  kind="office"
+                  after="/office/login?out=1"
+                  className="flex min-h-11 w-full items-center gap-3 rounded-row px-3 font-medium text-ink transition-colors hover:bg-quiet-soft active:bg-raised"
+                  icon={<Icon name="logout" className="text-ink-muted" />}
+                />
+              </div>
+            </div>
+          </header>
+          <div className="hidden lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col lg:self-start lg:overflow-y-auto lg:pb-32">
+            {open ? null : <OfficeNav groups={menu} firmName={firmName} />}
+          </div>
+          <dialog
+            ref={drawer}
+            id={DRAWER_ID}
+            aria-label="Menu"
+            onClose={() => setOpen(false)}
+            // A click on the backdrop lands on the dialog itself (its content fills it).
+            onClick={(e) => {
+              if (e.target === e.currentTarget) e.currentTarget.close();
+            }}
+            className="inset-y-0 right-auto left-0 m-0 h-dvh max-h-none w-80 max-w-[85vw] bg-canvas p-0 text-base text-ink backdrop:animate-fade backdrop:bg-scrim/50"
+          >
+            {open ? (
+              <div className="flex min-h-full flex-col">
+                <div className="flex items-center justify-between border-b border-line px-3 py-2">
+                  <p className="px-3 font-semibold">Menu</p>
+                  <button
+                    type="button"
+                    aria-label="Close menu"
+                    onClick={() => drawer.current?.close()}
+                    className="inline-flex size-11 items-center justify-center rounded-full transition-colors hover:bg-button-hover active:bg-button-press"
+                  >
+                    <Icon name="close" />
+                  </button>
+                </div>
+                <OfficeNav groups={menu} firmName={firmName} />
+              </div>
+            ) : null}
+          </dialog>
+          <div id="main" tabIndex={-1} className="min-w-0 flex-1 focus:outline-none">
+            <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-12 lg:py-12">
+              {loading && (loading === "/office" ? <DashboardSkeleton /> : <PageSkeleton />)}
+              <div hidden={loading !== null}>{children}</div>
             </div>
           </div>
-        </header>
-        <div className="hidden lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col lg:self-start lg:overflow-y-auto lg:pb-32">
-          {open ? null : <OfficeNav groups={menu} firmName={firmName} />}
+          <SessionKeeper rotationDue={rotationDue} refresh={refresh} />
         </div>
-        <dialog
-          ref={drawer}
-          id={DRAWER_ID}
-          aria-label="Menu"
-          onClose={() => setOpen(false)}
-          // A click on the backdrop lands on the dialog itself (its content fills it).
-          onClick={(e) => {
-            if (e.target === e.currentTarget) e.currentTarget.close();
-          }}
-          className="inset-y-0 right-auto left-0 m-0 h-dvh max-h-none w-80 max-w-[85vw] bg-canvas p-0 text-base text-ink backdrop:animate-fade backdrop:bg-scrim/50"
-        >
-          {open ? (
-            <div className="flex min-h-full flex-col">
-              <div className="flex items-center justify-between border-b border-line px-3 py-2">
-                <p className="px-3 font-bold">Menu</p>
-                <button
-                  type="button"
-                  aria-label="Close menu"
-                  onClick={() => drawer.current?.close()}
-                  className="inline-flex size-11 items-center justify-center rounded-full hover:bg-quiet-soft"
-                >
-                  <Icon name="close" />
-                </button>
-              </div>
-              <OfficeNav groups={menu} firmName={firmName} />
-            </div>
-          ) : null}
-        </dialog>
-        <div
-          id="main"
-          tabIndex={-1}
-          className="min-w-0 flex-1 focus:outline-none lg:my-2 lg:mr-2 lg:min-h-[calc(100dvh-1rem)] lg:rounded-[20px] lg:border lg:border-line lg:bg-card lg:shadow-lift"
-        >
-          <div className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-10 lg:py-9">{children}</div>
-        </div>
-        <SessionKeeper rotationDue={rotationDue} refresh={refresh} />
-      </div>
+      </MenuPending.Provider>
     </>
   );
 }

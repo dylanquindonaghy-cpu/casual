@@ -60,12 +60,12 @@ function Thumb({ row }: { row: CasualRow }) {
       alt=""
       width={40}
       height={40}
-      className="h-10 w-10 shrink-0 rounded-md border border-line object-cover"
+      className="h-10 w-10 shrink-0 rounded-row border border-line object-cover"
     />
   ) : (
     <span
       aria-hidden="true"
-      className="h-10 w-10 shrink-0 rounded-md border border-dashed border-line-strong"
+      className="h-10 w-10 shrink-0 rounded-row border border-dashed border-line-strong"
     />
   );
 }

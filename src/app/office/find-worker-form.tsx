@@ -104,7 +104,7 @@ export function FindWorkerForm({
           {matches.map((m) => (
             <li
               key={m.id}
-              className="flex flex-col items-start pt-1 pb-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-4 sm:py-1.5"
+              className="flex flex-col items-start pt-1 pb-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-4 sm:py-2"
             >
               <Link
                 href={`${hrefBase}/${m.id}`}

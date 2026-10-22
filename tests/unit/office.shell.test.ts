@@ -137,7 +137,8 @@ describe("the office menu (v2 groups; Phases 18 and 20)", () => {
       ).toBeUndefined();
     // None: no badge.
     expect(menuBadges("admin", { payQueries: 0, needPerson: 0, uploads: 0 })).toEqual({});
-    // Drawn: the yellow plate for one that needs you, the grey one otherwise.
+    // Drawn (Phase 21: one style, a small white pill): its number in ink for one that needs you,
+    // grey otherwise (the yellow plate until Phase 21).
     nav.pathname = "/office";
     const html = renderToStaticMarkup(
       createElement(OfficeNav, { groups: officeMenu("admin", menuBadges("admin", counts)) }),
@@ -146,10 +147,13 @@ describe("the office menu (v2 groups; Phases 18 and 20)", () => {
       new RegExp(
         `<a [^>]*href="${href}"[^>]*>[\\s\\S]*?<span aria-hidden="true" class="([^"]*)">\\d+</span>`,
       ).exec(html)?.[1] ?? "";
-    expect(badgeOf("/office/enquiries")).toContain("bg-hivis text-on-hivis");
-    expect(badgeOf("/office/casuals")).toContain("bg-hivis text-on-hivis");
-    expect(badgeOf("/office/pay-queries")).toContain("bg-raised text-ink-muted");
-    expect(badgeOf("/office/pay-queries")).not.toContain("bg-hivis");
+    for (const href of ["/office/enquiries", "/office/casuals", "/office/pay-queries"])
+      expect(badgeOf(href), href).toMatch(/(?<![\w-])bg-card(?![\w-])/);
+    expect(badgeOf("/office/enquiries")).toMatch(/(?<![\w-])text-ink(?![\w-])/);
+    expect(badgeOf("/office/casuals")).toMatch(/(?<![\w-])text-ink(?![\w-])/);
+    expect(badgeOf("/office/pay-queries")).toMatch(/(?<![\w-])text-ink-muted(?![\w-])/);
+    // No status colour on a count: none of these is urgent.
+    expect(html).not.toMatch(/bg-(?:hivis|urgent|attention|wait|done)/);
     // "50+": the plus sits in the drawn count, the words say the same.
     const more = renderToStaticMarkup(
       createElement(OfficeNav, {
@@ -160,7 +164,7 @@ describe("the office menu (v2 groups; Phases 18 and 20)", () => {
       }),
     );
     expect(more).toMatch(
-      /<a [^>]*href="\/office\/needs-attention"[^>]*>[\s\S]*?<span aria-hidden="true" class="[^"]*bg-hivis text-on-hivis[^"]*">50\+<\/span>/,
+      /<a [^>]*href="\/office\/needs-attention"[^>]*>[\s\S]*?<span aria-hidden="true" class="[^"]*bg-card[^"]*text-ink(?![\w-])[^"]*">50\+<\/span>/,
     );
     expect(more).toContain('<span class="sr-only">50+ to deal with</span>');
   });
@@ -258,8 +262,9 @@ describe("the menu's markup", () => {
     expect(marked(html, "true")).toEqual([]);
     expect(marked(html, "page")).toHaveLength(1);
     expect(marked(html, "page")[0]).toContain('href="/office/events"');
-    // Phases 18 and 20: lifted off the menu's ground on the card colour, in bold.
-    expect(marked(html, "page")[0]).toMatch(/bg-card font-semibold shadow-lift/);
+    // Phase 21: a grey pill (lifted off the menu's ground on the card colour in Phases 18 and 20).
+    expect(marked(html, "page")[0]).toMatch(/rounded-full[^"]* bg-active font-medium/);
+    expect(marked(html, "page")[0]).not.toMatch(/shadow-/);
     expect(marked(html, "page")[0]).not.toMatch(/before:/);
   });
 
@@ -362,10 +367,12 @@ describe("the shell", () => {
     // The firm's name below 1024px (from there, the menu beside the page shows it).
     expect(bar).toMatch(/<p class="[^"]*lg:hidden[^"]*">Acme Events<\/p>/);
     expect(html).toMatch(/<nav aria-label="Office menu"[^>]*>.*?Acme Events.*?Office/);
-    // The pay week, from 1024px (hidden on phones and tablets).
-    expect(bar).toMatch(
-      /<p class="[^"]*hidden[^"]*lg:block[^"]*">Week 41 · 5 Oct – 11 Oct · Pay Fri 16 Oct<\/p>/,
-    );
+    // The pay week, from 1024px (hidden on phones and tablets), on two lines that each stay whole
+    // (Phase 21); read as one.
+    const week = bar.match(/<p class="[^"]*hidden[^"]*lg:block[^"]*">(.*?)<\/p>/)?.[1] ?? "";
+    expect(text(week)).toBe("Week 41 · 5 Oct – 11 Oct · Pay Fri 16 Oct");
+    expect(week).toMatch(/<span class="block whitespace-nowrap">Week 41 · 5 Oct – 11 Oct<\/span>/);
+    expect(week).toMatch(/<span class="block [^"]*whitespace-nowrap[^"]*">Pay Fri 16 Oct<\/span>/);
     expect(bar).toMatch(/<button type="button" aria-label="Switch to dark mode" disabled=""/);
     // The theme button's words also show beside it (hidden from screen readers: they're its name).
     expect(bar).toMatch(/<span aria-hidden="true"[^>]*group-hover:block[^>]*>Switch to dark mode</);
@@ -458,8 +465,9 @@ describe("shared pieces add no words", () => {
     expect(html).toMatch(/<h1 id="page-title"[^>]*>Shifts<\/h1>/);
     expect(text(html)).toBe("Shifts 0 of 2 booked · Open New shift");
     expect(html.indexOf("<h1")).toBeLessThan(html.indexOf("<p"));
-    // Phase 17: a 24px title (text-2xl) and no divider under the header (space separates).
-    expect(html).toMatch(/<h1 id="page-title" class="[^"]*(?<![\w-])text-2xl(?![\w-])/);
+    // Phase 17: a 24px title and no divider under the header (space separates). Phase 21: the title
+    // is `text-title` (24px semibold in the casual app, the office's display serif at 28px).
+    expect(html).toMatch(/<h1 id="page-title" class="[^"]*(?<![\w-])text-title(?![\w-])/);
     expect(html).not.toMatch(/text-(?:3xl|4xl)/);
     expect(html).not.toMatch(/(?<![\w-])(?:border-b|divide-y)(?![\w-])/);
   });

@@ -1,7 +1,16 @@
 import Link from "next/link";
 import { LogoutButton } from "../logout-button";
 import { Icon } from "../ui/icons";
-import { btn, card, h2, headingGap, muted, nums, sectionGap, staffBtn } from "@/app/ui/classes";
+import {
+  btn,
+  h2,
+  headingGap,
+  muted,
+  nums,
+  sectionGap,
+  staffBtn,
+  staffCard,
+} from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { StatusChip, type StatusTone } from "@/app/ui/status-chip";
 import type { MyStrikes } from "@/lib/portal/my-strikes";
@@ -68,7 +77,7 @@ export function ProfileView({
     <>
       <PageHeader title={`${profile.firstName} ${profile.lastName}`} />
 
-      <section aria-labelledby="contact-heading" className={card}>
+      <section aria-labelledby="contact-heading" className={staffCard}>
         <h2 id="contact-heading" className={h2}>
           Your details
         </h2>
@@ -77,7 +86,7 @@ export function ProfileView({
         <p className={`mt-2 ${muted}`}>To change your name or number, ask the office.</p>
       </section>
 
-      <section aria-labelledby="photo-heading" className={`${card} ${sectionGap.staff}`}>
+      <section aria-labelledby="photo-heading" className={`${staffCard} ${sectionGap.staff}`}>
         <h2 id="photo-heading" className={h2}>
           Staff photo
         </h2>
@@ -125,7 +134,7 @@ export function ProfileView({
 
       <section
         aria-labelledby="qualifications-heading"
-        className={`${card} ${sectionGap.staff} overflow-hidden`}
+        className={`${staffCard} ${sectionGap.staff} overflow-hidden`}
       >
         <h2 id="qualifications-heading" className={h2}>
           Qualifications
@@ -182,7 +191,7 @@ export function ProfileView({
       </section>
 
       {travel && (
-        <section aria-labelledby="travel-heading" className={`${card} ${sectionGap.staff}`}>
+        <section aria-labelledby="travel-heading" className={`${staffCard} ${sectionGap.staff}`}>
           <h2 id="travel-heading" className={h2}>
             {TRAVEL_TITLE}
           </h2>
@@ -195,7 +204,7 @@ export function ProfileView({
 
       {strikes && <StrikesSection strikes={strikes} />}
 
-      <section aria-labelledby="days-heading" className={`${card} ${sectionGap.staff}`}>
+      <section aria-labelledby="days-heading" className={`${staffCard} ${sectionGap.staff}`}>
         <h2 id="days-heading" className={h2}>
           Days you can&apos;t work
         </h2>
@@ -211,7 +220,7 @@ export function ProfileView({
         />
       </section>
 
-      <section aria-labelledby="notify-heading" className={`${card} ${sectionGap.staff}`}>
+      <section aria-labelledby="notify-heading" className={`${staffCard} ${sectionGap.staff}`}>
         <h2 id="notify-heading" className={h2}>
           How we reach you
         </h2>
@@ -274,7 +283,7 @@ function StrikesSection({ strikes }: { strikes: MyStrikes }) {
   return (
     <section
       aria-labelledby="strikes-heading"
-      className={`${card} ${sectionGap.staff} overflow-hidden`}
+      className={`${staffCard} ${sectionGap.staff} overflow-hidden`}
     >
       <h2 id="strikes-heading" className={h2}>
         Strikes

@@ -59,7 +59,7 @@ function Bubble({ item, timeZone }: { item: ConversationItem; timeZone: string }
   return (
     <li className={`flex ${theirs ? "justify-start" : "justify-end"}`}>
       <div
-        className={`max-w-[85%] rounded-2xl px-4 py-2 ${
+        className={`max-w-[85%] rounded-card px-4 py-2 ${
           theirs ? "border border-line bg-card" : "bg-done-soft"
         }`}
       >
@@ -161,7 +161,7 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
         </p>
       )}
       {e.voicemail && (
-        <p className="mt-3 rounded-md border-l-4 border-attention bg-attention-soft px-3 py-2 text-attention-ink">
+        <p className="mt-3 rounded-row border border-attention-line bg-attention-soft px-4 py-3 text-attention-ink">
           {VOICEMAIL_WARNING}
         </p>
       )}
@@ -181,7 +181,7 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
         <h2 id="how" className={h2}>
           How it was answered
         </h2>
-        <ol className={`${card} ${headingGap} flex list-decimal flex-col gap-2 pl-10`}>
+        <ol className={`${card} ${headingGap} flex list-decimal flex-col gap-2 pl-12`}>
           <li>
             <span className="font-semibold">Received:</span> {receivedStep(t.received, at)}
           </li>
@@ -201,7 +201,7 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
                 {b.offered.map((o) => (
                   <li key={o.shiftId}>
                     <p className="font-semibold">{sessionWords(o.session)}</p>
-                    <ul role="list" className="mt-1 flex list-disc flex-col gap-0.5 pl-5">
+                    <ul role="list" className="mt-1 flex list-disc flex-col gap-1 pl-6">
                       {o.checks.map((c, i) => (
                         <li key={i}>{checkWords(c, wordsCtx)}</li>
                       ))}
@@ -219,7 +219,7 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
               <>
                 {builtWords(b.template, b.offered.length, b.more)}
                 {b.named.length > 0 && (
-                  <ul role="list" className="mt-1 flex list-disc flex-col gap-0.5 pl-5">
+                  <ul role="list" className="mt-1 flex list-disc flex-col gap-1 pl-6">
                     {b.named.map((n, i) => (
                       <li key={i}>
                         {n ? (
@@ -234,7 +234,7 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
                   </ul>
                 )}
                 {b.offered.length > 0 && (
-                  <ul role="list" className="mt-1 flex list-disc flex-col gap-0.5 pl-5">
+                  <ul role="list" className="mt-1 flex list-disc flex-col gap-1 pl-6">
                     {b.offered.map((o) => (
                       <li key={o.shiftId}>
                         <Link href={`/office/shifts/${o.shiftId}`} className={textLink}>
@@ -263,7 +263,7 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
             ) : then.length === 1 ? (
               then[0]
             ) : (
-              <ul role="list" className="mt-1 flex list-disc flex-col gap-1 pl-5">
+              <ul role="list" className="mt-1 flex list-disc flex-col gap-1 pl-6">
                 {then.map((line, i) => (
                   <li key={i}>{line}</li>
                 ))}
@@ -286,7 +286,7 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
             {b.notChecked > 0 ? notCheckedWords(b.notChecked) : "Nothing left out."}
           </p>
         ) : (
-          <ul role="list" className={`${card} ${headingGap} flex list-disc flex-col gap-1 pl-9`}>
+          <ul role="list" className={`${card} ${headingGap} flex list-disc flex-col gap-1 pl-8`}>
             {b.notOffered.map((n) => (
               <li key={n.shiftId}>
                 {n.session ? roleLabel(n.session.role) : "A session"}:{" "}

@@ -35,7 +35,7 @@ export default async function OfficeTeamPage() {
           <li key={m.id} className={card}>
             <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
               <div className="min-w-0">
-                <h2 className="text-lg font-bold text-ink">
+                <h2 className="text-lg font-semibold text-ink">
                   {m.name}
                   {m.id === officeUser.id ? " (you)" : ""}
                 </h2>

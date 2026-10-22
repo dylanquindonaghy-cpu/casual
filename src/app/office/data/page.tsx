@@ -61,7 +61,7 @@ export default async function OfficeDataPage() {
           How long we keep things
         </h2>
         <div className={`${card} ${headingGap}`}>
-          <ul className="list-disc space-y-2 pl-5">
+          <ul className="list-disc space-y-2 pl-6">
             {keepTimeLines(
               keep,
               keep.holdUntil ? `${dayLabel(keep.holdUntil)} ${keep.holdUntil.slice(0, 4)}` : null,

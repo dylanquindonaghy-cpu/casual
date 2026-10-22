@@ -17,10 +17,10 @@ import {
   h2,
   headingGap,
   muted,
-  row,
-  rows,
   sectionGap,
   staffBtn,
+  staffRow,
+  staffRows,
   switchTrack,
 } from "../ui/classes";
 import { Icon } from "../ui/icons";
@@ -79,7 +79,7 @@ export function BookedView(props: BookedViewProps) {
           <h2 id="past-heading" className={h2}>
             The last 30 days
           </h2>
-          <ul role="list" className={`${rows} ${headingGap}`}>
+          <ul role="list" className={`${staffRows} ${headingGap}`}>
             {shifts.map((s) => (
               <ShiftRow key={s.assignmentId} shift={s} {...props} />
             ))}
@@ -120,7 +120,7 @@ function Upcoming(props: BookedViewProps) {
           {later.length > 0 && <span className={count}>{later.length}</span>}
         </div>
         {later.length > 0 ? (
-          <ul role="list" className={`${rows} ${headingGap}`}>
+          <ul role="list" className={`${staffRows} ${headingGap}`}>
             {later.map((s) => (
               <UpcomingRow key={s.assignmentId} shift={s} {...props} />
             ))}
@@ -209,7 +209,7 @@ const PAST_LABELS: Record<MyShift["status"], [words: string, tone: StatusTone]> 
 function ShiftRow({ shift, timeZone }: BookedViewProps & { shift: MyShift }) {
   const [words, tone] = PAST_LABELS[shift.status];
   return (
-    <li className={row}>
+    <li className={staffRow}>
       <p className="font-semibold tabular-nums">
         {shiftWhen(shift.startsAt, shift.endsAt, timeZone)}
       </p>

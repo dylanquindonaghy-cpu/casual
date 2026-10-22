@@ -126,7 +126,7 @@ function ChooseOne({ shared }: { shared: SharedReference }) {
           <li key={r.assignmentId} className={row}>
             <Link
               href={`/office/cancellations/${r.assignmentId}`}
-              className="flex flex-col gap-1 rounded-md focus-visible:outline-2"
+              className="flex flex-col gap-1 rounded-row focus-visible:outline-2"
             >
               <span className="font-semibold underline decoration-line-strong underline-offset-4">
                 {r.casual}

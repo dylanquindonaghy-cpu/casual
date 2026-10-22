@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { DemoPhoneMessage } from "@/lib/demo/phone";
-import { card, meta, muted, textLink } from "../ui/classes";
+import { meta, muted, staffCard, textLink } from "../ui/classes";
 import { PageHeader } from "../ui/page-header";
 
 // The Demo phone (docs/screens.md `/demo`; 16.1, ADR-025): on a demo server no text or email is
@@ -79,7 +79,7 @@ export function DemoPhoneView({
       ) : (
         <ul role="list" className="flex flex-col gap-4" aria-label="Messages, newest first">
           {messages.map((m, i) => (
-            <li key={`${m.at.getTime()}-${i}`} className={card}>
+            <li key={`${m.at.getTime()}-${i}`} className={staffCard}>
               <p className="font-semibold">
                 {CHANNEL[m.channel]} to {m.toName}
               </p>

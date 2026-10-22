@@ -142,7 +142,7 @@ export default async function ShiftsPage({
               {dayShifts.map((s) => (
                 <li
                   key={s.shiftId}
-                  className="flex flex-col gap-1 px-4 py-1.5 md:grid md:grid-cols-[minmax(0,1fr)_19rem] md:items-center md:gap-6"
+                  className="flex flex-col gap-1 px-4 py-2 md:grid md:grid-cols-[minmax(0,1fr)_19rem] md:items-center md:gap-6"
                 >
                   <Link
                     href={`/office/shifts/${s.shiftId}`}

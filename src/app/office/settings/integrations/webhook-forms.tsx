@@ -25,7 +25,7 @@ import {
 const failed = { status: "unknown" as const };
 
 // A second "Yes" before something that stops the planner hearing from us, or breaks its secret.
-const confirmPanel = "rounded-lg border-2 border-urgent bg-urgent-soft p-4";
+const confirmPanel = "rounded-row border border-urgent-line bg-urgent-soft p-4";
 
 // The signing secret, shown once, here only: gone on reload (it's never stored).
 function SecretShownOnce({ secret, onHide }: { secret: string; onHide: () => void }) {
@@ -37,9 +37,9 @@ function SecretShownOnce({ secret, onHide }: { secret: string; onHide: () => voi
     navigator.clipboard.writeText(secret).then(done, refused);
   };
   return (
-    <div className="rounded-lg border-2 border-attention bg-attention-soft p-4 text-attention-ink">
+    <div className="rounded-row border border-attention-line bg-attention-soft p-4 text-attention-ink">
       <p className="font-semibold">Signing secret:</p>
-      <code className="mt-2 block rounded-md border border-line bg-card px-3 py-2 font-mono text-base break-all text-ink select-all">
+      <code className="mt-2 block rounded-row border border-line bg-card px-3 py-2 font-mono text-base break-all text-ink select-all">
         {secret}
       </code>
       <p role="status" className="mt-2 font-semibold">

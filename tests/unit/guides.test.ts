@@ -208,10 +208,17 @@ describe("the office how-to guide", () => {
       // Below 1024px the menu is a drawer behind "Menu", closed by "Close menu" (office-frame.tsx).
       expect(text).toContain("On a phone or tablet, select Menu at the top left");
       expect(text).toContain("Select Close menu , or anywhere outside it, to close it.");
-      // Log out sits in the account button's menu at the top right, with this guide.
+      // Log out sits in the account button's menu at the top right, with this guide and (Phase
+      // 22) the light/dark switch, named by its words (theme-button.tsx).
       expect(text).toContain("Your name is at the top right. On a phone, it shows your initials.");
       expect(text).toContain("Select it to open this guide or to Log out");
-      expect(text).toContain("The moon or sun beside it switches between dark and light.");
+      expect(text).toContain(
+        "It also switches between dark and light: select Switch to dark mode or Switch to light mode .",
+      );
+      expect(text).not.toMatch(/\bmoon\b/i);
+      // The guide isn't in the menu (Phase 22: office-nav.tsx leaves the `bottom` group out), so
+      // the menu's list here leaves it out too.
+      expect(text).not.toContain("This page.");
     }
     // Needs attention is in the menu only for the roles with it, "today" (office-menu.ts); Phase
     // 20 took the bell out, so the guide never mentions one.
@@ -221,9 +228,10 @@ describe("the office how-to guide", () => {
     expect(words(guide("payroll"))).not.toContain(count);
     for (const role of ["admin", "resourcer", "payroll"] as const)
       expect(words(guide(role)).toLowerCase()).not.toMatch(/\bbell\b/);
-    // On a wide screen the account button is at the menu's foot (Phase 20).
+    // On a wide screen the account button is over the menu, beside the firm (Phase 22; at the
+    // menu's foot in Phases 20 and 21).
     expect(words(section(guide("admin"), "getting-around"))).toContain(
-      "On a wide screen, it is at the bottom of the menu.",
+      "On a wide screen, it is at the top of the menu, beside your firm's name.",
     );
   });
 

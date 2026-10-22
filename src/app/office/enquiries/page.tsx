@@ -77,7 +77,7 @@ export default async function EnquiriesPage({
       <PageHeader title="Enquiries" />
       <p className={`${nums} -mt-2`}>{countsLine(list.today, list.needPerson, now)}</p>
       {appEnv().AI_TRANSPORT === "none" && (
-        <p className="mt-4 rounded-row border border-attention-line bg-attention-soft px-4 py-3 text-attention-ink">
+        <p className="mt-4 rounded-row border border-attention-line bg-attention-soft px-4 py-3 text-attention-ink shadow-soft">
           {AI_BANNER}
         </p>
       )}

@@ -16,7 +16,10 @@ export function OfficeLoginForm({ firmName, signOff }: { firmName: string; signO
 
   if (state.status === "sent") {
     return (
-      <div role="status" className="mt-6 rounded-row border border-done-line bg-done-soft p-4">
+      <div
+        role="status"
+        className="mt-6 rounded-row border border-done-line bg-done-soft p-4 shadow-soft"
+      >
         <p className="font-semibold text-done-ink">Check your email.</p>
         <p className="mt-2">
           If {firmName} has this address, we&apos;ve sent a login link. It works for 15 minutes.

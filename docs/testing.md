@@ -266,6 +266,31 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   page shows its skeleton while held back; on a phone in dark, the drawer shuts as a page is
   picked and its skeleton shows);
   `office.dashboard.spec.ts` (a card jumps to its section; "Open the rota board").
+- Phase 22 (the office's look, round 2; docs/ui-design.md "Phase 22"): `ui.office-system.test.ts`
+  adds DM Sans, DM Mono and Newsreader self-hosted (Geist gone), the layers' depth tokens, no
+  gradient in the office's styles (only the menu's fade, a mask), the `press` utility as written
+  (97%, 90ms down, 300ms back on the spring, still under reduced motion, inside the utility so
+  `office:press` carries it) on every office button and 44px link, the page's skeleton pulsing,
+  and round 2's parts on the other pages (Needs attention's raised rows on grained washes, fields
+  as grooves, every second step on `confirmStep` or `checkStep`, no Phase 21 flat panel left,
+  the raised `resultBox`). `ui.flat.test.ts` pins every shadow, file by file, and the lit top
+  edge on `soft`, `raise` and `float` in all three token blocks. `ui.contrast.test.ts` adds the sheet, the pill and the four
+  colour cards' words in both themes. `office.dashboard.test.ts`: the cards' colours and jumps,
+  the calendar tiles, the grooves and stripes, the tooltip's words and states, the "…" menu's
+  growth. Browser: `office.look.spec.ts` now at 390px and 1280 × 640 (Dylan's laptop window),
+  light and dark, on every page in an admin's menu and the pages opened from inside one (a
+  casual, a cancellation, an enquiry, the offer page, a shift's and an event's page, the ways to
+  add shifts), every hidden step shown: also every button raised, everything you press dipping
+  (a button, an opener, a switch, a link that isn't words, words with a 44px target), every wash
+  with an edge given depth, and no gradient drawn; `office.shell.spec.ts` (at 1280 × 640 with a mouse: an admin's menu rows
+  34px with no scrollbar, the pill sliding to a pick before its page arrives, a card, a back link
+  and a `btn.link` dipping and springing back, nothing moving with reduced motion, the guide in
+  the account menu on every page for an admin, a resourcer and payroll, no round button on two
+  lines, a 480px-tall window's menu scrolling with a fade at the edge that has more; the sheet's
+  corners; the skeleton pulsing, at 1280px in light and at 390px in dark); `office.dashboard.spec.ts` (the "…" menu growing from its
+  button's edge, "Offer"'s spinner while the offer page is held back, the landing ring, a week
+  day's numbers under the pointer and on focus); `office.changes.spec.ts` (a cancel's
+  confirmation outlives the refresh that moves the booking to Cancelled).
 
 ## Fixtures and the demo seed
 

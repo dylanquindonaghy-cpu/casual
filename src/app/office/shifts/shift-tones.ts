@@ -40,5 +40,6 @@ export const RESPONSE_TONE: Record<string, StatusTone> = {
 };
 export const WAITING_TONE: StatusTone = "attention";
 
-// The answer to a button (role="status"): a plain box so it stands out from the form around it.
-export const resultBox = "rounded-row border border-line bg-quiet-soft px-3 py-2 font-semibold";
+// The answer to a button (role="status"): a white slip raised off the form around it, so it stands
+// out (Phase 22, round 2's raised surface; a grey box with an edge until then).
+export const resultBox = "rounded-row bg-card px-3 py-2 font-semibold text-ink shadow-raise";

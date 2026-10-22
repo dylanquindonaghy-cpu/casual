@@ -13682,3 +13682,93 @@ the four cards jump to their sections (each section keeps its link to the whole 
   is a one-line change if he wants it.
 - On a 900px-tall screen the menu (now 44px rows) scrolls a little to reach "Admin and records".
 - Pages opened from inside another page (a shift, a session) load without a skeleton, as before.
+
+## 2026-10-22 · Phase 22: the office's look, round 2 (22.1 to 22.4)
+
+Time spent: 4.5 hours (from Dylan's round-2 message at 19:28 to the last audit; 0.5 for the
+mock-up and taking the gradients out, 4.0 to build, verify and audit; see the Hours log in
+PLAN.md).
+
+### The result
+
+- Verify: `VERIFIED tree=14645a7e44d417b6 e2e=true` on the files the round-3 auditors read
+  (`b988286c17c7e423` for round 2, `d0665d32cd8dc58a` for round 1). The ticks and these notes came
+  after.
+- Tests: 5,226 unit and integration tests pass, none skipped; 108 browser tests and the
+  walkthrough's 6 pass, none flaky.
+- Auditor: round 1, all four NOT DONE (no fakes; behaviours built but not proven in a browser,
+  and parts missed: Needs attention's page, fields and confirmations still Phase 21's, `btn.link`
+  not dipping, the every-page look test at 1440px). Round 2: 22.2 and 22.3 DONE, ticked; 22.1
+  (controls that didn't dip; no lit top edge in light) and 22.4 (the Team page's steps; pages the
+  look test skipped) NOT DONE. Round 3: 22.1 DONE, ticked; 22.4 NOT DONE. Three rounds is the
+  limit, so 22.4 stays unticked (below).
+
+### What changed, in plain words
+
+- **A mock-up first, then the build.** Dylan on Phase 21 live: "the use of colours it just looks
+  very bland theres still no depth to any of the individual sections and a tacky scroll wheel on
+  the left side you've missed out on shaders layers and depth this whole time i also asked for
+  animations still none not ai slop just subtle reactive on click responses". The round-2 mock-up
+  (`docs/mockups/phase-22/mockup.html`) was approved with one change: "remove the gradients theres
+  no need for that". Then it was built.
+- **Layers:** a grey window with the page as a sheet set into it; white cards, lists and tables
+  with a hairline, a lit top edge and a small shadow of their own; buttons and rows raised a
+  little more; menus floating; bars, the board's filter track and every field set in as grooves.
+  A fine grain on the sheet, the panels and the colour cards. No gradients (a test checks the
+  styles, and the browser tests check nothing is drawn with one).
+- **Colour:** the dashboard's four cards in full flat colour with a soft glow of their own colour;
+  their panels (and Needs attention's page) washes of raised white rows. The menu's counts take
+  their card's colour. Every listed colour pair passes the contrast test in both themes.
+- **Type:** DM Sans for words, DM Mono for the big numbers, Newsreader semibold for each page's
+  headline, all self-hosted (Geist removed).
+- **Movement, only when you do something:** everything you press dips to 97% and springs back
+  (90ms down, 300ms back): buttons, openers, switches, rows, cards, pills, tabs, and text links
+  with their own 44px target (a link inside a sentence is words, and doesn't move). A card lifts
+  2px under the pointer; the menu's white pill slides to a link the moment you pick it; menus grow
+  out of their buttons; a card's jump lands with a ring that fades out; "Offer" shows a spinner
+  while the offer page opens; skeletons pulse slowly. With reduced motion nothing dips, lifts or
+  slides.
+- **The menu:** no scrollbar. Rows are 34px with a mouse (44px for a thumb, always in the drawer),
+  so every row of an admin's menu fits a 1280 × 640 window; a longer menu scrolls with a fade at
+  the edge that has more and opens with your page in view. The firm and your initials sit above
+  it; the light/dark switch and the how-to guide moved into your account menu; the pay week is a
+  small line at the end.
+- **Second steps and answers:** the step before something destructive ("Yes, revoke it", "Yes,
+  turn off access") is one red wash with depth (`confirmStep`), before a change that takes
+  nothing away ("Yes, make them an admin") a grey one (`checkStep`); notices and statuses with an
+  edge have the same depth; an answer under a button is a white slip raised off its form.
+- **Found by the screenshots:** at 1280px Needs attention's "Go to the Dashboard" broke onto two
+  lines inside its round button (a column 3 of 12, about 171px inside; it needs about 192px). The
+  column is 4 of 12 now, as on the dashboard; a browser test checks no round button on any page
+  breaks onto two lines (it fails with the old column put back).
+- **Found by verify (from before this phase):** on a shift's page, "Cancelled {name}'s booking
+  with {9 days'} notice. They'll be told." vanished a moment after it showed: the refresh that
+  moves the booking to "Cancelled" took the booking's row, and the words in it, off the list, so
+  the browser test passed only when it looked in that moment. The words are now held over the
+  Places list, where the refresh doesn't replace them; the test checks they're still there once
+  the list says "Nobody booked yet." (with the old code it fails every time).
+- **The how-to guide told the old layout:** it said your name sits "at the bottom of the menu" on
+  a wide screen, that "the moon or sun beside it" switches the theme, and listed itself as a menu
+  link. It now says your name is at the top of the menu, beside your firm's name, that it also
+  switches between dark and light ("Switch to dark mode" or "Switch to light mode"), and lists
+  only what the menu shows. `docs/walkthrough.md` had the same old description (with the bell
+  that went in Phase 20); fixed too.
+- **Tests, each seen to fail with its feature taken out:** the "…" menu's pop, the day tooltip,
+  the menu's edge fade, `office:press` on `btn.link`, the board's buttons dipping, the skeleton's
+  pulse, the press timings, the lit edge in light, and an edged wash without depth.
+- **PLAN.md's 22.2 wording:** its test line said "the guide one tap from every page"; the guide
+  is in the account menu (two taps), so it now says "the guide in the account menu on every page",
+  which is what was built and tested, and was changed before any audit.
+- **The browser tests' firm addresses:** this container lost its hosts line for `acme.localhost`
+  and Docker had stopped; both were put back in the container (nothing in the repo changed).
+
+### What needs Dylan
+
+- 22.4 (every other page) is not ticked: after three audit rounds the auditor still found two
+  small gaps. The every-page look test doesn't visit a worker's data page or the login pages, and
+  four white boxes have no depth (a shift's instructions, an enquiry's message bubble and the two
+  "copy it now" secret boxes on Integrations). Each is a few lines; a fourth round needs his OK.
+- At 1280 × 640 the pay week line at the end of the menu is a scroll away (every menu row fits;
+  the line shows from about 690px tall). It's also in the dashboard's date line.
+- The light theme's lit top edge is white, as in the mock-up: it shows on the near-black buttons
+  and in dark, not on white.

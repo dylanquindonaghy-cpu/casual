@@ -13,7 +13,9 @@ import { ShiftActions } from "./shift-actions";
 // a slim bar of the places filled with "3 of 4 filled"; who it was offered to, or "Not offered
 // yet" in red; then "Offer" and "…" (named apart by `labels`, one per place). A place that leaves
 // (marked not urgent) takes its row with it, so the answers show as a confirmation at the foot of
-// the screen for 3 seconds (as Phase 18's Next up did), not in the row.
+// the screen for 3 seconds (as Phase 18's Next up did), not in the row. Phase 22 (round 2): the date
+// tile a small calendar page raised off the list, its day on a red band (every place here is
+// urgent); the bar set in a groove; a red dot before "Not offered yet".
 export function UrgentPlaces({ items, labels }: { items: FocusItem[]; labels: string[] }) {
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => {
@@ -32,11 +34,13 @@ export function UrgentPlaces({ items, labels }: { items: FocusItem[]; labels: st
               <span
                 role="img"
                 aria-label={item.dateLong}
-                className="my-3 flex size-14 shrink-0 flex-col items-center justify-center self-start rounded-row bg-raised text-ink"
+                className="my-3 flex w-13 shrink-0 flex-col self-start overflow-hidden rounded-row bg-card text-center shadow-raise"
               >
-                <span className="text-xs leading-4 font-medium text-ink-muted">{item.dow}</span>
-                <span className="text-lg leading-5 font-semibold tabular-nums">{item.day}</span>
-                <span className="text-xs leading-4 text-ink-muted">{item.month}</span>
+                <span className="flex h-5 items-center justify-center bg-urgent-fill text-xs font-semibold tracking-wider text-on-urgent uppercase">
+                  {item.dow}
+                </span>
+                <span className="pt-1 font-stat text-lg leading-5 text-ink">{item.day}</span>
+                <span className="pb-1 text-xs leading-4 text-ink-muted">{item.month}</span>
               </span>
               <div className="flex min-w-0 flex-1 flex-col gap-3 border-t border-line py-3 pr-4 group-first/row:border-t-0 md:flex-row md:flex-wrap md:items-start lg:flex-nowrap lg:items-center lg:gap-6">
                 <div className="min-w-0 flex-1">
@@ -69,7 +73,7 @@ export function UrgentPlaces({ items, labels }: { items: FocusItem[]; labels: st
                   <div className="flex w-40 flex-col gap-1">
                     <span
                       aria-hidden="true"
-                      className="block h-1.5 w-full overflow-hidden rounded-full bg-raised"
+                      className="block h-2 w-full overflow-hidden rounded-full bg-raised inset-shadow-sunk"
                     >
                       <span
                         className="block h-full rounded-full bg-ink"
@@ -81,10 +85,16 @@ export function UrgentPlaces({ items, labels }: { items: FocusItem[]; labels: st
                     </span>
                   </div>
                   <p
-                    className={`text-sm lg:w-40 ${
+                    className={`flex items-center gap-2 text-sm lg:w-40 ${
                       item.notOffered ? "font-semibold text-urgent" : "text-ink-muted"
                     }`}
                   >
+                    {item.notOffered && (
+                      <span
+                        aria-hidden="true"
+                        className="size-2 shrink-0 rounded-full bg-urgent-fill"
+                      />
+                    )}
                     {item.notOffered ? "Not offered yet" : item.offered}
                   </p>
                 </div>
@@ -105,7 +115,7 @@ export function UrgentPlaces({ items, labels }: { items: FocusItem[]; labels: st
       {toast && (
         <p
           role="status"
-          className="fixed inset-x-4 bottom-6 z-30 mx-auto flex max-w-md animate-toast items-center gap-3 rounded-row bg-ink px-4 py-3 font-medium text-on-ink shadow-soft"
+          className="fixed inset-x-4 bottom-6 z-30 mx-auto flex max-w-md animate-toast items-center gap-3 rounded-row bg-ink px-4 py-3 font-medium text-on-ink shadow-float"
         >
           <Icon name="check" size={18} />
           {toast}

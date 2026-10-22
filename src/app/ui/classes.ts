@@ -10,10 +10,12 @@
 // look; docs/ui-design.md "The office's system"): in the office the main button is near-black,
 // the others grey pills, a destructive one red words on grey; cards 20px round with the one
 // depth token (`soft`); spacing only 4, 8, 12, 16, 24, 32 and 48px
-// (tests/unit/ui.office-system.test.ts). The casual app's own strings (`staff…`) keep its Phase 20
-// look.
+// (tests/unit/ui.office-system.test.ts). Phase 22's (round 2, Dylan's approved mock-up): every
+// office button is raised off its card (`raise`: a hairline ring and its own small fall), the
+// others white pills rather than grey, and dips when pressed and springs back (`press`,
+// globals.css). The casual app's own strings (`staff…`) keep its Phase 20 look.
 const office =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-full border px-4 py-2 text-center text-base font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60";
+  "press inline-flex min-h-11 items-center justify-center gap-2 rounded-full border px-4 py-2 text-center text-base font-semibold shadow-raise disabled:cursor-not-allowed disabled:opacity-60";
 // In the office (the logged-out office's "Log in" link page), on its spacing: `office:`.
 const staff =
   "flex w-full min-h-13 items-center justify-center gap-2 rounded-full border-[1.5px] px-5 py-3 text-center text-lg font-semibold disabled:cursor-not-allowed disabled:opacity-60 office:px-4";
@@ -23,24 +25,25 @@ const staff =
 export const btn = {
   // The one main action of a card or form: near-black (Phase 21; white in dark).
   primary: `${office} border-ink bg-ink text-on-ink hover:border-ink-hover hover:bg-ink-hover active:border-ink-press active:bg-ink-press`,
-  // Any other action: a grey pill.
+  // Any other action: a white pill raised off its card (a grey one in Phase 21).
   secondary: `${office} border-button-line bg-button text-ink hover:border-button-hover hover:bg-button-hover active:border-button-press active:bg-button-press`,
-  // Opens a destructive step ("Cancel this shift", "Turn off access"): red words on grey.
+  // Opens a destructive step ("Cancel this shift", "Turn off access"): red words on a white pill.
   danger: `${office} border-button-line bg-button text-urgent hover:border-button-hover hover:bg-button-hover active:border-button-press active:bg-button-press`,
   // The final click of a destructive change: a step's "Yes, …", or a destructive action that
   // happens at once ("Block from this site").
   dangerSolid: `${office} border-urgent-fill bg-urgent-fill text-on-urgent hover:border-urgent-fill-hover hover:bg-urgent-fill-hover active:border-urgent-fill-hover active:bg-urgent-fill-hover`,
   // A text link with a 44px target ("Back to …", "Earlier", "Clear"); the casual app's too (in the
-  // office, darker while pressed).
-  link: "inline-flex min-h-11 items-center gap-2 font-semibold text-ink underline underline-offset-4 hover:text-ink-muted office:active:text-ink-press",
+  // office, darker while pressed, and it dips like everything you press: `office:press`, Phase 22;
+  // a link inside a sentence is text, so it doesn't).
+  link: "inline-flex min-h-11 items-center gap-2 font-semibold text-ink underline underline-offset-4 hover:text-ink-muted office:press office:active:text-ink-press",
   // A quiet action in words only ("Not urgent", "Add a session").
-  text: "inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-3 text-base font-semibold text-ink transition-colors hover:bg-quiet-soft active:bg-raised",
+  text: "press inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-3 text-base font-semibold text-ink hover:bg-quiet-soft active:bg-raised",
 };
 
 // A quiet grey link beside a heading, to the whole list ("All on Events & sessions", "Open Needs
 // attention": hilos's "View all"; Phase 21). Standalone, so no underline; 44px tall.
 export const quietLink =
-  "inline-flex min-h-11 items-center gap-1 text-sm font-medium text-ink-muted transition-colors hover:text-ink active:text-ink-press";
+  "press inline-flex min-h-11 items-center gap-1 text-sm font-medium text-ink-muted hover:text-ink active:text-ink-press";
 
 // A link inside text or a row (a shift's title, a worker's name): underlined in grey, darker on
 // hover. Keeps the text's own size and weight. `textLinkInGroup` darkens when a `group` parent
@@ -73,10 +76,17 @@ export const staffBtnSmall =
 // halves, the current one a lifted pill (src/app/my-shifts-view.tsx Toggle).
 export const switchTrack = "grid grid-cols-2 gap-1 rounded-full bg-raised p-1 inset-shadow-sunk";
 
-// Inputs, selects and textareas (office): white with a 1px border, even on a tinted panel. Add w-full
-// or a width where you use it.
+// Inputs, selects and textareas (office): white with a 1px border, even on a tinted panel, set into
+// the surface as a groove (Phase 22's groove token). Add w-full or a width where you use it.
 export const field =
-  "min-h-11 rounded-row border border-line-strong bg-card px-3 py-2 text-base font-normal text-ink transition-colors hover:border-ink-muted pointer-coarse:text-lg";
+  "min-h-11 rounded-row border border-line-strong bg-card px-3 py-2 text-base font-normal text-ink inset-shadow-sunk transition-colors hover:border-ink-muted pointer-coarse:text-lg";
+// The second step before something destructive ("Yes, revoke it", "Yes, cancel …'s booking"): a
+// red wash with its edge and the soft depth, as round 2's panels (Phase 22; the office's every
+// such step uses it, tests/unit/ui.office-system.test.ts).
+export const confirmStep = "rounded-row border border-urgent-line bg-urgent-soft p-4 shadow-soft";
+// The second step before a change that takes nothing away ("Yes, make them an admin", "Yes, mark
+// them as worked", "Yes, mark as filled"): the same, in grey.
+export const checkStep = "rounded-row border border-quiet-line bg-quiet-soft p-4 shadow-soft";
 // Staff inputs: full width and bigger.
 export const staffField =
   "min-h-14 w-full rounded-xl border-2 border-line-strong bg-card px-4 py-3 text-lg font-normal text-ink";
@@ -106,13 +116,18 @@ export const staffRow = "px-4 py-3";
 export const h2 = "text-lg font-semibold tracking-heading text-ink";
 export const sectionGap = { office: "mt-8 lg:mt-12", staff: "mt-8" };
 export const headingGap = "mt-3";
-// A number beside a heading ("Requests 2"): the number only, never a word. The office's one count
+// A number beside a heading ("Requests 2"): the number only, never a word. The office's count
 // (Phase 21; Dylan's brief: "one badge style (grey, red only for urgent)"): a small grey pill, the
 // same beside a heading (`count`) and in the menu (`countPill`); the urgent places' count in red
-// (`countUrgent`). The casual app's own: `staffCount` (Phase 20's).
+// (`countUrgent`). Phase 22 (round 2, the approved mock-up): in the menu a count takes its
+// dashboard card's colour, amber when it needs you (`countNeeds`, Needs attention's) and blue when
+// it's waiting with someone else (`countWaiting`, pay queries with payroll). The casual app's own:
+// `staffCount` (Phase 20's).
 const countShape =
   "inline-flex h-6 min-w-6 items-center justify-center rounded-full px-2 text-xs font-semibold tabular-nums";
 export const countPill = `${countShape} bg-count text-ink-muted`;
+export const countNeeds = `${countShape} border border-attention-line bg-hivis text-on-hivis`;
+export const countWaiting = `${countShape} border border-wait-line bg-wait-tile text-wait-ink`;
 export const count = `ml-2 align-middle ${countPill}`;
 export const countUrgent = `ml-2 align-middle ${countShape} bg-urgent-tile text-urgent-ink`;
 export const staffCount =

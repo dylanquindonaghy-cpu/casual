@@ -25,9 +25,10 @@ export function PageHeader({
     <header className="mb-6">
       {back ? (
         // A plain link (this folder imports nothing from packages): a full page load, as it's rare.
+        // In the office it dips when pressed, like everything you press (Phase 22).
         <a
           href={back.href}
-          className="-ml-1 mb-1 inline-flex min-h-11 items-center gap-1 text-base font-semibold text-ink-muted hover:text-ink"
+          className="-ml-1 mb-1 inline-flex min-h-11 items-center gap-1 text-base font-semibold text-ink-muted hover:text-ink office:press"
         >
           <Icon name="chevron" className="h-4 w-4 rotate-180" />
           {back.label}

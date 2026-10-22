@@ -37,17 +37,24 @@ import { UrgentPlaces } from "./urgent-places";
 // recorded automatically; enquiries answered; what casuals can see) as tinted panels of white
 // rows. Every section says when it couldn't load, and what it shows when it's empty; the page's
 // loading skeleton is DashboardSkeleton (./office-skeleton.tsx). Pure: the page loads the data
-// (src/lib/office/dashboard-home.ts works out what it says).
+// (src/lib/office/dashboard-home.ts works out what it says). Phase 22 (round 2, Dylan's approved
+// mock-up, no gradients): the four cards in full flat colour with a fine grain and a coloured
+// glow beneath, lifting under the pointer and dipping when pressed, and the section a card jumps to
+// shows where you landed (`animate-landed`); each section's icon in a small raised chip; this
+// week's bars set in grooves, a day with no sessions striped, its details over it under the
+// pointer or on focus; the panels' rows raised off their washes.
 
 // A section's heading row: its icon, its name, its count (the grey pill; red for the urgent
 // places), and a quiet link to the whole list at the end (hilos's "View all"). The heading's id is
 // where its card jumps to.
+// Its icon sits in a small round chip: in the section's colour (`chip`), or white and raised.
 function SectionHead({
   id,
   title,
   icon,
   count,
   urgent = false,
+  chip = "bg-card text-ink-muted shadow-raise",
   link,
 }: {
   id: string;
@@ -55,11 +62,17 @@ function SectionHead({
   icon: IconName;
   count?: string;
   urgent?: boolean;
+  chip?: string;
   link?: ReactNode;
 }) {
   return (
     <div className="flex min-h-11 flex-wrap items-center">
-      <Icon name={icon} size={18} className="mr-2 text-ink-muted" />
+      <span
+        aria-hidden="true"
+        className={`mr-3 flex size-7 shrink-0 items-center justify-center rounded-full ${chip}`}
+      >
+        <Icon name={icon} size={16} />
+      </span>
       <h2 id={id} className="scroll-mt-20 text-lg font-semibold tracking-heading text-ink">
         {title}
       </h2>
@@ -69,13 +82,13 @@ function SectionHead({
   );
 }
 
-// A count card's colours: what it counts (a soft tint, its 1px edge a shade darker, its words in
-// the tint's dark ink), and its icon.
+// A count card's colours (Phase 22): what it counts in full flat colour, with its edge and glow
+// (`tint-…`, globals.css), its words in the colour's dark ink (light in dark), and its icon.
 const TILE = {
-  urgent: { box: "border-urgent-line bg-urgent-tile", ink: "text-urgent-ink", icon: "urgent" },
-  todo: { box: "border-attention-line bg-hivis", ink: "text-on-hivis", icon: "bell" },
-  wait: { box: "border-wait-line bg-wait-tile", ink: "text-wait-ink", icon: "clock" },
-  done: { box: "border-done-line bg-done-tile", ink: "text-done-ink", icon: "check" },
+  urgent: { box: "tint-urgent", ink: "text-urgent-card-ink", icon: "urgent" },
+  todo: { box: "tint-attention", ink: "text-attention-card-ink", icon: "bell" },
+  wait: { box: "tint-wait", ink: "text-wait-card-ink", icon: "clock" },
+  done: { box: "tint-done", ink: "text-done-card-ink", icon: "check" },
 } as const satisfies Record<string, { box: string; ink: string; icon: IconName }>;
 
 // Small tracked capitals: the date line over the greeting and each card's label (hilos's, as
@@ -83,8 +96,11 @@ const TILE = {
 const DATE_LINE = "text-xs font-medium tracking-widest text-ink-muted uppercase tabular-nums"; // taste-skill-ignore: Dylan's brief
 const CARD_LABEL = "text-xs font-semibold tracking-wider uppercase sm:tracking-widest"; // taste-skill-ignore: Dylan's brief
 
-// The icon top-left, the label top-right, the number, then one grey line. The label comes first
-// in the link (its name starts with it) and the number second.
+// The icon top-left (in its round chip), the label top-right, the number, then one line. The label
+// comes first in the link (its name starts with it) and the number second. Under the pointer the
+// card lifts 2px; pressed, it dips and springs back (`press`). A plain link to its section on this
+// page (not Next's <Link>, whose pushState never sets :target), so the section can show where you
+// landed.
 function CountTile({
   tone,
   label,
@@ -100,26 +116,41 @@ function CountTile({
 }) {
   const t = TILE[tone];
   return (
-    <Link
+    <a
       href={href}
-      className={`grid min-h-32 grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_1fr_auto] gap-x-3 rounded-card border p-4 transition hover:shadow-soft active:scale-99 ${t.box}`}
+      className={`press grain grid min-h-32 grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_1fr_auto] gap-x-3 rounded-card p-4 shadow-tint hover:-translate-y-0.5 ${t.box}`}
     >
-      <span className={`col-start-2 row-start-1 text-right ${CARD_LABEL} ${t.ink}`}>{label}</span>
+      <span className={`col-start-2 row-start-1 self-center text-right ${CARD_LABEL} ${t.ink}`}>
+        {label}
+      </span>
       <span className="col-span-2 row-start-2 self-end pt-4 font-stat text-4xl leading-none text-ink">
         {value}
       </span>
-      <span className="col-span-2 row-start-3 mt-2 text-sm text-ink-muted">{caption}</span>
-      <Icon name={t.icon} size={20} className={`col-start-1 row-start-1 ${t.ink}`} />
-    </Link>
+      <span className={`col-span-2 row-start-3 mt-2 text-sm ${t.ink}`}>{caption}</span>
+      <span
+        aria-hidden="true"
+        className={`card-chip col-start-1 row-start-1 flex size-8 items-center justify-center rounded-full ${t.ink}`}
+      >
+        <Icon name={t.icon} size={16} />
+      </span>
+    </a>
   );
 }
 
-// A panel: a soft tint with its 1px edge, holding its heading and its rows (hilos's).
+// A panel: its colour's wash with a faint grain and its 1px edge, holding its heading (its icon in
+// the colour's chip) and its rows (hilos's), raised off the page.
 const PANEL = {
   todo: "border-attention-line bg-attention-soft",
   wait: "border-wait-line bg-wait-soft",
   done: "border-done-line bg-done-soft",
 } as const;
+const PANEL_CHIP = {
+  todo: "bg-hivis text-on-hivis",
+  wait: "bg-wait-tile text-wait-ink",
+  done: "bg-done-tile text-done-ink",
+} as const;
+// Where a card's jump lands: the section shows it for a moment (`animate-landed`).
+const LANDS = "rounded-card has-[:target]:animate-landed";
 
 function Panel({
   id,
@@ -141,9 +172,16 @@ function Panel({
   return (
     <section
       aria-labelledby={id}
-      className={`flex h-full min-w-0 flex-col gap-3 rounded-card border p-4 sm:p-6 ${PANEL[tone]}`}
+      className={`grain-soft flex h-full min-w-0 flex-col gap-3 border p-4 shadow-soft sm:p-6 ${LANDS} ${PANEL[tone]}`}
     >
-      <SectionHead id={id} title={title} icon={icon} count={count} link={link} />
+      <SectionHead
+        id={id}
+        title={title}
+        icon={icon}
+        count={count}
+        chip={PANEL_CHIP[tone]}
+        link={link}
+      />
       {children}
     </section>
   );
@@ -154,7 +192,7 @@ function SectionError() {
   return (
     <p
       role="status"
-      className="flex items-start gap-2 rounded-row border border-attention-line bg-attention-soft px-4 py-3 text-attention-ink"
+      className="flex items-start gap-2 rounded-row border border-attention-line bg-attention-soft px-4 py-3 text-attention-ink shadow-soft"
     >
       <Icon name="info" size={18} className="mt-1" />
       {SECTION_ERROR}
@@ -162,15 +200,15 @@ function SectionError() {
   );
 }
 
-// A near-white row on its panel (hilos's), and an empty panel's one line in the same place.
-const ROW =
-  "flex min-h-16 items-center gap-3 rounded-row border border-line bg-card/80 px-4 py-3 text-ink";
+// A white row raised off its panel (hilos's), and an empty panel's one line in the same place.
+const ROW = "flex min-h-16 items-center gap-3 rounded-row bg-card px-4 py-3 text-ink shadow-raise";
 
 // This week, Monday to Sunday (Steep's): the places still to fill as the big number at the
-// bottom left, then a bar per day, its height the share of its places filled, against a dashed
-// line where every place is filled. One colour; red on a day with urgent gaps; grey once a day has
-// gone; today's name in a filled pill; an empty day says "No sessions". Each day is a link to its
-// shifts (or its sessions to mark). Below 640px the bars lie down, one row a day, on their tracks.
+// bottom left, then a bar per day, its height the share of its places filled, standing in its
+// groove (Phase 22: the groove's top is every place filled; Phase 21's dashed line). One colour;
+// red on a day with urgent gaps; grey once a day has gone; today's name in a filled pill; a day
+// with no sessions striped, "No sessions" under it ("–" on a phone). Each day is a link to its
+// shifts (or its sessions to mark), and under the pointer or on focus its details show over it.
 function Week({ cells }: { cells: WeekCell[] }) {
   const sum = weekSummary(cells);
   return (
@@ -184,21 +222,12 @@ function Week({ cells }: { cells: WeekCell[] }) {
       </p>
       <nav
         aria-label="This week"
-        className="relative min-w-0 sm:col-start-2 sm:row-span-3 sm:row-start-1 sm:pt-6"
+        className="min-w-0 pt-6 sm:col-start-2 sm:row-span-3 sm:row-start-1"
       >
-        {/* Every place filled: the bars' target, with its words at its end (from 640px). */}
-        <span
-          aria-hidden="true"
-          className="absolute inset-x-0 top-8 hidden border-t border-dashed border-line-strong sm:block"
-        >
-          <span className="absolute right-0 bottom-full mb-1 text-xs text-ink-muted">
-            All filled
-          </span>
-        </span>
-        <ul role="list" className="flex flex-col gap-1 sm:grid sm:grid-cols-7 sm:gap-2">
-          {cells.map((c) => (
-            <li key={c.date}>
-              <WeekDayLink c={c} />
+        <ul role="list" className="grid grid-cols-7 gap-1 sm:gap-2">
+          {cells.map((c, i) => (
+            <li key={c.date} className="min-w-0">
+              <WeekDayLink c={c} edge={i === 0 ? "start" : i === cells.length - 1 ? "end" : null} />
             </li>
           ))}
         </ul>
@@ -213,7 +242,15 @@ function Week({ cells }: { cells: WeekCell[] }) {
   );
 }
 
-function WeekDayLink({ c }: { c: WeekCell }) {
+// A day's details over it: centred on the day, or from its edge for the first and last (so it
+// never runs off a phone).
+const TIP_AT = {
+  start: "left-0 origin-bottom-left",
+  end: "right-0 origin-bottom-right",
+  middle: "left-1/2 -translate-x-1/2 origin-bottom",
+} as const;
+
+function WeekDayLink({ c, edge }: { c: WeekCell; edge: "start" | "end" | null }) {
   const today = c.dow === "Today";
   const fill = c.past ? "bg-line-strong" : c.note.kind === "urgent" ? "bg-urgent-fill" : "bg-ink";
   const share = { "--fill": `${Math.round(c.filledShare * 100)}%` } as CSSProperties;
@@ -221,22 +258,23 @@ function WeekDayLink({ c }: { c: WeekCell }) {
     <Link
       href={c.href}
       aria-label={c.label}
-      className="grid min-h-11 grid-cols-[4rem_minmax(0,1fr)_6rem] items-center gap-3 rounded-row px-2 transition-colors hover:bg-quiet-soft active:bg-raised sm:flex sm:flex-col sm:items-center sm:gap-2 sm:px-1 sm:py-2"
+      className="press group/day relative flex min-h-11 flex-col items-center gap-2 rounded-row px-1 pb-1 hover:bg-quiet-soft active:bg-raised"
     >
-      {/* The bar: on its track below 640px; standing, from the dashed line down, from there. */}
       <span
         aria-hidden="true"
-        className="relative order-2 h-2 w-full overflow-hidden rounded-full bg-raised sm:order-1 sm:h-40 sm:w-4 sm:bg-transparent"
+        className={`pointer-events-none absolute bottom-full z-10 mb-2 hidden w-max max-w-48 animate-pop rounded-row bg-card px-3 py-2 text-left text-xs text-ink shadow-float group-hover/day:block group-focus-visible/day:block ${TIP_AT[edge ?? "middle"]}`}
       >
-        {c.places > 0 && (
-          <span
-            style={share}
-            className={`absolute bottom-0 left-0 h-full w-(--fill) rounded-full sm:h-(--fill) sm:w-full ${fill}`}
-          />
-        )}
+        {c.label}
+      </span>
+      {/* The groove, and the bar standing in it. */}
+      <span
+        aria-hidden="true"
+        className={`flex h-32 w-full max-w-11 items-end overflow-hidden rounded-row bg-raised inset-shadow-sunk sm:h-40 ${c.places === 0 ? "stripes" : ""}`}
+      >
+        {c.places > 0 && <span style={share} className={`h-(--fill) w-full rounded-row ${fill}`} />}
       </span>
       <span
-        className={`order-1 flex h-6 items-center justify-self-start rounded-full text-xs sm:order-2 sm:justify-self-auto ${
+        className={`flex h-6 items-center rounded-full text-xs ${
           // Today on the ink pill keeps its own text colour (red on it would fail the contrast
           // test); the day's bar and words still say it's urgent.
           today
@@ -246,15 +284,26 @@ function WeekDayLink({ c }: { c: WeekCell }) {
               : "font-medium text-ink-muted"
         }`}
       >
-        {c.dow}
+        {today ? (
+          <>
+            <span className="sm:hidden">{datePartsOfDay(c.date).dow}</span>
+            <span className="hidden sm:inline">{c.dow}</span>
+          </>
+        ) : (
+          c.dow
+        )}
       </span>
-      <span className="order-3 flex h-8 items-center justify-end text-right text-xs leading-4 text-ink-muted tabular-nums sm:justify-center sm:text-center">
+      <span className="flex h-8 items-center justify-center text-center text-xs leading-4 text-ink-muted tabular-nums">
         {c.note.kind === "mark" ? (
-          <span className="rounded-full bg-hivis px-2 py-1 font-semibold whitespace-nowrap text-on-hivis">
-            {c.note.text}
+          <span className="rounded-full border border-attention-line bg-hivis px-2 py-1 font-semibold whitespace-nowrap text-on-hivis">
+            <span className="sm:hidden">{c.note.text.split(" ")[0]}</span>
+            <span className="hidden sm:inline">{c.note.text}</span>
           </span>
         ) : c.places === 0 ? (
-          "No sessions"
+          <>
+            <span className="sm:hidden">–</span>
+            <span className="hidden sm:inline">No sessions</span>
+          </>
         ) : c.past ? (
           "done"
         ) : (
@@ -280,8 +329,8 @@ const ROW_ACTION: Record<string, string> = {
 // Rows on their panel, each a link to where it's dealt with: Needs attention's and waiting on
 // others' with their count (and Needs attention's with what to do, a quiet grey pill); sorted
 // today's with a tick.
-// `columns`: side by side from 1024px (two for Needs attention, three for Sorted today), so the
-// panels beside each other end level.
+// `columns`: side by side from 1024px (three for Sorted today). Needs attention's are one to a
+// line (Phase 22; two side by side in Phase 21 squeezed their words).
 function Rows({
   rows,
   tone,
@@ -300,21 +349,26 @@ function Rows({
         <li key={r.key}>
           <Link
             href={r.href}
-            className={`${ROW} group h-full transition-colors hover:bg-card active:bg-quiet-soft`}
+            className={`${ROW} press group h-full hover:-translate-y-0.5 active:bg-quiet-soft`}
           >
             <span className="min-w-0 flex-1">
               <span className="block font-medium">{r.title}</span>
               <span className="block text-sm text-ink-muted">{r.sub}</span>
             </span>
             {tone === "sorted" ? (
-              <Icon name="check" size={20} className="text-done" />
+              <span
+                aria-hidden="true"
+                className="flex size-7 shrink-0 items-center justify-center rounded-full bg-done-fill text-on-done shadow-raise"
+              >
+                <Icon name="check" size={16} />
+              </span>
             ) : (
               <>
                 {r.count !== null && <span className="font-stat text-lg">{r.count}</span>}
                 {tone === "needs" && (
                   <span
                     aria-hidden="true"
-                    className="hidden h-8 items-center rounded-full bg-button px-3 text-sm font-medium whitespace-nowrap transition-colors group-hover:bg-button-hover sm:inline-flex"
+                    className="hidden h-8 items-center rounded-full bg-button px-3 text-sm font-medium whitespace-nowrap shadow-raise transition-colors group-hover:bg-button-hover sm:inline-flex"
                   >
                     {ROW_ACTION[r.key] ?? "Open"}
                   </span>
@@ -448,13 +502,14 @@ export function DashboardContent({
         />
       </div>
 
-      <section aria-labelledby="urgent-places" className="flex min-w-0 flex-col gap-3">
+      <section aria-labelledby="urgent-places" className={`flex min-w-0 flex-col gap-3 ${LANDS}`}>
         <SectionHead
           id="urgent-places"
           title="Urgent places to fill"
           icon="urgent"
           count={focus.length > 0 ? String(focus.length) : undefined}
           urgent
+          chip="bg-urgent-tile text-urgent-ink"
           link={
             <Link href="/office/events?view=urgent" className={quietLink}>
               All on Events &amp; sessions
@@ -517,7 +572,7 @@ export function DashboardContent({
                 (enquiries). */}
             {!needs && <SectionError />}
             {after.length > 0 ? (
-              <Rows rows={after} tone="needs" label="Needs attention" columns={2} />
+              <Rows rows={after} tone="needs" label="Needs attention" />
             ) : (
               needs && <p className={`${ROW} text-ink-muted`}>{SECTIONS.needs.empty}</p>
             )}

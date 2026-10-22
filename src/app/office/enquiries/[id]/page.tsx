@@ -161,7 +161,7 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
         </p>
       )}
       {e.voicemail && (
-        <p className="mt-3 rounded-row border border-attention-line bg-attention-soft px-4 py-3 text-attention-ink">
+        <p className="mt-3 rounded-row border border-attention-line bg-attention-soft px-4 py-3 text-attention-ink shadow-soft">
           {VOICEMAIL_WARNING}
         </p>
       )}

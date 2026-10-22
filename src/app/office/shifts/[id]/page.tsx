@@ -33,7 +33,12 @@ import { AssignButton } from "./assign-button";
 import { AttendanceButtons, MarkRestWorked } from "./attendance-forms";
 import { SessionDetailsForm } from "./details-form";
 import { EditShiftForm } from "./edit-form";
-import { CancelBookingForm, CancelShiftForm, MoveShiftForm } from "./firm-change-forms";
+import {
+  CancelBookingForm,
+  CancelShiftForm,
+  MoveShiftForm,
+  PlacesConfirmation,
+} from "./firm-change-forms";
 
 const section = sectionGap.office;
 
@@ -136,74 +141,80 @@ export default async function OfficeShiftPage({
         <h2 id="places" className={h2}>
           Places
         </h2>
-        {live.length === 0 ? (
-          <p className={`${card} ${headingGap} text-ink-muted`}>Nobody booked yet.</p>
-        ) : (
-          <>
-            {shift.started && (
-              <p className={headingGap}>Mark who worked it and who didn&apos;t attend.</p>
-            )}
-            <ul role="list" className={`${rows} ${headingGap}`}>
-              {live.map((p) => (
-                <li key={p.assignmentId} className={`${row} flex flex-col gap-2`}>
-                  <p className="leading-8">
-                    <span className="font-semibold">{p.worker}:</span>{" "}
-                    <StatusChip tone={PLACE_TONE[p.status] ?? "quiet"}>
-                      {PLACE_STATUS_WORDS[p.status] ?? p.status}
-                    </StatusChip>
-                    {p.overrideReason ? (
-                      <span className="text-ink-muted">
-                        {p.overrideReason === ERASED_REASON
-                          ? ". Placed despite a rule (the reason was deleted with the worker's details)"
-                          : `. Placed despite a rule. Reason: ${p.overrideReason}`}
-                      </span>
-                    ) : null}
-                    {p.flag && p.status === "confirmed" && (
-                      <>
-                        {" "}
-                        ·{" "}
-                        <StatusChip tone={FLAG_TONE[p.flag]}>{PLACE_FLAG_WORDS[p.flag]}</StatusChip>
-                      </>
+        {/* A booking cancelled from this list says so here, through the refresh that moves it
+            to Cancelled (firm-change-forms.tsx). */}
+        <PlacesConfirmation>
+          {live.length === 0 ? (
+            <p className={`${card} ${headingGap} text-ink-muted`}>Nobody booked yet.</p>
+          ) : (
+            <>
+              {shift.started && (
+                <p className={headingGap}>Mark who worked it and who didn&apos;t attend.</p>
+              )}
+              <ul role="list" className={`${rows} ${headingGap}`}>
+                {live.map((p) => (
+                  <li key={p.assignmentId} className={`${row} flex flex-col gap-2`}>
+                    <p className="leading-8">
+                      <span className="font-semibold">{p.worker}:</span>{" "}
+                      <StatusChip tone={PLACE_TONE[p.status] ?? "quiet"}>
+                        {PLACE_STATUS_WORDS[p.status] ?? p.status}
+                      </StatusChip>
+                      {p.overrideReason ? (
+                        <span className="text-ink-muted">
+                          {p.overrideReason === ERASED_REASON
+                            ? ". Placed despite a rule (the reason was deleted with the worker's details)"
+                            : `. Placed despite a rule. Reason: ${p.overrideReason}`}
+                        </span>
+                      ) : null}
+                      {p.flag && p.status === "confirmed" && (
+                        <>
+                          {" "}
+                          ·{" "}
+                          <StatusChip tone={FLAG_TONE[p.flag]}>
+                            {PLACE_FLAG_WORDS[p.flag]}
+                          </StatusChip>
+                        </>
+                      )}
+                    </p>
+                    {page.canPlace && p.status === "confirmed" && p.workerId && (
+                      <CancelBookingForm
+                        shiftId={shift.shiftId}
+                        workerId={p.workerId}
+                        name={p.worker}
+                      />
                     )}
-                  </p>
-                  {page.canPlace && p.status === "confirmed" && p.workerId && (
-                    <CancelBookingForm
-                      shiftId={shift.shiftId}
-                      workerId={p.workerId}
-                      name={p.worker}
-                    />
-                  )}
-                  {shift.started && p.workerId && isMarkable(p.status) && (
-                    <AttendanceButtons
-                      shiftId={shift.shiftId}
-                      workerId={p.workerId}
-                      name={p.worker}
-                      status={p.status}
-                    />
-                  )}
-                </li>
-              ))}
-            </ul>
-            {/* Stays after the last one is marked, so its confirmation survives the refresh. */}
-            {shift.ended && <MarkRestWorked shiftId={shift.shiftId} count={unmarked} />}
-          </>
-        )}
-        {cancelled.length > 0 && (
-          <>
-            <h3 className="mt-6 font-semibold text-ink">Cancelled</h3>
-            <ul role="list" className={`${rows} mt-2`}>
-              {cancelled.map((p) => (
-                <li key={p.assignmentId} className={`${row} text-ink-muted`}>
-                  <span className="font-semibold text-ink">{p.worker}:</span>{" "}
-                  {PLACE_STATUS_WORDS[p.status] ?? p.status}
-                  {p.noticeHours !== null ? `, ${noticeText(p.noticeHours)}` : ""}
-                  {p.cancelledAt ? ` (${timeOnDay(p.cancelledAt, tz)})` : ""}
-                  {p.reason ? `. Reason: ${p.reason}` : ""}
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
+                    {shift.started && p.workerId && isMarkable(p.status) && (
+                      <AttendanceButtons
+                        shiftId={shift.shiftId}
+                        workerId={p.workerId}
+                        name={p.worker}
+                        status={p.status}
+                      />
+                    )}
+                  </li>
+                ))}
+              </ul>
+              {/* Stays after the last one is marked, so its confirmation survives the refresh. */}
+              {shift.ended && <MarkRestWorked shiftId={shift.shiftId} count={unmarked} />}
+            </>
+          )}
+          {cancelled.length > 0 && (
+            <>
+              <h3 className="mt-6 font-semibold text-ink">Cancelled</h3>
+              <ul role="list" className={`${rows} mt-2`}>
+                {cancelled.map((p) => (
+                  <li key={p.assignmentId} className={`${row} text-ink-muted`}>
+                    <span className="font-semibold text-ink">{p.worker}:</span>{" "}
+                    {PLACE_STATUS_WORDS[p.status] ?? p.status}
+                    {p.noticeHours !== null ? `, ${noticeText(p.noticeHours)}` : ""}
+                    {p.cancelledAt ? ` (${timeOnDay(p.cancelledAt, tz)})` : ""}
+                    {p.reason ? `. Reason: ${p.reason}` : ""}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </PlacesConfirmation>
       </section>
 
       {page.canPlace && (
@@ -239,7 +250,7 @@ export default async function OfficeShiftPage({
             )}
             {page.check && (
               <div
-                className={`mt-4 rounded-row border p-4 ${
+                className={`mt-4 rounded-row border p-4 shadow-soft ${
                   page.check.ok
                     ? "border-done-line bg-done-soft"
                     : page.check.overridable

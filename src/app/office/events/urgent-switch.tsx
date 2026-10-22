@@ -42,7 +42,7 @@ export function UrgentSwitch({
         aria-label={`Urgent: ${name}`}
         disabled={disabled || pending || !ready}
         onClick={flip}
-        className="inline-flex min-h-11 items-center gap-2 pr-2 disabled:cursor-not-allowed disabled:opacity-60"
+        className="press inline-flex min-h-11 items-center gap-2 pr-2 disabled:cursor-not-allowed disabled:opacity-60"
       >
         <span
           aria-hidden="true"

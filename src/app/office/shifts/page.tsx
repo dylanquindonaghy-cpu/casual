@@ -146,7 +146,7 @@ export default async function ShiftsPage({
                 >
                   <Link
                     href={`/office/shifts/${s.shiftId}`}
-                    className="group flex min-h-11 min-w-0 items-center font-semibold text-ink"
+                    className="press group flex min-h-11 min-w-0 items-center font-semibold text-ink"
                   >
                     <span>
                       <span className="tabular-nums">

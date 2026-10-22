@@ -43,7 +43,7 @@ export function EnquiryItem({
         <span className="sr-only">{CHANNEL_WORDS[r.channel]}:</span>
         <Link
           href={`/office/enquiries/${r.messageId}`}
-          className="font-semibold underline-offset-4 hover:underline"
+          className="press font-semibold underline-offset-4 hover:underline"
         >
           {whoName(r.who)}
         </Link>

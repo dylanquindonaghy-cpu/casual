@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useContext, useState } from "react";
+import { useContext, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { useHydrated } from "@/app/use-hydrated";
-import { countPill } from "../ui/classes";
+import { countNeeds, countWaiting } from "../ui/classes";
 import { Icon, type IconName } from "../ui/icons";
 import { MenuPending, MenuPendingReporter } from "./menu-pending";
 
@@ -13,19 +13,24 @@ import { MenuPending, MenuPendingReporter } from "./menu-pending";
 // it there while the drawer is open, so a page never has two). Plain links only (no list items,
 // headings, regions, groups or `menu` roles), because the browser tests count those on pages: so
 // the folded group is a button that shows or hides its links, not a <details> (a "group").
-// The links come from the server (office-shell.tsx), already filtered by role.
+// The links come from the server (office-shell.tsx), already filtered by role. Phase 22 (round 2,
+// Dylan's approved mock-up): the page you're on is a white pill raised off the menu's ground,
+// which slides to the link you pick as you pick it (on a spring, `slide` in globals.css); rows are
+// 44px for a thumb and 34px with a mouse from 1024px, so the whole menu fits a laptop window; the
+// firm's name and your account sit above the menu (office-frame.tsx), and the how-to guide is in
+// the account menu.
 
 // A count beside a link ("Pay queries 3"), drawn outside the link's name: the link stays exactly
 // "Pay queries" (the tests find links by their exact names), and screen readers hear the words
-// after it. One style (Phase 21; Dylan's brief: "one badge style"): the office's grey count pill
-// (`countPill`, as beside a section's heading). `needs` (it needs this person) is in the words
-// only (a pale yellow pill in Phases 18 and 20, ink on white until 21's audit). `more`: a list
-// stopped at 50 ("50+").
+// after it. Phase 22: in its dashboard card's colour, amber when it needs this person (`needs`,
+// `countNeeds`: Needs attention's), blue when it's waiting with someone else (`countWaiting`: pay
+// queries with payroll); one grey pill in Phase 21. `more`: a list stopped at 50 ("50+").
 export type MenuBadge = { count: number; words: string; needs?: boolean; more?: boolean };
 export type MenuLink = { href: string; label: string; icon: IconName; badge?: MenuBadge };
 // `folded`: a button that shows its links, shown already when you're on one of its pages ("Admin
-// and records"); `bottom`: at the foot of the menu, with no label (the how-to guide); `top`: at
-// the top, with no label (the dashboard and Needs attention: Phase 20).
+// and records"); `bottom`: the how-to guide, which the menu leaves to the account menu (Phase 22;
+// at the foot of the menu until then); `top`: at the top, with no label (the dashboard and Needs
+// attention: Phase 20).
 export type MenuGroup = {
   label: string;
   links: MenuLink[];
@@ -66,26 +71,31 @@ export function ariaCurrent(href: string, pathname: string): "page" | "true" {
   return exact ? "page" : "true";
 }
 
-// A full-width row with an icon, 44px tall (a thumb's, in the drawer too). The current one: a grey
-// pill (Phase 21; a white card lifted off the menu's ground in Phase 20), its icon in ink. Hover is
-// half the pill, pressed the whole.
+// A full-width row with an icon: 44px tall for a thumb (the drawer, a touch screen), 34px with a
+// mouse from 1024px (Phase 22). The page you're on has dark words; its white pill is drawn once,
+// under the rows, and slides between them (`Pill`); until the page is ready the row draws its own.
 const LINK =
-  "relative flex min-h-11 items-center gap-3 rounded-full px-3 py-2 text-base text-ink transition-colors active:bg-active";
-const IDLE = `${LINK} font-normal hover:bg-active/60`;
-const ACTIVE = `${LINK} bg-active font-medium`;
+  "press relative z-10 flex min-h-11 items-center gap-3 rounded-row px-3 py-2 text-base lg:pointer-fine:min-h-8.5 lg:pointer-fine:py-1";
+const IDLE = `${LINK} text-ink-muted hover:bg-active/70 hover:text-ink active:bg-active`;
+const ON = `${LINK} font-medium text-ink`;
+const ON_ALONE = `${ON} bg-pill shadow-soft`;
 // A group's name: small, grey, sentence case.
-const LABEL = "px-3 pt-6 pb-2 text-xs font-medium text-ink-muted";
+const LABEL = "px-3 pt-2 pb-1 text-xs font-medium text-ink-muted";
 
 function NavLink({
   link,
   current,
+  shown,
   pathname,
 }: {
   link: MenuLink;
   current: string | null;
+  shown: string | null;
   pathname: string;
 }) {
+  const hydrated = useHydrated();
   const on = link.href === current;
+  const lit = link.href === shown;
   // Picked: its page is on its way (its skeleton, and the drawer shuts: menu-pending.tsx).
   const { start } = useContext(MenuPending);
   return (
@@ -93,14 +103,14 @@ function NavLink({
       <Link
         href={link.href}
         aria-current={on ? ariaCurrent(link.href, pathname) : undefined}
-        className={on ? ACTIVE : IDLE}
+        className={lit ? (hydrated ? ON : ON_ALONE) : IDLE}
         onNavigate={() => start(link.href)}
       >
-        <Icon name={link.icon} size={18} className={on ? "text-ink" : "text-ink-muted"} />
+        <Icon name={link.icon} size={18} className={lit ? "text-ink" : "text-ink-muted"} />
         <span className="min-w-0 flex-1">{link.label}</span>
         <MenuPendingReporter href={link.href} />
         {link.badge ? (
-          <span aria-hidden="true" className={countPill}>
+          <span aria-hidden="true" className={link.badge.needs ? countNeeds : countWaiting}>
             {link.badge.count}
             {link.badge.more ? "+" : ""}
           </span>
@@ -116,25 +126,27 @@ function NavLink({
 function Fold({
   group,
   current,
+  shown,
   pathname,
 }: {
   group: MenuGroup;
   current: string | null;
+  shown: string | null;
   pathname: string;
 }) {
   const ready = useHydrated();
   const inside = group.links.some((l) => l.href === current);
   const [chosen, setChosen] = useState<boolean | null>(null);
-  const shown = chosen ?? inside;
+  const open = chosen ?? inside;
   const id = `menu-${group.label.toLowerCase().replace(/[^a-z]+/g, "-")}`;
   return (
-    <div className="mt-4">
+    <div className="mt-2">
       <button
         type="button"
-        aria-expanded={shown}
+        aria-expanded={open}
         aria-controls={id}
         disabled={!ready}
-        onClick={() => setChosen(!shown)}
+        onClick={() => setChosen(!open)}
         className={`${IDLE} w-full text-left disabled:cursor-default`}
       >
         <Icon name="settings" size={18} className="text-ink-muted" />
@@ -142,63 +154,152 @@ function Fold({
         <Icon
           name="chevron"
           size={16}
-          className={`text-ink-muted transition-transform duration-200 ease-sd ${shown ? "-rotate-90" : "rotate-90"}`}
+          className={`text-ink-muted transition-transform duration-200 ease-sd ${open ? "-rotate-90" : "rotate-90"}`}
         />
       </button>
-      <div id={id} hidden={!shown} className="flex animate-in flex-col gap-1 pt-1 pl-4">
+      <div id={id} hidden={!open} className="flex animate-in flex-col gap-1 pt-1 pl-4">
         {group.links.map((link) => (
-          <NavLink key={link.href} link={link} current={current} pathname={pathname} />
+          <NavLink
+            key={link.href}
+            link={link}
+            current={current}
+            shown={shown}
+            pathname={pathname}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-export function OfficeNav({ groups, firmName }: { groups: MenuGroup[]; firmName?: string }) {
-  const pathname = usePathname();
-  const current = currentHref(
-    pathname,
-    groups.flatMap((g) => g.links.map((l) => l.href)),
-  );
-  const initial = firmName?.match(/\p{L}|\p{N}/u)?.[0]?.toUpperCase() ?? "";
+// Where the pill goes: the row of `href` in `nav`, or nowhere when it isn't showing (in a closed
+// group, or not in this role's menu). Its place in the menu's layout, added up box by box, so a
+// group still sliding open (its transform makes it the box offsets count from) or a row dipping
+// under a press doesn't move it.
+export function pillPlace(
+  nav: HTMLElement,
+  href: string | null,
+): { x: number; y: number; w: number; h: number } | null {
+  const row = href
+    ? [...nav.querySelectorAll<HTMLAnchorElement>("a[href]")].find(
+        (a) => a.getAttribute("href") === href,
+      )
+    : undefined;
+  if (!row || row.offsetParent === null) return null;
+  let x = 0;
+  let y = 0;
+  let box: Element | null = row;
+  while (box instanceof HTMLElement && box !== nav) {
+    x += box.offsetLeft;
+    y += box.offsetTop;
+    box = box.offsetParent;
+  }
+  if (box !== nav) return null;
+  return { x, y, w: row.offsetWidth, h: row.offsetHeight };
+}
+
+// Puts the pill on the row of `shown` (or hides it): at once (`instant`, or the first time it
+// shows), or sliding there (`slide`, globals.css).
+function placePill(
+  nav: HTMLElement | null,
+  pill: HTMLElement | null,
+  shown: string | null,
+  instant: boolean,
+  placed: { current: boolean },
+) {
+  if (!nav || !pill) return;
+  const at = pillPlace(nav, shown);
+  if (!at) {
+    pill.style.opacity = "0";
+    placed.current = false;
+    return;
+  }
+  const jump = instant || !placed.current;
+  if (jump) pill.style.transition = "none";
+  pill.style.translate = `${at.x}px ${at.y}px`;
+  pill.style.width = `${at.w}px`;
+  pill.style.height = `${at.h}px`;
+  pill.style.opacity = "1";
+  if (jump) {
+    void pill.offsetWidth;
+    pill.style.transition = "";
+  }
+  placed.current = true;
+}
+
+// The page you're on (or the one you've just picked, while it's on its way): one white pill under
+// the rows that slides to it. Placed at once when it first shows and when the menu changes size
+// (a group opening), so it only ever slides to a pick.
+function Pill({ nav, shown }: { nav: RefObject<HTMLElement | null>; shown: string | null }) {
+  const pill = useRef<HTMLSpanElement>(null);
+  const placed = useRef(false);
+  useLayoutEffect(() => {
+    placePill(nav.current, pill.current, shown, false, placed);
+  }, [nav, shown]);
+  useEffect(() => {
+    const box = nav.current;
+    if (!box) return;
+    const again = () => placePill(box, pill.current, shown, true, placed);
+    const sizes = new ResizeObserver(again);
+    sizes.observe(box);
+    // A group that has slid open: its rows are where they'll stay.
+    box.addEventListener("animationend", again);
+    return () => {
+      sizes.disconnect();
+      box.removeEventListener("animationend", again);
+    };
+  }, [nav, shown]);
   return (
-    <nav aria-label="Office menu" className="flex flex-1 flex-col gap-1 px-3 py-4">
-      {firmName && (
-        // The firm at the top: its initial on its own colour (the one place the office shows
-        // it: Phase 21), then its name.
-        <p className="mb-2 flex items-center gap-3 px-1 py-1">
-          <span
-            aria-hidden="true"
-            className="flex size-9 shrink-0 items-center justify-center rounded-row bg-brand-bar text-base font-semibold text-on-brand-bar"
-          >
-            {initial}
-          </span>
-          <span className="min-w-0 leading-tight">
-            <span className="block truncate font-semibold text-ink">{firmName}</span>
-            <span className="block text-sm text-ink-muted">Office</span>
-          </span>
-        </p>
-      )}
-      {groups.map((group) =>
-        group.folded ? (
-          // Keyed by whether you're on one of its pages, so arriving at one shows it again.
-          <Fold
-            key={`${group.label}:${group.links.some((l) => l.href === current)}`}
-            group={group}
-            current={current}
-            pathname={pathname}
-          />
-        ) : (
-          <div key={group.label} className={group.bottom ? "mt-auto pt-4" : ""}>
-            {!group.bottom && !group.top && <p className={LABEL}>{group.label}</p>}
-            <div className="flex flex-col gap-1">
-              {group.links.map((link) => (
-                <NavLink key={link.href} link={link} current={current} pathname={pathname} />
-              ))}
+    <span
+      ref={pill}
+      aria-hidden="true"
+      data-menu-pill=""
+      className="slide pointer-events-none absolute top-0 left-0 z-0 rounded-row bg-pill opacity-0 shadow-soft"
+    />
+  );
+}
+
+export function OfficeNav({ groups }: { groups: MenuGroup[] }) {
+  const pathname = usePathname();
+  const hydrated = useHydrated();
+  const nav = useRef<HTMLElement>(null);
+  const hrefs = groups.flatMap((g) => g.links.map((l) => l.href));
+  const current = currentHref(pathname, hrefs);
+  // The link just picked, while its page is on its way: the pill goes there at once.
+  const { picked } = useContext(MenuPending);
+  const shown = picked && hrefs.includes(picked) ? picked : current;
+  return (
+    <nav ref={nav} aria-label="Office menu" className="relative flex flex-col gap-1 px-3 pt-1 pb-2">
+      {hydrated && <Pill nav={nav} shown={shown} />}
+      {groups
+        .filter((group) => !group.bottom)
+        .map((group) =>
+          group.folded ? (
+            // Keyed by whether you're on one of its pages, so arriving at one shows it again.
+            <Fold
+              key={`${group.label}:${group.links.some((l) => l.href === current)}`}
+              group={group}
+              current={current}
+              shown={shown}
+              pathname={pathname}
+            />
+          ) : (
+            <div key={group.label}>
+              {!group.top && <p className={LABEL}>{group.label}</p>}
+              <div className="flex flex-col gap-1">
+                {group.links.map((link) => (
+                  <NavLink
+                    key={link.href}
+                    link={link}
+                    current={current}
+                    shown={shown}
+                    pathname={pathname}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-        ),
-      )}
+          ),
+        )}
     </nav>
   );
 }

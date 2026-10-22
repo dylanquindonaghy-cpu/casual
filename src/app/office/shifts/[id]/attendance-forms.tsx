@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { btn } from "@/app/ui/classes";
+import { btn, checkStep } from "@/app/ui/classes";
 import { useHydrated } from "@/app/use-hydrated";
 import { attendanceResultText, restWorkedResultText } from "@/lib/office/shifts-copy";
 import { resultBox } from "../shift-tones";
@@ -92,7 +92,7 @@ export function MarkRestWorked({ shiftId, count }: { shiftId: string; count: num
             Mark {people} not marked yet as worked
             <Chevron />
           </summary>
-          <div className="mt-3 flex max-w-md flex-col gap-3 rounded-row border border-line bg-card p-4">
+          <div className={`mt-3 flex max-w-md flex-col gap-3 ${checkStep}`}>
             <p>Only if they all worked it. You can change anyone afterwards.</p>
             <button
               type="button"

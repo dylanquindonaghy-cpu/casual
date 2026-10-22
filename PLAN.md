@@ -1489,7 +1489,7 @@ link and action stays. Where the real office differs from the mock-up: "Offer" o
 page (it never sent anything by itself), so it shows a spinner while that page opens rather than
 the mock-up's tick. Docs: `docs/ui-design.md`, `docs/screens.md`.
 
-- [ ] The system, round 2: DM Sans for words, DM Mono for the big numbers and Newsreader semibold
+- [x] The system, round 2: DM Sans for words, DM Mono for the big numbers and Newsreader semibold
       for each page's headline, self-hosted; the window (a grey ground) with the page as a sheet on
       it, white surfaces with a lit top edge and a shadow of their own, and grooves set into them;
       the dashboard's four colours as full flat colour (coral, amber, blue, green) with a coloured
@@ -1498,14 +1498,14 @@ the mock-up's tick. Docs: `docs/ui-design.md`, `docs/screens.md`.
       motion turns movement off; AA contrast in both themes. Tests: the tokens and their contrast
       in both themes, the fonts, no gradient in the office's styles, every shadow pinned, the press
       feedback (22.1)
-- [ ] The shell and the menu: from 1024px the menu on the ground and the page as a sheet set into
+- [x] The shell and the menu: from 1024px the menu on the ground and the page as a sheet set into
       the window; below it, the top bar over a sheet with rounded top corners; menu rows 34px with
       a mouse and 44px on touch (always 44px in the drawer); the highlight slides to the page you
       pick; no scrollbar in the menu: an admin's whole menu fits a 1280 × 640 window, and a shorter
       one scrolls with no bar and a fade at the edge that has more; the how-to guide in the account
       menu; each count in its card's colour. Tests: the menu's rows and states, the fit at
-      1280 × 640, the guide one tap from every page, the browser tests (22.2)
-- [ ] The dashboard: the four cards in full colour, lifting under the pointer and dipping when
+      1280 × 640, the guide in the account menu on every page, the browser tests (22.2)
+- [x] The dashboard: the four cards in full colour, lifting under the pointer and dipping when
       pressed, each jumping to its section, which shows where you landed; the urgent places' date
       tiles as small calendar pages with a red band and their fill bars set in grooves; "Offer"
       dipping and showing a spinner while its page opens; the "…" menu growing out of its button;
@@ -3810,3 +3810,4 @@ text system once its details are known; Messages 2 (notification first, or both)
 | 2026-10-21 | 19 | 1.2 | The strike's answer stays on screen (19.1): the record always renders the strike's buttons for whoever may change strikes (nothing when there's no button and no answer), so "Withdrawn. …", "Kept, …" and "already withdrawn" outlive the refresh that takes their button away, and the withdraw form closes once the strike can't be withdrawn; which buttons show is one tested rule (`strikeButtons`); the flaky `office.strikes.spec.ts` now fails every time without the fix; two new browser tests (a deleted casual's strike kept; a strike withdrawn elsewhere while the form was open); each test seen to fail with its bug put back; 5,159 tests + 96 e2e + the walkthrough's 6; audit NOT DONE in round 1 (three behaviours untested), DONE in round 2 (see docs/work-log.md) |
 | 2026-10-21 | 20 | 5.0 | The pass redesign (20.1 to 20.5), from Dylan's mock-up of his five reference screenshots (1.3 h for the analysis and two mock-ups, 3.7 h to build): Instrument Sans and Instrument Serif self-hosted, true dark greys in place of navy (D7 changed), the status colours as tiles, five depth tokens and no other shadow; the casual Home's pass in the firm's colour with Directions, Details and "Can't make it?", For you as tiles with Pay day, the sheet's four reason buttons and its pull-down handle; Open shifts, a shift's page and Booked; the office with no top bar from 1024px, "Needs attention" in the menu in place of the bell (one count), the Dashboard listing every urgent place, Needs attention's page; the events board's switch moved into the opened row. A code review's 6 findings fixed (red on the Today pill, a lost confirmation, the urgent places' order, the "…" buttons' names, a start line, focus on a second press) and the safety review's hardening (the roles pinned, an honest "+", cross-firm checks); the firm's colour now reads on its own tint for every colour, and the gate's plate is white for every colour. 5,175 tests + 96 e2e + the walkthrough's 6; audits: 20.1 and 20.3 DONE in round 1, 20.2, 20.4 and 20.5 DONE in round 2 (see docs/work-log.md) |
 | 2026-10-22 | 21 | 4.5 | The office's look (21.1 to 21.4), from Dylan's brief and five references: the office's own tokens (warm off-white page, white cards, near-black main buttons, status colours only for status), Geist, Instrument Serif headlines, Geist Mono numbers; the dashboard as tinted cards, one rounded list of urgent places, Steep-style week bars and tinted panels; the menu's grey pill, 44px rows and one grey count; every office page on the system at 390px and 1440px in both themes; skeletons from the menu (a route-wide loading.tsx turned 404s into 200s); the dev button moved off the menu; three audit rounds, all four DONE; 5,215 tests + 100 e2e (see docs/work-log.md) |
+| 2026-10-22 | 22 | 4.5 | The office's look, round 2 (22.1 to 22.4), from Dylan's "no depth" feedback and new references: a mock-up, approved once its gradients were out, then built: the window and its sheet, raised white surfaces with a lit edge, grooves, the four colours in full with a grain and glow, DM Sans, DM Mono and Newsreader, everything you press dipping and springing back, the menu with no scrollbar (34px rows with a mouse, the pill sliding to a pick), menus growing from their buttons, the landing ring and Offer's spinner; Needs attention's column fixed at 1280px; a shift page's vanishing cancel confirmation fixed; the guide's directions updated; three audit rounds: 22.1, 22.2 and 22.3 DONE and ticked, 22.4 NOT DONE (two small gaps, left for Dylan); 5,226 tests + 108 e2e + the walkthrough's 6 (see docs/work-log.md) |

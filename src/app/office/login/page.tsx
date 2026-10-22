@@ -21,10 +21,7 @@ export default async function OfficeLoginPage({
       <div className={officeLoginCard}>
         <h1 className={loginTitle}>Office login for {firm.name}</h1>
         {out === "1" && (
-          <p
-            role="status"
-            className="mt-4 rounded-row border border-line bg-quiet-soft p-4 text-quiet-ink"
-          >
+          <p role="status" className="mt-4 rounded-row bg-card p-4 text-ink shadow-raise">
             You&apos;re logged out.
           </p>
         )}

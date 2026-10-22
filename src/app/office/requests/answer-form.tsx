@@ -81,7 +81,7 @@ export function AnswerForm({
           role="status"
           className={
             answered
-              ? "rounded-row border border-done-line bg-done-soft px-3 py-2 font-semibold text-done-ink"
+              ? "rounded-row border border-done-line bg-done-soft px-3 py-2 font-semibold text-done-ink shadow-soft"
               : "font-semibold"
           }
         >

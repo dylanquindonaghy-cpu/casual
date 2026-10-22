@@ -1,8 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { btn, field, labelStack } from "@/app/ui/classes";
+import { createContext, useContext, useState, useTransition, type ReactNode } from "react";
+import { btn, confirmStep, field, labelStack } from "@/app/ui/classes";
 import {
   cancelBookingResultText,
   cancelShiftResultText,
@@ -185,7 +185,7 @@ export function CancelShiftForm({ shiftId, booked }: { shiftId: string; booked: 
         Cancel this shift
         <Chevron />
       </summary>
-      <div className="mt-4 flex flex-col gap-4 rounded-row border border-urgent-line bg-urgent-soft p-4">
+      <div className={`mt-4 flex flex-col gap-4 ${confirmStep}`}>
         <p>
           {booked === 0
             ? "Nobody is booked on it."
@@ -210,10 +210,31 @@ export function CancelShiftForm({ shiftId, booked }: { shiftId: string; booked: 
   );
 }
 
+// Where the shift's page says a booking was cancelled (`PlacesConfirmation`, round its Places). The
+// page refreshes to move the booking to "Cancelled", which takes its row, and the form in it, off
+// the list: the confirmation went with them a moment after it showed (a browser test caught it
+// only now and then). Held here, over the list, it stays through the refresh.
+const PlacesMessage = createContext<((message: string) => void) | null>(null);
+
+export function PlacesConfirmation({ children }: { children: ReactNode }) {
+  const [message, setMessage] = useState<string | null>(null);
+  return (
+    <PlacesMessage.Provider value={setMessage}>
+      {message && (
+        <p role="status" className={`${resultBox} mt-3`}>
+          {message}
+        </p>
+      )}
+      {children}
+    </PlacesMessage.Provider>
+  );
+}
+
 // "Cancel {name}'s booking", with a reason: they're told, with the notice they had logged. On the
-// shift's page the page refreshes to show it; on the dashboard (refreshOnDone false) a refresh would take
-// the booking, and this confirmation with it, off the list, so the confirmation stays in place of
-// the button and the list updates on the next visit.
+// shift's page the page refreshes to show it, and the confirmation shows over the list
+// (`PlacesConfirmation`); on the dashboard (refreshOnDone false) a refresh would take the booking,
+// and this confirmation with it, off the list, so the confirmation stays in place of the button and
+// the list updates on the next visit. A refusal stays under the button, whose row stays.
 export function CancelBookingForm({
   shiftId,
   workerId,
@@ -228,6 +249,7 @@ export function CancelBookingForm({
   onDone?: () => void;
 }) {
   const router = useRouter();
+  const placesMessage = useContext(PlacesMessage);
   const [reason, setReason] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -237,7 +259,9 @@ export function CancelBookingForm({
     startTransition(async () => {
       if (!reason) return setMessage("Choose a reason.");
       const result = await cancelBookingAction(shiftId, workerId, reason).catch(() => failed);
-      setMessage(cancelBookingResultText(result, name));
+      const text = cancelBookingResultText(result, name);
+      if (result.status === "cancelled" && refreshOnDone && placesMessage) placesMessage(text);
+      else setMessage(text);
       if (result.status === "cancelled") {
         setDone(true);
         onDone?.();
@@ -250,11 +274,7 @@ export function CancelBookingForm({
         Cancel {name}&apos;s booking
         <Chevron />
       </summary>
-      <div
-        className={`mt-3 flex max-w-md flex-col gap-3 ${
-          done ? "" : "rounded-row border border-urgent-line bg-urgent-soft p-4"
-        }`}
-      >
+      <div className={`mt-3 flex max-w-md flex-col gap-3 ${done ? "" : confirmStep}`}>
         {!done && (
           <>
             <ReasonSelect

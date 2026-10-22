@@ -111,7 +111,7 @@ export default async function StrikesPage({
                 )}
                 {earlier.length > 0 && (
                   <details>
-                    <summary className="cursor-pointer text-sm font-semibold">
+                    <summary className="press cursor-pointer text-sm font-semibold">
                       Their other strikes ({earlier.length}
                       {r.more ? "+" : ""})
                     </summary>

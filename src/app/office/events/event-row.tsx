@@ -9,7 +9,8 @@ import { Icon } from "../../ui/icons";
 // its sessions as pills on their days. No switch on the row (Phase 20): "show to casuals" is in
 // the opened row, so a slip can't hide an event. The name and each pill open the row in place
 // into the event's sessions (`panel`, drawn by the server: its switch, the table, its switches
-// and menus), set into the board a step darker; the arrow turns as it opens.
+// and menus), set into the board a step darker; the arrow turns as it opens. The name and the
+// pills dip when pressed, as everything you press (Phase 22).
 
 const PILL: Record<PillTone, string> = {
   urgent: "bg-urgent-fill text-on-urgent",
@@ -50,7 +51,7 @@ export function EventRow({
             aria-expanded={open}
             aria-controls={panelId}
             onClick={toggle}
-            className="flex min-w-0 flex-1 items-center gap-2 rounded-row px-2 py-1 text-left transition-colors hover:bg-quiet-soft active:bg-raised"
+            className="press flex min-w-0 flex-1 items-center gap-2 rounded-row px-2 py-1 text-left hover:bg-quiet-soft active:bg-raised"
           >
             <Icon
               name="chevron"
@@ -85,7 +86,7 @@ export function EventRow({
                 aria-expanded={open}
                 aria-controls={panelId}
                 onClick={toggle}
-                className={`flex flex-col items-center ${hidden ? "opacity-50" : ""}`}
+                className={`press flex flex-col items-center ${hidden ? "opacity-50" : ""}`}
               >
                 <span
                   className={`flex h-7 w-full items-center justify-center rounded-full text-sm font-semibold tabular-nums ${PILL[p.tone]}`}

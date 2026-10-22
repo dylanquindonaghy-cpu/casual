@@ -118,9 +118,13 @@ test("move a booked shift with a reason, see the notice logged, then cancel the 
     .getByLabel("Why?")
     .selectOption({ label: "Weather or safety" });
   await page.getByRole("button", { name: `Yes, cancel ${name}'s booking` }).click();
-  await expect(
-    page.getByText(
-      new RegExp(`^Cancelled ${name}'s booking with \\d+ days' notice\\. They'll be told\\.$`),
-    ),
-  ).toBeVisible();
+  const confirmation = page.getByText(
+    new RegExp(`^Cancelled ${name}'s booking with \\d+ days' notice\\. They'll be told\\.$`),
+  );
+  await expect(confirmation).toBeVisible();
+  // The page refreshes: the booking moves to Cancelled and its row, with its form, leaves the list.
+  // The confirmation stays (it went with the row a moment after it showed, until Phase 22).
+  await expect(page.getByText("Nobody booked yet.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Cancelled", level: 3 })).toBeVisible();
+  await expect(confirmation).toBeVisible();
 });

@@ -90,7 +90,8 @@ const MENU: {
   },
 ];
 
-// The menu's counts (Phases 18 and 20): pale yellow when it needs this person, grey otherwise.
+// The menu's counts (Phases 18 and 20; since Phase 21 one grey pill, office-nav.tsx): `needs` when
+// it needs this person.
 // Pay queries waiting need payroll (for the others they're with payroll); enquiries that need a
 // person, uploads to check and Needs attention's items (with those enquiries: `attention`, the
 // one count) need whoever sees them. No count, no badge.

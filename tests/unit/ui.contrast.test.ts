@@ -127,6 +127,10 @@ const TEXT: [string, string][] = [
     bg,
   ]),
   ["attention-ink", "attention-soft"],
+  // The one count pill (its grey; the urgent places' in red), and a pressed text link.
+  ["ink-muted", "count"],
+  ["ink-press", "canvas"],
+  ["ink-press", "card"],
 ];
 
 // Borders, controls and the focus ring against what's around them (3:1).

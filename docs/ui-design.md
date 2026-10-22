@@ -43,7 +43,7 @@ office file uses only what's below (`tests/unit/ui.office-system.test.ts`).
   `src/app/office/office-fonts.ts`, so only office pages fetch it. Each page's headline in
   Instrument Serif (`text-title`, 28px; the dashboard's greeting `font-display`, 40px). The
   dashboard's big counts in Geist Mono semibold (`font-stat`): tried beside heavy Geist (800) at
-  40px, picked because its flat-footed 1 and marked 0 read as counts rather than a headline and
+  40px (`docs/mockups/phase-21/numbers-geist-vs-geist-mono.jpg`), picked because its flat-footed 1 and marked 0 read as counts rather than a headline and
   every digit is one width, so the three faces each have one job. The scale's seven steps are 12,
   13, 15, 17, 20, 28 and 40px in the office (`text-lg`, `text-2xl` and `text-3xl` change);
   headings semibold, `tracking-heading` (-0.015em).
@@ -69,14 +69,29 @@ office file uses only what's below (`tests/unit/ui.office-system.test.ts`).
   grey bars, nothing moving; `menu-pending.tsx` and `office-frame.tsx` show it, from each menu
   link's pending state). Not a route-wide `loading.tsx`: that starts every page's answer before
   its access check, so a page a role can't open would answer 200, not 404 (the browser tests
-  caught it; ADR-016 in docs/decisions.md warns the same of the login check). Every
-  dashboard section says when it's empty and when it couldn't load, in the section.
+  caught it; ADR-016 in docs/decisions.md warns the same of the login check). So a page opened
+  from a link inside another page (a shift, a casual, a record) loads as it did, without one. The
+  dashboard's skeleton has a part for every section (its headline, cards, urgent places, week and
+  three panels). Every dashboard section says when it's empty and when it couldn't load, in the
+  section (Waiting on others too: a pay-queries count that couldn't be read).
 - **Phone (390px).** The top bar with Menu (the drawer), 44px targets everywhere, the four cards
   two by two, the urgent places' buttons under their words, this week's bars lying down a row a
   day, the board's filters scrolling sideways in their track.
 - **The dark round button over the menu's foot** was Next's own development button (drawn only by
   `next dev`), bottom-left by default, which is where the menu's foot has sat since Phase 20:
-  `next.config.ts` now draws it bottom-right.
+  `next.config.ts` now draws it bottom-right (`devIndicators`, pinned by
+  `tests/unit/ui.office-system.test.ts`). The browser tests run a production build, which never
+  draws it, so they can't see it either way.
+- **Shared parts in the office.** A part the casual app shares (the chips, the seats on the
+  events board, the "Too many tries" alert, the firm's bar above the office's login pages, the
+  guide's numbered steps, the login link page's button) keeps its casual values and carries the
+  office's beside them with the `office:` variant (globals.css: any element under
+  `body:has([data-office])`), e.g. `rounded-lg office:rounded-row`; the office's file button is a
+  grey pill. `tests/unit/ui.office-system.test.ts` follows the office's imports to every shared
+  file and class string it renders and wants an `office:` value beside each value outside the
+  system. The casual app's own counts are `staffCount` (Phase 20's pill). In the office a chip
+  stays on one line while it fits and wraps rather than run off a phone (a 55-character
+  qualification ran a 390px page 9px sideways until it could: `office.look.spec.ts` found it).
 
 | Token (office) | Light | Dark | Use in the office |
 |---|---|---|---|
@@ -95,6 +110,7 @@ office file uses only what's below (`tests/unit/ui.office-system.test.ts`).
 | `quiet-soft` / `quiet-ink` | `#f3f2ef` / `#4a4741` | `#232321` / `#d6d4cf` | Hover on white rows; a closed chip |
 | `urgent-line` / `attention-line` / `wait-line` / `done-line` / `quiet-line` | `#f0cdc6` / `#ecd8a0` / `#c9d7ee` / `#c0dfca` / `#dedbd5` | `#55302b` / `#54461f` / `#2c3d57` / `#27452f` / `#3a3a37` | Each tint's 1px edge, a shade darker |
 | `active` | `#ebeae6` | `#262624` | The grey pill of the page you're on |
+| `count` | `#e3e1dc` | `#33332f` | The one count pill: beside a section's heading and in the menu (on the grey pill of the page you're on too) |
 | `button` / `button-line` / `button-hover` / `button-press` | `#efeeeb` / `#efeeeb` / `#e6e5e0` / `#dcdad5` | `#262624` / `#262624` / `#2f2f2c` / `#383834` | A grey pill button, at rest, under the pointer, pressed |
 | `ink-press` | `#000000` | `#ffffff` | An ink button pressed |
 
@@ -154,7 +170,7 @@ real sizes before building:
 - **One filled button per screen**, in the firm's colour, in the casual app and the office
   (`btn.primary`, `staffBtn.primary`); words-only actions in the firm's colour (`btn.text`,
   `staffBtn.text`: "Not urgent", "Keep my shift"). Phone buttons 52px, office ones 44px.
-- **The parts** (`src/app/ui/sign.tsx`, `plate.tsx`; the sheet in `src/app/shifts/sheet.tsx`): the **date tile** (a calendar
+- **The parts** (`src/app/ui/sign.tsx`, `seats.tsx` (since Phase 21), `plate.tsx`; the sheet in `src/app/shifts/sheet.tsx`): the **date tile** (a calendar
   page: the weekday on an ink band, red when urgent; the day in sign figures; the month), the
   **sign plate** (light on dark, like a venue's sign: "Gate 2"), the **seats** (a square per place:
   filled when taken, dashed when free, red when urgent; none past 16 places), the solid **plate**
@@ -207,6 +223,7 @@ tokens. Every pair a page uses meets its contrast in both (`tests/unit/ui.contra
 | `urgent-line` / `attention-line` / `wait-line` / `done-line` / `quiet-line` | `#c4242a` / `#b45309` / `#a9c1e8` / `#1f7a47` / `#7c8189` | `#ff8b80` / `#f2a541` / `#2c4166` / `#5fd08b` / `#6f737b` | A status's edge (Phase 21): a chip's border (here the status colour itself); in the office, a tint's 1px edge a shade darker (decorative: the words say the status) |
 | `wait-soft` | `#f2f6fd` | `#111a28` | A waiting panel's wash (the office's Waiting on others: Phase 21) |
 | `active` | `#e3e5e9` | `#232529` | The grey pill of the page you're on (the office menu: Phase 21) |
+| `count` | `#eceef1` | `#232529` | The office's count pill (Phase 21); the casual app's counts are `staffCount`'s |
 | `button` / `button-line` / `button-hover` / `button-press` | `#ffffff` / `#7c8189` / `#f1f2f4` / `#f1f2f4` | `#18191c` / `#6f737b` / `#222428` / `#222428` | Any other office button, its edge, under the pointer and pressed (Phase 21): here the outlined button it was; in the office a grey pill |
 | `ink-press` | `#000000` | `#ffffff` | An ink button pressed (Phase 21) |
 
@@ -277,7 +294,9 @@ AI-boundary and client-boundary tests (they import nothing from `src/lib/`).
   shift's title, a worker's name) use `textLink` (grey underline, darker on hover), or
   `textLinkInGroup` when the whole row or card is the `group` that darkens it. The login pages
   (staff and office, outside the shell) use `page.login` (the brand bar's 448px column),
-  `loginCard` (framed from 640px up, frameless on a phone) and `loginTitle` for their one `<h1>`.
+  `loginCard` (framed from 640px up, frameless on a phone) and `loginTitle` for their one `<h1>`;
+  the office's since Phase 21 `page.officeLogin` and `officeLoginCard` (the office's spacing, a
+  white card with the soft edge), with `field` and `btn.primary`.
 - `status-chip.tsx`: `<StatusChip tone="urgent|attention|done|quiet">word</StatusChip>`, with a
   small inline SVG icon that is `aria-hidden`. The word is the existing word from the copy module.
 - `page-header.tsx`: `<PageHeader back title meta actions>`. Restyles the page's one `<h1>`;
@@ -355,12 +374,16 @@ you on to `/office` as before.
 
 - The current page's link has `aria-current="page"`, on a grey pill (Phase 21; a white pill
   lifted off the menu in Phase 20, a pale tint of the firm's colour before it) with its icon in
-  ink. Group labels are small grey words. On a page inside a section, the section's link
+  ink. Every row (and the folded group's button) is 44px tall, in the drawer too. Group labels
+  are small grey words. On a page inside a section, the section's link
   looks the same but has `aria-current="true"` (it isn't the page you're on): a shift or a new
   shift marks Events & sessions, the offer page marks Dashboard, a casual marks Casuals, a
   cancellation's record marks Cancellations, a worker's data page marks Data requests.
-- **Badges:** a link can carry a count, one style (Phase 21): a small white pill, its number in
-  ink when it needs you and grey otherwise (no count in the menu is an urgent one, so none is red).
+- **Badges:** a link can carry a count, one style (Phase 21; Dylan's brief: "one badge style
+  (grey, red only for urgent)"): the office's grey count pill (`countPill`, the `count` token),
+  the same as beside a section's heading, on the page you're on's grey pill too. Whether it needs
+  you is in its words; no count in the menu is an urgent one, so none is red (the dashboard's
+  urgent places' count is: `countUrgent`, the same pill in red).
   The number sits inside the link but hidden from screen readers, and its words ("3 waiting")
   follow the link as visually hidden text, so the link's name stays exactly its label. Needs attention's (Phase 20) is the Dashboard's Needs attention count:
   "{12} to deal with", and "50+" when a list stopped at 50.

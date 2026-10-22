@@ -117,6 +117,20 @@ test("a resourcer's dashboard: what needs them, this week, where to start, and n
       : new RegExp(`(?<!\\d)${urgent} urgent places? to fill, the first on `),
   );
 
+  // A card jumps to its own section (Phase 21): the address takes the heading's id, and the
+  // heading is on screen. Then this week's grey pill opens the rota board.
+  await page.goto(`${acme}/office`);
+  await page
+    .getByRole("main")
+    .getByRole("link")
+    .filter({ hasText: /^Waiting on others/ })
+    .click();
+  await expect(page).toHaveURL(`${acme}/office#waiting`);
+  await expect(page.getByRole("heading", { name: "Waiting on others", level: 2 })).toBeInViewport();
+  await page.getByRole("link", { name: "Open the rota board" }).click();
+  await expect(page).toHaveURL(`${acme}/office/events`);
+  await expect(page.getByRole("heading", { name: "Events & sessions", level: 1 })).toBeVisible();
+
   // A row opens its list: today's cancellations.
   await page.goto(`${acme}/office`);
   await sorted.getByRole("link", { name: /cancellations? today/ }).click();

@@ -21,7 +21,7 @@ import {
 import { payWeek } from "@/lib/pay/pay-week";
 import { datePartsOfDay } from "@/lib/portal/sign-copy";
 import { dayLabel } from "@/lib/rules/reasons";
-import { btn, count as countPill, quietLink } from "../ui/classes";
+import { btn, count as countStyle, countUrgent, quietLink } from "../ui/classes";
 import { Icon, type IconName } from "../ui/icons";
 import { UrgentPlaces } from "./urgent-places";
 
@@ -36,22 +36,25 @@ import { UrgentPlaces } from "./urgent-places";
 // attention, "Waiting on others" (pay queries with payroll) and "Sorted today" (cancellations,
 // recorded automatically; enquiries answered; what casuals can see) as tinted panels of white
 // rows. Every section says when it couldn't load, and what it shows when it's empty; the page's
-// loading skeleton is ./dashboard-skeleton.tsx. Pure: the page loads the data
+// loading skeleton is DashboardSkeleton (./office-skeleton.tsx). Pure: the page loads the data
 // (src/lib/office/dashboard-home.ts works out what it says).
 
-// A section's heading row: its icon, its name, its count (a grey pill), and a quiet link to the
-// whole list at the end (hilos's "View all"). The heading's id is where its card jumps to.
+// A section's heading row: its icon, its name, its count (the grey pill; red for the urgent
+// places), and a quiet link to the whole list at the end (hilos's "View all"). The heading's id is
+// where its card jumps to.
 function SectionHead({
   id,
   title,
   icon,
   count,
+  urgent = false,
   link,
 }: {
   id: string;
   title: string;
   icon: IconName;
   count?: string;
+  urgent?: boolean;
   link?: ReactNode;
 }) {
   return (
@@ -60,7 +63,7 @@ function SectionHead({
       <h2 id={id} className="scroll-mt-20 text-lg font-semibold tracking-heading text-ink">
         {title}
       </h2>
-      {count && <span className={countPill}>{count}</span>}
+      {count && <span className={urgent ? countUrgent : countStyle}>{count}</span>}
       {link && <span className="ml-auto pl-4">{link}</span>}
     </div>
   );
@@ -335,7 +338,8 @@ export function DashboardContent({
   d: Dashboard;
   firmName: string;
   shiftsLine?: string;
-  payQueriesWaiting?: number;
+  // null: it couldn't be read (its card and section say so).
+  payQueriesWaiting?: number | null;
   now: Date;
 }) {
   const focus = focusItems(d);
@@ -347,7 +351,7 @@ export function DashboardContent({
   const things = oneCount(urgentPlaces, attention?.count ?? needPerson);
   const cells = d.week.ok ? weekCells(d.week.data, needs?.toMark ?? [], d.today, d.timeZone) : null;
   const waiting: Row[] =
-    payQueriesWaiting > 0
+    payQueriesWaiting !== null && payQueriesWaiting > 0
       ? [
           {
             key: "payQueries",
@@ -419,8 +423,14 @@ export function DashboardContent({
         <CountTile
           tone="wait"
           label="Waiting on others"
-          value={String(payQueriesWaiting)}
-          caption={payQueriesWaiting > 0 ? "Pay queries with payroll" : "Nothing waiting on others"}
+          value={payQueriesWaiting === null ? "–" : String(payQueriesWaiting)}
+          caption={
+            payQueriesWaiting === null
+              ? COUNT_ERROR
+              : payQueriesWaiting > 0
+                ? "Pay queries with payroll"
+                : "Nothing waiting on others"
+          }
           href="#waiting"
         />
         <CountTile
@@ -444,6 +454,7 @@ export function DashboardContent({
           title="Urgent places to fill"
           icon="urgent"
           count={focus.length > 0 ? String(focus.length) : undefined}
+          urgent
           link={
             <Link href="/office/events?view=urgent" className={quietLink}>
               All on Events &amp; sessions
@@ -514,7 +525,9 @@ export function DashboardContent({
         </div>
         <div className="min-w-0 lg:col-span-4">
           <Panel id="waiting" title="Waiting on others" icon="clock" tone="wait">
-            {waiting.length > 0 ? (
+            {payQueriesWaiting === null ? (
+              <SectionError />
+            ) : waiting.length > 0 ? (
               <Rows rows={waiting} tone="waiting" label="Waiting on others" />
             ) : (
               <p className={`${ROW} text-ink-muted`}>Nothing is waiting on anyone else.</p>

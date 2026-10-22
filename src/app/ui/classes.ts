@@ -14,8 +14,9 @@
 // look.
 const office =
   "inline-flex min-h-11 items-center justify-center gap-2 rounded-full border px-4 py-2 text-center text-base font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60";
+// In the office (the logged-out office's "Log in" link page), on its spacing: `office:`.
 const staff =
-  "flex w-full min-h-13 items-center justify-center gap-2 rounded-full border-[1.5px] px-5 py-3 text-center text-lg font-semibold disabled:cursor-not-allowed disabled:opacity-60";
+  "flex w-full min-h-13 items-center justify-center gap-2 rounded-full border-[1.5px] px-5 py-3 text-center text-lg font-semibold disabled:cursor-not-allowed disabled:opacity-60 office:px-4";
 
 // Office buttons (and links that look like buttons): at least 44px tall, each with its hover and
 // pressed fills (the focus ring is globals.css's, everywhere).
@@ -29,8 +30,9 @@ export const btn = {
   // The final click of a destructive change: a step's "Yes, …", or a destructive action that
   // happens at once ("Block from this site").
   dangerSolid: `${office} border-urgent-fill bg-urgent-fill text-on-urgent hover:border-urgent-fill-hover hover:bg-urgent-fill-hover active:border-urgent-fill-hover active:bg-urgent-fill-hover`,
-  // A text link with a 44px target ("Back to …", "Earlier", "Clear"); the casual app's too.
-  link: "inline-flex min-h-11 items-center gap-2 font-semibold text-ink underline underline-offset-4 hover:text-ink-muted",
+  // A text link with a 44px target ("Back to …", "Earlier", "Clear"); the casual app's too (in the
+  // office, darker while pressed).
+  link: "inline-flex min-h-11 items-center gap-2 font-semibold text-ink underline underline-offset-4 hover:text-ink-muted office:active:text-ink-press",
   // A quiet action in words only ("Not urgent", "Add a session").
   text: "inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-3 text-base font-semibold text-ink transition-colors hover:bg-quiet-soft active:bg-raised",
 };
@@ -38,7 +40,7 @@ export const btn = {
 // A quiet grey link beside a heading, to the whole list ("All on Events & sessions", "Open Needs
 // attention": hilos's "View all"; Phase 21). Standalone, so no underline; 44px tall.
 export const quietLink =
-  "inline-flex min-h-11 items-center gap-1 text-sm font-medium text-ink-muted transition-colors hover:text-ink";
+  "inline-flex min-h-11 items-center gap-1 text-sm font-medium text-ink-muted transition-colors hover:text-ink active:text-ink-press";
 
 // A link inside text or a row (a shift's title, a worker's name): underlined in grey, darker on
 // hover. Keeps the text's own size and weight. `textLinkInGroup` darkens when a `group` parent
@@ -104,9 +106,17 @@ export const staffRow = "px-4 py-3";
 export const h2 = "text-lg font-semibold tracking-heading text-ink";
 export const sectionGap = { office: "mt-8 lg:mt-12", staff: "mt-8" };
 export const headingGap = "mt-3";
-// A number beside a heading ("Requests 2"): the number only, never a word. A small grey pill.
-export const count =
-  "ml-2 inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-raised px-2 align-middle text-xs font-semibold tabular-nums text-ink-muted";
+// A number beside a heading ("Requests 2"): the number only, never a word. The office's one count
+// (Phase 21; Dylan's brief: "one badge style (grey, red only for urgent)"): a small grey pill, the
+// same beside a heading (`count`) and in the menu (`countPill`); the urgent places' count in red
+// (`countUrgent`). The casual app's own: `staffCount` (Phase 20's).
+const countShape =
+  "inline-flex h-6 min-w-6 items-center justify-center rounded-full px-2 text-xs font-semibold tabular-nums";
+export const countPill = `${countShape} bg-count text-ink-muted`;
+export const count = `ml-2 align-middle ${countPill}`;
+export const countUrgent = `ml-2 align-middle ${countShape} bg-urgent-tile text-urgent-ink`;
+export const staffCount =
+  "ml-2 inline-flex min-w-7 items-center justify-center rounded-full bg-quiet-soft px-2 align-middle text-sm font-semibold tabular-nums text-quiet-ink";
 
 // Secondary text: meta lines (times, references), and longer muted sentences.
 export const meta = "text-sm text-ink-muted";
@@ -123,11 +133,15 @@ export const page = {
   officeForm: "min-w-0 max-w-2xl",
   staff: "mx-auto max-w-md px-4 py-6 sm:px-6",
   login: "mx-auto w-full max-w-md px-6 py-8 sm:px-0 sm:py-16",
+  // The office's login pages, on its spacing (Phase 21).
+  officeLogin: "mx-auto w-full max-w-md px-6 py-8 sm:px-0 sm:py-12",
 };
 
 // The login card, inside `page.login`: framed from 640px up; on a phone there's no frame (the
 // page is the card), with the same 24px edge as the brand bar. Its one <h1> is `loginTitle`.
 export const loginCard = "sm:rounded-3xl sm:border sm:border-line sm:bg-card sm:p-6";
+// The office's: a white card with the soft edge, as its others (Phase 21).
+export const officeLoginCard = "sm:rounded-card sm:bg-card sm:p-6 sm:shadow-soft";
 export const loginTitle = "text-title text-balance text-ink";
 
 // Report tables: the wrapper scrolls sideways on small screens. Give it role="region",
@@ -144,9 +158,11 @@ export const table = {
 // Pale tints with dark words of the same hue, so a list of urgent rows doesn't shout; square-ish
 // like a sign (Phase 18). The solid plates are <Plate> (src/app/ui/plate.tsx). Its edge is the
 // status's own line token: the status colour in the casual app, a shade darker than the tint in
-// the office (Phase 21).
+// the office (Phase 21). In the office a chip stays on one line while it fits and wraps rather
+// than run off a phone ("Level 2 spectator safety qualification: Expiring soon" on a 390px
+// screen; the browser tests' office.look.spec.ts caught it).
 export const chip = {
-  base: "inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-0.5 align-middle text-sm font-semibold leading-5",
+  base: "inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-0.5 align-middle text-sm font-semibold leading-5 office:px-3 office:py-1 office:leading-4 office:max-w-full office:shrink-0 office:whitespace-normal",
   urgent: "border-urgent-line bg-urgent-soft text-urgent-ink",
   attention: "border-attention-line bg-attention-soft text-attention-ink",
   done: "border-done-line bg-done-soft text-done-ink",

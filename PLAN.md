@@ -1439,7 +1439,7 @@ named "Offer to someone"), and the dashboard's four cards jump to their own sect
 asks for no mock-up first: it says screenshot, plan, build, then screenshot beside the references
 and review. Docs: `docs/ui-design.md`, `docs/screens.md`.
 
-- [ ] The office's system: its own tokens for every office page (light and dark, from one set):
+- [x] The office's system: its own tokens for every office page (light and dark, from one set):
       a warm off-white page, white cards, near-black main buttons, and red, amber, blue and green
       only for statuses and the dashboard's tinted cards, each tint with a 1px border a shade
       darker; Geist for words (tabular figures), Instrument Serif for each page's headline only,
@@ -1455,7 +1455,7 @@ and review. Docs: `docs/ui-design.md`, `docs/screens.md`.
       near-black, others grey pills, destructive red words on grey), cards, rows, tables, chips
       and page headers; and the dark round button over the menu's foot fixed where it comes from.
       Tests: the menu's states, the parts' classes, the browser tests (21.2)
-- [ ] The dashboard: a small date line over the headline, the shifts line quiet with its phone;
+- [x] The dashboard: a small date line over the headline, the shifts line quiet with its phone;
       four tinted cards (an icon, the label, the number, one grey line), each jumping to its
       section; the urgent places as one rounded list (a neutral date tile, the role as the title,
       the place and time in grey, a slim bar with "3 of 4 filled", "Not offered yet" in red, a

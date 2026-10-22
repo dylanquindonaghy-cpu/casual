@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { loginCard, loginTitle, page } from "@/app/ui/classes";
+import { loginTitle, officeLoginCard, page } from "@/app/ui/classes";
 import { getOfficeSession } from "@/lib/auth/current-office";
 import { getCurrentFirm } from "@/lib/tenancy/current-firm";
 import { OfficeLoginForm } from "./office-login-form";
@@ -17,8 +17,8 @@ export default async function OfficeLoginPage({
   if (await getOfficeSession()) redirect("/office");
   const { out } = await searchParams;
   return (
-    <main className={page.login}>
-      <div className={loginCard}>
+    <main className={page.officeLogin}>
+      <div className={officeLoginCard}>
         <h1 className={loginTitle}>Office login for {firm.name}</h1>
         {out === "1" && (
           <p

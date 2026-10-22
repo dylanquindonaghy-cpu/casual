@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { loginCard, loginTitle, page } from "@/app/ui/classes";
+import { loginTitle, officeLoginCard, page } from "@/app/ui/classes";
 import { getCurrentFirm } from "@/lib/tenancy/current-firm";
 import { LinkLogin } from "../../l/link-login";
 import { consumeOfficeLinkAction } from "./actions";
@@ -12,8 +12,8 @@ export const metadata: Metadata = { referrer: "no-referrer" };
 export default async function OfficeLinkPage() {
   const firm = await getCurrentFirm();
   return (
-    <main className={page.login}>
-      <div className={loginCard}>
+    <main className={page.officeLogin}>
+      <div className={officeLoginCard}>
         <h1 className={loginTitle}>Log in to the {firm.name} office</h1>
         <LinkLogin
           firmName={firm.name}

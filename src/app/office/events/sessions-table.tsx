@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { btn, textLink } from "@/app/ui/classes";
 import { Icon } from "@/app/ui/icons";
-import { Seats } from "@/app/ui/sign";
+import { Seats } from "@/app/ui/seats";
 import type { EventCardData } from "@/lib/office/events";
 import { sessionWhen } from "@/lib/office/events-board";
 import { spansDays, uniqueSessionNames } from "@/lib/office/events-copy";

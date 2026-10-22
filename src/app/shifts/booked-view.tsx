@@ -13,7 +13,7 @@ import {
   Toggle,
 } from "../my-shifts-view";
 import {
-  count,
+  staffCount,
   h2,
   headingGap,
   muted,
@@ -117,7 +117,7 @@ function Upcoming(props: BookedViewProps) {
           <h2 id="later-heading" className={h2}>
             Later
           </h2>
-          {later.length > 0 && <span className={count}>{later.length}</span>}
+          {later.length > 0 && <span className={staffCount}>{later.length}</span>}
         </div>
         {later.length > 0 ? (
           <ul role="list" className={`${staffRows} ${headingGap}`}>

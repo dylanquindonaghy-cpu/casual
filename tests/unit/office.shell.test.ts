@@ -26,6 +26,7 @@ const { ACCOUNT_MENU_ID, DRAWER_ID, initials, redrawOnArrival } =
   await import("@/app/office/office-frame");
 const { themeCookie } = await import("@/app/office/theme-button");
 const { PageHeader } = await import("@/app/ui/page-header");
+const { count, countPill } = await import("@/app/ui/classes");
 const { StatusChip } = await import("@/app/ui/status-chip");
 const { LogoutButton } = await import("@/app/logout-button");
 
@@ -99,7 +100,7 @@ describe("the office menu (v2 groups; Phases 18 and 20)", () => {
     ).not.toContainEqual(expect.objectContaining({ href: "/office/pay-queries" }));
   });
 
-  it("a count is sign yellow only when it needs this person (Phase 18), grey otherwise", () => {
+  it("a count needs this person or not (Phase 18), drawn as the office's one grey pill (Phase 21)", () => {
     const counts = { payQueries: 3, needPerson: 2, uploads: 4 };
     // Pay queries need payroll; for an admin they're with payroll.
     expect(menuBadges("payroll", counts)["/office/pay-queries"]).toEqual({
@@ -137,8 +138,9 @@ describe("the office menu (v2 groups; Phases 18 and 20)", () => {
       ).toBeUndefined();
     // None: no badge.
     expect(menuBadges("admin", { payQueries: 0, needPerson: 0, uploads: 0 })).toEqual({});
-    // Drawn (Phase 21: one style, a small white pill): its number in ink for one that needs you,
-    // grey otherwise (the yellow plate until Phase 21).
+    // Drawn (Phase 21; Dylan's brief: "one badge style (grey, red only for urgent)"): every count is
+    // the office's one grey pill, the same as beside a section's heading; whether it needs you is in
+    // its words (the yellow plate until Phase 21). None of the menu's counts is an urgent one.
     nav.pathname = "/office";
     const html = renderToStaticMarkup(
       createElement(OfficeNav, { groups: officeMenu("admin", menuBadges("admin", counts)) }),
@@ -148,10 +150,10 @@ describe("the office menu (v2 groups; Phases 18 and 20)", () => {
         `<a [^>]*href="${href}"[^>]*>[\\s\\S]*?<span aria-hidden="true" class="([^"]*)">\\d+</span>`,
       ).exec(html)?.[1] ?? "";
     for (const href of ["/office/enquiries", "/office/casuals", "/office/pay-queries"])
-      expect(badgeOf(href), href).toMatch(/(?<![\w-])bg-card(?![\w-])/);
-    expect(badgeOf("/office/enquiries")).toMatch(/(?<![\w-])text-ink(?![\w-])/);
-    expect(badgeOf("/office/casuals")).toMatch(/(?<![\w-])text-ink(?![\w-])/);
-    expect(badgeOf("/office/pay-queries")).toMatch(/(?<![\w-])text-ink-muted(?![\w-])/);
+      expect(badgeOf(href), href).toBe(countPill);
+    expect(countPill).toMatch(/(?<![\w-])bg-count(?![\w-])/);
+    expect(countPill).toMatch(/(?<![\w-])text-ink-muted(?![\w-])/);
+    expect(count).toBe(`ml-2 align-middle ${countPill}`);
     // No status colour on a count: none of these is urgent.
     expect(html).not.toMatch(/bg-(?:hivis|urgent|attention|wait|done)/);
     // "50+": the plus sits in the drawn count, the words say the same.
@@ -163,10 +165,28 @@ describe("the office menu (v2 groups; Phases 18 and 20)", () => {
         ),
       }),
     );
-    expect(more).toMatch(
-      /<a [^>]*href="\/office\/needs-attention"[^>]*>[\s\S]*?<span aria-hidden="true" class="[^"]*bg-card[^"]*text-ink(?![\w-])[^"]*">50\+<\/span>/,
-    );
+    expect(more).toContain(`<span aria-hidden="true" class="${countPill}">50+</span>`);
     expect(more).toContain('<span class="sr-only">50+ to deal with</span>');
+  });
+
+  it("every row is 44px tall (a thumb's, in the drawer too); the groups' names small and grey (Phase 21)", () => {
+    nav.pathname = "/office/log";
+    const html = renderToStaticMarkup(
+      createElement(OfficeNav, { groups: officeMenu("admin"), firmName: "Acme Events" }),
+    );
+    const controls = [...html.matchAll(/<(a|button) [^>]*class="([^"]*)"/g)];
+    expect(controls.length).toBeGreaterThan(15);
+    for (const [, tag, cls] of controls) expect(cls, tag).toMatch(/(?<![\w-])min-h-11(?![\w-])/);
+    // The fold's button among them ("Admin and records").
+    expect(controls.some(([, tag]) => tag === "button")).toBe(true);
+    const labels = [...html.matchAll(/<p class="([^"]*)">([^<]+)<\/p>/g)];
+    expect(labels.map((m) => m[2])).toEqual(expect.arrayContaining(["Today", "Pay", "People"]));
+    for (const [, cls] of labels)
+      expect(cls).toBe("px-3 pt-6 pb-2 text-xs font-medium text-ink-muted");
+    // The page you're on: the grey pill.
+    expect(html).toMatch(
+      /<a [^>]*aria-current="page"[^>]*class="[^"]*(?<![\w-])bg-active(?![\w-])[^"]*"|<a [^>]*class="[^"]*(?<![\w-])bg-active(?![\w-])[^"]*"[^>]*aria-current="page"/,
+    );
   });
 
   it("links have no query strings (tests compare the address after a click)", () => {

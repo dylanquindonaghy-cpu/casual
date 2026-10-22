@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useHydrated } from "@/app/use-hydrated";
+import { countPill } from "../ui/classes";
 import { Icon, type IconName } from "../ui/icons";
 import { MenuPendingReporter } from "./menu-pending";
 
@@ -16,8 +17,10 @@ import { MenuPendingReporter } from "./menu-pending";
 
 // A count beside a link ("Pay queries 3"), drawn outside the link's name: the link stays exactly
 // "Pay queries" (the tests find links by their exact names), and screen readers hear the words
-// after it. One style (Phase 21): a small white pill; `needs` (it needs this person) has its number
-// in ink, otherwise grey (pale yellow until Phase 21). `more`: a list stopped at 50 ("50+").
+// after it. One style (Phase 21; Dylan's brief: "one badge style"): the office's grey count pill
+// (`countPill`, as beside a section's heading). `needs` (it needs this person) is in the words
+// only (a pale yellow pill in Phases 18 and 20, ink on white until 21's audit). `more`: a list
+// stopped at 50 ("50+").
 export type MenuBadge = { count: number; words: string; needs?: boolean; more?: boolean };
 export type MenuLink = { href: string; label: string; icon: IconName; badge?: MenuBadge };
 // `folded`: a button that shows its links, shown already when you're on one of its pages ("Admin
@@ -63,10 +66,11 @@ export function ariaCurrent(href: string, pathname: string): "page" | "true" {
   return exact ? "page" : "true";
 }
 
-// A full-width row with an icon. The current one: a grey pill (Phase 21; a white card lifted off
-// the menu's ground in Phase 20), its icon in ink. Hover is half the pill, pressed the whole.
+// A full-width row with an icon, 44px tall (a thumb's, in the drawer too). The current one: a grey
+// pill (Phase 21; a white card lifted off the menu's ground in Phase 20), its icon in ink. Hover is
+// half the pill, pressed the whole.
 const LINK =
-  "relative flex min-h-10 items-center gap-3 rounded-full px-3 py-2 text-base text-ink transition-colors active:bg-active";
+  "relative flex min-h-11 items-center gap-3 rounded-full px-3 py-2 text-base text-ink transition-colors active:bg-active";
 const IDLE = `${LINK} font-normal hover:bg-active/60`;
 const ACTIVE = `${LINK} bg-active font-medium`;
 // A group's name: small, grey, sentence case.
@@ -93,12 +97,7 @@ function NavLink({
         <span className="min-w-0 flex-1">{link.label}</span>
         <MenuPendingReporter href={link.href} />
         {link.badge ? (
-          <span
-            aria-hidden="true"
-            className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-card px-2 text-xs font-semibold tabular-nums ${
-              link.badge.needs ? "text-ink" : "text-ink-muted"
-            }`}
-          >
+          <span aria-hidden="true" className={countPill}>
             {link.badge.count}
             {link.badge.more ? "+" : ""}
           </span>

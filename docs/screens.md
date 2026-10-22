@@ -18,8 +18,8 @@ section says otherwise, it wins over the sections below; every route, label (but
 brief changes), link and action is as before. The casual app is unchanged.
 
 - **Menu:** the firm's initial on its colour and its name at the top; the page you're on a grey
-  pill; small grey group names; every count a small white pill (its number in ink when it needs
-  you); at its foot "Week {43} · {19 Oct} – {25 Oct}" over "Pay {Fri 30 Oct}", then you and the
+  pill (every row 44px tall); small grey group names; every count the one small grey pill (the
+  same as beside a section's heading); at its foot "Week {43} · {19 Oct} – {25 Oct}" over "Pay {Fri 30 Oct}", then you and the
   moon/sun button on a white row.
 - **Dashboard** (`/office`): a small tracked line "{Thursday 22 October} · Week {43} · Pay {Fri 30
   Oct}" over the greeting ("{Morning}, {Acme Events}." in the serif, then "{10} things need

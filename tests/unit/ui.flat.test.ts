@@ -62,8 +62,14 @@ const USES: Record<string, string[]> = {
   ],
   "src/app/shifts/shift-parts.tsx": ["inset-shadow-sunk", "shadow-lift"],
   "src/app/tab-bar.tsx": ["shadow-bar"],
-  // The switch's track; the office's card, list card and table.
-  "src/app/ui/classes.ts": ["inset-shadow-sunk", "shadow-soft", "shadow-soft", "shadow-soft"],
+  // The switch's track; the office's card, list card and table, and its login card (from 640px).
+  "src/app/ui/classes.ts": [
+    "inset-shadow-sunk",
+    "shadow-soft",
+    "shadow-soft",
+    "shadow-soft",
+    "sm:shadow-soft",
+  ],
 };
 
 describe("depth: the five tokens, and no other shadow", () => {

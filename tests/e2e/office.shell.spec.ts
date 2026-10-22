@@ -18,9 +18,9 @@ const CANVAS = { light: "rgb(246, 245, 243)", dark: "rgb(18, 18, 17)" }; // #f6f
 
 // Each test logs in as a resourcer of its own (the seeded users allow 3 login links per 15
 // minutes, and this spec logs in six times).
-async function officeLogin(page: Page, who: string) {
+async function officeLogin(page: Page, who: string, role: "resourcer" | "admin" = "resourcer") {
   const email = `shell.${who}@example.com`;
-  await addOfficeUser("acme", { email, name: "Sam Rota", role: "resourcer" });
+  await addOfficeUser("acme", { email, name: "Sam Rota", role });
   const asked = new Date(Date.now() - 1000);
   await page.goto(`${acme}/office/login`);
   await page.getByLabel("Your work email").fill(email);
@@ -58,9 +58,24 @@ for (const device of ["light", "dark"] as const) {
         expect(await focusInMenu(page)).toBe(false);
       }
 
-      // Escape shuts it, and focus goes back to Menu.
+      // Escape shuts it, and focus goes back to Menu. Every row in it is a thumb's 44px tall, on
+      // the brief's 390px phone (Phase 21).
+      await page.setViewportSize({ width: 390, height: 844 });
       await menuButton.click();
       await expect(drawer).toBeVisible();
+      // (The folded group opened first, so its links are measured too.)
+      const fold = drawer.locator('button[aria-expanded="false"]');
+      if ((await fold.count()) > 0) await fold.click();
+      const rows = drawer.locator("a, button:not([aria-label='Close menu'])");
+      // Their laid-out height: the folded group's links slide in (a transform), and a box measured
+      // mid-slide can read 43.99994px.
+      const heights = await rows.evaluateAll((els) =>
+        els
+          .filter((el) => el.checkVisibility())
+          .map((el) => Number.parseFloat(getComputedStyle(el).height)),
+      );
+      expect(heights.length).toBeGreaterThan(8);
+      for (const height of heights) expect(height).toBeGreaterThanOrEqual(44);
       await expect(
         drawer.getByRole("link", { name: "Events & sessions", exact: true }),
       ).toBeVisible();
@@ -176,33 +191,46 @@ for (const device of ["light", "dark"] as const) {
 }
 
 // A page picked in the menu shows its skeleton in the page's place while it's on its way (Phase
-// 21; docs/ui-design.md "States"): the page's answer is held back here so the wait is long enough
-// to see. Then the page, and the skeleton gone. The dashboard has its own.
-test("a page picked in the menu shows its skeleton while it's on its way", async ({ page }) => {
+// 21; docs/ui-design.md "States"), every page in an admin's menu: each page's answer is held back
+// here so the wait is long enough to see. Then the page, and the skeleton gone. The dashboard has
+// its own.
+test("every page picked in the menu shows its skeleton while it's on its way", async ({ page }) => {
+  test.setTimeout(180_000);
   await page.setViewportSize({ width: 1280, height: 900 });
   let held = 0;
-  await page.route(/\/office(\/casuals)?(\?|$)/, async (route) => {
+  await page.route(/\/office(\/[^?#]*)?(\?|$)/, async (route) => {
     const request = route.request();
     if (request.headers()["rsc"] === "1" && request.headers()["next-router-prefetch"] !== "1") {
       held += 1;
-      await new Promise((done) => setTimeout(done, 1500));
+      await new Promise((done) => setTimeout(done, 800));
     }
     await route.continue();
   });
-  await officeLogin(page, "skeleton");
+  await officeLogin(page, "skeleton", "admin");
   const skeleton = page.locator("[data-skeleton]");
   await expect(skeleton).toHaveCount(0);
 
-  await (await menuLink(page, "Casuals")).click();
-  await expect(skeleton).toBeVisible();
-  await expect(skeleton.getByText("Loading the page…")).toBeAttached();
-  await expect(page.getByRole("heading", { level: 1, name: "Casuals" })).toBeVisible();
-  await expect(page).toHaveURL(`${acme}/office/casuals`);
-  await expect(skeleton).toHaveCount(0);
-
-  await (await menuLink(page, "Dashboard")).click();
-  await expect(skeleton.getByText("Loading the dashboard…")).toBeAttached();
-  await expect(page).toHaveURL(`${acme}/office`);
-  await expect(skeleton).toHaveCount(0);
-  expect(held).toBeGreaterThanOrEqual(2);
+  const menu = page.getByRole("navigation", { name: "Office menu" });
+  await menu.locator('button[aria-expanded="false"]').click();
+  const links = await menu
+    .getByRole("link")
+    .evaluateAll((els) =>
+      els.map((el) => [el.getAttribute("href") ?? "", el.querySelector("span")?.textContent ?? ""]),
+    );
+  expect(links.length).toBeGreaterThan(15);
+  // From the dashboard to every other page, then back to the dashboard.
+  for (const [href, name] of [
+    ...links.filter(([h]) => h !== "/office"),
+    ["/office", "Dashboard"],
+  ]) {
+    await (await menuLink(page, name!)).click();
+    await expect(skeleton, href).toBeVisible();
+    await expect(
+      skeleton.getByText(href === "/office" ? "Loading the dashboard…" : "Loading the page…"),
+    ).toBeAttached();
+    await expect(page).toHaveURL(`${acme}${href}`);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(skeleton, href).toHaveCount(0);
+  }
+  expect(held).toBeGreaterThanOrEqual(links.length);
 });

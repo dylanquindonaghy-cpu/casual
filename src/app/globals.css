@@ -3,6 +3,12 @@
    would add styles the app doesn't use. */
 @source not "../../.claude";
 
+/* `office:` (Phase 21): a shared part's value for the office's pages (every page under
+   [data-office], and the firm's bar above its login pages), beside the casual app's own, e.g.
+   `rounded-lg office:rounded-row`. tests/unit/ui.office-system.test.ts wants one for every value a
+   shared part has outside the office's system. */
+@custom-variant office (&:where(body:has([data-office]) *));
+
 /* Design tokens (docs/ui-design.md). Each colour becomes utilities: bg-ink, text-ink-muted,
    border-line, bg-urgent-soft and so on. Status colours always travel with their word. These are
    the light theme's values; the dark theme (true greys, D7 as changed in Phase 20) redefines every
@@ -75,6 +81,7 @@
   --color-quiet-line: #7c8189;
   --color-wait-soft: #f2f6fd;
   --color-active: #e3e5e9;
+  --color-count: #eceef1; /* a count: the one grey pill (the office's; Phase 21) */
   --color-button: #ffffff;
   --color-button-line: #7c8189;
   --color-button-hover: #f1f2f4;
@@ -240,6 +247,7 @@
   --color-quiet-line: #6f737b;
   --color-wait-soft: #111a28;
   --color-active: #232529;
+  --color-count: #232529;
   --color-button: #18191c;
   --color-button-line: #6f737b;
   --color-button-hover: #222428;
@@ -307,6 +315,7 @@
     --color-quiet-line: #6f737b;
     --color-wait-soft: #111a28;
     --color-active: #232529;
+    --color-count: #232529;
     --color-button: #18191c;
     --color-button-line: #6f737b;
     --color-button-hover: #222428;
@@ -403,6 +412,7 @@ body:has([data-office]) {
   --color-quiet-line: #dedbd5;
   --color-wait-soft: #f3f6fb;
   --color-active: #ebeae6;
+  --color-count: #e3e1dc;
   --color-button: #efeeeb;
   --color-button-line: #efeeeb;
   --color-button-hover: #e6e5e0;
@@ -468,6 +478,7 @@ body:has([data-office]) {
   --color-quiet-line: #3a3a37;
   --color-wait-soft: #141a22;
   --color-active: #262624;
+  --color-count: #33332f;
   --color-button: #262624;
   --color-button-line: #262624;
   --color-button-hover: #2f2f2c;
@@ -520,6 +531,7 @@ body:has([data-office]) {
     --color-quiet-line: #3a3a37;
     --color-wait-soft: #141a22;
     --color-active: #262624;
+    --color-count: #33332f;
     --color-button: #262624;
     --color-button-line: #262624;
     --color-button-hover: #2f2f2c;
@@ -578,6 +590,19 @@ body:has([data-office]) {
   input[type="file"]:disabled::file-selector-button {
     cursor: not-allowed;
     opacity: 0.6;
+  }
+  /* The office's (Phase 21): a grey pill, as its other buttons. */
+  body:has([data-office]) input[type="file"]::file-selector-button {
+    border: 1px solid var(--color-button-line);
+    border-radius: 9999px;
+    background-color: var(--color-button);
+    transition: background-color 150ms;
+  }
+  body:has([data-office]) input[type="file"]:not(:disabled)::file-selector-button:hover {
+    background-color: var(--color-button-hover);
+  }
+  body:has([data-office]) input[type="file"]:not(:disabled)::file-selector-button:active {
+    background-color: var(--color-button-press);
   }
 }
 

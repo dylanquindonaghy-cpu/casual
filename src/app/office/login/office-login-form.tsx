@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useActionState } from "react";
-import { btn, label, staffBtn, staffField } from "@/app/ui/classes";
+import { btn, field, label } from "@/app/ui/classes";
 import { TooManyTries } from "../../too-many-tries";
 import { requestOfficeLinkAction, type OfficeLoginState } from "./actions";
 
@@ -43,7 +43,7 @@ export function OfficeLoginForm({ firmName, signOff }: { firmName: string; signO
         required
         aria-invalid={invalid}
         aria-describedby={invalid ? "email-problem" : undefined}
-        className={`${staffField} mt-2`}
+        className={`${field} mt-2 w-full`}
       />
       {invalid && (
         <p id="email-problem" className="mt-2 font-semibold text-urgent">
@@ -56,7 +56,7 @@ export function OfficeLoginForm({ firmName, signOff }: { firmName: string; signO
           Something went wrong. Try again.
         </p>
       )}
-      <button type="submit" disabled={pending} className={`${staffBtn.primary} mt-4`}>
+      <button type="submit" disabled={pending} className={`${btn.primary} mt-4 w-full`}>
         {pending ? "Sending…" : "Send me a link"}
       </button>
     </form>

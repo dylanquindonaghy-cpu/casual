@@ -246,6 +246,22 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   strings that only look like one (an entry no longer found fails); every postcode in the approved
   mock-up (`docs/mockups/office-v2.html`) is in the made-up `ZZ` area, and its role switch says
   "mock-up only". A person checks the mock-up for an employer's name, once.
+- Phase 21 (the office's look; docs/ui-design.md "The office's system"):
+  `ui.office-system.test.ts`: every office file, and every shared file and class string an
+  office page renders (found by following the office's imports), uses only the system's spacing,
+  corners, sizes, shadow and transitions, a shared part's casual value only beside its `office:`
+  one; the office's tokens hold the brief's values and match the docs' table both ways; every
+  button has its hover and pressed fills; the office's file button is a grey pill; Next's
+  development button sits bottom-right; the skeletons (no `loading.tsx` in the office, the menu's
+  pending state, a part for every dashboard section). `ui.contrast.test.ts` runs every pair in the
+  office's light and dark. `office.dashboard.test.ts`: the dashboard's parts as drawn (the cards'
+  jumps, "3 of 4 filled", "Not offered yet" in red, the week's dashed line and grey pill, the tinted
+  panels, the one count pill and the urgent places' red one, Waiting on others couldn't load).
+  `office.shell.test.ts`: the menu's 44px rows, grey labels and one count pill. Browser:
+  `office.look.spec.ts` (every page in an admin's menu at 390px and 1440px, light and dark: the
+  office's ground, the serif headline, nothing sideways); `office.shell.spec.ts` (the drawer's
+  rows 44px at 390px; every menu page shows its skeleton while held back);
+  `office.dashboard.spec.ts` (a card jumps to its section; "Open the rota board").
 
 ## Fixtures and the demo seed
 

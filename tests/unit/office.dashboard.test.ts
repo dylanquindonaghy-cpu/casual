@@ -50,6 +50,8 @@ vi.mock("@/app/office/shifts/actions", () => ({
 }));
 
 const { DashboardContent } = await import("@/app/office/dashboard-view");
+const { btn, count, countUrgent } = await import("@/app/ui/classes");
+const { waitingOrFailed } = await import("@/lib/office/pay-dashboard");
 const { AlsoNeedsYou, NeedsItems, needsPageLine, toMarkGroups } =
   await import("@/app/office/needs-items");
 const { attentionText, focusItems, greeting, moreLabels, startLine } =
@@ -402,14 +404,14 @@ const full: Dashboard = {
 // rows are the same for admins and resourcers.
 const render = (
   d: Dashboard,
-  o: { isAdmin?: boolean; shiftsLine?: string; payQueriesWaiting?: number } = {},
+  o: { isAdmin?: boolean; shiftsLine?: string; payQueriesWaiting?: number | null } = {},
 ) =>
   renderToStaticMarkup(
     createElement(DashboardContent, {
       d,
       firmName: "Acme Events",
       shiftsLine: o.shiftsLine,
-      payQueriesWaiting: o.payQueriesWaiting ?? 0,
+      payQueriesWaiting: o.payQueriesWaiting === undefined ? 0 : o.payQueriesWaiting,
       // Monday 2 November, 18:30 in London: the evening.
       now: at("2026-11-02T18:30:00Z"),
     }),
@@ -1009,6 +1011,94 @@ describe("the page (Phases 18 and 20: the dashboard)", () => {
     expect(h1s(render({ ...full, needs: ok({ ...full.needs.data, toMarkMore: true }) }))).toEqual([
       "Evening, Acme Events. At least 14 things need you.",
     ]);
+  });
+
+  // Phase 21's parts, as drawn (Dylan's brief; the claims-auditor's round 1).
+  it("this week: the dashed line where every place is filled, and the rota board as a grey pill", () => {
+    const week = section(render(full), "this-week");
+    expect(week).toMatch(
+      /<span aria-hidden="true" class="[^"]*border-t border-dashed border-line-strong[^"]*"><span class="[^"]*">All filled<\/span><\/span>/,
+    );
+    expect(week).toContain(
+      `<a class="${btn.secondary} w-full sm:row-start-3 sm:w-auto sm:self-start" href="/office/events">Open the rota board</a>`,
+    );
+    expect(btn.secondary).toMatch(/(?<![\w-])bg-button(?![\w-])/);
+    expect(btn.secondary).toMatch(/(?<![\w-])rounded-full(?![\w-])/);
+    // Couldn't load: neither, only the words.
+    const broken = section(render({ ...full, week: failed }), "this-week");
+    expect(broken).not.toContain("All filled");
+    expect(broken).not.toContain("Open the rota board");
+  });
+
+  it('an urgent place nobody\'s been offered says "Not offered yet" in red; the count beside the heading is red too', () => {
+    if (!full.urgent.ok) throw new Error("fixture");
+    const [shown] = full.urgent.data.events;
+    const session = shown?.sessions[0];
+    if (!shown || !session) throw new Error("fixture");
+    const html = render({
+      ...full,
+      urgent: ok({
+        more: false,
+        events: [{ ...shown, sessions: [{ ...session, shiftId: "u9", offered: 0 }] }],
+      }),
+    });
+    const [place] = places(html);
+    expect(place).toMatch(
+      /<p class="text-sm lg:w-40 font-semibold text-urgent">Not offered yet<\/p>/,
+    );
+    // One that was offered: its words in grey.
+    expect(places(render(full))[0]).toMatch(
+      /<p class="text-sm lg:w-40 text-ink-muted">Offered to 4 casuals<\/p>/,
+    );
+    // The office's one count pill; red only for the urgent places.
+    expect(section(render(full), "urgent-places")).toContain(
+      `<span class="${countUrgent}">2</span>`,
+    );
+    expect(section(render(full), "needs-attention")).toContain(`<span class="${count}">11</span>`);
+    expect(countUrgent.replace("bg-urgent-tile text-urgent-ink", "bg-count text-ink-muted")).toBe(
+      count,
+    );
+  });
+
+  it("Needs attention, Waiting on others and Sorted today: tinted panels (a 1px edge a shade darker) of near-white rows", () => {
+    const html = render(full, { payQueriesWaiting: 3 });
+    const panel = (id: string) =>
+      new RegExp(`<section aria-labelledby="${id}" class="([^"]*)"`).exec(html)?.[1] ?? "";
+    expect(panel("needs-attention")).toMatch(
+      /rounded-card border .*border-attention-line bg-attention-soft/,
+    );
+    expect(panel("waiting")).toMatch(/rounded-card border .*border-wait-line bg-wait-soft/);
+    expect(panel("sorted")).toMatch(/rounded-card border .*border-done-line bg-done-soft/);
+    for (const id of ["needs-attention", "waiting", "sorted"]) {
+      const rowClasses = [...section(html, id).matchAll(/<a class="([^"]*)" href=/g)]
+        .map((m) => m[1] ?? "")
+        .filter((c) => c.includes("min-h-16"));
+      expect(rowClasses.length, id).toBeGreaterThan(0);
+      for (const c of rowClasses)
+        expect(c, id).toMatch(/rounded-row border border-line bg-card\/80/);
+    }
+  });
+
+  it("Waiting on others couldn't be read: its card and section say so, the rest still shows", () => {
+    const html = render(full, { payQueriesWaiting: null });
+    expect(tiles(html)[2]).toBe("Waiting on others – Couldn't load → #waiting");
+    expect(words(section(html, "waiting"))).toContain(SECTION_ERROR);
+    expect(words(section(html, "waiting"))).not.toContain("Nothing is waiting on anyone else.");
+    expect(rows(html, "Waiting on others")).toEqual([]);
+    expect(words(section(html, "needs-attention"))).not.toContain(SECTION_ERROR);
+    // The headline doesn't count what waits on others: the same as when it could be read.
+    expect(h1s(html)).toEqual(h1s(render(full, { payQueriesWaiting: 3 })));
+    expect(h1s(html)).toEqual(["Evening, Acme Events. 14 things need you."]);
+  });
+
+  it("the page's read of it: a role without pay is 0, a failed read is null (not the whole page)", async () => {
+    expect(await waitingOrFailed(async () => 4)).toBe(4);
+    expect(await waitingOrFailed(async () => null)).toBe(0);
+    expect(
+      await waitingOrFailed(async () => {
+        throw new Error("connection lost");
+      }),
+    ).toBeNull();
   });
 
   it("no dashboard link repeats a menu link's name", () => {

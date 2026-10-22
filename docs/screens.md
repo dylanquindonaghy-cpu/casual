@@ -9,6 +9,45 @@ of the firm's colour (darkened until white or near-black ink reads on it at 4.5:
 on the page's own grey with no line under it; in the copy kept for no signal, an "Offline" plate at
 its end. The platform's own address has no bar.
 
+## The office's look (Phase 21)
+
+Dylan's brief (PLAN.md Phase 21): a visual and layout pass over every office page; the look
+(Geist, the display serif for each page's headline, the warm off-white page, near-black main
+buttons, the tinted statuses, one depth token) is in `docs/ui-design.md` "Phase 21". Where this
+section says otherwise, it wins over the sections below; every route, label (but those the
+brief changes: "3 of 4 filled", "Offer", "Pay {Fri 30 Oct}", "No sessions" on an empty day, and
+the four cards jumping to their sections), link and action is as before. The casual app is
+unchanged.
+
+- **Menu:** the firm's initial on its colour and its name at the top; the page you're on a grey
+  pill (every row 44px tall); small grey group names; every count the one small grey pill (the
+  same as beside a section's heading); at its foot "Week {43} · {19 Oct} – {25 Oct}" over "Pay {Fri 30 Oct}", then you and the
+  moon/sun button on a white row.
+- **Dashboard** (`/office`): a small tracked line "{Thursday 22 October} · Week {43} · Pay {Fri 30
+  Oct}" over the greeting ("{Morning}, {Acme Events}." in the serif, then "{10} things need
+  you."), the line where to start, and the shifts line in grey with its phone. Four tinted cards
+  (Urgent places, Needs attention, Waiting on others, Sorted today: an icon, the label in small
+  capitals, the number, one grey line), each a link to its own section on the page
+  (`#urgent-places`, `#needs-attention`, `#waiting`, `#sorted`; the sections keep their links to
+  the whole lists). **Urgent places to fill** with its count and "All on Events & sessions": one
+  rounded list, a row a place: a grey date tile ("Fri", "23", "Oct"), the role (→ the session's
+  page), where and the time in grey, a slim bar of the places filled with "{3} of {4} filled" (in
+  place of "1 of 4 places free" and the seats), "Not offered yet" in red or who it was offered
+  to, then "Offer" (a small black pill; its name is still "Offer to someone") and "…". **This
+  week:** the places still to fill large at the bottom left with "{42} of {53} filled, {Fri to
+  Sun}." and "Open the rota board" (a grey pill) under it; a bar a day, Monday to Sunday, its
+  height the share of its places filled against a dashed "All filled" line, red on a day with
+  urgent gaps, grey once a day has gone; under each its name ("Today" in a black pill) and "{5/7}",
+  "done", "{5} to mark" (yellow) or "No sessions". Below 640px the bars lie down, one row a day.
+  **Needs attention** (its count, "Open Needs attention"), **Waiting on others** and **Sorted
+  today**: tinted panels of white rows, as before, with each row's action a grey pill.
+- **Needs attention's page:** its parts as amber panels of white rows; "Also needs you" a pale red
+  card beside them.
+- **Every other page:** its headline in the serif; the main button near-black, the others grey
+  pills; cards, lists and tables white with the soft edge; the board's filters in one row that
+  scrolls sideways on a phone. While a page picked in the menu is on its way, its skeleton (the
+  drawer shuts as you pick on a phone). A record's facts (a cancellation's) in one white card.
+
 ## The pass redesign (Phase 20)
 
 Dylan's mock-up from his reference screenshots (PLAN.md Phase 20; its "What's different" lists
@@ -97,7 +136,8 @@ tokens) is in `docs/ui-design.md` "Phase 20".
   enquiries that need a person, as the menu counts them), so the two tiles under it add up to it
   ("Nothing needs you right now."; "At least …" when a part couldn't load, as before). Then where to start ("Start with {Thursday}'s
   {door supervisor} at {08:00}: {not offered to anyone yet}."; with no urgent place, the subline
-  as before), "{Monday 2 November} · Week {45} · Pay on {Fri 13 Nov}", and the shifts line. Four
+  as before), "{Monday 2 November} · Week {45} · Pay on {Fri 13 Nov}" (Phase 21: "Pay {Fri 13
+  Nov}", above the greeting), and the shifts line. Four
   count tiles: "Urgent places" (pale red, the days they're on → Events & sessions' Urgent),
   "Needs attention" (yellow, "{5} sessions to mark, {2} uploads" → Needs attention), "Waiting on
   others" (pale blue, "Pay queries with payroll" → Pay queries, or "Nothing waiting on others"),

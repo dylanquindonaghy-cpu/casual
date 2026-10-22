@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { card, muted, page, sectionGap, textLink } from "@/app/ui/classes";
+import { muted, page, sectionGap, staffCard, textLink } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { requireWorker } from "@/lib/auth/current-worker";
 import { myTravel } from "@/lib/portal/travel";
@@ -26,7 +26,7 @@ export default async function TravelPage() {
       <PageHeader title={TRAVEL_TITLE}>
         <p>{TRAVEL_INTRO}</p>
       </PageHeader>
-      <section className={card} aria-label={TRAVEL_TITLE}>
+      <section className={staffCard} aria-label={TRAVEL_TITLE}>
         <p className={muted}>{travelPrivacyText(travel.postcode)}</p>
         <TravelForm travel={travel} signOff={firm.signOff} />
       </section>

@@ -19,14 +19,15 @@ import { qualificationTitle } from "@/lib/portal/qualification-copy";
 import { uploadWhat } from "@/lib/portal/upload-copy";
 import { dayLabel } from "@/lib/rules/reasons";
 import { localDateOf } from "@/lib/time/zoned";
-import { btn, headingGap, meta, nums, textLink } from "../ui/classes";
+import { btn, count, headingGap, meta, nums, textLink } from "../ui/classes";
 import { StatusChip } from "../ui/status-chip";
 import { BookingToCheckActions } from "./keep-booking";
 
 // Needs attention's items, in parts (docs/office-v2.md 3.2; Phases 18 and 20: on their own page,
 // `/office/needs-attention`, a menu link with the one count; the dashboard counts them too). Each
-// part is a region the browser tests find it by, a pale yellow panel with its heading and count,
-// then its items lifted off it and what to do about each: the sessions to mark one row per role,
+// part is a region the browser tests find it by, a pale yellow panel with its heading and count
+// (Phase 21: the dashboard's tinted panels, its items near-white rows on it), then its items and
+// what to do about each: the sessions to mark one row per role,
 // place and time (with how many sessions and people, and each session's way in), each upload by
 // name and time with its own Check, and the enquiries that need a person. Pure: the page loads the
 // data.
@@ -35,9 +36,9 @@ import { BookingToCheckActions } from "./keep-booking";
 const inSentence = (w: string) =>
   /^[A-Z][a-z]/.test(w) ? w.charAt(0).toLowerCase() + w.slice(1) : w;
 
-// The items of a part, each lifted off its panel.
+// The items of a part, each a near-white row on its panel.
 const items = "mt-3 flex flex-col gap-2";
-const item = "rounded-2xl border border-line bg-card px-4 py-3 shadow-lift";
+const item = "rounded-row border border-line bg-card/80 px-4 py-3";
 
 function Empty({ children }: { children: ReactNode }) {
   return <p className={`${item} text-ink-muted`}>{children}</p>;
@@ -58,13 +59,11 @@ export function Need({
   return (
     <section
       aria-labelledby={id}
-      className="rounded-[22px] border border-attention/15 bg-attention-soft p-4.5"
+      className="rounded-card border border-attention-line bg-attention-soft p-4 sm:p-6"
     >
-      <h3 id={id} className="flex items-center gap-2 text-lg font-semibold">
+      <h3 id={id} className="flex items-center text-lg font-semibold tracking-heading">
         {NEEDS_HEADINGS[id]}
-        <span className={`rounded-full bg-card px-2 text-sm text-ink ${nums}`}>
-          {more ? `${n}+` : n}
-        </span>
+        <span className={count}>{more ? `${n}+` : n}</span>
       </h3>
       {children}
       {more && <p className={`${meta} mt-2`}>Showing the first 50.</p>}
@@ -164,7 +163,8 @@ export function NeedsItems({
                 key={g.sessions[0]!.shiftId}
                 className={`${item} flex flex-wrap items-center gap-x-4 gap-y-2`}
               >
-                <div className="min-w-0 flex-1">
+                {/* At least 192px for the words, so on a phone the chip goes under them. */}
+                <div className="min-w-48 flex-1">
                   <p className="font-semibold">
                     {roleLabel(g.role)}
                     {g.site ? ` at ${g.site}` : ""}
@@ -399,9 +399,9 @@ export function AlsoNeedsYou({
   return (
     <section
       aria-labelledby="also-needs-you"
-      className="flex flex-col items-start gap-2.5 self-start rounded-[22px] border border-urgent/15 bg-urgent-soft p-4.5 lg:col-span-3"
+      className="flex flex-col items-start gap-3 self-start rounded-card border border-urgent-line bg-urgent-soft p-4 sm:p-6 lg:col-span-3"
     >
-      <h2 id="also-needs-you" className="text-base font-semibold">
+      <h2 id="also-needs-you" className="text-lg font-semibold tracking-heading">
         Also needs you
       </h2>
       <p>

@@ -13,6 +13,12 @@ const nextConfig: NextConfig = {
   // made-up name (CUSTOM_DOMAIN in playwright.config.ts; .test is reserved, so it never exists on
   // the internet). A production server ignores this.
   allowedDevOrigins: ["shifts.acme-events.test"],
+  // Development only: Next's own round "N" button (its dev tools) is drawn bottom-left unless told
+  // otherwise, which is where the office menu's foot has sat since Phase 20 (you, the pay week and
+  // the moon/sun button, fixed to the window's bottom-left from 1024px): it covered your initials
+  // and read as a dark "X" over the menu (Phase 21). Bottom-right is the page's corner, with
+  // nothing fixed under it. A production build draws no such button.
+  devIndicators: { position: "bottom-right" },
 };
 
 export default nextConfig;

@@ -13,7 +13,7 @@ import { closeEnquiry, replyToEnquiry } from "@/lib/office/enquiry-actions";
 import { WHATSAPP_WINDOW_MS } from "@/lib/office/enquiry-rules";
 import { captureTransport } from "../helpers/auth";
 import { bookingFirm } from "../helpers/booking-fixture";
-import { appRolePool, superuserPool } from "../helpers/db";
+import { appRolePool, NO_FIRM_LINE, superuserPool } from "../helpers/db";
 
 // Enquiries (docs/office-v2.md 3.6; 12D.1) on the real database as the app role: the loader that
 // joins a message to its replies, its question and the log; each outcome label from what was
@@ -39,9 +39,12 @@ afterAll(async () => {
 const sid = () => `SM${randomBytes(16).toString("hex")}`;
 const HOUR = 3_600_000;
 
+// 07700 900400-900599, but never NO_FIRM_LINE (900499, tests/helpers/db.ts): a voicemail stored to
+// it here would still be there when inbound.voice's "a number no firm has" looks for one.
 let nextLine = Math.floor(Math.random() * 200);
 async function freshLine(): Promise<string> {
   nextLine = (nextLine + 1) % 200;
+  if (`+447700900${400 + nextLine}` === NO_FIRM_LINE) nextLine += 1;
   const line = `+447700900${400 + nextLine}`;
   await su.query("update firms set shifts_line_e164 = null where shifts_line_e164 = $1", [line]);
   return line;

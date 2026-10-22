@@ -303,7 +303,7 @@ export function UploadsToCheck({ items }: { items: UploadToCheck[] }) {
                   alt={item.alt}
                   width={160}
                   height={160}
-                  className="h-40 w-40 rounded-lg border border-line bg-quiet-soft object-contain"
+                  className="h-40 w-40 rounded-row border border-line bg-quiet-soft object-contain"
                 />
               </a>
               <div className="min-w-0">

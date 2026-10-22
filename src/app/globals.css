@@ -3,6 +3,12 @@
    would add styles the app doesn't use. */
 @source not "../../.claude";
 
+/* `office:` (Phase 21): a shared part's value for the office's pages (every page under
+   [data-office], and the firm's bar above its login pages), beside the casual app's own, e.g.
+   `rounded-lg office:rounded-row`. tests/unit/ui.office-system.test.ts wants one for every value a
+   shared part has outside the office's system. */
+@custom-variant office (&:where(body:has([data-office]) *));
+
 /* Design tokens (docs/ui-design.md). Each colour becomes utilities: bg-ink, text-ink-muted,
    border-line, bg-urgent-soft and so on. Status colours always travel with their word. These are
    the light theme's values; the dark theme (true greys, D7 as changed in Phase 20) redefines every
@@ -63,6 +69,24 @@
   /* The demo bar (16.1): the same dark amber strip in both themes. */
   --color-demo: #3d2e0a;
   --color-on-demo: #fde7b0;
+  /* Phase 21 (the office's look, which gives these their own values: below): the edge of each
+     status's tint (a chip's border; in the office, a tinted card's 1px border a shade darker), the
+     waiting panel's wash, the grey pill of the page you're on, a grey button (`button`, its edge
+     and its hover and pressed fills; here, the plain outlined button it has been) and an ink
+     button pressed. */
+  --color-urgent-line: #c4242a;
+  --color-attention-line: #b45309;
+  --color-wait-line: #a9c1e8;
+  --color-done-line: #1f7a47;
+  --color-quiet-line: #7c8189;
+  --color-wait-soft: #f2f6fd;
+  --color-active: #e3e5e9;
+  --color-count: #eceef1; /* a count: the one grey pill (the office's; Phase 21) */
+  --color-button: #ffffff;
+  --color-button-line: #7c8189;
+  --color-button-hover: #f1f2f4;
+  --color-button-press: #f1f2f4;
+  --color-ink-press: #000000;
 
   /* Depth (Phase 20): the page, cards lifted off it, then the pass and what floats over the page.
      Five layers, and nothing else casts one (tests/unit/ui.flat.test.ts): a card or row lifted
@@ -73,6 +97,16 @@
   --shadow-pass: 0 2px 4px rgb(16 24 40 / 0.08), 0 14px 28px -12px rgb(16 24 40 / 0.28);
   --shadow-bar: 0 -1px 0 rgb(16 24 40 / 0.05), 0 -8px 24px rgb(16 24 40 / 0.07);
   --inset-shadow-sunk: inset 0 1px 3px rgb(16 24 40 / 0.08);
+  /* The office's one depth token (Phase 21, `soft`): a hairline ring and a soft fall, for its
+     white cards and what floats over its page (a menu, the account menu, a confirmation). In
+     dark, the ring is what shows: an edge the fall can't draw on a dark page. */
+  --shadow-soft: 0 0 0 1px rgb(28 25 20 / 0.05), 0 4px 12px -4px rgb(28 25 20 / 0.07);
+
+  /* Corners (Phase 21, the office's): cards 20px, rows 14px, pills round (rounded-full). */
+  --radius-card: 1.25rem;
+  --radius-row: 0.875rem;
+  /* A heading's tracking: Tailwind's tight here, a little less in the office (Phase 21). */
+  --tracking-heading: -0.025em;
 
   /* One type scale (docs/office-v2.md 3.1; Phase 18): 12 · 13 · 15 · 18 · 24 · 30 · 40px, and no
      other size. 40px is for a shift's time (in sign figures) and the greetings (Phase 20) only. */
@@ -206,11 +240,25 @@
   --color-quiet-ink: #d4d6da;
   --color-demo: #3d2e0a;
   --color-on-demo: #fde7b0;
+  --color-urgent-line: #ff8b80;
+  --color-attention-line: #f2a541;
+  --color-wait-line: #2c4166;
+  --color-done-line: #5fd08b;
+  --color-quiet-line: #6f737b;
+  --color-wait-soft: #111a28;
+  --color-active: #232529;
+  --color-count: #232529;
+  --color-button: #18191c;
+  --color-button-line: #6f737b;
+  --color-button-hover: #222428;
+  --color-button-press: #222428;
+  --color-ink-press: #ffffff;
   --shadow-lift: 0 1px 2px rgb(0 0 0 / 0.5);
   --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.5), 0 10px 24px -6px rgb(0 0 0 / 0.6);
   --shadow-pass: 0 2px 4px rgb(0 0 0 / 0.5), 0 16px 32px -12px rgb(0 0 0 / 0.8);
   --shadow-bar: 0 -1px 0 rgb(255 255 255 / 0.07), 0 -8px 24px rgb(0 0 0 / 0.5);
   --inset-shadow-sunk: inset 0 1px 3px rgb(0 0 0 / 0.6);
+  --shadow-soft: 0 0 0 1px rgb(255 255 255 / 0.07), 0 4px 12px -4px rgb(0 0 0 / 0.5);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -260,11 +308,25 @@
     --color-quiet-ink: #d4d6da;
     --color-demo: #3d2e0a;
     --color-on-demo: #fde7b0;
+    --color-urgent-line: #ff8b80;
+    --color-attention-line: #f2a541;
+    --color-wait-line: #2c4166;
+    --color-done-line: #5fd08b;
+    --color-quiet-line: #6f737b;
+    --color-wait-soft: #111a28;
+    --color-active: #232529;
+    --color-count: #232529;
+    --color-button: #18191c;
+    --color-button-line: #6f737b;
+    --color-button-hover: #222428;
+    --color-button-press: #222428;
+    --color-ink-press: #ffffff;
     --shadow-lift: 0 1px 2px rgb(0 0 0 / 0.5);
     --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.5), 0 10px 24px -6px rgb(0 0 0 / 0.6);
     --shadow-pass: 0 2px 4px rgb(0 0 0 / 0.5), 0 16px 32px -12px rgb(0 0 0 / 0.8);
     --shadow-bar: 0 -1px 0 rgb(255 255 255 / 0.07), 0 -8px 24px rgb(0 0 0 / 0.5);
     --inset-shadow-sunk: inset 0 1px 3px rgb(0 0 0 / 0.6);
+    --shadow-soft: 0 0 0 1px rgb(255 255 255 / 0.07), 0 4px 12px -4px rgb(0 0 0 / 0.5);
   }
 }
 
@@ -291,6 +353,190 @@ body[data-firm-colour] {
     --color-brand: var(--firm-dark-fill);
     --color-on-brand: var(--firm-dark-on-fill);
     --color-brand-ink: var(--firm-dark-ink);
+  }
+}
+
+/* The office's look (Phase 21; docs/ui-design.md "The office's system"): every page under
+   /office carries [data-office] (src/app/office/layout.tsx), and these blocks give the page its
+   own values of the same tokens, so every class means the same thing in both places and the
+   casual app keeps its Phase 20 look. A warm off-white page and white cards; near-black main
+   buttons (the firm's colour stays on its initial in the menu, never on a button: these come after
+   the firm's rules above, so they win); red, amber, blue and green only for statuses and the
+   dashboard's tinted cards, each tint with its 1px edge a shade darker; grey pills for other
+   buttons and for the page you're on. Its type scale has the same seven steps at 12 · 13 · 15 ·
+   17 · 20 · 28 · 40px (lg, 2xl and 3xl change), headings a little tighter, and each page's
+   headline in the display serif (`text-title`). The dark blocks change only colours, and hold the
+   same values (tests/unit/ui.contrast.test.ts checks them, and every pair's contrast). */
+body:has([data-office]) {
+  --color-ink: #1c1b18;
+  --color-ink-muted: #63605a;
+  --color-ink-hover: #34322d;
+  --color-on-ink: #ffffff;
+  --color-line: #e7e5e0;
+  --color-line-strong: #8c887f;
+  --color-canvas: #f6f5f3;
+  --color-card: #ffffff;
+  --color-panel: #f6f5f3;
+  --color-raised: #efeeeb;
+  --color-switch-off: #7b776f;
+  --color-scrim: #1c1b18;
+  --color-brand: #1c1b18;
+  --color-on-brand: #ffffff;
+  --color-brand-ink: #1c1b18;
+  --color-urgent: #b42318;
+  --color-urgent-soft: #fdf3f1;
+  --color-urgent-ink: #7a2116;
+  --color-urgent-tile: #fbe6e2;
+  --color-urgent-fill: #c4242a;
+  --color-urgent-fill-hover: #a51d22;
+  --color-on-urgent: #ffffff;
+  --color-attention: #a15c07;
+  --color-attention-soft: #fdf8ec;
+  --color-attention-ink: #5e4106;
+  --color-hivis: #faefd2;
+  --color-on-hivis: #5e4106;
+  --color-wait-tile: #e6edf8;
+  --color-wait-ink: #1d3c6b;
+  --color-done: #1f7a47;
+  --color-done-soft: #f1f8f3;
+  --color-done-ink: #17502f;
+  --color-done-tile: #e2f1e7;
+  --color-done-fill: #1f7a47;
+  --color-on-done: #ffffff;
+  --color-quiet-soft: #f3f2ef;
+  --color-quiet-ink: #4a4741;
+  --color-urgent-line: #f0cdc6;
+  --color-attention-line: #ecd8a0;
+  --color-wait-line: #c9d7ee;
+  --color-done-line: #c0dfca;
+  --color-quiet-line: #dedbd5;
+  --color-wait-soft: #f3f6fb;
+  --color-active: #ebeae6;
+  --color-count: #e3e1dc;
+  --color-button: #efeeeb;
+  --color-button-line: #efeeeb;
+  --color-button-hover: #e6e5e0;
+  --color-button-press: #dcdad5;
+  --color-ink-press: #000000;
+  --text-lg: 1.0625rem;
+  --text-lg--line-height: 1.5rem;
+  --text-2xl: 1.25rem;
+  --text-2xl--line-height: 1.75rem;
+  --text-3xl: 1.75rem;
+  --text-3xl--line-height: 2.25rem;
+  --tracking-heading: -0.015em;
+  --title-font:
+    var(--font-instrument-serif), var(--font-instrument-serif-ext), Georgia, "Times New Roman",
+    serif;
+  --title-size: var(--text-3xl);
+  --title-leading: var(--text-3xl--line-height);
+  --title-weight: 400;
+  --title-tracking: -0.01em;
+}
+:root[data-theme="dark"] body:has([data-office]) {
+  --color-ink: #f2f1ee;
+  --color-ink-muted: #a8a59e;
+  --color-ink-hover: #dcdad5;
+  --color-on-ink: #121211;
+  --color-line: #2c2c29;
+  --color-line-strong: #77746d;
+  --color-canvas: #121211;
+  --color-card: #1c1c1a;
+  --color-panel: #121211;
+  --color-raised: #262624;
+  --color-switch-off: #807d76;
+  --color-scrim: #000000;
+  --color-brand: #f2f1ee;
+  --color-on-brand: #121211;
+  --color-brand-ink: #f2f1ee;
+  --color-urgent: #ff8a7a;
+  --color-urgent-soft: #211514;
+  --color-urgent-ink: #ffc8bf;
+  --color-urgent-tile: #3a1e1b;
+  --color-urgent-fill: #cf3a33;
+  --color-urgent-fill-hover: #b02e28;
+  --color-on-urgent: #ffffff;
+  --color-attention: #f0a742;
+  --color-attention-soft: #1f1a10;
+  --color-attention-ink: #f8dfa0;
+  --color-hivis: #362c12;
+  --color-on-hivis: #f8dfa0;
+  --color-wait-tile: #1a2638;
+  --color-wait-ink: #c9dbf7;
+  --color-done: #5fd08b;
+  --color-done-soft: #111a14;
+  --color-done-ink: #bfeccd;
+  --color-done-tile: #16291d;
+  --color-done-fill: #1f7a47;
+  --color-on-done: #ffffff;
+  --color-quiet-soft: #232321;
+  --color-quiet-ink: #d6d4cf;
+  --color-urgent-line: #55302b;
+  --color-attention-line: #54461f;
+  --color-wait-line: #2c3d57;
+  --color-done-line: #27452f;
+  --color-quiet-line: #3a3a37;
+  --color-wait-soft: #141a22;
+  --color-active: #262624;
+  --color-count: #33332f;
+  --color-button: #262624;
+  --color-button-line: #262624;
+  --color-button-hover: #2f2f2c;
+  --color-button-press: #383834;
+  --color-ink-press: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) body:has([data-office]) {
+    --color-ink: #f2f1ee;
+    --color-ink-muted: #a8a59e;
+    --color-ink-hover: #dcdad5;
+    --color-on-ink: #121211;
+    --color-line: #2c2c29;
+    --color-line-strong: #77746d;
+    --color-canvas: #121211;
+    --color-card: #1c1c1a;
+    --color-panel: #121211;
+    --color-raised: #262624;
+    --color-switch-off: #807d76;
+    --color-scrim: #000000;
+    --color-brand: #f2f1ee;
+    --color-on-brand: #121211;
+    --color-brand-ink: #f2f1ee;
+    --color-urgent: #ff8a7a;
+    --color-urgent-soft: #211514;
+    --color-urgent-ink: #ffc8bf;
+    --color-urgent-tile: #3a1e1b;
+    --color-urgent-fill: #cf3a33;
+    --color-urgent-fill-hover: #b02e28;
+    --color-on-urgent: #ffffff;
+    --color-attention: #f0a742;
+    --color-attention-soft: #1f1a10;
+    --color-attention-ink: #f8dfa0;
+    --color-hivis: #362c12;
+    --color-on-hivis: #f8dfa0;
+    --color-wait-tile: #1a2638;
+    --color-wait-ink: #c9dbf7;
+    --color-done: #5fd08b;
+    --color-done-soft: #111a14;
+    --color-done-ink: #bfeccd;
+    --color-done-tile: #16291d;
+    --color-done-fill: #1f7a47;
+    --color-on-done: #ffffff;
+    --color-quiet-soft: #232321;
+    --color-quiet-ink: #d6d4cf;
+    --color-urgent-line: #55302b;
+    --color-attention-line: #54461f;
+    --color-wait-line: #2c3d57;
+    --color-done-line: #27452f;
+    --color-quiet-line: #3a3a37;
+    --color-wait-soft: #141a22;
+    --color-active: #262624;
+    --color-count: #33332f;
+    --color-button: #262624;
+    --color-button-line: #262624;
+    --color-button-hover: #2f2f2c;
+    --color-button-press: #383834;
+    --color-ink-press: #ffffff;
   }
 }
 
@@ -345,6 +591,19 @@ body[data-firm-colour] {
     cursor: not-allowed;
     opacity: 0.6;
   }
+  /* The office's (Phase 21): a grey pill, as its other buttons. */
+  body:has([data-office]) input[type="file"]::file-selector-button {
+    border: 1px solid var(--color-button-line);
+    border-radius: 9999px;
+    background-color: var(--color-button);
+    transition: background-color 150ms;
+  }
+  body:has([data-office]) input[type="file"]:not(:disabled)::file-selector-button:hover {
+    background-color: var(--color-button-hover);
+  }
+  body:has([data-office]) input[type="file"]:not(:disabled)::file-selector-button:active {
+    background-color: var(--color-button-press);
+  }
 }
 
 /* The sign figures (times, dates, gates, counts): Instrument Sans semibold, fixed-width digits, a
@@ -355,6 +614,57 @@ body[data-firm-colour] {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
+}
+
+/* A page's headline (PageHeader's <h1>): the casual app's 24px semibold sans; in the office
+   (Phase 21) the --title-* values above make it the display serif at 28px. */
+@utility text-title {
+  font-family: var(
+    --title-font,
+    var(--font-instrument),
+    var(--font-instrument-ext),
+    ui-sans-serif,
+    system-ui,
+    sans-serif
+  );
+  font-size: var(--title-size, var(--text-2xl));
+  line-height: var(--title-leading, var(--text-2xl--line-height));
+  font-weight: var(--title-weight, 600);
+  letter-spacing: var(--title-tracking, -0.025em);
+}
+
+/* The office's faces (Phase 21; src/app/office/office-fonts.ts puts their variables on the
+   [data-office] wrapper): Geist for words, with its fixed-width digits; Instrument Serif for a
+   page's headline (`font-display`, the dashboard's greeting); and the big numbers (`font-stat`:
+   the dashboard's counts). */
+@layer base {
+  [data-office] {
+    font-family:
+      var(--font-geist),
+      var(--font-geist-ext),
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      "Segoe UI",
+      Roboto,
+      Arial,
+      sans-serif;
+  }
+}
+@utility font-display {
+  font-family:
+    var(--font-instrument-serif), var(--font-instrument-serif-ext), Georgia, "Times New Roman",
+    serif;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+@utility font-stat {
+  font-family:
+    var(--font-geist-mono), var(--font-geist-mono-ext), ui-monospace, "SFMono-Regular", Menlo,
+    monospace;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
 }
 
 /* The greetings ("Hi Zoe", "Evening, Acme Events."): Instrument Serif, its one weight (Phase 20). */

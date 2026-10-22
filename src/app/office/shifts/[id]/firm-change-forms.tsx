@@ -91,7 +91,7 @@ export function MoveShiftForm({
     });
   return (
     <form
-      className="mt-4 flex flex-col gap-5"
+      className="mt-4 flex flex-col gap-6"
       onSubmit={(e) => {
         e.preventDefault();
         save();
@@ -185,7 +185,7 @@ export function CancelShiftForm({ shiftId, booked }: { shiftId: string; booked: 
         Cancel this shift
         <Chevron />
       </summary>
-      <div className="mt-4 flex flex-col gap-4 rounded-lg border-2 border-urgent bg-urgent-soft p-4">
+      <div className="mt-4 flex flex-col gap-4 rounded-row border border-urgent-line bg-urgent-soft p-4">
         <p>
           {booked === 0
             ? "Nobody is booked on it."
@@ -252,7 +252,7 @@ export function CancelBookingForm({
       </summary>
       <div
         className={`mt-3 flex max-w-md flex-col gap-3 ${
-          done ? "" : "rounded-lg border-2 border-urgent bg-urgent-soft p-4"
+          done ? "" : "rounded-row border border-urgent-line bg-urgent-soft p-4"
         }`}
       >
         {!done && (

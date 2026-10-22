@@ -13,7 +13,7 @@ import { Icon } from "../../ui/icons";
 
 const PILL: Record<PillTone, string> = {
   urgent: "bg-urgent-fill text-on-urgent",
-  open: "border-[1.5px] border-ink-muted bg-card text-ink",
+  open: "border border-ink-muted bg-card text-ink",
   full: "bg-raised text-ink-muted",
 };
 
@@ -44,13 +44,13 @@ export function EventRow({
   return (
     <div className={first ? "" : "border-t border-line"}>
       <div className="grid grid-cols-[16rem_repeat(14,minmax(0,1fr))] items-stretch">
-        <div className="flex min-h-16 min-w-0 items-center gap-2 py-2 pr-2.5 pl-2">
+        <div className="flex min-h-16 min-w-0 items-center gap-2 p-2">
           <button
             type="button"
             aria-expanded={open}
             aria-controls={panelId}
             onClick={toggle}
-            className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 py-1 text-left hover:bg-quiet-soft"
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-row px-2 py-1 text-left transition-colors hover:bg-quiet-soft active:bg-raised"
           >
             <Icon
               name="chevron"
@@ -75,7 +75,7 @@ export function EventRow({
         {cells.map((pills, i) => (
           <div
             key={i}
-            className={`flex flex-col justify-center gap-[3px] px-[3px] py-1.5 ${weekend[i] ? "bg-canvas" : ""}`}
+            className={`flex flex-col justify-center gap-1 px-1 py-2 ${weekend[i] ? "bg-canvas" : ""}`}
           >
             {pills.map((p) => (
               <button
@@ -88,7 +88,7 @@ export function EventRow({
                 className={`flex flex-col items-center ${hidden ? "opacity-50" : ""}`}
               >
                 <span
-                  className={`flex h-7 w-full items-center justify-center rounded-[9px] font-sign text-sm ${PILL[p.tone]}`}
+                  className={`flex h-7 w-full items-center justify-center rounded-full text-sm font-semibold tabular-nums ${PILL[p.tone]}`}
                 >
                   {p.text}
                 </span>
@@ -101,7 +101,7 @@ export function EventRow({
         ))}
       </div>
       <div id={panelId} hidden={!open}>
-        {open && <div className="mx-3 mb-3.5 animate-in">{panel}</div>}
+        {open && <div className="mx-3 mb-4 animate-in">{panel}</div>}
       </div>
     </div>
   );

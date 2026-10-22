@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { card, muted, nums, page, sectionGap, textLink } from "@/app/ui/classes";
+import { muted, nums, page, sectionGap, staffCard, textLink } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { StatusChip } from "@/app/ui/status-chip";
 import { requireWorker } from "@/lib/auth/current-worker";
@@ -39,7 +39,7 @@ export default async function UploadPage({ params }: { params: Promise<{ type: s
     <main className={page.staff}>
       <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
       <PageHeader title={`Upload your ${q.name}`} />
-      <section className={card} aria-label={name}>
+      <section className={staffCard} aria-label={name}>
         <p className={`text-base ${nums}`}>
           <StatusChip tone={STATUS_TONES[q.status]}>{statusLabel(q)}</StatusChip>
           {dateLine(q, year) && ` · ${dateLine(q, year)}`}

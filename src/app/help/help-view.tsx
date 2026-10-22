@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { h2, rows, staffBtn } from "../ui/classes";
+import { h2, staffBtn, staffRows } from "../ui/classes";
 import { PageHeader } from "../ui/page-header";
 import type { HelpFacts } from "@/lib/portal/help-facts";
 import { postcodeAttribution } from "@/lib/travel/attribution";
@@ -61,7 +61,7 @@ export function HelpView({
         <h2 id="help-contents" className="text-base font-semibold text-ink-muted">
           On this page
         </h2>
-        <ul role="list" className={`${rows} mt-2`}>
+        <ul role="list" className={`${staffRows} mt-2`}>
           {SECTIONS.filter((s) => s.id !== "travel-area" || facts.travelOn).map((s) => (
             <li key={s.id}>
               <a

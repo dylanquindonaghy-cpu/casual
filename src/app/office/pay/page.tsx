@@ -41,14 +41,14 @@ function Counts({ d }: { d: PayDashboard }) {
   return (
     <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <div className={tile}>
-        <p className="text-3xl font-bold text-ink">{d.waiting.count}</p>
+        <p className="font-stat text-3xl text-ink">{d.waiting.count}</p>
         <p className="font-semibold text-ink">Pay queries waiting</p>
         <p className={meta}>
           {d.waiting.oldest ? `Oldest: ${timeOnDay(d.waiting.oldest, tz)}.` : "None waiting."}
         </p>
       </div>
       <div className={tile}>
-        <p className="text-2xl font-bold text-ink">
+        <p className="text-2xl font-semibold tracking-heading text-ink">
           {d.digest.next ? timeOnDay(d.digest.next, tz) : "None scheduled"}
         </p>
         <p className="font-semibold text-ink">Next digest</p>
@@ -60,12 +60,14 @@ function Counts({ d }: { d: PayDashboard }) {
         ))}
       </div>
       <div className={tile}>
-        <p className="text-3xl font-bold text-ink">{d.sortedThisWeek}</p>
+        <p className="font-stat text-3xl text-ink">{d.sortedThisWeek}</p>
         <p className="font-semibold text-ink">Sorted this week</p>
         <p className={meta}>Since {dayLabel(d.weekStart)}.</p>
       </div>
       <div className={tile}>
-        <p className="text-2xl font-bold text-ink">{dayLabel(d.nextPayDate)}</p>
+        <p className="text-2xl font-semibold tracking-heading text-ink">
+          {dayLabel(d.nextPayDate)}
+        </p>
         <p className="font-semibold text-ink">Next pay date</p>
         <p className={meta}>
           {d.nextPayDateFrom === "pay records"

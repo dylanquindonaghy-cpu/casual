@@ -5,7 +5,8 @@ import { describe, expect, it } from "vitest";
 // Contrast in both themes (docs/office-v2.md 3.1 and D7; PLAN.md 12A.1): every pair of tokens a
 // page puts together meets WCAG AA, text 4.5:1 and borders and controls 3:1, in the light theme
 // (the @theme block of src/app/globals.css) and the dark theme of greys (its two dark blocks,
-// which must hold the same values; navy until Phase 20).
+// which must hold the same values; navy until Phase 20). Phase 21: and in the office's own two
+// (body:has([data-office]) and its two dark blocks: the same tokens, the office's values).
 
 const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
 
@@ -25,7 +26,21 @@ const deviceDark = colours(
     /@media \(prefers-color-scheme: dark\)\s*\{\s*:root:not\(\[data-theme="light"\]\)\s*\{([^}]*)\}/,
   )?.[1],
 );
-const THEMES = { light, dark } as const;
+// The office's (Phase 21): its blocks change some tokens; the rest are the app's.
+const officeBlock = (selector: string) =>
+  colours(
+    css.match(new RegExp(`${selector.replace(/[[\]().:"]/g, "\\$&")}\\s*\\{([^}]*)\\}`))?.[1],
+  );
+const officeLightOwn = officeBlock("body:has([data-office])");
+const officeDarkOwn = officeBlock(':root[data-theme="dark"] body:has([data-office])');
+const officeDeviceDarkOwn = colours(
+  css.match(
+    /@media \(prefers-color-scheme: dark\)\s*\{\s*:root:not\(\[data-theme="light"\]\) body:has\(\[data-office\]\)\s*\{([^}]*)\}/,
+  )?.[1],
+);
+const officeLight = new Map([...light, ...officeLightOwn]);
+const officeDark = new Map([...dark, ...officeDarkOwn]);
+const THEMES = { light, dark, "office light": officeLight, "office dark": officeDark } as const;
 
 // WCAG 2's relative luminance and contrast ratio.
 function luminance(hex: string): number {
@@ -89,6 +104,33 @@ const TEXT: [string, string][] = [
   ["on-hivis", "hivis"],
   ["on-done", "done-fill"],
   ["on-demo", "demo"],
+  // Phase 21 (the office's look): the page you're on, the grey and pressed buttons (a destructive
+  // one's red words on grey), the tinted cards' numbers and grey lines, the panels' rows and
+  // headings on their washes.
+  ["ink", "active"],
+  ["ink-muted", "active"],
+  ["ink", "button"],
+  ["ink", "button-hover"],
+  ["ink", "button-press"],
+  ["urgent", "button"],
+  ["urgent", "button-hover"],
+  ["on-ink", "ink-press"],
+  ...["urgent-tile", "hivis", "wait-tile", "done-tile"].flatMap((bg): [string, string][] => [
+    ["ink", bg],
+    ["ink-muted", bg],
+  ]),
+  ["urgent-ink", "urgent-tile"],
+  ["wait-ink", "wait-soft"],
+  ["ink", "wait-soft"],
+  ...["urgent-soft", "attention-soft", "wait-soft", "done-soft"].map((bg): [string, string] => [
+    "ink-muted",
+    bg,
+  ]),
+  ["attention-ink", "attention-soft"],
+  // The one count pill (its grey; the urgent places' in red), and a pressed text link.
+  ["ink-muted", "count"],
+  ["ink-press", "canvas"],
+  ["ink-press", "card"],
 ];
 
 // Borders, controls and the focus ring against what's around them (3:1).
@@ -115,6 +157,11 @@ describe("the themes (src/app/globals.css)", () => {
     expect(light.size).toBeGreaterThan(20);
     expect([...dark.keys()].sort()).toEqual([...light.keys()].sort());
     expect(Object.fromEntries(deviceDark)).toEqual(Object.fromEntries(dark));
+    // The office's (Phase 21): its dark blocks change what its light block changes, and agree.
+    expect(officeLightOwn.size).toBeGreaterThan(40);
+    expect([...officeDarkOwn.keys()].sort()).toEqual([...officeLightOwn.keys()].sort());
+    expect(Object.fromEntries(officeDeviceDarkOwn)).toEqual(Object.fromEntries(officeDarkOwn));
+    for (const t of officeLightOwn.keys()) expect(light.has(t), t).toBe(true);
   });
 
   it("each theme sets the browser's colour scheme; the device's dark gives way to a light cookie", () => {
@@ -149,6 +196,11 @@ describe("the themes (src/app/globals.css)", () => {
     expect([dark.get("urgent-fill"), dark.get("on-urgent")]).toEqual(["#cf3a33", "#ffffff"]);
     expect(contrast("#cf3a33", "#ffffff")).toBeGreaterThanOrEqual(4.87);
     expect(light.get("switch-off")).toBe("#767b83");
+    // The office's dark (Phase 21): true greys too, a touch warm.
+    for (const t of ["canvas", "card", "raised", "line", "ink-muted"]) {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(officeDark.get(t)!.slice(i, i + 2), 16));
+      expect(Math.max(r!, g!, b!) - Math.min(r!, g!, b!), `office ${t}`).toBeLessThanOrEqual(12);
+    }
   });
 
   for (const [name, theme] of Object.entries(THEMES)) {
@@ -208,10 +260,21 @@ describe("the themes (src/app/globals.css)", () => {
       ).toBeGreaterThanOrEqual(4.5);
   });
 
-  it("every token but the decorative line and scrim is in a checked pair", () => {
+  // The edges of a status's tint and of a grey button (Phase 21) are decorative too: the words say
+  // the status, and the fill draws the button.
+  it("every token but the decorative lines and scrim is in a checked pair", () => {
     const checked = new Set([...TEXT, ...CONTROLS].flat());
     const unchecked = [...light.keys()].filter((t) => !checked.has(t));
-    expect(unchecked).toEqual(["line", "scrim"]);
+    expect(unchecked).toEqual([
+      "line",
+      "scrim",
+      "urgent-line",
+      "attention-line",
+      "wait-line",
+      "done-line",
+      "quiet-line",
+      "button-line",
+    ]);
   });
 
   it("the ratio itself: black on white is 21:1, a colour on itself 1:1", () => {

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { attentionCount, type Dashboard } from "@/lib/office/dashboard";
 import { COUNT_ERROR, SECTION_ERROR, SECTIONS } from "@/lib/office/dashboard-copy";
 import {
@@ -21,30 +21,70 @@ import {
 import { payWeek } from "@/lib/pay/pay-week";
 import { datePartsOfDay } from "@/lib/portal/sign-copy";
 import { dayLabel } from "@/lib/rules/reasons";
-import { btn, meta, textLink } from "../ui/classes";
-import { Icon } from "../ui/icons";
-import { Plate } from "../ui/plate";
+import { btn, count as countStyle, countUrgent, quietLink } from "../ui/classes";
+import { Icon, type IconName } from "../ui/icons";
 import { UrgentPlaces } from "./urgent-places";
 
-// The office dashboard (docs/office-v2.md 3.2, 3.9; docs/screens.md `/office`; Phases 18 and 20),
-// one question: "what needs me now, and where do I start?". A greeting with the one count of what
-// needs you (the urgent places still to fill and Needs attention's items: the menu's count, so
-// they add up) and where to start, with today's date, the pay week and the firm's shifts line; four
-// count tiles (urgent places, needs attention, waiting on others, sorted today); then panels: every
-// urgent place to fill, each with "Offer to someone" and "…" (mark as filled, not urgent); this week
-// as a bar per day with the places still to fill; Needs attention, a row per kind, each to where
-// it's dealt with; "Waiting on others" (pay queries with payroll) and "Sorted today"
-// (cancellations, recorded automatically; enquiries answered; what casuals can see). Pure: the
-// page loads the data (src/lib/office/dashboard-home.ts works out what it says).
+// The office dashboard (docs/office-v2.md 3.2, 3.9; docs/screens.md `/office`; Phases 18, 20 and
+// 21), one question: "what needs me now, and where do I start?". A small date line (today, the
+// week and its pay day); the greeting in the display serif with the one count of what needs you
+// (the urgent places still to fill and Needs attention's items: the menu's count, so they add up)
+// and where to start; the firm's shifts line, quiet. Four tinted cards (urgent places, needs
+// attention, waiting on others, sorted today: hilos's), each jumping to its section; every urgent
+// place in one rounded list (Apple Wallet's), each with "Offer" and "…" (mark as filled, not
+// urgent); this week as a bar per day (Steep's), the places filled against the places; then Needs
+// attention, "Waiting on others" (pay queries with payroll) and "Sorted today" (cancellations,
+// recorded automatically; enquiries answered; what casuals can see) as tinted panels of white
+// rows. Every section says when it couldn't load, and what it shows when it's empty; the page's
+// loading skeleton is DashboardSkeleton (./office-skeleton.tsx). Pure: the page loads the data
+// (src/lib/office/dashboard-home.ts works out what it says).
 
-// A count tile's colours: what it counts.
+// A section's heading row: its icon, its name, its count (the grey pill; red for the urgent
+// places), and a quiet link to the whole list at the end (hilos's "View all"). The heading's id is
+// where its card jumps to.
+function SectionHead({
+  id,
+  title,
+  icon,
+  count,
+  urgent = false,
+  link,
+}: {
+  id: string;
+  title: string;
+  icon: IconName;
+  count?: string;
+  urgent?: boolean;
+  link?: ReactNode;
+}) {
+  return (
+    <div className="flex min-h-11 flex-wrap items-center">
+      <Icon name={icon} size={18} className="mr-2 text-ink-muted" />
+      <h2 id={id} className="scroll-mt-20 text-lg font-semibold tracking-heading text-ink">
+        {title}
+      </h2>
+      {count && <span className={urgent ? countUrgent : countStyle}>{count}</span>}
+      {link && <span className="ml-auto pl-4">{link}</span>}
+    </div>
+  );
+}
+
+// A count card's colours: what it counts (a soft tint, its 1px edge a shade darker, its words in
+// the tint's dark ink), and its icon.
 const TILE = {
-  urgent: "bg-urgent-tile text-urgent-ink",
-  todo: "bg-hivis text-on-hivis",
-  wait: "bg-wait-tile text-wait-ink",
-  done: "bg-done-tile text-done-ink",
-} as const;
+  urgent: { box: "border-urgent-line bg-urgent-tile", ink: "text-urgent-ink", icon: "urgent" },
+  todo: { box: "border-attention-line bg-hivis", ink: "text-on-hivis", icon: "bell" },
+  wait: { box: "border-wait-line bg-wait-tile", ink: "text-wait-ink", icon: "clock" },
+  done: { box: "border-done-line bg-done-tile", ink: "text-done-ink", icon: "check" },
+} as const satisfies Record<string, { box: string; ink: string; icon: IconName }>;
 
+// Small tracked capitals: the date line over the greeting and each card's label (hilos's, as
+// Dylan's brief asks; the taste skill would keep them in sentence case).
+const DATE_LINE = "text-xs font-medium tracking-widest text-ink-muted uppercase tabular-nums"; // taste-skill-ignore: Dylan's brief
+const CARD_LABEL = "text-xs font-semibold tracking-wider uppercase sm:tracking-widest"; // taste-skill-ignore: Dylan's brief
+
+// The icon top-left, the label top-right, the number, then one grey line. The label comes first
+// in the link (its name starts with it) and the number second.
 function CountTile({
   tone,
   label,
@@ -56,140 +96,172 @@ function CountTile({
   label: string;
   value: string;
   caption: string;
-  href?: string;
+  href: string;
 }) {
-  const body = (
-    <>
-      <span className="text-sm font-semibold">{label}</span>
-      <span className="mt-auto pt-4 font-sign text-4xl leading-none font-normal">{value}</span>
-      <span className="mt-1.5 text-sm">{caption}</span>
-    </>
-  );
-  const box = `flex min-h-33 flex-col rounded-[22px] border border-current/15 px-4.5 pt-4 pb-4.5 shadow-lift ${TILE[tone]}`;
-  return href ? (
-    <Link href={href} className={`${box} hover:brightness-[0.97] focus-visible:outline-offset-2`}>
-      {body}
+  const t = TILE[tone];
+  return (
+    <Link
+      href={href}
+      className={`grid min-h-32 grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_1fr_auto] gap-x-3 rounded-card border p-4 transition hover:shadow-soft active:scale-99 ${t.box}`}
+    >
+      <span className={`col-start-2 row-start-1 text-right ${CARD_LABEL} ${t.ink}`}>{label}</span>
+      <span className="col-span-2 row-start-2 self-end pt-4 font-stat text-4xl leading-none text-ink">
+        {value}
+      </span>
+      <span className="col-span-2 row-start-3 mt-2 text-sm text-ink-muted">{caption}</span>
+      <Icon name={t.icon} size={20} className={`col-start-1 row-start-1 ${t.ink}`} />
     </Link>
-  ) : (
-    <div className={box}>{body}</div>
   );
 }
 
-// A panel: a tinted ground for its rows (each lifted off it), or a plain card (`card`).
+// A panel: a soft tint with its 1px edge, holding its heading and its rows (hilos's).
 const PANEL = {
-  urgent: "border-urgent/15 bg-urgent-soft",
-  todo: "border-attention/15 bg-attention-soft",
-  wait: "border-wait-ink/15 bg-wait-tile/40",
-  done: "border-done/15 bg-done-soft",
-  card: "border-line bg-card shadow-panel",
+  todo: "border-attention-line bg-attention-soft",
+  wait: "border-wait-line bg-wait-soft",
+  done: "border-done-line bg-done-soft",
 } as const;
 
 function Panel({
   id,
   title,
+  icon,
   tone,
   count,
   link,
-  className = "",
   children,
 }: {
   id: string;
   title: string;
+  icon: IconName;
   tone: keyof typeof PANEL;
   count?: string;
   link?: ReactNode;
-  className?: string;
   children: ReactNode;
 }) {
   return (
     <section
       aria-labelledby={id}
-      className={`flex min-w-0 flex-col gap-2.5 rounded-[22px] border p-4.5 ${PANEL[tone]} ${className}`}
+      className={`flex h-full min-w-0 flex-col gap-3 rounded-card border p-4 sm:p-6 ${PANEL[tone]}`}
     >
-      <div className="flex min-h-7 flex-wrap items-center gap-2">
-        <h2 id={id} className="text-base font-semibold">
-          {title}
-        </h2>
-        {count && (
-          <span className="rounded-full bg-card px-2 text-sm font-semibold tabular-nums">
-            {count}
-          </span>
-        )}
-        {link && <span className="ml-auto text-sm">{link}</span>}
-      </div>
+      <SectionHead id={id} title={title} icon={icon} count={count} link={link} />
       {children}
     </section>
   );
 }
 
-// A row lifted off its panel.
-const LIFTED = "rounded-2xl border border-line bg-card shadow-lift";
+// What a section says when it couldn't load: in the section, with the rest of the page still there.
+function SectionError() {
+  return (
+    <p
+      role="status"
+      className="flex items-start gap-2 rounded-row border border-attention-line bg-attention-soft px-4 py-3 text-attention-ink"
+    >
+      <Icon name="info" size={18} className="mt-1" />
+      {SECTION_ERROR}
+    </p>
+  );
+}
 
-// This week: the places still to fill as the big number, then a bar per day (today in a dark
-// pill), each a link to that day (or its sessions to mark).
+// A near-white row on its panel (hilos's), and an empty panel's one line in the same place.
+const ROW =
+  "flex min-h-16 items-center gap-3 rounded-row border border-line bg-card/80 px-4 py-3 text-ink";
+
+// This week, Monday to Sunday (Steep's): the places still to fill as the big number at the
+// bottom left, then a bar per day, its height the share of its places filled, against a dashed
+// line where every place is filled. One colour; red on a day with urgent gaps; grey once a day has
+// gone; today's name in a filled pill; an empty day says "No sessions". Each day is a link to its
+// shifts (or its sessions to mark). Below 640px the bars lie down, one row a day, on their tracks.
 function Week({ cells }: { cells: WeekCell[] }) {
   const sum = weekSummary(cells);
   return (
-    <>
-      <p>
-        <span className="font-sign text-4xl leading-none font-normal">{sum.toFill}</span>
+    <div className="grid gap-x-8 gap-y-4 sm:grid-cols-[12rem_minmax(0,1fr)] sm:grid-rows-[1fr_auto_auto]">
+      <p className="self-end font-stat text-4xl leading-none text-ink sm:row-start-1">
+        {sum.toFill}
       </p>
-      <p className="-mt-1 text-sm text-ink-muted">
+      <p className="-mt-2 text-sm text-ink-muted sm:row-start-2">
         {sum.toFill === 1 ? "place" : "places"} still to fill.
         {sum.days && ` ${sum.filled} of ${sum.places} filled, ${sum.days}.`}
       </p>
-      <nav aria-label="This week">
-        <ul role="list" className="flex flex-col gap-1.5">
+      <nav
+        aria-label="This week"
+        className="relative min-w-0 sm:col-start-2 sm:row-span-3 sm:row-start-1 sm:pt-6"
+      >
+        {/* Every place filled: the bars' target, with its words at its end (from 640px). */}
+        <span
+          aria-hidden="true"
+          className="absolute inset-x-0 top-8 hidden border-t border-dashed border-line-strong sm:block"
+        >
+          <span className="absolute right-0 bottom-full mb-1 text-xs text-ink-muted">
+            All filled
+          </span>
+        </span>
+        <ul role="list" className="flex flex-col gap-1 sm:grid sm:grid-cols-7 sm:gap-2">
           {cells.map((c) => (
             <li key={c.date}>
-              <Link
-                href={c.href}
-                aria-label={c.label}
-                className="grid min-h-7 grid-cols-[3rem_minmax(0,1fr)_3rem] items-center gap-2 rounded-lg px-1 hover:bg-quiet-soft"
-              >
-                <span
-                  // Today on the ink pill keeps its own text colour (red on it would fail the
-                  // contrast test); the day's bar and note still say it's urgent.
-                  className={`flex h-6 items-center justify-center rounded-full text-sm ${
-                    c.dow === "Today"
-                      ? "bg-ink font-semibold text-on-ink"
-                      : c.note.kind === "urgent"
-                        ? "text-urgent"
-                        : "text-ink-muted"
-                  }`}
-                >
-                  {c.dow === "Today" ? "Today" : c.dow}
-                </span>
-                {c.places > 0 ? (
-                  <span
-                    aria-hidden="true"
-                    className="flex h-2.5 overflow-hidden rounded-full bg-raised"
-                  >
-                    <span
-                      className={`h-full rounded-full ${c.past ? "bg-line-strong" : c.note.kind === "urgent" ? "bg-urgent-fill" : "bg-brand"}`}
-                      style={{ width: `${Math.round(c.filledShare * 100)}%` }}
-                    />
-                  </span>
-                ) : (
-                  <span aria-hidden="true" className="h-0.5 w-3.5 bg-line" />
-                )}
-                <span className="text-right text-sm text-ink-muted tabular-nums">
-                  {c.note.kind === "mark" ? (
-                    <Plate tone="hivis">{c.note.text}</Plate>
-                  ) : c.places === 0 ? (
-                    "–"
-                  ) : c.past ? (
-                    "done"
-                  ) : (
-                    `${c.filled}/${c.places}`
-                  )}
-                </span>
-              </Link>
+              <WeekDayLink c={c} />
             </li>
           ))}
         </ul>
       </nav>
-    </>
+      <Link
+        href="/office/events"
+        className={`${btn.secondary} w-full sm:row-start-3 sm:w-auto sm:self-start`}
+      >
+        Open the rota board
+      </Link>
+    </div>
+  );
+}
+
+function WeekDayLink({ c }: { c: WeekCell }) {
+  const today = c.dow === "Today";
+  const fill = c.past ? "bg-line-strong" : c.note.kind === "urgent" ? "bg-urgent-fill" : "bg-ink";
+  const share = { "--fill": `${Math.round(c.filledShare * 100)}%` } as CSSProperties;
+  return (
+    <Link
+      href={c.href}
+      aria-label={c.label}
+      className="grid min-h-11 grid-cols-[4rem_minmax(0,1fr)_6rem] items-center gap-3 rounded-row px-2 transition-colors hover:bg-quiet-soft active:bg-raised sm:flex sm:flex-col sm:items-center sm:gap-2 sm:px-1 sm:py-2"
+    >
+      {/* The bar: on its track below 640px; standing, from the dashed line down, from there. */}
+      <span
+        aria-hidden="true"
+        className="relative order-2 h-2 w-full overflow-hidden rounded-full bg-raised sm:order-1 sm:h-40 sm:w-4 sm:bg-transparent"
+      >
+        {c.places > 0 && (
+          <span
+            style={share}
+            className={`absolute bottom-0 left-0 h-full w-(--fill) rounded-full sm:h-(--fill) sm:w-full ${fill}`}
+          />
+        )}
+      </span>
+      <span
+        className={`order-1 flex h-6 items-center justify-self-start rounded-full text-xs sm:order-2 sm:justify-self-auto ${
+          // Today on the ink pill keeps its own text colour (red on it would fail the contrast
+          // test); the day's bar and words still say it's urgent.
+          today
+            ? "bg-ink px-2 font-semibold text-on-ink"
+            : c.note.kind === "urgent"
+              ? "font-semibold text-urgent"
+              : "font-medium text-ink-muted"
+        }`}
+      >
+        {c.dow}
+      </span>
+      <span className="order-3 flex h-8 items-center justify-end text-right text-xs leading-4 text-ink-muted tabular-nums sm:justify-center sm:text-center">
+        {c.note.kind === "mark" ? (
+          <span className="rounded-full bg-hivis px-2 py-1 font-semibold whitespace-nowrap text-on-hivis">
+            {c.note.text}
+          </span>
+        ) : c.places === 0 ? (
+          "No sessions"
+        ) : c.past ? (
+          "done"
+        ) : (
+          `${c.filled}/${c.places}`
+        )}
+      </span>
+    </Link>
   );
 }
 
@@ -205,24 +277,30 @@ const ROW_ACTION: Record<string, string> = {
   enquiries: "Answer",
 };
 
-// Rows lifted off their panel, each a link to where it's dealt with: Needs attention's and
-// waiting on others' with their count and what to do; sorted today's with a tick.
+// Rows on their panel, each a link to where it's dealt with: Needs attention's and waiting on
+// others' with their count (and Needs attention's with what to do, a quiet grey pill); sorted
+// today's with a tick.
+// `columns`: side by side from 1024px (two for Needs attention, three for Sorted today), so the
+// panels beside each other end level.
 function Rows({
   rows,
   tone,
   label,
+  columns = 1,
 }: {
   rows: Row[];
   tone: "needs" | "waiting" | "sorted";
   label: string;
+  columns?: 1 | 2 | 3;
 }) {
+  const grid = { 1: "", 2: "lg:grid-cols-2", 3: "lg:grid-cols-3" }[columns];
   return (
-    <ul role="list" aria-label={label} className="flex flex-col gap-2">
+    <ul role="list" aria-label={label} className={`grid gap-2 ${grid}`}>
       {rows.map((r) => (
         <li key={r.key}>
           <Link
             href={r.href}
-            className={`${LIFTED} group flex items-center gap-3 px-3.5 py-3 hover:bg-quiet-soft focus-visible:outline-offset-2`}
+            className={`${ROW} group h-full transition-colors hover:bg-card active:bg-quiet-soft`}
           >
             <span className="min-w-0 flex-1">
               <span className="block font-medium">{r.title}</span>
@@ -232,13 +310,11 @@ function Rows({
               <Icon name="check" size={20} className="text-done" />
             ) : (
               <>
-                {r.count !== null && (
-                  <span className="font-sign text-lg tabular-nums">{r.count}</span>
-                )}
+                {r.count !== null && <span className="font-stat text-lg">{r.count}</span>}
                 {tone === "needs" && (
                   <span
                     aria-hidden="true"
-                    className="hidden rounded-full border border-line-strong px-3 py-1 text-sm font-semibold group-hover:bg-card sm:inline"
+                    className="hidden h-8 items-center rounded-full bg-button px-3 text-sm font-medium whitespace-nowrap transition-colors group-hover:bg-button-hover sm:inline-flex"
                   >
                     {ROW_ACTION[r.key] ?? "Open"}
                   </span>
@@ -262,7 +338,8 @@ export function DashboardContent({
   d: Dashboard;
   firmName: string;
   shiftsLine?: string;
-  payQueriesWaiting?: number;
+  // null: it couldn't be read (its card and section say so).
+  payQueriesWaiting?: number | null;
   now: Date;
 }) {
   const focus = focusItems(d);
@@ -274,7 +351,7 @@ export function DashboardContent({
   const things = oneCount(urgentPlaces, attention?.count ?? needPerson);
   const cells = d.week.ok ? weekCells(d.week.data, needs?.toMark ?? [], d.today, d.timeZone) : null;
   const waiting: Row[] =
-    payQueriesWaiting > 0
+    payQueriesWaiting !== null && payQueriesWaiting > 0
       ? [
           {
             key: "payQueries",
@@ -296,30 +373,33 @@ export function DashboardContent({
     d.counts.urgent.ok && d.needs.ok && d.counts.enquiries.ok && !(attention?.more ?? false);
   const week = payWeek(d.today);
   const today = datePartsOfDay(d.today);
+  const attentionFigure = attention ? `${attention.count}${attention.more ? "+" : ""}` : null;
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-2">
+    <div className="flex flex-col gap-8">
+      <header className="flex flex-col gap-3">
+        <p className={DATE_LINE}>
+          {LONG(today)} · Week {week.week} · Pay {dayLabel(week.payDay)}
+        </p>
         <h1 className="text-ink">
-          <span className="block font-greet text-4xl">
+          <span className="block font-display text-4xl">
             {greeting(now, d.timeZone)}, {firmName}.
           </span>{" "}
-          <span className="mt-2.5 block text-lg font-semibold">{headline(things, complete)}.</span>
+          <span className="mt-2 block text-2xl font-semibold tracking-heading">
+            {headline(things, complete)}.
+          </span>
         </h1>
-        <p className="-mt-1 text-lg text-ink-muted">
+        <p className="text-lg text-ink-muted">
           {startLine(focus[0], things, complete, urgentPlaces)}
         </p>
-        <p className={`${meta} tabular-nums`}>
-          {LONG(today)} · Week {week.week} · Pay on {dayLabel(week.payDay)}
-        </p>
         {shiftsLine && (
-          <p className={`${meta} flex items-center gap-1.5`}>
+          <p className="flex items-center gap-2 text-sm text-ink-muted">
             <Icon name="phone" size={16} />
             {shiftsLine}
           </p>
         )}
       </header>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <CountTile
           tone="urgent"
           label="Urgent places"
@@ -331,21 +411,27 @@ export function DashboardContent({
                 ? "Every urgent place is filled"
                 : urgentDaysText(focus)
           }
-          href="/office/events?view=urgent"
+          href="#urgent-places"
         />
         <CountTile
           tone="todo"
           label="Needs attention"
-          value={attention ? `${attention.count}${attention.more ? "+" : ""}` : "–"}
+          value={attentionFigure ?? "–"}
           caption={attention ? attentionText(after) : COUNT_ERROR}
-          href="/office/needs-attention"
+          href="#needs-attention"
         />
         <CountTile
           tone="wait"
           label="Waiting on others"
-          value={String(payQueriesWaiting)}
-          caption={payQueriesWaiting > 0 ? "Pay queries with payroll" : "Nothing waiting on others"}
-          {...(payQueriesWaiting > 0 ? { href: "/office/pay-queries" } : {})}
+          value={payQueriesWaiting === null ? "–" : String(payQueriesWaiting)}
+          caption={
+            payQueriesWaiting === null
+              ? COUNT_ERROR
+              : payQueriesWaiting > 0
+                ? "Pay queries with payroll"
+                : "Nothing waiting on others"
+          }
+          href="#waiting"
         />
         <CountTile
           tone="done"
@@ -362,104 +448,95 @@ export function DashboardContent({
         />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-12">
-        <Panel
+      <section aria-labelledby="urgent-places" className="flex min-w-0 flex-col gap-3">
+        <SectionHead
           id="urgent-places"
           title="Urgent places to fill"
-          tone="urgent"
+          icon="urgent"
           count={focus.length > 0 ? String(focus.length) : undefined}
+          urgent
           link={
-            <Link href="/office/events?view=urgent" className={textLink}>
+            <Link href="/office/events?view=urgent" className={quietLink}>
               All on Events &amp; sessions
+              <Icon name="chevron" size={16} />
             </Link>
           }
-          className="lg:col-span-8"
-        >
-          {!d.urgent.ok ? (
-            <p role="status" className="rounded-2xl bg-card px-3.5 py-3 text-attention-ink">
-              {SECTION_ERROR}
-            </p>
-          ) : focus.length > 0 ? (
-            <UrgentPlaces items={focus} labels={moreLabels(focus)} />
-          ) : (
-            <div className={`${LIFTED} flex flex-wrap items-center gap-4 p-4`}>
-              <span
-                aria-hidden="true"
-                className="flex size-11 shrink-0 items-center justify-center rounded-full bg-done-tile text-done-ink"
-              >
-                <Icon name="check" size={24} />
-              </span>
-              <div className="min-w-48 flex-1">
-                <p className="text-lg font-semibold">
-                  {SECTIONS.urgent.empty.replace("shift", "place")}
-                </p>
-                <p className="text-ink-muted">Nobody needs finding right now.</p>
-              </div>
-              <Link href="/office/events" className={btn.secondary}>
-                See events
-              </Link>
-            </div>
-          )}
-          {d.urgent.ok && d.urgent.data.more && (
-            <p className={meta}>More urgent places are on Events &amp; sessions.</p>
-          )}
-        </Panel>
-
-        <Panel id="this-week" title="This week" tone="card" className="lg:col-span-4">
-          {cells ? (
-            <Week cells={cells} />
-          ) : (
-            <p role="status" className={meta}>
-              {SECTION_ERROR}
-            </p>
-          )}
-          <Link href="/office/events" className={`${btn.secondary} mt-auto w-full`}>
-            Open the rota board
-          </Link>
-        </Panel>
-
-        <Panel
-          id="needs-attention"
-          title="Needs attention"
-          tone="todo"
-          count={
-            attention && attention.count > 0
-              ? `${attention.count}${attention.more ? "+" : ""}`
-              : undefined
-          }
-          className="lg:col-span-7"
-        >
-          {/* Needs attention unread: said so, with any row that could be worked out (enquiries). */}
-          {!needs && (
-            <p role="status" className="rounded-2xl bg-card px-3.5 py-3 text-attention-ink">
-              {SECTION_ERROR}
-            </p>
-          )}
-          {after.length > 0 ? (
-            <Rows rows={after} tone="needs" label="Needs attention" />
-          ) : (
-            needs && (
-              <p className={`${LIFTED} px-3.5 py-3 text-ink-muted`}>{SECTIONS.needs.empty}</p>
-            )
-          )}
-          <Link href="/office/needs-attention" className={`${btn.secondary} mt-auto self-start`}>
-            Open Needs attention
-            <Icon name="arrow" size={16} />
-          </Link>
-        </Panel>
-
-        <div className="flex min-w-0 flex-col gap-4 lg:col-span-5">
-          <Panel id="waiting" title="Waiting on others" tone="wait">
-            {waiting.length > 0 ? (
-              <Rows rows={waiting} tone="waiting" label="Waiting on others" />
-            ) : (
-              <p className={`${LIFTED} px-3.5 py-3 text-ink-muted`}>
-                Nothing is waiting on anyone else.
+        />
+        {!d.urgent.ok ? (
+          <SectionError />
+        ) : focus.length > 0 ? (
+          <UrgentPlaces items={focus} labels={moreLabels(focus)} />
+        ) : (
+          <div className="flex flex-wrap items-center gap-4 rounded-card bg-card p-4 shadow-soft sm:p-6">
+            <span
+              aria-hidden="true"
+              className="flex size-12 shrink-0 items-center justify-center rounded-row bg-done-tile text-done-ink"
+            >
+              <Icon name="check" size={24} />
+            </span>
+            <div className="min-w-48 flex-1">
+              <p className="text-lg font-semibold">
+                {SECTIONS.urgent.empty.replace("shift", "place")}
               </p>
+              <p className="text-ink-muted">Nobody needs finding right now.</p>
+            </div>
+            <Link href="/office/events" className={btn.secondary}>
+              See events
+            </Link>
+          </div>
+        )}
+        {d.urgent.ok && d.urgent.data.more && (
+          <p className="text-sm text-ink-muted">More urgent places are on Events &amp; sessions.</p>
+        )}
+      </section>
+
+      <section
+        aria-labelledby="this-week"
+        className="flex min-w-0 flex-col gap-4 rounded-card bg-card p-4 shadow-soft sm:p-6"
+      >
+        <SectionHead id="this-week" title="This week" icon="shifts" />
+        {cells ? <Week cells={cells} /> : <SectionError />}
+      </section>
+
+      <div className="grid gap-4 lg:grid-cols-12">
+        <div className="min-w-0 lg:col-span-8">
+          <Panel
+            id="needs-attention"
+            title="Needs attention"
+            icon="bell"
+            tone="todo"
+            count={attention && attention.count > 0 ? (attentionFigure ?? undefined) : undefined}
+            link={
+              <Link href="/office/needs-attention" className={quietLink}>
+                Open Needs attention
+                <Icon name="chevron" size={16} />
+              </Link>
+            }
+          >
+            {/* Needs attention unread: said so, with any row that could be worked out
+                (enquiries). */}
+            {!needs && <SectionError />}
+            {after.length > 0 ? (
+              <Rows rows={after} tone="needs" label="Needs attention" columns={2} />
+            ) : (
+              needs && <p className={`${ROW} text-ink-muted`}>{SECTIONS.needs.empty}</p>
             )}
           </Panel>
-          <Panel id="sorted" title="Sorted today" tone="done">
-            <Rows rows={sorted} tone="sorted" label="Sorted today" />
+        </div>
+        <div className="min-w-0 lg:col-span-4">
+          <Panel id="waiting" title="Waiting on others" icon="clock" tone="wait">
+            {payQueriesWaiting === null ? (
+              <SectionError />
+            ) : waiting.length > 0 ? (
+              <Rows rows={waiting} tone="waiting" label="Waiting on others" />
+            ) : (
+              <p className={`${ROW} text-ink-muted`}>Nothing is waiting on anyone else.</p>
+            )}
+          </Panel>
+        </div>
+        <div className="min-w-0 lg:col-span-12">
+          <Panel id="sorted" title="Sorted today" icon="check" tone="done">
+            <Rows rows={sorted} tone="sorted" label="Sorted today" columns={3} />
           </Panel>
         </div>
       </div>

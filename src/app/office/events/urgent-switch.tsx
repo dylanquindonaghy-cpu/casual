@@ -42,14 +42,14 @@ export function UrgentSwitch({
         aria-label={`Urgent: ${name}`}
         disabled={disabled || pending || !ready}
         onClick={flip}
-        className="inline-flex min-h-9 items-center gap-2 pr-1.5 disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex min-h-11 items-center gap-2 pr-2 disabled:cursor-not-allowed disabled:opacity-60"
       >
         <span
           aria-hidden="true"
-          className={`inline-flex h-5.5 w-9 items-center rounded-full p-0.75 ${isUrgent ? "bg-urgent-fill" : "bg-switch-off"}`}
+          className={`inline-flex h-6 w-10 items-center rounded-full p-1 transition-colors ${isUrgent ? "bg-urgent-fill" : "bg-switch-off"}`}
         >
           <span
-            className={`size-4 rounded-full bg-card transition-transform duration-150 ease-sd ${isUrgent ? "translate-x-3.5" : "translate-x-0"}`}
+            className={`size-4 rounded-full bg-card transition-transform duration-150 ease-sd ${isUrgent ? "translate-x-4" : "translate-x-0"}`}
           />
         </span>
         <span className={`text-sm font-semibold ${isUrgent ? "text-urgent" : "text-ink-muted"}`}>

@@ -80,12 +80,12 @@ export function CreateKeyForm() {
         </p>
       )}
       {made && (
-        <div className="rounded-lg border-2 border-attention bg-attention-soft p-4 text-attention-ink">
+        <div className="rounded-row border border-attention-line bg-attention-soft p-4 text-attention-ink">
           <p role="status" className="font-semibold">
             {KEY_SHOWN_ONCE}
           </p>
           <p className="mt-1">Your new key, {made.label}:</p>
-          <code className="mt-2 block rounded-md border border-line bg-card px-3 py-2 font-mono text-base break-all text-ink select-all">
+          <code className="mt-2 block rounded-row border border-line bg-card px-3 py-2 font-mono text-base break-all text-ink select-all">
             {made.key}
           </code>
           <div className="mt-3 flex flex-wrap gap-3">
@@ -123,7 +123,7 @@ export interface KeyRowView {
 }
 
 // A second "Yes" before a key stops working: red, like turning off someone's access.
-const confirmPanel = "rounded-lg border-2 border-urgent bg-urgent-soft p-4";
+const confirmPanel = "rounded-row border border-urgent-line bg-urgent-soft p-4";
 
 // The live keys: a table from 768px, stacked cards on a phone. "Revoke" asks first, in place.
 export function ApiKeyTable({ keys }: { keys: KeyRowView[] }) {

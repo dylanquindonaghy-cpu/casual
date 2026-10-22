@@ -12,7 +12,7 @@ import { changeOfficeAccessAction } from "./actions";
 const failed = { status: "unknown" as const };
 const ROLES = Object.keys(ROLE_LABELS) as OfficeRole[];
 // A second "Yes" before a change: red for taking access away, grey for making someone an admin.
-const confirmPanel = "rounded-lg border-2 p-4";
+const confirmPanel = "rounded-row border p-4";
 
 type Change =
   | { change: "disable" }
@@ -124,7 +124,7 @@ export function MemberActions(props: {
         </div>
       )}
       {confirming === "admin" && (
-        <div className={`${confirmPanel} border-line-strong bg-quiet-soft`}>
+        <div className={`${confirmPanel} border-quiet-line bg-quiet-soft`}>
           <p>
             Make {props.name} an admin? Admins can change the office team and download or delete
             workers&apos; data.
@@ -153,7 +153,7 @@ export function MemberActions(props: {
         </div>
       )}
       {confirming === "disable" && props.active && (
-        <div className={`${confirmPanel} border-urgent bg-urgent-soft`}>
+        <div className={`${confirmPanel} border-urgent-line bg-urgent-soft`}>
           <p className="text-urgent-ink">
             Turn off {props.name}&apos;s access? They&apos;re logged out at once and can&apos;t log
             in until it&apos;s turned back on.

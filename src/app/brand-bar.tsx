@@ -7,7 +7,8 @@ import type { Brand } from "@/lib/tenancy/brand";
 // firm's site isn't told which page it's on. In the copy kept for when there's no signal, an
 // "Offline" plate at its end (globals.css shows [data-offline-only] only there). The name lines up
 // with the 448px staff column under it. Staff pages and logged-out office pages only: under the
-// office shell (data-shell="office") the shell names the firm instead (docs/office-v2.md 3.1).
+// office shell (data-shell="office") the shell names the firm instead (docs/office-v2.md 3.1). Above
+// the office's login pages, its corners and spacing are the office's (`office:`, Phase 21).
 export function BrandBar({ brand }: { brand: Brand }) {
   const initial = brand.name.match(/\p{L}|\p{N}/u)?.[0]?.toUpperCase() ?? "";
   return (
@@ -28,7 +29,7 @@ export function BrandBar({ brand }: { brand: Brand }) {
           <span
             aria-hidden="true"
             data-testid="brand-mark"
-            className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand-bar text-base font-semibold text-on-brand-bar"
+            className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand-bar text-base font-semibold text-on-brand-bar office:rounded-row"
           >
             {initial}
           </span>
@@ -38,7 +39,7 @@ export function BrandBar({ brand }: { brand: Brand }) {
         </span>
         <span
           data-offline-only=""
-          className="ml-auto rounded-full bg-ink px-2.5 text-sm leading-6 font-semibold text-on-ink"
+          className="ml-auto rounded-full bg-ink px-2.5 text-sm leading-6 font-semibold text-on-ink office:px-3"
         >
           Offline
         </span>

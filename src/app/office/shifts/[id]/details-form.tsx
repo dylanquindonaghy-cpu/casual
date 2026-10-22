@@ -51,7 +51,7 @@ export function SessionDetailsForm({
     });
   return (
     <form
-      className={`${card} ${headingGap} flex max-w-2xl flex-col gap-5 sm:p-6`}
+      className={`${card} ${headingGap} flex max-w-2xl flex-col gap-6`}
       onSubmit={(e) => {
         e.preventDefault();
         save();

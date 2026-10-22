@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useActionState } from "react";
-import { btn, label, staffBtn, staffField } from "@/app/ui/classes";
+import { btn, field, label } from "@/app/ui/classes";
 import { TooManyTries } from "../../too-many-tries";
 import { requestOfficeLinkAction, type OfficeLoginState } from "./actions";
 
@@ -16,7 +16,7 @@ export function OfficeLoginForm({ firmName, signOff }: { firmName: string; signO
 
   if (state.status === "sent") {
     return (
-      <div role="status" className="mt-6 rounded-lg border border-done bg-done-soft p-4">
+      <div role="status" className="mt-6 rounded-row border border-done-line bg-done-soft p-4">
         <p className="font-semibold text-done-ink">Check your email.</p>
         <p className="mt-2">
           If {firmName} has this address, we&apos;ve sent a login link. It works for 15 minutes.
@@ -43,7 +43,7 @@ export function OfficeLoginForm({ firmName, signOff }: { firmName: string; signO
         required
         aria-invalid={invalid}
         aria-describedby={invalid ? "email-problem" : undefined}
-        className={`${staffField} mt-2`}
+        className={`${field} mt-2 w-full`}
       />
       {invalid && (
         <p id="email-problem" className="mt-2 font-semibold text-urgent">
@@ -56,7 +56,7 @@ export function OfficeLoginForm({ firmName, signOff }: { firmName: string; signO
           Something went wrong. Try again.
         </p>
       )}
-      <button type="submit" disabled={pending} className={`${staffBtn.primary} mt-4`}>
+      <button type="submit" disabled={pending} className={`${btn.primary} mt-4 w-full`}>
         {pending ? "Sending…" : "Send me a link"}
       </button>
     </form>

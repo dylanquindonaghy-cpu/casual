@@ -156,7 +156,7 @@ export function ShiftCreateForm({
         {lines.map((l, i) => (
           <fieldset
             key={i}
-            className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-line bg-canvas p-4 pt-3 sm:grid-cols-[minmax(0,1fr)_8.5rem_8.5rem_6rem]"
+            className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-row border border-line bg-canvas p-4 pt-3 sm:grid-cols-[minmax(0,1fr)_8.5rem_8.5rem_6rem]"
           >
             <legend className="float-left col-span-2 font-semibold text-ink sm:col-span-4">
               {mode === "single" ? "The shift" : `Line ${i + 1}`}

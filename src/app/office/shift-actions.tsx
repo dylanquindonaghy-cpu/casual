@@ -16,9 +16,10 @@ import { closeShiftAction, reopenShiftAction, setUrgentAction } from "./today-ac
 // ones stand out.
 // Phase 18 (the dashboard's urgent place): "Offer to someone" filled, "Mark as filled" outlined,
 // "Not urgent" in words. Phase 20 (`more`, each urgent place on the dashboard): "Offer to someone",
-// then "…" (named by `more`) opening "Mark as filled" and "Not urgent". `onMessage`: the answers go
-// there (the dashboard's confirmation, which stays while the place leaves) instead of under the
-// buttons.
+// then "…" (named by `more`) opening "Mark as filled" and "Not urgent". Phase 21: there, "Offer" is
+// a small black pill in a 44px target (still named "Offer to someone") and "…" a quiet round
+// button. `onMessage`: the answers go there (the dashboard's confirmation, which stays while the
+// place leaves) instead of under the buttons.
 export function ShiftActions({
   shiftId,
   isUrgent,
@@ -69,11 +70,11 @@ export function ShiftActions({
   // "Mark as filled", after a second click; and "Not urgent" (or "Mark urgent").
   const filledStep = (
     <details className="group/filled">
-      <summary className={`${btn.secondary} ${summaryButton} group-open/filled:bg-quiet-soft`}>
+      <summary className={`${btn.secondary} ${summaryButton} group-open/filled:bg-button-press`}>
         Mark as filled
         <Chevron />
       </summary>
-      <div className="mt-2 w-64 max-w-full animate-in rounded-2xl border border-line bg-card p-3">
+      <div className="mt-2 w-64 max-w-full animate-in rounded-row border border-line bg-card p-3">
         <p className="text-sm">
           Only if you&apos;ve filled it another way. Nobody else will be offered it.
         </p>
@@ -100,29 +101,44 @@ export function ShiftActions({
   );
 
   return (
-    <div className={className}>
+    // The "…" menu hangs from this box: from its left edge while the buttons sit under the words
+    // (on a phone), from its right edge from 768px, where they end the row (so it never runs off
+    // the screen).
+    <div className={`relative${className ? ` ${className}` : ""}`}>
       {closed ? (
         <button type="button" className={btn.secondary} disabled={pending} onClick={openAgain}>
           Open it again
         </button>
       ) : (
         <div className="flex flex-wrap items-start gap-2">
-          <Link
-            href={`/office/offer/${shiftId}`}
-            className={isUrgent ? btn.primary : btn.secondary}
-          >
-            Offer to someone
-          </Link>
+          {more ? (
+            <Link
+              href={`/office/offer/${shiftId}`}
+              aria-label="Offer to someone"
+              className="group/offer inline-flex min-h-11 items-center rounded-full"
+            >
+              <span className="inline-flex h-9 items-center rounded-full bg-ink px-4 text-sm font-semibold text-on-ink transition-colors group-hover/offer:bg-ink-hover group-active/offer:bg-ink-press">
+                Offer
+              </span>
+            </Link>
+          ) : (
+            <Link
+              href={`/office/offer/${shiftId}`}
+              className={isUrgent ? btn.primary : btn.secondary}
+            >
+              Offer to someone
+            </Link>
+          )}
           {more ? (
             // The rest under "…": a menu over the page (Phase 20).
-            <details className="group relative">
+            <details className="group">
               <summary
                 aria-label={more}
-                className={`${btn.secondary} ${summaryButton} size-11 px-0 group-open:bg-quiet-soft`}
+                className={`${summaryButton} inline-flex size-11 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-quiet-soft hover:text-ink active:bg-raised group-open:bg-raised group-open:text-ink`}
               >
                 <Icon name="dots" />
               </summary>
-              <div className="absolute right-0 z-10 mt-2 flex w-64 max-w-[80vw] animate-in flex-col items-stretch gap-2 rounded-2xl border border-line bg-card p-3 shadow-panel">
+              <div className="absolute top-full left-0 z-10 mt-2 flex w-64 max-w-[80vw] animate-in flex-col items-stretch gap-2 rounded-card bg-card p-3 shadow-soft md:right-0 md:left-auto">
                 {!fromSheet && !fromPlanner && filledStep}
                 {notUrgent}
               </div>

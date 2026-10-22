@@ -1425,6 +1425,57 @@ flow's browser test still passes); `docs/screens.md` says what each changed scre
 `docs/ui-design.md` has the new tokens; the D7 row says what Dylan chose; the `claims-auditor`
 checks the phase against this line.
 
+## Phase 21 — The office's look
+
+Added 2026-10-22, Dylan's brief: "Redesign the visual layer of the office dashboard and every page
+that shares its components. Keep all features, routes, data and labels working exactly as they do
+now. This is a visual and layout pass only." With the taste and ui-ux-pro-max skills and his five
+references (hilos, Apple Wallet, Steep, Shopify, Neo Financial), and his list for the dashboard,
+the menu, the colours and the system ("Build the system first ... Every component uses these
+tokens. No one-off values."). The office only: every page under `/office`; the casual app keeps
+its Phase 20 look (Dylan approved it). Where the brief names a change of words, the brief wins:
+an urgent place says "3 of 4 filled" (not "1 of 4 places free") and its button shows "Offer" (still
+named "Offer to someone"), and the dashboard's four cards jump to their own sections. His brief
+asks for no mock-up first: it says screenshot, plan, build, then screenshot beside the references
+and review. Docs: `docs/ui-design.md`, `docs/screens.md`.
+
+- [x] The office's system: its own tokens for every office page (light and dark, from one set):
+      a warm off-white page, white cards, near-black main buttons, and red, amber, blue and green
+      only for statuses and the dashboard's tinted cards, each tint with a 1px border a shade
+      darker; Geist for words (tabular figures), Instrument Serif for each page's headline only,
+      and one face for the big numbers (heavy Geist or Geist Mono, both tried and one picked);
+      sizes 12, 13, 15, 17, 20, 28 and 40px; spacing 4, 8, 12, 16, 24, 32 and 48px; corners 20px
+      for cards, 14px for rows and round for pills; one soft shadow; 150–200ms transitions; hover,
+      focus and pressed states; AA contrast in both themes. Tests: the office's tokens and their
+      contrast in both themes, the fonts, and that no office file uses a size, gap, corner or
+      shadow outside the system (21.1)
+- [x] The menu and the shared parts: the menu on the page's ground with a grey pill for the page
+      you're on, small grey group labels, one count style (a grey pill), and a tidy week and pay
+      day at its foot; below 1024px the top bar and the drawer with 44px targets; buttons (main
+      near-black, others grey pills, destructive red words on grey), cards, rows, tables, chips
+      and page headers; and the dark round button over the menu's foot fixed where it comes from.
+      Tests: the menu's states, the parts' classes, the browser tests (21.2)
+- [x] The dashboard: a small date line over the headline, the shifts line quiet with its phone;
+      four tinted cards (an icon, the label, the number, one grey line), each jumping to its
+      section; the urgent places as one rounded list (a neutral date tile, the role as the title,
+      the place and time in grey, a slim bar with "3 of 4 filled", "Not offered yet" in red, a
+      small black "Offer" and a quiet "…"); this week as a bar per day, Monday to Sunday (filled
+      against places, a dashed line for every place filled, red only on a day with urgent gaps,
+      today's label filled, "No sessions" on an empty day) with "Open the rota board" as a grey
+      pill; Needs attention, Waiting on others and Sorted today as tinted panels of white rows;
+      a loading skeleton, and an empty and an error state, for every section. Tests: the
+      dashboard's parts, the counts still adding up, every link and action, the browser tests
+      (21.3)
+- [x] Every other office page on the system: Needs attention, Events & sessions, Casuals,
+      Enquiries, Cancellations, Pay, the records and settings, each with its loading skeleton,
+      at 390px and 1440px in both themes. Tests: the browser tests of every office flow (21.4)
+
+Done when: all four tasks are ticked with a stamp that includes the browser tests;
+`scripts/verify.sh` with `RUN_E2E=1` prints VERIFIED; no route, label (but the two the brief
+changes), link or action is lost; screenshots at 390px and 1440px, light and dark, are compared
+with the references and reviewed with the taste skill; `docs/ui-design.md` has the office's
+tokens; the `claims-auditor` checks the phase against this line.
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify
@@ -3711,3 +3762,4 @@ text system once its details are known; Messages 2 (notification first, or both)
 | 2026-10-21 | 18 | 3.5 | The redesign (18.1 to 18.5): Public Sans and Barlow Condensed self-hosted, colours on the UK safety-sign roles with every pair passing the contrast test and each firm's colour worked out per theme, the date tile, sign plate and seats; the casual Home's pass that opens in place, the "Can't make it?" sheet (held open while a cancel is sent, the safety review's fix) and For you; Open shifts' 8-day strip, cards and the shift page's bottom bar; the office menu in four groups, the dashboard as "what needs you" with its week in places, Needs attention on its own page; Events as a two-week rota board whose rows open into a sessions table; audit round 1 refused at the gate (committed after verify), round 2 DONE for 18.1 only, round 3 DONE; 2,942 unit + 2,215 integration tests + 94 e2e + the walkthrough's 6 (see docs/work-log.md) |
 | 2026-10-21 | 19 | 1.2 | The strike's answer stays on screen (19.1): the record always renders the strike's buttons for whoever may change strikes (nothing when there's no button and no answer), so "Withdrawn. …", "Kept, …" and "already withdrawn" outlive the refresh that takes their button away, and the withdraw form closes once the strike can't be withdrawn; which buttons show is one tested rule (`strikeButtons`); the flaky `office.strikes.spec.ts` now fails every time without the fix; two new browser tests (a deleted casual's strike kept; a strike withdrawn elsewhere while the form was open); each test seen to fail with its bug put back; 5,159 tests + 96 e2e + the walkthrough's 6; audit NOT DONE in round 1 (three behaviours untested), DONE in round 2 (see docs/work-log.md) |
 | 2026-10-21 | 20 | 5.0 | The pass redesign (20.1 to 20.5), from Dylan's mock-up of his five reference screenshots (1.3 h for the analysis and two mock-ups, 3.7 h to build): Instrument Sans and Instrument Serif self-hosted, true dark greys in place of navy (D7 changed), the status colours as tiles, five depth tokens and no other shadow; the casual Home's pass in the firm's colour with Directions, Details and "Can't make it?", For you as tiles with Pay day, the sheet's four reason buttons and its pull-down handle; Open shifts, a shift's page and Booked; the office with no top bar from 1024px, "Needs attention" in the menu in place of the bell (one count), the Dashboard listing every urgent place, Needs attention's page; the events board's switch moved into the opened row. A code review's 6 findings fixed (red on the Today pill, a lost confirmation, the urgent places' order, the "…" buttons' names, a start line, focus on a second press) and the safety review's hardening (the roles pinned, an honest "+", cross-firm checks); the firm's colour now reads on its own tint for every colour, and the gate's plate is white for every colour. 5,175 tests + 96 e2e + the walkthrough's 6; audits: 20.1 and 20.3 DONE in round 1, 20.2, 20.4 and 20.5 DONE in round 2 (see docs/work-log.md) |
+| 2026-10-22 | 21 | 4.5 | The office's look (21.1 to 21.4), from Dylan's brief and five references: the office's own tokens (warm off-white page, white cards, near-black main buttons, status colours only for status), Geist, Instrument Serif headlines, Geist Mono numbers; the dashboard as tinted cards, one rounded list of urgent places, Steep-style week bars and tinted panels; the menu's grey pill, 44px rows and one grey count; every office page on the system at 390px and 1440px in both themes; skeletons from the menu (a route-wide loading.tsx turned 404s into 200s); the dev button moved off the menu; three audit rounds, all four DONE; 5,215 tests + 100 e2e (see docs/work-log.md) |

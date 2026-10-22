@@ -20,7 +20,7 @@ import {
   windowText,
 } from "@/lib/office/events-board";
 import type { EventCardData, SessionRow } from "@/lib/office/events";
-import { placesFreeText } from "@/lib/office/focus-copy";
+import { placesFilledText } from "@/lib/office/focus-copy";
 import {
   applyTileText,
   daysText,
@@ -89,7 +89,7 @@ describe("the sign parts' words", () => {
     expect(inDays(...s("2026-10-26T09:00:00Z"), now, TZ)).toBe("In 5 days");
   });
 
-  it("places left, with and without the total; a shift in one line; places free", () => {
+  it("places left, with and without the total; a shift in one line; places filled", () => {
     expect(placesLeftText(1)).toBe("1 place left");
     expect(placesLeftText(3)).toBe("3 places left");
     expect(placesLeftText(1, 4)).toBe("1 of 4 places left");
@@ -97,8 +97,10 @@ describe("the sign parts' words", () => {
     expect(
       shiftLine("csas_officer", at("2026-10-24T13:00:00Z"), at("2026-10-24T21:00:00Z"), TZ),
     ).toBe("CSAS officer, Sat 24 Oct, 14:00–22:00");
-    expect(placesFreeText(1, 4)).toBe("1 of 4 places free");
-    expect(placesFreeText(1, 1)).toBe("1 of 1 place free");
+    // The dashboard's urgent place beside its bar (Phase 21, Dylan's words): filled, not free.
+    expect(placesFilledText(1, 4)).toBe("3 of 4 filled");
+    expect(placesFilledText(1, 1)).toBe("0 of 1 filled");
+    expect(placesFilledText(0, 2)).toBe("2 of 2 filled");
   });
 });
 

@@ -1,14 +1,15 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { btn, card, field, loginCard, rows, table } from "@/app/ui/classes";
+import { btn, card, field, loginCard, rows, staffCard, staffRows, table } from "@/app/ui/classes";
 
 // Depth (Phase 20; docs/ui-design.md "Depth"), in place of Phase 17's flat look: the page, cards
 // lifted off it, then the pass and what floats over the page. Five depth tokens in
 // src/app/globals.css and no other shadow anywhere: no Tailwind shadow size, no shadow written
 // into a class, no box-shadow in a component. Each file's use is pinned here, so a new one is a
-// choice. Office controls (buttons, fields, the Menu button) have a 1px border; the casual app's
-// keep 1.5px, for thumbs.
+// choice. Phase 21: the office has one depth token of its own (`soft`: its white cards and what
+// floats over its page) and uses no other. Office controls (buttons, fields, the Menu button) have
+// a 1px border; the casual app's keep 1.5px, for thumbs.
 
 const ROOT = process.cwd();
 const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
@@ -23,25 +24,27 @@ const SOURCE = files("src").filter((f) => /\.(tsx?|css)$/.test(f));
 // drop-shadow-…), or a box-shadow in CSS. shadow-none takes one away, so it's allowed.
 const SHADOW =
   /(?<![\w-])(?:[a-z0-9-]+:)*(?:drop-|inset-)?shadow(?:-(?!none(?![\w-]))[\w[\]#/.()%,-]+)?(?![\w-])|box-shadow/g;
-// The five depth tokens, as utilities (with any variant before them).
-const DEPTH = /^(?:[a-z0-9-]+:)*(?:shadow-(?:lift|panel|pass|bar)|inset-shadow-sunk)$/;
+// The five depth tokens, and the office's one (Phase 21), as utilities (with any variant before
+// them).
+const DEPTH = /^(?:[a-z0-9-]+:)*(?:shadow-(?:lift|panel|pass|bar|soft)|inset-shadow-sunk)$/;
 const USES: Record<string, string[]> = {
   "src/app/home-view.tsx": ["shadow-lift"], // the For you tiles
   "src/app/my-shifts-view.tsx": ["shadow-lift"], // the switch's current half
   // The pass; its three buttons; an open Details set in.
   "src/app/next-pass.tsx": ["group-open:inset-shadow-sunk", "shadow-lift", "shadow-pass"],
-  "src/app/office/dashboard-view.tsx": ["shadow-lift", "shadow-lift", "shadow-panel"],
-  // The board (a panel), its current filter, the filters' track.
-  "src/app/office/events/page.tsx": ["inset-shadow-sunk", "shadow-lift", "shadow-panel"],
-  "src/app/office/events/session-menu.tsx": ["shadow-panel"], // a session's menu, over the list
-  "src/app/office/events/sessions-table.tsx": ["inset-shadow-sunk"], // the opened row, set in
-  "src/app/office/needs-items.tsx": ["shadow-lift"], // each item on its panel
-  // The page's sheet on the frame (from 1024px); the account menu (a popover).
-  "src/app/office/office-frame.tsx": ["lg:shadow-lift", "shadow-panel"],
-  "src/app/office/office-nav.tsx": ["shadow-lift", "shadow-lift"], // the firm, the current link
-  "src/app/office/shift-actions.tsx": ["shadow-panel"], // an urgent place's "…" menu
-  // An urgent place's row on the dashboard, and its answer floating at the foot of the screen.
-  "src/app/office/urgent-places.tsx": ["shadow-lift", "shadow-panel"],
+  // A count card under the pointer, the empty urgent list, this week's card.
+  "src/app/office/dashboard-view.tsx": ["hover:shadow-soft", "shadow-soft", "shadow-soft"],
+  // The board, its current filter.
+  "src/app/office/events/page.tsx": ["shadow-soft", "shadow-soft"],
+  "src/app/office/events/session-menu.tsx": ["shadow-soft"], // a session's menu, over the list
+  // You and the moon/sun button at the menu's foot (from 1024px); the account menu (a popover).
+  "src/app/office/office-frame.tsx": ["lg:shadow-soft", "shadow-soft"],
+  // The skeletons' white cards, as the page's.
+  "src/app/office/office-skeleton.tsx": ["shadow-soft", "shadow-soft", "shadow-soft"],
+  "src/app/office/shift-actions.tsx": ["shadow-soft"], // an urgent place's "…" menu
+  "src/app/office/theme-button.tsx": ["shadow-soft"], // its words beside it
+  // The urgent places' list on the dashboard, and an answer floating at the foot of the screen.
+  "src/app/office/urgent-places.tsx": ["shadow-soft", "shadow-soft"],
   "src/app/shifts/[id]/shift-view.tsx": ["shadow-bar", "shadow-lift"], // Take shift's bar
   "src/app/shifts/booked-view.tsx": ["shadow-lift"],
   "src/app/shifts/cancel-shift.tsx": [
@@ -59,7 +62,14 @@ const USES: Record<string, string[]> = {
   ],
   "src/app/shifts/shift-parts.tsx": ["inset-shadow-sunk", "shadow-lift"],
   "src/app/tab-bar.tsx": ["shadow-bar"],
-  "src/app/ui/classes.ts": ["inset-shadow-sunk"], // the switch's track
+  // The switch's track; the office's card, list card and table, and its login card (from 640px).
+  "src/app/ui/classes.ts": [
+    "inset-shadow-sunk",
+    "shadow-soft",
+    "shadow-soft",
+    "shadow-soft",
+    "sm:shadow-soft",
+  ],
 };
 
 describe("depth: the five tokens, and no other shadow", () => {
@@ -95,21 +105,22 @@ describe("depth: the five tokens, and no other shadow", () => {
       "shadow-pass",
       "shadow-bar",
       "inset-shadow-sunk",
+      "shadow-soft",
     ]) {
       expect(css.match(new RegExp(`^\\s*--${token}: [^;]+;$`, "gm")), token).toHaveLength(3);
     }
     expect(css).not.toMatch(/box-shadow/);
   });
 
-  it("what floats over the page takes the panel token", () => {
+  it("what floats over the office's page takes its one token (Phase 21; the panel's until then)", () => {
     expect(read("src/app/office/office-frame.tsx")).toMatch(
-      /popover="auto"\s+className="[^"]*shadow-panel/,
+      /popover="auto"\s+className="[^"]*shadow-soft/,
     );
     expect(read("src/app/office/events/session-menu.tsx")).toMatch(
-      /className="absolute [^"]*shadow-panel/,
+      /className="absolute [^"]*shadow-soft/,
     );
     expect(read("src/app/office/shift-actions.tsx")).toMatch(
-      /className="absolute [^"]*shadow-panel/,
+      /className="absolute [^"]*shadow-soft/,
     );
   });
 
@@ -124,17 +135,27 @@ describe("depth: the five tokens, and no other shadow", () => {
 });
 
 describe("cards: one hairline", () => {
-  it("every shared card, list card, table and the login card: a 1px border in the line colour", () => {
+  it("the casual app's cards and list cards, and the login card: a 1px border in the line colour", () => {
     for (const [name, classes] of Object.entries({
-      card,
-      rows,
-      tableWrap: table.wrap,
+      staffCard,
+      staffRows,
       loginCard,
     })) {
       const words = classes.split(" ").map((c) => c.replace(/^sm:/, ""));
       expect(words, name).toContain("border");
       expect(words, name).toContain("border-line");
       expect(classes, name).not.toMatch(/(?<![\w-])border-(?:2|4|ink)(?![\w-])/);
+    }
+  });
+
+  // Phase 21: the office's white cards take its one depth token, whose ring is their hairline (a
+  // border or a shadow, never both).
+  it("the office's card, list card and table: the soft token, and no border of their own", () => {
+    for (const [name, classes] of Object.entries({ card, rows, tableWrap: table.wrap })) {
+      const words = classes.split(" ");
+      expect(words, name).toContain("shadow-soft");
+      expect(words, name).toContain("rounded-card");
+      expect(words, name).not.toContain("border");
     }
   });
 

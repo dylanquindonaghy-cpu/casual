@@ -4,7 +4,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { Plate } from "@/app/ui/plate";
-import { DateTile, Seats, SEATS_MAX, SignPlate } from "@/app/ui/sign";
+import { Seats, SEATS_MAX } from "@/app/ui/seats";
+import { DateTile, SignPlate } from "@/app/ui/sign";
 
 // Phase 18's shared parts (src/app/ui/sign.tsx, plate.tsx; docs/ui-design.md "Phase 18") and its
 // motion (src/app/globals.css): the date tile, the sign plate, the seats and the status plate as
@@ -92,12 +93,18 @@ describe("the seats", () => {
     expect(h).toMatch(/^<span aria-hidden="true" data-seats=""/);
     expect([count(h, "taken"), count(h, "free")]).toEqual([3, 1]);
     // Taken in ink; free ones outlined in the muted grey, or the urgent red (Phase 20).
-    expect(h).toContain('data-seat="taken" class="size-3 rounded-[3px] bg-ink"');
+    // In the office (the events board), round and 4px apart (Phase 21).
+    expect(h).toMatch(
+      /^<span aria-hidden="true" data-seats="" class="flex flex-wrap gap-\[3px\] office:gap-1 /,
+    );
     expect(h).toContain(
-      'data-seat="free" class="size-3 rounded-[3px] border-[1.5px] border-ink-muted"',
+      'data-seat="taken" class="size-3 rounded-[3px] office:rounded-full bg-ink"',
+    );
+    expect(h).toContain(
+      'data-seat="free" class="size-3 rounded-[3px] office:rounded-full border-[1.5px] border-ink-muted"',
     );
     expect(seats({ taken: 1, total: 2, urgent: true, size: "md" })).toContain(
-      'data-seat="free" class="size-5 rounded-[5px] border-[1.5px] border-urgent"',
+      'data-seat="free" class="size-5 rounded-[5px] office:rounded-full border-[1.5px] border-urgent"',
     );
   });
 

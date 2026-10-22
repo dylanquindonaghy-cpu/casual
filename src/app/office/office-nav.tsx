@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { useHydrated } from "@/app/use-hydrated";
+import { countPill } from "../ui/classes";
 import { Icon, type IconName } from "../ui/icons";
+import { MenuPending, MenuPendingReporter } from "./menu-pending";
 
 // The office menu's links (docs/office-v2.md 3.1; docs/ui-design.md "Office shell"), in groups:
 // the sidebar from 1024px, and the same <nav> inside the drawer below that (office-frame.tsx moves
@@ -15,8 +17,9 @@ import { Icon, type IconName } from "../ui/icons";
 
 // A count beside a link ("Pay queries 3"), drawn outside the link's name: the link stays exactly
 // "Pay queries" (the tests find links by their exact names), and screen readers hear the words
-// after it.
-// `needs`: it needs this person (pale yellow); otherwise grey (Phases 18 and 20). `more`: a list
+// after it. One style (Phase 21; Dylan's brief: "one badge style"): the office's grey count pill
+// (`countPill`, as beside a section's heading). `needs` (it needs this person) is in the words
+// only (a pale yellow pill in Phases 18 and 20, ink on white until 21's audit). `more`: a list
 // stopped at 50 ("50+").
 export type MenuBadge = { count: number; words: string; needs?: boolean; more?: boolean };
 export type MenuLink = { href: string; label: string; icon: IconName; badge?: MenuBadge };
@@ -63,13 +66,15 @@ export function ariaCurrent(href: string, pathname: string): "page" | "true" {
   return exact ? "page" : "true";
 }
 
-// A full-width row with an icon. The current one: bold on the card colour, a card lifted off the
-// menu's ground (Phases 18 and 20), its icon in ink.
+// A full-width row with an icon, 44px tall (a thumb's, in the drawer too). The current one: a grey
+// pill (Phase 21; a white card lifted off the menu's ground in Phase 20), its icon in ink. Hover is
+// half the pill, pressed the whole.
 const LINK =
-  "relative flex min-h-10 items-center gap-2.5 rounded-[10px] px-2.5 py-1.5 text-base text-ink hover:bg-card/60";
-const IDLE = `${LINK} font-normal`;
-const ACTIVE = `${LINK} bg-card font-semibold shadow-lift hover:bg-card`;
-const LABEL = "px-2.5 pt-4 pb-1.5 text-sm text-ink-muted";
+  "relative flex min-h-11 items-center gap-3 rounded-full px-3 py-2 text-base text-ink transition-colors active:bg-active";
+const IDLE = `${LINK} font-normal hover:bg-active/60`;
+const ACTIVE = `${LINK} bg-active font-medium`;
+// A group's name: small, grey, sentence case.
+const LABEL = "px-3 pt-6 pb-2 text-xs font-medium text-ink-muted";
 
 function NavLink({
   link,
@@ -81,22 +86,21 @@ function NavLink({
   pathname: string;
 }) {
   const on = link.href === current;
+  // Picked: its page is on its way (its skeleton, and the drawer shuts: menu-pending.tsx).
+  const { start } = useContext(MenuPending);
   return (
     <div>
       <Link
         href={link.href}
         aria-current={on ? ariaCurrent(link.href, pathname) : undefined}
         className={on ? ACTIVE : IDLE}
+        onNavigate={() => start(link.href)}
       >
         <Icon name={link.icon} size={18} className={on ? "text-ink" : "text-ink-muted"} />
         <span className="min-w-0 flex-1">{link.label}</span>
+        <MenuPendingReporter href={link.href} />
         {link.badge ? (
-          <span
-            aria-hidden="true"
-            className={`inline-flex h-5.5 min-w-6 items-center justify-center rounded-full px-2 text-sm font-semibold tabular-nums ${
-              link.badge.needs ? "bg-hivis text-on-hivis" : "bg-raised text-ink-muted"
-            }`}
-          >
+          <span aria-hidden="true" className={countPill}>
             {link.badge.count}
             {link.badge.more ? "+" : ""}
           </span>
@@ -124,7 +128,7 @@ function Fold({
   const shown = chosen ?? inside;
   const id = `menu-${group.label.toLowerCase().replace(/[^a-z]+/g, "-")}`;
   return (
-    <div className="mt-3">
+    <div className="mt-4">
       <button
         type="button"
         aria-expanded={shown}
@@ -138,10 +142,10 @@ function Fold({
         <Icon
           name="chevron"
           size={16}
-          className={`transition-transform duration-200 ease-sd ${shown ? "-rotate-90" : "rotate-90"}`}
+          className={`text-ink-muted transition-transform duration-200 ease-sd ${shown ? "-rotate-90" : "rotate-90"}`}
         />
       </button>
-      <div id={id} hidden={!shown} className="flex animate-in flex-col gap-px pl-5">
+      <div id={id} hidden={!shown} className="flex animate-in flex-col gap-1 pt-1 pl-4">
         {group.links.map((link) => (
           <NavLink key={link.href} link={link} current={current} pathname={pathname} />
         ))}
@@ -158,13 +162,14 @@ export function OfficeNav({ groups, firmName }: { groups: MenuGroup[]; firmName?
   );
   const initial = firmName?.match(/\p{L}|\p{N}/u)?.[0]?.toUpperCase() ?? "";
   return (
-    <nav aria-label="Office menu" className="flex flex-1 flex-col gap-0.5 px-3 py-3.5">
+    <nav aria-label="Office menu" className="flex flex-1 flex-col gap-1 px-3 py-4">
       {firmName && (
-        // The firm, on a card lifted off the menu's ground (Phase 20).
-        <p className="mb-2 flex items-center gap-2.5 rounded-[14px] border border-line bg-card p-2 shadow-lift">
+        // The firm at the top: its initial on its own colour (the one place the office shows
+        // it: Phase 21), then its name.
+        <p className="mb-2 flex items-center gap-3 px-1 py-1">
           <span
             aria-hidden="true"
-            className="flex size-8.5 shrink-0 items-center justify-center rounded-[10px] bg-brand-bar text-base font-semibold text-on-brand-bar"
+            className="flex size-9 shrink-0 items-center justify-center rounded-row bg-brand-bar text-base font-semibold text-on-brand-bar"
           >
             {initial}
           </span>
@@ -186,7 +191,7 @@ export function OfficeNav({ groups, firmName }: { groups: MenuGroup[]; firmName?
         ) : (
           <div key={group.label} className={group.bottom ? "mt-auto pt-4" : ""}>
             {!group.bottom && !group.top && <p className={LABEL}>{group.label}</p>}
-            <div className="flex flex-col gap-0.5">
+            <div className="flex flex-col gap-1">
               {group.links.map((link) => (
                 <NavLink key={link.href} link={link} current={current} pathname={pathname} />
               ))}

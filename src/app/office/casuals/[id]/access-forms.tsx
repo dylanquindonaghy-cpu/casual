@@ -166,7 +166,7 @@ export function StatusForm({
         )}
       </div>
       {asking && (
-        <div className="mt-4 rounded-lg border-2 border-urgent bg-urgent-soft p-4">
+        <div className="mt-4 rounded-row border border-urgent-line bg-urgent-soft p-4">
           <p className="max-w-prose">
             Make {name} inactive? They&apos;re logged out at once, can&apos;t log in or take shifts,
             and get no reminders. Their bookings ahead go on the dashboard to cancel or keep.
@@ -195,7 +195,7 @@ export function StatusForm({
 export function SignOutButton({ workerId }: { workerId: string }) {
   const { off, message, run } = useChange();
   return (
-    <div className="mt-5 border-t border-line pt-5">
+    <div className="mt-6 border-t border-line pt-6">
       <button
         type="button"
         className={btn.secondary}
@@ -278,7 +278,7 @@ export function SiteBlocks({
         </ul>
       )}
       {otherSites.length > 0 && (
-        <div className="mt-5 border-t border-line pt-5">
+        <div className="mt-6 border-t border-line pt-6">
           <h3 className="text-lg font-semibold">Block from a site</h3>
           <div className="mt-3 grid gap-4 sm:grid-cols-2">
             <div className="flex min-w-0 flex-col gap-1">

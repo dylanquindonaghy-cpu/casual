@@ -26,7 +26,7 @@ import { AnswerForm } from "../requests/answer-form";
 // askedLines() ends with the voicemail warning when the request came from a voicemail: it stands
 // out, as something to check before answering (its words say why).
 const voicemailWarning =
-  "mt-1 rounded-md border-l-4 border-attention bg-attention-soft px-3 py-2 text-attention-ink";
+  "mt-1 rounded-row border border-attention-line bg-attention-soft px-4 py-3 text-attention-ink";
 
 function ShiftLine({
   r,

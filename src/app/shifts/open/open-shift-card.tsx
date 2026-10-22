@@ -4,7 +4,8 @@ import type { OpenShift } from "@/lib/portal/open-shifts";
 import { dateParts, placesLeftText, timeRange } from "@/lib/portal/sign-copy";
 import { travelLineText } from "@/lib/travel/line-copy";
 import { Icon } from "../../ui/icons";
-import { DateTile, Seats } from "../../ui/sign";
+import { Seats } from "../../ui/seats";
+import { DateTile } from "../../ui/sign";
 
 // One shift on Open shifts or the urgent board (docs/office-v2.md 4.3; 12H.2; Phases 18 and 20), a
 // card lifted off the page that opens the shift's page (where she reads it in full and takes it):

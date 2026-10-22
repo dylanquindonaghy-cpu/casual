@@ -4,6 +4,8 @@ import { currentOfficeUser } from "../auth/office-login";
 import { canAccess, type OfficeRole } from "../auth/roles";
 import { firms } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
+import { errorCode } from "../jobs/firm-job";
+import { log } from "../log";
 import { loadDigestStatus, type DigestStatus } from "../pay/digest";
 import { digestSchedule, nextDigestAt, type DigestSchedule } from "../pay/digest-schedule";
 import { payWeekNow } from "../pay/pay-week";
@@ -138,4 +140,19 @@ export async function officePayQueriesWaiting(
     );
     return rows[0]?.n ?? 0;
   });
+}
+
+// The dashboard's "Waiting on others" (Phase 21): 0 for a role without pay, or null when the count
+// couldn't be read, so its section says so and the rest of the dashboard still shows (as each of
+// the dashboard's own parts: src/lib/office/dashboard.ts `part`).
+export async function waitingOrFailed(load: () => Promise<number | null>): Promise<number | null> {
+  try {
+    return (await load()) ?? 0;
+  } catch (err) {
+    log.error("dashboard: a part couldn't be read", {
+      part: "payQueriesWaiting",
+      code: errorCode(err),
+    });
+    return null;
+  }
 }

@@ -39,8 +39,9 @@ export function ShowingSwitch({
       setMessage(showingResultText(result, target));
       if (result.status === "shown" || result.status === "hidden") router.refresh();
     });
+  // The track and its knob, 4px in from its edges (Phase 21's spacing).
   const track = small ? "h-6 w-10" : "h-7 w-12";
-  const knob = small ? "size-4.5" : "size-5.5";
+  const knob = small ? "size-4" : "size-5";
   const on = small ? "translate-x-4" : "translate-x-5";
   return (
     <div className="flex flex-col items-end gap-2">
@@ -56,7 +57,7 @@ export function ShowingSwitch({
       >
         <span
           aria-hidden="true"
-          className={`${track} inline-flex items-center rounded-full p-0.75 ${showing ? "bg-ink" : "bg-switch-off"}`}
+          className={`${track} inline-flex items-center rounded-full p-1 transition-colors ${showing ? "bg-ink" : "bg-switch-off"}`}
         >
           <span
             className={`${knob} rounded-full bg-card transition-transform duration-150 ease-sd motion-reduce:transition-none ${showing ? on : "translate-x-0"}`}

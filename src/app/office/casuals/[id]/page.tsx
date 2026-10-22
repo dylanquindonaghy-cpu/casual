@@ -39,7 +39,7 @@ function Evidence({ id, alt, size }: { id: string; alt: string; size: number }) 
         width={size}
         height={size}
         style={{ width: size, height: size }}
-        className="rounded-lg border border-line bg-quiet-soft object-contain"
+        className="rounded-row border border-line bg-quiet-soft object-contain"
       />
     </a>
   );

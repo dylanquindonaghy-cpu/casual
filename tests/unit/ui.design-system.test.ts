@@ -95,8 +95,9 @@ describe("the shared pieces (src/app/ui/)", () => {
   // Utilities that take a colour, and the suffixes of the same prefixes that aren't colours.
   const COLOUR_UTILITY =
     /(?<![\w-])(?:[a-z0-9-]+:)*(bg|text|border|divide|decoration|outline|ring)-([a-z0-9-]+)(?:\/\d+)?(?![\w-])/g;
+  // (`text-title` is a page headline's type: globals.css, Phase 21.)
   const NOT_A_COLOUR =
-    /^(\d+|[xytblrse](-\d+)?|xs|sm|base|lg|\d?xl|center|left|right|start|end|balance|pretty|wrap|nowrap|collapse|separate|solid|dashed|dotted|none|offset-\d+)$/;
+    /^(\d+|[xytblrse](-\d+)?|xs|sm|base|lg|\d?xl|title|center|left|right|start|end|balance|pretty|wrap|nowrap|collapse|separate|solid|dashed|dotted|none|offset-\d+)$/;
   // Not colours of their own: see-through, and the text's own colour. Tailwind's white, black
   // and palette shades are no longer allowed (12A.1: they'd stay the same in the dark theme).
   const BUILT_IN = /^(transparent|current)$/;

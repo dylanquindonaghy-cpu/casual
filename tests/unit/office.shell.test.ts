@@ -26,6 +26,7 @@ const { ACCOUNT_MENU_ID, DRAWER_ID, initials, redrawOnArrival } =
   await import("@/app/office/office-frame");
 const { themeCookie } = await import("@/app/office/theme-button");
 const { PageHeader } = await import("@/app/ui/page-header");
+const { count, countPill } = await import("@/app/ui/classes");
 const { StatusChip } = await import("@/app/ui/status-chip");
 const { LogoutButton } = await import("@/app/logout-button");
 
@@ -99,7 +100,7 @@ describe("the office menu (v2 groups; Phases 18 and 20)", () => {
     ).not.toContainEqual(expect.objectContaining({ href: "/office/pay-queries" }));
   });
 
-  it("a count is sign yellow only when it needs this person (Phase 18), grey otherwise", () => {
+  it("a count needs this person or not (Phase 18), drawn as the office's one grey pill (Phase 21)", () => {
     const counts = { payQueries: 3, needPerson: 2, uploads: 4 };
     // Pay queries need payroll; for an admin they're with payroll.
     expect(menuBadges("payroll", counts)["/office/pay-queries"]).toEqual({
@@ -137,7 +138,9 @@ describe("the office menu (v2 groups; Phases 18 and 20)", () => {
       ).toBeUndefined();
     // None: no badge.
     expect(menuBadges("admin", { payQueries: 0, needPerson: 0, uploads: 0 })).toEqual({});
-    // Drawn: the yellow plate for one that needs you, the grey one otherwise.
+    // Drawn (Phase 21; Dylan's brief: "one badge style (grey, red only for urgent)"): every count is
+    // the office's one grey pill, the same as beside a section's heading; whether it needs you is in
+    // its words (the yellow plate until Phase 21). None of the menu's counts is an urgent one.
     nav.pathname = "/office";
     const html = renderToStaticMarkup(
       createElement(OfficeNav, { groups: officeMenu("admin", menuBadges("admin", counts)) }),
@@ -146,10 +149,13 @@ describe("the office menu (v2 groups; Phases 18 and 20)", () => {
       new RegExp(
         `<a [^>]*href="${href}"[^>]*>[\\s\\S]*?<span aria-hidden="true" class="([^"]*)">\\d+</span>`,
       ).exec(html)?.[1] ?? "";
-    expect(badgeOf("/office/enquiries")).toContain("bg-hivis text-on-hivis");
-    expect(badgeOf("/office/casuals")).toContain("bg-hivis text-on-hivis");
-    expect(badgeOf("/office/pay-queries")).toContain("bg-raised text-ink-muted");
-    expect(badgeOf("/office/pay-queries")).not.toContain("bg-hivis");
+    for (const href of ["/office/enquiries", "/office/casuals", "/office/pay-queries"])
+      expect(badgeOf(href), href).toBe(countPill);
+    expect(countPill).toMatch(/(?<![\w-])bg-count(?![\w-])/);
+    expect(countPill).toMatch(/(?<![\w-])text-ink-muted(?![\w-])/);
+    expect(count).toBe(`ml-2 align-middle ${countPill}`);
+    // No status colour on a count: none of these is urgent.
+    expect(html).not.toMatch(/bg-(?:hivis|urgent|attention|wait|done)/);
     // "50+": the plus sits in the drawn count, the words say the same.
     const more = renderToStaticMarkup(
       createElement(OfficeNav, {
@@ -159,10 +165,37 @@ describe("the office menu (v2 groups; Phases 18 and 20)", () => {
         ),
       }),
     );
-    expect(more).toMatch(
-      /<a [^>]*href="\/office\/needs-attention"[^>]*>[\s\S]*?<span aria-hidden="true" class="[^"]*bg-hivis text-on-hivis[^"]*">50\+<\/span>/,
-    );
+    expect(more).toContain(`<span aria-hidden="true" class="${countPill}">50+</span>`);
     expect(more).toContain('<span class="sr-only">50+ to deal with</span>');
+  });
+
+  it("every row is 44px tall (a thumb's, in the drawer too); the groups' names small and grey (Phase 21)", () => {
+    nav.pathname = "/office/log";
+    const html = renderToStaticMarkup(
+      createElement(OfficeNav, { groups: officeMenu("admin"), firmName: "Acme Events" }),
+    );
+    const controls = [...html.matchAll(/<(a|button) [^>]*class="([^"]*)"/g)];
+    expect(controls.length).toBeGreaterThan(15);
+    for (const [, tag, cls] of controls) expect(cls, tag).toMatch(/(?<![\w-])min-h-11(?![\w-])/);
+    // The fold's button among them ("Admin and records").
+    expect(controls.some(([, tag]) => tag === "button")).toBe(true);
+    const labels = [...html.matchAll(/<p class="([^"]*)">([^<]+)<\/p>/g)];
+    expect(labels.map((m) => m[2])).toEqual(expect.arrayContaining(["Today", "Pay", "People"]));
+    for (const [, cls] of labels)
+      expect(cls).toBe("px-3 pt-6 pb-2 text-xs font-medium text-ink-muted");
+    // The others: half the grey pill under the pointer, the whole pill while pressed.
+    const idle = [...html.matchAll(/<a [^>]*class="([^"]*)"[^>]*>/g)]
+      .filter((m) => !/aria-current=/.test(m[0]))
+      .map((m) => m[1] ?? "");
+    expect(idle.length).toBeGreaterThan(10);
+    for (const cls of idle) {
+      expect(cls).toMatch(/(?<![\w-])hover:bg-active\/60(?![\w-])/);
+      expect(cls).toMatch(/(?<![\w-])active:bg-active(?![\w-])/);
+    }
+    // The page you're on: the grey pill.
+    expect(html).toMatch(
+      /<a [^>]*aria-current="page"[^>]*class="[^"]*(?<![\w-])bg-active(?![\w-])[^"]*"|<a [^>]*class="[^"]*(?<![\w-])bg-active(?![\w-])[^"]*"[^>]*aria-current="page"/,
+    );
   });
 
   it("links have no query strings (tests compare the address after a click)", () => {
@@ -258,8 +291,9 @@ describe("the menu's markup", () => {
     expect(marked(html, "true")).toEqual([]);
     expect(marked(html, "page")).toHaveLength(1);
     expect(marked(html, "page")[0]).toContain('href="/office/events"');
-    // Phases 18 and 20: lifted off the menu's ground on the card colour, in bold.
-    expect(marked(html, "page")[0]).toMatch(/bg-card font-semibold shadow-lift/);
+    // Phase 21: a grey pill (lifted off the menu's ground on the card colour in Phases 18 and 20).
+    expect(marked(html, "page")[0]).toMatch(/rounded-full[^"]* bg-active font-medium/);
+    expect(marked(html, "page")[0]).not.toMatch(/shadow-/);
     expect(marked(html, "page")[0]).not.toMatch(/before:/);
   });
 
@@ -362,10 +396,12 @@ describe("the shell", () => {
     // The firm's name below 1024px (from there, the menu beside the page shows it).
     expect(bar).toMatch(/<p class="[^"]*lg:hidden[^"]*">Acme Events<\/p>/);
     expect(html).toMatch(/<nav aria-label="Office menu"[^>]*>.*?Acme Events.*?Office/);
-    // The pay week, from 1024px (hidden on phones and tablets).
-    expect(bar).toMatch(
-      /<p class="[^"]*hidden[^"]*lg:block[^"]*">Week 41 · 5 Oct – 11 Oct · Pay Fri 16 Oct<\/p>/,
-    );
+    // The pay week, from 1024px (hidden on phones and tablets), on two lines that each stay whole
+    // (Phase 21); read as one.
+    const week = bar.match(/<p class="[^"]*hidden[^"]*lg:block[^"]*">(.*?)<\/p>/)?.[1] ?? "";
+    expect(text(week)).toBe("Week 41 · 5 Oct – 11 Oct · Pay Fri 16 Oct");
+    expect(week).toMatch(/<span class="block whitespace-nowrap">Week 41 · 5 Oct – 11 Oct<\/span>/);
+    expect(week).toMatch(/<span class="block [^"]*whitespace-nowrap[^"]*">Pay Fri 16 Oct<\/span>/);
     expect(bar).toMatch(/<button type="button" aria-label="Switch to dark mode" disabled=""/);
     // The theme button's words also show beside it (hidden from screen readers: they're its name).
     expect(bar).toMatch(/<span aria-hidden="true"[^>]*group-hover:block[^>]*>Switch to dark mode</);
@@ -458,8 +494,9 @@ describe("shared pieces add no words", () => {
     expect(html).toMatch(/<h1 id="page-title"[^>]*>Shifts<\/h1>/);
     expect(text(html)).toBe("Shifts 0 of 2 booked · Open New shift");
     expect(html.indexOf("<h1")).toBeLessThan(html.indexOf("<p"));
-    // Phase 17: a 24px title (text-2xl) and no divider under the header (space separates).
-    expect(html).toMatch(/<h1 id="page-title" class="[^"]*(?<![\w-])text-2xl(?![\w-])/);
+    // Phase 17: a 24px title and no divider under the header (space separates). Phase 21: the title
+    // is `text-title` (24px semibold in the casual app, the office's display serif at 28px).
+    expect(html).toMatch(/<h1 id="page-title" class="[^"]*(?<![\w-])text-title(?![\w-])/);
     expect(html).not.toMatch(/text-(?:3xl|4xl)/);
     expect(html).not.toMatch(/(?<![\w-])(?:border-b|divide-y)(?![\w-])/);
   });

@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import { canAccess } from "@/lib/auth/roles";
 import { officeDashboard } from "@/lib/office/dashboard";
-import { officePayQueriesWaiting } from "@/lib/office/pay-dashboard";
+import { officePayQueriesWaiting, waitingOrFailed } from "@/lib/office/pay-dashboard";
 import { firmShiftsLine, shiftsLineText } from "@/lib/tenancy/shifts-line";
 import { page } from "../ui/classes";
 import { DashboardContent } from "./dashboard-view";
@@ -23,7 +23,7 @@ export default async function OfficeHome() {
   const [dashboard, line, waiting] = await Promise.all([
     officeDashboard({ firm, officeUserId: officeUser.id }),
     firmShiftsLine({ firm }),
-    officePayQueriesWaiting({ firm }, officeUser.role),
+    waitingOrFailed(() => officePayQueriesWaiting({ firm }, officeUser.role)),
   ]);
   if (!dashboard) notFound();
   return (
@@ -33,7 +33,7 @@ export default async function OfficeHome() {
         firmName={firm.name}
         now={new Date()}
         shiftsLine={shiftsLineText(line)}
-        payQueriesWaiting={waiting ?? 0}
+        payQueriesWaiting={waiting}
       />
     </main>
   );

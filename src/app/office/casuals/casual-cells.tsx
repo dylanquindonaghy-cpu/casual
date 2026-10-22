@@ -21,7 +21,7 @@ export function PhotoCell({ row, year }: { row: CasualRow; year: number }) {
         <span className="text-sm text-ink-muted">{OFFICE_PHOTO_WORDS.up_to_date}</span>
       ) : row.photo.status === "missing" ? (
         // Most rows of a new firm say this: a small dot and words, not a tag on every row.
-        <span className="inline-flex items-center gap-1.5 text-sm text-ink">
+        <span className="inline-flex items-center gap-2 text-sm text-ink">
           <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-attention" />
           {OFFICE_PHOTO_WORDS.missing}
         </span>

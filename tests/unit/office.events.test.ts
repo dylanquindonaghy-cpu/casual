@@ -196,15 +196,13 @@ describe("an event card's words", () => {
     // Its 14 days' cells: the weekends (Sat 7, Sun 8, Sat 14, Sun 15) a shade darker, as their
     // headers are (Phase 20).
     const cells = [
-      ...html.matchAll(
-        /<div class="flex flex-col justify-center gap-\[3px\] px-\[3px\] py-1\.5 ?([^"]*)">/g,
-      ),
+      ...html.matchAll(/<div class="flex flex-col justify-center gap-1 px-1 py-2 ?([^"]*)">/g),
     ].map((m) => m[1]);
     expect(cells).toHaveLength(14);
     expect(cells.flatMap((c, i) => (c === "bg-canvas" ? [i] : []))).toEqual([0, 1, 7, 8]);
   });
 
-  it("the board's days (Phase 20): today marked in the firm's colour, weekends a shade darker", () => {
+  it("the board's days (Phase 20): today marked (in ink in the office: Phase 21), weekends a shade darker", () => {
     const html = renderToStaticMarkup(
       createElement(BoardDays, { days: boardDays("2026-11-07", "2026-11-09") }),
     );
@@ -212,9 +210,10 @@ describe("an event card's words", () => {
       ...html.matchAll(/<div data-day="([^"]+)" class="([^"]*)">([\s\S]*?)<\/div><\/div>/g),
     ].map((m) => ({ date: m[1], cls: m[2] ?? "", inner: m[3] ?? "" }));
     expect(days).toHaveLength(14);
-    // Today (Monday 9): a bar in the firm's colour along its top, "Today" bold; no other day.
+    // Today (Monday 9): a bar along its top (the `brand` token: ink in the office), "Today" bold;
+    // no other day.
     const barred = days.filter((d) =>
-      d.inner.includes('class="absolute inset-x-0 top-0 h-[3px] bg-brand"'),
+      d.inner.includes('class="absolute inset-x-0 top-0 h-1 bg-brand"'),
     );
     expect(barred.map((d) => d.date)).toEqual(["2026-11-09"]);
     expect(barred[0]?.inner).toContain('<div class="text-xs font-semibold text-ink">Today');
@@ -233,10 +232,11 @@ describe("an event card's words", () => {
     expect(text(key).trim().replace(/\s+/g, " ")).toBe(
       "Urgent gap Places open Full Pills show places filled out of places needed.",
     );
-    // Each mark is the pill it explains: red, outlined, grey.
-    expect(key).toContain('class="size-3.5 rounded-[4px] bg-urgent-fill"');
-    expect(key).toContain('class="size-3.5 rounded-[4px] border-[1.5px] border-ink-muted"');
-    expect(key).toContain('class="size-3.5 rounded-[4px] bg-raised"');
+    // Each mark is the pill it explains, scaled down (Phase 21: round, as the pills are): red,
+    // outlined, grey.
+    expect(key).toContain('class="h-3 w-5 rounded-full bg-urgent-fill"');
+    expect(key).toContain('class="h-3 w-5 rounded-full border border-ink-muted bg-card"');
+    expect(key).toContain('class="h-3 w-5 rounded-full bg-raised"');
   });
 });
 
@@ -264,8 +264,10 @@ describe("an event's open row: its sessions in the board's two weeks (Phase 18)"
       }),
     );
     const words = text(html);
-    // Set into the board a step darker (the canvas grey, sunk), not a card of its own.
-    expect(html).toMatch(/^<div class="[^"]*rounded-\[18px\] bg-canvas[^"]*inset-shadow-sunk/);
+    // Set into the board a step darker (the canvas grey; Phase 21: no sunk shadow, the office has
+    // one depth token), not a card of its own.
+    expect(html).toMatch(/^<div class="[^"]*rounded-row bg-canvas/);
+    expect(html.slice(0, html.indexOf(">"))).not.toMatch(/shadow/);
     expect(html.slice(0, html.indexOf(">"))).not.toContain("bg-card");
     // Its head: where, how many to come, then its "show to casuals" switch (Phase 20: here, not on
     // the row), Add a session and its own page.

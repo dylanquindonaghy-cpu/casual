@@ -11,16 +11,16 @@ import { sentTo } from "./outbox";
 // no top bar (Phase 20). Everything runs with the device set to light and again set to dark.
 
 const acme = "http://acme.localhost:3100";
-// The office's page: the card colour (Phase 18; Phase 20's dark grey, D7). From 1024px it's a sheet
-// on the frame, which is the canvas grey, like the menu.
-const CANVAS = { light: "rgb(255, 255, 255)", dark: "rgb(24, 25, 28)" }; // #ffffff, #18191c
-const FRAME = { light: "rgb(238, 240, 243)", dark: "rgb(11, 12, 14)" }; // #eef0f3, #0b0c0e
+// The office's page (Phase 21, the office's look): its warm off-white ground (a near-black in dark),
+// the menu's too at every width; from 1024px no sheet on a frame (Phase 20's), the page's white
+// cards sit on the ground itself.
+const CANVAS = { light: "rgb(246, 245, 243)", dark: "rgb(18, 18, 17)" }; // #f6f5f3, #121211
 
 // Each test logs in as a resourcer of its own (the seeded users allow 3 login links per 15
 // minutes, and this spec logs in six times).
-async function officeLogin(page: Page, who: string) {
+async function officeLogin(page: Page, who: string, role: "resourcer" | "admin" = "resourcer") {
   const email = `shell.${who}@example.com`;
-  await addOfficeUser("acme", { email, name: "Sam Rota", role: "resourcer" });
+  await addOfficeUser("acme", { email, name: "Sam Rota", role });
   const asked = new Date(Date.now() - 1000);
   await page.goto(`${acme}/office/login`);
   await page.getByLabel("Your work email").fill(email);
@@ -58,9 +58,34 @@ for (const device of ["light", "dark"] as const) {
         expect(await focusInMenu(page)).toBe(false);
       }
 
-      // Escape shuts it, and focus goes back to Menu.
+      // Escape shuts it, and focus goes back to Menu. Every row in it is a thumb's 44px tall, on
+      // the brief's 390px phone (Phase 21), and so is every button in the top bar.
+      await page.setViewportSize({ width: 390, height: 844 });
+      const bar = await page
+        .getByRole("banner")
+        .locator("button")
+        .evaluateAll((els) =>
+          els
+            .filter((el) => el.checkVisibility())
+            .map((el) => [el.textContent ?? "", Number.parseFloat(getComputedStyle(el).height)]),
+        );
+      expect(bar.length).toBeGreaterThanOrEqual(3); // Menu, moon/sun, you
+      for (const [name, height] of bar) expect(height, String(name)).toBeGreaterThanOrEqual(44);
       await menuButton.click();
       await expect(drawer).toBeVisible();
+      // (The folded group opened first, so its links are measured too.)
+      const fold = drawer.locator('button[aria-expanded="false"]');
+      if ((await fold.count()) > 0) await fold.click();
+      const rows = drawer.locator("a, button:not([aria-label='Close menu'])");
+      // Their laid-out height: the folded group's links slide in (a transform), and a box measured
+      // mid-slide can read 43.99994px.
+      const heights = await rows.evaluateAll((els) =>
+        els
+          .filter((el) => el.checkVisibility())
+          .map((el) => Number.parseFloat(getComputedStyle(el).height)),
+      );
+      expect(heights.length).toBeGreaterThan(8);
+      for (const height of heights) expect(height).toBeGreaterThanOrEqual(44);
       await expect(
         drawer.getByRole("link", { name: "Events & sessions", exact: true }),
       ).toBeVisible();
@@ -154,7 +179,7 @@ for (const device of ["light", "dark"] as const) {
       await expect(account.getByText("Sam Rota", { exact: true })).toBeVisible();
       await expect(account.getByText("SR", { exact: true })).toBeVisible();
       // No top bar from 1024px (Phase 20): the account and moon/sun buttons are at the menu's foot
-      // (the menu is 248px wide), and the page is a white sheet on the grey frame.
+      // (the menu is 248px wide), and the page and menu share the one ground (Phase 21).
       const foot = async (button: typeof account) => {
         const box = await button.boundingBox();
         expect(box).not.toBeNull();
@@ -165,11 +190,88 @@ for (const device of ["light", "dark"] as const) {
       await foot(page.getByRole("button", { name: /^Switch to (light|dark) mode$/ }));
       await expect(page.locator('[data-shell="office"]')).toHaveCSS(
         "background-color",
-        FRAME[device],
+        CANVAS[device],
       );
-      await expect(page.locator("#main")).toHaveCSS("background-color", CANVAS[device]);
+      await expect(page.locator("body")).toHaveCSS("background-color", CANVAS[device]);
+      await expect(page.locator("#main")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
       await (await accountMenu(page)).getByRole("link", { name: "How-to guide" }).click();
       await expect(page).toHaveURL(`${acme}/office/guide`);
     });
   });
 }
+
+// A page picked in the menu shows its skeleton in the page's place while it's on its way (Phase
+// 21; docs/ui-design.md "States"), every page in an admin's menu: each page's answer is held back
+// here so the wait is long enough to see. Then the page, and the skeleton gone. The dashboard has
+// its own.
+test("every page picked in the menu shows its skeleton while it's on its way", async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  let held = 0;
+  await page.route(/\/office(\/[^?#]*)?(\?|$)/, async (route) => {
+    const request = route.request();
+    if (request.headers()["rsc"] === "1" && request.headers()["next-router-prefetch"] !== "1") {
+      held += 1;
+      await new Promise((done) => setTimeout(done, 800));
+    }
+    await route.continue();
+  });
+  await officeLogin(page, "skeleton", "admin");
+  const skeleton = page.locator("[data-skeleton]");
+  await expect(skeleton).toHaveCount(0);
+
+  const menu = page.getByRole("navigation", { name: "Office menu" });
+  await menu.locator('button[aria-expanded="false"]').click();
+  const links = await menu
+    .getByRole("link")
+    .evaluateAll((els) =>
+      els.map((el) => [el.getAttribute("href") ?? "", el.querySelector("span")?.textContent ?? ""]),
+    );
+  expect(links.length).toBeGreaterThan(15);
+  // From the dashboard to every other page, then back to the dashboard.
+  for (const [href, name] of [
+    ...links.filter(([h]) => h !== "/office"),
+    ["/office", "Dashboard"],
+  ]) {
+    await (await menuLink(page, name!)).click();
+    await expect(skeleton, href).toBeVisible();
+    await expect(
+      skeleton.getByText(href === "/office" ? "Loading the dashboard…" : "Loading the page…"),
+    ).toBeAttached();
+    await expect(page).toHaveURL(`${acme}${href}`);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(skeleton, href).toHaveCount(0);
+  }
+  expect(held).toBeGreaterThanOrEqual(links.length);
+});
+
+// On a phone (the brief's 390px, in dark): a page picked in the drawer shuts the drawer at once and
+// shows its skeleton while it's on its way, then the page (Phase 21).
+test.describe("on a phone, in dark", () => {
+  test.use({ colorScheme: "dark" });
+
+  test("a page picked in the drawer: the drawer shuts and its skeleton shows", async ({ page }) => {
+    await page.route(/\/office\/casuals(\?|$)/, async (route) => {
+      const request = route.request();
+      if (request.headers()["rsc"] === "1" && request.headers()["next-router-prefetch"] !== "1")
+        await new Promise((done) => setTimeout(done, 1500));
+      await route.continue();
+    });
+    await officeLogin(page, "skeleton.phone");
+    await page.setViewportSize({ width: 390, height: 844 });
+    const drawer = page.getByRole("dialog", { name: "Menu" });
+    const skeleton = page.locator("[data-skeleton]");
+    await (await menuLink(page, "Casuals")).click();
+    await expect(drawer).toBeHidden();
+    await expect(skeleton).toBeVisible();
+    await expect(skeleton.getByText("Loading the page…")).toBeAttached();
+    await expect(page.locator("body")).toHaveCSS("background-color", CANVAS.dark);
+    await expect(page).toHaveURL(`${acme}/office/casuals`);
+    await expect(page.getByRole("heading", { level: 1, name: "Casuals" })).toBeVisible();
+    await expect(skeleton).toHaveCount(0);
+    // Back on the dashboard, nothing left over: no skeleton, the page itself.
+    await page.goBack();
+    await expect(page).toHaveURL(`${acme}/office`);
+    await expect(skeleton).toHaveCount(0);
+  });
+});

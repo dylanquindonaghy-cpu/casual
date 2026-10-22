@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { btn, nums, page, row, rows } from "@/app/ui/classes";
+import { btn, card, nums, page, row, rows } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import { canAccess } from "@/lib/auth/roles";
@@ -99,7 +99,8 @@ export default async function CancellationRecordPage({
       )}
       {/* Always here (it shows nothing without a note), so a resend's answer outlives the refresh. */}
       <ResendEvidence assignmentId={record.row.assignmentId} note={resend} />
-      <dl className="grid max-w-3xl gap-x-6 gap-y-3 sm:grid-cols-[12rem_1fr]">
+      {/* The record's facts as label and value rows in one white card (Phase 21: Neo Financial's). */}
+      <dl className={`${card} grid max-w-3xl gap-x-6 gap-y-3 sm:grid-cols-[12rem_1fr]`}>
         {fields.map((f) => (
           <div key={f.label} className="contents">
             <dt className="font-semibold text-ink">{f.label}</dt>
@@ -126,7 +127,7 @@ function ChooseOne({ shared }: { shared: SharedReference }) {
           <li key={r.assignmentId} className={row}>
             <Link
               href={`/office/cancellations/${r.assignmentId}`}
-              className="flex flex-col gap-1 rounded-md focus-visible:outline-2"
+              className="flex flex-col gap-1 rounded-row focus-visible:outline-2"
             >
               <span className="font-semibold underline decoration-line-strong underline-offset-4">
                 {r.casual}

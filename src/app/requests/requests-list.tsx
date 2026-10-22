@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { muted, nums, row, rows, staffBtn } from "@/app/ui/classes";
+import { muted, nums, staffBtn, staffRow, staffRows } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { StatusChip, type StatusTone } from "@/app/ui/status-chip";
 import { KIND_NAMES, statusWord } from "@/lib/portal/request-kinds";
@@ -32,9 +32,9 @@ export function RequestsList({ requests, timeZone }: { requests: MyRequest[]; ti
       {requests.length === 0 ? (
         <p>No requests yet.</p>
       ) : (
-        <ul role="list" className={rows}>
+        <ul role="list" className={staffRows}>
           {requests.map((r) => (
-            <li key={r.ref} className={row}>
+            <li key={r.ref} className={staffRow}>
               <StatusChip tone={TONES[r.status] ?? "quiet"}>
                 {statusWord(r.type, r.status)}
               </StatusChip>

@@ -14,8 +14,10 @@ its end. The platform's own address has no bar.
 Dylan's brief (PLAN.md Phase 21): a visual and layout pass over every office page; the look
 (Geist, the display serif for each page's headline, the warm off-white page, near-black main
 buttons, the tinted statuses, one depth token) is in `docs/ui-design.md` "Phase 21". Where this
-section says otherwise, it wins over the sections below; every route, label (but the two the
-brief changes), link and action is as before. The casual app is unchanged.
+section says otherwise, it wins over the sections below; every route, label (but those the
+brief changes: "3 of 4 filled", "Offer", "Pay {Fri 30 Oct}", "No sessions" on an empty day, and
+the four cards jumping to their sections), link and action is as before. The casual app is
+unchanged.
 
 - **Menu:** the firm's initial on its colour and its name at the top; the page you're on a grey
   pill (every row 44px tall); small grey group names; every count the one small grey pill (the
@@ -134,7 +136,8 @@ tokens) is in `docs/ui-design.md` "Phase 20".
   enquiries that need a person, as the menu counts them), so the two tiles under it add up to it
   ("Nothing needs you right now."; "At least …" when a part couldn't load, as before). Then where to start ("Start with {Thursday}'s
   {door supervisor} at {08:00}: {not offered to anyone yet}."; with no urgent place, the subline
-  as before), "{Monday 2 November} · Week {45} · Pay on {Fri 13 Nov}", and the shifts line. Four
+  as before), "{Monday 2 November} · Week {45} · Pay on {Fri 13 Nov}" (Phase 21: "Pay {Fri 13
+  Nov}", above the greeting), and the shifts line. Four
   count tiles: "Urgent places" (pale red, the days they're on → Events & sessions' Urgent),
   "Needs attention" (yellow, "{5} sessions to mark, {2} uploads" → Needs attention), "Waiting on
   others" (pale blue, "Pay queries with payroll" → Pay queries, or "Nothing waiting on others"),

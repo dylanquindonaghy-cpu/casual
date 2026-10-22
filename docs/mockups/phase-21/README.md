@@ -14,6 +14,7 @@ the final code.
 |---|---|
 | `before-dashboard-1440-light.jpg`, `before-dashboard-390-light.jpg` | The dashboard before Phase 21 (Phase 20's look) |
 | `dashboard.jpg` | The date line over the serif greeting; the four tinted cards; the urgent places as one rounded list; the menu's grey pill and grey counts |
+| `dashboard-full.jpg` | The whole dashboard, top to bottom (this week's bars, the three panels), in all four; taken after the audit's first round, before the round-2 changes, none of which is on the dashboard |
 | `needs-attention.jpg` | Needs attention's amber panels of near-white rows, "Also needs you" in pale red |
 | `events.jpg` | Events & sessions: the board in its white card, the filters in their grey track |
 | `casuals.jpg` | Casuals: the table card (cards on a phone) and the chips |

@@ -13623,3 +13623,62 @@ in PLAN.md).
 - The menu's "Needs attention" count is that page's items (with enquiries); the Dashboard's
   "N things need you" adds the urgent places. If he meant the menu to show the full number, it's
   a small change.
+
+## 2026-10-22 · Phase 21: the office's look (21.1 to 21.4)
+
+Time spent: 4.5 hours (from Dylan's brief at 10:22 to the last tick, measured from the session
+history; see the Hours log in PLAN.md).
+
+### The result
+
+- Verify: `VERIFIED tree=0fab60e990c5be25 e2e=true` on the files the round-3 auditors read
+  (`VERIFIED tree=08c5ff104e032ed4 e2e=true` for round 2, `ab6a1f2da3806f82` for round 1). The
+  ticks and these notes came after.
+- Tests: 5,215 unit and integration tests pass, none skipped; 100 browser tests and the
+  walkthrough's 6 pass, none flaky.
+- Auditor: round 1, all four NOT DONE (missing proof more than missing code, but also real gaps:
+  40px menu rows, white menu counts, shared parts off the system, no error state on Waiting on
+  others). Round 2: 21.1 and 21.3 DONE; 21.2 (two tests) and 21.4 (the phone's skeleton behind the
+  drawer, thin page checks) NOT DONE. Round 3: 21.2 and 21.4 DONE. No fakes found in any round.
+
+### What changed, in plain words
+
+- **The office's own look, from one set of colours (light and dark):** a warm off-white page,
+  white cards with one soft shadow, near-black main buttons, grey pill buttons, red words on grey
+  for a destructive step, and red, amber, blue and green only for statuses and the dashboard's
+  tinted cards. Geist for words, Instrument Serif for each page's headline, Geist Mono for the big
+  numbers (tried beside heavy Geist; the picture is in `docs/mockups/phase-21`). Seven text sizes,
+  seven spacing steps, two corner sizes and pills, 150 to 200ms transitions; a test checks every
+  office file, and every shared part an office page shows, keeps to them.
+- **The dashboard:** the date line over a serif greeting; four tinted cards that jump to their
+  sections; the urgent places as one rounded list with "3 of 4 filled" bars, "Not offered yet" in
+  red and a small black "Offer"; this week as bars Monday to Sunday with a dashed "All filled" line;
+  tinted panels of near-white rows. Every section has its loading skeleton, empty words and error
+  words (Waiting on others too, which used to take the whole page down if its count failed).
+- **The menu:** on the page's ground with a grey pill for the page you're on, 44px rows (the
+  drawer's too), one grey count pill, the week and pay day on two lines at its foot.
+- **Every other page** on the same parts, at 390px and 1440px in both themes. A long qualification
+  no longer runs Casuals sideways on a phone; a cancellation's record is one white card.
+- **The dark round button over the menu's foot** was Next's development button (only `next dev`
+  draws it, bottom-left by default): it's bottom-right now.
+- **Loading skeletons** come from the menu's own links. A route-wide loading screen was tried and
+  removed: it made pages a role can't open answer "200 OK" instead of "not found" (the browser
+  tests caught it). On a phone the drawer now shuts as you pick, so the skeleton is seen.
+- **The casual app is unchanged.** Its counts, cards and buttons kept Phase 20's look (its Booked
+  count had changed by accident; it's back).
+- **Outside the brief:** a test file could hand out the shared "number no firm has", so the voice
+  test failed now and then; it no longer can.
+
+### Words that changed (the brief's own)
+
+"3 of 4 filled" in place of "1 of 4 places free"; "Offer" (still named "Offer to someone" for
+screen readers); "Pay Fri 30 Oct" in place of "Pay on Fri 30 Oct"; "No sessions" on an empty day;
+the four cards jump to their sections (each section keeps its link to the whole list).
+
+### What needs Dylan
+
+- PR #20 (draft): Phase 21. CI was green on its earlier commits.
+- The greeting still names the firm ("Afternoon, Acme Events."), as before; using the person's name
+  is a one-line change if he wants it.
+- On a 900px-tall screen the menu (now 44px rows) scrolls a little to reach "Admin and records".
+- Pages opened from inside another page (a shift, a session) load without a skeleton, as before.

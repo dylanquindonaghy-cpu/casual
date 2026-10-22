@@ -1,9 +1,9 @@
 // What an office page shows while it loads (Phase 21; office-frame.tsx shows it while a page picked
-// in the menu is on its way, menu-pending.tsx): the page's final layout with each value a flat
-// grey bar at its real size (no shimmer, nothing moving), so nothing jumps when the page arrives.
-// The dashboard's own, a part for every section (its headline, its four cards, its urgent places,
-// its week and its three panels), and every other page's (a headline, a line, then a card of
-// rows). Hidden from screen readers but for one line that says it's loading. Hook-free.
+// in the menu is on its way, menu-pending.tsx): flat grey bars (no shimmer, nothing moving). The
+// dashboard's own follows its layout, a part for every section (its headline, its four cards, its
+// urgent places, its week and its three panels); every other page shares one (a headline, a line,
+// then a card of rows). Hidden from screen readers but for one line that says it's loading.
+// Hook-free.
 
 const BAR = "block rounded-full bg-raised";
 

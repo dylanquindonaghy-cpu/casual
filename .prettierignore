@@ -8,3 +8,5 @@ playwright-report/
 test-results/
 package-lock.json
 next-env.d.ts
+# The approved mock-ups, kept exactly as Dylan saw them.
+docs/mockups/**/*.html

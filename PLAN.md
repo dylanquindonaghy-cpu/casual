@@ -1476,6 +1476,53 @@ changes), link or action is lost; screenshots at 390px and 1440px, light and dar
 with the references and reviewed with the taste skill; `docs/ui-design.md` has the office's
 tokens; the `claims-auditor` checks the phase against this line.
 
+## Phase 22 — The office's look, round 2
+
+Added 2026-10-22. Dylan saw Phase 21 live: "the use of colours it just looks very bland theres
+still no depth to any of the individual sections and a tacky scroll wheel on the left side you've
+missed out on shaders layers and depth this whole time i also asked for animations still none not
+ai slop just subtle reactive on click responses". He sent more references (dark admin dashboards:
+Dashdark X, HITE EQ, notion>ision, PMD Digital, ovniscale) and picked the hilos direction (DM Sans,
+DM Mono, a semibold serif). The mock-up (`docs/mockups/phase-22/`) was approved the same day with
+one change: "remove the gradients theres no need for that". The office only; every route, label,
+link and action stays. Where the real office differs from the mock-up: "Offer" opens the offer
+page (it never sent anything by itself), so it shows a spinner while that page opens rather than
+the mock-up's tick. Docs: `docs/ui-design.md`, `docs/screens.md`.
+
+- [ ] The system, round 2: DM Sans for words, DM Mono for the big numbers and Newsreader semibold
+      for each page's headline, self-hosted; the window (a grey ground) with the page as a sheet on
+      it, white surfaces with a lit top edge and a shadow of their own, and grooves set into them;
+      the dashboard's four colours as full flat colour (coral, amber, blue, green) with a coloured
+      shadow and a fine grain, and their panels as flat washes; no gradients; everything you press
+      dips and springs back (about 90ms down, 300ms back), nothing moves on its own, and reduced
+      motion turns movement off; AA contrast in both themes. Tests: the tokens and their contrast
+      in both themes, the fonts, no gradient in the office's styles, every shadow pinned, the press
+      feedback (22.1)
+- [ ] The shell and the menu: from 1024px the menu on the ground and the page as a sheet set into
+      the window; below it, the top bar over a sheet with rounded top corners; menu rows 34px with
+      a mouse and 44px on touch (always 44px in the drawer); the highlight slides to the page you
+      pick; no scrollbar in the menu: an admin's whole menu fits a 1280 × 640 window, and a shorter
+      one scrolls with no bar and a fade at the edge that has more; the how-to guide in the account
+      menu; each count in its card's colour. Tests: the menu's rows and states, the fit at
+      1280 × 640, the guide one tap from every page, the browser tests (22.2)
+- [ ] The dashboard: the four cards in full colour, lifting under the pointer and dipping when
+      pressed, each jumping to its section, which shows where you landed; the urgent places' date
+      tiles as small calendar pages with a red band and their fill bars set in grooves; "Offer"
+      dipping and showing a spinner while its page opens; the "…" menu growing out of its button;
+      this week's bars set in grooves (striped on a day with no sessions) with the day's numbers
+      under the pointer or on focus; Needs attention, Waiting on others and Sorted today as washes
+      of raised white rows. Tests: the dashboard's parts, its counts and links unchanged, the
+      browser tests (22.3)
+- [ ] Every other office page on round 2's parts (cards, list cards, tables, buttons, chips, fields,
+      menus and confirmations), the skeletons pulsing rather than still, at 390px and 1280px in both
+      themes. Tests: the browser tests of every office page (22.4)
+
+Done when: all four tasks are ticked with a stamp that includes the browser tests;
+`scripts/verify.sh` with `RUN_E2E=1` prints VERIFIED; no route, label, link or action is lost;
+screenshots at 390px and 1280px, light and dark, sit beside the approved mock-up in
+`docs/mockups/phase-22/`; `docs/ui-design.md` has round 2's system; the `claims-auditor` checks the
+phase against this line.
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify

@@ -1353,6 +1353,78 @@ Done when: 19.1 is ticked with a stamp that includes the browser tests; `scripts
 `RUN_E2E=1` prints VERIFIED; `docs/screens.md` says the answer stays after the refresh; the
 `claims-auditor` checks the phase against this line.
 
+## Phase 20 — The pass redesign
+
+Added 2026-10-21, Dylan's answer to the mock-up made from his five reference screenshots (Steep,
+Shopify, hilos, Neo Financial, Apple Wallet) with the UI skills
+(https://claude.ai/artifact/W7srZZDKzGMyag4pJDNXUi, version 2, "with depth and what's different on
+each screen"): "yes build this this is great". With it he took the mock-up's four proposals: dark
+greys instead of navy (D7 changes), a Pay day tile on Home, one count of what needs the office (the
+bell becomes a "Needs attention" menu item), and the board's show/hide switch moved into the opened
+row. A redesign of the look and of where things sit, not of what the app does: every action, rule
+and log entry stays reachable. The mock-up's "What's different" lists are the spec, screen by
+screen. Docs: `docs/screens.md`, `docs/ui-design.md`.
+
+- [x] The look: Instrument Sans for words, times and counts (its own fixed-width digits) and
+      Instrument Serif for the greetings only, both self-hosted from their npm packages (SIL Open
+      Font License), in place of Public Sans and Barlow Condensed; neutral ink and greys in light,
+      and true dark greys in dark in place of navy (D7 changed); the status colours as tiles
+      (urgent, to do, waiting, done) with their words, every pair passing the contrast test in
+      both themes; depth as five tokens (a card lifted off the page, a panel, the pass, a bar that
+      floats over the page, a sunk track), and no other shadow anywhere; the firm's colour worked
+      out per theme as now, plus a quieter shade for the pass's second line, at least 4.5:1 on its
+      band for any colour. Tests: the tokens and their contrast in both themes, the firm colours
+      (30 colours, both themes), the fonts, where each depth token is used (20.1)
+- [x] The casual Home: "Hi {first name}" in the serif; the next shift as a pass in the firm's
+      colour (the firm, how soon, the date in words, the time large, the role and event, the gate on
+      a white plate, the place), with Directions, Details and Can't make it? under it; Details
+      opens a card under the pass (it works without JavaScript) in label and value rows: getting
+      there as three tiles, report to, bring and wear (what the firm gives marked "We provide it"),
+      pay, the instructions, then Open in maps and Ask for a change; "For you" as tiles (urgent
+      near you, needs doing, more to apply for, the home area to add, and Pay day: the pay week's
+      Friday, D8), each in the colour of what it is; the tab bar floating over the page, the current
+      tab filled in the firm's colour; "Can't make it?" with the reasons as four large buttons, the
+      problem right under them with the first reason focused, the strike notice in its own box,
+      and a handle that pulls the sheet down. Tests: each state, the pay day, the sheet (reasons,
+      notice, focus, pulling it down), the browser tests (20.2)
+- [x] Open shifts, a shift's page and Booked: the strip's days lifted off the page (urgent days
+      pale red, your booked day in the firm's colour with a tick) with its key in words; the filters
+      right under the strip; urgent shifts first, then "More shifts you can apply for" in date
+      order like the strip; "N places left" red only on urgent shifts; a shift's page with the
+      urgent band, the time beside a pale red date tile, one card of label and value rows, and Take
+      shift with its strike warning in a bar floating at the bottom; Booked with the same pass and
+      three buttons as Home, and "Later" kept with "Find open shifts" when nothing else is booked.
+      Tests: the strip, the order, the seats' colour, each answer, the browser tests (20.3)
+- [x] The office shell, Dashboard and Needs attention: from 1024px no top bar, the page a white
+      sheet on the grey frame; the menu with the firm at the top, "Needs attention" under Dashboard
+      with its count (the bell goes), the groups, and the How-to guide, you (Log out) and dark mode
+      at the bottom; below 1024px the top bar keeps Menu. One count of what needs you everywhere:
+      the Dashboard's "N things need you" is the urgent places plus Needs attention's items (which
+      now include enquiries that need a person), the same as the menu's. The Dashboard: a greeting
+      with that count and where to start, today's date, the pay week and the shifts line; four
+      count tiles (urgent places, needs attention, waiting on others, sorted today); every urgent
+      place listed with "Offer to someone" and the rest under "…"; this week as bars per day with
+      places still to fill; Needs attention, Waiting on others and Sorted today as panels of rows.
+      Needs attention's page: its parts as panels, the sessions to mark one row per role, place
+      and time (with how many sessions and people), each upload by name and time with its own
+      Check, and "Also needs you" with the urgent places. Tests: the menu (groups, roles, the count),
+      the count adding up, the tiles, the urgent places' actions, every Needs attention part still
+      reachable, the browser tests (20.4)
+- [x] Events & sessions: no show/hide switch on the board's rows (a hidden event says "Hidden
+      from casuals"); event names in full, on two lines when needed; today marked in the firm's
+      colour and weekends a shade darker; the filters and the dates on one row with the key under
+      them in plain words; an opened row set into the board a step darker, with "Show to casuals",
+      "Add a session" and the event's page; each session on two lines (role, when, places as seats
+      with the count, pay on the right, the urgent switch and "…"; then post, meeting point and
+      uniform). Tests: the board's days and pills, the switch only in the opened row, the two
+      lines, the browser tests (20.5)
+
+Done when: all five tasks are ticked with a stamp that includes the browser tests;
+`scripts/verify.sh` with `RUN_E2E=1` prints VERIFIED; no action, rule or log entry is lost (every
+flow's browser test still passes); `docs/screens.md` says what each changed screen shows;
+`docs/ui-design.md` has the new tokens; the D7 row says what Dylan chose; the `claims-auditor`
+checks the phase against this line.
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify
@@ -1621,7 +1693,7 @@ text system once its details are known; Messages 2 (notification first, or both)
 | 7 | **Before a pilot:** settings to agree with each pilot firm: urgent window, wave size, escalation time, quiet hours, allocation mode, sign-off | 24 h; 4; 3 h; 22:00–07:00; first come, first served; "[Firm] Shift Team" | go-to-market.md |
 | 8 | Later: the next sector, an AI phone line, a firm's own copy of the system, location check-in | Not now | decisions.md |
 | 9 | The travel-time service and postcode look-up (D1). (Or Google Routes: about $1,450 a month per 300-casual firm, and its results can't be stored) | **Decided** (Dylan, 2026-10-06: recommended default): TravelTime for car and public transport (its free key for development and the demo only, a fake provider in tests; a production quote before a pilot: Checks 14), postcodes.io for postcode to coordinates, and straight-line miles labelled "(straight line)" when the service is down | `docs/office-v2.md` §5.4; Checks 14 |
-| 10 | The office's dark theme: navy (your first brief) or graphite (the mock-up) (D7) | **Decided** (Dylan, 2026-10-06: recommended default): navy: page #0f1626, panel #16203a, card #1b2642, raised #22304f, muted text #a3b0c8, switch off #7c8aa8 (a colour-token swap, easy to change) | `docs/office-v2.md` §3.1 |
+| 10 | The office's dark theme: navy (your first brief) or graphite (the mock-up) (D7) | **Decided, then changed** (Dylan, 2026-10-06: recommended default, navy: page #0f1626, panel #16203a, card #1b2642). **Changed 2026-10-21** (Dylan, "yes build this", on the Phase 20 mock-up that proposed it): true dark greys for the whole app: page #0b0c0e, card and panel #18191c, raised #232529, muted text #a9adb4, switch off #7d8189; the firm's colour stands out better on grey (Phase 20) | `docs/office-v2.md` §3.1 |
 
 ### Checks and to-dos (not choices)
 
@@ -3638,3 +3710,4 @@ text system once its details are known; Messages 2 (notification first, or both)
 | 2026-10-20 | 17 | 0.5 | 17.1's fourth audit round (Dylan allowed it): tests that Pay has no "Back to my shifts" and every Open shifts card is a hairline with no red edge, one shared `switchTrack` for both Shifts-tab switches; audited DONE and ticked (see docs/work-log.md) |
 | 2026-10-21 | 18 | 3.5 | The redesign (18.1 to 18.5): Public Sans and Barlow Condensed self-hosted, colours on the UK safety-sign roles with every pair passing the contrast test and each firm's colour worked out per theme, the date tile, sign plate and seats; the casual Home's pass that opens in place, the "Can't make it?" sheet (held open while a cancel is sent, the safety review's fix) and For you; Open shifts' 8-day strip, cards and the shift page's bottom bar; the office menu in four groups, the dashboard as "what needs you" with its week in places, Needs attention on its own page; Events as a two-week rota board whose rows open into a sessions table; audit round 1 refused at the gate (committed after verify), round 2 DONE for 18.1 only, round 3 DONE; 2,942 unit + 2,215 integration tests + 94 e2e + the walkthrough's 6 (see docs/work-log.md) |
 | 2026-10-21 | 19 | 1.2 | The strike's answer stays on screen (19.1): the record always renders the strike's buttons for whoever may change strikes (nothing when there's no button and no answer), so "Withdrawn. …", "Kept, …" and "already withdrawn" outlive the refresh that takes their button away, and the withdraw form closes once the strike can't be withdrawn; which buttons show is one tested rule (`strikeButtons`); the flaky `office.strikes.spec.ts` now fails every time without the fix; two new browser tests (a deleted casual's strike kept; a strike withdrawn elsewhere while the form was open); each test seen to fail with its bug put back; 5,159 tests + 96 e2e + the walkthrough's 6; audit NOT DONE in round 1 (three behaviours untested), DONE in round 2 (see docs/work-log.md) |
+| 2026-10-21 | 20 | 5.0 | The pass redesign (20.1 to 20.5), from Dylan's mock-up of his five reference screenshots (1.3 h for the analysis and two mock-ups, 3.7 h to build): Instrument Sans and Instrument Serif self-hosted, true dark greys in place of navy (D7 changed), the status colours as tiles, five depth tokens and no other shadow; the casual Home's pass in the firm's colour with Directions, Details and "Can't make it?", For you as tiles with Pay day, the sheet's four reason buttons and its pull-down handle; Open shifts, a shift's page and Booked; the office with no top bar from 1024px, "Needs attention" in the menu in place of the bell (one count), the Dashboard listing every urgent place, Needs attention's page; the events board's switch moved into the opened row. A code review's 6 findings fixed (red on the Today pill, a lost confirmation, the urgent places' order, the "…" buttons' names, a start line, focus on a second press) and the safety review's hardening (the roles pinned, an honest "+", cross-firm checks); the firm's colour now reads on its own tint for every colour, and the gate's plate is white for every colour. 5,175 tests + 96 e2e + the walkthrough's 6; audits: 20.1 and 20.3 DONE in round 1, 20.2, 20.4 and 20.5 DONE in round 2 (see docs/work-log.md) |

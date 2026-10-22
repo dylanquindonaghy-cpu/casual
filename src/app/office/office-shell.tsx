@@ -19,7 +19,6 @@ export function OfficeShell({
   menu,
   theme,
   rotationDue,
-  bell = null,
   children,
 }: {
   name: string;
@@ -29,7 +28,6 @@ export function OfficeShell({
   menu: MenuGroup[];
   theme: Theme | undefined;
   rotationDue: boolean;
-  bell?: { label: string; shown: string | null } | null;
   children: ReactNode;
 }) {
   return (
@@ -42,7 +40,6 @@ export function OfficeShell({
       theme={theme}
       rotationDue={rotationDue}
       refresh={refreshOfficeSessionAction}
-      bell={bell}
     >
       {children}
     </OfficeFrame>

@@ -19,6 +19,31 @@ Principles, in order:
 6. **Works without JavaScript** where pages already do (server-action forms, `<details>`
    confirmations, GET filter forms, anchor links).
 
+## Phase 20: the pass redesign's type, colour and depth
+
+Built from the mock-up Dylan approved on 2026-10-21 ("yes build this"), made from his five
+reference screenshots with the UI skills: what changed from Phase 18 below, which otherwise still
+holds.
+
+- **Type.** Instrument Sans for everything you read (`font-sans`), its semibold with its own
+  fixed-width digits for the sign figures (`font-sign`: a shift's time, a date, a count); and
+  Instrument Serif, one weight, for the greetings only (`font-greet`: "Hi Zoe", "Evening, Acme
+  Events."). Both self-hosted from their npm packages (SIL Open Font License), latin and
+  latin-ext. The same seven sizes; 40px also for the greetings.
+- **Colour.** Neutral ink and greys (the firm's colour is the one colour a page has of its own),
+  the statuses as pale tiles with dark words of the same hue (urgent, to do, waiting, done), and
+  a dark theme of true greys in place of navy (D7 changed). The firm's set per theme as Phase 18,
+  plus the pass's quieter second line (`on-brand-bar-soft`).
+- **Depth.** The page, cards lifted off it, then the pass and what floats over the page (the five
+  depth tokens, below). Phase 17's "flat" gives way to this; one hairline on cards stays.
+- **Shapes.** Buttons and chips are pills; cards round (16px; the pass, tiles and panels 20–24px).
+- **The parts.** The **pass** (Home and Booked: `src/app/next-pass.tsx`): a card in the firm's
+  colour with the firm, how soon, the date in words, the time large, the role and event, the gate
+  on a white plate (in the band's colour, or ink on a pale band), and the place; under it Directions, Details and
+  "Can't make it?". The **date tile**: a small raised card (pale red when urgent). The **plate**:
+  a gate in the firm's pale tint. The **seats**: filled in ink when taken, outlined when free (red
+  when urgent). The **sheet**'s handle is a real one: pull it down to close the sheet.
+
 ## Phase 18: the redesign's type, colour, parts and motion
 
 The Claude Design "ShiftDesk redesign" gave the layouts and parts (`docs/screens.md` "The
@@ -37,7 +62,8 @@ real sizes before building:
 - **Colour: the safety signs' roles.** Red to act now (`urgent`), sign yellow for what needs doing
   (`hivis`, with navy words), exit-sign green for done (`done`, `done-fill`), navy ink (the
   uniform's colour), and the firm's colour for its main action and where you are. The dark theme
-  stays D7's navy exactly. A status colour always travels with its word or icon.
+  stays D7's navy exactly (until Phase 20: true dark greys, above). A status colour always
+  travels with its word or icon.
 - **The firm's colour per theme** (`firmPalette` in `src/lib/tenancy/brand-values.ts`, set on
   `<body>` as `--firm-*` with `data-firm-colour`; globals.css picks the theme's set): its band
   (`brand-bar`) is its colour darkened until white or navy reads on it at 4.5:1; in light its
@@ -57,43 +83,56 @@ real sizes before building:
   waiting; elsewhere statuses stay the pale `StatusChip`, now square-ish), and the **sheet** that
   rises from the bottom of the phone (a modal `<dialog>`).
 - **The pass is the only thing with a shadow at rest** (`shadow-pass`; in dark a 1px line).
+  Phase 20 replaced this with five depth tokens (above).
 - **Motion** (globals.css `--animate-*`, `--ease-sd`): one easing, `cubic-bezier(.2,.8,.2,1)`;
   150ms for fades, the sheet's dim and switches, 200ms for items arriving or leaving, 250ms for
   cards opening and the sheet. A card opening rises 8px and fades in, its body 60ms after; a taken
-  shift moves into Your shifts from 48px above, marked "New"; the next urgent place slides in from
-  the side; the sheet rises from the bottom; a confirmation drops in and stays 3 seconds. Only
+  shift moves into Your shifts from 48px above, marked "New"; the sheet rises from the bottom; a confirmation drops in and stays 3 seconds. Only
   transform and opacity move; nothing loops. With reduced motion every movement is a 150ms fade and
   transitions stop.
 
 ## Tokens (`src/app/globals.css`, Tailwind v4 `@theme`)
 
-Two themes: light, and a navy dark (D7 in `docs/office-v2.md`). The light values are the `@theme`
-block; the dark values redefine the same tokens. Every pair a page uses meets its contrast in both
-(`tests/unit/ui.contrast.test.ts`).
+Two themes: light, and a dark of true greys (D7 in `docs/office-v2.md`, changed by Dylan in Phase
+20: it was navy). The light values are the `@theme` block; the dark values redefine the same
+tokens. Every pair a page uses meets its contrast in both (`tests/unit/ui.contrast.test.ts`).
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| `ink` | `#13233a` | `#e8edf7` | Main text (navy, the uniform's colour: Phase 18), the date tile's band, sign plates, the focus ring |
-| `ink-muted` | `#3e4c60` | `#a3b0c8` | Secondary text, labels, meta lines, table headers (8.7:1 on white; 6.8:1 on the dark card) |
-| `ink-hover` / `on-ink` | `#26364f` / `#ffffff` | `#c3cddf` / `#0f1626` | An ink fill under the pointer; text on an `ink` fill |
-| `line` | `#dbe1e8` | `#2c3a5c` | Dividers and card borders (decorative only) |
-| `line-strong` | `#6b7789` | `#7c8aa8` | Input and secondary button borders (at least 3:1) |
-| `canvas` | `#f2f4f7` | `#0f1626` | The page behind cards: the casual app, and the office's menu (D7's "page") |
-| `card` | `#ffffff` | `#1b2642` | Cards, fields, the office's page |
-| `panel` | `#ffffff` | `#16203a` | The office's top bar |
-| `raised` | `#e8ecf1` | `#22304f` | A sunk track: the empty pass's band, a waiting tile, a full pill, the week's bar |
-| `switch-off` | `#7a8396` | `#7c8aa8` | A switch's track when off (at least 3.5:1) |
-| `scrim` | `#0d1520` | `#000000` | Behind the open menu drawer and a sheet, at half strength (decorative only) |
-| `brand` / `on-brand` | `#13233a` / `#ffffff` | `#e8edf7` / `#0f1626` | The firm's own colour (Phase 17; per theme in Phase 18): the main buttons, in the casual app and the office. A firm with a colour of its own gets a set for each theme on `<body>` (`src/app/layout.tsx`, `firmPalette`: each pair at least 4.5:1); these are the values without one. Its pale tint, `brand-soft` (12% of it over `card`), marks the casual app's current tab and its "shifts to apply for" tile, with `ink` (or `brand-ink`) on it |
-| `urgent` / `urgent-soft` / `urgent-ink` | `#b91c1c` / `#fef2f2` / `#7f1d1d` | `#ff8b80` / `#3d1d26` / `#ffc7c0` | Act now |
-| `urgent-fill` / `urgent-fill-hover` / `on-urgent` | `#b91c1c` / `#7f1d1d` / `#ffffff` | `#d92d20` / `#b42318` / `#ffffff` | Count badges and the final destructive button (white on `#d92d20`: 4.83:1). Urgent chips are the pale pair (`urgent-soft` with `urgent-ink`), so a list of urgent rows doesn't shout |
-| `attention` / `attention-soft` / `attention-ink` | `#b45309` / `#fffbeb` / `#78350f` | `#f2a541` / `#36291a` / `#ffd699` | Someone needs to act |
-| `done` / `done-soft` / `done-ink` | `#15803d` / `#f0fdf4` / `#14532d` | `#4ccb83` / `#132f22` / `#b0efca` | Fine, finished |
-| `quiet-soft` / `quiet-ink` | `#eef1f5` / `#3e4c60` | `#26324f` / `#d0d8e6` | Information, closed |
-| `hivis` / `on-hivis` | `#f5b301` / `#13233a` | `#f5b301` / `#13233a` | Sign yellow (Phase 18): what needs doing, as a plate or a tile, with navy words (8.5:1) |
-| `done-fill` / `on-done` | `#15803d` / `#ffffff` | `#15803d` / `#ffffff` | The booked tick, a "sorted" tile (white on it 5.0:1) |
-| `brand-ink`, `brand-bar` / `on-brand-bar` | `#13233a`, `#13233a` / `#ffffff` | `#e8edf7`, `#2b3d63` / `#ffffff` | The firm's colour as words; its band (the pass's top, its initial) with the words on it (Phase 18; a firm's own set below) |
+| `ink` | `#15171a` | `#f3f4f6` | Main text (a neutral near-black: Phase 20), the focus ring, an ink fill (a dark button, today on the week's bars) |
+| `ink-muted` | `#575c64` | `#a9adb4` | Secondary text, labels, meta lines, table headers (6.7:1 on white; 7.8:1 on the dark card) |
+| `ink-hover` / `on-ink` | `#2b2e33` / `#ffffff` | `#d4d6da` / `#0b0c0e` | An ink fill under the pointer; text on an `ink` fill |
+| `line` | `#e3e5e9` | `#2c2e33` | Dividers and card borders (decorative only) |
+| `line-strong` | `#7c8189` | `#6f737b` | Input, chip and secondary button borders (at least 3:1) |
+| `canvas` | `#eef0f3` | `#0b0c0e` | The page behind cards: the casual app, and the office's frame and menu |
+| `card` | `#ffffff` | `#18191c` | Cards, fields, the office's page (a sheet raised on the frame from 1024px) |
+| `panel` | `#ffffff` | `#18191c` | The office's top bar (below 1024px) and drawer |
+| `raised` | `#eceef1` | `#232529` | A sunk track (switches, the Open \| Booked switch, the board's filters), a full pill, a bar's track, the date tile |
+| `switch-off` | `#767b83` | `#7d8189` | A switch's track when off (at least 3.5:1) |
+| `scrim` | `#15171a` | `#000000` | Behind the open menu drawer and a sheet, at half strength (decorative only) |
+| `brand` / `on-brand` | `#15171a` / `#ffffff` | `#f3f4f6` / `#0b0c0e` | The firm's own colour: the main buttons and the current tab. A firm with a colour of its own gets a set for each theme on `<body>` (`src/app/layout.tsx`, `firmPalette`: each pair at least 4.5:1); these are the values without one. Its pale tint, `brand-soft` (12% of it over `card`), marks an open Details button and a gate's sign plate, with `ink` (or `brand-ink`, which `firmPalette` makes read on the tint too, at least 4.5:1) on it |
+| `brand-ink`, `brand-bar` / `on-brand-bar` | `#15171a`, `#1f2227` / `#ffffff` | `#f3f4f6`, `#34373d` / `#ffffff` | The firm's colour as words; the pass and the firm's initial, with the words on it |
+| `on-brand-bar-soft` | `#d2d4d8` | `#d2d4d8` | The pass's second line (its date, how soon, its place: Phase 20), at least 4.5:1 on the band for any firm colour |
+| `pass-plate` / `on-pass-plate` | `#ffffff` / `#1f2227` | `#ffffff` / `#34373d` | The gate's plate on the pass: white on any band, its words the band's colour (or ink on a pale band: `firmPalette`'s `onPlate`), at least 4.5:1 |
+| `urgent` / `urgent-soft` / `urgent-ink` | `#c4242a` / `#ffefea` / `#7d1a10` | `#ff8b80` / `#231513` / `#ffcabf` | Act now: words and borders; an urgent panel's wash; its dark words |
+| `urgent-tile` | `#ffd8cf` | `#3d1d19` | An urgent tile, day or date tile, the urgent band, with `urgent-ink` |
+| `urgent-fill` / `urgent-fill-hover` / `on-urgent` | `#c4242a` / `#9b1c21` / `#ffffff` | `#cf3a33` / `#b02e28` / `#ffffff` | Urgent pills and the final destructive button (white on `#cf3a33`: 4.87:1) |
+| `attention` / `attention-soft` / `attention-ink` | `#b45309` / `#fff9e6` / `#5c3f00` | `#f2a541` / `#221d0e` / `#fbe3a0` | Someone needs to act: a border or an icon; a to-do panel's wash; its dark words |
+| `hivis` / `on-hivis` | `#fbe5a0` / `#5c3f00` | `#3a2f10` / `#fbe3a0` | To do (Phase 20: pale yellow, per theme): a tile, a count, what the firm gives you ("We provide it") |
+| `wait-tile` / `wait-ink` | `#d6e4fa` / `#163b6e` | `#172a45` / `#c8dafa` | Waiting, or more to look at: a tile, the account's initials |
+| `done` / `done-soft` / `done-ink` | `#1f7a47` / `#ecf7f0` / `#155230` | `#5fd08b` / `#0f1d14` / `#bfeccd` | Fine, finished: words and borders; a done panel's wash; its dark words |
+| `done-tile` | `#d2efdb` | `#15301f` | A done tile, a tick's circle, the "no strike" box |
+| `done-fill` / `on-done` | `#1f7a47` / `#ffffff` | `#1f7a47` / `#ffffff` | The booked tick (white on it 5.3:1) |
+| `quiet-soft` / `quiet-ink` | `#f1f2f4` / `#464b52` | `#222428` / `#d4d6da` | Information, closed |
 | `demo` / `on-demo` | `#3d2e0a` / `#fde7b0` | `#3d2e0a` / `#fde7b0` | The demo bar |
+
+**Depth (Phase 20).** Five shadow tokens and no other shadow anywhere in `src/`
+(`tests/unit/ui.flat.test.ts` holds where each is used): `shadow-lift` (a card, row, tile or the
+current menu item lifted off its ground), `shadow-panel` (a panel or a menu over the page),
+`shadow-pass` (the pass, and the booked day on the strip), `shadow-bar` (the tab bar and the action
+bar floating over the page's foot) and `inset-shadow-sunk` (a sunk track, an opened part set into
+its card: the board's opened row, the travel figures). In dark they're darker, with a faint light
+edge on what floats.
 
 No other colour is written anywhere in `src/` (no `bg-white`, no Tailwind palette shade, no colour
 value in a class or a style): the firm's colour, which the root layout works out from the firm's
@@ -105,8 +144,8 @@ least 4.58:1), so a button in any firm colour can be read. Against the page, a p
 still named by its words, which is what identifies it, so no edge is added for now (Phase 17's
 guardrails review, S5; revisit if a pilot firm's colour reads poorly).
 
-**Easier to scan (Phase 17).** Flat surfaces: no shadows on anything at rest but Phase 18's pass
-(only what floats, a menu or a dialog, has one; `tests/unit/ui.flat.test.ts` holds it), one hairline (`line`) on cards,
+**Easier to scan (Phase 17).** Flat surfaces then; since Phase 20, depth comes from the five depth
+tokens only (above; `tests/unit/ui.flat.test.ts` holds it), with one hairline (`line`) on cards,
 a 1px border on office controls and fields. No label above a page's heading and no divider under the header (the firm's bar or the
 office's top bar names the firm). Lists are rows in one card rather than a stack of cards, and an
 empty list keeps its place as a dashed frame with one sentence. Colour goes on what needs someone:
@@ -192,18 +231,21 @@ it. The frame (`office-frame.tsx`) then asks the server to redraw the page once
 `/office/l` from another page, so it can't repeat, and with a live session the login page sends
 you on to `/office` as before.
 
-- **Top bar** (`office-frame.tsx`), pinned to the top: "Menu" (below 1024px), ShiftDesk's mark
-  with "ShiftDesk" and the firm's name (no reference portal's logo or colours; on logged-in office
-  pages the firm's brand bar is hidden, since this bar names the firm), the moon/sun button
+- **Top bar** (`office-frame.tsx`), below 1024px, pinned to the top: "Menu", the firm's name (no
+  reference portal's logo or colours; on logged-in office pages the firm's brand bar is hidden,
+  since this bar names the firm), the moon/sun button
   (`theme-button.tsx`: sets the `sd-theme` cookie and `data-theme` at once; its name says what it
   switches to, and the same words show beside it on hover and keyboard focus), and the account
   button (initials, then the name and role from 640px). The account menu is a native popover
   (`popover`, opened by the button's `popovertarget`): no role of its own, Escape and a tap
   elsewhere close it, and it works before the page's scripts load. It holds the name and role,
   "How-to guide" and the office's one "Log out".
-- **Desktop (1024px and wider):** the menu in a 272px sidebar that stays in view under the top
-  bar, then the page on the canvas background, content up to 1152px wide. Forms stay within
-  672px; lists, tables and reports use the full width.
+- **Desktop (1024px and wider; Phase 20):** no top bar. The same `<header>` sits at the menu's
+  foot, fixed at the bottom left: the pay week, the account button (initials, name and role; its
+  menu opens above it) and the moon/sun button. The menu is a 248px sidebar on the canvas frame
+  that stays in view, with the firm at its top on a lifted card; the page is a white sheet with
+  rounded corners raised on the frame (`shadow-lift`), content up to 1152px wide. Forms stay
+  within 672px; lists, tables and reports use the full width.
 - **Phone and tablet:** "Menu" opens the same menu as a drawer from the left: a native `<dialog>`
   opened with `showModal()`, so the page behind it is shut off and dimmed (`scrim` at half
   strength). Escape, a tap on the dimmed page, "Close menu" or choosing a link closes it, and the
@@ -218,20 +260,22 @@ you on to `/office` as before.
 
   | Group | Links |
   |---|---|
-  | Operations | Dashboard, Events & sessions, Cancellations, Enquiries |
+  | (first, no label: Phase 20) | Dashboard, Needs attention (in place of the bell) |
+  | Today | Events & sessions, Cancellations, Enquiries |
   | Pay | Pay dashboard, Pay queries, Import pay records |
-  | Records | Strikes, Casuals, Action log, Notice report, Pilot metrics |
-  | Configuration | Office team, Settings, Data requests |
+  | People | Casuals, Strikes, Notice report |
+  | Admin and records (folded) | Action log, Pilot metrics, Office team, Settings, Integrations, Data requests |
   | Help | How-to guide |
 
-- The current page's link has `aria-current="page"`, bold text on a pale tint of the firm's colour
-  (`brand-soft`; Phase 17, no bar at the menu's edge) and its icon filled in. On a page inside a section, the section's link
+- The current page's link has `aria-current="page"`, bold text on a white pill lifted off the
+  menu (Phase 20; before it, a pale tint of the firm's colour) and its icon filled in. On a page inside a section, the section's link
   looks the same but has `aria-current="true"` (it isn't the page you're on): a shift or a new
   shift marks Events & sessions, the offer page marks Dashboard, a casual marks Casuals, a
   cancellation's record marks Cancellations, a worker's data page marks Data requests.
 - **Badges:** a link can carry a count. The number sits inside the link but hidden from screen
   readers, and its words ("3 waiting") follow the link as visually hidden text, so the link's name
-  stays exactly its label.
+  stays exactly its label. Needs attention's (Phase 20) is the Dashboard's Needs attention count:
+  "{12} to deal with", and "50+" when a list stopped at 50.
 - **Session keeper:** in the frame, so a session is kept alive on every office page.
 - **Test rules the shell must keep:** the menu is built from plain links (no list items, headings,
   regions, `status`, `note` or `menu` roles, fieldsets or `<details>`: Phase 18's folded "Admin and

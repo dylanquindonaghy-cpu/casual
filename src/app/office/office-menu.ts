@@ -7,15 +7,34 @@ import type { MenuBadge, MenuGroup } from "./office-nav";
 
 type MenuItem = { area: OfficeArea; href: string; label: string; icon: IconName };
 
-// The groups (docs/office-v2.md 3.1; Phase 18's regrouping): what needs the office today first, then
-// pay, then people; the records and settings folded under "Admin and records"; the how-to guide on
-// its own at the bottom.
-const MENU: { label: string; folded?: boolean; bottom?: boolean; items: MenuItem[] }[] = [
+// The groups (docs/office-v2.md 3.1; Phases 18 and 20): the dashboard and Needs attention at the
+// top with no label (Needs attention in place of the bell: Phase 20), then what needs the office
+// today, then pay, then people; the records and settings folded under "Admin and records"; the
+// how-to guide on its own at the bottom.
+const MENU: {
+  label: string;
+  folded?: boolean;
+  bottom?: boolean;
+  top?: boolean;
+  items: MenuItem[];
+}[] = [
+  {
+    label: "Home",
+    top: true,
+    items: [
+      { area: "today", href: "/office", label: "Dashboard", icon: "home" },
+      // Its count: the one count of what needs a person (menuBadges).
+      {
+        area: "today",
+        href: "/office/needs-attention",
+        label: "Needs attention",
+        icon: "bell",
+      },
+    ],
+  },
   {
     label: "Today",
     items: [
-      // The dashboard (12E.1): the bell in the top bar links to its Needs attention page.
-      { area: "today", href: "/office", label: "Dashboard", icon: "home" },
       // The shift pages (/office/shifts/...) stay, inside this section (office-nav.tsx).
       { area: "shifts", href: "/office/events", label: "Events & sessions", icon: "shifts" },
       {
@@ -71,15 +90,31 @@ const MENU: { label: string; folded?: boolean; bottom?: boolean; items: MenuItem
   },
 ];
 
-// The menu's counts (Phase 18): sign yellow when it needs this person, grey otherwise. Pay
-// queries waiting need payroll (for the others they're with payroll); enquiries that need a
-// person and uploads to check need whoever sees them. No count, no badge.
+// The menu's counts (Phases 18 and 20): pale yellow when it needs this person, grey otherwise.
+// Pay queries waiting need payroll (for the others they're with payroll); enquiries that need a
+// person, uploads to check and Needs attention's items (with those enquiries: `attention`, the
+// one count) need whoever sees them. No count, no badge.
 export function menuBadges(
   role: OfficeRole,
-  counts: { payQueries: number; needPerson: number; uploads: number },
+  counts: {
+    payQueries: number;
+    needPerson: number;
+    uploads: number;
+    attention?: { count: number; more: boolean } | null;
+  },
 ): Partial<Record<string, MenuBadge>> {
-  const { payQueries, needPerson, uploads } = counts;
+  const { payQueries, needPerson, uploads, attention } = counts;
   return {
+    ...(attention && attention.count > 0
+      ? {
+          "/office/needs-attention": {
+            count: attention.count,
+            more: attention.more,
+            words: `${attention.count}${attention.more ? "+" : ""} to deal with`,
+            needs: true,
+          },
+        }
+      : {}),
     ...(payQueries
       ? {
           "/office/pay-queries": {
@@ -118,6 +153,7 @@ export function officeMenu(
     label: group.label,
     ...(group.folded ? { folded: true } : {}),
     ...(group.bottom ? { bottom: true } : {}),
+    ...(group.top ? { top: true } : {}),
     links: group.items
       .filter((item) => canAccess(role, item.area))
       .map((item) => {

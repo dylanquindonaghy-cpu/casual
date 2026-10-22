@@ -7,12 +7,14 @@ import { sentTo } from "./outbox";
 // browser tests' Pixel 7) and on a wide screen: the menu drawer (opens with Menu; Escape, the
 // backdrop and Close menu shut it; focus goes back to Menu; nothing in it can be tabbed to while
 // it's shut), the moon/sun button (switches at once, kept after a reload with no flash), and the
-// account menu (name, role, How-to guide, Log out). Everything runs with the device set to light
-// and again set to dark.
+// account menu (name, role, How-to guide, Log out), which from 1024px sit at the menu's foot with
+// no top bar (Phase 20). Everything runs with the device set to light and again set to dark.
 
 const acme = "http://acme.localhost:3100";
-// The office's page: the card colour (Phase 18; the menu beside it is on the canvas grey).
-const CANVAS = { light: "rgb(255, 255, 255)", dark: "rgb(27, 38, 66)" }; // #ffffff, #1b2642
+// The office's page: the card colour (Phase 18; Phase 20's dark grey, D7). From 1024px it's a sheet
+// on the frame, which is the canvas grey, like the menu.
+const CANVAS = { light: "rgb(255, 255, 255)", dark: "rgb(24, 25, 28)" }; // #ffffff, #18191c
+const FRAME = { light: "rgb(238, 240, 243)", dark: "rgb(11, 12, 14)" }; // #eef0f3, #0b0c0e
 
 // Each test logs in as a resourcer of its own (the seeded users allow 3 login links per 15
 // minutes, and this spec logs in six times).
@@ -151,6 +153,21 @@ for (const device of ["light", "dark"] as const) {
       const account = page.locator('button[popovertarget="office-account-menu"]');
       await expect(account.getByText("Sam Rota", { exact: true })).toBeVisible();
       await expect(account.getByText("SR", { exact: true })).toBeVisible();
+      // No top bar from 1024px (Phase 20): the account and moon/sun buttons are at the menu's foot
+      // (the menu is 248px wide), and the page is a white sheet on the grey frame.
+      const foot = async (button: typeof account) => {
+        const box = await button.boundingBox();
+        expect(box).not.toBeNull();
+        expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(248);
+        expect(box?.y ?? 0).toBeGreaterThan(900 / 2);
+      };
+      await foot(account);
+      await foot(page.getByRole("button", { name: /^Switch to (light|dark) mode$/ }));
+      await expect(page.locator('[data-shell="office"]')).toHaveCSS(
+        "background-color",
+        FRAME[device],
+      );
+      await expect(page.locator("#main")).toHaveCSS("background-color", CANVAS[device]);
       await (await accountMenu(page)).getByRole("link", { name: "How-to guide" }).click();
       await expect(page).toHaveURL(`${acme}/office/guide`);
     });

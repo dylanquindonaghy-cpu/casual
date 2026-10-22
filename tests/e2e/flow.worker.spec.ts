@@ -33,7 +33,7 @@ test("a worker logs in, takes a shift, cancels it, asks for a change and sees th
     await expect(page.getByText("Check your phone.")).toBeVisible();
     await page.goto(await loginLinkSentTo(mobile, asked));
     await page.getByRole("button", { name: "Log me in" }).click();
-    await expect(page.getByRole("heading", { name: /^Hello / })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^Hi / })).toBeVisible();
   });
   // Home with nothing booked (Phase 18): the empty pass, and the way to the open shifts.
   await expect(page.getByRole("heading", { name: "No shifts booked" })).toBeVisible();
@@ -67,6 +67,79 @@ test("a worker logs in, takes a shift, cancels it, asks for a change and sees th
     await page.getByRole("button", { name: "Can't make it?" }).click();
     await expect(sheet.getByRole("note")).toBeVisible();
     await sheet.getByRole("button", { name: "Keep my shift" }).click();
+    await expect(sheet).toBeHidden();
+    // No reason chosen (Phase 20): the problem right under the reasons, the focus on the first.
+    await page.getByRole("button", { name: "Can't make it?" }).click();
+    await expect(sheet.getByRole("note")).toBeVisible();
+    // The reasons: four large buttons, two to a row (each radio is the whole of its button).
+    const reasons = sheet.getByRole("radio");
+    await expect(reasons).toHaveCount(4);
+    // Measured once the sheet has finished rising.
+    await sheet.evaluate((d) =>
+      Promise.all(d.getAnimations({ subtree: true }).map((a) => a.finished)),
+    );
+    const boxes = [];
+    for (const [i, name] of [
+      "I'm unwell",
+      "Travel problem",
+      "Family or caring",
+      "Something else",
+    ].entries()) {
+      await expect(reasons.nth(i)).toHaveAccessibleName(name);
+      const box = await reasons.nth(i).boundingBox();
+      if (!box) throw new Error(`no box for ${name}`);
+      expect(box.height).toBeGreaterThanOrEqual(48);
+      boxes.push(box);
+    }
+    const [a, b, c, d] = boxes as [
+      (typeof boxes)[0],
+      (typeof boxes)[0],
+      (typeof boxes)[0],
+      (typeof boxes)[0],
+    ];
+    expect([b.y, d.y]).toEqual([a.y, c.y]); // two to a row
+    expect(b.x).toBeGreaterThan(a.x + a.width - 1);
+    expect(c.y).toBeGreaterThan(a.y + a.height - 1); // the second row under the first
+    await sheet.getByRole("button", { name: "Cancel this shift" }).click();
+    await expect(sheet.getByRole("alert")).toHaveText("Choose a reason.");
+    await expect(sheet.getByLabel("I'm unwell")).toBeFocused();
+    // Pressed again with still no reason: the focus goes back to it again.
+    await sheet.getByRole("button", { name: "Cancel this shift" }).focus();
+    await sheet.getByRole("button", { name: "Cancel this shift" }).click();
+    await expect(sheet.getByLabel("I'm unwell")).toBeFocused();
+    // "Something else" with no note: the problem says so and the focus goes to the note.
+    await sheet.getByLabel("Something else").check();
+    await sheet.getByRole("button", { name: "Cancel this shift" }).click();
+    await expect(sheet.getByRole("alert")).toHaveText("Tell the office why.");
+    await expect(sheet.getByLabel("Tell the office why")).toBeFocused();
+    await sheet.getByLabel("I'm unwell").check();
+    // Its handle is a real one: a short pull and it goes back; a long one and it closes, with
+    // nothing cancelled. On a small phone the sheet scrolls, and the handle stays at its top, so it
+    // can always be pulled.
+    const handle = sheet.locator("[data-sheet-handle]");
+    const phone = page.viewportSize();
+    await page.setViewportSize({ width: 375, height: 560 });
+    expect(
+      await sheet.evaluate((d) => (d.scrollTo(0, d.scrollHeight), d.scrollTop)),
+    ).toBeGreaterThan(0);
+    await expect(handle).toBeInViewport({ ratio: 1 });
+    if (phone) await page.setViewportSize(phone);
+    const pull = async (by: number) => {
+      // Where the handle is once the sheet has stopped moving (it springs back after a short pull).
+      await sheet.evaluate((d) => Promise.all(d.getAnimations().map((a) => a.finished)));
+      const box = await handle.boundingBox();
+      if (!box) throw new Error("no handle");
+      const x = box.x + box.width / 2;
+      const y = box.y + box.height / 2;
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      await page.mouse.move(x, y + by, { steps: 8 });
+      await page.mouse.up();
+    };
+    await pull(40);
+    await expect(sheet).toBeVisible();
+    await expect(sheet).toHaveCSS("translate", "none"); // back in its place
+    await pull(180);
     await expect(sheet).toBeHidden();
     await page.reload();
     await expect(page.getByText("Security officer").first()).toBeVisible();
@@ -103,6 +176,8 @@ test("a worker logs in, takes a shift, cancels it, asks for a change and sees th
     await page.getByRole("button", { name: "Take shift" }).click();
     await expect(page.getByText("You're booked.")).toBeVisible();
     await page.getByRole("link", { name: "See my shifts" }).click();
+    // On the pass, "Ask for a change" is in its Details (Phase 20).
+    await page.locator("[data-pass-more] summary").click();
     await page.getByRole("link", { name: "Ask for a change" }).click();
     await expect(page).toHaveURL(new RegExp(`^${acme}/requests/new\\?shift=`));
     await page.getByLabel("Change the times").check();

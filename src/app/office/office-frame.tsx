@@ -15,14 +15,15 @@ import { ThemeButton } from "./theme-button";
 // docs/ui-design.md "Office shell"), drawn by office-shell.tsx. Display only: every page and
 // action still checks access.
 //
-// The top bar: the Menu button (below 1024px), ShiftDesk's mark with the firm's name, the pay
-// week (from 1024px), the bell (admins and resourcers: "Needs attention, N", a link to that section
-// of the dashboard), the moon/sun button and the account button (How-to guide, Log out). From
-// 1024px the menu is a
-// 272px sidebar. Below that, the Menu button opens it as a drawer, a native <dialog>: the same
-// <nav> moves into it while it's open (so a page never has two), Escape, the dimmed backdrop and
-// "Close menu" close it, and so does moving to another page or widening the window to 1024px.
-// Closed, the drawer is empty, so nothing in it can be reached with the Tab key.
+// Below 1024px, the top bar: the Menu button, the firm's name, the moon/sun button and the
+// account button (How-to guide, Log out); the Menu button opens the menu as a drawer, a native
+// <dialog>: the same <nav> moves into it while it's open (so a page never has two), Escape, the
+// dimmed backdrop and "Close menu" close it, and so does moving to another page or widening the
+// window to 1024px. Closed, the drawer is empty, so nothing in it can be reached with the Tab key.
+// From 1024px (Phase 20) there's no top bar: the menu is a 248px sidebar on the grey frame, the
+// page a white sheet raised on it, and the same <header> sits at the menu's foot with the pay week
+// (D8), you (the account button) and the moon/sun button. Needs attention is a menu link with its
+// count (the bell's place until Phase 20).
 //
 // The page keeps its own <main>: the frame wraps it in <div id="main"> (the skip link's target),
 // and the top bar and menu sit outside it.
@@ -60,7 +61,6 @@ export function OfficeFrame({
   theme,
   rotationDue,
   refresh,
-  bell = null,
   children,
 }: {
   name: string;
@@ -71,9 +71,6 @@ export function OfficeFrame({
   theme: Theme | undefined;
   rotationDue: boolean;
   refresh: () => Promise<void>;
-  // The bell (admins and resourcers): its name ("Needs attention, 3") and the number it shows
-  // (null: none, when there's nothing or it couldn't be read).
-  bell?: { label: string; shown: string | null } | null;
   children: ReactNode;
 }) {
   const hydrated = useHydrated();
@@ -115,8 +112,11 @@ export function OfficeFrame({
       >
         Skip to content
       </a>
-      <div data-shell="office" className="flex flex-1 flex-col bg-card text-base text-ink">
-        <header className="sticky top-0 z-20 flex min-h-14 items-center gap-2 border-b border-line bg-panel px-3 sm:gap-3 lg:px-8">
+      <div
+        data-shell="office"
+        className="flex flex-1 flex-col bg-card text-base text-ink lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)] lg:bg-canvas"
+      >
+        <header className="sticky top-0 z-20 flex min-h-14 items-center gap-2 border-b border-line bg-panel px-3 sm:gap-3 lg:fixed lg:top-auto lg:bottom-0 lg:left-0 lg:w-62 lg:flex-col lg:items-stretch lg:gap-1.5 lg:border-0 lg:bg-canvas lg:px-3 lg:pt-2 lg:pb-3">
           <button
             type="button"
             aria-controls={DRAWER_ID}
@@ -124,7 +124,7 @@ export function OfficeFrame({
             aria-haspopup="dialog"
             disabled={!hydrated}
             onClick={() => setOpen(true)}
-            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-line-strong bg-card px-3 font-semibold text-ink hover:bg-quiet-soft disabled:cursor-not-allowed disabled:opacity-60 lg:hidden"
+            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line-strong bg-card px-3.5 font-semibold text-ink hover:bg-quiet-soft disabled:cursor-not-allowed disabled:opacity-60 lg:hidden"
           >
             <Icon name="menu" />
             Menu
@@ -133,49 +133,36 @@ export function OfficeFrame({
           <p className="min-w-0 truncate leading-tight font-semibold text-ink lg:hidden">
             {firmName}
           </p>
-          {/* The pay week (docs/office-v2.md D8). Not on phones or tablets: no room beside Menu. */}
-          <p className="hidden text-base text-ink-muted tabular-nums lg:block">{payWeek}</p>
-          <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
-            {bell && (
-              <Link
-                href="/office/needs-attention"
-                aria-label={bell.label}
-                title={bell.label}
-                className="relative inline-flex size-11 items-center justify-center rounded-lg text-ink hover:bg-quiet-soft"
-              >
-                <Icon name="bell" />
-                {bell.shown && (
-                  <span
-                    aria-hidden="true"
-                    className="absolute top-1 right-0.5 min-w-5 rounded bg-brand px-1 text-center text-xs leading-5 font-bold text-on-brand tabular-nums"
-                  >
-                    {bell.shown}
-                  </span>
-                )}
-              </Link>
-            )}
+          {/* The pay week (docs/office-v2.md D8), at the menu's foot from 1024px (Phase 20). Not
+              on phones or tablets: no room beside Menu. */}
+          <p className="hidden border-t border-line px-2 pt-3 text-sm text-ink-muted tabular-nums lg:block">
+            {payWeek}
+          </p>
+          <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2 lg:ml-0 lg:justify-between">
             <ThemeButton initial={theme} />
             <button
               type="button"
               popoverTarget={ACCOUNT_MENU_ID}
-              className="inline-flex min-h-11 items-center gap-2 rounded-lg px-1.5 text-left hover:bg-quiet-soft sm:px-2"
+              className="inline-flex min-h-11 items-center gap-2 rounded-full px-1.5 text-left hover:bg-quiet-soft sm:px-2 lg:order-first lg:min-w-0 lg:flex-1 lg:rounded-xl"
             >
               <span
                 aria-hidden="true"
-                className="flex size-9 shrink-0 items-center justify-center rounded-full border border-line-strong bg-quiet-soft text-sm font-bold text-quiet-ink"
+                className="flex size-8 shrink-0 items-center justify-center rounded-full bg-wait-tile text-sm font-semibold text-wait-ink"
               >
                 {initials(name)}
               </span>
-              <span className="sr-only leading-tight sm:not-sr-only">
-                <span className="block max-w-48 truncate font-semibold text-ink">{name}</span>
+              <span className="sr-only leading-tight sm:not-sr-only lg:min-w-0">
+                <span className="block max-w-48 truncate text-sm font-semibold text-ink">
+                  {name}
+                </span>
                 <span className="block text-sm text-ink-muted">{roleLabel}</span>
               </span>
-              <Icon name="chevron" className="hidden rotate-90 text-ink-muted sm:block" />
+              <Icon name="chevron" className="hidden rotate-90 text-ink-muted sm:block lg:hidden" />
             </button>
             <div
               id={ACCOUNT_MENU_ID}
               popover="auto"
-              className="inset-auto top-14 right-3 m-0 w-60 rounded-xl border border-line bg-card p-2 text-base text-ink shadow-sm lg:right-6"
+              className="inset-auto top-14 right-3 m-0 w-60 rounded-2xl border border-line bg-card p-2 text-base text-ink shadow-panel lg:top-auto lg:right-auto lg:bottom-24 lg:left-3"
             >
               <p className="px-3 pt-2 pb-1 leading-tight">
                 <span className="block font-semibold break-words">{name}</span>
@@ -183,7 +170,7 @@ export function OfficeFrame({
               </p>
               <Link
                 href="/office/guide"
-                className="flex min-h-11 items-center gap-3 rounded-lg px-3 font-medium hover:bg-quiet-soft"
+                className="flex min-h-11 items-center gap-3 rounded-xl px-3 font-medium hover:bg-quiet-soft"
               >
                 <Icon name="guide" className="text-ink-muted" />
                 How-to guide
@@ -191,47 +178,49 @@ export function OfficeFrame({
               <LogoutButton
                 kind="office"
                 after="/office/login?out=1"
-                className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 font-medium text-ink hover:bg-quiet-soft"
+                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 font-medium text-ink hover:bg-quiet-soft"
                 icon={<Icon name="logout" className="text-ink-muted" />}
               />
             </div>
           </div>
         </header>
-        <div className="flex flex-1 flex-col lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]">
-          <div className="hidden border-r border-line bg-canvas lg:sticky lg:top-14 lg:flex lg:h-[calc(100dvh-3.5rem)] lg:flex-col lg:self-start lg:overflow-y-auto">
-            {open ? null : <OfficeNav groups={menu} firmName={firmName} />}
-          </div>
-          <dialog
-            ref={drawer}
-            id={DRAWER_ID}
-            aria-label="Menu"
-            onClose={() => setOpen(false)}
-            // A click on the backdrop lands on the dialog itself (its content fills it).
-            onClick={(e) => {
-              if (e.target === e.currentTarget) e.currentTarget.close();
-            }}
-            className="inset-y-0 right-auto left-0 m-0 h-dvh max-h-none w-80 max-w-[85vw] bg-canvas p-0 text-base text-ink backdrop:animate-fade backdrop:bg-scrim/50"
-          >
-            {open ? (
-              <div className="flex min-h-full flex-col">
-                <div className="flex items-center justify-between border-b border-line px-3 py-2">
-                  <p className="px-3 font-bold">Menu</p>
-                  <button
-                    type="button"
-                    aria-label="Close menu"
-                    onClick={() => drawer.current?.close()}
-                    className="inline-flex size-11 items-center justify-center rounded-lg hover:bg-quiet-soft"
-                  >
-                    <Icon name="close" />
-                  </button>
-                </div>
-                <OfficeNav groups={menu} firmName={firmName} />
+        <div className="hidden lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col lg:self-start lg:overflow-y-auto lg:pb-32">
+          {open ? null : <OfficeNav groups={menu} firmName={firmName} />}
+        </div>
+        <dialog
+          ref={drawer}
+          id={DRAWER_ID}
+          aria-label="Menu"
+          onClose={() => setOpen(false)}
+          // A click on the backdrop lands on the dialog itself (its content fills it).
+          onClick={(e) => {
+            if (e.target === e.currentTarget) e.currentTarget.close();
+          }}
+          className="inset-y-0 right-auto left-0 m-0 h-dvh max-h-none w-80 max-w-[85vw] bg-canvas p-0 text-base text-ink backdrop:animate-fade backdrop:bg-scrim/50"
+        >
+          {open ? (
+            <div className="flex min-h-full flex-col">
+              <div className="flex items-center justify-between border-b border-line px-3 py-2">
+                <p className="px-3 font-bold">Menu</p>
+                <button
+                  type="button"
+                  aria-label="Close menu"
+                  onClick={() => drawer.current?.close()}
+                  className="inline-flex size-11 items-center justify-center rounded-full hover:bg-quiet-soft"
+                >
+                  <Icon name="close" />
+                </button>
               </div>
-            ) : null}
-          </dialog>
-          <div id="main" tabIndex={-1} className="min-w-0 flex-1 focus:outline-none">
-            <div className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-10 lg:py-8">{children}</div>
-          </div>
+              <OfficeNav groups={menu} firmName={firmName} />
+            </div>
+          ) : null}
+        </dialog>
+        <div
+          id="main"
+          tabIndex={-1}
+          className="min-w-0 flex-1 focus:outline-none lg:my-2 lg:mr-2 lg:min-h-[calc(100dvh-1rem)] lg:rounded-[20px] lg:border lg:border-line lg:bg-card lg:shadow-lift"
+        >
+          <div className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-10 lg:py-9">{children}</div>
         </div>
         <SessionKeeper rotationDue={rotationDue} refresh={refresh} />
       </div>

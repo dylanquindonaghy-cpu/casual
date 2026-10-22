@@ -36,7 +36,7 @@ test("the subscribe route: logged in, from our own page, a proper subscription",
   await page.getByRole("button", { name: "Send me a link" }).click();
   await page.goto(await loginLinkSentTo("+447700900108", asked));
   await page.getByRole("button", { name: "Log me in" }).click();
-  await expect(page.getByRole("heading", { name: /^Hello / })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Hi / })).toBeVisible();
 
   // From another site: refused.
   expect(

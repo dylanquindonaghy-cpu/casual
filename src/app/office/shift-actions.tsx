@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { closeResultText, urgentResultText } from "@/lib/office/today-copy";
 import { btn } from "../ui/classes";
+import { Icon } from "../ui/icons";
 import { Chevron, summaryButton } from "./shifts/[id]/chevron";
 import { closeShiftAction, reopenShiftAction, setUrgentAction } from "./today-actions";
 
@@ -14,8 +15,10 @@ import { closeShiftAction, reopenShiftAction, setUrgentAction } from "./today-ac
 // "Offer to someone" is the main button; on a gap every button looks the same, so the urgent
 // ones stand out.
 // Phase 18 (the dashboard's urgent place): "Offer to someone" filled, "Mark as filled" outlined,
-// "Not urgent" in words. `onMessage`: the answers go there (the dashboard's confirmation, which
-// stays while the place leaves) instead of under the buttons.
+// "Not urgent" in words. Phase 20 (`more`, each urgent place on the dashboard): "Offer to someone",
+// then "…" (named by `more`) opening "Mark as filled" and "Not urgent". `onMessage`: the answers go
+// there (the dashboard's confirmation, which stays while the place leaves) instead of under the
+// buttons.
 export function ShiftActions({
   shiftId,
   isUrgent,
@@ -23,6 +26,7 @@ export function ShiftActions({
   fromPlanner,
   className,
   onMessage,
+  more,
 }: {
   shiftId: string;
   isUrgent: boolean;
@@ -30,6 +34,7 @@ export function ShiftActions({
   fromPlanner: boolean;
   className?: string; // where it sits in its card or row
   onMessage?: (message: string) => void;
+  more?: string; // the "…" button's name ("More for Thursday's door supervisor")
 }) {
   const router = useRouter();
   const [shown, setShown] = useState<string | null>(null);
@@ -61,6 +66,39 @@ export function ShiftActions({
       }
     });
 
+  // "Mark as filled", after a second click; and "Not urgent" (or "Mark urgent").
+  const filledStep = (
+    <details className="group/filled">
+      <summary className={`${btn.secondary} ${summaryButton} group-open/filled:bg-quiet-soft`}>
+        Mark as filled
+        <Chevron />
+      </summary>
+      <div className="mt-2 w-64 max-w-full animate-in rounded-2xl border border-line bg-card p-3">
+        <p className="text-sm">
+          Only if you&apos;ve filled it another way. Nobody else will be offered it.
+        </p>
+        <button
+          type="button"
+          className={`${btn.primary} mt-3`}
+          disabled={pending}
+          onClick={markFilled}
+        >
+          Yes, mark as filled
+        </button>
+      </div>
+    </details>
+  );
+  const notUrgent = (
+    <button
+      type="button"
+      className={isUrgent ? btn.text : btn.secondary}
+      disabled={pending}
+      onClick={toggleUrgent}
+    >
+      {isUrgent ? "Not urgent" : "Mark urgent"}
+    </button>
+  );
+
   return (
     <div className={className}>
       {closed ? (
@@ -75,35 +113,26 @@ export function ShiftActions({
           >
             Offer to someone
           </Link>
-          {!fromSheet && !fromPlanner && (
-            <details className="group">
-              <summary className={`${btn.secondary} ${summaryButton} group-open:bg-quiet-soft`}>
-                Mark as filled
-                <Chevron />
+          {more ? (
+            // The rest under "…": a menu over the page (Phase 20).
+            <details className="group relative">
+              <summary
+                aria-label={more}
+                className={`${btn.secondary} ${summaryButton} size-11 px-0 group-open:bg-quiet-soft`}
+              >
+                <Icon name="dots" />
               </summary>
-              <div className="mt-2 w-64 max-w-full animate-in rounded-lg border border-line bg-card p-3">
-                <p className="text-sm">
-                  Only if you&apos;ve filled it another way. Nobody else will be offered it.
-                </p>
-                <button
-                  type="button"
-                  className={`${btn.primary} mt-3`}
-                  disabled={pending}
-                  onClick={markFilled}
-                >
-                  Yes, mark as filled
-                </button>
+              <div className="absolute right-0 z-10 mt-2 flex w-64 max-w-[80vw] animate-in flex-col items-stretch gap-2 rounded-2xl border border-line bg-card p-3 shadow-panel">
+                {!fromSheet && !fromPlanner && filledStep}
+                {notUrgent}
               </div>
             </details>
+          ) : (
+            <>
+              {!fromSheet && !fromPlanner && filledStep}
+              {notUrgent}
+            </>
           )}
-          <button
-            type="button"
-            className={isUrgent ? btn.text : btn.secondary}
-            disabled={pending}
-            onClick={toggleUrgent}
-          >
-            {isUrgent ? "Not urgent" : "Mark urgent"}
-          </button>
         </div>
       )}
       {message && (

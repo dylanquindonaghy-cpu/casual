@@ -1,26 +1,27 @@
 import localFont from "next/font/local";
 
-// Two faces, each with one job (Phase 18; docs/ui-design.md "Type"), self-hosted: next/font serves
+// Two faces, each with one job (Phase 20; docs/ui-design.md "Type"), self-hosted: next/font serves
 // the files from the app's own address, read from the fonts' npm packages (SIL Open Font License
 // 1.1) at build time, so nothing is fetched from Google while building or running.
 //
-// Public Sans for words (built for public services: open shapes that read at a glance, in
-// sunlight, at every size), as a variable font. Barlow Condensed, bold, for the "sign" figures:
-// a shift's time and date, a gate or post, a count (drawn from road signs, so they read like the
-// venue's own). Each in two subsets: latin, and latin-ext for names such as Łukasz or Ștefan (the
+// Instrument Sans for everything you read: words, and the "sign" figures (a shift's time and date,
+// a gate, a count) in its semibold with its own fixed-width digits, as a variable font (400 to
+// 700). Instrument Serif, at one weight, for the greetings only ("Hi Zoe", "Evening, Acme
+// Events."). Each in two subsets: latin, and latin-ext for names such as Łukasz or Ștefan (the
 // browser downloads it only for a page that uses one). globals.css puts them under Tailwind's
-// `font-sans` and `font-sign`, with the system's font after them. The latin faces have no
-// metric-matched fallback of their own: next/font's would cover every character, so a name's "Ł"
-// would come from it before the latin-ext face. The latin-ext faces' fallbacks (the same designs'
-// metrics) stand in for both while they load.
+// `font-sans`, `font-sign` and `font-greet`, with the system's fonts after them. The latin faces
+// have no metric-matched fallback of their own: next/font's would cover every character, so a
+// name's "Ł" would come from it before the latin-ext face. The latin-ext faces' fallbacks (the same
+// designs' metrics) stand in for both while they load. next/font wants every value written out in
+// place, so the two ranges are repeated.
 
-export const publicSans = localFont({
-  src: "../../node_modules/@fontsource-variable/public-sans/files/public-sans-latin-wght-normal.woff2",
-  weight: "100 900",
+export const instrumentSans = localFont({
+  src: "../../node_modules/@fontsource-variable/instrument-sans/files/instrument-sans-latin-wght-normal.woff2",
+  weight: "400 700",
   style: "normal",
   display: "swap",
   adjustFontFallback: false,
-  variable: "--font-public",
+  variable: "--font-instrument",
   declarations: [
     {
       prop: "unicode-range",
@@ -30,13 +31,13 @@ export const publicSans = localFont({
   ],
 });
 
-export const publicSansExt = localFont({
-  src: "../../node_modules/@fontsource-variable/public-sans/files/public-sans-latin-ext-wght-normal.woff2",
-  weight: "100 900",
+export const instrumentSansExt = localFont({
+  src: "../../node_modules/@fontsource-variable/instrument-sans/files/instrument-sans-latin-ext-wght-normal.woff2",
+  weight: "400 700",
   style: "normal",
   display: "swap",
   preload: false,
-  variable: "--font-public-ext",
+  variable: "--font-instrument-ext",
   declarations: [
     {
       prop: "unicode-range",
@@ -46,13 +47,13 @@ export const publicSansExt = localFont({
   ],
 });
 
-export const barlowCondensed = localFont({
-  src: "../../node_modules/@fontsource/barlow-condensed/files/barlow-condensed-latin-700-normal.woff2",
-  weight: "700",
+export const instrumentSerif = localFont({
+  src: "../../node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2",
+  weight: "400",
   style: "normal",
   display: "swap",
   adjustFontFallback: false,
-  variable: "--font-barlow",
+  variable: "--font-instrument-serif",
   declarations: [
     {
       prop: "unicode-range",
@@ -62,13 +63,13 @@ export const barlowCondensed = localFont({
   ],
 });
 
-export const barlowCondensedExt = localFont({
-  src: "../../node_modules/@fontsource/barlow-condensed/files/barlow-condensed-latin-ext-700-normal.woff2",
-  weight: "700",
+export const instrumentSerifExt = localFont({
+  src: "../../node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-ext-400-normal.woff2",
+  weight: "400",
   style: "normal",
   display: "swap",
   preload: false,
-  variable: "--font-barlow-ext",
+  variable: "--font-instrument-serif-ext",
   declarations: [
     {
       prop: "unicode-range",
@@ -79,6 +80,11 @@ export const barlowCondensedExt = localFont({
 });
 
 // The four variables, for <html>'s class (the root layout and the whole-page error screen).
-export const fontVariables = [publicSans, publicSansExt, barlowCondensed, barlowCondensedExt]
+export const fontVariables = [
+  instrumentSans,
+  instrumentSansExt,
+  instrumentSerif,
+  instrumentSerifExt,
+]
   .map((f) => f.variable)
   .join(" ");

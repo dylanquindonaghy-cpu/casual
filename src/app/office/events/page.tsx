@@ -16,6 +16,7 @@ import {
 } from "@/lib/office/events-board";
 import { EVENT_VIEW_EMPTY, EVENT_VIEW_WORDS, eventSwitchLabel } from "@/lib/office/events-copy";
 import { localDateOf } from "@/lib/time/zoned";
+import { BoardDays, BoardKey } from "./board-parts";
 import { EventRow } from "./event-row";
 import { SessionsTable } from "./sessions-table";
 import { ShowingSwitch } from "./showing-switch";
@@ -37,14 +38,16 @@ const viewHref = (view: EventView, from?: string) => {
   return s ? `/office/events?${s}` : "/office/events";
 };
 
-// Events & sessions (docs/office-v2.md 3.3; docs/screens.md `/office/events`; Phase 18): a rota
-// board of two weeks from today (or a later `from`), an event per row, soonest first, each session
-// a pill on its day ("3/4": places filled out of needed; red for an urgent gap, outlined while
-// places are open, grey when full). The filters with their counts (All, Need people, Urgent,
-// Hidden), Earlier and Later. An event's name or a pill opens its row into its sessions to come:
-// role, when, places as seats, pay, post, meeting point, uniform, the urgent switch and the "…"
-// menu (offer, assign, change or cancel), with "Add a session" and its own page. Firms without a
-// planner (no Google Sheet) add and import shifts from here; with one, a note says the sessions
+// Events & sessions (docs/office-v2.md 3.3; docs/screens.md `/office/events`; Phases 18 and 20): a
+// rota board of two weeks from today (or a later `from`), an event per row, soonest first, each
+// session a pill on its day ("3/4": places filled out of needed; solid red only for an urgent gap,
+// outlined while places are open, grey when full), today marked in the firm's colour and weekends
+// a shade darker. The filters with their counts (All, Need people, Urgent, Hidden) and the dates
+// (Earlier, Later) on one row, the key under them in plain words. An event's name or a pill opens
+// its row into its sessions to come, with its "show to casuals" switch (not on the row: Phase 20),
+// "Add a session" and its own page: role, when, places as seats, pay, the urgent switch and the
+// "…" menu (offer, assign, change or cancel), then post, meeting point and uniform. Firms without
+// a planner (no Google Sheet) add and import shifts from here; with one, a note says the sessions
 // come from it. Admins and resourcers.
 export default async function EventsPage({
   searchParams,
@@ -70,7 +73,7 @@ export default async function EventsPage({
     <main className={`${page.office} flex flex-col gap-4`}>
       <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
         <div className="min-w-64 flex-1">
-          <h1 className="text-3xl font-semibold tracking-tight">Events &amp; sessions</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Events &amp; sessions</h1>
           <p className="mt-1 text-ink-muted">
             <span className="tabular-nums">{openPlaces}</span>{" "}
             {openPlaces === 1 ? "open place" : "open places"} across{" "}
@@ -102,52 +105,40 @@ export default async function EventsPage({
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2.5">
-        <nav aria-label="Show" className="flex flex-wrap gap-1">
+      <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2.5">
+        <nav
+          aria-label="Show"
+          className="flex flex-wrap gap-1 rounded-full bg-raised p-1 inset-shadow-sunk"
+        >
           {filters.map((v) => (
             <Link
               key={v}
               href={viewHref(v, from === today ? undefined : from)}
               aria-current={v === view ? "page" : undefined}
-              className={`inline-flex min-h-9 items-center gap-2 rounded-md px-3 ${
+              className={`inline-flex min-h-9 items-center gap-2 rounded-full px-3.5 ${
                 v === view
-                  ? "bg-ink font-semibold text-on-ink"
-                  : "border border-line-strong text-ink-muted hover:bg-quiet-soft"
+                  ? "bg-card font-semibold text-ink shadow-lift"
+                  : "font-medium text-ink-muted hover:text-ink"
               }`}
             >
               {EVENT_VIEW_WORDS[v]}
-              <span className="font-sign text-lg">{list.counts[v]}</span>
+              <span className="font-semibold tabular-nums">{list.counts[v]}</span>
             </Link>
           ))}
         </nav>
-        <p className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-ink-muted">
-          <span className="flex items-center gap-1.5">
-            <span aria-hidden="true" className="h-4 w-6 rounded-[3px] bg-urgent-fill" />
-            Urgent gap
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span aria-hidden="true" className="h-4 w-6 rounded-[3px] border-[1.5px] border-ink" />
-            Places open
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span aria-hidden="true" className="h-4 w-6 rounded-[3px] bg-raised" />
-            Full
-          </span>
-          <span>Pills show places filled out of places needed.</span>
-        </p>
-        <nav aria-label="Dates" className="ml-auto flex items-center gap-1">
+        <nav aria-label="Dates" className="flex items-center gap-1">
           {earlier !== null ? (
             <Link
               href={viewHref(view, earlier === "today" ? undefined : earlier)}
               aria-label="Earlier"
-              className="flex size-9 items-center justify-center rounded-md border border-line hover:bg-quiet-soft"
+              className="flex size-10 items-center justify-center rounded-full border-[1.5px] border-line-strong bg-card hover:bg-quiet-soft"
             >
               <Icon name="chevron" size={17} className="rotate-180" />
             </Link>
           ) : (
             <span
               aria-hidden="true"
-              className="flex size-9 items-center justify-center rounded-md border border-line text-line-strong"
+              className="flex size-10 items-center justify-center rounded-full border border-line text-line-strong"
             >
               <Icon name="chevron" size={17} className="rotate-180" />
             </span>
@@ -156,36 +147,22 @@ export default async function EventsPage({
           <Link
             href={viewHref(view, later)}
             aria-label="Later"
-            className="flex size-9 items-center justify-center rounded-md border border-line hover:bg-quiet-soft"
+            className="flex size-10 items-center justify-center rounded-full border-[1.5px] border-line-strong bg-card hover:bg-quiet-soft"
           >
             <Icon name="chevron" size={17} />
           </Link>
         </nav>
       </div>
+      <BoardKey />
 
       <div
         role="region"
         aria-label="Rota board"
         tabIndex={0}
-        className="overflow-x-auto rounded-xl border border-line"
+        className="overflow-x-auto rounded-[22px] border border-line bg-card shadow-panel"
       >
-        <div className="min-w-[60rem]">
-          <div className="grid grid-cols-[18rem_repeat(14,minmax(0,1fr))] border-b border-line bg-canvas">
-            <div className="flex items-end px-3.5 py-2 text-sm font-semibold text-ink-muted">
-              Event
-            </div>
-            {days.map((d) => (
-              <div
-                key={d.date}
-                className={`border-l border-line py-1.5 text-center leading-tight ${d.weekend ? "bg-raised" : ""} ${
-                  d.today ? "border-t-[3px] border-t-ink" : ""
-                }`}
-              >
-                <div className="font-sign text-lg">{d.day}</div>
-                <div className="text-sm text-ink-muted">{d.dow}</div>
-              </div>
-            ))}
-          </div>
+        <div className="min-w-[58rem]">
+          <BoardDays days={days} />
           {list.events.length === 0 ? (
             <p className="p-8 text-center text-ink-muted">
               {EVENT_VIEW_EMPTY[view]}{" "}
@@ -209,21 +186,21 @@ export default async function EventsPage({
                   first={i === 0}
                   weekend={weekend}
                   cells={eventCells(e, days, tz)}
-                  showingSwitch={
-                    <ShowingSwitch
-                      target="event"
-                      id={e.eventId}
-                      showing={e.showing}
-                      label={eventSwitchLabel(e)}
-                      small
-                    />
-                  }
                   panel={
                     <SessionsTable
                       event={e}
                       timeZone={tz}
                       hasPlanner={list.hasPlanner}
                       window={window}
+                      showingSwitch={
+                        <ShowingSwitch
+                          target="event"
+                          id={e.eventId}
+                          showing={e.showing}
+                          label={eventSwitchLabel(e)}
+                          small
+                        />
+                      }
                     />
                   }
                 />

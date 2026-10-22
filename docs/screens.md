@@ -4,10 +4,137 @@ Mobile first for staff. Desktop first for the office (resourcers work on laptops
 on a phone for 6am problems.
 
 Every page on a firm's address, staff and office, opens with the firm's bar (Phase 8,
-`src/app/brand-bar.tsx`; Phase 18's header): its logo, or its initial on a square of the firm's
-colour (darkened until white or navy reads on it at 4.5:1), then its name, on the card colour with
-a hairline under it; in the copy kept for no signal, an "Offline" plate at its end. The platform's
-own address has no bar.
+`src/app/brand-bar.tsx`; Phase 18's header; Phase 20): its logo, or its initial on a rounded square
+of the firm's colour (darkened until white or near-black ink reads on it at 4.5:1), then its name,
+on the page's own grey with no line under it; in the copy kept for no signal, an "Offline" plate at
+its end. The platform's own address has no bar.
+
+## The pass redesign (Phase 20)
+
+Dylan's mock-up from his reference screenshots (PLAN.md Phase 20; its "What's different" lists
+are the spec), on top of Phase 18. Where this section says otherwise, it wins over "The redesign
+(Phase 18)" below; every action, rule and log entry is as before. The look (Instrument Sans, and
+Instrument Serif for the greetings; the greys, D7; the status colours as tiles; the five depth
+tokens) is in `docs/ui-design.md` "Phase 20".
+
+**Casual app** (the page on the canvas grey: #eef0f3, or #0b0c0e in dark):
+
+- **Home** (`/`): "Hi {Zoe}" in the serif, "Updated {14:49}" beside it; the no-signal card as
+  before. Her next shift as a **pass** (`src/app/next-pass.tsx`): a card in the firm's colour,
+  lifted off the page, with the firm's initial and name, "In 3 days" ("Today", "Tomorrow"; "On
+  now" while it's on), the date in words ("Saturday 24 October"), the time large ("14:00–22:00";
+  a night shift adds "Finishes Sunday morning"), "{Steward}, {Raceday}", the post on a plate in
+  a white plate ("Gate 2", in the band's colour, or ink on a pale one) and the place ("Riverside Demo Park"; still no travel
+  time on the pass: a drive alone would mislead someone without a car). Its heading ("Your next
+  shift", "On now") is for screen readers. Under it, three buttons, icon over words:
+  "Directions" (the maps link, a new tab), "Details" ("Hide details" while open) and "Can't make
+  it?" (only before it starts). Details opens a card under the pass (a `<details>`: no
+  JavaScript needed, and it works in the offline copy; the pass keeps its size and place) in label
+  and value rows: "Getting there, from your home area" as three tiles ("15 min" by car, "31 min"
+  by public transport, "5.0 mi" away; the full travel line for screen readers); "Report to" (or
+  "Where") with the post, event and address; "Bring and wear" as a list, what the firm gives
+  marked "We provide it" in hi-vis yellow; "Pay" ("£12.60 an hour", "About £100.80 for the 8
+  hours"); "Instructions"; then "Open in maps" (filled) and "Ask for a change" (only before it
+  starts). Nothing booked: the empty pass, as before. Then **For you** as tiles, two to a row,
+  each a link lifted off the page in the colour of what it is, with a small label, one large
+  value and a line under it:
+  - "Urgent near you" ("Urgent" with no home area) "{2} shifts" "{Thu 22 and Fri 23 Oct}, up to
+    {£15.50} an hour", pale red (→ `/urgent`). In the kept copy instead, grey: "Open shifts" "Need
+    signal" "{2} were urgent at {14:49 on Wed 21 Oct}. We'll check again when you're online."
+  - "Needs doing" (hi-vis yellow) or "Needs doing now" (pale red, when it stops her working) with
+    the one thing and its sentence, or "{3} things need doing" (→ where she sorts it).
+  - "Your home area" "Add your home area" with its prompt, pale blue (while she has none).
+  - "More to apply for" ("To apply for" with none urgent) "{3} shifts" "{Sun 25, Tue 27 and Wed
+    28 Oct}", pale blue (→ `/shifts/open`); none: "No others now" or "None right now", with
+    "We'll message you when something matches." or "Check back later."
+  - "Pay day" "{Fri 30 Oct}" "For this week's shifts", pale green (→ `/pay`): the pay week's
+    Friday (D8).
+- **Can't make it?**: the same words in the same order, and a real handle: pull the sheet down
+  past 96px and it closes (less, and it springs back); it stays at the top while a long sheet
+  scrolls on a small phone. The strike notice is in its own box: pale
+  red with the warning mark when it's a strike, pale green with a tick when not. The reasons are
+  four large buttons, two to a row ("I'm unwell", "Travel problem", "Family or caring",
+  "Something else"), the chosen one pressed in. "Cancel this shift" with no reason says "Choose a
+  reason." right under them and puts the focus on the first reason; "Something else" with no
+  note says "Tell the office why." and puts it on the note.
+- **The tab bar** floats over the page (no line above it): the current tab's icon on a pill filled
+  in the firm's colour, its word bold; Profile's count on a hi-vis plate.
+- **Open shifts** (`/shifts/open`): each day of the strip is a card lifted off the page (a booked
+  day filled in the firm's colour with a tick, an urgent day pale red with its red count, an open
+  day white with an outlined count; today's day name bold), the key in words under it; the
+  filters right under that ("Any day", "Any site", "Any role", "Show shifts": no longer folded
+  away); "Urgent, needed now" (with a red dot), then "More shifts you can apply for" in date order,
+  like the strip. Each card: the date tile with its month, the time and "{£15.50}/hour" on the
+  first line, the role, "{event}, {post}", the travel line, the seats and "{1} place left": red
+  only on urgent shifts.
+- **A shift's page** (`/shifts/[id]`): "Urgent, needed now" on a pale red band with "{1} place
+  left", when it is; the date tile (pale red when urgent) beside the time, large, and the role (the
+  page's heading); one card of label and value rows: the status, "Where" (event, site, address,
+  the post plate), "Getting there, from your home area" (three tiles and "Open in maps"),
+  "Places" (seats and "{1} of {4} places left", red when urgent), "You need" (a circle per
+  requirement: a green tick when she has it, yellow or red when not, with her status words),
+  "Report to", "Bring and wear", "Pay"; the instructions in a card of their own. "Take shift",
+  with its strike note above it, in a bar floating at the bottom.
+- **Booked** (`/shifts`): the same pass and three buttons as Home, with "Your next shift" shown
+  above it ("New" on it after "Take shift", as it moves into place); "Later" with its count, kept
+  when nothing else is booked: "Nothing else booked yet." and "Find open shifts" (→
+  `/shifts/open`).
+
+**Office**:
+
+- **The frame**: below 1024px as before (the top bar with Menu, the firm's name, the moon/sun
+  button and the account). From 1024px there's no top bar: the page is a white sheet with rounded
+  corners on the grey frame, and the menu beside it has the firm at the top on a lifted card, then
+  "Dashboard" and "Needs attention" with its count (the bell is gone; the same count as the
+  Dashboard's Needs attention tile and its page: its items and the enquiries that need a person;
+  "{12} to deal with" for screen readers, "50+" when a list stopped at 50), the
+  groups ("Today": Events & sessions, Cancellations, Enquiries; "Pay"; "People"; "Admin and
+  records"), "How-to guide", and at its foot the pay week, the moon/sun button and you (your
+  initials, name and role: the account menu, with How-to guide and Log out). The current page:
+  bold, on a white pill lifted off the menu.
+- **Dashboard** (`/office`): "{Evening}, {Acme Events}." in the serif, then "{3} things need you."
+  The count is the urgent places still to fill plus Needs attention's count (its items with the
+  enquiries that need a person, as the menu counts them), so the two tiles under it add up to it
+  ("Nothing needs you right now."; "At least …" when a part couldn't load, as before). Then where to start ("Start with {Thursday}'s
+  {door supervisor} at {08:00}: {not offered to anyone yet}."; with no urgent place, the subline
+  as before), "{Monday 2 November} · Week {45} · Pay on {Fri 13 Nov}", and the shifts line. Four
+  count tiles: "Urgent places" (pale red, the days they're on → Events & sessions' Urgent),
+  "Needs attention" (yellow, "{5} sessions to mark, {2} uploads" → Needs attention), "Waiting on
+  others" (pale blue, "Pay queries with payroll" → Pay queries, or "Nothing waiting on others"),
+  "Sorted today" (pale green, "{1} cancellation, {5} enquiries" → Sorted today below). Then
+  panels:
+  - **Urgent places to fill**, with its count and "All on Events & sessions": every urgent place
+    the list holds (up to 50, then "More urgent places are on Events & sessions."), soonest first,
+    each a row lifted off the panel with the date tile, time, role (→ the shift), where, the
+    seats, "{1} of {4} places free", "Not offered yet" (or who it went to), then "Offer to
+    someone" and "…" ("Mark as filled", "Not urgent"; only "Not urgent" for a Google Sheet's or a
+    planner's place). Their answers show as a confirmation at the foot of the screen for 3
+    seconds, as a place marked not urgent leaves the list. None: "Every urgent place is filled."
+    "Nobody needs finding right now." "See events". Replaces Next up's one-at-a-time card.
+  - **This week**: "{8} places still to fill. {20} of {28} filled, {today} to {Sun}.", a bar per
+    day of how full it is (each day a link, as before), "Open the rota board".
+  - **Needs attention**: a row per kind of to-do with its count and what to do, then "Open Needs
+    attention". Replaces After that.
+  - **Waiting on others** ("Nothing is waiting on anyone else.") and **Sorted today**, as before,
+    as panels of rows.
+- **Needs attention** (`/office/needs-attention`): "{6} things for you. Each item links to where
+  it's dealt with." Its parts as panels of lifted rows: the sessions to mark one row per role,
+  place and time, with how many sessions and people ("Mark who worked", or "Mark who worked:
+  Session 1 … 3" for several); each upload by name, "Uploaded at {time}" and its own "Check" (→
+  the casual's uploads); the enquiries that need a person ("{2} messages and requests the shifts
+  line couldn't answer."); the rest as before. Beside them, "Also needs you": "{3} urgent places to
+  fill, the first on {Thursday}." and "Go to the Dashboard" ("No urgent places to fill." when
+  none).
+- **Events & sessions** (`/office/events`): the filters on a sunk track and the dates ("Earlier",
+  "Later") on one row, the key under them in words; the board on a panel. No show/hide switch on
+  the board's rows: a hidden event's line says "Hidden from casuals" with its mark. Event names in
+  full, on two lines when needed; today marked with a bar in the firm's colour; weekends a shade
+  darker. An opened row is set into the board a step darker: the site, "{4} sessions to come", the
+  "Show to casuals" switch (named "Show {event} to casuals"), "Add a session" (no planner) and
+  "Open the event's page"; each session on two lines: the role (→ the session), when, the places
+  as seats with "3/4", the pay an hour on the right, the "Urgent" switch and "…"; then "{Gate 3}
+  · Meet at {staff entrance on Arena Way} · {black trousers}" ("No post, meeting point or
+  uniform").
 
 ## The redesign (Phase 18)
 
@@ -68,7 +195,8 @@ date tile, the sign plate, the seats, the plates) is in `docs/ui-design.md` "Pha
   transport}", both ways whatever she chose, as on Booked: 12G.3), the seats with "{1} place left"
   and "{£15.50}/hour", under fair rotation "You can take it from {18:00}". What a shift needs is on
   its page ("You need"), not the card: every card is one she can take. "{2} more shifts are further than you travel."
-  → "Change how far"; "Choose a day, site or role" (the form, folded away).
+  → "Change how far"; "Choose a day, site or role" (the form, folded away; Phase 20: right under
+  the strip).
 - **A shift's page** (`/shifts/[id]`): "All open shifts" (← back; "Your shifts" on her booking), the
   shift as a card like the pass ("Urgent, needed now" on a red band when it is; the date tile, the
   time, the role as the page's heading; the post plate, event, site and address; "Getting there,

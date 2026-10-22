@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { isOnNow, roleLabel, shiftWhen, timeOnDay } from "@/lib/portal/format";
 import { dateParts, timeRange } from "@/lib/portal/sign-copy";
+import { NextPass } from "../next-pass";
 import type { MyShift, ShiftsView } from "@/lib/portal/my-shifts";
 import { travelLineText } from "@/lib/travel/line-copy";
 import {
@@ -22,21 +23,23 @@ import {
   staffBtn,
   switchTrack,
 } from "../ui/classes";
+import { Icon } from "../ui/icons";
 import { PageHeader } from "../ui/page-header";
 import { Plate } from "../ui/plate";
 import { DateTile } from "../ui/sign";
 import { StatusChip, type StatusTone } from "../ui/status-chip";
 
-// Booked (docs/office-v2.md 4.1, 4.3; docs/screens.md `/shifts`; 12H.1): her bookings, on the
-// Shifts tab next to Open. A switch between Upcoming and the last 30 days (`?view=past`), the next
-// shift in a card (time, role, site, map link, instructions, then what you can do), the rest in a
-// list where each opens to the same details. Each upcoming shift shows its travel line ("7.2 miles ·
-// 18 min by car · …": 12G.3). Kept for when there's no signal, like Home (public/sw.js), with the
-// same notice. Server-rendered HTML (the list opens with <details>); only "Cancel this shift" is a
-// small client component. Home (`/`) has the greeting, Needs updating, urgent shifts and the next
-// shift in full (src/app/home-view.tsx).
+// Booked (docs/office-v2.md 4.1, 4.3; docs/screens.md `/shifts`; 12H.1; Phase 20): her bookings,
+// on the Shifts tab next to Open. A switch between Upcoming and the last 30 days (`?view=past`),
+// the next shift as the same pass as Home's, with the same three buttons under it
+// (src/app/next-pass.tsx), then "Later": the rest in a list where each opens to its details, or,
+// with nothing else booked, a card that says so with "Find open shifts". Each later shift shows its
+// travel line ("7.2 miles · 18 min by car · …": 12G.3). Kept for when there's no signal, like Home
+// (public/sw.js), with the same notice. Server-rendered HTML (the list opens with <details>); only
+// "Can't make it?" is a small client component.
 
 export interface BookedViewProps {
+  firmName: string;
   timeZone: string;
   now: Date;
   view: ShiftsView;
@@ -46,8 +49,8 @@ export interface BookedViewProps {
   newShiftId?: string;
 }
 
-// A plain grey box for "nothing here" sentences.
-const emptyBox = "mt-6 rounded-xl bg-quiet-soft p-4 text-ink";
+// A plain card for "nothing here" sentences.
+const emptyBox = "mt-6 rounded-3xl border border-line bg-card p-4.5 text-lg text-ink shadow-lift";
 
 export function BookedView(props: BookedViewProps) {
   const { view, shifts, now, timeZone } = props;
@@ -97,57 +100,42 @@ function Upcoming(props: BookedViewProps) {
   if (!next) return <p className={emptyBox}>No shifts booked yet.</p>;
   return (
     <>
-      <NextShift shift={next} {...props} />
-      {later.length > 0 && (
-        <section aria-labelledby="later-heading" className={sectionGap.staff}>
-          {/* The count sits beside the <h2>, not in it, so the section's name stays "Coming up"
-              (as on the office pages). */}
-          <div className="flex items-center">
-            <h2 id="later-heading" className={h2}>
-              Coming up
-            </h2>
-            <span className={count}>{later.length}</span>
-          </div>
+      <div className="mt-6">
+        <NextPass
+          shift={next}
+          timeZone={props.timeZone}
+          now={props.now}
+          firmName={props.firmName}
+          heading="shown"
+          fresh={next.shiftId === props.newShiftId}
+        />
+      </div>
+      <section aria-labelledby="later-heading" className={sectionGap.staff}>
+        {/* The count sits beside the <h2>, not in it, so the section's name stays "Later" (as on
+            the office pages). */}
+        <div className="flex items-center">
+          <h2 id="later-heading" className={h2}>
+            Later
+          </h2>
+          {later.length > 0 && <span className={count}>{later.length}</span>}
+        </div>
+        {later.length > 0 ? (
           <ul role="list" className={`${rows} ${headingGap}`}>
             {later.map((s) => (
               <UpcomingRow key={s.assignmentId} shift={s} {...props} />
             ))}
           </ul>
-        </section>
-      )}
+        ) : (
+          <div className={`${emptyBox} ${headingGap} flex flex-col items-start gap-3`}>
+            <p>Nothing else booked yet.</p>
+            <Link href="/shifts/open" className={`${staffBtn.secondary} w-auto px-5`}>
+              Find open shifts
+              <Icon name="arrow" />
+            </Link>
+          </div>
+        )}
+      </section>
     </>
-  );
-}
-
-function NextShift({ shift, timeZone, now, newShiftId }: BookedViewProps & { shift: MyShift }) {
-  const day = dateParts(shift.startsAt, timeZone);
-  const t = timeRange(shift.startsAt, shift.endsAt, timeZone);
-  const fresh = shift.shiftId === newShiftId;
-  return (
-    <section
-      aria-labelledby="next-heading"
-      className={`mt-6 rounded-2xl bg-card p-4 ${fresh ? "animate-move border-2 border-brand-ink" : "border border-line"}`}
-    >
-      <div className="flex items-center justify-between gap-3">
-        <h2 id="next-heading" className="text-base font-semibold text-ink-muted">
-          {isOnNow(shift, now) ? "On now" : "Your next shift"}
-        </h2>
-        {fresh && <Plate tone="brand">New</Plate>}
-      </div>
-      <div className="mt-2 flex items-center gap-4">
-        <DateTile dow={day.dow} day={day.day} month={day.month} size="lg" label={day.long} />
-        <div className="min-w-0">
-          <p className="font-sign text-4xl text-ink">{t.range}</p>
-          <p className="mt-1 text-lg font-semibold">{roleLabel(shift.role)}</p>
-          {t.endsNote && <p className="text-base text-ink-muted">{t.endsNote}</p>}
-        </div>
-      </div>
-      <div className="mt-3">
-        <TravelLine shift={shift} timeZone={timeZone} />
-      </div>
-      <ShiftDetails shift={shift} />
-      <ShiftActions shift={shift} now={now} timeZone={timeZone} />
-    </section>
   );
 }
 

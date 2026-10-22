@@ -1,15 +1,17 @@
 import type { Page } from "@playwright/test";
 import { addEventWithSession, addOfficeUser, addSteward, cancelOwnShift } from "./db";
-import { DASHBOARD_HEADING, expect, test } from "./fixtures";
+import { DASHBOARD_HEADING, expect, menuLink, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
 // The office dashboard in a real browser, on the demo seed (12E.1; docs/screens.md `/office`;
-// Phase 18's redesign): a resourcer sees how many things need them, the shifts line, this week's
-// seven days (each a link), "Next up", "After that" and "Sorted today" (cancellations recorded,
-// never approved), and nothing to approve, decline or deny; the bell opens Needs attention's page;
-// the offer page leads back here; `/office/today` redirects here; payroll is sent to the pay
-// dashboard. (Other specs change the seed's numbers, so this one checks the words and the links,
-// not the counts.) Replaces office.today.spec.ts.
+// Phases 18 and 20): a resourcer sees how many things need them (the one count, the same as the
+// menu's Needs attention adds up to with the urgent places), the shifts line, the four count
+// tiles, every urgent place, this week's seven days (each a link), Needs attention, Waiting on
+// others and Sorted today (cancellations recorded, never approved), and nothing to approve,
+// decline or deny; Needs attention in the menu opens its page; the offer page leads back here;
+// `/office/today` redirects here; payroll is sent to the pay dashboard. (Other specs change the
+// seed's numbers, so this one checks the words, the links and that the counts add up.) Replaces
+// office.today.spec.ts.
 
 const acme = "http://acme.localhost:3100";
 
@@ -53,11 +55,32 @@ test("a resourcer's dashboard: what needs them, this week, where to start, and n
   }
   await expect(days.filter({ hasText: "Today" })).toHaveCount(1);
 
-  // The parts, in order: where to start, then the rest of what needs you, then what's sorted.
+  // The parts, in order: the urgent places, this week, the rest of what needs you, what waits on
+  // others, then what's sorted.
   const headings = page.getByRole("main").getByRole("heading", { level: 2 });
-  await expect(headings.first()).toHaveText("Next up");
-  await expect(headings.nth(1)).toHaveText("After that");
-  await expect(headings.last()).toHaveText("Sorted today");
+  await expect(headings).toHaveText([
+    "Urgent places to fill",
+    "This week",
+    "Needs attention",
+    "Waiting on others",
+    "Sorted today",
+  ]);
+  // The one count adds up: the urgent places plus Needs attention's (its tiles' figures).
+  const heading = (await page.getByRole("heading", { level: 1 }).textContent()) ?? "";
+  const things = Number(/(\d+) things? needs? you/.exec(heading)?.[1] ?? 0);
+  const figure = async (label: string) =>
+    Number(
+      await page
+        .getByRole("main")
+        .getByRole("link")
+        .filter({ hasText: new RegExp(`^${label}`) })
+        .locator("span")
+        .nth(1)
+        .textContent(),
+    );
+  const urgent = await figure("Urgent places");
+  const attention = await figure("Needs attention");
+  expect(things).toBe(urgent + attention);
   // Cancellations are recorded, never approved or declined: nothing on the page does either.
   const sorted = page.getByRole("list", { name: "Sorted today" });
   await expect(sorted.getByRole("link", { name: /cancellations? today/ })).toContainText(
@@ -68,13 +91,31 @@ test("a resourcer's dashboard: what needs them, this week, where to start, and n
     await expect(page.getByRole(role, { name: /\b(approve|decline|deny)\b/i })).toHaveCount(0);
   }
 
-  // The bell in the top bar opens Needs attention's page.
-  const bell = page.getByRole("link", { name: /^Needs attention/ });
-  await expect(bell).toHaveAttribute("href", "/office/needs-attention");
-  await bell.click();
+  // Needs attention in the menu (the bell's place until Phase 20), with the same count, opens its
+  // page.
+  // (The demo seed always has some: yesterday's racecourse sessions to mark.)
+  expect(attention).toBeGreaterThan(0);
+  const item = await menuLink(page, "Needs attention");
+  await expect(item).toHaveAttribute("href", "/office/needs-attention");
+  await expect(item.locator("xpath=following-sibling::span[1]")).toHaveText(
+    `${attention} to deal with`,
+  );
+  await item.click();
   await expect(page).toHaveURL(`${acme}/office/needs-attention`);
   await expect(page.getByRole("heading", { name: "Needs attention", level: 1 })).toBeVisible();
   await expect(page).toHaveTitle("Needs attention · Acme Events shifts");
+  // Its page says the same count, and the urgent places beside them, so the two add up again.
+  await expect(
+    page.getByText(
+      new RegExp(`^${attention} things? for you\\. Each item links to where it's dealt with\\.$`),
+    ),
+  ).toBeVisible();
+  const also = page.getByRole("region", { name: "Also needs you" });
+  await expect(also).toContainText(
+    urgent === 0
+      ? "No urgent places to fill."
+      : new RegExp(`(?<!\\d)${urgent} urgent places? to fill, the first on `),
+  );
 
   // A row opens its list: today's cancellations.
   await page.goto(`${acme}/office`);
@@ -117,7 +158,9 @@ test("the offer page leads back to the dashboard", async ({ page }, testInfo) =>
   }
 });
 
-test("Next up steps through the urgent places, one at a time", async ({ page }, testInfo) => {
+test("every urgent place is listed, each with Offer to someone and the rest under …", async ({
+  page,
+}, testInfo) => {
   // Two urgent places of this spec's own, in a role no casual has (no other spec sees them), and a
   // resourcer of its own.
   const email = `dashboard.focus${testInfo.retry || ""}@example.com`;
@@ -141,21 +184,38 @@ test("Next up steps through the urgent places, one at a time", async ({ page }, 
   ];
   try {
     await officeLogin(page, email);
-    const card = page.locator("[data-focus]");
-    const band = card.getByText(/^\d+ of \d+$/);
-    await expect(band).toHaveText(/^1 of ([2-9]|\d{2,})$/);
-    const total = ((await band.textContent()) ?? "").split(" of ")[1];
-    const first = await card.getByRole("link").first().getAttribute("href");
-    // Next: the second place, a different session; Previous: back to the first.
-    await card.getByRole("button", { name: "Next urgent place" }).click();
-    await expect(band).toHaveText(`2 of ${total}`);
-    await expect(card.getByRole("link").first()).not.toHaveAttribute("href", first ?? "");
-    await card.getByRole("button", { name: "Previous urgent place" }).click();
-    await expect(band).toHaveText(`1 of ${total}`);
-    await expect(card.getByRole("link").first()).toHaveAttribute("href", first ?? "");
-    // Previous from the first goes round to the last.
-    await card.getByRole("button", { name: "Previous urgent place" }).click();
-    await expect(band).toHaveText(`${total} of ${total}`);
+    const places = page.getByRole("region", { name: "Urgent places to fill" });
+    for (const m of made) {
+      const row = places.locator("[data-urgent-place]").filter({
+        has: page.locator(`a[href="/office/shifts/${m.shiftId}"]`),
+      });
+      await expect(row).toHaveCount(1);
+      await expect(row.getByRole("link", { name: "Offer to someone" })).toHaveAttribute(
+        "href",
+        `/office/offer/${m.shiftId}`,
+      );
+      // "…" opens the rest: mark as filled, not urgent.
+      await expect(row.getByRole("button", { name: "Not urgent" })).toBeHidden();
+      await row.locator('summary[aria-label^="More for "]').click();
+      await expect(row.getByText("Mark as filled", { exact: true })).toBeVisible();
+      await expect(row.getByRole("button", { name: "Not urgent" })).toBeVisible();
+    }
+    // Soonest first: tomorrow's before the day after's.
+    const order = await places
+      .locator("[data-urgent-place] a[href^='/office/shifts/']")
+      .evaluateAll((links) => links.map((a) => a.getAttribute("href")));
+    expect(order.indexOf(`/office/shifts/${made[0]!.shiftId}`)).toBeLessThan(
+      order.indexOf(`/office/shifts/${made[1]!.shiftId}`),
+    );
+    // "Not urgent": the place leaves the list, and the answer stays at the foot of the screen.
+    const second = places.locator("[data-urgent-place]").filter({
+      has: page.locator(`a[href="/office/shifts/${made[1]!.shiftId}"]`),
+    });
+    await second.getByRole("button", { name: "Not urgent" }).click();
+    await expect(second).toHaveCount(0);
+    await expect(
+      page.getByRole("status").filter({ hasText: "No longer urgent. No more offers will go out." }),
+    ).toBeVisible();
   } finally {
     for (const m of made) await cancelOwnShift("acme", m.shiftId);
   }
@@ -168,12 +228,12 @@ test("/office/today opens the dashboard", async ({ page }) => {
   await expect(page.getByRole("heading", { name: DASHBOARD_HEADING, level: 1 })).toBeVisible();
 });
 
-test("payroll doesn't get the dashboard, the bell or the offer page", async ({ page }) => {
+test("payroll doesn't get the dashboard, Needs attention or the offer page", async ({ page }) => {
   await officeLogin(page, "acme.payroll@example.com");
   // /office sends payroll to their pay dashboard (12A.3; tests/e2e/office.pay-dashboard.spec.ts).
   await expect(page).toHaveURL(`${acme}/office/pay`);
   await expect(page.getByRole("heading", { name: "Pay dashboard", level: 1 })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Next up" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Urgent places to fill" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: /^Needs attention/ })).toHaveCount(0);
   const response = await page.goto(`${acme}/office/offer/00000000-0000-4000-8000-000000000000`);
   expect(response?.status()).toBe(404);

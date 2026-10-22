@@ -213,11 +213,18 @@ describe("the office how-to guide", () => {
       expect(text).toContain("Select it to open this guide or to Log out");
       expect(text).toContain("The moon or sun beside it switches between dark and light.");
     }
-    // The bell is drawn only for the roles with Needs attention, "today" (src/app/office/layout.tsx).
-    const bell = "The bell counts what needs attention.";
-    expect(words(guide("admin"))).toContain(bell);
-    expect(words(guide("resourcer"))).toContain(bell);
-    expect(words(guide("payroll"))).not.toContain(bell);
+    // Needs attention is in the menu only for the roles with it, "today" (office-menu.ts); Phase
+    // 20 took the bell out, so the guide never mentions one.
+    const count = "Needs attention, under Dashboard in the menu, counts what needs you.";
+    expect(words(guide("admin"))).toContain(count);
+    expect(words(guide("resourcer"))).toContain(count);
+    expect(words(guide("payroll"))).not.toContain(count);
+    for (const role of ["admin", "resourcer", "payroll"] as const)
+      expect(words(guide(role)).toLowerCase()).not.toMatch(/\bbell\b/);
+    // On a wide screen the account button is at the menu's foot (Phase 20).
+    expect(words(section(guide("admin"), "getting-around"))).toContain(
+      "On a wide screen, it is at the bottom of the menu.",
+    );
   });
 
   it("Connect your planner is three steps, with the codes and the webhook as notes (12I.3)", () => {

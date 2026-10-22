@@ -852,6 +852,8 @@ describe("My shifts and the kept copy together", () => {
       const html = renderToStaticMarkup(
         which === "Home"
           ? createElement(HomeView, {
+              firmName: "Acme Events",
+              payDay: "2026-11-13",
               firstName: "Sam",
               timeZone: "Europe/London",
               now,
@@ -869,6 +871,7 @@ describe("My shifts and the kept copy together", () => {
               },
             })
           : createElement(BookedView, {
+              firmName: "Acme Events",
               timeZone: "Europe/London",
               now,
               view: "upcoming",

@@ -6,6 +6,7 @@ import { createKeyDirectory } from "@/lib/db/directory";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { putSessionRequest } from "@/lib/integrations/sessions";
 import {
+  attentionCount,
   loadDashboard,
   loadExpiredOnBookings,
   needsAttentionBell,
@@ -649,6 +650,67 @@ describe("Needs attention and the bell", () => {
       await needsAttentionBell({ firm: { id: t.firmId }, officeUserId: payroll, run: withFirm }),
     ).toBeNull();
   });
+
+  it("its page (Phase 20): each upload by name, oldest first; the enquiries that need a person; the urgent places", async () => {
+    const t = await dashFirm();
+    // Two uploads waiting for a check, Ivy's sent first.
+    const ben = await t.worker({ first: "Ben" });
+    const ivy = await t.worker({ first: "Ivy" });
+    for (const [who, at] of [
+      [ben, "2026-11-02T08:30:00Z"],
+      [ivy, "2026-11-02T08:10:00Z"],
+    ] as const) {
+      await su.query(
+        `insert into uploads (firm_id, worker_id, kind, content_type, size, sha256, data, created_at)
+         values ($1, $2, 'photo', 'image/jpeg', 3, $3, '\\xffd8ff'::bytea, $4)`,
+        [t.firmId, who, randomBytes(32).toString("hex"), new Date(at)],
+      );
+    }
+    // A message to the shifts line that needs a person.
+    await su.query(
+      `insert into messages (firm_id, direction, channel, provider_message_id, from_e164, to_e164,
+                             body, worker_id, handled_at, handled_as, intent, created_at)
+       values ($1, 'in', 'whatsapp', $2, '+447700900921', '+447700900922', 'hello', $3, $4,
+               'office', 'office', $4)`,
+      [t.firmId, `SM${randomBytes(16).toString("hex")}`, ben, new Date("2026-11-02T07:00:00Z")],
+    );
+    // An urgent session with both its places free.
+    const urgent = await t.shift({ startsAt: hoursFromNow(5), headcount: 2 });
+    await t.set("shifts", urgent, { is_urgent: true });
+
+    const admin = await t.office("admin");
+    const page = await officeNeedsAttention({
+      firm: { id: t.firmId },
+      officeUserId: admin,
+      run: withFirm,
+      clock,
+    });
+    if (!page?.needs.ok) throw new Error("Needs attention didn't load");
+    expect(page.needs.data.uploadList.map((u) => [u.name, u.workerId, u.kind])).toEqual([
+      ["Ivy Booker", ivy, "photo"],
+      ["Ben Booker", ben, "photo"],
+    ]);
+    expect(page.needs.data.uploadList.map((u) => u.sentAt)).toEqual([
+      new Date("2026-11-02T08:10:00Z"),
+      new Date("2026-11-02T08:30:00Z"),
+    ]);
+    expect(page.needPerson).toEqual({ ok: true, data: 1 });
+    expect(page.urgent).toEqual({
+      ok: true,
+      data: { sessions: 1, places: 2, firstStartsAt: hoursFromNow(5) },
+    });
+    // Its count, as the menu's: the 2 uploads, the strikes team's address not set, the enquiry.
+    expect(attentionCount(page.needs.data, page.needPerson.ok ? page.needPerson.data : -1)).toEqual(
+      {
+        count: 2 + 1 + 1,
+        more: false,
+      },
+    );
+    // The dashboard reads the same figures, so its headline (urgent places plus that count) adds up.
+    const { urgent: places, enquiries } = await counts(t);
+    expect(places.places).toBe(2);
+    expect(enquiries.needPerson).toBe(1);
+  });
 });
 
 describe("Needs attention: your planner's change was refused", () => {
@@ -968,6 +1030,14 @@ describe("isolation", () => {
                $3, $4)`,
       [b.firmId, `SM${randomBytes(16).toString("hex")}`, asked.rows[0]?.id, hoursFromNow(-2)],
     );
+    // And a message that needs a person (Needs attention's page counts it: Phase 20).
+    await su.query(
+      `insert into messages (firm_id, direction, channel, provider_message_id, from_e164, to_e164,
+                             body, handled_at, handled_as, intent, created_at)
+       values ($1, 'in', 'whatsapp', $2, '+447700900933', '+447700900932', 'call me', $3,
+               'office', 'office', $3)`,
+      [b.firmId, `SM${randomBytes(16).toString("hex")}`, hoursFromNow(-1)],
+    );
     const lena = await b.worker({ first: "Lenora" });
     await b.booking(lena, await b.shift({ startsAt: hoursFromNow(48) }));
     await b.set("workers", lena, { status: "inactive" });
@@ -995,14 +1065,19 @@ describe("isolation", () => {
     // B's own dashboard holds them.
     expect(theirs.counts.urgent.ok && theirs.counts.urgent.data.sessions).toBe(1);
     expect(theirs.counts.cancellations.ok && theirs.counts.cancellations.data.total).toBe(1);
-    expect(theirs.counts.enquiries.ok && theirs.counts.enquiries.data.total).toBe(1);
+    expect(theirs.counts.enquiries.ok && theirs.counts.enquiries.data).toMatchObject({
+      total: 2,
+      needPerson: 1,
+    });
     expect(theirs.needs.ok && theirs.needs.data.expired.map((e) => e.worker)).toEqual([
       "Bertram Booker",
     ]);
     expect(theirs.needs.ok && theirs.needs.data.uploads).toBe(1);
-    expect(theirs.enquiries.ok && Object.values(theirs.enquiries.data.replies)).toEqual([
-      "Firm B reply words",
-    ]);
+    // Its two enquiries: the one answered, and the one waiting for a person (no reply yet).
+    expect(theirs.enquiries.ok && Object.values(theirs.enquiries.data.replies)).toHaveLength(2);
+    expect(
+      theirs.enquiries.ok && Object.values(theirs.enquiries.data.replies).filter(Boolean),
+    ).toEqual(["Firm B reply words"]);
     // A's counts are all 0, and nothing of B's is in A's dashboard.
     expect(mine.counts).toEqual({
       urgent: { ok: true, data: { sessions: 0, places: 0, firstStartsAt: null } },
@@ -1014,7 +1089,15 @@ describe("isolation", () => {
     expect(theirs.week.ok && theirs.week.data.reduce((n, d) => n + d.places, 0)).toBeGreaterThan(0);
     expect(mine.week.ok && mine.week.data.every((d) => d.places === 0 && d.open === 0)).toBe(true);
     const text = JSON.stringify(mine);
-    for (const word of ["Firm B reply words", "Bertram", "Lenora", "shifts?", gap, b.firmId]) {
+    for (const word of [
+      "Firm B reply words",
+      "Bertram",
+      "Lenora",
+      "shifts?",
+      "call me",
+      gap,
+      b.firmId,
+    ]) {
       expect(text).not.toContain(word);
     }
     // A's bell: only its own strikes-team address, not confirmed.
@@ -1026,9 +1109,30 @@ describe("isolation", () => {
       clock,
     });
     expect(await needsAttentionBell(ctx(a.firmId, admin))).toEqual({ count: 1, more: false });
+    // Needs attention's page (Phase 20): B's upload by name, its enquiry and its urgent place;
+    // none of them in A's.
+    const page = (firmId: string, officeUserId: string) =>
+      officeNeedsAttention(ctx(firmId, officeUserId));
+    const minePage = await page(a.firmId, admin);
+    expect(minePage).toMatchObject({
+      needs: { ok: true, data: { uploads: 0, uploadList: [] } },
+      needPerson: { ok: true, data: 0 },
+      urgent: { ok: true, data: { sessions: 0, places: 0, firstStartsAt: null } },
+    });
+    const pageText = JSON.stringify(minePage);
+    for (const word of ["Bertram", "Lenora", "call me", ben, b.firmId]) {
+      expect(pageText).not.toContain(word);
+    }
+    const theirPage = await page(b.firmId, await b.office("admin"));
+    expect(theirPage?.needs.ok && theirPage.needs.data.uploadList.map((u) => u.name)).toEqual([
+      "Bertram Booker",
+    ]);
+    expect(theirPage?.needPerson).toEqual({ ok: true, data: 1 });
+    expect(theirPage?.urgent.ok && theirPage.urgent.data.places).toBe(1);
     // B's admin asking under A's firm: nothing.
     expect(await needsAttentionBell(ctx(a.firmId, await b.office("admin")))).toBeNull();
     expect(await officeDashboard(ctx(a.firmId, await b.office("admin")))).toBeNull();
+    expect(await page(a.firmId, await b.office("admin"))).toBeNull();
   });
 });
 

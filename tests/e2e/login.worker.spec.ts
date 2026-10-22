@@ -32,7 +32,7 @@ test("a worker logs in with a link, the link works once, and they can log out", 
   await expect(page).toHaveURL(`${acme}/l`); // the token is cleared from the address bar
   await page.getByRole("button", { name: "Log me in" }).click();
   await expect(page).toHaveURL(`${acme}/`);
-  await expect(page.getByRole("heading", { name: /^Hello / })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Hi / })).toBeVisible();
   // Home (12H.1): this seeded worker has no bookings yet. The tab bar is at the bottom.
   await expect(page.getByRole("heading", { name: "No shifts booked" })).toBeVisible();
   const tabs = page.getByRole("navigation", { name: "Main" });

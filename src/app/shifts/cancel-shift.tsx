@@ -25,6 +25,8 @@ type Shown = Exclude<
 >;
 
 const CHANGED = "This has changed since you opened it. Read it again, then confirm.";
+const NO_REASON = "Choose a reason.";
+const NO_NOTE = "Tell the office why.";
 
 // What the sheet's top says about the shift: its date tile and one line ("Steward, Sat 24 Oct,
 // 14:00–22:00").
@@ -40,8 +42,10 @@ export interface CancelSummary {
 // shift" (red, the final step), "Ask for a change instead" and "Keep my shift". The confirmation
 // shows in the sheet ("Done" closes it and reloads the page without the cancelled shift). If what
 // would happen changed while they read it, nothing is cancelled and the new warning is shown.
-// The opener waits for the page (docs/ui-design.md "Forms wait for the page"). `opener`: the
-// pass's small button in its grid, or a full-width one (Booked, the shift's page).
+// The opener waits for the page (docs/ui-design.md "Forms wait for the page"). `opener`: one of
+// the pass's three buttons (Phase 20: an icon over the words), the small one two to a row, or a
+// full-width one (the shift's page). The reasons are four large buttons, two to a row (Phase 20):
+// confirming without one says so right under them and puts the focus on the first, to choose.
 export function CancelShift({
   shiftId,
   summary,
@@ -49,7 +53,7 @@ export function CancelShift({
 }: {
   shiftId: string;
   summary: CancelSummary;
-  opener?: "small" | "full";
+  opener?: "tile" | "small" | "full";
 }) {
   const router = useRouter();
   const ready = useHydrated();
@@ -64,6 +68,15 @@ export function CancelShift({
   // Closed (a second Escape) while the cancellation was being sent: its answer opens it again.
   const reopen = useRef(false);
   const titleId = `cancel-${shiftId}`;
+  const firstReason = useRef<HTMLInputElement>(null);
+  const noteField = useRef<HTMLInputElement>(null);
+  // A problem with the reason, said right under it: the focus goes to the first reason (none
+  // chosen), or to the note ("Something else" without one), to put it right. Moved here, not on
+  // a change of `problem`, so a second press with the same problem moves it again.
+  const say = (p: typeof NO_REASON | typeof NO_NOTE) => {
+    setProblem(p);
+    (p === NO_REASON ? firstReason : noteField).current?.focus();
+  };
 
   const open = () => {
     if (sending.current) return;
@@ -83,8 +96,8 @@ export function CancelShift({
 
   const confirm = () => {
     if (sending.current || !warning) return;
-    if (!choice) return setProblem("Choose a reason.");
-    if (choice === OTHER_REASON && !note.trim()) return setProblem("Tell the office why.");
+    if (!choice) return say(NO_REASON);
+    if (choice === OTHER_REASON && !note.trim()) return say(NO_NOTE);
     setProblem(null);
     setOutcome(null);
     sending.current = true;
@@ -99,7 +112,7 @@ export function CancelShift({
         setAsking(true);
       }
       if (result.status === "logged_out") router.replace("/login");
-      else if (result.status === "invalid_reason") setProblem("Choose a reason.");
+      else if (result.status === "invalid_reason") setProblem(NO_REASON);
       else if (result.status === "warning_changed") {
         setWarning(result.warning);
         setProblem(CHANGED);
@@ -132,8 +145,15 @@ export function CancelShift({
         type="button"
         disabled={!ready}
         onClick={open}
-        className={opener === "small" ? `${staffBtnSmall} text-urgent-ink` : staffBtn.danger}
+        className={
+          opener === "tile"
+            ? "flex min-h-17 w-full flex-col items-center justify-center gap-1 rounded-2xl border border-line bg-card px-1.5 text-center text-base leading-tight font-medium text-urgent-ink shadow-lift hover:bg-urgent-soft disabled:cursor-not-allowed disabled:opacity-60"
+            : opener === "small"
+              ? `${staffBtnSmall} text-urgent-ink`
+              : staffBtn.danger
+        }
       >
+        {opener === "tile" && <Icon name="dropout" size={24} />}
         Can&apos;t make it?
       </button>
       <Sheet open={asking} onClose={close} labelledBy={titleId} locked={confirming}>
@@ -178,37 +198,48 @@ export function CancelShift({
             {/* The warning first (docs/office-v2.md 4.5), then why. */}
             <p
               role="note"
-              className={`flex items-start gap-2.5 rounded-xl p-3.5 text-base ${
-                strike ? "bg-urgent-soft font-semibold text-urgent-ink" : "bg-done-soft text-ink"
+              className={`flex items-start gap-2.5 rounded-2xl border p-3.5 text-base ${
+                strike
+                  ? "border-urgent bg-urgent-tile font-semibold text-urgent-ink"
+                  : "border-done bg-done-tile text-done-ink"
               }`}
             >
-              <Icon
-                name={strike ? "urgent" : "check"}
-                size={22}
-                className={`mt-px ${strike ? "text-urgent" : "text-done"}`}
-              />
+              <Icon name={strike ? "urgent" : "check"} size={22} className="mt-px" />
               <span>{warning.text}</span>
             </p>
-            <fieldset className="flex flex-col">
-              <legend className="mb-1 text-lg font-semibold">Why can&apos;t you make it?</legend>
-              {[...CANCEL_REASONS, OTHER_REASON].map((reason) => (
-                <label key={reason} className="flex min-h-12 items-center gap-3 py-1">
+            <fieldset
+              aria-describedby={problem && problem !== CHANGED ? `${titleId}-problem` : undefined}
+              className="grid grid-cols-2 gap-2"
+            >
+              <legend className="mb-2 text-lg font-semibold">Why can&apos;t you make it?</legend>
+              {[...CANCEL_REASONS, OTHER_REASON].map((reason, i) => (
+                // A large button for each (the radio is the whole of it, drawn over it unseen):
+                // chosen, it has an ink edge, a sunk ground and bold words.
+                <label
+                  key={reason}
+                  className="relative flex min-h-14 items-center rounded-2xl border-[1.5px] border-line-strong bg-card px-3.5 text-base font-medium shadow-lift has-checked:border-ink has-checked:bg-raised has-checked:font-semibold has-checked:shadow-none has-checked:inset-shadow-sunk has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ink"
+                >
                   <input
+                    ref={i === 0 ? firstReason : undefined}
                     type="radio"
                     name={`reason-${shiftId}`}
                     value={reason}
                     checked={choice === reason}
-                    onChange={() => setChoice(reason)}
+                    onChange={() => {
+                      setChoice(reason);
+                      if (problem !== CHANGED) setProblem(null);
+                    }}
                     disabled={!ready}
-                    className="h-6 w-6 shrink-0 accent-ink"
+                    className="absolute inset-0 m-0 cursor-pointer appearance-none rounded-2xl focus-visible:outline-none"
                   />
                   <span>{reason}</span>
                 </label>
               ))}
               {choice === OTHER_REASON && (
-                <label className={`${labelStack} mt-2`}>
+                <label className={`${labelStack} col-span-2 mt-1`}>
                   <span>Tell the office why</span>
                   <input
+                    ref={noteField}
                     type="text"
                     value={note}
                     maxLength={MAX_NOTE_LENGTH}
@@ -218,9 +249,19 @@ export function CancelShift({
                   />
                 </label>
               )}
+              {problem && problem !== CHANGED && (
+                <p
+                  id={`${titleId}-problem`}
+                  role="alert"
+                  className="col-span-2 flex items-center gap-1.5 font-semibold text-urgent-ink"
+                >
+                  <Icon name="urgent" size={18} />
+                  {problem}
+                </p>
+              )}
             </fieldset>
-            {problem && (
-              <p role="alert" className="font-semibold text-urgent">
+            {problem === CHANGED && (
+              <p role="alert" className="font-semibold text-urgent-ink">
                 {problem}
               </p>
             )}

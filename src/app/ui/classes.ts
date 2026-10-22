@@ -3,13 +3,14 @@
 // Every class is written out in full so Tailwind finds it. Add spacing (mt-4, self-start, w-full)
 // where you use one: `${btn.primary} mt-4`.
 
-// Phase 17's look ("easier to scan"): flat (no shadows), one hairline on cards, a 1px border on
-// office controls. Phase 18's (the redesign): one filled button per screen, in the firm's own
-// colour (`brand`) on the casual app and in the office; phone buttons 52px, office ones 44px.
+// Phase 17's look ("easier to scan"): one hairline on cards, a 1px border on office controls.
+// Phase 18's (the redesign): one filled button per screen, in the firm's own colour (`brand`) on
+// the casual app and in the office; phone buttons 52px, office ones 44px. Phase 20's: buttons are
+// pills, and depth comes from the five depth tokens only (globals.css).
 const office =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border px-4 py-2 text-center text-base font-semibold disabled:cursor-not-allowed disabled:opacity-60";
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-full border px-4 py-2 text-center text-base font-semibold disabled:cursor-not-allowed disabled:opacity-60";
 const staff =
-  "flex w-full min-h-13 items-center justify-center gap-2 rounded-xl border-[1.5px] px-4 py-3 text-center text-lg font-semibold disabled:cursor-not-allowed disabled:opacity-60";
+  "flex w-full min-h-13 items-center justify-center gap-2 rounded-full border-[1.5px] px-5 py-3 text-center text-lg font-semibold disabled:cursor-not-allowed disabled:opacity-60";
 
 // Office buttons (and links that look like buttons): at least 44px tall.
 export const btn = {
@@ -25,7 +26,7 @@ export const btn = {
   // A text link with a 44px target ("Back to …", "Earlier", "Clear").
   link: "inline-flex min-h-11 items-center gap-2 font-semibold text-ink underline underline-offset-4 hover:text-ink-muted",
   // A quiet action in words only ("Not urgent", "Add a session"), in the firm's colour.
-  text: "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 text-base font-semibold text-brand-ink hover:bg-quiet-soft",
+  text: "inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-3 text-base font-semibold text-brand-ink hover:bg-quiet-soft",
 };
 
 // A link inside text or a row (a shift's title, a worker's name): underlined in grey, darker on
@@ -48,11 +49,11 @@ export const staffBtn = {
 
 // A smaller staff button, two to a row ("Ask for a change" beside "Can't make it?" on the pass).
 export const staffBtnSmall =
-  "flex min-h-13 items-center justify-center rounded-xl border-[1.5px] border-line-strong bg-card px-3 py-2 text-center text-base font-semibold text-ink hover:bg-quiet-soft";
+  "flex min-h-13 items-center justify-center rounded-full border-[1.5px] border-line-strong bg-card px-3 py-2 text-center text-base font-semibold text-ink hover:bg-quiet-soft";
 
-// A two-way switch's pale track (Open | Booked, Upcoming | Past 30 days on the Shifts tab): two
-// halves, the current one a raised pill (src/app/my-shifts-view.tsx Toggle).
-export const switchTrack = "grid grid-cols-2 gap-1 rounded-xl bg-quiet-soft p-1";
+// A two-way switch's sunk track (Open | Booked, Upcoming | Past 30 days on the Shifts tab): two
+// halves, the current one a lifted pill (src/app/my-shifts-view.tsx Toggle).
+export const switchTrack = "grid grid-cols-2 gap-1 rounded-full bg-raised p-1 inset-shadow-sunk";
 
 // Inputs, selects and textareas (office). Add w-full or a width where you use it.
 export const field =
@@ -67,13 +68,13 @@ export const labelStack = "flex flex-col gap-1 font-semibold text-ink";
 export const hint = "text-sm text-ink-muted";
 
 // A white card on the canvas, for an item with buttons.
-export const card = "rounded-xl border border-line bg-card p-4";
+export const card = "rounded-2xl border border-line bg-card p-4";
 // The casual app's tappable row in a card of rows ("For you", the open shifts' cards): a tile on
 // the left, the words, a chevron. Its focus ring sits inside the card.
 export const tapRow =
   "flex items-center gap-3.5 p-3.5 text-left hover:bg-quiet-soft focus-visible:-outline-offset-2";
 // One card holding compact rows (read-only or repeated items): <ul className={rows}><li className={row}>.
-export const rows = "divide-y divide-line rounded-xl border border-line bg-card";
+export const rows = "divide-y divide-line rounded-2xl border border-line bg-card";
 export const row = "px-4 py-3";
 
 // Section heading (h2), and the space between sections and under a heading.
@@ -103,13 +104,13 @@ export const page = {
 
 // The login card, inside `page.login`: framed from 640px up; on a phone there's no frame (the
 // page is the card), with the same 24px edge as the brand bar. Its one <h1> is `loginTitle`.
-export const loginCard = "sm:rounded-xl sm:border sm:border-line sm:bg-card sm:p-6";
+export const loginCard = "sm:rounded-3xl sm:border sm:border-line sm:bg-card sm:p-6";
 export const loginTitle = "text-2xl font-semibold tracking-tight text-balance text-ink";
 
 // Report tables: the wrapper scrolls sideways on small screens. Give it role="region",
 // tabIndex={0} and an aria-label. Numbers right aligned (`num`). Grey headers with no band.
 export const table = {
-  wrap: "overflow-x-auto rounded-xl border border-line bg-card",
+  wrap: "overflow-x-auto rounded-2xl border border-line bg-card",
   table: "w-full border-collapse text-left text-sm",
   th: "border-b border-line px-3 py-2 font-semibold text-ink-muted",
   td: "border-b border-line px-3 py-2 align-top",
@@ -120,7 +121,7 @@ export const table = {
 // Pale tints with dark words of the same hue, so a list of urgent rows doesn't shout; square-ish
 // like a sign (Phase 18). The solid plates are <Plate> (src/app/ui/plate.tsx).
 export const chip = {
-  base: "inline-flex items-center gap-1 whitespace-nowrap rounded border px-2 py-0.5 align-middle text-sm font-semibold leading-5",
+  base: "inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-0.5 align-middle text-sm font-semibold leading-5",
   urgent: "border-urgent bg-urgent-soft text-urgent-ink",
   attention: "border-attention bg-attention-soft text-attention-ink",
   done: "border-done bg-done-soft text-done-ink",

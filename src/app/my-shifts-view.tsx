@@ -21,7 +21,7 @@ export function OfflineNotice({ updated }: { updated: string }) {
       hidden
       suppressHydrationWarning
       role="status"
-      className="flex items-start gap-3 rounded-xl border border-line-strong bg-card p-3.5 text-base"
+      className="flex items-start gap-3 rounded-2xl border border-line-strong bg-card p-3.5 text-base"
     >
       <Icon name="offline" size={24} className="mt-px" />
       <div>
@@ -52,8 +52,8 @@ export function ShiftsSwitch({ current }: { current: "open" | "booked" }) {
 }
 
 // The Upcoming / Past 30 days switch: a segmented control, not a button. The current half is a
-// raised white pill with bold words (and aria-current); the words sit directly in the link. The
-// focus ring is drawn inside the pill.
+// white pill lifted out of the sunk track (Phase 20), with bold words (and aria-current); the
+// words sit directly in the link. The focus ring is drawn inside the pill.
 export function Toggle({
   href,
   current,
@@ -67,10 +67,10 @@ export function Toggle({
     <Link
       href={href}
       aria-current={current ? "page" : undefined}
-      className={`flex min-h-11 items-center justify-center rounded-lg border px-3 text-center focus-visible:-outline-offset-4 ${
+      className={`flex min-h-11 items-center justify-center rounded-full px-3 text-center focus-visible:-outline-offset-4 ${
         current
-          ? "border-line bg-card font-bold text-ink"
-          : "border-transparent font-semibold text-ink-muted hover:text-ink"
+          ? "bg-card font-semibold text-ink shadow-lift"
+          : "font-medium text-ink-muted hover:text-ink"
       }`}
     >
       {children}
@@ -101,7 +101,7 @@ export function ShiftDetails({ shift }: { shift: MyShift }) {
         </div>
       )}
       {shift.instructions && (
-        <div className="mt-3 rounded-xl bg-quiet-soft p-3 text-base">
+        <div className="mt-3 rounded-2xl bg-quiet-soft p-3 text-base">
           <h3 className="font-semibold">Instructions</h3>
           <p className="mt-1 whitespace-pre-line">{shift.instructions}</p>
         </div>

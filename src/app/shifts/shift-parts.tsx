@@ -1,18 +1,24 @@
 import type { ReactNode } from "react";
 import { travelStrip, uniformItems, type UniformKind } from "@/lib/portal/home-copy";
 import { payWords } from "@/lib/portal/format";
-import { pounds } from "@/lib/portal/pay-format";
+import { hoursText, pounds } from "@/lib/portal/pay-format";
 import { travelLineText, type TravelFacts } from "@/lib/travel/line-copy";
 import { Icon, type IconName } from "../ui/icons";
 
-// A shift's facts as the casual app's redesign shows them (Phase 18), on Home's pass and on the
-// shift's own page: a labelled fact, getting there as three figures, what to bring and wear as
-// tiles, and the pay in sign figures. Each keeps its full words for screen readers. Hook-free.
+// A shift's facts as the casual app shows them (Phases 18 and 20), on Home's pass and on the
+// shift's own page: a card of label and value rows (each answer under a small grey label, like a
+// receipt), getting there as three figures set into the card, what to bring and wear as a list
+// (what the firm gives marked in hi-vis yellow), and the pay large. Each keeps its full words for
+// screen readers. Hook-free.
+
+// The card the rows sit in: lifted off the page, one hairline.
+export const factCard =
+  "flex flex-col divide-y divide-line rounded-3xl border border-line bg-card px-4.5 shadow-lift";
 
 export function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div>
-      <p className="mb-1.5 text-base text-ink-muted">{label}</p>
+    <div className="flex flex-col gap-1 py-3.5">
+      <p className="text-sm text-ink-muted">{label}</p>
       {children}
     </div>
   );
@@ -29,14 +35,14 @@ export function TravelFigures({ travel, timeZone }: { travel: TravelFacts; timeZ
           {strip.words}
         </p>
       ) : (
-        <div
-          aria-hidden="true"
-          className="grid grid-cols-3 divide-x divide-line rounded-xl border border-line"
-        >
+        <div aria-hidden="true" className="mt-1 grid grid-cols-3 gap-2">
           {strip.cells.map((c) => (
-            <div key={c.words} className="px-3 py-2.5">
-              <p className="font-sign text-2xl leading-tight">{c.figure}</p>
-              <p className="text-base leading-snug text-ink-muted">{c.words}</p>
+            <div
+              key={c.words}
+              className="flex flex-col gap-0.5 rounded-2xl bg-canvas px-3 py-2.5 inset-shadow-sunk"
+            >
+              <p className="font-sign text-lg leading-tight">{c.figure}</p>
+              <p className="text-sm leading-snug text-ink-muted">{c.words}</p>
             </div>
           ))}
         </div>
@@ -52,31 +58,29 @@ const UNIFORM_ICON: Record<UniformKind, IconName> = {
   garment: "garment",
 };
 
-// The uniform as tiles, hi-vis first in sign yellow; words that don't split stay as words.
+// The uniform as a list, hi-vis first, each item's note ("We provide it") a hi-vis yellow chip;
+// words that don't split stay as words.
 export function BringAndWear({ text }: { text: string }) {
   const items = uniformItems(text);
-  if (!items) return <p className="text-lg font-semibold">{text}</p>;
+  if (!items) return <p className="text-lg">{text}</p>;
   return (
-    <ul role="list" className="grid grid-cols-2 gap-2">
+    <ul role="list" className="mt-0.5 flex flex-col gap-2">
       {items.map((item) => (
-        <li
-          key={item.words}
-          className={`flex items-center gap-3 rounded-xl p-3 ${
-            item.kind === "hivis"
-              ? "col-span-2 bg-hivis text-on-hivis"
-              : "border border-line text-ink"
-          }`}
-        >
-          <Icon name={UNIFORM_ICON[item.kind]} size={26} />
-          <span className="min-w-0 text-base leading-tight font-semibold">{item.words}</span>
-          {item.note && <span className="ml-auto text-base">{item.note}</span>}
+        <li key={item.words} className="flex min-h-7 items-center gap-2.5 text-lg">
+          <Icon name={UNIFORM_ICON[item.kind]} size={22} className="text-ink-muted" />
+          <span className="min-w-0 leading-snug">{item.words}</span>
+          {item.note && (
+            <span className="ml-auto shrink-0 rounded-full bg-hivis px-2.5 py-0.5 text-sm font-semibold whitespace-nowrap text-on-hivis">
+              {item.note}
+            </span>
+          )}
         </li>
       ))}
     </ul>
   );
 }
 
-// "£12.60 an hour, about £100.80", the rate in sign figures.
+// "£12.60 an hour", large, and "About £100.80 for the 8 hours" under it.
 export function PayLine({
   ratePence,
   startsAt,
@@ -86,16 +90,15 @@ export function PayLine({
   startsAt: Date;
   endsAt: Date;
 }) {
-  const words = payWords(ratePence, startsAt, endsAt);
-  const rate = pounds(ratePence);
+  const hours = Math.max(0, endsAt.getTime() - startsAt.getTime()) / 3_600_000;
   return (
     <Fact label="Pay">
-      <p className="text-lg">
-        <span className="sr-only">{words}</span>
-        <span aria-hidden="true">
-          <span className="font-sign text-2xl">{rate}</span>
-          {words.slice(rate.length)}
-        </span>
+      <span className="sr-only">{payWords(ratePence, startsAt, endsAt)}</span>
+      <p aria-hidden="true" className="font-sign text-2xl leading-tight">
+        {pounds(ratePence)} an hour
+      </p>
+      <p aria-hidden="true" className="text-sm text-ink-muted tabular-nums">
+        About {pounds(Math.round(ratePence * hours))} for the {hoursText(hours)}
       </p>
     </Fact>
   );

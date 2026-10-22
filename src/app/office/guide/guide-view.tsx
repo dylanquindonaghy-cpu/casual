@@ -172,7 +172,9 @@ function Links({ children }: { children: ReactNode }) {
 // What each menu link opens, by the link's words.
 const MENU_WORDS: Record<string, string> = {
   Dashboard:
-    "How many things need you, this week's days, the urgent places one at a time, and what's sorted today.",
+    "How many things need you and where to start, every urgent place to fill, this week's days, and what's sorted today.",
+  "Needs attention":
+    "Everything someone has to sort out, in full: who worked, uploads to check, bookings to check and more.",
 
   "Events & sessions":
     "Every event with a session to come, on a two-week board. Choose what casuals see and what's urgent.",
@@ -210,7 +212,8 @@ function GettingAround({ role, menu }: { role: OfficeRole; menu: MenuGroup[] }) 
       <div className="mt-5 sm:columns-2 sm:gap-8">
         {menu.map((group) => (
           <div key={group.label ?? "start"} className="mb-6 break-inside-avoid">
-            {group.label ? (
+            {/* The top group (Dashboard, Needs attention) has no heading in the menu either. */}
+            {group.label && !group.top ? (
               <h3 className="mb-2 text-sm font-semibold text-ink-muted">{group.label}</h3>
             ) : null}
             <ul role="list" className="flex flex-col gap-3">
@@ -230,15 +233,15 @@ function GettingAround({ role, menu }: { role: OfficeRole; menu: MenuGroup[] }) 
         ))}
       </div>
       <Para>
-        Your name is at the top right. On a phone, it shows your initials. Select it to open this
-        guide or to <Name>Log out</Name>.
+        Your name is at the top right. On a phone, it shows your initials. On a wide screen, it is
+        at the bottom of the menu. Select it to open this guide or to <Name>Log out</Name>.
       </Para>
       <Para>
         The moon or sun beside it switches between dark and light.
-        {/* The bell is drawn only for the roles with Needs attention, the "today" area
-            (src/app/office/layout.tsx). */}
+        {/* Needs attention is in the menu only for the roles with it, the "today" area
+            (src/app/office/office-menu.ts). */}
         {canAccess(role, "today")
-          ? " The bell counts what needs attention. Select it to see the list."
+          ? " Needs attention, under Dashboard in the menu, counts what needs you. Select it to see the list."
           : null}
       </Para>
     </>
@@ -247,15 +250,19 @@ function GettingAround({ role, menu }: { role: OfficeRole; menu: MenuGroup[] }) 
 
 const DASHBOARD_SECTIONS: [string, ReactNode][] = [
   [
+    "The four counts",
+    "Urgent places, Needs attention, Waiting on others and Sorted today. Select one to go to its list.",
+  ],
+  [
+    "Urgent places to fill",
+    "Every urgent place: its seats, and who it was offered to or why offers stopped. Offer it to someone, or use … to mark it as filled or make it not urgent.",
+  ],
+  [
     "This week",
     "Seven days. Each shows how full it is, and its urgent gaps or sessions to mark. Select a day to see its shifts.",
   ],
   [
-    "Next up",
-    "One urgent place at a time: its seats, who it was offered to, or why offers stopped. Offer it, mark it as filled or make it not urgent. The arrows show the next one.",
-  ],
-  [
-    "After that",
+    "Needs attention",
     "The rest of what needs you, a row each: bookings to check, who worked, uploads to check, strike evidence, enquiries that need a person and more. Each opens where it's dealt with.",
   ],
   ["Waiting on others", "Pay queries with payroll. Nothing for you to do."],
@@ -288,10 +295,13 @@ function DashboardPart() {
         doing today.
       </Para>
       <Steps>
-        <Step>The heading says how many things need you. Start with Next up.</Step>
         <Step>
-          <Name>Needs attention</Name> lists everything someone has to sort out, in full. The bell
-          at the top of every page shows how many, and takes you there.
+          The greeting says how many things need you: the urgent places to fill and everything in
+          Needs attention. The line under it says where to start.
+        </Step>
+        <Step>
+          <Name>Needs attention</Name> lists everything someone has to sort out, in full. In the
+          menu, it has the same count as on the dashboard, and it takes you there.
         </Step>
         <Step>
           Select a shift&apos;s name to open its page, where you can change everything about it.
@@ -333,8 +343,9 @@ function FillAGap({ role }: { role: OfficeRole }) {
   return (
     <>
       <Para>
-        A gap is a shift with a place free. Urgent ones are on the dashboard, one at a time under{" "}
-        <Name>Next up</Name>, with these buttons. Every session and its places free is on{" "}
+        A gap is a shift with a place free. Urgent ones are all on the dashboard, under{" "}
+        <Name>Urgent places to fill</Name>, with these buttons (<Name>Mark as filled</Name> and{" "}
+        <Name>Not urgent</Name> are under <Name>…</Name>). Every session and its places free is on{" "}
         <Name>Events &amp; sessions</Name>, where its <Name>…</Name> menu has them too.
       </Para>
       <Task title="To offer it to someone">
@@ -586,8 +597,8 @@ function AfterAShift() {
   return (
     <>
       <Para>
-        Mark who worked each shift. <Name>Who worked?</Name>, in <Name>Needs attention</Name> (the
-        bell), lists shifts from the last 7 days with people not marked yet.
+        Mark who worked each shift. <Name>Who worked?</Name>, in <Name>Needs attention</Name> (in
+        the menu), lists shifts from the last 7 days with people not marked yet.
       </Para>
       <Steps>
         <Step>Open the shift&apos;s page.</Step>

@@ -4,7 +4,6 @@ import { getOfficeSession } from "@/lib/auth/current-office";
 import { canAccess, ROLE_LABELS } from "@/lib/auth/roles";
 import { uploadsToCheck } from "@/lib/office/casuals";
 import { needsAttentionBell } from "@/lib/office/dashboard";
-import { bellLabel } from "@/lib/office/dashboard-copy";
 import { enquiriesWaiting } from "@/lib/office/enquiries";
 import { officePayQueriesWaiting } from "@/lib/office/pay-dashboard";
 import { payWeekLabel, payWeekNow } from "@/lib/pay/pay-week";
@@ -28,26 +27,21 @@ export default async function OfficeLayout({ children }: { children: ReactNode }
   const needPerson = canAccess(s.officeUser.role, "enquiries")
     ? await enquiriesWaiting({ firm: s.firm, officeUserId: s.officeUser.id })
     : null;
-  // The bell: Needs attention's items (admins and resourcers; 12E.1).
+  // Needs attention's count in the menu (admins and resourcers; 12E.1, the bell's until Phase 20):
+  // its items and the enquiries that need a person, the one count the dashboard's headline uses.
   const needs = canAccess(s.officeUser.role, "today")
     ? await needsAttentionBell({ firm: s.firm, officeUserId: s.officeUser.id })
     : null;
-  const bell = needs
-    ? {
-        label: bellLabel(needs.count, needs.more),
-        shown:
-          needs.count === null || needs.count === 0
-            ? null
-            : needs.more
-              ? `${needs.count}+`
-              : String(needs.count),
-      }
-    : null;
-  // Sign yellow when it needs this person (Phase 18; office-menu.ts menuBadges).
+  const attention =
+    needs && needs.count !== null
+      ? { count: needs.count + (needPerson ?? 0), more: needs.more }
+      : null;
+  // Pale yellow when it needs this person (Phases 18 and 20; office-menu.ts menuBadges).
   const badges = menuBadges(s.officeUser.role, {
     payQueries: waiting ?? 0,
     needPerson: needPerson ?? 0,
     uploads: toCheck ?? 0,
+    attention,
   });
   return (
     <OfficeShell
@@ -58,7 +52,6 @@ export default async function OfficeLayout({ children }: { children: ReactNode }
       menu={officeMenu(s.officeUser.role, badges)}
       theme={themeFromCookie((await cookies()).get(THEME_COOKIE)?.value)}
       rotationDue={s.session.rotationDue}
-      bell={bell}
     >
       {children}
     </OfficeShell>

@@ -15,15 +15,15 @@ async function logIn(page: Page, typed: string, e164: string) {
   await page.getByRole("button", { name: "Send me a link" }).click();
   await page.goto(await loginLinkSentTo(e164, asked));
   await page.getByRole("button", { name: "Log me in" }).click();
-  await expect(page.getByRole("heading", { name: /^Hello / })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Hi / })).toBeVisible();
 }
 
 test("a free door supervisor sees the urgent dropout and takes it", async ({ page }) => {
   await logIn(page, "07700 900138", "+447700900138"); // Acme worker 38: valid SIA, unbooked
-  // Home's urgent shifts (12H.1; Phase 18): one row in For you, to the urgent board.
+  // Home's urgent shifts (12H.1; Phases 18 and 20): one tile in For you, to the urgent board.
   const urgentRow = page
     .getByRole("region", { name: "For you" })
-    .getByRole("link", { name: /^Urgent 1 shift you can take / });
+    .getByRole("link", { name: /^Urgent( near you)? 1 shift / });
   await expect(urgentRow).toBeVisible();
   await urgentRow.click();
   await expect(page).toHaveURL(`${acme}/urgent`);
@@ -41,10 +41,10 @@ test("a free door supervisor sees the urgent dropout and takes it", async ({ pag
   await expect(page.getByText("You're booked.")).toBeVisible();
   await page.getByRole("link", { name: "See my shifts" }).click();
   await expect(page.getByRole("heading", { name: "Your next shift" })).toBeVisible();
-  // Filled now: no urgent gap left for anyone.
+  // Filled now: no urgent gap left for anyone, so no urgent tile.
   await page.goto(acme);
   await expect(page.getByRole("region", { name: "For you" })).toBeVisible();
-  await expect(page.getByRole("link", { name: /shifts? you can take/ })).toHaveCount(0);
+  await expect(page.locator('[data-for-you="urgent"]')).toHaveCount(0);
 });
 
 test("a steward sees no urgent gaps: the urgent shift needs a door supervisor", async ({
@@ -52,7 +52,7 @@ test("a steward sees no urgent gaps: the urgent shift needs a door supervisor", 
 }) => {
   await logIn(page, "07700 900101", "+447700900101"); // a free steward
   await expect(page.getByRole("region", { name: "For you" })).toBeVisible();
-  await expect(page.getByRole("link", { name: /shifts? you can take/ })).toHaveCount(0);
+  await expect(page.locator('[data-for-you="urgent"]')).toHaveCount(0);
   await page.goto(`${acme}/urgent`);
   await expect(page.getByText("No urgent gaps right now.")).toBeVisible();
   await expect(page.getByRole("link", { name: "See all open shifts" })).toBeVisible();

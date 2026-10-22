@@ -101,7 +101,7 @@ async function workerLogin(page: Page, who: { typed: string; e164: string }) {
   );
   await page.goto(link);
   await page.getByRole("button", { name: "Log me in" }).click();
-  await expect(page.getByRole("heading", { name: /^Hello / })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Hi / })).toBeVisible();
 }
 
 // Steps 22, 36, 39, 42: an office login, with the link from the emailed message.
@@ -165,7 +165,7 @@ test("Part 2: as a worker", async ({ browser }) => {
 
   await test.step("10. Log in as Zoe Usman", async () => {
     await workerLogin(page, ZOE);
-    await expect(page.getByRole("heading", { name: "Hello Zoe" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Hi Zoe" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "No shifts booked" })).toBeVisible();
   });
 
@@ -242,8 +242,8 @@ test("Part 2: as a worker", async ({ browser }) => {
   await test.step("16. Log in as Sam Walsh: his booking, its instructions, and yesterday's race day", async () => {
     await workerLogin(page, SAM);
     await expect(page.getByRole("heading", { name: "Your next shift" })).toBeVisible();
-    // His pass opens into the rest: the instructions among it.
-    await page.locator("[data-pass] summary").click();
+    // His pass's Details opens the card under it: the instructions among it.
+    await page.locator("[data-pass-more] summary").click();
     await expect(
       page.locator("[data-pass]").getByText("Instructions", { exact: true }),
     ).toBeVisible();
@@ -262,7 +262,7 @@ test("Part 2: as a worker", async ({ browser }) => {
 
   await test.step("17. Ask for a change", async () => {
     await page.goto(`${acme}/`);
-    await page.locator("[data-pass] summary").click();
+    await page.locator("[data-pass-more] summary").click();
     await page.getByRole("link", { name: "Ask for a change" }).first().click();
     await page.getByLabel("Change the times").check();
     await page.getByLabel("New start").fill("13:00");
@@ -300,7 +300,7 @@ test("Part 2: as a worker", async ({ browser }) => {
     // is inside the urgent window too.
     const onHome = page
       .getByRole("region", { name: "For you" })
-      .getByRole("link", { name: /^Urgent [12] shifts? you can take / });
+      .getByRole("link", { name: /^Urgent( near you)? [12] shifts? / });
     await onHome.click();
     await expect(page.getByRole("heading", { name: "Urgent shifts" })).toBeVisible();
     const dropout = page.getByRole("listitem").filter({ hasText: "08:00–" });
@@ -375,7 +375,9 @@ test("Part 3: as the office", async ({ browser }) => {
     await expect(page.getByRole("navigation", { name: "This week" }).getByRole("link")).toHaveCount(
       7,
     );
-    await expect(page.getByRole("heading", { name: "Next up", level: 2 })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Urgent places to fill", level: 2 }),
+    ).toBeVisible();
     // Today's cancellations (Zoe's, step 12, among them) are sorted: nothing to approve or decline.
     const sorted = page.getByRole("list", { name: "Sorted today" });
     const cancellations = sorted.getByRole("link", { name: /cancellations? today/ });
@@ -385,10 +387,10 @@ test("Part 3: as the office", async ({ browser }) => {
     await cancellations.click();
     await expect(page).toHaveURL(`${acme}/office/cancellations?day=today`);
     await expect(page.getByRole("link").filter({ hasText: ZOE.name }).first()).toBeVisible();
-    // After that: yesterday's racecourse shifts to mark, in full on Needs attention.
+    // Needs attention: yesterday's racecourse shifts to mark, in full on its own page.
     await page.goto(`${acme}/office`);
     await page
-      .getByRole("list", { name: "After that" })
+      .getByRole("list", { name: "Needs attention" })
       .getByRole("link", { name: /^Who worked\?/ })
       .click();
     await expect(

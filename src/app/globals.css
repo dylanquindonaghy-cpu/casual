@@ -5,58 +5,77 @@
 
 /* Design tokens (docs/ui-design.md). Each colour becomes utilities: bg-ink, text-ink-muted,
    border-line, bg-urgent-soft and so on. Status colours always travel with their word. These are
-   the light theme's values; the dark theme (navy, D7) redefines every one of them below.
-   Phase 18's colours follow the UK safety signs' roles: red to act now (urgent), sign yellow for
-   what needs doing (hivis), exit-sign green for done; navy ink, the uniform's colour. */
+   the light theme's values; the dark theme (true greys, D7 as changed in Phase 20) redefines every
+   one of them below. Phase 20's look: neutral ink and greys (the firm's colour is the one colour a
+   page has of its own), and the statuses as tiles: urgent (pale red, act now), to do (pale
+   yellow, hivis), waiting (pale blue) and done (pale green), each with its dark words. */
 @theme {
-  --color-ink: #13233a; /* main text, the date tile's band, sign plates, the focus ring */
-  --color-ink-muted: #3e4c60; /* secondary text, labels, meta lines, table headers (8.7:1 on white) */
-  --color-ink-hover: #26364f; /* a primary office button under the pointer */
-  --color-on-ink: #ffffff; /* text on an ink fill (primary office buttons, plates, the date tile) */
-  --color-line: #dbe1e8; /* dividers and card borders (decorative only) */
-  --color-line-strong: #6b7789; /* input and secondary button borders (4.5:1 on white) */
-  --color-canvas: #f2f4f7; /* the page behind cards: the casual app, and the office's menu */
-  --color-card: #ffffff; /* cards, fields, the office's page */
-  --color-panel: #ffffff; /* the office's top bar and drawer */
-  --color-raised: #e8ecf1; /* a sunk track (switches, the empty pass's band, a waiting tile) */
-  --color-switch-off: #7a8396; /* a switch's track when off */
-  --color-scrim: #0d1520; /* behind the open menu drawer and a sheet, at half strength (decorative) */
-  /* The firm's own colour (Phase 18): a firm with a colour of its own sets these on <body>
+  --color-ink: #15171a; /* main text, the focus ring, an ink fill (a dark button, today's day) */
+  --color-ink-muted: #575c64; /* secondary text, labels, meta lines, table headers (6.7:1 on white) */
+  --color-ink-hover: #2b2e33; /* a primary office button under the pointer */
+  --color-on-ink: #ffffff; /* text on an ink fill */
+  --color-line: #e3e5e9; /* dividers and card borders (decorative only) */
+  --color-line-strong: #7c8189; /* input and secondary button borders (3.9:1 on white) */
+  --color-canvas: #eef0f3; /* the page behind cards: the casual app, the office's frame and menu */
+  --color-card: #ffffff; /* cards, fields, the office's page (a sheet on the frame) */
+  --color-panel: #ffffff; /* the office's top bar (below 1024px) and drawer */
+  --color-raised: #eceef1; /* a sunk track (switches, the Open | Booked switch, a full pill, a bar) */
+  --color-switch-off: #767b83; /* a switch's track when off */
+  --color-scrim: #15171a; /* behind the open menu drawer and a sheet, at half strength (decorative) */
+  /* The firm's own colour: a firm with a colour of its own sets these on <body>
      (src/app/layout.tsx, data-firm-colour; worked out per theme in src/lib/tenancy/brand-values.ts,
-     each pair at least 4.5:1); without one, the app's ink. `brand` is the casual app's main
-     button, `brand-ink` the firm's colour as words (the current tab, "Details", "Keep my shift"),
-     `brand-bar` the pass's top band and the firm's initial, with `on-brand-bar` on it. Its pale
-     tint is brand-soft (below). */
-  --color-brand: #13233a;
+     each pair at least 4.5:1); without one, the app's ink. `brand` is the main button and the
+     current tab, `brand-ink` the firm's colour as words, `brand-bar` the pass and the firm's
+     initial, with `on-brand-bar` on it and `on-brand-bar-soft` for the pass's second line, and the
+     gate's white plate on it (`pass-plate`, with `on-pass-plate`). Its pale tint is brand-soft
+     (below). */
+  --color-brand: #15171a;
   --color-on-brand: #ffffff;
-  --color-brand-ink: #13233a;
-  --color-brand-bar: #13233a;
+  --color-brand-ink: #15171a;
+  --color-brand-bar: #1f2227;
   --color-on-brand-bar: #ffffff;
+  --color-on-brand-bar-soft: #d2d4d8;
+  --color-pass-plate: #ffffff; /* the gate's plate on the pass: white on any band, both themes */
+  --color-on-pass-plate: #1f2227; /* its words: the band's colour, or ink on a pale one */
 
-  --color-urgent: #b91c1c; /* act now: words, borders */
-  --color-urgent-soft: #fef2f2;
-  --color-urgent-ink: #7f1d1d;
-  --color-urgent-fill: #b91c1c; /* count plates, urgent tiles and pills, the final destructive button */
-  --color-urgent-fill-hover: #7f1d1d;
+  --color-urgent: #c4242a; /* act now: words, borders */
+  --color-urgent-soft: #ffefea; /* an urgent panel's wash */
+  --color-urgent-ink: #7d1a10;
+  --color-urgent-tile: #ffd8cf; /* an urgent tile, day or date tile */
+  --color-urgent-fill: #c4242a; /* urgent pills and counts, the final destructive button */
+  --color-urgent-fill-hover: #9b1c21;
   --color-on-urgent: #ffffff; /* text on the urgent fill */
   --color-attention: #b45309; /* someone needs to act: a border or an icon */
-  --color-attention-soft: #fffbeb;
-  --color-attention-ink: #78350f;
-  --color-hivis: #f5b301; /* sign yellow: "needs doing" plates and tiles, the Profile count */
-  --color-on-hivis: #13233a; /* navy on sign yellow, in both themes (8.5:1) */
-  --color-done: #15803d; /* fine, finished: words, borders */
-  --color-done-soft: #f0fdf4;
-  --color-done-ink: #14532d;
-  --color-done-fill: #15803d; /* the booked tick, "sorted" tiles */
+  --color-attention-soft: #fff9e6; /* a to-do panel's wash */
+  --color-attention-ink: #5c3f00;
+  --color-hivis: #fbe5a0; /* to do: tiles, counts, what the firm gives you (hi-vis) */
+  --color-on-hivis: #5c3f00; /* its words (8.0:1) */
+  --color-wait-tile: #d6e4fa; /* waiting, or more to look at: a tile */
+  --color-wait-ink: #163b6e;
+  --color-done: #1f7a47; /* fine, finished: words, borders */
+  --color-done-soft: #ecf7f0; /* a done panel's wash */
+  --color-done-ink: #155230;
+  --color-done-tile: #d2efdb; /* a done tile, a tick's circle */
+  --color-done-fill: #1f7a47; /* the booked tick */
   --color-on-done: #ffffff;
-  --color-quiet-soft: #eef1f5; /* information, closed */
-  --color-quiet-ink: #3e4c60;
+  --color-quiet-soft: #f1f2f4; /* information, closed */
+  --color-quiet-ink: #464b52;
   /* The demo bar (16.1): the same dark amber strip in both themes. */
   --color-demo: #3d2e0a;
   --color-on-demo: #fde7b0;
 
+  /* Depth (Phase 20): the page, cards lifted off it, then the pass and what floats over the page.
+     Five layers, and nothing else casts one (tests/unit/ui.flat.test.ts): a card or row lifted
+     off the page (lift), a panel (panel), the pass (pass), a bar floating over the page's foot
+     (bar), and a sunk track or an opened part set into its card (sunk). */
+  --shadow-lift: 0 1px 2px rgb(16 24 40 / 0.06), 0 2px 8px rgb(16 24 40 / 0.05);
+  --shadow-panel: 0 1px 3px rgb(16 24 40 / 0.07), 0 10px 24px -6px rgb(16 24 40 / 0.1);
+  --shadow-pass: 0 2px 4px rgb(16 24 40 / 0.08), 0 14px 28px -12px rgb(16 24 40 / 0.28);
+  --shadow-bar: 0 -1px 0 rgb(16 24 40 / 0.05), 0 -8px 24px rgb(16 24 40 / 0.07);
+  --inset-shadow-sunk: inset 0 1px 3px rgb(16 24 40 / 0.08);
+
   /* One type scale (docs/office-v2.md 3.1; Phase 18): 12 · 13 · 15 · 18 · 24 · 30 · 40px, and no
-     other size. 40px is for the sign figures only: a shift's time and its date tile. */
+     other size. 40px is for a shift's time (in sign figures) and the greetings (Phase 20) only. */
   --text-*: initial;
   --text-xs: 0.75rem;
   --text-xs--line-height: 1rem;
@@ -85,10 +104,6 @@
   --animate-bar: sd-up 200ms var(--ease-sd) both; /* the bottom action bar */
   --animate-sheet: sd-sheet 250ms var(--ease-sd) both; /* "Can't make it?" rising */
   --animate-fade: sd-fade 150ms var(--ease-sd) both; /* a scrim */
-  --animate-enter: sd-enter 200ms var(--ease-sd) both; /* the next urgent place sliding in */
-
-  /* The pass (the casual app's next shift) is the only thing with a shadow at rest. */
-  --shadow-pass: 0 1px 0 rgb(19 35 58 / 0.06), 0 14px 28px -18px rgb(19 35 58 / 0.45);
 
   @keyframes sd-rise {
     from {
@@ -124,20 +139,15 @@
       opacity: 0;
     }
   }
-  @keyframes sd-enter {
-    from {
-      opacity: 0;
-      transform: translateX(24px);
-    }
-  }
 }
 
-/* Public Sans for words, Barlow Condensed for the sign figures (src/app/fonts.ts sets these on
-   <html>), then the system's. `font-sign` (below) comes with its own weight and fixed-width digits. */
+/* Instrument Sans for words and figures, Instrument Serif for the greetings (src/app/fonts.ts sets
+   these on <html>), then the system's. `font-sign` and `font-greet` (below) come with their own
+   weight, digits and spacing. */
 @theme inline {
   --font-sans:
-    var(--font-public), var(--font-public-ext), ui-sans-serif, system-ui, -apple-system, "Segoe UI",
-    Roboto, Arial, sans-serif;
+    var(--font-instrument), var(--font-instrument-ext), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, Arial, sans-serif;
   /* The firm's colour as a pale tint of the card it sits on (the current tab, the office's current
      menu item, the "shifts to apply for" tile): ink reads on it in both themes, as on the card. */
   --color-brand-soft: color-mix(in srgb, var(--color-brand) 12%, var(--color-card));
@@ -152,87 +162,109 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --color-ink: #e8edf7;
-  --color-ink-muted: #a3b0c8;
-  --color-ink-hover: #c3cddf;
-  --color-on-ink: #0f1626;
-  --color-line: #2c3a5c;
-  --color-line-strong: #7c8aa8;
-  --color-canvas: #0f1626;
-  --color-card: #1b2642;
-  --color-panel: #16203a;
-  --color-raised: #22304f;
-  --color-switch-off: #7c8aa8;
+  --color-ink: #f3f4f6;
+  --color-ink-muted: #a9adb4;
+  --color-ink-hover: #d4d6da;
+  --color-on-ink: #0b0c0e;
+  --color-line: #2c2e33;
+  --color-line-strong: #6f737b;
+  --color-canvas: #0b0c0e;
+  --color-card: #18191c;
+  --color-panel: #18191c;
+  --color-raised: #232529;
+  --color-switch-off: #7d8189;
   --color-scrim: #000000;
-  --color-brand: #e8edf7;
-  --color-on-brand: #0f1626;
-  --color-brand-ink: #e8edf7;
-  --color-brand-bar: #2b3d63;
+  --color-brand: #f3f4f6;
+  --color-on-brand: #0b0c0e;
+  --color-brand-ink: #f3f4f6;
+  --color-brand-bar: #34373d;
   --color-on-brand-bar: #ffffff;
+  --color-on-brand-bar-soft: #d2d4d8;
+  --color-pass-plate: #ffffff;
+  --color-on-pass-plate: #34373d;
   --color-urgent: #ff8b80;
-  --color-urgent-soft: #3d1d26;
-  --color-urgent-ink: #ffc7c0;
-  --color-urgent-fill: #d92d20;
-  --color-urgent-fill-hover: #b42318;
+  --color-urgent-soft: #231513;
+  --color-urgent-ink: #ffcabf;
+  --color-urgent-tile: #3d1d19;
+  --color-urgent-fill: #cf3a33;
+  --color-urgent-fill-hover: #b02e28;
   --color-on-urgent: #ffffff;
   --color-attention: #f2a541;
-  --color-attention-soft: #36291a;
-  --color-attention-ink: #ffd699;
-  --color-hivis: #f5b301;
-  --color-on-hivis: #13233a;
-  --color-done: #4ccb83;
-  --color-done-soft: #132f22;
-  --color-done-ink: #b0efca;
-  --color-done-fill: #15803d;
+  --color-attention-soft: #221d0e;
+  --color-attention-ink: #fbe3a0;
+  --color-hivis: #3a2f10;
+  --color-on-hivis: #fbe3a0;
+  --color-wait-tile: #172a45;
+  --color-wait-ink: #c8dafa;
+  --color-done: #5fd08b;
+  --color-done-soft: #0f1d14;
+  --color-done-ink: #bfeccd;
+  --color-done-tile: #15301f;
+  --color-done-fill: #1f7a47;
   --color-on-done: #ffffff;
-  --color-quiet-soft: #26324f;
-  --color-quiet-ink: #d0d8e6;
+  --color-quiet-soft: #222428;
+  --color-quiet-ink: #d4d6da;
   --color-demo: #3d2e0a;
   --color-on-demo: #fde7b0;
-  --shadow-pass: 0 0 0 1px #2c3a5c;
+  --shadow-lift: 0 1px 2px rgb(0 0 0 / 0.5);
+  --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.5), 0 10px 24px -6px rgb(0 0 0 / 0.6);
+  --shadow-pass: 0 2px 4px rgb(0 0 0 / 0.5), 0 16px 32px -12px rgb(0 0 0 / 0.8);
+  --shadow-bar: 0 -1px 0 rgb(255 255 255 / 0.07), 0 -8px 24px rgb(0 0 0 / 0.5);
+  --inset-shadow-sunk: inset 0 1px 3px rgb(0 0 0 / 0.6);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --color-ink: #e8edf7;
-    --color-ink-muted: #a3b0c8;
-    --color-ink-hover: #c3cddf;
-    --color-on-ink: #0f1626;
-    --color-line: #2c3a5c;
-    --color-line-strong: #7c8aa8;
-    --color-canvas: #0f1626;
-    --color-card: #1b2642;
-    --color-panel: #16203a;
-    --color-raised: #22304f;
-    --color-switch-off: #7c8aa8;
+    --color-ink: #f3f4f6;
+    --color-ink-muted: #a9adb4;
+    --color-ink-hover: #d4d6da;
+    --color-on-ink: #0b0c0e;
+    --color-line: #2c2e33;
+    --color-line-strong: #6f737b;
+    --color-canvas: #0b0c0e;
+    --color-card: #18191c;
+    --color-panel: #18191c;
+    --color-raised: #232529;
+    --color-switch-off: #7d8189;
     --color-scrim: #000000;
-    --color-brand: #e8edf7;
-    --color-on-brand: #0f1626;
-    --color-brand-ink: #e8edf7;
-    --color-brand-bar: #2b3d63;
+    --color-brand: #f3f4f6;
+    --color-on-brand: #0b0c0e;
+    --color-brand-ink: #f3f4f6;
+    --color-brand-bar: #34373d;
     --color-on-brand-bar: #ffffff;
+    --color-on-brand-bar-soft: #d2d4d8;
+    --color-pass-plate: #ffffff;
+    --color-on-pass-plate: #34373d;
     --color-urgent: #ff8b80;
-    --color-urgent-soft: #3d1d26;
-    --color-urgent-ink: #ffc7c0;
-    --color-urgent-fill: #d92d20;
-    --color-urgent-fill-hover: #b42318;
+    --color-urgent-soft: #231513;
+    --color-urgent-ink: #ffcabf;
+    --color-urgent-tile: #3d1d19;
+    --color-urgent-fill: #cf3a33;
+    --color-urgent-fill-hover: #b02e28;
     --color-on-urgent: #ffffff;
     --color-attention: #f2a541;
-    --color-attention-soft: #36291a;
-    --color-attention-ink: #ffd699;
-    --color-hivis: #f5b301;
-    --color-on-hivis: #13233a;
-    --color-done: #4ccb83;
-    --color-done-soft: #132f22;
-    --color-done-ink: #b0efca;
-    --color-done-fill: #15803d;
+    --color-attention-soft: #221d0e;
+    --color-attention-ink: #fbe3a0;
+    --color-hivis: #3a2f10;
+    --color-on-hivis: #fbe3a0;
+    --color-wait-tile: #172a45;
+    --color-wait-ink: #c8dafa;
+    --color-done: #5fd08b;
+    --color-done-soft: #0f1d14;
+    --color-done-ink: #bfeccd;
+    --color-done-tile: #15301f;
+    --color-done-fill: #1f7a47;
     --color-on-done: #ffffff;
-    --color-quiet-soft: #26324f;
-    --color-quiet-ink: #d0d8e6;
+    --color-quiet-soft: #222428;
+    --color-quiet-ink: #d4d6da;
     --color-demo: #3d2e0a;
     --color-on-demo: #fde7b0;
-    --shadow-pass: 0 0 0 1px #2c3a5c;
+    --shadow-lift: 0 1px 2px rgb(0 0 0 / 0.5);
+    --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.5), 0 10px 24px -6px rgb(0 0 0 / 0.6);
+    --shadow-pass: 0 2px 4px rgb(0 0 0 / 0.5), 0 16px 32px -12px rgb(0 0 0 / 0.8);
+    --shadow-bar: 0 -1px 0 rgb(255 255 255 / 0.07), 0 -8px 24px rgb(0 0 0 / 0.5);
+    --inset-shadow-sunk: inset 0 1px 3px rgb(0 0 0 / 0.6);
   }
 }
 
@@ -246,6 +278,8 @@ body[data-firm-colour] {
   --color-brand-ink: var(--firm-ink);
   --color-brand-bar: var(--firm-bar);
   --color-on-brand-bar: var(--firm-on-bar);
+  --color-on-brand-bar-soft: var(--firm-on-bar-soft);
+  --color-on-pass-plate: var(--firm-on-plate);
 }
 :root[data-theme="dark"] body[data-firm-colour] {
   --color-brand: var(--firm-dark-fill);
@@ -313,12 +347,22 @@ body[data-firm-colour] {
   }
 }
 
-/* The sign figures (times, dates, gates, counts): Barlow Condensed, bold, fixed-width digits. */
+/* The sign figures (times, dates, gates, counts): Instrument Sans semibold, fixed-width digits, a
+   little tighter (Phase 20). */
 @utility font-sign {
   font-family:
-    var(--font-barlow), var(--font-barlow-ext), "Arial Narrow", ui-sans-serif, system-ui, sans-serif;
-  font-weight: 700;
+    var(--font-instrument), var(--font-instrument-ext), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* The greetings ("Hi Zoe", "Evening, Acme Events."): Instrument Serif, its one weight (Phase 20). */
+@utility font-greet {
+  font-family:
+    var(--font-instrument-serif), var(--font-instrument-serif-ext), Georgia, "Times New Roman",
+    serif;
+  font-weight: 400;
   letter-spacing: -0.005em;
 }
 

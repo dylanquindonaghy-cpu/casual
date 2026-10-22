@@ -66,7 +66,8 @@ export interface CasualsList {
 }
 
 // Every upload waiting for the office, oldest first (casuals not erased: theirs are deleted).
-async function waitingUploads(tx: FirmTx, limit: number): Promise<WaitingUpload[]> {
+// Also Needs attention's "Uploads to check", each by name and time (Phase 20).
+export async function waitingUploads(tx: FirmTx, limit: number): Promise<WaitingUpload[]> {
   const rows = await tx
     .select({
       id: uploads.id,

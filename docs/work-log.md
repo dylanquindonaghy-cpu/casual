@@ -13557,3 +13557,69 @@ the NOT VERIFIED on `36b7468`). "Keep strike" on a deleted casual's strike had t
 - **Proof.** With `--repeat-each=2` the old spec failed its second round with "Too many tries";
   the fixed spec passed 6 of 6.
 - **Result.** `RUN_E2E=1 ./scripts/verify.sh`: VERIFIED tree=1a56724f8c7be140 e2e=true.
+
+## 2026-10-21 · Phase 20: the pass redesign (20.1 to 20.5)
+
+Time spent: 5.0 hours (1.3 for the analysis and the two mock-ups, 3.7 to build; see the Hours log
+in PLAN.md).
+
+### The result
+
+- Verify: `VERIFIED tree=cf01097b770298dd e2e=true` on the files the round-2 auditors read
+  (`VERIFIED tree=049ad1d7cff10222 e2e=true` for round 1). The ticks and these notes came after;
+  20.5's tick has its own stamp, as the edit that ticked 20.2 and 20.4 changed the files first.
+- Tests: 5,175 unit and integration tests pass, none skipped; 96 browser tests and the
+  walkthrough's 6 pass, none flaky.
+- Auditor: 20.1 and 20.3 DONE in round 1. 20.2, 20.4 and 20.5 NOT DONE in round 1, all for tests
+  that were missing, not code: the reasons as four large buttons, the notice's box, and the gate
+  "on a white plate" (the code reversed the band's colours, dark on a pale firm colour); the
+  "Also needs you" panel and the page's count line, and the menu's count checked only when above
+  0; today's bar and the weekends, the key under the filters, the opened row's darker ground.
+  Round 2, after those tests (and the white plate): DONE, every claim proven, no fakes.
+
+### What changed, in plain words
+
+- **The look (20.1):** Instrument Sans and Instrument Serif (the greetings only) in place of
+  Public Sans and Barlow Condensed; true dark greys in place of navy (D7 changed); the status
+  colours as tiles with their words; five depth tokens and no other shadow; a quieter shade for the
+  pass's second line. The firm's colour as words now reads on its own pale tint too, for every
+  colour (1,410 of the 4,096 test colours fell just under 4.5:1 there, a gap from Phase 17).
+- **The casual app (20.2, 20.3):** "Hi Zoe"; the next shift as a pass in the firm's colour with
+  Directions, Details and "Can't make it?"; Details opens a card under it without JavaScript; For
+  you as tiles, with Pay day; the tab bar floating; the sheet's four reason buttons, the problem
+  right under them with the focus on the first (on every press), the notice in its own box and a
+  handle that pulls it down (it stays at the top while a long sheet scrolls on a small phone);
+  Open shifts' strip of lifted days with the filters under it, urgent first then date order; a
+  shift's page as one card with Take shift in a floating bar; Booked with the same pass.
+- **The office (20.4, 20.5):** no top bar from 1024px (the page a white sheet on the grey frame,
+  you and dark mode at the menu's foot); "Needs attention" in the menu in place of the bell, with
+  the same count as the Dashboard's Needs attention, now with the enquiries that need a person;
+  the Dashboard's greeting with "N things need you" (the urgent places plus that count), four
+  tiles, every urgent place soonest first with "Offer to someone" and "…", this week's bars, and
+  panels; Needs attention's page with each upload by name and "Also needs you"; the events
+  board's show/hide switch only in the opened row, sessions on two lines.
+- **Docs:** `docs/screens.md` "The pass redesign (Phase 20)", `docs/ui-design.md` "Phase 20" and
+  its tokens (with the office shell brought up to date), the D7 row here and in
+  `docs/office-v2.md`, and the How-to guide (no bell, no Next up).
+
+### What the reviews found (each fixed, with a test that fails with it put back)
+
+- Code review: red words on the dark Today pill when today had an urgent gap; "Not urgent"'s
+  answer lost as its row left (the confirmation at the foot of the screen is back); urgent places
+  not soonest first, so "Start with …" could name a later one; "…" buttons named alike, and
+  "mark as filled" named where only "Not urgent" is offered; the start line saying urgent places
+  were sorted when only their list couldn't load; focus not moving on a second press.
+- The browser tests caught a pull test measuring the handle mid-spring and a "Site" lookup that
+  also matched the filter form; both were the tests', not the app's.
+- Safety review: SAFE TO COMMIT. Hardening done: a test that every role with Needs attention may
+  see casuals and enquiries (the page shows both); the page's count marked "+" when the enquiries
+  can't be read; the cross-firm test now covers Needs attention's own reads.
+
+### What needs Dylan
+
+- PR #19 (Phase 19) is green and waiting for him. Phase 20's commits are on the same branch,
+  local only, so they don't land in #19: merge #19 and they go up as their own PR, or say to add
+  them to #19.
+- The menu's "Needs attention" count is that page's items (with enquiries); the Dashboard's
+  "N things need you" adds the urgent places. If he meant the menu to show the full number, it's
+  a small change.

@@ -3,8 +3,8 @@ import { addEventWithSession, addOfficeUser, addSteward, cancelOwnShift } from "
 import { expect, menuLink, test } from "./fixtures";
 import { loginLinkSentTo, sentTo } from "./outbox";
 
-// Events & sessions in a real browser (12B.5; Phase 18's rota board): a resourcer switches an event
-// off on its row and a casual's Open shifts loses its session; switched back on (from the event's
+// Events & sessions in a real browser (12B.5; Phase 18's rota board): a resourcer opens an event's
+// row and switches it off there (Phase 20) and a casual's Open shifts loses its session; switched back on (from the event's
 // own page, opened from its row), it's there again. The event, its site,
 // the casual and the resourcer are this spec's own (made-up details), and its shift is cancelled
 // at the end, so nothing another spec sees changes. A retry makes its own event and site (the
@@ -78,11 +78,32 @@ async function switchAndCheck(browser: Browser, shiftId: string) {
   await dates.getByRole("link", { name: "Earlier" }).click();
   await expect(office).toHaveURL(`${acme}/office/events`);
   await expect(dates.getByRole("link", { name: "Earlier" })).toHaveCount(0);
-  // The row's name (it opens the row into its sessions) and its line; its switch beside it.
+  // On a computer (Phase 20): the filters and the dates on one row, the key under them in words.
+  const phone = office.viewportSize();
+  await office.setViewportSize({ width: 1280, height: 900 });
+  const show = await office.getByRole("navigation", { name: "Show" }).boundingBox();
+  const when = await dates.boundingBox();
+  const key = office.locator("[data-board-key]");
+  await expect(key).toHaveText(
+    /^Urgent gap\s*Places open\s*Full\s*Pills show places filled out of places needed\.$/,
+  );
+  const under = await key.boundingBox();
+  if (!show || !when || !under) throw new Error("the board's controls aren't on the page");
+  expect(when.y).toBeLessThan(show.y + show.height); // the two overlap: one row
+  expect(show.y).toBeLessThan(when.y + when.height);
+  expect(when.x).toBeGreaterThan(show.x + show.width); // the dates to the right of the filters
+  const rowEnd = Math.max(show.y + show.height, when.y + when.height);
+  expect(under.y).toBeGreaterThanOrEqual(rowEnd - 4); // under them (it sits 4px closer)
+  if (phone) await office.setViewportSize(phone);
+  // The row's name (it opens the row into its sessions) and its line. Its switch is in the opened
+  // row only (Phase 20), so a slip on the board can't hide an event.
   const row = office.getByRole("button", { name: new RegExp(`^${EVENT}`) });
   await expect(row).toBeVisible();
   await expect(row).not.toContainText("Hidden from casuals");
   const toggle = office.getByRole("switch", { name: `Show ${EVENT} to casuals` });
+  await expect(toggle).toHaveCount(0);
+  await row.click();
+  await expect(row).toHaveAttribute("aria-expanded", "true");
   await expect(toggle).toHaveAttribute("aria-checked", "true");
   await toggle.click();
   await expect(

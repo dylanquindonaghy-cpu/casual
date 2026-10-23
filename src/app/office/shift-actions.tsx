@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { closeResultText, urgentResultText } from "@/lib/office/today-copy";
-import { btn } from "../ui/classes";
+import { btn, checkStep } from "../ui/classes";
 import { Icon } from "../ui/icons";
 import { Chevron, summaryButton } from "./shifts/[id]/chevron";
 import { closeShiftAction, reopenShiftAction, setUrgentAction } from "./today-actions";
@@ -19,7 +19,9 @@ import { closeShiftAction, reopenShiftAction, setUrgentAction } from "./today-ac
 // then "…" (named by `more`) opening "Mark as filled" and "Not urgent". Phase 21: there, "Offer" is
 // a small black pill in a 44px target (still named "Offer to someone") and "…" a quiet round
 // button. `onMessage`: the answers go there (the dashboard's confirmation, which stays while the
-// place leaves) instead of under the buttons.
+// place leaves) instead of under the buttons. Phase 22: "Offer" dips when pressed and shows a
+// spinner in place of its word while the offer page opens (`OfferWord`); the "…" menu grows out of
+// its button.
 export function ShiftActions({
   shiftId,
   isUrgent,
@@ -74,7 +76,7 @@ export function ShiftActions({
         Mark as filled
         <Chevron />
       </summary>
-      <div className="mt-2 w-64 max-w-full animate-in rounded-row border border-line bg-card p-3">
+      <div className={`mt-2 w-64 max-w-full animate-in ${checkStep}`}>
         <p className="text-sm">
           Only if you&apos;ve filled it another way. Nobody else will be offered it.
         </p>
@@ -115,10 +117,10 @@ export function ShiftActions({
             <Link
               href={`/office/offer/${shiftId}`}
               aria-label="Offer to someone"
-              className="group/offer inline-flex min-h-11 items-center rounded-full"
+              className="press group/offer inline-flex min-h-11 items-center rounded-full"
             >
-              <span className="inline-flex h-9 items-center rounded-full bg-ink px-4 text-sm font-semibold text-on-ink transition-colors group-hover/offer:bg-ink-hover group-active/offer:bg-ink-press">
-                Offer
+              <span className="inline-flex h-9 items-center rounded-full bg-ink px-4 text-sm font-semibold text-on-ink shadow-raise transition-colors group-hover/offer:bg-ink-hover group-active/offer:bg-ink-press">
+                <OfferWord />
               </span>
             </Link>
           ) : (
@@ -134,11 +136,11 @@ export function ShiftActions({
             <details className="group">
               <summary
                 aria-label={more}
-                className={`${summaryButton} inline-flex size-11 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-quiet-soft hover:text-ink active:bg-raised group-open:bg-raised group-open:text-ink`}
+                className={`${summaryButton} press inline-flex size-11 items-center justify-center rounded-full text-ink-muted hover:bg-quiet-soft hover:text-ink active:bg-raised group-open:bg-raised group-open:text-ink`}
               >
                 <Icon name="dots" />
               </summary>
-              <div className="absolute top-full left-0 z-10 mt-2 flex w-64 max-w-[80vw] animate-in flex-col items-stretch gap-2 rounded-card bg-card p-3 shadow-soft md:right-0 md:left-auto">
+              <div className="absolute top-full left-0 z-10 mt-2 flex w-64 max-w-[80vw] origin-top-left animate-pop flex-col items-stretch gap-2 rounded-card bg-card p-3 shadow-float md:right-0 md:left-auto md:origin-top-right">
                 {!fromSheet && !fromPlanner && filledStep}
                 {notUrgent}
               </div>
@@ -157,5 +159,22 @@ export function ShiftActions({
         </p>
       )}
     </div>
+  );
+}
+
+// "Offer" on the dashboard's pill: the word, or a spinner in its place while the offer page is on
+// its way (the pill keeps its width).
+function OfferWord() {
+  const { pending } = useLinkStatus();
+  return (
+    <span className="relative inline-flex items-center justify-center">
+      <span className={pending ? "opacity-0" : undefined}>Offer</span>
+      {pending && (
+        <span
+          aria-hidden="true"
+          className="absolute size-4 animate-turn rounded-full border-2 border-current border-r-transparent"
+        />
+      )}
+    </span>
   );
 }

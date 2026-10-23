@@ -125,19 +125,47 @@ describe("motion (the design's spec)", () => {
     value: (m[2] ?? "").trim(),
   }));
 
+  // Phase 22 (the office's round 2) adds a menu growing out of its button (`pop`, 200ms) and three
+  // that aren't a 150-250ms movement: the ring that fades round the section a dashboard card jumped
+  // to (`landed`, 1s: only its outline changes), and, while a page is on its way, a skeleton's slow
+  // fade (`wait`) and "Offer"'s spinner (`turn`, linear), which loop until it arrives.
+  const LONGER: Record<string, { duration: string; easing: string }> = {
+    landed: { duration: "1s", easing: "var(--ease-sd)" },
+    wait: { duration: "1.4s", easing: "var(--ease-sd)" },
+    turn: { duration: "800ms", easing: "linear" },
+  };
+
   it("each animation: a keyframes of its own, 150, 200 or 250ms, the one easing", () => {
     expect(tokens.map((t) => t.name).sort()).toEqual(
-      ["bar", "fade", "in", "move", "open", "open-late", "sheet", "toast"].sort(),
+      [
+        "bar",
+        "fade",
+        "in",
+        "move",
+        "open",
+        "open-late",
+        "sheet",
+        "toast",
+        "pop",
+        "landed",
+        "wait",
+        "turn",
+      ].sort(),
     );
     for (const t of tokens) {
       const [keyframes, duration] = t.value.split(/\s+/);
       expect(css, `${t.name}'s keyframes`).toContain(`@keyframes ${keyframes} {`);
-      expect(["150ms", "200ms", "250ms"], t.name).toContain(duration);
-      expect(t.value, t.name).toContain("var(--ease-sd)");
+      const longer = LONGER[t.name];
+      expect(longer ? [longer.duration] : ["150ms", "200ms", "250ms"], t.name).toContain(duration);
+      expect(t.value, t.name).toContain(longer?.easing ?? "var(--ease-sd)");
+      // Only what waits for a page loops.
+      if (t.value.includes("infinite")) expect(["wait", "turn"], t.name).toContain(t.name);
     }
-    // One easing in the whole stylesheet.
-    expect(css.match(/cubic-bezier\(/g)).toHaveLength(1);
+    // Two easings in the whole stylesheet: the one for everything, and the spring a press returns
+    // on (and the office menu's pill slides on: Phase 22).
+    expect(css.match(/cubic-bezier\(/g)).toHaveLength(2);
     expect(css).toContain("--ease-sd: cubic-bezier(0.2, 0.8, 0.2, 1);");
+    expect(css).toContain("--ease-spring: cubic-bezier(0.34, 1.45, 0.64, 1);");
   });
 
   it("every animation the app uses is one of them; no animation library (CSS only)", () => {

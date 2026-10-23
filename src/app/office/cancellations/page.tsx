@@ -115,7 +115,7 @@ export default async function CancellationsPage({
             <li key={r.assignmentId} className={row}>
               <Link
                 href={`/office/cancellations/${r.ref}`}
-                className="flex flex-col gap-1 rounded-row focus-visible:outline-2 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
+                className="press flex flex-col gap-1 rounded-row focus-visible:outline-2 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
               >
                 <span className="min-w-0">
                   <span className="block font-semibold underline decoration-line-strong underline-offset-4">

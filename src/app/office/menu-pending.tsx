@@ -14,12 +14,18 @@ import { createContext, useContext, useEffect, useRef } from "react";
 // `from`: the page the link was picked on. Once the address has moved on, it has arrived.
 export type MenuPendingState = { href: string; from: string } | null;
 // `start`: a link was picked; `end`: a link that was on its way no longer is (arrived, failed or
-// given up for another).
-export type MenuPendingApi = { start: (href: string) => void; end: (href: string) => void };
+// given up for another); `picked`: the link picked on this page and still on its way, which the
+// menu's highlight moves to at once (Phase 22).
+export type MenuPendingApi = {
+  start: (href: string) => void;
+  end: (href: string) => void;
+  picked: string | null;
+};
 
 export const MenuPending = createContext<MenuPendingApi>({
   start: () => undefined,
   end: () => undefined,
+  picked: null,
 });
 
 // A page that arrives quicker than this never flashes a skeleton (the system's quickest transition).

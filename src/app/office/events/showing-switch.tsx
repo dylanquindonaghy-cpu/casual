@@ -53,7 +53,7 @@ export function ShowingSwitch({
         aria-describedby={describedBy}
         disabled={pending || !ready}
         onClick={flip}
-        className={`relative inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center disabled:cursor-not-allowed disabled:opacity-60`}
+        className={`press relative inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center disabled:cursor-not-allowed disabled:opacity-60`}
       >
         <span
           aria-hidden="true"

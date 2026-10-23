@@ -16,8 +16,109 @@ Principles, in order:
    WCAG AA (text 4.5:1, borders and controls 3:1).
 5. **No decoration.** No gradients, glows or textures. Motion only to show what changed, as Phase
    18's spec (below). The firm's colour marks its main actions and where you are, never a status.
+   The office since Phase 22 (Dylan's round 2): a fine grain, shadows in the colour cards' own
+   colours and press feedback, and still no gradients.
 6. **Works without JavaScript** where pages already do (server-action forms, `<details>`
    confirmations, GET filter forms, anchor links).
+
+## Phase 22: the office's look, round 2
+
+Dylan, on Phase 21 live (2026-10-22): "the use of colours it just looks very bland theres still no
+depth to any of the individual sections and a tacky scroll wheel on the left side you've missed out
+on shaders layers and depth this whole time i also asked for animations still none not ai slop just
+subtle reactive on click responses". From his new references (dark admin dashboards: Dashdark X,
+HITE EQ, notion>ision, PMD Digital, ovniscale) and the hilos direction he picked, a mock-up
+(`docs/mockups/phase-22/mockup.html`), approved with one change: "remove the gradients theres no
+need for that". Phase 21's system (below) stands where this doesn't change it: its spacing,
+corners, states and shared parts. The table at the end of this section has the office's values
+now (`tests/unit/ui.office-system.test.ts` checks it against `globals.css` both ways).
+
+- **Layers.** Four you can see: the window (`canvas`, a warm grey, the menu on it); the page as a
+  sheet set into it (`sheet`, warm off-white, rounded and raised, `shadow-sheet`; below 1024px a
+  sheet with rounded top corners under the top bar); white cards, lists and tables raised off the
+  sheet (`shadow-soft`: a hairline ring, a lit top edge and its own fall; the edge white as in the
+  mock-up, so it shows on the near-black buttons, at 18% on `raise`, and in dark, while on white
+  it's white); and the rows, tiles and buttons raised off those (`shadow-raise`). What floats
+  over the page (a menu, the account menu, a confirmation) takes `shadow-float`. Grooves are set in
+  (`inset-shadow-sunk`): the week's bars, the urgent places' fill bars, the board's filter track
+  and every field (`field`). On the other pages: Needs attention's parts are amber washes of
+  raised white rows, as the dashboard's panels; the step before something destructive ("Yes,
+  revoke it", "Yes, cancel …'s booking") is one red wash with its edge and `shadow-soft`
+  (`confirmStep`), and before a change that takes nothing away ("Yes, make them an admin", "Yes,
+  mark them as worked") the same in grey (`checkStep`); any other wash with an edge (a notice, a
+  status, the rules' answer on a shift) has the same depth; an answer under a button is a white slip raised off its
+  form (`resultBox`, and the login page's "You're logged out.").
+- **Colour.** The dashboard's four cards in full flat colour (`urgent-card`, `attention-card`,
+  `wait-card`, `done-card`; their words in `…-card-ink`, their numbers in `ink`), each with a 1px
+  edge in its words' colour, a lit top edge and a shadow in its own colour (`shadow-tint`, with
+  the card's `tint-…` utility in `globals.css`). Their panels' washes (`…-soft`), the tiles and
+  the chips' edges are stronger than Phase 21's. In the menu a count takes its card's colour:
+  amber when it needs you (`countNeeds`: Needs attention, enquiries, uploads), blue when it's
+  waiting with someone else (`countWaiting`: pay queries with payroll). Other buttons are white
+  pills raised off their card (`button`); the main one is still near-black. No gradients: the
+  one the office keeps is the menu's edge fade, a mask rather than a colour.
+- **Texture.** A fine grain (`grain`: a 200px noise tile the browser draws, black speckles in
+  light and white in dark) over the four colour cards, and a fainter one (`grain-soft`) over the
+  window, the page and the panels; fine diagonal lines (`stripes`) in the groove of a week day
+  with no sessions. Dylan's HITE EQ reference.
+- **Type.** DM Sans for every word (with its optical sizes), DM Mono for the big numbers
+  (`font-stat`), Newsreader semibold for each page's headline (`text-title`, 28px; the
+  dashboard's greeting `font-display`, 40px): hilos's own words and numbers faces and the closest
+  free match to its serif, self-hosted from their npm packages (SIL Open Font License) in
+  `src/app/office/office-fonts.ts`, so only office pages fetch them. The same seven sizes.
+- **Motion that answers you.** Everything you can press dips to 97% at once and springs back when
+  you let go (`press`: 90ms down, 300ms back on `ease-spring`, in place of `transition-colors`):
+  every button, opener (`summary`) and switch; every link that isn't words (a row, a card, a pill,
+  a tab, a contents row); and words with their own 44px target (`btn.link`, a page's way back:
+  both `office:press`, as the casual app shares them and keeps Phase 20's look). A link inside a
+  sentence or a line of text is words, and doesn't move (`office.look.spec.ts` checks every page
+  by this rule);
+  the dashboard's cards and panel rows lift 2px under the pointer; the menu's white pill slides to
+  the link you pick as you pick it (`slide`); "Offer" shows a spinner in place of its word while
+  the offer page opens; the "…" menu, the account menu and a session's menu grow out of their
+  buttons (`animate-pop`); a card's jump lands with a ring that fades out round its section
+  (`animate-landed`: the cards are plain links to `#…`, since Next's `<Link>` never sets
+  `:target`); a week day shows its details over it under the pointer or on focus. Nothing moves
+  on its own but a skeleton while its page is on its way (`animate-wait`, a slow fade in and
+  out), and with reduced motion nothing dips, lifts or slides.
+- **The menu.** No scrollbar: rows are 34px with a mouse from 1024px (44px for a thumb and always
+  in the drawer), the firm (its initial and name) and you (the account button) sit above it, the
+  how-to guide and the light/dark switch are rows of the account menu, and the pay week (D8) is a
+  small line at its end. Every row of an admin's menu fits a 1280 × 640 window (the last row ends
+  about 600px down); the pay week under them shows in a window about 690px tall or more, and is a
+  scroll away below that (it's also in the dashboard's date line). In a shorter window, or with
+  Admin and records open, the menu scrolls with no bar and fades at the edge that has more
+  (`menu-scroll.tsx`, `scrollbar-none`, `fade-edges`), opening with the page you're on in view.
+- **Where the office differs from the mock-up.** "Offer" opens the offer page (it never sent
+  anything by itself), so it shows a spinner while that page opens rather than the mock-up's tick;
+  the menu's rows keep the system's 4px gaps; corners stay 20px and 14px; the mock-up's light that
+  followed the pointer was a gradient, so it went with the others.
+
+| Token (office) | Light | Dark | Use in the office |
+|---|---|---|---|
+| `ink` / `ink-muted` / `ink-hover` / `on-ink` | `#1c1b18` / `#57544d` / `#34322d` / `#ffffff` | `#f2f1ee` / `#aaa79f` / `#dcdad5` / `#121211` | Words, grey words, an ink button under the pointer, words on ink |
+| `line` / `line-strong` | `#e7e5e0` / `#837f77` | `#2b2c30` / `#77746d` | Hairlines; field and control borders (3:1 on the window, the page and a card) |
+| `canvas` / `sheet` / `card` / `panel` | `#e7e5df` / `#f9f8f5` / `#ffffff` / `#e7e5df` | `#08090b` / `#111215` / `#1a1b1f` / `#08090b` | The window and the menu; the page, a sheet set into the window; cards, lists, tables and rows; the top bar and drawer |
+| `raised` / `pill` | `#ebe9e4` / `#ffffff` | `#0f1012` / `#24252a` | Grooves, tracks and skeleton bars; the menu's current page (a white pill raised off the window) |
+| `switch-off` / `scrim` | `#7b776f` / `#1c1b18` | `#807d76` / `#000000` | A switch that's off; behind the drawer |
+| `brand` / `on-brand` / `brand-ink` | `#1c1b18` / `#ffffff` / `#1c1b18` | `#f2f1ee` / `#121211` / `#f2f1ee` | Ink: the firm's colour fills no office button |
+| `urgent` / `urgent-soft` / `urgent-ink` / `urgent-tile` | `#b42318` / `#fdebe4` / `#7a2116` / `#fbdcd3` | `#ff8a7a` / `#1f1716` / `#ffc8bf` / `#3a1e1b` | Red words; the urgent wash; its dark words; the urgent tile and section chip |
+| `urgent-fill` / `urgent-fill-hover` / `on-urgent` | `#c4242a` / `#a51d22` / `#ffffff` | `#cf3a33` / `#b02e28` / `#ffffff` | Urgent bars, the date tile's band and pills; the final destructive button |
+| `attention` / `attention-soft` / `attention-ink` | `#a15c07` / `#fdf3d3` / `#5e4106` | `#f0a742` / `#1e1b12` / `#f8dfa0` | Amber: an icon; Needs attention's panel; its dark words |
+| `hivis` / `on-hivis` | `#f8e6ae` / `#5e4106` | `#362c12` / `#f8dfa0` | Needs attention's chip and menu count; "to mark" |
+| `wait-tile` / `wait-ink` / `wait-soft` | `#d9e6fb` / `#1d3c6b` / `#e8f0fd` | `#1a2638` / `#c9dbf7` / `#141a26` | Blue: Waiting on others' chip and menu count, its words, its panel |
+| `done` / `done-soft` / `done-ink` / `done-tile` | `#1f7a47` / `#e4f5e8` / `#17502f` / `#d3eedb` | `#5fd08b` / `#131c16` / `#bfeccd` / `#16291d` | Green: a tick; the Sorted panel; its words; its chip |
+| `done-fill` / `on-done` | `#1f7a47` / `#ffffff` | `#1f7a47` / `#ffffff` | A done fill: the Sorted rows' ticks |
+| `quiet-soft` / `quiet-ink` | `#f3f2ef` / `#4a4741` | `#222328` / `#d6d4cf` | Hover on white rows; a closed chip |
+| `urgent-line` / `attention-line` / `wait-line` / `done-line` / `quiet-line` | `#f3c9bc` / `#ecd590` / `#bfd3f2` / `#b8e0c2` / `#dedbd5` | `#55302b` / `#54461f` / `#2c3d57` / `#27452f` / `#3a3b40` | Each wash's 1px edge and a chip's, a shade darker |
+| `active` | `#ebeae6` | `#26272c` | Hover and pressed rows in the menu and the account menu |
+| `count` | `#e3e1dc` | `#313238` | The grey count pill beside a section's heading (and a menu count that needs no one) |
+| `button` / `button-line` / `button-hover` / `button-press` | `#ffffff` / `#ffffff` / `#f4f3ef` / `#ebe9e4` | `#26272c` / `#26272c` / `#2e2f35` / `#35363c` | Any other button: a white pill raised off its card (`shadow-raise`), at rest, under the pointer, pressed |
+| `ink-press` | `#000000` | `#ffffff` | An ink button pressed |
+| `urgent-card` / `urgent-card-ink` | `#f8a387` / `#45160a` | `#3d1f19` / `#ffd9cf` | The Urgent places card in full colour; its words |
+| `attention-card` / `attention-card-ink` | `#f6d363` / `#3f2d02` | `#382d11` / `#fbecc4` | The Needs attention card; its words |
+| `wait-card` / `wait-card-ink` | `#a6c8f4` / `#0d2a52` | `#1a2b4c` / `#d7e6ff` | The Waiting on others card; its words |
+| `done-card` / `done-card-ink` | `#a7dbb1` / `#0e3519` | `#173823` / `#d4f5de` | The Sorted today card; its words |
 
 ## Phase 21: the office's system
 
@@ -93,26 +194,8 @@ office file uses only what's below (`tests/unit/ui.office-system.test.ts`).
   stays on one line while it fits and wraps rather than run off a phone (a 55-character
   qualification ran a 390px page 9px sideways until it could: `office.look.spec.ts` found it).
 
-| Token (office) | Light | Dark | Use in the office |
-|---|---|---|---|
-| `ink` / `ink-muted` / `ink-hover` / `on-ink` | `#1c1b18` / `#63605a` / `#34322d` / `#ffffff` | `#f2f1ee` / `#a8a59e` / `#dcdad5` / `#121211` | Words, grey words, an ink button under the pointer, words on ink |
-| `line` / `line-strong` | `#e7e5e0` / `#8c887f` | `#2c2c29` / `#77746d` | Hairlines; field and control borders (3:1) |
-| `canvas` / `card` / `panel` / `raised` | `#f6f5f3` / `#ffffff` / `#f6f5f3` / `#efeeeb` | `#121211` / `#1c1c1a` / `#121211` / `#262624` | The page and menu; cards; the top bar and drawer; tracks, tiles, skeleton bars |
-| `switch-off` / `scrim` | `#7b776f` / `#1c1b18` | `#807d76` / `#000000` | A switch that's off; behind the drawer |
-| `brand` / `on-brand` / `brand-ink` | `#1c1b18` / `#ffffff` / `#1c1b18` | `#f2f1ee` / `#121211` / `#f2f1ee` | Ink: the firm's colour fills no office button |
-| `urgent` / `urgent-soft` / `urgent-ink` / `urgent-tile` | `#b42318` / `#fdf3f1` / `#7a2116` / `#fbe6e2` | `#ff8a7a` / `#211514` / `#ffc8bf` / `#3a1e1b` | Red words; an urgent wash; its dark words; the urgent card |
-| `urgent-fill` / `urgent-fill-hover` / `on-urgent` | `#c4242a` / `#a51d22` / `#ffffff` | `#cf3a33` / `#b02e28` / `#ffffff` | Urgent bars and pills; the final destructive button |
-| `attention` / `attention-soft` / `attention-ink` | `#a15c07` / `#fdf8ec` / `#5e4106` | `#f0a742` / `#1f1a10` / `#f8dfa0` | Amber: an icon; Needs attention's panel; its dark words |
-| `hivis` / `on-hivis` | `#faefd2` / `#5e4106` | `#362c12` / `#f8dfa0` | The Needs attention card; "to mark" |
-| `wait-tile` / `wait-ink` / `wait-soft` | `#e6edf8` / `#1d3c6b` / `#f3f6fb` | `#1a2638` / `#c9dbf7` / `#141a22` | Blue: the Waiting card, its words, its panel |
-| `done` / `done-soft` / `done-ink` / `done-tile` | `#1f7a47` / `#f1f8f3` / `#17502f` / `#e2f1e7` | `#5fd08b` / `#111a14` / `#bfeccd` / `#16291d` | Green: a tick; the Sorted panel; its words; the Sorted card |
-| `done-fill` / `on-done` | `#1f7a47` / `#ffffff` | `#1f7a47` / `#ffffff` | A done fill |
-| `quiet-soft` / `quiet-ink` | `#f3f2ef` / `#4a4741` | `#232321` / `#d6d4cf` | Hover on white rows; a closed chip |
-| `urgent-line` / `attention-line` / `wait-line` / `done-line` / `quiet-line` | `#f0cdc6` / `#ecd8a0` / `#c9d7ee` / `#c0dfca` / `#dedbd5` | `#55302b` / `#54461f` / `#2c3d57` / `#27452f` / `#3a3a37` | Each tint's 1px edge, a shade darker |
-| `active` | `#ebeae6` | `#262624` | The grey pill of the page you're on |
-| `count` | `#e3e1dc` | `#33332f` | The one count pill: beside a section's heading and in the menu (on the grey pill of the page you're on too) |
-| `button` / `button-line` / `button-hover` / `button-press` | `#efeeeb` / `#efeeeb` / `#e6e5e0` / `#dcdad5` | `#262624` / `#262624` / `#2f2f2c` / `#383834` | A grey pill button, at rest, under the pointer, pressed |
-| `ink-press` | `#000000` | `#ffffff` | An ink button pressed |
+Round 2 (Phase 22, above) changed its colours, faces, depth and motion: the office's values are in
+Phase 22's table.
 
 ## Phase 20: the pass redesign's type, colour and depth
 
@@ -226,6 +309,9 @@ tokens. Every pair a page uses meets its contrast in both (`tests/unit/ui.contra
 | `count` | `#eceef1` | `#232529` | The office's count pill (Phase 21); the casual app's counts are `staffCount`'s |
 | `button` / `button-line` / `button-hover` / `button-press` | `#ffffff` / `#7c8189` / `#f1f2f4` / `#f1f2f4` | `#18191c` / `#6f737b` / `#222428` / `#222428` | Any other office button, its edge, under the pointer and pressed (Phase 21): here the outlined button it was; in the office a grey pill |
 | `ink-press` | `#000000` | `#ffffff` | An ink button pressed (Phase 21) |
+| `sheet` / `pill` | `#ffffff` / `#ffffff` | `#18191c` / `#232529` | The office's page, a sheet set into the window, and its menu's current page (Phase 22; the casual app doesn't use them) |
+| `urgent-card` / `urgent-card-ink` / `attention-card` / `attention-card-ink` | `#ffd8cf` / `#7d1a10` / `#fbe5a0` / `#5c3f00` | `#3d1d19` / `#ffcabf` / `#3a2f10` / `#fbe3a0` | The office dashboard's Urgent places and Needs attention cards in full colour, and their words (Phase 22; office only) |
+| `wait-card` / `wait-card-ink` / `done-card` / `done-card-ink` | `#d6e4fa` / `#163b6e` / `#d2efdb` / `#155230` | `#172a45` / `#c8dafa` / `#15301f` / `#bfeccd` | Its Waiting on others and Sorted today cards, and their words (Phase 22; office only) |
 
 **Depth (Phase 20).** Five shadow tokens and no other shadow anywhere in `src/`
 (`tests/unit/ui.flat.test.ts` holds where each is used): `shadow-lift` (a card, row, tile or the

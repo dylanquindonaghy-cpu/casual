@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { btn, card, h2, headingGap, page, sectionGap } from "@/app/ui/classes";
+import { btn, card, confirmStep, h2, headingGap, page, sectionGap } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import { workerDataSummary } from "@/lib/gdpr/worker-erase";
@@ -79,13 +79,7 @@ export default async function OfficeWorkerDataPage({
         <h2 id="data-delete-heading" className={h2}>
           Delete their personal details
         </h2>
-        <div
-          className={
-            canErase
-              ? `${headingGap} rounded-row border border-urgent-line bg-urgent-soft p-4`
-              : `${card} ${headingGap}`
-          }
-        >
+        <div className={canErase ? `${headingGap} ${confirmStep}` : `${card} ${headingGap}`}>
           {worker.erasedAt ? (
             <p>
               Deleted on{" "}

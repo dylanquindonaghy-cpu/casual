@@ -108,7 +108,7 @@ export function FindWorkerForm({
             >
               <Link
                 href={`${hrefBase}/${m.id}`}
-                className="inline-flex min-h-11 items-center font-semibold text-ink underline underline-offset-4 hover:text-ink-muted"
+                className="press inline-flex min-h-11 items-center font-semibold text-ink underline underline-offset-4 hover:text-ink-muted"
               >
                 {m.name}
               </Link>

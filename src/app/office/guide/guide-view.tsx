@@ -99,7 +99,7 @@ export function GuideView({ role, menu }: { role: OfficeRole; menu: MenuGroup[] 
               <li key={s.id}>
                 <a
                   href={`#${s.id}`}
-                  className="flex min-h-12 items-center justify-between gap-3 px-4 py-2 font-semibold text-ink transition-colors hover:bg-quiet-soft xl:min-h-11 xl:border-l-2 xl:border-line xl:py-0 xl:font-medium xl:text-ink-muted xl:hover:border-ink xl:hover:bg-transparent xl:hover:text-ink"
+                  className="press flex min-h-12 items-center justify-between gap-3 px-4 py-2 font-semibold text-ink hover:bg-quiet-soft xl:min-h-11 xl:border-l-2 xl:border-line xl:py-0 xl:font-medium xl:text-ink-muted xl:hover:border-ink xl:hover:bg-transparent xl:hover:text-ink"
                 >
                   {s.title}
                   <Icon name="chevron" className="text-ink-muted xl:hidden" />
@@ -195,7 +195,6 @@ const MENU_WORDS: Record<string, string> = {
   Settings: "The strikes team's email, and your sites' postcodes.",
   Integrations: "Connect your planner: its API keys, and the codes it can send.",
   "Data requests": "Download or delete a worker's data when they ask.",
-  "How-to guide": "This page.",
 };
 
 function GettingAround({ role, menu }: { role: OfficeRole; menu: MenuGroup[] }) {
@@ -210,36 +209,41 @@ function GettingAround({ role, menu }: { role: OfficeRole; menu: MenuGroup[] }) 
           : null}
       </Para>
       <div className="mt-6 sm:columns-2 sm:gap-8">
-        {menu.map((group) => (
-          <div key={group.label ?? "start"} className="mb-6 break-inside-avoid">
-            {/* The top group (Dashboard, Needs attention) has no heading in the menu either. */}
-            {group.label && !group.top ? (
-              <h3 className="mb-2 text-sm font-semibold text-ink-muted">{group.label}</h3>
-            ) : null}
-            <ul role="list" className="flex flex-col gap-3">
-              {group.links.map((link) => (
-                <li key={link.href} className="flex gap-3">
-                  <span className="flex h-6 items-center">
-                    <Icon name={link.icon} className="text-ink-muted" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="font-semibold text-ink">{link.label}</p>
-                    {MENU_WORDS[link.label] ? (
-                      <p className={meta}>{MENU_WORDS[link.label]}</p>
-                    ) : null}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+        {/* The how-to guide isn't in the menu: it's in your account menu (Phase 22). */}
+        {menu
+          .filter((group) => !group.bottom)
+          .map((group) => (
+            <div key={group.label ?? "start"} className="mb-6 break-inside-avoid">
+              {/* The top group (Dashboard, Needs attention) has no heading in the menu either. */}
+              {group.label && !group.top ? (
+                <h3 className="mb-2 text-sm font-semibold text-ink-muted">{group.label}</h3>
+              ) : null}
+              <ul role="list" className="flex flex-col gap-3">
+                {group.links.map((link) => (
+                  <li key={link.href} className="flex gap-3">
+                    <span className="flex h-6 items-center">
+                      <Icon name={link.icon} className="text-ink-muted" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-ink">{link.label}</p>
+                      {MENU_WORDS[link.label] ? (
+                        <p className={meta}>{MENU_WORDS[link.label]}</p>
+                      ) : null}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
       </div>
       <Para>
         Your name is at the top right. On a phone, it shows your initials. On a wide screen, it is
-        at the bottom of the menu. Select it to open this guide or to <Name>Log out</Name>.
+        at the top of the menu, beside your firm&apos;s name. Select it to open this guide or to{" "}
+        <Name>Log out</Name>.
       </Para>
       <Para>
-        The moon or sun beside it switches between dark and light.
+        It also switches between dark and light: select <Name>Switch to dark mode</Name> or{" "}
+        <Name>Switch to light mode</Name>.
         {/* Needs attention is in the menu only for the roles with it, the "today" area
             (src/app/office/office-menu.ts). */}
         {canAccess(role, "today")

@@ -32,7 +32,7 @@ export default async function NeedsAttentionPage() {
         <p className={meta}>{needsPageLine(count)}</p>
       </PageHeader>
       <div className="grid gap-4 lg:grid-cols-12">
-        <div className="min-w-0 lg:col-span-9">
+        <div className="min-w-0 lg:col-span-8">
           {data.needs.ok ? (
             <NeedsItems
               n={data.needs.data}
@@ -44,7 +44,7 @@ export default async function NeedsAttentionPage() {
           ) : (
             <p
               role="status"
-              className="rounded-row border border-attention-line bg-attention-soft px-4 py-3 text-attention-ink"
+              className="rounded-row border border-attention-line bg-attention-soft px-4 py-3 text-attention-ink shadow-soft"
             >
               {SECTION_ERROR}
             </p>

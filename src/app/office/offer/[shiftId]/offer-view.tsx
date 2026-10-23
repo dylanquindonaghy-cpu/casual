@@ -28,7 +28,7 @@ export function OfferView({ page }: { page: OfferPage }) {
         <p className="text-lg font-semibold">
           <Link
             href={`/office/shifts/${shift.shiftId}`}
-            className={`inline-flex min-h-11 items-center ${textLink}`}
+            className={`press inline-flex min-h-11 items-center ${textLink}`}
           >
             {roleLabel(shift.role)}
             {shift.site ? ` at ${shift.site}` : ""}

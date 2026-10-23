@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { Fragment, useId, useState, useTransition } from "react";
-import { btn, card, field, hint, labelStack, nums, table } from "@/app/ui/classes";
+import { btn, card, confirmStep, field, hint, labelStack, nums, table } from "@/app/ui/classes";
 import { useHydrated } from "@/app/use-hydrated";
 import {
   createKeyResultText,
@@ -80,7 +80,7 @@ export function CreateKeyForm() {
         </p>
       )}
       {made && (
-        <div className="rounded-row border border-attention-line bg-attention-soft p-4 text-attention-ink">
+        <div className="rounded-row border border-attention-line bg-attention-soft p-4 text-attention-ink shadow-soft">
           <p role="status" className="font-semibold">
             {KEY_SHOWN_ONCE}
           </p>
@@ -122,9 +122,6 @@ export interface KeyRowView {
   lastUsed: string; // "09:41", "Sat 7 Nov, 09:41" or "Never"
 }
 
-// A second "Yes" before a key stops working: red, like turning off someone's access.
-const confirmPanel = "rounded-row border border-urgent-line bg-urgent-soft p-4";
-
 // The live keys: a table from 768px, stacked cards on a phone. "Revoke" asks first, in place.
 export function ApiKeyTable({ keys }: { keys: KeyRowView[] }) {
   const router = useRouter();
@@ -141,7 +138,7 @@ export function ApiKeyTable({ keys }: { keys: KeyRowView[] }) {
       router.refresh();
     });
   const ask = (k: KeyRowView) => (
-    <div className={confirmPanel}>
+    <div className={confirmStep}>
       <p className="text-urgent-ink">{revokeQuestion(k.label)}</p>
       <div className="mt-3 flex flex-wrap gap-3">
         <button

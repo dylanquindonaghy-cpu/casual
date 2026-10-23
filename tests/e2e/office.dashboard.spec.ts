@@ -213,7 +213,18 @@ test("every urgent place is listed, each with Offer to someone and the rest unde
       await row.locator('summary[aria-label^="More for "]').click();
       await expect(row.getByText("Mark as filled", { exact: true })).toBeVisible();
       await expect(row.getByRole("button", { name: "Not urgent" })).toBeVisible();
+      // It grows out of its button (Phase 22): from the button's left edge on a phone, from its
+      // right edge from 768px, where the buttons end the row.
+      const more = row.locator("details[open] > div");
+      await expect(more).toHaveCSS("animation-name", "sd-pop");
+      await expect(more).toHaveCSS("transform-origin", "0px 0px");
     }
+    const phone = page.viewportSize()!;
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const opened = places.locator("details[open] > div").first();
+    const across = await opened.evaluate((el) => (el as HTMLElement).offsetWidth);
+    await expect(opened).toHaveCSS("transform-origin", `${across}px 0px`);
+    await page.setViewportSize(phone);
     // Soonest first: tomorrow's before the day after's.
     const order = await places
       .locator("[data-urgent-place] a[href^='/office/shifts/']")
@@ -230,9 +241,71 @@ test("every urgent place is listed, each with Offer to someone and the rest unde
     await expect(
       page.getByRole("status").filter({ hasText: "No longer urgent. No more offers will go out." }),
     ).toBeVisible();
+
+    // "Offer": while the offer page is on its way (held back here), a spinner in its word's place
+    // (Phase 22); then the page.
+    const first = places.locator("[data-urgent-place]").filter({
+      has: page.locator(`a[href="/office/shifts/${made[0]!.shiftId}"]`),
+    });
+    await page.route(new RegExp(`/office/offer/${made[0]!.shiftId}(\\?|$)`), async (route) => {
+      const request = route.request();
+      if (request.headers()["rsc"] === "1" && request.headers()["next-router-prefetch"] !== "1")
+        await new Promise((done) => setTimeout(done, 1500));
+      await route.continue();
+    });
+    const offer = first.getByRole("link", { name: "Offer to someone" });
+    await expect(offer.locator(".animate-turn")).toHaveCount(0);
+    await offer.click();
+    await expect(offer.locator(".animate-turn")).toBeVisible();
+    await expect(offer.locator(".animate-turn")).toHaveCSS("animation-name", "sd-turn");
+    await expect(offer.getByText("Offer", { exact: true })).toHaveCSS("opacity", "0");
+    await expect(page).toHaveURL(`${acme}/office/offer/${made[0]!.shiftId}`);
   } finally {
     for (const m of made) await cancelOwnShift("acme", m.shiftId);
   }
+});
+
+// With a mouse on a laptop (Phase 22): a card's jump lands with a ring that fades out round the
+// section it lands on; a day of this week shows its numbers over it under the pointer, or when the
+// keyboard reaches it, and not otherwise.
+test.describe("on a laptop with a mouse", () => {
+  test.use({ viewport: { width: 1280, height: 800 }, hasTouch: false, isMobile: false });
+
+  test("a card's jump shows where it landed; a day's numbers under the pointer or on focus", async ({
+    page,
+  }, testInfo) => {
+    const email = `dashboard.laptop${testInfo.retry || ""}@example.com`;
+    await addOfficeUser("acme", { email, name: "Laptop Resourcer", role: "resourcer" });
+    await officeLogin(page, email);
+
+    await page
+      .getByRole("main")
+      .getByRole("link")
+      .filter({ hasText: /^Waiting on others/ })
+      .click();
+    await expect(page).toHaveURL(`${acme}/office#waiting`);
+    const landed = page.locator("section:has(:target)");
+    await expect(landed).toHaveCount(1);
+    await expect(landed).toHaveCSS("animation-name", "sd-landed");
+
+    const days = page.getByRole("navigation", { name: "This week" }).getByRole("link");
+    await expect(days).toHaveCount(7);
+    const day = days.nth(3);
+    const tip = day.locator('span[aria-hidden="true"]').first();
+    await expect(tip).toHaveText((await day.getAttribute("aria-label"))!);
+    await expect(tip).toBeHidden();
+    await day.hover();
+    await expect(tip).toBeVisible();
+    await expect(tip).toHaveCSS("animation-name", "sd-pop");
+    await page.mouse.move(640, 5);
+    await expect(tip).toBeHidden();
+    await days.nth(2).focus();
+    await page.keyboard.press("Tab");
+    await expect(day).toBeFocused();
+    await expect(tip).toBeVisible();
+    await page.keyboard.press("Tab");
+    await expect(tip).toBeHidden();
+  });
 });
 
 test("/office/today opens the dashboard", async ({ page }) => {

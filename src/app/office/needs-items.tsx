@@ -36,15 +36,17 @@ import { BookingToCheckActions } from "./keep-booking";
 const inSentence = (w: string) =>
   /^[A-Z][a-z]/.test(w) ? w.charAt(0).toLowerCase() + w.slice(1) : w;
 
-// The items of a part, each a near-white row on its panel.
+// The items of a part, each a white row raised off its panel (Phase 22, as on the dashboard; a
+// near-white row with an edge until then).
 const items = "mt-3 flex flex-col gap-2";
-const item = "rounded-row border border-line bg-card/80 px-4 py-3";
+const item = "rounded-row bg-card px-4 py-3 text-ink shadow-raise";
 
 function Empty({ children }: { children: ReactNode }) {
   return <p className={`${item} text-ink-muted`}>{children}</p>;
 }
 
-// One part of Needs attention: its heading (a region the browser tests find it by) and items.
+// One part of Needs attention: its heading (a region the browser tests find it by) and items, on
+// an amber wash with the fine grain and the soft depth (Phase 22, as the dashboard's panels).
 export function Need({
   id,
   n,
@@ -59,7 +61,7 @@ export function Need({
   return (
     <section
       aria-labelledby={id}
-      className="rounded-card border border-attention-line bg-attention-soft p-4 sm:p-6"
+      className="grain-soft rounded-card border border-attention-line bg-attention-soft p-4 shadow-soft sm:p-6"
     >
       <h3 id={id} className="flex items-center text-lg font-semibold tracking-heading">
         {NEEDS_HEADINGS[id]}
@@ -399,7 +401,7 @@ export function AlsoNeedsYou({
   return (
     <section
       aria-labelledby="also-needs-you"
-      className="flex flex-col items-start gap-3 self-start rounded-card border border-urgent-line bg-urgent-soft p-4 sm:p-6 lg:col-span-3"
+      className="grain-soft flex flex-col items-start gap-3 self-start rounded-card border border-urgent-line bg-urgent-soft p-4 shadow-soft sm:p-6 lg:col-span-4"
     >
       <h2 id="also-needs-you" className="text-lg font-semibold tracking-heading">
         Also needs you

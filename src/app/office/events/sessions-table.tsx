@@ -71,7 +71,7 @@ export function SessionsTable({
           )}
           <Link
             href={`/office/events/${e.eventId}`}
-            className={`inline-flex min-h-11 items-center px-1 text-sm font-medium ${textLink}`}
+            className={`press inline-flex min-h-11 items-center px-1 text-sm font-medium ${textLink}`}
             aria-label={`Open the event's page: ${e.name}`}
           >
             Open the event&apos;s page

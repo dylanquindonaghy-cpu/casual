@@ -109,14 +109,14 @@ export default async function EventsPage({
         {/* One row: on a phone it scrolls sideways inside its track, never the page. */}
         <nav
           aria-label="Show"
-          className="flex max-w-full gap-1 overflow-x-auto rounded-full bg-raised p-1"
+          className="flex max-w-full gap-1 overflow-x-auto rounded-full bg-raised p-1 inset-shadow-sunk"
         >
           {filters.map((v) => (
             <Link
               key={v}
               href={viewHref(v, from === today ? undefined : from)}
               aria-current={v === view ? "page" : undefined}
-              className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-4 whitespace-nowrap transition-colors ${
+              className={`press inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-4 whitespace-nowrap ${
                 v === view
                   ? "bg-card font-semibold text-ink shadow-soft"
                   : "font-medium text-ink-muted hover:bg-card/60 hover:text-ink active:bg-card"
@@ -132,7 +132,7 @@ export default async function EventsPage({
             <Link
               href={viewHref(view, earlier === "today" ? undefined : earlier)}
               aria-label="Earlier"
-              className="flex size-11 items-center justify-center rounded-full bg-button text-ink transition-colors hover:bg-button-hover active:bg-button-press"
+              className="press flex size-11 items-center justify-center rounded-full bg-button text-ink shadow-raise hover:bg-button-hover active:bg-button-press"
             >
               <Icon name="chevron" size={17} className="rotate-180" />
             </Link>
@@ -148,7 +148,7 @@ export default async function EventsPage({
           <Link
             href={viewHref(view, later)}
             aria-label="Later"
-            className="flex size-11 items-center justify-center rounded-full bg-button text-ink transition-colors hover:bg-button-hover active:bg-button-press"
+            className="press flex size-11 items-center justify-center rounded-full bg-button text-ink shadow-raise hover:bg-button-hover active:bg-button-press"
           >
             <Icon name="chevron" size={17} />
           </Link>

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { btn, field, label } from "@/app/ui/classes";
+import { btn, confirmStep, field, label } from "@/app/ui/classes";
 import { useHydrated } from "@/app/use-hydrated";
 import { signOutResultText, siteBlockResultText, statusResultText } from "@/lib/office/worker-copy";
 import {
@@ -166,7 +166,7 @@ export function StatusForm({
         )}
       </div>
       {asking && (
-        <div className="mt-4 rounded-row border border-urgent-line bg-urgent-soft p-4">
+        <div className={`mt-4 ${confirmStep}`}>
           <p className="max-w-prose">
             Make {name} inactive? They&apos;re logged out at once, can&apos;t log in or take shifts,
             and get no reminders. Their bookings ahead go on the dashboard to cancel or keep.

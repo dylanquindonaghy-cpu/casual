@@ -69,17 +69,19 @@ describe("colours: tokens only", () => {
       (f) => f !== "src/app/globals.css" && !HEX_ALLOWED.includes(f),
     ).flatMap((file) => [...read(file).matchAll(HEX)].map((m) => `${file}: ${m[0]}`));
     expect(found).toEqual([]);
-    // In the CSS, a colour value only defines a token.
+    // In the CSS, a colour value only defines a token: a colour token is one #rrggbb; the depth
+    // tokens (the five of Phase 20, the office's `soft` of Phase 21 and its `raise`, `float`,
+    // `sheet` and `tint` of Phase 22) and the office's lights and glows (Phase 22: a colour card's
+    // lit top edge, its icon's chip, its coloured shadow) are tokens too. Read declaration by
+    // declaration, since a long one wraps onto several lines.
     const css = read("src/app/globals.css");
     const hasColour = new RegExp(HEX.source, "i");
-    const outside = css.split("\n").filter(
-      (line) =>
-        hasColour.test(line) &&
-        !/^\s*--color-[a-z-]+: #[0-9a-f]{6};/.test(line) &&
-        // The five depth tokens (Phase 20; the pass's since Phase 18), and the office's one
-        // (Phase 21): tokens too.
-        !/^\s*--(?:shadow-(?:lift|panel|pass|bar|soft)|inset-shadow-sunk): [^;]+;$/.test(line),
-    );
+    const tokens =
+      /^\s*--(?:color-[a-z-]+: #[0-9a-f]{6}|(?:shadow-(?:lift|panel|pass|bar|soft|raise|float|sheet|tint)|inset-shadow-sunk|tint-top|card-chip|glow-(?:urgent|attention|wait|done)):[^;]+);/gm;
+    const outside = css
+      .replace(tokens, "")
+      .split("\n")
+      .filter((line) => hasColour.test(line));
     expect(outside).toEqual([]);
   });
 

@@ -36,7 +36,7 @@ export function RequirementsPicker({
         aria-controls={id}
         disabled={disabled || !ready}
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex min-h-11 items-center gap-2 self-start font-semibold text-ink underline underline-offset-4 disabled:cursor-not-allowed disabled:opacity-60"
+        className="press inline-flex min-h-11 items-center gap-2 self-start font-semibold text-ink underline underline-offset-4 disabled:cursor-not-allowed disabled:opacity-60"
       >
         Extra requirements{chosen.length > 0 ? ` (${chosen.length})` : " (optional)"}
       </button>

@@ -131,6 +131,16 @@ const TEXT: [string, string][] = [
   ["ink-muted", "count"],
   ["ink-press", "canvas"],
   ["ink-press", "card"],
+  // Phase 22 (round 2): the page as a sheet on the window, the menu's current page (a raised white
+  // pill), and the dashboard's four cards in full colour, their numbers in ink and their words in
+  // their own dark ink.
+  ["ink", "sheet"],
+  ["ink-muted", "sheet"],
+  ["ink", "pill"],
+  ...(["urgent", "attention", "wait", "done"] as const).flatMap((c): [string, string][] => [
+    ["ink", `${c}-card`],
+    [`${c}-card-ink`, `${c}-card`],
+  ]),
 ];
 
 // Borders, controls and the focus ring against what's around them (3:1).
@@ -150,6 +160,9 @@ const CONTROLS: [string, string][] = [
   ["ink", "card"],
   ["ink", "panel"],
   ["brand", "card"],
+  // Phase 22: a field or an outlined control on the page's sheet.
+  ["line-strong", "sheet"],
+  ["ink", "sheet"],
 ];
 
 describe("the themes (src/app/globals.css)", () => {

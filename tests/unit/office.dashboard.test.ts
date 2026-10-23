@@ -596,7 +596,7 @@ describe("the page (Phases 18 and 20: the dashboard)", () => {
   const tiles = (html: string) =>
     [
       ...html.matchAll(
-        /<(a|div) ([^>]*class="grid min-h-32 [^"]*rounded-card [^"]*"[^>]*)>([\s\S]*?)<\/\1>/g,
+        /<(a|div) ([^>]*class="[^"]*(?<![\w-])grid min-h-32 [^"]*rounded-card [^"]*"[^>]*)>([\s\S]*?)<\/\1>/g,
       ),
     ].map((m) => {
       const href = /href="([^"]*)"/.exec(m[2] ?? "")?.[1];
@@ -750,6 +750,27 @@ describe("the page (Phases 18 and 20: the dashboard)", () => {
     const page = render(full, { payQueriesWaiting: 3 });
     for (const id of ["urgent-places", "needs-attention", "waiting", "sorted"])
       expect(page).toMatch(new RegExp(`<h2 id="${id}" class="scroll-mt-20 `));
+    // Phase 22: each in full flat colour with its grain and glow (`tint-…`, `shadow-tint`), lifting
+    // under the pointer and dipping when pressed; a plain link to its section (Next's <Link> never
+    // sets :target), which shows where you landed.
+    const cards = [...page.matchAll(/<a href="(#[a-z-]+)" class="([^"]*)">/g)];
+    expect(cards.map((m) => m[1])).toEqual([
+      "#urgent-places",
+      "#needs-attention",
+      "#waiting",
+      "#sorted",
+    ]);
+    cards.forEach((m, i) => {
+      const cls = m[2]!;
+      expect(cls).toMatch(/^press grain grid min-h-32 /);
+      expect(cls).toContain("shadow-tint hover:-translate-y-0.5");
+      expect(cls).toContain(["tint-urgent", "tint-attention", "tint-wait", "tint-done"][i]!);
+      expect(cls).not.toMatch(/gradient/);
+    });
+    for (const id of ["urgent-places", "needs-attention", "waiting", "sorted"])
+      expect(page).toMatch(
+        new RegExp(`<section aria-labelledby="${id}" class="[^"]*has-\\[:target\\]:animate-landed`),
+      );
     expect(attentionText([])).toBe("Nothing waiting for you");
   });
 
@@ -761,7 +782,22 @@ describe("the page (Phases 18 and 20: the dashboard)", () => {
     const nav = /<nav aria-label="This week"[^>]*>([\s\S]*?)<\/nav>/.exec(html)?.[1] ?? "";
     const days = [
       ...nav.matchAll(/<a aria-label="([^"]*)" class="([^"]*)" href="([^"]*)">([\s\S]*?)<\/a>/g),
-    ].map((m) => ({ label: m[1], href: m[3], inner: m[4] ?? "", shown: words(m[4] ?? "") }));
+    ].map((m) => {
+      const inner = m[4] ?? "";
+      // Its details over it (Phase 22), shown under the pointer or on focus: the same words as its
+      // name.
+      const tip = /<span aria-hidden="true" class="pointer-events-none [^"]*">([^<]*)<\/span>/;
+      const rest = inner.replace(tip, "");
+      return {
+        label: m[1],
+        href: m[3],
+        inner,
+        tip: tip.exec(inner)?.[1],
+        // From 640px, and on a phone (the short forms).
+        shown: words(rest.replace(/<span class="sm:hidden">[^<]*<\/span>/g, "")),
+        phone: words(rest.replace(/<span class="hidden sm:inline">[^<]*<\/span>/g, "")),
+      };
+    });
     expect(days.map((d) => [d.href, d.label])).toEqual([
       ["/office/shifts?from=2026-11-02", "Mon 2 Nov, today: Nothing on"],
       ["/office/shifts?from=2026-11-03", "Tue 3 Nov: All filled, 4 of 4 places filled"],
@@ -771,6 +807,13 @@ describe("the page (Phases 18 and 20: the dashboard)", () => {
       ["/office/shifts?from=2026-11-07", "Sat 7 Nov: 2 urgent, 1 of 3 places filled"],
       ["/office/shifts?from=2026-11-08", "Sun 8 Nov: Nothing on"],
     ]);
+    expect(days.map((d) => d.tip)).toEqual(days.map((d) => d.label));
+    // Hidden until the pointer is over the day or the keyboard reaches it, then it grows out over
+    // it (office.dashboard.spec.ts hovers and tabs to one).
+    for (const d of days)
+      expect(d.inner).toMatch(
+        /<span aria-hidden="true" class="pointer-events-none [^"]* hidden [^"]*animate-pop [^"]*group-hover\/day:block group-focus-visible\/day:block /,
+      );
     // An empty day says so (Phase 21).
     expect(days.map((d) => d.shown)).toEqual([
       "Today No sessions",
@@ -781,8 +824,21 @@ describe("the page (Phases 18 and 20: the dashboard)", () => {
       "Sat 1/3",
       "Sun No sessions",
     ]);
+    // On a phone, seven to a row (Phase 22: standing, not lying down): today by its day's name, an
+    // empty day a dash.
+    expect(days.map((d) => d.phone)).toEqual([
+      "Mon –",
+      "Tue 4/4",
+      "Wed 3/6",
+      "Thu 6/10",
+      "Fri –",
+      "Sat 1/3",
+      "Sun –",
+    ]);
     // Today in a dark pill; a day with urgent gaps in the urgent red, its bar too.
-    expect(days[0]?.inner).toMatch(/bg-ink[^"]*font-semibold[^"]*text-on-ink[^"]*">Today</);
+    expect(days[0]?.inner).toMatch(
+      /bg-ink[^"]*font-semibold[^"]*text-on-ink[^"]*"><span class="sm:hidden">Mon<\/span><span class="hidden sm:inline">Today</,
+    );
     // Today with urgent gaps keeps the pill's own text colour (red on it fails the contrast test).
     if (!full.week.ok) throw new Error("fixture");
     const week = full.week.data;
@@ -791,7 +847,7 @@ describe("the page (Phases 18 and 20: the dashboard)", () => {
       week: ok(week.map((w) => (w.date === "2026-11-02" ? { ...week[2]!, date: w.date } : w))),
     });
     const todayPill =
-      /<span class="([^"]*)">Today<\/span>/.exec(
+      /<span class="([^"]*)"><span class="sm:hidden">\w+<\/span><span class="hidden sm:inline">Today<\/span><\/span>/.exec(
         /<nav aria-label="This week"[^>]*>([\s\S]*?)<\/nav>/.exec(urgentToday)?.[1] ?? "",
       )?.[1] ?? "";
     expect(todayPill).toContain("bg-ink px-2 font-semibold text-on-ink");
@@ -822,7 +878,9 @@ describe("the page (Phases 18 and 20: the dashboard)", () => {
     expect(later).toMatch(
       /aria-label="Tue 3 Nov: 1 to mark, 4 of 4 places filled"[^>]*href="\/office\/needs-attention#to-mark"/,
     );
-    expect(later).toMatch(/bg-hivis[^"]*text-on-hivis[^"]*">1 to mark</);
+    expect(later).toMatch(
+      /bg-hivis[^"]*text-on-hivis[^"]*"><span class="sm:hidden">1<\/span><span class="hidden sm:inline">1 to mark</,
+    );
     expect(later).toMatch(/aria-label="Wed 4 Nov: [^"]*"[^>]*>[\s\S]*?bg-line-strong[\s\S]*?done</);
     expect(later).toContain('aria-label="Thu 5 Nov, today: 4 open, 6 of 10 places filled"');
   });
@@ -853,8 +911,18 @@ describe("the page (Phases 18 and 20: the dashboard)", () => {
     expect(words(first!)).not.toContain("The office was emailed about it.");
     // Its actions: offer it (the main one: "Offer", a small black pill, still named "Offer to
     // someone"); "…" opens mark as filled and not urgent.
+    // Phase 22: it dips when pressed, and its word gives way to a spinner while the offer page
+    // opens (office.dashboard.spec.ts holds the offer page back and sees it); the date tile a small
+    // calendar page, its day on a red band; the bar set in a groove. "…" opens a menu that grows
+    // out of its button: from its left edge on a phone, its right edge from 768px.
     expect(first).toMatch(
-      /<a aria-label="Offer to someone" class="[^"]*min-h-11[^"]*" href="\/office\/offer\/u1"><span class="[^"]*bg-ink[^"]*">Offer<\/span><\/a>/,
+      /<a aria-label="Offer to someone" class="press [^"]*min-h-11[^"]*" href="\/office\/offer\/u1"><span class="[^"]*bg-ink[^"]*shadow-raise[^"]*"><span class="relative inline-flex items-center justify-center"><span>Offer<\/span><\/span><\/span><\/a>/,
+    );
+    expect(first).toMatch(
+      /<span role="img" aria-label="Saturday 7 November" class="[^"]*bg-card[^"]*shadow-raise"><span class="[^"]*bg-urgent-fill[^"]*text-on-urgent[^"]*">Sat<\/span>/,
+    );
+    expect(first).toMatch(
+      /class="block h-2 w-full overflow-hidden rounded-full bg-raised inset-shadow-sunk"/,
     );
     expect(first!.replace(/&#x27;/g, "'")).toMatch(
       /<summary aria-label="More for Saturday's door supervisor at 06:00: mark as filled, not urgent"/,
@@ -865,6 +933,9 @@ describe("the page (Phases 18 and 20: the dashboard)", () => {
       )?.[1];
     expect(words(more ?? "")).toContain("Mark as filled");
     expect(words(more ?? "")).toContain("Not urgent");
+    expect(more).toMatch(
+      /^<div class="[^"]* origin-top-left animate-pop [^"]*shadow-float md:right-0 md:left-auto md:origin-top-right">/,
+    );
     // The second: hidden, offers stopped, the office emailed.
     expect(words(second!)).toContain("Hidden from casuals: nobody can see this gap.");
     expect(words(second!)).toContain("Offers stopped: nobody else can take it.");
@@ -1014,19 +1085,36 @@ describe("the page (Phases 18 and 20: the dashboard)", () => {
   });
 
   // Phase 21's parts, as drawn (Dylan's brief; the claims-auditor's round 1).
-  it("this week: the dashed line where every place is filled, and the rota board as a grey pill", () => {
+  // Phase 22 (round 2): each day's bar stands in its groove, whose top is every place filled (the
+  // dashed line of Phase 21), striped on a day with no sessions.
+  it("this week: each day's bar in its groove (striped with no sessions), and the rota board as a white pill", () => {
     const week = section(render(full), "this-week");
-    expect(week).toMatch(
-      /<span aria-hidden="true" class="[^"]*border-t border-dashed border-line-strong[^"]*"><span class="[^"]*">All filled<\/span><\/span>/,
-    );
+    const grooves = [
+      ...week.matchAll(
+        /<span aria-hidden="true" class="([^"]*rounded-row bg-raised inset-shadow-sunk[^"]*)">/g,
+      ),
+    ].map((m) => m[1]!);
+    expect(grooves).toHaveLength(7);
+    // Mon, Fri and Sun have no sessions.
+    expect(grooves.map((g) => / stripes$/.test(g))).toEqual([
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+    ]);
+    expect(week).not.toContain("border-dashed");
     expect(week).toContain(
       `<a class="${btn.secondary} w-full sm:row-start-3 sm:w-auto sm:self-start" href="/office/events">Open the rota board</a>`,
     );
     expect(btn.secondary).toMatch(/(?<![\w-])bg-button(?![\w-])/);
     expect(btn.secondary).toMatch(/(?<![\w-])rounded-full(?![\w-])/);
+    expect(btn.secondary).toMatch(/(?<![\w-])shadow-raise(?![\w-])/);
     // Couldn't load: neither, only the words.
     const broken = section(render({ ...full, week: failed }), "this-week");
-    expect(broken).not.toContain("All filled");
+    expect(broken).not.toContain("inset-shadow-sunk");
     expect(broken).not.toContain("Open the rota board");
   });
 
@@ -1043,12 +1131,13 @@ describe("the page (Phases 18 and 20: the dashboard)", () => {
       }),
     });
     const [place] = places(html);
+    // Phase 22: a red dot before it.
     expect(place).toMatch(
-      /<p class="text-sm lg:w-40 font-semibold text-urgent">Not offered yet<\/p>/,
+      /<p class="flex items-center gap-2 text-sm lg:w-40 font-semibold text-urgent"><span aria-hidden="true" class="size-2 shrink-0 rounded-full bg-urgent-fill"><\/span>Not offered yet<\/p>/,
     );
-    // One that was offered: its words in grey.
+    // One that was offered: its words in grey, no dot.
     expect(places(render(full))[0]).toMatch(
-      /<p class="text-sm lg:w-40 text-ink-muted">Offered to 4 casuals<\/p>/,
+      /<p class="flex items-center gap-2 text-sm lg:w-40 text-ink-muted">Offered to 4 casuals<\/p>/,
     );
     // The office's one count pill; red only for the urgent places.
     expect(section(render(full), "urgent-places")).toContain(
@@ -1060,22 +1149,31 @@ describe("the page (Phases 18 and 20: the dashboard)", () => {
     );
   });
 
-  it("Needs attention, Waiting on others and Sorted today: tinted panels (a 1px edge a shade darker) of near-white rows", () => {
+  // Phase 22: a faint grain over each wash, the panel raised off the page; its rows white and raised
+  // off it, lifting under the pointer and dipping when pressed; Needs attention's one to a line.
+  it("Needs attention, Waiting on others and Sorted today: tinted panels (a 1px edge a shade darker) of raised white rows", () => {
     const html = render(full, { payQueriesWaiting: 3 });
     const panel = (id: string) =>
       new RegExp(`<section aria-labelledby="${id}" class="([^"]*)"`).exec(html)?.[1] ?? "";
-    expect(panel("needs-attention")).toMatch(
-      /rounded-card border .*border-attention-line bg-attention-soft/,
-    );
-    expect(panel("waiting")).toMatch(/rounded-card border .*border-wait-line bg-wait-soft/);
-    expect(panel("sorted")).toMatch(/rounded-card border .*border-done-line bg-done-soft/);
+    for (const [id, tint] of [
+      ["needs-attention", "border-attention-line bg-attention-soft"],
+      ["waiting", "border-wait-line bg-wait-soft"],
+      ["sorted", "border-done-line bg-done-soft"],
+    ] as const) {
+      expect(panel(id), id).toMatch(/^grain-soft /);
+      expect(panel(id), id).toMatch(/(?<![\w-])border(?![\w-]).* shadow-soft .*rounded-card /);
+      expect(panel(id), id).toMatch(new RegExp(`${tint}$`));
+    }
+    expect(section(html, "needs-attention")).not.toContain("lg:grid-cols-2");
     for (const id of ["needs-attention", "waiting", "sorted"]) {
       const rowClasses = [...section(html, id).matchAll(/<a class="([^"]*)" href=/g)]
         .map((m) => m[1] ?? "")
         .filter((c) => c.includes("min-h-16"));
       expect(rowClasses.length, id).toBeGreaterThan(0);
       for (const c of rowClasses)
-        expect(c, id).toMatch(/rounded-row border border-line bg-card\/80/);
+        expect(c, id).toMatch(
+          /rounded-row bg-card px-4 py-3 text-ink shadow-raise press group h-full hover:-translate-y-0\.5/,
+        );
     }
   });
 

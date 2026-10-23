@@ -156,10 +156,10 @@ the demo.
 
 The office is made for a laptop or desktop: if you switched Chrome to a phone view, press F12
 again to go back. Every office page has the same menu on the left, with the page you're on
-marked; "How-to guide", near its bottom, explains each job step by step. (In a narrow window the
-menu hides behind "Menu" at the top left, and "Close menu" puts it away.) At the top right: the
-bell (what needs attention), the moon or sun (dark or light) and your name, which opens "How-to
-guide" and "Log out".
+marked and "Needs attention" counting what needs you. (In a narrow window the menu hides behind
+"Menu" at the top left, and "Close menu" puts it away.) Above the menu, beside the firm's name:
+your initials (at the top right in a narrow window), which open "Switch to dark mode" (or light),
+"How-to guide", which explains each job step by step, and "Log out".
 
 22. **Log in as the resourcer.** Go to `http://acme.localhost:3000/office/login`, type
     `acme.resourcer@example.com` in "Your work email", and click "Send me a link". In the dev

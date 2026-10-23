@@ -5,10 +5,11 @@ import { THEME_COOKIE, type Theme } from "../theme";
 import { Icon } from "../ui/icons";
 import { useHydrated } from "../use-hydrated";
 
-// The office's moon/sun button (docs/office-v2.md 3.1): switches between light and dark, and
-// keeps the choice in the sd-theme cookie (a year), which the root layout reads so the next page
-// arrives in the same colours. Its name says what it switches to; the same words show beside it
-// on hover and keyboard focus. Waits for the page to be ready, so a tap is never lost.
+// The office's moon/sun switch (docs/office-v2.md 3.1): switches between light and dark, and keeps
+// the choice in the sd-theme cookie (a year), which the root layout reads so the next page
+// arrives in the same colours. Its words say what it switches to ("Switch to dark mode"). Phase
+// 22: a row of the account menu (a round button in the top bar and at the menu's foot until
+// then). Waits for the page to be ready, so a tap is never lost.
 
 const ONE_YEAR = 60 * 60 * 24 * 365;
 
@@ -44,22 +45,14 @@ export function ThemeButton({ initial }: { initial: Theme | undefined }) {
   };
 
   return (
-    <span className="group relative inline-flex">
-      <button
-        type="button"
-        aria-label={label}
-        disabled={!hydrated}
-        onClick={choose}
-        className="inline-flex size-11 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-quiet-soft hover:text-ink active:bg-raised disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        <Icon name={shown === "dark" ? "sun" : "moon"} />
-      </button>
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute top-full right-0 z-30 mt-1 hidden rounded-full bg-ink px-3 py-1 text-sm whitespace-nowrap text-on-ink shadow-soft group-hover:block group-focus-within:block lg:top-auto lg:bottom-full lg:mt-0 lg:mb-1"
-      >
-        {label}
-      </span>
-    </span>
+    <button
+      type="button"
+      disabled={!hydrated}
+      onClick={choose}
+      className="press flex min-h-11 w-full items-center gap-3 rounded-row px-3 text-left font-medium text-ink hover:bg-quiet-soft active:bg-raised disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      <Icon name={shown === "dark" ? "sun" : "moon"} className="text-ink-muted" />
+      {label}
+    </button>
   );
 }

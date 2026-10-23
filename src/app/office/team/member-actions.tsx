@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { btn, field } from "@/app/ui/classes";
+import { btn, checkStep, confirmStep, field } from "@/app/ui/classes";
 import { useHydrated } from "@/app/use-hydrated";
 import { ROLE_LABELS, type OfficeRole } from "@/lib/auth/roles";
 import { teamResultText, type TeamActionResult } from "@/lib/office/team-copy";
@@ -11,8 +11,8 @@ import { changeOfficeAccessAction } from "./actions";
 // The request itself failed: the server may have made the change, so don't say it didn't.
 const failed = { status: "unknown" as const };
 const ROLES = Object.keys(ROLE_LABELS) as OfficeRole[];
-// A second "Yes" before a change: red for taking access away, grey for making someone an admin.
-const confirmPanel = "rounded-row border p-4";
+// A second "Yes" before a change: red for taking access away (`confirmStep`), grey for making
+// someone an admin (`checkStep`).
 
 type Change =
   | { change: "disable" }
@@ -124,7 +124,7 @@ export function MemberActions(props: {
         </div>
       )}
       {confirming === "admin" && (
-        <div className={`${confirmPanel} border-quiet-line bg-quiet-soft`}>
+        <div className={checkStep}>
           <p>
             Make {props.name} an admin? Admins can change the office team and download or delete
             workers&apos; data.
@@ -153,7 +153,7 @@ export function MemberActions(props: {
         </div>
       )}
       {confirming === "disable" && props.active && (
-        <div className={`${confirmPanel} border-urgent-line bg-urgent-soft`}>
+        <div className={confirmStep}>
           <p className="text-urgent-ink">
             Turn off {props.name}&apos;s access? They&apos;re logged out at once and can&apos;t log
             in until it&apos;s turned back on.

@@ -1,4 +1,4 @@
-import { and, eq, gt, lt, notInArray, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, lt, notInArray, sql } from "drizzle-orm";
 import { Client, Pool } from "pg";
 import { applyCredentialPack } from "../../credentials/apply-pack";
 import { recordEvent } from "../../events/record";
@@ -9,6 +9,7 @@ import {
   assignments,
   credentials,
   firms,
+  offers,
   officeUsers,
   payQueries,
   payRecords,
@@ -17,7 +18,7 @@ import {
   sites,
   workers,
 } from "../schema";
-import { seedFirms, type SeedFirm } from "./seed-data";
+import { seedFirms, weekOffers, type SeedFirm } from "./seed-data";
 import { acmeSaturday, type SaturdaySeed } from "./seed-saturday";
 import {
   acmePastEvent,
@@ -28,6 +29,9 @@ import {
   type PayQuerySeed,
 } from "./seed-extras";
 import { groupFactsFor, payGroupKey } from "../../pay/grouping";
+import { lockOfferCounts } from "../../offers/candidates";
+import { noticeHours } from "../../roster/notice";
+import { quietHours } from "../../rules/quiet-hours";
 import { hoursToStart, insideUrgentWindow, urgentWindowHours } from "../../rules/urgent";
 import { fakePoint } from "../../travel/geocoder";
 import { acmeStory } from "./seed-story";
@@ -38,10 +42,11 @@ import { isLocalHost } from "./urls";
 // app role can't create firms); everything else goes through withFirm as the app role, like the
 // app itself. Rows are upserted by fixed ids, so running it again changes nothing, and it puts
 // seeded rows back as seeded (status included). Acme's Saturday event day (seed-saturday.ts:
-// shifts, bookings, the urgent dropout, requests, pay records) is only ever added, never reset,
-// so a re-run mid-demo can't undo the demo; its bookings, dropout and requests are logged as the
-// app would log them, once, when first added. Rows added during a demo stay: only
-// `npm run db:reset` returns the database to exactly the demo state.
+// shifts, bookings, the urgent dropout, requests, pay records, and this week's offers on it) is
+// only ever added, never reset, so a re-run mid-demo can't undo the demo or add to it; its
+// bookings, dropout, requests and offers are logged as the app would log them, once, when first
+// added. Rows added during a demo stay: only `npm run db:reset` returns the database to exactly
+// the demo state.
 
 export interface SeedSummary {
   firms: {
@@ -88,7 +93,9 @@ export async function seed(opts: {
       const story = firm.slug === "acme" ? acmeStory(firm, now) : null;
       await withFirm(firm.id, async (tx) => {
         await loadFirm(tx, firm);
-        if (saturday) await loadSaturday(tx, firm, saturday, now);
+        const freshSaturday = saturday
+          ? await loadSaturday(tx, firm, saturday, now)
+          : new Set<string>();
         // The walkthrough's other states (seed-extras.ts, Phase 10 task 20).
         if (firm.slug === "acme") {
           const past = acmePastEvent(firm.workers, firm.sites, now);
@@ -96,6 +103,8 @@ export async function seed(opts: {
           await loadPayQueries(tx, acmePayQueries(firm.workers, past, now));
         }
         if (story) await loadStory(tx, firm, story, now);
+        // This week's offers (the dashboard's offers chart, Phase 23), once the bookings are in.
+        if (saturday) await loadWeekOffers(tx, firm, { saturday, fresh: freshSaturday, now });
         if (firm.slug === "northline") {
           await loadExtraShifts(tx, firm, northlineNight(firm.workers, firm.sites, now));
         }
@@ -243,13 +252,14 @@ async function withEvents<T extends { siteId: string | null; startsAt: Date }>(
 
 // Acme's Saturday: added once (fixed ids, nothing overwritten), and logged once, as the app logs
 // a booking, a cancellation and a request (ids and notice hours only; the reason and the notes
-// stay on their rows).
-async function loadSaturday(
+// stay on their rows). Returns the shifts added just now. Exported for seed.test.ts, which loads a
+// Saturday on a fixed day inside a transaction it rolls back.
+export async function loadSaturday(
   tx: FirmTx,
   firm: SeedFirm,
   day: SaturdaySeed,
   now: Date,
-): Promise<void> {
+): Promise<Set<string>> {
   const firmId = firm.id;
   const newShifts = await tx
     .insert(shifts)
@@ -278,7 +288,10 @@ async function loadSaturday(
   }
   const bookings = day.bookings.filter((b) => fresh.has(b.shiftId));
   const toAsk = day.requests.filter((r) => fresh.has(r.shiftId));
-  if (bookings.length === 0) return loadPay(tx, firmId, day);
+  if (bookings.length === 0) {
+    await loadPay(tx, firmId, day);
+    return fresh;
+  }
   const added = await tx
     .insert(assignments)
     .values(
@@ -378,6 +391,107 @@ async function loadSaturday(
     });
   }
   await loadPay(tx, firmId, day);
+  return fresh;
+}
+
+// This week's made-up offers (seed-data.ts weekOffers), only on the Saturday's shifts added just
+// now, as loadSaturday adds bookings and requests: waiting on its open places, and said yes for its
+// own bookings made this week, as stored. A Saturday already there (and whatever a demo did with
+// it) gets none, so a re-run adds none. None said no: the app can't record a "no" yet (PLAN.md's
+// Parking lot). None in Acme's quiet hours, when the app holds an offer. Each sent by Acme's
+// resourcer, added once (fixed ids; one already there, or another office offer of the same session
+// to the same casual, is left as it is) and logged once as the app logs a sent offer (offer.sent,
+// ids and notice hours only; dated when the seed ran, as the log can't be backdated). It takes the
+// offer-count lock before its insert, like every offer writer (tests/unit/offers.boundary.test.ts),
+// but doesn't check the daily cap: tests/integration/seed.test.ts checks what it wrote against it.
+// Nothing is sent. Exported for that test too.
+export async function loadWeekOffers(
+  tx: FirmTx,
+  firm: SeedFirm,
+  o: { saturday: SaturdaySeed; fresh: Set<string>; now: Date },
+): Promise<void> {
+  const resourcer = firm.officeUsers.find((u) => u.role === "resourcer");
+  if (!resourcer) throw new Error(`${firm.slug} has no resourcer to send offers`);
+  if (o.fresh.size === 0) return; // the Saturday was already there: nothing to add
+  const ids = o.saturday.bookings.filter((b) => o.fresh.has(b.shiftId)).map((b) => b.id);
+  const booked = await tx
+    .select({
+      id: assignments.id,
+      shiftId: assignments.shiftId,
+      workerId: assignments.workerId,
+      confirmedAt: assignments.confirmedAt,
+      startsAt: shifts.startsAt,
+    })
+    .from(assignments)
+    .innerJoin(
+      shifts,
+      and(eq(shifts.firmId, assignments.firmId), eq(shifts.id, assignments.shiftId)),
+    )
+    .where(
+      and(
+        inArray(assignments.id, ids),
+        eq(assignments.status, "confirmed"),
+        gt(shifts.startsAt, o.now),
+      ),
+    );
+  const planned = weekOffers({
+    now: o.now,
+    workers: firm.workers,
+    quiet: quietHours(firm.settings),
+    openPlaces: o.saturday.shifts
+      .filter((s) => o.fresh.has(s.id) && s.status === "open" && !s.isUrgent)
+      .map((s) => ({ id: s.id, role: s.role })),
+    bookings: booked.flatMap((b) =>
+      b.workerId && b.confirmedAt
+        ? [{ ...b, workerId: b.workerId, confirmedAt: b.confirmedAt }]
+        : [],
+    ),
+  });
+  if (planned.length === 0) return;
+  await lockOfferCounts(
+    tx,
+    planned.map((p) => p.workerId),
+  );
+  const added = await tx
+    .insert(offers)
+    .values(
+      planned.map((p) => ({
+        id: p.id,
+        firmId: firm.id,
+        shiftId: p.shiftId,
+        workerId: p.workerId,
+        offeredBy: resourcer.id,
+        channel: "sms" as const,
+        sentAt: p.sentAt,
+        response: p.response,
+        respondedAt: p.respondedAt,
+      })),
+    )
+    .onConflictDoNothing()
+    .returning({ id: offers.id });
+  // Each session's start, for the notice the offer gave.
+  const startOf = new Map([
+    ...o.saturday.shifts.map((x): [string, Date] => [x.id, x.startsAt]),
+    ...booked.map((b): [string, Date] => [b.shiftId, b.startsAt]),
+  ]);
+  const newlyAdded = new Set(added.map((a) => a.id));
+  for (const p of planned) {
+    if (!newlyAdded.has(p.id)) continue;
+    const startsAt = startOf.get(p.shiftId);
+    await recordEvent(tx, {
+      actorType: "system",
+      action: "offer.sent",
+      entityType: "offer",
+      entityId: p.id,
+      data: {
+        shiftId: p.shiftId,
+        workerId: p.workerId,
+        offeredBy: resourcer.id,
+        noticeHours: startsAt ? noticeHours(startsAt, p.sentAt) : null,
+        channel: "sms",
+      },
+    });
+  }
 }
 
 async function loadPay(tx: FirmTx, firmId: string, day: SaturdaySeed): Promise<void> {

@@ -95,6 +95,13 @@ export function addDays(isoDate: string, days: number): string {
   return `${moved.getUTCFullYear()}-${pad(moved.getUTCMonth() + 1)}-${pad(moved.getUTCDate())}`;
 }
 
+// Midnight at the start of a calendar day (yyyy-mm-dd) in the zone, as a UTC instant. A day ends at
+// the next day's midnight, 23 or 25 hours later on the days the clocks change: never add 24 hours.
+export function startOfDay(isoDate: string, timeZone: string): Date {
+  const [year = 2000, month = 1, day = 1] = isoDate.split("-").map(Number);
+  return zonedToUtc({ year, month, day, hour: 0, minute: 0 }, timeZone);
+}
+
 // The Monday of the week `day` (yyyy-mm-dd) is in.
 export function mondayOf(day: string): string {
   const weekday = new Date(`${day}T00:00:00Z`).getUTCDay(); // 0 Sunday … 6 Saturday

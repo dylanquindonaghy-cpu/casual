@@ -291,6 +291,54 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   button's edge, "Offer"'s spinner while the offer page is held back, the landing ring, a week
   day's numbers under the pointer and on focus); `office.changes.spec.ts` (a cancel's
   confirmation outlives the refresh that moves the booking to Cancelled).
+- Phase 23 (the office's look, round 3, and the dashboard's charts; docs/ui-design.md "Phase
+  23"): `ui.office-system.test.ts` now pins Plus Jakarta Sans self-hosted (DM Sans, DM Mono and
+  Newsreader gone), the cool greys, the corners (28px page and menu cards, 22px cards inside, 14px
+  rows, round pills, 4px chart marks in `charts.tsx` only), the one overlay and nothing else with
+  depth, no grain, stripes, glows or tinted cards, the system's mono only on Integrations' keys,
+  round 3's parts in use (tabs, notices, code boxes) and every white box with its hairline.
+  `ui.flat.test.ts` the overlay (`shadow-float: var(--overlay)`, darker in dark), the page a white
+  card (22px, 28px from 1024px) and each file's floats. `ui.contrast.test.ts` the cool greys and
+  every new pair in both themes (the sky and its near-black words, `line-strong`, the marks).
+  `ui.parts-motion.test.ts` no lift under the pointer; `ui.theme.test.ts` the 40px numbers.
+  `office.shell.test.ts`: the top bar's parts (Menu, the firm, the pay week, the shifts line, the
+  square switch and its label that stays under the pointer, you), 44px rows on touch and 34px
+  with a mouse, the pale blue pill, the drawer empty until opened. `pay.week.test.ts` the pay
+  week's three parts and the week of the clock change. `office.events.test.ts` the board's today
+  circle and grey weekends. `guides.test.ts` the guide's "Getting around" and dashboard topics.
+  The charts: `office.dashboard-charts.test.ts` (unit) every builder (the places, events, offers,
+  waited, cancellations and licences charts, their takes, legends, Numbers tables, panels,
+  empty and unread states, "50+" and "Showing the first 50." when a list stopped, an age with
+  none of its rows loaded, hidden places past the 50 rows, "Nothing is left to fill", a letter
+  for each weekday on the cancellations chart, "Open the session" on every offer row, days
+  across 25 Oct, pay only for roles that can open it); `office.dashboard-charts.test.ts`
+  (integration) each loader against Postgres with another firm's rows (the clock change, the
+  offers' states, the hidden places counted past the 50 rows, the events with hidden gaps counted
+  past the 8 bars, "booked after it runs out" past Needs attention's 50 and a night session's last
+  day, the enquiries named without their words or number); `office.dashboard.test.ts` the page as drawn (the count cards, the
+  urgent places' cards, the six charts' marks and labels, each panel's rows and links, a part
+  that couldn't load showing its notice in its own card and panel while the rest still shows,
+  every old link still on the page); `office.dashboard-ui.test.ts` the tooltip's place (over or
+  under a column or dot, beside a row of bars, flipping at the window's edges) and class (its
+  bridge on the side facing its mark), the click passed on, the panel's in-page links, the
+  licence names' side, and the office's scroll padding;
+  `strikes.evidence.test.ts` the Needs attention card's panel. The seed: `seed.test.ts` this
+  week's offers (waiting and said yes only, none over the daily cap or in the firm's quiet
+  hours, each one the rules allow, nothing sent, a re-run after a demo change adding nothing);
+  `offers.boundary.test.ts` the offer-count lock before the insert in every offer writer, the
+  seed's included. Browser: `office.look.spec.ts` (every office page and the login
+  pages at 390px and 1280 × 640, light and dark: Plus Jakarta loaded, the flat cards, the sky main
+  button, nothing sideways); `office.shell.spec.ts` (the top bar, the menu card, the menu's fit at
+  1280 × 640, the square switch's label hoverable and gone with Escape, a control the keyboard
+  moves to under the top bar scrolled clear of it); `office.dashboard.spec.ts` (the count cards'
+  panels, a side panel on a laptop and a sheet on a phone, Escape and focus back, a panel's link to
+  a chart putting the focus on its heading, the tooltip on hover and focus, staying when the
+  pointer moves onto it and gone with Escape, a row's figures beside it so the pointer and a click
+  reach the row above, Numbers, the page never sideways, the licence names
+  at 640px and 1024px, the cancellations chart opening at today, staying where it was swiped when
+  only the window's height changes); `office.attendance.spec.ts`
+  (Mark who worked from the Needs attention card's panel); `walkthrough.spec.ts` (steps 23 and 24
+  through the charts and panels).
 
 ## Fixtures and the demo seed
 
@@ -330,6 +378,21 @@ before a call so it's the coming one):
   that was before 06:00 ("I'm unwell", notice recorded). It's open again and marked urgent. The
   seed prints a link to its page.
 - Two open requests: a time change and a swap.
+- This week's offers (Phase 23, for the dashboard's offers chart; `weekOffers` in
+  `src/lib/db/admin/seed-data.ts`), each sent by Acme's resourcer by text between Monday midnight
+  (London) and when the seed runs, and logged as sent: 10 waiting for a reply on Saturday's open
+  places (never the urgent dropout), and "said yes" for up to 12 of Saturday's bookings made this
+  week (each sent 20 minutes before it was booked, or earlier when that falls in Acme's quiet
+  hours, and left out when that would be before Monday; a seed run before about 07:20 on Thursday
+  has none yet, and one on Monday before 07:00 has no offers at all). None is sent in Acme's quiet
+  hours, as the app holds offers then. Only the run that adds the Saturday writes its offers, so a
+  re-run never adds one, even after a demo cancels a booking. Like the seed's bookings, their `offer.sent` entries in the action log are
+  dated when the seed ran (the log can't be backdated), not when each offer says it was sent. None
+  said no: the app can't record a "no" yet. Never to the five workers kept free for demo logins
+  or to anyone the walkthrough logs in as; each to a casual the booking rules allow, none over
+  the daily offer cap (3 a day), and nothing is sent. The seed takes the offer-count lock as every
+  offer writer does (`offers.boundary.test.ts`); `seed.test.ts` checks the cap and the rules on
+  what it wrote.
 - Every Acme worker has 1 to 8 weekly pay lines from the last 8 complete weeks (stewards £13.00
   an hour, door supervisors £14.50, security officers £13.50).
 - The action log has each shift's creation, each booking, the cancellation (with notice hours) and

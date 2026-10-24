@@ -1,7 +1,20 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { btn, card, h2, meta, nums, page, row, rows, textLink } from "@/app/ui/classes";
+import {
+  btn,
+  card,
+  h2,
+  meta,
+  nums,
+  page,
+  row,
+  rows,
+  tab,
+  tabCurrent,
+  tabs,
+  textLink,
+} from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import { readSessionToken } from "@/lib/auth/session-cookie";
@@ -72,23 +85,25 @@ export default async function CancellationsPage({
         <h2 id="week" className="sr-only">
           This week
         </h2>
-        <div className={card}>
-          <p className={meta}>Cancellations this week</p>
-          <p className={`text-lg font-semibold ${nums}`}>{week.cancellations}</p>
+        <div className={`${card} flex flex-col gap-2`}>
+          <p className={`${meta} font-semibold`}>Cancellations this week</p>
+          <p className="font-stat text-3xl leading-none text-ink">{week.cancellations}</p>
         </div>
-        <div className={card}>
-          <p className={meta}>Under {list.threshold} hours&apos; notice this week</p>
-          <p className={`text-lg font-semibold ${nums}`}>{week.strikes}</p>
+        <div className={`${card} flex flex-col gap-2`}>
+          <p className={`${meta} font-semibold`}>
+            Under {list.threshold} hours&apos; notice this week
+          </p>
+          <p className="font-stat text-3xl leading-none text-ink">{week.strikes}</p>
         </div>
       </section>
 
-      <nav aria-label="Show" className="mt-8 flex flex-wrap gap-2">
+      <nav aria-label="Show" className={`${tabs} mt-8`}>
         {CANCELLATION_VIEWS.map((v) => (
           <Link
             key={v}
             href={hrefOf(v, day)}
             aria-current={v === view ? "page" : undefined}
-            className={v === view ? `${btn.primary} rounded-full` : `${btn.secondary} rounded-full`}
+            className={v === view ? tabCurrent : tab}
           >
             {VIEW_WORDS[v](list.threshold)}
           </Link>

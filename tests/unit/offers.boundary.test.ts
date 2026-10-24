@@ -37,6 +37,13 @@ const WAVES = "src/lib/offers/waves.ts";
 const CANDIDATES = "src/lib/offers/candidates.ts";
 const TEMPLATES = "src/lib/messaging/templates.ts";
 const OFFICE = "src/lib/offers/office-offer.ts";
+// The demo seed writes made-up offer history for the demo's dashboard (golden rule 7: fake data
+// only) and sends nothing: no message and no job. It takes the offer-count lock before its insert,
+// like every offer writer. It doesn't go through the candidate list, so it doesn't check the daily
+// offer cap (mayOfferToday) either: tests/integration/seed.test.ts checks the cap on what it wrote,
+// and proves each seeded offer is to a worker the booking rules allow for its session and that none
+// is sent. It may write offers and nothing else on this list.
+const SEED = "src/lib/db/admin/seed.ts";
 
 const OFFER_INSERT =
   /\binsert\(\s*(?:\w+\.)*offers\s*\)|insert\s+into\s+(?:"?\w+"?\.)?"?offers"?(?![\w"])/i;
@@ -44,7 +51,7 @@ const OFFER_INSERT =
 const CALLS: [string, RegExp, string[]][] = [
   // Drizzle (`insert(offers)`, `insert(schema.offers)`) or SQL (`insert into offers`,
   // `insert into public."offers"`).
-  ["writes an offer", OFFER_INSERT, [WAVES, OFFICE]],
+  ["writes an offer", OFFER_INSERT, [WAVES, OFFICE, SEED]],
   // An alias would hide the table from the check above.
   ["imports the offers table under another name", /\boffers\s+as\s+\w/, []],
   [
@@ -106,11 +113,19 @@ describe("the offer boundary", () => {
     expect(waves).not.toMatch(/\bfrom workers\b|\.from\(\s*workers\s*\)/);
   });
 
+  // Every file on the "writes an offer" list, the seed included: each takes the lock before its
+  // insert, so two writers at the same moment can't both see "2 today" for one casual. The seed
+  // takes it like the rest; the daily cap on what it wrote is checked by
+  // tests/integration/seed.test.ts.
   it("every file that writes offers takes the offer-count lock before its insert", () => {
-    for (const path of [WAVES, OFFICE]) {
+    const writers = CALLS.find(([name]) => name === "writes an offer")?.[2] ?? [];
+    expect(writers.length).toBeGreaterThan(0);
+    expect(writers).toContain(SEED);
+    for (const path of writers) {
       const code = text(path);
       const lock = code.indexOf("lockOfferCounts(");
       const insert = code.search(OFFER_INSERT);
+      expect(insert, path).toBeGreaterThan(-1);
       expect(lock, path).toBeGreaterThan(-1);
       expect(lock, path).toBeLessThan(insert);
     }

@@ -70,14 +70,14 @@ describe("colours: tokens only", () => {
     ).flatMap((file) => [...read(file).matchAll(HEX)].map((m) => `${file}: ${m[0]}`));
     expect(found).toEqual([]);
     // In the CSS, a colour value only defines a token: a colour token is one #rrggbb; the depth
-    // tokens (the five of Phase 20, the office's `soft` of Phase 21 and its `raise`, `float`,
-    // `sheet` and `tint` of Phase 22) and the office's lights and glows (Phase 22: a colour card's
-    // lit top edge, its icon's chip, its coloured shadow) are tokens too. Read declaration by
-    // declaration, since a long one wraps onto several lines.
+    // tokens (the five of Phase 20) and the office's one overlay (Phase 23: `--overlay`, the value
+    // `shadow-float` takes, per theme) are tokens too. Round 2's other depth tokens, lights and
+    // glows (Phase 22) are gone, so a colour value under any of their names is outside. Read
+    // declaration by declaration, since a long one wraps onto several lines.
     const css = read("src/app/globals.css");
     const hasColour = new RegExp(HEX.source, "i");
     const tokens =
-      /^\s*--(?:color-[a-z-]+: #[0-9a-f]{6}|(?:shadow-(?:lift|panel|pass|bar|soft|raise|float|sheet|tint)|inset-shadow-sunk|tint-top|card-chip|glow-(?:urgent|attention|wait|done)):[^;]+);/gm;
+      /^\s*--(?:color-[a-z-]+: #[0-9a-f]{6}|(?:shadow-(?:lift|panel|pass|bar)|inset-shadow-sunk|overlay):[^;]+);/gm;
     const outside = css
       .replace(tokens, "")
       .split("\n")
@@ -118,7 +118,7 @@ describe("one type scale", () => {
     expect(outside).toEqual([]);
   });
 
-  it("40px only for the sign figures (a shift's time, a count), the greetings (Phase 20) and the office's counts (Phase 21)", () => {
+  it("40px only for the sign figures (a shift's time, a count), the greetings (Phase 20) and the office's counts (Phase 21; in Plus Jakarta's `font-stat` since Phase 23)", () => {
     const uses = SOURCE.flatMap((file) =>
       [...read(file).matchAll(/"[^"\n]*(?<![\w-])text-4xl(?![\w-])[^"\n]*"/g)].map((m) => [
         file,
@@ -126,23 +126,23 @@ describe("one type scale", () => {
       ]),
     );
     expect(uses.length).toBeGreaterThan(2);
-    // The date tile's sizes live in a table beside its font-sign day. In the office (Phase 21), its
-    // greeting in the display serif and its big counts in their own figures.
-    const notSign = uses.filter(
-      ([file, cls]) =>
-        !/(?<![\w-])font-(?:sign|greet|display|stat)(?![\w-])/.test(cls!) &&
-        file !== "src/app/ui/sign.tsx",
-    );
-    expect(notSign).toEqual([]);
     expect(read("src/app/ui/sign.tsx")).toMatch(/className=\{`block font-sign [^`]*\$\{t\.day\}/);
-    // The greetings: Home's and the dashboard's, each in the serif at 40px (the dashboard's in the
-    // office's display utility, the same face: Phase 21).
+    // The greetings: Home's in the serif at 40px; the dashboard's (Phase 23) in the office's own
+    // face, extrabold at 28px, inside its one <h1> (no display serif: tests/unit/ui.office-system).
     expect(read("src/app/home-view.tsx")).toMatch(
       /className="font-greet text-4xl[^"]*">Hi \{firstName\}/,
     );
-    expect(read("src/app/office/dashboard-view.tsx")).toMatch(
-      /className="block font-display text-4xl"/,
+    // The date tile's sizes live in a table beside its font-sign day. In the office, its big
+    // counts in their own figures (`font-stat`); no display serif since Phase 23.
+    const notSign = uses.filter(
+      ([file, cls]) =>
+        !/(?<![\w-])font-(?:sign|greet|stat)(?![\w-])/.test(cls!) && file !== "src/app/ui/sign.tsx",
     );
+    expect(notSign).toEqual([]);
+    expect(read("src/app/office/dashboard-view.tsx")).toMatch(
+      /<h1 className="text-ink">\s*<span className="block text-title">/,
+    );
+    expect(SOURCE.filter((f) => /(?<![\w-])font-display(?![\w-])/.test(read(f)))).toEqual([]);
   });
 
   it("every digit fixed-width; office fields don't make a phone zoom in", () => {
@@ -171,13 +171,18 @@ describe("the font", () => {
     const pkg = JSON.parse(read("package.json")) as { dependencies: Record<string, string> };
     expect(pkg.dependencies["@fontsource-variable/instrument-sans"]).toMatch(/^\d+\.\d+\.\d+$/);
     expect(pkg.dependencies["@fontsource/instrument-serif"]).toMatch(/^\d+\.\d+\.\d+$/);
-    // The faces before them are gone (Phase 18's, and 12A.1's).
+    // The faces before them are gone (Phase 18's; and the office's round 2, Phase 22's).
     for (const old of [
       "@fontsource-variable/public-sans",
       "@fontsource/barlow-condensed",
-      "@fontsource-variable/plus-jakarta-sans",
+      "@fontsource-variable/dm-sans",
+      "@fontsource/dm-mono",
+      "@fontsource-variable/newsreader",
     ])
       expect(pkg.dependencies[old], old).toBeUndefined();
+    // Plus Jakarta Sans (12A.1's face, gone then) is back as the office's only face (Phase 23),
+    // at one exact version: tests/unit/ui.office-system.test.ts checks its files.
+    expect(pkg.dependencies["@fontsource-variable/plus-jakarta-sans"]).toBe("5.3.0");
     // Only the latin faces are fetched before they're needed.
     expect(fonts.match(/preload: false/g)).toHaveLength(2);
     expect(read("src/app/layout.tsx")).toContain("className={fontVariables}");

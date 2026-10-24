@@ -35,7 +35,8 @@ const filter = "flex flex-col gap-1";
 // and "Update the figures now". Admins and resourcers.
 // Layout (docs/ui-design.md "Report table"): the dates as a filter bar, when the figures were
 // worked out with "Update the figures now", the table (the measure is each row's first cell, a
-// <td>), then the two forms, each in a card.
+// <td>), then the two forms, each in a card. One sky main button (Phase 23): "Save this week's
+// tally", the weekly job; "Show" and the baseline's save (once, before go-live) are plain.
 export default async function PilotMetricsPage({
   searchParams,
 }: {
@@ -85,7 +86,7 @@ export default async function PilotMetricsPage({
             className={`${field} w-full sm:w-44`}
           />
         </div>
-        <button type="submit" className={`${btn.primary} col-span-2`}>
+        <button type="submit" className={`${btn.secondary} col-span-2`}>
           Show
         </button>
       </form>

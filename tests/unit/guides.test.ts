@@ -202,20 +202,40 @@ describe("the office how-to guide", () => {
     return html.slice(start, html.indexOf("</section>", start));
   };
 
-  it("Getting around describes the drawer and where Log out is now (12I.3)", () => {
+  // Phase 23 (round 3): a top bar along every page, the menu in its own card from 1024px and a
+  // drawer behind "Menu" below it; your initials and name at the bar's top right (the name from
+  // 640px) opening the account menu; the square light or dark button beside them (office-frame.tsx,
+  // theme-button.tsx). Until Phase 23 the account sat at the top of the menu on a wide screen.
+  it("Getting around describes the top bar, the menu card, the drawer and where Log out is (12I.3, Phase 23)", () => {
     for (const role of ["admin", "resourcer", "payroll"] as const) {
       const text = words(section(guide(role), "getting-around"));
+      // The bar on every page; the menu a card on the left from a wide screen.
+      expect(text).toContain(
+        "A bar runs along the top of every page. On a wide screen, the menu is in its own card on the left, under the bar.",
+      );
       // Below 1024px the menu is a drawer behind "Menu", closed by "Close menu" (office-frame.tsx).
       expect(text).toContain("On a phone or tablet, select Menu at the top left");
       expect(text).toContain("Select Close menu , or anywhere outside it, to close it.");
-      // Log out sits in the account button's menu at the top right, with this guide and (Phase
-      // 22) the light/dark switch, named by its words (theme-button.tsx).
-      expect(text).toContain("Your name is at the top right. On a phone, it shows your initials.");
-      expect(text).toContain("Select it to open this guide or to Log out");
+      // Log out sits in the account button's menu at the bar's top right, with this guide and the
+      // light/dark switch, named by its words (theme-button.tsx).
       expect(text).toContain(
-        "It also switches between dark and light: select Switch to dark mode or Switch to light mode .",
+        "Your initials and name are at the top right of the bar. On a phone, only your initials show.",
+      );
+      expect(text).toContain(
+        "Select them to open this guide, to switch between dark and light, or to Log out",
+      );
+      // The square button in the bar, by its words (its icon has none).
+      expect(text).toContain(
+        "The square button beside them switches between dark and light too. Its name says which: Switch to dark mode or Switch to light mode .",
+      );
+      expect(text).toContain(
+        "On a wide screen, the bar also shows the pay week and its pay day, and your shifts line's number if you have one.",
       );
       expect(text).not.toMatch(/\bmoon\b/i);
+      // Not round 2's places: the account over the menu, the menu down the window's side.
+      expect(text).not.toContain("at the top of the menu");
+      expect(text).not.toContain("beside your firm's name");
+      expect(text).not.toContain("down the left side");
       // The guide isn't in the menu (Phase 22: office-nav.tsx leaves the `bottom` group out), so
       // the menu's list here leaves it out too.
       expect(text).not.toContain("This page.");
@@ -228,11 +248,91 @@ describe("the office how-to guide", () => {
     expect(words(guide("payroll"))).not.toContain(count);
     for (const role of ["admin", "resourcer", "payroll"] as const)
       expect(words(guide(role)).toLowerCase()).not.toMatch(/\bbell\b/);
-    // On a wide screen the account button is over the menu, beside the firm (Phase 22; at the
-    // menu's foot in Phases 20 and 21).
-    expect(words(section(guide("admin"), "getting-around"))).toContain(
-      "On a wide screen, it is at the top of the menu, beside your firm's name.",
+    // The menu's line for the dashboard: its charts, not round 2's week and sorted list.
+    const dashboardLine =
+      "How many things need you and where to start, every urgent place to fill, and charts of what needs work.";
+    expect(words(guide("admin"))).toContain(dashboardLine);
+    expect(words(guide("admin"))).not.toContain("this week's days");
+  });
+
+  // Phase 23: the dashboard's four counts, its urgent places as cards and its six charts (the week
+  // strip and the three text panels went), each mark opening a panel of its rows, a Numbers table
+  // each; and the guide's links to it land on what's there now.
+  it("Start your day on the dashboard: the four counts, the urgent places and the six charts (Phase 23)", () => {
+    for (const role of ["admin", "resourcer"] as const) {
+      const html = section(guide(role), "today");
+      const names = [
+        ...html.matchAll(/<li class="py-3"><p class="font-semibold text-ink">([^<]*)<\/p>/g),
+      ].map((m) => m[1]);
+      expect(names).toEqual([
+        "The four counts",
+        "Urgent places to fill",
+        "Places to fill, next 2 weeks",
+        "Which events need people",
+        "Offers this week",
+        "How long things have waited",
+        "Cancellations, last 2 weeks",
+        "Licences running out, next 8 weeks",
+      ]);
+      const text = words(html);
+      expect(text).toContain(
+        "It shows what needs doing today: four counts, the urgent places to fill, and six charts of what needs work.",
+      );
+      expect(text).toContain(
+        "Urgent places, Needs attention, Waiting on others and Sorted today. Select one to see its list.",
+      );
+      // The offers chart's three parts, as the office names them (PLAN.md Phase 23).
+      expect(text).toContain(
+        "One bar of three parts for this week's offers: those casuals said yes to, those waiting for a reply, and those they said no to or that closed.",
+      );
+      expect(text).not.toContain("A bar for each day: offers");
+      // Pay's part of the waiting chart only for the roles that can open Pay; the undated items
+      // named under it.
+      expect(text).toContain("the pay queries with payroll if you can open Pay.");
+      expect(text).toContain("Things with no date, like bookings to check, are named under it.");
+      // The sentence the old Sorted today panel had, kept with the cancellations.
+      expect(text).toContain("Each was recorded automatically, never approved or declined.");
+      // Every mark opens a panel of its rows, with their actions; Numbers swaps in a table.
+      expect(text).toContain(
+        "Point at a bar, a dot or a number, or move to it with the Tab key, to see its figures.",
+      );
+      expect(text).toContain(
+        "Select it. A panel opens with its rows, each with its link or action, like Offer or Mark who worked .",
+      );
+      expect(text).toContain("Select Close , or press Escape, to go back to the chart.");
+      expect(text).toContain(
+        "Numbers swaps a chart for a table of the same figures, and back again.",
+      );
+      // Round 2's sections are gone from it.
+      for (const old of [
+        "Seven days, a bar each",
+        "go to its section below",
+        "Pay queries with payroll.",
+      ])
+        expect(text).not.toContain(old);
+      // The colours, with round 3's blue: waiting on someone else.
+      expect(text).toContain("The charts use the same colours, and grey for what's fine.");
+      const tones = [
+        ...html.matchAll(
+          /<span class="shrink-0 sm:w-32"><span class="([^"]*)"[^>]*>[\s\S]*?<\/svg>([^<]*)<\/span>/g,
+        ),
+      ].map((m) => m[2]);
+      expect(tones).toEqual(["Urgent", "Open", "Waiting", "Filled", "Cancelled"]);
+      expect(html).toContain("bg-wait-soft text-wait-ink");
+    }
+    // Its links land on what's there now: the urgent places' section on the dashboard, and Who
+    // worked? on Needs attention (there was never an "#urgent", and the dashboard's Needs attention
+    // panel went in Phase 23).
+    const admin = guide("admin");
+    expect(admin).toContain('href="/office#urgent-places"');
+    expect(admin).toContain('href="/office/needs-attention#to-mark"');
+    expect(admin).not.toMatch(/href="\/office#(?:urgent|needs-attention)"/);
+    // A leaver's bookings ahead are on Needs attention now, not the dashboard.
+    expect(words(admin)).toContain(
+      "Their bookings ahead go on Needs attention, under “Bookings to check”.",
     );
+    // Payroll has no dashboard, so no part about it.
+    expect(guide("payroll")).not.toContain('<section id="today"');
   });
 
   it("Connect your planner is three steps, with the codes and the webhook as notes (12I.3)", () => {

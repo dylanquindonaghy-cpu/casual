@@ -16,12 +16,12 @@ import { closeShiftAction, reopenShiftAction, setUrgentAction } from "./today-ac
 // ones stand out.
 // Phase 18 (the dashboard's urgent place): "Offer to someone" filled, "Mark as filled" outlined,
 // "Not urgent" in words. Phase 20 (`more`, each urgent place on the dashboard): "Offer to someone",
-// then "…" (named by `more`) opening "Mark as filled" and "Not urgent". Phase 21: there, "Offer" is
-// a small black pill in a 44px target (still named "Offer to someone") and "…" a quiet round
-// button. `onMessage`: the answers go there (the dashboard's confirmation, which stays while the
-// place leaves) instead of under the buttons. Phase 22: "Offer" dips when pressed and shows a
-// spinner in place of its word while the offer page opens (`OfferWord`); the "…" menu grows out of
-// its button.
+// then "…" (named by `more`) opening "Mark as filled" and "Not urgent". `onMessage`: the answers go
+// there (the dashboard's confirmation, which stays while the place leaves) instead of under the
+// buttons. Phase 22: "Offer" dips when pressed and shows a spinner in place of its word while the
+// offer page opens (`OfferWord`); the "…" menu grows out of its button. Phase 23 (round 3): on the
+// urgent place's card, "Offer" is the wide sky main button (still named "Offer to someone") and
+// "…" a round button with its hairline; the menu floats (the office's one overlay).
 export function ShiftActions({
   shiftId,
   isUrgent,
@@ -112,16 +112,14 @@ export function ShiftActions({
           Open it again
         </button>
       ) : (
-        <div className="flex flex-wrap items-start gap-2">
+        <div className={more ? "flex items-center gap-2" : "flex flex-wrap items-start gap-2"}>
           {more ? (
             <Link
               href={`/office/offer/${shiftId}`}
               aria-label="Offer to someone"
-              className="press group/offer inline-flex min-h-11 items-center rounded-full"
+              className={`${btn.primary} flex-1`}
             >
-              <span className="inline-flex h-9 items-center rounded-full bg-ink px-4 text-sm font-semibold text-on-ink shadow-raise transition-colors group-hover/offer:bg-ink-hover group-active/offer:bg-ink-press">
-                <OfferWord />
-              </span>
+              <OfferWord />
             </Link>
           ) : (
             <Link
@@ -136,11 +134,11 @@ export function ShiftActions({
             <details className="group">
               <summary
                 aria-label={more}
-                className={`${summaryButton} press inline-flex size-11 items-center justify-center rounded-full text-ink-muted hover:bg-quiet-soft hover:text-ink active:bg-raised group-open:bg-raised group-open:text-ink`}
+                className={`${summaryButton} press inline-flex size-11 items-center justify-center rounded-full border border-line text-ink-muted hover:bg-raised hover:text-ink active:bg-button-press group-open:bg-raised group-open:text-ink`}
               >
                 <Icon name="dots" />
               </summary>
-              <div className="absolute top-full left-0 z-10 mt-2 flex w-64 max-w-[80vw] origin-top-left animate-pop flex-col items-stretch gap-2 rounded-card bg-card p-3 shadow-float md:right-0 md:left-auto md:origin-top-right">
+              <div className="absolute top-full left-0 z-10 mt-2 flex w-64 max-w-[80vw] origin-top-left animate-pop flex-col items-stretch gap-2 rounded-inner bg-card p-3 shadow-float md:right-0 md:left-auto md:origin-top-right">
                 {!fromSheet && !fromPlanner && filledStep}
                 {notUrgent}
               </div>

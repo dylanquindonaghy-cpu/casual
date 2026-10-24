@@ -8,6 +8,7 @@ import { OfficeLoginForm } from "./office-login-form";
 // in yet): the same layout as the worker login (/login): the brand bar's 448px column, so its words
 // start under the firm's name, and a card framed from 640px up (on a phone the page is the card,
 // with the same 24px edge as the bar). The firm's name in the heading, the email field, one button.
+// "You're logged out." a pale grey slip with its hairline, as an answer is (Phase 23, flat).
 export default async function OfficeLoginPage({
   searchParams,
 }: {
@@ -21,7 +22,10 @@ export default async function OfficeLoginPage({
       <div className={officeLoginCard}>
         <h1 className={loginTitle}>Office login for {firm.name}</h1>
         {out === "1" && (
-          <p role="status" className="mt-4 rounded-row bg-card p-4 text-ink shadow-raise">
+          <p
+            role="status"
+            className="mt-4 rounded-row border border-line bg-quiet-soft p-4 text-ink"
+          >
             You&apos;re logged out.
           </p>
         )}

@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, type SQL } from "drizzle-orm";
 import { systemClock } from "../auth/clock";
 import { CANCELLED_ASSIGNMENT_STATUSES, firms } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
@@ -8,12 +8,28 @@ import { OFFICE_REPLY_PREFIX } from "../notices/enquiry-reply";
 import type { StopReason } from "../offers/waves";
 import { strikeSettings } from "../strikes/settings";
 import { rulesSettingsSchema } from "../roster/eligibility-input";
-import { addDays, localDateOf, mondayOf, wallTimeOf, zonedToUtc } from "../time/zoned";
+import { localDateOf, wallTimeOf, zonedToUtc } from "../time/zoned";
 import { loadCancellations } from "./cancellations";
 import type { CancellationRow } from "./cancellations-copy";
 import { waitingCount, waitingUploads, type WaitingUpload } from "./casuals";
+import type {
+  CancelsChart,
+  EventsNeedChart,
+  FillChart,
+  LicencesChart,
+  OffersWeekChart,
+  WaitedChart,
+} from "./dashboard-chart-types";
+import {
+  loadCancels14,
+  loadEventsNeed,
+  loadFill,
+  loadLicences,
+  loadOffersWeek,
+  loadWaited,
+} from "./dashboard-charts-load";
 import { loadEnquiries, needPersonCount, type EnquiryRow } from "./enquiries";
-import { bookedJoin, loadEventCards, placeFree, urgentGap, type EventCardData } from "./events";
+import { bookedJoin, loadEventCards, urgentGap, type EventCardData } from "./events";
 import { officeUserMay, parts, type OfficeContext } from "./office-context";
 import {
   LIST_MAX,
@@ -39,6 +55,12 @@ import { webhookStatus } from "./webhook-settings";
 //
 // Each part is read in its own savepoint: one that fails shows its error words and the rest of
 // the page still shows (a failed query would otherwise end the whole transaction).
+//
+// Phase 23 (23.4): six charts, each a part of its own (dashboard-charts-load.ts; their types in
+// dashboard-chart-types.ts): places to fill over the next 14 days, which events need people, this
+// pay week's offers, how long things have waited (pay queries only for a role that can open Pay:
+// `pay`), cancellations over the last 14 days and licences running out in the next 8 weeks. They
+// replaced this week's strip (Phase 18's `week`), whose days are the places chart's (loadDays).
 
 export const LATEST_CANCELLATIONS = 3;
 export const LATEST_ENQUIRIES = 4;
@@ -137,30 +159,24 @@ export interface NeedsAttention {
   webhookFailing: { since: Date } | null;
 }
 
-// One day of this week's strip (Phase 18): the places in its sessions (not cancelled), how many
-// are filled (booked, or all of a session marked filled), and its sessions with an urgent gap.
-// One day of this week on the dashboard: its places in sessions casuals can be booked on (open or
-// filled; drafts and cancelled ones aren't), how many are filled, how many can still be filled
-// (in open sessions that haven't started: the "Need people" rule, `placeFree`), and how many of
-// those are urgent gaps. All in places.
-export interface WeekDay {
-  date: string; // yyyy-mm-dd, the firm's calendar
-  places: number;
-  filled: number;
-  open: number;
-  urgent: number;
-}
-
 export interface Dashboard {
   timeZone: string;
   today: string; // yyyy-mm-dd, the firm's calendar
   counts: DashboardCounts;
-  week: Part<WeekDay[]>; // Monday to Sunday of this week
   urgent: Part<{ events: UrgentEventCard[]; more: boolean }>;
   showing: Part<{ events: EventCardData[]; more: number }>;
   cancellations: Part<{ rows: CancellationRow[]; threshold: number }>;
   enquiries: Part<{ rows: EnquiryRow[]; replies: Record<string, string | null>; days: number }>;
   needs: Part<NeedsAttention>;
+  // The charts (Phase 23): the next 14 days' places to fill, the events that need people, this pay
+  // week's offers, how long things have waited, the last 14 days' cancellations, and licences
+  // running out in the next 8 weeks.
+  fill: Part<FillChart>;
+  eventsNeed: Part<EventsNeedChart>;
+  offersWeek: Part<OffersWeekChart>;
+  waited: Part<WaitedChart>;
+  cancels14: Part<CancelsChart>;
+  licences: Part<LicencesChart>;
 }
 
 // "Strike evidence" items: each failed email, and the strikes team's address while it isn't set
@@ -234,49 +250,6 @@ async function firmFacts(tx: FirmTx) {
 
 export const midnightOf = (now: Date, timeZone: string): Date =>
   zonedToUtc({ ...wallTimeOf(now, timeZone), hour: 0, minute: 0 }, timeZone);
-
-const midnightOfDay = (day: string, timeZone: string): Date => {
-  const [year, month, d] = day.split("-").map(Number);
-  return zonedToUtc({ year: year!, month: month!, day: d!, hour: 0, minute: 0 }, timeZone);
-};
-
-// This week's strip (Monday to Sunday, the firm's calendar): each day's places, filled places and
-// urgent gaps, from its sessions that start that day.
-export async function loadWeek(tx: FirmTx, now: Date, timeZone: string): Promise<WeekDay[]> {
-  const monday = mondayOf(localDateOf(now, timeZone));
-  const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
-  const { rows } = await tx.execute<{
-    day: string;
-    places: number;
-    filled: number;
-    open: number;
-    urgent: number;
-  }>(sql`
-    select to_char(s.starts_at at time zone ${timeZone}, 'YYYY-MM-DD') as day,
-           coalesce(sum(s.headcount), 0)::int as places,
-           coalesce(sum(case when s.status = 'filled' then s.headcount else b.booked end), 0)::int
-             as filled,
-           coalesce(sum(s.headcount - b.booked) filter (where ${placeFree(now)}), 0)::int as open,
-           coalesce(sum(s.headcount - b.booked) filter (where ${urgentGap(now)}), 0)::int as urgent
-      from shifts s
-      ${bookedJoin}
-     where s.status in ('open', 'filled')
-       and s.starts_at >= ${midnightOfDay(monday, timeZone)}
-       and s.starts_at < ${midnightOfDay(addDays(monday, 7), timeZone)}
-     group by 1
-  `);
-  const byDay = new Map(rows.map((r) => [r.day, r]));
-  return days.map((date) => {
-    const r = byDay.get(date);
-    return {
-      date,
-      places: r?.places ?? 0,
-      filled: r?.filled ?? 0,
-      open: r?.open ?? 0,
-      urgent: r?.urgent ?? 0,
-    };
-  });
-}
 
 async function urgentCount(tx: FirmTx, now: Date) {
   const { rows } = await tx.execute<{
@@ -396,12 +369,16 @@ async function firstReplies(tx: FirmTx, ids: string[]): Promise<Record<string, s
   return replies;
 }
 
-// Booked sessions to come whose required qualification won't be in date by their last day.
-export async function loadExpiredOnBookings(
-  tx: FirmTx,
-  now: Date,
-  timeZone: string,
-): Promise<{ items: ExpiredOnBooking[]; more: boolean }> {
+// The rule for a booked session's qualification not in date (read as the rules read it:
+// docs/rules-and-credentials.md, check 3), as a query of its own: one row for each confirmed
+// booking on a session to come (open or filled) and each qualification it needs (the role's and the
+// session's own) that won't be in date by the session's last day (the firm's calendar), with
+// columns firm_id, assignment_id, worker_id, shift_id, role, starts_at, type and last_day. Every
+// row, never capped: Needs attention lists the first 50 (loadExpiredOnBookings), and the licences
+// chart marks each licence booked after it runs out from the same rows, with their last_day
+// (dashboard-charts-load.ts loadLicences), so the two can't drift. Reads the firm's rules settings
+// in `tx`; the rows stay the firm's (RLS).
+export async function outOfDateBookings(tx: FirmTx, now: Date, timeZone: string): Promise<SQL> {
   // An application in progress counts as the rules engine counts it (src/lib/rules/eligibility.ts,
   // check 4; as src/lib/credentials/qualifications.ts reads it): a type that allows it, at a firm
   // with an allowance above 0. The booking was checked against the day's share when it was made.
@@ -412,6 +389,54 @@ export async function loadExpiredOnBookings(
   const rulesSettings = rulesSettingsSchema.safeParse(firm?.settings ?? {});
   const appliedCounts =
     rulesSettings.success && rulesSettings.data.credential_applied_allowance_pct > 0;
+  return sql`
+    with booked as (
+      select a.firm_id, a.id as assignment_id, a.worker_id, s.id as shift_id, s.role, s.starts_at,
+             s.required_credentials,
+             greatest((s.starts_at at time zone ${timeZone})::date,
+                      ((s.ends_at - interval '1 millisecond') at time zone ${timeZone})::date)
+               as last_day
+        from assignments a
+        join shifts s on s.firm_id = a.firm_id and s.id = a.shift_id
+       where a.status = 'confirmed' and s.status in ('open', 'filled') and s.starts_at > ${now}
+    ),
+    needed as (
+      select b.*, t.type
+        from booked b
+        left join credential_rules r on r.firm_id = b.firm_id and r.role = b.role
+        cross join lateral (
+          select distinct x as type
+            from unnest(coalesce(r.required_types, '{}'::text[]) || b.required_credentials) x
+        ) t
+    )
+    select n.firm_id, n.assignment_id, n.worker_id, n.shift_id, n.role, n.starts_at, n.type,
+           n.last_day
+      from needed n
+      left join credential_types ct on ct.firm_id = n.firm_id and ct.code = n.type
+     where exists (select 1 from credentials c
+                    where c.firm_id = n.firm_id and c.worker_id = n.worker_id and c.type = n.type
+                      and c.check_state = 'verified'
+                      and (c.status = 'expired'
+                           or (c.status = 'valid' and c.expires_on < n.last_day)))
+       -- Not when a checked record is in date (the rules pass), an application in progress counts
+       -- (above), or one is suspended (another reason).
+       and not exists (select 1 from credentials c
+                        where c.firm_id = n.firm_id and c.worker_id = n.worker_id
+                          and c.type = n.type and c.check_state = 'verified'
+                          and (c.status = 'suspended'
+                               or (c.status = 'valid'
+                                   and (c.expires_on is null or c.expires_on >= n.last_day))
+                               or (${appliedCounts} and c.status = 'applied'
+                                   and coalesce(ct.applied_allowed, false))))`;
+}
+
+// Booked sessions to come whose required qualification won't be in date by their last day
+// (outOfDateBookings), soonest first: the first NEEDS_MAX.
+export async function loadExpiredOnBookings(
+  tx: FirmTx,
+  now: Date,
+  timeZone: string,
+): Promise<{ items: ExpiredOnBooking[]; more: boolean }> {
   const { rows } = await tx.execute<{
     assignment_id: string;
     worker_id: string;
@@ -424,53 +449,20 @@ export async function loadExpiredOnBookings(
     type_name: string | null;
     expires_on: string | null;
   }>(sql`
-    with booked as (
-      select a.id as assignment_id, a.worker_id, s.id as shift_id, s.role, s.starts_at,
-             s.required_credentials,
-             greatest((s.starts_at at time zone ${timeZone})::date,
-                      ((s.ends_at - interval '1 millisecond') at time zone ${timeZone})::date)
-               as last_day
-        from assignments a
-        join shifts s on s.firm_id = a.firm_id and s.id = a.shift_id
-       where a.status = 'confirmed' and s.status in ('open', 'filled') and s.starts_at > ${now}
-    ),
-    needed as (
-      select b.*, t.type
-        from booked b
-        left join credential_rules r on r.firm_id = app_current_firm_id() and r.role = b.role
-        cross join lateral (
-          select distinct x as type
-            from unnest(coalesce(r.required_types, '{}'::text[]) || b.required_credentials) x
-        ) t
-    )
-    select n.assignment_id::text, n.worker_id::text, w.first_name, w.last_name,
-           n.shift_id::text, n.role, n.starts_at, n.type, ct.name as type_name,
+    with out_of_date as (${await outOfDateBookings(tx, now, timeZone)})
+    select o.assignment_id::text, o.worker_id::text, w.first_name, w.last_name,
+           o.shift_id::text, o.role, o.starts_at, o.type, ct.name as type_name,
            -- The date it ran out, from records dated before the session's last day (one marked
            -- expired with a later date, or none, reads "marked as expired").
            (select max(c.expires_on)::text from credentials c
-             where c.firm_id = w.firm_id and c.worker_id = n.worker_id and c.type = n.type
+             where c.firm_id = o.firm_id and c.worker_id = o.worker_id and c.type = o.type
                and c.check_state = 'verified' and c.status in ('expired', 'valid')
-               and c.expires_on < n.last_day)
+               and c.expires_on < o.last_day)
              as expires_on
-      from needed n
-      join workers w on w.firm_id = app_current_firm_id() and w.id = n.worker_id
-      left join credential_types ct on ct.firm_id = w.firm_id and ct.code = n.type
-     where exists (select 1 from credentials c
-                    where c.firm_id = w.firm_id and c.worker_id = n.worker_id and c.type = n.type
-                      and c.check_state = 'verified'
-                      and (c.status = 'expired'
-                           or (c.status = 'valid' and c.expires_on < n.last_day)))
-       -- Not when a checked record is in date (the rules pass), an application in progress counts
-       -- (above), or one is suspended (another reason).
-       and not exists (select 1 from credentials c
-                        where c.firm_id = w.firm_id and c.worker_id = n.worker_id
-                          and c.type = n.type and c.check_state = 'verified'
-                          and (c.status = 'suspended'
-                               or (c.status = 'valid'
-                                   and (c.expires_on is null or c.expires_on >= n.last_day))
-                               or (${appliedCounts} and c.status = 'applied'
-                                   and coalesce(ct.applied_allowed, false))))
-     order by n.starts_at, w.last_name, w.first_name, n.type
+      from out_of_date o
+      join workers w on w.firm_id = o.firm_id and w.id = o.worker_id
+      left join credential_types ct on ct.firm_id = o.firm_id and ct.code = o.type
+     order by o.starts_at, w.last_name, w.first_name, o.type
      limit ${NEEDS_MAX + 1}
   `);
   return {
@@ -589,10 +581,17 @@ export async function loadNeedsAttention(
   };
 }
 
-export async function loadDashboard(tx: FirmTx, now: Date): Promise<Dashboard> {
+// `pay`: the office user's role can open Pay (admins): only then does the waiting chart read the
+// pay queries with payroll (a resourcer's dashboard holds no pay query at all).
+export async function loadDashboard(
+  tx: FirmTx,
+  now: Date,
+  opts: { pay?: boolean } = {},
+): Promise<Dashboard> {
   const { timeZone, settings } = await firmFacts(tx);
   const midnight = midnightOf(now, timeZone);
   const threshold = strikeSettings(settings).noticeHours;
+  const needs = await part(tx, "needs", (sp) => loadNeedsAttention(sp, now, timeZone));
   const enquiries = await part(tx, "enquiries", async (sp) => {
     const page = await loadEnquiries(sp, "all", now, { limit: LATEST_ENQUIRIES });
     return {
@@ -623,7 +622,6 @@ export async function loadDashboard(tx: FirmTx, now: Date): Promise<Dashboard> {
           }
         : { ok: false },
     },
-    week: await part(tx, "week", (sp) => loadWeek(sp, now, timeZone)),
     urgent: await part(tx, "urgent", (sp) => urgentCards(sp, now)),
     showing: await part(tx, "showing", async (sp) => {
       const { events } = await loadEventCards(sp, now, "showing", SHOWING_SESSIONS);
@@ -650,16 +648,39 @@ export async function loadDashboard(tx: FirmTx, now: Date): Promise<Dashboard> {
           },
         }
       : { ok: false },
-    needs: await part(tx, "needs", (sp) => loadNeedsAttention(sp, now, timeZone)),
+    needs,
+    fill: await part(tx, "fill", (sp) => loadFill(sp, now, timeZone)),
+    eventsNeed: await part(tx, "events need", (sp) => loadEventsNeed(sp, now, timeZone)),
+    offersWeek: await part(tx, "offers week", (sp) => loadOffersWeek(sp, now, timeZone)),
+    // From Needs attention's own items, so the chart and the menu's count agree (none without).
+    waited: needs.ok
+      ? await part(tx, "waited", (sp) =>
+          loadWaited(sp, now, timeZone, {
+            needs: needs.data,
+            needsMore: needsCount(needs.data).more,
+            pay: opts.pay === true,
+          }),
+        )
+      : { ok: false },
+    cancels14: await part(tx, "cancellations 14 days", (sp) =>
+      loadCancels14(sp, now, timeZone, threshold),
+    ),
+    // Booked after it runs out: Needs attention's rule over every booking (never its list of 50).
+    licences: await part(tx, "licences", async (sp) =>
+      loadLicences(sp, now, timeZone, await outOfDateBookings(sp, now, timeZone)),
+    ),
   };
 }
 
-// The dashboard for an admin or resourcer, or null (anyone else, or logged out).
+// The dashboard for an admin or resourcer, or null (anyone else, or logged out). The pay queries
+// with payroll only for a role that can open Pay, checked in the same transaction.
 export async function officeDashboard(ctx: OfficeContext): Promise<Dashboard | null> {
   const { run } = parts(ctx);
   const now = (ctx.clock ?? systemClock).now();
   return run(ctx.firm.id, async (tx) =>
-    (await officeUserMay(tx, ctx.officeUserId, "today")) ? loadDashboard(tx, now) : null,
+    (await officeUserMay(tx, ctx.officeUserId, "today"))
+      ? loadDashboard(tx, now, { pay: await officeUserMay(tx, ctx.officeUserId, "pay") })
+      : null,
   );
 }
 

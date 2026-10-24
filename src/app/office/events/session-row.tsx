@@ -20,7 +20,8 @@ import { ShowingSwitch } from "./showing-switch";
 // One session (docs/office-v2.md 3.3, "What a session is"): the role, its times, "Urgent" on an
 // urgent gap, a chip per requirement, "N/M filled", then its pay per hour, post, meeting point and
 // uniform, and its "…" menu. On the event's page (`full`) also its own switch, who is booked and,
-// once it has started, "Mark who worked".
+// once it has started, "Mark who worked". A white row with its hairline (Phase 23), red-edged on
+// an urgent gap (its "Urgent" chip says so in words).
 export function SessionItem({
   session: s,
   timeZone,
@@ -47,7 +48,7 @@ export function SessionItem({
   const unmarked = booked.filter((b) => b.status === "confirmed").length;
   return (
     <li
-      className={`relative flex flex-col gap-2 rounded-row border bg-raised p-3 ${
+      className={`relative flex flex-col gap-2 rounded-row border bg-card p-3 ${
         s.urgentGap ? "border-urgent" : "border-line"
       }`}
     >

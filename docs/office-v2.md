@@ -37,9 +37,13 @@ data, never a copy. It has a top bar with the pay week, a "needs attention" bell
 and the account menu, and a menu that is a sidebar on a computer and a drawer behind a "Menu"
 button on a phone. (Phase 20: from 1024px there's no top bar, the pay week, theme button and account
 sit at the menu's foot, and the bell became the menu's "Needs attention" item with its count:
-`docs/screens.md` "The pass redesign".)
+`docs/screens.md` "The pass redesign". Phase 23: a white top bar again at every width, with the
+pay week, the shifts line's number, the theme button and the account; the menu in its own card
+from 1024px: `docs/ui-design.md` "Office shell".)
 
-**The resourcer dashboard** shows four counts and five sections:
+**The resourcer dashboard** shows four counts and five sections (Phase 23 turned its week strip
+and its three text panels into six charts, each opening the rows behind it: `docs/screens.md`
+"Phase 23"):
 - **Urgent shifts not filled.**
 - **Showing to casuals.** Every event and every session has an on/off switch.
 - **Cancellations.** A cancellation is final the moment the casual confirms it. Each one is a full
@@ -480,7 +484,10 @@ main column with 3 and 4 beside them, and 5 across the page):
 
 **Code.** New loader `src/lib/office/dashboard.ts`. It reuses the urgent and cancellation queries
 from `src/lib/office/today.ts` and the enquiry loader from 3.6. `/office/today` redirects to
-`/office`.
+`/office`. Phase 23's six charts each load as their own part (`src/lib/office/dashboard-charts-load.ts`,
+read in the firm's transaction like the rest; one that fails says so in its own card and the
+others still show), and pure code turns the parts into the charts and their panels
+(`src/lib/office/dashboard-charts.ts`, drawn by `src/app/office/dashboard/`).
 
 ### 3.3 Events and sessions (`/office/events`, `/office/events/[id]`)
 

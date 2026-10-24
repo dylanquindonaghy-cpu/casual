@@ -87,19 +87,28 @@
   --color-button-hover: #f1f2f4;
   --color-button-press: #f1f2f4;
   --color-ink-press: #000000;
-  /* Phase 22 (the office's look, round 2, which gives these their own values: below): the page as
-     a sheet set into the window, the menu's current page (a raised pill), and the dashboard's
-     four cards in full colour, each with its words. The casual app doesn't use them. */
+  /* Phase 22 (the office's own values: below): the page as a sheet (since Phase 23 the page card,
+     white like a card) and the menu's current page. The casual app doesn't use them. */
   --color-sheet: #ffffff;
   --color-pill: #ffffff;
-  --color-urgent-card: #ffd8cf;
-  --color-urgent-card-ink: #7d1a10;
-  --color-attention-card: #fbe5a0;
-  --color-attention-card-ink: #5c3f00;
-  --color-wait-card: #d6e4fa;
-  --color-wait-card-ink: #163b6e;
-  --color-done-card: #d2efdb;
-  --color-done-card-ink: #155230;
+  /* Phase 23 (the office's look, round 3; its own values below, the same here, as the casual app
+     never uses them): the one sky blue of the office's main button (`accent`, under the pointer,
+     pressed, and its near-black words), the faintest grey words (small capitals over the menu's
+     groups, a chart's ticks: on white only), and the dashboard charts' marks (red to do now,
+     amber needs you, blue waiting on someone else, green done, grey fine) with their grid and
+     baseline. */
+  --color-accent: #0ea5e9;
+  --color-accent-hover: #38bdf8;
+  --color-accent-press: #0284c7;
+  --color-on-accent: #06131f;
+  --color-ink-faint: #667085;
+  --color-mark-urgent: #d92d20;
+  --color-mark-open: #f79009;
+  --color-mark-wait: #0284c7;
+  --color-mark-done: #079455;
+  --color-mark-calm: #98a2b3;
+  --color-mark-grid: #eef0f3;
+  --color-mark-base: #d0d5dd;
 
   /* Depth (Phase 20): the page, cards lifted off it, then the pass and what floats over the page.
      Five layers, and nothing else casts one (tests/unit/ui.flat.test.ts): a card or row lifted
@@ -110,32 +119,21 @@
   --shadow-pass: 0 2px 4px rgb(16 24 40 / 0.08), 0 14px 28px -12px rgb(16 24 40 / 0.28);
   --shadow-bar: 0 -1px 0 rgb(16 24 40 / 0.05), 0 -8px 24px rgb(16 24 40 / 0.07);
   --inset-shadow-sunk: inset 0 1px 3px rgb(16 24 40 / 0.08);
-  /* The office's depth (Phase 22, round 2; Phase 21 had `soft` alone): every surface sits above
-     the one under it, with a hairline ring, its own fall and a lit top edge (white, as the mock-up's:
-     it shows on the near-black buttons and in dark; on white it's white). `soft`: a
-     white card, list or table on the page, and the menu's current page; `raise`: a button, a date
-     tile; `float`: what floats over the page (a menu, the account menu, a confirmation); `sheet`:
-     the page itself, set into the window; `tint`: the dashboard's four colour cards, their edge,
-     top light and coloured glow from the card's own `tint-…` utility (below). */
-  --shadow-soft:
-    0 0 0 1px rgb(28 25 20 / 0.06), inset 0 1px 0 rgb(255 255 255 / 0.95),
-    0 1px 2px rgb(28 25 20 / 0.05), 0 10px 24px -12px rgb(28 25 20 / 0.2);
-  --shadow-raise:
-    0 0 0 1px rgb(28 25 20 / 0.09), inset 0 1px 0 rgb(255 255 255 / 0.18),
-    0 1px 1px rgb(28 25 20 / 0.06), 0 4px 10px -4px rgb(28 25 20 / 0.18);
-  --shadow-float:
-    0 0 0 1px rgb(28 25 20 / 0.1), inset 0 1px 0 rgb(255 255 255 / 0.95),
-    0 2px 4px rgb(28 25 20 / 0.06), 0 22px 44px -16px rgb(28 25 20 / 0.3);
-  --shadow-sheet:
-    0 0 0 1px rgb(28 25 20 / 0.07), 0 2px 4px rgb(28 25 20 / 0.03),
-    0 24px 48px -24px rgb(28 25 20 / 0.2);
-  --shadow-tint:
-    inset 0 0 0 1px var(--tint-line), inset 0 1px 0 var(--tint-top), 0 1px 2px rgb(0 0 0 / 0.06),
-    0 14px 28px -14px var(--tint-glow);
+  /* The office's one (Phase 23, round 3: nothing in the office has depth at rest): `float`, a soft
+     fall and a hairline ring under what floats over the page only (the account menu, the drawer,
+     the "…" menus, the toast, a chart's tooltip and its panel). Tailwind writes a depth token's
+     value into its class when it builds, so a value redefined in the dark blocks would never
+     reach it: the class takes `--overlay` instead, which the dark blocks below redefine, darker. */
+  --shadow-float: var(--overlay);
+  --overlay: 0 16px 40px -16px rgb(16 24 40 / 0.22), 0 0 0 1px rgb(16 24 40 / 0.06);
 
-  /* Corners (Phase 21, the office's): cards 20px, rows 14px, pills round (rounded-full). */
-  --radius-card: 1.25rem;
+  /* Corners (the office's; Phase 23, round 3): the page card and the menu card 28px, the cards,
+     lists and tables inside a page 22px (`inner`; the page card on a phone too), rows, fields and
+     small boxes 14px, pills round (rounded-full). */
+  --radius-card: 1.75rem;
+  --radius-inner: 1.375rem;
   --radius-row: 0.875rem;
+  --radius-mark: 0.25rem;
   /* A heading's tracking: Tailwind's tight here, a little less in the office (Phase 21). */
   --tracking-heading: -0.025em;
 
@@ -321,32 +319,24 @@
   --color-ink-press: #ffffff;
   --color-sheet: #18191c;
   --color-pill: #232529;
-  --color-urgent-card: #3d1d19;
-  --color-urgent-card-ink: #ffcabf;
-  --color-attention-card: #3a2f10;
-  --color-attention-card-ink: #fbe3a0;
-  --color-wait-card: #172a45;
-  --color-wait-card-ink: #c8dafa;
-  --color-done-card: #15301f;
-  --color-done-card-ink: #bfeccd;
+  --color-accent: #7dd3fc;
+  --color-accent-hover: #a5e1fd;
+  --color-accent-press: #38bdf8;
+  --color-on-accent: #06131f;
+  --color-ink-faint: #8a94a6;
+  --color-mark-urgent: #f97066;
+  --color-mark-open: #fdb022;
+  --color-mark-wait: #38bdf8;
+  --color-mark-done: #47cd89;
+  --color-mark-calm: #667085;
+  --color-mark-grid: #22262d;
+  --color-mark-base: #3a404b;
   --shadow-lift: 0 1px 2px rgb(0 0 0 / 0.5);
   --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.5), 0 10px 24px -6px rgb(0 0 0 / 0.6);
   --shadow-pass: 0 2px 4px rgb(0 0 0 / 0.5), 0 16px 32px -12px rgb(0 0 0 / 0.8);
   --shadow-bar: 0 -1px 0 rgb(255 255 255 / 0.07), 0 -8px 24px rgb(0 0 0 / 0.5);
   --inset-shadow-sunk: inset 0 1px 3px rgb(0 0 0 / 0.6);
-  --shadow-soft:
-    0 0 0 1px rgb(255 255 255 / 0.07), inset 0 1px 0 rgb(255 255 255 / 0.06),
-    0 12px 28px -12px rgb(0 0 0 / 0.8);
-  --shadow-raise:
-    0 0 0 1px rgb(255 255 255 / 0.09), inset 0 1px 0 rgb(255 255 255 / 0.08),
-    0 4px 10px -4px rgb(0 0 0 / 0.6);
-  --shadow-float:
-    0 0 0 1px rgb(255 255 255 / 0.1), inset 0 1px 0 rgb(255 255 255 / 0.06),
-    0 26px 50px -18px rgb(0 0 0 / 0.9);
-  --shadow-sheet: 0 0 0 1px rgb(255 255 255 / 0.06), 0 24px 60px -24px rgb(0 0 0 / 0.95);
-  --shadow-tint:
-    inset 0 0 0 1px var(--tint-line), inset 0 1px 0 var(--tint-top), 0 1px 2px rgb(0 0 0 / 0.3),
-    0 14px 28px -14px var(--tint-glow);
+  --overlay: 0 16px 40px -16px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.08);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -411,32 +401,24 @@
     --color-ink-press: #ffffff;
     --color-sheet: #18191c;
     --color-pill: #232529;
-    --color-urgent-card: #3d1d19;
-    --color-urgent-card-ink: #ffcabf;
-    --color-attention-card: #3a2f10;
-    --color-attention-card-ink: #fbe3a0;
-    --color-wait-card: #172a45;
-    --color-wait-card-ink: #c8dafa;
-    --color-done-card: #15301f;
-    --color-done-card-ink: #bfeccd;
+    --color-accent: #7dd3fc;
+    --color-accent-hover: #a5e1fd;
+    --color-accent-press: #38bdf8;
+    --color-on-accent: #06131f;
+    --color-ink-faint: #8a94a6;
+    --color-mark-urgent: #f97066;
+    --color-mark-open: #fdb022;
+    --color-mark-wait: #38bdf8;
+    --color-mark-done: #47cd89;
+    --color-mark-calm: #667085;
+    --color-mark-grid: #22262d;
+    --color-mark-base: #3a404b;
     --shadow-lift: 0 1px 2px rgb(0 0 0 / 0.5);
     --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.5), 0 10px 24px -6px rgb(0 0 0 / 0.6);
     --shadow-pass: 0 2px 4px rgb(0 0 0 / 0.5), 0 16px 32px -12px rgb(0 0 0 / 0.8);
     --shadow-bar: 0 -1px 0 rgb(255 255 255 / 0.07), 0 -8px 24px rgb(0 0 0 / 0.5);
     --inset-shadow-sunk: inset 0 1px 3px rgb(0 0 0 / 0.6);
-    --shadow-soft:
-      0 0 0 1px rgb(255 255 255 / 0.07), inset 0 1px 0 rgb(255 255 255 / 0.06),
-      0 12px 28px -12px rgb(0 0 0 / 0.8);
-    --shadow-raise:
-      0 0 0 1px rgb(255 255 255 / 0.09), inset 0 1px 0 rgb(255 255 255 / 0.08),
-      0 4px 10px -4px rgb(0 0 0 / 0.6);
-    --shadow-float:
-      0 0 0 1px rgb(255 255 255 / 0.1), inset 0 1px 0 rgb(255 255 255 / 0.06),
-      0 26px 50px -18px rgb(0 0 0 / 0.9);
-    --shadow-sheet: 0 0 0 1px rgb(255 255 255 / 0.06), 0 24px 60px -24px rgb(0 0 0 / 0.95);
-    --shadow-tint:
-      inset 0 0 0 1px var(--tint-line), inset 0 1px 0 var(--tint-top), 0 1px 2px rgb(0 0 0 / 0.3),
-      0 14px 28px -14px var(--tint-glow);
+    --overlay: 0 16px 40px -16px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.08);
   }
 }
 
@@ -466,245 +448,230 @@ body[data-firm-colour] {
   }
 }
 
-/* The office's look (Phases 21 and 22; docs/ui-design.md "The office's system"): every page under
-   /office carries [data-office] (src/app/office/layout.tsx), and these blocks give the page its
-   own values of the same tokens, so every class means the same thing in both places and the
-   casual app keeps its Phase 20 look. Round 2 (Phase 22, Dylan's approved mock-up, no gradients):
-   a warm grey window (`canvas`) with the page as a warm off-white sheet on it, white cards and
-   rows raised off the sheet, grooves set into them; near-black main buttons and white raised
-   pills for the others (the firm's colour stays on its initial in the menu, never on a button:
-   these come after the firm's rules above, so they win); the dashboard's four cards in full flat
-   colour (`…-card`, with their words in `…-card-ink`) with a fine grain (`--grain`) and a
-   coloured glow beneath (`--glow-…`), and red, amber, blue and green otherwise only for statuses and
-   their panels' washes. Its type scale has the same seven steps at 12 · 13 · 15 · 17 · 20 · 28 ·
-   40px (lg, 2xl and 3xl change), headings a little tighter, and each page's headline in
-   Newsreader semibold (`text-title`). The dark blocks change only colours (and the grain's
-   speckle, white on dark), and hold the same values (tests/unit/ui.contrast.test.ts checks them,
-   and every pair's contrast). */
+/* The office's look (Phases 21 to 23; docs/ui-design.md "Phase 23: the office's look, round 3"):
+   every page under /office carries [data-office] (src/app/office/layout.tsx), and these blocks
+   give the page its own values of the same tokens, so every class means the same thing in both
+   places and the casual app keeps its Phase 20 look. Round 3 (Phase 23, Dylan's approved mock-up):
+   flat and cool. A light grey ground (`canvas`) with the menu and the page in white cards on it
+   (`card`; `sheet` is the same white), near-black in dark with dark grey cards, cool slate greys
+   (blue a touch above green above red), 1px hairlines (`line`) round every white surface, and no
+   depth at rest. One sky blue for the main button with near-black words (`accent`); the firm's
+   own colour stays on its mark in the top bar, never on a button (`brand` here is the sky's
+   pressed shade, as dark as a control's edge needs on white: these come after the firm's rules
+   above, so they win). Red, amber, blue and green only in tinted chips, counts and the charts'
+   marks. Its type scale has the same seven steps at 12 · 13 · 15 · 17 · 20 · 28 · 40px (lg, 2xl
+   and 3xl change), headings a little tighter, and each page's headline in Plus Jakarta Sans
+   extrabold (`text-title`). The dark blocks change only colours, and hold the same values
+   (tests/unit/ui.contrast.test.ts checks them, and every pair's contrast). */
 body:has([data-office]) {
-  --color-ink: #1c1b18;
-  --color-ink-muted: #57544d;
-  --color-ink-hover: #34322d;
+  --color-ink: #0f1728;
+  --color-ink-muted: #475467;
+  --color-ink-faint: #667085;
+  --color-ink-hover: #1d2939;
   --color-on-ink: #ffffff;
-  --color-line: #e7e5e0;
-  --color-line-strong: #837f77;
-  --color-canvas: #e7e5df;
-  --color-sheet: #f9f8f5;
+  --color-line: #e4e7ec;
+  --color-line-strong: #7d8797;
+  --color-canvas: #f2f4f7;
+  --color-sheet: #ffffff;
   --color-card: #ffffff;
-  --color-panel: #e7e5df;
-  --color-raised: #ebe9e4;
-  --color-pill: #ffffff;
-  --color-switch-off: #7b776f;
-  --color-scrim: #1c1b18;
-  --color-brand: #1c1b18;
-  --color-on-brand: #ffffff;
-  --color-brand-ink: #1c1b18;
+  --color-panel: #f2f4f7;
+  --color-raised: #f6f7f9;
+  --color-pill: #e6f1fb;
+  --color-switch-off: #667085;
+  --color-scrim: #101828;
+  --color-brand: #0284c7;
+  --color-on-brand: #06131f;
+  --color-brand-ink: #0f1728;
+  --color-accent: #0ea5e9;
+  --color-accent-hover: #38bdf8;
+  --color-accent-press: #0284c7;
+  --color-on-accent: #06131f;
   --color-urgent: #b42318;
-  --color-urgent-soft: #fdebe4;
-  --color-urgent-ink: #7a2116;
-  --color-urgent-tile: #fbdcd3;
-  --color-urgent-fill: #c4242a;
-  --color-urgent-fill-hover: #a51d22;
+  --color-urgent-soft: #fdeceb;
+  --color-urgent-ink: #912018;
+  --color-urgent-tile: #fbdcd9;
+  --color-urgent-fill: #d92d20;
+  --color-urgent-fill-hover: #b42318;
   --color-on-urgent: #ffffff;
-  --color-attention: #a15c07;
-  --color-attention-soft: #fdf3d3;
-  --color-attention-ink: #5e4106;
-  --color-hivis: #f8e6ae;
-  --color-on-hivis: #5e4106;
-  --color-wait-tile: #d9e6fb;
-  --color-wait-ink: #1d3c6b;
-  --color-done: #1f7a47;
-  --color-done-soft: #e4f5e8;
-  --color-done-ink: #17502f;
-  --color-done-tile: #d3eedb;
-  --color-done-fill: #1f7a47;
+  --color-attention: #b54708;
+  --color-attention-soft: #fdf1e0;
+  --color-attention-ink: #93370d;
+  --color-hivis: #fdf1e0;
+  --color-on-hivis: #93370d;
+  --color-wait-tile: #e5f3fc;
+  --color-wait-ink: #075985;
+  --color-done: #067647;
+  --color-done-soft: #e7f6ec;
+  --color-done-ink: #11733a;
+  --color-done-tile: #d1f0dc;
+  --color-done-fill: #067647;
   --color-on-done: #ffffff;
-  --color-quiet-soft: #f3f2ef;
-  --color-quiet-ink: #4a4741;
-  --color-urgent-line: #f3c9bc;
-  --color-attention-line: #ecd590;
-  --color-wait-line: #bfd3f2;
-  --color-done-line: #b8e0c2;
-  --color-quiet-line: #dedbd5;
-  --color-wait-soft: #e8f0fd;
-  --color-active: #ebeae6;
-  --color-count: #e3e1dc;
+  --color-quiet-soft: #f6f7f9;
+  --color-quiet-ink: #475467;
+  --color-urgent-line: #f9c9c4;
+  --color-attention-line: #f6d7a8;
+  --color-wait-line: #b9dff6;
+  --color-done-line: #b5e3c4;
+  --color-quiet-line: #d0d5dd;
+  --color-wait-soft: #e5f3fc;
+  --color-active: #f6f7f9;
+  --color-count: #eef0f3;
   --color-button: #ffffff;
-  --color-button-line: #ffffff;
-  --color-button-hover: #f4f3ef;
-  --color-button-press: #ebe9e4;
+  --color-button-line: #d0d5dd;
+  --color-button-hover: #f6f7f9;
+  --color-button-press: #eaecf0;
   --color-ink-press: #000000;
-  --color-urgent-card: #f8a387;
-  --color-urgent-card-ink: #45160a;
-  --color-attention-card: #f6d363;
-  --color-attention-card-ink: #3f2d02;
-  --color-wait-card: #a6c8f4;
-  --color-wait-card-ink: #0d2a52;
-  --color-done-card: #a7dbb1;
-  --color-done-card-ink: #0e3519;
-  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .2 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  --grain-soft: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  --stripes: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M-2 2l4-4M0 8l8-8M6 10l4-4' stroke='%231c1b18' stroke-opacity='.09' stroke-width='1'/%3E%3C/svg%3E");
-  --tint-top: rgb(255 255 255 / 0.7);
-  --card-chip: rgb(255 255 255 / 0.55);
-  --glow-urgent: rgb(238 100 66 / 0.45);
-  --glow-attention: rgb(228 168 20 / 0.45);
-  --glow-wait: rgb(70 130 230 / 0.42);
-  --glow-done: rgb(60 170 95 / 0.38);
+  --color-mark-urgent: #d92d20;
+  --color-mark-open: #f79009;
+  --color-mark-wait: #0284c7;
+  --color-mark-done: #079455;
+  --color-mark-calm: #98a2b3;
+  --color-mark-grid: #eef0f3;
+  --color-mark-base: #d0d5dd;
   --text-lg: 1.0625rem;
   --text-lg--line-height: 1.5rem;
   --text-2xl: 1.25rem;
   --text-2xl--line-height: 1.75rem;
   --text-3xl: 1.75rem;
   --text-3xl--line-height: 2.25rem;
-  --tracking-heading: -0.015em;
+  --tracking-heading: -0.01em;
   --title-size: var(--text-3xl);
   --title-leading: var(--text-3xl--line-height);
-  --title-weight: 600;
-  --title-tracking: -0.02em;
+  --title-weight: 800;
+  --title-tracking: -0.025em;
 }
 :root[data-theme="dark"] body:has([data-office]) {
-  --color-ink: #f2f1ee;
-  --color-ink-muted: #aaa79f;
-  --color-ink-hover: #dcdad5;
-  --color-on-ink: #121211;
-  --color-line: #2b2c30;
-  --color-line-strong: #77746d;
-  --color-canvas: #08090b;
-  --color-sheet: #111215;
-  --color-card: #1a1b1f;
-  --color-panel: #08090b;
-  --color-raised: #0f1012;
-  --color-pill: #24252a;
-  --color-switch-off: #807d76;
+  --color-ink: #f2f4f7;
+  --color-ink-muted: #a3acb9;
+  --color-ink-faint: #8a94a6;
+  --color-ink-hover: #ffffff;
+  --color-on-ink: #0f1728;
+  --color-line: #262b33;
+  --color-line-strong: #6b7585;
+  --color-canvas: #0c0e12;
+  --color-sheet: #15181d;
+  --color-card: #15181d;
+  --color-panel: #0c0e12;
+  --color-raised: #1c2027;
+  --color-pill: #232830;
+  --color-switch-off: #8a94a6;
   --color-scrim: #000000;
-  --color-brand: #f2f1ee;
-  --color-on-brand: #121211;
-  --color-brand-ink: #f2f1ee;
-  --color-urgent: #ff8a7a;
-  --color-urgent-soft: #1f1716;
-  --color-urgent-ink: #ffc8bf;
-  --color-urgent-tile: #3a1e1b;
-  --color-urgent-fill: #cf3a33;
-  --color-urgent-fill-hover: #b02e28;
-  --color-on-urgent: #ffffff;
-  --color-attention: #f0a742;
-  --color-attention-soft: #1e1b12;
-  --color-attention-ink: #f8dfa0;
-  --color-hivis: #362c12;
-  --color-on-hivis: #f8dfa0;
-  --color-wait-tile: #1a2638;
-  --color-wait-ink: #c9dbf7;
-  --color-done: #5fd08b;
-  --color-done-soft: #131c16;
-  --color-done-ink: #bfeccd;
-  --color-done-tile: #16291d;
-  --color-done-fill: #1f7a47;
-  --color-on-done: #ffffff;
-  --color-quiet-soft: #222328;
-  --color-quiet-ink: #d6d4cf;
-  --color-urgent-line: #55302b;
-  --color-attention-line: #54461f;
-  --color-wait-line: #2c3d57;
-  --color-done-line: #27452f;
-  --color-quiet-line: #3a3b40;
-  --color-wait-soft: #141a26;
-  --color-active: #26272c;
-  --color-count: #313238;
-  --color-button: #26272c;
-  --color-button-line: #26272c;
-  --color-button-hover: #2e2f35;
-  --color-button-press: #35363c;
+  --color-brand: #7dd3fc;
+  --color-on-brand: #06131f;
+  --color-brand-ink: #f2f4f7;
+  --color-accent: #7dd3fc;
+  --color-accent-hover: #a5e1fd;
+  --color-accent-press: #38bdf8;
+  --color-on-accent: #06131f;
+  --color-urgent: #f97066;
+  --color-urgent-soft: #2e1415;
+  --color-urgent-ink: #fca5a5;
+  --color-urgent-tile: #3a1a1b;
+  --color-urgent-fill: #f97066;
+  --color-urgent-fill-hover: #fb8a80;
+  --color-on-urgent: #06131f;
+  --color-attention: #fdb022;
+  --color-attention-soft: #2c1f0c;
+  --color-attention-ink: #fcd34d;
+  --color-hivis: #2c1f0c;
+  --color-on-hivis: #fcd34d;
+  --color-wait-tile: #0f2635;
+  --color-wait-ink: #7dd3fc;
+  --color-done: #47cd89;
+  --color-done-soft: #10261a;
+  --color-done-ink: #6ee7a0;
+  --color-done-tile: #143322;
+  --color-done-fill: #47cd89;
+  --color-on-done: #06131f;
+  --color-quiet-soft: #1c2027;
+  --color-quiet-ink: #a3acb9;
+  --color-urgent-line: #5a2423;
+  --color-attention-line: #5a4314;
+  --color-wait-line: #1e4a66;
+  --color-done-line: #1f4d33;
+  --color-quiet-line: #3a404b;
+  --color-wait-soft: #0f2635;
+  --color-active: #1c2027;
+  --color-count: #232830;
+  --color-button: #15181d;
+  --color-button-line: #3a404b;
+  --color-button-hover: #1c2027;
+  --color-button-press: #232830;
   --color-ink-press: #ffffff;
-  --color-urgent-card: #3d1f19;
-  --color-urgent-card-ink: #ffd9cf;
-  --color-attention-card: #382d11;
-  --color-attention-card-ink: #fbecc4;
-  --color-wait-card: #1a2b4c;
-  --color-wait-card-ink: #d7e6ff;
-  --color-done-card: #173823;
-  --color-done-card-ink: #d4f5de;
-  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .13 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  --grain-soft: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  --stripes: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M-2 2l4-4M0 8l8-8M6 10l4-4' stroke='%23ffffff' stroke-opacity='.08' stroke-width='1'/%3E%3C/svg%3E");
-  --tint-top: rgb(255 255 255 / 0.08);
-  --card-chip: rgb(255 255 255 / 0.1);
-  --glow-urgent: rgb(255 100 70 / 0.24);
-  --glow-attention: rgb(240 180 40 / 0.2);
-  --glow-wait: rgb(70 130 255 / 0.24);
-  --glow-done: rgb(60 190 100 / 0.2);
+  --color-mark-urgent: #f97066;
+  --color-mark-open: #fdb022;
+  --color-mark-wait: #38bdf8;
+  --color-mark-done: #47cd89;
+  --color-mark-calm: #667085;
+  --color-mark-grid: #22262d;
+  --color-mark-base: #3a404b;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) body:has([data-office]) {
-    --color-ink: #f2f1ee;
-    --color-ink-muted: #aaa79f;
-    --color-ink-hover: #dcdad5;
-    --color-on-ink: #121211;
-    --color-line: #2b2c30;
-    --color-line-strong: #77746d;
-    --color-canvas: #08090b;
-    --color-sheet: #111215;
-    --color-card: #1a1b1f;
-    --color-panel: #08090b;
-    --color-raised: #0f1012;
-    --color-pill: #24252a;
-    --color-switch-off: #807d76;
+    --color-ink: #f2f4f7;
+    --color-ink-muted: #a3acb9;
+    --color-ink-faint: #8a94a6;
+    --color-ink-hover: #ffffff;
+    --color-on-ink: #0f1728;
+    --color-line: #262b33;
+    --color-line-strong: #6b7585;
+    --color-canvas: #0c0e12;
+    --color-sheet: #15181d;
+    --color-card: #15181d;
+    --color-panel: #0c0e12;
+    --color-raised: #1c2027;
+    --color-pill: #232830;
+    --color-switch-off: #8a94a6;
     --color-scrim: #000000;
-    --color-brand: #f2f1ee;
-    --color-on-brand: #121211;
-    --color-brand-ink: #f2f1ee;
-    --color-urgent: #ff8a7a;
-    --color-urgent-soft: #1f1716;
-    --color-urgent-ink: #ffc8bf;
-    --color-urgent-tile: #3a1e1b;
-    --color-urgent-fill: #cf3a33;
-    --color-urgent-fill-hover: #b02e28;
-    --color-on-urgent: #ffffff;
-    --color-attention: #f0a742;
-    --color-attention-soft: #1e1b12;
-    --color-attention-ink: #f8dfa0;
-    --color-hivis: #362c12;
-    --color-on-hivis: #f8dfa0;
-    --color-wait-tile: #1a2638;
-    --color-wait-ink: #c9dbf7;
-    --color-done: #5fd08b;
-    --color-done-soft: #131c16;
-    --color-done-ink: #bfeccd;
-    --color-done-tile: #16291d;
-    --color-done-fill: #1f7a47;
-    --color-on-done: #ffffff;
-    --color-quiet-soft: #222328;
-    --color-quiet-ink: #d6d4cf;
-    --color-urgent-line: #55302b;
-    --color-attention-line: #54461f;
-    --color-wait-line: #2c3d57;
-    --color-done-line: #27452f;
-    --color-quiet-line: #3a3b40;
-    --color-wait-soft: #141a26;
-    --color-active: #26272c;
-    --color-count: #313238;
-    --color-button: #26272c;
-    --color-button-line: #26272c;
-    --color-button-hover: #2e2f35;
-    --color-button-press: #35363c;
+    --color-brand: #7dd3fc;
+    --color-on-brand: #06131f;
+    --color-brand-ink: #f2f4f7;
+    --color-accent: #7dd3fc;
+    --color-accent-hover: #a5e1fd;
+    --color-accent-press: #38bdf8;
+    --color-on-accent: #06131f;
+    --color-urgent: #f97066;
+    --color-urgent-soft: #2e1415;
+    --color-urgent-ink: #fca5a5;
+    --color-urgent-tile: #3a1a1b;
+    --color-urgent-fill: #f97066;
+    --color-urgent-fill-hover: #fb8a80;
+    --color-on-urgent: #06131f;
+    --color-attention: #fdb022;
+    --color-attention-soft: #2c1f0c;
+    --color-attention-ink: #fcd34d;
+    --color-hivis: #2c1f0c;
+    --color-on-hivis: #fcd34d;
+    --color-wait-tile: #0f2635;
+    --color-wait-ink: #7dd3fc;
+    --color-done: #47cd89;
+    --color-done-soft: #10261a;
+    --color-done-ink: #6ee7a0;
+    --color-done-tile: #143322;
+    --color-done-fill: #47cd89;
+    --color-on-done: #06131f;
+    --color-quiet-soft: #1c2027;
+    --color-quiet-ink: #a3acb9;
+    --color-urgent-line: #5a2423;
+    --color-attention-line: #5a4314;
+    --color-wait-line: #1e4a66;
+    --color-done-line: #1f4d33;
+    --color-quiet-line: #3a404b;
+    --color-wait-soft: #0f2635;
+    --color-active: #1c2027;
+    --color-count: #232830;
+    --color-button: #15181d;
+    --color-button-line: #3a404b;
+    --color-button-hover: #1c2027;
+    --color-button-press: #232830;
     --color-ink-press: #ffffff;
-    --color-urgent-card: #3d1f19;
-    --color-urgent-card-ink: #ffd9cf;
-    --color-attention-card: #382d11;
-    --color-attention-card-ink: #fbecc4;
-    --color-wait-card: #1a2b4c;
-    --color-wait-card-ink: #d7e6ff;
-    --color-done-card: #173823;
-    --color-done-card-ink: #d4f5de;
-    --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .13 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-    --grain-soft: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-    --stripes: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M-2 2l4-4M0 8l8-8M6 10l4-4' stroke='%23ffffff' stroke-opacity='.08' stroke-width='1'/%3E%3C/svg%3E");
-    --tint-top: rgb(255 255 255 / 0.08);
-    --card-chip: rgb(255 255 255 / 0.1);
-    --glow-urgent: rgb(255 100 70 / 0.24);
-    --glow-attention: rgb(240 180 40 / 0.2);
-    --glow-wait: rgb(70 130 255 / 0.24);
-    --glow-done: rgb(60 190 100 / 0.2);
+    --color-mark-urgent: #f97066;
+    --color-mark-open: #fdb022;
+    --color-mark-wait: #38bdf8;
+    --color-mark-done: #47cd89;
+    --color-mark-calm: #667085;
+    --color-mark-grid: #22262d;
+    --color-mark-base: #3a404b;
   }
 }
 
@@ -784,8 +751,8 @@ body:has([data-office]) {
   letter-spacing: -0.02em;
 }
 
-/* A page's headline (PageHeader's <h1>): the casual app's 24px semibold sans; in the office
-   (Phase 21) the --title-* values above make it the display serif at 28px. */
+/* A page's headline (PageHeader's <h1>): the casual app's 24px semibold sans; in the office the
+   --title-* values above make it Plus Jakarta Sans extrabold at 28px (Phase 23). */
 @utility text-title {
   font-family: var(
     --title-font,
@@ -801,15 +768,16 @@ body:has([data-office]) {
   letter-spacing: var(--title-tracking, -0.025em);
 }
 
-/* The office's faces (Phase 22, round 2; src/app/office/office-fonts.ts puts their variables on
-   the [data-office] wrapper): DM Sans for words, with fixed-width digits; Newsreader semibold for
-   a page's headline (`font-display`, the dashboard's greeting); and DM Mono for the big numbers
-   (`font-stat`: the dashboard's counts). */
+/* The office's face (Phase 23, round 3; src/app/office/office-fonts.ts puts its variables on the
+   [data-office] wrapper): Plus Jakarta Sans for every word, headline and number, with fixed-width
+   digits (`body`); a page's headline extrabold (`text-title`, through --title-font), and the big
+   numbers (`font-stat`: the dashboard's counts) extrabold and a little tighter. Keys and secrets
+   on Integrations keep the system's mono (`font-mono`), so O and 0, l and 1 differ. */
 @layer base {
   [data-office] {
     font-family:
-      var(--font-dm-sans),
-      var(--font-dm-sans-ext),
+      var(--font-plus-jakarta),
+      var(--font-plus-jakarta-ext),
       ui-sans-serif,
       system-ui,
       -apple-system,
@@ -817,24 +785,18 @@ body:has([data-office]) {
       Roboto,
       Arial,
       sans-serif;
-    /* A page's headline (`text-title`): set here, where the faces' variables are, not on <body>
+    /* A page's headline (`text-title`): set here, where the face's variables are, not on <body>
        with the office's colours (a variable from a box inside it can't be read there). */
     --title-font:
-      var(--font-newsreader), var(--font-newsreader-ext), Georgia, "Times New Roman", serif;
+      var(--font-plus-jakarta), var(--font-plus-jakarta-ext), ui-sans-serif, system-ui, sans-serif;
   }
-}
-@utility font-display {
-  font-family:
-    var(--font-newsreader), var(--font-newsreader-ext), Georgia, "Times New Roman", serif;
-  font-weight: 600;
-  letter-spacing: -0.02em;
 }
 @utility font-stat {
   font-family:
-    var(--font-dm-mono), var(--font-dm-mono-ext), ui-monospace, "SFMono-Regular", Menlo, monospace;
-  font-weight: 500;
+    var(--font-plus-jakarta), var(--font-plus-jakarta-ext), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.03em;
 }
 
 /* Press feedback (Phase 22, Dylan: "subtle reactive on click responses"): what you can press dips
@@ -862,41 +824,6 @@ body:has([data-office]) {
   }
 }
 
-/* The dashboard's four colour cards (Phase 22): the card's flat colour, and what its tint depth token
-   draws: a 1px edge in its own words' colour, a lit top edge and a glow in its colour beneath. */
-@utility tint-urgent {
-  background-color: var(--color-urgent-card);
-  --tint-line: color-mix(in srgb, var(--color-urgent-card-ink) 20%, transparent);
-  --tint-glow: var(--glow-urgent);
-}
-@utility tint-attention {
-  background-color: var(--color-attention-card);
-  --tint-line: color-mix(in srgb, var(--color-attention-card-ink) 20%, transparent);
-  --tint-glow: var(--glow-attention);
-}
-@utility tint-wait {
-  background-color: var(--color-wait-card);
-  --tint-line: color-mix(in srgb, var(--color-wait-card-ink) 20%, transparent);
-  --tint-glow: var(--glow-wait);
-}
-@utility tint-done {
-  background-color: var(--color-done-card);
-  --tint-line: color-mix(in srgb, var(--color-done-card-ink) 20%, transparent);
-  --tint-glow: var(--glow-done);
-}
-/* A fine grain over a coloured surface (Phase 22; Dylan's HITE EQ reference): speckles drawn by
-   the browser from a 200px noise tile, black in light and white in dark, never a gradient. */
-@utility grain {
-  background-image: var(--grain);
-}
-/* The same, fainter, over the window and the page sheet. */
-@utility grain-soft {
-  background-image: var(--grain-soft);
-}
-/* Fine diagonal lines, drawn the same way: a day with no sessions on the dashboard's week. */
-@utility stripes {
-  background-image: var(--stripes);
-}
 /* A list that scrolls with no scrollbar (the office's menu: Dylan, "a tacky scroll wheel on the
    left side"), and the soft edge it fades to where there's more to scroll to (data-more, set by
    src/app/office/menu-scroll.tsx). The fade is a mask, not a colour: the one gradient the office
@@ -924,17 +851,14 @@ body:has([data-office]) {
     );
   }
 }
-/* The menu's white pill sliding to the link you pick (Phase 22), on the spring a press returns on. */
+/* The menu's pill sliding to the link you pick (Phase 22; pale blue since Phase 23), on the spring
+   a press returns on. */
 @utility slide {
   transition:
     translate 400ms var(--ease-spring),
     width 200ms var(--ease-sd),
     height 200ms var(--ease-sd),
     opacity 150ms var(--ease-sd);
-}
-/* The round chip a colour card's icon sits in. */
-@utility card-chip {
-  background-color: var(--card-chip);
 }
 
 /* The greetings ("Hi Zoe", "Evening, Acme Events."): Instrument Serif, its one weight (Phase 20). */
@@ -953,4 +877,11 @@ body:has([data-offline-notice]:not([hidden])) [data-online-only] {
 }
 body:not(:has([data-offline-notice]:not([hidden]))) [data-offline-only] {
   display: none;
+}
+
+/* The office's sticky top bar (src/app/office/office-frame.tsx: 56px, 64px from 1024px) never
+   hides what the keyboard moves to or a link lands on (WCAG 2.4.11): the page scrolls it to at
+   least 80px under the window's top, the bar's 64px and a 16px step. */
+html:has([data-shell="office"]) {
+  scroll-padding-top: 5rem;
 }

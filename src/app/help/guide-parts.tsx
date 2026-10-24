@@ -4,7 +4,8 @@ import type { ReactNode } from "react";
 // guide (/office/guide). Plain and hook-free, with no words of their own: safe on the server, in
 // the client and in the copy tests.
 
-// Numbered steps: an ordered list whose numbers sit in small circles. (role="list" keeps the list
+// Numbered steps: an ordered list whose numbers sit in small circles: ink on /help, and in the
+// office (Phase 23, flat) the grey of its counts with ink numbers. (role="list" keeps the list
 // announced in Safari, which drops it once the bullets are styled away.)
 export function Steps({ children }: { children: ReactNode }) {
   return (
@@ -16,7 +17,7 @@ export function Steps({ children }: { children: ReactNode }) {
 
 export function Step({ children }: { children: ReactNode }) {
   return (
-    <li className="relative min-h-7 pl-10 office:pl-12 [counter-increment:step] before:absolute before:top-0 before:left-0 before:flex before:size-7 before:items-center before:justify-center before:rounded-full before:bg-ink before:text-sm before:leading-none before:font-bold before:text-on-ink before:tabular-nums before:content-[counter(step)]">
+    <li className="relative min-h-7 pl-10 office:pl-12 [counter-increment:step] before:absolute before:top-0 before:left-0 before:flex before:size-7 before:items-center before:justify-center before:rounded-full before:bg-ink before:text-sm before:leading-none before:font-bold before:text-on-ink before:tabular-nums before:content-[counter(step)] office:before:bg-count office:before:text-ink">
       {children}
     </li>
   );

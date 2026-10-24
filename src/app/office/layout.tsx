@@ -6,7 +6,8 @@ import { uploadsToCheck } from "@/lib/office/casuals";
 import { needsAttentionBell } from "@/lib/office/dashboard";
 import { enquiriesWaiting } from "@/lib/office/enquiries";
 import { officePayQueriesWaiting } from "@/lib/office/pay-dashboard";
-import { payWeekLabel, payWeekNow } from "@/lib/pay/pay-week";
+import { payWeekNow, payWeekParts } from "@/lib/pay/pay-week";
+import { firmShiftsLine, lineWords } from "@/lib/tenancy/shifts-line";
 import { THEME_COOKIE, themeFromCookie } from "../theme";
 import { officeFontVariables } from "./office-fonts";
 import { menuBadges, OfficeShell, officeMenu } from "./office-shell";
@@ -47,6 +48,8 @@ export default async function OfficeLayout({ children }: { children: ReactNode }
     needs && needs.count !== null
       ? { count: needs.count + (needPerson ?? 0), more: needs.more }
       : null;
+  // The firm's shifts line, for the top bar (Phase 23): none until the firm has one.
+  const line = await firmShiftsLine({ firm: s.firm });
   // Pale yellow when it needs this person (Phases 18 and 20; office-menu.ts menuBadges).
   const badges = menuBadges(s.officeUser.role, {
     payQueries: waiting ?? 0,
@@ -60,7 +63,8 @@ export default async function OfficeLayout({ children }: { children: ReactNode }
         name={s.officeUser.name}
         roleLabel={ROLE_LABELS[s.officeUser.role]}
         firmName={s.firm.name}
-        payWeek={payWeekLabel(payWeekNow(new Date(), s.firm.timezone))}
+        payWeek={payWeekParts(payWeekNow(new Date(), s.firm.timezone))}
+        shiftsLine={line ? lineWords(line) : null}
         menu={officeMenu(s.officeUser.role, badges)}
         theme={themeFromCookie((await cookies()).get(THEME_COOKIE)?.value)}
         rotationDue={s.session.rotationDue}

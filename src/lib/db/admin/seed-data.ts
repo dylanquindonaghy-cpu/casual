@@ -1,5 +1,6 @@
 import { seedId } from "../../demo/seed-id";
-import { localDateOf, zonedToUtc } from "../../time/zoned";
+import { mayMessageNow, type QuietHours } from "../../rules/quiet-hours";
+import { localDateOf, mondayOf, startOfDay, zonedToUtc } from "../../time/zoned";
 
 // The two demo firms from docs/testing.md. Fake data only (golden rule 7): invented firms,
 // sites and people; phone numbers from Ofcom's drama range (+447700900000-999); emails at
@@ -339,4 +340,135 @@ function northline(today: Date): SeedFirm {
 
 export function seedFirms(today: Date = new Date()): SeedFirm[] {
   return [acme(today), northline(today)];
+}
+
+// This week's offers for the dashboard's offers chart (Phase 23, 23.4): made up, each sent by
+// Acme's resourcer between Monday midnight (London) and when the seed runs, so they always fall in
+// the pay week the dashboard shows. The seed only writes what the app itself could have written,
+// so none is sent in the firm's quiet hours: the app holds an offer that isn't urgent until they
+// end (mayMessageNow, src/lib/rules/quiet-hours.ts), and none of these is on an urgent place.
+// Waiting for a reply on Saturday's open places (the urgent dropout is left alone: the
+// walkthrough's casuals take it), and said yes for Saturday's own bookings made this week. A
+// said-yes offer went 20 minutes before its booking, or in the last minute before quiet hours
+// began when that falls inside them; a booking whose offer would then fall before Monday is left
+// out. Every booking is made 72 hours or more before the seed runs, and one made before 07:20 on
+// Monday would have had its offer in the night's quiet hours, so a run before about 07:20 on
+// Thursday has none yet. None said no: the app can't record a "no" yet (a casual declining an offer is in
+// PLAN.md's Parking lot). Never to the workers kept free for demo logins, nor to the ones the
+// walkthrough logs in as, so the offers and lists they see stay as they were; none failed. Pure:
+// seed.ts loads them, added once (fixed ids).
+
+// Saturday's open places, by role, in the order the day plans them (seed-saturday.ts: the arena's
+// three steward places and the racecourse's one; the arena's door supervisor place; the
+// racecourse's and the centre's security officer places): who has an offer waiting (by worker
+// index; each worker free that Saturday and holding the role's qualification).
+const SATURDAY_OFFERS: Record<string, { waiting: number[] }[]> = {
+  steward: [{ waiting: [23, 24] }, { waiting: [25] }, { waiting: [27, 28] }, { waiting: [41] }],
+  door_supervisor: [{ waiting: [38, 40] }],
+  security_officer: [{ waiting: [57] }, { waiting: [58] }],
+};
+// Logged in as in the walkthrough (docs/walkthrough.md): Sam Walsh, Zoe Usman, Maya Morgan and Wes
+// Doyle (the five kept free, 0 to 4, are never booked or offered either).
+const WALKTHROUGH_WORKERS = [10, 22, 29, 39];
+const OFFER_LEAD_MS = 20 * 60_000;
+const MINUTE = 60_000;
+const TZ = "Europe/London";
+
+export interface OfferSeed {
+  id: string;
+  shiftId: string;
+  workerId: string;
+  sentAt: Date;
+  // Waiting for a reply (null) or said yes. Never "declined": the app can't record a "no" yet.
+  response: "accepted" | null;
+  respondedAt: Date | null;
+}
+
+export function weekOffers(o: {
+  now: Date;
+  workers: SeedFirm["workers"];
+  // The firm's quiet hours, as the app reads them (quietHours(settings)).
+  quiet: QuietHours;
+  // Saturday's open places just added (not the urgent dropout), in the day's order.
+  openPlaces: { id: string; role: string }[];
+  // Saturday's confirmed bookings on the shifts just added, as stored (their confirmed time).
+  bookings: { id: string; shiftId: string; workerId: string; confirmedAt: Date }[];
+}): OfferSeed[] {
+  const weekStart = startOfDay(mondayOf(localDateOf(o.now, TZ)), TZ).getTime();
+  // Every minute this week, Monday midnight to now, in which the app would send an offer that
+  // isn't urgent: quiet hours are skipped to their end, as the app holds an offer until then.
+  const open: number[] = [];
+  for (let t = weekStart; t < o.now.getTime();) {
+    const timing = mayMessageNow({ now: new Date(t), timeZone: TZ, quiet: o.quiet, urgent: false });
+    if (!timing.ok) {
+      t = timing.until.getTime();
+      continue;
+    }
+    open.push(t);
+    t += MINUTE;
+  }
+  const workerId = (i: number) => {
+    const w = o.workers[i];
+    if (!w || i < 5 || WALKTHROUGH_WORKERS.includes(i))
+      throw new Error(`worker ${i} can't be offered`);
+    return w.id;
+  };
+  const leftOut = new Set([
+    ...o.workers.slice(0, 5).map((w) => w.id),
+    ...WALKTHROUGH_WORKERS.map((i) => o.workers[i]?.id),
+  ]);
+  const waiting: { shiftId: string; workerId: string }[] = [];
+  for (const [role, places] of Object.entries(SATURDAY_OFFERS)) {
+    const shifts = o.openPlaces.filter((p) => p.role === role);
+    places.forEach((plan, i) => {
+      const shift = shifts[i];
+      if (!shift) return;
+      for (const w of plan.waiting) waiting.push({ shiftId: shift.id, workerId: workerId(w) });
+    });
+  }
+  // Spread over those minutes: the k-th of n sent at (k + 1) / (n + 1) of the way through them.
+  // A run before quiet hours first end this week (Monday before 07:00 for Acme) has no such minute
+  // yet, so it plans no waiting offer at all.
+  const offers: OfferSeed[] = [];
+  waiting.forEach((x, k) => {
+    const sentAt = open[Math.floor((open.length * (k + 1)) / (waiting.length + 1))];
+    if (sentAt === undefined) return;
+    offers.push({
+      id: seedId(`acme/offer/${x.shiftId}/${x.workerId}`),
+      shiftId: x.shiftId,
+      workerId: x.workerId,
+      sentAt: new Date(sentAt),
+      response: null,
+      respondedAt: null,
+    });
+  });
+  // Said yes: sent 20 minutes before the booking, or, when that is in quiet hours, in the last
+  // minute before they began. Left out when that is before this week's Monday.
+  const sentBefore = (confirmedAt: Date): number | undefined => {
+    const at = confirmedAt.getTime() - OFFER_LEAD_MS;
+    if (at < weekStart) return undefined;
+    if (mayMessageNow({ now: new Date(at), timeZone: TZ, quiet: o.quiet, urgent: false }).ok)
+      return at;
+    return open.findLast((minute) => minute <= at);
+  };
+  // Saturday's bookings made this week, the 12 latest.
+  const yes = o.bookings
+    .filter((b) => !leftOut.has(b.workerId) && b.confirmedAt.getTime() <= o.now.getTime())
+    .flatMap((b) => {
+      const sentAt = sentBefore(b.confirmedAt);
+      return sentAt === undefined ? [] : [{ ...b, sentAt }];
+    })
+    .sort((a, b) => b.confirmedAt.getTime() - a.confirmedAt.getTime() || a.id.localeCompare(b.id))
+    .slice(0, 12);
+  for (const b of yes) {
+    offers.push({
+      id: seedId(`acme/offer/accepted/${b.id}`),
+      shiftId: b.shiftId,
+      workerId: b.workerId,
+      sentAt: new Date(b.sentAt),
+      response: "accepted",
+      respondedAt: b.confirmedAt,
+    });
+  }
+  return offers;
 }

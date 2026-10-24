@@ -3,32 +3,42 @@ import { addOfficeUser, addQualifiedCasual } from "./db";
 import { expect, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
-// The office's look on every page (Phases 21 and 22; docs/ui-design.md "Phase 22"): an admin
-// opens each page in the menu on the brief's phone (390px) and on Dylan's laptop window (1280 ×
-// 640; 1440px wide until Phase 22), with the device set to light and again to dark. Each page sits
-// on the office's window (a warm grey, a near-black in dark) as a warm off-white sheet (a dark
-// grey one), has its headline in the serif, and never scrolls sideways (a wide table scrolls in
-// its own box); its serif (Newsreader) and DM Sans have really loaded; it has a white card or row
-// (a dark one in dark) on that sheet, and something with depth; every main button is near-black
-// (white in dark); round 2's parts (Phase 22): every button raised off its surface, everything
-// you press dips (its transition carries scale: globals.css `press`), and every wash with an edge
-// has depth; and nothing on it is drawn with a gradient (Dylan: "remove the gradients"). With
-// every hidden step and menu on the page shown, so they're checked too.
+// The office's look on every page (Phases 21 to 23; docs/ui-design.md "Phase 23"): an admin opens
+// each page in the menu on the brief's phone (390px) and on Dylan's laptop window (1280 × 640),
+// with the device set to light and again to dark. Round 3 (Phase 23, the approved mock-up), flat:
+// each page sits on the cool light grey ground (near-black in dark) as a white page card (dark
+// grey in dark) with a 1px hairline, 28px round from 1024px and 22px on a phone, with no depth;
+// Plus Jakarta Sans for its headline and its words, really loaded; white cards and rows on it,
+// each white box with its edge; every main button the sky with near-black words; every office
+// button and pill with its 1px edge; nothing anywhere with depth but what floats over the page (an
+// open "…" menu, the account menu, the drawer: placed absolutely or fixed); no background image
+// at all (no gradient, no grain) and no mask but the menu's fade; everything you press dips (its
+// transition carries scale: globals.css `press`); and the page never scrolls sideways (a wide
+// table or the rota board scrolls in its own box). With every hidden step and menu on the page
+// shown, so they're checked too.
 // The pages opened from inside one too: a casual's page, a cancellation's record, an enquiry,
-// the offer page, a shift's and an event's page, and the ways to add shifts. With a
-// casual of its own whose qualification has the longest words a
-// chip shows ("Level 2 spectator safety qualification: Expiring soon"): it ran off a phone until a
-// chip could wrap.
+// the offer page, a shift's and an event's page, the ways to add shifts and a worker's data
+// page; and, logged out, the office's login pages. With a casual of its own whose qualification
+// has the longest words a chip shows ("Level 2 spectator safety qualification: Expiring soon"):
+// it ran off a phone until a chip could wrap.
+// Round 2 (Phase 22) pinned the opposite: a warm off-white sheet, Newsreader and DM Sans, a
+// near-black main button, every button and edged wash raised.
 
 const acme = "http://acme.localhost:3100";
-const CANVAS = { light: "rgb(231, 229, 223)", dark: "rgb(8, 9, 11)" }; // #e7e5df, #08090b
-const SHEET = { light: "rgb(249, 248, 245)", dark: "rgb(17, 18, 21)" }; // #f9f8f5, #111215
-const CARD = { light: /^#f{3}(?:f{3})?$/i, dark: /^#1a1b1f$/i }; // white, #1a1b1f
-const INK = { light: "rgb(28, 27, 24)", dark: "rgb(242, 241, 238)" }; // #1c1b18, #f2f1ee
+const CANVAS = { light: "rgb(242, 244, 247)", dark: "rgb(12, 14, 18)" }; // #f2f4f7, #0c0e12
+const CARD = { light: "rgb(255, 255, 255)", dark: "rgb(21, 24, 29)" }; // #ffffff, #15181d
+// The card token as written (a production build may shorten #ffffff).
+const CARD_TOKEN = { light: /^#f{3}(?:f{3})?$/i, dark: /^#15181d$/i };
+const LINE = { light: "rgb(228, 231, 236)", dark: "rgb(38, 43, 51)" }; // #e4e7ec, #262b33
+const ACCENT = { light: "rgb(14, 165, 233)", dark: "rgb(125, 211, 252)" }; // #0ea5e9, #7dd3fc
+const ON_ACCENT = "rgb(6, 19, 31)"; // #06131f, in both
+// The page card's corners: 22px on a phone, 28px from 1024px.
+const PAGE_RADIUS: Record<number, string> = { 390: "22px", 1280: "28px" };
 const WIDTHS = [
   { width: 390, height: 844 },
   { width: 1280, height: 640 },
 ];
+const FACE = /plus.?jakarta/i;
 
 async function adminLogin(page: Page, who: string) {
   const email = `look.${who}@example.com`;
@@ -44,11 +54,185 @@ async function adminLogin(page: Page, who: string) {
   await expect(page).toHaveURL(`${acme}/office`);
 }
 
+// What a page looks like, measured in the browser: its ground and page card, faces, cards, main
+// buttons, office buttons, what dips when pressed, depth, white boxes without an edge, background
+// images and masks, and whether it scrolls sideways. Every hidden step and menu is shown first,
+// so its parts are measured too. The pointer is moved off the page first (`calm`), so no button
+// is measured under it.
+const measure = (page: Page) =>
+  page.evaluate(() => {
+    for (const d of document.querySelectorAll("main details:not([open])"))
+      (d as HTMLDetailsElement).open = true;
+    const heading = document.querySelector("h1");
+    const main = document.querySelector("main");
+    const familyOf = (el: Element | null | undefined) =>
+      el ? getComputedStyle(el).fontFamily : "";
+    // Loaded, not only asked for: the first face of each list, at its own size and weight.
+    const loaded = (el: Element | null | undefined) => {
+      if (!el) return false;
+      const style = getComputedStyle(el);
+      const first = style.fontFamily.split(",")[0]!.trim();
+      return document.fonts.check(`${style.fontWeight} ${style.fontSize} ${first}`);
+    };
+    const shown = (el: Element) => el.checkVisibility();
+    const name = (el: Element) =>
+      `${el.tagName}.${(el.getAttribute("class") ?? "").split(/\s+/).slice(0, 4).join(".")} "${(el.textContent || el.getAttribute("aria-label") || "").trim().slice(0, 40)}"`;
+    // A token's colour here, as the browser computes it.
+    const tint = (token: string) => {
+      const probe = document.createElement("i");
+      probe.style.color = `var(--color-${token})`;
+      document.body.append(probe);
+      const rgb = getComputedStyle(probe).color;
+      probe.remove();
+      return rgb;
+    };
+    const white = tint("card");
+    const box = (el: Element | null) => {
+      if (!el) return null;
+      const s = getComputedStyle(el);
+      return {
+        fill: s.backgroundColor,
+        widths: [s.borderTopWidth, s.borderRightWidth, s.borderBottomWidth, s.borderLeftWidth],
+        colours: [s.borderTopColor, s.borderRightColor, s.borderBottomColor, s.borderLeftColor],
+        styles: [s.borderTopStyle, s.borderRightStyle, s.borderBottomStyle, s.borderLeftStyle],
+        radius: s.borderTopLeftRadius,
+        depth: s.boxShadow,
+      };
+    };
+    // The cards and rows shown in the card's fill, and what that fill is here.
+    const cards = [...(main?.querySelectorAll("*") ?? [])].filter(
+      (el) =>
+        /(?:^|\s)(?:sm:)?bg-card(?:\/\d+)?(?:\s|$)/.test(el.getAttribute("class") ?? "") &&
+        shown(el) &&
+        getComputedStyle(el).backgroundColor !== "rgba(0, 0, 0, 0)",
+    ).length;
+    const card = getComputedStyle(document.body).getPropertyValue("--color-card").trim();
+    // The main buttons: their fill and their words.
+    const primaries = [...(main?.querySelectorAll(".bg-accent.text-on-accent") ?? [])]
+      .filter((el) => el.matches("a, button") && shown(el))
+      .map((el) => {
+        const s = getComputedStyle(el);
+        return { fill: s.backgroundColor, words: s.color, what: name(el) };
+      });
+    // Every office button and pill (white or sky) keeps its 1px edge, with no depth.
+    const edgeless = [...(main?.querySelectorAll("a, button") ?? [])]
+      .filter((el) => shown(el) && /(?:^|\s)(?:bg-button|bg-accent)(?:\s|$)/.test(el.className))
+      .filter((el) => {
+        const s = getComputedStyle(el);
+        return s.borderTopWidth !== "1px" || s.borderTopStyle !== "solid" || s.boxShadow !== "none";
+      })
+      .map(name);
+    // What you press: a button, an opener, a switch, and a link that isn't words (a row,
+    // a card, a pill, a tab), or words with their own 44px target. A link in a sentence
+    // is text, and doesn't move.
+    const pressed = (el: Element) => {
+      if (el.tagName !== "A") return true;
+      const style = getComputedStyle(el);
+      if (style.display === "inline") return false;
+      return !style.textDecorationLine.includes("underline") || parseFloat(style.minHeight) >= 44;
+    };
+    const still = [...(main?.querySelectorAll("button, summary, [role=switch], a") ?? [])]
+      .filter((el) => shown(el) && pressed(el))
+      .filter((el) => !getComputedStyle(el).transitionProperty.includes("scale"))
+      .map(name);
+    // Depth anywhere on the page, shown or not: only what floats over it (placed absolutely or
+    // fixed: an open "…" menu, the account menu, the drawer, a toast) may have its overlay.
+    const everything = [
+      document.documentElement,
+      document.body,
+      ...document.querySelectorAll("body *"),
+    ];
+    const raised = everything
+      .filter((el) => {
+        const s = getComputedStyle(el);
+        return s.boxShadow !== "none" && s.position !== "absolute" && s.position !== "fixed";
+      })
+      .map(name);
+    // A white box (a card's, an inner card's or a row's corners: not a pill, not a field) on the
+    // white page card has its edge, or it would vanish.
+    const bareWhite = [...(main?.querySelectorAll("*") ?? [])]
+      .filter((el) => {
+        if (!shown(el) || el.matches("input, select, textarea")) return false;
+        const s = getComputedStyle(el);
+        const radius = parseFloat(s.borderTopLeftRadius);
+        return (
+          s.position !== "absolute" &&
+          s.position !== "fixed" &&
+          s.backgroundColor === white &&
+          radius > 0 &&
+          radius < el.getBoundingClientRect().height / 2 &&
+          (s.borderTopWidth === "0px" || s.borderTopStyle === "none")
+        );
+      })
+      .map(name);
+    // No background image anywhere (no gradient, no grain, no stripes), and no mask but the
+    // menu's fade at its scrolling edge.
+    const images = everything
+      .filter((el) => getComputedStyle(el).backgroundImage !== "none")
+      .map((el) => `${name(el)}: ${getComputedStyle(el).backgroundImage.slice(0, 60)}`);
+    const masks = everything
+      .filter((el) => {
+        const s = getComputedStyle(el);
+        const mask = s.maskImage || s.webkitMaskImage || "none";
+        return mask !== "none" && !el.classList.contains("fade-edges");
+      })
+      .map(name);
+    return {
+      ground: getComputedStyle(document.body).backgroundColor,
+      // The page card in the shell; the login card outside it.
+      sheet: box(document.querySelector("#main > div")),
+      loginCard: box(document.querySelector("main > div")),
+      face: familyOf(heading),
+      faceLoaded: loaded(heading),
+      words: familyOf(main),
+      wordsLoaded: loaded(main),
+      cards,
+      card,
+      primaries,
+      edgeless,
+      still,
+      raised,
+      bareWhite,
+      images,
+      masks,
+      wide: document.documentElement.scrollWidth,
+      window: document.documentElement.clientWidth,
+    };
+  });
+
+// The pointer away from every button, so none is measured in its hover colour.
+const calm = (page: Page) => page.mouse.move(0, 0);
+// A box's four sides.
+const four = (value: string) => [value, value, value, value];
+
+// A slip's fill, its edge and its depth, with the tokens it should have here.
+const slip = (page: Page) =>
+  page.getByRole("status").evaluate((node) => {
+    const tint = (token: string) => {
+      const probe = document.createElement("i");
+      probe.style.color = `var(--color-${token})`;
+      document.body.append(probe);
+      const rgb = getComputedStyle(probe).color;
+      probe.remove();
+      return rgb;
+    };
+    const s = getComputedStyle(node);
+    return {
+      fill: s.backgroundColor,
+      edge: [s.borderTopWidth, s.borderTopStyle, s.borderTopColor],
+      depth: s.boxShadow,
+      quiet: tint("quiet-soft"),
+      line: tint("line"),
+      done: tint("done-soft"),
+      doneLine: tint("done-line"),
+    };
+  });
+
 for (const device of ["light", "dark"] as const) {
   test.describe(`with the device set to ${device}`, () => {
     test.use({ colorScheme: device });
 
-    test("every office page: the ground, the serif headline, round 2's parts, nothing sideways, at 390px and 1280px", async ({
+    test("every office page: the ground, the white page card, Plus Jakarta Sans, round 3's flat parts, nothing sideways, at 390px and 1280px", async ({
       page,
     }) => {
       test.setTimeout(240_000);
@@ -58,10 +242,12 @@ for (const device of ["light", "dark"] as const) {
         { roles: ["steward"], held: [{ type: "STEWARD_L2", daysAhead: 5 }] },
       );
       await adminLogin(page, device);
-      // The pages: every link in an admin's menu (from the sidebar, the fold opened).
+      // The pages: every link in an admin's menu (the menu card, its fold opened if it has one).
       await page.setViewportSize(WIDTHS[1]!);
       const menu = page.getByRole("navigation", { name: "Office menu" });
-      await menu.locator('button[aria-expanded="false"]').click();
+      await expect(menu).toBeVisible();
+      const fold = menu.locator('button[aria-expanded="false"]');
+      if ((await fold.count()) > 0) await fold.click();
       const pages = await menu
         .getByRole("link")
         .evaluateAll((els) => els.map((el) => el.getAttribute("href") ?? ""));
@@ -110,6 +296,23 @@ for (const device of ["light", "dark"] as const) {
         "/office/shifts/new",
         "/office/shifts/import",
         "/office/shifts/event",
+        // A worker's data page (download or delete their data), found by name on Data requests.
+        await (async () => {
+          await page.goto(`${acme}/office/data`);
+          await page.getByLabel("Name or mobile number").fill("Longform");
+          await page.getByRole("button", { name: "Find", exact: true }).click();
+          let href = "";
+          await expect
+            .poll(async () => {
+              const all = await page
+                .locator("main a[href]")
+                .evaluateAll((els) => els.map((el) => el.getAttribute("href") ?? ""));
+              href = all.find((h) => new RegExp(`^/office/data/workers/${id}$`).test(h)) ?? "";
+              return href;
+            }, "/office/data")
+            .not.toBe("");
+          return href;
+        })(),
       ];
       expect(pages).toEqual(
         expect.arrayContaining([
@@ -126,6 +329,8 @@ for (const device of ["light", "dark"] as const) {
         ]),
       );
 
+      // Across every page and width: the main buttons seen (so the check never passes over none).
+      let primaries = 0;
       for (const size of WIDTHS) {
         await page.setViewportSize(size);
         for (const path of [...pages, ...records]) {
@@ -134,128 +339,163 @@ for (const device of ["light", "dark"] as const) {
           const h1 = page.getByRole("heading", { level: 1 });
           await expect(h1, where).toBeVisible();
           await page.evaluate(() => document.fonts.ready);
-          const look = await page.evaluate(() => {
-            // Every hidden step and menu shown, so its parts are checked too.
-            for (const d of document.querySelectorAll("main details:not([open])"))
-              (d as HTMLDetailsElement).open = true;
-            const heading = document.querySelector("h1");
-            // The dashboard's greeting is its first line (the serif); every other page's whole
-            // headline.
-            const serif = heading?.querySelector(".font-display") ?? heading;
-            const main = document.querySelector("main");
-            const familyOf = (el: Element | null | undefined) =>
-              el ? getComputedStyle(el).fontFamily : "";
-            // Loaded, not only asked for: the first face of each list, at its own size.
-            const loaded = (el: Element | null | undefined) => {
-              if (!el) return false;
-              const style = getComputedStyle(el);
-              const first = style.fontFamily.split(",")[0]!.trim();
-              return document.fonts.check(`${style.fontWeight} ${style.fontSize} ${first}`);
-            };
-            // The cards and rows shown in the card's fill, and what that fill is here.
-            const cards = [...(main?.querySelectorAll("*") ?? [])].filter(
-              (el) =>
-                /(?:^|\s)(?:sm:)?bg-card(?:\/\d+)?(?:\s|$)/.test(el.getAttribute("class") ?? "") &&
-                el.checkVisibility() &&
-                getComputedStyle(el).backgroundColor !== "rgba(0, 0, 0, 0)",
-            ).length;
-            const card = getComputedStyle(document.body).getPropertyValue("--color-card").trim();
-            const primaries = [...(main?.querySelectorAll(".bg-ink.text-on-ink") ?? [])]
-              .filter((el) => el.matches("a, button"))
-              .map((el) => getComputedStyle(el).backgroundColor);
-            // Round 2's parts: the office's buttons raised off their surface (their own depth);
-            // everything you press dips (a button, a round control, a 44px link); and some depth
-            // on the page (its cards, rows, fields).
-            const shown = (el: Element) => el.checkVisibility();
-            const name = (el: Element) =>
-              `${el.tagName} "${(el.textContent || el.getAttribute("aria-label") || "").trim().slice(0, 40)}"`;
-            const flat = [...(main?.querySelectorAll("a, button") ?? [])]
-              .filter(
-                (el) => shown(el) && /(?:^|\s)(?:bg-button|bg-ink)(?:\s|$)/.test(el.className),
-              )
-              .filter((el) => getComputedStyle(el).boxShadow === "none")
-              .map(name);
-            // What you press: a button, an opener, a switch, and a link that isn't words (a row,
-            // a card, a pill, a tab), or words with their own 44px target. A link in a sentence
-            // is text, and doesn't move.
-            const pressed = (el: Element) => {
-              if (el.tagName !== "A") return true;
-              const style = getComputedStyle(el);
-              if (style.display === "inline") return false;
-              return (
-                !style.textDecorationLine.includes("underline") || parseFloat(style.minHeight) >= 44
-              );
-            };
-            const still = [...(main?.querySelectorAll("button, summary, [role=switch], a") ?? [])]
-              .filter((el) => shown(el) && pressed(el))
-              .filter((el) => !getComputedStyle(el).transitionProperty.includes("scale"))
-              .map(name);
-            // A wash with an edge (a second step, the rules' answer) has depth too; a chip (a pill:
-            // a word with its colour) is a label, not a surface.
-            const tint = (token: string) => {
-              const probe = document.createElement("i");
-              probe.style.color = `var(--color-${token})`;
-              document.body.append(probe);
-              const rgb = getComputedStyle(probe).color;
-              probe.remove();
-              return rgb;
-            };
-            const washes = ["urgent-soft", "quiet-soft", "attention-soft", "done-soft"].map(tint);
-            const bare = [...(main?.querySelectorAll("*") ?? [])]
-              .filter((el) => {
-                const style = getComputedStyle(el);
-                return (
-                  shown(el) &&
-                  parseFloat(style.borderTopLeftRadius) < el.getBoundingClientRect().height / 2 &&
-                  washes.includes(style.backgroundColor) &&
-                  style.borderTopWidth !== "0px" &&
-                  style.boxShadow === "none"
-                );
-              })
-              .map(name);
-            const deep = [...(main?.querySelectorAll("*") ?? [])].filter(
-              (el) => shown(el) && getComputedStyle(el).boxShadow !== "none",
-            ).length;
-            // A gradient anywhere on the page (the menu's edge fade is a mask, not a background).
-            const gradients = [...document.querySelectorAll("body *")]
-              .filter((el) => /gradient\(/.test(getComputedStyle(el).backgroundImage))
-              .map((el) => el.tagName);
-            return {
-              ground: getComputedStyle(document.body).backgroundColor,
-              sheet: getComputedStyle(document.querySelector("#main > div")!).backgroundColor,
-              gradients,
-              face: familyOf(serif),
-              faceLoaded: loaded(serif),
-              words: familyOf(main),
-              wordsLoaded: loaded(main),
-              cards,
-              card,
-              primaries,
-              flat,
-              still,
-              bare,
-              deep,
-              wide: document.documentElement.scrollWidth,
-              window: document.documentElement.clientWidth,
-            };
-          });
+          await calm(page);
+          const look = await measure(page);
+          // The ground, and the page on it: a white card with its hairline, no depth.
           expect(look.ground, where).toBe(CANVAS[device]);
-          expect(look.sheet, where).toBe(SHEET[device]);
-          expect(look.gradients, where).toEqual([]);
-          expect(look.face, where).toMatch(/newsreader/i);
+          expect(look.sheet, where).not.toBeNull();
+          expect(look.sheet!.fill, where).toBe(CARD[device]);
+          expect(look.sheet!.widths, where).toEqual(four("1px"));
+          expect(look.sheet!.styles, where).toEqual(four("solid"));
+          expect(look.sheet!.colours, where).toEqual(four(LINE[device]));
+          expect(look.sheet!.radius, where).toBe(PAGE_RADIUS[size.width]);
+          expect(look.sheet!.depth, where).toBe("none");
+          // One face, really loaded.
+          expect(look.face, where).toMatch(FACE);
           expect(look.faceLoaded, where).toBe(true);
-          expect(look.words, where).toMatch(/dm.?sans/i);
+          expect(look.words, where).toMatch(FACE);
           expect(look.wordsLoaded, where).toBe(true);
+          // White cards and rows on it, in this theme's white.
           expect(look.cards, where).toBeGreaterThan(0);
-          expect(look.card, where).toMatch(CARD[device]);
-          for (const fill of look.primaries) expect(fill, where).toBe(INK[device]);
-          expect(look.flat, where).toEqual([]);
+          expect(look.card, where).toMatch(CARD_TOKEN[device]);
+          // The sky main button, its near-black words.
+          for (const p of look.primaries) {
+            expect(p.fill, `${where}: ${p.what}`).toBe(ACCENT[device]);
+            expect(p.words, `${where}: ${p.what}`).toBe(ON_ACCENT);
+          }
+          primaries += look.primaries.length;
+          expect(look.edgeless, where).toEqual([]);
           expect(look.still, where).toEqual([]);
-          expect(look.bare, where).toEqual([]);
-          expect(look.deep, where).toBeGreaterThan(0);
+          expect(look.raised, where).toEqual([]);
+          expect(look.bareWhite, where).toEqual([]);
+          expect(look.images, where).toEqual([]);
+          expect(look.masks, where).toEqual([]);
           expect(look.wide, where).toBeLessThanOrEqual(look.window);
         }
       }
+      expect(primaries).toBeGreaterThan(0);
+    });
+
+    // Logged out: the office's login, "You're logged out.", "Check your email." and the link
+    // page, on round 3's parts too, at both sizes. No page card: the login is a white card with
+    // its hairline on the ground from 640px (frameless on a phone: the page is the card).
+    test("the office's login pages: round 3's flat parts, nothing sideways, at 390px and 1280px", async ({
+      page,
+    }) => {
+      test.setTimeout(120_000);
+      let primaries = 0;
+      for (const size of WIDTHS) {
+        // An address of its own for each size, so no per-address limit is met.
+        const email = `look.out.${device}.${size.width}@example.com`;
+        await addOfficeUser("acme", { email, name: "Lou Out", role: "resourcer" });
+        await page.setViewportSize(size);
+        // Each step, then what's its own: the answers are flat slips (no depth): "You're logged
+        // out." pale grey with its hairline, "Check your email." a green wash with its green edge;
+        // the link page's button the office's main one (the sky, its near-black words, 44px).
+        const steps: [string, () => Promise<void>, (where: string) => Promise<void>][] = [
+          [
+            "the login",
+            () => page.goto(`${acme}/office/login`).then(() => undefined),
+            async () => {},
+          ],
+          [
+            "You're logged out.",
+            async () => {
+              await page.goto(`${acme}/office/login?out=1`);
+              await expect(page.getByRole("status")).toHaveText("You're logged out.");
+            },
+            async (where) => {
+              const out = await slip(page);
+              expect(out.depth, where).toBe("none");
+              expect(out.fill, where).toBe(out.quiet);
+              expect(out.edge, where).toEqual(["1px", "solid", LINE[device]]);
+              expect(out.line, where).toBe(LINE[device]);
+            },
+          ],
+          [
+            "Check your email.",
+            async () => {
+              await page.goto(`${acme}/office/login`);
+              await page.getByLabel("Your work email").fill(email);
+              await page.getByRole("button", { name: "Send me a link" }).click();
+              await expect(page.getByText("Check your email.")).toBeVisible();
+            },
+            async (where) => {
+              const sent = await slip(page);
+              expect(sent.depth, where).toBe("none");
+              expect(sent.fill, where).toBe(sent.done);
+              expect(sent.edge, where).toEqual(["1px", "solid", sent.doneLine]);
+            },
+          ],
+          [
+            "the link page",
+            async () => {
+              // With no link in the address it says so, with the way to a new one.
+              await page.goto(`${acme}/office/l`);
+              await expect(page.getByRole("link", { name: "Send me a new link" })).toBeVisible();
+            },
+            async (where) => {
+              const button = await page
+                .getByRole("link", { name: "Send me a new link" })
+                .evaluate((el) => {
+                  const s = getComputedStyle(el);
+                  return {
+                    fill: s.backgroundColor,
+                    words: s.color,
+                    edge: s.borderTopWidth,
+                    depth: s.boxShadow,
+                    tall: el.getBoundingClientRect().height,
+                  };
+                });
+              expect(button.fill, where).toBe(ACCENT[device]);
+              expect(button.words, where).toBe(ON_ACCENT);
+              expect(button.edge, where).toBe("1px");
+              expect(button.depth, where).toBe("none");
+              expect(button.tall, where).toBeGreaterThanOrEqual(44);
+            },
+          ],
+        ];
+        for (const [what, open, own] of steps) {
+          const where = `${what} at ${size.width}px, ${device}`;
+          await open();
+          await expect(page.getByRole("heading", { level: 1 }), where).toBeVisible();
+          await page.evaluate(() => document.fonts.ready);
+          await calm(page);
+          const look = await measure(page);
+          expect(look.ground, where).toBe(CANVAS[device]);
+          expect(look.face, where).toMatch(FACE);
+          expect(look.faceLoaded, where).toBe(true);
+          expect(look.words, where).toMatch(FACE);
+          expect(look.wordsLoaded, where).toBe(true);
+          // The login card: from 640px white with its hairline, 28px round, no depth; on a phone
+          // no frame at all.
+          expect(look.loginCard, where).not.toBeNull();
+          if (size.width >= 640) {
+            expect(look.loginCard!.fill, where).toBe(CARD[device]);
+            expect(look.loginCard!.widths, where).toEqual(four("1px"));
+            expect(look.loginCard!.colours, where).toEqual(four(LINE[device]));
+            expect(look.loginCard!.radius, where).toBe("28px");
+          } else {
+            expect(look.loginCard!.widths, where).toEqual(four("0px"));
+          }
+          expect(look.loginCard!.depth, where).toBe("none");
+          for (const p of look.primaries) {
+            expect(p.fill, `${where}: ${p.what}`).toBe(ACCENT[device]);
+            expect(p.words, `${where}: ${p.what}`).toBe(ON_ACCENT);
+          }
+          primaries += look.primaries.length;
+          expect(look.edgeless, where).toEqual([]);
+          expect(look.still, where).toEqual([]);
+          expect(look.raised, where).toEqual([]);
+          expect(look.bareWhite, where).toEqual([]);
+          expect(look.images, where).toEqual([]);
+          expect(look.masks, where).toEqual([]);
+          expect(look.wide, where).toBeLessThanOrEqual(look.window);
+          await own(where);
+        }
+      }
+      // "Send me a link" on the login, at least.
+      expect(primaries).toBeGreaterThan(0);
     });
   });
 }

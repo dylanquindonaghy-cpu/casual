@@ -1523,6 +1523,72 @@ screenshots at 390px and 1280px, light and dark, sit beside the approved mock-up
 `docs/mockups/phase-22/`; `docs/ui-design.md` has round 2's system; the `claims-auditor` checks the
 phase against this line.
 
+22.4 stays open: Phase 23 replaces round 2's look before it was finished (22.4's fourth audit round
+was stopped on 2026-10-23 when Dylan asked for a flat look instead).
+
+## Phase 23 — The office's look, round 3, and the dashboard's charts
+
+Added 2026-10-23. Dylan saw round 2 live: "i told you to remove the gradients and the colours are
+still wrong what your making is like 2008 apple notes app look it needs to be modern these are your
+last references" (two screenshots of a flat dark and light admin dashboard). The round 3 mock-up
+(flat, cool greys, hairline cards, one sky blue for main actions, tinted chips, Plus Jakarta Sans,
+a full-width top bar and the menu in its own card) was approved the same day: "looks good now add
+more graphs and visuals that help the office team what needs work on instead of a lot of data and
+words on the screen make more graphs that show what needs working on and upon clicking into the
+graph it then shows the actual data". The mock-up with six charts and their panels of rows was then
+approved with "go build it" (`docs/mockups/phase-23/`). The office only; every route, label, link
+and action stays. Where the real office differs from the mock-up: the offers chart's third part is
+"Said no or closed" (said no, filled by someone else, the session changed, or no reply before it
+started: offers never run out by themselves); a licence is "soon" within 30 days, the same window as
+Casuals' "Need updating"; short notice is the firm's strike notice setting, not a fixed 24 hours;
+the Needs attention items with no date (bookings to check, changes from the sheet, licences that
+won't be in date) are named under the waiting chart instead of put in an age; pay's part of that
+chart and its rows show only to roles that can open Pay; the pay week in the top bar is words, not a
+button. Docs: `docs/ui-design.md`, `docs/screens.md`.
+
+- [x] The system, round 3: Plus Jakarta Sans for every office word, number and headline,
+      self-hosted (DM Sans, DM Mono and Newsreader removed); cool greys (a light grey ground with
+      white cards, near-black with dark grey cards), 1px hairline edges, corners of 28px (the page
+      and the menu), 22px (cards inside a page) and 14px (rows), pills for buttons and chips; no
+      shadow at rest, one soft shadow only on what floats (menus, the drawer, the toast, the
+      tooltip and the chart panel); no grain, glows, coloured shadows or gradients; one sky blue
+      for the main button with near-black words; tinted chips in red, amber, blue and green; every
+      press still dips and springs back; AA contrast in both themes. Tests: the tokens and their
+      contrast in both themes, the font files and packages, no shadow at rest, no grain and no
+      gradient in the office's styles, the blue main button, the chips, the press feedback (23.1)
+- [x] The shell and the menu: a full-width top bar at every width with the firm's mark and name,
+      the pay week ("Week 43 · 19 Oct – 25 Oct · Pay Fri 30 Oct", with "This week"), the shifts
+      line's number, a square light or dark button, and your initials and name opening the account
+      menu (How-to guide, the light or dark switch, Log out); from 1024px the menu in its own white
+      card under the bar with its groups' names in small capitals, and the page in another white
+      card; below 1024px Menu opens the drawer; an admin's whole menu still fits a 1280 × 640
+      window; the loading skeletons flat. Tests: the shell's parts and states, the fit at
+      1280 × 640, the browser tests (23.2)
+- [x] Every other office page on round 3's parts (cards, lists, tables, tabs, buttons, chips, fields,
+      menus, confirmations, answer slips and code boxes: hairlines, no shadows), the events board and
+      the logged-out pages included, and the how-to guide's words matching the new layout, at 390px
+      and 1280px in both themes. Tests: the browser tests of every office page, record and login
+      page (23.3)
+- [x] The dashboard's charts: the four counts as white cards that open their lists; the urgent
+      places as cards with a wide Offer; six charts in place of the week strip and the three text
+      panels: places to fill over the next 14 days (urgent apart), which events need people
+      (hidden ones marked), offers this week (said yes, waiting for a reply, said no or closed)
+      with the sessions still waiting, how long things have waited (what needs you and what's with
+      payroll), cancellations over the last 14 days (short notice apart), and licences running out
+      in the next 8 weeks (those booked after they run out marked); every bar, dot and count opens
+      a panel of the real rows with their actions (from the side from 1024px, from the bottom on a
+      phone); each chart has a Numbers table and its figures on pointer or keyboard focus; every
+      link the old panels had is still on the dashboard; every new query goes through the firm's
+      data layer, each in its own part; the demo's made-up data gains this week's offers. Tests:
+      the loaders (with the clock change on 25 Oct and another firm's rows), the chart builders,
+      the browser tests (23.4)
+
+Done when: all four tasks are ticked with a stamp that includes the browser tests;
+`scripts/verify.sh` with `RUN_E2E=1` prints VERIFIED; no route, label, link or action is lost;
+screenshots at 390px and 1280px, light and dark (the chart panel and the phone's sheet among them),
+sit beside the approved mock-up in `docs/mockups/phase-23/`; `docs/ui-design.md` has round 3's
+system; the `claims-auditor` checks the phase against this line.
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify
@@ -3640,10 +3706,12 @@ text system once its details are known; Messages 2 (notification first, or both)
 - Phase 18 (2026-10-21): the dashboard still loads the "Showing to casuals" event list, today's
   cancellation rows and today's enquiry rows (`src/lib/office/dashboard.ts`: `showing`,
   `cancellations`, `enquiries`), and `dashboard-copy.ts` still has the old four counts' words
-  (`COUNTS`, `countLine`, `countNumber`, `cancelledByText`). The redesigned dashboard shows only
-  their counts (Sorted today), so these are three queries a page load for nothing, and copy nobody
-  sees. To close it: drop the three loaders from `Dashboard` and the old words, with the
-  integration and unit tests that cover only them (the counts stay, and their tests).
+  (`COUNTS`, `countLine`, `countNumber`; `cancelledByText` is used again since Phase 23, by the
+  cancellations chart's rows). The redesigned dashboard shows only their counts (Sorted today), so
+  these are three queries a page load for nothing, and copy nobody sees. `EnquiryItem`'s `reply` line (`src/app/office/enquiries/enquiry-row.tsx`) was the
+  dashboard's too: nothing passes it now. To close it: drop the three loaders from `Dashboard`, the
+  old words and that line, with the integration and unit tests that cover only them (the counts
+  stay, and their tests).
 - Phase 18: the walkthrough page (`walkthrough-site/`) shows the screens from before the redesign
   (see the line above: its tour isn't in the repo yet).
 - Phase 18 (the auditor's note): older rows in `docs/screens.md` (the office menu's "Operations /
@@ -3651,6 +3719,46 @@ text system once its details are known; Messages 2 (notification first, or both)
   the screens before the redesign. Its "The redesign (Phase 18)" section says it wins where they
   differ, but a reader could be misled. To close it: rewrite those rows to match, and drop the
   "wins where they differ" note.
+- Phase 23 (2026-10-23, the dashboard's charts): two loaders read a week or two of rows by a time
+  with no index on it. The offers chart reads this week's offers by `sent_at` (the index is
+  `(firm_id, worker_id, sent_at)`), and the cancellations chart reads 14 days of cancellations by
+  `cancelled_at` (no index). That is fine at pilot sizes. To close it: add `offers (firm_id,
+  sent_at)` and `assignments (firm_id, cancelled_at)` with `npm run db:generate`, and check the
+  plans with `explain`.
+- Phase 23: a hidden session's row in a chart's panel opens the session or its event. It has no
+  "Show to casuals" button of its own; the switch is on Events & sessions and the session's page.
+  To close it: if resourcers ask, add the same switch to the row (its server action exists).
+- Phase 23: the demo's offers chart. The seed's "said yes" offers are Saturday's bookings made
+  this week, and every booking is made 72 hours or more before the seed runs; an offer is never
+  dated in Acme's quiet hours, so one for a booking made before 07:20 on Monday would fall on
+  Sunday and is left out. So a seed run before about 07:20 on Thursday has none yet (a run on
+  Monday before 07:00 has no offers at all), and the chart shows only waiting offers. Nothing in the seed
+  "said no" either: the app can't record a "no" until the decline above ("No thanks" on the shift
+  page) is built.
+- Phase 23 (the review): the how-to guide names a "View sessions" button that the events board
+  doesn't have ("Change or cancel a shift", to hide one session). Its menu words are keyed
+  "Requests", so "Enquiries" gets no line under it. Both predate Phase 23. To close it: name the
+  real control, re-key the line to "Enquiries", and re-pin `tests/unit/guides.test.ts`.
+- Phase 23 (the review): two small things on pages round 3 restyled, both older than it. The erase
+  form's red strip (its tick box) sits inside a red wash of the same colour, so it can't be seen.
+  The "Their other strikes" summary on Strikes is under 44px tall on touch. To close it: give the
+  strip its `urgent-line` edge or a white ground, and give the summary `min-h-11`.
+- Phase 23 (the second review): on the licences chart, a dot's figures sit over it, and lanes are
+  30px apart, so they can cover a close-dated dot in the lane above. Moving the pointer straight up
+  keeps the lower dot's figures showing; a click there still reaches the upper dot, and Escape
+  hides them. A row of bars has its figures beside it for this reason; for dots, beside would
+  cover the next dots along the line. To close it: if it bothers anyone, try the figures under
+  the line for a dot in the top lane, or a dot's figures at the chart's foot.
+- Phase 23 (verify, 2026-10-24): in this cloud container, the browser tests' development server
+  (`next dev`, Turbopack) outgrew the memory cap late in a run. Memory sat near 2.2 GB, then jumped
+  to 10 to 12 GB within a minute while it compiled two voice webhook routes for the first time. On
+  the first run the container killed it (the WhatsApp test then failed); on the second a test timed
+  out. The routes and what they import are unchanged but for one date helper, so it is Turbopack's
+  own behaviour; `experimental.turbopackMemoryEviction: "full"` didn't stop it (tried, then taken
+  out). The container caps everything a shell starts at 14.3 GB while showing 16 GB. Phase 23's
+  verify ran with `CI=1`, as GitHub's CI does: the browser tests on a production build, retries
+  counted as failures. To close it: if `next dev` is wanted for the local run, try
+  `turbopackFileSystemCacheForDev: false` for the e2e server, or warm every route first.
 
 ## Hours log
 
@@ -3811,3 +3919,4 @@ text system once its details are known; Messages 2 (notification first, or both)
 | 2026-10-21 | 20 | 5.0 | The pass redesign (20.1 to 20.5), from Dylan's mock-up of his five reference screenshots (1.3 h for the analysis and two mock-ups, 3.7 h to build): Instrument Sans and Instrument Serif self-hosted, true dark greys in place of navy (D7 changed), the status colours as tiles, five depth tokens and no other shadow; the casual Home's pass in the firm's colour with Directions, Details and "Can't make it?", For you as tiles with Pay day, the sheet's four reason buttons and its pull-down handle; Open shifts, a shift's page and Booked; the office with no top bar from 1024px, "Needs attention" in the menu in place of the bell (one count), the Dashboard listing every urgent place, Needs attention's page; the events board's switch moved into the opened row. A code review's 6 findings fixed (red on the Today pill, a lost confirmation, the urgent places' order, the "…" buttons' names, a start line, focus on a second press) and the safety review's hardening (the roles pinned, an honest "+", cross-firm checks); the firm's colour now reads on its own tint for every colour, and the gate's plate is white for every colour. 5,175 tests + 96 e2e + the walkthrough's 6; audits: 20.1 and 20.3 DONE in round 1, 20.2, 20.4 and 20.5 DONE in round 2 (see docs/work-log.md) |
 | 2026-10-22 | 21 | 4.5 | The office's look (21.1 to 21.4), from Dylan's brief and five references: the office's own tokens (warm off-white page, white cards, near-black main buttons, status colours only for status), Geist, Instrument Serif headlines, Geist Mono numbers; the dashboard as tinted cards, one rounded list of urgent places, Steep-style week bars and tinted panels; the menu's grey pill, 44px rows and one grey count; every office page on the system at 390px and 1440px in both themes; skeletons from the menu (a route-wide loading.tsx turned 404s into 200s); the dev button moved off the menu; three audit rounds, all four DONE; 5,215 tests + 100 e2e (see docs/work-log.md) |
 | 2026-10-22 | 22 | 4.5 | The office's look, round 2 (22.1 to 22.4), from Dylan's "no depth" feedback and new references: a mock-up, approved once its gradients were out, then built: the window and its sheet, raised white surfaces with a lit edge, grooves, the four colours in full with a grain and glow, DM Sans, DM Mono and Newsreader, everything you press dipping and springing back, the menu with no scrollbar (34px rows with a mouse, the pill sliding to a pick), menus growing from their buttons, the landing ring and Offer's spinner; Needs attention's column fixed at 1280px; a shift page's vanishing cancel confirmation fixed; the guide's directions updated; three audit rounds: 22.1, 22.2 and 22.3 DONE and ticked, 22.4 NOT DONE (two small gaps, left for Dylan); 5,226 tests + 108 e2e + the walkthrough's 6 (see docs/work-log.md) |
+| 2026-10-24 | 23 | 11.3 | The office's look, round 3, and the dashboard's charts (23.1 to 23.4), from Dylan's last references: two mock-ups (the flat round 3 look, then its six charts with panels of the real rows), then built: Plus Jakarta Sans, cool greys and hairlines with no shadow at rest, the full-width top bar and the menu card, every office page on round 3's parts, the four count cards, the urgent places' cards and six charts with their panels and Numbers tables, and this week's made-up offers; two review rounds (16 then 9 defects fixed) and the guardrails review; audit round 1, all DONE; 5,315 tests + 116 e2e + the walkthrough's 6 (see docs/work-log.md) |

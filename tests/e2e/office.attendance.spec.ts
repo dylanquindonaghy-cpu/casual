@@ -36,11 +36,19 @@ test("mark who worked a shift that ended: one not attended, the rest worked, a m
   const [first = "", second = "", third = ""] = names;
   await officeLogin(page, email);
 
-  // Needs attention lists it under "Who worked?"; the dashboard's row goes there.
+  // Needs attention lists it under "Who worked?"; the dashboard's Needs attention card opens its
+  // list, and its row goes there (Phase 23: a card and its panel in place of the dashboard's list).
   await page.goto(`${acme}/office`);
+  await expect(page.locator("dialog[data-ready]")).toHaveCount(1);
   await page
-    .getByRole("list", { name: "Needs attention" })
-    .getByRole("link", { name: /^Who worked\?/ })
+    .getByRole("main")
+    .getByRole("link")
+    .filter({ hasText: /^Needs attention/ })
+    .click();
+  await page
+    .locator('dialog[aria-labelledby="chart-panel-title"]')
+    .getByRole("link", { name: "Mark who worked" })
+    .first()
     .click();
   await expect(page).toHaveURL(`${acme}/office/needs-attention#to-mark`);
   const section = page.getByRole("region", { name: "Who worked?" });

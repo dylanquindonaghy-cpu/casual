@@ -10,7 +10,10 @@ import {
   nums,
   page,
   sectionGap,
+  tab,
+  tabCurrent,
   table,
+  tabs,
   textLink,
 } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
@@ -143,13 +146,13 @@ export default async function OfficeCasualsPage({
         </p>
       </PageHeader>
 
-      <nav aria-label="Show" className="flex flex-wrap gap-2">
+      <nav aria-label="Show" className={tabs}>
         {CASUAL_VIEWS.map((v) => (
           <Link
             key={v}
             href={hrefOf(v)}
             aria-current={v === view ? "page" : undefined}
-            className={v === view ? `${btn.primary} rounded-full` : `${btn.secondary} rounded-full`}
+            className={v === view ? tabCurrent : tab}
           >
             {VIEW_WORDS[v]} <span className={nums}>({list.counts[v]})</span>
           </Link>

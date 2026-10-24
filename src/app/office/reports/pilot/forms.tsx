@@ -16,8 +16,9 @@ import { saveFiguresAction, updateFiguresNowAction } from "./actions";
 const failed = { status: "error" as const };
 
 // "Baseline (week 0)" and "This week's tally": one field per figure (blank keeps what's there),
-// the week, and a save button. The server checks everything again. The figures sit in a grid
-// (one column on a phone); each label is above its box, the boxes in a row line up at the bottom.
+// the week, and a save button (the tally's the page's sky main one; the baseline's plain). The
+// server checks everything again. The figures sit in a grid (one column on a phone); each label is
+// above its box, the boxes in a row line up at the bottom.
 export function FiguresForm({
   kind,
   week,
@@ -82,7 +83,11 @@ export function FiguresForm({
         ))}
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-        <button type="submit" className={btn.primary} disabled={pending || !ready}>
+        <button
+          type="submit"
+          className={kind === "tally" ? btn.primary : btn.secondary}
+          disabled={pending || !ready}
+        >
           {kind === "baseline" ? "Save the baseline" : "Save this week's tally"}
         </button>
         {message && (

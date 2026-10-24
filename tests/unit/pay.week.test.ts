@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { payWeek, payWeekLabel, payWeekNow } from "@/lib/pay/pay-week";
+import { payWeek, payWeekLabel, payWeekNow, payWeekParts } from "@/lib/pay/pay-week";
+import { addDays } from "@/lib/time/zoned";
 
 // The pay week (docs/office-v2.md D8; src/lib/pay/pay-week.ts): the ISO week, Monday to Sunday,
-// paid the Friday after it ends, for the office's top bar and the pay dashboard.
+// paid the Friday after it ends, for the office's top bar and the pay dashboard. Phase 23: the top
+// bar shows it as words in three parts (the dates hide when it's tight), the same words as the label.
 
 const LONDON = "Europe/London";
 
@@ -52,5 +54,54 @@ describe("the pay week", () => {
       monday: "2026-03-30",
     });
     expect(payWeekNow(new Date("2026-03-29T23:30:00Z"), "UTC").week).toBe(13);
+  });
+
+  it("its three parts, the label's words: the week, its dates, the pay day", () => {
+    expect(payWeekParts(payWeek("2026-10-07"))).toEqual({
+      week: "Week 41",
+      dates: "5 Oct – 11 Oct",
+      pay: "Pay Fri 16 Oct",
+    });
+    // A week spanning New Year: no year on either date, paid in the new year.
+    expect(payWeekParts(payWeek("2027-01-01"))).toEqual({
+      week: "Week 53",
+      dates: "28 Dec – 3 Jan",
+      pay: "Pay Fri 8 Jan",
+    });
+    // A week across two months, paid in the next.
+    expect(payWeekParts(payWeek("2026-10-28"))).toEqual({
+      week: "Week 44",
+      dates: "26 Oct – 1 Nov",
+      pay: "Pay Fri 6 Nov",
+    });
+    // Joined, they are the label, word for word, every week of two years (2026 has 53).
+    let day = "2026-01-01";
+    for (let i = 0; i < 104; i++) {
+      const w = payWeek(day);
+      const parts = payWeekParts(w);
+      expect(Object.keys(parts), day).toEqual(["week", "dates", "pay"]);
+      expect([parts.week, parts.dates, parts.pay].join(" · "), day).toBe(payWeekLabel(w));
+      day = addDays(w.monday, 7);
+    }
+    expect(day).toBe("2027-12-27");
+  });
+
+  it("the week the clocks go back (Sun 25 Oct 2026) is week 43, on the firm's calendar", () => {
+    const week43 = { week: "Week 43", dates: "19 Oct – 25 Oct", pay: "Pay Fri 30 Oct" };
+    // Mon 19 Oct, 00:30 summer time, is still Sunday 18 Oct in UTC: London's week is 43.
+    expect(payWeekParts(payWeekNow(new Date("2026-10-18T23:30:00Z"), LONDON))).toEqual(week43);
+    expect(payWeekParts(payWeekNow(new Date("2026-10-18T23:30:00Z"), "UTC")).week).toBe("Week 42");
+    // Sun 25 Oct: 01:30 summer time, 01:30 winter time an hour later, and 23:59 winter time.
+    for (const at of ["2026-10-25T00:30:00Z", "2026-10-25T01:30:00Z", "2026-10-25T23:59:00Z"])
+      expect(payWeekParts(payWeekNow(new Date(at), LONDON)), at).toEqual(week43);
+    // Midnight winter time is Monday 26 Oct: the next week, paid Fri 6 Nov.
+    expect(payWeekParts(payWeekNow(new Date("2026-10-26T00:00:00Z"), LONDON))).toEqual({
+      week: "Week 44",
+      dates: "26 Oct – 1 Nov",
+      pay: "Pay Fri 6 Nov",
+    });
+    expect(payWeekLabel(payWeekNow(new Date("2026-10-25T23:59:00Z"), LONDON))).toBe(
+      "Week 43 · 19 Oct – 25 Oct · Pay Fri 30 Oct",
+    );
   });
 });

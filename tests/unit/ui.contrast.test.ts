@@ -131,16 +131,18 @@ const TEXT: [string, string][] = [
   ["ink-muted", "count"],
   ["ink-press", "canvas"],
   ["ink-press", "card"],
-  // Phase 22 (round 2): the page as a sheet on the window, the menu's current page (a raised white
-  // pill), and the dashboard's four cards in full colour, their numbers in ink and their words in
-  // their own dark ink.
+  // Phase 22: the page as a sheet (since Phase 23 the white page card), and the menu's current
+  // page (Phase 23: a pale blue pill).
   ["ink", "sheet"],
   ["ink-muted", "sheet"],
   ["ink", "pill"],
-  ...(["urgent", "attention", "wait", "done"] as const).flatMap((c): [string, string][] => [
-    ["ink", `${c}-card`],
-    [`${c}-card-ink`, `${c}-card`],
-  ]),
+  // Phase 23 (the office's round 3): the sky main button's near-black words at rest, under the
+  // pointer and pressed, and the faintest grey words (small capitals over the menu's groups, a
+  // chart's ticks), on white only.
+  ["on-accent", "accent"],
+  ["on-accent", "accent-hover"],
+  ["on-accent", "accent-press"],
+  ["ink-faint", "card"],
 ];
 
 // Borders, controls and the focus ring against what's around them (3:1).
@@ -148,6 +150,8 @@ const CONTROLS: [string, string][] = [
   ["line-strong", "card"],
   ["line-strong", "canvas"],
   ["line-strong", "panel"],
+  // The current tab's edge on its grey track (Phase 23).
+  ["line-strong", "raised"],
   ["switch-off", "card"],
   ["switch-off", "panel"],
   ["urgent", "card"],
@@ -163,6 +167,11 @@ const CONTROLS: [string, string][] = [
   // Phase 22: a field or an outlined control on the page's sheet.
   ["line-strong", "sheet"],
   ["ink", "sheet"],
+  // Phase 23: the dashboard charts' marks a person must tell apart from the card (WCAG 1.4.11):
+  // red to do now, blue waiting on someone else, green done. (Amber and grey: below.)
+  ["mark-urgent", "card"],
+  ["mark-wait", "card"],
+  ["mark-done", "card"],
 ];
 
 describe("the themes (src/app/globals.css)", () => {
@@ -209,11 +218,50 @@ describe("the themes (src/app/globals.css)", () => {
     expect([dark.get("urgent-fill"), dark.get("on-urgent")]).toEqual(["#cf3a33", "#ffffff"]);
     expect(contrast("#cf3a33", "#ffffff")).toBeGreaterThanOrEqual(4.87);
     expect(light.get("switch-off")).toBe("#767b83");
-    // The office's dark (Phase 21): true greys too, a touch warm.
+  });
+
+  // The office's greys (Phase 23, round 3; a touch warm in Phases 21 and 22): cool slate, never
+  // warm: blue at least green at least red, in both its themes; and in dark close to grey (no
+  // channel more than 24 from the others: navy's blue was 30 above its red).
+  it("the office's greys are cool slate in both themes (Phase 23)", () => {
+    const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    const greys = [
+      "canvas",
+      "card",
+      "sheet",
+      "panel",
+      "raised",
+      "line",
+      "line-strong",
+      "ink",
+      "ink-muted",
+      "ink-faint",
+      "quiet-soft",
+      "button-line",
+      "button-press",
+      "count",
+      "active",
+    ];
+    for (const [name, theme] of [
+      ["office light", officeLight],
+      ["office dark", officeDark],
+    ] as const)
+      for (const t of greys) {
+        const [r, g, b] = rgb(theme.get(t)!);
+        expect(b! >= g! && g! >= r!, `${name} ${t}: ${theme.get(t)}`).toBe(true);
+      }
     for (const t of ["canvas", "card", "raised", "line", "ink-muted"]) {
-      const [r, g, b] = [1, 3, 5].map((i) => parseInt(officeDark.get(t)!.slice(i, i + 2), 16));
-      expect(Math.max(r!, g!, b!) - Math.min(r!, g!, b!), `office ${t}`).toBeLessThanOrEqual(12);
+      const [r, g, b] = rgb(officeDark.get(t)!);
+      expect(b! >= g! && g! >= r!, `office dark ${t}`).toBe(true);
+      expect(Math.max(r!, g!, b!) - Math.min(r!, g!, b!), `office dark ${t}`).toBeLessThanOrEqual(
+        24,
+      );
     }
+    // Near-black in dark, a light grey ground in light; the cards white on it and dark grey.
+    expect(officeDark.get("canvas")).toBe("#0c0e12");
+    expect(officeDark.get("card")).toBe("#15181d");
+    expect(officeLight.get("canvas")).toBe("#f2f4f7");
+    expect(officeLight.get("card")).toBe("#ffffff");
   });
 
   for (const [name, theme] of Object.entries(THEMES)) {
@@ -274,8 +322,13 @@ describe("the themes (src/app/globals.css)", () => {
   });
 
   // The edges of a status's tint and of a grey button (Phase 21) are decorative too: the words say
-  // the status, and the fill draws the button.
-  it("every token but the decorative lines and scrim is in a checked pair", () => {
+  // the status, and the fill draws the button. Phase 23: the charts' grid and baseline are
+  // hairlines like `line`; and two of their marks are under 3:1 on white by design (amber, needs
+  // you, and grey, fine: the set was picked to be told apart with colour blindness), so they never
+  // stand alone: every bar carries its number, every chart its legend, and its Numbers table has
+  // each mark's row in words (docs/ui-design.md "Phase 23"). In dark they reach 3:1 anyway.
+  const RELIEVED = ["mark-open", "mark-calm"];
+  it("every token but the decorative lines, the scrim and the relieved marks is in a checked pair", () => {
     const checked = new Set([...TEXT, ...CONTROLS].flat());
     const unchecked = [...light.keys()].filter((t) => !checked.has(t));
     expect(unchecked).toEqual([
@@ -287,7 +340,14 @@ describe("the themes (src/app/globals.css)", () => {
       "done-line",
       "quiet-line",
       "button-line",
+      ...RELIEVED,
+      "mark-grid",
+      "mark-base",
     ]);
+    for (const t of RELIEVED) {
+      const ratio = contrast(officeDark.get(t)!, officeDark.get("card")!);
+      expect(ratio, `office dark ${t} on card`).toBeGreaterThanOrEqual(3);
+    }
   });
 
   it("the ratio itself: black on white is 21:1, a colour on itself 1:1", () => {

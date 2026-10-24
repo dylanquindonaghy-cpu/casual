@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { PayWeekParts } from "@/lib/pay/pay-week";
 import type { Theme } from "../theme";
 import { OfficeFrame } from "./office-frame";
 import type { MenuGroup } from "./office-nav";
@@ -16,6 +17,7 @@ export function OfficeShell({
   roleLabel,
   firmName,
   payWeek,
+  shiftsLine,
   menu,
   theme,
   rotationDue,
@@ -24,7 +26,8 @@ export function OfficeShell({
   name: string;
   roleLabel: string;
   firmName: string;
-  payWeek: string;
+  payWeek: PayWeekParts;
+  shiftsLine: string | null;
   menu: MenuGroup[];
   theme: Theme | undefined;
   rotationDue: boolean;
@@ -36,6 +39,7 @@ export function OfficeShell({
       roleLabel={roleLabel}
       firmName={firmName}
       payWeek={payWeek}
+      shiftsLine={shiftsLine}
       menu={menu}
       theme={theme}
       rotationDue={rotationDue}

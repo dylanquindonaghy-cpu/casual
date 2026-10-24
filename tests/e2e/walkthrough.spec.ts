@@ -371,40 +371,59 @@ test("Part 3: as the office", async ({ browser }) => {
   });
 
   await test.step("23. The dashboard", async () => {
-    // This week's seven days, each a link (Phase 18), and where to start.
-    await expect(page.getByRole("navigation", { name: "This week" }).getByRole("link")).toHaveCount(
-      7,
-    );
+    // The urgent places, then six charts (Phase 23); the places chart a mark for each of the next
+    // 14 days.
     await expect(
       page.getByRole("heading", { name: "Urgent places to fill", level: 2 }),
     ).toBeVisible();
-    // Today's cancellations (Zoe's, step 12, among them) are sorted: nothing to approve or decline.
-    const sorted = page.getByRole("list", { name: "Sorted today" });
-    const cancellations = sorted.getByRole("link", { name: /cancellations? today/ });
-    await expect(cancellations).toContainText(
-      "Recorded automatically, never approved or declined.",
+    const places = page.getByRole("region", { name: "Places to fill, next 2 weeks" });
+    await expect(places.locator("[data-col]")).toHaveCount(14);
+    // The panel a day or a count card opens (once the page is ready): a day's sessions, with the
+    // way to its list (this week's strip's link until Phase 23).
+    const panel = page.locator('dialog[aria-labelledby="chart-panel-title"]');
+    await expect(page.locator("dialog[data-ready]")).toHaveCount(1);
+    await places.locator("button[data-col]").first().click();
+    await expect(panel.getByRole("link", { name: "See this day's sessions" })).toHaveAttribute(
+      "href",
+      /^\/office\/shifts\?from=\d{4}-\d\d-\d\d$/,
     );
+    await page.keyboard.press("Escape");
+    await expect(panel).toBeHidden();
+    const card = (label: string) =>
+      page
+        .getByRole("main")
+        .getByRole("link")
+        .filter({ hasText: new RegExp(`^${label}`) });
+    // Today's cancellations (Zoe's, step 12, among them) are sorted: nothing to approve or decline.
+    await card("Sorted today").click();
+    const cancellations = panel.getByRole("link", { name: /cancellations? today/ });
+    await expect(panel).toContainText("Recorded automatically, never approved or declined.");
     await cancellations.click();
     await expect(page).toHaveURL(`${acme}/office/cancellations?day=today`);
     await expect(page.getByRole("link").filter({ hasText: ZOE.name }).first()).toBeVisible();
     // Needs attention: yesterday's racecourse shifts to mark, in full on its own page.
     await page.goto(`${acme}/office`);
-    await page
-      .getByRole("list", { name: "Needs attention" })
-      .getByRole("link", { name: /^Who worked\?/ })
-      .click();
+    await expect(page.locator("dialog[data-ready]")).toHaveCount(1);
+    await card("Needs attention").click();
+    await panel.getByRole("link", { name: "Mark who worked" }).click();
     await expect(
       page.getByRole("region", { name: "Who worked?" }).getByText("Acme Demo Racecourse").first(),
     ).toBeVisible();
   });
 
   await test.step("24. Offer a gap", async () => {
-    // "Events showing to casuals" (Sorted today) opens Events & sessions' Showing list; "Need
-    // people" has the events with places free; an event's row opens into its sessions, and a
-    // session's "…" menu has "Offer a place" while it has one free.
+    // "Events showing to casuals" (in the list Sorted today's card opens) opens Events &
+    // sessions' Showing list; "Need people" has the events with places free; an event's row
+    // opens into its sessions, and a session's "…" menu has "Offer a place" while it has one free.
     await page.goto(`${acme}/office`);
+    await expect(page.locator("dialog[data-ready]")).toHaveCount(1);
     await page
-      .getByRole("list", { name: "Sorted today" })
+      .getByRole("main")
+      .getByRole("link")
+      .filter({ hasText: /^Sorted today/ })
+      .click();
+    await page
+      .locator('dialog[aria-labelledby="chart-panel-title"]')
       .getByRole("link", { name: /events? showing to casuals/ })
       .click();
     await expect(page).toHaveURL(`${acme}/office/events?view=showing`);

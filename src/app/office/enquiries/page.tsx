@@ -2,15 +2,18 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-  btn,
   card,
   h2,
   headingGap,
   meta,
+  notice,
   nums,
   page,
   rows,
   sectionGap,
+  tab,
+  tabCurrent,
+  tabs,
   textLink,
 } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
@@ -76,19 +79,15 @@ export default async function EnquiriesPage({
     <main className={page.office}>
       <PageHeader title="Enquiries" />
       <p className={`${nums} -mt-2`}>{countsLine(list.today, list.needPerson, now)}</p>
-      {appEnv().AI_TRANSPORT === "none" && (
-        <p className="mt-4 rounded-row border border-attention-line bg-attention-soft px-4 py-3 text-attention-ink shadow-soft">
-          {AI_BANNER}
-        </p>
-      )}
+      {appEnv().AI_TRANSPORT === "none" && <p className={`${notice} mt-4`}>{AI_BANNER}</p>}
 
-      <nav aria-label="Show" className="mt-6 flex flex-wrap gap-2">
+      <nav aria-label="Show" className={`${tabs} mt-6`}>
         {ENQUIRY_VIEWS.map((v) => (
           <Link
             key={v}
             href={hrefOf(v, day)}
             aria-current={v === view ? "page" : undefined}
-            className={v === view ? `${btn.primary} rounded-full` : `${btn.secondary} rounded-full`}
+            className={v === view ? tabCurrent : tab}
           >
             {VIEW_LABELS[v]}
             {v === "person" && (

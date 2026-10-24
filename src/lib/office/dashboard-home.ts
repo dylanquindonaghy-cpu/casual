@@ -1,7 +1,7 @@
 import { localDateOf, wallTimeOf } from "../time/zoned";
 import { datePartsOfDay, timeRange } from "../portal/sign-copy";
 import { roleLabel } from "../portal/format";
-import type { Dashboard, NeedsAttention, WeekDay } from "./dashboard";
+import type { Dashboard, NeedsAttention } from "./dashboard";
 import { evidenceItems } from "./dashboard";
 import {
   COUNT_ERROR,
@@ -14,8 +14,10 @@ import {
 // The dashboard's redesign (Phases 18 and 20; docs/office-v2.md 3.2; docs/screens.md `/office`),
 // one question: "what needs me now, and where do I start?". Worked out here from the loaded
 // dashboard, pure, so the page only lays it out: the greeting and how many things need you (the
-// one count: the urgent places and Needs attention's items), where to start, this week, the urgent
-// places, Needs attention's rows, "Waiting on others" and "Sorted today".
+// one count: the urgent places and Needs attention's items), where to start, the urgent places,
+// and the rows the count cards open: Needs attention's (one per kind) and "Sorted today"'s.
+// Phase 23: this week's strip gave way to the charts (dashboard-charts.ts: the next 14 days'
+// places, each day opening its sessions, its sessions to mark and the rota board).
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
@@ -38,78 +40,6 @@ export function subline(urgentPlaces: number, things: number, complete = true): 
   if (!complete) return "Reload the page to try again. What could load is below.";
   if (things > 0) return "Urgent places are sorted. The rest is below.";
   return "Every urgent place is filled, and nothing else is waiting for you.";
-}
-
-// --- This week --------------------------------------------------------------------------------
-
-export type WeekNote =
-  | { kind: "urgent"; text: string; extra: string | null }
-  | { kind: "mark"; text: string }
-  | { kind: "open"; text: string }
-  | { kind: "filled"; text: string }
-  | { kind: "short"; text: string } // places left unfilled that can't be filled now (started, past)
-  | { kind: "none"; text: string };
-
-export interface WeekCell {
-  date: string;
-  dow: string; // "Today" for today
-  day: string;
-  places: number;
-  filled: number;
-  open: number; // places that can still be filled (open sessions not started)
-  past: boolean; // before today
-  filledShare: number; // 0 to 1, for the bar
-  note: WeekNote;
-  href: string;
-  label: string; // for screen readers
-}
-
-// Each day: what needs doing on it first (sessions to mark, for a day gone by; urgent gaps, in
-// places), then how full it is: places that can still be filled ("3 open"), every place filled,
-// or, once its sessions have started, how many were ("4 of 6 filled").
-export function weekCells(
-  days: WeekDay[],
-  toMark: { startsAt: Date }[],
-  today: string,
-  timeZone: string,
-): WeekCell[] {
-  return days.map((d) => {
-    const p = datePartsOfDay(d.date);
-    const mark = toMark.filter((t) => localDateOf(t.startsAt, timeZone) === d.date).length;
-    const open = d.open;
-    const note: WeekNote =
-      mark > 0
-        ? { kind: "mark", text: `${mark} to mark` }
-        : d.urgent > 0
-          ? {
-              kind: "urgent",
-              text: `${d.urgent} urgent`,
-              extra: open > d.urgent ? `${open} open` : null,
-            }
-          : open > 0
-            ? { kind: "open", text: `${open} open` }
-            : d.places > 0 && d.filled >= d.places
-              ? { kind: "filled", text: "All filled" }
-              : d.places > 0
-                ? { kind: "short", text: `${d.filled} of ${d.places} filled` }
-                : { kind: "none", text: "Nothing on" };
-    const filledText =
-      d.places > 0 && note.kind !== "short" ? `, ${d.filled} of ${d.places} places filled` : "";
-    const extra = note.kind === "urgent" && note.extra ? `, ${note.extra}` : "";
-    return {
-      date: d.date,
-      dow: d.date === today ? "Today" : p.dow,
-      day: p.day,
-      places: d.places,
-      filled: d.filled,
-      open: d.open,
-      past: d.date < today,
-      filledShare: d.places > 0 ? d.filled / d.places : 0,
-      note,
-      href: mark > 0 ? "/office/needs-attention#to-mark" : `/office/shifts?from=${d.date}`,
-      label: `${p.dow} ${p.day} ${p.month}${d.date === today ? ", today" : ""}: ${note.text}${extra}${filledText}`,
-    };
-  });
 }
 
 // --- The urgent places, one at a time ----------------------------------------------------------
@@ -394,29 +324,4 @@ export function attentionText(rows: Row[]): string {
     return `${r.count} ${r.count === "1" ? one : many}`;
   });
   return parts.length > 2 ? `${parts.slice(0, 2).join(", ")} and more` : parts.join(", ");
-}
-
-// This week from today on: the places still to fill (in sessions that can still take someone),
-// and how many of the places are filled, over which days ("Thu to Sun").
-export function weekSummary(cells: WeekCell[]): {
-  toFill: number;
-  filled: number;
-  places: number;
-  days: string | null;
-} {
-  const ahead = cells.filter((c) => !c.past && c.places > 0);
-  const first = ahead[0];
-  const last = ahead.at(-1);
-  const dayName = (c: WeekCell) => (c.dow === "Today" ? "today" : c.dow);
-  return {
-    toFill: cells.filter((c) => !c.past).reduce((n, c) => n + c.open, 0),
-    filled: ahead.reduce((n, c) => n + c.filled, 0),
-    places: ahead.reduce((n, c) => n + c.places, 0),
-    days:
-      first && last
-        ? first === last
-          ? dayName(first)
-          : `${dayName(first)} to ${dayName(last)}`
-        : null,
-  };
 }

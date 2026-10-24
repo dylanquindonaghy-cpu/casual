@@ -13772,3 +13772,87 @@ PLAN.md).
   the line shows from about 690px tall). It's also in the dashboard's date line.
 - The light theme's lit top edge is white, as in the mock-up: it shows on the near-black buttons
   and in dark, not on white.
+
+## 2026-10-24 · Phase 23: the office's look, round 3, and the dashboard's charts (23.1 to 23.4)
+
+Time spent: about 11.3 hours of session time (14:00 on 23 Oct to 01:20 on 24 Oct, UTC): about
+2.75 for the two mock-ups (the round 3 look, then its six charts), about 8.5 to build, review, fix,
+verify and audit; see the Hours log in PLAN.md.
+
+### The result
+
+- Verify: `VERIFIED tree=8678ebcae2c118bb e2e=true` on the files the auditor read. The ticks and
+  these notes came after. It ran with `CI=1`, the way GitHub's CI runs it: the browser tests on a
+  production build, and a test that passes only on its retry still fails the check (below, "Found
+  by verify").
+- Tests: 5,315 unit and integration tests pass, none skipped; 116 browser tests and the
+  walkthrough's 6 pass, none flaky.
+- Reviews before the audit: a five-way review of the build (16 defects confirmed, all fixed, each
+  with a test that fails on the old code); a second review of those fixes, each finding checked by
+  a sceptic (9 confirmed and fixed, 2 refuted); the guardrails review (no rule broken; its 3 small
+  points fixed).
+- Auditor: round 1, all four DONE, no fakes. Its notes: the login sheet has no 390px pair (the
+  browser test checks the login pages at 390px), and the screenshots' tooltip line in the README
+  described only the columns' tooltip (now says both).
+
+### What changed, in plain words
+
+- **Two mock-ups first.** Dylan on round 2 live: "i told you to remove the gradients and the
+  colours are still wrong what your making is like 2008 apple notes app look it needs to be
+  modern". The round 3 mock-up was approved ("looks good now add more graphs and visuals that help
+  the office team what needs work on…"), then the same mock-up with six charts and their panels
+  ("go build it"). `docs/mockups/phase-23/` has it, with screenshots of the build beside it.
+- **The look:** flat. A light grey ground, white cards with a 1px hairline, no shadow at rest; one
+  soft shadow only on what floats (menus, the drawer, the toast, a chart's tooltip and its panel).
+  Plus Jakarta Sans for every word and number (DM Sans, DM Mono and Newsreader removed). One sky
+  blue main button a screen, with near-black words; the other buttons white pills with a grey
+  edge. Chips are tinted pills; a new blue "waiting" tone is for things waiting on someone else.
+- **The shell:** a white top bar the full width at every width (the firm, the pay week with "This
+  week", the shifts line's number, a square light or dark button, your initials and name); the
+  menu in its own white card from 1024px, the page in another. An admin's whole menu fits a
+  1280 × 640 window.
+- **The dashboard:** the four counts are white cards that open their rows in a panel (from the
+  side on a laptop, a sheet from the bottom on a phone); the urgent places are cards with a wide
+  "Offer"; six charts replace the week strip and the three text panels: places to fill over the
+  next 2 weeks, which events need people, this week's offers, how long things have waited,
+  cancellations over the last 2 weeks, and licences running out in the next 8 weeks. Every bar,
+  dot and count opens the real rows with their actions; each chart has a sentence written from its
+  data, a legend, its figures on hover or keyboard focus, and a Numbers table. Every link the old
+  panels had is still on the page.
+- **Every other office page** on round 3's parts: the "Show" filters are tabs, notices and code
+  boxes have their own parts, today on the events board is a sky circle, and the how-to guide
+  describes the new layout.
+- **The demo's made-up data** gains this week's offers: 10 waiting for a reply and up to 12 "said
+  yes" (the seed writes only what the app itself can reach: no "said no", which the app can't
+  record yet; none in Acme's quiet hours; the offer-count lock taken like every offer writer).
+- **Found by the reviews (each fixed, with a test):** the seed made up "said no" offers; the
+  licences chart's "booked after it runs out" came from a list that stops at 50; a panel could say
+  "Showing the first 0."; sentences that were false at the edges ("Every place … is filled" while
+  a started session was short; a hidden-places count cut at 50 rows; "Needs attention has them
+  all", when its lists stop at 50 too); the tooltip couldn't be hovered or dismissed with Escape
+  (WCAG 1.4.13), and once hoverable it covered the bar above (now beside a row of bars, and a click
+  on it goes on to what's under it); the sticky top bar could hide a focused control (the office
+  now keeps 80px clear at the top); a licence name could push the page sideways; on a phone the
+  cancellations chart jumped back to today when the toolbar moved.
+- **Found by verify:** the first two full runs used `next dev` for the browser tests. Late in each
+  run the dev server's memory jumped from about 2 GB to 10 to 12 GB within a minute, while it
+  compiled two voice webhook routes for the first time (unchanged code but for one date helper).
+  The container's 14.3 GB cap killed it the first time (a WhatsApp test failed), and a test timed
+  out the second. A Turbopack memory setting didn't stop it, so it was taken out again. The third
+  run used a production build, as CI does (the server peaked at 396 MB): all green. The details
+  are in the Parking lot.
+
+### What needs Dylan
+
+- **The office's `brand` colour in light is the sky's darker shade (#0284c7), not the sky.** The
+  sky on white is 2.77:1, and a control's edge needs 3:1. Nothing in the office paints with it now
+  (the events board's today and the login link's button take the sky itself); it is kept for any
+  shared part that might. In dark it is the sky.
+- **The demo's offers chart** shows "said yes" only from about 07:20 on Thursday (the seed's
+  bookings are made 72 hours before it runs), and never "said no" until a casual can turn an offer
+  down (the Parking lot's "No thanks" item).
+- **22.4 stays unticked**, as decided: round 3 replaced round 2's look before its fourth audit.
+- Small things parked, all older than this phase or minor: the guide's "View sessions" line and
+  its missing Enquiries line, the erase form's red strip, the Strikes summary under 44px, the
+  licence dots' figures covering a close dot above, and the browser tests' dev server memory.
+- The upload test's one-off "aborted" seen while building didn't come back in three full runs.

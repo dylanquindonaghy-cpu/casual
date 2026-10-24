@@ -1,7 +1,17 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { btn, card, field, loginCard, rows, staffCard, staffRows, table } from "@/app/ui/classes";
+import {
+  btn,
+  card,
+  field,
+  loginCard,
+  officeLoginCard,
+  rows,
+  staffCard,
+  staffRows,
+  table,
+} from "@/app/ui/classes";
 
 // Depth (Phase 20; docs/ui-design.md "Depth"), in place of Phase 17's flat look: the page, cards
 // lifted off it, then the pass and what floats over the page. Five depth tokens in
@@ -11,9 +21,12 @@ import { btn, card, field, loginCard, rows, staffCard, staffRows, table } from "
 // floats over its page) and uses no other. Phase 22 (the office's round 2, Dylan: "no depth to any
 // of the individual sections"): four more of its own, each a layer: `raise` (a button, a row, a
 // tile raised off a card), `float` (what floats over the page), `sheet` (the page set into the
-// window) and `tint` (the dashboard's colour cards); grooves take the casual app's `sunk`. Office
-// controls (buttons, fields, the Menu button) have a 1px border; the casual app's keep 1.5px, for
-// thumbs.
+// window) and `tint` (the dashboard's colour cards); grooves take the casual app's `sunk`. Phase 23
+// (round 3, Dylan: "it needs to be modern"): the office is flat. Nothing in it has depth at rest
+// (no card, row, button, field, groove or page), and one soft overlay (`float`) sits only under
+// what floats over its page: the account menu and the drawer, the "…" menus, the toast, a chart's
+// tooltip and its panel. Its white surfaces have a 1px hairline instead. Office controls (buttons,
+// fields, the Menu button) have a 1px border; the casual app's keep 1.5px, for thumbs.
 
 const ROOT = process.cwd();
 const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
@@ -28,83 +41,24 @@ const SOURCE = files("src").filter((f) => /\.(tsx?|css)$/.test(f));
 // drop-shadow-…), or a box-shadow in CSS. shadow-none takes one away, so it's allowed.
 const SHADOW =
   /(?<![\w-])(?:[a-z0-9-]+:)*(?:drop-|inset-)?shadow(?:-(?!none(?![\w-]))[\w[\]#/.()%,-]+)?(?![\w-])|box-shadow/g;
-// The five depth tokens, and the office's (Phases 21 and 22), as utilities (with any variant before
+// The same, to test one string (a global pattern remembers where it stopped).
+const ONE_SHADOW = new RegExp(SHADOW.source);
+// The five depth tokens, and the office's one (Phase 23), as utilities (with any variant before
 // them).
-const DEPTH =
-  /^(?:[a-z0-9-]+:)*(?:shadow-(?:lift|panel|pass|bar|soft|raise|float|sheet|tint)|inset-shadow-sunk)$/;
+const DEPTH = /^(?:[a-z0-9-]+:)*(?:shadow-(?:lift|panel|pass|bar|float)|inset-shadow-sunk)$/;
 const USES: Record<string, string[]> = {
   "src/app/home-view.tsx": ["shadow-lift"], // the For you tiles
   "src/app/my-shifts-view.tsx": ["shadow-lift"], // the switch's current half
   // The pass; its three buttons; an open Details set in.
   "src/app/next-pass.tsx": ["group-open:inset-shadow-sunk", "shadow-lift", "shadow-pass"],
-  // The week's grooves; a day's details over it; a section's chip, the panels' rows, their action
-  // pill and the Sorted ticks; the panels, the empty urgent list, this week's card; the four
-  // colour cards.
-  "src/app/office/dashboard-view.tsx": [
-    "inset-shadow-sunk",
-    "shadow-float",
-    "shadow-raise",
-    "shadow-raise",
-    "shadow-raise",
-    "shadow-raise",
-    "shadow-soft",
-    "shadow-soft",
-    "shadow-soft",
-    "shadow-soft",
-    "shadow-tint",
-  ],
-  // The filters' track; the Earlier and Later buttons; the current filter, the board.
-  "src/app/office/events/page.tsx": [
-    "inset-shadow-sunk",
-    "shadow-raise",
-    "shadow-raise",
-    "shadow-soft",
-    "shadow-soft",
-  ],
-  // A wash with an edge (a notice, a status) has the soft depth (Phase 22): enquiries' notices.
-  "src/app/office/enquiries/[id]/page.tsx": ["shadow-soft"],
-  "src/app/office/enquiries/page.tsx": ["shadow-soft"],
-  "src/app/office/enquiries/request-queue-view.tsx": ["shadow-soft"],
+  // The office (Phase 23): only what floats over its page. A chart's panel (a side panel from
+  // 1024px, a sheet from the foot on a phone) and its tooltip.
+  "src/app/office/dashboard/chart-panel.tsx": ["shadow-float"],
+  "src/app/office/dashboard/charts.tsx": ["shadow-float"],
   "src/app/office/events/session-menu.tsx": ["shadow-float"], // a session's menu, over the list
-  "src/app/office/login/office-login-form.tsx": ["shadow-soft"], // "Check your email."
-  "src/app/office/login/page.tsx": ["shadow-raise"], // "You're logged out.", raised off the card
-  // The account menu and the drawer; the Menu button, the firm's initial, your initials; the page.
-  "src/app/office/office-frame.tsx": [
-    "shadow-float",
-    "shadow-float",
-    "shadow-raise",
-    "shadow-raise",
-    "shadow-raise",
-    "shadow-sheet",
-  ],
-  // The menu's current page: its own pill until the page is ready, then the one that slides.
-  "src/app/office/office-nav.tsx": ["shadow-soft", "shadow-soft"],
-  // The skeletons' grooves, panel rows, and white cards and panels, as the page's.
-  "src/app/office/office-skeleton.tsx": [
-    "inset-shadow-sunk",
-    "shadow-raise",
-    "shadow-soft",
-    "shadow-soft",
-    "shadow-soft",
-    "shadow-soft",
-  ],
-  "src/app/office/shift-actions.tsx": ["shadow-float", "shadow-raise"], // the "…" menu; Offer
-  "src/app/office/shifts/[id]/page.tsx": ["shadow-soft"], // the rules' answer, a wash with depth
-  "src/app/office/needs-attention/page.tsx": ["shadow-soft"], // a part that couldn't load
-  "src/app/office/requests/answer-form.tsx": ["shadow-soft"], // answered
-  // A key's or a webhook's notice, and the second step before revoking (`confirmStep`).
-  "src/app/office/settings/integrations/key-forms.tsx": ["shadow-soft"],
-  "src/app/office/settings/integrations/webhook-forms.tsx": ["shadow-soft"],
-  // Needs attention's rows, its parts' washes and "Also needs you".
-  "src/app/office/needs-items.tsx": ["shadow-raise", "shadow-soft", "shadow-soft"],
-  "src/app/office/shifts/shift-tones.ts": ["shadow-raise"], // an answer, raised off its form
-  // The fill bar's groove; an answer floating at the foot of the screen; the date tile; the list.
-  "src/app/office/urgent-places.tsx": [
-    "inset-shadow-sunk",
-    "shadow-float",
-    "shadow-raise",
-    "shadow-soft",
-  ],
+  "src/app/office/office-frame.tsx": ["shadow-float", "shadow-float"], // the account menu; the drawer
+  "src/app/office/shift-actions.tsx": ["shadow-float"], // the "…" menu
+  "src/app/office/urgent-places.tsx": ["shadow-float"], // an answer floating at the foot (the toast)
   "src/app/shifts/[id]/shift-view.tsx": ["shadow-bar", "shadow-lift"], // Take shift's bar
   "src/app/shifts/booked-view.tsx": ["shadow-lift"],
   "src/app/shifts/cancel-shift.tsx": [
@@ -122,19 +76,8 @@ const USES: Record<string, string[]> = {
   ],
   "src/app/shifts/shift-parts.tsx": ["inset-shadow-sunk", "shadow-lift"],
   "src/app/tab-bar.tsx": ["shadow-bar"],
-  // The switch's track and the office's fields; the office's buttons; its card, list card and
-  // table, the second steps (destructive and not), and its login card (from 640px).
-  "src/app/ui/classes.ts": [
-    "inset-shadow-sunk",
-    "inset-shadow-sunk",
-    "shadow-raise",
-    "shadow-soft",
-    "shadow-soft",
-    "shadow-soft",
-    "shadow-soft",
-    "shadow-soft",
-    "sm:shadow-soft",
-  ],
+  // The casual app's switch track (`switchTrack`); none of the office's strings (Phase 23).
+  "src/app/ui/classes.ts": ["inset-shadow-sunk"],
 };
 
 describe("depth: the five tokens, and no other shadow", () => {
@@ -164,22 +107,51 @@ describe("depth: the five tokens, and no other shadow", () => {
 
   it("the tokens: defined once in light and again in both dark blocks, nowhere else", () => {
     const css = read("src/app/globals.css");
+    const defs = (token: string) => css.match(new RegExp(`^\\s*--${token}:\\s[^;]+;$`, "gm"));
+    // A long value wraps onto the lines under its name. The office's overlay is `--overlay`
+    // (Phase 23), the value `shadow-float` takes.
     for (const token of [
       "shadow-lift",
       "shadow-panel",
       "shadow-pass",
       "shadow-bar",
       "inset-shadow-sunk",
-      "shadow-soft",
-      "shadow-raise",
-      "shadow-float",
-      "shadow-sheet",
-      "shadow-tint",
-    ]) {
-      // A long value wraps onto the lines under its name.
-      expect(css.match(new RegExp(`^\\s*--${token}:\\s[^;]+;$`, "gm")), token).toHaveLength(3);
-    }
+      "overlay",
+    ])
+      expect(defs(token), token).toHaveLength(3);
+    // Round 2's layers (Phase 22) are gone: nothing in the office has depth at rest.
+    for (const token of ["shadow-soft", "shadow-raise", "shadow-sheet", "shadow-tint"])
+      expect(defs(token), token).toBeNull();
     expect(css).not.toMatch(/box-shadow/);
+  });
+
+  // Tailwind writes a depth token's value into its class when it builds, so a value redefined in
+  // the dark blocks never reaches the class (dark drew light's until Phase 23): `float` takes a
+  // variable, and only the variable changes with the theme.
+  it("the office's one overlay: a soft fall and a hairline ring, darker in dark (Phase 23)", () => {
+    const css = read("src/app/globals.css");
+    expect(css.match(/^\s*--shadow-float:\s[^;]+;$/gm)).toEqual([
+      "  --shadow-float: var(--overlay);",
+    ]);
+    const values = [...css.matchAll(/^\s*--overlay:\s([^;]+);$/gm)].map((m) => m[1]!);
+    expect(values).toEqual([
+      "0 16px 40px -16px rgb(16 24 40 / 0.22), 0 0 0 1px rgb(16 24 40 / 0.06)",
+      "0 16px 40px -16px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.08)",
+      "0 16px 40px -16px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.08)",
+    ]);
+    // In the @theme block, then the cookie's dark block, then the device's.
+    const at = (text: string) => css.indexOf(text);
+    expect(at("--overlay: 0 16px 40px -16px rgb(16 24 40")).toBeLessThan(
+      at(':root[data-theme="dark"] {'),
+    );
+    expect(css.slice(at(':root[data-theme="dark"] {'))).toMatch(
+      /^:root\[data-theme="dark"\] \{[^}]*--overlay: 0 16px 40px -16px rgb\(0 0 0 \/ 0\.7\)/,
+    );
+    expect(css).toMatch(
+      /@media \(prefers-color-scheme: dark\) \{\s*:root:not\(\[data-theme="light"\]\) \{[^}]*--overlay: 0 16px 40px -16px rgb\(0 0 0 \/ 0\.7\)/,
+    );
+    // No lit edge (round 2's white inset line) anywhere.
+    expect(css).not.toMatch(/inset 0 1px 0 rgb\(255 255 255/);
   });
 
   it("what floats over the office's page takes `float` (Phase 22; `soft` in 21, the panel's before)", () => {
@@ -194,31 +166,35 @@ describe("depth: the five tokens, and no other shadow", () => {
     );
   });
 
-  it("the office's layers (Phase 22): the page a sheet, the colour cards tinted, buttons raised", () => {
-    expect(read("src/app/office/office-frame.tsx")).toMatch(
-      /className="grain-soft flex-1 rounded-t-card bg-sheet shadow-sheet lg:rounded-card"/,
+  it("the office flat (Phase 23): buttons and fields with no depth, the page a white card", () => {
+    // The office's buttons dip when pressed and carry no depth; nor do its fields.
+    const office = /const office =\s+"([^"]+)";/.exec(read("src/app/ui/classes.ts"))?.[1] ?? "";
+    expect(office.split(" ")).toContain("press");
+    expect(office).not.toMatch(ONE_SHADOW);
+    for (const [name, cls] of Object.entries(btn))
+      expect(cls, `btn.${name}`).not.toMatch(ONE_SHADOW);
+    expect(field).not.toMatch(ONE_SHADOW);
+    // The page card (`#main > div`): white, a 1px hairline, 28px round from 1024px (22px on a
+    // phone), with no depth and no grain. (The frame's comments left out: they name the page's
+    // id too.)
+    const frame = read("src/app/office/office-frame.tsx").replace(/^\s*\/\/.*$/gm, "");
+    const pageCard = /id="main"[\s\S]*?<div className="([^"]+)">/.exec(frame)?.[1] ?? "";
+    const words = pageCard.split(" ");
+    expect(words, pageCard).toEqual(
+      expect.arrayContaining([
+        "bg-card",
+        "border",
+        "border-line",
+        "rounded-inner",
+        "lg:rounded-card",
+      ]),
     );
-    expect(read("src/app/office/dashboard-view.tsx")).toMatch(
-      /className=\{`press grain grid [^`]*shadow-tint/,
-    );
-    expect(read("src/app/ui/classes.ts")).toMatch(/const office =\s+"press [^"]*shadow-raise /);
-    // White surfaces with a lit top edge (the mock-up's): in light and in both dark blocks, a
-    // white line on each one's top (95% on a card and what floats; 18% on what's raised, so the
-    // near-black buttons get a soft one).
-    const css = read("src/app/globals.css");
-    for (const token of ["shadow-soft", "shadow-raise", "shadow-float"]) {
-      const values = [...css.matchAll(new RegExp(`^\\s*--${token}:\\s([^;]+);$`, "gm"))].map(
-        (m) => m[1]!,
-      );
-      expect(values, token).toHaveLength(3);
-      for (const value of values)
-        expect(value, token).toMatch(/inset 0 1px 0 rgb\(255 255 255 \/ 0\.\d+\)/);
-    }
-    const light = (token: string) =>
-      new RegExp(`^\\s*--${token}:\\s([^;]+);$`, "m").exec(css)?.[1] ?? "";
-    expect(light("shadow-soft")).toContain("inset 0 1px 0 rgb(255 255 255 / 0.95)");
-    expect(light("shadow-float")).toContain("inset 0 1px 0 rgb(255 255 255 / 0.95)");
-    expect(light("shadow-raise")).toContain("inset 0 1px 0 rgb(255 255 255 / 0.18)");
+    expect(words.filter((w) => /^(?:[a-z0-9-]+:)*rounded-/.test(w)).sort(), pageCard).toEqual([
+      "lg:rounded-card",
+      "rounded-inner",
+    ]);
+    expect(pageCard).not.toMatch(ONE_SHADOW);
+    expect(pageCard).not.toMatch(/(?<![\w-])grain/);
   });
 
   it("the pass alone (and the booked day on the strip) takes the pass token", () => {
@@ -245,15 +221,22 @@ describe("cards: one hairline", () => {
     }
   });
 
-  // Phase 21: the office's white cards take its one depth token, whose ring is their hairline (a
-  // border or a shadow, never both).
-  it("the office's card, list card and table: the soft token, and no border of their own", () => {
+  // Phase 23 (round 3): the office's white cards inside its white page card have a hairline of
+  // their own, 22px round, and no depth (round 2's ring was a depth token; a border or a depth,
+  // never both).
+  it("the office's card, list card and table: a 1px hairline, 22px round, and no depth", () => {
     for (const [name, classes] of Object.entries({ card, rows, tableWrap: table.wrap })) {
       const words = classes.split(" ");
-      expect(words, name).toContain("shadow-soft");
-      expect(words, name).toContain("rounded-card");
-      expect(words, name).not.toContain("border");
+      expect(words, name).toContain("border");
+      expect(words, name).toContain("border-line");
+      expect(words, name).toContain("rounded-inner");
+      expect(classes, name).not.toMatch(ONE_SHADOW);
     }
+    // The office's login card, from 640px: the same hairline, no depth.
+    expect(officeLoginCard.split(" ")).toEqual(
+      expect.arrayContaining(["sm:border", "sm:border-line", "sm:bg-card", "sm:rounded-card"]),
+    );
+    expect(officeLoginCard).not.toMatch(ONE_SHADOW);
   });
 
   it("no card anywhere keeps the old heavy dark frame", () => {

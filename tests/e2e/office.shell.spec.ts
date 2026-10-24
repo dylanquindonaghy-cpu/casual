@@ -1,22 +1,56 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { addOfficeUser } from "./db";
 import { accountMenu, expect, menuLink, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
-// The office shell in a real browser (docs/office-v2.md 3.1; PLAN.md 12A.2), at phone width (the
-// browser tests' Pixel 7) and on a wide screen: the menu drawer (opens with Menu; Escape, the
-// backdrop and Close menu shut it; focus goes back to Menu; nothing in it can be tabbed to while
-// it's shut), and the account menu (name, role, the light/dark switch: at once, kept after a reload
-// with no flash; How-to guide; Log out), which from 1024px sits over the menu with the firm, with
-// no top bar (Phases 20 and 22). On a laptop with a mouse (Phase 22): the whole menu fits with no
-// scrollbar, the white pill moves to a link as it's picked, a press dips, and no round button
-// breaks onto two lines. Everything runs with the device set to light and again set to dark.
+// The office shell in a real browser (docs/office-v2.md 3.1; PLAN.md 12A.2 and 23.2), at phone
+// width (the browser tests' Pixel 7) and on a wide screen: the menu drawer (opens with Menu;
+// Escape, the backdrop and Close menu shut it; focus goes back to Menu; nothing in it can be tabbed
+// to while it's shut), the top bar the window's full width at every width (Phase 23: the firm, the
+// pay week with "This week", the shifts line, the square light or dark switch and you, whose
+// account menu has your name and role, the same switch, How-to guide and Log out), the switch (at
+// once, both saying the same, kept after a reload with no flash), and from 1024px the menu in its
+// own white card under the bar beside the page's. On a laptop with a mouse (Phase 22): the whole
+// menu fits with no scrollbar, the pill moves to a link as it's picked, a press dips, nothing
+// lifts, no round button breaks onto two lines, the switch's words can be hovered and put away
+// with Escape, and the keyboard never leaves a control hidden under the top bar. Everything runs
+// with the device set to light and again set to dark.
 
 const acme = "http://acme.localhost:3100";
-// The office's window (Phase 22, round 2): a warm grey (a near-black in dark), the menu on it at
-// every width; the page a warm off-white sheet set into it (Phase 21: one off-white ground).
-const CANVAS = { light: "rgb(231, 229, 223)", dark: "rgb(8, 9, 11)" }; // #e7e5df, #08090b
-const SHEET = { light: "rgb(249, 248, 245)", dark: "rgb(17, 18, 21)" }; // #f9f8f5, #111215
+// The office's window (Phase 23, round 3): a cool light grey ground (a near-black in dark), and on
+// it the top bar, the menu card and the page card in white (a dark grey in dark), each with its 1px
+// hairline. Round 2's warm grey window and off-white sheet set into it went.
+const CANVAS = { light: "rgb(242, 244, 247)", dark: "rgb(12, 14, 18)" }; // #f2f4f7, #0c0e12
+const CARD = { light: "rgb(255, 255, 255)", dark: "rgb(21, 24, 29)" }; // #ffffff, #15181d
+const LINE = { light: "rgb(228, 231, 236)", dark: "rgb(38, 43, 51)" }; // #e4e7ec, #262b33
+
+// A surface's look: its colour, its edge on each side, its corners and any depth.
+const surface = (el: Locator) =>
+  el.evaluate((e) => {
+    const s = getComputedStyle(e);
+    return {
+      bg: s.backgroundColor,
+      image: s.backgroundImage,
+      edges: [s.borderTopWidth, s.borderRightWidth, s.borderBottomWidth, s.borderLeftWidth],
+      edge: [s.borderTopColor, s.borderRightColor, s.borderBottomColor, s.borderLeftColor],
+      corners: [
+        s.borderTopLeftRadius,
+        s.borderTopRightRadius,
+        s.borderBottomRightRadius,
+        s.borderBottomLeftRadius,
+      ],
+      shadow: s.boxShadow,
+    };
+  });
+// White (or dark grey) with a 1px hairline all round, `radius` round, and no depth.
+const flatCard = (theme: "light" | "dark", radius: string) => ({
+  bg: CARD[theme],
+  image: "none",
+  edges: ["1px", "1px", "1px", "1px"],
+  edge: Array(4).fill(LINE[theme]),
+  corners: Array(4).fill(radius),
+  shadow: "none",
+});
 
 // Each test logs in as a resourcer of its own (the seeded users allow 3 login links per 15
 // minutes, and this spec logs in six times).
@@ -56,7 +90,7 @@ for (const device of ["light", "dark"] as const) {
       await officeLogin(page, `${device}.drawer`);
       const menuButton = page.getByRole("button", { name: "Menu", exact: true });
       const drawer = page.getByRole("dialog", { name: "Menu" });
-      // Phone width: no sidebar, and nothing of the menu can be reached with Tab while it's shut.
+      // Phone width: no menu card, and nothing of the menu can be reached with Tab while it's shut.
       await expect(menuButton).toBeEnabled();
       await expect(page.getByRole("navigation", { name: "Office menu" })).toHaveCount(0);
       await menuButton.focus();
@@ -66,7 +100,8 @@ for (const device of ["light", "dark"] as const) {
       }
 
       // Escape shuts it, and focus goes back to Menu. Every row in it is a thumb's 44px tall, on
-      // the brief's 390px phone (Phase 21), and so is every button in the top bar.
+      // the brief's 390px phone (Phase 21), and so is every button in the top bar (Menu, the light
+      // or dark switch and you: Phase 23).
       await page.setViewportSize({ width: 390, height: 844 });
       const bar = await page
         .getByRole("banner")
@@ -76,10 +111,23 @@ for (const device of ["light", "dark"] as const) {
             .filter((el) => el.checkVisibility())
             .map((el) => [el.textContent ?? "", Number.parseFloat(getComputedStyle(el).height)]),
         );
-      expect(bar.length).toBeGreaterThanOrEqual(2); // Menu, you (the moon/sun in your menu: Phase 22)
+      expect(bar.length).toBeGreaterThanOrEqual(3);
       for (const [name, height] of bar) expect(height, String(name)).toBeGreaterThanOrEqual(44);
       await menuButton.click();
       await expect(drawer).toBeVisible();
+      // White from the left edge, floating over the dimmed page (the one overlay), sliding in
+      // (Phase 23); the firm at its head in a plain box, not a second banner.
+      await expect.poll(() => drawer.evaluate((el) => el.getBoundingClientRect().left)).toBe(0);
+      const sheet = await surface(drawer);
+      expect(sheet.bg).toBe(CARD[device]);
+      expect(sheet.shadow).not.toBe("none");
+      expect(sheet.corners).toEqual(Array(4).fill("0px"));
+      expect(await drawer.evaluate((el) => getComputedStyle(el).transitionProperty)).toBe(
+        "translate",
+      );
+      expect(await drawer.evaluate((el) => getComputedStyle(el).transitionDuration)).toBe("0.2s");
+      await expect(drawer.getByText("Acme Events", { exact: true })).toBeVisible();
+      await expect(drawer.locator("header")).toHaveCount(0);
       // (The folded group opened first, so its links are measured too.)
       const fold = drawer.locator('button[aria-expanded="false"]');
       if ((await fold.count()) > 0) await fold.click();
@@ -123,29 +171,58 @@ for (const device of ["light", "dark"] as const) {
       );
       await page.keyboard.press("Escape");
 
-      // On a wide screen the menu is the sidebar, and there's no Menu button.
+      // On a wide screen the menu is in its card beside the page, and there's no Menu button.
       await page.setViewportSize({ width: 1280, height: 900 });
       await expect(page.getByRole("navigation", { name: "Office menu" })).toBeVisible();
       await expect(menuButton).toBeHidden();
     });
 
-    test("the light/dark switch (in your account menu) changes the theme at once and keeps it after a reload", async ({
+    test("the light or dark switches (the top bar's and your account menu's) change the theme at once, say the same, and keep it after a reload", async ({
       page,
     }) => {
       await officeLogin(page, `${device}.theme`);
       const other = device === "light" ? "dark" : "light";
       const shell = page.locator('[data-shell="office"]');
-      const sheet = page.locator("#main > div");
+      const card = page.locator("#main > div");
+      const bar = page.getByRole("banner");
       await expect(shell).toHaveCSS("background-color", CANVAS[device]);
-      await expect(sheet).toHaveCSS("background-color", SHEET[device]);
-      // Its words say what it switches to (Phase 22: a row of the account menu; a round button with
-      // its words beside it until then).
+      await expect(card).toHaveCSS("background-color", CARD[device]);
+      await expect(bar).toHaveCSS("background-color", CARD[device]);
+      // Its words say what it switches to (a row of the account menu since Phase 22; Phase 23 the
+      // square moon or sun in the top bar too, named by the same words).
+      const square = bar.getByRole("button", { name: `Switch to ${other} mode`, exact: true });
+      await expect(square).toBeEnabled();
       const menu = await accountMenu(page);
-      await menu.getByRole("button", { name: `Switch to ${other} mode` }).click();
+      await menu.getByRole("button", { name: `Switch to ${other} mode`, exact: true }).click();
       await expect(page.locator("html")).toHaveAttribute("data-theme", other);
       await expect(shell).toHaveCSS("background-color", CANVAS[other]);
-      await expect(sheet).toHaveCSS("background-color", SHEET[other]);
-      await expect(menu.getByRole("button", { name: `Switch to ${device} mode` })).toBeVisible();
+      await expect(card).toHaveCSS("background-color", CARD[other]);
+      await expect(
+        menu.getByRole("button", { name: `Switch to ${device} mode`, exact: true }),
+      ).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(menu).toBeHidden();
+      // The top bar's switch followed it: both say the same.
+      const back = bar.getByRole("button", { name: `Switch to ${device} mode`, exact: true });
+      await expect(back).toBeVisible();
+      await expect(bar.getByRole("button", { name: /^Switch to (light|dark) mode$/ })).toHaveCount(
+        1,
+      );
+
+      // And the other way: the top bar's switch, then the account menu's says the same.
+      await back.click();
+      await expect(page.locator("html")).toHaveAttribute("data-theme", device);
+      await expect(shell).toHaveCSS("background-color", CANVAS[device]);
+      await expect(square).toBeVisible();
+      const again = await accountMenu(page);
+      await expect(
+        again.getByRole("button", { name: `Switch to ${other} mode`, exact: true }),
+      ).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(again).toBeHidden();
+      await square.click();
+      await expect(page.locator("html")).toHaveAttribute("data-theme", other);
+      await expect(card).toHaveCSS("background-color", CARD[other]);
 
       // Kept: the server sends the next page in that theme (no flash), and after a reload too.
       const sent = await page.request.get(`${acme}/office`);
@@ -153,21 +230,36 @@ for (const device of ["light", "dark"] as const) {
       await page.reload();
       await expect(page.locator("html")).toHaveAttribute("data-theme", other);
       await expect(shell).toHaveCSS("background-color", CANVAS[other]);
+      await expect(
+        bar.getByRole("button", { name: `Switch to ${device} mode`, exact: true }),
+      ).toBeVisible();
     });
 
-    test("the top bar: the firm's name (over the menu, on a wide screen); the account menu has the name and role", async ({
+    test("the top bar: the window's full width; the firm, the pay week, the shifts line, the switch and you; the menu and page cards under it", async ({
       page,
     }) => {
       await officeLogin(page, `${device}.bar`);
-      // Below 1024px the page is a sheet with rounded top corners under the top bar (Phase 22).
-      const sheet = page.locator("#main > div");
-      await expect(sheet).toHaveCSS("border-top-left-radius", "20px");
-      await expect(sheet).toHaveCSS("border-top-right-radius", "20px");
-      await expect(sheet).toHaveCSS("border-bottom-left-radius", "0px");
+      const bar = page.getByRole("banner");
+      const card = page.locator("#main > div");
+      const width = () => page.evaluate(() => document.documentElement.clientWidth);
+      // On a phone: the page a white card with its hairline, 22px round on all four corners, with
+      // no depth (Phase 23; a sheet with rounded top corners in Phase 22).
+      expect(await surface(card)).toEqual(flatCard(device, "22px"));
       // The firm's own bar gives way to the top bar on logged-in office pages.
       await expect(page.getByTestId("brand-bar")).toBeHidden();
-      const bar = page.getByRole("banner");
       await expect(bar.getByText("Acme Events", { exact: true })).toBeVisible();
+      // The pay week and the shifts line wait for a wider window.
+      await expect(bar.getByText("This week", { exact: true })).toBeHidden();
+      await expect(bar.getByText("+44 7700 900000")).toBeHidden();
+      // White with its hairline under it, 56px tall, the window's full width.
+      expect(await bar.evaluate((el) => getComputedStyle(el).borderBottomColor)).toBe(LINE[device]);
+      expect(await bar.evaluate((el) => getComputedStyle(el).borderBottomWidth)).toBe("1px");
+      expect(await bar.boundingBox()).toMatchObject({
+        x: 0,
+        y: 0,
+        height: 56,
+        width: await width(),
+      });
 
       await expect(page.getByRole("button", { name: "Sam Rota Resourcer" })).toBeVisible();
       const menu = await accountMenu(page);
@@ -181,37 +273,77 @@ for (const device of ["light", "dark"] as const) {
       await page.keyboard.press("Escape");
       await expect(menu).toBeHidden();
 
-      // On a tablet the name and role show on the account button.
+      // On a tablet the name shows on the account button.
       const account = page.locator('button[popovertarget="office-account-menu"]');
       await page.setViewportSize({ width: 800, height: 900 });
       await expect(account.getByText("Sam Rota", { exact: true })).toBeVisible();
+      await expect(bar.getByText("This week", { exact: true })).toBeHidden();
 
-      // From 1024px no top bar (Phase 20): the firm (its initial, its name, "Office") and your
-      // initials sit over the menu (248px wide), and the menu doesn't repeat the firm (Phase 22).
+      // From 1024px the pay week, but not yet its dates (read out, not shown) or the shifts line.
+      const dates = bar.locator("p span.sr-only").filter({ hasText: " – " });
+      await page.setViewportSize({ width: 1100, height: 900 });
+      await expect(bar.getByText("This week", { exact: true })).toBeVisible();
+      await expect(dates).toHaveCount(1);
+      expect(await dates.evaluate((el) => getComputedStyle(el).position)).toBe("absolute");
+      await expect(bar.getByText("+44 7700 900000")).toBeHidden();
+
+      // At 1280: the bar the window's full width and 64px tall: the firm (its initial, its name,
+      // "Office"), the pay week in words with "This week" in green, the shifts line, the square
+      // light or dark switch (44px), and you at its right end.
       await page.setViewportSize({ width: 1280, height: 900 });
+      const wide = await width();
+      expect(await bar.boundingBox()).toMatchObject({ x: 0, y: 0, height: 64, width: wide });
       await expect(bar.getByText("Acme Events", { exact: true })).toBeVisible();
       await expect(bar.getByText("Office", { exact: true })).toBeVisible();
+      const week = bar.locator("p").filter({ hasText: "This week" });
+      await expect(week).toHaveCount(1);
+      await expect(week).toBeVisible();
+      expect(await dates.evaluate((el) => getComputedStyle(el).position)).toBe("static");
+      expect((await week.innerText()).replace(/\s+/g, " ").trim()).toMatch(
+        /^Week \d{1,2} · \d{1,2} [A-Z][a-z]{2} – \d{1,2} [A-Z][a-z]{2} · Pay [A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2} This week$/,
+      );
+      // Words, not a button: nothing in it to press.
+      await expect(week.locator("a, button")).toHaveCount(0);
+      await expect(bar.getByText("+44 7700 900000")).toBeVisible();
+      const square = bar.getByRole("button", { name: /^Switch to (light|dark) mode$/ });
+      expect(await square.boundingBox()).toMatchObject({ width: 44, height: 44 });
+      expect(await surface(square)).toEqual(flatCard(device, "14px"));
       await expect(
         page
           .getByRole("navigation", { name: "Office menu" })
           .getByText("Acme Events", { exact: true }),
       ).toHaveCount(0);
       await expect(account.getByText("SR", { exact: true })).toBeVisible();
+      await expect(account.getByText("Sam Rota", { exact: true })).toBeVisible();
       await expect(account).toHaveAccessibleName("Sam Rota Resourcer");
-      const box = await account.boundingBox();
-      expect(box).not.toBeNull();
-      expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(248);
-      expect(box?.y ?? 900).toBeLessThan(64);
-      // The window and the page: the menu on the window's ground, the page a sheet set into it.
+      const box = (await account.boundingBox())!;
+      expect(Math.round(box.x + box.width)).toBe(wide - 24);
+      expect(box.y).toBeLessThan(64);
+      // Its menu opens at the top right, 8px under the bar, its right edge under you.
+      // (Once it has grown out of its corner.)
+      const opened = await accountMenu(page);
+      const pop = async () => (await opened.boundingBox())!;
+      await expect.poll(async () => Math.round((await pop()).y)).toBe(72);
+      await expect
+        .poll(async () => Math.round((await pop()).x + (await pop()).width))
+        .toBe(wide - 24);
+      await page.keyboard.press("Escape");
+      await expect(opened).toBeHidden();
+
+      // Under the bar, 16px from it and from the window's edges: the menu in its own white card
+      // (284px wide from 1280px), and the page in another, 16px apart; both 28px round, their
+      // hairlines and no depth. The window's ground shows between them.
+      const menuCard = page.locator("[data-shell] [data-menu-scroll]").locator("xpath=..");
+      expect(await surface(menuCard)).toEqual(flatCard(device, "28px"));
+      expect(await menuCard.boundingBox()).toMatchObject({ x: 16, y: 80, width: 284 });
+      expect(await surface(card)).toEqual(flatCard(device, "28px"));
+      expect(await card.boundingBox()).toMatchObject({ x: 316, y: 80, width: wide - 332 });
       await expect(page.locator('[data-shell="office"]')).toHaveCSS(
         "background-color",
         CANVAS[device],
       );
       await expect(page.locator("body")).toHaveCSS("background-color", CANVAS[device]);
       await expect(page.locator("#main")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
-      await expect(sheet).toHaveCSS("background-color", SHEET[device]);
-      // Set into the window, rounded all round.
-      await expect(sheet).toHaveCSS("border-bottom-left-radius", "20px");
       await (await accountMenu(page)).getByRole("link", { name: "How-to guide" }).click();
       await expect(page).toHaveURL(`${acme}/office/guide`);
     });
@@ -223,6 +355,8 @@ for (const device of ["light", "dark"] as const) {
 test.describe("on a laptop window (1280 × 640) with a mouse", () => {
   test.use({ viewport: { width: 1280, height: 640 }, hasTouch: false, isMobile: false });
 
+  // Phase 23: under the 64px top bar, in its own card 16px under it, the whole menu still fits:
+  // nothing to scroll to, and the card ends inside the window.
   test("an admin's whole menu fits with no scrollbar, its rows 34px; the pill moves to a pick at once", async ({
     page,
   }) => {
@@ -238,19 +372,30 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
         heights: [...new Set(rows.map((r) => Math.round(r.getBoundingClientRect().height)))],
         last: rows.at(-1)!.getBoundingClientRect().bottom,
         bottom: box.getBoundingClientRect().bottom,
+        more: box.scrollHeight - box.clientHeight,
         bar: getComputedStyle(box).scrollbarWidth,
         // A scrollbar would take room from the box's width.
         taken: (box as HTMLElement).offsetWidth - box.clientWidth,
+        card: box.parentElement!.getBoundingClientRect().bottom,
+        // The office's own top bar (the casual app's brand bar is hidden under the shell).
+        banner: document.querySelector("[data-shell] > header")!.getBoundingClientRect().bottom,
+        top: box.parentElement!.getBoundingClientRect().top,
       };
     });
     expect(fit.rows).toBeGreaterThanOrEqual(12);
     expect(fit.heights).toEqual([34]);
     expect(fit.last).toBeLessThanOrEqual(fit.bottom);
+    expect(fit.more).toBe(0);
     expect(fit.bar).toBe("none");
     expect(fit.taken).toBe(0);
+    expect(await scroll.getAttribute("data-more")).toBeNull();
+    expect(fit.banner).toBe(64);
+    expect(fit.top).toBe(80);
+    expect(fit.card).toBeLessThanOrEqual(640);
 
-    // The page you're on: the white pill under its row. Picked, another link has the pill at once,
-    // before its page arrives (held back here), while the page you're on is still marked current.
+    // The page you're on: the pale blue pill under its row. Picked, another link has the pill at
+    // once, before its page arrives (held back here), while the page you're on is still marked
+    // current.
     const pill = page.locator("[data-menu-pill]");
     const top = async (name: string) =>
       Math.round((await menu.getByRole("link", { name, exact: true }).boundingBox())?.y ?? -1);
@@ -285,14 +430,20 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
     );
   });
 
-  test("what you press dips and springs back; a dashboard card lifts under the pointer", async ({
+  // Phase 23 (flat): a dashboard card no longer lifts under the pointer (round 2's rose 2px); it
+  // still dips when pressed.
+  test("what you press dips and springs back; a dashboard card stays put under the pointer", async ({
     page,
   }) => {
     await officeLogin(page, "press", "admin");
-    const card = page.locator('a[href="#waiting"]');
+    const card = page.getByRole("main").getByRole("link", { name: /^Waiting on others\b/ });
+    await expect(card).toHaveCount(1);
     const box = (await card.boundingBox())!;
     await page.mouse.move(box.x + 40, box.y + 40);
-    await expect.poll(() => card.evaluate((el) => getComputedStyle(el).translate)).toBe("0px -2px");
+    await expect.poll(() => card.evaluate((el) => el.matches(":hover"))).toBe(true);
+    // Longer than any of its transitions (150ms colours, 300ms spring): it hasn't moved.
+    await page.waitForTimeout(400);
+    expect(await card.evaluate((el) => getComputedStyle(el).translate)).toBe("none");
     await page.mouse.down();
     await expect.poll(() => card.evaluate((el) => getComputedStyle(el).scale)).toBe("0.97");
     await page.mouse.move(box.x + 40, box.y + 400);
@@ -316,6 +467,102 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
       await page.mouse.up();
       await expect.poll(() => link.evaluate((el) => getComputedStyle(el).scale), path).toBe("none");
     }
+  });
+
+  // The top bar's light or dark switch is a moon or a sun alone (Phase 23): its words, its name,
+  // show beside it under the pointer and on keyboard focus (docs/office-v2.md 3.1), and go again.
+  // The pointer can move onto them, and Escape puts them away without switching (WCAG 1.4.13).
+  test("the top bar's light or dark switch shows its words under the pointer and on keyboard focus", async ({
+    page,
+  }) => {
+    await officeLogin(page, "tip", "admin");
+    const bar = page.getByRole("banner");
+    const square = bar.getByRole("button", { name: /^Switch to (light|dark) mode$/ });
+    const tip = bar.locator("[data-theme-tip]");
+    // (Ready: it waits for the page, and a disabled button can't be tabbed to.)
+    await expect(square).toBeEnabled();
+    const name = (await square.getAttribute("aria-label"))!;
+    await expect(tip).toBeHidden();
+    await expect(tip).toHaveText(name);
+    await square.hover();
+    await expect(tip).toBeVisible();
+    await expect(tip).toHaveCSS("animation-name", "sd-pop");
+    // Under the button, its right edge at the button's (once it has popped in).
+    const at = (await square.boundingBox())!;
+    const shown = async () => (await tip.boundingBox())!;
+    await expect
+      .poll(async () => Math.round((await shown()).y))
+      .toBe(Math.round(at.y + at.height + 8));
+    await expect
+      .poll(async () => Math.round((await shown()).x + (await shown()).width))
+      .toBe(Math.round(at.x + at.width));
+    // The pointer moves down from the button onto them (across the 8px between) and they stay, to
+    // be read; Escape puts them away with the pointer still there, and nothing switches.
+    const theme = () => page.evaluate(() => document.documentElement.dataset.theme ?? "device");
+    const before = await theme();
+    const words = await shown();
+    await page.mouse.move(words.x + words.width - 8, words.y + words.height / 2, { steps: 8 });
+    await expect.poll(() => tip.evaluate((el) => el.matches(":hover"))).toBe(true);
+    await expect(tip).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(tip).toBeHidden();
+    expect(await theme()).toBe(before);
+    await expect(square).toHaveAttribute("aria-label", name);
+    // Away and back under the pointer: they show again; away, they go.
+    await page.mouse.move(640, 400);
+    await square.hover();
+    await expect(tip).toBeVisible();
+    await page.mouse.move(640, 400);
+    await expect(tip).toBeHidden();
+    // From the keyboard: Tab to it from the skip link (Menu is hidden on a wide screen, and the pay
+    // week and the shifts line are words), then on to you.
+    await page.locator('a[href="#main"]').focus();
+    await page.keyboard.press("Tab");
+    await expect(square).toBeFocused();
+    await expect(tip).toBeVisible();
+    // Escape puts them away while the button keeps focus, and the theme stays as it was.
+    await page.keyboard.press("Escape");
+    await expect(tip).toBeHidden();
+    await expect(square).toBeFocused();
+    await expect(square).toHaveAttribute("aria-label", name);
+    expect(await theme()).toBe(before);
+    // On to you, and back: they show again.
+    await page.keyboard.press("Tab");
+    await expect(tip).toBeHidden();
+    await page.keyboard.press("Shift+Tab");
+    await expect(square).toBeFocused();
+    await expect(tip).toBeVisible();
+    await page.keyboard.press("Tab");
+    await expect(tip).toBeHidden();
+  });
+
+  // Phase 23's top bar is sticky across the window's full width (before, from 1024px, it sat over
+  // the menu only): a control the keyboard moves to just under it scrolls clear of it, never
+  // hidden behind it (WCAG 2.4.11; the office's scroll padding, globals.css).
+  test("a control the keyboard moves to just under the top bar scrolls clear of it", async ({
+    page,
+  }) => {
+    await officeLogin(page, "under");
+    const bar = page.getByRole("banner");
+    const places = page.getByRole("region", { name: "Places to fill, next 2 weeks" });
+    const numbers = places.getByRole("button", { name: "Numbers" });
+    const first = places.locator("button[data-col]").first();
+    await expect(first).toBeVisible();
+    const under = await bar.evaluate((el) => el.getBoundingClientRect().bottom);
+    expect(under).toBe(64);
+    // Scrolled (with a wheel or a trackpad) until Numbers sits under the bar, 8px from the top.
+    await numbers.evaluate((el) => window.scrollBy(0, el.getBoundingClientRect().top - 8));
+    await expect
+      .poll(() => numbers.evaluate((el) => Math.round(el.getBoundingClientRect().top)))
+      .toBe(8);
+    // The keyboard moves to it: Shift+Tab back from the chart's first day.
+    await first.evaluate((el) => (el as HTMLElement).focus({ preventScroll: true }));
+    await page.keyboard.press("Shift+Tab");
+    await expect(numbers).toBeFocused();
+    // All of it below the bar, and inside the window.
+    const box = (await numbers.boundingBox())!;
+    expect(box.y).toBeGreaterThanOrEqual(under);
+    expect(box.y + box.height).toBeLessThanOrEqual(640);
   });
 
   // On every page in an admin's menu, and the guide: the how-to guide in your account menu (Phase
@@ -422,7 +669,8 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
 
     test("nothing dips or lifts", async ({ page }) => {
       await officeLogin(page, "still", "admin");
-      const card = page.locator('a[href="#waiting"]');
+      const card = page.getByRole("main").getByRole("link", { name: /^Waiting on others\b/ });
+      await expect(card).toHaveCount(1);
       const box = (await card.boundingBox())!;
       await page.mouse.move(box.x + 40, box.y + 40);
       await page.mouse.down();

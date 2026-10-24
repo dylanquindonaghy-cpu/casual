@@ -2,7 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import { Fragment, useId, useState, useTransition } from "react";
-import { btn, card, confirmStep, field, hint, labelStack, nums, table } from "@/app/ui/classes";
+import {
+  btn,
+  card,
+  codeBox,
+  confirmStep,
+  field,
+  hint,
+  labelStack,
+  notice,
+  nums,
+  table,
+} from "@/app/ui/classes";
 import { useHydrated } from "@/app/use-hydrated";
 import {
   createKeyResultText,
@@ -80,14 +91,12 @@ export function CreateKeyForm() {
         </p>
       )}
       {made && (
-        <div className="rounded-row border border-attention-line bg-attention-soft p-4 text-attention-ink shadow-soft">
+        <div className={notice}>
           <p role="status" className="font-semibold">
             {KEY_SHOWN_ONCE}
           </p>
           <p className="mt-1">Your new key, {made.label}:</p>
-          <code className="mt-2 block rounded-row border border-line bg-card px-3 py-2 font-mono text-base break-all text-ink select-all">
-            {made.key}
-          </code>
+          <code className={`${codeBox} mt-2`}>{made.key}</code>
           <div className="mt-3 flex flex-wrap gap-3">
             <button type="button" className={btn.secondary} onClick={() => copy(made.key)}>
               Copy the key

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { btn, page, textLink } from "@/app/ui/classes";
+import { btn, page, tab, tabCurrent, tabs, textLink } from "@/app/ui/classes";
 import { Icon } from "@/app/ui/icons";
 import { systemClock } from "@/lib/auth/clock";
 import { requireOfficeArea } from "@/lib/auth/current-office";
@@ -30,6 +30,11 @@ const isView = (v: unknown): v is EventView =>
 // filter only while it's the one chosen.
 const FILTERS: EventView[] = ["all", "need", "urgent", "hidden"];
 
+// Earlier and Later: 44px round buttons, white with their hairline (the mock-up's), dipping when
+// pressed.
+const dateButton =
+  "press flex size-11 items-center justify-center rounded-full border border-line bg-button text-ink hover:bg-button-hover active:bg-button-press";
+
 const viewHref = (view: EventView, from?: string) => {
   const q = new URLSearchParams();
   if (view !== "all") q.set("view", view);
@@ -41,9 +46,11 @@ const viewHref = (view: EventView, from?: string) => {
 // Events & sessions (docs/office-v2.md 3.3; docs/screens.md `/office/events`; Phases 18 and 20): a
 // rota board of two weeks from today (or a later `from`), an event per row, soonest first, each
 // session a pill on its day ("3/4": places filled out of needed; solid red only for an urgent gap,
-// outlined while places are open, grey when full), today marked in the firm's colour and weekends
-// a shade darker. The filters with their counts (All, Need people, Urgent, Hidden) and the dates
-// (Earlier, Later) on one row, the key under them in plain words. An event's name or a pill opens
+// outlined while places are open, grey when full), today's date in a sky circle and weekends a
+// light grey. The filters with their counts (All, Need people, Urgent, Hidden) as tabs and the
+// dates (Earlier, Later) on one row, the key under them in plain words. Flat (Phase 23, the
+// approved mock-up): the board a white card with its hairline, 22px round, inside the page card;
+// the date buttons white with their hairline. An event's name or a pill opens
 // its row into its sessions to come, with its "show to casuals" switch (not on the row: Phase 20),
 // "Add a session" and its own page: role, when, places as seats, pay, the urgent switch and the
 // "…" menu (offer, assign, change or cancel), then post, meeting point and uniform. Firms without
@@ -107,20 +114,13 @@ export default async function EventsPage({
 
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
         {/* One row: on a phone it scrolls sideways inside its track, never the page. */}
-        <nav
-          aria-label="Show"
-          className="flex max-w-full gap-1 overflow-x-auto rounded-full bg-raised p-1 inset-shadow-sunk"
-        >
+        <nav aria-label="Show" className={tabs}>
           {filters.map((v) => (
             <Link
               key={v}
               href={viewHref(v, from === today ? undefined : from)}
               aria-current={v === view ? "page" : undefined}
-              className={`press inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-4 whitespace-nowrap ${
-                v === view
-                  ? "bg-card font-semibold text-ink shadow-soft"
-                  : "font-medium text-ink-muted hover:bg-card/60 hover:text-ink active:bg-card"
-              }`}
+              className={v === view ? tabCurrent : tab}
             >
               {EVENT_VIEW_WORDS[v]}
               <span className="font-semibold tabular-nums">{list.counts[v]}</span>
@@ -132,24 +132,22 @@ export default async function EventsPage({
             <Link
               href={viewHref(view, earlier === "today" ? undefined : earlier)}
               aria-label="Earlier"
-              className="press flex size-11 items-center justify-center rounded-full bg-button text-ink shadow-raise hover:bg-button-hover active:bg-button-press"
+              className={dateButton}
             >
               <Icon name="chevron" size={17} className="rotate-180" />
             </Link>
           ) : (
             <span
               aria-hidden="true"
-              className="flex size-11 items-center justify-center rounded-full bg-raised text-line-strong"
+              className="flex size-11 items-center justify-center rounded-full border border-line text-line-strong"
             >
               <Icon name="chevron" size={17} className="rotate-180" />
             </span>
           )}
-          <span className="px-2 font-semibold tabular-nums">{windowText(days)}</span>
-          <Link
-            href={viewHref(view, later)}
-            aria-label="Later"
-            className="press flex size-11 items-center justify-center rounded-full bg-button text-ink shadow-raise hover:bg-button-hover active:bg-button-press"
-          >
+          <span className="min-w-32 px-2 text-center font-bold tabular-nums">
+            {windowText(days)}
+          </span>
+          <Link href={viewHref(view, later)} aria-label="Later" className={dateButton}>
             <Icon name="chevron" size={17} />
           </Link>
         </nav>
@@ -160,7 +158,7 @@ export default async function EventsPage({
         role="region"
         aria-label="Rota board"
         tabIndex={0}
-        className="overflow-x-auto rounded-card bg-card shadow-soft"
+        className="overflow-x-auto rounded-inner border border-line bg-card"
       >
         <div className="min-w-[58rem]">
           <BoardDays days={days} />

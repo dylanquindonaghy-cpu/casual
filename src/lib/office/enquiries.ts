@@ -84,8 +84,9 @@ const doneInApp = (m: string): SQL =>
        and d.data ->> 'workerId' = ${m}.worker_id::text)`);
 
 // An inbound message to the shifts line, in the window, that is an enquiry (a call's own row,
-// handled with no label, isn't: its voicemail is a row of its own).
-const isEnquiry = (m: string, since: Date): SQL =>
+// handled with no label, isn't: its voicemail is a row of its own). The dashboard's waiting chart
+// counts the ones that need a person by day with it (src/lib/office/dashboard-charts-load.ts).
+export const isEnquiry = (m: string, since: Date): SQL =>
   sql`${sql.raw(m)}.direction = 'in' and ${sql.raw(m)}.created_at > ${since}
       and not (${sql.raw(m)}.handled_at is not null and ${sql.raw(m)}.handled_as is null)`;
 

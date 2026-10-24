@@ -35,6 +35,8 @@ vi.mock("@/app/office/shifts/actions", () => ({
   moveShiftAction: vi.fn(),
 }));
 const { DashboardContent } = await import("@/app/office/dashboard-view");
+const { PanelView } = await import("@/app/office/dashboard/chart-panel");
+const { dashboardModel } = await import("@/lib/office/dashboard-charts");
 const { NeedsItems } = await import("@/app/office/needs-items");
 
 const ACME = { name: "Acme Events", signOff: "Acme Events Shift Team" };
@@ -339,9 +341,75 @@ describe("the Needs attention item: the dashboard's row and the Needs attention 
     cancellations: { ok: true, data: { rows: [], threshold: 48 } },
     enquiries: { ok: true, data: { rows: [], replies: {}, days: 90 } },
     needs: { ok: true, data: needs(evidence) },
-    week: { ok: true, data: [] },
+    // The charts (Phase 23): nothing to draw here, but the waiting chart's undated items, as
+    // Needs attention counts them.
+    fill: { ok: true, data: { first: "2026-11-02", days: [], gaps: [], more: false } },
+    eventsNeed: {
+      ok: true,
+      data: {
+        events: [],
+        more: 0,
+        total: { events: 0, places: 0, urgent: 0 },
+        hiddenEvents: 0,
+        full: [],
+        fullMore: 0,
+      },
+    },
+    offersWeek: {
+      ok: true,
+      data: {
+        week: { monday: "2026-11-02", sunday: "2026-11-08" },
+        counts: { yes: 0, waiting: 0, closed: 0 },
+        closedWhy: { said_no: 0, filled_elsewhere: 0, changed: 0, no_reply: 0 },
+        rows: { yes: [], waiting: [], closed: [] },
+        more: { yes: false, waiting: false, closed: false },
+        waitingSessions: [],
+        waitingSessionsMore: false,
+      },
+    },
+    waited: {
+      ok: true,
+      data: {
+        today: "2026-11-02",
+        days: [],
+        items: [],
+        more: {
+          "to-mark": false,
+          uploads: false,
+          enquiries: false,
+          evidence: false,
+          "planner-refused": false,
+          webhook: false,
+        },
+        undated: {
+          toCheck: 0,
+          fromSheet: 0,
+          expired: 0,
+          strikesAddress: evidence.addressConfirmed ? 0 : 1,
+        },
+        needsYouTotal: evidence.addressConfirmed ? 0 : 1,
+        needsYouMore: false,
+        pay: null,
+      },
+    },
+    cancels14: {
+      ok: true,
+      data: { first: "2026-10-20", days: [], threshold: 48, rows: [], more: false },
+    },
+    licences: {
+      ok: true,
+      data: {
+        today: "2026-11-02",
+        windowDays: 56,
+        soonDays: 30,
+        rows: [],
+        more: false,
+        counts: { total: 0, soon: 0, booked: 0 },
+      },
+    },
   });
-  // The dashboard's rows are the same for admins and resourcers.
+  // The dashboard's rows are the same for admins and resourcers: the page, and (Phase 23) the
+  // lists its count cards open, Needs attention's among them.
   const dashboard = (v: Dashboard) =>
     renderToStaticMarkup(
       createElement(DashboardContent, {
@@ -350,6 +418,15 @@ describe("the Needs attention item: the dashboard's row and the Needs attention 
         now: new Date("2026-11-02T10:00:00Z"),
       }),
     );
+  const needsPanel = (v: Dashboard) => {
+    const panel = dashboardModel(v, {
+      now: new Date("2026-11-02T10:00:00Z"),
+      pay: false,
+      payQueriesWaiting: 0,
+    }).cards.find((c) => c.key === "needs")?.panel;
+    if (!panel) throw new Error("no Needs attention card");
+    return renderToStaticMarkup(createElement(PanelView, { panel }));
+  };
   // The Needs attention page's items (the page around them only loads the data).
   const render = (v: Dashboard, isAdmin: boolean) =>
     renderToStaticMarkup(
@@ -384,9 +461,9 @@ describe("the Needs attention item: the dashboard's row and the Needs attention 
       true,
     );
     expect(html).not.toContain("Strike evidence");
-    expect(
-      dashboard(view({ addressConfirmed: true, waiting: 0, failed: [], failedMore: false })),
-    ).not.toContain("Strike evidence");
+    const calm = view({ addressConfirmed: true, waiting: 0, failed: [], failedMore: false });
+    expect(dashboard(calm)).not.toContain("Strike evidence");
+    expect(needsPanel(calm)).not.toContain("Strike evidence");
   });
 
   it("an unconfirmed address and a failed email: its part, its count (the menu's too), each linking where it's dealt with", () => {
@@ -396,11 +473,18 @@ describe("the Needs attention item: the dashboard's row and the Needs attention 
     expect(admin).toContain('<h3 id="evidence"');
     expect(text(admin)).toContain("Strike evidence 2");
     expect(needsCount(needs(evidence))).toEqual({ count: 2, more: false });
-    // On the dashboard, a row in its Needs attention with its count, to its part of the page.
-    expect(text(dashboard(v))).toContain(
+    // On the dashboard, a row in the list its Needs attention card opens (Phase 23; its panel
+    // until then), with its count, to its part of the page; and the strikes team's address under
+    // the waiting chart, to the same place.
+    expect(text(needsPanel(v))).toContain(
       "Strike evidence Strike records the strikes team hasn't had 2",
     );
-    expect(dashboard(v)).toMatch(/<a class="[^"]*" href="\/office\/needs-attention#evidence">/);
+    expect(needsPanel(v)).toMatch(
+      /<a class="[^"]*" aria-describedby="[^"]*" href="\/office\/needs-attention#evidence">See them<\/a>/,
+    );
+    expect(dashboard(v)).toMatch(
+      /<a class="[^"]*" href="\/office\/needs-attention#evidence">The strikes team&#x27;s email to set<\/a>/,
+    );
     expect(text(admin)).toContain(
       "The strikes team's email isn't set and confirmed, so strike records can't be emailed to them. 2 records wait for it.",
     );

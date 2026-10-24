@@ -10,12 +10,14 @@ import { Icon } from "../../ui/icons";
 // the opened row, so a slip can't hide an event. The name and each pill open the row in place
 // into the event's sessions (`panel`, drawn by the server: its switch, the table, its switches
 // and menus), set into the board a step darker; the arrow turns as it opens. The name and the
-// pills dip when pressed, as everything you press (Phase 22).
+// pills dip when pressed, as everything you press (Phase 22). Phase 23 (the approved mock-up): an
+// urgent gap a solid red pill, open places a white pill with a grey outline, full a light grey one
+// with its hairline (so it still shows on a weekend's grey); weekends a light grey.
 
 const PILL: Record<PillTone, string> = {
   urgent: "bg-urgent-fill text-on-urgent",
   open: "border border-ink-muted bg-card text-ink",
-  full: "bg-raised text-ink-muted",
+  full: "border border-line bg-raised text-ink-muted",
 };
 
 export function EventRow({
@@ -51,7 +53,7 @@ export function EventRow({
             aria-expanded={open}
             aria-controls={panelId}
             onClick={toggle}
-            className="press flex min-w-0 flex-1 items-center gap-2 rounded-row px-2 py-1 text-left hover:bg-quiet-soft active:bg-raised"
+            className="press flex min-w-0 flex-1 items-center gap-2 rounded-row px-2 py-1 text-left hover:bg-quiet-soft active:bg-button-press"
           >
             <Icon
               name="chevron"
@@ -76,7 +78,7 @@ export function EventRow({
         {cells.map((pills, i) => (
           <div
             key={i}
-            className={`flex flex-col justify-center gap-1 px-1 py-2 ${weekend[i] ? "bg-canvas" : ""}`}
+            className={`flex flex-col justify-center gap-1 px-1 py-2 ${weekend[i] ? "bg-raised" : ""}`}
           >
             {pills.map((p) => (
               <button
@@ -89,7 +91,7 @@ export function EventRow({
                 className={`press flex flex-col items-center ${hidden ? "opacity-50" : ""}`}
               >
                 <span
-                  className={`flex h-7 w-full items-center justify-center rounded-full text-sm font-semibold tabular-nums ${PILL[p.tone]}`}
+                  className={`flex h-7 w-full items-center justify-center rounded-full text-sm font-bold tabular-nums ${PILL[p.tone]}`}
                 >
                   {p.text}
                 </span>

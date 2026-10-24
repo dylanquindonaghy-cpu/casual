@@ -81,19 +81,21 @@ export function GuideView({ role, menu }: { role: OfficeRole; menu: MenuGroup[] 
         <p className={meta}>It shows only the parts of the office you can open.</p>
       </PageHeader>
       {/* Wide screens: the contents stay in view beside the guide, as a rail with a line on its
-          left. Narrower: they come first, as one card of divided rows with an arrow, like /help's
-          contents (never pills: on a phone, pills are the office menu). */}
+          left, under the top bar (64px, and 16px more, as the menu card). Narrower: they come
+          first, as one card of divided rows with an arrow, like /help's contents (never pills: on
+          a phone, pills are the office menu). A section lands under the top bar too (the
+          office's scroll padding, globals.css). */}
       <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_14rem] xl:items-start xl:gap-12">
         <nav
           aria-labelledby="guide-contents"
-          className="mb-8 xl:sticky xl:top-8 xl:col-start-2 xl:row-start-1 xl:mb-0"
+          className="mb-8 xl:sticky xl:top-20 xl:col-start-2 xl:row-start-1 xl:mb-0"
         >
           <h2 id="guide-contents" className="text-sm font-semibold text-ink-muted">
             On this page
           </h2>
           <ul
             role="list"
-            className={`${rows} mt-2 xl:divide-y-0 xl:rounded-none xl:bg-transparent xl:shadow-none`}
+            className={`${rows} mt-2 xl:divide-y-0 xl:rounded-none xl:border-0 xl:bg-transparent`}
           >
             {sections.map((s) => (
               <li key={s.id}>
@@ -110,12 +112,7 @@ export function GuideView({ role, menu }: { role: OfficeRole; menu: MenuGroup[] 
         </nav>
         <div className="flex min-w-0 flex-col gap-6 xl:col-start-1 xl:row-start-1">
           {sections.map((s) => (
-            <section
-              key={s.id}
-              id={s.id}
-              aria-labelledby={`${s.id}-title`}
-              className={`${card} scroll-mt-6`}
-            >
+            <section key={s.id} id={s.id} aria-labelledby={`${s.id}-title`} className={card}>
               <h2 id={`${s.id}-title`} className={h2}>
                 {s.title}
               </h2>
@@ -172,7 +169,7 @@ function Links({ children }: { children: ReactNode }) {
 // What each menu link opens, by the link's words.
 const MENU_WORDS: Record<string, string> = {
   Dashboard:
-    "How many things need you and where to start, every urgent place to fill, this week's days, and what's sorted today.",
+    "How many things need you and where to start, every urgent place to fill, and charts of what needs work.",
   "Needs attention":
     "Everything someone has to sort out, in full: who worked, uploads to check, bookings to check and more.",
 
@@ -201,9 +198,10 @@ function GettingAround({ role, menu }: { role: OfficeRole; menu: MenuGroup[] }) 
   return (
     <>
       <Para>
-        On a wide screen, the menu is down the left side. On a phone or tablet, select{" "}
-        <Name>Menu</Name> at the top left. The menu slides in. Select <Name>Close menu</Name>, or
-        anywhere outside it, to close it. The page you&apos;re on is highlighted.
+        A bar runs along the top of every page. On a wide screen, the menu is in its own card on the
+        left, under the bar. On a phone or tablet, select <Name>Menu</Name> at the top left. The
+        menu slides in. Select <Name>Close menu</Name>, or anywhere outside it, to close it. The
+        page you&apos;re on is highlighted.
         {menu.some((g) => g.folded)
           ? " Records and settings are under Admin and records: select it to show them."
           : null}
@@ -237,13 +235,15 @@ function GettingAround({ role, menu }: { role: OfficeRole; menu: MenuGroup[] }) 
           ))}
       </div>
       <Para>
-        Your name is at the top right. On a phone, it shows your initials. On a wide screen, it is
-        at the top of the menu, beside your firm&apos;s name. Select it to open this guide or to{" "}
-        <Name>Log out</Name>.
+        Your initials and name are at the top right of the bar. On a phone, only your initials show.
+        Select them to open this guide, to switch between dark and light, or to <Name>Log out</Name>
+        .
       </Para>
       <Para>
-        It also switches between dark and light: select <Name>Switch to dark mode</Name> or{" "}
-        <Name>Switch to light mode</Name>.
+        The square button beside them switches between dark and light too. Its name says which:{" "}
+        <Name>Switch to dark mode</Name> or <Name>Switch to light mode</Name>. On a wide screen, the
+        bar also shows the pay week and its pay day, and your shifts line&apos;s number if you have
+        one.
         {/* Needs attention is in the menu only for the roles with it, the "today" area
             (src/app/office/office-menu.ts). */}
         {canAccess(role, "today")
@@ -254,27 +254,40 @@ function GettingAround({ role, menu }: { role: OfficeRole; menu: MenuGroup[] }) 
   );
 }
 
+// The dashboard's parts (Phase 23): the four counts, the urgent places, then six charts of what
+// needs work, each opening a panel of its rows.
 const DASHBOARD_SECTIONS: [string, ReactNode][] = [
   [
     "The four counts",
-    "Urgent places, Needs attention, Waiting on others and Sorted today. Select one to go to its section below.",
+    "Urgent places, Needs attention, Waiting on others and Sorted today. Select one to see its list.",
   ],
   [
     "Urgent places to fill",
-    "Every urgent place: how many of its places are filled, and who it was offered to or why offers stopped. Select Offer to offer it to someone, or use … to mark it as filled or make it not urgent.",
+    "Every urgent place, a card each: how many of its places are filled, and who it was offered to or why offers stopped. Select Offer to offer it to someone, or use … to mark it as filled or make it not urgent.",
   ],
   [
-    "This week",
-    "Seven days, a bar each: how full it is (red when it has urgent gaps), or its sessions to mark. Select a day to see its shifts.",
+    "Places to fill, next 2 weeks",
+    "A bar for each day: the places still to fill, with the urgent ones apart.",
   ],
   [
-    "Needs attention",
-    "The rest of what needs you, a row each: bookings to check, who worked, uploads to check, strike evidence, enquiries that need a person and more. Each opens where it's dealt with.",
+    "Which events need people",
+    "A bar for each event: its places still to fill. Events casuals can't see yet are marked.",
   ],
-  ["Waiting on others", "Pay queries with payroll. Nothing for you to do."],
   [
-    "Sorted today",
-    "Today's cancellations (recorded automatically, never approved or declined), today's enquiries, and the events casuals can see. Each opens its list.",
+    "Offers this week",
+    "One bar of three parts for this week's offers: those casuals said yes to, those waiting for a reply, and those they said no to or that closed. The sessions still waiting are listed under it.",
+  ],
+  [
+    "How long things have waited",
+    "What needs you, by how long it has waited, and the pay queries with payroll if you can open Pay. Things with no date, like bookings to check, are named under it.",
+  ],
+  [
+    "Cancellations, last 2 weeks",
+    "A bar for each day: its cancellations, with short notice apart. Each was recorded automatically, never approved or declined.",
+  ],
+  [
+    "Licences running out, next 8 weeks",
+    "A dot for each licence that runs out soon. A licence that runs out before a booking is marked.",
   ],
 ];
 
@@ -289,6 +302,11 @@ const TONES: [StatusTone, string, string][] = [
     "Open",
     "Someone needs to act: a place is free, a request is waiting, or people aren't marked yet.",
   ],
+  [
+    "wait",
+    "Waiting",
+    "Waiting on someone else, like an offer with no reply yet. Nothing for you to do.",
+  ],
   ["done", "Filled", "Fine, or finished: filled, booked, worked, approved or sorted."],
   ["quiet", "Cancelled", "For information, or closed: cancelled, declined, a draft or not active."],
 ];
@@ -298,7 +316,7 @@ function DashboardPart() {
     <>
       <Para>
         The <Name>Dashboard</Name> is the page you land on after logging in. It shows what needs
-        doing today.
+        doing today: four counts, the urgent places to fill, and six charts of what needs work.
       </Para>
       <Steps>
         <Step>
@@ -323,8 +341,28 @@ function DashboardPart() {
           ))}
         </ul>
       </Task>
+      <Task title="To see what's behind a chart">
+        <Steps>
+          <Step>
+            Point at a bar, a dot or a number, or move to it with the Tab key, to see its figures.
+          </Step>
+          <Step>
+            Select it. A panel opens with its rows, each with its link or action, like{" "}
+            <Name>Offer</Name> or <Name>Mark who worked</Name>.
+          </Step>
+          <Step>
+            Select <Name>Close</Name>, or press Escape, to go back to the chart.
+          </Step>
+        </Steps>
+        <Note>
+          <Name>Numbers</Name> swaps a chart for a table of the same figures, and back again.
+        </Note>
+      </Task>
       <Task title="What the colours mean">
-        <Para>Every coloured label keeps its word, so colour is never the only clue.</Para>
+        <Para>
+          Every coloured label keeps its word, so colour is never the only clue. The charts use the
+          same colours, and grey for what&apos;s fine.
+        </Para>
         <ul role="list" className="mt-3 max-w-prose divide-y divide-line">
           {TONES.map(([tone, word, meaning]) => (
             <li key={tone} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:gap-4">
@@ -424,7 +462,7 @@ function FillAGap({ role }: { role: OfficeRole }) {
         </Task>
       ) : null}
       <Links>
-        <GoTo href="/office#urgent" icon="home">
+        <GoTo href="/office#urgent-places" icon="home">
           See the urgent gaps
         </GoTo>
       </Links>
@@ -626,7 +664,7 @@ function AfterAShift() {
         attended”.
       </Note>
       <Links>
-        <GoTo href="/office#needs-attention" icon="home">
+        <GoTo href="/office/needs-attention#to-mark" icon="home">
           See who to mark
         </GoTo>
       </Links>
@@ -735,10 +773,11 @@ function Workers() {
           </Step>
         </Steps>
         <Note>
-          Their bookings ahead go on the dashboard, under “Bookings to check”. Your rota sheet or a
-          staff file can&apos;t make them active again: only you can. When they&apos;re back, select
-          “Make active again”. If your rota sheet or a staff file still says they&apos;re inactive,
-          change it there too. Otherwise the next sync or import makes them inactive again.
+          Their bookings ahead go on Needs attention, under “Bookings to check”. Your rota sheet or
+          a staff file can&apos;t make them active again: only you can. When they&apos;re back,
+          select “Make active again”. If your rota sheet or a staff file still says they&apos;re
+          inactive, change it there too. Otherwise the next sync or import makes them inactive
+          again.
         </Note>
       </Task>
       <Task title="To keep someone off a site">

@@ -112,9 +112,12 @@ function viewFilter(view: CancellationView, threshold: number) {
   return sql``;
 }
 
-// Only those cancelled from a moment on (`?day=today`: since midnight, the firm's time).
-const sinceFilter = (since: Date | undefined) =>
-  since ? sql`and a.cancelled_at >= ${since}` : sql``;
+// Only those cancelled from a moment on (`?day=today`: since midnight, the firm's time), and up to
+// a moment (the dashboard's last 14 days: until now).
+const sinceFilter = (since: Date | undefined, until?: Date) =>
+  sql`${since ? sql`and a.cancelled_at >= ${since}` : sql``} ${
+    until ? sql`and a.cancelled_at <= ${until}` : sql``
+  }`;
 
 // The number of cancelled bookings in a view.
 async function countRows(
@@ -122,11 +125,12 @@ async function countRows(
   view: CancellationView,
   threshold: number,
   since?: Date,
+  until?: Date,
 ): Promise<number> {
   const { rows } = await tx.execute<{ n: number }>(sql`
     select count(*)::int as n from assignments a
      where a.status in ('cancelled_worker', 'cancelled_firm') ${viewFilter(view, threshold)}
-       ${sinceFilter(since)}
+       ${sinceFilter(since, until)}
   `);
   return Number(rows[0]?.n ?? 0);
 }
@@ -142,6 +146,7 @@ async function loadRows(
     ref?: string; // the booking's first 8 characters, upper case
     id?: string; // the booking's full id
     since?: Date; // cancelled from then on
+    until?: Date; // and up to then
   },
 ): Promise<Row[]> {
   const { rows } = await tx.execute<Row>(sql`
@@ -226,7 +231,7 @@ async function loadRows(
            ? sql`and a.id = ${o.id}::uuid`
            : o.ref
              ? sql`and upper(left(a.id::text, 8)) = ${o.ref}`
-             : sql`${viewFilter(o.view, o.threshold)} ${sinceFilter(o.since)}`
+             : sql`${viewFilter(o.view, o.threshold)} ${sinceFilter(o.since, o.until)}`
        }
      order by a.cancelled_at desc, a.id
      limit ${o.limit}
@@ -368,7 +373,8 @@ export interface CancellationList {
 }
 
 // The cancelled bookings in a view, newest first (at most `limit`), with the firm's facts.
-// `allOrNothing` (the CSV): none loaded when the view holds more than `limit`.
+// `allOrNothing` (the CSV): none loaded when the view holds more than `limit`. `since` and `until`
+// (the dashboard's last 14 days): only those cancelled in that window (`day` wins over `since`).
 export async function loadCancellations(
   tx: FirmTx,
   o: {
@@ -377,6 +383,8 @@ export async function loadCancellations(
     limit: number;
     allOrNothing?: boolean;
     day?: "today";
+    since?: Date;
+    until?: Date;
   },
 ): Promise<CancellationList> {
   const firm = await firmFacts(tx);
@@ -399,12 +407,18 @@ export async function loadCancellations(
   const since =
     o.day === "today"
       ? zonedToUtc({ ...wallTimeOf(o.now, firm.timezone), hour: 0, minute: 0 }, firm.timezone)
-      : undefined;
-  const total = await countRows(tx, o.view, firm.threshold, since);
+      : o.since;
+  const total = await countRows(tx, o.view, firm.threshold, since, o.until);
   const rows =
     o.allOrNothing && total > o.limit
       ? []
-      : await loadRows(tx, { view: o.view, threshold: firm.threshold, limit: o.limit, since });
+      : await loadRows(tx, {
+          view: o.view,
+          threshold: firm.threshold,
+          limit: o.limit,
+          since,
+          until: o.until,
+        });
   const requirementsOf = await requirementNames(tx, rows);
   return {
     firmName: firm.name,

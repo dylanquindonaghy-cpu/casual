@@ -11,7 +11,9 @@ import { DashboardContent } from "./dashboard-view";
 // The office's first page: the dashboard for admins and resourcers (docs/office-v2.md 3.2, 3.9;
 // docs/screens.md `/office`; Phase 18), with the firm's shifts line (its own number) under its
 // headline, and pay queries waiting with payroll (admins; resourcers don't see pay). Payroll's
-// home is the pay dashboard (`/office/pay`, 12A.3): they're sent there. The menu (with Needs
+// home is the pay dashboard (`/office/pay`, 12A.3): they're sent there. Phase 23: the waiting card
+// goes to the pay queries only for a role that can open Pay (`pay`; for the others, to the chart of
+// how long things have waited, which holds no pay query for them). The menu (with Needs
 // attention, `/office/needs-attention`, and its count: Phase 20), the account menu and the session
 // keeper are in the office shell (src/app/office/office-shell.tsx). `/office/today` redirects here.
 
@@ -34,6 +36,7 @@ export default async function OfficeHome() {
         now={new Date()}
         shiftsLine={shiftsLineText(line)}
         payQueriesWaiting={waiting}
+        pay={canAccess(officeUser.role, "pay")}
       />
     </main>
   );

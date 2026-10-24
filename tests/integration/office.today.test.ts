@@ -90,6 +90,8 @@ describe("loadUrgentOffers", () => {
       offered: 2, // Ann's and the office's to Cal (Ben's failed)
       byOffice: 1,
       accepted: 0,
+      waiting: 2, // Ann's and Cal's: no answer yet
+      declined: 0,
       failed: 1,
       stopped: "no_candidates",
       escalated: true,
@@ -100,6 +102,8 @@ describe("loadUrgentOffers", () => {
       offered: 0,
       byOffice: 0,
       accepted: 0,
+      waiting: 0,
+      declined: 0,
       failed: 0,
       stopped: null,
       escalated: false,
@@ -154,6 +158,8 @@ describe("the to-do parts", () => {
         offered: 0,
         byOffice: 0,
         accepted: 0,
+        waiting: 0,
+        declined: 0,
         failed: 0,
         stopped: null,
         escalated: false,

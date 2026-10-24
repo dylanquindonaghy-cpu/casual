@@ -1,7 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { btn, h2, meta, nums, page, row, rows, textLink, card } from "@/app/ui/classes";
+import {
+  card,
+  h2,
+  meta,
+  nums,
+  page,
+  row,
+  rows,
+  tab,
+  tabCurrent,
+  tabs,
+  textLink,
+} from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { StatusChip } from "@/app/ui/status-chip";
 import { requireOfficeArea } from "@/lib/auth/current-office";
@@ -64,13 +76,13 @@ export default async function StrikesPage({
         <p>{strikesIntro(list.noticeHours, list.liveDays)}</p>
       </PageHeader>
 
-      <nav aria-label="Show" className="flex flex-wrap gap-2">
+      <nav aria-label="Show" className={tabs}>
         {STRIKE_VIEWS.map((v) => (
           <Link
             key={v}
             href={hrefOf(v)}
             aria-current={v === view ? "page" : undefined}
-            className={v === view ? `${btn.primary} rounded-full` : `${btn.secondary} rounded-full`}
+            className={v === view ? tabCurrent : tab}
           >
             {STRIKE_VIEW_WORDS[v]}
           </Link>

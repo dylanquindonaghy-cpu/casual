@@ -13,9 +13,10 @@ import {
 import { timeOnDay } from "@/lib/portal/format";
 import { cutChars } from "@/lib/text/cut";
 
-// One enquiry in a list (Enquiries, and the dashboard's latest four): who sent it, by which
-// channel, the outcome chip and when; their words in quotes; on the dashboard, the first line of
-// the reply they got. The name opens the message's own page.
+// One enquiry in Enquiries' list: who sent it, by which channel, the outcome chip and when; their
+// words in quotes. The name opens the message's own page. `reply` (the first line of the reply
+// they got) was for the dashboard's latest four, which went in Phase 18: no page passes it now
+// (PLAN.md Parking lot, Phase 18's dashboard loaders).
 
 // Their words, on one line and cut short for the list (the full text is on the message's page).
 export const preview = (text: string | null) => {
@@ -33,7 +34,7 @@ export function EnquiryItem({
 }: {
   r: EnquiryRow;
   timeZone: string;
-  reply?: string | null; // the dashboard: the first line of the reply (null: none yet)
+  reply?: string | null; // the first line of the reply (null: none yet); unused since Phase 18
 }) {
   const words = preview(r.text);
   return (

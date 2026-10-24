@@ -155,35 +155,42 @@ the demo.
 ## Part 3: as the office
 
 The office is made for a laptop or desktop: if you switched Chrome to a phone view, press F12
-again to go back. Every office page has the same menu on the left, with the page you're on
-marked and "Needs attention" counting what needs you. (In a narrow window the menu hides behind
-"Menu" at the top left, and "Close menu" puts it away.) Above the menu, beside the firm's name:
-your initials (at the top right in a narrow window), which open "Switch to dark mode" (or light),
-"How-to guide", which explains each job step by step, and "Log out".
+again to go back. Every office page has the same bar along the top (the firm's name, the pay
+week, the shifts line's number, a square light or dark button, and your initials and name) and
+the same menu in a card on the left, with the page you're on marked and "Needs attention"
+counting what needs you. (In a narrow window the menu hides behind "Menu" at the top left, and
+"Close menu" puts it away.) Your initials open your name and role, "Switch to dark mode" (or
+light), "How-to guide", which explains each job step by step, and "Log out".
 
 22. **Log in as the resourcer.** Go to `http://acme.localhost:3000/office/login`, type
     `acme.resourcer@example.com` in "Your work email", and click "Send me a link". In the dev
     window an email ("Your Acme Events office login link") has the link: open it, then click "Log
     me in". You see the "Dashboard", with Acme's shifts line under it.
-23. **The dashboard.** Four counts at the top: "Urgent shifts not filled" (red), "Events showing
-    to casuals", "Cancellations today" and "Enquiries today"; each opens its list. Below them:
-    the urgent shifts not filled, the events showing to casuals (each with its switch), the
-    latest cancellations (Zoe's first: "Recorded automatically, never approved or declined"), the
-    latest enquiries, and "Needs attention", where "Who worked?" lists yesterday's 5 racecourse
-    bookings, not marked yet. The bell at the top of the page counts what needs attention and
-    jumps there.
-24. **Offer a gap.** Click the "Events showing to casuals" count. On a session with a place free,
-    click its "…" button, then "Offer a place", then "Send offer to …" on the first person. It says
-    "Offer on its way to …", and the offer appears in the dev window. Click "Back to the
-    dashboard".
+23. **The dashboard.** Under the heading (how many things need you, and where to start), four
+    count cards: "Urgent places", "Needs attention", "Waiting on others" and "Sorted today"; each
+    opens its list in a panel (from the side on a laptop, from the foot on a phone; Escape, a
+    click beside it or "Close" puts it away). Then every urgent place as a card, with "Offer" and
+    "…", and six charts: places to fill over the next 2 weeks, which events need people, this
+    week's offers, how long things have waited, the last 2 weeks' cancellations and licences
+    running out. Point at a bar or tab to it for its figures; click it for the real rows behind it
+    (a day shows its sessions with "Offer", "See this day's sessions" and "Open the rota board").
+    "Numbers" swaps a chart for its table. Click "Sorted today": today's cancellations (Zoe's
+    first: "Recorded automatically, never approved or declined"); its "cancellations today" opens
+    them. Back on the "Dashboard", click "Needs attention": "Who worked?" lists yesterday's 5
+    racecourse bookings, not marked yet, and "Mark who worked" opens them on the Needs attention
+    page. The menu's "Needs attention" counts the same things.
+24. **Offer a gap.** Click "Sorted today", then "… events showing to casuals", then "Need people".
+    Open an event, and on a session with a place free click its "…" button, then "Offer a place",
+    then "Send offer to …" on the first person. It says "Offer on its way to …", and the offer
+    appears in the dev window. Click "Back to the dashboard".
 25. **Enquiries, and answer a request.** Click "Enquiries": the shifts line's messages, newest
     first, each with how it was answered. Kieran Doyle's "I need to cancel please", Ben Fraser's
     pay question ("Pay (always a person)") and Zoe Adeyemi's "Hi, any shifts for me?" came in just
     before the demo was made. Click "Requests from the app". On Sam Walsh's time
     change, click "Approve and tell Sam". It says "Approved. Sam will be told." The message to Sam
     appears in the dev window.
-26. **Mark who worked.** Click "Dashboard" in the menu. Under "Needs attention", "Who worked?",
-    open one of yesterday's racecourse shifts. Click "Mark as worked" for the person on it:
+26. **Mark who worked.** Click "Needs attention" in the menu. Under "Who worked?", open one of
+    yesterday's racecourse shifts. Click "Mark as worked" for the person on it:
     "Marked … as worked." (On a shift with several people, "Mark as not attended" and "Mark the …
     not marked yet as worked" are there too.)
 27. **Make a shift and book someone.** Click "Events & sessions", then "All shifts by day", then

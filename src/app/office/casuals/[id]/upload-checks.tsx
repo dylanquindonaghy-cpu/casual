@@ -19,7 +19,8 @@ import { approveUploadAction, recordCsasAction, rejectUploadAction } from "../ac
 // date and number as they read them (an SIA licence can be checked on GOV.UK's register first;
 // there's no SIA API). Rejecting takes a reason from the fixed list. CSAS is recorded here only,
 // after confirming it's under the firm's own scheme. The server checks everything again; the answer
-// shows in place and the page refreshes under it. Waits for the page (docs/ui-design.md).
+// shows in place and the page refreshes under it. Waits for the page (docs/ui-design.md). An
+// upload's "Approve" is the page's one sky main button (Phase 23); recording CSAS is a plain one.
 
 const failed = { status: "error" as const };
 const done = (r: CheckOutcome) =>
@@ -255,7 +256,7 @@ export function RecordCsas({ workerId, firmName }: { workerId: string; firmName:
         </span>
       </label>
       <div>
-        <button type="submit" className={btn.primary} disabled={off || !ownScheme}>
+        <button type="submit" className={btn.secondary} disabled={off || !ownScheme}>
           Record CSAS accreditation
         </button>
       </div>
@@ -278,12 +279,15 @@ export interface UploadToCheck {
 
 // "Uploads to check" on the casual's page: each waiting image (opening full size, access-checked)
 // with approve and reject. The list is the one the page opened with, so a checked item stays on
-// screen with its answer while the rest of the page refreshes around it.
+// screen with its answer while the rest of the page refreshes around it. Its link (`#uploads`,
+// from Casuals and Needs attention) lands it under the office's sticky top bar (64px from 1024px,
+// up to 64px on a phone) with a 16px step to spare: 80px, the office's scroll padding
+// (globals.css).
 export function UploadsToCheck({ items }: { items: UploadToCheck[] }) {
   const [shown] = useState(items);
   if (shown.length === 0) return null;
   return (
-    <section className={`${card} scroll-mt-4`} aria-labelledby="uploads-heading" id="uploads">
+    <section className={card} aria-labelledby="uploads-heading" id="uploads">
       <h2 id="uploads-heading" className={h2}>
         Uploads to check
       </h2>

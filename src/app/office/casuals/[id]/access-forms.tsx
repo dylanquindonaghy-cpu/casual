@@ -31,8 +31,9 @@ const fieldRow = "flex flex-wrap items-end gap-3";
 // reason from a fixed list; the server checks everything again. The confirmation shows in place,
 // and the page refreshes under it to show the change. Changes that take something away look
 // destructive (red outline, then a solid red "Yes, …"; "Block from this site", which blocks at
-// once, is solid red); undoing them is a main or plain button. The choices and buttons wait for
-// the page (docs/ui-design.md "Forms wait for the page").
+// once, is solid red); undoing them is a plain button (Phase 23: the page's sky main button is
+// an upload's "Approve", upload-checks.tsx). The choices and buttons wait for the page
+// (docs/ui-design.md "Forms wait for the page").
 
 function useChange() {
   const router = useRouter();
@@ -152,7 +153,7 @@ export function StatusForm({
         {!asking && (
           <button
             type="button"
-            className={kind === "deactivate" ? btn.danger : btn.primary}
+            className={kind === "deactivate" ? btn.danger : btn.secondary}
             disabled={off}
             onClick={() => {
               if (!reason) return setMessage("Choose a reason.");
@@ -279,7 +280,7 @@ export function SiteBlocks({
       )}
       {otherSites.length > 0 && (
         <div className="mt-6 border-t border-line pt-6">
-          <h3 className="text-lg font-semibold">Block from a site</h3>
+          <h3 className="text-lg font-bold">Block from a site</h3>
           <div className="mt-3 grid gap-4 sm:grid-cols-2">
             <div className="flex min-w-0 flex-col gap-1">
               <label htmlFor={`site-${workerId}`} className={label}>

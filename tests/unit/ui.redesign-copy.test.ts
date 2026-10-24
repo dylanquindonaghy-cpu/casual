@@ -8,8 +8,6 @@ import {
   sortedRows,
   subline,
   urgentDaysText,
-  weekCells,
-  weekSummary,
 } from "@/lib/office/dashboard-home";
 import {
   boardDays,
@@ -37,7 +35,7 @@ import { need } from "../helpers/qualifications";
 
 // The words and choices behind Phase 18's redesign (docs/screens.md "The redesign"): the sign
 // parts' dates and times, Home's "For you" rows, the pass's travel figures and uniform tiles, Open
-// shifts' 8-day strip, the dashboard's headline, week and rows, and the rota board's pills. All
+// shifts' 8-day strip, the dashboard's headline and rows, and the rota board's pills. All
 // pure, so each is checked here with made-up shifts.
 
 const TZ = "Europe/London";
@@ -336,7 +334,7 @@ const emptyNeeds = (): NeedsAttention => ({
   webhookFailing: null,
 });
 
-describe("the dashboard's headline, week and rows", () => {
+describe("the dashboard's headline and rows", () => {
   it("the headline counts the things, and the line under it says where to start", () => {
     expect(headline(0)).toBe("Nothing needs you right now");
     expect(headline(1)).toBe("1 thing needs you");
@@ -352,54 +350,9 @@ describe("the dashboard's headline, week and rows", () => {
     expect(subline(0, 0)).toMatch(/^Every urgent place is filled/);
   });
 
-  it("each day of the week: to mark first, then urgent places with the others open, then how full", () => {
-    // In places: `open` can still be filled (open sessions not started), `urgent` of those.
-    const days = [
-      // Monday, gone by: 2 places never filled (it started), so not "All filled".
-      { date: "2026-10-19", places: 6, filled: 4, open: 0, urgent: 0 },
-      { date: "2026-10-20", places: 5, filled: 5, open: 0, urgent: 0 },
-      { date: "2026-10-21", places: 0, filled: 0, open: 0, urgent: 0 },
-      { date: "2026-10-22", places: 4, filled: 3, open: 1, urgent: 1 },
-      { date: "2026-10-24", places: 21, filled: 19, open: 2, urgent: 1 },
-      // A draft's places aren't in `places`; 11 open of 41.
-      { date: "2026-10-25", places: 41, filled: 30, open: 11, urgent: 0 },
-      { date: "2026-10-26", places: 2, filled: 2, open: 0, urgent: 0 },
-    ];
-    const toMark = Array.from({ length: 5 }, () => ({ startsAt: at("2026-10-20T09:30:00Z") }));
-    const cells = weekCells(days, toMark, "2026-10-21", TZ);
-    expect(cells.map((c) => [c.dow, c.note])).toEqual([
-      ["Mon", { kind: "short", text: "4 of 6 filled" }],
-      ["Tue", { kind: "mark", text: "5 to mark" }],
-      ["Today", { kind: "none", text: "Nothing on" }],
-      ["Thu", { kind: "urgent", text: "1 urgent", extra: null }],
-      ["Sat", { kind: "urgent", text: "1 urgent", extra: "2 open" }],
-      ["Sun", { kind: "open", text: "11 open" }],
-      ["Mon", { kind: "filled", text: "All filled" }],
-    ]);
-    expect(cells[1]?.href).toBe("/office/needs-attention#to-mark");
-    expect(cells[3]?.href).toBe("/office/shifts?from=2026-10-22");
-    expect(cells[3]?.filledShare).toBe(0.75);
-    expect(cells[4]?.label).toBe("Sat 24 Oct: 1 urgent, 2 open, 19 of 21 places filled");
-    expect(cells[2]?.label).toBe("Wed 21 Oct, today: Nothing on");
-    expect(cells[0]?.label).toBe("Mon 19 Oct: 4 of 6 filled");
-    // Phase 20: each day's places, filled and open, and whether it's gone by.
-    expect(cells.map((c) => [c.places, c.filled, c.open, c.past])).toEqual([
-      [6, 4, 0, true],
-      [5, 5, 0, true],
-      [0, 0, 0, false],
-      [4, 3, 1, false],
-      [21, 19, 2, false],
-      [41, 30, 11, false],
-      [2, 2, 0, false],
-    ]);
-    // From today on: 14 places still to fill; 54 of 68 filled, over the days with places.
-    expect(weekSummary(cells)).toEqual({ toFill: 14, filled: 54, places: 68, days: "Thu to Mon" });
-    // A day gone by never counts, even with open places left in the data.
-    expect(
-      weekSummary(weekCells([{ ...days[0]!, open: 3 }, days[2]!], [], "2026-10-21", TZ)),
-    ).toEqual({ toFill: 0, filled: 0, places: 0, days: null });
-    expect(weekSummary(weekCells([days[2]!, days[3]!], [], "2026-10-21", TZ)).days).toBe("Thu");
-  });
+  // Each day's words and links (Phases 18 to 22's week strip: to mark first, then urgent places
+  // with the others open, then how full) moved with the strip to the places chart in Phase 23:
+  // tests/unit/office.dashboard-charts.test.ts, "the places chart's days".
 
   it("the dashboard's tiles: the urgent places' days, and what Needs attention's count is made of", () => {
     const item = (dow: string, day: string, shiftId: string) => ({ dow, day, shiftId });

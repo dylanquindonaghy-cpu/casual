@@ -1,5 +1,4 @@
-import { and, asc, eq, gte, inArray, isNotNull, lte, sql, type SQL } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
+import { and, asc, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { systemClock, type Clock } from "../auth/clock";
 import {
@@ -30,6 +29,7 @@ import { portalUrl } from "../tenancy/portal-url";
 import { signOffFor } from "../tenancy/sign-off";
 import { addDays, localDateOf } from "../time/zoned";
 import { EXPIRING_SOON_DAYS, expiryAction, isWeeklyListDay } from "./expiry";
+import { supersededSql } from "./superseded";
 import { cutUnits } from "../text/cut";
 
 // The credential expiry jobs (docs/api-and-jobs.md, docs/rules-and-credentials.md "Expiry
@@ -188,14 +188,8 @@ async function firmVoice(
 // never expires): a renewal recorded as a new row (a casual's upload only once the office approves
 // it, 12F.2). The old row gets no warning and no message, and isn't
 // listed for the office; it is still marked expired when its date passes, so the record stays true.
-// (A drizzle alias renders as its name alone inside sql``, so the FROM names the table as well.)
-const newer = alias(credentials, "newer");
-const superseded: SQL<boolean> = sql<boolean>`exists (
-  select 1 from ${credentials} as ${sql.identifier("newer")}
-   where ${newer.firmId} = ${credentials.firmId} and ${newer.workerId} = ${credentials.workerId}
-     and ${newer.type} = ${credentials.type} and ${newer.id} <> ${credentials.id}
-     and ${newer.status} = 'valid' and ${newer.checkState} = 'verified'
-     and (${newer.expiresOn} is null or ${newer.expiresOn} > ${credentials.expiresOn}))`;
+// The shared fragment (./superseded.ts) over the table's own name, as these queries name it.
+const superseded = supersededSql("credentials");
 
 // A message to one worker, as sendToWorker takes it (the same words by WhatsApp or text).
 interface WorkerMessage {

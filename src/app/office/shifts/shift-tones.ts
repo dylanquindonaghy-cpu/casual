@@ -17,7 +17,7 @@ export const PLACE_TONE: Record<string, StatusTone> = {
   confirmed: "done",
   completed: "done",
   no_show: "urgent",
-  offered: "attention",
+  offered: "wait",
   cancelled_worker: "quiet",
   cancelled_firm: "quiet",
 };
@@ -38,8 +38,9 @@ export const RESPONSE_TONE: Record<string, StatusTone> = {
   filled_elsewhere: "quiet",
   failed: "urgent",
 };
-export const WAITING_TONE: StatusTone = "attention";
+export const WAITING_TONE: StatusTone = "wait";
 
-// The answer to a button (role="status"): a white slip raised off the form around it, so it stands
-// out (Phase 22, round 2's raised surface; a grey box with an edge until then).
-export const resultBox = "rounded-row bg-card px-3 py-2 font-semibold text-ink shadow-raise";
+// The answer to a button (role="status"): a pale grey slip with its hairline, set apart from the
+// white form around it (Phase 23, round 3: flat; raised off the form in Phase 22).
+export const resultBox =
+  "rounded-row border border-line bg-quiet-soft px-3 py-2 font-semibold text-ink";

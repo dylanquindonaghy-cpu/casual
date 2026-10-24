@@ -187,6 +187,21 @@ describe("motion (the design's spec)", () => {
     }
   });
 
+  // Phase 23 (the office's round 3, flat): what you press still dips and springs back (`press`),
+  // but nothing in the office lifts under the pointer (round 2's cards and panel rows rose 2px).
+  it("no lift under the pointer anywhere in the office", () => {
+    const office = files(join(ROOT, "src/app/office"));
+    expect(office.length).toBeGreaterThan(80);
+    const lifts = office.flatMap((f) =>
+      [
+        ...readFileSync(f, "utf8").matchAll(
+          /(?<![\w-])(?:[a-z0-9/_-]+:)*(?:group-|peer-)?hover(?:\/[\w-]+)?:(?:[a-z0-9/_-]+:)*-?translate-y-[\w.[\]-]+/g,
+        ),
+      ].map((m) => `${f.slice(ROOT.length + 1)}: ${m[0]}`),
+    );
+    expect(lifts).toEqual([]);
+  });
+
   it("with reduced motion: every animation becomes a 150ms fade, and transitions stop", () => {
     const block = /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
     expect(block).toMatch(

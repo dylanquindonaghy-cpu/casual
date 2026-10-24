@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
-import { btn, confirmStep, field, hint, labelStack, nums } from "@/app/ui/classes";
+import { btn, codeBox, confirmStep, field, hint, labelStack, notice, nums } from "@/app/ui/classes";
 import { useHydrated } from "@/app/use-hydrated";
 import {
   addWebhookResultText,
@@ -34,11 +34,9 @@ function SecretShownOnce({ secret, onHide }: { secret: string; onHide: () => voi
     navigator.clipboard.writeText(secret).then(done, refused);
   };
   return (
-    <div className="rounded-row border border-attention-line bg-attention-soft p-4 text-attention-ink shadow-soft">
+    <div className={notice}>
       <p className="font-semibold">Signing secret:</p>
-      <code className="mt-2 block rounded-row border border-line bg-card px-3 py-2 font-mono text-base break-all text-ink select-all">
-        {secret}
-      </code>
+      <code className={`${codeBox} mt-2`}>{secret}</code>
       <p role="status" className="mt-2 font-semibold">
         {SECRET_SHOWN_ONCE}
       </p>

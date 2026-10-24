@@ -127,8 +127,9 @@ describe("the shared pieces (src/app/ui/)", () => {
     expect(staffField).toMatch(/(?<![\w-])min-h-14(?![\w-])/);
   });
 
+  // Phase 23: and the office's blue `wait` (waiting on someone else), with an icon of its own.
   it("StatusChip: each tone has its own colours and its own icon", () => {
-    const tones: StatusTone[] = ["urgent", "attention", "done", "quiet"];
+    const tones: StatusTone[] = ["urgent", "attention", "wait", "done", "quiet"];
     const rendered = tones.map((tone) => {
       const html = renderToStaticMarkup(StatusChip({ tone, children: "Open" }));
       const className = html.match(/^<span class="([^"]+)">/)?.[1] ?? "";

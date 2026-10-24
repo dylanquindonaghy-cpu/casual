@@ -49,7 +49,7 @@ export function UrgentSwitch({
           className={`inline-flex h-6 w-10 items-center rounded-full p-1 transition-colors ${isUrgent ? "bg-urgent-fill" : "bg-switch-off"}`}
         >
           <span
-            className={`size-4 rounded-full bg-card transition-transform duration-150 ease-sd ${isUrgent ? "translate-x-4" : "translate-x-0"}`}
+            className={`size-4 rounded-full border border-line bg-card transition-transform duration-150 ease-sd motion-reduce:transition-none ${isUrgent ? "translate-x-4" : "translate-x-0"}`}
           />
         </span>
         <span className={`text-sm font-semibold ${isUrgent ? "text-urgent" : "text-ink-muted"}`}>

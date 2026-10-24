@@ -33,8 +33,9 @@ export default async function SettingsPage() {
           nothing goes there until someone opens it.
         </p>
         <div className={`${card} ${headingGap} flex flex-col gap-4`}>
+          {/* Not confirmed: waiting on someone at that address to open the link (blue, Phase 23). */}
           <p className="flex flex-wrap items-center gap-2">
-            <StatusChip tone={s.confirmedAt ? "done" : s.address ? "attention" : "quiet"}>
+            <StatusChip tone={s.confirmedAt ? "done" : s.address ? "wait" : "quiet"}>
               {s.confirmedAt ? "Confirmed" : s.address ? "Not confirmed" : "Not set"}
             </StatusChip>
             <span>{strikesEmailStatus(s, firm.timezone)}</span>

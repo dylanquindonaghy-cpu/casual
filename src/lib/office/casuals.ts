@@ -105,6 +105,24 @@ export async function waitingCount(tx: FirmTx): Promise<number> {
   return Number(rows[0]?.n ?? 0);
 }
 
+// Every upload waiting for the office (waitingCount's), by the firm's calendar day it was sent
+// (yyyy-mm-dd), oldest first: the dashboard's waiting chart, which needs them all, not the first
+// LIST_MAX Needs attention names.
+export async function waitingUploadDays(
+  tx: FirmTx,
+  timeZone: string,
+): Promise<{ day: string; count: number }[]> {
+  const { rows } = await tx.execute<{ day: string; n: number }>(sql`
+    select to_char(u.created_at at time zone ${timeZone}, 'YYYY-MM-DD') as day, count(*)::int as n
+      from uploads u
+      join workers w on w.firm_id = u.firm_id and w.id = u.worker_id
+     where u.status = 'waiting' and w.erased_at is null
+     group by 1
+     order by 1
+  `);
+  return rows.map((r) => ({ day: r.day, count: Number(r.n) }));
+}
+
 // The Casuals menu badge: how many uploads wait for the office (admins and resourcers; null for
 // anyone else).
 export async function uploadsToCheck(ctx: OfficeContext): Promise<number | null> {

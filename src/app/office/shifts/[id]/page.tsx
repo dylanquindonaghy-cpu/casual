@@ -250,7 +250,7 @@ export default async function OfficeShiftPage({
             )}
             {page.check && (
               <div
-                className={`mt-4 rounded-row border p-4 shadow-soft ${
+                className={`mt-4 rounded-row border p-4 ${
                   page.check.ok
                     ? "border-done-line bg-done-soft"
                     : page.check.overridable

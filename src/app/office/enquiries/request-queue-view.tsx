@@ -6,6 +6,7 @@ import {
   headingGap,
   meta,
   muted,
+  notice,
   row,
   rows,
   sectionGap,
@@ -24,9 +25,8 @@ import { shiftWhen, roleLabel, timeOnDay } from "@/lib/portal/format";
 import { AnswerForm } from "../requests/answer-form";
 
 // askedLines() ends with the voicemail warning when the request came from a voicemail: it stands
-// out, as something to check before answering (its words say why).
-const voicemailWarning =
-  "mt-1 rounded-row border border-attention-line bg-attention-soft px-4 py-3 text-attention-ink shadow-soft";
+// out, as something to check before answering (its words say why): the office's notice.
+const voicemailWarning = `${notice} mt-1`;
 
 function ShiftLine({
   r,

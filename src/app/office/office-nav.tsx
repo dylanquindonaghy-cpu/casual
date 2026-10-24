@@ -9,22 +9,24 @@ import { Icon, type IconName } from "../ui/icons";
 import { MenuPending, MenuPendingReporter } from "./menu-pending";
 
 // The office menu's links (docs/office-v2.md 3.1; docs/ui-design.md "Office shell"), in groups:
-// the sidebar from 1024px, and the same <nav> inside the drawer below that (office-frame.tsx moves
-// it there while the drawer is open, so a page never has two). Plain links only (no list items,
-// headings, regions, groups or `menu` roles), because the browser tests count those on pages: so
-// the folded group is a button that shows or hides its links, not a <details> (a "group").
-// The links come from the server (office-shell.tsx), already filtered by role. Phase 22 (round 2,
-// Dylan's approved mock-up): the page you're on is a white pill raised off the menu's ground,
-// which slides to the link you pick as you pick it (on a spring, `slide` in globals.css); rows are
-// 44px for a thumb and 34px with a mouse from 1024px, so the whole menu fits a laptop window; the
-// firm's name and your account sit above the menu (office-frame.tsx), and the how-to guide is in
-// the account menu.
+// the menu card from 1024px, and the same <nav> inside the drawer below that (office-frame.tsx
+// moves it there while the drawer is open, so a page never has two). Plain links only (no list
+// items, headings, regions, groups or `menu` roles), because the browser tests count those on
+// pages: so the folded group is a button that shows or hides its links, not a <details> (a
+// "group"). The links come from the server (office-shell.tsx), already filtered by role. Phase 23
+// (round 3, Dylan's approved mock-up): the menu is a white card of its own; the page you're on is a
+// pale blue pill with bolder words, which slides to the link you pick as you pick it (on a spring,
+// `slide` in globals.css); a group's name is small grey capitals (by CSS only: its words stay as
+// they are); rows are 44px for a thumb and 34px with a mouse from 1024px, close together, so an
+// admin's whole menu fits a laptop window 640px tall under the 64px top bar; the how-to guide is
+// in the account menu (Phase 22).
 
 // A count beside a link ("Pay queries 3"), drawn outside the link's name: the link stays exactly
 // "Pay queries" (the tests find links by their exact names), and screen readers hear the words
 // after it. Phase 22: in its dashboard card's colour, amber when it needs this person (`needs`,
 // `countNeeds`: Needs attention's), blue when it's waiting with someone else (`countWaiting`: pay
-// queries with payroll); one grey pill in Phase 21. `more`: a list stopped at 50 ("50+").
+// queries with payroll); one grey pill in Phase 21; a flat tinted pill with no edge in Phase 23.
+// `more`: a list stopped at 50 ("50+").
 export type MenuBadge = { count: number; words: string; needs?: boolean; more?: boolean };
 export type MenuLink = { href: string; label: string; icon: IconName; badge?: MenuBadge };
 // `folded`: a button that shows its links, shown already when you're on one of its pages ("Admin
@@ -72,15 +74,19 @@ export function ariaCurrent(href: string, pathname: string): "page" | "true" {
 }
 
 // A full-width row with an icon: 44px tall for a thumb (the drawer, a touch screen), 34px with a
-// mouse from 1024px (Phase 22). The page you're on has dark words; its white pill is drawn once,
-// under the rows, and slides between them (`Pill`); until the page is ready the row draws its own.
+// mouse from 1024px (Phase 22). Under the pointer a pale grey wash, a darker one while pressed. The
+// page you're on has dark, bolder words; its pale blue pill is drawn once, under the rows, and
+// slides between them (`Pill`); until the page is ready the row draws its own (Phase 23).
 const LINK =
   "press relative z-10 flex min-h-11 items-center gap-3 rounded-row px-3 py-2 text-base lg:pointer-fine:min-h-8.5 lg:pointer-fine:py-1";
-const IDLE = `${LINK} text-ink-muted hover:bg-active/70 hover:text-ink active:bg-active`;
-const ON = `${LINK} font-medium text-ink`;
-const ON_ALONE = `${ON} bg-pill shadow-soft`;
-// A group's name: small, grey, sentence case.
-const LABEL = "px-3 pt-2 pb-1 text-xs font-medium text-ink-muted";
+const IDLE = `${LINK} text-ink-muted hover:bg-active hover:text-ink active:bg-button-press`;
+const ON = `${LINK} font-semibold text-ink`;
+const ON_ALONE = `${ON} bg-pill`;
+// A group's name: small grey capitals (CSS only: the words stay "Today", "Pay", "People"), close
+// over its rows.
+const LABEL = "px-3 pt-2 text-xs font-bold tracking-[0.08em] text-ink-faint uppercase";
+// Between a group's rows (and the fold's): 4px.
+const ROWS = "flex flex-col gap-1";
 
 function NavLink({
   link,
@@ -140,7 +146,7 @@ function Fold({
   const open = chosen ?? inside;
   const id = `menu-${group.label.toLowerCase().replace(/[^a-z]+/g, "-")}`;
   return (
-    <div className="mt-2">
+    <div className="mt-1">
       <button
         type="button"
         aria-expanded={open}
@@ -157,7 +163,7 @@ function Fold({
           className={`text-ink-muted transition-transform duration-200 ease-sd ${open ? "-rotate-90" : "rotate-90"}`}
         />
       </button>
-      <div id={id} hidden={!open} className="flex animate-in flex-col gap-1 pt-1 pl-4">
+      <div id={id} hidden={!open} className={`${ROWS} animate-in pt-1 pl-4`}>
         {group.links.map((link) => (
           <NavLink
             key={link.href}
@@ -227,8 +233,8 @@ function placePill(
   placed.current = true;
 }
 
-// The page you're on (or the one you've just picked, while it's on its way): one white pill under
-// the rows that slides to it. Placed at once when it first shows and when the menu changes size
+// The page you're on (or the one you've just picked, while it's on its way): one pale blue pill
+// under the rows that slides to it. Placed at once when it first shows and when the menu changes size
 // (a group opening), so it only ever slides to a pick.
 function Pill({ nav, shown }: { nav: RefObject<HTMLElement | null>; shown: string | null }) {
   const pill = useRef<HTMLSpanElement>(null);
@@ -254,7 +260,7 @@ function Pill({ nav, shown }: { nav: RefObject<HTMLElement | null>; shown: strin
       ref={pill}
       aria-hidden="true"
       data-menu-pill=""
-      className="slide pointer-events-none absolute top-0 left-0 z-0 rounded-row bg-pill opacity-0 shadow-soft"
+      className="slide pointer-events-none absolute top-0 left-0 z-0 rounded-row bg-pill opacity-0"
     />
   );
 }
@@ -269,7 +275,9 @@ export function OfficeNav({ groups }: { groups: MenuGroup[] }) {
   const { picked } = useContext(MenuPending);
   const shown = picked && hrefs.includes(picked) ? picked : current;
   return (
-    <nav ref={nav} aria-label="Office menu" className="relative flex flex-col gap-1 px-3 pt-1 pb-2">
+    // The card (or the drawer) gives it its edges; its groups follow on with no gap between them,
+    // each name standing 8px over its rows.
+    <nav ref={nav} aria-label="Office menu" className="relative flex flex-col">
       {hydrated && <Pill nav={nav} shown={shown} />}
       {groups
         .filter((group) => !group.bottom)
@@ -286,7 +294,7 @@ export function OfficeNav({ groups }: { groups: MenuGroup[] }) {
           ) : (
             <div key={group.label}>
               {!group.top && <p className={LABEL}>{group.label}</p>}
-              <div className="flex flex-col gap-1">
+              <div className={ROWS}>
                 {group.links.map((link) => (
                   <NavLink
                     key={link.href}

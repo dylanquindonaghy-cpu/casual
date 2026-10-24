@@ -193,16 +193,18 @@ describe("an event card's words", () => {
     // An automatic event's name is its place and day: said once.
     const automatic = text(row(event({ name: "Acme Demo Arena · Sat 7 Nov" })));
     expect(automatic.split("Acme Demo Arena · Sat 7 Nov")).toHaveLength(2);
-    // Its 14 days' cells: the weekends (Sat 7, Sun 8, Sat 14, Sun 15) a shade darker, as their
-    // headers are (Phase 20).
+    // Its 14 days' cells: the weekends (Sat 7, Sun 8, Sat 14, Sun 15) a light grey (`raised`,
+    // Phase 23's look), as their headers are (Phase 20); the weekdays have no ground of their own.
     const cells = [
       ...html.matchAll(/<div class="flex flex-col justify-center gap-1 px-1 py-2 ?([^"]*)">/g),
     ].map((m) => m[1]);
     expect(cells).toHaveLength(14);
-    expect(cells.flatMap((c, i) => (c === "bg-canvas" ? [i] : []))).toEqual([0, 1, 7, 8]);
+    expect(cells.flatMap((c, i) => (c === "bg-raised" ? [i] : []))).toEqual([0, 1, 7, 8]);
+    expect(cells.filter((_c, i) => ![0, 1, 7, 8].includes(i))).toEqual(Array(10).fill(""));
+    expect(html).not.toContain("bg-canvas");
   });
 
-  it("the board's days (Phase 20): today marked (in ink in the office: Phase 21), weekends a shade darker", () => {
+  it("the board's days (Phase 20; Phase 23's look): today's date in a sky circle, weekends a light grey", () => {
     const html = renderToStaticMarkup(
       createElement(BoardDays, { days: boardDays("2026-11-07", "2026-11-09") }),
     );
@@ -210,21 +212,34 @@ describe("an event card's words", () => {
       ...html.matchAll(/<div data-day="([^"]+)" class="([^"]*)">([\s\S]*?)<\/div><\/div>/g),
     ].map((m) => ({ date: m[1], cls: m[2] ?? "", inner: m[3] ?? "" }));
     expect(days).toHaveLength(14);
-    // Today (Monday 9): a bar along its top (the `brand` token: ink in the office), "Today" bold;
-    // no other day.
-    const barred = days.filter((d) =>
-      d.inner.includes('class="absolute inset-x-0 top-0 h-1 bg-brand"'),
-    );
-    expect(barred.map((d) => d.date)).toEqual(["2026-11-09"]);
-    expect(barred[0]?.inner).toContain('<div class="text-xs font-semibold text-ink">Today');
-    expect(html.match(/bg-brand/g)).toHaveLength(1);
-    // The weekends on the canvas grey, a shade darker than the board's card; weekdays not.
-    expect(days.filter((d) => d.cls.split(" ").includes("bg-canvas")).map((d) => d.date)).toEqual([
+    // Today (Monday 9): its date in a sky circle (the `accent` token, its near-black words),
+    // "Today" bold under it; no other day. The old bar along its top (`brand`) is gone.
+    const circle = (day: string, today: boolean) =>
+      `<span class="flex size-8 items-center justify-center rounded-full text-lg font-bold tabular-nums ${today ? "bg-accent text-on-accent" : "text-ink"}">${day}</span>`;
+    const ringed = days.filter((d) => d.inner.includes(circle("9", true)));
+    expect(ringed.map((d) => d.date)).toEqual(["2026-11-09"]);
+    expect(ringed[0]?.inner).toContain('<div class="text-xs font-semibold text-ink">Today');
+    expect(html.match(/bg-accent/g)).toHaveLength(1);
+    expect(html).not.toContain("bg-brand");
+    expect(html).not.toContain("absolute inset-x-0 top-0");
+    // Every other day: its date in ink with no circle, its day's name muted.
+    const others = days.filter((d) => d.date !== "2026-11-09");
+    expect(others).toHaveLength(13);
+    for (const d of others) {
+      const day = String(Number(d.date?.slice(8)));
+      expect(d.inner, d.date).toContain(circle(day, false));
+      expect(d.inner, d.date).toMatch(
+        /<div class="text-xs text-ink-muted">(Mon|Tue|Wed|Thu|Fri|Sat|Sun)$/,
+      );
+    }
+    // The weekends a light grey (`raised`), as their cells are in each event's row; weekdays not.
+    expect(days.filter((d) => d.cls.split(" ").includes("bg-raised")).map((d) => d.date)).toEqual([
       "2026-11-07",
       "2026-11-08",
       "2026-11-14",
       "2026-11-15",
     ]);
+    expect(html).not.toContain("bg-canvas");
   });
 
   it("the board's key, in plain words", () => {
@@ -233,10 +248,10 @@ describe("an event card's words", () => {
       "Urgent gap Places open Full Pills show places filled out of places needed.",
     );
     // Each mark is the pill it explains, scaled down (Phase 21: round, as the pills are): red,
-    // outlined, grey.
+    // outlined, light grey with its hairline (Phase 23: so it still shows on a weekend's grey).
     expect(key).toContain('class="h-3 w-5 rounded-full bg-urgent-fill"');
     expect(key).toContain('class="h-3 w-5 rounded-full border border-ink-muted bg-card"');
-    expect(key).toContain('class="h-3 w-5 rounded-full bg-raised"');
+    expect(key).toContain('class="h-3 w-5 rounded-full border border-line bg-raised"');
   });
 });
 

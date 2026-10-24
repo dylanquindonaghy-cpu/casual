@@ -14,8 +14,9 @@ import { confirmedStrikesEmail } from "../strikes/team-email";
 // the firm (RLS scopes every row to it).
 //
 // - loadUrgentOffers: each urgent session's offers (the latest wave, how many offered, accepted,
-//   failed, sent by the office), why the waves stopped (unless an offer went in that wave or a
-//   later one since) and whether the office was emailed, for the sessions the dashboard shows.
+//   not answered yet, said no, failed, sent by the office), why the waves stopped (unless an
+//   offer went in that wave or a later one since) and whether the office was emailed, for the
+//   sessions the dashboard shows.
 // - loadBookingsToCheck: future bookings whose casual can't work them as things stand.
 // - loadSheetIssues: what the firm's rota sheet asks for that the app couldn't do.
 // - loadToMark ("Who worked?"): shifts that ended in the last 7 days with people booked not marked
@@ -28,12 +29,14 @@ import { confirmedStrikesEmail } from "../strikes/team-email";
 export const TODAY_MARK_DAYS = 7; // "Who worked?" looks back this far
 export const LIST_MAX = 50;
 
-// An urgent session's offers (the dashboard's urgent cards).
+// An urgent session's offers (the dashboard's urgent cards), and a gap's (its charts' panels).
 export interface UrgentOffers {
   wave: number | null; // the latest wave sent
   offered: number; // offers that went (waves and office)
   byOffice: number;
   accepted: number;
+  waiting: number; // no answer yet (on a session still open and to come: waiting for a reply)
+  declined: number; // said no
   failed: number;
   stopped: StopReason | null; // why the waves stopped, while that's still so
   escalated: boolean; // the office was emailed about it
@@ -94,9 +97,9 @@ export interface TodayEvidence {
   failedMore: boolean;
 }
 
-// Each shift's offers (the latest wave, how many went, by the office, accepted, failed), why the
-// waves stopped (only while no offer has gone in that wave or a later one) and whether the office
-// was emailed: one query for all the shifts given.
+// Each shift's offers (the latest wave, how many went, by the office, accepted, not answered yet,
+// said no, failed), why the waves stopped (only while no offer has gone in that wave or a later
+// one) and whether the office was emailed: one query for all the shifts given.
 export async function loadUrgentOffers(
   tx: FirmTx,
   shiftIds: string[],
@@ -108,12 +111,15 @@ export async function loadUrgentOffers(
     offered: number;
     by_office: number;
     accepted: number;
+    waiting: number;
+    declined: number;
     failed: number;
     stopped: string | null;
     stopped_wave: number | null;
     escalated: boolean;
   }>(sql`
-    select x.id::text as shift_id, o.wave, o.offered, o.by_office, o.accepted, o.failed,
+    select x.id::text as shift_id, o.wave, o.offered, o.by_office, o.accepted, o.waiting,
+           o.declined, o.failed,
            st.reason as stopped, st.wave as stopped_wave,
            exists (select 1 from events e
                     where e.entity_id = x.id and e.action = 'shift.escalated') as escalated
@@ -127,6 +133,8 @@ export async function loadUrgentOffers(
                count(*) filter (where o.wave is null
                                   and o.response is distinct from 'failed')::int as by_office,
                count(*) filter (where o.response = 'accepted')::int as accepted,
+               count(*) filter (where o.response is null)::int as waiting,
+               count(*) filter (where o.response = 'declined')::int as declined,
                count(*) filter (where o.response = 'failed')::int as failed
           from offers o
          where o.shift_id = x.id
@@ -152,6 +160,8 @@ export async function loadUrgentOffers(
           offered: o.offered,
           byOffice: o.by_office,
           accepted: o.accepted,
+          waiting: o.waiting,
+          declined: o.declined,
           failed: o.failed,
           stopped: stoppedNow ? (o.stopped as StopReason) : null,
           escalated: o.escalated,

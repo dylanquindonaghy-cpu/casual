@@ -16,10 +16,12 @@ import {
   part,
 } from "@/lib/office/dashboard";
 import { loadCancellations } from "@/lib/office/cancellations";
+import { loadDays } from "@/lib/office/dashboard-charts-load";
 import { loadEnquiries } from "@/lib/office/enquiries";
 import { loadEventCards } from "@/lib/office/events";
 import { cancelBooking } from "@/lib/roster/cancel";
 import { recordMoveRefused } from "@/lib/roster/firm-change";
+import { localDateOf, mondayOf } from "@/lib/time/zoned";
 import { bookingFirm, hoursFromNow, NOW } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
 import { answer, apiDeps, apiRequest, plannerKey } from "../helpers/planner-api";
@@ -48,6 +50,11 @@ afterAll(async () => {
 
 const MIDNIGHT = new Date("2026-11-02T00:00:00Z");
 const clock = { now: () => NOW };
+const TZ = "Europe/London"; // the firms' calendar (the default)
+// This week, Monday to Sunday on the firm's calendar, as Phase 18's strip read it: the places
+// chart's days (loadDays) from this week's Monday for 7, since the charts replaced the strip.
+const thisWeek = (firmId: string) =>
+  withFirm(firmId, (tx) => loadDays(tx, NOW, TZ, mondayOf(localDateOf(NOW, TZ)), 7));
 
 async function dashFirm() {
   const f = await bookingFirm(su, withFirm);
@@ -954,7 +961,7 @@ describe("who may see it", () => {
   });
 });
 
-describe("this week (Phase 18's strip)", () => {
+describe("this week (Phase 18's strip; the places chart's days since Phase 23)", () => {
   it("each London day Monday to Sunday: places in open or filled sessions, filled, still to fill, urgent", async () => {
     const t = await dashFirm();
     const other = await dashFirm();
@@ -976,18 +983,35 @@ describe("this week (Phase 18's strip)", () => {
     await t.shift({ startsAt: hoursFromNow(-10) });
     // Another firm's sessions this week: never in this one's.
     await other.shift({ startsAt: hoursFromNow(5), headcount: 9 });
-    const zero = (date: string) => ({ date, places: 0, filled: 0, open: 0, urgent: 0 });
-    expect((await t.load()).week).toEqual({
-      ok: true,
-      data: [
-        { date: "2026-11-02", places: 5, filled: 2, open: 2, urgent: 2 },
-        zero("2026-11-03"),
-        { date: "2026-11-04", places: 2, filled: 2, open: 0, urgent: 0 },
-        zero("2026-11-05"),
-        zero("2026-11-06"),
-        zero("2026-11-07"),
-        { date: "2026-11-08", places: 1, filled: 0, open: 1, urgent: 0 },
-      ],
+    // Each day also counts its sessions with a place still to fill (Monday's urgent one, Sunday's).
+    // None of them is hidden from casuals (the places chart's own test counts those).
+    const zero = (date: string) => ({
+      date,
+      places: 0,
+      filled: 0,
+      open: 0,
+      urgent: 0,
+      gapSessions: 0,
+      hidden: 0,
+    });
+    expect(await thisWeek(t.firmId)).toEqual([
+      { date: "2026-11-02", places: 5, filled: 2, open: 2, urgent: 2, gapSessions: 1, hidden: 0 },
+      zero("2026-11-03"),
+      { date: "2026-11-04", places: 2, filled: 2, open: 0, urgent: 0, gapSessions: 0, hidden: 0 },
+      zero("2026-11-05"),
+      zero("2026-11-06"),
+      zero("2026-11-07"),
+      { date: "2026-11-08", places: 1, filled: 0, open: 1, urgent: 0, gapSessions: 1, hidden: 0 },
+    ]);
+    // The other firm's week holds its own session.
+    expect((await thisWeek(other.firmId))[0]).toEqual({
+      date: "2026-11-02",
+      places: 9,
+      filled: 0,
+      open: 9,
+      urgent: 0,
+      gapSessions: 1,
+      hidden: 0,
     });
   });
 });
@@ -1046,20 +1070,49 @@ describe("isolation", () => {
        values ($1, $2, 'photo', 'image/jpeg', 3, $3, '\\xffd8ff'::bytea)`,
       [b.firmId, ben, randomBytes(32).toString("hex")],
     );
+    // For the charts (Phase 23): an offer this week waiting on B's gap, a licence running out in
+    // the next 8 weeks, and a pay query with payroll.
+    const offered = await su.query<{ id: string }>(
+      `insert into offers (firm_id, shift_id, worker_id, offered_by, channel, sent_at)
+       values ($1, $2, $3, $4, 'sms', $5) returning id::text as id`,
+      [b.firmId, gap, ben, await b.office("resourcer"), hoursFromNow(-1)],
+    );
+    const bettany = await b.worker({
+      first: "Bettany",
+      credentials: [{ type: "SIA_DS", expiresOn: "2026-11-20" }],
+    });
+    const paid = await su.query<{ id: string }>(
+      `insert into pay_queries (firm_id, worker_id, work_date, issue_type, details)
+       values ($1, $2, '2026-10-31', 'wrong_rate', 'Firm B pay words') returning id::text as id`,
+      [b.firmId, await b.worker({ first: "Pauline" })],
+    );
 
-    const mine = await a.load();
-    const theirs = await b.load();
+    // As an admin's (with Pay), so the pay queries are read too.
+    const withPay = (firmId: string) =>
+      withFirm(firmId, (tx) => loadDashboard(tx, NOW, { pay: true }));
+    const mine = await withPay(a.firmId);
+    const theirs = await withPay(b.firmId);
     // Every part of both loads (a broken query would show "This couldn't load" and pass unseen).
     for (const d of [mine, theirs]) {
-      const parts = [
-        ...Object.values(d.counts),
-        d.week,
-        d.urgent,
-        d.showing,
-        d.cancellations,
-        d.enquiries,
-        d.needs,
-      ];
+      const named = {
+        urgent: d.urgent,
+        showing: d.showing,
+        cancellations: d.cancellations,
+        enquiries: d.enquiries,
+        needs: d.needs,
+        fill: d.fill,
+        eventsNeed: d.eventsNeed,
+        offersWeek: d.offersWeek,
+        waited: d.waited,
+        cancels14: d.cancels14,
+        licences: d.licences,
+      };
+      // Every part the dashboard has is in this list (a new one left out would fail here).
+      expect(Object.keys(d).sort()).toEqual(
+        ["counts", "timeZone", "today", ...Object.keys(named)].sort(),
+      );
+      const parts = [...Object.values(d.counts), ...Object.values(named)];
+      expect(parts).toHaveLength(15);
       expect(parts.map((p) => p.ok)).toEqual(Array(parts.length).fill(true));
     }
     // B's own dashboard holds them.
@@ -1085,17 +1138,51 @@ describe("isolation", () => {
       cancellations: { ok: true, data: { total: 0, underNotice: 0, strikes: 0, threshold: 48 } },
       enquiries: { ok: true, data: { total: 0, automatic: 0, needPerson: 0 } },
     });
-    // B's week holds its sessions; A's has none of them.
-    expect(theirs.week.ok && theirs.week.data.reduce((n, d) => n + d.places, 0)).toBeGreaterThan(0);
-    expect(mine.week.ok && mine.week.data.every((d) => d.places === 0 && d.open === 0)).toBe(true);
+    // B's week (this week's days, as the strip read them: loadDays) holds its sessions; A's has
+    // none of them.
+    const theirWeek = await thisWeek(b.firmId);
+    const myWeek = await thisWeek(a.firmId);
+    expect(theirWeek.reduce((n, d) => n + d.places, 0)).toBeGreaterThan(0);
+    expect(myWeek).toHaveLength(7);
+    expect(myWeek.every((d) => d.places === 0 && d.open === 0)).toBe(true);
+    // B's charts hold its rows; A's hold none of them.
+    const data = <T>(p: { ok: true; data: T } | { ok: false }): T => {
+      if (!p.ok) throw new Error("a part couldn't be read");
+      return p.data;
+    };
+    expect(data(theirs.fill).gaps.map((g) => g.shiftId)).toContain(gap);
+    expect(data(theirs.eventsNeed).total.urgent).toBe(1);
+    expect(data(theirs.offersWeek).rows.waiting.map((r) => r.offerId)).toEqual([
+      offered.rows[0]?.id,
+    ]);
+    expect(data(theirs.waited).pay?.rows.map((r) => r.payQueryId)).toEqual([paid.rows[0]?.id]);
+    expect(data(theirs.waited).days.reduce((n, d) => n + d.needsYou.uploads, 0)).toBe(1);
+    expect(data(theirs.cancels14).days.at(-1)?.total).toBe(1);
+    expect(data(theirs.licences).rows.map((r) => r.workerId)).toEqual([bettany]);
+    expect(data(mine.fill).days.every((d) => d.places === 0)).toBe(true);
+    expect(data(mine.fill).gaps).toEqual([]);
+    expect(data(mine.eventsNeed)).toMatchObject({ events: [], full: [], total: { events: 0 } });
+    expect(data(mine.offersWeek).counts).toEqual({ yes: 0, waiting: 0, closed: 0 });
+    expect(data(mine.waited)).toMatchObject({ days: [], items: [], pay: { total: 0, rows: [] } });
+    expect(data(mine.cancels14).days.every((d) => d.total === 0)).toBe(true);
+    expect(data(mine.cancels14).rows).toEqual([]);
+    expect(data(mine.licences)).toMatchObject({ rows: [], counts: { total: 0 } });
     const text = JSON.stringify(mine);
     for (const word of [
       "Firm B reply words",
       "Bertram",
       "Lenora",
+      "Bettany",
+      "Pauline",
+      "Firm B pay words",
+      "wrong_rate",
       "shifts?",
       "call me",
       gap,
+      ben,
+      bettany,
+      offered.rows[0]?.id ?? "no offer",
+      paid.rows[0]?.id ?? "no pay query",
       b.firmId,
     ]) {
       expect(text).not.toContain(word);

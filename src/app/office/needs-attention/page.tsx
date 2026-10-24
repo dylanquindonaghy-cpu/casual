@@ -4,7 +4,7 @@ import { requireOfficeArea } from "@/lib/auth/current-office";
 import { canAccess } from "@/lib/auth/roles";
 import { attentionOf, officeNeedsAttention } from "@/lib/office/dashboard";
 import { SECTION_ERROR, SECTIONS } from "@/lib/office/dashboard-copy";
-import { meta, page } from "../../ui/classes";
+import { meta, notice, page } from "../../ui/classes";
 import { PageHeader } from "../../ui/page-header";
 import { AlsoNeedsYou, NeedsItems, needsPageLine } from "../needs-items";
 
@@ -42,10 +42,7 @@ export default async function NeedsAttentionPage() {
               needPerson={needPerson}
             />
           ) : (
-            <p
-              role="status"
-              className="rounded-row border border-attention-line bg-attention-soft px-4 py-3 text-attention-ink shadow-soft"
-            >
+            <p role="status" className={notice}>
               {SECTION_ERROR}
             </p>
           )}

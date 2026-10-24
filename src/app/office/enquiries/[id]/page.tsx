@@ -7,6 +7,7 @@ import {
   h2,
   headingGap,
   meta,
+  notice,
   nums,
   page,
   sectionGap,
@@ -53,14 +54,16 @@ export const metadata: Metadata = { title: "Enquiry" };
 const VOICEMAIL_WARNING =
   "From a voicemail on the shifts line. A caller's number can be faked: check anything unusual with them.";
 
+// One message as a chat bubble (Phase 23: flat): theirs on the left, white with its hairline;
+// ours on the right in the done tint with its line.
 function Bubble({ item, timeZone }: { item: ConversationItem; timeZone: string }) {
   const theirs = item.direction === "in";
   const state = item.officeReply?.state;
   return (
     <li className={`flex ${theirs ? "justify-start" : "justify-end"}`}>
       <div
-        className={`max-w-[85%] rounded-card px-4 py-2 ${
-          theirs ? "border border-line bg-card" : "bg-done-soft"
+        className={`max-w-[85%] rounded-inner px-4 py-2 ${
+          theirs ? "border border-line bg-card" : "border border-done-line bg-done-soft"
         }`}
       >
         <p className="sr-only">{theirs ? "They wrote:" : "Reply:"}</p>
@@ -160,11 +163,7 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
           </Link>
         </p>
       )}
-      {e.voicemail && (
-        <p className="mt-3 rounded-row border border-attention-line bg-attention-soft px-4 py-3 text-attention-ink shadow-soft">
-          {VOICEMAIL_WARNING}
-        </p>
-      )}
+      {e.voicemail && <p className={`${notice} mt-3`}>{VOICEMAIL_WARNING}</p>}
 
       <section aria-labelledby="conversation" className={sectionGap.office}>
         <h2 id="conversation" className={h2}>

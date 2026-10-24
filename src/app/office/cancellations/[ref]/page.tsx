@@ -76,7 +76,7 @@ export default async function CancellationRecordPage({
       </PageHeader>
       {strike && (
         <section aria-labelledby="strike" className="mb-6 flex max-w-3xl flex-col gap-2">
-          <h2 id="strike" className="font-semibold text-ink">
+          <h2 id="strike" className="font-bold text-ink">
             Strike: {strikeText(record.row, record.timeZone)}
           </h2>
           {strikeSectionLines(strike, record.timeZone).map((line) => (
@@ -127,7 +127,7 @@ function ChooseOne({ shared }: { shared: SharedReference }) {
           <li key={r.assignmentId} className={row}>
             <Link
               href={`/office/cancellations/${r.assignmentId}`}
-              className="flex flex-col gap-1 rounded-row focus-visible:outline-2"
+              className="press flex flex-col gap-1 rounded-row focus-visible:outline-2"
             >
               <span className="font-semibold underline decoration-line-strong underline-offset-4">
                 {r.casual}

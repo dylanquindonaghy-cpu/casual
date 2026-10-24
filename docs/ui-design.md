@@ -14,12 +14,124 @@ Principles, in order:
    destructive.
 4. **Colour is never the only signal.** Every coloured status carries its word. Contrast meets
    WCAG AA (text 4.5:1, borders and controls 3:1).
-5. **No decoration.** No gradients, glows or textures. Motion only to show what changed, as Phase
-   18's spec (below). The firm's colour marks its main actions and where you are, never a status.
-   The office since Phase 22 (Dylan's round 2): a fine grain, shadows in the colour cards' own
-   colours and press feedback, and still no gradients.
+5. **No decoration.** No gradients, glows, textures or background images. Motion only to show
+   what changed, as Phase 18's spec (below), and press feedback in the office. The firm's colour
+   marks its main actions and where you are in the casual app, never a status. The office since
+   Phase 23 (Dylan's round 3): flat. White (or near-black) surfaces with a 1px hairline, nothing
+   with depth at rest and one soft overlay shadow only on what floats; no grain, glows, coloured
+   shadows or gradients (the menu's edge fade, a mask, is the one gradient); one sky blue for the
+   main button; colour otherwise only in tinted chips, counts and the charts' marks; one face,
+   Plus Jakarta Sans, for every word, headline and number (keys and secrets on Integrations keep
+   the system's mono, the one exception). Round 2's grain, coloured shadows, warm greys and
+   three faces (Phase 22) are gone.
 6. **Works without JavaScript** where pages already do (server-action forms, `<details>`
    confirmations, GET filter forms, anchor links).
+
+## Phase 23: the office's look, round 3
+
+Dylan, on round 2 live (2026-10-23): "i told you to remove the gradients and the colours are still
+wrong what your making is like 2008 apple notes app look it needs to be modern these are your last
+references" (two flat admin dashboards, dark and light). The round 3 mock-up
+(`docs/mockups/phase-23/mockup.html`) was approved the same day ("looks good"), then with its six
+charts and their panels ("go build it"). Phase 21's system (below) stands where this doesn't change
+it: its spacing steps, states and shared parts. The table at the end of this section has the
+office's values now (`tests/unit/ui.office-system.test.ts` checks it against `globals.css` both
+ways; `tests/unit/ui.contrast.test.ts` every pair in both themes).
+
+- **Surfaces, flat.** A light grey ground (`canvas`), and on it the top bar, the menu card and the
+  page card, all white (`card`; `sheet` is the same white) with a 1px hairline (`line`); in dark a
+  near-black ground with dark grey cards. Inside the white page card every card, list, table,
+  answer slip, notice and code box has the same hairline, or white on white would vanish. Nothing
+  has depth at rest: no shadow on a card, a row, a button or the page. What floats over the page
+  takes the one soft overlay shadow (`shadow-float`): the account menu, the drawer, the "…" menus
+  (a shift's and a session's), the toast, a chart's tooltip and its panel, and nothing else
+  (`tests/unit/ui.flat.test.ts` holds each file's use). Tailwind writes a shadow token's value
+  into its class when it builds, so a value redefined for dark would never reach it: the token is
+  `--shadow-float: var(--overlay)`, and `--overlay` has its own value in light and in both dark
+  blocks (darker in dark, with a faint light ring).
+- **Corners.** The page card and the menu card 28px (`rounded-card`); the cards, lists, tables and
+  the board inside a page 22px (`rounded-inner`, and the page card on a phone); rows, fields,
+  tiles and small boxes 14px (`rounded-row`); buttons, chips, pills and tabs round
+  (`rounded-full`); a chart's bar 4px at its data end (`rounded-mark`, the dashboard's charts
+  only). Spacing stays on the office's steps (4, 8, 12, 16, 24, 32 and 48px): the
+  mock-up's in-between values are snapped to them.
+- **Colour.** Cool slate greys (blue a touch above green above red, close to grey in dark), not
+  round 2's warm ones. One sky blue for the one main button of a screen (`accent`, with
+  near-black words, `on-accent`; lighter under the pointer, darker pressed); the other buttons
+  are white pills with a grey edge (`button`, `button-line`) that stays under the pointer. The
+  firm's own colour stays on its mark in the top bar (`brand-bar`), never on a button. In the
+  office `brand` is the sky's pressed shade in light (`#0284c7`), because the sky itself is
+  2.77:1 on white and a control's edge needs 3:1; in dark it is the sky. Nothing in the office
+  paints with it now (the events board's today and the login link page's button take the sky,
+  `accent`, through their `office:` classes); the value is kept so anything shared that does
+  still reads at 3:1. Red, amber, blue and green only in tinted chips, counts
+  and the charts' marks: red to do now, amber needs you, blue waiting on someone else, green
+  done, grey fine.
+- **Chips and counts.** A chip is a borderless tinted pill at least 28px tall in the office
+  (`chip.base`'s `office:` values; the casual app's chips keep their edge), its word in the
+  tint's dark words, with its icon. A new blue tone, `wait`, is waiting on someone else, never
+  on you (an hourglass; `StatusChip tone="wait"`). Every count is a flat tinted pill with no edge
+  (`count`, `countNeeds` amber, `countWaiting` blue, `countUrgent` red).
+- **The charts' marks** (`mark-urgent`, `mark-open`, `mark-wait`, `mark-done`, `mark-calm`, with
+  `mark-grid` and `mark-base` for the grid and the baseline). Red, blue and green reach 3:1 on the
+  card in both themes; amber and grey are under 3:1 on white by design (the set is told apart
+  with colour blindness), so they never stand alone: each bar carries its number, each chart its
+  legend, and its Numbers table each mark's row in words. In dark every mark reaches 3:1.
+- **Type.** Plus Jakarta Sans for every word, headline and number, self-hosted from its npm
+  package (`@fontsource-variable/plus-jakarta-sans` 5.3.0, SIL Open Font License) in
+  `src/app/office/office-fonts.ts`: one variable face, 200 to 800, latin and latin-ext (fetched
+  only for a name such as Łukasz), so only office pages fetch it. A page's headline extrabold
+  (`text-title`: 800, -0.025em, 28px); section headings bold (`h2`'s `office:font-bold`); the
+  big numbers extrabold with fixed-width digits, a little tighter (`font-stat`: 800,
+  tabular-nums, -0.03em). The dashboard's greeting is in the same face (no display serif:
+  `font-display` is gone). Keys and secrets on Integrations keep the system's mono (`font-mono`,
+  `codeBox`), the one exception, so O and 0, l and 1 differ. DM Sans, DM Mono and Newsreader are
+  removed. The same seven sizes.
+- **Shared parts** (`src/app/ui/classes.ts`). The office's button base has no depth; `btn.primary`
+  sky; `btn.secondary` and `btn.danger` white with their grey edge; `tabs`, `tab` and
+  `tabCurrent` for the "Show" tabs and the events board's filters (a grey track with a hairline,
+  the current tab a white pill with its hairline, 44px; never the sky button); `field` white with
+  a 3:1 edge (`line-strong`), darker under the pointer, set in no more; `confirmStep` and
+  `checkStep` a tint with its edge; `card`, `rows` and `table.wrap` white with the hairline, 22px
+  round (a table's headings on white, for a sticky one); `officeLoginCard` with its hairline;
+  `notice` (an amber wash with its edge: what the AI or the voicemail line did, what a key will
+  show only once); `codeBox` (a key or secret shown once); `resultBox`
+  (`src/app/office/shifts/shift-tones.ts`: an answer, a pale grey slip with its hairline).
+- **Motion.** Everything you press still dips to 97% and springs back (`press`, Phase 22); nothing
+  lifts under the pointer; the menu's pill may still slide (`slide`).
+- **The shell** (from the mock-up; "Office shell" below has the details that stand): a full-width
+  white top bar at every width with a bottom hairline, the menu in its own white card from 1024px
+  with its groups' names in small capitals (`ink-faint`, by CSS only), the current row a pale
+  blue pill (`pill`), and the page in another white card (`#main > div`).
+- **Where the office differs from the mock-up.** `brand` in light (above); a field's edge is
+  `line-strong` (3:1 on the ground and a card), not the mock-up's pale grey (1.5:1); the
+  mock-up's in-between spacing is snapped to the office's steps; the type scale keeps its seven
+  steps.
+
+| Token (office) | Light | Dark | Use in the office |
+|---|---|---|---|
+| `ink` / `ink-muted` / `ink-faint` | `#0f1728` / `#475467` / `#667085` | `#f2f4f7` / `#a3acb9` / `#8a94a6` | Words; grey words; the faintest grey (small capitals over the menu's groups, a chart's ticks: on white only) |
+| `ink-hover` / `on-ink` / `ink-press` | `#1d2939` / `#ffffff` / `#000000` | `#ffffff` / `#0f1728` / `#ffffff` | An ink fill (the toast, a chart's "now" day) under the pointer, its words, pressed |
+| `line` / `line-strong` | `#e4e7ec` / `#7d8797` | `#262b33` / `#6b7585` | The hairline round every white surface and between rows; a field's edge (3:1 on the ground and a card) |
+| `canvas` / `panel` | `#f2f4f7` / `#f2f4f7` | `#0c0e12` / `#0c0e12` | The ground under the top bar, the menu card and the page card |
+| `card` / `sheet` | `#ffffff` / `#ffffff` | `#15181d` / `#15181d` | The top bar, the menu card, the page card, and every card, list, table and box in it |
+| `raised` / `quiet-soft` / `active` | `#f6f7f9` / `#f6f7f9` / `#f6f7f9` | `#1c2027` / `#1c2027` / `#1c2027` | A tab track, a skeleton's bars, hover on white rows; a closed chip, an answer slip; a menu row under the pointer |
+| `pill` / `count` | `#e6f1fb` / `#eef0f3` | `#232830` / `#232830` | The menu's current row (a pale blue pill); the grey count pill |
+| `button` / `button-line` / `button-hover` / `button-press` | `#ffffff` / `#d0d5dd` / `#f6f7f9` / `#eaecf0` | `#15181d` / `#3a404b` / `#1c2027` / `#232830` | Any other button: a white pill with its grey edge, under the pointer, pressed |
+| `accent` / `accent-hover` / `accent-press` / `on-accent` | `#0ea5e9` / `#38bdf8` / `#0284c7` / `#06131f` | `#7dd3fc` / `#a5e1fd` / `#38bdf8` / `#06131f` | The one main button of a screen (the sky), under the pointer, pressed; its near-black words |
+| `brand` / `on-brand` / `brand-ink` | `#0284c7` / `#06131f` / `#0f1728` | `#7dd3fc` / `#06131f` / `#f2f4f7` | The sky as a control (its pressed shade in light, for 3:1 on white), for any shared part that still uses `brand` in the office (none paints with it now); words in ink. The firm's colour is on its mark only |
+| `switch-off` / `scrim` | `#667085` / `#101828` | `#8a94a6` / `#000000` | A switch that's off (3.5:1); behind the drawer and a chart's panel |
+| `urgent` / `urgent-ink` / `urgent-soft` / `urgent-tile` | `#b42318` / `#912018` / `#fdeceb` / `#fbdcd9` | `#f97066` / `#fca5a5` / `#2e1415` / `#3a1a1b` | Red words; the urgent chip's words; its tint; an urgent tile |
+| `urgent-fill` / `urgent-fill-hover` / `on-urgent` | `#d92d20` / `#b42318` / `#ffffff` | `#f97066` / `#fb8a80` / `#06131f` | The final destructive button, under the pointer, its words |
+| `attention` / `attention-ink` / `attention-soft` | `#b54708` / `#93370d` / `#fdf1e0` | `#fdb022` / `#fcd34d` / `#2c1f0c` | Amber, needs you: an icon; a chip's and a notice's words; their tint |
+| `hivis` / `on-hivis` | `#fdf1e0` / `#93370d` | `#2c1f0c` / `#fcd34d` | The amber count (Needs attention's) and its words |
+| `wait-soft` / `wait-tile` / `wait-ink` | `#e5f3fc` / `#e5f3fc` / `#075985` | `#0f2635` / `#0f2635` / `#7dd3fc` | Blue, waiting on someone else: the `wait` chip's tint, the blue count, their words |
+| `done` / `done-ink` / `done-soft` / `done-tile` | `#067647` / `#11733a` / `#e7f6ec` / `#d1f0dc` | `#47cd89` / `#6ee7a0` / `#10261a` / `#143322` | Green, done: a tick; a chip's words; its tint; a done tile |
+| `done-fill` / `on-done` | `#067647` / `#ffffff` | `#47cd89` / `#06131f` | A done fill and its words |
+| `quiet-ink` / `quiet-line` | `#475467` / `#d0d5dd` | `#a3acb9` / `#3a404b` | A closed chip's words; the grey step's edge |
+| `urgent-line` / `attention-line` / `wait-line` / `done-line` | `#f9c9c4` / `#f6d7a8` / `#b9dff6` / `#b5e3c4` | `#5a2423` / `#5a4314` / `#1e4a66` / `#1f4d33` | A tint's 1px edge (a notice, a step), a shade darker (decorative: the words say it) |
+| `mark-urgent` / `mark-open` / `mark-wait` / `mark-done` / `mark-calm` | `#d92d20` / `#f79009` / `#0284c7` / `#079455` / `#98a2b3` | `#f97066` / `#fdb022` / `#38bdf8` / `#47cd89` / `#667085` | The charts' marks: red to do now, amber needs you, blue waiting on someone else, green done, grey fine (amber and grey under 3:1 on white: each bar has its number, each chart its legend and Numbers table) |
+| `mark-grid` / `mark-base` | `#eef0f3` / `#d0d5dd` | `#22262d` / `#3a404b` | A chart's grid lines and its baseline (hairlines) |
 
 ## Phase 22: the office's look, round 2
 
@@ -30,8 +142,8 @@ subtle reactive on click responses". From his new references (dark admin dashboa
 HITE EQ, notion>ision, PMD Digital, ovniscale) and the hilos direction he picked, a mock-up
 (`docs/mockups/phase-22/mockup.html`), approved with one change: "remove the gradients theres no
 need for that". Phase 21's system (below) stands where this doesn't change it: its spacing,
-corners, states and shared parts. The table at the end of this section has the office's values
-now (`tests/unit/ui.office-system.test.ts` checks it against `globals.css` both ways).
+corners, states and shared parts. The table at the end of this section had round 2's values;
+Phase 23 (above) replaced them, and its table has the office's values now.
 
 - **Layers.** Four you can see: the window (`canvas`, a warm grey, the menu on it); the page as a
   sheet set into it (`sheet`, warm off-white, rounded and raised, `shadow-sheet`; below 1024px a
@@ -309,9 +421,11 @@ tokens. Every pair a page uses meets its contrast in both (`tests/unit/ui.contra
 | `count` | `#eceef1` | `#232529` | The office's count pill (Phase 21); the casual app's counts are `staffCount`'s |
 | `button` / `button-line` / `button-hover` / `button-press` | `#ffffff` / `#7c8189` / `#f1f2f4` / `#f1f2f4` | `#18191c` / `#6f737b` / `#222428` / `#222428` | Any other office button, its edge, under the pointer and pressed (Phase 21): here the outlined button it was; in the office a grey pill |
 | `ink-press` | `#000000` | `#ffffff` | An ink button pressed (Phase 21) |
-| `sheet` / `pill` | `#ffffff` / `#ffffff` | `#18191c` / `#232529` | The office's page, a sheet set into the window, and its menu's current page (Phase 22; the casual app doesn't use them) |
-| `urgent-card` / `urgent-card-ink` / `attention-card` / `attention-card-ink` | `#ffd8cf` / `#7d1a10` / `#fbe5a0` / `#5c3f00` | `#3d1d19` / `#ffcabf` / `#3a2f10` / `#fbe3a0` | The office dashboard's Urgent places and Needs attention cards in full colour, and their words (Phase 22; office only) |
-| `wait-card` / `wait-card-ink` / `done-card` / `done-card-ink` | `#d6e4fa` / `#163b6e` / `#d2efdb` / `#155230` | `#172a45` / `#c8dafa` / `#15301f` / `#bfeccd` | Its Waiting on others and Sorted today cards, and their words (Phase 22; office only) |
+| `sheet` / `pill` | `#ffffff` / `#ffffff` | `#18191c` / `#232529` | The office's page (Phase 22; since Phase 23 the white page card, as `card`) and its menu's current row (Phase 23: a pale blue pill); the casual app doesn't use them |
+| `accent` / `accent-hover` / `accent-press` / `on-accent` | `#0ea5e9` / `#38bdf8` / `#0284c7` / `#06131f` | `#7dd3fc` / `#a5e1fd` / `#38bdf8` / `#06131f` | The office's one main button (the sky), under the pointer, pressed, and its near-black words (Phase 23; office only, the same values here: the casual app's main button is `brand`) |
+| `ink-faint` | `#667085` | `#8a94a6` | The office's faintest grey words: small capitals over the menu's groups, a chart's ticks, on white only (Phase 23; office only) |
+| `mark-urgent` / `mark-open` / `mark-wait` / `mark-done` / `mark-calm` | `#d92d20` / `#f79009` / `#0284c7` / `#079455` / `#98a2b3` | `#f97066` / `#fdb022` / `#38bdf8` / `#47cd89` / `#667085` | The office dashboard charts' marks: red to do now, amber needs you, blue waiting on someone else, green done, grey fine (Phase 23; office only). Amber and grey are under 3:1 on white by design: never alone (a number on each bar, a legend, a Numbers table) |
+| `mark-grid` / `mark-base` | `#eef0f3` / `#d0d5dd` | `#22262d` / `#3a404b` | A chart's grid lines and baseline, hairlines (decorative; Phase 23, office only) |
 
 **Depth (Phase 20).** Five shadow tokens and no other shadow anywhere in `src/`
 (`tests/unit/ui.flat.test.ts` holds where each is used): `shadow-lift` (a card, row, tile or the
@@ -319,7 +433,8 @@ current menu item lifted off its ground), `shadow-panel` (a panel or a menu over
 `shadow-pass` (the pass, and the booked day on the strip), `shadow-bar` (the tab bar and the action
 bar floating over the page's foot) and `inset-shadow-sunk` (a sunk track, an opened part set into
 its card: the board's opened row, the travel figures). In dark they're darker, with a faint light
-edge on what floats.
+edge on what floats. The office has one of its own (Phase 23): `shadow-float`, only on what floats
+over its page, whose value (`--overlay`) changes with the theme (see "Phase 23").
 
 No other colour is written anywhere in `src/` (no `bg-white`, no Tailwind palette shade, no colour
 value in a class or a style): the firm's colour, which the root layout works out from the firm's
@@ -382,9 +497,13 @@ AI-boundary and client-boundary tests (they import nothing from `src/lib/`).
   (staff and office, outside the shell) use `page.login` (the brand bar's 448px column),
   `loginCard` (framed from 640px up, frameless on a phone) and `loginTitle` for their one `<h1>`;
   the office's since Phase 21 `page.officeLogin` and `officeLoginCard` (the office's spacing, a
-  white card with the soft edge), with `field` and `btn.primary`.
-- `status-chip.tsx`: `<StatusChip tone="urgent|attention|done|quiet">word</StatusChip>`, with a
-  small inline SVG icon that is `aria-hidden`. The word is the existing word from the copy module.
+  white card with the soft edge; since Phase 23 its hairline), with `field` and `btn.primary`.
+  The office's since Phase 23 (see "Phase 23"): `tabs`, `tab` and `tabCurrent` (the "Show" tabs
+  and the events board's filters), `notice` (an amber wash with its edge), `codeBox` (a key or
+  secret shown once, in the system's mono).
+- `status-chip.tsx`: `<StatusChip tone="urgent|attention|wait|done|quiet">word</StatusChip>`, with
+  a small inline SVG icon that is `aria-hidden`. The word is the existing word from the copy
+  module. `wait` (Phase 23, the office's blue, an hourglass): waiting on someone else.
 - `page-header.tsx`: `<PageHeader back title meta actions>`. Restyles the page's one `<h1>`;
   never adds a second heading. `back` (`{ href, label }`) is the way back to the list a record's
   page belongs to ("‹ Cancellations"), above the heading; nothing else goes there.
@@ -407,6 +526,7 @@ Status tones for existing words:
 | attention | Open, places free, not marked yet, Waiting for an answer, Waiting for the office, With payroll, Applied for, Escalated, waiting |
 | done | Filled, Booked, Worked, Approved, Sorted, Valid, Active, took it |
 | quiet | Draft, Cancelled, Not active, Declined, Deleted, From your Google Sheet, said no |
+| wait (Phase 23, the office) | Waiting: on someone else, never on you (an offer waiting for a casual's answer, "With payroll"). These words move here from attention as each page takes round 3's parts |
 
 ## Office shell (`src/app/office/layout.tsx`)
 
@@ -420,23 +540,27 @@ it. The frame (`office-frame.tsx`) then asks the server to redraw the page once
 `/office/l` from another page, so it can't repeat, and with a live session the login page sends
 you on to `/office` as before.
 
-- **Top bar** (`office-frame.tsx`), below 1024px, pinned to the top: "Menu", the firm's name (no
-  reference portal's logo or colours; on logged-in office pages the firm's brand bar is hidden,
-  since this bar names the firm), the moon/sun button
-  (`theme-button.tsx`: sets the `sd-theme` cookie and `data-theme` at once; its name says what it
-  switches to, and the same words show beside it on hover and keyboard focus), and the account
-  button (initials, then the name and role from 640px). The account menu is a native popover
-  (`popover`, opened by the button's `popovertarget`): no role of its own, Escape and a tap
-  elsewhere close it, and it works before the page's scripts load. It holds the name and role,
-  "How-to guide" and the office's one "Log out".
-- **Desktop (1024px and wider; Phase 20):** no top bar. The same `<header>` sits at the menu's
-  foot, fixed at the bottom left: the pay week (Phase 21: the week and its dates, then the pay
-  day, two lines that each stay whole), the account button (initials, name and role; its menu
-  opens above it) and the moon/sun button, those two on a white row. The menu is a 248px sidebar
-  that stays in view, with the firm at its top (its initial on its own colour, then its name).
-  Phase 21: the menu and the page share the warm off-white ground (no sheet), the page's white
-  cards on it, content up to 1152px wide. Forms stay within 672px; lists, tables and reports use
-  the full width.
+- **Top bar** (`office-frame.tsx`; Phase 23): white, the window's full width at every width, pinned
+  to the top (`sticky`, 56px; 64px from 1024px) with a hairline under it. "Menu" (below 1024px);
+  the firm's mark (its initial on its own colour, `brand-bar`) and its name, with "Office" under it
+  from 1024px (no reference portal's logo or colours; on logged-in office pages the firm's brand
+  bar is hidden, since this bar names the firm); the pay week as words in a hairline pill with a
+  green "This week" chip (from 1024px; its dates from 1280px); the shifts line's number (from
+  1280px, when the firm has one); the square moon/sun button (`theme-button.tsx`: sets the
+  `sd-theme` cookie and `data-theme` at once; its name says what it switches to, and the same words
+  show under it on hover and keyboard focus, stay while the pointer moves onto them, and go with
+  Escape); and the account button (initials, then the name from 640px). The account menu is a
+  native popover (`popover`, opened by the button's `popovertarget`) at the top right: no role of
+  its own, Escape and a tap elsewhere close it, and it works before the page's scripts load. It
+  holds the name and role, "How-to guide" and the office's one "Log out". Because the bar stays
+  over the page, the office's page scrolls with 80px kept clear at its top
+  (`scroll-padding-top` on `html` while the office shell is on the page, `globals.css`): a link to
+  a heading lands below the bar, and a control focused from the keyboard is never hidden under it.
+- **Desktop (1024px and wider; Phase 23):** under the bar, the menu in its own white card (28px
+  round, a hairline; 248px wide, 284px from 1280px) that stays in view as the page scrolls, beside
+  the page in another white card (`#main > div`, 22px round on a phone, 28px from 1024px), content
+  up to 1152px wide. Forms stay within 672px; lists, tables and reports use the full width. A menu
+  too tall for a short window scrolls inside its card with no scrollbar (`menu-scroll.tsx`).
 - **Phone and tablet:** "Menu" opens the same menu as a drawer from the left: a native `<dialog>`
   opened with `showModal()`, so the page behind it is shut off and dimmed (`scrim` at half
   strength). Escape, a tap on the dimmed page, "Close menu" or choosing a link closes it, and the
@@ -458,18 +582,20 @@ you on to `/office` as before.
   | Admin and records (folded) | Action log, Pilot metrics, Office team, Settings, Integrations, Data requests |
   | Help | How-to guide |
 
-- The current page's link has `aria-current="page"`, on a grey pill (Phase 21; a white pill
-  lifted off the menu in Phase 20, a pale tint of the firm's colour before it) with its icon in
-  ink. Every row (and the folded group's button) is 44px tall, in the drawer too. Group labels
-  are small grey words. On a page inside a section, the section's link
+- The current page's link has `aria-current="page"`, on a pale blue pill (`pill`, Phase 23; a
+  grey pill in Phase 21, a white pill lifted off the menu in Phase 20, a pale tint of the firm's
+  colour before it) with its icon in ink. Every row (and the folded group's button) is 44px tall,
+  in the drawer too; from 1024px with a mouse (a fine pointer) the menu card's rows are 34px, so
+  the whole menu fits a laptop's window. Group labels are small capitals in the faintest grey
+  (`ink-faint`; by CSS only, the words stay as written). On a page inside a section, the section's link
   looks the same but has `aria-current="true"` (it isn't the page you're on): a shift or a new
   shift marks Events & sessions, the offer page marks Dashboard, a casual marks Casuals, a
   cancellation's record marks Cancellations, a worker's data page marks Data requests.
-- **Badges:** a link can carry a count, one style (Phase 21; Dylan's brief: "one badge style
-  (grey, red only for urgent)"): the office's grey count pill (`countPill`, the `count` token),
-  the same as beside a section's heading, on the page you're on's grey pill too. Whether it needs
-  you is in its words; no count in the menu is an urgent one, so none is red (the dashboard's
-  urgent places' count is: `countUrgent`, the same pill in red).
+- **Badges:** a link can carry a count, a flat tinted pill with no edge (Phase 23): amber when it
+  needs you (`countNeeds`: Needs attention's, Enquiries' that need a person, Casuals' uploads to
+  check, and Pay queries' for payroll), blue when it waits on someone else (`countWaiting`: Pay
+  queries' for everyone else). No count in the menu is an urgent one, so none is red (the
+  dashboard's urgent places' count is: `countUrgent`). Phase 21's one grey style is gone.
   The number sits inside the link but hidden from screen readers, and its words ("3 waiting")
   follow the link as visually hidden text, so the link's name stays exactly its label. Needs attention's (Phase 20) is the Dashboard's Needs attention count:
   "{12} to deal with", and "50+" when a list stopped at 50.

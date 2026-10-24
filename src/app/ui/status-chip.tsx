@@ -5,7 +5,9 @@ import { chip } from "./classes";
 // is the existing word from the copy module; the icon is decorative, so the chip's text is
 // exactly its children. Hook-free: safe in server and client components.
 
-export type StatusTone = "urgent" | "attention" | "done" | "quiet";
+// `wait` (Phase 23, the office's): blue, waiting on someone else (a casual's answer to an offer,
+// a pay query with payroll), never on you.
+export type StatusTone = "urgent" | "attention" | "wait" | "done" | "quiet";
 
 const ICON_PATHS: Record<StatusTone, ReactNode> = {
   // Warning triangle: act now.
@@ -21,6 +23,15 @@ const ICON_PATHS: Record<StatusTone, ReactNode> = {
     <>
       <circle cx="12" cy="12" r="8.5" />
       <path d="M12 7.5V12l3 2" />
+    </>
+  ),
+  // Hourglass: waiting on someone else.
+  wait: (
+    <>
+      <path d="M6.5 3.5h11" />
+      <path d="M6.5 20.5h11" />
+      <path d="M7.5 3.5c0 4.5 4.5 5.5 4.5 8.5s-4.5 4-4.5 8.5" />
+      <path d="M16.5 3.5c0 4.5-4.5 5.5-4.5 8.5s4.5 4 4.5 8.5" />
     </>
   ),
   // Check: fine, finished.

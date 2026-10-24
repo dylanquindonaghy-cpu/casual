@@ -35,7 +35,7 @@ export function ResendEvidence({
   if (!note) return <div className="mb-6 flex max-w-3xl flex-col">{answer}</div>;
   return (
     <section aria-labelledby="evidence" className="mb-6 flex max-w-3xl flex-col gap-2">
-      <h2 id="evidence" className="font-semibold text-ink">
+      <h2 id="evidence" className="font-bold text-ink">
         {note.heading}
       </h2>
       <p className="text-ink-muted">{note.text}</p>

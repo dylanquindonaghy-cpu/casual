@@ -33,3 +33,20 @@ const dayMonth = (day: string) => shortDate(day, Number(day.slice(0, 4)));
 export function payWeekLabel(w: PayWeek): string {
   return `Week ${w.week} · ${dayMonth(w.monday)} – ${dayMonth(w.sunday)} · Pay ${dayLabel(w.payDay)}`;
 }
+
+// The same words in their three parts (Phase 23: the office's top bar shows them as words, and
+// hides the dates when it's tight): "Week 41", "5 Oct – 11 Oct", "Pay Fri 16 Oct". Joined with
+// " · " they are payWeekLabel's.
+export interface PayWeekParts {
+  week: string;
+  dates: string;
+  pay: string;
+}
+
+export function payWeekParts(w: PayWeek): PayWeekParts {
+  return {
+    week: `Week ${w.week}`,
+    dates: `${dayMonth(w.monday)} – ${dayMonth(w.sunday)}`,
+    pay: `Pay ${dayLabel(w.payDay)}`,
+  };
+}

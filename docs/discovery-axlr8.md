@@ -1,8 +1,9 @@
 # Questions before connecting a firm's CRM and ops portal
 
 What we need to know before building the proposals P1 to P7 in `PLAN.md` ("Proposed 2026-10-26").
-Three short messages, ready to copy: one to AXLR8, one to whoever built the firm's ops portal, and
-one to the firm's own office or IT. This file names no firm and holds no real data (golden rule 7).
+Two short messages, ready to copy (one to AXLR8, one to whoever built the firm's ops portal), and
+a list of questions for the firm's own office or IT. This file names no firm and holds no real data
+(golden rule 7).
 
 ## Rules while asking
 
@@ -13,7 +14,9 @@ one to the firm's own office or IT. This file names no firm and holds no real da
   plain words.
 - Don't explore AXLR8's API with an employee's login. Ask AXLR8 for a sandbox.
 
-## What we already know (public sources, October 2026)
+## What we already know (October 2026)
+
+From public sources:
 
 - AXLR8 Staffing describes "a callable API with credentials and Python code examples". Its fields
   come as a standard package and can be extended and filtered in its Report Builder ("RB Admin").
@@ -23,10 +26,12 @@ one to the firm's own office or IT. This file names no firm and holds no real da
   ([AXLR8 FAQs](https://staffing.axlr8.com/faqs/)). Webex Interact has a send API and webhooks for
   incoming texts, delivered, failed and opt-outs, and replies need a "dedicated inbound number"
   ([Webex Interact API docs](https://docs.webexinteract.com/)).
+From the firm (Dylan, 2026-10-26; not public):
+
 - The firm's ops portal reads from AXLR8 ("Sync AXLR8 Data") and has payroll by fortnightly cycle,
   check-in and check-out, and live on-site counts.
 
-## 1. To AXLR8 (sales@AXLR8.com, 01344 776500)
+## 1. To AXLR8 (its sales team, through the contact page on axlr8.com)
 
 > Hello. I'm building ShiftDesk, a staff app and shifts line for casual workers, for staffing firms
 > that use AXLR8. One of your customers wants to connect it to AXLR8. Before we build anything,
@@ -87,14 +92,19 @@ Fill these in as they arrive: plain words only, no copied field lists.
 | A1 | AXLR8: PDF and sandbox | | |
 | A2 | AXLR8: REST and JSON; how it logs in | | |
 | A3 | AXLR8: reports or records; changes only | | |
+| A4 | AXLR8: one session's bookings; one person's bookings | | |
 | A5 | AXLR8: can it write bookings, cancellations, availability | | |
 | A6 | AXLR8: booking and cancellation times, reasons, time zones | | |
+| A7 | AXLR8: staff type field; qualification expiry dates | | |
 | A8 | AXLR8: webhooks | | |
 | A9 | AXLR8: limits, cost, fixed IP | | |
 | A10 | AXLR8: consent needed | | |
-| O1 | Ops portal: API, webhooks or CSV | | |
+| O1 | Ops portal: API or webhooks for attendance and pay lines | | |
+| O2 | Ops portal: CSV export | | |
 | O3 | Ops portal: how "Sync AXLR8 Data" runs | | |
+| O4 | Ops portal: who to talk to | | |
 | F1 | Texts: Webex Interact, whose account, replies, what AXLR8 sends | | |
 | F2 | Email: provider, forwarding, reply address, mix of mail | | |
 | F3 | Pay cycles: numbering, pay day | | |
+| F4 | Roles: pay tiers in names; contracted and holiday sessions | | |
 | F5 | Bookings for showing sessions made from ShiftDesk | | |

@@ -1622,8 +1622,9 @@ tests uses our own names. Nobody explores AXLR8's API with an employee's login b
 
 These are **proposals**: their tasks get boxes, a number and a "Done when" line when Dylan gives
 each one the go-ahead (golden rule 10). They're labelled P1 to P7 so they can't clash with phases a
-parallel chat adds. Tasks marked **attended** touch `.claude/`, `scripts/invariants.sh`, secrets or
-the connector, which `/overnight` may not edit. The questions to send first are in
+parallel chat adds. Tasks marked **attended** are built with Dylan's session open, not by `/overnight`:
+those that touch `.claude/` or `scripts/invariants.sh` (which `/overnight` may not edit), and those
+that add a secret or the connector (worth watching as they're built). The questions to send first are in
 `docs/discovery-axlr8.md`; the decisions they needed, all taken on 2026-10-26, are under
 "Connecting the firm's systems" in "Decisions waiting for Dylan". Flags: **S** schema, **A** auth, **T** tenancy, **M** messaging,
 **R** rules (each needs Dylan's OK and the `guardrails-reviewer`); **UI** changes a screen (a
@@ -1638,45 +1639,52 @@ for one pay cycle), a few events live, then everything, then the email inbox.
 
 ### P1 — The repo, easier for Claude (attended; docs and config only)
 
-Why: `PLAN.md` is 452 KB (about 110k tokens) and `/next-task` reads all of it; `docs/work-log.md`
+Why: `PLAN.md` is about 470 KB (well over 100k tokens) and `/next-task` reads all of it; `docs/work-log.md`
 is 858 KB and `docs/overnight-log.md` 1.1 MB, and both only grow.
 
 - Move fully ticked phases to `docs/archive/plan-done.md`. Open items from earlier phases (the
   Gates, Phases 4, 6, 7, 8, 9, 15 and 22) stay in `PLAN.md` under "Still open from earlier phases",
   so `/next-task` and `/overnight` still find them. The archive is frozen: its sha256 is pinned in
   `scripts/invariants.sh`, so any change to it fails verify and blocks every tick until undone. (Not
-  a `*PLAN.md` name: the tick guard, `.claude/hooks/plan-ticks.mjs`, counts a new file with ticked
-  lines as a tick and would refuse the move, and the shell hooks watch the root `PLAN.md` only.)
+  a `*PLAN.md` name: the tick guard, `.claude/hooks/guard-plan-tick.sh` with its helper
+  `plan-ticks.mjs`, counts a new file with ticked lines as a tick and would refuse the move, and the
+  shell hooks watch the root `PLAN.md` only.) Each open phase keeps its "Done when" line in
+  `PLAN.md`, where `/close-task` and the `claims-auditor` read it.
 - Move the Parking lot and the Hours log to `docs/plan/parking-lot.md` and `docs/plan/hours-log.md`,
-  leaving a one-line pointer heading in `PLAN.md` (about 59 references name these sections, 23 of
-  them code comments). Old `PLAN.md` line numbers in `docs/audit-2026-09-30.md` and the logs get a
+  leaving a one-line pointer heading in `PLAN.md`: about 105 lines outside `PLAN.md` and the three
+  history docs name these sections, 46 of them in code, tests, scripts and deploy files
+  (`git grep -E "Parking lot|Hours log"`, 2026-10-26). Old `PLAN.md` line numbers in `docs/audit-2026-09-30.md` and the logs get a
   dated note that they point at `PLAN.md` as it was then.
 - The logs by month (`docs/logs/work-YYYY-MM.md`, `docs/logs/overnight-YYYY-MM.md`), the old files
   kept as small indexes, and `docs/plan/blocked.md` so `/overnight` finds blocked tasks without
   reading a 1.1 MB log.
 - Update CLAUDE.md rule 10's wording, `.claude/commands/next-task.md`, `overnight.md`,
-  `log-hours.md`, `fact-check.md` and `.claude/agents/doc-fact-checker.md` to the new places.
-- Short local `CLAUDE.md` files only under `src/lib/<area>/` (integrations, rules, roster, the
-  worker's jobs), which Claude Code reads only when working there; not under `src/app` (about 20
-  unit tests walk it).
+  `log-hours.md`, `fact-check.md` and `.claude/agents/doc-fact-checker.md` to the new places
+  (`close-task.md` and the `claims-auditor` need no change while "Done when" lines stay put).
+- Short local `CLAUDE.md` files only under `src/lib/<area>/` (integrations, rules, roster) and
+  `src/worker/`, which Claude Code reads only when working there; not under `src/app`, which unit
+  tests walk (check which before adding any).
 - Tests: `scripts/selftest.sh` passes; the archive pin fails on a planted change; `/fact-check`
-  finds no dead links; `PLAN.md` under 60 KB.
+  finds no dead links; `PLAN.md` under 100 KB (the Decisions list alone is about 50 KB: if that's
+  still too much, it moves to `docs/plan/` next).
 
-### P2 — Reach casuals in production (a blocker for any pilot; M, A)
+### P2 — Reach casuals in production (a blocker for any pilot; S, M, A)
 
-Why: casuals get their login link by WhatsApp only (`src/lib/auth/send-portal-link.ts`), no real
+Why: casuals get their login link and their pay code by WhatsApp only
+(`src/lib/auth/send-portal-link.ts`, `src/lib/auth/send-login-code.ts`), no real
 text sender exists (`MESSAGING_TRANSPORT` takes only `console`, `src/lib/env.ts`), and the job worker
 refuses to start in production without one (`src/lib/env.ts`, `deploy/docker-compose.yml`). Every
 sync, webhook, reminder and offer wave runs in that worker.
 
 - The worker runs in production with no text sender: app notifications and email only
   (`src/lib/env.ts`, `src/lib/messaging/index.ts`, `deploy/docker-compose.yml`, `docs/runbooks.md`).
-- Casuals can get their login link by email, a stop-gap until texts exist (AXLR8 holds their email
-  addresses).
+- Casuals can get their login link and their pay code (the Pay page's extra check) by email, a
+  stop-gap until texts exist (AXLR8 holds their email addresses).
 - A per-firm "who sends what" setting, so ShiftDesk never repeats a confirmation or reminder the
-  firm's CRM already sends.
+  firm's CRM already sends (a new settings key: a migration like
+  `drizzle/0037_firm_setting_checks.sql`).
 
-### P3 — Fit the firm's model (items 1, 2 and 4 decided 2026-10-26; item 3 needs Rules 3)
+### P3 — Fit the firm's model (items 1, 2 and 4 decided 2026-10-26; item 3 needs Rules 3; item 5 waits on discovery)
 
 1. **Pay day** (S, UI). Quick fix first: the casual's Home takes the pay day from the imported
    `pay_records.pay_date` when there is one, as the office's pay page already does (today
@@ -1686,9 +1694,10 @@ sync, webhook, reminder and offer wave runs in that worker.
    pure `payWeek()` (`src/lib/pay/pay-week.ts`) becomes `payPeriod(day, calendar)` with today's rule
    as the default; the setting goes through `src/lib/onboarding/settings.ts` and a migration like
    `drizzle/0037_firm_setting_checks.sql`; its readers are the top bar (`src/app/office/layout.tsx`,
-   `office-shell.tsx`), the dashboard (`dashboard-view.tsx`, `dashboard-charts-load.ts`), the pay
-   dashboard (`src/lib/office/pay-dashboard.ts`), pay-query grouping (`src/lib/pay/grouping.ts`) and
-   Home (`src/app/page.tsx`, `src/lib/portal/home-copy.ts`). The weekly hours cap stays Monday to
+   `office-shell.tsx`, `office-frame.tsx`), the dashboard (`dashboard-view.tsx`,
+   `dashboard-charts-load.ts`), the pay dashboard (`src/lib/office/pay-dashboard.ts`), and Home
+   (`src/app/page.tsx`, `src/app/home-view.tsx`, `src/lib/portal/home-copy.ts`); pay-query grouping
+   (`src/lib/pay/grouping.ts`) groups by the Monday (`mondayOf`) and moves to the pay period. The weekly hours cap stays Monday to
    Sunday. Tests use made-up anchors, the 53-week year (2026) and the clock change.
 2. **A name map per firm** (S, T, R): each outside name for a role, qualification, staff type or
    cancellation reason, mapped to a ShiftDesk code (and a role's pay rate), or to "skip"
@@ -1715,16 +1724,19 @@ sync, webhook, reminder and offer wave runs in that worker.
 ### P4 — Ready for a big firm (no screen changes but "and N more" lines; S, M, R)
 
 Target: about 2,000 casuals, 110 events a fortnight, 10 office users at once, 1,000 messages in 10
-minutes. Today (`docs/architecture.md`: built for pilot scale) a first-come wave goes to everyone
-eligible one at a time (about 1,500 texts for one place, about 9 minutes, other firms' waves waiting),
-the pool is 10 connections per process with no timeouts, and every office page opens 5 transactions
-one after another before its own.
+minutes. Today the design assumes small numbers (`docs/architecture.md`: "Scale is small (tens to a
+couple of hundred messages per firm per day …)"). A first-come wave goes to everyone eligible, one
+at a time: an estimate, if 1,500 of 2,000 casuals are eligible at about 0.35 s each (one rules
+check of about 9 queries, the locks and the send), is about 1,500 texts and about 9 minutes for one
+place, with other firms' waves waiting. The pool is 10 connections per process with no timeouts,
+and an office page opens up to 5 transactions one after another before its own (an admin's; fewer
+for a resourcer or payroll).
 
 - Database: a checkout timeout and pool sizes per process (`src/lib/db/pool.ts`);
   `statement_timeout` and `idle_in_transaction_session_timeout` per database role
   (`src/lib/db/admin/roles.ts`), not as connection options, so a pooler can be added later
   (`withFirm`'s transaction-local `set_config` and the transaction-scoped locks are already
-  pooler-safe); indexes on `shifts(firm_id, shift_event_id)`, `shifts(firm_id, ends_at)`,
+  pooler-safe); indexes on `shifts(firm_id, event_id)`, `shifts(firm_id, ends_at)`,
   `assignments(firm_id, cancelled_at)`, `offers(firm_id, sent_at)` and the action log by action; the
   jsonb OR chain in `src/lib/office/action-log.ts` replaced.
 - Office pages: the layout's 5 reads in one transaction (`src/app/office/layout.tsx`); Needs
@@ -1737,8 +1749,9 @@ one after another before its own.
   still wins by the conditional `UPDATE`.
 - Reminders claimed and sent in chunks (`src/lib/reminders/send.ts`).
 - AI: one client per process (`src/lib/inbound/reply.ts` makes one per job), a cap on parallel
-  calls, one retry on 429, and the parked circuit breaker; the default moves to the current Haiku
-  (`claude-haiku-5-5`) after the sorting tests are re-run.
+  calls, one retry on 429, and the parked circuit breaker; the default (`claude-haiku-4-5`, `src/lib/env.ts`)
+  moves to the current Haiku, its id checked with the claude-api skill, after the sorting tests
+  are re-run.
 - Inbound: caps per sender and per firm, the parked cap on "unknown number" emails, an auto-reply
   loop guard; "one worker process" written down until pg-boss 12's group limit is shown to hold
   across processes.
@@ -1746,7 +1759,8 @@ one after another before its own.
   `src/lib/ops/tick.ts`.
 - Load tests at the target: `tests/integration/inbound.load.test.ts`,
   `tests/integration/offers.waves*.test.ts`, `tests/e2e/load.smoke.spec.ts`,
-  `src/lib/db/admin/seed-story-load.ts`.
+  `src/lib/db/admin/seed-story-load.ts`; and `docs/architecture.md`'s scale line updated to the
+  target.
 
 ### P5 — The connector, and AXLR8 (attended; S, A, T, M, R, UI)
 
@@ -1754,9 +1768,11 @@ The framework and the secret store now, against a made-up system; the AXLR8 conn
 its PDF and a sandbox. Under ADR-026 (`docs/decisions.md`, accepted 2026-10-26).
 
 - A secret store, shared later with the text system's keys: a table the app role has no rights on,
-  written only by an owner script, read through an owner-run function only the jobs role may call
-  (only the worker has `DATABASE_JOBS_URL`), encrypted (AES-GCM) with a key only the worker's
-  settings hold.
+  written only by an owner script, read through an owner-run function only the jobs role may call,
+  encrypted (AES-GCM) with a key only the worker's settings hold. `DATABASE_JOBS_URL` is the
+  worker's (and the one-off migrate and owner containers'), never the web app's; today the worker
+  uses it for pg-boss only and does firm work on `DATABASE_URL`, so the connector opens a second,
+  jobs-role connection for that one read.
 - A new source table and source value (`roster_sources` takes only Sheets): added to the `shifts`,
   `shift_events` and `cancel_via` checks, and a "connector" caller in `src/lib/roster/firm-caller.ts`.
 - Reuse: the Sheets tick, lease and cadence (`src/lib/roster/sheets/jobs.ts`, `cadence.ts`,
@@ -1764,16 +1780,20 @@ its PDF and a sandbox. Under ADR-026 (`docs/decisions.md`, accepted 2026-10-26).
   `upsertWorker()`, `recheckHolders()`, `markUrgentAfterDropout()`, `retryAborted()`, the Gate B check
   (`src/lib/imports/gate-b.ts`), and the planner API's own functions for booked sessions
   (`src/lib/integrations/sessions.ts`), never a second copy.
-- Polls: sessions in the next 48 hours every minute, the rest every 15 minutes, staff hourly,
+- Polls run as jobs in the worker, never in a request (like the Sheets sync): sessions in the next
+  48 hours every minute, the rest every 15 minutes, staff hourly,
   qualifications nightly; one transaction per event; only syncs that changed something are logged
   (else about 1,440 log rows a day per firm). Sessions come in hidden from casuals, which gives the
   shadow cycle.
 - Never booked twice: a casual is never told "Booked" unless AXLR8 accepted it or the office handed
-  that place to ShiftDesk. If AXLR8 takes writes: hold the place as "confirming", book in AXLR8
-  outside any transaction (3 to 4 seconds), then confirm or release ("That place has just gone"), or
-  "We're confirming your place" while a job finishes it; re-read, and release ours if AXLR8 went over
-  the count. If AXLR8 is read-only: finish the "needs approval" path the roster plug already has
-  (`src/lib/roster/plug.ts`): "Take shift" becomes a request and the office gets an "Enter in AXLR8"
+  that place to ShiftDesk. If AXLR8 takes writes: hold the place as "confirming" (taken by
+  the same conditional `UPDATE` as any booking, golden rule 4), book in AXLR8 outside any
+  transaction (a limit of a few seconds, set once AXLR8's API is known), then confirm or release
+  ("That place has just gone"), or "We're confirming your place" while a job finishes it; re-read,
+  and release ours if AXLR8 went over the count. If AXLR8 is read-only: a new read-only plug
+  (`canWrite` false, so `assign` answers `needs_approval`: `src/lib/roster/plug.ts`), with
+  `plugFor()` in `src/lib/roster/book.ts` taught the new source (today every source but Sheets
+  gets the native plug): "Take shift" becomes a request and the office gets an "Enter in AXLR8"
   list; for urgent shifts the office hands a few places to ShiftDesk to take at once. Either way, a
   booking added in AXLR8 runs the rules like an office placement and, if refused (an expired licence),
   raises an urgent Needs attention item instead of booking; going over the count is a conflict to
@@ -1786,7 +1806,7 @@ its PDF and a sandbox. Under ADR-026 (`docs/decisions.md`, accepted 2026-10-26).
   in `scripts/invariants.sh`. A sync status card on Integrations and Needs attention items for
   conflicts (mock-ups first).
 
-### P6 — The ops portal (only if it has an API or an export)
+### P6 — The ops portal (only if it has an API or an export; S, M, UI)
 
 - Attendance in: worked and no-show onto bookings (`src/lib/roster/attendance.ts`), so the office
   stops marking them by hand. A no-show is still never a strike.
@@ -1959,7 +1979,7 @@ that proposal gets the go-ahead.
 |---|---|---|---|
 | 1 | **Before a pilot:** urgent messages go during quiet hours (22:00–07:00) unless a firm turns it off; the spec reads as "if the firm allows it" | Urgent messages go at night | `src/lib/rules/quiet-hours.ts`; log, Phase 4 (never flagged before) |
 | 2 | Notifications by WhatsApp or text **and** push, or push first to save the WhatsApp fee (ADR-003 said push first) | Both | Parking lot "Dylan to confirm: notifications go by WhatsApp…" |
-| 3 | **Before a pilot:** first come, first served sends the urgent offer to every eligible worker at once, not "the best 3–5" | Everyone at once | Parking lot "Offer waves follow-ups" |
+| 3 | **Before a pilot:** first come, first served sends the urgent offer to every eligible worker at once, not "the best 3–5" | Everyone at once. **Decided** (Dylan, 2026-10-26): a cap on each wave ("Connecting the firm's systems" 5; built in P4) | Parking lot "Offer waves follow-ups" |
 | 4 | The 3-offers-a-day cap: fixed, or per firm; urgent offers count towards it | Fixed; urgent ones count | Parking lot (offer cap items) |
 | 5 | Re-offer to workers whose earlier offers became "filled elsewhere" when the office reopens a shift? | No | Parking lot |
 | 6 | A wave held by quiet hours past the shift's start | Stops as "started"; only the escalation tells the office | "Connect Twilio", last paragraph |
@@ -2101,10 +2121,10 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
 | # | Decision | Until built | Where |
 |---|---|---|---|
 | 1 | **Decided** (Dylan, 2026-10-26: recommended): a pay calendar per firm (7 or 14 days, its own start, "Week" or "Cycle"), replacing D8 (Pay 10), with the quick fix first (the casual's Home shows the imported pay date when there is one) | One weekly rule for every firm; Home works the pay day out from it, so a fortnightly firm's casuals would see the wrong day | P3 item 1 |
-| 2 | **Decided** (Dylan, 2026-10-26: recommended): ADR-026, a pull connector for AXLR8, amending "no adapter per planner" (ADR-022): AXLR8's API looks pull-only, the firm has nobody to write pushes, and AXLR8's customers are the firms we sell to | Planners push by the API; no adapters | P5; `docs/decisions.md` ADR-026 (accepted) |
+| 2 | **Decided** (Dylan, 2026-10-26: recommended): ADR-026, a pull connector for AXLR8 (ShiftDesk fetches from AXLR8 on a timer, rather than waiting for AXLR8 to send), amending "no adapter per planner" (ADR-022: no special code for each planner's own system): AXLR8's API looks pull-only, the firm has nobody to write pushes, and AXLR8's customers are the firms we sell to | Planners push by the API; no adapters | P5; `docs/decisions.md` ADR-026 (accepted) |
 | 3 | **Decided** (Dylan, 2026-10-26: recommended): the staffing email inbox brought forward from Stage 2, after P2 and P4 | Stage 2, after 3 paying firms | P7 |
 | 4 | **Decided** (Dylan, 2026-10-26: recommended): casuals' login link by email, a stop-gap until texts exist | WhatsApp only, which no live server can send | P2 |
-| 5 | **Decided** (Dylan, 2026-10-26: recommended): a cap on each offer wave (for example a few people per free place, by the existing ranking; the number is set when P4 is built): one place can mean about 1,500 texts today | First come, first served: everyone eligible at once | P4 |
+| 5 | **Decided** (Dylan, 2026-10-26: recommended): a cap on each offer wave (for example a few people per free place, by the existing ranking; the number is set when P4 is built): one place can mean about 1,500 texts today (an estimate: 1,500 of 2,000 casuals eligible) | First come, first served: everyone eligible at once | P4 |
 | 6 | **Decided** (Dylan, 2026-10-26: recommended): record who asked for each cancellation (casual, firm, client, unknown) apart from who carried it out, and a strikes switch per firm | Not recorded; strikes always on | P3 item 4 |
 | 7 | **Decided** (Dylan, 2026-10-26: recommended): import the CRM's Casual sessions only, never Contracted or Holiday ones | Nothing imported | P3 item 2 |
 | 8 | **Decided** (Dylan, 2026-10-26: recommended): a booking added in the CRM that the rules refuse (an expired licence) is flagged as urgent, never booked (golden rule 6) | As the rota sheet: not booked, reported | P5 |

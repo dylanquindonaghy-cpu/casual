@@ -91,6 +91,7 @@ launched its own AI in November 2025.
 **Decision:** Target spreadsheet/WhatsApp firms. Ask "what do you use to plan your rota?" on
 the first call and move on politely if it's one of those. Offer native mode for firms with nothing.
 **Consequences:** no Deputy/Parim plugs planned.
+**Amended 2026-10-26 (ADR-026):** one named pull connector, for AXLR8, a CRM our target firms use.
 
 ## ADR-009: Sell one sector at a time; credentials are generic
 
@@ -142,6 +143,8 @@ snapshots; with Postgres in Compose (a host with no managed Postgres), a `pg_dum
 `postgres` superuser, because the owner still sees no firm rows under forced RLS.
 **Revisit when:** a second service needs database access, or pg-boss changes its table layout
 (the `rls.every-table` test checks the `job_common` policies still exist).
+**Amended 2026-10-26 (ADR-026):** a further owner-run function, reading a firm's encrypted
+credentials, callable by the jobs role only (when proposal P5 is built).
 
 ## ADR-012: Host → firm in two steps: shape check in proxy.ts, firm lookup in each page and action
 
@@ -193,6 +196,9 @@ whose locale is United Kingdom is read (its dates read day first), and a spreads
 firm, connected only by the owner (`npm run firm:sheet`), never by the app.
 **Revisit when:** a firm needs one row per slot instead of an "Assigned" list, or sheets get big
 enough that one read per minute is too slow.
+**Amended 2026-10-26 (ADR-026):** this pattern (tick, lease, merge) is reused for pull connectors.
+The Sheets key stays in the worker's environment; a firm's own credentials go in ADR-026's
+encrypted secret store.
 
 ## ADR-014: One booking path; "re-check the live source" means current rows and a fresh sheet copy
 
@@ -527,6 +533,8 @@ the page; never logged), and only public addresses are ever reached. A webhook c
 `INTEGRATIONS_SECRET` changes every firm's signing secret (`docs/runbooks.md`). Planners must send
 one ref's PUTs one at a time with no automatic replays (`docs/integrations.md`). **Revisit when:** a
 planner needs OAuth or per-key scopes, a firm needs more than 10 keys, or `/api/v2`.
+**Amended 2026-10-26 (ADR-026):** "no adapter per planner" now excepts a pull connector for a CRM
+that can't push (AXLR8 first).
 
 ## ADR-023: Travel times from TravelTime, postcodes from postcodes.io, a straight line when down
 
@@ -689,17 +697,24 @@ place.
   (`src/lib/roster/sheets/merge.ts`) reused as it is. A connector changes sessions only through the
   planner API's own functions (`src/lib/integrations/sessions.ts`) and staff only through
   `upsertWorker()`, so the rules, notice hours and messages to casuals are the same code whatever
-  the source. Only syncs that changed something are logged.
+  the source. Polls run as jobs in the worker, never in a request: golden rule 3 covers provider
+  webhooks, and a poll keeps its spirit (one short transaction per event, safe to repeat because
+  each row is matched by the CRM's own id). Only syncs that changed something are logged.
 - **A secret store** for each firm's credentials (the first secret a firm gives us; today secrets
   live only in the environment, ADR-013): a table the app role has no rights on, written only by an
-  owner script, read through an owner-run function only the jobs role may call (only the worker
-  has `DATABASE_JOBS_URL`), encrypted with AES-GCM under a key only the worker's settings hold. The
-  text system's keys (Phase 15) use it too.
+  owner script, read through an owner-run function only the jobs role may call, encrypted with
+  AES-GCM under a key only the worker's settings hold. `DATABASE_JOBS_URL` is the worker's (and the
+  one-off migrate and owner containers'), never the web app's; the worker uses it for pg-boss
+  today and does firm work on `DATABASE_URL`, so the connector opens a second, jobs-role
+  connection for that one read. The text system's keys (Phase 15) use the store too.
 - **Never booked twice across the two systems:** a casual is never told "Booked" unless the CRM
   accepted the booking, or the office handed that place to ShiftDesk. With a CRM that takes
-  writes, the place is held as "confirming" while the CRM is called outside any transaction; with a
-  read-only one, "Take shift" becomes a request on the office's "Enter in AXLR8" list (the roster
-  plug's `needs_approval`, `src/lib/roster/plug.ts`). A booking that appears in the CRM runs the
+  writes, the place is held as "confirming" (taken by the same conditional `UPDATE` as any booking,
+  golden rule 4) while the CRM is called outside any transaction; with a read-only one, "Take shift"
+  becomes a request on the office's "Enter in AXLR8" list: a new read-only plug whose `canWrite` is
+  false, so `assign` answers `needs_approval` (`src/lib/roster/plug.ts`), and `plugFor()`
+  (`src/lib/roster/book.ts`) taught the new source (today every source but Sheets gets the native
+  plug). A booking that appears in the CRM runs the
   rules like an office placement and is flagged, not booked, if they refuse. A confirmed booking is
   never cancelled by a sync.
 - **Notice hours** for a cancellation seen by a poll use the CRM's own cancelled time only when it
@@ -714,7 +729,10 @@ place.
   planner, except a pull connector under this ADR".
 - **ADR-008** ("no Deputy/Parim plugs planned"): one named connector, for a CRM our target firms use.
 - `docs/office-v2.md` §5.3.5 ("No new `RosterPlug`"): the connector is a new source behind the
-  same plug.
+  same `RosterPlug` interface, with its own plug (a read-only one if the CRM takes no writes).
+- **ADR-011:** a fourth owner-run function, the secret read, callable by the jobs role only.
+- **ADR-013:** the Sheets key stays in the worker's environment, never in the database; a firm's
+  own credentials go in the secret store, encrypted under a key that isn't.
 **Options:**
 | Option | Verdict |
 |---|---|

@@ -1790,7 +1790,7 @@ P4.4), "one retry on 429" (it rarely fits in the 5 seconds, and `tests/unit/ai.a
 pins "nothing is retried", P4.6), and limits "per database role" (per transaction instead,
 ADR-027, P4.2).
 
-- [ ] Indexes for a big firm's lists: `shifts (firm_id, event_id)`, `shifts (firm_id, ends_at)`,
+- [x] Indexes for a big firm's lists: `shifts (firm_id, event_id)`, `shifts (firm_id, ends_at)`,
       `assignments (firm_id, cancelled_at)`, `offers (firm_id, sent_at)` and `events (firm_id,
       action, created_at)`, declared in `src/lib/db/schema/` with one migration
       (`npm run db:generate`, plain `CREATE INDEX` like `drizzle/0028_pilot_size_indexes.sql`).

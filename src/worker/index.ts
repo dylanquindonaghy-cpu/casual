@@ -1,5 +1,5 @@
 import { listFirmIds } from "../lib/db/directory";
-import { withFirm } from "../lib/db/scoped";
+import { chooseDbProfile, withFirm } from "../lib/db/scoped";
 import { isDemoFirm } from "../lib/demo/firms";
 import { assertDemoServer, watchDemoServer, type DemoServerChecks } from "../lib/demo/guard";
 import { realPeopleIn } from "../lib/demo/people";
@@ -14,6 +14,8 @@ import { startHeartbeat } from "./heartbeat";
 import { registerJobs } from "./jobs";
 
 routeConsoleThroughMasking();
+// The worker's share of the database and its longer limits (P4.2; ADR-027), before its first query.
+chooseDbProfile("worker");
 // Log through the masker, then crash as Node would by default (the process manager restarts it).
 process.on("unhandledRejection", (reason) => {
   log.error("unhandled rejection", { error: reason });

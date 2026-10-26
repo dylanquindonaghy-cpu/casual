@@ -3,7 +3,7 @@ import { PgTable, type SelectedFields } from "drizzle-orm/pg-core";
 import { systemClock } from "../auth/clock";
 import { retryAborted } from "../db/retry";
 import * as schema from "../db/schema";
-import type { FirmTx } from "../db/scoped";
+import { allowLonger, LONG_TRANSACTIONS, type FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { addressHint } from "../integrations/send";
 import { officeUserMay, parts, type OfficeContext } from "../office/office-context";
@@ -125,6 +125,8 @@ export async function exportFirmData(
   const now = (ctx.clock ?? systemClock).now();
   return retryAborted(() =>
     run(firm.id, async (tx): Promise<FirmExportResult> => {
+      // Every table in one read: longer than a page's own limits (ADR-027).
+      await allowLonger(tx, LONG_TRANSACTIONS.firmExport);
       if (!(await officeUserMay(tx, by.id, "data"))) return { status: "not_allowed" };
       const data = await collectFirmData(tx, now);
       const rows = Object.values(data.tables).reduce((sum, t) => sum + t.length, 0);

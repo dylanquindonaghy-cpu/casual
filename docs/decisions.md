@@ -771,3 +771,44 @@ connector's own tests and P4's load tests cover a firm at about 2,000 casuals an
 fortnight. A CRM that changes its API breaks one connector, not the API in. The rest is in
 `PLAN.md` proposal P5. **Revisit when:** AXLR8 offers webhooks (then push, through ADR-022), AXLR8 can
 be asked (its connector then replaces the ops portal's), or a second CRM needs a connector.
+
+## ADR-027: The database's time limits are set per transaction, in withFirm
+
+**Status:** Accepted, 2026-10-26 (Dylan, in chat; `PLAN.md`, "Connecting the firm's systems" 14).
+Built in P4.2.
+**Context:** Until P4.2 the app's pool waited for a connection for ever and no statement or idle
+transaction had a limit. At pilot size that never mattered; at a firm of about 2,000 casuals (P4's
+target) one slow query or a stuck transaction holds a connection while every page and job behind
+it queues with no end. Postgres has the limits (`statement_timeout`,
+`idle_in_transaction_session_timeout`); the question is where to set them.
+**Decision:**
+- **Per process, a profile** (`src/lib/db/pool.ts`): the web app waits at most 5 s for a
+  connection from a pool of 10, and its statements and idle transactions end after 15 s and 30 s;
+  the worker waits at most 30 s from a pool of 15, with 60 s and 60 s. The web app answers people, so
+  a page fails rather than hangs; a job can wait longer, and pg-boss retries it. The worker picks
+  its profile before its first query (`chooseDbProfile("worker")` in `src/worker/index.ts`); scripts
+  and the web app run as "web".
+- **Per transaction, in withFirm's own statement:** the limits are set with `set_config(..., true)`
+  in the same `select` that sets `app.current_firm_id`, so they cost no extra round trip and end
+  with the transaction like the firm id does. A pooled connection never carries them into the next
+  transaction, and a connection pooler in transaction mode (pgbouncer) keeps working.
+- **Longer for the few that need it**, as the transaction's first statement
+  (`allowLonger(tx, LONG_TRANSACTIONS.…)`): the credential scan's lock holder (it sits idle by
+  design while the scan's messages go, so no idle limit, and 6 minutes for its statements, above
+  its own 5-minute `lock_timeout`), the firm's data export (2 minutes), the retention purge (10) and
+  the metrics roll-up (5).
+- `createWithFirm(pool)` with no limits behaves as before, so tests choose their own.
+- withFirm counts the waits for a connection over 1 s and the waits that ran out, for the backlog
+  alerts (P4.8).
+**Options:**
+| Option | Verdict |
+|---|---|
+| `ALTER ROLE … SET statement_timeout` | One value for the web app and the worker alike (they log in as the same role); shared by the dev, test and e2e databases on one machine; a non-superuser owner needs extra rights to set it; the scan's holder would need it lifted per transaction anyway |
+| Connection options (`options=-c statement_timeout=…` in the URL) | A pooler such as pgbouncer refuses them; a setting per connection, not per piece of work |
+| No limits | One stuck transaction can starve every page and job |
+**Consequences:** a legitimately long statement now fails with SQLSTATE 57014 (statement timeout),
+and a transaction left idle too long ends its connection with 25P03; both show as a failed page or
+a failed job (pg-boss retries it), never as a silent wait. The known long ones are listed above;
+any new one must use `allowLonger`. `docs/runbooks.md` says what the two codes mean.
+**Revisit when:** a second web process or a connection pooler is added (the budget: about 30
+connections today), or a job needs more than 10 minutes for one statement.

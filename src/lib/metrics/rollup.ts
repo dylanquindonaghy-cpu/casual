@@ -2,7 +2,7 @@ import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { systemClock, type Clock } from "../auth/clock";
 import { firms, metricsDaily } from "../db/schema";
-import type { FirmTx, WithFirm } from "../db/scoped";
+import { allowLonger, LONG_TRANSACTIONS, type FirmTx, type WithFirm } from "../db/scoped";
 import { firmJobEnvelope, sendFirmJob, type FirmTask } from "../jobs/firm-job";
 import { log, type Logger } from "../log";
 import { shortNoticeThreshold } from "../office/notice-report";
@@ -174,9 +174,11 @@ export function metricsRollupTask(clock: () => Clock): FirmTask<MetricsRollupPay
   return {
     ...job,
     task: (payload, run) =>
-      run(payload.firmId, (tx) =>
-        rollupFirm(tx, payload.idempotencyKey.slice(KEY_PREFIX.length), clock().now()),
-      ),
+      run(payload.firmId, async (tx) => {
+        // A day's figures read from the whole log: longer than a job's own limits (ADR-027).
+        await allowLonger(tx, LONG_TRANSACTIONS.metricsRollup);
+        return rollupFirm(tx, payload.idempotencyKey.slice(KEY_PREFIX.length), clock().now());
+      }),
   };
 }
 export const metricsRollupFirmTask = metricsRollupTask(() => systemClock);

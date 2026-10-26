@@ -643,6 +643,24 @@ delivery is tried 7 times over about an hour; the last try logs `webhook.failed`
 4. **`INTEGRATIONS_SECRET`:** see "The planner integration secret" above: rotate it, then every firm
    with a webhook pastes its new signing secret.
 
+## A page or job fails with a database time limit
+
+Since P4.2 (ADR-027) nothing waits for ever. In the logs or a failed job:
+- **57014** ("canceling statement due to statement timeout"): one statement ran longer than its
+  limit (15 s on a page, 60 s in a job). A job retries; a page shows its error. If the same one
+  keeps failing, find the query, and either make it faster (an index, a cap) or give its
+  transaction `allowLonger()` with a reason, in code.
+- **25P03** ("terminating connection due to idle-in-transaction timeout") or "Client has
+  encountered a connection error and is not queryable": a transaction sat idle (waiting on
+  something outside the database) longer than its limit (30 s or 60 s). The connection is closed
+  and the pool opens a new one. Work outside the database belongs outside the transaction.
+- **"timeout exceeded when trying to connect"**: every connection in the process's pool was busy
+  for 5 s (web) or 30 s (worker). Look for a slow query holding them, then at the pool sizes.
+
+The connection budget: the web app's pool of 10, the worker's 15 and pg-boss's 5, about 30 in all,
+plus a one-off migration or owner command. The database's `max_connections` must be well above
+that: check the host's plan before choosing one (`show max_connections;` as the owner).
+
 ## Event-morning outage (the one that matters)
 
 1. Twilio's fallback already puts calls through to the manager's mobile when the app doesn't

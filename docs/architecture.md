@@ -59,6 +59,12 @@ mornings). Reliability matters far more than scale.
   bound parameter, ended by COMMIT/ROLLBACK so a pooled connection never carries a firm into the
   next request. Nesting throws. The pool refuses to run as a superuser, a BYPASSRLS role or a
   table owner. ESLint blocks app code from importing the raw pool, the owner connection or `pg`.
+- **Time limits per transaction** (P4.2, ADR-027): the same statement sets `statement_timeout` and
+  `idle_in_transaction_session_timeout`, so they end with the transaction too. Each process has a
+  profile (`src/lib/db/pool.ts`): the web app a pool of 10, a 5 s wait for a connection, 15 s
+  statements and 30 s idle; the worker (`chooseDbProfile("worker")`) a pool of 15, 30 s, 60 s and
+  60 s. The credential scan's lock holder, the firm's data export, the retention purge and the
+  metrics roll-up take longer ones with `allowLonger()`.
 - **RLS** is enabled and forced on every table, with one policy:
   `firm_id = (select app_current_firm_id())`, where `app_current_firm_id()` returns NULL when no
   firm is set, so a query outside `withFirm` sees nothing and can write nothing.

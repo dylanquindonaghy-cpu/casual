@@ -764,6 +764,35 @@ describe("credential-scan: failures and races", () => {
     });
   });
 
+  it("the scan's lock holder isn't ended by a short idle limit while the messages go (P4.2)", async () => {
+    const f = await newFirm();
+    const sam = await addWorker(f.firmId, { ref: "S1" });
+    await addCredential(f.firmId, sam.id, {
+      type: "SIA_DS",
+      expiresOn: "2026-10-05",
+      warnedFor: "2026-10-05",
+      warnedDays: 7,
+    });
+    // Limits far shorter than the message takes: the holder's transaction sits idle meanwhile, and
+    // only its own allowLonger (no idle limit) keeps its connection, and the firm's scan lock.
+    const limited = createWithFirm(app, {
+      limits: { statementMs: 5_000, idleInTransactionMs: 300 },
+    });
+    const slow: MessagingTransport = {
+      name: "slow",
+      async send() {
+        await new Promise((resolve) => setTimeout(resolve, 1_000));
+        return { providerMessageId: "slow-1" };
+      },
+    };
+    const scan = scanCredentials(
+      { firmId: f.firmId, idempotencyKey: `credential-scan:${TUESDAY_DATE}` },
+      limited,
+      { transport: slow, baseDomain: BASE_DOMAIN },
+    );
+    expect(await scan).toMatchObject({ expired: 1 });
+  });
+
   it("a list that can't be sent never undoes or repeats the workers' messages, and is logged", async () => {
     const f = await newFirm();
     await addOfficeUser(f.firmId, "admin@example.com", "admin");

@@ -13,7 +13,13 @@ import {
   travelEstimates,
   uploads,
 } from "../db/schema";
-import { activeFirmId, type FirmTx, type WithFirm } from "../db/scoped";
+import {
+  activeFirmId,
+  allowLonger,
+  LONG_TRANSACTIONS,
+  type FirmTx,
+  type WithFirm,
+} from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { firmJobEnvelope, sendFirmJob, type FirmTask } from "../jobs/firm-job";
 import { log, type Logger } from "../log";
@@ -232,7 +238,12 @@ async function purgeUploads(tx: FirmTx, cutoff: Date): Promise<number> {
 export function retentionPurgeTask(clock: () => Clock): FirmTask<RetentionPurgePayload> {
   return {
     ...job,
-    task: (payload, run) => run(payload.firmId, (tx) => purgeExpired(tx, clock().now())),
+    task: (payload, run) =>
+      run(payload.firmId, async (tx) => {
+        // A firm's whole purge in one transaction: longer than a job's own limits (ADR-027).
+        await allowLonger(tx, LONG_TRANSACTIONS.retentionPurge);
+        return purgeExpired(tx, clock().now());
+      }),
   };
 }
 export const retentionPurgeFirmTask = retentionPurgeTask(() => systemClock);

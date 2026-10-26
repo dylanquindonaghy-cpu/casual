@@ -10,7 +10,7 @@ import {
   officeUsers,
   workers,
 } from "../db/schema";
-import type { FirmTx, WithFirm } from "../db/scoped";
+import { allowLonger, LONG_TRANSACTIONS, type FirmTx, type WithFirm } from "../db/scoped";
 import { workerEnv } from "../env";
 import { recordEvent } from "../events/record";
 import { errorCode, firmJobEnvelope, sendFirmJob, type FirmTask } from "../jobs/firm-job";
@@ -146,6 +146,8 @@ async function oneScanAtATime<T>(
     // A scan stuck mid-send must not leave every later one waiting forever, each holding a
     // connection: after a few minutes the wait fails (nothing claimed yet), and pg-boss retries.
     await tx.execute(sql`select set_config('lock_timeout', ${SCAN_LOCK_WAIT}, true)`);
+    // It sits idle by design until the scan ends, so no idle limit for it (ADR-027).
+    await allowLonger(tx, LONG_TRANSACTIONS.scanLockHolder);
     await lockFirmScan(tx);
     locked();
     await finished;

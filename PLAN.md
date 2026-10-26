@@ -1815,7 +1815,7 @@ ADR-027, P4.2).
       5, 5 and 2, and 4 places' 20 (`offers.waves.test.ts`, `waves.timing.test.ts`); 2,000
       casuals offered 5 for one place (`tests/helpers/bulk-seed.ts`, `offers.scale.test.ts`); the
       lock test at the 50 cap with every check kept; `firm:settings` (`onboarding.test.ts`) (P4.3)
-- [ ] Waves send 4 at a time, each casual still claimed alone under the shift's lock; one wave per
+- [x] Waves send 4 at a time, each casual still claimed alone under the shift's lock; one wave per
       fetch (`OFFER_WAVE_WORK_OPTIONS`, `src/worker/jobs/index.ts`); the eligibility loader groups
       its rows by casual once (same verdicts). Then the `guardrails-reviewer`. Tests: at most 4 in
       flight, nobody messaged twice after a crash, Take shift within 2 s

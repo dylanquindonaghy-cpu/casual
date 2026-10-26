@@ -203,6 +203,8 @@ describe("a firm's settings", () => {
       "quiet_hours.start": ["22:00", "default"],
       "quiet_hours.end": ["07:00", "default"],
       "quiet_hours.urgent_override": [true, "default"],
+      // The shifts line's automatic replies: off until the owner switches them on (P4.7).
+      auto_replies: [false, "default"],
       // How long the firm keeps things (Phase 10, audit M24): the spec's defaults until agreed.
       "retention.message_days": [90, "default"],
       "retention.request_note_days": [365, "default"],
@@ -275,6 +277,11 @@ describe("a firm's settings", () => {
       status: "saved",
       keys: ["wave_per_place"],
     });
+    // The shifts line's automatic replies, switched on (P4.7).
+    expect(await setFirmSettings(urls.admin, f.slug, [["auto_replies", "true"]])).toMatchObject({
+      status: "saved",
+      keys: ["auto_replies"],
+    });
   });
 
   it("refuses a value the app would ignore or fall back from; nothing is saved", async () => {
@@ -293,6 +300,7 @@ describe("a firm's settings", () => {
       ["quiet_hours.start", "25:00"],
       ["quiet_hours.end", "7am"],
       ["quiet_hours.urgent_override", "maybe"],
+      ["auto_replies", "yes"],
       ["urgent_window_hours", ""],
     ] as const) {
       expect(await setFirmSettings(urls.admin, f.slug, [[key, value]]), `${key}=${value}`).toEqual({

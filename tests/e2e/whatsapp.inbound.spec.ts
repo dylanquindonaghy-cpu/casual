@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { twilioSignature } from "../../src/lib/inbound/twilio-signature";
 import { E2E_TWILIO_AUTH_TOKEN } from "../../playwright.config";
-import { addOfficeUser } from "./db";
+import { addOfficeUser, resetUnknownAlerts } from "./db";
 import { expect, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
@@ -55,6 +55,8 @@ test("a WhatsApp from a number we don't know gets the polite reply, and the offi
   const stranger = `+4477009009${40 + Math.floor(Math.random() * 40)}`;
   const email = "unknown.admin@example.com";
   await addOfficeUser("acme", { email, name: "Unknown Admin", role: "admin" });
+  // The alert below is one of at most 5 an hour for the firm: start the count afresh.
+  await resetUnknownAlerts("acme");
   const fields = {
     MessageSid: `SM${randomBytes(16).toString("hex")}`,
     From: `whatsapp:${stranger}`,

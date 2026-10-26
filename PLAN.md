@@ -4213,6 +4213,14 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
   takes 5 jobs a fetch under one 15-minute expiry: if pushes hang (5 s each), 5 runs of 200 can
   pass it and be retried while the first copy runs (the claims keep it safe); one per fetch, like
   the offer waves, if that's seen.
+- P4.7's words, after the UI chat merges (no office words change this round): (1) the action log
+  says a held message "sent a WhatsApp to the shifts line (a question for the office)", not that
+  nothing went back (`replyHeld`) or what it was sorted as (`sortedAs`), and an alert held by the
+  hour's limit (`alertHeld`) isn't named; (2) the retention purge's "old login records" now also
+  counts the unknown-number alert counters (`auth_throttle`).
+- P4.7's guardrails review (2026-10-26), for Dylan: a phone call still sends the caller's login
+  link by message, as the login page does (the caller asked for it; decision 13 lists offers,
+  confirmations and reminders). Keep it, or send it only by WhatsApp, or not at all?
 
 ## Hours log
 

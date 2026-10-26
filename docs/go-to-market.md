@@ -93,7 +93,7 @@ firm:check -- --firm <slug>` shows where a firm is.
 | "You're one person." | "Month-to-month, your data exportable any time, and if it goes down calls forward straight to your phone." |
 | "GDPR?" | "Hosted in London, DPA signed, you control the data, retention limits built in." |
 | "Too expensive." | "What does a peak week cost you in overtime or a temp resourcer? And from 2027, what does a short-notice cancellation claim cost?" |
-| "Staff won't use it." | "They don't have to change anything. They message the same number and get an instant reply with a link. Most switch within weeks." |
+| "Staff won't use it." | "They don't have to change anything. They message the same number and get an instant reply with a link. Most switch within weeks." (The instant reply only where the firm switches the shifts line's automatic replies on; off, the default, the message reaches the office and the link comes from the firm: `PLAN.md` "Connecting the firm's systems" 11.) |
 
 ## A contractor contact: 20-minute chat
 

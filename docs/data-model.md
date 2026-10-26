@@ -50,7 +50,7 @@ architecture.md, Tenancy).
 | pay_queries | Structured pay questions + grouping key + status | 6 |
 | events | Append-only action log (the evidence trail) | 1 |
 | magic_links / sessions / otp_codes | Login (hashes only, never raw tokens or codes) | 1 |
-| auth_throttle | Rate-limit counters for login and OTP requests (HMAC-keyed buckets) | 1 |
+| auth_throttle | Rate-limit counters for login and OTP requests, and the shifts line's unknown-number alerts (HMAC-keyed buckets) | 1 |
 | api_keys | A planner's API keys: a label, the key's sha256 and last 4 characters (never the key), who made and revoked it, when last used (12J.1, S11) | 12 |
 | push_subscriptions | Web push endpoints per worker | 4 |
 | roster_sources | Where a firm's rota lives when it isn't our tables (Google Sheet id, column mapping, last sync, error code, sync lease) | 2 |
@@ -73,6 +73,7 @@ architecture.md, Tenancy).
   "weekly_hours_cap": 48,
   "travel_buffer_minutes": 0,
   "approve_mode": true,
+  "auto_replies": false,
   "sign_off": "Acme Events Shift Team",
   "pay_digest": { "time": "09:00", "days": ["mon", "tue", "wed", "thu", "fri"] }
 }
@@ -82,6 +83,12 @@ architecture.md, Tenancy).
 Read field by field: a time or day list that makes no sense gets the default (09:00, Monday to
 Friday); `"days": []` means no scheduled digest (payroll can still send one from its page). There's
 no settings screen for it yet.
+
+`auto_replies` (P4.7, `src/lib/inbound/limits.ts`): whether the shifts line answers WhatsApps and
+texts by itself. Only `true` turns it on; missing or anything else is off, the default. Off,
+nothing goes back by WhatsApp or text, and every casual's message waits for the office in Need a
+person (`docs/messaging-templates.md`, "Notification policy"). The made-up firms in the seed have
+it on.
 
 (The 48-hour short-notice threshold is a placeholder until the 2027 regulations are final.)
 

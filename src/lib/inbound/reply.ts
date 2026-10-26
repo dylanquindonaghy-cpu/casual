@@ -24,6 +24,7 @@ import { systemClock, type Clock } from "../auth/clock";
 import { lockUnhandled } from "./claim";
 import { INBOUND_RETRY_LIMIT, inboundMessageJob, type InboundMessagePayload } from "./job";
 import { keywordIntent, type Intent } from "./keywords";
+import { autoRepliesOn, takeUnknownAlert } from "./limits";
 import {
   answerOptOut,
   claimOptOut,
@@ -61,6 +62,10 @@ import { cutChars } from "../text/cut";
 // The reply is always one of the app's fixed texts (shiftsLineReply, voicemailReceivedMessage): the
 // AI only ever picks which, so nothing it writes reaches the worker, and a pay question gets the
 // pay link, never an answer (golden rules 1 and 9). Events hold labels and ids, never the text or a number.
+// Automatic replies are off unless the firm switches them on (P4.7, src/lib/inbound/limits.ts):
+// then a casual's message is sorted as above but made the office's question (step 3's request),
+// `message.received` says `replyHeld` and what it was sorted as (`sortedAs`), and nothing is sent
+// (steps 4 and 5 don't happen; nor does the personal reply's read).
 
 export interface InboundReplyDeps {
   transport: MessagingTransport;
@@ -72,11 +77,15 @@ export interface InboundReplyDeps {
 
 export type InboundResult =
   | { status: "replied"; intent: Intent; handledAs: "keyword" | "ai" | "office" }
+  // Automatic replies off: the office's (intent), with what it was sorted as.
+  | { status: "held"; intent: "office"; sortedAs: Intent; handledAs: "keyword" | "ai" | "office" }
   | { status: "reply_failed"; intent: Intent; code: string }
   | {
       status: "unknown_sender";
-      reply: "sent" | "failed" | "none"; // the polite reply (none: a former worker, or a repeat)
+      // The polite reply (none: a former worker, or a repeat; held: automatic replies are off).
+      reply: "sent" | "failed" | "none" | "held";
       alerted: number; // office users emailed
+      alertHeld?: true; // the firm's 5 unknown-number alerts this hour were used up
     }
   | OptOutResult
   | { status: "already" }
@@ -98,6 +107,7 @@ type Read =
       line: string;
       formerWorkerId: string | null; // the number is a worker's here who isn't active
       firm: { name: string; slug: string; signOff: string };
+      autoReplies: boolean; // the firm's automatic replies (off: nothing is sent back)
     }
   | {
       kind: "known";
@@ -110,6 +120,7 @@ type Read =
       body: string | null;
       keyword: Intent | null;
       firm: { name: string; slug: string; signOff: string };
+      autoReplies: boolean; // the firm's automatic replies (off: nothing is sent back)
     };
 
 // Step 1: reads only.
@@ -134,6 +145,7 @@ async function read(tx: FirmTx, messageId: string): Promise<Read> {
     .where(eq(firms.id, sql`app_current_firm_id()`));
   if (!firm) throw new Error("firm not visible inside its own transaction");
   const from = m.from;
+  const autoReplies = autoRepliesOn(firm.settings);
   // A text saying only STOP or START (or one Twilio's own opt-out handling acted on; YES, or
   // anything else Twilio calls START, only for a number with texts off).
   const word = await optOutWordOf(tx, m);
@@ -145,6 +157,7 @@ async function read(tx: FirmTx, messageId: string): Promise<Read> {
       from,
       line: m.to,
       firm: { name: firm.name, signOff: signOffFor(firm.name, firm.settings.sign_off) },
+      autoReplies,
     };
   }
   const [worker] = from
@@ -178,6 +191,7 @@ async function read(tx: FirmTx, messageId: string): Promise<Read> {
       line: m.to,
       formerWorkerId: former?.id ?? null,
       firm: voice,
+      autoReplies,
     };
   }
   return {
@@ -196,6 +210,7 @@ async function read(tx: FirmTx, messageId: string): Promise<Read> {
       slug: firm.slug,
       signOff: signOffFor(firm.name, firm.settings.sign_off),
     },
+    autoReplies,
   };
 }
 
@@ -286,13 +301,22 @@ async function answerMessage(
     if (!sorted.label) aiFallback = sorted.why;
   }
 
+  // Automatic replies off (P4.7; decision 11, "a text that comes in goes to the office"): every
+  // casual's message is the office's question, so a dropout, a pay question or a shifts question
+  // never sits on Enquiries as answered when nothing went. What it was sorted as stays in the log
+  // (`sortedAs`).
+  const sortedAs = intent;
+  if (!c.autoReplies) intent = "office";
+
   // Step 2b: the personal reply to "shifts" or "cancel" (src/lib/inbound/personal-reply.ts), read
-  // before the claim like the AI's label: built by code from the firm's data, never by the AI.
+  // before the claim like the AI's label: built by code from the firm's data, never by the AI. Not
+  // read when nothing will be sent (automatic replies off).
   const portal = portalUrl(c.firm.slug, deps.baseDomain);
   const now = (deps.clock ?? systemClock).now();
   const voiceOf = { name: c.firm.name, signOff: c.firm.signOff };
-  const personal =
-    intent === "shifts"
+  const personal = !c.autoReplies
+    ? null
+    : intent === "shifts"
       ? await shiftsReply(run, {
           firmId: payload.firmId,
           workerId: c.workerId,
@@ -370,9 +394,12 @@ async function answerMessage(
         handledAs,
         intent,
         ...(aiFallback ? { aiFallback } : {}),
+        ...(c.autoReplies ? {} : { replyHeld: true, sortedAs }),
         workerId: c.workerId,
       },
     });
+    // Nothing goes back (automatic replies off): the office has the message, and its question.
+    if (!c.autoReplies) return "held" as const;
     // Shifts and cancel: the personal reply, in each channel's words.
     if (!built) {
       if (!personal) throw new Error("a shifts or cancel message without its personal reply");
@@ -389,6 +416,7 @@ async function answerMessage(
     return { replyText: text, smsText: text };
   });
   if (texts === null) return { status: "already" };
+  if (texts === "held") return { status: "held", intent: "office", sortedAs, handledAs };
   const { replyText, smsText } = texts;
 
   // By WhatsApp to a WhatsApp (a text if WhatsApp refuses it); a voicemail's by the channel the
@@ -468,13 +496,17 @@ async function answerMessage(
 // worker (their number is on file, not active) gets no "we don't recognise this number" (we do):
 // the office is alerted and decides. Same shape as the known path: the claim, then the sends
 // outside any transaction, then the record. The alert email holds neither the number nor the
-// message: they're on Enquiries.
+// message: they're on Enquiries. Since P4.7 (src/lib/inbound/limits.ts): the polite reply is held
+// when the firm's automatic replies are off (`replyHeld`), and the alert email when the firm's 5
+// this hour are used up (`alertHeld`: counted in the claim, so once however often the job runs;
+// that number's later messages that day are repeats, as before, and wait on Enquiries).
 async function answerUnknown(
   payload: InboundMessagePayload,
   run: WithFirm,
   deps: InboundReplyDeps,
   c: Extract<Read, { kind: "unknown" }>,
 ): Promise<InboundResult> {
+  const now = (deps.clock ?? systemClock).now();
   const plan = await run(payload.firmId, async (tx) => {
     if (!(await lockUnhandled(tx, payload.messageId))) return null;
     // One of these at a time per number (two messages from one stranger handled at once would
@@ -502,6 +534,30 @@ async function answerUnknown(
       .update(messages)
       .set({ handledAt: new Date(), handledAs: "unknown", workerId: c.formerWorkerId })
       .where(eq(messages.id, payload.messageId));
+    // Only a WhatsApp from a number nobody here has gets the polite reply (we don't message callers
+    // we don't know); held when the firm's automatic replies are off.
+    const wouldReply =
+      !repeat && c.channel === "whatsapp" && c.from !== null && c.formerWorkerId === null;
+    const replyHeld = wouldReply && !c.autoReplies;
+    let recipients: string[] = [];
+    let skipped = 0;
+    let alertHeld = false;
+    if (!repeat) {
+      const office = await tx
+        .select({ email: officeUsers.email })
+        .from(officeUsers)
+        .where(
+          and(eq(officeUsers.status, "active"), inArray(officeUsers.role, ["admin", "resourcer"])),
+        )
+        .orderBy(asc(officeUsers.email));
+      recipients = office.map((o) => o.email).filter((email) => z.email().safeParse(email).success);
+      skipped = office.length - recipients.length;
+      // At most 5 alerts per firm an hour, counted only when there's someone to email.
+      if (recipients.length > 0 && !(await takeUnknownAlert(tx, now))) {
+        alertHeld = true;
+        recipients = [];
+      }
+    }
     await recordEvent(tx, {
       actorType: "system",
       action: "message.received",
@@ -512,29 +568,17 @@ async function answerUnknown(
         handledAs: "unknown",
         repeat,
         formerWorker: c.formerWorkerId !== null,
+        ...(replyHeld ? { replyHeld: true } : {}),
+        ...(alertHeld ? { alertHeld: true } : {}),
       },
     });
-    if (repeat) return { repeat, reply: null, recipients: [] as string[], skipped: 0 };
-    const office = await tx
-      .select({ email: officeUsers.email })
-      .from(officeUsers)
-      .where(
-        and(eq(officeUsers.status, "active"), inArray(officeUsers.role, ["admin", "resourcer"])),
-      )
-      .orderBy(asc(officeUsers.email));
-    const recipients = office
-      .map((o) => o.email)
-      .filter((email) => z.email().safeParse(email).success);
     return {
       repeat,
-      // Only a WhatsApp from a number nobody here has gets the polite reply (we don't message
-      // callers we don't know).
-      reply:
-        c.channel === "whatsapp" && c.from !== null && c.formerWorkerId === null
-          ? unknownNumberMessage(c.firm)
-          : null,
+      reply: wouldReply && c.autoReplies ? unknownNumberMessage(c.firm) : null,
+      replyHeld,
       recipients,
-      skipped: office.length - recipients.length,
+      skipped,
+      alertHeld,
     };
   });
   if (plan === null) return { status: "already" };
@@ -603,27 +647,32 @@ async function answerUnknown(
       });
     }
     const reason = c.formerWorkerId === null ? "unknown_number" : "former_worker";
-    await recordEvent(tx, {
-      actorType: "system",
-      // Nobody to email (no active admin or resourcer with a usable address): said so, never
-      // "emailed 0 people".
-      action:
-        plan.recipients.length === 0
-          ? "message.office_alert_skipped"
-          : alerted === 0
-            ? "message.office_alert_failed"
-            : "message.office_alerted",
-      entityType: "message",
-      entityId: payload.messageId,
-      data:
-        plan.recipients.length === 0
-          ? { reason, skipped: plan.skipped }
-          : { reason, recipients: alerted, failed: failures.length, skipped: plan.skipped },
-    });
+    // An alert held by the hour's limit is said by `message.received` (alertHeld) alone.
+    if (!plan.alertHeld) {
+      await recordEvent(tx, {
+        actorType: "system",
+        // Nobody to email (no active admin or resourcer with a usable address): said so, never
+        // "emailed 0 people".
+        action:
+          plan.recipients.length === 0
+            ? "message.office_alert_skipped"
+            : alerted === 0
+              ? "message.office_alert_failed"
+              : "message.office_alerted",
+        entityType: "message",
+        entityId: payload.messageId,
+        data:
+          plan.recipients.length === 0
+            ? { reason, skipped: plan.skipped }
+            : { reason, recipients: alerted, failed: failures.length, skipped: plan.skipped },
+      });
+    }
     return {
       status: "unknown_sender",
-      reply: reply === null ? "none" : "error" in reply ? "failed" : "sent",
+      reply:
+        reply === null ? (plan.replyHeld ? "held" : "none") : "error" in reply ? "failed" : "sent",
       alerted,
+      ...(plan.alertHeld ? { alertHeld: true as const } : {}),
     };
   });
 }

@@ -1,3 +1,4 @@
+import { autoRepliesOn } from "../inbound/limits";
 import { escalateHours, firstComeWaves, WAVE_MAX } from "../offers/waves";
 import { shortNoticeThreshold } from "../office/notice-report";
 import { parseAllocationSettings } from "../roster/allocation-input";
@@ -30,6 +31,7 @@ export const SETTING_KEYS = [
   "quiet_hours.start",
   "quiet_hours.end",
   "quiet_hours.urgent_override",
+  "auto_replies",
   "retention.message_days",
   "retention.request_note_days",
   "retention.hold_until",
@@ -75,6 +77,7 @@ const READ: Record<SettingKey, (s: Settings) => SettingValue> = {
   "quiet_hours.start": (s) => quietHours(s).start,
   "quiet_hours.end": (s) => quietHours(s).end,
   "quiet_hours.urgent_override": (s) => quietHours(s).urgentOverride,
+  auto_replies: (s) => autoRepliesOn(s),
   "retention.message_days": (s) => retentionSettings(s).messageDays,
   "retention.request_note_days": (s) => retentionSettings(s).requestNoteDays,
   "retention.hold_until": (s) => retentionSettings(s).holdUntil ?? "none",
@@ -98,6 +101,8 @@ export const SETTING_WORDS: Record<SettingKey, string> = {
   "quiet_hours.start": "no messages to workers from (local time)",
   "quiet_hours.end": "no messages to workers until (local time)",
   "quiet_hours.urgent_override": "urgent messages may still go in quiet hours (true or false)",
+  auto_replies:
+    "the shifts line answers WhatsApps and texts by itself (true or false; false, the default: nothing is sent back, and every casual's message waits for the office in Need a person)",
   "retention.message_days": `days the shifts line's messages are kept (${RETENTION_MIN_DAYS} to ${RETENTION_MAX_DAYS})`,
   "retention.request_note_days": `days a closed request's words are kept, and the office's reason for placing someone despite a rule (${RETENTION_MIN_DAYS} to ${RETENTION_MAX_DAYS})`,
   "retention.hold_until":
@@ -145,7 +150,7 @@ function parseValue(key: SettingKey, raw: string): SettingValue | null {
   if (key === "allocation_mode" || key === "quiet_hours.start" || key === "quiet_hours.end") {
     return text === "" ? null : text;
   }
-  if (key === "quiet_hours.urgent_override" || key === "travel.enabled") {
+  if (key === "quiet_hours.urgent_override" || key === "travel.enabled" || key === "auto_replies") {
     return text === "true" ? true : text === "false" ? false : null;
   }
   if (!/^\d+(\.\d+)?$/.test(text)) return null;

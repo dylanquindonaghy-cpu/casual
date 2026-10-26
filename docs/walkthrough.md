@@ -291,7 +291,10 @@ the file onto "Your file (.csv or .xlsx)").
 ## Part 4: the fake phone (the shifts line)
 
 Workers can WhatsApp, text or ring the firm's number. Here a command plays the phone. Run these in
-your second Ubuntu window while `npm run dev` runs; the replies appear in the dev window.
+your second Ubuntu window while `npm run dev` runs; the replies appear in the dev window. (The
+made-up firms have the shifts line's automatic replies on, to show them; a real firm starts with
+them off: nothing goes back, and every casual's message waits for the office in Need a person on
+Enquiries. `docs/messaging-templates.md`, "Notification policy".)
 
 43. **A WhatsApp from a worker:**
 

@@ -960,7 +960,8 @@ In order (who does it, how, and what done looks like):
    shows who gets open shifts (first come first served with how many each wave goes to per free
    place, or fair rotation with its wave size; the minutes between waves), the urgent window,
    when the office is emailed about an unfilled shift, the short-notice threshold and quiet
-   hours, as the app reads them. Change any with `--set`, e.g.
+   hours, and whether the shifts line answers by itself (`auto_replies`, off unless the firm
+   asks: decision 11), as the app reads them. Change any with `--set`, e.g.
    `--set urgent_window_hours=12 --set quiet_hours.start=21:30`. A value the app wouldn't use is
    refused and nothing changes; each change is in the office action log.
    The strikes team's email isn't one of these: an admin sets it on the office's **Settings** page,
@@ -970,7 +971,10 @@ In order (who does it, how, and what done looks like):
    (it can't change while people are booked on sessions there that are still to come). A firm can
    send at most 3 links every 15 minutes and 10 a day: past that, the page says how long to wait.
 9. **Shifts line** (you): after "Connect Twilio", the firm's number with `npm run firm:line`, and
-   WhatsApp's approval of the display name (start early: it can take days).
+   WhatsApp's approval of the display name (start early: it can take days). With the firm's
+   automatic replies off (`auto_replies`, step 8), ShiftDesk confirms no STOP or START. Twilio's
+   own opt-out handling can still answer one by text (`byTwilio` in the log): if the firm wants
+   nothing back, check the Messaging Service's opt-out settings in Twilio when connecting.
 10. **Privacy notice line** (you send it, the firm publishes it): `docs/privacy-notice.md` has the
     short line and the section for its privacy notice, with what to fill in.
 11. **Staff briefing** (the firm): a message to its staff with the portal link.

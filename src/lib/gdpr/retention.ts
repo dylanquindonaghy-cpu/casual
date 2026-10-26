@@ -49,7 +49,8 @@ const CLOSED_REQUEST_STATUSES = ["approved", "declined", "auto_resolved"] as con
 //   it closed: an open or escalated request keeps them (the request itself stays: it's evidence);
 // - the office's typed reason for placing someone despite a rule (assignments.override_reason),
 //   the same number of days after the person was booked (confirmed_at);
-// - login rate-limit counters a day after their window started (the longest window is a day);
+// - rate-limit counters (login, and since P4.7 the unknown-number alerts) a day after their window
+//   started (the longest window is a day);
 // - login links and one-time codes 7 days after they expired, and sessions (their codes go with
 //   them) 30 days after they expired or were revoked (docs/data-model.md "Retention"): none can
 //   work again.

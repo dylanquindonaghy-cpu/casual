@@ -103,7 +103,7 @@ confirmed, and the staff briefing can go out.
 | Metric | Definition | Target by week 4 |
 |---|---|---|
 | Portal adoption | Active workers who logged in ≥ 1 time / active workers | 50% (stretch 75%) |
-| Instant answers | Portal actions + instant replies / (portal actions + instant replies + office requests) | 90%+ |
+| Instant answers | Portal actions + instant replies / (portal actions + instant replies + office requests). With the shifts line's automatic replies off (the default, P4.7), there are no instant replies: every message is an office request | 90%+ |
 | Unanswered shift queries | Requests open > 24 h / all requests | < 2% |
 | Urgent fill rate | Urgent shifts filled via waves / urgent shifts | 60%+ without a call |
 | Median refill time | cancel → confirmed replacement | half of baseline |

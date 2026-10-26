@@ -14,7 +14,7 @@ import { renumberEvents } from "./event-numbers";
 // any time"; docs/runbooks.md "Offboarding a firm"). Every firm table, every column as stored
 // (less firm_id, the same on every row), oldest first. Left out, because they are login machinery
 // and not the firm's records: login links, sessions and one-time codes (token and code hashes),
-// the login rate-limit counters (hashed numbers and addresses), phones' push addresses (each one
+// the rate-limit counters (hashed numbers and addresses), phones' push addresses (each one
 // lets anyone holding it send that phone a notification), and travel estimates (keyed by casuals'
 // full postcodes, which the office never sees). A casual's travel area goes out as its
 // district only, never the postcode or its point (FIRM_EXPORT_CUT): the office never sees more
@@ -31,7 +31,7 @@ export const FIRM_EXPORT_EXCLUDED: Readonly<Record<string, string>> = {
   magic_links: "login link hashes",
   sessions: "session token hashes",
   otp_codes: "one-time code hashes",
-  auth_throttle: "login rate-limit counters (hashed numbers and addresses)",
+  auth_throttle: "rate-limit counters (hashed numbers and addresses)",
   push_subscriptions: "phones' push addresses and keys",
   // Worked out from casuals' start postcodes (12G.2): the full postcodes the office never sees
   // (docs/dpia-travel.md), and the job works them out again from the firm's own data.

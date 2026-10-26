@@ -72,7 +72,8 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe("the shifts line at pilot size, with a real send's delay", () => {
   it("200 workers' messages answered within the bound; one worker's answered in order", async () => {
-    const f = await bookingFirm(su, withFirm, {});
+    // Automatic replies on: what these tests are about (off by default since P4.7).
+    const f = await bookingFirm(su, withFirm, { settings: { auto_replies: true } });
     const line = await freshLine();
     await su.query("update firms set shifts_line_e164 = $2 where id = $1", [f.firmId, line]);
     const workers: { id: string; mobile: string }[] = [];
@@ -186,7 +187,8 @@ describe("the shifts line at pilot size, with a real send's delay", () => {
   }, 120_000);
 
   it("a sender's older message is answered first, even when the newer one's job runs first", async () => {
-    const f = await bookingFirm(su, withFirm, {});
+    // Automatic replies on: what these tests are about (off by default since P4.7).
+    const f = await bookingFirm(su, withFirm, { settings: { auto_replies: true } });
     const line = await freshLine();
     await su.query("update firms set shifts_line_e164 = $2 where id = $1", [f.firmId, line]);
     const id = await f.worker({ first: "Sid" });

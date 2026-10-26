@@ -128,7 +128,8 @@ change and cancellation.
 
 **Leading (weeks 1–4 of pilot)**
 - Portal activation: 50%+ of active workers log in at least once (stretch 75%).
-- Shift queries answered instantly: 98%+.
+- Shift queries answered instantly: 98%+ (in the portal; by the shifts line only where the firm
+  switches its automatic replies on, `PLAN.md` "Connecting the firm's systems" 11).
 - Urgent shifts filled via waves: 60%+ without a phone call.
 - Median time from cancellation to refill: half the baseline.
 

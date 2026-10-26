@@ -2,6 +2,16 @@
 
 ## Notification policy
 
+**Automatic replies on the shifts line are off unless the firm switches them on** (P4.7; `PLAN.md`
+"Connecting the firm's systems" 11 and 12). Off, a WhatsApp, text or voicemail that comes in is
+stored, sorted and logged, and every casual's message becomes a question for the office in Need a
+person, but nothing goes back by WhatsApp or text: none of the shifts line's replies below, no
+unknown-number reply, no STOP or START confirmation (a STOP still turns texts off). A call still
+gets the caller's login link by message, as the login page does: the caller asked for it. Casuals
+reach the office in the app (proposal P8). The owner switches them on with `npm run firm:settings --
+--firm <slug> --set auto_replies=true`. The office is emailed about at most 5 unknown numbers per
+firm an hour; the rest wait in Need a person. No words change.
+
 Order for every message to a worker:
 1. **Web push** (free). Works on Android; on iPhone only once the portal is added to the home screen.
 2. **WhatsApp template** (about 2p each incl. Twilio fee; business-initiated messages must use

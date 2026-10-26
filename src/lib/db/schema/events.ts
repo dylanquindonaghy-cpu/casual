@@ -28,6 +28,9 @@ export const events = pgTable(
     // One thing's history: a shift's waves and escalation on the dashboard, the action log by shift
     // or worker (Phase 5).
     index("events_firm_id_entity_id_idx").on(t.firmId, t.entityId, t.id),
+    // Entries of a kind over a time (the sends the ops alerts count, the webhook status, the
+    // action log by kind; P4.1).
+    index("events_firm_id_action_created_at_idx").on(t.firmId, t.action, t.createdAt),
     check("events_actor_type_check", sql`${t.actorType} in ('worker', 'office', 'system', 'ai')`),
     check("events_action_format", sql`${t.action} ~ '^[a-z_]+([.][a-z_]+)+$'`),
     ...firmIsolationAppendOnly(t.firmId),

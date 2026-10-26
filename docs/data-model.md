@@ -468,6 +468,9 @@ create table shifts (
   unique (firm_id, source, external_ref) -- one shift per sheet/import row or planner ref (NULLs
                                          -- don't collide)
 );
+-- Indexed by (firm_id, starts_at), (firm_id, event_id) and (firm_id, ends_at): sessions by their
+-- start, an event's sessions, and sessions still running or to come (the last two for a big firm,
+-- PLAN.md P4.1).
 
 -- One row per holder of a slot. A cancellation keeps its row (worker, reason, notice hours) and
 -- a new open row reopens the slot, so only one "live" row (not cancelled) may exist per slot.
@@ -502,6 +505,8 @@ create unique index assignments_one_live_per_slot on assignments (firm_id, shift
   where status not in ('cancelled_worker', 'cancelled_firm');
 create unique index assignments_one_live_per_worker on assignments (firm_id, shift_id, worker_id)
   where worker_id is not null and status not in ('cancelled_worker', 'cancelled_firm');
+-- Also indexed by (firm_id, worker_id) and (firm_id, cancelled_at): a casual's bookings, and the
+-- firm's cancellations by when (P4.1).
 
 -- Strikes (12C.1; src/lib/strikes/): a row only for a strike issued, by strikeDecision() inside
 -- cancelBooking()'s transaction. The app reads and adds rows and may change only the review,
@@ -586,6 +591,8 @@ create table offers (
   -- plus a unique index on (firm_id, shift_id, worker_id) where wave is null: one office offer
   -- per worker per shift
 );
+-- Indexed by (firm_id, worker_id, sent_at) for the daily offer cap, and by (firm_id, sent_at) for
+-- the firm's offers by when (P4.1).
 
 -- Each shift reminder a booking got, or why not (src/lib/reminders/send.ts). Written before the
 -- message goes. Evidence in a no-show dispute: the app never deletes one.
@@ -728,7 +735,8 @@ create table events (
   created_at timestamptz not null default now()
 );
 -- Indexed by (firm_id, created_at) and by (firm_id, entity_id, id): one thing's history (the dashboard's
--- wave status, the action log by shift or worker).
+-- wave status, the action log by shift or worker); and by (firm_id, action, created_at): entries of
+-- one kind over a time (the sends the ops alerts count, the webhook status; P4.1).
 -- events is append-only: the app role has SELECT and INSERT only, and events has only
 -- select and insert policies. data never holds tokens, codes, phones, emails or IPs
 -- (recordEvent() refuses anything the log masker would change).

@@ -119,6 +119,26 @@ still applies any change you made to `.env` (Docker Compose recreates only the c
 settings changed, and starts the worker once it's turned on), printing "Applied the settings in
 .env" when something changed (otherwise only Docker's own "Pulling … Pulled" lines for the image
 check).
+**A migration that adds an index** (like `drizzle/0048_big_firm_indexes.sql`) builds it inside
+the migrations' one transaction: every pending migration runs in a single transaction, so each table
+it touches stays locked against writes until the whole run commits (reads carry on). At pilot size
+that's a second or two. It also waits behind any transaction already open on those tables, so a
+stuck one holds up the deploy (the old version keeps serving meanwhile). Once a table holds millions
+of rows, add the index without holding writes, in this order, before merging (the server pulls a
+new image within minutes of the merge):
+1. Declare the index in `src/lib/db/schema/` and run `npm run db:generate` (not `--custom`, whose
+   snapshot leaves the index out, so the drift check in `scripts/invariants.sh` fails and the next
+   generate writes it again).
+2. In the generated SQL, change that one line to `CREATE INDEX IF NOT EXISTS` (a deliberate hand
+   edit: say so in the commit).
+3. On the server, as the owner (the `DATABASE_ADMIN_URL` login: only the tables' owner may add an
+   index), run `CREATE INDEX CONCURRENTLY <name> ON …` with the same name and columns, outside any
+   transaction.
+4. Check it's usable: `select indisvalid from pg_index where indexrelid = '<name>'::regclass` must
+   say `t`. A build that failed or was stopped leaves an invalid index that `IF NOT EXISTS` would
+   skip: `DROP INDEX CONCURRENTLY <name>` and build it again.
+5. Merge. The migration finds the index there and does nothing.
+
 **It never deploys between 05:30 and 09:00 UK time on its own** (event mornings): a merge, or a
 change to `.env`, then goes out at 09:00. A fix that can't wait: run `/opt/shiftdesk/deploy.sh
 --now` by hand.

@@ -337,6 +337,13 @@
       "when": 1791798485072,
       "tag": "0047_webhook_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1793018378103,
+      "tag": "0048_big_firm_indexes",
+      "breakpoints": true
     }
   ]
 }

@@ -4174,6 +4174,14 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
   verify ran with `CI=1`, as GitHub's CI does: the browser tests on a production build, retries
   counted as failures. To close it: if `next dev` is wanted for the local run, try
   `turbopackFileSystemCacheForDev: false` for the e2e server, or warm every route first.
+- P4.1's guardrails review (2026-10-26), not blocking: (1) a `lock_timeout` for the migrations
+  (`runMigrations`, `src/lib/db/admin/migrate.ts`), so a deploy fails fast instead of waiting
+  behind an open transaction, and its queued lock doesn't hold up every later write; (2) an index
+  for `shifts (firm_id, site_id)`, the `shifts_site_fk` foreign key's (it has none: a site's
+  sessions are read through it); (3) a test that every non-unique index on a firm's table leads
+  with `firm_id` (today only unique keys are checked, `tests/integration/rls.every-table.test.ts`);
+  (4) a partial `assignments_firm_id_cancelled_at_idx` (`where cancelled_at is not null`) if the
+  table grows large: most rows are never cancelled.
 
 ## Hours log
 

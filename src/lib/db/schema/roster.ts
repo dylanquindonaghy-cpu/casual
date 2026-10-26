@@ -284,6 +284,10 @@ export const shifts = pgTable(
       foreignColumns: [sites.firmId, sites.id],
     }),
     index("shifts_firm_id_starts_at_idx").on(t.firmId, t.startsAt),
+    // A big firm's lists (P4.1): an event's sessions (shifts_event_fk has no index of its own),
+    // and sessions still running or to come by their end.
+    index("shifts_firm_id_event_id_idx").on(t.firmId, t.shiftEventId),
+    index("shifts_firm_id_ends_at_idx").on(t.firmId, t.endsAt),
     check("shifts_role_format", roleFormat(t.role)),
     check("shifts_ends_after_start", sql`${t.endsAt} > ${t.startsAt}`),
     check("shifts_headcount_range", sql`${t.headcount} between 1 and 1000`),
@@ -368,6 +372,9 @@ export const assignments = pgTable(
       .on(t.firmId, t.shiftId, t.workerId)
       .where(sql`worker_id is not null and status not in ('cancelled_worker', 'cancelled_firm')`),
     index("assignments_firm_id_worker_id_idx").on(t.firmId, t.workerId),
+    // The firm's cancellations by when (the cancellations page, the planner API's feed and the
+    // dashboard's chart; P4.1).
+    index("assignments_firm_id_cancelled_at_idx").on(t.firmId, t.cancelledAt),
     check(
       "assignments_status_check",
       sql`${t.status} in ('open', 'offered', 'confirmed', 'cancelled_worker', 'cancelled_firm', 'no_show', 'completed')`,
@@ -544,6 +551,8 @@ export const offers = pgTable(
       .where(sql`${t.wave} is null`),
     // The daily offer cap counts a worker's offers by sent_at.
     index("offers_firm_id_worker_id_sent_at_idx").on(t.firmId, t.workerId, t.sentAt),
+    // The firm's offers by when, whoever they went to (the week's offers chart; P4.1).
+    index("offers_firm_id_sent_at_idx").on(t.firmId, t.sentAt),
     check("offers_wave_positive", sql`${t.wave} >= 1`),
     check("offers_wave_or_office", sql`(${t.wave} is null) = (${t.offeredBy} is not null)`),
     check("offers_channel_check", sql`${t.channel} in ('push', 'whatsapp', 'sms')`),

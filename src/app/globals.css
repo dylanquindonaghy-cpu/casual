@@ -69,27 +69,28 @@
   /* Statuses: words that read on every point of the glass (urgent, attention, done), their pale
      solid tints with their own dark words, a tile, a fill. */
   --color-urgent: #b0201f; /* act now: words, borders */
-  --color-urgent-soft: #ffefea;
+  --color-urgent-soft: rgb(255 239 234 / 0.72);
   --color-urgent-ink: #7d1a10;
-  --color-urgent-tile: #ffd8cf; /* an urgent tile, day or date tile */
+  --color-urgent-tile: rgb(255 216 207 / 0.8); /* an urgent tile, day or date tile */
   --color-urgent-fill: #c4242a; /* urgent pills and counts, the final destructive button */
   --color-urgent-fill-hover: #9b1c21;
   --color-on-urgent: #ffffff;
   --color-attention: #92400e; /* someone needs to act */
-  --color-attention-soft: #fff6e0;
+  --color-attention-soft: rgb(255 246 224 / 0.72);
   --color-attention-ink: #5c3f00;
-  --color-hivis: #fbe5a0; /* to do: tiles, counts, what the firm gives you (hi-vis) */
+  /* to do: tiles, counts, what the firm gives you (hi-vis) */
+  --color-hivis: rgb(251 229 160 / 0.8);
   --color-on-hivis: #5c3f00;
-  --color-wait-tile: #d6e4fa; /* waiting, or more to look at */
+  --color-wait-tile: rgb(214 228 250 / 0.8); /* waiting, or more to look at */
   --color-wait-ink: #163b6e;
-  --color-wait-soft: #eef4fd;
+  --color-wait-soft: rgb(238 244 253 / 0.72);
   --color-done: #166534; /* fine, finished */
-  --color-done-soft: #e9f6ee;
+  --color-done-soft: rgb(233 246 238 / 0.72);
   --color-done-ink: #155230;
-  --color-done-tile: #d2efdb;
+  --color-done-tile: rgb(210 239 219 / 0.8);
   --color-done-fill: #1f7a47; /* the booked tick */
   --color-on-done: #ffffff;
-  --color-quiet-soft: #f1f2f4; /* information, closed */
+  --color-quiet-soft: rgb(241 242 244 / 0.72); /* information, closed */
   --color-quiet-ink: #464b52;
   /* A status tint's edge (a chip's border, a notice's): a shade darker than its wash. */
   --color-urgent-line: #f5c2bb;
@@ -322,27 +323,27 @@
   --color-pass-plate: #ffffff;
   --color-on-pass-plate: #34373d;
   --color-urgent: #ffa59c;
-  --color-urgent-soft: #2a1614;
+  --color-urgent-soft: rgb(42 22 20 / 0.72);
   --color-urgent-ink: #ffcabf;
-  --color-urgent-tile: #3d1d19;
+  --color-urgent-tile: rgb(61 29 25 / 0.8);
   --color-urgent-fill: #cf3a33;
   --color-urgent-fill-hover: #b02e28;
   --color-on-urgent: #ffffff;
   --color-attention: #f5b35a;
-  --color-attention-soft: #261f10;
+  --color-attention-soft: rgb(38 31 16 / 0.72);
   --color-attention-ink: #fbe3a0;
-  --color-hivis: #3a2f10;
+  --color-hivis: rgb(58 47 16 / 0.8);
   --color-on-hivis: #fbe3a0;
-  --color-wait-tile: #172a45;
+  --color-wait-tile: rgb(23 42 69 / 0.8);
   --color-wait-ink: #c8dafa;
-  --color-wait-soft: #111a28;
+  --color-wait-soft: rgb(17 26 40 / 0.72);
   --color-done: #6bd896;
-  --color-done-soft: #10201a;
+  --color-done-soft: rgb(16 32 26 / 0.72);
   --color-done-ink: #bfeccd;
-  --color-done-tile: #15301f;
+  --color-done-tile: rgb(21 48 31 / 0.8);
   --color-done-fill: #1f7a47;
   --color-on-done: #ffffff;
-  --color-quiet-soft: #222428;
+  --color-quiet-soft: rgb(34 36 40 / 0.72);
   --color-quiet-ink: #d4d6da;
   --color-urgent-line: #5a2423;
   --color-attention-line: #5a4314;
@@ -428,27 +429,27 @@
     --color-pass-plate: #ffffff;
     --color-on-pass-plate: #34373d;
     --color-urgent: #ffa59c;
-    --color-urgent-soft: #2a1614;
+    --color-urgent-soft: rgb(42 22 20 / 0.72);
     --color-urgent-ink: #ffcabf;
-    --color-urgent-tile: #3d1d19;
+    --color-urgent-tile: rgb(61 29 25 / 0.8);
     --color-urgent-fill: #cf3a33;
     --color-urgent-fill-hover: #b02e28;
     --color-on-urgent: #ffffff;
     --color-attention: #f5b35a;
-    --color-attention-soft: #261f10;
+    --color-attention-soft: rgb(38 31 16 / 0.72);
     --color-attention-ink: #fbe3a0;
-    --color-hivis: #3a2f10;
+    --color-hivis: rgb(58 47 16 / 0.8);
     --color-on-hivis: #fbe3a0;
-    --color-wait-tile: #172a45;
+    --color-wait-tile: rgb(23 42 69 / 0.8);
     --color-wait-ink: #c8dafa;
-    --color-wait-soft: #111a28;
+    --color-wait-soft: rgb(17 26 40 / 0.72);
     --color-done: #6bd896;
-    --color-done-soft: #10201a;
+    --color-done-soft: rgb(16 32 26 / 0.72);
     --color-done-ink: #bfeccd;
-    --color-done-tile: #15301f;
+    --color-done-tile: rgb(21 48 31 / 0.8);
     --color-done-fill: #1f7a47;
     --color-on-done: #ffffff;
-    --color-quiet-soft: #222428;
+    --color-quiet-soft: rgb(34 36 40 / 0.72);
     --color-quiet-ink: #d4d6da;
     --color-urgent-line: #5a2423;
     --color-attention-line: #5a4314;
@@ -569,6 +570,15 @@ body:has([data-office]) {
     --color-button-line: #6e737b;
     --color-button-hover: #f1f2f4;
     --color-button-press: #e4e5e9;
+    --color-urgent-soft: #ffefea;
+    --color-attention-soft: #fff6e0;
+    --color-wait-soft: #eef4fd;
+    --color-done-soft: #e9f6ee;
+    --color-quiet-soft: #f1f2f4;
+    --color-urgent-tile: #ffd8cf;
+    --color-hivis: #fbe5a0;
+    --color-wait-tile: #d6e4fa;
+    --color-done-tile: #d2efdb;
     --glass-filter: none;
     --float-filter: none;
     --edge-filter: none;
@@ -591,6 +601,15 @@ body:has([data-office]) {
     --color-button-line: #8a8e96;
     --color-button-hover: #222428;
     --color-button-press: #2a2c31;
+    --color-urgent-soft: #2a1614;
+    --color-attention-soft: #261f10;
+    --color-wait-soft: #111a28;
+    --color-done-soft: #10201a;
+    --color-quiet-soft: #222428;
+    --color-urgent-tile: #3d1d19;
+    --color-hivis: #3a2f10;
+    --color-wait-tile: #172a45;
+    --color-done-tile: #15301f;
     --tile-top: #232529;
     --tile-bottom: #232529;
     --button-top: #18191c;
@@ -616,6 +635,15 @@ body:has([data-office]) {
     --color-button-line: #8a8e96;
     --color-button-hover: #222428;
     --color-button-press: #2a2c31;
+    --color-urgent-soft: #2a1614;
+    --color-attention-soft: #261f10;
+    --color-wait-soft: #111a28;
+    --color-done-soft: #10201a;
+    --color-quiet-soft: #222428;
+    --color-urgent-tile: #3d1d19;
+    --color-hivis: #3a2f10;
+    --color-wait-tile: #172a45;
+    --color-done-tile: #15301f;
     --tile-top: #232529;
     --tile-bottom: #232529;
     --button-top: #18191c;
@@ -639,6 +667,15 @@ body:has([data-office]) {
     --color-button-line: #6e737b;
     --color-button-hover: #f1f2f4;
     --color-button-press: #e4e5e9;
+    --color-urgent-soft: #ffefea;
+    --color-attention-soft: #fff6e0;
+    --color-wait-soft: #eef4fd;
+    --color-done-soft: #e9f6ee;
+    --color-quiet-soft: #f1f2f4;
+    --color-urgent-tile: #ffd8cf;
+    --color-hivis: #fbe5a0;
+    --color-wait-tile: #d6e4fa;
+    --color-done-tile: #d2efdb;
     --glass-filter: none;
     --float-filter: none;
     --edge-filter: none;
@@ -661,6 +698,15 @@ body:has([data-office]) {
     --color-button-line: #8a8e96;
     --color-button-hover: #222428;
     --color-button-press: #2a2c31;
+    --color-urgent-soft: #2a1614;
+    --color-attention-soft: #261f10;
+    --color-wait-soft: #111a28;
+    --color-done-soft: #10201a;
+    --color-quiet-soft: #222428;
+    --color-urgent-tile: #3d1d19;
+    --color-hivis: #3a2f10;
+    --color-wait-tile: #172a45;
+    --color-done-tile: #15301f;
     --tile-top: #232529;
     --tile-bottom: #232529;
     --button-top: #18191c;
@@ -681,6 +727,15 @@ body:has([data-office]) {
       --color-button-line: #8a8e96;
       --color-button-hover: #222428;
       --color-button-press: #2a2c31;
+      --color-urgent-soft: #2a1614;
+      --color-attention-soft: #261f10;
+      --color-wait-soft: #111a28;
+      --color-done-soft: #10201a;
+      --color-quiet-soft: #222428;
+      --color-urgent-tile: #3d1d19;
+      --color-hivis: #3a2f10;
+      --color-wait-tile: #172a45;
+      --color-done-tile: #15301f;
       --tile-top: #232529;
       --tile-bottom: #232529;
       --button-top: #18191c;
@@ -835,6 +890,15 @@ body:has([data-office]) {
     0 8px 22px color-mix(in srgb, var(--color-tint) 32%, transparent);
   @media (forced-colors: active) {
     border: 1px solid ButtonText;
+  }
+}
+
+/* A status's tinted glass (a chip, a coloured count): its tint is a translucent status colour
+   (`urgent-soft`, `hivis` and so on, solid in the fallbacks), with the glass's lit rim. */
+@utility glass-rim {
+  box-shadow: var(--glass-rim);
+  @media (forced-colors: active) {
+    border: 1px solid CanvasText;
   }
 }
 

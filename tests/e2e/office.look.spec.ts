@@ -81,7 +81,15 @@ const measure = (page: Page) =>
     // A class, with any variant before it (`sm:glass`, `aria-pressed:lens`).
     const carries = (el: Element, names: string[]) =>
       [...el.classList].some((c) => names.some((n) => c === n || c.endsWith(`:${n}`)));
-    const GLASS = ["glass", "glass-float", "glass-tile", "glass-button", "glass-tint", "lens"];
+    const GLASS = [
+      "glass",
+      "glass-float",
+      "glass-tile",
+      "glass-button",
+      "glass-tint",
+      "glass-rim",
+      "lens",
+    ];
     const DEPTH = [
       "shadow-lift",
       "shadow-panel",
@@ -440,6 +448,9 @@ for (const device of ["light", "dark"] as const) {
           const h1 = page.getByRole("heading", { level: 1 });
           await expect(h1, where).toBeVisible();
           await page.evaluate(() => document.fonts.ready);
+          // The browser tests run Chromium: once the page is running, its floating glass bends
+          // what's behind it (glass-refraction.tsx puts .rf on <html>).
+          await expect(page.locator("html"), where).toHaveClass(/(?:^|\s)rf(?:\s|$)/);
           await calm(page);
           const look = await measure(page);
           expectGlass(look, where, device);

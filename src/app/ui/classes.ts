@@ -141,10 +141,10 @@ export const headingGap = "mt-3";
 const countShape =
   "inline-flex h-6 min-w-6 items-center justify-center rounded-full px-2 text-xs font-semibold tabular-nums";
 export const countPill = `${countShape} glass-button text-ink-muted`;
-export const countNeeds = `${countShape} bg-hivis text-on-hivis`;
-export const countWaiting = `${countShape} bg-wait-tile text-wait-ink`;
+export const countNeeds = `${countShape} glass-rim bg-hivis text-on-hivis`;
+export const countWaiting = `${countShape} glass-rim bg-wait-tile text-wait-ink`;
 export const count = `ml-2 align-middle ${countPill}`;
-export const countUrgent = `ml-2 align-middle ${countShape} bg-urgent-tile text-urgent-ink`;
+export const countUrgent = `ml-2 align-middle ${countShape} glass-rim bg-urgent-tile text-urgent-ink`;
 export const staffCount =
   "glass-button ml-2 inline-flex min-w-7 items-center justify-center rounded-full px-2 align-middle text-sm font-semibold tabular-nums text-ink-muted";
 
@@ -195,7 +195,7 @@ export const table = {
 // Expiring soon" on a 390px screen; the browser tests' office.look.spec.ts caught it). `wait`
 // (Phase 23): blue, waiting on someone else (a casual's answer, payroll), never on you.
 export const chip = {
-  base: "inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-0.5 align-middle text-sm font-semibold leading-5 office:min-h-7 office:border-0 office:px-3 office:py-1 office:leading-4 office:max-w-full office:shrink-0 office:whitespace-normal",
+  base: "glass-rim inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-0.5 align-middle text-sm font-semibold leading-5 office:min-h-7 office:border-0 office:px-3 office:py-1 office:leading-4 office:max-w-full office:shrink-0 office:whitespace-normal",
   urgent: "border-urgent-line bg-urgent-soft text-urgent-ink",
   attention: "border-attention-line bg-attention-soft text-attention-ink",
   wait: "border-wait-line bg-wait-soft text-wait-ink",

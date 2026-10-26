@@ -2021,7 +2021,10 @@ describe("the page (Phases 18 to 23: the dashboard)", () => {
       `<span class="${countUrgent}">2</span>`,
     );
     expect(
-      countUrgent.replace("bg-urgent-tile text-urgent-ink", "glass-button text-ink-muted"),
+      countUrgent.replace(
+        "glass-rim bg-urgent-tile text-urgent-ink",
+        "glass-button text-ink-muted",
+      ),
     ).toBe(count);
   });
 

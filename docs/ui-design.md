@@ -67,6 +67,12 @@ the build differs. This section is the system (task 24.1); the pages take its pa
     clear button, a count.
   - `glass-tint`: the one main button, tinted glass in the firm's own colour (`tint` at the top,
     `tint-shade` at the foot), with its words. `btn.primary` and `staffBtn.primary`.
+  - The statuses' tints are tinted glass: `urgent-soft`, `attention-soft`, `wait-soft`,
+    `done-soft` and `quiet-soft` (a chip, a notice, a second step, an answer slip) at 72%, and the
+    tiles `urgent-tile`, `hivis`, `wait-tile` and `done-tile` (an urgent date tile, a coloured
+    count, the For you tiles) at 80%, each solid in the fallbacks; a chip and a coloured count
+    carry the lit rim (`glass-rim`), as round 7's tags. Their words are checked over every ground
+    like the rest.
   - `glass-track` and `lens`: a switch's or a row of tabs' track, and the chosen option on it,
     a lens of bright glass (`tabCurrent`, the Shifts tab's switch).
   - `scroll-edge`: a soft frosted edge that fades in behind a bar that stays at the top once the
@@ -514,14 +520,14 @@ the same tokens.
 | `tint` / `on-tint` / `tint-shade` | `#15171a` / `#ffffff` / `#000000` | `#f3f4f6` / `#0b0c0e` / `#ffffff` | The main button (`glass-tint`): tinted glass in the firm's colour, from `tint` at the top to `tint-shade` at the foot, with its words; the light set in both themes (its words read on itself) |
 | `brand-bar` / `on-brand-bar` / `on-brand-bar-soft` | `#1f2227` / `#ffffff` / `#d2d4d8` | `#34373d` / `#ffffff` / `#d2d4d8` | The pass and the firm's initial; their words; the pass's second line |
 | `pass-plate` / `on-pass-plate` | `#ffffff` / `#1f2227` | `#ffffff` / `#34373d` | The gate's white plate on the pass; its words |
-| `urgent` / `urgent-soft` / `urgent-ink` / `urgent-tile` | `#b0201f` / `#ffefea` / `#7d1a10` / `#ffd8cf` | `#ffa59c` / `#2a1614` / `#ffcabf` / `#3d1d19` | Act now: words and borders (on every point of the glass); a notice's tint; its words; an urgent tile |
+| `urgent` / `urgent-soft` / `urgent-ink` / `urgent-tile` | `#b0201f` / `rgb(255 239 234 / 0.72)` / `#7d1a10` / `rgb(255 216 207 / 0.8)` | `#ffa59c` / `rgb(42 22 20 / 0.72)` / `#ffcabf` / `rgb(61 29 25 / 0.8)` | Act now: words and borders (on every point of the glass); a chip's or a notice's tinted glass; its words; an urgent tile's tinted glass (the tints and tiles translucent, solid in the fallbacks) |
 | `urgent-fill` / `urgent-fill-hover` / `on-urgent` | `#c4242a` / `#9b1c21` / `#ffffff` | `#cf3a33` / `#b02e28` / `#ffffff` | The final destructive button and urgent counts, under the pointer, their words |
-| `attention` / `attention-soft` / `attention-ink` | `#92400e` / `#fff6e0` / `#5c3f00` | `#f5b35a` / `#261f10` / `#fbe3a0` | Needs you: words, an icon, an edge; a notice's tint; its words |
-| `hivis` / `on-hivis` | `#fbe5a0` / `#5c3f00` | `#3a2f10` / `#fbe3a0` | To do: a tile, a count, what the firm gives you ("We provide it") |
-| `wait-tile` / `wait-ink` / `wait-soft` | `#d6e4fa` / `#163b6e` / `#eef4fd` | `#172a45` / `#c8dafa` / `#111a28` | Waiting on someone else: a tile, the account's initials; their words; a tint |
-| `done` / `done-soft` / `done-ink` / `done-tile` | `#166534` / `#e9f6ee` / `#155230` / `#d2efdb` | `#6bd896` / `#10201a` / `#bfeccd` / `#15301f` | Fine, finished: words and borders; a tint; its words; a tile |
+| `attention` / `attention-soft` / `attention-ink` | `#92400e` / `rgb(255 246 224 / 0.72)` / `#5c3f00` | `#f5b35a` / `rgb(38 31 16 / 0.72)` / `#fbe3a0` | Needs you: words, an icon, an edge; a chip's or a notice's tinted glass; its words |
+| `hivis` / `on-hivis` | `rgb(251 229 160 / 0.8)` / `#5c3f00` | `rgb(58 47 16 / 0.8)` / `#fbe3a0` | To do: a tile's or a count's tinted glass, what the firm gives you ("We provide it") |
+| `wait-tile` / `wait-ink` / `wait-soft` | `rgb(214 228 250 / 0.8)` / `#163b6e` / `rgb(238 244 253 / 0.72)` | `rgb(23 42 69 / 0.8)` / `#c8dafa` / `rgb(17 26 40 / 0.72)` | Waiting on someone else: a tile's or a count's tinted glass; their words; a chip's tinted glass |
+| `done` / `done-soft` / `done-ink` / `done-tile` | `#166534` / `rgb(233 246 238 / 0.72)` / `#155230` / `rgb(210 239 219 / 0.8)` | `#6bd896` / `rgb(16 32 26 / 0.72)` / `#bfeccd` / `rgb(21 48 31 / 0.8)` | Fine, finished: words and borders; a chip's tinted glass; its words; a tile's tinted glass |
 | `done-fill` / `on-done` | `#1f7a47` / `#ffffff` | `#1f7a47` / `#ffffff` | The booked tick, its words |
-| `quiet-soft` / `quiet-ink` | `#f1f2f4` / `#464b52` | `#222428` / `#d4d6da` | Information, closed: a chip's tint, an answer slip; its words |
+| `quiet-soft` / `quiet-ink` | `rgb(241 242 244 / 0.72)` / `#464b52` | `rgb(34 36 40 / 0.72)` / `#d4d6da` | Information, closed: a chip's or an answer slip's tinted glass; its words |
 | `urgent-line` / `attention-line` / `wait-line` / `done-line` / `quiet-line` | `#f5c2bb` / `#f0d39a` / `#b8cff2` / `#b4dfc3` / `#d6d8dc` | `#5a2423` / `#5a4314` / `#2c4166` / `#1f4d33` / `#3a404b` | A status tint's edge (decorative: the words say the status) |
 | `demo` / `on-demo` | `#3d2e0a` / `#fde7b0` | `#3d2e0a` / `#fde7b0` | The demo bar |
 | `accent` / `accent-hover` / `accent-press` / `on-accent` | `#1d4ed8` / `#2563eb` / `#1e40af` / `#ffffff` | `#9cb8ff` / `#b5caff` / `#7fa2ff` / `#0b1530` | The app's blue (round 7): the current page's icon, the chosen tab's word, "offered, no reply"; never a button (the main button is the firm's). A fill only under a count on the lens |

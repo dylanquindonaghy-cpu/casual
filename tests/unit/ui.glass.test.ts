@@ -6,6 +6,10 @@ import { RefractionFilter } from "@/app/glass-refraction";
 import {
   btn,
   card,
+  chip,
+  countNeeds,
+  countUrgent,
+  countWaiting,
   field,
   loginCard,
   officeLoginCard,
@@ -195,10 +199,35 @@ describe("the glass's parts (globals.css utilities)", () => {
     expect(tint).toMatch(
       /box-shadow:\s*var\(--tint-rim\),\s*0 8px 22px color-mix\(in srgb, var\(--color-tint\) 32%, transparent\);/,
     );
+    expect(body("@utility glass-rim")).toMatch(
+      /^@utility glass-rim \{\s*box-shadow: var\(--glass-rim\);/,
+    );
+    // A status's chip and its coloured counts carry the rim over their tinted glass.
+    expect(chip.base.split(" ")).toContain("glass-rim");
+    for (const c of [countNeeds, countWaiting, countUrgent])
+      expect(c.split(" ")).toContain("glass-rim");
     expect(body("@utility glass-track")).toContain("background-color: var(--color-track);");
     expect(body("@utility lens")).toMatch(
       /background-color: var\(--color-pill\);\s*box-shadow: var\(--lens-shadow\);/,
     );
+  });
+
+  // Forced colours (Windows high contrast) drop the fills and shadows: every glass part that has
+  // an edge to show gets the system's own line instead.
+  it("forced colours: every glass part with an edge draws the system's line", () => {
+    for (const [part, colour] of [
+      ["@utility glass", "CanvasText"],
+      ["@utility glass-float", "CanvasText"],
+      ["@utility glass-button", "ButtonText"],
+      ["@utility glass-tint", "ButtonText"],
+      ["@utility glass-rim", "CanvasText"],
+    ] as const)
+      expect(body(part), part).toMatch(
+        new RegExp(
+          String.raw`@media \(forced-colors: active\) \{\s*border: 1px solid ${colour};\s*\}`,
+        ),
+      );
+    expect(css.match(/@media \(forced-colors: active\)/g)).toHaveLength(5);
   });
 
   it("the bending: one filter in the root layout with a fixed, large region, switched on only in Chromium", () => {
@@ -236,7 +265,8 @@ describe("the glass's parts (globals.css utilities)", () => {
 });
 
 describe("the fallbacks", () => {
-  // The see-through tokens a word can sit on (the decorative lines and the charts' grid aside).
+  // The see-through tokens a word can sit on (the decorative lines and the charts' grid aside):
+  // the glass, and the statuses' tinted glass (a chip, a notice, a tile, a coloured count).
   const DECORATIVE = ["line", "mark-grid", "mark-base"];
   const TRANSLUCENT = [
     "card",
@@ -251,6 +281,15 @@ describe("the fallbacks", () => {
     "button-line",
     "button-hover",
     "button-press",
+    "urgent-soft",
+    "urgent-tile",
+    "attention-soft",
+    "hivis",
+    "wait-tile",
+    "wait-soft",
+    "done-soft",
+    "done-tile",
+    "quiet-soft",
   ];
 
   it("these, and only these, are see-through", () => {
@@ -363,11 +402,12 @@ describe("depth: a glass's rim and drop, through variables, and no other shadow"
       "@utility glass-tile",
       "@utility glass-button",
       "@utility glass-tint",
+      "@utility glass-rim",
       "@utility lens",
       '  input[type="file"]::file-selector-button',
     ];
     const inOwners = owners.map((o) => body(o).match(/box-shadow:/g)?.length ?? 0);
-    expect(inOwners).toEqual([1, 1, 1, 1, 1, 1, 1]);
+    expect(inOwners).toEqual([1, 1, 1, 1, 1, 1, 1, 1]);
     expect(css.match(/box-shadow/g)).toHaveLength(owners.length);
     for (const value of css.matchAll(/box-shadow:\s*([^;]+);/g))
       expect(

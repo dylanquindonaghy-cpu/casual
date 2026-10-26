@@ -1796,7 +1796,7 @@ ADR-027, P4.2).
       (`npm run db:generate`, plain `CREATE INDEX` like `drizzle/0028_pilot_size_indexes.sql`).
       Tests: each index and its columns in `pg_indexes` (`tests/integration/db.indexes.test.ts`)
       (P4.1)
-- [ ] The database's limits per process: a wait for a connection of at most 5 s (web) and 30 s
+- [x] The database's limits per process: a wait for a connection of at most 5 s (web) and 30 s
       (the worker), pools of 10 and 15 (`src/lib/db/pool.ts`); `statement_timeout` 15 s / 60 s and
       `idle_in_transaction_session_timeout` 30 s / 60 s, set in `withFirm`'s own `set_config`
       statement so they end with the transaction (ADR-027: per transaction, not per database

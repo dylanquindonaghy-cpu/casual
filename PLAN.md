@@ -1610,7 +1610,7 @@ action, rule and log entry stays reachable; where a word changes, the mock-up's 
 would say something untrue (listed in the README under "Where the build differs").
 Docs: `docs/ui-design.md`, `docs/screens.md`, `docs/office-v2.md`.
 
-- [ ] The system, round 7: Geist for every word and number in the office and the casual app,
+- [x] The system, round 7: Geist for every word and number in the office and the casual app,
       self-hosted from `@fontsource-variable/geist` (SIL Open Font License; Instrument Sans,
       Instrument Serif and Plus Jakarta Sans removed); one set of tokens for both, light and dark: a
       pastel wash fixed behind every page (blue, lavender, peach and mint; in dark, blue, purple,

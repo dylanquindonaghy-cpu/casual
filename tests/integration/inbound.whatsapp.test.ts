@@ -794,18 +794,23 @@ describe("replying (the inbound-message job)", () => {
 // WhatsApp or text unless the firm switches automatic replies on, and at most 5 unknown-number
 // alert emails per firm an hour.
 describe("automatic replies off (a firm's default since P4.7), and the unknown-number alert limit", () => {
-  const replyDeps = (transport: MessagingTransport, now?: Date) => ({
+  const replyDeps = (transport: MessagingTransport, now?: Date, ai: AiClient = noAi) => ({
     transport,
-    ai: noAi,
+    ai,
     baseDomain: "shiftdesk.test",
     aiTimeoutMs: 30,
     ...(now ? { clock: { now: () => now } } : {}),
   });
-  const run = (job: Record<string, unknown>, transport: MessagingTransport, now?: Date) =>
+  const run = (
+    job: Record<string, unknown>,
+    transport: MessagingTransport,
+    now?: Date,
+    ai?: AiClient,
+  ) =>
     runInboundMessage(
       job as Parameters<typeof runInboundMessage>[0],
       withFirm,
-      replyDeps(transport, now),
+      replyDeps(transport, now, ai),
     );
 
   it("a worker's WhatsApps: sorted and logged as before, each made the office's question (Need a person), nothing sent back", async () => {
@@ -863,6 +868,39 @@ describe("automatic replies off (a firm's default since P4.7), and the unknown-n
         "I need to talk to someone about my DBS",
         "When do wages go in",
       ].sort(),
+    );
+  });
+
+  it("a 'shifts' keyword and a message the AI sorts: the office's too, no personal reply read, nothing sent", async () => {
+    const t = await lineFirm({ repliesOff: true });
+    const { transport, sent } = captureTransport();
+    expect(await run(await t.incoming("Any shifts this week?"), transport)).toEqual({
+      status: "held",
+      intent: "office",
+      sortedAs: "shifts",
+      handledAs: "keyword",
+    });
+    const asked: AiRequest[] = [];
+    const cancelling = createFakeAi((r) => {
+      asked.push(r);
+      return "cancel";
+    });
+    expect(
+      await run(await t.incoming("running late, can't make it"), transport, undefined, cancelling),
+    ).toEqual({ status: "held", intent: "office", sortedAs: "cancel", handledAs: "ai" });
+    // The AI still sorts it (only labels: golden rule 1), and its label stays in the log.
+    expect(asked).toHaveLength(1);
+    expect(sent).toEqual([]);
+    expect(
+      (await t.eventsOf("message.received")).map((e) => [e.data.handledAs, e.data.sortedAs]),
+    ).toEqual([
+      ["keyword", "shifts"],
+      ["ai", "cancel"],
+    ]);
+    expect(await t.eventsOf("enquiry.checks")).toEqual([]);
+    const person = await withFirm(t.f.firmId, (tx) => loadEnquiries(tx, "person", new Date()));
+    expect(person.rows.map((r) => r.text).sort()).toEqual(
+      ["Any shifts this week?", "running late, can't make it"].sort(),
     );
   });
 

@@ -1845,7 +1845,7 @@ ADR-027, P4.2).
       for connections, a firm's AI fallbacks over 20% of at least 20, over 1,500 inbound messages
       or 500 offers per firm an hour. Tests: `tests/unit/ops.alerts.test.ts`,
       `tests/integration/ops.alerts.test.ts` (P4.8)
-- [ ] The target in one test: 1,000 messages from 1,000 casuals in a burst, all handled within a
+- [x] The target in one test: 1,000 messages from 1,000 casuals in a burst, all handled within a
       bound (`tests/integration/inbound.load.test.ts`); `docs/architecture.md`'s scale line at the
       target; "one worker process" and the connection budget in `docs/runbooks.md`; the pre-pilot
       checklist (`docs/testing.md`) (P4.9)

@@ -1825,7 +1825,7 @@ ADR-027, P4.2).
       (`src/lib/reminders/send.ts`). Then the `guardrails-reviewer`. Tests: 2,000 due in one slot
       sent once each, another firm's in between, nothing twice after a crash
       (`shift.reminders.test.ts`) (P4.5)
-- [ ] The AI under load, all in `src/lib/ai/anthropic.ts`: one client per worker process, at most
+- [x] The AI under load, all in `src/lib/ai/anthropic.ts`: one client per worker process, at most
       4 calls at once (a call that waits past its 5 seconds goes to the office), a breaker after 5
       failures in a row (30 s, then one trial call), no retry, no timers. The model stays: moving
       to `claude-haiku-5-5` needs the live API (it thinks by default, so a 5-token label would come

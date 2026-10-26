@@ -663,3 +663,68 @@ page" over showing the link on the login page.
 | Refusing real numbers at every place people are added (forms, imports, the planner API) | Many places to keep in step; the worker's check covers them all, and the demo database refuses them itself |
 | A demo compose file of its own, copying the real one | Two files to keep in step; the demo file changes only what differs |
 | The demo's database at the host (managed Postgres) | Costs more for made-up data loaded afresh every night |
+
+## ADR-026: A pull connector for a CRM that can't push, first AXLR8 (Proposed)
+
+**Status:** Proposed, 2026-10-26. Not accepted until Dylan says so (`PLAN.md`, "Connecting the
+firm's systems" 2); nothing is built for it before then.
+**Context:** The pilot firm keeps "everything basically" (events, sessions, roles, staff,
+qualifications, bookings) in AXLR8, a UK staffing CRM used by many event security and staffing
+firms (the firms we sell to first). AXLR8's public material describes "a callable API with
+credentials and Python code examples", its fields shaped in its Report Builder; that reads as a
+pull API, and nothing public mentions webhooks. The firm has nobody to write code that calls our
+planner API (ADR-022), so with a push-only design its sessions would never arrive, and bookings
+made in AXLR8 would never reach ShiftDesk, which would then offer places the office already filled.
+ShiftDesk already polls one outside source safely: the Google Sheets plug (ADR-013), with a
+per-firm tick, a lease, one read, one transaction to mirror and a three-way merge of who holds each
+place.
+**Decision (proposed):**
+- **Pull connectors are allowed** for a CRM that many of our target firms use and that can't push.
+  The API in and the webhooks out stay the way for every other planner. AXLR8 is the first; each
+  further connector needs its own short ADR.
+- **One framework, built like the Sheets sync:** a tick job, a lease per firm and source, polls by
+  horizon (sessions in the next 48 hours every minute, the rest every 15 minutes, staff hourly,
+  qualifications nightly), one transaction per event, and the pure three-way merge
+  (`src/lib/roster/sheets/merge.ts`) reused as it is. A connector changes sessions only through the
+  planner API's own functions (`src/lib/integrations/sessions.ts`) and staff only through
+  `upsertWorker()`, so the rules, notice hours and messages to casuals are the same code whatever
+  the source. Only syncs that changed something are logged.
+- **A secret store** for each firm's credentials (the first secret a firm gives us; today secrets
+  live only in the environment, ADR-013): a table the app role has no rights on, written only by an
+  owner script, read through an owner-run function only the jobs role may call (only the worker
+  has `DATABASE_JOBS_URL`), encrypted with AES-GCM under a key only the worker's settings hold. The
+  text system's keys (Phase 15) use it too.
+- **Never booked twice across the two systems:** a casual is never told "Booked" unless the CRM
+  accepted the booking, or the office handed that place to ShiftDesk. With a CRM that takes
+  writes, the place is held as "confirming" while the CRM is called outside any transaction; with a
+  read-only one, "Take shift" becomes a request on the office's "Enter in AXLR8" list (the roster
+  plug's `needs_approval`, `src/lib/roster/plug.ts`). A booking that appears in the CRM runs the
+  rules like an office placement and is flagged, not booked, if they refuse. A confirmed booking is
+  never cancelled by a sync.
+- **Notice hours** for a cancellation seen by a poll use the CRM's own cancelled time only when it
+  belongs to that booking and falls inside the poll window; the evidence is recorded with the
+  cancellation, and an uncertain time is read the way that favours the casual.
+- **Made-up data until signed:** tests run against a made-up AXLR8 server with our own field names
+  (AXLR8's API document is AXLR8's and is never committed); the real transport is refused under
+  `NODE_ENV=test` and pinned in `scripts/invariants.sh`; Gate B applies; a connector's sessions
+  come in hidden from casuals, so a firm's first cycle can run as a shadow.
+**Amends (when accepted):**
+- **ADR-022** and `docs/office-v2.md` §5.3: "no adapter per planner" becomes "no adapter per
+  planner, except a pull connector under this ADR".
+- **ADR-008** ("no Deputy/Parim plugs planned"): one named connector, for a CRM our target firms use.
+- `docs/office-v2.md` §5.3.5 ("No new `RosterPlug`"): the connector is a new source behind the
+  same plug.
+**Options:**
+| Option | Verdict |
+|---|---|
+| Push only (ADR-022 as it is) | The firm can't push; its data would never arrive |
+| A bridge script outside ShiftDesk that reads AXLR8 and calls our API | Someone has to run and watch it; it can't take part in the booking path, so the double-booking gap stays |
+| The firm's ops portal as the source | It copies from AXLR8 ("Sync AXLR8 Data"), so its data is a step behind; and its builder and API are unknown |
+| Zapier, Make or n8n | Needs a trigger on AXLR8's side that we haven't seen; same ordering limits as ADR-022 |
+| A copy of the planner API's logic inside the connector | Two places for the rules on booked sessions to drift apart |
+**Consequences:** the first per-firm secret, so a breach of the database alone mustn't reveal it
+(the key lives elsewhere) and the web app can't read it at all. Polls add load on event days: the
+connector's own tests and P4's load tests cover a firm at about 2,000 casuals and 110 events a
+fortnight. A CRM that changes its API breaks one connector, not the API in. The rest is in
+`PLAN.md` proposal P5. **Revisit when:** AXLR8 offers webhooks (then push, through ADR-022), or a
+second CRM needs a connector.

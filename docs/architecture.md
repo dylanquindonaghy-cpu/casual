@@ -6,8 +6,15 @@ database (or, if the host has none, Postgres in Compose). Every firm's data is i
 database, separated by `firm_id` and Row Level Security. Email goes out over SMTP through any
 provider. AI is Claude through the Anthropic API, off until it's switched on. No AWS (ADR-021).
 
-Scale is small (tens to a couple of hundred messages per firm per day, spiking on event
-mornings). Reliability matters far more than scale.
+Built for a big firm (PLAN.md P4): about 2,000 casuals, 110 events a fortnight, 10 office users at
+once and a burst of 1,000 messages in 10 minutes, on one web app and one worker process. The tests
+hold it there: an offer wave for one place among 2,000 casuals texts 5, not 2,000
+(`offers.scale.test.ts`); 2,000 reminders due at once each go once (`shift.reminders.test.ts`); and
+1,000 casuals' messages in one burst are each answered once within 90 seconds of the last with a
+300 ms send each (about 41 to 51 seconds measured), or each made the office's question within 30
+with automatic replies off (about 2) (`inbound.load.test.ts`). Most days are far quieter (tens to a
+couple of hundred messages per firm, spiking on event mornings). Reliability still matters more
+than scale.
 
 ## Diagram
 

@@ -535,8 +535,16 @@ log has every step.
       leaves nothing stuck for more than about a minute: the 30-second heartbeat, then the
       supervisor's next look (every 15 seconds; `tests/integration/jobs.crash.test.ts`, with
       production's settings).
+      At the target (P4.9, the same file): 1,000 casuals' messages in one burst, each answered
+      once within 90 seconds of the last with a 300 ms send (about 41 to 51 seconds here), or each
+      made the office's question within 30 with automatic replies off (about 2). With them, an
+      offer wave for one place among 2,000 casuals offers 5 (`offers.scale.test.ts`, P4.3) and
+      2,000 reminders due at once each go once (`shift.reminders.test.ts`, P4.5).
       On this laptop: run it once against the server too (PLAN.md "Pre-pilot checks on the
       server").
+- [ ] After loading a big firm's casuals (its first import): `ANALYZE` as the owner, or wait a
+      minute (docs/runbooks.md "Importing workers, credentials or shifts from a spreadsheet"),
+      before the first offer wave.
 - [x] Log masking verified (no phone numbers in logs). Every e2e run keeps the worker's and web
       app's whole output (`.dev/e2e-worker.log`, `.dev/e2e-web.log`) and `tests/e2e/teardown.ts`
       fails the run on any phone number, email or login token it finds there, or any server error

@@ -672,6 +672,15 @@ plus a one-off migration or owner command. An offer wave uses up to 4 of the wor
 (its 4 lanes, P4.4), each for a short transaction. The database's `max_connections` must be well
 above that: check the host's plan before choosing one (`show max_connections;` as the owner).
 
+Run **one worker process** (`deploy/docker-compose.yml` has one `worker` service). Its limits are per process: the
+shifts line's 8 loops (`INBOUND_LOOPS`), an offer wave's and the reminders' 4 sends at once, the
+AI's 4 calls at once and its breaker (P4.6). A second worker doubles all of them, and the
+connections (another 15, and another 5 for pg-boss): check the database's budget and the AI's rate
+limits before adding one. One worker meets the target (P4.9): a burst of 1,000 casuals' messages
+answered within about 50 seconds of the last with automatic replies on (300 ms a send), about 2
+with them off. If the alerts say jobs wait too long to start ("Alerts from the app") and the
+worker is up, look for what's slow before adding a second.
+
 ## Event-morning outage (the one that matters)
 
 1. Twilio's fallback already puts calls through to the manager's mobile when the app doesn't

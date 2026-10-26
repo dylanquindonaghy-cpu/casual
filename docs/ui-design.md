@@ -76,8 +76,8 @@ the build differs. This section is the system (task 24.1); the pages take its pa
 - **The fallbacks.** With less transparency or more contrast asked for (`prefers-reduced-
   transparency`, `prefers-contrast: more`), every see-through ground is solid, nothing blurs and
   the wash goes, in light and both darks (Apple's own fallback for Liquid Glass). A browser that
-  can't blur gets the glass more opaque instead (86% and more). Forced colours give each glass
-  part a system-coloured edge.
+  can't blur gets the same solid surfaces, with the wash still round them. Forced colours give
+  each glass part a system-coloured edge; with reduced motion nothing swells, dips or slides.
 - **Contrast over glass.** A word on glass sits on whatever shows through, so a pair is checked
   over every ground the glass can show (`src/lib/tenancy/glass-grounds.ts`,
   `tests/helpers/theme-css.ts`): a section over each of 15 points of the wash (its base, its four

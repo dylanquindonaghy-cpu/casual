@@ -21,8 +21,8 @@ import {
 // button also under the pointer, pressed and brightened; the lens on its track; the main button,
 // its colour to its shade. In six looks: light and dark (the cookie's block; the device's must hold
 // the same), each also solid (less transparency or more contrast: no wash, no glass) and with no
-// blur (a browser that can't: the glass more opaque, nothing saturated). Phase 21 to 23's office
-// looks are gone: the office takes the same colours (its block sets only sizes).
+// blur (a browser that can't: every ground solid too, the wash still round them). Phase 21 to
+// 23's office looks are gone: the office takes the same colours (its block sets only sizes).
 
 const LOOKS = looks();
 

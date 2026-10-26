@@ -12,8 +12,8 @@ import {
 // The looks src/app/globals.css draws (Phase 24, docs/ui-design.md "Phase 24: Liquid Glass"), read
 // back as numbers for the look tests (tests/unit/ui.glass.test.ts, ui.contrast.test.ts): each
 // block's colour tokens and glass variables, the fallbacks laid over them (less transparency or
-// more contrast: solid; a browser that can't blur: more opaque), and every ground a word can sit on
-// in each look.
+// more contrast, and a browser that can't blur: solid), and every ground a word can sit on in each
+// look.
 
 export const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
 
@@ -120,8 +120,8 @@ export function looks(): Look[] {
   const darkVars = props(block(BLOCKS.dark));
   const solid = props(block(BLOCKS.solid));
   const solidDark = props(block(BLOCKS.solidDark));
-  const clear = colourTokens(block(BLOCKS.clear));
-  const clearDark = colourTokens(block(BLOCKS.clearDark));
+  const clear = props(block(BLOCKS.clear));
+  const clearDark = props(block(BLOCKS.clearDark));
   const tokens = (m: Map<string, string>) =>
     new Map([...m].filter(([k]) => k.startsWith("color-")).map(([k, v]) => [k.slice(6), v]));
   const lightColours = parsed(theme);
@@ -161,18 +161,18 @@ export function looks(): Look[] {
       wash: [canvas(solidDarkColours)],
       saturates: false,
     },
-    // A browser that can't blur: the glass more opaque over the wash, and nothing saturated.
+    // A browser that can't blur: every ground solid too, with the wash still round them.
     {
       name: "light, no blur",
-      colours: parsed(merge(theme, clear)),
-      vars: root,
+      colours: parsed(merge(theme, tokens(clear))),
+      vars: merge(root, solidOnly(clear)),
       wash: washPoints("light"),
       saturates: false,
     },
     {
       name: "dark, no blur",
-      colours: parsed(merge(theme, dark, clearDark)),
-      vars: merge(root, darkVars),
+      colours: parsed(merge(theme, dark, tokens(clear), tokens(clearDark))),
+      vars: merge(root, darkVars, solidOnly(clear), solidOnly(clearDark)),
       wash: washPoints("dark"),
       saturates: false,
     },

@@ -623,24 +623,69 @@ body:has([data-office]) {
     --edge-fill: #07080c;
   }
 }
-/* A browser that can't blur at all: the glass more opaque instead, so words over it read without
-   the frost (the wash still shows, faintly). */
+/* A browser that can't blur at all: every surface solid too, as above (the wash still shows
+   round them), so no word sits on see-through glass with nothing frosting what's behind it. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   :root {
-    --color-card: rgb(255 255 255 / 0.86);
-    --color-sheet: rgb(255 255 255 / 0.86);
-    --color-panel: rgb(255 255 255 / 0.94);
+    --color-card: #ffffff;
+    --color-sheet: #ffffff;
+    --color-panel: #ffffff;
+    --color-raised: #f3f4f6;
+    --color-track: #e4e5e9;
+    --color-pill: #ffffff;
+    --color-active: #ffffff;
+    --color-count: #eceef1;
+    --color-button: #ffffff;
+    --color-button-line: #6e737b;
+    --color-button-hover: #f1f2f4;
+    --color-button-press: #e4e5e9;
+    --glass-filter: none;
+    --float-filter: none;
+    --edge-filter: none;
+    --tile-top: #f3f4f6;
+    --tile-bottom: #f3f4f6;
+    --button-top: #ffffff;
+    --button-bottom: #ffffff;
+    --edge-fill: #eef1f8;
   }
   :root[data-theme="dark"] {
-    --color-card: rgb(26 27 34 / 0.9);
-    --color-sheet: rgb(26 27 34 / 0.9);
-    --color-panel: rgb(30 30 34 / 0.96);
+    --color-card: #18191c;
+    --color-sheet: #18191c;
+    --color-panel: #18191c;
+    --color-raised: #232529;
+    --color-track: #2a2c31;
+    --color-pill: #2c2e33;
+    --color-active: #2c2e33;
+    --color-count: #232529;
+    --color-button: #18191c;
+    --color-button-line: #8a8e96;
+    --color-button-hover: #222428;
+    --color-button-press: #2a2c31;
+    --tile-top: #232529;
+    --tile-bottom: #232529;
+    --button-top: #18191c;
+    --button-bottom: #18191c;
+    --edge-fill: #07080c;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --color-card: rgb(26 27 34 / 0.9);
-      --color-sheet: rgb(26 27 34 / 0.9);
-      --color-panel: rgb(30 30 34 / 0.96);
+      --color-card: #18191c;
+      --color-sheet: #18191c;
+      --color-panel: #18191c;
+      --color-raised: #232529;
+      --color-track: #2a2c31;
+      --color-pill: #2c2e33;
+      --color-active: #2c2e33;
+      --color-count: #232529;
+      --color-button: #18191c;
+      --color-button-line: #8a8e96;
+      --color-button-hover: #222428;
+      --color-button-press: #2a2c31;
+      --tile-top: #232529;
+      --tile-bottom: #232529;
+      --button-top: #18191c;
+      --button-bottom: #18191c;
+      --edge-fill: #07080c;
     }
   }
 }

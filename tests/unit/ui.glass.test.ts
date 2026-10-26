@@ -35,7 +35,7 @@ import { BLOCKS, block, colourTokens, css, parseColour, props } from "../helpers
 // Each value is pinned here, and src/lib/tenancy/glass-grounds.ts holds the same numbers (the
 // contrast test, tests/unit/ui.contrast.test.ts, works every word out over them). Where someone
 // asks for less transparency or more contrast, every ground is solid and the wash goes; where a
-// browser can't blur, the glass is more opaque. Depth is the glass's rim and drop, through
+// browser can't blur, every ground is solid too. Depth is the glass's rim and drop, through
 // variables, so the dark theme's reach the classes; no other shadow anywhere.
 
 const ROOT = process.cwd();
@@ -285,23 +285,16 @@ describe("the fallbacks", () => {
     );
   });
 
-  it("a browser that can't blur: the glass more opaque (at least 86%), in light and both darks", () => {
-    for (const [name, pattern, t] of [
-      ["light", BLOCKS.clear, "light"],
-      ["the cookie's dark", BLOCKS.clearDark, "dark"],
-      ["the device's dark", BLOCKS.clearDeviceDark, "dark"],
+  it("a browser that can't blur: every surface solid too, the same values, in light and both darks", () => {
+    for (const [name, clear, solid] of [
+      ["light", BLOCKS.clear, BLOCKS.solid],
+      ["the cookie's dark", BLOCKS.clearDark, BLOCKS.solidDark],
+      ["the device's dark", BLOCKS.clearDeviceDark, BLOCKS.solidDeviceDark],
     ] as const) {
-      const clear = colourTokens(block(pattern));
-      expect([...clear.keys()], name).toEqual(["card", "sheet", "panel"]);
-      for (const [k, glass] of [
-        ["card", GLASS[t].section],
-        ["sheet", GLASS[t].section],
-        ["panel", GLASS[t].float],
-      ] as const) {
-        const c = parseColour(clear.get(k))!;
-        expect(c.slice(0, 3), `${name}: ${k}`).toEqual(glass.slice(0, 3));
-        expect(c[3], `${name}: ${k}`).toBeGreaterThanOrEqual(0.86);
-      }
+      const values = Object.fromEntries(props(block(clear)));
+      expect(values, name).toEqual(Object.fromEntries(props(block(solid))));
+      for (const t of TRANSLUCENT)
+        expect(values[`color-${t}`], `${name}: ${t}`).toMatch(/^#[0-9a-f]{6}$/);
     }
   });
 });

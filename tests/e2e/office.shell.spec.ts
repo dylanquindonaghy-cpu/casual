@@ -12,9 +12,10 @@ import { sentTo } from "./outbox";
 // once, both saying the same, kept after a reload with no flash), and from 1024px the menu in its
 // own card of glass under the bar beside the page (Phase 24: the page has no card of its own). On
 // a laptop with a mouse (Phase 22): the whole menu fits with no scrollbar, the pill moves to a link
-// as it's picked, a press dips (and glass swells), nothing lifts, no round button breaks onto two lines, the switch's words can be hovered and put away
-// with Escape, and the keyboard never leaves a control hidden under the top bar. Everything runs
-// with the device set to light and again set to dark.
+// as it's picked, a press dips (and glass swells), nothing lifts, no round button breaks onto two
+// lines, the switch's words can be hovered and put away with Escape, and the keyboard never leaves
+// a control hidden under the top bar. Everything runs with the device set to light and again set
+// to dark.
 
 const acme = "http://acme.localhost:3100";
 // The office's window (Phase 24, round 7): the wash on its base (the canvas), and on it the top bar

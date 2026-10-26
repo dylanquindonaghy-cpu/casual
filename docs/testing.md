@@ -346,7 +346,7 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   blur and the saturation), each glass utility as written, the refraction only under `.rf` (one
   `url(#lg-refract)`, its filter's fixed region, Chromium only, off with less transparency), the
   fallbacks (every see-through ground solid with less transparency or more contrast, in light and
-  both darks, the wash gone; at least 86% with no blur), the depth tokens as variables set in
+  both darks, the wash gone; the same with no blur), the depth tokens as variables set in
   light and both darks, `box-shadow` only in the glass's parts and the file button, each file's
   depth tokens and floating glass, sections as glass, the main buttons tinted, the lens on the
   chosen tab, no white box left, no page card, no `press` beside `press-glass`, no office sky.

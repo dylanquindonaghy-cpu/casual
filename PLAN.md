@@ -1627,7 +1627,7 @@ AXLR8's own confidential document: never commit it or copy its field lists; the 
 tests uses our own names. Nobody explores AXLR8's API with an employee's login before the agreement.
 
 These are **proposals**: their tasks get boxes, a number and a "Done when" line when Dylan gives
-each one the go-ahead (golden rule 10). They're labelled P1 to P7 so they can't clash with phases a
+each one the go-ahead (golden rule 10). They're labelled P1 to P8 so they can't clash with phases a
 parallel chat adds. Tasks marked **attended** are built with Dylan's session open, not by `/overnight`:
 those that touch `.claude/` or `scripts/invariants.sh` (which `/overnight` may not edit), and those
 that add a secret or the connector (worth watching as they're built). The questions to send first are in
@@ -1675,8 +1675,9 @@ can send any texts the firm chooses, and ShiftDesk sends the texts about its own
 
 **Order.** Now: Dylan gets access to the ops portal's documentation and a test copy with made-up
 data, and sends the follow-ups (`docs/discovery-axlr8.md` §4 and §5). After the parallel UI chat's
-work is merged (it edits the same files): P1, then P2, P4 and P3 (each item as it's decided), P5's framework and secret store, and
-P7's core, all on made-up data. Once the API's shape is known: P5's first connector (the ops
+work is merged (it edits the same files): P1, then P2, P3 (each item as it's decided), P5's
+framework and secret store, P7's core and P8, all on made-up data. P4's back end now, alongside the
+UI chat (go-ahead 2026-10-26: it changes no screen), and its office pages after the merge. Once the API's shape is known: P5's first connector (the ops
 portal), P6, and Phase 15's texts. After signing: the real API key, a shadow cycle (P5's sessions
 come in hidden from casuals; the office compares ShiftDesk's required and booked counts with the ops
 portal each day for one pay cycle), a few events live, then everything, then the email inbox.
@@ -1768,46 +1769,100 @@ sync, webhook, reminder and offer wave runs in that worker.
    (`src/lib/strikes/decide.ts`).
 5. **Availability out** to the CRM: waits until discovery says whether AXLR8 keeps it.
 
-### P4 — Ready for a big firm (no screen changes but "and N more" lines; S, M, R)
+### P4 — Ready for a big firm (go-ahead for the back end: Dylan, 2026-10-26; office pages after the UI chat merges; S, T, M, R)
 
 Target: about 2,000 casuals, 110 events a fortnight, 10 office users at once, 1,000 messages in 10
-minutes. Today the design assumes small numbers (`docs/architecture.md`: "Scale is small (tens to a
-couple of hundred messages per firm per day …)"). A first-come wave goes to everyone eligible, one
-at a time: an estimate, if 1,500 of 2,000 casuals are eligible at about 0.35 s each (one rules
-check of about 9 queries, the locks and the send), is about 1,500 texts and about 9 minutes for one
-place, with other firms' waves waiting. The pool is 10 connections per process with no timeouts,
-and an office page opens up to 5 transactions one after another before its own (an admin's; fewer
-for a resourcer or payroll).
+minutes; the firm's texts cost about 20p each. Today the design assumes small numbers
+(`docs/architecture.md`: "Scale is small (tens to a couple of hundred messages per firm per day
+…)"). A first-come wave goes to everyone eligible, one at a time: an estimate, if 1,500 of 2,000
+casuals are eligible at about 0.35 s each (one rules check of about 9 queries, the locks and the
+send), is about 1,500 texts and about 9 minutes for one place, with other firms' waves waiting. The
+pool is 10 connections per process with no timeouts, and an office page opens up to 5 transactions
+one after another before its own (an admin's; fewer for a resourcer or payroll).
 
-- Database: a checkout timeout and pool sizes per process (`src/lib/db/pool.ts`);
-  `statement_timeout` and `idle_in_transaction_session_timeout` per database role
-  (`src/lib/db/admin/roles.ts`), not as connection options, so a pooler can be added later
-  (`withFirm`'s transaction-local `set_config` and the transaction-scoped locks are already
-  pooler-safe); indexes on `shifts(firm_id, event_id)`, `shifts(firm_id, ends_at)`,
-  `assignments(firm_id, cancelled_at)`, `offers(firm_id, sent_at)` and the action log by action; the
-  jsonb OR chain in `src/lib/office/action-log.ts` replaced.
-- Office pages: the layout's 5 reads in one transaction (`src/app/office/layout.tsx`); Needs
-  attention worked out once a request; caps on the unbounded lists in `src/lib/office/dashboard.ts`;
-  the webhook status from a small row, not a scan of the action log
-  (`src/lib/office/webhook-settings.ts`).
-- Offer waves: a cap per wave ("Connecting the firm's systems" 5), recipients claimed in chunks with the batched
-  `previewBookings()` (`src/lib/roster/book.ts`), sends in parallel with a rate limit, batch size 1
-  for the wave queue (a batch of 5 shares one 15-minute expiry, `src/worker/jobs/index.ts`). First yes
-  still wins by the conditional `UPDATE`.
-- Reminders claimed and sent in chunks (`src/lib/reminders/send.ts`).
-- AI: one client per process (`src/lib/inbound/reply.ts` makes one per job), a cap on parallel
-  calls, one retry on 429, and the parked circuit breaker; the default (`claude-haiku-4-5`, `src/lib/env.ts`)
-  moves to the current Haiku, its id checked with the claude-api skill, after the sorting tests
-  are re-run.
-- Inbound: caps per sender and per firm, the parked cap on "unknown number" emails, an auto-reply
-  loop guard; "one worker process" written down until pg-boss 12's group limit is shown to hold
-  across processes.
-- Seeing a backlog: queue lag, job time, pool waits, AI time and fallback rate, alerted by
-  `src/lib/ops/tick.ts`.
-- Load tests at the target: `tests/integration/inbound.load.test.ts`,
-  `tests/integration/offers.waves*.test.ts`, `tests/e2e/load.smoke.spec.ts`,
-  `src/lib/db/admin/seed-story-load.ts`; and `docs/architecture.md`'s scale line updated to the
-  target.
+**This round is the back end only** (Dylan, 2026-10-26: "Mark PR ready; start P4 back end"): a
+parallel chat is changing the office's screens, so no task here changes a screen, an office page,
+a message's or an email's words, or anything under `src/app/`, `src/lib/office/`, `docs/screens.md`
+or `docs/ui-design.md`. Build each with `/next-task P4.n` (the default would pick an older blocked
+task) and close each with `/close-task`. The numbers are Dylan's ("Connecting the firm's systems"
+10 to 14). Three of P4's first ideas are replaced: chunked claims (4 sends at a time instead,
+P4.4), "one retry on 429" (it rarely fits in the 5 seconds, and `tests/unit/ai.anthropic.test.ts`
+pins "nothing is retried", P4.6), and limits "per database role" (per transaction instead,
+ADR-027, P4.2).
+
+- [ ] Indexes for a big firm's lists: `shifts (firm_id, event_id)`, `shifts (firm_id, ends_at)`,
+      `assignments (firm_id, cancelled_at)`, `offers (firm_id, sent_at)` and `events (firm_id,
+      action, created_at)`, declared in `src/lib/db/schema/` with one migration
+      (`npm run db:generate`, plain `CREATE INDEX` like `drizzle/0028_pilot_size_indexes.sql`).
+      Tests: each index and its columns in `pg_indexes` (`tests/integration/db.indexes.test.ts`)
+      (P4.1)
+- [ ] The database's limits per process: a wait for a connection of at most 5 s (web) and 30 s
+      (the worker), pools of 10 and 15 (`src/lib/db/pool.ts`); `statement_timeout` 15 s / 60 s and
+      `idle_in_transaction_session_timeout` 30 s / 60 s, set in `withFirm`'s own `set_config`
+      statement so they end with the transaction (ADR-027: per transaction, not per database
+      role); longer only for the credential scan's lock holder, the firm's data export, the
+      retention purge and the metrics roll-up. Tenancy: approved by Dylan ("Connecting the firm's
+      systems" 14), then the `guardrails-reviewer`. Tests: the limits set and gone on the same
+      pooled connection, a slow statement and an idle transaction ended and the pool carrying on,
+      a full pool failing a wait instead of hanging (`tests/integration/scoped-client.test.ts`);
+      the scan's lock holder; the two profiles (`tests/unit/db.limits.test.ts`) (P4.2)
+- [ ] A cap on each offer wave ("Connecting the firm's systems" 10): first come, first served sends
+      to the best 5 casuals per free place by the existing ranking, at most 50, then the next wave
+      after `wave_minutes` while anyone is left; a place taken shrinks the wave; the Open shifts
+      board, first yes wins and fair rotation unchanged; owner setting `wave_per_place` (1 to 20,
+      default 5). Then the `guardrails-reviewer`. Tests: the sizes and order
+      (`tests/unit/offers.waves.test.ts`, its "everyone at once" case replaced on purpose); waves of
+      5, 5 and 2, and 4 places' 20 (`offers.waves.test.ts`, `waves.timing.test.ts`); 2,000
+      casuals offered 5 for one place (`tests/helpers/bulk-seed.ts`, `offers.scale.test.ts`); the
+      lock test at the 50 cap with every check kept; `firm:settings` (`onboarding.test.ts`) (P4.3)
+- [ ] Waves send 4 at a time, each casual still claimed alone under the shift's lock; one wave per
+      fetch (`OFFER_WAVE_WORK_OPTIONS`, `src/worker/jobs/index.ts`); the eligibility loader groups
+      its rows by casual once (same verdicts). Then the `guardrails-reviewer`. Tests: at most 4 in
+      flight, nobody messaged twice after a crash, Take shift within 2 s
+      (`offers.waves.lock.test.ts`); 50 casuals with 300 ms sends within about 6 s; batch verdicts
+      equal single ones at 2,000 (`eligibility.batch.test.ts`) (P4.4)
+- [ ] Reminders 4 at a time, at most 200 a run, the rest by a follow-up job behind other firms'
+      (`src/lib/reminders/send.ts`). Then the `guardrails-reviewer`. Tests: 2,000 due in one slot
+      sent once each, another firm's in between, nothing twice after a crash
+      (`shift.reminders.test.ts`) (P4.5)
+- [ ] The AI under load, all in `src/lib/ai/anthropic.ts`: one client per worker process, at most
+      4 calls at once (a call that waits past its 5 seconds goes to the office), a breaker after 5
+      failures in a row (30 s, then one trial call), no retry, no timers. The model stays: moving
+      to `claude-haiku-5-5` needs the live API (it thinks by default, so a 5-token label would come
+      back empty). Tests: `tests/unit/ai.anthropic.test.ts` (P4.6)
+- [ ] No automatic replies by text ("Connecting the firm's systems" 11 and 12): a text or
+      WhatsApp that comes in is stored, sorted and logged as today, but nothing is sent back
+      (no automatic reply, no unknown-number reply, no STOP or START confirmation; a STOP itself is
+      still recorded); an office message still makes a question in "Need a person"; a per-firm
+      owner setting switches automatic text replies back on (off by default). At most 5
+      unknown-number alert emails per firm an hour (`hitLimit()`, inside the claim transaction).
+      `message.received` gains `replyHeld` or `alertHeld`. No new words. Then the
+      `guardrails-reviewer` (STOP especially). Tests: `inbound.whatsapp.test.ts`,
+      `inbound.sms.test.ts`, `enquiries.test.ts` (fixtures switch replies on where they test them,
+      on purpose; new cases with them off) (P4.7)
+- [ ] Seeing a backlog (`src/lib/ops/tick.ts`, `alerts.ts`): the oldest waiting job (inbound over
+      60 s, waves over 2 min, others over 15 min), a job past 80% of its expiry, the worker waiting
+      for connections, a firm's AI fallbacks over 20% of at least 20, over 1,500 inbound messages
+      or 500 offers per firm an hour. Tests: `tests/unit/ops.alerts.test.ts`,
+      `tests/integration/ops.alerts.test.ts` (P4.8)
+- [ ] The target in one test: 1,000 messages from 1,000 casuals in a burst, all handled within a
+      bound (`tests/integration/inbound.load.test.ts`); `docs/architecture.md`'s scale line at the
+      target; "one worker process" and the connection budget in `docs/runbooks.md`; the pre-pilot
+      checklist (`docs/testing.md`) (P4.9)
+
+**After the UI chat's work is merged** (office pages, not this round): the layout's 5 reads in one
+transaction (`src/app/office/layout.tsx`); Needs attention worked out once a request; caps on the
+lists in `src/lib/office/dashboard.ts` ("and N more"); the webhook status from a small row
+(`src/lib/office/webhook-settings.ts`; S); the jsonb OR chain in `src/lib/office/action-log.ts`;
+and, each with its words in `docs/screens.md` first: why a reply was held (Enquiries), a stop after
+25 offers per free place, one combined email past the 5.
+
+Done when: P4.1 to P4.9 are ticked, each with a stamp that includes the browser tests;
+`RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; nothing under `src/app/` or `src/lib/office/`
+and no message or email words changed; a first-come wave for one free place offers 5 casuals by
+the ranking, not everyone; no automatic reply goes out by text unless the firm switches it on; the
+tests hold at 2,000 casuals, 1,000 messages and 2,000 reminders; `docs/architecture.md`'s scale
+line names the target; the `claims-auditor` checks the phase against this line.
 
 ### P5 — The connector: the ops portal's API first, AXLR8 directly later (attended; S, A, T, M, R, UI)
 
@@ -1892,6 +1947,23 @@ and the office's "Enter in AXLR8" list is the fallback for when the portal is do
   AI-drafted reply the office approves before it's sent, and a summary every 3 hours. Replies are
   signed "[Firm name] Shift Team" (golden rule 8).
 
+### P8 — The in-app chat (proposed 2026-10-26; a mock-up first, after the UI chat merges; S, M, UI)
+
+Dylan, 2026-10-26: "it would be an internal chat on the app not texts being sent out". Casuals
+message the office inside the app, and the shifts line's sorting (keywords, then the AI's label,
+then the office: `src/lib/inbound/reply.ts`, `sortMessage()` in `src/lib/ai/classify-message.ts`)
+answers there at once with the same fixed replies and links, never by text; the office answers in
+Enquiries. Free (no 20p a text), logged like every message (golden rule 5), pay disputes still to
+payroll (golden rule 9), replies signed "[Firm name] Shift Team" (golden rule 8).
+
+- An `app` channel for `messages` (today only WhatsApp, SMS and voice, and a number is required:
+  `src/lib/db/schema/messages.ts`; S).
+- The casual's chat screen and the office's thread in Enquiries: mock-ups first (UI).
+- App notifications for a reply (`src/lib/notify`).
+- The guards that P4.7 doesn't need yet: at most 5 automatic replies an hour per casual ("Connecting
+  the firm's systems" 11), and no automatic reply to a message carrying our own "Automatic reply."
+  line, so an echo can't loop.
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify
@@ -1947,8 +2019,11 @@ text system once its details are known; Messages 2 (notification first, or both)
 Stage 2 (proposal P7), casuals' login by email as a stop-gap, a cap on each offer wave, who asked
 for each cancellation with a strikes switch per firm, the CRM's Casual sessions only, and a CRM
 booking the rules refuse flagged, never booked. Later the same day, 9: ShiftDesk sends the texts
-about its own bookings. Each is built as its proposal (P1 to P7), once that proposal gets the
-go-ahead.
+about its own bookings; and 10 to 14, with the go-ahead for P4's back end: waves of 5 per free
+place (at most 50), no automatic replies by text (the in-app chat, P8, instead), 5 unknown-number
+emails an hour, texts only for offers, confirmations and reminders (push first: Messages 2), and
+the database's limits inside `withFirm`. Each is built as its proposal (P1 to P8), once that
+proposal gets the go-ahead.
 
 **When each one matters** (every row with that tag):
 1. **Before any real data** (the pilot firm's staff, even a check of a file): Legal 1, 2, 4 and 6;
@@ -2038,7 +2113,7 @@ go-ahead.
 | # | Decision | Default now | Where |
 |---|---|---|---|
 | 1 | **Before a pilot:** urgent messages go during quiet hours (22:00–07:00) unless a firm turns it off; the spec reads as "if the firm allows it" | Urgent messages go at night | `src/lib/rules/quiet-hours.ts`; log, Phase 4 (never flagged before) |
-| 2 | Notifications by WhatsApp or text **and** push, or push first to save the WhatsApp fee (ADR-003 said push first). 2026-10-26: the pilot firm's texts cost about 20p each, so Claude recommends push first, a text only when a phone has no notifications on | Both | Parking lot "Dylan to confirm: notifications go by WhatsApp…" |
+| 2 | Notifications by WhatsApp or text **and** push, or push first to save the WhatsApp fee (ADR-003 said push first). 2026-10-26: the pilot firm's texts cost about 20p each, so Claude recommends push first, a text only when a phone has no notifications on. **Decided** (Dylan, 2026-10-26): push first, a text only when a phone has no notifications on ("Connecting the firm's systems" 13) | Both, until built (Phase 15) | Parking lot "Dylan to confirm: notifications go by WhatsApp…" |
 | 3 | **Before a pilot:** first come, first served sends the urgent offer to every eligible worker at once, not "the best 3–5" | Everyone at once. **Decided** (Dylan, 2026-10-26): a cap on each wave ("Connecting the firm's systems" 5; built in P4) | Parking lot "Offer waves follow-ups" |
 | 4 | The 3-offers-a-day cap: fixed, or per firm; urgent offers count towards it | Fixed; urgent ones count | Parking lot (offer cap items) |
 | 5 | Re-offer to workers whose earlier offers became "filled elsewhere" when the office reopens a shift? | No | Parking lot |
@@ -2174,7 +2249,7 @@ go-ahead.
 
 ### Connecting the firm's systems (added 2026-10-26)
 
-For the proposals P1 to P7 ("Proposed 2026-10-26", above Stage 2). All nine **decided** on
+For the proposals P1 to P8 ("Proposed 2026-10-26", above Stage 2). All of them **decided** on
 2026-10-26 (Dylan, in chat: "go with your recommendations on the 8 decisions"; then 9, his pick
 when asked who texts about ShiftDesk's bookings). Each is built as
 its proposal, once that proposal gets the go-ahead; until then the app works as "Until built" says.
@@ -2190,6 +2265,11 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
 | 7 | **Decided** (Dylan, 2026-10-26: recommended): import the CRM's Casual sessions only, never Contracted or Holiday ones | Nothing imported | P3 item 2 |
 | 8 | **Decided** (Dylan, 2026-10-26: recommended): a booking added in the CRM that the rules refuse (an expired licence) is flagged as urgent, never booked (golden rule 6) | As the rota sheet: not booked, reported | P5 |
 | 9 | **Decided** (Dylan, 2026-10-26: recommended): for bookings made in ShiftDesk, ShiftDesk sends the offer, the confirmation and the reminders, through the firm's Webex account, each logged (golden rule 5); AXLR8 keeps texting about the office's own bookings, so no casual gets the same text twice | Nothing is sent for real (no text sender yet) | P2 ("who sends what"); Phase 15 |
+| 10 | **Decided** (Dylan, 2026-10-26: recommended): first come, first served texts the best 5 casuals per free place by the existing ranking, at most 50 a wave, then the next wave every `wave_minutes` (15) while it's unfilled; the board still shows the shift to everyone eligible and the first yes still wins. About £1 a wave for one place at 20p a text, instead of about £300 | Everyone eligible at once | P4.3 |
+| 11 | **Decided** (Dylan, 2026-10-26): automatic replies never go by text ("it would be an internal chat on the app not texts being sent out"): a text that comes in goes to the office; the in-app chat is P8, with at most 5 automatic replies an hour per casual there | Every message gets an automatic reply on its own channel (WhatsApp today) | P4.7; P8 |
+| 12 | **Decided** (Dylan, 2026-10-26: recommended): at most 5 unknown-number alert emails per firm an hour; the messages still show in "Need a person" (a cap on polite replies is moot: none go by text) | One email per number to every admin and resourcer | P4.7 |
+| 13 | **Decided** (Dylan, 2026-10-26: recommended): texts go out only for offers, confirmations and reminders of ShiftDesk's own bookings, through the firm's Webex account, and preferably only when the casual's phone has app notifications off (Messages 2) | Nothing sent for real (no text sender yet) | Phase 15; P2 |
+| 14 | **Decided** (Dylan, 2026-10-26: recommended): the database's time limits are set inside `withFirm`, per transaction, rather than per database role (a tenancy change) | No limits | P4.2; ADR-027 |
 
 ### Checks and to-dos (not choices)
 

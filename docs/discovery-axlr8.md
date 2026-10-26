@@ -1,6 +1,6 @@
 # Questions before connecting a firm's CRM and ops portal
 
-What we need to know before building the proposals P1 to P7 in `PLAN.md` ("Proposed 2026-10-26").
+What we need to know before building the proposals P1 to P8 in `PLAN.md` ("Proposed 2026-10-26").
 Two short messages, ready to copy (one to AXLR8, one to whoever built the firm's ops portal), and
 a list of questions for the firm's own office or IT. This file names no firm and holds no real data
 (golden rule 7).

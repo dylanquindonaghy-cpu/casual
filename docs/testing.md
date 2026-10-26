@@ -339,6 +339,35 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   only the window's height changes); `office.attendance.spec.ts`
   (Mark who worked from the Needs attention card's panel); `walkthrough.spec.ts` (steps 23 and 24
   through the charts and panels).
+- Phase 24 (Liquid Glass, round 7; docs/ui-design.md "Phase 24"), task 24.1 the system:
+  `ui.glass.test.ts` (in place of `ui.flat.test.ts`) pins the glass: `globals.css` draws
+  `src/lib/tenancy/glass-grounds.ts`'s numbers (the wash's base and four lights, a section's, a
+  float's, a tile's, a button's, the track's and the lens's fills, in light and both darks; the
+  blur and the saturation), each glass utility as written, the refraction only under `.rf` (one
+  `url(#lg-refract)`, its filter's fixed region, Chromium only, off with less transparency), the
+  fallbacks (every see-through ground solid with less transparency or more contrast, in light and
+  both darks, the wash gone; at least 86% with no blur), the depth tokens as variables set in
+  light and both darks, `box-shadow` only in the glass's parts and the file button, each file's
+  depth tokens and floating glass, sections as glass, the main buttons tinted, the lens on the
+  chosen tab, no white box left, no page card, no `press` beside `press-glass`, no office sky.
+  `ui.contrast.test.ts` works every pair out over the glass itself (`tests/helpers/theme-css.ts`:
+  each ground composited over every point of the wash, the backdrop saturated as Chromium does
+  it, a clear button also hovered and pressed with its words brightened, the main button
+  brightened) in six looks: light and dark, solid, and with no blur. `tenancy.brand.test.ts` checks
+  every firm colour of the cube against the same grounds, read from the stylesheet, the main
+  button's shade and brightening too; the demo firms' new values. `ui.theme.test.ts` Geist (its
+  two subsets matching the package's ranges; the old faces gone), the two type scales, colour
+  values only in tokens and the glass's variables. `ui.design-system.test.ts` the doc's table with
+  glass values, the glass file button; `ui.office-system.test.ts` the office with no colours of its
+  own, `press-glass` as written, the counts, gradients only in the glass, the wash and the masks,
+  no white boxes. The markup tests (`office.shell`, `office.dashboard`, `office.events`,
+  `portal.*`) pin each part's glass. Browser: `office.look.spec.ts` (every office page and the
+  login pages at 390px and 1280 × 640, light and dark: the wash, no page card, Geist loaded, each
+  section frosted in its fill, what floats frosted more, the main button tinted in the firm's
+  colour, every clear button rimmed, depth only on the glass, no white box, no image but the
+  glass's gradients, nothing sideways); `office.shell.spec.ts` (the floating bar and drawer, the
+  menu card's glass, no page card, a glass button swelling to 104%); `brand.spec.ts`,
+  `theme.spec.ts`, `casual.app.spec.ts` and `strikes.worker.spec.ts` the new values.
 
 ## Fixtures and the demo seed
 

@@ -128,7 +128,7 @@ const text = (html: string) =>
 describe("Home and Booked: the empty pages", () => {
   it("Home greets her, and says so plainly when nothing is booked, with a way to open shifts", () => {
     const html = home({});
-    // Phase 20: "Hi Sam", in the greeting's serif.
+    // Phase 20: "Hi Sam", in the greeting's face (Geist medium since Phase 24; a serif before).
     expect(text(html)).toContain("Hi Sam");
     expect(html).toMatch(/<h1 class="font-greet text-4xl text-ink">Hi Sam<\/h1>/);
     expect(text(html)).toContain("Updated 09:00");
@@ -136,7 +136,10 @@ describe("Home and Booked: the empty pages", () => {
     expect(text(html)).toContain(
       "No shifts booked Take a shift and it shows up here as your pass, with the time and the gate. Find a shift",
     );
-    expect(html).toMatch(/<a class="[^"]*bg-brand[^"]*" href="\/shifts\/open">Find a shift<\/a>/);
+    // The main button: tinted glass in the firm's colour (Phase 24).
+    expect(html).toMatch(
+      /<a class="[^"]*(?<![\w-])glass-tint(?![\w-])[^"]*" href="\/shifts\/open">Find a shift<\/a>/,
+    );
     expect(text(html)).toContain(
       "To apply for None right now We'll message you when something matches.",
     );
@@ -284,8 +287,9 @@ describe("Booked: the bookings themselves", () => {
       expect(here).toMatch(/<span class="[^"]*(?<![\w-])bg-brand text-on-brand(?![\w-])/);
       expect(here).toMatch(/class="[^"]*font-semibold text-ink/);
       expect(html.match(/bg-brand text-on-brand/g)).toHaveLength(1);
-      // It floats over the page: the bar depth token, no line.
-      expect(html).toMatch(/<nav aria-label="Main" class="[^"]*shadow-bar"/);
+      // It floats over the page: floating glass (Phase 24; the bar depth token before), no line.
+      expect(html).toMatch(/<nav aria-label="Main" class="glass-float fixed inset-x-0 bottom-0 /);
+      expect(html).not.toMatch(/(?<![\w-])shadow-bar(?![\w-])/);
       expect(html).not.toContain("border-t");
       // The words at 15px.
       expect(html.match(/text-base/g)?.length).toBeGreaterThanOrEqual(4);
@@ -551,7 +555,7 @@ describe("Home: what she can take, and her next shift in full", () => {
       "Directions Details Hide details Can't make it?",
     );
     expect(buttons).toMatch(
-      /<a href="https:\/\/www\.google\.com\/maps\/search\/\?api=1&amp;query=Demo%20Arena[^"]*" target="_blank" rel="noopener noreferrer" class="[^"]*shadow-lift[^"]*">/,
+      /<a href="https:\/\/www\.google\.com\/maps\/search\/\?api=1&amp;query=Demo%20Arena[^"]*" target="_blank" rel="noopener noreferrer" class="[^"]*(?<![\w-])glass-button press-glass(?![\w-])[^"]*">/,
     );
     // Details is a <details> whose summary is the button: it opens without JavaScript, and the
     // card under the buttons shows while it's open (a :has() rule on the pass).

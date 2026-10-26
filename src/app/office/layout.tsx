@@ -9,18 +9,18 @@ import { officePayQueriesWaiting } from "@/lib/office/pay-dashboard";
 import { payWeekNow, payWeekParts } from "@/lib/pay/pay-week";
 import { firmShiftsLine, lineWords } from "@/lib/tenancy/shifts-line";
 import { THEME_COOKIE, themeFromCookie } from "../theme";
-import { officeFontVariables } from "./office-fonts";
 import { menuBadges, OfficeShell, officeMenu } from "./office-shell";
 
 // Every office page sits in the office shell (the top bar, the menu, the account menu) once
 // someone is logged in. With no session (/office/login, /office/l, or a page that's about to send
 // you to log in) the page shows on its own. Display only, so it never redirects or hides a page:
 // each page checks its own access (requireOfficeArea), and each action its own.
-// Either way the page is wrapped in [data-office] (Phase 21): the office's look (its tokens in
-// globals.css) and its faces (office-fonts.ts). The wrapper draws no box of its own (contents).
+// Either way the page is wrapped in [data-office] (Phase 21): the office's sizes (globals.css; since
+// Phase 24 its colours, glass and face are the app's own). The wrapper draws no box of its own
+// (contents).
 function OfficeLook({ children }: { children: ReactNode }) {
   return (
-    <div data-office="" className={`contents ${officeFontVariables}`}>
+    <div data-office="" className="contents">
       {children}
     </div>
   );

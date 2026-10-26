@@ -217,9 +217,9 @@ export function OfficeFrame({
         Skip to content
       </a>
       <MenuPending.Provider value={menuPending}>
-        <div data-shell="office" className="flex flex-1 flex-col bg-canvas text-base text-ink">
+        <div data-shell="office" className="flex flex-1 flex-col text-base text-ink">
           {/* The top bar: the window's full width at every width, 64px tall from 1024px. */}
-          <header className="sticky top-0 z-20 flex min-h-14 items-center gap-2 border-b border-line bg-card px-3 sm:gap-3 lg:min-h-16 lg:px-6">
+          <header className="glass-float sticky top-0 z-20 flex min-h-14 items-center gap-2 px-3 sm:gap-3 lg:min-h-16 lg:px-6">
             <button
               type="button"
               aria-controls={DRAWER_ID}
@@ -227,7 +227,7 @@ export function OfficeFrame({
               aria-haspopup="dialog"
               disabled={!hydrated}
               onClick={() => setOpen(true)}
-              className="press inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-line bg-card px-4 font-semibold text-ink hover:bg-raised active:bg-button-press disabled:cursor-not-allowed disabled:opacity-60 lg:hidden"
+              className="press-glass glass-button inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-4 font-semibold text-ink hover:bg-button-hover active:bg-button-press disabled:cursor-not-allowed disabled:opacity-60 lg:hidden"
             >
               <Icon name="menu" />
               Menu
@@ -252,7 +252,7 @@ export function OfficeFrame({
               >
                 <span
                   aria-hidden="true"
-                  className="flex size-9 shrink-0 items-center justify-center rounded-full border border-line bg-raised text-sm font-bold text-ink-muted"
+                  className="flex size-9 shrink-0 items-center justify-center rounded-full glass-button text-sm font-bold text-ink-muted"
                 >
                   {initials(name)}
                 </span>
@@ -270,7 +270,7 @@ export function OfficeFrame({
               <div
                 id={ACCOUNT_MENU_ID}
                 popover="auto"
-                className="inset-auto top-16 right-3 m-0 w-64 origin-top-right animate-pop rounded-inner bg-card p-2 text-base text-ink shadow-float lg:top-18 lg:right-6"
+                className="inset-auto top-16 right-3 m-0 w-64 origin-top-right animate-pop rounded-inner glass-float p-2 text-base text-ink lg:top-18 lg:right-6"
               >
                 <p className="mb-1 border-b border-line px-3 pt-2 pb-3 leading-tight">
                   <span className="block font-semibold break-words">{name}</span>
@@ -302,7 +302,7 @@ export function OfficeFrame({
             onClick={(e) => {
               if (e.target === e.currentTarget) e.currentTarget.close();
             }}
-            className="inset-y-0 right-auto left-0 m-0 h-dvh max-h-none w-80 max-w-[85vw] overflow-hidden bg-card p-0 text-base text-ink shadow-float transition-[translate] duration-200 ease-sd backdrop:animate-fade backdrop:bg-scrim/40 starting:-translate-x-full"
+            className="inset-y-0 right-auto left-0 m-0 h-dvh max-h-none w-80 max-w-[85vw] overflow-hidden glass-float p-0 text-base text-ink transition-[translate] duration-200 ease-sd backdrop:animate-fade backdrop:bg-scrim/40 starting:-translate-x-full"
           >
             {open ? (
               <div className="flex h-full flex-col p-3">
@@ -314,7 +314,7 @@ export function OfficeFrame({
                     type="button"
                     aria-label="Close menu"
                     onClick={() => drawer.current?.close()}
-                    className="press inline-flex size-11 shrink-0 items-center justify-center rounded-full border border-line bg-card text-ink hover:bg-raised active:bg-button-press"
+                    className="press-glass glass-button inline-flex size-11 shrink-0 items-center justify-center rounded-full text-ink hover:bg-button-hover active:bg-button-press"
                   >
                     <Icon name="close" />
                   </button>
@@ -331,7 +331,7 @@ export function OfficeFrame({
             {/* The menu card: 16px under the bar, staying there as the page scrolls; it scrolls
                 only in a window too short for it, with no scrollbar (an admin's whole menu fits a
                 laptop window 640px tall: tests/e2e/office.shell.spec.ts). */}
-            <div className="hidden rounded-card border border-line bg-card p-2 lg:sticky lg:top-20 lg:block lg:self-start">
+            <div className="glass hidden rounded-card p-2 lg:sticky lg:top-20 lg:block lg:self-start">
               {open ? null : (
                 <MenuScroll className="lg:max-h-[calc(100dvh-7.125rem)]">
                   <OfficeNav groups={menu} />
@@ -343,9 +343,9 @@ export function OfficeFrame({
               tabIndex={-1}
               className="flex min-w-0 flex-1 flex-col focus:outline-none"
             >
-              {/* The page: a white card with its hairline (Phase 23), 22px round on a phone and
-                  28px from 1024px. */}
-              <div className="flex-1 rounded-inner border border-line bg-card lg:rounded-card">
+              {/* The page (Phase 24, round 7): no card of its own; its sections are glass on the
+                  wash. */}
+              <div className="flex-1">
                 <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
                   {loading && (loading === "/office" ? <DashboardSkeleton /> : <PageSkeleton />)}
                   <div hidden={loading !== null}>{children}</div>

@@ -17,9 +17,9 @@ const css = read("src/app/globals.css");
 const UI_DIR = "src/app/ui";
 const uiFiles = readdirSync(join(process.cwd(), UI_DIR)).filter((f) => /\.tsx?$/.test(f));
 
-// `--color-x: #value;` inside a block: the light theme is the @theme block, the dark theme the
-// `:root[data-theme="dark"]` block (tests/unit/ui.contrast.test.ts checks the device's dark block
-// holds the same).
+// `--color-x: value;` inside a block (#rrggbb, or rgb(r g b / a) for the glass since Phase 24):
+// the light theme is the @theme block, the dark theme the `:root[data-theme="dark"]` block
+// (tests/unit/ui.contrast.test.ts checks the device's dark block holds the same).
 function colours(block: string): Map<string, string> {
   return new Map(
     [...block.matchAll(/--color-([a-z-]+):\s*([^;]+);/g)].map((m) => [m[1]!, m[2]!.trim()]),
@@ -40,7 +40,8 @@ const classTokens = () =>
 const darkTokens = () => colours(css.match(/:root\[data-theme="dark"\]\s*\{([^}]*)\}/)?.[1] ?? "");
 
 // The doc's token table: "| `urgent` / `urgent-soft` | `#b91c1c` / `#fef2f2` | `#ff8b80` /
-// `#3d1d26` | Act now |", the light values then the dark ones.
+// `#3d1d26` | Act now |", the light values then the dark ones; a glass value as the stylesheet
+// writes it, `rgb(255 255 255 / 0.46)`.
 function docTokens(): { light: Map<string, string>; dark: Map<string, string> } {
   const doc = read("docs/ui-design.md");
   const section = doc.slice(doc.indexOf("## Tokens"), doc.indexOf("## Shared components"));
@@ -54,7 +55,9 @@ function docTokens(): { light: Map<string, string>; dark: Map<string, string> } 
       [cells[2]!, light],
       [cells[3]!, dark],
     ] as const) {
-      const values = [...column.matchAll(/`(#[0-9a-f]{6})`/gi)].map((m) => m[1]!);
+      const values = [...column.matchAll(/`(#[0-9a-f]{6}|rgb\(\d+ \d+ \d+ \/ [\d.]+\))`/gi)].map(
+        (m) => m[1]!,
+      );
       expect(values, `token row: ${line}`).toHaveLength(names.length);
       names.forEach((name, i) => into.set(name, values[i]!));
     }
@@ -83,10 +86,20 @@ describe("colour tokens (src/app/globals.css)", () => {
     expect(focus).toContain("outline-offset: 2px;");
   });
 
-  it("a file input shows a real button, bordered with a token", () => {
+  // Phase 24: a clear glass pill, its rim for an edge (Phase 23's was a 2px border in a token).
+  it("a file input shows a real button: a clear glass pill, brighter under the pointer and pressed", () => {
     const button = rule('input[type="file"]::file-selector-button');
-    expect(button).toMatch(/border: 2px solid var\(--color-[a-z-]+\);/);
+    expect(button).toContain("border: 0;");
+    expect(button).toContain("border-radius: 9999px;");
+    expect(button).toContain("background-color: var(--color-button);");
+    expect(button).toContain("box-shadow: var(--button-rim);");
     expect(button).toContain("color: var(--color-ink);");
+    expect(rule('input[type="file"]:not(:disabled)::file-selector-button:hover')).toContain(
+      "background-color: var(--color-button-hover);",
+    );
+    expect(rule('input[type="file"]:not(:disabled)::file-selector-button:active')).toContain(
+      "background-color: var(--color-button-press);",
+    );
     expect(css).toContain('input[type="file"]:disabled::file-selector-button {');
   });
 });

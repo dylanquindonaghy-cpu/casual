@@ -173,8 +173,8 @@ describe("the office menu (v2 groups; Phases 18 and 20)", () => {
         `<a [^>]*href="/office/pay-queries"[^>]*>[\\s\\S]*?<span aria-hidden="true" class="([^"]*)">`,
       ).exec(payroll)?.[1],
     ).toBe(countNeeds);
-    // Beside a section's heading the count stays the grey pill.
-    expect(countPill).toMatch(/(?<![\w-])bg-count(?![\w-])/);
+    // Beside a section's heading the count stays the grey pill: clear glass since Phase 24.
+    expect(countPill).toMatch(/(?<![\w-])glass-button(?![\w-])/);
     expect(countPill).toMatch(/(?<![\w-])text-ink-muted(?![\w-])/);
     expect(count).toBe(`ml-2 align-middle ${countPill}`);
     // Nothing in the menu is red: none of these is urgent.
@@ -459,34 +459,36 @@ describe("the shell", () => {
     expect(html.match(/>Log out</g)).toHaveLength(1);
   });
 
-  // Phase 23 (round 3, flat): the ground, then white with its hairline (the bar, the menu card,
-  // the page card); nothing at rest has depth; the account menu and the drawer float, with the one
-  // overlay. No grain, no blur behind the bar.
-  it("flat: the ground, the white bar and cards with their hairlines, depth only on what floats", () => {
+  // Phase 24 (round 7): no ground of the shell's own, so the wash shows through; the bar glass
+  // that floats, the menu card a section of glass, and the page no card of its own (its sections
+  // are glass on the wash); the account menu and the drawer float. No shadow class at all (the
+  // glass draws its own rim and drop), no grain, no blur of a class's own.
+  it("glass: no ground of its own, the floating bar, the menu card's glass, no page card", () => {
     const html = shell();
     expect(html).toContain(
-      '<div data-shell="office" class="flex flex-1 flex-col bg-canvas text-base text-ink">',
+      '<div data-shell="office" class="flex flex-1 flex-col text-base text-ink">',
     );
     expect(barOf(html)).toMatch(
-      /^<header class="sticky top-0 z-20 flex min-h-14 items-center gap-2 border-b border-line bg-card px-3 sm:gap-3 lg:min-h-16 lg:px-6">/,
+      /^<header class="glass-float sticky top-0 z-20 flex min-h-14 items-center gap-2 px-3 sm:gap-3 lg:min-h-16 lg:px-6">/,
     );
-    // Under the bar: the menu card beside the page card from 1024px (248px, 284px from 1280px),
-    // 16px apart and from the window's edges.
+    // Under the bar: the menu card beside the page from 1024px (248px, 284px from 1280px), 16px
+    // apart and from the window's edges.
     expect(html).toContain(
       '</dialog><div class="flex flex-1 flex-col px-2 pt-3 pb-6 lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)] lg:gap-4 lg:px-4 lg:pt-4 xl:grid-cols-[17.75rem_minmax(0,1fr)]">',
     );
-    // The page card (`#main > div`): white, its hairline, 22px round on a phone, 28px from 1024px.
+    // The page (`#main > div`): no card, no fill, no edge.
     expect(html).toContain(
-      '<div id="main" tabindex="-1" class="flex min-w-0 flex-1 flex-col focus:outline-none"><div class="flex-1 rounded-inner border border-line bg-card lg:rounded-card"><div class="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">',
+      '<div id="main" tabindex="-1" class="flex min-w-0 flex-1 flex-col focus:outline-none"><div class="flex-1"><div class="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">',
     );
     const shadows = [...html.matchAll(/(?<![\w-])(?:[a-z0-9-]+:)*(?:inset-|drop-)?shadow-[\w-]+/g)];
-    expect(shadows.map((m) => m[0])).toEqual(["shadow-float", "shadow-float"]);
-    expect(html).toMatch(/<div id="office-account-menu" popover="auto" class="[^"]*shadow-float/);
+    expect(shadows.map((m) => m[0])).toEqual([]);
+    expect(html).toMatch(/<div id="office-account-menu" popover="auto" class="[^"]*glass-float/);
     expect(html).toMatch(
-      /<dialog id="office-menu-drawer" aria-label="Menu" class="[^"]*shadow-float/,
+      /<dialog id="office-menu-drawer" aria-label="Menu" class="[^"]*glass-float/,
     );
+    expect(html.match(/(?<![\w-])glass-float(?![\w-])/g)).toHaveLength(3);
     expect(html).not.toMatch(/(?<![\w-])(?:grain|stripes|tint-|backdrop-blur|card-chip)/);
-    expect(html).not.toMatch(/(?<![\w-])bg-(?:canvas|sheet)\/\d/);
+    expect(html).not.toMatch(/(?<![\w-])bg-(?:canvas|sheet|card)(?![\w-])/);
   });
 
   it("the top bar: Menu (waits for the page), the firm, the pay week, the shifts line, the light or dark switch, you", () => {
@@ -497,9 +499,9 @@ describe("the shell", () => {
         `<button type="button" aria-controls="${DRAWER_ID}" aria-expanded="false" aria-haspopup="dialog" disabled=""[^>]*>.*Menu</button>`,
       ),
     );
-    // Menu: flat, its hairline, below 1024px only.
+    // Menu: a clear glass pill that swells under a press, below 1024px only.
     expect(bar).toMatch(
-      /aria-haspopup="dialog" disabled="" class="press [^"]*rounded-full border border-line bg-card [^"]*lg:hidden">/,
+      /aria-haspopup="dialog" disabled="" class="press-glass glass-button [^"]*rounded-full [^"]*lg:hidden">/,
     );
     // The firm at every width: its initial on its own colour (40px, 14px corners from 1024px),
     // its name, and "Office" under it from 1024px (Phase 23; over the menu in Phase 22).
@@ -526,12 +528,12 @@ describe("the shell", () => {
     expect(bar).toMatch(
       /<p class="hidden [^"]*xl:flex"><svg [^>]*>.*?<\/svg><span class="sr-only">Shifts line:<\/span> \+44 7700 900000<\/p>/,
     );
-    // The square light or dark switch: 44px, 14px corners, its hairline; its words its name and
+    // The square light or dark switch: 44px, 14px corners, clear glass; its words its name and
     // shown beside it on keyboard focus and under the pointer, over the button or over the words
     // themselves (WCAG 1.4.13: they take the pointer, an 8px bridge over the gap; hidden from
     // screen readers there).
     expect(bar).toMatch(
-      /<span class="group\/tip relative flex shrink-0"><button type="button" aria-label="Switch to dark mode" disabled="" class="peer press inline-flex size-11 items-center justify-center rounded-row border border-line bg-card [^"]*"><svg [^>]*><path [^>]*><\/path><\/svg><\/button><span aria-hidden="true" data-theme-tip="" class="absolute top-full right-0 z-30 mt-2 hidden animate-pop rounded-row bg-ink px-3 py-2 text-sm font-semibold whitespace-nowrap text-on-ink before:absolute before:inset-x-0 before:-top-2 before:h-2 peer-focus-visible:block pointer-fine:group-hover\/tip:block">Switch to dark mode<\/span><\/span>/,
+      /<span class="group\/tip relative flex shrink-0"><button type="button" aria-label="Switch to dark mode" disabled="" class="peer press-glass glass-button inline-flex size-11 items-center justify-center rounded-row [^"]*"><svg [^>]*><path [^>]*><\/path><\/svg><\/button><span aria-hidden="true" data-theme-tip="" class="absolute top-full right-0 z-30 mt-2 hidden animate-pop rounded-row bg-ink px-3 py-2 text-sm font-semibold whitespace-nowrap text-on-ink before:absolute before:inset-x-0 before:-top-2 before:h-2 peer-focus-visible:block pointer-fine:group-hover\/tip:block">Switch to dark mode<\/span><\/span>/,
     );
     expect(bar).toContain(
       '<span class="group/tip relative flex shrink-0"><button type="button" aria-label="Switch to dark mode"',
@@ -567,7 +569,7 @@ describe("the shell", () => {
     )?.[1];
     expect(account).toBeDefined();
     expect(account).toMatch(
-      /^<span aria-hidden="true" class="flex size-9 shrink-0 items-center justify-center rounded-full border border-line bg-raised text-sm font-bold text-ink-muted">SA<\/span>/,
+      /^<span aria-hidden="true" class="flex size-9 shrink-0 items-center justify-center rounded-full glass-button text-sm font-bold text-ink-muted">SA<\/span>/,
     );
     expect(account).toContain(
       '<span class="sr-only leading-tight sm:not-sr-only"><span class="block max-w-48 truncate font-semibold text-ink">Sam Admin</span><span class="sr-only"> Admin</span></span>',
@@ -600,9 +602,10 @@ describe("the shell", () => {
     const menu = html.slice(at, html.indexOf("</header>"));
     expect(text(menu)).toBe("Sam Admin Admin Switch to dark mode How-to guide Log out");
     // At the top right under the bar (8px under it: 56px tall, 64px from 1024px), growing from its
-    // corner; white with its 22px corners, floating (Phase 23; top left over the menu in 22).
+    // corner; floating glass with its 22px corners (Phase 24; white in 23; top left over the menu
+    // in 22).
     expect(menu).toMatch(
-      /^<div id="office-account-menu" popover="auto" class="inset-auto top-16 right-3 m-0 w-64 origin-top-right animate-pop rounded-inner bg-card p-2 text-base text-ink shadow-float lg:top-18 lg:right-6">/,
+      /^<div id="office-account-menu" popover="auto" class="inset-auto top-16 right-3 m-0 w-64 origin-top-right animate-pop rounded-inner glass-float p-2 text-base text-ink lg:top-18 lg:right-6">/,
     );
     // The guide is one row here, and nowhere else in the shell (Phase 22: the menu's foot until then).
     expect(menu).toContain('href="/office/guide"');
@@ -639,15 +642,15 @@ describe("the shell", () => {
     expect(dialog?.[0]).toContain('aria-label="Menu"');
     expect(dialog?.[0]).not.toMatch(/\bopen\b=/);
     expect(dialog?.[1]).toBe("");
-    // White, full height at the left, floating over the dimmed page; it slides in (Phase 23: a
-    // rounded sheet on the ground in Phase 22).
+    // Floating glass, full height at the left, over the dimmed page; it slides in (Phase 24: white
+    // in 23; a rounded sheet on the ground in Phase 22).
     expect(dialog?.[0]).toContain(
-      'class="inset-y-0 right-auto left-0 m-0 h-dvh max-h-none w-80 max-w-[85vw] overflow-hidden bg-card p-0 text-base text-ink shadow-float transition-[translate] duration-200 ease-sd backdrop:animate-fade backdrop:bg-scrim/40 starting:-translate-x-full"',
+      'class="inset-y-0 right-auto left-0 m-0 h-dvh max-h-none w-80 max-w-[85vw] overflow-hidden glass-float p-0 text-base text-ink transition-[translate] duration-200 ease-sd backdrop:animate-fade backdrop:bg-scrim/40 starting:-translate-x-full"',
     );
-    // The menu card (from 1024px): white, its hairline, 28px round, 16px under the bar and staying
+    // The menu card (from 1024px): a section of glass, 24px round, 16px under the bar and staying
     // there; it scrolls with no bar only when the window is too short for it.
     expect(html).toContain(
-      '<div class="hidden rounded-card border border-line bg-card p-2 lg:sticky lg:top-20 lg:block lg:self-start"><div data-menu-scroll="" class="scrollbar-none fade-edges overflow-y-auto overscroll-contain lg:max-h-[calc(100dvh-7.125rem)]"><nav aria-label="Office menu" class="relative flex flex-col">',
+      '<div class="glass hidden rounded-card p-2 lg:sticky lg:top-20 lg:block lg:self-start"><div data-menu-scroll="" class="scrollbar-none fade-edges overflow-y-auto overscroll-contain lg:max-h-[calc(100dvh-7.125rem)]"><nav aria-label="Office menu" class="relative flex flex-col">',
     );
   });
 

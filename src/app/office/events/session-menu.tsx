@@ -43,7 +43,7 @@ export function SessionMenu({
           <circle cx="19" cy="12" r="2" />
         </svg>
       </summary>
-      <div className="absolute inset-x-2 z-10 mt-2 flex origin-top-right animate-pop flex-col gap-2 rounded-inner bg-card p-3 shadow-float sm:left-auto sm:w-64">
+      <div className="absolute inset-x-2 z-10 mt-2 flex origin-top-right animate-pop flex-col gap-2 rounded-inner glass-float p-3 sm:left-auto sm:w-64">
         {live && placeFree && shown && (
           <Link
             href={`/office/offer/${session.shiftId}`}

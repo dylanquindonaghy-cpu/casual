@@ -3,42 +3,43 @@ import { addOfficeUser, addQualifiedCasual } from "./db";
 import { expect, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
-// The office's look on every page (Phases 21 to 23; docs/ui-design.md "Phase 23"): an admin opens
+// The office's look on every page (Phases 21 to 24; docs/ui-design.md "Phase 24"): an admin opens
 // each page in the menu on the brief's phone (390px) and on Dylan's laptop window (1280 × 640),
-// with the device set to light and again to dark. Round 3 (Phase 23, the approved mock-up), flat:
-// each page sits on the cool light grey ground (near-black in dark) as a white page card (dark
-// grey in dark) with a 1px hairline, 28px round from 1024px and 22px on a phone, with no depth;
-// Plus Jakarta Sans for its headline and its words, really loaded; white cards and rows on it,
-// each white box with its edge; every main button the sky with near-black words; every office
-// button and pill with its 1px edge; nothing anywhere with depth but what floats over the page (an
-// open "…" menu, the account menu, the drawer: placed absolutely or fixed); no background image
-// at all (no gradient, no grain) and no mask but the menu's fade; everything you press dips (its
-// transition carries scale: globals.css `press`); and the page never scrolls sideways (a wide
-// table or the rota board scrolls in its own box). With every hidden step and menu on the page
-// shown, so they're checked too.
+// with the device set to light and again to dark. Round 7 (Phase 24, Liquid Glass): every page
+// sits on the wash (its four lights fixed behind it, on the canvas's base), with no page card of
+// its own; its sections are frosted glass (blurred 24px, saturated 1.8 times, a rim and a drop),
+// the top bar and the menus floating glass (18px), the menu card glass at 24px; Geist for its
+// headline and its words, really loaded; every main button tinted glass in the firm's colour (its
+// colour to its shade, white words), every clear button its gradient and rim; depth only on the
+// glass and the few solid things the depth tokens are pinned to (tests/unit/ui.glass.test.ts); no
+// opaque white box left of Phase 23's; no background image but the glass's own gradients, and no
+// mask but the menu's fade; everything you press reacts (its transition carries scale: `press`
+// dips, `press-glass` swells); and the page never scrolls sideways (a wide table or the rota board
+// scrolls in its own box). With every hidden step and menu on the page shown, so they're checked
+// too.
 // The pages opened from inside one too: a casual's page, a cancellation's record, an enquiry,
 // the offer page, a shift's and an event's page, the ways to add shifts and a worker's data
 // page; and, logged out, the office's login pages. With a casual of its own whose qualification
 // has the longest words a chip shows ("Level 2 spectator safety qualification: Expiring soon"):
 // it ran off a phone until a chip could wrap.
-// Round 2 (Phase 22) pinned the opposite: a warm off-white sheet, Newsreader and DM Sans, a
-// near-black main button, every button and edged wash raised.
+// Round 3 (Phase 23) pinned the opposite: a white page card with its hairline on a cool grey
+// ground, Plus Jakarta Sans, the sky main button, nothing with depth at rest.
 
 const acme = "http://acme.localhost:3100";
-const CANVAS = { light: "rgb(242, 244, 247)", dark: "rgb(12, 14, 18)" }; // #f2f4f7, #0c0e12
-const CARD = { light: "rgb(255, 255, 255)", dark: "rgb(21, 24, 29)" }; // #ffffff, #15181d
-// The card token as written (a production build may shorten #ffffff).
-const CARD_TOKEN = { light: /^#f{3}(?:f{3})?$/i, dark: /^#15181d$/i };
-const LINE = { light: "rgb(228, 231, 236)", dark: "rgb(38, 43, 51)" }; // #e4e7ec, #262b33
-const ACCENT = { light: "rgb(14, 165, 233)", dark: "rgb(125, 211, 252)" }; // #0ea5e9, #7dd3fc
-const ON_ACCENT = "rgb(6, 19, 31)"; // #06131f, in both
-// The page card's corners: 22px on a phone, 28px from 1024px.
-const PAGE_RADIUS: Record<number, string> = { 390: "22px", 1280: "28px" };
+const CANVAS = { light: "rgb(238, 241, 248)", dark: "rgb(7, 8, 12)" }; // #eef1f8, #07080c
+// The glass's fills (glass-grounds.ts): a section, what floats.
+const SECTION = { light: "rgba(255, 255, 255, 0.46)", dark: "rgba(26, 27, 34, 0.46)" };
+const FLOAT = { light: "rgba(255, 255, 255, 0.78)", dark: "rgba(30, 30, 34, 0.8)" };
+// Acme's main button: its blue as the page works it out for the glass (brand-values.ts: #1a45bf
+// to its shade #15399d), white words, in both themes.
+const TINT = "rgb(26, 69, 191)";
+const TINT_IMAGE = /^linear-gradient\((?:180deg, )?rgb\(26, 69, 191\), rgb\(21, 57, 157\)\)$/;
+const WHITE = "rgb(255, 255, 255)";
 const WIDTHS = [
   { width: 390, height: 844 },
   { width: 1280, height: 640 },
 ];
-const FACE = /plus.?jakarta/i;
+const FACE = /geist/i;
 
 async function adminLogin(page: Page, who: string) {
   const email = `look.${who}@example.com`;
@@ -54,11 +55,11 @@ async function adminLogin(page: Page, who: string) {
   await expect(page).toHaveURL(`${acme}/office`);
 }
 
-// What a page looks like, measured in the browser: its ground and page card, faces, cards, main
-// buttons, office buttons, what dips when pressed, depth, white boxes without an edge, background
-// images and masks, and whether it scrolls sideways. Every hidden step and menu is shown first,
-// so its parts are measured too. The pointer is moved off the page first (`calm`), so no button
-// is measured under it.
+// What a page looks like, measured in the browser: the wash and the ground, the page, the bar,
+// faces, sections, what floats, main buttons, clear buttons, what reacts when pressed, depth, white
+// boxes, background images and masks, and whether it scrolls sideways. Every hidden step and menu
+// is shown first, so its parts are measured too. The pointer is moved off the page first (`calm`),
+// so no button is measured under it.
 const measure = (page: Page) =>
   page.evaluate(() => {
     for (const d of document.querySelectorAll("main details:not([open])"))
@@ -77,49 +78,86 @@ const measure = (page: Page) =>
     const shown = (el: Element) => el.checkVisibility();
     const name = (el: Element) =>
       `${el.tagName}.${(el.getAttribute("class") ?? "").split(/\s+/).slice(0, 4).join(".")} "${(el.textContent || el.getAttribute("aria-label") || "").trim().slice(0, 40)}"`;
-    // A token's colour here, as the browser computes it.
-    const tint = (token: string) => {
-      const probe = document.createElement("i");
-      probe.style.color = `var(--color-${token})`;
-      document.body.append(probe);
-      const rgb = getComputedStyle(probe).color;
-      probe.remove();
-      return rgb;
-    };
-    const white = tint("card");
+    // A class, with any variant before it (`sm:glass`, `aria-pressed:lens`).
+    const carries = (el: Element, names: string[]) =>
+      [...el.classList].some((c) => names.some((n) => c === n || c.endsWith(`:${n}`)));
+    const GLASS = ["glass", "glass-float", "glass-tile", "glass-button", "glass-tint", "lens"];
+    const DEPTH = [
+      "shadow-lift",
+      "shadow-panel",
+      "shadow-pass",
+      "shadow-bar",
+      "shadow-float",
+      "inset-shadow-sunk",
+    ];
     const box = (el: Element | null) => {
       if (!el) return null;
       const s = getComputedStyle(el);
       return {
         fill: s.backgroundColor,
         widths: [s.borderTopWidth, s.borderRightWidth, s.borderBottomWidth, s.borderLeftWidth],
-        colours: [s.borderTopColor, s.borderRightColor, s.borderBottomColor, s.borderLeftColor],
-        styles: [s.borderTopStyle, s.borderRightStyle, s.borderBottomStyle, s.borderLeftStyle],
         radius: s.borderTopLeftRadius,
         depth: s.boxShadow,
+        frost: s.backdropFilter,
       };
     };
-    // The cards and rows shown in the card's fill, and what that fill is here.
-    const cards = [...(main?.querySelectorAll("*") ?? [])].filter(
-      (el) =>
-        /(?:^|\s)(?:sm:)?bg-card(?:\/\d+)?(?:\s|$)/.test(el.getAttribute("class") ?? "") &&
-        shown(el) &&
-        getComputedStyle(el).backgroundColor !== "rgba(0, 0, 0, 0)",
-    ).length;
-    const card = getComputedStyle(document.body).getPropertyValue("--color-card").trim();
-    // The main buttons: their fill and their words.
-    const primaries = [...(main?.querySelectorAll(".bg-accent.text-on-accent") ?? [])]
+    const everything = [
+      document.documentElement,
+      document.body,
+      ...document.querySelectorAll("body *"),
+    ];
+    // The wash: fixed behind everything, four soft lights.
+    const before = getComputedStyle(document.body, "::before");
+    const wash = {
+      position: before.position,
+      z: before.zIndex,
+      lights: before.backgroundImage.match(/radial-gradient\(/g)?.length ?? 0,
+    };
+    // The sections on the page, frosted, in the section's fill; what floats (shown), frosted more.
+    const sections = [...(main?.querySelectorAll(".glass") ?? [])].filter(shown);
+    const unfrosted = sections
+      .filter((el) => {
+        const s = getComputedStyle(el);
+        return (
+          !s.backdropFilter.includes("blur(24px)") ||
+          !s.backdropFilter.includes("saturate(1.8)") ||
+          s.boxShadow === "none"
+        );
+      })
+      .map(name);
+    const sectionFills = [...new Set(sections.map((el) => getComputedStyle(el).backgroundColor))];
+    // Glass of any kind on the page: a section, or a clear part (Needs attention's rows sit as
+    // clear glass on their amber parts), as Phase 23 found a white card on every page.
+    const glassParts = [
+      ...(main?.querySelectorAll(".glass, .glass-tile, .glass-button") ?? []),
+    ].filter(shown).length;
+    const floats = [...document.querySelectorAll(".glass-float")].filter(shown);
+    const floatLook = floats.map((el) => {
+      const s = getComputedStyle(el);
+      return {
+        fill: s.backgroundColor,
+        frost: s.backdropFilter.includes("blur(18px)"),
+        what: name(el),
+      };
+    });
+    // The main buttons: tinted glass, its fill, its gradient and its words.
+    const primaries = [...(main?.querySelectorAll(".glass-tint") ?? [])]
       .filter((el) => el.matches("a, button") && shown(el))
       .map((el) => {
         const s = getComputedStyle(el);
-        return { fill: s.backgroundColor, words: s.color, what: name(el) };
+        return {
+          fill: s.backgroundColor,
+          image: s.backgroundImage,
+          words: s.color,
+          what: name(el),
+        };
       });
-    // Every office button and pill (white or sky) keeps its 1px edge, with no depth.
-    const edgeless = [...(main?.querySelectorAll("a, button") ?? [])]
-      .filter((el) => shown(el) && /(?:^|\s)(?:bg-button|bg-accent)(?:\s|$)/.test(el.className))
+    // Every clear glass button and count: its gradient and its rim.
+    const unrimmed = [...(main?.querySelectorAll(".glass-button") ?? [])]
+      .filter(shown)
       .filter((el) => {
         const s = getComputedStyle(el);
-        return s.borderTopWidth !== "1px" || s.borderTopStyle !== "solid" || s.boxShadow !== "none";
+        return !s.backgroundImage.startsWith("linear-gradient(") || s.boxShadow === "none";
       })
       .map(name);
     // What you press: a button, an opener, a switch, and a link that isn't words (a row,
@@ -135,40 +173,53 @@ const measure = (page: Page) =>
       .filter((el) => shown(el) && pressed(el))
       .filter((el) => !getComputedStyle(el).transitionProperty.includes("scale"))
       .map(name);
-    // Depth anywhere on the page, shown or not: only what floats over it (placed absolutely or
-    // fixed: an open "…" menu, the account menu, the drawer, a toast) may have its overlay.
-    const everything = [
-      document.documentElement,
-      document.body,
-      ...document.querySelectorAll("body *"),
-    ];
-    const raised = everything
+    // Depth anywhere on the page, shown or not: only the glass's own, and the depth tokens'.
+    const stray = everything
+      .filter(
+        (el) => getComputedStyle(el).boxShadow !== "none" && !carries(el, [...GLASS, ...DEPTH]),
+      )
+      .map(name);
+    // Nothing placed `fixed` (the toast, a chart's tooltip) inside glass: the frost would make the
+    // section its containing block, so it would be placed against the section, not the window.
+    // (A popover and a dialog go to the top layer, which no ancestor holds.)
+    const trapped = everything
+      .filter(
+        (el) =>
+          shown(el) &&
+          getComputedStyle(el).position === "fixed" &&
+          !el.matches("[popover], dialog"),
+      )
       .filter((el) => {
-        const s = getComputedStyle(el);
-        return s.boxShadow !== "none" && s.position !== "absolute" && s.position !== "fixed";
+        for (let up = el.parentElement; up; up = up.parentElement)
+          if (getComputedStyle(up).backdropFilter !== "none") return true;
+        return false;
       })
       .map(name);
-    // A white box (a card's, an inner card's or a row's corners: not a pill, not a field) on the
-    // white page card has its edge, or it would vanish.
+    // No opaque white box (a card's, an inner card's or a row's corners: not a pill, not a knob,
+    // not a field) is left of Phase 23's.
     const bareWhite = [...(main?.querySelectorAll("*") ?? [])]
       .filter((el) => {
         if (!shown(el) || el.matches("input, select, textarea")) return false;
         const s = getComputedStyle(el);
         const radius = parseFloat(s.borderTopLeftRadius);
         return (
-          s.position !== "absolute" &&
-          s.position !== "fixed" &&
-          s.backgroundColor === white &&
+          s.backgroundColor === "rgb(255, 255, 255)" &&
           radius > 0 &&
-          radius < el.getBoundingClientRect().height / 2 &&
-          (s.borderTopWidth === "0px" || s.borderTopStyle === "none")
+          radius < el.getBoundingClientRect().height / 2
         );
       })
       .map(name);
-    // No background image anywhere (no gradient, no grain, no stripes), and no mask but the
-    // menu's fade at its scrolling edge.
+    // No background image but the glass's own gradients (no grain, no stripes, no picture), and
+    // no mask but the menu's fade at its scrolling edge.
     const images = everything
-      .filter((el) => getComputedStyle(el).backgroundImage !== "none")
+      .filter((el) => {
+        const image = getComputedStyle(el).backgroundImage;
+        if (image === "none") return false;
+        return !(
+          carries(el, ["glass-tile", "glass-button", "glass-tint"]) &&
+          image.startsWith("linear-gradient(")
+        );
+      })
       .map((el) => `${name(el)}: ${getComputedStyle(el).backgroundImage.slice(0, 60)}`);
     const masks = everything
       .filter((el) => {
@@ -179,19 +230,30 @@ const measure = (page: Page) =>
       .map(name);
     return {
       ground: getComputedStyle(document.body).backgroundColor,
-      // The page card in the shell; the login card outside it.
-      sheet: box(document.querySelector("#main > div")),
+      wash,
+      // The page in the shell (no card of its own); the login card outside it; the bar; the menu
+      // card.
+      page: box(document.querySelector("#main > div")),
       loginCard: box(document.querySelector("main > div")),
+      // (The office's own bar: the firm's bar, hidden on these pages, is a <header> too.)
+      bar: box(document.querySelector('[data-shell="office"] > header')),
+      menuCard: box(
+        document.querySelector('nav[aria-label="Office menu"]')?.closest(".glass") ?? null,
+      ),
       face: familyOf(heading),
       faceLoaded: loaded(heading),
       words: familyOf(main),
       wordsLoaded: loaded(main),
-      cards,
-      card,
+      sections: sections.length,
+      glassParts,
+      sectionFills,
+      unfrosted,
+      floatLook,
       primaries,
-      edgeless,
+      unrimmed,
       still,
-      raised,
+      stray,
+      trapped,
       bareWhite,
       images,
       masks,
@@ -204,6 +266,43 @@ const measure = (page: Page) =>
 const calm = (page: Page) => page.mouse.move(0, 0);
 // A box's four sides.
 const four = (value: string) => [value, value, value, value];
+
+// What every page shares: the wash and the ground, the face, the glass's parts, nothing sideways.
+function expectGlass(
+  look: Awaited<ReturnType<typeof measure>>,
+  where: string,
+  device: "light" | "dark",
+) {
+  expect(look.ground, where).toBe(CANVAS[device]);
+  expect(look.wash, where).toEqual({ position: "fixed", z: "-1", lights: 4 });
+  // One face, really loaded.
+  expect(look.face, where).toMatch(FACE);
+  expect(look.faceLoaded, where).toBe(true);
+  expect(look.words, where).toMatch(FACE);
+  expect(look.wordsLoaded, where).toBe(true);
+  // Sections frosted, in the section's glass.
+  expect(look.unfrosted, where).toEqual([]);
+  for (const fill of look.sectionFills) expect(fill, where).toBe(SECTION[device]);
+  // What floats, frosted more, in its glass.
+  for (const f of look.floatLook) {
+    expect(f.fill, `${where}: ${f.what}`).toBe(FLOAT[device]);
+    expect(f.frost, `${where}: ${f.what}`).toBe(true);
+  }
+  // The main button: tinted glass in the firm's colour, white words.
+  for (const p of look.primaries) {
+    expect(p.fill, `${where}: ${p.what}`).toBe(TINT);
+    expect(p.image, `${where}: ${p.what}`).toMatch(TINT_IMAGE);
+    expect(p.words, `${where}: ${p.what}`).toBe(WHITE);
+  }
+  expect(look.unrimmed, where).toEqual([]);
+  expect(look.still, where).toEqual([]);
+  expect(look.stray, where).toEqual([]);
+  expect(look.trapped, where).toEqual([]);
+  expect(look.bareWhite, where).toEqual([]);
+  expect(look.images, where).toEqual([]);
+  expect(look.masks, where).toEqual([]);
+  expect(look.wide, where).toBeLessThanOrEqual(look.window);
+}
 
 // A slip's fill, its edge and its depth, with the tokens it should have here.
 const slip = (page: Page) =>
@@ -232,7 +331,7 @@ for (const device of ["light", "dark"] as const) {
   test.describe(`with the device set to ${device}`, () => {
     test.use({ colorScheme: device });
 
-    test("every office page: the ground, the white page card, Plus Jakarta Sans, round 3's flat parts, nothing sideways, at 390px and 1280px", async ({
+    test("every office page: the wash, no page card, Geist, round 7's glass, nothing sideways, at 390px and 1280px", async ({
       page,
     }) => {
       test.setTimeout(240_000);
@@ -329,8 +428,10 @@ for (const device of ["light", "dark"] as const) {
         ]),
       );
 
-      // Across every page and width: the main buttons seen (so the check never passes over none).
+      // Across every page and width: the main buttons and the sections seen (so the checks never
+      // pass over none).
       let primaries = 0;
+      let sections = 0;
       for (const size of WIDTHS) {
         await page.setViewportSize(size);
         for (const path of [...pages, ...records]) {
@@ -341,45 +442,36 @@ for (const device of ["light", "dark"] as const) {
           await page.evaluate(() => document.fonts.ready);
           await calm(page);
           const look = await measure(page);
-          // The ground, and the page on it: a white card with its hairline, no depth.
-          expect(look.ground, where).toBe(CANVAS[device]);
-          expect(look.sheet, where).not.toBeNull();
-          expect(look.sheet!.fill, where).toBe(CARD[device]);
-          expect(look.sheet!.widths, where).toEqual(four("1px"));
-          expect(look.sheet!.styles, where).toEqual(four("solid"));
-          expect(look.sheet!.colours, where).toEqual(four(LINE[device]));
-          expect(look.sheet!.radius, where).toBe(PAGE_RADIUS[size.width]);
-          expect(look.sheet!.depth, where).toBe("none");
-          // One face, really loaded.
-          expect(look.face, where).toMatch(FACE);
-          expect(look.faceLoaded, where).toBe(true);
-          expect(look.words, where).toMatch(FACE);
-          expect(look.wordsLoaded, where).toBe(true);
-          // White cards and rows on it, in this theme's white.
-          expect(look.cards, where).toBeGreaterThan(0);
-          expect(look.card, where).toMatch(CARD_TOKEN[device]);
-          // The sky main button, its near-black words.
-          for (const p of look.primaries) {
-            expect(p.fill, `${where}: ${p.what}`).toBe(ACCENT[device]);
-            expect(p.words, `${where}: ${p.what}`).toBe(ON_ACCENT);
+          expectGlass(look, where, device);
+          // No page card: the page's own box has no fill, no edge, no corners, no depth.
+          expect(look.page, where).not.toBeNull();
+          expect(look.page!.fill, where).toBe("rgba(0, 0, 0, 0)");
+          expect(look.page!.widths, where).toEqual(four("0px"));
+          expect(look.page!.radius, where).toBe("0px");
+          expect(look.page!.depth, where).toBe("none");
+          // The bar floats, as glass; from 1024px the menu card is a section of glass, 24px round.
+          expect(look.bar!.fill, where).toBe(FLOAT[device]);
+          expect(look.bar!.frost, where).toContain("blur(18px)");
+          if (size.width >= 1024) {
+            expect(look.menuCard, where).not.toBeNull();
+            expect(look.menuCard!.fill, where).toBe(SECTION[device]);
+            expect(look.menuCard!.radius, where).toBe("24px");
+            expect(look.menuCard!.frost, where).toContain("blur(24px)");
           }
+          // Glass on every page.
+          expect(look.glassParts, where).toBeGreaterThan(0);
+          sections += look.sections;
           primaries += look.primaries.length;
-          expect(look.edgeless, where).toEqual([]);
-          expect(look.still, where).toEqual([]);
-          expect(look.raised, where).toEqual([]);
-          expect(look.bareWhite, where).toEqual([]);
-          expect(look.images, where).toEqual([]);
-          expect(look.masks, where).toEqual([]);
-          expect(look.wide, where).toBeLessThanOrEqual(look.window);
         }
       }
       expect(primaries).toBeGreaterThan(0);
+      expect(sections).toBeGreaterThan(50);
     });
 
     // Logged out: the office's login, "You're logged out.", "Check your email." and the link
-    // page, on round 3's parts too, at both sizes. No page card: the login is a white card with
-    // its hairline on the ground from 640px (frameless on a phone: the page is the card).
-    test("the office's login pages: round 3's flat parts, nothing sideways, at 390px and 1280px", async ({
+    // page, on round 7's parts too, at both sizes. No page card: the login is a section of glass on
+    // the wash from 640px (frameless on a phone: the page is the card).
+    test("the office's login pages: round 7's glass, nothing sideways, at 390px and 1280px", async ({
       page,
     }) => {
       test.setTimeout(120_000);
@@ -389,9 +481,9 @@ for (const device of ["light", "dark"] as const) {
         const email = `look.out.${device}.${size.width}@example.com`;
         await addOfficeUser("acme", { email, name: "Lou Out", role: "resourcer" });
         await page.setViewportSize(size);
-        // Each step, then what's its own: the answers are flat slips (no depth): "You're logged
-        // out." pale grey with its hairline, "Check your email." a green wash with its green edge;
-        // the link page's button the office's main one (the sky, its near-black words, 44px).
+        // Each step, then what's its own: the answers are slips with no depth: "You're logged
+        // out." pale grey with its edge, "Check your email." a green wash with its green edge; the
+        // link page's button the office's main one (tinted glass in the firm's colour, 44px).
         const steps: [string, () => Promise<void>, (where: string) => Promise<void>][] = [
           [
             "the login",
@@ -408,8 +500,7 @@ for (const device of ["light", "dark"] as const) {
               const out = await slip(page);
               expect(out.depth, where).toBe("none");
               expect(out.fill, where).toBe(out.quiet);
-              expect(out.edge, where).toEqual(["1px", "solid", LINE[device]]);
-              expect(out.line, where).toBe(LINE[device]);
+              expect(out.edge, where).toEqual(["1px", "solid", out.line]);
             },
           ],
           [
@@ -440,17 +531,17 @@ for (const device of ["light", "dark"] as const) {
                 .evaluate((el) => {
                   const s = getComputedStyle(el);
                   return {
+                    tint: el.classList.contains("glass-tint"),
                     fill: s.backgroundColor,
+                    image: s.backgroundImage,
                     words: s.color,
-                    edge: s.borderTopWidth,
-                    depth: s.boxShadow,
                     tall: el.getBoundingClientRect().height,
                   };
                 });
-              expect(button.fill, where).toBe(ACCENT[device]);
-              expect(button.words, where).toBe(ON_ACCENT);
-              expect(button.edge, where).toBe("1px");
-              expect(button.depth, where).toBe("none");
+              expect(button.tint, where).toBe(true);
+              expect(button.fill, where).toBe(TINT);
+              expect(button.image, where).toMatch(TINT_IMAGE);
+              expect(button.words, where).toBe(WHITE);
               expect(button.tall, where).toBeGreaterThanOrEqual(44);
             },
           ],
@@ -462,35 +553,21 @@ for (const device of ["light", "dark"] as const) {
           await page.evaluate(() => document.fonts.ready);
           await calm(page);
           const look = await measure(page);
-          expect(look.ground, where).toBe(CANVAS[device]);
-          expect(look.face, where).toMatch(FACE);
-          expect(look.faceLoaded, where).toBe(true);
-          expect(look.words, where).toMatch(FACE);
-          expect(look.wordsLoaded, where).toBe(true);
-          // The login card: from 640px white with its hairline, 28px round, no depth; on a phone
-          // no frame at all.
+          expectGlass(look, where, device);
+          // The login card: from 640px a section of glass on the wash, 24px round; on a phone no
+          // frame at all.
           expect(look.loginCard, where).not.toBeNull();
           if (size.width >= 640) {
-            expect(look.loginCard!.fill, where).toBe(CARD[device]);
-            expect(look.loginCard!.widths, where).toEqual(four("1px"));
-            expect(look.loginCard!.colours, where).toEqual(four(LINE[device]));
-            expect(look.loginCard!.radius, where).toBe("28px");
+            expect(look.loginCard!.fill, where).toBe(SECTION[device]);
+            expect(look.loginCard!.frost, where).toContain("blur(24px)");
+            expect(look.loginCard!.radius, where).toBe("24px");
+            expect(look.loginCard!.depth, where).not.toBe("none");
           } else {
+            expect(look.loginCard!.fill, where).toBe("rgba(0, 0, 0, 0)");
             expect(look.loginCard!.widths, where).toEqual(four("0px"));
-          }
-          expect(look.loginCard!.depth, where).toBe("none");
-          for (const p of look.primaries) {
-            expect(p.fill, `${where}: ${p.what}`).toBe(ACCENT[device]);
-            expect(p.words, `${where}: ${p.what}`).toBe(ON_ACCENT);
+            expect(look.loginCard!.depth, where).toBe("none");
           }
           primaries += look.primaries.length;
-          expect(look.edgeless, where).toEqual([]);
-          expect(look.still, where).toEqual([]);
-          expect(look.raised, where).toEqual([]);
-          expect(look.bareWhite, where).toEqual([]);
-          expect(look.images, where).toEqual([]);
-          expect(look.masks, where).toEqual([]);
-          expect(look.wide, where).toBeLessThanOrEqual(look.window);
           await own(where);
         }
       }

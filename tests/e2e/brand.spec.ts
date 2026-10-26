@@ -3,9 +3,10 @@ import { e2eAdminUrl } from "./db";
 import { expect, test } from "./fixtures";
 
 // Each firm's own bar at the top of its portal and office pages (Phase 8 branding; Phase 18: a
-// white header; Phase 20: on the page's grey, with no line under it): its initial on its colour
-// (the demo seed's), readable, then its name, and its logo once one is set with the owner's
-// script. The logo address uses the reserved .invalid name, so the browser never fetches anything.
+// white header; Phase 20: on the page's grey, with no line under it; Phase 24: see-through, on the
+// wash): its initial on its colour (the demo seed's), readable, then its name, and its logo once
+// one is set with the owner's script. The logo address uses the reserved .invalid name, so the
+// browser never fetches anything.
 
 const acme = "http://acme.localhost:3100";
 const northline = "http://northline.localhost:3100";
@@ -15,7 +16,7 @@ test("each firm's pages open with its own bar: name, colour and readable text", 
 }) => {
   await page.goto(`${acme}/login`);
   const bar = page.getByTestId("brand-bar");
-  await expect(bar).toHaveCSS("background-color", "rgb(238, 240, 243)"); // the page's grey (Phase 20)
+  await expect(bar).toHaveCSS("background-color", "rgba(0, 0, 0, 0)"); // the wash shows (Phase 24)
   await expect(page.getByTestId("brand-name")).toHaveText("Acme Events");
   const mark = page.getByTestId("brand-mark");
   await expect(mark).toHaveText("A");
@@ -27,18 +28,25 @@ test("each firm's pages open with its own bar: name, colour and readable text", 
   await page.goto(`${acme}/office/login`);
   await expect(page.getByTestId("brand-name")).toHaveText("Acme Events");
 
-  // The casual app's main button is in the firm's own colour too (Phase 17).
+  // The casual app's main button is in the firm's own colour too (Phase 17): tinted glass since
+  // Phase 24, the blue as it reads on every point of the glass (#1a45bf) to its shade (#15399d).
   await page.goto(`${acme}/login`);
   const send = page.getByRole("button", { name: "Send me a link" });
-  await expect(send).toHaveCSS("background-color", "rgb(29, 78, 216)");
+  await expect(send).toHaveCSS("background-color", "rgb(26, 69, 191)");
+  await expect(send).toHaveCSS(
+    "background-image",
+    /^linear-gradient\((?:180deg, )?rgb\(26, 69, 191\), rgb\(21, 57, 157\)\)$/,
+  );
   await expect(send).toHaveCSS("color", "rgb(255, 255, 255)");
 
   await page.goto(`${northline}/login`);
   await expect(page.getByTestId("brand-name")).toContainText("Northline");
   await expect(page.getByTestId("brand-mark")).toHaveCSS("background-color", "rgb(15, 118, 110)");
+  // Northline's teal on its band as it is; its button darker (#0c5c56), so its words read on
+  // its own pale tint over the wash too.
   await expect(page.getByRole("button", { name: "Send me a link" })).toHaveCSS(
     "background-color",
-    "rgb(15, 118, 110)",
+    "rgb(12, 92, 86)",
   );
 });
 

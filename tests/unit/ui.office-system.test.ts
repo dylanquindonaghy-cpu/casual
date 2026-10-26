@@ -14,14 +14,16 @@ const { btn, field, quietLink } = classes;
 // The office's system (Phase 21; docs/ui-design.md "The office's system"; Dylan's brief: "Every
 // component uses these tokens. No one-off values."): every office file and the office's own class
 // strings use only the system's spacing (4, 8, 12, 16, 24, 32 and 48px), its corners (since Phase
-// 23: 28px page and menu cards, 22px cards inside a page, 14px rows, round pills), its sizes, its
-// one overlay (only on what floats: tests/unit/ui.flat.test.ts) and its 150–200ms transitions;
-// the face is the office's (Plus Jakarta Sans since Phase 23, the big numbers by `font-stat`), not
-// the casual app's; and the office's tokens hold the approved mock-up's values (docs/ui-design.md
-// "Phase 23"). tests/unit/ui.contrast.test.ts checks their contrast. The shared parts an office page renders (found by following the office's
-// imports: the chips, the seats, the login link page, the guide's steps; and the firm's bar above
-// the office's login pages) may keep the casual app's values, but only beside the office's own
-// (`rounded-lg office:rounded-row`, the `office:` variant in globals.css).
+// 24: a 24px menu card, 22px sections, 14px rows, round pills), its sizes, its depth (only the
+// glass's own, and the few solid things pinned in tests/unit/ui.glass.test.ts) and its 150–200ms
+// transitions; the face is Geist (Phase 24: the casual app's too, the big numbers by `font-stat`)
+// with none of the casual app's sign figures; and since Phase 24 the office has no colours of its
+// own (its block in globals.css sets only its sizes): it takes the app's tokens and its glass
+// (docs/ui-design.md "Phase 24"), and tests/unit/ui.contrast.test.ts checks them. The shared parts
+// an office page renders (found by following the office's imports: the chips, the seats, the login
+// link page, the guide's steps; and the firm's bar above the office's login pages) may keep the
+// casual app's values, but only beside the office's own (`rounded-lg office:rounded-row`, the
+// `office:` variant in globals.css).
 
 const ROOT = process.cwd();
 const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
@@ -233,10 +235,10 @@ describe("the office's files use only the system (src/app/office, the shared par
     expect(found(SPACING, (v) => STEPS.has(v))).toEqual(MEASURES);
   });
 
-  // Phase 23 (round 3): the page and menu cards 28px (`card`), the cards, lists and tables inside a
-  // page 22px (`inner`), rows 14px, pills round (Phase 21: 20px cards, 14px rows); a chart's bar
-  // 4px round at its data end (`mark`), in the dashboard's charts only.
-  it("corners: 28px page and menu cards, 22px cards inside, 14px rows, round pills (or none)", () => {
+  // Phase 24 (round 7): the menu card 24px (`card`; 28px in Phase 23, with the page card that's
+  // gone), the sections on a page 22px (`inner`), rows 14px, pills round (Phase 21: 20px cards,
+  // 14px rows); a chart's bar 4px round at its data end (`mark`), in the dashboard's charts only.
+  it("corners: a 24px menu card, 22px sections, 14px rows, round pills (or none)", () => {
     const CHARTS = "src/app/office/dashboard/charts.tsx";
     expect(
       found(RADIUS, (v) => ["card", "inner", "row", "full", "none", "mark"].includes(v)),
@@ -246,17 +248,18 @@ describe("the office's files use only the system (src/app/office, the shared par
     expect(marks.filter((m) => !m.startsWith(`${CHARTS}: `))).toEqual([]);
   });
 
-  it("sizes: the scale's seven steps (12, 13, 15, 17, 20, 28 and 40px in the office)", () => {
+  it("sizes: the scale's seven steps (12, 13, 15, 17, 20, 30 and 40px in the office)", () => {
     expect(
       found(TEXT_SIZE, (v) => ["xs", "sm", "base", "lg", "2xl", "3xl", "4xl"].includes(v)),
     ).toEqual([]);
   });
 
-  // Phase 23 (round 3, flat): one overlay, `float`, only on what floats over the page
-  // (ui.flat.test.ts pins where); nothing at rest has depth: no card, row, button, field, groove,
-  // page or colour card (round 2's `soft`, `raise`, `sheet`, `tint` and the casual app's `sunk`).
-  it("depth: the one overlay only (or none)", () => {
-    const LAYERS = ["shadow-float", "shadow-none"];
+  // Phase 24 (round 7): depth is the glass's own rim and drop (its utilities); a class names one
+  // only for a solid thing: `float` under a chart's tooltip (solid ink, floating),
+  // `lift` under a switch's knob (ui.glass.test.ts pins each file). Nothing else: no groove (the
+  // casual app's `sunk`), and none of round 2's layers (`soft`, `raise`, `sheet`, `tint`).
+  it("depth: a floating ink thing's, a knob's (or none)", () => {
+    const LAYERS = ["shadow-float", "shadow-lift", "shadow-none"];
     expect(found(SHADOW, (v) => LAYERS.includes(v))).toEqual([]);
     const atRest = SOURCES.filter(({ shared }) => !shared).flatMap(({ file, text }) =>
       [
@@ -272,19 +275,19 @@ describe("the office's files use only the system (src/app/office, the shared par
     expect(found(DURATION, (v) => v === "150" || v === "200")).toEqual([]);
   });
 
-  it("the office's face: no casual-app face, and no display serif (Phase 23)", () => {
+  it("the office's face: none of the casual app's sign figures, and no display serif", () => {
     const casualFaces = SOURCES.filter((s) => !s.shared).flatMap(({ file, text }) =>
       [...text.matchAll(/(?<![\w-])font-(?:sign|greet)(?![\w-])/g)].map((m) => `${file}: ${m[0]}`),
     );
     expect(casualFaces).toEqual([]);
     // Round 2's display serif (`font-display`, the dashboard's greeting) is gone: every word,
-    // headline and number is Plus Jakarta Sans.
+    // headline and number is Geist (Phase 24; Plus Jakarta Sans in Phase 23).
     expect(read("src/app/globals.css")).not.toMatch(/font-display/);
     const display = SOURCES.filter(({ text }) => /(?<![\w-])font-display(?![\w-])/.test(text)).map(
       ({ file }) => file,
     );
     expect(display).toEqual([]);
-    // The greeting is the headline's own style (Plus Jakarta 800, -0.025em, the office's title
+    // The greeting is the headline's own style (Geist semibold, -0.025em, the office's title
     // size) in the dashboard's one <h1>.
     expect(read("src/app/office/dashboard-view.tsx")).toMatch(
       /<h1 className="text-ink">\s*<span className="block text-title">/,
@@ -308,60 +311,67 @@ describe("the office's controls: hover, focus and pressed (Dylan's brief)", () =
     new RegExp(`(?<![\\w-])${variant}:[\\w/-]+`).test(cls);
 
   it("every button and link-like control changes under the pointer and while pressed", () => {
+    // Pressed: a fill of its own, or glass's swell and brightening (`press-glass`, below).
     for (const [name, cls] of Object.entries(btn)) {
       expect(has(cls, "hover"), `btn.${name}`).toBe(true);
-      expect(has(cls, "active") || has(cls, "office:active"), `btn.${name}`).toBe(true);
+      expect(
+        has(cls, "active") || has(cls, "office:active") || cls.split(" ").includes("press-glass"),
+        `btn.${name}`,
+      ).toBe(true);
     }
     expect(has(quietLink, "hover") && has(quietLink, "active")).toBe(true);
-    // The one main button sky blue with near-black words (Phase 23); the others white pills whose
-    // grey edge stays under the pointer and pressed; a destructive one red words on white.
-    expect(btn.primary).toMatch(
-      / border-accent bg-accent text-on-accent hover:border-accent-hover hover:bg-accent-hover active:border-accent-press active:bg-accent-press$/,
-    );
+    // Phase 24 (round 7): the one main button tinted glass in the firm's colour, a little brighter
+    // under the pointer (never Phase 23's sky); the others clear glass, brighter under the pointer
+    // and pressed; a destructive one red words on clear glass; the final destructive click solid
+    // red.
+    expect(btn.primary).toMatch(/ glass-tint hover:brightness-105$/);
     expect(btn.secondary).toMatch(
-      /rounded-full .* border-button-line bg-button text-ink hover:bg-button-hover active:bg-button-press$/,
+      /rounded-full .* glass-button text-ink hover:bg-button-hover active:bg-button-press$/,
     );
     expect(btn.danger).toMatch(
-      /rounded-full .* border-button-line bg-button text-urgent hover:bg-button-hover active:bg-button-press$/,
+      /rounded-full .* glass-button text-urgent hover:bg-button-hover active:bg-button-press$/,
     );
-    expect(btn.dangerSolid).toMatch(/ border-urgent-fill bg-urgent-fill text-on-urgent /);
-    // A tab (Phase 23): darker words under the pointer, a fill pressed; the current one a white
-    // pill with a 3:1 edge on the grey track (never the sky button), every one 44px.
+    expect(btn.dangerSolid).toMatch(
+      / bg-urgent-fill text-on-urgent hover:bg-urgent-fill-hover active:bg-urgent-fill-hover$/,
+    );
+    for (const [name, cls] of Object.entries(btn))
+      expect(cls, `btn.${name}`).not.toMatch(
+        /(?<![\w-])(?:[a-z-]+:)*(?:bg|border|text)-(?:accent|on-accent)(?![\w-])/,
+      );
+    // A tab: darker words under the pointer, a fill pressed; the current one under a lens of
+    // bright glass on the glass track (never the main button), every one 44px.
     expect(has(classes.tab, "hover") && has(classes.tab, "active")).toBe(true);
     for (const cls of [classes.tab, classes.tabCurrent]) {
       expect(cls.split(" ")).toEqual(
-        expect.arrayContaining(["press", "min-h-11", "rounded-full", "border"]),
+        expect.arrayContaining(["press-glass", "min-h-11", "rounded-full"]),
       );
       expect(cls).not.toMatch(/(?<![\w-])(?:[a-z-]+:)*(?:bg|border|text)-(?:accent|on-accent)/);
+      expect(cls).not.toMatch(/(?<![\w-])glass-tint(?![\w-])/);
     }
-    expect(classes.tab.split(" ")).toContain("border-transparent");
+    expect(classes.tab.split(" ")).not.toContain("lens");
     expect(classes.tabCurrent.split(" ")).toEqual(
-      expect.arrayContaining(["border-line-strong", "bg-card", "text-ink", "font-semibold"]),
+      expect.arrayContaining(["lens", "text-ink", "font-semibold"]),
     );
     expect(classes.tabs.split(" ")).toEqual(
-      expect.arrayContaining(["rounded-full", "border", "border-line", "bg-raised", "p-1"]),
+      expect.arrayContaining(["glass", "rounded-full", "p-1"]),
     );
-    // A field: its edge darkens under the pointer; focused, the ring (globals.css, everywhere).
+    // A field: its edge shows under the pointer; focused, the ring (globals.css, everywhere).
     expect(has(field, "hover")).toBe(true);
     expect(read("src/app/globals.css")).toMatch(/:focus-visible\s*\{[^}]*outline/);
-    // The office's file button: a grey pill like the others, with its hover and pressed fills.
-    const css = read("src/app/globals.css");
-    expect(css).toMatch(
-      /body:has\(\[data-office\]\) input\[type="file"\]::file-selector-button \{[^}]*border-radius: 9999px;[^}]*background-color: var\(--color-button\);/,
-    );
-    expect(css).toContain(
-      'body:has([data-office]) input[type="file"]:not(:disabled)::file-selector-button:hover {',
-    );
-    expect(css).toContain(
-      'body:has([data-office]) input[type="file"]:not(:disabled)::file-selector-button:active {',
+    // The file button is the app's, a clear glass pill (ui.design-system.test.ts): the office has
+    // none of its own any more.
+    expect(read("src/app/globals.css")).not.toMatch(
+      /body:has\(\[data-office\]\) input\[type="file"\]/,
     );
   });
 
   // Phase 22 (Dylan: "subtle reactive on click responses"): what you press dips to 97% at once
   // and springs back when you let go, its colours at their usual pace; with reduced motion it
-  // doesn't move. Every office button and link-like control carries it (`btn.link` only in the
-  // office: the casual app keeps Phase 20's look; a link inside a sentence is text, and doesn't).
-  it("everything you press dips to 97% and springs back: about 90ms down, 300ms back", () => {
+  // doesn't move. Phase 24 (round 7, as Liquid Glass does): glass you press swells to 104% and
+  // brightens instead, on the same spring. Every office button and link-like control carries one
+  // (`btn.link` only in the office: the casual app keeps Phase 20's look; a link inside a sentence
+  // is text, and doesn't).
+  it("everything you press dips to 97% (glass swells to 104%) and springs back: about 90ms down, 300ms back", () => {
     const css = read("src/app/globals.css");
     const start = css.indexOf("@utility press {");
     const press = css.slice(start, css.indexOf("\n}\n", start) + 2);
@@ -383,12 +393,31 @@ describe("the office's controls: hover, focus and pressed (Dylan's brief)", () =
     expect(press).toMatch(
       /@media \(prefers-reduced-motion: reduce\) \{\s+&:active,\s+&:hover \{\s+scale: none !important;\s+translate: none !important;\s+\}\s+\}/,
     );
+    // Glass: 104% and a little brighter, in 90ms; back in 300ms on the spring; still with reduced
+    // motion.
+    const gStart = css.indexOf("@utility press-glass {");
+    const glass = css.slice(gStart, css.indexOf("\n}\n", gStart) + 2);
+    expect(gStart).toBeGreaterThan(-1);
+    expect(glass).toMatch(
+      /transition-property: color, background-color, border-color, scale, filter;/,
+    );
+    expect(glass).toMatch(
+      /transition-timing-function:\s+var\(--ease-sd\), var\(--ease-sd\), var\(--ease-sd\), var\(--ease-spring\), var\(--ease-sd\);/,
+    );
+    expect(glass).toContain("transition-duration: 150ms, 150ms, 150ms, 300ms, 200ms;");
+    expect(glass).toMatch(
+      /&:active:not\(:disabled, \[aria-disabled="true"\]\) \{\s+scale: 1\.04;\s+filter: brightness\(1\.06\);\s+transition-duration: 150ms, 150ms, 150ms, 90ms, 90ms;\s+\}/,
+    );
+    expect(glass).toMatch(
+      /@media \(prefers-reduced-motion: reduce\) \{\s+&:active \{\s+scale: none !important;\s+\}\s+\}/,
+    );
+    const PRESS: Record<string, string> = { link: "office:press", text: "press" };
     for (const [name, cls] of Object.entries(btn))
-      expect(cls.split(" "), `btn.${name}`).toContain(name === "link" ? "office:press" : "press");
+      expect(cls.split(" "), `btn.${name}`).toContain(PRESS[name] ?? "press-glass");
     expect(quietLink.split(" ")).toContain("press");
-    expect(classes.tab.split(" ")).toContain("press");
-    expect(classes.tabCurrent.split(" ")).toContain("press");
-    // No lift under the pointer (Phase 23: flat), in the office's own strings.
+    expect(classes.tab.split(" ")).toContain("press-glass");
+    expect(classes.tabCurrent.split(" ")).toContain("press-glass");
+    // No lift under the pointer, in the office's own strings.
     for (const [name, value] of Object.entries(classes)) {
       const strings = typeof value === "string" ? [value] : Object.values(value);
       for (const cls of strings) expect(cls, name).not.toMatch(/hover:-?translate-y-/);
@@ -411,17 +440,17 @@ describe("the office's controls: hover, focus and pressed (Dylan's brief)", () =
     );
     // The blue tone (Phase 23): waiting on someone else.
     expect(classes.chip.wait).toBe("border-wait-line bg-wait-soft text-wait-ink");
-    // Every count a flat tinted pill, with no edge (Phase 23).
-    for (const [name, cls] of Object.entries({
-      countPill: classes.countPill,
-      countNeeds: classes.countNeeds,
-      countWaiting: classes.countWaiting,
-      countUrgent: classes.countUrgent,
-      count: classes.count,
-    })) {
+    // Every count a pill with no edge (Phase 23): the grey one clear glass since Phase 24, the
+    // others tinted.
+    for (const [name, cls, fill] of [
+      ["countPill", classes.countPill, "glass-button"],
+      ["count", classes.count, "glass-button"],
+      ["countNeeds", classes.countNeeds, "bg-hivis"],
+      ["countWaiting", classes.countWaiting, "bg-wait-tile"],
+      ["countUrgent", classes.countUrgent, "bg-urgent-tile"],
+    ] as const) {
       expect(cls, name).not.toMatch(/(?<![\w:-])border(?:-[a-z]+)*(?![\w-])/);
-      expect(cls, name).toMatch(/(?<![\w:-])bg-(?:count|hivis|wait-tile|urgent-tile)(?![\w-])/);
-      expect(cls.split(" "), name).toContain("rounded-full");
+      expect(cls.split(" "), name).toEqual(expect.arrayContaining([fill, "rounded-full"]));
     }
     expect(read("src/app/globals.css")).toContain(
       "@custom-variant office (&:where(body:has([data-office]) *));",
@@ -446,114 +475,117 @@ describe("the office's tokens (src/app/globals.css)", () => {
   const light = block("body:has([data-office])");
   const value = (name: string) => light.match(new RegExp(`--${name}: ([^;]+);`))?.[1];
 
-  // Phase 23 (round 3): white cards (the page, the menu, everything in them) on a cool light grey
-  // ground; one sky blue main button. Phase 22's page was a warm off-white sheet on a warm grey
-  // window, its main button near-black.
-  it("white cards on a cool light grey ground, the sky main button with near-black words", () => {
-    const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-    const dark = block(':root[data-theme="dark"] body:has([data-office])');
-    const darkValue = (name: string) => dark.match(new RegExp(`--${name}: ([^;]+);`))?.[1];
-    // The ground: cool (blue above green above red) and light, but not white.
-    const canvas = value("color-canvas")!;
-    const [r, g, b] = rgb(canvas);
-    expect(b! > g! && g! > r!).toBe(true);
-    expect(Math.min(r!, g!, b!)).toBeGreaterThan(0xe8);
-    expect(canvas).toBe("#f2f4f7");
-    // The page card (`sheet`, as `card`) and every card white; in dark, dark grey on near-black.
-    expect(value("color-card")).toBe("#ffffff");
-    expect(value("color-sheet")).toBe(value("color-card"));
-    expect(value("color-panel")).toBe(canvas);
-    expect([darkValue("color-canvas"), darkValue("color-card"), darkValue("color-sheet")]).toEqual([
-      "#0c0e12",
-      "#15181d",
-      "#15181d",
+  // Phase 24 (round 7): one look for the office and the casual app. The office's block sets its
+  // sizes and its headline's weight and tracking, and nothing else: no colour (Phase 23's white
+  // cards on a cool grey ground and the sky main button are gone), no face, and no dark block of
+  // its own. Its main button is the app's: tinted glass in the firm's colour.
+  it("the office takes the app's colours and glass: its block sets only its sizes", () => {
+    expect([...light.matchAll(/--([a-z0-9-]+):/g)].map((m) => m[1])).toEqual([
+      "text-sm",
+      "text-sm--line-height",
+      "text-base",
+      "text-base--line-height",
+      "text-lg",
+      "text-lg--line-height",
+      "text-3xl",
+      "text-3xl--line-height",
+      "text-4xl",
+      "text-4xl--line-height",
+      "tracking-heading",
+      "title-weight",
+      "title-tracking",
     ]);
-    // The main button is the sky, with near-black words, lighter under the pointer, darker
-    // pressed; in dark, a paler sky.
-    expect(read("src/app/ui/classes.ts")).toMatch(
-      /primary: `\$\{office\} border-accent bg-accent text-on-accent /,
-    );
-    expect(
-      ["color-accent", "color-accent-hover", "color-accent-press", "color-on-accent"].map(value),
-    ).toEqual(["#0ea5e9", "#38bdf8", "#0284c7", "#06131f"]);
-    expect(
-      ["color-accent", "color-accent-hover", "color-accent-press", "color-on-accent"].map(
-        darkValue,
-      ),
-    ).toEqual(["#7dd3fc", "#a5e1fd", "#38bdf8", "#06131f"]);
-    // `brand` (the board's today bar, the login link page's button) is the sky too, never the
-    // firm's colour: its pressed shade in light, as the sky itself is under 3:1 on white
-    // (ui.contrast.test.ts holds brand on card at 3:1); words in ink.
-    expect([value("color-brand"), value("color-on-brand")]).toEqual([
-      value("color-accent-press"),
-      value("color-on-accent"),
-    ]);
-    expect([darkValue("color-brand"), darkValue("color-on-brand")]).toEqual([
-      darkValue("color-accent"),
-      darkValue("color-on-accent"),
-    ]);
-    expect(value("color-brand-ink")).toBe(value("color-ink"));
-    // Ink: a cool near-black.
-    const ink = value("color-ink")!;
-    expect(ink).toBe("#0f1728");
-    expect(Math.max(...rgb(ink))).toBeLessThan(0x30);
+    expect(css.match(/body:has\(\[data-office\]\)\s*\{/g)).toHaveLength(1);
+    expect(css).not.toMatch(/\[data-theme="dark"\] body:has\(\[data-office\]\)/);
+    expect(css).not.toMatch(/:root:not\(\[data-theme="light"\]\) body:has\(\[data-office\]\)/);
+    expect(css).not.toMatch(/\[data-office\] \{\s*font-family/);
+    expect(read("src/app/ui/classes.ts")).toMatch(/primary: `\$\{office\} glass-tint /);
+    // And the firm's colour reaches the office as everywhere (Phase 23 kept it off its buttons).
+    expect(block("body[data-firm-colour]")).toContain("--color-tint: var(--firm-fill);");
   });
 
-  it("the type scale's office values: 17, 20 and 28px in place of 18, 24 and 30", () => {
+  it("the type scale's office values: 13, 15, 17, 30 and 40px in place of 14, 16, 18, 28 and 44", () => {
+    expect(value("text-sm")).toBe("0.8125rem");
+    expect(value("text-base")).toBe("0.9375rem");
     expect(value("text-lg")).toBe("1.0625rem");
-    expect(value("text-2xl")).toBe("1.25rem");
-    expect(value("text-3xl")).toBe("1.75rem");
-    // A headline in Plus Jakarta Sans extrabold, a little tight (Phase 23; Newsreader semibold in
-    // 22, Instrument Serif in 21). On the office's wrapper, where the face's variables are (on
-    // <body> it couldn't read them, and every headline would fall back to the casual app's sans).
-    expect(light).not.toMatch(/--title-font:/);
-    expect(css).toMatch(
-      /\[data-office\] \{\s*font-family:[^}]*--title-font:\s*var\(--font-plus-jakarta\), var\(--font-plus-jakarta-ext\),/,
-    );
-    expect(value("title-weight")).toBe("800");
+    expect(value("text-3xl")).toBe("1.875rem");
+    expect(value("text-4xl")).toBe("2.5rem");
+    expect(value("text-2xl")).toBeUndefined();
+    // A headline in Geist semibold, a little tight (round 7; Plus Jakarta Sans extrabold in 23,
+    // Newsreader semibold in 22, Instrument Serif in 21); the casual app's medium.
+    expect(value("title-weight")).toBe("600");
     expect(value("title-tracking")).toBe("-0.025em");
-    expect(value("title-size")).toBe("var(--text-3xl)");
+    expect(value("tracking-heading")).toBe("-0.015em");
+    expect(css).toMatch(
+      /@utility text-title \{[^}]*font-size: var\(--text-3xl\);[^}]*font-weight: var\(--title-weight, 500\);\s*letter-spacing: var\(--title-tracking, -0\.02em\);/,
+    );
+    expect(css).not.toMatch(/--title-(?:font|size):/);
     // Section headings bold (the shared `h2`, by its `office:` value).
     expect(classes.h2.split(" ")).toContain("office:font-bold");
   });
 
-  // Phase 23 (round 3): one face, Plus Jakarta Sans, for words, headlines and the big numbers
-  // (DM Sans, DM Mono and Newsreader in Phase 22; Geist, Geist Mono and Instrument Serif in 21).
-  it("corners, the one overlay, the face", () => {
-    expect(css).toMatch(/--radius-card: 1\.75rem;/);
+  // Phase 24: Geist for every word, headline and number (Plus Jakarta Sans in 23; DM Sans, DM Mono
+  // and Newsreader in 22; Geist, Geist Mono and Instrument Serif in 21).
+  it("corners, the depth tokens, the face", () => {
+    expect(css).toMatch(/--radius-card: 1\.5rem;/);
     expect(css).toMatch(/--radius-inner: 1\.375rem;/);
     expect(css).toMatch(/--radius-row: 0\.875rem;/);
     for (const token of ["soft", "raise", "sheet", "tint"])
       expect(css).not.toMatch(new RegExp(`--shadow-${token}:`));
-    expect(css).toContain("--shadow-float: var(--overlay);");
+    expect(css).toContain("--shadow-float: var(--float-shadow);");
     expect(css).toMatch(
-      /\[data-office\] \{\s*font-family:\s*var\(--font-plus-jakarta\),\s*var\(--font-plus-jakarta-ext\),/,
+      /@utility font-stat \{\s*font-family:\s*var\(--font-geist\),\s*var\(--font-geist-ext\),[^}]*font-weight: 600;\s*font-variant-numeric: tabular-nums;\s*letter-spacing: -0\.03em;\s*\}/,
     );
-    expect(css).toMatch(
-      /@utility font-stat \{\s*font-family:\s*var\(--font-plus-jakarta\),\s*var\(--font-plus-jakarta-ext\),[^}]*font-weight: 800;\s*font-variant-numeric: tabular-nums;\s*letter-spacing: -0\.03em;\s*\}/,
+    expect(css).not.toMatch(
+      /@utility font-display|--font-(?:dm-sans|dm-mono|newsreader|plus-jakarta|instrument)/,
     );
-    expect(css).not.toMatch(/@utility font-display|--font-(?:dm-sans|dm-mono|newsreader)/);
   });
 
-  // Phase 22 (Dylan: "remove the gradients"): no gradient in the office's styles but the menu's
-  // edge fade, a mask rather than a colour (globals.css `fade-edges`).
-  it("no gradients: the one the office keeps is the menu's fade, a mask", () => {
+  // Phase 24 (round 7): gradients are the glass's: a tile's, a clear button's and the main
+  // button's fills, the wash's four lights and the top bar's edge, and the masks that fade an edge
+  // (the menu's, the bar's). None anywhere in the office's own files.
+  it("gradients only in the glass, the wash and the masks", () => {
     const gradient =
       /(?:repeating-)?(?:linear|radial|conic)-gradient\(|(?<![\w-])bg-(?:linear|radial|conic|gradient)-/;
     const inOffice = SOURCES.filter(({ text }) => gradient.test(text)).map(({ file }) => file);
     expect(inOffice).toEqual([]);
-    const lines = css.split("\n").filter((l) => gradient.test(l));
-    expect(lines.length).toBeGreaterThan(0);
-    for (const line of lines) expect(line, line).toMatch(/^\s*mask-image: linear-gradient\(/);
+    // Each gradient in the stylesheet, by the rule it's in.
+    const owners: string[] = [];
+    let current = "";
+    for (const line of css.split("\n")) {
+      const opens =
+        /^(@utility [a-z-]+|\s*body::before|\s*&::before|\s*&\[data-more="[a-z]+"\]) \{/.exec(line);
+      if (opens) current = opens[1]!.trim();
+      if (/^@utility [a-z-]+ \{/.test(line)) current = line.replace(/ \{$/, "");
+      if (gradient.test(line)) owners.push(`${current}: ${line.trim().split(":")[0]}`);
+    }
+    expect(owners).toEqual([
+      "body::before: radial-gradient(70rem 48rem at -4% -10%, var(--wash-a), transparent 62%),",
+      "body::before: radial-gradient(62rem 48rem at 104% 4%, var(--wash-b), transparent 58%),",
+      "body::before: radial-gradient(62rem 50rem at 62% 104%, var(--wash-c), transparent 60%),",
+      "body::before: radial-gradient(56rem 44rem at 4% 96%, var(--wash-d), transparent 60%);",
+      "@utility glass-tile: background-image",
+      "@utility glass-button: background-image",
+      "@utility glass-tint: background-image",
+      "&::before: background",
+      "&::before: mask-image",
+      '&[data-more="below"]: mask-image',
+      '&[data-more="above"]: mask-image',
+      '&[data-more="both"]: mask-image',
+    ]);
     expect(css).toMatch(/@utility fade-edges \{/);
   });
 
-  // Phase 23 (round 3): no grain, stripes, glows or colour cards (round 2's), and no background
-  // image at all, in the office's sources or the styles.
-  it("no grain, stripes, glows, tinted cards or background images", () => {
-    expect(css).not.toMatch(/--(?:grain|stripes|tint-|card-chip|glow-)/);
+  // No grain, stripes, glows or colour cards (round 2's), and no picture: the only images are the
+  // glass's gradients and the only url() the refraction filter's (ui.glass.test.ts).
+  it("no grain, stripes, glows, tinted cards or pictures", () => {
+    expect(css).not.toMatch(
+      /--(?:grain|stripes|tint-(?:urgent|attention|wait|done)|card-chip|glow-)/,
+    );
     expect(css).not.toMatch(/@utility (?:grain|stripes|tint-|card-chip)/);
-    expect(css).not.toMatch(/background-image|url\(|feTurbulence/);
+    expect(css.match(/background-image:/g)).toHaveLength(3);
+    expect(css.match(/url\(/g)).toEqual(["url("]);
+    expect(css).toContain("url(#lg-refract)");
     // Nor round 2's colour cards' own tokens.
     expect(css).not.toMatch(/--color-(?:urgent|attention|wait|done)-card/);
     const texture =
@@ -564,97 +596,47 @@ describe("the office's tokens (src/app/globals.css)", () => {
     expect(inOffice).toEqual([]);
   });
 
-  it("match docs/ui-design.md's office table, both ways, in both themes", () => {
-    const own = (b: string) =>
-      Object.fromEntries(
-        [...b.matchAll(/--color-([a-z-]+):\s*(#[0-9a-f]{6});/g)].map((m) => [m[1]!, m[2]!]),
-      );
-    const dark = block(':root[data-theme="dark"] body:has([data-office])');
+  // The office's table (Phase 23) is history: its values are the app's now, matched against the
+  // doc's one token table (tests/unit/ui.design-system.test.ts), and the doc says so.
+  it("docs/ui-design.md: the office's colours are the app's (Phase 24)", () => {
     const doc = read("docs/ui-design.md");
-    // Round 3's table (Phase 23) holds the office's values now.
-    const at = doc.indexOf("## Phase 23: the office's look, round 3");
-    expect(at).toBeGreaterThan(-1);
-    const section = doc.slice(at, doc.indexOf("## Phase 22: the office's look, round 2"));
-    const fromDoc = { light: {} as Record<string, string>, dark: {} as Record<string, string> };
-    for (const line of section.split("\n")) {
-      const cells = line.split("|").map((c) => c.trim());
-      if (cells.length < 5 || !cells[1]!.startsWith("`")) continue;
-      const names = [...cells[1]!.matchAll(/`([a-z-]+)`/g)].map((m) => m[1]!);
-      for (const [column, into] of [
-        [cells[2]!, fromDoc.light],
-        [cells[3]!, fromDoc.dark],
-      ] as const) {
-        const values = [...column.matchAll(/`(#[0-9a-f]{6})`/g)].map((m) => m[1]!);
-        expect(values, line).toHaveLength(names.length);
-        names.forEach((n, i) => (into[n] = values[i]!));
-      }
-    }
-    expect(Object.keys(fromDoc.light).length).toBeGreaterThan(40);
-    expect(fromDoc.light).toEqual(own(light));
-    expect(fromDoc.dark).toEqual(own(dark));
+    const p24 = doc
+      .slice(doc.indexOf("## Phase 24: Liquid Glass"), doc.indexOf("## Phase 23"))
+      .replace(/\s+/g, " ");
+    expect(p24).toContain("The office has no colours of its own any more");
+    expect(p24).toContain("the office's 12, 13, 15, 17, 20, 30 and 40px");
+    const p23 = doc.slice(doc.indexOf("## Phase 23"), doc.indexOf("## Phase 22"));
+    expect(p23).toMatch(/^## Phase 23: the office's look, round 3\n\nReplaced by Phase 24/);
   });
 
-  it("every office page carries [data-office], with the office's faces on it", () => {
+  it("every office page carries [data-office]; one face for the office and the casual app", () => {
     const layout = read("src/app/office/layout.tsx");
-    expect(layout).toMatch(
-      /<div data-office="" className=\{`contents \$\{officeFontVariables\}`\}>/,
-    );
+    expect(layout).toMatch(/<div data-office="" className="contents">/);
     expect(layout.match(/<OfficeLook>/g)).toHaveLength(2);
-    // Phase 23: Plus Jakarta Sans, one variable face (200 to 800) in latin and latin-ext, through
-    // next/font/local. The consts' names become the families' (the browser tests look for
-    // "plusJakarta"); only the latin face is fetched ahead, and it has no metric-matched fallback
-    // (it would cover "Ł" before the latin-ext face).
-    const fonts = read("src/app/office/office-fonts.ts");
-    expect(fonts).toMatch(/^import localFont from "next\/font\/local";/m);
-    expect([...fonts.matchAll(/src: "([^"]+)"/g)].map((m) => m[1])).toEqual([
-      "../../../node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-wght-normal.woff2",
-      "../../../node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-ext-wght-normal.woff2",
-    ]);
-    for (const src of fonts.matchAll(/src: "([^"]+)"/g))
-      expect(statSync(join(ROOT, "src/app/office", src[1]!)).size).toBeGreaterThan(5000);
-    expect([...fonts.matchAll(/export const (\w+) = localFont\(/g)].map((m) => m[1])).toEqual([
-      "plusJakartaSans",
-      "plusJakartaSansExt",
-    ]);
-    expect(fonts.match(/weight: "200 800",/g)).toHaveLength(2);
-    expect(fonts.match(/adjustFontFallback: false,/g)).toHaveLength(1);
-    expect(fonts.match(/preload: false,/g)).toHaveLength(1);
-    expect(fonts.indexOf("adjustFontFallback: false")).toBeLessThan(
-      fonts.indexOf("export const plusJakartaSansExt"),
-    );
-    expect(fonts.indexOf("preload: false")).toBeGreaterThan(
-      fonts.indexOf("export const plusJakartaSansExt"),
-    );
-    expect([...fonts.matchAll(/variable: "([^"]+)"/g)].map((m) => m[1])).toEqual([
-      "--font-plus-jakarta",
-      "--font-plus-jakarta-ext",
-    ]);
-    expect(fonts).toMatch(
-      /export const officeFontVariables = \[plusJakartaSans, plusJakartaSansExt\]/,
-    );
+    expect(layout).not.toMatch(/officeFontVariables|office-fonts/);
+    // Phase 23's office face (Plus Jakarta Sans, src/app/office/office-fonts.ts) is gone: Geist
+    // (src/app/fonts.ts, on <html> for every page: tests/unit/ui.theme.test.ts).
+    expect(existsSync(join(ROOT, "src/app/office/office-fonts.ts"))).toBe(false);
     const pkg = JSON.parse(read("package.json")) as { dependencies: Record<string, string> };
-    expect(pkg.dependencies["@fontsource-variable/plus-jakarta-sans"]).toBe("5.3.0");
-    // Round 2's faces left with it, as Phase 21's did.
+    expect(pkg.dependencies["@fontsource-variable/geist"]).toBe("5.3.0");
     for (const name of [
+      "@fontsource-variable/plus-jakarta-sans",
       "@fontsource-variable/dm-sans",
       "@fontsource/dm-mono",
       "@fontsource-variable/newsreader",
-      "@fontsource-variable/geist",
     ])
       expect(pkg.dependencies[name], name).toBeUndefined();
   });
 });
 
-// The skeletons (docs/ui-design.md "States"): shown while a page picked in the menu is on its way,
-// never from a route-wide loading.tsx (it would start every page's answer before its access check,
-// so a page a role can't open would answer 200, not 404).
-// Phase 23 (round 3) on every other page: flat. Every white box inside the white page card has its
-// 1px hairline and no depth (Needs attention's rows and parts, an enquiry's message, a shift's
-// instructions, the code boxes, an answer); fields white with their 3:1 edge, set in no more; the
-// second step before something destructive one red wash with its edge, and before a change that
-// takes nothing away the same in grey; a notice an amber wash with its edge.
-describe("round 3's parts on the office's other pages", () => {
-  it("Needs attention's page: its parts flat, beside the column they've always had", async () => {
+// Phase 24 (round 7) on every other page: glass. A box on a page is a glass part (a section's
+// frost, a tile's or a clear button's clear glass), a status's tint with its edge, or a solid
+// fill (ink, red, green): never Phase 23's white box with a hairline. Fields clear glass, their
+// edge showing under the pointer; the second step before something destructive one red wash with
+// its edge, and before a change that takes nothing away the same in grey; a notice an amber wash
+// with its edge.
+describe("round 7's parts on the office's other pages", () => {
+  it("Needs attention's page: its parts, beside the column they've always had", async () => {
     const { AlsoNeedsYou } = await import("@/app/office/needs-items");
     const also = renderToStaticMarkup(
       createElement(AlsoNeedsYou, {
@@ -668,7 +650,7 @@ describe("round 3's parts on the office's other pages", () => {
     expect(section!.split(" ")).toEqual(
       expect.arrayContaining(["rounded-inner", "border", "border-urgent-line", "bg-urgent-soft"]),
     );
-    // No depth and no grain, here or anywhere in what it draws.
+    // No shadow class and no grain, here or anywhere in what it draws.
     expect(also).not.toMatch(/(?<![\w-])(?:[a-z0-9-]+:)*(?:inset-)?shadow-(?!none)/);
     expect(also).not.toMatch(/(?<![\w-])grain/);
     expect(read("src/app/office/needs-attention/page.tsx")).toContain(
@@ -676,18 +658,18 @@ describe("round 3's parts on the office's other pages", () => {
     );
   });
 
-  it("fields with their edge; every second step and notice a wash with its edge; all flat", () => {
-    // A field: white with the 3:1 edge (line-strong), darker under the pointer, no depth.
+  it("fields clear glass with their edge under the pointer; every second step and notice a wash with its edge", () => {
+    // A field: clear glass, its 3:1 edge (line-strong) under the pointer, no shadow class.
     expect(field.split(" ")).toEqual(
       expect.arrayContaining([
+        "glass-tile",
         "rounded-row",
         "border",
-        "border-line-strong",
-        "bg-card",
-        "hover:border-ink-muted",
+        "border-transparent",
+        "hover:border-line-strong",
       ]),
     );
-    expect(field).not.toMatch(/shadow/);
+    expect(field).not.toMatch(/shadow|(?<![\w-])bg-card(?![\w-])/);
     // Red before something destructive; grey before a change that takes nothing away.
     expect(classes.confirmStep).toBe("rounded-row border border-urgent-line bg-urgent-soft p-4");
     expect(classes.checkStep).toBe("rounded-row border border-quiet-line bg-quiet-soft p-4");
@@ -695,11 +677,11 @@ describe("round 3's parts on the office's other pages", () => {
     expect(classes.notice).toBe(
       "rounded-row border border-attention-line bg-attention-soft px-4 py-3 text-attention-ink",
     );
-    // A key or secret shown once: white with its hairline, in the system's mono.
+    // A key or secret shown once: clear glass, in the system's mono.
     expect(classes.codeBox).toBe(
-      "block rounded-row border border-line bg-card px-3 py-2 font-mono text-base break-all text-ink select-all",
+      "glass-tile block rounded-row px-3 py-2 font-mono text-base break-all text-ink select-all",
     );
-    // An answer under a button: a pale grey slip with its hairline (shifts/shift-tones.ts).
+    // An answer under a button: a pale grey slip with its edge (shifts/shift-tones.ts).
     expect(resultBox).toBe(
       "rounded-row border border-line bg-quiet-soft px-3 py-2 font-semibold text-ink",
     );
@@ -720,8 +702,8 @@ describe("round 3's parts on the office's other pages", () => {
       // (A hover or pressed fill is a state, not a wash: `hover:bg-quiet-soft`.)
       expect(src, file).not.toMatch(/(?<![\w:-])bg-(?:urgent|quiet)-soft/);
     }
-    // Any wash with an edge (a notice, a status, a step) is flat (Phase 23; with the soft depth
-    // in Phase 22), and there is at least one.
+    // Any wash with an edge (a notice, a status, a step) has no shadow class, and there is at
+    // least one.
     let washes = 0;
     for (const file of OFFICE) {
       const src = code(read(file));
@@ -737,14 +719,12 @@ describe("round 3's parts on the office's other pages", () => {
     for (const file of OFFICE) expect(read(file), file).not.toMatch(/"rounded-row border p-4"/);
   });
 
-  // Inside the white page card a white box needs its hairline, or it vanishes (Phase 23): every
-  // string in the office's files and its own class strings that draws a white box with an edge
-  // gives it the line colour (`line`, or `line-strong` for a field's) and no depth. A mark that
-  // isn't a box (no card, inner or row corners: the events board's open places and its legend's
-  // swatch, as the seats) may have the stronger grey outline instead. Round 2 pinned the boxes one
-  // by one (Needs attention's rows, an enquiry's message, a shift's instructions, the code boxes,
-  // an answer), each raised off its form.
-  it("every white box with an edge: the hairline, and no depth", () => {
+  // Phase 24: no white box. Every string in the office's files and its own class strings that
+  // gives a box its corners (a section's, a row's) and a white fill (`card`, `button`, `sheet`) is
+  // a glass part instead; the white fills stay only on the events board's open seats and its key's
+  // swatch (marks with the stronger grey outline, not boxes). And there's glass on the pages:
+  // sections, tiles, clear buttons and what floats, each used.
+  it("no white boxes: every box a glass part, a tint or a solid fill", () => {
     const LITERALS = [
       ...OFFICE.flatMap((file) =>
         [...code(read(file)).matchAll(LITERAL)].map((m) => ({ file, text: m[0] })),
@@ -756,50 +736,29 @@ describe("round 3's parts on the office's other pages", () => {
         })),
       ),
     ];
-    // White: a card's, a button's or the page's own white.
-    const white = /(?<![\w:-])(?:sm:|lg:)?bg-(?:card|button|sheet)(?![\w/-])/;
-    // An edge: `border`, one side's, or a set width (`border-2`, `border-[1.5px]`).
-    const edged = /(?<![\w:-])(?:sm:|lg:)?border(?:-[trblxy])?(?:-\d+|-\[[\d.]+px\])?(?![\w-])/;
-    const boxes = LITERALS.filter(({ text }) => white.test(text) && edged.test(text));
-    expect(boxes.length).toBeGreaterThan(10);
-    // The hairline, the field's 3:1 edge, or a quiet button's grey edge.
-    const hairline = /(?<![\w:-])(?:sm:|lg:)?border-(?:line(?:-strong)?|button-line)(?![\w-])/;
-    // The board's open places and its key's swatch (and only there) keep the stronger grey outline.
+    const white = /(?<![\w:-])(?:[a-z0-9-]+:)*bg-(?:card|button|sheet)(?![\w/-])/;
     const OUTLINED = [
       "src/app/office/events/board-parts.tsx",
       "src/app/office/events/event-row.tsx",
     ];
-    const markOutline = (file: string, text: string) =>
-      OUTLINED.includes(file) &&
-      /(?<![\w:-])border-ink-muted(?![\w-])/.test(text) &&
-      !/(?<![\w-])(?:[a-z0-9-]+:)*rounded-(?:[trblse]{1,2}-)?(?:card|inner|row)(?![\w-])/.test(
-        text,
+    const whites = LITERALS.filter(({ text }) => white.test(text)).map(
+      ({ file, text }) => `${file}: ${text}`,
+    );
+    expect(whites.filter((w) => !OUTLINED.some((f) => w.startsWith(`${f}: `)))).toEqual([]);
+    for (const w of whites) {
+      expect(w).toMatch(/(?<![\w:-])border-ink-muted(?![\w-])/);
+      expect(w).not.toMatch(
+        /(?<![\w-])(?:[a-z0-9-]+:)*rounded-(?:[trblse]{1,2}-)?(?:card|inner|row)(?![\w-])/,
       );
-    const wrong = boxes
-      .filter(
-        ({ file, text }) =>
-          !(hairline.test(text) || markOutline(file, text)) ||
-          /(?<![\w-])(?:[a-z0-9-]+:)*(?:inset-|drop-)?shadow-(?!none(?![\w-]))/.test(text),
-      )
-      .map(({ file, text }) => `${file}: ${text}`);
-    expect(wrong).toEqual([]);
-    // And every white box (a card's, an inner card's or a row's corners) has that edge: white on
-    // white with none would vanish. What floats over the page has its overlay's ring instead.
-    const corners =
-      /(?<![\w-])(?:[a-z0-9-]+:)*rounded-(?:[trblse]{1,2}-)?(?:card|inner|row|full)(?![\w-])/;
-    const floats = /(?<![\w-])(?:[a-z0-9-]+:)*shadow-float(?![\w-])/;
-    const white2 = LITERALS.filter(({ text }) => white.test(text) && corners.test(text));
-    expect(white2.length).toBeGreaterThan(10);
-    const bare = white2
-      .filter(
-        ({ file, text }) =>
-          !floats.test(text) &&
-          !(edged.test(text) && (hairline.test(text) || markOutline(file, text))),
-      )
-      .map(({ file, text }) => `${file}: ${text}`);
-    expect(bare).toEqual([]);
-    // 28px corners are the page's and the menu's (the frame) and the login card's only; a card
-    // inside a page is 22px (rounded-inner), a row 14px.
+    }
+    // The glass, in use on the office's pages.
+    const count = (re: RegExp) => LITERALS.filter(({ text }) => re.test(text)).length;
+    expect(count(/(?<![\w-])glass(?![\w-])/)).toBeGreaterThan(8);
+    expect(count(/(?<![\w-])glass-tile(?![\w-])/)).toBeGreaterThan(4);
+    expect(count(/(?<![\w-])glass-button(?![\w-])/)).toBeGreaterThan(4);
+    expect(count(/(?<![\w-])glass-float(?![\w-])/)).toBeGreaterThan(4);
+    // 24px corners are the menu card's (the frame) and the login card's only; a section on a page
+    // is 22px (rounded-inner), a row 14px.
     const big = /(?<![\w-])(?:[a-z0-9-]+:)*rounded-(?:[trblse]{1,2}-)?card(?![\w-])/;
     const bigFiles = OFFICE.filter((file) => big.test(code(read(file))));
     expect(bigFiles).toEqual(["src/app/office/office-frame.tsx"]);
@@ -813,10 +772,13 @@ describe("round 3's parts on the office's other pages", () => {
         )
         .filter(([, v]) => big.test(String(v)))
         .map(([n]) => n),
-    ).toEqual(["officeLoginCard"]);
+    ).toEqual(["loginCard", "officeLoginCard"]);
   });
 });
 
+// The skeletons (docs/ui-design.md "States"): shown while a page picked in the menu is on its way,
+// never from a route-wide loading.tsx (it would start every page's answer before its access check,
+// so a page a role can't open would answer 200, not 404).
 describe("the office's loading skeletons", () => {
   it("no loading.tsx anywhere in the office", () => {
     expect(files("src/app/office").filter((f) => /(^|\/)loading\.(t|j)sx?$/.test(f))).toEqual([]);
@@ -876,10 +838,10 @@ describe("the office's loading skeletons", () => {
       "cancels",
       "licences",
     ]);
-    // Flat, as the dashboard's (Phase 23): white cards with their hairline, no tints, no depth, no
-    // grain.
-    expect(html).toContain("border border-line");
-    expect(html).toMatch(/(?<![\w:-])bg-card(?![\w/-])/);
+    // Glass, as the dashboard's (Phase 24): its sections frosted, no white card, no tints, no
+    // shadow class, no grain.
+    expect(html).toContain("glass rounded-inner");
+    expect(html).not.toMatch(/(?<![\w:-])bg-(?:card|sheet)(?![\w/-])/);
     expect(html).not.toMatch(/(?<![\w-])(?:[a-z0-9-]+:)*(?:inset-)?shadow-(?!none)/);
     expect(html).not.toMatch(/(?<![\w-])grain/);
     expect(html).not.toMatch(/(?<![\w:-])bg-(?:urgent|attention|wait|done)-(?:soft|card)/);

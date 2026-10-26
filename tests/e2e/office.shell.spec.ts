@@ -10,19 +10,20 @@ import { sentTo } from "./outbox";
 // pay week with "This week", the shifts line, the square light or dark switch and you, whose
 // account menu has your name and role, the same switch, How-to guide and Log out), the switch (at
 // once, both saying the same, kept after a reload with no flash), and from 1024px the menu in its
-// own white card under the bar beside the page's. On a laptop with a mouse (Phase 22): the whole
-// menu fits with no scrollbar, the pill moves to a link as it's picked, a press dips, nothing
-// lifts, no round button breaks onto two lines, the switch's words can be hovered and put away
+// own card of glass under the bar beside the page (Phase 24: the page has no card of its own). On
+// a laptop with a mouse (Phase 22): the whole menu fits with no scrollbar, the pill moves to a link
+// as it's picked, a press dips (and glass swells), nothing lifts, no round button breaks onto two lines, the switch's words can be hovered and put away
 // with Escape, and the keyboard never leaves a control hidden under the top bar. Everything runs
 // with the device set to light and again set to dark.
 
 const acme = "http://acme.localhost:3100";
-// The office's window (Phase 23, round 3): a cool light grey ground (a near-black in dark), and on
-// it the top bar, the menu card and the page card in white (a dark grey in dark), each with its 1px
-// hairline. Round 2's warm grey window and off-white sheet set into it went.
-const CANVAS = { light: "rgb(242, 244, 247)", dark: "rgb(12, 14, 18)" }; // #f2f4f7, #0c0e12
-const CARD = { light: "rgb(255, 255, 255)", dark: "rgb(21, 24, 29)" }; // #ffffff, #15181d
-const LINE = { light: "rgb(228, 231, 236)", dark: "rgb(38, 43, 51)" }; // #e4e7ec, #262b33
+// The office's window (Phase 24, round 7): the wash on its base (the canvas), and on it the top bar
+// floating glass and the menu card a section of glass; the page no card of its own. Round 3's white
+// cards with their hairlines on a cool grey ground (Phase 23) went.
+const CANVAS = { light: "rgb(238, 241, 248)", dark: "rgb(7, 8, 12)" }; // #eef1f8, #07080c
+const SECTION = { light: "rgba(255, 255, 255, 0.46)", dark: "rgba(26, 27, 34, 0.46)" };
+const FLOAT = { light: "rgba(255, 255, 255, 0.78)", dark: "rgba(30, 30, 34, 0.8)" };
+const NONE = "rgba(0, 0, 0, 0)";
 
 // A surface's look: its colour, its edge on each side, its corners and any depth.
 const surface = (el: Locator) =>
@@ -40,17 +41,32 @@ const surface = (el: Locator) =>
         s.borderBottomLeftRadius,
       ],
       shadow: s.boxShadow,
+      frost: s.backdropFilter,
     };
   });
-// White (or dark grey) with a 1px hairline all round, `radius` round, and no depth.
-const flatCard = (theme: "light" | "dark", radius: string) => ({
-  bg: CARD[theme],
+// A section of glass: its fill, no edge (its lit rim is drawn, not a border), `radius` round,
+// frosted, with its rim and drop.
+async function expectSection(el: Locator, theme: "light" | "dark", radius: string) {
+  const s = await surface(el);
+  expect({ bg: s.bg, image: s.image, edges: s.edges, corners: s.corners, frost: s.frost }).toEqual({
+    bg: SECTION[theme],
+    image: "none",
+    edges: ["0px", "0px", "0px", "0px"],
+    corners: Array(4).fill(radius),
+    frost: "blur(24px) saturate(1.8)",
+  });
+  expect(s.shadow).not.toBe("none");
+}
+// No surface at all: no fill, no edge, no corners, no depth (the page, Phase 24).
+const bare = {
+  bg: NONE,
   image: "none",
-  edges: ["1px", "1px", "1px", "1px"],
-  edge: Array(4).fill(LINE[theme]),
-  corners: Array(4).fill(radius),
+  edges: ["0px", "0px", "0px", "0px"],
+  edge: expect.any(Array),
+  corners: Array(4).fill("0px"),
   shadow: "none",
-});
+  frost: "none",
+};
 
 // Each test logs in as a resourcer of its own (the seeded users allow 3 login links per 15
 // minutes, and this spec logs in six times).
@@ -115,11 +131,12 @@ for (const device of ["light", "dark"] as const) {
       for (const [name, height] of bar) expect(height, String(name)).toBeGreaterThanOrEqual(44);
       await menuButton.click();
       await expect(drawer).toBeVisible();
-      // White from the left edge, floating over the dimmed page (the one overlay), sliding in
-      // (Phase 23); the firm at its head in a plain box, not a second banner.
+      // Floating glass from the left edge, over the dimmed page, sliding in (Phase 24; white in
+      // 23); the firm at its head in a plain box, not a second banner.
       await expect.poll(() => drawer.evaluate((el) => el.getBoundingClientRect().left)).toBe(0);
       const sheet = await surface(drawer);
-      expect(sheet.bg).toBe(CARD[device]);
+      expect(sheet.bg).toBe(FLOAT[device]);
+      expect(sheet.frost).toContain("blur(18px)");
       expect(sheet.shadow).not.toBe("none");
       expect(sheet.corners).toEqual(Array(4).fill("0px"));
       expect(await drawer.evaluate((el) => getComputedStyle(el).transitionProperty)).toBe(
@@ -182,12 +199,11 @@ for (const device of ["light", "dark"] as const) {
     }) => {
       await officeLogin(page, `${device}.theme`);
       const other = device === "light" ? "dark" : "light";
-      const shell = page.locator('[data-shell="office"]');
-      const card = page.locator("#main > div");
+      // The page's ground (the wash's base, on <body>) and the floating bar change with it.
+      const shell = page.locator("body");
       const bar = page.getByRole("banner");
       await expect(shell).toHaveCSS("background-color", CANVAS[device]);
-      await expect(card).toHaveCSS("background-color", CARD[device]);
-      await expect(bar).toHaveCSS("background-color", CARD[device]);
+      await expect(bar).toHaveCSS("background-color", FLOAT[device]);
       // Its words say what it switches to (a row of the account menu since Phase 22; Phase 23 the
       // square moon or sun in the top bar too, named by the same words).
       const square = bar.getByRole("button", { name: `Switch to ${other} mode`, exact: true });
@@ -196,7 +212,7 @@ for (const device of ["light", "dark"] as const) {
       await menu.getByRole("button", { name: `Switch to ${other} mode`, exact: true }).click();
       await expect(page.locator("html")).toHaveAttribute("data-theme", other);
       await expect(shell).toHaveCSS("background-color", CANVAS[other]);
-      await expect(card).toHaveCSS("background-color", CARD[other]);
+      await expect(bar).toHaveCSS("background-color", FLOAT[other]);
       await expect(
         menu.getByRole("button", { name: `Switch to ${device} mode`, exact: true }),
       ).toBeVisible();
@@ -222,7 +238,7 @@ for (const device of ["light", "dark"] as const) {
       await expect(again).toBeHidden();
       await square.click();
       await expect(page.locator("html")).toHaveAttribute("data-theme", other);
-      await expect(card).toHaveCSS("background-color", CARD[other]);
+      await expect(bar).toHaveCSS("background-color", FLOAT[other]);
 
       // Kept: the server sends the next page in that theme (no flash), and after a reload too.
       const sent = await page.request.get(`${acme}/office`);
@@ -242,18 +258,21 @@ for (const device of ["light", "dark"] as const) {
       const bar = page.getByRole("banner");
       const card = page.locator("#main > div");
       const width = () => page.evaluate(() => document.documentElement.clientWidth);
-      // On a phone: the page a white card with its hairline, 22px round on all four corners, with
-      // no depth (Phase 23; a sheet with rounded top corners in Phase 22).
-      expect(await surface(card)).toEqual(flatCard(device, "22px"));
+      // On a phone: the page no card of its own, its sections glass on the wash (Phase 24; a white
+      // card with its hairline in 23, a sheet with rounded top corners in 22).
+      expect(await surface(card)).toEqual(bare);
       // The firm's own bar gives way to the top bar on logged-in office pages.
       await expect(page.getByTestId("brand-bar")).toBeHidden();
       await expect(bar.getByText("Acme Events", { exact: true })).toBeVisible();
       // The pay week and the shifts line wait for a wider window.
       await expect(bar.getByText("This week", { exact: true })).toBeHidden();
       await expect(bar.getByText("+44 7700 900000")).toBeHidden();
-      // White with its hairline under it, 56px tall, the window's full width.
-      expect(await bar.evaluate((el) => getComputedStyle(el).borderBottomColor)).toBe(LINE[device]);
-      expect(await bar.evaluate((el) => getComputedStyle(el).borderBottomWidth)).toBe("1px");
+      // Floating glass (no hairline under it: its own edge), 56px tall, the window's full width.
+      const glassBar = await surface(bar);
+      expect(glassBar.bg).toBe(FLOAT[device]);
+      expect(glassBar.frost).toContain("blur(18px)");
+      expect(glassBar.edges).toEqual(["0px", "0px", "0px", "0px"]);
+      expect(glassBar.shadow).not.toBe("none");
       expect(await bar.boundingBox()).toMatchObject({
         x: 0,
         y: 0,
@@ -307,7 +326,12 @@ for (const device of ["light", "dark"] as const) {
       await expect(bar.getByText("+44 7700 900000")).toBeVisible();
       const square = bar.getByRole("button", { name: /^Switch to (light|dark) mode$/ });
       expect(await square.boundingBox()).toMatchObject({ width: 44, height: 44 });
-      expect(await surface(square)).toEqual(flatCard(device, "14px"));
+      // Clear glass: its gradient and rim, 14px round, no edge.
+      const clear = await surface(square);
+      expect(clear.image).toMatch(/^linear-gradient\(/);
+      expect(clear.edges).toEqual(["0px", "0px", "0px", "0px"]);
+      expect(clear.corners).toEqual(Array(4).fill("14px"));
+      expect(clear.shadow).not.toBe("none");
       await expect(
         page
           .getByRole("navigation", { name: "Office menu" })
@@ -330,18 +354,15 @@ for (const device of ["light", "dark"] as const) {
       await page.keyboard.press("Escape");
       await expect(opened).toBeHidden();
 
-      // Under the bar, 16px from it and from the window's edges: the menu in its own white card
-      // (284px wide from 1280px), and the page in another, 16px apart; both 28px round, their
-      // hairlines and no depth. The window's ground shows between them.
+      // Under the bar, 16px from it and from the window's edges: the menu in its own card of
+      // glass (284px wide from 1280px, 24px round), and the page beside it, 16px apart, no card of
+      // its own. The wash shows round them: the shell paints no ground.
       const menuCard = page.locator("[data-shell] [data-menu-scroll]").locator("xpath=..");
-      expect(await surface(menuCard)).toEqual(flatCard(device, "28px"));
+      await expectSection(menuCard, device, "24px");
       expect(await menuCard.boundingBox()).toMatchObject({ x: 16, y: 80, width: 284 });
-      expect(await surface(card)).toEqual(flatCard(device, "28px"));
+      expect(await surface(card)).toEqual(bare);
       expect(await card.boundingBox()).toMatchObject({ x: 316, y: 80, width: wide - 332 });
-      await expect(page.locator('[data-shell="office"]')).toHaveCSS(
-        "background-color",
-        CANVAS[device],
-      );
+      await expect(page.locator('[data-shell="office"]')).toHaveCSS("background-color", NONE);
       await expect(page.locator("body")).toHaveCSS("background-color", CANVAS[device]);
       await expect(page.locator("#main")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
       await (await accountMenu(page)).getByRole("link", { name: "How-to guide" }).click();
@@ -431,8 +452,8 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
   });
 
   // Phase 23 (flat): a dashboard card no longer lifts under the pointer (round 2's rose 2px); it
-  // still dips when pressed.
-  test("what you press dips and springs back; a dashboard card stays put under the pointer", async ({
+  // still dips when pressed. Phase 24 (round 7): a glass button swells instead.
+  test("what you press dips (glass swells) and springs back; a dashboard card stays put under the pointer", async ({
     page,
   }) => {
     await officeLogin(page, "press", "admin");
@@ -449,6 +470,17 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
     await page.mouse.move(box.x + 40, box.y + 400);
     await page.mouse.up();
     await expect.poll(() => card.evaluate((el) => getComputedStyle(el).scale)).toBe("none");
+    // A glass button swells a little and springs back (`press-glass`): a chart's "Numbers".
+    const numbers = page.getByRole("main").getByRole("button", { name: "Numbers" }).first();
+    await numbers.scrollIntoViewIfNeeded();
+    const nb = (await numbers.boundingBox())!;
+    await page.mouse.move(nb.x + nb.width / 2, nb.y + nb.height / 2);
+    await page.mouse.down();
+    await expect.poll(() => numbers.evaluate((el) => getComputedStyle(el).scale)).toBe("1.04");
+    await page.mouse.move(nb.x + nb.width / 2, nb.y + 300);
+    await page.mouse.up();
+    await expect.poll(() => numbers.evaluate((el) => getComputedStyle(el).scale)).toBe("none");
+    await expect(numbers).toHaveAttribute("aria-pressed", "false");
     // A text link with its own 44px target dips too (in the office: `office:press`): a page's
     // way back (Needs attention's to the Dashboard), and `btn.link` (Office team's "Back to the
     // dashboard").

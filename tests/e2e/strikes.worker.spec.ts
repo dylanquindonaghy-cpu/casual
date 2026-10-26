@@ -75,7 +75,7 @@ test("a cancellation under 48 hours shows the warning and records a strike; one 
     const notice = sheet.getByRole("note");
     await expect(notice).toHaveCSS("background-color", "rgb(255, 216, 207)"); // urgent-tile
     await expect(notice).toHaveCSS("border-top-style", "solid");
-    await expect(notice).toHaveCSS("border-top-color", "rgb(196, 36, 42)"); // urgent
+    await expect(notice).toHaveCSS("border-top-color", "rgb(176, 32, 31)"); // urgent (#b0201f)
     await expect(notice.locator("svg")).toHaveCount(1);
     await expect(sheet.getByRole("note")).toHaveText(
       /^This shift starts in (19|20) hours\. Cancelling with less than 48 hours' notice gives you a strike\. Acme Events' strikes team gets a record of it\. You have \d+ strikes? in the last 90 days\.$/,
@@ -110,7 +110,7 @@ test("a cancellation under 48 hours shows the warning and records a strike; one 
     // No strike: its box is pale green with a green edge and a tick.
     await expect(notice).toHaveCSS("background-color", "rgb(210, 239, 219)"); // done-tile
     await expect(notice).toHaveCSS("border-top-style", "solid");
-    await expect(notice).toHaveCSS("border-top-color", "rgb(31, 122, 71)"); // done
+    await expect(notice).toHaveCSS("border-top-color", "rgb(22, 101, 52)"); // done (#166534)
     await expect(notice.locator("svg")).toHaveCount(1);
     await sheet.getByLabel("Travel problem").check();
     await sheet.getByRole("button", { name: "Cancel this shift" }).click();

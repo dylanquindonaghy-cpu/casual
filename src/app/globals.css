@@ -5,177 +5,174 @@
 
 /* `office:` (Phase 21): a shared part's value for the office's pages (every page under
    [data-office], and the firm's bar above its login pages), beside the casual app's own, e.g.
-   `rounded-lg office:rounded-row`. tests/unit/ui.office-system.test.ts wants one for every value a
-   shared part has outside the office's system. */
+   `rounded-lg office:rounded-row`. */
 @custom-variant office (&:where(body:has([data-office]) *));
 
-/* Design tokens (docs/ui-design.md). Each colour becomes utilities: bg-ink, text-ink-muted,
-   border-line, bg-urgent-soft and so on. Status colours always travel with their word. These are
-   the light theme's values; the dark theme (true greys, D7 as changed in Phase 20) redefines every
-   one of them below. Phase 20's look: neutral ink and greys (the firm's colour is the one colour a
-   page has of its own), and the statuses as tiles: urgent (pale red, act now), to do (pale
-   yellow, hivis), waiting (pale blue) and done (pale green), each with its dark words. */
+/* Design tokens (docs/ui-design.md "Phase 24: Liquid Glass"). Phase 24 (round 7 of the Design
+   canvas, Dylan: "keep round 7 and build it into the app"): one set for the office and the casual
+   app, glass over a pastel wash. Each colour becomes utilities (bg-card, text-ink-muted,
+   border-line, bg-urgent-soft and so on). The grounds are glass: `card` (a section: a card, a list,
+   a table, a panel), `panel` (what floats over the page), `raised` (a part inside a section),
+   `track` and `pill` (a switch or row of tabs, and its chosen option: the lens), each a
+   translucent fill over the wash (`canvas` is the wash's base; the wash itself is drawn under
+   every page, below). Their numbers are src/lib/tenancy/glass-grounds.ts's, from which every word's
+   contrast is worked out (tests/unit/ui.contrast.test.ts). Status colours always travel with their
+   word. These are the light theme's values; the dark theme redefines every one of them below. */
 @theme {
-  --color-ink: #15171a; /* main text, the focus ring, an ink fill (a dark button, today's day) */
-  --color-ink-muted: #575c64; /* secondary text, labels, meta lines, table headers (6.7:1 on white) */
-  --color-ink-hover: #2b2e33; /* a primary office button under the pointer */
+  --color-ink: #17181a; /* main text, the focus ring, an ink fill (a dark button, today's day) */
+  --color-ink-muted: #55585f; /* secondary text, labels, meta lines: 5:1 on the wash's darkest point */
+  --color-ink-faint: #5a5d64; /* the faintest words: a group's name over the menu, a chart's ticks */
+  --color-ink-hover: #2b2e33;
   --color-on-ink: #ffffff; /* text on an ink fill */
-  --color-line: #e3e5e9; /* dividers and card borders (decorative only) */
-  --color-line-strong: #7c8189; /* input and secondary button borders (3.9:1 on white) */
-  --color-canvas: #eef0f3; /* the page behind cards: the casual app, the office's frame and menu */
-  --color-card: #ffffff; /* cards, fields, the office's page (a sheet on the frame) */
-  --color-panel: #ffffff; /* the office's top bar (below 1024px) and drawer */
-  --color-raised: #eceef1; /* a sunk track (switches, the Open | Booked switch, a full pill, a bar) */
-  --color-switch-off: #767b83; /* a switch's track when off */
-  --color-scrim: #15171a; /* behind the open menu drawer and a sheet, at half strength (decorative) */
+  --color-ink-press: #000000;
+  --color-line: rgb(16 24 40 / 0.08); /* dividers (decorative only) */
+  --color-line-strong: #6e737b; /* a field's or a switch's edge where one is drawn (3:1 on glass) */
+  --color-canvas: #eef1f8; /* the wash's base, under every page */
+  --color-card: rgb(255 255 255 / 0.46); /* glass: a section (card, list, table, panel) */
+  --color-sheet: rgb(255 255 255 / 0.46); /* the same, for a page-wide sheet */
+  /* glass: what floats (the bars, menus, panels, the drawer, the sheet) */
+  --color-panel: rgb(255 255 255 / 0.78);
+  --color-raised: rgb(255 255 255 / 0.6); /* glass: a part inside a section (a tile, a field) */
+  --color-track: rgb(118 118 128 / 0.12); /* a switch's or a row of tabs' track */
+  --color-pill: rgb(255 255 255 / 0.92); /* the lens: the chosen tab, page or option */
+  --color-active: rgb(255 255 255 / 0.92);
+  --color-count: rgb(255 255 255 / 0.6); /* a count: a small clear glass pill */
+  --color-button: rgb(255 255 255 / 0.6); /* a clear glass button (its gradient: `glass-button`) */
+  --color-button-line: rgb(255 255 255 / 0.7);
+  --color-button-hover: rgb(255 255 255 / 0.78);
+  --color-button-press: rgb(255 255 255 / 0.9);
+  --color-switch-off: #6e737b; /* a switch's track when off */
+  --color-knob: #ffffff; /* a switch's knob, solid on its track (on: ink or red; off: grey) */
+  --color-scrim: #15171a; /* behind an open drawer or sheet, at half strength (decorative) */
   /* The firm's own colour: a firm with a colour of its own sets these on <body>
-     (src/app/layout.tsx, data-firm-colour; worked out per theme in src/lib/tenancy/brand-values.ts,
-     each pair at least 4.5:1); without one, the app's ink. `brand` is the main button and the
-     current tab, `brand-ink` the firm's colour as words, `brand-bar` the pass and the firm's
-     initial, with `on-brand-bar` on it and `on-brand-bar-soft` for the pass's second line, and the
-     gate's white plate on it (`pass-plate`, with `on-pass-plate`). Its pale tint is brand-soft
-     (below). */
+     (src/app/layout.tsx, data-firm-colour; worked out per theme in src/lib/tenancy/brand-values.ts
+     against every point of the glass, each pair at least 4.5:1); without one, the app's ink.
+     `brand` is the current tab and the firm's fills, `tint` the main button (tinted glass, from `tint`
+     to `tint-shade`),
+     `brand-ink` the firm's colour as words, `brand-bar` the firm's mark, with `on-brand-bar` on it
+     and `on-brand-bar-soft` for quieter words, and the gate's white plate (`pass-plate`, with
+     `on-pass-plate`). Its pale tint is brand-soft (below). */
   --color-brand: #15171a;
   --color-on-brand: #ffffff;
   --color-brand-ink: #15171a;
+  /* The main button (`glass-tint`): the firm's colour with white (or ink) words in both themes,
+     as its words are on itself, from the colour at the top to its shade at the foot. */
+  --color-tint: #15171a;
+  --color-on-tint: #ffffff;
+  --color-tint-shade: #000000;
   --color-brand-bar: #1f2227;
   --color-on-brand-bar: #ffffff;
   --color-on-brand-bar-soft: #d2d4d8;
-  --color-pass-plate: #ffffff; /* the gate's plate on the pass: white on any band, both themes */
-  --color-on-pass-plate: #1f2227; /* its words: the band's colour, or ink on a pale one */
+  --color-pass-plate: #ffffff;
+  --color-on-pass-plate: #1f2227;
 
-  --color-urgent: #c4242a; /* act now: words, borders */
-  --color-urgent-soft: #ffefea; /* an urgent panel's wash */
+  /* Statuses: words that read on every point of the glass (urgent, attention, done), their pale
+     solid tints with their own dark words, a tile, a fill. */
+  --color-urgent: #b0201f; /* act now: words, borders */
+  --color-urgent-soft: #ffefea;
   --color-urgent-ink: #7d1a10;
   --color-urgent-tile: #ffd8cf; /* an urgent tile, day or date tile */
   --color-urgent-fill: #c4242a; /* urgent pills and counts, the final destructive button */
   --color-urgent-fill-hover: #9b1c21;
-  --color-on-urgent: #ffffff; /* text on the urgent fill */
-  --color-attention: #b45309; /* someone needs to act: a border or an icon */
-  --color-attention-soft: #fff9e6; /* a to-do panel's wash */
+  --color-on-urgent: #ffffff;
+  --color-attention: #92400e; /* someone needs to act */
+  --color-attention-soft: #fff6e0;
   --color-attention-ink: #5c3f00;
   --color-hivis: #fbe5a0; /* to do: tiles, counts, what the firm gives you (hi-vis) */
-  --color-on-hivis: #5c3f00; /* its words (8.0:1) */
-  --color-wait-tile: #d6e4fa; /* waiting, or more to look at: a tile */
+  --color-on-hivis: #5c3f00;
+  --color-wait-tile: #d6e4fa; /* waiting, or more to look at */
   --color-wait-ink: #163b6e;
-  --color-done: #1f7a47; /* fine, finished: words, borders */
-  --color-done-soft: #ecf7f0; /* a done panel's wash */
+  --color-wait-soft: #eef4fd;
+  --color-done: #166534; /* fine, finished */
+  --color-done-soft: #e9f6ee;
   --color-done-ink: #155230;
-  --color-done-tile: #d2efdb; /* a done tile, a tick's circle */
+  --color-done-tile: #d2efdb;
   --color-done-fill: #1f7a47; /* the booked tick */
   --color-on-done: #ffffff;
   --color-quiet-soft: #f1f2f4; /* information, closed */
   --color-quiet-ink: #464b52;
+  /* A status tint's edge (a chip's border, a notice's): a shade darker than its wash. */
+  --color-urgent-line: #f5c2bb;
+  --color-attention-line: #f0d39a;
+  --color-wait-line: #b8cff2;
+  --color-done-line: #b4dfc3;
+  --color-quiet-line: #d6d8dc;
   /* The demo bar (16.1): the same dark amber strip in both themes. */
   --color-demo: #3d2e0a;
   --color-on-demo: #fde7b0;
-  /* Phase 21 (the office's look, which gives these their own values: below): the edge of each
-     status's tint (a chip's border; in the office, a tinted card's 1px border a shade darker), the
-     waiting panel's wash, the grey pill of the page you're on, a grey button (`button`, its edge
-     and its hover and pressed fills; here, the plain outlined button it has been) and an ink
-     button pressed. */
-  --color-urgent-line: #c4242a;
-  --color-attention-line: #b45309;
-  --color-wait-line: #a9c1e8;
-  --color-done-line: #1f7a47;
-  --color-quiet-line: #7c8189;
-  --color-wait-soft: #f2f6fd;
-  --color-active: #e3e5e9;
-  --color-count: #eceef1; /* a count: the one grey pill (the office's; Phase 21) */
-  --color-button: #ffffff;
-  --color-button-line: #7c8189;
-  --color-button-hover: #f1f2f4;
-  --color-button-press: #f1f2f4;
-  --color-ink-press: #000000;
-  /* Phase 22 (the office's own values: below): the page as a sheet (since Phase 23 the page card,
-     white like a card) and the menu's current page. The casual app doesn't use them. */
-  --color-sheet: #ffffff;
-  --color-pill: #ffffff;
-  /* Phase 23 (the office's look, round 3; its own values below, the same here, as the casual app
-     never uses them): the one sky blue of the office's main button (`accent`, under the pointer,
-     pressed, and its near-black words), the faintest grey words (small capitals over the menu's
-     groups, a chart's ticks: on white only), and the dashboard charts' marks (red to do now,
-     amber needs you, blue waiting on someone else, green done, grey fine) with their grid and
-     baseline. */
-  --color-accent: #0ea5e9;
-  --color-accent-hover: #38bdf8;
-  --color-accent-press: #0284c7;
-  --color-on-accent: #06131f;
-  --color-ink-faint: #667085;
-  --color-mark-urgent: #d92d20;
-  --color-mark-open: #f79009;
-  --color-mark-wait: #0284c7;
-  --color-mark-done: #079455;
+  /* The app's blue (round 7): the current page's icon in the rail, the chosen tab's word, the
+     "offered, no reply" marks, a count on the lens. Never a button: the main button is the firm's. */
+  --color-accent: #1d4ed8;
+  --color-accent-hover: #2563eb;
+  --color-accent-press: #1e40af;
+  --color-on-accent: #ffffff;
+  /* The dashboard's marks (round 7): not offered yet in ink, offered and waiting in blue, red to do
+     now, green done, grey calm, on a faint grid. */
+  --color-mark-urgent: #c4242a;
+  --color-mark-open: #17181a;
+  --color-mark-wait: #1d4ed8;
+  --color-mark-done: #1f7a47;
   --color-mark-calm: #98a2b3;
-  --color-mark-grid: #eef0f3;
-  --color-mark-base: #d0d5dd;
+  --color-mark-grid: rgb(16 24 40 / 0.06);
+  --color-mark-base: rgb(16 24 40 / 0.15);
 
-  /* Depth (Phase 20): the page, cards lifted off it, then the pass and what floats over the page.
-     Five layers, and nothing else casts one (tests/unit/ui.flat.test.ts): a card or row lifted
-     off the page (lift), a panel (panel), the pass (pass), a bar floating over the page's foot
-     (bar), and a sunk track or an opened part set into its card (sunk). */
-  --shadow-lift: 0 1px 2px rgb(16 24 40 / 0.06), 0 2px 8px rgb(16 24 40 / 0.05);
-  --shadow-panel: 0 1px 3px rgb(16 24 40 / 0.07), 0 10px 24px -6px rgb(16 24 40 / 0.1);
-  --shadow-pass: 0 2px 4px rgb(16 24 40 / 0.08), 0 14px 28px -12px rgb(16 24 40 / 0.28);
-  --shadow-bar: 0 -1px 0 rgb(16 24 40 / 0.05), 0 -8px 24px rgb(16 24 40 / 0.07);
-  --inset-shadow-sunk: inset 0 1px 3px rgb(16 24 40 / 0.08);
-  /* The office's one (Phase 23, round 3: nothing in the office has depth at rest): `float`, a soft
-     fall and a hairline ring under what floats over the page only (the account menu, the drawer,
-     the "…" menus, the toast, a chart's tooltip and its panel). Tailwind writes a depth token's
-     value into its class when it builds, so a value redefined in the dark blocks would never
-     reach it: the class takes `--overlay` instead, which the dark blocks below redefine, darker. */
-  --shadow-float: var(--overlay);
-  --overlay: 0 16px 40px -16px rgb(16 24 40 / 0.22), 0 0 0 1px rgb(16 24 40 / 0.06);
+  /* Depth (Phase 24): a glass's rim and soft drop, never a hard shadow. Tailwind writes a depth
+     token's value into its class when it builds, so a value the dark blocks redefine would never
+     reach it: each class takes a variable instead (--glass-*, set per theme below). */
+  --shadow-lift: var(--glass-drop-sm);
+  --shadow-panel: var(--glass-drop);
+  --shadow-pass: var(--glass-drop);
+  --shadow-bar: var(--float-shadow);
+  --shadow-float: var(--float-shadow);
+  --inset-shadow-sunk: var(--glass-sunk);
 
-  /* Corners (the office's; Phase 23, round 3): the page card and the menu card 28px, the cards,
-     lists and tables inside a page 22px (`inner`; the page card on a phone too), rows, fields and
-     small boxes 14px, pills round (rounded-full). */
-  --radius-card: 1.75rem;
+  /* Corners: a page-wide card and the rail 24px, sections 22px (`inner`), rows, fields and small
+     boxes 14px, pills round (rounded-full). */
+  --radius-card: 1.5rem;
   --radius-inner: 1.375rem;
   --radius-row: 0.875rem;
   --radius-mark: 0.25rem;
-  /* A heading's tracking: Tailwind's tight here, a little less in the office (Phase 21). */
-  --tracking-heading: -0.025em;
+  --tracking-heading: -0.02em;
 
-  /* One type scale (docs/office-v2.md 3.1; Phase 18): 12 · 13 · 15 · 18 · 24 · 30 · 40px, and no
-     other size. 40px is for a shift's time (in sign figures) and the greetings (Phase 20) only. */
+  /* One type scale, seven steps (round 7's sizes): the casual app's 12 · 14 · 16 · 18 · 20 · 28 ·
+     44px; the office's are below (12 · 13 · 15 · 17 · 20 · 30 · 40px). 44px is a shift's time on
+     the pass only. */
   --text-*: initial;
   --text-xs: 0.75rem;
   --text-xs--line-height: 1rem;
-  --text-sm: 0.8125rem;
+  --text-sm: 0.875rem;
   --text-sm--line-height: 1.25rem;
-  --text-base: 0.9375rem;
+  --text-base: 1rem;
   --text-base--line-height: 1.5rem;
   --text-lg: 1.125rem;
-  --text-lg--line-height: 1.75rem;
-  --text-2xl: 1.5rem;
-  --text-2xl--line-height: 2rem;
-  --text-3xl: 1.875rem;
-  --text-3xl--line-height: 2.25rem;
-  --text-4xl: 2.5rem;
-  --text-4xl--line-height: 2.5rem;
+  --text-lg--line-height: 1.625rem;
+  --text-2xl: 1.25rem;
+  --text-2xl--line-height: 1.75rem;
+  --text-3xl: 1.75rem;
+  --text-3xl--line-height: 2.125rem;
+  --text-4xl: 2.75rem;
+  --text-4xl--line-height: 2.75rem;
 
-  /* Motion (Phase 18, the design's spec): one easing; fast 150ms (fades, scrims, switches), base
-     200ms (items entering or leaving), slow 250ms (cards opening, sheets). Only transform and
-     opacity move; nothing loops. With reduced motion every one is a 150ms fade (below). */
+  /* Motion (Phase 18's spec, kept): one easing; fast 150ms, base 200ms, slow 250ms. Only transform,
+     opacity and (on glass) brightness move; nothing loops but a wait. With reduced motion every one
+     is a 150ms fade (below). */
   --ease-sd: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --animate-open: sd-rise 250ms var(--ease-sd) both; /* a card opening: rise 8px and fade */
-  --animate-open-late: sd-rise 250ms var(--ease-sd) 60ms both; /* its body, just after */
-  --animate-in: sd-rise 200ms var(--ease-sd) both; /* an item arriving */
-  --animate-toast: sd-drop 200ms var(--ease-sd) both; /* a confirmation, from above */
-  --animate-move: sd-move 250ms var(--ease-sd) 120ms both; /* a taken shift, into Your shifts */
-  --animate-bar: sd-up 200ms var(--ease-sd) both; /* the bottom action bar */
-  --animate-sheet: sd-sheet 250ms var(--ease-sd) both; /* "Can't make it?" rising */
-  --animate-fade: sd-fade 150ms var(--ease-sd) both; /* a scrim */
-  /* Phase 22: what you press springs back on this (globals.css `press`); a menu grows out of its
-     button; the section a dashboard card jumped to shows where you landed (1s, its ring fading:
-     nothing moves); while a page is on its way, a skeleton waits (a slow fade) and "Offer" turns
-     a spinner, both looping only until it arrives. */
+  --animate-open: sd-rise 250ms var(--ease-sd) both;
+  --animate-open-late: sd-rise 250ms var(--ease-sd) 60ms both;
+  --animate-in: sd-rise 200ms var(--ease-sd) both;
+  --animate-toast: sd-drop 200ms var(--ease-sd) both;
+  --animate-move: sd-move 250ms var(--ease-sd) 120ms both;
+  --animate-bar: sd-up 200ms var(--ease-sd) both;
+  --animate-sheet: sd-sheet 250ms var(--ease-sd) both;
+  --animate-fade: sd-fade 150ms var(--ease-sd) both;
+  /* What you press springs back on this (`press`, `press-glass`); a menu grows out of its button;
+     the section a jump lands on shows where you landed; while a page is on its way, a skeleton
+     waits and "Offer" turns a spinner. */
   --ease-spring: cubic-bezier(0.34, 1.45, 0.64, 1);
   --animate-pop: sd-pop 200ms var(--ease-sd) both;
   --animate-landed: sd-landed 1s var(--ease-sd) both;
   --animate-wait: sd-wait 1.4s var(--ease-sd) infinite alternate;
-  --animate-turn: sd-turn 800ms linear infinite; /* "Offer" waiting for its page */
+  --animate-turn: sd-turn 800ms linear infinite;
 
   @keyframes sd-rise {
     from {
@@ -239,196 +236,276 @@
   }
 }
 
-/* Instrument Sans for words and figures, Instrument Serif for the greetings (src/app/fonts.ts sets
-   these on <html>), then the system's. `font-sign` and `font-greet` (below) come with their own
-   weight, digits and spacing. */
+/* Geist for everything (src/app/fonts.ts sets it on <html>), then the system's. */
 @theme inline {
   --font-sans:
-    var(--font-instrument), var(--font-instrument-ext), ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", Roboto, Arial, sans-serif;
-  /* The firm's colour as a pale tint of the card it sits on (the current tab, the office's current
-     menu item, the "shifts to apply for" tile): ink reads on it in both themes, as on the card. */
-  --color-brand-soft: color-mix(in srgb, var(--color-brand) 12%, var(--color-card));
+    var(--font-geist), var(--font-geist-ext), ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, Arial, sans-serif;
+  /* The firm's colour as a pale tint over whatever it lies on (the current tab, the gate's plate,
+     the "shifts to apply for" tile): ink reads on it in both themes. */
+  --color-brand-soft: color-mix(in srgb, var(--color-brand) 12%, transparent);
 }
 
-/* Light unless dark is chosen: by the sd-theme cookie (data-theme on <html>, set by the server so
-   nothing flashes) or, with no cookie, by the device. The two dark blocks hold the same values
-   (tests/unit/ui.contrast.test.ts checks them, and every pair's contrast). */
+/* The glass's own values, per theme (the depth tokens above and the glass utilities below read
+   them): how much it blurs, its rims, its drops, its gradients' ends and the wash's four lights.
+   src/lib/tenancy/glass-grounds.ts holds the same numbers (tests/unit/ui.glass.test.ts). */
 :root {
   color-scheme: light;
+  --glass-filter: blur(24px) saturate(1.8);
+  --float-filter: blur(18px) saturate(1.8);
+  --edge-filter: blur(10px) saturate(1.6);
+  --glass-rim: inset 0 1px 0 rgb(255 255 255 / 0.95), inset 0 0 0 1px rgb(255 255 255 / 0.55);
+  --glass-drop: 0 1px 2px rgb(16 24 40 / 0.04), 0 16px 40px rgb(60 72 120 / 0.12);
+  --glass-drop-sm: 0 1px 2px rgb(16 24 40 / 0.05), 0 6px 16px rgb(16 24 40 / 0.08);
+  --glass-sunk: inset 0 1px 3px rgb(16 24 40 / 0.08);
+  --float-shadow:
+    0 1px 2px rgb(16 24 40 / 0.06), 0 10px 30px rgb(16 24 40 / 0.12),
+    inset 0 0 0 1px rgb(16 24 40 / 0.06), inset 0 1px 0 rgb(255 255 255 / 0.9);
+  --tile-top: rgb(255 255 255 / 0.72);
+  --tile-bottom: rgb(255 255 255 / 0.44);
+  --button-top: rgb(255 255 255 / 0.8);
+  --button-bottom: rgb(255 255 255 / 0.4);
+  --button-rim:
+    inset 0 1.5px 0 rgb(255 255 255 / 1), inset 0 -1px 0 rgb(255 255 255 / 0.55),
+    inset 0 0 0 1px rgb(255 255 255 / 0.6), inset 0 0 14px rgb(255 255 255 / 0.35);
+  --tint-rim:
+    inset 0 1.5px 0 rgb(255 255 255 / 0.55), inset 0 0 0 1px rgb(255 255 255 / 0.2),
+    inset 0 -2px 6px rgb(0 0 0 / 0.18);
+  --lens-shadow:
+    0 1px 2px rgb(16 24 40 / 0.1), 0 4px 14px rgb(16 24 40 / 0.12),
+    inset 0 0 0 1px rgb(16 24 40 / 0.08), inset 0 1px 0 rgb(255 255 255 / 0.8);
+  --edge-fill: rgb(238 241 248 / 0.85);
+  --wash-a: rgb(201 216 255 / 1);
+  --wash-b: rgb(230 214 255 / 1);
+  --wash-c: rgb(255 226 201 / 1);
+  --wash-d: rgb(205 243 232 / 1);
 }
 
+/* Dark: chosen by the sd-theme cookie (data-theme on <html>, set by the server so nothing
+   flashes) or, with no cookie, by the device. The two dark blocks hold the same values
+   (tests/unit/ui.contrast.test.ts checks them, and every word's contrast on the dark glass). */
 :root[data-theme="dark"] {
   color-scheme: dark;
   --color-ink: #f3f4f6;
-  --color-ink-muted: #a9adb4;
+  --color-ink-muted: #c4c5ca;
+  --color-ink-faint: #b9babf;
   --color-ink-hover: #d4d6da;
   --color-on-ink: #0b0c0e;
-  --color-line: #2c2e33;
-  --color-line-strong: #6f737b;
-  --color-canvas: #0b0c0e;
-  --color-card: #18191c;
-  --color-panel: #18191c;
-  --color-raised: #232529;
-  --color-switch-off: #7d8189;
+  --color-ink-press: #ffffff;
+  --color-line: rgb(255 255 255 / 0.08);
+  --color-line-strong: #8a8e96;
+  --color-canvas: #07080c;
+  --color-card: rgb(26 27 34 / 0.46);
+  --color-sheet: rgb(26 27 34 / 0.46);
+  --color-panel: rgb(30 30 34 / 0.8);
+  --color-raised: rgb(255 255 255 / 0.07);
+  --color-track: rgb(118 118 128 / 0.18);
+  --color-pill: rgb(255 255 255 / 0.1);
+  --color-active: rgb(255 255 255 / 0.1);
+  --color-count: rgb(255 255 255 / 0.08);
+  --color-button: rgb(255 255 255 / 0.08);
+  --color-button-line: rgb(255 255 255 / 0.12);
+  --color-button-hover: rgb(255 255 255 / 0.05);
+  --color-button-press: rgb(255 255 255 / 0.08);
+  --color-switch-off: #8a8e96;
+  --color-knob: #0b0c0e;
   --color-scrim: #000000;
   --color-brand: #f3f4f6;
   --color-on-brand: #0b0c0e;
   --color-brand-ink: #f3f4f6;
+  --color-tint: #f3f4f6;
+  --color-on-tint: #0b0c0e;
+  --color-tint-shade: #ffffff;
   --color-brand-bar: #34373d;
   --color-on-brand-bar: #ffffff;
   --color-on-brand-bar-soft: #d2d4d8;
   --color-pass-plate: #ffffff;
   --color-on-pass-plate: #34373d;
-  --color-urgent: #ff8b80;
-  --color-urgent-soft: #231513;
+  --color-urgent: #ffa59c;
+  --color-urgent-soft: #2a1614;
   --color-urgent-ink: #ffcabf;
   --color-urgent-tile: #3d1d19;
   --color-urgent-fill: #cf3a33;
   --color-urgent-fill-hover: #b02e28;
   --color-on-urgent: #ffffff;
-  --color-attention: #f2a541;
-  --color-attention-soft: #221d0e;
+  --color-attention: #f5b35a;
+  --color-attention-soft: #261f10;
   --color-attention-ink: #fbe3a0;
   --color-hivis: #3a2f10;
   --color-on-hivis: #fbe3a0;
   --color-wait-tile: #172a45;
   --color-wait-ink: #c8dafa;
-  --color-done: #5fd08b;
-  --color-done-soft: #0f1d14;
+  --color-wait-soft: #111a28;
+  --color-done: #6bd896;
+  --color-done-soft: #10201a;
   --color-done-ink: #bfeccd;
   --color-done-tile: #15301f;
   --color-done-fill: #1f7a47;
   --color-on-done: #ffffff;
   --color-quiet-soft: #222428;
   --color-quiet-ink: #d4d6da;
+  --color-urgent-line: #5a2423;
+  --color-attention-line: #5a4314;
+  --color-wait-line: #2c4166;
+  --color-done-line: #1f4d33;
+  --color-quiet-line: #3a404b;
   --color-demo: #3d2e0a;
   --color-on-demo: #fde7b0;
-  --color-urgent-line: #ff8b80;
-  --color-attention-line: #f2a541;
-  --color-wait-line: #2c4166;
-  --color-done-line: #5fd08b;
-  --color-quiet-line: #6f737b;
-  --color-wait-soft: #111a28;
-  --color-active: #232529;
-  --color-count: #232529;
-  --color-button: #18191c;
-  --color-button-line: #6f737b;
-  --color-button-hover: #222428;
-  --color-button-press: #222428;
-  --color-ink-press: #ffffff;
-  --color-sheet: #18191c;
-  --color-pill: #232529;
-  --color-accent: #7dd3fc;
-  --color-accent-hover: #a5e1fd;
-  --color-accent-press: #38bdf8;
-  --color-on-accent: #06131f;
-  --color-ink-faint: #8a94a6;
-  --color-mark-urgent: #f97066;
-  --color-mark-open: #fdb022;
-  --color-mark-wait: #38bdf8;
-  --color-mark-done: #47cd89;
+  --color-accent: #9cb8ff;
+  --color-accent-hover: #b5caff;
+  --color-accent-press: #7fa2ff;
+  --color-on-accent: #0b1530;
+  --color-mark-urgent: #ff8b80;
+  --color-mark-open: #f3f4f6;
+  --color-mark-wait: #6d93ff;
+  --color-mark-done: #5fd08b;
   --color-mark-calm: #667085;
-  --color-mark-grid: #22262d;
-  --color-mark-base: #3a404b;
-  --shadow-lift: 0 1px 2px rgb(0 0 0 / 0.5);
-  --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.5), 0 10px 24px -6px rgb(0 0 0 / 0.6);
-  --shadow-pass: 0 2px 4px rgb(0 0 0 / 0.5), 0 16px 32px -12px rgb(0 0 0 / 0.8);
-  --shadow-bar: 0 -1px 0 rgb(255 255 255 / 0.07), 0 -8px 24px rgb(0 0 0 / 0.5);
-  --inset-shadow-sunk: inset 0 1px 3px rgb(0 0 0 / 0.6);
-  --overlay: 0 16px 40px -16px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.08);
+  --color-mark-grid: rgb(255 255 255 / 0.06);
+  --color-mark-base: rgb(255 255 255 / 0.15);
+  --glass-rim: inset 0 1px 0 rgb(255 255 255 / 0.16), inset 0 0 0 1px rgb(255 255 255 / 0.08);
+  --glass-drop: 0 1px 2px rgb(0 0 0 / 0.4), 0 18px 48px rgb(0 0 0 / 0.45);
+  --glass-drop-sm: 0 1px 2px rgb(0 0 0 / 0.35), 0 6px 16px rgb(0 0 0 / 0.3);
+  --glass-sunk: inset 0 1px 3px rgb(0 0 0 / 0.6);
+  --float-shadow:
+    0 1px 2px rgb(0 0 0 / 0.4), 0 10px 30px rgb(0 0 0 / 0.5),
+    inset 0 0 0 1px rgb(255 255 255 / 0.08), inset 0 1px 0 rgb(255 255 255 / 0.14);
+  --tile-top: rgb(255 255 255 / 0.09);
+  --tile-bottom: rgb(255 255 255 / 0.04);
+  --button-top: rgb(255 255 255 / 0.12);
+  --button-bottom: rgb(255 255 255 / 0.04);
+  --button-rim:
+    inset 0 1px 0 rgb(255 255 255 / 0.3), inset 0 -1px 0 rgb(255 255 255 / 0.06),
+    inset 0 0 0 1px rgb(255 255 255 / 0.12);
+  --tint-rim:
+    inset 0 1px 0 rgb(255 255 255 / 0.35), inset 0 0 0 1px rgb(255 255 255 / 0.12),
+    inset 0 -2px 6px rgb(0 0 0 / 0.25);
+  --lens-shadow:
+    0 4px 14px rgb(0 0 0 / 0.35), inset 0 0 0 1px rgb(255 255 255 / 0.1),
+    inset 0 1px 0 rgb(255 255 255 / 0.18);
+  --edge-fill: rgb(7 8 12 / 0.85);
+  --wash-a: rgb(37 99 235 / 0.42);
+  --wash-b: rgb(124 58 237 / 0.34);
+  --wash-c: rgb(234 88 12 / 0.2);
+  --wash-d: rgb(13 148 136 / 0.26);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
     --color-ink: #f3f4f6;
-    --color-ink-muted: #a9adb4;
+    --color-ink-muted: #c4c5ca;
+    --color-ink-faint: #b9babf;
     --color-ink-hover: #d4d6da;
     --color-on-ink: #0b0c0e;
-    --color-line: #2c2e33;
-    --color-line-strong: #6f737b;
-    --color-canvas: #0b0c0e;
-    --color-card: #18191c;
-    --color-panel: #18191c;
-    --color-raised: #232529;
-    --color-switch-off: #7d8189;
+    --color-ink-press: #ffffff;
+    --color-line: rgb(255 255 255 / 0.08);
+    --color-line-strong: #8a8e96;
+    --color-canvas: #07080c;
+    --color-card: rgb(26 27 34 / 0.46);
+    --color-sheet: rgb(26 27 34 / 0.46);
+    --color-panel: rgb(30 30 34 / 0.8);
+    --color-raised: rgb(255 255 255 / 0.07);
+    --color-track: rgb(118 118 128 / 0.18);
+    --color-pill: rgb(255 255 255 / 0.1);
+    --color-active: rgb(255 255 255 / 0.1);
+    --color-count: rgb(255 255 255 / 0.08);
+    --color-button: rgb(255 255 255 / 0.08);
+    --color-button-line: rgb(255 255 255 / 0.12);
+    --color-button-hover: rgb(255 255 255 / 0.05);
+    --color-button-press: rgb(255 255 255 / 0.08);
+    --color-switch-off: #8a8e96;
+    --color-knob: #0b0c0e;
     --color-scrim: #000000;
     --color-brand: #f3f4f6;
     --color-on-brand: #0b0c0e;
     --color-brand-ink: #f3f4f6;
+    --color-tint: #f3f4f6;
+    --color-on-tint: #0b0c0e;
+    --color-tint-shade: #ffffff;
     --color-brand-bar: #34373d;
     --color-on-brand-bar: #ffffff;
     --color-on-brand-bar-soft: #d2d4d8;
     --color-pass-plate: #ffffff;
     --color-on-pass-plate: #34373d;
-    --color-urgent: #ff8b80;
-    --color-urgent-soft: #231513;
+    --color-urgent: #ffa59c;
+    --color-urgent-soft: #2a1614;
     --color-urgent-ink: #ffcabf;
     --color-urgent-tile: #3d1d19;
     --color-urgent-fill: #cf3a33;
     --color-urgent-fill-hover: #b02e28;
     --color-on-urgent: #ffffff;
-    --color-attention: #f2a541;
-    --color-attention-soft: #221d0e;
+    --color-attention: #f5b35a;
+    --color-attention-soft: #261f10;
     --color-attention-ink: #fbe3a0;
     --color-hivis: #3a2f10;
     --color-on-hivis: #fbe3a0;
     --color-wait-tile: #172a45;
     --color-wait-ink: #c8dafa;
-    --color-done: #5fd08b;
-    --color-done-soft: #0f1d14;
+    --color-wait-soft: #111a28;
+    --color-done: #6bd896;
+    --color-done-soft: #10201a;
     --color-done-ink: #bfeccd;
     --color-done-tile: #15301f;
     --color-done-fill: #1f7a47;
     --color-on-done: #ffffff;
     --color-quiet-soft: #222428;
     --color-quiet-ink: #d4d6da;
+    --color-urgent-line: #5a2423;
+    --color-attention-line: #5a4314;
+    --color-wait-line: #2c4166;
+    --color-done-line: #1f4d33;
+    --color-quiet-line: #3a404b;
     --color-demo: #3d2e0a;
     --color-on-demo: #fde7b0;
-    --color-urgent-line: #ff8b80;
-    --color-attention-line: #f2a541;
-    --color-wait-line: #2c4166;
-    --color-done-line: #5fd08b;
-    --color-quiet-line: #6f737b;
-    --color-wait-soft: #111a28;
-    --color-active: #232529;
-    --color-count: #232529;
-    --color-button: #18191c;
-    --color-button-line: #6f737b;
-    --color-button-hover: #222428;
-    --color-button-press: #222428;
-    --color-ink-press: #ffffff;
-    --color-sheet: #18191c;
-    --color-pill: #232529;
-    --color-accent: #7dd3fc;
-    --color-accent-hover: #a5e1fd;
-    --color-accent-press: #38bdf8;
-    --color-on-accent: #06131f;
-    --color-ink-faint: #8a94a6;
-    --color-mark-urgent: #f97066;
-    --color-mark-open: #fdb022;
-    --color-mark-wait: #38bdf8;
-    --color-mark-done: #47cd89;
+    --color-accent: #9cb8ff;
+    --color-accent-hover: #b5caff;
+    --color-accent-press: #7fa2ff;
+    --color-on-accent: #0b1530;
+    --color-mark-urgent: #ff8b80;
+    --color-mark-open: #f3f4f6;
+    --color-mark-wait: #6d93ff;
+    --color-mark-done: #5fd08b;
     --color-mark-calm: #667085;
-    --color-mark-grid: #22262d;
-    --color-mark-base: #3a404b;
-    --shadow-lift: 0 1px 2px rgb(0 0 0 / 0.5);
-    --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.5), 0 10px 24px -6px rgb(0 0 0 / 0.6);
-    --shadow-pass: 0 2px 4px rgb(0 0 0 / 0.5), 0 16px 32px -12px rgb(0 0 0 / 0.8);
-    --shadow-bar: 0 -1px 0 rgb(255 255 255 / 0.07), 0 -8px 24px rgb(0 0 0 / 0.5);
-    --inset-shadow-sunk: inset 0 1px 3px rgb(0 0 0 / 0.6);
-    --overlay: 0 16px 40px -16px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.08);
+    --color-mark-grid: rgb(255 255 255 / 0.06);
+    --color-mark-base: rgb(255 255 255 / 0.15);
+    --glass-rim: inset 0 1px 0 rgb(255 255 255 / 0.16), inset 0 0 0 1px rgb(255 255 255 / 0.08);
+    --glass-drop: 0 1px 2px rgb(0 0 0 / 0.4), 0 18px 48px rgb(0 0 0 / 0.45);
+    --glass-drop-sm: 0 1px 2px rgb(0 0 0 / 0.35), 0 6px 16px rgb(0 0 0 / 0.3);
+    --glass-sunk: inset 0 1px 3px rgb(0 0 0 / 0.6);
+    --float-shadow:
+      0 1px 2px rgb(0 0 0 / 0.4), 0 10px 30px rgb(0 0 0 / 0.5),
+      inset 0 0 0 1px rgb(255 255 255 / 0.08), inset 0 1px 0 rgb(255 255 255 / 0.14);
+    --tile-top: rgb(255 255 255 / 0.09);
+    --tile-bottom: rgb(255 255 255 / 0.04);
+    --button-top: rgb(255 255 255 / 0.12);
+    --button-bottom: rgb(255 255 255 / 0.04);
+    --button-rim:
+      inset 0 1px 0 rgb(255 255 255 / 0.3), inset 0 -1px 0 rgb(255 255 255 / 0.06),
+      inset 0 0 0 1px rgb(255 255 255 / 0.12);
+    --tint-rim:
+      inset 0 1px 0 rgb(255 255 255 / 0.35), inset 0 0 0 1px rgb(255 255 255 / 0.12),
+      inset 0 -2px 6px rgb(0 0 0 / 0.25);
+    --lens-shadow:
+      0 4px 14px rgb(0 0 0 / 0.35), inset 0 0 0 1px rgb(255 255 255 / 0.1),
+      inset 0 1px 0 rgb(255 255 255 / 0.18);
+    --edge-fill: rgb(7 8 12 / 0.85);
+    --wash-a: rgb(37 99 235 / 0.42);
+    --wash-b: rgb(124 58 237 / 0.34);
+    --wash-c: rgb(234 88 12 / 0.2);
+    --wash-d: rgb(13 148 136 / 0.26);
   }
 }
 
 /* A firm's own colour, worked out for each theme on the server (src/lib/tenancy/brand-values.ts
    firmPalette, checked #rrggbb values only) and set on <body> as --firm-*: these rules pick the
    theme's set. Without a colour of its own, <body> has no data-firm-colour and the defaults above
-   stand. */
+   stand. The office takes the firm's colour too (round 7: its main button is tinted glass in it). */
 body[data-firm-colour] {
   --color-brand: var(--firm-fill);
   --color-on-brand: var(--firm-on-fill);
+  --color-tint: var(--firm-fill);
+  --color-on-tint: var(--firm-on-fill);
+  --color-tint-shade: var(--firm-shade);
   --color-brand-ink: var(--firm-ink);
   --color-brand-bar: var(--firm-bar);
   --color-on-brand-bar: var(--firm-on-bar);
@@ -439,239 +516,132 @@ body[data-firm-colour] {
   --color-brand: var(--firm-dark-fill);
   --color-on-brand: var(--firm-dark-on-fill);
   --color-brand-ink: var(--firm-dark-ink);
+  /* The main button keeps the light set's colour and words: they read on themselves. */
+  --color-tint: var(--firm-fill);
+  --color-on-tint: var(--firm-on-fill);
+  --color-tint-shade: var(--firm-shade);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) body[data-firm-colour] {
     --color-brand: var(--firm-dark-fill);
     --color-on-brand: var(--firm-dark-on-fill);
     --color-brand-ink: var(--firm-dark-ink);
+    --color-tint: var(--firm-fill);
+    --color-on-tint: var(--firm-on-fill);
+    --color-tint-shade: var(--firm-shade);
   }
 }
 
-/* The office's look (Phases 21 to 23; docs/ui-design.md "Phase 23: the office's look, round 3"):
-   every page under /office carries [data-office] (src/app/office/layout.tsx), and these blocks
-   give the page its own values of the same tokens, so every class means the same thing in both
-   places and the casual app keeps its Phase 20 look. Round 3 (Phase 23, Dylan's approved mock-up):
-   flat and cool. A light grey ground (`canvas`) with the menu and the page in white cards on it
-   (`card`; `sheet` is the same white), near-black in dark with dark grey cards, cool slate greys
-   (blue a touch above green above red), 1px hairlines (`line`) round every white surface, and no
-   depth at rest. One sky blue for the main button with near-black words (`accent`); the firm's
-   own colour stays on its mark in the top bar, never on a button (`brand` here is the sky's
-   pressed shade, as dark as a control's edge needs on white: these come after the firm's rules
-   above, so they win). Red, amber, blue and green only in tinted chips, counts and the charts'
-   marks. Its type scale has the same seven steps at 12 · 13 · 15 · 17 · 20 · 28 · 40px (lg, 2xl
-   and 3xl change), headings a little tighter, and each page's headline in Plus Jakarta Sans
-   extrabold (`text-title`). The dark blocks change only colours, and hold the same values
-   (tests/unit/ui.contrast.test.ts checks them, and every pair's contrast). */
+/* The office (every page under /office carries [data-office]: src/app/office/layout.tsx) has the
+   same colours and glass, and its own sizes: 12 · 13 · 15 · 17 · 20 · 30 · 40px (round 7's office
+   mock-up: a page's headline 30px, a section's 17px, a card's title 15px), headings a little
+   tighter, a page's headline semibold. */
 body:has([data-office]) {
-  --color-ink: #0f1728;
-  --color-ink-muted: #475467;
-  --color-ink-faint: #667085;
-  --color-ink-hover: #1d2939;
-  --color-on-ink: #ffffff;
-  --color-line: #e4e7ec;
-  --color-line-strong: #7d8797;
-  --color-canvas: #f2f4f7;
-  --color-sheet: #ffffff;
-  --color-card: #ffffff;
-  --color-panel: #f2f4f7;
-  --color-raised: #f6f7f9;
-  --color-pill: #e6f1fb;
-  --color-switch-off: #667085;
-  --color-scrim: #101828;
-  --color-brand: #0284c7;
-  --color-on-brand: #06131f;
-  --color-brand-ink: #0f1728;
-  --color-accent: #0ea5e9;
-  --color-accent-hover: #38bdf8;
-  --color-accent-press: #0284c7;
-  --color-on-accent: #06131f;
-  --color-urgent: #b42318;
-  --color-urgent-soft: #fdeceb;
-  --color-urgent-ink: #912018;
-  --color-urgent-tile: #fbdcd9;
-  --color-urgent-fill: #d92d20;
-  --color-urgent-fill-hover: #b42318;
-  --color-on-urgent: #ffffff;
-  --color-attention: #b54708;
-  --color-attention-soft: #fdf1e0;
-  --color-attention-ink: #93370d;
-  --color-hivis: #fdf1e0;
-  --color-on-hivis: #93370d;
-  --color-wait-tile: #e5f3fc;
-  --color-wait-ink: #075985;
-  --color-done: #067647;
-  --color-done-soft: #e7f6ec;
-  --color-done-ink: #11733a;
-  --color-done-tile: #d1f0dc;
-  --color-done-fill: #067647;
-  --color-on-done: #ffffff;
-  --color-quiet-soft: #f6f7f9;
-  --color-quiet-ink: #475467;
-  --color-urgent-line: #f9c9c4;
-  --color-attention-line: #f6d7a8;
-  --color-wait-line: #b9dff6;
-  --color-done-line: #b5e3c4;
-  --color-quiet-line: #d0d5dd;
-  --color-wait-soft: #e5f3fc;
-  --color-active: #f6f7f9;
-  --color-count: #eef0f3;
-  --color-button: #ffffff;
-  --color-button-line: #d0d5dd;
-  --color-button-hover: #f6f7f9;
-  --color-button-press: #eaecf0;
-  --color-ink-press: #000000;
-  --color-mark-urgent: #d92d20;
-  --color-mark-open: #f79009;
-  --color-mark-wait: #0284c7;
-  --color-mark-done: #079455;
-  --color-mark-calm: #98a2b3;
-  --color-mark-grid: #eef0f3;
-  --color-mark-base: #d0d5dd;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 0.9375rem;
+  --text-base--line-height: 1.5rem;
   --text-lg: 1.0625rem;
   --text-lg--line-height: 1.5rem;
-  --text-2xl: 1.25rem;
-  --text-2xl--line-height: 1.75rem;
-  --text-3xl: 1.75rem;
+  --text-3xl: 1.875rem;
   --text-3xl--line-height: 2.25rem;
-  --tracking-heading: -0.01em;
-  --title-size: var(--text-3xl);
-  --title-leading: var(--text-3xl--line-height);
-  --title-weight: 800;
+  --text-4xl: 2.5rem;
+  --text-4xl--line-height: 2.5rem;
+  --tracking-heading: -0.015em;
+  --title-weight: 600;
   --title-tracking: -0.025em;
 }
-:root[data-theme="dark"] body:has([data-office]) {
-  --color-ink: #f2f4f7;
-  --color-ink-muted: #a3acb9;
-  --color-ink-faint: #8a94a6;
-  --color-ink-hover: #ffffff;
-  --color-on-ink: #0f1728;
-  --color-line: #262b33;
-  --color-line-strong: #6b7585;
-  --color-canvas: #0c0e12;
-  --color-sheet: #15181d;
-  --color-card: #15181d;
-  --color-panel: #0c0e12;
-  --color-raised: #1c2027;
-  --color-pill: #232830;
-  --color-switch-off: #8a94a6;
-  --color-scrim: #000000;
-  --color-brand: #7dd3fc;
-  --color-on-brand: #06131f;
-  --color-brand-ink: #f2f4f7;
-  --color-accent: #7dd3fc;
-  --color-accent-hover: #a5e1fd;
-  --color-accent-press: #38bdf8;
-  --color-on-accent: #06131f;
-  --color-urgent: #f97066;
-  --color-urgent-soft: #2e1415;
-  --color-urgent-ink: #fca5a5;
-  --color-urgent-tile: #3a1a1b;
-  --color-urgent-fill: #f97066;
-  --color-urgent-fill-hover: #fb8a80;
-  --color-on-urgent: #06131f;
-  --color-attention: #fdb022;
-  --color-attention-soft: #2c1f0c;
-  --color-attention-ink: #fcd34d;
-  --color-hivis: #2c1f0c;
-  --color-on-hivis: #fcd34d;
-  --color-wait-tile: #0f2635;
-  --color-wait-ink: #7dd3fc;
-  --color-done: #47cd89;
-  --color-done-soft: #10261a;
-  --color-done-ink: #6ee7a0;
-  --color-done-tile: #143322;
-  --color-done-fill: #47cd89;
-  --color-on-done: #06131f;
-  --color-quiet-soft: #1c2027;
-  --color-quiet-ink: #a3acb9;
-  --color-urgent-line: #5a2423;
-  --color-attention-line: #5a4314;
-  --color-wait-line: #1e4a66;
-  --color-done-line: #1f4d33;
-  --color-quiet-line: #3a404b;
-  --color-wait-soft: #0f2635;
-  --color-active: #1c2027;
-  --color-count: #232830;
-  --color-button: #15181d;
-  --color-button-line: #3a404b;
-  --color-button-hover: #1c2027;
-  --color-button-press: #232830;
-  --color-ink-press: #ffffff;
-  --color-mark-urgent: #f97066;
-  --color-mark-open: #fdb022;
-  --color-mark-wait: #38bdf8;
-  --color-mark-done: #47cd89;
-  --color-mark-calm: #667085;
-  --color-mark-grid: #22262d;
-  --color-mark-base: #3a404b;
+
+/* When someone asks for less transparency or more contrast, or the browser can't blur: every
+   surface solid, no wash, no blur (Apple's own fallback for Liquid Glass). The words' colours
+   stay: each reads on these solid grounds as on the glass. */
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  :root {
+    --color-card: #ffffff;
+    --color-sheet: #ffffff;
+    --color-panel: #ffffff;
+    --color-raised: #f3f4f6;
+    --color-track: #e4e5e9;
+    --color-pill: #ffffff;
+    --color-active: #ffffff;
+    --color-count: #eceef1;
+    --color-button: #ffffff;
+    --color-button-line: #6e737b;
+    --color-button-hover: #f1f2f4;
+    --color-button-press: #e4e5e9;
+    --glass-filter: none;
+    --float-filter: none;
+    --edge-filter: none;
+    --tile-top: #f3f4f6;
+    --tile-bottom: #f3f4f6;
+    --button-top: #ffffff;
+    --button-bottom: #ffffff;
+    --edge-fill: #eef1f8;
+  }
+  :root[data-theme="dark"] {
+    --color-card: #18191c;
+    --color-sheet: #18191c;
+    --color-panel: #18191c;
+    --color-raised: #232529;
+    --color-track: #2a2c31;
+    --color-pill: #2c2e33;
+    --color-active: #2c2e33;
+    --color-count: #232529;
+    --color-button: #18191c;
+    --color-button-line: #8a8e96;
+    --color-button-hover: #222428;
+    --color-button-press: #2a2c31;
+    --tile-top: #232529;
+    --tile-bottom: #232529;
+    --button-top: #18191c;
+    --button-bottom: #18191c;
+    --edge-fill: #07080c;
+  }
+  body::before {
+    display: none;
+  }
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) body:has([data-office]) {
-    --color-ink: #f2f4f7;
-    --color-ink-muted: #a3acb9;
-    --color-ink-faint: #8a94a6;
-    --color-ink-hover: #ffffff;
-    --color-on-ink: #0f1728;
-    --color-line: #262b33;
-    --color-line-strong: #6b7585;
-    --color-canvas: #0c0e12;
-    --color-sheet: #15181d;
-    --color-card: #15181d;
-    --color-panel: #0c0e12;
-    --color-raised: #1c2027;
-    --color-pill: #232830;
-    --color-switch-off: #8a94a6;
-    --color-scrim: #000000;
-    --color-brand: #7dd3fc;
-    --color-on-brand: #06131f;
-    --color-brand-ink: #f2f4f7;
-    --color-accent: #7dd3fc;
-    --color-accent-hover: #a5e1fd;
-    --color-accent-press: #38bdf8;
-    --color-on-accent: #06131f;
-    --color-urgent: #f97066;
-    --color-urgent-soft: #2e1415;
-    --color-urgent-ink: #fca5a5;
-    --color-urgent-tile: #3a1a1b;
-    --color-urgent-fill: #f97066;
-    --color-urgent-fill-hover: #fb8a80;
-    --color-on-urgent: #06131f;
-    --color-attention: #fdb022;
-    --color-attention-soft: #2c1f0c;
-    --color-attention-ink: #fcd34d;
-    --color-hivis: #2c1f0c;
-    --color-on-hivis: #fcd34d;
-    --color-wait-tile: #0f2635;
-    --color-wait-ink: #7dd3fc;
-    --color-done: #47cd89;
-    --color-done-soft: #10261a;
-    --color-done-ink: #6ee7a0;
-    --color-done-tile: #143322;
-    --color-done-fill: #47cd89;
-    --color-on-done: #06131f;
-    --color-quiet-soft: #1c2027;
-    --color-quiet-ink: #a3acb9;
-    --color-urgent-line: #5a2423;
-    --color-attention-line: #5a4314;
-    --color-wait-line: #1e4a66;
-    --color-done-line: #1f4d33;
-    --color-quiet-line: #3a404b;
-    --color-wait-soft: #0f2635;
-    --color-active: #1c2027;
-    --color-count: #232830;
-    --color-button: #15181d;
-    --color-button-line: #3a404b;
-    --color-button-hover: #1c2027;
-    --color-button-press: #232830;
-    --color-ink-press: #ffffff;
-    --color-mark-urgent: #f97066;
-    --color-mark-open: #fdb022;
-    --color-mark-wait: #38bdf8;
-    --color-mark-done: #47cd89;
-    --color-mark-calm: #667085;
-    --color-mark-grid: #22262d;
-    --color-mark-base: #3a404b;
+@media (prefers-reduced-transparency: reduce) and (prefers-color-scheme: dark),
+  (prefers-contrast: more) and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-card: #18191c;
+    --color-sheet: #18191c;
+    --color-panel: #18191c;
+    --color-raised: #232529;
+    --color-track: #2a2c31;
+    --color-pill: #2c2e33;
+    --color-active: #2c2e33;
+    --color-count: #232529;
+    --color-button: #18191c;
+    --color-button-line: #8a8e96;
+    --color-button-hover: #222428;
+    --color-button-press: #2a2c31;
+    --tile-top: #232529;
+    --tile-bottom: #232529;
+    --button-top: #18191c;
+    --button-bottom: #18191c;
+    --edge-fill: #07080c;
+  }
+}
+/* A browser that can't blur at all: the glass more opaque instead, so words over it read without
+   the frost (the wash still shows, faintly). */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root {
+    --color-card: rgb(255 255 255 / 0.86);
+    --color-sheet: rgb(255 255 255 / 0.86);
+    --color-panel: rgb(255 255 255 / 0.94);
+  }
+  :root[data-theme="dark"] {
+    --color-card: rgb(26 27 34 / 0.9);
+    --color-sheet: rgb(26 27 34 / 0.9);
+    --color-panel: rgb(30 30 34 / 0.96);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --color-card: rgb(26 27 34 / 0.9);
+      --color-sheet: rgb(26 27 34 / 0.9);
+      --color-panel: rgb(30 30 34 / 0.96);
+    }
   }
 }
 
@@ -691,6 +661,21 @@ body:has([data-office]) {
     font-variant-numeric: tabular-nums;
   }
 
+  /* The wash (round 7): four soft lights fixed behind every page, under everything, so the glass
+     has colour to show through it. Off with reduced transparency or more contrast (above). */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(70rem 48rem at -4% -10%, var(--wash-a), transparent 62%),
+      radial-gradient(62rem 48rem at 104% 4%, var(--wash-b), transparent 58%),
+      radial-gradient(62rem 50rem at 62% 104%, var(--wash-c), transparent 60%),
+      radial-gradient(56rem 44rem at 4% 96%, var(--wash-d), transparent 60%);
+  }
+
   /* One focus ring everywhere, shown for keyboard use. */
   :focus-visible {
     outline: 2px solid var(--color-ink);
@@ -708,102 +693,180 @@ body:has([data-office]) {
     cursor: pointer;
   }
 
-  /* A file input shows a real "choose" button (the reset strips its border and background). */
+  /* A file input shows a real "choose" button (the reset strips it): a clear glass pill. */
   input[type="file"]::file-selector-button {
     margin-inline-end: 0.75rem;
-    border: 2px solid var(--color-line-strong);
-    border-radius: 0.5rem;
-    background-color: var(--color-card);
+    border: 0;
+    border-radius: 9999px;
+    background-color: var(--color-button);
+    box-shadow: var(--button-rim);
     padding: 0.5rem 1rem;
     font-weight: 600;
     color: var(--color-ink);
     cursor: pointer;
+    transition: background-color 150ms;
   }
   input[type="file"]:not(:disabled)::file-selector-button:hover {
-    background-color: var(--color-quiet-soft);
+    background-color: var(--color-button-hover);
+  }
+  input[type="file"]:not(:disabled)::file-selector-button:active {
+    background-color: var(--color-button-press);
   }
   input[type="file"]:disabled::file-selector-button {
     cursor: not-allowed;
     opacity: 0.6;
   }
-  /* The office's (Phase 21): a grey pill, as its other buttons. */
-  body:has([data-office]) input[type="file"]::file-selector-button {
-    border: 1px solid var(--color-button-line);
-    border-radius: 9999px;
-    background-color: var(--color-button);
-    transition: background-color 150ms;
+}
+
+/* --- The glass (Phase 24) ------------------------------------------------------------------ */
+
+/* A section: a card, a list, a table, a panel. Frosted: what's behind it blurred and saturated, a
+   lit rim and a soft drop. Only a section blurs; what lies inside it is clear glass. */
+@utility glass {
+  background-color: var(--color-card);
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
+  box-shadow: var(--glass-rim), var(--glass-drop);
+  /* The frost makes a section a layer of its own, so a menu opened inside it (a "…" menu: placed
+     absolutely, in an open <details>) would sit under the sections after it, which then take its
+     clicks: the section with a menu open comes forward (a grid's or a row's item). */
+  &:has(details[open]) {
+    z-index: 10;
   }
-  body:has([data-office]) input[type="file"]:not(:disabled)::file-selector-button:hover {
-    background-color: var(--color-button-hover);
-  }
-  body:has([data-office]) input[type="file"]:not(:disabled)::file-selector-button:active {
-    background-color: var(--color-button-press);
+  @media (forced-colors: active) {
+    border: 1px solid CanvasText;
   }
 }
 
-/* The sign figures (times, dates, gates, counts): Instrument Sans semibold, fixed-width digits, a
-   little tighter (Phase 20). */
+/* What floats over the page: the rail, the top bar's capsules, the tab bar, panels, menus, the
+   confirmation. The strongest glass; in Chrome the page behind it bends a little too (an SVG
+   displacement in front of the blur, from the root layout's #lg-refract, only where <html> has
+   .rf: other browsers get the frost alone). */
+@utility glass-float {
+  background-color: var(--color-panel);
+  -webkit-backdrop-filter: var(--float-filter);
+  backdrop-filter: var(--float-filter);
+  box-shadow: var(--float-shadow);
+  .rf & {
+    backdrop-filter: url(#lg-refract) var(--float-filter);
+  }
+  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+    .rf & {
+      backdrop-filter: none;
+    }
+  }
+  @media (forced-colors: active) {
+    border: 1px solid CanvasText;
+  }
+}
+
+/* A part inside a section: a tile (a date, a figure), a field, an inner card. A translucent white
+   gradient with the lit rim; it doesn't blur again. */
+@utility glass-tile {
+  background-color: transparent;
+  background-image: linear-gradient(180deg, var(--tile-top), var(--tile-bottom));
+  box-shadow: var(--glass-rim);
+}
+
+/* A clear glass button or count: a brighter gradient, a bright rim and a soft drop. */
+@utility glass-button {
+  background-color: transparent;
+  background-image: linear-gradient(180deg, var(--button-top), var(--button-bottom));
+  box-shadow: var(--button-rim), var(--glass-drop-sm);
+  @media (forced-colors: active) {
+    border: 1px solid ButtonText;
+  }
+}
+
+/* The main button: tinted glass in the firm's colour, from the colour at the top to its shade at
+   the foot (always further from the words: brand-values.ts), with a lit top edge and a soft drop
+   in its own colour. */
+@utility glass-tint {
+  background-color: var(--color-tint);
+  background-image: linear-gradient(180deg, var(--color-tint), var(--color-tint-shade));
+  color: var(--color-on-tint);
+  box-shadow:
+    var(--tint-rim),
+    0 8px 22px color-mix(in srgb, var(--color-tint) 32%, transparent);
+  @media (forced-colors: active) {
+    border: 1px solid ButtonText;
+  }
+}
+
+/* A switch's or a row of tabs' track, and its chosen option: a lens of bright glass. */
+@utility glass-track {
+  background-color: var(--color-track);
+}
+@utility lens {
+  background-color: var(--color-pill);
+  box-shadow: var(--lens-shadow);
+}
+
+/* A bar that stays at the top (the office's capsules, the casual app's bar): once the page scrolls
+   under it ([data-scrolled] on it or above it), a soft frosted edge fades in behind it, strongest
+   at the top. */
+@utility scroll-edge {
+  isolation: isolate;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 -1rem 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 200ms var(--ease-sd);
+    background: linear-gradient(var(--edge-fill), transparent);
+    -webkit-backdrop-filter: var(--edge-filter);
+    backdrop-filter: var(--edge-filter);
+    mask-image: linear-gradient(black 60%, transparent);
+  }
+  :where([data-scrolled]) &::before,
+  &:where([data-scrolled])::before {
+    opacity: 1;
+  }
+}
+
+/* --- Type ---------------------------------------------------------------------------------- */
+
+/* The sign figures (times, dates, gates, counts): Geist semibold, fixed-width digits, a little
+   tighter. */
 @utility font-sign {
-  font-family:
-    var(--font-instrument), var(--font-instrument-ext), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-geist), var(--font-geist-ext), ui-sans-serif, system-ui, sans-serif;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
 }
 
-/* A page's headline (PageHeader's <h1>): the casual app's 24px semibold sans; in the office the
-   --title-* values above make it Plus Jakarta Sans extrabold at 28px (Phase 23). */
+/* A page's headline (PageHeader's <h1>): 28px medium in the casual app; 30px semibold in the
+   office (its --title-* values above). */
 @utility text-title {
-  font-family: var(
-    --title-font,
-    var(--font-instrument),
-    var(--font-instrument-ext),
-    ui-sans-serif,
-    system-ui,
-    sans-serif
-  );
-  font-size: var(--title-size, var(--text-2xl));
-  line-height: var(--title-leading, var(--text-2xl--line-height));
-  font-weight: var(--title-weight, 600);
-  letter-spacing: var(--title-tracking, -0.025em);
+  font-family: var(--font-geist), var(--font-geist-ext), ui-sans-serif, system-ui, sans-serif;
+  font-size: var(--text-3xl);
+  line-height: var(--text-3xl--line-height);
+  font-weight: var(--title-weight, 500);
+  letter-spacing: var(--title-tracking, -0.02em);
 }
 
-/* The office's face (Phase 23, round 3; src/app/office/office-fonts.ts puts its variables on the
-   [data-office] wrapper): Plus Jakarta Sans for every word, headline and number, with fixed-width
-   digits (`body`); a page's headline extrabold (`text-title`, through --title-font), and the big
-   numbers (`font-stat`: the dashboard's counts) extrabold and a little tighter. Keys and secrets
-   on Integrations keep the system's mono (`font-mono`), so O and 0, l and 1 differ. */
-@layer base {
-  [data-office] {
-    font-family:
-      var(--font-plus-jakarta),
-      var(--font-plus-jakarta-ext),
-      ui-sans-serif,
-      system-ui,
-      -apple-system,
-      "Segoe UI",
-      Roboto,
-      Arial,
-      sans-serif;
-    /* A page's headline (`text-title`): set here, where the face's variables are, not on <body>
-       with the office's colours (a variable from a box inside it can't be read there). */
-    --title-font:
-      var(--font-plus-jakarta), var(--font-plus-jakarta-ext), ui-sans-serif, system-ui, sans-serif;
-  }
-}
+/* The big numbers (a figure in a card: "21 h", a count): Geist semibold, a little tighter. */
 @utility font-stat {
-  font-family:
-    var(--font-plus-jakarta), var(--font-plus-jakarta-ext), ui-sans-serif, system-ui, sans-serif;
-  font-weight: 800;
+  font-family: var(--font-geist), var(--font-geist-ext), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.03em;
 }
 
-/* Press feedback (Phase 22, Dylan: "subtle reactive on click responses"): what you can press dips
-   to 97% at once and springs back when you let go; its colours change at their usual
-   pace. In place of `transition-colors` (one `transition` per element: they'd undo each other).
-   Nothing moves on its own, and with reduced motion nothing dips or lifts (here, so a variant such
-   as `office:press` carries it too). */
+/* The greetings ("Hi Zoe"): Geist medium, tighter (round 7; a serif until Phase 24). */
+@utility font-greet {
+  font-family: var(--font-geist), var(--font-geist-ext), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+/* --- Motion -------------------------------------------------------------------------------- */
+
+/* Press feedback (Phase 22, Dylan: "subtle reactive on click responses"): a card or a row you can
+   press dips to 97% at once and springs back when you let go. Nothing moves on its own, and with
+   reduced motion nothing dips or lifts. */
 @utility press {
   transition-property:
     color, background-color, border-color, text-decoration-color, scale, translate;
@@ -824,10 +887,28 @@ body:has([data-office]) {
   }
 }
 
+/* A glass control under a finger (round 7, as Liquid Glass does): it swells a little and brightens,
+   then springs back. */
+@utility press-glass {
+  transition-property: color, background-color, border-color, scale, filter;
+  transition-timing-function:
+    var(--ease-sd), var(--ease-sd), var(--ease-sd), var(--ease-spring), var(--ease-sd);
+  transition-duration: 150ms, 150ms, 150ms, 300ms, 200ms;
+  &:active:not(:disabled, [aria-disabled="true"]) {
+    scale: 1.04;
+    filter: brightness(1.06);
+    transition-duration: 150ms, 150ms, 150ms, 90ms, 90ms;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    &:active {
+      scale: none !important;
+    }
+  }
+}
+
 /* A list that scrolls with no scrollbar (the office's menu: Dylan, "a tacky scroll wheel on the
    left side"), and the soft edge it fades to where there's more to scroll to (data-more, set by
-   src/app/office/menu-scroll.tsx). The fade is a mask, not a colour: the one gradient the office
-   keeps (tests/unit/ui.office-system.test.ts). */
+   src/app/office/menu-scroll.tsx). */
 @utility scrollbar-none {
   scrollbar-width: none;
   &::-webkit-scrollbar {
@@ -851,23 +932,13 @@ body:has([data-office]) {
     );
   }
 }
-/* The menu's pill sliding to the link you pick (Phase 22; pale blue since Phase 23), on the spring
-   a press returns on. */
+/* A lens sliding to the option you pick, on the spring a press returns on. */
 @utility slide {
   transition:
     translate 400ms var(--ease-spring),
     width 200ms var(--ease-sd),
     height 200ms var(--ease-sd),
     opacity 150ms var(--ease-sd);
-}
-
-/* The greetings ("Hi Zoe", "Evening, Acme Events."): Instrument Serif, its one weight (Phase 20). */
-@utility font-greet {
-  font-family:
-    var(--font-instrument-serif), var(--font-instrument-serif-ext), Georgia, "Times New Roman",
-    serif;
-  font-weight: 400;
-  letter-spacing: -0.005em;
 }
 
 /* The copy kept for when there's no signal (public/sw.js unhides [data-offline-notice]): what
@@ -879,9 +950,8 @@ body:not(:has([data-offline-notice]:not([hidden]))) [data-offline-only] {
   display: none;
 }
 
-/* The office's sticky top bar (src/app/office/office-frame.tsx: 56px, 64px from 1024px) never
-   hides what the keyboard moves to or a link lands on (WCAG 2.4.11): the page scrolls it to at
-   least 80px under the window's top, the bar's 64px and a 16px step. */
+/* The office's sticky top bar never hides what the keyboard moves to or a link lands on (WCAG
+   2.4.11): the page scrolls it to at least 80px under the window's top. */
 html:has([data-shell="office"]) {
   scroll-padding-top: 5rem;
 }

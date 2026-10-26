@@ -205,7 +205,7 @@ function ActionBar({ children }: { children: ReactNode }) {
   return (
     <div
       data-action-bar=""
-      className="sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-10 -mx-4 mt-5 animate-bar bg-card px-4 py-3 shadow-bar sm:-mx-6 sm:px-6"
+      className="sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-10 -mx-4 mt-5 animate-bar glass-float px-4 py-3 sm:-mx-6 sm:px-6"
     >
       {children}
     </div>
@@ -299,7 +299,7 @@ export function ShiftView({
             }
           />
           {page.shift.instructions && (
-            <div className="mt-5 rounded-3xl border border-line bg-card p-4.5 shadow-lift">
+            <div className="glass mt-5 rounded-3xl p-4.5">
               <h2 className="font-semibold">Instructions</h2>
               <p className="mt-1 whitespace-pre-line">{page.shift.instructions}</p>
             </div>

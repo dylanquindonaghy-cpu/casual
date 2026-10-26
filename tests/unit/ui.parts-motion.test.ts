@@ -26,7 +26,7 @@ function files(dir: string): string[] {
 }
 
 describe("the date tile", () => {
-  it("a small raised card: the weekday, the day in sign figures, the month; one image for screen readers, or none", () => {
+  it("a small glass tile: the weekday, the day in sign figures, the month; one image for screen readers, or none", () => {
     const named = html(
       createElement(DateTile, {
         dow: "Sat",
@@ -37,10 +37,10 @@ describe("the date tile", () => {
       }),
     );
     expect(named).toMatch(/^<span role="img" aria-label="Saturday 24 October" class="/);
-    // Phase 20: on the raised grey, not an ink band.
-    expect(named).toMatch(/^<span[^>]*class="[^"]*\bbg-raised text-ink\b/);
+    // Phase 24: clear glass (Phase 20: the raised grey; never an ink band).
+    expect(named).toMatch(/^<span[^>]*class="[^"]*(?<![\w-])glass-tile text-ink\b/);
     expect(named).toContain('<span class="block font-medium text-sm">Sat</span>');
-    // The large tile's day is 30px, in the sign font.
+    // The large tile's day is a page headline's size (28px), in the sign font.
     expect(named).toMatch(/<span class="block font-sign leading-tight text-3xl">24<\/span>/);
     expect(named).toContain('<span class="block text-xs text-ink-muted">Oct</span>');
     // Without a label it sits beside words that say the date: hidden from screen readers.
@@ -54,7 +54,7 @@ describe("the date tile", () => {
     );
     expect(urgent).toContain("bg-urgent-tile text-urgent-ink");
     expect(urgent).toContain('<span class="block text-xs text-urgent-ink">Oct</span>');
-    expect(urgent).not.toContain("bg-raised");
+    expect(urgent).not.toMatch(/(?<![\w-])(?:glass-tile|bg-raised)(?![\w-])/);
   });
 });
 

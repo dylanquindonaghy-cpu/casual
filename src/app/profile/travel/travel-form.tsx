@@ -25,7 +25,7 @@ import { removeTravelAction, saveTravelAction } from "./actions";
 // One answer to pick from, as a big bordered row; the picked one is outlined in ink (as the
 // notification settings).
 const choice =
-  "flex min-h-14 items-center gap-3 rounded-xl border-2 border-line-strong bg-card px-4 py-3 has-checked:border-ink has-checked:bg-quiet-soft";
+  "flex min-h-14 items-center gap-3 glass-tile rounded-2xl border-2 border-line-strong px-4 py-3 has-checked:border-ink has-checked:bg-active";
 
 const failed = { status: "error" as const };
 const NO_SIGNAL = "No signal. Try again when you have signal.";

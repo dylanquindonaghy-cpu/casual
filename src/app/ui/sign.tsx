@@ -35,7 +35,7 @@ export function DateTile({
     <span
       {...(label ? { role: "img", "aria-label": label } : { "aria-hidden": true })}
       className={`flex shrink-0 flex-col items-center self-start text-center ${t.box} ${
-        urgent ? "bg-urgent-tile text-urgent-ink" : "bg-raised text-ink"
+        urgent ? "bg-urgent-tile text-urgent-ink" : "glass-tile text-ink"
       }`}
     >
       <span className={`block font-medium ${t.dow}`}>{dow}</span>

@@ -39,8 +39,8 @@ export function ShowingSwitch({
       setMessage(showingResultText(result, target));
       if (result.status === "shown" || result.status === "hidden") router.refresh();
     });
-  // The track and its knob, 4px in from its edges (Phase 21's spacing); the knob white with its
-  // hairline, as every white thing in the office (Phase 23).
+  // The track and its knob, 4px in from its edges (Phase 21's spacing); the knob solid (`knob`:
+  // white in light, near-black in dark, where the on track is near-white ink) with a soft lift.
   const track = small ? "h-6 w-10" : "h-7 w-12";
   const knob = small ? "size-4" : "size-5";
   const on = small ? "translate-x-4" : "translate-x-5";
@@ -61,7 +61,7 @@ export function ShowingSwitch({
           className={`${track} inline-flex items-center rounded-full p-1 transition-colors ${showing ? "bg-ink" : "bg-switch-off"}`}
         >
           <span
-            className={`${knob} rounded-full border border-line bg-card transition-transform duration-150 ease-sd motion-reduce:transition-none ${showing ? on : "translate-x-0"}`}
+            className={`${knob} rounded-full bg-knob shadow-lift transition-transform duration-150 ease-sd motion-reduce:transition-none ${showing ? on : "translate-x-0"}`}
           />
         </span>
       </button>

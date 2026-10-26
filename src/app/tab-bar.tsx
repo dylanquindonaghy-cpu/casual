@@ -35,7 +35,7 @@ export function TabBar({
   return (
     <nav
       aria-label="Main"
-      className="fixed inset-x-0 bottom-0 z-20 bg-card pb-[env(safe-area-inset-bottom)] shadow-bar"
+      className="glass-float fixed inset-x-0 bottom-0 z-20 pb-[env(safe-area-inset-bottom)]"
     >
       <div className="mx-auto grid max-w-md grid-cols-4 px-2 pt-1.5 pb-2">
         {TABS.map(({ tab, href, words, icon }) => {

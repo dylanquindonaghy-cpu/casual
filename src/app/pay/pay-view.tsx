@@ -34,7 +34,7 @@ export function PayView({ lines, firmName }: { lines: PayLine[]; firmName: strin
       <p className={meta}>The last 8 weeks, from {firmName}&apos;s payroll.</p>
       <section
         aria-labelledby="latest-pay"
-        className={`${headingGap} rounded-2xl border border-line bg-card p-4 ${nums}`}
+        className={`${headingGap} glass rounded-[1.25rem] p-4 ${nums}`}
       >
         <h2 id="latest-pay" className="text-base font-semibold">
           {dayLabel(first.periodStart)} to {dayLabel(first.periodEnd)}

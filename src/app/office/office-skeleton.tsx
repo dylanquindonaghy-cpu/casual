@@ -1,15 +1,14 @@
 // What an office page shows while it loads (Phase 21; office-frame.tsx shows it while a page picked
 // in the menu is on its way, menu-pending.tsx): grey bars that slowly fade in and out while they
 // wait (Phase 22, `animate-wait`; still in Phase 21; no shimmer, and with reduced motion one fade).
-// Phase 23 (round 3): flat, as the pages are: white cards with their hairline, no tints and no
-// depth. The dashboard's own follows its layout, a part for every section (its headline, its four
+// Phase 24 (round 7): glass, as the pages are: frosted sections, no tints. The dashboard's own follows its layout, a part for every section (its headline, its four
 // counts, its urgent places and its six charts); every other page shares one (a headline, a line,
 // then a card of rows). Hidden from screen readers but for one line that says it's loading.
 // Hook-free.
 
 const BAR = "block animate-wait rounded-full bg-raised";
-// A card inside the page (22px round, its hairline), as the dashboard's.
-const CARD = "rounded-inner border border-line bg-card";
+// A section on the page (22px round, frosted glass), as the dashboard's.
+const CARD = "glass rounded-inner";
 
 function Loading({ what }: { what: string }) {
   return <p className="sr-only">Loading {what}…</p>;

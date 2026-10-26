@@ -33,7 +33,7 @@ const FILTERS: EventView[] = ["all", "need", "urgent", "hidden"];
 // Earlier and Later: 44px round buttons, white with their hairline (the mock-up's), dipping when
 // pressed.
 const dateButton =
-  "press flex size-11 items-center justify-center rounded-full border border-line bg-button text-ink hover:bg-button-hover active:bg-button-press";
+  "press-glass glass-button flex size-11 items-center justify-center rounded-full text-ink hover:bg-button-hover active:bg-button-press";
 
 const viewHref = (view: EventView, from?: string) => {
   const q = new URLSearchParams();
@@ -158,7 +158,7 @@ export default async function EventsPage({
         role="region"
         aria-label="Rota board"
         tabIndex={0}
-        className="overflow-x-auto rounded-inner border border-line bg-card"
+        className="glass overflow-x-auto rounded-inner"
       >
         <div className="min-w-[58rem]">
           <BoardDays days={days} />

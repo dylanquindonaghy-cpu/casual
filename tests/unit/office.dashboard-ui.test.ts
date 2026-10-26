@@ -354,7 +354,7 @@ describe("the office's sticky top bar never hides what the keyboard moves to (WC
     expect(css.match(/scroll-padding/g)).toHaveLength(1);
     // 80px: the bar's height (56px, 64px from 1024px) and a 16px step.
     const frame = read("src/app/office/office-frame.tsx");
-    const bar = /<header className="sticky top-0 [^"]*">/.exec(frame)?.[0] ?? "";
+    const bar = /<header className="glass-float sticky top-0 [^"]*">/.exec(frame)?.[0] ?? "";
     expect(bar).toMatch(/(?<![\w-])min-h-14(?![\w-])/);
     const tallest = Number(/(?<![\w-])lg:min-h-(\d+)(?![\w-])/.exec(bar)?.[1]) * 4;
     const padding = Number(/scroll-padding-top: (\d+)rem;/.exec(css)?.[1]) * 16;
@@ -393,7 +393,7 @@ describe("the top bar's light or dark switch: its words (WCAG 1.4.13: they can b
       createElement(ThemeButton, { initial: "light", look: "square" }),
     );
     expect(html).toMatch(
-      /^<span class="group\/tip relative flex shrink-0"><button type="button" aria-label="Switch to dark mode" disabled="" class="peer press inline-flex size-11 [^"]*">.*?<\/button><span aria-hidden="true" data-theme-tip="" class="([^"]*)">Switch to dark mode<\/span><\/span>$/,
+      /^<span class="group\/tip relative flex shrink-0"><button type="button" aria-label="Switch to dark mode" disabled="" class="peer press-glass glass-button inline-flex size-11 [^"]*">.*?<\/button><span aria-hidden="true" data-theme-tip="" class="([^"]*)">Switch to dark mode<\/span><\/span>$/,
     );
     const tip = /data-theme-tip="" class="([^"]*)"/.exec(html)?.[1] ?? "";
     expect(tip).toBe(

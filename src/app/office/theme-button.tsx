@@ -103,7 +103,7 @@ export function ThemeButton({
           onClick={choose}
           onFocus={back}
           onBlur={back}
-          className="peer press inline-flex size-11 items-center justify-center rounded-row border border-line bg-card text-ink hover:bg-raised active:bg-button-press disabled:cursor-not-allowed disabled:opacity-60"
+          className="peer press-glass glass-button inline-flex size-11 items-center justify-center rounded-row text-ink hover:bg-button-hover active:bg-button-press disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Icon name={icon} />
         </button>

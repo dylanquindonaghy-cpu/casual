@@ -147,7 +147,7 @@ export function CancelShift({
         onClick={open}
         className={
           opener === "tile"
-            ? "flex min-h-17 w-full flex-col items-center justify-center gap-1 rounded-2xl border border-line bg-card px-1.5 text-center text-base leading-tight font-medium text-urgent-ink shadow-lift hover:bg-urgent-soft disabled:cursor-not-allowed disabled:opacity-60"
+            ? "flex min-h-17 w-full flex-col items-center justify-center gap-1 rounded-2xl glass-button press-glass px-1.5 py-2 text-center text-base leading-tight font-medium text-urgent-ink hover:bg-urgent-soft disabled:cursor-not-allowed disabled:opacity-60"
             : opener === "small"
               ? `${staffBtnSmall} text-urgent-ink`
               : staffBtn.danger
@@ -217,7 +217,7 @@ export function CancelShift({
                 // chosen, it has an ink edge, a sunk ground and bold words.
                 <label
                   key={reason}
-                  className="relative flex min-h-14 items-center rounded-2xl border-[1.5px] border-line-strong bg-card px-3.5 text-base font-medium shadow-lift has-checked:border-ink has-checked:bg-raised has-checked:font-semibold has-checked:shadow-none has-checked:inset-shadow-sunk has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ink"
+                  className="relative flex min-h-14 items-center rounded-2xl glass-tile border-[1.5px] border-line-strong px-3.5 text-base font-medium has-checked:border-ink has-checked:bg-active has-checked:font-semibold has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ink"
                 >
                   <input
                     ref={i === 0 ? firstReason : undefined}

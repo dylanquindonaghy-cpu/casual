@@ -4206,6 +4206,13 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
   first; the notice report counts the `offer.sent`. An old gap, wider with 4 sends in flight. Decide
   what the log should say then (the append-only log can't take the first back), then fix both
   branches the same way.
+- P4.5's guardrails review (2026-10-26), not blocking: (1) each tick queues the next slot's job
+  while the last slot's chain is still going, and each starts its own chain: nothing goes twice,
+  but a big firm's backlog then gets a turn per chain to another firm's one (about 2 at 2,000 a
+  slot); the tick could skip a firm whose follow-up is still waiting. (2) `shift-reminders` still
+  takes 5 jobs a fetch under one 15-minute expiry: if pushes hang (5 s each), 5 runs of 200 can
+  pass it and be retried while the first copy runs (the claims keep it safe); one per fetch, like
+  the offer waves, if that's seen.
 
 ## Hours log
 

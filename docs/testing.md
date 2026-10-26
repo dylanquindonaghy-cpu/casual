@@ -109,7 +109,10 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
 - `shift.reminders.test.ts` (built) — the 24 h and 2 h reminders each once per booking and start
   time, never to cancelled bookings or cancelled/draft shifts, a moved shift reminded again, two
   jobs at once send once, quiet hours hold or skip, channel and fallback, the tick; the timing
-  rules in `rules.reminders.test.ts`.
+  rules in `rules.reminders.test.ts`. Since P4.5, at a big firm's size: 2,000 due in one slot go
+  200 a run, 4 at a time at most, each once, with another firm's job run between the first run
+  and its follow-ups; a run killed part-way leaves at most 4 `sending` and the next runs send the
+  rest, nobody twice.
 - `notice.report.test.ts` — worker cancel, firm cancel/move/curtail all produce correct notice hours and flags.
   Built (`tests/integration/notice.report.test.ts`): through the real paths (the portal's take and
   cancel, the office's cancel-one, cancel-shift, move and shorten, and the Google Sheets sync's

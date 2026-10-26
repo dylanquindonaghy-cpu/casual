@@ -483,11 +483,12 @@ Order: web push (free) → WhatsApp template → SMS fallback.
 - SMS costs about 4p per message in the UK via Twilio. Use it only as a fallback.
 - Quiet hours per firm (urgent offers can override if the firm allows).
 - Shift reminders (Phase 4, ADR-017): a tick every 5 minutes finds bookings with a 24 h or 2 h
-  reminder due and queues one job per firm. Each reminder is claimed in `shift_reminders` and
-  committed before it's sent (outside any transaction), then its outcome recorded: a retry never
-  sends it again, and a job that stops part-way leaves it `sending` ("may have gone"). Offers and
-  reminders send through one helper (`src/lib/notify/send.ts`: the worker's channel, the
-  WhatsApp-to-text fallback, the push).
+  reminder due and queues one job per firm (at a big firm, P4.5: 200 a run, 4 at a time, then a
+  follow-up job for the rest, behind other firms' jobs). Each reminder is claimed in
+  `shift_reminders` and committed before it's sent (outside any transaction), then its outcome
+  recorded: a retry never sends it again, and a job that stops part-way leaves it `sending` ("may
+  have gone"). Offers and reminders send through one helper (`src/lib/notify/send.ts`: the
+  worker's channel, the WhatsApp-to-text fallback, the push).
 
 ## Where AI is used
 

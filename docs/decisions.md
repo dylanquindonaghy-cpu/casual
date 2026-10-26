@@ -313,6 +313,9 @@ an outage, a still-open window's reminder goes when it's back (the 24 h one then
 that's right), and a closed one is never sent. The tick reads each firm's upcoming bookings every
 5 minutes: cheap at pilot size. **Revisit when:** a firm has thousands of bookings a day, or asks
 for other reminder times (a firm setting).
+**Update (2026-10-26, P4.5):** for a big firm, a run sends 4 at a time and at most 200, and
+queues a follow-up job for the rest behind the other firms' waiting jobs
+(`tests/integration/shift.reminders.test.ts`: 2,000 in one slot, each once).
 
 ## ADR-018: One shifts line per firm, stored on the firm, found by number for incoming messages
 

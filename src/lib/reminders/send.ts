@@ -8,6 +8,7 @@ import { recordEvent } from "../events/record";
 import { firmJobEnvelope, sendFirmJob, type FirmTask } from "../jobs/firm-job";
 import { log, type Logger } from "../log";
 import { getTransport } from "../messaging";
+import { eachAtMost } from "../notify/parallel";
 import {
   reminderPush,
   shiftReminder24hMessage,
@@ -51,18 +52,36 @@ import { wallTimeOf } from "../time/zoned";
 //   finds the row and sends nothing. A failed send is never retried either (it may have arrived).
 //   One quiet hours would hold past its window is recorded `skipped`. Logged shift.reminder_sent /
 //   shift.reminder_failed / shift.reminder_skipped.
+// - At a big firm (P4.5): 4 at a time (each still claimed before it's sent), soonest first, and at
+//   most 200 a run. With more due, the run queues a follow-up job for the rest: queued as the run
+//   ends, it runs after the other firms' jobs already waiting (pg-boss takes them by when they were
+//   queued; a retried job keeps its place), so one firm's 2,000 never hold up another firm's few.
+//   The follow-up reads what's still due (claimed reminders aren't), so a doubled follow-up sends
+//   nothing twice. A run that claimed none of its 200 queues no follow-up: what's left goes to the
+//   next tick, so a list the claims never accept can't chain for ever.
 
 export const SHIFT_REMINDERS_QUEUE = "shift-reminders";
 export const SHIFT_REMINDER_TICK_QUEUE = "shift-reminder-tick";
 export const SHIFT_REMINDER_TICK_CRON = `*/${REMINDER_TICK_MINUTES} * * * *`;
 const SLOT_MS = REMINDER_TICK_MINUTES * 60_000;
 
+// A slot's first run is `shift-reminders:<slot>`; its follow-ups `shift-reminders:<slot>:<n>`, the
+// slot's nth run.
 export const shiftRemindersPayload = firmJobEnvelope.extend({
-  idempotencyKey: z.string().regex(/^shift-reminders:\d{1,12}$/),
+  idempotencyKey: z.string().regex(/^shift-reminders:\d{1,12}(:\d{1,4})?$/),
 });
 export type ShiftRemindersPayload = z.infer<typeof shiftRemindersPayload>;
 
 const job = { queue: SHIFT_REMINDERS_QUEUE, schema: shiftRemindersPayload };
+
+export const REMINDER_SENDS_AT_ONCE = 4;
+export const REMINDERS_PER_RUN = 200;
+
+// The run after this one: the same slot, the next run number.
+export function followUpKey(key: string): string {
+  const [, slot = "0", part = "1"] = key.split(":");
+  return `shift-reminders:${slot}:${Number(part) + 1}`;
+}
 
 export interface ReminderDeps extends NotifyDeps {
   baseDomain: string;
@@ -216,7 +235,9 @@ async function claim(
   return rows[0]?.id ?? null;
 }
 
-export type RemindersResult = { sent: number; failed: number; skipped: number };
+// `more`: there were more due than a run takes, and a follow-up job is queued for them (or already
+// was, by an earlier try of this run).
+export type RemindersResult = { sent: number; failed: number; skipped: number; more?: true };
 
 export async function runShiftReminders(
   payload: ShiftRemindersPayload,
@@ -232,8 +253,9 @@ export async function runShiftReminders(
   const voice = { name: firm.name, signOff: signOffFor(firm.name, firm.settings.sign_off) };
   const base = portalUrl(firm.slug, deps.baseDomain);
   const result: RemindersResult = { sent: 0, failed: 0, skipped: 0 };
+  const batch = due.slice(0, REMINDERS_PER_RUN);
 
-  for (const { decision, ...b } of due) {
+  await eachAtMost(batch, REMINDER_SENDS_AT_ONCE, async ({ decision, ...b }) => {
     if (decision.action === "skip") {
       const skipped = await inFirm(async (tx) => {
         const id = await claim(tx, b, decision.kind, "skipped", now);
@@ -253,13 +275,13 @@ export async function runShiftReminders(
         return true;
       });
       if (skipped) result.skipped += 1;
-      continue;
+      return;
     }
 
     const kind = decision.kind;
     // (1) Claimed and committed before anything is sent.
     const id = await inFirm((tx) => claim(tx, b, kind, "sending", now));
-    if (!id) continue;
+    if (!id) return;
 
     // (2) The message, outside any transaction.
     const link = `${base}/shifts/${b.shiftId}`;
@@ -333,6 +355,23 @@ export async function runShiftReminders(
     });
     if (sent.ok) result.sent += 1;
     else result.failed += 1;
+  });
+
+  // The rest by a follow-up, queued now (behind other firms' waiting jobs). Once per run number in
+  // the clock hour (a firm-scoped singleton): a retried run finds it queued; one retried across the
+  // hour queues a second, which finds nothing more to send. Only after progress (see above).
+  const progressed = result.sent + result.failed + result.skipped > 0;
+  if (due.length > batch.length && progressed) {
+    const next = followUpKey(payload.idempotencyKey);
+    await inFirm((tx) =>
+      sendFirmJob(
+        tx,
+        job,
+        { idempotencyKey: next },
+        { singletonKey: next, singletonSeconds: 3_600 },
+      ),
+    );
+    return { ...result, more: true };
   }
   return result;
 }

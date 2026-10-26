@@ -1840,7 +1840,7 @@ ADR-027, P4.2).
       `guardrails-reviewer` (STOP especially). Tests: `inbound.whatsapp.test.ts`,
       `inbound.sms.test.ts`, `enquiries.test.ts` (fixtures switch replies on where they test them,
       on purpose; new cases with them off) (P4.7)
-- [ ] Seeing a backlog (`src/lib/ops/tick.ts`, `alerts.ts`): the oldest waiting job (inbound over
+- [x] Seeing a backlog (`src/lib/ops/tick.ts`, `alerts.ts`): the oldest waiting job (inbound over
       60 s, waves over 2 min, others over 15 min), a job past 80% of its expiry, the worker waiting
       for connections, a firm's AI fallbacks over 20% of at least 20, over 1,500 inbound messages
       or 500 offers per firm an hour. Tests: `tests/unit/ops.alerts.test.ts`,

@@ -88,6 +88,11 @@ test("a WhatsApp from a number we don't know gets the polite reply, and the offi
   await page.goto(await sentTo(email, loginAsked, /(https?:\/\/\S+\/office\/l#[A-Za-z0-9_-]{43})/));
   await page.getByRole("button", { name: "Log me in" }).click();
   await expect(page).toHaveURL("http://acme.localhost:3100/office");
+  // The login moves to the dashboard inside the page (router.replace), streaming it in; the
+  // address changes when it first commits, and Next writes its history again when the stream ends,
+  // which cancels a page load started in between (net::ERR_ABORTED, with no request of its own).
+  // So the next page is loaded once that navigation is over.
+  await page.waitForLoadState("networkidle");
   await page.goto("http://acme.localhost:3100/office/enquiries?view=person");
   const row = page
     .getByRole("region", { name: "Need a person" })

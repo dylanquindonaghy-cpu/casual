@@ -19,7 +19,7 @@ import {
   retentionPurgeFirmTask,
   runRetentionPurgeTick,
 } from "../../lib/gdpr/retention";
-import { withFirm } from "../../lib/db/scoped";
+import { dbProfile, takeConnectionWaits, withFirm } from "../../lib/db/scoped";
 import {
   runFirmJob,
   runFirmTask,
@@ -72,7 +72,12 @@ import {
   SHEETS_TICK_QUEUE,
   sheetsSyncTask,
 } from "../../lib/roster/sheets/jobs";
-import { alertTransport, type AlertTransport, type OpsAlert } from "../../lib/ops/alerts";
+import {
+  alertTransport,
+  THRESHOLDS,
+  type AlertTransport,
+  type OpsAlert,
+} from "../../lib/ops/alerts";
 import { checkWebHealth } from "../../lib/ops/health-check";
 import {
   OPS_ALERT_QUEUE,
@@ -81,6 +86,7 @@ import {
   OPS_ALERTS_TICK_QUEUE,
   runOpsAlertsTick,
   sendOpsAlert,
+  type QueueHealth,
 } from "../../lib/ops/tick";
 import { HELLO_QUEUE, handleHello } from "./hello";
 import type { TravelEstimatesPayload } from "../../lib/travel/estimate-queue";
@@ -152,6 +158,48 @@ export async function failedJobCounts(boss: PgBoss): Promise<{ queue: string; co
     [OPS_ALERT_QUEUE],
   );
   return rows as { queue: string; count: number }[];
+}
+
+// pg-boss's queues now (P4.8), through the same connection, not the alerts' own queue: per queue,
+// the jobs due to start and still waiting (`created`, or `retry` once its delay is over: a job
+// held back by startAfter isn't late) with the oldest one's wait since it was due, and the running
+// jobs past THRESHOLDS.runningLongShare of their time limit (pg-boss stops a job at
+// started_on + expire_seconds) with the furthest along.
+export async function queueHealth(boss: PgBoss): Promise<QueueHealth> {
+  const { rows } = await boss.getDb().executeSql(
+    `select name as queue,
+            count(*) filter (where state in ('created', 'retry') and start_after <= now())::int
+              as waiting,
+            coalesce(extract(epoch from now() - min(start_after)
+                       filter (where state in ('created', 'retry') and start_after <= now())), 0)::float8
+              as oldest_seconds,
+            count(*) filter (where state = 'active'
+                               and started_on + expire_seconds * $2::float8 * interval '1s' < now())::int
+              as running_long,
+            coalesce(max(extract(epoch from now() - started_on) / nullif(expire_seconds, 0))
+                       filter (where state = 'active'), 0)::float8
+              as longest_share
+       from pgboss.job
+      where state in ('created', 'retry', 'active') and name <> $1
+      group by name
+      order by name`,
+    [OPS_ALERT_QUEUE, THRESHOLDS.runningLongShare],
+  );
+  const read = rows as {
+    queue: string;
+    waiting: number;
+    oldest_seconds: number;
+    running_long: number;
+    longest_share: number;
+  }[];
+  return {
+    waiting: read
+      .filter((r) => r.waiting > 0)
+      .map((r) => ({ queue: r.queue, waiting: r.waiting, oldestSeconds: r.oldest_seconds })),
+    runningLong: read
+      .filter((r) => r.running_long > 0)
+      .map((r) => ({ queue: r.queue, count: r.running_long, longestShare: r.longest_share })),
+  };
 }
 
 // Used by the worker process and by the integration tests, so both run the same wiring.
@@ -279,6 +327,8 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
         run: withFirm,
         clock: deps.clock ?? systemClock,
         failedJobs: () => failedJobCounts(boss),
+        queueHealth: () => queueHealth(boss),
+        connectionWaits: () => ({ ...takeConnectionWaits(), poolMax: dbProfile().poolMax }),
         ...(url ? { health: () => checkWebHealth(url) } : {}),
         queue: async (alert) => {
           await queueOpsAlert(boss, alert);

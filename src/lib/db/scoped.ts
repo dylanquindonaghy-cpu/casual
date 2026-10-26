@@ -12,7 +12,7 @@ import {
 } from "./pool";
 
 // The worker picks its profile here (src/worker can't import the pool itself: ESLint).
-export { chooseDbProfile, type DbLimits } from "./pool";
+export { chooseDbProfile, dbProfile, type DbLimits } from "./pool";
 
 // The only way app code reaches firm data (golden rule 2).
 //

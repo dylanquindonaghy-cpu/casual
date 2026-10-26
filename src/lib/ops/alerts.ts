@@ -15,6 +15,12 @@ export const ALERT_KINDS = [
   "health_down", // the web app's health check failing
   "webhook_signatures", // many Twilio webhook requests with a bad signature
   "login_links", // a firm sending far more login links than usual (14.2)
+  "job_backlog", // jobs waiting too long to start (P4.8)
+  "job_running_long", // jobs running past 80% of their time limit (P4.8)
+  "connection_waits", // the worker waiting for database connections (P4.8)
+  "ai_fallbacks", // many of a firm's messages the AI couldn't sort (P4.8)
+  "inbound_volume", // a firm's shifts line getting far more messages than usual (P4.8)
+  "offer_volume", // a firm sending far more offers than usual (P4.8)
   "test", // `npm run ops:test-alert`: checks alerts reach you
 ] as const;
 export type AlertKind = (typeof ALERT_KINDS)[number];
@@ -57,6 +63,27 @@ export const THRESHOLDS = {
   // could run to hundreds. A casual stays logged in for 30 days, so even a firm of 300 needs far
   // fewer in a day. Also a starting number.
   loginLinksPerDay: 300,
+  // Seeing a backlog (P4.8). How long a job may wait to start (pg-boss `created` or `retry`, and
+  // due): a casual's message (they're waiting for the answer), an offer wave (a place is unfilled),
+  // anything else.
+  backlogSeconds: { inbound: 60, waves: 2 * 60, other: 15 * 60 },
+  // A job still running past this share of its time limit (pg-boss's expiry, `expire_seconds`):
+  // pg-boss will stop it and run it again.
+  runningLongShare: 0.8,
+  // The worker's waits for a database connection since the last tick (5 minutes; scoped.ts
+  // takeConnectionWaits): any that ran out (that job failed, and is retried), or this many of a
+  // second or more. A starting number.
+  slowConnectionWaits: 5,
+  // A firm's messages in the last hour the AI was asked to sort but couldn't (no answer in time, or
+  // not a label), once there are at least 20: each went to the office instead. The AI not connected
+  // isn't counted (nothing was asked).
+  aiFallbackRate: 0.2,
+  aiFallbackMinTotal: 20,
+  // A firm's messages in, and offers out, in the last hour: far more than the busiest firm P4 is
+  // built for (1,000 messages in 10 minutes as a burst; a wave is at most 50 offers). Alerts, not
+  // ceilings. Starting numbers: revisit them with a pilot firm's real weeks.
+  inboundPerHour: 1_500,
+  offersPerHour: 500,
 } as const;
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -81,6 +108,91 @@ export function jobFailureAlert(counts: { queue: string; count: number }[]): Ops
     "job_failures",
     "job-failures",
     `${plural(total, "job", "jobs")} failed after the last retry in the last hour (${list}).`,
+  );
+}
+
+// Seconds as an alert says them: "45 s" under 2 minutes, then "3 min".
+const waited = (seconds: number) =>
+  seconds < 120 ? `${Math.max(0, Math.round(seconds))} s` : `${Math.round(seconds / 60)} min`;
+
+// The queues an alert names: the first 3, then how many more, so the words always fit.
+const MAX_QUEUES_NAMED = 3;
+function queueList(parts: string[]): string {
+  const shown = parts.slice(0, MAX_QUEUES_NAMED);
+  const more = parts.length - shown.length;
+  return more > 0
+    ? `${shown.join("; ")}; and ${plural(more, "other queue", "other queues")}`
+    : shown.join("; ");
+}
+
+// A queue's jobs waiting to start (pg-boss `created` or `retry`, due now): how many, the oldest's
+// wait, and the queue's limit (backlogLimitSeconds in tick.ts).
+export interface QueueWait {
+  queue: string;
+  waiting: number;
+  oldestSeconds: number;
+  limitSeconds: number;
+}
+
+// Queues whose oldest waiting job is past its limit, the furthest past first.
+export function backlogAlert(waits: QueueWait[]): OpsAlert | null {
+  const late = waits
+    .filter((w) => w.waiting > 0 && w.oldestSeconds > w.limitSeconds)
+    .sort(
+      (a, b) =>
+        b.oldestSeconds / b.limitSeconds - a.oldestSeconds / a.limitSeconds ||
+        a.queue.localeCompare(b.queue),
+    );
+  if (late.length === 0) return null;
+  const parts = late.map(
+    (w) =>
+      `${w.queue} ${w.waiting} waiting, the oldest ${waited(w.oldestSeconds)} (limit ${waited(w.limitSeconds)})`,
+  );
+  return alert(
+    "job_backlog",
+    "job-backlog",
+    `jobs are waiting too long to start: ${queueList(parts)}. Check the worker is running and keeping up.`,
+  );
+}
+
+// A queue's running jobs past THRESHOLDS.runningLongShare of their time limit: how many, and the
+// furthest along (its share of the limit, 0.8 and up).
+export interface QueueRunningLong {
+  queue: string;
+  count: number;
+  longestShare: number;
+}
+
+export function runningLongAlert(rows: QueueRunningLong[]): OpsAlert | null {
+  const long = rows
+    .filter((r) => r.count > 0)
+    .sort((a, b) => b.longestShare - a.longestShare || a.queue.localeCompare(b.queue));
+  if (long.length === 0) return null;
+  const parts = long.map(
+    (r) => `${r.queue} ${r.count}, the longest at ${Math.round(r.longestShare * 100)}%`,
+  );
+  return alert(
+    "job_running_long",
+    "job-running-long",
+    `jobs are running past ${Math.round(THRESHOLDS.runningLongShare * 100)}% of their time limit: ${queueList(parts)}. pg-boss stops and reruns a job at its limit.`,
+  );
+}
+
+// The worker's waits for a database connection since the last tick, and its pool's size.
+export function connectionWaitAlert(w: {
+  slow: number;
+  timedOut: number;
+  poolMax: number;
+}): OpsAlert | null {
+  if (w.timedOut === 0 && w.slow < THRESHOLDS.slowConnectionWaits) return null;
+  const ranOut =
+    w.timedOut > 0
+      ? `, and ${plural(w.timedOut, "wait", "waits")} ran out (those jobs failed, and will run again)`
+      : "";
+  return alert(
+    "connection_waits",
+    "connection-waits",
+    `the worker waited a second or more for a database connection ${plural(w.slow, "time", "times")} in the last 5 minutes${ranOut}. Its ${w.poolMax} connections are all busy: look for slow queries, or give it more.`,
   );
 }
 
@@ -146,6 +258,58 @@ export function loginLinkAlerts(s: {
         "login_links",
         `logins-day:${s.firmId}`,
         `${label}: ${s.lastDay} login links by WhatsApp and text in the last 24 hours, far more than a firm needs. Someone may be running up the firm's messages. Check the action log's Logins.`,
+      ),
+    );
+  }
+  return alerts;
+}
+
+// A firm's messages the AI was asked to sort in the last hour, and how many it couldn't.
+export function aiFallbackAlert(s: {
+  firmId: string;
+  slug: string;
+  asked: number;
+  fellBack: number;
+}): OpsAlert | null {
+  if (
+    s.asked < THRESHOLDS.aiFallbackMinTotal ||
+    s.fellBack / s.asked <= THRESHOLDS.aiFallbackRate
+  ) {
+    return null;
+  }
+  const pct = Math.round((s.fellBack / s.asked) * 100);
+  return alert(
+    "ai_fallbacks",
+    `ai:${s.firmId}`,
+    `${firmLabel(s.slug, s.firmId)}: the AI couldn't sort ${s.fellBack} of ${s.asked} messages in the last hour (${pct}%), so they went to the office. Check the AI's key and Anthropic's status.`,
+  );
+}
+
+// A firm's messages in, and offers out, over the last hour: an alert for each over its threshold
+// (each its own key).
+export function volumeAlerts(s: {
+  firmId: string;
+  slug: string;
+  inbound: number;
+  offers: number;
+}): OpsAlert[] {
+  const label = firmLabel(s.slug, s.firmId);
+  const alerts: OpsAlert[] = [];
+  if (s.inbound > THRESHOLDS.inboundPerHour) {
+    alerts.push(
+      alert(
+        "inbound_volume",
+        `inbound:${s.firmId}`,
+        `${label}: ${s.inbound} messages came in to the shifts line in the last hour, far more than a firm's busiest. A big event can do that; if not, something may be flooding the line.`,
+      ),
+    );
+  }
+  if (s.offers > THRESHOLDS.offersPerHour) {
+    alerts.push(
+      alert(
+        "offer_volume",
+        `offers:${s.firmId}`,
+        `${label}: ${s.offers} offers went out in the last hour, far more than usual. Check the firm's wave settings, and for a shift reopening again and again.`,
       ),
     );
   }

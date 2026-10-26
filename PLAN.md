@@ -4223,6 +4223,13 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
   `src/lib/office/enquiries.ts`): show `sortedAs`, with "automatic replies off"; (4) a held pay
   question is in Need a person but not in Enquiries' Pay view (it filters on the stored intent),
   and its page's pay flag is off (P4.7's second guardrails review).
+- P4.8's limits (2026-10-26), not blocking: (1) the AI fallback alert counts the shifts line's
+  sorting only; the payroll digest's summaries aren't logged per call, so their misses aren't
+  counted (a group the AI misses keeps the app's own line). (2) The connection waits are the worker's only:
+  the web app's waits (a page failing after 5 s) show in its log, not an alert. (3) Every threshold
+  is a starting number (`THRESHOLDS` in `src/lib/ops/alerts.ts`): revisit them with a pilot firm's
+  real weeks. (4) The queue reads scan `pgboss.job`'s waiting and running rows every 5 minutes: fine
+  at the target (a day's finished jobs are kept); watch it if a queue ever holds a big backlog.
 - P4.7's guardrails review (2026-10-26), for Dylan: a phone call still sends the caller's login
   link by message, as the login page does (the caller asked for it; decision 13 lists offers,
   confirmations and reminders). Keep it, or send it only by WhatsApp, or not at all?

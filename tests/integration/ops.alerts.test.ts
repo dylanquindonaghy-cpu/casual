@@ -6,12 +6,13 @@ import { syncAlert, type AlertTransport, type OpsAlert } from "@/lib/ops/alerts"
 import {
   firmAlerts,
   OPS_ALERT_QUEUE,
+  type OpsTickDeps,
   OPS_ALERTS_TICK_QUEUE,
   runOpsAlertsTick,
   sendOpsAlert,
 } from "@/lib/ops/tick";
 import { createBoss } from "@/worker/boss";
-import { failedJobCounts, queueOpsAlert, registerJobs } from "@/worker/jobs";
+import { failedJobCounts, queueHealth, queueOpsAlert, registerJobs } from "@/worker/jobs";
 import { HELLO_QUEUE } from "@/worker/jobs/hello";
 import { QUEUES } from "@/worker/jobs/queues";
 import { appRolePool, superuserPool, urls } from "../helpers/db";
@@ -58,6 +59,51 @@ async function events(
 }
 
 const alertsFor = (t: Tenant) => withFirm(t.firmId, (tx) => firmAlerts(tx, t.firmId, new Date()));
+
+// The tick's queue and connection parts with nothing to say (P4.8).
+const quiet: Pick<OpsTickDeps, "queueHealth" | "connectionWaits"> = {
+  queueHealth: async () => ({ waiting: [], runningLong: [] }),
+  connectionWaits: () => ({ slow: 0, timedOut: 0, poolMax: 15 }),
+};
+
+// `n` of a firm's `message.received` lines, `minutesAgo` before now, with this data (P4.8).
+async function received(
+  t: Tenant,
+  n: number,
+  data: Record<string, unknown>,
+  o: { minutesAgo?: number } = {},
+) {
+  const at = new Date(Date.now() - (o.minutesAgo ?? 10) * MINUTE);
+  await su.query(
+    `insert into events (firm_id, actor_type, action, entity_type, data, created_at)
+     select $1, 'system', 'message.received', 'message', $2, $3 from generate_series(1, $4)`,
+    [t.firmId, JSON.stringify({ channel: "whatsapp", ...data }), at, n],
+  );
+}
+
+// `n` more WhatsApps in to a firm's line, `minutesAgo` before now (each its own made-up id).
+async function inbound(t: Tenant, n: number, o: { minutesAgo?: number } = {}) {
+  const at = new Date(Date.now() - (o.minutesAgo ?? 10) * MINUTE);
+  await su.query(
+    `insert into messages (firm_id, direction, channel, provider_message_id, from_e164, to_e164, body, created_at)
+     select $1, 'in', 'whatsapp', 'SMp48' || md5(random()::text || g::text), '+447700900321',
+            '+447700900000', 'hello', $2
+       from generate_series(1, $3) g`,
+    [t.firmId, at, n],
+  );
+}
+
+// `n` more offers from a firm (its fixture's shift and worker, waves from 2), `minutesAgo` before.
+async function offers(t: Tenant, n: number, o: { minutesAgo?: number; fromWave?: number } = {}) {
+  const at = new Date(Date.now() - (o.minutesAgo ?? 10) * MINUTE);
+  await su.query(
+    `insert into offers (firm_id, shift_id, worker_id, wave, channel, sent_at)
+     select o.firm_id, o.shift_id, o.worker_id, g, 'push', $2
+       from offers o, generate_series($3::int, $3::int + $4::int - 1) g
+      where o.firm_id = $1 and o.id = $5`,
+    [t.firmId, at, o.fromWave ?? 2, n, t.rows.offers],
+  );
+}
 
 describe("a firm's signals", () => {
   it("send failures: counted over the last hour, WhatsApp and text only, in its own firm", async () => {
@@ -178,6 +224,156 @@ describe("a firm's signals", () => {
   });
 });
 
+describe("a firm's load (P4.8)", () => {
+  it("AI fallbacks: more than 20% of at least 20 messages the AI was asked to sort, this hour, this firm's", async () => {
+    const t = await createTenant(su);
+    const other = await createTenant(su);
+    await received(t, 15, { handledAs: "ai", intent: "shifts" });
+    await received(t, 3, { handledAs: "office", intent: "office", aiFallback: "no_answer" });
+    await received(t, 2, { handledAs: "office", intent: "office", aiFallback: "not_a_label" });
+    // Not asked (the AI off; a photo; a keyword), over an hour ago, or another firm's.
+    await received(t, 50, { handledAs: "office", intent: "office", aiFallback: "not_connected" });
+    await received(t, 50, { handledAs: "office", intent: "office", aiFallback: "no_text" });
+    await received(t, 50, { handledAs: "keyword", intent: "pay" });
+    await received(t, 40, { handledAs: "office", aiFallback: "no_answer" }, { minutesAgo: 70 });
+    await received(other, 40, { handledAs: "office", aiFallback: "no_answer" });
+    // 5 of 20: 25%.
+    expect(await alertsFor(t)).toEqual([
+      {
+        kind: "ai_fallbacks",
+        key: `ai:${t.firmId}`,
+        text: `ShiftDesk alert: ${t.slug}: the AI couldn't sort 5 of 20 messages in the last hour (25%), so they went to the office. Check the AI's key and Anthropic's status.`,
+      },
+    ]);
+    // 4 of 20 (20%) isn't over: nothing.
+    const under = await createTenant(su);
+    await received(under, 16, { handledAs: "ai", intent: "pay" });
+    await received(under, 4, { handledAs: "office", aiFallback: "no_answer" });
+    expect(await alertsFor(under)).toEqual([]);
+  });
+
+  it("messages in: more than 1,500 in the last hour, this firm's", async () => {
+    const t = await createTenant(su);
+    const other = await createTenant(su);
+    // The fixture's own message is one; 1,499 more is 1,500: not over.
+    await inbound(t, 1_499);
+    await inbound(t, 100, { minutesAgo: 70 });
+    await inbound(other, 2_000);
+    expect(await alertsFor(t)).toEqual([]);
+    await inbound(t, 1);
+    expect(await alertsFor(t)).toEqual([
+      {
+        kind: "inbound_volume",
+        key: `inbound:${t.firmId}`,
+        text: `ShiftDesk alert: ${t.slug}: 1501 messages came in to the shifts line in the last hour, far more than a firm's busiest. A big event can do that; if not, something may be flooding the line.`,
+      },
+    ]);
+  });
+
+  it("offers out: more than 500 in the last hour, this firm's", async () => {
+    const t = await createTenant(su);
+    const other = await createTenant(su);
+    // The fixture's own offer is one; 499 more is 500: not over.
+    await offers(t, 499);
+    await offers(t, 100, { minutesAgo: 70, fromWave: 1_000 });
+    await offers(other, 600);
+    expect(await alertsFor(t)).toEqual([]);
+    await offers(t, 1, { fromWave: 2_000 });
+    expect((await alertsFor(t)).map((a) => [a.kind, a.key])).toEqual([
+      ["offer_volume", `offers:${t.firmId}`],
+    ]);
+  });
+});
+
+describe("the queues (P4.8)", () => {
+  it("per queue: the jobs due and waiting with the oldest one's wait, and the running ones past 80% of their limit; not the alerts' own", async () => {
+    const queue = `p48-health-${Date.now()}`;
+    await boss.createQueue(queue);
+    try {
+      const send = async (o: { startAfter?: number } = {}) => {
+        const id = await boss.send(queue, { hello: "x" }, o);
+        if (!id) throw new Error("not queued");
+        return id;
+      };
+      const set = (id: string, assignments: string) =>
+        su.query(`update pgboss.job set ${assignments} where name = $1 and id = $2`, [queue, id]);
+      // Waiting: one due 10 minutes ago, one due now, one in retry whose delay is over.
+      const old = await send();
+      await set(old, "start_after = now() - interval '10 minutes'");
+      await send();
+      const retrying = await send();
+      await set(retrying, "state = 'retry', start_after = now() - interval '1 minute'");
+      // Not waiting: held back for an hour, a retry not yet due, and finished ones.
+      await send({ startAfter: 3_600 });
+      const later = await send();
+      await set(later, "state = 'retry', start_after = now() + interval '5 minutes'");
+      const done = await send();
+      await set(done, "state = 'completed', completed_on = now()");
+      // Running: one at 90% of its 100 seconds, one at 50%.
+      const long = await send();
+      await set(
+        long,
+        "state = 'active', expire_seconds = 100, started_on = now() - interval '90 seconds'",
+      );
+      const fine = await send();
+      await set(
+        fine,
+        "state = 'active', expire_seconds = 100, started_on = now() - interval '50 seconds'",
+      );
+      // The alerts' own queue is never reported (an alert stuck there can't report itself).
+      await boss.send(OPS_ALERT_QUEUE, { kind: "test", key: `p48-${Date.now()}`, text: "x" });
+      await su.query(
+        "update pgboss.job set start_after = now() - interval '1 hour' where name = $1 and state = 'created'",
+        [OPS_ALERT_QUEUE],
+      );
+
+      const health = await queueHealth(boss);
+      const waiting = health.waiting.find((w) => w.queue === queue);
+      expect(waiting?.waiting).toBe(3);
+      expect(waiting?.oldestSeconds).toBeGreaterThanOrEqual(600);
+      expect(waiting?.oldestSeconds).toBeLessThan(630);
+      const running = health.runningLong.find((r) => r.queue === queue);
+      expect(running?.count).toBe(1);
+      expect(running?.longestShare).toBeGreaterThanOrEqual(0.9);
+      expect(running?.longestShare).toBeLessThan(1);
+      expect(health.waiting.find((w) => w.queue === OPS_ALERT_QUEUE)).toBeUndefined();
+      expect(health.runningLong.find((r) => r.queue === OPS_ALERT_QUEUE)).toBeUndefined();
+    } finally {
+      await su.query("delete from pgboss.job where name = $1", [queue]);
+      await boss.deleteQueue(queue);
+    }
+  });
+
+  it("the tick: a backlog by each queue's limit, a job running long, and the worker's connection waits", async () => {
+    const queued: OpsAlert[] = [];
+    const result = await runOpsAlertsTick({
+      listFirmIds: async () => [],
+      run: withFirm,
+      failedJobs: async () => [],
+      queueHealth: async () => ({
+        waiting: [
+          { queue: "inbound-message", waiting: 12, oldestSeconds: 90 }, // limit 60: late
+          { queue: "offer-wave", waiting: 2, oldestSeconds: 90 }, // limit 120: fine
+          { queue: "pay-digest", waiting: 1, oldestSeconds: 600 }, // limit 900: fine
+        ],
+        runningLong: [{ queue: "retention-purge", count: 1, longestShare: 0.85 }],
+      }),
+      connectionWaits: () => ({ slow: 7, timedOut: 0, poolMax: 15 }),
+      queue: async (alert) => {
+        queued.push(alert);
+      },
+    });
+    expect(result.alerts.map((a) => a.kind)).toEqual([
+      "job_backlog",
+      "job_running_long",
+      "connection_waits",
+    ]);
+    expect(queued[0]?.text).toBe(
+      "ShiftDesk alert: jobs are waiting too long to start: inbound-message 12 waiting, the oldest 90 s (limit 60 s). Check the worker is running and keeping up.",
+    );
+  });
+});
+
 describe("failed jobs", () => {
   it("counts jobs that failed after their last retry in the last hour, by queue, not the alerts' own", async () => {
     const before = (await failedJobCounts(boss)).find((c) => c.queue === HELLO_QUEUE)?.count ?? 0;
@@ -216,6 +412,7 @@ describe("the tick", () => {
         listFirmIds: async () => [t.firmId],
         run: withFirm,
         failedJobs: async () => [{ queue: "offer-wave", count: 1 }],
+        ...quiet,
         health: async () => ({ ok: false, detail: "no answer" }),
         queue: async (alert) => {
           await queueOpsAlert(boss, alert);
@@ -289,6 +486,12 @@ describe("the tick", () => {
       failedJobs: async () => {
         throw new Error("pgboss unreachable");
       },
+      queueHealth: async () => {
+        throw new Error("pgboss unreachable");
+      },
+      connectionWaits: () => {
+        throw new Error("no count");
+      },
       health: async () => {
         throw new Error("fetch broke");
       },
@@ -316,6 +519,7 @@ describe("the tick", () => {
       },
       run: withFirm,
       failedJobs: async () => [{ queue: "offer-wave", count: 3 }],
+      ...quiet,
       health: async () => ({ ok: false, detail: "HTTP 503" }),
       queue: async (alert) => {
         if (alert.kind === "job_failures") throw new Error("queueing one failed");

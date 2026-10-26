@@ -1,18 +1,25 @@
 import { describe, expect, it } from "vitest";
+import { takeConnectionWaits } from "@/lib/db/scoped";
 import {
+  aiFallbackAlert,
   alertTransport,
+  backlogAlert,
+  connectionWaitAlert,
   firmLabel,
   healthAlert,
   jobFailureAlert,
   loginLinkAlerts,
+  runningLongAlert,
   sendFailureAlert,
   signatureAlert,
   syncAlert,
   testAlert,
   THRESHOLDS,
+  volumeAlerts,
   type AlertTransport,
   type OpsAlert,
 } from "@/lib/ops/alerts";
+import { backlogLimitSeconds } from "@/lib/ops/tick";
 import { checkWebHealth } from "@/lib/ops/health-check";
 import { createSignatureCounter } from "@/lib/ops/signature-spike";
 import { QUEUES } from "@/worker/jobs/queues";
@@ -168,6 +175,130 @@ const capture = () => {
   };
   return { sent, transport };
 };
+
+// Seeing a backlog (P4.8).
+describe("the backlog alerts", () => {
+  const wait = (queue: string, oldestSeconds: number, waiting = 1) => ({
+    queue,
+    waiting,
+    oldestSeconds,
+    limitSeconds: backlogLimitSeconds(queue),
+  });
+
+  it("each queue's limit: a casual's message 60 s, an offer wave 2 minutes, anything else 15", () => {
+    expect(backlogLimitSeconds("inbound-message")).toBe(60);
+    expect(backlogLimitSeconds("offer-wave")).toBe(120);
+    for (const q of QUEUES.filter((q) => !["inbound-message", "offer-wave"].includes(q.name))) {
+      expect(backlogLimitSeconds(q.name), q.name).toBe(15 * 60);
+    }
+    expect(THRESHOLDS.backlogSeconds).toEqual({ inbound: 60, waves: 120, other: 900 });
+  });
+
+  it("a job waiting past its queue's limit: an alert naming it, the furthest past first", () => {
+    expect(backlogAlert([])).toBeNull();
+    // At the limit, or nothing waiting: no alert.
+    expect(backlogAlert([wait("inbound-message", 60), wait("offer-wave", 120)])).toBeNull();
+    expect(backlogAlert([wait("inbound-message", 500, 0)])).toBeNull();
+    expect(
+      backlogAlert([
+        wait("shift-reminders", 1_800, 40),
+        wait("inbound-message", 61, 240),
+        wait("offer-wave", 119, 3),
+        wait("pay-digest", 899),
+      ]),
+    ).toEqual({
+      kind: "job_backlog",
+      key: "job-backlog",
+      text: "ShiftDesk alert: jobs are waiting too long to start: shift-reminders 40 waiting, the oldest 30 min (limit 15 min); inbound-message 240 waiting, the oldest 61 s (limit 60 s). Check the worker is running and keeping up.",
+    });
+  });
+
+  it("every queue backed up: the 3 furthest past, then how many more (always fits)", () => {
+    const all = QUEUES.map((q, i) => ({
+      queue: q.name,
+      waiting: 99_999,
+      oldestSeconds: 999_999 + i,
+      limitSeconds: 60,
+    }));
+    const a = backlogAlert(all);
+    expect(a?.text.length).toBeLessThanOrEqual(320);
+    expect(a?.text).toContain(`; and ${QUEUES.length - 3} other queues.`);
+  });
+
+  it("jobs running past 80% of their time limit: an alert, the furthest along first", () => {
+    expect(runningLongAlert([])).toBeNull();
+    expect(runningLongAlert([{ queue: "offer-wave", count: 0, longestShare: 0.9 }])).toBeNull();
+    expect(
+      runningLongAlert([
+        { queue: "retention-purge", count: 1, longestShare: 0.85 },
+        { queue: "offer-wave", count: 2, longestShare: 0.97 },
+      ]),
+    ).toEqual({
+      kind: "job_running_long",
+      key: "job-running-long",
+      text: "ShiftDesk alert: jobs are running past 80% of their time limit: offer-wave 2, the longest at 97%; retention-purge 1, the longest at 85%. pg-boss stops and reruns a job at its limit.",
+    });
+    const all = QUEUES.map((q) => ({ queue: q.name, count: 99_999, longestShare: 9.99 }));
+    expect(runningLongAlert(all)?.text.length).toBeLessThanOrEqual(320);
+  });
+
+  it("the worker's waits for a connection: any that ran out, or 5 of a second or more", () => {
+    expect(connectionWaitAlert({ slow: 0, timedOut: 0, poolMax: 15 })).toBeNull();
+    expect(connectionWaitAlert({ slow: 4, timedOut: 0, poolMax: 15 })).toBeNull();
+    expect(connectionWaitAlert({ slow: 5, timedOut: 0, poolMax: 15 })).toEqual({
+      kind: "connection_waits",
+      key: "connection-waits",
+      text: "ShiftDesk alert: the worker waited a second or more for a database connection 5 times in the last 5 minutes. Its 15 connections are all busy: look for slow queries, or give it more.",
+    });
+    expect(connectionWaitAlert({ slow: 0, timedOut: 1, poolMax: 15 })?.text).toBe(
+      "ShiftDesk alert: the worker waited a second or more for a database connection 0 times in the last 5 minutes, and 1 wait ran out (those jobs failed, and will run again). Its 15 connections are all busy: look for slow queries, or give it more.",
+    );
+    expect(
+      connectionWaitAlert({ slow: 999_999, timedOut: 999_999, poolMax: 15 })?.text.length,
+    ).toBeLessThanOrEqual(320);
+  });
+
+  it("the withFirm wait count is taken and starts again from zero", () => {
+    expect(takeConnectionWaits()).toEqual({ slow: 0, timedOut: 0 });
+    expect(takeConnectionWaits()).toEqual({ slow: 0, timedOut: 0 });
+  });
+
+  it("a firm's AI fallbacks: more than 20% of at least 20 messages it was asked to sort", () => {
+    const ai = (asked: number, fellBack: number) =>
+      aiFallbackAlert({ firmId: FIRM, slug: "acme", asked, fellBack });
+    expect(ai(19, 19)).toBeNull();
+    expect(ai(20, 4)).toBeNull();
+    expect(ai(20, 5)).toEqual({
+      kind: "ai_fallbacks",
+      key: `ai:${FIRM}`,
+      text: "ShiftDesk alert: acme: the AI couldn't sort 5 of 20 messages in the last hour (25%), so they went to the office. Check the AI's key and Anthropic's status.",
+    });
+  });
+
+  it("a firm's messages in and offers out: over 1,500 and 500 an hour, each its own alert", () => {
+    const v = (inbound: number, offers: number) =>
+      volumeAlerts({ firmId: FIRM, slug: "acme", inbound, offers });
+    expect(v(1_500, 500)).toEqual([]);
+    expect(v(1_501, 500).map((a) => [a.kind, a.key])).toEqual([
+      ["inbound_volume", `inbound:${FIRM}`],
+    ]);
+    expect(v(1_500, 501).map((a) => [a.kind, a.key])).toEqual([["offer_volume", `offers:${FIRM}`]]);
+    expect(v(1_501, 501).map((a) => a.text)).toEqual([
+      "ShiftDesk alert: acme: 1501 messages came in to the shifts line in the last hour, far more than a firm's busiest. A big event can do that; if not, something may be flooding the line.",
+      "ShiftDesk alert: acme: 501 offers went out in the last hour, far more than usual. Check the firm's wave settings, and for a shift reopening again and again.",
+    ]);
+  });
+
+  it("a firm named by a slug that looks like a number is named by its id in these too", () => {
+    const slug = "07700900123";
+    expect(aiFallbackAlert({ firmId: FIRM, slug, asked: 20, fellBack: 20 })?.text).toContain(
+      "firm 0f8fad5b:",
+    );
+    expect(volumeAlerts({ firmId: FIRM, slug, inbound: 9_999, offers: 0 })[0]?.text).toContain(
+      "firm 0f8fad5b:",
+    );
+  });
+});
 
 describe("counting bad webhook signatures (the web's memory)", () => {
   it("alerts at the 20th in an hour, then not again for an hour", async () => {

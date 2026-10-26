@@ -1,18 +1,28 @@
 import { and, eq, gt, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { systemClock, type Clock } from "../auth/clock";
 import { firms, rosterSources } from "../db/schema";
-import type { FirmTx, WithFirm } from "../db/scoped";
+import type { ConnectionWaits, FirmTx, WithFirm } from "../db/scoped";
+import { INBOUND_MESSAGE_QUEUE } from "../inbound/job";
 import { log, type Logger } from "../log";
+import { OFFER_WAVE_QUEUE } from "../offers/waves";
 import {
+  aiFallbackAlert,
+  backlogAlert,
+  connectionWaitAlert,
   healthAlert,
   jobFailureAlert,
   loginLinkAlerts,
   opsAlertSchema,
+  runningLongAlert,
   sendFailureAlert,
   syncAlert,
+  THRESHOLDS,
+  volumeAlerts,
   type AlertTransport,
   type HealthResult,
   type OpsAlert,
+  type QueueRunningLong,
+  type QueueWait,
 } from "./alerts";
 
 // The ops alerts job (docs/api-and-jobs.md `ops-alerts-tick`, `ops-alert`). Every 5 minutes, with
@@ -23,6 +33,11 @@ import {
 //   WhatsApp and text sends (the events every sender writes) against the failures, and its login
 //   links by WhatsApp and text (14.2: more than usual means a crowd, or someone running up its
 //   messages);
+// - each firm, too (P4.8): its messages the AI couldn't sort, its messages in and its offers out;
+// - pg-boss's queues (P4.8, the worker's pg-boss connection again: `queueHealth`): jobs waiting to
+//   start longer than their queue's limit, and jobs running past 80% of their time limit;
+// - the worker's own waits for a database connection since the last tick (P4.8:
+//   `connectionWaits`, from withFirm);
 // - the web app's health check from inside the server (`health`, when HEALTH_CHECK_URL is set).
 // Each alert that fires is queued as an `ops-alert` job, unless one with the same key was queued in
 // the last hour (the worker looks: `queueOpsAlert()`), so an ongoing problem alerts at most once an
@@ -83,7 +98,21 @@ const list = (actions: readonly string[]) =>
 // ever).
 export const SYNC_FAILING_MINUTES = 30;
 
-// One firm's part: its failing sheet sync, its sends and its login links over the last hour.
+// How long a queue's jobs may wait to start (P4.8; THRESHOLDS.backlogSeconds): a casual's message,
+// an offer wave, anything else.
+export function backlogLimitSeconds(queue: string): number {
+  if (queue === INBOUND_MESSAGE_QUEUE) return THRESHOLDS.backlogSeconds.inbound;
+  if (queue === OFFER_WAVE_QUEUE) return THRESHOLDS.backlogSeconds.waves;
+  return THRESHOLDS.backlogSeconds.other;
+}
+
+// What the AI said when it couldn't sort a message (`message.received` aiFallback): no answer in
+// time (an error, the 5 seconds, busy or the breaker: P4.6), or not one of the labels. Not
+// "not_connected" (the AI is off, so nothing was asked) or "no_text" (a photo: nothing to ask).
+export const AI_FAILED = ["no_answer", "not_a_label"] as const;
+
+// One firm's part: its failing sheet sync, its sends and its login links over the last hour, and
+// (P4.8) the AI's misses, its messages in and its offers out.
 export async function firmAlerts(tx: FirmTx, firmId: string, now: Date): Promise<OpsAlert[]> {
   const [firm] = await tx.select({ slug: firms.slug }).from(firms).where(eq(firms.id, firmId));
   if (!firm) return [];
@@ -151,13 +180,57 @@ export async function firmAlerts(tx: FirmTx, firmId: string, now: Date): Promise
       lastDay: counts?.login_links_day ?? 0,
     }),
   );
+
+  // The AI's part in sorting the shifts line's messages (each `message.received`: sorted by it, or
+  // its fallback), the messages that came in and the offers that went, over the last hour. Each by
+  // its own index (events by action and time, messages and offers by time).
+  const { rows: load } = await tx.execute<{
+    ai_asked: number;
+    ai_failed: number;
+    inbound: number;
+    offers: number;
+  }>(sql`
+    select
+      (select count(*) from events e
+        where e.action = 'message.received' and e.created_at > ${since} and e.created_at <= ${now}
+          and (e.data ->> 'handledAs' = 'ai' or e.data ->> 'aiFallback' in (${list(AI_FAILED)})))::int
+        as ai_asked,
+      (select count(*) from events e
+        where e.action = 'message.received' and e.created_at > ${since} and e.created_at <= ${now}
+          and e.data ->> 'aiFallback' in (${list(AI_FAILED)}))::int as ai_failed,
+      (select count(*) from messages m
+        where m.direction = 'in' and m.created_at > ${since} and m.created_at <= ${now})::int
+        as inbound,
+      (select count(*) from offers o
+        where o.sent_at > ${since} and o.sent_at <= ${now})::int as offers
+  `);
+  const l = load[0];
+  const ai = aiFallbackAlert({
+    firmId,
+    slug: firm.slug,
+    asked: l?.ai_asked ?? 0,
+    fellBack: l?.ai_failed ?? 0,
+  });
+  if (ai) alerts.push(ai);
+  alerts.push(
+    ...volumeAlerts({ firmId, slug: firm.slug, inbound: l?.inbound ?? 0, offers: l?.offers ?? 0 }),
+  );
   return alerts;
+}
+
+// pg-boss's queues, as the worker reads them (src/worker/jobs/index.ts queueHealth).
+export interface QueueHealth {
+  waiting: Omit<QueueWait, "limitSeconds">[];
+  runningLong: QueueRunningLong[];
 }
 
 export interface OpsTickDeps {
   listFirmIds: () => Promise<string[]>;
   run: WithFirm;
   failedJobs: () => Promise<{ queue: string; count: number }[]>;
+  queueHealth: () => Promise<QueueHealth>;
+  // The worker's waits for a connection since the last tick, then counting from zero.
+  connectionWaits: () => ConnectionWaits & { poolMax: number };
   health?: () => Promise<HealthResult>;
   queue: (alert: OpsAlert) => Promise<void>;
   clock?: Clock;
@@ -176,6 +249,23 @@ export async function runOpsAlertsTick(deps: OpsTickDeps): Promise<{ alerts: Ops
   }
   const jobs = jobFailureAlert(failed);
   if (jobs) alerts.push(jobs);
+  try {
+    const queues = await deps.queueHealth();
+    const backlog = backlogAlert(
+      queues.waiting.map((w) => ({ ...w, limitSeconds: backlogLimitSeconds(w.queue) })),
+    );
+    if (backlog) alerts.push(backlog);
+    const long = runningLongAlert(queues.runningLong);
+    if (long) alerts.push(long);
+  } catch (error) {
+    logger.error("ops alerts: the queues couldn't be read", { error });
+  }
+  try {
+    const waits = connectionWaitAlert(deps.connectionWaits());
+    if (waits) alerts.push(waits);
+  } catch (error) {
+    logger.error("ops alerts: the connection waits couldn't be read", { error });
+  }
   let firmIds: string[] = [];
   try {
     firmIds = await deps.listFirmIds();

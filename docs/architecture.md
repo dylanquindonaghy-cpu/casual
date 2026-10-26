@@ -521,6 +521,16 @@ Order: web push (free) → WhatsApp template → SMS fallback.
 - The 5-second limit in `askAi()` (`src/lib/ai/ask.ts`) is unchanged: the app stops waiting after
   5 seconds whatever the client does. A failed, late or unusable answer means the code's fallback,
   as before.
+- Under load (P4.6): `getAi` keeps one client per worker process for the key and model, so these
+  hold across every job. At most 4 calls at once; the rest wait their turn, in order, and one
+  still waiting when its 5 seconds are up is turned away (`busy`) when its turn comes, without
+  calling the API (its caller's fallback ran at 5 seconds). A breaker: after 5 failed calls in a
+  row (no answer in time, an HTTP error, no connection; a refusal or an empty answer is the API
+  working), every call fails at once (`breaker_open`) for 30 seconds, then one trial call: an
+  answer closes it, a failure opens it for another 30. Each call not made is logged `AI call not
+  made` {purpose, model, stopReason}; the breaker logs `AI breaker open` and `AI breaker closed`.
+  No timers: the client reads the clock as calls come and go. Still no retries
+  (`tests/unit/ai.anthropic.test.ts`).
 - Where requests are processed: Anthropic's API may process requests outside the UK. Before AI is
   switched on, its data processing agreement and UK transfer terms are checked, and the privacy
   notice's line on where Anthropic processes requests is filled in (docs/privacy-notice.md,

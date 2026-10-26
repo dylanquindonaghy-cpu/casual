@@ -2,6 +2,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  AI_BREAKER_FAILURES,
+  AI_BREAKER_OPEN_MS,
+  AI_CALLS_AT_ONCE,
   ANTHROPIC_API_URL,
   AnthropicAiClient,
   getAi,
@@ -271,6 +274,150 @@ describe("anything but a usable answer is AiUnavailableError, and nothing is ret
     );
     expect(source).toMatch(/this\.timeoutMs = overrides\.timeoutMs \?\? AI_TIMEOUT_MS;/);
     expect(AI_TIMEOUT_MS).toBe(5000);
+  });
+});
+
+describe("under load (P4.6): one client a process, 4 calls at once, a breaker, no timers", () => {
+  const answer = () => json(200, message([{ type: "text", text: "general" }]));
+  const failed = () => json(500, apiError("api_error", "made-up failure"));
+  // A fake API whose answers wait until let go, oldest first.
+  function heldApi(respond: () => Response = answer) {
+    const held: (() => void)[] = [];
+    const api = fakeApi(
+      () => new Promise<Response>((resolve) => held.push(() => resolve(respond()))),
+    );
+    return { ...api, letOneGo: () => held.shift()?.(), holding: () => held.length };
+  }
+  // Lets the SDK's own steps (building each request, reading each reply) run.
+  const settle = async () => {
+    for (let i = 0; i < 25; i += 1) await new Promise((resolve) => setImmediate(resolve));
+  };
+
+  it("at most 4 calls at once; the rest go in order as calls finish", async () => {
+    expect(AI_CALLS_AT_ONCE).toBe(4);
+    const api = heldApi();
+    const ai = client(api.fetch);
+    const calls = Array.from({ length: 6 }, () => ai.complete(request));
+    await settle();
+    expect(api.sent).toHaveLength(4);
+    api.letOneGo();
+    await settle();
+    expect(api.sent).toHaveLength(5);
+    while (api.holding() > 0) {
+      api.letOneGo();
+      await settle();
+    }
+    expect(await Promise.all(calls)).toEqual(Array(6).fill("general"));
+    expect(api.sent).toHaveLength(6);
+  });
+
+  it("a call still waiting when its 5 seconds are up is turned away (busy) at its turn, without calling the API", async () => {
+    let clock = 1_000_000;
+    const { lines, logger } = logs();
+    const api = heldApi();
+    const ai = client(api.fetch, { now: () => clock, logger });
+    const going = Array.from({ length: 4 }, () => ai.complete(request));
+    // Its failure is read as soon as it's asked (it comes while the test lets the others go).
+    const late = failure(ai.complete(request));
+    await settle();
+    clock += AI_TIMEOUT_MS + 1;
+    // Asked now, so still in time when the turn comes.
+    const onTime = ai.complete(request);
+    api.letOneGo();
+    await settle();
+    expect((await late).message).toBe("AI unavailable: busy");
+    expect(api.sent).toHaveLength(5); // the turn went to the one in time
+    while (api.holding() > 0) {
+      api.letOneGo();
+      await settle();
+    }
+    expect(await Promise.all([...going, onTime])).toEqual(Array(5).fill("general"));
+    expect(lines).toContainEqual(
+      expect.objectContaining({ level: "warn", msg: "AI call not made", stopReason: "busy" }),
+    );
+  });
+
+  it("after 5 failed calls in a row the breaker opens: calls fail at once for 30 s, then one trial", async () => {
+    let clock = 1_000_000;
+    let mode: "fail" | "answer" | "hold" = "fail";
+    const held: (() => void)[] = [];
+    const api = fakeApi(() =>
+      mode === "hold"
+        ? new Promise<Response>((resolve) => held.push(() => resolve(answer())))
+        : mode === "fail"
+          ? failed()
+          : answer(),
+    );
+    const { lines, logger } = logs();
+    const ai = client(api.fetch, { now: () => clock, logger });
+    expect(AI_BREAKER_FAILURES).toBe(5);
+    expect(AI_BREAKER_OPEN_MS).toBe(30_000);
+    for (let i = 0; i < 5; i += 1) {
+      expect((await failure(ai.complete(request))).message).toBe("AI unavailable: http_500");
+    }
+    // Open: at once, and nothing sent, until the 30 seconds are up.
+    expect((await failure(ai.complete(request))).message).toBe("AI unavailable: breaker_open");
+    clock += AI_BREAKER_OPEN_MS - 1;
+    expect((await failure(ai.complete(request))).message).toBe("AI unavailable: breaker_open");
+    expect(api.sent).toHaveLength(5);
+    // Then one trial: it fails, so open for another 30 seconds.
+    clock += 1;
+    expect((await failure(ai.complete(request))).message).toBe("AI unavailable: http_500");
+    expect(api.sent).toHaveLength(6);
+    expect((await failure(ai.complete(request))).message).toBe("AI unavailable: breaker_open");
+    // The next trial answers. While it's going, every other call fails at once.
+    clock += AI_BREAKER_OPEN_MS;
+    mode = "hold";
+    const trial = ai.complete(request);
+    await settle();
+    expect(api.sent).toHaveLength(7);
+    expect((await failure(ai.complete(request))).message).toBe("AI unavailable: breaker_open");
+    expect(api.sent).toHaveLength(7);
+    held.shift()?.();
+    expect(await trial).toBe("general");
+    // Closed again.
+    mode = "answer";
+    expect(await ai.complete(request)).toBe("general");
+    expect(api.sent).toHaveLength(8);
+    expect(lines.filter((l) => String(l.msg).startsWith("AI breaker"))).toEqual([
+      expect.objectContaining({ level: "warn", msg: "AI breaker open", failures: 5 }),
+      expect.objectContaining({ level: "info", msg: "AI breaker closed" }),
+    ]);
+  });
+
+  it("a refusal or an empty answer is the API working (it never opens the breaker), and an answer starts the count again", async () => {
+    const refusals = fakeApi(() => json(200, message([{ type: "text", text: "no" }], "refusal")));
+    const ai = client(refusals.fetch);
+    for (let i = 0; i < 6; i += 1) {
+      expect((await failure(ai.complete(request))).message).toBe("AI unavailable: refused");
+    }
+    expect(refusals.sent).toHaveLength(6);
+    let n = 0;
+    const mixed = fakeApi(() => {
+      n += 1;
+      return n === 5 ? answer() : failed();
+    });
+    const again = client(mixed.fetch);
+    // 4 failures, an answer, 4 failures: never 5 in a row.
+    for (let i = 0; i < 9; i += 1) await again.complete(request).catch(() => undefined);
+    expect((await failure(again.complete(request))).message).toBe("AI unavailable: http_500");
+    expect(mixed.sent).toHaveLength(10);
+  });
+
+  it("getAi gives one client a process for a key and model, so its limits hold across jobs", () => {
+    const env = {
+      AI_TRANSPORT: "anthropic" as const,
+      ANTHROPIC_API_KEY: KEY,
+      AI_MODEL: "claude-haiku-4-5",
+    };
+    const ai = getAi(env);
+    expect(getAi({ ...env })).toBe(ai);
+    expect(getAi({ ...env, AI_MODEL: "claude-sonnet-4-6" })).not.toBe(ai);
+  });
+
+  it("no timers: the limit and the breaker read the clock as calls come and go", () => {
+    const source = readFileSync(join(process.cwd(), "src/lib/ai/anthropic.ts"), "utf8");
+    expect(source).not.toMatch(/\bset(Timeout|Interval|Immediate)\(/);
   });
 });
 

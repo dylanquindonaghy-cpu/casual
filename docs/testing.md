@@ -136,6 +136,12 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   with no AI, word for word; a failure for some groups leaves just those without a line. The key
   rules and the summary's check are also unit-tested (`tests/unit/pay.group-keys.test.ts`,
   `tests/unit/ai.pay-summary.test.ts`).
+- `ai.anthropic.test.ts` (built, 12X.3; P4.6 under load) — the Anthropic client on a fake `fetch`.
+  Since P4.6: at most 4 calls at once, the rest in order; one still waiting after its 5 seconds
+  turned away (`busy`) without calling the API; the breaker opening after 5 failed calls in a row,
+  failing calls at once for 30 seconds, then one trial (a failure opens it again, an answer
+  closes it), while a refusal or an empty answer never opens it; one client a process from
+  `getAi`; no timers in the client. Each fails with its piece taken out.
 - `gdpr.worker.test.ts`, `gdpr.firm-export.test.ts`, `gdpr.retention.test.ts` — GDPR (Phase 8,
   on the real database). A worker's export holds a row from every table that can be about them
   (messages from their number before it was known, and every action-log row the log's Worker filter

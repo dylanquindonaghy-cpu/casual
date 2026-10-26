@@ -664,10 +664,11 @@ page" over showing the link on the login page.
 | A demo compose file of its own, copying the real one | Two files to keep in step; the demo file changes only what differs |
 | The demo's database at the host (managed Postgres) | Costs more for made-up data loaded afresh every night |
 
-## ADR-026: A pull connector for a CRM that can't push, first AXLR8 (Proposed)
+## ADR-026: A pull connector for a CRM that can't push, first AXLR8
 
-**Status:** Proposed, 2026-10-26. Not accepted until Dylan says so (`PLAN.md`, "Connecting the
-firm's systems" 2); nothing is built for it before then.
+**Status:** Accepted, 2026-10-26 (Dylan, in chat: "go with your recommendations on the 8
+decisions"; `PLAN.md`, "Connecting the firm's systems" 2). Built as proposal P5 once it gets the
+go-ahead; nothing is built for it before then.
 **Context:** The pilot firm keeps "everything basically" (events, sessions, roles, staff,
 qualifications, bookings) in AXLR8, a UK staffing CRM used by many event security and staffing
 firms (the firms we sell to first). AXLR8's public material describes "a callable API with
@@ -678,7 +679,7 @@ made in AXLR8 would never reach ShiftDesk, which would then offer places the off
 ShiftDesk already polls one outside source safely: the Google Sheets plug (ADR-013), with a
 per-firm tick, a lease, one read, one transaction to mirror and a three-way merge of who holds each
 place.
-**Decision (proposed):**
+**Decision:**
 - **Pull connectors are allowed** for a CRM that many of our target firms use and that can't push.
   The API in and the webhooks out stay the way for every other planner. AXLR8 is the first; each
   further connector needs its own short ADR.
@@ -708,7 +709,7 @@ place.
   (AXLR8's API document is AXLR8's and is never committed); the real transport is refused under
   `NODE_ENV=test` and pinned in `scripts/invariants.sh`; Gate B applies; a connector's sessions
   come in hidden from casuals, so a firm's first cycle can run as a shadow.
-**Amends (when accepted):**
+**Amends:**
 - **ADR-022** and `docs/office-v2.md` §5.3: "no adapter per planner" becomes "no adapter per
   planner, except a pull connector under this ADR".
 - **ADR-008** ("no Deputy/Parim plugs planned"): one named connector, for a CRM our target firms use.

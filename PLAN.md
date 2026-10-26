@@ -1624,8 +1624,8 @@ These are **proposals**: their tasks get boxes, a number and a "Done when" line 
 each one the go-ahead (golden rule 10). They're labelled P1 to P7 so they can't clash with phases a
 parallel chat adds. Tasks marked **attended** touch `.claude/`, `scripts/invariants.sh`, secrets or
 the connector, which `/overnight` may not edit. The questions to send first are in
-`docs/discovery-axlr8.md`; the decisions they need are under "Connecting the firm's systems" in
-"Decisions waiting for Dylan". Flags: **S** schema, **A** auth, **T** tenancy, **M** messaging,
+`docs/discovery-axlr8.md`; the decisions they needed, all taken on 2026-10-26, are under
+"Connecting the firm's systems" in "Decisions waiting for Dylan". Flags: **S** schema, **A** auth, **T** tenancy, **M** messaging,
 **R** rules (each needs Dylan's OK and the `guardrails-reviewer`); **UI** changes a screen (a
 mock-up first).
 
@@ -1676,7 +1676,7 @@ sync, webhook, reminder and offer wave runs in that worker.
 - A per-firm "who sends what" setting, so ShiftDesk never repeats a confirmation or reminder the
   firm's CRM already sends.
 
-### P3 — Fit the firm's model (each item once Dylan decides it)
+### P3 — Fit the firm's model (items 1, 2 and 4 decided 2026-10-26; item 3 needs Rules 3)
 
 1. **Pay day** (S, UI). Quick fix first: the casual's Home takes the pay day from the imported
    `pay_records.pay_date` when there is one, as the office's pay page already does (today
@@ -1731,7 +1731,7 @@ one after another before its own.
   attention worked out once a request; caps on the unbounded lists in `src/lib/office/dashboard.ts`;
   the webhook status from a small row, not a scan of the action log
   (`src/lib/office/webhook-settings.ts`).
-- Offer waves: a cap per wave (Offers decision), recipients claimed in chunks with the batched
+- Offer waves: a cap per wave ("Connecting the firm's systems" 5), recipients claimed in chunks with the batched
   `previewBookings()` (`src/lib/roster/book.ts`), sends in parallel with a rate limit, batch size 1
   for the wave queue (a batch of 5 shares one 15-minute expiry, `src/worker/jobs/index.ts`). First yes
   still wins by the conditional `UPDATE`.
@@ -1751,7 +1751,7 @@ one after another before its own.
 ### P5 — The connector, and AXLR8 (attended; S, A, T, M, R, UI)
 
 The framework and the secret store now, against a made-up system; the AXLR8 connector itself after
-its PDF and a sandbox. Needs ADR-026 (`docs/decisions.md`, proposed).
+its PDF and a sandbox. Under ADR-026 (`docs/decisions.md`, accepted 2026-10-26).
 
 - A secret store, shared later with the text system's keys: a table the app role has no rights on,
   written only by an owner script, read through an owner-run function only the jobs role may call
@@ -1796,7 +1796,7 @@ its PDF and a sandbox. Needs ADR-026 (`docs/decisions.md`, proposed).
   (`src/lib/rules/eligibility.ts`, `src/lib/offers/waves.ts`). Instead a "Still coming?" button on
   the existing 2-hour reminder, so a dropout shows while the place can still be filled (M, UI).
 
-### P7 — The staffing email inbox (Stage 2 brought forward, once Dylan confirms; S, A, T, M, UI)
+### P7 — The staffing email inbox (Stage 2 brought forward, decided 2026-10-26; S, A, T, M, UI)
 
 - The firm's staffing mailbox auto-forwards to its own address at a UK or EU email provider with
   signed inbound webhooks (no AWS: ADR-021; the provider in a short ADR), to the planned
@@ -1816,7 +1816,8 @@ its PDF and a sandbox. Needs ADR-026 (`docs/decisions.md`, proposed).
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify
-  (Haiku) → draft reply → approve mode → summaries every 3 hours
+  (Haiku) → draft reply → approve mode → summaries every 3 hours. **Brought forward** (Dylan,
+  2026-10-26): now proposal P7 ("Connecting the firm's systems" 3)
 - AI phone line add-on (£149/month): the existing ElevenLabs agent on the firm's Twilio number
 - Second sector credential pack live (rail: PTS/Sentinel; construction: CSCS)
 - Compensation calculator once Employment Rights Act regulations are final
@@ -1860,6 +1861,14 @@ through the firm's own text system, and by the app's notifications (web push). P
 waiting for the go-ahead) has the work. Rows tagged **Before submitting the WhatsApp templates**
 and **When you create the accounts** that name Twilio or WhatsApp need a fresh look against the
 text system once its details are known; Messages 2 (notification first, or both) is still open.
+
+**Decided on 2026-10-26** (Dylan, in chat): "go with your recommendations on the 8 decisions".
+"Connecting the firm's systems" 1 to 8 take Claude's recommendations: a pay calendar per firm
+(replacing D8, Pay 10), ADR-026's pull connector (accepted), the email inbox brought forward from
+Stage 2 (proposal P7), casuals' login by email as a stop-gap, a cap on each offer wave, who asked
+for each cancellation with a strikes switch per firm, the CRM's Casual sessions only, and a CRM
+booking the rules refuse flagged, never booked. Each is built as its proposal (P1 to P7), once
+that proposal gets the go-ahead.
 
 **When each one matters** (every row with that tag):
 1. **Before any real data** (the pilot firm's staff, even a check of a file): Legal 1, 2, 4 and 6;
@@ -2012,7 +2021,7 @@ text system once its details are known; Messages 2 (notification first, or both)
 | 7 | Payroll sorts a whole group with one note; no "declined" status | As stated | log, Phase 6 |
 | 8 | The pay area is for payroll and admins only | As stated | log, Phase 6 |
 | 9 | The AI's one line under each group in payroll's digest is used only if it restates the facts: apart from the facts' own phrases, only a short list of plain words ("staff", "queries", "the week", "rate"…), so no verdict ("paid correctly", "underpaid", "no hours missing") or promise gets through; otherwise the code's line only. Keep the AI line like this, or drop it and show only the code's line? | Allow-list; no AI connected | log, Phase 10 task 19 (audit L47) |
-| 10 | The pay week number and pay day in the office's top bar (D8) | **Decided** (Dylan, 2026-10-06: recommended default, built lean): ISO weeks, Monday to Sunday, paid the Friday after the week ends ("Week 41 · 5 Oct – 11 Oct · Pay Fri 16 Oct"), one rule for every firm (the per-firm pay calendar setting was cut) | `docs/office-v2.md` §3.1, §3.8 |
+| 10 | The pay week number and pay day in the office's top bar (D8) | **Decided** (Dylan, 2026-10-06: recommended default, built lean): ISO weeks, Monday to Sunday, paid the Friday after the week ends ("Week 41 · 5 Oct – 11 Oct · Pay Fri 16 Oct"), one rule for every firm (the per-firm pay calendar setting was cut). **Replaced** (Dylan, 2026-10-26): a pay calendar per firm, with this rule as its default ("Connecting the firm's systems" 1; built in P3) | `docs/office-v2.md` §3.1, §3.8 |
 
 ### Office and access
 
@@ -2085,19 +2094,20 @@ text system once its details are known; Messages 2 (notification first, or both)
 
 ### Connecting the firm's systems (added 2026-10-26)
 
-For the proposals P1 to P7 ("Proposed 2026-10-26", above Stage 2). Each is Claude's recommendation;
-none is built until you say so.
+For the proposals P1 to P7 ("Proposed 2026-10-26", above Stage 2). All eight **decided** on
+2026-10-26 (Dylan, in chat: "go with your recommendations on the 8 decisions"). Each is built as
+its proposal, once that proposal gets the go-ahead; until then the app works as "Until built" says.
 
-| # | Decision | Default now | Where |
+| # | Decision | Until built | Where |
 |---|---|---|---|
-| 1 | A pay calendar per firm (7 or 14 days, its own start, "Week" or "Cycle"), reversing D8 (Pay 10). Recommended: yes, with the quick fix first (the casual's Home shows the imported pay date when there is one) | One weekly rule for every firm; Home works the pay day out from it, so a fortnightly firm's casuals would see the wrong day | P3 item 1 |
-| 2 | ADR-026: a pull connector for AXLR8, amending "no adapter per planner" (ADR-022). Recommended: yes: AXLR8's API looks pull-only, the firm has nobody to write pushes, and AXLR8's customers are the firms we sell to | Planners push by the API; no adapters | P5; `docs/decisions.md` ADR-026 |
-| 3 | The staffing email inbox brought forward from Stage 2. Recommended: yes, after P2 and P4 (you asked for it on 2026-10-26) | Stage 2, after 3 paying firms | P7 |
-| 4 | Casuals' login link by email, a stop-gap until texts exist. Recommended: yes | WhatsApp only, which no live server can send | P2 |
-| 5 | A cap on each offer wave (for example a few people per free place, by the existing ranking). Recommended: yes: one place can mean about 1,500 texts today | First come, first served: everyone eligible at once | P4 |
-| 6 | Record who asked for each cancellation (casual, firm, client, unknown) apart from who carried it out, and a strikes switch per firm. Recommended: yes | Not recorded; strikes always on | P3 item 4 |
-| 7 | Import the CRM's Casual sessions only, never Contracted or Holiday ones. Recommended: yes | Nothing imported | P3 item 2 |
-| 8 | A booking added in the CRM that the rules refuse (an expired licence): flagged as urgent, never booked. Recommended: yes (golden rule 6) | As the rota sheet: not booked, reported | P5 |
+| 1 | **Decided** (Dylan, 2026-10-26: recommended): a pay calendar per firm (7 or 14 days, its own start, "Week" or "Cycle"), replacing D8 (Pay 10), with the quick fix first (the casual's Home shows the imported pay date when there is one) | One weekly rule for every firm; Home works the pay day out from it, so a fortnightly firm's casuals would see the wrong day | P3 item 1 |
+| 2 | **Decided** (Dylan, 2026-10-26: recommended): ADR-026, a pull connector for AXLR8, amending "no adapter per planner" (ADR-022): AXLR8's API looks pull-only, the firm has nobody to write pushes, and AXLR8's customers are the firms we sell to | Planners push by the API; no adapters | P5; `docs/decisions.md` ADR-026 (accepted) |
+| 3 | **Decided** (Dylan, 2026-10-26: recommended): the staffing email inbox brought forward from Stage 2, after P2 and P4 | Stage 2, after 3 paying firms | P7 |
+| 4 | **Decided** (Dylan, 2026-10-26: recommended): casuals' login link by email, a stop-gap until texts exist | WhatsApp only, which no live server can send | P2 |
+| 5 | **Decided** (Dylan, 2026-10-26: recommended): a cap on each offer wave (for example a few people per free place, by the existing ranking; the number is set when P4 is built): one place can mean about 1,500 texts today | First come, first served: everyone eligible at once | P4 |
+| 6 | **Decided** (Dylan, 2026-10-26: recommended): record who asked for each cancellation (casual, firm, client, unknown) apart from who carried it out, and a strikes switch per firm | Not recorded; strikes always on | P3 item 4 |
+| 7 | **Decided** (Dylan, 2026-10-26: recommended): import the CRM's Casual sessions only, never Contracted or Holiday ones | Nothing imported | P3 item 2 |
+| 8 | **Decided** (Dylan, 2026-10-26: recommended): a booking added in the CRM that the rules refuse (an expired licence) is flagged as urgent, never booked (golden rule 6) | As the rota sheet: not booked, reported | P5 |
 
 ### Checks and to-dos (not choices)
 

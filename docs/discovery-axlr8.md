@@ -99,8 +99,16 @@ Plain words only, no copied field lists. First answers from Dylan, 2026-10-26.
 | F3 | Pay cycles: numbering, pay day | **Fortnightly, always paid on the Friday.** Cycle 1's start and the year-end numbering: still to ask | 2026-10-26 |
 | F4 | Roles: pay tiers in names; contracted and holiday sessions | All of them carry it; the API will show which once there's access | 2026-10-26 |
 | F5 | Bookings for showing sessions made from ShiftDesk | The office books normally (in AXLR8). Places filled overnight, out of office hours, for the next day, and urgent places, are booked through ShiftDesk; and the office can book through ShiftDesk too | 2026-10-26 |
+| 4.P1 | Ops portal API: sessions, staff, qualifications, who's booked | **Yes** | 2026-10-26 |
+| 4.P2 | Ops portal API: takes bookings and passes them on to AXLR8 | **Yes** | 2026-10-26 |
+| 4.P3 | Ops portal API: we fetch, or it sends changes | It sends changes **as they happen** (Dylan thinks so: to confirm from its documentation, §5) | 2026-10-26 |
+| 4.F1 | Texts AXLR8 already sends | AXLR8 can send **any texts the firm chooses**. For bookings made in ShiftDesk, ShiftDesk sends the offer, the confirmation and the reminders (Dylan's choice) | 2026-10-26 |
+| 4.F3 | Pay cycle 1 | **Mon 29 Dec 2025 – Sun 11 Jan 2026**, paid Fri 16 Jan: the first two ISO weeks of 2026, so every cycle is two ISO weeks, paid the Friday after it ends | 2026-10-26 |
 
 ## 4. Follow-ups (from the answers above)
+
+Answered 2026-10-26: portal 1, 2 and 3, and the firm's 1 and 3 (rows 4.P1 to 4.F3 above). Still
+open: portal 4 and 5, the firm's 2 (email), and what's in §5.
 
 For whoever gives access to the ops portal's API (O4):
 
@@ -124,3 +132,22 @@ For the firm's office or IT:
    IT allow it for ShiftDesk's one address? Which address should replies come from? Roughly what
    share of the mail is from casuals?
 3. **Pay:** what date did cycle 1 start, and how are cycles numbered over the year end?
+
+## 5. Follow-ups, round 3 (to build the connector, proposal P5)
+
+For the ops portal's builder:
+
+1. **Its webhooks:** how are they signed? Does each carry its own id (so ShiftDesk stores each
+   once)? Are failed ones sent again? Does a webhook carry the change itself, or only "this changed"
+   (so ShiftDesk fetches it)?
+2. **Bookings sent to it:** does it pass a booking on to AXLR8 at once, or at its next hourly sync?
+   Does it refuse a place that's already filled?
+3. **Logging in and limits:** how does the API log in (a key per firm?), and how many calls may we
+   make a minute?
+4. **Its documentation and a test copy with made-up data,** so the connector can be built and tested
+   before the agreement. Nothing real flows until the agreement and DPA are signed.
+
+For the firm's payroll:
+
+5. **The year end:** at the end of 2026, does cycle 27 run Mon 28 Dec 2026 – Sun 10 Jan 2027
+   (unbroken two-week steps), or does a new cycle 1 start on Mon 4 Jan 2027 (ISO week 1 of 2027)?

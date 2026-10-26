@@ -91,7 +91,8 @@ launched its own AI in November 2025.
 **Decision:** Target spreadsheet/WhatsApp firms. Ask "what do you use to plan your rota?" on
 the first call and move on politely if it's one of those. Offer native mode for firms with nothing.
 **Consequences:** no Deputy/Parim plugs planned.
-**Amended 2026-10-26 (ADR-026):** one named pull connector, for AXLR8, a CRM our target firms use.
+**Amended 2026-10-26 (ADR-026):** connectors for the pilot firm's ops portal and then AXLR8, a CRM
+our target firms use.
 
 ## ADR-009: Sell one sector at a time; credentials are generic
 
@@ -196,7 +197,7 @@ whose locale is United Kingdom is read (its dates read day first), and a spreads
 firm, connected only by the owner (`npm run firm:sheet`), never by the app.
 **Revisit when:** a firm needs one row per slot instead of an "Assigned" list, or sheets get big
 enough that one read per minute is too slow.
-**Amended 2026-10-26 (ADR-026):** this pattern (tick, lease, merge) is reused for pull connectors.
+**Amended 2026-10-26 (ADR-026):** this pattern (tick, lease, merge) is reused for connectors.
 The Sheets key stays in the worker's environment; a firm's own credentials go in ADR-026's
 encrypted secret store.
 
@@ -533,8 +534,8 @@ the page; never logged), and only public addresses are ever reached. A webhook c
 `INTEGRATIONS_SECRET` changes every firm's signing secret (`docs/runbooks.md`). Planners must send
 one ref's PUTs one at a time with no automatic replays (`docs/integrations.md`). **Revisit when:** a
 planner needs OAuth or per-key scopes, a firm needs more than 10 keys, or `/api/v2`.
-**Amended 2026-10-26 (ADR-026):** "no adapter per planner" now excepts a pull connector for a CRM
-that can't push (AXLR8 first).
+**Amended 2026-10-26 (ADR-026):** "no adapter per planner" now excepts a connector for a firm's
+system that can't call this API (the pilot firm's ops portal first, then AXLR8).
 
 ## ADR-023: Travel times from TravelTime, postcodes from postcodes.io, a straight line when down
 
@@ -672,7 +673,7 @@ page" over showing the link on the login page.
 | A demo compose file of its own, copying the real one | Two files to keep in step; the demo file changes only what differs |
 | The demo's database at the host (managed Postgres) | Costs more for made-up data loaded afresh every night |
 
-## ADR-026: A pull connector for a firm's system that can't push (the ops portal first, then AXLR8)
+## ADR-026: A connector for a firm's system: its webhooks in, a pull to catch up, writes by its API (the ops portal first, then AXLR8)
 
 **Status:** Accepted, 2026-10-26 (Dylan, in chat: "go with your recommendations on the 8
 decisions"; `PLAN.md`, "Connecting the firm's systems" 2). Built as proposal P5 once it gets the
@@ -694,11 +695,26 @@ carries sessions, and the connector reads only what the planner API can't take (
 qualifications, bookings, attendance, pay lines). The office books normally in AXLR8; ShiftDesk
 books overnight next-day places and urgent ones (and the office can book through it too), so
 ShiftDesk offers casuals only the places the office opens to it, and the portal's hour-old copy is
-enough for the rest.
+enough for the rest. **Second answers, the same day:** the portal's API gives sessions, staff,
+qualifications and who's booked; it takes bookings and passes them on to AXLR8; and it sends
+changes as they happen. So the portal is the whole source, both ways. Unlike AXLR8, it is one
+firm's own system, so its connector is the per-firm adapter ADR-022 avoided. It is accepted because
+it is the pilot firm's only way in while AXLR8 can't be asked, and the framework it shares with a
+later AXLR8 connector keeps the firm-specific part small (the field mapping and the transport).
 **Decision:**
-- **Pull connectors are allowed** for a CRM that many of our target firms use and that can't push.
-  The API in and the webhooks out stay the way for every other planner. AXLR8 is the first; each
-  further connector needs its own short ADR.
+- **Connectors are allowed** for a firm's system that can't call our planner API: a CRM that many
+  of our target firms use (AXLR8), or, for the pilot firm while AXLR8 can't be asked, its own ops
+  portal. The API in and the webhooks out stay the way for every other planner. Each connector
+  needs its own short ADR, or a dated note here.
+- **Push first, a pull to catch up:** when the source sends webhooks, they are a provider webhook
+  under golden rule 3: the route checks the signature, stores one row per event id (unique), queues
+  a job and answers 200 fast; the job fetches the changed record from the source's API rather than
+  trusting the webhook's body alone. A reconcile pull is the backstop for a lost webhook (sessions
+  in the next 48 hours every 15 minutes, everything else nightly). A source with no webhooks is
+  pulled on the polls below.
+- **Writes back by the source's API** when it takes them (bookings and cancellations made in
+  ShiftDesk), with the "confirming" hold below; the office's "Enter in AXLR8" list is the fallback
+  when the source is down, slow or read-only.
 - **One framework, built like the Sheets sync:** a tick job, a lease per firm and source, polls by
   horizon (sessions in the next 48 hours every minute, the rest every 15 minutes, staff hourly,
   qualifications nightly), one transaction per event, and the pure three-way merge
@@ -734,7 +750,7 @@ enough for the rest.
   come in hidden from casuals, so a firm's first cycle can run as a shadow.
 **Amends:**
 - **ADR-022** and `docs/office-v2.md` §5.3: "no adapter per planner" becomes "no adapter per
-  planner, except a pull connector under this ADR".
+  planner, except a connector under this ADR".
 - **ADR-008** ("no Deputy/Parim plugs planned"): one named connector, for a CRM our target firms use.
 - `docs/office-v2.md` §5.3.5 ("No new `RosterPlug`"): the connector is a new source behind the
   same `RosterPlug` interface, with its own plug (a read-only one if the CRM takes no writes).
@@ -753,5 +769,5 @@ enough for the rest.
 (the key lives elsewhere) and the web app can't read it at all. Polls add load on event days: the
 connector's own tests and P4's load tests cover a firm at about 2,000 casuals and 110 events a
 fortnight. A CRM that changes its API breaks one connector, not the API in. The rest is in
-`PLAN.md` proposal P5. **Revisit when:** AXLR8 offers webhooks (then push, through ADR-022), or a
-second CRM needs a connector.
+`PLAN.md` proposal P5. **Revisit when:** AXLR8 offers webhooks (then push, through ADR-022), AXLR8 can
+be asked (its connector then replaces the ops portal's), or a second CRM needs a connector.

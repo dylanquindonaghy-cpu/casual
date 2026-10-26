@@ -1208,7 +1208,10 @@ replies on that number. A "who sends what" setting (proposal P2) keeps ShiftDesk
 confirmation or reminder AXLR8 already sends. **Confirmed by Dylan, 2026-10-26:** Webex Interact,
 the firm's own account, about 20p a text, replies turned off. So the first two tasks apply (texts
 out, delivery reports); the third (replies) waits until the firm turns replies on with a dedicated
-inbound number, and casuals answer in the app meanwhile.
+inbound number, and casuals answer in the app meanwhile. Who sends what (Dylan, 2026-10-26,
+"Connecting the firm's systems" 9): ShiftDesk sends the offer, the confirmation and the reminders
+for bookings made in ShiftDesk; AXLR8, which can send any texts the firm chooses, keeps texting
+about the office's own bookings.
 
 Dylan to decide with it (Messages 2): the app's notification first and a text only when the phone
 has no notifications on (fewer texts to pay for), or both, as now.
@@ -1655,9 +1658,24 @@ and the rules decide who gets a place, never AI, golden rule 1.) So:
   firm's IT allows it for ShiftDesk's one address (P7), or a later version reads the mailbox through
   Microsoft's own API with the firm's consent.
 
-**Order.** Now: Dylan gets access to the ops portal's API and sends the follow-ups
-(`docs/discovery-axlr8.md` §4). After the parallel UI chat's work is merged (it edits the same
-files): P1, then P2, P4 and P3 (each item as it's decided), P5's framework and secret store, and
+**Second answers (Dylan, 2026-10-26;** `docs/discovery-axlr8.md` rows 4.P1 to 4.F3**).** The ops
+portal's API gives sessions, staff, qualifications and who's booked; it takes bookings and passes
+them on to AXLR8; and it sends changes as they happen (to confirm from its documentation). AXLR8
+can send any texts the firm chooses, and ShiftDesk sends the texts about its own bookings
+("Connecting the firm's systems" 9). Pay cycle 1 ran Mon 29 Dec 2025 – Sun 11 Jan 2026, paid Fri
+16 Jan: every cycle is two ISO weeks, paid the Friday after. So:
+
+- **The ops portal is the whole source, both ways,** and AXLR8 isn't needed directly for now.
+- **P5 is push first, with a pull to catch up:** the portal's webhooks in, under golden rule 3, and
+  a reconcile pull as the backstop (P5).
+- **Bookings made in ShiftDesk go to the portal's API,** which passes them on to AXLR8; the office's
+  "Enter in AXLR8" list is only the fallback for when the portal is down or slow.
+- **What stays:** a change made in AXLR8 reaches the portal on its hourly copy, so ShiftDesk still
+  offers casuals only the places the office opens to it.
+
+**Order.** Now: Dylan gets access to the ops portal's documentation and a test copy with made-up
+data, and sends the follow-ups (`docs/discovery-axlr8.md` §4 and §5). After the parallel UI chat's
+work is merged (it edits the same files): P1, then P2, P4 and P3 (each item as it's decided), P5's framework and secret store, and
 P7's core, all on made-up data. Once the API's shape is known: P5's first connector (the ops
 portal), P6, and Phase 15's texts. After signing: the real API key, a shadow cycle (P5's sessions
 come in hidden from casuals; the office compares ShiftDesk's required and booked counts with the ops
@@ -1716,8 +1734,9 @@ sync, webhook, reminder and offer wave runs in that worker.
 1. **Pay day** (S, UI). Quick fix first: the casual's Home takes the pay day from the imported
    `pay_records.pay_date` when there is one, as the office's pay page already does (today
    `src/app/page.tsx` works it out from the weekly rule, so a fortnightly firm's casuals would read
-   the wrong day: golden rule 9). Then a per-firm pay calendar, reversing D8 (Pay 10) (the pilot firm: fortnightly, always paid on
-   the Friday after a cycle ends; cycle 1's start still to ask): 7 or 14 days,
+   the wrong day: golden rule 9). Then a per-firm pay calendar, reversing D8 (Pay 10) (the pilot
+   firm: two ISO weeks a cycle, cycle 1 Mon 29 Dec 2025 – Sun 11 Jan 2026, paid the Friday after;
+   the year-end rule still to ask, `docs/discovery-axlr8.md` §5): 7 or 14 days,
    an anchor Monday, the pay day as days after the period ends, and the label "Week" or "Cycle". The
    pure `payWeek()` (`src/lib/pay/pay-week.ts`) becomes `payPeriod(day, calendar)` with today's rule
    as the default; the setting goes through `src/lib/onboarding/settings.ts` and a migration like
@@ -1795,8 +1814,8 @@ for a resourcer or payroll).
 The framework and the secret store now, against a made-up system; the first real connector, the
 ops portal's API, once its shape is known (`docs/discovery-axlr8.md` §4); AXLR8 directly when it
 can be asked. Under ADR-026 (`docs/decisions.md`, accepted 2026-10-26). Where the bullets below say
-AXLR8, read "the source": the ops portal passes bookings on to AXLR8 only if its API takes writes,
-else they go on the office's "Enter in AXLR8" list.
+AXLR8, read "the source": the ops portal takes bookings and passes them on to AXLR8 (answer 4.P2),
+and the office's "Enter in AXLR8" list is the fallback for when the portal is down or slow.
 
 - A secret store, shared later with the text system's keys: a table the app role has no rights on,
   written only by an owner script, read through an owner-run function only the jobs role may call,
@@ -1811,17 +1830,25 @@ else they go on the office's "Enter in AXLR8" list.
   `upsertWorker()`, `recheckHolders()`, `markUrgentAfterDropout()`, `retryAborted()`, the Gate B check
   (`src/lib/imports/gate-b.ts`), and the planner API's own functions for booked sessions
   (`src/lib/integrations/sessions.ts`), never a second copy.
-- Polls run as jobs in the worker, never in a request (like the Sheets sync): sessions in the next
-  48 hours every minute, the rest every 15 minutes, staff hourly,
-  qualifications nightly; one transaction per event; only syncs that changed something are logged
-  (else about 1,440 log rows a day per firm). Sessions come in hidden from casuals, which gives the
-  shadow cycle.
+- The source's webhooks in (the portal sends changes as they happen: answer 4.P3), as a provider
+  webhook under golden rule 3: a new route, named for "a connector" and never for the firm, checks
+  the signature, stores one row per event id (unique), queues a job and answers 200 fast; the job
+  fetches the changed record from the source's API rather than trusting the webhook's body alone,
+  and applies it through the same mirror and merge. Modelled on the shifts line's webhook
+  (`src/lib/inbound/webhook.ts`, `twilio-signature.ts`, `receive.ts`). How the portal signs its
+  webhooks and ids its events: `docs/discovery-axlr8.md` §5.
+- A reconcile pull as the backstop, in case a webhook is lost, as jobs in the worker, never in a
+  request (like the Sheets sync): sessions in the next 48 hours every 15 minutes, everything else
+  nightly; one transaction per event; only syncs that changed something are logged (else up to about
+  100 log rows a day per firm for the 15-minute pull alone). Sessions come in hidden from casuals,
+  which gives the shadow cycle.
 - Never booked twice: a casual is never told "Booked" unless AXLR8 accepted it or the office handed
-  that place to ShiftDesk. If AXLR8 takes writes: hold the place as "confirming" (taken by
-  the same conditional `UPDATE` as any booking, golden rule 4), book in AXLR8 outside any
-  transaction (a limit of a few seconds, set once AXLR8's API is known), then confirm or release
-  ("That place has just gone"), or "We're confirming your place" while a job finishes it; re-read,
-  and release ours if AXLR8 went over the count. If AXLR8 is read-only: a new read-only plug
+  that place to ShiftDesk. The portal takes writes (answer 4.P2), so: hold the place as
+  "confirming" (`bookShift()` in `src/lib/roster/book.ts`, taken by the same conditional `UPDATE`
+  as any booking, golden rule 4), book through the portal's API outside any transaction (a limit of
+  a few seconds, set once its API is known), then confirm or release ("That place has just gone"),
+  or "We're confirming your place" while a job finishes it; re-read, and release ours if the source
+  went over the count. When the portal is down or slow, or for a source that's read-only: a new read-only plug
   (`canWrite` false, so `assign` answers `needs_approval`: `src/lib/roster/plug.ts`), with
   `plugFor()` in `src/lib/roster/book.ts` taught the new source (today every source but Sheets
   gets the native plug): "Take shift" becomes a request and the office gets an "Enter in AXLR8"
@@ -1919,8 +1946,9 @@ text system once its details are known; Messages 2 (notification first, or both)
 (replacing D8, Pay 10), ADR-026's pull connector (accepted), the email inbox brought forward from
 Stage 2 (proposal P7), casuals' login by email as a stop-gap, a cap on each offer wave, who asked
 for each cancellation with a strikes switch per firm, the CRM's Casual sessions only, and a CRM
-booking the rules refuse flagged, never booked. Each is built as its proposal (P1 to P7), once
-that proposal gets the go-ahead.
+booking the rules refuse flagged, never booked. Later the same day, 9: ShiftDesk sends the texts
+about its own bookings. Each is built as its proposal (P1 to P7), once that proposal gets the
+go-ahead.
 
 **When each one matters** (every row with that tag):
 1. **Before any real data** (the pilot firm's staff, even a check of a file): Legal 1, 2, 4 and 6;
@@ -2146,20 +2174,22 @@ that proposal gets the go-ahead.
 
 ### Connecting the firm's systems (added 2026-10-26)
 
-For the proposals P1 to P7 ("Proposed 2026-10-26", above Stage 2). All eight **decided** on
-2026-10-26 (Dylan, in chat: "go with your recommendations on the 8 decisions"). Each is built as
+For the proposals P1 to P7 ("Proposed 2026-10-26", above Stage 2). All nine **decided** on
+2026-10-26 (Dylan, in chat: "go with your recommendations on the 8 decisions"; then 9, his pick
+when asked who texts about ShiftDesk's bookings). Each is built as
 its proposal, once that proposal gets the go-ahead; until then the app works as "Until built" says.
 
 | # | Decision | Until built | Where |
 |---|---|---|---|
 | 1 | **Decided** (Dylan, 2026-10-26: recommended): a pay calendar per firm (7 or 14 days, its own start, "Week" or "Cycle"), replacing D8 (Pay 10), with the quick fix first (the casual's Home shows the imported pay date when there is one) | One weekly rule for every firm; Home works the pay day out from it, so a fortnightly firm's casuals would see the wrong day | P3 item 1 |
-| 2 | **Decided** (Dylan, 2026-10-26: recommended): ADR-026, a pull connector for AXLR8 (ShiftDesk fetches from AXLR8 on a timer, rather than waiting for AXLR8 to send), amending "no adapter per planner" (ADR-022: no special code for each planner's own system): AXLR8's API looks pull-only, the firm has nobody to write pushes, and AXLR8's customers are the firms we sell to. 2026-10-26: AXLR8 can't be asked for now, so the first connector reads the ops portal's API (it copies AXLR8 every hour), and AXLR8 directly comes later | Planners push by the API; no adapters | P5; `docs/decisions.md` ADR-026 (accepted) |
+| 2 | **Decided** (Dylan, 2026-10-26: recommended): ADR-026, a pull connector for AXLR8 (ShiftDesk fetches from AXLR8 on a timer, rather than waiting for AXLR8 to send), amending "no adapter per planner" (ADR-022: no special code for each planner's own system): AXLR8's API looks pull-only, the firm has nobody to write pushes, and AXLR8's customers are the firms we sell to. 2026-10-26: AXLR8 can't be asked for now, so the first connector reads the ops portal's API (it copies AXLR8 every hour), and AXLR8 directly comes later; and since the portal sends changes as they happen, the connector takes its webhooks first and pulls only to catch up | Planners push by the API; no adapters | P5; `docs/decisions.md` ADR-026 (accepted) |
 | 3 | **Decided** (Dylan, 2026-10-26: recommended): the staffing email inbox brought forward from Stage 2, after P2 and P4 | Stage 2, after 3 paying firms | P7 |
 | 4 | **Decided** (Dylan, 2026-10-26: recommended): casuals' login link by email, a stop-gap until texts exist | WhatsApp only, which no live server can send | P2 |
 | 5 | **Decided** (Dylan, 2026-10-26: recommended): a cap on each offer wave (for example a few people per free place, by the existing ranking; the number is set when P4 is built): one place can mean about 1,500 texts today (an estimate: 1,500 of 2,000 casuals eligible), about £300 at the firm's 20p a text | First come, first served: everyone eligible at once | P4 |
 | 6 | **Decided** (Dylan, 2026-10-26: recommended): record who asked for each cancellation (casual, firm, client, unknown) apart from who carried it out, and a strikes switch per firm | Not recorded; strikes always on | P3 item 4 |
 | 7 | **Decided** (Dylan, 2026-10-26: recommended): import the CRM's Casual sessions only, never Contracted or Holiday ones | Nothing imported | P3 item 2 |
 | 8 | **Decided** (Dylan, 2026-10-26: recommended): a booking added in the CRM that the rules refuse (an expired licence) is flagged as urgent, never booked (golden rule 6) | As the rota sheet: not booked, reported | P5 |
+| 9 | **Decided** (Dylan, 2026-10-26: recommended): for bookings made in ShiftDesk, ShiftDesk sends the offer, the confirmation and the reminders, through the firm's Webex account, each logged (golden rule 5); AXLR8 keeps texting about the office's own bookings, so no casual gets the same text twice | Nothing is sent for real (no text sender yet) | P2 ("who sends what"); Phase 15 |
 
 ### Checks and to-dos (not choices)
 

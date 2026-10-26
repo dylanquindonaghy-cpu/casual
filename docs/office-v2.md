@@ -1153,8 +1153,8 @@ planner" email, which are not built.
   strike result) or a strike is withdrawn. The planner marks its own session CANCELLATION from the
   webhook.
 - **Plug and play:** an admin opens Integrations, creates a key and pastes a webhook address. No
-  adapter per planner (amended 2026-10-26 by ADR-026: except a pull connector for a CRM that can't
-  push, AXLR8 first). A planner that can't call an API or take webhooks itself can go through
+  adapter per planner (amended 2026-10-26 by ADR-026: except a connector for a firm's system that
+  can't call this API, the pilot firm's ops portal first, then AXLR8). A planner that can't call an API or take webhooks itself can go through
   Zapier, Make or n8n, whose generic HTTP steps do both.
 - **Nothing new to trust.** The API never books anyone, never decides eligibility and never calls
   AI. Changes to booked sessions go through `moveShiftByFirm()` and `cancelShiftByFirm()`: the
@@ -1519,7 +1519,7 @@ file import also carries casuals, qualifications and pay records.
 - The sheet sync still takes a cancelled casual's name out of the Assigned cell, as today.
 - API sessions have `source: "api"` and book through the native plug: `plugFor()` already treats
   every source except `sheets` as native (`src/lib/roster/book.ts:341-344`). No new `RosterPlug`
-  (amended 2026-10-26 by ADR-026: a pull connector gets its own plug).
+  (amended 2026-10-26 by ADR-026: a connector gets its own plug).
 
 #### 5.3.6 Settings, golden rules and privacy
 

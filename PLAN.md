@@ -1806,7 +1806,7 @@ ADR-027, P4.2).
       pooled connection, a slow statement and an idle transaction ended and the pool carrying on,
       a full pool failing a wait instead of hanging (`tests/integration/scoped-client.test.ts`);
       the scan's lock holder; the two profiles (`tests/unit/db.limits.test.ts`) (P4.2)
-- [ ] A cap on each offer wave ("Connecting the firm's systems" 10): first come, first served sends
+- [x] A cap on each offer wave ("Connecting the firm's systems" 10): first come, first served sends
       to the best 5 casuals per free place by the existing ranking, at most 50, then the next wave
       after `wave_minutes` while anyone is left; a place taken shrinks the wave; the Open shifts
       board, first yes wins and fair rotation unchanged; owner setting `wave_per_place` (1 to 20,

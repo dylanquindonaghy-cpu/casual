@@ -350,7 +350,11 @@ describe("the answers stay true afterwards", () => {
     });
     const ids: string[] = [];
     for (let i = 0; i < 3; i += 1) ids.push(await f.worker({ first: `W${i}` }));
-    const [, failing, taker] = [...ids].sort() as [string, string, string];
+    // A wave goes fewest hours this week first (P4.3; before, by worker id): 0, 8 and 16 hours, so
+    // the first is messaged, then `failing`, then the wave comes to `taker`.
+    const [, failing, taker] = ids as [string, string, string];
+    await f.booking(failing, await f.shift({ startsAt: hoursFromNow(72) }));
+    for (const h of [72, 96]) await f.booking(taker, await f.shift({ startsAt: hoursFromNow(h) }));
     const { rows } = await su.query<{ mobile: string }>(
       "select mobile_e164 as mobile from workers where id = $1",
       [failing],

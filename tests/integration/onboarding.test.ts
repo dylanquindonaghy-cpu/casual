@@ -195,6 +195,8 @@ describe("a firm's settings", () => {
       allocation_mode: ["first_come_first_served", "default"],
       wave_size: [4, "default"],
       wave_minutes: [15, "default"],
+      // First come, first served's wave size per free place (P4.3), at most 50 a wave.
+      wave_per_place: [5, "default"],
       urgent_window_hours: [24, "default"],
       escalate_hours_before_start: [3, "default"],
       short_notice_threshold_hours: [48, "default"],
@@ -268,6 +270,11 @@ describe("a firm's settings", () => {
     expect(await setFirmSettings(urls.admin, f.slug, [["wave_size", "6"]])).toEqual({
       status: "unchanged",
     });
+    // First come, first served's number per free place (P4.3), from 1 to 20.
+    expect(await setFirmSettings(urls.admin, f.slug, [["wave_per_place", "20"]])).toMatchObject({
+      status: "saved",
+      keys: ["wave_per_place"],
+    });
   });
 
   it("refuses a value the app would ignore or fall back from; nothing is saved", async () => {
@@ -277,6 +284,9 @@ describe("a firm's settings", () => {
       ["wave_size", "0"],
       ["wave_size", "4.5"],
       ["wave_minutes", "500"],
+      ["wave_per_place", "0"],
+      ["wave_per_place", "21"],
+      ["wave_per_place", "2.5"],
       ["urgent_window_hours", "500"],
       ["escalate_hours_before_start", "-1"],
       ["short_notice_threshold_hours", "0"],
@@ -301,6 +311,21 @@ describe("a firm's settings", () => {
     expect(rows[0]).toEqual({ settings: {} });
     expect(await setFirmSettings(urls.admin, "no-such-firm", [["wave_size", "5"]])).toEqual({
       status: "no_firm",
+    });
+  });
+
+  it("first come, first served: the minutes between its waves are read and set as its waves read them (P4.3)", async () => {
+    const f = await created();
+    // A fair-rotation size the app would refuse (written straight to the table): first come's
+    // waves never read it, so it doesn't stop their minutes.
+    await su.query(`update firms set settings = '{"wave_size": 0}' where id = $1`, [f.firmId]);
+    const read = await readFirmSettings(urls.admin, f.slug);
+    if (read.status !== "ok") throw new Error(read.status);
+    const value = (key: string) => read.settings.find((s) => s.key === key)?.value;
+    expect([value("wave_size"), value("wave_minutes")]).toEqual(["(not valid)", 15]);
+    expect(await setFirmSettings(urls.admin, f.slug, [["wave_minutes", "10"]])).toMatchObject({
+      status: "saved",
+      keys: ["wave_minutes"],
     });
   });
 });

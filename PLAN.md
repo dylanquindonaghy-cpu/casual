@@ -4185,7 +4185,14 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
 - P4.2's guardrails review (2026-10-26), not blocking: (1) let only `src/worker` import
   `chooseDbProfile` (an ESLint `importNames` rule; today any code could switch a process's profile
   before its first query); (2) `tests/unit/db.limits.test.ts` counts pg-boss's pool as 5 by hand:
-  read it from `src/worker/boss.ts` if that ever changes.
+  read it from `src/worker/boss.ts` if that ever changes. Its claims-auditor's note: the firm
+  export's and the retention purge's longer limits (`allowLonger`) have no test of their own (the
+  scan's and the roll-up's do).
+- P4.3's guardrails review (2026-10-26), not blocking: a chain has no last wave before the shift
+  starts, and the job's payload allows waves up to 1,000 (`offerWavePayload`,
+  `src/lib/offers/waves.ts`). With 1 per place (or a fair-rotation size of 1), 1 minute apart and
+  over 1,000 eligible, queueing wave 1,001 fails the job, retried, with no `offer.waves_stopped`
+  row. Stop the chain with its own reason at the limit instead (its words for the office first).
 
 ## Hours log
 

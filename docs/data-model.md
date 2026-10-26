@@ -65,6 +65,7 @@ architecture.md, Tenancy).
   "short_notice_threshold_hours": 48,
   "wave_size": 4,
   "wave_minutes": 15,
+  "wave_per_place": 5,
   "escalate_hours_before_start": 3,
   "quiet_hours": { "start": "22:00", "end": "07:00", "urgent_override": true },
   "credential_applied_allowance_pct": 15,

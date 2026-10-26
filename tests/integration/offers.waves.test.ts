@@ -84,9 +84,17 @@ async function waveFirm(settings: Record<string, unknown> = {}, startsInHours = 
   // `refuseWhatsApp`: the provider refuses WhatsApp (a number that isn't on it). `failFor`: sends to
   // these numbers fail some other way (a timeout, an outage); `failSms` makes texts fail too.
   const sendState = { refuseWhatsApp: false, failFor: [] as string[], failSms: false };
+  // `beforeNextSend`: run once, just before the next message goes (no transaction open then), so
+  // a test can change the shift while a wave is going out.
+  const hooks = { beforeNextSend: null as null | (() => Promise<void>) };
   const transport: typeof capture = {
     name: "capture",
     async send(message) {
+      const before = hooks.beforeNextSend;
+      if (before) {
+        hooks.beforeNextSend = null;
+        await before();
+      }
       if (message.channel !== "email" && sendState.failFor.includes(message.to)) {
         throw new Error("timed out");
       }
@@ -130,6 +138,7 @@ async function waveFirm(settings: Record<string, unknown> = {}, startsInHours = 
     runEscalation({ firmId: f.firmId, idempotencyKey: "t:e", shiftId }, withFirm, deps(when));
   return {
     f,
+    hooks,
     shiftId,
     ann,
     ben,
@@ -553,13 +562,66 @@ describe("a wave", () => {
     expect(t.sent).toEqual([]);
   });
 
-  it("first come, first served offers everyone eligible at once, with no second wave", async () => {
+  // Until P4.3 first come, first served offered everyone eligible at once; now up to 5 per free
+  // place a wave. Four eligible all fit in one place's wave.
+  it("first come, first served: one place's wave reaches all 4 eligible, and with nobody left no second wave", async () => {
     const t = await waveFirm({ allocation_mode: "first_come_first_served" });
     expect(await t.wave(1)).toEqual({ status: "sent", sent: 4, next: null });
     expect(phones(t.sent).sort()).toEqual(
       [t.ann.mobile, t.ben.mobile, t.cal.mobile, t.dee.mobile].sort(),
     );
     expect((await queued(t.shiftId)).filter((j) => j.name === OFFER_WAVE_QUEUE)).toEqual([]);
+  });
+
+  it("first come, first served: one place, 12 eligible: waves of 5, 5 and 2, the most hours this week last (P4.3)", async () => {
+    const t = await waveFirm({ allocation_mode: "first_come_first_served" });
+    // Eight more with no hours this week, like Ann: 12 eligible, Ben (8 h), Cal (16) and Dee (24) last.
+    for (let i = 0; i < 8; i += 1) await t.f.worker({ first: `New${i}` });
+    expect(await t.wave(1)).toEqual({ status: "sent", sent: 5, next: 2 });
+    expect(await t.wave(2, later(15))).toEqual({ status: "sent", sent: 5, next: 3 });
+    expect(await t.wave(3, later(30))).toEqual({ status: "sent", sent: 2, next: null });
+    const order = phones(t.sent);
+    expect(new Set(order).size).toBe(12);
+    expect(order.slice(0, 5)).not.toContain(t.ben.mobile);
+    expect(order.slice(5, 10)).toContain(t.ben.mobile);
+    expect(order.slice(10).sort()).toEqual([t.cal.mobile, t.dee.mobile].sort());
+  });
+
+  it("first come, first served: four places, a wave goes to 20 (P4.3)", async () => {
+    const t = await waveFirm({ allocation_mode: "first_come_first_served" });
+    for (let i = 0; i < 20; i += 1) await t.f.worker({ first: `New${i}` });
+    await su.query("update shifts set headcount = 4 where id = $1", [t.shiftId]);
+    expect(await t.wave(1)).toEqual({ status: "sent", sent: 20, next: 2 });
+  });
+
+  it("first come, first served: a place taken while the wave goes out shrinks it to the places left (P4.3)", async () => {
+    const t = await waveFirm({ allocation_mode: "first_come_first_served" });
+    for (let i = 0; i < 8; i += 1) await t.f.worker({ first: `New${i}` });
+    await su.query("update shifts set headcount = 2 where id = $1", [t.shiftId]);
+    // Two places: a wave of 10. Before its first message goes, one place is booked (the office,
+    // say, for someone the wave doesn't message): one place left, so the wave stops at 5.
+    t.hooks.beforeNextSend = async () => {
+      await t.f.booking(t.off.id, t.shiftId, "confirmed", 1);
+    };
+    expect(await t.wave(1)).toEqual({ status: "sent", sent: 5, next: 2 });
+    const { rows } = await su.query("select 1 from offers where shift_id = $1", [t.shiftId]);
+    expect(rows).toHaveLength(5);
+  });
+
+  it("first come, first served: a place taken mid-wave ends it early, and the next wave reaches the rest (P4.3)", async () => {
+    const t = await waveFirm({ allocation_mode: "first_come_first_served" });
+    for (let i = 0; i < 4; i += 1) await t.f.worker({ first: `New${i}` });
+    await su.query("update shifts set headcount = 2 where id = $1", [t.shiftId]);
+    // Two places: a wave of 10, and all 8 eligible are chosen. One place is booked before the first
+    // message goes: the wave stops at 5, and the 3 it didn't reach are the next wave's.
+    t.hooks.beforeNextSend = async () => {
+      await t.f.booking(t.off.id, t.shiftId, "confirmed", 1);
+    };
+    expect(await t.wave(1)).toEqual({ status: "sent", sent: 5, next: 2 });
+    expect(await t.wave(2, later(15))).toEqual({ status: "sent", sent: 3, next: null });
+    expect(new Set(phones(t.sent)).size).toBe(8);
+    const { rows } = await su.query("select 1 from offers where shift_id = $1", [t.shiftId]);
+    expect(rows).toHaveLength(8);
   });
 
   it("an urgent wave still reaches a worker already offered 3 shifts today (the cap is for non-urgent offers)", async () => {

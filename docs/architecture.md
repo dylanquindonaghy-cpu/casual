@@ -344,8 +344,11 @@ sync may call a plug's `markCancelled` (`tests/unit/booking.boundary.test.ts`).
 
 **Offer waves (pg-boss)** (built in Phase 4: `src/lib/offers/waves.ts`; details in
 docs/api-and-jobs.md, `offer-wave` and `escalate-shift`)
-1. Rank eligible workers (fair rotation: fewest hours this week first; or first come first served).
-2. Send wave 1 (3–5 people): web push + WhatsApp template ("Shift available: Sat 14:00 Gate C.
+1. Rank eligible workers: fewest hours this week first, then longest since their last offer (both
+   modes).
+2. Send wave 1: fair rotation's `wave_size` (default 4); first come, first served's
+   `wave_per_place` (default 5) per free place, at most 50 (P4.3), never everyone eligible.
+   Web push + WhatsApp template ("Shift available: Sat 14:00 Gate C.
    Tap to take it"). Link opens the shift.
 3. Schedule `offer-wave` job for +15 min. If still open, next wave.
 4. Schedule `escalate` at start minus X hours: alert resourcer if unfilled.

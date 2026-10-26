@@ -950,9 +950,10 @@ In order (who does it, how, and what done looks like):
    `firm:check` names any role in use with no rule: the rules refuse that role's shifts to everyone
    until it has one.
 8. **Settings agreed** (the firm decides; you set them): `npm run -s firm:settings -- --firm acme`
-   shows who gets open shifts (first come first served, or fair rotation with its wave size and
-   minutes), the urgent window, when the office is emailed about an unfilled shift, the
-   short-notice threshold and quiet hours, as the app reads them. Change any with `--set`, e.g.
+   shows who gets open shifts (first come first served with how many each wave goes to per free
+   place, or fair rotation with its wave size; the minutes between waves), the urgent window,
+   when the office is emailed about an unfilled shift, the short-notice threshold and quiet
+   hours, as the app reads them. Change any with `--set`, e.g.
    `--set urgent_window_hours=12 --set quiet_hours.start=21:30`. A value the app wouldn't use is
    refused and nothing changes; each change is in the office action log.
    The strikes team's email isn't one of these: an admin sets it on the office's **Settings** page,

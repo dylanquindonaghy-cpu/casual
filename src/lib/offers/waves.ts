@@ -26,7 +26,7 @@ import {
 import { dayWords, shiftWhen } from "../portal/format";
 import { pushToWorker, recordPushes, sendToWorker, type NotifyDeps } from "../notify/send";
 import { getPushTransport } from "../push/transport";
-import { parseAllocationSettings } from "../roster/allocation-input";
+import { parseAllocationSettings, type AllocationSettings } from "../roster/allocation-input";
 import { previewBooking } from "../roster/book";
 import { rankForFairRotation } from "../rules/allocation";
 import { mayMessageNow, quietHours } from "../rules/quiet-hours";
@@ -46,10 +46,14 @@ import { travelSettings } from "../travel/settings";
 //
 // - offer-wave {shiftId, wave}: while the shift is open, not started, shown to casuals (its switch
 //   and its event's: src/lib/roster/visibility.ts) and has a place free, send
-//   the urgent offer to the next workers the rules allow (candidates.ts): under fair rotation the
-//   firm's `wave_size` best by rankForFairRotation, then the next wave `wave_minutes` later; under
-//   first come, first served everyone at once. Each offer is an `offers` row and an `offer.sent`
-//   event; a wave already sent sends nothing (a retry, or a second chain after another dropout).
+//   the urgent offer to the next workers the rules allow (candidates.ts), best first by
+//   rankForFairRotation, then the next wave `wave_minutes` later while anyone is left: under fair
+//   rotation the firm's `wave_size` a wave; under first come, first served `wave_per_place` per free
+//   place (default 5), at most 50 (PLAN.md P4.3, "Connecting the firm's systems" 10: everyone at
+//   once was about 1,500 texts for one place at a big firm). First come still means the first yes
+//   wins: the Open shifts board shows the shift to everyone eligible. Each offer is an `offers` row
+//   and an `offer.sent` event; a wave already sent sends nothing (a retry, or a second chain after
+//   another dropout).
 //   When there's no one left, or the shift filled, started, closed or was hidden, the chain stops
 //   (`offer.waves_stopped`); a filled shift's unanswered offers become "filled_elsewhere".
 // - escalate-shift {shiftId}: at the start minus `escalate_hours_before_start` (default 3), if a
@@ -74,7 +78,8 @@ import { travelSettings } from "../travel/settings";
 //   2. reads the candidates, with no locks held;
 //   3. per worker, claims: re-locks the shift and re-checks it's still open, urgent, has a place,
 //      is the same shift (role, times, site: if the office changed them, the wave starts again
-//      from the shift as it is now) and (fair rotation) the wave isn't full; then the worker as
+//      from the shift as it is now) and the wave isn't full (first come: by the places free now, so
+//      a place taken mid-wave shrinks it); then the worker as
 //      they are now: still reachable and wanting offers, not offered or booked it since the list
 //      was read, and allowed by the rules; then writes their `offers` row and commits. Only then
 //      the message (to their contact as read in the claim) and the push, each outside any
@@ -82,7 +87,7 @@ import { travelSettings } from "../travel/settings";
 //      (a crash just after the claim) means the message may have gone: like a `sending` reminder,
 //      it's never sent again. If the shift fills while the wave is going out, the rest aren't
 //      messaged;
-//   4. queues the next fair-rotation wave (once: a pg-boss singleton key).
+//   4. queues the next wave, in either mode (once: a pg-boss singleton key).
 // A retried or doubled wave carries on with whoever the rules still allow and nobody has offered
 // it to yet, up to the wave's size; everyone already offered is left out by the candidate rules.
 
@@ -109,16 +114,47 @@ export function escalateHours(settings: Record<string, unknown>): number {
   return parsed.success ? parsed.data.escalate_hours_before_start : DEFAULT_ESCALATE_HOURS;
 }
 
-// Who this wave goes to (pure): fair rotation's order, the firm's wave size; first come, first
-// served: everyone. `seed` (the shift and wave) fixes how ties are broken (rankForFairRotation).
+// First come, first served's waves (P4.3): `wave_per_place` casuals per free place, at most
+// WAVE_MAX a wave, `wave_minutes` apart. Read while a wave runs, so a value that makes no sense gives
+// the default instead of failing it.
+export const DEFAULT_WAVE_PER_PLACE = 5;
+export const WAVE_MAX = 50;
+export const DEFAULT_WAVE_MINUTES = 15;
+const perPlaceSchema = z.number().int().min(1).max(20);
+const minutesSchema = z.number().int().min(1).max(240);
+
+export function firstComeWaves(settings: Record<string, unknown>): {
+  perPlace: number;
+  minutes: number;
+} {
+  const perPlace = perPlaceSchema.safeParse(settings.wave_per_place);
+  const minutes = minutesSchema.safeParse(settings.wave_minutes);
+  return {
+    perPlace: perPlace.success ? perPlace.data : DEFAULT_WAVE_PER_PLACE,
+    minutes: minutes.success ? minutes.data : DEFAULT_WAVE_MINUTES,
+  };
+}
+
+// How many a wave goes to (pure): fair rotation's fixed size; first come's per free place, at most
+// WAVE_MAX, so a place taken shrinks it and a filled shift's is 0.
+export function waveCap(
+  settings: AllocationSettings,
+  firstCome: { perPlace: number },
+  freePlaces: number,
+): number {
+  if (settings.mode === "fair_rotation") return settings.groupSize;
+  return Math.min(WAVE_MAX, firstCome.perPlace * Math.max(0, freePlaces));
+}
+
+// Who this wave goes to (pure): the best `waveSize` by fair rotation's order (fewest hours this
+// week, then longest since their last offer), in both modes. `seed` (the shift and wave) fixes how
+// ties are broken (rankForFairRotation).
 export function pickWave<C extends WaveCandidate>(
   candidates: C[],
-  mode: "first_come_first_served" | "fair_rotation",
   waveSize: number,
   seed?: string,
 ): C[] {
-  if (mode === "first_come_first_served") return [...candidates];
-  return rankForFairRotation(candidates, seed).slice(0, waveSize);
+  return rankForFairRotation(candidates, seed).slice(0, Math.max(0, waveSize));
 }
 
 const CANCELLED = sql.raw(CANCELLED_ASSIGNMENT_STATUSES.map((s) => `'${s}'`).join(", "));
@@ -300,7 +336,7 @@ async function offersInWave(tx: FirmTx, shiftId: string, wave: number): Promise<
 type Claim =
   | { kind: "claimed"; offerId: string; contact: LiveContact }
   | { kind: "skip" } // offered or booked since the list was read, unreachable, or the rules say no
-  | { kind: "full" } // fair rotation: the wave has its workers
+  | { kind: "full" } // the wave has its workers (its size now: waveCap)
   | { kind: "restart" } // the shift changed: this wave queued again from the shift as it is now
   | { kind: "stop"; reason: StopReason | "gone" };
 
@@ -386,6 +422,9 @@ export async function runOfferWave(
   if (checked.done) return checked.done;
   const { shift, firm, already } = checked;
   const settings = parseAllocationSettings(firm.settings);
+  const firstCome = firstComeWaves(firm.settings);
+  const minutesApart =
+    settings.mode === "fair_rotation" ? settings.priorityMinutes : firstCome.minutes;
 
   // The first wave of a session (an urgent one made close to the start may have none yet): its
   // travel estimates first, outside any transaction, so they're there before anyone is offered it.
@@ -408,17 +447,17 @@ export async function runOfferWave(
   // take a while). Waves only run for urgent shifts (checked above), so the daily cap doesn't hold
   // them back. Workers already offered this shift (this wave included) aren't candidates.
   const candidates = await inFirm((tx) => waveCandidates(tx, shift.id, now));
-  const room =
-    settings.mode === "fair_rotation"
-      ? Math.max(0, settings.groupSize - already)
-      : candidates.length;
-  const chosen = pickWave(candidates, settings.mode, room, `${shift.id}:${payload.wave}`);
-  // Fair rotation: the next wave after the firm's minutes, if anyone is left after this one. Queued
+  const room = Math.max(0, waveCap(settings, firstCome, shift.freePlaces) - already);
+  const chosen = pickWave(candidates, room, `${shift.id}:${payload.wave}`);
+  // The next wave after the firm's minutes, if anyone may be left after this one (either mode):
+  // someone not chosen, or chosen but not reached because the wave filled first (a place taken
+  // mid-wave shrinks it; the next wave finds who's left, or stops with no_candidates). Queued
   // once whichever copy of this wave gets here (a pg-boss singleton key on the shift and wave, in
   // pg-boss's day-long slot), so a retried or doubled wave doesn't start a second chain; a duplicate
   // across the slot's edge would only find the next wave already sent.
+  let full = false;
   const queueNext = async (): Promise<number | null> => {
-    if (settings.mode !== "fair_rotation" || candidates.length <= chosen.length) return null;
+    if (!full && candidates.length <= chosen.length) return null;
     const next = payload.wave + 1;
     await inFirm((tx) =>
       sendFirmJob(
@@ -426,7 +465,7 @@ export async function runOfferWave(
         jobs.wave,
         { idempotencyKey: `offer-wave:${shift.id}:${next}`, shiftId: shift.id, wave: next },
         {
-          startAfter: new Date(now.getTime() + settings.priorityMinutes * 60_000),
+          startAfter: new Date(now.getTime() + minutesApart * 60_000),
           singletonKey: `offer-wave-next:${shift.id}:${next}`,
           singletonSeconds: 86_400,
         },
@@ -492,9 +531,11 @@ export async function runOfferWave(
         });
         return { kind: "restart" };
       }
+      // The wave's size now: under first come, by the places still free (one taken mid-wave
+      // shrinks it).
       if (
-        settings.mode === "fair_rotation" &&
-        (await offersInWave(tx, shift.id, payload.wave)) >= settings.groupSize
+        (await offersInWave(tx, shift.id, payload.wave)) >=
+        waveCap(settings, firstCome, current.freePlaces)
       ) {
         return { kind: "full" };
       }
@@ -535,7 +576,10 @@ export async function runOfferWave(
         : { status: "stopped", reason: claim.reason };
     }
     if (claim.kind === "restart") return { status: "restarted", sent };
-    if (claim.kind === "full") break;
+    if (claim.kind === "full") {
+      full = true;
+      break;
+    }
     if (claim.kind === "skip") continue;
 
     // The message, outside any transaction: by their channel (src/lib/notify/send.ts).

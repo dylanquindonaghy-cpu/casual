@@ -159,12 +159,36 @@ describe("waves on the clock", () => {
     ]);
   });
 
-  it("first come, first served: everyone at once, no second wave; the office still at 16:00", async () => {
+  // Up to 5 per free place a wave (P4.3): one place and 5 who could take it fit in the first wave.
+  it("first come, first served: one place, 5 eligible, all in the first wave and no second; the office still at 16:00", async () => {
     const t = await chain({ allocation_mode: "first_come_first_served" });
     const ran = await t.worker.runUntil(hoursFromNow(12), NOW);
     expect(t.timeline(ran)).toEqual([
       ["09:00", OFFER_WAVE_QUEUE, { status: "sent", sent: 5, next: null }],
       ["16:00", ESCALATE_SHIFT_QUEUE, { status: "escalated", notified: 1 }],
+    ]);
+  });
+
+  it("first come, first served: the firm's own 2 per place every 10 minutes, the fewest hours first (P4.3)", async () => {
+    const t = await chain({
+      allocation_mode: "first_come_first_served",
+      wave_per_place: 2,
+      wave_minutes: 10,
+    });
+    const ran = await t.worker.runUntil(hoursFromNow(12), NOW);
+    expect(t.timeline(ran)).toEqual([
+      ["09:00", OFFER_WAVE_QUEUE, { status: "sent", sent: 2, next: 2 }],
+      ["09:10", OFFER_WAVE_QUEUE, { status: "sent", sent: 2, next: 3 }],
+      ["09:20", OFFER_WAVE_QUEUE, { status: "sent", sent: 1, next: null }],
+      ["16:00", ESCALATE_SHIFT_QUEUE, { status: "escalated", notified: 1 }],
+    ]);
+    expect(t.messagesAt()).toEqual([
+      ["09:00", "Ann"],
+      ["09:00", "Ben"],
+      ["09:10", "Cal"],
+      ["09:10", "Dee"],
+      ["09:20", "Eve"],
+      ["16:00", "office email"],
     ]);
   });
 

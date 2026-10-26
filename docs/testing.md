@@ -65,9 +65,10 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   (`tests/helpers/fake-worker.ts`) runs the firm's queued pg-boss jobs in order on a fake clock:
   wave 1 at the dropout, the next after the firm's minutes (15 by default) until nobody's left,
   the office emailed once at the start minus 3 hours; the firm's own size and minutes; first come,
-  first served; quiet hours hold a wave until 07:00; stop on fill (a worker or the office takes it
-  between waves: the next wave stops, the other offers become "filled elsewhere", no escalation);
-  the start ends the chain.
+  first served (one place's 5 in one wave, and the firm's own number per place every 10 minutes,
+  fewest hours first: P4.3); quiet hours hold a wave until 07:00; stop on fill (a worker or the
+  office takes it between waves: the next wave stops, the other offers become "filled
+  elsewhere", no escalation); the start ends the chain.
 - `jobs.no-resend.test.ts` (built, Phase 10) — senders failed during or just after their message and
   run again: the retry sends nothing (the office's offer, the credential warning and expiry notice,
   and login links and codes, which still work, log the send once, as unconfirmed; firm-change notices
@@ -79,11 +80,18 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   first come, first served; after the last fair-rotation wave; the office placing an offered worker
   or someone else; two places (the first booking closes nothing); "Mark as filled"; a headcount cut.
 - `offers.waves.lock.test.ts` (built, Phase 10) — a wave never holds what others wait for: a
-  300-worker first-come wave through a slow transport, where a worker's Take shift and the office's
-  Assign each finish within 2 seconds mid-wave and the wave then stops without messaging the rest;
-  a recipient's STOP or erasure lock isn't held up; a crash just after a claim never messages that
-  worker twice; two copies of a wave share it and queue one next wave; escalation emails with the
-  shift unlocked, one failed address not stopping the rest; the worker runs the real tasks.
+  300-worker first-come wave (20 per place: P4.3) through a slow transport, where a worker's Take
+  shift and the office's Assign each finish within 2 seconds mid-wave and the wave then stops
+  without messaging the rest; a recipient's STOP or erasure lock isn't held up (a wave at its
+  most, 50); a crash just after a claim never messages that worker twice; two copies of a wave
+  share it and queue one next wave (in both modes since P4.3); escalation emails with the shift
+  unlocked, one failed address not stopping the rest; the worker runs the real tasks.
+- `offers.scale.test.ts` (built, P4.3) — a big firm's gap: 2,000 made-up casuals
+  (`tests/helpers/bulk-seed.ts`, from both of Ofcom's drama number ranges) could take one urgent
+  place; each first-come wave texts 5, the fewest hours this week first, never anyone twice (10
+  offers after two waves, not 2,000). `offers.waves.test.ts` has the sizes on the real database:
+  waves of 5, 5 and 2 for one place, 20 for four, and a place booked mid-wave shrinking it to 5,
+  with the next wave reaching anyone it didn't.
 - `notify.policy.test.ts` (built) — the policy for every sender (offer waves and shift reminders,
   each through its real job): the worker's channel first (WhatsApp, or text by their choice), a
   text only after a refused WhatsApp, never both, the push after the message has gone and never

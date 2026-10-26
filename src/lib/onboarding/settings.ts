@@ -1,4 +1,4 @@
-import { escalateHours } from "../offers/waves";
+import { escalateHours, firstComeWaves, WAVE_MAX } from "../offers/waves";
 import { shortNoticeThreshold } from "../office/notice-report";
 import { parseAllocationSettings } from "../roster/allocation-input";
 import { ALLOCATION_MODES } from "../rules/allocation";
@@ -23,6 +23,7 @@ export const SETTING_KEYS = [
   "allocation_mode",
   "wave_size",
   "wave_minutes",
+  "wave_per_place",
   "urgent_window_hours",
   "escalate_hours_before_start",
   "short_notice_threshold_hours",
@@ -47,8 +48,10 @@ export const isSettingKey = (key: string): key is SettingKey =>
 
 type Settings = Record<string, unknown>;
 
-// Under fair rotation only: wave_size and wave_minutes are read with the mode set, so they can be
-// agreed before switching to it.
+// Fair rotation's numbers are read with the mode set, so they can be agreed before switching to
+// it: wave_size always, and wave_minutes under fair rotation. Under first come, first served
+// wave_minutes is read as its waves read it (firstComeWaves, P4.3), so a fair-rotation size the
+// app would refuse doesn't stop it.
 const fair = (s: Settings) => parseAllocationSettings({ ...s, allocation_mode: "fair_rotation" });
 
 // What the app reads for each key.
@@ -59,9 +62,13 @@ const READ: Record<SettingKey, (s: Settings) => SettingValue> = {
     return a.mode === "fair_rotation" ? a.groupSize : 0;
   },
   wave_minutes: (s) => {
+    if (parseAllocationSettings(s).mode === "first_come_first_served") {
+      return firstComeWaves(s).minutes;
+    }
     const a = fair(s);
     return a.mode === "fair_rotation" ? a.priorityMinutes : 0;
   },
+  wave_per_place: (s) => firstComeWaves(s).perPlace,
   urgent_window_hours: (s) => urgentWindowHours(s),
   escalate_hours_before_start: (s) => escalateHours(s),
   short_notice_threshold_hours: (s) => shortNoticeThreshold(s).hours,
@@ -83,7 +90,8 @@ const READ: Record<SettingKey, (s: Settings) => SettingValue> = {
 export const SETTING_WORDS: Record<SettingKey, string> = {
   allocation_mode: `who gets an open shift: ${ALLOCATION_MODES.join(" or ")}`,
   wave_size: "fair rotation: how many workers each wave goes to",
-  wave_minutes: "fair rotation: minutes each wave has before the next",
+  wave_minutes: "minutes each wave has before the next (both modes)",
+  wave_per_place: `first come, first served: how many workers each wave goes to per free place (1 to 20; at most ${WAVE_MAX} a wave)`,
   urgent_window_hours: "a shift starting within this many hours is urgent (never held back)",
   escalate_hours_before_start: "email the office this many hours before an unfilled start",
   short_notice_threshold_hours: "the notice report's short notice: under this many hours",

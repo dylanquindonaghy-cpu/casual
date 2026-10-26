@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { shiftEscalationEmail, shiftUrgentMessage } from "@/lib/messaging/templates";
 import type { WaveCandidate } from "@/lib/offers/candidates";
-import { escalateHours, pickWave } from "@/lib/offers/waves";
+import { escalateHours, firstComeWaves, pickWave, WAVE_MAX, waveCap } from "@/lib/offers/waves";
 import { dayWords } from "@/lib/portal/format";
 
 // The pure parts of offer waves (src/lib/offers/waves.ts) and their message copy
@@ -20,7 +20,7 @@ const candidate = (
   smsAllowed: true,
 });
 
-describe("pickWave", () => {
+describe("pickWave: the best first, in both modes", () => {
   const people = [
     candidate("d", 24),
     candidate("b", 8, new Date("2026-11-01T10:00:00Z")),
@@ -29,33 +29,73 @@ describe("pickWave", () => {
     candidate("e", 8),
   ];
 
-  it("fair rotation: fewest hours, then longest since their last offer (never offered first), then id", () => {
-    expect(pickWave(people, "fair_rotation", 3).map((c) => c.workerId)).toEqual(["a", "e", "c"]);
-    expect(pickWave(people, "fair_rotation", 10).map((c) => c.workerId)).toEqual([
-      "a",
-      "e",
-      "c",
-      "b",
-      "d",
-    ]);
+  it("fewest hours, then longest since their last offer (never offered first), then id", () => {
+    expect(pickWave(people, 3).map((c) => c.workerId)).toEqual(["a", "e", "c"]);
+    expect(pickWave(people, 10).map((c) => c.workerId)).toEqual(["a", "e", "c", "b", "d"]);
   });
 
   // Phase 10 task 19 (audit L18): with the wave's seed, ties are a shuffle fixed by the shift and
   // wave, not the lowest ids every time.
-  it("fair rotation's last tie break: fixed for a given shift and wave, different across shifts", () => {
+  it("the last tie break: fixed for a given shift and wave, different across shifts", () => {
     const tied = ["a", "b", "c", "d", "e", "f", "g", "h"].map((id) => candidate(id, 8));
-    const order = (seed: string) =>
-      pickWave(tied, "fair_rotation", 10, seed).map((c) => c.workerId);
+    const order = (seed: string) => pickWave(tied, 10, seed).map((c) => c.workerId);
     expect(order("shift-1:1")).toEqual(order("shift-1:1"));
     const firsts = new Set(Array.from({ length: 20 }, (_, i) => order(`shift-${i}:1`)[0]));
     expect(firsts.size).toBeGreaterThan(3);
     // Hours and last offer still come first: the tie break only orders the tied.
     const mixed = [candidate("z", 0), ...tied.slice(0, 3)];
-    expect(pickWave(mixed, "fair_rotation", 10, "shift-1:1")[0]?.workerId).toBe("z");
+    expect(pickWave(mixed, 10, "shift-1:1")[0]?.workerId).toBe("z");
   });
 
-  it("first come, first served: everyone at once", () => {
-    expect(pickWave(people, "first_come_first_served", 2)).toHaveLength(5);
+  // Until P4.3 first come, first served sent to everyone at once (about 1,500 texts for one place
+  // at a big firm); now it takes the best of the ranking too, up to its cap (below).
+  it("takes only as many as the wave's size, the best first", () => {
+    expect(pickWave(people, 2).map((c) => c.workerId)).toEqual(["a", "e"]);
+    expect(pickWave(people, 0)).toEqual([]);
+  });
+});
+
+describe("waveCap: how many a wave goes to (P4.3)", () => {
+  const firstCome = { mode: "first_come_first_served" } as const;
+  const fair = {
+    mode: "fair_rotation",
+    groupSize: 4,
+    priorityMinutes: 15,
+    urgentWindowHours: 24,
+  } as const;
+
+  it("first come, first served: 5 per free place by default, at most 50 a wave", () => {
+    const perPlace = firstComeWaves({}).perPlace;
+    expect(perPlace).toBe(5);
+    expect(waveCap(firstCome, { perPlace }, 1)).toBe(5);
+    expect(waveCap(firstCome, { perPlace }, 4)).toBe(20);
+    expect(waveCap(firstCome, { perPlace }, 10)).toBe(WAVE_MAX);
+    expect(WAVE_MAX).toBe(50);
+  });
+
+  it("a place taken shrinks it; a filled shift's is nothing", () => {
+    expect(waveCap(firstCome, { perPlace: 5 }, 2)).toBe(10);
+    expect(waveCap(firstCome, { perPlace: 5 }, 1)).toBe(5);
+    expect(waveCap(firstCome, { perPlace: 5 }, 0)).toBe(0);
+  });
+
+  it("fair rotation keeps its fixed wave size, whatever the places", () => {
+    expect(waveCap(fair, { perPlace: 5 }, 1)).toBe(4);
+    expect(waveCap(fair, { perPlace: 5 }, 10)).toBe(4);
+  });
+
+  it("the firm's own numbers, and the defaults for any that make no sense", () => {
+    expect(firstComeWaves({ wave_per_place: 3, wave_minutes: 10 })).toEqual({
+      perPlace: 3,
+      minutes: 10,
+    });
+    expect(firstComeWaves({})).toEqual({ perPlace: 5, minutes: 15 });
+    for (const bad of [0, 21, 2.5, "3", null]) {
+      expect(firstComeWaves({ wave_per_place: bad }).perPlace).toBe(5);
+    }
+    for (const bad of [0, 241, 2.5, "10", null]) {
+      expect(firstComeWaves({ wave_minutes: bad }).minutes).toBe(15);
+    }
   });
 });
 

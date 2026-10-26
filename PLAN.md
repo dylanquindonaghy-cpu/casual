@@ -1821,7 +1821,7 @@ ADR-027, P4.2).
       flight, nobody messaged twice after a crash, Take shift within 2 s
       (`offers.waves.lock.test.ts`); 50 casuals with 300 ms sends within about 6 s; batch verdicts
       equal single ones at 2,000 (`eligibility.batch.test.ts`) (P4.4)
-- [ ] Reminders 4 at a time, at most 200 a run, the rest by a follow-up job behind other firms'
+- [x] Reminders 4 at a time, at most 200 a run, the rest by a follow-up job behind other firms'
       (`src/lib/reminders/send.ts`). Then the `guardrails-reviewer`. Tests: 2,000 due in one slot
       sent once each, another firm's in between, nothing twice after a crash
       (`shift.reminders.test.ts`) (P4.5)

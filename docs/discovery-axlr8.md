@@ -85,26 +85,42 @@ From the firm (Dylan, 2026-10-26; not public):
 
 ## Answers
 
-Fill these in as they arrive: plain words only, no copied field lists.
+Plain words only, no copied field lists. First answers from Dylan, 2026-10-26.
 
 | # | Question | Answer | Date |
 |---|---|---|---|
-| A1 | AXLR8: PDF and sandbox | | |
-| A2 | AXLR8: REST and JSON; how it logs in | | |
-| A3 | AXLR8: reports or records; changes only | | |
-| A4 | AXLR8: one session's bookings; one person's bookings | | |
-| A5 | AXLR8: can it write bookings, cancellations, availability | | |
-| A6 | AXLR8: booking and cancellation times, reasons, time zones | | |
-| A7 | AXLR8: staff type field; qualification expiry dates | | |
-| A8 | AXLR8: webhooks | | |
-| A9 | AXLR8: limits, cost, fixed IP | | |
-| A10 | AXLR8: consent needed | | |
-| O1 | Ops portal: API or webhooks for attendance and pay lines | | |
-| O2 | Ops portal: CSV export | | |
-| O3 | Ops portal: how "Sync AXLR8 Data" runs | | |
-| O4 | Ops portal: who to talk to | | |
-| F1 | Texts: Webex Interact, whose account, replies, what AXLR8 sends | | |
-| F2 | Email: provider, forwarding, reply address, mix of mail | | |
-| F3 | Pay cycles: numbering, pay day | | |
-| F4 | Roles: pay tiers in names; contracted and holiday sessions | | |
-| F5 | Bookings for showing sessions made from ShiftDesk | | |
+| A1–A10 | AXLR8 (all ten questions) | **On hold:** AXLR8 can't be asked for now. The ops portal's API is the way in meanwhile (O1) | 2026-10-26 |
+| O1 | Ops portal: API or webhooks for attendance and pay lines | **Yes**, it has an API, and it can share attendance and pay lines per person | 2026-10-26 |
+| O2 | Ops portal: CSV export | Not needed: it can send the data by its API | 2026-10-26 |
+| O3 | Ops portal: how "Sync AXLR8 Data" runs | **Every hour**, so the portal's copy of AXLR8 can be up to an hour behind | 2026-10-26 |
+| O4 | Ops portal: who to talk to | Dylan will sort it | 2026-10-26 |
+| F1 | Texts: Webex Interact, whose account, replies, what AXLR8 sends | **Webex Interact, the firm's own account, about 20p a text, replies turned off.** Which texts AXLR8 already sends: still to ask | 2026-10-26 |
+| F2 | Email: provider, forwarding, reply address, mix of mail | **Microsoft 365 (Outlook).** Forwarding, the reply address and the mix: still to ask (follow-ups below) | 2026-10-26 |
+| F3 | Pay cycles: numbering, pay day | **Fortnightly, always paid on the Friday.** Cycle 1's start and the year-end numbering: still to ask | 2026-10-26 |
+| F4 | Roles: pay tiers in names; contracted and holiday sessions | All of them carry it; the API will show which once there's access | 2026-10-26 |
+| F5 | Bookings for showing sessions made from ShiftDesk | The office books normally (in AXLR8). Places filled overnight, out of office hours, for the next day, and urgent places, are booked through ShiftDesk; and the office can book through ShiftDesk too | 2026-10-26 |
+
+## 4. Follow-ups (from the answers above)
+
+For whoever gives access to the ops portal's API (O4):
+
+1. Besides attendance and pay lines, does the API give sessions (date, times, site, role, places
+   needed), staff (name, mobile, email, payroll number, roles, staff type), qualifications with
+   expiry dates, and who is booked on each session?
+2. Can it take writes: book a casual on a session, or cancel one, and pass that on to AXLR8? If
+   not, a booking made in ShiftDesk overnight goes on the office's "Enter in AXLR8" list for the
+   morning.
+3. Do we fetch from it, or can it send us changes as they happen (webhooks)? How does it log in?
+4. Does each booking carry when it was made and cancelled, and why or by whom? Are times given with
+   a time zone?
+5. A booking made in AXLR8 can take up to an hour to reach the portal (O3). Is that fine when
+   ShiftDesk only fills overnight and urgent places (F5)?
+
+For the firm's office or IT:
+
+1. **Texts:** which texts does AXLR8 already send casuals (booking confirmations, reminders)? Could
+   replies be turned on later (a dedicated inbound number), so casuals can text back?
+2. **Email:** Microsoft 365 blocks automatic forwarding to outside addresses by default. Can
+   IT allow it for ShiftDesk's one address? Which address should replies come from? Roughly what
+   share of the mail is from casuals?
+3. **Pay:** what date did cycle 1 start, and how are cycles numbered over the year end?

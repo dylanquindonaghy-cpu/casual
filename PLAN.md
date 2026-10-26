@@ -1205,7 +1205,10 @@ follow from the 2026-10-19 decision ("our own text system"): the sender is chose
 the firm's key in the secret store from proposal P5 (today one sender serves the whole server,
 `src/lib/messaging/index.ts`); and replies come to ShiftDesk only if AXLR8 doesn't already read
 replies on that number. A "who sends what" setting (proposal P2) keeps ShiftDesk from repeating a
-confirmation or reminder AXLR8 already sends.
+confirmation or reminder AXLR8 already sends. **Confirmed by Dylan, 2026-10-26:** Webex Interact,
+the firm's own account, about 20p a text, replies turned off. So the first two tasks apply (texts
+out, delivery reports); the third (replies) waits until the firm turns replies on with a dedicated
+inbound number, and casuals answer in the app meanwhile.
 
 Dylan to decide with it (Messages 2): the app's notification first and a text only when the phone
 has no notifications on (fewer texts to pay for), or both, as now.
@@ -1630,12 +1633,36 @@ that add a secret or the connector (worth watching as they're built). The questi
 **R** rules (each needs Dylan's OK and the `guardrails-reviewer`); **UI** changes a screen (a
 mock-up first).
 
-**Order.** Now: send the questions. After the parallel UI chat's work is merged (it edits the same
+**First answers (Dylan, 2026-10-26;** `docs/discovery-axlr8.md` "Answers"**).** AXLR8 can't be
+asked for now. The ops portal has an API that can share attendance and pay lines per person, and it
+copies from AXLR8 every hour. Texts go through the firm's own Webex Interact account, at about 20p
+a text, with replies turned off. The staffing mailbox is on Microsoft 365. Pay is fortnightly,
+always on the Friday. Bookings: the office books normally (in AXLR8); places filled overnight, out
+of office hours, for the next day, and urgent places, are booked through ShiftDesk, and the office
+can book through ShiftDesk too. (Those overnight places are filled by ShiftDesk's offer waves: code
+and the rules decide who gets a place, never AI, golden rule 1.) So:
+
+- **The ops portal's API is the first source** (P5 and P6), AXLR8 directly later (ADR-026). Its
+  copy of AXLR8 can be up to an hour old, so ShiftDesk offers casuals only the places the office
+  opens to it (urgent ones and next-day ones still open after hours), through the existing "showing
+  to casuals" switch, and a session's other places stay the office's.
+- **Texts cost money, and casuals can't text back.** At about 20p, a wave that texts 1,500 people
+  costs about £300 for one place: the wave cap ("Connecting the firm's systems" 5) matters, and so
+  does Messages 2 (Claude now recommends the app's notification first, a text only when a phone has
+  no notifications on). Phase 15's replies task waits until the firm turns replies on; casuals answer
+  in the app meanwhile.
+- **Email:** Microsoft 365 blocks automatic forwarding to outside addresses by default, so the
+  firm's IT allows it for ShiftDesk's one address (P7), or a later version reads the mailbox through
+  Microsoft's own API with the firm's consent.
+
+**Order.** Now: Dylan gets access to the ops portal's API and sends the follow-ups
+(`docs/discovery-axlr8.md` §4). After the parallel UI chat's work is merged (it edits the same
 files): P1, then P2, P4 and P3 (each item as it's decided), P5's framework and secret store, and
-P7's core, all on made-up data. After AXLR8's PDF and the answers: P5's AXLR8 connector, Phase 15
-and P6. After signing: the real AXLR8 login, a shadow cycle (P5's sessions come in hidden from
-casuals; the office compares ShiftDesk's required and booked counts with the ops portal each day
-for one pay cycle), a few events live, then everything, then the email inbox.
+P7's core, all on made-up data. Once the API's shape is known: P5's first connector (the ops
+portal), P6, and Phase 15's texts. After signing: the real API key, a shadow cycle (P5's sessions
+come in hidden from casuals; the office compares ShiftDesk's required and booked counts with the ops
+portal each day for one pay cycle), a few events live, then everything, then the email inbox.
+AXLR8 directly when it can be asked.
 
 ### P1 — The repo, easier for Claude (attended; docs and config only)
 
@@ -1689,7 +1716,8 @@ sync, webhook, reminder and offer wave runs in that worker.
 1. **Pay day** (S, UI). Quick fix first: the casual's Home takes the pay day from the imported
    `pay_records.pay_date` when there is one, as the office's pay page already does (today
    `src/app/page.tsx` works it out from the weekly rule, so a fortnightly firm's casuals would read
-   the wrong day: golden rule 9). Then a per-firm pay calendar, reversing D8 (Pay 10): 7 or 14 days,
+   the wrong day: golden rule 9). Then a per-firm pay calendar, reversing D8 (Pay 10) (the pilot firm: fortnightly, always paid on
+   the Friday after a cycle ends; cycle 1's start still to ask): 7 or 14 days,
    an anchor Monday, the pay day as days after the period ends, and the label "Week" or "Cycle". The
    pure `payWeek()` (`src/lib/pay/pay-week.ts`) becomes `payPeriod(day, calendar)` with today's rule
    as the default; the setting goes through `src/lib/onboarding/settings.ts` and a migration like
@@ -1762,10 +1790,13 @@ for a resourcer or payroll).
   `src/lib/db/admin/seed-story-load.ts`; and `docs/architecture.md`'s scale line updated to the
   target.
 
-### P5 — The connector, and AXLR8 (attended; S, A, T, M, R, UI)
+### P5 — The connector: the ops portal's API first, AXLR8 directly later (attended; S, A, T, M, R, UI)
 
-The framework and the secret store now, against a made-up system; the AXLR8 connector itself after
-its PDF and a sandbox. Under ADR-026 (`docs/decisions.md`, accepted 2026-10-26).
+The framework and the secret store now, against a made-up system; the first real connector, the
+ops portal's API, once its shape is known (`docs/discovery-axlr8.md` §4); AXLR8 directly when it
+can be asked. Under ADR-026 (`docs/decisions.md`, accepted 2026-10-26). Where the bullets below say
+AXLR8, read "the source": the ops portal passes bookings on to AXLR8 only if its API takes writes,
+else they go on the office's "Enter in AXLR8" list.
 
 - A secret store, shared later with the text system's keys: a table the app role has no rights on,
   written only by an owner script, read through an owner-run function only the jobs role may call,
@@ -1806,20 +1837,21 @@ its PDF and a sandbox. Under ADR-026 (`docs/decisions.md`, accepted 2026-10-26).
   in `scripts/invariants.sh`. A sync status card on Integrations and Needs attention items for
   conflicts (mock-ups first).
 
-### P6 — The ops portal (only if it has an API or an export; S, M, UI)
+### P6 — Attendance and pay lines from the ops portal's API (it has one: answer O1; S, M, UI)
 
 - Attendance in: worked and no-show onto bookings (`src/lib/roster/attendance.ts`), so the office
   stops marking them by hand. A no-show is still never a strike.
-- Pay lines in: one per casual per cycle into `pay_records` (a new source value, S), else the CSV pay
-  import that exists.
+- Pay lines in: one per casual per fortnightly cycle into `pay_records` (a new source value, S), so
+  the casual's pay facts and pay day come from the firm's own figures (golden rule 9).
 - Not "not checked in, so start an offer wave": a started shift can't be offered
   (`src/lib/rules/eligibility.ts`, `src/lib/offers/waves.ts`). Instead a "Still coming?" button on
   the existing 2-hour reminder, so a dropout shows while the place can still be filled (M, UI).
 
 ### P7 — The staffing email inbox (Stage 2 brought forward, decided 2026-10-26; S, A, T, M, UI)
 
-- The firm's staffing mailbox auto-forwards to its own address at a UK or EU email provider with
-  signed inbound webhooks (no AWS: ADR-021; the provider in a short ADR), to the planned
+- The firm's staffing mailbox (Microsoft 365) auto-forwards to its own address at a UK or EU email
+  provider with signed inbound webhooks (Microsoft 365 blocks forwarding to outside addresses by
+  default: the firm's IT allows it for that one address) (no AWS: ADR-021; the provider in a short ADR), to the planned
   `POST /api/webhooks/email` (`docs/api-and-jobs.md`). The firm is found by the address, like
   `resolveFirmByLine()`; one row per Message-ID and the job queued in the same transaction (golden
   rule 3). The messages table gains an email channel (today only WhatsApp, SMS and voice, and a
@@ -1978,7 +2010,7 @@ that proposal gets the go-ahead.
 | # | Decision | Default now | Where |
 |---|---|---|---|
 | 1 | **Before a pilot:** urgent messages go during quiet hours (22:00–07:00) unless a firm turns it off; the spec reads as "if the firm allows it" | Urgent messages go at night | `src/lib/rules/quiet-hours.ts`; log, Phase 4 (never flagged before) |
-| 2 | Notifications by WhatsApp or text **and** push, or push first to save the WhatsApp fee (ADR-003 said push first) | Both | Parking lot "Dylan to confirm: notifications go by WhatsApp…" |
+| 2 | Notifications by WhatsApp or text **and** push, or push first to save the WhatsApp fee (ADR-003 said push first). 2026-10-26: the pilot firm's texts cost about 20p each, so Claude recommends push first, a text only when a phone has no notifications on | Both | Parking lot "Dylan to confirm: notifications go by WhatsApp…" |
 | 3 | **Before a pilot:** first come, first served sends the urgent offer to every eligible worker at once, not "the best 3–5" | Everyone at once. **Decided** (Dylan, 2026-10-26): a cap on each wave ("Connecting the firm's systems" 5; built in P4) | Parking lot "Offer waves follow-ups" |
 | 4 | The 3-offers-a-day cap: fixed, or per firm; urgent offers count towards it | Fixed; urgent ones count | Parking lot (offer cap items) |
 | 5 | Re-offer to workers whose earlier offers became "filled elsewhere" when the office reopens a shift? | No | Parking lot |
@@ -2121,10 +2153,10 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
 | # | Decision | Until built | Where |
 |---|---|---|---|
 | 1 | **Decided** (Dylan, 2026-10-26: recommended): a pay calendar per firm (7 or 14 days, its own start, "Week" or "Cycle"), replacing D8 (Pay 10), with the quick fix first (the casual's Home shows the imported pay date when there is one) | One weekly rule for every firm; Home works the pay day out from it, so a fortnightly firm's casuals would see the wrong day | P3 item 1 |
-| 2 | **Decided** (Dylan, 2026-10-26: recommended): ADR-026, a pull connector for AXLR8 (ShiftDesk fetches from AXLR8 on a timer, rather than waiting for AXLR8 to send), amending "no adapter per planner" (ADR-022: no special code for each planner's own system): AXLR8's API looks pull-only, the firm has nobody to write pushes, and AXLR8's customers are the firms we sell to | Planners push by the API; no adapters | P5; `docs/decisions.md` ADR-026 (accepted) |
+| 2 | **Decided** (Dylan, 2026-10-26: recommended): ADR-026, a pull connector for AXLR8 (ShiftDesk fetches from AXLR8 on a timer, rather than waiting for AXLR8 to send), amending "no adapter per planner" (ADR-022: no special code for each planner's own system): AXLR8's API looks pull-only, the firm has nobody to write pushes, and AXLR8's customers are the firms we sell to. 2026-10-26: AXLR8 can't be asked for now, so the first connector reads the ops portal's API (it copies AXLR8 every hour), and AXLR8 directly comes later | Planners push by the API; no adapters | P5; `docs/decisions.md` ADR-026 (accepted) |
 | 3 | **Decided** (Dylan, 2026-10-26: recommended): the staffing email inbox brought forward from Stage 2, after P2 and P4 | Stage 2, after 3 paying firms | P7 |
 | 4 | **Decided** (Dylan, 2026-10-26: recommended): casuals' login link by email, a stop-gap until texts exist | WhatsApp only, which no live server can send | P2 |
-| 5 | **Decided** (Dylan, 2026-10-26: recommended): a cap on each offer wave (for example a few people per free place, by the existing ranking; the number is set when P4 is built): one place can mean about 1,500 texts today (an estimate: 1,500 of 2,000 casuals eligible) | First come, first served: everyone eligible at once | P4 |
+| 5 | **Decided** (Dylan, 2026-10-26: recommended): a cap on each offer wave (for example a few people per free place, by the existing ranking; the number is set when P4 is built): one place can mean about 1,500 texts today (an estimate: 1,500 of 2,000 casuals eligible), about £300 at the firm's 20p a text | First come, first served: everyone eligible at once | P4 |
 | 6 | **Decided** (Dylan, 2026-10-26: recommended): record who asked for each cancellation (casual, firm, client, unknown) apart from who carried it out, and a strikes switch per firm | Not recorded; strikes always on | P3 item 4 |
 | 7 | **Decided** (Dylan, 2026-10-26: recommended): import the CRM's Casual sessions only, never Contracted or Holiday ones | Nothing imported | P3 item 2 |
 | 8 | **Decided** (Dylan, 2026-10-26: recommended): a booking added in the CRM that the rules refuse (an expired licence) is flagged as urgent, never booked (golden rule 6) | As the rota sheet: not booked, reported | P5 |

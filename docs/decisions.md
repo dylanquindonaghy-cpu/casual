@@ -672,7 +672,7 @@ page" over showing the link on the login page.
 | A demo compose file of its own, copying the real one | Two files to keep in step; the demo file changes only what differs |
 | The demo's database at the host (managed Postgres) | Costs more for made-up data loaded afresh every night |
 
-## ADR-026: A pull connector for a CRM that can't push, first AXLR8
+## ADR-026: A pull connector for a firm's system that can't push (the ops portal first, then AXLR8)
 
 **Status:** Accepted, 2026-10-26 (Dylan, in chat: "go with your recommendations on the 8
 decisions"; `PLAN.md`, "Connecting the firm's systems" 2). Built as proposal P5 once it gets the
@@ -686,7 +686,15 @@ planner API (ADR-022), so with a push-only design its sessions would never arriv
 made in AXLR8 would never reach ShiftDesk, which would then offer places the office already filled.
 ShiftDesk already polls one outside source safely: the Google Sheets plug (ADR-013), with a
 per-firm tick, a lease, one read, one transaction to mirror and a three-way merge of who holds each
-place.
+place. **2026-10-26, Dylan's first answers** (`docs/discovery-axlr8.md`): AXLR8 can't be asked for
+now, but the firm's ops portal has an API that can share attendance and pay lines, and it copies
+from AXLR8 every hour. So the first connector reads the ops portal's API, and AXLR8 directly comes
+later. If the portal can instead call our planner API for its sessions, that push path (ADR-022)
+carries sessions, and the connector reads only what the planner API can't take (staff,
+qualifications, bookings, attendance, pay lines). The office books normally in AXLR8; ShiftDesk
+books overnight next-day places and urgent ones (and the office can book through it too), so
+ShiftDesk offers casuals only the places the office opens to it, and the portal's hour-old copy is
+enough for the rest.
 **Decision:**
 - **Pull connectors are allowed** for a CRM that many of our target firms use and that can't push.
   The API in and the webhooks out stay the way for every other planner. AXLR8 is the first; each
@@ -738,7 +746,7 @@ place.
 |---|---|
 | Push only (ADR-022 as it is) | The firm can't push; its data would never arrive |
 | A bridge script outside ShiftDesk that reads AXLR8 and calls our API | Someone has to run and watch it; it can't take part in the booking path, so the double-booking gap stays |
-| The firm's ops portal as the source | It copies from AXLR8 ("Sync AXLR8 Data"), so its data is a step behind; and its builder and API are unknown |
+| The firm's ops portal as the source | First rejected (its builder and API unknown; it copies from AXLR8, so a step behind). **Chosen first, 2026-10-26:** it has an API and AXLR8 can't be asked for now; the hour's lag is covered by ShiftDesk only offering the places the office opens to it |
 | Zapier, Make or n8n | Needs a trigger on AXLR8's side that we haven't seen; same ordering limits as ADR-022 |
 | A copy of the planner API's logic inside the connector | Two places for the rules on booked sessions to drift apart |
 **Consequences:** the first per-firm secret, so a breach of the database alone mustn't reveal it

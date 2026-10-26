@@ -70,10 +70,11 @@ describe("worker (real pg-boss on the test database, as the jobs role)", () => {
     expect(job.state).toBe("failed");
   });
 
-  // Offer waves one per fetch (P4.4). pg-boss never bursts at a batch of 1, so at its 2-second poll 5
-  // short waves would start about 8 seconds apart from first to last; at the waves' half-second poll,
-  // about 2. On its own queue, so no other file's queued jobs are in the way.
-  it("a queue of short jobs under the offer waves' options starts each within half a second of the last", async () => {
+  // Offer waves one per fetch (P4.4). pg-boss never bursts at a batch of 1, so at its 2-second poll
+  // each short wave would start about 2 seconds after the one before (8 from first to last of 5); at
+  // the waves' half-second poll, about half a second. On its own queue, so no other file's queued
+  // jobs are in the way.
+  it("a queue of short jobs under the offer waves' options starts each within a second of the one before", async () => {
     const queue = `waves-drain-${Date.now()}`;
     await boss.createQueue(queue);
     const started: number[] = [];
@@ -89,7 +90,8 @@ describe("worker (real pg-boss on the test database, as the jobs role)", () => {
     await boss.offWork(queue);
     await boss.deleteQueue(queue);
     expect(started).toHaveLength(5);
-    const span = (started.at(-1) ?? 0) - (started[0] ?? 0);
-    expect(span).toBeLessThan(4_000);
+    const gaps = started.slice(1).map((at, i) => at - (started[i] ?? at));
+    for (const gap of gaps) expect(gap).toBeLessThan(1_000);
+    expect((started.at(-1) ?? 0) - (started[0] ?? 0)).toBeLessThan(4_000);
   }, 30_000);
 });

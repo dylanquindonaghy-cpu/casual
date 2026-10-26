@@ -374,7 +374,9 @@ export const TRAVEL_WORK_OPTIONS = { ...FIRM_WORK_OPTIONS, batchSize: 1 } as con
 // 1 (burstWhenBatchFull is ignored there), so the loop polls every half second (pg-boss's least)
 // instead of every 2: a wave longer than 0.4 s is followed by the next at once, a shorter one waits
 // at most 0.5 s, and a new urgent wave is picked up within half a second. That costs 2 small
-// fetches a second on this queue (tests/integration/worker.hello.test.ts).
+// fetches a second on this queue (tests/integration/worker.hello.test.ts). Not built on
+// FIRM_WORK_OPTIONS: its burstWhenBatchFull does nothing at a batch of 1, and a default added
+// there later should be chosen for waves on purpose (tests/unit/worker.firm-work.test.ts pins it).
 export const OFFER_WAVE_WORK_OPTIONS = {
   perJobResults: true,
   batchSize: 1,

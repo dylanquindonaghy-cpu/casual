@@ -792,11 +792,13 @@ it queues with no end. Postgres has the limits (`statement_timeout`,
   in the same `select` that sets `app.current_firm_id`, so they cost no extra round trip and end
   with the transaction like the firm id does. A pooled connection never carries them into the next
   transaction, and a connection pooler in transaction mode (pgbouncer) keeps working.
-- **Longer for the few that need it**, as the transaction's first statement
-  (`allowLonger(tx, LONG_TRANSACTIONS.…)`): the credential scan's lock holder (it sits idle by
-  design while the scan's messages go, so no idle limit, and 6 minutes for its statements, above
-  its own 5-minute `lock_timeout`), the firm's data export (2 minutes), the retention purge (10) and
-  the metrics roll-up (5).
+- **Longer for the few that need it**, named in one list (`LONG_TRANSACTIONS` in
+  `src/lib/db/scoped.ts`; `allowLonger(tx, "…")` takes only a name from it, so a new one is added
+  there with its reason): the credential scan's lock holder (it sits idle by design while the
+  scan's messages go, so no idle limit, and 6 minutes for its statements, above its own 5-minute
+  `lock_timeout`), the firm's data export (2 minutes), the retention purge (10) and the metrics
+  roll-up (5: set inside `rollupFirm()` itself, so the job and the office's "Update the figures
+  now" button both have it). They hold from that statement to the transaction's end.
 - `createWithFirm(pool)` with no limits behaves as before, so tests choose their own.
 - withFirm counts the waits for a connection over 1 s and the waits that ran out, for the backlog
   alerts (P4.8).
@@ -809,6 +811,9 @@ it queues with no end. Postgres has the limits (`statement_timeout`,
 **Consequences:** a legitimately long statement now fails with SQLSTATE 57014 (statement timeout),
 and a transaction left idle too long ends its connection with 25P03; both show as a failed page or
 a failed job (pg-boss retries it), never as a silent wait. The known long ones are listed above;
-any new one must use `allowLonger`. `docs/runbooks.md` says what the two codes mean.
+any new one must use `allowLonger`. A wait for a lock counts against the statement limit too: a
+second weekly list behind a running scan's holder fails after 60 s (and pg-boss retries it), and
+an office edit queued behind a big sheet sync's row locks fails after 15 s instead of waiting.
+`docs/runbooks.md` says what the codes mean.
 **Revisit when:** a second web process or a connection pooler is added (the budget: about 30
 connections today), or a job needs more than 10 minutes for one statement.

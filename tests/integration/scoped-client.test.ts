@@ -40,6 +40,17 @@ describe("withFirm", () => {
     expect(row).toEqual({ db: urls.name, user: "shiftdesk_app", firm: A.firmId });
   });
 
+  it("the default withFirm runs with the web profile's limits (P4.2; ADR-027)", async () => {
+    const limits = await withFirm(A.firmId, async (tx) => {
+      const r = await tx.execute<{ statement: string; idle: string }>(
+        sql`select current_setting('statement_timeout') as statement,
+                   current_setting('idle_in_transaction_session_timeout') as idle`,
+      );
+      return r.rows[0];
+    });
+    expect(limits).toEqual({ statement: "15s", idle: "30s" });
+  });
+
   it("the firm setting ends with the transaction, on the very same pooled connection", async () => {
     const pool = new Pool({ connectionString: urls.app, max: 1 });
     try {
@@ -195,17 +206,29 @@ describe("withFirm's time limits", () => {
       const limited = createWithFirm(pool, {
         limits: { statementMs: 1234, idleInTransactionMs: 5678 },
       });
+      // The statement that runs in production: the firm and the limits together. The firm is set
+      // and gone with them, as without limits (the canary above).
       const inside = await limited(A.firmId, async (tx) => {
-        const { rows } = await tx.execute<{ pid: number; statement: string; idle: string }>(
+        const { rows } = await tx.execute<{
+          pid: number;
+          statement: string;
+          idle: string;
+          firm: string | null;
+        }>(
           sql`select pg_backend_pid() as pid, current_setting('statement_timeout') as statement,
-                     current_setting('idle_in_transaction_session_timeout') as idle`,
+                     current_setting('idle_in_transaction_session_timeout') as idle,
+                     app_current_firm_id() as firm`,
         );
         return rows[0];
       });
-      expect(inside).toMatchObject({ statement: "1234ms", idle: "5678ms" });
+      expect(inside).toMatchObject({ statement: "1234ms", idle: "5678ms", firm: A.firmId });
       const after = await settings(pool);
       expect(after?.pid).toBe(inside?.pid);
       expect(after).toMatchObject({ statement: "0", idle: "0" });
+      const firmAfter = await settingAndPid(pool);
+      expect(firmAfter?.pid).toBe(inside?.pid);
+      expect(firmAfter?.firm).toBeNull();
+      expect(firmAfter?.setting ?? "").toBe("");
     } finally {
       await pool.end();
     }

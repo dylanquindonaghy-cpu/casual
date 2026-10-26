@@ -27,7 +27,7 @@ export { chooseDbProfile, type DbLimits } from "./pool";
 // The process's time limits (P4.2; ADR-027) are set in the same statement, the same way, so they
 // end with the transaction too: a statement that runs longer fails (SQLSTATE 57014), and a
 // transaction left idle longer ends its connection (25P03). The few that need longer say so with
-// allowLonger() as their first statement.
+// allowLonger(), which holds from that statement to the transaction's end.
 
 export type FirmTx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 export type WithFirm = <T>(firmId: string, fn: (tx: FirmTx) => Promise<T>) => Promise<T>;
@@ -52,9 +52,13 @@ export const SLOW_CONNECTION_WAIT_MS = 1_000;
 
 const ms = (n: number) => `${n}ms`;
 
-// pg's own words when no connection came within connectionTimeoutMillis (pg-pool).
+// pg-pool's own words when no connection came within connectionTimeoutMillis: none free in time,
+// or a new one too slow to open.
 const isConnectTimeout = (err: unknown) =>
-  err instanceof Error && /timeout exceeded when trying to connect/i.test(err.message);
+  err instanceof Error &&
+  /timeout exceeded when trying to connect|connection terminated due to connection timeout/i.test(
+    err.message,
+  );
 
 // Builds a withFirm bound to a pool. App code uses the default `withFirm` below; tests use this
 // to control the pool size, and the limits (none unless given).
@@ -109,8 +113,13 @@ export const LONG_TRANSACTIONS = {
   metricsRollup: { statementMs: 5 * 60_000, idleInTransactionMs: 60_000 },
 } as const satisfies Record<string, DbLimits>;
 
-// Longer limits for this transaction only: its first statement (they end with it, like withFirm's).
-export async function allowLonger(tx: FirmTx, limits: DbLimits): Promise<void> {
+// Longer limits for this transaction only, from this statement to its end (they end with it, like
+// withFirm's). Only the ones listed above: a new one is added there, with its reason.
+export async function allowLonger(
+  tx: FirmTx,
+  which: keyof typeof LONG_TRANSACTIONS,
+): Promise<void> {
+  const limits: DbLimits = LONG_TRANSACTIONS[which];
   await tx.execute(
     sql`select set_config('statement_timeout', ${ms(limits.statementMs)}, true),
                set_config('idle_in_transaction_session_timeout',

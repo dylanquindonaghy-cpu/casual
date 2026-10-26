@@ -64,7 +64,8 @@ mornings). Reliability matters far more than scale.
   profile (`src/lib/db/pool.ts`): the web app a pool of 10, a 5 s wait for a connection, 15 s
   statements and 30 s idle; the worker (`chooseDbProfile("worker")`) a pool of 15, 30 s, 60 s and
   60 s. The credential scan's lock holder, the firm's data export, the retention purge and the
-  metrics roll-up take longer ones with `allowLonger()`.
+  metrics roll-up (its job and the office's "Update the figures now") take longer ones with
+  `allowLonger()`, from a named list.
 - **RLS** is enabled and forced on every table, with one policy:
   `firm_id = (select app_current_firm_id())`, where `app_current_firm_id()` returns NULL when no
   firm is set, so a query outside `withFirm` sees nothing and can write nothing.

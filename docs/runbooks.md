@@ -656,6 +656,10 @@ Since P4.2 (ADR-027) nothing waits for ever. In the logs or a failed job:
   and the pool opens a new one. Work outside the database belongs outside the transaction.
 - **"timeout exceeded when trying to connect"**: every connection in the process's pool was busy
   for 5 s (web) or 30 s (worker). Look for a slow query holding them, then at the pool sizes.
+  **"Connection terminated due to connection timeout"** is the same limit for a new connection
+  the database was too slow to open: check the database's load and its connection count.
+- A wait for a lock counts against the statement limit: a 57014 can mean the statement was waiting
+  behind another transaction's locks (a big sheet sync, a running scan), not that it was slow.
 
 The connection budget: the web app's pool of 10, the worker's 15 and pg-boss's 5, about 30 in all,
 plus a one-off migration or owner command. The database's `max_connections` must be well above

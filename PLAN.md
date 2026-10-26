@@ -4182,6 +4182,10 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
   with `firm_id` (today only unique keys are checked, `tests/integration/rls.every-table.test.ts`);
   (4) a partial `assignments_firm_id_cancelled_at_idx` (`where cancelled_at is not null`) if the
   table grows large: most rows are never cancelled.
+- P4.2's guardrails review (2026-10-26), not blocking: (1) let only `src/worker` import
+  `chooseDbProfile` (an ESLint `importNames` rule; today any code could switch a process's profile
+  before its first query); (2) `tests/unit/db.limits.test.ts` counts pg-boss's pool as 5 by hand:
+  read it from `src/worker/boss.ts` if that ever changes.
 
 ## Hours log
 

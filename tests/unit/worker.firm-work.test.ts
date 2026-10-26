@@ -1,7 +1,14 @@
 import type { PgBoss } from "pg-boss";
 import { describe, expect, it } from "vitest";
 import { firmJobEnvelope, type FirmTask } from "@/lib/jobs/firm-job";
-import { FIRM_WORK_OPTIONS, inOrder, registerFirmTask } from "@/worker/jobs";
+import { ESCALATE_SHIFT_QUEUE, OFFER_WAVE_QUEUE } from "@/lib/offers/waves";
+import {
+  FIRM_WORK_OPTIONS,
+  inOrder,
+  OFFER_WAVE_WORK_OPTIONS,
+  registerFirmTask,
+  registerJobs,
+} from "@/worker/jobs";
 
 // How the worker takes firm jobs (src/worker/jobs/index.ts): up to 5 per fetch, fetching again at
 // once while fetches come back full (the load smoke's fix), and the jobs of a batch still one after
@@ -59,6 +66,30 @@ describe("firm jobs, taken in bursts and run in order", () => {
     ]);
     expect(order).toEqual(["stop", "fails", "why"]);
     expect(most).toBe(1);
+  });
+
+  it("offer waves one per fetch (P4.4), polled every half second", async () => {
+    const options = new Map<string, unknown>();
+    const boss = {
+      createQueue: async () => undefined,
+      updateQueue: async () => undefined,
+      work: async (name: string, opts: unknown) => {
+        options.set(name, opts);
+        return "id";
+      },
+      schedule: async () => undefined,
+      unschedule: async () => undefined,
+    } as unknown as PgBoss;
+    await registerJobs(boss);
+    // One per fetch; pg-boss ignores burstWhenBatchFull at a batch of 1, so a half-second poll.
+    expect(OFFER_WAVE_WORK_OPTIONS).toEqual({
+      perJobResults: true,
+      batchSize: 1,
+      pollingIntervalSeconds: 0.5,
+    });
+    expect(options.get(OFFER_WAVE_QUEUE)).toEqual(OFFER_WAVE_WORK_OPTIONS);
+    // The rest as before: escalation, say.
+    expect(options.get(ESCALATE_SHIFT_QUEUE)).toEqual(FIRM_WORK_OPTIONS);
   });
 
   it("inOrder waits for each before starting the next", async () => {

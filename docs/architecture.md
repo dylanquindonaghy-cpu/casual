@@ -355,7 +355,9 @@ docs/api-and-jobs.md, `offer-wave` and `escalate-shift`)
 5. When filled, cancel remaining jobs and tell open offers "now filled".
 Each wave claims one worker at a time (the shift locked for milliseconds), then sends with no
 transaction open, then records: a booking never waits for a wave's messages, and a retry never
-messages anyone twice (the reminders' claim → send → record).
+messages anyone twice (the reminders' claim → send → record). Up to 4 messages go at once
+(P4.4), each lane holding at most one of the worker's connections at a time, so a wave of 50 with
+300 ms sends takes about 4 seconds, not 15; the claims stay one after another.
 
 **What casuals see (the event and session switches)** (12B.4; docs/office-v2.md 3.3)
 Every shift belongs to an event (`shift_events`), and both carry a "showing to casuals" switch.

@@ -4193,6 +4193,19 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
   `src/lib/offers/waves.ts`). With 1 per place (or a fair-rotation size of 1), 1 minute apart and
   over 1,000 eligible, queueing wave 1,001 fails the job, retried, with no `offer.waves_stopped`
   row. Stop the chain with its own reason at the limit instead (its words for the office first).
+- P4.4's measurements (2026-10-26), not blocking: at 2,000 casuals an offer wave's candidate list
+  takes about 0.85 s once the tables are analysed, about 0.7 s of it the rules themselves
+  (`checkEligibility`, about 0.35 ms a casual; the batch loader is about 0.1 s since its rows are
+  grouped by casual, 0.3 s before). Profile the rules if waves at that size need to start faster.
+  Before the first analyse after a big import, the hours query alone took 1.8 s (a poor plan with
+  no statistics; not JIT): `docs/runbooks.md` says to run `ANALYZE` as the owner, or wait a minute.
+- P4.4's guardrails review (2026-10-26), not blocking: an offer can be logged both `offer.sent`
+  {unconfirmed} and `offer.send_failed`. A second copy of a wave logs the first copy's in-flight
+  claims as unconfirmed (`logUnconfirmedOffers`), and if one of those sends then fails, the failure
+  branch in `src/lib/offers/waves.ts` (unlike the success branch) doesn't check `lockOfferOutcome`
+  first; the notice report counts the `offer.sent`. An old gap, wider with 4 sends in flight. Decide
+  what the log should say then (the append-only log can't take the first back), then fix both
+  branches the same way.
 
 ## Hours log
 

@@ -160,7 +160,7 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   await registerFirmTask(boss, sendPortalLinkTask);
   await registerFirmTask(boss, sendLoginCodeTask);
   // Offer waves and escalation for urgent gaps (messages through the configured transport).
-  await registerFirmTask(boss, deps.offers?.wave ?? offerWaveTask);
+  await registerFirmTask(boss, deps.offers?.wave ?? offerWaveTask, OFFER_WAVE_WORK_OPTIONS);
   await registerFirmTask(boss, deps.offers?.escalate ?? escalateShiftTask);
   // An offer the office sends to one worker (the dashboard's "Offer to someone").
   await registerFirmTask(boss, deps.offers?.office ?? officeOfferTask);
@@ -366,7 +366,23 @@ export const WEBHOOK_WORK_OPTIONS = {
 // inside its own expiry.
 export const TRAVEL_WORK_OPTIONS = { ...FIRM_WORK_OPTIONS, batchSize: 1 } as const;
 
-type FirmWorkOptions = typeof FIRM_WORK_OPTIONS | typeof TRAVEL_WORK_OPTIONS;
+// Offer waves (P4.4): one per fetch. A wave runs for seconds (up to 50 messages, 4 at a time:
+// src/lib/offers/waves.ts), and a fetched batch's other waves are marked taken (active) the whole
+// time it runs: hidden from another worker process, and their expiry clock running. With this one
+// worker process the next wave still waits for the one running (one loop), so this keeps the
+// queue's state true rather than making waves run side by side. pg-boss never bursts at a batch of
+// 1 (burstWhenBatchFull is ignored there), so the loop polls every half second (pg-boss's least)
+// instead of every 2: a wave longer than 0.4 s is followed by the next at once, a shorter one waits
+// at most 0.5 s, and a new urgent wave is picked up within half a second. That costs 2 small
+// fetches a second on this queue (tests/integration/worker.hello.test.ts).
+export const OFFER_WAVE_WORK_OPTIONS = {
+  perJobResults: true,
+  batchSize: 1,
+  pollingIntervalSeconds: 0.5,
+} as const;
+
+type FirmWorkOptions =
+  typeof FIRM_WORK_OPTIONS | typeof TRAVEL_WORK_OPTIONS | typeof OFFER_WAVE_WORK_OPTIONS;
 
 // One after another, in the batch's order, one result per job.
 export async function inOrder<J, R>(jobs: J[], run: (job: J) => Promise<R>): Promise<R[]> {

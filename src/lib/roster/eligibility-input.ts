@@ -389,6 +389,12 @@ export async function loadEligibilityInputs(
   const ruleOf = new Map(rules.map((r) => [r.role, [...r.requiredTypes]]));
   const appliedAllowedTypes = types.filter((t) => t.appliedAllowed).map((t) => t.code);
   const names = Object.fromEntries(types.map((t) => [t.code, t.name]));
+  // Each worker's rows, grouped once (P4.4): the offer candidate list asks for every worker with
+  // the role (about 2,000 at a big firm), and searching every row for each worker grew with the
+  // square of that. Each group keeps the rows' order, so every input is the same as before.
+  const heldBy = byWorker(held);
+  const othersBy = byWorker(others);
+  const unavailableBy = byWorker(unavailable);
   for (const shift of shiftRows) {
     const span = daysOf(shift);
     const day = booked.get(span.first);
@@ -399,9 +405,11 @@ export async function loadEligibilityInputs(
         now: batch.now,
         timeZone: zone,
         worker: { id: worker.id, status: worker.status, roles: [...worker.roles] },
-        credentials: held
-          .filter((c) => c.workerId === worker.id)
-          .map((c) => ({ type: c.type, status: c.status, expiresOn: c.expiresOn })),
+        credentials: (heldBy.get(worker.id) ?? []).map((c) => ({
+          type: c.type,
+          status: c.status,
+          expiresOn: c.expiresOn,
+        })),
         shift: {
           id: shift.id,
           role: shift.role,
@@ -411,22 +419,16 @@ export async function loadEligibilityInputs(
           startsAt: shift.startsAt,
           endsAt: shift.endsAt,
         },
-        otherAssignments: others
+        otherAssignments: (othersBy.get(worker.id) ?? [])
           .filter(
             (o) =>
-              o.workerId === worker.id &&
               o.shiftId !== shift.id &&
               o.endsAt.getTime() > shift.startsAt.getTime() - NEARBY_MS &&
               o.startsAt.getTime() < shift.endsAt.getTime() + NEARBY_MS,
           )
           .map((o) => ({ shiftId: o.shiftId, startsAt: o.startsAt, endsAt: o.endsAt })),
-        unavailableDates: unavailable
-          .filter(
-            (u) =>
-              u.workerId === worker.id &&
-              u.day >= addDays(span.first, -1) &&
-              u.day <= addDays(span.last, 1),
-          )
+        unavailableDates: (unavailableBy.get(worker.id) ?? [])
+          .filter((u) => u.day >= addDays(span.first, -1) && u.day <= addDays(span.last, 1))
           .map((u) => u.day),
         settings: {
           minRestHours: settings.min_rest_hours,
@@ -444,6 +446,18 @@ export async function loadEligibilityInputs(
         names,
       });
     }
+  }
+  return out;
+}
+
+// Rows by their worker, each list in the rows' order.
+function byWorker<R extends { workerId: string | null }>(rows: R[]): Map<string, R[]> {
+  const out = new Map<string, R[]>();
+  for (const row of rows) {
+    if (row.workerId === null) continue;
+    const list = out.get(row.workerId);
+    if (list) list.push(row);
+    else out.set(row.workerId, [row]);
   }
   return out;
 }

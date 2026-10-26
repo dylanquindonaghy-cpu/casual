@@ -15,6 +15,7 @@ import {
   pairKey,
 } from "@/lib/roster/eligibility-input";
 import { bookingFirm, hoursFromNow, NOW } from "../helpers/booking-fixture";
+import { BULK_MAX, bulkBookings, bulkWorkers } from "../helpers/bulk-seed";
 import { appRolePool, superuserPool } from "../helpers/db";
 
 // The batched rules input (loadEligibilityInputs, previewBookings) and fair-rotation gate
@@ -123,6 +124,18 @@ async function mixedFirm() {
   return { f, w, s };
 }
 
+// A rules input with its lists in one order (the loaders may list them differently).
+const comparable = (input: Awaited<ReturnType<typeof loadEligibilityInput>> | undefined) => ({
+  ...input,
+  credentials: sorted(input?.credentials ?? []),
+  otherAssignments: sorted(input?.otherAssignments ?? []),
+  unavailableDates: sorted(input?.unavailableDates ?? []),
+  settings: {
+    ...input?.settings,
+    appliedAllowedTypes: sorted(input?.settings.appliedAllowedTypes ?? []),
+  },
+});
+
 // Every pair, batched and single: the same rules input and the same verdict. Returns the batch's
 // verdicts and how many pairs were refused.
 async function expectParity(firmId: string, shiftIds: string[], workerIds: string[], now: Date) {
@@ -140,25 +153,7 @@ async function expectParity(firmId: string, shiftIds: string[], workerIds: strin
       }));
       const batch = inputs.get(pairKey(shiftId, workerId));
       expect(batch).toBeDefined();
-      expect({
-        ...batch,
-        credentials: sorted(batch?.credentials ?? []),
-        otherAssignments: sorted(batch?.otherAssignments ?? []),
-        unavailableDates: sorted(batch?.unavailableDates ?? []),
-        settings: {
-          ...batch?.settings,
-          appliedAllowedTypes: sorted(batch?.settings.appliedAllowedTypes ?? []),
-        },
-      }).toEqual({
-        ...single.input,
-        credentials: sorted(single.input?.credentials ?? []),
-        otherAssignments: sorted(single.input?.otherAssignments ?? []),
-        unavailableDates: sorted(single.input?.unavailableDates ?? []),
-        settings: {
-          ...single.input?.settings,
-          appliedAllowedTypes: sorted(single.input?.settings.appliedAllowedTypes ?? []),
-        },
-      });
+      expect(comparable(batch)).toEqual(comparable(single.input));
       expect(verdicts.get(pairKey(shiftId, workerId))).toEqual(single.verdict);
       if (!single.verdict?.ok) refused += 1;
     }
@@ -359,6 +354,86 @@ function countingPool() {
   });
   return { pool, counter, run: createWithFirm(pool) };
 }
+
+describe("at a big firm's size (P4.4)", () => {
+  it("2,000 workers for one shift: the batch's input and verdict are the single loader's, for every one", async () => {
+    const f = await bookingFirm(su, withFirm, {
+      settings: { credential_applied_allowance_pct: 15 },
+    });
+    const ids = await bulkWorkers(su, f.firmId, BULK_MAX);
+    const shiftId = await f.shift({ role: "door_supervisor", startsAt: hoursFromNow(30) }); // Tue 15:00
+    const { rows: site } = await su.query<{ id: string }>(
+      "insert into sites (firm_id, name) values ($1, 'Riverside Arena') returning id::text",
+      [f.firmId],
+    );
+    await su.query("update shifts set site_id = $2 where id = $1", [shiftId, site[0]?.id]);
+    // A mix, by position: an expired licence, one applied for, a day off, a booking that overlaps,
+    // inactive, barred from the site, and the rest who can take it.
+    const every = (k: number) => ids.filter((_, i) => i % 7 === k);
+    await su.query(
+      `update credentials set status = 'expired', expires_on = '2026-10-01'
+        where type = 'SIA_DS' and worker_id = any($1::uuid[])`,
+      [every(1)],
+    );
+    await su.query(
+      `update credentials set status = 'applied', expires_on = null
+        where type = 'SIA_DS' and worker_id = any($1::uuid[])`,
+      [every(2)],
+    );
+    await su.query(
+      `insert into worker_unavailable_days (firm_id, worker_id, day)
+       select $1, unnest($2::uuid[]), '2026-11-03'`,
+      [f.firmId, every(3)],
+    );
+    const overlapping = await f.shift({ startsAt: hoursFromNow(29), headcount: 1000 });
+    await bulkBookings(su, f.firmId, overlapping, every(4));
+    await su.query("update workers set status = 'inactive' where id = any($1::uuid[])", [every(5)]);
+    await su.query(
+      `insert into worker_site_blocks (firm_id, worker_id, site_id, reason)
+       select $1, unnest($2::uuid[]), $3, 'incident'`,
+      [f.firmId, every(6), site[0]?.id],
+    );
+
+    const { inputs, verdicts } = await withFirm(f.firmId, async (tx) => ({
+      inputs: await loadEligibilityInputs(tx, { shiftIds: [shiftId], workerIds: ids, now: NOW }),
+      verdicts: await previewBookings(tx, { shiftIds: [shiftId], workerIds: ids, now: NOW }),
+    }));
+    expect(inputs.size).toBe(BULK_MAX);
+    // The single loader, worker by worker (in one transaction: 2,000 of them).
+    const singles = await withFirm(f.firmId, async (tx) => {
+      const out: {
+        workerId: string;
+        input: Awaited<ReturnType<typeof loadEligibilityInput>>;
+        verdict: Awaited<ReturnType<typeof previewBooking>>;
+      }[] = [];
+      for (const workerId of ids) {
+        out.push({
+          workerId,
+          input: await loadEligibilityInput(tx, { shiftId, workerId, now: NOW }),
+          verdict: await previewBooking(tx, { shiftId, workerId, now: NOW }),
+        });
+      }
+      return out;
+    });
+    for (const single of singles) {
+      const key = pairKey(shiftId, single.workerId);
+      expect(comparable(inputs.get(key))).toEqual(comparable(single.input));
+      expect(verdicts.get(key)).toEqual(single.verdict);
+    }
+    // The mix really does give each kind of answer.
+    const codes = new Set([...verdicts.values()].flatMap((v) => v.codes));
+    for (const code of [
+      "credential_expired",
+      "unavailable",
+      "overlap",
+      "not_active",
+      "blocked_site",
+    ]) {
+      expect([...codes]).toContain(code);
+    }
+    expect([...verdicts.values()].filter((v) => v.ok).length).toBeGreaterThan(200);
+  }, 300_000);
+});
 
 describe("a bounded number of queries (audit L73, L75)", () => {
   it("Open shifts and the urgent board: the same count for 5 shifts as for 40", async () => {

@@ -367,23 +367,30 @@ describe("the answers stay true afterwards", () => {
       run: withFirm,
       clock,
     };
-    // While the message to `failing` is going out, someone else takes the shift; then that send
-    // fails (a timeout: it never arrived).
+    // Once `failing` is claimed and before that message goes, someone else takes the shift (the
+    // fill closes the offer); then that send fails (a timeout: it never arrived). The take is made
+    // just after the claim, not inside the send: with 4 messages at once (P4.4) the next claim no
+    // longer waits for this send, and would race the take.
+    const run: WithFirm = async (firmId, fn) => {
+      const value = await withFirm(firmId, fn);
+      const claim = value as { kind?: unknown; contact?: { mobile?: unknown } } | null;
+      if (claim?.kind === "claimed" && claim.contact?.mobile === failingMobile) {
+        expect((await takeShift(portal, taker, shiftId)).status).toBe("booked");
+      }
+      return value;
+    };
     const { transport: capture } = captureTransport();
     const transport: typeof capture = {
       name: "capture",
       async send(message) {
-        if (message.to === failingMobile) {
-          expect((await takeShift(portal, taker, shiftId)).status).toBe("booked");
-          throw new Error("timed out");
-        }
+        if (message.to === failingMobile) throw new Error("timed out");
         return capture.send(message);
       },
     };
     expect(
       await runOfferWave(
         { firmId: f.firmId, idempotencyKey: `offer-wave:${shiftId}:1`, shiftId, wave: 1 },
-        withFirm,
+        run,
         { transport, push: noPush, baseDomain: "localhost:3000", clock },
       ),
     ).toEqual({ status: "stopped", reason: "filled", sent: 1 });

@@ -11,6 +11,7 @@ import {
   OFFER_WAVE_QUEUE,
   runEscalation,
   runOfferWave,
+  WAVE_SENDS_AT_ONCE,
   type OfferDeps,
   type WaveResult,
 } from "@/lib/offers/waves";
@@ -47,6 +48,8 @@ afterAll(async () => {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const BOUND_MS = 2_000;
+// A wave of 50 with 300 ms sends: 4 at a time is about 4 seconds of sending (P4.4).
+const WAVE_BOUND_MS = 6_000;
 const noPush: PushTransport = {
   name: "none",
   async send() {
@@ -140,7 +143,7 @@ describe("a wave going out holds nothing anyone else is waiting for", () => {
       { allocation_mode: "first_come_first_served", wave_per_place: 20 },
       2,
     );
-    const slow = slowTransport(200); // up to 40 messages: about 8 s of sending
+    const slow = slowTransport(500); // up to 40 messages, 4 at a time (P4.4): about 5 s of sending
     const wave = runOfferWave(payload(t.f, t.shiftId), withFirm, depsFor(slow.transport));
     await slow.firstSent;
 
@@ -205,7 +208,7 @@ describe("a wave going out holds nothing anyone else is waiting for", () => {
       { allocation_mode: "first_come_first_served", wave_per_place: 20 },
       3,
     );
-    const slow = slowTransport(40); // 50 messages: about 2 s of sending
+    const slow = slowTransport(160); // 50 messages, 4 at a time: about 2 s of sending
     const wave = runOfferWave(payload(t.f, t.shiftId), withFirm, depsFor(slow.transport));
     await slow.firstSent;
     const mobile = slow.sent[0]?.to ?? "";
@@ -223,6 +226,67 @@ describe("a wave going out holds nothing anyone else is waiting for", () => {
     expect(stop.value).toHaveLength(1);
     expect(stop.ms).toBeLessThan(BOUND_MS);
     expect(await wave).toEqual({ status: "sent", sent: 50, next: 2 });
+  }, 60_000);
+
+  it("4 messages at once at most, and the claims one after another, never two at once (P4.4)", async () => {
+    const t = await waveFirm(20, {
+      allocation_mode: "first_come_first_served",
+      wave_per_place: 20,
+    });
+    // Each send waits (up to half a second) until 4 are going, so the count doesn't hang on how
+    // fast the claims are; 20 is 5 rounds of 4.
+    let going = 0;
+    let most = 0;
+    const transport: MessagingTransport = {
+      name: "counting",
+      async send() {
+        going += 1;
+        most = Math.max(most, going);
+        for (let waited = 0; going < 4 && waited < 500; waited += 5) await sleep(5);
+        await sleep(5);
+        going -= 1;
+        return { providerMessageId: `counting-${most}` };
+      },
+    };
+    // When each claim's transaction ran (a claim is the one that returns a `kind`).
+    const claims: { from: number; to: number }[] = [];
+    const run: WithFirm = async (firmId, fn) => {
+      const from = performance.now();
+      const value = await withFirm(firmId, fn);
+      if ((value as { kind?: unknown } | null)?.kind !== undefined) {
+        claims.push({ from, to: performance.now() });
+      }
+      return value;
+    };
+    expect(await runOfferWave(payload(t.f, t.shiftId), run, depsFor(transport))).toEqual({
+      status: "sent",
+      sent: 20,
+      next: null,
+    });
+    // 4 at once (PLAN.md P4.4), never more: the real number, not just the constant's.
+    expect(WAVE_SENDS_AT_ONCE).toBe(4);
+    expect(most).toBe(4);
+    expect(claims).toHaveLength(20);
+    const inOrder = [...claims].sort((a, b) => a.from - b.from);
+    for (let i = 1; i < inOrder.length; i += 1) {
+      expect(inOrder[i]?.from).toBeGreaterThanOrEqual(inOrder[i - 1]?.to ?? 0);
+    }
+  }, 60_000);
+
+  it("50 casuals with 300 ms sends: the wave is done within about 6 s (one at a time it took over 15)", async () => {
+    // 3 places at 20 each, at most 50 (P4.3): all 50 in one wave.
+    const t = await waveFirm(
+      50,
+      { allocation_mode: "first_come_first_served", wave_per_place: 20 },
+      3,
+    );
+    const slow = slowTransport(300);
+    const wave = await timed(() =>
+      runOfferWave(payload(t.f, t.shiftId), withFirm, depsFor(slow.transport)),
+    );
+    expect(wave.value).toEqual({ status: "sent", sent: 50, next: null });
+    expect(new Set(slow.sent.map((m) => m.to)).size).toBe(50);
+    expect(wave.ms).toBeLessThan(WAVE_BOUND_MS);
   }, 60_000);
 });
 
@@ -278,6 +342,41 @@ describe("claims: nobody hears twice, and nobody hears what's no longer true", (
     expect(logged).toHaveLength(4);
     expect(logged.filter((e) => e.data.unconfirmed).map((e) => e.data.workerId)).toEqual([unsure]);
   });
+
+  it("a crash after a claim while others are mid-send: theirs finish and are logged first, and nobody hears twice (P4.4)", async () => {
+    const t = await waveFirm(10, {
+      allocation_mode: "first_come_first_served",
+      wave_per_place: 20,
+    });
+    const slow = slowTransport(200);
+    const deps = depsFor(slow.transport);
+    // Claims 1 and 2 are sending when claim 3 commits and the process "dies".
+    await expect(runOfferWave(payload(t.f, t.shiftId), crashAfterClaim(3), deps)).rejects.toThrow(
+      "worker process died",
+    );
+    // It was thrown only once the two sends going had finished and been logged; nothing after the
+    // crash was claimed.
+    expect(slow.sent).toHaveLength(2);
+    const claimed = await offerRows(t.shiftId);
+    expect(claimed).toHaveLength(3);
+    const { rows: logged } = await su.query<{ data: { workerId: string } }>(
+      "select data from events where action = 'offer.sent' and data ->> 'shiftId' = $1",
+      [t.shiftId],
+    );
+    expect(logged).toHaveLength(2);
+    const messaged = new Set(slow.sent.map((m) => t.byMobile.get(m.to)));
+    const unsure = claimed.find((o) => !messaged.has(o.worker_id))?.worker_id;
+    // pg-boss runs it again: the other 7, never the one claimed just before the crash.
+    expect(await runOfferWave(payload(t.f, t.shiftId), withFirm, deps)).toEqual({
+      status: "sent",
+      sent: 7,
+      next: null,
+    });
+    const to = slow.sent.map((m) => t.byMobile.get(m.to));
+    expect(to).toHaveLength(9);
+    expect(new Set(to).size).toBe(9);
+    expect(to).not.toContain(unsure);
+  }, 30_000);
 
   it("fair rotation: a crash mid-wave never overfills it, and the next wave is queued once", async () => {
     const t = await waveFirm(5, {
@@ -395,7 +494,7 @@ describe("claims: nobody hears twice, and nobody hears what's no longer true", (
     for (const id of late) {
       await t.f.booking(id, await t.f.shift({ startsAt: hoursFromNow(72) }));
     }
-    const slow = slowTransport(100); // 20 messages: about 2 s
+    const slow = slowTransport(400); // 20 messages, 4 at a time: about 2 s
     const wave = runOfferWave(payload(t.f, t.shiftId), withFirm, depsFor(slow.transport));
     await slow.firstSent;
 
@@ -451,7 +550,7 @@ describe("claims: nobody hears twice, and nobody hears what's no longer true", (
       allocation_mode: "first_come_first_served",
       wave_per_place: 20,
     });
-    const slow = slowTransport(100);
+    const slow = slowTransport(300); // 10 messages, 4 at a time: about 1 s
     const deps = depsFor(slow.transport);
     const wave = runOfferWave(payload(t.f, t.shiftId), withFirm, deps);
     await slow.firstSent;

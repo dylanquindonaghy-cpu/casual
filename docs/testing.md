@@ -85,7 +85,12 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   without messaging the rest; a recipient's STOP or erasure lock isn't held up (a wave at its
   most, 50); a crash just after a claim never messages that worker twice; two copies of a wave
   share it and queue one next wave (in both modes since P4.3); escalation emails with the shift
-  unlocked, one failed address not stopping the rest; the worker runs the real tasks.
+  unlocked, one failed address not stopping the rest; the worker runs the real tasks. Since P4.4,
+  4 messages at once at most with the claims never overlapping; a crash mid-wave thrown only once
+  the sends already going have finished and been logged, and nobody messaged twice; 50 casuals
+  with 300 ms sends done within 6 seconds. `eligibility.batch.test.ts` holds the batched rules to
+  the single ones for 2,000 workers of every kind on one shift, and `worker.firm-work.test.ts`
+  the waves one per fetch.
 - `offers.scale.test.ts` (built, P4.3) — a big firm's gap: 2,000 made-up casuals
   (`tests/helpers/bulk-seed.ts`, from both of Ofcom's drama number ranges) could take one urgent
   place; each first-come wave texts 5, the fewest hours this week first, never anyone twice (10

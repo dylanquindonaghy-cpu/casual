@@ -662,8 +662,9 @@ Since P4.2 (ADR-027) nothing waits for ever. In the logs or a failed job:
   behind another transaction's locks (a big sheet sync, a running scan), not that it was slow.
 
 The connection budget: the web app's pool of 10, the worker's 15 and pg-boss's 5, about 30 in all,
-plus a one-off migration or owner command. The database's `max_connections` must be well above
-that: check the host's plan before choosing one (`show max_connections;` as the owner).
+plus a one-off migration or owner command. An offer wave uses up to 4 of the worker's 15 at once
+(its 4 lanes, P4.4), each for a short transaction. The database's `max_connections` must be well
+above that: check the host's plan before choosing one (`show max_connections;` as the owner).
 
 ## Event-morning outage (the one that matters)
 
@@ -891,6 +892,12 @@ booked can't have its times or role changed, or its number needed lowered, by an
 office shift editor (Phase 5). Shifts that have started can't be imported or changed. A shifts
 file without Shift IDs matches shifts by site, role and times, so changing a time in such a file
 adds a new shift and leaves the old one (and anyone booked on it) as it was.
+
+After a big first import (a firm's whole workforce), Postgres's statistics on the new rows catch
+up within about a minute (autovacuum). Until then its plans are poor: P4.4 measured the hours
+query behind an offer wave's list at 1.8 seconds for 2,000 casuals, against 4 milliseconds once
+analysed. To skip the wait, run `ANALYZE workers, credentials, assignments, shifts;` as the owner
+(the app role can't: only the tables' owner, the database's owner or a superuser may).
 
 ## Onboarding a pilot firm
 

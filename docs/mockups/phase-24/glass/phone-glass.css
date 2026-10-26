@@ -1,0 +1,286 @@
+/* Liquid Glass (round 6), the phone's functional layer only: the tab bar (a floating capsule whose selection is a glass lens,
+   and which shrinks while you scroll down), the top bar's scroll edge, the Open/Booked switch's lens and the take bar.
+   Content (the pass, cards, lists) stays solid. The firm's colour only on the primary action and the chosen tab. */
+:root {
+  --lg-fill: rgb(255 255 255 / 0.55);
+  --lg-fill-strong: rgb(255 255 255 / 0.8);
+  --lg-rim-a: rgb(255 255 255 / 0.95);
+  --lg-rim-b: rgb(255 255 255 / 0.18);
+  --lg-edge: rgb(16 24 40 / 0.1);
+  --lg-sheen: rgb(255 255 255 / 0.42);
+  --lg-lens: rgb(255 255 255 / 0.9);
+  --lg-lens-edge: rgb(16 24 40 / 0.08);
+  --lg-shadow: 0 1px 2px rgb(16 24 40 / 0.06), 0 10px 28px rgb(16 24 40 / 0.14);
+  --lg-blur: 14px;
+  --lg-sat: 1.8;
+  --lg-accent-top: #3a6af0;
+  --lg-accent-bottom: #1d4ed8;
+  --lg-label: #474a51;
+}
+:root[data-theme="dark"] {
+  --lg-fill: rgb(30 30 32 / 0.55);
+  --lg-fill-strong: rgb(30 30 32 / 0.82);
+  --lg-rim-a: rgb(255 255 255 / 0.3);
+  --lg-rim-b: rgb(255 255 255 / 0.04);
+  --lg-edge: rgb(0 0 0 / 0.5);
+  --lg-sheen: rgb(255 255 255 / 0.08);
+  --lg-lens: rgb(255 255 255 / 0.16);
+  --lg-lens-edge: rgb(255 255 255 / 0.1);
+  --lg-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 10px 28px rgb(0 0 0 / 0.5);
+  --lg-accent-top: #3a6af0;
+  --lg-accent-bottom: #1d4ed8;
+  --lg-label: #cfd0d4;
+}
+body {
+  background:
+    radial-gradient(520px 340px at 18% -8%, rgb(29 78 216 / 0.14), transparent 66%), var(--ground);
+}
+:root[data-theme="dark"] body {
+  background:
+    radial-gradient(520px 340px at 18% -8%, rgb(59 130 246 / 0.22), transparent 66%), var(--ground);
+}
+.lg-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+.tabs nav {
+  background: var(--lg-fill);
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
+  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
+  border: 0;
+  box-shadow:
+    var(--lg-shadow),
+    inset 0 0 0 1px var(--lg-edge);
+  border-radius: 999px;
+  isolation: isolate;
+  transition:
+    height 0.32s cubic-bezier(0.2, 0.8, 0.2, 1),
+    max-width 0.32s cubic-bezier(0.2, 0.8, 0.2, 1),
+    padding 0.32s ease;
+}
+:root[data-theme="dark"] .tabs nav {
+  box-shadow:
+    var(--lg-shadow),
+    inset 0 0 0 1px var(--lg-edge);
+}
+/* Refraction only where the browser draws it (Chromium sets .rf); elsewhere the frosted blur alone. */
+.rf .tabs nav {
+  backdrop-filter: url(#lg-refract) blur(var(--lg-blur)) saturate(var(--lg-sat));
+}
+.tabs nav::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(180deg, var(--lg-sheen), transparent 50%);
+}
+.tabs nav::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  padding: 1px;
+  background: linear-gradient(
+    140deg,
+    var(--lg-rim-a),
+    var(--lg-rim-b) 35%,
+    var(--lg-rim-b) 65%,
+    var(--lg-rim-a)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+/* The chosen tab sits under a glass lens; it stretches like a drop of liquid as it slides. */
+.thumb {
+  background: var(--lg-lens);
+  border-radius: 999px;
+  box-shadow:
+    0 1px 2px rgb(16 24 40 / 0.1),
+    0 4px 14px rgb(16 24 40 / 0.12),
+    inset 0 0 0 1px var(--lg-lens-edge),
+    inset 0 1px 0 rgb(255 255 255 / 0.8);
+}
+:root[data-theme="dark"] .thumb {
+  box-shadow:
+    0 4px 14px rgb(0 0 0 / 0.35),
+    inset 0 0 0 1px var(--lg-lens-edge),
+    inset 0 1px 0 rgb(255 255 255 / 0.18);
+}
+.tabs nav.slide .thumb {
+  animation: lg-gel 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes lg-gel {
+  0% {
+    scale: 1 1;
+  }
+  40% {
+    scale: 1.16 0.9;
+  }
+  100% {
+    scale: 1 1;
+  }
+}
+.tab {
+  border-radius: 999px;
+  color: var(--lg-label);
+}
+.tab.on,
+.tabs nav.slide .tab.on {
+  background: transparent !important;
+  color: var(--accent);
+  font-weight: 600;
+}
+:root[data-theme="dark"] .tab.on {
+  color: #a8c2ff;
+}
+/* While you scroll down, the bar shrinks to its icons; scroll up or tap and it opens again. */
+.tabs nav.mini {
+  height: 54px;
+  max-width: 290px;
+  padding: 5px;
+}
+.tabs nav.mini .tab {
+  font-size: 0;
+  gap: 0;
+}
+.tabs nav.mini .thumb {
+  top: 5px;
+  bottom: 5px;
+  left: 5px;
+  width: calc((100% - 10px) / 4);
+}
+/* The top bar: a scroll edge (blur fading down) only once content is under it. */
+.bar,
+.top2 {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  margin: 0 -20px;
+  padding-left: 20px;
+  padding-right: 20px;
+  isolation: isolate;
+}
+.bar::before,
+.top2::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: -16px;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  background: linear-gradient(var(--lg-fill-strong), transparent);
+  -webkit-backdrop-filter: blur(10px) saturate(1.6);
+  backdrop-filter: blur(10px) saturate(1.6);
+  -webkit-mask-image: linear-gradient(#000 60%, transparent);
+  mask-image: linear-gradient(#000 60%, transparent);
+}
+.scrolled .bar::before,
+.scrolled .top2::before {
+  opacity: 1;
+}
+/* The primary action: the firm's colour as tinted glass. */
+.btn-primary {
+  background: linear-gradient(180deg, var(--lg-accent-top), var(--lg-accent-bottom));
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.45),
+    inset 0 -1px 0 rgb(0 0 0 / 0.18),
+    0 6px 18px rgb(29 78 216 / 0.28);
+}
+:root[data-theme="dark"] .btn-primary {
+  color: #fff;
+}
+.btn-primary:hover {
+  background: linear-gradient(180deg, var(--lg-accent-top), var(--lg-accent-bottom));
+  filter: brightness(1.06);
+}
+.btn-primary:active,
+.tab:active,
+.seg a:active {
+  transform: scale(1.04);
+  transition: transform 0.12s ease;
+}
+.btn-primary,
+.tab,
+.seg a {
+  transition:
+    transform 0.3s cubic-bezier(0.34, 1.4, 0.64, 1),
+    filter 0.2s ease;
+}
+/* Open / Booked: a glass lens on a quiet track. */
+.seg {
+  background: rgb(118 118 128 / 0.12) !important;
+}
+.seg .knob {
+  background: var(--lg-lens);
+  border: 0;
+  box-shadow:
+    0 1px 2px rgb(16 24 40 / 0.1),
+    0 4px 14px rgb(16 24 40 / 0.12),
+    inset 0 0 0 1px var(--lg-lens-edge),
+    inset 0 1px 0 rgb(255 255 255 / 0.8);
+}
+:root[data-theme="dark"] .seg {
+  background: rgb(118 118 128 / 0.24) !important;
+}
+:root[data-theme="dark"] .seg .knob {
+  box-shadow:
+    0 4px 14px rgb(0 0 0 / 0.35),
+    inset 0 0 0 1px var(--lg-lens-edge);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .tabs nav {
+    background: var(--surface);
+  }
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .tabs nav,
+  .rf .tabs nav {
+    background: var(--surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .tabs nav::before,
+  .tabs nav::after {
+    display: none;
+  }
+  .bar::before,
+  .top2::before {
+    background: var(--surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  body,
+  :root[data-theme="dark"] body {
+    background: var(--ground);
+  }
+}
+@media (forced-colors: active) {
+  .tabs nav {
+    background: Canvas;
+    border: 1px solid CanvasText;
+    box-shadow: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tabs nav,
+  .tabs nav.slide .thumb,
+  .btn-primary,
+  .tab,
+  .seg a {
+    transition: none;
+    animation: none;
+  }
+}

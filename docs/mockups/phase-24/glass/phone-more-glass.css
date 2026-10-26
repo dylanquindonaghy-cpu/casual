@@ -1,0 +1,178 @@
+/* Round 7 on the phone: the sections themselves are frosted glass over a pastel wash; buttons are clear glass
+   capsules (the main one tinted glass); date tiles, avatars, chips and small figures are little glass. Things inside a
+   glass card are translucent fills with a lit rim, so the card's frost shows through them. ROOT is the page's root. */
+ROOT {
+  --muted: #55585f;
+  --rule: rgb(16 24 40 / 0.07);
+  --g-card: rgb(255 255 255 / 0.46);
+  --g-tile: linear-gradient(180deg, rgb(255 255 255 / 0.72), rgb(255 255 255 / 0.44));
+  --g-btn: linear-gradient(180deg, rgb(255 255 255 / 0.8), rgb(255 255 255 / 0.4));
+  --g-rim: inset 0 1px 0 rgb(255 255 255 / 0.95), inset 0 0 0 1px rgb(255 255 255 / 0.55);
+  --g-rim-btn:
+    inset 0 1.5px 0 rgb(255 255 255 / 1), inset 0 -1px 0 rgb(255 255 255 / 0.55),
+    inset 0 0 0 1px rgb(255 255 255 / 0.6), inset 0 0 14px rgb(255 255 255 / 0.35);
+  --g-drop: 0 1px 2px rgb(16 24 40 / 0.05), 0 6px 16px rgb(16 24 40 / 0.08);
+  --g-drop-card: 0 1px 2px rgb(16 24 40 / 0.04), 0 14px 36px rgb(60 72 120 / 0.14);
+  --g-band: linear-gradient(135deg, rgb(255 244 214 / 0.62), rgb(255 255 255 / 0.18));
+  background:
+    radial-gradient(420px 360px at -10% 2%, #c9d8ff 0, transparent 70%),
+    radial-gradient(380px 380px at 110% 26%, #e6d6ff 0, transparent 70%),
+    radial-gradient(420px 380px at 30% 70%, #ffe2c9 0, transparent 70%),
+    radial-gradient(380px 360px at 104% 96%, #cdf3e8 0, transparent 70%), #eef1f8;
+}
+ROOT.dark {
+  --muted: #c4c5ca;
+  --rule: rgb(255 255 255 / 0.07);
+  --g-card: rgb(26 27 34 / 0.46);
+  --g-tile: linear-gradient(180deg, rgb(255 255 255 / 0.11), rgb(255 255 255 / 0.05));
+  --g-btn: linear-gradient(180deg, rgb(255 255 255 / 0.13), rgb(255 255 255 / 0.04));
+  --g-rim: inset 0 1px 0 rgb(255 255 255 / 0.16), inset 0 0 0 1px rgb(255 255 255 / 0.08);
+  --g-rim-btn:
+    inset 0 1px 0 rgb(255 255 255 / 0.3), inset 0 -1px 0 rgb(255 255 255 / 0.06),
+    inset 0 0 0 1px rgb(255 255 255 / 0.12), inset 0 0 12px rgb(255 255 255 / 0.05);
+  --g-drop: 0 1px 2px rgb(0 0 0 / 0.35), 0 6px 16px rgb(0 0 0 / 0.3);
+  --g-drop-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 14px 36px rgb(0 0 0 / 0.45);
+  --g-band: linear-gradient(135deg, rgb(255 214 140 / 0.1), rgb(255 255 255 / 0.03));
+  background:
+    radial-gradient(420px 360px at -10% 2%, rgb(37 99 235 / 0.45) 0, transparent 70%),
+    radial-gradient(380px 380px at 110% 26%, rgb(124 58 237 / 0.36) 0, transparent 70%),
+    radial-gradient(420px 380px at 30% 70%, rgb(234 88 12 / 0.2) 0, transparent 70%),
+    radial-gradient(380px 360px at 104% 96%, rgb(13 148 136 / 0.28) 0, transparent 70%), #07080c;
+}
+/* Sections: frosted glass. */
+ROOT .card {
+  background: var(--g-card);
+  -webkit-backdrop-filter: blur(22px) saturate(1.8);
+  backdrop-filter: blur(22px) saturate(1.8);
+  box-shadow: var(--g-rim), var(--g-drop-card);
+}
+ROOT .pass .stub {
+  background: var(--g-band);
+}
+ROOT .row-link:hover,
+ROOT .card-link:hover {
+  background: rgb(255 255 255 / 0.35);
+}
+ROOT.dark .row-link:hover,
+ROOT.dark .card-link:hover {
+  background: rgb(255 255 255 / 0.05);
+}
+/* Buttons: clear glass capsules; the main one tinted glass. */
+ROOT .btn {
+  border-radius: 999px;
+}
+ROOT .btn-ghost {
+  background: var(--g-btn);
+  border: 0;
+  box-shadow: var(--g-rim-btn), var(--g-drop);
+}
+ROOT .btn-ghost:hover {
+  background: var(--g-tile);
+}
+ROOT .btn-primary,
+ROOT .btn-primary:hover {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.18), rgb(255 255 255 / 0) 46%),
+    linear-gradient(180deg, #3463ea, #1b47cc);
+  color: #fff;
+  box-shadow:
+    inset 0 1.5px 0 rgb(255 255 255 / 0.6),
+    inset 0 0 0 1px rgb(255 255 255 / 0.22),
+    inset 0 -2px 6px rgb(10 20 80 / 0.28),
+    0 8px 22px rgb(29 78 216 / 0.32);
+}
+/* Icon backgrounds, avatars, date tiles, chips and small figures: little glass. */
+ROOT .tile,
+ROOT .av,
+ROOT .chip:not(.chip-accent):not(.okchip),
+ROOT .pass .gate,
+ROOT .pass .when .chip,
+ROOT .plate,
+ROOT .fig,
+ROOT .week .line,
+ROOT .query .say,
+ROOT .shift .arrow,
+ROOT .day:not([aria-pressed="true"]):not(.booked) {
+  background: var(--g-tile);
+  border-color: transparent;
+  box-shadow: var(--g-rim);
+}
+ROOT .tile.urgent,
+ROOT .tile.red {
+  background: linear-gradient(180deg, rgb(254 226 226 / 0.85), rgb(254 202 202 / 0.55));
+}
+ROOT.dark .tile.urgent,
+ROOT.dark .tile.red {
+  background: linear-gradient(180deg, rgb(248 113 113 / 0.24), rgb(248 113 113 / 0.12));
+}
+ROOT .chip-accent {
+  background: rgb(29 78 216 / 0.12);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.4);
+}
+ROOT.dark .chip-accent {
+  background: rgb(96 140 255 / 0.18);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08);
+}
+ROOT .day.booked {
+  background: rgb(118 118 128 / 0.14);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.3);
+}
+ROOT .shift:hover .arrow {
+  background: var(--ink);
+  color: var(--on-ink);
+}
+ROOT .week .pd {
+  background: var(--g-band);
+  box-shadow: var(--g-rim);
+}
+ROOT .code {
+  background: var(--g-tile);
+  border-color: transparent;
+  box-shadow:
+    var(--g-rim),
+    inset 0 2px 6px rgb(16 24 40 / 0.06);
+}
+ROOT .done {
+  background: transparent;
+  -webkit-backdrop-filter: blur(30px) saturate(1.6);
+  backdrop-filter: blur(30px) saturate(1.6);
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  ROOT,
+  ROOT.dark {
+    background: var(--ground);
+  }
+  ROOT .card {
+    background: var(--surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  ROOT .done {
+    background: var(--ground);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  ROOT .btn-ghost,
+  ROOT .tile,
+  ROOT .av,
+  ROOT .chip:not(.chip-accent):not(.okchip),
+  ROOT .pass .gate,
+  ROOT .plate,
+  ROOT .fig,
+  ROOT .week .line,
+  ROOT .query .say,
+  ROOT .shift .arrow,
+  ROOT .day:not([aria-pressed="true"]),
+  ROOT .code {
+    background: var(--raised);
+    box-shadow: inset 0 0 0 1px var(--control);
+  }
+}
+@media (forced-colors: active) {
+  ROOT .card,
+  ROOT .btn,
+  ROOT .tile,
+  ROOT .chip {
+    border: 1px solid CanvasText;
+  }
+}

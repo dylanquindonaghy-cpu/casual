@@ -1830,7 +1830,7 @@ ADR-027, P4.2).
       failures in a row (30 s, then one trial call), no retry, no timers. The model stays: moving
       to `claude-haiku-5-5` needs the live API (it thinks by default, so a 5-token label would come
       back empty). Tests: `tests/unit/ai.anthropic.test.ts` (P4.6)
-- [ ] No automatic replies by text ("Connecting the firm's systems" 11 and 12): a text or
+- [x] No automatic replies by text ("Connecting the firm's systems" 11 and 12): a text or
       WhatsApp that comes in is stored, sorted and logged as today, but nothing is sent back
       (no automatic reply, no unknown-number reply, no STOP or START confirmation; a STOP itself is
       still recorded); an office message still makes a question in "Need a person"; a per-firm

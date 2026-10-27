@@ -235,10 +235,11 @@ describe("the office's files use only the system (src/app/office, the shared par
     expect(found(SPACING, (v) => STEPS.has(v))).toEqual(MEASURES);
   });
 
-  // Phase 24 (round 7): the menu card 24px (`card`; 28px in Phase 23, with the page card that's
-  // gone), the sections on a page 22px (`inner`), rows 14px, pills round (Phase 21: 20px cards,
-  // 14px rows); a chart's bar 4px round at its data end (`mark`), in the dashboard's charts only.
-  it("corners: a 24px menu card, 22px sections, 14px rows, round pills (or none)", () => {
+  // Phase 24 (round 7): the rail 24px (`card`; the menu card's in 24.1, 28px in Phase 23, with the
+  // page card that's gone), the sections on a page 22px (`inner`), rows 14px, pills round (Phase
+  // 21: 20px cards, 14px rows); a chart's bar 4px round at its data end (`mark`), in the
+  // dashboard's charts only.
+  it("corners: a 24px rail, 22px sections, 14px rows, round pills (or none)", () => {
     const CHARTS = "src/app/office/dashboard/charts.tsx";
     expect(
       found(RADIUS, (v) => ["card", "inner", "row", "full", "none", "mark"].includes(v)),
@@ -757,11 +758,11 @@ describe("round 7's parts on the office's other pages", () => {
     expect(count(/(?<![\w-])glass-tile(?![\w-])/)).toBeGreaterThan(4);
     expect(count(/(?<![\w-])glass-button(?![\w-])/)).toBeGreaterThan(4);
     expect(count(/(?<![\w-])glass-float(?![\w-])/)).toBeGreaterThan(4);
-    // 24px corners are the menu card's (the frame) and the login card's only; a section on a page
-    // is 22px (rounded-inner), a row 14px.
+    // 24px corners are the rail's (Phase 24: the menu card's, in the frame, until then) and the
+    // login card's only; a section on a page is 22px (rounded-inner), a row 14px.
     const big = /(?<![\w-])(?:[a-z0-9-]+:)*rounded-(?:[trblse]{1,2}-)?card(?![\w-])/;
     const bigFiles = OFFICE.filter((file) => big.test(code(read(file))));
-    expect(bigFiles).toEqual(["src/app/office/office-frame.tsx"]);
+    expect(bigFiles).toEqual(["src/app/office/office-rail.tsx"]);
     expect(
       Object.entries(classes)
         .flatMap(([name, value]) =>

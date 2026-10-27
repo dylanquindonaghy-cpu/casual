@@ -474,9 +474,19 @@ describe("where the glass goes", () => {
 
   it("what floats is glass-float, each where it's pinned", () => {
     expect(uses(/(?<![\w-])(?:[a-z0-9-]+:)*glass-float(?![\w-])/g)).toEqual({
-      // The comments that name it, then: the top bar, the account menu, the drawer.
+      // The comments that name it, then (Phase 24): the counts' capsule, the account menu, the
+      // drawer, you (from 1024px) and the top bar (below 1024px); the rail; the search's capsule
+      // and its panel.
       "src/app/glass-refraction.tsx": ["glass-float"],
-      "src/app/office/office-frame.tsx": ["glass-float", "glass-float", "glass-float"],
+      "src/app/office/office-frame.tsx": [
+        "glass-float",
+        "glass-float",
+        "glass-float",
+        "lg:glass-float",
+        "max-lg:glass-float",
+      ],
+      "src/app/office/office-rail.tsx": ["glass-float"],
+      "src/app/office/office-search.tsx": ["glass-float", "glass-float"],
       "src/app/office/events/session-menu.tsx": ["glass-float"], // a session's menu
       "src/app/office/shift-actions.tsx": ["glass-float"], // the "…" menu
       "src/app/office/dashboard/chart-panel.tsx": ["glass-float"], // a chart's panel
@@ -486,7 +496,19 @@ describe("where the glass goes", () => {
       "src/app/tab-bar.tsx": ["glass-float"], // the casual app's tab bar
     });
     expect(read("src/app/office/office-frame.tsx")).toMatch(
-      /<header className="glass-float sticky top-0/,
+      /<header\s+ref=\{bar\}\s+className="@container max-lg:glass-float lg:scroll-edge sticky top-0 /,
+    );
+    expect(read("src/app/office/office-frame.tsx")).toMatch(
+      /data-bar-counts=""\s+className="glass-float /,
+    );
+    expect(read("src/app/office/office-frame.tsx")).toMatch(
+      /<div className="flex shrink-0 items-center [^"]*lg:glass-float /,
+    );
+    expect(read("src/app/office/office-rail.tsx")).toMatch(
+      /className=\{`glass-float sticky top-3 /,
+    );
+    expect(read("src/app/office/office-search.tsx")).toMatch(
+      /<div className="glass-float flex h-12 [\s\S]*data-search-panel=""[\s\S]*className="glass-float absolute /,
     );
     expect(read("src/app/office/office-frame.tsx")).toMatch(
       /popover="auto"\s+className="[^"]*glass-float/,

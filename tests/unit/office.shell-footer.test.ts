@@ -13,6 +13,7 @@ vi.mock("next/navigation", () => ({
 }));
 const refreshOfficeSessionAction = vi.hoisted(() => async () => undefined);
 vi.mock("@/app/office/session-actions", () => ({ refreshOfficeSessionAction }));
+vi.mock("@/app/office/search-actions", () => ({ searchOfficeAction: async () => undefined }));
 vi.mock("@/app/session-keeper", () => ({
   SessionKeeper: ({ rotationDue, refresh }: { rotationDue: boolean; refresh: unknown }) =>
     createElement("i", {
@@ -21,7 +22,7 @@ vi.mock("@/app/session-keeper", () => ({
     }),
 }));
 
-const { OfficeShell, officeMenu } = await import("@/app/office/office-shell");
+const { barCounts, OfficeShell, officeMenu } = await import("@/app/office/office-shell");
 
 const shell = (rotationDue: boolean) =>
   renderToStaticMarkup(
@@ -29,9 +30,10 @@ const shell = (rotationDue: boolean) =>
       name: "Sam Admin",
       roleLabel: "Admin",
       firmName: "Acme Events",
-      payWeek: { week: "Week 41", dates: "5 Oct – 11 Oct", pay: "Pay Fri 16 Oct" },
-      shiftsLine: "+44 7700 900000",
       menu: officeMenu("admin"),
+      counts: barCounts("admin", { shell: null, attention: null, payQueries: null }),
+      canSearch: true,
+      railOpen: false,
       theme: undefined,
       rotationDue,
       children: createElement("main", null, "The page"),

@@ -33,12 +33,15 @@ export type MenuLink = { href: string; label: string; icon: IconName; badge?: Me
 // and records"); `bottom`: the how-to guide, which the menu leaves to the account menu (Phase 22;
 // at the foot of the menu until then); `top`: at the top, with no label (the dashboard and Needs
 // attention: Phase 20).
+// `rail`, `icon` (Phase 24): a fold in the rail (office-rail.tsx), with its own icon.
 export type MenuGroup = {
   label: string;
   links: MenuLink[];
   folded?: boolean;
   bottom?: boolean;
   top?: boolean;
+  rail?: "fold";
+  icon?: IconName;
 };
 
 // The menu link for the page at `pathname`: the dashboard (or payroll's Home) only for /office

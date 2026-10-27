@@ -23,16 +23,21 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: () => undefined }),
 }));
 vi.mock("@/app/office/session-actions", () => ({ refreshOfficeSessionAction: vi.fn() }));
+vi.mock("@/app/office/search-actions", () => ({ searchOfficeAction: vi.fn() }));
 
-const { MENU_AREAS, menuBadges, officeMenu, OfficeShell } =
+const { barCounts, MENU_AREAS, menuBadges, officeMenu, OfficeShell } =
   await import("@/app/office/office-shell");
+const { OfficeRail, RAIL_ID } = await import("@/app/office/office-rail");
+const { foldBadge, railItems, tipWords } = await import("@/app/office/rail-items");
+const { railCookie, railOpenFromCookie } = await import("@/app/office/rail-cookie");
+const { CHART_IDS } = await import("@/lib/office/dashboard-charts");
 const { ariaCurrent, currentHref, OfficeNav } = await import("@/app/office/office-nav");
 const { ACCOUNT_MENU_ID, DRAWER_ID, firmInitial, initials, redrawOnArrival } =
   await import("@/app/office/office-frame");
 const { moreToScroll } = await import("@/app/office/menu-scroll");
 const { themeCookie } = await import("@/app/office/theme-button");
 const { PageHeader } = await import("@/app/ui/page-header");
-const { chip, count, countNeeds, countPill, countWaiting } = await import("@/app/ui/classes");
+const { count, countNeeds, countPill, countWaiting } = await import("@/app/ui/classes");
 const { StatusChip } = await import("@/app/ui/status-chip");
 const { LogoutButton } = await import("@/app/logout-button");
 
@@ -45,10 +50,12 @@ const text = (html: string) =>
     .trim();
 
 describe("the office menu (v2 groups; Phases 18 and 20)", () => {
+  // Phase 24: Enquiries before Cancellations, as the rail lists them (PLAN.md 24.2); Pay, People
+  // and Admin and records each a fold in the rail, with its own icon.
   it("admins see every link, in groups: the dashboard and Needs attention first, then today's, the records and settings folded", () => {
     expect(labels("admin")).toEqual([
       ["Home", ["Dashboard", "Needs attention"]],
-      ["Today", ["Events & sessions", "Cancellations", "Enquiries"]],
+      ["Today", ["Events & sessions", "Enquiries", "Cancellations"]],
       ["Pay", ["Pay dashboard", "Pay queries", "Import pay records"]],
       ["People", ["Casuals", "Strikes", "Notice report"]],
       [
@@ -63,22 +70,24 @@ describe("the office menu (v2 groups; Phases 18 and 20)", () => {
         g.folded ?? false,
         g.bottom ?? false,
         g.top ?? false,
+        g.rail ?? null,
+        g.icon ?? null,
       ]),
     ).toEqual([
       // Phase 20: at the top, with no label of its own (Needs attention in the bell's place).
-      ["Home", false, false, true],
-      ["Today", false, false, false],
-      ["Pay", false, false, false],
-      ["People", false, false, false],
-      ["Admin and records", true, false, false],
-      ["Help", false, true, false],
+      ["Home", false, false, true, null, null],
+      ["Today", false, false, false, null, null],
+      ["Pay", false, false, false, "fold", "pay"],
+      ["People", false, false, false, "fold", "workers"],
+      ["Admin and records", true, false, false, "fold", "settings"],
+      ["Help", false, true, false, null, null],
     ]);
   });
 
   it("resourcers don't see pay or configuration links", () => {
     expect(labels("resourcer")).toEqual([
       ["Home", ["Dashboard", "Needs attention"]],
-      ["Today", ["Events & sessions", "Cancellations", "Enquiries"]],
+      ["Today", ["Events & sessions", "Enquiries", "Cancellations"]],
       ["People", ["Casuals", "Strikes", "Notice report"]],
       ["Admin and records", ["Action log", "Pilot metrics"]],
       ["Help", ["How-to guide"]],
@@ -411,22 +420,27 @@ describe("after the session ends on the server", () => {
 });
 
 describe("the shell", () => {
-  const WEEK = { week: "Week 41", dates: "5 Oct – 11 Oct", pay: "Pay Fri 16 Oct" };
+  const COUNTS = { toFill: 26, urgent: 2, offersOut: 11 };
   const shell = (
     theme?: "light" | "dark",
-    role: "admin" | "payroll" = "admin",
-    shiftsLine: string | null = "+44 7700 900000",
+    role: "admin" | "resourcer" | "payroll" = "admin",
+    opts: { railOpen?: boolean; pathname?: string; shell?: typeof COUNTS | null } = {},
   ) => {
-    nav.pathname = "/office";
+    nav.pathname = opts.pathname ?? "/office";
     // Hook-free, so it can be called directly.
     return renderToStaticMarkup(
       OfficeShell({
         name: "Sam Admin",
-        roleLabel: role === "admin" ? "Admin" : "Payroll",
+        roleLabel: role === "admin" ? "Admin" : role === "payroll" ? "Payroll" : "Resourcer",
         firmName: "Acme Events",
-        payWeek: WEEK,
-        shiftsLine,
         menu: officeMenu(role),
+        counts: barCounts(role, {
+          shell: opts.shell === undefined ? COUNTS : opts.shell,
+          attention: { count: 7, more: false },
+          payQueries: 10,
+        }),
+        canSearch: role !== "payroll",
+        railOpen: opts.railOpen ?? false,
         theme,
         rotationDue: false,
         children: createElement("main", null, "PAGE"),
@@ -437,19 +451,28 @@ describe("the shell", () => {
   // The bar up to the account menu (a popover that opens from it).
   const barOnly = (html: string) =>
     html.slice(html.indexOf("<header"), html.indexOf(`<div id="${ACCOUNT_MENU_ID}"`));
+  const countsOf = (html: string) =>
+    html.slice(
+      html.indexOf("<div data-bar-counts"),
+      html.indexOf('<span aria-hidden="true" class="min-w-0 flex-1">'),
+    );
 
-  it("in order: the skip link, the top bar, the menu, then the page in #main", () => {
+  // Phase 24: the rail (with the menu) comes first, at the left from 1024px; then the column with
+  // the top bar, the drawer and the page.
+  it("in order: the skip link, the rail with the menu, the top bar, then the page in #main", () => {
     const html = shell();
     expect(html).toContain('data-shell="office"');
     const skipAt = html.indexOf('href="#main"');
-    const barAt = html.indexOf("<header");
+    const railAt = html.indexOf(`<div id="${RAIL_ID}"`);
     const navAt = html.indexOf("<nav");
+    const barAt = html.indexOf("<header");
     const mainAt = html.indexOf('id="main"');
     const pageAt = html.indexOf("<main>PAGE</main>");
     expect(skipAt).toBeGreaterThan(-1);
-    expect(barAt).toBeGreaterThan(skipAt);
-    expect(navAt).toBeGreaterThan(barAt);
-    expect(mainAt).toBeGreaterThan(navAt);
+    expect(railAt).toBeGreaterThan(skipAt);
+    expect(navAt).toBeGreaterThan(railAt);
+    expect(barAt).toBeGreaterThan(navAt);
+    expect(mainAt).toBeGreaterThan(barAt);
     expect(pageAt).toBeGreaterThan(mainAt);
     // One <nav>, and the page's own <main> is the only one; one top bar (a <header> in the drawer
     // would be a second banner).
@@ -459,26 +482,37 @@ describe("the shell", () => {
     expect(html.match(/>Log out</g)).toHaveLength(1);
   });
 
-  // Phase 24 (round 7): no ground of the shell's own, so the wash shows through; the bar glass
-  // that floats, the menu card a section of glass, and the page no card of its own (its sections
-  // are glass on the wash); the account menu and the drawer float. No shadow class at all (the
-  // glass draws its own rim and drop), no grain, no blur of a class's own.
-  it("glass: no ground of its own, the floating bar, the menu card's glass, no page card", () => {
+  // Phase 24 (round 7): no ground of the shell's own, so the wash shows through; from 1024px the
+  // rail beside the column (72px, or 236px open: the grid's first column follows it), the bar no
+  // glass of its own but three floating capsules and the frosted edge, the page no card. Below
+  // 1024px the bar is floating glass the window's full width. No shadow class at all (the glass
+  // draws its own rim and drop), no grain, no blur of a class's own.
+  it("glass: no ground of its own, the rail and the three capsules float, no page card", () => {
     const html = shell();
     expect(html).toContain(
-      '<div data-shell="office" class="flex flex-1 flex-col text-base text-ink">',
+      '<div data-shell="office" class="flex flex-1 flex-col text-base text-ink lg:grid lg:grid-cols-[auto_minmax(0,1fr)] lg:items-start lg:gap-x-3 lg:px-3">',
+    );
+    expect(html).toMatch(
+      /<div id="office-rail" data-rail="shut" class="glass-float sticky top-3 z-30 mt-3 hidden flex-col self-start rounded-card [^"]*lg:flex w-18 items-center">/,
+    );
+    // The bar: a container (its capsules fit the column), floating glass below 1024px, the frosted
+    // edge from there, sticking to the top.
+    expect(barOf(html)).toMatch(
+      /^<header class="@container max-lg:glass-float lg:scroll-edge sticky top-0 z-20 flex min-h-14 items-center gap-2 px-3 sm:gap-3 lg:min-h-0 lg:gap-2 lg:px-0 lg:pt-3 lg:pb-2">/,
+    );
+    // The three capsules (from 1024px): the counts, the search, you.
+    expect(barOf(html)).toContain(
+      '<div data-bar-counts="" class="glass-float scrollbar-none hidden min-w-0 shrink items-center overflow-x-auto rounded-full p-1 lg:flex">',
     );
     expect(barOf(html)).toMatch(
-      /^<header class="glass-float sticky top-0 z-20 flex min-h-14 items-center gap-2 px-3 sm:gap-3 lg:min-h-16 lg:px-6">/,
+      /<div class="relative hidden lg:block"><div class="glass-float flex h-12 w-50 items-center gap-2 rounded-full pr-2 pl-4 @min-\[73.25rem\]:w-62.5">/,
     );
-    // Under the bar: the menu card beside the page from 1024px (248px, 284px from 1280px), 16px
-    // apart and from the window's edges.
-    expect(html).toContain(
-      '</dialog><div class="flex flex-1 flex-col px-2 pt-3 pb-6 lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)] lg:gap-4 lg:px-4 lg:pt-4 xl:grid-cols-[17.75rem_minmax(0,1fr)]">',
+    expect(barOf(html)).toContain(
+      '<div class="flex shrink-0 items-center gap-2 sm:gap-3 lg:glass-float lg:gap-1 lg:rounded-full lg:p-1">',
     );
-    // The page (`#main > div`): no card, no fill, no edge.
+    // The page (`#main > div > div`): no card, no fill, no edge; the column's width from 1024px.
     expect(html).toContain(
-      '<div id="main" tabindex="-1" class="flex min-w-0 flex-1 flex-col focus:outline-none"><div class="flex-1"><div class="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">',
+      '<div id="main" tabindex="-1" class="flex min-w-0 flex-1 flex-col px-2 pt-3 pb-6 focus:outline-none lg:p-0"><div class="flex-1"><div class="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:max-w-[100rem] lg:px-0 lg:pt-3 lg:pb-8">',
     );
     const shadows = [...html.matchAll(/(?<![\w-])(?:[a-z0-9-]+:)*(?:inset-|drop-)?shadow-[\w-]+/g)];
     expect(shadows.map((m) => m[0])).toEqual([]);
@@ -486,12 +520,18 @@ describe("the shell", () => {
     expect(html).toMatch(
       /<dialog id="office-menu-drawer" aria-label="Menu" class="[^"]*glass-float/,
     );
-    expect(html.match(/(?<![\w-])glass-float(?![\w-])/g)).toHaveLength(3);
+    // Floating glass: the rail, the counts, the search, the account menu and the drawer; the bar
+    // below 1024px and you from there.
+    expect(html.match(/(?<![\w:-])glass-float(?![\w-])/g)).toHaveLength(5);
+    expect(html.match(/ max-lg:glass-float /g)).toHaveLength(1);
+    expect(html.match(/ lg:glass-float /g)).toHaveLength(1);
     expect(html).not.toMatch(/(?<![\w-])(?:grain|stripes|tint-|backdrop-blur|card-chip)/);
     expect(html).not.toMatch(/(?<![\w-])bg-(?:canvas|sheet|card)(?![\w-])/);
+    // The menu card of Phases 22 and 23 is gone.
+    expect(html).not.toMatch(/class="glass hidden rounded-card/);
   });
 
-  it("the top bar: Menu (waits for the page), the firm, the pay week, the shifts line, the light or dark switch, you", () => {
+  it("below 1024px: Menu (waits for the page), the firm, the light or dark switch, you", () => {
     const html = shell();
     const bar = barOf(html);
     expect(bar).toMatch(
@@ -503,46 +543,16 @@ describe("the shell", () => {
     expect(bar).toMatch(
       /aria-haspopup="dialog" disabled="" class="press-glass glass-button [^"]*rounded-full [^"]*lg:hidden">/,
     );
-    // The firm at every width: its initial on its own colour (40px, 14px corners from 1024px),
-    // its name, and "Office" under it from 1024px (Phase 23; over the menu in Phase 22).
-    expect(bar).toMatch(
-      /<p class="flex min-w-0 items-center gap-3 leading-tight"><span aria-hidden="true" class="flex size-9 shrink-0 items-center justify-center rounded-row bg-brand-bar text-base font-extrabold text-on-brand-bar lg:size-10 lg:text-lg">A<\/span><span class="min-w-0"><span class="block truncate font-bold text-ink lg:text-lg">Acme Events<\/span><span class="hidden text-sm text-ink-muted lg:block">Office<\/span><\/span><\/p>/,
-    );
-    expect(html).not.toMatch(/<nav aria-label="Office menu"[^>]*>.*?Acme Events/);
-    // The pay week (D8) in the bar from 1024px (Phase 23; at the menu's end in Phase 22): words,
-    // not a button, read as one; its dates shown from 1280px and read out at every width; "This
-    // week" in green.
-    const week =
-      /<p class="hidden ([^"]*)">(<span><span class="font-bold text-ink">Week 41.*?)<\/p>/.exec(
-        bar,
-      );
-    expect(week).not.toBeNull();
-    expect(week?.[1]).toMatch(/(?<![\w-])lg:flex(?![\w-])/);
-    expect(week?.[1]).toMatch(/(?<![\w-])rounded-full border border-line(?![\w-])/);
-    expect(text(week?.[2] ?? "")).toBe("Week 41 · 5 Oct – 11 Oct · Pay Fri 16 Oct This week");
-    expect(week?.[2]).toContain('<span class="sr-only xl:not-sr-only"> · 5 Oct – 11 Oct</span>');
-    expect(week?.[2]).toContain(`<span class="${chip.base} ${chip.done}">This week</span>`);
-    expect(week?.[2]).not.toMatch(/<(?:a|button)\b/);
-    expect(text(html.slice(html.indexOf("<nav")))).not.toContain("Week 41");
-    // The shifts line's number from 1280px, its phone and its words for screen readers.
-    expect(bar).toMatch(
-      /<p class="hidden [^"]*xl:flex"><svg [^>]*>.*?<\/svg><span class="sr-only">Shifts line:<\/span> \+44 7700 900000<\/p>/,
-    );
-    // The square light or dark switch: 44px, 14px corners, clear glass; its words its name and
-    // shown beside it on keyboard focus and under the pointer, over the button or over the words
-    // themselves (WCAG 1.4.13: they take the pointer, an 8px bridge over the gap; hidden from
-    // screen readers there).
-    expect(bar).toMatch(
-      /<span class="group\/tip relative flex shrink-0"><button type="button" aria-label="Switch to dark mode" disabled="" class="peer press-glass glass-button inline-flex size-11 items-center justify-center rounded-row [^"]*"><svg [^>]*><path [^>]*><\/path><\/svg><\/button><span aria-hidden="true" data-theme-tip="" class="absolute top-full right-0 z-30 mt-2 hidden animate-pop rounded-row bg-ink px-3 py-2 text-sm font-semibold whitespace-nowrap text-on-ink before:absolute before:inset-x-0 before:-top-2 before:h-2 peer-focus-visible:block pointer-fine:group-hover\/tip:block">Switch to dark mode<\/span><\/span>/,
-    );
+    // The firm below 1024px (the rail has its mark from there): its initial on its own colour and
+    // its name.
     expect(bar).toContain(
-      '<span class="group/tip relative flex shrink-0"><button type="button" aria-label="Switch to dark mode"',
+      '<div class="min-w-0 lg:hidden"><p class="flex min-w-0 items-center gap-3 leading-tight"><span aria-hidden="true" class="flex size-9 shrink-0 items-center justify-center rounded-row bg-brand-bar text-base font-extrabold text-on-brand-bar">A</span><span class="min-w-0"><span class="block truncate font-bold text-ink">Acme Events</span><span class="hidden">Office</span></span></p></div>',
     );
-    expect(bar).not.toMatch(/data-theme-tip="" class="[^"]*pointer-events-none/);
-    expect(bar).not.toMatch(/data-theme-tip="" class="[^"]*peer-hover/);
-    // A 1px divider before you, from 1280px.
-    expect(bar).toContain(
-      '<span aria-hidden="true" class="hidden h-7 w-px bg-line xl:block"></span>',
+    // The light or dark switch: 44px, 14px corners, clear glass below 1024px; round, 40px, in the
+    // capsule from there; its words its name and shown beside it on keyboard focus and under the
+    // pointer (WCAG 1.4.13: they take the pointer, an 8px bridge over the gap).
+    expect(bar).toMatch(
+      /<span class="group\/tip relative flex shrink-0"><button type="button" aria-label="Switch to dark mode" disabled="" class="peer press-glass max-lg:glass-button inline-flex size-11 items-center justify-center rounded-row [^"]*lg:size-10 lg:rounded-full"><svg [^>]*><path [^>]*><\/path><\/svg><\/button><span aria-hidden="true" data-theme-tip="" class="absolute top-full right-0 z-30 mt-2 hidden animate-pop rounded-row bg-ink px-3 py-2 text-sm font-semibold whitespace-nowrap text-on-ink before:absolute before:inset-x-0 before:-top-2 before:h-2 peer-focus-visible:block pointer-fine:group-hover\/tip:block">Switch to dark mode<\/span><\/span>/,
     );
     // In that order, left to right (HTML attribute names ignore case: React writes
     // "popoverTarget").
@@ -550,18 +560,88 @@ describe("the shell", () => {
     const order = [
       ">Menu</button>",
       ">Acme Events<",
-      ">Week 41<",
-      "+44 7700 900000",
+      "data-bar-counts",
+      'type="search"',
       'aria-label="Switch to dark mode"',
-      "h-7 w-px bg-line",
       `popovertarget="${ACCOUNT_MENU_ID}"`,
     ].map(at);
     expect(order.every((n) => n > -1)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
-    // You: your initials on a pale grey circle with its hairline (Phase 23: ink in Phase 22), your
-    // name from 640px and a chevron, your role for screen readers ("Sam Admin Admin").
+  });
+
+  // The pay week moved to the dashboards' lines and the shifts line's number to Settings (PLAN.md
+  // 24.2).
+  it("no pay week and no shifts line in the bar", () => {
+    const html = shell();
+    expect(html).not.toMatch(/Week \d|Pay Fri|This week/);
+    expect(html).not.toMatch(/Shifts line|\+44/);
+    expect(html).not.toMatch(/xl:flex/);
+  });
+
+  // The counts (round 7's first capsule), from 1024px: each a link to where it's worked, swelling
+  // under a press, a hairline between them; its icon only when the bar has room for all three
+  // capsules with it; Urgent's number red while there are any.
+  it("the counts: To fill, Urgent, Offers out, To check and Pay queries, each opening where it's worked", () => {
+    const html = shell();
+    const counts = countsOf(html);
+    const links = [...counts.matchAll(/<a class="([^"]*)" href="([^"]*)">(.*?)<\/a>/g)];
+    expect(links.map((m) => [m[2], text(m[3] ?? "")])).toEqual([
+      ["/office/events?view=need", "To fill 26"],
+      ["/office/events?view=urgent", "Urgent 2"],
+      ["/office#offers-chart", "Offers out 11"],
+      ["/office/needs-attention", "To check 7"],
+      ["/office/pay-queries", "Pay queries 10"],
+    ]);
+    for (const m of links) {
+      expect(m[1]).toBe(
+        "press-glass flex h-10 items-center gap-2 rounded-full px-3 text-ink-muted hover:bg-active hover:text-ink active:bg-button-press",
+      );
+      expect(m[3]).toMatch(/^<svg [^>]*class="shrink-0 hidden @min-\[73.25rem\]:block">/);
+    }
+    expect(
+      counts.match(/<span aria-hidden="true" class="h-5 w-px bg-line"><\/span>/g),
+    ).toHaveLength(4);
+    expect(counts).toContain('Urgent <b class="font-semibold tabular-nums text-urgent-ink">2</b>');
+    expect(counts).toContain('To fill <b class="font-semibold tabular-nums text-ink">26</b>');
+    // No urgent places: its number in ink.
+    expect(countsOf(shell(undefined, "admin", { shell: { ...COUNTS, urgent: 0 } }))).toContain(
+      'Urgent <b class="font-semibold tabular-nums text-ink">0</b>',
+    );
+    // Counts that couldn't be read: the words alone.
+    const unread = countsOf(shell(undefined, "admin", { shell: null }));
+    expect(text(unread)).toBe("To fill Urgent Offers out To check 7 Pay queries 10");
+  });
+
+  it("each role's counts and search: payroll has its pay queries and no search", () => {
+    expect(text(countsOf(shell(undefined, "resourcer")))).toBe(
+      "To fill 26 Urgent 2 Offers out 11 To check 7",
+    );
+    const payroll = shell(undefined, "payroll");
+    expect(text(countsOf(payroll))).toBe("Pay queries 10");
+    expect(payroll).not.toContain('type="search"');
+    expect(shell(undefined, "resourcer")).toContain('type="search"');
+  });
+
+  // Round 7's second capsule: "Search" with ⌘K (or Ctrl K, said once the page is ready); its
+  // label says what it finds; it waits for the page; the panel is drawn only while it's open; one
+  // polite live line (not a status role: page tests find statuses).
+  it("the search: a labelled box that waits for the page, its panel shut", () => {
+    const bar = barOf(shell());
+    expect(bar).toMatch(
+      /<label for="([^"]+)" class="sr-only">Find a casual, shift or site<\/label><input id="\1" type="search" autoComplete="off" spellCheck="false" placeholder="Search" disabled="" aria-describedby="([^"]+)" class="[^"]*"/,
+    );
+    expect(bar).toMatch(/<p id="[^"]+" aria-live="polite" class="sr-only"><\/p>/);
+    expect(bar).not.toContain("data-search-panel");
+    expect(bar).not.toContain("<kbd");
+    expect(bar).not.toMatch(/role="(?:status|combobox|listbox)"/);
+  });
+
+  // Round 7's third capsule: the light or dark button, then you: your initials (a pale blue disc
+  // from 1024px), your name (from 640px; with your role under it from 1024px when the bar has the
+  // room) and a chevron. Read out at every width as "Sam Admin Admin".
+  it("you: your initials, name and role, opening the account menu", () => {
+    const bar = barOf(shell());
     const account = bar.match(
-      // HTML attribute names ignore case (React writes "popoverTarget").
       new RegExp(
         `<button type="button" popovertarget="${ACCOUNT_MENU_ID}"[^>]*>(.*?)</button>`,
         "i",
@@ -569,29 +649,21 @@ describe("the shell", () => {
     )?.[1];
     expect(account).toBeDefined();
     expect(account).toMatch(
-      /^<span aria-hidden="true" class="flex size-9 shrink-0 items-center justify-center rounded-full glass-button text-sm font-bold text-ink-muted">SA<\/span>/,
+      /^<span aria-hidden="true" class="flex size-9 shrink-0 items-center justify-center rounded-full glass-button text-sm font-bold text-ink-muted lg:size-8 lg:glass-rim lg:bg-wait-tile lg:bg-none lg:text-xs lg:font-semibold lg:text-wait-ink">SA<\/span>/,
     );
     expect(account).toContain(
-      '<span class="sr-only leading-tight sm:not-sr-only"><span class="block max-w-48 truncate font-semibold text-ink">Sam Admin</span><span class="sr-only"> Admin</span></span>',
+      '<span class="sr-only leading-tight sm:not-sr-only lg:sr-only lg:@min-[63rem]:not-sr-only"><span class="block max-w-48 truncate font-semibold text-ink lg:max-w-28 lg:font-medium">Sam Admin</span><span class="sr-only lg:not-sr-only lg:block lg:text-sm lg:text-ink-muted"> Admin</span></span>',
     );
-    expect(account).toMatch(/<svg [^>]*class="shrink-0 hidden rotate-90 text-ink-muted sm:block"/);
+    expect(account).toMatch(
+      /<svg [^>]*class="shrink-0 hidden rotate-90 text-ink-muted sm:block lg:hidden lg:@min-\[63rem\]:block"/,
+    );
     expect(text((account ?? "").replace(/<span aria-hidden="true"[^>]*>SA<\/span>/, ""))).toBe(
       "Sam Admin Admin",
     );
     // Everything in the bar, read in order (the switch's words under it are hidden from screen
     // readers, and said once here by its name).
-    expect(text(barOnly(html))).toBe(
-      "Menu A Acme Events Office Week 41 · 5 Oct – 11 Oct · Pay Fri 16 Oct This week Shifts line: +44 7700 900000 Switch to dark mode SA Sam Admin Admin",
-    );
-  });
-
-  it("no shifts line yet: none in the bar", () => {
-    const html = shell(undefined, "admin", null);
-    expect(html).not.toContain("Shifts line");
-    expect(html).not.toMatch(/xl:flex"><svg/);
-    // The rest of the bar as it was.
-    expect(text(barOnly(html))).toBe(
-      "Menu A Acme Events Office Week 41 · 5 Oct – 11 Oct · Pay Fri 16 Oct This week Switch to dark mode SA Sam Admin Admin",
+    expect(text(barOnly(shell()))).toBe(
+      "Menu A Acme Events Office To fill 26 Urgent 2 Offers out 11 To check 7 Pay queries 10 Find a casual, shift or site Switch to dark mode SA Sam Admin Admin",
     );
   });
 
@@ -601,11 +673,10 @@ describe("the shell", () => {
     expect(at).toBeGreaterThan(-1);
     const menu = html.slice(at, html.indexOf("</header>"));
     expect(text(menu)).toBe("Sam Admin Admin Switch to dark mode How-to guide Log out");
-    // At the top right under the bar (8px under it: 56px tall, 64px from 1024px), growing from its
-    // corner; floating glass with its 22px corners (Phase 24; white in 23; top left over the menu
-    // in 22).
+    // Under you, growing from its corner (the page puts its corner under yours as it opens:
+    // office-frame.tsx); floating glass with its 22px corners.
     expect(menu).toMatch(
-      /^<div id="office-account-menu" popover="auto" class="inset-auto top-16 right-3 m-0 w-64 origin-top-right animate-pop rounded-inner glass-float p-2 text-base text-ink lg:top-18 lg:right-6">/,
+      /^<div id="office-account-menu" popover="auto" class="inset-auto top-16 right-3 m-0 w-64 origin-top-right animate-pop rounded-inner glass-float p-2 text-base text-ink">/,
     );
     // The guide is one row here, and nowhere else in the shell (Phase 22: the menu's foot until then).
     expect(menu).toContain('href="/office/guide"');
@@ -635,34 +706,382 @@ describe("the shell", () => {
     }
   });
 
-  it("the drawer is a native dialog, empty until it's opened; the menu is in its card", () => {
+  it("the drawer is a native dialog, empty until it's opened; the menu is in the rail", () => {
     const html = shell();
     const dialog = html.match(new RegExp(`<dialog[^>]*id="${DRAWER_ID}"[^>]*>(.*?)</dialog>`));
     expect(dialog).not.toBeNull();
     expect(dialog?.[0]).toContain('aria-label="Menu"');
     expect(dialog?.[0]).not.toMatch(/\bopen\b=/);
     expect(dialog?.[1]).toBe("");
-    // Floating glass, full height at the left, over the dimmed page; it slides in (Phase 24: white
-    // in 23; a rounded sheet on the ground in Phase 22).
+    // Floating glass, full height at the left, over the dimmed page; it slides in.
     expect(dialog?.[0]).toContain(
       'class="inset-y-0 right-auto left-0 m-0 h-dvh max-h-none w-80 max-w-[85vw] overflow-hidden glass-float p-0 text-base text-ink transition-[translate] duration-200 ease-sd backdrop:animate-fade backdrop:bg-scrim/40 starting:-translate-x-full"',
     );
-    // The menu card (from 1024px): a section of glass, 24px round, 16px under the bar and staying
-    // there; it scrolls with no bar only when the window is too short for it.
-    expect(html).toContain(
-      '<div class="glass hidden rounded-card p-2 lg:sticky lg:top-20 lg:block lg:self-start"><div data-menu-scroll="" class="scrollbar-none fade-edges overflow-y-auto overscroll-contain lg:max-h-[calc(100dvh-7.125rem)]"><nav aria-label="Office menu" class="relative flex flex-col">',
-    );
+    const rail = html.slice(html.indexOf(`<div id="${RAIL_ID}"`), html.indexOf("<header"));
+    expect(rail).toContain('<nav aria-label="Office menu" class="flex flex-col gap-1">');
   });
 
-  it("payroll's shell: their own menu, the same bar", () => {
-    const html = shell(undefined, "payroll");
-    // The bar with the pay week, then their menu, then the page (Phase 23: the pay week moved from
-    // the menu's end to the bar); the guide in the account menu (Phase 22).
-    expect(text(barOnly(html))).toContain("Week 41 · 5 Oct – 11 Oct · Pay Fri 16 Oct This week");
-    expect(text(html)).toContain("Pay Pay dashboard Pay queries Import pay records PAGE");
+  it("payroll's shell: their own menu in the rail, the bar with their count", () => {
+    const html = shell(undefined, "payroll", { pathname: "/office/pay" });
+    const rail = html.slice(html.indexOf(`<div id="${RAIL_ID}"`), html.indexOf("<header"));
+    // Pay is all their menu: its pages as icons, no fold.
+    expect([...rail.matchAll(/<a [^>]*href="([^"]+)"/g)].map((m) => m[1])).toEqual([
+      "/office/pay",
+      "/office/pay-queries",
+      "/office/pay/import",
+    ]);
+    expect(rail).not.toMatch(/aria-controls="rail-/);
     expect(html.match(/href="\/office\/guide"/g)).toHaveLength(1);
     expect(html).not.toContain('href="/office/events"');
     expect(html).not.toContain('href="/office/shifts"');
+  });
+});
+
+describe("the rail", () => {
+  const BADGES = menuBadges("admin", {
+    payQueries: 3,
+    needPerson: 2,
+    uploads: 4,
+    attention: { count: 9, more: false },
+  });
+  const render = (pathname: string, open = false, groups = officeMenu("admin", BADGES)) => {
+    nav.pathname = pathname;
+    return renderToStaticMarkup(
+      createElement(OfficeRail, {
+        groups,
+        firmName: "Acme Events",
+        firmInitial: "A",
+        initialOpen: open,
+      }),
+    );
+  };
+  // A row's link or button, with what's read inside it and after it.
+  const rows = (html: string) =>
+    [
+      ...html.matchAll(/<div class="group\/tip [^"]*">(<(a|button) [^>]*>.*?<\/\2>)(.*?)<\/div>/g),
+    ].map((m) => ({
+      el: m[1] ?? "",
+      name: text(
+        (m[1] ?? "")
+          .replace(/<span aria-hidden="true"[^>]*>.*?<\/span>/g, "")
+          .replace(/<svg[\s\S]*?<\/svg>/g, ""),
+      ).replace(/&amp;/g, "&"),
+      after: m[3] ?? "",
+    }));
+
+  it("its rows from the menu: the links as icons, Pay and People folds, Admin and records under a line", () => {
+    const items = railItems(officeMenu("admin"));
+    expect(
+      items.map((i) => (i.kind === "link" ? i.link.label : `fold:${i.group.label}:${i.apart}`)),
+    ).toEqual([
+      "Dashboard",
+      "Needs attention",
+      "Events & sessions",
+      "Enquiries",
+      "Cancellations",
+      "fold:Pay:false",
+      "fold:People:false",
+      "fold:Admin and records:true",
+    ]);
+    expect(
+      railItems(officeMenu("resourcer")).map((i) =>
+        i.kind === "link" ? i.link.label : `fold:${i.group.label}`,
+      ),
+    ).toEqual([
+      "Dashboard",
+      "Needs attention",
+      "Events & sessions",
+      "Enquiries",
+      "Cancellations",
+      "fold:People",
+      "fold:Admin and records",
+    ]);
+    // Payroll's menu is only Pay: its pages as icons.
+    expect(
+      railItems(officeMenu("payroll")).map((i) => (i.kind === "link" ? i.link.label : "fold")),
+    ).toEqual(["Pay dashboard", "Pay queries", "Import pay records"]);
+    // The how-to guide stays in the account menu.
+    expect(
+      railItems(officeMenu("admin")).some(
+        (i) => i.kind === "link" && i.link.href === "/office/guide",
+      ),
+    ).toBe(false);
+  });
+
+  it("a fold's count adds up its pages', needing you when one does; its words are theirs", () => {
+    const groups = officeMenu("admin", BADGES);
+    const pay = groups.find((g) => g.label === "Pay");
+    const people = groups.find((g) => g.label === "People");
+    const admin = groups.find((g) => g.label === "Admin and records");
+    expect(pay && foldBadge(pay)).toEqual({
+      count: 3,
+      more: false,
+      words: "3 waiting",
+      needs: false,
+    });
+    expect(people && foldBadge(people)).toEqual({
+      count: 4,
+      more: false,
+      words: "4 to check",
+      needs: true,
+    });
+    expect(admin && foldBadge(admin)).toBeNull();
+    expect(tipWords("Enquiries", { count: 2, words: "2 need a person" })).toBe(
+      "Enquiries, 2 need a person",
+    );
+    expect(tipWords("Cancellations", undefined)).toBe("Cancellations");
+  });
+
+  it("shut: the firm's mark, its own button, and icons named by their words alone", () => {
+    const html = render("/office");
+    expect(html).toMatch(
+      /^<div id="office-rail" data-rail="shut" class="glass-float sticky top-3 z-30 mt-3 hidden flex-col self-start rounded-card px-2 py-4 transition-\[width\] duration-200 ease-sd lg:flex w-18 items-center">/,
+    );
+    // The mark (the firm's initial on its colour); its name for screen readers.
+    expect(html).toContain(
+      '<span aria-hidden="true" class="flex size-10 shrink-0 items-center justify-center rounded-row bg-brand-bar text-lg font-semibold text-on-brand-bar">A</span><span class="sr-only">Acme Events</span>',
+    );
+    // Its own button: waits for the page, says what it does.
+    expect(html).toMatch(
+      /<button type="button" aria-expanded="false" aria-controls="office-rail" disabled="" class="press-glass [^"]*"><span class="sr-only">Show the menu with names<\/span><svg /,
+    );
+    const r = rows(html);
+    expect(r.map((x) => x.name)).toEqual([
+      "Dashboard",
+      "Needs attention",
+      "Events & sessions",
+      "Enquiries",
+      "Cancellations",
+      "Pay",
+      "Pay dashboard",
+      "Pay queries",
+      "Import pay records",
+      "People",
+      "Casuals",
+      "Strikes",
+      "Notice report",
+      "Admin and records",
+      "Action log",
+      "Pilot metrics",
+      "Office team",
+      "Settings",
+      "Integrations",
+      "Data requests",
+    ]);
+    // Round icons, 48px; the folds shut with their pages (rows with their names) hidden.
+    const folds = ["Pay", "People", "Admin and records"];
+    const pages = r.filter((x) => / min-h-9.5 /.test(x.el)).map((x) => x.name);
+    expect(pages).toEqual([
+      "Pay dashboard",
+      "Pay queries",
+      "Import pay records",
+      "Casuals",
+      "Strikes",
+      "Notice report",
+      "Action log",
+      "Pilot metrics",
+      "Office team",
+      "Settings",
+      "Integrations",
+      "Data requests",
+    ]);
+    for (const x of r.filter((y) => !pages.includes(y.name)))
+      expect(x.el).toMatch(/ size-12 justify-center rounded-full /);
+    expect(folds.every((f) => r.some((x) => x.name === f && x.el.startsWith("<button")))).toBe(
+      true,
+    );
+    for (const id of ["rail-pay", "rail-people", "rail-admin-and-records"]) {
+      expect(html).toMatch(
+        new RegExp(`<button type="button" aria-expanded="false" aria-controls="${id}" disabled=""`),
+      );
+      expect(html).toContain(`<div id="${id}" hidden=""`);
+    }
+    // Admin and records under a line.
+    expect(html).toMatch(
+      /<div class="mt-4 border-t border-line pt-3"><div class="group\/tip [^"]*"><button [^>]*aria-controls="rail-admin-and-records"/,
+    );
+    // Plain links and buttons: nothing the page tests count.
+    expect(html).not.toMatch(/<(li|ul|ol|h[1-6]|details|summary|fieldset|section|output)\b/);
+    expect(html).not.toMatch(/role="/);
+  });
+
+  it("a red dot where a page needs you, and the words beside each icon say why", () => {
+    const html = render("/office");
+    const r = rows(html);
+    const dotted = r.filter((x) => x.el.includes("data-rail-dot")).map((x) => x.name);
+    // Needs attention, enquiries that need a person, and People (its uploads to check); not Pay
+    // (an admin's pay queries are with payroll).
+    expect(dotted).toEqual(["Needs attention", "Enquiries", "People"]);
+    expect(html).toContain(
+      '<span aria-hidden="true" data-rail-dot="" class="absolute top-2 right-2.5 size-2 rounded-full bg-urgent ring-2 ring-panel"></span>',
+    );
+    const tip = (name: string) =>
+      r.find((x) => x.name === name)?.after.match(/data-rail-tip="" class="([^"]*)">([^<]*)</);
+    expect(tip("Needs attention")?.[2]).toBe("Needs attention, 9 to deal with");
+    expect(tip("Enquiries")?.[2]).toBe("Enquiries, 2 need a person");
+    expect(tip("Pay")?.[2]).toBe("Pay, 3 waiting");
+    expect(tip("People")?.[2]).toBe("People, 4 to check");
+    expect(tip("Cancellations")?.[2]).toBe("Cancellations");
+    // Shown under the pointer and on keyboard focus, to the right, over an invisible 12px bridge;
+    // hidden from screen readers (the row's own name and words say them).
+    expect(tip("Cancellations")?.[1]).toBe(
+      "absolute top-1/2 left-full z-30 ml-3 hidden -translate-y-1/2 animate-pop rounded-row bg-ink px-3 py-2 text-sm font-semibold whitespace-nowrap text-on-ink before:absolute before:inset-y-0 before:-left-3 before:w-3 peer-focus-visible:block pointer-fine:group-hover/tip:block",
+    );
+    // Beside each icon (a fold's pages show only with the rail open, with their names).
+    const icons = r.filter((x) => !/ min-h-9.5 /.test(x.el)).length;
+    expect(html.match(/<span aria-hidden="true" data-rail-tip="" class="absolute/g)?.length).toBe(
+      icons,
+    );
+    // A count's words read after its row.
+    expect(r.find((x) => x.name === "Enquiries")?.after).toMatch(
+      /^<span class="sr-only">2 need a person<\/span>/,
+    );
+  });
+
+  it("the page you're on under the lens, its icon in the accent; inside a shut fold, the fold wears it", () => {
+    const home = rows(render("/office"));
+    expect(home[0]?.el).toMatch(
+      /^<a aria-current="page" class="[^"]* lens font-medium text-ink" href="\/office">/,
+    );
+    expect(home[0]?.el).toMatch(/<svg [^>]*class="shrink-0 text-accent">/);
+    expect(home.filter((x) => x.el.includes(" lens "))).toHaveLength(1);
+    // A casual's page: Casuals is the section (aria-current=true, inside People); People, shut,
+    // wears the lens.
+    const casual = rows(render("/office/casuals/11111111-1111-4111-8111-111111111111"));
+    expect(casual.find((x) => x.name === "Casuals")?.el).toMatch(/aria-current="true"/);
+    expect(casual.find((x) => x.name === "People")?.el).toMatch(/ lens font-medium text-ink"/);
+    expect(casual.filter((x) => x.el.includes(" lens ")).map((x) => x.name)).toEqual([
+      "People",
+      "Casuals",
+    ]);
+  });
+
+  it("open: names and counts, its button says so, the fold you're in open", () => {
+    const html = render("/office/casuals", true);
+    expect(html).toMatch(
+      /^<div id="office-rail" data-rail="open" class="glass-float [^"]* lg:flex max-h-\[calc\(100dvh-1.5rem\)\] w-59">/,
+    );
+    expect(html).toContain(
+      '<span class="min-w-0 flex-1 truncate font-semibold text-ink">Acme Events</span>',
+    );
+    expect(html).toMatch(
+      /<button type="button" aria-expanded="true" aria-controls="office-rail" [^>]*><span class="sr-only">Show the menu as icons<\/span>/,
+    );
+    // It scrolls (with no bar) only when the window is too short for it.
+    expect(html).toContain(
+      '<div data-menu-scroll="" class="scrollbar-none fade-edges overflow-y-auto overscroll-contain -mx-1 min-h-0 flex-1 px-1"><nav aria-label="Office menu"',
+    );
+    const r = rows(html);
+    // Names shown (not for screen readers only), rows 44px, a fold's pages 38px with no icon (an
+    // empty space in its place, so the names line up).
+    expect(r[0]?.el).toMatch(/ min-h-11 w-full gap-3 rounded-row px-3 text-left /);
+    expect(r[0]?.el).toContain('<span class="min-w-0 flex-1 truncate">Dashboard</span>');
+    const casuals = r.find((x) => x.name === "Casuals")?.el ?? "";
+    expect(casuals).toMatch(/ min-h-9.5 w-full gap-3 rounded-row px-3 text-left /);
+    expect(casuals).not.toContain("<svg");
+    expect(casuals).toContain('<span aria-hidden="true" class="w-5 shrink-0"></span>');
+    // You're in People: it's open; Pay and Admin and records stay shut.
+    expect(html).toMatch(/aria-expanded="true" aria-controls="rail-people"/);
+    expect(html).toContain('<div id="rail-people" class="flex animate-in flex-col gap-1 pt-1">');
+    expect(html).toMatch(/aria-expanded="false" aria-controls="rail-pay"/);
+    // Counts beside their names (amber when it needs you, blue when it's with someone else); a
+    // shut fold shows its pages' count; no dots, no words beside the icons.
+    expect(r.find((x) => x.name === "Needs attention")?.el).toContain(
+      `<span aria-hidden="true" class="ml-auto ${countNeeds}">9</span>`,
+    );
+    expect(r.find((x) => x.name === "Pay")?.el).toContain(
+      `<span aria-hidden="true" class="ml-auto ${countWaiting}">3</span>`,
+    );
+    expect(casuals).toContain(`<span aria-hidden="true" class="ml-auto ${countNeeds}">4</span>`);
+    expect(r.find((x) => x.name === "People")?.el).not.toMatch(/class="ml-auto/);
+    expect(html).not.toContain("data-rail-dot");
+    expect(html).not.toContain("data-rail-tip");
+  });
+
+  it("the sd-rail cookie: open or shut, for a year, for every page; Secure on https", () => {
+    expect(railCookie(true, true)).toBe(
+      "sd-rail=open; Path=/; Max-Age=31536000; SameSite=Lax; Secure",
+    );
+    expect(railCookie(false, false)).toBe("sd-rail=shut; Path=/; Max-Age=31536000; SameSite=Lax");
+    expect(railOpenFromCookie("open")).toBe(true);
+    for (const v of ["shut", undefined, "", "OPEN", "yes"])
+      expect(railOpenFromCookie(v)).toBe(false);
+  });
+});
+
+describe("the top bar's counts", () => {
+  const all = {
+    shell: { toFill: 5, urgent: 1, offersOut: 3 },
+    attention: { count: 4, more: true },
+    payQueries: 2,
+  };
+  it("each only for the roles that can open its page", () => {
+    expect(barCounts("admin", all).map((c) => c.key)).toEqual([
+      "toFill",
+      "urgent",
+      "offersOut",
+      "toCheck",
+      "payQueries",
+    ]);
+    expect(barCounts("resourcer", all).map((c) => c.key)).toEqual([
+      "toFill",
+      "urgent",
+      "offersOut",
+      "toCheck",
+    ]);
+    expect(barCounts("payroll", all).map((c) => c.key)).toEqual(["payQueries"]);
+    // Every link one the role can open (the roles test checks each page's area).
+    for (const role of ["admin", "resourcer", "payroll"] as const) {
+      const hrefs = officeMenu(role).flatMap((g) => g.links.map((l) => l.href));
+      for (const c of barCounts(role, all))
+        expect(currentHref(c.href.replace(/[?#].*$/, ""), hrefs)).not.toBeNull();
+    }
+  });
+
+  it("their numbers, words and pages; Offers out lands on the dashboard's offers chart", () => {
+    expect(barCounts("admin", all)).toEqual([
+      {
+        key: "toFill",
+        label: "To fill",
+        href: "/office/events?view=need",
+        icon: "profile",
+        count: 5,
+      },
+      {
+        key: "urgent",
+        label: "Urgent",
+        href: "/office/events?view=urgent",
+        icon: "clock",
+        count: 1,
+        urgent: true,
+      },
+      {
+        key: "offersOut",
+        label: "Offers out",
+        href: `/office#${CHART_IDS.offers}`,
+        icon: "send",
+        count: 3,
+      },
+      {
+        key: "toCheck",
+        label: "To check",
+        href: "/office/needs-attention",
+        icon: "checkbox",
+        count: 4,
+        more: true,
+      },
+      {
+        key: "payQueries",
+        label: "Pay queries",
+        href: "/office/pay-queries",
+        icon: "pay",
+        count: 2,
+      },
+    ]);
+    // Couldn't be read: no number.
+    expect(
+      barCounts("admin", { shell: null, attention: null, payQueries: null }).map((c) => c.count),
+    ).toEqual([null, null, null, null, null]);
   });
 });
 

@@ -202,16 +202,18 @@ describe("the office how-to guide", () => {
     return html.slice(start, html.indexOf("</section>", start));
   };
 
-  // Phase 23 (round 3): a top bar along every page, the menu in its own card from 1024px and a
-  // drawer behind "Menu" below it; your initials and name at the bar's top right (the name from
-  // 640px) opening the account menu; the square light or dark button beside them (office-frame.tsx,
-  // theme-button.tsx). Until Phase 23 the account sat at the top of the menu on a wide screen.
-  it("Getting around describes the top bar, the menu card, the drawer and where Log out is (12I.3, Phase 23)", () => {
+  // Phase 24 (round 7; PLAN.md 24.2): from 1024px the rail at the left (icons, opened to names by
+  // the button under the firm's mark; a name under the pointer; a red dot where a page needs you;
+  // Pay and People as folds) and a top bar of the counts, the search and you; below it a drawer
+  // behind "Menu"; your initials and name at the bar's top right opening the account menu, the
+  // light or dark button beside them (office-frame.tsx, office-rail.tsx, theme-button.tsx). Each
+  // role told only of what it has. Until Phase 24 the menu was a card under a full-width bar, which
+  // showed the pay week and the shifts line's number.
+  it("Getting around describes the rail, the top bar's counts and search, the drawer and where Log out is (12I.3, Phase 24)", () => {
     for (const role of ["admin", "resourcer", "payroll"] as const) {
       const text = words(section(guide(role), "getting-around"));
-      // The bar on every page; the menu a card on the left from a wide screen.
       expect(text).toContain(
-        "A bar runs along the top of every page. On a wide screen, the menu is in its own card on the left, under the bar.",
+        "On a wide screen, the menu is a column of icons down the left. Select the button under your firm's mark to show the menu with names, and again to show icons only. Point at an icon to see its name. A red dot means that page needs you.",
       );
       // Below 1024px the menu is a drawer behind "Menu", closed by "Close menu" (office-frame.tsx).
       expect(text).toContain("On a phone or tablet, select Menu at the top left");
@@ -224,22 +226,45 @@ describe("the office how-to guide", () => {
       expect(text).toContain(
         "Select them to open this guide, to switch between dark and light, or to Log out",
       );
-      // The square button in the bar, by its words (its icon has none).
+      // The light or dark button in the bar, by its words (its icon has none).
       expect(text).toContain(
-        "The square button beside them switches between dark and light too. Its name says which: Switch to dark mode or Switch to light mode .",
-      );
-      expect(text).toContain(
-        "On a wide screen, the bar also shows the pay week and its pay day, and your shifts line's number if you have one.",
+        "The button beside them switches between dark and light too. Its name says which: Switch to dark mode or Switch to light mode .",
       );
       expect(text).not.toMatch(/\bmoon\b/i);
-      // Not round 2's places: the account over the menu, the menu down the window's side.
+      // Not the places of Phases 22 and 23: the menu's card, the pay week and shifts line in the bar.
+      expect(text).not.toContain("in its own card");
+      expect(text).not.toContain("pay week");
+      expect(text).not.toContain("bar also shows");
       expect(text).not.toContain("at the top of the menu");
-      expect(text).not.toContain("beside your firm's name");
       expect(text).not.toContain("down the left side");
       // The guide isn't in the menu (Phase 22: office-nav.tsx leaves the `bottom` group out), so
       // the menu's list here leaves it out too.
       expect(text).not.toContain("This page.");
     }
+    // The folds each role has in the rail, and the counts and search in its bar (office-menu.ts
+    // barCounts; payroll's Pay is all their menu, as icons, and they have no search).
+    const text = (role: "admin" | "resourcer" | "payroll") =>
+      words(section(guide(role), "getting-around"));
+    expect(text("admin")).toContain("Pay and People each open to show their pages.");
+    expect(text("resourcer")).toContain("People opens to show its pages.");
+    expect(text("payroll")).not.toMatch(/open(?:s)? to show (?:its|their) pages/);
+    expect(text("admin")).toContain(
+      "On a wide screen, the bar at the top shows To fill, Urgent, Offers out, To check and Pay queries. Each opens the page where you deal with it.",
+    );
+    expect(text("resourcer")).toContain(
+      "On a wide screen, the bar at the top shows To fill, Urgent, Offers out and To check.",
+    );
+    expect(text("payroll")).toContain("On a wide screen, the bar at the top shows Pay queries.");
+    const search =
+      "Use Search beside them to find a casual, a shift or a site. Press ⌘K on a Mac, or Ctrl K, to go straight to it.";
+    expect(text("admin")).toContain(search);
+    expect(text("resourcer")).toContain(search);
+    expect(text("payroll")).not.toContain("Search");
+    expect(text("payroll")).not.toContain("Admin and records");
+    // Settings now holds the shifts line's number (it left the bar).
+    expect(text("admin")).toContain(
+      "Settings. The strikes team's email, your shifts line's number, and your sites' postcodes.",
+    );
     // Needs attention is in the menu only for the roles with it, "today" (office-menu.ts); Phase
     // 20 took the bell out, so the guide never mentions one.
     const count = "Needs attention, under Dashboard in the menu, counts what needs you.";

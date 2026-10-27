@@ -11,6 +11,7 @@ import {
   startLine,
 } from "@/lib/office/dashboard-home";
 import { payWeek } from "@/lib/pay/pay-week";
+import { dayLabel } from "@/lib/rules/reasons";
 import { datePartsOfDay } from "@/lib/portal/sign-copy";
 import { countUrgent, notice, quietLink } from "../ui/classes";
 import { Icon } from "../ui/icons";
@@ -102,8 +103,10 @@ export function DashboardContent({
     <PanelHost>
       <div className="flex flex-col gap-8">
         <header className="flex flex-col gap-2">
+          {/* The day and the pay week with its pay day (Phase 24: from the top bar). */}
           <p className="text-sm font-semibold text-ink-muted tabular-nums">
-            {datePartsOfDay(d.today).long} · Week {payWeek(d.today).week}
+            {datePartsOfDay(d.today).long} · Week {payWeek(d.today).week} · Pay{" "}
+            {dayLabel(payWeek(d.today).payDay)}
           </p>
           <h1 className="text-ink">
             <span className="block text-title">

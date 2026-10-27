@@ -1114,11 +1114,12 @@ describe("the page (Phases 18 to 23: the dashboard)", () => {
     const html = render(full, { shiftsLine: "Shifts line 07700 900123" });
     // 3 urgent places + 9 of Needs attention's items + 2 enquiries that need a person.
     expect(h1s(html)).toEqual(["Evening, Acme Events. 14 things need you."]);
-    // Phase 23: today and the week over the greeting (the pay date is in the top bar now).
+    // Phase 23: today and the week over the greeting; Phase 24: with the week's pay day, which left
+    // the top bar (PLAN.md 24.2).
     expect(words(html)).toContain(
-      "Monday 2 November · Week 45 Evening, Acme Events. 14 things need you. Start with Saturday's door supervisor at 06:00: offered to 4 casuals. Shifts line 07700 900123",
+      "Monday 2 November · Week 45 · Pay Fri 13 Nov Evening, Acme Events. 14 things need you. Start with Saturday's door supervisor at 06:00: offered to 4 casuals. Shifts line 07700 900123",
     );
-    expect(words(html)).not.toContain("Pay Fri 13 Nov");
+    expect(words(html).match(/Pay Fri 13 Nov/g)).toHaveLength(1);
     // The page's one <h1>: the greeting in the headline's own style, then the count.
     expect(html).toMatch(
       /<h1 class="text-ink"><span class="block text-title">Evening, Acme Events\.<\/span> <span class="mt-2 block text-lg font-bold">14 things need you\.<\/span><\/h1>/,

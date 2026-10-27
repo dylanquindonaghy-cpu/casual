@@ -352,16 +352,25 @@ describe("the office's sticky top bar never hides what the keyboard moves to (WC
   it("the page scrolls a focused control or a link's place 80px under the window's top", () => {
     expect(css).toContain('html:has([data-shell="office"]) {\n  scroll-padding-top: 5rem;\n}');
     expect(css.match(/scroll-padding/g)).toHaveLength(1);
-    // 80px: the bar's height (56px, 64px from 1024px) and a 16px step.
+    // 80px: the bar's height and a 12px step. Below 1024px the bar is 56px; from there (Phase 24)
+    // it's its 48px capsules with 12px above them and 8px below: 68px.
     const frame = read("src/app/office/office-frame.tsx");
-    const bar = /<header className="glass-float sticky top-0 [^"]*">/.exec(frame)?.[0] ?? "";
-    expect(bar).toMatch(/(?<![\w-])min-h-14(?![\w-])/);
-    const tallest = Number(/(?<![\w-])lg:min-h-(\d+)(?![\w-])/.exec(bar)?.[1]) * 4;
+    const search = read("src/app/office/office-search.tsx");
+    const bar = /<header\s+ref=\{bar\}\s+className="([^"]*)"/.exec(frame)?.[1] ?? "";
+    expect(bar).toMatch(/(?<![\w-])sticky top-0(?![\w-])/);
+    const px = (re: RegExp, s: string) => Number(re.exec(s)?.[1]) * 4;
+    const phone = px(/(?<![\w:-])min-h-(\d+)(?![\w-])/, bar);
+    // The capsules: the search 48px tall; the counts' and your pills 40px in 4px of capsule.
+    expect(search).toContain('className="glass-float flex h-12 ');
+    expect(frame).toContain("press-glass flex h-10 items-center");
+    expect(frame).toMatch(/lg:glass-float lg:gap-1 lg:rounded-full lg:p-1/);
+    const wide =
+      px(/(?<![\w-])lg:pt-(\d+)(?![\w-])/, bar) + 48 + px(/(?<![\w-])lg:pb-(\d+)(?![\w-])/, bar);
     const padding = Number(/scroll-padding-top: (\d+)rem;/.exec(css)?.[1]) * 16;
-    expect([tallest, padding]).toEqual([64, 80]);
-    expect(padding).toBe(tallest + 16);
+    expect([phone, wide, padding]).toEqual([56, 68, 80]);
+    expect(padding).toBe(Math.max(phone, wide) + 12);
     // The shell the rule looks for.
-    expect(frame).toContain('<div data-shell="office"');
+    expect(frame).toMatch(/<div\s+data-shell="office"/);
   });
 
   it("so no office heading or section adds its own margin on top (a link would land twice as low)", () => {
@@ -393,7 +402,7 @@ describe("the top bar's light or dark switch: its words (WCAG 1.4.13: they can b
       createElement(ThemeButton, { initial: "light", look: "square" }),
     );
     expect(html).toMatch(
-      /^<span class="group\/tip relative flex shrink-0"><button type="button" aria-label="Switch to dark mode" disabled="" class="peer press-glass glass-button inline-flex size-11 [^"]*">.*?<\/button><span aria-hidden="true" data-theme-tip="" class="([^"]*)">Switch to dark mode<\/span><\/span>$/,
+      /^<span class="group\/tip relative flex shrink-0"><button type="button" aria-label="Switch to dark mode" disabled="" class="peer press-glass max-lg:glass-button inline-flex size-11 [^"]*">.*?<\/button><span aria-hidden="true" data-theme-tip="" class="([^"]*)">Switch to dark mode<\/span><\/span>$/,
     );
     const tip = /data-theme-tip="" class="([^"]*)"/.exec(html)?.[1] ?? "";
     expect(tip).toBe(

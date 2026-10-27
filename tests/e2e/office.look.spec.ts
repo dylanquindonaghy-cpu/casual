@@ -380,7 +380,7 @@ for (const device of ["light", "dark"] as const) {
         return href!;
       };
       // And the pages opened from inside one (Phase 22): an enquiry, the offer page, a shift's
-      // and an event's page (its link is in a board row, once opened), and the ways to add shifts.
+      // and an event's page (its card's View sessions, Phase 24), and the ways to add shifts.
       const found = async (list: string, pattern: RegExp, open?: string) => {
         await page.goto(`${acme}${list}`);
         if (open) await page.locator(open).first().click();
@@ -403,11 +403,7 @@ for (const device of ["light", "dark"] as const) {
         await found("/office/enquiries", new RegExp(`^/office/enquiries/${id}$`)),
         await found("/office", new RegExp(`^/office/offer/${id}$`)),
         await found("/office/shifts", new RegExp(`^/office/shifts/${id}$`)),
-        await found(
-          "/office/events",
-          new RegExp(`^/office/events/${id}$`),
-          'main button[aria-expanded="false"][aria-controls^="event-"]',
-        ),
+        await found("/office/events", new RegExp(`^/office/events/${id}$`)),
         "/office/shifts/new",
         "/office/shifts/import",
         "/office/shifts/event",

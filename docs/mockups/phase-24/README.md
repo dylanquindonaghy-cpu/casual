@@ -189,6 +189,23 @@ app shows the firm's real ones.
   Events page has one too, 24.4), and Cancellations and Enquiries each have "Show only today's"
   under their views (the mock-up doesn't show one; "Cancellations today" and "Enquiries today"
   were the way to today's lists, and today's CSV of cancellations).
+- **Events & sessions' "Need people"** (the top bar's To fill opens it) shows as a filter after All
+  only while it's the one chosen; the mock-up's four are always there.
+- **An event's sessions** each show the post (else the meeting point; the mock-up showed one or
+  the other); the uniform and the rest are on the event's page. A card holds its first 30
+  sessions to come and counts the others ("+ 2 more sessions"). The old board's Earlier and Later
+  went with it (the shifts list, "All shifts by day", has the days), and each session's Urgent
+  switch is in its "…" ("Mark urgent" / "Not urgent"), as the mock-up's menu has it.
+- **The show-to-casuals switch** is the office's green for "fine" (`done`: dark green in light,
+  light green in dark), so it keeps 3:1 on the glass in both; the mock-up's one green was too dark
+  on dark glass.
+- **Enquiries' pane** keeps "Considered but not offered" under "How it was answered" (the message's
+  page has it; the mock-up's sample had nothing left out), and a pay message's row keeps "Pay:
+  never answered by AI (rule)" under its words. With no message asked for, the pane shows the
+  list's first. A phone has no pane: a row opens the message's own page.
+- **Casuals' search** shows its matches in a floating panel under the box (the mock-up showed only
+  the box), as the find form's matches were, with Close. Uploads to check is one glass panel of
+  rows, each with "Check it".
 - **Below 1024px** the office keeps today's top bar with Menu and the drawer (the mock-up only
   shows 1280px).
 - **The rail's dots** mark only a page that needs you: an admin's pay queries wait with payroll, so

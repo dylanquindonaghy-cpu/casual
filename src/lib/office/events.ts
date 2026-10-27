@@ -87,7 +87,8 @@ export interface EventList {
   site: { id: string; name: string } | null;
   // The firm's shifts come from a Google Sheet: no "Add shifts" or "Import shifts" here.
   hasPlanner: boolean;
-  // Each with every session to come (the rota board places them on its days).
+  // Each with its sessions to come, the first CARD_SESSIONS_MAX (its card; the others are on its
+  // page).
   events: EventCardData[];
   more: boolean;
 }
@@ -390,8 +391,9 @@ export async function officeEventList(
             .where(eq(sites.id, siteId))
         : [];
     const at = site?.id ?? null;
-    // Every session to come on each event: the board shows two weeks at a time, from any day.
-    const { events, more } = await loadEventCards(tx, now, view, Number.MAX_SAFE_INTEGER, at);
+    // Each card's first CARD_SESSIONS_MAX sessions to come (Phase 24's cards; Phase 18's rota board
+    // took them all, for any two weeks).
+    const { events, more } = await loadEventCards(tx, now, view, CARD_SESSIONS_MAX, at);
     return {
       timeZone: await timeZoneOf(tx),
       view,

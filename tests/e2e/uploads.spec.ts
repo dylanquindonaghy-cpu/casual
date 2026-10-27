@@ -162,13 +162,13 @@ test("a casual uploads a photo and a certificate; the office checks them; her pr
       officeQuals.getByRole("link", { name: "See the card it came from" }),
     ).toBeVisible();
 
-    // The Casuals table's Staff photo column: the upload date and its status.
+    // The Casuals table's Staff photo column: its status, the upload date under it (Phase 24, 24.4).
     await office.goto(`${acme}/office/casuals`);
     const row = office
       .getByRole("region", { name: "All: casuals" })
       .getByRole("row")
       .filter({ hasText: una });
-    await expect(row.getByRole("cell").nth(2)).toHaveText(/^\d{1,2} [A-Z][a-z]{2}Up to date$/);
+    await expect(row.getByRole("cell").nth(2)).toHaveText(/^Up to date\d{1,2} [A-Z][a-z]{2}$/);
   } finally {
     await officeContext.close();
   }

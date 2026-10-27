@@ -37,9 +37,10 @@ const ZOE_PARK = { firstName: "Zoe", lastName: "Park", mobileE164: "+44770090062
 // Home's casual (12H.1): one of this spec's own, with a booked session, an urgent one and an old photo.
 const HOLLY = { firstName: "Holly", lastName: "Grant", mobileE164: "+447700900621" };
 // Her qualifications as tags on Casuals, worst first.
-const TAGS =
-  /CSAS accreditation: Missing.*Level 2 spectator safety qualification: Expiring soon.*SIA door supervisor licence: Valid/;
-const SUMMARY = "Level 2 spectator safety qualification: expiring soon, and 1 more";
+// Casuals' words for her (Phase 24, 24.4: each qualification's short name with its date), the
+// worst first.
+const TAGS = new RegExp(`CSAS: missing.*Steward L2: expires ${DAY}.*SIA DS: valid until ${DAY}`);
+const SUMMARY = new RegExp(`^Steward L2: expires ${DAY}, and 1 more$`);
 
 const noSidewaysScroll = async (page: Page) =>
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBe(
@@ -297,13 +298,13 @@ test("Shifts: Zoe sees the Arena shift with its travel line, and its page in ful
   ).toBeVisible();
 });
 
-// The count in a view's link: "Need updating (3)" is 3.
+// The count in a view's link (its disc, Phase 24): "Need updating 3" is 3.
 const countIn = async (page: Page, name: string) => {
   const text = await page
     .getByRole("navigation", { name: "Show", exact: true })
-    .getByRole("link", { name: new RegExp(`^${name} \\(\\d+\\)$`) })
+    .getByRole("link", { name: new RegExp(`^${name} \\d+$`) })
     .innerText();
-  return Number(/\((\d+)\)/.exec(text)?.[1]);
+  return Number(/(\d+)\s*$/.exec(text)?.[1]);
 };
 
 test("the office sees Zoe on Casuals and on her own page", async ({ page }, testInfo) => {
@@ -347,7 +348,7 @@ test("the office sees Zoe on Casuals and on her own page", async ({ page }, test
     // Need updating: Zoe's card (her expiring one first, then 1 more), as many as its link counts.
     await page
       .getByRole("navigation", { name: "Show", exact: true })
-      .getByRole("link", { name: /^Need updating \(\d+\)$/ })
+      .getByRole("link", { name: /^Need updating \d+$/ })
       .click();
     await expect(page).toHaveURL(`${acme}/office/casuals?view=needs`);
     const needsList = page.getByRole("region", { name: "Need updating", exact: true });
@@ -384,6 +385,15 @@ test("the office sees Zoe on Casuals and on her own page", async ({ page }, test
     await expect(row.getByRole("cell").nth(4)).toHaveText(String(strikes));
     await expect(row.getByRole("cell").nth(5)).toHaveText(SUMMARY);
     await expect(needsList.getByRole("listitem")).toHaveCount(0);
+    // The search on the filters' row, at its right (Phase 24, 24.4); her initials beside her name.
+    const tabsBox = (await page
+      .getByRole("navigation", { name: "Show", exact: true })
+      .boundingBox())!;
+    const searchBox = (await page.getByRole("search").boundingBox())!;
+    expect(searchBox.y).toBeLessThan(tabsBox.y + tabsBox.height);
+    expect(tabsBox.y).toBeLessThan(searchBox.y + searchBox.height);
+    expect(searchBox.x).toBeGreaterThan(tabsBox.x + tabsBox.width);
+    await expect(row.getByRole("cell").nth(0)).toHaveText(/^ZA\s*Zoe Adeyemi/);
 
     // Her page, on a phone again.
     await page.setViewportSize({ width: 390, height: 844 });

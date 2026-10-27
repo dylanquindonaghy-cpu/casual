@@ -52,13 +52,14 @@ test("a leaver made inactive, their booking cancelled from the dashboard; anothe
   // Find the leaver and make them inactive (a reason, then "Yes").
   await (await menuLink(page, "Casuals")).click();
   await expect(page.getByRole("heading", { name: "Casuals", level: 1 })).toBeVisible();
-  const find = page.getByRole("region", { name: "Find a casual" });
-  await find.getByLabel("Name or mobile number").fill(lenaName);
-  await find.getByRole("button", { name: "Find" }).click();
+  // The search beside the filters (Phase 24, 24.4), its matches in a panel under it.
+  await page.getByRole("searchbox", { name: "Name or mobile number" }).fill(lenaName);
+  await page.getByRole("search").getByRole("button", { name: "Find" }).click();
+  const found = page.getByRole("region", { name: "Search results" });
   // What was typed never goes into the address (audit L54; as on the data page).
-  await expect(find.getByRole("link", { name: lenaName })).toBeVisible();
+  await expect(found.getByRole("link", { name: lenaName })).toBeVisible();
   expect(page.url()).toBe(`${acme}/office/casuals`);
-  await find.getByRole("link", { name: lenaName }).click();
+  await found.getByRole("link", { name: lenaName }).click();
   await expect(page.getByRole("heading", { name: lenaName })).toBeVisible();
   await expect(page.getByRole("link", { name: `Steward at Leaver Hall ${n}` })).toBeVisible();
   await page.getByRole("button", { name: "Make inactive" }).click();

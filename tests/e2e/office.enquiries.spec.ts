@@ -13,7 +13,7 @@ import { sentTo } from "./outbox";
 // this spec's own sees them in Need a person (the menu's badge, the honest banner), opens one, reads
 // how it was answered, and replies: the reply reaches that number from Acme's line and the message
 // leaves Need a person. The other is closed with a reason, with no reply. Numbers: 07700
-// 900980-900998, which no seeded casual has.
+// 900980-900998, and 900920-900937 on a laptop, which no seeded casual has.
 
 const acme = "http://acme.localhost:3100";
 const webhook = "http://localhost:3100/api/webhooks/twilio/whatsapp";
@@ -89,7 +89,7 @@ test("Need a person: reply to one unknown number, close another with a reason", 
   ).toBeVisible();
   await noSidewaysScroll(page);
 
-  await page.getByRole("link", { name: /^Need a person \(\d+\)$/ }).click();
+  await page.getByRole("link", { name: /^Need a person \d+$/ }).click();
   await expect(page).toHaveURL(`${acme}/office/enquiries?view=person`);
   await expect(page.getByRole("link", { name: /^Need a person/ })).toHaveAttribute(
     "aria-current",
@@ -157,6 +157,15 @@ test("Need a person: reply to one unknown number, close another with a reason", 
     .filter({ hasText: wrongWords });
   await wrongRow.getByRole("link", { name: "Unknown number" }).click();
   const closeBox = page.getByRole("region", { name: "Answer it" });
+  // Closing asks why first (round 7: "Close, no reply needed", then the reason); "Keep it open"
+  // goes back, its button there again.
+  await expect(closeBox.getByLabel("Why close it?")).toHaveCount(0);
+  await closeBox.getByRole("button", { name: "Close, no reply needed" }).click();
+  await expect(closeBox.getByLabel("Why close it?")).toBeFocused();
+  await closeBox.getByRole("button", { name: "Keep it open" }).click();
+  await expect(closeBox.getByLabel("Why close it?")).toHaveCount(0);
+  await expect(closeBox.getByRole("button", { name: "Close, no reply needed" })).toBeFocused();
+  await closeBox.getByRole("button", { name: "Close, no reply needed" }).click();
   await closeBox.getByLabel("Why close it?").selectOption({ label: "Not for us" });
   const closedAt = new Date(Date.now() - 1000);
   await closeBox.getByRole("button", { name: "Close without a reply" }).click();
@@ -291,4 +300,88 @@ test("a casual's personal shift list: each check, the sessions listed and the on
       await cancelOwnShift("acme", id);
     }
   }
+});
+
+// From 1024px (Phase 24, 24.4: round 7 of the canvas): the list at the left, the chosen message at
+// the right (the list's first at first). A row picks its message there without leaving the page,
+// the address keeps it (so a reload shows it again), and the row says it's the current one. The
+// pane has the message page's parts. (On a phone a row opens the message's own page: above.)
+test.describe("on a laptop", () => {
+  test.use({ viewport: { width: 1280, height: 900 }, hasTouch: false, isMobile: false });
+
+  test("the list beside the chosen message; a row picks its message there, kept on reload", async ({
+    page,
+  }, testInfo) => {
+    await logIn(page, `pane.resourcer${testInfo.retry || ""}@example.com`, "Pane Resourcer");
+    await page.goto(`${acme}/office/enquiries`);
+    const list = page.getByRole("region", { name: "All", exact: true });
+    const pane = page.locator("[data-chosen-message]");
+    await expect(pane).toBeVisible();
+    const rows = list.getByRole("listitem");
+    expect(await rows.count()).toBeGreaterThan(1);
+    // Side by side, tops level.
+    const l = (await list.boundingBox())!;
+    const p = (await pane.boundingBox())!;
+    expect(p.x).toBeGreaterThanOrEqual(l.x + l.width);
+    expect(Math.abs(p.y - l.y)).toBeLessThan(2);
+    // The first is chosen: its row current, its message beside.
+    const first = rows.nth(0).getByRole("link");
+    const firstId = (await first.getAttribute("href"))?.split("/").pop();
+    await expect(first).toHaveAttribute("aria-current", "true");
+    await expect(pane).toHaveAttribute("data-chosen-message", firstId ?? "");
+    await expect(pane.getByRole("heading", { level: 2 })).toHaveText(/^Message from /);
+    for (const part of ["The conversation", "How it was answered", "Considered but not offered"])
+      await expect(pane.getByRole("region", { name: part })).toBeVisible();
+    // The second, picked in place: the address keeps it; it's the current row now.
+    const second = rows.nth(1).getByRole("link");
+    const href = (await second.getAttribute("href")) ?? "";
+    expect(href).toMatch(/^\/office\/enquiries\/[0-9a-f-]{36}$/); // still its own page's link
+    const id = href.split("/").pop() ?? "";
+    await second.click();
+    await expect(page).toHaveURL(`${acme}/office/enquiries?message=${id}`);
+    await expect(pane).toHaveAttribute("data-chosen-message", id);
+    await expect(second).toHaveAttribute("aria-current", "true");
+    await expect(first).not.toHaveAttribute("aria-current", "true");
+    await page.reload();
+    await expect(pane).toHaveAttribute("data-chosen-message", id);
+    await noSidewaysScroll(page);
+  });
+
+  // Answered beside the list, the message stays chosen with its confirmation: the address takes it
+  // (it was only the list's first until now), so a newer message at the top of the list, or this
+  // one leaving the view, never swaps another person's message in under "Closed. No reply was
+  // sent." (golden rule 11: every action ends with a confirmation).
+  test("a message answered beside the list stays there with its confirmation", async ({
+    page,
+    request,
+  }, testInfo) => {
+    const tag = randomBytes(3).toString("hex");
+    const n = 920 + Math.floor(Math.random() * 9) * 2;
+    const words = `Is this the right number? (e2e ${tag})`;
+    const newer = `A newer one (e2e ${tag})`;
+    await whatsApp(request, `+447700900${n}`, words);
+    await logIn(page, `answer.resourcer${testInfo.retry || ""}@example.com`, "Answer Resourcer");
+    await page.goto(`${acme}/office/enquiries`);
+    // The latest is the list's first, and chosen.
+    const pane = page.locator("[data-chosen-message]");
+    await expect(pane.getByRole("region", { name: "The conversation" })).toContainText(words);
+    const id = (await pane.getAttribute("data-chosen-message")) ?? "";
+    expect(id).toMatch(/^[0-9a-f-]{36}$/);
+    await whatsApp(request, `+447700900${n + 1}`, newer);
+    const answer = pane.getByRole("region", { name: "Answer it" });
+    await answer.getByRole("button", { name: "Close, no reply needed" }).click();
+    await answer.getByLabel("Why close it?").selectOption({ label: "Not for us" });
+    await answer.getByRole("button", { name: "Close without a reply" }).click();
+    await expect(answer.getByRole("status")).toHaveText("Closed. No reply was sent.");
+    await expect(page).toHaveURL(`${acme}/office/enquiries?message=${id}`);
+    // The page is fresh under it: the newer one tops the list, and the pane kept its message.
+    const list = page.getByRole("region", { name: "All", exact: true });
+    await expect(list.getByRole("listitem").nth(0)).toContainText(newer);
+    await expect(pane).toHaveAttribute("data-chosen-message", id);
+    await expect(answer.getByRole("status")).toHaveText("Closed. No reply was sent.");
+    await expect(pane.getByRole("region", { name: "The conversation" })).toContainText(words);
+    // An address that names no message of the firm's shows the list's first instead.
+    await page.goto(`${acme}/office/enquiries?message=not-a-message`);
+    await expect(pane.getByRole("region", { name: "The conversation" })).toContainText(newer);
+  });
 });

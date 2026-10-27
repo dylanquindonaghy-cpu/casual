@@ -1,14 +1,4 @@
 import { describe, expect, it } from "vitest";
-import type { Dashboard, NeedsAttention } from "@/lib/office/dashboard";
-import {
-  afterRows,
-  attentionText,
-  headline,
-  oneCount,
-  sortedRows,
-  subline,
-  urgentDaysText,
-} from "@/lib/office/dashboard-home";
 import {
   boardDays,
   boardWindow,
@@ -18,7 +8,6 @@ import {
   windowText,
 } from "@/lib/office/events-board";
 import type { EventCardData, SessionRow } from "@/lib/office/events";
-import { placesFilledText } from "@/lib/office/focus-copy";
 import {
   applyTileText,
   daysText,
@@ -35,8 +24,9 @@ import { need } from "../helpers/qualifications";
 
 // The words and choices behind Phase 18's redesign (docs/screens.md "The redesign"): the sign
 // parts' dates and times, Home's "For you" rows, the pass's travel figures and uniform tiles, Open
-// shifts' 8-day strip, the dashboard's headline and rows, and the rota board's pills. All
-// pure, so each is checked here with made-up shifts.
+// shifts' 8-day strip and the rota board's pills (the dashboard's headline and rows went with
+// Phase 24's dashboard, whose words tests/unit/office.board.test.ts checks). All pure, so each is
+// checked here with made-up shifts.
 
 const TZ = "Europe/London";
 const at = (iso: string) => new Date(iso);
@@ -87,7 +77,7 @@ describe("the sign parts' words", () => {
     expect(inDays(...s("2026-10-26T09:00:00Z"), now, TZ)).toBe("In 5 days");
   });
 
-  it("places left, with and without the total; a shift in one line; places filled", () => {
+  it("places left, with and without the total; a shift in one line", () => {
     expect(placesLeftText(1)).toBe("1 place left");
     expect(placesLeftText(3)).toBe("3 places left");
     expect(placesLeftText(1, 4)).toBe("1 of 4 places left");
@@ -95,10 +85,6 @@ describe("the sign parts' words", () => {
     expect(
       shiftLine("csas_officer", at("2026-10-24T13:00:00Z"), at("2026-10-24T21:00:00Z"), TZ),
     ).toBe("CSAS officer, Sat 24 Oct, 14:00–22:00");
-    // The dashboard's urgent place beside its bar (Phase 21, Dylan's words): filled, not free.
-    expect(placesFilledText(1, 4)).toBe("3 of 4 filled");
-    expect(placesFilledText(1, 1)).toBe("0 of 1 filled");
-    expect(placesFilledText(0, 2)).toBe("2 of 2 filled");
   });
 });
 
@@ -312,133 +298,6 @@ describe("Open shifts' strip of the next 8 days", () => {
     expect(strip[1]?.label).toBe("Thu 22 Oct: 1 urgent shift");
     expect(strip[3]?.label).toBe("Sat 24 Oct: you're booked");
     expect(strip[4]?.label).toBe("Sun 25 Oct: 2 open shifts");
-  });
-});
-
-// --- The dashboard ------------------------------------------------------------------------------
-
-const emptyNeeds = (): NeedsAttention => ({
-  toCheck: [],
-  toCheckMore: false,
-  fromSheet: [],
-  fromSheetMore: false,
-  toMark: [],
-  toMarkMore: false,
-  expired: [],
-  expiredMore: false,
-  uploads: 0,
-  uploadList: [],
-  evidence: { addressConfirmed: true, waiting: 0, failed: [], failedMore: false },
-  plannerRefused: [],
-  plannerRefusedMore: false,
-  webhookFailing: null,
-});
-
-describe("the dashboard's headline and rows", () => {
-  it("the headline counts the things, and the line under it says where to start", () => {
-    expect(headline(0)).toBe("Nothing needs you right now");
-    expect(headline(1)).toBe("1 thing needs you");
-    expect(headline(3)).toBe("3 things need you");
-    // The one count (Phase 20): each urgent place still to fill, and each item of Needs attention.
-    expect(oneCount(3, 7)).toBe(10);
-    expect(oneCount(0, 2)).toBe(2);
-    expect(oneCount(0, 0)).toBe(0);
-    expect(subline(2, 3)).toBe(
-      "Start with the urgent places. Casuals see these first and get an alert.",
-    );
-    expect(subline(0, 2)).toBe("Urgent places are sorted. The rest is below.");
-    expect(subline(0, 0)).toMatch(/^Every urgent place is filled/);
-  });
-
-  // Each day's words and links (Phases 18 to 22's week strip: to mark first, then urgent places
-  // with the others open, then how full) moved with the strip to the places chart in Phase 23:
-  // tests/unit/office.dashboard-charts.test.ts, "the places chart's days".
-
-  it("the dashboard's tiles: the urgent places' days, and what Needs attention's count is made of", () => {
-    const item = (dow: string, day: string, shiftId: string) => ({ dow, day, shiftId });
-    expect(urgentDaysText([])).toBe("");
-    expect(urgentDaysText([item("Thu", "22", "a")])).toBe("Thu 22");
-    expect(
-      urgentDaysText([item("Thu", "22", "a"), item("Thu", "22", "b"), item("Fri", "23", "c")]),
-    ).toBe("Thu 22 and Fri 23");
-    expect(urgentDaysText(["22", "23", "24", "25"].map((d, i) => item("Thu", d, String(i))))).toBe(
-      "Thu 22, Thu 23, Thu 24 and more",
-    );
-    const row = (key: string, count: string | null) => ({
-      key,
-      title: "",
-      sub: "",
-      count,
-      href: "",
-    });
-    expect(attentionText([row("to-mark", "5"), row("uploads", "2")])).toBe(
-      "5 sessions to mark, 2 uploads",
-    );
-    expect(attentionText([row("to-mark", "1"), row("uploads", "1")])).toBe(
-      "1 session to mark, 1 upload",
-    );
-    expect(
-      attentionText([row("to-check", "50+"), row("webhook", null), row("enquiries", "2")]),
-    ).toBe("50+ bookings to check, webhook failing and more");
-    expect(attentionText([])).toBe("Nothing waiting for you");
-  });
-
-  it("After that: a row per kind of to-do, in Needs attention's order, each to where it's dealt with", () => {
-    expect(afterRows(emptyNeeds(), 0, TZ)).toEqual([]);
-    const n = emptyNeeds();
-    n.toMark = Array.from({ length: 5 }, (_, i) => ({
-      shiftId: `s${i}`,
-      role: "steward",
-      site: null,
-      startsAt: at("2026-10-20T09:30:00Z"),
-      endsAt: at("2026-10-20T17:30:00Z"),
-      unmarked: 1,
-    }));
-    n.uploads = 2;
-    n.webhookFailing = { since: at("2026-10-20T10:00:00Z") };
-    const rows = afterRows(n, 3, TZ);
-    expect(rows.map((r) => [r.key, r.title, r.count, r.href])).toEqual([
-      ["to-mark", "Who worked?", "5", "/office/needs-attention#to-mark"],
-      ["uploads", "Uploads to check", "2", "/office/casuals?view=uploads"],
-      ["webhook", "Your planner's webhook is failing", null, "/office/needs-attention#webhook"],
-      ["enquiries", "Enquiries that need a person", "3", "/office/enquiries"],
-    ]);
-    expect(rows[0]?.sub).toBe("5 sessions on Tue 20 Oct to mark");
-    // A list that stopped at 50 says so.
-    n.toMarkMore = true;
-    expect(afterRows(n, 0, TZ)[0]?.count).toBe("5+");
-    // Couldn't be read: only what else is known.
-    expect(afterRows(null, 1, TZ).map((r) => r.key)).toEqual(["enquiries"]);
-  });
-
-  it("Sorted today: cancellations recorded automatically, enquiries answered, what casuals see", () => {
-    const d = {
-      counts: {
-        urgent: { ok: true, data: { sessions: 0, places: 0, firstStartsAt: null } },
-        showing: { ok: true, data: { events: 8, sessions: 16, places: 29 } },
-        cancellations: { ok: true, data: { total: 1, underNotice: 0, strikes: 0, threshold: 48 } },
-        enquiries: { ok: true, data: { total: 5, automatic: 2, needPerson: 0 } },
-      },
-    } as unknown as Dashboard;
-    expect(sortedRows(d).map((r) => [r.title, r.sub, r.href])).toEqual([
-      [
-        "1 cancellation today",
-        "0 under 48 hours' notice, 0 strikes issued. Recorded automatically, never approved or declined.",
-        "/office/cancellations?day=today",
-      ],
-      [
-        "5 enquiries today",
-        "2 answered automatically. None need a person.",
-        "/office/enquiries?day=today",
-      ],
-      [
-        "8 events showing to casuals",
-        "29 open places across 16 sessions",
-        "/office/events?view=showing",
-      ],
-    ]);
-    const failed = { counts: { ...d.counts, enquiries: { ok: false } } } as unknown as Dashboard;
-    expect(sortedRows(failed)[1]).toMatchObject({ title: "Enquiries today", sub: "Couldn't load" });
   });
 });
 

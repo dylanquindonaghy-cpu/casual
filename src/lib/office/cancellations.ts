@@ -366,7 +366,7 @@ export interface CancellationList {
   timeZone: string;
   threshold: number;
   view: CancellationView;
-  day: "today" | null; // only today's (since midnight, the firm's time): the dashboard's link
+  day: "today" | null; // only today's (since midnight, the firm's time): "Show only today's"
   week: { byCasuals: number; byOffice: number; strikes: number };
   rows: CancellationRow[];
   total: number; // in the view, beyond the rows shown

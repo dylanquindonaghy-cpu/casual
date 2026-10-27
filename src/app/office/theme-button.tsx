@@ -49,7 +49,8 @@ export function themeSwitchLabel(shown: Theme): string {
 
 // `look`: "row", the account menu's full-width row with its words; "square", the top bar's 44px
 // button with the moon or the sun alone (its words its name, and shown beside it under the
-// pointer and on keyboard focus). The square's words stay while the pointer moves from the button
+// pointer and on keyboard focus): clear glass below 1024px, and from there a round 40px button in
+// the glass capsule it shares with you (Phase 24). The square's words stay while the pointer moves from the button
 // onto them (an invisible bridge covers the 8px between), and Escape puts them away without
 // switching (WCAG 1.4.13); the next focus or pointer brings them back.
 export function ThemeButton({
@@ -103,7 +104,7 @@ export function ThemeButton({
           onClick={choose}
           onFocus={back}
           onBlur={back}
-          className="peer press inline-flex size-11 items-center justify-center rounded-row border border-line bg-card text-ink hover:bg-raised active:bg-button-press disabled:cursor-not-allowed disabled:opacity-60"
+          className="peer press-glass max-lg:glass-button inline-flex size-11 items-center justify-center rounded-row text-ink hover:bg-button-hover active:bg-button-press disabled:cursor-not-allowed disabled:opacity-60 lg:size-10 lg:rounded-full"
         >
           <Icon name={icon} />
         </button>

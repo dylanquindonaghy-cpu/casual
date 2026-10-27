@@ -1,0 +1,435 @@
+/* Liquid Glass (round 6), after Apple's guidance: glass only on the functional layer that floats above content (the rail,
+   the top bar's capsules, filter tracks, the offer panel, menus, the confirmation); content stays on solid panels.
+   The material: a translucent fill, blur and saturation, refraction where the browser can (Chromium: an SVG displacement
+   in backdrop-filter), a specular sheen and a lit rim. Accent colour only on the primary action. */
+.r5 {
+  --lg-fill: rgb(255 255 255 / 0.52);
+  --lg-fill-strong: rgb(255 255 255 / 0.78);
+  --lg-rim-a: rgb(255 255 255 / 0.95);
+  --lg-rim-b: rgb(255 255 255 / 0.18);
+  --lg-edge: rgb(16 24 40 / 0.1);
+  --lg-sheen: rgb(255 255 255 / 0.42);
+  --lg-lens: rgb(255 255 255 / 0.92);
+  --lg-lens-edge: rgb(16 24 40 / 0.1);
+  --lg-shadow: 0 1px 2px rgb(16 24 40 / 0.06), 0 10px 30px rgb(16 24 40 / 0.1);
+  --lg-blur: 16px;
+  --lg-sat: 1.8;
+  --lg-accent-top: #3a6af0;
+  --lg-accent-bottom: #1d4ed8;
+  --lg-on-accent: #ffffff;
+  --lg-label: #474a51;
+  background:
+    radial-gradient(1100px 560px at 12% -12%, rgb(29 78 216 / 0.16), transparent 62%),
+    radial-gradient(900px 520px at 92% -8%, rgb(245 158 11 / 0.1), transparent 60%), var(--ground);
+  background-attachment: fixed;
+}
+.r5.dark {
+  --lg-fill: rgb(30 30 32 / 0.52);
+  --lg-fill-strong: rgb(30 30 32 / 0.8);
+  --lg-rim-a: rgb(255 255 255 / 0.3);
+  --lg-rim-b: rgb(255 255 255 / 0.04);
+  --lg-edge: rgb(0 0 0 / 0.5);
+  --lg-sheen: rgb(255 255 255 / 0.08);
+  --lg-lens: rgb(255 255 255 / 0.16);
+  --lg-lens-edge: rgb(255 255 255 / 0.1);
+  --lg-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 10px 30px rgb(0 0 0 / 0.45);
+  --lg-accent-top: #4b7cff;
+  --lg-accent-bottom: #2f5fe0;
+  --lg-on-accent: #ffffff;
+  --lg-label: #cfd0d4;
+  background:
+    radial-gradient(1100px 560px at 12% -12%, rgb(59 130 246 / 0.22), transparent 62%),
+    radial-gradient(900px 520px at 92% -8%, rgb(168 85 247 / 0.14), transparent 60%), var(--ground);
+  background-attachment: fixed;
+}
+.lg-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+.glass {
+  position: relative;
+  isolation: isolate;
+  background: var(--lg-fill);
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
+  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
+  box-shadow:
+    var(--lg-shadow),
+    inset 0 0 0 1px var(--lg-edge);
+  border: 0 !important;
+}
+.glass.strong {
+  background: var(--lg-fill-strong);
+}
+/* Refraction (an SVG displacement before the blur) only where the browser draws it: Chromium sets .rf on the root.
+   Safari and Firefox keep the frosted blur alone rather than risk losing the whole effect. */
+.r5.rf .glass {
+  backdrop-filter: url(#lg-refract) blur(var(--lg-blur)) saturate(var(--lg-sat));
+}
+/* The sheen: light falling on the top of the glass. */
+.glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(180deg, var(--lg-sheen), transparent 48%);
+}
+/* The lit rim: brightest at the top-left and bottom-right edges, as light catches a curved edge. */
+.glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  padding: 1px;
+  background: linear-gradient(
+    140deg,
+    var(--lg-rim-a),
+    var(--lg-rim-b) 35%,
+    var(--lg-rim-b) 65%,
+    var(--lg-rim-a)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+/* Labels on glass are a step stronger than grey on a solid panel (Apple's vibrant labels): whatever passes under
+   the glass, they keep 4.5:1. */
+.cap .pill,
+.side .child,
+.side .item svg,
+.cap.you .me .who > span {
+  color: var(--lg-label);
+}
+.cap.look .search input::placeholder {
+  color: var(--lg-label);
+}
+.side .child.on,
+.side .child:hover {
+  color: var(--text);
+}
+/* Glass controls swell a little and brighten under a press, as Liquid Glass does under a finger. */
+.lg-press {
+  transition:
+    transform 0.28s cubic-bezier(0.34, 1.4, 0.64, 1),
+    filter 0.2s ease,
+    background-color 0.2s ease;
+}
+.lg-press:active {
+  transform: scale(1.05);
+  filter: brightness(1.06);
+  transition-duration: 0.12s;
+}
+
+/* The rail floats, and stays put while the page scrolls under it. */
+@media (min-width: 1101px) {
+  .side {
+    position: sticky;
+    top: 12px;
+  }
+}
+.side {
+  background: var(--lg-fill-strong);
+}
+.item:hover {
+  background: rgb(118 118 128 / 0.12);
+}
+.item.on,
+.item.child.on {
+  background: var(--lg-lens);
+  color: var(--text);
+  box-shadow:
+    0 1px 2px rgb(16 24 40 / 0.08),
+    0 4px 12px rgb(16 24 40 / 0.08),
+    inset 0 0 0 1px var(--lg-lens-edge);
+}
+.item.on svg {
+  color: var(--accent);
+}
+.r5.dark .item.on svg {
+  color: var(--accent);
+}
+.count {
+  background: rgb(118 118 128 / 0.14);
+}
+
+/* The top bar: three glass capsules (Apple: three groups at most), pinned, with a soft scroll edge under them. */
+.top {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  padding: 12px 0 10px;
+  margin: -12px 0 -10px;
+}
+.top::before {
+  content: "";
+  position: absolute;
+  left: -12px;
+  right: -12px;
+  top: 0;
+  bottom: -18px;
+  z-index: -1;
+  pointer-events: none;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  -webkit-mask-image: linear-gradient(#000 55%, transparent);
+  mask-image: linear-gradient(#000 55%, transparent);
+}
+.cap {
+  display: flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px;
+  gap: 2px;
+  min-width: 0;
+}
+.cap.pills {
+  margin: 0;
+  overflow-x: auto;
+}
+.cap .pill {
+  background: transparent;
+  border: 0;
+  height: 36px;
+  padding: 0 12px;
+}
+.cap .pill:hover {
+  background: rgb(118 118 128 / 0.12);
+}
+.cap .pill + .pill {
+  box-shadow: -1px 0 0 0 rgb(118 118 128 / 0.18);
+}
+.cap .pill:hover + .pill {
+  box-shadow: none;
+}
+.cap.look {
+  margin-left: auto;
+  width: 250px;
+  padding: 0;
+  flex: none;
+}
+.cap.look .search {
+  width: 100%;
+  margin: 0;
+}
+.cap.look .search input {
+  background: transparent;
+  border: 0;
+  height: 44px;
+}
+.cap.look .search svg {
+  top: 14px;
+}
+.cap.look .kbd {
+  top: 10px;
+}
+.cap.you {
+  gap: 4px;
+  padding: 4px;
+  flex: none;
+}
+.cap.you .round {
+  background: transparent;
+  border: 0;
+  width: 36px;
+  height: 36px;
+}
+.cap.you .round:hover {
+  background: rgb(118 118 128 / 0.12);
+}
+.cap.you .me {
+  background: transparent;
+  border: 0;
+  height: 36px;
+  padding: 0 8px 0 2px;
+}
+.cap.you .me .av {
+  width: 32px;
+  height: 32px;
+}
+
+/* Filter tracks: the chosen option is a glass lens. */
+.track {
+  background: var(--lg-fill);
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
+  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
+  border: 0;
+  box-shadow:
+    var(--lg-shadow),
+    inset 0 0 0 1px var(--lg-edge);
+}
+.seg[aria-pressed="true"] {
+  background: var(--lg-lens);
+  color: var(--text);
+  box-shadow:
+    0 1px 2px rgb(16 24 40 / 0.1),
+    0 4px 14px rgb(16 24 40 / 0.1),
+    inset 0 0 0 1px var(--lg-lens-edge);
+}
+.seg[aria-pressed="true"] .n {
+  background: var(--accent);
+  color: #fff;
+}
+.r5.dark .seg[aria-pressed="true"] .n {
+  background: var(--accent);
+  color: #0b1530;
+}
+.pill[aria-pressed="true"] {
+  background: var(--lg-lens);
+  color: var(--text);
+}
+
+/* The primary action: the firm's colour as tinted glass, its label white. */
+.btn.primary {
+  background: linear-gradient(180deg, var(--lg-accent-top), var(--lg-accent-bottom));
+  color: var(--lg-on-accent);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.45),
+    inset 0 -1px 0 rgb(0 0 0 / 0.18),
+    0 6px 18px rgb(29 78 216 / 0.28);
+}
+.btn.primary:hover {
+  opacity: 1;
+  filter: brightness(1.06);
+}
+.btn.primary svg {
+  color: var(--lg-on-accent);
+}
+
+/* Overlays: the offer panel (the regular, more opaque glass: it holds text), menus and the confirmation. */
+.sheet {
+  background: var(--lg-fill-strong);
+  -webkit-backdrop-filter: blur(28px) saturate(1.8);
+  backdrop-filter: blur(28px) saturate(1.8);
+  box-shadow:
+    0 24px 64px rgb(16 24 40 / 0.22),
+    inset 0 0 0 1px var(--lg-edge);
+}
+.sheet .people li,
+.sheet .s-urgent {
+  background: rgb(118 118 128 / 0.1);
+}
+.r5.dark .sheet .people li {
+  background: rgb(255 255 255 / 0.06);
+}
+.pop {
+  background: var(--lg-fill-strong);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  backdrop-filter: blur(24px) saturate(1.8);
+}
+.toast {
+  background: var(--lg-fill-strong);
+  color: var(--text);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  backdrop-filter: blur(24px) saturate(1.8);
+  box-shadow:
+    0 12px 36px rgb(16 24 40 / 0.18),
+    inset 0 0 0 1px var(--lg-edge);
+}
+.r5.dark .toast {
+  color: var(--text);
+}
+.toast svg {
+  color: var(--green) !important;
+}
+.scrim {
+  background: rgb(16 24 40 / 0.18);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+}
+
+/* A transient control in the content layer takes on glass while it's used (Apple's exception): the event switch's knob. */
+.switch .knob {
+  background: rgb(255 255 255 / 0.96);
+  box-shadow:
+    0 1px 3px rgb(0 0 0 / 0.18),
+    inset 0 0 0 0.5px rgb(0 0 0 / 0.04);
+}
+.switch:active .knob {
+  transform: scale(1.18);
+}
+.switch.on:active .knob {
+  transform: translateX(20px) scale(1.18);
+}
+
+/* When someone asks for less transparency or more contrast, or the browser has no blur: solid surfaces. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass,
+  .track,
+  .side,
+  .sheet,
+  .pop,
+  .toast {
+    background: var(--panel);
+  }
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .glass,
+  .r5.rf .glass,
+  .track,
+  .side,
+  .sheet,
+  .pop,
+  .toast {
+    background: var(--panel);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .glass::before,
+  .glass::after {
+    display: none;
+  }
+  .r5,
+  .r5.dark {
+    background: var(--ground);
+  }
+  .top::before {
+    display: none;
+  }
+}
+@media (forced-colors: active) {
+  .glass,
+  .track,
+  .sheet,
+  .pop,
+  .toast {
+    background: Canvas;
+    border: 1px solid CanvasText !important;
+    box-shadow: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lg-press,
+  .lg-press:active {
+    transition: none;
+    transform: none;
+  }
+}
+@media (max-width: 1240px) {
+  .cap.look {
+    width: 200px;
+  }
+  .cap.you .me .who,
+  .cap.you .me > svg {
+    display: none;
+  }
+}
+@media (max-width: 1100px) {
+  .cap.look {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .top {
+    flex-wrap: wrap;
+  }
+  .cap.pills {
+    order: 3;
+    width: 100%;
+  }
+}

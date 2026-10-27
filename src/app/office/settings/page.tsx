@@ -7,17 +7,22 @@ import { requireOfficeArea } from "@/lib/auth/current-office";
 import { readSessionToken } from "@/lib/auth/session-cookie";
 import { siteLocationText, strikesEmailStatus } from "@/lib/office/settings-copy";
 import { officeSettingsPage } from "@/lib/office/settings-page";
+import { firmShiftsLine, shiftsLineText } from "@/lib/tenancy/shifts-line";
 import { SitePostcodeForm } from "./site-postcode-form";
 import { StrikesEmailForm } from "./strikes-email-form";
 
 export const metadata: Metadata = { title: "Settings" };
 
 // Settings (docs/office-v2.md 3.10; docs/screens.md `/office/settings`; 12B.7). Admins only
-// (checked here, in the loader and again in every change). Two sections: the strikes team's email
-// and the sites' postcodes. Everything else the firm agreed stays with the owner (`firm:settings`).
+// (checked here, in the loader and again in every change). The strikes team's email, the firm's
+// shifts line (its number, to read: Phase 24) and the sites' postcodes. Everything else the firm
+// agreed stays with the owner (`firm:settings`).
 export default async function SettingsPage() {
   const { firm } = await requireOfficeArea("settings");
-  const data = await officeSettingsPage({ firm }, (await readSessionToken("office")) ?? "");
+  const [data, line] = await Promise.all([
+    officeSettingsPage({ firm }, (await readSessionToken("office")) ?? ""),
+    firmShiftsLine({ firm }),
+  ]);
   if (!data) notFound();
   const s = data.strikesEmail;
   return (
@@ -42,6 +47,14 @@ export default async function SettingsPage() {
           </p>
           <StrikesEmailForm address={s.address} confirmed={s.confirmedAt !== null} />
         </div>
+      </section>
+
+      {/* The firm's own number for WhatsApp, texts and calls (Phase 24: it left the top bar). */}
+      <section className={sectionGap.office} aria-labelledby="shifts-line">
+        <h2 id="shifts-line" className={h2}>
+          Shifts line
+        </h2>
+        <p className={`${card} ${headingGap} tabular-nums`}>{shiftsLineText(line)}</p>
       </section>
 
       <section className={sectionGap.office} aria-labelledby="sites">

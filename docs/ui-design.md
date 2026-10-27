@@ -1,8 +1,10 @@
 # UI design system
 
 How every screen looks and is laid out. Added 2026-10-05 (Phase 11) at Dylan's request: "make it a
-lot easier to see and understand where everything is". Words on screens still come from
-`docs/screens.md`; this file covers layout, hierarchy, colour and components only.
+lot easier to see and understand where everything is". The newest look is first ("Phase 24");
+the sections after it are the earlier phases, kept for their reasons where they still stand.
+Words on screens still come from `docs/screens.md`; this file covers layout, hierarchy, colour
+and components only.
 
 Principles, in order:
 
@@ -14,20 +16,170 @@ Principles, in order:
    destructive.
 4. **Colour is never the only signal.** Every coloured status carries its word. Contrast meets
    WCAG AA (text 4.5:1, borders and controls 3:1).
-5. **No decoration.** No gradients, glows, textures or background images. Motion only to show
-   what changed, as Phase 18's spec (below), and press feedback in the office. The firm's colour
-   marks its main actions and where you are in the casual app, never a status. The office since
-   Phase 23 (Dylan's round 3): flat. White (or near-black) surfaces with a 1px hairline, nothing
-   with depth at rest and one soft overlay shadow only on what floats; no grain, glows, coloured
-   shadows or gradients (the menu's edge fade, a mask, is the one gradient); one sky blue for the
-   main button; colour otherwise only in tinted chips, counts and the charts' marks; one face,
-   Plus Jakarta Sans, for every word, headline and number (keys and secrets on Integrations keep
-   the system's mono, the one exception). Round 2's grain, coloured shadows, warm greys and
-   three faces (Phase 22) are gone.
+5. **Glass, and nothing else for decoration** (Phase 24, Dylan's round 7). Sections, buttons and
+   what floats are translucent glass over one soft pastel wash, in the office and the casual app
+   alike (see "Phase 24"); no grain, glows, coloured shadows or images. Motion only to show what
+   changed, as Phase 18's spec (below), and press feedback. The firm's colour tints the one main
+   button and marks where you are, never a status. One face, Geist, for every word, headline and
+   number (keys and secrets on Integrations keep the system's mono). Phase 23's flat white cards
+   and the office's own colours and face are gone.
 6. **Works without JavaScript** where pages already do (server-action forms, `<details>`
    confirmations, GET filter forms, anchor links).
 
+## Phase 24: Liquid Glass
+
+Dylan, on round 6 of the Design canvas (2026-10-26): "this is almost perfect but not apple glass
+enough compare to these references https://liquidglassdesign.com/ it should be kinda translucent
+buttoms sections icon backgrounds etc". Round 7 ("more glass") followed, and then: "keep round 7
+and build it into the app", with "Round 7 exactly, layout too". `docs/mockups/phase-24/` keeps
+round 7's boards in light and dark, its stylesheets, and in words what each page holds and where
+the build differs. This section is the system (task 24.1); the pages take its parts in 24.2 to
+24.6. Phase 21's spacing steps, states and shared parts stand where this doesn't change them.
+
+- **One look for the office and the casual app.** The office has no colours of its own any more
+  (its block in `globals.css` sets only its sizes): both take the same tokens, the same glass and
+  the same face. Phase 23's flat white cards, the office's sky button and Plus Jakarta Sans are
+  gone.
+- **The wash.** Four soft lights fixed behind every page, under everything (`body::before`): in
+  light, pale blue top left, lavender top right, peach low in the middle, mint bottom left, on a
+  cool off-white (`canvas`); in dark, blue, purple, orange and teal glows on near-black. No shell
+  paints over it: the office's frame and the casual app's bar are see-through, and the office's
+  page has no card of its own (its sections are glass on the wash).
+- **The glass** (`globals.css`, `@utility`):
+  - `glass`: a section (a card, a list, a table, a row of tabs). Frosted: what's behind it blurred
+    24px and saturated 1.8 times, a lit rim and a soft drop. `card`, `rows`, `table.wrap`,
+    `staffCard`, `staffRows`, `tabs` and the login cards (from 640px) are glass.
+  - `glass-float`: what floats over the page, the strongest glass: the office's top bar, its
+    account menu and drawer, the "…" menus, a chart's panel, the confirmation at the foot; the
+    casual app's tab bar, Take shift's bar and the sheet. In Chrome the page behind it bends a
+    little too: an SVG
+    displacement (`#lg-refract`, `src/app/glass-refraction.tsx`) in front of the blur, switched on
+    (`.rf` on `<html>`) only where the browser says it's Chromium, because Safari and Firefox
+    would drop the whole backdrop filter, frost included. Its region is fixed and large
+    (`userSpaceOnUse`): measured from the element, it missed most of a bar and dropped the blur.
+  - A section's frost makes it a layer of its own, so a "…" menu opened inside one would sit
+    under the sections after it (and they'd take its clicks): a section with a menu open comes
+    forward (`glass`'s `:has(details[open])`, a z-index for a grid's or a row's item). Anything
+    placed `fixed` stays outside glass, or it would be placed against the section, not the
+    window (the toast and a chart's tooltip are).
+  - `glass-tile` and `glass-button`: the parts inside a section, clear glass that doesn't blur
+    again (a white gradient with a lit rim): a date tile, a field, an inner card, a choice; a
+    clear button, a count.
+  - `glass-tint`: the one main button, tinted glass in the firm's own colour (`tint` at the top,
+    `tint-shade` at the foot), with its words. `btn.primary` and `staffBtn.primary`.
+  - The statuses' tints are tinted glass: `urgent-soft`, `attention-soft`, `wait-soft`,
+    `done-soft` and `quiet-soft` (a chip, a notice, a second step, an answer slip) at 72%, and the
+    tiles `urgent-tile`, `hivis`, `wait-tile` and `done-tile` (an urgent date tile, a coloured
+    count, the For you tiles) at 80%, each solid in the fallbacks; a chip and a coloured count
+    carry the lit rim (`glass-rim`), as round 7's tags. Their words are checked over every ground
+    like the rest.
+  - `glass-track` and `lens`: a switch's or a row of tabs' track, and the chosen option on it,
+    a lens of bright glass (`tabCurrent`, the Shifts tab's switch).
+  - `scroll-edge`: a soft frosted edge that fades in behind a bar that stays at the top once the
+    page scrolls under it (24.2 and 24.6 put it on the bars).
+  - Under a press, glass swells a little and brightens, then springs back (`press-glass`: 1.04,
+    brightness 1.06); cards, rows and words-only actions still dip (`press`).
+- **The fallbacks.** With less transparency or more contrast asked for (`prefers-reduced-
+  transparency`, `prefers-contrast: more`), every see-through ground is solid, nothing blurs and
+  the wash goes, in light and both darks (Apple's own fallback for Liquid Glass). A browser that
+  can't blur gets the same solid surfaces, with the wash still round them. Forced colours give
+  each glass part a system-coloured edge; with reduced motion nothing swells, dips or slides.
+- **Contrast over glass.** A word on glass sits on whatever shows through, so a pair is checked
+  over every ground the glass can show (`src/lib/tenancy/glass-grounds.ts`,
+  `tests/helpers/theme-css.ts`): a section over each of 15 points of the wash (its base, its four
+  lights, and halfway between each two), the wash saturated as the browser does it (measured in
+  Chromium: the Filter Effects matrix on the screen's own values, to the unit), and a section over
+  what floats; what floats over the wash; a tile's and a clear button's gradients, both ends, the
+  button also under the pointer and pressed (a CSS filter brightens the control's own words and
+  white fill, not the page behind it); the lens on its track; the main button, both ends,
+  brightened too. In six looks: light and dark, each also solid and with no blur
+  (`tests/unit/ui.contrast.test.ts`). Every word at least 4.5:1, every edge, mark and control
+  3:1. Two values changed for it: in dark, a clear button under the pointer and pressed is only
+  5% and 8% lighter (14% and 18% left grey and red words at 3.2:1 and 2.9:1 pressed); a switch's
+  knob is near-black in dark, where the on track is near-white ink.
+- **The firm's colour on glass.** `firmPalette` works it out against every one of those grounds
+  (and the main button's words on it brightened), so some firms' colours come out a little
+  darker as words and on the button than as they are: Acme's blue `#1d4ed8` becomes `#1a45bf`,
+  Northline's teal `#0f766e` becomes `#0c5c56` (its own pale tint over the wash's mint corner
+  read under 4.5:1). Their bands (the pass, the firm's initial) keep the colour as it is. Worked
+  out from numbers once per ground (0.55ms a palette; 14ms through #rrggbb text), as the root
+  layout does on every page.
+- **Depth.** A glass's rim and drop, never a hard shadow. The depth tokens are variables
+  (`--shadow-lift: var(--glass-drop-sm)` and so on) because Tailwind writes a token's value into
+  its class when it builds; the variables change with the theme. `box-shadow` is written only in
+  the glass's own parts and the file button; the classes' depth tokens only where
+  `tests/unit/ui.glass.test.ts` pins them (the pass, the For you tiles, the strip's days, a
+  switch's knob, and a chart's tooltip, which is solid ink).
+- **Corners.** A page-wide card and the menu card 24px (`rounded-card`), sections 22px
+  (`rounded-inner`), rows, fields and small boxes 14px (`rounded-row`), pills round.
+- **Type.** Geist for every word, headline and number, in the office and the casual app
+  (`@fontsource-variable/geist` 5.3.0, SIL Open Font License 1.1, through `next/font/local` in
+  `src/app/fonts.ts`: latin, and latin-ext fetched only for a name such as Łukasz). A page's
+  headline medium in the casual app and semibold in the office (`text-title`); the sign figures
+  and big numbers semibold with fixed-width digits (`font-sign`, `font-stat`); the greetings
+  medium (`font-greet`; Instrument Serif until now). Instrument Sans and Serif and Plus Jakarta
+  Sans are removed. Round 7's sizes: the casual app's 12, 14, 16, 18, 20, 28 and 44px; the
+  office's 12, 13, 15, 17, 20, 30 and 40px (a page's headline 30px, a section's 17px, a card's
+  title 15px). Keys and secrets on Integrations keep the system's mono.
+- **Where the build differs from round 7.** The mock-up's labels were tuned by eye on its own
+  wash; the app's colours are tuned against every point of it (above), so a few greys and the
+  firm's colours are a shade darker than on the boards. The mock-up's tab bar's lens that
+  shrinks as the page scrolls comes with the casual app's pages (24.6).
+
+The glass's own values (`:root` and the dark blocks; `glass-grounds.ts` holds the same numbers and
+`tests/unit/ui.glass.test.ts` checks they agree):
+
+| Variable | Light | Dark | What |
+|---|---|---|---|
+| `--glass-filter` / `--float-filter` / `--edge-filter` | `blur(24px) saturate(1.8)` / `blur(18px) saturate(1.8)` / `blur(10px) saturate(1.6)` | the same | A section's frost, what floats', the top bar's edge |
+| `--tile-top` → `--tile-bottom` | `rgb(255 255 255 / 0.72)` → `rgb(255 255 255 / 0.44)` | `rgb(255 255 255 / 0.09)` → `rgb(255 255 255 / 0.04)` | A tile's gradient (`glass-tile`) |
+| `--button-top` → `--button-bottom` | `rgb(255 255 255 / 0.8)` → `rgb(255 255 255 / 0.4)` | `rgb(255 255 255 / 0.12)` → `rgb(255 255 255 / 0.04)` | A clear button's gradient (`glass-button`) |
+| `--wash-a` / `--wash-b` / `--wash-c` / `--wash-d` | `rgb(201 216 255 / 1)` / `rgb(230 214 255 / 1)` / `rgb(255 226 201 / 1)` / `rgb(205 243 232 / 1)` | `rgb(37 99 235 / 0.42)` / `rgb(124 58 237 / 0.34)` / `rgb(234 88 12 / 0.2)` / `rgb(13 148 136 / 0.26)` | The wash's four lights |
+| `--glass-rim`, `--button-rim`, `--tint-rim`, `--glass-drop`, `--glass-drop-sm`, `--glass-sunk`, `--float-shadow`, `--lens-shadow` | lit white edges, soft cool drops | fainter edges, deeper black drops | The rims and drops (the values in `globals.css`) |
+
+### The dashboard, round 7 (24.3)
+
+`src/app/office/dashboard-view.tsx` and `./dashboard/` (`docs/screens.md` "The dashboard, round 7").
+The page is a container (`@container`), so its layout follows the room the rail leaves, not the
+window:
+
+- **Head:** "Dashboard" in the office's title (`text-title`, 30px semibold), its line 13px grey
+  under it; the track (the shared `tabs`, 44px pills, the current one under the lens, its count
+  in the firm's blue `bg-accent`) beside it from 48rem of page, under it before.
+- **Chart and detail card:** one column; from 56rem of page the chart beside a 340px card
+  (21.25rem), 372px (23.25rem) from 72rem, as the mock-up's 340/372. Both glass sections (22px),
+  24px inside from 36rem of page, 16px on a phone (the mock-up's 16px under 760px).
+- **The chart:** a 1.5rem axis, 14 columns at least 176px tall (`min-h-44`, filling the section
+  beside the card), bars 55% of a column up to 22px, 4px round at their top (`rounded-t-mark`, the
+  office's only `mark` corners, with the key's swatches); ink (`mark-open`) under blue
+  (`mark-wait`); gridlines `mark-grid` at the top and half, the base `mark-base`. Day numbers 12px,
+  today's in an ink disc. A bar's tip is solid ink, 13px, 14px round, 8px above the plot with an
+  8px bridge; no shadow.
+- **The detail card:** its date tile 48px (red tile when urgent, clear glass otherwise), the role
+  20px semibold with the shared Urgent chip, its rows glass tiles 14px round, the two figures in
+  `font-stat` 30px (red under 2 days), the line amber (`attention-soft`) or red (`urgent-soft`)
+  with the glass rim; "Offer to someone" the main button (tinted glass) and "Open the shift"
+  clear glass, side by side, growing to the card's width and wrapping before they'd squash; "…"
+  a 44px clear glass circle at its top right, its menu floating down over the card.
+- **The board:** four columns from 64rem of page, two from 36rem, one on a phone; each a glass
+  section 16px inside, a leaf 18px in its colour (`mark-open`, `mark-wait`, `mark-done`,
+  `attention`), its title 17px semibold and a clear glass count. Cards are glass tiles 14px round,
+  12px across and 16px down inside, 8px apart; the picked one clear glass with a 2px ink outline;
+  a date tile 40 × 44px (clear glass; red when urgent), a 36px round clear glass paper plane at the
+  top right (12px in), chips 28px pills 8px inside with 14px icons (red, green or clear glass),
+  three to a line in a column a quarter of a 1280px window. Cards dip when pressed (`press`).
+- **The offer panel:** a `<dialog>` in the floating glass, 24px round (`rounded-card`, as the
+  rail: it floats beside the page), from the right on a laptop (448px, 12px from the window's
+  edges) and from the foot on a phone (its top corners round, up to 86% of the window), over the
+  scrim; it slides in (200ms). People are glass tiles with a 40px initials disc; "Send offer" a
+  clear glass pill.
+
 ## Phase 23: the office's look, round 3
+
+Replaced by Phase 24 (above), kept for its reasons where they still stand (its spacing, chips,
+counts and charts' rules). Since then the office takes the app's tokens, so its tables below are
+history; `tests/unit/ui.flat.test.ts` became `ui.glass.test.ts`, and the office's font file
+(`src/app/office/office-fonts.ts`) is gone.
 
 Dylan, on round 2 live (2026-10-23): "i told you to remove the gradients and the colours are still
 wrong what your making is like 2008 apple notes app look it needs to be modern these are your last
@@ -385,73 +537,60 @@ real sizes before building:
 
 Two themes: light, and a dark of true greys (D7 in `docs/office-v2.md`, changed by Dylan in Phase
 20: it was navy). The light values are the `@theme` block; the dark values redefine the same
-tokens. Every pair a page uses meets its contrast in both (`tests/unit/ui.contrast.test.ts`).
+tokens. Since Phase 24 the grounds are glass, written `rgb(r g b / a)`: see "Phase 24" for the
+glass and how every pair is checked over it (`tests/unit/ui.contrast.test.ts`). The office takes
+the same tokens.
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| `ink` | `#15171a` | `#f3f4f6` | Main text (a neutral near-black: Phase 20), the focus ring, an ink fill (a dark button, today on the week's bars) |
-| `ink-muted` | `#575c64` | `#a9adb4` | Secondary text, labels, meta lines, table headers (6.7:1 on white; 7.8:1 on the dark card) |
-| `ink-hover` / `on-ink` | `#2b2e33` / `#ffffff` | `#d4d6da` / `#0b0c0e` | An ink fill under the pointer; text on an `ink` fill |
-| `line` | `#e3e5e9` | `#2c2e33` | Dividers and card borders (decorative only) |
-| `line-strong` | `#7c8189` | `#6f737b` | Input, chip and secondary button borders (at least 3:1) |
-| `canvas` | `#eef0f3` | `#0b0c0e` | The page behind cards: the casual app, and the office's frame and menu |
-| `card` | `#ffffff` | `#18191c` | Cards, fields, the office's page (a sheet raised on the frame from 1024px) |
-| `panel` | `#ffffff` | `#18191c` | The office's top bar (below 1024px) and drawer |
-| `raised` | `#eceef1` | `#232529` | A sunk track (switches, the Open \| Booked switch, the board's filters), a full pill, a bar's track, the date tile |
-| `switch-off` | `#767b83` | `#7d8189` | A switch's track when off (at least 3.5:1) |
-| `scrim` | `#15171a` | `#000000` | Behind the open menu drawer and a sheet, at half strength (decorative only) |
-| `brand` / `on-brand` | `#15171a` / `#ffffff` | `#f3f4f6` / `#0b0c0e` | The firm's own colour: the main buttons and the current tab. A firm with a colour of its own gets a set for each theme on `<body>` (`src/app/layout.tsx`, `firmPalette`: each pair at least 4.5:1); these are the values without one. Its pale tint, `brand-soft` (12% of it over `card`), marks an open Details button and a gate's sign plate, with `ink` (or `brand-ink`, which `firmPalette` makes read on the tint too, at least 4.5:1) on it |
-| `brand-ink`, `brand-bar` / `on-brand-bar` | `#15171a`, `#1f2227` / `#ffffff` | `#f3f4f6`, `#34373d` / `#ffffff` | The firm's colour as words; the pass and the firm's initial, with the words on it |
-| `on-brand-bar-soft` | `#d2d4d8` | `#d2d4d8` | The pass's second line (its date, how soon, its place: Phase 20), at least 4.5:1 on the band for any firm colour |
-| `pass-plate` / `on-pass-plate` | `#ffffff` / `#1f2227` | `#ffffff` / `#34373d` | The gate's plate on the pass: white on any band, its words the band's colour (or ink on a pale band: `firmPalette`'s `onPlate`), at least 4.5:1 |
-| `urgent` / `urgent-soft` / `urgent-ink` | `#c4242a` / `#ffefea` / `#7d1a10` | `#ff8b80` / `#231513` / `#ffcabf` | Act now: words and borders; an urgent panel's wash; its dark words |
-| `urgent-tile` | `#ffd8cf` | `#3d1d19` | An urgent tile, day or date tile, the urgent band, with `urgent-ink` |
-| `urgent-fill` / `urgent-fill-hover` / `on-urgent` | `#c4242a` / `#9b1c21` / `#ffffff` | `#cf3a33` / `#b02e28` / `#ffffff` | Urgent pills and the final destructive button (white on `#cf3a33`: 4.87:1) |
-| `attention` / `attention-soft` / `attention-ink` | `#b45309` / `#fff9e6` / `#5c3f00` | `#f2a541` / `#221d0e` / `#fbe3a0` | Someone needs to act: a border or an icon; a to-do panel's wash; its dark words |
-| `hivis` / `on-hivis` | `#fbe5a0` / `#5c3f00` | `#3a2f10` / `#fbe3a0` | To do (Phase 20: pale yellow, per theme): a tile, a count, what the firm gives you ("We provide it") |
-| `wait-tile` / `wait-ink` | `#d6e4fa` / `#163b6e` | `#172a45` / `#c8dafa` | Waiting, or more to look at: a tile, the account's initials |
-| `done` / `done-soft` / `done-ink` | `#1f7a47` / `#ecf7f0` / `#155230` | `#5fd08b` / `#0f1d14` / `#bfeccd` | Fine, finished: words and borders; a done panel's wash; its dark words |
-| `done-tile` | `#d2efdb` | `#15301f` | A done tile, a tick's circle, the "no strike" box |
-| `done-fill` / `on-done` | `#1f7a47` / `#ffffff` | `#1f7a47` / `#ffffff` | The booked tick (white on it 5.3:1) |
-| `quiet-soft` / `quiet-ink` | `#f1f2f4` / `#464b52` | `#222428` / `#d4d6da` | Information, closed |
+| `ink` / `ink-muted` / `ink-faint` | `#17181a` / `#55585f` / `#5a5d64` | `#f3f4f6` / `#c4c5ca` / `#b9babf` | Words; grey words (labels, meta lines, a table's headings); the faintest (a group's name over the menu, a chart's ticks). Each reads at 4.5:1 on every point of the glass, in every look |
+| `ink-hover` / `on-ink` / `ink-press` | `#2b2e33` / `#ffffff` / `#000000` | `#d4d6da` / `#0b0c0e` / `#ffffff` | An ink fill (a chart's tooltip and its "now" day, the firm bar's count) under the pointer, the words on it, pressed |
+| `line` / `line-strong` | `rgb(16 24 40 / 0.08)` / `#6e737b` | `rgb(255 255 255 / 0.08)` / `#8a8e96` | A faint divider between rows (decorative); a field's or a switch's edge where one is drawn (3:1 on the glass) |
+| `canvas` | `#eef1f8` | `#07080c` | The wash's base, under every page (its four lights over it: `--wash-a` to `--wash-d`, "Phase 24" above); words straight on the wash, such as a page's headline, read on every point of it |
+| `card` / `sheet` | `rgb(255 255 255 / 0.46)` / `rgb(255 255 255 / 0.46)` | `rgb(26 27 34 / 0.46)` / `rgb(26 27 34 / 0.46)` | Glass: a section (a card, a list, a table, a row of tabs), frosted (`glass`) |
+| `panel` | `rgb(255 255 255 / 0.78)` | `rgb(30 30 34 / 0.8)` | Glass: what floats over the page (the office's top bar, its menus, the drawer, a chart's panel; the casual app's tab bar, Take shift's bar, the sheet), the strongest (`glass-float`) |
+| `raised` | `rgb(255 255 255 / 0.6)` | `rgb(255 255 255 / 0.07)` | Clear glass inside a section: a weekend's column, a bar's track, a skeleton's bars, a row under the pointer, the waiting plate |
+| `track` / `pill` / `active` | `rgb(118 118 128 / 0.12)` / `rgb(255 255 255 / 0.92)` / `rgb(255 255 255 / 0.92)` | `rgb(118 118 128 / 0.18)` / `rgb(255 255 255 / 0.1)` / `rgb(255 255 255 / 0.1)` | A switch's track (`glass-track`); the lens on the chosen tab or option (`lens`); a checked choice's ground |
+| `count` / `button` / `button-line` / `button-hover` / `button-press` | `rgb(255 255 255 / 0.6)` / `rgb(255 255 255 / 0.6)` / `rgb(255 255 255 / 0.7)` / `rgb(255 255 255 / 0.78)` / `rgb(255 255 255 / 0.9)` | `rgb(255 255 255 / 0.08)` / `rgb(255 255 255 / 0.08)` / `rgb(255 255 255 / 0.12)` / `rgb(255 255 255 / 0.05)` / `rgb(255 255 255 / 0.08)` | A count's clear glass; the file input's button (the others draw `glass-button`'s gradient instead), a clear button's rim, under the pointer, pressed (in dark only a little lighter, so grey and red words still read on it pressed) |
+| `switch-off` / `knob` / `scrim` | `#6e737b` / `#ffffff` / `#15171a` | `#8a8e96` / `#0b0c0e` / `#000000` | A switch that's off (3.5:1); its knob, solid (white in light, near-black in dark, where the on track is near-white ink: 3:1 on its track either way); behind an open drawer or sheet (decorative) |
+| `brand` / `on-brand` / `brand-ink` | `#15171a` / `#ffffff` / `#15171a` | `#f3f4f6` / `#0b0c0e` / `#f3f4f6` | The firm's own colour (`src/lib/tenancy/brand-values.ts` `firmPalette`, a set per theme on `<body>`: every pair at least 4.5:1 on every point of the glass), here the defaults: the current tab and the firm's fills, their words, the colour as words. Its pale tint, `brand-soft`, is 12% of it over whatever lies under it |
+| `tint` / `on-tint` / `tint-shade` | `#15171a` / `#ffffff` / `#000000` | `#f3f4f6` / `#0b0c0e` / `#ffffff` | The main button (`glass-tint`): tinted glass in the firm's colour, from `tint` at the top to `tint-shade` at the foot, with its words; the light set in both themes (its words read on itself) |
+| `brand-bar` / `on-brand-bar` / `on-brand-bar-soft` | `#1f2227` / `#ffffff` / `#d2d4d8` | `#34373d` / `#ffffff` / `#d2d4d8` | The pass and the firm's initial; their words; the pass's second line |
+| `pass-plate` / `on-pass-plate` | `#ffffff` / `#1f2227` | `#ffffff` / `#34373d` | The gate's white plate on the pass; its words |
+| `urgent` / `urgent-soft` / `urgent-ink` / `urgent-tile` | `#b0201f` / `rgb(255 239 234 / 0.72)` / `#7d1a10` / `rgb(255 216 207 / 0.8)` | `#ffa59c` / `rgb(42 22 20 / 0.72)` / `#ffcabf` / `rgb(61 29 25 / 0.8)` | Act now: words and borders (on every point of the glass); a chip's or a notice's tinted glass; its words; an urgent tile's tinted glass (the tints and tiles translucent, solid in the fallbacks) |
+| `urgent-fill` / `urgent-fill-hover` / `on-urgent` | `#c4242a` / `#9b1c21` / `#ffffff` | `#cf3a33` / `#b02e28` / `#ffffff` | The final destructive button and urgent counts, under the pointer, their words |
+| `attention` / `attention-soft` / `attention-ink` | `#92400e` / `rgb(255 246 224 / 0.72)` / `#5c3f00` | `#f5b35a` / `rgb(38 31 16 / 0.72)` / `#fbe3a0` | Needs you: words, an icon, an edge; a chip's or a notice's tinted glass; its words |
+| `hivis` / `on-hivis` | `rgb(251 229 160 / 0.8)` / `#5c3f00` | `rgb(58 47 16 / 0.8)` / `#fbe3a0` | To do: a tile's or a count's tinted glass, what the firm gives you ("We provide it") |
+| `wait-tile` / `wait-ink` / `wait-soft` | `rgb(214 228 250 / 0.8)` / `#163b6e` / `rgb(238 244 253 / 0.72)` | `rgb(23 42 69 / 0.8)` / `#c8dafa` / `rgb(17 26 40 / 0.72)` | Waiting on someone else: a tile's or a count's tinted glass; their words; a chip's tinted glass |
+| `done` / `done-soft` / `done-ink` / `done-tile` | `#166534` / `rgb(233 246 238 / 0.72)` / `#155230` / `rgb(210 239 219 / 0.8)` | `#6bd896` / `rgb(16 32 26 / 0.72)` / `#bfeccd` / `rgb(21 48 31 / 0.8)` | Fine, finished: words and borders; a chip's tinted glass; its words; a tile's tinted glass |
+| `done-fill` / `on-done` | `#1f7a47` / `#ffffff` | `#1f7a47` / `#ffffff` | The booked tick, its words |
+| `quiet-soft` / `quiet-ink` | `rgb(241 242 244 / 0.72)` / `#464b52` | `rgb(34 36 40 / 0.72)` / `#d4d6da` | Information, closed: a chip's or an answer slip's tinted glass; its words |
+| `urgent-line` / `attention-line` / `wait-line` / `done-line` / `quiet-line` | `#f5c2bb` / `#f0d39a` / `#b8cff2` / `#b4dfc3` / `#d6d8dc` | `#5a2423` / `#5a4314` / `#2c4166` / `#1f4d33` / `#3a404b` | A status tint's edge (decorative: the words say the status) |
 | `demo` / `on-demo` | `#3d2e0a` / `#fde7b0` | `#3d2e0a` / `#fde7b0` | The demo bar |
-| `urgent-line` / `attention-line` / `wait-line` / `done-line` / `quiet-line` | `#c4242a` / `#b45309` / `#a9c1e8` / `#1f7a47` / `#7c8189` | `#ff8b80` / `#f2a541` / `#2c4166` / `#5fd08b` / `#6f737b` | A status's edge (Phase 21): a chip's border (here the status colour itself); in the office, a tint's 1px edge a shade darker (decorative: the words say the status) |
-| `wait-soft` | `#f2f6fd` | `#111a28` | A waiting panel's wash (the office's Waiting on others: Phase 21) |
-| `active` | `#e3e5e9` | `#232529` | The grey pill of the page you're on (the office menu: Phase 21) |
-| `count` | `#eceef1` | `#232529` | The office's count pill (Phase 21); the casual app's counts are `staffCount`'s |
-| `button` / `button-line` / `button-hover` / `button-press` | `#ffffff` / `#7c8189` / `#f1f2f4` / `#f1f2f4` | `#18191c` / `#6f737b` / `#222428` / `#222428` | Any other office button, its edge, under the pointer and pressed (Phase 21): here the outlined button it was; in the office a grey pill |
-| `ink-press` | `#000000` | `#ffffff` | An ink button pressed (Phase 21) |
-| `sheet` / `pill` | `#ffffff` / `#ffffff` | `#18191c` / `#232529` | The office's page (Phase 22; since Phase 23 the white page card, as `card`) and its menu's current row (Phase 23: a pale blue pill); the casual app doesn't use them |
-| `accent` / `accent-hover` / `accent-press` / `on-accent` | `#0ea5e9` / `#38bdf8` / `#0284c7` / `#06131f` | `#7dd3fc` / `#a5e1fd` / `#38bdf8` / `#06131f` | The office's one main button (the sky), under the pointer, pressed, and its near-black words (Phase 23; office only, the same values here: the casual app's main button is `brand`) |
-| `ink-faint` | `#667085` | `#8a94a6` | The office's faintest grey words: small capitals over the menu's groups, a chart's ticks, on white only (Phase 23; office only) |
-| `mark-urgent` / `mark-open` / `mark-wait` / `mark-done` / `mark-calm` | `#d92d20` / `#f79009` / `#0284c7` / `#079455` / `#98a2b3` | `#f97066` / `#fdb022` / `#38bdf8` / `#47cd89` / `#667085` | The office dashboard charts' marks: red to do now, amber needs you, blue waiting on someone else, green done, grey fine (Phase 23; office only). Amber and grey are under 3:1 on white by design: never alone (a number on each bar, a legend, a Numbers table) |
-| `mark-grid` / `mark-base` | `#eef0f3` / `#d0d5dd` | `#22262d` / `#3a404b` | A chart's grid lines and baseline, hairlines (decorative; Phase 23, office only) |
+| `accent` / `accent-hover` / `accent-press` / `on-accent` | `#1d4ed8` / `#2563eb` / `#1e40af` / `#ffffff` | `#9cb8ff` / `#b5caff` / `#7fa2ff` / `#0b1530` | The app's blue (round 7): the current page's icon, the chosen tab's word, "offered, no reply"; never a button (the main button is the firm's). A fill only under a count on the lens |
+| `mark-urgent` / `mark-open` / `mark-wait` / `mark-done` / `mark-calm` | `#c4242a` / `#17181a` / `#1d4ed8` / `#1f7a47` / `#98a2b3` | `#ff8b80` / `#f3f4f6` / `#6d93ff` / `#5fd08b` / `#667085` | The dashboard's marks: red to do now, not offered yet (ink), offered and waiting (blue), green done, grey calm (under 3:1 on light glass by design: never alone, each bar with its number, each chart with its legend and Numbers table) |
+| `mark-grid` / `mark-base` | `rgb(16 24 40 / 0.06)` / `rgb(16 24 40 / 0.15)` | `rgb(255 255 255 / 0.06)` / `rgb(255 255 255 / 0.15)` | A chart's grid lines and baseline (hairlines, decorative) |
 
-**Depth (Phase 20).** Five shadow tokens and no other shadow anywhere in `src/`
-(`tests/unit/ui.flat.test.ts` holds where each is used): `shadow-lift` (a card, row, tile or the
-current menu item lifted off its ground), `shadow-panel` (a panel or a menu over the page),
-`shadow-pass` (the pass, and the booked day on the strip), `shadow-bar` (the tab bar and the action
-bar floating over the page's foot) and `inset-shadow-sunk` (a sunk track, an opened part set into
-its card: the board's opened row, the travel figures). In dark they're darker, with a faint light
-edge on what floats. The office has one of its own (Phase 23): `shadow-float`, only on what floats
-over its page, whose value (`--overlay`) changes with the theme (see "Phase 23").
+**Depth (Phase 24).** The glass's rims and drops (see "Phase 24"), through six depth tokens
+that take variables (`shadow-lift`, `shadow-panel`, `shadow-pass`, `shadow-bar`, `shadow-float`,
+`inset-shadow-sunk`), and no other shadow anywhere in `src/` (`tests/unit/ui.glass.test.ts`
+holds where each is used).
 
 No other colour is written anywhere in `src/` (no `bg-white`, no Tailwind palette shade, no colour
 value in a class or a style): the firm's colour, which the root layout works out from the firm's
 settings and sets on `<body>`, is the one exception (`tests/unit/ui.theme.test.ts`).
 
-**A firm's own colour on buttons.** Its words are black or white, whichever reads better (at
-least 4.58:1), so a button in any firm colour can be read. Against the page, a pale firm colour
-(yellow on the white card) or a dark one in the dark theme can show little edge: the button is
-still named by its words, which is what identifies it, so no edge is added for now (Phase 17's
+**A firm's own colour on buttons.** The main button is tinted glass in the firm's colour with
+white words (or ink on a pale colour in dark), at least 4.5:1 at both ends of its gradient and
+brightened under the pointer. Against the page, a pale firm colour can show little edge: the button
+is still named by its words, which is what identifies it, so no edge is added (Phase 17's
 guardrails review, S5; revisit if a pilot firm's colour reads poorly).
 
-**Easier to scan (Phase 17).** Flat surfaces then; since Phase 20, depth comes from the five depth
-tokens only (above; `tests/unit/ui.flat.test.ts` holds it), with one hairline (`line`) on cards,
-a 1px border on office controls and fields. No label above a page's heading and no divider under the header (the firm's bar or the
-office's top bar names the firm). Lists are rows in one card rather than a stack of cards, and an
-empty list keeps its place as a dashed frame with one sentence. Colour goes on what needs someone:
-a valid licence or an up-to-date photo is quiet grey words, not a green tag.
+**Easier to scan (Phase 17).** No label above a page's heading and no divider under the header
+(the firm's bar or the office's top bar names the firm). Lists are rows in one glass card rather
+than a stack of cards, and an empty list keeps its place as a dashed frame with one sentence.
+Colour goes on what needs someone: a valid licence or an up-to-date photo is quiet grey words, not
+a green tag.
 
 **Light or dark.** The `sd-theme` cookie (`light` or `dark`; none, or anything else, means follow
 the device) is read by the root layout (`src/app/layout.tsx`, `src/app/theme.ts`), which writes
@@ -463,24 +602,21 @@ The office's moon/sun button sets the cookie (12A.2); casual pages follow the de
 colour has a set for each theme (Phase 18, above).
 
 Focus: every focusable element shows a 2px `ink` outline with a 2px offset on `:focus-visible`.
-Buttons get `cursor: pointer`. File inputs get a visible "choose" button
+Buttons get `cursor: pointer`. File inputs get a visible "choose" button, a clear glass pill
 (`::file-selector-button`). Every digit on a page is fixed-width (`tabular-nums` on `body`), so
 times, counts, money and notice hours line up.
 
-**Type.** One scale, and Tailwind offers no other size: 12px (`text-xs`), 13px (`text-sm`), 15px
-(`text-base`), 18px (`text-lg`), 24px (`text-2xl`), 30px (`text-3xl`), and 40px (`text-4xl`,
-Phase 18) for a shift's time and its date tile only. Office pages use 15px body
-(the shell sets `text-base`), 13px meta, 18px section headings, 24px page titles (Phase 17: an app
-screen's title, not a landing page's), and 30px for the dashboard's counts. Staff pages keep
-18px body and their big buttons, with 24px for a page's result ("You're booked."). Office fields
-are 18px on a touch screen (`pointer-coarse:text-lg`), because iPhones zoom in on a field under
-16px.
+**Type.** One scale, and Tailwind offers no other size (round 7's, Phase 24): in the casual app
+12px (`text-xs`), 14px (`text-sm`), 16px (`text-base`, its body), 18px (`text-lg`), 20px
+(`text-2xl`), 28px (`text-3xl`, a page's headline) and 44px (`text-4xl`, a shift's time and its
+date tile, the greeting); in the office 13, 15 (its body), 17 (a section's heading), 30 (a page's
+headline) and 40px in place of 14, 16, 18, 28 and 44. Office fields are 18px on a touch screen
+(`pointer-coarse:text-lg`), because iPhones zoom in on a field under 16px.
 
-**Font.** Public Sans (`@fontsource-variable/public-sans`) and Barlow Condensed bold
-(`@fontsource/barlow-condensed`, for `font-sign`), self-hosted with `next/font/local` from their
-npm packages (SIL Open Font License), each latin and latin-ext (for names such as Łukasz;
-downloaded only when a page has such a letter), then the system's font. Nothing is fetched from
-Google, while building or while running (`src/app/fonts.ts`).
+**Font.** Geist (`@fontsource-variable/geist`), self-hosted with `next/font/local` from its npm
+package (SIL Open Font License 1.1), latin and latin-ext (for names such as Łukasz; downloaded only
+when a page has such a letter), then the system's font. Nothing is fetched from Google, while
+building or while running (`src/app/fonts.ts`).
 
 ## Shared components (`src/app/ui/`)
 
@@ -540,53 +676,98 @@ it. The frame (`office-frame.tsx`) then asks the server to redraw the page once
 `/office/l` from another page, so it can't repeat, and with a live session the login page sends
 you on to `/office` as before.
 
-- **Top bar** (`office-frame.tsx`; Phase 23): white, the window's full width at every width, pinned
-  to the top (`sticky`, 56px; 64px from 1024px) with a hairline under it. "Menu" (below 1024px);
-  the firm's mark (its initial on its own colour, `brand-bar`) and its name, with "Office" under it
-  from 1024px (no reference portal's logo or colours; on logged-in office pages the firm's brand
-  bar is hidden, since this bar names the firm); the pay week as words in a hairline pill with a
-  green "This week" chip (from 1024px; its dates from 1280px); the shifts line's number (from
-  1280px, when the firm has one); the square moon/sun button (`theme-button.tsx`: sets the
-  `sd-theme` cookie and `data-theme` at once; its name says what it switches to, and the same words
-  show under it on hover and keyboard focus, stay while the pointer moves onto them, and go with
-  Escape); and the account button (initials, then the name from 640px). The account menu is a
-  native popover (`popover`, opened by the button's `popovertarget`) at the top right: no role of
-  its own, Escape and a tap elsewhere close it, and it works before the page's scripts load. It
-  holds the name and role, "How-to guide" and the office's one "Log out". Because the bar stays
-  over the page, the office's page scrolls with 80px kept clear at its top
-  (`scroll-padding-top` on `html` while the office shell is on the page, `globals.css`): a link to
-  a heading lands below the bar, and a control focused from the keyboard is never hidden under it.
-- **Desktop (1024px and wider; Phase 23):** under the bar, the menu in its own white card (28px
-  round, a hairline; 248px wide, 284px from 1280px) that stays in view as the page scrolls, beside
-  the page in another white card (`#main > div`, 22px round on a phone, 28px from 1024px), content
-  up to 1152px wide. Forms stay within 672px; lists, tables and reports use the full width. A menu
-  too tall for a short window scrolls inside its card with no scrollbar (`menu-scroll.tsx`).
-- **Phone and tablet:** "Menu" opens the same menu as a drawer from the left: a native `<dialog>`
+- **From 1024px (Phase 24, round 7 of the canvas; PLAN.md 24.2):** the rail at the left and, over
+  the page, a top bar of three floating glass capsules.
+  - **The rail** (`office-rail.tsx`): floating glass (`glass-float`, 24px round), 72px wide, 12px
+    from the window's corner, staying put as the page scrolls. At its top the firm's mark (its
+    initial on its own colour, `brand-bar`), and under it the rail's own button ("Show the menu
+    with names" / "Show the menu as icons"), which opens the rail to 236px with names and counts
+    and shuts it again; the choice is kept in the `sd-rail` cookie (`rail-cookie.ts`), read by the
+    layout, so the next page arrives as it was left. Then the menu (`rail-items.ts`): Dashboard,
+    Needs attention, Events & sessions, Enquiries and Cancellations as round 48px icons; Pay and
+    People as folds; under a line, Admin and records, a fold too (a role whose menu is only a fold,
+    payroll's Pay, gets its pages as icons). Pressing a fold while the rail is shut opens the rail
+    with that fold open (not kept in the cookie). A red dot marks an icon whose page needs you (a
+    count that `needs` this person: Needs attention, enquiries that need a person, uploads to
+    check, pay queries for payroll), and a fold's icon when one of its pages does. Shut, an icon's
+    name (and its count's words: "Enquiries, 2 need a person") shows beside it under the pointer
+    and on keyboard focus, stays while the pointer moves onto it, and goes with Escape (WCAG
+    1.4.13). The page you're on sits under a white glass lens (`lens`) with its icon in the
+    accent, at once as it's picked; a fold holding it wears the lens while it's shut. Open, a
+    row is 44px with its name and count, a fold's pages 38px with their names lined up with the
+    fold's. Shut it's 585px tall: in a window under 640px it scrolls, with no bar; open, it scrolls
+    with no bar and fades at the edge that has more (`menu-scroll.tsx`).
+  - **The top bar** (`office-frame.tsx`): no glass of its own, pinned to the top, 68px (its 48px
+    capsules with 12px above them and 8px below); once the page scrolls under it a soft frosted
+    edge fades in behind it (`scroll-edge`, `[data-scrolled]`). Its capsules:
+    1. the counts (`office-menu.ts` `barCounts`), each a link that opens where it's worked and
+       only for the roles that can open that page: To fill (places to fill in sessions to come:
+       Events & sessions' "Need people"), Urgent (places in urgent sessions, its number red while
+       there are any: Events & sessions' "Urgent"), Offers out (offers with no reply on sessions
+       still to come: the dashboard's offers chart), To check (Needs attention's one count) and
+       Pay queries (those waiting). The first three come from `src/lib/office/shell-counts.ts`, in
+       one statement through the firm's data layer, on the same SQL as the pages they open; a
+       count that couldn't be read shows its words alone;
+    2. the search (`office-search.tsx`), for the roles that can open what it finds: "Search", its
+       label "Find a casual, shift or site", with ⌘K (Ctrl K off a Mac) to reach it from
+       anywhere. What's typed goes to the server as an action (`search-actions.ts`: never the
+       address or a log), a moment after typing stops, from 2 characters; up to 5 casuals (by
+       name or mobile), shifts to come (by role, event, site or post) and sites (by name or town)
+       show in a floating glass panel, each a link to its page (a site: Events & sessions at that
+       site, `?site=`); the down arrow moves into them, Enter opens the first, Escape closes the
+       panel, and a polite live line says how many were found;
+    3. the moon/sun button (`theme-button.tsx`: sets the `sd-theme` cookie and `data-theme` at once;
+       its name says what it switches to, and the same words show under it on hover and keyboard
+       focus, stay while the pointer moves onto them, and go with Escape), then you: your initials
+       on a pale blue disc, your name (up to 112px) and your role, and a chevron, opening the
+       account menu.
+    The bar is a container: the counts' icons show only when there's room for all three capsules
+    with them (a 1172px column: a 1280px window with the rail shut), your name and role from
+    1008px, the search 250px wide from 1172px (200px below); in a column narrower still the counts
+    scroll sideways, with no bar.
+  - **The page** sits beside the rail under the capsules, with no card of its own, its sections
+    glass on the wash, the column's width (up to 1600px).
+- **Below 1024px:** the bar is Phase 23's, as floating glass the window's full width, pinned to the
+  top (56px): "Menu", the firm's mark and name, the square moon/sun button (clear glass) and you
+  (your initials; your name from 640px). The pay week moved to the dashboards' lines (the dashboard
+  "Monday 26 October · Week 44 · Pay Fri 6 Nov", the pay dashboard "Week 44 · 26 Oct – 1 Nov · Pay
+  Fri 6 Nov") and the shifts line's number to Settings (it's under the pay dashboard's headline
+  too; under the dashboard's until 24.3).
+- **The account menu** is a native popover (`popover`, opened by the button's `popovertarget`)
+  under you, its right edge with yours: no role of its own, Escape and a tap elsewhere close it,
+  and it works before the page's scripts load. It holds the name and role, the light or dark
+  switch, "How-to guide" and the office's one "Log out". Because the bar stays over the page, the
+  office's page scrolls with 80px kept clear at its top (`scroll-padding-top` on `html` while the
+  office shell is on the page, `globals.css`): a link to a heading lands below the bar, and a
+  control focused from the keyboard is never hidden under it.
+- **Phone and tablet:** "Menu" opens the menu as a drawer from the left: a native `<dialog>`
   opened with `showModal()`, so the page behind it is shut off and dimmed (`scrim` at half
   strength). Escape, a tap on the dimmed page, "Close menu" or choosing a link closes it, and the
   browser puts the focus back on "Menu". The one `<nav>` moves into the drawer while it's open and
-  back to the (hidden) sidebar when it shuts, so a page never has two, and a shut drawer holds
-  nothing that can be tabbed to. (A `<dialog>` can't be the desktop sidebar too: shown by CSS,
-  it's still announced as a dialog.) "Menu" and the theme button stay disabled until the page is
-  ready (`useHydrated`), so a tap is never lost; the drawer also shuts on moving to another page
-  and on widening the window to 1024px.
+  back to the (hidden) rail when it shuts, so a page never has two, and a shut drawer holds
+  nothing that can be tabbed to. (A `<dialog>` can't be the rail too: shown by CSS, it's still
+  announced as a dialog.) "Menu", the rail's buttons, the search and the theme button stay
+  disabled until the page is ready (`useHydrated`), so a tap is never lost; the drawer also shuts
+  on moving to another page and on widening the window to 1024px. In the drawer the menu keeps its
+  groups' names (`office-nav.tsx`) and only Admin and records folds.
+- (Until Phase 24, from 1024px the menu was a glass card under a full-width bar that showed the
+  pay week and the shifts line's number; in Phase 23 both were white cards.)
 - **Menu groups** (`office-menu.ts`; labels are words, not headings; links only appear for roles
   that can open them, from `canAccess`):
 
   | Group | Links |
   |---|---|
   | (first, no label: Phase 20) | Dashboard, Needs attention (in place of the bell) |
-  | Today | Events & sessions, Cancellations, Enquiries |
+  | Today | Events & sessions, Enquiries, Cancellations (Phase 24: the rail's order) |
   | Pay | Pay dashboard, Pay queries, Import pay records |
   | People | Casuals, Strikes, Notice report |
   | Admin and records (folded) | Action log, Pilot metrics, Office team, Settings, Integrations, Data requests |
   | Help | How-to guide |
 
-- The current page's link has `aria-current="page"`, on a pale blue pill (`pill`, Phase 23; a
-  grey pill in Phase 21, a white pill lifted off the menu in Phase 20, a pale tint of the firm's
-  colour before it) with its icon in ink. Every row (and the folded group's button) is 44px tall,
-  in the drawer too; from 1024px with a mouse (a fine pointer) the menu card's rows are 34px, so
-  the whole menu fits a laptop's window. Group labels are small capitals in the faintest grey
+- The current page's link has `aria-current="page"`: in the drawer on a pale pill (`pill`, which
+  slides to a link as it's picked) with its icon in ink, in the rail under the lens. Every row in
+  the drawer (and its folded group's button) is 44px tall (34px with a mouse until Phase 24, when
+  the menu card left). Group labels are small capitals in the faintest grey
   (`ink-faint`; by CSS only, the words stay as written). On a page inside a section, the section's link
   looks the same but has `aria-current="true"` (it isn't the page you're on): a shift or a new
   shift marks Events & sessions, the offer page marks Dashboard, a casual marks Casuals, a
@@ -601,11 +782,14 @@ you on to `/office` as before.
   "{12} to deal with", and "50+" when a list stopped at 50.
 - **Session keeper:** in the frame, so a session is kept alive on every office page.
 - **Test rules the shell must keep:** the menu is built from plain links (no list items, headings,
-  regions, `status`, `note` or `menu` roles, fieldsets or `<details>`: Phase 18's folded "Admin and
-  records" is a button that shows or hides its links, and `menuLink()` opens it); it sits outside
+  regions, `status`, `note` or `menu` roles, fieldsets or `<details>`: a fold is a button that
+  shows or hides its links, and `menuLink()` opens the one a link is in); so is the search's panel
+  (its live line is `aria-live`, not a `status`); it sits outside
   `<main>`; link names stay word for word; nothing else on a page may repeat a menu link's name (the account
   menu's "How-to guide" is hidden until opened); its `aria-label` ("Office menu") contains no
-  field label used on a page. The browser tests reach menu links through `menuLink(page, name)`
+  field label used on a page. The rail's own button is "Show the menu with names" / "Show the menu
+  as icons", so a page's own "Show" button is found by its exact name. The browser tests reach menu
+  links through `menuLink(page, name)`
   and "Log out" through `accountMenu(page)` (`tests/e2e/fixtures.ts`).
 
 ## Page patterns

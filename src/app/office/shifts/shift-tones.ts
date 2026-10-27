@@ -29,7 +29,7 @@ export const FLAG_TONE: Record<"inactive" | "blocked" | "site_blocked", StatusTo
   site_blocked: "urgent",
 };
 
-// An offer's answer: took it, said no, didn't answer in time, filled by someone else, couldn't be
+// An offer's answer: took it, said no, closed when the shift changed, filled by someone else, couldn't be
 // sent, or still waiting (no answer yet).
 export const RESPONSE_TONE: Record<string, StatusTone> = {
   accepted: "done",

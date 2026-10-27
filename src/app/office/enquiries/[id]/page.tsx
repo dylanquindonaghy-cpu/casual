@@ -63,7 +63,7 @@ function Bubble({ item, timeZone }: { item: ConversationItem; timeZone: string }
     <li className={`flex ${theirs ? "justify-start" : "justify-end"}`}>
       <div
         className={`max-w-[85%] rounded-inner px-4 py-2 ${
-          theirs ? "border border-line bg-card" : "border border-done-line bg-done-soft"
+          theirs ? "glass-tile" : "border border-done-line bg-done-soft"
         }`}
       >
         <p className="sr-only">{theirs ? "They wrote:" : "Reply:"}</p>

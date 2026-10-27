@@ -155,34 +155,34 @@ the demo.
 ## Part 3: as the office
 
 The office is made for a laptop or desktop: if you switched Chrome to a phone view, press F12
-again to go back. Every office page has the same bar along the top (the firm's name, the pay
-week, the shifts line's number, a square light or dark button, and your initials and name) and
-the same menu in a card on the left, with the page you're on marked and "Needs attention"
-counting what needs you. (In a narrow window the menu hides behind "Menu" at the top left, and
-"Close menu" puts it away.) Your initials open your name and role, "Switch to dark mode" (or
-light), "How-to guide", which explains each job step by step, and "Log out".
+again to go back. Every office page has the same bar along the top (the counts "To fill",
+"Urgent", "Offers out" and "To check", each opening where it's worked; "Search"; a light or dark
+button; and your initials and name) and the same menu down the left as icons, with the page you're
+on marked and a red dot where a page needs you; the button under the firm's mark shows their
+names. (In a narrow window the menu hides behind "Menu" at the top left, and "Close menu" puts it
+away.) Your initials open your name and role, "Switch to dark mode" (or light), "How-to guide",
+which explains each job step by step, and "Log out".
 
 22. **Log in as the resourcer.** Go to `http://acme.localhost:3000/office/login`, type
     `acme.resourcer@example.com` in "Your work email", and click "Send me a link". In the dev
     window an email ("Your Acme Events office login link") has the link: open it, then click "Log
-    me in". You see the "Dashboard", with Acme's shifts line under it.
-23. **The dashboard.** Under the heading (how many things need you, and where to start), four
-    count cards: "Urgent places", "Needs attention", "Waiting on others" and "Sorted today"; each
-    opens its list in a panel (from the side on a laptop, from the foot on a phone; Escape, a
-    click beside it or "Close" puts it away). Then every urgent place as a card, with "Offer" and
-    "…", and six charts: places to fill over the next 2 weeks, which events need people, this
-    week's offers, how long things have waited, the last 2 weeks' cancellations and licences
-    running out. Point at a bar or tab to it for its figures; click it for the real rows behind it
-    (a day shows its sessions with "Offer", "See this day's sessions" and "Open the rota board").
-    "Numbers" swaps a chart for its table. Click "Sorted today": today's cancellations (Zoe's
-    first: "Recorded automatically, never approved or declined"); its "cancellations today" opens
-    them. Back on the "Dashboard", click "Needs attention": "Who worked?" lists yesterday's 5
-    racecourse bookings, not marked yet, and "Mark who worked" opens them on the Needs attention
-    page. The menu's "Needs attention" counts the same things.
-24. **Offer a gap.** Click "Sorted today", then "… events showing to casuals", then "Need people".
-    Open an event, and on a session with a place free click its "…" button, then "Offer a place",
-    then "Send offer to …" on the first person. It says "Offer on its way to …", and the offer
-    appears in the dev window. Click "Back to the dashboard".
+    me in". You see the "Dashboard", with today, the pay week and its pay day under it.
+23. **The dashboard.** On the right, "All", "Urgent", "This week" and "Next week", each with how
+    many sessions have places to fill. Under them "Places to fill": a bar for each day of this week
+    and next, black for places with no offers out and blue for places offered with no reply yet
+    (point at a bar for its figures). Beside it the session you picked (the soonest urgent one at
+    first): when and where, how soon it starts, the offers sent and who hasn't replied, "Offer to
+    someone", "Open the shift", and "…" with "Mark as filled" and "Not urgent". Under them four
+    columns: "To offer", "Offered", "While you were out" (places casuals took from offers between
+    18:00 and 08:00) and "Who worked?" (yesterday's racecourse bookings, not marked yet). Click a
+    card to see it beside the chart; "Show … more" shows the rest of a column. The bar's "To check"
+    counts what Needs attention holds. Click "Cancellations" in the menu: every cancellation, Zoe's
+    among them, and "nothing here needs approving".
+24. **Offer a gap.** Back on the "Dashboard", click the paper plane on a card under "To offer". A
+    panel lists who can take it: click "Send offer to …" on the first person. It says "Offered",
+    the foot of the panel says "Offer on its way to …", and the offer appears in the dev window.
+    Press Escape. (Events & sessions has every session too: "Need people", an event's "…", then
+    "Offer a place".)
 25. **Enquiries, and answer a request.** Click "Enquiries": the shifts line's messages, newest
     first, each with how it was answered. Kieran Doyle's "I need to cancel please", Ben Fraser's
     pay question ("Pay (always a person)") and Zoe Adeyemi's "Hi, any shifts for me?" came in just

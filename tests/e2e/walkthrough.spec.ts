@@ -366,80 +366,68 @@ test("Part 3: as the office", async ({ browser }) => {
   });
 
   await test.step("23. The dashboard", async () => {
-    // The urgent places, then six charts (Phase 23); the places chart a mark for each of the next
-    // 14 days.
+    // Round 7 (Phase 24): the track, the places chart (a bar a day, this week and next), the
+    // session picked beside it, and the board's four columns.
+    const track = page.getByRole("navigation", { name: "Show" });
+    await expect(track.getByRole("link")).toHaveText([
+      /^All \d+$/,
+      /^Urgent \d+$/,
+      /^This week \d+$/,
+      /^Next week \d+$/,
+    ]);
+    await expect(page.locator("section#places-chart [data-day]")).toHaveCount(14);
+    await expect(page.locator("dialog[data-offer-panel][data-ready]")).toHaveCount(1);
+    for (const name of ["To offer", "Offered", "While you were out", "Who worked?"])
+      await expect(page.getByRole("heading", { name, exact: true, level: 2 })).toBeVisible();
+    // A card picks itself into the detail card.
+    const pick = page.locator('section#to-offer a[href^="/office?"]').nth(1);
+    const id = /session=([0-9a-f-]{36})$/.exec((await pick.getAttribute("href")) ?? "")?.[1];
+    await pick.click();
+    await expect(page.locator(`[data-chosen="${id}"]`)).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "Urgent places to fill", level: 2 }),
+      page.locator(`[data-chosen="${id}"]`).getByRole("link", { name: "Offer to someone" }),
     ).toBeVisible();
-    const places = page.getByRole("region", { name: "Places to fill, next 2 weeks" });
-    await expect(places.locator("[data-col]")).toHaveCount(14);
-    // The panel a day or a count card opens (once the page is ready): a day's sessions, with the
-    // way to its list (this week's strip's link until Phase 23).
-    const panel = page.locator('dialog[aria-labelledby="chart-panel-title"]');
-    await expect(page.locator("dialog[data-ready]")).toHaveCount(1);
-    await places.locator("button[data-col]").first().click();
-    await expect(panel.getByRole("link", { name: "See this day's sessions" })).toHaveAttribute(
-      "href",
-      /^\/office\/shifts\?from=\d{4}-\d\d-\d\d$/,
-    );
-    await page.keyboard.press("Escape");
-    await expect(panel).toBeHidden();
-    const card = (label: string) =>
-      page
-        .getByRole("main")
-        .getByRole("link")
-        .filter({ hasText: new RegExp(`^${label}`) });
-    // Today's cancellations (Zoe's, step 12, among them) are sorted: nothing to approve or decline.
-    await card("Sorted today").click();
-    const cancellations = panel.getByRole("link", { name: /cancellations? today/ });
-    await expect(panel).toContainText("Recorded automatically, never approved or declined.");
-    await cancellations.click();
-    await expect(page).toHaveURL(`${acme}/office/cancellations?day=today`);
+    // Who worked?: yesterday's racecourse bookings to mark.
+    await expect(
+      page.locator("section#who-worked").getByText("Acme Demo Racecourse").first(),
+    ).toBeVisible();
+    // Today's cancellations (Zoe's, step 12, among them): nothing to approve or decline.
+    await (await menuLink(page, "Cancellations")).click();
+    await expect(page).toHaveURL(`${acme}/office/cancellations`);
+    await expect(page.getByText("nothing here needs approving")).toBeVisible();
     await expect(page.getByRole("link").filter({ hasText: ZOE.name }).first()).toBeVisible();
-    // Needs attention: yesterday's racecourse shifts to mark, in full on its own page.
-    await page.goto(`${acme}/office`);
-    await expect(page.locator("dialog[data-ready]")).toHaveCount(1);
-    await card("Needs attention").click();
-    await panel.getByRole("link", { name: "Mark who worked" }).click();
-    await expect(
-      page.getByRole("region", { name: "Who worked?" }).getByText("Acme Demo Racecourse").first(),
-    ).toBeVisible();
   });
 
   await test.step("24. Offer a gap", async () => {
-    // "Events showing to casuals" (in the list Sorted today's card opens) opens Events &
-    // sessions' Showing list; "Need people" has the events with places free; an event's row
-    // opens into its sessions, and a session's "…" menu has "Offer a place" while it has one free.
+    // On the dashboard, a To offer card's paper plane opens the panel: who can take it, Send offer
+    // (the first card with someone to send it to), then Offered and the answer at its foot.
     await page.goto(`${acme}/office`);
-    await expect(page.locator("dialog[data-ready]")).toHaveCount(1);
-    await page
-      .getByRole("main")
-      .getByRole("link")
-      .filter({ hasText: /^Sorted today/ })
-      .click();
-    await page
-      .locator('dialog[aria-labelledby="chart-panel-title"]')
-      .getByRole("link", { name: /events? showing to casuals/ })
-      .click();
-    await expect(page).toHaveURL(`${acme}/office/events?view=showing`);
-    await page.getByRole("link", { name: /^Need people \d+$/ }).click();
-    await expect(page).toHaveURL(`${acme}/office/events?view=need`);
-    await page.locator('button[aria-controls$="-sessions"][aria-expanded="false"]').first().click();
-    const menu = page.locator('details:has(a[href^="/office/offer/"])').first();
-    await menu.locator("summary").click();
-    await menu.getByRole("link", { name: "Offer a place" }).click();
-    await expect(page.getByRole("heading", { name: "Offer this shift" })).toBeVisible();
-    const asked = justBefore();
-    await page
-      .getByRole("button", { name: /^Send offer to / })
-      .first()
-      .click();
-    await expect(
-      page.getByRole("status").filter({ hasText: /^Offer on its way to .+\.$/ }),
-    ).toBeVisible();
-    await anySent(asked, /^(Shift available|URGENT): /);
-    await page.getByRole("link", { name: "Back to the dashboard" }).click();
-    await expect(page).toHaveURL(`${acme}/office`);
+    await expect(page.locator("dialog[data-offer-panel][data-ready]")).toHaveCount(1);
+    const panel = page.getByRole("dialog", { name: "Offer this shift" });
+    const planes = page.locator('section#to-offer a[href^="/office/offer/"]');
+    let sent = false;
+    for (let i = 0; i < (await planes.count()) && !sent; i++) {
+      await planes.nth(i).click();
+      await expect(panel.getByRole("heading", { name: "Already offered" })).toBeVisible();
+      const send = panel.getByRole("button", { name: /^Send offer to / }).first();
+      if ((await send.count()) === 0) {
+        await page.keyboard.press("Escape");
+        await expect(panel).toBeHidden();
+        continue;
+      }
+      const name = ((await send.getAttribute("aria-label")) ?? "").replace("Send offer to ", "");
+      const asked = justBefore();
+      await send.click();
+      await expect(
+        panel.getByRole("status").filter({ hasText: `Offer on its way to ${name}.` }),
+      ).toBeVisible();
+      await expect(panel.getByText("Offered", { exact: true })).toBeVisible();
+      await anySent(asked, /^(Shift available|URGENT): /);
+      sent = true;
+    }
+    expect(sent).toBe(true);
+    await page.keyboard.press("Escape");
+    await expect(panel).toBeHidden();
   });
 
   await test.step("25. Enquiries, and answer a request", async () => {
@@ -626,7 +614,8 @@ test("Part 3: as the office", async ({ browser }) => {
     await (await menuLink(page, "Action log")).click();
     await expect(page.getByRole("heading", { name: "Action log" })).toBeVisible();
     await page.getByLabel("Type").selectOption({ label: "Cancellations" });
-    await page.getByRole("button", { name: "Show" }).click();
+    // (Exactly: the rail's own button is "Show the menu as icons".)
+    await page.getByRole("button", { name: "Show", exact: true }).click();
     await expect(page).toHaveURL(/type=cancellations/);
     await expect(
       page.getByText(`${ZOE.name} cancelled, with `, { exact: false }).first(),

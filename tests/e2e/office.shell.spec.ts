@@ -1,28 +1,33 @@
 import type { Locator, Page } from "@playwright/test";
-import { addOfficeUser } from "./db";
+import { addOfficeUser, addWorker } from "./db";
 import { accountMenu, expect, menuLink, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
-// The office shell in a real browser (docs/office-v2.md 3.1; PLAN.md 12A.2 and 23.2), at phone
-// width (the browser tests' Pixel 7) and on a wide screen: the menu drawer (opens with Menu;
+// The office shell in a real browser (docs/office-v2.md 3.1; PLAN.md 12A.2, 23.2 and 24.2), at
+// phone width (the browser tests' Pixel 7) and on a wide screen: the menu drawer (opens with Menu;
 // Escape, the backdrop and Close menu shut it; focus goes back to Menu; nothing in it can be tabbed
-// to while it's shut), the top bar the window's full width at every width (Phase 23: the firm, the
-// pay week with "This week", the shifts line, the square light or dark switch and you, whose
-// account menu has your name and role, the same switch, How-to guide and Log out), the switch (at
-// once, both saying the same, kept after a reload with no flash), and from 1024px the menu in its
-// own white card under the bar beside the page's. On a laptop with a mouse (Phase 22): the whole
-// menu fits with no scrollbar, the pill moves to a link as it's picked, a press dips, nothing
-// lifts, no round button breaks onto two lines, the switch's words can be hovered and put away
-// with Escape, and the keyboard never leaves a control hidden under the top bar. Everything runs
-// with the device set to light and again set to dark.
+// to while it's shut), the top bar (on a phone the window's full width: Menu, the firm, the light
+// or dark switch and you, whose account menu has your name and role, the same switch, How-to guide
+// and Log out), the switch (at once, both saying the same, kept after a reload with no flash), and
+// from 1024px (Phase 24, round 7) the rail at the left beside the page and three glass capsules
+// over it: the counts, the search and you, with a frosted edge once the page scrolls under them.
+// On a laptop with a mouse: the shut rail fits the window and its button opens it to names and
+// counts (kept after a reload); a fold pressed while it's shut opens it; a red dot where a page
+// needs you; a shut icon's name shows under the pointer and on focus and Escape puts it away; the
+// lens moves to a link as it's picked; the counts open where they're worked and say what those
+// pages say; the search finds a casual, a shift and a site (never another firm's); a press dips
+// (and glass swells), nothing lifts, no round button breaks onto two lines, and the keyboard never
+// leaves a control hidden under the top bar. Everything on a phone runs with the device set to
+// light and again set to dark.
 
 const acme = "http://acme.localhost:3100";
-// The office's window (Phase 23, round 3): a cool light grey ground (a near-black in dark), and on
-// it the top bar, the menu card and the page card in white (a dark grey in dark), each with its 1px
-// hairline. Round 2's warm grey window and off-white sheet set into it went.
-const CANVAS = { light: "rgb(242, 244, 247)", dark: "rgb(12, 14, 18)" }; // #f2f4f7, #0c0e12
-const CARD = { light: "rgb(255, 255, 255)", dark: "rgb(21, 24, 29)" }; // #ffffff, #15181d
-const LINE = { light: "rgb(228, 231, 236)", dark: "rgb(38, 43, 51)" }; // #e4e7ec, #262b33
+// The office's window (Phase 24, round 7): the wash on its base (the canvas), and on it what floats
+// (the rail, the top bar on a phone and its capsules from 1024px) as floating glass; the page no
+// card of its own. Round 3's white cards with their hairlines on a cool grey ground (Phase 23) and
+// 24.1's menu card went.
+const CANVAS = { light: "rgb(238, 241, 248)", dark: "rgb(7, 8, 12)" }; // #eef1f8, #07080c
+const FLOAT = { light: "rgba(255, 255, 255, 0.78)", dark: "rgba(30, 30, 34, 0.8)" };
+const NONE = "rgba(0, 0, 0, 0)";
 
 // A surface's look: its colour, its edge on each side, its corners and any depth.
 const surface = (el: Locator) =>
@@ -40,17 +45,19 @@ const surface = (el: Locator) =>
         s.borderBottomLeftRadius,
       ],
       shadow: s.boxShadow,
+      frost: s.backdropFilter,
     };
   });
-// White (or dark grey) with a 1px hairline all round, `radius` round, and no depth.
-const flatCard = (theme: "light" | "dark", radius: string) => ({
-  bg: CARD[theme],
+// No surface at all: no fill, no edge, no corners, no depth (the page, Phase 24).
+const bare = {
+  bg: NONE,
   image: "none",
-  edges: ["1px", "1px", "1px", "1px"],
-  edge: Array(4).fill(LINE[theme]),
-  corners: Array(4).fill(radius),
+  edges: ["0px", "0px", "0px", "0px"],
+  edge: expect.any(Array),
+  corners: Array(4).fill("0px"),
   shadow: "none",
-});
+  frost: "none",
+};
 
 // Each test logs in as a resourcer of its own (the seeded users allow 3 login links per 15
 // minutes, and this spec logs in six times).
@@ -115,11 +122,12 @@ for (const device of ["light", "dark"] as const) {
       for (const [name, height] of bar) expect(height, String(name)).toBeGreaterThanOrEqual(44);
       await menuButton.click();
       await expect(drawer).toBeVisible();
-      // White from the left edge, floating over the dimmed page (the one overlay), sliding in
-      // (Phase 23); the firm at its head in a plain box, not a second banner.
+      // Floating glass from the left edge, over the dimmed page, sliding in (Phase 24; white in
+      // 23); the firm at its head in a plain box, not a second banner.
       await expect.poll(() => drawer.evaluate((el) => el.getBoundingClientRect().left)).toBe(0);
       const sheet = await surface(drawer);
-      expect(sheet.bg).toBe(CARD[device]);
+      expect(sheet.bg).toBe(FLOAT[device]);
+      expect(sheet.frost).toContain("blur(18px)");
       expect(sheet.shadow).not.toBe("none");
       expect(sheet.corners).toEqual(Array(4).fill("0px"));
       expect(await drawer.evaluate((el) => getComputedStyle(el).transitionProperty)).toBe(
@@ -171,7 +179,7 @@ for (const device of ["light", "dark"] as const) {
       );
       await page.keyboard.press("Escape");
 
-      // On a wide screen the menu is in its card beside the page, and there's no Menu button.
+      // On a wide screen the menu is in the rail beside the page, and there's no Menu button.
       await page.setViewportSize({ width: 1280, height: 900 });
       await expect(page.getByRole("navigation", { name: "Office menu" })).toBeVisible();
       await expect(menuButton).toBeHidden();
@@ -182,12 +190,11 @@ for (const device of ["light", "dark"] as const) {
     }) => {
       await officeLogin(page, `${device}.theme`);
       const other = device === "light" ? "dark" : "light";
-      const shell = page.locator('[data-shell="office"]');
-      const card = page.locator("#main > div");
+      // The page's ground (the wash's base, on <body>) and the floating bar change with it.
+      const shell = page.locator("body");
       const bar = page.getByRole("banner");
       await expect(shell).toHaveCSS("background-color", CANVAS[device]);
-      await expect(card).toHaveCSS("background-color", CARD[device]);
-      await expect(bar).toHaveCSS("background-color", CARD[device]);
+      await expect(bar).toHaveCSS("background-color", FLOAT[device]);
       // Its words say what it switches to (a row of the account menu since Phase 22; Phase 23 the
       // square moon or sun in the top bar too, named by the same words).
       const square = bar.getByRole("button", { name: `Switch to ${other} mode`, exact: true });
@@ -196,7 +203,7 @@ for (const device of ["light", "dark"] as const) {
       await menu.getByRole("button", { name: `Switch to ${other} mode`, exact: true }).click();
       await expect(page.locator("html")).toHaveAttribute("data-theme", other);
       await expect(shell).toHaveCSS("background-color", CANVAS[other]);
-      await expect(card).toHaveCSS("background-color", CARD[other]);
+      await expect(bar).toHaveCSS("background-color", FLOAT[other]);
       await expect(
         menu.getByRole("button", { name: `Switch to ${device} mode`, exact: true }),
       ).toBeVisible();
@@ -222,7 +229,7 @@ for (const device of ["light", "dark"] as const) {
       await expect(again).toBeHidden();
       await square.click();
       await expect(page.locator("html")).toHaveAttribute("data-theme", other);
-      await expect(card).toHaveCSS("background-color", CARD[other]);
+      await expect(bar).toHaveCSS("background-color", FLOAT[other]);
 
       // Kept: the server sends the next page in that theme (no flash), and after a reload too.
       const sent = await page.request.get(`${acme}/office`);
@@ -235,25 +242,29 @@ for (const device of ["light", "dark"] as const) {
       ).toBeVisible();
     });
 
-    test("the top bar: the window's full width; the firm, the pay week, the shifts line, the switch and you; the menu and page cards under it", async ({
+    test("the top bar: on a phone the window's full width; from 1024px the rail beside the page and three glass capsules over it", async ({
       page,
     }) => {
       await officeLogin(page, `${device}.bar`);
       const bar = page.getByRole("banner");
       const card = page.locator("#main > div");
       const width = () => page.evaluate(() => document.documentElement.clientWidth);
-      // On a phone: the page a white card with its hairline, 22px round on all four corners, with
-      // no depth (Phase 23; a sheet with rounded top corners in Phase 22).
-      expect(await surface(card)).toEqual(flatCard(device, "22px"));
+      // On a phone: the page no card of its own, its sections glass on the wash (Phase 24; a white
+      // card with its hairline in 23, a sheet with rounded top corners in 22).
+      expect(await surface(card)).toEqual(bare);
       // The firm's own bar gives way to the top bar on logged-in office pages.
       await expect(page.getByTestId("brand-bar")).toBeHidden();
       await expect(bar.getByText("Acme Events", { exact: true })).toBeVisible();
-      // The pay week and the shifts line wait for a wider window.
-      await expect(bar.getByText("This week", { exact: true })).toBeHidden();
-      await expect(bar.getByText("+44 7700 900000")).toBeHidden();
-      // White with its hairline under it, 56px tall, the window's full width.
-      expect(await bar.evaluate((el) => getComputedStyle(el).borderBottomColor)).toBe(LINE[device]);
-      expect(await bar.evaluate((el) => getComputedStyle(el).borderBottomWidth)).toBe("1px");
+      // The counts and the search wait for a wider window; the rail too.
+      await expect(bar.getByRole("link", { name: /^To fill \d+$/ })).toBeHidden();
+      await expect(bar.getByRole("searchbox")).toBeHidden();
+      await expect(page.locator("#office-rail")).toBeHidden();
+      // Floating glass (no hairline under it: its own edge), 56px tall, the window's full width.
+      const glassBar = await surface(bar);
+      expect(glassBar.bg).toBe(FLOAT[device]);
+      expect(glassBar.frost).toContain("blur(18px)");
+      expect(glassBar.edges).toEqual(["0px", "0px", "0px", "0px"]);
+      expect(glassBar.shadow).not.toBe("none");
       expect(await bar.boundingBox()).toMatchObject({
         x: 0,
         y: 0,
@@ -277,73 +288,98 @@ for (const device of ["light", "dark"] as const) {
       const account = page.locator('button[popovertarget="office-account-menu"]');
       await page.setViewportSize({ width: 800, height: 900 });
       await expect(account.getByText("Sam Rota", { exact: true })).toBeVisible();
-      await expect(bar.getByText("This week", { exact: true })).toBeHidden();
 
-      // From 1024px the pay week, but not yet its dates (read out, not shown) or the shifts line.
-      const dates = bar.locator("p span.sr-only").filter({ hasText: " – " });
-      await page.setViewportSize({ width: 1100, height: 900 });
-      await expect(bar.getByText("This week", { exact: true })).toBeVisible();
-      await expect(dates).toHaveCount(1);
-      expect(await dates.evaluate((el) => getComputedStyle(el).position)).toBe("absolute");
-      await expect(bar.getByText("+44 7700 900000")).toBeHidden();
-
-      // At 1280: the bar the window's full width and 64px tall: the firm (its initial, its name,
-      // "Office"), the pay week in words with "This week" in green, the shifts line, the square
-      // light or dark switch (44px), and you at its right end.
+      // At 1280: the rail at the left, 12px from the window's corner (72px, the firm's mark at its
+      // top); the bar beside it, no glass of its own, 68px tall: three capsules 12px down, each
+      // floating glass 48px tall and round.
       await page.setViewportSize({ width: 1280, height: 900 });
       const wide = await width();
-      expect(await bar.boundingBox()).toMatchObject({ x: 0, y: 0, height: 64, width: wide });
-      await expect(bar.getByText("Acme Events", { exact: true })).toBeVisible();
-      await expect(bar.getByText("Office", { exact: true })).toBeVisible();
-      const week = bar.locator("p").filter({ hasText: "This week" });
-      await expect(week).toHaveCount(1);
-      await expect(week).toBeVisible();
-      expect(await dates.evaluate((el) => getComputedStyle(el).position)).toBe("static");
-      expect((await week.innerText()).replace(/\s+/g, " ").trim()).toMatch(
-        /^Week \d{1,2} · \d{1,2} [A-Z][a-z]{2} – \d{1,2} [A-Z][a-z]{2} · Pay [A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2} This week$/,
-      );
-      // Words, not a button: nothing in it to press.
-      await expect(week.locator("a, button")).toHaveCount(0);
-      await expect(bar.getByText("+44 7700 900000")).toBeVisible();
-      const square = bar.getByRole("button", { name: /^Switch to (light|dark) mode$/ });
-      expect(await square.boundingBox()).toMatchObject({ width: 44, height: 44 });
-      expect(await surface(square)).toEqual(flatCard(device, "14px"));
+      const rail = page.locator("#office-rail");
+      await expect(rail).toBeVisible();
+      expect(await rail.boundingBox()).toMatchObject({ x: 12, y: 12, width: 72 });
+      const own = await surface(bar);
+      expect({ bg: own.bg, frost: own.frost, shadow: own.shadow }).toEqual({
+        bg: NONE,
+        frost: "none",
+        shadow: "none",
+      });
+      expect(await bar.boundingBox()).toMatchObject({ x: 96, y: 0, height: 68, width: wide - 108 });
+      const capsules = [
+        bar.locator("[data-bar-counts]"),
+        bar.getByRole("searchbox").locator("xpath=.."),
+        account.locator("xpath=.."),
+      ];
+      for (const capsule of capsules) {
+        const glass = await surface(capsule);
+        expect(glass.bg).toBe(FLOAT[device]);
+        expect(glass.frost).toContain("blur(18px)");
+        expect(glass.shadow).not.toBe("none");
+        expect(Number.parseFloat(glass.corners[0] ?? "0")).toBeGreaterThanOrEqual(24);
+        expect(await capsule.boundingBox()).toMatchObject({ y: 12, height: 48 });
+      }
+      // In that order, left to right, the last 12px from the window's edge.
+      const xs = await Promise.all(capsules.map(async (c) => (await c.boundingBox())!.x));
+      expect([...xs].sort((a, b) => a - b)).toEqual(xs);
+      const you = (await capsules[2]!.boundingBox())!;
+      expect(Math.round(you.x + you.width)).toBe(wide - 12);
+      // The firm is the rail's mark now, not the bar's.
+      await expect(bar.getByText("Acme Events", { exact: true })).toBeHidden();
+      await expect(rail.getByText("A", { exact: true })).toBeVisible();
+      // A resourcer's counts (Pay queries are payroll's and admins'), and the search.
+      for (const name of [/^To fill \d+$/, /^Urgent \d+$/, /^Offers out \d+$/, /^To check \d+\+?$/])
+        await expect(bar.getByRole("link", { name })).toBeVisible();
+      await expect(bar.getByRole("link", { name: /^Pay queries/ })).toHaveCount(0);
       await expect(
-        page
-          .getByRole("navigation", { name: "Office menu" })
-          .getByText("Acme Events", { exact: true }),
-      ).toHaveCount(0);
+        bar.getByRole("searchbox", { name: "Find a casual, shift or site" }),
+      ).toBeVisible();
+      // No pay week and no shifts line (the dashboards and Settings have them).
+      await expect(bar.getByText(/^Week \d/)).toHaveCount(0);
+      await expect(bar.getByText("+44 7700 900000")).toHaveCount(0);
+      // You: your initials on a pale blue disc, your name and your role.
       await expect(account.getByText("SR", { exact: true })).toBeVisible();
       await expect(account.getByText("Sam Rota", { exact: true })).toBeVisible();
+      await expect(account.getByText("Resourcer", { exact: true })).toBeVisible();
       await expect(account).toHaveAccessibleName("Sam Rota Resourcer");
-      const box = (await account.boundingBox())!;
-      expect(Math.round(box.x + box.width)).toBe(wide - 24);
-      expect(box.y).toBeLessThan(64);
-      // Its menu opens at the top right, 8px under the bar, its right edge under you.
-      // (Once it has grown out of its corner.)
+      // Its menu opens 8px under you, its right edge with yours. (Once it has grown out of its
+      // corner.)
+      const button = (await account.boundingBox())!;
       const opened = await accountMenu(page);
       const pop = async () => (await opened.boundingBox())!;
-      await expect.poll(async () => Math.round((await pop()).y)).toBe(72);
+      await expect
+        .poll(async () => Math.round((await pop()).y))
+        .toBe(Math.round(button.y + button.height + 8));
       await expect
         .poll(async () => Math.round((await pop()).x + (await pop()).width))
-        .toBe(wide - 24);
+        .toBe(Math.round(button.x + button.width));
       await page.keyboard.press("Escape");
       await expect(opened).toBeHidden();
 
-      // Under the bar, 16px from it and from the window's edges: the menu in its own white card
-      // (284px wide from 1280px), and the page in another, 16px apart; both 28px round, their
-      // hairlines and no depth. The window's ground shows between them.
-      const menuCard = page.locator("[data-shell] [data-menu-scroll]").locator("xpath=..");
-      expect(await surface(menuCard)).toEqual(flatCard(device, "28px"));
-      expect(await menuCard.boundingBox()).toMatchObject({ x: 16, y: 80, width: 284 });
-      expect(await surface(card)).toEqual(flatCard(device, "28px"));
-      expect(await card.boundingBox()).toMatchObject({ x: 316, y: 80, width: wide - 332 });
-      await expect(page.locator('[data-shell="office"]')).toHaveCSS(
-        "background-color",
-        CANVAS[device],
-      );
+      // The page beside the rail, under the capsules, no card of its own; the wash shows round
+      // them: the shell paints no ground.
+      expect(await surface(card)).toEqual(bare);
+      // (Its box starts under the bar; its words 12px further down.)
+      const pageBox = page.locator("#main > div > div");
+      expect(await pageBox.boundingBox()).toMatchObject({ x: 96, y: 68, width: wide - 108 });
+      await expect(pageBox).toHaveCSS("padding-top", "12px");
+      await expect(page.locator('[data-shell="office"]')).toHaveCSS("background-color", NONE);
       await expect(page.locator("body")).toHaveCSS("background-color", CANVAS[device]);
       await expect(page.locator("#main")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+
+      // Once the page scrolls under the capsules, a soft frosted edge fades in behind them.
+      const edge = () =>
+        bar.evaluate((el) => {
+          const s = getComputedStyle(el, "::before");
+          return { opacity: s.opacity, frost: s.backdropFilter };
+        });
+      expect((await edge()).opacity).toBe("0");
+      await page.evaluate(() => window.scrollTo(0, 400));
+      await expect(bar).toHaveAttribute("data-scrolled", "");
+      await expect.poll(async () => (await edge()).opacity).toBe("1");
+      expect((await edge()).frost).toContain("blur(10px)");
+      expect((await bar.boundingBox())?.y).toBe(0);
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await expect(bar).not.toHaveAttribute("data-scrolled", "");
+
       await (await accountMenu(page)).getByRole("link", { name: "How-to guide" }).click();
       await expect(page).toHaveURL(`${acme}/office/guide`);
     });
@@ -355,89 +391,351 @@ for (const device of ["light", "dark"] as const) {
 test.describe("on a laptop window (1280 × 640) with a mouse", () => {
   test.use({ viewport: { width: 1280, height: 640 }, hasTouch: false, isMobile: false });
 
-  // Phase 23: under the 64px top bar, in its own card 16px under it, the whole menu still fits:
-  // nothing to scroll to, and the card ends inside the window.
-  test("an admin's whole menu fits with no scrollbar, its rows 34px; the pill moves to a pick at once", async ({
+  // Phase 24 (round 7): the rail, shut, is a column of round icons that fits the window; its own
+  // button opens it to names and counts (kept in the sd-rail cookie, so a reload keeps it), a fold
+  // pressed while it's shut opens it with that fold open (not kept), and a red dot marks each icon
+  // whose page needs you: the same rows that show an amber count when it's open.
+  test("the rail: icons that fit the window; its button opens it to names and counts, kept after a reload; a fold opens it", async ({
     page,
   }) => {
-    await officeLogin(page, "laptop", "admin");
+    await officeLogin(page, "rail", "admin");
+    const rail = page.locator("#office-rail");
     const menu = page.getByRole("navigation", { name: "Office menu" });
-    const scroll = page.locator("[data-shell] [data-menu-scroll]");
-    const fit = await scroll.evaluate((box) => {
-      const rows = [...box.querySelectorAll("nav a, nav button")].filter((el) =>
-        el.checkVisibility(),
+    const toggle = rail.getByRole("button", { name: "Show the menu with names" });
+    await expect(toggle).toBeEnabled();
+    await expect(rail).toHaveAttribute("data-rail", "shut");
+    // Floating glass, 24px round, 72px wide, 12px from the window's corner, all of it inside the
+    // window.
+    const glass = await surface(rail);
+    expect(glass.bg).toBe(FLOAT.light);
+    expect(glass.frost).toContain("blur(18px)");
+    expect(glass.corners).toEqual(Array(4).fill("24px"));
+    const box = (await rail.boundingBox())!;
+    expect(box).toMatchObject({ x: 12, y: 12, width: 72 });
+    expect(box.y + box.height).toBeLessThanOrEqual(640);
+    // Its rows: round 48px icons, each named by its words alone.
+    const rows = () =>
+      menu.locator("a, button").evaluateAll((els) =>
+        els
+          .filter((el) => el.checkVisibility())
+          .map((el) => {
+            const r = el.getBoundingClientRect();
+            const name = el.querySelector("span:not([aria-hidden])")?.textContent ?? "";
+            return [name, Math.round(r.width), Math.round(r.height)] as const;
+          }),
       );
-      return {
-        rows: rows.length,
-        heights: [...new Set(rows.map((r) => Math.round(r.getBoundingClientRect().height)))],
-        last: rows.at(-1)!.getBoundingClientRect().bottom,
-        bottom: box.getBoundingClientRect().bottom,
-        more: box.scrollHeight - box.clientHeight,
-        bar: getComputedStyle(box).scrollbarWidth,
-        // A scrollbar would take room from the box's width.
-        taken: (box as HTMLElement).offsetWidth - box.clientWidth,
-        card: box.parentElement!.getBoundingClientRect().bottom,
-        // The office's own top bar (the casual app's brand bar is hidden under the shell).
-        banner: document.querySelector("[data-shell] > header")!.getBoundingClientRect().bottom,
-        top: box.parentElement!.getBoundingClientRect().top,
-      };
-    });
-    expect(fit.rows).toBeGreaterThanOrEqual(12);
-    expect(fit.heights).toEqual([34]);
-    expect(fit.last).toBeLessThanOrEqual(fit.bottom);
-    expect(fit.more).toBe(0);
-    expect(fit.bar).toBe("none");
-    expect(fit.taken).toBe(0);
-    expect(await scroll.getAttribute("data-more")).toBeNull();
-    expect(fit.banner).toBe(64);
-    expect(fit.top).toBe(80);
-    expect(fit.card).toBeLessThanOrEqual(640);
+    expect(await rows()).toEqual(
+      [
+        "Dashboard",
+        "Needs attention",
+        "Events & sessions",
+        "Enquiries",
+        "Cancellations",
+        "Pay",
+        "People",
+        "Admin and records",
+      ].map((n) => [n, 48, 48]),
+    );
+    // The page you're on, under the lens (white glass), its icon in the accent.
+    const home = menu.getByRole("link", { name: "Dashboard", exact: true });
+    await expect(home).toHaveAttribute("aria-current", "page");
+    await expect(home).toHaveCSS("background-color", "rgba(255, 255, 255, 0.92)");
+    await expect(home.locator("svg")).toHaveCSS("color", "rgb(29, 78, 216)");
+    const dotted = await menu
+      .locator("a:has([data-rail-dot]), button:has([data-rail-dot])")
+      .evaluateAll((els) =>
+        els.map((el) => el.querySelector("span:not([aria-hidden])")?.textContent ?? ""),
+      );
 
-    // The page you're on: the pale blue pill under its row. Picked, another link has the pill at
-    // once, before its page arrives (held back here), while the page you're on is still marked
-    // current.
-    const pill = page.locator("[data-menu-pill]");
-    const top = async (name: string) =>
-      Math.round((await menu.getByRole("link", { name, exact: true }).boundingBox())?.y ?? -1);
+    // Opened: 236px, names and counts, its button saying so.
+    await toggle.click();
+    await expect(rail).toHaveAttribute("data-rail", "open");
+    await expect.poll(async () => (await rail.boundingBox())?.width).toBe(236);
+    await expect(rail.getByRole("button", { name: "Show the menu as icons" })).toBeVisible();
+    await expect(rail.getByText("Acme Events", { exact: true })).toBeVisible();
+    await expect(menu.getByText("Events & sessions", { exact: true })).toBeVisible();
+    for (const fold of ["Pay", "People", "Admin and records"]) {
+      const button = menu.getByRole("button", { name: fold, exact: true });
+      if ((await button.getAttribute("aria-expanded")) === "false") await button.click();
+      await expect(button).toHaveAttribute("aria-expanded", "true");
+    }
+    // A dot where its count is amber (it needs you); on a fold where one of its pages' is.
+    const amber = await menu.locator("a:has(.bg-hivis)").evaluateAll((els) =>
+      els.map((el) => {
+        const fold = el.closest("[id^='rail-']");
+        const name = el.querySelector("span:not([aria-hidden])")?.textContent ?? "";
+        return fold
+          ? (document.querySelector(`button[aria-controls="${fold.id}"] span:not([aria-hidden])`)
+              ?.textContent ?? "")
+          : name;
+      }),
+    );
+    expect(dotted.length).toBeGreaterThan(0);
+    expect([...new Set(amber)].sort()).toEqual([...dotted].sort());
+    // Its pages' rows: 38px, their names lined up with the fold's. (Their laid-out height: the
+    // fold's pages slide up into place, and a box measured mid-slide can read 38.00003px.)
+    const casuals = menu.getByRole("link", { name: "Casuals", exact: true });
+    await expect(casuals).toHaveCSS("height", "38px");
+    const label = async (el: Locator) =>
+      Math.round((await el.locator("span:not([aria-hidden])").first().boundingBox())?.x ?? -1);
+    expect(await label(casuals)).toBe(
+      await label(menu.getByRole("button", { name: "People", exact: true })),
+    );
+    // Kept after a reload (the sd-rail cookie), and shut again the same way.
+    await page.reload();
+    await expect(rail).toHaveAttribute("data-rail", "open");
+    await expect(menu.getByText("Events & sessions", { exact: true })).toBeVisible();
+    await rail.getByRole("button", { name: "Show the menu as icons" }).click();
+    await expect(rail).toHaveAttribute("data-rail", "shut");
+    await page.reload();
+    await expect(rail).toHaveAttribute("data-rail", "shut");
+
+    // A fold pressed while the rail is shut opens the rail with that fold open; its pages are
+    // there to pick. (Only the rail's own button is kept: a reload shuts it again.)
+    await expect(menu.getByRole("button", { name: "People", exact: true })).toBeEnabled();
+    await menu.getByRole("button", { name: "People", exact: true }).click();
+    await expect(rail).toHaveAttribute("data-rail", "open");
+    await expect(menu.getByRole("button", { name: "People", exact: true })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    await expect(menu.getByRole("link", { name: "Casuals", exact: true })).toBeVisible();
+    await page.reload();
+    await expect(rail).toHaveAttribute("data-rail", "shut");
+  });
+
+  // Shut, an icon's name shows beside it under the pointer and on keyboard focus, with its count's
+  // words; the pointer can move onto it; Escape puts it away (WCAG 1.4.13), and it comes back with
+  // the next focus or pointer.
+  test("a shut icon's name shows beside it under the pointer and on keyboard focus; Escape puts it away", async ({
+    page,
+  }) => {
+    await officeLogin(page, "railtip", "admin");
+    const menu = page.getByRole("navigation", { name: "Office menu" });
+    const link = menu.getByRole("link", { name: "Events & sessions", exact: true });
+    const tip = link.locator("xpath=..").locator("[data-rail-tip]");
+    await expect(link).toBeVisible();
+    await expect(tip).toBeHidden();
+    await expect(tip).toHaveText("Events & sessions");
+    await link.hover();
+    await expect(tip).toBeVisible();
+    await expect(tip).toHaveCSS("animation-name", "sd-pop");
+    // 12px to the right of the icon, level with it.
+    const at = (await link.boundingBox())!;
+    const shown = async () => (await tip.boundingBox())!;
     await expect
-      .poll(async () => Math.round((await pill.boundingBox())?.y ?? 0))
-      .toBe(await top("Dashboard"));
-    await page.route(/\/office\/casuals(\?|$)/, async (route) => {
+      .poll(async () => Math.round((await shown()).x))
+      .toBe(Math.round(at.x + at.width + 12));
+    await expect
+      .poll(async () => Math.round((await shown()).y + (await shown()).height / 2))
+      .toBe(Math.round(at.y + at.height / 2));
+    // The pointer moves across onto the words (the 12px between) and they stay; Escape puts
+    // them away with the pointer still there.
+    const words = await shown();
+    await page.mouse.move(words.x + 8, words.y + words.height / 2, { steps: 8 });
+    await expect.poll(() => tip.evaluate((el) => el.matches(":hover"))).toBe(true);
+    await expect(tip).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(tip).toBeHidden();
+    // Away and back: they show again; away, they go.
+    await page.mouse.move(640, 400);
+    await link.hover();
+    await expect(tip).toBeVisible();
+    await page.mouse.move(640, 400);
+    await expect(tip).toBeHidden();
+    // From the keyboard: Tab onto it from the icon above; Escape keeps the focus.
+    await menu.getByRole("link", { name: "Needs attention", exact: true }).focus();
+    await page.keyboard.press("Tab");
+    await expect(link).toBeFocused();
+    await expect(tip).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(tip).toBeHidden();
+    await expect(link).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(menu.getByRole("link", { name: "Enquiries", exact: true })).toBeFocused();
+    await expect(tip).toBeHidden();
+    // A count's words beside its icon: Needs attention says how many there are to deal with.
+    const needs = menu.getByRole("link", { name: "Needs attention", exact: true });
+    await needs.hover();
+    await expect(needs.locator("xpath=..").locator("[data-rail-tip]")).toHaveText(
+      /^Needs attention(, \d+\+? to deal with)?$/,
+    );
+  });
+
+  // The lens goes to a link as it's picked, before its page arrives (held back here), while the
+  // page you're on is still marked current.
+  test("the lens moves to a pick at once", async ({ page }) => {
+    await officeLogin(page, "lens", "admin");
+    const menu = page.getByRole("navigation", { name: "Office menu" });
+    const lens = "rgba(255, 255, 255, 0.92)";
+    const pick = menu.getByRole("link", { name: "Cancellations", exact: true });
+    await expect(menu.getByRole("link", { name: "Dashboard", exact: true })).toHaveCSS(
+      "background-color",
+      lens,
+    );
+    await page.route(/\/office\/cancellations(\?|$)/, async (route) => {
       const request = route.request();
       if (request.headers()["rsc"] === "1" && request.headers()["next-router-prefetch"] !== "1")
         await new Promise((done) => setTimeout(done, 1500));
       await route.continue();
     });
-    // It slides there on the spring (400ms), rather than jumping.
-    expect(await pill.evaluate((el) => getComputedStyle(el).transitionProperty)).toBe(
-      "translate, width, height, opacity",
-    );
-    expect(await pill.evaluate((el) => getComputedStyle(el).transitionDuration)).toBe(
-      "0.4s, 0.2s, 0.2s, 0.15s",
-    );
-    await menu.getByRole("link", { name: "Casuals", exact: true }).click();
-    await expect
-      .poll(async () => Math.round((await pill.boundingBox())?.y ?? 0))
-      .toBe(await top("Casuals"));
+    await pick.click();
+    await expect(pick).toHaveCSS("background-color", lens);
     await expect(menu.getByRole("link", { name: "Dashboard", exact: true })).toHaveAttribute(
       "aria-current",
       "page",
     );
-    await expect(page).toHaveURL(`${acme}/office/casuals`);
-    await expect(menu.getByRole("link", { name: "Casuals", exact: true })).toHaveAttribute(
-      "aria-current",
-      "page",
+    await expect(page).toHaveURL(`${acme}/office/cancellations`);
+    await expect(pick).toHaveAttribute("aria-current", "page");
+    await expect(menu.getByRole("link", { name: "Dashboard", exact: true })).not.toHaveCSS(
+      "background-color",
+      lens,
     );
   });
 
+  // The counts (round 7's first capsule) open where each is worked, and say what those pages say.
+  test("the counts open where they're worked, and say what those pages say", async ({ page }) => {
+    await officeLogin(page, "counts", "admin");
+    const bar = page.getByRole("banner");
+    const menu = page.getByRole("navigation", { name: "Office menu" });
+    const count = async (label: string) => {
+      const link = bar.getByRole("link", { name: new RegExp(`^${label} \\d+\\+?$`) });
+      await expect(link).toBeVisible();
+      return Number(/(\d+)\+?$/.exec((await link.innerText()).trim())?.[1]);
+    };
+    // To check: Needs attention's own count, as the rail says it.
+    const toCheck = await count("To check");
+    const needs = menu.getByRole("link", { name: "Needs attention", exact: true });
+    await needs.hover();
+    await expect(needs.locator("xpath=..").locator("[data-rail-tip]")).toHaveText(
+      toCheck > 0
+        ? new RegExp(`^Needs attention, ${toCheck}\\+? to deal with$`)
+        : "Needs attention",
+    );
+    // Urgent: the places of the dashboard's urgent sessions (its Urgent filter's two columns).
+    const urgent = await count("Urgent");
+    const places = async (id: string) =>
+      Number(/^(\d+) places?/.exec(await page.locator(`section#${id} p`).first().innerText())?.[1]);
+    await page.goto(`${acme}/office?show=urgent`);
+    expect((await places("to-offer")) + (await places("offered"))).toBe(urgent);
+    // Pay queries: those waiting, as Pay's fold says them.
+    const pay = await count("Pay queries");
+    const fold = menu.getByRole("button", { name: "Pay", exact: true });
+    await fold.hover();
+    await expect(fold.locator("xpath=..").locator("[data-rail-tip]")).toHaveText(
+      pay > 0 ? `Pay, ${pay} waiting` : "Pay",
+    );
+    // Offers out: the dashboard's Offered column, its offers waiting for a reply.
+    const out = await count("Offers out");
+    await bar.getByRole("link", { name: /^Offers out \d+$/ }).click();
+    await expect(page).toHaveURL(`${acme}/office#offered`);
+    await expect(page.locator("section#offered")).toBeInViewport();
+    await expect(page.locator("section#offered p").first()).toHaveText(
+      new RegExp(` · ${out} ${out === 1 ? "offer" : "offers"}, no reply yet$`),
+    );
+    // To fill: Events & sessions' places to fill, with sessions that need people.
+    const toFill = await count("To fill");
+    await bar.getByRole("link", { name: /^To fill \d+$/ }).click();
+    await expect(page).toHaveURL(`${acme}/office/events?view=need`);
+    await expect(page.getByRole("main")).toContainText(
+      `${toFill} ${toFill === 1 ? "open place" : "open places"} across`,
+    );
+    await bar.getByRole("link", { name: /^Urgent \d+$/ }).click();
+    await expect(page).toHaveURL(`${acme}/office/events?view=urgent`);
+    await bar.getByRole("link", { name: /^To check \d+\+?$/ }).click();
+    await expect(page).toHaveURL(`${acme}/office/needs-attention`);
+    await bar.getByRole("link", { name: /^Pay queries \d+$/ }).click();
+    await expect(page).toHaveURL(`${acme}/office/pay-queries`);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  });
+
+  // The search (round 7's second capsule): ⌘K or Ctrl K from anywhere; what's typed goes to the
+  // server as an action; casuals, shifts and sites, each a link; the keyboard moves through them;
+  // never another firm's.
+  test("the search finds a casual, a shift and a site; the keyboard moves through them; never another firm's", async ({
+    page,
+  }) => {
+    const ours = await addWorker("acme", {
+      firstName: "Quilla",
+      lastName: "Searchfield",
+      mobileE164: "+447700900761",
+    });
+    await addWorker("northline", {
+      firstName: "Quilla",
+      lastName: "Elsewhere",
+      mobileE164: "+447700900762",
+    });
+    await officeLogin(page, "search");
+    const bar = page.getByRole("banner");
+    const box = bar.getByRole("searchbox", { name: "Find a casual, shift or site" });
+    const panel = bar.locator("[data-search-panel]");
+    const live = bar.locator('[aria-live="polite"]');
+    await expect(box).toBeEnabled();
+    await expect(box).toHaveAttribute("placeholder", "Search");
+    await expect(bar.locator("kbd")).toHaveText(/^(⌘K|Ctrl K)$/);
+    // From anywhere on the page.
+    await page.getByRole("heading", { level: 1 }).click();
+    await page.keyboard.press("ControlOrMeta+k");
+    await expect(box).toBeFocused();
+    await page.keyboard.type("quilla");
+    await expect(panel.getByRole("link")).toHaveCount(1);
+    const found = panel.getByRole("link", { name: /^Quilla Searchfield\b/ });
+    await expect(found).toBeVisible();
+    await expect(panel).not.toContainText("Elsewhere");
+    await expect(live).toHaveText("1 found for “quilla”.");
+    // Never in the address.
+    expect(page.url()).not.toContain("quilla");
+    // Down into the results, Escape back to the box (the panel shut).
+    await page.keyboard.press("ArrowDown");
+    await expect(found).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(panel).toHaveCount(0);
+    await expect(box).toBeFocused();
+    // The other firm's Quilla by her own mobile: nothing.
+    await box.fill("07700 900762");
+    await expect(panel).toContainText("Nothing found for “07700 900762”.");
+    await expect(panel.getByRole("link")).toHaveCount(0);
+    // Ours by hers; Enter opens the first.
+    await box.fill("07700 900761");
+    await expect(panel.getByRole("link", { name: /^Quilla Searchfield\b/ })).toBeVisible();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(`${acme}/office/casuals/${ours}`);
+    await expect(box).toHaveValue("");
+    // A site: Events & sessions at that site, with a way back to every site.
+    await box.fill("demo arena");
+    const site = panel.getByRole("link", { name: /^Acme Demo Arena\b/ });
+    await expect(site).toBeVisible();
+    await expect(panel.getByText("Sites", { exact: true })).toBeVisible();
+    await site.click();
+    await expect(page).toHaveURL(/\/office\/events\?site=[0-9a-f-]{36}$/);
+    await expect(page.getByRole("main")).toContainText("At Acme Demo Arena.");
+    await expect(
+      page.getByRole("main").getByRole("link", { name: "Show every site" }),
+    ).toBeVisible();
+    // A shift: its page.
+    await box.fill("door supervisor");
+    await expect(panel.getByText("Shifts", { exact: true })).toBeVisible();
+    const shift = panel.getByRole("link", { name: /^Door supervisor · / }).first();
+    await shift.click();
+    await expect(page).toHaveURL(/\/office\/shifts\/[0-9a-f-]{36}$/);
+    // A click outside shuts it.
+    await box.fill("quilla");
+    await expect(panel).toBeVisible();
+    await page.getByRole("heading", { level: 1 }).click();
+    await expect(panel).toHaveCount(0);
+  });
+
   // Phase 23 (flat): a dashboard card no longer lifts under the pointer (round 2's rose 2px); it
-  // still dips when pressed.
-  test("what you press dips and springs back; a dashboard card stays put under the pointer", async ({
+  // still dips when pressed (Phase 24: a card on the board). Phase 24 (round 7): a glass button
+  // swells instead.
+  test("what you press dips (glass swells) and springs back; a dashboard card stays put under the pointer", async ({
     page,
   }) => {
     await officeLogin(page, "press", "admin");
-    const card = page.getByRole("main").getByRole("link", { name: /^Waiting on others\b/ });
+    const card = page.locator("section#to-offer [data-session]").first();
     await expect(card).toHaveCount(1);
+    // The board sits under the chart and the detail card: below a 640px window until scrolled to.
+    await card.scrollIntoViewIfNeeded();
     const box = (await card.boundingBox())!;
     await page.mouse.move(box.x + 40, box.y + 40);
     await expect.poll(() => card.evaluate((el) => el.matches(":hover"))).toBe(true);
@@ -446,9 +744,23 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
     expect(await card.evaluate((el) => getComputedStyle(el).translate)).toBe("none");
     await page.mouse.down();
     await expect.poll(() => card.evaluate((el) => getComputedStyle(el).scale)).toBe("0.97");
-    await page.mouse.move(box.x + 40, box.y + 400);
+    // Let go on the column's heading (on screen, and not a link).
+    const heading = (await page.locator("section#to-offer h2").boundingBox())!;
+    await page.mouse.move(heading.x + 8, heading.y + heading.height / 2);
     await page.mouse.up();
     await expect.poll(() => card.evaluate((el) => getComputedStyle(el).scale)).toBe("none");
+    // A glass button swells a little and springs back (`press-glass`): the places chart's ↗.
+    const open = page.getByRole("main").getByRole("link", { name: "Open Events & sessions" });
+    await open.scrollIntoViewIfNeeded();
+    const nb = (await open.boundingBox())!;
+    await page.mouse.move(nb.x + nb.width / 2, nb.y + nb.height / 2);
+    await page.mouse.down();
+    await expect.poll(() => open.evaluate((el) => getComputedStyle(el).scale)).toBe("1.04");
+    await page.mouse.move(nb.x + nb.width / 2, nb.y + 300);
+    await page.mouse.up();
+    await expect.poll(() => open.evaluate((el) => getComputedStyle(el).scale)).toBe("none");
+    // Let go elsewhere: nothing opened.
+    await expect(page).toHaveURL(`${acme}/office`);
     // A text link with its own 44px target dips too (in the office: `office:press`): a page's
     // way back (Needs attention's to the Dashboard), and `btn.link` (Office team's "Back to the
     // dashboard").
@@ -514,9 +826,8 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
     await expect(tip).toBeVisible();
     await page.mouse.move(640, 400);
     await expect(tip).toBeHidden();
-    // From the keyboard: Tab to it from the skip link (Menu is hidden on a wide screen, and the pay
-    // week and the shifts line are words), then on to you.
-    await page.locator('a[href="#main"]').focus();
+    // From the keyboard: Tab to it from the search box beside it, then on to you.
+    await bar.getByRole("searchbox").focus();
     await page.keyboard.press("Tab");
     await expect(square).toBeFocused();
     await expect(tip).toBeVisible();
@@ -536,26 +847,26 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
     await expect(tip).toBeHidden();
   });
 
-  // Phase 23's top bar is sticky across the window's full width (before, from 1024px, it sat over
-  // the menu only): a control the keyboard moves to just under it scrolls clear of it, never
-  // hidden behind it (WCAG 2.4.11; the office's scroll padding, globals.css).
+  // The top bar stays at the top (Phase 24: its capsules, 68px from the window's top): a control
+  // the keyboard moves to just under it scrolls clear of it, never hidden behind it (WCAG 2.4.11;
+  // the office's scroll padding, globals.css).
   test("a control the keyboard moves to just under the top bar scrolls clear of it", async ({
     page,
   }) => {
     await officeLogin(page, "under");
     const bar = page.getByRole("banner");
-    const places = page.getByRole("region", { name: "Places to fill, next 2 weeks" });
-    const numbers = places.getByRole("button", { name: "Numbers" });
-    const first = places.locator("button[data-col]").first();
+    // The places chart's ↗, and what the keyboard reaches next: the chosen session's "…".
+    const numbers = page.getByRole("main").getByRole("link", { name: "Open Events & sessions" });
+    const first = page.locator("[data-chosen] summary").first();
     await expect(first).toBeVisible();
     const under = await bar.evaluate((el) => el.getBoundingClientRect().bottom);
-    expect(under).toBe(64);
-    // Scrolled (with a wheel or a trackpad) until Numbers sits under the bar, 8px from the top.
+    expect(under).toBe(68);
+    // Scrolled (with a wheel or a trackpad) until the ↗ sits under the bar, 8px from the top.
     await numbers.evaluate((el) => window.scrollBy(0, el.getBoundingClientRect().top - 8));
     await expect
       .poll(() => numbers.evaluate((el) => Math.round(el.getBoundingClientRect().top)))
       .toBe(8);
-    // The keyboard moves to it: Shift+Tab back from the chart's first day.
+    // The keyboard moves to it: Shift+Tab back from the "…".
     await first.evaluate((el) => (el as HTMLElement).focus({ preventScroll: true }));
     await page.keyboard.press("Shift+Tab");
     await expect(numbers).toBeFocused();
@@ -632,14 +943,29 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
     });
   }
 
-  // In a window too short for the menu: it scrolls, with no bar, and fades at the edge that has
-  // more (menu-scroll.tsx, globals.css `fade-edges`).
-  test("in a shorter window the menu scrolls with no bar, fading at the edge that has more", async ({
+  // In a window too short for the rail: shut, it scrolls with no bar to its last icon; open, it
+  // scrolls with no bar and fades at the edge that has more (menu-scroll.tsx, globals.css
+  // `fade-edges`).
+  test("in a shorter window the rail scrolls with no bar, fading at the edge that has more", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1280, height: 480 });
     await officeLogin(page, "short", "admin");
-    const box = page.locator("[data-shell] [data-menu-scroll]");
+    const rail = page.locator("#office-rail");
+    const menu = page.getByRole("navigation", { name: "Office menu" });
+    const shut = await rail.evaluate((el) => ({
+      scrolls: el.scrollHeight > el.clientHeight,
+      bar: getComputedStyle(el).scrollbarWidth,
+      bottom: el.getBoundingClientRect().bottom,
+    }));
+    expect(shut).toMatchObject({ scrolls: true, bar: "none" });
+    expect(shut.bottom).toBeLessThanOrEqual(480);
+    const last = menu.getByRole("button", { name: "Admin and records", exact: true });
+    await last.scrollIntoViewIfNeeded();
+    await expect(last).toBeInViewport();
+    await rail.getByRole("button", { name: "Show the menu with names" }).click();
+    await expect(rail).toHaveAttribute("data-rail", "open");
+    const box = rail.locator("[data-menu-scroll]");
     const state = () =>
       box.evaluate((el) => ({
         scrolls: el.scrollHeight > el.clientHeight,
@@ -662,6 +988,10 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
     expect(above.mask).toMatch(
       /^linear-gradient\((?:to top|0deg), rgb\(0, 0, 0\) calc\(100% - 24px\), rgba\(0, 0, 0, 0\)\)$/,
     );
+    // It ends inside the window.
+    expect((await rail.boundingBox())!.y + (await rail.boundingBox())!.height).toBeLessThanOrEqual(
+      480,
+    );
   });
 
   test.describe("with reduced motion", () => {
@@ -669,7 +999,7 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
 
     test("nothing dips or lifts", async ({ page }) => {
       await officeLogin(page, "still", "admin");
-      const card = page.getByRole("main").getByRole("link", { name: /^Waiting on others\b/ });
+      const card = page.locator("section#to-offer [data-session]").first();
       await expect(card).toHaveCount(1);
       const box = (await card.boundingBox())!;
       await page.mouse.move(box.x + 40, box.y + 40);
@@ -678,11 +1008,11 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
       expect(await card.evaluate((el) => getComputedStyle(el).scale)).toBe("none");
       expect(await card.evaluate((el) => getComputedStyle(el).translate)).toBe("none");
       await page.mouse.up();
-      // The menu's pill moves to a pick at once, without sliding (globals.css: every transition
-      // 0ms with reduced motion).
+      // The rail opens at once, without its width sliding (globals.css: every transition 0ms with
+      // reduced motion).
       expect(
         await page
-          .locator("[data-menu-pill]")
+          .locator("#office-rail")
           .evaluate((el) => getComputedStyle(el).transitionDuration),
       ).toBe("0s");
     });
@@ -709,12 +1039,19 @@ test("every page picked in the menu shows its skeleton while it's on its way", a
   const skeleton = page.locator("[data-skeleton]");
   await expect(skeleton).toHaveCount(0);
 
+  // Every page, from the rail with its folds open.
   const menu = page.getByRole("navigation", { name: "Office menu" });
-  await menu.locator('button[aria-expanded="false"]').click();
+  for (const fold of ["Pay", "People", "Admin and records"]) {
+    const button = menu.getByRole("button", { name: fold, exact: true });
+    if ((await button.getAttribute("aria-expanded")) === "false") await button.click();
+  }
   const links = await menu
     .getByRole("link")
     .evaluateAll((els) =>
-      els.map((el) => [el.getAttribute("href") ?? "", el.querySelector("span")?.textContent ?? ""]),
+      els.map((el) => [
+        el.getAttribute("href") ?? "",
+        el.querySelector("span:not([aria-hidden])")?.textContent ?? "",
+      ]),
     );
   expect(links.length).toBeGreaterThan(15);
   // From the dashboard to every other page, then back to the dashboard.

@@ -2,42 +2,35 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import { canAccess } from "@/lib/auth/roles";
-import { officeDashboard } from "@/lib/office/dashboard";
-import { officePayQueriesWaiting, waitingOrFailed } from "@/lib/office/pay-dashboard";
-import { firmShiftsLine, shiftsLineText } from "@/lib/tenancy/shifts-line";
+import { boardShow, officeDashboard } from "@/lib/office/dashboard-board";
 import { page } from "../ui/classes";
 import { DashboardContent } from "./dashboard-view";
 
-// The office's first page: the dashboard for admins and resourcers (docs/office-v2.md 3.2, 3.9;
-// docs/screens.md `/office`; Phase 18), with the firm's shifts line (its own number) under its
-// headline, and pay queries waiting with payroll (admins; resourcers don't see pay). Payroll's
-// home is the pay dashboard (`/office/pay`, 12A.3): they're sent there. Phase 23: the waiting card
-// goes to the pay queries only for a role that can open Pay (`pay`; for the others, to the chart of
-// how long things have waited, which holds no pay query for them). The menu (with Needs
-// attention, `/office/needs-attention`, and its count: Phase 20), the account menu and the session
-// keeper are in the office shell (src/app/office/office-shell.tsx). `/office/today` redirects here.
+// The office's first page: the dashboard for admins and resourcers (Phase 24, 24.3; docs/screens.md
+// `/office`). `?show=` is the track's filter (urgent, this-week, next-week; anything else is All)
+// and `?session=` the session the detail card shows (one with a place free; else the page
+// chooses). Payroll's home is the pay dashboard (`/office/pay`, 12A.3): they're sent there. The
+// menu, the top bar's counts, the account menu and the session keeper are the office shell's
+// (src/app/office/office-shell.tsx). `/office/today` redirects here.
 
 export const metadata: Metadata = { title: "Dashboard" };
 
-export default async function OfficeHome() {
+export default async function OfficeHome({
+  searchParams,
+}: {
+  searchParams: Promise<{ show?: string; session?: string }>;
+}) {
   const { firm, officeUser } = await requireOfficeArea("dashboard");
   if (!canAccess(officeUser.role, "today")) redirect("/office/pay");
-  const [dashboard, line, waiting] = await Promise.all([
-    officeDashboard({ firm, officeUserId: officeUser.id }),
-    firmShiftsLine({ firm }),
-    waitingOrFailed(() => officePayQueriesWaiting({ firm }, officeUser.role)),
-  ]);
-  if (!dashboard) notFound();
+  const { show, session } = await searchParams;
+  const board = await officeDashboard(
+    { firm, officeUserId: officeUser.id },
+    { show: boardShow(show), session: session ?? null },
+  );
+  if (!board) notFound();
   return (
     <main className={page.office}>
-      <DashboardContent
-        d={dashboard}
-        firmName={firm.name}
-        now={new Date()}
-        shiftsLine={shiftsLineText(line)}
-        payQueriesWaiting={waiting}
-        pay={canAccess(officeUser.role, "pay")}
-      />
+      <DashboardContent board={board} />
     </main>
   );
 }

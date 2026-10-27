@@ -7,6 +7,7 @@ import {
   assignments,
   credentials,
   firms,
+  offers,
   officeUsers,
   pushSubscriptions,
   requests,
@@ -491,6 +492,42 @@ export async function addBookedShift(
         confirmedAt: new Date(),
       });
       return { shiftId: shift.id, siteId: site.id };
+    });
+  } finally {
+    await pool.end();
+  }
+}
+
+// A place a casual of a spec's own took from an offer at `at` (the dashboard's "While you were
+// out", Phase 24): the offer, said yes then, and their booking on the shift's first place.
+export async function addTakenOffer(
+  slug: string,
+  o: { workerId: string; shiftId: string; at: Date; channel: "whatsapp" | "sms" | "push" },
+): Promise<void> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const firmId = seedId(`firm/${slug}`);
+    await createWithFirm(pool)(firmId, async (tx) => {
+      await tx.insert(offers).values({
+        firmId,
+        shiftId: o.shiftId,
+        workerId: o.workerId,
+        wave: 1,
+        channel: o.channel,
+        sentAt: new Date(o.at.getTime() - 10 * 60_000),
+        response: "accepted",
+        respondedAt: o.at,
+      });
+      await tx.insert(assignments).values({
+        firmId,
+        shiftId: o.shiftId,
+        slot: 1,
+        workerId: o.workerId,
+        status: "confirmed",
+        confirmedAt: o.at,
+      });
     });
   } finally {
     await pool.end();

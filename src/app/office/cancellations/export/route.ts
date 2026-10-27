@@ -16,7 +16,7 @@ import { requestLog } from "@/lib/request";
 import { localDateOf } from "@/lib/time/zoned";
 
 // GET: the chosen view of cancellations as a CSV (docs/office-v2.md 3.4; 12C.3), and with
-// ?day=today only today's (the page's own filter, from the dashboard's link), for admins and
+// ?day=today only today's (the page's own filter, "Show only today's"), for admins and
 // resourcers (checked here and again in the loader), started from ShiftDesk's own pages
 // (fromOwnPages). Every row or none: more than 20,000 and it says so (counted first, nothing
 // loaded) rather than hand over a file that looks complete. A casual's reason always reads

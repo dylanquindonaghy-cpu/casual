@@ -202,16 +202,18 @@ describe("the office how-to guide", () => {
     return html.slice(start, html.indexOf("</section>", start));
   };
 
-  // Phase 23 (round 3): a top bar along every page, the menu in its own card from 1024px and a
-  // drawer behind "Menu" below it; your initials and name at the bar's top right (the name from
-  // 640px) opening the account menu; the square light or dark button beside them (office-frame.tsx,
-  // theme-button.tsx). Until Phase 23 the account sat at the top of the menu on a wide screen.
-  it("Getting around describes the top bar, the menu card, the drawer and where Log out is (12I.3, Phase 23)", () => {
+  // Phase 24 (round 7; PLAN.md 24.2): from 1024px the rail at the left (icons, opened to names by
+  // the button under the firm's mark; a name under the pointer; a red dot where a page needs you;
+  // Pay and People as folds) and a top bar of the counts, the search and you; below it a drawer
+  // behind "Menu"; your initials and name at the bar's top right opening the account menu, the
+  // light or dark button beside them (office-frame.tsx, office-rail.tsx, theme-button.tsx). Each
+  // role told only of what it has. Until Phase 24 the menu was a card under a full-width bar, which
+  // showed the pay week and the shifts line's number.
+  it("Getting around describes the rail, the top bar's counts and search, the drawer and where Log out is (12I.3, Phase 24)", () => {
     for (const role of ["admin", "resourcer", "payroll"] as const) {
       const text = words(section(guide(role), "getting-around"));
-      // The bar on every page; the menu a card on the left from a wide screen.
       expect(text).toContain(
-        "A bar runs along the top of every page. On a wide screen, the menu is in its own card on the left, under the bar.",
+        "On a wide screen, the menu is a column of icons down the left. Select the button under your firm's mark to show the menu with names, and again to show icons only. Point at an icon to see its name. A red dot means that page needs you.",
       );
       // Below 1024px the menu is a drawer behind "Menu", closed by "Close menu" (office-frame.tsx).
       expect(text).toContain("On a phone or tablet, select Menu at the top left");
@@ -224,22 +226,45 @@ describe("the office how-to guide", () => {
       expect(text).toContain(
         "Select them to open this guide, to switch between dark and light, or to Log out",
       );
-      // The square button in the bar, by its words (its icon has none).
+      // The light or dark button in the bar, by its words (its icon has none).
       expect(text).toContain(
-        "The square button beside them switches between dark and light too. Its name says which: Switch to dark mode or Switch to light mode .",
-      );
-      expect(text).toContain(
-        "On a wide screen, the bar also shows the pay week and its pay day, and your shifts line's number if you have one.",
+        "The button beside them switches between dark and light too. Its name says which: Switch to dark mode or Switch to light mode .",
       );
       expect(text).not.toMatch(/\bmoon\b/i);
-      // Not round 2's places: the account over the menu, the menu down the window's side.
+      // Not the places of Phases 22 and 23: the menu's card, the pay week and shifts line in the bar.
+      expect(text).not.toContain("in its own card");
+      expect(text).not.toContain("pay week");
+      expect(text).not.toContain("bar also shows");
       expect(text).not.toContain("at the top of the menu");
-      expect(text).not.toContain("beside your firm's name");
       expect(text).not.toContain("down the left side");
       // The guide isn't in the menu (Phase 22: office-nav.tsx leaves the `bottom` group out), so
       // the menu's list here leaves it out too.
       expect(text).not.toContain("This page.");
     }
+    // The folds each role has in the rail, and the counts and search in its bar (office-menu.ts
+    // barCounts; payroll's Pay is all their menu, as icons, and they have no search).
+    const text = (role: "admin" | "resourcer" | "payroll") =>
+      words(section(guide(role), "getting-around"));
+    expect(text("admin")).toContain("Pay and People each open to show their pages.");
+    expect(text("resourcer")).toContain("People opens to show its pages.");
+    expect(text("payroll")).not.toMatch(/open(?:s)? to show (?:its|their) pages/);
+    expect(text("admin")).toContain(
+      "On a wide screen, the bar at the top shows To fill, Urgent, Offers out, To check and Pay queries. Each opens the page where you deal with it.",
+    );
+    expect(text("resourcer")).toContain(
+      "On a wide screen, the bar at the top shows To fill, Urgent, Offers out and To check.",
+    );
+    expect(text("payroll")).toContain("On a wide screen, the bar at the top shows Pay queries.");
+    const search =
+      "Use Search beside them to find a casual, a shift or a site. Press ⌘K on a Mac, or Ctrl K, to go straight to it.";
+    expect(text("admin")).toContain(search);
+    expect(text("resourcer")).toContain(search);
+    expect(text("payroll")).not.toContain("Search");
+    expect(text("payroll")).not.toContain("Admin and records");
+    // Settings now holds the shifts line's number (it left the bar).
+    expect(text("admin")).toContain(
+      "Settings. The strikes team's email, your shifts line's number, and your sites' postcodes.",
+    );
     // Needs attention is in the menu only for the roles with it, "today" (office-menu.ts); Phase
     // 20 took the bell out, so the guide never mentions one.
     const count = "Needs attention, under Dashboard in the menu, counts what needs you.";
@@ -248,70 +273,78 @@ describe("the office how-to guide", () => {
     expect(words(guide("payroll"))).not.toContain(count);
     for (const role of ["admin", "resourcer", "payroll"] as const)
       expect(words(guide(role)).toLowerCase()).not.toMatch(/\bbell\b/);
-    // The menu's line for the dashboard: its charts, not round 2's week and sorted list.
+    // The menu's line for the dashboard: round 7's board (Phase 24), not Phase 23's charts or
+    // round 2's week and sorted list.
     const dashboardLine =
-      "How many things need you and where to start, every urgent place to fill, and charts of what needs work.";
+      "The places to fill this week and next, the offers waiting for a reply, what casuals took while you were out, and who worked.";
     expect(words(guide("admin"))).toContain(dashboardLine);
     expect(words(guide("admin"))).not.toContain("this week's days");
+    expect(words(guide("admin"))).not.toContain("charts of what needs work");
   });
 
-  // Phase 23: the dashboard's four counts, its urgent places as cards and its six charts (the week
-  // strip and the three text panels went), each mark opening a panel of its rows, a Numbers table
-  // each; and the guide's links to it land on what's there now.
-  it("Start your day on the dashboard: the four counts, the urgent places and the six charts (Phase 23)", () => {
+  // Phase 24 (24.3): the dashboard's places chart, its chosen session and the board's four
+  // columns (Phase 23's four counts, urgent places and six charts went), the offer panel, and the
+  // guide's links to it land on what's there now.
+  it("Start your day on the dashboard: the places chart, the chosen session and the board's four columns (Phase 24)", () => {
     for (const role of ["admin", "resourcer"] as const) {
       const html = section(guide(role), "today");
       const names = [
         ...html.matchAll(/<li class="py-3"><p class="font-semibold text-ink">([^<]*)<\/p>/g),
       ].map((m) => m[1]);
       expect(names).toEqual([
-        "The four counts",
-        "Urgent places to fill",
-        "Places to fill, next 2 weeks",
-        "Which events need people",
-        "Offers this week",
-        "How long things have waited",
-        "Cancellations, last 2 weeks",
-        "Licences running out, next 8 weeks",
+        "Places to fill",
+        "The chosen session",
+        "To offer",
+        "Offered",
+        "While you were out",
+        "Who worked?",
       ]);
       const text = words(html);
       expect(text).toContain(
-        "It shows what needs doing today: four counts, the urgent places to fill, and six charts of what needs work.",
+        "It shows the places still to fill, the offers waiting for a reply, and what happened while you were out.",
       );
       expect(text).toContain(
-        "Urgent places, Needs attention, Waiting on others and Sorted today. Select one to see its list.",
-      );
-      // The offers chart's three parts, as the office names them (PLAN.md Phase 23).
-      expect(text).toContain(
-        "One bar of three parts for this week's offers: those casuals said yes to, those waiting for a reply, and those they said no to or that closed.",
-      );
-      expect(text).not.toContain("A bar for each day: offers");
-      // Pay's part of the waiting chart only for the roles that can open Pay; the undated items
-      // named under it.
-      expect(text).toContain("the pay queries with payroll if you can open Pay.");
-      expect(text).toContain("Things with no date, like bookings to check, are named under it.");
-      // The sentence the old Sorted today panel had, kept with the cancellations.
-      expect(text).toContain("Each was recorded automatically, never approved or declined.");
-      // Every mark opens a panel of its rows, with their actions; Numbers swaps in a table.
-      expect(text).toContain(
-        "Point at a bar, a dot or a number, or move to it with the Tab key, to see its figures.",
+        "The line under Dashboard says the date, the pay week and its pay day, and when your planner or rota sheet last sent changes.",
       );
       expect(text).toContain(
-        "Select it. A panel opens with its rows, each with its link or action, like Offer or Mark who worked .",
+        "All , Urgent , This week and Next week choose the sessions with places to fill that the board shows.",
       );
-      expect(text).toContain("Select Close , or press Escape, to go back to the chart.");
+      // The chart's two parts, as the dashboard names them.
       expect(text).toContain(
-        "Numbers swaps a chart for a table of the same figures, and back again.",
+        "A bar for each day of this week and next: the places with no offers out, and on them the places offered with no reply yet.",
       );
-      // Round 2's sections are gone from it.
+      // The detail card keeps the urgent places' actions under its "…".
+      expect(text).toContain(
+        "Offer to someone and Open the shift are under it; … has Mark as filled and Not urgent.",
+      );
+      // While you were out: what casuals took from offers, never "filled by the shifts line".
+      expect(text).toContain(
+        "Places casuals took themselves from offers between 18:00 and 08:00, with how the offer reached them and when they said yes.",
+      );
+      expect(text).not.toContain("Filled by the shifts line");
+      // The offer panel, step by step.
+      expect(text).toContain(
+        "Select a card's paper plane, or Offer to someone on the chosen session. A panel opens.",
+      );
+      expect(text).toContain(
+        "Select Send offer next to a name. It says Offered , and the foot of the panel says the offer is on its way.",
+      );
+      expect(text).toContain("Select Back to the dashboard , or press Escape, to close it.");
+      // Needs attention from the top bar's To check now (the dashboard's count went).
+      expect(text).toContain("The bar at the top counts it as To check , and takes you there.");
+      // Phase 23's and round 2's sections are gone from it.
       for (const old of [
+        "The four counts",
+        "Urgent places to fill",
+        "Numbers swaps a chart",
         "Seven days, a bar each",
-        "go to its section below",
         "Pay queries with payroll.",
       ])
         expect(text).not.toContain(old);
-      // The colours, with round 3's blue: waiting on someone else.
-      expect(text).toContain("The charts use the same colours, and grey for what's fine.");
+      // The colours, with round 3's blue: waiting on someone else; the chart's two named.
+      expect(text).toContain(
+        "On the chart, black is places to offer and blue is places offered with no reply yet.",
+      );
       const tones = [
         ...html.matchAll(
           /<span class="shrink-0 sm:w-32"><span class="([^"]*)"[^>]*>[\s\S]*?<\/svg>([^<]*)<\/span>/g,
@@ -320,13 +353,16 @@ describe("the office how-to guide", () => {
       expect(tones).toEqual(["Urgent", "Open", "Waiting", "Filled", "Cancelled"]);
       expect(html).toContain("bg-wait-soft text-wait-ink");
     }
-    // Its links land on what's there now: the urgent places' section on the dashboard, and Who
-    // worked? on Needs attention (there was never an "#urgent", and the dashboard's Needs attention
-    // panel went in Phase 23).
+    // Its links land on what's there now: the dashboard's urgent sessions (its Urgent filter), and
+    // Who worked? on Needs attention (the urgent places' section went in Phase 24; there was never
+    // an "#urgent").
     const admin = guide("admin");
-    expect(admin).toContain('href="/office#urgent-places"');
+    expect(admin).toContain('href="/office?show=urgent"');
     expect(admin).toContain('href="/office/needs-attention#to-mark"');
-    expect(admin).not.toMatch(/href="\/office#(?:urgent|needs-attention)"/);
+    expect(admin).not.toMatch(/href="\/office#(?:urgent|urgent-places|needs-attention)"/);
+    expect(words(section(admin, "fill-a-gap"))).toContain(
+      "Every one is on the dashboard, under To offer or Offered ( Urgent shows only the urgent ones). Select one to see it in full: Mark as filled and Not urgent are under its … .",
+    );
     // A leaver's bookings ahead are on Needs attention now, not the dashboard.
     expect(words(admin)).toContain(
       "Their bookings ahead go on Needs attention, under “Bookings to check”.",

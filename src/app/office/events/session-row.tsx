@@ -48,7 +48,7 @@ export function SessionItem({
   const unmarked = booked.filter((b) => b.status === "confirmed").length;
   return (
     <li
-      className={`relative flex flex-col gap-2 rounded-row border bg-card p-3 ${
+      className={`glass-tile relative flex flex-col gap-2 rounded-row border p-3 ${
         s.urgentGap ? "border-urgent" : "border-line"
       }`}
     >
@@ -59,7 +59,7 @@ export function SessionItem({
           ) : (
             <span className="font-semibold">{roleLabel(s.role)}</span>
           )}
-          <span className="inline-flex h-6 items-center rounded-full border border-line-strong px-2 text-sm tabular-nums">
+          <span className="inline-flex h-6 items-center rounded-full glass-button px-2 text-sm tabular-nums">
             {sessionTime(s, timeZone, withDay)}
           </span>
           {s.urgentGap && <StatusChip tone="urgent">Urgent</StatusChip>}

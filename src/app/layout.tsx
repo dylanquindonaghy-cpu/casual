@@ -10,6 +10,7 @@ import { findCurrentFirm } from "@/lib/tenancy/current-firm";
 import { BrandBar } from "./brand-bar";
 import { DemoBar } from "./demo-bar";
 import { fontVariables } from "./fonts";
+import { GlassRefraction, RefractionFilter } from "./glass-refraction";
 import { THEME_COOKIE, themeFromCookie } from "./theme";
 import "./globals.css";
 
@@ -40,6 +41,8 @@ export const viewport: Viewport = {
 // The theme comes from the sd-theme cookie (src/app/theme.ts), written onto <html> here so the
 // page arrives in its colours; with no cookie, the device decides.
 // On a demo server (DEMO_MODE=on) every page of a demo firm starts with the demo bar (16.1).
+// Round 7's glass (Phase 24): the wash is drawn under every page (globals.css body::before), and
+// the floating glass's refraction filter sits first in <body>, switched on only in Chromium.
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const jar = await cookies();
   // The browser test of the whole-page error screen (only in the e2e run; otherwise nothing).
@@ -57,8 +60,10 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       <body
         style={firmColours}
         data-firm-colour={firmColours ? "" : undefined}
-        className="bg-canvas text-lg text-ink antialiased has-[[data-shell=office]]:flex has-[[data-shell=office]]:min-h-dvh has-[[data-shell=office]]:flex-col"
+        className="bg-canvas text-base text-ink antialiased has-[[data-shell=office]]:flex has-[[data-shell=office]]:min-h-dvh has-[[data-shell=office]]:flex-col"
       >
+        <RefractionFilter />
+        <GlassRefraction />
         {demo && <DemoBar />}
         {brand && <BrandBar brand={brand} />}
         {children}

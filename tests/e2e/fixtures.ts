@@ -14,30 +14,42 @@ export const test = base.extend({
 });
 export { expect } from "@playwright/test";
 
-// The office dashboard's heading (Phase 18; Phase 20's greeting first): "Evening, Acme Events." then
-// how many things need you, every part loaded ("At least …" is a part that couldn't load, which no
-// test expects).
-export const DASHBOARD_HEADING =
-  /^(Morning|Afternoon|Evening), .+\. (Nothing needs you right now|\d+ things? needs? you)\.$/;
+// The office dashboard's heading: "Dashboard" (Phase 24, round 7; Phase 20's greeting and how many
+// things need you until then).
+export const DASHBOARD_HEADING = /^Dashboard$/;
 
 // A link in the office menu (docs/office-v2.md 3.1). The browser tests run at phone width, where
 // the menu is a drawer: this opens it with "Menu" first (waiting for the page to be ready), then
-// finds the link by its exact name inside the menu. On a wide screen the sidebar is already there.
-// After a check that a link is absent, close the drawer again (Escape) before going on.
+// finds the link by its exact name inside the menu. On a wide screen the rail is already there
+// (Phase 24). After a check that a link is absent, close the drawer again (Escape) before going on.
 export async function menuLink(page: Page, name: string): Promise<Locator> {
   const menu = page.getByRole("navigation", { name: "Office menu" });
   const open = page.getByRole("button", { name: "Menu", exact: true });
-  // The sidebar or the Menu button (both, when the drawer is already open).
+  // The rail or the Menu button (both, when the drawer is already open).
   await expect(menu.or(open).first()).toBeVisible();
   if (!(await menu.isVisible())) {
     await open.click();
     await expect(page.getByRole("dialog", { name: "Menu" })).toBeVisible();
   }
   const link = menu.getByRole("link", { name, exact: true });
-  // A link in the folded group ("Admin and records", Phase 18) is hidden until its button opens
-  // it (the button waits for the page; the click waits for the button).
-  const fold = menu.locator('button[aria-expanded="false"]');
-  if (!(await link.isVisible()) && (await fold.count()) > 0) await fold.click();
+  // A link in a fold (the drawer's "Admin and records", Phase 18; the rail's Pay, People and
+  // Admin and records, Phase 24) is hidden until its button opens it: the button that controls
+  // the box it's in (it waits for the page; the click waits for the button). In the rail, opening
+  // a fold opens the rail too.
+  // (Found by its label: a hidden link's name, worked out by the browser, takes in its hidden
+  // count too, "Casuals 4".)
+  if (!(await link.isVisible())) {
+    const box = await menu.evaluate(
+      (nav, label) =>
+        [...nav.querySelectorAll("a")]
+          .find((a) =>
+            [...a.querySelectorAll("span:not([aria-hidden])")].some((s) => s.textContent === label),
+          )
+          ?.closest("[hidden]")?.id ?? "",
+      name,
+    );
+    if (box) await menu.locator(`button[aria-controls="${box}"]`).click();
+  }
   return link;
 }
 

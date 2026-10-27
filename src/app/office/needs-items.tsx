@@ -13,7 +13,7 @@ import {
   type NeedsKey,
 } from "@/lib/office/dashboard-copy";
 import { sheetChangeText, sheetNameText, toCheckText, toMarkText } from "@/lib/office/today-copy";
-import type { TodayToMark } from "@/lib/office/today";
+import { toMarkGroups } from "@/lib/office/to-mark";
 import { roleLabel, shiftWhen, timeOnDay } from "@/lib/portal/format";
 import { qualificationTitle } from "@/lib/portal/qualification-copy";
 import { uploadWhat } from "@/lib/portal/upload-copy";
@@ -39,7 +39,7 @@ const inSentence = (w: string) =>
 // The items of a part, each a white row with its hairline on its tinted part (Phase 23, flat;
 // raised off it in Phase 22).
 const items = "mt-3 flex flex-col gap-2";
-const item = "rounded-row border border-line bg-card px-4 py-3 text-ink";
+const item = "glass-tile rounded-row px-4 py-3 text-ink";
 
 function Empty({ children }: { children: ReactNode }) {
   return <p className={`${item} text-ink-muted`}>{children}</p>;
@@ -347,37 +347,6 @@ export function NeedsItems({
       )}
     </div>
   );
-}
-
-// The sessions to mark, one row per role, place and time (sessions copied from a sheet often come
-// several alike), soonest-ended first as they came, each with how many people are left to mark.
-export function toMarkGroups(list: TodayToMark[]): {
-  role: string;
-  site: string | null;
-  startsAt: Date;
-  endsAt: Date;
-  unmarked: number;
-  sessions: TodayToMark[];
-}[] {
-  const groups = new Map<string, ReturnType<typeof toMarkGroups>[number]>();
-  for (const t of list) {
-    const key = [t.role, t.site ?? "", t.startsAt.getTime(), t.endsAt.getTime()].join("|");
-    const g = groups.get(key);
-    if (g) {
-      g.unmarked += t.unmarked;
-      g.sessions.push(t);
-    } else {
-      groups.set(key, {
-        role: t.role,
-        site: t.site,
-        startsAt: t.startsAt,
-        endsAt: t.endsAt,
-        unmarked: t.unmarked,
-        sessions: [t],
-      });
-    }
-  }
-  return [...groups.values()];
 }
 
 // The page's line under its heading: how many things, then where each is dealt with; "6+" when a

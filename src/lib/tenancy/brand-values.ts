@@ -1,6 +1,8 @@
 // The checks and colours behind a firm's brand (src/lib/tenancy/brand.ts), pure and on their own so
 // the owner's script (scripts/firm-brand-owner.ts) can use them without the app's database layer.
 
+import { glassGrounds, type Rgb } from "./glass-grounds";
+
 export const DEFAULT_BRAND_COLOUR = "#15171a"; // the app's own ink (src/app/globals.css; Phase 20)
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -51,22 +53,25 @@ export function brandColours(raw: unknown): { background: string; text: string; 
 
 // --- The firm's colour on its pages (Phase 18) ---------------------------------------------
 
-type Rgb = [number, number, number];
 const WHITE: Rgb = [255, 255, 255];
 const BLACK: Rgb = [0, 0, 0];
 const INK: Rgb = [21, 23, 26]; // the app's ink, #15171a (Phase 20)
-// The grounds the firm's colour sits on (src/app/globals.css): light canvas and card; dark card
-// and raised (the dark canvas is darker still, so it passes whenever the card does).
-const LIGHT_GROUNDS: Rgb[] = [[238, 240, 243], WHITE];
-const DARK_GROUNDS: Rgb[] = [
-  [24, 25, 28],
-  [35, 37, 41],
-];
+// The grounds the firm's colour sits on (Phase 24): every point of the glass and the wash it lies
+// on, in each theme (glass-grounds.ts, the same values src/app/globals.css draws).
+// (Each once: many points of the glass come out the same.)
+const unique = (cs: Rgb[]) => [...new Map(cs.map((c) => [c.join(","), c])).values()];
+const LIGHT_GROUNDS: Rgb[] = unique(glassGrounds("light").all);
+const DARK_GROUNDS: Rgb[] = unique(glassGrounds("dark").all);
 const MIN = 4.5;
-// brand-soft in globals.css: this much of the firm's colour over the card.
+// brand-soft in globals.css: the firm's colour at this strength over whatever it lies on.
 const TINT = 0.12;
-const LIGHT_CARD: Rgb = WHITE;
-const DARK_CARD: Rgb = [24, 25, 28];
+// The main button's shade (Phase 24): its tinted glass runs from the colour at the top to this much
+// further from its words' colour at the foot, so the words read at least as well everywhere on it.
+const SHADE = 0.18;
+// A glass control brightens a little under the pointer and while pressed (globals.css
+// `press-glass`: brightness(1.06); btn.primary's hover: 1.05): the main button's words read on
+// its colour brightened by this too.
+export const BRIGHTEN = 1.06;
 
 const rgbOf = (hex: string): Rgb => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as Rgb;
 const hexOf = (c: Rgb) =>
@@ -77,12 +82,37 @@ const hexOf = (c: Rgb) =>
         .padStart(2, "0"),
     )
     .join("")}`;
-const ratio = (a: Rgb, b: Rgb) => contrastRatio(hexOf(a), hexOf(b));
+// The same contrast as contrastRatio, with numbers in place of #rrggbb text (a palette checks
+// hundreds of points of the glass, at each of up to 60 steps; on every page render): each whole
+// value's linear light looked up, not worked out again, and each ground's luminance worked out once.
+const LINEAR = Array.from({ length: 256 }, (_, v) => {
+  const c = v / 255;
+  return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+});
+// A colour's luminance as the page shows it: clipped and rounded to whole values, as hexOf does.
+const lum = (c: Rgb) => {
+  const [r, g, b] = c.map((v) => Math.round(Math.min(255, Math.max(0, v))));
+  return 0.2126 * LINEAR[r!]! + 0.7152 * LINEAR[g!]! + 0.0722 * LINEAR[b!]!;
+};
+const ratioOf = (a: number, b: number) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+const ratio = (a: Rgb, b: Rgb) => ratioOf(lum(a), lum(b));
+const LIGHT_LUMS = LIGHT_GROUNDS.map(lum);
+const DARK_LUMS = DARK_GROUNDS.map(lum);
+const readsOnAll = (x: Rgb, lums: number[]) => {
+  const l = lum(x);
+  return lums.every((g) => ratioOf(l, g) >= MIN);
+};
 const mix = (a: Rgb, b: Rgb, k: number): Rgb => a.map((v, i) => v + (b[i]! - v) * k) as Rgb;
+// CSS brightness() on the screen's values: each channel times k, clipped (hexOf clips).
+const brighten = (c: Rgb, k = BRIGHTEN): Rgb => rgbOf(hexOf(c.map((v) => v * k) as Rgb));
 
-// Whether `x` reads on its own tint over `card`, both as the page will show them: the colour as
-// its #rrggbb, mixed, then rounded to whole values.
-const readsOnTint = (x: Rgb, card: Rgb) => ratio(x, mix(card, rgbOf(hexOf(x)), TINT)) >= MIN;
+// Whether `x` reads on its own tint over every one of `grounds`, as the page will show them: the
+// colour as its #rrggbb, mixed, then rounded to whole values.
+const readsOnTint = (x: Rgb, grounds: Rgb[]) => {
+  const own = rgbOf(hexOf(x));
+  const l = lum(own);
+  return grounds.every((g) => ratioOf(l, lum(mix(g, own, TINT))) >= MIN);
+};
 
 // Moves `c` towards `target` in 6% steps until `done` holds (at most 60 steps; then the target
 // itself, for which every caller's condition holds).
@@ -98,6 +128,7 @@ function towards(c: Rgb, target: Rgb, done: (x: Rgb) => boolean): Rgb {
 export interface FirmColours {
   fill: string;
   onFill: string;
+  shade: string;
   ink: string;
   bar: string;
   onBar: string;
@@ -108,11 +139,14 @@ export interface FirmColours {
 // The firm's colour for each theme (the design's derivation, made certain): the band is the
 // colour darkened until white or ink reads on it at 4.5:1, with whichever reads better, and its
 // quieter words that one moved a fifth of the way to the band, back towards it until they read at
-// 4.5:1; in light, the button and the words are the colour darkened until it reads on the canvas,
-// the card and its own tint, with white on it; in dark, lightened until it reads on the card, the
-// raised track and its own tint, with ink on it (or white), lightened further if neither reads
-// yet. The gate's white plate takes the band's colour as its words when that reads on white. Every pair is at least
-// 4.5:1, for any #rrggbb (tests/unit/tenancy.brand.test.ts).
+// 4.5:1; in light, the button and the words are the colour darkened until it reads on every point
+// of the glass and the wash (Phase 24) and on its own tint over them, with white on it (also
+// brightened, as under the pointer: it's the main button in both themes); in dark,
+// lightened until it reads on every dark point of them and its own tint, with ink on it (or
+// white), lightened further if neither reads yet. The button's shade is the colour moved further
+// from its words (darker under white, lighter under ink). The gate's white plate takes the band's
+// colour as its words when that reads on white. Every pair is at least 4.5:1, for any #rrggbb
+// (tests/unit/tenancy.brand.test.ts).
 export function firmPalette(hex: string): { light: FirmColours; dark: FirmColours } {
   const b = rgbOf(hex.toLowerCase());
   const bar = towards(b, BLACK, (x) => ratio(WHITE, x) >= MIN || ratio(INK, x) >= MIN);
@@ -123,17 +157,21 @@ export function firmPalette(hex: string): { light: FirmColours; dark: FirmColour
   const onPlate = ratio(WHITE, bar) >= MIN ? bar : INK;
   // The words read on its own pale tint too (brand-soft: 12% of the colour over the card), as
   // on a sign plate and an open Details button.
+  // It's the main button in both themes too, with white words, brightened under the pointer.
   const lightInk = towards(
     b,
     BLACK,
-    (x) => LIGHT_GROUNDS.every((g) => ratio(x, g) >= MIN) && readsOnTint(x, LIGHT_CARD),
+    (x) =>
+      readsOnAll(x, LIGHT_LUMS) &&
+      readsOnTint(x, LIGHT_GROUNDS) &&
+      ratio(WHITE, brighten(rgbOf(hexOf(x)))) >= MIN,
   );
   const darkInk = towards(
     b,
     WHITE,
     (x) =>
-      DARK_GROUNDS.every((g) => ratio(x, g) >= MIN) &&
-      readsOnTint(x, DARK_CARD) &&
+      readsOnAll(x, DARK_LUMS) &&
+      readsOnTint(x, DARK_GROUNDS) &&
       (ratio(INK, x) >= MIN || ratio(WHITE, x) >= MIN),
   );
   const band = {
@@ -142,11 +180,21 @@ export function firmPalette(hex: string): { light: FirmColours; dark: FirmColour
     onBarSoft: hexOf(onBarSoft),
     onPlate: hexOf(onPlate),
   };
+  const darkOnFill = ratio(INK, darkInk) >= MIN ? INK : WHITE;
+  // Away from the words: darker under white words, lighter under ink.
+  const shade = (fill: Rgb, words: Rgb) => hexOf(mix(fill, words === WHITE ? BLACK : WHITE, SHADE));
   return {
-    light: { fill: hexOf(lightInk), onFill: "#ffffff", ink: hexOf(lightInk), ...band },
+    light: {
+      fill: hexOf(lightInk),
+      onFill: "#ffffff",
+      shade: shade(lightInk, WHITE),
+      ink: hexOf(lightInk),
+      ...band,
+    },
     dark: {
       fill: hexOf(darkInk),
-      onFill: ratio(INK, darkInk) >= MIN ? hexOf(INK) : "#ffffff",
+      onFill: hexOf(darkOnFill),
+      shade: shade(darkInk, darkOnFill),
       ink: hexOf(darkInk),
       ...band,
     },
@@ -166,6 +214,7 @@ export function brandStyle(brand: {
   const style = {
     "--firm-fill": light.fill,
     "--firm-on-fill": light.onFill,
+    "--firm-shade": light.shade,
     "--firm-ink": light.ink,
     "--firm-bar": light.bar,
     "--firm-on-bar": light.onBar,

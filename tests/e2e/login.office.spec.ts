@@ -32,10 +32,22 @@ test("an admin logs in by email link, sees their role and the office team, and l
   // The dashboard, and the account button names their role.
   await expect(page.getByRole("heading", { name: DASHBOARD_HEADING, level: 1 })).toBeVisible();
   await expect(page.getByRole("button", { name: "Admin (demo) Admin" })).toBeVisible();
-  // Acme's shifts line (a fake number from the seed).
+  // Under it, Acme's day, pay week and pay day (Phase 24, 24.3). Acme's shifts line (a fake number
+  // from the seed) left the dashboard with round 7: it's in Settings, read there below.
   await expect(
-    page.getByText("Your shifts line: +44 7700 900000 (WhatsApp, text and calls)."),
+    page
+      .getByRole("main")
+      .getByText(
+        /^[A-Z][a-z]+day \d{1,2} [A-Z][a-z]+ · Week \d{1,2} · Pay Fri \d{1,2} [A-Z][a-z]{2}$/,
+      ),
   ).toBeVisible();
+  const shiftsLine = page.getByText(
+    "Your shifts line: +44 7700 900000 (WhatsApp, text and calls).",
+  );
+  await expect(shiftsLine).toHaveCount(0);
+  await (await menuLink(page, "Settings")).click();
+  await expect(page.getByRole("heading", { name: "Settings", level: 1 })).toBeVisible();
+  await expect(shiftsLine).toBeVisible();
   const [cookie] = (await context.cookies(acme)).filter((c) => c.name === "__Host-sd_office");
   expect(cookie).toMatchObject({ httpOnly: true, secure: true, sameSite: "Lax" });
   // An office session is not a worker session.

@@ -279,9 +279,9 @@ describe("an event's open row: its sessions in the board's two weeks (Phase 18)"
       }),
     );
     const words = text(html);
-    // Set into the board a step darker (the canvas grey; Phase 21: no sunk shadow, the office has
-    // one depth token), not a card of its own.
-    expect(html).toMatch(/^<div class="[^"]*rounded-row bg-canvas/);
+    // Set into the board as clear glass (Phase 24; the canvas grey until then), not a card of its
+    // own.
+    expect(html).toMatch(/^<div class="glass-tile rounded-row /);
     expect(html.slice(0, html.indexOf(">"))).not.toMatch(/shadow/);
     expect(html.slice(0, html.indexOf(">"))).not.toContain("bg-card");
     // Its head: where, how many to come, then its "show to casuals" switch (Phase 20: here, not on

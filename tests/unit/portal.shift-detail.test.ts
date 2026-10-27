@@ -133,8 +133,10 @@ describe("ShiftView", () => {
     expect(bar).toMatch(
       /^data-action-bar="" class="sticky bottom-\[calc\(4\.75rem\+env\(safe-area-inset-bottom\)\)\]/,
     );
-    // Floating over the page (the bar depth token, no line); the strike note above Take shift.
-    expect(bar).toMatch(/^data-action-bar="" class="[^"]*bg-card px-4 py-3 shadow-bar/);
+    // Floating glass over the page (Phase 24; the bar depth token before), no line; the strike
+    // note above Take shift.
+    expect(bar).toMatch(/^data-action-bar="" class="[^"]*glass-float px-4 py-3 /);
+    expect(bar.slice(0, bar.indexOf(">"))).not.toMatch(/(?<![\w-])shadow-/);
     expect(bar.slice(0, bar.indexOf(">"))).not.toContain("border-t");
     expect(text(bar)).toContain(
       "Cancelling less than 48 hours before the start gives you a strike. Take shift",
@@ -166,9 +168,7 @@ describe("ShiftView", () => {
     );
     expect(html).toContain('role="img" aria-label="Saturday 7 November"');
     expect(html).toMatch(/<p class="font-sign text-4xl leading-tight text-ink">14:00–22:00<\/p>/);
-    expect(html).toMatch(
-      /<div class="[^"]*rounded-3xl border border-line bg-card px-4\.5 shadow-lift animate-open-late">/,
-    );
+    expect(html).toMatch(/<div class="glass [^"]*rounded-3xl px-4\.5 animate-open-late">/);
     expect(words).toContain(
       "Getting there, from your home area 3.1 miles · 12 min by car · 24 min by public transport 12 min by car 24 min by public transport 3.1 mi away Open in maps",
     );
@@ -198,11 +198,11 @@ describe("ShiftView", () => {
     const at = order.map((w) => words.indexOf(w));
     expect(at.every((i) => i >= 0)).toBe(true);
     expect([...at].sort((a, b) => a - b)).toEqual(at);
-    // Not urgent: no band, a grey tile, the places left plain.
+    // Not urgent: no band, a clear glass tile (Phase 24; grey before), the places left plain.
     const calm = render({ state: "open", shift: summary, facts: { ...facts, isUrgent: false } });
     expect(text(calm)).not.toContain("Urgent, needed now");
     expect(calm).toMatch(
-      /<span role="img" aria-label="Saturday 7 November" class="[^"]*bg-raised text-ink"/,
+      /<span role="img" aria-label="Saturday 7 November" class="[^"]*glass-tile text-ink"/,
     );
     expect(calm).toContain(
       '<span class="text-lg font-semibold text-ink">2 of 4 places left</span>',

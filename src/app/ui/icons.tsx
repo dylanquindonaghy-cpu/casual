@@ -279,6 +279,36 @@ const PATHS = {
   ),
   dots: <path d="M5 12h.01M12 12h.01M19 12h.01" strokeWidth="3" />,
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
+  // Phase 24 (round 7's office shell): the search, the rail's own button (a panel with its edge),
+  // offers out (a paper plane) and things to check (a ticked box).
+  search: (
+    <>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
+    </>
+  ),
+  sidebar: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="3" />
+      <path d="M9 4v16M14 10l2 2-2 2" />
+    </>
+  ),
+  send: (
+    <>
+      <path d="m21.5 2.5-7 19-4-8.5-8.5-4z" />
+      <path d="M21.5 2.5 10.5 13" />
+    </>
+  ),
+  checkbox: (
+    <>
+      <path d="m9 11 3 3 8-8" />
+      <path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9" />
+    </>
+  ),
+  // Phase 24 (round 7's dashboard): a board column's leaf (filled in its colour by `fill`), and
+  // "open the whole list" (an arrow up and to the right).
+  leaf: <path d="M5 19C5 10 10 4 20 4c0 10-6 15-15 15z" fill="currentColor" stroke="none" />,
+  out: <path d="M7 17 17 7M8 7h9v9" />,
   // ShiftDesk's own mark, in the office's top bar: a calendar with a tick.
   mark: (
     <>

@@ -10,12 +10,16 @@ type MenuItem = { area: OfficeArea; href: string; label: string; icon: IconName 
 // The groups (docs/office-v2.md 3.1; Phases 18 and 20): the dashboard and Needs attention at the
 // top with no label (Needs attention in place of the bell: Phase 20), then what needs the office
 // today, then pay, then people; the records and settings folded under "Admin and records"; the
-// how-to guide on its own at the bottom.
+// how-to guide on its own at the bottom. Phase 24 (round 7): the same links in the rail
+// (office-rail.tsx), in the same order, Pay, People and Admin and records each a fold there with its
+// own icon (`rail`, `icon`); Enquiries before Cancellations, as the rail lists them.
 const MENU: {
   label: string;
   folded?: boolean;
   bottom?: boolean;
   top?: boolean;
+  rail?: "fold";
+  icon?: IconName;
   items: MenuItem[];
 }[] = [
   {
@@ -37,18 +41,20 @@ const MENU: {
     items: [
       // The shift pages (/office/shifts/...) stay, inside this section (office-nav.tsx).
       { area: "shifts", href: "/office/events", label: "Events & sessions", icon: "shifts" },
+      // The Need a person badge (12D.1); /office/requests redirects to its "Requests from the app".
+      { area: "enquiries", href: "/office/enquiries", label: "Enquiries", icon: "requests" },
       {
         area: "cancellations",
         href: "/office/cancellations",
         label: "Cancellations",
         icon: "cancel",
       },
-      // The Need a person badge (12D.1); /office/requests redirects to its "Requests from the app".
-      { area: "enquiries", href: "/office/enquiries", label: "Enquiries", icon: "requests" },
     ],
   },
   {
     label: "Pay",
+    rail: "fold",
+    icon: "pay",
     items: [
       // Payroll's home (/office sends them here).
       { area: "pay", href: "/office/pay", label: "Pay dashboard", icon: "dashboard" },
@@ -58,6 +64,8 @@ const MENU: {
   },
   {
     label: "People",
+    rail: "fold",
+    icon: "workers",
     items: [
       { area: "casuals", href: "/office/casuals", label: "Casuals", icon: "workers" },
       // No badge: strikes aren't a to-do (docs/office-v2.md 3.5).
@@ -68,6 +76,8 @@ const MENU: {
   {
     label: "Admin and records",
     folded: true,
+    rail: "fold",
+    icon: "settings",
     items: [
       { area: "log", href: "/office/log", label: "Action log", icon: "log" },
       { area: "pilot", href: "/office/reports/pilot", label: "Pilot metrics", icon: "pilot" },
@@ -155,6 +165,8 @@ export function officeMenu(
     ...(group.folded ? { folded: true } : {}),
     ...(group.bottom ? { bottom: true } : {}),
     ...(group.top ? { top: true } : {}),
+    ...(group.rail ? { rail: group.rail } : {}),
+    ...(group.icon ? { icon: group.icon } : {}),
     links: group.items
       .filter((item) => canAccess(role, item.area))
       .map((item) => {
@@ -162,4 +174,77 @@ export function officeMenu(
         return { href: item.href, label: item.label, icon: item.icon, ...(badge ? { badge } : {}) };
       }),
   })).filter((group) => group.links.length > 0);
+}
+
+// The top bar's counts (Phase 24, round 7: the first of its three capsules), each opening where it's
+// worked and only for the roles that can open that page: places to fill and urgent places (Events &
+// sessions' "Need people" and "Urgent" views), offers out with no reply yet (the dashboard's Offered
+// column, Phase 24's 24.3), what Needs attention holds (its one count, as the menu's: "To check") and the pay queries
+// waiting. `count` null: it couldn't be read (the words show with no number).
+export type BarCount = {
+  key: "toFill" | "urgent" | "offersOut" | "toCheck" | "payQueries";
+  label: string;
+  href: string;
+  icon: IconName;
+  count: number | null;
+  more?: boolean;
+  urgent?: boolean; // red while there are any
+};
+
+export function barCounts(
+  role: OfficeRole,
+  counts: {
+    shell: { toFill: number; urgent: number; offersOut: number } | null;
+    attention: { count: number | null; more: boolean } | null;
+    payQueries: number | null;
+  },
+): BarCount[] {
+  const { shell, attention, payQueries } = counts;
+  const out: BarCount[] = [];
+  if (canAccess(role, "shifts")) {
+    out.push(
+      {
+        key: "toFill",
+        label: "To fill",
+        href: "/office/events?view=need",
+        icon: "profile",
+        count: shell?.toFill ?? null,
+      },
+      {
+        key: "urgent",
+        label: "Urgent",
+        href: "/office/events?view=urgent",
+        icon: "clock",
+        count: shell?.urgent ?? null,
+        urgent: (shell?.urgent ?? 0) > 0,
+      },
+      {
+        key: "offersOut",
+        label: "Offers out",
+        href: "/office#offered",
+        icon: "send",
+        count: shell?.offersOut ?? null,
+      },
+    );
+  }
+  if (canAccess(role, "today")) {
+    out.push({
+      key: "toCheck",
+      label: "To check",
+      href: "/office/needs-attention",
+      icon: "checkbox",
+      count: attention?.count ?? null,
+      more: attention?.more ?? false,
+    });
+  }
+  if (canAccess(role, "pay")) {
+    out.push({
+      key: "payQueries",
+      label: "Pay queries",
+      href: "/office/pay-queries",
+      icon: "pay",
+      count: payQueries,
+    });
+  }
+  return out;
 }

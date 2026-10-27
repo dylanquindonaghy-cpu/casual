@@ -31,8 +31,8 @@ export const limitText = (maxMinutes: number | null) =>
 const STRIP_BOX: Record<StripDay["kind"], string> = {
   booked: "bg-brand text-on-brand shadow-pass",
   urgent: "bg-urgent-tile text-urgent-ink shadow-lift",
-  open: "bg-card text-ink shadow-lift",
-  none: "bg-card text-ink-muted shadow-lift",
+  open: "glass-tile text-ink",
+  none: "glass-tile text-ink-muted",
 };
 
 function Strip({ days, current }: { days: StripDay[]; current?: string }) {
@@ -105,7 +105,7 @@ function Strip({ days, current }: { days: StripDay[]; current?: string }) {
 
 // A filter as a chip: a select in a pill, its arrow drawn over its right end.
 const CHIP =
-  "min-h-11 w-full min-w-0 appearance-none truncate rounded-full border-[1.5px] border-line-strong bg-card py-2 pr-9 pl-3.5 text-base font-medium text-ink";
+  "min-h-11 w-full min-w-0 appearance-none truncate rounded-full glass-tile border-[1.5px] border-line-strong py-2 pr-9 pl-3.5 text-base font-medium text-ink";
 
 function Chip({ label, children }: { label: string; children: ReactNode }) {
   return (

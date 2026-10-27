@@ -19,7 +19,7 @@ type Notice =
 // The code field: the staff field made bigger, with spaced-out digits that line up. Red edge
 // while the code isn't right.
 const codeField =
-  "mt-2 min-h-14 w-full rounded-xl border-2 border-line-strong bg-card px-4 py-3 text-2xl font-normal tracking-widest text-ink tabular-nums aria-invalid:border-urgent";
+  "mt-2 min-h-14 w-full glass-tile rounded-2xl border-2 border-transparent px-4 py-3 text-2xl font-normal tracking-widest text-ink tabular-nums aria-invalid:border-urgent";
 
 // "To see your pay, we'll send you a 6-digit code." Plain words throughout (no "OTP").
 // codeWaiting: a code sent earlier still works, so the code field shows straight away (a reload

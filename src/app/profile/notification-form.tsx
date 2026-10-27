@@ -10,7 +10,7 @@ import { tryAgainText } from "@/lib/portal/copy";
 
 // One answer to pick from, as a big bordered row; the picked one is outlined in ink.
 const choice =
-  "flex min-h-14 items-center gap-3 rounded-xl border-2 border-line-strong bg-card px-4 py-3 has-checked:border-ink has-checked:bg-quiet-soft";
+  "flex min-h-14 items-center gap-3 glass-tile rounded-2xl border-2 border-line-strong px-4 py-3 has-checked:border-ink has-checked:bg-active";
 
 // How we reach you: WhatsApp or text message, and whether to hear about open shifts.
 export function NotificationForm({

@@ -30,7 +30,7 @@ export function OpenShiftCard({
     <li className="animate-in">
       <Link
         href={`/shifts/${s.shiftId}`}
-        className="flex items-start gap-3.5 rounded-[22px] border border-line bg-card p-4 shadow-lift hover:bg-quiet-soft focus-visible:outline-offset-2"
+        className="flex items-start gap-3.5 glass rounded-[22px] p-4 hover:bg-button-hover focus-visible:outline-offset-2"
       >
         <DateTile dow={day.dow} day={day.day} month={day.month} urgent={s.isUrgent} />
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">

@@ -165,9 +165,9 @@ test("Home shows Holly's photo row, the urgent row and her next shift in full", 
   await noSidewaysScroll(page);
 
   // The theme follows the phone (§4.1; 12H.1 audit): no cookie set, so a dark phone gets the dark
-  // grey page and tab bar (Phase 20; D7), a light one the canvas grey and a white tab bar.
-  const LIGHT = { page: "rgb(238, 240, 243)", bar: "rgb(255, 255, 255)" }; // #eef0f3, #ffffff
-  const DARK = { page: "rgb(11, 12, 14)", bar: "rgb(24, 25, 28)" }; // #0b0c0e, #18191c
+  // page and tab bar (Phase 20; D7), a light one the light; the tab bar floating glass (Phase 24).
+  const LIGHT = { page: "rgb(238, 241, 248)", bar: "rgba(255, 255, 255, 0.78)" }; // #eef1f8
+  const DARK = { page: "rgb(7, 8, 12)", bar: "rgba(30, 30, 34, 0.8)" }; // #07080c
   await page.emulateMedia({ colorScheme: "dark" });
   await expect(page.locator("body")).toHaveCSS("background-color", DARK.page);
   await expect(tabs).toHaveCSS("background-color", DARK.bar);

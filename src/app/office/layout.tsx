@@ -6,21 +6,21 @@ import { uploadsToCheck } from "@/lib/office/casuals";
 import { needsAttentionBell } from "@/lib/office/dashboard";
 import { enquiriesWaiting } from "@/lib/office/enquiries";
 import { officePayQueriesWaiting } from "@/lib/office/pay-dashboard";
-import { payWeekNow, payWeekParts } from "@/lib/pay/pay-week";
-import { firmShiftsLine, lineWords } from "@/lib/tenancy/shifts-line";
+import { officeShellCounts } from "@/lib/office/shell-counts";
 import { THEME_COOKIE, themeFromCookie } from "../theme";
-import { officeFontVariables } from "./office-fonts";
-import { menuBadges, OfficeShell, officeMenu } from "./office-shell";
+import { barCounts, menuBadges, OfficeShell, officeMenu } from "./office-shell";
+import { RAIL_COOKIE, railOpenFromCookie } from "./rail-cookie";
 
-// Every office page sits in the office shell (the top bar, the menu, the account menu) once
-// someone is logged in. With no session (/office/login, /office/l, or a page that's about to send
+// Every office page sits in the office shell (the rail or the drawer, the top bar with its counts and
+// search, the account menu) once someone is logged in. With no session (/office/login, /office/l, or a page that's about to send
 // you to log in) the page shows on its own. Display only, so it never redirects or hides a page:
 // each page checks its own access (requireOfficeArea), and each action its own.
-// Either way the page is wrapped in [data-office] (Phase 21): the office's look (its tokens in
-// globals.css) and its faces (office-fonts.ts). The wrapper draws no box of its own (contents).
+// Either way the page is wrapped in [data-office] (Phase 21): the office's sizes (globals.css; since
+// Phase 24 its colours, glass and face are the app's own). The wrapper draws no box of its own
+// (contents).
 function OfficeLook({ children }: { children: ReactNode }) {
   return (
-    <div data-office="" className={`contents ${officeFontVariables}`}>
+    <div data-office="" className="contents">
       {children}
     </div>
   );
@@ -48,8 +48,11 @@ export default async function OfficeLayout({ children }: { children: ReactNode }
     needs && needs.count !== null
       ? { count: needs.count + (needPerson ?? 0), more: needs.more }
       : null;
-  // The firm's shifts line, for the top bar (Phase 23): none until the firm has one.
-  const line = await firmShiftsLine({ firm: s.firm });
+  // The top bar's counts of sessions (Phase 24): places to fill, urgent places, offers out (admins
+  // and resourcers).
+  const shell = canAccess(s.officeUser.role, "shifts")
+    ? await officeShellCounts({ firm: s.firm, officeUserId: s.officeUser.id })
+    : null;
   // Pale yellow when it needs this person (Phases 18 and 20; office-menu.ts menuBadges).
   const badges = menuBadges(s.officeUser.role, {
     payQueries: waiting ?? 0,
@@ -57,16 +60,27 @@ export default async function OfficeLayout({ children }: { children: ReactNode }
     uploads: toCheck ?? 0,
     attention,
   });
+  const jar = await cookies();
   return (
     <OfficeLook>
       <OfficeShell
         name={s.officeUser.name}
         roleLabel={ROLE_LABELS[s.officeUser.role]}
         firmName={s.firm.name}
-        payWeek={payWeekParts(payWeekNow(new Date(), s.firm.timezone))}
-        shiftsLine={line ? lineWords(line) : null}
         menu={officeMenu(s.officeUser.role, badges)}
-        theme={themeFromCookie((await cookies()).get(THEME_COOKIE)?.value)}
+        counts={barCounts(s.officeUser.role, {
+          shell: shell?.ok ? shell.data : null,
+          // Needs attention's one count, as the menu's (null: it couldn't be read).
+          attention: needs
+            ? { count: attention?.count ?? null, more: attention?.more ?? false }
+            : null,
+          payQueries: waiting,
+        })}
+        canSearch={
+          canAccess(s.officeUser.role, "casuals") || canAccess(s.officeUser.role, "shifts")
+        }
+        railOpen={railOpenFromCookie(jar.get(RAIL_COOKIE)?.value)}
+        theme={themeFromCookie(jar.get(THEME_COOKIE)?.value)}
         rotationDue={s.session.rotationDue}
       >
         {children}

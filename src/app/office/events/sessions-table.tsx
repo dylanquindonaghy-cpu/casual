@@ -48,9 +48,9 @@ export function SessionsTable({
   const th = "px-2 pt-1 pb-2 font-normal";
   const td = "px-2 pt-3 pb-1 align-top";
   // The "…" menu stays in reach at the table's right edge when the table is wider than the page.
-  const pinned = "sticky right-0 bg-canvas";
+  const pinned = "sticky right-0 bg-panel backdrop-blur-md";
   return (
-    <div className="rounded-row bg-canvas px-4 py-3">
+    <div className="glass-tile rounded-row px-4 py-3">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-2">
         {e.place && <span className="font-semibold">{e.place}</span>}
         <span className="text-sm text-ink-muted">

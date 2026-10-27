@@ -4,9 +4,8 @@ import { sql, type SQL } from "drizzle-orm";
 // (or never expires) than the credential the alias `c` names: a renewal recorded as a new row (a
 // casual's upload only once the office approves it, 12F.2). The expiry scan (scan.ts) gives such an
 // old row no warning and no message and leaves it off the office's list (it is still marked expired
-// when its date passes, so the record stays true); the dashboard's licences chart leaves it out too
-// (src/lib/office/dashboard-charts-load.ts). SQL only, no messaging: the dashboard reads it without
-// pulling in the scan's senders.
+// when its date passes, so the record stays true). SQL only, no messaging: kept apart from the
+// scan's senders (Phase 23's licences chart read it too, until Phase 24's dashboard).
 export function supersededSql(c: string): SQL<boolean> {
   const outer = sql.identifier(c);
   return sql<boolean>`exists (

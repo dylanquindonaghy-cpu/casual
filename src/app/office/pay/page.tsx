@@ -14,11 +14,13 @@ import {
   sectionGap,
 } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
+import { systemClock } from "@/lib/auth/clock";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import { readSessionToken } from "@/lib/auth/session-cookie";
 import { officePayDashboard, type PayDashboard } from "@/lib/office/pay-dashboard";
 import { digestLines } from "@/lib/office/pay-digest-copy";
 import { timeOnDay } from "@/lib/portal/format";
+import { payWeekLabel, payWeekNow } from "@/lib/pay/pay-week";
 import { ISSUE_LABELS } from "@/lib/portal/pay-query-kinds";
 import { dayLabel } from "@/lib/rules/reasons";
 import { mondayOf } from "@/lib/time/zoned";
@@ -98,6 +100,8 @@ export default async function PayDashboardPage() {
           </>
         }
       >
+        {/* The pay week (D8), from the top bar (Phase 24). */}
+        <p className={`${meta} tabular-nums`}>{payWeekLabel(payWeekNow(systemClock.now(), tz))}</p>
         <p className={meta}>{shiftsLineText(await firmShiftsLine({ firm }))}</p>
       </PageHeader>
 

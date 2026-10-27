@@ -234,6 +234,18 @@ describe("the voice webhook", () => {
     expect(await t.eventsOf("call.%")).toHaveLength(2);
   });
 
+  it("automatic replies off (the default): a caller still gets their login link, as the login page sends it (Dylan, 2026-10-27)", async () => {
+    // A call's link isn't an automatic reply to a text: it's the login page's own answer, and it
+    // goes whatever `auto_replies` says (PLAN.md "Connecting the firm's systems" 11).
+    const t = await lineFirm({ repliesOff: true });
+    const res = await handleTwilioVoice(signed(URLS.voice, callFields(t, t.mobile)), voiceDeps());
+    expect(await res.text()).toBe(spoken(t, "sent"));
+    expect(await t.jobsOf(SEND_PORTAL_LINK_QUEUE)).toEqual([
+      expect.objectContaining({ purpose: "worker_login", subjectId: t.ann }),
+    ]);
+    expect((await t.eventsOf("call.answered")).map((e) => e.data)).toEqual([{ link: "sent" }]);
+  });
+
   it("a repeat of a call that was told 'not now' hears 'not now' again, and asks for nothing (audit L28)", async () => {
     const t = await lineFirm();
     let asked = 0;

@@ -1860,9 +1860,11 @@ and, each with its words in `docs/screens.md` first: why a reply was held (Enqui
 Done when: P4.1 to P4.9 are ticked, each with a stamp that includes the browser tests;
 `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; nothing under `src/app/` or `src/lib/office/`
 and no message or email words changed; a first-come wave for one free place offers 5 casuals by
-the ranking, not everyone; no automatic reply goes out by text unless the firm switches it on; the
-tests hold at 2,000 casuals, 1,000 messages and 2,000 reminders; `docs/architecture.md`'s scale
-line names the target; the `claims-auditor` checks the phase against this line.
+the ranking, not everyone; no automatic reply to a text, WhatsApp or voicemail goes out by text
+unless the firm switches it on (a call's login link is the login page's answer: Dylan,
+2026-10-27); the tests hold at 2,000 casuals, 1,000 messages and 2,000 reminders;
+`docs/architecture.md`'s scale line names the target; the `claims-auditor` checks the phase
+against this line.
 
 ### P5 — The connector: the ops portal's API first, AXLR8 directly later (attended; S, A, T, M, R, UI)
 
@@ -2266,7 +2268,7 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
 | 8 | **Decided** (Dylan, 2026-10-26: recommended): a booking added in the CRM that the rules refuse (an expired licence) is flagged as urgent, never booked (golden rule 6) | As the rota sheet: not booked, reported | P5 |
 | 9 | **Decided** (Dylan, 2026-10-26: recommended): for bookings made in ShiftDesk, ShiftDesk sends the offer, the confirmation and the reminders, through the firm's Webex account, each logged (golden rule 5); AXLR8 keeps texting about the office's own bookings, so no casual gets the same text twice | Nothing is sent for real (no text sender yet) | P2 ("who sends what"); Phase 15 |
 | 10 | **Decided** (Dylan, 2026-10-26: recommended): first come, first served texts the best 5 casuals per free place by the existing ranking, at most 50 a wave, then the next wave every `wave_minutes` (15) while it's unfilled; the board still shows the shift to everyone eligible and the first yes still wins. About £1 a wave for one place at 20p a text, instead of about £300 | Everyone eligible at once | P4.3 |
-| 11 | **Decided** (Dylan, 2026-10-26): automatic replies never go by text ("it would be an internal chat on the app not texts being sent out"): a text that comes in goes to the office; the in-app chat is P8, with at most 5 automatic replies an hour per casual there | Every message gets an automatic reply on its own channel (WhatsApp today) | P4.7; P8 |
+| 11 | **Decided** (Dylan, 2026-10-26): automatic replies never go by text ("it would be an internal chat on the app not texts being sent out"): a text that comes in goes to the office; the in-app chat is P8, with at most 5 automatic replies an hour per casual there. Automatic replies are the shifts line's answers to a WhatsApp, text or voicemail that comes in; a phone call still gets the caller's login link, the login page's own answer (Dylan, 2026-10-27: "Keep sending the link") | Every message gets an automatic reply on its own channel (WhatsApp today) | P4.7; P8 |
 | 12 | **Decided** (Dylan, 2026-10-26: recommended): at most 5 unknown-number alert emails per firm an hour; the messages still show in "Need a person" (a cap on polite replies is moot: none go by text) | One email per number to every admin and resourcer | P4.7 |
 | 13 | **Decided** (Dylan, 2026-10-26: recommended): texts go out only for offers, confirmations and reminders of ShiftDesk's own bookings, through the firm's Webex account, and preferably only when the casual's phone has app notifications off (Messages 2) | Nothing sent for real (no text sender yet) | Phase 15; P2 |
 | 14 | **Decided** (Dylan, 2026-10-26: recommended): the database's time limits are set inside `withFirm`, per transaction, rather than per database role (a tenancy change) | No limits | P4.2; ADR-027 |
@@ -4232,7 +4234,9 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
   at the target (a day's finished jobs are kept); watch it if a queue ever holds a big backlog.
 - P4.7's guardrails review (2026-10-26), for Dylan: a phone call still sends the caller's login
   link by message, as the login page does (the caller asked for it; decision 13 lists offers,
-  confirmations and reminders). Keep it, or send it only by WhatsApp, or not at all?
+  confirmations and reminders). Keep it, or send it only by WhatsApp, or not at all? **Decided**
+  (Dylan, 2026-10-27): keep sending the link, whatever `auto_replies` says (decision 11;
+  `inbound.voice.test.ts` pins it).
 
 ## Hours log
 

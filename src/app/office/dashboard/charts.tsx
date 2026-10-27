@@ -88,7 +88,7 @@ export function CountCards({ cards }: { cards: CountCard[] }) {
             e.preventDefault();
             open(card.panel, e.currentTarget, `card:${card.key}`);
           }}
-          className="press grid grid-cols-[minmax(0,1fr)_auto] content-start gap-x-2 gap-y-3 rounded-inner border border-line bg-card p-4 text-ink hover:border-button-line hover:bg-raised sm:p-6"
+          className="press grid grid-cols-[minmax(0,1fr)_auto] content-start gap-x-2 gap-y-3 glass rounded-inner p-4 text-ink hover:bg-button-hover sm:p-6"
         >
           <span className="col-start-1 row-start-1 self-center text-sm font-semibold text-ink-muted">
             {card.label}
@@ -335,7 +335,7 @@ export function DashboardCharts({
             <section
               key={c.id}
               aria-labelledby={c.id}
-              className={`flex min-w-0 flex-col gap-4 rounded-inner border border-line bg-card p-4 has-[:target]:animate-landed sm:p-6${c.wide ? " xl:col-span-2" : ""}`}
+              className={`glass flex min-w-0 flex-col gap-4 rounded-inner p-4 has-[:target]:animate-landed sm:p-6${c.wide ? " xl:col-span-2" : ""}`}
             >
               <div className="flex items-start gap-3">
                 <div className="min-w-0 flex-1">
@@ -354,7 +354,7 @@ export function DashboardCharts({
                     type="button"
                     aria-pressed={on}
                     onClick={() => setNumbers((n) => ({ ...n, [c.id]: !on }))}
-                    className="press inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-line px-4 text-sm font-semibold text-ink-muted hover:bg-raised hover:text-ink active:bg-button-press aria-pressed:border-button-line aria-pressed:bg-raised aria-pressed:text-ink"
+                    className="press-glass glass-button inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-semibold text-ink-muted hover:bg-button-hover hover:text-ink active:bg-button-press aria-pressed:lens aria-pressed:text-ink"
                   >
                     Numbers
                   </button>
@@ -705,12 +705,12 @@ function Offers({ body, markProps, dim }: Draw<OffersBody>) {
                 <button
                   type="button"
                   {...markProps(k.mark)}
-                  className="press grid h-full w-full content-start gap-2 rounded-row border border-line bg-card p-4 text-left hover:border-button-line hover:bg-raised"
+                  className="press glass-tile grid h-full w-full content-start gap-2 rounded-row p-4 text-left hover:bg-button-hover"
                 >
                   {inner}
                 </button>
               ) : (
-                <div className="grid h-full content-start gap-2 rounded-row border border-line bg-card p-4">
+                <div className="glass-tile grid h-full content-start gap-2 rounded-row p-4">
                   {inner}
                 </div>
               )}
@@ -743,7 +743,7 @@ function Timeline({ body, markProps, dim }: Draw<TimelineBody>) {
         <span aria-hidden="true" className="absolute top-4 bottom-8 left-0 w-px bg-ink-faint" />
         <span
           aria-hidden="true"
-          className="absolute top-0 left-0 -translate-x-1/2 bg-card px-1 text-xs leading-4 font-bold text-ink"
+          className="absolute top-0 left-0 -translate-x-1/2 bg-panel px-1 text-xs leading-4 font-bold text-ink"
         >
           Today
         </span>

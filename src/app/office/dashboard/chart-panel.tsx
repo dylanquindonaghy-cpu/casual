@@ -101,7 +101,7 @@ export function PanelHost({ children }: { children: ReactNode }) {
           landing.current = plain ? placeOnPage(link.getAttribute("href")) : null;
           e.currentTarget.close();
         }}
-        className="top-auto bottom-0 left-0 m-0 h-auto max-h-[86dvh] w-full max-w-none overflow-hidden rounded-t-inner bg-card p-0 text-base text-ink shadow-float transition-[translate] duration-200 ease-sd backdrop:animate-fade backdrop:bg-scrim/40 starting:translate-y-full lg:top-0 lg:right-0 lg:left-auto lg:h-dvh lg:max-h-none lg:w-[30rem] lg:max-w-full lg:rounded-none lg:starting:translate-x-full lg:starting:translate-y-0"
+        className="top-auto bottom-0 left-0 m-0 h-auto max-h-[86dvh] w-full max-w-none overflow-hidden rounded-t-inner glass-float p-0 text-base text-ink transition-[translate] duration-200 ease-sd backdrop:animate-fade backdrop:bg-scrim/40 starting:translate-y-full lg:top-0 lg:right-0 lg:left-auto lg:h-dvh lg:max-h-none lg:w-[30rem] lg:max-w-full lg:rounded-none lg:starting:translate-x-full lg:starting:translate-y-0"
       >
         {shown ? (
           <PanelView panel={shown.panel} closeRef={close} onClose={() => dialog.current?.close()} />
@@ -211,7 +211,7 @@ export function PanelView({
           type="button"
           aria-label="Close"
           onClick={onClose}
-          className="press inline-flex size-11 shrink-0 items-center justify-center rounded-full border border-line text-ink hover:bg-raised active:bg-button-press"
+          className="press-glass glass-button inline-flex size-11 shrink-0 items-center justify-center rounded-full text-ink hover:bg-button-hover active:bg-button-press"
         >
           <Icon name="close" />
         </button>

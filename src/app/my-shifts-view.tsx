@@ -21,7 +21,7 @@ export function OfflineNotice({ updated }: { updated: string }) {
       hidden
       suppressHydrationWarning
       role="status"
-      className="flex items-start gap-3 rounded-2xl border border-line-strong bg-card p-3.5 text-base"
+      className="glass flex items-start gap-3 rounded-2xl p-3.5 text-base"
     >
       <Icon name="offline" size={24} className="mt-px" />
       <div>
@@ -68,9 +68,7 @@ export function Toggle({
       href={href}
       aria-current={current ? "page" : undefined}
       className={`flex min-h-11 items-center justify-center rounded-full px-3 text-center focus-visible:-outline-offset-4 ${
-        current
-          ? "bg-card font-semibold text-ink shadow-lift"
-          : "font-medium text-ink-muted hover:text-ink"
+        current ? "lens font-semibold text-ink" : "font-medium text-ink-muted hover:text-ink"
       }`}
     >
       {children}

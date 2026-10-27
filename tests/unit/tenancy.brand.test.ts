@@ -11,6 +11,8 @@ import {
   safeLogoUrl,
 } from "@/lib/tenancy/brand";
 import { firmPalette } from "@/lib/tenancy/brand-values";
+import type { Rgb } from "@/lib/tenancy/glass-grounds";
+import { grounds, looks, lowest, luminance } from "../helpers/theme-css";
 
 // A firm's brand (src/lib/tenancy/brand.ts, src/app/brand-bar.tsx): only checked values reach the
 // page, and the bar's text is readable on any colour.
@@ -68,11 +70,14 @@ describe("the colours", () => {
   });
 
   it("sets the page's --firm-* values only for a firm's own checked colour, a set per theme", () => {
-    // Acme's blue reads on the canvas and the card as it is: its button keeps it, with white words.
+    // Acme's blue, a little darker for its words and its main button so they read on every point
+    // of the glass (Phase 24), with white on it; the button's shade further from white; its band
+    // as it is.
     expect(brandStyle(brandColours("#1D4ED8"))).toEqual({
-      "--firm-fill": "#1d4ed8",
+      "--firm-fill": "#1a45bf",
       "--firm-on-fill": "#ffffff",
-      "--firm-ink": "#1d4ed8",
+      "--firm-shade": "#15399d",
+      "--firm-ink": "#1a45bf",
       "--firm-bar": "#1d4ed8",
       "--firm-on-bar": "#ffffff",
       // The pass's second line (Phase 20): white a fifth of the way to the blue, still 4.5:1.
@@ -94,71 +99,113 @@ describe("the colours", () => {
     expect(brandStyle({ own: true, background: "red; x: url(y)" })).toBeUndefined();
   });
 
-  // brand-soft, as globals.css mixes it: 12% of the brand over the card.
-  const tint = (brand: string, card: string) =>
-    `#${[1, 3, 5]
-      .map((i) =>
-        Math.round(
-          parseInt(brand.slice(i, i + 2), 16) * 0.12 + parseInt(card.slice(i, i + 2), 16) * 0.88,
-        )
+  // Every ground the firm's colour sits on as words, in the looks of its theme, read from
+  // src/app/globals.css itself (tests/helpers/theme-css.ts): the glass over every point of the
+  // wash, the solid look (less transparency or more contrast) and the one with no blur. Worked out
+  // once as luminances, so the whole cube runs quickly.
+  const LOOKS = looks();
+  const PLACES = [
+    "canvas",
+    "card",
+    "sheet",
+    "panel",
+    "raised",
+    "glass-tile",
+    "button-hover",
+    "lens",
+  ];
+  const groundsFor = (dark: boolean) => [
+    ...new Set(
+      LOOKS.filter((l) => l.name.startsWith("dark") === dark).flatMap((look) =>
+        PLACES.flatMap((where) => grounds(look, where).map((g) => luminance(g.colour))),
+      ),
+    ),
+  ];
+  const LIGHT_LUM = groundsFor(false);
+  const DARK_LUM = groundsFor(true);
+  const rgb = (hex: string): Rgb => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as Rgb;
+  const onAll = (hex: string, lums: number[]) => {
+    const l = luminance(rgb(hex));
+    return Math.min(...lums.map((g) => (Math.max(l, g) + 0.05) / (Math.min(l, g) + 0.05)));
+  };
+  // CSS brightness(1.06) on the main button under the pointer and pressed (`press-glass`).
+  const bright = (hex: string) =>
+    `#${rgb(hex)
+      .map((v) =>
+        Math.min(255, Math.round(v * 1.06))
           .toString(16)
           .padStart(2, "0"),
       )
       .join("")}`;
 
-  it("every firm colour gives readable pairs in both themes, across the whole colour cube", () => {
-    const LIGHT = ["#eef0f3", "#ffffff"]; // canvas, card
-    const DARK = ["#18191c", "#232529", "#0b0c0e"]; // card, raised, canvas (Phase 20's greys)
+  it("every firm colour gives readable pairs in every look, across the whole colour cube", () => {
+    expect(LIGHT_LUM.length).toBeGreaterThan(100);
+    expect(DARK_LUM.length).toBeGreaterThan(100);
     const failing: string[] = [];
     for (let r = 0; r <= 255; r += 17) {
       for (let g = 0; g <= 255; g += 17) {
         for (let b = 0; b <= 255; b += 17) {
           const hex = `#${[r, g, b].map((c) => c.toString(16).padStart(2, "0")).join("")}`;
           const { light, dark } = firmPalette(hex);
-          const pairs: [string, string, string][] = [
-            ["light fill", light.onFill, light.fill],
-            ["band", light.onBar, light.bar],
-            ["band's second line", light.onBarSoft, light.bar],
+          const pairs: [string, number][] = [
+            // The main button, in both themes: white (or ink) words on its colour, its shade, and
+            // both brightened under the pointer.
+            ...[light.fill, light.shade, bright(light.fill), bright(light.shade)].map(
+              (c): [string, number] => ["main button", contrastRatio(light.onFill, c)],
+            ),
+            ["band", contrastRatio(light.onBar, light.bar)],
+            ["band's second line", contrastRatio(light.onBarSoft, light.bar)],
             // The gate on the pass: a white plate, its words readable on it (Phase 20).
-            ["gate plate", light.onPlate, "#ffffff"],
-            ["dark fill", dark.onFill, dark.fill],
-            // The firm's colour as words on its own pale tint (brand-soft: 12% of it over the
-            // card), as on a sign plate and an open Details button.
-            ["light words on the tint", light.ink, tint(light.fill, "#ffffff")],
-            ["dark words on the tint", dark.ink, tint(dark.fill, "#18191c")],
-            ...LIGHT.map((g2): [string, string, string] => ["light words", light.ink, g2]),
-            ...DARK.map((g2): [string, string, string] => ["dark words", dark.ink, g2]),
+            ["gate plate", contrastRatio(light.onPlate, "#ffffff")],
+            // A fill in the firm's colour in dark (the booked day), with its words.
+            ["dark fill", contrastRatio(dark.onFill, dark.fill)],
+            // The firm's colour as words, on every ground of its theme's looks.
+            ["light words", onAll(light.ink, LIGHT_LUM)],
+            ["dark words", onAll(dark.ink, DARK_LUM)],
           ];
-          for (const [what, a, c] of pairs) {
-            if (!(contrastRatio(a, c) >= 4.5))
-              failing.push(`${hex} ${what}: ${contrastRatio(a, c).toFixed(2)}`);
+          // And on its own pale tint (brand-soft: 12% of it over what's under it), as on a sign
+          // plate and an open Details button.
+          for (const look of LOOKS) {
+            const set = look.name.startsWith("dark") ? dark : light;
+            pairs.push([
+              `words on the tint (${look.name})`,
+              lowest(look, rgb(set.ink), "brand-soft", rgb(set.fill)),
+            ]);
           }
+          for (const [what, ratio] of pairs)
+            if (!(ratio >= 4.5)) failing.push(`${hex} ${what}: ${ratio.toFixed(2)}`);
         }
       }
     }
     expect(failing).toEqual([]);
   });
 
-  it("the demo firms' colours: as they are in light, lightened for words on dark", () => {
+  it("the demo firms' colours: their bands as they are, their words a little darker in light, lighter for dark", () => {
     const acme = firmPalette("#1d4ed8");
     expect(acme.light).toEqual({
-      fill: "#1d4ed8",
+      fill: "#1a45bf",
       onFill: "#ffffff",
-      ink: "#1d4ed8",
+      shade: "#15399d",
+      ink: "#1a45bf",
       bar: "#1d4ed8",
       onBar: "#ffffff",
       onBarSoft: "#d2dcf7",
       onPlate: "#1d4ed8",
     });
+    // The words, as near the colour as reads: one 6% step towards black did it, no more.
+    expect(contrastRatio("#1d4ed8", acme.light.fill)).toBeLessThan(1.3);
     // A pale firm colour: ink on its band, and ink on the gate's white plate (white words
     // wouldn't read on it, nor the yellow on white).
     const yellow = firmPalette("#ffff00").light;
     expect([yellow.bar, yellow.onBar, yellow.onPlate]).toEqual(["#ffff00", "#15171a", "#15171a"]);
-    expect(contrastRatio(acme.dark.ink, "#232529")).toBeGreaterThanOrEqual(4.5);
+    expect(onAll(acme.dark.ink, DARK_LUM)).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(acme.dark.fill, "#1d4ed8")).toBeGreaterThan(1); // lighter than the colour
+    // Northline's teal: its band as it is; darker as words and the button, for its own pale tint
+    // over the wash's mint corner.
     const northline = firmPalette("#0f766e");
-    expect(northline.light.fill).toBe("#0f766e");
     expect(northline.light.bar).toBe("#0f766e");
+    expect(northline.light.fill).toBe("#0c5c56");
+    expect(northline.light.shade).toBe("#0a4c46");
   });
 
   it("knows a firm's own colour from the default", () => {

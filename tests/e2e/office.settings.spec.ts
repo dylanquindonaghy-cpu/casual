@@ -45,6 +45,11 @@ test("an admin saves the strikes team's email and its link confirms it; a site's
     await (await menuLink(page, "Settings")).click();
     await expect(page.getByRole("heading", { name: "Settings", level: 1 })).toBeVisible();
     await expect(page).toHaveTitle("Settings · Acme Events shifts");
+    // The firm's shifts line, to read (Phase 24: it left the top bar).
+    await expect(page.getByRole("heading", { name: "Shifts line", level: 2 })).toBeVisible();
+    await expect(
+      page.getByText("Your shifts line: +44 7700 900000 (WhatsApp, text and calls)."),
+    ).toBeVisible();
 
     const asked = new Date(Date.now() - 1000);
     // (The section is named "Strikes team email" too: its text box is the one to fill.)

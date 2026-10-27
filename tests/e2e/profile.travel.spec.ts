@@ -82,6 +82,11 @@ test("a casual sets their travel area, the office sees only the district, and th
   await office.goto(await sentTo(RESOURCER, sent, /(https?:\/\/\S+\/office\/l#[A-Za-z0-9_-]{43})/));
   await office.getByRole("button", { name: "Log me in" }).click();
   await expect(office).toHaveURL(`${acme}/office`);
+  // The login moves to the dashboard inside the page (router.replace), streaming it in; the
+  // address changes when it first commits, and Next writes its history again when the stream ends,
+  // which cancels a page load started in between (net::ERR_ABORTED, with no request of its own).
+  // So the next page is loaded once that navigation is over.
+  await office.waitForLoadState("networkidle");
   await office.goto(`${acme}/office/casuals/${workerId}`);
   const area = office.getByRole("region", { name: "Travel area" });
   await expect(area).toContainText("ZZ1 · 60 min, car");

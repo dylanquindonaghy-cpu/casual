@@ -909,10 +909,10 @@ const panelOf = (c: ChartCard, key: string) => {
   return mk.panel;
 };
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-// A count card (Phase 23): white, its hairline, 22px round, dipping when pressed; grey under the
-// pointer.
+// A count card (Phase 23; glass since Phase 24): a section of glass, 22px round, dipping when
+// pressed; brighter under the pointer.
 const CARD =
-  "press grid grid-cols-[minmax(0,1fr)_auto] content-start gap-x-2 gap-y-3 rounded-inner border border-line bg-card p-4 text-ink hover:border-button-line hover:bg-raised sm:p-6";
+  "press grid grid-cols-[minmax(0,1fr)_auto] content-start gap-x-2 gap-y-3 glass rounded-inner p-4 text-ink hover:bg-button-hover sm:p-6";
 const words = (html: string) =>
   html
     .replace(/<[^>]+>/g, " ")
@@ -1114,11 +1114,12 @@ describe("the page (Phases 18 to 23: the dashboard)", () => {
     const html = render(full, { shiftsLine: "Shifts line 07700 900123" });
     // 3 urgent places + 9 of Needs attention's items + 2 enquiries that need a person.
     expect(h1s(html)).toEqual(["Evening, Acme Events. 14 things need you."]);
-    // Phase 23: today and the week over the greeting (the pay date is in the top bar now).
+    // Phase 23: today and the week over the greeting; Phase 24: with the week's pay day, which left
+    // the top bar (PLAN.md 24.2).
     expect(words(html)).toContain(
-      "Monday 2 November · Week 45 Evening, Acme Events. 14 things need you. Start with Saturday's door supervisor at 06:00: offered to 4 casuals. Shifts line 07700 900123",
+      "Monday 2 November · Week 45 · Pay Fri 13 Nov Evening, Acme Events. 14 things need you. Start with Saturday's door supervisor at 06:00: offered to 4 casuals. Shifts line 07700 900123",
     );
-    expect(words(html)).not.toContain("Pay Fri 13 Nov");
+    expect(words(html).match(/Pay Fri 13 Nov/g)).toHaveLength(1);
     // The page's one <h1>: the greeting in the headline's own style, then the count.
     expect(html).toMatch(
       /<h1 class="text-ink"><span class="block text-title">Evening, Acme Events\.<\/span> <span class="mt-2 block text-lg font-bold">14 things need you\.<\/span><\/h1>/,
@@ -1238,7 +1239,7 @@ describe("the page (Phases 18 to 23: the dashboard)", () => {
     expect(greeting(at("2026-07-01T11:30:00Z"), TZ)).toBe("Afternoon");
   });
 
-  // Phase 23 (round 3, the approved mock-up): each a white card with its hairline (22px), the
+  // Phase 23 (round 3, the approved mock-up): each a card (22px; glass since Phase 24), the
   // label, the number (`font-stat`), one line, and a tinted icon chip; no shadow, grain, tint or
   // lift. A plain link (it works without script: Next's <Link> would put its class first) to its
   // list, which once the page is ready opens in the panel instead.
@@ -1305,7 +1306,7 @@ describe("the page (Phases 18 to 23: the dashboard)", () => {
   // from a panel (tabindex -1: focusable from code, never a Tab stop). The office's scroll padding
   // in globals.css keeps it clear of the top bar (office.dashboard-ui.test.ts pins it), so no
   // heading carries its own scroll margin.
-  it("the urgent places, then six charts, each a white card with its heading, its one sentence, its key, its chart, a hint and Numbers", () => {
+  it("the urgent places, then six charts, each a glass card with its heading, its one sentence, its key, its chart, a hint and Numbers", () => {
     const html = render(full, { payQueriesWaiting: 3 });
     expect(
       [
@@ -1356,17 +1357,17 @@ describe("the page (Phases 18 to 23: the dashboard)", () => {
     for (const id of Object.values(CHART_IDS)) {
       const box = new RegExp(`<section aria-labelledby="${id}" class="([^"]*)">`).exec(html)?.[1];
       expect(box, id).toBe(
-        `flex min-w-0 flex-col gap-4 rounded-inner border border-line bg-card p-4 has-[:target]:animate-landed sm:p-6${
+        `glass flex min-w-0 flex-col gap-4 rounded-inner p-4 has-[:target]:animate-landed sm:p-6${
           ["places-chart", "licences-chart"].includes(id) ? " xl:col-span-2" : ""
         }`,
       );
       const part = section(html, id);
       // Numbers: a toggle (aria-pressed), the chart's table hidden behind it; a hint.
       expect(part, id).toContain(
-        '<button type="button" aria-pressed="false" class="press inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-line px-4 text-sm font-semibold text-ink-muted hover:bg-raised hover:text-ink active:bg-button-press aria-pressed:border-button-line aria-pressed:bg-raised aria-pressed:text-ink">Numbers</button>',
+        '<button type="button" aria-pressed="false" class="press-glass glass-button inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-semibold text-ink-muted hover:bg-button-hover hover:text-ink active:bg-button-press aria-pressed:lens aria-pressed:text-ink">Numbers</button>',
       );
       expect(part, id).toMatch(
-        /<div hidden="" class="flex flex-col gap-4"><div class="overflow-x-auto rounded-inner border border-line bg-card"><table /,
+        /<div hidden="" class="flex flex-col gap-4"><div class="glass overflow-x-auto rounded-inner"><table /,
       );
       expect(part, id).toMatch(
         /<p class="text-sm text-ink-faint">Pick an? [a-z ]+ to see [^<]+\.(<span|<\/p>)/,
@@ -1504,13 +1505,14 @@ describe("the page (Phases 18 to 23: the dashboard)", () => {
     expect(section(html, "urgent-places")).toMatch(
       /<a class="[^"]*" href="\/office\/events\?view=urgent">All on Events &amp; sessions<svg/,
     );
-    // Phase 23: one to a row on a phone, two from 1024px, three from 1280px; each a white card.
+    // Phase 23: one to a row on a phone, two from 1024px, three from 1280px; each a section of
+    // glass (Phase 24; a white card in 23).
     expect(section(html, "urgent-places")).toContain(
-      '<ul role="list" class="grid gap-3 lg:grid-cols-2 xl:grid-cols-3"><li data-urgent-place="" class="flex min-w-0 flex-col gap-4 rounded-inner border border-line bg-card p-4 sm:p-6">',
+      '<ul role="list" class="grid gap-3 lg:grid-cols-2 xl:grid-cols-3"><li data-urgent-place="" class="glass flex min-w-0 flex-col gap-4 rounded-inner p-4 sm:p-6">',
     );
     // Its day and times in an outlined chip (the day named in full for a screen reader).
     expect(first).toMatch(
-      /^<p class="inline-flex min-h-7 w-fit items-center gap-2 rounded-full border border-button-line px-3 text-sm font-semibold text-ink-muted tabular-nums"><svg[\s\S]*?<\/svg><span role="img" aria-label="Saturday 7 November">Sat 7 Nov<\/span> · 06:00–14:00<\/p>/,
+      /^<p class="inline-flex min-h-7 w-fit items-center gap-2 rounded-full glass-button px-3 text-sm font-semibold text-ink-muted tabular-nums"><svg[\s\S]*?<\/svg><span role="img" aria-label="Saturday 7 November">Sat 7 Nov<\/span> · 06:00–14:00<\/p>/,
     );
     expect(words(first!)).toContain(
       "Sat 7 Nov · 06:00–14:00 Door supervisor Northern Lights Live, Acme Demo Arena Urgent Offered to 4 casuals 1 of 3 filled",
@@ -1525,15 +1527,15 @@ describe("the page (Phases 18 to 23: the dashboard)", () => {
     expect(first).not.toContain("data-seat");
     expect(words(first!)).not.toContain("Hidden from casuals");
     expect(words(first!)).not.toContain("The office was emailed about it.");
-    // Its actions: "Offer", the wide sky main button (still named "Offer to someone"; its word
+    // Its actions: "Offer", the wide main button (still named "Offer to someone"; its word
     // gives way to a spinner while the offer page opens: office.dashboard.spec.ts); "…" opens mark
     // as filled and not urgent, a menu that grows out of its button and floats.
     expect(first).toContain(
       `<a aria-label="Offer to someone" class="${btn.primary} flex-1" href="/office/offer/u1"><span class="relative inline-flex items-center justify-center"><span>Offer</span></span></a>`,
     );
-    expect(btn.primary).toMatch(/ bg-accent text-on-accent /);
+    expect(btn.primary).toMatch(/ glass-tint /);
     expect(first!.replace(/&#x27;/g, "'")).toMatch(
-      /<summary aria-label="More for Saturday's door supervisor at 06:00: mark as filled, not urgent" class="[^"]* press inline-flex size-11 items-center justify-center rounded-full border border-line /,
+      /<summary aria-label="More for Saturday's door supervisor at 06:00: mark as filled, not urgent" class="[^"]* press-glass glass-button inline-flex size-11 items-center justify-center rounded-full /,
     );
     const more =
       /<summary aria-label="More for[^"]*"[^>]*>[\s\S]*?<\/summary>([\s\S]*?)<\/details>\s*<\/div>/.exec(
@@ -1542,7 +1544,7 @@ describe("the page (Phases 18 to 23: the dashboard)", () => {
     expect(words(more ?? "")).toContain("Mark as filled");
     expect(words(more ?? "")).toContain("Not urgent");
     expect(more).toMatch(
-      /^<div class="absolute [^"]* origin-top-left animate-pop [^"]*rounded-inner bg-card p-3 shadow-float md:right-0 md:left-auto md:origin-top-right">/,
+      /^<div class="absolute [^"]* origin-top-left animate-pop [^"]*rounded-inner glass-float p-3 md:right-0 md:left-auto md:origin-top-right">/,
     );
     // The second: hidden, offers stopped, the office emailed.
     expect(words(second!)).toContain("Hidden from casuals: nobody can see this gap.");
@@ -1555,7 +1557,7 @@ describe("the page (Phases 18 to 23: the dashboard)", () => {
       "Every urgent place is filled. Nobody needs finding right now. See events",
     );
     expect(calm).toContain(
-      '<div class="flex flex-wrap items-center gap-4 rounded-inner border border-line bg-card p-4 sm:p-6">',
+      '<div class="glass flex flex-wrap items-center gap-4 rounded-inner p-4 sm:p-6">',
     );
     expect(calm).not.toContain("data-urgent-place");
   });
@@ -1884,8 +1886,9 @@ describe("the page (Phases 18 to 23: the dashboard)", () => {
       "2 replies to come. Door supervisor, Northern Lights Live, Sat 7 Nov, 06:00–14:00.",
       "1 reply to come. Steward, Riverside Food Festival, Wed 4 Nov, 10:00–18:00.",
     ]);
-    // Nothing at rest has depth, grain, stripes or a groove; one overlay, only on what floats: the
-    // tooltip, the panel and each "…" menu.
+    // Nothing at rest has a shadow class, grain, stripes or a groove (Phase 24: the glass draws its
+    // own rim and drop); what floats is floating glass (the panel, each "…" menu), and the solid
+    // ink tooltip keeps the one overlay.
     const classes = [...html.matchAll(/class="([^"]*)"/g)].map((m) => m[1]!);
     for (const c of classes) {
       expect(c).not.toMatch(/(?<![\w-])(?:inset-)?shadow-(?!float(?![\w-]))/);
@@ -1894,13 +1897,16 @@ describe("the page (Phases 18 to 23: the dashboard)", () => {
     }
     const floats = classes.filter((c) => /(?<![\w-])shadow-float(?![\w-])/.test(c));
     expect(floats).toEqual([
-      expect.stringMatching(/^absolute top-full left-0 z-10 mt-2 flex w-64 /),
-      expect.stringMatching(/^absolute top-full left-0 z-10 mt-2 flex w-64 /),
       // The tooltip takes the pointer (WCAG 1.4.13: you can move onto it). Its bridge is its own
       // box plus 8px on the side facing its mark: above, below, left or right.
       expect.stringMatching(
         /^fixed top-0 left-0 z-50 w-max max-w-64 animate-pop rounded-row bg-ink px-3 py-2 text-sm text-on-ink shadow-float before:absolute before:inset-0 data-\[side=above\]:before:-bottom-2 data-\[side=below\]:before:-top-2 data-\[side=left\]:before:-right-2 data-\[side=right\]:before:-left-2$/,
       ),
+    ]);
+    const glassFloats = classes.filter((c) => /(?<![\w-])glass-float(?![\w-])/.test(c));
+    expect(glassFloats).toEqual([
+      expect.stringMatching(/^absolute top-full left-0 z-10 mt-2 flex w-64 /),
+      expect.stringMatching(/^absolute top-full left-0 z-10 mt-2 flex w-64 /),
       expect.stringMatching(/^top-auto bottom-0 left-0 m-0 h-auto max-h-\[86dvh\] w-full /),
     ]);
     expect(btn.secondary).not.toMatch(/shadow/);
@@ -1912,7 +1918,7 @@ describe("the page (Phases 18 to 23: the dashboard)", () => {
   it("the panel: a modal dialog labelled by its title; rows with their chips and actions; every old dashboard link still there", () => {
     const html = render(full, { payQueriesWaiting: 3, pay: true });
     expect(html).toMatch(
-      /<dialog aria-modal="true" aria-labelledby="chart-panel-title" class="[^"]*rounded-t-inner bg-card p-0 [^"]*shadow-float [^"]*starting:translate-y-full lg:top-0 lg:right-0 lg:left-auto lg:h-dvh lg:max-h-none lg:w-\[30rem\] [^"]*lg:starting:translate-x-full lg:starting:translate-y-0"><\/dialog>/,
+      /<dialog aria-modal="true" aria-labelledby="chart-panel-title" class="[^"]*rounded-t-inner glass-float p-0 [^"]*starting:translate-y-full lg:top-0 lg:right-0 lg:left-auto lg:h-dvh lg:max-h-none lg:w-\[30rem\] [^"]*lg:starting:translate-x-full lg:starting:translate-y-0"><\/dialog>/,
     );
     // Its insides: the title (the dialog's name), Close, then the rows.
     const panel = panelHtml(card(full, "urgent").panel);
@@ -1920,7 +1926,7 @@ describe("the page (Phases 18 to 23: the dashboard)", () => {
       /<h2 id="chart-panel-title" class="text-2xl font-extrabold tracking-heading text-ink">3 urgent places to fill<\/h2>/,
     );
     expect(panel).toContain(
-      '<button type="button" aria-label="Close" class="press inline-flex size-11 shrink-0 items-center justify-center rounded-full border border-line text-ink hover:bg-raised active:bg-button-press">',
+      '<button type="button" aria-label="Close" class="press-glass glass-button inline-flex size-11 shrink-0 items-center justify-center rounded-full text-ink hover:bg-button-hover active:bg-button-press">',
     );
     expect(panel).toMatch(
       /<ul role="list" aria-label="3 urgent places to fill" class="divide-y divide-line">/,
@@ -2015,9 +2021,12 @@ describe("the page (Phases 18 to 23: the dashboard)", () => {
     expect(section(render(full), "urgent-places")).toContain(
       `<span class="${countUrgent}">2</span>`,
     );
-    expect(countUrgent.replace("bg-urgent-tile text-urgent-ink", "bg-count text-ink-muted")).toBe(
-      count,
-    );
+    expect(
+      countUrgent.replace(
+        "glass-rim bg-urgent-tile text-urgent-ink",
+        "glass-button text-ink-muted",
+      ),
+    ).toBe(count);
   });
 
   it("Waiting on others couldn't be read: its card and panel say so, the rest still shows", () => {

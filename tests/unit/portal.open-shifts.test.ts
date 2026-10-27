@@ -106,10 +106,10 @@ describe("Open shifts page body (Phase 18)", () => {
     const section = html.slice(html.indexOf('aria-label="Your next 8 days"'));
     const days = [...section.matchAll(/<li class="min-w-0">(.*?)<\/li>/g)].map((m) => m[1] ?? "");
     expect(days).toHaveLength(8);
-    // Phase 20: each day its own card lifted off the page. Today first, its day in bold; nothing
-    // open: not a link.
+    // Phase 20: each day its own card (clear glass since Phase 24). Today first, its day in bold;
+    // nothing open: not a link.
     expect(days[0]).toMatch(
-      /^<span role="img" aria-label="Sat 7 Nov, today: nothing open" class="[^"]*bg-card text-ink-muted shadow-lift"><span class="text-xs leading-tight font-semibold">Today<\/span>/,
+      /^<span role="img" aria-label="Sat 7 Nov, today: nothing open" class="[^"]*glass-tile text-ink-muted"><span class="text-xs leading-tight font-semibold">Today<\/span>/,
     );
     expect(days[4]).toMatch(/<span class="text-xs leading-tight ">Wed<\/span>/);
     // An urgent day: a link to that day, pale red, with its count.
@@ -152,12 +152,11 @@ describe("Open shifts page body (Phase 18)", () => {
     expect(urgent[0]).toContain("bg-urgent-tile text-urgent-ink");
     expect(text(urgent[0] ?? "")).toMatch(/^ ?Sat 7 Nov Urgent\./);
     expect(more[0]).not.toContain("urgent-tile");
-    expect(more[0]).toContain("bg-raised text-ink");
-    // A hairline card lifted off the page, no red frame (Phases 17 and 20); taking it is on its
-    // page.
-    expect(more[0]).toMatch(
-      /class="flex items-start gap-3.5 rounded-\[22px\] border border-line bg-card p-4 shadow-lift/,
-    );
+    expect(more[0]).toContain("glass-tile text-ink");
+    // A card of glass (Phase 24; a hairline card lifted off the page in Phases 17 and 20), no red
+    // frame; taking it is on its page.
+    expect(more[0]).toMatch(/class="flex items-start gap-3.5 glass rounded-\[22px\] p-4 /);
+    expect(more[0]).not.toMatch(/(?<![\w-])(?:border-urgent|shadow-[a-z]+)(?![\w-])/);
     expect(html).not.toContain(">Take shift<");
     // The rest in date order, like the strip, whatever order they came in (nearest first).
     const mixed = render(

@@ -7,7 +7,9 @@ import { btn, card, h2, meta, page, rows } from "../../ui/classes";
 import { Icon, type IconName } from "../../ui/icons";
 import { PageHeader } from "../../ui/page-header";
 import { StatusChip, type StatusTone } from "../../ui/status-chip";
+import { barCounts } from "../office-menu";
 import type { MenuGroup } from "../office-nav";
+import { railItems } from "../rail-items";
 
 // The office's how-to guide (/office/guide; docs/ui-design.md "Guides"): the everyday jobs, in the
 // order of a working day, each with the steps and a link to the page. It shows only the parts the
@@ -189,19 +191,36 @@ const MENU_WORDS: Record<string, string> = {
   "Pay queries": "Workers' pay queries, grouped by likely cause.",
   "Import pay records": "Load payroll's spreadsheet, so workers see their pay.",
   "Office team": "Who can log in to the office, and their roles.",
-  Settings: "The strikes team's email, and your sites' postcodes.",
+  Settings: "The strikes team's email, your shifts line's number, and your sites' postcodes.",
   Integrations: "Connect your planner: its API keys, and the codes it can send.",
   "Data requests": "Download or delete a worker's data when they ask.",
 };
 
 function GettingAround({ role, menu }: { role: OfficeRole; menu: MenuGroup[] }) {
+  // The top bar's counts and the search, only for the roles that have them (office-menu.ts
+  // barCounts; office-shell.tsx).
+  const counts = barCounts(role, { shell: null, attention: null, payQueries: null }).map(
+    (c) => c.label,
+  );
+  const search = canAccess(role, "casuals") || canAccess(role, "shifts");
+  // The rail's folds other than Admin and records (said apart below): Pay and People.
+  const folds = railItems(menu).flatMap((i) =>
+    i.kind === "fold" && !i.apart ? [i.group.label] : [],
+  );
   return (
     <>
       <Para>
-        A bar runs along the top of every page. On a wide screen, the menu is in its own card on the
-        left, under the bar. On a phone or tablet, select <Name>Menu</Name> at the top left. The
-        menu slides in. Select <Name>Close menu</Name>, or anywhere outside it, to close it. The
-        page you&apos;re on is highlighted.
+        On a wide screen, the menu is a column of icons down the left. Select the button under your
+        firm&apos;s mark to show the menu with names, and again to show icons only. Point at an icon
+        to see its name. A red dot means that page needs you.
+        {folds.length > 1
+          ? ` ${listWords(folds)} each open to show their pages.`
+          : folds.length === 1
+            ? ` ${folds[0]} opens to show its pages.`
+            : null}{" "}
+        On a phone or tablet, select <Name>Menu</Name> at the top left. The menu slides in. Select{" "}
+        <Name>Close menu</Name>, or anywhere outside it, to close it. The page you&apos;re on is
+        highlighted.
         {menu.some((g) => g.folded)
           ? " Records and settings are under Admin and records: select it to show them."
           : null}
@@ -235,15 +254,24 @@ function GettingAround({ role, menu }: { role: OfficeRole; menu: MenuGroup[] }) 
           ))}
       </div>
       <Para>
+        On a wide screen, the bar at the top shows {listWords(counts)}. Each opens the page where
+        you deal with it.
+        {search ? (
+          <>
+            {" "}
+            Use <Name>Search</Name> beside them to find a casual, a shift or a site. Press ⌘K on a
+            Mac, or Ctrl K, to go straight to it.
+          </>
+        ) : null}
+      </Para>
+      <Para>
         Your initials and name are at the top right of the bar. On a phone, only your initials show.
         Select them to open this guide, to switch between dark and light, or to <Name>Log out</Name>
         .
       </Para>
       <Para>
-        The square button beside them switches between dark and light too. Its name says which:{" "}
-        <Name>Switch to dark mode</Name> or <Name>Switch to light mode</Name>. On a wide screen, the
-        bar also shows the pay week and its pay day, and your shifts line&apos;s number if you have
-        one.
+        The button beside them switches between dark and light too. Its name says which:{" "}
+        <Name>Switch to dark mode</Name> or <Name>Switch to light mode</Name>.
         {/* Needs attention is in the menu only for the roles with it, the "today" area
             (src/app/office/office-menu.ts). */}
         {canAccess(role, "today")
@@ -252,6 +280,13 @@ function GettingAround({ role, menu }: { role: OfficeRole; menu: MenuGroup[] }) 
       </Para>
     </>
   );
+}
+
+// "a, b and c".
+function listWords(items: string[]): string {
+  return items.length <= 1
+    ? (items[0] ?? "")
+    : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
 
 // The dashboard's parts (Phase 23): the four counts, the urgent places, then six charts of what

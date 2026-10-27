@@ -12,10 +12,7 @@ import type { Brand } from "@/lib/tenancy/brand";
 export function BrandBar({ brand }: { brand: Brand }) {
   const initial = brand.name.match(/\p{L}|\p{N}/u)?.[0]?.toUpperCase() ?? "";
   return (
-    <header
-      data-testid="brand-bar"
-      className="bg-canvas text-ink [body:has([data-shell=office])_&]:hidden"
-    >
+    <header data-testid="brand-bar" className="text-ink [body:has([data-shell=office])_&]:hidden">
       <div className="mx-auto flex min-h-14 max-w-md items-center gap-3 px-4 py-2 sm:px-6">
         {brand.logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element -- a firm's own https logo, from any host (next/image would need each host listed)

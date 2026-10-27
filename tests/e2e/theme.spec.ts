@@ -5,9 +5,10 @@ import { expect, test } from "./fixtures";
 // wins over a dark device. The firm's mark in its bar keeps its own colour either way.
 
 const acme = "http://acme.localhost:3100";
-// The page behind the cards (Phase 18: the canvas, in both themes; Phase 20: dark greys, D7).
-const LIGHT_CANVAS = "rgb(238, 240, 243)"; // #eef0f3
-const DARK_CANVAS = "rgb(11, 12, 14)"; // #0b0c0e
+// The page behind the glass (Phase 18: the canvas, in both themes; Phase 20: dark greys, D7;
+// Phase 24: the wash's base).
+const LIGHT_CANVAS = "rgb(238, 241, 248)"; // #eef1f8
+const DARK_CANVAS = "rgb(7, 8, 12)"; // #07080c
 const BRAND = "rgb(29, 78, 216)"; // the demo seed's Acme colour
 
 test("the sd-theme cookie's theme arrives with the page: no flash", async ({ page, context }) => {

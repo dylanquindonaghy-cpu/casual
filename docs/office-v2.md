@@ -333,7 +333,22 @@ assume AWS (none has ever run).
 
 ### 3.1 Shell and theme
 
-**Top bar, left to right:**
+**Phase 24 (round 7 of the canvas; PLAN.md 24.2; `docs/ui-design.md` "Office shell" has the
+details).** From 1024px the menu is an icon rail at the left (the firm's mark; Dashboard, Needs
+attention, Events & sessions, Enquiries and Cancellations as icons; Pay, People and, under a line,
+Admin and records as folds), opened to names and counts by the button under the mark (kept in the
+`sd-rail` cookie), with a red dot on an icon whose page needs you and its name beside it on hover
+or focus when shut. Over the page, a top bar of three glass capsules that stays at the top, with a
+soft frosted edge once the page scrolls under it: the counts (To fill, Urgent, Offers out, To
+check, Pay queries; each opens where it's worked, each only for the roles that can open that
+page), Search ("Find a casual, shift or site", ⌘K or Ctrl K; casuals, shifts to come and sites,
+through the firm's data layer, as a server action so what's typed never goes in the address) and
+the light or dark button with you (initials, name, role) opening the account menu. Below 1024px the
+rail goes and Menu opens the drawer as before. The pay week moved into the dashboards' lines and
+the shifts line's number to Settings. What follows is the 12A.2 design, kept for its rules (the
+drawer, the current page, the roles), not its layout.
+
+**Top bar (12A.2 to Phase 23), left to right:**
 1. **Menu button.** A hamburger with the word "Menu", below 1024px only.
 2. **Brand.** ShiftDesk mark, with the firm's name underneath.
 3. **Pay-week pill.** "Week 41 · 5 Oct – 11 Oct · Pay Fri 16 Oct": the ISO week (Monday to Sunday)

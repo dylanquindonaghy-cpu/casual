@@ -631,7 +631,8 @@ test("Part 3: as the office", async ({ browser }) => {
     await (await menuLink(page, "Action log")).click();
     await expect(page.getByRole("heading", { name: "Action log" })).toBeVisible();
     await page.getByLabel("Type").selectOption({ label: "Cancellations" });
-    await page.getByRole("button", { name: "Show" }).click();
+    // (Exactly: the rail's own button is "Show the menu as icons".)
+    await page.getByRole("button", { name: "Show", exact: true }).click();
     await expect(page).toHaveURL(/type=cancellations/);
     await expect(
       page.getByText(`${ZOE.name} cancelled, with `, { exact: false }).first(),

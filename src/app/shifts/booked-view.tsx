@@ -50,7 +50,7 @@ export interface BookedViewProps {
 }
 
 // A plain card for "nothing here" sentences.
-const emptyBox = "mt-6 rounded-3xl border border-line bg-card p-4.5 text-lg text-ink shadow-lift";
+const emptyBox = "glass mt-6 rounded-3xl p-4.5 text-lg text-ink";
 
 export function BookedView(props: BookedViewProps) {
   const { view, shifts, now, timeZone } = props;

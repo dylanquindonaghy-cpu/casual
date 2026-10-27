@@ -3,7 +3,7 @@ import { z } from "zod";
 import { authParts, type AuthContext } from "../auth/link-login";
 import { currentOfficeUser } from "../auth/office-login";
 import { canAccess } from "../auth/roles";
-import { CANCELLED_ASSIGNMENT_STATUSES, firms, rosterSources } from "../db/schema";
+import { CANCELLED_ASSIGNMENT_STATUSES, firms, rosterSources, sites } from "../db/schema";
 import { readRequirements } from "../credentials/requirements";
 import type { FirmTx } from "../db/scoped";
 
@@ -82,6 +82,9 @@ export interface EventList {
   // Places that can still be filled (`placeFree`), and in how many sessions, over every event to
   // come (the page's line; the list itself stops at EVENT_LIST_MAX events).
   open: { places: number; sessions: number };
+  // Only the events at this site (the event's own site, or a session's: Phase 24, the top bar's
+  // search opens a site here); the counts and places above are its too. Null: every site.
+  site: { id: string; name: string } | null;
   // The firm's shifts come from a Google Sheet: no "Add shifts" or "Import shifts" here.
   hasPlanner: boolean;
   // Each with every session to come (the rota board places them on its days).
@@ -115,6 +118,16 @@ export const urgentGap = (now: Date) =>
 // A session to come with a place free (Phase 18's "Need people"), over `s` with `b`.
 export const placeFree = (now: Date) =>
   sql`(s.status = 'open' and s.starts_at > ${now} and b.booked < s.headcount)`;
+
+// "And the event `e` is at `site`" (its own site, or one of its sessions to come), or nothing for
+// every site: as the search counts a site's events to come (search.ts findSites).
+const atSite = (site: string | null, now: Date) =>
+  site
+    ? sql`and e.id in (select se.id from shift_events se
+                         join shifts ss on ss.firm_id = se.firm_id and ss.event_id = se.id
+                        where (se.site_id = ${site}::uuid or ss.site_id = ${site}::uuid)
+                          and ss.ends_at > ${now} and ss.status <> 'cancelled')`
+    : sql``;
 
 // Places taken per session (bookings not cancelled, in the headcount's slots).
 export const bookedJoin = sql`cross join lateral (
@@ -226,12 +239,14 @@ function cardOf(
 ): EventCardData {
   const sessions = rows.map((r) => sessionOf(r, requirementsOf(r), now));
   const live = sessions.filter((x) => x.status !== "cancelled");
-  const sites = [...new Set(rows.map((r) => r.site_name).filter((n): n is string => n !== null))];
+  const siteNames = [
+    ...new Set(rows.map((r) => r.site_name).filter((n): n is string => n !== null)),
+  ];
   const first = sessions[0]?.startsAt ?? now;
   return {
     eventId: e.id,
     name: e.name,
-    place: e.site_name ?? (sites.length === 1 ? (sites[0] ?? null) : null),
+    place: e.site_name ?? (siteNames.length === 1 ? (siteNames[0] ?? null) : null),
     firstStartsAt: first,
     lastStartsAt: sessions.at(-1)?.startsAt ?? first,
     showing: e.showing_to_casuals,
@@ -258,11 +273,13 @@ async function hasPlanner(tx: FirmTx): Promise<boolean> {
 // Events with a session to come (not ended, not cancelled), soonest first, at most EVENT_LIST_MAX
 // (`more`: there were others). `view`: those showing to casuals, those hidden, or those with an
 // urgent gap. Each card holds at most `sessionsMax` of its sessions (the dashboard's are shorter).
+// `site`: only events there (the event's own site, or a session's).
 export async function loadEventCards(
   tx: FirmTx,
   now: Date,
   view: EventView,
   sessionsMax = CARD_SESSIONS_MAX,
+  site: string | null = null,
 ): Promise<{ events: EventCardData[]; more: boolean }> {
   const having: Record<EventView, SQL> = {
     all: sql`true`,
@@ -279,6 +296,7 @@ export async function loadEventCards(
       ${bookedJoin}
       left join sites esi on esi.firm_id = e.firm_id and esi.id = e.site_id
      where s.ends_at > ${now} and s.status <> 'cancelled'
+       ${atSite(site, now)}
      group by e.id, e.name, e.showing_to_casuals, esi.name
     having ${having[view]}
      order by min(s.starts_at), e.id
@@ -305,8 +323,12 @@ export async function loadEventCards(
   };
 }
 
-// How many events with a session to come each view holds.
-export async function eventViewCounts(tx: FirmTx, now: Date): Promise<Record<EventView, number>> {
+// How many events with a session to come each view holds (`site`: of those there).
+export async function eventViewCounts(
+  tx: FirmTx,
+  now: Date,
+  site: string | null = null,
+): Promise<Record<EventView, number>> {
   const { rows } = await tx.execute<Record<EventView, number>>(sql`
     select count(*)::int as "all",
            count(*) filter (where need)::int as need,
@@ -320,6 +342,7 @@ export async function eventViewCounts(tx: FirmTx, now: Date): Promise<Record<Eve
           join shifts s on s.firm_id = e.firm_id and s.event_id = e.id
           ${bookedJoin}
          where s.ends_at > ${now} and s.status <> 'cancelled'
+           ${atSite(site, now)}
          group by e.id, e.showing_to_casuals
       ) x
   `);
@@ -333,10 +356,12 @@ export async function eventViewCounts(tx: FirmTx, now: Date): Promise<Record<Eve
   };
 }
 
-// Places that can still be filled in events' sessions, and how many sessions have them.
+// Places that can still be filled in events' sessions, and how many sessions have them (`site`:
+// in the events there).
 export async function openPlaces(
   tx: FirmTx,
   now: Date,
+  site: string | null = null,
 ): Promise<{ places: number; sessions: number }> {
   const { rows } = await tx.execute<{ places: number; sessions: number }>(sql`
     select coalesce(sum(s.headcount - b.booked), 0)::int as places, count(*)::int as sessions
@@ -344,23 +369,35 @@ export async function openPlaces(
       join shifts s on s.firm_id = e.firm_id and s.event_id = e.id
       ${bookedJoin}
      where ${placeFree(now)}
+       ${atSite(site, now)}
   `);
   return { places: rows[0]?.places ?? 0, sessions: rows[0]?.sessions ?? 0 };
 }
 
+// `siteId`: only the events at that site (anything that isn't one of the firm's sites shows them all).
 export async function officeEventList(
   ctx: AuthContext,
   token: string,
   view: EventView,
+  siteId: string | null = null,
 ): Promise<EventList | null> {
   return asOffice(ctx, token, async (tx, now) => {
+    const [site] =
+      siteId && z.uuid().safeParse(siteId).success
+        ? await tx
+            .select({ id: sites.id, name: sites.name })
+            .from(sites)
+            .where(eq(sites.id, siteId))
+        : [];
+    const at = site?.id ?? null;
     // Every session to come on each event: the board shows two weeks at a time, from any day.
-    const { events, more } = await loadEventCards(tx, now, view, Number.MAX_SAFE_INTEGER);
+    const { events, more } = await loadEventCards(tx, now, view, Number.MAX_SAFE_INTEGER, at);
     return {
       timeZone: await timeZoneOf(tx),
       view,
-      counts: await eventViewCounts(tx, now),
-      open: await openPlaces(tx, now),
+      counts: await eventViewCounts(tx, now, at),
+      open: await openPlaces(tx, now, at),
+      site: site ?? null,
       hasPlanner: await hasPlanner(tx),
       more,
       events,

@@ -1589,6 +1589,112 @@ screenshots at 390px and 1280px, light and dark (the chart panel and the phone's
 sit beside the approved mock-up in `docs/mockups/phase-23/`; `docs/ui-design.md` has round 3's
 system; the `claims-auditor` checks the phase against this line.
 
+## Phase 24 — Liquid Glass (round 7 of the canvas)
+
+Added 2026-10-26. Dylan's design chat built the office and the casual app up on a Design canvas
+("ShiftDesk polish, before and after", https://claude.ai/artifact/3uQHabiVYTazwyCkAAH9EJ), round by
+round from his references: BizLink and Haulix on Dribbble (round 4: "fold the sidebar too ... i want
+it tailored a lot more like those two"), CSP Connect's off-white grounds (round 5: "replicate it more
+so to the Haulix ... dont forget the apple ui stuff shadows etc ... it really doesnt need to show
+whats been filled unless it was done during out of office times by the system"; "your shifts line
+isnt needed"), Apple's Liquid Glass (round 6: "looks good now implement" Apple's Liquid Glass pages,
+liquidglassdesign.com and the apple-liquid-glass-ui-skill), then glass on everything after
+liquidglassdesign.com's examples (round 7: "it should be kinda translucent buttoms sections icon
+backgrounds etc"). He approved round 7 on 2026-10-26: "keep round 7 and build it into the app", and
+chose "Round 7 exactly, layout too" over glass on today's layout: the round 7 layout replaces Phase
+23's dashboard (its four count cards, urgent cards and six charts) and the office shell, and the
+casual app's Phase 20 screens. On pay he chose: a week's total only when payroll gave a gross for
+every line of that week. The mock-up is recorded in `docs/mockups/phase-24/` (its pages, light and
+dark, and a README that describes them in words, since builders can't open the canvas). Every
+action, rule and log entry stays reachable; where a word changes, the mock-up's word wins unless it
+would say something untrue (listed in the README under "Where the build differs").
+Docs: `docs/ui-design.md`, `docs/screens.md`, `docs/office-v2.md`.
+
+- [x] The system, round 7: Geist for every word and number in the office and the casual app,
+      self-hosted from `@fontsource-variable/geist` (SIL Open Font License; Instrument Sans,
+      Instrument Serif and Plus Jakarta Sans removed); one set of tokens for both, light and dark: a
+      pastel wash fixed behind every page (blue, lavender, peach and mint; in dark, blue, purple,
+      orange and teal light on near-black); sections as frosted glass (a translucent fill, a blur
+      and saturation of what's behind, a lit rim and a soft drop); buttons, chips, tiles, avatars and
+      counts as clear glass (a translucent fill with a bright rim); the main button as tinted glass
+      in the firm's colour (its colour to a darker shade, a lit top edge, white words at 4.5:1 or
+      more); what floats (the rail, the top bar's capsules, the tab bar, panels, menus, the toast)
+      as the strongest glass; refraction (an SVG displacement before the blur) only in browsers
+      that draw it (Chromium), frosted glass elsewhere; grey words a shade darker so every word
+      keeps 4.5:1 over the worst point of the glass and the wash in both themes; glass controls
+      swell a little and brighten under a press and spring back; reduced transparency, more
+      contrast and no blur support turn every surface solid, forced colours use the system's,
+      reduced motion stops movement. Tests: the tokens; every text pair's contrast worked out over
+      the glass composited on the wash's worst point, both themes; the firm palette on the new
+      grounds; the fonts and packages; the fallbacks; the press; the Phase 20 to 23 pins on the
+      flat look replaced by pins on this system, as strict (24.1)
+- [x] The office shell: an icon rail at the left (the firm's mark; Dashboard, Needs attention,
+      Events & sessions, Enquiries, Cancellations, Pay with Pay dashboard, Pay queries and Import pay
+      records, People with Casuals, Strikes and Notice report, Admin and records with its pages),
+      a dot on an icon whose page needs you, names and counts when the button under the mark opens
+      it, its name on hover or focus when shut; a top bar of three glass capsules that stays at the
+      top with a soft frosted edge once the page scrolls under it: the counts (To fill, Urgent,
+      Offers out, To check, Pay queries; each opens where it's worked, each only for the roles that
+      can open it), Search ("Find a casual, shift or site", ⌘K or Ctrl K), and the light or dark
+      button with you (initials, name, role) opening the account menu; below 1024px the rail goes
+      and Menu opens the drawer as now; the pay week moves into the dashboard's subline and the
+      shifts line's number leaves the top bar (Settings keeps it). Tests: the rail's states, dots and
+      counts per role, the capsules' counts adding up, search (another firm's casuals never
+      found), the account menu, the drawer, the browser tests (24.2)
+- [ ] The dashboard: "Dashboard" with the date, the pay week, its pay day and when the planner or
+      sheet last sent changes; All, Urgent, This week and Next week (sessions with places to fill);
+      Places to fill over this week and next, by day, split into not offered yet and offered with
+      no reply; a detail card for the chosen session (date tile, role, Urgent, event, post and site,
+      when, places to fill, starts in, offers sent and replies, who hasn't replied since when, "Offer
+      to someone" and "Open the shift"); a board of four columns: To offer, Offered, While you were
+      out (places casuals took themselves from offers between 18:00 and 08:00, with how and when),
+      and Who worked? (sessions to mark from the last 7 days); a card picks into the detail card,
+      its paper plane opens the offer panel, "Show N more" shows the rest; the offer panel (from
+      the side, from the bottom on a phone) lists who can take it from the rules, with Send offer
+      and who has been offered and how they answered; the six charts, the four count cards and the
+      urgent cards leave, every action and page they led to staying reachable. Every new query
+      goes through the firm's data layer. Tests: the loaders (another firm's rows, the clock change),
+      the board's columns and counts, the offer panel's list matching the offer page's, the browser
+      tests (24.3)
+- [ ] Events & sessions, Enquiries and Casuals as in the mock-up: events as cards in two columns
+      (place and dates, the show-to-casuals switch on the card with its answer in words, Showing or
+      Hidden, Urgent not filled, sessions and places free; each session with role, when, Urgent,
+      what it needs, post, a fill meter, pay an hour and its "…" menu; filled sessions folded; View
+      sessions) with All, Showing, Hidden and "Urgent, not filled"; Enquiries as the list beside the
+      chosen message from 1024px (the conversation, how it was answered, the reply, "Close, no reply
+      needed" asking why, since the log keeps a reason), the message's own page kept for phones and
+      links; Casuals as one table (initials, name and roles, qualifications with their dates, staff
+      photo, travel area, live strikes, needs updating) with All, Need updating and Uploads to
+      check, and the search box over it. Tests: each page's parts and answers, the browser tests
+      (24.4)
+- [ ] Every other office page on round 7's parts: Needs attention, Cancellations, Pay dashboard, Pay
+      queries, Import pay records, Strikes, Notice report, the records and settings, a shift, an
+      event, a casual, the offer page, the how-to guide (its words matching the new layout) and the
+      logged-out pages, at 390px and 1280px in both themes. Tests: the browser tests of every
+      office page, record and login page (24.5)
+- [ ] The casual app as in the mock-up: the firm's bar frosting once the page scrolls under it;
+      Home ("Hi {first name}"; the next shift as a glass pass with its warm band, how soon, the date,
+      the time large, role and event, the site, town and postcode with the gate on a plate,
+      Directions and Details side by side, Can't make it? under them; Do this, Shifts you can take
+      and Pay as rows); Open shifts (the Open and Booked switch, the strip of days, the count of
+      shifts with "Site and role" opening the filters, urgent first, each shift as a card with its
+      travel and places left); a shift's page (the urgent band, the time by its date tile, the
+      hours, what it needs, where with the gate, getting there, places as seats, you need, report
+      to, bring and wear, pay, and Take shift floating at the foot with the strike warning; "You're
+      booked." over the whole screen); Pay (the code step, then each week: its total when payroll
+      gave a gross for every line, otherwise each line's gross; the lines, the pay date, earlier
+      weeks one row a week, your pay queries); the tab bar as a floating glass capsule with a lens
+      on the current tab that shrinks to its icons while you scroll down and opens again when you
+      scroll up or tap (still plain links that work with no JavaScript and offline); Booked,
+      Profile, Requests and Urgent shifts on the same parts. Tests: each screen's states, the pay
+      total rule, the tab bar with and without JavaScript, the offline copy, the browser tests
+      (24.6)
+
+Done when: all six tasks are ticked with a stamp that includes the browser tests;
+`scripts/verify.sh` with `RUN_E2E=1` prints VERIFIED; no route, action, rule or log entry is lost;
+screenshots at 390px and 1280px, light and dark, sit beside the mock-up in `docs/mockups/phase-24/`;
+`docs/ui-design.md` has round 7's system; the `claims-auditor` checks the phase against this line.
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify

@@ -39,7 +39,7 @@ const inSentence = (w: string) =>
 // The items of a part, each a white row with its hairline on its tinted part (Phase 23, flat;
 // raised off it in Phase 22).
 const items = "mt-3 flex flex-col gap-2";
-const item = "rounded-row border border-line bg-card px-4 py-3 text-ink";
+const item = "glass-tile rounded-row px-4 py-3 text-ink";
 
 function Empty({ children }: { children: ReactNode }) {
   return <p className={`${item} text-ink-muted`}>{children}</p>;

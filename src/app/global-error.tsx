@@ -11,7 +11,7 @@ import "./globals.css";
 export default function GlobalError() {
   return (
     <html lang="en-GB" className={fontVariables}>
-      <body className="bg-card text-lg text-ink antialiased">
+      <body className="bg-canvas text-base text-ink antialiased">
         <main className={page.staff}>
           <h1 className="text-3xl font-bold tracking-tight text-balance text-ink">
             Something went wrong

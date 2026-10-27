@@ -20,11 +20,10 @@ type LinkAction = (
   { status: "ok" | "rejected" | "error" } | { status: "rate_limited"; retryAfterMinutes: number }
 >;
 
-// In the office (/office/l), its button is the office's main one (Phase 23): the sky with
-// near-black words, 44px, a 1px edge, dipping when pressed. `office:` values only, so the casual
-// app's button (the firm's colour, 52px) is unchanged.
-const officeMain =
-  "office:press office:min-h-11 office:border office:border-accent office:bg-accent office:py-2 office:text-base office:text-on-accent office:hover:border-accent-hover office:hover:bg-accent-hover office:hover:brightness-100 office:active:border-accent-press office:active:bg-accent-press";
+// In the office (/office/l), its button is the office's main one: tinted glass in the firm's
+// colour as the casual app's (Phase 24; the sky in Phase 23), on the office's sizes: 44px tall.
+// `office:` values only, so the casual app's button (52px) is unchanged.
+const officeMain = "office:min-h-11 office:py-2 office:text-base";
 
 // Shared by worker (/l) and office (/office/l) link pages.
 export function LinkLogin({

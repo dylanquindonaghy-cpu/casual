@@ -78,7 +78,7 @@ export function Sheet({
       onClick={(e) => {
         if (!locked && e.target === e.currentTarget) e.currentTarget.close();
       }}
-      className="mx-auto mt-auto mb-0 max-h-[90dvh] w-full max-w-md animate-sheet overflow-y-auto rounded-t-[28px] bg-card p-0 text-lg text-ink transition-transform duration-200 ease-sd backdrop:animate-fade backdrop:bg-scrim/50"
+      className="mx-auto mt-auto mb-0 max-h-[90dvh] w-full max-w-md animate-sheet overflow-y-auto rounded-t-[28px] glass-float p-0 text-lg text-ink transition-transform duration-200 ease-sd backdrop:animate-fade backdrop:bg-scrim/50"
     >
       {open ? (
         <div className="flex flex-col gap-4 px-5 pb-7">
@@ -89,7 +89,7 @@ export function Sheet({
             onPointerMove={drag}
             onPointerUp={letGo}
             onPointerCancel={letGo}
-            className="sticky top-0 z-10 -mx-5 flex cursor-grab touch-none justify-center bg-card pt-2.5 pb-1.5 active:cursor-grabbing"
+            className="sticky top-0 z-10 -mx-5 flex cursor-grab touch-none justify-center bg-panel pt-2.5 pb-1.5 active:cursor-grabbing"
           >
             <span className="h-1.25 w-10 rounded-full bg-line-strong" />
           </div>

@@ -38,9 +38,9 @@ export function UrgentPlaces({ items, labels }: { items: FocusItem[]; labels: st
               <li
                 key={item.shiftId}
                 data-urgent-place=""
-                className="flex min-w-0 flex-col gap-4 rounded-inner border border-line bg-card p-4 sm:p-6"
+                className="glass flex min-w-0 flex-col gap-4 rounded-inner p-4 sm:p-6"
               >
-                <p className="inline-flex min-h-7 w-fit items-center gap-2 rounded-full border border-button-line px-3 text-sm font-semibold text-ink-muted tabular-nums">
+                <p className="inline-flex min-h-7 w-fit items-center gap-2 rounded-full glass-button px-3 text-sm font-semibold text-ink-muted tabular-nums">
                   <Icon name="shifts" size={16} />
                   <span role="img" aria-label={item.dateLong}>
                     {item.dow} {item.day} {item.month}
@@ -108,7 +108,7 @@ export function UrgentPlaces({ items, labels }: { items: FocusItem[]; labels: st
           })}
         </ul>
       ) : (
-        <div className="flex flex-wrap items-center gap-4 rounded-inner border border-line bg-card p-4 sm:p-6">
+        <div className="glass flex flex-wrap items-center gap-4 rounded-inner p-4 sm:p-6">
           <span
             aria-hidden="true"
             className="flex size-12 shrink-0 items-center justify-center rounded-row bg-done-tile text-done-ink"
@@ -127,7 +127,7 @@ export function UrgentPlaces({ items, labels }: { items: FocusItem[]; labels: st
       {toast && (
         <p
           role="status"
-          className="fixed inset-x-4 bottom-6 z-30 mx-auto flex max-w-md animate-toast items-center gap-3 rounded-row bg-ink px-4 py-3 font-medium text-on-ink shadow-float"
+          className="fixed inset-x-4 bottom-6 z-30 mx-auto flex max-w-md animate-toast items-center gap-3 rounded-row glass-float px-4 py-3 font-medium text-ink"
         >
           <Icon name="check" size={18} />
           {toast}

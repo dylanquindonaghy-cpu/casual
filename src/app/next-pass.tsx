@@ -19,9 +19,9 @@ import { Plate } from "./ui/plate";
 // `:has()` rule on the pass). "Can't make it?" and "Ask for a change" only before it starts.
 // Server-rendered; only "Can't make it?" is a client component.
 
-// The pass's three buttons: icon over words, lifted off the page.
+// The pass's three buttons: icon over words, on clear glass.
 const ACT =
-  "flex min-h-17 flex-col items-center justify-center gap-1 rounded-2xl border border-line bg-card px-1.5 text-center text-base leading-tight font-medium text-ink shadow-lift hover:bg-quiet-soft";
+  "flex min-h-17 flex-col items-center justify-center gap-1 rounded-2xl glass-button press-glass px-1.5 py-2 text-center text-base leading-tight font-medium text-ink hover:bg-button-hover";
 
 export function NextPass({
   shift,
@@ -181,7 +181,7 @@ export function EmptyPass() {
   return (
     <section
       aria-labelledby="next-heading"
-      className="flex animate-in flex-col items-center gap-2.5 rounded-3xl border-2 border-dashed border-line-strong bg-card px-5 py-7 text-center"
+      className="flex animate-in flex-col items-center gap-2.5 glass rounded-3xl border-2 border-dashed border-line-strong px-5 py-7 text-center"
     >
       <span
         aria-hidden="true"

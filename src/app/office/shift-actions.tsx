@@ -134,11 +134,11 @@ export function ShiftActions({
             <details className="group">
               <summary
                 aria-label={more}
-                className={`${summaryButton} press inline-flex size-11 items-center justify-center rounded-full border border-line text-ink-muted hover:bg-raised hover:text-ink active:bg-button-press group-open:bg-raised group-open:text-ink`}
+                className={`${summaryButton} press-glass glass-button inline-flex size-11 items-center justify-center rounded-full text-ink-muted hover:bg-button-hover hover:text-ink active:bg-button-press group-open:bg-button-press group-open:text-ink`}
               >
                 <Icon name="dots" />
               </summary>
-              <div className="absolute top-full left-0 z-10 mt-2 flex w-64 max-w-[80vw] origin-top-left animate-pop flex-col items-stretch gap-2 rounded-inner bg-card p-3 shadow-float md:right-0 md:left-auto md:origin-top-right">
+              <div className="absolute top-full left-0 z-10 mt-2 flex w-64 max-w-[80vw] origin-top-left animate-pop flex-col items-stretch gap-2 rounded-inner glass-float p-3 md:right-0 md:left-auto md:origin-top-right">
                 {!fromSheet && !fromPlanner && filledStep}
                 {notUrgent}
               </div>

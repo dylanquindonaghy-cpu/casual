@@ -1641,7 +1641,7 @@ Docs: `docs/ui-design.md`, `docs/screens.md`, `docs/office-v2.md`.
       shifts line's number leaves the top bar (Settings keeps it). Tests: the rail's states, dots and
       counts per role, the capsules' counts adding up, search (another firm's casuals never
       found), the account menu, the drawer, the browser tests (24.2)
-- [ ] The dashboard: "Dashboard" with the date, the pay week, its pay day and when the planner or
+- [x] The dashboard: "Dashboard" with the date, the pay week, its pay day and when the planner or
       sheet last sent changes; All, Urgent, This week and Next week (sessions with places to fill);
       Places to fill over this week and next, by day, split into not offered yet and offered with
       no reply; a detail card for the chosen session (date tile, role, Urgent, event, post and site,
@@ -1992,9 +1992,14 @@ text system once its details are known; Messages 2 (notification first, or both)
 
 (Ideas that came up mid-build. Not in scope until a phase includes them.)
 
-- From Phase 17 (2026-10-20): the dashboard still reads 2 sessions with each event it shows
+- From Phase 24 (24.3, 2026-10-27): the demo seed has no places casuals took from offers
+  overnight, so the dashboard's "While you were out" shows "Nothing taken last night." in a demo.
+  Add a few to the seed's story (said yes between 18:00 and 08:00 before the seed's day, booked),
+  so the column shows as the mock-up does the morning after a `db:reset`.
+
+- From Phase 17 (2026-10-20): ~~the dashboard still reads 2 sessions with each event it shows
   casuals (`SHOWING_SESSIONS`, `src/lib/office/dashboard.ts`), though its table now shows only each
-  event's totals: read none. A firm's own colour on a button isn't checked against the page behind
+  event's totals: read none.~~ (Gone with Phase 24's dashboard, 24.3.) A firm's own colour on a button isn't checked against the page behind
   it (a pale yellow on white, a dark colour in the dark theme): the words on the button always read
   (4.58:1 or more), so nothing is added for now (`docs/ui-design.md`, "A firm's own colour on
   buttons"); revisit with a pilot firm's colour. The office's other screens (a shift, a casual's

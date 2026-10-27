@@ -137,6 +137,43 @@ The glass's own values (`:root` and the dark blocks; `glass-grounds.ts` holds th
 | `--wash-a` / `--wash-b` / `--wash-c` / `--wash-d` | `rgb(201 216 255 / 1)` / `rgb(230 214 255 / 1)` / `rgb(255 226 201 / 1)` / `rgb(205 243 232 / 1)` | `rgb(37 99 235 / 0.42)` / `rgb(124 58 237 / 0.34)` / `rgb(234 88 12 / 0.2)` / `rgb(13 148 136 / 0.26)` | The wash's four lights |
 | `--glass-rim`, `--button-rim`, `--tint-rim`, `--glass-drop`, `--glass-drop-sm`, `--glass-sunk`, `--float-shadow`, `--lens-shadow` | lit white edges, soft cool drops | fainter edges, deeper black drops | The rims and drops (the values in `globals.css`) |
 
+### The dashboard, round 7 (24.3)
+
+`src/app/office/dashboard-view.tsx` and `./dashboard/` (`docs/screens.md` "The dashboard, round 7").
+The page is a container (`@container`), so its layout follows the room the rail leaves, not the
+window:
+
+- **Head:** "Dashboard" in the office's title (`text-title`, 30px semibold), its line 13px grey
+  under it; the track (the shared `tabs`, 44px pills, the current one under the lens, its count
+  in the firm's blue `bg-accent`) beside it from 48rem of page, under it before.
+- **Chart and detail card:** one column; from 56rem of page the chart beside a 340px card
+  (21.25rem), 372px (23.25rem) from 72rem, as the mock-up's 340/372. Both glass sections (22px),
+  24px inside from 36rem of page, 16px on a phone (the mock-up's 16px under 760px).
+- **The chart:** a 1.5rem axis, 14 columns at least 176px tall (`min-h-44`, filling the section
+  beside the card), bars 55% of a column up to 22px, 4px round at their top (`rounded-t-mark`, the
+  office's only `mark` corners, with the key's swatches); ink (`mark-open`) under blue
+  (`mark-wait`); gridlines `mark-grid` at the top and half, the base `mark-base`. Day numbers 12px,
+  today's in an ink disc. A bar's tip is solid ink, 13px, 14px round, 8px above the plot with an
+  8px bridge; no shadow.
+- **The detail card:** its date tile 48px (red tile when urgent, clear glass otherwise), the role
+  20px semibold with the shared Urgent chip, its rows glass tiles 14px round, the two figures in
+  `font-stat` 30px (red under 2 days), the line amber (`attention-soft`) or red (`urgent-soft`)
+  with the glass rim; "Offer to someone" the main button (tinted glass) and "Open the shift"
+  clear glass, side by side, growing to the card's width and wrapping before they'd squash; "…"
+  a 44px clear glass circle at its top right, its menu floating down over the card.
+- **The board:** four columns from 64rem of page, two from 36rem, one on a phone; each a glass
+  section 16px inside, a leaf 18px in its colour (`mark-open`, `mark-wait`, `mark-done`,
+  `attention`), its title 17px semibold and a clear glass count. Cards are glass tiles 14px round,
+  12px across and 16px down inside, 8px apart; the picked one clear glass with a 2px ink outline;
+  a date tile 40 × 44px (clear glass; red when urgent), a 36px round clear glass paper plane at the
+  top right (12px in), chips 28px pills 8px inside with 14px icons (red, green or clear glass),
+  three to a line in a column a quarter of a 1280px window. Cards dip when pressed (`press`).
+- **The offer panel:** a `<dialog>` in the floating glass, 24px round (`rounded-card`, as the
+  rail: it floats beside the page), from the right on a laptop (448px, 12px from the window's
+  edges) and from the foot on a phone (its top corners round, up to 86% of the window), over the
+  scrim; it slides in (200ms). People are glass tiles with a 40px initials disc; "Send offer" a
+  clear glass pill.
+
 ## Phase 23: the office's look, round 3
 
 Replaced by Phase 24 (above), kept for its reasons where they still stand (its spacing, chips,
@@ -694,7 +731,8 @@ you on to `/office` as before.
   top (56px): "Menu", the firm's mark and name, the square moon/sun button (clear glass) and you
   (your initials; your name from 640px). The pay week moved to the dashboards' lines (the dashboard
   "Monday 26 October · Week 44 · Pay Fri 6 Nov", the pay dashboard "Week 44 · 26 Oct – 1 Nov · Pay
-  Fri 6 Nov") and the shifts line's number to Settings (it's under the dashboards' headlines too).
+  Fri 6 Nov") and the shifts line's number to Settings (it's under the pay dashboard's headline
+  too; under the dashboard's until 24.3).
 - **The account menu** is a native popover (`popover`, opened by the button's `popovertarget`)
   under you, its right edge with yours: no role of its own, Escape and a tap elsewhere close it,
   and it works before the page's scripts load. It holds the name and role, the light or dark

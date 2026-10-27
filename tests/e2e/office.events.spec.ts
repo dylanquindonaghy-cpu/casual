@@ -113,11 +113,10 @@ async function switchAndCheck(browser: Browser, shiftId: string) {
   ).toBeVisible();
   await expect(toggle).toHaveAttribute("aria-checked", "false");
   await expect(row).toContainText("Hidden from casuals");
-  // The Hidden filter has it; Showing (the dashboard's link) doesn't (each checked once its page
-  // has loaded). A filter's link carries its count.
+  // The Hidden filter has it; Showing (a filter again since Phase 24's dashboard) doesn't (each
+  // checked once its page has loaded). A filter's link carries its count.
   const tab = async (name: string, view: string) => {
-    if (view === "showing") await office.goto(`${acme}/office/events?view=showing`);
-    else await office.getByRole("link", { name: new RegExp(`^${name} \\d+$`) }).click();
+    await office.getByRole("link", { name: new RegExp(`^${name} \\d+$`) }).click();
     await expect(office).toHaveURL(`${acme}/office/events?view=${view}`);
     await expect(office.getByRole("link", { name: new RegExp(`^${name} \\d+$`) })).toHaveAttribute(
       "aria-current",

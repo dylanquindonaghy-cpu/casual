@@ -527,6 +527,28 @@ describe("the offer page", () => {
     expect(await officeOfferPage(ctx, token, draft)).toBeNull();
     expect(await officeOfferPage(ctx, token, "not-a-uuid")).toBeNull();
   });
+
+  // The dashboard's offer panel reads this page too (Phase 24, 24.3: offerPanelAction).
+  it("never another firm's shift, and never another firm's office user", async () => {
+    const t = await offerFirm();
+    const other = await offerFirm();
+    const tokenOf = async (firmId: string, subjectId: string) =>
+      (await withFirm(firmId, (tx) => createSession(tx, { kind: "office", subjectId, now: NOW })))
+        .token;
+    const mineToken = await tokenOf(t.f.firmId, t.resourcer);
+    const theirToken = await tokenOf(other.f.firmId, other.resourcer);
+    const ctx = { firm: { id: t.f.firmId }, run: withFirm, clock: { now: () => NOW } };
+    // Each on its own firm: found (so the nulls below aren't for another reason).
+    expect((await officeOfferPage(ctx, mineToken, t.shiftId))?.shift.shiftId).toBe(t.shiftId);
+    const theirCtx = { ...ctx, firm: { id: other.f.firmId } };
+    expect((await officeOfferPage(theirCtx, theirToken, other.shiftId))?.shift.shiftId).toBe(
+      other.shiftId,
+    );
+    // Their shift asked for on this firm, or their user's session on this firm: nothing.
+    expect(await officeOfferPage(ctx, mineToken, other.shiftId)).toBeNull();
+    expect(await officeOfferPage(ctx, theirToken, t.shiftId)).toBeNull();
+    expect(await officeOfferPage(ctx, theirToken, other.shiftId)).toBeNull();
+  });
 });
 
 describe("wiring", () => {

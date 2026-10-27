@@ -174,7 +174,7 @@ describe("one type scale", () => {
     );
     expect(notSign).toEqual([]);
     expect(read("src/app/office/dashboard-view.tsx")).toMatch(
-      /<h1 className="text-ink">\s*<span className="block text-title">/,
+      /<h1 className="text-title text-ink">Dashboard<\/h1>/,
     );
     expect(SOURCE.filter((f) => /(?<![\w-])font-display(?![\w-])/.test(read(f)))).toEqual([]);
   });

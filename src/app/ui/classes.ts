@@ -133,8 +133,8 @@ export const sectionGap = { office: "mt-8 lg:mt-12", staff: "mt-8" };
 export const headingGap = "mt-3";
 // A number beside a heading ("Requests 2"): the number only, never a word. The office's count
 // (Phase 21; Dylan's brief: "one badge style (grey, red only for urgent)"): a small grey pill, the
-// same beside a heading (`count`) and in the menu (`countPill`); the urgent places' count in red
-// (`countUrgent`). Phase 22 (round 2, the approved mock-up): in the menu a count takes its
+// same beside a heading (`count`) and in the menu (`countPill`) (the urgent places' red count,
+// `countUrgent`, went with them in Phase 24). Phase 22 (round 2, the approved mock-up): in the menu a count takes its
 // dashboard card's colour, amber when it needs you (`countNeeds`, Needs attention's) and blue when
 // it's waiting with someone else (`countWaiting`, pay queries with payroll). Phase 23: every count
 // a flat tinted pill, with no edge. The casual app's own: `staffCount` (Phase 20's).
@@ -144,7 +144,6 @@ export const countPill = `${countShape} glass-button text-ink-muted`;
 export const countNeeds = `${countShape} glass-rim bg-hivis text-on-hivis`;
 export const countWaiting = `${countShape} glass-rim bg-wait-tile text-wait-ink`;
 export const count = `ml-2 align-middle ${countPill}`;
-export const countUrgent = `ml-2 align-middle ${countShape} glass-rim bg-urgent-tile text-urgent-ink`;
 export const staffCount =
   "glass-button ml-2 inline-flex min-w-7 items-center justify-center rounded-full px-2 align-middle text-sm font-semibold tabular-nums text-ink-muted";
 

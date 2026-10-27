@@ -84,8 +84,7 @@ const doneInApp = (m: string): SQL =>
        and d.data ->> 'workerId' = ${m}.worker_id::text)`);
 
 // An inbound message to the shifts line, in the window, that is an enquiry (a call's own row,
-// handled with no label, isn't: its voicemail is a row of its own). The dashboard's waiting chart
-// counts the ones that need a person by day with it (src/lib/office/dashboard-charts-load.ts).
+// handled with no label, isn't: its voicemail is a row of its own).
 export const isEnquiry = (m: string, since: Date): SQL =>
   sql`${sql.raw(m)}.direction = 'in' and ${sql.raw(m)}.created_at > ${since}
       and not (${sql.raw(m)}.handled_at is not null and ${sql.raw(m)}.handled_as is null)`;
@@ -109,7 +108,7 @@ export type Who =
 export interface EnquiriesPage {
   timeZone: string;
   days: number; // how far back it reads: the firm's message retention (enquiryWindow)
-  day: "today" | null; // the list holds only today's (`?day=today`, the dashboard's link)
+  day: "today" | null; // the list holds only today's (`?day=today`, "Show only today's")
   today: number; // enquiries since midnight, the firm's time
   // Of those, answered without a person (by keyword, by the AI's label, done in the app, or STOP
   // and START): the outcomes that aren't pay, a person's, or not understood.

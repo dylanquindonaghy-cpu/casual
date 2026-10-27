@@ -13,7 +13,7 @@ import {
   type NeedsKey,
 } from "@/lib/office/dashboard-copy";
 import { sheetChangeText, sheetNameText, toCheckText, toMarkText } from "@/lib/office/today-copy";
-import type { TodayToMark } from "@/lib/office/today";
+import { toMarkGroups } from "@/lib/office/to-mark";
 import { roleLabel, shiftWhen, timeOnDay } from "@/lib/portal/format";
 import { qualificationTitle } from "@/lib/portal/qualification-copy";
 import { uploadWhat } from "@/lib/portal/upload-copy";
@@ -347,37 +347,6 @@ export function NeedsItems({
       )}
     </div>
   );
-}
-
-// The sessions to mark, one row per role, place and time (sessions copied from a sheet often come
-// several alike), soonest-ended first as they came, each with how many people are left to mark.
-export function toMarkGroups(list: TodayToMark[]): {
-  role: string;
-  site: string | null;
-  startsAt: Date;
-  endsAt: Date;
-  unmarked: number;
-  sessions: TodayToMark[];
-}[] {
-  const groups = new Map<string, ReturnType<typeof toMarkGroups>[number]>();
-  for (const t of list) {
-    const key = [t.role, t.site ?? "", t.startsAt.getTime(), t.endsAt.getTime()].join("|");
-    const g = groups.get(key);
-    if (g) {
-      g.unmarked += t.unmarked;
-      g.sessions.push(t);
-    } else {
-      groups.set(key, {
-        role: t.role,
-        site: t.site,
-        startsAt: t.startsAt,
-        endsAt: t.endsAt,
-        unmarked: t.unmarked,
-        sessions: [t],
-      });
-    }
-  }
-  return [...groups.values()];
 }
 
 // The page's line under its heading: how many things, then where each is dealt with; "6+" when a

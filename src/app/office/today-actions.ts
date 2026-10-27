@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { getOfficeSession } from "@/lib/auth/current-office";
 import { canAccess } from "@/lib/auth/roles";
+import { readSessionToken } from "@/lib/auth/session-cookie";
 import type { QueueOfficeOfferResult } from "@/lib/offers/office-offer";
 import {
   markFilled,
@@ -11,6 +12,7 @@ import {
   openAgain,
   type OfficeContext,
 } from "@/lib/office/quick-actions";
+import { officeOfferPage, type OfferPage } from "@/lib/office/offer-page";
 import { keepFlaggedBooking, type KeepResult } from "@/lib/office/worker-access";
 import type { CloseShiftResult } from "@/lib/roster/close";
 import type { SetUrgentResult } from "@/lib/roster/urgent";
@@ -55,6 +57,24 @@ export async function closeShiftAction(shiftId: string): Promise<CloseShiftResul
 export async function reopenShiftAction(shiftId: string): Promise<CloseShiftResult | Common> {
   if (!id.safeParse(shiftId).success) return { status: "not_found" };
   return asOffice("reopen shift", (ctx) => openAgain(ctx, shiftId));
+}
+
+// The dashboard's offer panel (Phase 24, 24.3): what the offer page shows for the session, read by
+// the offer page's own loader (the same people, from the same rules), for the panel to show
+// without leaving the dashboard.
+export type OfferPanelResult =
+  { status: "found"; page: OfferPage } | { status: "not_found" } | Common;
+
+export async function offerPanelAction(shiftId: string): Promise<OfferPanelResult> {
+  if (!id.safeParse(shiftId).success) return { status: "not_found" };
+  return asOffice("offer panel", async (ctx): Promise<OfferPanelResult> => {
+    const page = await officeOfferPage(
+      { firm: ctx.firm },
+      (await readSessionToken("office")) ?? "",
+      shiftId,
+    );
+    return page ? { status: "found", page } : { status: "not_found" };
+  });
 }
 
 export async function offerShiftAction(

@@ -8,6 +8,7 @@ import {
   officeUsers,
   rosterSources,
 } from "../db/schema";
+import type { FirmTx } from "../db/scoped";
 import { appDatabaseIsLocal } from "../db/where";
 import { recordEvent } from "../events/record";
 import { AgreementNotRecorded, requireAgreementForImport } from "../imports/gate-b";
@@ -56,6 +57,33 @@ export interface IntegrationsPage {
   webhook: { hint: string | null; status: WebhookStatus };
 }
 
+// How the planner reaches ShiftDesk, and when it last sent changes: the latest change the API
+// logged while a key is live (every change it makes is logged with {via: "api"}, 5.3.2 "Logging";
+// once every key is revoked the planner isn't connected any more), or else the firm's Google
+// Sheet and its last sync. Integrations' line and the dashboard's "Updated … from your planner"
+// (Phase 24) read it. Inside the firm's transaction (RLS); reads no key itself.
+export async function plannerLink(tx: FirmTx): Promise<PlannerLink> {
+  const [live] = await tx
+    .select({ id: apiKeys.id })
+    .from(apiKeys)
+    .where(isNull(apiKeys.revokedAt))
+    .limit(1);
+  if (live) {
+    const { rows: changed } = await tx.execute<{ at: string | Date }>(sql`
+      select e.created_at as at from events e
+       where e.data ->> 'via' = 'api'
+       order by e.created_at desc limit 1
+    `);
+    const lastChange = changed[0];
+    if (lastChange) return { kind: "api", lastChangeAt: new Date(lastChange.at) };
+  }
+  const [sheet] = await tx
+    .select({ syncedAt: rosterSources.lastSyncedAt })
+    .from(rosterSources)
+    .where(eq(rosterSources.enabled, true));
+  return sheet ? { kind: "sheet", syncedAt: sheet.syncedAt } : { kind: "none" };
+}
+
 export async function integrationsPage(ctx: OfficeContext): Promise<IntegrationsPage | null> {
   const { run } = parts(ctx);
   const now = (ctx.clock ?? systemClock).now();
@@ -77,24 +105,7 @@ export async function integrationsPage(ctx: OfficeContext): Promise<Integrations
       )
       .where(isNull(apiKeys.revokedAt))
       .orderBy(asc(apiKeys.createdAt), asc(apiKeys.id));
-    // Every change the API makes is logged with {via: "api"} (5.3.2 "Logging"). Only while a key
-    // is live: once every key is revoked, the planner isn't connected any more.
-    const { rows: changed } = await tx.execute<{ at: string | Date }>(sql`
-      select e.created_at as at from events e
-       where e.data ->> 'via' = 'api'
-       order by e.created_at desc limit 1
-    `);
-    const [sheet] = await tx
-      .select({ syncedAt: rosterSources.lastSyncedAt })
-      .from(rosterSources)
-      .where(eq(rosterSources.enabled, true));
-    const lastChange = changed[0];
-    const planner: PlannerLink =
-      keys.length > 0 && lastChange
-        ? { kind: "api", lastChangeAt: new Date(lastChange.at) }
-        : sheet
-          ? { kind: "sheet", syncedAt: sheet.syncedAt }
-          : { kind: "none" };
+    const planner = await plannerLink(tx);
     const rules = await tx
       .select({ role: credentialRules.role })
       .from(credentialRules)

@@ -301,12 +301,23 @@ describe("the office's words for the planner", () => {
     expect(menu(session({ fromPlanner: false }))).toContain("Change or cancel");
   });
 
+  // Phase 24: the detail card's "…" (its "Offer to someone" is the card's own, for every session:
+  // tests/unit/office.dashboard-ui.test.ts).
   it("the dashboard's quick actions leave out Mark as filled", () => {
     const actions = (fromSheet: boolean, fromPlanner: boolean) =>
-      html(createElement(ShiftActions, { shiftId: SHIFT, isUrgent: true, fromSheet, fromPlanner }));
+      html(
+        createElement(ShiftActions, {
+          shiftId: SHIFT,
+          isUrgent: true,
+          fromSheet,
+          fromPlanner,
+          more: "More for Tuesday's steward at 08:00",
+          onMessage: () => undefined,
+        }),
+      );
     expect(actions(false, true)).not.toContain("Mark as filled");
     expect(actions(true, false)).not.toContain("Mark as filled");
     expect(actions(false, false)).toContain("Mark as filled");
-    expect(actions(false, true)).toContain("Offer to someone");
+    expect(actions(false, true)).toContain("Not urgent");
   });
 });

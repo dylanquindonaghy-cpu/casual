@@ -1,128 +1,27 @@
 import { roleLabel, timeOnDay } from "../portal/format";
 import { dayLabel } from "../rules/reasons";
-import { localDateOf, wallTimeOf } from "../time/zoned";
-import type {
-  DashboardCounts,
-  ExpiredOnBooking,
-  PlannerRefusal,
-  UrgentSessionCard,
-} from "./dashboard";
-import { stoppedText } from "./today-copy";
+import { localDateOf } from "../time/zoned";
+import type { ExpiredOnBooking, PlannerRefusal } from "./dashboard";
 
-// The dashboard's words (docs/office-v2.md 3.2, 3.9; docs/screens.md `/office`): short sentences,
-// plain words. Pure: the page and the tests call these with the loader's data.
+// Needs attention's words (docs/office-v2.md 3.2, 3.9; docs/screens.md `/office/needs-attention`),
+// and what a part of an office page says when it couldn't load: short sentences, plain words.
+// Pure: the pages and the tests call these with the loaders' data. The dashboard's own words are
+// board-copy.ts's (Phase 24).
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-const pad = (n: number) => String(n).padStart(2, "0");
 
-// The four counts, in order: each labelled exactly as the spec says, and a link to its list.
-export const COUNTS = [
-  { key: "urgent", label: "Urgent shifts not filled", href: "/office/events?view=urgent" },
-  { key: "showing", label: "Events showing to casuals", href: "/office/events?view=showing" },
-  { key: "cancellations", label: "Cancellations today", href: "/office/cancellations?day=today" },
-  { key: "enquiries", label: "Enquiries today", href: "/office/enquiries?day=today" },
-] as const;
-export type CountKey = (typeof COUNTS)[number]["key"];
-
-// The number a count shows (null: it couldn't be read).
-export function countNumber(key: CountKey, c: DashboardCounts): number | null {
-  switch (key) {
-    case "urgent":
-      return c.urgent.ok ? c.urgent.data.sessions : null;
-    case "showing":
-      return c.showing.ok ? c.showing.data.events : null;
-    case "cancellations":
-      return c.cancellations.ok ? c.cancellations.data.total : null;
-    case "enquiries":
-      return c.enquiries.ok ? c.enquiries.data.total : null;
-  }
-}
-
-// "Wed 10:30" (the firm's clock).
-const dayAndTime = (d: Date, tz: string) => {
-  const w = wallTimeOf(d, tz);
-  return `${dayLabel(localDateOf(d, tz)).split(" ")[0] ?? ""} ${pad(w.hour)}:${pad(w.minute)}`;
-};
-
-// The small line under each count.
-export function countLine(key: CountKey, c: DashboardCounts, tz: string): string {
-  switch (key) {
-    case "urgent": {
-      if (!c.urgent.ok) return COUNT_ERROR;
-      const u = c.urgent.data;
-      return u.sessions === 0 || u.firstStartsAt === null
-        ? "Every urgent shift is filled"
-        : `${plural(u.places, "place", "places")} · first starts ${dayAndTime(u.firstStartsAt, tz)}`;
-    }
-    case "showing": {
-      if (!c.showing.ok) return COUNT_ERROR;
-      const sh = c.showing.data;
-      return sh.events === 0
-        ? "Nothing is showing"
-        : `${plural(sh.places, "open place", "open places")} across ${plural(sh.sessions, "session", "sessions")}`;
-    }
-    case "cancellations": {
-      if (!c.cancellations.ok) return COUNT_ERROR;
-      const x = c.cancellations.data;
-      return x.total === 0
-        ? "None since midnight"
-        : `${x.underNotice} under ${x.threshold} hours · ${plural(x.strikes, "strike", "strikes")} issued`;
-    }
-    case "enquiries": {
-      if (!c.enquiries.ok) return COUNT_ERROR;
-      const q = c.enquiries.data;
-      return q.total === 0 && q.needPerson === 0
-        ? "None since midnight"
-        : `${q.automatic} answered automatically · ${q.needPerson} ${q.needPerson === 1 ? "needs" : "need"} a person`;
-    }
-  }
-}
-
-// The sections, in order, with their hint under the heading, and what each says when empty.
-// Enquiries' empty words name the firm's message retention (90 days unless the owner changed it).
-export const enquiriesEmpty = (days: number) => `No enquiries in the last ${days} days.`;
-
+// Needs attention's heading, the hint under it, and what it says when there's nothing.
 export const SECTIONS = {
-  urgent: {
-    heading: "Urgent shifts not filled",
-    hint: "Casuals see these first, and get an alert",
-    empty: "Every urgent shift is filled.",
-  },
-  showing: {
-    heading: "Showing to casuals",
-    hint: "Switch an event off to hide all its sessions from casuals",
-    empty: "No events are showing to casuals.",
-  },
-  cancellations: {
-    heading: "Cancellations",
-    hint: "Recorded automatically, never approved or declined",
-    empty: "No cancellations recorded.",
-  },
-  enquiries: {
-    heading: "Enquiries",
-    hint: "What casuals asked, and the reply they got",
-    empty: enquiriesEmpty(90),
-  },
   needs: {
     heading: "Needs attention",
     hint: "Each item links to where it's dealt with",
     empty: "Nothing needs attention.",
   },
 } as const;
-export type SectionKey = keyof typeof SECTIONS;
 
 // A section (or a count) whose data couldn't be read: the rest of the page still shows.
 export const SECTION_ERROR = "This couldn't load. Reload the page to try again.";
 export const COUNT_ERROR = "Couldn't load";
-
-// The line on an urgent session, written by code from its offers: why they stopped, or how many
-// casuals it went to.
-export function urgentLine(s: Pick<UrgentSessionCard, "offered" | "stopped">): string {
-  return stoppedText(s) ?? `Offered to ${plural(s.offered, "casual", "casuals")}`;
-}
-
-// On a hidden event's card when it has an urgent gap.
-export const HIDDEN_WARNING = "Hidden from casuals: nobody can see this gap.";
 
 // Needs attention's parts, each a heading over its items (only when it has some).
 export const NEEDS_HEADINGS = {
@@ -178,27 +77,6 @@ export function plannerRefusedText(r: PlannerRefusal, tz: string): string {
 // "3 uploads wait for a check."
 export const uploadsText = (n: number) =>
   `${plural(n, "upload waits", "uploads wait")} for a check.`;
-
-// Who cancelled: "Ben Carter cancelled", or "The office cancelled Ben Carter" (and the planner's
-// and the rota sheet's own words).
-export function cancelledByText(r: {
-  by: "casual" | "office" | "planner" | "sheet";
-  casual: string;
-}) {
-  switch (r.by) {
-    case "casual":
-      return `${r.casual} cancelled`;
-    case "office":
-      return `The office cancelled ${r.casual}`;
-    case "planner":
-      return `Your planner cancelled ${r.casual}`;
-    case "sheet":
-      return `Your rota sheet cancelled ${r.casual}`;
-  }
-}
-
-// "2 hours' notice" as a chip ("Less than an hour's notice", "3 days' notice").
-export const noticeChip = (words: string) => words.charAt(0).toUpperCase() + words.slice(1);
 
 // Your planner's webhook (12J.2): "Since 03:10 on Mon 12 Oct, bookings and cancellations haven't
 // reached your planner by webhook. …"

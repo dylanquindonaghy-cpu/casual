@@ -450,6 +450,17 @@ no hard-coded colours; today there are 29 `bg-white` uses in 16 files under `src
 
 ### 3.2 Resourcer dashboard (`/office`)
 
+**Since Phase 24 (24.3, round 7 of the canvas):** the dashboard is "Dashboard" with the day, the pay
+week and its pay day and when the planner or rota sheet last sent changes; the track (All, Urgent,
+This week, Next week: sessions with places to fill); the places chart (this pay week and next, a bar
+a day, to offer and offered with no reply yet); the chosen session's card (with "Offer to someone",
+"Open the shift" and "…": "Mark as filled", "Not urgent"); and four columns: To offer, Offered,
+While you were out (places casuals took from offers between 18:00 and 08:00) and Who worked?
+(Needs attention's sessions to mark); a card's paper plane opens the offer panel (the offer page's
+list, from its loader). Its words are `docs/screens.md` "The dashboard, round 7". The counts,
+sections and charts below are Phase 17 to 23's, kept for the record: the top bar's counts (24.2),
+the menu and the board hold what they led to.
+
 **Header:** "Dashboard", with the firm's shifts-line number under it, as today
 (`src/app/office/page.tsx:31`).
 

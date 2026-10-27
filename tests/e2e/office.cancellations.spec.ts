@@ -127,10 +127,17 @@ test("a resourcer opens a cancellation's record and downloads its PDF and the CS
     expect(rows).toMatchObject({ kind: "cancellations_csv", view: "all" });
     expect(rows.rows).toBeGreaterThanOrEqual(1);
 
-    // Today's only (the dashboard's "Cancellations today"): the file holds just the rows the page
-    // lists, fewer than every day's (the demo's cancellations are on earlier days), and is named
-    // with the date.
-    await page.goto(`${acme}/office/cancellations?day=today`);
+    // Today's only ("Show only today's", under the views; the dashboard's "Cancellations today"
+    // until Phase 24): the file holds just the rows the page lists, fewer than every day's (the
+    // demo's cancellations are on earlier days), and is named with the date. "Show every day" goes
+    // back.
+    await page.getByRole("main").getByRole("link", { name: "Show only today's" }).click();
+    await expect(page).toHaveURL(`${acme}/office/cancellations?day=today`);
+    await expect(page.getByRole("main")).toContainText("Only today's.");
+    await expect(page.getByRole("link", { name: "Download CSV" })).toHaveAttribute(
+      "href",
+      "/office/cancellations/export?view=all&day=today",
+    );
     const todayRows = await page.locator('main li a[href^="/office/cancellations/"]').count();
     const todays = page.waitForEvent("download");
     await page.getByRole("link", { name: "Download CSV" }).click();
@@ -145,6 +152,11 @@ test("a resourcer opens a cancellation's record and downloads its PDF and the CS
     expect(today.rows).toBe(todayRows);
     expect(today.rows).toBeGreaterThanOrEqual(1);
     expect(today.rows).toBeLessThan(rows.rows);
+    await page.getByRole("main").getByRole("link", { name: "Show every day" }).click();
+    await expect(page).toHaveURL(`${acme}/office/cancellations`);
+    await expect(
+      page.getByRole("main").getByRole("link", { name: "Show only today's" }),
+    ).toBeVisible();
 
     // Started from another site (or another firm's address): refused, nothing logged.
     for (const site of ["cross-site", "same-site"]) {

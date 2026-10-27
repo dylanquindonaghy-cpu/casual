@@ -183,7 +183,6 @@ describe("the office's files use only the system (src/app/office, the shared par
         "count",
         "countNeeds",
         "countWaiting",
-        "countUrgent",
         "field",
         "officeLoginCard",
         "page.office",
@@ -237,10 +236,10 @@ describe("the office's files use only the system (src/app/office, the shared par
 
   // Phase 24 (round 7): the rail 24px (`card`; the menu card's in 24.1, 28px in Phase 23, with the
   // page card that's gone), the sections on a page 22px (`inner`), rows 14px, pills round (Phase
-  // 21: 20px cards, 14px rows); a chart's bar 4px round at its data end (`mark`), in the
-  // dashboard's charts only.
+  // 21: 20px cards, 14px rows); a chart's bar 4px round at its data end, and its key's swatches
+  // (`mark`), in the dashboard's places chart only (24.3; Phase 23's six charts until then).
   it("corners: a 24px rail, 22px sections, 14px rows, round pills (or none)", () => {
-    const CHARTS = "src/app/office/dashboard/charts.tsx";
+    const CHARTS = "src/app/office/dashboard/places-chart.tsx";
     expect(
       found(RADIUS, (v) => ["card", "inner", "row", "full", "none", "mark"].includes(v)),
     ).toEqual([]);
@@ -288,10 +287,10 @@ describe("the office's files use only the system (src/app/office, the shared par
       ({ file }) => file,
     );
     expect(display).toEqual([]);
-    // The greeting is the headline's own style (Geist semibold, -0.025em, the office's title
-    // size) in the dashboard's one <h1>.
+    // The dashboard's one <h1> is the office's title style (Geist semibold, -0.025em, its title
+    // size): "Dashboard" (Phase 24; the greeting until then).
     expect(read("src/app/office/dashboard-view.tsx")).toMatch(
-      /<h1 className="text-ink">\s*<span className="block text-title">/,
+      /<h1 className="text-title text-ink">Dashboard<\/h1>/,
     );
   });
 
@@ -448,7 +447,6 @@ describe("the office's controls: hover, focus and pressed (Dylan's brief)", () =
       ["count", classes.count, "glass-button"],
       ["countNeeds", classes.countNeeds, "bg-hivis"],
       ["countWaiting", classes.countWaiting, "bg-wait-tile"],
-      ["countUrgent", classes.countUrgent, "bg-urgent-tile"],
     ] as const) {
       expect(cls, name).not.toMatch(/(?<![\w:-])border(?:-[a-z]+)*(?![\w-])/);
       expect(cls.split(" "), name).toEqual(expect.arrayContaining([fill, "rounded-full"]));
@@ -758,11 +756,15 @@ describe("round 7's parts on the office's other pages", () => {
     expect(count(/(?<![\w-])glass-tile(?![\w-])/)).toBeGreaterThan(4);
     expect(count(/(?<![\w-])glass-button(?![\w-])/)).toBeGreaterThan(4);
     expect(count(/(?<![\w-])glass-float(?![\w-])/)).toBeGreaterThan(4);
-    // 24px corners are the rail's (Phase 24: the menu card's, in the frame, until then) and the
-    // login card's only; a section on a page is 22px (rounded-inner), a row 14px.
+    // 24px corners are what floats beside the page: the rail's (Phase 24: the menu card's, in the
+    // frame, until then) and the dashboard's offer panel's (24.3, the mock-up's sheet), and the
+    // login card's; a section on a page is 22px (rounded-inner), a row 14px.
     const big = /(?<![\w-])(?:[a-z0-9-]+:)*rounded-(?:[trblse]{1,2}-)?card(?![\w-])/;
     const bigFiles = OFFICE.filter((file) => big.test(code(read(file))));
-    expect(bigFiles).toEqual(["src/app/office/office-rail.tsx"]);
+    expect(bigFiles).toEqual([
+      "src/app/office/dashboard/offer-panel.tsx",
+      "src/app/office/office-rail.tsx",
+    ]);
     expect(
       Object.entries(classes)
         .flatMap(([name, value]) =>
@@ -824,20 +826,18 @@ describe("the office's loading skeletons", () => {
     );
   });
 
-  // Phase 23: the dashboard's sections are the counts, the urgent places and the six charts (the
-  // week strip and the three text panels went).
+  // Phase 24 (24.3): the dashboard's sections are its head and track, the places chart, the detail
+  // card and the board's four columns (Phase 23's counts, urgent places and six charts went).
   it("the dashboard's has a part for every section", () => {
     const html = renderToStaticMarkup(createElement(DashboardSkeleton));
     expect([...html.matchAll(/data-skeleton-part="([a-z]+)"/g)].map((m) => m[1])).toEqual([
       "header",
-      "cards",
-      "urgent",
       "places",
-      "events",
-      "offers",
-      "waited",
-      "cancels",
-      "licences",
+      "detail",
+      "offer",
+      "offered",
+      "overnight",
+      "mark",
     ]);
     // Glass, as the dashboard's (Phase 24): its sections frosted, no white card, no tints, no
     // shadow class, no grain.

@@ -612,11 +612,12 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
         ? new RegExp(`^Needs attention, ${toCheck}\\+? to deal with$`)
         : "Needs attention",
     );
-    // Urgent: the dashboard's urgent places.
+    // Urgent: the places of the dashboard's urgent sessions (its Urgent filter's two columns).
     const urgent = await count("Urgent");
-    await expect(
-      page.getByRole("main").getByRole("link", { name: new RegExp(`^Urgent places ${urgent}\\b`) }),
-    ).toBeVisible();
+    const places = async (id: string) =>
+      Number(/^(\d+) places?/.exec(await page.locator(`section#${id} p`).first().innerText())?.[1]);
+    await page.goto(`${acme}/office?show=urgent`);
+    expect((await places("to-offer")) + (await places("offered"))).toBe(urgent);
     // Pay queries: those waiting, as Pay's fold says them.
     const pay = await count("Pay queries");
     const fold = menu.getByRole("button", { name: "Pay", exact: true });
@@ -624,10 +625,14 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
     await expect(fold.locator("xpath=..").locator("[data-rail-tip]")).toHaveText(
       pay > 0 ? `Pay, ${pay} waiting` : "Pay",
     );
-    // Offers out: the dashboard's offers chart.
+    // Offers out: the dashboard's Offered column, its offers waiting for a reply.
+    const out = await count("Offers out");
     await bar.getByRole("link", { name: /^Offers out \d+$/ }).click();
-    await expect(page).toHaveURL(`${acme}/office#offers-chart`);
-    await expect(page.locator("#offers-chart")).toBeInViewport();
+    await expect(page).toHaveURL(`${acme}/office#offered`);
+    await expect(page.locator("section#offered")).toBeInViewport();
+    await expect(page.locator("section#offered p").first()).toHaveText(
+      new RegExp(` · ${out} ${out === 1 ? "offer" : "offers"}, no reply yet$`),
+    );
     // To fill: Events & sessions' places to fill, with sessions that need people.
     const toFill = await count("To fill");
     await bar.getByRole("link", { name: /^To fill \d+$/ }).click();
@@ -721,13 +726,16 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
   });
 
   // Phase 23 (flat): a dashboard card no longer lifts under the pointer (round 2's rose 2px); it
-  // still dips when pressed. Phase 24 (round 7): a glass button swells instead.
+  // still dips when pressed (Phase 24: a card on the board). Phase 24 (round 7): a glass button
+  // swells instead.
   test("what you press dips (glass swells) and springs back; a dashboard card stays put under the pointer", async ({
     page,
   }) => {
     await officeLogin(page, "press", "admin");
-    const card = page.getByRole("main").getByRole("link", { name: /^Waiting on others\b/ });
+    const card = page.locator("section#to-offer [data-session]").first();
     await expect(card).toHaveCount(1);
+    // The board sits under the chart and the detail card: below a 640px window until scrolled to.
+    await card.scrollIntoViewIfNeeded();
     const box = (await card.boundingBox())!;
     await page.mouse.move(box.x + 40, box.y + 40);
     await expect.poll(() => card.evaluate((el) => el.matches(":hover"))).toBe(true);
@@ -736,20 +744,23 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
     expect(await card.evaluate((el) => getComputedStyle(el).translate)).toBe("none");
     await page.mouse.down();
     await expect.poll(() => card.evaluate((el) => getComputedStyle(el).scale)).toBe("0.97");
-    await page.mouse.move(box.x + 40, box.y + 400);
+    // Let go on the column's heading (on screen, and not a link).
+    const heading = (await page.locator("section#to-offer h2").boundingBox())!;
+    await page.mouse.move(heading.x + 8, heading.y + heading.height / 2);
     await page.mouse.up();
     await expect.poll(() => card.evaluate((el) => getComputedStyle(el).scale)).toBe("none");
-    // A glass button swells a little and springs back (`press-glass`): a chart's "Numbers".
-    const numbers = page.getByRole("main").getByRole("button", { name: "Numbers" }).first();
-    await numbers.scrollIntoViewIfNeeded();
-    const nb = (await numbers.boundingBox())!;
+    // A glass button swells a little and springs back (`press-glass`): the places chart's ↗.
+    const open = page.getByRole("main").getByRole("link", { name: "Open Events & sessions" });
+    await open.scrollIntoViewIfNeeded();
+    const nb = (await open.boundingBox())!;
     await page.mouse.move(nb.x + nb.width / 2, nb.y + nb.height / 2);
     await page.mouse.down();
-    await expect.poll(() => numbers.evaluate((el) => getComputedStyle(el).scale)).toBe("1.04");
+    await expect.poll(() => open.evaluate((el) => getComputedStyle(el).scale)).toBe("1.04");
     await page.mouse.move(nb.x + nb.width / 2, nb.y + 300);
     await page.mouse.up();
-    await expect.poll(() => numbers.evaluate((el) => getComputedStyle(el).scale)).toBe("none");
-    await expect(numbers).toHaveAttribute("aria-pressed", "false");
+    await expect.poll(() => open.evaluate((el) => getComputedStyle(el).scale)).toBe("none");
+    // Let go elsewhere: nothing opened.
+    await expect(page).toHaveURL(`${acme}/office`);
     // A text link with its own 44px target dips too (in the office: `office:press`): a page's
     // way back (Needs attention's to the Dashboard), and `btn.link` (Office team's "Back to the
     // dashboard").
@@ -844,18 +855,18 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
   }) => {
     await officeLogin(page, "under");
     const bar = page.getByRole("banner");
-    const places = page.getByRole("region", { name: "Places to fill, next 2 weeks" });
-    const numbers = places.getByRole("button", { name: "Numbers" });
-    const first = places.locator("button[data-col]").first();
+    // The places chart's ↗, and what the keyboard reaches next: the chosen session's "…".
+    const numbers = page.getByRole("main").getByRole("link", { name: "Open Events & sessions" });
+    const first = page.locator("[data-chosen] summary").first();
     await expect(first).toBeVisible();
     const under = await bar.evaluate((el) => el.getBoundingClientRect().bottom);
     expect(under).toBe(68);
-    // Scrolled (with a wheel or a trackpad) until Numbers sits under the bar, 8px from the top.
+    // Scrolled (with a wheel or a trackpad) until the ↗ sits under the bar, 8px from the top.
     await numbers.evaluate((el) => window.scrollBy(0, el.getBoundingClientRect().top - 8));
     await expect
       .poll(() => numbers.evaluate((el) => Math.round(el.getBoundingClientRect().top)))
       .toBe(8);
-    // The keyboard moves to it: Shift+Tab back from the chart's first day.
+    // The keyboard moves to it: Shift+Tab back from the "…".
     await first.evaluate((el) => (el as HTMLElement).focus({ preventScroll: true }));
     await page.keyboard.press("Shift+Tab");
     await expect(numbers).toBeFocused();
@@ -988,7 +999,7 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
 
     test("nothing dips or lifts", async ({ page }) => {
       await officeLogin(page, "still", "admin");
-      const card = page.getByRole("main").getByRole("link", { name: /^Waiting on others\b/ });
+      const card = page.locator("section#to-offer [data-session]").first();
       await expect(card).toHaveCount(1);
       const box = (await card.boundingBox())!;
       await page.mouse.move(box.x + 40, box.y + 40);

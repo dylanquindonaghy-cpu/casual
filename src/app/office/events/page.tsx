@@ -26,9 +26,9 @@ export const metadata: Metadata = { title: "Events & sessions" };
 const isView = (v: unknown): v is EventView =>
   typeof v === "string" && (EVENT_VIEWS as readonly string[]).includes(v);
 
-// The filters shown (Phase 18): "Showing" stays a view (the dashboard links to it), shown as a
-// filter only while it's the one chosen.
-const FILTERS: EventView[] = ["all", "need", "urgent", "hidden"];
+// The filters shown (Phase 18; Phase 24, 24.3: "Showing" is one again, beside "Hidden", since the
+// dashboard's "Events showing to casuals" card that linked to it has gone).
+const FILTERS: EventView[] = ["all", "need", "urgent", "showing", "hidden"];
 
 // Earlier and Later: 44px round buttons, white with their hairline (the mock-up's), dipping when
 // pressed.
@@ -48,7 +48,7 @@ const viewHref = (view: EventView, from?: string, site?: string) => {
 // rota board of two weeks from today (or a later `from`), an event per row, soonest first, each
 // session a pill on its day ("3/4": places filled out of needed; solid red only for an urgent gap,
 // outlined while places are open, grey when full), today's date in a sky circle and weekends a
-// light grey. The filters with their counts (All, Need people, Urgent, Hidden) as tabs and the
+// light grey. The filters with their counts (All, Need people, Urgent, Showing, Hidden) as tabs and the
 // dates (Earlier, Later) on one row, the key under them in plain words. Flat (Phase 23, the
 // approved mock-up): the board a white card with its hairline, 22px round, inside the page card;
 // the date buttons white with their hairline. An event's name or a pill opens
@@ -84,7 +84,6 @@ export default async function EventsPage({
   const window = { first: days[0]?.date ?? from, last: days.at(-1)?.date ?? from };
   // Over every event to come, not just the ones listed (the list stops at 50).
   const { places: openPlaces, sessions: openSessions } = list.open;
-  const filters = view === "showing" ? [...FILTERS, "showing" as const] : FILTERS;
   return (
     <main className={`${page.office} flex flex-col gap-4`}>
       <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
@@ -132,7 +131,7 @@ export default async function EventsPage({
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
         {/* One row: on a phone it scrolls sideways inside its track, never the page. */}
         <nav aria-label="Show" className={tabs}>
-          {filters.map((v) => (
+          {FILTERS.map((v) => (
             <Link
               key={v}
               href={viewHref(v, from === today ? undefined : from, site)}

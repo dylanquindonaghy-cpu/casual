@@ -178,8 +178,8 @@ export function officeMenu(
 
 // The top bar's counts (Phase 24, round 7: the first of its three capsules), each opening where it's
 // worked and only for the roles that can open that page: places to fill and urgent places (Events &
-// sessions' "Need people" and "Urgent" views), offers out with no reply yet (the dashboard's offers
-// chart), what Needs attention holds (its one count, as the menu's: "To check") and the pay queries
+// sessions' "Need people" and "Urgent" views), offers out with no reply yet (the dashboard's Offered
+// column, Phase 24's 24.3), what Needs attention holds (its one count, as the menu's: "To check") and the pay queries
 // waiting. `count` null: it couldn't be read (the words show with no number).
 export type BarCount = {
   key: "toFill" | "urgent" | "offersOut" | "toCheck" | "payQueries";
@@ -221,7 +221,7 @@ export function barCounts(
       {
         key: "offersOut",
         label: "Offers out",
-        href: "/office#offers-chart",
+        href: "/office#offered",
         icon: "send",
         count: shell?.offersOut ?? null,
       },

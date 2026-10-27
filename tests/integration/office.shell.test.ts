@@ -2,7 +2,7 @@ import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createSession } from "@/lib/auth/sessions";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
-import { offerState } from "@/lib/office/dashboard-charts-load";
+import { offerState } from "@/lib/office/offer-state";
 import { officeEventList } from "@/lib/office/events";
 import { officeSearch, officeSearchHits } from "@/lib/office/search";
 import { officeShellCounts } from "@/lib/office/shell-counts";
@@ -190,7 +190,7 @@ describe("the top bar's counts", () => {
         .filter((s) => s.urgentGap)
         .reduce((n, s) => n + (s.headcount - s.booked), 0),
     ).toBe(counts.data.urgent);
-    // Every offer the firm sent, through the offers chart's own rule (offerState).
+    // Every offer the firm sent, through the board's own rule (offerState: offer-state.ts).
     const { rows } = await su.query<{
       response: "accepted" | "declined" | "failed" | null;
       status: "draft" | "open" | "filled" | "cancelled";

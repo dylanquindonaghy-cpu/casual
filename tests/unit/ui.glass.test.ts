@@ -8,7 +8,6 @@ import {
   card,
   chip,
   countNeeds,
-  countUrgent,
   countWaiting,
   field,
   loginCard,
@@ -163,11 +162,12 @@ describe("the glass's parts (globals.css utilities)", () => {
     expect(glass).toContain("box-shadow: var(--glass-rim), var(--glass-drop);");
     expect(glass).toMatch(/@media \(forced-colors: active\) \{\s*border: 1px solid CanvasText;/);
     // A section is a layer of its own (the frost makes it one): one with a "…" menu open comes
-    // forward, or the sections after it would cover the menu and take its clicks (the urgent
-    // places' cards: tests/e2e/office.dashboard.spec.ts clicks "Not urgent" in one).
+    // forward, or the sections after it would cover the menu and take its clicks (the dashboard's
+    // detail card, Phase 24, the urgent places' cards until then: tests/e2e/office.dashboard.spec.ts
+    // clicks "Not urgent" in its menu).
     expect(glass).toMatch(/&:has\(details\[open\]\) \{\s*z-index: 10;\s*\}/);
-    expect(read("src/app/office/urgent-places.tsx")).toMatch(
-      /<ul role="list" className="grid [^"]*">\s*\{[\s\S]*?<li\s+key=[^>]*data-urgent-place=""\s+className="glass /,
+    expect(read("src/app/office/dashboard/board.tsx")).toMatch(
+      /<section\s+aria-labelledby="chosen-title"\s+data-chosen=\{s\.shiftId\}\s+className="glass [\s\S]*?<ShiftActions/,
     );
   });
 
@@ -204,8 +204,7 @@ describe("the glass's parts (globals.css utilities)", () => {
     );
     // A status's chip and its coloured counts carry the rim over their tinted glass.
     expect(chip.base.split(" ")).toContain("glass-rim");
-    for (const c of [countNeeds, countWaiting, countUrgent])
-      expect(c.split(" ")).toContain("glass-rim");
+    for (const c of [countNeeds, countWaiting]) expect(c.split(" ")).toContain("glass-rim");
     expect(body("@utility glass-track")).toContain("background-color: var(--color-track);");
     expect(body("@utility lens")).toMatch(
       /background-color: var\(--color-pill\);\s*box-shadow: var\(--lens-shadow\);/,
@@ -420,8 +419,6 @@ describe("depth: a glass's rim and drop, through variables, and no other shadow"
     "src/app/home-view.tsx": ["shadow-lift"], // the For you tiles
     // The pass; an open Details set in.
     "src/app/next-pass.tsx": ["group-open:inset-shadow-sunk", "shadow-pass"],
-    // The one solid ink thing that floats: a chart's tooltip.
-    "src/app/office/dashboard/charts.tsx": ["shadow-float"],
     // A switch's knob.
     "src/app/office/events/showing-switch.tsx": ["shadow-lift"],
     "src/app/office/events/urgent-switch.tsx": ["shadow-lift"],
@@ -489,8 +486,7 @@ describe("where the glass goes", () => {
       "src/app/office/office-search.tsx": ["glass-float", "glass-float"],
       "src/app/office/events/session-menu.tsx": ["glass-float"], // a session's menu
       "src/app/office/shift-actions.tsx": ["glass-float"], // the "…" menu
-      "src/app/office/dashboard/chart-panel.tsx": ["glass-float"], // a chart's panel
-      "src/app/office/urgent-places.tsx": ["glass-float"], // the confirmation at the foot
+      "src/app/office/dashboard/offer-panel.tsx": ["glass-float"], // the offer panel
       "src/app/shifts/[id]/shift-view.tsx": ["glass-float"], // Take shift's bar
       "src/app/shifts/sheet.tsx": ["glass-float"], // the sheet from the foot
       "src/app/tab-bar.tsx": ["glass-float"], // the casual app's tab bar

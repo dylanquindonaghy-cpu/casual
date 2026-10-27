@@ -749,7 +749,9 @@ you on to `/office` as before.
   (its live line is `aria-live`, not a `status`); it sits outside
   `<main>`; link names stay word for word; nothing else on a page may repeat a menu link's name (the account
   menu's "How-to guide" is hidden until opened); its `aria-label` ("Office menu") contains no
-  field label used on a page. The browser tests reach menu links through `menuLink(page, name)`
+  field label used on a page. The rail's own button is "Show the menu with names" / "Show the menu
+  as icons", so a page's own "Show" button is found by its exact name. The browser tests reach menu
+  links through `menuLink(page, name)`
   and "Log out" through `accountMenu(page)` (`tests/e2e/fixtures.ts`).
 
 ## Page patterns

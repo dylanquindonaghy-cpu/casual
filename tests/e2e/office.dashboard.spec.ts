@@ -223,11 +223,14 @@ test("the offer panel lists who can take it as the offer page does; Send offer, 
       .getByRole("button", { name: /^Send offer to / })
       .evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
     expect(inPanel).toEqual(onPage);
-    // On a phone it comes up from the foot, the width of the screen.
-    const box = await panel.boundingBox();
+    // On a phone it comes up from the foot, the width of the screen (once it has slid up: 200ms).
     const view = page.viewportSize();
-    expect(Math.round((box?.y ?? 0) + (box?.height ?? 0))).toBe(view?.height);
-    expect(Math.round(box?.width ?? 0)).toBe(view?.width);
+    await expect
+      .poll(async () => {
+        const p = await panel.boundingBox();
+        return [Math.round((p?.y ?? 0) + (p?.height ?? 0)), Math.round(p?.width ?? 0)];
+      })
+      .toEqual([view?.height, view?.width]);
     // Send offer: Sending…, then Offered, and the answer at its foot.
     await panel.getByRole("button", { name: "Send offer to Pippa Example" }).click();
     await expect(panel.getByText("Offer on its way to Pippa Example.")).toBeVisible();

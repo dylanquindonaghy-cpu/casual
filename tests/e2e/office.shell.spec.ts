@@ -472,9 +472,10 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
     );
     expect(dotted.length).toBeGreaterThan(0);
     expect([...new Set(amber)].sort()).toEqual([...dotted].sort());
-    // Its pages' rows: 38px, their names lined up with the fold's.
+    // Its pages' rows: 38px, their names lined up with the fold's. (Their laid-out height: the
+    // fold's pages slide up into place, and a box measured mid-slide can read 38.00003px.)
     const casuals = menu.getByRole("link", { name: "Casuals", exact: true });
-    expect((await casuals.boundingBox())?.height).toBe(38);
+    await expect(casuals).toHaveCSS("height", "38px");
     const label = async (el: Locator) =>
       Math.round((await el.locator("span:not([aria-hidden])").first().boundingBox())?.x ?? -1);
     expect(await label(casuals)).toBe(

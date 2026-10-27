@@ -368,6 +368,30 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   glass's gradients, nothing sideways); `office.shell.spec.ts` (the floating bar and drawer, the
   menu card's glass, no page card, a glass button swelling to 104%); `brand.spec.ts`,
   `theme.spec.ts`, `casual.app.spec.ts` and `strikes.worker.spec.ts` the new values.
+- Phase 24, task 24.2 the office shell (docs/ui-design.md "Office shell"): `office.shell.test.ts`
+  pins the rail (its rows from each role's menu, Pay, People and Admin and records as folds,
+  payroll's pages as icons; shut and open; the dots where a page needs you and the words beside
+  each icon; the lens on the page you're on, on a shut fold holding it; the sd-rail cookie), the
+  three capsules (the counts per role with their pages, Offers out on the dashboard's offers chart;
+  the search's label, waiting for the page, no panel until it's open, no status role; you), the
+  bar below 1024px, no pay week or shifts line, the drawer; `office.search.test.ts` what's typed
+  and each thing found as words and a link. `tests/integration/office.shell.test.ts` on the real
+  database: the counts (places to fill, urgent places, offers out with no reply) against a firm
+  with every kind of session and offer, adding up with Events & sessions and each offer's own
+  state; the search (casuals by name or mobile, never a deleted one; shifts by role, event, site
+  or post; sites by name or town; 5 of each) with another firm's same-named rows never found; who
+  may use each (not payroll, not a disabled user, not another firm's); Events & sessions at one
+  site. `guides.test.ts` the guide's "Getting around" per role; `ui.office-system.test.ts` the
+  24px corners now the rail's; `office.dashboard-ui.test.ts` the bar's 68px under the 80px scroll
+  padding. Browser: `office.shell.spec.ts` (the bar on a phone; at 1280 the rail, the three
+  capsules' glass and places, the account menu under you, the frosted edge once the page
+  scrolls; the rail shut fitting the window, opened and kept after a reload, a fold opening it,
+  its dots matching its amber counts; a shut icon's name on hover and focus and Escape; the lens
+  at once on a pick; the counts opening their pages and agreeing with them; the search finding a
+  casual, a shift and a site from ⌘K or Ctrl K, the keyboard through it, another firm's casual
+  never found, a click outside shutting it; in a short window the rail scrolling with no bar;
+  every page's skeleton from the rail), `office.look.spec.ts` (the rail and the capsules on every
+  page from 1024px), the pay week on both dashboards and the shifts line on Settings.
 
 ## Fixtures and the demo seed
 

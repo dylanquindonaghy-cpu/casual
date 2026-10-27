@@ -160,3 +160,15 @@ app shows the firm's real ones.
   "Next week" match the filters.
 - **Below 1024px** the office keeps today's top bar with Menu and the drawer (the mock-up only
   shows 1280px).
+- **The rail's dots** mark only a page that needs you: an admin's pay queries wait with payroll, so
+  Pay has no dot for an admin (the mock-up drew one). "To check" is Needs attention's one count.
+- **The rail's icons** are the office's own (a house for the Dashboard, a tray for Enquiries),
+  since the mock-up's tiles are the Pay dashboard's icon. Admin and records is a fold of its pages,
+  like Pay and People, rather than one link.
+- **Offers out** opens the dashboard's offers chart until 24.3 builds the board's Offered column;
+  To fill and Urgent open Events & sessions' "Need people" and "Urgent" views.
+- **The search** shows from 1024px, for admins and resourcers (the roles that can open what it
+  finds); a site opens Events & sessions at that site. In a narrower column (a 1024px window, or the
+  rail open) the counts lose their icons and your name and role go, before anything scrolls.
+- **The shifts line's number** moved to Settings, which didn't have it (PLAN.md's "Settings keeps
+  it" was wrong: until 24.2 only the top bar and the dashboards showed it).

@@ -639,53 +639,97 @@ it. The frame (`office-frame.tsx`) then asks the server to redraw the page once
 `/office/l` from another page, so it can't repeat, and with a live session the login page sends
 you on to `/office` as before.
 
-- **Top bar** (`office-frame.tsx`; Phase 23): white, the window's full width at every width, pinned
-  to the top (`sticky`, 56px; 64px from 1024px) with a hairline under it. "Menu" (below 1024px);
-  the firm's mark (its initial on its own colour, `brand-bar`) and its name, with "Office" under it
-  from 1024px (no reference portal's logo or colours; on logged-in office pages the firm's brand
-  bar is hidden, since this bar names the firm); the pay week as words in a hairline pill with a
-  green "This week" chip (from 1024px; its dates from 1280px); the shifts line's number (from
-  1280px, when the firm has one); the square moon/sun button (`theme-button.tsx`: sets the
-  `sd-theme` cookie and `data-theme` at once; its name says what it switches to, and the same words
-  show under it on hover and keyboard focus, stay while the pointer moves onto them, and go with
-  Escape); and the account button (initials, then the name from 640px). The account menu is a
-  native popover (`popover`, opened by the button's `popovertarget`) at the top right: no role of
-  its own, Escape and a tap elsewhere close it, and it works before the page's scripts load. It
-  holds the name and role, "How-to guide" and the office's one "Log out". Because the bar stays
-  over the page, the office's page scrolls with 80px kept clear at its top
-  (`scroll-padding-top` on `html` while the office shell is on the page, `globals.css`): a link to
-  a heading lands below the bar, and a control focused from the keyboard is never hidden under it.
-- **Desktop (1024px and wider; Phase 23):** under the bar, the menu in its own white card (28px
-  round, a hairline; 248px wide, 284px from 1280px) that stays in view as the page scrolls, beside
-  the page in another white card (`#main > div`, 22px round on a phone, 28px from 1024px), content
-  up to 1152px wide. Forms stay within 672px; lists, tables and reports use the full width. A menu
-  too tall for a short window scrolls inside its card with no scrollbar (`menu-scroll.tsx`).
-- **Phone and tablet:** "Menu" opens the same menu as a drawer from the left: a native `<dialog>`
+- **From 1024px (Phase 24, round 7 of the canvas; PLAN.md 24.2):** the rail at the left and, over
+  the page, a top bar of three floating glass capsules.
+  - **The rail** (`office-rail.tsx`): floating glass (`glass-float`, 24px round), 72px wide, 12px
+    from the window's corner, staying put as the page scrolls. At its top the firm's mark (its
+    initial on its own colour, `brand-bar`), and under it the rail's own button ("Show the menu
+    with names" / "Show the menu as icons"), which opens the rail to 236px with names and counts
+    and shuts it again; the choice is kept in the `sd-rail` cookie (`rail-cookie.ts`), read by the
+    layout, so the next page arrives as it was left. Then the menu (`rail-items.ts`): Dashboard,
+    Needs attention, Events & sessions, Enquiries and Cancellations as round 48px icons; Pay and
+    People as folds; under a line, Admin and records, a fold too (a role whose menu is only a fold,
+    payroll's Pay, gets its pages as icons). Pressing a fold while the rail is shut opens the rail
+    with that fold open (not kept in the cookie). A red dot marks an icon whose page needs you (a
+    count that `needs` this person: Needs attention, enquiries that need a person, uploads to
+    check, pay queries for payroll), and a fold's icon when one of its pages does. Shut, an icon's
+    name (and its count's words: "Enquiries, 2 need a person") shows beside it under the pointer
+    and on keyboard focus, stays while the pointer moves onto it, and goes with Escape (WCAG
+    1.4.13). The page you're on sits under a white glass lens (`lens`) with its icon in the
+    accent, at once as it's picked; a fold holding it wears the lens while it's shut. Open, a
+    row is 44px with its name and count, a fold's pages 38px with their names lined up with the
+    fold's. Shut it's 585px tall: in a window under 640px it scrolls, with no bar; open, it scrolls
+    with no bar and fades at the edge that has more (`menu-scroll.tsx`).
+  - **The top bar** (`office-frame.tsx`): no glass of its own, pinned to the top, 68px (its 48px
+    capsules with 12px above them and 8px below); once the page scrolls under it a soft frosted
+    edge fades in behind it (`scroll-edge`, `[data-scrolled]`). Its capsules:
+    1. the counts (`office-menu.ts` `barCounts`), each a link that opens where it's worked and
+       only for the roles that can open that page: To fill (places to fill in sessions to come:
+       Events & sessions' "Need people"), Urgent (places in urgent sessions, its number red while
+       there are any: Events & sessions' "Urgent"), Offers out (offers with no reply on sessions
+       still to come: the dashboard's offers chart), To check (Needs attention's one count) and
+       Pay queries (those waiting). The first three come from `src/lib/office/shell-counts.ts`, in
+       one statement through the firm's data layer, on the same SQL as the pages they open; a
+       count that couldn't be read shows its words alone;
+    2. the search (`office-search.tsx`), for the roles that can open what it finds: "Search", its
+       label "Find a casual, shift or site", with ⌘K (Ctrl K off a Mac) to reach it from
+       anywhere. What's typed goes to the server as an action (`search-actions.ts`: never the
+       address or a log), a moment after typing stops, from 2 characters; up to 5 casuals (by
+       name or mobile), shifts to come (by role, event, site or post) and sites (by name or town)
+       show in a floating glass panel, each a link to its page (a site: Events & sessions at that
+       site, `?site=`); the down arrow moves into them, Enter opens the first, Escape closes the
+       panel, and a polite live line says how many were found;
+    3. the moon/sun button (`theme-button.tsx`: sets the `sd-theme` cookie and `data-theme` at once;
+       its name says what it switches to, and the same words show under it on hover and keyboard
+       focus, stay while the pointer moves onto them, and go with Escape), then you: your initials
+       on a pale blue disc, your name (up to 112px) and your role, and a chevron, opening the
+       account menu.
+    The bar is a container: the counts' icons show only when there's room for all three capsules
+    with them (a 1172px column: a 1280px window with the rail shut), your name and role from
+    1008px, the search 250px wide from 1172px (200px below); in a column narrower still the counts
+    scroll sideways, with no bar.
+  - **The page** sits beside the rail under the capsules, with no card of its own, its sections
+    glass on the wash, the column's width (up to 1600px).
+- **Below 1024px:** the bar is Phase 23's, as floating glass the window's full width, pinned to the
+  top (56px): "Menu", the firm's mark and name, the square moon/sun button (clear glass) and you
+  (your initials; your name from 640px). The pay week moved to the dashboards' lines (the dashboard
+  "Monday 26 October · Week 44 · Pay Fri 6 Nov", the pay dashboard "Week 44 · 26 Oct – 1 Nov · Pay
+  Fri 6 Nov") and the shifts line's number to Settings (it's under the dashboards' headlines too).
+- **The account menu** is a native popover (`popover`, opened by the button's `popovertarget`)
+  under you, its right edge with yours: no role of its own, Escape and a tap elsewhere close it,
+  and it works before the page's scripts load. It holds the name and role, the light or dark
+  switch, "How-to guide" and the office's one "Log out". Because the bar stays over the page, the
+  office's page scrolls with 80px kept clear at its top (`scroll-padding-top` on `html` while the
+  office shell is on the page, `globals.css`): a link to a heading lands below the bar, and a
+  control focused from the keyboard is never hidden under it.
+- **Phone and tablet:** "Menu" opens the menu as a drawer from the left: a native `<dialog>`
   opened with `showModal()`, so the page behind it is shut off and dimmed (`scrim` at half
   strength). Escape, a tap on the dimmed page, "Close menu" or choosing a link closes it, and the
   browser puts the focus back on "Menu". The one `<nav>` moves into the drawer while it's open and
-  back to the (hidden) sidebar when it shuts, so a page never has two, and a shut drawer holds
-  nothing that can be tabbed to. (A `<dialog>` can't be the desktop sidebar too: shown by CSS,
-  it's still announced as a dialog.) "Menu" and the theme button stay disabled until the page is
-  ready (`useHydrated`), so a tap is never lost; the drawer also shuts on moving to another page
-  and on widening the window to 1024px.
+  back to the (hidden) rail when it shuts, so a page never has two, and a shut drawer holds
+  nothing that can be tabbed to. (A `<dialog>` can't be the rail too: shown by CSS, it's still
+  announced as a dialog.) "Menu", the rail's buttons, the search and the theme button stay
+  disabled until the page is ready (`useHydrated`), so a tap is never lost; the drawer also shuts
+  on moving to another page and on widening the window to 1024px. In the drawer the menu keeps its
+  groups' names (`office-nav.tsx`) and only Admin and records folds.
+- (Until Phase 24, from 1024px the menu was a glass card under a full-width bar that showed the
+  pay week and the shifts line's number; in Phase 23 both were white cards.)
 - **Menu groups** (`office-menu.ts`; labels are words, not headings; links only appear for roles
   that can open them, from `canAccess`):
 
   | Group | Links |
   |---|---|
   | (first, no label: Phase 20) | Dashboard, Needs attention (in place of the bell) |
-  | Today | Events & sessions, Cancellations, Enquiries |
+  | Today | Events & sessions, Enquiries, Cancellations (Phase 24: the rail's order) |
   | Pay | Pay dashboard, Pay queries, Import pay records |
   | People | Casuals, Strikes, Notice report |
   | Admin and records (folded) | Action log, Pilot metrics, Office team, Settings, Integrations, Data requests |
   | Help | How-to guide |
 
-- The current page's link has `aria-current="page"`, on a pale blue pill (`pill`, Phase 23; a
-  grey pill in Phase 21, a white pill lifted off the menu in Phase 20, a pale tint of the firm's
-  colour before it) with its icon in ink. Every row (and the folded group's button) is 44px tall,
-  in the drawer too; from 1024px with a mouse (a fine pointer) the menu card's rows are 34px, so
-  the whole menu fits a laptop's window. Group labels are small capitals in the faintest grey
+- The current page's link has `aria-current="page"`: in the drawer on a pale pill (`pill`, which
+  slides to a link as it's picked) with its icon in ink, in the rail under the lens. Every row in
+  the drawer (and its folded group's button) is 44px tall (34px with a mouse until Phase 24, when
+  the menu card left). Group labels are small capitals in the faintest grey
   (`ink-faint`; by CSS only, the words stay as written). On a page inside a section, the section's link
   looks the same but has `aria-current="true"` (it isn't the page you're on): a shift or a new
   shift marks Events & sessions, the offer page marks Dashboard, a casual marks Casuals, a
@@ -700,8 +744,9 @@ you on to `/office` as before.
   "{12} to deal with", and "50+" when a list stopped at 50.
 - **Session keeper:** in the frame, so a session is kept alive on every office page.
 - **Test rules the shell must keep:** the menu is built from plain links (no list items, headings,
-  regions, `status`, `note` or `menu` roles, fieldsets or `<details>`: Phase 18's folded "Admin and
-  records" is a button that shows or hides its links, and `menuLink()` opens it); it sits outside
+  regions, `status`, `note` or `menu` roles, fieldsets or `<details>`: a fold is a button that
+  shows or hides its links, and `menuLink()` opens the one a link is in); so is the search's panel
+  (its live line is `aria-live`, not a `status`); it sits outside
   `<main>`; link names stay word for word; nothing else on a page may repeat a menu link's name (the account
   menu's "How-to guide" is hidden until opened); its `aria-label` ("Office menu") contains no
   field label used on a page. The browser tests reach menu links through `menuLink(page, name)`

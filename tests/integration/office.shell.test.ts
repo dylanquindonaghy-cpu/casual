@@ -123,6 +123,7 @@ async function shellFirm() {
     winter,
     door,
     steward,
+    cancelled,
     fair,
     ann,
     ben,
@@ -229,7 +230,10 @@ describe("the search", () => {
     // A mobile as people type it (07700 900123), found exactly.
     expect(await ids(`0${t.annMobile.slice(3, 7)} ${t.annMobile.slice(7)}`)).toEqual([t.ann]);
     expect(await ids("Deleted")).toEqual([]);
-    expect(await ids("100%")).toEqual([]);
+    // What's typed is matched as written: "_" and "%" are characters, not wildcards (any two
+    // letters would match every name).
+    expect(await ids("__")).toEqual([]);
+    expect(await ids("%%")).toEqual([]);
   });
 
   it("never finds another firm's casuals, shifts or sites, even with the same names", async () => {
@@ -341,6 +345,15 @@ describe("Events & sessions at one site", () => {
     expect(depot?.events.map((e) => e.name)).toEqual(["Winter Fair"]);
     expect(depot?.open).toEqual({ places: 1, sessions: 1 });
     expect((await officeEventList(ctx, token, "urgent", t.depot))?.events).toEqual([]);
+    // Only a session still to come puts an event at a site, as the search counts it: Raceday's
+    // cancelled session at the depot doesn't.
+    await su.query("update shifts set site_id = $2 where id = $1", [t.cancelled, t.depot]);
+    expect((await officeEventList(ctx, token, "all", t.depot))?.events.map((e) => e.name)).toEqual([
+      "Winter Fair",
+    ]);
+    expect(
+      (await officeSearch(t.as(t.resourcer), "depot"))?.sites?.rows.map((s) => s.events),
+    ).toEqual([1]);
     // Every site: no site, another firm's site or anything that isn't an id.
     for (const id of [null, o.arena, "not-an-id"]) {
       const list = await officeEventList(ctx, token, "all", id);

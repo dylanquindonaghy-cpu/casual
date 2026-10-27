@@ -319,7 +319,7 @@ export function OfficeFrame({
                   ref={you}
                   type="button"
                   popoverTarget={ACCOUNT_MENU_ID}
-                  className="press inline-flex min-h-11 items-center gap-2 rounded-full p-1 text-left hover:bg-raised active:bg-button-press sm:pr-3 lg:min-h-10 lg:p-1 lg:pr-2"
+                  className="press inline-flex min-h-11 items-center gap-2 rounded-full p-1 text-left hover:bg-raised active:bg-button-press sm:pr-3 lg:min-h-10 lg:py-0 lg:pr-2 lg:pl-1"
                 >
                   <span
                     aria-hidden="true"
@@ -333,7 +333,7 @@ export function OfficeFrame({
                     <span className="block max-w-48 truncate font-semibold text-ink lg:max-w-28 lg:font-medium">
                       {name}
                     </span>
-                    <span className="sr-only lg:not-sr-only lg:block lg:text-sm lg:text-ink-muted">{` ${roleLabel}`}</span>
+                    <span className="sr-only lg:not-sr-only lg:block lg:text-sm lg:leading-tight lg:text-ink-muted">{` ${roleLabel}`}</span>
                   </span>
                   <Icon
                     name="chevron"

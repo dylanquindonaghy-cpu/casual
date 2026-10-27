@@ -119,12 +119,14 @@ export const urgentGap = (now: Date) =>
 export const placeFree = (now: Date) =>
   sql`(s.status = 'open' and s.starts_at > ${now} and b.booked < s.headcount)`;
 
-// "And the event `e` is at `site`" (its own site, or one of its sessions'), or nothing for every site.
-const atSite = (site: string | null) =>
+// "And the event `e` is at `site`" (its own site, or one of its sessions to come), or nothing for
+// every site: as the search counts a site's events to come (search.ts findSites).
+const atSite = (site: string | null, now: Date) =>
   site
     ? sql`and e.id in (select se.id from shift_events se
                          join shifts ss on ss.firm_id = se.firm_id and ss.event_id = se.id
-                        where se.site_id = ${site}::uuid or ss.site_id = ${site}::uuid)`
+                        where (se.site_id = ${site}::uuid or ss.site_id = ${site}::uuid)
+                          and ss.ends_at > ${now} and ss.status <> 'cancelled')`
     : sql``;
 
 // Places taken per session (bookings not cancelled, in the headcount's slots).
@@ -294,7 +296,7 @@ export async function loadEventCards(
       ${bookedJoin}
       left join sites esi on esi.firm_id = e.firm_id and esi.id = e.site_id
      where s.ends_at > ${now} and s.status <> 'cancelled'
-       ${atSite(site)}
+       ${atSite(site, now)}
      group by e.id, e.name, e.showing_to_casuals, esi.name
     having ${having[view]}
      order by min(s.starts_at), e.id
@@ -340,7 +342,7 @@ export async function eventViewCounts(
           join shifts s on s.firm_id = e.firm_id and s.event_id = e.id
           ${bookedJoin}
          where s.ends_at > ${now} and s.status <> 'cancelled'
-           ${atSite(site)}
+           ${atSite(site, now)}
          group by e.id, e.showing_to_casuals
       ) x
   `);
@@ -367,7 +369,7 @@ export async function openPlaces(
       join shifts s on s.firm_id = e.firm_id and s.event_id = e.id
       ${bookedJoin}
      where ${placeFree(now)}
-       ${atSite(site)}
+       ${atSite(site, now)}
   `);
   return { places: rows[0]?.places ?? 0, sessions: rows[0]?.sessions ?? 0 };
 }

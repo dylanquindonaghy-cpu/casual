@@ -8,7 +8,8 @@ import { sentTo } from "./outbox";
 // with the device set to light and again to dark. Round 7 (Phase 24, Liquid Glass): every page
 // sits on the wash (its four lights fixed behind it, on the canvas's base), with no page card of
 // its own; its sections are frosted glass (blurred 24px, saturated 1.8 times, a rim and a drop),
-// the top bar and the menus floating glass (18px), the menu card glass at 24px; Geist for its
+// the top bar (on a phone; from 1024px its three capsules), the rail and the menus floating glass
+// (18px); Geist for its
 // headline and its words, really loaded; every main button tinted glass in the firm's colour (its
 // colour to its shade, white words), every clear button its gradient and rim; depth only on the
 // glass and the few solid things the depth tokens are pinned to (tests/unit/ui.glass.test.ts); no
@@ -239,15 +240,20 @@ const measure = (page: Page) =>
     return {
       ground: getComputedStyle(document.body).backgroundColor,
       wash,
-      // The page in the shell (no card of its own); the login card outside it; the bar; the menu
-      // card.
+      // The page in the shell (no card of its own); the login card outside it; the bar; from
+      // 1024px the rail and the bar's three capsules (Phase 24).
       page: box(document.querySelector("#main > div")),
       loginCard: box(document.querySelector("main > div")),
       // (The office's own bar: the firm's bar, hidden on these pages, is a <header> too.)
-      bar: box(document.querySelector('[data-shell="office"] > header')),
-      menuCard: box(
-        document.querySelector('nav[aria-label="Office menu"]')?.closest(".glass") ?? null,
-      ),
+      bar: box(document.querySelector('[data-shell="office"] header')),
+      rail: box(document.getElementById("office-rail")),
+      capsules: [
+        document.querySelector("[data-bar-counts]"),
+        document.querySelector('[data-shell="office"] header input[type="search"]')?.parentElement,
+        document.querySelector('button[popovertarget="office-account-menu"]')?.parentElement,
+      ]
+        .filter((el): el is Element => !!el && shown(el))
+        .map((el) => box(el)!),
       face: familyOf(heading),
       faceLoaded: loaded(heading),
       words: familyOf(main),
@@ -349,12 +355,14 @@ for (const device of ["light", "dark"] as const) {
         { roles: ["steward"], held: [{ type: "STEWARD_L2", daysAhead: 5 }] },
       );
       await adminLogin(page, device);
-      // The pages: every link in an admin's menu (the menu card, its fold opened if it has one).
+      // The pages: every link in an admin's menu (the rail, its folds opened).
       await page.setViewportSize(WIDTHS[1]!);
       const menu = page.getByRole("navigation", { name: "Office menu" });
       await expect(menu).toBeVisible();
-      const fold = menu.locator('button[aria-expanded="false"]');
-      if ((await fold.count()) > 0) await fold.click();
+      for (const fold of ["Pay", "People", "Admin and records"]) {
+        const button = menu.getByRole("button", { name: fold, exact: true });
+        if ((await button.getAttribute("aria-expanded")) === "false") await button.click();
+      }
       const pages = await menu
         .getByRole("link")
         .evaluateAll((els) => els.map((el) => el.getAttribute("href") ?? ""));
@@ -460,14 +468,23 @@ for (const device of ["light", "dark"] as const) {
           expect(look.page!.widths, where).toEqual(four("0px"));
           expect(look.page!.radius, where).toBe("0px");
           expect(look.page!.depth, where).toBe("none");
-          // The bar floats, as glass; from 1024px the menu card is a section of glass, 24px round.
-          expect(look.bar!.fill, where).toBe(FLOAT[device]);
-          expect(look.bar!.frost, where).toContain("blur(18px)");
+          // On a phone the bar floats, as glass. From 1024px it has no glass of its own: the rail
+          // (24px round) and the bar's three capsules float (Phase 24).
           if (size.width >= 1024) {
-            expect(look.menuCard, where).not.toBeNull();
-            expect(look.menuCard!.fill, where).toBe(SECTION[device]);
-            expect(look.menuCard!.radius, where).toBe("24px");
-            expect(look.menuCard!.frost, where).toContain("blur(24px)");
+            expect(look.bar!.fill, where).toBe("rgba(0, 0, 0, 0)");
+            expect(look.bar!.frost, where).toBe("none");
+            expect(look.rail, where).not.toBeNull();
+            expect(look.rail!.fill, where).toBe(FLOAT[device]);
+            expect(look.rail!.radius, where).toBe("24px");
+            expect(look.rail!.frost, where).toContain("blur(18px)");
+            expect(look.capsules.length, where).toBe(3);
+            for (const c of look.capsules) {
+              expect(c.fill, where).toBe(FLOAT[device]);
+              expect(c.frost, where).toContain("blur(18px)");
+            }
+          } else {
+            expect(look.bar!.fill, where).toBe(FLOAT[device]);
+            expect(look.bar!.frost, where).toContain("blur(18px)");
           }
           // Glass on every page.
           expect(look.glassParts, where).toBeGreaterThan(0);

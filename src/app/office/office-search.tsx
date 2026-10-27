@@ -147,8 +147,9 @@ export function OfficeSearch({ search }: { search: (q: string) => Promise<Search
       else links[Math.min(next, links.length - 1)]?.focus();
     } else if (e.key === "Escape") {
       e.preventDefault();
-      close();
+      // Back to the box, then shut (the box opens the panel as it takes focus).
       input.current?.focus();
+      close();
     }
   };
 

@@ -70,6 +70,14 @@ test("a resourcer's dashboard: what needs them, the urgent places, six charts, w
   await expect(
     page.getByText("Your shifts line: +44 7700 900000 (WhatsApp, text and calls)."),
   ).toBeVisible();
+  // Over it, today, the pay week and its pay day (Phase 24: from the top bar).
+  await expect(
+    page
+      .getByRole("main")
+      .getByText(
+        /^[A-Z][a-z]+day \d{1,2} [A-Z][a-z]+ · Week \d{1,2} · Pay Fri \d{1,2} [A-Z][a-z]{2}$/,
+      ),
+  ).toBeVisible();
 
   // Every part loaded (a part that couldn't says so where it shows, and the rest still shows).
   await expect(page.getByText("This couldn't load. Reload the page to try again.")).toHaveCount(0);
@@ -602,7 +610,7 @@ test.describe("on a laptop with a mouse", () => {
       await expect(landed).toHaveCSS("animation-name", "sd-landed");
       const heading = page.getByRole("heading", { name, level: 2 });
       await expect(heading).toBeInViewport();
-      // Clear of the 64px top bar (the office's scroll padding).
+      // Clear of the top bar (the office's scroll padding).
       const bar = (await page.getByRole("banner").boundingBox())!;
       expect((await heading.boundingBox())!.y).toBeGreaterThanOrEqual(bar.y + bar.height);
     }

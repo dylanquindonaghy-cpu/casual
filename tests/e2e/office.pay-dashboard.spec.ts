@@ -32,6 +32,14 @@ test("payroll lands on the pay dashboard: the shifts line, the counts and both s
   await expect(
     page.getByText("Your shifts line: +44 7700 900000 (WhatsApp, text and calls)."),
   ).toBeVisible();
+  // The pay week and its pay day (Phase 24: from the top bar).
+  await expect(
+    page
+      .getByRole("main")
+      .getByText(
+        /^Week \d{1,2} · \d{1,2} [A-Z][a-z]{2} – \d{1,2} [A-Z][a-z]{2} · Pay Fri \d{1,2} [A-Z][a-z]{2}$/,
+      ),
+  ).toBeVisible();
   for (const name of ["Pay queries waiting", "Next digest", "Sorted this week", "Next pay date"]) {
     await expect(page.getByText(name, { exact: true })).toBeVisible();
   }

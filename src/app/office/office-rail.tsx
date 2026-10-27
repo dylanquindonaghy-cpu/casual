@@ -29,7 +29,8 @@ import { foldBadge, railItems, tipWords, type RailItem } from "./rail-items";
 // attention, enquiries that need a person, uploads to check, pay queries for payroll), on a fold's
 // icon when one of its pages does. Shut, an icon's name shows beside it under the pointer and on
 // keyboard focus (with its count's words), stays while the pointer moves onto it, and Escape puts it
-// away (WCAG 1.4.13). The page you're on sits under a white glass lens, its icon in the accent; a
+// away (WCAG 1.4.13). Shut, it's 585px tall: in a window under 640px it scrolls, with no bar (its
+// names then show only with the rail open). The page you're on sits under a white glass lens, its icon in the accent; a
 // fold holding it wears the lens while it's shut. Plain links and buttons (no list items, headings,
 // regions or menu roles, which the browser tests count on pages), each named by its words alone,
 // its count's words read after it. Below 1024px the drawer holds the menu instead (office-nav.tsx).
@@ -53,13 +54,14 @@ function Count({ badge }: { badge: MenuBadge }) {
   );
 }
 
-// A red dot on a shut icon whose page needs you.
+// A red dot on a shut icon whose page needs you, set off from the icon by a 2px edge of the rail's
+// own glass (a border: depth is the glass's alone).
 function Dot() {
   return (
     <span
       aria-hidden="true"
       data-rail-dot=""
-      className="absolute top-2 right-2.5 size-2 rounded-full bg-urgent ring-2 ring-panel"
+      className="absolute top-2 right-2 size-3 rounded-full border-2 border-panel bg-urgent bg-clip-padding"
     />
   );
 }
@@ -234,7 +236,7 @@ export function OfficeRail({
       ref={rail}
       id={RAIL_ID}
       data-rail={open ? "open" : "shut"}
-      className={`glass-float sticky top-3 z-30 mt-3 hidden flex-col self-start rounded-card px-2 py-4 transition-[width] duration-200 ease-sd lg:flex ${open ? "max-h-[calc(100dvh-1.5rem)] w-59" : "w-18 items-center"}`}
+      className={`glass-float sticky top-3 z-30 mt-3 hidden flex-col self-start rounded-card px-2 py-4 transition-[width] duration-200 ease-sd lg:flex ${open ? "max-h-[calc(100dvh-1.5rem)] w-59" : "scrollbar-none w-18 items-center [@media(height<40rem)]:max-h-[calc(100dvh-1.5rem)] [@media(height<40rem)]:overflow-y-auto"}`}
     >
       {/* The firm (its name only while the rail is open), then the rail's own button. */}
       <div

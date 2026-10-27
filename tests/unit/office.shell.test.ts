@@ -493,7 +493,7 @@ describe("the shell", () => {
       '<div data-shell="office" class="flex flex-1 flex-col text-base text-ink lg:grid lg:grid-cols-[auto_minmax(0,1fr)] lg:items-start lg:gap-x-3 lg:px-3">',
     );
     expect(html).toMatch(
-      /<div id="office-rail" data-rail="shut" class="glass-float sticky top-3 z-30 mt-3 hidden flex-col self-start rounded-card [^"]*lg:flex w-18 items-center">/,
+      /<div id="office-rail" data-rail="shut" class="glass-float sticky top-3 z-30 mt-3 hidden flex-col self-start rounded-card [^"]*lg:flex scrollbar-none w-18 items-center [^"]*">/,
     );
     // The bar: a container (its capsules fit the column), floating glass below 1024px, the frosted
     // edge from there, sticking to the top.
@@ -652,7 +652,7 @@ describe("the shell", () => {
       /^<span aria-hidden="true" class="flex size-9 shrink-0 items-center justify-center rounded-full glass-button text-sm font-bold text-ink-muted lg:size-8 lg:glass-rim lg:bg-wait-tile lg:bg-none lg:text-xs lg:font-semibold lg:text-wait-ink">SA<\/span>/,
     );
     expect(account).toContain(
-      '<span class="sr-only leading-tight sm:not-sr-only lg:sr-only lg:@min-[63rem]:not-sr-only"><span class="block max-w-48 truncate font-semibold text-ink lg:max-w-28 lg:font-medium">Sam Admin</span><span class="sr-only lg:not-sr-only lg:block lg:text-sm lg:text-ink-muted"> Admin</span></span>',
+      '<span class="sr-only leading-tight sm:not-sr-only lg:sr-only lg:@min-[63rem]:not-sr-only"><span class="block max-w-48 truncate font-semibold text-ink lg:max-w-28 lg:font-medium">Sam Admin</span><span class="sr-only lg:not-sr-only lg:block lg:text-sm lg:leading-tight lg:text-ink-muted"> Admin</span></span>',
     );
     expect(account).toMatch(
       /<svg [^>]*class="shrink-0 hidden rotate-90 text-ink-muted sm:block lg:hidden lg:@min-\[63rem\]:block"/,
@@ -835,7 +835,7 @@ describe("the rail", () => {
   it("shut: the firm's mark, its own button, and icons named by their words alone", () => {
     const html = render("/office");
     expect(html).toMatch(
-      /^<div id="office-rail" data-rail="shut" class="glass-float sticky top-3 z-30 mt-3 hidden flex-col self-start rounded-card px-2 py-4 transition-\[width\] duration-200 ease-sd lg:flex w-18 items-center">/,
+      /^<div id="office-rail" data-rail="shut" class="glass-float sticky top-3 z-30 mt-3 hidden flex-col self-start rounded-card px-2 py-4 transition-\[width\] duration-200 ease-sd lg:flex scrollbar-none w-18 items-center \[@media\(height&lt;40rem\)\]:max-h-\[calc\(100dvh-1.5rem\)\] \[@media\(height&lt;40rem\)\]:overflow-y-auto">/,
     );
     // The mark (the firm's initial on its colour); its name for screen readers.
     expect(html).toContain(
@@ -913,7 +913,7 @@ describe("the rail", () => {
     // (an admin's pay queries are with payroll).
     expect(dotted).toEqual(["Needs attention", "Enquiries", "People"]);
     expect(html).toContain(
-      '<span aria-hidden="true" data-rail-dot="" class="absolute top-2 right-2.5 size-2 rounded-full bg-urgent ring-2 ring-panel"></span>',
+      '<span aria-hidden="true" data-rail-dot="" class="absolute top-2 right-2 size-3 rounded-full border-2 border-panel bg-urgent bg-clip-padding"></span>',
     );
     const tip = (name: string) =>
       r.find((x) => x.name === name)?.after.match(/data-rail-tip="" class="([^"]*)">([^<]*)</);

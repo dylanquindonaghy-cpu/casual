@@ -1628,7 +1628,7 @@ Docs: `docs/ui-design.md`, `docs/screens.md`, `docs/office-v2.md`.
       the glass composited on the wash's worst point, both themes; the firm palette on the new
       grounds; the fonts and packages; the fallbacks; the press; the Phase 20 to 23 pins on the
       flat look replaced by pins on this system, as strict (24.1)
-- [ ] The office shell: an icon rail at the left (the firm's mark; Dashboard, Needs attention,
+- [x] The office shell: an icon rail at the left (the firm's mark; Dashboard, Needs attention,
       Events & sessions, Enquiries, Cancellations, Pay with Pay dashboard, Pay queries and Import pay
       records, People with Casuals, Strikes and Notice report, Admin and records with its pages),
       a dot on an icon whose page needs you, names and counts when the button under the mark opens

@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { systemClock } from "../auth/clock";
 import type { FirmTx } from "../db/scoped";
 import { part, type Part } from "./dashboard";
-import { offerStateSql } from "./dashboard-charts-load";
+import { offerStateSql } from "./offer-state";
 import { bookedJoin, placeFree, urgentGap } from "./events";
 import { officeUserMay, parts, type OfficeContext } from "./office-context";
 

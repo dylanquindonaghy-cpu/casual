@@ -1,35 +1,14 @@
 import { eq, sql, type SQL } from "drizzle-orm";
 import { systemClock } from "../auth/clock";
-import { CANCELLED_ASSIGNMENT_STATUSES, firms } from "../db/schema";
+import { firms } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { errorCode } from "../jobs/firm-job";
 import { log } from "../log";
-import { OFFICE_REPLY_PREFIX } from "../notices/enquiry-reply";
-import type { StopReason } from "../offers/waves";
-import { strikeSettings } from "../strikes/settings";
 import { rulesSettingsSchema } from "../roster/eligibility-input";
-import { localDateOf, wallTimeOf, zonedToUtc } from "../time/zoned";
-import { loadCancellations } from "./cancellations";
-import type { CancellationRow } from "./cancellations-copy";
+import { localDateOf } from "../time/zoned";
 import { waitingCount, waitingUploads, type WaitingUpload } from "./casuals";
-import type {
-  CancelsChart,
-  EventsNeedChart,
-  FillChart,
-  LicencesChart,
-  OffersWeekChart,
-  WaitedChart,
-} from "./dashboard-chart-types";
-import {
-  loadCancels14,
-  loadEventsNeed,
-  loadFill,
-  loadLicences,
-  loadOffersWeek,
-  loadWaited,
-} from "./dashboard-charts-load";
-import { loadEnquiries, needPersonCount, type EnquiryRow } from "./enquiries";
-import { bookedJoin, loadEventCards, urgentGap, type EventCardData } from "./events";
+import { needPersonCount } from "./enquiries";
+import { bookedJoin, urgentGap } from "./events";
 import { officeUserMay, parts, type OfficeContext } from "./office-context";
 import {
   LIST_MAX,
@@ -37,7 +16,6 @@ import {
   loadEvidence,
   loadSheetIssues,
   loadToMark,
-  loadUrgentOffers,
   type TodayBookingToCheck,
   type TodayEvidence,
   type TodaySheetIssue,
@@ -45,70 +23,23 @@ import {
 } from "./today";
 import { webhookStatus } from "./webhook-settings";
 
-// The office dashboard (docs/office-v2.md 3.2, 3.9; docs/screens.md `/office`): four counts, each a
-// link to its list, then urgent shifts not filled, events showing to casuals, the latest
-// cancellations and enquiries, and Needs attention (the to-dos; the bell in the top bar counts its
-// items). Reads only, inside the firm (RLS scopes every row), for admins and resourcers (checked
-// here as well as on the page). It reuses today.ts's queries (the urgent shifts and their offers,
-// and the to-dos), Events' cards, and the Cancellations and Enquiries loaders. "Today" is the
-// firm's calendar day (London).
-//
-// Each part is read in its own savepoint: one that fails shows its error words and the rest of
-// the page still shows (a failed query would otherwise end the whole transaction).
-//
-// Phase 23 (23.4): six charts, each a part of its own (dashboard-charts-load.ts; their types in
-// dashboard-chart-types.ts): places to fill over the next 14 days, which events need people, this
-// pay week's offers, how long things have waited (pay queries only for a role that can open Pay:
-// `pay`), cancellations over the last 14 days and licences running out in the next 8 weeks. They
-// replaced this week's strip (Phase 18's `week`), whose days are the places chart's (loadDays).
+// Needs attention (docs/office-v2.md 3.2, 3.9; Phases 18 and 20): the office's to-dos, its page and
+// the menu's count, read inside the firm (RLS scopes every row), for admins and resourcers
+// (checked here as well as on the page). It reuses today.ts's queries for the to-dos. "Today" is
+// the firm's calendar day (London). Each part is read in its own savepoint (part()): one that
+// fails shows its error words and the rest of the page still shows (a failed query would
+// otherwise end the whole transaction). The office dashboard itself is dashboard-board.ts
+// (Phase 24), whose parts are read the same way; Phase 23's count cards, urgent cards and charts
+// were read here until then.
 
-export const LATEST_CANCELLATIONS = 3;
-export const LATEST_ENQUIRIES = 4;
-export const SHOWING_EVENTS = 6; // cards in "Showing to casuals"; the count links to them all
-export const SHOWING_SESSIONS = 2; // sessions read with each of those events (its row shows only the totals)
 export const NEEDS_MAX = 50; // each Needs attention list stops here ("more" says there were others)
-
-const CANCELLED = sql.raw(CANCELLED_ASSIGNMENT_STATUSES.map((s) => `'${s}'`).join(", "));
 
 // A part of the page: its data, or that it couldn't be read.
 export type Part<T> = { ok: true; data: T } | { ok: false };
 
-export interface DashboardCounts {
-  // Sessions marked urgent, open, not started, with a place free (Events' "Urgent, not filled").
-  urgent: Part<{ sessions: number; places: number; firstStartsAt: Date | null }>;
-  // Events switched on with a session to come (Events' "Showing"); their open sessions (open, not
-  // started, switched on, with a place free) and those places.
-  showing: Part<{ events: number; sessions: number; places: number }>;
-  // Bookings cancelled since midnight, by anyone; those under the strike notice; strikes issued.
-  cancellations: Part<{ total: number; underNotice: number; strikes: number; threshold: number }>;
-  // Messages to the shifts line since midnight plus requests made in the app; those answered
-  // without a person; and how many need a person now.
-  enquiries: Part<{ total: number; automatic: number; needPerson: number }>;
-}
-
-// An urgent session with a gap, on its event's card, with the facts its line is written from.
-export interface UrgentSessionCard {
-  shiftId: string;
-  role: string;
-  startsAt: Date;
-  endsAt: Date;
-  headcount: number;
-  placesLeft: number;
-  fromSheet: boolean;
-  fromPlanner: boolean; // sent by the firm's planner through the API (12J.1)
-  showing: boolean; // the session's own switch (the event's is on its card)
-  offered: number; // offers that went (waves and the office)
-  stopped: StopReason | null; // why the waves stopped, if they have
-  escalated: boolean; // the office was emailed about it
-}
-
-export interface UrgentEventCard {
-  eventId: string;
-  name: string;
-  place: string | null;
-  showing: boolean; // the event's switch: hidden means nobody can see the gap
-  sessions: UrgentSessionCard[];
-}
+// Sessions marked urgent, open, not started, with a place free (Events' "Urgent, not filled"):
+// Needs attention's "Also needs you".
+export type UrgentCount = Part<{ sessions: number; places: number; firstStartsAt: Date | null }>;
 
 // A booked session whose required qualification (the role's or the session's own) won't be in
 // date: its records ran out, or run out, before the session's last day (read as the rules read
@@ -157,26 +88,6 @@ export interface NeedsAttention {
   // Your planner's webhook is failing (12J.2): its latest delivery gave up after the last try, and
   // the address is still set. One item, from the first failure since it last worked.
   webhookFailing: { since: Date } | null;
-}
-
-export interface Dashboard {
-  timeZone: string;
-  today: string; // yyyy-mm-dd, the firm's calendar
-  counts: DashboardCounts;
-  urgent: Part<{ events: UrgentEventCard[]; more: boolean }>;
-  showing: Part<{ events: EventCardData[]; more: number }>;
-  cancellations: Part<{ rows: CancellationRow[]; threshold: number }>;
-  enquiries: Part<{ rows: EnquiryRow[]; replies: Record<string, string | null>; days: number }>;
-  needs: Part<NeedsAttention>;
-  // The charts (Phase 23): the next 14 days' places to fill, the events that need people, this pay
-  // week's offers, how long things have waited, the last 14 days' cancellations, and licences
-  // running out in the next 8 weeks.
-  fill: Part<FillChart>;
-  eventsNeed: Part<EventsNeedChart>;
-  offersWeek: Part<OffersWeekChart>;
-  waited: Part<WaitedChart>;
-  cancels14: Part<CancelsChart>;
-  licences: Part<LicencesChart>;
 }
 
 // "Strike evidence" items: each failed email, and the strikes team's address while it isn't set
@@ -248,9 +159,6 @@ async function firmFacts(tx: FirmTx) {
   return { timeZone: firm?.timezone ?? "Europe/London", settings: firm?.settings ?? {} };
 }
 
-export const midnightOf = (now: Date, timeZone: string): Date =>
-  zonedToUtc({ ...wallTimeOf(now, timeZone), hour: 0, minute: 0 }, timeZone);
-
 async function urgentCount(tx: FirmTx, now: Date) {
   const { rows } = await tx.execute<{
     sessions: number;
@@ -271,112 +179,13 @@ async function urgentCount(tx: FirmTx, now: Date) {
   };
 }
 
-async function showingCount(tx: FirmTx, now: Date) {
-  const { rows } = await tx.execute<{ events: number; sessions: number; places: number }>(sql`
-    select (select count(distinct e.id)::int
-              from shift_events e
-              join shifts s on s.firm_id = e.firm_id and s.event_id = e.id
-             where e.showing_to_casuals and s.ends_at > ${now} and s.status <> 'cancelled')
-             as events,
-           count(*)::int as sessions, coalesce(sum(s.headcount - b.booked), 0)::int as places
-      from shifts s
-      join shift_events e on e.firm_id = s.firm_id and e.id = s.event_id
-      ${bookedJoin}
-     where e.showing_to_casuals and s.showing_to_casuals and s.status = 'open'
-       and s.starts_at > ${now} and b.booked < s.headcount
-  `);
-  const r = rows[0];
-  return { events: r?.events ?? 0, sessions: r?.sessions ?? 0, places: r?.places ?? 0 };
-}
-
-async function cancellationCount(tx: FirmTx, now: Date, midnight: Date, threshold: number) {
-  const { rows } = await tx.execute<{ total: number; under: number; strikes: number }>(sql`
-    select count(*)::int as total,
-           count(*) filter (where a.notice_hours < ${threshold})::int as under,
-           (select count(*)::int from strikes st
-             where st.issued_at >= ${midnight} and st.issued_at <= ${now}) as strikes
-      from assignments a
-     where a.status in (${CANCELLED}) and a.cancelled_at >= ${midnight}
-       and a.cancelled_at <= ${now}
-  `);
-  const r = rows[0];
-  return {
-    total: r?.total ?? 0,
-    underNotice: r?.under ?? 0,
-    strikes: r?.strikes ?? 0,
-    threshold,
-  };
-}
-
-// Urgent sessions with a gap, on their events' cards: Events' own cards (only their urgent gaps
-// kept), with the offers of each session shown (today.ts).
-async function urgentCards(tx: FirmTx, now: Date) {
-  const { events, more } = await loadEventCards(tx, now, "urgent", Number.MAX_SAFE_INTEGER);
-  const offers = await loadUrgentOffers(
-    tx,
-    events.flatMap((e) => e.sessions.filter((s) => s.urgentGap).map((s) => s.shiftId)),
-  );
-  return {
-    more,
-    events: events.map((e): UrgentEventCard => ({
-      eventId: e.eventId,
-      name: e.name,
-      place: e.place,
-      showing: e.showing,
-      sessions: e.sessions
-        .filter((s) => s.urgentGap)
-        .map((s) => {
-          const o = offers.get(s.shiftId);
-          return {
-            shiftId: s.shiftId,
-            role: s.role,
-            startsAt: s.startsAt,
-            endsAt: s.endsAt,
-            headcount: s.headcount,
-            placesLeft: Math.max(0, s.headcount - s.booked),
-            fromSheet: s.fromSheet,
-            fromPlanner: s.fromPlanner,
-            showing: s.showing,
-            offered: o?.offered ?? 0,
-            stopped: o?.stopped ?? null,
-            escalated: o?.escalated ?? false,
-          };
-        }),
-    })),
-  };
-}
-
-// The first line of the reply each message got (null: none yet): an automatic reply (stored once
-// it's sent) or the office's own words once they've gone. The office's reply is stored before it's
-// sent, under a placeholder id until then; one still waiting, or that failed, isn't one they got.
-async function firstReplies(tx: FirmTx, ids: string[]): Promise<Record<string, string | null>> {
-  const replies: Record<string, string | null> = Object.fromEntries(ids.map((id) => [id, null]));
-  if (ids.length === 0) return replies;
-  const { rows } = await tx.execute<{ reply_to: string; body: string | null }>(sql`
-    select distinct on (m.reply_to) m.reply_to::text as reply_to, m.body
-      from messages m
-     where m.direction = 'out' and m.reply_to in (${sql.join(
-       ids.map((id) => sql`${id}::uuid`),
-       sql`, `,
-     )})
-       and not starts_with(m.provider_message_id, ${OFFICE_REPLY_PREFIX})
-     order by m.reply_to, m.created_at, m.id
-  `);
-  for (const r of rows) {
-    const line = (r.body ?? "").split("\n")[0]?.trim() ?? "";
-    replies[r.reply_to] = line === "" ? null : line;
-  }
-  return replies;
-}
-
 // The rule for a booked session's qualification not in date (read as the rules read it:
 // docs/rules-and-credentials.md, check 3), as a query of its own: one row for each confirmed
 // booking on a session to come (open or filled) and each qualification it needs (the role's and the
 // session's own) that won't be in date by the session's last day (the firm's calendar), with
 // columns firm_id, assignment_id, worker_id, shift_id, role, starts_at, type and last_day. Every
-// row, never capped: Needs attention lists the first 50 (loadExpiredOnBookings), and the licences
-// chart marks each licence booked after it runs out from the same rows, with their last_day
-// (dashboard-charts-load.ts loadLicences), so the two can't drift. Reads the firm's rules settings
+// row, never capped: Needs attention lists the first 50 (loadExpiredOnBookings; Phase 23's licences
+// chart read the same rows until Phase 24). Reads the firm's rules settings
 // in `tx`; the rows stay the firm's (RLS).
 export async function outOfDateBookings(tx: FirmTx, now: Date, timeZone: string): Promise<SQL> {
   // An application in progress counts as the rules engine counts it (src/lib/rules/eligibility.ts,
@@ -581,109 +390,6 @@ export async function loadNeedsAttention(
   };
 }
 
-// `pay`: the office user's role can open Pay (admins): only then does the waiting chart read the
-// pay queries with payroll (a resourcer's dashboard holds no pay query at all).
-export async function loadDashboard(
-  tx: FirmTx,
-  now: Date,
-  opts: { pay?: boolean } = {},
-): Promise<Dashboard> {
-  const { timeZone, settings } = await firmFacts(tx);
-  const midnight = midnightOf(now, timeZone);
-  const threshold = strikeSettings(settings).noticeHours;
-  const needs = await part(tx, "needs", (sp) => loadNeedsAttention(sp, now, timeZone));
-  const enquiries = await part(tx, "enquiries", async (sp) => {
-    const page = await loadEnquiries(sp, "all", now, { limit: LATEST_ENQUIRIES });
-    return {
-      page,
-      replies: await firstReplies(
-        sp,
-        page.rows.map((r) => r.messageId),
-      ),
-    };
-  });
-  return {
-    timeZone,
-    today: localDateOf(now, timeZone),
-    counts: {
-      urgent: await part(tx, "urgent count", (sp) => urgentCount(sp, now)),
-      showing: await part(tx, "showing count", (sp) => showingCount(sp, now)),
-      cancellations: await part(tx, "cancellations count", (sp) =>
-        cancellationCount(sp, now, midnight, threshold),
-      ),
-      enquiries: enquiries.ok
-        ? {
-            ok: true,
-            data: {
-              total: enquiries.data.page.today + enquiries.data.page.appToday,
-              automatic: enquiries.data.page.automaticToday,
-              needPerson: enquiries.data.page.needPerson.count,
-            },
-          }
-        : { ok: false },
-    },
-    urgent: await part(tx, "urgent", (sp) => urgentCards(sp, now)),
-    showing: await part(tx, "showing", async (sp) => {
-      const { events } = await loadEventCards(sp, now, "showing", SHOWING_SESSIONS);
-      const shown = events.slice(0, SHOWING_EVENTS);
-      // The rest, counted as the count counts them (the card list itself stops at 50).
-      const total = (await showingCount(sp, now)).events;
-      return { events: shown, more: Math.max(0, total - shown.length) };
-    }),
-    cancellations: await part(tx, "cancellations", async (sp) => {
-      const list = await loadCancellations(sp, {
-        view: "all",
-        now,
-        limit: LATEST_CANCELLATIONS,
-      });
-      return { rows: list.rows, threshold: list.threshold };
-    }),
-    enquiries: enquiries.ok
-      ? {
-          ok: true,
-          data: {
-            rows: enquiries.data.page.rows,
-            replies: enquiries.data.replies,
-            days: enquiries.data.page.days,
-          },
-        }
-      : { ok: false },
-    needs,
-    fill: await part(tx, "fill", (sp) => loadFill(sp, now, timeZone)),
-    eventsNeed: await part(tx, "events need", (sp) => loadEventsNeed(sp, now, timeZone)),
-    offersWeek: await part(tx, "offers week", (sp) => loadOffersWeek(sp, now, timeZone)),
-    // From Needs attention's own items, so the chart and the menu's count agree (none without).
-    waited: needs.ok
-      ? await part(tx, "waited", (sp) =>
-          loadWaited(sp, now, timeZone, {
-            needs: needs.data,
-            needsMore: needsCount(needs.data).more,
-            pay: opts.pay === true,
-          }),
-        )
-      : { ok: false },
-    cancels14: await part(tx, "cancellations 14 days", (sp) =>
-      loadCancels14(sp, now, timeZone, threshold),
-    ),
-    // Booked after it runs out: Needs attention's rule over every booking (never its list of 50).
-    licences: await part(tx, "licences", async (sp) =>
-      loadLicences(sp, now, timeZone, await outOfDateBookings(sp, now, timeZone)),
-    ),
-  };
-}
-
-// The dashboard for an admin or resourcer, or null (anyone else, or logged out). The pay queries
-// with payroll only for a role that can open Pay, checked in the same transaction.
-export async function officeDashboard(ctx: OfficeContext): Promise<Dashboard | null> {
-  const { run } = parts(ctx);
-  const now = (ctx.clock ?? systemClock).now();
-  return run(ctx.firm.id, async (tx) =>
-    (await officeUserMay(tx, ctx.officeUserId, "today"))
-      ? loadDashboard(tx, now, { pay: await officeUserMay(tx, ctx.officeUserId, "pay") })
-      : null,
-  );
-}
-
 // Needs attention's items, for the menu's count (Phase 20; the bell's before): how many items it
 // holds (null for anyone without the dashboard; a null count when it couldn't be read: the menu
 // then shows no number). The layout adds the enquiries that need a person (attentionCount).
@@ -709,7 +415,7 @@ export async function officeNeedsAttention(ctx: OfficeContext): Promise<{
   today: string;
   needs: Part<NeedsAttention>;
   needPerson: Part<number>;
-  urgent: DashboardCounts["urgent"];
+  urgent: UrgentCount;
 } | null> {
   const { run } = parts(ctx);
   const now = (ctx.clock ?? systemClock).now();

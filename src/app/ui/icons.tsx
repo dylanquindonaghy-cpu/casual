@@ -305,6 +305,10 @@ const PATHS = {
       <path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9" />
     </>
   ),
+  // Phase 24 (round 7's dashboard): a board column's leaf (filled in its colour by `fill`), and
+  // "open the whole list" (an arrow up and to the right).
+  leaf: <path d="M5 19C5 10 10 4 20 4c0 10-6 15-15 15z" fill="currentColor" stroke="none" />,
+  out: <path d="M7 17 17 7M8 7h9v9" />,
   // ShiftDesk's own mark, in the office's top bar: a calendar with a tick.
   mark: (
     <>

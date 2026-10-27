@@ -30,7 +30,7 @@ const { barCounts, MENU_AREAS, menuBadges, officeMenu, OfficeShell } =
 const { OfficeRail, RAIL_ID } = await import("@/app/office/office-rail");
 const { foldBadge, railItems, tipWords } = await import("@/app/office/rail-items");
 const { railCookie, railOpenFromCookie } = await import("@/app/office/rail-cookie");
-const { CHART_IDS } = await import("@/lib/office/dashboard-charts");
+const { COLUMN_IDS } = await import("@/lib/office/board-copy");
 const { ariaCurrent, currentHref, OfficeNav } = await import("@/app/office/office-nav");
 const { ACCOUNT_MENU_ID, DRAWER_ID, firmInitial, initials, redrawOnArrival } =
   await import("@/app/office/office-frame");
@@ -588,7 +588,7 @@ describe("the shell", () => {
     expect(links.map((m) => [m[2], text(m[3] ?? "")])).toEqual([
       ["/office/events?view=need", "To fill 26"],
       ["/office/events?view=urgent", "Urgent 2"],
-      ["/office#offers-chart", "Offers out 11"],
+      ["/office#offered", "Offers out 11"],
       ["/office/needs-attention", "To check 7"],
       ["/office/pay-queries", "Pay queries 10"],
     ]);
@@ -1038,7 +1038,7 @@ describe("the top bar's counts", () => {
     }
   });
 
-  it("their numbers, words and pages; Offers out lands on the dashboard's offers chart", () => {
+  it("their numbers, words and pages; Offers out lands on the dashboard's Offered column", () => {
     expect(barCounts("admin", all)).toEqual([
       {
         key: "toFill",
@@ -1058,7 +1058,7 @@ describe("the top bar's counts", () => {
       {
         key: "offersOut",
         label: "Offers out",
-        href: `/office#${CHART_IDS.offers}`,
+        href: `/office#${COLUMN_IDS.offered}`,
         icon: "send",
         count: 3,
       },

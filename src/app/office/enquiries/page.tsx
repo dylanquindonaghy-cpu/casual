@@ -40,7 +40,8 @@ export const metadata: Metadata = { title: "Enquiries" };
 // person, the requests made in the app (the old Requests page) and pay. Views are links. Each row
 // opens the message's own page. Admins and resourcers.
 
-// Only today's (since midnight, the firm's time): the dashboard's "Enquiries today" link.
+// Only today's (since midnight, the firm's time): "Show only today's" under the views (Phase 24,
+// 24.3: the dashboard's "Enquiries today" card linked here until then).
 const EMPTY_TODAY = "Nothing to the shifts line today.";
 
 const isView = (v: unknown): v is EnquiryView =>
@@ -99,16 +100,24 @@ export default async function EnquiriesPage({
           </Link>
         ))}
       </nav>
-      {day && (
+      {day ? (
         <p className={`${meta} mt-3`}>
           Only today&apos;s.{" "}
           <Link href={hrefOf(view)} className={textLink}>
             {showLastDaysText(list.days)}
           </Link>
         </p>
+      ) : (
+        view !== "app" && (
+          <p className={`${meta} mt-3`}>
+            <Link href={hrefOf(view, "today")} className={textLink}>
+              Show only today&apos;s
+            </Link>
+          </p>
+        )
       )}
       {day && view === "all" && list.appToday > 0 && (
-        // The dashboard's "Enquiries today" counts these too (docs/office-v2.md 3.2).
+        // Today's requests from the app, listed under their own view.
         <p className={`${meta} mt-1`}>
           {appTodayText(list.appToday)}{" "}
           <Link href={hrefOf("app")} className={textLink}>

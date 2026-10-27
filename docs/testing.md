@@ -393,6 +393,54 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   every page's skeleton from the rail), `office.look.spec.ts` (the rail and the capsules on every
   page from 1024px), the pay week on both dashboards and the shifts line on Settings.
 
+- Phase 24, task 24.3 the dashboard (docs/screens.md "The dashboard, round 7"):
+  `tests/integration/office.board.test.ts` on the real database: the two columns (every session to
+  come with a place free, soonest first, Offered while an offer waits for a reply, To offer
+  otherwise: never offered, or every offer answered, a failed one never an offer), each session's
+  facts and offers (who hasn't replied, oldest first, and since when), hidden by its own switch or
+  its event's, a column's first 50 with totals over all; the track's filters and counts, each
+  count its columns' sessions, adding up with the top bar's To fill, Urgent and Offers out; the
+  offer state's SQL rule and its TypeScript twin agreeing for every answer and session state, and
+  the board counting the one waiting; the places chart's 14 days from this pay week's Monday,
+  split by an offer waiting, its places the two weeks' columns'; the clock change (a session at
+  23:30 on Sun 25 Oct 2026 this week's, one at 00:30 next week's; the 15-hour night; takes inside
+  and outside it by the firm's clock); While you were out (takes from offers between 18:00 and
+  08:00, still booked, latest first, with the channel; which night before 08:00 and after
+  18:00, and in summer time); Who worked? Needs attention's own items; when the planner or sheet
+  last sent changes (a live key's latest API change, else the sheet's sync, a revoked key not
+  counting); the detail card's session (asked for, another filter's, the default, none); who may
+  see it; another firm's rows in no part. `office.board.test.ts` (unit) the words (the head's
+  line, the track's links, the chart's top, tips and sentence, when, where, how soon across the
+  clock change, replies, the banner's cases, the cards' names, the columns' lines and empty
+  words, a take's words and channels, since when, the to-mark link's name) and the page from
+  made-up data (one heading, the track's links and the current one, the chart's bars, axis, today
+  and table, the detail card with "…" and a planner's session's, the four columns with their
+  counts and first three, a card's links and chips, last night's and Who worked?'s links, empty
+  columns, a column cut at 50, a part that couldn't load, no link repeating a menu link's name),
+  and the offer panel listing the same people, lines and answers as the offer page from one
+  OfferPage. `office.dashboard-ui.test.ts` the chart's tips (hoverable, a bridge, Escape);
+  `office.needs-attention.test.ts` Needs attention's words and page (kept from the old dashboard
+  tests); `ui.office-system.test.ts` the skeleton's parts, the `mark` corners in the places chart
+  only, the offer panel's 24px corners; `guides.test.ts` the guide's dashboard part. Phase 23's
+  chart, count card and urgent card tests went with them. Browser: `office.dashboard.spec.ts`
+  (the head, the track adding up, the chart's 14 days and table, the detail card, four columns,
+  nothing to approve, nothing sideways; Urgent filtering and a card picked into the detail card,
+  kept on reload; the offer panel from the foot on a phone listing the offer page's people,
+  Send offer then Offered, Escape and focus back, the session then waiting on Offered; the "…"'s
+  Not urgent and Mark as filled with Open it again; Show N more and focus; a take last night and
+  Who worked?'s links; at 1280 the chart beside the card, the columns in a row, a bar's tip
+  hovered and put away with Escape, the panel from the right closed by the scrim; every page
+  Phase 23's dashboard linked to still a click away: the offer page and a session's page from the
+  detail card, the shifts list and its weeks, the top bar's four counts, Events & sessions'
+  Showing filter and an event's page, Cancellations' and Enquiries' "Show only today's" and a
+  record and a message, Casuals' uploads and a casual, the Notice report's offers; payroll sent
+  away), `office.cancellations.spec.ts` (today's list and its CSV reached by "Show only today's"),
+  `office.events.spec.ts` (the Showing filter clicked), `login.office.spec.ts` (the head's day and
+  pay week; the shifts line on Settings, no longer on the dashboard), `office.offer.test.ts` (the
+  offer page never another firm's shift or office user, as the panel reads it),
+  `office.shell.spec.ts` (Urgent's places and Offers out's offers agreeing with the
+  board; the cards' press), `office.attendance.spec.ts` (Who worked?'s card), the walkthrough
+  (steps 23 and 24 on the board and the panel).
 ## Fixtures and the demo seed
 
 `npm run db:seed` creates two fake firms:

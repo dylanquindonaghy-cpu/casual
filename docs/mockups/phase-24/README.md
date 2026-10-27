@@ -145,9 +145,13 @@ app shows the firm's real ones.
 
 - **While you were out:** the shifts line never books anyone (it answers with links); casuals take
   places themselves from the offers sent to them. The column shows the places casuals took
-  themselves between 18:00 and 08:00, with how the offer reached them and when they said yes, and
-  its line says so ("Taken by casuals from offers, 18:00 to 08:00") rather than "Filled by the
-  shifts line".
+  themselves between 18:00 and 08:00 (last night's; from 18:00 today once it's past 18:00), still
+  booked, with how the offer reached them and when they said yes, and its line says so ("Taken by
+  casuals from offers, 18:00 to 08:00") rather than "Filled by the shifts line". The demo's seed
+  has no such takes, so the column shows "Nothing taken last night." until a casual says yes
+  overnight.
+- **"Updated … from your planner"** shows only when the planner (or a rota sheet) has sent
+  changes; the demo has neither.
 - **Closing an enquiry** still asks why: the log keeps a reason for every closed enquiry.
 - **The main button** is tinted glass in the firm's own colour (Acme's is the mock-up's blue), as
   the casual app's main button already is; a firm's colour is darkened until white words read at
@@ -157,7 +161,34 @@ app shows the firm's real ones.
 - **Casuals' "Needs updating"** keeps today's rule (qualifications); the staff photo has its own
   column.
 - **The places chart** covers this week and next (Monday to Sunday, twice), so "This week" and
-  "Next week" match the filters.
+  "Next week" match the filters; its axis steps in tens (10, 20, …), so its half is a whole
+  number.
+- **"To offer"** is the chart's key and the column's line ("{13} places, no offers out"), not "Not
+  offered yet": a session whose every offer was answered (said no, or closed when the session
+  changed) needs offering again, and it was offered. The detail card says which: "Not offered to
+  anyone yet." or "No offers out. Offer it to someone else."
+- **"All"** is every session to come with a place free (Events & sessions' "Need people"), not
+  only the two weeks the chart shows, so nothing to fill is missing from the dashboard.
+- **The track** filters To offer and Offered (the sessions with places to fill it counts) and the
+  detail card's first choice; While you were out and Who worked? always show everything (the
+  mock-up filtered them by week too).
+- **The detail card's "…"** (at its top right) keeps the urgent places' "Mark as filled" and "Not
+  urgent", which the mock-up didn't show; its line names up to two who haven't replied ("{Ben
+  Fraser} and {Priya Shah} haven't replied since 08:02."), then "and {2} others", and says when a
+  session is hidden from casuals.
+- **Who worked?** groups alike sessions as Needs attention does (the role over the site, "{3}
+  sessions"); its count is sessions, as the mock-up's, and each card says how many people are
+  left to mark to a screen reader.
+- **The offer panel** shows what the offer page shows, from its loader: the session as a link, the
+  daily cap's rule, and how each offer was answered ("closed when the shift changed" for an offer
+  the session's change closed; the offer page and a shift's page said "didn't answer in time",
+  which wasn't true). The confirmation sits at the panel's foot.
+- **What Phase 23's dashboard linked to** stays a click away: the top bar's counts, the rail, the
+  board and the detail card hold most of it. Three needed a way in of their own, since only the
+  old count cards linked there: Events & sessions shows its "Showing" filter again (the round 7
+  Events page has one too, 24.4), and Cancellations and Enquiries each have "Show only today's"
+  under their views (the mock-up doesn't show one; "Cancellations today" and "Enquiries today"
+  were the way to today's lists, and today's CSV of cancellations).
 - **Below 1024px** the office keeps today's top bar with Menu and the drawer (the mock-up only
   shows 1280px).
 - **The rail's dots** mark only a page that needs you: an admin's pay queries wait with payroll, so
@@ -165,8 +196,8 @@ app shows the firm's real ones.
 - **The rail's icons** are the office's own (a house for the Dashboard, a tray for Enquiries),
   since the mock-up's tiles are the Pay dashboard's icon. Admin and records is a fold of its pages,
   like Pay and People, rather than one link.
-- **Offers out** opens the dashboard's offers chart until 24.3 builds the board's Offered column;
-  To fill and Urgent open Events & sessions' "Need people" and "Urgent" views.
+- **Offers out** opens the dashboard's Offered column (`/office#offered`; the offers chart until
+  24.3); To fill and Urgent open Events & sessions' "Need people" and "Urgent" views.
 - **The search** shows from 1024px, for admins and resourcers (the roles that can open what it
   finds); a site opens Events & sessions at that site. In a narrower column (a 1024px window, or the
   rail open) the counts lose their icons and your name and role go, before anything scrolls.

@@ -53,7 +53,8 @@ export default async function CancellationsPage({
   const { firm } = await requireOfficeArea("cancellations");
   const { view: viewParam, day: dayParam } = await searchParams;
   const view: CancellationView = isView(viewParam) ? viewParam : "all";
-  // Only today's (since midnight, the firm's time): the dashboard's "Cancellations today" link.
+  // Only today's (since midnight, the firm's time): "Show only today's" under the views (Phase 24,
+  // 24.3: the dashboard's "Cancellations today" card linked here until then).
   const day = dayParam === "today" ? ("today" as const) : undefined;
   const list = await officeCancellations({ firm }, (await readSessionToken("office")) ?? "", view, {
     limit: CANCELLATIONS_PAGE_ROWS,
@@ -110,14 +111,20 @@ export default async function CancellationsPage({
         ))}
       </nav>
 
-      {day && (
-        <p className={`${meta} mt-3`}>
-          Only today&apos;s.{" "}
-          <Link href={hrefOf(view)} className={textLink}>
-            Show every day
+      <p className={`${meta} mt-3`}>
+        {day ? (
+          <>
+            Only today&apos;s.{" "}
+            <Link href={hrefOf(view)} className={textLink}>
+              Show every day
+            </Link>
+          </>
+        ) : (
+          <Link href={hrefOf(view, "today")} className={textLink}>
+            Show only today&apos;s
           </Link>
-        </p>
-      )}
+        )}
+      </p>
 
       <h2 className={`${h2} mt-6`}>{VIEW_WORDS[view](list.threshold)}</h2>
       {list.rows.length === 0 ? (

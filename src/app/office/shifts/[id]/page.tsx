@@ -39,6 +39,7 @@ import {
   MoveShiftForm,
   PlacesConfirmation,
 } from "./firm-change-forms";
+import { RESPONSE_WORDS } from "@/lib/office/offer-words";
 
 const section = sectionGap.office;
 
@@ -46,13 +47,9 @@ const MARKABLE = ["confirmed", "completed", "no_show"] as const;
 const isMarkable = (status: string): status is (typeof MARKABLE)[number] =>
   (MARKABLE as readonly string[]).includes(status);
 
-const RESPONSE: Record<string, string> = {
-  accepted: "took it",
-  declined: "said no",
-  expired: "didn't answer in time",
-  filled_elsewhere: "filled by someone else",
-  failed: "couldn't be sent",
-};
+// How each offer was answered: the offer page's words (an expired offer closed when the shift
+// changed; it never runs out by itself).
+const RESPONSE: Record<string, string> = RESPONSE_WORDS;
 
 // One shift for the office (docs/screens.md `/office/shifts/[id]`). The header says what, when
 // and how full it is; then who is booked (Places) and the ways to fill it (Assign someone,

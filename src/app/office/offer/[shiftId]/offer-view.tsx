@@ -3,6 +3,18 @@ import { card, h2, headingGap, muted, row, rows, sectionGap, textLink } from "@/
 import { PageHeader } from "@/app/ui/page-header";
 import { StatusChip } from "@/app/ui/status-chip";
 import type { OfferPage } from "@/lib/office/offer-page";
+import {
+  ALREADY_OFFERED,
+  candidateLine,
+  NOBODY_ELSE,
+  NOBODY_YET,
+  placesFreeText,
+  RESPONSE_WORDS,
+  sentBy,
+  URGENT_NOTE,
+  WHO_CAN_TAKE_IT,
+  whoRule,
+} from "@/lib/office/offer-words";
 import { roleLabel, shiftWhen, timeOnDay } from "@/lib/portal/format";
 import { DAILY_OFFER_CAP } from "@/lib/rules/offer-cap";
 import { RESPONSE_TONE, WAITING_TONE } from "../../shifts/shift-tones";
@@ -11,14 +23,6 @@ import { OfferButton } from "./offer-button";
 // The offer page's content (pure: the page loads the data). The header names the shift (a link
 // to its page) and says how many places are free; then the people who can take it, one row each
 // with its "Send offer" button, then who has already been offered it.
-
-const RESPONSE: Record<NonNullable<OfferPage["offered"][number]["response"]>, string> = {
-  accepted: "took it",
-  declined: "said no",
-  expired: "didn't answer in time",
-  filled_elsewhere: "filled by someone else",
-  failed: "couldn't be sent",
-};
 
 export function OfferView({ page }: { page: OfferPage }) {
   const { shift, timeZone } = page;
@@ -38,15 +42,9 @@ export function OfferView({ page }: { page: OfferPage }) {
         {shift.open && (
           <>
             <p>
-              <StatusChip tone="attention">
-                {shift.placesLeft === 1 ? "1 place free" : `${shift.placesLeft} places free`}
-              </StatusChip>
+              <StatusChip tone="attention">{placesFreeText(shift.placesLeft)}</StatusChip>
             </p>
-            {shift.isUrgent && (
-              <p className="font-semibold text-urgent-ink">
-                This shift is urgent: they get the urgent message.
-              </p>
-            )}
+            {shift.isUrgent && <p className="font-semibold text-urgent-ink">{URGENT_NOTE}</p>}
           </>
         )}
       </PageHeader>
@@ -58,16 +56,11 @@ export function OfferView({ page }: { page: OfferPage }) {
       ) : shift.open ? (
         <section aria-labelledby="who-can-take-it">
           <h2 id="who-can-take-it" className={h2}>
-            Who can take it
+            {WHO_CAN_TAKE_IT}
           </h2>
-          <p className={`${muted} mt-1 max-w-prose`}>
-            Only people the rules allow, who want offers, and who haven&apos;t been offered it.
-            Unless it&apos;s urgent, not anyone offered {DAILY_OFFER_CAP} shifts today.
-          </p>
+          <p className={`${muted} mt-1 max-w-prose`}>{whoRule(DAILY_OFFER_CAP)}</p>
           {page.candidates.length === 0 ? (
-            <p className={`${card} ${headingGap} text-ink-muted`}>
-              Nobody else can be offered this shift right now.
-            </p>
+            <p className={`${card} ${headingGap} text-ink-muted`}>{NOBODY_ELSE}</p>
           ) : (
             <ul role="list" className={`${rows} ${headingGap}`}>
               {page.candidates.map((c) => (
@@ -77,12 +70,7 @@ export function OfferView({ page }: { page: OfferPage }) {
                 >
                   <div className="min-w-0">
                     <p className="font-semibold">{c.name}</p>
-                    <p className="text-sm text-ink-muted">
-                      <span className="tabular-nums">
-                        {c.hoursThisWeek === 1 ? "1 hour" : `${c.hoursThisWeek} hours`}
-                      </span>{" "}
-                      booked that week · by {c.channel === "sms" ? "text message" : "WhatsApp"}
-                    </p>
+                    <p className="text-sm text-ink-muted tabular-nums">{candidateLine(c)}</p>
                   </div>
                   <OfferButton shiftId={shift.shiftId} workerId={c.workerId} name={c.name} />
                 </li>
@@ -95,10 +83,10 @@ export function OfferView({ page }: { page: OfferPage }) {
       )}
       <section className={sectionGap.office} aria-labelledby="already-offered">
         <h2 id="already-offered" className={h2}>
-          Already offered
+          {ALREADY_OFFERED}
         </h2>
         {page.offered.length === 0 ? (
-          <p className={`${card} ${headingGap} text-ink-muted`}>Nobody yet.</p>
+          <p className={`${card} ${headingGap} text-ink-muted`}>{NOBODY_YET}</p>
         ) : (
           <ul role="list" className={`${rows} ${headingGap}`}>
             {page.offered.map((o, i) => (
@@ -107,11 +95,10 @@ export function OfferView({ page }: { page: OfferPage }) {
                 <StatusChip
                   tone={o.response ? (RESPONSE_TONE[o.response] ?? "quiet") : WAITING_TONE}
                 >
-                  {o.response ? RESPONSE[o.response] : "waiting"}
+                  {o.response ? RESPONSE_WORDS[o.response] : "waiting"}
                 </StatusChip>{" "}
                 <span className="text-ink-muted">
-                  ({o.wave === null ? "by the office" : `wave ${o.wave}`},{" "}
-                  {timeOnDay(o.sentAt, timeZone)})
+                  ({sentBy(o.wave)}, {timeOnDay(o.sentAt, timeZone)})
                 </span>
               </li>
             ))}

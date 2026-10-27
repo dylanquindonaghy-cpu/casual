@@ -171,7 +171,7 @@ function Links({ children }: { children: ReactNode }) {
 // What each menu link opens, by the link's words.
 const MENU_WORDS: Record<string, string> = {
   Dashboard:
-    "How many things need you and where to start, every urgent place to fill, and charts of what needs work.",
+    "The places to fill this week and next, the offers waiting for a reply, what casuals took while you were out, and who worked.",
   "Needs attention":
     "Everything someone has to sort out, in full: who worked, uploads to check, bookings to check and more.",
 
@@ -289,40 +289,29 @@ function listWords(items: string[]): string {
     : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
 
-// The dashboard's parts (Phase 23): the four counts, the urgent places, then six charts of what
-// needs work, each opening a panel of its rows.
+// The dashboard's parts (Phase 24, round 7): the places chart, the chosen session, and the board's
+// four columns.
 const DASHBOARD_SECTIONS: [string, ReactNode][] = [
   [
-    "The four counts",
-    "Urgent places, Needs attention, Waiting on others and Sorted today. Select one to see its list.",
+    "Places to fill",
+    "A bar for each day of this week and next: the places with no offers out, and on them the places offered with no reply yet.",
   ],
   [
-    "Urgent places to fill",
-    "Every urgent place, a card each: how many of its places are filled, and who it was offered to or why offers stopped. Select Offer to offer it to someone, or use … to mark it as filled or make it not urgent.",
+    "The chosen session",
+    "Its day and time, where, its places to fill, how soon it starts, the offers sent and who hasn't replied. Offer to someone and Open the shift are under it; … has Mark as filled and Not urgent.",
   ],
   [
-    "Places to fill, next 2 weeks",
-    "A bar for each day: the places still to fill, with the urgent ones apart.",
+    "To offer",
+    "Sessions with places to fill and no offers out: never offered, or everyone offered has answered.",
+  ],
+  ["Offered", "Sessions with an offer waiting for a reply, and how many offers are out."],
+  [
+    "While you were out",
+    "Places casuals took themselves from offers between 18:00 and 08:00, with how the offer reached them and when they said yes.",
   ],
   [
-    "Which events need people",
-    "A bar for each event: its places still to fill. Events casuals can't see yet are marked.",
-  ],
-  [
-    "Offers this week",
-    "One bar of three parts for this week's offers: those casuals said yes to, those waiting for a reply, and those they said no to or that closed. The sessions still waiting are listed under it.",
-  ],
-  [
-    "How long things have waited",
-    "What needs you, by how long it has waited, and the pay queries with payroll if you can open Pay. Things with no date, like bookings to check, are named under it.",
-  ],
-  [
-    "Cancellations, last 2 weeks",
-    "A bar for each day: its cancellations, with short notice apart. Each was recorded automatically, never approved or declined.",
-  ],
-  [
-    "Licences running out, next 8 weeks",
-    "A dot for each licence that runs out soon. A licence that runs out before a booking is marked.",
+    "Who worked?",
+    "Sessions from the last 7 days with people not marked yet. Select one to mark who worked.",
   ],
 ];
 
@@ -350,23 +339,29 @@ function DashboardPart() {
   return (
     <>
       <Para>
-        The <Name>Dashboard</Name> is the page you land on after logging in. It shows what needs
-        doing today: four counts, the urgent places to fill, and six charts of what needs work.
+        The <Name>Dashboard</Name> is the page you land on after logging in. It shows the places
+        still to fill, the offers waiting for a reply, and what happened while you were out.
       </Para>
       <Steps>
         <Step>
-          The greeting says how many things need you: the urgent places to fill and everything in
-          Needs attention. The line under it says where to start.
+          The line under <Name>Dashboard</Name> says the date, the pay week and its pay day, and
+          when your planner or rota sheet last sent changes.
         </Step>
         <Step>
-          <Name>Needs attention</Name> lists everything someone has to sort out, in full. In the
-          menu, it has the same count as on the dashboard, and it takes you there.
+          <Name>All</Name>, <Name>Urgent</Name>, <Name>This week</Name> and <Name>Next week</Name>{" "}
+          choose the sessions with places to fill that the board shows. Each says how many there
+          are.
         </Step>
         <Step>
-          Select a shift&apos;s name to open its page, where you can change everything about it.
+          Select a session&apos;s card to see it in full beside the chart.{" "}
+          <Name>Open the shift</Name> goes to its page, where you can change everything about it.
+        </Step>
+        <Step>
+          <Name>Needs attention</Name> lists everything someone has to sort out, in full. The bar at
+          the top counts it as <Name>To check</Name>, and takes you there.
         </Step>
       </Steps>
-      <Task title="What each section shows">
+      <Task title="What each part shows">
         <ul role="list" className="mt-2 max-w-prose divide-y divide-line">
           {DASHBOARD_SECTIONS.map(([name, words]) => (
             <li key={name} className="py-3">
@@ -376,27 +371,26 @@ function DashboardPart() {
           ))}
         </ul>
       </Task>
-      <Task title="To see what's behind a chart">
+      <Task title="To offer a place from the dashboard">
         <Steps>
           <Step>
-            Point at a bar, a dot or a number, or move to it with the Tab key, to see its figures.
+            Select a card&apos;s paper plane, or <Name>Offer to someone</Name> on the chosen
+            session. A panel opens.
           </Step>
           <Step>
-            Select it. A panel opens with its rows, each with its link or action, like{" "}
-            <Name>Offer</Name> or <Name>Mark who worked</Name>.
+            Select <Name>Send offer</Name> next to a name. It says <Name>Offered</Name>, and the
+            foot of the panel says the offer is on its way.
           </Step>
           <Step>
-            Select <Name>Close</Name>, or press Escape, to go back to the chart.
+            Select <Name>Back to the dashboard</Name>, or press Escape, to close it.
           </Step>
         </Steps>
-        <Note>
-          <Name>Numbers</Name> swaps a chart for a table of the same figures, and back again.
-        </Note>
+        <Note>Point at a bar on the chart to see its figures.</Note>
       </Task>
       <Task title="What the colours mean">
         <Para>
-          Every coloured label keeps its word, so colour is never the only clue. The charts use the
-          same colours, and grey for what&apos;s fine.
+          Every coloured label keeps its word, so colour is never the only clue. On the chart, black
+          is places to offer and blue is places offered with no reply yet.
         </Para>
         <ul role="list" className="mt-3 max-w-prose divide-y divide-line">
           {TONES.map(([tone, word, meaning]) => (
@@ -422,16 +416,17 @@ function FillAGap({ role }: { role: OfficeRole }) {
   return (
     <>
       <Para>
-        A gap is a shift with a place free. Urgent ones are all on the dashboard, under{" "}
-        <Name>Urgent places to fill</Name>, with these buttons (<Name>Mark as filled</Name> and{" "}
-        <Name>Not urgent</Name> are under <Name>…</Name>). Every session and its places free is on{" "}
+        A gap is a shift with a place free. Every one is on the dashboard, under{" "}
+        <Name>To offer</Name> or <Name>Offered</Name> (<Name>Urgent</Name> shows only the urgent
+        ones). Select one to see it in full: <Name>Mark as filled</Name> and <Name>Not urgent</Name>{" "}
+        are under its <Name>…</Name>. Every session and its places free is on{" "}
         <Name>Events &amp; sessions</Name>, where its <Name>…</Name> menu has them too.
       </Para>
       <Task title="To offer it to someone">
         <Steps>
           <Step>
-            Select <Name>Offer</Name> (on the dashboard) or <Name>Offer to someone</Name> (on the
-            shift&apos;s page).
+            Select <Name>Offer to someone</Name> (on the dashboard, or a card&apos;s paper plane
+            there, or on the shift&apos;s page).
           </Step>
           <Step>
             <Name>Who can take it</Name> lists only people the rules allow, who want offers and
@@ -497,7 +492,7 @@ function FillAGap({ role }: { role: OfficeRole }) {
         </Task>
       ) : null}
       <Links>
-        <GoTo href="/office#urgent-places" icon="home">
+        <GoTo href="/office?show=urgent" icon="home">
           See the urgent gaps
         </GoTo>
       </Links>

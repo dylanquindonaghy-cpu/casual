@@ -12,8 +12,8 @@ import type { FirmTx } from "../db/scoped";
 // only, inside the firm (RLS scopes every row), for admins and resourcers (checked here as well as
 // on the page). A session's pay rate is shown; no pay record is ever read here.
 
-// Phase 18: "need" (a session to come with a place free) joins them; "showing" stays for the
-// dashboard's link.
+// Phase 18: "need" (a session to come with a place free) joins them; "showing" stays (a filter on
+// the page again since Phase 24's dashboard).
 export const EVENT_VIEWS = ["all", "need", "urgent", "hidden", "showing"] as const;
 export type EventView = (typeof EVENT_VIEWS)[number];
 export const EVENT_LIST_MAX = 50;

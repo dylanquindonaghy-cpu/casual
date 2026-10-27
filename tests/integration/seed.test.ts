@@ -619,20 +619,23 @@ describe("Acme's Saturday event day", () => {
     expect(jobs).toEqual([]);
   });
 
-  it("the demo's dashboard reads every chart, this week's offers and the pay queries with payroll among them", async () => {
-    const { loadDashboard } = await import("@/lib/office/dashboard");
-    const d = await withFirm(ACME, (tx) => loadDashboard(tx, new Date(), { pay: true }));
-    const charts = [d.fill, d.eventsNeed, d.offersWeek, d.waited, d.cancels14, d.licences];
-    expect(charts.map((c) => c.ok)).toEqual(Array(6).fill(true));
-    if (!d.offersWeek.ok || !d.waited.ok || !d.fill.ok) throw new Error("a chart failed");
+  it("the demo's dashboard reads every part of its board: the offers waiting on Offered, places on the chart, pay queries with payroll", async () => {
+    const { loadBoard } = await import("@/lib/office/dashboard-board");
+    const d = await withFirm(ACME, (tx) => loadBoard(tx, new Date()));
+    const parts = [d.planner, d.counts, d.chart, d.gaps, d.overnight, d.toMark];
+    expect(parts.map((c) => c.ok)).toEqual(Array(6).fill(true));
+    if (!d.gaps.ok || !d.chart.ok) throw new Error("a part failed");
     // Offers waiting, unless the seed ran on Monday before quiet hours ended (it plans none then).
     const { waiting } = await plannedFromStore();
-    expect(d.offersWeek.data.counts.waiting > 0).toBe(waiting > 0);
+    expect(d.gaps.data.offered.waiting > 0).toBe(waiting > 0);
+    expect(d.gaps.data.offered.sessions.length > 0).toBe(waiting > 0);
     // Nobody said no: the app can't record a "no" yet, so the demo shows none.
-    expect(d.offersWeek.data.closedWhy.said_no).toBe(0);
-    expect(d.offersWeek.data.waitingSessions.length > 0).toBe(waiting > 0);
-    expect(d.waited.data.pay?.total).toBeGreaterThan(0);
-    expect(d.fill.data.days.some((x) => x.open > 0)).toBe(true);
+    const sessions = [...d.gaps.data.toOffer.sessions, ...d.gaps.data.offered.sessions];
+    expect(sessions.reduce((n, s) => n + s.offers.saidNo, 0)).toBe(0);
+    expect(d.chart.data.days.some((x) => x.toOffer + x.offered > 0)).toBe(true);
+    // Pay queries with payroll (the top bar's count for an admin).
+    const { officePayQueriesWaiting } = await import("@/lib/office/pay-dashboard");
+    expect(await officePayQueriesWaiting({ firm: { id: ACME } }, "admin")).toBeGreaterThan(0);
   });
 
   it("plans this week's offers from the seed's own day: 10 waiting, none said no, said yes for the bookings made since Monday, none in quiet hours", async () => {

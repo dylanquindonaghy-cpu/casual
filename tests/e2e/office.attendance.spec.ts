@@ -36,20 +36,18 @@ test("mark who worked a shift that ended: one not attended, the rest worked, a m
   const [first = "", second = "", third = ""] = names;
   await officeLogin(page, email);
 
-  // Needs attention lists it under "Who worked?"; the dashboard's Needs attention card opens its
-  // list, and its row goes there (Phase 23: a card and its panel in place of the dashboard's list).
+  // The dashboard's Who worked? column holds it (Phase 24), a card to where it's marked (its own
+  // page: no other session is like it); Needs attention lists it too, under "Who worked?".
   await page.goto(`${acme}/office`);
-  await expect(page.locator("dialog[data-ready]")).toHaveCount(1);
-  await page
-    .getByRole("main")
-    .getByRole("link")
-    .filter({ hasText: /^Needs attention/ })
-    .click();
-  await page
-    .locator('dialog[aria-labelledby="chart-panel-title"]')
-    .getByRole("link", { name: "Mark who worked" })
-    .first()
-    .click();
+  await expect(page.locator("dialog[data-offer-panel][data-ready]")).toHaveCount(1);
+  const worked = page.locator("section#who-worked");
+  const more = worked.getByRole("button", { name: /^Show \d+ more$/ });
+  if (await more.count()) await more.click();
+  await expect(worked.locator(`a[href="/office/shifts/${shiftId}"]`)).toHaveAttribute(
+    "aria-label",
+    /^Mark who worked: Steward, \w{3} \d{1,2} \w{3}, \d\d:\d\d–\d\d:\d\d, 3 people to mark$/,
+  );
+  await page.goto(`${acme}/office/needs-attention#to-mark`);
   await expect(page).toHaveURL(`${acme}/office/needs-attention#to-mark`);
   const section = page.getByRole("region", { name: "Who worked?" });
   const card = section.locator("li", { has: page.locator(`a[href="/office/shifts/${shiftId}"]`) });

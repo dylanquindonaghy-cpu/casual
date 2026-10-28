@@ -90,6 +90,13 @@ nothing goes back by WhatsApp or text, and every casual's message waits for the 
 person (`docs/messaging-templates.md`, "Notification policy"). The made-up firms in the seed have
 it on.
 
+`firm_system_sends` (P2.3, `src/lib/notices/who-sends.ts`; "Connecting the firm's systems" 9 and
+17): whether the firm's own system (its rota sheet, or its CRM through the API: P5) reminds the
+casuals it books. Only `true` turns it on; off, the default, ShiftDesk reminds every booking. On,
+no 24-hour or 2-hour reminder goes from ShiftDesk for a booking whose `assignments.booked_via` is
+sheet or api; offers and the office's change and cancellation notices still go. A booking
+confirmation only ever goes for the office's own booking in ShiftDesk, either way.
+
 (The 48-hour short-notice threshold is a placeholder until the 2027 regulations are final.)
 
 `strikes` (12B.7): `{ "email": "…", "email_verified_at": "2026-11-02T09:00:00.000Z" }`, the

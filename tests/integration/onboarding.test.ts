@@ -205,6 +205,9 @@ describe("a firm's settings", () => {
       "quiet_hours.urgent_override": [true, "default"],
       // The shifts line's automatic replies: off until the owner switches them on (P4.7).
       auto_replies: [false, "default"],
+      // Who sends what: ShiftDesk reminds every booking until the owner says the firm's own system
+      // reminds its own (P2.3).
+      firm_system_sends: [false, "default"],
       // How long the firm keeps things (Phase 10, audit M24): the spec's defaults until agreed.
       "retention.message_days": [90, "default"],
       "retention.request_note_days": [365, "default"],
@@ -282,6 +285,10 @@ describe("a firm's settings", () => {
       status: "saved",
       keys: ["auto_replies"],
     });
+    // Who sends what, switched on (P2.3).
+    expect(
+      await setFirmSettings(urls.admin, f.slug, [["firm_system_sends", "true"]]),
+    ).toMatchObject({ status: "saved", keys: ["firm_system_sends"] });
   });
 
   it("refuses a value the app would ignore or fall back from; nothing is saved", async () => {
@@ -301,6 +308,7 @@ describe("a firm's settings", () => {
       ["quiet_hours.end", "7am"],
       ["quiet_hours.urgent_override", "maybe"],
       ["auto_replies", "yes"],
+      ["firm_system_sends", "1"],
       ["urgent_window_hours", ""],
     ] as const) {
       expect(await setFirmSettings(urls.admin, f.slug, [[key, value]]), `${key}=${value}`).toEqual({

@@ -975,8 +975,10 @@ In order (who does it, how, and what done looks like):
    shows who gets open shifts (first come first served with how many each wave goes to per free
    place, or fair rotation with its wave size; the minutes between waves), the urgent window,
    when the office is emailed about an unfilled shift, the short-notice threshold and quiet
-   hours, and whether the shifts line answers by itself (`auto_replies`, off unless the firm
-   asks: decision 11), as the app reads them. Change any with `--set`, e.g.
+   hours, whether the shifts line answers by itself (`auto_replies`, off unless the firm asks:
+   decision 11), and whether the firm's own system reminds the casuals it books
+   (`firm_system_sends`: on when its rota sheet or CRM already sends reminders, so nobody hears
+   twice), as the app reads them. Change any with `--set`, e.g.
    `--set urgent_window_hours=12 --set quiet_hours.start=21:30`. A value the app wouldn't use is
    refused and nothing changes; each change is in the office action log.
    The strikes team's email isn't one of these: an admin sets it on the office's **Settings** page,

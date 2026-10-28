@@ -8,6 +8,7 @@ import { recordEvent } from "../events/record";
 import { firmJobEnvelope, sendFirmJob, type FirmTask } from "../jobs/firm-job";
 import { log, type Logger } from "../log";
 import { getTransport } from "../messaging";
+import { FIRM_SYSTEM_BOOKINGS, firmSystemSends } from "../notices/who-sends";
 import { eachAtMost } from "../notify/parallel";
 import {
   reminderPush,
@@ -165,6 +166,16 @@ export async function dueReminders(
                               and b.site_id = s.site_id))
        and s.status in ('open', 'filled')
        and s.starts_at > ${now} and s.starts_at <= ${until}
+       -- Who sends what (P2.3): with the setting on, the firm's own system reminds the bookings it
+       -- made (an empty booked_via counts as the office's: reminded).
+       ${
+         firmSystemSends(firm.settings)
+           ? sql`and (a.booked_via is null or a.booked_via not in (${sql.join(
+               FIRM_SYSTEM_BOOKINGS.map((v) => sql`${v}`),
+               sql`, `,
+             )}))`
+           : sql``
+       }
      order by s.starts_at, a.id
   `);
   const quiet = quietHours(firm.settings);

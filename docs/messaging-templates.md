@@ -19,6 +19,12 @@ notifications on for; if no phone takes it, a WhatsApp or text (once a text send
 if none of those, nothing goes and the miss is logged. The shifts line's own replies and the STOP
 or START answers go only by text (decision 11).
 
+**Who sends what** (P2.3; decisions 9 and 17): ShiftDesk tells casuals about the bookings made in
+ShiftDesk. With the firm's `firm_system_sends` on, it sends no reminder for a booking the firm's own
+system made (its rota sheet; its CRM through the API, P5), which that system sends. A booking
+confirmation (`shift_confirmed`) only ever goes for the office's own booking in ShiftDesk. Offers
+and the office's change and cancellation notices still go.
+
 Order for every message to a worker:
 1. **Web push** (free). Works on Android; on iPhone only once the portal is added to the home screen.
 2. **WhatsApp template** (about 2p each incl. Twilio fee; business-initiated messages must use

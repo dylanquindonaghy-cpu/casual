@@ -4403,6 +4403,10 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
   `src/lib/office/enquiries.ts`): show `sortedAs`, with "automatic replies off"; (4) a held pay
   question is in Need a person but not in Enquiries' Pay view (it filters on the stored intent),
   and its page's pay flag is off (P4.7's second guardrails review).
+- P2.3 (2026-10-28), for P5: a booking confirmation goes only for the office's own booking in
+  ShiftDesk (`src/lib/roster/book.ts`, `by.type === "office"`), so the connector's bookings (P5)
+  must come in as `booked_via` api and never through the office's path, or the confirmation must
+  read `firm_system_sends` too (`src/lib/notices/who-sends.ts`). The reminders already do.
 - P4.8's limits (2026-10-26), not blocking: (1) the AI fallback alert counts the shifts line's
   sorting only; the payroll digest's summaries aren't logged per call, so their misses aren't
   counted (a group the AI misses keeps the app's own line). (2) The connection waits are the worker's only:

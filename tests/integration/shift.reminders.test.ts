@@ -317,6 +317,44 @@ describe("the 24-hour and 2-hour reminders", () => {
   });
 });
 
+// Who sends what (P2.3; "Connecting the firm's systems" 9 and 17): a firm whose own system
+// reminds the casuals it books switches firm_system_sends on, and ShiftDesk leaves those to it.
+describe("who sends what (P2.3)", () => {
+  // Rae booked on five shifts (30 to 34 hours away), each made a different way (booked_via):
+  // 11 hours from now, all five are due their 24h reminder; 28.5 hours from now, the first its 2h one.
+  async function bookedFiveWays(settings: Record<string, unknown>) {
+    const t = await reminderFirm(settings);
+    const ways = ["app", "office", "sheet", "api", null] as const;
+    const bookings: string[] = [];
+    for (const [i, via] of ways.entries()) {
+      const id = await t.f.booking(t.workerId, await t.f.shift({ startsAt: hoursFromNow(30 + i) }));
+      await su.query("update assignments set booked_via = $2 where id = $1", [id, via]);
+      bookings.push(id);
+    }
+    return { t, bookings };
+  }
+  const reminded = async (bookings: string[]) =>
+    Promise.all(bookings.map(async (id) => (await reminderRows(id)).length));
+
+  it("off (the default): every booking is reminded, the sheet's and the API's too", async () => {
+    const { t, bookings } = await bookedFiveWays(NO_QUIET);
+    expect(await t.run(hoursFromNow(11))).toEqual({ sent: 5, failed: 0, skipped: 0 });
+    expect(await reminded(bookings)).toEqual([1, 1, 1, 1, 1]);
+  });
+
+  it("on: none for the sheet's or the API's bookings; the app's, the office's and one with no record still go", async () => {
+    const { t, bookings } = await bookedFiveWays({ ...NO_QUIET, firm_system_sends: true });
+    expect(await t.run(hoursFromNow(11))).toEqual({ sent: 3, failed: 0, skipped: 0 });
+    expect(await reminded(bookings)).toEqual([1, 1, 0, 0, 1]);
+    // Nor later: the 2h reminder leaves them to the firm's system too.
+    expect(await t.run(hoursFromNow(28.5))).toMatchObject({ sent: 1 });
+    expect(await reminded(bookings)).toEqual([2, 1, 0, 0, 1]);
+    // Anything but true is off.
+    const odd = await bookedFiveWays({ ...NO_QUIET, firm_system_sends: "yes" });
+    expect(await odd.t.run(hoursFromNow(11))).toMatchObject({ sent: 5 });
+  });
+});
+
 describe("how a reminder goes", () => {
   it("by text message when that's the worker's choice, with a push to their phones", async () => {
     const t = await reminderFirm();

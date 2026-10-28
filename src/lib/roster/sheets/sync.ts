@@ -816,6 +816,11 @@ async function mergeShift(
     if (result.status === "assigned") {
       booked += 1;
       room -= 1;
+      // Made on the firm's rota sheet (P2.2): the firm's own system's booking.
+      await tx
+        .update(assignments)
+        .set({ bookedVia: "sheet" })
+        .where(eq(assignments.id, result.assignmentId));
       // Named on the sheet after being offered it: they took it (src/lib/offers/close.ts).
       await acceptOwnOffer(tx, shiftId, workerId, now);
       await recordEvent(

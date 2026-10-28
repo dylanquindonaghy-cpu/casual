@@ -373,6 +373,12 @@ describe("sheets.sync: from the sheet into our tables", () => {
       noticeHours: 37,
       reason: "Put on the rota sheet by the office",
     });
+    // Made on the firm's own rota sheet (P2.2).
+    const { rows } = await su.query<{ booked_via: string }>(
+      "select booked_via from assignments where id = $1",
+      [assigned.at(-1)?.entity_id],
+    );
+    expect(rows).toEqual([{ booked_via: "sheet" }]);
   });
 
   it("a name the office removes in the sheet is a cancellation by the firm, with notice hours, logged", async () => {

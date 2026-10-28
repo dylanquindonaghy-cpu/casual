@@ -502,6 +502,13 @@ create table assignments (
                                          -- to check"); cleared when that happens again
   cancel_via text,                       -- 12C.1: app | office | sheet | import | api (the planner
                                          -- API, 12J.1); empty on older rows
+  booked_via text,                       -- P2.2: where the booking was made: app (the casual took it,
+                                         --   or accepted an offer) | office | sheet | api (the firm's
+                                         --   own system, P5); set with the booking, in its
+                                         --   transaction; empty on an open slot; "who sends what"
+                                         --   reads it (P2.3); migration 0049 filled the bookings there
+                                         --   were from their shift.assigned lines, firm by firm (none:
+                                         --   the office's)
   strike_warning_version text,           -- 12C.1: on a casual's own cancellation in the app, the strike
   strike_warning_shown_at timestamptz,   --   warning on screen when they confirmed (its version) and
                                          --   then; both or neither, only on cancelled_worker

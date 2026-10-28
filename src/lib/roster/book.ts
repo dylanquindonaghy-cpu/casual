@@ -294,12 +294,15 @@ async function bookInTransaction(
   // (audit L23, L30, L85).
   // Only with an override: the shift's page shows it as "placed despite a rule".
   const reason = by.type === "office" && result.overridden.length > 0 ? by.reason : undefined;
-  if (reason) {
-    await tx
-      .update(assignments)
-      .set({ overrideReason: reason })
-      .where(eq(assignments.id, assigned.assignmentId));
-  }
+  // Where the booking was made (P2.2), in this transaction with the booking itself: the casual's
+  // own (a shift they took, an offer they accepted) or the office's.
+  await tx
+    .update(assignments)
+    .set({
+      bookedVia: by.type === "worker" ? "app" : "office",
+      ...(reason ? { overrideReason: reason } : {}),
+    })
+    .where(eq(assignments.id, assigned.assignmentId));
   const assignedEventId = await recordEvent(tx, {
     actorType: by.type,
     actorId: by.id,

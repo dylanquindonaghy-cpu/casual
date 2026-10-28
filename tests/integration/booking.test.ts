@@ -1,10 +1,11 @@
+import { readFileSync } from "node:fs";
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MINUTE } from "@/lib/auth/clock";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { bookShift, SHEET_COPY_FRESH_MS, type BookingRequest } from "@/lib/roster/book";
 import { bookingFirm, hoursFromNow, NOW, type BookingFirm } from "../helpers/booking-fixture";
-import { appRolePool, superuserPool } from "../helpers/db";
+import { appRolePool, ownerPool, superuserPool } from "../helpers/db";
 
 // bookShift(), the one booking path, on the real database as the app role: who may book whom,
 // the rules on the current rows, the live-source check, first yes wins, and the action log.
@@ -351,5 +352,89 @@ describe("bookShift: retries", () => {
     };
     await expect(book(f, asWorker(await f.shift(), sam), broken)).rejects.toThrow("something else");
     expect(once).toBe(1);
+  });
+});
+
+// P2.2: every booking says where it was made, so "who sends what" (P2.3) can leave the firm's own
+// system to tell its casuals about its bookings.
+describe("where a booking was made (booked_via)", () => {
+  const bookedVia = async (assignmentId: string) =>
+    (await su.query("select booked_via from assignments where id = $1", [assignmentId])).rows[0]
+      ?.booked_via;
+
+  it("a casual's own take is the app's; the office's placing is the office's", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const resourcer = await f.office("resourcer");
+    const sam = await f.worker();
+    const ann = await f.worker();
+    const own = await book(f, asWorker(await f.shift(), sam));
+    const placed = await book(f, {
+      shiftId: await f.shift(),
+      workerId: ann,
+      by: { type: "office", id: resourcer },
+    });
+    if (own.status !== "booked" || placed.status !== "booked") throw new Error("not booked");
+    expect(await bookedVia(own.assignmentId)).toBe("app");
+    expect(await bookedVia(placed.assignmentId)).toBe("office");
+  });
+
+  it("only app, office, sheet or api", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const id = await f.booking(await f.worker(), await f.shift());
+    for (const via of ["app", "office", "sheet", "api"]) {
+      await su.query("update assignments set booked_via = $2 where id = $1", [id, via]);
+      expect(await bookedVia(id)).toBe(via);
+    }
+    await expect(
+      su.query("update assignments set booked_via = 'planner' where id = $1", [id]),
+    ).rejects.toThrow(/assignments_booked_via_check/);
+  });
+
+  it("the migration fills the bookings there were, firm by firm, from their shift.assigned lines", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const other = await bookingFirm(su, withFirm);
+    const sam = await f.worker();
+    const assigned = async (firmId: string, assignmentId: string, data: object) =>
+      su.query(
+        `insert into events (firm_id, actor_type, action, entity_type, entity_id, data)
+         values ($1, 'system', 'shift.assigned', 'assignment', $2, $3)`,
+        [firmId, assignmentId, JSON.stringify(data)],
+      );
+    const own = await f.booking(sam, await f.shift());
+    await assigned(f.firmId, own, { by: "worker" });
+    const sheet = await f.booking(sam, await f.shift());
+    await assigned(f.firmId, sheet, { by: "firm", source: "sheets" });
+    const office = await f.booking(sam, await f.shift());
+    await assigned(f.firmId, office, { by: "firm" });
+    const noLine = await f.booking(sam, await f.shift());
+    // Already said: left as it is.
+    const said = await f.booking(sam, await f.shift());
+    await assigned(f.firmId, said, { by: "worker" });
+    await su.query("update assignments set booked_via = 'office' where id = $1", [said]);
+    // An open slot: nobody's booking.
+    const { rows: open } = await su.query<{ id: string }>(
+      `insert into assignments (firm_id, shift_id, slot, status) values ($1, $2, 2, 'open')
+       returning id::text as id`,
+      [f.firmId, await f.shift({ headcount: 2 })],
+    );
+    // Another firm's, filled in its own pass from its own line.
+    const theirs = await other.booking(await other.worker(), await other.shift());
+    await assigned(other.firmId, theirs, { by: "worker" });
+
+    // The migration's own statement, as db:migrate runs it: the owner, with RLS forced.
+    const migration = readFileSync("drizzle/0049_booking_source.sql", "utf8");
+    const backfill = migration.slice(migration.indexOf("DO $$"));
+    expect(backfill.startsWith("DO $$")).toBe(true);
+    const owner = ownerPool(1);
+    try {
+      await owner.query(backfill);
+    } finally {
+      await owner.end();
+    }
+    expect(
+      await Promise.all(
+        [own, sheet, office, noLine, said, open[0]?.id ?? "", theirs].map(bookedVia),
+      ),
+    ).toEqual(["app", "sheet", "office", "office", "office", null, "app"]);
   });
 });

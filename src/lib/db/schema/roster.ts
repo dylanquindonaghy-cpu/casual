@@ -56,6 +56,13 @@ export const CANCELLED_ASSIGNMENT_STATUSES = ["cancelled_worker", "cancelled_fir
 // before.
 export const CANCEL_VIAS = ["app", "office", "sheet", "import", "api"] as const;
 export type CancelVia = (typeof CANCEL_VIAS)[number];
+// Where a booking was made (P2.2): the casual in the app (a shift they took, an offer they
+// accepted), the office, the firm's rota sheet, or the firm's own system through the API (P5).
+// "Who sends what" reads it (P2.3): a booking the firm's own system made may be its to confirm and
+// remind. Empty on an open slot, and on a booking with no record of who made it: counted as the
+// office's, as a strike's is (src/lib/strikes/issue.ts).
+export const BOOK_VIAS = ["app", "office", "sheet", "api"] as const;
+export type BookVia = (typeof BOOK_VIAS)[number];
 
 // review: the worker asks the office to look again at a shift the rules won't let them take.
 export const REQUEST_TYPES = ["time_change", "swap", "availability", "general", "review"] as const;
@@ -347,6 +354,7 @@ export const assignments = pgTable(
     // How it was cancelled (CANCEL_VIAS), and for a casual's own cancellation in the app, the
     // version of the strike warning on their screen when they confirmed, and when (12C.1, S3).
     cancelVia: text("cancel_via", { enum: CANCEL_VIAS }),
+    bookedVia: text("booked_via", { enum: BOOK_VIAS }),
     strikeWarningVersion: text("strike_warning_version"),
     strikeWarningShownAt: timestamptz("strike_warning_shown_at"),
     createdAt: createdAt(),
@@ -404,6 +412,10 @@ export const assignments = pgTable(
     check(
       "assignments_cancel_via_check",
       sql`${t.cancelVia} is null or ${t.cancelVia} in ('app', 'office', 'sheet', 'import', 'api')`,
+    ),
+    check(
+      "assignments_booked_via_check",
+      sql`${t.bookedVia} is null or ${t.bookedVia} in ('app', 'office', 'sheet', 'api')`,
     ),
     // A warning is stored whole (its version and when), only on a casual's own cancellation.
     check(

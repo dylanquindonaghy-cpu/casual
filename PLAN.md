@@ -1840,9 +1840,9 @@ code emails) go in `docs/messaging-templates.md` first, for Dylan to approve (P2
       `docs/messaging-templates.md`, a subject line for each message to a casual that can go by
       email (offer, urgent offer, booking confirmation, the 24-hour and 2-hour reminders, the firm's
       change and cancellation, a request's answer, a pay query's answer, the office's reply, the
-      licence warning and notice), its body the message's own approved text (its SMS form); the
-      casual's login-link and code emails; a policy paragraph on the order (push, then a text once
-      a sender exists, then email) (P2.1)
+      licence warning and notice), its body the message's own approved words (as in the WhatsApp
+      templates); the casual's login-link and code emails; a policy paragraph on the order (push,
+      then a text once a sender exists, then email) (P2.1)
 - [ ] Where a booking came from (S): `assignments.booked_via` (app: a casual's own take or an
       accepted offer; office; sheet; api, for P5), checked like `cancel_via`, written by
       `bookShift()` (`src/lib/roster/book.ts`) and the sheet sync (`src/lib/roster/sheets/sync.ts`);

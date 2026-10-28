@@ -3,13 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   card,
-  h2,
-  headingGap,
   meta,
   notice,
   nums,
   page,
-  sectionGap,
   tab,
   tabCount,
   tabCurrent,
@@ -148,13 +145,13 @@ export default async function EnquiriesPage({
       )}
 
       {view === "app" && queue ? (
-        <section aria-labelledby="view-heading" className={sectionGap.office}>
-          <h2 id="view-heading" className={h2}>
+        // The chosen tab's name for screen readers (the tab says it on the page), then the queue's
+        // own parts (Phase 24, as the list's).
+        <section aria-labelledby="view-heading" className="mt-6">
+          <h2 id="view-heading" className="sr-only">
             {VIEW_LABELS[view]}
           </h2>
-          <div className={headingGap}>
-            <RequestQueueView queue={queue} />
-          </div>
+          <RequestQueueView queue={queue} />
         </section>
       ) : (
         <div

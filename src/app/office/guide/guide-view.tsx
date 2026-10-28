@@ -82,11 +82,11 @@ export function GuideView({ role, menu }: { role: OfficeRole; menu: MenuGroup[] 
         <p>The everyday jobs, step by step, in the order of a working day.</p>
         <p className={meta}>It shows only the parts of the office you can open.</p>
       </PageHeader>
-      {/* Wide screens: the contents stay in view beside the guide, as a rail with a line on its
-          left, under the top bar (64px, and 16px more, as the menu card). Narrower: they come
-          first, as one card of divided rows with an arrow, like /help's contents (never pills: on
-          a phone, pills are the office menu). A section lands under the top bar too (the
-          office's scroll padding, globals.css). */}
+      {/* The contents: one glass card of divided rows with an arrow, like /help's (never pills: on
+          a phone, pills are the office menu). Narrower, they come first; on wide screens they stay
+          in view beside the guide, under the top bar (64px, and 16px more), the same card
+          (Phase 24, 24.5: round 7's glass at every width; Phase 23's line down a rail is gone). A
+          section lands under the top bar too (the office's scroll padding, globals.css). */}
       <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_14rem] xl:items-start xl:gap-12">
         <nav
           aria-labelledby="guide-contents"
@@ -95,18 +95,15 @@ export function GuideView({ role, menu }: { role: OfficeRole; menu: MenuGroup[] 
           <h2 id="guide-contents" className="text-sm font-semibold text-ink-muted">
             On this page
           </h2>
-          <ul
-            role="list"
-            className={`${rows} mt-2 xl:divide-y-0 xl:rounded-none xl:border-0 xl:bg-transparent`}
-          >
+          <ul role="list" className={`${rows} mt-2`}>
             {sections.map((s) => (
               <li key={s.id}>
                 <a
                   href={`#${s.id}`}
-                  className="press flex min-h-12 items-center justify-between gap-3 px-4 py-2 font-semibold text-ink hover:bg-quiet-soft xl:min-h-11 xl:border-l-2 xl:border-line xl:py-0 xl:font-medium xl:text-ink-muted xl:hover:border-ink xl:hover:bg-transparent xl:hover:text-ink"
+                  className="press flex min-h-12 items-center justify-between gap-3 px-4 py-2 font-semibold text-ink hover:bg-quiet-soft xl:min-h-11 xl:font-medium"
                 >
                   {s.title}
-                  <Icon name="chevron" className="text-ink-muted xl:hidden" />
+                  <Icon name="chevron" className="shrink-0 text-ink-muted" />
                 </a>
               </li>
             ))}
@@ -714,19 +711,21 @@ function Enquiries() {
         <Steps>
           <Step>
             Select <Name>Need a person</Name>, then the person&apos;s name (or{" "}
-            <Name>Unknown number</Name>).
+            <Name>Unknown number</Name>). On a wide screen the message opens beside the list; on a
+            phone, on its own page.
           </Step>
           <Step>
             Read the conversation and <Name>How it was answered</Name>.
           </Step>
           <Step>
             Write your answer in <Name>Reply</Name> and select <Name>Send reply</Name>. The line
-            above the box says how it will go: as you wrote it, or, more than 24 hours after their
+            under the box says how it will go: as you wrote it, or, more than 24 hours after their
             last WhatsApp, inside the request update message.
           </Step>
           <Step>
-            Or, if it needs no reply (you rang them, or it&apos;s spam), choose a reason in{" "}
-            <Name>Why close it?</Name> and select <Name>Close without a reply</Name>.
+            Or, if it needs no reply (you rang them, or it&apos;s spam), select{" "}
+            <Name>Close, no reply needed</Name>, choose a reason in <Name>Why close it?</Name> and
+            select <Name>Close without a reply</Name>.
           </Step>
         </Steps>
       </Task>
@@ -909,7 +908,8 @@ function Pay() {
             Open <Name>Pay queries</Name> and fix the problem in your payroll.
           </Step>
           <Step>
-            Under the group, write what payroll did in <Name>Tell them what payroll did</Name>.
+            Beside the group (under it on a phone), write what payroll did in{" "}
+            <Name>Tell them what payroll did</Name>.
           </Step>
           <Step>
             Select <Name>Mark as sorted and tell them</Name>.

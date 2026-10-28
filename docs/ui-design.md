@@ -204,6 +204,31 @@ the shared `tabs`; each count a disc (`tabCount`: clear glass, the current tab's
   ink, the rest the shared chips; strikes red and semibold when not 0. A phone's cards are glass
   sections.
 
+### Every other office page, round 7 (24.5)
+
+`docs/screens.md` "Every other office page, round 7". The pages the canvas didn't draw take its
+parts as the drawn ones use them; 24.1's shared classes had already made their cards, lists,
+tables, tabs, fields and buttons glass, so what changed is what each page did on its own:
+
+- **The page header** (`PageHeader`, every office page): the headline and its lines in one box at
+  least 20rem wide that takes the room left, the actions beside it with 24px between, their foot
+  level with the last line (`items-end`), as Events & sessions' header and the dashboard's; where
+  they don't fit (a phone) the actions wrap under, 16px down. Only `office:` values, so the casual
+  app's header is as it was.
+- **A section's status is a mark, never a tint:** Needs attention's parts (Who worked?, Uploads to
+  check and the rest) and its Also needs you are frosted glass sections like the dashboard's board
+  columns, each with an 18px leaf before its heading in the status's colour (amber for what needs
+  you, red for the urgent places). The soft tints stay for chips, notices, answer slips and second
+  steps, none of them a section (the browser tests look for a tinted section on every page).
+- **An event's sessions** (`SessionItem`): clear glass tiles with no hairline and no red edge (an
+  urgent gap says so with its chip), requirements on clear glass chips as on the event cards.
+- **A list under tabs** (Cancellations, Strikes, Enquiries' Requests from the app): no visible
+  heading repeating the chosen tab (it stays for screen readers); the list 24px under the tabs or
+  the line under them.
+- **The how-to guide's contents:** one glass card of rows with an arrow at every width, sticky
+  beside the guide from 1280px (14rem wide, 48px from it); Phase 23's line down a bare rail went,
+  as stripping the card's fill there left its frost and shadow on an empty box.
+
 ## Phase 23: the office's look, round 3
 
 Replaced by Phase 24 (above), kept for its reasons where they still stand (its spacing, chips,
@@ -826,7 +851,9 @@ you on to `/office` as before.
 
 - **Page header:** the way back on a record's own page, the `<h1>`, a meta line (status chips,
   times, counts), the intro sentence, then actions (the main one first). Space, then the content
-  (no label above the heading and no divider: Phase 17).
+  (no label above the heading and no divider: Phase 17). In the office (Phase 24, 24.5) the
+  actions sit beside the headline and its lines, level with their foot, and go under them on a
+  phone; the casual app keeps them under.
 - **Section:** `<section aria-labelledby>` with an `<h2>` and, where useful, a count. The count
   sits beside the `<h2>` (both in one row), never inside it, on staff and office pages alike, so
   the section's name is only its heading's words ("Coming up", not "Coming up 3"). 40px between

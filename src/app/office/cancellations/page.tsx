@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 import {
   btn,
   card,
-  h2,
   meta,
   nums,
   page,
@@ -126,13 +125,14 @@ export default async function CancellationsPage({
         )}
       </p>
 
-      <h2 className={`${h2} mt-6`}>{VIEW_WORDS[view](list.threshold)}</h2>
+      {/* The chosen tab's name, for screen readers: the tab says it on the page (Phase 24). */}
+      <h2 className="sr-only">{VIEW_WORDS[view](list.threshold)}</h2>
       {list.rows.length === 0 ? (
-        <p className={`${card} mt-3 text-ink-muted`}>
+        <p className={`${card} mt-6 text-ink-muted`}>
           {day ? "No cancellations today." : VIEW_EMPTY[view]}
         </p>
       ) : (
-        <ul role="list" className={`${rows} mt-3`}>
+        <ul role="list" className={`${rows} mt-6`}>
           {list.rows.map((r) => (
             <li key={r.assignmentId} className={row}>
               <Link

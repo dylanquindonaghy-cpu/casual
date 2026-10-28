@@ -367,6 +367,13 @@ describe("a session row with every field", () => {
     expect(words).toContain("Not urgent");
     expect(html).toContain('aria-label="Not urgent: Door supervisor 08:00–16:00"');
     expect(words).toContain("Change or cancel");
+    // Phase 24 (24.5): a clear glass tile with no hairline, and no red edge though it's urgent
+    // (its "Urgent" chip says so); each requirement a clear glass chip, as on the event cards.
+    const tile = /^<ul><li class="([^"]*)"/.exec(html)?.[1]?.split(" ") ?? [];
+    expect(tile).toEqual(expect.arrayContaining(["glass-tile", "rounded-row"]));
+    expect(tile.filter((c) => /^border/.test(c))).toEqual([]);
+    expect(html).toMatch(/<span class="[^"]*(?<![\w-])glass-button(?![\w-])[^"]*">SIA DS<\/span>/);
+    expect(html).not.toMatch(/bg-quiet-soft[^"]*">(?:SIA DS|CSAS|First aid)</);
   });
 
   it("two sessions alike get different names for their menu and urgent buttons too", () => {

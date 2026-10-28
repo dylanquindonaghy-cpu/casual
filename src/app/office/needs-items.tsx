@@ -20,6 +20,7 @@ import { uploadWhat } from "@/lib/portal/upload-copy";
 import { dayLabel } from "@/lib/rules/reasons";
 import { localDateOf } from "@/lib/time/zoned";
 import { btn, count, headingGap, meta, nums, textLink } from "../ui/classes";
+import { Icon } from "../ui/icons";
 import { StatusChip } from "../ui/status-chip";
 import { BookingToCheckActions } from "./keep-booking";
 
@@ -45,8 +46,9 @@ function Empty({ children }: { children: ReactNode }) {
   return <p className={`${item} text-ink-muted`}>{children}</p>;
 }
 
-// One part of Needs attention: its heading (a region the browser tests find it by) and items, on
-// an amber wash with its edge, 22px round (Phase 23, flat).
+// One part of Needs attention: its heading (a region the browser tests find it by) and items, in a
+// frosted glass section 22px round, an amber leaf before its heading as the dashboard's Who
+// worked? column has (Phase 24, round 7: a section's status is its mark, never a tint over it).
 export function Need({
   id,
   n,
@@ -59,14 +61,14 @@ export function Need({
   children: ReactNode;
 }) {
   return (
-    <section
-      aria-labelledby={id}
-      className="rounded-inner border border-attention-line bg-attention-soft p-4 sm:p-6"
-    >
-      <h3 id={id} className="flex items-center text-lg font-bold tracking-heading">
-        {NEEDS_HEADINGS[id]}
-        <span className={count}>{more ? `${n}+` : n}</span>
-      </h3>
+    <section aria-labelledby={id} className="glass rounded-inner p-4 sm:p-6">
+      <div className="flex items-center gap-3">
+        <Icon name="leaf" size={18} className="shrink-0 text-attention" />
+        <h3 id={id} className="flex items-center text-lg font-bold tracking-heading">
+          {NEEDS_HEADINGS[id]}
+          <span className={count}>{more ? `${n}+` : n}</span>
+        </h3>
+      </div>
       {children}
       {more && <p className={`${meta} mt-2`}>Showing the first 50.</p>}
     </section>
@@ -359,7 +361,7 @@ export function needsPageLine(count: { count: number; more: boolean } | null): s
 
 // "Also needs you" beside the items (Phase 20): the urgent places still to fill, so the page and
 // the dashboard's count add up, with the way to the dashboard where they're offered; that there
-// are none; or that their count couldn't be read.
+// are none; or that their count couldn't be read. A glass section with a red leaf (Phase 24).
 export function AlsoNeedsYou({
   urgent,
   timeZone,
@@ -370,11 +372,14 @@ export function AlsoNeedsYou({
   return (
     <section
       aria-labelledby="also-needs-you"
-      className="flex flex-col items-start gap-3 self-start rounded-inner border border-urgent-line bg-urgent-soft p-4 sm:p-6 lg:col-span-4"
+      className="glass flex flex-col items-start gap-3 self-start rounded-inner p-4 sm:p-6 lg:col-span-4"
     >
-      <h2 id="also-needs-you" className="text-lg font-bold tracking-heading">
-        Also needs you
-      </h2>
+      <div className="flex items-center gap-3">
+        <Icon name="leaf" size={18} className="shrink-0 text-urgent" />
+        <h2 id="also-needs-you" className="text-lg font-bold tracking-heading">
+          Also needs you
+        </h2>
+      </div>
       <p>
         {!urgent
           ? COUNT_ERROR

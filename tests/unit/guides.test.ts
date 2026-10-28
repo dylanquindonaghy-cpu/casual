@@ -384,6 +384,34 @@ describe("the office how-to guide", () => {
       expect(text).toContain(name);
   });
 
+  // Phase 24 (24.5: the guide's words match the new layout): an enquiry opens beside the list on a
+  // wide screen and on its own page on a phone; how the reply goes is the line under the box
+  // (24.4 put it there); closing starts with "Close, no reply needed", then asks why; a pay
+  // group's note is written beside the group (under it on a phone).
+  it("Enquiries and Pay queries say where things are on their pages now (Phase 24)", () => {
+    const plain = (html: string) =>
+      html
+        .replace(/<[^>]+>/g, "")
+        .replace(/&#x27;|&#39;/g, "'")
+        .replace(/\s+/g, " ");
+    const enquiries = plain(section(guide("admin"), "enquiries"));
+    expect(enquiries).toContain(
+      "Select Need a person, then the person's name (or Unknown number). On a wide screen the message opens beside the list; on a phone, on its own page.",
+    );
+    expect(enquiries).toContain(
+      "The line under the box says how it will go: as you wrote it, or, more than 24 hours after their last WhatsApp, inside the request update message.",
+    );
+    expect(enquiries).not.toContain("above the box");
+    expect(enquiries).toContain(
+      "Or, if it needs no reply (you rang them, or it's spam), select Close, no reply needed, choose a reason in Why close it? and select Close without a reply.",
+    );
+    const pay = plain(section(guide("admin"), "pay"));
+    expect(pay).toContain(
+      "Beside the group (under it on a phone), write what payroll did in Tell them what payroll did.",
+    );
+    expect(pay).not.toContain("Under the group");
+  });
+
   it("is opened through its own area, which every office role has", () => {
     const page = readFileSync("src/app/office/guide/page.tsx", "utf8");
     expect(page).toContain('requireOfficeArea("guide")');
@@ -405,7 +433,8 @@ describe("the workers' help page", () => {
   it("opens with the shared page header: Help first (the firm's bar names the firm), then one line", () => {
     const html = help();
     expect(html.match(/<header[\s>]/g)).toHaveLength(1);
-    expect(html).toMatch(/<header[^>]*><h1[^>]*>Help<\/h1>/);
+    // Nothing above the heading: only the header's layout boxes (no words) wrap it.
+    expect(html).toMatch(/<header[^>]*>(?:<div class="[^"]*">)*<h1[^>]*>Help<\/h1>/);
     expect(words(html)).toContain("Help. How your shifts pages work, step by step.");
     // The contents come after the header, not inside it.
     expect(html.indexOf("</header>")).toBeLessThan(html.indexOf("<nav"));

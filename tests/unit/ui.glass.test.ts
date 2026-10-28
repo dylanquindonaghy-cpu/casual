@@ -257,7 +257,6 @@ describe("the glass's parts (globals.css utilities)", () => {
     expect(
       uses(/(?<![\w-])(?:[a-z0-9-]+:)*backdrop-(?:blur|filter|saturate)[\w-]*(?![\w-])/g),
     ).toEqual({
-      "src/app/office/events/sessions-table.tsx": ["backdrop-blur-md"], // the pinned column
       "src/app/ui/classes.ts": ["backdrop-blur-md"], // table.th
     });
   });
@@ -421,7 +420,6 @@ describe("depth: a glass's rim and drop, through variables, and no other shadow"
     "src/app/next-pass.tsx": ["group-open:inset-shadow-sunk", "shadow-pass"],
     // A switch's knob.
     "src/app/office/events/showing-switch.tsx": ["shadow-lift"],
-    "src/app/office/events/urgent-switch.tsx": ["shadow-lift"],
     // The strip's urgent days, and her booked day.
     "src/app/shifts/open/open-shifts-view.tsx": ["shadow-lift", "shadow-pass"],
   };
@@ -485,6 +483,7 @@ describe("where the glass goes", () => {
       "src/app/office/office-rail.tsx": ["glass-float"],
       "src/app/office/office-search.tsx": ["glass-float", "glass-float"],
       "src/app/office/events/session-menu.tsx": ["glass-float"], // a session's menu
+      "src/app/office/find-worker-form.tsx": ["glass-float"], // Casuals' search, its matches
       "src/app/office/shift-actions.tsx": ["glass-float"], // the "…" menu
       "src/app/office/dashboard/offer-panel.tsx": ["glass-float"], // the offer panel
       "src/app/shifts/[id]/shift-view.tsx": ["glass-float"], // Take shift's bar
@@ -558,11 +557,10 @@ describe("where the glass goes", () => {
     expect(read("src/app/my-shifts-view.tsx")).toMatch(/"lens font-semibold text-ink"/);
   });
 
-  it("no white boxes left: a solid card fill only on the events board's open seats", () => {
-    expect(uses(/(?<![\w-])(?:[a-z0-9-]+:)*bg-(?:card|sheet)(?![\w-])/g)).toEqual({
-      "src/app/office/events/board-parts.tsx": ["bg-card"], // the key's open seat
-      "src/app/office/events/event-row.tsx": ["bg-card"], // an open seat
-    });
+  // Phase 24 (24.4): the events board and its open seats went with the event cards, so no solid
+  // card fill is left anywhere.
+  it("no white boxes left: no solid card fill anywhere", () => {
+    expect(uses(/(?<![\w-])(?:[a-z0-9-]+:)*bg-(?:card|sheet)(?![\w-])/g)).toEqual({});
   });
 
   it("the office's page has no card of its own: its sections are glass on the wash", () => {

@@ -446,6 +446,9 @@ test.describe("on a laptop with a mouse", () => {
   test("every page the old dashboard linked to is still a click away", async ({
     page,
   }, testInfo) => {
+    // A walk through a dozen pages, each loaded for the first time by the test server (which
+    // builds a page on its first visit): longer than one page's 30 seconds.
+    test.setTimeout(90_000);
     const email = `dashboard.reach${testInfo.retry || ""}@example.com`;
     await addOfficeUser("acme", { email, name: "Reach Admin", role: "admin" });
     await officeLogin(page, email);
@@ -480,12 +483,11 @@ test.describe("on a laptop with a mouse", () => {
     await go(bar.getByRole("link", { name: /^To check \d+$/ }), "/office/needs-attention");
     await go(bar.getByRole("link", { name: /^Pay queries \d+$/ }), "/office/pay-queries");
     // "Events showing to casuals": a filter on Events & sessions again; an event's own page from
-    // its row.
+    // its card (Phase 24, 24.4).
     await go(await menuLink(page, "Events & sessions"), "/office/events");
     await go(main.getByRole("link", { name: /^Showing \d+$/ }), "/office/events?view=showing");
-    await main.locator("button[aria-controls$='-sessions']").first().click();
     await go(
-      main.getByRole("link", { name: /^Open the event's page: / }).first(),
+      main.getByRole("link", { name: /^View sessions: / }).first(),
       new RegExp(`/office/events/${id}$`),
     );
     // "Cancellations today" and a cancellation's record.
@@ -499,18 +501,19 @@ test.describe("on a laptop with a mouse", () => {
       main.locator('li a[href^="/office/cancellations/"]').first(),
       /\/office\/cancellations\/[^/?]+$/,
     );
-    // "Enquiries today" and a message's own page.
+    // "Enquiries today" and a message: on a laptop beside the list (Phase 24, 24.4); its row is
+    // still a link to its own page (a phone's, and with a modifier key).
     await go(await menuLink(page, "Enquiries"), "/office/enquiries");
     await go(main.getByRole("link", { name: "Show only today's" }), "/office/enquiries?day=today");
     await go(main.getByRole("link", { name: /^Show the last \d+ days$/ }), "/office/enquiries");
-    await go(
-      main.locator('a[href^="/office/enquiries/"]:visible').first(),
-      new RegExp(`/office/enquiries/${id}$`),
-    );
+    const message = main.locator('li a[href^="/office/enquiries/"]').nth(1);
+    await expect(message).toHaveAttribute("href", new RegExp(`^/office/enquiries/${id}$`));
+    await go(message, new RegExp(`/office/enquiries\\?message=${id}$`));
+    await expect(page.locator("#chosen-title")).toHaveText(/^Message from /);
     // Needs attention's "Check uploads" view, and a casual's page.
     await go(await menuLink(page, "Casuals"), "/office/casuals");
     await go(
-      main.getByRole("link", { name: /^Uploads to check \(\d+\)$/ }),
+      main.getByRole("link", { name: /^Uploads to check \d+$/ }),
       "/office/casuals?view=uploads",
     );
     await go(await menuLink(page, "Casuals"), "/office/casuals");

@@ -10,10 +10,23 @@ import type { EventCardData, EventView, SessionRow } from "./events";
 export const EVENT_VIEW_WORDS: Record<EventView, string> = {
   all: "All",
   need: "Need people",
-  urgent: "Urgent",
+  urgent: "Urgent, not filled",
   hidden: "Hidden",
   showing: "Showing",
 };
+
+// The filters (Phase 24, round 7: All, Showing, Hidden, "Urgent, not filled"). "Need people" (the
+// top bar's To fill opens it) shows as one only while it's the one chosen, after All.
+export const EVENT_FILTERS: EventView[] = ["all", "showing", "hidden", "urgent"];
+export const eventFilters = (view: EventView): EventView[] =>
+  view === "need" ? ["all", "need", ...EVENT_FILTERS.slice(1)] : EVENT_FILTERS;
+
+// Beside the filters: "8 events with sessions to come · 26 places free" (over every event to come,
+// whatever the filter; the list itself stops at 50).
+export function eventsLine(events: number, placesFree: number): string {
+  const e = `${events} ${events === 1 ? "event" : "events"} with sessions to come`;
+  return `${e} · ${placesFree} ${placesFree === 1 ? "place free" : "places free"}`;
+}
 
 export const EVENT_VIEW_EMPTY: Record<EventView, string> = {
   all: "No events with a session to come.",
@@ -45,6 +58,16 @@ export const spansDays = (e: EventCardData, tz: string): boolean =>
 // "Acme Demo Arena · Sat 10 Oct" (the place only when there is one).
 export const eventWhereWhen = (e: EventCardData, tz: string): string =>
   [e.place, eventDateText(e, tz)].filter(Boolean).join(" · ");
+
+// An event card's heading and the line under it: "Northern Lights Live" over "Acme Demo Arena ·
+// Tue 27 Oct to Sun 1 Nov". An automatic event's name is its place and day already ("Acme Demo
+// Arena · Sat 31 Oct"): its place over its day, so neither is said twice.
+export function eventCardTitle(e: EventCardData, tz: string): { title: string; line: string } {
+  const whereWhen = eventWhereWhen(e, tz);
+  return e.place && e.name === whereWhen
+    ? { title: e.place, line: eventDateText(e, tz) }
+    : { title: e.name, line: whereWhen };
+}
 
 // The one status tag.
 export const eventStatus = (e: EventCardData) =>
@@ -126,6 +149,32 @@ export function sessionShowingText(s: SessionRow, eventShowing: boolean): string
 }
 
 export const filledText = (s: SessionRow): string => `${s.booked}/${s.headcount} filled`;
+
+// On an event's card (Phase 24): "Tue 27, 08:00–16:00" when the event spans days (its card's line
+// gives the month), else "08:00–16:00".
+export function cardSessionTime(s: SessionRow, tz: string, withDay: boolean): string {
+  const times = `${hhmm(s.startsAt, tz)}–${hhmm(s.endsAt, tz)}`;
+  if (!withDay) return times;
+  const [weekday, day] = dayLabel(localDateOf(s.startsAt, tz)).split(" ");
+  return `${weekday} ${day}, ${times}`;
+}
+
+// The places a session's meter shows: marked filled counts as full.
+export const filledPlaces = (s: SessionRow): number =>
+  s.status === "filled" ? s.headcount : Math.min(s.booked, s.headcount);
+
+// Where a session's casuals go, on its card: "Post: Gate A", else "Meeting point: Gate 2", else
+// nothing (the event's page has them all, with the uniform).
+export const sessionWhere = (s: SessionRow): string | null =>
+  s.post ? `Post: ${s.post}` : s.meetingPoint ? `Meeting point: ${s.meetingPoint}` : null;
+
+// Under an event's sessions, folded: "1 filled session", "2 filled sessions".
+export const filledSessionsText = (n: number): string =>
+  `${n} filled ${n === 1 ? "session" : "sessions"}`;
+
+// "+ 3 more sessions" (past the card's 30; on the event's page).
+export const moreSessionsText = (n: number): string =>
+  `+ ${n} more ${n === 1 ? "session" : "sessions"}`;
 
 // The session's details, each only when set: "£15.50/h", "Post: Gate A", "Meeting point: …",
 // "Uniform: …".

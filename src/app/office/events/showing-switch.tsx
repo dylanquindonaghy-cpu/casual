@@ -40,7 +40,9 @@ export function ShowingSwitch({
       if (result.status === "shown" || result.status === "hidden") router.refresh();
     });
   // The track and its knob, 4px in from its edges (Phase 21's spacing); the knob solid (`knob`:
-  // white in light, near-black in dark, where the on track is near-white ink) with a soft lift.
+  // white in light, near-black in dark) with a soft lift. On, the track is green (`done`, round
+  // 7's: showing to casuals is the good state; dark green in light, light green in dark, so it
+  // keeps 3:1 on the glass in both); off, grey.
   const track = small ? "h-6 w-10" : "h-7 w-12";
   const knob = small ? "size-4" : "size-5";
   const on = small ? "translate-x-4" : "translate-x-5";
@@ -58,7 +60,7 @@ export function ShowingSwitch({
       >
         <span
           aria-hidden="true"
-          className={`${track} inline-flex items-center rounded-full p-1 transition-colors ${showing ? "bg-ink" : "bg-switch-off"}`}
+          className={`${track} inline-flex items-center rounded-full p-1 transition-colors ${showing ? "bg-done" : "bg-switch-off"}`}
         >
           <span
             className={`${knob} rounded-full bg-knob shadow-lift transition-transform duration-150 ease-sd motion-reduce:transition-none ${showing ? on : "translate-x-0"}`}

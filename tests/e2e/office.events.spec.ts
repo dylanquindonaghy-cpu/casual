@@ -3,12 +3,13 @@ import { addEventWithSession, addOfficeUser, addSteward, cancelOwnShift } from "
 import { expect, menuLink, test } from "./fixtures";
 import { loginLinkSentTo, sentTo } from "./outbox";
 
-// Events & sessions in a real browser (12B.5; Phase 18's rota board): a resourcer opens an event's
-// row and switches it off there (Phase 20) and a casual's Open shifts loses its session; switched back on (from the event's
-// own page, opened from its row), it's there again. The event, its site,
-// the casual and the resourcer are this spec's own (made-up details), and its shift is cancelled
-// at the end, so nothing another spec sees changes. A retry makes its own event and site (the
-// run's suffix); the casual and the resourcer are found again.
+// Events & sessions in a real browser (12B.5; Phase 24, 24.4: round 7's event cards): a resourcer
+// switches an event off on its card and a casual's Open shifts loses its session; switched back
+// on (from the event's own page, its card's View sessions), it's there again. On a laptop, the
+// filters and their line on one row, the cards in two columns. The event, its site, the casual
+// and the resourcer are this spec's own (made-up details), and its shift is cancelled at the end,
+// so nothing another spec sees changes. A retry makes its own event and site (the run's suffix);
+// the casual and the resourcer are found again.
 
 const acme = "http://acme.localhost:3100";
 const RUN = Date.now().toString(36);
@@ -67,43 +68,48 @@ async function switchAndCheck(browser: Browser, shiftId: string) {
   await casual.goto(`${acme}/shifts/open`);
   await expect(session).toHaveCount(1);
 
-  // The resourcer finds the event's row on the board and switches it off.
+  // The resourcer finds the event's card and switches it off there (round 7: on the card).
   await (await menuLink(office, "Events & sessions")).click();
   await expect(office.getByRole("heading", { name: "Events & sessions", level: 1 })).toBeVisible();
-  // Two weeks at a time: Later, then Earlier back to today (nothing before it).
-  const dates = office.getByRole("navigation", { name: "Dates" });
-  await expect(dates.getByRole("link", { name: "Earlier" })).toHaveCount(0);
-  await dates.getByRole("link", { name: "Later" }).click();
-  await expect(office).toHaveURL(/\/office\/events\?from=\d{4}-\d\d-\d\d$/);
-  await dates.getByRole("link", { name: "Earlier" }).click();
-  await expect(office).toHaveURL(`${acme}/office/events`);
-  await expect(dates.getByRole("link", { name: "Earlier" })).toHaveCount(0);
-  // On a computer (Phase 20): the filters and the dates on one row, the key under them in words.
+  // No dates to page through (Phase 18's board's): the shifts list has the days.
+  await expect(office.getByRole("navigation", { name: "Dates" })).toHaveCount(0);
+  await expect(
+    office.getByRole("main").getByRole("link", { name: "All shifts by day" }),
+  ).toHaveAttribute("href", "/office/shifts");
+  // The filters, each with its count: All, Showing, Hidden, "Urgent, not filled".
+  const show = office.getByRole("navigation", { name: "Show" });
+  await expect(show.getByRole("link")).toHaveText([
+    /^All \d+$/,
+    /^Showing \d+$/,
+    /^Hidden \d+$/,
+    /^Urgent, not filled \d+$/,
+  ]);
+  // On a computer: the filters and their line on one row, the cards in two columns.
   const phone = office.viewportSize();
   await office.setViewportSize({ width: 1280, height: 900 });
-  const show = await office.getByRole("navigation", { name: "Show" }).boundingBox();
-  const when = await dates.boundingBox();
-  const key = office.locator("[data-board-key]");
-  await expect(key).toHaveText(
-    /^Urgent gap\s*Places open\s*Full\s*Pills show places filled out of places needed\.$/,
-  );
-  const under = await key.boundingBox();
-  if (!show || !when || !under) throw new Error("the board's controls aren't on the page");
-  expect(when.y).toBeLessThan(show.y + show.height); // the two overlap: one row
-  expect(show.y).toBeLessThan(when.y + when.height);
-  expect(when.x).toBeGreaterThan(show.x + show.width); // the dates to the right of the filters
-  const rowEnd = Math.max(show.y + show.height, when.y + when.height);
-  expect(under.y).toBeGreaterThanOrEqual(rowEnd - 4); // under them (it sits 4px closer)
+  const line = office
+    .getByRole("main")
+    .getByText(/^\d+ events? with sessions to come · \d+ places? free$/);
+  const filters = await show.boundingBox();
+  const beside = await line.boundingBox();
+  if (!filters || !beside) throw new Error("the filters' row isn't on the page");
+  expect(beside.y).toBeLessThan(filters.y + filters.height); // the two overlap: one row
+  expect(filters.y).toBeLessThan(beside.y + beside.height);
+  expect(beside.x).toBeGreaterThan(filters.x + filters.width); // the line to the right
+  const cards = office.locator("main article[data-event]");
+  const first = await cards.nth(0).boundingBox();
+  const second = await cards.nth(1).boundingBox();
+  if (!first || !second) throw new Error("fewer than two event cards");
+  expect(second.x).toBeGreaterThanOrEqual(first.x + first.width); // side by side
+  expect(Math.abs(second.y - first.y)).toBeLessThan(2); // tops level
   if (phone) await office.setViewportSize(phone);
-  // The row's name (it opens the row into its sessions) and its line. Its switch is in the opened
-  // row only (Phase 20), so a slip on the board can't hide an event.
-  const row = office.getByRole("button", { name: new RegExp(`^${EVENT}`) });
-  await expect(row).toBeVisible();
-  await expect(row).not.toContainText("Hidden from casuals");
-  const toggle = office.getByRole("switch", { name: `Show ${EVENT} to casuals` });
-  await expect(toggle).toHaveCount(0);
-  await row.click();
-  await expect(row).toHaveAttribute("aria-expanded", "true");
+  // Its card: the switch on, its answer in words beside it.
+  const card = office
+    .locator("main article[data-event]")
+    .filter({ has: office.getByRole("heading", { name: EVENT, level: 2 }) });
+  await expect(card).toBeVisible();
+  await expect(card).toContainText("Showing to casuals");
+  const toggle = card.getByRole("switch", { name: `Show ${EVENT} to casuals` });
   await expect(toggle).toHaveAttribute("aria-checked", "true");
   await toggle.click();
   await expect(
@@ -112,22 +118,22 @@ async function switchAndCheck(browser: Browser, shiftId: string) {
       .filter({ hasText: "Hidden from casuals. Booked casuals keep their shifts." }),
   ).toBeVisible();
   await expect(toggle).toHaveAttribute("aria-checked", "false");
-  await expect(row).toContainText("Hidden from casuals");
-  // The Hidden filter has it; Showing (a filter again since Phase 24's dashboard) doesn't (each
-  // checked once its page has loaded). A filter's link carries its count.
+  await expect(card).toContainText("Hidden from casuals");
+  // The Hidden filter has it; Showing doesn't (each checked once its page has loaded). A
+  // filter's link carries its count.
   const tab = async (name: string, view: string) => {
-    await office.getByRole("link", { name: new RegExp(`^${name} \\d+$`) }).click();
+    await show.getByRole("link", { name: new RegExp(`^${name} \\d+$`) }).click();
     await expect(office).toHaveURL(`${acme}/office/events?view=${view}`);
-    await expect(office.getByRole("link", { name: new RegExp(`^${name} \\d+$`) })).toHaveAttribute(
+    await expect(show.getByRole("link", { name: new RegExp(`^${name} \\d+$`) })).toHaveAttribute(
       "aria-current",
       "page",
     );
   };
   await tab("Hidden", "hidden");
-  await expect(row).toBeVisible();
+  await expect(card).toBeVisible();
   await tab("Showing", "showing");
   await expect(office.getByRole("heading", { name: "Events & sessions", level: 1 })).toBeVisible();
-  await expect(row).toHaveCount(0);
+  await expect(card).toHaveCount(0);
 
   // The casual's Open shifts no longer has it, and its page says it isn't available.
   await casual.goto(`${acme}/shifts/open`);
@@ -136,12 +142,10 @@ async function switchAndCheck(browser: Browser, shiftId: string) {
   await casual.goto(`${acme}/shifts/${shiftId}`);
   await expect(casual.getByRole("heading", { name: "This shift isn't available." })).toBeVisible();
 
-  // Switched back on, from the event's own page (its row opens, with the way to it): the casual
-  // sees it again.
+  // Switched back on, from the event's own page (its card's View sessions): the casual sees it
+  // again.
   await tab("Hidden", "hidden");
-  await row.click();
-  await expect(row).toHaveAttribute("aria-expanded", "true");
-  await office.getByRole("link", { name: `Open the event's page: ${EVENT}` }).click();
+  await card.getByRole("link", { name: `View sessions: ${EVENT}` }).click();
   await expect(office.getByRole("heading", { name: EVENT, level: 1 })).toBeVisible();
   const again = office.getByRole("switch", { name: `Show ${EVENT} to casuals` });
   await again.click();

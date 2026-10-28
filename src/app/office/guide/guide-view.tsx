@@ -176,7 +176,7 @@ const MENU_WORDS: Record<string, string> = {
     "Everything someone has to sort out, in full: who worked, uploads to check, bookings to check and more.",
 
   "Events & sessions":
-    "Every event with a session to come, on a two-week board. Choose what casuals see and what's urgent.",
+    "Every event with a session to come, as a card with its sessions. Choose what casuals see and what's urgent.",
   Cancellations:
     "Every cancellation, by casuals and by the office, with its record and a PDF. Nothing to approve.",
   Requests: "Time changes, swaps and reviews workers have asked for.",

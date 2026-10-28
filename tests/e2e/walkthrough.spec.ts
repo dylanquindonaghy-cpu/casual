@@ -585,10 +585,12 @@ test("Part 3: as the office", async ({ browser }) => {
   await test.step("32. Casuals", async () => {
     await page.goto(`${acme}/office`);
     await (await menuLink(page, "Casuals")).click();
-    const find = page.getByRole("region", { name: "Find a casual" });
-    await find.getByLabel("Name or mobile number").fill("Zoe");
-    await find.getByRole("button", { name: "Find" }).click();
-    await find.getByRole("link", { name: ZOE.name }).click();
+    await page.getByRole("searchbox", { name: "Name or mobile number" }).fill("Zoe");
+    await page.getByRole("search").getByRole("button", { name: "Find" }).click();
+    await page
+      .getByRole("region", { name: "Search results" })
+      .getByRole("link", { name: ZOE.name })
+      .click();
     await expect(page.getByRole("heading", { name: ZOE.name })).toBeVisible();
     // The uploads waiting for a person (the story's): approve Ben's new photo.
     await page.goto(`${acme}/office/casuals`);
@@ -861,7 +863,7 @@ test("Part 4: the fake phone", async ({ browser }) => {
     await officeLogin(page, "acme.resourcer@example.com");
     // Enquiries (12D.1): it needs a person; its page says how it was answered.
     await (await menuLink(page, "Enquiries")).click();
-    await page.getByRole("link", { name: /^Need a person \(\d+\)$/ }).click();
+    await page.getByRole("link", { name: /^Need a person \d+$/ }).click();
     const row = page
       .getByRole("region", { name: "Need a person" })
       .getByRole("listitem")
@@ -894,7 +896,7 @@ test("Part 4: the fake phone", async ({ browser }) => {
     );
     // Enquiries' Need a person (12D.1): the voicemail's words, then its page with the warning.
     await (await menuLink(page, "Enquiries")).click();
-    await page.getByRole("link", { name: /^Need a person \(\d+\)$/ }).click();
+    await page.getByRole("link", { name: /^Need a person \d+$/ }).click();
     const voicemail = page
       .getByRole("region", { name: "Need a person" })
       .getByRole("listitem")

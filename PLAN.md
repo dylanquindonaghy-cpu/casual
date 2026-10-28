@@ -1675,7 +1675,7 @@ Docs: `docs/ui-design.md`, `docs/screens.md`, `docs/office-v2.md`.
       goes through the firm's data layer. Tests: the loaders (another firm's rows, the clock change),
       the board's columns and counts, the offer panel's list matching the offer page's, the browser
       tests (24.3)
-- [ ] Events & sessions, Enquiries and Casuals as in the mock-up: events as cards in two columns
+- [x] Events & sessions, Enquiries and Casuals as in the mock-up: events as cards in two columns
       (place and dates, the show-to-casuals switch on the card with its answer in words, Showing or
       Hidden, Urgent not filled, sessions and places free; each session with role, when, Urgent,
       what it needs, post, a fill meter, pay an hour and its "…" menu; filled sessions folded; View
@@ -2408,6 +2408,11 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
 ## Parking lot
 
 (Ideas that came up mid-build. Not in scope until a phase includes them.)
+
+- From Phase 24 (24.4, 2026-10-27, the guardrails review): Enquiries loads the message beside the
+  list on a phone too, where it's hidden (from 1024px only): one more read of a message per phone
+  visit, nothing more shown. Load it only where it shows (the pane asking for it once the page
+  knows it's wide) if a pilot's phones find the page slow.
 
 - From Phase 24 (24.3, 2026-10-27): the demo seed has no places casuals took from offers
   overnight, so the dashboard's "While you were out" shows "Nothing taken last night." in a demo.

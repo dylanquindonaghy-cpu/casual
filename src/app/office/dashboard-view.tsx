@@ -2,7 +2,7 @@ import Link from "next/link";
 import { BOARD_SHOWS, type Board as BoardData } from "@/lib/office/dashboard-board";
 import { headLine, SHOW_WORDS, showHref } from "@/lib/office/board-copy";
 import { SECTION_ERROR } from "@/lib/office/dashboard-copy";
-import { notice, tab, tabCurrent, tabs } from "../ui/classes";
+import { notice, tab, tabCount, tabCurrent, tabs } from "../ui/classes";
 import { Icon } from "../ui/icons";
 import { Board } from "./dashboard/board";
 import { PlacesChart } from "./dashboard/places-chart";
@@ -49,13 +49,7 @@ export function DashboardContent({ board }: { board: BoardData }) {
               >
                 {SHOW_WORDS[v]}
                 {counts && " "}
-                {counts && (
-                  <span
-                    className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full px-2 text-xs font-semibold tabular-nums ${on ? "bg-accent text-on-accent" : "glass-button text-ink"}`}
-                  >
-                    {counts[v]}
-                  </span>
-                )}
+                {counts && <span className={tabCount(on)}>{counts[v]}</span>}
               </Link>
             );
           })}

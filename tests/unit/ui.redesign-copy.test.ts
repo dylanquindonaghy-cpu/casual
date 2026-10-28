@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
-import {
-  boardDays,
-  boardWindow,
-  DAY_PILLS,
-  eventCells,
-  eventNote,
-  windowText,
-} from "@/lib/office/events-board";
 import type { EventCardData, SessionRow } from "@/lib/office/events";
+import {
+  cardSessionTime,
+  EVENT_VIEW_WORDS,
+  eventCardTitle,
+  eventFilters,
+  eventsLine,
+  filledPlaces,
+  filledSessionsText,
+  moreSessionsText,
+  sessionWhere,
+} from "@/lib/office/events-copy";
 import {
   applyTileText,
   daysText,
@@ -301,7 +304,7 @@ describe("Open shifts' strip of the next 8 days", () => {
   });
 });
 
-// --- The rota board ------------------------------------------------------------------------------
+// --- The event cards (Phase 24, 24.4; Phase 18's rota board until then) ----------------------------
 
 const session = (o: Partial<SessionRow>): SessionRow => ({
   shiftId: "s1",
@@ -342,118 +345,75 @@ const event = (sessions: SessionRow[], o: Partial<EventCardData> = {}): EventCar
   ...o,
 });
 
-describe("the rota board", () => {
-  it("Earlier and Later: two weeks at a time, never before today, only real days", () => {
-    const today = "2026-10-21";
-    // Today: nothing earlier; Later starts the next two weeks.
-    expect(boardWindow(undefined, today)).toEqual({
-      from: today,
-      earlier: null,
-      later: "2026-11-04",
-    });
-    // Two weeks on: Earlier goes back to today (no `from` needed), Later on again.
-    expect(boardWindow("2026-11-04", today)).toEqual({
-      from: "2026-11-04",
-      earlier: "today",
-      later: "2026-11-18",
-    });
-    // Four weeks on: Earlier is the two weeks before.
-    expect(boardWindow("2026-11-18", today)).toMatchObject({ earlier: "2026-11-04" });
-    // A day just after today: back to today, not before it.
-    expect(boardWindow("2026-10-25", today)).toMatchObject({ earlier: "today" });
-    // Before today, today itself, not a day, not a real date: today.
-    for (const bad of [
-      "2026-10-01",
-      today,
-      "soon",
-      "2026-13-45",
-      "2026-02-30",
-      7,
-      ["2026-11-04"],
-    ]) {
-      expect(boardWindow(bad, today), String(bad)).toEqual({
-        from: today,
-        earlier: null,
-        later: "2026-11-04",
-      });
-    }
-    expect(windowText(boardDays("2026-11-04", today))).toBe("4 Nov to 17 Nov");
-  });
-
-  it("14 days from the first, today and the weekend marked, and the window in words", () => {
-    const days = boardDays("2026-10-21", "2026-10-21");
-    expect(days).toHaveLength(14);
-    expect(days[0]).toEqual({
-      date: "2026-10-21",
-      dow: "Today",
-      day: "21",
-      weekend: false,
-      today: true,
-    });
-    expect(days[3]).toMatchObject({ dow: "Sat", weekend: true });
-    expect(windowText(days)).toBe("21 Oct to 3 Nov");
-  });
-
-  it("a pill per session on its day: filled out of needed, red for an urgent gap, grey when full", () => {
-    const days = boardDays("2026-10-21", "2026-10-21");
-    const cells = eventCells(
-      event([
-        session({ shiftId: "a", urgentGap: true, isUrgent: true, role: "door_supervisor" }),
-        session({ shiftId: "b", booked: 2, headcount: 2 }),
-        session({ shiftId: "c", startsAt: at("2026-10-27T18:00:00Z"), booked: 0 }),
-        session({ shiftId: "d", status: "cancelled" }),
-      ]),
-      days,
-      TZ,
-    );
-    expect(cells[1]?.map((p) => [p.text, p.tone])).toEqual([
-      ["3/4", "urgent"],
-      ["2/2", "full"],
+describe("the event cards' words", () => {
+  it("the filters: All, Showing, Hidden, Urgent not filled; Need people only while it's chosen", () => {
+    expect(eventFilters("all")).toEqual(["all", "showing", "hidden", "urgent"]);
+    expect(eventFilters("hidden")).toEqual(["all", "showing", "hidden", "urgent"]);
+    // The top bar's To fill opens "Need people": shown after All while it's the one chosen.
+    expect(eventFilters("need")).toEqual(["all", "need", "showing", "hidden", "urgent"]);
+    expect(eventFilters("all").map((v) => EVENT_VIEW_WORDS[v])).toEqual([
+      "All",
+      "Showing",
+      "Hidden",
+      "Urgent, not filled",
     ]);
-    expect(cells[1]?.[0]?.label).toBe(
-      "Door supervisor, Thu 22, 10:00–18:00: 3 of 4 filled, urgent",
-    );
-    expect(cells[6]?.map((p) => [p.text, p.tone])).toEqual([["0/4", "open"]]);
-    expect(cells.flat()).toHaveLength(3);
-    // Marked filled by the office: all its places count.
-    expect(
-      eventCells(event([session({ status: "filled", booked: 1 })]), days, TZ)[1]?.[0],
-    ).toMatchObject({
-      text: "4/4",
-      tone: "full",
-    });
+    expect(EVENT_VIEW_WORDS.need).toBe("Need people");
   });
 
-  it(`more than ${DAY_PILLS} sessions on a day are one pill, their places added up`, () => {
-    const days = boardDays("2026-10-21", "2026-10-21");
-    const many = Array.from({ length: 5 }, (_, i) =>
-      session({ shiftId: `m${i}`, headcount: 1, booked: i === 0 ? 0 : 1, urgentGap: i === 0 }),
-    );
-    expect(eventCells(event(many), days, TZ)[1]).toEqual([
-      {
-        shiftId: "2026-10-22-day",
-        text: "4/5",
-        tone: "urgent",
-        sessions: 5,
-        label: "5 sessions on Thu 22: 4 of 5 places filled, 1 urgent",
-      },
+  it("the line beside them: events with sessions to come and their places free", () => {
+    expect(eventsLine(8, 26)).toBe("8 events with sessions to come · 26 places free");
+    expect(eventsLine(1, 1)).toBe("1 event with sessions to come · 1 place free");
+    expect(eventsLine(0, 0)).toBe("0 events with sessions to come · 0 places free");
+  });
+
+  it("a card's heading and line; an automatic event's place over its day, neither said twice", () => {
+    expect(eventCardTitle(event([session({})]), TZ)).toEqual({
+      title: "Northern Lights Live",
+      line: "Acme Demo Arena · Thu 22 Oct",
+    });
+    const days = event([
+      session({}),
+      session({ shiftId: "s2", startsAt: at("2026-10-24T09:00:00Z") }),
     ]);
+    expect(eventCardTitle(days, TZ).line).toBe("Acme Demo Arena · Thu 22 Oct to Sat 24 Oct");
+    // An automatic event (named for its place and day).
+    expect(
+      eventCardTitle(event([session({})], { name: "Acme Demo Arena · Thu 22 Oct" }), TZ),
+    ).toEqual({ title: "Acme Demo Arena", line: "Thu 22 Oct" });
+    // No place: the day alone under the name.
+    expect(eventCardTitle(event([session({})], { place: null }), TZ)).toEqual({
+      title: "Northern Lights Live",
+      line: "Thu 22 Oct",
+    });
   });
 
-  it("an event's line: hidden first, its open places or full, its urgent gaps", () => {
-    expect(eventNote(event([session({ urgentGap: true })], { placesFree: 6 }))).toEqual({
-      text: "6 open, 1 urgent",
-      urgent: true,
+  it("a session's time on its card: the day too when the event spans days (London's clock)", () => {
+    const s = session({});
+    expect(cardSessionTime(s, TZ, false)).toBe("10:00–18:00");
+    expect(cardSessionTime(s, TZ, true)).toBe("Thu 22, 10:00–18:00");
+    // Over midnight, and after the clocks go back (Sun 25 Oct 2026): GMT again.
+    const night = session({
+      startsAt: at("2026-10-27T21:00:00Z"),
+      endsAt: at("2026-10-28T05:00:00Z"),
     });
-    expect(
-      eventNote(event([session({ urgentGap: true })], { placesFree: 4, showing: false })),
-    ).toEqual({
-      text: "Hidden from casuals, 4 open, 1 urgent",
-      urgent: false,
-    });
-    expect(eventNote(event([session({ booked: 4 })], { placesFree: 0 }))).toEqual({
-      text: "Full",
-      urgent: false,
-    });
+    expect(cardSessionTime(night, TZ, true)).toBe("Tue 27, 21:00–05:00");
+  });
+
+  it("its meter's places (marked filled counts as full) and where its casuals go", () => {
+    expect(filledPlaces(session({ booked: 3, headcount: 4 }))).toBe(3);
+    expect(filledPlaces(session({ status: "filled", booked: 1, headcount: 4 }))).toBe(4);
+    expect(filledPlaces(session({ booked: 5, headcount: 4 }))).toBe(4);
+    expect(sessionWhere(session({ post: "Gate A", meetingPoint: "Main gate" }))).toBe(
+      "Post: Gate A",
+    );
+    expect(sessionWhere(session({ meetingPoint: "Gate 2" }))).toBe("Meeting point: Gate 2");
+    expect(sessionWhere(session({}))).toBeNull();
+  });
+
+  it("the folded filled sessions, and those past the card's 30", () => {
+    expect(filledSessionsText(1)).toBe("1 filled session");
+    expect(filledSessionsText(18)).toBe("18 filled sessions");
+    expect(moreSessionsText(1)).toBe("+ 1 more session");
+    expect(moreSessionsText(3)).toBe("+ 3 more sessions");
   });
 });

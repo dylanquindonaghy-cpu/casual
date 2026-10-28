@@ -633,13 +633,20 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
     await expect(page.locator("section#offered p").first()).toHaveText(
       new RegExp(` · ${out} ${out === 1 ? "offer" : "offers"}, no reply yet$`),
     );
-    // To fill: Events & sessions' places to fill, with sessions that need people.
+    // To fill: Events & sessions' places to fill, with sessions that need people (its line, round
+    // 7: "{10} events with sessions to come · {33} places free").
     const toFill = await count("To fill");
     await bar.getByRole("link", { name: /^To fill \d+$/ }).click();
     await expect(page).toHaveURL(`${acme}/office/events?view=need`);
-    await expect(page.getByRole("main")).toContainText(
-      `${toFill} ${toFill === 1 ? "open place" : "open places"} across`,
-    );
+    await expect(
+      page
+        .getByRole("main")
+        .getByText(
+          new RegExp(
+            `^\\d+ events? with sessions to come · ${toFill} ${toFill === 1 ? "place" : "places"} free$`,
+          ),
+        ),
+    ).toBeVisible();
     await bar.getByRole("link", { name: /^Urgent \d+$/ }).click();
     await expect(page).toHaveURL(`${acme}/office/events?view=urgent`);
     await bar.getByRole("link", { name: /^To check \d+\+?$/ }).click();

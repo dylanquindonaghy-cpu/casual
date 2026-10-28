@@ -181,10 +181,11 @@ which explains each job step by step, and "Log out".
 24. **Offer a gap.** Back on the "Dashboard", click the paper plane on a card under "To offer". A
     panel lists who can take it: click "Send offer to …" on the first person. It says "Offered",
     the foot of the panel says "Offer on its way to …", and the offer appears in the dev window.
-    Press Escape. (Events & sessions has every session too: "Need people", an event's "…", then
-    "Offer a place".)
+    Press Escape. (Events & sessions has every session too: "Need people", then a session's "…"
+    on its event's card, then "Offer a place".)
 25. **Enquiries, and answer a request.** Click "Enquiries": the shifts line's messages, newest
-    first, each with how it was answered. Kieran Doyle's "I need to cancel please", Ben Fraser's
+    first, each with how it was answered (on a computer the first one shows beside the list:
+    click another to see it there; on a phone a message opens on its own page). Kieran Doyle's "I need to cancel please", Ben Fraser's
     pay question ("Pay (always a person)") and Zoe Adeyemi's "Hi, any shifts for me?" came in just
     before the demo was made. Click "Requests from the app". On Sam Walsh's time
     change, click "Approve and tell Sam". It says "Approved. Sam will be told." The message to Sam
@@ -225,8 +226,8 @@ which explains each job step by step, and "Log out".
     strike": "Kept, and marked as reviewed." (Or "Withdraw strike…", with a reason: it then stops
     counting.)
 32. **Casuals.** Click "Casuals" (everyone, with their qualifications, travel areas and strikes;
-    "Need updating" lists who has something to sort out). Under "Find a casual", type `Zoe` in
-    "Name or mobile number", and click "Find". Open Zoe Usman: what needs updating, her
+    "Need updating" lists who has something to sort out). In the search box beside the views
+    ("Name or mobile number"), type `Zoe` and click "Find". Open Zoe Usman from the matches under it: what needs updating, her
     qualifications, travel area, strikes, bookings and access. (Don't make her inactive: later
     steps use her.) Then click "Uploads to check": Ben Fraser's new staff photo and Leah Ward's
     new licence wait for a person. Click "Check it" on Ben's, look at the picture, and click
@@ -317,7 +318,8 @@ Enquiries. `docs/messaging-templates.md`, "Notification policy".)
     email. Log in as the resourcer again (step 22) and click "Enquiries" in the menu (its count is
     the messages that need a person), then "Need a person": it's there as "Unknown number", marked
     "Passed to a person, waiting". Click "Unknown number" to see the conversation and "How it was
-    answered"; you could reply in the box ("Answer it") or close it with a reason.
+    answered"; you could reply in the box under it, or click "Close, no reply needed" and give a
+    reason.
 45. **A call with a voicemail:**
 
     ```

@@ -1213,8 +1213,8 @@ inbound number, and casuals answer in the app meanwhile. Who sends what (Dylan, 
 for bookings made in ShiftDesk; AXLR8, which can send any texts the firm chooses, keeps texting
 about the office's own bookings.
 
-Dylan to decide with it (Messages 2): the app's notification first and a text only when the phone
-has no notifications on (fewer texts to pay for), or both, as now.
+Messages 2, decided (Dylan, 2026-10-26): the app's notification first and a text only when the
+phone has no notifications on (fewer texts to pay for); built in P2.4.
 
 Done when: every task above is ticked with a stamp that includes the browser tests; `scripts/verify.sh`
 with `RUN_E2E=1` prints VERIFIED; no test or browser test sends a real text; the `claims-auditor`
@@ -1820,21 +1820,80 @@ is 858 KB and `docs/overnight-log.md` 1.1 MB, and both only grow.
   finds no dead links; `PLAN.md` under 100 KB (the Decisions list alone is about 50 KB: if that's
   still too much, it moves to `docs/plan/` next).
 
-### P2 — Reach casuals in production (a blocker for any pilot; S, M, A)
+### P2 — Reach casuals in production (go-ahead for the back end: Dylan, 2026-10-28; its words on the login and Pay pages after the UI chat's Phase 24; S, A, M)
 
 Why: casuals get their login link and their pay code by WhatsApp only
 (`src/lib/auth/send-portal-link.ts`, `src/lib/auth/send-login-code.ts`), no real
 text sender exists (`MESSAGING_TRANSPORT` takes only `console`, `src/lib/env.ts`), and the job worker
 refuses to start in production without one (`src/lib/env.ts`, `deploy/docker-compose.yml`). Every
-sync, webhook, reminder and offer wave runs in that worker.
+sync, webhook, reminder and offer wave runs in that worker. Every message to a casual goes by
+WhatsApp, then a text (`sendToWorker`, `src/lib/notify/send.ts`), a push only after a text that
+went; and no booking records where it came from, so the reminders go to every confirmed booking.
 
-- The worker runs in production with no text sender: app notifications and email only
-  (`src/lib/env.ts`, `src/lib/messaging/index.ts`, `deploy/docker-compose.yml`, `docs/runbooks.md`).
-- Casuals can get their login link and their pay code (the Pay page's extra check) by email, a
-  stop-gap until texts exist (AXLR8 holds their email addresses).
-- A per-firm "who sends what" setting, so ShiftDesk never repeats a confirmation or reminder the
-  firm's CRM already sends (a new settings key: a migration like
-  `drizzle/0037_firm_setting_checks.sql`).
+**This round is the back end only** (Dylan, 2026-10-28: "P2 back end"): the UI chat is still on
+Phase 24.5 and 24.6, so no task here changes a screen, an office page, `src/app/`, `src/lib/office/`,
+`docs/screens.md` or `docs/ui-design.md`. New words (each email's subject, the casual's login-link and
+code emails) go in `docs/messaging-templates.md` first, for Dylan to approve (P2.1). Decisions:
+"Connecting the firm's systems" 15 to 17.
+
+- [ ] The words (docs only; Dylan approves them before P2.4 and P2.6 are built): in
+      `docs/messaging-templates.md`, a subject line for each message to a casual that can go by
+      email (offer, urgent offer, booking confirmation, the 24-hour and 2-hour reminders, the firm's
+      change and cancellation, a request's answer, a pay query's answer, the office's reply, the
+      licence warning and notice), its body the message's own approved text (its SMS form); the
+      casual's login-link and code emails; a policy paragraph on the order (push, then a text once
+      a sender exists, then email) (P2.1)
+- [ ] Where a booking came from (S): `assignments.booked_via` (app: a casual's own take or an
+      accepted offer; office; sheet; api, for P5), checked like `cancel_via`, written by
+      `bookShift()` (`src/lib/roster/book.ts`) and the sheet sync (`src/lib/roster/sheets/sync.ts`);
+      the migration fills the bookings there are from each one's `shift.assigned` event, and one
+      with none counts as the office's (as `src/lib/strikes/issue.ts` already does). Tests: each
+      writer, the backfill, the check, another firm's rows (P2.2)
+- [ ] Who sends what: an owner setting `firm_system_sends` (off unless the firm says so: ShiftDesk
+      sends as today); on, no booking confirmation and no 24-hour or 2-hour reminder from ShiftDesk
+      for a booking whose `booked_via` is sheet or api (the firm's own system tells those casuals);
+      offers and the office's change and cancellation notices still go (decision 9). Tests:
+      `shift.reminders.test.ts`, the confirmation, `onboarding.test.ts` (P2.3)
+- [ ] Push first, then a text, then email (M; after P2.1): one `deliverToWorker()` in
+      `src/lib/notify/send.ts`: a push to the casual's phones (delivered once one phone takes it),
+      else a WhatsApp or text as now (STOP respected), else an email with P2.1's subject when they
+      have an address, else not sent (`no_channel`, logged); a transport with no text sender says so
+      (`NoTextSenderError`), never a failed text. Every sender moves to it, keeping claim → send →
+      record: offers, reminders, the booked, change, request and pay-query notices, the office's
+      replies, the licence messages (those with no push today skip it: no new push words). The
+      shifts line's own replies and STOP or START stay text only (decision 11). Migration:
+      `shift_reminders_channel_check` takes push and email. Tests changed on purpose (Messages 2:
+      a push now instead of the text, not beside it) named in the commit; new: each step, a push gone
+      or failed falls to a text, no text sender falls to email, no address is `no_channel`, nothing
+      twice on a retry (P2.4)
+- [ ] The worker runs in production with no text sender (M): `MESSAGING_TRANSPORT=none` (an empty
+      value unset), allowed in production; the Compose file's worker runs without its profile,
+      with `none` by default and SMTP email as production already insists; the send-failure alert
+      ignores `no_text_sender`, as it does `sms_opted_out`. Tests changed on purpose: the production
+      refusals (`env.test.ts`, `env.demo.test.ts`, `push*.test.ts`) and `deploy.compose.test.ts`;
+      new: the worker starts in production with `none` and SMTP, and still refuses `console`.
+      Docs: `docs/runbooks.md`, `docs/architecture.md` (P2.5)
+- [ ] Login links and pay codes by email, switched off (A, M; after P2.1): an owner setting
+      `login_by_email` (off); `send-portal-link.ts` and `send-login-code.ts` choose the channel at
+      the claim: a text if a sender exists, else (with the setting on and an address) P2.1's
+      email, else not sent (`no_channel`); the events log the channel used, never a hard-coded
+      WhatsApp. A casual's email lowercased and checked in `upsertWorker`
+      (`src/lib/roster/workers.ts`), and a changed address ends their sessions, as a changed mobile
+      does (audit L81). The login-link alert counts emailed links too. Tests: the login flow, its
+      events, the code, no resend; off sends nothing by email; an email change logs the casual
+      out. Docs: `docs/data-model.md`, `docs/compliance.md`, `docs/privacy-notice.md` (P2.6)
+
+**After the UI chat's Phase 24 merges** (not this round): the login page, the Pay code step, help
+and the profile's notification note stop naming WhatsApp, `docs/screens.md` first (P2.7); then a
+firm can switch `login_by_email` on.
+
+Done when: P2.1 to P2.6 are ticked, each with a stamp that includes the browser tests;
+`RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; nothing under `src/app/` or `src/lib/office/`
+changed, and no words but those Dylan approved in P2.1; the worker starts in production with no
+text sender; a casual is reached by push, else a text, else email, else the miss is logged; every
+booking says where it came from, and with `firm_system_sends` on, sheet and API bookings get no
+confirmation or reminders from ShiftDesk; with `login_by_email` on, a casual's login link and pay
+code go by email; the `claims-auditor` checks the phase against this line.
 
 ### P3 — Fit the firm's model (items 1, 2 and 4 decided 2026-10-26; item 3 needs Rules 3; item 5 waits on discovery)
 
@@ -2119,7 +2178,7 @@ come through our own text system and app". No WhatsApp and no Twilio: casuals ar
 through the firm's own text system, and by the app's notifications (web push). Phase 15 (proposed,
 waiting for the go-ahead) has the work. Rows tagged **Before submitting the WhatsApp templates**
 and **When you create the accounts** that name Twilio or WhatsApp need a fresh look against the
-text system once its details are known; Messages 2 (notification first, or both) is still open.
+text system once its details are known; Messages 2 is decided (notification first: P2.4).
 
 **Decided on 2026-10-26** (Dylan, in chat): "go with your recommendations on the 8 decisions".
 "Connecting the firm's systems" 1 to 8 take Claude's recommendations: a pay calendar per firm
@@ -2378,6 +2437,9 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
 | 12 | **Decided** (Dylan, 2026-10-26: recommended): at most 5 unknown-number alert emails per firm an hour; the messages still show in "Need a person" (a cap on polite replies is moot: none go by text) | One email per number to every admin and resourcer | P4.7 |
 | 13 | **Decided** (Dylan, 2026-10-26: recommended): texts go out only for offers, confirmations and reminders of ShiftDesk's own bookings, through the firm's Webex account, and preferably only when the casual's phone has app notifications off (Messages 2) | Nothing sent for real (no text sender yet) | Phase 15; P2 |
 | 14 | **Decided** (Dylan, 2026-10-26: recommended): the database's time limits are set inside `withFirm`, per transaction, rather than per database role (a tenancy change) | No limits | P4.2; ADR-027 |
+| 15 | **Decided** (Dylan, 2026-10-28: recommended): with no text sender yet, every message a text would carry goes to a casual whose phone has no notifications on by email, when we have their address: push first, then a text once a sender exists, then email | Nothing reaches a casual in production | P2.1; P2.4 |
+| 16 | **Decided** (Dylan, 2026-10-28: recommended): login links and pay codes by email, built now and switched off per firm; the login and Pay pages' words change after the UI chat's Phase 24, `docs/screens.md` first | WhatsApp only | P2.6; P2.7 |
+| 17 | **Decided** (Dylan, 2026-10-28: recommended): build "who sends what" now: every booking records where it came from, and a firm setting stops ShiftDesk's confirmation and reminders for bookings the firm's own system made | ShiftDesk sends for every booking | P2.2; P2.3 |
 
 ### Checks and to-dos (not choices)
 

@@ -12,6 +12,13 @@ gets the caller's login link by message, as the login page does: the caller aske
 `npm run firm:settings -- --firm <slug> --set auto_replies=true`. The office is emailed about at
 most 5 unknown numbers per firm an hour; the rest wait in Need a person. No words change.
 
+**How a message reaches a casual** (P2.4; the words approved by Dylan on 2026-10-28;
+`PLAN.md` "Connecting the firm's systems" 15; Messages 2): a push to the phones they turned
+notifications on for; if no phone takes it, a WhatsApp or text (once a text sender exists: Phase
+15); if no text can go, an email to the address the firm holds for them ("Email to casuals" below);
+if none of those, nothing goes and the miss is logged. The shifts line's own replies and the STOP
+or START answers go only by text (decision 11).
+
 Order for every message to a worker:
 1. **Web push** (free). Works on Android; on iPhone only once the portal is added to the home screen.
 2. **WhatsApp template** (about 2p each incl. Twilio fee; business-initiated messages must use
@@ -212,6 +219,33 @@ offer's and the office offer's SMS versions are built so far; the others come wi
   whenever an urgent offer goes by text, the worker's choice or the fallback; {day} as in
   `shift_urgent`; {site} left out when there's none)
 - Confirmed: "{firm}: confirmed {date} {start} at {site}. {link}"
+
+## Email to casuals (approved: Dylan, 2026-10-28; built in P2.4 and P2.6)
+
+When a casual's phones take no push and no text can go (decision 15), a message goes by email to the
+address the firm holds for them. Each email's body is the message's own words, as in the WhatsApp
+templates above, the same in an email; only the subject is new. From the firm's email sender, signed
+like every message (never a person's name).
+
+- Offer (`shift_offer`): subject "Shift available: {date} {start}–{end}"
+- Urgent offer (`shift_urgent`): subject "URGENT: a {role} needed {day}" ({role} with its "a" or
+  "an" in the message, plain here: "URGENT: a door supervisor needed today")
+- Booking confirmation (`shift_confirmed`): subject "Confirmed: your shift on {date}"
+- Reminder, the day before (`shift_reminder_24h`): subject "Reminder: your shift {day}"
+- Reminder, 2 hours before (`shift_reminder_2h`): subject "Your shift starts at {start}"
+- The office's change (`shift_changed_by_firm`): subject "Change to your shift on {date}"
+- The office's cancellation (`shift_cancelled_by_firm`): subject "Your shift on {date} is cancelled"
+- A request's answer (`request_update`): subject "Your request (ref {ref}) is {status}"
+- A pay query's answer (`pay_query_update`): subject "Payroll has answered your pay query"
+- The office's reply on Enquiries: subject "A reply from {firm}"; body "{words} — {firm} Shift Team"
+- A licence running out (`credential_expiring`): subject "Your {credential} expires on {date}"
+- A licence that has run out (`credential_expired`): subject "Your {credential} has expired"
+- Login link (P2.6, only where the firm has switched it on): subject "Your {firm} shifts link";
+  body "Here's your {firm} shifts link: {link}. It works for 15 minutes and only for you. If you
+  didn't ask for it, you can ignore this email. — {firm} Shift Team"
+- Pay code (P2.6, the same): subject "Your {firm} code"; body "Your {firm} code is {code}. It works
+  for 10 minutes. Don't share it with anyone. If you didn't ask for it, you can ignore this email.
+  — {firm} Shift Team"
 
 ## STOP and START by text
 

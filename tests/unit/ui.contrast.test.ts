@@ -121,8 +121,9 @@ const TEXT: [string, string[]][] = [
 const CONTROLS: [string, string[]][] = [
   ["line-strong", ["canvas", "card", "sheet", "panel", "raised", "glass-tile"]],
   ["switch-off", ["card", "panel"]],
-  // A switch's knob on its track: off, and on (ink: the "showing" switch; red: urgent).
-  ["knob", ["switch-off", "ink", "urgent-fill"]],
+  // A switch's knob on its track: off, and on (green: the "showing" switch, Phase 24; red: urgent).
+  // The green track itself against the glass is `done` on card and panel, below.
+  ["knob", ["switch-off", "done", "urgent-fill"]],
   ["urgent", ["card", "panel", "urgent-soft"]],
   ["attention", ["card", "panel", "attention-soft"]],
   ["done", ["card", "panel", "done-soft"]],

@@ -151,15 +151,23 @@ describe("the events list", () => {
     expect(after?.open).toEqual({ places: 1, sessions: 1 });
   });
 
-  it("each event holds every session to come, for the rota board (not 30)", async () => {
+  // Phase 24 (24.4): an event's card holds its first 30 sessions to come, soonest first, and counts
+  // the others ("+ 2 more sessions"); its page holds every one (Phase 18's rota board took them all).
+  it("each card holds its first 30 sessions to come and counts the rest; its page has them all", async () => {
     const t = await eventsFirm();
     const long = await t.f.event({ name: "Night patrols" });
+    const ids: string[] = [];
     for (let i = 0; i < 32; i++)
-      await t.f.shift({ eventId: long, startsAt: hoursFromNow(30 + 24 * i) });
-    const list = await officeEventList(t.ctx, await t.tokenFor(t.resourcer), "all");
+      ids.push(await t.f.shift({ eventId: long, startsAt: hoursFromNow(30 + 24 * i) }));
+    const token = await t.tokenFor(t.resourcer);
+    const list = await officeEventList(t.ctx, token, "all");
     const patrols = list?.events.find((e) => e.name === "Night patrols");
-    expect(patrols?.sessions).toHaveLength(32);
+    expect(patrols?.sessions.map((s) => s.shiftId)).toEqual(ids.slice(0, 30));
+    expect(patrols?.moreSessions).toBe(2);
     expect(patrols?.sessionCount).toBe(32);
+    const page = await officeEventPage(t.ctx, token, long);
+    expect(page?.event.sessions.map((s) => s.shiftId)).toEqual(ids);
+    expect(page?.event.moreSessions).toBe(0);
   });
 
   it("a firm with a Google Sheet has a planner (no Add or Import shifts)", async () => {
@@ -198,7 +206,7 @@ describe("one event's page", () => {
     const list = await officeEventList(t.ctx, token, "all");
     if (!page || !list) throw new Error("no page");
     const { SessionItem } = await import("@/app/office/events/session-row");
-    const { SessionsTable } = await import("@/app/office/events/sessions-table");
+    const { EventCard } = await import("@/app/office/events/event-card");
     const html = [
       renderToStaticMarkup(
         createElement(
@@ -218,16 +226,9 @@ describe("one event's page", () => {
           ),
         ),
       ),
-      // The rota board's open rows (Phase 18), over every day.
+      // The list's event cards (Phase 24; Phase 18's rota board until then).
       ...list.events.map((e) =>
-        renderToStaticMarkup(
-          createElement(SessionsTable, {
-            event: e,
-            timeZone: list.timeZone,
-            hasPlanner: list.hasPlanner,
-            window: { first: "2000-01-01", last: "2999-12-31" },
-          }),
-        ),
+        renderToStaticMarkup(createElement(EventCard, { event: e, timeZone: list.timeZone })),
       ),
     ].join("");
     expect(html).toContain("£15.50/h");

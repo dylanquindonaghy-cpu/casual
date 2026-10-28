@@ -174,6 +174,36 @@ window:
   scrim; it slides in (200ms). People are glass tiles with a 40px initials disc; "Send offer" a
   clear glass pill.
 
+### Events & sessions, Enquiries and Casuals, round 7 (24.4)
+
+`docs/screens.md` "Events & sessions, Enquiries and Casuals, round 7". The filters on all three are
+the shared `tabs`; each count a disc (`tabCount`: clear glass, the current tab's in the accent).
+
+- **Events & sessions:** the page a container; the filters and their line on one row, wrapping on
+  a phone. Event cards are glass sections (22px), 16px inside, 24px from a 36rem card; two columns
+  from 56rem of page, their tops level in each row (`items-start`). The heading 20px semibold, its
+  line 14px grey; the switch 48 × 28px at the top right, green on (`done`) and grey off, its knob
+  solid with the soft lift. Sessions are glass tiles 14px round, 16px across and 12px down inside,
+  8px apart; from a 30rem card their meter, pay and "…" sit at the right of the role and when,
+  under them before. Requirement chips 24px clear glass pills; the meter 112px wide, 6px tall, ink
+  on the quiet tint, under "3/4 filled"; "…" a 44px clear glass circle, its menu floating under
+  it (its right edge with the button's, at most 80% of the window). "1 filled session" folds the
+  full ones (a 44px row with a chevron that turns). "View sessions" with an arrow.
+- **Enquiries:** from 1024px (the window's, as the pick follows it) a grid of a 26rem list and the
+  pane, 24px apart, tops level. The list one glass section with rows 14px round, 16px inside, 4px
+  apart: the icon in a 24px column, the name and the time, the chip, their words; the chosen row
+  clear glass with a 2px ink outline (from 1024px only). The pane a glass section 24px inside: the
+  title 24px semibold, the casual's page a clear glass pill at its top right; the conversation a
+  clear-glass panel 16px inside, bubbles 16px across and 12px down, at most 85% wide, theirs clear
+  glass, ours ink with its own words (light in dark); the reply box a glass tile with the field,
+  then the line and the two buttons (together at the right, wrapping as one).
+- **Casuals:** the search a 48px clear-glass pill, 320px from 640px (the row's width on a phone),
+  its field without a ring of its own (the pill takes the ring); its matches a floating glass
+  panel under it. The table one glass section, no lines between rows, heads 14px grey, cells 12px
+  down; initials a 40px disc in the waiting tint with the rim; valid qualifications plain 14px
+  ink, the rest the shared chips; strikes red and semibold when not 0. A phone's cards are glass
+  sections.
+
 ## Phase 23: the office's look, round 3
 
 Replaced by Phase 24 (above), kept for its reasons where they still stand (its spacing, chips,

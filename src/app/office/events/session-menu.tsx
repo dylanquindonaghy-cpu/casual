@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { btn } from "@/app/ui/classes";
+import { Icon } from "@/app/ui/icons";
 import type { SessionRow } from "@/lib/office/events";
 import { PLANNER_SESSION_WORDS, SHEET_SESSION_WORDS } from "@/lib/office/events-copy";
 import { summaryButton } from "../shifts/[id]/chevron";
@@ -11,9 +12,9 @@ import { UrgentToggle } from "./urgent-toggle";
 // and Change or cancel on the shift's page (a Google Sheet's session can't be changed or
 // cancelled as a whole here, only its details; one from the firm's planner, not even those);
 // Mark urgent / Not urgent in place. A <details>,
-// so it opens without waiting for the page. The panel lies over the row (the row is its frame):
-// the row's full width on a phone, under the button from 640px, so it never widens the page. It
-// floats, so it alone has the office's overlay (Phase 23: 22px round, as a card in a page).
+// so it opens without waiting for the page. Phase 24 (round 7): a round clear-glass button, as the
+// dashboard's detail card's; its panel floats under it, its right edge with the button's, at most
+// 80% of the window wide, so it never widens the page.
 export function SessionMenu({
   session,
   name,
@@ -28,22 +29,14 @@ export function SessionMenu({
   const placeFree = session.status === "open" && session.booked < session.headcount;
   const shown = session.showing && eventShowing;
   return (
-    <details className="group">
-      <summary className={`${btn.secondary} ${summaryButton} px-3`} aria-label={`More for ${name}`}>
-        <svg
-          aria-hidden="true"
-          focusable="false"
-          viewBox="0 0 24 24"
-          width="20"
-          height="20"
-          fill="currentColor"
-        >
-          <circle cx="5" cy="12" r="2" />
-          <circle cx="12" cy="12" r="2" />
-          <circle cx="19" cy="12" r="2" />
-        </svg>
+    <details className="group relative shrink-0">
+      <summary
+        aria-label={`More for ${name}`}
+        className={`${summaryButton} press-glass glass-button inline-flex size-11 items-center justify-center rounded-full text-ink-muted hover:bg-button-hover hover:text-ink active:bg-button-press group-open:bg-button-press group-open:text-ink`}
+      >
+        <Icon name="dots" />
       </summary>
-      <div className="absolute inset-x-2 z-10 mt-2 flex origin-top-right animate-pop flex-col gap-2 rounded-inner glass-float p-3 sm:left-auto sm:w-64">
+      <div className="absolute top-full right-0 z-10 mt-2 flex w-64 max-w-[80vw] origin-top-right animate-pop flex-col gap-2 rounded-inner glass-float p-3">
         {live && placeFree && shown && (
           <Link
             href={`/office/offer/${session.shiftId}`}

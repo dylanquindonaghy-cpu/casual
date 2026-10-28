@@ -441,6 +441,41 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   `office.shell.spec.ts` (Urgent's places and Offers out's offers agreeing with the
   board; the cards' press), `office.attendance.spec.ts` (Who worked?'s card), the walkthrough
   (steps 23 and 24 on the board and the panel).
+- Phase 24, task 24.4 Events & sessions, Enquiries and Casuals (docs/screens.md "Events &
+  sessions, Enquiries and Casuals, round 7"): `office.events.test.ts` (unit) an event card from
+  made-up data (its heading and line, the switch on the card described by its answer, the tags
+  and the summary; a session to fill as a tile with its role link, time, Urgent, chips, post, a
+  75% meter, pay and its uniquely named "…"; the full ones folded under "2 filled sessions", marked
+  filled counting; View sessions named for the event and "+ 3 more sessions"; an automatic event's
+  place over its day, the day in each time over more than one; a bare draft), with the session row
+  and switch label tests kept; `ui.redesign-copy.test.ts` the cards' words (the filters, "Need
+  people" only while chosen; the line; the heading and line; the time on London's clock across the
+  clock change; the meter's places; post else meeting point; the folds' words);
+  `office.events.test.ts` (integration) a card's first 30 sessions and its count of the rest, the
+  event's page holding all 32, and the cards' £/hour with no pay record's figures;
+  `office.enquiry-forms.test.ts` the reply box (labelled, described by how it goes, "Close, no
+  reply needed" then "Send reply", the reason asked only once chosen, an h3 beside the list);
+  `office.enquiry-row.test.ts` a row (its link to the message's page covering the row, the chosen
+  outline only from 1024px and never "current" as the server sends it, the pay line, a voicemail
+  with no words, the link given only its addresses and the name it shows);
+  `enquiries.test.ts` (integration) the message chosen beside the list by its id, still shown once
+  it leaves Need a person, never for a made-up id, another firm's office or payroll;
+  `office.casuals-copy.test.ts` and `office.casual-cells.test.ts` each
+  qualification's short name and date, "(booked shift)", Needs updating, the staff photo's state
+  and date; `ui.contrast.test.ts` the green switch's knob and track at 3:1 in both themes;
+  `ui.glass.test.ts` the board's pins gone, the search's floating panel pinned, no solid card fill
+  anywhere; `ui.office-system.test.ts` no white fill at all. Browser: `office.events.spec.ts` (no dates to page through, All shifts by day; the
+  four filters with counts; at 1280 the filters and their line on one row and the cards side by
+  side; the card's switch hiding the event from a casual's Open shifts and back on from its page),
+  `office.enquiries.spec.ts` (closing asks why, Keep it open going back with focus; at 1280 the
+  list beside the pane, a row picked in place into the address, kept on reload; a message closed
+  in the pane staying there with its confirmation while a newer one tops the list; an address
+  naming no message showing the list's first),
+  `casual.app.spec.ts` (Casuals' words, the counts in discs, the search on the filters' row),
+  `office.workers.spec.ts` and the walkthrough (the search's matches), `office.dashboard.spec.ts`
+  (an event's page from its card, a message beside the list), `office.look.spec.ts`,
+  `office.shell.spec.ts` (the top bar's To fill in the events line) and `uploads.spec.ts` (the
+  staff photo's state, then its date).
 ## Fixtures and the demo seed
 
 `npm run db:seed` creates two fake firms:

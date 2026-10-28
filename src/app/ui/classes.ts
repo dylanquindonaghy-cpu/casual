@@ -47,6 +47,9 @@ export const tab =
   "press-glass inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-4 text-base font-medium text-ink-muted hover:text-ink active:bg-button-press";
 export const tabCurrent =
   "press-glass lens inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-4 text-base font-semibold text-ink";
+// A tab's count (Phase 24, round 7): a small glass disc; on the current tab, the accent's.
+export const tabCount = (current: boolean) =>
+  `inline-flex h-6 min-w-6 items-center justify-center rounded-full px-2 text-xs font-semibold tabular-nums ${current ? "bg-accent text-on-accent" : "glass-button text-ink"}`;
 
 // A quiet grey link beside a heading, to the whole list ("All on Events & sessions", "Open Needs
 // attention": hilos's "View all"; Phase 21). Standalone, so no underline; 44px tall.

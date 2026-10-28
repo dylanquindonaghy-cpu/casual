@@ -4,20 +4,18 @@ import { notFound } from "next/navigation";
 import {
   btn,
   card,
-  h2,
-  headingGap,
   meta,
   nums,
   page,
-  sectionGap,
   tab,
+  tabCount,
   tabCurrent,
-  table,
   tabs,
   textLink,
 } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { requireOfficeArea } from "@/lib/auth/current-office";
+import { initials } from "@/lib/office/board-copy";
 import {
   CASUAL_VIEWS,
   CASUALS_PAGE_MAX,
@@ -26,9 +24,15 @@ import {
   type CasualView,
   type WaitingUpload,
 } from "@/lib/office/casuals";
+import {
+  CASUAL_VIEW_EMPTY,
+  CASUAL_VIEW_WORDS,
+  needsLine,
+  strikesText,
+} from "@/lib/office/casuals-copy";
 import { STATUS_WORDS as ACCESS_WORDS } from "@/lib/office/worker-copy";
 import { roleLabel } from "@/lib/portal/format";
-import { needsSummary, qualificationTitle } from "@/lib/portal/qualification-copy";
+import { qualificationTitle } from "@/lib/portal/qualification-copy";
 import { uploadWhat } from "@/lib/portal/upload-copy";
 import { shortDate } from "@/lib/rules/reasons";
 import { localDateOf } from "@/lib/time/zoned";
@@ -39,42 +43,40 @@ import { PhotoCell, Tags } from "./casual-cells";
 
 export const metadata: Metadata = { title: "Casuals" };
 
-const VIEW_WORDS: Record<CasualView, string> = {
-  all: "All",
-  needs: "Need updating",
-  uploads: "Uploads to check",
-};
-const EMPTY: Record<CasualView, string> = {
-  all: "No casuals yet. Add them from a staff file or your rota sheet.",
-  needs: "Nobody needs to update anything.",
-  uploads: "Nothing to check. New photos and certificates show here.",
-};
 const isView = (v: unknown): v is CasualView =>
   typeof v === "string" && (CASUAL_VIEWS as readonly string[]).includes(v);
 const hrefOf = (view: CasualView) =>
   view === "all" ? "/office/casuals" : `/office/casuals?view=${view}`;
 
-// Their current staff photo, small, beside their name (decorative: the name is next to it).
-function Thumb({ row }: { row: CasualRow }) {
-  return row.photo.current ? (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={`/files/${row.photo.current.id}`}
-      alt=""
-      width={40}
-      height={40}
-      className="h-10 w-10 shrink-0 rounded-row border border-line object-cover"
-    />
-  ) : (
+// Their initials in a small glass disc beside their name (decorative: the name is next to it).
+function Initials({ row }: { row: CasualRow }) {
+  return (
     <span
       aria-hidden="true"
-      className="h-10 w-10 shrink-0 rounded-row border border-dashed border-line-strong"
-    />
+      className="flex size-10 shrink-0 items-center justify-center rounded-full bg-wait-tile text-xs font-semibold text-wait-ink glass-rim"
+    >
+      {initials(row.name)}
+    </span>
   );
 }
 
-// Uploads to check: every photo and certificate waiting, oldest first; each opens the casual's
-// page, where it's approved or rejected.
+// "Steward, Door supervisor" (and " · Not active" or " · Blocked" when they can't work).
+const who = (row: CasualRow) =>
+  `${row.roles.map(roleLabel).join(", ") || "No roles"}${
+    row.status === "active" ? "" : ` · ${ACCESS_WORDS[row.status]}`
+  }`;
+
+// Live strikes: "None", or the number in red (it counts against them).
+function Strikes({ n }: { n: number }) {
+  return (
+    <span className={`tabular-nums ${n > 0 ? "font-semibold text-urgent" : "text-ink"}`}>
+      {strikesText(n)}
+    </span>
+  );
+}
+
+// Uploads to check: every photo and certificate waiting, oldest first, as rows of one glass
+// panel; each opens the casual's page, where it's approved or rejected.
 function UploadsList({
   uploads,
   timeZone,
@@ -85,9 +87,12 @@ function UploadsList({
   year: number;
 }) {
   return (
-    <ul role="list" className={`${headingGap} flex flex-col gap-3`}>
+    <ul role="list" className="glass flex flex-col gap-1 rounded-inner p-2">
       {uploads.map((u) => (
-        <li key={u.id} className={`${card} flex flex-wrap items-center justify-between gap-3`}>
+        <li
+          key={u.id}
+          className="flex flex-wrap items-center justify-between gap-3 rounded-row px-4 py-3"
+        >
           <span className="min-w-0">
             <Link
               href={`/office/casuals/${u.workerId}#uploads`}
@@ -113,15 +118,17 @@ function UploadsList({
   );
 }
 
-const who = (row: CasualRow) =>
-  `${row.roles.map(roleLabel).join(", ") || "No roles"}${
-    row.status === "active" ? "" : ` · ${ACCESS_WORDS[row.status]}`
-  }`;
-const strikesText = (n: number) => (n === 0 ? "None" : String(n));
+// The table's head and cells (round 7: one glass table, no lines between its rows).
+const th = "px-4 pt-4 pb-3 text-sm font-medium whitespace-nowrap text-ink-muted";
+const td = "px-4 py-3 align-middle";
 
-// Casuals (docs/office-v2.md 3.7; docs/screens.md `/office/casuals`; 12F.1): All and Need updating
-// as links with their counts, "Find a casual" (the find-a-worker form, as built), then everyone in
-// the view: a table on a wide screen, stacked cards on a phone. Admins and resourcers.
+// Casuals (docs/office-v2.md 3.7; docs/screens.md `/office/casuals`; 12F.1; Phase 24, 24.4: round
+// 7 of the canvas, approved by Dylan on 26 Oct 2026): "Casuals" and what it's for; All, Need
+// updating and Uploads to check as links with their counts, and beside them the search ("Name or
+// mobile number", the find-a-worker form as built, in a box: ../find-worker-form.tsx); then
+// everyone in the view as one glass table from 768px (their initials, name and roles,
+// qualifications with their dates, staff photo, travel area, live strikes in red, what needs
+// updating), stacked glass cards on a phone. Admins and resourcers.
 export default async function OfficeCasualsPage({
   searchParams,
 }: {
@@ -146,102 +153,103 @@ export default async function OfficeCasualsPage({
         </p>
       </PageHeader>
 
-      <nav aria-label="Show" className={tabs}>
-        {CASUAL_VIEWS.map((v) => (
-          <Link
-            key={v}
-            href={hrefOf(v)}
-            aria-current={v === view ? "page" : undefined}
-            className={v === view ? tabCurrent : tab}
-          >
-            {VIEW_WORDS[v]} <span className={nums}>({list.counts[v]})</span>
-          </Link>
-        ))}
-      </nav>
-
-      <section className={`${card} mt-6 max-w-2xl`} aria-labelledby="find">
-        <h2 id="find" className={h2}>
-          Find a casual
-        </h2>
-        <div className={headingGap}>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+        <nav aria-label="Show" className={tabs}>
+          {CASUAL_VIEWS.map((v) => (
+            <Link
+              key={v}
+              href={hrefOf(v)}
+              aria-current={v === view ? "page" : undefined}
+              className={v === view ? tabCurrent : tab}
+            >
+              {CASUAL_VIEW_WORDS[v]} <span className={tabCount(v === view)}>{list.counts[v]}</span>
+            </Link>
+          ))}
+        </nav>
+        <div className="w-full sm:ml-auto sm:w-auto">
           <FindWorkerForm
             find={findWorkersAction}
             hrefBase="/office/casuals"
             notAllowed="You can't see casuals."
+            compact
           />
         </div>
-      </section>
+      </div>
 
-      <section className={sectionGap.office} aria-labelledby="list">
-        <h2 id="list" className={h2}>
-          {VIEW_WORDS[view]}
+      <section className="mt-6" aria-labelledby="list">
+        <h2 id="list" className="sr-only">
+          {CASUAL_VIEW_WORDS[view]}
         </h2>
         {view === "uploads" ? (
           list.uploads.length === 0 ? (
-            <p className={`${headingGap} text-ink-muted`}>{EMPTY[view]}</p>
+            <p className={`${card} text-ink-muted`}>{CASUAL_VIEW_EMPTY[view]}</p>
           ) : (
             <UploadsList uploads={list.uploads} timeZone={timeZone} year={year} />
           )
         ) : list.rows.length === 0 ? (
-          <p className={`${headingGap} text-ink-muted`}>{EMPTY[view]}</p>
+          <p className={`${card} text-ink-muted`}>{CASUAL_VIEW_EMPTY[view]}</p>
         ) : (
           <>
             {/* A table from 768px; stacked cards on a phone. */}
             <div
               role="region"
               tabIndex={0}
-              aria-label={`${VIEW_WORDS[view]}: casuals`}
-              className={`${table.wrap} ${headingGap} hidden md:block`}
+              aria-label={`${CASUAL_VIEW_WORDS[view]}: casuals`}
+              className="glass hidden overflow-x-auto rounded-inner px-2 pb-2 md:block"
             >
-              <table className={table.table}>
+              <table className="w-full border-collapse text-left">
                 <thead>
                   <tr>
-                    <th className={table.th}>Casual</th>
-                    <th className={table.th}>Qualifications</th>
-                    <th className={table.th}>Staff photo</th>
-                    {list.travelOn && <th className={table.th}>Travel area</th>}
-                    <th className={`${table.th} ${table.num}`}>Live strikes</th>
-                    <th className={table.th}>Needs updating</th>
+                    <th className={th}>Casual</th>
+                    <th className={th}>Qualifications</th>
+                    <th className={th}>Staff photo</th>
+                    {list.travelOn && <th className={th}>Travel area</th>}
+                    <th className={th}>Live strikes</th>
+                    <th className={th}>Needs updating</th>
                   </tr>
                 </thead>
                 <tbody>
                   {list.rows.map((r) => (
-                    <tr key={r.id}>
-                      <td className={`${table.td} min-w-56`}>
+                    <tr key={r.id} data-casual={r.id}>
+                      <td className={`${td} min-w-56`}>
                         <span className="flex items-center gap-3">
-                          <Thumb row={r} />
+                          <Initials row={r} />
                           <span className="min-w-0">
                             <Link
                               href={`/office/casuals/${r.id}`}
-                              className={`font-semibold ${textLink}`}
+                              className="press font-semibold text-ink underline-offset-4 hover:underline"
                             >
                               {r.name}
                             </Link>
-                            <span className={`block ${meta}`}>{who(r)}</span>
+                            <span className="block text-sm text-ink-muted">{who(r)}</span>
                           </span>
                         </span>
                       </td>
-                      <td className={`${table.td} min-w-56`}>
-                        <Tags row={r} />
+                      <td className={`${td} min-w-56`}>
+                        <Tags row={r} year={year} />
                       </td>
-                      <td className={`${table.td} min-w-40`}>
+                      <td className={`${td} min-w-36`}>
                         <PhotoCell row={r} year={year} />
                       </td>
                       {list.travelOn && (
-                        <td className={`${table.td} ${nums}`}>{officeTravelText(r.travel)}</td>
+                        <td className={`${td} min-w-40 text-sm ${nums}`}>
+                          {officeTravelText(r.travel)}
+                        </td>
                       )}
-                      <td className={`${table.td} ${table.num}`}>{strikesText(r.liveStrikes)}</td>
-                      <td className={table.td}>{needsSummary(r.needs)}</td>
+                      <td className={td}>
+                        <Strikes n={r.liveStrikes} />
+                      </td>
+                      <td className={`${td} min-w-40 text-sm`}>{needsLine(r.needs, year)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <ul role="list" className={`${headingGap} flex flex-col gap-3 md:hidden`}>
+            <ul role="list" className="flex flex-col gap-3 md:hidden">
               {list.rows.map((r) => (
                 <li key={r.id} className={card}>
                   <div className="flex items-center gap-3">
-                    <Thumb row={r} />
+                    <Initials row={r} />
                     <div className="min-w-0">
                       <Link
                         href={`/office/casuals/${r.id}`}
@@ -252,10 +260,10 @@ export default async function OfficeCasualsPage({
                       <p className={meta}>{who(r)}</p>
                     </div>
                   </div>
-                  <div className="mt-2">
-                    <Tags row={r} />
+                  <div className="mt-3">
+                    <Tags row={r} year={year} />
                   </div>
-                  <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                  <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-sm">
                     <dt className="font-semibold">Staff photo</dt>
                     <dd>
                       <PhotoCell row={r} year={year} />
@@ -267,16 +275,19 @@ export default async function OfficeCasualsPage({
                       </>
                     )}
                     <dt className="font-semibold">Live strikes</dt>
-                    <dd className={nums}>{strikesText(r.liveStrikes)}</dd>
+                    <dd>
+                      <Strikes n={r.liveStrikes} />
+                    </dd>
                     <dt className="font-semibold">Needs updating</dt>
-                    <dd>{needsSummary(r.needs)}</dd>
+                    <dd>{needsLine(r.needs, year)}</dd>
                   </dl>
                 </li>
               ))}
             </ul>
             {list.more && (
-              <p className={`${meta} mt-2`}>
-                Showing the first {CASUALS_PAGE_MAX}. Use Find a casual to find anyone else.
+              <p className={`${meta} mt-3`}>
+                Showing the first {CASUALS_PAGE_MAX}. Search by name or mobile number to find anyone
+                else.
               </p>
             )}
           </>

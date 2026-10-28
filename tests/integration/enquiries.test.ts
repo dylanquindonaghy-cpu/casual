@@ -8,7 +8,7 @@ import { receiveSms, receiveWhatsApp } from "@/lib/inbound/receive";
 import { runInboundMessage } from "@/lib/inbound/reply";
 import { ChannelRefusedError, type MessagingTransport } from "@/lib/messaging/transport";
 import { ENQUIRY_REPLY_QUEUE, runEnquiryReply } from "@/lib/notices/enquiry-reply";
-import { loadEnquiries, loadEnquiry, needPersonCount } from "@/lib/office/enquiries";
+import { loadEnquiries, loadEnquiry, needPersonCount, officeEnquiry } from "@/lib/office/enquiries";
 import { closeEnquiry, replyToEnquiry } from "@/lib/office/enquiry-actions";
 import { WHATSAPP_WINDOW_MS } from "@/lib/office/enquiry-rules";
 import { captureTransport } from "../helpers/auth";
@@ -652,6 +652,27 @@ describe("what the office can see", () => {
     expect(e?.timeline.sorted).toEqual({ how: "person", why: "voicemail" });
     expect(await replyToEnquiry(t.ctx(), asked, "Hi")).toEqual({ status: "withheld" });
     expect(await closeEnquiry(t.ctx(), asked, "other")).toEqual({ status: "closed" });
+  });
+
+  // The message beside Enquiries' list (`?message=`, Phase 24, 24.4): any of the firm's by its id,
+  // even once it has left the view; for anything else the page shows the list's first instead.
+  it("the message chosen beside the list: the firm's own by its id, never a made-up one, another firm's, or for payroll", async () => {
+    const t = await enquiryFirm();
+    const asked = await t.incoming("office please");
+    expect(await officeEnquiry(t.ctx(), asked)).toMatchObject({ messageId: asked, waiting: true });
+    // Closed, it leaves Need a person and is still shown by its id, answered.
+    expect(await closeEnquiry(t.ctx(), asked, "by_phone")).toEqual({ status: "closed" });
+    expect((await t.load("person")).rows.map((r) => r.messageId)).not.toContain(asked);
+    expect(await officeEnquiry(t.ctx(), asked)).toMatchObject({ messageId: asked, waiting: false });
+    // Not an id at all, and an id that's no message of the firm's.
+    for (const bad of ["not-a-uuid", "' or 1=1 --", "", `${asked}x`]) {
+      expect(await officeEnquiry(t.ctx(), bad)).toBeNull();
+    }
+    expect(await officeEnquiry(t.ctx(), "00000000-0000-4000-8000-000000000000")).toBeNull();
+    // Payroll can't open Enquiries; another firm's office never sees it.
+    expect(await officeEnquiry(t.ctx(new Date(), await t.f.office("payroll")), asked)).toBeNull();
+    const other = await enquiryFirm();
+    expect(await officeEnquiry(other.ctx(), asked)).toBeNull();
   });
 
   it("a bare call isn't an enquiry; a message older than 90 days isn't shown", async () => {

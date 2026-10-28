@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { meta, nums } from "@/app/ui/classes";
+import { nums } from "@/app/ui/classes";
 import { Icon } from "@/app/ui/icons";
 import { StatusChip } from "@/app/ui/status-chip";
 import type { EnquiryRow } from "@/lib/office/enquiries";
@@ -12,11 +11,14 @@ import {
 } from "@/lib/office/enquiries-copy";
 import { timeOnDay } from "@/lib/portal/format";
 import { cutChars } from "@/lib/text/cut";
+import { PaneLink } from "./pane-link";
 
-// One enquiry in Enquiries' list: who sent it, by which channel, the outcome chip and when; their
-// words in quotes. The name opens the message's own page. `reply` (the first line of the reply
-// they got) was for the dashboard's latest four, which went in Phase 18: no page passes it now
-// (PLAN.md Parking lot, Phase 18's dashboard loaders).
+// One enquiry in Enquiries' list (Phase 24, 24.4: round 7 of the canvas): the channel's icon, who
+// sent it and when, the outcome chip, their words in quotes (and, on a pay message, that pay is
+// never answered by AI). The whole row is its name's link (./pane-link.tsx): on a phone to the
+// message's own page, from 1024px picking it into the pane beside the list. The chosen row has a
+// dark outline there (only there: a phone shows no message beside the list). Drawn on the server:
+// only the link runs in the browser, given its addresses and the name it shows.
 
 // Their words, on one line and cut short for the list (the full text is on the message's page).
 export const preview = (text: string | null) => {
@@ -30,44 +32,53 @@ export const preview = (text: string | null) => {
 export function EnquiryItem({
   r,
   timeZone,
-  reply,
+  paneHref,
+  chosen,
 }: {
   r: EnquiryRow;
   timeZone: string;
-  reply?: string | null; // the first line of the reply (null: none yet); unused since Phase 18
+  paneHref: string; // this list with the message chosen
+  chosen: boolean;
 }) {
   const words = preview(r.text);
   return (
-    <li className="px-4 py-3">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <Icon name={r.channel} className="shrink-0 text-ink-muted" />
-        <span className="sr-only">{CHANNEL_WORDS[r.channel]}:</span>
-        <Link
-          href={`/office/enquiries/${r.messageId}`}
-          className="press font-semibold underline-offset-4 hover:underline"
-        >
-          {whoName(r.who)}
-        </Link>
-        <StatusChip tone={OUTCOME_TONES[r.outcome]}>{OUTCOME_WORDS[r.outcome]}</StatusChip>
-        <span className={`${meta} ${nums} ml-auto`}>{timeOnDay(r.at, timeZone)}</span>
-      </div>
-      <p className="mt-1 break-words">
-        {words === null ? (
-          <span className="text-ink-muted">
-            {r.channel === "voice"
-              ? "(A voicemail we couldn't turn into text.)"
-              : "(A photo or file, with no text.)"}
+    <li
+      className={`relative grid grid-cols-[1.5rem_minmax(0,1fr)] gap-x-3 rounded-row px-4 py-4 ${
+        chosen
+          ? "hover:bg-active lg:glass-button lg:outline-2 lg:-outline-offset-2 lg:outline-ink"
+          : "hover:bg-active"
+      }`}
+    >
+      <Icon name={r.channel} className="mt-1 shrink-0 text-ink-muted" />
+      <div className="flex min-w-0 flex-col gap-2">
+        <p className="flex items-baseline gap-3">
+          <span className="sr-only">{CHANNEL_WORDS[r.channel]}:</span>
+          <PaneLink
+            href={`/office/enquiries/${r.messageId}`}
+            paneHref={paneHref}
+            chosen={chosen}
+            name={whoName(r.who)}
+          />
+          <span className={`ml-auto shrink-0 text-sm text-ink-muted ${nums}`}>
+            {timeOnDay(r.at, timeZone)}
           </span>
-        ) : (
-          <>“{words}”</>
-        )}
-      </p>
-      {reply !== undefined && (
-        <p className={`${meta} mt-1 break-words`}>
-          {reply === null ? "No reply yet." : <>Reply: {preview(reply)}</>}
         </p>
-      )}
-      {r.outcome === "pay" && <p className={`${meta} mt-1`}>{PAY_LOCK}</p>}
+        <p>
+          <StatusChip tone={OUTCOME_TONES[r.outcome]}>{OUTCOME_WORDS[r.outcome]}</StatusChip>
+        </p>
+        <p className="break-words">
+          {words === null ? (
+            <span className="text-ink-muted">
+              {r.channel === "voice"
+                ? "(A voicemail we couldn't turn into text.)"
+                : "(A photo or file, with no text.)"}
+            </span>
+          ) : (
+            <>“{words}”</>
+          )}
+        </p>
+        {r.outcome === "pay" && <p className="text-sm text-ink-muted">{PAY_LOCK}</p>}
+      </div>
     </li>
   );
 }

@@ -167,7 +167,6 @@ describe("the office's files use only the system (src/app/office, the shared par
         "src/app/l/link-login.tsx",
         "src/app/too-many-tries.tsx",
         "src/app/ui/page-header.tsx",
-        "src/app/ui/seats.tsx",
         "src/app/ui/status-chip.tsx",
       ]),
     );
@@ -720,8 +719,8 @@ describe("round 7's parts on the office's other pages", () => {
 
   // Phase 24: no white box. Every string in the office's files and its own class strings that
   // gives a box its corners (a section's, a row's) and a white fill (`card`, `button`, `sheet`) is
-  // a glass part instead; the white fills stay only on the events board's open seats and its key's
-  // swatch (marks with the stronger grey outline, not boxes). And there's glass on the pages:
+  // a glass part instead. Since 24.4 there's no white fill at all (the events board's open seats
+  // and its key's swatch, the last ones, went with the board). And there's glass on the pages:
   // sections, tiles, clear buttons and what floats, each used.
   it("no white boxes: every box a glass part, a tint or a solid fill", () => {
     const LITERALS = [
@@ -736,20 +735,9 @@ describe("round 7's parts on the office's other pages", () => {
       ),
     ];
     const white = /(?<![\w:-])(?:[a-z0-9-]+:)*bg-(?:card|button|sheet)(?![\w/-])/;
-    const OUTLINED = [
-      "src/app/office/events/board-parts.tsx",
-      "src/app/office/events/event-row.tsx",
-    ];
-    const whites = LITERALS.filter(({ text }) => white.test(text)).map(
-      ({ file, text }) => `${file}: ${text}`,
-    );
-    expect(whites.filter((w) => !OUTLINED.some((f) => w.startsWith(`${f}: `)))).toEqual([]);
-    for (const w of whites) {
-      expect(w).toMatch(/(?<![\w:-])border-ink-muted(?![\w-])/);
-      expect(w).not.toMatch(
-        /(?<![\w-])(?:[a-z0-9-]+:)*rounded-(?:[trblse]{1,2}-)?(?:card|inner|row)(?![\w-])/,
-      );
-    }
+    expect(
+      LITERALS.filter(({ text }) => white.test(text)).map(({ file, text }) => `${file}: ${text}`),
+    ).toEqual([]);
     // The glass, in use on the office's pages.
     const count = (re: RegExp) => LITERALS.filter(({ text }) => re.test(text)).length;
     expect(count(/(?<![\w-])glass(?![\w-])/)).toBeGreaterThan(8);

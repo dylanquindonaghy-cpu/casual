@@ -8,9 +8,10 @@ import type { CasualRow } from "@/lib/office/casuals";
 import type { PhotoStatus } from "@/lib/uploads/photo";
 
 // The Casuals list's two status cells (docs/screens.md `/office/casuals`; Phase 17 "easier to
-// scan"): colour only for a problem. A valid licence and an up-to-date photo are quiet words with
-// no tag; a missing photo (most rows of a new firm) is a small dot and "Missing"; everything that
-// needs someone (expiring, expired, due soon, overdue, waiting for a check) keeps its coloured tag.
+// scan"; Phase 24, 24.4: round 7's words, each with its date): colour only for a problem. A valid
+// licence and an up-to-date photo are plain words with no tag; a missing photo (most rows of a new
+// firm) is a small dot and "Missing"; everything that needs someone (expiring, expired, due soon,
+// overdue, waiting for a check) keeps its coloured tag.
 
 const CHIP = chip.base;
 
@@ -44,7 +45,7 @@ const qualification = (status: QualificationStatus) => ({
 
 const tags = (status: QualificationStatus) =>
   renderToStaticMarkup(
-    createElement(Tags, { row: row({ qualifications: [qualification(status)] }) }),
+    createElement(Tags, { row: row({ qualifications: [qualification(status)] }), year: 2026 }),
   );
 
 const photo = (status: PhotoStatus) =>
@@ -65,22 +66,48 @@ const photo = (status: PhotoStatus) =>
   );
 
 describe("Casuals list: qualifications", () => {
-  it("a valid licence is quiet words, no tag", () => {
+  it("a valid licence is plain words with its date, no tag", () => {
     const html = tags("valid");
-    expect(html).toContain("SIA licence: Valid");
+    expect(html).toContain(
+      '<span class="text-sm text-ink tabular-nums">SIA licence: valid until 1 Mar 2027</span>',
+    );
     expect(html).not.toContain(CHIP);
-    expect(html).toContain('class="text-sm text-ink-muted"');
   });
 
   it.each([
-    ["expiring_soon", "Expiring soon", chip.attention],
-    ["expired", "Expired", chip.urgent],
-    ["missing", "Missing", chip.attention],
-    ["being_checked", "Being checked", chip.quiet],
+    ["expiring_soon", "expires 1 Mar 2027", chip.attention],
+    ["expired", "expired 1 Mar 2027", chip.urgent],
+    ["missing", "missing", chip.attention],
+    ["being_checked", "being checked", chip.quiet],
   ] as const)("%s keeps its coloured tag", (status, words, tone) => {
     const html = tags(status);
     expect(html).toContain(`${CHIP} ${tone}`);
     expect(html).toContain(`SIA licence: ${words}`);
+  });
+
+  it("one that stops a booked shift says so; a known type has its short name", () => {
+    const html = renderToStaticMarkup(
+      createElement(Tags, {
+        row: row({
+          qualifications: [
+            { ...qualification("expiring_soon"), type: "FIRST_AID", expiresOn: "2026-10-30" },
+          ],
+          needs: [
+            {
+              level: 1,
+              qualification: {
+                ...qualification("expiring_soon"),
+                type: "FIRST_AID",
+                expiresOn: "2026-10-30",
+              },
+              blocks: { role: "steward", day: "2026-10-31" },
+            },
+          ],
+        }),
+        year: 2026,
+      }),
+    );
+    expect(html).toContain("First aid: expires 30 Oct (booked shift)");
   });
 
   it("with a valid one and an expired one, only the expired one is a tag", () => {
@@ -92,18 +119,20 @@ describe("Casuals list: qualifications", () => {
             { ...qualification("valid"), type: "FA", name: "first aid certificate" },
           ],
         }),
+        year: 2026,
       }),
     );
     expect(html.split(CHIP)).toHaveLength(2);
-    expect(html).toContain("First aid certificate: Valid");
+    expect(html).toContain("First aid certificate: valid until 1 Mar 2027");
   });
 });
 
 describe("Casuals list: staff photo", () => {
-  it("up to date: the date and quiet words, no tag", () => {
+  it("up to date: plain words, the date it was taken under them, no tag", () => {
     const html = photo("up_to_date");
-    expect(html).toContain("3 Feb");
-    expect(html).toContain('<span class="text-sm text-ink-muted">Up to date</span>');
+    expect(html).toContain(
+      '<span class="text-sm text-ink">Up to date</span><span class="text-sm text-ink-muted tabular-nums">3 Feb</span>',
+    );
     expect(html).not.toContain(CHIP);
   });
 
@@ -123,5 +152,7 @@ describe("Casuals list: staff photo", () => {
     const html = photo(status);
     expect(html).toContain(`${CHIP} ${tone}`);
     expect(html).toContain(words);
+    // Under it, the date that goes with it: taken on, or sent on while it waits.
+    expect(html).toContain(status === "waiting" ? ">Sent 1 Oct</span>" : ">3 Feb</span>");
   });
 });

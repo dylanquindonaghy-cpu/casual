@@ -517,6 +517,12 @@ others still show), and pure code turns the parts into the charts and their pane
 
 ### 3.3 Events and sessions (`/office/events`, `/office/events/[id]`)
 
+**Since Phase 24 (24.4, round 7 of the canvas):** the list is glass event cards in two columns (the
+"show to casuals" switch on the card with its answer in words, its sessions to fill as tiles with a
+fill meter, pay an hour and "…", the filled ones folded, "View sessions" to its page) under All,
+Showing, Hidden and "Urgent, not filled"; Phase 18's rota board and its dates went (the shifts
+list has the days). `docs/screens.md` "Events & sessions, Enquiries and Casuals, round 7".
+
 **Where events come from:**
 - **Google Sheet and file import:** rows are grouped by date and site into an automatic event,
   named like "Acme Demo Arena · Sat 10 Oct", so every session belongs to an event and the switch
@@ -704,6 +710,11 @@ risk. Firms get the template (6.3).
 
 ### 3.6 Enquiries (`/office/enquiries`, `/office/enquiries/[id]`)
 
+**Since Phase 24 (24.4, round 7 of the canvas):** from 1024px the list sits beside the chosen
+message (`?message=`, the message's page's parts); a phone opens the message's own page. "Close,
+no reply needed" asks why before "Close without a reply". `docs/screens.md` "Events & sessions,
+Enquiries and Casuals, round 7".
+
 **What counts as an enquiry:**
 - every message to the shifts line (WhatsApp, text, voicemail transcript) from the last 90 days,
   the current message retention period;
@@ -797,6 +808,11 @@ reply): names are cut to set lengths, fewer shifts are listed until it fits, and
 {link}".
 
 ### 3.7 Casuals (`/office/casuals`, `/office/casuals/[id]`)
+
+**Since Phase 24 (24.4, round 7 of the canvas):** one glass table (initials, not the photo
+thumbnail; each qualification by its short name with its date), and Find a casual is a search box
+beside the views, its matches in a panel under it. `docs/screens.md` "Events & sessions, Enquiries
+and Casuals, round 7".
 
 **Views** (links, each with its count): All · Need updating · Uploads to check.
 

@@ -1992,6 +1992,12 @@ text system once its details are known; Messages 2 (notification first, or both)
 
 (Ideas that came up mid-build. Not in scope until a phase includes them.)
 
+- From Phase 24 (the close, 2026-10-29): the office's Casuals page is heavy to send. With the dev
+  seed's 68 casuals, All is 536 KB on a production build (about 8 KB a row; Uploads to check is
+  53 KB), so about 1.6 MB at its 200-row cap. It's quick to make (0.15 to 0.18 seconds here), so
+  this only shows on a slow connection. Trim each row's markup or page the list, if a pilot's
+  office finds it slow.
+
 - From Phase 24 (24.5, 2026-10-28): an office address that doesn't exist, opened while logged out
   (a mistyped `/office/…` link), shows the casual app's "We can't find that page." with "Go to my
   shifts". Give the office's own logged-out not-found page "Go to the office login" instead.

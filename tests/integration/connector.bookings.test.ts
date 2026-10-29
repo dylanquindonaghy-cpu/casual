@@ -3,6 +3,7 @@ import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { HOUR, MINUTE } from "@/lib/auth/clock";
 import { applyConnectorEvent, type ConnectorApplyDeps } from "@/lib/connector/apply";
+import { mirrorBookings, mirrorCancellations } from "@/lib/connector/bookings";
 import { demoPortal } from "@/lib/connector/demo-portal";
 import { receiveConnectorEvent } from "@/lib/connector/job";
 import { fakeConnectorTransport } from "@/lib/connector/transport";
@@ -391,15 +392,58 @@ describe("reads of a session, and changes the planner's rules refuse", () => {
     await u.casual("STAFF-ANN");
     await u.changed(session([isBooked("STAFF-ANN")]), NOW);
     await u.changed(session([isBooked("STAFF-ANN")]), at(120));
-    expect(await u.changed(session([cancelledThere]), at(90))).toEqual({
+    expect(await u.changed(session([cancelledThere], { places: 4 }), at(90))).toEqual({
       status: "ignored",
       code: "older_read",
     });
     expect(await u.booked()).toEqual([
       { ref: "STAFF-ANN", status: "confirmed", booked_via: "api" },
     ]);
-    const after = await su.query("select headcount from shifts where id = $1", [await t.shiftId()]);
-    expect(after.rows[0]?.headcount).toBe(3);
+    const after = await su.query("select headcount from shifts where id = $1", [await u.shiftId()]);
+    expect(after.rows[0]?.headcount).toBe(2);
+  });
+
+  it("a session cancelled there is the planner's whole-session cancel: its casuals told, its reason on each", async () => {
+    const t = await bookingsFirm();
+    const ann = await t.casual("STAFF-ANN");
+    const ben = await t.casual("STAFF-BEN");
+    await t.changed(session([isBooked("STAFF-ANN"), isBooked("STAFF-BEN")]), NOW);
+    const off = (bookings: unknown[], o: Record<string, unknown> = {}) =>
+      session(bookings, { status: "cancelled", ...o });
+    const theirs = [
+      { staff_ref: "STAFF-ANN", status: "cancelled" },
+      { staff_ref: "STAFF-BEN", status: "cancelled" },
+    ];
+    // With no reason: refused, logged for the office, and nobody's booking touched.
+    expect(await t.changed(off(theirs), new Date(NOW.getTime() + HOUR))).toEqual({
+      status: "refused",
+      code: "change_reason_required",
+    });
+    expect((await t.booked()).map((b) => b.status)).toEqual(["confirmed", "confirmed"]);
+    expect((await eventsOf(t.f.firmId, "api.change_refused")).length).toBe(1);
+    // With one: the whole session, each casual's cancellation with the session's reason, told.
+    expect(
+      await t.changed(
+        off(theirs, { change_reason: "weather" }),
+        new Date(NOW.getTime() + 2 * HOUR),
+      ),
+    ).toEqual({ status: "applied", code: "cancelled" });
+    const cancelled = await eventsOf(t.f.firmId, "shift.cancelled");
+    expect(cancelled.map((d) => [d.workerId, d.reason, d.place])).toEqual([
+      [ann, "Weather or safety", "session_cancelled"],
+      [ben, "Weather or safety", "session_cancelled"],
+    ]);
+    expect((await eventsOf(t.f.firmId, "shift.cancelled_by_firm"))[0]?.bookings).toBe(2);
+    expect(
+      Number(
+        (
+          await su.query(
+            "select count(*) from pgboss.job where name = 'firm-change-notice' and data ->> 'firmId' = $1",
+            [t.f.firmId],
+          )
+        ).rows[0]?.count,
+      ),
+    ).toBe(2);
   });
 
   it("the system's own time counts only after the booking here; the latest of its cancellations; a time without its zone reads as none", async () => {
@@ -515,6 +559,54 @@ describe("reads of a session, and changes the planner's rules refuse", () => {
 });
 
 describe("the office and a connector's bookings", () => {
+  it("a booking the system lists again is the system's again, even while the session's change is refused", async () => {
+    const t = await bookingsFirm();
+    const ann = await t.casual("STAFF-ANN");
+    await t.casual("STAFF-BEN");
+    await t.changed(session([isBooked("STAFF-ANN"), isBooked("STAFF-BEN")]), NOW);
+    await t.changed(session([isBooked("STAFF-BEN")]), new Date(NOW.getTime() + HOUR));
+    // Booked there again, beside a new role the planner's rules refuse (they're booked).
+    expect(
+      await t.changed(
+        session([isBooked("STAFF-ANN"), isBooked("STAFF-BEN")], { role_name: "Door Supervisor" }),
+        new Date(NOW.getTime() + 2 * HOUR),
+      ),
+    ).toEqual({ status: "refused", code: "session_has_bookings" });
+    const admin = await t.f.office("admin");
+    expect(
+      await cancelBooking(
+        withFirm,
+        t.f.firmId,
+        {
+          shiftId: await t.shiftId(),
+          workerId: ann,
+          reason: FIRM_CHANGE_REASONS.other,
+          by: { type: "office", id: admin },
+        },
+        { clock: { now: () => NOW } },
+      ),
+    ).toEqual({ status: "needs_approval" });
+  });
+
+  it("Gate B inside each step: no agreement recorded on a live database, nothing mirrored", async () => {
+    const t = await bookingsFirm();
+    await t.casual("STAFF-ANN");
+    await t.changed(session([isBooked("STAFF-ANN")]), NOW);
+    const input = {
+      run: withFirm,
+      firmId: t.f.firmId,
+      by: { type: "connector" as const, sourceId: t.sourceId },
+      ref: "PORTAL-S1",
+      bookings: { booked: [], cancelled: [{ ref: "STAFF-ANN", at: null, reason: null }] },
+      readAt: new Date(NOW.getTime() + HOUR),
+      now: new Date(NOW.getTime() + HOUR),
+      localDatabase: false,
+    };
+    expect(await mirrorCancellations(input)).toBe("agreement_not_recorded");
+    expect(await mirrorBookings(input)).toBe("agreement_not_recorded");
+    expect((await t.booked()).map((b) => b.status)).toEqual(["confirmed"]);
+  });
+
   it("may cancel here a booking the system no longer lists, never one it lists; a casual can't", async () => {
     const t = await bookingsFirm();
     const ann = await t.casual("STAFF-ANN");

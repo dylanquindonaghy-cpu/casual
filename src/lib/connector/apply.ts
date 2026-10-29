@@ -286,12 +286,18 @@ export async function applyRecord(a: {
           bookings,
           readAt: a.readAt,
           now: a.now,
+          localDatabase: a.localDatabase,
         }
       : null;
-    if (mirror) {
+    // A session cancelled there is the planner's whole-session cancel (its casuals told, its reason
+    // on each), never booking by booking.
+    if (mirror && mapped.value.status !== "cancelled") {
       const cancelled = await mirrorCancellations(mirror);
       if (cancelled === "not_allowed") return settled({ status: "ignored", code: "not_allowed" });
       if (cancelled === "older_read") return settled({ status: "ignored", code: "older_read" });
+      if (cancelled === "agreement_not_recorded") {
+        return settled({ status: "refused", code: "agreement_not_recorded" });
+      }
     }
     const result = await putPlannerSession(
       {

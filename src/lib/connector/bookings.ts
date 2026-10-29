@@ -1,8 +1,9 @@
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
-import { assignments, events, shifts, workers } from "../db/schema";
+import { and, asc, eq, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
+import { assignments, shifts, workers } from "../db/schema";
 import { retryAborted } from "../db/retry";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
+import { AgreementNotRecorded, requireAgreementForImport } from "../imports/gate-b";
 import { acceptOwnOffer, closeOffersIfFilled } from "../offers/close";
 import { checkBooking } from "../roster/book";
 import { RulesSettingsError } from "../roster/eligibility-input";
@@ -25,7 +26,9 @@ import type { SourceBookings } from "./demo-portal";
 //    last read), else from this read: the latest the cancellation can have been, so the shorter
 //    notice, the reading that favours the casual. The evidence (which time, and the system's own)
 //    is on the log entry. No message and no offers: the firm made the change in its own system
-//    (as a name taken off the rota sheet), and its gap is filled there;
+//    (as a name taken off the rota sheet), and its gap is filled there. A session cancelled there
+//    skips this step: it's the planner's whole-session cancel (its casuals told). The merge base is
+//    brought up to the read here too, for the bookings both sides hold;
 // 2. after it, once the session is in (mirrorBookings), a booking made there: the rules run as
 //    for an office placement (with the office's overrides: rest, weekly hours, a day marked
 //    unavailable), and it's booked only if they pass and a place is left, booked_via "api" and
@@ -40,8 +43,8 @@ import type { SourceBookings } from "./demo-portal";
 // (src/lib/roster/sheets/merge.ts): what the system listed, less those it couldn't book here, so a
 // booking cancelled here while the system still lists it stays cancelled.
 //
-// Each step is one transaction: the source's row held first (the planner's lock order), then the
-// session's. A read older than the session's last (shifts.source_read_at) changes nothing, so two
+// Each step is one transaction: Gate B, the source's row held first (the planner's lock order),
+// then the session's. A read older than the session's last (shifts.source_read_at) changes nothing, so two
 // reads applied out of order never book or cancel what the newer one has undone; each step takes
 // the session's read time on. Retried if Postgres aborts it (a deadlock with a booking elsewhere).
 
@@ -66,9 +69,10 @@ export interface MirrorInput {
   bookings: SourceBookings;
   readAt: Date; // when this record was read from the system (after the fetch, or the pull's list)
   now: Date;
+  localDatabase: boolean; // Gate B
 }
 
-type Refused = "not_allowed" | "no_session" | "older_read";
+type Refused = "not_allowed" | "no_session" | "older_read" | "agreement_not_recorded";
 
 const sourceMarks = (sourceId: string) => ({ by: "firm", via: "api", sourceId });
 
@@ -96,9 +100,15 @@ async function liveHolders(tx: FirmTx, shiftId: string) {
     .orderBy(asc(assignments.slot));
 }
 
-// The source first (allowed now?), then the session, held for the step; a read older than the
-// session's last refused.
+// Gate B and the source first (allowed now?), then the session, held for the step; a read older
+// than the session's last refused.
 async function lockedSession(tx: FirmTx, a: MirrorInput) {
+  try {
+    await requireAgreementForImport(tx, { saving: true, localDatabase: a.localDatabase });
+  } catch (err) {
+    if (err instanceof AgreementNotRecorded) return "agreement_not_recorded" as const;
+    throw err;
+  }
   if (!(await firmCallerMay(tx, a.by))) return "not_allowed" as const;
   const [shift] = await tx
     .select({
@@ -151,6 +161,7 @@ export async function mirrorCancellations(a: MirrorInput): Promise<number | Refu
       const shift = await lockedSession(tx, a);
       if (typeof shift === "string") return shift;
       let cancelled = 0;
+      let held: string[] | null = null;
       // A cancelled or started session: its bookings are what they were.
       if (shift.status !== "cancelled" && shift.startsAt.getTime() > a.now.getTime()) {
         const plug = nativeRosterPlug(tx, { clock: { now: () => a.now } });
@@ -194,6 +205,18 @@ export async function mirrorCancellations(a: MirrorInput): Promise<number | Refu
             },
           });
         }
+        held = (await liveHolders(tx, shift.id)).flatMap((h) => (h.ref ? [h.ref] : []));
+      }
+      // The base brought up to this read for the bookings both sides hold, even if the session's
+      // change is then refused and the bookings step doesn't run (cancel.ts reads it: a booking
+      // the system lists again is the system's again). New ones wait for the bookings step.
+      if (held) {
+        const base = shift.base ?? [];
+        const ours = new Set(held);
+        const next = a.bookings.booked.filter((ref) => base.includes(ref) || ours.has(ref));
+        if (next.length !== base.length || next.some((ref, i) => ref !== base[i])) {
+          await tx.update(shifts).set({ syncedHolders: next }).where(eq(shifts.id, shift.id));
+        }
       }
       await takeRead(tx, shift.id, a.readAt);
       return cancelled;
@@ -210,28 +233,21 @@ async function refusedBefore(
   workerId: string,
   codes: string[],
 ): Promise<boolean> {
-  const [last] = await tx
-    .select({ action: events.action, codes: sql<unknown>`${events.data} -> 'codes'` })
-    .from(events)
-    .where(
-      and(
-        sql`${events.data} ->> 'workerId' = ${workerId}`,
-        or(
-          and(
-            eq(events.entityType, "shift"),
-            eq(events.entityId, shiftId),
-            eq(events.action, "shift.booking_refused"),
-            sql`${events.data} ->> 'via' = 'api'`,
-          ),
-          and(
-            inArray(events.action, ["shift.assigned", "shift.cancelled"]),
-            sql`${events.data} ->> 'shiftId' = ${shiftId}`,
-          ),
-        ),
-      ),
-    )
-    .orderBy(desc(events.id))
-    .limit(1);
+  // By entity, through the log's (firm, entity, id) index: the session's refusals, and the
+  // bookings and cancellations on this casual's places on it.
+  const { rows } = await tx.execute<{ action: string; codes: unknown }>(sql`
+    select e.action, e.data -> 'codes' as codes from events e
+     where e.firm_id = app_current_firm_id() and e.data ->> 'workerId' = ${workerId}
+       and ((e.entity_id = ${shiftId} and e.action = 'shift.booking_refused'
+             and e.data ->> 'via' = 'api')
+            or (e.entity_id in (select a.id from assignments a
+                                 where a.firm_id = app_current_firm_id()
+                                   and a.shift_id = ${shiftId} and a.worker_id = ${workerId})
+                and e.action in ('shift.assigned', 'shift.cancelled')))
+     order by e.id desc
+     limit 1
+  `);
+  const last = rows[0];
   return (
     last?.action === "shift.booking_refused" && JSON.stringify(last.codes) === JSON.stringify(codes)
   );

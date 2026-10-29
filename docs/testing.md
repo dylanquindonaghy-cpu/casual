@@ -230,7 +230,10 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   here and since the session's last read, else from the read (the latest of its cancellations; a
   time without its zone reads as none), with the evidence logged; a cancellation lands even when
   the session change beside it is refused (places lowered past the cancelled place); a read older
-  than the session's last changes nothing, either way round; a booking cancelled here while the
+  than the session's last changes nothing, either way round; a session cancelled there is the
+  whole-session cancel (its casuals told, its reason on each; with no reason, refused and nothing
+  touched); a booking the system lists again is its again (the office can't cancel it) even while
+  the session's change is refused; Gate B inside each step; a booking cancelled here while the
   system still lists it isn't booked again; while the planner is a connector, people can't book or
   cancel its sessions (`needs_approval`; a casual sees a hidden one as gone first), until it's
   switched off, and a session a planner key made isn't the connector's.

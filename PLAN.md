@@ -1196,7 +1196,7 @@ Docs: `docs/messaging-templates.md`, `docs/architecture.md`, `docs/screens.md`.
       `texts` is the whole server's, `src/lib/auth/login-channel.ts`, so with Webex on, such a
       firm's link and code go nowhere, logged `no_text_sender`, which the send-failure alert leaves
       out: 15.2's reviews). Tests: each message by text, STOP, the words
-- [ ] Our text system's sender (M): a `MessagingTransport` (`src/lib/messaging/transport.ts`) for the
+- [x] Our text system's sender (M): a `MessagingTransport` (`src/lib/messaging/transport.ts`) for the
       firm's text provider (`MESSAGING_TRANSPORT` took only `console` and `none`, so nothing was
       sent for real), refused in tests like every real sender; its delivery reports if it has them.
       **The build (2026-10-29), switched off:** `src/lib/messaging/webex.ts`, from Webex

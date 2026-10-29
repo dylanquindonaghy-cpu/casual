@@ -148,6 +148,16 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   it can't read falling back whole. Setting it with `firm:settings` is in
   `tests/integration/onboarding.test.ts` (a start then fortnights; fortnights without a start
   refused; a hand-edited one started afresh).
+- `cancel.asked-by.test.ts` (P3.4) — who asked for a cancellation, on the real database as the app
+  role: the casual's own cancel says the casual, the office's (one booking or the whole session)
+  the firm, a rota sheet's, a file's or a planner's not known, and a caller that knows says so (a
+  client's); the database refuses a value it doesn't know or one on a booking that isn't
+  cancelled; migration 0053's own backfill gives earlier cancellations theirs from their status,
+  `cancel_via` or the session's source; the notice report counts the cancellations it finds by who
+  asked and says so on each; and the firm's strikes switch: off, a casual's late cancellation is
+  no strike ("strikes_off") and the warning is the notice one, on (the default) it is. The
+  decision and the default are unit-tested (`tests/unit/strikes.test.ts`,
+  `tests/unit/roster.plug.test.ts`).
 - `rules.any-of.test.ts` (P3.3, Rules 3) — "any of" licences, on the real database as the app role:
   the security pack's security officer needs one of an SIA security guard or door supervisor
   licence (other rules unchanged), and the database refuses a group of one, a type in both lists

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { credentialRules, ROLE_PATTERN, shifts } from "@/lib/db/schema";
 import { noticeHours } from "@/lib/roster/notice";
 import {
+  cancelAskedBy,
   cancelInputSchema,
   rosterShiftSchema,
   rosterStaffSchema,
@@ -166,5 +167,28 @@ describe("noticeHours", () => {
     // 02:30 BST on Saturday 24 Oct to 01:30 GMT on Sunday 25 Oct 2026: 23 hours on the wall
     // clock, 24 real hours.
     expect(noticeHours(at("2026-10-25T01:30:00Z"), at("2026-10-24T01:30:00Z"))).toBe(24);
+  });
+});
+
+describe("who asked for a cancellation, when the caller doesn't say (P3.4)", () => {
+  it("the casual for their own; the firm for the office's; not known for a sheet's, a file's or a planner's", () => {
+    const at = new Date("2026-11-02T09:00:00Z");
+    const ask = (by: "worker" | "firm", via?: "app" | "office" | "sheet" | "import" | "api") =>
+      cancelAskedBy({ by, via });
+    expect(ask("worker")).toBe("casual");
+    expect(ask("worker", "app")).toBe("casual");
+    expect(ask("firm")).toBe("firm");
+    expect(ask("firm", "office")).toBe("firm");
+    expect([ask("firm", "sheet"), ask("firm", "import"), ask("firm", "api")]).toEqual([
+      "unknown",
+      "unknown",
+      "unknown",
+    ]);
+    // A caller that knows says so: a client's, or a casual's phoned in to the office.
+    expect(cancelAskedBy({ by: "firm", via: "office", askedBy: "client" })).toBe("client");
+    expect(cancelAskedBy({ by: "firm", via: "office", askedBy: "casual" })).toBe("casual");
+    expect(
+      cancelInputSchema.safeParse({ reason: "x", by: "firm", at, askedBy: "agency" }).success,
+    ).toBe(false);
   });
 });

@@ -88,6 +88,7 @@ export async function decideForWorker(
     booking: { by: facts.by, overridden: facts.overridden },
     changedAfterBooking: facts.changedAfterBooking,
     reason: input.reason,
+    ...(input.settings.enabled ? {} : { strikesOff: true as const }),
   });
 }
 

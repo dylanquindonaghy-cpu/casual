@@ -5,6 +5,7 @@ import type { StrikeReviewReason } from "../db/schema/strikes";
 // Pure: code decides (golden rule 1), from facts read in the cancellation's own transaction
 // (src/lib/strikes/issue.ts). In order:
 //   1. cancelled by the office, the planner or the rota sheet: none ("by_firm");
+//      the firm has switched strikes off (strikes.enabled false, P3.4): none ("strikes_off");
 //   2. notice of at least the firm's strikes.notice_hours (48), as recorded on the booking: none
 //      ("enough_notice");
 //   3. the office booked them (Assign, a rota sheet or a file): exempt, "rules_override" when it
@@ -26,10 +27,11 @@ export type StrikeFacts =
       booking: { by: "worker" | "office"; overridden: boolean };
       changedAfterBooking: boolean;
       reason: string | null; // the stored reason; null for the warning, before one is chosen
+      strikesOff?: true; // the firm gives no strikes (P3.4)
     };
 
 export type StrikeDecision =
-  | { result: "none"; code: "by_firm" | "enough_notice" }
+  | { result: "none"; code: "by_firm" | "strikes_off" | "enough_notice" }
   | { result: "exempt"; code: "booked_by_office" | "rules_override" | "changed_after_booking" }
   | { result: "strike"; code: "issued"; reviewReasons: StrikeReviewReason[] };
 
@@ -43,6 +45,7 @@ const REVIEW_REASONS: Record<string, StrikeReviewReason> = {
 
 export function strikeDecision(facts: StrikeFacts): StrikeDecision {
   if (facts.cancelledBy === "firm") return { result: "none", code: "by_firm" };
+  if (facts.strikesOff) return { result: "none", code: "strikes_off" };
   if (facts.noticeHours >= facts.thresholdHours) return { result: "none", code: "enough_notice" };
   if (facts.booking.by === "office") {
     return {

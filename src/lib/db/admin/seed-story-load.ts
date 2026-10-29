@@ -354,6 +354,13 @@ export async function loadStory(
         cancelledAt: b.cancelledAt,
         cancelReason: b.cancelReason,
         noticeHours: b.noticeHours === null ? null : b.noticeHours.toFixed(2),
+        // Who asked (P3.4): the casual for their own, the firm for the office's.
+        cancelAskedBy:
+          b.status === "cancelled_worker"
+            ? ("casual" as const)
+            : b.status === "cancelled_firm"
+              ? ("firm" as const)
+              : null,
         cancelVia: b.cancelVia,
         bookedVia: "app" as const, // logged below as the worker's own booking (P2.2)
         ...(b.status === "cancelled_worker"

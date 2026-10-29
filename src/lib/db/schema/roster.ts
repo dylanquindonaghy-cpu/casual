@@ -371,6 +371,10 @@ export const assignments = pgTable(
     // How it was cancelled (CANCEL_VIAS), and for a casual's own cancellation in the app, the
     // version of the strike warning on their screen when they confirmed, and when (12C.1, S3).
     cancelVia: text("cancel_via", { enum: CANCEL_VIAS }),
+    // Who asked for it (P3.4), apart from who carried it out (status) and where (cancel_via): the
+    // casual (their own cancel), the firm (the office's), the firm's client, or not known (a rota
+    // sheet or a planner, whose data doesn't say). Set on every cancellation; null otherwise.
+    cancelAskedBy: text("cancel_asked_by", { enum: CANCEL_ASKERS }),
     bookedVia: text("booked_via", { enum: BOOK_VIAS }),
     strikeWarningVersion: text("strike_warning_version"),
     strikeWarningShownAt: timestamptz("strike_warning_shown_at"),
@@ -425,6 +429,11 @@ export const assignments = pgTable(
       sql`${t.status} not in ('cancelled_worker', 'cancelled_firm')
         or (${t.cancelledAt} is not null and ${t.noticeHours} is not null
             and ${t.cancelReason} is not null and length(btrim(${t.cancelReason})) > 0)`,
+    ),
+    check(
+      "assignments_cancel_asked_by_check",
+      sql`${t.cancelAskedBy} is null or (${t.cancelAskedBy} in ('casual', 'firm', 'client', 'unknown')
+        and ${t.status} in ('cancelled_worker', 'cancelled_firm'))`,
     ),
     check(
       "assignments_cancel_via_check",

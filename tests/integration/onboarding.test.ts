@@ -215,7 +215,9 @@ describe("a firm's settings", () => {
       "retention.message_days": [90, "default"],
       "retention.request_note_days": [365, "default"],
       "retention.hold_until": ["none", "default"],
-      // Strikes (12C.1): the notice that avoids one, how long it counts, when its record goes.
+      // Strikes (12C.1): on (P3.4), the notice that avoids one, how long it counts, when its record
+      // goes.
+      "strikes.enabled": [true, "default"],
       "strikes.notice_hours": [48, "default"],
       "strikes.live_days": [90, "default"],
       "strikes.keep_months": [12, "default"],
@@ -297,6 +299,13 @@ describe("a firm's settings", () => {
     expect(
       await setFirmSettings(urls.admin, f.slug, [["firm_system_sends", "true"]]),
     ).toMatchObject({ status: "saved", keys: ["firm_system_sends"] });
+    // Strikes switched off (P3.4), beside the strikes team's settings.
+    expect(await setFirmSettings(urls.admin, f.slug, [["strikes.enabled", "false"]])).toMatchObject(
+      {
+        status: "saved",
+        keys: ["strikes.enabled"],
+      },
+    );
     // Login by email, switched on (P2.6).
     expect(await setFirmSettings(urls.admin, f.slug, [["login_by_email", "true"]])).toMatchObject({
       status: "saved",
@@ -323,6 +332,7 @@ describe("a firm's settings", () => {
       ["auto_replies", "yes"],
       ["firm_system_sends", "1"],
       ["login_by_email", "on"],
+      ["strikes.enabled", "off"],
       ["urgent_window_hours", ""],
       // The pay calendar (P3.1): fortnights need their start first; a start is a real Monday.
       ["pay_calendar.days", "14"],

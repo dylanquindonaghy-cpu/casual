@@ -430,7 +430,7 @@ describe("the planner cancelling a booked session", () => {
       ),
     ).toEqual({ status: "cancelled", bookings: 2 });
     const { rows } = await su.query(
-      `select status, cancel_via, cancel_reason, notice_hours::float as notice_hours
+      `select status, cancel_via, cancel_asked_by, cancel_reason, notice_hours::float as notice_hours
          from assignments where id = any($1) order by slot`,
       [[t.annBooking, t.benBooking]],
     );
@@ -438,6 +438,8 @@ describe("the planner cancelling a booked session", () => {
       [1, 2].map(() => ({
         status: "cancelled_firm",
         cancel_via: "api",
+        // Who asked: not known, as the planner doesn't say (P3.4).
+        cancel_asked_by: "unknown",
         cancel_reason: "The event was cancelled",
         notice_hours: 119,
       })),

@@ -85,7 +85,14 @@ legal advice; `docs/dpia-strikes.md` comes first for a real firm.
   version they saw is stored with the cancellation (S3); the help page explains the rule; a casual
   can tap "Tell us what happened"; the office can withdraw a strike.
 - **No strike** when the office, the planner or the sheet cancelled, on a booking the office made,
-  or after the office or the planner changed the session (the future protection against detriment).
+  or after the office or the planner changed the session (the future protection against detriment);
+  and none at all at a firm that switches strikes off (`strikes.enabled`, P3.4).
+- **Who asked is recorded apart from who cancelled** (P3.4, `assignments.cancel_asked_by`): the
+  casual, the firm, its client, or not known (a rota sheet's or a planner's cancellation, whose data
+  doesn't say). A casual who phones in and is cancelled by the office no longer has to read as a
+  short-notice firm cancellation in the evidence; the notice report counts cancellations by it. The
+  office's own cancellations say the firm until its form asks who asked (after the UI chat's
+  Phase 24).
 - **Health and caring reasons are flagged** for a person to review (Equality Act 2010; Acas).
 - **Never linked to money:** no fines, no deductions (s.13 ERA 1996). Payroll never sees strikes.
 - **Evidence goes only to a confirmed strikes-team address** (12B.7), never "unwell" or "health".

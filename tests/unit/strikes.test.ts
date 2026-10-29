@@ -95,6 +95,18 @@ describe("strikeDecision(), case by case", () => {
       { result: "none", code: "enough_notice" },
     ],
     ["72-hour threshold, 60 hours' notice", own({ noticeHours: 60, thresholdHours: 72 }), issued()],
+    // The firm's strikes switch (P3.4): off, a casual's own cancellation is never a strike, whatever
+    // the notice; the office's is still the office's.
+    [
+      "strikes switched off, 1 hour's notice",
+      own({ noticeHours: 1, strikesOff: true }),
+      { result: "none", code: "strikes_off" },
+    ],
+    [
+      "strikes switched off, booked by the office",
+      own({ booking: { by: "office", overridden: false }, strikesOff: true }),
+      { result: "none", code: "strikes_off" },
+    ],
   ])("%s", (_name, facts, expected) => {
     expect(strikeDecision(facts)).toEqual(expected);
   });
@@ -116,6 +128,8 @@ describe("the warning on the cancel step", () => {
       "exempt",
     );
     expect(warningKind(strikeDecision(own({ noticeHours: 120 })))).toBe("notice");
+    // Strikes off: the plain notice words, never a strike warning (P3.4).
+    expect(warningKind(strikeDecision(own({ strikesOff: true })))).toBe("notice");
     expect(STRIKE_WARNING_VERSION).toBe("v1");
   });
 
@@ -168,14 +182,24 @@ describe("the warning on the cancel step", () => {
 });
 
 describe("the strike settings", () => {
-  it("read the owner's values in range, otherwise the defaults (48 hours, 90 days, 12 months)", () => {
+  it("read the owner's values in range, otherwise the defaults (on, 48 hours, 90 days, 12 months)", () => {
     expect(strikeSettings({})).toEqual(STRIKE_DEFAULTS);
-    expect(STRIKE_DEFAULTS).toEqual({ noticeHours: 48, liveDays: 90, keepMonths: 12 });
+    expect(STRIKE_DEFAULTS).toEqual({
+      enabled: true,
+      noticeHours: 48,
+      liveDays: 90,
+      keepMonths: 12,
+    });
     expect(
       strikeSettings({
         strikes: { notice_hours: 24, live_days: 60, keep_months: 18, email: "x@example.com" },
       }),
-    ).toEqual({ noticeHours: 24, liveDays: 60, keepMonths: 18 });
+    ).toEqual({ enabled: true, noticeHours: 24, liveDays: 60, keepMonths: 18 });
+    // Switched off only by false (P3.4); anything else leaves them on.
+    expect(strikeSettings({ strikes: { enabled: false } }).enabled).toBe(false);
+    for (const enabled of [true, "false", 0, null]) {
+      expect(strikeSettings({ strikes: { enabled } }).enabled, String(enabled)).toBe(true);
+    }
     // Never inside the 6-month tribunal limit; whole numbers only; nothing silly.
     expect(
       strikeSettings({ strikes: { notice_hours: 0, live_days: 1000, keep_months: 6 } }),

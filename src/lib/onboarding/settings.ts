@@ -40,6 +40,7 @@ export const SETTING_KEYS = [
   "retention.message_days",
   "retention.request_note_days",
   "retention.hold_until",
+  "strikes.enabled",
   "strikes.notice_hours",
   "strikes.live_days",
   "strikes.keep_months",
@@ -92,6 +93,7 @@ const READ: Record<SettingKey, (s: Settings) => SettingValue> = {
   "retention.message_days": (s) => retentionSettings(s).messageDays,
   "retention.request_note_days": (s) => retentionSettings(s).requestNoteDays,
   "retention.hold_until": (s) => retentionSettings(s).holdUntil ?? "none",
+  "strikes.enabled": (s) => strikeSettings(s).enabled,
   "strikes.notice_hours": (s) => strikeSettings(s).noticeHours,
   "strikes.live_days": (s) => strikeSettings(s).liveDays,
   "strikes.keep_months": (s) => strikeSettings(s).keepMonths,
@@ -126,6 +128,8 @@ export const SETTING_WORDS: Record<SettingKey, string> = {
   "retention.request_note_days": `days a closed request's words are kept, and the office's reason for placing someone despite a rule (${RETENTION_MIN_DAYS} to ${RETENTION_MAX_DAYS})`,
   "retention.hold_until":
     "nothing personal is purged until after this date (yyyy-mm-dd), for a dispute; none for no hold",
+  "strikes.enabled":
+    "the firm gives strikes (true or false; true, the default. false: a casual's own cancellation is never a strike; those given stay)",
   "strikes.notice_hours": `a casual's own cancellation with less notice than this many hours is a strike (${STRIKE_LIMITS.noticeHours.min} to ${STRIKE_LIMITS.noticeHours.max})`,
   "strikes.live_days": `days a strike counts (${STRIKE_LIMITS.liveDays.min} to ${STRIKE_LIMITS.liveDays.max})`,
   "strikes.keep_months": `months before a strike's record is deleted, unless a hold is on (${STRIKE_LIMITS.keepMonths.min} to ${STRIKE_LIMITS.keepMonths.max}, and at least 6 months more than a strike counts)`,
@@ -187,7 +191,8 @@ function parseValue(key: SettingKey, raw: string): SettingValue | null {
     key === "travel.enabled" ||
     key === "auto_replies" ||
     key === "firm_system_sends" ||
-    key === "login_by_email"
+    key === "login_by_email" ||
+    key === "strikes.enabled"
   ) {
     return text === "true" ? true : text === "false" ? false : null;
   }

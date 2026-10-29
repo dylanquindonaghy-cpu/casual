@@ -1944,9 +1944,10 @@ page, and no casual-facing words beyond those Dylan approves. The proposal's ite
       expired one doesn't count, "all of" rules unchanged (P3.3)
 - [ ] Who asked for a cancellation (S, R): recorded apart from who carried it out (casual, firm,
       client, unknown), backfilled from each cancellation's own record; the casual's own cancel says
-      casual, the planner API and the sheet what their data says, the office firm (its form asks,
-      after the UI chat); the notice report (`src/lib/office/notice-report.ts`) counts by who asked;
-      a per-firm strikes switch (`src/lib/strikes/settings.ts`). Tests: each writer, the backfill,
+      casual, the planner API and the sheet what their data says (neither says yet: not known), the
+      office firm (its form asks, after the UI chat); the notice report
+      (`src/lib/office/notice-report.ts`) counts by who asked; a per-firm strikes switch
+      (`src/lib/strikes/settings.ts`; off, its strike column's words are Dylan's to approve). Tests: each writer, the backfill,
       the report's counts, strikes off issues none (P3.4)
 
 **After the UI chat's Phase 24 merges:** Home's pay day from the firm's calendar or its imported
@@ -1957,7 +1958,7 @@ Needs attention items for an unmapped name and for a skipped name on a session s
 (the sync's `skipped_live`), the import page's "left out" count and the action log's words for a
 name map change ("The firm's settings changed" today); the casual's "you need A or B" words (a
 mock-up first);
-the office's "who asked" choice when it cancels.
+the office's "who asked" choice when it cancels, and who asked on the notice report's page and file.
 
 Done when: P3.1 to P3.4 are ticked, each with a stamp that includes the browser tests;
 `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; nothing under `src/app/` changed and no screen or

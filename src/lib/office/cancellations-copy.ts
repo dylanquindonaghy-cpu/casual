@@ -186,6 +186,9 @@ export function exportReason(r: Pick<CancellationRow, "by" | "reason">): string 
 const STRIKE_WORDS: Record<StrikeCode, string> = {
   issued: "Issued",
   by_firm: "None: cancelled by the office",
+  // P3.4: proposed words (docs/screens.md, for Dylan to approve); shown only once the owner
+  // switches a firm's strikes off.
+  strikes_off: "None: strikes are off",
   enough_notice: "None: enough notice",
   booked_by_office: "Exempt: booked by the office",
   rules_override: "Exempt: booked by the office over a rest or hours rule",

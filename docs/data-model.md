@@ -150,6 +150,8 @@ never comes back. Admins change it on Integrations (`src/lib/office/webhook-sett
 
 The owner's strike settings (12C.1), in the same object, read by `src/lib/strikes/settings.ts`
 (a value out of range is ignored for the default) and set with `npm run firm:settings`:
+`strikes.enabled` (true, P3.4: only `false` switches strikes off, and then a casual's own
+cancellation is never a strike, its decision "strikes_off"; those given stay as they are),
 `strikes.notice_hours` (48, 1 to 336: a casual's own cancellation with less notice is a strike;
 kept apart from `short_notice_threshold_hours`, the law's), `strikes.live_days` (90, 1 to 365:
 how long a strike counts) and `strikes.keep_months` (12, 7 to 72: when its row is deleted, never
@@ -540,6 +542,16 @@ create table assignments (
                                          -- to check"); cleared when that happens again
   cancel_via text,                       -- 12C.1: app | office | sheet | import | api (the planner
                                          -- API, 12J.1); empty on older rows
+  cancel_asked_by text,                  -- P3.4: who asked for it, apart from who carried it out
+                                         -- (status) and where (cancel_via): casual (their own
+                                         -- cancel) | firm (the office's) | client | unknown (a
+                                         -- rota sheet's, a file's or a planner's: their data
+                                         -- doesn't say). Set by every cancellation (the plug's
+                                         -- markCancelled, a caller that knows may say); only on a
+                                         -- cancelled row; migration 0053 filled the cancellations
+                                         -- there were from their status and cancel_via (none:
+                                         -- from the session's source). The notice report counts
+                                         -- by it
   booked_via text,                       -- P2.2: where the booking was made: app (the casual took it,
                                          --   or accepted an offer) | office | sheet | api (the firm's
                                          --   own system, P5); set with the booking, in its

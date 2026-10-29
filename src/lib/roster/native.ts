@@ -7,6 +7,7 @@ import { closeOffersIfFilled } from "../offers/close";
 import { consumeEligibilityPass, type EligibilityPass } from "../rules/eligibility";
 import { noticeHours } from "./notice";
 import {
+  cancelAskedBy,
   cancelInputSchema,
   shiftWindowSchema,
   type AssignResult,
@@ -252,10 +253,11 @@ function tableRosterPlug(tx: FirmTx, source: "native" | "sheets", clock: Clock):
       const notice = noticeHours(shift.startsAt, cancel.at);
       const status = cancel.by === "firm" ? "cancelled_firm" : "cancelled_worker";
       const via = cancel.via ?? (cancel.by === "worker" ? "app" : "office");
+      const askedBy = cancelAskedBy(cancel);
       const cancelled = await tx.execute(sql`
         update assignments
            set status = ${status}, cancelled_at = ${cancel.at}, cancel_reason = ${cancel.reason},
-               notice_hours = ${notice}, cancel_via = ${via}
+               notice_hours = ${notice}, cancel_via = ${via}, cancel_asked_by = ${askedBy}
          where id = ${row.id} and status = 'confirmed'
       `);
       if (cancelled.rowCount !== 1) return { status: "not_assigned" }; // changed under us

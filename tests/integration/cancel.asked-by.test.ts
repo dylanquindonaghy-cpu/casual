@@ -115,6 +115,12 @@ describe("each way a booking is cancelled says who asked", () => {
       ),
     ).toMatchObject({ status: "cancelled", bookings: 1 });
     expect((await askedOf(session.assignmentId))?.cancel_asked_by).toBe("firm");
+    // The log says it too, as evidence the booking's row can't rewrite.
+    const { rows } = await su.query(
+      "select data ->> 'askedBy' as asked from events where firm_id = $1 and action = 'shift.cancelled' order by id",
+      [t.f.firmId],
+    );
+    expect(rows.map((r) => r.asked)).toEqual(["casual", "firm", "firm"]);
   });
 
   it("a rota sheet's, a file's or a planner's: not known; a caller that knows says so", async () => {

@@ -40,6 +40,7 @@ import { automaticEventId } from "../shift-events";
 import { upsertWorker, WorkerIdentityChange, WorkerNameMismatch } from "../workers";
 import { changeNoticeHours, noticeHours } from "../notice";
 import { loadNameMap, type NameMap } from "../names";
+import { cancelAskedBy } from "../plug";
 import { cellRange, columnRange, tabRange } from "./a1";
 import { SHEET_LOCALE, SHEET_LOCALE_ERROR, SheetsError, type SheetsClient } from "./client";
 import { sheetMappingSchema } from "./mapping";
@@ -1010,6 +1011,8 @@ async function logCancel(
     tx,
     system("shift.cancelled", "assignment", cancel.assignmentId, {
       by: "firm",
+      // Who asked (P3.4): the sheet doesn't say (the plug records the same on the booking).
+      askedBy: cancelAskedBy({ by: "firm", via: "sheet" }),
       shiftId: cancel.shiftId,
       workerId: cancel.workerId,
       reason,

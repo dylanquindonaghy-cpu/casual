@@ -1914,7 +1914,7 @@ code go by email; the `claims-auditor` checks the phase against this line.
 now"): the UI chat is still on Phase 24.6, so no task here changes a screen, `src/app/` or an office
 page, and no casual-facing words beyond those Dylan approves. The proposal's items follow the tasks.
 
-- [ ] Pay calendar (S): `payPeriod(day, calendar)` beside `payWeek()` (`src/lib/pay/pay-week.ts`,
+- [x] Pay calendar (S): `payPeriod(day, calendar)` beside `payWeek()` (`src/lib/pay/pay-week.ts`,
       pure; with no calendar set, exactly today's ISO week paid the Friday after); an owner setting
       `pay_calendar` (7 or 14 days, an anchor Monday, the pay day as days after the period ends,
       the label Week or Cycle) through `src/lib/onboarding/settings.ts` (the proposal below says
@@ -1922,7 +1922,7 @@ page, and no casual-facing words beyond those Dylan approves. The proposal's ite
       `app_set_firm_setting()` taking only its own keys); pay-query grouping
       (`src/lib/pay/grouping.ts`) by the firm's pay period. Tests: made-up anchors, the 53-week year
       (2026), the clock change, a firm without a calendar unchanged (P3.1)
-- [ ] Name map per firm (S, T): a table of outside names (role, qualification, staff type,
+- [x] Name map per firm (S, T): a table of outside names (role, qualification, staff type,
       cancellation reason) each mapped to a ShiftDesk code (a role with its pay rate) or to skip,
       with `firm_id`, RLS, a `TABLE_ACCESS` entry and isolation fixtures; an owner script to set it
       (like `scripts/firm-sheet-owner.ts`), each change logged; the sheet sync and the file import
@@ -1934,7 +1934,7 @@ page, and no casual-facing words beyond those Dylan approves. The proposal's ite
       file carries one) and a role's pay rate are held for the connector (P5): the sheet and the
       import never write a session's pay (S2). Tests: mapped, skipped, unmapped, another firm's
       map unused (P3.2)
-- [ ] "Any of" licences (S, R; Rules 3, Dylan 2026-10-29): a rule may need one of several
+- [x] "Any of" licences (S, R; Rules 3, Dylan 2026-10-29): a rule may need one of several
       credential types (a door supervisor licence covers guarding: the security pack's
       security officer takes either), in `src/lib/rules/packs.ts`,
       `src/lib/credentials/requirements.ts`, `src/lib/rules/eligibility.ts` and
@@ -1942,7 +1942,7 @@ page, and no casual-facing words beyond those Dylan approves. The proposal's ite
       that reads a rule's types reads the groups (with no new words: a group shows as its first
       type, and fails in its first held type's words, until the "A or B" words are approved). Tests: either licence passes, neither fails, an
       expired one doesn't count, "all of" rules unchanged (P3.3)
-- [ ] Who asked for a cancellation (S, R): recorded apart from who carried it out (casual, firm,
+- [x] Who asked for a cancellation (S, R): recorded apart from who carried it out (casual, firm,
       client, unknown), backfilled from each cancellation's own record; the casual's own cancel says
       casual, the planner API and the sheet what their data says (neither says yet: not known), the
       office firm (its form asks, after the UI chat); the notice report
@@ -1958,7 +1958,12 @@ Needs attention items for an unmapped name and for a skipped name on a session s
 (the sync's `skipped_live`), the import page's "left out" count and the action log's words for a
 name map change ("The firm's settings changed" today); the casual's "you need A or B" words (a
 mock-up first);
-the office's "who asked" choice when it cancels, and who asked on the notice report's page and file.
+the office's "who asked" choice when it cancels, and who asked on the notice report's page and file;
+the casual's strike sentences (the shift page's note, Help and Profile) reading the firm's strikes
+switch, and the Cancellations page's "None: strikes are off" (Dylan's to approve) before any firm
+switches strikes off; and the open shifts' chips for a one-of group ("SIA SG or SIA DS", a mock-up
+first: a group's chip shows its first type until then, and a casual's own shift page shows the one
+she holds).
 
 Done when: P3.1 to P3.4 are ticked, each with a stamp that includes the browser tests;
 `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; nothing under `src/app/` changed and no screen or
@@ -4205,8 +4210,18 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
   account was accepted or rejected. A wording of its own ("The office has read what you told them about
   your cancellation") needs a new WhatsApp template (Meta's approval), so it waits for "Submit the
   WhatsApp templates". Until then the office can answer it with a note saying what they did.
-- Strikes (12C.1): no per-firm switch to turn strikes off; every firm on ShiftDesk records them.
-  Add one if a firm doesn't want them (`docs/dpia-strikes.md`).
+- Strikes (12C.1): no per-firm switch to turn strikes off; every firm on ShiftDesk records them. The switch came back (P3.4, `strikes.enabled`, "Connecting the firm's systems" 6); the casual's strike sentences read it after the UI chat's Phase 24.
+- An owner command to change a firm's credential rule, logged (P3.3's review): a firm set up before P3.3 keeps `security_officer: SIA_SG` with no one-of group, and only a hand edit in the database could change it today.
+- Login (auth: Dylan's to approve): two of one worker's login links used within milliseconds can,
+  rarely, refuse the second as "used" (`tests/integration/auth.magic-link.test.ts`, "two of one
+  worker's links used at the same moment both work", failed once in a full verify run on
+  2026-10-29, nothing it covers having changed). The mechanism: when the test's lock-holder
+  commits, the first login wakes, spends its link, and retires the worker's other unused links
+  with `FOR UPDATE SKIP LOCKED` (`retireOtherLinks()`, `src/lib/auth/magic-links.ts`); the second
+  login's row then looks unlocked (the holder's lock is committed, and the second hasn't locked
+  it again yet), so it's retired, and the second login finds it used. A fix: retire only the
+  links issued before the one being spent (two at once then never retire each other's), which
+  changes what "logging in retires the worker's other links" means for a newer link.
 
 - Security updates for Next.js, sharp and source-map-js: `npm audit` reports 3 high advisories in
   these (found 2026-10-09 during 12C.3; they were there before it: 12C.3 added only `pdf-lib`,

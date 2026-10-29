@@ -1049,7 +1049,10 @@ In order (who does it, how, and what done looks like):
    them). `--kind qualification` does the same for the credentials file's types (a code the firm
    has); a role with no credential rule yet is said, as its shifts can't be offered until it has
    one. A name the map doesn't have is read as before; one that still can't be read is a bad role,
-   so its row isn't brought in. Skipping a name never cancels or changes a session already made
+   so its row isn't brought in. (The security pack's security officer takes an SIA security guard or
+   door supervisor licence, P3.3, for a firm set up after it; a firm set up before keeps its own
+   rule, with no command yet to change it: PLAN.md Parking lot.) Skipping a name never cancels or
+   changes a session already made
    from it: the next sync reports `skipped_live` for it, so cancel it in the office. Each change is
    in the office action log (as "The firm's settings changed", until its own words are approved).
 6. **Workers and credentials** (you, from the firm's spreadsheets, **only after Gate B**): "Importing
@@ -1072,9 +1075,10 @@ In order (who does it, how, and what done looks like):
    `pay_calendar.days=7` before `pay_calendar.anchor=none`; leave a live firm on weeks until the
    top bar, Home and payroll's pay-query words read it, after the UI chat's Phase 24), and whether
    the firm gives strikes at all (`strikes.enabled`, P3.4: on by default; off, a casual's own
-   cancellation is never a strike, and the Cancellations page's strike column would say "None:
-   strikes are off", words still for Dylan to approve, so leave it on until then), as the app reads
-   them. Change any with `--set`, e.g.
+   cancellation is never a strike, but the Cancellations page's strike column would say "None:
+   strikes are off", words still for Dylan to approve, and the casual's shift page, Help and
+   Profile still say a late cancellation is a strike, until they read the switch after the UI
+   chat's Phase 24: so leave it on until then), as the app reads them. Change any with `--set`, e.g.
    `--set urgent_window_hours=12 --set quiet_hours.start=21:30`. A value the app wouldn't use is
    refused and nothing changes; each change is in the office action log.
    The strikes team's email isn't one of these: an admin sets it on the office's **Settings** page,

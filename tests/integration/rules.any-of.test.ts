@@ -4,6 +4,7 @@ import { qualificationsFor } from "@/lib/credentials/qualifications";
 import { readRequirements } from "@/lib/credentials/requirements";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { loadExpiredOnBookings } from "@/lib/office/dashboard";
+import { shiftFacts } from "@/lib/portal/shift-facts";
 import { bookShift, previewBookings } from "@/lib/roster/book";
 import { pairKey } from "@/lib/roster/eligibility-input";
 import { bookingFirm, hoursFromNow, NOW } from "../helpers/booking-fixture";
@@ -138,6 +139,44 @@ describe("what a session shows, and what a casual may send", () => {
     expect(reader.rolesNeed(["security_officer"], "SIA_DS")).toBe(true);
     expect(reader.rolesNeed(["security_officer"], "SIA_SG")).toBe(true);
     expect(reader.rolesNeed(["security_officer"], "SIA_CP")).toBe(false);
+  });
+
+  it("a casual's own shift page shows the licence of the group that stands best for her", async () => {
+    const f = await officerFirm();
+    const shiftId = await f.shift({ role: "security_officer", startsAt: hoursFromNow(48) });
+    const session = {
+      role: "security_officer",
+      endsAt: hoursFromNow(56),
+      requiredCredentials: [] as string[],
+      eventName: null,
+      payRatePence: null,
+      post: null,
+      meetingPoint: null,
+      uniform: null,
+      isUrgent: false,
+      headcount: 1,
+    };
+    const shown = async (workerId: string, extras: string[] = []) =>
+      (
+        await withFirm(f.firmId, (tx) =>
+          shiftFacts(tx, {
+            shiftId,
+            workerId,
+            now: NOW,
+            session: { ...session, requiredCredentials: extras },
+          }),
+        )
+      ).requirements.map((r) => [r.code, r.status.status]);
+    const ds = await f.worker({
+      ...officer,
+      credentials: [{ type: "SIA_DS", expiresOn: "2029-01-01" }],
+    });
+    const none = await f.worker({ ...officer, credentials: [] });
+    // Never "SIA security guard licence: missing" for a door supervisor licence holder.
+    expect(await shown(ds)).toEqual([["SIA_DS", "valid"]]);
+    expect(await shown(none)).toEqual([["SIA_SG", "missing"]]);
+    // A session that asks for the security guard licence itself: shown, as it must be held.
+    expect(await shown(ds, ["SIA_SG"])).toEqual([["SIA_SG", "missing"]]);
   });
 
   it("a casual's qualifications list the licence of the group that stands best for her", async () => {

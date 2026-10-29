@@ -422,6 +422,7 @@ describe("sheets.sync: from the sheet into our tables", () => {
     expect(event?.data).toEqual({
       source: "sheets",
       by: "firm",
+      askedBy: "unknown", // the sheet doesn't say who asked (P3.4)
       shiftId: await idOf("shifts", f.firmId, "P1"),
       workerId: await idOf("workers", f.firmId, "N001"),
       reason: REMOVED_ON_SHEET,

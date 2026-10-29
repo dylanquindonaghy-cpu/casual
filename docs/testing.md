@@ -152,7 +152,7 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   role: the casual's own cancel says the casual, the office's (one booking or the whole session)
   the firm, a rota sheet's, a file's or a planner's not known, and a caller that knows says so (a
   client's); the database refuses a value it doesn't know or one on a booking that isn't
-  cancelled; migration 0053's own backfill gives earlier cancellations theirs from their status,
+  cancelled; each cancellation's log entry says who asked too; migration 0053's own backfill gives earlier cancellations theirs from their status,
   `cancel_via` or the session's source; the notice report counts the cancellations it finds by who
   asked and says so on each; and the firm's strikes switch: off, a casual's late cancellation is
   no strike ("strikes_off") and the warning is the notice one, on (the default) it is. The
@@ -238,8 +238,9 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   the security pack's security officer needs one of an SIA security guard or door supervisor
   licence (other rules unchanged), and the database refuses a group of one, a type in both lists
   or a code that isn't one; booking one at a time and in the offer waves' batch takes either and
-  refuses neither or an expired one; a session shows the group as its first type, and a casual may
-  send either; a casual's qualifications list the group's licence that stands best for her (not the
+  refuses neither or an expired one; a session shows the group as its first type, a casual's own
+  shift page the one she holds (never "missing" for a door supervisor licence holder), and a casual
+  may send either; a casual's qualifications list the group's licence that stands best for her (not the
   one she doesn't need); and the office's check of bookings flags one only when no licence of the
   group will be in date. The engine's cases are in the doc's table (`tests/unit/rules.table.test.ts`:
   either, neither, the held one out of date, one suspended, applied within the allowance, a group

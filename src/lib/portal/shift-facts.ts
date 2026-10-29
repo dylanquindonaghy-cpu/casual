@@ -1,6 +1,6 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { readRequirements, requirementChip, type Requirement } from "../credentials/requirements";
-import { qualificationStatus, type QualificationState } from "../credentials/status";
+import { bestOfGroup, qualificationStatus, type QualificationState } from "../credentials/status";
 import { credentials, firms, uploads, workers } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { casualMayUpload } from "../rules/packs";
@@ -71,8 +71,11 @@ export async function shiftFacts(
     .where(eq(workers.id, o.workerId));
   const myRoles = me?.roles ?? [];
   const reader = await readRequirements(tx, [session.role, ...myRoles]);
-  const needed = reader.of(session.role, session.requiredCredentials);
-  const codes = needed.map((r) => r.code);
+  const shown = reader.of(session.role, session.requiredCredentials);
+  // The role's one-of group (P3.3): every type of it is read, so the one that stands best for her
+  // is shown in place of its first (unless the session asks for that one outright).
+  const group = reader.groupOf(session.role);
+  const codes = [...new Set([...shown.map((r) => r.code), ...group])];
   const records = codes.length
     ? await tx
         .select({
@@ -91,6 +94,31 @@ export async function shiftFacts(
         )
         .where(and(eq(credentials.workerId, o.workerId), inArray(credentials.type, codes)))
     : [];
+  const stateOf = (code: string) =>
+    qualificationStatus(
+      records
+        .filter((x) => x.type === code)
+        .map((x) => ({
+          status: x.status,
+          expiresOn: x.expiresOn,
+          checkState: x.checkState,
+          upload:
+            x.uploadId && x.sentAt
+              ? { id: x.uploadId, sentOn: localDateOf(x.sentAt, zone), reason: x.reason }
+              : null,
+        })),
+      today,
+    );
+  const first = group[0];
+  const best = bestOfGroup(group, stateOf);
+  const needed =
+    first && best && best !== first && !session.requiredCredentials.includes(first)
+      ? shown.map((r) =>
+          r.code === first && !shown.some((s) => s.code === best)
+            ? { code: best, name: reader.nameOf(best) }
+            : r,
+        )
+      : shown;
   const travel: TravelFacts | undefined = travelSettings(firm?.settings ?? {}).enabled
     ? ((await travelFor(tx, o.workerId, [o.shiftId])).get(o.shiftId) ?? { kind: "unknown" })
     : undefined;
@@ -104,20 +132,7 @@ export async function shiftFacts(
     headcount: session.headcount,
     ...(travel ? { travel } : {}),
     requirements: needed.map((r) => {
-      const { status, expiresOn, waiting } = qualificationStatus(
-        records
-          .filter((x) => x.type === r.code)
-          .map((x) => ({
-            status: x.status,
-            expiresOn: x.expiresOn,
-            checkState: x.checkState,
-            upload:
-              x.uploadId && x.sentAt
-                ? { id: x.uploadId, sentOn: localDateOf(x.sentAt, zone), reason: x.reason }
-                : null,
-          })),
-        today,
-      );
+      const { status, expiresOn, waiting } = stateOf(r.code);
       return {
         ...r,
         chip: requirementChip(r),

@@ -1170,7 +1170,12 @@ Done when: every task above is ticked with a stamp that includes the browser tes
 with `RUN_E2E=1` prints VERIFIED; no test or browser test calls a real push service, Twilio, an
 email server or Anthropic; the `claims-auditor` checks the phase against this line.
 
-## Phase 15 — Texts through our own system (proposed, not started)
+## Phase 15 — Texts through our own system (go-ahead for the sender only: Dylan, 2026-10-29, "build it now, switched off")
+
+**Go-ahead, 2026-10-29** (Dylan: "build it now, switched off"): the second task, the Webex Interact
+sender, is built now and stays off (no firm's key is set, and it is refused in tests); it reads the
+firm's key from P5's secret store, so it comes after P5's framework. The first task changes screens
+(after the UI chat's Phase 24, mock-ups first) and the third waits for the firm to turn replies on.
 
 Proposed 2026-10-19 after Dylan's decision ("we wont need whatsapp or twillio notifications will
 come through our own text system and app"; see "Decided on 2026-10-19" under Decisions). Not
@@ -1789,7 +1794,7 @@ come in hidden from casuals; the office compares ShiftDesk's required and booked
 portal each day for one pay cycle), a few events live, then everything, then the email inbox.
 AXLR8 directly when it can be asked.
 
-### P1 — The repo, easier for Claude (attended; docs and config only)
+### P1 — The repo, easier for Claude (attended; docs and config only; go-ahead: Dylan, 2026-10-29, built last)
 
 Why: `PLAN.md` is about 470 KB (well over 100k tokens) and `/next-task` reads all of it; `docs/work-log.md`
 is 858 KB and `docs/overnight-log.md` 1.1 MB, and both only grow.
@@ -1903,7 +1908,52 @@ booking says where it came from, and with `firm_system_sends` on, sheet and API 
 confirmation or reminders from ShiftDesk; with `login_by_email` on, a casual's login link and pay
 code go by email; the `claims-auditor` checks the phase against this line.
 
-### P3 — Fit the firm's model (items 1, 2 and 4 decided 2026-10-26; item 3 needs Rules 3; item 5 waits on discovery)
+### P3 — Fit the firm's model (go-ahead for the back end: Dylan, 2026-10-29, Rules 3 too; screens after the UI chat's Phase 24; S, T, R)
+
+**This round is the back end** (Dylan, 2026-10-29: "just finish it all"; Rules 3 "build the rule
+now"): the UI chat is still on Phase 24.6, so no task here changes a screen, `src/app/` or an office
+page, and no casual-facing words beyond those Dylan approves. The proposal's items follow the tasks.
+
+- [ ] Pay calendar (S): `payPeriod(day, calendar)` beside `payWeek()` (`src/lib/pay/pay-week.ts`,
+      pure; with no calendar set, exactly today's ISO week paid the Friday after); an owner setting
+      `pay_calendar` (7 or 14 days, an anchor Monday, the pay day as days after the period ends,
+      the label Week or Cycle) through `src/lib/onboarding/settings.ts` with its database check
+      (like `drizzle/0037_firm_setting_checks.sql`); pay-query grouping (`src/lib/pay/grouping.ts`)
+      by the firm's pay period. Tests: made-up anchors, the 53-week year (2026), the clock change,
+      a firm without a calendar unchanged (P3.1)
+- [ ] Name map per firm (S, T): a table of outside names (role, qualification, staff type,
+      cancellation reason) each mapped to a ShiftDesk code (a role with its pay rate) or to skip,
+      with `firm_id`, RLS, a `TABLE_ACCESS` entry and isolation fixtures; an owner script to set it
+      (like `scripts/firm-sheet-owner.ts`); the sheet sync and the file import use it, with
+      `normaliseRole` (`src/lib/roster/sheets/parse.ts`) as the fallback; an unmapped name is
+      logged and never offered. Tests: mapped, skipped, unmapped, another firm's map unused (P3.2)
+- [ ] "Any of" licences (R; Rules 3, Dylan 2026-10-29): a rule may need one of several credential
+      types (a door supervisor licence covers guarding), in `src/lib/rules/packs.ts`,
+      `src/lib/credentials/requirements.ts`, `src/lib/rules/eligibility.ts` and
+      `docs/rules-and-credentials.md` together (the parity tests hold them in step); every place
+      that reads a rule's types reads the groups. Tests: either licence passes, neither fails, an
+      expired one doesn't count, "all of" rules unchanged (P3.3)
+- [ ] Who asked for a cancellation (S, R): recorded apart from who carried it out (casual, firm,
+      client, unknown), backfilled from each cancellation's own record; the casual's own cancel says
+      casual, the planner API and the sheet what their data says, the office firm (its form asks,
+      after the UI chat); the notice report (`src/lib/office/notice-report.ts`) counts by who asked;
+      a per-firm strikes switch (`src/lib/strikes/settings.ts`). Tests: each writer, the backfill,
+      the report's counts, strikes off issues none (P3.4)
+
+**After the UI chat's Phase 24 merges:** Home's pay day from the firm's calendar or its imported
+`pay_records.pay_date` (`src/app/page.tsx`), the top bar, the dashboard and the pay dashboard; the
+Needs attention item for an unmapped name; the casual's "you need A or B" words (a mock-up first);
+the office's "who asked" choice when it cancels.
+
+Done when: P3.1 to P3.4 are ticked, each with a stamp that includes the browser tests;
+`RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; nothing under `src/app/` changed and no screen or
+casual-facing words; a firm without a pay calendar or a name map works exactly as before; a door
+supervisor licence lets a casual take a security officer's shift where the firm's rule says either;
+the notice report says who asked for each cancellation; the `claims-auditor` checks the phase
+against this line.
+
+The proposal (2026-10-26):
+
 
 1. **Pay day** (S, UI). Quick fix first: the casual's Home takes the pay day from the imported
    `pay_records.pay_date` when there is one, as the office's pay page already does (today
@@ -2039,7 +2089,13 @@ unless the firm switches it on (a call's login link is the login page's answer: 
 `docs/architecture.md`'s scale line names the target; the `claims-auditor` checks the phase
 against this line.
 
-### P5 — The connector: the ops portal's API first, AXLR8 directly later (attended; S, A, T, M, R, UI)
+### P5 — The connector: the ops portal's API first, AXLR8 directly later (attended; S, A, T, M, R, UI; go-ahead for the framework: Dylan, 2026-10-29)
+
+**Go-ahead, 2026-10-29** (Dylan, "just finish it all"): the framework and the secret store against a
+made-up portal, as boxed tasks here when the build starts. The real connector waits for the
+portal's API docs and a test copy (`docs/discovery-axlr8.md` §5), and the signed agreement and DPA
+before any real data flows (golden rule 7); the casual's new words go to Dylan first, and the sync
+card and Needs attention items after the UI chat's Phase 24.
 
 The framework and the secret store now, against a made-up system; the first real connector, the
 ops portal's API, once its shape is known (`docs/discovery-axlr8.md` §4); AXLR8 directly when it
@@ -2104,7 +2160,12 @@ and the office's "Enter in AXLR8" list is the fallback for when the portal is do
   (`src/lib/rules/eligibility.ts`, `src/lib/offers/waves.ts`). Instead a "Still coming?" button on
   the existing 2-hour reminder, so a dropout shows while the place can still be filled (M, UI).
 
-### P7 — The staffing email inbox (Stage 2 brought forward, decided 2026-10-26; S, A, T, M, UI)
+### P7 — The staffing email inbox (Stage 2 brought forward, decided 2026-10-26; S, A, T, M, UI; go-ahead for the back end: Dylan, 2026-10-29)
+
+**Go-ahead, 2026-10-29** (Dylan, "just finish it all"): the back end against a made-up provider, as
+boxed tasks here when the build starts. Live use waits for an email provider account (its short ADR
+is Dylan's choice) and the firm's IT allowing the Microsoft 365 forward; the office's summary
+email's words go to Dylan first, and the AI-drafted reply on Enquiries after the UI chat's Phase 24.
 
 - The firm's staffing mailbox (Microsoft 365) auto-forwards to its own address at a UK or EU email
   provider with signed inbound webhooks (Microsoft 365 blocks forwarding to outside addresses by

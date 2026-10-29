@@ -1,7 +1,8 @@
 # Decisions waiting for Dylan
 
 Moved from `PLAN.md` word for word on 2026-10-29 (P1.2), where its heading now points here. Line
-numbers that older docs give for it are `PLAN.md`'s as it was then.
+numbers that older docs give for it are `PLAN.md`'s as it was then, and where the text below says
+"this file" or "below", it meant `PLAN.md` (the Parking lot is now `docs/plan/parking-lot.md`).
 
 ## Decisions waiting for Dylan
 

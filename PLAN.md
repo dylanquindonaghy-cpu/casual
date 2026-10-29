@@ -337,7 +337,7 @@ editing `PLAN.md`.
 Nothing under `src/` changes but the new local `CLAUDE.md` files, and no word a casual or the
 office sees.
 
-- [ ] - [ ] The archive (attended): the numbered phases with every box ticked (Phases 0 to 3, 5, 10
+- [ ] The archive (attended): the numbered phases with every box ticked (Phases 0 to 3, 5, 10
       to 14, 16 to 21, 23 and 24) move word for word to `docs/archive/plan-done.md`, frozen: its
       sha256 is pinned in `scripts/archive-check.sh`, which `scripts/invariants.sh` runs (check 9),
       so any change to it fails verify and blocks every tick until undone (not a `*PLAN.md` name,
@@ -350,8 +350,8 @@ office sees.
       (`scripts/selftest.sh`), nothing lost (P1.1)
 - [x] The Parking lot, the Hours log and the Decisions list (attended) move to
       `docs/plan/parking-lot.md`, `docs/plan/hours-log.md` and `docs/plan/decisions-waiting.md`,
-      each leaving its heading in `PLAN.md` with a short pointer, so the 316 lines in 58 other files
-      that say "the Parking lot", "the Hours log" or "Decisions waiting for Dylan" (2026-10-29)
+      each leaving its heading in `PLAN.md` with a short pointer, so the 300 or so lines in some 60
+      other files that say "the Parking lot", "the Hours log" or "Decisions waiting for Dylan"
       still lead to it (none needs
       changing, and none under `src/app/` may change while the UI chat works); old `PLAN.md` line
       numbers in `docs/audit-2026-09-30.md` and the logs get a dated note that they point at

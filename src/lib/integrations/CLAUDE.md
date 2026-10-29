@@ -4,8 +4,8 @@ Read when working here (the root `CLAUDE.md` still applies). Docs: `docs/office-
 §5.3.3, `docs/integrations.md`, ADR-022 in `docs/decisions.md`.
 
 - `/api/v1` is not a provider webhook (golden rule 3's exception): each write is one short
-  transaction answered in the request, made idempotent by the planner's own ref. Every call goes
-  through `handleApiRequest()` (`api.ts`) in its order: platform address only, the key's shape
+  transaction answered in the request, made idempotent by the planner's own ref. Every call to a
+  route that exists goes through `handleApiRequest()` (`api.ts`) in its order: platform address only, the key's shape
   before any look-up, `resolveApiKey()` by sha256, the per-key throttle.
 - Keys (`keys.ts`): only the sha256 and the last 4 characters are kept; the key is shown once and
   never logged.

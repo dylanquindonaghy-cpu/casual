@@ -7,6 +7,7 @@ import {
   type EmailWebhookDeps,
 } from "@/lib/email/webhook";
 import { signedHeaders } from "@/lib/integrations/sign";
+import { parseAppEnv } from "@/lib/env";
 import type { Logger } from "@/lib/log";
 
 // The staffing inbox's webhook in (P7.2; src/lib/email/webhook.ts): the signature first, nothing
@@ -23,6 +24,8 @@ const FIRM: FirmDirectoryEntry = {
   signOff: "Acme Shift Team",
 };
 const INBOX = "staffing-acme@inbound.example.test";
+const OTHER_FIRM: FirmDirectoryEntry = { ...FIRM, id: "22222222-2222-4222-8222-222222222222" };
+const OTHER_INBOX = "staffing-northline@inbound.example.test";
 const NOW = new Date("2026-11-02T09:00:00Z");
 const nowSeconds = Math.floor(NOW.getTime() / 1000);
 
@@ -36,7 +39,7 @@ function harness(o: { secret?: string | undefined } = {}) {
     secret: "secret" in o ? o.secret : SECRET,
     resolveFirmByInbox: async (address) => {
       looked.push(address);
-      return address === INBOX ? FIRM : null;
+      return address === INBOX ? FIRM : address === OTHER_INBOX ? OTHER_FIRM : null;
     },
     receive: async (firmId, email) => {
       received.push({ firmId, email });
@@ -52,6 +55,7 @@ const email = (o: Record<string, unknown> = {}) =>
   JSON.stringify({
     message_id: "<0001@mail.example.test>",
     from: "Ann Example <Ann.Example@example.com>",
+    authenticated: true,
     to: [INBOX],
     subject: "Saturday",
     text: "Can I swap Saturday?",
@@ -80,6 +84,7 @@ describe("the staffing inbox's webhook", () => {
         email: {
           messageId: "<0001@mail.example.test>",
           from: "ann.example@example.com",
+          authenticated: true,
           to: INBOX,
           subject: "Saturday",
           text: "Can I swap Saturday?",
@@ -91,14 +96,42 @@ describe("the staffing inbox's webhook", () => {
     expect(JSON.stringify(h.logged)).not.toMatch(/ann|saturday|swap|inbound\.example/i);
   });
 
-  it("sent to several addresses: the first that's a firm's inbox", async () => {
+  it("sent to several addresses: a row for each firm whose inbox it was sent to, once each", async () => {
     const h = harness();
     await handleEmailWebhook(
-      signed(email({ to: ["office@acme.example.com", `Staffing <${INBOX.toUpperCase()}>`] })),
+      signed(
+        email({
+          to: ["office@acme.example.com", `Staffing <${INBOX.toUpperCase()}>`, OTHER_INBOX, INBOX],
+        }),
+      ),
       h.deps,
     );
-    expect(h.looked).toEqual(["office@acme.example.com", INBOX]);
-    expect(h.received[0]?.email.to).toBe(INBOX);
+    expect(h.received.map((r) => [r.firmId, r.email.to])).toEqual([
+      [FIRM.id, INBOX],
+      [OTHER_FIRM.id, OTHER_INBOX],
+    ]);
+  });
+
+  it("the provider's word on the sender carried; without it, not authenticated", async () => {
+    const h = harness();
+    await handleEmailWebhook(signed(email({ authenticated: undefined })), h.deps);
+    await handleEmailWebhook(signed(email({ authenticated: "yes" })), h.deps);
+    expect(h.received.map((r) => r.email.authenticated)).toEqual([false]);
+  });
+
+  it("a Message-ID missing or unusable: a stand-in the same email repeats; long words cut later, never refused", async () => {
+    const h = harness();
+    await handleEmailWebhook(signed(email({ message_id: undefined })), h.deps);
+    await handleEmailWebhook(signed(email({ message_id: "has spaces in it" })), h.deps);
+    await handleEmailWebhook(signed(email({ message_id: "has spaces in it" })), h.deps);
+    const ids = h.received.map((r) => r.email.messageId);
+    expect(ids[0]).toBe("webhook:msg_0001");
+    expect(ids[1]).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(ids[2]).toBe(ids[1]);
+    const long = "word ".repeat(40_000); // 200,000 characters each: far past what's kept, under the body cap
+    expect(
+      (await handleEmailWebhook(signed(email({ text: long, subject: long })), h.deps)).status,
+    ).toBe(200);
   });
 
   it("no secret set: 503, nothing read", async () => {
@@ -147,11 +180,11 @@ describe("the staffing inbox's webhook", () => {
       body: bytes,
     });
     expect((await handleEmailWebhook(latin, h.deps)).status).toBe(400);
-    const noId = email({ message_id: "has spaces in it" });
-    expect((await handleEmailWebhook(signed(noId), h.deps)).status).toBe(400);
+    const noFrom = email({ from: 42 });
+    expect((await handleEmailWebhook(signed(noFrom), h.deps)).status).toBe(400);
     expect(h.logged.at(-1)).toEqual({
       msg: "email webhook: a body that isn't an email",
-      fields: { fields: ["message_id"] },
+      fields: { fields: ["from"] },
     });
     expect(h.received).toEqual([]);
   });
@@ -165,5 +198,31 @@ describe("the staffing inbox's webhook", () => {
       (await handleEmailWebhook(signed(email({ from: "not an address" })), h.deps)).status,
     ).toBe(200);
     expect(h.received).toEqual([]);
+  });
+});
+
+describe("the inbox's setting", () => {
+  const base = {
+    DATABASE_URL: "postgres://shiftdesk_app:x@localhost:5432/shiftdesk",
+    SESSION_SECRET: "a-made-up-session-secret-0123456789abcd",
+    APP_BASE_DOMAIN: "localhost:3000",
+  };
+  const refusal = (source: Record<string, string>) => {
+    try {
+      parseAppEnv({ ...base, ...source });
+      return "accepted";
+    } catch (err) {
+      return String((err as Error).message);
+    }
+  };
+
+  it("a whsec_ key; refused in production until the inbox is sorted (P7.4)", () => {
+    expect(refusal({ NODE_ENV: "development", EMAIL_INBOUND_SECRET: SECRET })).toBe("accepted");
+    expect(refusal({ NODE_ENV: "development", EMAIL_INBOUND_SECRET: "not-a-key" })).toMatch(
+      /whsec_/,
+    );
+    expect(refusal({ NODE_ENV: "production", EMAIL_INBOUND_SECRET: SECRET })).toMatch(
+      /isn't live yet/,
+    );
   });
 });

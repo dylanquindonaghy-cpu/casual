@@ -1,6 +1,6 @@
 import { Pool as PgPool, type Pool } from "pg";
 import { log } from "../log";
-import { isSecretName, openSecret, type SecretsKey } from "../secret-store/crypto";
+import { isSecretName, openSecret, secretsKey, type SecretsKey } from "../secret-store/crypto";
 
 // A firm's secret, for the worker (P5.1; ADR-026): read through app_read_firm_secret() (migration
 // 0054) on the worker's own jobs-role connection (DATABASE_JOBS_URL: the web app has none), then
@@ -59,4 +59,18 @@ export function firmSecretReader(jobsUrl: string, key: SecretsKey | null): ReadF
     }
     return readFirmSecret(pool, key, { firmId, name });
   };
+}
+
+// The worker's one reader (the connector's reads and the Webex sender's: one jobs-role pool), made
+// on first use from its settings.
+let workerReader: ReadFirmSecret | undefined;
+export function workerSecretReader(env: {
+  DATABASE_JOBS_URL: string;
+  SECRETS_KEY?: string;
+}): ReadFirmSecret {
+  workerReader ??= firmSecretReader(
+    env.DATABASE_JOBS_URL,
+    env.SECRETS_KEY ? secretsKey(env.SECRETS_KEY) : null,
+  );
+  return workerReader;
 }

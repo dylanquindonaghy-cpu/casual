@@ -186,22 +186,29 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
 - `messaging.webex.test.ts` (unit, 15.2) — texts through a firm's Webex Interact account with a
   stand-in for the network (never the real service): the request as its public reference says
   (POST `/v1/sms`, `X-AUTH-KEY`, `{message_body, from, to: [{phone}]}`, a timeout, no redirects),
-  the firm the job's own (outside a firm's job, or a firm with no key, nothing sent), a WhatsApp
-  refused so the casual gets the text, each failure a code with nothing personal in it, and the
-  setting refused under `NODE_ENV=test` and without `SECRETS_KEY`.
+  the firm the job's own (outside a firm's job nothing sent; a firm with no key has no text
+  sender, so its messages go by email), a WhatsApp refused so the casual gets the text, each
+  failure a code with nothing personal in it, the id kept in a form the log accepts, a test
+  without a stand-in refused before anything goes, email still printed with webex on, each
+  firm's key and sender read by name, and the setting refused under `NODE_ENV=test`, without
+  `SECRETS_KEY` and in production until 15.1.
 - `email.prepare.test.ts` (unit, P7.3) — an email made ready to keep: quoted history off whichever
   way it's quoted (Gmail's header on one line or wrapped, Outlook's block with or without its
-  underscores, an Original Message, `>` lines), a reply below the quote kept, nothing left of a
+  underscores, an Original Message, `>` lines), a reply below the quote kept, a casual's own "On
+  …" line just above a header, or their "From: 10:00 / To: 18:00", kept, nothing left of a
   forwarded thread with nothing written above it, the signature and a phone's sign-off off, blank
   lines and control characters tidied, capped without cutting a character; a known casual's subject
   and words, anyone else's neither, only how many attachments.
 - `email.webhook.test.ts` (unit, P7.2) — the staffing inbox's webhook with stand-ins: the signature
   first (missing, wrong, stale, a bad id or a changed body: 403, nothing looked up), 503 with no
-  secret, 415 / 413 / 400 for the wrong body, the firm by the first address that's an inbox, 200
-  and nothing stored for no firm or an unreadable sender, nothing of the email logged.
+  secret, 415 / 413 / 400 for the wrong body, a row for each firm whose inbox it was sent to, the
+  provider's word on the sender carried, a stand-in for a missing or unusable Message-ID that the
+  same email repeats, long words never refused, 200 and nothing stored for no firm or an
+  unreadable sender, nothing of the email logged.
 - `email.receive.test.ts` (P7.2, P7.3) — the same webhook into the real database as the app role: a
   known casual's own words kept with the quoted history and signature off, anyone else's (a venue,
-  an inactive casual, an address two casuals share) never; the same Message-ID twice stored once;
+  an inactive casual, an address two casuals share, a casual's address the provider couldn't vouch
+  for) never; the same Message-ID twice stored once;
   an address no firm has stores nothing; no job queued yet.
 - `firm-inbox.cli.test.ts` (unit, P7.1) — `npm run firm:inbox` given the wrong options: the usage
   line, exit 2, no database touched.

@@ -1,7 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { parseWorkerEnv } from "@/lib/env";
-import { ChannelRefusedError } from "@/lib/messaging/transport";
+import { passesLogCheck } from "@/lib/events/record";
+import { getTransport, webexCredentials } from "@/lib/messaging";
+import { ChannelRefusedError, NoTextSenderError } from "@/lib/messaging/transport";
 import {
   createWebexTransport,
   WEBEX_SMS_URL,
@@ -80,11 +82,30 @@ describe("a text through Webex Interact", () => {
     expect(call?.init.redirect).toBe("error");
   });
 
-  it("the firm is the job's: outside a firm's job, or a firm with no key, nothing is sent", async () => {
+  it("the firm is the job's: outside a firm's job nothing is sent; a firm with no key has no text sender (its messages go by email)", async () => {
     const h = harness(() => queued());
     expect(await failure(h.transport.send(text))).toBe("no_firm");
-    expect(await failure(inFirm(() => h.transport.send(text), OTHER))).toBe("no_key");
+    await expect(inFirm(() => h.transport.send(text), OTHER)).rejects.toBeInstanceOf(
+      NoTextSenderError,
+    );
     expect(h.calls).toEqual([]);
+  });
+
+  it("the id kept only in a form the action log accepts: a digit-heavy one becomes a stand-in of letters", async () => {
+    const h = harness(() => queued("4471234567890123"));
+    const { providerMessageId } = await inFirm(() => h.transport.send(text));
+    expect(providerMessageId).toMatch(/^webex-h-[a-p]{24}$/);
+    expect(passesLogCheck({ providerMessageId })).toBe(true);
+    // The same id, the same stand-in.
+    const again = await inFirm(() =>
+      harness(() => queued("4471234567890123")).transport.send(text),
+    );
+    expect(again.providerMessageId).toBe(providerMessageId);
+  });
+
+  it("a test that builds it without a stand-in for the network is refused before anything goes", async () => {
+    const real = createWebexTransport({ credentialsFor: async () => CREDS });
+    await expect(inFirm(() => real.send(text))).rejects.toThrow(/tests never send a real text/);
   });
 
   it("a WhatsApp is refused as a channel it won't carry (the casual gets the text); email never comes here", async () => {
@@ -127,6 +148,14 @@ describe("a text through Webex Interact", () => {
       [() => new Response("<html>not json</html>", { status: 200 }), "bad_answer"],
       [() => json(200, { unexpected: true, messages: "no" }), "bad_answer"],
       [() => json(302, {}), "bad_answer"],
+      [
+        () =>
+          json(200, {
+            messages: [{ transaction_id: "tid-x", to: TO, status: "error", code: 1002 }],
+            errors: [{ to: TO, status: "error", code: 1002 }],
+          }),
+        "refused",
+      ],
     ];
     for (const [answer, expected] of cases) {
       const h = harness(answer);
@@ -170,6 +199,41 @@ describe("the setting (worker only)", () => {
     expect(refusal({ MESSAGING_TRANSPORT: "webex", SECRETS_KEY, NODE_ENV: "test" })).toMatch(
       /webex is refused when NODE_ENV=test/,
     );
+  });
+
+  it("refused in production until 15.1 makes everything texts (the login link still goes by WhatsApp)", () => {
+    expect(refusal({ MESSAGING_TRANSPORT: "webex", SECRETS_KEY, NODE_ENV: "production" })).toMatch(
+      /webex waits for 15.1/,
+    );
+  });
+
+  it("email still goes with webex on (printed, without SMTP); each firm's key and sender read by name", async () => {
+    const transport = getTransport({
+      MESSAGING_TRANSPORT: "webex",
+      NODE_ENV: "development",
+      EMAIL_TRANSPORT: "console",
+    });
+    const printed = await transport.send({
+      channel: "email",
+      to: "office@example.com",
+      subject: "Hello",
+      body: "Hello",
+    });
+    expect(printed.providerMessageId).toMatch(/^console-/);
+    const asked: string[] = [];
+    const store: Record<string, string> = {
+      [`${FIRM}:webex.api_key`]: "made-up-webex-key-0001",
+      [`${FIRM}:webex.sender`]: "ACMESHIFTS",
+      [`${OTHER}:webex.api_key`]: "made-up-webex-key-0002",
+    };
+    const credentials = webexCredentials({}, async (firmId, name) => {
+      asked.push(name);
+      return store[`${firmId}:${name}`] ?? null;
+    });
+    expect(await credentials(FIRM)).toEqual(CREDS);
+    // A key with no sender: none.
+    expect(await credentials(OTHER)).toBeNull();
+    expect([...new Set(asked)].sort()).toEqual(["webex.api_key", "webex.sender"]);
   });
 
   it("the tests themselves print texts (tests/setup/env.ts)", () => {

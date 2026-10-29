@@ -22,31 +22,37 @@ export interface PreparedEmail {
   attachments: number;
 }
 
-const WROTE_START = /^\s*On\s.+/i;
+const WROTE_START = /^\s*On\s/i;
 const WROTE_END = /\bwrote:\s*$/i;
 // Headers after which everything is the earlier mail, never quoted with ">".
 const ORIGINAL = /^\s*-{2,}\s*Original Message\s*-{2,}\s*$/i;
 const FORWARDED = /^\s*(-{2,}\s*Forwarded message\s*-{2,}|Begin forwarded message:)\s*$/i;
 const UNDERSCORES = /^\s*_{10,}\s*$/;
-const OUTLOOK_FROM = /^\s*\*?From:\*?\s.+/i;
-const OUTLOOK_NEXT = /^\s*\*?(Sent|Date|To|Subject|Cc):\*?\s/i;
+// Outlook's "From: Name <address>" with its "Sent:" (or "Date:") under it: never a casual's own
+// "From: 10:00 / To: 18:00".
+const OUTLOOK_FROM = /^\s*\*?From:\*?\s.*(@|<[^>]*>)/i;
+const OUTLOOK_SENT = /^\s*\*?(Sent|Date):\*?\s/i;
 const SIGNATURE = /^-- ?$/;
 const PHONE_SIGN_OFF = /^\s*(Sent from my\s.+|Get Outlook for\s.+)$/i;
 const CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g;
 
 // "On Mon, 2 Nov 2026 at 09:00, Ann <ann@example.com> wrote:", which mail apps wrap over up to
-// three lines: how many lines it takes from here, or 0.
-function wroteHeader(lines: string[], i: number): number {
-  if (!WROTE_START.test(lines[i] ?? "")) return 0;
-  for (let n = 1; n <= 3 && i + n <= lines.length; n++) {
-    if (WROTE_END.test(lines.slice(i, i + n).join(" "))) return n;
+// three lines. Found from its "wrote:" line (e), back over at most two more lines with no blank
+// between to the nearest that starts "On ": the line where it starts, or -1. So a casual's own
+// "On holiday that week" above it is never taken for part of it.
+function wroteHeaderStart(lines: string[], e: number): number {
+  if (!WROTE_END.test(lines[e] ?? "")) return -1;
+  for (let s = e; s >= Math.max(0, e - 2); s--) {
+    const line = lines[s] ?? "";
+    if (line.trim() === "") return -1;
+    if (WROTE_START.test(line)) return s;
   }
-  return 0;
+  return -1;
 }
 
 function outlookBlock(lines: string[], i: number): boolean {
   if (!OUTLOOK_FROM.test(lines[i] ?? "")) return false;
-  return lines.slice(i + 1, i + 5).some((l) => OUTLOOK_NEXT.test(l));
+  return lines.slice(i + 1, i + 5).some((l) => OUTLOOK_SENT.test(l));
 }
 
 const quoted = (line: string) => /^\s*>/.test(line);
@@ -65,12 +71,12 @@ export function ownWords(text: string): string | null {
       lines = lines.slice(0, i);
       break;
     }
-    const wrote = wroteHeader(lines, i);
-    if (wrote > 0) {
+    const start = wroteHeaderStart(lines, i);
+    if (start >= 0) {
       // Written above the quote: what's above. Written below it: what's below, unquoted.
-      lines = hasWords(lines.slice(0, i))
-        ? lines.slice(0, i)
-        : [...lines.slice(0, i), ...lines.slice(i + wrote)];
+      lines = hasWords(lines.slice(0, start))
+        ? lines.slice(0, start)
+        : [...lines.slice(0, start), ...lines.slice(i + 1)];
       break;
     }
   }

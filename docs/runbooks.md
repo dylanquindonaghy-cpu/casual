@@ -156,12 +156,14 @@ without them it won't start. `docker compose ps` shows the worker "healthy"; if 
 `docker compose logs --tail 50 worker` shows why (usually a value missing in `.env`). Messages must
 never be printed instead of sent: `MESSAGING_TRANSPORT=console` is refused in production. Once the
 firm's text system is connected (Phase 15), `MESSAGING_TRANSPORT` names it: `webex` is built and
-not yet tried against the real service (it waits for the firm's account). To switch it on, each
-firm's Webex Interact access token and sender (a name or long number set up in Webex Interact) go
-in the secret store (`npm run firm:secret -- --firm <slug> --name webex.api_key`, then
+not yet tried against the real service (it waits for the firm's account), and the settings refuse
+it in production until 15.1 makes everything texts (until then the login link and the pay code go
+by WhatsApp whenever a text sender exists, which Webex won't carry, so nobody could log in). Then,
+each firm's Webex Interact access token and sender (a name or long number set up in Webex
+Interact) go in the secret store (`npm run firm:secret -- --firm <slug> --name webex.api_key`, then
 `--name webex.sender`, each value from standard input), the worker needs `SECRETS_KEY`, and then
-`MESSAGING_TRANSPORT=webex`. A firm without both sends no texts (each failure logged as
-`webex_no_key`); a casual who chose WhatsApp gets a text.
+`MESSAGING_TRANSPORT=webex`. A firm without both has no text sender: its casuals' messages go by
+email, as with `none`.
 
 **The first time** (after "Set up the server (once)"), in the server's browser console (`sudo -i`
 first):
@@ -1100,9 +1102,12 @@ In order (who does it, how, and what done looks like):
    nothing back, check the Messaging Service's opt-out settings in Twilio when connecting.
    The staffing inbox (P7; not live yet: it waits for an email provider and the firm's IT) is set
    the same way: `npm run firm:inbox -- --firm <slug> --address <its address at the provider>`
-   (`--replace` to change it, `--clear` to take it off), logged as a settings change. Until P7's
-   sorting is built its emails are only stored (a known casual's words, quoted history off;
-   anyone else's never), and nothing answers them.
+   (`--replace` to change it, `--clear` to take it off), logged as a settings change. The firm's
+   IT forwards its staffing mailbox there with a mailbox-level forward or a "Redirect" rule, which
+   keep the sender's address; never an inbox rule's "Forward", which sends every email from the
+   firm's own mailbox, so none would be any casual's. Until P7's sorting is built (P7.4) the
+   settings refuse `EMAIL_INBOUND_SECRET` in production: its emails would only be stored (a known
+   casual's words, quoted history off; anyone else's never) and nothing would answer them.
 10. **Privacy notice line** (you send it, the firm publishes it): `docs/privacy-notice.md` has the
     short line and the section for its privacy notice, with what to fill in.
 11. **Staff briefing** (the firm): a message to its staff with the portal link.

@@ -197,6 +197,15 @@ function vapidKeysMatch(publicKey: string, privateKey: string): boolean {
   }
 }
 
+// The staffing inbox isn't live until its emails are sorted (P7.4): a live server would only store
+// them, with nothing answering. P7.4 takes this away.
+const inboxNotLiveYet = (e: { NODE_ENV: string; EMAIL_INBOUND_SECRET?: string }) =>
+  e.NODE_ENV !== "production" || e.EMAIL_INBOUND_SECRET === undefined;
+const inboxNotLiveYetMessage = {
+  path: ["EMAIL_INBOUND_SECRET"],
+  message: "the staffing inbox isn't live yet (PLAN.md P7.4): leave EMAIL_INBOUND_SECRET unset",
+};
+
 // Tests never reach postcodes.io or TravelTime.
 const noRealTravelInTests = (e: { NODE_ENV: string; TRAVEL_PROVIDER: string }) =>
   e.NODE_ENV !== "test" || e.TRAVEL_PROVIDER !== "traveltime";
@@ -231,6 +240,7 @@ export const appEnvSchema = z
   .superRefine(tlsInProduction("DATABASE_URL"))
   .refine(realSecret, realSecretMessage)
   .refine(realIntegrationsSecret, realIntegrationsSecretMessage)
+  .refine(inboxNotLiveYet, inboxNotLiveYetMessage)
   .refine(alertsOn, alertsOnMessage)
   .refine(noRealTravelInTests, noRealTravelInTestsMessage)
   .refine(demoHasOutbox, demoHasOutboxMessage)
@@ -368,6 +378,7 @@ export const workerEnvSchema = z
   .superRefine(tlsInProduction("DATABASE_URL", "DATABASE_JOBS_URL"))
   .refine(realSecret, realSecretMessage)
   .refine(realIntegrationsSecret, realIntegrationsSecretMessage)
+  .refine(inboxNotLiveYet, inboxNotLiveYetMessage)
   .refine(alertsOn, alertsOnMessage)
   .refine(noRealTravelInTests, noRealTravelInTestsMessage)
   .refine(demoHasOutbox, demoHasOutboxMessage)
@@ -409,6 +420,13 @@ export const workerEnvSchema = z
   .refine((e) => e.NODE_ENV !== "test" || e.MESSAGING_TRANSPORT !== "webex", {
     path: ["MESSAGING_TRANSPORT"],
     message: "tests never send a real text: webex is refused when NODE_ENV=test",
+  })
+  // Not in production before 15.1 (texts only): the login link and the pay code still go by
+  // WhatsApp when a text sender exists (src/lib/auth/login-channel.ts), which Webex won't carry.
+  .refine((e) => e.NODE_ENV !== "production" || e.MESSAGING_TRANSPORT !== "webex", {
+    path: ["MESSAGING_TRANSPORT"],
+    message:
+      "webex waits for 15.1 (texts only) in production: login links and pay codes still go by WhatsApp",
   })
   // Each firm's Webex key is in the secret store: the worker can't read it without the key's key.
   .refine((e) => e.MESSAGING_TRANSPORT !== "webex" || e.SECRETS_KEY !== undefined, {

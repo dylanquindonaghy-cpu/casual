@@ -79,6 +79,7 @@ describe("emails to the staffing inbox", () => {
     const ann = await t.casual("Ann", "ann.example@example.com");
     const r = await t.post({
       from: "Ann Example <Ann.Example@example.com>",
+      authenticated: true,
       subject: "Re: Saturday",
       text: [
         "Yes I can do Saturday.",
@@ -104,19 +105,32 @@ describe("emails to the staffing inbox", () => {
     ]);
   });
 
-  it("anyone else's: who wrote only, never the subject or words; an inactive casual's, or an address two casuals share, the same", async () => {
+  it("anyone else's: who wrote only, never the subject or words; an inactive casual's, an address two casuals share, or one the provider couldn't vouch for, the same", async () => {
     const t = await inboxFirm();
     await t.casual("Cal", "cal.example@example.com", "inactive");
     await t.casual("Dee", "shared@example.com");
     await t.casual("Eve", "shared@example.com");
+    await t.casual("Fay", "fay.example@example.com");
     for (const from of ["venue@example.com", "cal.example@example.com", "shared@example.com"]) {
-      await t.post({ from, subject: "Invoice 42", text: "Please pay our invoice." });
+      await t.post({
+        from,
+        authenticated: true,
+        subject: "Invoice 42",
+        text: "Please pay our invoice.",
+      });
     }
+    // A casual's address, but the provider couldn't say it was theirs (anyone can put it in).
+    await t.post({
+      from: "fay.example@example.com",
+      subject: "Invoice 42",
+      text: "Pay our invoice.",
+    });
     const stored = await t.rows();
     expect(stored.map((r) => [r.from_address, r.worker_id, r.subject, r.body])).toEqual([
       ["venue@example.com", null, null, null],
       ["cal.example@example.com", null, null, null],
       ["shared@example.com", null, null, null],
+      ["fay.example@example.com", null, null, null],
     ]);
     const { rows } = await su.query(
       "select count(*)::int as n from inbound_emails where firm_id = $1 and body like '%invoice%'",

@@ -1,7 +1,10 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
+import { passesLogCheck } from "../events/record";
 import { jobFirmId } from "../tenancy/job-firm";
 import {
   ChannelRefusedError,
+  NoTextSenderError,
   outboundMessageSchema,
   type MessagingTransport,
   type OutboundMessage,
@@ -22,9 +25,18 @@ import {
 // {errors: [{code, message, field?}]} (10005 insufficient balance, 10006 a request it won't take).
 //
 // - Which firm: the job's (src/lib/tenancy/job-firm.ts: every firm job runs inside its firm), so no
-//   sender has to pass it; a send outside a firm job is refused.
-// - Texts only. A WhatsApp is refused as a channel it won't carry (ChannelRefusedError), so a casual
-//   who chose WhatsApp gets the text instead (src/lib/notify/send.ts); email never comes here.
+//   sender has to pass it; a send outside a firm job is refused. A firm without its key and sender
+//   has no text sender (NoTextSenderError): its casuals' messages go by email, as with
+//   MESSAGING_TRANSPORT=none, and nothing counts as a failed text.
+// - Texts only. A WhatsApp is refused as a channel it won't carry (ChannelRefusedError): the shared
+//   sender gives the casual the text instead (src/lib/notify/send.ts), but the login link and the
+//   pay code still go by WhatsApp when a text sender exists (src/lib/auth/login-channel.ts), so the
+//   settings refuse webex in production until 15.1 makes everything texts; email never comes here.
+// - The id it gives is kept only in a form the action log accepts (a run of digits there would be
+//   refused after the text went: golden rule 5); delivery reports (with the webhooks) will need the
+//   transaction id itself.
+// - Tests never reach it: the settings refuse webex under NODE_ENV=test, and a test that builds it
+//   itself must pass a stand-in for the network.
 // - Every request has a timeout; a failure is a code only (WebexSendError: its name, which is what
 //   the send's log entry records), never the number, the text or the key.
 
@@ -35,7 +47,6 @@ export const WEBEX_TIMEOUT_MS = 10_000;
 
 export type WebexFailure =
   | "no_firm" // sent outside a firm's job
-  | "no_key" // the firm has no Webex key (or sender) in the secret store
   | "unauthorised" // the key was refused (401, 403)
   | "refused" // the number or the text refused (a 400, or the number in `errors`)
   | "no_balance" // 10005
@@ -109,9 +120,22 @@ async function post(
   if (response.status !== 200) throw new WebexSendError("bad_answer");
   const parsed = accepted.safeParse(json);
   if (!parsed.success) throw new WebexSendError("bad_answer");
-  const queued = parsed.data.messages.find((m) => m.transaction_id);
-  if (queued?.transaction_id) return { providerMessageId: `webex-${queued.transaction_id}` };
+  const queued = parsed.data.messages.find((m) => m.transaction_id && m.status !== "error");
+  if (queued?.transaction_id) return { providerMessageId: loggableId(queued.transaction_id) };
   throw new WebexSendError(parsed.data.errors.length > 0 ? "refused" : "bad_answer");
+}
+
+// "webex-<its id>" when the action log takes it as it is, else a stand-in made of letters only (a
+// hash, so the same id gives the same stand-in).
+function loggableId(transactionId: string): string {
+  const id = `webex-${transactionId}`;
+  if (/^[A-Za-z0-9._:-]{1,120}$/.test(id) && passesLogCheck({ providerMessageId: id })) return id;
+  const letters = createHash("sha256")
+    .update(transactionId)
+    .digest("hex")
+    .slice(0, 24)
+    .replace(/[0-9a-f]/g, (c) => "abcdefghijklmnop"[parseInt(c, 16)] ?? "a");
+  return `webex-h-${letters}`;
 }
 
 export function createWebexTransport(deps: WebexDeps): MessagingTransport {
@@ -121,10 +145,14 @@ export function createWebexTransport(deps: WebexDeps): MessagingTransport {
       const msg = outboundMessageSchema.parse(message);
       if (msg.channel === "whatsapp") throw new ChannelRefusedError("whatsapp");
       if (msg.channel === "email") throw new Error("email never goes through Webex Interact");
+      if (process.env.NODE_ENV === "test" && !deps.fetch) {
+        throw new Error("tests never send a real text: pass a stand-in for the network");
+      }
       const firmId = jobFirmId();
       if (!firmId) throw new WebexSendError("no_firm");
       const creds = await deps.credentialsFor(firmId);
-      if (!creds) throw new WebexSendError("no_key");
+      // No key: this firm has no text sender (its casuals' messages go by email).
+      if (!creds) throw new NoTextSenderError("sms");
       return post(creds, msg.to, msg.body, deps);
     },
   };

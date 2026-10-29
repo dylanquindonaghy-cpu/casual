@@ -1028,9 +1028,10 @@ create table connector_events (
 );
 
 -- Emails to a firm's staffing inbox (P7.1; PLAN.md P7): stored once per Message-ID in the firm by
--- the email provider's webhook (P7.2; golden rule 3). Their own table, not messages, until the
--- office's Enquiries learns email. Words only from a known casual (the sender's address a worker's
--- here); anyone else's are never stored. Attachments are never kept: only how many. Inserted and
+-- the email provider's webhook (P7.2; golden rule 3; an email sent to two firms' inboxes is a row
+-- in each). Their own table, not messages, until the office's Enquiries learns email. Words only
+-- from a known casual (the sender's address one active worker's here, and the provider's word that
+-- it passed DMARC); anyone else's are never stored. Attachments are never kept: only how many. Inserted and
 -- read by the app; deleted only by the owner-run app_erase_worker() (theirs, and from their address
 -- before it was known) and app_purge_old_messages() (at retention.message_days, with the messages).
 create table inbound_emails (

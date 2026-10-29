@@ -1193,17 +1193,21 @@ Docs: `docs/messaging-templates.md`, `docs/architecture.md`, `docs/screens.md`.
       says "text" (login, pay code, Profile, Help, the office's offer list, Enquiries, the
       dashboard's shifts line, the guide). Tests: each message by text, STOP, the words
 - [ ] Our text system's sender (M): a `MessagingTransport` (`src/lib/messaging/transport.ts`) for the
-      firm's text provider (`MESSAGING_TRANSPORT` takes only `console` today, so nothing is sent
-      for real), refused in tests like every real sender; its delivery reports if it has them.
+      firm's text provider (`MESSAGING_TRANSPORT` took only `console` and `none`, so nothing was
+      sent for real), refused in tests like every real sender; its delivery reports if it has them.
       **The build (2026-10-29), switched off:** `src/lib/messaging/webex.ts`, from Webex
       Interact's public reference (POST `/v1/sms`, `X-AUTH-KEY`, `{message_body, from, to:
       [{phone}]}`); `MESSAGING_TRANSPORT=webex`, refused under `NODE_ENV=test` (pinned in
-      `scripts/invariants.sh`) and needing `SECRETS_KEY`: each firm's token and sender from P5's
-      secret store, the firm the job's own (`src/lib/tenancy/job-firm.ts`); texts only (a WhatsApp
-      is refused, so the casual gets the text); a timeout on every request, each failure a code.
-      Not tried against the real service (the firm's account), and its delivery reports wait for
-      the webhooks (with the third task). Tests: the request as the reference says, no firm or no
-      key sends nothing, each failure a code with nothing personal, the settings (15.2)
+      `scripts/invariants.sh`, and refused at send time in a test that doesn't stand in for the
+      network) and needing `SECRETS_KEY`: each firm's token and sender from P5's secret store, the
+      firm the job's own (`src/lib/tenancy/job-firm.ts`), a firm without both having no text sender
+      (its casuals' messages go by email); texts only (a WhatsApp is refused, so the shared sender
+      gives the casual the text); a timeout on every request, each failure a code, the id kept
+      only in a form the log accepts. **Refused in production until 15.1:** the login link and the
+      pay code still go by WhatsApp whenever a text sender exists, which Webex won't carry. Not
+      tried against the real service (the firm's account), and its delivery reports wait for the
+      webhooks (with the third task). Tests: the request as the reference says, no firm or no key
+      sends nothing, each failure a code with nothing personal, the settings (15.2)
 - [ ] Replies by text, only if the text system can pass incoming texts on: its webhook (signature
       checked, one row per message id, a fast 200), into the shifts line (`receiveSms`,
       `src/lib/inbound/receive.ts`) with STOP and START. Call-to-text goes (it needed Twilio voice)
@@ -2321,7 +2325,10 @@ queues the ones waiting).
       unknown sender's words never in the database (P7.3)
 - [ ] Sorting, held for the office (M; waits for the office's log words for `email.received`, with
       the UI chat): the `inbound-email` job (queued with each stored email, and once for those
-      stored before it) sorts a known casual's text as the
+      stored before it: one older than a few hours goes to the office as arrived before the
+      inbox was answered, never sorted as if it were new, since a stale "cancel me" isn't one; and
+      any still unhandled at the firm's message retention age is purged as the rest are) sorts a
+      known casual's text as the
       shifts line does (a keyword, else the AI's label outside any transaction:
       `sortMessage()`; the AI only sorts, code decides), then claims it once (`handled_at`, how it
       was handled, what they asked) and logs `email.received` (labels and ids only); nothing is
@@ -2715,6 +2722,13 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
     ever); confirm that's the right way out.
   - A cancellation from the system tells the casual nothing and starts no offers (as a name taken
     off the rota sheet): the firm's system made it, and fills the gap there.
+- The staffing inbox (P7's review), before it's live: the purge's and the erasure's log entries
+  count messages only (`retention.purged`, `worker.erased`), not the emails they take too (the
+  owner-run functions return one count, and the office's words for the log would need an emails
+  count: with P7.4's words); the privacy notice's line for the inbox (that the firm's staffing
+  emails are kept 90 days, a casual's words only) is Dylan's, before any firm's inbox goes live;
+  and a casual's words are taken as theirs on the provider's DMARC word, so the provider chosen
+  (its ADR) must give one.
 - The connector's pull (P5.4's second review), before a real one: a pull that runs out of time
   (8 minutes) keeps no progress, so a source too big to read in 8 minutes never finishes a full
   pull, and once 26 hours pass every pull is full and the next 48 hours stop being caught up too

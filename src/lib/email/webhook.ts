@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { FirmDirectoryEntry } from "../db/directory";
 import { readBoundedBody, strictUtf8 } from "../http/bounded-body";
@@ -13,26 +14,46 @@ import type { InboundEmail } from "./receive";
 // - JSON only (415), at most 512 kB (413), UTF-8 (400);
 // - the Standard Webhooks headers (webhook-id, webhook-timestamp, webhook-signature), signed with
 //   that secret, the timestamp within 5 minutes: missing or wrong, 403 and nothing stored;
-// - the body is an email ({message_id, from, to, subject?, text?, attachments?}): anything else 400
-//   (field names logged, never values);
-// - the firm whose inbox it was sent to (resolveFirmByInbox), and a sender address that can be
-//   read: neither, 200 and nothing stored (it needn't be sent again);
-// - one row per Message-ID in the firm (receive.ts): the same email again stores nothing. 200 at
+// - the body is an email: anything else 400 (field names logged, never values). The made-up
+//   provider's contract, which the real one's adapter keeps to:
+//   - `to`: the envelope recipients, who the provider delivered it to. With the firm's mailbox
+//     forwarding (a mailbox-level forward or a "Redirect" rule, which keep the sender: never an
+//     inbox rule's "Forward", which sends it from the firm's own mailbox), that's the firm's
+//     inbox address, not the To header (which still names the firm's own mailbox);
+//   - `from`: the sender's address; `authenticated`: the provider's word that it passed DMARC (or
+//     DKIM aligned with it), so it isn't someone else's address put in. Without that, the email
+//     is nobody's: who wrote is kept, never the words (receive.ts);
+//   - `attachments`: their details only (never the files): how many is all that's kept;
+//   - `message_id`: the email's Message-ID. Missing or unusable, a stand-in that the same email
+//     sent again repeats (a hash of it, or the webhook's own id);
+//   - `subject` and `text` of any length up to the body's limit: cut, never refused;
+// - each firm whose inbox it was sent to (resolveFirmByInbox; several firms, a row each), and a
+//   sender address that can be read: neither, 200 and nothing stored (it needn't be sent again);
+// - one row per Message-ID in each firm (receive.ts): the same email again stores nothing. 200 at
 //   once either way. Nothing of the email is logged: codes and counts only.
 
 export const MAX_EMAIL_WEBHOOK_BYTES = 512 * 1024;
 const WEBHOOK_ID = /^[A-Za-z0-9._:-]{1,100}$/;
 const MESSAGE_ID = /^[!-~]{1,250}$/;
-const TEXT_MAX = 400_000; // the raw text, before quoted history comes off
+const MAX_RECIPIENTS = 50; // the first ones looked at; any more aren't
 
 const bodySchema = z.object({
-  message_id: z.string().trim().regex(MESSAGE_ID),
-  from: z.string().max(1000),
-  to: z.union([z.string().max(1000), z.array(z.string().max(1000)).min(1).max(50)]),
-  subject: z.string().max(10_000).nullable().optional(),
-  text: z.string().max(TEXT_MAX).nullable().optional(),
-  attachments: z.array(z.unknown()).max(1000).optional(),
+  message_id: z.string().nullable().optional(),
+  from: z.string(),
+  to: z.union([z.string(), z.array(z.string()).min(1)]),
+  authenticated: z.boolean().optional(),
+  subject: z.string().nullable().optional(),
+  text: z.string().nullable().optional(),
+  attachments: z.array(z.unknown()).optional(),
 });
+
+// The Message-ID as stored: as sent when it's usable, else a stand-in the same email repeats.
+function messageIdOf(raw: string | null | undefined, webhookId: string): string {
+  const id = raw?.trim() ?? "";
+  if (MESSAGE_ID.test(id)) return id;
+  if (id !== "") return `sha256:${createHash("sha256").update(id).digest("hex")}`;
+  return `webhook:${webhookId}`;
+}
 
 export interface EmailWebhookDeps {
   secret: string | undefined; // EMAIL_INBOUND_SECRET
@@ -90,33 +111,33 @@ export async function handleEmailWebhook(
     return answer(400, "Bad request");
   }
   const body = parsed.data;
-  // The first address it was sent to that is a firm's inbox.
-  let firm: { entry: FirmDirectoryEntry; to: string } | null = null;
-  for (const candidate of Array.isArray(body.to) ? body.to : [body.to]) {
+  // Each firm whose inbox it was sent to, once.
+  const firms = new Map<string, string>(); // firm id -> its inbox
+  for (const candidate of (Array.isArray(body.to) ? body.to : [body.to]).slice(0, MAX_RECIPIENTS)) {
     const to = emailAddress(candidate);
     const entry = to ? await deps.resolveFirmByInbox(to) : null;
-    if (entry && to) {
-      firm = { entry, to };
-      break;
-    }
+    if (entry && to && !firms.has(entry.id)) firms.set(entry.id, to);
   }
-  if (!firm) {
+  if (firms.size === 0) {
     logger.warn("email webhook: sent to no firm's inbox");
     return answer(200, "OK");
   }
   const from = emailAddress(body.from);
   if (!from) {
-    logger.warn("email webhook: a sender that can't be read", { firmId: firm.entry.id });
+    logger.warn("email webhook: a sender that can't be read", { firms: firms.size });
     return answer(200, "OK");
   }
-  const { stored } = await deps.receive(firm.entry.id, {
-    messageId: body.message_id,
-    from,
-    to: firm.to,
-    subject: body.subject ?? null,
-    text: body.text ?? null,
-    attachments: body.attachments?.length ?? 0,
-  });
-  logger.info("email webhook: received", { firmId: firm.entry.id, stored });
+  for (const [firmId, to] of firms) {
+    const { stored } = await deps.receive(firmId, {
+      messageId: messageIdOf(body.message_id, id),
+      from,
+      authenticated: body.authenticated === true,
+      to,
+      subject: body.subject ?? null,
+      text: body.text ?? null,
+      attachments: body.attachments?.length ?? 0,
+    });
+    logger.info("email webhook: received", { firmId, stored });
+  }
   return answer(200, "OK");
 }

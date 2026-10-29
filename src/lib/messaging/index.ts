@@ -1,7 +1,6 @@
-import { firmSecretReader, type ReadFirmSecret } from "../db/firm-secret";
+import { workerSecretReader, type ReadFirmSecret } from "../db/firm-secret";
 import { isMadeUpEmail, isMadeUpMobile } from "../demo/made-up";
 import type { WorkerEnv } from "../env";
-import { secretsKey } from "../secret-store/crypto";
 import { createConsoleTransport } from "./console";
 import { SmtpEmailTransport } from "./smtp";
 import { NoTextSenderError, type MessagingTransport } from "./transport";
@@ -40,7 +39,9 @@ export function getTransport(config: TransportConfig): MessagingTransport {
   // a minute of a real person getting into a demo firm, and this refuses their messages meanwhile.
   if (config.DEMO_MODE === "on") return madeUpPeopleOnly(phone);
   if (config.EMAIL_TRANSPORT !== "smtp") {
-    return config.MESSAGING_TRANSPORT === "none" ? routeEmail(phone, consoleOf(config)) : phone;
+    // On console, one console transport carries both; any other text sender (none, Webex) carries
+    // no email, which is printed.
+    return config.MESSAGING_TRANSPORT === "console" ? phone : routeEmail(phone, consoleOf(config));
   }
   const { SMTP_HOST, SMTP_FROM } = config;
   // The settings check refuses smtp without these (src/lib/env.ts); never send without them.
@@ -67,21 +68,20 @@ function phoneTransport(config: TransportConfig): MessagingTransport {
   }
 }
 
-// Each firm's Webex Interact key and sender, from the secret store, through one reader for the
-// worker (the jobs role's own connection: src/lib/db/firm-secret.ts). A firm without both: none.
-let webexReader: ReadFirmSecret | undefined;
-function webexCredentials(
-  config: TransportConfig,
+// Each firm's Webex Interact key and sender, from the secret store, through the worker's one
+// reader (the jobs role's own connection: src/lib/db/firm-secret.ts). A firm without both: none.
+export function webexCredentials(
+  config: Pick<TransportConfig, "DATABASE_JOBS_URL" | "SECRETS_KEY">,
+  read: ReadFirmSecret | null = null,
 ): (firmId: string) => Promise<WebexCredentials | null> {
   return async (firmId) => {
-    if (!config.DATABASE_JOBS_URL) throw new Error("MESSAGING_TRANSPORT=webex needs the worker");
-    webexReader ??= firmSecretReader(
-      config.DATABASE_JOBS_URL,
-      config.SECRETS_KEY ? secretsKey(config.SECRETS_KEY) : null,
-    );
+    const { DATABASE_JOBS_URL, SECRETS_KEY } = config;
+    if (!read && !DATABASE_JOBS_URL) throw new Error("MESSAGING_TRANSPORT=webex needs the worker");
+    const reader =
+      read ?? workerSecretReader({ DATABASE_JOBS_URL: DATABASE_JOBS_URL ?? "", SECRETS_KEY });
     const [apiKey, sender] = await Promise.all([
-      webexReader(firmId, WEBEX_API_KEY_SECRET),
-      webexReader(firmId, WEBEX_SENDER_SECRET),
+      reader(firmId, WEBEX_API_KEY_SECRET),
+      reader(firmId, WEBEX_SENDER_SECRET),
     ]);
     return apiKey && sender ? { apiKey, sender } : null;
   };

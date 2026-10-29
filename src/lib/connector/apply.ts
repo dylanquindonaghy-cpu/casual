@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { systemClock, type Clock } from "../auth/clock";
 import { appDatabaseIsLocal } from "../db/where";
-import { firmSecretReader, SecretsKeyMissing, type ReadFirmSecret } from "../db/firm-secret";
+import { SecretsKeyMissing, workerSecretReader, type ReadFirmSecret } from "../db/firm-secret";
 import { connectorEvents, rosterSources, type ConnectorEventStatus } from "../db/schema";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { workerEnv } from "../env";
@@ -17,7 +17,7 @@ import {
   WorkerIdentityChange,
   WorkerNameMismatch,
 } from "../roster/workers";
-import { SecretUnreadable, secretsKey } from "../secret-store/crypto";
+import { SecretUnreadable } from "../secret-store/crypto";
 import type { Geocoder } from "../travel/geocoder";
 import { mirrorBookings, mirrorCancellations } from "./bookings";
 import { sessionBody, sessionBookings, staffWorker } from "./demo-portal";
@@ -377,15 +377,13 @@ export function createConnectorEventTask(
   };
 }
 
-// The worker's: its CONNECTOR_TRANSPORT, and the secret store through its own jobs-role
-// connection with SECRETS_KEY (made once, on first use).
-let readSecret: ReadFirmSecret | undefined;
+// The worker's: its CONNECTOR_TRANSPORT, and the secret store through the worker's one jobs-role
+// reader with SECRETS_KEY (made once, on first use).
 export const connectorWorkerDeps = (): ConnectorApplyDeps => {
   const env = workerEnv();
-  readSecret ??= firmSecretReader(
-    env.DATABASE_JOBS_URL,
-    env.SECRETS_KEY ? secretsKey(env.SECRETS_KEY) : null,
-  );
-  return { transport: connectorTransport(env.CONNECTOR_TRANSPORT), readSecret };
+  return {
+    transport: connectorTransport(env.CONNECTOR_TRANSPORT),
+    readSecret: workerSecretReader(env),
+  };
 };
 export const connectorEventTask = createConnectorEventTask(connectorWorkerDeps);

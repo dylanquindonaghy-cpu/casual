@@ -60,8 +60,17 @@ describe("quoted history taken off", () => {
     expect(ownWords(lines("I can't make it.", "", ...below))).toBe("I can't make it.");
     expect(ownWords(lines("Fine.", "________________________________", ...below))).toBe("Fine.");
     expect(ownWords(lines("Ok", "-----Original Message-----", ...below))).toBe("Ok");
-    // "From:" in what they wrote, with no header after it, is theirs.
+    // "From:" in what they wrote, with no header after it, is theirs; so are times they ask for.
     expect(ownWords("From: me, sorry, I'm off sick.")).toBe("From: me, sorry, I'm off sick.");
+    expect(ownWords(lines("Can I change Saturday?", "From: 10:00", "To: 18:00"))).toBe(
+      "Can I change Saturday?\nFrom: 10:00\nTo: 18:00",
+    );
+    expect(ownWords(lines("Can I change?", "From: 10:00", "Date: Saturday 7th"))).toBe(
+      "Can I change?\nFrom: 10:00\nDate: Saturday 7th",
+    );
+    expect(
+      ownWords(lines("My new address:", "From: ann.new@example.com", "To: please update it")),
+    ).toBe("My new address:\nFrom: ann.new@example.com\nTo: please update it");
   });
 
   it("nothing left of a forwarded thread, unless something was written above it", () => {
@@ -78,8 +87,41 @@ describe("quoted history taken off", () => {
     expect(ownWords(lines("Begin forwarded message:", "", "From: someone"))).toBeNull();
   });
 
-  it("an ordinary 'On …' sentence isn't a header", () => {
+  it("an ordinary 'On …' sentence isn't a header, even just above one", () => {
     expect(ownWords("On Saturday I can't come.")).toBe("On Saturday I can't come.");
+    const quote = [
+      "On Sat, 7 Nov 2026 at 10:00, Acme Shift Team <shifts@acme.example.com> wrote:",
+      "> Can you do Saturday?",
+    ];
+    expect(ownWords(lines("On holiday that week, sorry", "", ...quote))).toBe(
+      "On holiday that week, sorry",
+    );
+    expect(ownWords(lines("Hi,", "On Sunday I'm free.", "", ...quote))).toBe(
+      "Hi,\nOn Sunday I'm free.",
+    );
+    expect(ownWords(lines("On it.", ...quote))).toBe("On it.");
+    // A header with no "On" (some apps write only "Name <address> wrote:"): their "On …" line two
+    // above it, across a blank line, is still theirs.
+    expect(
+      ownWords(
+        lines(
+          "On holiday that week, sorry",
+          "",
+          "Acme Shift Team <shifts@acme.example.com> wrote:",
+          "> Can you do Saturday?",
+        ),
+      ),
+    ).toContain("On holiday that week, sorry");
+    // A wrapped header straight under their own "On …" line: the nearer "On" starts it.
+    expect(
+      ownWords(
+        lines(
+          "On my way.",
+          "On Sat, 7 Nov 2026 at 10:00, Acme <",
+          "shifts@acme.example.com> wrote:",
+        ),
+      ),
+    ).toBe("On my way.");
   });
 });
 

@@ -1193,8 +1193,9 @@ Docs: `docs/messaging-templates.md`, `docs/architecture.md`, `docs/screens.md`.
       says "text" (login, pay code, Profile, Help, the office's offer list, Enquiries, the
       dashboard's shifts line, the guide); a firm with no text sender of its own (no Webex key)
       gets its login link and pay code by email, which needs the choice made per firm (today
-      `texts` is the whole server's, `src/lib/auth/login-channel.ts`: 15.2's review). Tests: each
-      message by text, STOP, the words
+      `texts` is the whole server's, `src/lib/auth/login-channel.ts`, so with Webex on, such a
+      firm's link and code go nowhere, logged `no_text_sender`, which the send-failure alert leaves
+      out: 15.2's reviews). Tests: each message by text, STOP, the words
 - [ ] Our text system's sender (M): a `MessagingTransport` (`src/lib/messaging/transport.ts`) for the
       firm's text provider (`MESSAGING_TRANSPORT` took only `console` and `none`, so nothing was
       sent for real), refused in tests like every real sender; its delivery reports if it has them.
@@ -1205,8 +1206,8 @@ Docs: `docs/messaging-templates.md`, `docs/architecture.md`, `docs/screens.md`.
       network) and needing `SECRETS_KEY`: each firm's token and sender from P5's secret store, the
       firm the job's own (`src/lib/tenancy/job-firm.ts`), a firm without both having no text sender
       on any channel, a WhatsApp too (its casuals' messages go by email); texts only (a WhatsApp
-      is refused, so the shared sender gives the casual the text); a timeout on every request, each failure a code, the id kept
-      only in a form the log accepts. **Refused in production until 15.1:** the login link and the
+      is refused, so the shared sender gives the casual the text); a timeout on every request,
+      each failure a code, the id kept only in a form the log accepts. **Refused in production until 15.1:** the login link and the
       pay code still go by WhatsApp whenever a text sender exists, which Webex won't carry. Not
       tried against the real service (the firm's account), and its delivery reports wait for the
       webhooks (with the third task). Tests: the request as the reference says, no firm or no key

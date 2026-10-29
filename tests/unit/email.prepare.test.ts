@@ -129,20 +129,85 @@ describe("quoted history taken off", () => {
         ),
       ),
     ).toBe("On Sunday I can do 10:00 to 18:00");
-    // Nor one quoted differently from the header, year or not.
+    // Nor one with only four digits in it: a casual's shift times.
     expect(
       ownWords(
         lines(
-          "On Sunday I can do the 2026 rota's late shift",
+          "On Saturday I can do 1930 to 0300",
+          "Acme Shift Team <shifts@acme.example.com> wrote:",
+          "> Can you do Saturday?",
+        ),
+      ),
+    ).toBe("On Saturday I can do 1930 to 0300");
+    // Nor one quoted differently from the header, a date in it or not.
+    expect(
+      ownWords(
+        lines(
+          "On Sunday 8 Nov 2026 I can do the late shift",
           "> Acme Shift Team <shifts@acme.example.com> wrote:",
           ">> Can you do Saturday?",
         ),
       ),
-    ).toBe("On Sunday I can do the 2026 rota's late shift");
+    ).toBe("On Sunday 8 Nov 2026 I can do the late shift");
     // "… wrote:" with no "On" and no address isn't a header: theirs.
     expect(ownWords(lines("On Sunday, my manager wrote:", "> see you then"))).toBe(
       "On Sunday, my manager wrote:",
     );
+  });
+
+  it("every way a mail app gives the date, the name with or without an address", () => {
+    for (const header of [
+      "On Mon, 2 Nov 2026 at 09:00, Sam Rota <sam.rota@example.com> wrote:",
+      "On Mon, Nov 2, 2026 at 9:00 AM Sam Rota <sam.rota@example.com> wrote:",
+      "On 2 Nov 2026, at 09:00, Sam Rota <sam.rota@example.com> wrote:",
+      "On Monday, 2 November 2026, 09:00:00 GMT, Sam Rota <sam.rota@example.com> wrote:",
+      "On 02/11/2026 09:00, Sam Rota wrote:",
+      "On 11/2/26 9:00 AM, Sam Rota wrote:",
+      "On 02.11.2026 09:00, Sam Rota wrote:",
+      "On 2026-11-02 09:00, Sam Rota wrote:",
+      "On Mon, 2 Sept 2026 at 09:00, Sam Rota wrote:",
+    ]) {
+      expect(ownWords(lines("Yes I can.", "", header, "> Can you do Saturday?")), header).toBe(
+        "Yes I can.",
+      );
+    }
+  });
+
+  it("a line quoted after a no-break space is still quoted, never theirs", () => {
+    expect(
+      ownWords(lines("Yes.", "\u00a0> Sam: can you do Saturday?", "\u00a0>> And Sunday?")),
+    ).toBe("Yes.");
+  });
+
+  it("a reply written under the quote stops at an older mail further down", () => {
+    expect(
+      ownWords(
+        lines(
+          "On Mon, 2 Nov 2026, Acme <shifts@acme.example.com> wrote:",
+          "> Saturday?",
+          "",
+          "Yes.",
+          "",
+          "-----Original Message-----",
+          "From: Jo Bloggs <jo.bloggs@example.com>",
+          "Sent: 01 November 2026",
+          "",
+          "Jo's words",
+        ),
+      ),
+    ).toBe("Yes.");
+    // Or at a second "On … wrote:" header under it.
+    expect(
+      ownWords(
+        lines(
+          "On Mon, 2 Nov 2026, Acme <shifts@acme.example.com> wrote:",
+          "> Saturday?",
+          "Yes.",
+          "On Sun, 1 Nov 2026, Jo Bloggs <jo.bloggs@example.com> wrote:",
+          "Jo's words, unquoted",
+        ),
+      ),
+    ).toBe("Yes.");
   });
 
   it("iPhone's header, wrapped with 'wrote:' on its own line, quoted or not", () => {
@@ -251,6 +316,13 @@ describe("every header pattern stays linear (the inbox's webhook runs it in the 
     ["quote marks", fill("> ")],
     ["one header line after another", fill("From: a <b>\n")],
     ["one blank line after another", fill("\n")],
+    [
+      "a header after a header, nothing written between",
+      fill("On 2 Nov 2026, A <a@b.example> wrote:\n"),
+    ],
+    ["month names and numbers before wrote:", fill("On nov 1/2/ nov 2 nov wrote:\n")],
+    ["a date-like run", `On ${fill("1/")} wrote:`],
+    ["no-break spaces", fill("\u00a0")],
   ];
 
   it.each(ATTACKS)("%s: in well under a second", (_name, text) => {

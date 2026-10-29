@@ -5,8 +5,8 @@ import { cutChars } from "../text/cut";
 // - Quoted history goes: everything from a quote's header on ("On … wrote:", "-----Original
 //   Message-----", Outlook's "From: … Sent: …" block or its line of underscores, a forwarded
 //   message's header), and every line quoted with ">". A reply written below the quote ("On …
-//   wrote:" first, then "> …" lines, then the reply) keeps the reply. A forwarded thread with
-//   nothing written above it leaves nothing.
+//   wrote:" first, then "> …" lines, then the reply) keeps the reply, up to any older mail under
+//   it. A forwarded thread with nothing written above it leaves nothing.
 // - The signature goes: from a "-- " line on, and a phone's "Sent from my …" or "Get Outlook for …".
 // - Blank lines are tidied, the text capped at BODY_MAX characters and the subject at SUBJECT_MAX,
 //   control characters taken out. Nothing left: none (null).
@@ -24,7 +24,12 @@ export interface PreparedEmail {
 
 const WROTE_START = /^\s*On\s/i;
 const WROTE_END = /\bwrote:\s*$/i;
-const YEAR = /\b(19|20)\d{2}\b/; // every English "On … wrote:" header names one
+// A date, as every English "On … wrote:" header gives one: a month's name by a 4-digit year ("2 Nov
+// 2026", "Nov 2, 2026", "2 November 2026"), a numeric day, month and year ("02/11/2026",
+// "11/2/26", "02.11.2026") or "2026-11-02". Never four digits alone: "1930 to 0300" is a casual's
+// shift times.
+const DATE =
+  /\b(jan(uary)?|feb(ruary)?|mar(ch)?|apr(il)?|may|june?|july?|aug(ust)?|sept?(ember)?|oct(ober)?|nov(ember)?|dec(ember)?)\.?\s+(\d{1,2}(st|nd|rd|th)?,?\s+)?(19|20)\d{2}\b|\b\d{1,2}[/.-]\d{1,2}[/.-]\d{2}(\d{2})?\b|\b(19|20)\d{2}-\d{2}-\d{2}\b/i;
 // Headers after which everything is the earlier mail, never quoted with ">".
 const ORIGINAL = /^\s*-{2,}\s*Original Message\s*-{2,}\s*$/i;
 const FORWARDED = /^\s*(-{2,}\s*Forwarded message\s*-{2,}|Begin forwarded message:)\s*$/i;
@@ -43,29 +48,30 @@ const CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g;
 // and no pattern runs over a line someone made 500,000 characters long.
 const HEADER_CHARS = 1000;
 const head = (line: string | undefined) => (line ?? "").slice(0, HEADER_CHARS);
-// How deep in ">" a line is quoted.
+// How deep in ">" a line is quoted (any space before or between the marks, a no-break one too).
 const depthOf = (line: string) => {
   let depth = 0;
   for (const c of line) {
     if (c === ">") depth += 1;
-    else if (c !== " " && c !== "\t") break;
+    else if (!/\s/.test(c)) break;
   }
   return depth;
 };
 
 // "On Mon, 2 Nov 2026 at 09:00, Ann <ann@example.com> wrote:", which mail apps wrap over up to
 // three lines (quoted too, in a reply to a reply). Found from its "wrote:" line (e), back over at
-// most two more lines quoted as deep, with no blank between, to the nearest that starts "On ", and
-// only if it names a year: the line where it starts. So a casual's own "On Sunday I can do 10:00 to
-// 18:00" is never taken for one. With no such line, "Name <address> wrote:" (some apps write no
-// "On") is a header by itself; else -1. (A line of theirs that starts "On" and names a year, straight
-// above a header with no "On", is taken for the header's start: rare.)
-function wroteHeaderStart(lines: string[], e: number): number {
+// most two more lines quoted as deep (never before line `from`), with no blank between, to the
+// nearest that starts "On ", and only if it gives a date: the line where it starts. So a casual's
+// own "On Sunday I can do 10:00 to 18:00" is never taken for one. With no such line, "Name
+// <address> wrote:" (some apps write no "On") is a header by itself; else -1. (A line of theirs
+// that starts "On" and gives a date, straight above a header with no "On", is taken for the
+// header's start: rare.)
+function wroteHeaderStart(lines: string[], e: number, from: number): number {
   const end = head(lines[e]);
   if (!WROTE_END.test(end)) return -1;
   const depth = depthOf(end);
   const alone = hasAddress(end) ? e : -1;
-  for (let s = e; s >= Math.max(0, e - 2); s--) {
+  for (let s = e; s >= Math.max(from, e - 2); s--) {
     const line = head(lines[s]);
     if (line.trim() === "" || depthOf(line) !== depth) return alone;
     if (WROTE_START.test(line.replace(/^[\s>]*/, ""))) {
@@ -73,7 +79,7 @@ function wroteHeaderStart(lines: string[], e: number): number {
         .slice(s, e + 1)
         .map(head)
         .join(" ");
-      return YEAR.test(header) ? s : alone;
+      return DATE.test(header) ? s : alone;
     }
   }
   return alone;
@@ -88,28 +94,33 @@ function outlookBlock(lines: string[], i: number, needAddress: boolean): boolean
 const quoted = (line: string) => depthOf(head(line)) > 0;
 const hasWords = (lines: string[]) => lines.some((l) => l.trim() !== "" && !quoted(l));
 
-export function ownWords(text: string): string | null {
-  let lines = text.replace(/\r\n?/g, "\n").replace(CONTROL, "").split("\n");
+// The lines before the quoted history. Written above a quote: what's above. Written below it:
+// what's below, looked through the same way, so an older mail further down ("-----Original
+// Message-----", another "On … wrote:") is cut off too. (What's above a quote with nothing written
+// is blank or quoted, so it's left out.)
+function beforeHistory(lines: string[]): string[] {
+  let from = 0;
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i] ?? "";
+    const line = head(lines[i]);
     if (
-      ORIGINAL.test(head(line)) ||
-      FORWARDED.test(head(line)) ||
+      ORIGINAL.test(line) ||
+      FORWARDED.test(line) ||
       outlookBlock(lines, i, true) ||
-      (UNDERSCORES.test(head(line)) && outlookBlock(lines, i + 1, false))
+      (UNDERSCORES.test(line) && outlookBlock(lines, i + 1, false))
     ) {
-      lines = lines.slice(0, i);
-      break;
+      return lines.slice(from, i);
     }
-    const start = wroteHeaderStart(lines, i);
+    const start = wroteHeaderStart(lines, i, from);
     if (start >= 0) {
-      // Written above the quote: what's above. Written below it: what's below, unquoted.
-      lines = hasWords(lines.slice(0, start))
-        ? lines.slice(0, start)
-        : [...lines.slice(0, start), ...lines.slice(i + 1)];
-      break;
+      if (hasWords(lines.slice(from, start))) return lines.slice(from, start);
+      from = i + 1;
     }
   }
+  return lines.slice(from);
+}
+
+export function ownWords(text: string): string | null {
+  let lines = beforeHistory(text.replace(/\r\n?/g, "\n").replace(CONTROL, "").split("\n"));
   lines = lines.filter((l) => !quoted(l));
   const signature = lines.findIndex((l) => SIGNATURE.test(l));
   if (signature >= 0) lines = lines.slice(0, signature);

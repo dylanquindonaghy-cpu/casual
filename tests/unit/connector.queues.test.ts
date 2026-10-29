@@ -4,14 +4,16 @@ import {
   CONNECTOR_PULL_EXPIRE_SECONDS,
   CONNECTOR_PULL_QUEUE,
   CONNECTOR_PULL_TICK_QUEUE,
+  PULL_BUDGET_MS,
   PULL_LEASE_MS,
 } from "@/lib/connector/pull";
-import { CONNECTOR_WORK_OPTIONS } from "@/worker/jobs";
+import { CONNECTOR_PULL_WORK_OPTIONS, CONNECTOR_WORK_OPTIONS } from "@/worker/jobs";
 import { QUEUES } from "@/worker/jobs/queues";
 
 // The connector's queues (P5.3, P5.4; src/worker/jobs/queues.ts): an event's read is retried with
 // each try knowing whether it's the last (or a failed event would never be saved as failed), one
-// source's events never two at once; a pull is given up on before its lease runs out.
+// source's events never two at once; a pull stops itself, and is given up on, before its lease runs
+// out.
 
 const spec = (name: string) => QUEUES.find((q) => q.name === name);
 
@@ -32,11 +34,19 @@ describe("the connector's queues", () => {
     });
   });
 
-  it("a pull: given up on before its lease runs out; its tick a plain cron queue", () => {
-    expect(spec(CONNECTOR_PULL_QUEUE)?.options?.expireInSeconds).toBe(
-      CONNECTOR_PULL_EXPIRE_SECONDS,
-    );
+  it("a pull: stops itself, then is given up on, before its lease runs out; never retried; one per fetch; its tick a plain cron queue", () => {
+    expect(spec(CONNECTOR_PULL_QUEUE)?.options).toMatchObject({
+      expireInSeconds: CONNECTOR_PULL_EXPIRE_SECONDS,
+      retryLimit: 0,
+    });
+    expect(PULL_BUDGET_MS).toBeLessThan(CONNECTOR_PULL_EXPIRE_SECONDS * 1000);
     expect(CONNECTOR_PULL_EXPIRE_SECONDS * 1000).toBeLessThan(PULL_LEASE_MS);
+    // pg-boss fails a whole batch at one job's expiry: one pull per fetch, two loops.
+    expect(CONNECTOR_PULL_WORK_OPTIONS).toEqual({
+      perJobResults: true,
+      batchSize: 1,
+      localConcurrency: 2,
+    });
     expect(spec(CONNECTOR_PULL_TICK_QUEUE)?.options?.policy).toBe("standard");
   });
 });

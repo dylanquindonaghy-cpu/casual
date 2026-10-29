@@ -1,0 +1,1 @@
+CREATE INDEX "connector_events_source_ref_idx" ON "connector_events" USING btree ("firm_id","source_id","ref");

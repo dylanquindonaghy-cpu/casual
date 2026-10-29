@@ -190,11 +190,16 @@ export const QUEUES: readonly QueueSpec[] = [
     },
   },
   // A connector's reconcile pull (P5.4; src/lib/connector/pull.ts): given up on before its lease
-  // runs out. A source that doesn't answer is saved on the source, not thrown: the next tick's
-  // pull tries again, backing off while failing.
+  // runs out, and never retried. A source that doesn't answer is saved on the source, not thrown,
+  // and the next tick's pull tries again, backing off while failing; a pull that fails anyway has
+  // let its lease go, and the tick queues the next when one is due.
   {
     ...connectorPull,
-    options: { ...connectorPull.options, expireInSeconds: CONNECTOR_PULL_EXPIRE_SECONDS },
+    options: {
+      ...connectorPull.options,
+      expireInSeconds: CONNECTOR_PULL_EXPIRE_SECONDS,
+      retryLimit: 0,
+    },
   },
   // A connector's events (P5.3; src/lib/connector/apply.ts): a read from the firm's own system
   // that fails is tried again 5 times, from a minute later and doubling, at most 30 minutes apart

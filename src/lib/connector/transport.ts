@@ -6,9 +6,10 @@ import type { ConnectorEventType } from "./webhook";
 // How the worker reads a record from a connector's source (P5.3). Only two for now: "none" (the
 // default: every read fails, so nothing is applied) and "fake", the made-up portal in memory
 // (demo-portal.ts) for the tests and a local run. A real system's comes with its connector, once
-// its API is known (PLAN.md P5), and is refused under NODE_ENV=test like every real sender. A read
-// never runs inside a transaction (job.ts), and a failure is a code only: never the address, the
-// key or what came back.
+// its API is known (PLAN.md P5), and is refused under NODE_ENV=test like every real sender; it
+// sets a timeout on every request (a read left hanging would outlive the pull's lease: pull.ts,
+// PULL_BUDGET_MS) and answers a timeout as "unreachable". A read never runs inside a transaction
+// (job.ts), and a failure is a code only: never the address, the key or what came back.
 
 export { CONNECTOR_TRANSPORTS, type ConnectorTransportName } from "./transport-names";
 

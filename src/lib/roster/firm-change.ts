@@ -23,6 +23,7 @@ import {
 } from "./firm-reasons";
 import { changeNoticeHours } from "./notice";
 import { recheckHolders } from "./recheck";
+import { sameAsLastRefusal } from "./refusal-repeat";
 import { isoDate, timesOn } from "./shift-times";
 import { queueTravelEstimates } from "../travel/estimate-queue";
 
@@ -366,18 +367,26 @@ export async function recordMoveRefused(
   input: z.input<typeof moveRefusedSchema>,
 ): Promise<void> {
   const r = moveRefusedSchema.parse(input);
-  await run(firmId, (tx) =>
-    recordEvent(tx, {
+  const data = {
+    by: "firm",
+    ...callerMarks(r.by),
+    reason: FIRM_CHANGE_REASONS[r.reason],
+    workers: r.workers.map((w) => ({ workerId: w.workerId, codes: w.codes })),
+  };
+  await run(firmId, async (tx) => {
+    // A connector's source says the same again at its next read: logged once (refusal-repeat.ts).
+    if (
+      r.by.type === "connector" &&
+      (await sameAsLastRefusal(tx, r.shiftId, "shift.move_refused", data))
+    ) {
+      return;
+    }
+    await recordEvent(tx, {
       ...callerActor(r.by),
       action: "shift.move_refused",
       entityType: "shift",
       entityId: r.shiftId,
-      data: {
-        by: "firm",
-        ...callerMarks(r.by),
-        reason: FIRM_CHANGE_REASONS[r.reason],
-        workers: r.workers.map((w) => ({ workerId: w.workerId, codes: w.codes })),
-      },
-    }),
-  );
+      data,
+    });
+  });
 }

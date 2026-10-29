@@ -707,8 +707,8 @@ create table metrics_daily (
 -- sheet with our service account (the key is in the worker's environment), and a connector's
 -- credentials are in the secret store (firm_secrets). Rows are added and changed only by the owner
 -- (npm run firm:sheet; a connector's in the tests only until P5.3); the app role may read them
--- and update only the four sync status columns (last_synced_at, last_attempted_at,
--- last_error_code, sync_started_at: a column-level grant).
+-- and update only the five sync status columns (last_synced_at, last_near_synced_at,
+-- last_attempted_at, last_error_code, sync_started_at: a column-level grant).
 create table roster_sources (
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),
@@ -724,7 +724,7 @@ create table roster_sources (
   last_near_synced_at timestamptz,       -- a connector's only: its last pull of the next 48 hours
   last_attempted_at timestamptz,         -- the last sync that ran, success or not (for back-off)
   last_error_code text,                  -- a code only (^[a-z_]{1,50}$), never a message or cell
-  sync_started_at timestamptz,           -- the sync's lease (5 minutes)
+  sync_started_at timestamptz,           -- the sync's lease (a sheet's 5 minutes, a connector's 10)
   created_at timestamptz not null default now()
 );
 -- roster_sources_kind_fields: a sheet has its spreadsheet and nothing of a connector's; a

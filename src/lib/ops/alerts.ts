@@ -10,7 +10,7 @@ import { redact } from "../log/mask";
 
 export const ALERT_KINDS = [
   "job_failures", // jobs that failed after their last retry
-  "sync_failing", // a firm's rota sheet sync failing for over 30 minutes
+  "sync_failing", // a firm's rota sheet sync, or (P5.4) its connector's pull, failing for over 30 minutes
   "send_failures", // a firm's WhatsApps and texts, or (P2.5) its emails, failing to send
   "health_down", // the web app's health check failing
   "webhook_signatures", // many Twilio webhook requests with a bad signature

@@ -2622,9 +2622,17 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
 - The connector (P5.3's review), before a real one: a session or staff record gone from the
   firm's system is only `ignored gone` on its event (nothing on Needs attention, the session stays
   with its bookings: with the sync card, after the UI chat); `connector_events` are kept for ever
-  (purge them with the retention job, at the firm's `retention.message_days` or their own); and a
-  retry after a crash between the planner's refusal and the event's outcome logs the refusal twice
-  (`api.change_refused`, `shift.move_refused`), so Needs attention shows it twice.
+  (purge them with the retention job, at the firm's `retention.message_days` or their own). (A
+  retry after a crash logging a refusal twice: fixed in P5.4's review, a connector's refusal that
+  says what its last one said isn't logged again.)
+- The connector (P5.4's review), for Dylan: a connector's new sessions come in hidden from casuals
+  (the trial cycle, ADR-026) and nothing ends the trial yet: the office shows them with the Events
+  page's switches (`src/lib/office/showing.ts`), an event or a session at a time. Decide when a
+  connector's sessions show by themselves (after a week with no conflicts? on the office's word for
+  the whole source?).
+  And a pull that fails is on the source only (`last_error_code`, the founder's alert after 30
+  minutes): the office sees nothing until the sync card. Logging it as an event needs office words
+  for the log (`src/lib/office/event-words.ts`), so it waits for that card too.
 - From Phase 24 (24.5, 2026-10-28): an office address that doesn't exist, opened while logged out
   (a mistyped `/office/…` link), shows the casual app's "We can't find that page." with "Go to my
   shifts". Give the office's own logged-out not-found page "Go to the office login" instead.

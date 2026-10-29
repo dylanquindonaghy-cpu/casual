@@ -201,6 +201,29 @@ describe("a firm's signals", () => {
     expect(await alertsFor(t)).toEqual([]);
   });
 
+  it("a failing connector's pull (P5.4): its pulls of the next 48 hours count as working", async () => {
+    const t = await createTenant(su);
+    const source = (set: string) =>
+      su.query(`update roster_sources set ${set} where firm_id = $1`, [t.firmId]);
+    await source(
+      `kind = 'connector', spreadsheet_id = null, connector = 'demo_portal', mapping = '{}',
+       base_url = 'https://alerts-${t.firmId.slice(0, 8)}.example.test/api'`,
+    );
+    // Read in full last night, the next 48 hours 10 minutes ago: a hiccup.
+    await source(
+      "last_error_code = 'unreachable', last_attempted_at = now(), last_synced_at = now() - interval '20 hours', last_near_synced_at = now() - interval '10 minutes'",
+    );
+    expect(await alertsFor(t)).toEqual([]);
+    await source("last_near_synced_at = now() - interval '31 minutes'");
+    expect(await alertsFor(t)).toEqual([
+      {
+        kind: "sync_failing",
+        key: `sync:${t.firmId}`,
+        text: `ShiftDesk alert: ${t.slug}'s connector's reconcile pull is failing (unreachable).`,
+      },
+    ]);
+  });
+
   it("login links: more than 100 by WhatsApp and text in the last hour, this firm's (14.2)", async () => {
     const t = await createTenant(su);
     const other = await createTenant(su);

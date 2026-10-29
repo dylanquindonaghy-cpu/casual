@@ -45,6 +45,8 @@ export const connectorEvents = pgTable(
       foreignColumns: [rosterSources.firmId, rosterSources.id],
     }),
     index("connector_events_source_created_idx").on(t.firmId, t.sourceId, t.createdAt),
+    // The reconcile pull's look for an event about the record it's applying (P5.4: pull.ts).
+    index("connector_events_source_ref_idx").on(t.firmId, t.sourceId, t.ref),
     check(
       "connector_events_event_id_format",
       sql`${t.eventId} ~ '^[A-Za-z0-9]([A-Za-z0-9._:-]{0,98}[A-Za-z0-9])?$'`,

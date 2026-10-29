@@ -407,6 +407,13 @@
       "when": 1793286252732,
       "tag": "0057_connector_pull",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1793289087872,
+      "tag": "0058_connector_events_ref",
+      "breakpoints": true
     }
   ]
 }

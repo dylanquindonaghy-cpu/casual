@@ -27,6 +27,7 @@ import {
 import { MoveBlocked, moveShiftInTx, recordMoveRefused } from "../roster/firm-change";
 import { FIRM_CHANGE_REASONS, type FirmChangeReason } from "../roster/firm-reasons";
 import { refreshShiftStatus } from "../roster/native";
+import { sameAsLastRefusal } from "../roster/refusal-repeat";
 import { automaticEventId } from "../roster/shift-events";
 import { queueTravelEstimates, siteMoved } from "../travel/estimate-queue";
 import type { Geocoder, Point } from "../travel/geocoder";
@@ -306,15 +307,23 @@ async function logChangeRefused(
   shiftId: string,
   code: ApiErrorCode,
 ): Promise<void> {
-  await run(firmId, (tx) =>
-    recordEvent(tx, {
+  const data = { by: "firm", ...callerMarks(by), shiftId, code };
+  await run(firmId, async (tx) => {
+    // A connector's source says the same again at its next read: logged once (refusal-repeat.ts).
+    if (
+      by.type === "connector" &&
+      (await sameAsLastRefusal(tx, shiftId, "api.change_refused", data))
+    ) {
+      return;
+    }
+    await recordEvent(tx, {
       ...callerActor(by),
       action: "api.change_refused",
       entityType: "shift",
       entityId: shiftId,
-      data: { by: "firm", ...callerMarks(by), shiftId, code },
-    }),
-  );
+      data,
+    });
+  });
 }
 
 async function firmZone(tx: FirmTx): Promise<string> {

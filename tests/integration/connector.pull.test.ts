@@ -5,7 +5,7 @@ import { HOUR, MINUTE } from "@/lib/auth/clock";
 import type { ConnectorApplyDeps } from "@/lib/connector/apply";
 import { demoPortal } from "@/lib/connector/demo-portal";
 import { runConnectorPull, runConnectorPullTick } from "@/lib/connector/pull";
-import { fakeConnectorTransport } from "@/lib/connector/transport";
+import { ConnectorFetchError, fakeConnectorTransport } from "@/lib/connector/transport";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { fakeGeocoder } from "@/lib/travel/geocoder";
 import { bookingFirm, NOW } from "../helpers/booking-fixture";
@@ -64,12 +64,46 @@ async function pullFirm() {
     geocoder: fakeGeocoder,
     localDatabase: true,
   });
-  const pull = (kind: "near" | "full") =>
+  const pull = (kind: "near" | "full", over: Partial<ConnectorApplyDeps> = {}) =>
     runConnectorPull(
       { firmId: f.firmId, idempotencyKey: "connector-pull:1", sourceId, kind },
       withFirm,
-      deps(),
+      { ...deps(), ...over },
     );
+  // A casual known to the firm's system by a staff ref.
+  const casual = async (ref: string) => {
+    const id = await f.worker({ first: ref });
+    await su.query("update workers set external_ref = $2 where id = $1", [id, ref]);
+    return id;
+  };
+  // A webhook's event about a record, as stored (job.ts), at the times given.
+  const event = (
+    type: "session.changed" | "staff.changed",
+    ref: string,
+    o: { createdAt: Date; processedAt?: Date },
+  ) =>
+    su.query(
+      `insert into connector_events
+         (firm_id, source_id, event_id, type, ref, status, outcome_code, processed_at, created_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [
+        f.firmId,
+        sourceId,
+        `evt-${randomBytes(4).toString("hex")}`,
+        type,
+        ref,
+        o.processedAt ? "applied" : "queued",
+        o.processedAt ? "updated" : null,
+        o.processedAt ?? null,
+        o.createdAt,
+      ],
+    );
+  const tick = (when: Date) =>
+    runConnectorPullTick({
+      listFirmIds: async () => [f.firmId],
+      run: withFirm,
+      clock: { now: () => when },
+    });
   const source = async () =>
     (
       await su.query(
@@ -91,6 +125,9 @@ async function pullFirm() {
     sourceId,
     system,
     pull,
+    casual,
+    event,
+    tick,
     source,
     shiftsNow,
     at: (when: Date) => {
@@ -259,9 +296,175 @@ describe("the reconcile pull", () => {
     k.system.sessions.set("PORTAL-S1", session("PORTAL-S1", 24 * HOUR));
     await plannerKey(su, k.f.firmId, await k.f.office("admin"));
     expect(await k.pull("near")).toEqual({ status: "failed", code: "not_allowed" });
+    // Checked before anything is read from the firm's system.
+    expect(k.system.lists).toBe(0);
     expect(await k.shiftsNow()).toEqual([]);
     expect(await k.source()).toMatchObject({
       last_error_code: "not_allowed",
+      sync_started_at: null,
+    });
+  });
+
+  it("a change the rules refuse, pulled again and again: logged once", async () => {
+    const t = await pullFirm();
+    await t.casual("PORTAL-W1");
+    const booked = { bookings: [{ staff_ref: "PORTAL-W1", status: "booked" }] };
+    t.system.sessions.set("PORTAL-S1", session("PORTAL-S1", 24 * HOUR, booked));
+    expect(await t.pull("near")).toMatchObject({ status: "pulled" });
+    // The system gives the booked session a new role: refused here (they were booked for the old).
+    t.system.sessions.set(
+      "PORTAL-S1",
+      session("PORTAL-S1", 24 * HOUR, { ...booked, role_name: "Door Supervisor" }),
+    );
+    const refusals = async () =>
+      Number(
+        (
+          await su.query(
+            "select count(*) from events where firm_id = $1 and action = 'api.change_refused'",
+            [t.f.firmId],
+          )
+        ).rows[0]?.count,
+      );
+    for (const minutes of [15, 30, 45]) {
+      t.at(new Date(NOW.getTime() + minutes * MINUTE));
+      expect(await t.pull("near")).toMatchObject({
+        counts: { "refused:session_has_bookings": 1 },
+      });
+    }
+    expect(await refusals()).toBe(1);
+    // A different refusal is logged: moved an hour later with no reason given.
+    t.system.sessions.set("PORTAL-S1", session("PORTAL-S1", 25 * HOUR, booked));
+    t.at(new Date(NOW.getTime() + 60 * MINUTE));
+    expect(await t.pull("near")).toMatchObject({
+      counts: { "refused:change_reason_required": 1 },
+    });
+    expect(await refusals()).toBe(2);
+  });
+
+  it("a record a webhook's event is newer than, or about to apply, is skipped: the event's own read wins", async () => {
+    const t = await pullFirm();
+    for (const ref of ["PORTAL-QUEUED", "PORTAL-SINCE", "PORTAL-BEFORE", "PORTAL-OTHER"]) {
+      t.system.sessions.set(ref, session(ref, 24 * HOUR));
+    }
+    const ago = (minutes: number) => new Date(NOW.getTime() - minutes * MINUTE);
+    // Still queued: its job reads the record later.
+    await t.event("session.changed", "PORTAL-QUEUED", { createdAt: ago(60) });
+    // Applied since this pull read the source: the event read it after.
+    await t.event("session.changed", "PORTAL-SINCE", { createdAt: ago(5), processedAt: NOW });
+    // Applied before: this read is the newer.
+    await t.event("session.changed", "PORTAL-BEFORE", { createdAt: ago(60), processedAt: ago(59) });
+    // About a staff record of that ref, not the session.
+    await t.event("staff.changed", "PORTAL-OTHER", { createdAt: ago(1), processedAt: NOW });
+    expect(await t.pull("near")).toMatchObject({
+      status: "pulled",
+      counts: { "ignored:event_newer": 2, "applied:created": 2 },
+    });
+    expect((await t.shiftsNow()).map((r) => r.external_ref)).toEqual([
+      "PORTAL-BEFORE",
+      "PORTAL-OTHER",
+    ]);
+  });
+
+  it("the tick queues no pull beside one still holding its lease", async () => {
+    const t = await pullFirm();
+    // Never read in full: due at once, but a pull took the lease 5 minutes ago.
+    await su.query("update roster_sources set sync_started_at = $2 where id = $1", [
+      t.sourceId,
+      new Date(NOW.getTime() - 5 * MINUTE),
+    ]);
+    expect(await t.tick(NOW)).toEqual({ queued: 0 });
+    // Its lease (10 minutes) has run out: the next is queued.
+    expect(await t.tick(new Date(NOW.getTime() + 6 * MINUTE))).toEqual({ queued: 1 });
+  });
+
+  it("a full pull whose staff list fails still applies its sessions: the near time moves on, the error saved", async () => {
+    const t = await pullFirm();
+    t.system.sessions.set("PORTAL-S1", session("PORTAL-S1", 5 * 24 * HOUR));
+    const staffDown = {
+      ...fakeConnectorTransport,
+      list: (r: Parameters<typeof fakeConnectorTransport.list>[0]) =>
+        r.type === "staff.changed"
+          ? Promise.reject(new ConnectorFetchError("unreachable"))
+          : fakeConnectorTransport.list(r),
+    };
+    expect(await t.pull("full", { transport: staffDown })).toEqual({
+      status: "failed",
+      code: "unreachable",
+    });
+    expect((await t.shiftsNow()).map((r) => r.external_ref)).toEqual(["PORTAL-S1"]);
+    expect(await t.source()).toMatchObject({
+      last_synced_at: null,
+      last_near_synced_at: NOW,
+      last_error_code: "unreachable",
+      sync_started_at: null,
+    });
+  });
+
+  it("past its budget a pull stops: the rest wait, each record at its own time", async () => {
+    const t = await pullFirm();
+    await t.casual("PORTAL-W1");
+    for (const ref of ["PORTAL-S1", "PORTAL-S2", "PORTAL-S3"]) {
+      t.system.sessions.set(
+        ref,
+        session(ref, 24 * HOUR + Number(ref.slice(-1)) * HOUR, {
+          bookings: [{ staff_ref: "PORTAL-W1", status: "booked" }],
+        }),
+      );
+    }
+    // Five minutes pass at every look at the clock: the lease, the first record, the second.
+    let looks = 0;
+    const clock = { now: () => new Date(NOW.getTime() + looks++ * 5 * MINUTE) };
+    expect(await t.pull("near", { clock })).toEqual({ status: "failed", code: "out_of_time" });
+    expect((await t.shiftsNow()).map((r) => r.external_ref)).toEqual(["PORTAL-S1"]);
+    expect(await t.source()).toMatchObject({
+      last_near_synced_at: null,
+      last_error_code: "out_of_time",
+      sync_started_at: null,
+    });
+    // The record applied at its own time, not the lease's: booked 5 minutes in, 24 hours and 55
+    // minutes before it starts.
+    const { rows } = await su.query<{ notice: number }>(
+      `select (data ->> 'noticeHours')::float8 as notice from events
+        where firm_id = $1 and action = 'shift.assigned'`,
+      [t.f.firmId],
+    );
+    expect(rows).toEqual([{ notice: 24.92 }]);
+  });
+
+  it("every record failing is the pull failing; anything unexpected lets the lease go with its code", async () => {
+    const t = await pullFirm();
+    // New sites, looked up by something that breaks.
+    for (const ref of ["PORTAL-S1", "PORTAL-S2"]) {
+      t.system.sessions.set(
+        ref,
+        session(ref, 24 * HOUR, { site: { name: `Arena ${ref}`, postcode: "ZZ9 9ZZ" } }),
+      );
+    }
+    const broken = { locate: () => Promise.reject(new TypeError("a bug")) };
+    expect(await t.pull("near", { geocoder: broken })).toEqual({
+      status: "failed",
+      code: "records_failed",
+    });
+    expect(await t.source()).toMatchObject({
+      last_near_synced_at: null,
+      last_error_code: "records_failed",
+      sync_started_at: null,
+    });
+
+    const u = await pullFirm();
+    u.system.sessions.set("PORTAL-S1", session("PORTAL-S1", 24 * HOUR));
+    const logger = {
+      info: () => {
+        throw new TypeError("a broken log");
+      },
+      warn: () => undefined,
+      error: () => undefined,
+      child: () => logger,
+    };
+    await expect(u.pull("near", { logger })).rejects.toThrow("a broken log");
+    expect(await u.source()).toMatchObject({
+      last_near_synced_at: null,
+      last_error_code: "error_typeerror",
       sync_started_at: null,
     });
   });

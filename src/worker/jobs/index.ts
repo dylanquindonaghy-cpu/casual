@@ -358,7 +358,11 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
 
   // A connector's reconcile pull (P5.4): the tick queues a source's pull when one is due. With
   // CONNECTOR_TRANSPORT none every pull fails as "off" (saved on the source, backing off).
-  await registerFirmTask(boss, deps.connectorPulls ?? connectorPullTask);
+  await registerFirmTask(
+    boss,
+    deps.connectorPulls ?? connectorPullTask,
+    CONNECTOR_PULL_WORK_OPTIONS,
+  );
   await boss.work(
     CONNECTOR_PULL_TICK_QUEUE,
     logFailures(CONNECTOR_PULL_TICK_QUEUE, async () => {
@@ -450,6 +454,16 @@ export const CONNECTOR_WORK_OPTIONS = {
   localGroupConcurrency: 1,
 } as const;
 
+// A connector's reconcile pull (P5.4): one per fetch, as the travel job's. A pull runs for up to its
+// budget (8 minutes: src/lib/connector/pull.ts) and pg-boss fails a whole batch at one job's expiry,
+// so two long pulls in one batch would fail both (each carrying on beside its next). Two loops, so
+// one firm's slow system holds up only its own.
+export const CONNECTOR_PULL_WORK_OPTIONS = {
+  perJobResults: true,
+  batchSize: 1,
+  localConcurrency: CONNECTOR_LOOPS,
+} as const;
+
 // The travel job (12G.2) runs for up to its budget (10 minutes). pg-boss times a batch out, and
 // fails every job in it, at one job's expiry (15 minutes), so two long runs in one batch would fail
 // both (and the abandoned one would carry on beside its retry). One job per fetch keeps each run
@@ -474,7 +488,10 @@ export const OFFER_WAVE_WORK_OPTIONS = {
 } as const;
 
 type FirmWorkOptions =
-  typeof FIRM_WORK_OPTIONS | typeof TRAVEL_WORK_OPTIONS | typeof OFFER_WAVE_WORK_OPTIONS;
+  | typeof FIRM_WORK_OPTIONS
+  | typeof TRAVEL_WORK_OPTIONS
+  | typeof OFFER_WAVE_WORK_OPTIONS
+  | typeof CONNECTOR_PULL_WORK_OPTIONS;
 
 // One after another, in the batch's order, one result per job.
 export async function inOrder<J, R>(jobs: J[], run: (job: J) => Promise<R>): Promise<R[]> {

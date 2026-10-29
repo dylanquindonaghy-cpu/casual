@@ -1,4 +1,4 @@
-import { and, eq, gt, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
+import { and, eq, gt, isNotNull, sql } from "drizzle-orm";
 import { systemClock, type Clock } from "../auth/clock";
 import { firms, rosterSources } from "../db/schema";
 import type { ConnectionWaits, FirmTx, WithFirm } from "../db/scoped";
@@ -131,7 +131,8 @@ export async function firmAlerts(tx: FirmTx, firmId: string, now: Date): Promise
       and(
         eq(rosterSources.enabled, true),
         isNotNull(rosterSources.lastErrorCode),
-        or(isNull(rosterSources.lastSyncedAt), lt(rosterSources.lastSyncedAt, stale)),
+        // Not worked for 30 minutes: a connector's near pulls count (P5.4), a sheet has only one.
+        sql`coalesce(greatest(${rosterSources.lastSyncedAt}, ${rosterSources.lastNearSyncedAt}), '-infinity') < ${stale}`,
         gt(rosterSources.lastAttemptedAt, new Date(now.getTime() - HOUR_MS)),
       ),
     );

@@ -712,11 +712,20 @@ export const nameMap = pgTable(
   ],
 ).enableRLS();
 
-export const ROSTER_SOURCE_KINDS = ["sheets"] as const;
+export const ROSTER_SOURCE_KINDS = ["sheets", "connector"] as const;
+// Which system a connector source talks to (P5; ADR-026), each with its own adapter in
+// src/lib/connector/. Only the made-up portal so far: it stands in for the real one in the tests.
+export const CONNECTORS = ["demo_portal"] as const;
+export type Connector = (typeof CONNECTORS)[number];
+// A connector's base address: https, a host, an optional path; no user, query or fragment.
+export const CONNECTOR_BASE_URL =
+  "^https://[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?(:[0-9]{1,5})?(/[A-Za-z0-9._~/-]{0,200})?$";
 
-// Where a firm's rota lives when it isn't our own tables (native firms have no row). The column
-// mapping is validated in code (src/lib/roster/sheets/mapping.ts). Credentials are ours, not the
-// firm's: the firm shares its sheet with our service account, so nothing secret is stored here.
+// Where a firm's rota lives when it isn't our own tables (native firms have no row). A sheet
+// ("sheets"): its spreadsheet and column mapping (validated in code,
+// src/lib/roster/sheets/mapping.ts); the firm shares it with our service account. A connector
+// ("connector", P5.2): which system and its base address; its credentials are the firm's, kept in
+// the secret store (firm_secrets), never here. So nothing secret is stored in this table.
 export const rosterSources = pgTable(
   "roster_sources",
   {
@@ -726,7 +735,9 @@ export const rosterSources = pgTable(
       .references(() => firms.id),
     kind: text("kind", { enum: ROSTER_SOURCE_KINDS }).notNull(),
     enabled: boolean("enabled").notNull().default(true),
-    spreadsheetId: text("spreadsheet_id").notNull(),
+    spreadsheetId: text("spreadsheet_id"), // a sheet's only
+    connector: text("connector", { enum: CONNECTORS }), // a connector's only
+    baseUrl: text("base_url"), // a connector's only
     mapping: jsonb("mapping").$type<Record<string, unknown>>().notNull(),
     lastSyncedAt: timestamptz("last_synced_at"),
     // The last sync that ran, success or not: failures back off from it (cadence.ts).
@@ -748,7 +759,24 @@ export const rosterSources = pgTable(
     // by the owner (npm run firm:sheet); the app may change only the sync's status columns
     // (src/lib/db/admin/access.ts).
     uniqueIndex("roster_sources_spreadsheet_id_key").on(t.spreadsheetId),
-    check("roster_sources_kind_check", sql`${t.kind} in ('sheets')`),
+    check("roster_sources_kind_check", sql`${t.kind} in ('sheets', 'connector')`),
+    // A sheet has its spreadsheet and nothing of a connector's; a connector the reverse.
+    check(
+      "roster_sources_kind_fields",
+      sql`case when ${t.kind} = 'sheets'
+            then ${t.spreadsheetId} is not null and ${t.connector} is null and ${t.baseUrl} is null
+            else ${t.spreadsheetId} is null
+              and ${t.connector} is not null and ${t.baseUrl} is not null
+          end`,
+    ),
+    check(
+      "roster_sources_connector_check",
+      sql`${t.connector} in (${sql.raw(CONNECTORS.map((c) => `'${c}'`).join(", "))})`,
+    ),
+    check(
+      "roster_sources_base_url_format",
+      sql`${t.baseUrl} ~ ${sql.raw(`'${CONNECTOR_BASE_URL}'`)}`,
+    ),
     check(
       "roster_sources_spreadsheet_id_format",
       sql`${t.spreadsheetId} ~ '^[A-Za-z0-9_-]{20,100}$'`,

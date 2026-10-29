@@ -2138,8 +2138,10 @@ so the office already reads them as "From your planner" and no new words are nee
       ADR), stores one row per event id (unique per source), queues a job in the same transaction
       and answers 200 fast; the job fetches the changed record from the source's API rather than
       trusting the webhook's body, and applies it (P5.2's sessions; staff through
-      `upsertWorker()`). Tests: a bad or missing signature 403 and nothing stored, the same event
-      twice stored once, a fetch that fails retried, nothing from the body trusted (P5.3)
+      `upsertWorker()`); an owner command (`npm run firm:connector`: connect a source, switch it
+      off, show it and the webhook secret to give the firm's system, each logged as a settings
+      change) like the sheet's. Tests: a bad or missing signature 403 and nothing stored, the same
+      event twice stored once, a fetch that fails retried, nothing from the body trusted (P5.3)
 - [ ] The reconcile pull (jobs): a tick like the Sheets sync's (lease per source, back-off on
       failure), sessions in the next 48 hours every 15 minutes and everything else nightly, each
       record applied as a webhook's is, only changes logged; sessions come in hidden from casuals

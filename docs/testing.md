@@ -164,8 +164,21 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   reads only through the function; one firm's sealed value copied onto another's row never opens,
   nor does any value under another key. The sealing itself is unit-tested
   (`tests/unit/secrets.crypto.test.ts`: every seal different, bound to its firm and name, a changed
-  byte or another key refused, the worker's settings taking only a real key, the web app refusing to start with it on a
-  real address), and `tests/unit/deploy.compose.test.ts` keeps `SECRETS_KEY` to the worker and the owner service.
+  byte or another key refused, the worker's settings taking only a real key, the web app refusing
+  to start with it on a real address), and `tests/unit/deploy.compose.test.ts` keeps `SECRETS_KEY`
+  to the worker and the owner service. The firm's data export leaves the table out
+  (`gdpr.firm-export.test.ts`), and the jobs role may run exactly two functions, the read among
+  them (`rls.every-table.test.ts`).
+- `connector.caller.test.ts` (P5.2) — a connector's source and caller, on the real database as the
+  app role: its session made, changed, moved with a casual booked (a reason needed, then their
+  notice hours) and cancelled (`cancel_via` api, never a strike, who asked unknown), through the
+  planner API's own rules (`putPlannerSession`), each change logged as the planner's with its source
+  in the key's place; it reaches only the planner's sessions (the office's own is unknown to it) and
+  the office can't cancel its sessions as a whole; a source switched off, a sheet's source, a
+  made-up id or another firm's connector changes nothing (401 `invalid_key`), including a source
+  switched off while a change waits on its row; the table's checks (a connector has which one and
+  an https base address and no spreadsheet, a sheet the reverse, one source on per firm); and the
+  sheet command leaves a connector alone and won't switch a sheet on beside it.
 - `rules.any-of.test.ts` (P3.3, Rules 3) — "any of" licences, on the real database as the app role:
   the security pack's security officer needs one of an SIA security guard or door supervisor
   licence (other rules unchanged), and the database refuses a group of one, a type in both lists

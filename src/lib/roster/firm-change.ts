@@ -41,7 +41,7 @@ import { queueTravelEstimates } from "../travel/estimate-queue";
 //   start (changeNoticeHours: a move earlier records the warning they really had)}, and a
 //   firm-change-notice job to tell them. The shift itself: shift.changed {by: "firm", fields,
 //   from/to}. Offers still out describe the old shift, so they expire. The planner's entries also
-//   carry {via: "api", keyId}, with the system actor.
+//   carry {via: "api", keyId} (a connector's sourceId in its place), with the system actor.
 // - Before anything is logged, the rules are run for each booked worker at the new time (the
 //   shift itself is left out of their other bookings). If anyone fails a check the office can't
 //   override (a credential not in date through the new day, their role, …), the move is refused
@@ -358,8 +358,8 @@ const moveRefusedSchema = z.strictObject({
 });
 
 // A refused move on the record (shift.move_refused {by: "firm", reason, workers: [{workerId,
-// codes}]}, the planner's with {via: "api", keyId} too), in a short transaction of its own after
-// the move's rolled back. Ids and rule codes only: never a name.
+// codes}]}, the planner's with {via: "api", keyId or sourceId} too), in a short transaction of its
+// own after the move's rolled back. Ids and rule codes only: never a name.
 export async function recordMoveRefused(
   run: WithFirm,
   firmId: string,

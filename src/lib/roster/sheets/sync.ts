@@ -320,9 +320,12 @@ async function claimLease(tx: FirmTx, now: Date): Promise<Claimed | "none" | "bu
       .where(and(eq(rosterSources.kind, "sheets"), eq(rosterSources.enabled, true)));
     return exists ? "busy" : "none";
   }
+  // A sheet always has its spreadsheet (roster_sources_kind_fields).
+  if (claimed.spreadsheetId === null) throw new Error("a sheet source without its spreadsheet");
   const [firm] = await tx.select({ timezone: firms.timezone }).from(firms);
   return {
     ...claimed,
+    spreadsheetId: claimed.spreadsheetId,
     claimedAt: now,
     timezone: firm?.timezone ?? "Europe/London",
     names: await loadNameMap(tx),

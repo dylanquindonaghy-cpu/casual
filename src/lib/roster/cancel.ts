@@ -277,7 +277,8 @@ async function cancelInTransaction(
 // shift.cancelled {by: "firm", shiftId, workerId, reason, noticeHours} (never a strike), and the
 // worker is told (a firm-change-notice job). Then the shift is cancelled, offers still out expire,
 // and shift.cancelled_by_firm {reason, bookings} is logged. The planner's entries also carry
-// {via: "api", keyId}, with the system actor. No offer waves: there's no shift to fill.
+// {via: "api", keyId} (a connector's, {via: "api", sourceId}), with the system actor. No offer
+// waves: there's no shift to fill.
 
 export const cancelShiftRequestSchema = z.strictObject({
   shiftId: rosterId,
@@ -359,7 +360,7 @@ async function cancelShiftInTransaction(
       reason,
       by: "firm",
       at: now,
-      via: by.type === "api" ? "api" : "office",
+      via: by.type === "office" ? "office" : "api",
     });
     // Under the shift lock nothing else can change these bookings: anything else is a bug, and
     // the whole cancellation rolls back rather than leave someone booked on a cancelled shift.

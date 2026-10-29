@@ -54,7 +54,7 @@ architecture.md, Tenancy).
 | api_keys | A planner's API keys: a label, the key's sha256 and last 4 characters (never the key), who made and revoked it, when last used (12J.1, S11) | 12 |
 | firm_secrets | A firm's own credentials for its systems (its ops portal's API key, its webhook secret), each sealed under a key the database never sees (P5.1, ADR-026) | P5 |
 | push_subscriptions | Web push endpoints per worker | 4 |
-| roster_sources | Where a firm's rota lives when it isn't our tables (Google Sheet id, column mapping, last sync, error code, sync lease) | 2 |
+| roster_sources | Where a firm's rota lives when it isn't our tables: a Google Sheet (its id, column mapping) or a connector to the firm's own system (which one, its base address; P5.2), with the last sync, error code and sync lease | 2 |
 | name_map | What the firm's own system calls a role, qualification, staff type or cancellation reason, mapped to a ShiftDesk code or to skip (P3.2) | P3 |
 | metrics_daily | Pilot baseline and daily counts | 5 |
 
@@ -696,24 +696,32 @@ create table metrics_daily (
   unique (firm_id, kind, day, metric)
 );
 
--- Where a firm's rota lives when it isn't our tables (native firms have no row). No secrets:
--- the firm shares its sheet with our service account; the key is in the worker's environment.
--- Rows are added and changed only by the owner (npm run firm:sheet); the app role may read them
+-- Where a firm's rota lives when it isn't our tables (native firms have no row): a Google Sheet,
+-- or (P5.2, migration 0055) a connector reading the firm's own system, whose changes go through
+-- exactly the planner API's rules as the firm's planner (src/lib/roster/firm-caller.ts: allowed
+-- only while its source is on, its row held for the change). No secrets: the firm shares its
+-- sheet with our service account (the key is in the worker's environment), and a connector's
+-- credentials are in the secret store (firm_secrets). Rows are added and changed only by the owner
+-- (npm run firm:sheet; a connector's in the tests only until P5.3); the app role may read them
 -- and update only the four sync status columns (last_synced_at, last_attempted_at,
 -- last_error_code, sync_started_at: a column-level grant).
 create table roster_sources (
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),
-  kind text not null,                    -- 'sheets'
+  kind text not null,                    -- 'sheets' | 'connector'
   enabled boolean not null default true,
-  spreadsheet_id text not null,          -- ^[A-Za-z0-9_-]{20,100}$
-  mapping jsonb not null,                -- tabs and header names (src/lib/roster/sheets/mapping.ts)
+  spreadsheet_id text,                   -- a sheet's only: ^[A-Za-z0-9_-]{20,100}$
+  connector text,                        -- a connector's only: 'demo_portal' (the made-up portal)
+  base_url text,                         -- a connector's only: https, a host, a path; nothing else
+  mapping jsonb not null,                -- a sheet's tabs and header names ('{}' for a connector)
   last_synced_at timestamptz,
   last_attempted_at timestamptz,         -- the last sync that ran, success or not (for back-off)
   last_error_code text,                  -- a code only (^[a-z_]{1,50}$), never a message or cell
   sync_started_at timestamptz,           -- the sync's lease (5 minutes)
   created_at timestamptz not null default now()
 );
+-- roster_sources_kind_fields: a sheet has its spreadsheet and nothing of a connector's; a
+-- connector its connector and base address and no spreadsheet.
 create unique index roster_sources_one_enabled_per_firm on roster_sources (firm_id) where enabled;
 -- One spreadsheet, one firm (audit L45): across firms on purpose (the app can't write the column).
 create unique index roster_sources_spreadsheet_id_key on roster_sources (spreadsheet_id);

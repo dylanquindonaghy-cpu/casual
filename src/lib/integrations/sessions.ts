@@ -15,7 +15,13 @@ import type { FirmTx, WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { AgreementNotRecorded, requireAgreementForImport } from "../imports/gate-b";
 import { cancelShiftInTx } from "../roster/cancel";
-import { callerActor, callerMarks, firmCallerMay, type FirmCaller } from "../roster/firm-caller";
+import {
+  callerActor,
+  callerMarks,
+  firmCallerMay,
+  type FirmCaller,
+  type PlannerCaller,
+} from "../roster/firm-caller";
 import { MoveBlocked, moveShiftInTx, recordMoveRefused } from "../roster/firm-change";
 import { FIRM_CHANGE_REASONS, type FirmChangeReason } from "../roster/firm-reasons";
 import { refreshShiftStatus } from "../roster/native";
@@ -59,10 +65,11 @@ import {
 //     (every failed rules check blocks it); role or requirements are refused; `"status":
 //     "cancelled"` needs a change_reason and goes through cancelShiftInTx() (never a strike);
 //   - the status follows the places (refreshShiftStatus()), unless the office closed it.
-// Every change is logged with the system actor and {by: "firm", via: "api", keyId}. A refused
-// change to a booked session is logged too (shift.move_refused, api.change_refused), so the office
-// sees it under Needs attention even if the planner ignores the 409. The showing switches and
-// "urgent" are never read from the API: they stay the office's.
+// Every change is logged with the system actor and {by: "firm", via: "api", keyId} (a connector's
+// with sourceId in the key's place: putPlannerSession). A refused change to a booked session is
+// logged too (shift.move_refused, api.change_refused), so the office sees it under Needs attention
+// even if the planner ignores the 409. The showing switches and "urgent" are never read from the
+// API: they stay the office's.
 
 export const SESSION_ROUTE = "/api/v1/sessions/{ref}";
 
@@ -154,18 +161,48 @@ interface Put {
   tx: FirmTx;
   ref: string;
   body: PutSessionBody;
-  by: Extract<FirmCaller, { type: "api" }>;
+  by: PlannerCaller;
   now: Date;
   timeZone: string;
   located: Located | undefined;
 }
 
-export async function putSession(call: ApiCall, ref: string): Promise<ApiResult> {
+export function putSession(call: ApiCall, ref: string): Promise<ApiResult> {
+  return putPlannerSession(
+    {
+      run: call.run,
+      firmId: call.firmId,
+      by: { type: "api", keyId: call.keyId },
+      json: call.json,
+      now: call.now,
+      geocoder: call.geocoder,
+      localDatabase: call.localDatabase,
+    },
+    ref,
+  );
+}
+
+// One PUT of a planner's session, from the API (putSession: the key's call) or from a connector
+// (P5.2: a record read from the firm's own system, put in the API's body by its adapter, never
+// trusted any further). The same checks, transaction, logging and answers either way, so a
+// connector's sessions follow exactly the planner's rules. For a connector, `invalid_key` means its
+// source is switched off (src/lib/roster/firm-caller.ts).
+export interface PlannerPut {
+  run: WithFirm;
+  firmId: string;
+  by: PlannerCaller;
+  json: unknown;
+  now: Date;
+  geocoder?: Geocoder;
+  localDatabase: boolean;
+}
+
+export async function putPlannerSession(call: PlannerPut, ref: string): Promise<ApiResult> {
   if (!isRef(ref)) return apiRefusal("bad_ref");
   const parsed = putSessionSchema.safeParse(call.json);
   if (!parsed.success) return apiRefusal("validation_failed", { fields: fieldsOf(parsed.error) });
   const body = parsed.data;
-  const by = { type: "api" as const, keyId: call.keyId };
+  const by = call.by;
   const geocoder = call.geocoder ?? serverGeocoder();
   const postcode = body.site?.postcode ?? null;
   const siteName = body.site?.name ?? null;

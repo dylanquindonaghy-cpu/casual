@@ -56,7 +56,7 @@ The product sits alongside whatever the firm already uses. It never forces staff
 9. **Pay disputes never get an AI answer.** They go to the payroll digest. Staff can see facts
    (hours logged, rates, pay dates) straight from imported pay data.
 10. **Stay in scope.** Only build tasks in the current phase of `PLAN.md`. New ideas go to the
-    Parking lot in `PLAN.md`.
+    Parking lot (`docs/plan/parking-lot.md`).
 11. **Copy is product.** Staff-facing text follows `docs/screens.md` and
     `docs/messaging-templates.md`: short sentences, plain words, buttons say what happens, every
     action ends with a confirmation. Large tap targets and readable sizes.
@@ -162,7 +162,8 @@ docs/
    and only then ticks the task. **Never tick a task yourself** (a hook blocks it), and never
    say "done", "complete" or "all tests pass" unless verify.sh printed VERIFIED on the
    current files (a hook blocks that too). If something isn't verified, say so plainly.
-6. Add anything deferred to the Parking lot. Summarise what changed and what the auditor verified.
+6. Add anything deferred to the Parking lot (`docs/plan/parking-lot.md`). Summarise what changed
+   and what the auditor verified.
 
 Dylan can't type slash commands where he works with Claude: run skills and commands yourself
 (the Skill tool: `close-task`, `verify`, the UI skills and so on), never ask him to.
@@ -186,6 +187,10 @@ See `docs/verification.md` for how this is enforced and why.
 - `docs/runbooks.md` — deploy, rollback, restore, outages, WhatsApp/Sheets/domain issues
 - `docs/pilot-playbook.md` — baseline, weekly rhythm, metrics, report template
 - `docs/verification.md` — how "done" is enforced: verify script, auditor agent, hooks
+- `docs/plan/` — the Parking lot, the Hours log, the decisions waiting for Dylan, and what's
+  blocked (`PLAN.md` keeps only the open work, with pointers)
+- `docs/archive/plan-done.md` — the finished phases, frozen (its sha256 is pinned: never edit it)
+- `docs/logs/` — the work log and the overnight log, one file a month
 
 ## Glossary
 

@@ -575,10 +575,13 @@ function cleanEnv(extra: Record<string, string>): NodeJS.ProcessEnv {
   return Object.assign(env, extra);
 }
 
-describe("the project invariants on sample trees (invariants.sh checks 1, 5, 7 and 8)", () => {
+describe("the project invariants on sample trees (invariants.sh checks 1, 5, 7, 8 and 9)", () => {
   // Written in pieces so this file doesn't trip the very checks it tests.
   const call = (obj: string, fn: string) => `${obj}.${fn}(`;
   const SDK = ["twi", "lio"].join("");
+
+  // The real archive of finished phases (PLAN.md P1.1), frozen by its pin (check 9).
+  const ARCHIVE = readFileSync(join(REPO, "docs/archive/plan-done.md"), "utf8");
 
   // A tree that passes every check. drizzle-kit (check 4) is a stand-in reporting no schema
   // changes, and the test results (check 3) are one passing test: these tests are about the
@@ -604,12 +607,15 @@ describe("the project invariants on sample trees (invariants.sh checks 1, 5, 7 a
       "tests/setup/env.ts": readFileSync(join(REPO, "tests/setup/env.ts"), "utf8"),
       "playwright.config.ts": readFileSync(join(REPO, "playwright.config.ts"), "utf8"),
       "scripts/invariants.sh": readFileSync(join(REPO, "scripts/invariants.sh"), "utf8"),
+      "scripts/archive-check.sh": readFileSync(join(REPO, "scripts/archive-check.sh"), "utf8"),
+      "docs/archive/plan-done.md": ARCHIVE,
     };
     for (const [path, body] of Object.entries(files)) {
       mkdirSync(join(dir, path, ".."), { recursive: true });
       writeFileSync(join(dir, path), body);
     }
     chmodSync(join(dir, "scripts/invariants.sh"), 0o755);
+    chmodSync(join(dir, "scripts/archive-check.sh"), 0o755);
     git(dir, "add", "-A");
     git(dir, "commit", "-q", "-m", "start");
     return dir;
@@ -634,8 +640,22 @@ describe("the project invariants on sample trees (invariants.sh checks 1, 5, 7 a
     expect(r.out).toContain("ok: only withFirm");
     expect(r.out).toContain("ok: no test imports the Twilio SDK");
     expect(r.out).toContain("ok: no code or test file is git-ignored");
+    expect(r.out).toContain("ok: the finished phases' archive is unchanged");
     expect(r.out).not.toContain("FAIL");
     expect(r.status).toBe(0);
+  });
+
+  it("refuses any change to the finished phases' archive, even one space, or its loss (check 9)", () => {
+    for (const body of [`${ARCHIVE} `, ARCHIVE.replace("- [x]", "- [ ]"), ""]) {
+      const r = run(sampleTree(), "docs/archive/plan-done.md", body);
+      expect(r.out).toContain("FAIL: docs/archive/plan-done.md changed");
+      expect(r.status).toBe(1);
+    }
+    const dir = sampleTree();
+    rmSync(join(dir, "docs/archive/plan-done.md"));
+    const gone = run(dir);
+    expect(gone.out).toContain("FAIL: docs/archive/plan-done.md is missing");
+    expect(gone.status).toBe(1);
   });
 
   it("refuses a browser test turned off: fixme, marked to fail, or skipped at run time (check 1)", () => {

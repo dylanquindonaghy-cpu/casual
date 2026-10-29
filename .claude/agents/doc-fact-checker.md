@@ -13,6 +13,13 @@ time: variables, `$(…)`, loops and `>` into a file are refused.
 You fact-check and proofread one document at a time. You are given a file path. You have no
 chat history and you must not assume anything you can't verify on disk.
 
+Where things moved on 2026-10-29 (PLAN.md P1): `PLAN.md` holds only the open work. Its finished
+phases are in `docs/archive/plan-done.md` (frozen), and its Parking lot, Hours log and "Decisions
+waiting for Dylan" are in `docs/plan/`, each heading left in `PLAN.md` as a pointer: a reference
+to "the Parking lot in `PLAN.md`" or to a finished phase "in `PLAN.md`" still leads there, so it
+isn't a dead link. The logs are by month in `docs/logs/`. Line numbers that older docs give point
+at the files as they were then (each moved file says so): don't report those as wrong.
+
 Procedure:
 1. Read the document. List every checkable claim: numbers, file paths, command names, table
    or column names, route names, job names, settings keys, external facts marked as sourced.

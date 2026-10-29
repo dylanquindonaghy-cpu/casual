@@ -115,4 +115,7 @@ if hits=$(git ls-files --others --ignored --exclude-standard -- src tests script
   else echo "ok: no code or test file is git-ignored"; fi
 else echo "FAIL: couldn't list the git-ignored files"; fail=1; fi
 
+# 9. The finished phases' archive is frozen: its sha256 is pinned (PLAN.md P1.1).
+scripts/archive-check.sh || fail=1
+
 exit $fail

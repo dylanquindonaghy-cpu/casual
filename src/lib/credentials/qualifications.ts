@@ -57,7 +57,11 @@ export async function qualificationsFor(
       .from(workers)
       .where(inArray(workers.id, ids)));
   const rules = await tx
-    .select({ role: credentialRules.role, requiredTypes: credentialRules.requiredTypes })
+    .select({
+      role: credentialRules.role,
+      requiredTypes: credentialRules.requiredTypes,
+      anyOfTypes: credentialRules.anyOfTypes,
+    })
     .from(credentialRules);
   const types = await tx
     .select({

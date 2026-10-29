@@ -148,6 +148,17 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   it can't read falling back whole. Setting it with `firm:settings` is in
   `tests/integration/onboarding.test.ts` (a start then fortnights; fortnights without a start
   refused; a hand-edited one started afresh).
+- `rules.any-of.test.ts` (P3.3, Rules 3) — "any of" licences, on the real database as the app role:
+  the security pack's security officer needs one of an SIA security guard or door supervisor
+  licence (other rules unchanged), and the database refuses a group of one, a type in both lists
+  or a code that isn't one; booking one at a time and in the offer waves' batch takes either and
+  refuses neither or an expired one; a session shows the group as its first type, and a casual may
+  send either; a casual's qualifications list the group's licence that stands best for her (not the
+  one she doesn't need); and the office's check of bookings flags one only when no licence of the
+  group will be in date. The engine's cases are in the doc's table (`tests/unit/rules.table.test.ts`:
+  either, neither, the held one out of date, one suspended, applied within the allowance, a group
+  beside an all-of list); the pack parity test reads "one of" in the doc's rules table; uploads and
+  the expiry scan (`uploads.test.ts`, `credential.scan.test.ts`) take a group's types.
 - `roster.names.test.ts` (P3.2) — a firm's name map. Unit (`tests/unit/roster.names.test.ts`): a
   name's key; a mapped role is its code, a skipped one skipped, the rest exactly as
   `normaliseRole()` reads them; a worker's list with skipped names left out; the rota sheet's rows

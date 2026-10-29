@@ -431,7 +431,11 @@ create table credential_rules (
   required_types text[] not null,        -- all required; flat list of type codes ('SIA_DS'),
                                          -- no NULL, blank or comma-joined elements; '{}' = needs
                                          -- none. No row for a role = not eligible (fail closed).
-                                         -- Any-of groups can be modelled later.
+  any_of_types text[] not null default '{}', -- and one of these (P3.3, Rules 3; migration 0052):
+                                         -- two or more codes in the same format, none also in
+                                         -- required_types; '{}' = no group. The security pack's
+                                         -- security_officer: {SIA_SG,SIA_DS} (rules a firm already
+                                         -- has keep theirs)
   created_at timestamptz not null default now(),
   unique (firm_id, role)
 );

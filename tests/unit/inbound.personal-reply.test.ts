@@ -444,6 +444,7 @@ describe("enquiry.checks passes the log's check", () => {
         siteId: "11111111-1111-4111-8111-111111111111",
         requiredTypes: ["SIA_DS"],
         extraTypes: ["FIRST_AID", "CSAS"],
+        anyOfTypes: [],
       },
       otherAssignments: [
         { startsAt: new Date("2026-11-07T00:00:00Z"), endsAt: new Date("2026-11-07T04:00:00Z") },

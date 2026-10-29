@@ -204,6 +204,20 @@ describe("credential-scan: warnings", () => {
     ]);
   });
 
+  it("a security officer's door supervisor licence, one of her role's group (P3.3), gets its upload link", async () => {
+    const f = await newFirm();
+    const so = await addWorker(f.firmId, { first: "So", roles: ["security_officer"] });
+    await addCredential(f.firmId, so.id, { type: "SIA_DS", expiresOn: "2026-11-05" }); // 30 days
+    const { scan, sent } = scanner();
+    expect(await scan(f.firmId, TUESDAY_DATE)).toMatchObject({ warned: 1 });
+    expect(whatsapp(sent)).toEqual([
+      {
+        to: so.mobile,
+        body: `Your SIA door supervisor licence expires on 5 Nov. Upload your renewed card so you can keep taking shifts that need it: ${uploadLink(f, "SIA_DS")} — ${f.name} Shift Team`,
+      },
+    ]);
+  });
+
   it("warns active workers once per threshold crossed, and logs each warning", async () => {
     const f = await newFirm();
     // A door supervisor: the security pack's rules need SIA_DS for that role, not first aid, so only
@@ -344,6 +358,7 @@ describe("credential-scan: expiry (block on expiry)", () => {
         siteId: null,
         requiredTypes: ["SIA_DS"],
         extraTypes: [],
+        anyOfTypes: [],
         ...shiftOn(shiftDate),
       },
       otherAssignments: [],

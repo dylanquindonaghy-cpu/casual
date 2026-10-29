@@ -30,7 +30,8 @@ type EligibilityInput = {
                  expiresOn: string | null }[];            // yyyy-mm-dd; null = no expiry
   shift: { id: string; role: string; startsAt: Date; endsAt: Date; siteId: string | null;
            requiredTypes: string[] | null;               // from credential_rules; null = no rule
-           extraTypes: string[] };                        // the session's extra requirements ([] for none)
+           extraTypes: string[];                          // the session's extra requirements ([] for none)
+           anyOfTypes: string[] };                        // the rule's one-of group (P3.3; [] for none)
   otherAssignments: { startsAt: Date; endsAt: Date }[];  // confirmed, same week ± a day
   unavailableDates: string[];           // firm-local yyyy-mm-dd, from worker_unavailable_days (the profile page)
   settings: {
@@ -73,7 +74,7 @@ type RuleCheck = {
 | 0 | The shift hasn't started (`startsAt > now`) | "This shift has already started." |
 | 1 | Worker status is `active` | "Your account isn't active. Contact the office." |
 | 2 | Role match (worker.roles includes shift.role) | "This shift needs a [role]." |
-| 3 | Each required credential present, `valid`, and `expiresOn >= shift date`. The required list comes from the firm's `credential_rules` row for the shift's role, plus the session's own extra requirements (`shifts.required_credentials`: CSAS, first aid… set on the session, 12B.3), each checked exactly like the role's, valid until the session ends; **no row for the role means not eligible** (fail closed: a deleted or forgotten rule must never drop a licence check), whatever the session adds. A row with an empty list means the role needs no credential. | "Your SIA licence expired on 3 Oct. Renew it, then send the new number to the office." / no rule: "This shift isn't ready to take yet. Ask the office." |
+| 3 | Each required credential present, `valid`, and `expiresOn >= shift date`; and one of the role's "one of" group (P3.3, Rules 3: `credential_rules.any_of_types`, a security officer's SIA security guard or door supervisor licence) passing the same check, none of the group's held licences suspended. The required list comes from the firm's `credential_rules` row for the shift's role, plus the session's own extra requirements (`shifts.required_credentials`: CSAS, first aid… set on the session, 12B.3), each checked exactly like the role's, valid until the session ends; **no row for the role means not eligible** (fail closed: a deleted or forgotten rule must never drop a licence check), whatever the session adds. A row with an empty list means the role needs no credential. | "Your SIA licence expired on 3 Oct. Renew it, then send the new number to the office." / no rule: "This shift isn't ready to take yet. Ask the office." |
 | 4 | If credential is `applied`: allowed only if firm allowance > 0 and adding this worker keeps applied share ≤ allowance % | "Your licence is still being processed. The office can only deploy a limited number of staff in that position today." |
 | 5 | No overlap with other assignments (± travel buffer) | "You're already booked at [time] that day." (or "on Fri 6 Nov" for another day) |
 | 6 | Rest gap ≥ `minRestHours` from the previous and the next assignment | "This is too close to your previous shift (11 hours' rest needed)." / "...your next shift..." |
@@ -95,7 +96,14 @@ A credential counts only when its status is `valid` **and** its expiry is on or 
 local calendar day the shift touches (a night shift needs it in date until the morning), or it has
 no expiry. A `suspended` credential of the type fails whatever else is held. An `expired` status
 fails whatever the date, and a `valid` status with a past date is expired. An `applied` credential
-is used only when there is no valid one of that type. Every required type gets its own reason:
+is used only when there is no valid one of that type. A "one of" group (P3.3) passes when any one
+of its types would pass on its own, and fails if a licence of it held is suspended (whatever else
+is held: a suspension is for the office to look at); when it fails, its reason is the one its first
+type held would give (else its first type's), in the same words below, so a group adds no new
+words until the casual's "you need A or B" wording is approved (after the UI chat's Phase 24, a
+mock-up first). Until then a group shows on a session as its first type (its chips and "What it
+needs"), and on a casual's qualifications as the one of it that stands best for her (the suspended
+one first). Every required type gets its own reason:
 missing: "This shift needs a valid [name]. Send it to the office to be checked."; suspended:
 "Your [name] is suspended. Contact the office."; out of date before the shift ends: "Your [name]
 expires on [date], before this shift. Renew it, then send the new number to the office." (or
@@ -119,7 +127,7 @@ Dates are firm-local `yyyy-mm-dd`, times ISO, hours rounded to one decimal.
 | `started` | 0 | `startsAt` |
 | `active` | 1 | `status` (`active`, `inactive` or `blocked`) |
 | `role` | 2 | `role` (the shift's) |
-| `qualification` | 3–4, one per required type | `type`; `neededBy`: `role`, `session` or `both`; `held`: the record used (`valid`, `expired`, `applied`, `suspended`, or `none`); `expiresOn` (null: no expiry or none held); `until`: the last local day the shift touches. No rule for the role: one failed entry, `{ rule: "none", role }` |
+| `qualification` | 3–4, one per required type, and one for a "one of" group | `type`; `neededBy`: `role`, `session` or `both`; `held`: the record used (`valid`, `expired`, `applied`, `suspended`, or `none`); `expiresOn` (null: no expiry or none held); `until`: the last local day the shift touches. A group's entry: the type that passed (else the one whose reason is given), with `anyOf`: the group's types. No rule for the role: one failed entry, `{ rule: "none", role }` |
 | `overlap` | 5 | `withStart`, `withEnd`: the booking it clashes with (null: none); `bufferMinutes` |
 | `rest` | 6 | `hoursBefore`, `hoursAfter`: the gaps to the nearest bookings either side (null: none loaded on that side); `minimumHours` |
 | `weekly_hours` | 7 | `hours`: the busiest week the shift touches, with it; `capHours` |
@@ -164,15 +172,16 @@ Typical validity is a guide only: the expiry on the card/certificate is what we 
 | Cleaning/various | `DBS` | DBS check | DBS check | no | No fixed expiry; firm policy (or update service) | Site-dependent. |
 | Any | `RTW` | Right to work | right to work check | no | Per document | Firm-level requirement, not per shift. |
 
-Default role rules (every listed type is needed; `RTW`, `FIRST_AID` and `MANUAL_HANDLING` are types
-but no role's default rule, often a session's extra requirement instead; cleaning needs DBS per
-site, not per role):
+Default role rules (every listed type is needed, and one of a "one of" group (P3.3, Rules 3:
+`credential_rules.any_of_types`); `RTW`, `FIRST_AID` and `MANUAL_HANDLING` are types but no role's
+default rule, often a session's extra requirement instead; cleaning needs DBS per site, not per
+role):
 
 | Pack | Role | Needs |
 |---|---|---|
 | security | `steward` | `STEWARD_L2` |
 | security | `door_supervisor` | `SIA_DS` |
-| security | `security_officer` | `SIA_SG` |
+| security | `security_officer` | one of `SIA_SG` or `SIA_DS` |
 | security | `close_protection_officer` | `SIA_CP` |
 | security | `csas_officer` | `CSAS` |
 | rail | `track_operative` | `PTS`, `SENTINEL`, `RAIL_DA` |
@@ -301,6 +310,11 @@ showing ("renewing"), with the new one waiting for the office.
 | Session needs an extra requirement the worker lacks | role needs SIA_DS (held); session adds CSAS, not held | fail: missing CSAS |
 | Session needs an extra requirement the worker holds | session adds CSAS, held and in date | ok |
 | Extra requirement expires mid-session | night session 22:00–06:00; CSAS expires on its first day | fail: expired reason |
+| One of a group: either licence | security officer, one of SIA_SG or SIA_DS; SIA_DS held and in date | ok |
+| One of a group: neither held | one of SIA_SG or SIA_DS; neither held | fail: missing, in SIA_SG's words |
+| One of a group: the one held is out of date | one of SIA_SG or SIA_DS; SIA_DS expired, no SIA_SG | fail: expired reason for SIA_DS |
+| One of a group: one suspended | one of SIA_SG or SIA_DS; SIA_SG suspended, SIA_DS in date | fail: suspended reason |
+| One of a group: applied within the allowance | one of SIA_SG or SIA_DS; SIA_SG applied, allowance 15%, 20 deployed | ok |
 
 ## Race test (integration)
 

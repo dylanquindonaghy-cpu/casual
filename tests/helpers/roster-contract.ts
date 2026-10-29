@@ -155,6 +155,7 @@ export function passFor(shiftId: string, workerId: string): EligibilityPass {
       siteId: null,
       requiredTypes: [],
       extraTypes: [],
+      anyOfTypes: [],
       startsAt,
       endsAt: new Date(startsAt.getTime() + HOUR),
     },

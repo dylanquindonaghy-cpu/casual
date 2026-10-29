@@ -199,12 +199,13 @@ export interface Verdict {
 }
 
 // Whether the rules may count one of the worker's applications in progress for this shift: a
-// type the role or the session itself (its extra requirements) needs, that may count "applied" at
-// this firm, held as applied. (Holding a valid one too only means the lock wasn't needed.)
+// type the role (its one-of group's included, P3.3) or the session itself (its extra requirements)
+// needs, that may count "applied" at this firm, held as applied. (Holding a valid one too only
+// means the lock wasn't needed.)
 function reliesOnApplied(input: EligibilityInput): boolean {
   const { settings, credentials, shift } = input;
   if (settings.appliedAllowancePct <= 0) return false;
-  return [...(shift.requiredTypes ?? []), ...shift.extraTypes].some(
+  return [...(shift.requiredTypes ?? []), ...shift.extraTypes, ...shift.anyOfTypes].some(
     (type) =>
       settings.appliedAllowedTypes.includes(type) &&
       credentials.some((c) => c.type === type && c.status === "applied"),

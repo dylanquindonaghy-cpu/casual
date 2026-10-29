@@ -242,7 +242,8 @@ async function lockDue(tx: FirmTx, id: string) {
       needed: sql<boolean>`exists (
         select 1 from ${credentialRules} r
          where r.firm_id = ${credentials.firmId} and r.role = any(${workers.roles})
-           and ${credentials.type} = any(r.required_types))`,
+           and (${credentials.type} = any(r.required_types)
+                or ${credentials.type} = any(r.any_of_types)))`,
       superseded,
     })
     .from(credentials)

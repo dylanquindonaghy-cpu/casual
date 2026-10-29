@@ -1934,11 +1934,13 @@ page, and no casual-facing words beyond those Dylan approves. The proposal's ite
       file carries one) and a role's pay rate are held for the connector (P5): the sheet and the
       import never write a session's pay (S2). Tests: mapped, skipped, unmapped, another firm's
       map unused (P3.2)
-- [ ] "Any of" licences (R; Rules 3, Dylan 2026-10-29): a rule may need one of several credential
-      types (a door supervisor licence covers guarding), in `src/lib/rules/packs.ts`,
+- [ ] "Any of" licences (S, R; Rules 3, Dylan 2026-10-29): a rule may need one of several
+      credential types (a door supervisor licence covers guarding: the security pack's
+      security officer takes either), in `src/lib/rules/packs.ts`,
       `src/lib/credentials/requirements.ts`, `src/lib/rules/eligibility.ts` and
       `docs/rules-and-credentials.md` together (the parity tests hold them in step); every place
-      that reads a rule's types reads the groups. Tests: either licence passes, neither fails, an
+      that reads a rule's types reads the groups (with no new words: a group shows as its first
+      type, and fails in its first held type's words, until the "A or B" words are approved). Tests: either licence passes, neither fails, an
       expired one doesn't count, "all of" rules unchanged (P3.3)
 - [ ] Who asked for a cancellation (S, R): recorded apart from who carried it out (casual, firm,
       client, unknown), backfilled from each cancellation's own record; the casual's own cancel says

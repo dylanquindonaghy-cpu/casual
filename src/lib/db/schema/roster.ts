@@ -143,8 +143,15 @@ export const credentialRules = pgTable(
     // name belongs to one pack per firm (unique below), so clashing names must differ.
     sector: text("sector", { enum: SECTORS }).notNull(),
     role: text("role").notNull(),
-    // Every listed type is required. Any-of groups ("SIA_DS or SIA_SG") can be modelled later.
+    // Every listed type is required.
     requiredTypes: text("required_types").array().notNull(),
+    // And one of these, when there are any (P3.3, Rules 3): a security officer's shift takes an SIA
+    // security guard or door supervisor licence ("SIA_SG", "SIA_DS"). Two or more, none of them
+    // also in required_types; empty: no such group.
+    anyOfTypes: text("any_of_types")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     createdAt: createdAt(),
   },
   (t) => [
@@ -165,6 +172,11 @@ export const credentialRules = pgTable(
           or (array_to_string(${t.requiredTypes}, ',') ~ '^[A-Z][A-Z0-9_]*(,[A-Z][A-Z0-9_]*)*$'
             and cardinality(string_to_array(array_to_string(${t.requiredTypes}, ','), ','))
               = cardinality(${t.requiredTypes})))`,
+    ),
+    check(
+      "credential_rules_any_of_types_format",
+      sql`${qualificationCodes(t.anyOfTypes)} and cardinality(${t.anyOfTypes}) <> 1
+        and not (${t.anyOfTypes} && ${t.requiredTypes})`,
     ),
     firmIsolation(t.firmId),
   ],
@@ -643,7 +655,8 @@ export const shiftReminders = pgTable(
 // src/lib/roster/names.ts keys it (trimmed, lower case, one space between words), so "Door
 // Supervisor (NLW)" and "door supervisor  (nlw)" are one name. A role may carry the pay rate its
 // name stands for (whole pence an hour), for the connector (P5): the sheet sync and the file
-// import read only role names, and never write a session's pay (S2). Set only by the owner
+// import read role names (and the credentials import qualification names), and never write a
+// session's pay (S2). Set only by the owner
 // (npm run firm:names); the app reads it.
 export const NAME_KINDS = ["role", "qualification", "staff_type", "cancellation_reason"] as const;
 export type NameKind = (typeof NAME_KINDS)[number];

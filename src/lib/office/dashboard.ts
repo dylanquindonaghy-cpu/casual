@@ -216,6 +216,19 @@ export async function outOfDateBookings(tx: FirmTx, now: Date, timeZone: string)
         cross join lateral (
           select distinct x as type
             from unnest(coalesce(r.required_types, '{}'::text[]) || b.required_credentials) x
+          union
+          -- The role's one-of group (P3.3): its types only when none of them stands for her by
+          -- the last day (in date, or an application in progress the rules count).
+          select g as type
+            from unnest(coalesce(r.any_of_types, '{}'::text[])) g
+           where not exists (
+             select 1 from credentials c
+               left join credential_types gt on gt.firm_id = c.firm_id and gt.code = c.type
+              where c.firm_id = b.firm_id and c.worker_id = b.worker_id
+                and c.type = any (r.any_of_types) and c.check_state = 'verified'
+                and ((c.status = 'valid' and (c.expires_on is null or c.expires_on >= b.last_day))
+                     or (${appliedCounts} and c.status = 'applied'
+                         and coalesce(gt.applied_allowed, false))))
         ) t
     )
     select n.firm_id, n.assignment_id, n.worker_id, n.shift_id, n.role, n.starts_at, n.type,

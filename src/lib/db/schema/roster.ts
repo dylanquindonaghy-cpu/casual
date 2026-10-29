@@ -274,6 +274,11 @@ export const shifts = pgTable(
     // The base of the three-way merge between the sheet and bookings made here
     // (src/lib/roster/sheets/merge.ts). Null until first synced.
     syncedHolders: text("synced_holders").array(),
+    // A connector's session only (P5.5's review): when its record was last read from the firm's
+    // system and applied (the fetch's time, or the pull's list's). An older read is never applied
+    // over a newer one, and it is the session's "last read" for a cancellation's notice
+    // (src/lib/connector/bookings.ts). Null: not a connector's session.
+    sourceReadAt: timestamptz("source_read_at"),
     // What the firm's Google Sheet asks for that the last sync couldn't do (Phase 10, audit M1, M2,
     // L12), for the dashboard's "From your rota sheet": a change to a booked or started shift the
     // rules refused, and names it couldn't book. Set by each sync to what's true then; null: nothing.
@@ -318,6 +323,7 @@ export const shifts = pgTable(
     check("shifts_headcount_range", sql`${t.headcount} between 1 and 1000`),
     check("shifts_status_check", sql`${t.status} in ('draft', 'open', 'filled', 'cancelled')`),
     check("shifts_source_check", sql`${t.source} in ('native', 'sheets', 'csv', 'api')`),
+    check("shifts_source_read_api_only", sql`${t.sourceReadAt} is null or ${t.source} = 'api'`),
     check("shifts_pay_rate_range", sql`${t.payRatePence} is null or ${t.payRatePence} >= 0`),
     check("shifts_post_length", sql`${t.post} is null or char_length(${t.post}) between 1 and 200`),
     check(

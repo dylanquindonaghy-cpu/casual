@@ -1,4 +1,4 @@
-import { and, count, eq, isNotNull, isNull, max, notInArray, sql } from "drizzle-orm";
+import { and, count, eq, isNotNull, isNull, lt, max, notInArray, or, sql } from "drizzle-orm";
 import { retryAborted } from "../db/retry";
 import { appDatabaseIsLocal } from "../db/where";
 import {
@@ -158,6 +158,7 @@ type Held = {
   instructions: string | null;
   requiredCredentials: string[];
   shiftEventId: string;
+  sourceReadAt: Date | null;
 };
 
 interface Put {
@@ -168,6 +169,7 @@ interface Put {
   now: Date;
   timeZone: string;
   located: Located | undefined;
+  readAt: Date | null;
 }
 
 export function putSession(call: ApiCall, ref: string): Promise<ApiResult> {
@@ -198,6 +200,10 @@ export interface PlannerPut {
   now: Date;
   geocoder?: Geocoder;
   localDatabase?: boolean; // Gate B: appDatabaseIsLocal() when left out
+  // A connector's (P5.5's review): when the record was read from the firm's system. A read older
+  // than the one the session last took applies nothing (`older_read`), and the session keeps the
+  // newer time (shifts.source_read_at).
+  readAt?: Date;
 }
 
 const plannerCaller = firmCallerSchema.refine((by): by is PlannerCaller => by.type !== "office");
@@ -244,7 +250,16 @@ export async function putPlannerSession(put: PlannerPut, ref: string): Promise<A
           // The key first, then the session (one lock order with the office's changes).
           if (!(await firmCallerMay(tx, by))) throw new Refusal("invalid_key");
           const timeZone = await firmZone(tx);
-          return putInTx({ tx, ref, body, by, now: call.now, timeZone, located: where });
+          return putInTx({
+            tx,
+            ref,
+            body,
+            by,
+            now: call.now,
+            timeZone,
+            located: where,
+            readAt: by.type === "connector" ? (call.readAt ?? null) : null,
+          });
         }),
       );
     try {
@@ -351,6 +366,7 @@ async function lockSession(tx: FirmTx, ref: string): Promise<Held | undefined> {
       instructions: shifts.instructions,
       requiredCredentials: shifts.requiredCredentials,
       shiftEventId: shifts.shiftEventId,
+      sourceReadAt: shifts.sourceReadAt,
     })
     .from(shifts)
     .where(and(eq(shifts.source, "api"), eq(shifts.externalRef, ref)))
@@ -359,15 +375,46 @@ async function lockSession(tx: FirmTx, ref: string): Promise<Held | undefined> {
 }
 
 async function putInTx(p: Put): Promise<ApiResult> {
+  const result = await putOrCreate(p);
+  // A connector's read, applied: the session's last read is this one (refused, it rolls back).
+  if (p.readAt && result.status < 300 && !isOlderRead(result)) {
+    await p.tx
+      .update(shifts)
+      .set({ sourceReadAt: p.readAt })
+      .where(
+        and(
+          eq(shifts.source, "api"),
+          eq(shifts.externalRef, p.ref),
+          or(isNull(shifts.sourceReadAt), lt(shifts.sourceReadAt, p.readAt)),
+        ),
+      );
+  }
+  return result;
+}
+
+const OLDER_READ = { status: 200, body: { result: "older_read", session: null } } as const;
+const isOlderRead = (r: ApiResult) =>
+  (r.body as { result?: unknown } | null)?.result === "older_read";
+
+async function putOrCreate(p: Put): Promise<ApiResult> {
   const held = await lockSession(p.tx, p.ref);
-  if (held) return update(p, held);
+  if (held) return updateIfNewer(p, held);
   const created = await create(p);
   if (created) return created;
   // Another PUT for this ref created it a moment ago (it held the unique key until it committed):
   // this one is an update of that session.
   const now = await lockSession(p.tx, p.ref);
   if (!now) throw new Error("the session is neither new nor there");
-  return update(p, now);
+  return updateIfNewer(p, now);
+}
+
+// A connector's read older than the session's last (another read of it was applied since this one
+// was taken): nothing of it applied, so a late read never puts back what a newer one changed.
+function updateIfNewer(p: Put, held: Held): Promise<ApiResult> {
+  if (p.readAt && held.sourceReadAt && held.sourceReadAt.getTime() > p.readAt.getTime()) {
+    return Promise.resolve(OLDER_READ);
+  }
+  return update(p, held);
 }
 
 // Logged with the system actor and the key's id (src/lib/roster/firm-caller.ts).

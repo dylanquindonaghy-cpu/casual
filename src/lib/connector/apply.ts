@@ -19,7 +19,7 @@ import {
 } from "../roster/workers";
 import { SecretUnreadable, secretsKey } from "../secret-store/crypto";
 import type { Geocoder } from "../travel/geocoder";
-import { mirrorBookings } from "./bookings";
+import { mirrorBookings, mirrorCancellations } from "./bookings";
 import { sessionBody, sessionBookings, staffWorker } from "./demo-portal";
 import {
   CONNECTOR_EVENT_QUEUE,
@@ -77,6 +77,8 @@ function apiOutcome(result: { status: number; body: unknown }): {
 } {
   const body = (result.body ?? {}) as { result?: unknown; error?: { code?: unknown } };
   if (result.status < 300) {
+    // A read older than the one the session last took (P5.5's review): nothing applied.
+    if (body.result === "older_read") return { status: "ignored", code: "older_read" };
     return { status: "applied", code: typeof body.result === "string" ? body.result : "applied" };
   }
   const code = typeof body.error?.code === "string" ? body.error.code : `http_${result.status}`;
@@ -154,8 +156,6 @@ async function applyEvent(
         enabled: rosterSources.enabled,
         connector: rosterSources.connector,
         baseUrl: rosterSources.baseUrl,
-        lastFullAt: rosterSources.lastSyncedAt,
-        lastNearAt: rosterSources.lastNearSyncedAt,
       })
       .from(connectorEvents)
       .innerJoin(
@@ -213,6 +213,8 @@ async function applyEvent(
     if (code === "unauthorised" || isLastTry(attempt)) return done({ status: "failed", code });
     throw err instanceof ConnectorFetchError ? err : new ConnectorFetchError("unreachable");
   }
+  // When the record was read: an older read than the session's last is never applied over it.
+  const readAt = (deps.clock ?? systemClock).now();
   if (fetched.status === "gone") return done({ status: "ignored", code: "gone" });
   const names = await run(firmId, (tx) => loadNameMap(tx));
   const applied = await applyRecord({
@@ -226,7 +228,7 @@ async function applyEvent(
     now,
     geocoder: deps.geocoder,
     localDatabase,
-    lastReadAt: latest(found.lastFullAt, found.lastNearAt),
+    readAt,
     // A worker's outcome is saved in the same transaction as the worker.
     saveInTx: (tx, outcome) => finish(tx, eventId, outcome, now),
   });
@@ -236,10 +238,6 @@ async function applyEvent(
 }
 
 export type RecordOutcome = { status: ConnectorEventStatus; code: string };
-
-// The later of two times (either may be missing).
-export const latest = (a: Date | null, b: Date | null): Date | null =>
-  a && b ? (a.getTime() > b.getTime() ? a : b) : (a ?? b);
 
 const MOBILE_KEY = "workers_firm_id_mobile_key";
 function isMobileTaken(err: unknown): boolean {
@@ -265,7 +263,7 @@ export async function applyRecord(a: {
   now: Date;
   geocoder?: Geocoder;
   localDatabase: boolean;
-  lastReadAt: Date | null; // when the source was last read before this (bookings.ts's evidence)
+  readAt: Date; // when the record was read from the source (after the fetch, or the pull's list)
   saveInTx?: (tx: FirmTx, outcome: RecordOutcome) => Promise<void>;
 }): Promise<{ outcome: RecordOutcome; transient: boolean }> {
   const settled = (outcome: RecordOutcome) => ({ outcome, transient: false });
@@ -276,6 +274,25 @@ export async function applyRecord(a: {
     const mapped = sessionBody(a.record, a.names);
     if (mapped.status === "skipped") return settled({ status: "ignored", code: "skipped_name" });
     if (mapped.status === "unreadable") return settled({ status: "refused", code: mapped.code });
+    // Who's booked on it in the firm's system (P5.5): its cancellations first, so a change the
+    // planner's rules refuse never keeps one from landing; its new bookings once the session is in.
+    const bookings = sessionBookings(a.record);
+    const mirror = bookings
+      ? {
+          run: a.run,
+          firmId: a.firmId,
+          by: a.by,
+          ref: a.ref,
+          bookings,
+          readAt: a.readAt,
+          now: a.now,
+        }
+      : null;
+    if (mirror) {
+      const cancelled = await mirrorCancellations(mirror);
+      if (cancelled === "not_allowed") return settled({ status: "ignored", code: "not_allowed" });
+      if (cancelled === "older_read") return settled({ status: "ignored", code: "older_read" });
+    }
     const result = await putPlannerSession(
       {
         run: a.run,
@@ -285,25 +302,14 @@ export async function applyRecord(a: {
         now: a.now,
         geocoder: a.geocoder,
         localDatabase: a.localDatabase,
+        readAt: a.readAt,
       },
       a.ref,
     );
     const outcome = apiOutcome(result);
-    // Who's booked on it in the firm's system (P5.5), once the session itself is in.
-    const bookings = sessionBookings(a.record);
-    if (outcome.status === "applied" && outcome.code !== "cancelled" && bookings) {
-      const mirrored = await mirrorBookings({
-        run: a.run,
-        firmId: a.firmId,
-        by: a.by,
-        ref: a.ref,
-        bookings,
-        lastReadAt: a.lastReadAt,
-        now: a.now,
-      });
-      if (mirrored === "not_allowed") {
-        return settled({ status: "ignored", code: "not_allowed" });
-      }
+    if (mirror && outcome.status === "applied" && outcome.code !== "cancelled") {
+      // Switched off since the session was applied: its outcome stands, the bookings wait.
+      await mirrorBookings(mirror);
     }
     return { outcome, transient: result.status >= 500 };
   }

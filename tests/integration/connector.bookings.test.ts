@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { HOUR } from "@/lib/auth/clock";
+import { HOUR, MINUTE } from "@/lib/auth/clock";
 import { applyConnectorEvent, type ConnectorApplyDeps } from "@/lib/connector/apply";
 import { demoPortal } from "@/lib/connector/demo-portal";
 import { receiveConnectorEvent } from "@/lib/connector/job";
@@ -9,6 +9,7 @@ import { fakeConnectorTransport } from "@/lib/connector/transport";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { bookShift } from "@/lib/roster/book";
 import { cancelBooking } from "@/lib/roster/cancel";
+import { FIRM_CHANGE_REASONS } from "@/lib/roster/firm-reasons";
 import { fakeGeocoder } from "@/lib/travel/geocoder";
 import { bookingFirm, NOW } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
@@ -199,17 +200,14 @@ describe("a booking the firm's system stops listing, or cancels", () => {
     ]);
   });
 
-  it("cancelled there: cancelled here, never a strike, notice from the system's own time when it's since the last read, else from now", async () => {
+  it("cancelled there: cancelled here, never a strike, notice from the system's own time when it's since the last read, else from the read", async () => {
     const t = await bookingsFirm();
     const ann = await t.casual("STAFF-ANN");
     const ben = await t.casual("STAFF-BEN");
     await t.changed(session([isBooked("STAFF-ANN"), isBooked("STAFF-BEN")]));
-    // Read in full at NOW; the system cancels Ann an hour later (her own time is since that read),
-    // and reports Ben's with a time before the read (it can't be his: the reading that favours him).
-    await su.query("update roster_sources set last_near_synced_at = $2 where id = $1", [
-      t.sourceId,
-      NOW,
-    ]);
+    // Read at NOW; the system cancels Ann an hour later (her own time is since that read), and
+    // reports Ben's with a time before the read (it can't be his: the reading that favours him) and
+    // a reason that isn't one of ours.
     const later = new Date(NOW.getTime() + 2 * HOUR);
     const result = await t.changed(
       session([
@@ -223,6 +221,7 @@ describe("a booking the firm's system stops listing, or cancels", () => {
           staff_ref: "STAFF-BEN",
           status: "cancelled",
           cancelled_at: new Date(NOW.getTime() - HOUR).toISOString(),
+          change_reason: "constructor",
         },
       ]),
       later,
@@ -286,14 +285,17 @@ describe("people and a connector's sessions", () => {
         at,
       ),
     ).toEqual({ status: "needs_approval" });
-    expect(
-      await bookShift(
+    // Hidden from casuals (a connector's sessions come in hidden): gone, as any hidden session.
+    const workerBooks = () =>
+      bookShift(
         withFirm,
         t.f.firmId,
         { shiftId, workerId: cat, by: { type: "worker", id: cat } },
         at,
-      ),
-    ).toEqual({ status: "needs_approval" });
+      );
+    expect(await workerBooks()).toEqual({ status: "not_found" });
+    await su.query("update shifts set showing_to_casuals = true where id = $1", [shiftId]);
+    expect(await workerBooks()).toEqual({ status: "needs_approval" });
     expect(
       await cancelBooking(
         withFirm,
@@ -313,6 +315,248 @@ describe("people and a connector's sessions", () => {
         t.f.firmId,
         { shiftId, workerId: cat, by: { type: "office", id: admin, overrides: [] } },
         at,
+      ),
+    ).toMatchObject({ status: "booked" });
+  });
+});
+
+describe("reads of a session, and changes the planner's rules refuse", () => {
+  it("a cancellation lands even when the change beside it is refused, and before it: places lowered past a cancelled casual's place", async () => {
+    const t = await bookingsFirm();
+    for (const ref of ["STAFF-ANN", "STAFF-BEN", "STAFF-CAT"]) await t.casual(ref);
+    const three = [isBooked("STAFF-ANN"), isBooked("STAFF-BEN"), isBooked("STAFF-CAT")];
+    await t.changed(session(three, { places: 3 }));
+    // Cat (in the third place) cancelled there, and the places lowered to 2, in one read.
+    const result = await t.changed(
+      session(
+        [
+          isBooked("STAFF-ANN"),
+          isBooked("STAFF-BEN"),
+          {
+            staff_ref: "STAFF-CAT",
+            status: "cancelled",
+            cancelled_at: new Date(NOW.getTime() + 30 * MINUTE).toISOString(),
+          },
+        ],
+        { places: 2 },
+      ),
+      new Date(NOW.getTime() + HOUR),
+    );
+    expect(result).toEqual({ status: "applied", code: "updated" });
+    expect(await t.booked()).toEqual([
+      { ref: "STAFF-ANN", status: "confirmed", booked_via: "api" },
+      { ref: "STAFF-BEN", status: "confirmed", booked_via: "api" },
+      { ref: "STAFF-CAT", status: "cancelled_firm", booked_via: "api" },
+    ]);
+    const { rows } = await su.query("select headcount from shifts where id = $1", [
+      await t.shiftId(),
+    ]);
+    expect(rows[0]?.headcount).toBe(2);
+  });
+
+  it("a read older than the session's last changes nothing: no booking or cancellation that never happened", async () => {
+    const t = await bookingsFirm();
+    await t.casual("STAFF-ANN");
+    const at = (minutes: number) => new Date(NOW.getTime() + minutes * MINUTE);
+    await t.changed(session([isBooked("STAFF-ANN")]), NOW);
+    // Read at 11:00: cancelled there at 10:00.
+    const cancelledThere = {
+      staff_ref: "STAFF-ANN",
+      status: "cancelled",
+      cancelled_at: at(60).toISOString(),
+    };
+    await t.changed(session([cancelledThere], { places: 3 }), at(120));
+    // Then a read taken at 09:30 (a pull's list, applied late) arrives: she's booked there.
+    expect(await t.changed(session([isBooked("STAFF-ANN")], { places: 2 }), at(30))).toEqual({
+      status: "ignored",
+      code: "older_read",
+    });
+    expect(await t.booked()).toEqual([
+      { ref: "STAFF-ANN", status: "cancelled_firm", booked_via: "api" },
+    ]);
+    expect((await eventsOf(t.f.firmId, "shift.assigned")).length).toBe(1);
+    expect((await eventsOf(t.f.firmId, "shift.cancelled")).length).toBe(1);
+    const { rows } = await su.query("select headcount, source_read_at from shifts where id = $1", [
+      await t.shiftId(),
+    ]);
+    expect(rows[0]).toEqual({ headcount: 3, source_read_at: at(120) });
+    // A late read that sends no bookings: its session change isn't applied either.
+    expect(await t.changed(session([], { places: 2, bookings: undefined }), at(30))).toEqual({
+      status: "ignored",
+      code: "older_read",
+    });
+
+    // The other way round: booked again there (newer), then a late read saying she's cancelled.
+    const u = await bookingsFirm();
+    await u.casual("STAFF-ANN");
+    await u.changed(session([isBooked("STAFF-ANN")]), NOW);
+    await u.changed(session([isBooked("STAFF-ANN")]), at(120));
+    expect(await u.changed(session([cancelledThere]), at(90))).toEqual({
+      status: "ignored",
+      code: "older_read",
+    });
+    expect(await u.booked()).toEqual([
+      { ref: "STAFF-ANN", status: "confirmed", booked_via: "api" },
+    ]);
+    const after = await su.query("select headcount from shifts where id = $1", [await t.shiftId()]);
+    expect(after.rows[0]?.headcount).toBe(3);
+  });
+
+  it("the system's own time counts only after the booking here; the latest of its cancellations; a time without its zone reads as none", async () => {
+    const t = await bookingsFirm();
+    await t.casual("STAFF-ANN");
+    await t.casual("STAFF-BEN");
+    await t.changed(session([isBooked("STAFF-ANN"), isBooked("STAFF-BEN")]), NOW);
+    // A session with no read on record (one from before reads were kept).
+    await su.query("update shifts set source_read_at = null where id = $1", [await t.shiftId()]);
+    const read = new Date(NOW.getTime() + 4 * HOUR);
+    expect(
+      await t.changed(
+        session([
+          // Before Ann was booked here: not hers.
+          {
+            staff_ref: "STAFF-ANN",
+            status: "cancelled",
+            cancelled_at: new Date(NOW.getTime() - HOUR).toISOString(),
+          },
+          // Ben cancelled twice there: the later one is his (listed first here).
+          {
+            staff_ref: "STAFF-BEN",
+            status: "cancelled",
+            cancelled_at: new Date(NOW.getTime() + 3 * HOUR).toISOString(),
+            change_reason: "weather",
+          },
+          {
+            staff_ref: "STAFF-BEN",
+            status: "cancelled",
+            cancelled_at: new Date(NOW.getTime() + HOUR).toISOString(),
+          },
+        ]),
+        read,
+      ),
+    ).toMatchObject({ status: "applied" });
+    const cancelled = await eventsOf(t.f.firmId, "shift.cancelled");
+    expect(cancelled.map((d) => [d.noticeFrom, d.sourceCancelledAt, d.reason])).toEqual([
+      ["read", new Date(NOW.getTime() - HOUR).toISOString(), "Another reason"],
+      ["source", new Date(NOW.getTime() + 3 * HOUR).toISOString(), "Weather or safety"],
+    ]);
+
+    const u = await bookingsFirm();
+    await u.casual("STAFF-CAT");
+    await u.changed(session([isBooked("STAFF-CAT")]), NOW);
+    await u.changed(
+      session([
+        { staff_ref: "STAFF-CAT", status: "cancelled", cancelled_at: "2026-11-02T10:00:00" },
+      ]),
+      read,
+    );
+    const [cat] = await eventsOf(u.f.firmId, "shift.cancelled");
+    expect(cat?.noticeFrom).toBe("read");
+    expect(cat?.sourceCancelledAt).toBeUndefined();
+  });
+
+  it("a booking cancelled here while the system still lists it isn't booked again", async () => {
+    const t = await bookingsFirm();
+    const ann = await t.casual("STAFF-ANN");
+    await t.changed(session([isBooked("STAFF-ANN")]), NOW);
+    // Switched off, Ann cancels in the app; switched back on, the system still lists her.
+    await su.query("update roster_sources set enabled = false where id = $1", [t.sourceId]);
+    expect(
+      await cancelBooking(
+        withFirm,
+        t.f.firmId,
+        {
+          shiftId: await t.shiftId(),
+          workerId: ann,
+          reason: "Unwell",
+          by: { type: "worker", id: ann },
+        },
+        { clock: { now: () => NOW } },
+      ),
+    ).toMatchObject({ status: "cancelled" });
+    await su.query("update roster_sources set enabled = true where id = $1", [t.sourceId]);
+    for (const hours of [1, 2]) {
+      await t.changed(session([isBooked("STAFF-ANN")]), new Date(NOW.getTime() + hours * HOUR));
+    }
+    expect(await t.booked()).toEqual([
+      { ref: "STAFF-ANN", status: "cancelled_worker", booked_via: "api" },
+    ]);
+  });
+
+  it("a refusal is said again once something about that casual on the session happened since", async () => {
+    const t = await bookingsFirm();
+    const dan = await t.casual("STAFF-DAN");
+    await t.casual("STAFF-ANN");
+    const at = (hours: number) => new Date(NOW.getTime() + hours * HOUR);
+    const cancelledAt = (ref: string, hours: number) => ({
+      staff_ref: ref,
+      status: "cancelled",
+      cancelled_at: at(hours).toISOString(),
+    });
+    // One place: Ann has it, Dan refused (no place), twice over.
+    await t.changed(session([isBooked("STAFF-ANN"), isBooked("STAFF-DAN")], { places: 1 }), at(0));
+    await t.changed(session([isBooked("STAFF-ANN"), isBooked("STAFF-DAN")], { places: 1 }), at(1));
+    // Ann cancelled there: Dan gets the place; then Dan cancelled and Ann booked again.
+    await t.changed(
+      session([cancelledAt("STAFF-ANN", 1.5), isBooked("STAFF-DAN")], { places: 1 }),
+      at(2),
+    );
+    await t.changed(
+      session([isBooked("STAFF-ANN"), cancelledAt("STAFF-DAN", 2.5)], { places: 1 }),
+      at(3),
+    );
+    // Dan booked there again with no place: said again (he was booked and cancelled since).
+    await t.changed(session([isBooked("STAFF-ANN"), isBooked("STAFF-DAN")], { places: 1 }), at(4));
+    const refused = (await eventsOf(t.f.firmId, "shift.booking_refused")).filter(
+      (d) => d.workerId === dan,
+    );
+    expect(refused.map((d) => d.codes)).toEqual([["no_place"], ["no_place"]]);
+  });
+});
+
+describe("the office and a connector's bookings", () => {
+  it("may cancel here a booking the system no longer lists, never one it lists; a casual can't", async () => {
+    const t = await bookingsFirm();
+    const ann = await t.casual("STAFF-ANN");
+    const ben = await t.casual("STAFF-BEN");
+    await t.changed(session([isBooked("STAFF-ANN"), isBooked("STAFF-BEN")]), NOW);
+    // The system stops listing Ann: kept here, as ever.
+    await t.changed(session([isBooked("STAFF-BEN")]), new Date(NOW.getTime() + HOUR));
+    const shiftId = await t.shiftId();
+    const admin = await t.f.office("admin");
+    const cancel = (
+      workerId: string,
+      by: { type: "office"; id: string } | { type: "worker"; id: string },
+    ) =>
+      cancelBooking(
+        withFirm,
+        t.f.firmId,
+        { shiftId, workerId, reason: FIRM_CHANGE_REASONS.other, by },
+        { clock: { now: () => NOW } },
+      );
+    expect(await cancel(ann, { type: "worker", id: ann })).toEqual({ status: "needs_approval" });
+    expect(await cancel(ben, { type: "office", id: admin })).toEqual({ status: "needs_approval" });
+    expect(await cancel(ann, { type: "office", id: admin })).toMatchObject({ status: "cancelled" });
+    expect(await t.booked()).toEqual([
+      { ref: "STAFF-ANN", status: "cancelled_firm", booked_via: "api" },
+      { ref: "STAFF-BEN", status: "confirmed", booked_via: "api" },
+    ]);
+  });
+
+  it("a session a planner key made, which the connector never reads, is the office's to book", async () => {
+    const t = await bookingsFirm();
+    const cat = await t.casual("STAFF-CAT");
+    const keyShift = await t.f.shift({ startsAt: START });
+    await su.query("update shifts set source = 'api', external_ref = 'KEY-S1' where id = $1", [
+      keyShift,
+    ]);
+    const admin = await t.f.office("admin");
+    expect(
+      await bookShift(
+        withFirm,
+        t.f.firmId,
+        { shiftId: keyShift, workerId: cat, by: { type: "office", id: admin, overrides: [] } },
+        { clock: { now: () => NOW } },
       ),
     ).toMatchObject({ status: "booked" });
   });

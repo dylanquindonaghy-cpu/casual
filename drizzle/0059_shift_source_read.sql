@@ -1,0 +1,2 @@
+ALTER TABLE "shifts" ADD COLUMN "source_read_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "shifts" ADD CONSTRAINT "shifts_source_read_api_only" CHECK ("shifts"."source_read_at" is null or "shifts"."source" = 'api');

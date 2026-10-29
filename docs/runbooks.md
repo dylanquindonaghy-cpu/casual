@@ -649,12 +649,15 @@ on a live database until then).
   them when the firm is ready (a first cycle can run beside its old way).
 - **Bookings (P5.5)** come in from the system: a booking made there is booked here if the rules
   pass (as the office's placement, with its overrides) and a place is left, else the log says why
-  (once); one cancelled there is cancelled here (never a strike), its notice from the system's own
-  time when that's since the last read, else from when it was read; one the system just stops
-  listing stays booked. While the planner is a connector, nobody books or cancels its sessions in
-  ShiftDesk: the office does it in the firm's system (the app says the rota can't be changed from
-  here), and it comes back in. Keep its sessions hidden from casuals until bookings can go out
-  (PLAN.md P5).
+  (again only when something changed for that casual); one cancelled there is cancelled here
+  (never a strike, no message or offers: the firm's system made the change), its notice from the
+  system's own time when that's after the booking and since the session was last read, else from
+  when it was read; one the system just stops listing stays booked (the office can cancel that
+  one here). A read older than one already applied to the session changes nothing. While the
+  planner is a connector, nobody else books or cancels its sessions in ShiftDesk: the office does
+  it in the firm's system (the office's screens say the rota can't be changed from here), and it
+  comes back in. A casual trying it gets a plain error until their words are agreed, so keep its
+  sessions hidden from casuals until bookings can go out (PLAN.md P5).
 - **Switch it off:** `… --off` (kept, not deleted: a change waiting on it then changes nothing).
   **Replace it:** connect another with `--replace`. **Renew its webhook secret:** switch it off and
   connect it again (a new source: a new id, so a new secret, and a new webhook address); rotating

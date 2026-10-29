@@ -112,8 +112,10 @@ export async function takeShift(
     case "not_found":
       return { status: "gone" };
     default:
-      // not_allowed, invalid_reason and needs_approval can't happen for a worker booking
-      // themselves on our tables.
+      // not_allowed and invalid_reason can't happen for a worker booking themselves on our
+      // tables. needs_approval can: a connector's session the office has shown (P5.5), booked in
+      // the firm's own system; its own words wait for Dylan (PLAN.md Parking lot, before a real
+      // connector).
       return { status: "error" };
   }
 }

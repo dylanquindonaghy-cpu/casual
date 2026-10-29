@@ -16,7 +16,6 @@ import {
   CONNECTOR_API_KEY_SECRET,
   connectorWorkerDeps,
   type ConnectorApplyDeps,
-  latest,
   type RecordOutcome,
   unexpectedCode,
 } from "./apply";
@@ -122,8 +121,17 @@ function readFailureCode(err: unknown): string {
         : "read_failed";
 }
 
-// The key from the secret store, then the records from the source, no transaction open. A full
-// pull's staff list failing leaves the sessions read (staffFailure).
+// The key from the secret store, then the records from the source, no transaction open, each list
+// with the time it was read. A full pull's staff list failing leaves the sessions read
+// (staffFailure).
+interface Read {
+  sessions: unknown[];
+  sessionsAt: Date;
+  staff: unknown[];
+  staffAt: Date;
+  staffFailure: string | null;
+}
+
 async function readSource(
   deps: ConnectorApplyDeps,
   a: {
@@ -135,28 +143,29 @@ async function readSource(
     now: Date;
     logger: Logger;
   },
-): Promise<
-  { sessions: unknown[]; staff: unknown[]; staffFailure: string | null } | { code: string }
-> {
+): Promise<Read | { code: string }> {
   const { firmId, sourceId } = a;
   try {
     const apiKey = await deps.readSecret(firmId, CONNECTOR_API_KEY_SECRET);
     if (apiKey === null) return { code: "no_api_key" };
     const base = { connector: a.connector, baseUrl: a.baseUrl, apiKey };
+    const clock = deps.clock ?? systemClock;
     const sessions = await deps.transport.list({
       ...base,
       type: "session.changed",
       from: a.now,
       ...(a.kind === "near" ? { to: new Date(a.now.getTime() + NEAR_WINDOW_MS) } : {}),
     });
-    if (a.kind === "near") return { sessions, staff: [], staffFailure: null };
+    const sessionsAt = clock.now();
+    const none = { sessions, sessionsAt, staff: [], staffAt: sessionsAt, staffFailure: null };
+    if (a.kind === "near") return none;
     try {
       const staff = await deps.transport.list({ ...base, type: "staff.changed" });
-      return { sessions, staff, staffFailure: null };
+      return { ...none, staff, staffAt: clock.now() };
     } catch (err) {
       const code = readFailureCode(err);
       a.logger.warn("connector pull: the source didn't list its staff", { firmId, sourceId, code });
-      return { sessions, staff: [], staffFailure: code };
+      return { ...none, staffFailure: code };
     }
   } catch (err) {
     const code = readFailureCode(err);
@@ -179,11 +188,6 @@ export async function runConnectorPull(
   const staleBefore = new Date(now.getTime() - PULL_LEASE_MS);
 
   const claim = await run(firmId, async (tx) => {
-    // When it was last read, before this pull: the bookings' evidence (bookings.ts).
-    const [before] = await tx
-      .select({ full: rosterSources.lastSyncedAt, near: rosterSources.lastNearSyncedAt })
-      .from(rosterSources)
-      .where(eq(rosterSources.id, sourceId));
     const [claimed] = await tx
       .update(rosterSources)
       .set({ syncStartedAt: now, lastAttemptedAt: now })
@@ -196,8 +200,7 @@ export async function runConnectorPull(
         ),
       )
       .returning({ connector: rosterSources.connector, baseUrl: rosterSources.baseUrl });
-    if (claimed)
-      return { ...claimed, lastReadAt: latest(before?.full ?? null, before?.near ?? null) };
+    if (claimed) return claimed;
     const [on] = await tx
       .select({ id: rosterSources.id })
       .from(rosterSources)
@@ -244,7 +247,7 @@ export async function runConnectorPull(
       await release({ ok: false, code: "off" });
       return { status: "off" };
     }
-    const { connector, baseUrl, lastReadAt } = claim;
+    const { connector, baseUrl } = claim;
     const by = { type: "connector" as const, sourceId };
 
     // Gate B, and the firm's planner still this connector (no planner key made live), before
@@ -313,7 +316,8 @@ export async function runConnectorPull(
             now: at,
             geocoder: deps.geocoder,
             localDatabase,
-            lastReadAt,
+            // When its list was read: an older read than the session's last is never applied.
+            readAt: type === "session.changed" ? read.sessionsAt : read.staffAt,
           });
         } catch (err) {
           // One record's unexpected failure doesn't stop the rest: counted, and the next pull tries

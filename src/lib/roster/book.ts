@@ -22,7 +22,7 @@ import { loadAllocationGate } from "./allocation-input";
 import { loadEligibilityInput, loadEligibilityInputs } from "./eligibility-input";
 import { nativeRosterPlug, sheetsRosterPlug } from "./native";
 import { noticeHours } from "./notice";
-import { plannerIsConnector } from "./planner-kind";
+import { connectorSession } from "./planner-kind";
 import type { AssignResult, RosterPlug, RosterSource } from "./plug";
 import { isVisibleToCasuals } from "./visibility";
 
@@ -250,10 +250,12 @@ async function bookInTransaction(
     overrides: by.type === "office" ? by.overrides : [],
   });
   if (check.status === "not_found") return { status: "not_found" };
-  // A connector's session: booked in the firm's own system, not here (planner-kind.ts).
-  if (check.source === "api" && (await plannerIsConnector(tx))) return { status: "needs_approval" };
   if (by.type === "worker" && !(await isVisibleToCasuals(tx, shiftId, { lock: true }))) {
     return { status: "not_found" };
+  }
+  // A connector's session: booked in the firm's own system, not here (planner-kind.ts).
+  if (check.source === "api" && (await connectorSession(tx, shiftId))) {
+    return { status: "needs_approval" };
   }
   const { result } = check;
   if (!result.pass) {

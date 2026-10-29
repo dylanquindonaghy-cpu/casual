@@ -2157,11 +2157,20 @@ so the office already reads them as "From your planner" and no new words are nee
       last read, else the reading that favours the casual, the evidence recorded; while a firm's
       planner is a connector, people can't book or cancel its sessions in ShiftDesk (`needs_approval`:
       the firm's system holds who's booked). Tests: each case, raced reads, a booking the system
-      stops listing, people refused (P5.5). **Narrowed, 2026-10-29** (the build): a booking made in
-      ShiftDesk "held as confirming, sent to the source, then confirmed or released" waits for a
-      system that takes writes (the real portal's API is unknown) and for the casual's words ("We're
-      confirming your place", "That place has just gone"), which come with the UI after the UI
-      chat; until then a connector's sessions come in hidden and are booked in the firm's system.
+      stops listing, people refused (P5.5). **Narrowed, 2026-10-29** (the build; for Dylan to
+      confirm): a booking made in ShiftDesk "held as confirming, sent to the source, then confirmed
+      or released" waits for a system that takes writes (the real portal's API is unknown) and for
+      the casual's words ("We're confirming your place", "That place has just gone"), which come
+      with the UI after the UI chat. In its place, no read-only plug (`canWrite` false): while the
+      firm's planner is a connector, `bookShift()` and `cancelBooking()` answer `needs_approval`
+      for the sessions it reads (the office may still cancel a booking the system no longer
+      lists), so its sessions come in hidden and are booked in the firm's system. The Tests line's
+      "raced bookings" and "the source down" became raced reads (two at once, and an older read
+      after a newer one) and a refused change beside a cancellation; a source that's down is the
+      events' and the pull's tests (nothing is read, so nothing changes). A cancellation time with
+      no zone reads as none (from the read), not as Europe/London time. A casual who tries to book
+      or cancel one of these sessions sees a plain error until their words are agreed (Parking
+      lot).
 
 A firm's planner is its API key or a connector, never both (P5.2's review: both would write the
 same sessions by the same refs): while a key is live, the connector changes nothing, and
@@ -2625,6 +2634,20 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
   (purge them with the retention job, at the firm's `retention.message_days` or their own). (A
   retry after a crash logging a refusal twice: fixed in P5.4's review, a connector's refusal that
   says what its last one said isn't logged again.)
+- The connector's bookings (P5.5's review), before a real connector:
+  - **For Dylan, the casual's words:** a casual's Cancel (after the strike warning) or Take on a
+    connector's session the office has shown ends in a plain "error" (`needs_approval`,
+    `src/lib/portal/cancel-shift.ts`, `take-shift.ts`); offers still go out on a shown one and
+    reminders for its bookings unless `firm_system_sends` is on. Words like "Your firm books this
+    shift in its own system: ask the office" (docs/screens.md first), or keep these sessions
+    hidden until the confirming path lands.
+  - A booking the system stops listing is kept and nothing is logged (the sheet's
+    `roster.sheet_conflict` has office words; a connector's needs its own, with the sync card), and
+    a staff ref nobody here has is skipped unlogged: both for Needs attention after the UI chat.
+  - The office can cancel a booking the system no longer lists (P5.5's review: else it stays for
+    ever); confirm that's the right way out.
+  - A cancellation from the system tells the casual nothing and starts no offers (as a name taken
+    off the rota sheet): the firm's system made it, and fills the gap there.
 - The connector (P5.4's review), for Dylan: a connector's new sessions come in hidden from casuals
   (the trial cycle, ADR-026) and nothing ends the trial yet: the office shows them with the Events
   page's switches (`src/lib/office/showing.ts`), an event or a session at a time. Decide when a

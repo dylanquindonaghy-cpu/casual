@@ -221,13 +221,19 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
 - `connector.bookings.test.ts` (P5.5) — who's booked on a connector's session, mirrored from the
   made-up portal on the real database: a booking made there is booked here through the rules as
   the office's placement (`booked_via` api, logged as the firm's with its source, no message to the
-  casual), a refused one logged once with its real reason, one past the places refused as no place;
-  two reads at once book a casual once; one the system stops listing is never cancelled, and a
-  record with no bookings touches none; one cancelled there is cancelled here (cancelled_firm,
-  `cancel_via` api, who asked unknown, never a strike), its notice from the system's own time when
-  that's since the last read, else from the read, with the evidence logged; and while the planner
-  is a connector, people can't book or cancel its sessions (`needs_approval`), until it's switched
-  off.
+  casual), a refused one logged with its real reason and again only once something about that
+  casual on the session happened since, one past the places refused as no place; two reads at once
+  book a casual once; one the system stops listing is never cancelled (the office may cancel it
+  here; a casual can't), and a record with no bookings touches none; one cancelled there is
+  cancelled here (cancelled_firm, `cancel_via` api, who asked unknown, never a strike, a reason that
+  isn't ours read as "other"), its notice from the system's own time when that's after the booking
+  here and since the session's last read, else from the read (the latest of its cancellations; a
+  time without its zone reads as none), with the evidence logged; a cancellation lands even when
+  the session change beside it is refused (places lowered past the cancelled place); a read older
+  than the session's last changes nothing, either way round; a booking cancelled here while the
+  system still lists it isn't booked again; while the planner is a connector, people can't book or
+  cancel its sessions (`needs_approval`; a casual sees a hidden one as gone first), until it's
+  switched off, and a session a planner key made isn't the connector's.
 - `rules.any-of.test.ts` (P3.3, Rules 3) — "any of" licences, on the real database as the app role:
   the security pack's security officer needs one of an SIA security guard or door supervisor
   licence (other rules unchanged), and the database refuses a group of one, a type in both lists

@@ -414,6 +414,13 @@
       "when": 1793289087872,
       "tag": "0058_connector_events_ref",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1793290520777,
+      "tag": "0059_shift_source_read",
+      "breakpoints": true
     }
   ]
 }

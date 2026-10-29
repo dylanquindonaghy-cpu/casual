@@ -233,9 +233,12 @@ sheet row deleted by the office must stop being bookable before the sync notices
 **Amended (P5.5, 2026-10-29):** a connector's bookings mirror (`src/lib/connector/bookings.ts`,
 ADR-026) is a second sync of the same kind: it books through `checkBooking()` with the office's
 overrides and the plug's one conditional update, and cancels through the plug with the notice
-hours logged, in one transaction under the source's row and then the shift's lock. While a firm's
-planner is a connector, `bookShift()` and `cancelBooking()` answer `needs_approval` for its
-sessions (people book in the firm's own system).
+hours logged: its cancellations before the session's own change and its new bookings after it,
+each step one transaction under the source's row and then the shift's lock, and a read older than
+the session's last (`shifts.source_read_at`) changing nothing. While a firm's planner is a
+connector, `bookShift()` and `cancelBooking()` answer `needs_approval` for the sessions it reads
+(people book in the firm's own system), except that the office may cancel a booking the system no
+longer lists.
 
 ## ADR-015: Fair rotation on the Open shifts board is a short priority window
 

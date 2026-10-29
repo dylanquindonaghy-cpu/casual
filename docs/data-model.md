@@ -496,8 +496,15 @@ create table shifts (
   synced_holders text[],                 -- Sheets: the "Assigned" cell's staff ids after the last
                                          -- successful sync (the three-way merge's base; names the
                                          -- sync couldn't book left out, so they're tried again).
-                                         -- A connector's session (P5.5): the staff refs both sides
-                                         -- hold after the last read
+                                         -- A connector's session (P5.5): the staff refs the system
+                                         -- listed at the last read, less those it couldn't book
+                                         -- here (a booking cancelled here stays in, so it isn't
+                                         -- booked again)
+  source_read_at timestamptz,            -- a connector's session only (P5.5's review): when its
+                                         -- record was last read and applied; an older read
+                                         -- changes nothing, and it is the session's "last read"
+                                         -- for a cancellation's notice (null: not a connector's;
+                                         -- shifts_source_read_api_only)
   sheet_issues jsonb,                    -- Sheets only (Phase 10): what the sheet asks for that the last
                                          -- sync couldn't do ({change?: {fields, wanted, reason, workers},
                                          -- names?: [{workerId, codes, dropped?}]}), for the dashboard; null: none

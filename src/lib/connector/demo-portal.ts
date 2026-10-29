@@ -60,6 +60,8 @@ export interface SourceBookings {
 // Who the session's record says is booked, or null when it says nothing about bookings (a system
 // that doesn't send them: nothing here is touched). A cancellation's time that isn't one reads as
 // none (the reading that favours the casual is then used: bookings.ts).
+const ZONED = /(?:Z|[+-]\d{2}:?\d{2})$/i;
+
 export function sessionBookings(raw: unknown): SourceBookings | null {
   const parsed = demoSessionRecord.safeParse(raw);
   if (!parsed.success || parsed.data.bookings === undefined) return null;
@@ -70,7 +72,9 @@ export function sessionBookings(raw: unknown): SourceBookings | null {
       if (!booked.includes(b.staff_ref)) booked.push(b.staff_ref);
       continue;
     }
-    const at = b.cancelled_at ? new Date(b.cancelled_at) : null;
+    // Only a time with its zone (Z or an offset): one without is the system's local time, which
+    // can't be read for certain (the hour the clocks go back comes twice), so it reads as none.
+    const at = b.cancelled_at && ZONED.test(b.cancelled_at) ? new Date(b.cancelled_at) : null;
     cancelled.push({
       ref: b.staff_ref,
       at: at && !Number.isNaN(at.getTime()) ? at : null,

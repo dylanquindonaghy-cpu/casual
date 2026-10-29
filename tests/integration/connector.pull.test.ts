@@ -411,9 +411,10 @@ describe("the reconcile pull", () => {
         }),
       );
     }
-    // Five minutes pass at every look at the clock: the lease, the first record, the second.
+    // Three minutes pass at every look at the clock: the lease, the list read, the first record
+    // (6 minutes in), the second (9: past the 8-minute budget).
     let looks = 0;
-    const clock = { now: () => new Date(NOW.getTime() + looks++ * 5 * MINUTE) };
+    const clock = { now: () => new Date(NOW.getTime() + looks++ * 3 * MINUTE) };
     expect(await t.pull("near", { clock })).toEqual({ status: "failed", code: "out_of_time" });
     expect((await t.shiftsNow()).map((r) => r.external_ref)).toEqual(["PORTAL-S1"]);
     expect(await t.source()).toMatchObject({
@@ -421,14 +422,14 @@ describe("the reconcile pull", () => {
       last_error_code: "out_of_time",
       sync_started_at: null,
     });
-    // The record applied at its own time, not the lease's: booked 5 minutes in, 24 hours and 55
+    // The record applied at its own time, not the lease's: booked 6 minutes in, 24 hours and 54
     // minutes before it starts.
     const { rows } = await su.query<{ notice: number }>(
       `select (data ->> 'noticeHours')::float8 as notice from events
         where firm_id = $1 and action = 'shift.assigned'`,
       [t.f.firmId],
     );
-    expect(rows).toEqual([{ notice: 24.92 }]);
+    expect(rows).toEqual([{ notice: 24.9 }]);
   });
 
   it("every record failing is the pull failing; anything unexpected lets the lease go with its code", async () => {

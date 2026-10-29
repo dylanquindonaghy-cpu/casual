@@ -2,7 +2,7 @@ import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { systemClock, type Clock } from "../auth/clock";
 import { retryAborted } from "../db/retry";
-import { assignments, offers, shifts } from "../db/schema";
+import { assignments, offers, shifts, workers } from "../db/schema";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { officeCanPlace, plugFor, rosterId } from "./book";
@@ -13,7 +13,7 @@ import {
   firmCallerSchema,
   sourceRefusal,
 } from "./firm-caller";
-import { plannerIsConnector } from "./planner-kind";
+import { connectorSession } from "./planner-kind";
 import type { CancelResult } from "./plug";
 import { queueFirmChangeNotice } from "../notices/firm-change";
 import { placeAfterCancel, removeFreedPlace } from "./native";
@@ -106,6 +106,15 @@ export async function cancelBooking(
   return retryAborted(() => run(firmId, (tx) => cancelInTransaction(tx, request, now)));
 }
 
+// Whether the firm's system listed this casual as booked at its last read (by their staff ref).
+async function listedThere(tx: FirmTx, workerId: string, listed: string[]): Promise<boolean> {
+  const [worker] = await tx
+    .select({ ref: workers.externalRef })
+    .from(workers)
+    .where(eq(workers.id, workerId));
+  return worker?.ref != null && listed.includes(worker.ref);
+}
+
 async function cancelInTransaction(
   tx: FirmTx,
   request: z.output<typeof cancelRequestSchema>,
@@ -127,8 +136,12 @@ async function cancelInTransaction(
     .for("no key update");
   if (!shift) return { status: "not_found" };
   // A connector's session: cancelled in the firm's own system, which comes back in
-  // (planner-kind.ts).
-  if (shift.source === "api" && (await plannerIsConnector(tx))) return { status: "needs_approval" };
+  // (planner-kind.ts). A booking that system no longer lists isn't there to cancel: the office
+  // cancels it here (src/lib/connector/bookings.ts keeps it otherwise, for ever).
+  const connector = shift.source === "api" ? await connectorSession(tx, shiftId) : null;
+  if (connector && (by.type !== "office" || (await listedThere(tx, workerId, connector.listed)))) {
+    return { status: "needs_approval" };
+  }
   if (by.type === "worker" && shift.startsAt.getTime() <= now.getTime()) {
     return { status: "started" };
   }

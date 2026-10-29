@@ -2163,7 +2163,7 @@ so the office already reads them as "From your planner" and no new words are nee
       off, show it and the webhook secret to give the firm's system, each logged as a settings
       change) like the sheet's. Tests: a bad or missing signature 403 and nothing stored, the same
       event twice stored once, a fetch that fails retried, nothing from the body trusted (P5.3)
-- [ ] The reconcile pull (jobs): a tick like the Sheets sync's (lease per source, back-off on
+- [x] The reconcile pull (jobs): a tick like the Sheets sync's (lease per source, back-off on
       failure; never holding the source's row while it applies a record, since each change takes
       that row for share: P5.2's review), sessions in the next 48 hours every 15 minutes and
       everything else nightly, each record applied as a webhook's is, only changes logged; sessions
@@ -2304,7 +2304,7 @@ logged needs the office's words for it in the log (`src/lib/office/event-words.t
 ready, and nothing works on them (no job is queued for a handler that doesn't exist yet: P7.4
 queues the ones waiting).
 
-- [ ] The firm's inbox and its emails (S, T): a firm's inbound address (`firms.inbox_address`,
+- [x] The firm's inbox and its emails (S, T): a firm's inbound address (`firms.inbox_address`,
       unique, lower case; set, changed and cleared only by an owner command, `npm run
       firm:inbox`, logged as a settings change, as `firm:line`), found before a firm is known by an
       owner-run function (`resolveFirmByInbox()`, as `resolveFirmByLine()`); `inbound_emails`, one
@@ -2313,7 +2313,7 @@ queues the ones waiting).
       isolation fixtures, the worker's export and erasure, and the retention purge. Tests: another
       firm's emails unreadable, a second address taken refused, a casual's export and erasure
       include theirs (P7.1)
-- [ ] The provider's webhook in (A, M): `POST /api/webhooks/email` for the made-up provider (its
+- [x] The provider's webhook in (A, M): `POST /api/webhooks/email` for the made-up provider (its
       signing secret in the web's settings, `EMAIL_INBOUND_SECRET`, a Standard Webhooks `whsec_`
       key; unset, the webhook answers 503; a real provider comes with its ADR), checked as the
       connector's (Standard Webhooks signature, a bounded body, JSON and UTF-8 only); the firm

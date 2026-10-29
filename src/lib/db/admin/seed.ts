@@ -306,6 +306,7 @@ export async function loadSaturday(
         cancelledAt: b.cancelledAt,
         cancelReason: b.cancelReason,
         noticeHours: b.noticeHours === null ? null : b.noticeHours.toFixed(2),
+        bookedVia: "app" as const, // logged below as the worker's own booking (P2.2)
       })),
     )
     .onConflictDoNothing()
@@ -575,6 +576,7 @@ async function loadExtraShifts(
       cancelledAt: b.cancelledAt,
       cancelReason: b.cancelReason,
       noticeHours: b.noticeHours === null ? null : b.noticeHours.toFixed(2),
+      bookedVia: "app" as const, // logged below as the worker's own booking (P2.2)
     })),
   );
   const resourcer = firm.officeUsers.find((u) => u.role === "resourcer");

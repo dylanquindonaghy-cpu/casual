@@ -136,6 +136,20 @@ describe("the demo seed", () => {
     });
   });
 
+  it("every booking says where it was made, as its shift.assigned line says: a casual's own in the app (P2.2)", async () => {
+    const { rows } = await su.query<{ booked_via: string | null; by: string | null; n: number }>(
+      `select a.booked_via, e.data ->> 'by' as by, count(*)::int as n
+         from assignments a
+         left join events e on e.firm_id = a.firm_id and e.entity_id = a.id
+                           and e.action = 'shift.assigned'
+        where a.firm_id = any($1) and a.worker_id is not null
+        group by 1, 2 order by 1, 2`,
+      [[ACME, NORTHLINE]],
+    );
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.map((r) => [r.booked_via, r.by])).toEqual([["app", "worker"]]);
+  });
+
   it("each firm's data is visible only inside that firm, with its own sign-off", async () => {
     const acme = await withFirm(ACME, (tx) =>
       tx.execute<{ n: number }>(sql`select count(*)::int as n from workers`),

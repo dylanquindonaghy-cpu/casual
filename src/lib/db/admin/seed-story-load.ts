@@ -355,6 +355,7 @@ export async function loadStory(
         cancelReason: b.cancelReason,
         noticeHours: b.noticeHours === null ? null : b.noticeHours.toFixed(2),
         cancelVia: b.cancelVia,
+        bookedVia: "app" as const, // logged below as the worker's own booking (P2.2)
         ...(b.status === "cancelled_worker"
           ? { strikeWarningVersion: STRIKE_WARNING_VERSION, strikeWarningShownAt: b.cancelledAt }
           : {}),

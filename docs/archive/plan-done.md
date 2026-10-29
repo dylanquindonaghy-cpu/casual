@@ -1,9 +1,9 @@
 # Finished phases (archive)
 
 Moved from `PLAN.md` word for word on 2026-10-29 (P1.1): every numbered phase with all its boxes
-ticked. Frozen: its sha256 is pinned in `scripts/invariants.sh`, so any change to it fails verify.
-Phases finished later go to a new archive file with a pin of its own. Line numbers that older docs
-give for these phases are `PLAN.md`'s as it was then.
+ticked. Frozen: its sha256 is pinned in `scripts/archive-check.sh`, which `scripts/invariants.sh`
+runs, so any change to it fails verify. Phases finished later go to a new archive file with a pin
+of its own. Line numbers that older docs give for these phases are `PLAN.md`'s as it was then.
 
 ## Phase 0 — Repo, tooling, guardrails (10–15 h)
 

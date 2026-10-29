@@ -5,7 +5,8 @@ argument-hint: "[optional: phase number or task text]"
 
 1. Read `CLAUDE.md` and `PLAN.md` (it holds only the open work: the finished phases are in
    `docs/archive/plan-done.md`, frozen, and need no reading). If $ARGUMENTS is given, use that
-   phase or task; otherwise take the first unchecked `[ ]` task in the earliest unfinished phase.
+   phase or task; otherwise take the first unchecked `[ ]` task in the earliest unfinished phase
+   that `docs/plan/blocked.md` doesn't list.
 2. Check the gates in `PLAN.md`. If the task is beyond Phase 3 and Gate A isn't marked passed,
    stop and remind me to do the discovery calls first.
 3. Read only the docs the task needs (the phase lists them).

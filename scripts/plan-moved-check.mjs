@@ -1,57 +1,59 @@
 #!/usr/bin/env node
-// Nothing lost in P1's move (PLAN.md P1.1 to P1.3): every line of PLAN.md before the move is still
-// in PLAN.md, the frozen archive or docs/plan/, at least as many times as it was; and each log's
-// sections, cut by month into docs/logs/, still start with the old body byte for byte (later
-// sections may follow). A box ticked since the move counts as the same line.
-//   node scripts/plan-moved-check.mjs [commit]   (default: the one before the archive was added)
+// Nothing lost in P1's move (PLAN.md P1.1 to P1.3), checked on the commit that made it against the
+// one before: every line of PLAN.md before is in PLAN.md, the frozen archive or docs/plan/ after,
+// at least as many times as it was; and each log's sections, cut by month into docs/logs/, start
+// with the old body byte for byte. Later edits to these files don't change the answer.
+//   node scripts/plan-moved-check.mjs [commit]   (default: the commit that added the archive)
 import { execFileSync } from "node:child_process";
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 
 const git = (...args) => execFileSync("git", args, { encoding: "utf8", maxBuffer: 1 << 28 });
-const before =
+const move =
   process.argv[2] ??
-  `${git("log", "--diff-filter=A", "--format=%H", "-1", "--", "docs/archive/plan-done.md").trim()}~1`;
-if (before === "~1") {
-  console.error("no archive yet: pass the commit before the move");
+  git("log", "--diff-filter=A", "--format=%H", "-1", "--", "docs/archive/plan-done.md").trim();
+if (move === "") {
+  console.error("no archive yet: pass the commit that made the move");
   process.exit(2);
 }
-const read = (path) => readFileSync(path, "utf8");
+const before = `${move}~1`;
+const at = (rev, path) => git("show", `${rev}:${path}`);
+const files = (rev, dir) =>
+  git("ls-tree", "--name-only", `${rev}:${dir}`)
+    .split("\n")
+    .filter((name) => name !== "");
 const problems = [];
 
 // PLAN.md's lines, counted.
-const key = (line) => line.replace(/\[[ xX]\]/, "[ ]").trimEnd();
 const count = (text, into = new Map()) => {
   for (const line of text.split("\n")) {
-    if (line.trim() === "") continue;
-    into.set(key(line), (into.get(key(line)) ?? 0) + 1);
+    const key = line.trimEnd();
+    if (key.trim() !== "") into.set(key, (into.get(key) ?? 0) + 1);
   }
   return into;
 };
-const now = count(read("PLAN.md"));
-count(read("docs/archive/plan-done.md"), now);
-for (const name of readdirSync("docs/plan")) count(read(join("docs/plan", name)), now);
-const was = count(git("show", `${before}:PLAN.md`));
+const after = count(at(move, "PLAN.md"));
+count(at(move, "docs/archive/plan-done.md"), after);
+for (const name of files(move, "docs/plan")) count(at(move, `docs/plan/${name}`), after);
 let lines = 0;
-for (const [line, n] of was) {
+for (const [line, n] of count(at(before, "PLAN.md"))) {
   lines += n;
-  if ((now.get(line) ?? 0) < n)
+  if ((after.get(line) ?? 0) < n)
     problems.push(`PLAN.md: lost ${JSON.stringify(line.slice(0, 100))}`);
 }
 
-// The logs: the month files' sections, joined in order, start with the old body.
+// The logs: the month files' sections, joined in order, start with the old body; the index lists
+// each month.
 for (const [kind, src] of [
   ["work", "docs/work-log.md"],
   ["overnight", "docs/overnight-log.md"],
 ]) {
-  const old = git("show", `${before}:${src}`);
+  const old = at(before, src);
   const body = old.slice(old.search(/^## /m));
-  const months = readdirSync("docs/logs")
+  const months = files(move, "docs/logs")
     .filter((name) => new RegExp(`^${kind}-\\d{4}-\\d{2}\\.md$`).test(name))
     .sort();
   const joined = months
     .map((name) => {
-      const text = read(join("docs/logs", name));
+      const text = at(move, `docs/logs/${name}`);
       const cut = text.indexOf("\n---\n\n");
       if (cut < 0) problems.push(`${name}: no "---" after its header`);
       return text.slice(cut + 6);
@@ -59,7 +61,7 @@ for (const [kind, src] of [
     .join("");
   if (!joined.startsWith(body))
     problems.push(`${src}: the month files don't start with its old body`);
-  const index = read(src);
+  const index = at(move, src);
   for (const name of months) {
     if (!index.includes(`(logs/${name})`)) problems.push(`${src}: doesn't list logs/${name}`);
   }
@@ -69,4 +71,4 @@ if (problems.length > 0) {
   console.error(problems.join("\n"));
   process.exit(1);
 }
-console.log(`nothing lost since ${before}: ${lines} lines of PLAN.md, and both logs`);
+console.log(`nothing lost in ${move.slice(0, 7)}: ${lines} lines of PLAN.md, and both logs`);

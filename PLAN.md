@@ -24,8 +24,8 @@ One firm uses the product for real for 4 weeks, paid (£299 upfront), and we can
 - If time gets tight, cut in this order: call-to-text → payroll digest → fair rotation →
   offline My shifts. Never cut: tenancy, rules engine, event log, notice report.
 - Don't trust how fast AI makes you *feel*. A 2025 randomised trial found experienced developers
-  were 19% slower with AI tools while believing they were 20% faster. Log real hours below with
-  `/log-hours`.
+  were 19% slower with AI tools while believing they were 20% faster. Log real hours in the Hours
+  log (`docs/plan/hours-log.md`) with `/log-hours`.
 
 ## Timeline
 
@@ -56,8 +56,8 @@ One firm uses the product for real for 4 weeks, paid (£299 upfront), and we can
 ## Still open from earlier phases
 
 The finished phases (every box ticked) are in `docs/archive/plan-done.md`, moved there word for word
-on 2026-10-29 (P1.1) and frozen. These earlier phases still have open items; each keeps its "Done
-when" line here.
+on 2026-10-29 (P1.1) and frozen. These earlier phases still have open items; those with a "Done
+when" line (Phases 15 and 22) keep it here. What's blocked, and on whom: `docs/plan/blocked.md`.
 
 ## Phase 4 — Urgent board, notifications, offer waves (27–37 h)
 
@@ -131,8 +131,9 @@ firm's key from P5's secret store, so it comes after P5's framework. The first t
 (after the UI chat's Phase 24, mock-ups first) and the third waits for the firm to turn replies on.
 
 Proposed 2026-10-19 after Dylan's decision ("we wont need whatsapp or twillio notifications will
-come through our own text system and app"; see "Decided on 2026-10-19" under Decisions). Not
-started: it waits for Dylan's go-ahead and the text system's details (how a text is sent, whether
+come through our own text system and app"; see "Decided on 2026-10-19" in
+`docs/plan/decisions-waiting.md`). Not started then (the sender, 15.2, has been built since): it
+waited for Dylan's go-ahead and the text system's details (how a text is sent, whether
 incoming texts can be passed on, delivery reports, the sending number or name). It replaces
 Phases 4 and 7's unticked WhatsApp, Twilio and call items, "Connect Twilio" and "Submit the
 WhatsApp templates".
@@ -173,7 +174,7 @@ Docs: `docs/messaging-templates.md`, `docs/architecture.md`, `docs/screens.md`.
 
 **The text system's details, found 2026-10-26** (from public docs; to confirm with the pilot firm,
 `docs/discovery-axlr8.md`): AXLR8, the firm's CRM, sends its texts through **Webex Interact**. Webex
-Interact has a send API (`https://api.webexinteract.com/v1/sms/`, an access token in the
+Interact has a send API (`https://api.webexinteract.com/v1/sms`, an access token in the
 `X-AUTH-KEY` header) and webhooks for "Inbound SMS Received" (a unique event `id`, the sender's
 number, the number it came in on, the text and its time), "Outbound SMS - Delivered" and "Failed",
 and "SMS Opt Out Received", with an optional signature. Replies need a "dedicated inbound number":
@@ -312,37 +313,44 @@ can send any texts the firm chooses, and ShiftDesk sends the texts about its own
 - **What stays:** a change made in AXLR8 reaches the portal on its hourly copy, so ShiftDesk still
   offers casuals only the places the office opens to it.
 
+**Phase 24 merged on 2026-10-29** (the UI chat's last phase so far): the items below waiting for
+it ("after the UI chat's Phase 24") can start now, each that changes a screen with a mock-up first
+(CLAUDE.md, "How to work each task").
+
 **Order.** Now: Dylan gets access to the ops portal's documentation and a test copy with made-up
 data, and sends the follow-ups (`docs/discovery-axlr8.md` §4 and §5). After the parallel UI chat's
-work is merged (it edits the same files): P1, then P2, P3 (each item as it's decided), P5's
-framework and secret store, P7's core and P8, all on made-up data. P4's back end now, alongside the
-UI chat (go-ahead 2026-10-26: it changes no screen), and its office pages after the merge. Once the API's shape is known: P5's first connector (the ops
-portal), P6, and Phase 15's texts. After signing: the real API key, a shadow cycle (P5's sessions
-come in hidden from casuals; the office compares ShiftDesk's required and booked counts with the ops
-portal each day for one pay cycle), a few events live, then everything, then the email inbox.
-AXLR8 directly when it can be asked.
+work is merged (it edits the same files): P1 (built last instead: Dylan, 2026-10-29), then P2, P3
+(each item as it's decided), P5's framework and secret store, P7's core and P8, all on made-up data.
+P4's back end now, alongside the UI chat (go-ahead 2026-10-26: it changes no screen), and its office
+pages after the merge. Once the API's shape is known: P5's first connector (the ops portal), P6, and
+Phase 15's texts. After signing: the real API key, a shadow cycle (P5's sessions come in hidden from
+casuals; the office compares ShiftDesk's required and booked counts with the ops portal each day for
+one pay cycle), a few events live, then everything, then the email inbox. AXLR8 directly when it can
+be asked.
 
 ### P1 — The repo, easier for Claude (attended; docs and config only; go-ahead: Dylan, 2026-10-29, built last)
 
-Why: `PLAN.md` is about 530 KB (well over 100k tokens) and `/next-task` reads all of it;
-`docs/work-log.md` is 858 KB and `docs/overnight-log.md` 1.1 MB, and both only grow. Built last,
-after P5, P7's back end and the Phase 15 sender were ticked, so nothing else was editing `PLAN.md`.
+Why (before P1): `PLAN.md` was about 530 KB (well over 100k tokens) and `/next-task` read all of
+it; `docs/work-log.md` was 858 KB and `docs/overnight-log.md` 1.1 MB, and both only grew. Built
+last, after P5 and the Phase 15 sender were ticked and P7's back end was built, so nothing else was
+editing `PLAN.md`.
 Nothing under `src/` changes but the new local `CLAUDE.md` files, and no word a casual or the
 office sees.
 
-- [ ] The archive (attended): the numbered phases with every box ticked (Phases 0 to 3, 5, 10 to
-      14, 16 to 21, 23 and 24) move word for word to `docs/archive/plan-done.md`, frozen: its
-      sha256 is pinned in `scripts/invariants.sh`, so any change to it fails verify and blocks
-      every tick until undone (not a `*PLAN.md` name, which the tick guard would refuse as new
-      ticked lines). The phases still open (the Gates, Phases 4, 6, 7, 8, 9, 15 and 22) stay
-      under "Still open from earlier phases", each with its "Done when" line, where `/close-task`
-      and the `claims-auditor` read it; the proposals P1 to P8 stay whole (P2 to P4's back ends
-      are ticked, but their screens wait for the UI chat). `scripts/plan-moved-check.mjs` shows
-      every line taken out of `PLAN.md` is in a new file, word for word. Tests: the pin fails on
-      a planted change (`scripts/selftest.sh`), nothing lost (P1.1)
+- [ ] - [ ] The archive (attended): the numbered phases with every box ticked (Phases 0 to 3, 5, 10
+      to 14, 16 to 21, 23 and 24) move word for word to `docs/archive/plan-done.md`, frozen: its
+      sha256 is pinned in `scripts/archive-check.sh`, which `scripts/invariants.sh` runs (check 9),
+      so any change to it fails verify and blocks every tick until undone (not a `*PLAN.md` name,
+      which the tick guard would refuse as new ticked lines). The phases still open (the Gates,
+      Phases 4, 6, 7, 8, 9, 15 and 22) stay under "Still open from earlier phases", each with its
+      "Done when" line where it has one (Phases 15 and 22), where `/close-task` and the
+      `claims-auditor` read it; the proposals P1 to P8 stay whole (P2 to P4's back ends are ticked,
+      but their screens wait for the UI chat). `scripts/plan-moved-check.mjs` shows every line taken
+      out of `PLAN.md` is in a new file, word for word. Tests: the pin fails on a planted change
+      (`scripts/selftest.sh`), nothing lost (P1.1)
 - [ ] The Parking lot, the Hours log and the Decisions list (attended) move to
       `docs/plan/parking-lot.md`, `docs/plan/hours-log.md` and `docs/plan/decisions-waiting.md`,
-      each leaving its heading in `PLAN.md` with a one-line pointer, so the 316 lines in 58 files
+      each leaving its heading in `PLAN.md` with a short pointer, so the 316 lines in 58 other files
       that say "the Parking lot", "the Hours log" or "Decisions waiting for Dylan" (2026-10-29)
       still lead to it (none needs
       changing, and none under `src/app/` may change while the UI chat works); old `PLAN.md` line
@@ -362,7 +370,9 @@ office sees.
 - [ ] Short local `CLAUDE.md` files under `src/lib/integrations/`, `src/lib/rules/`,
       `src/lib/roster/` and `src/worker/`, which Claude Code reads only when working there: what
       lives there, its rules and the docs to read. None under `src/app/`, which unit tests walk;
-      checked that no test reads every file under these folders (P1.5)
+      two tests read every file under `src/` (`tests/unit/repo.made-up-data.test.ts`,
+      `tests/unit/no-aws.test.ts`), and the new files pass them: no address, postcode or AWS word
+      (P1.5)
 
 Done when: P1.1 to P1.5 are ticked, each with a stamp that includes the browser tests;
 `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; `scripts/selftest.sh` passes, with the archive's
@@ -532,7 +542,8 @@ The proposal (2026-10-26):
    as the default; the setting goes through `src/lib/onboarding/settings.ts` and a migration like
    `drizzle/0037_firm_setting_checks.sql`; its readers are the top bar (`src/app/office/layout.tsx`,
    `office-shell.tsx`, `office-frame.tsx`), the dashboard (`dashboard-view.tsx`,
-   `dashboard-charts-load.ts`), the pay dashboard (`src/lib/office/pay-dashboard.ts`), and Home
+   `dashboard-charts-load.ts`, gone since Phase 24.3: its reader to find again), the pay
+   dashboard (`src/lib/office/pay-dashboard.ts`), and Home
    (`src/app/page.tsx`, `src/app/home-view.tsx`, `src/lib/portal/home-copy.ts`); pay-query grouping
    (`src/lib/pay/grouping.ts`) groups by the Monday (`mondayOf`) and moves to the pay period. The weekly hours cap stays Monday to
    Sunday. Tests use made-up anchors, the 53-week year (2026) and the clock change.

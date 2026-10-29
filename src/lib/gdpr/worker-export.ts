@@ -8,6 +8,7 @@ import {
   assignments,
   credentials,
   firms,
+  inboundEmails,
   magicLinks,
   messages,
   offers,
@@ -39,7 +40,8 @@ import { renumberEvents } from "./event-numbers";
 // it within a month). Everything this firm holds about one worker: their details, credentials,
 // days off, their travel area (12G.1), bookings, strikes (12C.1), offers, requests, reminders,
 // pay lines, pay queries, shifts-line messages
-// (with messages from or to their number from before it was known), the action log's rows about
+// (with messages from or to their number from before it was known), emails to the staffing inbox
+// (with those from their address before it was known), the action log's rows about
 // them, the shifts those were about, and when they logged in. Every column as stored, except the
 // firm and worker ids on each row and the login secrets (link, session and code hashes, and a
 // phone's push keys: those say only when a phone turned notifications on).
@@ -191,6 +193,21 @@ export async function collectWorkerData(
           .from(messages)
           .where(or(inArray(messages.id, ownIds), inArray(messages.replyTo, ownIds)))
           .orderBy(asc(messages.createdAt), asc(messages.id));
+  // Their emails to the staffing inbox (P7.1): set to them, and from their address before it was
+  // known. The same rows app_erase_worker() deletes.
+  const email = typeof worker.email === "string" ? String(worker.email).toLowerCase() : null;
+  const emailRows = await tx
+    .select(columnsOf(inboundEmails))
+    .from(inboundEmails)
+    .where(
+      email
+        ? or(
+            eq(inboundEmails.workerId, workerId),
+            and(isNull(inboundEmails.workerId), eq(inboundEmails.fromAddress, email)),
+          )
+        : eq(inboundEmails.workerId, workerId),
+    )
+    .orderBy(asc(inboundEmails.createdAt), asc(inboundEmails.id));
   // The same rows the action log's Worker filter finds.
   const { rows: logRows } = await tx.execute<Row>(sql`
     select e.id, e.actor_type as "actorType", e.actor_id as "actorId", e.action,
@@ -268,6 +285,7 @@ export async function collectWorkerData(
       payRecords: payLines,
       payQueries: payQuestions,
       messages: messageRows,
+      emails: emailRows,
       // Numbered within this file, not by the counter every firm shares (event-numbers.ts).
       actionLog: renumberEvents(logRows),
       logins,

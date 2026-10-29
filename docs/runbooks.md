@@ -999,8 +999,8 @@ to do, `[?]` confirm yourself (things the app can't see, such as the paperwork).
 settings only, never a person's details.
 
 **Running an owner command on the server.** The live database is only reachable from the server,
-so `firm:create`, `firm:office-user`, `firm:settings`, `firm:check`, `firm:brand`, `firm:line` and
-`firm:domain` run there, in a one-off copy of the app: the `owner` service in
+so `firm:create`, `firm:office-user`, `firm:settings`, `firm:check`, `firm:brand`, `firm:line`,
+`firm:inbox` and `firm:domain` run there, in a one-off copy of the app: the `owner` service in
 `docker-compose.yml`, which reads `.env` itself (so no password goes on the command line). In the
 server's browser console: `sudo -i`, `cd /opt/shiftdesk`, then (not yet tried for real: part of
 "Try the runbooks for real"):
@@ -1092,6 +1092,11 @@ In order (who does it, how, and what done looks like):
    automatic replies off (`auto_replies`, step 8), ShiftDesk confirms no STOP or START. Twilio's
    own opt-out handling can still answer one by text (`byTwilio` in the log): if the firm wants
    nothing back, check the Messaging Service's opt-out settings in Twilio when connecting.
+   The staffing inbox (P7; not live yet: it waits for an email provider and the firm's IT) is set
+   the same way: `npm run firm:inbox -- --firm <slug> --address <its address at the provider>`
+   (`--replace` to change it, `--clear` to take it off), logged as a settings change. Until P7's
+   sorting is built its emails are only stored (a known casual's words, quoted history off;
+   anyone else's never), and nothing answers them.
 10. **Privacy notice line** (you send it, the firm publishes it): `docs/privacy-notice.md` has the
     short line and the section for its privacy notice, with what to fill in.
 11. **Staff briefing** (the firm): a message to its staff with the portal link.

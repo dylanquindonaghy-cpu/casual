@@ -54,6 +54,7 @@ architecture.md, Tenancy).
 | api_keys | A planner's API keys: a label, the key's sha256 and last 4 characters (never the key), who made and revoked it, when last used (12J.1, S11) | 12 |
 | firm_secrets | A firm's own credentials for its systems (its ops portal's API key, its webhook secret), each sealed under a key the database never sees (P5.1, ADR-026) | P5 |
 | connector_events | What a connector's source said changed (a session or a staff record, by its ref), one row per event id per source, and what the job made of it (P5.3) | P5 |
+| inbound_emails | Emails to a firm's staffing inbox, one row per Message-ID: who it's from, and only a known casual's subject and words, quoted history taken off; how many attachments were left out (P7.1) | P7 |
 | push_subscriptions | Web push endpoints per worker | 4 |
 | roster_sources | Where a firm's rota lives when it isn't our tables: a Google Sheet (its id, column mapping) or a connector to the firm's own system (which one, its base address; P5.2), with the last sync, error code and sync lease | 2 |
 | name_map | What the firm's own system calls a role, qualification, staff type or cancellation reason, mapped to a ShiftDesk code or to skip (P3.2) | P3 |
@@ -192,6 +193,11 @@ create table firms (
                                          -- like workers.mobile_e164's); null
                                          -- until bought (Twilio). One number, one firm. Set by
                                          -- `npm run firm:line` (the owner), never by the app.
+  inbox_address text unique,             -- P7.1: the firm's staffing inbox at our email provider
+                                         -- (its own mailbox forwards there), lower case, a CHECK
+                                         -- on its form. One address, one firm. Set by `npm run
+                                         -- firm:inbox` (the owner), never by the app; found for an
+                                         -- incoming email by app_firm_by_inbox() (0060).
   settings jsonb not null default '{}',
   agreement_signed_on date,              -- Gate B: the day the agreement and DPA were signed, set by
                                          -- `npm run firm:agreement` (the owner), never by the app.
@@ -1019,6 +1025,28 @@ create table connector_events (
   created_at timestamptz not null default now(),
   unique (firm_id, id),
   unique (firm_id, source_id, event_id)
+);
+
+-- Emails to a firm's staffing inbox (P7.1; PLAN.md P7): stored once per Message-ID in the firm by
+-- the email provider's webhook (P7.2; golden rule 3). Their own table, not messages, until the
+-- office's Enquiries learns email. Words only from a known casual (the sender's address a worker's
+-- here); anyone else's are never stored. Attachments are never kept: only how many. Inserted and
+-- read by the app; deleted only by the owner-run app_erase_worker() (theirs, and from their address
+-- before it was known) and app_purge_old_messages() (at retention.message_days, with the messages).
+create table inbound_emails (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  provider_message_id text not null,     -- the email's Message-ID, printable, <= 250
+  worker_id uuid,                        -- (firm_id, worker_id) -> workers: a known casual
+  from_address text not null,            -- lower case, as firms.inbox_address's form
+  to_address text not null,              -- the firm's inbox
+  subject text,                          -- a known casual's only, <= 300
+  body text,                             -- a known casual's only, quoted history and signature
+                                         -- taken off, <= 4000
+  attachments integer not null default 0, -- how many were left out (never kept)
+  handled_as text, intent text, handled_at timestamptz, -- set once by its job (P7.4)
+  created_at timestamptz not null default now(),
+  unique (firm_id, provider_message_id)
 );
 
 create table api_keys (

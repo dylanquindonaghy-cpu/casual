@@ -389,8 +389,9 @@ describe("the rest of the public schema", () => {
   // for an incoming message's number, Phase 7, ADR-018; app_resolve_firm_by_domain: the firm for
   // its own verified domain, Phase 8; app_erase_worker and app_purge_old_messages: the only ways
   // messages are deleted, by erasing their worker or once over 90 days old, Phase 8 GDPR;
-  // app_connector_source_firm: a connector's firm for its webhook, P5.3).
-  it("the app role can execute exactly eleven functions: app_api_key_lookup, app_connector_source_firm, app_current_firm_id, app_erase_worker, app_firm_by_line, app_firm_ids, app_purge_old_messages, app_purge_old_strikes, app_resolve_firm, app_resolve_firm_by_domain and app_set_firm_setting", async () => {
+  // app_connector_source_firm: a connector's firm for its webhook, P5.3; app_firm_by_inbox: the firm
+  // for an incoming email's address, P7.1).
+  it("the app role can execute exactly twelve functions: app_api_key_lookup, app_connector_source_firm, app_current_firm_id, app_erase_worker, app_firm_by_inbox, app_firm_by_line, app_firm_ids, app_purge_old_messages, app_purge_old_strikes, app_resolve_firm, app_resolve_firm_by_domain and app_set_firm_setting", async () => {
     const { rows } = await su.query<{ fn: string }>(
       `select p.proname as fn from pg_proc p
         where p.pronamespace = 'public'::regnamespace
@@ -404,6 +405,8 @@ describe("the rest of the public schema", () => {
       "app_connector_source_firm",
       "app_current_firm_id",
       "app_erase_worker",
+      // P7.1: the firm for an incoming email's address (tests/integration/email.inbox.test.ts).
+      "app_firm_by_inbox",
       "app_firm_by_line",
       "app_firm_ids",
       "app_purge_old_messages",

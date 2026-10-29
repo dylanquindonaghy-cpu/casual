@@ -17,6 +17,7 @@ export const EXPECTED_TABLES = [
   "events",
   "firm_secrets",
   "firms",
+  "inbound_emails",
   "magic_links",
   "messages",
   "metrics_daily",
@@ -327,6 +328,13 @@ export async function createTenant(su: Pool): Promise<Tenant> {
      values ($1, 'in', 'whatsapp', $2, $3, '+447700900111', '+447700900000', 'shifts')`,
     [firmId, `SM${randomBytes(16).toString("hex")}`, rosterWorkerId],
   );
+  // An email from the rota worker to the staffing inbox (P7.1).
+  const inboundEmailId = await one(
+    su,
+    `insert into inbound_emails (firm_id, provider_message_id, worker_id, from_address, to_address, subject, body)
+     values ($1, $2, $3, 'rota.worker@example.com', 'staffing@inbound.example.test', 'Saturday', 'Can I swap?')`,
+    [firmId, `<${randomBytes(8).toString("hex")}@mail.example.test>`, rosterWorkerId],
+  );
   return {
     firmId,
     slug,
@@ -371,6 +379,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       metrics_daily: metricsId,
       pay_queries: payQueryId,
       messages: messageId,
+      inbound_emails: inboundEmailId,
     },
   };
 }
@@ -534,6 +543,11 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
     text: `insert into messages (firm_id, direction, channel, provider_message_id, worker_id, from_e164, to_e164, body)
            values ($1, 'in', 'sms', $2, $3, '+447700900112', '+447700900000', 'pay')`,
     values: [firmId, `SM${randomBytes(16).toString("hex")}`, p.rosterWorkerId],
+  }),
+  inbound_emails: (firmId, p) => ({
+    text: `insert into inbound_emails (firm_id, provider_message_id, worker_id, from_address, to_address, body)
+           values ($1, $2, $3, 'rota.worker@example.com', 'staffing@inbound.example.test', 'pay')`,
+    values: [firmId, `<${randomBytes(8).toString("hex")}@mail.example.test>`, p.rosterWorkerId],
   }),
   metrics_daily: (firmId) => ({
     text: `insert into metrics_daily (firm_id, day, kind, metric, value)
@@ -732,6 +746,11 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
     text: `insert into messages (firm_id, direction, channel, provider_message_id, worker_id, from_e164, to_e164)
            values ($1, 'in', 'whatsapp', $2, $3, '+447700900113', '+447700900000')`,
     values: [firmId, `SM${randomBytes(16).toString("hex")}`, other.workerId],
+  }),
+  inbound_emails_worker_fk: (firmId, _own, other) => ({
+    text: `insert into inbound_emails (firm_id, provider_message_id, worker_id, from_address, to_address)
+           values ($1, $2, $3, 'someone@example.com', 'staffing@inbound.example.test')`,
+    values: [firmId, `<${randomBytes(8).toString("hex")}@mail.example.test>`, other.workerId],
   }),
   messages_reply_to_fk: (firmId, _own, other) => ({
     text: `insert into messages (firm_id, direction, channel, provider_message_id, from_e164, to_e164, reply_to)

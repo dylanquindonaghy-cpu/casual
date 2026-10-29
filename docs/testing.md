@@ -183,6 +183,28 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   address on a public name and no spreadsheet, never an IP address, an internal name, another port
   or a dot segment; a sheet the reverse; one source on per firm); and the sheet command leaves a
   connector alone and won't switch a sheet on beside it.
+- `email.prepare.test.ts` (unit, P7.3) — an email made ready to keep: quoted history off whichever
+  way it's quoted (Gmail's header on one line or wrapped, Outlook's block with or without its
+  underscores, an Original Message, `>` lines), a reply below the quote kept, nothing left of a
+  forwarded thread with nothing written above it, the signature and a phone's sign-off off, blank
+  lines and control characters tidied, capped without cutting a character; a known casual's subject
+  and words, anyone else's neither, only how many attachments.
+- `email.webhook.test.ts` (unit, P7.2) — the staffing inbox's webhook with stand-ins: the signature
+  first (missing, wrong, stale, a bad id or a changed body: 403, nothing looked up), 503 with no
+  secret, 415 / 413 / 400 for the wrong body, the firm by the first address that's an inbox, 200
+  and nothing stored for no firm or an unreadable sender, nothing of the email logged.
+- `email.receive.test.ts` (P7.2, P7.3) — the same webhook into the real database as the app role: a
+  known casual's own words kept with the quoted history and signature off, anyone else's (a venue,
+  an inactive casual, an address two casuals share) never; the same Message-ID twice stored once;
+  an address no firm has stores nothing; no job queued yet.
+- `firm-inbox.cli.test.ts` (unit, P7.1) — `npm run firm:inbox` given the wrong options: the usage
+  line, exit 2, no database touched.
+- `email.inbox.test.ts` (P7.1) — a firm's staffing inbox on the real database: its address lower
+  case and one firm's only, found for an incoming email by exactly that address (as the app role),
+  set, replaced and cleared only by `firm:inbox`, each logged without the address; its emails keep
+  words only from a known casual and one row per Message-ID in a firm; a casual's export and
+  erasure take theirs (set to them, and from their address before it was known), and the
+  retention purge takes old ones with the messages.
 - `connector.events.test.ts` (P5.3) — a connector's webhooks in and its job, on the real database as
   the app role against the made-up portal in memory (never a real system): the webhook stores one
   row per event and queues one job in the same transaction (the same event again, nothing more),

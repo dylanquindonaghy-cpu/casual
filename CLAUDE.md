@@ -137,8 +137,9 @@ docs/
   `TABLE_ACCESS` entry (`src/lib/db/admin/access.ts`) and isolation fixtures
   (`tests/helpers/tenant-rows.ts`). Links between firm tables are composite `(firm_id, x_id)` FKs.
 - App code reaches the database only through `withFirm()` (and, before a firm is known,
-  `resolveFirmBySlug()` for a host, `resolveFirmByLine()` for a shifts line's number and
-  `resolveApiKey()` for a planner's API key, `resolveConnectorSource()` for a connector's webhook).
+  `resolveFirmBySlug()` for a host, `resolveFirmByLine()` for a shifts line's number,
+  `resolveFirmByInbox()` for a staffing inbox's address, `resolveApiKey()` for a planner's API key
+  and `resolveConnectorSource()` for a connector's webhook).
   Firm jobs extend `firmJobEnvelope`; payloads carry ids only.
 - Dev messaging uses `MESSAGING_TRANSPORT=console` and `EMAIL_TRANSPORT=console` (prints
   outbound messages). Never hit Twilio, an SMTP server, Anthropic, TravelTime, postcodes.io or a

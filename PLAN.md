@@ -2276,6 +2276,59 @@ email's words go to Dylan first, and the AI-drafted reply on Enquiries after the
   AI-drafted reply the office approves before it's sent, and a summary every 3 hours. Replies are
   signed "[Firm name] Shift Team" (golden rule 8).
 
+The back end (the build, 2026-10-29), against a made-up provider. One change to the outline above:
+inbound emails get a table of their own (`inbound_emails`) rather than an email channel on
+`messages`, for now: the office's Enquiries reads every `messages` row and names its channel
+(`src/lib/office/enquiries.ts`, `CHANNEL_WORDS`), so an email there would show broken until the
+office's screens learn email, which is the UI chat's (after Phase 24). Enquiries reads them in
+with that change. Nothing here sends anything: every reply, link and summary waits for its words.
+And the sorting (P7.4) waits too: each email handled is logged (golden rule 5), and every action
+logged needs the office's words for it in the log (`src/lib/office/event-words.ts`, its groups in
+`log-types.ts`, which a test holds to), the UI chat's for now; until then the emails are stored,
+ready, and nothing works on them (no job is queued for a handler that doesn't exist yet: P7.4
+queues the ones waiting).
+
+- [ ] The firm's inbox and its emails (S, T): a firm's inbound address (`firms.inbox_address`,
+      unique, lower case; set, changed and cleared only by an owner command, `npm run
+      firm:inbox`, logged as a settings change, as `firm:line`), found before a firm is known by an
+      owner-run function (`resolveFirmByInbox()`, as `resolveFirmByLine()`); `inbound_emails`, one
+      row per Message-ID in the firm, the casual it's from (by their email here), the addresses,
+      and the subject and text only for a known casual's; with `firm_id`, RLS, `TABLE_ACCESS`,
+      isolation fixtures, the worker's export and erasure, and the retention purge. Tests: another
+      firm's emails unreadable, a second address taken refused, a casual's export and erasure
+      include theirs (P7.1)
+- [ ] The provider's webhook in (A, M): `POST /api/webhooks/email` for the made-up provider (its
+      signing secret in the web's settings, `EMAIL_INBOUND_SECRET`, a Standard Webhooks `whsec_`
+      key; unset, the webhook answers 503; a real provider comes with its ADR), checked as the
+      connector's (Standard Webhooks signature, a bounded body, JSON and UTF-8 only); the firm
+      found by the address it was sent to; one row per Message-ID (golden rule 3; its job comes
+      with P7.4); 200 fast. Tests: a bad or missing signature 403 and nothing stored, the same
+      Message-ID twice stored once, an address no firm has stores nothing, no secret 503 (P7.2)
+- [ ] Before anything is stored (M): quoted history and signatures taken off
+      (`src/lib/email/prepare.ts`, pure: "On … wrote:", "-----Original Message-----", Outlook's
+      "From: … Sent:" block, `>` lines, "-- "), the text capped; attachments never kept (only how
+      many); mail that isn't from a known casual stored without its subject or words. Tests: each
+      quoting style, a reply above and below the quote, nothing left of a forwarded thread, an
+      unknown sender's words never in the database (P7.3)
+- [ ] Sorting, held for the office (M; waits for the office's log words for `email.received`, with
+      the UI chat): the `inbound-email` job (queued with each stored email, and once for those
+      stored before it) sorts a known casual's text as the
+      shifts line does (a keyword, else the AI's label outside any transaction:
+      `sortMessage()`; the AI only sorts, code decides), then claims it once (`handled_at`, how it
+      was handled, what they asked) and logs `email.received` (labels and ids only); nothing is
+      sent, as the shifts line with automatic replies off (P4.7); a pay question is marked pay
+      and never answered (golden rule 9); an unknown sender's handled as unknown. Tests: each
+      label, the AI down, the same job twice handled once, nothing sent (P7.4)
+- [ ] Waits for Dylan (words) and the UI chat (screens): the casual's answer by a link sent to
+      their known address (never on the sender's word alone), a pay question's link to raise it
+      in the app (so it reaches the payroll digest), the office's 3-hourly summary email, and
+      Enquiries showing emails with the AI-drafted reply the office approves; their words go in
+      `docs/messaging-templates.md` first (P7.5)
+
+Done when (the back end): P7.1 to P7.3 are ticked, each with a stamp that includes the browser
+tests; `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; no test reaches a real provider; nothing
+under `src/app/` changes but the new webhook route; nothing is sent to anyone.
+
 ### P8 — The in-app chat (proposed 2026-10-26; a mock-up first, after the UI chat merges; S, M, UI)
 
 Dylan, 2026-10-26: "it would be an internal chat on the app not texts being sent out". Casuals

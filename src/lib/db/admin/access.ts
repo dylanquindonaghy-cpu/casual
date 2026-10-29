@@ -87,6 +87,10 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   // job (COLUMN_UPDATES), never deleted or rewritten by the app (what came in, and what was made
   // of it).
   connector_events: ["SELECT", "INSERT"],
+  // Emails to a firm's staffing inbox (P7.1): added by the provider's webhook, never rewritten or
+  // deleted by the app (owner-run purges and erasure delete them). Their handling (P7.4) comes
+  // with its column grant.
+  inbound_emails: ["SELECT", "INSERT"],
 };
 
 // Columns the app role may update on a table it can't update as a whole (a column-level grant).

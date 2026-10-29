@@ -120,6 +120,19 @@ const appFields = {
     (v) => (v === "" ? undefined : v),
     z.string().min(32, { message: "must be at least 32 characters" }).optional(),
   ),
+  // The staffing inbox's email provider (P7.2): the signing secret its inbound webhooks carry
+  // (Standard Webhooks: "whsec_" and at least 24 bytes in base64), for the made-up provider the
+  // tests use until the real one is chosen (its ADR). Unset (or empty): POST /api/webhooks/email
+  // answers 503 and stores nothing. A secret: never in the repo.
+  EMAIL_INBOUND_SECRET: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z
+      .string()
+      .regex(/^whsec_[A-Za-z0-9+/]{32,}={0,2}$/, {
+        message: 'must be "whsec_" and a base64 key of at least 24 bytes',
+      })
+      .optional(),
+  ),
   // Demo mode (16.1; docs/decisions.md ADR-025; docs/runbooks.md "A demo server"): a server that
   // holds only the made-up demo firms, to show the app before any real sender exists. "on": the
   // worker prints texts and emails into the outbox file (CONSOLE_OUTBOX_FILE) instead of sending

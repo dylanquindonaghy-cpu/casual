@@ -13,6 +13,11 @@ import {
 } from "drizzle-orm/pg-core";
 import { createdAt, firmIsolation } from "./helpers";
 
+// An email address as stored (P7): lower case, a plain local part and a dotted domain. What
+// providers and casuals send is checked further at the edge (src/lib/email/address.ts).
+export const EMAIL_ADDRESS =
+  "^[a-z0-9.!#$%&*+/=?^_`{|}~-]{1,64}@[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$";
+
 export const SECTORS = ["security", "rail", "construction", "cleaning"] as const;
 
 // The slug checks below mirror src/lib/tenancy/slug.ts (reserved subdomains, no punycode);
@@ -34,6 +39,10 @@ export const firms = pgTable(
     // belongs to one firm. Null until we buy one (Twilio: PLAN.md Parking lot, "Connect Twilio").
     // Set by `npm run firm:line`, never by the app.
     shiftsLineE164: text("shifts_line_e164").unique(),
+    // The firm's inbound email address at our email provider (P7.1): its staffing mailbox forwards
+    // there. Lower case; one address belongs to one firm. Set by `npm run firm:inbox`, never by
+    // the app.
+    inboxAddress: text("inbox_address").unique(),
     // Shape and defaults are validated in code (FirmSettings), keys as in docs/data-model.md.
     settings: jsonb("settings").$type<Record<string, unknown>>().notNull().default({}),
     // Gate B (golden rule 7): the day the firm's agreement and DPA were signed, recorded by the
@@ -57,6 +66,10 @@ export const firms = pgTable(
     check("firms_brand_color_hex", sql`${t.brandPrimaryColor} ~ '^#[0-9a-fA-F]{6}$'`),
     check("firms_brand_logo_https", sql`${t.brandLogoUrl} like 'https://%'`),
     check("firms_shifts_line_e164", sql`${t.shiftsLineE164} ~ '^[+][1-9][0-9]{6,14}$'`),
+    check(
+      "firms_inbox_address_format",
+      sql`${t.inboxAddress} ~ ${sql.raw(`'${EMAIL_ADDRESS}'`)} and char_length(${t.inboxAddress}) <= 254`,
+    ),
     // A firm's own domain (Phase 8): a lowercase host name, no port, no scheme (the owner's
     // `npm run firm:domain` checks the full rules; this keeps anything else out).
     check(

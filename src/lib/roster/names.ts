@@ -7,8 +7,10 @@ import type { FirmTx } from "../db/scoped";
 // import read a role's name through it, with normaliseRole() (below) as the fallback for a name
 // the firm hasn't mapped; a name neither can read is a bad role, as before,
 // so its row is never brought in and never offered. A firm with no map reads every name exactly as
-// before. The other kinds (qualification, staff type, cancellation reason) and a role's pay rate are
-// for the connector (P5). Pure, but for loadNameMap().
+// before. The credentials import reads a qualification's name through it the same way (the
+// import's own spelling as the fallback). Staff types and cancellation reasons, which neither the
+// sheet nor a file carries, and a role's pay rate are for the connector (P5). Pure, but for
+// loadNameMap().
 
 export const NAME_MAX = 200;
 
@@ -24,12 +26,22 @@ export function normaliseRole(raw: string): string | null {
   return rolePattern.test(role) ? role : null;
 }
 
+// A qualification as the file import spells it: "SIA ds" is SIA_DS. Null for one it can't.
+export function normaliseQualification(raw: string): string | null {
+  const code = raw
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, "_");
+  return /^[A-Z][A-Z0-9_]*$/.test(code) && code.length <= 50 ? code : null;
+}
+
 // The key a name is held by: trimmed, lower case, one space between words. Null for a name that's
-// empty, too long or holds a control character.
+// empty, too long or holds a control or format character (whatever the database's own reading of
+// "control" is: an ICU one counts format characters such as a soft hyphen).
 export function nameKey(raw: string): string | null {
   const key = raw.trim().toLowerCase().replace(/\s+/g, " ");
   if (key === "" || key.length > NAME_MAX) return null;
-  return /[\u0000-\u001f\u007f-\u009f]/.test(key) ? null : key;
+  return /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(key) ? null : key;
 }
 
 export interface MappedName {
@@ -50,6 +62,17 @@ export function readRoleName(raw: string, names: NameMap = NO_NAMES): RoleName {
   if (mapped) return mapped.code === null ? { skip: true } : { role: mapped.code };
   const role = normaliseRole(raw);
   return role === null ? null : { role };
+}
+
+export type QualificationName = { code: string } | { skip: true } | null;
+
+// A qualification's name as the firm's map reads it, else as normaliseQualification() does.
+export function readQualificationName(raw: string, names: NameMap = NO_NAMES): QualificationName {
+  const key = nameKey(raw);
+  const mapped = key === null ? undefined : names.get("qualification")?.get(key);
+  if (mapped) return mapped.code === null ? { skip: true } : { code: mapped.code };
+  const code = normaliseQualification(raw);
+  return code === null ? null : { code };
 }
 
 // A list of role names (a worker's): the codes, each once, with the skipped names left out; null

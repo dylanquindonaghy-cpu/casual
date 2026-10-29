@@ -4,6 +4,7 @@ import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { runImport } from "@/lib/imports/import";
+import { summarise } from "@/lib/imports/messages";
 import { readTable } from "@/lib/imports/table";
 import { DEFAULT_SHEET_MAPPING } from "@/lib/roster/sheets/mapping";
 import { syncSheet } from "@/lib/roster/sheets/sync";
@@ -306,9 +307,37 @@ describe("the rota sheet's sync through the map", () => {
   });
 });
 
-describe("the file import through the map", () => {
-  const csv = (text: string) => readTable(new TextEncoder().encode(text));
+describe("a name skipped after its sessions came in", () => {
+  it("the map never cancels or changes a session: it stays as it is, and the sync says so", async () => {
+    const f = await sheetFirm(SHEET.staff.slice(0, 1), SHEET.shifts.slice(0, 1));
+    await map(f.slug, "role", "Door Supervisor (NLW)", "door_supervisor");
+    await map(f.slug, "role", "Door Supervisor (LLW)", "door_supervisor");
+    expect(await f.sync()).toMatchObject({ status: "synced", shifts: 1, problems: [] });
+    await map(f.slug, "role", "Door Supervisor (LLW)", "skip");
+    expect(await f.sync()).toMatchObject({
+      status: "synced",
+      shifts: 0,
+      problems: [{ tab: "shifts", row: 2, problem: "skipped_live" }],
+    });
+    const { rows: shifts } = await su.query(
+      "select external_ref, role, status from shifts where firm_id = $1",
+      [f.firmId],
+    );
+    expect(shifts).toEqual([{ external_ref: "E1", role: "door_supervisor", status: "open" }]);
+    const { rows } = await su.query(
+      "select data from events where firm_id = $1 and action = 'roster.synced' order by id",
+      [f.firmId],
+    );
+    expect(rows.map((r) => [r.data.problems, r.data.skipped])).toEqual([
+      [0, undefined],
+      [1, 1],
+    ]);
+  });
+});
 
+const csv = (text: string) => readTable(new TextEncoder().encode(text));
+
+describe("the file import through the map", () => {
   it("workers' and shifts' roles: mapped, skipped (counted as ignored), unreadable (a bad role)", async () => {
     const f = await newFirm();
     await map(f.slug, "role", "Door Supervisor (NLW)", "door_supervisor");
@@ -366,5 +395,80 @@ E4,07/11/2026,09:00,17:00,Event Manager (PAYE)`,
       { kind: "workers", created: 1, updated: 0, unchanged: 0, skipped: 1 },
       { kind: "shifts", created: 1, updated: 0, unchanged: 0, skipped: 1, ignored: 2 },
     ]);
+  });
+
+  it("a dry run counts the rows it would leave out, and says so; credentials' types go through it too", async () => {
+    const f = await newFirm();
+    await su.query(
+      "insert into credential_types (firm_id, code, name, sector) values ($1, 'TM_12D', 'NHSS 12D', 'any')",
+      [f.firmId],
+    );
+    await map(f.slug, "role", "Holiday", "skip");
+    await map(f.slug, "qualification", "NHSS 12D", "tm_12d");
+    await map(f.slug, "qualification", "Induction", "skip");
+    const officeId = await one(
+      "insert into office_users (firm_id, email, name, role) values ($1, $2, 'Importer', 'resourcer')",
+      [f.firmId, `${f.slug}@example.com`],
+    );
+    const run = (kind: "shifts" | "workers" | "credentials", text: string, dryRun = false) =>
+      withFirm(f.firmId, (tx) =>
+        runImport(tx, {
+          kind,
+          rows: csv(text),
+          dryRun,
+          actorId: officeId,
+          timeZone: "Europe/London",
+          now: NOW,
+        }),
+      );
+    const dry = await run(
+      "shifts",
+      `Shift ID,Date,Start,End,Role
+E1,07/11/2026,09:00,17:00,steward
+E2,07/11/2026,09:00,17:00,Holiday`,
+      true,
+    );
+    expect(dry).toMatchObject({ dryRun: true, created: 1, skipped: 0, ignored: 1 });
+    expect(summarise(dry)).toBe(
+      "Dry run (nothing saved): would create 1, update 0, leave 0 unchanged, skip 0.\nLeft out 1 row the firm's name map skips (npm run firm:names).",
+    );
+    expect((await rowsOf(f.firmId)).shifts).toEqual([]);
+    await run("workers", "Staff ID,First name,Last name,Mobile\nS1,Ada,Example,07700 900601");
+    expect(
+      await run(
+        "credentials",
+        `Staff ID,Type,Expires
+S1,NHSS 12D,01/01/2029
+S1,Induction,01/01/2029
+S1,Chapter 8 (TM),01/01/2029`,
+      ),
+    ).toMatchObject({ created: 1, ignored: 1, problems: [{ row: 4, problem: "bad_type" }] });
+    const { rows } = await su.query("select type from credentials where firm_id = $1", [f.firmId]);
+    expect(rows).toEqual([{ type: "TM_12D" }]);
+  });
+
+  it("another firm's map is never used: the same file there reads the names as before", async () => {
+    const mapped = await newFirm();
+    await map(mapped.slug, "role", "Door Supervisor (NLW)", "door_supervisor");
+    const plain = await newFirm();
+    const officeId = await one(
+      "insert into office_users (firm_id, email, name, role) values ($1, $2, 'Importer', 'resourcer')",
+      [plain.firmId, `${plain.slug}@example.com`],
+    );
+    const result = await withFirm(plain.firmId, (tx) =>
+      runImport(tx, {
+        kind: "shifts",
+        rows: csv("Shift ID,Date,Start,End,Role\nE1,07/11/2026,09:00,17:00,Door Supervisor (NLW)"),
+        dryRun: false,
+        actorId: officeId,
+        timeZone: "Europe/London",
+        now: NOW,
+      }),
+    );
+    expect(result).toMatchObject({
+      created: 0,
+      skipped: 1,
+      problems: [{ row: 2, problem: "bad_role" }],
+    });
   });
 });

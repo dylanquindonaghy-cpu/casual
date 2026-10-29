@@ -978,8 +978,12 @@ In order (who does it, how, and what done looks like):
    (NLW)", "12D", "Holiday"), map each with `npm run -s firm:names -- --firm acme --kind role
    --name "Door Supervisor (NLW)" --code door_supervisor` (`--code skip` for one that isn't a
    session; `--remove` to take one off; on its own, `npm run -s firm:names -- --firm acme` lists
-   them). A name the map doesn't have is read as before; one that still can't be read is a bad role,
-   so its row isn't brought in. Each change is in the office action log.
+   them). `--kind qualification` does the same for the credentials file's types (a code the firm
+   has); a role with no credential rule yet is said, as its shifts can't be offered until it has
+   one. A name the map doesn't have is read as before; one that still can't be read is a bad role,
+   so its row isn't brought in. Skipping a name never cancels or changes a session already made
+   from it: the next sync reports `skipped_live` for it, so cancel it in the office. Each change is
+   in the office action log (as "The firm's settings changed", until its own words are approved).
 6. **Workers and credentials** (you, from the firm's spreadsheets, **only after Gate B**): "Importing
    workers, credentials or shifts from a spreadsheet" below. `firm:check` then shows how many
    active workers have no credential on file.

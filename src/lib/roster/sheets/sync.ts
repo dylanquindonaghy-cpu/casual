@@ -1,4 +1,17 @@
-import { and, asc, eq, isNotNull, isNull, lt, notInArray, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  ne,
+  notInArray,
+  or,
+  sql,
+} from "drizzle-orm";
 import { MINUTE, type Clock } from "../../auth/clock";
 import {
   assignments,
@@ -263,6 +276,8 @@ export async function syncSheet({ run, firmId, client, clock }: SyncDeps): Promi
           skippedWrites: outcome.skippedWrites,
           notBooked: outcome.notBooked,
           problems: outcome.problems.length,
+          // Shift rows the firm's name map skips (P3.2), when there are some.
+          ...(parsed.skipped.length > 0 ? { skipped: parsed.skipped.length } : {}),
           // Staff rows not taken because they'd give someone else's record to them (the office's
           // to sort out in the sheet): said in the action log.
           ...(staffRefused(outcome.problems) > 0
@@ -675,6 +690,29 @@ async function mirror(
 
     // The sheet may have changed the headcount: keep open / filled true to the slots.
     await refreshShiftStatus(tx, shiftId, now);
+  }
+
+  // Rows the firm's name map skips (P3.2) that a session to come, not cancelled, was made from: the
+  // map never cancels or changes a session, so it stays as it is, and the office is told.
+  if (sheet.skipped.length > 0) {
+    const live = await tx
+      .select({ ref: shifts.externalRef })
+      .from(shifts)
+      .where(
+        and(
+          eq(shifts.source, "sheets"),
+          inArray(
+            shifts.externalRef,
+            sheet.skipped.map((s) => s.ref),
+          ),
+          ne(shifts.status, "cancelled"),
+          gt(shifts.startsAt, now),
+        ),
+      );
+    const refs = new Set(live.map((l) => l.ref));
+    for (const s of sheet.skipped) {
+      if (refs.has(s.ref)) problems.push({ tab: "shifts", row: s.row, problem: "skipped_live" });
+    }
   }
 
   await queueTravelEstimates(tx, [...travel]);

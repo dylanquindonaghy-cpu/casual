@@ -16,7 +16,13 @@ import type { FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { refreshShiftStatus } from "../roster/native";
 import { automaticEventId } from "../roster/shift-events";
-import { loadNameMap, readRoleName, readRoleNames, type NameMap } from "../roster/names";
+import {
+  loadNameMap,
+  readQualificationName,
+  readRoleName,
+  readRoleNames,
+  type NameMap,
+} from "../roster/names";
 import { parseSheetDate, parseSheetTime } from "../roster/sheets/parse";
 import {
   sameName,
@@ -53,9 +59,10 @@ import { queueTravelEstimates } from "../travel/estimate-queue";
 //   keeps its times, role and site, and its headcount can't go down: that is a firm-initiated change,
 //   logged per worker with notice (golden rule 12), and belongs to the office's shift editor.
 //   Shifts that have started are history: never created or changed by an import.
-// - Roles, a worker's and a shift's, through the firm's name map (P3.2, src/lib/roster/names.ts):
-//   a role the map skips is left off a worker's roles, and a shift row with one is left out (not a
-//   problem: the firm said it isn't a session), counted as ignored in the log.
+// - Roles, a worker's and a shift's, and a credential's type, through the firm's name map (P3.2,
+//   src/lib/roster/names.ts): a role the map skips is left off a worker's roles, and a shift or
+//   credential row whose role or type it skips is left out (not a problem: the firm said it isn't
+//   one of ours), counted as ignored.
 // - Pay: the worker by Staff ID or mobile; one line per worker, pay period and rate (a re-import
 //   updates its hours, gross and pay date). The figures are the payroll's, stored as given (money
 //   in pence). The log records what changed, never the amounts.
@@ -97,7 +104,7 @@ export interface ImportResult {
   updated: number;
   unchanged: number;
   skipped: number;
-  // Shift rows whose role the firm's name map skips (P3.2); only there when there are some.
+  // Shift and credential rows the firm's name map skips (P3.2); only there when there are some.
   ignored?: number;
   problems: ImportProblem[];
 }
@@ -485,8 +492,10 @@ function rowImporter(
       if (!ref && !mobile) throw new Problem("bad_mobile");
       const typeCell = cellOf(row, c.type);
       if (!typeCell) throw new Problem("missing_value");
-      const type = typeCell.toUpperCase().replace(/[\s-]+/g, "_");
-      if (!/^[A-Z][A-Z0-9_]*$/.test(type) || type.length > 50) throw new Problem("bad_type");
+      const typeName = readQualificationName(typeCell, names);
+      if (!typeName) throw new Problem("bad_type");
+      if ("skip" in typeName) return "ignored";
+      const type = typeName.code;
       const numberCell = tooLong(cellOf(row, c.number), 50);
       const expiresCell = cellOf(row, c.expires);
       const expiresDate = expiresCell ? parseSheetDate(expiresCell) : null;

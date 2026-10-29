@@ -37,6 +37,9 @@ export const SHEET_PROBLEM_CODES = [
   "holder_not_in_sheet", // booked here by someone with no staff id: the shift's holders aren't synced
   "change_refused", // a booked shift's role, times or site changed, and someone booked can't work it
   "started_change", // a shift that has started was re-timed, re-roled, moved or cancelled: ignored
+  // P3.2: a row whose role the firm's name map skips, though a session to come that it made is
+  // still on here: that session is left as it is (cancel or change it in the office).
+  "skipped_live",
   "invalid_row",
 ] as const;
 export type SheetProblemCode = (typeof SHEET_PROBLEM_CODES)[number];
@@ -75,6 +78,8 @@ export interface ParsedSheet {
   // Where the sync writes back: the shifts tab's id and assigned columns (0-based).
   layout: { shiftsTab: string; refColumn: number; assignedColumn: number };
   problems: SheetProblem[];
+  // Shift rows whose role the firm's name map skips (P3.2): not sessions, so not brought in.
+  skipped: { row: number; ref: string }[];
 }
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
@@ -254,6 +259,7 @@ export function parseSheet(
   });
 
   const shifts: SheetShift[] = [];
+  const skipped: ParsedSheet["skipped"] = [];
   const seenShifts = new Set<string>();
   input.shiftRows.slice(1).forEach((row, i) => {
     const rowNumber = i + 2;
@@ -266,7 +272,7 @@ export function parseSheet(
     seenShifts.add(ref);
     const roleName = readRoleName(cellOf(row, shiftCols.role), names);
     // A role the firm's name map skips: not a session, whatever else the row says.
-    if (roleName && "skip" in roleName) return;
+    if (roleName && "skip" in roleName) return void skipped.push({ row: rowNumber, ref });
     const date = parseSheetDate(cellOf(row, shiftCols.date));
     if (!date) return flag("bad_date");
     const start = parseSheetTime(cellOf(row, shiftCols.start));
@@ -340,5 +346,6 @@ export function parseSheet(
       assignedColumn: shiftCols.assigned ?? 0,
     },
     problems,
+    skipped,
   };
 }

@@ -42,7 +42,9 @@ if (!values.firm) {
   process.exit(2);
 }
 const slug = values.firm.trim().toLowerCase();
-const changing = values.kind !== undefined || values.name !== undefined;
+const changing = [values.kind, values.name, values.code, values.rate, values.remove].some(
+  (v) => v !== undefined,
+);
 if (changing && (values.kind === undefined || values.name === undefined)) {
   console.error(USAGE);
   process.exit(2);
@@ -84,6 +86,11 @@ try {
   switch (result.status) {
     case "saved":
       console.log(`Saved for ${slug}, in ${where}:\n${line(result.row)}`);
+      if (result.noRule) {
+        console.log(
+          `Note: ${slug} has no credential rule for ${result.row.code ?? ""} yet, so its shifts can't be offered until it has one (npm run firm:check lists them).`,
+        );
+      }
       break;
     case "removed":
       console.log(`Removed from ${slug}'s name map, in ${where}.`);

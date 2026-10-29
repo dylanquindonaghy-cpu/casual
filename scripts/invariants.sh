@@ -53,7 +53,7 @@ fi
 #    firm means setting it; ESLint keeps app code from importing src/lib/db/admin) and the
 #    owner-run admin commands, each named here (audit L65; integration-tested: onboarding,
 #    custom-domain, brand, shifts-line and the others).
-owner_scripts='^scripts/(firm-agreement-owner|firm-brand-owner|firm-create-owner|firm-domain-owner|firm-settings-owner|firm-sheet-owner|shifts-line-owner)\.ts:'
+owner_scripts='^scripts/(firm-agreement-owner|firm-brand-owner|firm-create-owner|firm-domain-owner|firm-names-owner|firm-settings-owner|firm-sheet-owner|shifts-line-owner)\.ts:'
 if hits=$(grep -rnF "app.current_firm_id" src scripts | grep -v -e "^src/lib/db/scoped.ts:" -e "^src/lib/db/admin/seed.ts:" -e "^scripts/invariants.sh:" | grep -vE "$owner_scripts"); then
   echo "FAIL: app.current_firm_id used outside src/lib/db/scoped.ts and the named owner commands:"; echo "$hits"; fail=1
 else echo "ok: only withFirm (and the seed's and the owner commands' firm provisioning) set the firm"; fi

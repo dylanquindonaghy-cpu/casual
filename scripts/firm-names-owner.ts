@@ -2,14 +2,15 @@ import { Client } from "pg";
 import { CANCEL_ASKERS, NAME_KINDS, type NameKind } from "../src/lib/db/schema";
 import { importPence } from "../src/lib/imports/import";
 import { MAX_PAY_RATE_PENCE } from "../src/lib/office/shift-editor";
-import { nameKey, normaliseRole } from "../src/lib/roster/names";
+import { nameKey, normaliseQualification, normaliseRole } from "../src/lib/roster/names";
 
 // A firm's name map (P3.2, `npm run firm:names`, scripts/firm-names.ts; src/lib/roster/names.ts):
 // what the firm's own system calls a role, a qualification, a staff type or a cancellation reason,
 // mapped to a ShiftDesk code or to skip. As the owner, like the firm's settings
 // (scripts/firm-settings-owner.ts): the app role can only read name_map, and RLS is forced for the
 // owner too, so each change runs with the firm set for its transaction only. Each change is logged
-// `firm.settings_changed` {keys: ["name_map.<kind>"], name, from, to} (a name isn't personal).
+// `firm.settings_changed` {keys: ["name_map.<kind>"], name, from, to} (a name isn't personal), with
+// fromRatePence and toRatePence when either side has a pay rate.
 //
 // What a name may map to, by kind: a role's code (as the rules spell roles: "Door supervisor" is
 // door_supervisor), with its pay rate if it has one; a qualification the firm has (a credential
@@ -26,7 +27,8 @@ export interface MappedNameRow {
 export type NameField = "kind" | "name" | "code" | "rate";
 
 export type SetNameResult =
-  | { status: "saved"; row: MappedNameRow }
+  // noRule: a role the firm has no credential rule for (its shifts can't be offered until it has).
+  | { status: "saved"; row: MappedNameRow; noRule?: true }
   | { status: "unchanged" }
   | { status: "removed" }
   | { status: "not_there" }
@@ -118,7 +120,12 @@ export async function setName(
   if (!change.remove) {
     if (rawCode === "") return { status: "bad", field: "code" };
     if (rawCode.toLowerCase() !== "skip") {
-      code = kind === "role" ? normaliseRole(rawCode) : rawCode;
+      code =
+        kind === "role"
+          ? normaliseRole(rawCode)
+          : kind === "qualification"
+            ? normaliseQualification(rawCode)
+            : rawCode;
       const fixed = FIXED_CODES[kind];
       if (!code || (fixed && !fixed.includes(code))) return { status: "bad", field: "code" };
     }
@@ -130,8 +137,10 @@ export async function setName(
       }
       if (payRatePence > MAX_PAY_RATE_PENCE) return { status: "bad", field: "rate" };
     }
-  } else if (rawCode !== "" || (change.rate ?? "").trim() !== "") {
+  } else if (rawCode !== "") {
     return { status: "bad", field: "code" };
+  } else if ((change.rate ?? "").trim() !== "") {
+    return { status: "bad", field: "rate" };
   }
 
   const result = await withOwnerFirm(
@@ -194,6 +203,13 @@ export async function setName(
         [firmId, kind, name, code, payRatePence],
       );
       await log(after);
+      if (kind === "role" && code !== null) {
+        const { rows: rule } = await owner.query(
+          "select 1 from credential_rules where firm_id = $1 and role = $2",
+          [firmId, code],
+        );
+        if (rule.length === 0) return { status: "saved", row: after, noRule: true };
+      }
       return { status: "saved", row: after };
     },
   );

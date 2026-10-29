@@ -55,6 +55,12 @@ export const PROBLEM_TEXT: Record<ImportProblemCode, string> = {
 export function summarise(result: ImportResult): string {
   const lines = [
     `${result.dryRun ? "Dry run (nothing saved): would" : "Imported:"} create ${result.created}, update ${result.updated}, leave ${result.unchanged} unchanged, skip ${result.skipped}.`,
+    // Rows the firm's name map says aren't ours (P3.2; the owner's command, so its own words).
+    ...(result.ignored
+      ? [
+          `Left out ${result.ignored} ${result.ignored === 1 ? "row" : "rows"} the firm's name map skips (npm run firm:names).`,
+        ]
+      : []),
     ...result.problems.map((p) => `Row ${p.row}: ${PROBLEM_TEXT[p.problem]}.`),
   ];
   return lines.join("\n");

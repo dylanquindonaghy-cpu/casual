@@ -1926,12 +1926,14 @@ page, and no casual-facing words beyond those Dylan approves. The proposal's ite
       cancellation reason) each mapped to a ShiftDesk code (a role with its pay rate) or to skip,
       with `firm_id`, RLS, a `TABLE_ACCESS` entry and isolation fixtures; an owner script to set it
       (like `scripts/firm-sheet-owner.ts`), each change logged; the sheet sync and the file import
-      read role names through it (a skipped one is left off a worker's roles, and its shift row
-      isn't brought in), with `normaliseRole` (`src/lib/roster/sheets/parse.ts`) as the fallback;
-      an unmapped name neither can read is a bad role, logged with the sync's or the import's
-      problems and never offered. The other kinds and a role's pay rate are held for the connector
-      (P5): the sheet and the import carry none of them and never write a session's pay (S2).
-      Tests: mapped, skipped, unmapped, another firm's map unused (P3.2)
+      use it: role names (a skipped one is left off a worker's roles, and its shift row isn't
+      brought in), and the credentials import's qualification names, with `normaliseRole`
+      (`src/lib/roster/sheets/parse.ts`) and the import's own spelling as the fallbacks; an
+      unmapped name neither can read is a bad role or type, logged with the sync's or the import's
+      problems and never offered. Staff types and cancellation reasons (neither the sheet nor a
+      file carries one) and a role's pay rate are held for the connector (P5): the sheet and the
+      import never write a session's pay (S2). Tests: mapped, skipped, unmapped, another firm's
+      map unused (P3.2)
 - [ ] "Any of" licences (R; Rules 3, Dylan 2026-10-29): a rule may need one of several credential
       types (a door supervisor licence covers guarding), in `src/lib/rules/packs.ts`,
       `src/lib/credentials/requirements.ts`, `src/lib/rules/eligibility.ts` and
@@ -1949,7 +1951,10 @@ page, and no casual-facing words beyond those Dylan approves. The proposal's ite
 `pay_records.pay_date` (`src/app/page.tsx`), the top bar, the dashboard and the pay dashboard;
 payroll's pay-query headings and the digest email's headline for a fortnight ("the week of" today,
 `src/lib/ai/pay-summary.ts`: new words, Dylan's to approve); the
-Needs attention item for an unmapped name; the casual's "you need A or B" words (a mock-up first);
+Needs attention items for an unmapped name and for a skipped name on a session still to come
+(the sync's `skipped_live`), the import page's "left out" count and the action log's words for a
+name map change ("The firm's settings changed" today); the casual's "you need A or B" words (a
+mock-up first);
 the office's "who asked" choice when it cancels.
 
 Done when: P3.1 to P3.4 are ticked, each with a stamp that includes the browser tests;

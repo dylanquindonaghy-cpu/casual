@@ -704,24 +704,30 @@ create unique index roster_sources_spreadsheet_id_key on roster_sources (spreads
 -- A firm's name map (P3.2, migration 0051; src/lib/roster/names.ts): what its own system calls a
 -- role ("Door Supervisor (NLW)", "12D"), a qualification, a staff type or a cancellation reason,
 -- and the ShiftDesk code it stands for, or skip (code null: "Holiday", "Not Set"). The rota sheet's
--- sync and the file import read role names through it: a mapped name is its code, a skipped one
--- is left off a worker's roles and its shift row isn't brought in, and a name the firm hasn't
--- mapped is read as before (normaliseRole: a bad role if it can't be, so never offered). The other
--- kinds, and a role's pay rate, are for the connector (P5): the sheet and the import never write
+-- sync and the file import read role names through it, and the credentials import a
+-- qualification's: a mapped name is its code, a skipped one is left off a worker's roles and its
+-- shift or credential row isn't brought in (the import counts it as ignored; the sync counts it,
+-- and reports skipped_live for a row that made a session still to come, which stays as it is), and
+-- a name the firm hasn't mapped is read as before (normaliseRole: a bad role if it can't be, so
+-- never offered). Staff types and cancellation reasons, which neither the sheet nor a file
+-- carries, and a role's pay rate are for the connector (P5): the sheet and the import never write
 -- a session's pay (S2). Set only by the owner (npm run firm:names), logged firm.settings_changed
--- {keys: ["name_map.<kind>"], name, from, to}; the app role may only read it.
+-- {keys: ["name_map.<kind>"], name, from, to}, with fromRatePence and toRatePence when either
+-- side has a pay rate; the app role may only read it.
 create table name_map (
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),
   kind text not null,                    -- role | qualification | staff_type | cancellation_reason
   outside_name text not null,            -- 1-200 characters, as names.ts keys it: trimmed, lower
-                                         -- case, one space between words, no control characters
+                                         -- case, one space between words, no control or format
+                                         -- characters
   code text,                             -- null: skip. A role as the rules spell it; a qualification
                                          -- one of the firm's credential types; a staff type casual;
                                          -- a cancellation reason who asked (P3.4): casual | firm |
                                          -- client | unknown (the database checks the format)
   pay_rate_pence integer,                -- a role's only, not skipped, 0 to 100000 (whole pence an hour)
   created_at timestamptz not null default now(),
+  unique (firm_id, id),
   unique (firm_id, kind, outside_name)
 );
 

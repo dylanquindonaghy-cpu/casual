@@ -159,7 +159,7 @@ describe.each(EXPECTED_TABLES)("%s", (table) => {
         message: expect.stringMatching(/row-level security/),
       });
     } else {
-      // firms and roster_sources: created only by an owner script, never by the app.
+      // firms, roster_sources and name_map: created only by an owner script, never by the app.
       for (const firmId of [A.firmId, B.firmId]) {
         const err = await pgError(inFirm(app, firmId, (c) => run(c, INSERTS[table](firmId, B))));
         expect(err).toMatchObject({

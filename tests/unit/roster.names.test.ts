@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { NameKind } from "@/lib/db/schema";
 import {
   nameKey,
+  normaliseQualification,
   normaliseRole,
+  readQualificationName,
   readRoleName,
   readRoleNames,
   type MappedName,
@@ -30,10 +32,23 @@ describe("a name's key", () => {
   it("trimmed, lower case, one space between words; nothing empty, too long or with a control character", () => {
     expect(nameKey("  Door  Supervisor\t(NLW) ")).toBe("door supervisor (nlw)");
     expect(nameKey("12D")).toBe("12d");
-    for (const bad of ["", "   ", "x".repeat(201), "door\u0000supervisor", "a\u0085b"]) {
+    // Control and format characters too (a soft hyphen, a zero-width space, a direction mark):
+    // what an ICU database calls "control".
+    for (const bad of [
+      "",
+      "   ",
+      "x".repeat(201),
+      "door\u0000supervisor",
+      "a\u0085b",
+      "door\u00adsupervisor",
+      "door\u200bsupervisor",
+      "a\u202eb",
+    ]) {
       expect(nameKey(bad), JSON.stringify(bad)).toBeNull();
     }
     expect(nameKey("x".repeat(200))).toHaveLength(200);
+    // A line separator is white space: one space, like a tab.
+    expect(nameKey("a\u2028b")).toBe("a b");
   });
 });
 
@@ -64,6 +79,28 @@ describe("a role's name", () => {
     expect(readRoleNames(["Holiday", "Not Set"], MAP)).toEqual([]);
     expect(readRoleNames(["steward", "Event Manager (PAYE)"], MAP)).toBeNull();
     expect(readRoleNames([])).toEqual([]);
+  });
+});
+
+describe("a qualification's name (the credentials import)", () => {
+  const QUALS: NameMap = new Map<NameKind, Map<string, MappedName>>([
+    [
+      "qualification",
+      new Map([
+        ["nhss 12d", { code: "TM_12D", payRatePence: null }],
+        ["induction", { code: null, payRatePence: null }],
+      ]),
+    ],
+  ]);
+  it("the map first, else the import's own spelling; null for one neither can read", () => {
+    expect(readQualificationName("NHSS 12D", QUALS)).toEqual({ code: "TM_12D" });
+    expect(readQualificationName("Induction", QUALS)).toEqual({ skip: true });
+    expect(readQualificationName("sia ds", QUALS)).toEqual({ code: "SIA_DS" });
+    expect(readQualificationName("Chapter 8 (TM)", QUALS)).toBeNull();
+    expect(normaliseQualification("first-aid")).toBe("FIRST_AID");
+    expect(normaliseQualification("X".repeat(51))).toBeNull();
+    // No map: exactly the import's spelling.
+    expect(readQualificationName("NHSS 12D")).toEqual({ code: "NHSS_12D" });
   });
 });
 
@@ -113,6 +150,10 @@ describe("the rota sheet through the map", () => {
 
   it("mapped roles come in as their codes; skipped ones don't, and aren't problems; the rest as before", () => {
     const parsed = parseSheet(input, DEFAULT_SHEET_MAPPING, LONDON, MAP);
+    expect(parsed.skipped).toEqual([
+      { row: 3, ref: "E2" },
+      { row: 4, ref: "E3" },
+    ]);
     expect(parsed.staff.map((s) => [s.ref, s.roles])).toEqual([["S1", ["door_supervisor"]]]);
     expect(parsed.shifts.map((s) => [s.ref, s.role])).toEqual([
       ["E1", "door_supervisor"],

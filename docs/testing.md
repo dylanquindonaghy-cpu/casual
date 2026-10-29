@@ -157,7 +157,9 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   it can't use (an unknown qualification, a staff type other than casual, a rate on a skipped
   role); the app can read its firm's map but never write it or see another's; the sheet's sync and
   the file import bring mapped names in as codes, leave skipped ones out (the import counts them
-  as ignored), and report the rest as bad roles; another firm's map is never used.
+  as ignored, a dry run too, and says so), and report the rest as bad roles; a credentials file's
+  types go through it too; a name skipped after its session came in leaves the session as it is,
+  reported `skipped_live`; another firm's map is never used, by the sync or the import.
 - `ai.anthropic.test.ts` (built, 12X.3; P4.6 under load) — the Anthropic client on a fake `fetch`.
   Since P4.6: at most 4 calls at once, the rest in order; one still waiting after its 5 seconds
   turned away (`busy`) without calling the API; the breaker opening after 5 failed calls in a row,

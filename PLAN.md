@@ -2149,16 +2149,19 @@ so the office already reads them as "From your planner" and no new words are nee
       come in hidden from casuals (the shadow cycle); the founder's alert and `firm:check` name a
       failing connector as one, not a rota sheet. Tests: a lost webhook caught by the pull, two
       pulls at once one run, a failing source backs off (P5.4)
-- [ ] Bookings both ways (R): who's booked in the source mirrored through the three-way merge
-      (`src/lib/roster/sheets/merge.ts`), a booking made there run through the rules like an office
-      placement (refused: logged for the office, not booked), never cancelling a confirmed booking
-      on its own; a booking made in ShiftDesk held as "confirming" (the same conditional `UPDATE`,
-      golden rule 4), sent to the source with no transaction open, then confirmed or released;
-      a read-only plug (`canWrite` false: `assign` answers `needs_approval`) for a source that takes
-      no writes or is down. Notice hours for a cancellation made in the source from its own time
-      only when it belongs to that booking and falls since the last pull, else the reading that
-      favours the casual, the evidence recorded. Tests: each case, raced bookings, the source
-      down (P5.5)
+- [ ] Bookings from the source (R): who's booked in the source mirrored through the three-way
+      merge (`src/lib/roster/sheets/merge.ts`), a booking made there run through the rules like an
+      office placement (refused: logged for the office, once, not booked), never cancelling a
+      confirmed booking on its own; a cancellation made in the source cancelled here with notice
+      hours from its own time only when it belongs to that booking and falls since the source was
+      last read, else the reading that favours the casual, the evidence recorded; while a firm's
+      planner is a connector, people can't book or cancel its sessions in ShiftDesk (`needs_approval`:
+      the firm's system holds who's booked). Tests: each case, raced reads, a booking the system
+      stops listing, people refused (P5.5). **Narrowed, 2026-10-29** (the build): a booking made in
+      ShiftDesk "held as confirming, sent to the source, then confirmed or released" waits for a
+      system that takes writes (the real portal's API is unknown) and for the casual's words ("We're
+      confirming your place", "That place has just gone"), which come with the UI after the UI
+      chat; until then a connector's sessions come in hidden and are booked in the firm's system.
 
 A firm's planner is its API key or a connector, never both (P5.2's review: both would write the
 same sessions by the same refs): while a key is live, the connector changes nothing, and

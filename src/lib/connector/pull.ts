@@ -15,6 +15,7 @@ import {
   CONNECTOR_API_KEY_SECRET,
   connectorWorkerDeps,
   type ConnectorApplyDeps,
+  latest,
   type RecordOutcome,
   unexpectedCode,
 } from "./apply";
@@ -75,6 +76,11 @@ export async function runConnectorPull(
   const staleBefore = new Date(now.getTime() - PULL_LEASE_MS);
 
   const claim = await run(firmId, async (tx) => {
+    // When it was last read, before this pull: the bookings' evidence (bookings.ts).
+    const [before] = await tx
+      .select({ full: rosterSources.lastSyncedAt, near: rosterSources.lastNearSyncedAt })
+      .from(rosterSources)
+      .where(eq(rosterSources.id, sourceId));
     const [claimed] = await tx
       .update(rosterSources)
       .set({ syncStartedAt: now, lastAttemptedAt: now })
@@ -87,7 +93,8 @@ export async function runConnectorPull(
         ),
       )
       .returning({ connector: rosterSources.connector, baseUrl: rosterSources.baseUrl });
-    if (claimed) return claimed;
+    if (claimed)
+      return { ...claimed, lastReadAt: latest(before?.full ?? null, before?.near ?? null) };
     const [on] = await tx
       .select({ id: rosterSources.id })
       .from(rosterSources)
@@ -102,7 +109,7 @@ export async function runConnectorPull(
   });
   if (claim === "busy" || claim === "off") return { status: claim };
   if (!claim.connector || !claim.baseUrl) return { status: "off" };
-  const { connector, baseUrl } = claim;
+  const { connector, baseUrl, lastReadAt } = claim;
 
   // The outcome on the source, only while this pull still holds its lease.
   const release = (outcome: { ok: true } | { ok: false; code: string }) =>
@@ -192,6 +199,7 @@ export async function runConnectorPull(
           now,
           geocoder: deps.geocoder,
           localDatabase,
+          lastReadAt,
         });
       } catch (err) {
         // One record's unexpected failure doesn't stop the rest: counted, and the next pull tries

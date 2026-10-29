@@ -218,6 +218,16 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   cadence is unit-tested (`tests/unit/connector.cadence.test.ts`: first pull, every 15 minutes,
   nightly in the firm's zone and its summer time, 26 hours overdue, back-off), and the founder's
   alert names a connector's pull (`tests/unit/ops.alerts.test.ts`).
+- `connector.bookings.test.ts` (P5.5) — who's booked on a connector's session, mirrored from the
+  made-up portal on the real database: a booking made there is booked here through the rules as
+  the office's placement (`booked_via` api, logged as the firm's with its source, no message to the
+  casual), a refused one logged once with its real reason, one past the places refused as no place;
+  two reads at once book a casual once; one the system stops listing is never cancelled, and a
+  record with no bookings touches none; one cancelled there is cancelled here (cancelled_firm,
+  `cancel_via` api, who asked unknown, never a strike), its notice from the system's own time when
+  that's since the last read, else from the read, with the evidence logged; and while the planner
+  is a connector, people can't book or cancel its sessions (`needs_approval`), until it's switched
+  off.
 - `rules.any-of.test.ts` (P3.3, Rules 3) — "any of" licences, on the real database as the app role:
   the security pack's security officer needs one of an SIA security guard or door supervisor
   licence (other rules unchanged), and the database refuses a group of one, a type in both lists

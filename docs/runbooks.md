@@ -646,7 +646,15 @@ on a live database until then).
   every 30 minutes while it's failing. `firm:connector` and `firm:check` show when it last read in
   full and its error code; a failing one sends the founder's alert ("…'s connector's reconcile pull
   is failing (code)"). A connector's new sessions come in **hidden from casuals**: the office shows
-  them when the firm is ready (a first cycle can run as a shadow beside its old way).
+  them when the firm is ready (a first cycle can run beside its old way).
+- **Bookings (P5.5)** come in from the system: a booking made there is booked here if the rules
+  pass (as the office's placement, with its overrides) and a place is left, else the log says why
+  (once); one cancelled there is cancelled here (never a strike), its notice from the system's own
+  time when that's since the last read, else from when it was read; one the system just stops
+  listing stays booked. While the planner is a connector, nobody books or cancels its sessions in
+  ShiftDesk: the office does it in the firm's system (the app says the rota can't be changed from
+  here), and it comes back in. Keep its sessions hidden from casuals until bookings can go out
+  (PLAN.md P5).
 - **Switch it off:** `… --off` (kept, not deleted: a change waiting on it then changes nothing).
   **Replace it:** connect another with `--replace`. **Renew its webhook secret:** switch it off and
   connect it again (a new source: a new id, so a new secret, and a new webhook address); rotating

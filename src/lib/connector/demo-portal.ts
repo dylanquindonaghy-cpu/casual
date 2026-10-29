@@ -36,8 +36,50 @@ export const demoSessionRecord = z.object({
   instructions: optionalText(2000),
   requirements: z.array(z.string().max(40)).max(20).optional(),
   change_reason: z.string().max(40).optional(),
+  // Who's booked on it in the firm's system (P5.5), by staff ref: booked, or cancelled there (when,
+  // and why in our reason codes, if the system says).
+  bookings: z
+    .array(
+      z.object({
+        staff_ref: ref,
+        status: z.enum(["booked", "cancelled"]),
+        cancelled_at: z.string().max(40).optional(),
+        change_reason: z.string().max(40).optional(),
+      }),
+    )
+    .max(1000)
+    .optional(),
 });
 export type DemoSessionRecord = z.infer<typeof demoSessionRecord>;
+
+export interface SourceBookings {
+  booked: string[]; // staff refs, in the system's order
+  cancelled: { ref: string; at: Date | null; reason: string | null }[];
+}
+
+// Who the session's record says is booked, or null when it says nothing about bookings (a system
+// that doesn't send them: nothing here is touched). A cancellation's time that isn't one reads as
+// none (the reading that favours the casual is then used: bookings.ts).
+export function sessionBookings(raw: unknown): SourceBookings | null {
+  const parsed = demoSessionRecord.safeParse(raw);
+  if (!parsed.success || parsed.data.bookings === undefined) return null;
+  const booked: string[] = [];
+  const cancelled: SourceBookings["cancelled"] = [];
+  for (const b of parsed.data.bookings) {
+    if (b.status === "booked") {
+      if (!booked.includes(b.staff_ref)) booked.push(b.staff_ref);
+      continue;
+    }
+    const at = b.cancelled_at ? new Date(b.cancelled_at) : null;
+    cancelled.push({
+      ref: b.staff_ref,
+      at: at && !Number.isNaN(at.getTime()) ? at : null,
+      reason: b.change_reason ?? null,
+    });
+  }
+  // Booked and cancelled both: booked (a booking made again after a cancellation).
+  return { booked, cancelled: cancelled.filter((c) => !booked.includes(c.ref)) };
+}
 
 export const demoStaffRecord = z.object({
   ref,
@@ -89,6 +131,7 @@ export function sessionBody(raw: unknown, names: NameMap): Mapped<Record<string,
   const pay = r.pay_rate_pence ?? mappedRate;
   if (pay !== null && pay !== undefined) body.pay_rate_pence = pay;
   for (const field of ["post", "meeting_point", "uniform", "instructions"] as const) {
+    // (Its bookings aren't the planner API's: bookings.ts mirrors them after the session.)
     if (r[field] !== undefined) body[field] = r[field];
   }
   if (r.requirements !== undefined) body.requirements = r.requirements;

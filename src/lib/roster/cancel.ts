@@ -13,6 +13,7 @@ import {
   firmCallerSchema,
   sourceRefusal,
 } from "./firm-caller";
+import { plannerIsConnector } from "./planner-kind";
 import type { CancelResult } from "./plug";
 import { queueFirmChangeNotice } from "../notices/firm-change";
 import { placeAfterCancel, removeFreedPlace } from "./native";
@@ -125,6 +126,9 @@ async function cancelInTransaction(
     .where(eq(shifts.id, shiftId))
     .for("no key update");
   if (!shift) return { status: "not_found" };
+  // A connector's session: cancelled in the firm's own system, which comes back in
+  // (planner-kind.ts).
+  if (shift.source === "api" && (await plannerIsConnector(tx))) return { status: "needs_approval" };
   if (by.type === "worker" && shift.startsAt.getTime() <= now.getTime()) {
     return { status: "started" };
   }

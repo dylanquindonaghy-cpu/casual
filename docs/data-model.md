@@ -495,7 +495,9 @@ create table shifts (
   instructions text,
   synced_holders text[],                 -- Sheets: the "Assigned" cell's staff ids after the last
                                          -- successful sync (the three-way merge's base; names the
-                                         -- sync couldn't book left out, so they're tried again)
+                                         -- sync couldn't book left out, so they're tried again).
+                                         -- A connector's session (P5.5): the staff refs both sides
+                                         -- hold after the last read
   sheet_issues jsonb,                    -- Sheets only (Phase 10): what the sheet asks for that the last
                                          -- sync couldn't do ({change?: {fields, wanted, reason, workers},
                                          -- names?: [{workerId, codes, dropped?}]}), for the dashboard; null: none

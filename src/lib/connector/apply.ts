@@ -19,7 +19,8 @@ import {
 } from "../roster/workers";
 import { SecretUnreadable, secretsKey } from "../secret-store/crypto";
 import type { Geocoder } from "../travel/geocoder";
-import { sessionBody, staffWorker } from "./demo-portal";
+import { mirrorBookings } from "./bookings";
+import { sessionBody, sessionBookings, staffWorker } from "./demo-portal";
 import {
   CONNECTOR_EVENT_QUEUE,
   CONNECTOR_RETRY_LIMIT,
@@ -153,6 +154,8 @@ async function applyEvent(
         enabled: rosterSources.enabled,
         connector: rosterSources.connector,
         baseUrl: rosterSources.baseUrl,
+        lastFullAt: rosterSources.lastSyncedAt,
+        lastNearAt: rosterSources.lastNearSyncedAt,
       })
       .from(connectorEvents)
       .innerJoin(
@@ -223,6 +226,7 @@ async function applyEvent(
     now,
     geocoder: deps.geocoder,
     localDatabase,
+    lastReadAt: latest(found.lastFullAt, found.lastNearAt),
     // A worker's outcome is saved in the same transaction as the worker.
     saveInTx: (tx, outcome) => finish(tx, eventId, outcome, now),
   });
@@ -232,6 +236,10 @@ async function applyEvent(
 }
 
 export type RecordOutcome = { status: ConnectorEventStatus; code: string };
+
+// The later of two times (either may be missing).
+export const latest = (a: Date | null, b: Date | null): Date | null =>
+  a && b ? (a.getTime() > b.getTime() ? a : b) : (a ?? b);
 
 const MOBILE_KEY = "workers_firm_id_mobile_key";
 function isMobileTaken(err: unknown): boolean {
@@ -257,6 +265,7 @@ export async function applyRecord(a: {
   now: Date;
   geocoder?: Geocoder;
   localDatabase: boolean;
+  lastReadAt: Date | null; // when the source was last read before this (bookings.ts's evidence)
   saveInTx?: (tx: FirmTx, outcome: RecordOutcome) => Promise<void>;
 }): Promise<{ outcome: RecordOutcome; transient: boolean }> {
   const settled = (outcome: RecordOutcome) => ({ outcome, transient: false });
@@ -279,7 +288,24 @@ export async function applyRecord(a: {
       },
       a.ref,
     );
-    return { outcome: apiOutcome(result), transient: result.status >= 500 };
+    const outcome = apiOutcome(result);
+    // Who's booked on it in the firm's system (P5.5), once the session itself is in.
+    const bookings = sessionBookings(a.record);
+    if (outcome.status === "applied" && outcome.code !== "cancelled" && bookings) {
+      const mirrored = await mirrorBookings({
+        run: a.run,
+        firmId: a.firmId,
+        by: a.by,
+        ref: a.ref,
+        bookings,
+        lastReadAt: a.lastReadAt,
+        now: a.now,
+      });
+      if (mirrored === "not_allowed") {
+        return settled({ status: "ignored", code: "not_allowed" });
+      }
+    }
+    return { outcome, transient: result.status >= 500 };
   }
 
   const mapped = staffWorker(a.record, a.names);

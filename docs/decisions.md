@@ -230,6 +230,12 @@ reason was given). Bookings relying on the "applied" allowance queue per firm an
 applicants can't both take the day's last allowed place.
 **Revisit when:** event-day bookings need a tighter freshness window than 20 minutes, or a
 sheet row deleted by the office must stop being bookable before the sync notices (parked).
+**Amended (P5.5, 2026-10-29):** a connector's bookings mirror (`src/lib/connector/bookings.ts`,
+ADR-026) is a second sync of the same kind: it books through `checkBooking()` with the office's
+overrides and the plug's one conditional update, and cancels through the plug with the notice
+hours logged, in one transaction under the source's row and then the shift's lock. While a firm's
+planner is a connector, `bookShift()` and `cancelBooking()` answer `needs_approval` for its
+sessions (people book in the firm's own system).
 
 ## ADR-015: Fair rotation on the Open shifts board is a short priority window
 

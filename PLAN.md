@@ -1815,34 +1815,52 @@ AXLR8 directly when it can be asked.
 
 ### P1 — The repo, easier for Claude (attended; docs and config only; go-ahead: Dylan, 2026-10-29, built last)
 
-Why: `PLAN.md` is about 470 KB (well over 100k tokens) and `/next-task` reads all of it; `docs/work-log.md`
-is 858 KB and `docs/overnight-log.md` 1.1 MB, and both only grow.
+Why: `PLAN.md` is about 530 KB (well over 100k tokens) and `/next-task` reads all of it;
+`docs/work-log.md` is 858 KB and `docs/overnight-log.md` 1.1 MB, and both only grow. Built last,
+after P5, P7's back end and the Phase 15 sender were ticked, so nothing else was editing `PLAN.md`.
+Nothing under `src/` changes but the new local `CLAUDE.md` files, and no word a casual or the
+office sees.
 
-- Move fully ticked phases to `docs/archive/plan-done.md`. Open items from earlier phases (the
-  Gates, Phases 4, 6, 7, 8, 9, 15 and 22) stay in `PLAN.md` under "Still open from earlier phases",
-  so `/next-task` and `/overnight` still find them. The archive is frozen: its sha256 is pinned in
-  `scripts/invariants.sh`, so any change to it fails verify and blocks every tick until undone. (Not
-  a `*PLAN.md` name: the tick guard, `.claude/hooks/guard-plan-tick.sh` with its helper
-  `plan-ticks.mjs`, counts a new file with ticked lines as a tick and would refuse the move, and the
-  shell hooks watch the root `PLAN.md` only.) Each open phase keeps its "Done when" line in
-  `PLAN.md`, where `/close-task` and the `claims-auditor` read it.
-- Move the Parking lot and the Hours log to `docs/plan/parking-lot.md` and `docs/plan/hours-log.md`,
-  leaving a one-line pointer heading in `PLAN.md`: about 105 lines outside `PLAN.md` and the three
-  history docs name these sections, 46 of them in code, tests, scripts and deploy files
-  (`git grep -E "Parking lot|Hours log"`, 2026-10-26). Old `PLAN.md` line numbers in `docs/audit-2026-09-30.md` and the logs get a
-  dated note that they point at `PLAN.md` as it was then.
-- The logs by month (`docs/logs/work-YYYY-MM.md`, `docs/logs/overnight-YYYY-MM.md`), the old files
-  kept as small indexes, and `docs/plan/blocked.md` so `/overnight` finds blocked tasks without
-  reading a 1.1 MB log.
-- Update CLAUDE.md rule 10's wording, `.claude/commands/next-task.md`, `overnight.md`,
-  `log-hours.md`, `fact-check.md` and `.claude/agents/doc-fact-checker.md` to the new places
-  (`close-task.md` and the `claims-auditor` need no change while "Done when" lines stay put).
-- Short local `CLAUDE.md` files only under `src/lib/<area>/` (integrations, rules, roster) and
-  `src/worker/`, which Claude Code reads only when working there; not under `src/app`, which unit
-  tests walk (check which before adding any).
-- Tests: `scripts/selftest.sh` passes; the archive pin fails on a planted change; `/fact-check`
-  finds no dead links; `PLAN.md` under 100 KB (the Decisions list alone is about 50 KB: if that's
-  still too much, it moves to `docs/plan/` next).
+- [ ] The archive (attended): the numbered phases with every box ticked (Phases 0 to 3, 5, 10 to
+      14, 16 to 21, 23 and 24) move word for word to `docs/archive/plan-done.md`, frozen: its
+      sha256 is pinned in `scripts/invariants.sh`, so any change to it fails verify and blocks
+      every tick until undone (not a `*PLAN.md` name, which the tick guard would refuse as new
+      ticked lines). The phases still open (the Gates, Phases 4, 6, 7, 8, 9, 15 and 22) stay
+      under "Still open from earlier phases", each with its "Done when" line, where `/close-task`
+      and the `claims-auditor` read it; the proposals P1 to P8 stay whole (P2 to P4's back ends
+      are ticked, but their screens wait for the UI chat). `scripts/plan-moved-check.mjs` shows
+      every line taken out of `PLAN.md` is in a new file, word for word. Tests: the pin fails on
+      a planted change (`scripts/selftest.sh`), nothing lost (P1.1)
+- [ ] The Parking lot, the Hours log and the Decisions list (attended) move to
+      `docs/plan/parking-lot.md`, `docs/plan/hours-log.md` and `docs/plan/decisions-waiting.md`,
+      each leaving its heading in `PLAN.md` with a one-line pointer, so the 316 lines in 58 files
+      that say "the Parking lot", "the Hours log" or "Decisions waiting for Dylan" (2026-10-29)
+      still lead to it (none needs
+      changing, and none under `src/app/` may change while the UI chat works); old `PLAN.md` line
+      numbers in `docs/audit-2026-09-30.md` and the logs get a dated note that they point at
+      `PLAN.md` as it was then. Tests: nothing lost (`scripts/plan-moved-check.mjs`), `PLAN.md`
+      under 100 KB (P1.2)
+- [ ] The logs by month: `docs/logs/work-YYYY-MM.md` and `docs/logs/overnight-YYYY-MM.md`, cut at
+      each dated section with nothing changed (the month files, joined, are the old body byte for
+      byte), the old files kept as short indexes of the months; `docs/plan/blocked.md` lists what's
+      blocked and on whom, so `/overnight` finds it without reading a 1.1 MB log. Tests: the
+      join (P1.3)
+- [ ] The commands and agents point at the new places (attended: `.claude/`): `CLAUDE.md` (rule 10
+      and step 6), `.claude/commands/next-task.md`, `overnight.md` (its hours row, work-log note
+      and decision log by month), `log-hours.md`, `fact-check.md` and
+      `.claude/agents/doc-fact-checker.md`; `close-task.md` and the `claims-auditor` need no change
+      while the "Done when" lines stay put. Tests: `scripts/selftest.sh` (P1.4)
+- [ ] Short local `CLAUDE.md` files under `src/lib/integrations/`, `src/lib/rules/`,
+      `src/lib/roster/` and `src/worker/`, which Claude Code reads only when working there: what
+      lives there, its rules and the docs to read. None under `src/app/`, which unit tests walk;
+      checked that no test reads every file under these folders (P1.5)
+
+Done when: P1.1 to P1.5 are ticked, each with a stamp that includes the browser tests;
+`RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; `scripts/selftest.sh` passes, with the archive's
+pin failing on a planted change; `scripts/plan-moved-check.mjs` finds nothing lost; the
+`doc-fact-checker` finds no dead pointer to a moved section; `PLAN.md` is under 100 KB; nothing
+under `src/` changed but the new `CLAUDE.md` files; the `claims-auditor` checks the phase against
+this line.
 
 ### P2 — Reach casuals in production (go-ahead for the back end: Dylan, 2026-10-28; its words on the login and Pay pages after the UI chat's Phase 24; S, A, M)
 

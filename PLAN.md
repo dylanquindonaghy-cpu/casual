@@ -1836,7 +1836,7 @@ Phase 24.5 and 24.6, so no task here changes a screen, an office page, `src/app/
 code emails) go in `docs/messaging-templates.md` first, for Dylan to approve (P2.1). Decisions:
 "Connecting the firm's systems" 15 to 17.
 
-- [ ] The words (docs only; Dylan approves them before P2.4 and P2.6 are built): in
+- [x] The words (docs only; Dylan approves them before P2.4 and P2.6 are built): in
       `docs/messaging-templates.md`, a subject line for each message to a casual that can go by
       email (offer, urgent offer, booking confirmation, the 24-hour and 2-hour reminders, the firm's
       change and cancellation, a request's answer, a pay query's answer, the office's reply, the

@@ -337,7 +337,7 @@ editing `PLAN.md`.
 Nothing under `src/` changes but the new local `CLAUDE.md` files, and no word a casual or the
 office sees.
 
-- [ ] The archive (attended): the numbered phases with every box ticked (Phases 0 to 3, 5, 10
+- [x] The archive (attended): the numbered phases with every box ticked (Phases 0 to 3, 5, 10
       to 14, 16 to 21, 23 and 24) move word for word to `docs/archive/plan-done.md`, frozen: its
       sha256 is pinned in `scripts/archive-check.sh`, which `scripts/invariants.sh` runs (check 9),
       so any change to it fails verify and blocks every tick until undone (not a `*PLAN.md` name,
@@ -362,7 +362,7 @@ office sees.
       byte), the old files kept as short indexes of the months; `docs/plan/blocked.md` lists what's
       blocked and on whom, so `/overnight` finds it without reading a 1.1 MB log. Tests: the
       join (P1.3)
-- [ ] The commands and agents point at the new places (attended: `.claude/`): `CLAUDE.md` (rule 10
+- [x] The commands and agents point at the new places (attended: `.claude/`): `CLAUDE.md` (rule 10
       and step 6), `.claude/commands/next-task.md`, `overnight.md` (its hours row, work-log note
       and decision log by month), `log-hours.md`, `fact-check.md` and
       `.claude/agents/doc-fact-checker.md`; `close-task.md` and the `claims-auditor` need no change

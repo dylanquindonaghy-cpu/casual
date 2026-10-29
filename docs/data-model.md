@@ -550,8 +550,9 @@ create table assignments (
                                          -- markCancelled, a caller that knows may say); only on a
                                          -- cancelled row; migration 0053 filled the cancellations
                                          -- there were from their status and cancel_via (none:
-                                         -- from the session's source). The notice report counts
-                                         -- by it
+                                         -- from the session's source). Each shift.cancelled log
+                                         -- entry says it too (askedBy); the notice report reads
+                                         -- the entry's, else the booking's, and counts by it
   booked_via text,                       -- P2.2: where the booking was made: app (the casual took it,
                                          --   or accepted an offer) | office | sheet | api (the firm's
                                          --   own system, P5); set with the booking, in its

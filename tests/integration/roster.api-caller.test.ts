@@ -456,6 +456,7 @@ describe("the planner cancelling a booked session", () => {
         booking,
         {
           by: "firm",
+          askedBy: "unknown", // the planner doesn't say who asked (P3.4)
           via: "api",
           keyId,
           shiftId: t.shiftId,

@@ -13,7 +13,7 @@ import {
   firmCallerSchema,
   sourceRefusal,
 } from "./firm-caller";
-import type { CancelResult } from "./plug";
+import { cancelAskedBy, type CancelResult } from "./plug";
 import { queueFirmChangeNotice } from "../notices/firm-change";
 import { placeAfterCancel, removeFreedPlace } from "./native";
 import { markUrgentAfterDropout } from "./urgent";
@@ -171,11 +171,15 @@ async function cancelInTransaction(
     }
   }
 
+  const via = by.type === "worker" ? ("app" as const) : ("office" as const);
+  // Who asked (P3.4): recorded on the booking by the plug, and in the log below.
+  const askedBy = cancelAskedBy({ by: initiator, via });
   const cancelled = await plugFor(tx, shift.source, now).markCancelled(shiftId, workerId, {
     reason,
     by: initiator,
     at: now,
-    via: by.type === "worker" ? "app" : "office",
+    via,
+    askedBy,
   });
   if (cancelled.status !== "cancelled") return cancelled;
   if (cancelled.noticeHours !== notice) {
@@ -228,6 +232,7 @@ async function cancelInTransaction(
     entityId: cancelled.assignmentId,
     data: {
       by: initiator,
+      askedBy,
       shiftId,
       workerId,
       noticeHours: cancelled.noticeHours,
@@ -355,11 +360,14 @@ async function cancelShiftInTransaction(
   let bookings = 0;
   for (const h of holders) {
     if (!h.workerId) continue;
+    const via = by.type === "api" ? ("api" as const) : ("office" as const);
+    const askedBy = cancelAskedBy({ by: "firm", via });
     const cancelled = await plug.markCancelled(shiftId, h.workerId, {
       reason,
       by: "firm",
       at: now,
-      via: by.type === "api" ? "api" : "office",
+      via,
+      askedBy,
     });
     // Under the shift lock nothing else can change these bookings: anything else is a bug, and
     // the whole cancellation rolls back rather than leave someone booked on a cancelled shift.
@@ -374,6 +382,7 @@ async function cancelShiftInTransaction(
       entityId: cancelled.assignmentId,
       data: {
         by: "firm",
+        askedBy,
         ...marks,
         shiftId,
         workerId: h.workerId,

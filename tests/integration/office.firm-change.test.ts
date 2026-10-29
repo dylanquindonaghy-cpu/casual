@@ -120,6 +120,7 @@ describe("cancelling a shift", () => {
         t.annBooking,
         {
           by: "firm",
+          askedBy: "firm", // who asked (P3.4)
           shiftId: t.shiftId,
           workerId: t.ann,
           reason: "The event was cancelled",
@@ -134,6 +135,7 @@ describe("cancelling a shift", () => {
         t.benBooking,
         {
           by: "firm",
+          askedBy: "firm",
           shiftId: t.shiftId,
           workerId: t.ben,
           reason: "The event was cancelled",
@@ -210,6 +212,7 @@ describe("the office cancelling one booking", () => {
     const [event] = await eventsOf(t.f.firmId, "shift.cancelled");
     expect(event?.data).toEqual({
       by: "firm",
+      askedBy: "firm", // who asked (P3.4)
       shiftId: t.shiftId,
       workerId: t.ann,
       noticeHours: 119,

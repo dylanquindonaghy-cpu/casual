@@ -204,10 +204,13 @@ export function strikeText(r: Pick<CancellationRow, "strike" | "strikeCode">, tz
   return r.strikeCode ? STRIKE_WORDS[r.strikeCode] : "Not recorded (before strikes)";
 }
 
+// The decisions that give no strike and are no exemption either (strikeDecision()'s "none").
+const NO_STRIKE: ReadonlySet<StrikeCode> = new Set(["by_firm", "strikes_off", "enough_notice"]);
+
 // The CSV's short form: yes / exempt: reason / no.
 export function strikeShort(r: Pick<CancellationRow, "strike" | "strikeCode">): string {
   if (r.strike) return r.strike.status === "withdrawn" ? "withdrawn" : "yes";
-  if (r.strikeCode && r.strikeCode !== "by_firm" && r.strikeCode !== "enough_notice") {
+  if (r.strikeCode && !NO_STRIKE.has(r.strikeCode)) {
     return `exempt: ${STRIKE_WORDS[r.strikeCode].replace(/^Exempt: /, "")}`;
   }
   return "no";

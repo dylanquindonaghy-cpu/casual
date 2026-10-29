@@ -1958,7 +1958,12 @@ Needs attention items for an unmapped name and for a skipped name on a session s
 (the sync's `skipped_live`), the import page's "left out" count and the action log's words for a
 name map change ("The firm's settings changed" today); the casual's "you need A or B" words (a
 mock-up first);
-the office's "who asked" choice when it cancels, and who asked on the notice report's page and file.
+the office's "who asked" choice when it cancels, and who asked on the notice report's page and file;
+the casual's strike sentences (the shift page's note, Help and Profile) reading the firm's strikes
+switch, and the Cancellations page's "None: strikes are off" (Dylan's to approve) before any firm
+switches strikes off; and the open shifts' chips for a one-of group ("SIA SG or SIA DS", a mock-up
+first: a group's chip shows its first type until then, and a casual's own shift page shows the one
+she holds).
 
 Done when: P3.1 to P3.4 are ticked, each with a stamp that includes the browser tests;
 `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; nothing under `src/app/` changed and no screen or
@@ -4097,7 +4102,8 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
   account was accepted or rejected. A wording of its own ("The office has read what you told them about
   your cancellation") needs a new WhatsApp template (Meta's approval), so it waits for "Submit the
   WhatsApp templates". Until then the office can answer it with a note saying what they did.
-- Strikes (12C.1): no per-firm switch to turn strikes off; every firm on ShiftDesk records them.
+- Strikes (12C.1): no per-firm switch to turn strikes off; every firm on ShiftDesk records them. The switch came back (P3.4, `strikes.enabled`, "Connecting the firm's systems" 6); the casual's strike sentences read it after the UI chat's Phase 24.
+- An owner command to change a firm's credential rule, logged (P3.3's review): a firm set up before P3.3 keeps `security_officer: SIA_SG` with no one-of group, and only a hand edit in the database could change it today.
   Add one if a firm doesn't want them (`docs/dpia-strikes.md`).
 
 - Security updates for Next.js, sharp and source-map-js: `npm audit` reports 3 high advisories in

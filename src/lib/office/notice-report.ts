@@ -226,10 +226,12 @@ export async function loadNoticeReport(
 
   const { rows: counted } = await tx.execute<{ n: number }>(sql`
     select count(*)::int as n from events e ${joins} where ${whereSql}`);
-  // A cancellation's own record says who asked (every one since migration 0053); one without
-  // (none should be) counts as not known.
+  // Who asked: the cancellation's own log entry (since P3.4), else its booking's record (every one
+  // since migration 0053); one with neither (none should be) counts as not known.
   const askedBySql = sql`case when e.action = 'shift.cancelled'
-                              then coalesce(a.cancel_asked_by, 'unknown') end`;
+                              then coalesce(case when e.data ->> 'askedBy' in ('casual', 'firm', 'client', 'unknown')
+                                                 then e.data ->> 'askedBy' end,
+                                            a.cancel_asked_by, 'unknown') end`;
   const { rows: asked } = await tx.execute<{ asked_by: CancelAsker; n: number }>(sql`
     select ${askedBySql} as asked_by, count(*)::int as n
       from events e ${joins}

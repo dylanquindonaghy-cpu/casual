@@ -157,6 +157,11 @@ describe("the record's fields", () => {
       "exempt: booked by the office over a rest or hours rule",
     );
     expect(strikeShort({ strike: null, strikeCode: "enough_notice" })).toBe("no");
+    // Strikes switched off (P3.4): no strike, and no exemption.
+    expect(strikeShort({ strike: null, strikeCode: "strikes_off" })).toBe("no");
+    expect(strikeText({ strike: null, strikeCode: "strikes_off" }, TZ)).toBe(
+      "None: strikes are off",
+    );
     expect(strikeShort(row())).toBe("yes");
     expect(evidenceText({ strike: null }, TZ)).toBe("No strike: nothing to send");
     expect(weekCountsText({ byCasuals: 9, byOffice: 2, strikes: 3 })).toEqual({

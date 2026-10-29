@@ -349,6 +349,16 @@ describe("docs/rules-and-credentials.md test cases", () => {
       officer([...applied], { appliedAllowancePct: 15, deployedCount: 20, appliedInUseCount: 1 })
         .ok,
     ).toBe(true);
+    // A valid door supervisor licence beside it: the licence is what's used, not the application.
+    const both = officer(
+      [...applied, { type: "SIA_DS", status: "valid", expiresOn: "2027-11-01" }],
+      { appliedAllowancePct: 15, deployedCount: 20, appliedInUseCount: 1 },
+    );
+    expect(both.ok).toBe(true);
+    expect(both.checks.find((c) => c.code === "qualification")?.detail).toMatchObject({
+      type: "SIA_DS",
+      held: "valid",
+    });
     // Over the allowance: the applied one's own reason.
     expect(
       officer([...applied], { appliedAllowancePct: 15, deployedCount: 10, appliedInUseCount: 1 })

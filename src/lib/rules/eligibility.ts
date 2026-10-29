@@ -319,7 +319,12 @@ export function checkEligibility(raw: EligibilityInput): EligibilityResult {
     const group = shift.anyOfTypes.map((type) => ({ type, ...judge(type) }));
     if (group.length > 0) {
       const suspended = group.find((g) => g.failure?.code === "credential_suspended");
-      const passed = suspended ? undefined : group.find((g) => g.failure === null);
+      // A valid licence before an application counted within the allowance: the evidence says
+      // the licence she holds, and she doesn't take an applied place she needn't.
+      const passed = suspended
+        ? undefined
+        : (group.find((g) => g.failure === null && g.held === "valid") ??
+          group.find((g) => g.failure === null));
       const used = passed ?? suspended ?? group.find((g) => g.held !== "none") ?? group[0];
       if (used) {
         if (!passed && used.failure) fail(used.failure.code, used.failure.reason);

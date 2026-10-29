@@ -3,7 +3,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   card,
-  h2,
   meta,
   nums,
   page,
@@ -89,11 +88,12 @@ export default async function StrikesPage({
         ))}
       </nav>
 
-      <h2 className={`${h2} mt-6`}>{STRIKE_VIEW_WORDS[view]}</h2>
+      {/* The chosen tab's name, for screen readers: the tab says it on the page (Phase 24). */}
+      <h2 className="sr-only">{STRIKE_VIEW_WORDS[view]}</h2>
       {list.rows.length === 0 ? (
-        <p className={`${card} mt-3 text-ink-muted`}>{STRIKE_VIEW_EMPTY[view]}</p>
+        <p className={`${card} mt-6 text-ink-muted`}>{STRIKE_VIEW_EMPTY[view]}</p>
       ) : (
-        <ul role="list" className={`${rows} mt-3`}>
+        <ul role="list" className={`${rows} mt-6`}>
           {list.rows.map((r) => {
             const [latest, ...earlier] = r.strikes;
             return (

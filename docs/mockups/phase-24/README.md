@@ -220,3 +220,9 @@ app shows the firm's real ones.
   rail open) the counts lose their icons and your name and role go, before anything scrolls.
 - **The shifts line's number** moved to Settings, which didn't have it (PLAN.md's "Settings keeps
   it" was wrong: until 24.2 only the top bar and the dashboards showed it).
+- **The pages the canvas didn't draw** (24.5: Needs attention, Cancellations, Pay, Strikes, the
+  Notice report, the records and settings, a shift, an event, a casual, the offer page, the
+  how-to guide, the logged-out pages) take its parts as the drawn pages use them: a page's
+  buttons beside its headline as Events & sessions' are, and a section's status as a leaf before
+  its heading as the board's columns have, never a tint over the whole section (Needs attention's
+  parts had Phase 23's amber and red washes).

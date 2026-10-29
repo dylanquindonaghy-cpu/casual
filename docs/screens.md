@@ -59,6 +59,39 @@ Every route, label, link and action is as before; what moved is listed here.
   keeps the site; the counts, the open places and the board are that site's events (the event's
   own site, or one of its sessions'). An id that isn't one of the firm's sites shows every site.
 
+## Every other office page, round 7 (Phase 24, 24.5)
+
+Round 7's parts (`docs/mockups/phase-24/README.md`) on the office pages the canvas didn't draw:
+Needs attention, Cancellations and a cancellation, the Pay dashboard, Pay queries, Import pay
+records, Strikes, the Notice report, the records and settings (Action log, Pilot metrics, Data
+requests and a worker's data, Settings, Integrations, Office team), the shifts list, a shift and
+the ways to add shifts, an event, a casual, the offer page, the how-to guide and the logged-out
+pages (the login, the link page, "You're logged out."). Every word, link, action and rule is as
+the older descriptions below say; only these change:
+
+- **Every page's header:** the headline and its lines at the left and the page's buttons beside
+  them from a laptop ("Download CSV" on Cancellations, "Download PDF" on a cancellation, "Import
+  pay records" and "Send the digest now" on the Pay dashboard, "Import pay records" on Pay queries,
+  "New shift", "Shifts for an event" and "Import from a file" on the shifts list, "Offer to
+  someone" on a shift, the casual's page on a message), as Events & sessions' header; on a phone
+  they stay under the lines.
+- **Needs attention:** each part ("Who worked?", "Uploads to check", "Enquiries that need a
+  person" and the rest) and "Also needs you" a glass section like the dashboard's board columns,
+  with a small amber leaf before the heading (a red one before "Also needs you") in place of the
+  amber and red washes. Its items, counts, links and words are unchanged.
+- **An event's page:** each session a clear glass tile like the event cards' (no line round it,
+  and no red edge on an urgent one: its "Urgent" chip says so), its requirements clear glass
+  chips.
+- **Cancellations, Strikes and Enquiries' "Requests from the app":** no heading under the tabs
+  repeating the chosen tab ("All", "Live", "Requests from the app"): the tab says it, and screen
+  readers still hear it as the list's heading.
+- **The how-to guide:** "To answer a message" says the message opens beside the list on a wide
+  screen and on its own page on a phone, that the line under the box says how the reply goes
+  (since 24.4 it's under the box), and that "Close, no reply needed" comes before "Why close it?";
+  Pay queries' note to the group is beside the group (under it on a phone). Its "On this page"
+  contents are one glass card of rows with an arrow at every width (beside the guide from 1280px,
+  where they were a line down a rail).
+
 ## Events & sessions, Enquiries and Casuals, round 7 (Phase 24, 24.4)
 
 Dylan's approved round 7 (`docs/mockups/phase-24/README.md`, "Events & sessions", "Enquiries",

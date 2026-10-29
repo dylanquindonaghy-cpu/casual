@@ -1137,6 +1137,30 @@ describe("shared pieces add no words", () => {
     expect(html).toMatch(/<h1 id="page-title" class="[^"]*(?<![\w-])text-title(?![\w-])/);
     expect(html).not.toMatch(/text-(?:3xl|4xl)/);
     expect(html).not.toMatch(/(?<![\w-])(?:border-b|divide-y)(?![\w-])/);
+    // Phase 24 (round 7, the mock-up's Events & sessions): in the office the actions sit beside the
+    // headline and its lines, level with their foot, and go under them when there's no room (the
+    // headline's box is at least 20rem); only `office:` values do it, so the casual app's header
+    // keeps its actions under the lines.
+    const classOf = (re: RegExp) => re.exec(html)?.[1]?.split(" ") ?? [];
+    expect(classOf(/<header[^>]*><div class="([^"]*)">/)).toEqual([
+      "office:flex",
+      "office:flex-wrap",
+      "office:items-end",
+      "office:gap-x-6",
+      "office:gap-y-4",
+    ]);
+    expect(classOf(/<header[^>]*><div[^>]*><div class="([^"]*)"><h1/)).toEqual([
+      "office:min-w-0",
+      "office:flex-1",
+      "office:basis-80",
+    ]);
+    expect(classOf(/<div class="([^"]*)"><a href="\/office\/shifts\/new"/)).toEqual([
+      "mt-4",
+      "flex",
+      "flex-wrap",
+      "gap-3",
+      "office:mt-0",
+    ]);
   });
 
   it("PageHeader's way back: a link above the heading, named by its words alone", () => {
@@ -1147,7 +1171,7 @@ describe("shared pieces add no words", () => {
       }),
     );
     expect(html).toMatch(
-      /^<header[^>]*><a href="\/office\/cancellations"[^>]*><svg aria-hidden="true"[\s\S]*?<\/svg>Cancellations<\/a><h1[^>]*>Cancellation A1B2C3D4<\/h1>/,
+      /^<header[^>]*><a href="\/office\/cancellations"[^>]*><svg aria-hidden="true"[\s\S]*?<\/svg>Cancellations<\/a>(?:<div class="[^"]*">)*<h1[^>]*>Cancellation A1B2C3D4<\/h1>/,
     );
     expect(text(html)).toBe("Cancellations Cancellation A1B2C3D4");
     expect(html.match(/<h[1-6]\b/g)).toEqual(["<h1"]);

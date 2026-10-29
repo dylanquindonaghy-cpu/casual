@@ -18,6 +18,7 @@ export const EXPECTED_TABLES = [
   "magic_links",
   "messages",
   "metrics_daily",
+  "name_map",
   "offers",
   "office_users",
   "otp_codes",
@@ -205,6 +206,11 @@ export async function createTenant(su: Pool): Promise<Tenant> {
      values ($1, 'sheets', $2, '{"version": 1}')`,
     [firmId, fakeSpreadsheetId()],
   );
+  const nameMapId = await one(
+    su,
+    "insert into name_map (firm_id, kind, outside_name, code) values ($1, 'role', 'door supervisor (nlw)', 'door_supervisor')",
+    [firmId],
+  );
   const offerId = await one(
     su,
     "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, 1, 'push')",
@@ -329,6 +335,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       requests: requestId,
       offers: offerId,
       roster_sources: rosterSourceId,
+      name_map: nameMapId,
       pay_records: payRecordId,
       worker_unavailable_days: unavailableDayId,
       worker_site_blocks: siteBlockId,
@@ -423,6 +430,10 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
     text: `insert into roster_sources (firm_id, kind, enabled, spreadsheet_id, mapping)
            values ($1, 'sheets', false, $2, '{"version": 1}')`,
     values: [firmId, fakeSpreadsheetId()],
+  }),
+  name_map: (firmId) => ({
+    text: "insert into name_map (firm_id, kind, outside_name, code) values ($1, 'role', $2, null)",
+    values: [firmId, `probe name ${next()}`],
   }),
   offers: (firmId, p) => ({
     text: "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, $4, 'whatsapp')",

@@ -974,6 +974,12 @@ In order (who does it, how, and what done looks like):
    service account's email as Editor; then `npm run -s firm:sheet -- --firm acme --sheet <link>`
    (on the server, through the owner service). `npm run -s firm:sheet -- --firm acme` shows when it
    last synced, and why it's failing if it is. A sheet can be connected to one firm only.
+   **Names** (P3.2): if the firm's sheet or files name roles in its own way ("Door Supervisor
+   (NLW)", "12D", "Holiday"), map each with `npm run -s firm:names -- --firm acme --kind role
+   --name "Door Supervisor (NLW)" --code door_supervisor` (`--code skip` for one that isn't a
+   session; `--remove` to take one off; on its own, `npm run -s firm:names -- --firm acme` lists
+   them). A name the map doesn't have is read as before; one that still can't be read is a bad role,
+   so its row isn't brought in. Each change is in the office action log.
 6. **Workers and credentials** (you, from the firm's spreadsheets, **only after Gate B**): "Importing
    workers, credentials or shifts from a spreadsheet" below. `firm:check` then shows how many
    active workers have no credential on file.

@@ -1925,9 +1925,13 @@ page, and no casual-facing words beyond those Dylan approves. The proposal's ite
 - [ ] Name map per firm (S, T): a table of outside names (role, qualification, staff type,
       cancellation reason) each mapped to a ShiftDesk code (a role with its pay rate) or to skip,
       with `firm_id`, RLS, a `TABLE_ACCESS` entry and isolation fixtures; an owner script to set it
-      (like `scripts/firm-sheet-owner.ts`); the sheet sync and the file import use it, with
-      `normaliseRole` (`src/lib/roster/sheets/parse.ts`) as the fallback; an unmapped name is
-      logged and never offered. Tests: mapped, skipped, unmapped, another firm's map unused (P3.2)
+      (like `scripts/firm-sheet-owner.ts`), each change logged; the sheet sync and the file import
+      read role names through it (a skipped one is left off a worker's roles, and its shift row
+      isn't brought in), with `normaliseRole` (`src/lib/roster/sheets/parse.ts`) as the fallback;
+      an unmapped name neither can read is a bad role, logged with the sync's or the import's
+      problems and never offered. The other kinds and a role's pay rate are held for the connector
+      (P5): the sheet and the import carry none of them and never write a session's pay (S2).
+      Tests: mapped, skipped, unmapped, another firm's map unused (P3.2)
 - [ ] "Any of" licences (R; Rules 3, Dylan 2026-10-29): a rule may need one of several credential
       types (a door supervisor licence covers guarding), in `src/lib/rules/packs.ts`,
       `src/lib/credentials/requirements.ts`, `src/lib/rules/eligibility.ts` and

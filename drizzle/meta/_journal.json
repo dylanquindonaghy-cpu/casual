@@ -358,6 +358,13 @@
       "when": 1793204195549,
       "tag": "0050_delivery_channels",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1793276787026,
+      "tag": "0051_name_map",
+      "breakpoints": true
     }
   ]
 }

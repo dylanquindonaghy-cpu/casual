@@ -180,7 +180,9 @@ interface RosterPlug {
 
 Reads return records keyed by `ref` (our id for native, the sheet or file's row key otherwise,
 stored as `shifts.external_ref`); writes take our ids, and each adapter maps between them.
-Adapters reading an outside source (Sheets, CSV) check its data with the zod schemas in `plug.ts`
+Adapters reading an outside source (Sheets, CSV) read its role names through the firm's name map
+(P3.2, `src/lib/roster/names.ts`: a mapped name is its code, a skipped one isn't a session, the
+rest as `normaliseRole()` spells them) and check its data with the zod schemas in `plug.ts`
 (`rosterStaffSchema`, `rosterShiftSchema`); the native adapter maps our own rows, whose CHECKs
 already hold. Every adapter computes notice with `noticeHours()` (`src/lib/roster/notice.ts`) from
 `cancel.at`, never from when the call runs (a retried job must not shrink a worker's notice). A

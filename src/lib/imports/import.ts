@@ -16,7 +16,8 @@ import type { FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { refreshShiftStatus } from "../roster/native";
 import { automaticEventId } from "../roster/shift-events";
-import { normaliseRole, parseSheetDate, parseSheetTime } from "../roster/sheets/parse";
+import { loadNameMap, readRoleName, readRoleNames, type NameMap } from "../roster/names";
+import { parseSheetDate, parseSheetTime } from "../roster/sheets/parse";
 import {
   sameName,
   upsertWorker,
@@ -52,6 +53,9 @@ import { queueTravelEstimates } from "../travel/estimate-queue";
 //   keeps its times, role and site, and its headcount can't go down: that is a firm-initiated change,
 //   logged per worker with notice (golden rule 12), and belongs to the office's shift editor.
 //   Shifts that have started are history: never created or changed by an import.
+// - Roles, a worker's and a shift's, through the firm's name map (P3.2, src/lib/roster/names.ts):
+//   a role the map skips is left off a worker's roles, and a shift row with one is left out (not a
+//   problem: the firm said it isn't a session), counted as ignored in the log.
 // - Pay: the worker by Staff ID or mobile; one line per worker, pay period and rate (a re-import
 //   updates its hours, gross and pay date). The figures are the payroll's, stored as given (money
 //   in pence). The log records what changed, never the amounts.
@@ -93,6 +97,8 @@ export interface ImportResult {
   updated: number;
   unchanged: number;
   skipped: number;
+  // Shift rows whose role the firm's name map skips (P3.2); only there when there are some.
+  ignored?: number;
   problems: ImportProblem[];
 }
 
@@ -110,7 +116,7 @@ export interface ImportOptions {
   localDatabase?: boolean;
 }
 
-type RowOutcome = "created" | "updated" | "unchanged" | ImportProblemCode;
+type RowOutcome = "created" | "updated" | "unchanged" | "ignored" | ImportProblemCode;
 
 class Problem extends Error {
   constructor(readonly code: ImportProblemCode) {
@@ -233,7 +239,7 @@ export async function runImport(tx: FirmTx, opts: ImportOptions): Promise<Import
     // once, with the import (none for a dry run: it's rolled back). A row that fails after adding
     // its id leaves one the job simply doesn't find.
     const travel = new Set<string>();
-    const importRow = rowImporter(opts, columns, seen, travel);
+    const importRow = rowImporter(opts, columns, seen, travel, await loadNameMap(sp));
     for (const [i, row] of data.entries()) {
       if (isBlank(row)) continue;
       let outcome: RowOutcome;
@@ -252,6 +258,8 @@ export async function runImport(tx: FirmTx, opts: ImportOptions): Promise<Import
       }
       if (outcome === "created" || outcome === "updated" || outcome === "unchanged") {
         result[outcome] += 1;
+      } else if (outcome === "ignored") {
+        result.ignored = (result.ignored ?? 0) + 1;
       } else {
         result.skipped += 1;
         result.problems.push({ row: i + 2, problem: outcome });
@@ -269,6 +277,7 @@ export async function runImport(tx: FirmTx, opts: ImportOptions): Promise<Import
         updated: result.updated,
         unchanged: result.unchanged,
         skipped: result.skipped,
+        ...(result.ignored ? { ignored: result.ignored } : {}),
         ...(opts.via ? { via: opts.via } : {}),
       },
     });
@@ -292,6 +301,7 @@ function rowImporter(
   columns: ColumnsOf<ImportKind>,
   seen: Set<string>,
   travel: Set<string>,
+  names: NameMap,
 ): (tx: FirmTx, row: string[]) => Promise<RowOutcome> {
   const once = (key: string) => {
     if (seen.has(key)) throw new Problem("duplicate_row");
@@ -334,13 +344,15 @@ function rowImporter(
       if (emailCell && !email.safeParse(emailCell).success) throw new Problem("bad_email");
       let roles: string[] | undefined;
       if (c.roles !== undefined) {
-        const parsed = cellOf(row, c.roles)
-          .split(/[,;\n]/)
-          .map((r) => r.trim())
-          .filter(Boolean)
-          .map(normaliseRole);
-        if (parsed.some((r) => r === null)) throw new Problem("bad_role");
-        roles = [...new Set(parsed as string[])];
+        const parsed = readRoleNames(
+          cellOf(row, c.roles)
+            .split(/[,;\n]/)
+            .map((r) => r.trim())
+            .filter(Boolean),
+          names,
+        );
+        if (parsed === null) throw new Problem("bad_role");
+        roles = parsed;
       }
       const statusCell = cellOf(row, c.status).toLowerCase();
       const status = statusCell ? WORKER_STATUSES.find((s) => s === statusCell) : undefined;
@@ -559,6 +571,10 @@ function rowImporter(
   const timeOf = (cell: string) =>
     parseSheetTime(cell.includes(" ") ? (cell.split(/\s+/).at(-1) ?? "") : cell);
   return async (tx, row) => {
+    const roleCell = cellOf(row, c.role);
+    const roleName = roleCell ? readRoleName(roleCell, names) : null;
+    // A role the firm's name map skips: not a session, whatever else the row says.
+    if (roleName && "skip" in roleName) return "ignored";
     // The same readers and rule as the Sheets sync and the office's editor (audit L67, L70).
     const date = parseSheetDate(cellOf(row, c.date));
     if (!date) throw new Problem(cellOf(row, c.date) ? "bad_date" : "missing_value");
@@ -569,10 +585,9 @@ function rowImporter(
     if (!window) throw new Problem("bad_time");
     const { startsAt, endsAt } = window;
     if (startsAt.getTime() <= opts.now.getTime()) throw new Problem("shift_started");
-    const roleCell = cellOf(row, c.role);
     if (!roleCell) throw new Problem("missing_value");
-    const role = normaliseRole(roleCell);
-    if (!role) throw new Problem("bad_role");
+    if (!roleName) throw new Problem("bad_role");
+    const { role } = roleName;
     const headcountCell = cellOf(row, c.headcount);
     const headcount = headcountCell === "" ? 1 : Number(headcountCell);
     if (!/^\d*$/.test(headcountCell) || headcount < 1 || headcount > 1000) {

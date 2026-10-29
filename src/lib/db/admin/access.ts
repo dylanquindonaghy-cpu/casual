@@ -47,6 +47,9 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   // so no screen can point a firm at another firm's sheet (audit L45). The app reads it, and the
   // sync updates only its status columns (COLUMN_UPDATES).
   roster_sources: ["SELECT"],
+  // A firm's name map (P3.2): set only by the owner (npm run firm:names), read by the sheet sync
+  // and the file import.
+  name_map: ["SELECT"],
   // Imported payroll lines: added and corrected by re-import, never deleted by the app (they are
   // what a pay question is checked against).
   pay_records: NO_DELETE,

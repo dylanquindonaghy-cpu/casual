@@ -148,6 +148,16 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   it can't read falling back whole. Setting it with `firm:settings` is in
   `tests/integration/onboarding.test.ts` (a start then fortnights; fortnights without a start
   refused; a hand-edited one started afresh).
+- `roster.names.test.ts` (P3.2) — a firm's name map. Unit (`tests/unit/roster.names.test.ts`): a
+  name's key; a mapped role is its code, a skipped one skipped, the rest exactly as
+  `normaliseRole()` reads them; a worker's list with skipped names left out; the rota sheet's rows
+  through it (a skipped shift row isn't a problem, whatever else it says), and with no map every
+  name as before. Integration (`tests/integration/roster.names.test.ts`, the real database): the
+  owner's command maps, skips and removes names, each logged with what changed, and refuses what
+  it can't use (an unknown qualification, a staff type other than casual, a rate on a skipped
+  role); the app can read its firm's map but never write it or see another's; the sheet's sync and
+  the file import bring mapped names in as codes, leave skipped ones out (the import counts them
+  as ignored), and report the rest as bad roles; another firm's map is never used.
 - `ai.anthropic.test.ts` (built, 12X.3; P4.6 under load) — the Anthropic client on a fake `fetch`.
   Since P4.6: at most 4 calls at once, the rest in order; one still waiting after its 5 seconds
   turned away (`busy`) without calling the API; the breaker opening after 5 failed calls in a row,

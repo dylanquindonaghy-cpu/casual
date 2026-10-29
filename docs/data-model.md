@@ -54,6 +54,7 @@ architecture.md, Tenancy).
 | api_keys | A planner's API keys: a label, the key's sha256 and last 4 characters (never the key), who made and revoked it, when last used (12J.1, S11) | 12 |
 | push_subscriptions | Web push endpoints per worker | 4 |
 | roster_sources | Where a firm's rota lives when it isn't our tables (Google Sheet id, column mapping, last sync, error code, sync lease) | 2 |
+| name_map | What the firm's own system calls a role, qualification, staff type or cancellation reason, mapped to a ShiftDesk code or to skip (P3.2) | P3 |
 | metrics_daily | Pilot baseline and daily counts | 5 |
 
 ## Firm settings (jsonb on `firms.settings`)
@@ -699,6 +700,30 @@ create table roster_sources (
 create unique index roster_sources_one_enabled_per_firm on roster_sources (firm_id) where enabled;
 -- One spreadsheet, one firm (audit L45): across firms on purpose (the app can't write the column).
 create unique index roster_sources_spreadsheet_id_key on roster_sources (spreadsheet_id);
+
+-- A firm's name map (P3.2, migration 0051; src/lib/roster/names.ts): what its own system calls a
+-- role ("Door Supervisor (NLW)", "12D"), a qualification, a staff type or a cancellation reason,
+-- and the ShiftDesk code it stands for, or skip (code null: "Holiday", "Not Set"). The rota sheet's
+-- sync and the file import read role names through it: a mapped name is its code, a skipped one
+-- is left off a worker's roles and its shift row isn't brought in, and a name the firm hasn't
+-- mapped is read as before (normaliseRole: a bad role if it can't be, so never offered). The other
+-- kinds, and a role's pay rate, are for the connector (P5): the sheet and the import never write
+-- a session's pay (S2). Set only by the owner (npm run firm:names), logged firm.settings_changed
+-- {keys: ["name_map.<kind>"], name, from, to}; the app role may only read it.
+create table name_map (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  kind text not null,                    -- role | qualification | staff_type | cancellation_reason
+  outside_name text not null,            -- 1-200 characters, as names.ts keys it: trimmed, lower
+                                         -- case, one space between words, no control characters
+  code text,                             -- null: skip. A role as the rules spell it; a qualification
+                                         -- one of the firm's credential types; a staff type casual;
+                                         -- a cancellation reason who asked (P3.4): casual | firm |
+                                         -- client | unknown (the database checks the format)
+  pay_rate_pence integer,                -- a role's only, not skipped, 0 to 100000 (whole pence an hour)
+  created_at timestamptz not null default now(),
+  unique (firm_id, kind, outside_name)
+);
 
 create table messages (                 -- built in Phase 7 (migrations 0022-0024): WhatsApp, texts, calls
   id uuid primary key default gen_random_uuid(),

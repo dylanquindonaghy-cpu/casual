@@ -63,6 +63,10 @@ export type CancelVia = (typeof CANCEL_VIAS)[number];
 // office's, as a strike's is (src/lib/strikes/issue.ts).
 export const BOOK_VIAS = ["app", "office", "sheet", "api"] as const;
 export type BookVia = (typeof BOOK_VIAS)[number];
+// Who asked for a cancellation (P3.4), apart from who carried it out: the casual, the firm, its
+// client, or not known.
+export const CANCEL_ASKERS = ["casual", "firm", "client", "unknown"] as const;
+export type CancelAsker = (typeof CANCEL_ASKERS)[number];
 
 // review: the worker asks the office to look again at a shift the rules won't let them take.
 export const REQUEST_TYPES = ["time_change", "swap", "availability", "general", "review"] as const;
@@ -628,6 +632,59 @@ export const shiftReminders = pgTable(
     check(
       "shift_reminders_channel_unless_skipped",
       sql`(${t.status} = 'skipped') = (${t.channel} is null)`,
+    ),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();
+
+// A firm's name map (P3.2; "Connecting the firm's systems" 2): what its own system calls a role, a
+// qualification, a staff type or a cancellation reason, mapped to a ShiftDesk code, or to skip
+// (code null: "Holiday", "Not Set", a pay tier's own pseudo-role). outside_name is held as
+// src/lib/roster/names.ts keys it (trimmed, lower case, one space between words), so "Door
+// Supervisor (NLW)" and "door supervisor  (nlw)" are one name. A role may carry the pay rate its
+// name stands for (whole pence an hour), for the connector (P5): the sheet sync and the file
+// import read only role names, and never write a session's pay (S2). Set only by the owner
+// (npm run firm:names); the app reads it.
+export const NAME_KINDS = ["role", "qualification", "staff_type", "cancellation_reason"] as const;
+export type NameKind = (typeof NAME_KINDS)[number];
+export const NAME_CODE_PATTERN = "^[A-Za-z][A-Za-z0-9_]{0,49}$";
+if (/['\\]/.test(NAME_CODE_PATTERN)) throw new Error("NAME_CODE_PATTERN must not contain ' or \\");
+
+export const nameMap = pgTable(
+  "name_map",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    kind: text("kind", { enum: NAME_KINDS }).notNull(),
+    outsideName: text("outside_name").notNull(),
+    code: text("code"),
+    payRatePence: integer("pay_rate_pence"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("name_map_firm_id_id_key").on(t.firmId, t.id),
+    unique("name_map_name_key").on(t.firmId, t.kind, t.outsideName),
+    check(
+      "name_map_kind_check",
+      sql`${t.kind} in ('role', 'qualification', 'staff_type', 'cancellation_reason')`,
+    ),
+    check(
+      "name_map_outside_name_format",
+      sql`char_length(${t.outsideName}) between 1 and 200
+          and ${t.outsideName} = lower(${t.outsideName})
+          and ${t.outsideName} !~ '^ | $|  |[[:cntrl:]]'`,
+    ),
+    check(
+      "name_map_code_format",
+      sql`${t.code} is null or (case when ${t.kind} = 'role' then ${roleFormat(t.code)}
+          else ${t.code} ~ ${sql.raw(`'${NAME_CODE_PATTERN}'`)} end)`,
+    ),
+    check(
+      "name_map_pay_rate_role_only",
+      sql`${t.payRatePence} is null
+          or (${t.kind} = 'role' and ${t.code} is not null and ${t.payRatePence} between 0 and 100000)`,
     ),
     firmIsolation(t.firmId),
   ],

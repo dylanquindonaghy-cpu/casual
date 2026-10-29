@@ -26,6 +26,7 @@ import {
 import { automaticEventId } from "../shift-events";
 import { upsertWorker, WorkerIdentityChange, WorkerNameMismatch } from "../workers";
 import { changeNoticeHours, noticeHours } from "../notice";
+import { loadNameMap, type NameMap } from "../names";
 import { cellRange, columnRange, tabRange } from "./a1";
 import { SHEET_LOCALE, SHEET_LOCALE_ERROR, SheetsError, type SheetsClient } from "./client";
 import { sheetMappingSchema } from "./mapping";
@@ -100,6 +101,7 @@ interface Claimed {
   mapping: unknown;
   previousErrorCode: string | null;
   timezone: string;
+  names: NameMap; // the firm's name map (P3.2), read with the claim
 }
 
 interface PendingWrite {
@@ -172,7 +174,7 @@ export async function syncSheet({ run, firmId, client, clock }: SyncDeps): Promi
         tabRange(mapping.data.staff.tab),
         tabRange(mapping.data.shifts.tab),
       ]);
-      parsed = parseSheet({ staffRows, shiftRows }, mapping.data, claim.timezone);
+      parsed = parseSheet({ staffRows, shiftRows }, mapping.data, claim.timezone, claim.names);
     } catch (err) {
       if (err instanceof SheetsError || err instanceof SheetLayoutError) {
         return await fail(err.code);
@@ -304,7 +306,12 @@ async function claimLease(tx: FirmTx, now: Date): Promise<Claimed | "none" | "bu
     return exists ? "busy" : "none";
   }
   const [firm] = await tx.select({ timezone: firms.timezone }).from(firms);
-  return { ...claimed, claimedAt: now, timezone: firm?.timezone ?? "Europe/London" };
+  return {
+    ...claimed,
+    claimedAt: now,
+    timezone: firm?.timezone ?? "Europe/London",
+    names: await loadNameMap(tx),
+  };
 }
 
 async function liveHolders(tx: FirmTx, shiftId: string) {

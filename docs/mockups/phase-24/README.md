@@ -12,6 +12,7 @@ app shows the firm's real ones.
 | `dashboard-light.jpg`, `dashboard-dark.jpg` | The office shell and the dashboard at 1280px (1.5x), the whole page |
 | `events-*.jpg`, `enquiries-*.jpg`, `casuals-*.jpg` | Events & sessions, Enquiries, Casuals at 1280px |
 | `home-*.jpg`, `open-*.jpg`, `shift-*.jpg`, `pay-*.jpg` | The casual app at 390 × 844 (2x): Home, Open shifts, a shift, Pay |
+| `build/` | The build beside it at Phase 24's close (29 Oct 2026, the demo seed): the same eight pages, each at 390px and 1280px, light and dark (`{page}-{width}-{theme}.jpg`). The office pages as the admin, the whole page up to 2,000px tall; the casual pages as Zoe Adeyemi (the story's), the first screen, as the mock-up's are |
 | `glass/` | The mock-up's own CSS for the glass, for its exact values: `office-glass.css` (round 6, the floating layer), `office-more-glass.css` and `phone-more-glass.css` (round 7, everything else), `phone-glass.css` (round 6 on the phone: the tab bar's lens and how it shrinks, the top bar's frosted edge) |
 
 ## The look

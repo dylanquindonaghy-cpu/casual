@@ -607,10 +607,11 @@ the secret store, sealed with `SECRETS_KEY` before they reach the database.
   it), and a copy with your backups: without it no
   secret can be read. Never change it while firms have secrets: each would stop opening (the
   worker says `other_key`). If it may have leaked, set a new one and set each firm's secrets again.
-- **Set one:** the value on standard input, never on the command line (it would sit in the shell's
-  history): `printf '%s' "<the value>" | docker compose run --rm -T owner node --import tsx
-  scripts/firm-secret.ts --firm acme --name portal.api_key`. It says "Added" or "Replaced"; the
-  action log says which name changed, never the value.
+- **Set one:** the value on standard input, never typed into a command (it would sit in the
+  shell's history). `read -rs V` (paste the value, then Enter: nothing shows), then `printf '%s'
+  "$V" | docker compose run --rm -T owner node --import tsx scripts/firm-secret.ts --firm acme
+  --name portal.api_key; unset V`. It says "Added" or "Replaced"; the action log says which name
+  changed, never the value. A value is at most 4,096 bytes.
 - **See what's set:** `docker compose run --rm owner node --import tsx scripts/firm-secret.ts --firm
   acme` lists the names and when each was set, never a value.
 - **Remove one:** `… scripts/firm-secret.ts --firm acme --name portal.api_key --remove`.
@@ -1200,5 +1201,7 @@ deletion").
    file of every table, less login secrets; casuals' travel areas as their postcode district only,
    never the full postcode: `docs/dpia-travel.md`). Hand it over if they ask us instead.
 2. Release the Twilio number after 30 days.
-3. Delete data per retention/agreement; write the final event. (Deleting a whole firm has no
+3. Remove the firm's secrets (`… scripts/firm-secret.ts --firm <slug>` lists them; each `--name
+   <name> --remove`), and ask the firm to revoke those credentials on their side.
+4. Delete data per retention/agreement; write the final event. (Deleting a whole firm has no
    script yet: PLAN.md Parking lot.)

@@ -575,7 +575,7 @@ function cleanEnv(extra: Record<string, string>): NodeJS.ProcessEnv {
   return Object.assign(env, extra);
 }
 
-describe("the project invariants on sample trees (invariants.sh checks 1, 5 and 7)", () => {
+describe("the project invariants on sample trees (invariants.sh checks 1, 5, 7 and 8)", () => {
   // Written in pieces so this file doesn't trip the very checks it tests.
   const call = (obj: string, fn: string) => `${obj}.${fn}(`;
   const SDK = ["twi", "lio"].join("");
@@ -633,6 +633,7 @@ describe("the project invariants on sample trees (invariants.sh checks 1, 5 and 
     expect(r.out).toContain("ok: no .only/.skip/.todo in tests");
     expect(r.out).toContain("ok: only withFirm");
     expect(r.out).toContain("ok: no test imports the Twilio SDK");
+    expect(r.out).toContain("ok: no code or test file is git-ignored");
     expect(r.out).not.toContain("FAIL");
     expect(r.status).toBe(0);
   });
@@ -698,6 +699,24 @@ describe("the project invariants on sample trees (invariants.sh checks 1, 5 and 
       expect(r.out, body).toContain("tests/unit/sms.test.ts:1:");
       expect(r.status, body).toBe(1);
     }
+  });
+
+  it("refuses a code or test file that git ignores, so no commit would carry it (check 8)", () => {
+    // An ignore rule for key files (secrets/) that also matched a code folder (P5.1).
+    for (const path of ["src/lib/secrets/crypto.ts", "tests/unit/secrets/seal.test.ts"]) {
+      const dir = sampleTree();
+      writeFileSync(join(dir, ".gitignore"), ".claude/state/\nsecrets/\n");
+      const r = run(dir, path, "export const x = 1;\n");
+      expect(r.out, path).toContain("FAIL: files under src, tests, scripts, drizzle or public");
+      expect(r.out, path).toContain(path);
+      expect(r.status, path).toBe(1);
+    }
+    // The same rule leaves the deploy folder's own secrets/ alone.
+    const dir = sampleTree();
+    writeFileSync(join(dir, ".gitignore"), ".claude/state/\nsecrets/\n");
+    const r = run(dir, "deploy/secrets/key.json", "{}\n");
+    expect(r.out).toContain("ok: no code or test file is git-ignored");
+    expect(r.status).toBe(0);
   });
 
   it("passes a test that imports the app's own Twilio adapter or only names it (check 7)", () => {

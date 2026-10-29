@@ -1,6 +1,6 @@
 -- P5.1 (ADR-026): the secret store. firm_secrets holds a firm's own credentials, each sealed with
--- AES-256-GCM under a key the database never sees (src/lib/secrets/crypto.ts). The app role gets no
--- rights on it (src/lib/db/admin/access.ts); the owner writes it (npm run firm:secret).
+-- AES-256-GCM under a key the database never sees (src/lib/secret-store/crypto.ts). The app role
+-- gets no rights on it (src/lib/db/admin/access.ts); the owner writes it (npm run firm:secret).
 CREATE TABLE "firm_secrets" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"firm_id" uuid NOT NULL,

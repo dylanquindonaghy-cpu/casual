@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import { openSecret, SECRET_NAME, type SecretsKey } from "../secrets/crypto";
+import { isSecretName, openSecret, type SecretsKey } from "../secret-store/crypto";
 
 // A firm's secret, for the worker (P5.1; ADR-026): read through app_read_firm_secret() (migration
 // 0054) on the worker's own jobs-role connection (DATABASE_JOBS_URL: the web app has none), then
@@ -11,7 +11,7 @@ export async function readFirmSecret(
   key: SecretsKey,
   where: { firmId: string; name: string },
 ): Promise<string | null> {
-  if (!SECRET_NAME.test(where.name)) throw new Error("not a secret's name");
+  if (!isSecretName(where.name)) throw new Error("not a secret's name");
   const { rows } = await jobs.query<{ ciphertext: Buffer; nonce: Buffer; key_id: string }>(
     "select ciphertext, nonce, key_id from app_read_firm_secret($1, $2)",
     [where.firmId, where.name],

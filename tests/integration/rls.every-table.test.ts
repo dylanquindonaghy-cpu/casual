@@ -399,6 +399,18 @@ describe("the rest of the public schema", () => {
     ]);
   });
 
+  // The jobs role (pg-boss and the worker's own reads) the same way: a new function it may run is
+  // added here on purpose (app_read_firm_secret: the one read of the secret store, P5.1).
+  it("the jobs role can execute exactly two functions: app_current_firm_id and app_read_firm_secret", async () => {
+    const { rows } = await su.query<{ fn: string }>(
+      `select p.proname as fn from pg_proc p
+        where p.pronamespace = 'public'::regnamespace
+          and has_function_privilege('shiftdesk_jobs', p.oid, 'EXECUTE')
+        order by 1`,
+    );
+    expect(rows.map((r) => r.fn)).toEqual(["app_current_firm_id", "app_read_firm_secret"]);
+  });
+
   it("the app and jobs roles have no rights on any sequence (identity columns don't need them)", async () => {
     const { rows } = await su.query(
       `select c.relname, r.role, p.privilege from pg_class c

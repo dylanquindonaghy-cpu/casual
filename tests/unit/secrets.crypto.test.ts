@@ -8,9 +8,9 @@ import {
   SecretUnreadable,
   secretsKey,
   type SecretsKey,
-} from "@/lib/secrets/crypto";
+} from "@/lib/secret-store/crypto";
 
-// The secret store's sealing (P5.1; src/lib/secrets/crypto.ts): AES-256-GCM under SECRETS_KEY,
+// The secret store's sealing (P5.1; src/lib/secret-store/crypto.ts): AES-256-GCM under SECRETS_KEY,
 // bound to its firm and name. Made-up keys and values only.
 
 const keyOf = (): SecretsKey => {
@@ -127,7 +127,14 @@ describe("sealing and opening", () => {
     expect(() => sealSecret(key, at, "")).toThrow();
     expect(() => sealSecret(key, at, "x".repeat(4097))).toThrow();
     expect(sealSecret(key, at, "x".repeat(4096)).ciphertext).toHaveLength(4096 + 16);
-    for (const name of ["Portal.key", "portal..key", "1portal", "portal key", "a.b.c.d.e"]) {
+    for (const name of [
+      "Portal.key",
+      "portal..key",
+      "1portal",
+      "portal key",
+      "a.b.c.d.e",
+      `p${"x".repeat(64)}`,
+    ]) {
       expect(() => sealSecret(key, { ...at, name }, "v"), name).toThrow();
     }
   });

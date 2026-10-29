@@ -2132,12 +2132,14 @@ so the office already reads them as "From your planner" and no new words are nee
       exactly the planner's rules. Tests: a connector's session made, changed, moved and cancelled
       as the planner's; a source switched off can change nothing (P5.2)
 - [ ] The source's webhooks in (A, M): `POST /api/webhooks/connector/{source id}` checks the
-      signature (HMAC-SHA256 with the source's webhook secret from the store), stores one row per
-      event id (unique per source), queues a job in the same transaction and answers 200 fast; the
-      job fetches the changed record from the source's API rather than trusting the webhook's
-      body, and applies it (P5.2's sessions; staff through `upsertWorker()`). Tests: a bad or
-      missing signature 403 and nothing stored, the same event twice stored once, a fetch that
-      fails retried, nothing from the body trusted (P5.3)
+      signature (HMAC-SHA256 with a secret we issue the source, derived from `INTEGRATIONS_SECRET`
+      and its id like the planner's webhook secret and never stored: the web app can't read the
+      secret store, P5.1's review; a portal that insists on its own secret is the real connector's
+      ADR), stores one row per event id (unique per source), queues a job in the same transaction
+      and answers 200 fast; the job fetches the changed record from the source's API rather than
+      trusting the webhook's body, and applies it (P5.2's sessions; staff through
+      `upsertWorker()`). Tests: a bad or missing signature 403 and nothing stored, the same event
+      twice stored once, a fetch that fails retried, nothing from the body trusted (P5.3)
 - [ ] The reconcile pull (jobs): a tick like the Sheets sync's (lease per source, back-off on
       failure), sessions in the next 48 hours every 15 minutes and everything else nightly, each
       record applied as a webhook's is, only changes logged; sessions come in hidden from casuals

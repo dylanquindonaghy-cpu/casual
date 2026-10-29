@@ -1,8 +1,8 @@
 import { Client } from "pg";
-import { sealSecret, SECRET_NAME, type SecretsKey } from "../src/lib/secrets/crypto";
+import { isSecretName, sealSecret, type SecretsKey } from "../src/lib/secret-store/crypto";
 
 // A firm's secrets (P5.1, `npm run firm:secret`, scripts/firm-secret.ts; ADR-026): sealed here with
-// SECRETS_KEY (src/lib/secrets/crypto.ts) and written as the owner, the only one with rights on
+// SECRETS_KEY (src/lib/secret-store/crypto.ts) and written as the owner, the only one with rights on
 // firm_secrets; RLS is forced for the owner too, so each change runs with the firm set for its
 // transaction only. The listing gives names and dates, never a value. Each change is logged
 // `firm.settings_changed` {keys: ["secret.<name>"], change: "added" | "replaced" | "removed"}:
@@ -79,7 +79,7 @@ export async function setSecret(
   name: string,
   value: string,
 ): Promise<SetSecretResult> {
-  if (!SECRET_NAME.test(name) || name.length > 64) return { status: "bad_name" };
+  if (!isSecretName(name)) return { status: "bad_name" };
   const result = await withOwnerFirm(adminUrl, slug, async (owner, firmId) => {
     const sealed = sealSecret(key, { firmId, name }, value);
     const { rows } = await owner.query<{ added: boolean }>(
@@ -103,7 +103,7 @@ export async function removeSecret(
   slug: string,
   name: string,
 ): Promise<SetSecretResult> {
-  if (!SECRET_NAME.test(name) || name.length > 64) return { status: "bad_name" };
+  if (!isSecretName(name)) return { status: "bad_name" };
   const result = await withOwnerFirm(adminUrl, slug, async (owner, firmId) => {
     const { rowCount } = await owner.query(
       "delete from firm_secrets where firm_id = $1 and name = $2",

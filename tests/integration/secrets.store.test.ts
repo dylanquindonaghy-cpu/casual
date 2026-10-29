@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { secretsKey, SecretUnreadable, type SecretsKey } from "@/lib/secrets/crypto";
+import { secretsKey, SecretUnreadable, type SecretsKey } from "@/lib/secret-store/crypto";
 import { readFirmSecret } from "@/lib/db/firm-secret";
 import { listSecrets, removeSecret, setSecret } from "../../scripts/firm-secret-owner";
 import { appRolePool, superuserPool, uniqueSlug, urls } from "../helpers/db";

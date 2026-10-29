@@ -6,7 +6,7 @@ import { firms } from "./tenancy";
 // The secret store (P5.1; ADR-026): a firm's own credentials for its systems (its ops portal's API
 // key and webhook secret; later its text system's), the first secrets a firm gives us. Each value
 // is AES-256-GCM under SECRETS_KEY, a key only the worker's and the owner command's settings hold
-// (src/lib/secrets/crypto.ts), with the firm and the name bound in, so a row copied to another
+// (src/lib/secret-store/crypto.ts), with the firm and the name bound in, so a row copied to another
 // firm or name never decrypts; a breach of the database alone reveals none of them.
 //
 // The app role has no rights on the table at all (TABLE_ACCESS []), so the web app can never read

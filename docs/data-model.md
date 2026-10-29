@@ -951,7 +951,7 @@ create table auth_throttle (
 -- The secret store (P5.1, migration 0054; ADR-026; src/lib/db/schema/secrets.ts): a firm's own
 -- credentials, each AES-256-GCM under SECRETS_KEY (the worker's and the owner command's settings
 -- only, never the web app's or the database's), with its firm and name bound in, so a value moved
--- to another firm or name never opens (src/lib/secrets/crypto.ts). The app role has no rights on it
+-- to another firm or name never opens (src/lib/secret-store/crypto.ts). The app role has no rights on it
 -- at all (TABLE_ACCESS []); the owner writes it (npm run firm:secret, the value from standard
 -- input), logged firm.settings_changed {keys: ["secret.<name>"], change: added | replaced |
 -- removed}, never the value. Read only through app_read_firm_secret(firm, name), run as the owner

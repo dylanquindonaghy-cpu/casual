@@ -3,7 +3,7 @@ import { parseArgs } from "node:util";
 import { databaseName } from "../src/lib/db/admin/urls";
 import { adminEnv } from "../src/lib/env";
 import { errorCode } from "../src/lib/jobs/firm-job";
-import { secretsKey } from "../src/lib/secrets/crypto";
+import { SECRET_MAX_BYTES, secretsKey } from "../src/lib/secret-store/crypto";
 import { listSecrets, removeSecret, setSecret } from "./firm-secret-owner";
 
 // Sets, removes or lists a firm's secrets (P5.1; docs/runbooks.md "A firm's secrets"): its own
@@ -88,6 +88,10 @@ try {
   const value = readFileSync(0, "utf8").replace(/\r?\n$/, "");
   if (value.length === 0) {
     console.error("The value on standard input is empty. Nothing was changed.");
+    process.exit(2);
+  }
+  if (Buffer.byteLength(value, "utf8") > SECRET_MAX_BYTES) {
+    console.error(`The value is over ${SECRET_MAX_BYTES} bytes. Nothing was changed.`);
     process.exit(2);
   }
   const result = await setSecret(adminUrl, slug, key, name, value);

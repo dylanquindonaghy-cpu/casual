@@ -106,4 +106,12 @@ if hits=$(grep -rnE "from ['\"]twilio(/[^'\"]*)?['\"]|require\(['\"]twilio(/[^'\
   echo "FAIL: a test imports the Twilio SDK:"; echo "$hits"; fail=1
 else echo "ok: no test imports the Twilio SDK"; fi
 
+# 8. No code or test file git ignores: an ignore rule meant for something else (secrets/, say)
+#    would keep a file out of every commit while this checkout still builds and passes (P5.1).
+if hits=$(git ls-files --others --ignored --exclude-standard -- src tests scripts drizzle public); then
+  if [ -n "$hits" ]; then
+    echo "FAIL: files under src, tests, scripts, drizzle or public that git ignores:"; echo "$hits"; fail=1
+  else echo "ok: no code or test file is git-ignored"; fi
+else echo "FAIL: couldn't list the git-ignored files"; fail=1; fi
+
 exit $fail

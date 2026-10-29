@@ -18,6 +18,7 @@ const candidate = (
   mobile: "+447700900100",
   channel: "whatsapp",
   smsAllowed: true,
+  email: null,
 });
 
 describe("pickWave: the best first, in both modes", () => {

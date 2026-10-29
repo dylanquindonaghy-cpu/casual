@@ -98,12 +98,15 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   offers after two waves, not 2,000). `offers.waves.test.ts` has the sizes on the real database:
   waves of 5, 5 and 2 for one place, 20 for four, and a place booked mid-wave shrinking it to 5,
   with the next wave reaching anyone it didn't.
-- `notify.policy.test.ts` (built) — the policy for every sender (offer waves and shift reminders,
-  each through its real job): the worker's channel first (WhatsApp, or text by their choice), a
-  text only after a refused WhatsApp, never both, the push after the message has gone and never
-  for a failed one (so "push → WhatsApp → SMS" as built: the push goes alongside, not instead;
-  the 60-second fallback waits for Twilio); quiet hours; the daily cap; idempotency (retries and
-  doubled jobs); and no notifications to ineligible workers: over a whole chain, exactly the
+- `notify.policy.test.ts` (built; P2.4) — the policy for every sender (offer waves, the office's
+  offer, shift reminders, the booking confirmation, the office's change notice, a request's and a
+  pay query's answer, the licence messages, each through its real job): a push first, and when a
+  phone takes it nothing else (a phone that's gone is forgotten and the WhatsApp goes); then the
+  worker's channel (WhatsApp, or text by their choice), a text only after a refused WhatsApp,
+  never both, nothing more after a failure; then, with no text sender, an email with its subject,
+  else nothing and `no_channel` logged (the licence messages have no push: they start at the
+  WhatsApp); the 60-second fallback waits for Twilio; STOP; quiet hours; the daily cap;
+  idempotency (retries and doubled jobs, by push and by email too); and no notifications to ineligible workers: over a whole chain, exactly the
   workers the rules allow and who want offers get anything (no licence, expired, suspended, wrong
   role, inactive, blocked, alerts off, day off, clash, cancelled off it, another firm: nothing).
 - `shift.reminders.test.ts` (built) — the 24 h and 2 h reminders each once per booking and start

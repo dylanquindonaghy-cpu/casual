@@ -10,13 +10,15 @@ import { firmJobEnvelope, sendFirmJob, type FirmTask } from "../jobs/firm-job";
 import { getTransport } from "../messaging";
 import {
   offerPush,
+  shiftOfferEmailSubject,
   shiftOfferMessage,
   shiftOfferSms,
+  shiftUrgentEmailSubject,
   shiftUrgentMessage,
   shiftUrgentSms,
   urgentPush,
 } from "../messaging/templates";
-import { pushToWorker, recordPushes, sendToWorker } from "../notify/send";
+import { deliverToWorker, recordPushes, type DeliveryChannel } from "../notify/send";
 import { dayWords } from "../portal/format";
 import { getPushTransport } from "../push/transport";
 import { officeCanPlace } from "../roster/book";
@@ -59,8 +61,8 @@ const job = { queue: OFFICE_OFFER_QUEUE, schema: officeOfferPayload };
 const uuid = z.uuid();
 
 // Who the office could offer a shift to now: the candidate list, with names, in fair-rotation
-// data order (fewest hours this week first). Reads only.
-export interface OfficeCandidate extends WaveCandidate {
+// data order (fewest hours this week first). Reads only. Not their email: the page doesn't show it.
+export interface OfficeCandidate extends Omit<WaveCandidate, "email"> {
   name: string;
 }
 
@@ -94,7 +96,15 @@ export async function officeOfferCandidates(
     );
   const nameOf = new Map(names.map((n) => [n.id, `${n.first} ${n.last}`]));
   return candidates
-    .map((c) => ({ ...c, name: nameOf.get(c.workerId) ?? "" }))
+    .map((c) => ({
+      workerId: c.workerId,
+      name: nameOf.get(c.workerId) ?? "",
+      mobile: c.mobile,
+      channel: c.channel,
+      smsAllowed: c.smsAllowed,
+      hoursThisWeek: c.hoursThisWeek,
+      lastOfferedAt: c.lastOfferedAt,
+    }))
     .sort((a, b) => a.hoursThisWeek - b.hoursThisWeek || a.name.localeCompare(b.name));
 }
 
@@ -196,7 +206,7 @@ export async function queueOfficeOffer(
 }
 
 export type OfficeOfferResult =
-  | { status: "sent"; channel: "whatsapp" | "sms" }
+  | { status: "sent"; channel: DeliveryChannel }
   | { status: "failed" }
   | { status: "held"; until: Date }
   | { status: "already" }
@@ -214,10 +224,11 @@ type OfficeClaim =
       offerId: string;
       shiftId: string;
       startsAt: Date;
-      candidate: OfficeCandidate | WaveCandidate;
+      candidate: WaveCandidate;
       line: string | null;
       body: { whatsapp: string; sms: string };
       push: { title: string; body: string };
+      subject: string; // by email (P2.4)
     };
 
 // (1) The claim, under the shift's lock: every check, then the offer row, committed before the
@@ -339,6 +350,8 @@ async function claimOfficeOffer(
   const site = shift.siteName;
   let body: { whatsapp: string; sms: string };
   let push: { title: string; body: string };
+  // By email (P2.4): the WhatsApp words under the approved subject.
+  let subject: string;
   if (shift.isUrgent) {
     const day = dayWords(shift.startsAt, now, firm.timezone);
     body = {
@@ -346,6 +359,7 @@ async function claimOfficeOffer(
       sms: shiftUrgentSms(firm.voice, { role: shift.role, site, day, start, link }),
     };
     push = urgentPush({ role: shift.role, site, day, start });
+    subject = shiftUrgentEmailSubject({ role: shift.role, day });
   } else {
     const date = dayLabel(localDateOf(shift.startsAt, firm.timezone));
     body = {
@@ -353,6 +367,7 @@ async function claimOfficeOffer(
       sms: shiftOfferSms(firm.voice, { site, date, start, link }),
     };
     push = offerPush({ site, date, start });
+    subject = shiftOfferEmailSubject({ date, start, end });
   }
   return {
     offerId: offer.id,
@@ -362,6 +377,7 @@ async function claimOfficeOffer(
     line: firm.line,
     body,
     push,
+    subject,
   };
 }
 
@@ -380,32 +396,35 @@ export async function runOfficeOffer(
   const claim = await inFirm((tx) => claimOfficeOffer(payload, tx, deps, now));
   if ("done" in claim) return claim.done;
 
-  // (2) The message, outside any transaction.
+  // (2) The offer, outside any transaction: a push to their phones (no use once the shift has
+  // started), else by their channel, else email (P2.4).
   const candidate = claim.candidate;
-  const sent = await sendToWorker(deps, {
-    mobile: candidate.mobile,
-    channel: candidate.channel,
-    smsAllowed: candidate.smsAllowed,
-    body: claim.body,
-    from: claim.line,
+  const sent = await deliverToWorker(inFirm, deps, {
+    workerId: payload.workerId,
+    push: { ...claim.push, url: `/shifts/${claim.shiftId}`, until: claim.startsAt },
+    text: {
+      mobile: candidate.mobile,
+      channel: candidate.channel,
+      smsAllowed: candidate.smsAllowed,
+      body: claim.body,
+      from: claim.line,
+    },
+    email: candidate.email
+      ? { to: candidate.email, subject: claim.subject, body: claim.body.whatsapp }
+      : null,
   });
-  // The push once the message has gone (no use once the shift has started), with no transaction open.
-  const pushed = sent.ok
-    ? await pushToWorker(inFirm, deps, payload.workerId, {
-        ...claim.push,
-        url: `/shifts/${claim.shiftId}`,
-        until: claim.startsAt,
-      })
-    : null;
 
   // (3) The outcome.
   return inFirm(async (tx): Promise<OfficeOfferResult> => {
+    // A phone the push service says is gone is forgotten whatever came of the offer.
+    const pushes = await recordPushes(tx, sent.push);
     if (!sent.ok) {
       // Marked failed, unless the worker answered it while it was going out; a close because the
-      // shift filled meanwhile is overwritten (this message never arrived).
+      // shift filled meanwhile is overwritten (this message never arrived). Nothing could carry it
+      // (no_channel): its channel stays as claimed.
       await tx
         .update(offers)
-        .set({ channel: sent.channel, response: "failed", respondedAt: now })
+        .set({ channel: sent.channel ?? candidate.channel, response: "failed", respondedAt: now })
         .where(
           and(
             eq(offers.id, claim.offerId),
@@ -427,8 +446,7 @@ export async function runOfficeOffer(
       });
       return { status: "failed" };
     }
-    const pushes = await recordPushes(tx, pushed);
-    if (sent.fellBackFrom) {
+    if (sent.channel !== candidate.channel) {
       await tx.update(offers).set({ channel: sent.channel }).where(eq(offers.id, claim.offerId));
     }
     // Logged once: a rerun may have caught it up already, as unconfirmed.

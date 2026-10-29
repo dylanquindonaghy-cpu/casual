@@ -74,7 +74,8 @@ export const REQUEST_STATUSES = [
   "escalated",
 ] as const;
 
-export const OFFER_CHANNELS = ["push", "whatsapp", "sms"] as const;
+// How an offer went (P2.4: a push to their phones first, else a WhatsApp or text, else email).
+export const OFFER_CHANNELS = ["push", "whatsapp", "sms", "email"] as const;
 // failed: the message couldn't be sent (kept as evidence of the attempt; never counts as offered).
 export const OFFER_RESPONSES = [
   "accepted",
@@ -567,7 +568,7 @@ export const offers = pgTable(
     index("offers_firm_id_sent_at_idx").on(t.firmId, t.sentAt),
     check("offers_wave_positive", sql`${t.wave} >= 1`),
     check("offers_wave_or_office", sql`(${t.wave} is null) = (${t.offeredBy} is not null)`),
-    check("offers_channel_check", sql`${t.channel} in ('push', 'whatsapp', 'sms')`),
+    check("offers_channel_check", sql`${t.channel} in ('push', 'whatsapp', 'sms', 'email')`),
     check(
       "offers_response_check",
       sql`${t.response} in ('accepted', 'declined', 'expired', 'filled_elsewhere', 'failed')`,
@@ -599,8 +600,10 @@ export const shiftReminders = pgTable(
     // The start time the reminder was for.
     startsAt: timestamptz("starts_at").notNull(),
     status: text("status", { enum: REMINDER_STATUSES }).notNull(),
-    // How the message went, or was going (null when skipped).
-    channel: text("channel", { enum: ["whatsapp", "sms"] }),
+    // How the message went, or was going (null exactly when skipped): P2.4's push first, else a
+    // WhatsApp or text, else email; one nothing could carry (no_channel) keeps the one it was
+    // claimed with.
+    channel: text("channel", { enum: ["whatsapp", "sms", "push", "email"] }),
     // When the reminder was claimed (just before sending) or skipped.
     recordedAt: timestamptz("recorded_at").notNull().defaultNow(),
     createdAt: createdAt(),
@@ -618,7 +621,10 @@ export const shiftReminders = pgTable(
       "shift_reminders_status_check",
       sql`${t.status} in ('sending', 'sent', 'failed', 'skipped')`,
     ),
-    check("shift_reminders_channel_check", sql`${t.channel} in ('whatsapp', 'sms')`),
+    check(
+      "shift_reminders_channel_check",
+      sql`${t.channel} in ('whatsapp', 'sms', 'push', 'email')`,
+    ),
     check(
       "shift_reminders_channel_unless_skipped",
       sql`(${t.status} = 'skipped') = (${t.channel} is null)`,

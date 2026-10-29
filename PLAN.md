@@ -1859,9 +1859,11 @@ code emails) go in `docs/messaging-templates.md` first, for Dylan to approve (P2
       else a WhatsApp or text as now (STOP respected), else an email with P2.1's subject when they
       have an address, else not sent (`no_channel`, logged); a transport with no text sender says so
       (`NoTextSenderError`), never a failed text. Every sender moves to it, keeping claim → send →
-      record: offers, reminders, the booked, change, request and pay-query notices, the office's
-      replies, the licence messages (those with no push today skip it: no new push words). The
-      shifts line's own replies and STOP or START stay text only (decision 11). Migration:
+      record: offers, reminders, the booked, change, request and pay-query notices, the licence
+      messages (those with no push today skip it: no new push words). The shifts line's own replies
+      and STOP or START stay text only (decision 11), and so do the office's replies on Enquiries:
+      each answers a message to the shifts line, so a text sender exists, and its `messages` row and
+      the office's page take WhatsApp or text only (Parking lot, P2.4). Migration:
       `shift_reminders_channel_check` takes push and email. Tests changed on purpose (Messages 2:
       a push now instead of the text, not beside it) named in the commit; new: each step, a push gone
       or failed falls to a text, no text sender falls to email, no address is `no_channel`, nothing
@@ -4407,6 +4409,18 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
   ShiftDesk (`src/lib/roster/book.ts`, `by.type === "office"`), so the connector's bookings (P5)
   must come in as `booked_via` api and never through the office's path, or the confirmation must
   read `firm_system_sends` too (`src/lib/notices/who-sends.ts`). The reminders already do.
+- P2.4 (2026-10-29): the office's reply on Enquiries by email (its subject is approved: "A reply
+  from {firm}"). Not built: a reply answers a WhatsApp, text or call to the shifts line, so a text
+  sender exists; one that can't go fails and its question is back in Need a person, as any failed
+  reply. Needed once a casual's message can arrive with no text sender (the app's messages, P8):
+  then the `messages` channel check, `src/lib/office/enquiry-actions.ts` and the Enquiries pages
+  take email, after the UI chat.
+- P2.4 (2026-10-29), for P2.5: the send-failure alert (`src/lib/ops/tick.ts`) counts WhatsApp and
+  texts only, so with no text sender (P2.5) an SMTP outage that stops every casual's email, and
+  casuals nobody could reach (`no_channel`), raise no alert. P2.5 should count `email` sends too.
+- P2.4 (2026-10-29), for Phase 15: email goes only when there's no text sender at all. Once texts
+  exist, a casual who replied STOP and isn't on WhatsApp gets nothing (`sms_opted_out`), though an
+  email couldn't reach them twice. Decide then whether that one goes by email.
 - P4.8's limits (2026-10-26), not blocking: (1) the AI fallback alert counts the shifts line's
   sorting only; the payroll digest's summaries aren't logged per call, so their misses aren't
   counted (a group the AI misses keeps the app's own line). (2) The connection waits are the worker's only:

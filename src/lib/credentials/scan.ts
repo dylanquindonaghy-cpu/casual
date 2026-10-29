@@ -16,9 +16,11 @@ import { recordEvent } from "../events/record";
 import { errorCode, firmJobEnvelope, sendFirmJob, type FirmTask } from "../jobs/firm-job";
 import { log, type Logger } from "../log";
 import { getTransport, type MessagingTransport } from "../messaging";
-import { sendToWorker, smsAllowedFor, type WorkerChannel } from "../notify/send";
+import { sendTextOrEmail, smsAllowedFor, type WorkerChannel } from "../notify/send";
 import {
+  credentialExpiredEmailSubject,
   credentialExpiredMessage,
+  credentialExpiringEmailSubject,
   credentialExpiringMessage,
   credentialWeeklyListEmail,
   type FirmVoice,
@@ -39,7 +41,8 @@ import { cutUnits } from "../text/cut";
 // - credential-scan: one firm's scan for the date in its payload. It warns active workers at 30,
 //   14 and 7 days (expiry.ts decides) and marks credentials expired the day after their expiry
 //   date, telling the worker: by the channel they chose, with the normal WhatsApp-to-text fallback
-//   and never a text after STOP (sendToWorker, 13.5; before, WhatsApp only). Then, on Mondays, it
+//   and never a text after STOP (sendToWorker, 13.5; before, WhatsApp only), or by email when no
+//   text can go (sendTextOrEmail, P2.4: these messages have no push). Then, on Mondays, it
 //   emails active admins and resourcers the week's list. Every change writes an event.
 //
 // At most once, like the notices (claim → send → record; no claim or outcome transaction is held
@@ -193,13 +196,15 @@ async function firmVoice(
 // The shared fragment (./superseded.ts) over the table's own name, as these queries name it.
 const superseded = supersededSql("credentials");
 
-// A message to one worker, as sendToWorker takes it (the same words by WhatsApp or text).
+// A message to one worker, as sendToWorker takes it (the same words by WhatsApp or text), and its
+// email's subject (P2.4).
 interface WorkerMessage {
   mobile: string;
   channel: WorkerChannel;
   smsAllowed: boolean;
   text: string;
   from: string | null;
+  email: { to: string; subject: string } | null;
 }
 
 type CredentialClaim =
@@ -229,6 +234,7 @@ async function lockDue(tx: FirmTx, id: string) {
       mobile: workers.mobileE164,
       channel: workers.notifyChannel,
       smsOptedOutAt: workers.smsOptedOutAt,
+      email: workers.email,
       typeName: credentialTypes.name,
       officeRecorded: credentialTypes.officeRecorded,
       // Whether one of the worker's roles needs it (the firm's rules): only then has she an
@@ -369,10 +375,18 @@ async function claimCredential(
   // No messages to people who've left, or about a credential they've already replaced. (An active
   // worker always has a mobile: only an erased one has none.)
   const mobile = c.workerStatus === "active" && !c.superseded ? c.mobile : null;
-  const to = (text: string): WorkerMessage | null =>
+  const to = (text: string, subject: string): WorkerMessage | null =>
     mobile
-      ? { mobile, channel: c.channel, smsAllowed: smsAllowedFor(c), text, from: voice.line }
+      ? {
+          mobile,
+          channel: c.channel,
+          smsAllowed: smsAllowedFor(c),
+          text,
+          from: voice.line,
+          email: c.email ? { to: c.email, subject } : null,
+        }
       : null;
+  const date = shortDate(expiresOn, year);
   // Where she uploads the renewed card (12F.2). One she can't upload (the office records it, or none
   // of her roles needs it, so her upload page wouldn't take it) says to send it to the office.
   const upload =
@@ -389,7 +403,10 @@ async function claimCredential(
       .where(and(eq(credentials.id, c.id), eq(credentials.expiresOn, expiresOn)));
     return {
       kind: "warn",
-      message: to(credentialExpiringMessage(voice, name, shortDate(expiresOn, year), upload)),
+      message: to(
+        credentialExpiringMessage(voice, name, date, upload),
+        credentialExpiringEmailSubject(name, date),
+      ),
       data: { type: c.type, expiresOn, days: action.days, daysLeft: action.daysLeft },
     };
   }
@@ -420,7 +437,10 @@ async function claimCredential(
     });
     return {
       kind: "expire",
-      message: to(credentialExpiredMessage(voice, name, shortDate(expiresOn, year), upload)),
+      message: to(
+        credentialExpiredMessage(voice, name, date, upload),
+        credentialExpiredEmailSubject(name),
+      ),
       data: { type: c.type, expiresOn },
     };
   }
@@ -464,14 +484,18 @@ async function warnAndExpire(
     if (claim.kind === "expire") expired += 1;
     if (!claim.message) continue;
 
-    // (2) The message, outside any transaction: by the channel they chose, with the fallback.
+    // (2) The message, outside any transaction: by the channel they chose, with the fallback, else
+    // by email.
     const m = claim.message;
-    const sent = await sendToWorker(deps, {
-      mobile: m.mobile,
-      channel: m.channel,
-      smsAllowed: m.smsAllowed,
-      body: { whatsapp: m.text, sms: m.text },
-      from: m.from,
+    const sent = await sendTextOrEmail(deps, {
+      text: {
+        mobile: m.mobile,
+        channel: m.channel,
+        smsAllowed: m.smsAllowed,
+        body: { whatsapp: m.text, sms: m.text },
+        from: m.from,
+      },
+      email: m.email ? { ...m.email, body: m.text } : null,
     });
 
     // (3) The outcome, logged once (a rerun may have caught it up already, as unconfirmed).

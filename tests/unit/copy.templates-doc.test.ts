@@ -760,6 +760,55 @@ describe("the pushes", () => {
   });
 });
 
+// Emails to casuals (P2.4; docs "Email to casuals", approved by Dylan on 2026-10-28): each subject
+// as the doc gives it; the body is the message's own WhatsApp words, checked above.
+describe("emails to casuals: their subjects", () => {
+  const emails = section("Email to casuals");
+  const subject = (lead: string) => quotes(emails, lead)[0];
+  it("each subject, word for word", () => {
+    expect(
+      templates.shiftOfferEmailSubject({ date: "{date}", start: "{start}", end: "{end}" }),
+    ).toBe(subject("Offer (`shift_offer`)"));
+    expect(templates.shiftUrgentEmailSubject({ role: "{role}", day: "{day}" })).toBe(
+      subject("Urgent offer (`shift_urgent`)"),
+    );
+    // Its example: the role's "a" or "an", as in the message.
+    expect(templates.shiftUrgentEmailSubject({ role: "door_supervisor", day: "today" })).toBe(
+      quotes(emails, "Urgent offer (`shift_urgent`)").at(-1),
+    );
+    expect(templates.shiftUrgentEmailSubject({ role: "event_steward", day: "today" })).toBe(
+      "URGENT: an event steward needed today",
+    );
+    expect(templates.shiftConfirmedEmailSubject({ date: "{date}" })).toBe(
+      subject("Booking confirmation (`shift_confirmed`)"),
+    );
+    expect(templates.shiftReminder24hEmailSubject({ day: "{day}" })).toBe(
+      subject("Reminder, the day before (`shift_reminder_24h`)"),
+    );
+    expect(templates.shiftReminder2hEmailSubject({ start: "{start}" })).toBe(
+      subject("Reminder, 2 hours before (`shift_reminder_2h`)"),
+    );
+    expect(templates.shiftChangedByFirmEmailSubject({ date: "{date}" })).toBe(
+      subject("The office's change (`shift_changed_by_firm`)"),
+    );
+    expect(templates.shiftCancelledByFirmEmailSubject({ date: "{date}" })).toBe(
+      subject("The office's cancellation (`shift_cancelled_by_firm`)"),
+    );
+    expect(templates.requestUpdateEmailSubject({ ref: "{ref}", status: "{status}" })).toBe(
+      subject("A request's answer (`request_update`)"),
+    );
+    expect(templates.payQueryUpdateEmailSubject()).toBe(
+      subject("A pay query's answer (`pay_query_update`)"),
+    );
+    expect(templates.credentialExpiringEmailSubject("{credential}", "{date}")).toBe(
+      subject("A licence running out (`credential_expiring`)"),
+    );
+    expect(templates.credentialExpiredEmailSubject("{credential}")).toBe(
+      subject("A licence that has run out (`credential_expired`)"),
+    );
+  });
+});
+
 describe("every template function is checked here", () => {
   it("templates.ts exports no message this file doesn't check", () => {
     const functions = Object.entries(templates)
@@ -806,6 +855,18 @@ describe("every template function is checked here", () => {
         "smsStoppedMessage",
         "urgentPush",
         "voicemailReceivedMessage",
+        // Emails to casuals (P2.4): their subjects, checked above.
+        "credentialExpiredEmailSubject",
+        "credentialExpiringEmailSubject",
+        "payQueryUpdateEmailSubject",
+        "requestUpdateEmailSubject",
+        "shiftCancelledByFirmEmailSubject",
+        "shiftChangedByFirmEmailSubject",
+        "shiftConfirmedEmailSubject",
+        "shiftOfferEmailSubject",
+        "shiftReminder24hEmailSubject",
+        "shiftReminder2hEmailSubject",
+        "shiftUrgentEmailSubject",
       ].sort(),
     );
   });

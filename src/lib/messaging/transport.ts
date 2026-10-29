@@ -105,6 +105,16 @@ export class ChannelRefusedError extends Error {
   }
 }
 
+// There is no text sender at all (MESSAGING_TRANSPORT=none: P2.5, before the firm's own text
+// system is connected). Not a failed message: nothing was tried. A sender moves on to email
+// (src/lib/notify/send.ts deliverToWorker).
+export class NoTextSenderError extends Error {
+  constructor(readonly channel: Channel) {
+    super(`there is no text sender for ${channel}`);
+    this.name = "NoTextSenderError";
+  }
+}
+
 export interface MessagingTransport {
   readonly name: string;
   send(message: OutboundMessage): Promise<SendResult>;

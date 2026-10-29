@@ -1,10 +1,19 @@
 import type { Pool } from "pg";
-import type { JobResult } from "pg-boss";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { scanCredentials } from "@/lib/credentials/scan";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { runFirmTask } from "@/lib/jobs/firm-job";
-import { ChannelRefusedError, type MessagingTransport } from "@/lib/messaging/transport";
+import {
+  ChannelRefusedError,
+  NoTextSenderError,
+  type MessagingTransport,
+} from "@/lib/messaging/transport";
+import { runFirmChangeNotice } from "@/lib/notices/firm-change";
+import { runPayQueryUpdate } from "@/lib/notices/pay-query-update";
+import { runRequestUpdate } from "@/lib/notices/request-update";
+import { runShiftConfirmed } from "@/lib/notices/shift-confirmed";
 import { waveCandidates } from "@/lib/offers/candidates";
+import { runOfficeOffer } from "@/lib/offers/office-offer";
 import {
   createEscalateShiftTask,
   createOfferWaveTask,
@@ -12,29 +21,38 @@ import {
   OFFER_WAVE_QUEUE,
   type OfferDeps,
 } from "@/lib/offers/waves";
+import { assignWorker, cancelBookingByOffice } from "@/lib/office/quick-actions";
 import type { PushTransport } from "@/lib/push/transport";
 import { createShiftRemindersTask } from "@/lib/reminders/send";
+import { resolveRequest } from "@/lib/requests/resolve";
 import { previewBooking } from "@/lib/roster/book";
 import { cancelBooking } from "@/lib/roster/cancel";
 import { bookingFirm, hoursFromNow, NOW, type BookingFirm } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
 import { fakeWorker } from "../helpers/fake-worker";
 
-// The notification policy (docs/messaging-templates.md, "Notification policy"; docs/testing.md,
-// notify.policy), held for every sender that messages workers: offer waves and shift reminders,
-// each run through its real job on the real database, with capturing transports (nothing is sent
-// anywhere). As built:
-// - channel order: the worker's own channel (WhatsApp, or text by their choice); a text only
-//   after the provider refuses the WhatsApp; never both for one message; the push alongside once
-//   the message has gone, never for a failed one. (The 60-second "not delivered" fallback needs
-//   Twilio's delivery reports: parked.)
+// The notification policy (docs/messaging-templates.md, "Notification policy" and "How a message
+// reaches a casual"; docs/testing.md, notify.policy), held for every sender that messages a casual:
+// offer waves, the office's offer, shift reminders, the booking confirmation, the office's change
+// notice, a request's answer, a pay query's answer and the licence messages, each run through its
+// real job on the real database, with capturing transports (nothing is sent anywhere). As built
+// (P2.4, deliverToWorker):
+// - the order: a push to their phones, and when one phone takes it nothing else goes; else their
+//   own channel (WhatsApp, or text by their choice), a text only after the provider refuses the
+//   WhatsApp, never both for one message; else, only when there's no text sender at all, an email
+//   to the address the firm holds for them; else nothing goes and the miss is logged (no_channel).
+//   A WhatsApp or text that fails is never sent again another way (it may have arrived). The
+//   licence messages have no push words: they start at the WhatsApp or text. (The 60-second "not
+//   delivered" fallback needs Twilio's delivery reports: parked.)
 // - quiet hours: urgent offers go at night only if the firm allows it; reminders always wait.
 // - the daily cap: at most 3 offers a worker a day unless urgent; reminders aren't offers.
-// - idempotency: a retried or doubled job never sends a message twice.
+// - idempotency: a retried or doubled job never sends a message twice, whichever way it went.
 // - STOP: never a text to a worker who replied STOP (workers.sms_opted_out_at): WhatsApp instead
 //   if they chose texts, and no text when the WhatsApp is refused.
 // - no notifications to ineligible workers: over a whole chain, exactly the workers the booking
 //   rules allow get anything.
+// Before P2.4 the push went alongside the WhatsApp or text, once that had gone (Messages 2 decided
+// it: a push now instead of the text).
 // NOW is Monday 2 November 2026, 09:00 London (GMT).
 
 let su: Pool;
@@ -50,21 +68,31 @@ afterAll(async () => {
   await Promise.all([su.end(), app.end()]);
 });
 
-type Behaviour = "ok" | "refused" | "fails";
+// "none": there's no text sender at all (MESSAGING_TRANSPORT=none, P2.5): nothing is tried.
+type Behaviour = "ok" | "refused" | "fails" | "none";
 
-// Everything sent, in order: "whatsapp:<to>", "sms:<to>" (attempts, failed or not), "push:<endpoint>".
+// Everything sent, in order: "whatsapp:<to>", "sms:<to>" (attempts, failed or not),
+// "email:<to>", "push:<endpoint>". With no text sender, nothing is logged for the text.
 function recorder() {
   const log: string[] = [];
-  const state = { whatsapp: "ok" as Behaviour, sms: "ok" as Behaviour };
+  const emails: { to: string; subject?: string; body: string }[] = [];
+  const state = {
+    whatsapp: "ok" as Behaviour,
+    sms: "ok" as Behaviour,
+    push: "sent" as "sent" | "gone" | "failed",
+  };
   const transport: MessagingTransport = {
     name: "record",
     async send(message) {
       if (message.channel === "email") {
         log.push(`email:${message.to}`);
-        return { providerMessageId: `id-${log.length}` };
+        emails.push({ to: message.to, subject: message.subject, body: message.body });
+        // As an SMTP server's Message-ID comes back: the sending host after an "@".
+        return { providerMessageId: `<id-${log.length}@mail.example.test>` };
       }
-      log.push(`${message.channel}:${message.to}`);
       const how = state[message.channel];
+      if (how === "none") throw new NoTextSenderError(message.channel);
+      log.push(`${message.channel}:${message.to}`);
       if (how === "refused") throw new ChannelRefusedError(message.channel);
       if (how === "fails") throw new Error("timed out");
       return { providerMessageId: `id-${log.length}` };
@@ -74,10 +102,17 @@ function recorder() {
     name: "record",
     async send(target) {
       log.push(`push:${target.endpoint}`);
-      return { status: "sent" };
+      return state.push === "failed"
+        ? { status: "failed", code: "timeout" }
+        : { status: state.push };
     },
   };
-  return { log, state, transport, push };
+  // No text sender at all.
+  const noTexts = () => {
+    state.whatsapp = "none";
+    state.sms = "none";
+  };
+  return { log, emails, state, transport, push, noTexts };
 }
 
 const mobileOf = async (workerId: string) =>
@@ -97,19 +132,53 @@ async function subscribe(f: BookingFirm, workerId: string): Promise<string> {
   return endpoint;
 }
 
+// The address the firm holds for them (made up: example.test).
+async function giveEmail(workerId: string): Promise<string> {
+  const email = `w-${workerId.slice(0, 8)}@example.test`;
+  await su.query("update workers set email = $2 where id = $1", [workerId, email]);
+  return email;
+}
+
+const eventsOf = async (firmId: string, action: string) =>
+  (
+    await su.query<{ data: Record<string, unknown> }>(
+      "select data from events where firm_id = $1 and action = $2 order by id",
+      [firmId, action],
+    )
+  ).rows.map((r) => r.data);
+
+const jobPayload = async (f: BookingFirm, queue: string) => {
+  const { rows } = await su.query<{ data: Record<string, unknown> }>(
+    "select data from pgboss.job where name = $1 and data ->> 'firmId' = $2",
+    [queue, f.firmId],
+  );
+  expect(rows).toHaveLength(1);
+  return rows[0]?.data;
+};
+
+const clock = (when: Date) => ({ now: () => when });
+
 // A sender, set up for one worker: `run` sends them its one message through the real job.
 interface Sender {
   name: string;
+  push: boolean; // whether the message has push words (the licence messages don't)
+  sent: string; // the event that logs it sent, with the channel it went by
+  failed: string; // the event that logs it failed, with its code
+  subject: RegExp; // its email's subject (docs/messaging-templates.md "Email to casuals")
   setup(settings?: Record<string, unknown>): Promise<{
     f: BookingFirm;
     workerId: string;
     rec: ReturnType<typeof recorder>;
-    run: (when?: Date) => Promise<JobResult>;
+    run: (when?: Date) => Promise<unknown>;
   }>;
 }
 
 const offerSender: Sender = {
   name: "an urgent offer",
+  push: true,
+  sent: "offer.sent",
+  failed: "offer.send_failed",
+  subject: /^URGENT: a door supervisor needed tomorrow$/,
   async setup(settings = {}) {
     const f = await bookingFirm(su, withFirm, {
       settings: { allocation_mode: "first_come_first_served", ...settings },
@@ -124,7 +193,7 @@ const offerSender: Sender = {
           transport: rec.transport,
           push: rec.push,
           baseDomain: "localhost:3000",
-          clock: { now: () => when },
+          clock: clock(when),
         })),
         {
           id: "job",
@@ -136,8 +205,42 @@ const offerSender: Sender = {
   },
 };
 
+const officeOfferSender: Sender = {
+  name: "the office's offer",
+  push: true,
+  sent: "offer.sent",
+  failed: "offer.send_failed",
+  subject: /^Shift available: Tue 3 Nov 15:00–23:00$/,
+  async setup(settings = {}) {
+    const f = await bookingFirm(su, withFirm, { settings });
+    const workerId = await f.worker({ first: "Rae" });
+    const shiftId = await f.shift({ startsAt: hoursFromNow(30) });
+    const officeUserId = await f.office("resourcer");
+    const rec = recorder();
+    const payload = {
+      firmId: f.firmId,
+      idempotencyKey: `office-offer:${shiftId}:${workerId}`,
+      shiftId,
+      workerId,
+      officeUserId,
+    };
+    const run = (when = NOW) =>
+      runOfficeOffer(payload, withFirm, {
+        transport: rec.transport,
+        push: rec.push,
+        baseDomain: "localhost:3000",
+        clock: clock(when),
+      });
+    return { f, workerId, rec, run };
+  },
+};
+
 const reminderSender: Sender = {
   name: "a shift reminder",
+  push: true,
+  sent: "shift.reminder_sent",
+  failed: "shift.reminder_failed",
+  subject: /^Reminder: your shift tomorrow$/,
   async setup(settings = {}) {
     const f = await bookingFirm(su, withFirm, { settings });
     const workerId = await f.worker({ first: "Rae" });
@@ -149,7 +252,7 @@ const reminderSender: Sender = {
           transport: rec.transport,
           push: rec.push,
           baseDomain: "localhost:3000",
-          clock: { now: () => when },
+          clock: clock(when),
         })),
         { id: "job", data: { firmId: f.firmId, idempotencyKey: "shift-reminders:1" } },
         withFirm,
@@ -158,52 +261,323 @@ const reminderSender: Sender = {
   },
 };
 
-const SENDERS = [offerSender, reminderSender].map((s) => [s.name, s] as const);
+const bookedSender: Sender = {
+  name: "the booking confirmation",
+  push: true,
+  sent: "shift.booked_notice_sent",
+  failed: "shift.booked_notice_failed",
+  subject: /^Confirmed: your shift on Tue 3 Nov$/,
+  async setup(settings = {}) {
+    const f = await bookingFirm(su, withFirm, { settings });
+    const workerId = await f.worker({ first: "Rae" });
+    const shiftId = await f.shift({ startsAt: hoursFromNow(30) });
+    const officeUserId = await f.office("resourcer");
+    expect(
+      await assignWorker(
+        { firm: { id: f.firmId }, officeUserId, run: withFirm, clock: clock(NOW) },
+        shiftId,
+        workerId,
+        null,
+      ),
+    ).toMatchObject({ status: "booked" });
+    const payload = (await jobPayload(f, "shift-confirmed")) as Parameters<
+      typeof runShiftConfirmed
+    >[0];
+    const rec = recorder();
+    const run = (when = NOW) =>
+      runShiftConfirmed(payload, withFirm, {
+        transport: rec.transport,
+        push: rec.push,
+        baseDomain: "localhost:3000",
+        clock: clock(when),
+      });
+    return { f, workerId, rec, run };
+  },
+};
 
-describe.each(SENDERS)("channel order: %s", (_name, sender) => {
-  it("WhatsApp when that's their channel, then the push; nothing else", async () => {
+const changeSender: Sender = {
+  name: "the office's cancellation",
+  push: true,
+  sent: "shift.change_notice_sent",
+  failed: "shift.change_notice_failed",
+  subject: /^Your shift on Tue 3 Nov is cancelled$/,
+  async setup(settings = {}) {
+    const f = await bookingFirm(su, withFirm, { settings });
+    const workerId = await f.worker({ first: "Rae" });
+    const shiftId = await f.shift({ startsAt: hoursFromNow(30) });
+    await f.booking(workerId, shiftId);
+    const officeUserId = await f.office("resourcer");
+    expect(
+      await cancelBookingByOffice(
+        { firm: { id: f.firmId }, officeUserId, run: withFirm, clock: clock(NOW) },
+        shiftId,
+        workerId,
+        "event_cancelled",
+      ),
+    ).toMatchObject({ status: "cancelled" });
+    const payload = (await jobPayload(f, "firm-change-notice")) as Parameters<
+      typeof runFirmChangeNotice
+    >[0];
+    const rec = recorder();
+    const run = (when = NOW) =>
+      runFirmChangeNotice(payload, withFirm, {
+        transport: rec.transport,
+        push: rec.push,
+        baseDomain: "localhost:3000",
+        clock: clock(when),
+      });
+    return { f, workerId, rec, run };
+  },
+};
+
+const requestSender: Sender = {
+  name: "a request's answer",
+  push: true,
+  sent: "request.update_sent",
+  failed: "request.update_failed",
+  subject: /^Your request \(ref [0-9A-F]{8}\) is approved$/,
+  async setup(settings = {}) {
+    const f = await bookingFirm(su, withFirm, { settings });
+    const workerId = await f.worker({ first: "Rae" });
+    const shiftId = await f.shift({ startsAt: hoursFromNow(30) });
+    await f.booking(workerId, shiftId);
+    const officeUserId = await f.office("resourcer");
+    const { rows } = await su.query<{ id: string }>(
+      `insert into requests (firm_id, worker_id, shift_id, type, payload, status, created_at)
+       values ($1, $2, $3, 'time_change', $4, 'open', $5) returning id::text as id`,
+      [f.firmId, workerId, shiftId, JSON.stringify({ text: "Can I start at 15:30?" }), NOW],
+    );
+    const requestId = rows[0]?.id ?? "";
+    expect(
+      await resolveRequest(
+        withFirm,
+        f.firmId,
+        { requestId, decision: "approved", note: "", by: { type: "office", id: officeUserId } },
+        { clock: clock(NOW) },
+      ),
+    ).toMatchObject({ status: "resolved" });
+    const payload = { firmId: f.firmId, idempotencyKey: `request-update:${requestId}`, requestId };
+    const rec = recorder();
+    const run = (when = NOW) =>
+      runRequestUpdate(payload, withFirm, {
+        transport: rec.transport,
+        push: rec.push,
+        clock: clock(when),
+      });
+    return { f, workerId, rec, run };
+  },
+};
+
+const payQuerySender: Sender = {
+  name: "a pay query's answer",
+  push: true,
+  sent: "pay_query.update_sent",
+  failed: "pay_query.update_failed",
+  subject: /^Payroll has answered your pay query$/,
+  async setup(settings = {}) {
+    const f = await bookingFirm(su, withFirm, { settings });
+    const workerId = await f.worker({ first: "Rae" });
+    const { rows } = await su.query<{ id: string }>(
+      `insert into pay_queries
+         (firm_id, worker_id, work_date, issue_type, status, resolution_note, resolved_at)
+       values ($1, $2, '2026-10-31', 'missing_hours', 'resolved', 'Added to Friday''s pay', $3)
+       returning id::text as id`,
+      [f.firmId, workerId, NOW],
+    );
+    const payQueryId = rows[0]?.id ?? "";
+    const payload = {
+      firmId: f.firmId,
+      idempotencyKey: `pay-query-update:${payQueryId}`,
+      payQueryId,
+    };
+    const rec = recorder();
+    const run = (when = NOW) =>
+      runPayQueryUpdate(payload, withFirm, {
+        transport: rec.transport,
+        push: rec.push,
+        baseDomain: "localhost:3000",
+        clock: clock(when),
+      });
+    return { f, workerId, rec, run };
+  },
+};
+
+// The licence warning (no push words: it starts at the WhatsApp or text). The scan of Tuesday
+// 3 November, for a licence that runs out on the 9th: the 7-day warning.
+const licenceSender: Sender = {
+  name: "a licence warning",
+  push: false,
+  sent: "credential.expiry_warning",
+  failed: "credential.expiry_warning_failed",
+  subject: /^Your .+ expires on 9 Nov$/,
+  async setup(settings = {}) {
+    const f = await bookingFirm(su, withFirm, { settings });
+    const workerId = await f.worker({
+      first: "Rae",
+      credentials: [{ type: "SIA_DS", expiresOn: "2026-11-09" }],
+    });
+    const payload = { firmId: f.firmId, idempotencyKey: "credential-scan:2026-11-03" };
+    const rec = recorder();
+    const run = () =>
+      scanCredentials(payload, withFirm, {
+        transport: rec.transport,
+        baseDomain: "localhost:3000",
+      });
+    return { f, workerId, rec, run };
+  },
+};
+
+const ALL: Sender[] = [
+  offerSender,
+  officeOfferSender,
+  reminderSender,
+  bookedSender,
+  changeSender,
+  requestSender,
+  payQuerySender,
+  licenceSender,
+];
+const SENDERS = ALL.map((s) => [s.name, s] as const);
+const PUSHING = ALL.filter((s) => s.push).map((s) => [s.name, s] as const);
+
+describe.each(PUSHING)("a push first: %s", (_name, sender) => {
+  it("a phone takes the push: that's the message, and nothing else goes", async () => {
     const t = await sender.setup();
     const endpoint = await subscribe(t.f, t.workerId);
-    const mobile = await mobileOf(t.workerId);
-    expect(await t.run()).toMatchObject({ status: "completed" });
-    expect(t.rec.log).toEqual([`whatsapp:${mobile}`, `push:${endpoint}`]);
+    await giveEmail(t.workerId);
+    await t.run();
+    expect(t.rec.log).toEqual([`push:${endpoint}`]);
+    expect((await eventsOf(t.f.firmId, sender.sent)).at(-1)).toMatchObject({
+      channel: "push",
+      pushes: 1,
+    });
   });
+
+  it("a phone that's gone: forgotten, and the WhatsApp goes", async () => {
+    const t = await sender.setup();
+    const endpoint = await subscribe(t.f, t.workerId);
+    t.rec.state.push = "gone";
+    const mobile = await mobileOf(t.workerId);
+    await t.run();
+    expect(t.rec.log).toEqual([`push:${endpoint}`, `whatsapp:${mobile}`]);
+    const { rows } = await su.query("select 1 from push_subscriptions where worker_id = $1", [
+      t.workerId,
+    ]);
+    expect(rows).toEqual([]);
+    expect(await eventsOf(t.f.firmId, "push.forgotten")).toEqual([{ reason: "gone" }]);
+  });
+
+  it("a push that fails: the phone is kept, and the WhatsApp goes", async () => {
+    const t = await sender.setup();
+    const endpoint = await subscribe(t.f, t.workerId);
+    t.rec.state.push = "failed";
+    const mobile = await mobileOf(t.workerId);
+    await t.run();
+    expect(t.rec.log).toEqual([`push:${endpoint}`, `whatsapp:${mobile}`]);
+    expect((await eventsOf(t.f.firmId, sender.sent)).at(-1)).toMatchObject({
+      channel: "whatsapp",
+      pushes: 0,
+    });
+  });
+
+  it("a WhatsApp or text that fails after the push failed: forgotten phones still forgotten", async () => {
+    const t = await sender.setup();
+    await subscribe(t.f, t.workerId);
+    t.rec.state.push = "gone";
+    t.rec.state.whatsapp = "fails";
+    await t.run();
+    expect(await eventsOf(t.f.firmId, "push.forgotten")).toEqual([{ reason: "gone" }]);
+    expect((await eventsOf(t.f.firmId, sender.failed)).at(-1)).toMatchObject({
+      channel: "whatsapp",
+      code: "Error",
+    });
+  });
+});
+
+describe.each(SENDERS)("then a WhatsApp or text: %s", (_name, sender) => {
+  it("no phones: WhatsApp when that's their channel; nothing else", async () => {
+    const t = await sender.setup();
+    await giveEmail(t.workerId);
+    const mobile = await mobileOf(t.workerId);
+    await t.run();
+    expect(t.rec.log).toEqual([`whatsapp:${mobile}`]);
+    expect((await eventsOf(t.f.firmId, sender.sent)).at(-1)).toMatchObject({
+      channel: "whatsapp",
+    });
+  });
+
+  if (!sender.push) {
+    it("no push words: a WhatsApp even when they have a phone with notifications on", async () => {
+      const t = await sender.setup();
+      await subscribe(t.f, t.workerId);
+      const mobile = await mobileOf(t.workerId);
+      await t.run();
+      expect(t.rec.log).toEqual([`whatsapp:${mobile}`]);
+    });
+  }
 
   it("a text when they chose texts: never WhatsApp", async () => {
     const t = await sender.setup();
     await su.query("update workers set notify_channel = 'sms' where id = $1", [t.workerId]);
-    const endpoint = await subscribe(t.f, t.workerId);
     const mobile = await mobileOf(t.workerId);
     await t.run();
-    expect(t.rec.log).toEqual([`sms:${mobile}`, `push:${endpoint}`]);
+    expect(t.rec.log).toEqual([`sms:${mobile}`]);
   });
 
-  it("a text only after the provider refuses the WhatsApp, then the push", async () => {
+  it("a text only after the provider refuses the WhatsApp", async () => {
     const t = await sender.setup();
     t.rec.state.whatsapp = "refused";
-    const endpoint = await subscribe(t.f, t.workerId);
     const mobile = await mobileOf(t.workerId);
     await t.run();
-    expect(t.rec.log).toEqual([`whatsapp:${mobile}`, `sms:${mobile}`, `push:${endpoint}`]);
+    expect(t.rec.log).toEqual([`whatsapp:${mobile}`, `sms:${mobile}`]);
   });
 
-  it("any other failure: no text (it may have arrived), and no push", async () => {
+  it("any other failure: no text and no email (it may have arrived)", async () => {
     const t = await sender.setup();
     t.rec.state.whatsapp = "fails";
-    await subscribe(t.f, t.workerId);
+    await giveEmail(t.workerId);
     const mobile = await mobileOf(t.workerId);
     await t.run();
     expect(t.rec.log).toEqual([`whatsapp:${mobile}`]);
   });
 
-  it("a refused WhatsApp and a failed text: nothing more (no push)", async () => {
+  it("a refused WhatsApp and a failed text: nothing more", async () => {
     const t = await sender.setup();
     t.rec.state.whatsapp = "refused";
     t.rec.state.sms = "fails";
-    await subscribe(t.f, t.workerId);
+    await giveEmail(t.workerId);
     const mobile = await mobileOf(t.workerId);
     await t.run();
     expect(t.rec.log).toEqual([`whatsapp:${mobile}`, `sms:${mobile}`]);
+  });
+});
+
+describe.each(SENDERS)("then an email: %s", (_name, sender) => {
+  it("no text sender: by email to the address the firm holds, its subject and its own words", async () => {
+    const t = await sender.setup();
+    t.rec.noTexts();
+    const email = await giveEmail(t.workerId);
+    await t.run();
+    expect(t.rec.log).toEqual([`email:${email}`]);
+    expect(t.rec.emails).toHaveLength(1);
+    expect(t.rec.emails[0]?.subject).toMatch(sender.subject);
+    expect(t.rec.emails[0]?.body).toMatch(/Shift Team$/);
+    // Logged with the Message-ID's id only: the log refuses the host after its "@".
+    expect((await eventsOf(t.f.firmId, sender.sent)).at(-1)).toMatchObject({
+      channel: "email",
+      providerMessageId: "id-1",
+    });
+  });
+
+  it("no text sender and no address: nothing goes, and the miss is logged (no_channel)", async () => {
+    const t = await sender.setup();
+    t.rec.noTexts();
+    await t.run();
+    expect(t.rec.log).toEqual([]);
+    expect((await eventsOf(t.f.firmId, sender.failed)).at(-1)).toMatchObject({
+      code: "no_channel",
+    });
+    expect(await eventsOf(t.f.firmId, sender.sent)).toEqual([]);
   });
 });
 
@@ -211,23 +585,22 @@ describe.each(SENDERS)("replied STOP: %s", (_name, sender) => {
   const stopped = (workerId: string) =>
     su.query("update workers set sms_opted_out_at = $2 where id = $1", [workerId, NOW]);
 
-  it("chose texts, then replied STOP: WhatsApp instead, then the push", async () => {
+  it("chose texts, then replied STOP: WhatsApp instead", async () => {
     const t = await sender.setup();
     await su.query("update workers set notify_channel = 'sms' where id = $1", [t.workerId]);
     await stopped(t.workerId);
-    const endpoint = await subscribe(t.f, t.workerId);
     const mobile = await mobileOf(t.workerId);
     await t.run();
-    expect(t.rec.log).toEqual([`whatsapp:${mobile}`, `push:${endpoint}`]);
+    expect(t.rec.log).toEqual([`whatsapp:${mobile}`]);
   });
 
-  it("a refused WhatsApp is never sent as a text (and no push)", async () => {
+  it("a refused WhatsApp is never sent as a text, nor by email", async () => {
     for (const channel of ["whatsapp", "sms"]) {
       const t = await sender.setup();
       await su.query("update workers set notify_channel = $2 where id = $1", [t.workerId, channel]);
       await stopped(t.workerId);
+      await giveEmail(t.workerId);
       t.rec.state.whatsapp = "refused";
-      await subscribe(t.f, t.workerId);
       const mobile = await mobileOf(t.workerId);
       await t.run();
       expect(t.rec.log).toEqual([`whatsapp:${mobile}`]);
@@ -241,14 +614,33 @@ describe.each(SENDERS)("idempotency: %s", (_name, sender) => {
     await t.run();
     await t.run();
     await t.run(new Date(NOW.getTime() + 5 * 60_000));
-    expect(t.rec.log.filter((l) => !l.startsWith("push:"))).toHaveLength(1);
+    expect(t.rec.log).toHaveLength(1);
   });
 
   it("two copies at the same moment send it once", async () => {
     const t = await sender.setup();
     await Promise.all([t.run(), t.run()]);
-    expect(t.rec.log.filter((l) => !l.startsWith("push:"))).toHaveLength(1);
+    expect(t.rec.log).toHaveLength(1);
   });
+
+  it("by email: once, however often the job runs", async () => {
+    const t = await sender.setup();
+    t.rec.noTexts();
+    await giveEmail(t.workerId);
+    await Promise.all([t.run(), t.run()]);
+    await t.run(new Date(NOW.getTime() + 5 * 60_000));
+    expect(t.rec.log).toHaveLength(1);
+  });
+
+  if (sender.push) {
+    it("by push: once, however often the job runs", async () => {
+      const t = await sender.setup();
+      await subscribe(t.f, t.workerId);
+      await Promise.all([t.run(), t.run()]);
+      await t.run(new Date(NOW.getTime() + 5 * 60_000));
+      expect(t.rec.log).toHaveLength(1);
+    });
+  }
 });
 
 describe("quiet hours (22:00–07:00)", () => {

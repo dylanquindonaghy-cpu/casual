@@ -351,6 +351,13 @@
       "when": 1793202714432,
       "tag": "0049_booking_source",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1793204195549,
+      "tag": "0050_delivery_channels",
+      "breakpoints": true
     }
   ]
 }

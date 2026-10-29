@@ -603,7 +603,7 @@ create table offers (
   worker_id uuid not null,               -- (firm_id, worker_id) -> workers
   wave int,                              -- >= 1: sent in a wave; null: sent by the office
   offered_by uuid,                       -- (firm_id, offered_by) -> office_users; set exactly when wave is null
-  channel text not null,                 -- push | whatsapp | sms
+  channel text not null,                 -- push | whatsapp | sms | email (P2.4: the way it went)
   sent_at timestamptz not null default now(),
   responded_at timestamptz,              -- set exactly when response is set
   response text,                         -- accepted | declined | expired | filled_elsewhere | failed (couldn't be sent)
@@ -626,7 +626,7 @@ create table shift_reminders (
   starts_at timestamptz not null,        -- the start time it was for (a moved shift gets new ones)
   status text not null,                  -- sending (claimed; left so if the job stopped: may have gone, never resent)
                                          -- | sent | failed (not resent: it may have arrived) | skipped (quiet hours)
-  channel text,                          -- whatsapp | sms; null exactly when skipped
+  channel text,                          -- push | whatsapp | sms | email (P2.4); null exactly when skipped
   recorded_at timestamptz not null default now(), -- when it was claimed or skipped
   created_at timestamptz not null default now(),
   unique (firm_id, id),

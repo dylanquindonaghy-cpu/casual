@@ -7,11 +7,15 @@ import { workerEnv } from "../env";
 import { recordEvent } from "../events/record";
 import { firmJobEnvelope, sendFirmJob, type FirmTask } from "../jobs/firm-job";
 import { getTransport } from "../messaging";
-import { requestUpdateMessage, requestUpdatePush } from "../messaging/templates";
 import {
-  pushToWorker,
+  requestUpdateEmailSubject,
+  requestUpdateMessage,
+  requestUpdatePush,
+} from "../messaging/templates";
+import {
+  deliverToWorker,
   recordPushes,
-  sendToWorker,
+  type DeliveryChannel,
   type NotifyDeps,
   type WorkerChannel,
   smsAllowedFor,
@@ -28,8 +32,9 @@ import { signOffFor } from "../tenancy/sign-off";
 //
 // At most once, like the other notices: (1) a short transaction claims it (request.update_notice,
 // under an advisory lock on the request) and commits; (2) the message goes outside any
-// transaction, by the worker's channel with the WhatsApp-to-text fallback, then the push to their
-// phones; (3) a second short transaction logs request.update_sent or _failed. A job that stops
+// transaction: a push to their phones, else by their channel with the WhatsApp-to-text fallback,
+// else email (deliverToWorker, P2.4); (3) a second short transaction logs request.update_sent or
+// _failed. A job that stops
 // part-way leaves the claim: the message may have gone, so it's never sent again.
 //
 // Quiet hours: a reply waits for them to end (logged request.update_held and queued again, never
@@ -60,7 +65,7 @@ export interface RequestUpdateDeps extends NotifyDeps {
 }
 
 export type RequestUpdateResult =
-  | { status: "sent"; channel: WorkerChannel }
+  | { status: "sent"; channel: DeliveryChannel }
   | { status: "failed" }
   | { status: "held"; until: Date }
   | { status: "already" }
@@ -79,6 +84,7 @@ type Claim =
       body: string;
       from: string | null; // the firm's shifts line
       push: { title: string; body: string; url: string };
+      email: { to: string; subject: string; body: string } | null; // P2.4
     }
   | Exclude<RequestUpdateResult, { status: "sent" } | { status: "failed" }>;
 
@@ -101,6 +107,7 @@ async function claim(tx: FirmTx, payload: RequestUpdatePayload, now: Date): Prom
       mobile: workers.mobileE164,
       channel: workers.notifyChannel,
       smsOptedOutAt: workers.smsOptedOutAt,
+      email: workers.email,
       startsAt: shifts.startsAt,
       endsAt: shifts.endsAt,
       firmName: firms.name,
@@ -161,9 +168,10 @@ async function claim(tx: FirmTx, payload: RequestUpdatePayload, now: Date): Prom
   const kind = KIND_NAMES[row.type] ?? "Request";
   // "approved", "declined", or "answered" for a question (PLAN.md Messages 13).
   const status = statusWord(row.type, row.status).toLowerCase();
+  const ref = payload.requestId.slice(0, 8).toUpperCase();
   const body = requestUpdateMessage(voice, {
     type: kind.toLowerCase(),
-    ref: payload.requestId.slice(0, 8).toUpperCase(),
+    ref,
     status,
     note: row.note ? oneLineNote(row.note) || null : null,
   });
@@ -183,6 +191,9 @@ async function claim(tx: FirmTx, payload: RequestUpdatePayload, now: Date): Prom
     body,
     from: row.line,
     push: { ...requestUpdatePush({ type: kind, status }), url: "/requests" },
+    email: row.email
+      ? { to: row.email, subject: requestUpdateEmailSubject({ ref, status }), body }
+      : null,
   };
 }
 
@@ -194,18 +205,21 @@ export async function runRequestUpdate(
   const now = deps.clock.now();
   const c = await run(payload.firmId, (tx) => claim(tx, payload, now));
   if (c.status !== "send") return c;
-  const sent = await sendToWorker(deps, {
-    mobile: c.mobile,
-    channel: c.channel,
-    smsAllowed: c.smsAllowed,
-    body: { whatsapp: c.body, sms: c.body },
-    from: c.from,
+  const sent = await deliverToWorker((fn) => run(payload.firmId, fn), deps, {
+    workerId: c.workerId,
+    push: c.push,
+    text: {
+      mobile: c.mobile,
+      channel: c.channel,
+      smsAllowed: c.smsAllowed,
+      body: { whatsapp: c.body, sms: c.body },
+      from: c.from,
+    },
+    email: c.email,
   });
-  // The push once the message has gone, with no transaction open.
-  const pushed = sent.ok
-    ? await pushToWorker((fn) => run(payload.firmId, fn), deps, c.workerId, c.push)
-    : null;
   await run(payload.firmId, async (tx) => {
+    // A phone the push service says is gone is forgotten whatever came of the message.
+    const pushes = await recordPushes(tx, sent.push);
     if (!sent.ok) {
       await recordEvent(tx, {
         actorType: "system",
@@ -216,7 +230,6 @@ export async function runRequestUpdate(
       });
       return;
     }
-    const pushes = await recordPushes(tx, pushed);
     await recordEvent(tx, {
       actorType: "system",
       action: "request.update_sent",

@@ -12,16 +12,12 @@ import { FIRM_SYSTEM_BOOKINGS, firmSystemSends } from "../notices/who-sends";
 import { eachAtMost } from "../notify/parallel";
 import {
   reminderPush,
+  shiftReminder24hEmailSubject,
   shiftReminder24hMessage,
+  shiftReminder2hEmailSubject,
   shiftReminder2hMessage,
 } from "../messaging/templates";
-import {
-  pushToWorker,
-  recordPushes,
-  sendToWorker,
-  type NotifyDeps,
-  type WorkerChannel,
-} from "../notify/send";
+import { deliverToWorker, recordPushes, type NotifyDeps, type WorkerChannel } from "../notify/send";
 import { dayWords } from "../portal/format";
 import { getPushTransport } from "../push/transport";
 import { quietHours } from "../rules/quiet-hours";
@@ -99,6 +95,7 @@ interface Booking {
   mobile: string;
   channel: WorkerChannel;
   smsAllowed: boolean; // false: they replied STOP to a text
+  email: string | null; // the address the firm holds for them: the reminder's last way (P2.4)
 }
 
 type Due = Booking & { decision: Extract<ReminderDecision, { action: "send" | "skip" }> };
@@ -137,13 +134,14 @@ export async function dueReminders(
     mobile: string;
     channel: WorkerChannel;
     sms_allowed: boolean;
+    email: string | null;
     has_24h: boolean;
     has_2h: boolean;
   }>(sql`
     select a.id as assignment_id, a.worker_id, a.confirmed_at,
            s.id as shift_id, s.starts_at, s.ends_at, si.name as site_name,
            w.mobile_e164 as mobile, w.notify_channel as channel,
-           w.sms_opted_out_at is null as sms_allowed,
+           w.sms_opted_out_at is null as sms_allowed, w.email,
            exists (select 1 from shift_reminders r
                     where r.firm_id = a.firm_id and r.assignment_id = a.id and r.kind = '24h'
                       and r.starts_at = s.starts_at) as has_24h,
@@ -201,6 +199,7 @@ export async function dueReminders(
       mobile: r.mobile,
       channel: r.channel,
       smsAllowed: r.sms_allowed,
+      email: r.email,
       decision,
     });
   }
@@ -303,30 +302,45 @@ export async function runShiftReminders(
       kind === "24h"
         ? shiftReminder24hMessage(voice, { site: b.siteName, day, start, end, link })
         : shiftReminder2hMessage(voice, { site: b.siteName, start, link });
-    // The doc has no separate SMS version of the reminders: the same text either way.
-    const sent = await sendToWorker(deps, {
-      mobile: b.mobile,
-      channel: b.channel,
-      smsAllowed: b.smsAllowed,
-      body: { whatsapp: body, sms: body },
-      from: firm.line,
+    // A push to their phones first, else by WhatsApp or text, else email (P2.4), with no
+    // transaction open. The doc has no separate SMS version of the reminders: the same text either
+    // way. A push isn't delivered once the shift has started.
+    const sent = await deliverToWorker(inFirm, deps, {
+      workerId: b.workerId,
+      push: {
+        ...reminderPush({ kind, site: b.siteName, day, start, end }),
+        url: `/shifts/${b.shiftId}`,
+        until: b.startsAt,
+      },
+      text: {
+        mobile: b.mobile,
+        channel: b.channel,
+        smsAllowed: b.smsAllowed,
+        body: { whatsapp: body, sms: body },
+        from: firm.line,
+      },
+      email: b.email
+        ? {
+            to: b.email,
+            subject:
+              kind === "24h"
+                ? shiftReminder24hEmailSubject({ day })
+                : shiftReminder2hEmailSubject({ start }),
+            body,
+          }
+        : null,
     });
-    // The push once the message has gone, with no transaction open: not delivered once the shift
-    // has started.
-    const pushed = sent.ok
-      ? await pushToWorker(inFirm, deps, b.workerId, {
-          ...reminderPush({ kind, site: b.siteName, day, start, end }),
-          url: `/shifts/${b.shiftId}`,
-          until: b.startsAt,
-        })
-      : null;
 
     // (3) The outcome and the event.
     await inFirm(async (tx) => {
+      const pushes = await recordPushes(tx, sent.push);
       if (!sent.ok) {
+        // Nothing could carry it at all (no_channel): the row keeps the channel it was claimed with
+        // (only a skipped reminder has none: shift_reminders_channel_unless_skipped); the event
+        // says none.
         await tx
           .update(shiftReminders)
-          .set({ status: "failed", channel: sent.channel })
+          .set({ status: "failed", channel: sent.channel ?? b.channel })
           .where(eq(shiftReminders.id, id));
         await recordEvent(tx, {
           actorType: "system",
@@ -343,7 +357,6 @@ export async function runShiftReminders(
         });
         return;
       }
-      const pushes = await recordPushes(tx, pushed);
       await tx
         .update(shiftReminders)
         .set({ status: "sent", channel: sent.channel })

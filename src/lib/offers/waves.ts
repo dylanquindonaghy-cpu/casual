@@ -21,11 +21,12 @@ import {
   shiftEscalationEmail,
   shiftUrgentMessage,
   shiftUrgentSms,
+  shiftUrgentEmailSubject,
   urgentPush,
 } from "../messaging/templates";
 import { dayWords, shiftWhen } from "../portal/format";
 import { eachAtMost, oneAtATime } from "../notify/parallel";
-import { pushToWorker, recordPushes, sendToWorker, type NotifyDeps } from "../notify/send";
+import { deliverToWorker, recordPushes, type NotifyDeps } from "../notify/send";
 import { getPushTransport } from "../push/transport";
 import { parseAllocationSettings, type AllocationSettings } from "../roster/allocation-input";
 import { previewBooking } from "../roster/book";
@@ -502,6 +503,8 @@ export async function runOfferWave(
     }),
     sms: shiftUrgentSms(firm.voice, { role: shift.role, site: shift.siteName, day, start, link }),
   };
+  // By email (P2.4), the WhatsApp words under the approved subject.
+  const subject = shiftUrgentEmailSubject({ role: shift.role, day });
   // An urgent offer goes at high urgency, and is no use once the shift has started.
   const pushed = {
     ...urgentPush({ role: shift.role, site: shift.siteName, day, start }),
@@ -605,29 +608,40 @@ export async function runOfferWave(
       if (claim?.kind === "skip") return;
       if (claim?.kind !== "claimed") return "stop";
 
-      // The message, outside any transaction: by their channel (src/lib/notify/send.ts).
+      // The offer, outside any transaction: a push to their phones, else by their channel, else
+      // email (src/lib/notify/send.ts deliverToWorker; P2.4).
       const contact = claim.contact;
-      const result = await sendToWorker(deps, {
-        mobile: contact.mobile,
-        channel: contact.channel,
-        smsAllowed: contact.smsAllowed,
-        body,
-        from: firm.line,
+      const result = await deliverToWorker(inFirm, deps, {
+        workerId: c.workerId,
+        push: pushed,
+        text: {
+          mobile: contact.mobile,
+          channel: contact.channel,
+          smsAllowed: contact.smsAllowed,
+          body,
+          from: firm.line,
+        },
+        email: contact.email ? { to: contact.email, subject, body: body.whatsapp } : null,
       });
-      // The push once the message has gone, with no transaction open.
-      const pushOutcome = result.ok ? await pushToWorker(inFirm, deps, c.workerId, pushed) : null;
 
       // The outcome. A failure doesn't stop the wave: that offer is marked failed and logged, the
       // rest still go, and the worker can be offered it again in a later wave.
       await inFirm(async (tx) => {
+        // A phone the push service says is gone is forgotten whatever came of the offer.
+        const pushes = await recordPushes(tx, result.push);
         if (!result.ok) {
           // Kept as evidence of the attempt (offers are never deleted), marked failed: unless the
           // worker answered it while it was going out (it may have arrived after all). A close
           // because the shift filled meanwhile is overwritten: this message never arrived, so the
-          // worker can be offered it again if the shift reopens.
+          // worker can be offered it again if the shift reopens. Nothing could carry it at all
+          // (no_channel): its channel stays as claimed.
           await tx
             .update(offers)
-            .set({ channel: result.channel, response: "failed", respondedAt: now })
+            .set({
+              channel: result.channel ?? contact.channel,
+              response: "failed",
+              respondedAt: now,
+            })
             .where(
               and(
                 eq(offers.id, claim.offerId),
@@ -649,8 +663,7 @@ export async function runOfferWave(
           });
           return;
         }
-        const pushes = await recordPushes(tx, pushOutcome);
-        if (result.fellBackFrom) {
+        if (result.channel !== contact.channel) {
           await tx
             .update(offers)
             .set({ channel: result.channel })

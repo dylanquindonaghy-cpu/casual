@@ -469,7 +469,8 @@ log lines name the host only.
 
 ## Notifications
 
-Order: web push (free) → WhatsApp template → SMS fallback.
+Order: web push (free) → WhatsApp template → SMS fallback → email (P2.4: only when there's no
+text sender at all). A push that one of their phones takes is the message: nothing else goes.
 - Web push works on Android browsers. On iPhone it only works when the portal is added to the
   home screen, so prompt for it after first login. Built in Phase 3: My shifts and Profile show
   iPhone and iPad users "Put your shifts on your home screen" (`src/app/home-screen-hint.tsx`)
@@ -478,11 +479,12 @@ Order: web push (free) → WhatsApp template → SMS fallback.
 - Offline: a service worker (`public/sw.js`, ADR-016) keeps the last copy of My shifts, so it
   opens without signal, marked "No signal. These are your shifts from {time}".
 - Web push: the profile subscribes this phone (`POST /api/push/subscribe`,
-  `push_subscriptions`); offers, reminders and the office's notices push to the worker's phones as
-  well as WhatsApp/SMS; the same service worker shows the notification and opens the page (our own
-  pages only). The real sender (13.3: the `web-push` library, the deployment's VAPID keys, the
-  browser makers' push services) is `PUSH_TRANSPORT=webpush`; each push goes after its message,
-  with no transaction open (14.1). Production keeps `none` until the keys are made on the server
+  `push_subscriptions`); offers, reminders and the office's notices push to the worker's phones
+  first, and go by WhatsApp/SMS only when no phone takes the push (P2.4; before, the push went as
+  well, after the message); the same service worker shows the notification and opens the page (our
+  own pages only). The real sender (13.3: the `web-push` library, the deployment's VAPID keys, the
+  browser makers' push services) is `PUSH_TRANSPORT=webpush`; each push goes with no transaction
+  open (14.1). Production keeps `none` until the keys are made on the server
   (PLAN.md Parking lot, "Connect the real web push").
 - WhatsApp: business-initiated messages must use approved templates (utility category for
   offers and login links). From 1 October 2026 Meta charges per service message beyond the
@@ -494,8 +496,9 @@ Order: web push (free) → WhatsApp template → SMS fallback.
   follow-up job for the rest, behind other firms' jobs). Each reminder is claimed in
   `shift_reminders` and committed before it's sent (outside any transaction), then its outcome
   recorded: a retry never sends it again, and a job that stops part-way leaves it `sending` ("may
-  have gone"). Offers and reminders send through one helper (`src/lib/notify/send.ts`: the
-  worker's channel, the WhatsApp-to-text fallback, the push).
+  have gone"). Every message to a casual sends through one helper (`deliverToWorker()`,
+  `src/lib/notify/send.ts`: the push, else the worker's channel with the WhatsApp-to-text
+  fallback, else email).
 
 ## Where AI is used
 

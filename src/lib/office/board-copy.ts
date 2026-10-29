@@ -271,6 +271,7 @@ export const CHANNEL_WORDS: Record<OfferChannel, string> = {
   whatsapp: "WhatsApp",
   sms: "text message",
   push: "app notification",
+  email: "email", // P2.4: the offer's last way (Dylan, 2026-10-29)
 };
 
 // "BF" for Ben Fraser.

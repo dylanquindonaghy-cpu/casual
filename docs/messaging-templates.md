@@ -33,10 +33,15 @@ Order for every message to a worker:
    worker has no WhatsApp. (Built so far: the worker's own choice of text messages, and a WhatsApp
    the transport refuses goes by SMS at once, logged `fellBackFrom`. The 60-second rule needs
    Twilio's delivery reports: parked with "Connect Twilio".)
+4. **Email** (P2.4). Only when no text can go at all (no text sender yet), to the address the firm
+   holds for them, with the subject from "Email to casuals" below.
 
-As built, the push goes alongside the WhatsApp or text, once that has gone, not instead of it:
-a push can't confirm it was seen. `tests/integration/notify.policy.test.ts` holds every sender to
-this order.
+As built (P2.4, `deliverToWorker()` in `src/lib/notify/send.ts`): a push that one of their phones
+takes is the message, and no WhatsApp or text goes with it (before P2.4 the push went alongside).
+The licence messages have no push words, so they start at the WhatsApp or text. A WhatsApp or text
+that fails, or might have arrived, isn't sent again by email: it could reach them twice. The office's
+reply on Enquiries goes only by WhatsApp or text: it answers a message to the shifts line, so a text
+sender exists. `tests/integration/notify.policy.test.ts` holds every sender to this order.
 
 Rules:
 - Quiet hours per firm (default 22:00–07:00). Non-urgent waits. Urgent may override if the firm
@@ -244,6 +249,8 @@ like every message (never a person's name).
 - A request's answer (`request_update`): subject "Your request (ref {ref}) is {status}"
 - A pay query's answer (`pay_query_update`): subject "Payroll has answered your pay query"
 - The office's reply on Enquiries: subject "A reply from {firm}"; body "{words} — {firm} Shift Team"
+  (not built yet: a reply answers a message to the shifts line, so it goes by text; PLAN.md Parking
+  lot, P2.4)
 - A licence running out (`credential_expiring`): subject "Your {credential} expires on {date}"
 - A licence that has run out (`credential_expired`): subject "Your {credential} has expired"
 - Login link (P2.6, only where the firm has switched it on): subject "Your {firm} shifts link";

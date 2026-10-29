@@ -342,6 +342,59 @@ export function payQueryUpdateMessage(
   return `Payroll has answered your pay query (ref ${query.ref}). See their answer on your pay page: ${query.link} — ${firm.signOff}`;
 }
 
+// The subject of each message to a casual that can go by email (docs/messaging-templates.md "Email
+// to casuals", approved by Dylan on 2026-10-28; P2.4): when no phone takes a push and no text can go,
+// it goes by email, its body the message's own words (its WhatsApp text above).
+export function shiftOfferEmailSubject(shift: {
+  date: string;
+  start: string;
+  end: string;
+}): string {
+  return `Shift available: ${shift.date} ${shift.start}–${shift.end}`;
+}
+
+export function shiftUrgentEmailSubject(shift: { role: string; day: string }): string {
+  const role = shift.role.replace(/_/g, " ");
+  const article = /^[aeiou]/i.test(role) ? "an" : "a";
+  return `URGENT: ${article} ${role} needed ${shift.day}`;
+}
+
+export function shiftConfirmedEmailSubject(shift: { date: string }): string {
+  return `Confirmed: your shift on ${shift.date}`;
+}
+
+export function shiftReminder24hEmailSubject(shift: { day: string }): string {
+  return `Reminder: your shift ${shift.day}`;
+}
+
+export function shiftReminder2hEmailSubject(shift: { start: string }): string {
+  return `Your shift starts at ${shift.start}`;
+}
+
+export function shiftChangedByFirmEmailSubject(shift: { date: string }): string {
+  return `Change to your shift on ${shift.date}`;
+}
+
+export function shiftCancelledByFirmEmailSubject(shift: { date: string }): string {
+  return `Your shift on ${shift.date} is cancelled`;
+}
+
+export function requestUpdateEmailSubject(request: { ref: string; status: string }): string {
+  return `Your request (ref ${request.ref}) is ${request.status}`;
+}
+
+export function payQueryUpdateEmailSubject(): string {
+  return "Payroll has answered your pay query";
+}
+
+export function credentialExpiringEmailSubject(credential: string, date: string): string {
+  return `Your ${credential} expires on ${date}`;
+}
+
+export function credentialExpiredEmailSubject(credential: string): string {
+  return `Your ${credential} has expired`;
+}
+
 // Instant replies on the shifts line (docs/messaging-templates.md "Instant replies on the shifts
 // line"): the answer to a worker's own WhatsApp, sent at once (free text: within 24 hours of their
 // message WhatsApp needs no template). The app's fixed words only: a keyword or the AI picks which

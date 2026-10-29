@@ -1,3 +1,4 @@
+import { possessive } from "../portal/copy";
 import type { StrikeDecision } from "./decide";
 
 // What the casual is told about strikes (docs/office-v2.md 5.7 item 4), exact words. Pure and
@@ -25,7 +26,6 @@ export function startsInText(hours: number): string {
   return whole === 1 ? "1 hour" : `${whole} hours`;
 }
 
-const possessive = (name: string) => (/s$/i.test(name) ? `${name}'` : `${name}'s`);
 const strikesText = (n: number) => (n === 1 ? "1 strike" : `${n} strikes`);
 
 export interface WarningFacts {

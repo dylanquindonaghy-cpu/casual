@@ -12,21 +12,22 @@ import {
   sessionWhere,
 } from "@/lib/office/events-copy";
 import {
-  applyTileText,
+  applyRowText,
   daysText,
   needsRowText,
   offlineUrgentText,
-  payDayTileText,
+  payDayRowText,
   travelStrip,
   uniformItems,
-  urgentTileText,
+  urgentRowText,
 } from "@/lib/portal/home-copy";
 import { shiftsStrip } from "@/lib/portal/shifts-strip";
 import { dateParts, inDays, placesLeftText, shiftLine, timeRange } from "@/lib/portal/sign-copy";
 import { need } from "../helpers/qualifications";
 
 // The words and choices behind Phase 18's redesign (docs/screens.md "The redesign"): the sign
-// parts' dates and times, Home's "For you" rows, the pass's travel figures and uniform tiles, Open
+// parts' dates and times, Home's rows (Phase 24: "Do this", "Shifts you can take", "Pay"), the
+// pass's travel figures and uniform tiles, Open
 // shifts' 8-day strip and the rota board's pills (the dashboard's headline and rows went with
 // Phase 24's dashboard, whose words tests/unit/office.board.test.ts checks). All pure, so each is
 // checked here with made-up shifts.
@@ -91,7 +92,7 @@ describe("the sign parts' words", () => {
   });
 });
 
-describe("Home's For you rows", () => {
+describe("Home's rows", () => {
   const shift = (iso: string, pay: number | null = 1260) => ({
     startsAt: at(iso),
     payRatePence: pay,
@@ -120,49 +121,49 @@ describe("Home's For you rows", () => {
     ).toBe("Sun 25, Tue 27, Wed 28 Oct and more");
   });
 
-  it("the urgent tile (Phase 20): near you when her home area chose them, how many, the days and the best pay", () => {
+  it("the urgent row (Phase 24, round 7's words): how many, near you when her home area chose them, the days and the best pay", () => {
     expect(
-      urgentTileText(
+      urgentRowText(
         [shift("2026-10-22T07:00:00Z", 1550), shift("2026-10-23T18:00:00Z", 1500)],
         true,
         TZ,
       ),
     ).toEqual({
-      label: "Urgent near you",
-      value: "2 shifts",
-      caption: "Thu 22 and Fri 23 Oct, up to £15.50 an hour",
+      title: "2 urgent near you",
+      sub: "Thu 22 and Fri 23 Oct · up to £15.50/hour",
     });
-    expect(urgentTileText([shift("2026-10-22T07:00:00Z", null)], false, TZ)).toEqual({
-      label: "Urgent",
-      value: "1 shift",
-      caption: "Thu 22 Oct",
+    expect(urgentRowText([shift("2026-10-22T07:00:00Z", null)], false, TZ)).toEqual({
+      title: "1 urgent",
+      sub: "Thu 22 Oct",
     });
   });
 
-  it("the apply tile says 'more' only under the urgent one, and with none when she'll hear; offline, the urgent count", () => {
+  it("the apply row says 'more' only under the urgent one, and with none when she'll hear; offline, the urgent count", () => {
     const three = ["2026-10-25", "2026-10-27", "2026-10-28"].map((d) => shift(`${d}T10:00:00Z`));
-    expect(applyTileText(three, true, true, TZ)).toEqual({
-      label: "More to apply for",
-      value: "3 shifts",
-      caption: "Sun 25, Tue 27 and Wed 28 Oct",
+    expect(applyRowText(three, true, true, TZ)).toEqual({
+      title: "3 more to apply for",
+      sub: "Sun 25, Tue 27 and Wed 28 Oct · up to £12.60/hour",
     });
-    expect(applyTileText(three, false, true, TZ).label).toBe("To apply for");
-    expect(applyTileText(three.slice(0, 1), false, true, TZ).value).toBe("1 shift");
-    expect(applyTileText([], true, true, TZ)).toEqual({
-      label: "More to apply for",
-      value: "No others now",
-      caption: "We'll message you when something matches.",
+    expect(applyRowText(three, false, true, TZ)).toEqual({
+      title: "3 shifts to apply for",
+      sub: "Sun 25, Tue 27 and Wed 28 Oct · up to £12.60/hour",
     });
-    expect(applyTileText([], false, false, TZ)).toEqual({
-      label: "To apply for",
-      value: "None right now",
-      caption: "Check back later.",
+    expect(applyRowText([shift("2026-10-25T10:00:00Z", null)], false, true, TZ)).toEqual({
+      title: "1 shift to apply for",
+      sub: "Sun 25 Oct",
+    });
+    expect(applyRowText([], true, true, TZ)).toEqual({
+      title: "No other shifts now",
+      sub: "We'll message you when something matches.",
+    });
+    expect(applyRowText([], false, false, TZ)).toEqual({
+      title: "No shifts right now",
+      sub: "Check back later.",
     });
     // Pay day: the pay week's Friday (D8), for the week she's in.
-    expect(payDayTileText("2026-10-30")).toEqual({
-      label: "Pay day",
-      value: "Fri 30 Oct",
-      caption: "For this week's shifts",
+    expect(payDayRowText("2026-10-30")).toEqual({
+      title: "Pay day: Fri 30 Oct",
+      sub: "For this week's shifts",
     });
     expect(offlineUrgentText(2, "14:49")).toBe(
       "2 were urgent at 14:49. We'll check again when you're online.",
@@ -180,13 +181,13 @@ describe("Home's For you rows", () => {
     expect(needsRowText([], ok, 2026)).toBeNull();
     expect(needsRowText([], photo, 2026)).toEqual({
       title: "Renew your staff photo",
-      sub: "Due by 10 Nov. Take a new photo.",
+      sub: "Due by 10 Nov.",
       href: "/profile#photo-heading",
       urgent: false,
       photo: true,
     });
     expect(needsRowText([], { ...photo, status: "overdue" }, 2026)).toMatchObject({
-      sub: "It was due by 10 Nov. Take a new photo.",
+      sub: "It was due by 10 Nov.",
       urgent: true,
     });
     const expired = need(2, { status: "expired", expiresOn: "2026-10-01" });
@@ -213,7 +214,7 @@ describe("Home's For you rows", () => {
 describe("the pass's travel figures and uniform tiles", () => {
   const arriveBy = at("2026-10-24T12:45:00Z");
 
-  it("three figures when worked out; words when they aren't", () => {
+  it('three figures when worked out, how far first (Phase 24, round 7: "3.1" miles away); words when they aren\'t', () => {
     expect(
       travelStrip({
         kind: "estimated",
@@ -225,9 +226,9 @@ describe("the pass's travel figures and uniform tiles", () => {
     ).toEqual({
       kind: "cells",
       cells: [
+        { figure: "5.0", words: "miles away" },
         { figure: "15 min", words: "by car" },
         { figure: "31 min", words: "by public transport" },
-        { figure: "5.0 mi", words: "away" },
       ],
     });
     expect(
@@ -241,16 +242,22 @@ describe("the pass's travel figures and uniform tiles", () => {
     ).toEqual({
       kind: "cells",
       cells: [
+        { figure: "6", words: "miles in a straight line" },
         { figure: "90+ min", words: "by car" },
         { figure: "None", words: "public transport in time" },
-        { figure: "6 mi", words: "in a straight line" },
       ],
     });
     expect(travelStrip({ kind: "unknown" })).toEqual({
       kind: "words",
       words: "Distance not known yet",
     });
-    expect(travelStrip({ kind: "straight", straightMetres: 1000 }).kind).toBe("cells");
+    expect(travelStrip({ kind: "straight", straightMetres: 1000 })).toEqual({
+      kind: "cells",
+      cells: [
+        { figure: "1", words: "mile in a straight line" },
+        { figure: "Not known", words: "travel time yet" },
+      ],
+    });
   });
 
   it("the uniform split at commas (not in brackets), hi-vis first, brackets as the note", () => {

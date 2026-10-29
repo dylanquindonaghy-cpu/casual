@@ -855,6 +855,7 @@ describe("My shifts and the kept copy together", () => {
               firmName: "Acme Events",
               payDay: "2026-11-13",
               firstName: "Sam",
+              lastName: "Udo",
               timeZone: "Europe/London",
               now,
               next: null,

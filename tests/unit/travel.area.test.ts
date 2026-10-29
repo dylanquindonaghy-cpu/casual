@@ -214,9 +214,10 @@ describe("Booked (My shifts' upcoming)", () => {
         travel: { kind: "straight", straightMetres: 12000 },
       }),
     ]);
-    // The pass (Phase 20): getting there in its Details card, both ways, then the three figures.
+    // The pass (Phase 20): getting there in its Details card, both ways, then the three figures
+    // (how far first since Phase 24: round 7's "3.1 miles away").
     expect(words).toContain(
-      "Getting there, from your home area 7.2 miles · 18 min by car · 41 min by public transport 18 min by car 41 min by public transport 7.2 mi away",
+      "Getting there, from your home area 7.2 miles · 18 min by car · 41 min by public transport 7.2 miles away 18 min by car 41 min by public transport",
     );
     expect(words).toContain(
       "Door supervisor Demo Arena about 7 miles (straight line) · Travel time not known yet",

@@ -12,6 +12,7 @@ app shows the firm's real ones.
 | `dashboard-light.jpg`, `dashboard-dark.jpg` | The office shell and the dashboard at 1280px (1.5x), the whole page |
 | `events-*.jpg`, `enquiries-*.jpg`, `casuals-*.jpg` | Events & sessions, Enquiries, Casuals at 1280px |
 | `home-*.jpg`, `open-*.jpg`, `shift-*.jpg`, `pay-*.jpg` | The casual app at 390 × 844 (2x): Home, Open shifts, a shift, Pay |
+| `build/` | The build beside it at Phase 24's close (29 Oct 2026, the demo seed): the same eight pages, each at 390px and 1280px, light and dark (`{page}-{width}-{theme}.jpg`). The office pages as the admin, the whole page up to 2,000px tall; the casual pages as Zoe Adeyemi (the story's), the first screen, as the mock-up's are |
 | `glass/` | The mock-up's own CSS for the glass, for its exact values: `office-glass.css` (round 6, the floating layer), `office-more-glass.css` and `phone-more-glass.css` (round 7, everything else), `phone-glass.css` (round 6 on the phone: the tab bar's lens and how it shrinks, the top bar's frosted edge) |
 
 ## The look
@@ -226,3 +227,26 @@ app shows the firm's real ones.
   buttons beside its headline as Events & sessions' are, and a section's status as a leaf before
   its heading as the board's columns have, never a tint over the whole section (Needs attention's
   parts had Phase 23's amber and red washes).
+- **The casual app's text** stays at least 16px (the mock-up's grey lines are about 15px), so a few
+  lines wrap where the mock-up's fit on one: Open shifts' "Shifts you can take, up to 45 minutes
+  from home.", an earlier week's pay date (under its line, at the right), a long travel line.
+- **"Updated 11:20"** sits at the end of the firm's bar on Home but belongs to the page: it scrolls
+  away with Home while the bar stays (the bar is every page's, and says nothing about when).
+  Offline it's hidden, and the no-signal notice says when the copy was saved.
+- **Open shifts' strip** keeps its key in words under it ("You're booked", "Urgent", "Open"; the
+  mock-up has none), so a day's colour never says it alone.
+- **"Site and role"** opens the day as well as the site and role: the strip has only the next 8
+  days, and the open shifts can be later.
+- **Home's rows** use the app's words where the mock-up didn't show them: the other shifts' row
+  ("{3} more to apply for"), the home area's ("Add your home area"), pay day's ("Pay day: Fri 30
+  Oct", "For this week's shifts"), and the kept copy's ("Open shifts need signal"). Something that
+  stops her working keeps a red "Needs doing now" plate over its row (the mock-up's sample was
+  only due soon).
+- **The pass** has no firm's mark and name on it any more (the firm's bar above says it); its
+  Details still opens the card under it, with "Open in maps" and "Ask for a change".
+- **A shift's page** keeps "Report to", "Bring and wear" and "Pay" as cards of their own under
+  "You need", as the mock-up lists them; held, blocked, booked, filled, started and cancelled keep
+  their words, each under the page's own bar. "Instructions" on a booked shift is a card too.
+- **Ben's and Zoe's pay** are the demo seed's (seed-story.ts), so the demo shows the total rule
+  both ways: Zoe's newest week totals £324.00 as the mock-up does; Ben's has a line payroll gave no
+  gross for, so it shows each line's own gross and no total.

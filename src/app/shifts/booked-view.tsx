@@ -14,7 +14,7 @@ import {
 } from "../my-shifts-view";
 import {
   staffCount,
-  h2,
+  staffH2,
   headingGap,
   muted,
   sectionGap,
@@ -76,7 +76,7 @@ export function BookedView(props: BookedViewProps) {
         <p className={emptyBox}>No shifts in the last 30 days.</p>
       ) : (
         <section aria-labelledby="past-heading" className="mt-6">
-          <h2 id="past-heading" className={h2}>
+          <h2 id="past-heading" className={staffH2}>
             The last 30 days
           </h2>
           <ul role="list" className={`${staffRows} ${headingGap}`}>
@@ -105,7 +105,6 @@ function Upcoming(props: BookedViewProps) {
           shift={next}
           timeZone={props.timeZone}
           now={props.now}
-          firmName={props.firmName}
           heading="shown"
           fresh={next.shiftId === props.newShiftId}
         />
@@ -114,7 +113,7 @@ function Upcoming(props: BookedViewProps) {
         {/* The count sits beside the <h2>, not in it, so the section's name stays "Later" (as on
             the office pages). */}
         <div className="flex items-center">
-          <h2 id="later-heading" className={h2}>
+          <h2 id="later-heading" className={staffH2}>
             Later
           </h2>
           {later.length > 0 && <span className={staffCount}>{later.length}</span>}

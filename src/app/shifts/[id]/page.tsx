@@ -5,7 +5,6 @@ import { refreshSessionAction } from "../../session-actions";
 import { SessionKeeper } from "../../session-keeper";
 import { page as pageWidth } from "../../ui/classes";
 import { ShiftView } from "./shift-view";
-import { CasualTabBar } from "../../casual-tab-bar";
 
 export default async function ShiftPage({ params }: { params: Promise<{ id: string }> }) {
   const { firm, worker, session } = await requireWorker();
@@ -16,7 +15,6 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
     <main className={pageWidth.staff}>
       <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
       <ShiftView page={page} timeZone={firm.timezone} now={now} />
-      <CasualTabBar firm={firm} workerId={worker.id} current="shifts" />
     </main>
   );
 }

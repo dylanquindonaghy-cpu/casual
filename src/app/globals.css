@@ -122,7 +122,6 @@
      reach it: each class takes a variable instead (--glass-*, set per theme below). */
   --shadow-lift: var(--glass-drop-sm);
   --shadow-panel: var(--glass-drop);
-  --shadow-pass: var(--glass-drop);
   --shadow-bar: var(--float-shadow);
   --shadow-float: var(--float-shadow);
   --inset-shadow-sunk: var(--glass-sunk);
@@ -280,6 +279,9 @@
   --wash-b: rgb(230 214 255 / 1);
   --wash-c: rgb(255 226 201 / 1);
   --wash-d: rgb(205 243 232 / 1);
+  /* The pass's top band (Phase 24, 24.6): warm light over its glass. */
+  --band-from: rgb(255 244 214 / 0.62);
+  --band-to: rgb(255 255 255 / 0.18);
 }
 
 /* Dark: chosen by the sd-theme cookie (data-theme on <html>, set by the server so nothing
@@ -388,6 +390,8 @@
   --wash-b: rgb(124 58 237 / 0.34);
   --wash-c: rgb(234 88 12 / 0.2);
   --wash-d: rgb(13 148 136 / 0.26);
+  --band-from: rgb(255 214 140 / 0.1);
+  --band-to: rgb(255 255 255 / 0.03);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -494,6 +498,8 @@
     --wash-b: rgb(124 58 237 / 0.34);
     --wash-c: rgb(234 88 12 / 0.2);
     --wash-d: rgb(13 148 136 / 0.26);
+    --band-from: rgb(255 214 140 / 0.1);
+    --band-to: rgb(255 255 255 / 0.03);
   }
 }
 
@@ -587,6 +593,8 @@ body:has([data-office]) {
     --button-top: #ffffff;
     --button-bottom: #ffffff;
     --edge-fill: #eef1f8;
+    --band-from: #fff4d6;
+    --band-to: #ffffff;
   }
   :root[data-theme="dark"] {
     --color-card: #18191c;
@@ -615,6 +623,8 @@ body:has([data-office]) {
     --button-top: #18191c;
     --button-bottom: #18191c;
     --edge-fill: #07080c;
+    --band-from: #1f1c16;
+    --band-to: #18191c;
   }
   body::before {
     display: none;
@@ -649,6 +659,8 @@ body:has([data-office]) {
     --button-top: #18191c;
     --button-bottom: #18191c;
     --edge-fill: #07080c;
+    --band-from: #1f1c16;
+    --band-to: #18191c;
   }
 }
 /* A browser that can't blur at all: every surface solid too, as above (the wash still shows
@@ -684,6 +696,8 @@ body:has([data-office]) {
     --button-top: #ffffff;
     --button-bottom: #ffffff;
     --edge-fill: #eef1f8;
+    --band-from: #fff4d6;
+    --band-to: #ffffff;
   }
   :root[data-theme="dark"] {
     --color-card: #18191c;
@@ -712,6 +726,8 @@ body:has([data-office]) {
     --button-top: #18191c;
     --button-bottom: #18191c;
     --edge-fill: #07080c;
+    --band-from: #1f1c16;
+    --band-to: #18191c;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -741,6 +757,8 @@ body:has([data-office]) {
       --button-top: #18191c;
       --button-bottom: #18191c;
       --edge-fill: #07080c;
+      --band-from: #1f1c16;
+      --band-to: #18191c;
     }
   }
 }
@@ -868,6 +886,12 @@ body:has([data-office]) {
   box-shadow: var(--glass-rim);
 }
 
+/* The pass's top (Phase 24, 24.6): a warm translucent band over its section's glass, solid in the
+   fallbacks. */
+@utility glass-band {
+  background-image: linear-gradient(135deg, var(--band-from), var(--band-to));
+}
+
 /* A clear glass button or count: a brighter gradient, a bright rim and a soft drop. */
 @utility glass-button {
   background-color: transparent;
@@ -932,6 +956,24 @@ body:has([data-office]) {
   :where([data-scrolled]) &::before,
   &:where([data-scrolled])::before {
     opacity: 1;
+  }
+}
+
+/* A bar that floats at the foot of the screen (a shift's "Take shift", Phase 24): a soft frosted
+   strip behind it, clear at its top and strongest at the foot (solid in the fallbacks, through the
+   same --edge-* values as scroll-edge). */
+@utility foot-edge {
+  isolation: isolate;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: -1.5rem 0 0 0;
+    z-index: -1;
+    pointer-events: none;
+    background: linear-gradient(transparent, var(--edge-fill) 1.5rem);
+    -webkit-backdrop-filter: var(--edge-filter);
+    backdrop-filter: var(--edge-filter);
+    mask-image: linear-gradient(transparent, black 1.5rem);
   }
 }
 

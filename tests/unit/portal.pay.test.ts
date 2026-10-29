@@ -96,7 +96,8 @@ describe("showing pay", () => {
         }),
       ),
     );
-    expect(words).toContain("The last 8 weeks, from Acme Events's payroll.");
+    // The firm's possessive (Phase 24: "Acme Events' payroll", as the mock-up writes it).
+    expect(words).toContain("The last 8 weeks, from Acme Events' payroll.");
     expect(words).toContain("Mon 26 Oct to Sun 1 Nov");
     expect(words).toContain("37.5 hours at £12.50 an hour");
     expect(words).toContain("Gross pay: £468.75");

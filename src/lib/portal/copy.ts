@@ -9,3 +9,6 @@ export function tryAgainText(online: boolean = isOnline()): string {
 export function isOnline(): boolean {
   return typeof navigator === "undefined" || navigator.onLine !== false;
 }
+
+// "Acme Events' payroll", "Northline's payroll": a name's possessive.
+export const possessive = (name: string) => (/s$/i.test(name) ? `${name}'` : `${name}'s`);

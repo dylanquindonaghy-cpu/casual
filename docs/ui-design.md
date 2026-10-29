@@ -124,7 +124,7 @@ the build differs. This section is the system (task 24.1); the pages take its pa
 - **Where the build differs from round 7.** The mock-up's labels were tuned by eye on its own
   wash; the app's colours are tuned against every point of it (above), so a few greys and the
   firm's colours are a shade darker than on the boards. The mock-up's tab bar's lens that
-  shrinks as the page scrolls comes with the casual app's pages (24.6).
+  shrinks as the page scrolls came with the casual app's pages (24.6, below).
 
 The glass's own values (`:root` and the dark blocks; `glass-grounds.ts` holds the same numbers and
 `tests/unit/ui.glass.test.ts` checks they agree):
@@ -228,6 +228,44 @@ tables, tabs, fields and buttons glass, so what changed is what each page did on
 - **The how-to guide's contents:** one glass card of rows with an arrow at every width, sticky
   beside the guide from 1280px (14rem wide, 48px from it); Phase 23's line down a bare rail went,
   as stripping the card's fill there left its frost and shadow on an empty box.
+
+### The casual app, round 7 (24.6)
+
+`docs/screens.md` "The casual app, round 7". What the casual app's pages add to the system:
+
+- **The chrome as you scroll** (`src/app/chrome-watch.tsx`, mounted in the firm's bar; the rule in
+  `src/lib/portal/chrome.ts`): once the page runs it marks `<html>` with `data-js` (the firm's bar
+  is sticky only under it, so without JavaScript nothing scrolls under words with no frost),
+  `data-scrolled` while the page is under the bar (`scroll-edge` fades its frost in) and
+  `data-tabs-mini` while you scroll down. More than 6px down shrinks the tab bar; more than 6px up,
+  being within 24px of the top, or a tap on the bar opens it. Not under the office's shell.
+- **The tab bar** (`src/app/tab-bar.tsx`, a server component of plain links): a `glass-float`
+  capsule, 68px tall and at most 448px wide, 14px above the foot inside a bar that lets taps
+  through around it (`pointer-events-none`); the current tab a `lens` with its icon and word in
+  `text-brand-ink`, bold. Under `html[data-tabs-mini]` it's 54px tall and at most 290px wide, the
+  words `sr-only`; it moves only when motion is fine (`motion-safe`). `TabBarSpace` leaves 112px.
+- **The pass's warm band** (`glass-band`): a translucent gradient from `--band-from` to
+  `--band-to` over the section's glass (light `rgb(255 244 214 / 0.62)` to `rgb(255 255 255 /
+  0.18)`, dark `rgb(255 214 140 / 0.1)` to `rgb(255 255 255 / 0.03)`; solid in the fallbacks), at
+  the top of the pass and behind "Do this" (`tests/unit/ui.contrast.test.ts` checks ink and grey
+  words on it in every look).
+- **Rows** (Home): a section heading at 20px medium (`staffH2`, also Open shifts', Pay's and
+  Booked's), then one `staffRows` card; each row a `tapRow` link at least 80px tall with its tile
+  (a `DateTile`, an initials disc or a 52px icon tile, pale red when urgent), its title (18px) and
+  line (16px, grey), and a chevron.
+- **Little glass** for what sits inside a section: the pass's "In 3 days" chip and gate plate, a
+  shift's chips and post, the places-left chip, the round arrow, the strip's days, the travel
+  figures, Pay's rows: `glass-tile`. Her booked day on the strip is a sunk grey (`bg-ink/12`) with
+  a tick; the chosen day `bg-ink`.
+- **What floats at the foot** (a shift's Take shift): `foot-edge`, a soft frosted strip clear at
+  its top and strongest at the foot (the `--edge-*` values, so solid in the fallbacks). "You're
+  booked." covers the screen as `glass-float` (`fixed inset-0`, put in `<body>` so the bar it's in
+  doesn't hold it).
+- **Sizes:** a shift's time 28px on its page (beside its tile), 44px on the pass; Pay's week total
+  44px (`font-stat`); the travel figures 20px. No size outside the scale.
+- **Removed:** the pass's solid band in the firm's colour and its shadow token (`shadow-pass`),
+  Home's coloured "For you" tiles, the open shift cards' seats (on the shift's page now, 30px) and
+  the pass's tile buttons.
 
 ## Phase 23: the office's look, round 3
 
@@ -626,10 +664,10 @@ the same tokens.
 | `mark-urgent` / `mark-open` / `mark-wait` / `mark-done` / `mark-calm` | `#c4242a` / `#17181a` / `#1d4ed8` / `#1f7a47` / `#98a2b3` | `#ff8b80` / `#f3f4f6` / `#6d93ff` / `#5fd08b` / `#667085` | The dashboard's marks: red to do now, not offered yet (ink), offered and waiting (blue), green done, grey calm (under 3:1 on light glass by design: never alone, each bar with its number, each chart with its legend and Numbers table) |
 | `mark-grid` / `mark-base` | `rgb(16 24 40 / 0.06)` / `rgb(16 24 40 / 0.15)` | `rgb(255 255 255 / 0.06)` / `rgb(255 255 255 / 0.15)` | A chart's grid lines and baseline (hairlines, decorative) |
 
-**Depth (Phase 24).** The glass's rims and drops (see "Phase 24"), through six depth tokens
-that take variables (`shadow-lift`, `shadow-panel`, `shadow-pass`, `shadow-bar`, `shadow-float`,
-`inset-shadow-sunk`), and no other shadow anywhere in `src/` (`tests/unit/ui.glass.test.ts`
-holds where each is used).
+**Depth (Phase 24).** The glass's rims and drops (see "Phase 24"), through five depth tokens
+that take variables (`shadow-lift`, `shadow-panel`, `shadow-bar`, `shadow-float`,
+`inset-shadow-sunk`; the pass's `shadow-pass` went with its solid band in 24.6), and no other
+shadow anywhere in `src/` (`tests/unit/ui.glass.test.ts` holds where each is used).
 
 No other colour is written anywhere in `src/` (no `bg-white`, no Tailwind palette shade, no colour
 value in a class or a style): the firm's colour, which the root layout works out from the firm's
@@ -908,7 +946,8 @@ renders seven forms on the server and checks that every field there is disabled.
 
 ## Staff pages
 
-Mobile first, 448px wide. Keep the big buttons. My shifts: the Upcoming / Past 30 days switch looks
+Mobile first, 448px wide (round 7's look since Phase 24: "The casual app, round 7" above). Keep the
+big buttons. My shifts: the Upcoming / Past 30 days switch looks
 like a switch (not like a main button); "See open shifts" is always on the page; "Help" leads to
 `/help`. Destructive steps ("Cancel this shift", "Confirm cancellation") look destructive. Section
 headings and spacing are the same on every staff page.

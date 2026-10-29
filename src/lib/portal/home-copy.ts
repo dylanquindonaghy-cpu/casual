@@ -3,12 +3,12 @@ import { localDateOf } from "../time/zoned";
 import type { TravelFacts } from "../travel/line-copy";
 import type { StaffPhoto } from "../uploads/photo";
 import type { OpenShift } from "./open-shifts";
-import { pounds } from "./pay-format";
+import { perHour } from "./format";
 import { needsText, needsUpload } from "./qualification-copy";
 import { datePartsOfDay } from "./sign-copy";
 
-// The words of Home's redesign (Phases 18 and 20; docs/screens.md `/`): the "For you" tiles, the
-// pass's travel figures and its "Bring and wear" items. Pure.
+// The words of Home's redesign (Phases 18, 20 and 24; docs/screens.md `/`): its rows ("Do this",
+// "Shifts you can take", "Pay"), the pass's travel figures and its "Bring and wear" items. Pure.
 
 const METRES_PER_MILE = 1609.344;
 
@@ -28,60 +28,61 @@ export function daysText(shifts: Pick<OpenShift, "startsAt">[], timeZone: string
 
 const shiftsWord = (n: number) => (n === 1 ? "1 shift" : `${n} shifts`);
 
-// One of Home's "For you" tiles (Phase 20): what it's about (a small label), the one thing to read
-// (large), and a line under it. Read in that order, so a screen reader hears "Urgent near you, 2
-// shifts, Thu 22 and Fri 23 Oct, up to £15.50 an hour".
-export interface TileText {
-  label: string;
-  value: string;
-  caption: string;
+// One of Home's rows (Phase 24, round 7: "Do this", "Shifts you can take" and "Pay" as cards of
+// rows): the one thing to read, and a line under it. A screen reader hears them in that order:
+// "2 urgent near you, Thu 22 and Fri 23 Oct · up to £15.50/hour".
+export interface RowText {
+  title: string;
+  sub: string;
 }
 
-// The urgent shifts she can take: "Urgent near you" when they're the ones within her home area
-// (`near`), "2 shifts", their days and the best pay.
-export function urgentTileText(
+// Their days and the best pay: "Thu 22 and Fri 23 Oct · up to £15.50/hour".
+function daysAndPay(shifts: Pick<OpenShift, "startsAt" | "payRatePence">[], timeZone: string) {
+  const rates = shifts.map((s) => s.payRatePence).filter((p): p is number => p != null);
+  const days = daysText(shifts, timeZone);
+  return rates.length > 0 ? `${days} · up to ${perHour(Math.max(...rates))}` : days;
+}
+
+// The urgent shifts she can take: "2 urgent near you" when they're the ones within her home area
+// (`near`), with their days and the best pay.
+export function urgentRowText(
   urgent: Pick<OpenShift, "startsAt" | "payRatePence">[],
   near: boolean,
   timeZone: string,
-): TileText {
-  const rates = urgent.map((s) => s.payRatePence).filter((p): p is number => p != null);
-  const top = rates.length > 0 ? Math.max(...rates) : null;
-  const days = daysText(urgent, timeZone);
+): RowText {
   return {
-    label: near ? "Urgent near you" : "Urgent",
-    value: shiftsWord(urgent.length),
-    caption: top !== null ? `${days}, up to ${pounds(top)} an hour` : days,
+    title: `${urgent.length} urgent${near ? " near you" : ""}`,
+    sub: daysAndPay(urgent, timeZone),
   };
 }
 
-// The other shifts she can apply for ("More to apply for" under the urgent tile), and their days;
-// with none, when she'll hear of the next.
-export function applyTileText(
-  shifts: Pick<OpenShift, "startsAt">[],
+// The other shifts she can apply for ("3 more to apply for" under the urgent row), their days and
+// the best pay; with none, when she'll hear of the next.
+export function applyRowText(
+  shifts: Pick<OpenShift, "startsAt" | "payRatePence">[],
   afterUrgent: boolean,
   offerAlerts: boolean,
   timeZone: string,
-): TileText {
-  const label = afterUrgent ? "More to apply for" : "To apply for";
+): RowText {
   if (shifts.length === 0) {
     return {
-      label,
-      value: afterUrgent ? "No others now" : "None right now",
-      caption: offerAlerts ? "We'll message you when something matches." : "Check back later.",
+      title: afterUrgent ? "No other shifts now" : "No shifts right now",
+      sub: offerAlerts ? "We'll message you when something matches." : "Check back later.",
     };
   }
-  return { label, value: shiftsWord(shifts.length), caption: daysText(shifts, timeZone) };
+  return {
+    title: afterUrgent
+      ? `${shifts.length} more to apply for`
+      : `${shiftsWord(shifts.length)} to apply for`,
+    sub: daysAndPay(shifts, timeZone),
+  };
 }
 
-// Pay day (D8: the pay week runs Monday to Sunday and is paid the Friday after it): "Fri 30 Oct",
-// for the shifts of the week she's in.
-export function payDayTileText(payDay: string): TileText {
+// Pay day (D8: the pay week runs Monday to Sunday and is paid the Friday after it): "Pay day: Fri
+// 30 Oct", for the shifts of the week she's in.
+export function payDayRowText(payDay: string): RowText {
   const p = datePartsOfDay(payDay);
-  return {
-    label: "Pay day",
-    value: `${p.dow} ${p.day} ${p.month}`,
-    caption: "For this week's shifts",
-  };
+  return { title: `Pay day: ${p.dow} ${p.day} ${p.month}`, sub: "For this week's shifts" };
 }
 
 // The offline copy's first row: what the urgent row said when it was kept.
@@ -109,7 +110,7 @@ export function needsRowText(
   if (photo.status === "overdue" || photo.status === "due_soon") {
     items.push({
       title: "Renew your staff photo",
-      sub: `${photoDue(photo)} Take a new photo.`,
+      sub: photoDue(photo),
       href: "/profile#photo-heading",
       level: photo.status === "overdue" ? 2 : 3,
       photo: true,
@@ -163,42 +164,39 @@ function needsTitle(n: NeedsItem): string {
   }
 }
 
-// The pass's travel strip: up to three figures with their words ("15 min" by car, "31 min" by
-// public transport, "5.0 mi" away), or one sentence when they aren't known.
+// Getting there as three figures with their words (Phase 24, round 7: how far first, "3.1" miles
+// away, then "15 min" by car and "31 min" by public transport), or one sentence when they aren't
+// known. On the pass's details and a shift's page.
 export type TravelStrip =
   { kind: "cells"; cells: { figure: string; words: string }[] } | { kind: "words"; words: string };
+
+function straightCell(metres: number) {
+  const n = Math.max(1, Math.round(metres / METRES_PER_MILE));
+  return { figure: String(n), words: `${n === 1 ? "mile" : "miles"} in a straight line` };
+}
 
 export function travelStrip(f: TravelFacts): TravelStrip {
   if (f.kind === "unknown") return { kind: "words", words: "Distance not known yet" };
   if (f.kind === "straight") {
     return {
       kind: "cells",
-      cells: [
-        {
-          figure: `${Math.max(1, Math.round(f.straightMetres / METRES_PER_MILE))} mi`,
-          words: "in a straight line",
-        },
-        { figure: "Not known", words: "travel time yet" },
-      ],
+      cells: [straightCell(f.straightMetres), { figure: "Not known", words: "travel time yet" }],
     };
   }
   const miles =
     f.car?.metres != null
-      ? { figure: `${(f.car.metres / METRES_PER_MILE).toFixed(1)} mi`, words: "away" }
-      : {
-          figure: `${Math.max(1, Math.round(f.straightMetres / METRES_PER_MILE))} mi`,
-          words: "in a straight line",
-        };
+      ? { figure: (f.car.metres / METRES_PER_MILE).toFixed(1), words: "miles away" }
+      : straightCell(f.straightMetres);
   return {
     kind: "cells",
     cells: [
+      miles,
       f.car
         ? { figure: `${f.car.minutes} min`, words: "by car" }
         : { figure: "90+ min", words: "by car" },
       f.publicTransport
         ? { figure: `${f.publicTransport.minutes} min`, words: "by public transport" }
         : { figure: "None", words: "public transport in time" },
-      miles,
     ],
   };
 }

@@ -2122,21 +2122,21 @@ field names, never AXLR8's or the portal's; its transport refused under `NODE_EN
 connector's sessions are the firm's planner's (source `api`, `cancel_via` and `booked_via` `api`),
 so the office already reads them as "From your planner" and no new words are needed:
 
-- [ ] The secret store (S, A, T): a `firm_secrets` table the app role has no rights on, written only
+- [x] The secret store (S, A, T): a `firm_secrets` table the app role has no rights on, written only
       by an owner command (`npm run firm:secret`, the value read from standard input, never an
       argument), read only through an owner-run function the jobs role alone may call, each value
       AES-256-GCM under `SECRETS_KEY` (the worker's and the owner command's settings, never the web
       app's) with its firm and name bound in; the worker reads it on a jobs-role connection of its
       own. Tests: the app and web roles can't read it, another firm's secret never decrypts, a
       wrong key fails closed, the web's settings refuse the key (P5.1)
-- [ ] A connector source and its caller (S, T): `roster_sources` takes a `connector` kind (its
+- [x] A connector source and its caller (S, T): `roster_sources` takes a `connector` kind (its
       base address and which connector, no secret), one enabled source per firm as today; a
       `connector` caller in `src/lib/roster/firm-caller.ts`, allowed while its source is enabled,
       logged like the planner's; the planner API's session functions
       (`src/lib/integrations/sessions.ts`) take either caller, so a connector's sessions go through
       exactly the planner's rules. Tests: a connector's session made, changed, moved and cancelled
       as the planner's; a source switched off can change nothing (P5.2)
-- [ ] The source's webhooks in (A, M): `POST /api/webhooks/connector/{source id}` checks the
+- [x] The source's webhooks in (A, M): `POST /api/webhooks/connector/{source id}` checks the
       signature (HMAC-SHA256 with a secret we issue the source, derived from `INTEGRATIONS_SECRET`
       and its id like the planner's webhook secret and never stored: the web app can't read the
       secret store, P5.1's review; a portal that insists on its own secret is the real connector's
@@ -2154,7 +2154,7 @@ so the office already reads them as "From your planner" and no new words are nee
       come in hidden from casuals (the shadow cycle); the founder's alert and `firm:check` name a
       failing connector as one, not a rota sheet. Tests: a lost webhook caught by the pull, two
       pulls at once one run, a failing source backs off (P5.4)
-- [ ] Bookings from the source (R): who's booked in the source mirrored through the three-way
+- [x] Bookings from the source (R): who's booked in the source mirrored through the three-way
       merge (`src/lib/roster/sheets/merge.ts`), a booking made there run through the rules like an
       office placement (refused: logged for the office, once, not booked), never cancelling a
       confirmed booking on its own; a cancellation made in the source cancelled here with notice

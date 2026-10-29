@@ -42,6 +42,11 @@ test("a casual uploads a photo and a certificate; the office checks them; her pr
   page,
   browser,
 }, testInfo) => {
+  // Two logins, two uploads, two checks, five office pages and her Profile: longer than one page's
+  // 30 seconds on the test server, which builds each page in development mode (14 to 24 seconds,
+  // then 31 once 24.4 added the Casuals table, which that mode takes up to 7 seconds to build;
+  // 0.2 on a production build).
+  test.setTimeout(60_000);
   const n = testInfo.retry;
   const UNA = {
     firstName: "Una",

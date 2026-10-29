@@ -2668,6 +2668,12 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
   And a pull that fails is on the source only (`last_error_code`, the founder's alert after 30
   minutes): the office sees nothing until the sync card. Logging it as an event needs office words
   for the log (`src/lib/office/event-words.ts`), so it waits for that card too.
+- From Phase 24 (the close, 2026-10-29): the office's Casuals page is heavy to send. With the dev
+  seed's 68 casuals, All is 536 KB on a production build (about 8 KB a row; Uploads to check is
+  53 KB), so about 1.6 MB at its 200-row cap. It's quick to make (0.15 to 0.18 seconds here), so
+  this only shows on a slow connection. Trim each row's markup or page the list, if a pilot's
+  office finds it slow.
+
 - From Phase 24 (24.5, 2026-10-28): an office address that doesn't exist, opened while logged out
   (a mistyped `/office/…` link), shows the casual app's "We can't find that page." with "Go to my
   shifts". Give the office's own logged-out not-found page "Go to the office login" instead.

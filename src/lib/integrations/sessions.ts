@@ -1,5 +1,6 @@
 import { and, count, eq, isNotNull, isNull, max, notInArray, sql } from "drizzle-orm";
 import { retryAborted } from "../db/retry";
+import { appDatabaseIsLocal } from "../db/where";
 import {
   assignments,
   CANCELLED_ASSIGNMENT_STATUSES,
@@ -19,6 +20,7 @@ import {
   callerActor,
   callerMarks,
   firmCallerMay,
+  firmCallerSchema,
   type FirmCaller,
   type PlannerCaller,
 } from "../roster/firm-caller";
@@ -194,10 +196,19 @@ export interface PlannerPut {
   json: unknown;
   now: Date;
   geocoder?: Geocoder;
-  localDatabase: boolean;
+  localDatabase?: boolean; // Gate B: appDatabaseIsLocal() when left out
 }
 
-export async function putPlannerSession(call: PlannerPut, ref: string): Promise<ApiResult> {
+const plannerCaller = firmCallerSchema.refine((by): by is PlannerCaller => by.type !== "office");
+
+export async function putPlannerSession(put: PlannerPut, ref: string): Promise<ApiResult> {
+  const caller = plannerCaller.safeParse(put.by);
+  if (!caller.success) return apiRefusal("invalid_key");
+  const call = {
+    ...put,
+    by: caller.data as PlannerCaller,
+    localDatabase: put.localDatabase ?? appDatabaseIsLocal(),
+  };
   if (!isRef(ref)) return apiRefusal("bad_ref");
   const parsed = putSessionSchema.safeParse(call.json);
   if (!parsed.success) return apiRefusal("validation_failed", { fields: fieldsOf(parsed.error) });
@@ -214,6 +225,8 @@ export async function putPlannerSession(call: PlannerPut, ref: string): Promise<
       // Gate B first, so a firm that can't save yet never sends a postcode out.
       const held = await call.run(call.firmId, async (tx) => {
         await requireAgreementForImport(tx, { saving: true, localDatabase: call.localDatabase });
+        // A caller that can't change anything sends no postcode out either (P5.2's review).
+        if (!(await firmCallerMay(tx, by))) throw new Refusal("invalid_key");
         return heldPostcode(tx, siteName);
       });
       if (held !== null && held !== postcode) return apiRefusal("site_postcode_differs");

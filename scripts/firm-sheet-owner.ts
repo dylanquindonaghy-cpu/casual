@@ -55,7 +55,6 @@ const CONNECTED = "roster.source_connected";
 const DISABLED = "roster.source_disabled";
 const FORGOTTEN = "roster.source_forgotten";
 const SHEET_TAKEN = "roster_sources_spreadsheet_id_key";
-const ONE_ENABLED = "roster_sources_one_enabled_per_firm";
 
 async function withOwnerFirm<T>(
   adminUrl: string,
@@ -230,10 +229,6 @@ export async function connectSheet(
     // Another firm's row: RLS hides it, the unique index doesn't (and says nothing about whose).
     if (err instanceof DatabaseError && err.code === "23505" && err.constraint === SHEET_TAKEN) {
       return { status: "taken" };
-    }
-    // A connector switched on by another owner command a moment ago (one enabled per firm).
-    if (err instanceof DatabaseError && err.code === "23505" && err.constraint === ONE_ENABLED) {
-      return { status: "has_connector" };
     }
     throw err;
   }

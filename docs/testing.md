@@ -176,9 +176,13 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   in the key's place; it reaches only the planner's sessions (the office's own is unknown to it) and
   the office can't cancel its sessions as a whole; a source switched off, a sheet's source, a
   made-up id or another firm's connector changes nothing (401 `invalid_key`), including a source
-  switched off while a change waits on its row; the table's checks (a connector has which one and
-  an https base address and no spreadsheet, a sheet the reverse, one source on per firm); and the
-  sheet command leaves a connector alone and won't switch a sheet on beside it.
+  switched off while a change waits on its row (the wait seen in `pg_blocking_pids`), and a
+  switch-off waits for a change already under way; while the firm has a live planner key the
+  connector changes nothing; a caller that isn't one is refused before any postcode is looked up;
+  Gate B holds for a connector; the table's checks (a connector has which one and an https base
+  address on a public name and no spreadsheet, never an IP address, an internal name, another port
+  or a dot segment; a sheet the reverse; one source on per firm); and the sheet command leaves a
+  connector alone and won't switch a sheet on beside it.
 - `rules.any-of.test.ts` (P3.3, Rules 3) — "any of" licences, on the real database as the app role:
   the security pack's security officer needs one of an SIA security guard or door supervisor
   licence (other rules unchanged), and the database refuses a group of one, a type in both lists

@@ -717,9 +717,14 @@ export const ROSTER_SOURCE_KINDS = ["sheets", "connector"] as const;
 // src/lib/connector/. Only the made-up portal so far: it stands in for the real one in the tests.
 export const CONNECTORS = ["demo_portal"] as const;
 export type Connector = (typeof CONNECTORS)[number];
-// A connector's base address: https, a host, an optional path; no user, query or fragment.
+// A connector's base address (P5.2's review): https on its own port (none or 443), a public DNS
+// name (dotted, ending in a word: never an IP address, a bare name like a Compose service's, or a
+// .localhost, .internal or .local one), an optional path with no "." or ".." segment; no user,
+// query or fragment; at most 300 characters. Syntax only: a public name can still point inside,
+// so the real system's transport checks the address it connects to as well (PLAN.md P5).
 export const CONNECTOR_BASE_URL =
-  "^https://[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?(:[0-9]{1,5})?(/[A-Za-z0-9._~/-]{0,200})?$";
+  "^https://(?!.*\\.(localhost|internal|local)(/|:|$))([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}(:443)?(/(?!\\.\\.?(/|$))[A-Za-z0-9._~-]*)*$";
+export const CONNECTOR_BASE_URL_MAX = 300;
 
 // Where a firm's rota lives when it isn't our own tables (native firms have no row). A sheet
 // ("sheets"): its spreadsheet and column mapping (validated in code,
@@ -749,6 +754,8 @@ export const rosterSources = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
+    // For links from the firm's other tables (connector_events).
+    unique("roster_sources_firm_id_id_key").on(t.firmId, t.id),
     // One enabled source per firm; an old one can be kept, disabled.
     uniqueIndex("roster_sources_one_enabled_per_firm")
       .on(t.firmId)
@@ -775,7 +782,8 @@ export const rosterSources = pgTable(
     ),
     check(
       "roster_sources_base_url_format",
-      sql`${t.baseUrl} ~ ${sql.raw(`'${CONNECTOR_BASE_URL}'`)}`,
+      sql`${t.baseUrl} ~ ${sql.raw(`'${CONNECTOR_BASE_URL}'`)}
+          and char_length(${t.baseUrl}) <= ${sql.raw(String(CONNECTOR_BASE_URL_MAX))}`,
     ),
     check(
       "roster_sources_spreadsheet_id_format",

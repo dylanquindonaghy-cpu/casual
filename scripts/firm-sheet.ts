@@ -209,7 +209,7 @@ try {
         process.exit(1);
       case "has_connector":
         console.log(
-          `${slug} takes its rota from a connected system (npm run firm:connector), so a sheet can't be switched on as well. Switch the connector off first.`,
+          `${slug} takes its rota from a connected system (a connector), so a sheet can't be switched on as well. Switch the connector off first.`,
         );
         process.exit(1);
       case "agreement_needed":

@@ -2143,10 +2143,12 @@ so the office already reads them as "From your planner" and no new words are nee
       change) like the sheet's. Tests: a bad or missing signature 403 and nothing stored, the same
       event twice stored once, a fetch that fails retried, nothing from the body trusted (P5.3)
 - [ ] The reconcile pull (jobs): a tick like the Sheets sync's (lease per source, back-off on
-      failure), sessions in the next 48 hours every 15 minutes and everything else nightly, each
-      record applied as a webhook's is, only changes logged; sessions come in hidden from casuals
-      (the shadow cycle). Tests: a lost webhook caught by the pull, two pulls at once one run, a
-      failing source backs off (P5.4)
+      failure; never holding the source's row while it applies a record, since each change takes
+      that row for share: P5.2's review), sessions in the next 48 hours every 15 minutes and
+      everything else nightly, each record applied as a webhook's is, only changes logged; sessions
+      come in hidden from casuals (the shadow cycle); the founder's alert and `firm:check` name a
+      failing connector as one, not a rota sheet. Tests: a lost webhook caught by the pull, two
+      pulls at once one run, a failing source backs off (P5.4)
 - [ ] Bookings both ways (R): who's booked in the source mirrored through the three-way merge
       (`src/lib/roster/sheets/merge.ts`), a booking made there run through the rules like an office
       placement (refused: logged for the office, not booked), never cancelling a confirmed booking
@@ -2157,6 +2159,13 @@ so the office already reads them as "From your planner" and no new words are nee
       only when it belongs to that booking and falls since the last pull, else the reading that
       favours the casual, the evidence recorded. Tests: each case, raced bookings, the source
       down (P5.5)
+
+A firm's planner is its API key or a connector, never both (P5.2's review: both would write the
+same sessions by the same refs): while a key is live, the connector changes nothing, and
+`firm:connector` won't connect one beside a key (Dylan to confirm; the key, already in use, wins).
+After the UI chat: the office's Integrations card and dashboard name a connector as the planner
+(`plannerLink`, `src/lib/office/integrations.ts`, counts a live key or a sheet today), with the
+sync card.
 
 Done when (the framework): P5.1 to P5.5 are ticked, each with a stamp that includes the browser
 tests; `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; no test reaches a real source; nothing

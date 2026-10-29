@@ -1,5 +1,5 @@
 {
-  "id": "5fdedfbc-db7b-41f4-af49-cbd581d666f7",
+  "id": "d2f9297f-d26f-4557-adae-5fc69b4b0155",
   "prevId": "63f86e8c-9129-45a0-9932-5214d779ecd5",
   "version": "7",
   "dialect": "postgresql",
@@ -4532,7 +4532,16 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "roster_sources_firm_id_id_key": {
+          "name": "roster_sources_firm_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "id"
+          ]
+        }
+      },
       "policies": {
         "firm_isolation": {
           "name": "firm_isolation",
@@ -4560,7 +4569,7 @@
         },
         "roster_sources_base_url_format": {
           "name": "roster_sources_base_url_format",
-          "value": "\"roster_sources\".\"base_url\" ~ '^https://[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?(:[0-9]{1,5})?(/[A-Za-z0-9._~/-]{0,200})?$'"
+          "value": "\"roster_sources\".\"base_url\" ~ '^https://(?!.*\\.(localhost|internal|local)(/|:|$))([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}(:443)?(/(?!\\.\\.?(/|$))[A-Za-z0-9._~-]*)*$'\n          and char_length(\"roster_sources\".\"base_url\") <= 300"
         },
         "roster_sources_spreadsheet_id_format": {
           "name": "roster_sources_spreadsheet_id_format",

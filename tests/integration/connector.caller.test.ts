@@ -1,13 +1,15 @@
 import { randomUUID } from "node:crypto";
-import { Client, type Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { putPlannerSession } from "@/lib/integrations/sessions";
 import { cancelShiftByFirm } from "@/lib/roster/cancel";
-import { fakeGeocoder } from "@/lib/travel/geocoder";
+import { firmCallerMay, type PlannerCaller } from "@/lib/roster/firm-caller";
+import { fakeGeocoder, type Geocoder } from "@/lib/travel/geocoder";
 import { connectSheet, disableSheet } from "../../scripts/firm-sheet-owner";
 import { bookingFirm, NOW, type BookingFirm } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool, urls } from "../helpers/db";
+import { plannerKey } from "../helpers/planner-api";
 
 // A connector's source and caller (P5.2; src/lib/roster/firm-caller.ts): a connector changes the
 // firm's sessions exactly as the planner's API does (putPlannerSession, the same transaction and
@@ -89,6 +91,30 @@ const eventsOf = async (firmId: string, like = "%") =>
 
 const count = async (sql: string, params: unknown[]) =>
   Number(Object.values((await su.query(sql, params)).rows[0] ?? {})[0] ?? Number.NaN);
+
+const backendPid = async (c: PoolClient) =>
+  (await c.query<{ pid: number }>("select pg_backend_pid() as pid")).rows[0]?.pid ?? 0;
+
+// Polls until the check's first row says so (or 5 seconds pass), then gives its last answer.
+async function waitFor<T extends { rows: { n: number }[] }>(check: () => Promise<T>): Promise<T> {
+  let last = await check();
+  for (let i = 0; i < 100 && last.rows[0]?.n !== 1; i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    last = await check();
+  }
+  return last;
+}
+
+// How many sessions wait on this one's locks (polled until one does).
+const blockedBy = async (pid: number) =>
+  (
+    await waitFor(() =>
+      su.query<{ n: number }>(
+        "select count(*)::int as n from pg_stat_activity where $1 = any(pg_blocking_pids(pid))",
+        [pid],
+      ),
+    )
+  ).rows[0]?.n ?? 0;
 
 async function booked(f: BookingFirm, shiftId: string, slot: number, first: string) {
   const worker = await f.worker({ first });
@@ -245,22 +271,138 @@ describe("a source switched off", () => {
 
   it("switched off while a change waits for the source's row: the change sees it off and is refused", async () => {
     const t = await connectorFirm();
-    const owner = new Client({ connectionString: urls.superuser });
-    await owner.connect();
+    const owner = await su.connect();
     try {
       await owner.query("begin");
-      await owner.query("select id from roster_sources where id = $1 for update", [t.sourceId]);
-      const pending = t.put("PORTAL-S1", plain());
-      // The PUT is waiting on the row the owner holds.
-      await new Promise((resolve) => setTimeout(resolve, 300));
       await owner.query("update roster_sources set enabled = false where id = $1", [t.sourceId]);
+      const pid = await backendPid(owner);
+      const pending = t.put("PORTAL-S1", plain());
+      // The PUT holds the source's row for share, so it waits for the switch-off to finish.
+      expect(await blockedBy(pid)).toBe(1);
       await owner.query("commit");
       const r = await pending;
       expect([r.status, r.body.error?.code]).toEqual([401, "invalid_key"]);
     } finally {
-      await owner.end();
+      owner.release();
     }
     expect(await count("select count(*) from shifts where firm_id = $1", [t.f.firmId])).toBe(0);
+  });
+
+  it("a switch-off waits for a change already under way, and the next change is refused", async () => {
+    const t = await connectorFirm();
+    const by = { type: "connector" as const, sourceId: t.sourceId };
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let holding = () => {};
+    const held = new Promise<void>((resolve) => {
+      holding = resolve;
+    });
+    // A change under way: it has taken the source's row and is still working.
+    const change = withFirm(t.f.firmId, async (tx) => {
+      const may = await firmCallerMay(tx, by);
+      holding();
+      await gate;
+      return may;
+    });
+    await held;
+    const off = await su.connect();
+    try {
+      const switching = off.query("update roster_sources set enabled = false where id = $1", [
+        t.sourceId,
+      ]);
+      // The switch-off is the one waiting.
+      const { rows } = await waitFor(async () =>
+        su.query<{ n: number }>(
+          `select count(*)::int as n from pg_stat_activity
+            where query like 'update roster_sources set enabled = false%'
+              and cardinality(pg_blocking_pids(pid)) > 0`,
+        ),
+      );
+      expect(rows).toEqual([{ n: 1 }]);
+      release();
+      expect(await change).toBe(true);
+      await switching;
+    } finally {
+      off.release();
+    }
+    const r = await t.put("PORTAL-S1", plain());
+    expect([r.status, r.body.error?.code]).toEqual([401, "invalid_key"]);
+  });
+
+  it("stands down while the firm has a live planner key: one planner, never two writing the same sessions", async () => {
+    const t = await connectorFirm();
+    const admin = await t.f.office("admin");
+    const key = await plannerKey(su, t.f.firmId, admin);
+    const r = await t.put("PORTAL-S1", plain());
+    expect([r.status, r.body.error?.code]).toEqual([401, "invalid_key"]);
+    expect(await count("select count(*) from shifts where firm_id = $1", [t.f.firmId])).toBe(0);
+    await su.query("update api_keys set revoked_at = now(), revoked_by = $2 where id = $1", [
+      key.id,
+      admin,
+    ]);
+    expect((await t.put("PORTAL-S1", plain())).status).toBe(201);
+  });
+
+  it("a caller that isn't one is refused before anything is read or looked up", async () => {
+    const t = await connectorFirm();
+    let lookups = 0;
+    const geocoder: Geocoder = {
+      locate: (postcode) => {
+        lookups += 1;
+        return fakeGeocoder.locate(postcode);
+      },
+    };
+    const put = (by: unknown, json: unknown) =>
+      putPlannerSession(
+        { run: withFirm, firmId: t.f.firmId, by: by as PlannerCaller, json, now: NOW, geocoder },
+        "PORTAL-S1",
+      );
+    for (const by of [
+      { type: "connector", sourceId: "not-a-uuid" },
+      { type: "office", id: randomUUID() },
+      { type: "connector" },
+    ]) {
+      const r = await put(by, plain());
+      expect([r.status, (r.body as Answer).error?.code], JSON.stringify(by)).toEqual([
+        401,
+        "invalid_key",
+      ]);
+    }
+    // Switched off: a new site's postcode is never sent out to be looked up.
+    await su.query("update roster_sources set enabled = false where id = $1", [t.sourceId]);
+    const r = await put(
+      { type: "connector", sourceId: t.sourceId },
+      plain({ site: { name: "New Arena", postcode: "ZZ7 7GG" } }),
+    );
+    expect([r.status, lookups]).toEqual([401, 0]);
+  });
+
+  it("Gate B: on a live database a connector saves nothing until the firm's agreement is recorded", async () => {
+    const t = await connectorFirm();
+    const put = () =>
+      putPlannerSession(
+        {
+          run: withFirm,
+          firmId: t.f.firmId,
+          by: { type: "connector", sourceId: t.sourceId },
+          json: plain(),
+          now: NOW,
+          geocoder: fakeGeocoder,
+          localDatabase: false,
+        },
+        "PORTAL-S1",
+      );
+    const refused = await put();
+    expect([refused.status, (refused.body as Answer).error?.code]).toEqual([
+      403,
+      "agreement_not_recorded",
+    ]);
+    await su.query("update firms set agreement_signed_on = '2026-10-01' where id = $1", [
+      t.f.firmId,
+    ]);
+    expect((await put()).status).toBe(201);
   });
 });
 
@@ -309,6 +451,24 @@ describe("the connector source's row", () => {
         { ...connector, base_url: "https://portal.example.test/a b" },
         "roster_sources_base_url_format",
       ],
+      // Never inside: an IP address (however written), a bare or internal name, another port, a
+      // dot segment (P5.2's review).
+      ...[
+        "https://127.0.0.1",
+        "https://169.254.169.254/latest",
+        "https://2130706433",
+        "https://0x7f000001",
+        "https://[::1]",
+        "https://localhost",
+        "https://portal.localhost",
+        "https://host.docker.internal",
+        "https://printer.local",
+        "https://web:3000",
+        "https://postgres",
+        "https://portal.example.test:8443/v1",
+        "https://portal.example.test/v1/../admin",
+        `https://portal.example.test/${"a".repeat(290)}`,
+      ].map((base_url) => [{ ...connector, base_url }, "roster_sources_base_url_format"] as const),
       [
         { kind: "sheets", spreadsheet_id: "a".repeat(30), base_url: PORTAL, mapping: "{}" },
         "roster_sources_kind_fields",
@@ -320,7 +480,7 @@ describe("the connector source's row", () => {
     expect(await code(insert(f.firmId, connector))).toBe("no error");
     expect(
       await code(
-        insert(f.firmId, { ...connector, base_url: "https://portal.example.test:8443/v1/x" }),
+        insert(f.firmId, { ...connector, base_url: "https://portal.example.test:443/v1/x" }),
       ),
     ).toBe("roster_sources_one_enabled_per_firm");
   });

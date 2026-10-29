@@ -699,7 +699,8 @@ create table metrics_daily (
 -- Where a firm's rota lives when it isn't our tables (native firms have no row): a Google Sheet,
 -- or (P5.2, migration 0055) a connector reading the firm's own system, whose changes go through
 -- exactly the planner API's rules as the firm's planner (src/lib/roster/firm-caller.ts: allowed
--- only while its source is on, its row held for the change). No secrets: the firm shares its
+-- only while its source is on, its row held for the change, and never while the firm has a live
+-- planner API key: one planner writes its sessions, not two). No secrets: the firm shares its
 -- sheet with our service account (the key is in the worker's environment), and a connector's
 -- credentials are in the secret store (firm_secrets). Rows are added and changed only by the owner
 -- (npm run firm:sheet; a connector's in the tests only until P5.3); the app role may read them
@@ -712,7 +713,9 @@ create table roster_sources (
   enabled boolean not null default true,
   spreadsheet_id text,                   -- a sheet's only: ^[A-Za-z0-9_-]{20,100}$
   connector text,                        -- a connector's only: 'demo_portal' (the made-up portal)
-  base_url text,                         -- a connector's only: https, a host, a path; nothing else
+  base_url text,                         -- a connector's only: https on 443, a public DNS name
+                                         -- (no IP, bare, .localhost, .internal or .local name),
+                                         -- a path with no dot segment; nothing else; <= 300
   mapping jsonb not null,                -- a sheet's tabs and header names ('{}' for a connector)
   last_synced_at timestamptz,
   last_attempted_at timestamptz,         -- the last sync that ran, success or not (for back-off)

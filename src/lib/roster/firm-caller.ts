@@ -20,8 +20,9 @@ import type { RosterSource } from "./plug";
 // A connector is held to exactly the same, with its source in the key's place: allowed only while
 // its source (roster_sources, kind "connector") is switched on, checked and held the same way, so
 // switching a source off waits for a change under way and stops the next; its sessions are the
-// planner's (source "api"); its changes carry {by: "firm", via: "api", sourceId}. (A firm uses one
-// or the other: both would share the planner's refs.)
+// planner's (source "api"); its changes carry {by: "firm", via: "api", sourceId}. A firm's planner
+// is one or the other: both would write the same sessions by the same refs, so while the firm has
+// a live API key its connector changes nothing (the key, already in use, wins; P5.2's review).
 // The office in turn can't change a planner's session as a whole ("planner"), as it can't a
 // Google Sheet's ("sheet"): the next PUT would undo it.
 
@@ -50,7 +51,13 @@ export async function firmCallerMay(tx: FirmTx, by: FirmCaller): Promise<boolean
         ),
       )
       .for("share");
-    return source !== undefined;
+    if (!source) return false;
+    const [liveKey] = await tx
+      .select({ id: apiKeys.id })
+      .from(apiKeys)
+      .where(isNull(apiKeys.revokedAt))
+      .limit(1);
+    return liveKey === undefined;
   }
   const [key] = await tx
     .select({ id: apiKeys.id })

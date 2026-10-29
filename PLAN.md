@@ -1917,10 +1917,11 @@ page, and no casual-facing words beyond those Dylan approves. The proposal's ite
 - [ ] Pay calendar (S): `payPeriod(day, calendar)` beside `payWeek()` (`src/lib/pay/pay-week.ts`,
       pure; with no calendar set, exactly today's ISO week paid the Friday after); an owner setting
       `pay_calendar` (7 or 14 days, an anchor Monday, the pay day as days after the period ends,
-      the label Week or Cycle) through `src/lib/onboarding/settings.ts` (no database check: like
-      every owner setting, the app can't write it, `app_set_firm_setting()` taking only its own
-      keys); pay-query grouping (`src/lib/pay/grouping.ts`) by the firm's pay period. Tests: made-up anchors, the 53-week year (2026), the clock change,
-      a firm without a calendar unchanged (P3.1)
+      the label Week or Cycle) through `src/lib/onboarding/settings.ts` (the proposal below says
+      "a migration like 0037": not needed, as like every owner setting the app can't write it,
+      `app_set_firm_setting()` taking only its own keys); pay-query grouping
+      (`src/lib/pay/grouping.ts`) by the firm's pay period. Tests: made-up anchors, the 53-week year
+      (2026), the clock change, a firm without a calendar unchanged (P3.1)
 - [ ] Name map per firm (S, T): a table of outside names (role, qualification, staff type,
       cancellation reason) each mapped to a ShiftDesk code (a role with its pay rate) or to skip,
       with `firm_id`, RLS, a `TABLE_ACCESS` entry and isolation fixtures; an owner script to set it
@@ -1941,7 +1942,9 @@ page, and no casual-facing words beyond those Dylan approves. The proposal's ite
       the report's counts, strikes off issues none (P3.4)
 
 **After the UI chat's Phase 24 merges:** Home's pay day from the firm's calendar or its imported
-`pay_records.pay_date` (`src/app/page.tsx`), the top bar, the dashboard and the pay dashboard; the
+`pay_records.pay_date` (`src/app/page.tsx`), the top bar, the dashboard and the pay dashboard;
+payroll's pay-query headings and the digest email's headline for a fortnight ("the week of" today,
+`src/lib/ai/pay-summary.ts`: new words, Dylan's to approve); the
 Needs attention item for an unmapped name; the casual's "you need A or B" words (a mock-up first);
 the office's "who asked" choice when it cancels.
 
@@ -4023,7 +4026,7 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
   - "Undo" after switching an event off: switching it back on is the undo.
   - The dashboard's "Sync with planner" button and freshness line: planners push by API; sheet errors show in Needs attention.
   - A separate Needs attention page (`/office/attention`) and payroll's version: it is a dashboard section now.
-  - Pay calendar settings (`pay_calendar.*`), tax-week numbering and payroll's own pill: one rule (ISO week, paid the Friday after).
+  - Pay calendar settings (`pay_calendar.*`), tax-week numbering and payroll's own pill: one rule (ISO week, paid the Friday after). The pay calendar came back (Dylan, 2026-10-26; built in P3.1); tax weeks and the pill stay cut.
   - The pay dashboard's "Pay questions on the shifts line" and "Imports" sections, and `pay_digest` as a `SETTING_KEYS` key.
   - An "Event" column and Pay rate, Post, Meeting point, Uniform, Requires and Postcode columns in rota sheets and imports ("not another sheet").
   - The sheet "Cancellations" column write-back and `planner.cancellation_written`: replaced by the `booking.cancelled` webhook.

@@ -247,6 +247,14 @@ describe("stable keys", () => {
     const d = await t.raise(t.ann, { day: "2026-11-02", issue: "late_pay" });
     expect(await t.keyOf(d)).toBe("pay1:late_pay:2026-11-02");
     expect(await t.regroupedEvents()).toEqual([{ changed: 1 }]);
+    // Another firm, on weeks, with the same days: its own keys, weekly, whatever this one's says.
+    const other = await groupingFirm();
+    const late = (day: string) => other.raise(other.ann, { day, issue: "late_pay" });
+    expect([
+      await other.keyOf(await late("2026-10-21")),
+      await other.keyOf(await late("2026-10-30")),
+    ]).toEqual(["pay1:late_pay:2026-10-19", "pay1:late_pay:2026-10-26"]);
+    expect(await withFirm(other.f.firmId, (tx) => regroupPayQueries(tx))).toEqual({ changed: 0 });
   });
 
   it("two firms with the same facts get the same key text, but never share a group", async () => {

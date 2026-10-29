@@ -137,7 +137,7 @@ export const SETTING_WORDS: Record<SettingKey, string> = {
   "pay_calendar.days":
     "days in each pay period: 7 or 14 (14 needs pay_calendar.anchor first; 7 with no anchor, the default, is the ISO week)",
   "pay_calendar.anchor":
-    "the Monday that starts pay period 1 (yyyy-mm-dd), counted on from there; none, the default: ISO weeks",
+    "the Monday that starts pay period 1 (yyyy-mm-dd), counted on from there; none, the default: ISO weeks (only with 7 days: set pay_calendar.days=7 first)",
   "pay_calendar.pay_day_after": `the pay day, as days after a period's last day, a Sunday (0 to ${PAY_DAY_AFTER_MAX}; 5, the default: the Friday after)`,
   "pay_calendar.label":
     "what a pay period is called: week or cycle (the default: week for 7 days, cycle for 14)",

@@ -8,9 +8,10 @@ import { payWeek } from "./pay-week";
 // with nothing set, or anything the app can't read, today's rule (D8): ISO weeks, Monday to Sunday,
 // paid the Friday after. Pure: callers pass a firm-local date, or now and the firm's time zone.
 //
-// A period's number counts from the anchor's period (1) and carries on across New Year: the
-// year-end rule waits for the firm's payroll (`docs/discovery-axlr8.md` §5.5). A day before the
-// anchor is in a period with no number.
+// A period's number counts from the anchor's period (1), and its periods run on unbroken, across
+// New Year: the year-end rule waits for the firm's payroll (`docs/discovery-axlr8.md` §5.5), and may
+// move the periods themselves, not only their numbers. A day before the anchor is in a period with
+// no number.
 
 export const PAY_PERIOD_DAYS = [7, 14] as const;
 export type PayPeriodDays = (typeof PAY_PERIOD_DAYS)[number];

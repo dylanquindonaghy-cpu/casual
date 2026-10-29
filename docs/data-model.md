@@ -113,10 +113,15 @@ paid `pay_day_after` days after it ends on a Sunday (0 to 27; 5 is the Friday af
 anything the app can't read, is today's rule, ISO weeks, Monday to Sunday, paid the Friday after.
 Set by the owner with `npm run firm:settings` (`pay_calendar.days`, `.anchor`, `.pay_day_after`,
 `.label`), which refuses a part that would leave the whole unreadable (fortnights without their
-start). A period's number counts on from the anchor's (1) across New Year; the year-end rule waits
-for the firm's payroll (`docs/discovery-axlr8.md` §5.5). Pay-query grouping uses it now; the top
-bar, the dashboards and Home after the UI chat's Phase 24 (P3), so leave a live firm on weeks
-until then.
+start; going back to weeks, set `pay_calendar.days=7` before `pay_calendar.anchor=none`). A
+period's number counts on from the anchor's (1), and its fortnights run on unbroken, across New
+Year: the year-end rule waits for the firm's payroll (`docs/discovery-axlr8.md` §5.5), and could
+move the periods themselves (a new cycle 1 on Mon 4 Jan 2027 would shift every fortnight from Mon
+28 Dec 2026 by a week), not only their numbers. Pay-query grouping uses it now: a new query is keyed
+on the firm's period at once, and the open ones follow at the next regroup (the payroll digest, or a
+pay import). Payroll's pay-query headings and the digest's headline still say "the week of" its
+first Monday, and the top bar, the dashboards and Home read weeks, until after the UI chat's Phase
+24 (P3), so leave a live firm on weeks until then.
 
 (The 48-hour short-notice threshold is a placeholder until the 2027 regulations are final.)
 

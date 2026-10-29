@@ -132,7 +132,8 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   (`tests/integration/pay.grouping.test.ts`, on the real database): the same facts give the same key
   whoever raises it, whatever they write, whenever and in any order; the firm's week (Monday and
   Sunday together, across the clocks going back); on a firm's pay calendar (P3.1), one key for a
-  fortnight, and its open queries regrouped when the calendar is set; regrouping and re-importing the same pay file
+  fortnight, a new query keyed on it at once and the open ones at the next regroup, and another
+  firm's keys still weekly; regrouping and re-importing the same pay file
   change nothing; keys move only when their facts do (open and in-digest queries, never sorted
   ones); two firms' same facts give the same key text but separate groups. In the digest job, an AI
   that throws, hangs (the 5-second timeout, `AI_SUMMARY_TIMEOUT_MS`), answers late, answers

@@ -990,9 +990,10 @@ In order (who does it, how, and what done looks like):
    twice), and whether casuals' login links and pay codes may go by email when there's no text
    sender (`login_by_email`, P2.6: leave it off until the login and Pay pages stop naming
    WhatsApp, P2.7), and the pay calendar (`pay_calendar.*`, P3.1: weeks or fortnights, from which
-   Monday, paid how many days after; set the anchor before `pay_calendar.days=14`, and leave a live
-   firm on weeks until the top bar and Home read it, after the UI chat's Phase 24), as the app reads
-   them. Change any with `--set`, e.g.
+   Monday, paid how many days after; set the anchor before `pay_calendar.days=14`, and to go back,
+   `pay_calendar.days=7` before `pay_calendar.anchor=none`; leave a live firm on weeks until the
+   top bar, Home and payroll's pay-query words read it, after the UI chat's Phase 24), as the app
+   reads them. Change any with `--set`, e.g.
    `--set urgent_window_hours=12 --set quiet_hours.start=21:30`. A value the app wouldn't use is
    refused and nothing changes; each change is in the office action log.
    The strikes team's email isn't one of these: an admin sets it on the office's **Settings** page,

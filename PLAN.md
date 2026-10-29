@@ -1914,7 +1914,7 @@ code go by email; the `claims-auditor` checks the phase against this line.
 now"): the UI chat is still on Phase 24.6, so no task here changes a screen, `src/app/` or an office
 page, and no casual-facing words beyond those Dylan approves. The proposal's items follow the tasks.
 
-- [ ] Pay calendar (S): `payPeriod(day, calendar)` beside `payWeek()` (`src/lib/pay/pay-week.ts`,
+- [x] Pay calendar (S): `payPeriod(day, calendar)` beside `payWeek()` (`src/lib/pay/pay-week.ts`,
       pure; with no calendar set, exactly today's ISO week paid the Friday after); an owner setting
       `pay_calendar` (7 or 14 days, an anchor Monday, the pay day as days after the period ends,
       the label Week or Cycle) through `src/lib/onboarding/settings.ts` (the proposal below says
@@ -1922,7 +1922,7 @@ page, and no casual-facing words beyond those Dylan approves. The proposal's ite
       `app_set_firm_setting()` taking only its own keys); pay-query grouping
       (`src/lib/pay/grouping.ts`) by the firm's pay period. Tests: made-up anchors, the 53-week year
       (2026), the clock change, a firm without a calendar unchanged (P3.1)
-- [ ] Name map per firm (S, T): a table of outside names (role, qualification, staff type,
+- [x] Name map per firm (S, T): a table of outside names (role, qualification, staff type,
       cancellation reason) each mapped to a ShiftDesk code (a role with its pay rate) or to skip,
       with `firm_id`, RLS, a `TABLE_ACCESS` entry and isolation fixtures; an owner script to set it
       (like `scripts/firm-sheet-owner.ts`), each change logged; the sheet sync and the file import
@@ -1934,7 +1934,7 @@ page, and no casual-facing words beyond those Dylan approves. The proposal's ite
       file carries one) and a role's pay rate are held for the connector (P5): the sheet and the
       import never write a session's pay (S2). Tests: mapped, skipped, unmapped, another firm's
       map unused (P3.2)
-- [ ] "Any of" licences (S, R; Rules 3, Dylan 2026-10-29): a rule may need one of several
+- [x] "Any of" licences (S, R; Rules 3, Dylan 2026-10-29): a rule may need one of several
       credential types (a door supervisor licence covers guarding: the security pack's
       security officer takes either), in `src/lib/rules/packs.ts`,
       `src/lib/credentials/requirements.ts`, `src/lib/rules/eligibility.ts` and
@@ -1942,7 +1942,7 @@ page, and no casual-facing words beyond those Dylan approves. The proposal's ite
       that reads a rule's types reads the groups (with no new words: a group shows as its first
       type, and fails in its first held type's words, until the "A or B" words are approved). Tests: either licence passes, neither fails, an
       expired one doesn't count, "all of" rules unchanged (P3.3)
-- [ ] Who asked for a cancellation (S, R): recorded apart from who carried it out (casual, firm,
+- [x] Who asked for a cancellation (S, R): recorded apart from who carried it out (casual, firm,
       client, unknown), backfilled from each cancellation's own record; the casual's own cancel says
       casual, the planner API and the sheet what their data says (neither says yet: not known), the
       office firm (its form asks, after the UI chat); the notice report

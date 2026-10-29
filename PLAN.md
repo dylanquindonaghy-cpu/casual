@@ -348,7 +348,7 @@ office sees.
       but their screens wait for the UI chat). `scripts/plan-moved-check.mjs` shows every line taken
       out of `PLAN.md` is in a new file, word for word. Tests: the pin fails on a planted change
       (`scripts/selftest.sh`), nothing lost (P1.1)
-- [ ] The Parking lot, the Hours log and the Decisions list (attended) move to
+- [x] The Parking lot, the Hours log and the Decisions list (attended) move to
       `docs/plan/parking-lot.md`, `docs/plan/hours-log.md` and `docs/plan/decisions-waiting.md`,
       each leaving its heading in `PLAN.md` with a short pointer, so the 316 lines in 58 other files
       that say "the Parking lot", "the Hours log" or "Decisions waiting for Dylan" (2026-10-29)
@@ -357,7 +357,7 @@ office sees.
       numbers in `docs/audit-2026-09-30.md` and the logs get a dated note that they point at
       `PLAN.md` as it was then. Tests: nothing lost (`scripts/plan-moved-check.mjs`), `PLAN.md`
       under 100 KB (P1.2)
-- [ ] The logs by month: `docs/logs/work-YYYY-MM.md` and `docs/logs/overnight-YYYY-MM.md`, cut at
+- [x] The logs by month: `docs/logs/work-YYYY-MM.md` and `docs/logs/overnight-YYYY-MM.md`, cut at
       each dated section with nothing changed (the month files, joined, are the old body byte for
       byte), the old files kept as short indexes of the months; `docs/plan/blocked.md` lists what's
       blocked and on whom, so `/overnight` finds it without reading a 1.1 MB log. Tests: the
@@ -861,7 +861,7 @@ queues the ones waiting).
       found by the address it was sent to; one row per Message-ID (golden rule 3; its job comes
       with P7.4); 200 fast. Tests: a bad or missing signature 403 and nothing stored, the same
       Message-ID twice stored once, an address no firm has stores nothing, no secret 503 (P7.2)
-- [ ] Before anything is stored (M): quoted history and signatures taken off
+- [x] Before anything is stored (M): quoted history and signatures taken off
       (`src/lib/email/prepare.ts`, pure: "On … wrote:", "-----Original Message-----", Outlook's
       "From: … Sent:" block, `>` lines, "-- "), the text capped; attachments never kept (only how
       many); mail that isn't from a known casual stored without its subject or words. Tests: each

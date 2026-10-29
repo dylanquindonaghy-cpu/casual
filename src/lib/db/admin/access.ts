@@ -80,6 +80,9 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   // The planner's API keys (S11, 12J.1): read and added; last use and revocation only through
   // COLUMN_UPDATES, so a key's hash and label can never be rewritten; never deleted.
   api_keys: ["SELECT", "INSERT"],
+  // A firm's own credentials (P5.1; ADR-026): none at all. Written by the owner command, read by
+  // the worker only through app_read_firm_secret(), as the jobs role.
+  firm_secrets: [],
 };
 
 // Columns the app role may update on a table it can't update as a whole (a column-level grant).
@@ -165,7 +168,9 @@ export async function applyTableSecurity(client: ClientBase): Promise<void> {
     await client.query(`alter table ${t} force row level security`);
     // Revoking on the table revokes its column-level grants too, so this resets both.
     await client.query(`revoke all on ${t} from public, ${app}, ${jobs}`);
-    await client.query(`grant ${privileges.join(", ")} on ${t} to ${app}`);
+    if (privileges.length > 0) {
+      await client.query(`grant ${privileges.join(", ")} on ${t} to ${app}`);
+    }
     const columns = COLUMN_UPDATES[table];
     if (columns) {
       if (privileges.includes("UPDATE")) {

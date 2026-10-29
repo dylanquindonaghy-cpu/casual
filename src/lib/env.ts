@@ -1,5 +1,6 @@
 import { createECDH } from "node:crypto";
 import { z } from "zod";
+import { secretsKey } from "./secrets/crypto";
 import { databaseTlsOn } from "./db/tls";
 
 // Environment, split by who may read it (docs/decisions.md ADR-011):
@@ -263,6 +264,18 @@ export const workerEnvSchema = z
       z
         .string()
         .regex(/^[A-Za-z0-9_-]{43}$/, { message: "must be a base64url VAPID private key" })
+        .optional(),
+    ),
+    // The secret store's key (P5.1; ADR-026; src/lib/secrets/crypto.ts): 32 random bytes in base64
+    // (openssl rand -base64 32), sealing every firm's own credentials in firm_secrets. Worker only
+    // (and the owner command that seals them): never the web app's, never logged, never in the
+    // repo or the database. Unset, the worker reads no secret. An empty value means not set.
+    SECRETS_KEY: unsetIfEmpty(
+      z
+        .string()
+        .refine((v) => secretsKey(v) !== null, {
+          message: "must be 32 random bytes in base64 (openssl rand -base64 32)",
+        })
         .optional(),
     ),
     // Who the push services can contact about this sender: a mailto: or https: address.

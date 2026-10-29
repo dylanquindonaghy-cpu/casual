@@ -161,6 +161,12 @@ describe("deploy/docker-compose.yml", () => {
     for (const name of Object.keys(services).filter((n) => n !== "worker")) {
       expect(keys(name), name).not.toContain("VAPID_PRIVATE_KEY");
     }
+    // The secret store's key (P5.1): the worker opens firms' secrets and the owner command seals
+    // them; nothing else (the web app above all) gets it.
+    expect(keys("worker")).toContain("SECRETS_KEY");
+    for (const name of Object.keys(services).filter((n) => n !== "worker")) {
+      expect(keys(name), name).not.toContain("SECRETS_KEY");
+    }
     // Travel times (12G.2): the worker alone asks TravelTime, so only it gets the keys.
     expect(keys("worker")).toEqual(
       expect.arrayContaining(["TRAVEL_PROVIDER", "TRAVELTIME_APP_ID", "TRAVELTIME_API_KEY"]),
@@ -312,6 +318,8 @@ describe("deploy/docker-compose.yml", () => {
         "DATABASE_JOBS_URL",
         "DATABASE_URL",
         "NODE_ENV",
+        // To seal a firm's secrets (npm run firm:secret, P5.1).
+        "SECRETS_KEY",
         "SESSION_SECRET",
       ].sort(),
     );

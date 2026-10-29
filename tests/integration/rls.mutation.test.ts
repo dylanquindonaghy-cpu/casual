@@ -1,5 +1,6 @@
 import type { ClientBase, Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { TABLE_ACCESS } from "@/lib/db/admin/access";
 import { superuserPool } from "../helpers/db";
 import { countById } from "../helpers/rls-probe";
 import { createTenant, EXPECTED_TABLES, type TableName, type Tenant } from "../helpers/tenant-rows";
@@ -47,10 +48,18 @@ async function crossFirmRead(
   }
 }
 
-const asApp = (client: ClientBase) =>
-  client.query("set local role shiftdesk_app").then(() => undefined);
-
 describe.each(EXPECTED_TABLES)("%s", (table) => {
+  // A table the app role can't read at all (firm_secrets, P5.1) is given SELECT inside the
+  // rolled-back transaction, so the probe tests its row security as it would any other's.
+  const asApp = async (client: ClientBase) => {
+    if (!(TABLE_ACCESS[table] ?? []).includes("SELECT")) {
+      await client.query(
+        `grant select on public.${client.escapeIdentifier(table)} to shiftdesk_app`,
+      );
+    }
+    await client.query("set local role shiftdesk_app");
+  };
+
   it("the probe sees nothing when the protection is intact (control)", async () => {
     expect(await crossFirmRead(table, asApp)).toBe(0);
   });

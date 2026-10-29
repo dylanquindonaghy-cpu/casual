@@ -78,6 +78,9 @@ const NOT_EVENTS = new Set<string>([
   "booking.created",
   "booking.cancelled",
   "test.ping",
+  // A firm's secrets' names (P5.1): what the secret store holds, not log entries.
+  "portal.api_key",
+  "portal.webhook_secret",
   // The webhook's keys, changed only through app_set_firm_setting() (12J.2).
   "webhook.url",
   "webhook.rotate",

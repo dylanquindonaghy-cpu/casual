@@ -2112,6 +2112,54 @@ portal's API docs and a test copy (`docs/discovery-axlr8.md` §5), and the signe
 before any real data flows (golden rule 7); the casual's new words go to Dylan first, and the sync
 card and Needs attention items after the UI chat's Phase 24.
 
+The framework's tasks (a made-up portal, `src/lib/connector/`, stands in for the real one: our own
+field names, never AXLR8's or the portal's; its transport refused under `NODE_ENV=test`). A
+connector's sessions are the firm's planner's (source `api`, `cancel_via` and `booked_via` `api`),
+so the office already reads them as "From your planner" and no new words are needed:
+
+- [ ] The secret store (S, A, T): a `firm_secrets` table the app role has no rights on, written only
+      by an owner command (`npm run firm:secret`, the value read from standard input, never an
+      argument), read only through an owner-run function the jobs role alone may call, each value
+      AES-256-GCM under `SECRETS_KEY` (the worker's and the owner command's settings, never the web
+      app's) with its firm and name bound in; the worker reads it on a jobs-role connection of its
+      own. Tests: the app and web roles can't read it, another firm's secret never decrypts, a
+      wrong key fails closed, the web's settings refuse the key (P5.1)
+- [ ] A connector source and its caller (S, T): `roster_sources` takes a `connector` kind (its
+      base address and which connector, no secret), one enabled source per firm as today; a
+      `connector` caller in `src/lib/roster/firm-caller.ts`, allowed while its source is enabled,
+      logged like the planner's; the planner API's session functions
+      (`src/lib/integrations/sessions.ts`) take either caller, so a connector's sessions go through
+      exactly the planner's rules. Tests: a connector's session made, changed, moved and cancelled
+      as the planner's; a source switched off can change nothing (P5.2)
+- [ ] The source's webhooks in (A, M): `POST /api/webhooks/connector/{source id}` checks the
+      signature (HMAC-SHA256 with the source's webhook secret from the store), stores one row per
+      event id (unique per source), queues a job in the same transaction and answers 200 fast; the
+      job fetches the changed record from the source's API rather than trusting the webhook's
+      body, and applies it (P5.2's sessions; staff through `upsertWorker()`). Tests: a bad or
+      missing signature 403 and nothing stored, the same event twice stored once, a fetch that
+      fails retried, nothing from the body trusted (P5.3)
+- [ ] The reconcile pull (jobs): a tick like the Sheets sync's (lease per source, back-off on
+      failure), sessions in the next 48 hours every 15 minutes and everything else nightly, each
+      record applied as a webhook's is, only changes logged; sessions come in hidden from casuals
+      (the shadow cycle). Tests: a lost webhook caught by the pull, two pulls at once one run, a
+      failing source backs off (P5.4)
+- [ ] Bookings both ways (R): who's booked in the source mirrored through the three-way merge
+      (`src/lib/roster/sheets/merge.ts`), a booking made there run through the rules like an office
+      placement (refused: logged for the office, not booked), never cancelling a confirmed booking
+      on its own; a booking made in ShiftDesk held as "confirming" (the same conditional `UPDATE`,
+      golden rule 4), sent to the source with no transaction open, then confirmed or released;
+      a read-only plug (`canWrite` false: `assign` answers `needs_approval`) for a source that takes
+      no writes or is down. Notice hours for a cancellation made in the source from its own time
+      only when it belongs to that booking and falls since the last pull, else the reading that
+      favours the casual, the evidence recorded. Tests: each case, raced bookings, the source
+      down (P5.5)
+
+Done when (the framework): P5.1 to P5.5 are ticked, each with a stamp that includes the browser
+tests; `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; no test reaches a real source; nothing
+under `src/app/` changes but the new webhook route; no casual-facing words are new; the
+`claims-auditor` checks the framework against this line. The real connector, its words ("That
+place has just gone", "We're confirming your place") and its office card come after.
+
 The framework and the secret store now, against a made-up system; the first real connector, the
 ops portal's API, once its shape is known (`docs/discovery-axlr8.md` §4); AXLR8 directly when it
 can be asked. Under ADR-026 (`docs/decisions.md`, accepted 2026-10-26). Where the bullets below say

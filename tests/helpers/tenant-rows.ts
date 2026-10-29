@@ -14,6 +14,7 @@ export const EXPECTED_TABLES = [
   "credential_types",
   "credentials",
   "events",
+  "firm_secrets",
   "firms",
   "magic_links",
   "messages",
@@ -211,6 +212,12 @@ export async function createTenant(su: Pool): Promise<Tenant> {
     "insert into name_map (firm_id, kind, outside_name, code) values ($1, 'role', 'door supervisor (nlw)', 'door_supervisor')",
     [firmId],
   );
+  const secretId = await one(
+    su,
+    `insert into firm_secrets (firm_id, name, ciphertext, nonce, key_id)
+     values ($1, 'portal.api_key', $2, $3, 'aaaaaaaaaaaa')`,
+    [firmId, randomBytes(32), randomBytes(12)],
+  );
   const offerId = await one(
     su,
     "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, 1, 'push')",
@@ -335,6 +342,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       requests: requestId,
       offers: offerId,
       roster_sources: rosterSourceId,
+      firm_secrets: secretId,
       name_map: nameMapId,
       pay_records: payRecordId,
       worker_unavailable_days: unavailableDayId,
@@ -434,6 +442,11 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
   name_map: (firmId) => ({
     text: "insert into name_map (firm_id, kind, outside_name, code) values ($1, 'role', $2, null)",
     values: [firmId, `probe name ${next()}`],
+  }),
+  firm_secrets: (firmId) => ({
+    text: `insert into firm_secrets (firm_id, name, ciphertext, nonce, key_id)
+           values ($1, $2, $3, $4, 'aaaaaaaaaaaa')`,
+    values: [firmId, `probe.secret_${next()}`, randomBytes(32), randomBytes(12)],
   }),
   offers: (firmId, p) => ({
     text: "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, $4, 'whatsapp')",

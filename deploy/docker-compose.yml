@@ -108,6 +108,9 @@ services:
       # web push"); then webpush, with all three. The private key is the worker's alone (a secret).
       PUSH_TRANSPORT: ${PUSH_TRANSPORT:-none}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      # The secret store's key (P5.1): it opens each firm's own credentials (npm run firm:secret).
+      # The worker's and the owner command's alone, never the web app's (a secret).
+      SECRETS_KEY: ${SECRETS_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}
       SHEETS_TRANSPORT: ${SHEETS_TRANSPORT:-none}
       # With SHEETS_TRANSPORT=google: /app/secrets/google-service-account.json (PLAN.md Parking lot,
@@ -175,6 +178,8 @@ services:
       DATABASE_JOBS_URL: ${DATABASE_JOBS_URL:?}
       DATABASE_ADMIN_URL: ${DATABASE_ADMIN_URL:?}
       SESSION_SECRET: ${SESSION_SECRET:?}
+      # To seal a firm's secrets so the worker can open them (npm run firm:secret, P5.1).
+      SECRETS_KEY: ${SECRETS_KEY:-}
     volumes:
       - *db-ca
     logging: *logging

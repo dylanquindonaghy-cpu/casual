@@ -594,7 +594,25 @@ but never changes an existing password. Rotate by hand as the owner:
 `ALTER ROLE shiftdesk_app PASSWORD '...'`, update `DATABASE_URL` (or `DATABASE_JOBS_URL`) in
 `.env`, then `docker compose up -d`.
 
-The planner integration secret: only when it may have leaked (next section).
+The secret store's key (`SECRETS_KEY`): the next section. The planner integration secret: only
+when it may have leaked (the section after).
+
+## A firm's secrets (the secret store, P5.1)
+
+A firm's own credentials for its systems (its ops portal's API key and webhook secret, P5) go in
+the secret store, sealed with `SECRETS_KEY` before they reach the database.
+
+- **The key, once:** `openssl rand -base64 32` into `SECRETS_KEY` in `.env` (the worker and the
+  owner service get it; the web app never does), and a copy with your backups: without it no
+  secret can be read. Never change it while firms have secrets: each would stop opening (the
+  worker says `other_key`). If it may have leaked, set a new one and set each firm's secrets again.
+- **Set one:** the value on standard input, never on the command line (it would sit in the shell's
+  history): `printf '%s' "<the value>" | docker compose run --rm -T owner node --import tsx
+  scripts/firm-secret.ts --firm acme --name portal.api_key`. It says "Added" or "Replaced"; the
+  action log says which name changed, never the value.
+- **See what's set:** `docker compose run --rm owner node --import tsx scripts/firm-secret.ts --firm
+  acme` lists the names and when each was set, never a value.
+- **Remove one:** `… scripts/firm-secret.ts --firm acme --name portal.api_key --remove`.
 
 ## The planner integration secret (INTEGRATIONS_SECRET)
 

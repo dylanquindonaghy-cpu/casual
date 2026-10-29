@@ -52,6 +52,7 @@ architecture.md, Tenancy).
 | magic_links / sessions / otp_codes | Login (hashes only, never raw tokens or codes) | 1 |
 | auth_throttle | Rate-limit counters for login and OTP requests, and the shifts line's unknown-number alerts (HMAC-keyed buckets) | 1 |
 | api_keys | A planner's API keys: a label, the key's sha256 and last 4 characters (never the key), who made and revoked it, when last used (12J.1, S11) | 12 |
+| firm_secrets | A firm's own credentials for its systems (its ops portal's API key, its webhook secret), each sealed under a key the database never sees (P5.1, ADR-026) | P5 |
 | push_subscriptions | Web push endpoints per worker | 4 |
 | roster_sources | Where a firm's rota lives when it isn't our tables (Google Sheet id, column mapping, last sync, error code, sync lease) | 2 |
 | name_map | What the firm's own system calls a role, qualification, staff type or cancellation reason, mapped to a ShiftDesk code or to skip (P3.2) | P3 |
@@ -947,6 +948,30 @@ create table auth_throttle (
 -- firm's data export. At most 10 live per firm (in code). Logged: api_key.created and
 -- api_key.revoked (actor office; {keyId}: never the label, which is typed text); the API's own
 -- changes carry {by: "firm", via: "api", keyId} with the system actor.
+-- The secret store (P5.1, migration 0054; ADR-026; src/lib/db/schema/secrets.ts): a firm's own
+-- credentials, each AES-256-GCM under SECRETS_KEY (the worker's and the owner command's settings
+-- only, never the web app's or the database's), with its firm and name bound in, so a value moved
+-- to another firm or name never opens (src/lib/secrets/crypto.ts). The app role has no rights on it
+-- at all (TABLE_ACCESS []); the owner writes it (npm run firm:secret, the value from standard
+-- input), logged firm.settings_changed {keys: ["secret.<name>"], change: added | replaced |
+-- removed}, never the value. Read only through app_read_firm_secret(firm, name), run as the owner
+-- and callable by the jobs role alone: the worker reads on a jobs-role connection of its own
+-- (src/lib/db/firm-secret.ts). Left out of the firm's data export.
+create table firm_secrets (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  name text not null,                    -- ^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){0,3}$, at most 64:
+                                         -- portal.api_key, portal.webhook_secret
+  ciphertext bytea not null,             -- the sealed value and its 16-byte tag (17 to 4112 bytes)
+  nonce bytea not null,                  -- 12 random bytes, new for every value
+  key_id text not null,                  -- which SECRETS_KEY sealed it: the first 12 hex of its
+                                         -- sha256, never the key
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  unique (firm_id, id),
+  unique (firm_id, name)
+);
+
 create table api_keys (
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),

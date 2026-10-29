@@ -8,6 +8,7 @@ export * from "./metrics";
 export * from "./people";
 export * from "./pay";
 export * from "./roster";
+export * from "./secrets";
 export * from "./strikes";
 export * from "./tenancy";
 export * from "./travel";

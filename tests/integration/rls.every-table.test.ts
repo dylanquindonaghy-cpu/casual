@@ -123,7 +123,21 @@ describe.each(EXPECTED_TABLES)("table %s", (table) => {
                   with_check: null,
                 },
               ]
-            : [tenant("firm_isolation", "ALL")];
+            : table === "firm_secrets"
+              ? [
+                  tenant("firm_isolation", "ALL"),
+                  // Only the owner (for app_read_firm_secret, P5.1) may read every firm's
+                  // secrets; the app role has no rights on the table at all.
+                  {
+                    policyname: "secret_read",
+                    permissive: "PERMISSIVE",
+                    roles: `{${urls.owner}}`,
+                    cmd: "SELECT",
+                    qual: "true",
+                    with_check: null,
+                  },
+                ]
+              : [tenant("firm_isolation", "ALL")];
     expect(rows).toEqual(expected);
   });
 

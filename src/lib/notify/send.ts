@@ -103,11 +103,7 @@ export async function sendToWorker(
       }));
     }
   } catch (error) {
-    return {
-      ok: false,
-      channel,
-      code: error instanceof NoTextSenderError ? NO_TEXT_SENDER : errorCode(error),
-    };
+    return { ok: false, channel, code: sendFailureCode(error) };
   }
   return {
     ok: true,
@@ -119,6 +115,13 @@ export async function sendToWorker(
 
 // What sendToWorker says when there's no text sender at all (P2.5): nothing was tried.
 export const NO_TEXT_SENDER = "no_text_sender";
+
+// The code a failed send logs: NO_TEXT_SENDER when there was no text sender at all, else the
+// error's (errorCode). Every sender that sends a WhatsApp or text itself (the login link and code)
+// logs it the same way, so the send-failure alert can leave it out (src/lib/ops/tick.ts).
+export const sendFailureCode = (error: unknown): string =>
+  error instanceof NoTextSenderError ? NO_TEXT_SENDER : errorCode(error);
+
 // Nothing could carry the message: no phone took a push, no text can go, and we hold no email
 // address for them (P2.4). Logged as the sender's failure, so the office can see who wasn't reached.
 export const NO_CHANNEL = "no_channel";

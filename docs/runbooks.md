@@ -143,13 +143,18 @@ new image within minutes of the merge):
 change to `.env`, then goes out at 09:00. A fix that can't wait: run `/opt/shiftdesk/deploy.sh
 --now` by hand.
 
-The job worker stays off until the Twilio sender exists: it can't start in production before then
-(messages must never be printed instead of sent), so `.env` has `COMPOSE_PROFILES=` empty and only
-the web app and Caddy run. After "Connect Twilio": set `COMPOSE_PROFILES=worker` and the messaging
-values, then `./deploy.sh --now`: it prints the worker being created and started, waits until
-it's healthy (about a minute), then "Applied the settings in .env", and `docker compose ps` shows
-the worker "healthy". If it fails instead ("No new image, but the app isn't running healthily"),
-`docker compose logs --tail 50 worker` shows why (usually a value missing in `.env`).
+The job worker runs from day one (P2.5), with the web app and Caddy. There's no text sender yet:
+`MESSAGING_TRANSPORT=` empty in `.env` means none, so nothing goes by WhatsApp or text, and a
+casual's messages (offers, reminders, the office's notices, licence messages) go by push to a phone
+they turned notifications on for, else by email to the address you hold for them, else not at all
+(logged `no_channel`: the office should phone them). Pushes need the casual to have logged in on
+that phone, and login links still go by WhatsApp only until P2.6 and P2.7, so before then it's
+email in practice: the more casuals have an email address in the firm's data, the more are
+reached. The worker needs the SMTP values ("Connect an email provider (SMTP)" in PLAN.md):
+without them it won't start. `docker compose ps` shows the worker "healthy"; if it isn't,
+`docker compose logs --tail 50 worker` shows why (usually a value missing in `.env`). Messages must
+never be printed instead of sent: `MESSAGING_TRANSPORT=console` is refused in production. Once the
+firm's text system is connected (Phase 15), `MESSAGING_TRANSPORT` names it.
 
 **The first time** (after "Set up the server (once)"), in the server's browser console (`sudo -i`
 first):
@@ -178,7 +183,7 @@ first):
    Actions tab.
 5. Start it by hand the first time: `./deploy.sh --now` (it prints "Deploying …" then "Deployed …
    (commit <the commit's 40-character SHA>)"). Then `docker compose ps` shows web ("healthy") and
-   caddy "Up" (and the worker "healthy", once it's turned on after "Connect Twilio"). If the
+   caddy "Up", and the worker "healthy" (P2.5). If the
    migration step stops with a certificate error ("self-signed certificate", "unable to verify",
    "unable to get local issuer certificate", "does not match certificate's altnames"), don't remove
    the end of the database addresses: tell Claude, with the message (the CA file, or the address
@@ -198,8 +203,8 @@ once (the timer could apply a half-done edit saved part-way), then `/opt/shiftde
 --now`. It prints "Applied the settings in .env" (or nothing, if the change didn't affect any
 container). Without `--now`, the timer applies it within 2 minutes (after 09:00 on event mornings).
 
-- **Turning the worker off again:** empty `COMPOSE_PROFILES=` in `.env`, then
-  `docker compose rm --stop --force worker` (turning a profile off doesn't remove its container).
+- **Turning the worker off:** it has no profile since P2.5 (it runs with the web app). To stop it
+  for a while, as for any container, below.
 - **Stopping a container on purpose** (the worker during an incident, say): stop the timer first,
   `systemctl stop shiftdesk-deploy.timer`, or its next run starts it again within 2 minutes. Start
   the timer again afterwards: `systemctl start shiftdesk-deploy.timer`.
@@ -528,7 +533,8 @@ alert…" line (a text, once the phone sender is connected).
 |---|---|---|
 | "N jobs failed after the last retry in the last hour (queue n, …)" | A background job (an offer wave, a reminder, a notice…) gave up | `docker compose logs worker --since 1h`, look for that queue's errors (codes only, no personal data). Fix the cause; a failed offer wave or notice isn't re-run by itself: tell the firm's office if a worker wasn't told something. A failed `inbound-message` job (a shifts-line answer) has normally already been passed to a person: it's in the firm's Need a person on Enquiries, unless the log says "and so did passing it to a person" (then the message is still unanswered: fix the cause and tell the firm's office) |
 | "{firm}'s rota sheet sync is failing ({code})" | The firm's Google Sheet hasn't synced for over 30 minutes and is still failing | The code says why: "Google Sheets sync failing" below. The office sees each failed sync in its action log |
-| "{firm}: N of M WhatsApps and texts failed to send in the last hour (P%), mostly {code}" | Twilio refused more than 5% of at least 20 messages (offers, reminders, notices, answers, shifts-line replies; a worker who turned texts off doesn't count) | Twilio's own log shows each refusal with its number (console.twilio.com → Monitor → Logs → Errors). Often: a template not approved, the account out of credit, or a number blocked. (The code in the alert is the app's; Twilio's numbered codes come with the Twilio sender) |
+| "{firm}: N of M WhatsApps and texts failed to send in the last hour (P%), mostly {code}" | Twilio refused more than 5% of at least 20 messages (offers, reminders, notices, answers, shifts-line replies; a worker who turned texts off doesn't count, nor a message tried with no text sender at all: `no_text_sender`, P2.5) | Twilio's own log shows each refusal with its number (console.twilio.com → Monitor → Logs → Errors). Often: a template not approved, the account out of credit, or a number blocked. (The code in the alert is the app's; Twilio's numbered codes come with the Twilio sender) |
+| "{firm}: N of M emails failed to send in the last hour (P%), mostly {code}" (P2.5) | The email provider refused more than 5% of at least 20 emails: casuals' messages with no text sender, and the office's emails | "Email not arriving" below: the provider's dashboard shows each refusal. The code is the email sender's (`EmailNotSentError`: it didn't go; `EmailMayHaveArrivedError`: cut off after it was handed over), or the server's own code |
 | "the web app's health check is failing (…)" | The worker can't get an OK from the web app on the same server | `docker compose ps` and `docker compose logs web --since 15m`; the outside uptime check says whether the internet sees it too. "Event-morning outage" below |
 | "{firm}: N login links by WhatsApp and text in the last hour…" or "…in the last 24 hours…" | The firm sent more than 100 login links in an hour, or more than 300 in a day (14.2). A crowd logging in at once (a big briefing) can do the first; otherwise someone may be asking for links to run up the firm's messages (each is paid) | Ask the firm's office whether they had a briefing or a crowd logging in then. If not, or if it comes back day after day: the firm's action log, Type "Logins", shows each link asked for and sent, and "Too many tries: logging in was paused" where a limit stopped someone (the log keeps no address, only who the link was for). If it keeps up, lower `LIMITS.loginPerIp` or `LIMITS.loginPerNumberDaily` in `src/lib/auth/throttle.ts` (tell Claude) |
 | "N Twilio webhook requests with a bad signature in the last hour" | Twilio's messages to us are being refused: `TWILIO_AUTH_TOKEN` in `.env` no longer matches the account (someone rotated it), the address set in Twilio differs from the one the app checks against (http instead of https, or a firm's own domain instead of `<slug>.<our domain>`), or someone is probing | Compare the token with Twilio's console (Account → API keys & tokens), and the webhook addresses with "Connect Twilio". If both match, it's probing: nothing to do unless it keeps up |

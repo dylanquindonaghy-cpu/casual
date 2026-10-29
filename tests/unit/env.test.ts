@@ -149,6 +149,28 @@ describe("environment", () => {
     }
   });
 
+  it("MESSAGING_TRANSPORT none (no text sender, P2.5): a choice in production too; empty means unset", () => {
+    expect(parseWorkerEnv({ ...worker, MESSAGING_TRANSPORT: "none" }).MESSAGING_TRANSPORT).toBe(
+      "none",
+    );
+    expect(parseWorkerEnv({ ...worker, MESSAGING_TRANSPORT: "" }).MESSAGING_TRANSPORT).toBe(
+      "console",
+    );
+    // In production (its other settings aside, tested in deploy.compose.test.ts): console and an
+    // empty value (console) are refused, none isn't.
+    const problems = (value: string) => {
+      try {
+        parseWorkerEnv({ ...worker, NODE_ENV: "production", MESSAGING_TRANSPORT: value });
+        return "";
+      } catch (err) {
+        return String(err);
+      }
+    };
+    expect(problems("console")).toMatch(/MESSAGING_TRANSPORT/);
+    expect(problems("")).toMatch(/MESSAGING_TRANSPORT/);
+    expect(problems("none")).not.toMatch(/MESSAGING_TRANSPORT/);
+  });
+
   it("rejects the twilio transport until it exists (Phase 4)", () => {
     expect(() => parseWorkerEnv({ ...worker, MESSAGING_TRANSPORT: "twilio" })).toThrow(
       /MESSAGING_TRANSPORT/,

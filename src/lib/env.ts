@@ -231,8 +231,12 @@ export const workerEnvSchema = z
   .object({
     ...appFields,
     DATABASE_JOBS_URL: connectsAs(JOBS_DB_ROLE),
-    // "twilio" is added with the Twilio transport in Phase 4. Until then it is a config error.
-    MESSAGING_TRANSPORT: z.enum(["console"]).default("console"),
+    // How WhatsApp and texts go: "console" prints them (development, tests, demo mode); "none"
+    // (P2.5): there's no text sender at all, so a casual's messages go by push, else email
+    // (src/lib/notify/send.ts deliverToWorker), and production can run the worker before the
+    // firm's text system is connected. "twilio" comes with Phase 15. An empty value (as the env
+    // examples ship it) means not set.
+    MESSAGING_TRANSPORT: unsetIfEmpty(z.enum(["console", "none"]).default("console")),
     // Google Sheets sync (src/lib/roster/sheets/transport.ts). "none" (the default): no sheet is
     // ever read, and the sync's tick isn't scheduled. "google": the real client, as the service
     // account whose key file is at GOOGLE_SERVICE_ACCOUNT_JSON_PATH (in the git-ignored secrets/,

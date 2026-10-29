@@ -5,7 +5,8 @@ import type { FirmTx, WithFirm } from "../db/scoped";
 import { events, firms, otpCodes, sessions, workers } from "../db/schema";
 import { workerEnv } from "../env";
 import { recordEvent } from "../events/record";
-import { errorCode, firmJobEnvelope, type FirmTask } from "../jobs/firm-job";
+import { firmJobEnvelope, type FirmTask } from "../jobs/firm-job";
+import { sendFailureCode } from "../notify/send";
 import { getTransport, type MessagingTransport } from "../messaging";
 import type { OutboundMessage } from "../messaging/transport";
 import { loginCodeMessage } from "../messaging/templates";
@@ -167,7 +168,7 @@ export async function sendLoginCode(
   try {
     sent = await deps.transport.send(claim.message);
   } catch (err) {
-    sent = { code: errorCode(err) };
+    sent = { code: sendFailureCode(err) };
   }
 
   // (3) The outcome, logged once (a rerun may have caught it up already, as unconfirmed).

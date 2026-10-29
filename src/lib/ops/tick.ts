@@ -4,6 +4,7 @@ import { firms, rosterSources } from "../db/schema";
 import type { ConnectionWaits, FirmTx, WithFirm } from "../db/scoped";
 import { INBOUND_MESSAGE_QUEUE } from "../inbound/job";
 import { log, type Logger } from "../log";
+import { NO_TEXT_SENDER } from "../notify/send";
 import { OFFER_WAVE_QUEUE } from "../offers/waves";
 import {
   aiFallbackAlert,
@@ -30,7 +31,8 @@ import {
 // - jobs that failed after their last retry (pg-boss `failed`), by queue, across all firms (the
 //   worker's own pg-boss connection reads them: `failedJobs`);
 // - each firm (inside its own transaction, RLS): an enabled rota sheet whose last sync failed, its
-//   WhatsApp and text sends (the events every sender writes) against the failures, and its login
+//   WhatsApp and text sends (the events every sender writes) against the failures, its emails the
+//   same (P2.5: with no text sender a casual's messages go by push or email), and its login
 //   links by WhatsApp and text (14.2: more than usual means a crowd, or someone running up its
 //   messages);
 // - each firm, too (P4.8): its messages the AI couldn't sort, its messages in and its offers out;
@@ -84,6 +86,10 @@ export const SEND_FAILED_ACTIONS = [
   "message.reply_failed",
 ] as const;
 
+// Failures that aren't the provider's: a casual who replied STOP (no text is tried), and no text
+// sender at all (P2.5: MESSAGING_TRANSPORT=none; nothing is tried).
+export const NOT_SEND_FAILURES = ["sms_opted_out", NO_TEXT_SENDER] as const;
+
 // A casual's login links (sent or tried), counted for the login-link alerts (14.2).
 export const LOGIN_LINK_ACTIONS = ["auth.link_sent", "auth.link_send_failed"] as const;
 
@@ -133,45 +139,62 @@ export async function firmAlerts(tx: FirmTx, firmId: string, now: Date): Promise
 
   const since = new Date(now.getTime() - HOUR_MS);
   const dayAgo = new Date(now.getTime() - 24 * HOUR_MS);
-  // The last hour's sends; the login links over the last 24 hours too (only those are read that
-  // far back).
+  // The last hour's sends, texts and emails apart; the login links over the last 24 hours too (only
+  // those are read that far back).
+  const texts = sql`e.data ->> 'channel' in ('whatsapp', 'sms')`;
+  const email = sql`e.data ->> 'channel' = 'email'`;
+  const counted = sql`(e.data ->> 'code') is null or e.data ->> 'code' not in (${list(NOT_SEND_FAILURES)})`;
+  const topCode = (channels: string[]) => sql`
+    (select f.data ->> 'code' from events f
+      where f.created_at > ${since} and f.created_at <= ${now}
+        and f.action in (${list(SEND_FAILED_ACTIONS)})
+        and f.data ->> 'channel' in (${list(channels)})
+        and f.data ->> 'code' not in (${list(NOT_SEND_FAILURES)})
+        and f.data ->> 'code' ~ '^[A-Za-z0-9_.-]{1,50}$'
+      group by 1 order by count(*) desc, 1 limit 1)`;
   const { rows } = await tx.execute<{
     sent: number;
     failed: number;
     top_code: string | null;
+    email_sent: number;
+    email_failed: number;
+    email_top_code: string | null;
     login_links: number;
     login_links_day: number;
   }>(sql`
-    select count(*) filter (where e.created_at > ${since}
+    select count(*) filter (where e.created_at > ${since} and ${texts}
                               and e.action in (${list(SEND_ACTIONS)}))::int as sent,
-           count(*) filter (where e.created_at > ${since}
+           count(*) filter (where e.created_at > ${since} and ${texts}
                               and e.action in (${list(LOGIN_LINK_ACTIONS)}))::int as login_links,
-           count(*) filter (where e.action in (${list(LOGIN_LINK_ACTIONS)}))::int as login_links_day,
-           count(*) filter (where e.created_at > ${since}
+           count(*) filter (where ${texts}
+                              and e.action in (${list(LOGIN_LINK_ACTIONS)}))::int as login_links_day,
+           count(*) filter (where e.created_at > ${since} and ${texts}
                               and e.action in (${list(SEND_FAILED_ACTIONS)})
-                              and e.data ->> 'code' is distinct from 'sms_opted_out')::int as failed,
-           (select f.data ->> 'code' from events f
-             where f.created_at > ${since} and f.created_at <= ${now}
-               and f.action in (${list(SEND_FAILED_ACTIONS)})
-               and f.data ->> 'channel' in ('whatsapp', 'sms')
-               and f.data ->> 'code' is distinct from 'sms_opted_out'
-               and f.data ->> 'code' ~ '^[A-Za-z0-9_.-]{1,50}$'
-             group by 1 order by count(*) desc, 1 limit 1) as top_code
+                              and (${counted}))::int as failed,
+           ${topCode(["whatsapp", "sms"])} as top_code,
+           count(*) filter (where e.created_at > ${since} and ${email}
+                              and e.action in (${list(SEND_ACTIONS)}))::int as email_sent,
+           count(*) filter (where e.created_at > ${since} and ${email}
+                              and e.action in (${list(SEND_FAILED_ACTIONS)}))::int as email_failed,
+           ${topCode(["email"])} as email_top_code
       from events e
      where e.created_at <= ${now}
        and (e.created_at > ${since}
             or (e.created_at > ${dayAgo} and e.action in (${list(LOGIN_LINK_ACTIONS)})))
-       and e.data ->> 'channel' in ('whatsapp', 'sms')
+       and e.data ->> 'channel' in ('whatsapp', 'sms', 'email')
   `);
   const counts = rows[0];
-  const sends = sendFailureAlert({
-    firmId,
-    slug: firm.slug,
-    sent: counts?.sent ?? 0,
-    failed: counts?.failed ?? 0,
-    topCode: counts?.top_code ?? null,
-  });
-  if (sends) alerts.push(sends);
+  for (const by of ["texts", "email"] as const) {
+    const sends = sendFailureAlert({
+      firmId,
+      slug: firm.slug,
+      sent: (by === "email" ? counts?.email_sent : counts?.sent) ?? 0,
+      failed: (by === "email" ? counts?.email_failed : counts?.failed) ?? 0,
+      topCode: (by === "email" ? counts?.email_top_code : counts?.top_code) ?? null,
+      by,
+    });
+    if (sends) alerts.push(sends);
+  }
   alerts.push(
     ...loginLinkAlerts({
       firmId,

@@ -100,6 +100,31 @@ describe("the alerts", () => {
     ).toBe(
       "ShiftDesk alert: acme: 20 of 20 WhatsApps and texts failed to send in the last hour (100%).",
     );
+    // Emails (P2.5): the same thresholds, their own key and words.
+    expect(
+      sendFailureAlert({
+        firmId: FIRM,
+        slug: "acme",
+        sent: 18,
+        failed: 2,
+        topCode: null,
+        by: "email",
+      }),
+    ).toEqual({
+      kind: "send_failures",
+      key: `send-email:${FIRM}`,
+      text: "ShiftDesk alert: acme: 2 of 20 emails failed to send in the last hour (10%).",
+    });
+    expect(
+      sendFailureAlert({
+        firmId: FIRM,
+        slug: "acme",
+        sent: 19,
+        failed: 1,
+        topCode: null,
+        by: "email",
+      }),
+    ).toBeNull();
   });
 
   it("login links: more than 100 in the hour, or more than 300 in 24 hours (14.2)", () => {

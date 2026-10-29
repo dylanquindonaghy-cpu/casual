@@ -4421,6 +4421,9 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
 - P2.4 (2026-10-29), for P2.5: the send-failure alert (`src/lib/ops/tick.ts`) counts WhatsApp and
   texts only, so with no text sender (P2.5) an SMTP outage that stops every casual's email, and
   casuals nobody could reach (`no_channel`), raise no alert. P2.5 should count `email` sends too.
+  (P2.5, 2026-10-29: emails now have an alert of their own. Still open: a casual nobody could
+  reach, `no_channel`, is in the action log only; the office's Needs attention should list them,
+  after the UI chat.)
 - P2.4 (2026-10-29), from its guardrails review, not blocking: (1) a run that stops after sending is
   caught up as "sent, unconfirmed" with the channel it was claimed with (the offer's, the licence
   message's), though it may have gone by push or email; (2) a casual's email goes from the app's

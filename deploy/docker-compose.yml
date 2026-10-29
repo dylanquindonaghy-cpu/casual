@@ -64,12 +64,11 @@ services:
       start_period: 30s
     logging: *logging
 
-  # Only with COMPOSE_PROFILES=worker in .env: it refuses to start in production until the Twilio
-  # sender exists (MESSAGING_TRANSPORT=console is refused there, by design), so until "Connect
-  # Twilio" it stays off rather than restarting for ever.
+  # Runs from day one (P2.5): with no text sender yet (MESSAGING_TRANSPORT=none, the default here)
+  # a casual's messages go by push, else email, so it needs the SMTP settings below (production
+  # refuses console email). MESSAGING_TRANSPORT=console is refused in production, by design.
   worker:
     image: *app-image
-    profiles: ["worker"]
     restart: unless-stopped
     # pg-boss lets running jobs finish for up to 30 seconds when it's stopped: give it longer
     # than Docker's default 10 before being killed (a job cut off mid-way would run again).
@@ -81,7 +80,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:?}
       DATABASE_JOBS_URL: ${DATABASE_JOBS_URL:?}
       SESSION_SECRET: ${SESSION_SECRET:?}
-      MESSAGING_TRANSPORT: ${MESSAGING_TRANSPORT:-}
+      MESSAGING_TRANSPORT: ${MESSAGING_TRANSPORT:-none}
       # Email over SMTP (docs/office-v2.md 5.8): the worker alone sends email, so only it gets the
       # provider's login (SMTP_PASS is a secret; the web app never sees it).
       EMAIL_TRANSPORT: ${EMAIL_TRANSPORT:-}

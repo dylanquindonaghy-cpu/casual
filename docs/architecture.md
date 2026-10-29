@@ -633,7 +633,9 @@ text sender at all). A push that one of their phones takes is the message: nothi
   new image, runs the one-off `migrate` step, then `up -d`, never between 05:30 and 09:00 UK.
   `deploy/docker-compose.yml`: only Caddy published (80/443), each service given only the secrets
   it needs (the owner's login only to `migrate`), everything `restart: unless-stopped`, the web
-  app's health check `GET /api/health`, the worker behind a profile until the Twilio sender exists.
+  app's health check `GET /api/health`, the worker running from day one with no text sender
+  (`MESSAGING_TRANSPORT=none`, P2.5: a casual's messages go by push, else email, until the firm's
+  text system is connected) and SMTP email.
   Only a push to this repository's `main` that passed CI publishes `:main`, and only while it's the
   tip. Nothing SSHes in to deploy: SSH is closed, or open only to the owner's own address
   (docs/runbooks.md "Set up the server (once)" step 3).)

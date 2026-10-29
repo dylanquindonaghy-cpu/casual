@@ -7,7 +7,8 @@ import { describe, expect, it } from "vitest";
 // deploy/deploy.sh run for real, with a stand-in `docker` first on its PATH that writes down every
 // command it's given and answers as Docker would for the case being tried. Before (audit M8) only
 // the script's text was checked, and it did nothing at all when the image was unchanged: a change
-// to .env, or the worker turned on with COMPOSE_PROFILES=worker, never reached the server.
+// to .env, or a service newly turned on (the worker, once with COMPOSE_PROFILES=worker; since P2.5
+// on the first deploy of a compose file where it has no profile), never reached the server.
 
 const ROOT = process.cwd();
 const IMAGE = "ghcr.io/owner/repo:main";
@@ -110,7 +111,7 @@ describe("deploy.sh, run", () => {
     expect(r.out).not.toContain("Deploying");
   });
 
-  it("the same image, the worker turned on (COMPOSE_PROFILES=worker): started", () => {
+  it("the same image, the worker newly turned on (the first compose file without its profile, P2.5): started", () => {
     const r = deploy({
       running: "web1",
       runningImage: "sha256:same",

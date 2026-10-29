@@ -11,7 +11,7 @@ import { redact } from "../log/mask";
 export const ALERT_KINDS = [
   "job_failures", // jobs that failed after their last retry
   "sync_failing", // a firm's rota sheet sync failing for over 30 minutes
-  "send_failures", // a firm's WhatsApps and texts failing to send
+  "send_failures", // a firm's WhatsApps and texts, or (P2.5) its emails, failing to send
   "health_down", // the web app's health check failing
   "webhook_signatures", // many Twilio webhook requests with a bad signature
   "login_links", // a firm sending far more login links than usual (14.2)
@@ -214,22 +214,27 @@ export function syncAlert(source: { firmId: string; slug: string; code: string }
 }
 
 // A firm's WhatsApp and text sends over the last hour: an alert over the threshold.
+// Texts (WhatsApp and text messages) and, since P2.5, emails, each counted apart with the same
+// thresholds and their own key: with no text sender, a casual's messages go by push or email, and
+// an email provider that stops sending must be noticed as a text provider would be.
 export function sendFailureAlert(s: {
   firmId: string;
   slug: string;
   sent: number;
   failed: number;
   topCode: string | null;
+  by?: "texts" | "email";
 }): OpsAlert | null {
   const total = s.sent + s.failed;
   if (total < THRESHOLDS.sendFailureMinTotal || s.failed / total <= THRESHOLDS.sendFailureRate) {
     return null;
   }
   const pct = Math.round((s.failed / total) * 100);
+  const email = s.by === "email";
   return alert(
     "send_failures",
-    `send:${s.firmId}`,
-    `${firmLabel(s.slug, s.firmId)}: ${s.failed} of ${total} WhatsApps and texts failed to send in the last hour (${pct}%)${s.topCode ? `, mostly ${s.topCode}` : ""}.`,
+    email ? `send-email:${s.firmId}` : `send:${s.firmId}`,
+    `${firmLabel(s.slug, s.firmId)}: ${s.failed} of ${total} ${email ? "emails" : "WhatsApps and texts"} failed to send in the last hour (${pct}%)${s.topCode ? `, mostly ${s.topCode}` : ""}.`,
   );
 }
 

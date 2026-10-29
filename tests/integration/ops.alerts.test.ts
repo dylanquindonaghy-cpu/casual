@@ -117,10 +117,11 @@ describe("a firm's signals", () => {
     await events(t, "auth.otp_sent", 2);
     await events(t, "auth.otp_send_failed", 1, { code: "twilio_21610" });
     // Not counted: over an hour ago, an office email, a worker who turned texts off (their choice,
-    // not Twilio's), and another firm's failures.
+    // not Twilio's), no text sender at all (P2.5: nothing was tried), and another firm's failures.
     await events(t, "offer.send_failed", 40, { minutesAgo: 70, code: "old" });
     await events(t, "auth.link_sent", 50, { channel: "email" });
     await events(t, "request.update_failed", 5, { code: "sms_opted_out" });
+    await events(t, "auth.link_send_failed", 5, { code: "no_text_sender" });
     await events(other, "offer.send_failed", 100, { code: "theirs" });
     const alerts = await alertsFor(t);
     expect(alerts).toEqual([
@@ -130,6 +131,29 @@ describe("a firm's signals", () => {
         text: `ShiftDesk alert: ${t.slug}: 4 of 24 WhatsApps and texts failed to send in the last hour (17%), mostly twilio_21610.`,
       },
     ]);
+  });
+
+  it("email failures (P2.5): their own alert, counted the same way, never mixed with texts", async () => {
+    const t = await createTenant(su);
+    // With no text sender, casuals' messages go by email: 18 went, 2 didn't.
+    await events(t, "offer.sent", 12, { channel: "email" });
+    await events(t, "shift.reminder_sent", 6, { channel: "email" });
+    await events(t, "offer.send_failed", 2, { channel: "email", code: "EmailNotSentError" });
+    // Texts are fine, and pushes aren't sends either way.
+    await events(t, "offer.sent", 30);
+    await events(t, "shift.reminder_sent", 40, { channel: "push" });
+    expect(await alertsFor(t)).toEqual([
+      {
+        kind: "send_failures",
+        key: `send-email:${t.firmId}`,
+        text: `ShiftDesk alert: ${t.slug}: 2 of 20 emails failed to send in the last hour (10%), mostly EmailNotSentError.`,
+      },
+    ]);
+    // Under the rate, or too few: nothing.
+    const fine = await createTenant(su);
+    await events(fine, "offer.sent", 19, { channel: "email" });
+    await events(fine, "offer.send_failed", 1, { channel: "email", code: "x" });
+    expect(await alertsFor(fine)).toEqual([]);
   });
 
   it("under the rate, or too few sends: nothing", async () => {

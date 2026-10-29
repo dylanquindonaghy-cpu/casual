@@ -10,8 +10,9 @@ Read when working here (the root `CLAUDE.md` still applies). Docs: `docs/archite
   rules. First yes wins (golden rule 4): one conditional update, zero rows means already filled.
 - One booking is cancelled with `cancelBooking()` (`cancel.ts`); the firm cancels or moves a whole
   session with `cancelShiftByFirm()` (`cancel.ts`) and `moveShiftByFirm()` (`firm-change.ts`),
-  each change with a reason and notice hours per booked casual (golden rules 5 and 12). Only
-  booking reruns the rules.
+  each change with a reason and notice hours per booked casual (golden rules 5 and 12). A move
+  reruns the rules for each booked casual at the new time (`recheckHolders()`, `recheck.ts`) and is
+  refused if one fails a check the office can't override; a cancellation runs no rules.
 - A `RosterPlug` (`plug.ts`) records; it doesn't decide. Every adapter passes the contract suite in
   `tests/helpers/roster-contract.ts`.
 - A Google Sheet syncs in a job, never a request (`sheets/sync.ts`), under a lease; who holds a

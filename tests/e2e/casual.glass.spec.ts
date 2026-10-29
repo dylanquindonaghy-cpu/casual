@@ -1,5 +1,5 @@
-import type { Browser, Locator, Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import type { Browser, BrowserContext, Locator, Page } from "@playwright/test";
+import { expect, test as base } from "./fixtures";
 import { codeSentTo, loginLinkSentTo } from "./outbox";
 
 // The casual app as round 7 of the canvas has it (Phase 24, 24.6; docs/mockups/phase-24/README.md
@@ -9,6 +9,8 @@ import { codeSentTo, loginLinkSentTo } from "./outbox";
 // you scroll down and opens again when you scroll up or tap it. Without JavaScript: the bar stays
 // in the page, the tab bar whole, every tab a plain link; the pass's Details and Open shifts' "Site
 // and role" still open. Then Pay: the week's total only when payroll gave every gross.
+// Zoe logs in once for the file (her session is every test's): her number gets 3 login links every
+// 15 minutes, and a login a test, with CI's retry of one, ran out (CI, 2026-10-29).
 
 const acme = "http://acme.localhost:3100";
 const ZOE = { typed: "07700 900400", e164: "+447700900400" };
@@ -23,6 +25,25 @@ async function login(page: Page, who: { typed: string; e164: string }) {
   await page.getByRole("button", { name: "Log me in" }).click();
   await expect(page).toHaveURL(`${acme}/`);
 }
+
+type Session = Awaited<ReturnType<BrowserContext["storageState"]>>;
+const test = base.extend<object, { zoeSession: Session }>({
+  // Once per test worker (a retry starts a new one, and logs in again).
+  zoeSession: [
+    async ({ browser }, provide) => {
+      const context = await browser.newContext({
+        extraHTTPHeaders: { "x-real-ip": "10.240.24.5" },
+      });
+      const page = await context.newPage();
+      await login(page, ZOE);
+      const session = await context.storageState();
+      await context.close();
+      await provide(session);
+    },
+    { scope: "worker" },
+  ],
+  storageState: async ({ zoeSession }, provide) => provide(zoeSession),
+});
 
 const capsuleOf = (page: Page) =>
   page.getByRole("navigation", { name: "Main" }).locator(":scope > div");
@@ -40,7 +61,7 @@ const wordShown = (page: Page, word: string) =>
 test("with JavaScript: the bar stays at the top and frosts; the tab bar shrinks scrolling down, opens scrolling up or on a tap", async ({
   page,
 }) => {
-  await login(page, ZOE);
+  await page.goto(`${acme}/`);
   await expect(page.getByRole("heading", { name: "Hi Zoe" })).toBeVisible();
   // Open shifts: long enough to scroll (a card a shift).
   await page.goto(`${acme}/shifts/open`);
@@ -96,7 +117,6 @@ test("without JavaScript: the bar in the page, the tab bar whole and plain links
   page,
   browser,
 }) => {
-  await login(page, ZOE);
   const plain = await noScript(browser, page);
   const home = await plain.newPage();
   await home.goto(`${acme}/`);
@@ -114,24 +134,23 @@ test("without JavaScript: the bar in the page, the tab bar whole and plain links
   await scrollTo(home, 0);
   const pass = home.getByRole("region", { name: "Your next shift" });
   await expect(home.locator("#pass-details")).toBeHidden();
-  await pass.locator("[data-pass-more] summary").click();
+  await tapWhenStill(pass.locator("[data-pass-more] summary"));
   await expect(home.locator("#pass-details")).toBeVisible();
   await expect(home.locator("#pass-details")).toContainText("Getting there, from your home area");
 
   // Every tab a plain link: Open shifts through Shifts, "Site and role" opening the filters.
-  await home
-    .getByRole("navigation", { name: "Main" })
-    .getByRole("link", { name: "Shifts" })
-    .click();
+  await tapWhenStill(
+    home.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Shifts" }),
+  );
   await expect(home).toHaveURL(`${acme}/shifts`);
-  await home.getByRole("link", { name: "Open", exact: true }).click();
+  await tapWhenStill(home.getByRole("link", { name: "Open", exact: true }));
   await expect(home).toHaveURL(`${acme}/shifts/open`);
   const filters = home.getByRole("form", { name: "Choose a day, site or role" });
   await expect(filters).toBeHidden();
-  await home.locator("[data-filters] summary").click();
+  await tapWhenStill(home.locator("[data-filters] summary"));
   await expect(filters).toBeVisible();
   await filters.getByLabel("Role").selectOption({ label: "Steward" });
-  await filters.getByRole("button", { name: "Show shifts" }).click();
+  await tapWhenStill(filters.getByRole("button", { name: "Show shifts" }));
   await expect(home).toHaveURL(/\/shifts\/open\?.*role=steward/);
   // The choice shows: the filters open, the role chosen.
   await expect(filters).toBeVisible();
@@ -142,7 +161,7 @@ test("without JavaScript: the bar in the page, the tab bar whole and plain links
 test("Pay: Zoe's newest week totals £324.00 over a row per rate; Ben's has no total, a line payroll gave no gross for", async ({
   page,
 }) => {
-  await login(page, ZOE);
+  await page.goto(`${acme}/`);
   await openPay(page, ZOE);
   const latest = page.getByRole("region", { name: /^Mon \d{1,2} [A-Z][a-z]{2} to Sun / });
   await expect(latest.getByText("Gross pay", { exact: true })).toBeVisible();
@@ -195,6 +214,21 @@ async function noScript(browser: Browser, page: Page) {
     hasTouch: true,
     extraHTTPHeaders: { "x-real-ip": "10.240.24.6" },
   });
+}
+
+// A tap on a page with JavaScript off, once nothing on it moves. Playwright's click waits for its
+// target to hold still across two frames; with JavaScript off, a click that starts while an
+// entrance animation is moving the target never completes (CI's trace: the button moved, then the
+// page drew no more frames for the click to wait on; the same locally, 3 tries of 3). A person taps
+// a still button; so does this.
+async function tapWhenStill(target: Locator) {
+  const page = target.page();
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.getAnimations().every((a) => a.playState === "finished")),
+    )
+    .toBe(true);
+  await target.click();
 }
 
 async function openPay(page: Page, who: { e164: string }) {

@@ -1843,7 +1843,7 @@ code emails) go in `docs/messaging-templates.md` first, for Dylan to approve (P2
       licence warning and notice), its body the message's own approved words (as in the WhatsApp
       templates); the casual's login-link and code emails; a policy paragraph on the order (push,
       then a text once a sender exists, then email) (P2.1)
-- [ ] Where a booking came from (S): `assignments.booked_via` (app: a casual's own take or an
+- [x] Where a booking came from (S): `assignments.booked_via` (app: a casual's own take or an
       accepted offer; office; sheet; api, for P5), checked like `cancel_via`, written by
       `bookShift()` (`src/lib/roster/book.ts`) and the sheet sync (`src/lib/roster/sheets/sync.ts`);
       the migration fills the bookings there are from each one's `shift.assigned` event, and one

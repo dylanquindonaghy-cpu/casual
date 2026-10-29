@@ -241,8 +241,9 @@ like every message (never a person's name).
 - A licence running out (`credential_expiring`): subject "Your {credential} expires on {date}"
 - A licence that has run out (`credential_expired`): subject "Your {credential} has expired"
 - Login link (P2.6, only where the firm has switched it on): subject "Your {firm} shifts link";
-  body "Here's your {firm} shifts link: {link}. It works for 15 minutes and only for you. If you
-  didn't ask for it, you can ignore this email. — {firm} Shift Team"
+  body "Here's your {firm} shifts link. It works for 15 minutes and only for you. If you didn't ask
+  for it, you can ignore this email: {link} — {firm} Shift Team" (the link last, as in
+  `login_link`, never followed by a full stop a phone could take into it; Dylan, 2026-10-29)
 - Pay code (P2.6, the same): subject "Your {firm} code"; body "Your {firm} code is {code}. It works
   for 10 minutes. Don't share it with anyone. If you didn't ask for it, you can ignore this email.
   — {firm} Shift Team"

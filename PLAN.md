@@ -2726,6 +2726,10 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
 
 (Ideas that came up mid-build. Not in scope until a phase includes them.)
 
+- The connector (P5's phase audit, 2026-10-29), before a real one: `CONNECTOR_TRANSPORT` takes
+  only `none` and `fake` today, so no test can reach a real source; the real transport adds its
+  refusal under `NODE_ENV=test` and a pin in `tests/setup/env.ts`, `playwright.config.ts` and
+  `scripts/invariants.sh`, as every real sender has.
 - The connector (P5.3's review), before a real one: a session or staff record gone from the
   firm's system is only `ignored gone` on its event (nothing on Needs attention, the session stays
   with its bookings: with the sync card, after the UI chat); `connector_events` are kept for ever

@@ -139,6 +139,15 @@ describe("quoted history taken off", () => {
         ),
       ),
     ).toBe("On Saturday I can do 1930 to 0300");
+    expect(
+      ownWords(
+        lines(
+          "On Saturday I can do 19.30-03.00",
+          "Acme Shift Team <shifts@acme.example.com> wrote:",
+          "> Can you do Saturday?",
+        ),
+      ),
+    ).toBe("On Saturday I can do 19.30-03.00");
     // Nor one quoted differently from the header, a date in it or not.
     expect(
       ownWords(
@@ -146,6 +155,17 @@ describe("quoted history taken off", () => {
           "On Sunday 8 Nov 2026 I can do the late shift",
           "> Acme Shift Team <shifts@acme.example.com> wrote:",
           ">> Can you do Saturday?",
+        ),
+      ),
+    ).toBe("On Sunday 8 Nov 2026 I can do the late shift");
+    // Nor one with a quoted line between it and the header.
+    expect(
+      ownWords(
+        lines(
+          "On Sunday 8 Nov 2026 I can do the late shift",
+          "> Sam: and Monday?",
+          "Acme Shift Team <shifts@acme.example.com> wrote:",
+          "> Can you do Saturday?",
         ),
       ),
     ).toBe("On Sunday 8 Nov 2026 I can do the late shift");
@@ -177,6 +197,38 @@ describe("quoted history taken off", () => {
     expect(
       ownWords(lines("Yes.", "\u00a0> Sam: can you do Saturday?", "\u00a0>> And Sunday?")),
     ).toBe("Yes.");
+  });
+
+  it("a reply written under the quote goes on past a header quoted inside the quote", () => {
+    expect(
+      ownWords(
+        lines(
+          "On Mon, 2 Nov 2026 at 09:00, Acme Shift Team <shifts@acme.example.com> wrote:",
+          "> Can you do Saturday?",
+          "Yes.",
+          ">",
+          "> On Sun, 1 Nov 2026 at 18:00, Ann Example <ann.example@example.com> wrote:",
+          ">> Is there work this weekend?",
+          "",
+          "Sunday too if you need me.",
+        ),
+      ),
+    ).toBe("Yes.\n\nSunday too if you need me.");
+    // An iPhone's reply under the quote, its sign-off above its own quoted header.
+    expect(
+      ownWords(
+        lines(
+          "On Mon, 2 Nov 2026 at 09:00, Acme Shift Team <shifts@acme.example.com> wrote:",
+          "> Can you do Saturday?",
+          "Yes, see you then.",
+          "",
+          "Sent from my iPhone",
+          "",
+          "> On 1 Nov 2026, at 18:00, Ann Example <ann.example@example.com> wrote:",
+          ">> Is there work this weekend?",
+        ),
+      ),
+    ).toBe("Yes, see you then.");
   });
 
   it("a reply written under the quote stops at an older mail further down", () => {

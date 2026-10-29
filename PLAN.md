@@ -4104,7 +4104,16 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
   WhatsApp templates". Until then the office can answer it with a note saying what they did.
 - Strikes (12C.1): no per-firm switch to turn strikes off; every firm on ShiftDesk records them. The switch came back (P3.4, `strikes.enabled`, "Connecting the firm's systems" 6); the casual's strike sentences read it after the UI chat's Phase 24.
 - An owner command to change a firm's credential rule, logged (P3.3's review): a firm set up before P3.3 keeps `security_officer: SIA_SG` with no one-of group, and only a hand edit in the database could change it today.
-  Add one if a firm doesn't want them (`docs/dpia-strikes.md`).
+- Login (auth: Dylan's to approve): two of one worker's login links used within milliseconds can,
+  rarely, refuse the second as "used" (`tests/integration/auth.magic-link.test.ts`, "two of one
+  worker's links used at the same moment both work", failed once in a full verify run on
+  2026-10-29, nothing it covers having changed). The mechanism: when the test's lock-holder
+  commits, the first login wakes, spends its link, and retires the worker's other unused links
+  with `FOR UPDATE SKIP LOCKED` (`retireOtherLinks()`, `src/lib/auth/magic-links.ts`); the second
+  login's row then looks unlocked (the holder's lock is committed, and the second hasn't locked
+  it again yet), so it's retired, and the second login finds it used. A fix: retire only the
+  links issued before the one being spent (two at once then never retire each other's), which
+  changes what "logging in retires the worker's other links" means for a newer link.
 
 - Security updates for Next.js, sharp and source-map-js: `npm audit` reports 3 high advisories in
   these (found 2026-10-09 during 12C.3; they were there before it: 12C.3 added only `pdf-lib`,

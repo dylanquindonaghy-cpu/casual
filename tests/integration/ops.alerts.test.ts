@@ -120,7 +120,8 @@ describe("a firm's signals", () => {
     // Login codes count too: since Phase 10 every sender logs its failures (none fails its job).
     await events(t, "auth.otp_sent", 2);
     await events(t, "auth.otp_send_failed", 1, { code: "twilio_21610" });
-    // Not counted: over an hour ago, an office email, a worker who turned texts off (their choice,
+    // Not counted as texts: over an hour ago, an office email (the email alert's), a worker who
+    // turned texts off (their choice,
     // not Twilio's), no text sender at all (P2.5: nothing was tried), and another firm's failures.
     await events(t, "offer.send_failed", 40, { minutesAgo: 70, code: "old" });
     await events(t, "auth.link_sent", 50, { channel: "email" });

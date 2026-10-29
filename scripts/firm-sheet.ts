@@ -182,7 +182,7 @@ try {
           `${result.replaced ? "Replaced" : "Connected"} ${slug}'s sheet, in ${where}.\n` +
             `${shareStep()}\n` +
             "Its locale must be United Kingdom (File, Settings, Locale), or the sync refuses it.\n" +
-            "The worker reads it at its next sync, if it's running with SHEETS_TRANSPORT=google (on the server, that's once Twilio is connected): within a minute on a day with shifts on, otherwise within 15. Check with:\n" +
+            "The worker reads it at its next sync, if it's running with SHEETS_TRANSPORT=google (on the server, from the first deploy): within a minute on a day with shifts on, otherwise within 15. Check with:\n" +
             `  npm run -s firm:sheet -- --firm ${slug}`,
         );
         break;

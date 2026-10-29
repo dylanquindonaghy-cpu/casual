@@ -54,8 +54,10 @@ describe("demo mode settings", () => {
     );
   });
 
-  // (Texts have only the console sender until Phase 15's: the settings refuse anything else.)
+  // Texts too: in demo mode only the console sender, never none (P2.5), which would leave email
+  // nowhere to print (demo mode doesn't route email apart).
   it.each([
+    ["MESSAGING_TRANSPORT", "none"],
     ["EMAIL_TRANSPORT", "smtp"],
     ["WEBHOOK_TRANSPORT", "https"],
     ["PUSH_TRANSPORT", "webpush"],

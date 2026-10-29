@@ -117,8 +117,9 @@ export async function sendToWorker(
 export const NO_TEXT_SENDER = "no_text_sender";
 
 // The code a failed send logs: NO_TEXT_SENDER when there was no text sender at all, else the
-// error's (errorCode). Every sender that sends a WhatsApp or text itself (the login link and code)
-// logs it the same way, so the send-failure alert can leave it out (src/lib/ops/tick.ts).
+// error's (errorCode). Every sender that sends a WhatsApp or text itself (the login link and code,
+// the shifts line's unknown-number reply and STOP or START answer) logs it the same way, so the
+// send-failure alert can leave it out (src/lib/ops/tick.ts).
 export const sendFailureCode = (error: unknown): string =>
   error instanceof NoTextSenderError ? NO_TEXT_SENDER : errorCode(error);
 

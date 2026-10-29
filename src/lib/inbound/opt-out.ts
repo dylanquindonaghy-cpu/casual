@@ -2,7 +2,7 @@ import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { messages, workers } from "../db/schema";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
-import { errorCode } from "../jobs/firm-job";
+import { sendFailureCode } from "../notify/send";
 import type { MessagingTransport } from "../messaging";
 import { smsStartedMessage, smsStoppedMessage, type FirmVoice } from "../messaging/templates";
 import { lockUnhandled } from "./claim";
@@ -123,7 +123,7 @@ export async function answerOptOut(
   try {
     sent = await deps.transport.send({ channel: "sms", to: c.from, from: c.line, body });
   } catch (err) {
-    sent = { error: errorCode(err) };
+    sent = { error: sendFailureCode(err) };
   }
 
   return run(payload.firmId, async (tx): Promise<OptOutResult> => {

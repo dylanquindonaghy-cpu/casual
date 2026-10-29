@@ -114,7 +114,8 @@ describe("environment", () => {
       real,
     );
     expect(parseAppEnv({ ...app, ...prod }).INTEGRATIONS_SECRET).toBeUndefined();
-    // The worker can't start in production yet (its console transport), so compare what it says.
+    // The worker can't start in production on the console transport (the default here), so compare
+    // what it says.
     const workerProblems = (secret: string) => {
       try {
         parseWorkerEnv({ ...worker, ...prod, PUSH_TRANSPORT: "none", INTEGRATIONS_SECRET: secret });

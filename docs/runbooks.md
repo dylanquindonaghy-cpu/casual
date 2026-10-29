@@ -204,7 +204,9 @@ once (the timer could apply a half-done edit saved part-way), then `/opt/shiftde
 container). Without `--now`, the timer applies it within 2 minutes (after 09:00 on event mornings).
 
 - **Turning the worker off:** it has no profile since P2.5 (it runs with the web app). To stop it
-  for a while, as for any container, below.
+  for a while: stop the timer first (below), then `docker compose stop worker`; nothing goes to
+  casuals meanwhile, and jobs wait in the queue. `./deploy.sh --now` (or the timer, once
+  restarted) starts it again: `docker compose start worker` does the same by hand.
 - **Stopping a container on purpose** (the worker during an incident, say): stop the timer first,
   `systemctl stop shiftdesk-deploy.timer`, or its next run starts it again within 2 minutes. Start
   the timer again afterwards: `systemctl start shiftdesk-deploy.timer`.
@@ -441,8 +443,8 @@ database service.
 
 Deploy, Rollback and Restore have never been run: Deploy and Rollback were checked only against the
 scripts, and Restore is written for any host, not yet yours. Try each once on the real server
-**after "Connect Twilio" and "Connect an email provider (SMTP)"** (office logins come by email, sent
-by the worker, which can't run in production before Twilio) and **before any real worker's data is
+**after "Connect an email provider (SMTP)"** (office logins come by email, sent by the worker, which
+runs from day one but needs the SMTP settings to start: P2.5) and **before any real worker's data is
 imported** (Gate B): the database then holds only a test firm of your own, so a restore that goes
 wrong costs nothing. Allow about two hours on a weekday, outside 05:30–09:00 UK. Write each result
 in the table at the end, and tell Claude anything that was wrong or unclear so the runbook gets
@@ -523,9 +525,9 @@ The app's own alerts are below ("Alerts from the app").
 The app watches itself and sends you a short "ShiftDesk alert: …" (no names, numbers or messages
 in it). Until the phone sender is connected (PLAN.md Parking lot, "Connect alerts to your phone"),
 each one is a line in the log: `docker compose logs web worker | grep "ops alert"`. The same
-problem alerts at most once an hour. The worker checks every 5 minutes. Until "Connect Twilio"
-nothing fires in production (the worker is off, and the webhooks don't check signatures until
-Twilio's token is set). To check alerts reach you: `docker compose exec worker npm run -s
+problem alerts at most once an hour. The worker checks every 5 minutes, in production from the
+first deploy (P2.5); only the bad-signature alert waits for Twilio (the webhooks don't check
+signatures until Twilio's token is set). To check alerts reach you: `docker compose exec worker npm run -s
 ops:test-alert` (or on your computer, `npm run -s ops:test-alert`): a "ShiftDesk alert: a test
 alert…" line (a text, once the phone sender is connected).
 
@@ -738,9 +740,9 @@ are sent by the worker, over SMTP, through the email provider in `.env` (docs/of
 Each failed one is logged with its reason, and never sent twice by itself.
 
 1. **Is the worker running?** In the server's browser console, `sudo -i`, `cd /opt/shiftdesk`,
-   `docker compose ps`: `worker` should say "healthy". It's off until "Connect Twilio" (then no
-   email goes at all). It refuses to start without the email settings: `docker compose logs --tail
-   50 worker` says which one is missing.
+   `docker compose ps`: `worker` should say "healthy" (it runs from day one, P2.5; while it's down
+   no email goes at all). It refuses to start without the email settings: `docker compose logs
+   --tail 50 worker` says which one is missing.
 2. **What happened to it:** the office's action log (Records → Action log) shows that it failed
    ("A login link to an office user couldn't be sent."). Why: `docker compose logs --since 2h
    worker | grep -E 'EmailNotSent|EmailMayHave'` shows one line per failed email, with the step
@@ -961,7 +963,7 @@ In order (who does it, how, and what done looks like):
 3. **Branding and sign-off** (you, with the firm's logo address and colour): "Setting a firm's
    brand" below. Its own domain, if it wants one: "A firm's own domain" below.
 4. **Office users** (you): the admin from step 2 can log in at `acme.<our domain>/office` once the
-   worker is running and emails go out ("Connect Twilio", "Connect an email provider (SMTP)").
+   worker is running and emails go out ("Connect an email provider (SMTP)").
    Resourcers and payroll: `npm run -s firm:office-user -- --firm acme --role resourcer --email
    sam@acme-events.example --name "Sam Rota"` (roles: admin, resourcer, payroll). It says "Added: they can
    now log in to acme's office as resourcer." An email that already has a login is left as it is (it says its role and whether it's active).

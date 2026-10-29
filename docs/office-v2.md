@@ -1203,10 +1203,8 @@ planner" email, which are not built.
   rules engine, notice hours and the notices to casuals (golden rules 1, 6, 12). Both accept only
   an active office user today, so S11 adds the API as a second, narrower caller (5.1 S11 (d)).
 - **One database change, S11** (5.1), which also adds a new machine login: approved by Dylan on 2026-10-06.
-- **Webhooks need the worker**, which runs in production only once Twilio is connected
-  (`deploy/docker-compose.yml`: the worker refuses the console messaging transport in
-  production). The API itself runs on the web app alone. (2026-10-26: Twilio is no longer planned;
-  proposal P2 in `PLAN.md` lets the worker start in production without a text sender.)
+- **Webhooks need the worker**, which runs in production from the first deploy since P2.5
+  (`MESSAGING_TRANSPORT=none`: no text sender). The API itself runs on the web app alone.
 - **The Google Sheets plug and the file import stay as built, frozen** (5.3.5).
 
 #### 5.3.2 The API

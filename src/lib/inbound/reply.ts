@@ -10,7 +10,7 @@ import { passesLogCheck, recordEvent } from "../events/record";
 import { errorCode, type FirmTask, type JobAttempt } from "../jobs/firm-job";
 import { log } from "../log";
 import { getTransport, type MessagingTransport } from "../messaging";
-import { sendToWorker, smsAllowedFor } from "../notify/send";
+import { sendFailureCode, sendToWorker, smsAllowedFor } from "../notify/send";
 import {
   shiftsLineReply,
   unknownNumberAlertEmail,
@@ -594,7 +594,7 @@ async function answerUnknown(
         body: plan.reply,
       });
     } catch (err) {
-      reply = { error: errorCode(err) };
+      reply = { error: sendFailureCode(err) };
     }
   }
   // Says whether they were asked for their name: only a WhatsApp from a number nobody here has

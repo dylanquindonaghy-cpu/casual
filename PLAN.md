@@ -982,7 +982,7 @@ still waiting for Dylan's OK stays unticked, with the reason in the Parking lot.
       cancels, and the record shows "Sent to your planner" (console transport);
       `guardrails-reviewer` (messaging, tenancy). Docs: `docs/integrations.md` (webhook types, the
       body and its schemas, verification code, retries, and that webhooks need the worker, which
-      runs in production once Twilio is connected), `docs/compliance.md` (what goes to the
+      runs in production once Twilio is connected; since P2.5, from the first deploy), `docs/compliance.md` (what goes to the
       planner and what never does), `docs/runbooks.md` (a failing webhook, a leaked key, rotating
       `INTEGRATIONS_SECRET`), `docs/architecture.md` ("the action log is the outbox"), ADR-022's
       webhook part (12J.2)
@@ -2857,9 +2857,8 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
   8. **Claude, after Dylan:** tell Claude what step 7 showed; anything that didn't match is looked
      into (some refusals are on purpose: a name the rules refuse stays in its cell and shows on
      Today's "From your rota sheet").
-  9. **On the server** (after "Connect hosting", "Connect the deploy" and **"Connect Twilio"**: the
-     worker, which runs the sync, only starts once Twilio is connected and `COMPOSE_PROFILES=worker`
-     is set; until then no sheet is read on the server):
+  9. **On the server** (after "Connect hosting" and "Connect the deploy": the worker, which runs
+     the sync, runs from the first deploy since P2.5, with the SMTP settings):
      1. Get the key file onto the server: copy it over SSH (`scp`), or with the host console's
         "Upload file" if it has one (it lands in the home folder). If neither works, stop and ask Claude for another way: never paste the key into a
         chat or an email.
@@ -3065,7 +3064,7 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
   5. On the server: `docker compose exec worker npm run -s ops:test-alert`. You should get a text
      starting "ShiftDesk alert: a test alert" within a minute. If not: `docker compose logs worker
      --since 5m | grep "ops alert"`.
-  6. Then tick the task. The worker must be running (it's off until "Connect Twilio" anyway).
+  6. Then tick the task. The worker must be running (from the first deploy since P2.5).
 - Onboarding follow-ups (Phase 9 onboarding checklist task):
   - Owner commands on the server need a long `docker compose run … web node --import tsx scripts/…`
     line (docs/runbooks.md "Onboarding a pilot firm"): not tried yet. A small wrapper script on the
@@ -3163,11 +3162,11 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
   and a CI job that builds the image on every push (check the "docker" job is green in GitHub's
   Actions tab before merging: `next build` has never run inside Docker yet). Follow
   docs/runbooks.md "Deploy" ("The first time", 6 steps), then tick the task. **Before that:**
-  (1) the worker won't start in production until the Twilio sender exists (by design:
-  `MESSAGING_TRANSPORT=console` is refused in production), so it's behind `COMPOSE_PROFILES=worker`
-  and stays off; "Connect Twilio" comes before a real pilot; until then only the web app and Caddy
-  run (turning it on later: set `COMPOSE_PROFILES=worker` and the Twilio values in `.env`, then
-  `./deploy.sh --now`, which now applies `.env` changes: Phase 10 task 17); (2) merging
+  (1) since P2.5 the worker runs from the first deploy with no text sender
+  (`MESSAGING_TRANSPORT=` empty: none), and it needs the email settings to start, so **"Connect an
+  email provider (SMTP)" comes before the first deploy**: without them the worker fails its
+  settings check, `up --wait` fails, and every `deploy.sh` run reports the app unhealthy (the web
+  app still serves); (2) merging
   `build/overnight` into `main` is yours to do (the overnight rules never touch `main`), and it's
   what first builds the image; (3) **the database's TLS is on** (Phase 10 task 17): the three
   database addresses in `deploy/env.example` end with `sslmode=verify-full` and a CA file, which
@@ -3539,8 +3538,8 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
   on `POST /api/push/subscribe`, and the compliance and privacy wording. The last of Claude's, each
   push sent with no transaction open, was built in 14.1, and the worker now takes
   `PUSH_TRANSPORT=webpush` in production. The rest is yours, on the server. The worker sends the
-  pushes, and in production it only runs once Twilio is connected (`COMPOSE_PROFILES=worker`:
-  docs/runbooks.md), so do these after "Connect Twilio":
+  pushes; since P2.5 it runs in production from the first deploy (docs/runbooks.md), so do these
+  any time after "Connect the deploy":
   1. **You:** on the server, in the app's folder, type
      `docker compose run --rm --no-deps web node_modules/.bin/web-push generate-vapid-keys`. (It
      uses the copy of web-push inside the app's image, the version the app was tested with.) It

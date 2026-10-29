@@ -135,7 +135,8 @@ async function claimCode(
       action: "auth.otp_send_failed",
       entityType: "session",
       entityId: payload.sessionId,
-      data: { channel: null, code: NO_CHANNEL },
+      // The worker's id, so the office's log names them.
+      data: { workerId: target.workerId, channel: null, code: NO_CHANNEL },
     });
     return { done: "no_channel" };
   }

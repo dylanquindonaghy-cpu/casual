@@ -23,8 +23,9 @@ import { forgetPhones, reflagFutureBookings } from "./worker-effects";
 //   made inactive and then active again doesn't get their old sessions back (audit L80);
 // - an email address is kept lowercased, and one that isn't an address is refused
 //   (WorkerEmailInvalid): login links and pay codes can go to it (P2.6). A changed or removed
-//   address signs the worker out everywhere, as a changed mobile does: a link may have gone to the
-//   old inbox. A first address signs nobody out (nothing could have gone to it before);
+//   address signs the worker out everywhere and forgets their phones' notifications, as a changed
+//   mobile does: a link may have gone to the old inbox, and whoever used it may have turned
+//   notifications on. A first address signs nobody out (nothing could have gone to it before);
 // - a worker who stops being active has their future bookings flagged on the office's dashboard
 //   (src/lib/office/today.ts), for the office to cancel or keep, and their phones' notifications
 //   forgotten; any status change clears "kept" on their bookings ahead, so each is looked at again;
@@ -225,10 +226,12 @@ export async function upsertWorker(
   if (changed.includes("mobileE164") || changed.includes("status") || addressChanged) {
     ended = await endEverySession(tx, { kind: "worker", subjectId: existing.id, now: from.now });
   }
-  // A new mobile, or no longer active: their phones' notifications go too (a firm-change notice's
-  // push must not reach a phone that isn't theirs, or a leaver).
+  // A new mobile or email, or no longer active: their phones' notifications go too (a firm-change
+  // notice's push must not reach a phone that isn't theirs, or a leaver).
   const phones =
-    changed.includes("mobileE164") || (changed.includes("status") && next.status !== "active")
+    changed.includes("mobileE164") ||
+    addressChanged ||
+    (changed.includes("status") && next.status !== "active")
       ? await forgetPhones(tx, existing.id)
       : 0;
   // Any status change: their bookings ahead are looked at again on the dashboard (one kept for one reason

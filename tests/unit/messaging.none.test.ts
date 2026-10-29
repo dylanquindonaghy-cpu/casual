@@ -40,4 +40,25 @@ describe("no text sender (MESSAGING_TRANSPORT=none)", () => {
       }).name,
     ).toBe("none+smtp");
   });
+
+  // P2.6: the login link and code ask the transport whether a text can go, before they're made.
+  it("says there's no text sender, through SMTP or console email; the console sender doesn't", () => {
+    const smtp = {
+      EMAIL_TRANSPORT: "smtp" as const,
+      SMTP_HOST: "smtp.example.test",
+      SMTP_FROM: "shifts@example.test",
+    };
+    expect(
+      getTransport({ MESSAGING_TRANSPORT: "none", NODE_ENV: "production", ...smtp }).texts,
+    ).toBe(false);
+    expect(getTransport({ MESSAGING_TRANSPORT: "none", NODE_ENV: "development" }).texts).toBe(
+      false,
+    );
+    expect(
+      getTransport({ MESSAGING_TRANSPORT: "console", NODE_ENV: "development", ...smtp }).texts,
+    ).toBeUndefined();
+    expect(
+      getTransport({ MESSAGING_TRANSPORT: "console", NODE_ENV: "development" }).texts,
+    ).toBeUndefined();
+  });
 });

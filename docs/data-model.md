@@ -201,7 +201,7 @@ create table workers (
   first_name text not null,
   last_name text not null,
   mobile_e164 text,                      -- empty only once erased (below)
-  email text,                            -- lowercase, checked as an address (upsertWorker, P2.6)
+  email text,                            -- kept lowercase and checked as an address by upsertWorker (P2.6; the app's rule, no database check)
   status text not null default 'active', -- active | inactive | blocked
   roles text[] not null default '{}',
   external_ref text,                     -- the sheet's staff id (Sheets firms); null otherwise

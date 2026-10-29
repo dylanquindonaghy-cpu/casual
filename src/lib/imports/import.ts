@@ -20,6 +20,7 @@ import { normaliseRole, parseSheetDate, parseSheetTime } from "../roster/sheets/
 import {
   sameName,
   upsertWorker,
+  WorkerEmailInvalid,
   WorkerIdentityChange,
   WorkerNameMismatch,
 } from "../roster/workers";
@@ -242,6 +243,8 @@ export async function runImport(tx: FirmTx, opts: ImportOptions): Promise<Import
         if (err instanceof Problem) outcome = err.code;
         else if (err instanceof WorkerNameMismatch) outcome = "name_mismatch";
         else if (err instanceof WorkerIdentityChange) outcome = "identity_change";
+        // Checked above already (bad_email); the upsert's own check says the same (P2.6).
+        else if (err instanceof WorkerEmailInvalid) outcome = "bad_email";
         else if (uniqueViolation(err) === "workers_firm_id_mobile_key")
           outcome = "duplicate_mobile";
         else if (uniqueViolation(err)) outcome = "duplicate_row";

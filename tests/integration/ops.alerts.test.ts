@@ -206,15 +206,16 @@ describe("a firm's signals", () => {
     const other = await createTenant(su);
     const logins = async (firm: Tenant) =>
       (await alertsFor(firm)).filter((a) => a.kind === "login_links");
-    // Sent or tried: 100 in the hour is not more than the threshold.
-    await events(t, "auth.link_sent", 90);
+    // Sent or tried, by WhatsApp or text: 100 in the hour is not more than the threshold.
+    await events(t, "auth.link_sent", 89);
+    await events(t, "auth.link_sent", 1, { channel: "sms" });
     await events(t, "auth.link_send_failed", 10, { code: "timeout" });
     // Not counted: the office's links (by email), links over an hour ago, another firm's.
     await events(t, "auth.link_sent", 50, { channel: "email", purpose: "office_login" });
     await events(t, "auth.link_sent", 50, { minutesAgo: 70 });
     await events(other, "auth.link_sent", 200);
     expect(await logins(t)).toEqual([]);
-    // A casual's link by email (P2.6) counts, as one by text does.
+    // A casual's link by email counts too (P2.6).
     await events(t, "auth.link_sent", 1, { channel: "email", purpose: "worker_login" });
     expect(await logins(t)).toEqual([
       {

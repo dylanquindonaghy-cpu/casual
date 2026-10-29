@@ -747,18 +747,19 @@ describe("an email from a file (P2.6: login links and pay codes can go to it)", 
     ]);
   });
 
-  it("a changed or removed address ends their sessions and unused links (their phones stay)", async () => {
+  it("a changed or removed address ends their sessions and unused links, and forgets their phones", async () => {
     const { f } = await firm();
     const ann = await f.worker({ first: "Ann" });
     await fromSheet(f.firmId, ann, { email: "ann.booker@example.test" });
     await waysIn(f.firmId, ann);
     await fromSheet(f.firmId, ann, { email: "ann.new@example.test" });
-    expect(await waysLeft(ann)).toEqual({ sessions: 0, links: 0, phones: 1 });
+    expect(await waysLeft(ann)).toEqual({ sessions: 0, links: 0, phones: 0 });
     expect((await events(f.firmId, "worker.updated")).at(-1)?.data).toEqual({
       source: "csv",
       fields: ["email"],
       sessionsRevoked: 1,
       linksSpent: 1,
+      devicesForgotten: 1,
     });
     await waysIn(f.firmId, ann);
     await fromSheet(f.firmId, ann, { email: null });

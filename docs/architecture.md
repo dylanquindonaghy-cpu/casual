@@ -103,7 +103,9 @@ the jobs role owns the pgboss tables and isn't firm-restricted there, so payload
 **Workers (no passwords):**
 1. Enter mobile number on the firm's portal.
 2. If the number belongs to an active worker in this firm, send a one-time link by WhatsApp
-   (template) or SMS. Same response either way, so numbers can't be probed.
+   (template) or SMS. Same response either way, so numbers can't be probed. With no text sender
+   (P2.5) and the firm's `login_by_email` on, by email to the address held for them instead
+   (P2.6; off by default until the login page stops naming WhatsApp, P2.7).
 3. Link token: random 32 bytes, stored as a hash, single use, 15-minute expiry. The token goes
    in the URL fragment (`/l#<token>`), never the path or query string: browsers don't send the
    fragment to the server, so it never reaches request logs, proxies or Referer headers.
@@ -113,7 +115,8 @@ the jobs role owns the pgboss tables and isn't firm-restricted there, so payload
    working for 60 seconds. Every lookup checks the session kind and that the worker is still
    active. Only token hashes are stored. The link page asks "Log me in" (a POST), so link
    previews and email scanners can't use the link up.
-5. Pay pages need a step-up code (`src/lib/auth/step-up.ts`): 6 digits by WhatsApp, 10 minutes,
+5. Pay pages need a step-up code (`src/lib/auth/step-up.ts`): 6 digits by WhatsApp (by email in
+   the same case as the link, P2.6), 10 minutes,
    5 tries, one live code per session (asking again replaces it), 3 requests per worker per 15
    minutes and 10 a day. After a reload the page offers the code field while a sent code still
    works. Created inside the `send-login-code` job and stored as an HMAC bound to the session.

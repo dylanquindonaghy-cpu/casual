@@ -35,13 +35,13 @@ Replace the parts in [brackets]. Send both parts.
 > that we've answered you, never your pay or anyone's details. You can turn them off on your
 > profile.
 >
-> **How we contact you:** your shift messages (offers, reminders, our changes to your shifts, our
-> answers to your requests and pay questions, licence reminders) come as a notification on your
-> phone if you've turned them on there, otherwise by WhatsApp or text, or by email to the address
-> we hold for you when those can't reach you. Our changes and cancellations of your shifts also
-> come by WhatsApp, text or email when a notification has reached you, so there's a record of the
-> notice we gave. [If we've switched it on:] Your login links and the codes for your pay page can
-> come by email too.
+> **How we contact you:** offers, shift reminders and our answers to your requests and pay
+> questions come as a notification on your phone if you've turned them on there, otherwise by
+> WhatsApp or text. Licence reminders come by WhatsApp or text. Our changes and cancellations of
+> your shifts come by WhatsApp or text even when a notification has reached you, so there's a
+> record of the notice we gave. [While we have no WhatsApp or text service:] a message that would
+> go by WhatsApp or text comes by email to the address we hold for you instead[, and so do your
+> login links and the codes for your pay page].
 >
 > **Why:** to run your shifts with you (our contract with you), to check you hold the licences a
 > shift needs (a legal requirement for some roles), and to keep a record of every offer, change

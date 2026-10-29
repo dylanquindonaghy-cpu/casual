@@ -258,7 +258,7 @@ describe("a casual's pay-page code by email (P2.6)", () => {
     ).toEqual({ sent: false, reason: "no_channel" });
     expect(c.sent).toEqual([]);
     expect(await eventsOf(t.firmId, "auth.otp_send_failed")).toEqual([
-      { entity_type: "session", data: { channel: null, code: "no_channel" } },
+      { entity_type: "session", data: { workerId: t.workerId, channel: null, code: "no_channel" } },
     ]);
     expect((await verify(t, s.token, "111111")).status).toBe("ok");
   });

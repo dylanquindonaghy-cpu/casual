@@ -1886,7 +1886,8 @@ code emails) go in `docs/messaging-templates.md` first, for Dylan to approve (P2
       (`src/lib/roster/workers.ts`), and a changed address ends their sessions, as a changed mobile
       does (audit L81). The login-link alert counts emailed links too. Tests: the login flow, its
       events, the code, no resend; off sends nothing by email; an email change logs the casual
-      out. Docs: `docs/data-model.md`, `docs/compliance.md`, `docs/privacy-notice.md` (P2.6)
+      out. Docs: `docs/data-model.md`, `docs/compliance.md`, `docs/privacy-notice.md` (its "How we
+      contact you" paragraph approved by Dylan, 2026-10-29) (P2.6)
 
 **After the UI chat's Phase 24 merges** (not this round): the login page, the Pay code step, help
 and the profile's notification note stop naming WhatsApp, `docs/screens.md` first (P2.7); then a
@@ -4427,6 +4428,12 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
   (P2.5, 2026-10-29: emails now have an alert of their own. Still open: a casual nobody could
   reach, `no_channel`, is in the action log only; the office's Needs attention should list them,
   after the UI chat.)
+- P2.6 (2026-10-29), from its guardrails review, to decide before P2.7 switches login by email on:
+  (1) a casual never confirms their email address, yet with the setting on and no text sender it's
+  the only way into their account: confirm it first (a link to the address)?; (2) the unconfirmed
+  catch-up of a link or code names the channel this run would choose, not the one stored (keeping
+  it on the link or code row is a schema change); (3) `firm:settings` already accepts
+  `login_by_email=true`: refuse it until P2.7?
 - P2.4 (2026-10-29), from its guardrails review, not blocking: (1) a run that stops after sending is
   caught up as "sent, unconfirmed" with the channel it was claimed with (the offer's, the licence
   message's), though it may have gone by push or email; (2) a casual's email goes from the app's

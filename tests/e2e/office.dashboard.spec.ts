@@ -6,6 +6,7 @@ import {
   addSteward,
   addTakenOffer,
   cancelOwnShift,
+  setFirmSetting,
 } from "./db";
 import { DASHBOARD_HEADING, expect, menuLink, test } from "./fixtures";
 import { sentTo } from "./outbox";
@@ -196,6 +197,13 @@ test("the offer panel lists who can take it as the offer page does; Send offer, 
     lastName: "Example",
     mobileE164: "+447700900641",
   });
+  // Quiet hours off for Acme while the offer goes (an offer that isn't urgent waits for them to
+  // end, 22:00 to 07:00, so at night it would never reach Offered), then put back as it was.
+  const quietBefore = await setFirmSetting("acme", "quiet_hours", {
+    start: "00:00",
+    end: "00:00",
+    urgent_override: true,
+  });
   try {
     await officeLogin(page, email);
     // The offer page's list first.
@@ -260,6 +268,7 @@ test("the offer panel lists who can take it as the offer page does; Send offer, 
     await expect(page).toHaveURL(`${acme}/office`);
     await expect(page.getByRole("heading", { name: DASHBOARD_HEADING, level: 1 })).toBeVisible();
   } finally {
+    await setFirmSetting("acme", "quiet_hours", quietBefore);
     await cancelOwnShift("acme", shiftId);
   }
 });

@@ -148,8 +148,9 @@ The job worker runs from day one (P2.5), with the web app and Caddy. There's no 
 casual's messages (offers, reminders, the office's notices, licence messages) go by push to a phone
 they turned notifications on for, else by email to the address you hold for them, else not at all
 (logged `no_channel`: the office should phone them). Pushes need the casual to have logged in on
-that phone, and login links still go by WhatsApp only until P2.6 and P2.7, so before then it's
-email in practice: the more casuals have an email address in the firm's data, the more are
+that phone, and a casual's login link goes by email only once the firm's `login_by_email` is on
+(P2.6; off until the login page stops naming WhatsApp, P2.7), so until then it's email in
+practice: the more casuals have an email address in the firm's data, the more are
 reached. The worker needs the SMTP values ("Connect an email provider (SMTP)" in PLAN.md):
 without them it won't start. `docker compose ps` shows the worker "healthy"; if it isn't,
 `docker compose logs --tail 50 worker` shows why (usually a value missing in `.env`). Messages must

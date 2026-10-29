@@ -1895,7 +1895,9 @@ firm can switch `login_by_email` on.
 
 Done when: P2.1 to P2.6 are ticked, each with a stamp that includes the browser tests;
 `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; nothing under `src/app/` or `src/lib/office/`
-changed, and no words but those Dylan approved in P2.1; the worker starts in production with no
+changed, except the dashboard's one channel word "email" in `src/lib/office/board-copy.ts`
+`CHANNEL_WORDS` (P2.4; Dylan, 2026-10-29), and no words but those Dylan approved in P2.1 (and the
+privacy notice's "How we contact you", P2.6; Dylan, 2026-10-29); the worker starts in production with no
 text sender; a casual is reached by push, else a text, else email, else the miss is logged; every
 booking says where it came from, and with `firm_system_sends` on, sheet and API bookings get no
 confirmation or reminders from ShiftDesk; with `login_by_email` on, a casual's login link and pay

@@ -97,6 +97,14 @@ no 24-hour or 2-hour reminder goes from ShiftDesk for a booking whose `assignmen
 sheet or api; offers and the office's change and cancellation notices still go. A booking
 confirmation only ever goes for the office's own booking in ShiftDesk, either way.
 
+`login_by_email` (P2.6, `src/lib/auth/login-channel.ts`; "Connecting the firm's systems" 16):
+whether a casual's login link and pay-page code may go by email. Only `true` turns it on; missing
+or anything else is off, the default. It matters only when there's no text sender
+(`MESSAGING_TRANSPORT=none`, P2.5): then, on and with an address held for the casual, the link or
+code goes by email (`docs/messaging-templates.md` "Email to casuals"); off, or no address, nothing
+is made and the miss is logged (`no_channel`). With a text sender they go by WhatsApp either way.
+Leave it off until the login and Pay pages stop naming WhatsApp (P2.7).
+
 (The 48-hour short-notice threshold is a placeholder until the 2027 regulations are final.)
 
 `strikes` (12B.7): `{ "email": "…", "email_verified_at": "2026-11-02T09:00:00.000Z" }`, the

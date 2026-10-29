@@ -65,6 +65,8 @@ function harness(o: { down?: boolean; noTexts?: boolean } = {}) {
   const sent: OutboundMessage[] = [];
   const transport: MessagingTransport = {
     name: "capture",
+    // No text sender at all, as MESSAGING_TRANSPORT=none says (the login link and code ask: P2.6).
+    ...(o.noTexts ? { texts: false as const } : {}),
     async send(message) {
       if (o.down) throw new Error("provider down");
       if (o.noTexts && message.channel !== "email") throw new NoTextSenderError(message.channel);
@@ -550,5 +552,50 @@ describe("by email: a job that fails after its email is sent never sends it agai
       { noTexts: true },
     );
     expect(sent.map((m) => m.channel)).toEqual(["email"]);
+  });
+
+  // P2.6: with no text sender and the firm's login by email on, the link and the code go by email.
+  const loginByEmail = async (firmId: string, workerId: string) => {
+    await su.query(
+      `update firms set settings = settings || '{"login_by_email": true}'::jsonb where id = $1`,
+      [firmId],
+    );
+    await giveEmail(workerId);
+  };
+
+  it("a login link by email: logged once, unconfirmed, by email, and the link that went still logs in", async () => {
+    const t = await linkSetup();
+    await loginByEmail(t.T.firmId, t.T.workerId);
+    const sent = await failThenRetry(
+      (run, transport) => sendPortalLink(t.payload, run, t.deps(transport)),
+      { noTexts: true },
+    );
+    expect(sent.map((m) => m.channel)).toEqual(["email"]);
+    expect((await eventsOf(t.T.firmId, "auth.link_sent")).map((e) => e.data)).toEqual([
+      { purpose: "worker_login", channel: "email", unconfirmed: true },
+    ]);
+    expect(
+      (await consumeWorkerLoginLink({ firm: { id: t.T.firmId }, clock }, tokenFrom(sent[0])))
+        .status,
+    ).toBe("ok");
+  });
+
+  it("a pay-page code by email: logged once, unconfirmed, by email, and the code that went still works", async () => {
+    const t = await codeSetup();
+    await loginByEmail(t.T.firmId, t.T.workerId);
+    const sent = await failThenRetry(
+      (run, transport) => sendLoginCode(t.payload, run, t.deps(transport)),
+      { noTexts: true },
+    );
+    expect(sent.map((m) => m.channel)).toEqual(["email"]);
+    expect((await eventsOf(t.T.firmId, "auth.otp_sent")).map((e) => e.data)).toEqual([
+      { channel: "email", unconfirmed: true },
+    ]);
+    const verified = await verifyStepUpCode(
+      { firm: { id: t.T.firmId }, clock, secret: SECRET },
+      t.session.token,
+      "424242",
+    );
+    expect(verified.status).toBe("ok");
   });
 });

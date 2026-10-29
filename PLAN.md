@@ -1849,7 +1849,7 @@ code emails) go in `docs/messaging-templates.md` first, for Dylan to approve (P2
       the migration fills the bookings there are from each one's `shift.assigned` event, and one
       with none counts as the office's (as `src/lib/strikes/issue.ts` already does). Tests: each
       writer, the backfill, the check, another firm's rows (P2.2)
-- [ ] Who sends what: an owner setting `firm_system_sends` (off unless the firm says so: ShiftDesk
+- [x] Who sends what: an owner setting `firm_system_sends` (off unless the firm says so: ShiftDesk
       sends as today); on, no booking confirmation and no 24-hour or 2-hour reminder from ShiftDesk
       for a booking whose `booked_via` is sheet or api (the firm's own system tells those casuals);
       offers and the office's change and cancellation notices still go (decision 9). Tests:

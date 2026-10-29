@@ -213,6 +213,33 @@ describe("the reconcile pull", () => {
     expect(await t.source()).toMatchObject({ last_error_code: null });
   });
 
+  it("Gate B before anything is read: on a live database with no agreement, nothing read and the error saved", async () => {
+    const t = await pullFirm();
+    t.system.sessions.set("PORTAL-S1", session("PORTAL-S1", 24 * HOUR));
+    expect(
+      await runConnectorPull(
+        {
+          firmId: t.f.firmId,
+          idempotencyKey: "connector-pull:1",
+          sourceId: t.sourceId,
+          kind: "full",
+        },
+        withFirm,
+        {
+          transport: fakeConnectorTransport,
+          readSecret: async () => API_KEY,
+          clock: { now: () => NOW },
+          localDatabase: false,
+        },
+      ),
+    ).toEqual({ status: "failed", code: "agreement_not_recorded" });
+    expect(t.system.lists).toBe(0);
+    expect(await t.source()).toMatchObject({
+      last_error_code: "agreement_not_recorded",
+      sync_started_at: null,
+    });
+  });
+
   it("a switched-off source or a firm without one: nothing pulled or queued; a planner key made live stops it", async () => {
     const t = await pullFirm();
     t.system.sessions.set("PORTAL-S1", session("PORTAL-S1", 24 * HOUR));

@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { sql } from "drizzle-orm";
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { applyConnectorEvent, type ConnectorApplyDeps } from "@/lib/connector/apply";
@@ -252,7 +253,9 @@ describe("the job: the record from the source, applied as the planner's", () => 
       "select actor_type, data from events where firm_id = $1 and action = 'worker.added'",
       [t.f.firmId],
     );
-    expect(logged).toEqual([{ actor_type: "system", data: { source: "api" } }]);
+    expect(logged).toEqual([
+      { actor_type: "system", data: { source: "api", sourceId: t.sourceId } },
+    ]);
   });
 
   it("what isn't applied says why: gone, a skipped name, a name it can't read, the planner's refusal", async () => {
@@ -394,6 +397,146 @@ describe("the job: the record from the source, applied as the planner's", () => 
     expect(
       await t.apply(id, undefined, { ...t.deps, readSecret: firmSecretReader(urls.jobs, key) }),
     ).toEqual({ status: "applied", code: "created" });
+  });
+});
+
+describe("the job's review fixes (P5.3)", () => {
+  const staffRecord = (o: Record<string, unknown> = {}) => ({
+    ref: "PORTAL-W7",
+    first_name: "Dee",
+    last_name: "Example",
+    mobile: "+447700900377",
+    role_names: ["steward"],
+    status: "active",
+    ...o,
+  });
+
+  it("a staff record whose mobile is another worker's here: refused, nothing changed", async () => {
+    const t = await portalFirm();
+    await su.query(
+      `insert into workers (firm_id, first_name, last_name, mobile_e164, external_ref)
+       values ($1, 'Eve', 'Other', '+447700900377', 'OTHER-REF')`,
+      [t.f.firmId],
+    );
+    t.system.staff.set("PORTAL-W7", staffRecord());
+    expect(await t.apply(await t.received("staff.changed", "PORTAL-W7"))).toEqual({
+      status: "refused",
+      code: "mobile_taken",
+    });
+  });
+
+  it("anything unexpected is tried again, and saved as failed on the last try: never left queued", async () => {
+    const t = await portalFirm();
+    // A new site's postcode, looked up by something that breaks after the record is read.
+    t.system.sessions.set(
+      "PORTAL-S1",
+      session({ site: { name: "New Arena", postcode: "ZZ9 9ZZ" } }),
+    );
+    const id = await t.received("session.changed", "PORTAL-S1");
+    const broken = {
+      ...t.deps,
+      geocoder: { locate: () => Promise.reject(new TypeError("a bug")) },
+    };
+    await expect(t.apply(id, undefined, broken)).rejects.toThrow("a bug");
+    expect(await eventRow(id)).toEqual({ status: "queued", outcome_code: null, processed: false });
+    expect(await t.apply(id, { retryCount: 5, retryLimit: 5 }, broken)).toEqual({
+      status: "failed",
+      code: "error_typeerror",
+    });
+    expect(await eventRow(id)).toEqual({
+      status: "failed",
+      outcome_code: "error_typeerror",
+      processed: true,
+    });
+  });
+
+  it("a key the system refuses fails at once, not after an hour of tries", async () => {
+    const t = await portalFirm();
+    t.system.sessions.set("PORTAL-S1", session());
+    const id = await t.received("session.changed", "PORTAL-S1");
+    expect(
+      await t.apply(
+        id,
+        { retryCount: 0, retryLimit: 5 },
+        { ...t.deps, readSecret: async () => "x" },
+      ),
+    ).toEqual({ status: "failed", code: "unauthorised" });
+  });
+
+  it("Gate B before anything is read: on a live database with no agreement, refused and nothing read", async () => {
+    const t = await portalFirm();
+    t.system.staff.set("PORTAL-W7", staffRecord());
+    const id = await t.received("staff.changed", "PORTAL-W7");
+    expect(await t.apply(id, undefined, { ...t.deps, localDatabase: false })).toEqual({
+      status: "refused",
+      code: "agreement_not_recorded",
+    });
+    expect(t.system.reads).toBe(0);
+  });
+
+  it("erasing a worker forgets the connector's events about them", async () => {
+    const t = await portalFirm();
+    t.system.staff.set("PORTAL-W7", staffRecord());
+    expect(await t.apply(await t.received("staff.changed", "PORTAL-W7"))).toMatchObject({
+      status: "applied",
+    });
+    t.system.sessions.set("PORTAL-S1", session());
+    await t.received("session.changed", "PORTAL-S1");
+    const { rows } = await su.query<{ id: string }>(
+      "select id::text as id from workers where firm_id = $1 and external_ref = 'PORTAL-W7'",
+      [t.f.firmId],
+    );
+    await withFirm(t.f.firmId, (tx) => tx.execute(sql`select app_erase_worker(${rows[0]?.id})`));
+    const { rows: left } = await su.query(
+      "select type, ref from connector_events where firm_id = $1 order by type",
+      [t.f.firmId],
+    );
+    expect(left).toEqual([{ type: "session.changed", ref: "PORTAL-S1" }]);
+  });
+});
+
+describe("app_connector_source_firm()", () => {
+  it("runs as the owner with a pinned search_path; only the app role may call it", async () => {
+    const { rows } = await su.query<{
+      definer: boolean;
+      config: string[];
+      app: boolean;
+      jobs: boolean;
+      acl: string;
+    }>(
+      `select p.prosecdef as definer, p.proconfig as config,
+              has_function_privilege('shiftdesk_app', p.oid, 'EXECUTE') as app,
+              has_function_privilege('shiftdesk_jobs', p.oid, 'EXECUTE') as jobs,
+              coalesce(p.proacl::text, '') as acl
+         from pg_proc p where p.proname = 'app_connector_source_firm'`,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ definer: true, app: true, jobs: false });
+    expect(rows[0]?.config).toEqual(["search_path=pg_catalog, pg_temp"]);
+    // No grant to PUBLIC (an entry starting "=").
+    expect(rows[0]?.acl).not.toMatch(/(^|[{,])=/);
+  });
+
+  it("gives the firm of a connector that's on, and nothing for one switched off, a sheet or a made-up id", async () => {
+    const t = await portalFirm();
+    const off = await portalFirm({ enabled: false });
+    await t.f.sheetSource(null, false);
+    const { rows: sheet } = await su.query<{ id: string }>(
+      "select id::text as id from roster_sources where firm_id = $1 and kind = 'sheets'",
+      [t.f.firmId],
+    );
+    const lookup = async (id: string) => {
+      const c = await app.connect();
+      try {
+        return (await c.query("select * from app_connector_source_firm($1)", [id])).rows;
+      } finally {
+        c.release();
+      }
+    };
+    expect(await lookup(t.sourceId)).toEqual([{ firm_id: t.f.firmId }]);
+    for (const id of [off.sourceId, sheet[0]?.id ?? "", "6b1f6c0e-3c8a-4b0e-9d6a-2f1e0c9b8a71"]) {
+      expect(await lookup(id), id).toEqual([]);
+    }
   });
 });
 

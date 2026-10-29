@@ -198,8 +198,8 @@ export const QUEUES: readonly QueueSpec[] = [
   },
   // A connector's events (P5.3; src/lib/connector/apply.ts): a read from the firm's own system
   // that fails is tried again 5 times, from a minute later and doubling, at most 30 minutes apart
-  // (about an hour). The last try records the event as failed and completes the job; the
-  // reconcile pull (P5.4) catches up.
+  // (30 to 60 minutes, with pg-boss's random part). The last try records the event as failed and
+  // completes the job; the reconcile pull (P5.4) catches up.
   {
     ...connectorEvent,
     options: {

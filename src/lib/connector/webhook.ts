@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { readBoundedBody, strictUtf8 } from "../http/bounded-body";
 import { REF_PATTERN } from "../integrations/schemas";
 import { verifySignature } from "../integrations/sign";
 import { log, type Logger } from "../log";
@@ -59,10 +60,11 @@ export async function handleConnectorWebhook(
   if (!deps.secret) return answer(503, "Not configured");
   const type = (request.headers.get("content-type") ?? "").split(";")[0]?.trim().toLowerCase();
   if (type !== "application/json") return answer(415, "JSON only");
-  const declared = Number(request.headers.get("content-length") ?? "0");
-  if (declared > MAX_CONNECTOR_WEBHOOK_BYTES) return answer(413, "Too big");
-  const raw = await request.text();
-  if (Buffer.byteLength(raw) > MAX_CONNECTOR_WEBHOOK_BYTES) return answer(413, "Too big");
+  // Read up to 16 kB and no further, however the body comes (chunked, or a wrong length).
+  const read = await readBoundedBody(request, MAX_CONNECTOR_WEBHOOK_BYTES);
+  if ("tooBig" in read) return answer(413, "Too big");
+  const raw = strictUtf8(read.bytes);
+  if (raw === null) return answer(400, "Bad request");
 
   const id = request.headers.get("webhook-id") ?? "";
   const timestamp = request.headers.get("webhook-timestamp") ?? "";

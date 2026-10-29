@@ -2616,6 +2616,12 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
 
 (Ideas that came up mid-build. Not in scope until a phase includes them.)
 
+- The connector (P5.3's review), before a real one: a session or staff record gone from the
+  firm's system is only `ignored gone` on its event (nothing on Needs attention, the session stays
+  with its bookings: with the sync card, after the UI chat); `connector_events` are kept for ever
+  (purge them with the retention job, at the firm's `retention.message_days` or their own); and a
+  retry after a crash between the planner's refusal and the event's outcome logs the refusal twice
+  (`api.change_refused`, `shift.move_refused`), so Needs attention shows it twice.
 - From Phase 24 (24.5, 2026-10-28): an office address that doesn't exist, opened while logged out
   (a mistyped `/office/…` link), shows the casual app's "We can't find that page." with "Go to my
   shifts". Give the office's own logged-out not-found page "Go to the office login" instead.

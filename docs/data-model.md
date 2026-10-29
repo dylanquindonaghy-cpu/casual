@@ -993,7 +993,8 @@ create table firm_secrets (
 -- never deleted or rewritten by the app. The webhook finds the source's firm through
 -- app_connector_source_firm(source) (run as the owner, which reads every firm's sources through
 -- roster_sources' owner-only source_lookup policy; the app role may call it), only once the
--- signature has passed.
+-- signature has passed. Erasing a worker deletes the staff.changed rows naming their staff ref
+-- (app_erase_worker, 0056).
 create table connector_events (
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),

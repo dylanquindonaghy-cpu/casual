@@ -46,3 +46,51 @@ CREATE FUNCTION app_connector_source_firm(p_source uuid)
 REVOKE EXECUTE ON FUNCTION app_connector_source_firm(uuid) FROM PUBLIC;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app_connector_source_firm(uuid) TO shiftdesk_app;
+--> statement-breakpoint
+-- GDPR erasure (0026), now also forgetting a connector's events about the worker (P5.3's review):
+-- their staff ref is cleared from the worker's row, so the staff.changed rows naming it go too.
+-- The rest as before: static SQL only, pinned search_path, qualified names.
+CREATE OR REPLACE FUNCTION app_erase_worker(p_worker uuid)
+  RETURNS integer
+  LANGUAGE plpgsql VOLATILE SECURITY DEFINER
+  SET search_path = pg_catalog, pg_temp
+  AS $$
+  DECLARE
+    v_firm uuid := public.app_current_firm_id();
+    v_mobile text;
+    v_ref text;
+    v_count integer;
+  BEGIN
+    IF v_firm IS NULL THEN
+      RAISE EXCEPTION 'app_erase_worker needs a firm';
+    END IF;
+    SELECT w.mobile_e164, w.external_ref INTO v_mobile, v_ref FROM public.workers AS w
+     WHERE w.firm_id = v_firm AND w.id = p_worker AND w.erased_at IS NULL
+       FOR UPDATE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'no worker to erase';
+    END IF;
+    UPDATE public.workers AS w
+       SET first_name = 'Deleted', last_name = 'worker', mobile_e164 = NULL, email = NULL,
+           external_ref = NULL, roles = '{}', status = 'inactive', offer_alerts = false,
+           sms_opted_out_at = NULL, erased_at = now()
+     WHERE w.firm_id = v_firm AND w.id = p_worker;
+    IF v_ref IS NOT NULL THEN
+      DELETE FROM public.connector_events AS c
+       WHERE c.firm_id = v_firm AND c.type = 'staff.changed' AND c.ref = v_ref;
+    END IF;
+    WITH theirs AS (
+      SELECT m.id FROM public.messages AS m
+       WHERE m.firm_id = v_firm
+         AND (m.worker_id = p_worker
+              OR (m.worker_id IS NULL
+                  AND ((m.direction = 'in' AND m.from_e164 = v_mobile)
+                       OR (m.direction = 'out' AND m.to_e164 = v_mobile))))
+    )
+    DELETE FROM public.messages AS m
+     WHERE m.firm_id = v_firm
+       AND (m.id IN (SELECT t.id FROM theirs AS t) OR m.reply_to IN (SELECT t.id FROM theirs AS t));
+    GET DIAGNOSTICS v_count = ROW_COUNT;
+    RETURN v_count;
+  END
+  $$;

@@ -7,7 +7,7 @@ import type { FirmTx, WithFirm } from "../db/scoped";
 import { workerEnv } from "../env";
 import { AgreementNotRecorded, requireAgreementForImport } from "../imports/gate-b";
 import { putPlannerSession } from "../integrations/sessions";
-import type { FirmTask, JobAttempt } from "../jobs/firm-job";
+import { errorCode, type FirmTask, type JobAttempt } from "../jobs/firm-job";
 import { log, type Logger } from "../log";
 import { firmCallerMay, type PlannerCaller } from "../roster/firm-caller";
 import { loadNameMap, type NameMap } from "../roster/names";
@@ -35,8 +35,9 @@ import type { ConnectorEventType } from "./webhook";
 //    that came after the outcome was saved): nothing. The source switched off: ignored.
 // 2. The source's API key from the secret store (connector.api_key), then the record from the
 //    source's API, with no transaction open. Never from the webhook's body, which named only what
-//    changed. A failed read throws and pg-boss tries again (CONNECTOR_RETRY_LIMIT, about an hour);
-//    the last try saves it as failed and completes, and the reconcile pull catches up (P5.4).
+//    changed. A failed read throws and pg-boss tries again (CONNECTOR_RETRY_LIMIT: 30 to 60
+//    minutes in all), but a key the system refuses fails at once; the last try saves it as failed
+//    and completes, and the reconcile pull catches up (P5.4).
 // 3. Applied as the planner's own change: a session through putPlannerSession() with the
 //    connector as its caller (every rule, Gate B, the logging and the refusals the planner's PUT
 //    has), a staff record through upsertWorker() in a transaction that first checks Gate B and
@@ -96,7 +97,39 @@ async function finish(
     .where(and(eq(connectorEvents.id, eventId), eq(connectorEvents.status, "queued")));
 }
 
+// An unexpected error's code, as an outcome code (a SQLSTATE or the error's name, lower case).
+export function unexpectedCode(err: unknown): string {
+  return `error_${errorCode(err)}`
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, "_")
+    .slice(0, 50);
+}
+
 export async function applyConnectorEvent(
+  payload: ConnectorEventPayload,
+  run: WithFirm,
+  deps: ConnectorApplyDeps,
+  attempt: JobAttempt,
+): Promise<ConnectorApplyResult> {
+  try {
+    return await applyEvent(payload, run, deps, attempt);
+  } catch (err) {
+    // pg-boss tries again; on the last try anything still going wrong is saved as failed, with
+    // its code, and the job completes (P5.3's review): an event is never left queued for ever.
+    if (!isLastTry(attempt)) throw err;
+    const outcome = { status: "failed" as const, code: unexpectedCode(err) };
+    (deps.logger ?? log).error("connector event failed on its last try", {
+      firmId: payload.firmId,
+      eventId: payload.eventId,
+      code: outcome.code,
+    });
+    const now = (deps.clock ?? systemClock).now();
+    await run(payload.firmId, (tx) => finish(tx, payload.eventId, outcome, now));
+    return outcome;
+  }
+}
+
+async function applyEvent(
   payload: ConnectorEventPayload,
   run: WithFirm,
   deps: ConnectorApplyDeps,
@@ -138,6 +171,16 @@ export async function applyConnectorEvent(
     return done({ status: "ignored", code: "source_off" });
   }
   const by = { type: "connector" as const, sourceId: found.sourceId };
+  // Gate B before anything is read from the firm's system (as the planner's PUT: real staff only
+  // once the firm's agreement is recorded).
+  try {
+    await run(firmId, (tx) => requireAgreementForImport(tx, { saving: true, localDatabase }));
+  } catch (err) {
+    if (err instanceof AgreementNotRecorded) {
+      return done({ status: "refused", code: "agreement_not_recorded" });
+    }
+    throw err;
+  }
 
   // The key, then the record: no transaction open.
   let fetched;
@@ -163,9 +206,9 @@ export async function applyConnectorEvent(
       code,
       retryCount: attempt.retryCount,
     });
-    if (!isLastTry(attempt))
-      throw err instanceof ConnectorFetchError ? err : new ConnectorFetchError("unreachable");
-    return done({ status: "failed", code });
+    // A key the system refuses won't work on a later try either.
+    if (code === "unauthorised" || isLastTry(attempt)) return done({ status: "failed", code });
+    throw err instanceof ConnectorFetchError ? err : new ConnectorFetchError("unreachable");
   }
   if (fetched.status === "gone") return done({ status: "ignored", code: "gone" });
   const names = await run(firmId, (tx) => loadNameMap(tx));
@@ -189,6 +232,16 @@ export async function applyConnectorEvent(
 }
 
 export type RecordOutcome = { status: ConnectorEventStatus; code: string };
+
+const MOBILE_KEY = "workers_firm_id_mobile_key";
+function isMobileTaken(err: unknown): boolean {
+  for (let e: unknown = err, depth = 0; e && typeof e === "object" && depth < 3; depth++) {
+    const { code, constraint } = e as { code?: unknown; constraint?: unknown };
+    if (code === "23505" && constraint === MOBILE_KEY) return true;
+    e = (e as { cause?: unknown }).cause;
+  }
+  return false;
+}
 
 // One record read from the source, applied as the planner's: the event job's, and the reconcile
 // pull's for each record it reads (pull.ts). Transient: the planner's PUT answered 5xx (a postcode
@@ -244,6 +297,7 @@ export async function applyRecord(a: {
               code: (
                 await upsertWorker(tx, person, {
                   source: "api",
+                  sourceId: a.by.sourceId,
                   actor: { type: "system" },
                   now: a.now,
                 })
@@ -264,6 +318,8 @@ export async function applyRecord(a: {
       return settled({ status: "refused", code: "identity_change" });
     }
     if (err instanceof WorkerEmailInvalid) return settled({ status: "refused", code: "bad_email" });
+    // Another worker here has that mobile (upsertWorker's unique violation): the record's to fix.
+    if (isMobileTaken(err)) return settled({ status: "refused", code: "mobile_taken" });
     throw err;
   }
 }

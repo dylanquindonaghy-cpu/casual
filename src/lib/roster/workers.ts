@@ -58,6 +58,7 @@ export interface IncomingWorker {
 
 export interface WorkerSource {
   source: "sheets" | "csv" | "api"; // api: a connector (P5.3)
+  sourceId?: string; // a connector's: which source (logged)
   actor: { type: ActorType; id?: string | null };
   now: Date;
   via?: "cli"; // an import run from the terminal (its actor isn't a login)
@@ -131,7 +132,12 @@ export async function upsertWorker(
       action,
       entityType: "worker",
       entityId: id,
-      data: { source: from.source, ...(from.via ? { via: from.via } : {}), ...data },
+      data: {
+        source: from.source,
+        ...(from.sourceId ? { sourceId: from.sourceId } : {}),
+        ...(from.via ? { via: from.via } : {}),
+        ...data,
+      },
     });
 
   const byRef = person.ref

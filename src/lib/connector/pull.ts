@@ -5,6 +5,7 @@ import { firms, rosterSources } from "../db/schema";
 import { SecretsKeyMissing } from "../db/firm-secret";
 import type { WithFirm } from "../db/scoped";
 import { appDatabaseIsLocal } from "../db/where";
+import { AgreementNotRecorded, requireAgreementForImport } from "../imports/gate-b";
 import { firmJobEnvelope, sendFirmJob, type FirmTask } from "../jobs/firm-job";
 import { log, type Logger } from "../log";
 import { loadNameMap } from "../roster/names";
@@ -15,6 +16,7 @@ import {
   connectorWorkerDeps,
   type ConnectorApplyDeps,
   type RecordOutcome,
+  unexpectedCode,
 } from "./apply";
 import { connectorPullDue, NEAR_WINDOW_MS, type PullKind } from "./cadence";
 import { ConnectorFetchError } from "./transport";
@@ -120,6 +122,15 @@ export async function runConnectorPull(
         .where(and(eq(rosterSources.id, sourceId), eq(rosterSources.syncStartedAt, now))),
     );
 
+  // Gate B before anything is read from the firm's system.
+  try {
+    await run(firmId, (tx) => requireAgreementForImport(tx, { saving: true, localDatabase }));
+  } catch (err) {
+    if (!(err instanceof AgreementNotRecorded)) throw err;
+    await release({ ok: false, code: "agreement_not_recorded" });
+    return { status: "failed", code: "agreement_not_recorded" };
+  }
+
   let sessions: unknown[];
   let staff: unknown[] = [];
   try {
@@ -168,18 +179,26 @@ export async function runConnectorPull(
         count({ status: "refused", code: "bad_record" });
         continue;
       }
-      const applied = await applyRecord({
-        run,
-        firmId,
-        by,
-        type,
-        ref,
-        record,
-        names,
-        now,
-        geocoder: deps.geocoder,
-        localDatabase,
-      });
+      let applied;
+      try {
+        applied = await applyRecord({
+          run,
+          firmId,
+          by,
+          type,
+          ref,
+          record,
+          names,
+          now,
+          geocoder: deps.geocoder,
+          localDatabase,
+        });
+      } catch (err) {
+        // One record's unexpected failure doesn't stop the rest: counted, and the next pull tries
+        // it again.
+        count({ status: "failed", code: unexpectedCode(err) });
+        continue;
+      }
       count(applied.outcome);
       // Switched off, or a planner key made live, part-way: stop reading into it.
       if (applied.outcome.code === "not_allowed") {

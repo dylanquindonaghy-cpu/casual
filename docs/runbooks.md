@@ -637,8 +637,10 @@ on a live database until then).
   secret off screens. The worker reads the system only with `CONNECTOR_TRANSPORT` set to its
   transport.
 - **What came in:** each webhook is a `connector_events` row with its outcome (applied, refused,
-  ignored, failed, and a code). A system that doesn't answer is tried again for about an hour, then
-  the event is saved as failed; the reconcile pull catches up.
+  ignored, failed, and a code). A system that doesn't answer is tried again for 30 to 60 minutes,
+  then the event is saved as failed (a key it refuses, at once); the reconcile pull catches up.
+  Locally, `CONNECTOR_TRANSPORT=fake` reads the made-up portal, which only the tests fill: every
+  read there is `unreachable`.
 - **The reconcile pull (P5.4)** reads the system itself on a schedule: the next 48 hours' sessions
   every 15 minutes, everything (sessions ahead and staff) once a night between 02:00 and 05:00,
   every 30 minutes while it's failing. `firm:connector` and `firm:check` show when it last read in

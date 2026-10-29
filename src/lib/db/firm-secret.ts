@@ -1,4 +1,5 @@
 import { Pool as PgPool, type Pool } from "pg";
+import { log } from "../log";
 import { isSecretName, openSecret, type SecretsKey } from "../secret-store/crypto";
 
 // A firm's secret, for the worker (P5.1; ADR-026): read through app_read_firm_secret() (migration
@@ -42,7 +43,20 @@ export function firmSecretReader(jobsUrl: string, key: SecretsKey | null): ReadF
   let pool: Pool | undefined;
   return async (firmId, name) => {
     if (!key) throw new SecretsKeyMissing();
-    pool ??= new PgPool({ connectionString: jobsUrl, max: 1, idleTimeoutMillis: 30_000 });
+    if (!pool) {
+      pool = new PgPool({
+        connectionString: jobsUrl,
+        max: 1,
+        idleTimeoutMillis: 30_000,
+        connectionTimeoutMillis: 10_000,
+      });
+      // As the app's pool (src/lib/db/pool.ts): a connection dropping, idle or lent out (the
+      // database restarting, say), must not crash the worker; the read in hand fails as usual.
+      pool.on("error", (err) => log.error("secret store pool error", { error: err }));
+      pool.on("connect", (client) =>
+        client.on("error", (err) => log.error("secret store connection error", { error: err })),
+      );
+    }
     return readFirmSecret(pool, key, { firmId, name });
   };
 }

@@ -164,6 +164,42 @@ describe("POST /api/webhooks/connector/{source id}", () => {
     }
   });
 
+  it("a body sent in chunks with no length is read only up to 16 kB; bytes that aren't UTF-8 are 400", async () => {
+    const big = new TextEncoder().encode("x".repeat(MAX_CONNECTOR_WEBHOOK_BYTES + 1));
+    let pulled = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        // 1 kB at a time, for ever: the reader must stop on its own.
+        pulled += 1;
+        controller.enqueue(big.subarray(0, 1024));
+      },
+    });
+    const h = harness();
+    const r = await handleConnectorWebhook(
+      new Request(`https://shiftdesk.example/api/webhooks/connector/${SOURCE}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: stream,
+        duplex: "half",
+      } as RequestInit),
+      SOURCE,
+      h.deps,
+    );
+    expect(r.status).toBe(413);
+    expect(pulled).toBeLessThan(40);
+    const bad = harness();
+    const notUtf8 = await handleConnectorWebhook(
+      new Request(`https://shiftdesk.example/api/webhooks/connector/${SOURCE}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: new Uint8Array([0x7b, 0xff, 0xfe, 0x7d]),
+      }),
+      SOURCE,
+      bad.deps,
+    );
+    expect([notUtf8.status, bad.resolved, bad.received]).toEqual([400, [], []]);
+  });
+
   it("a signed body that isn't a change: 400, its field names logged, never its values", async () => {
     for (const body of [
       "not json",

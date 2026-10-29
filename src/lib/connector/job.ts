@@ -13,8 +13,9 @@ import type { ConnectorEventIn } from "./webhook";
 export const CONNECTOR_EVENT_QUEUE = "connector-event";
 
 // A read that fails (the source down) is tried again 5 times, from a minute later and doubling, at
-// most 30 minutes apart (src/worker/jobs/queues.ts): about an hour in all. The last try records the
-// event as failed and completes the job; the reconcile pull (P5.4) catches up after.
+// most 30 minutes apart (src/worker/jobs/queues.ts): 30 to 60 minutes in all, with pg-boss's
+// random part. The last try records the event as failed (whatever went wrong) and completes the
+// job; the reconcile pull (P5.4) catches up after.
 export const CONNECTOR_RETRY_LIMIT = 5;
 
 export const connectorEventPayload = firmJobEnvelope.extend({

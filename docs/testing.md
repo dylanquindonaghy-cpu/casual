@@ -195,11 +195,18 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   fails at once with nothing read; a source switched off before its job reads nothing, and with a
   live planner key nothing changes; the key read from the secret store on the jobs role's own
   connection; and the owner's command connects, keeps, replaces and switches a connector off, each
-  logged, refusing a bad address, a sheet or a live key beside it, and (live) no agreement. The
+  logged, refusing a bad address, a sheet or a live key beside it, and (live) no agreement; and the
+  review's fixes: a staff record whose mobile is another worker's is refused (`mobile_taken`), an
+  unexpected error is tried again and saved as failed on the last try (never left queued), a key
+  the system refuses fails at once, Gate B comes before anything is read, erasing a worker forgets
+  the connector's events about them, and `app_connector_source_firm()` runs as the owner with a
+  pinned search_path, callable by the app role alone, giving only an enabled connector's firm. The
   webhook's checks before anything is read (a missing, wrong, old or replayed signature 403; not a
   source 404; no secret 503; not JSON 415; too big 413; a body that isn't a change 400, its values
-  never logged) and the made-up portal's mapping are unit-tested
-  (`tests/unit/connector.webhook.test.ts`, `tests/unit/connector.demo-portal.test.ts`).
+  never logged; a chunked body read only up to 16 kB; bytes that aren't UTF-8 400), the made-up
+  portal's mapping and the queues' options (retries, each try knowing if it's the last) are
+  unit-tested (`tests/unit/connector.webhook.test.ts`, `tests/unit/connector.demo-portal.test.ts`,
+  `tests/unit/connector.queues.test.ts`).
 - `connector.pull.test.ts` (P5.4) — the reconcile pull, on the real database against the made-up
   portal: it catches what the webhooks missed (a near pull reads only the next 48 hours, a full one
   every session ahead and the staff; a connector's new session comes in hidden from casuals; a

@@ -101,7 +101,9 @@ try {
         console.log(
           `${result.status === "unchanged" ? "Nothing to change: it's" : result.status === "replaced" ? "Replaced: it's now" : "Connected:"} ${connector} for ${slug}, in ${where}.\n` +
             `Its webhooks go to ${webhookAddress(result.sourceId)}, signed with the secret --webhook-secret prints.\n` +
-            "Its API key: npm run firm:secret, the name connector.api_key.",
+            (result.status === "replaced"
+              ? "Its API key is still the old system's (connector.api_key): set the new one now, with npm run firm:secret."
+              : "Its API key: npm run firm:secret, the name connector.api_key."),
         );
         process.exit(0);
         break;

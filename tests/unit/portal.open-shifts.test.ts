@@ -75,15 +75,15 @@ describe("Open shifts page body (Phase 18)", () => {
   it("says so plainly when nothing is open, and what limits the list", () => {
     const words = text(render(list()));
     expect(words).toContain("Open shifts");
-    expect(words).toContain(
-      "Only shifts your licences and hours allow, up to 45 minutes from home.",
-    );
+    // Round 7's words (Phase 24): what she sees, and how far from home.
+    expect(words).toContain("Shifts you can take, up to 45 minutes from home.");
     expect(words).toContain("Nothing open right now. We'll message you when something matches.");
     // No "Back" button: the tab bar under every casual page goes there (Phase 17).
     expect(words).not.toContain("Back to my shifts");
-    expect(text(render(list({ area: null })))).toContain(
-      "Only shifts your licences and hours allow.",
-    );
+    expect(text(render(list({ area: null })))).toContain("Shifts you can take.");
+    expect(text(render(list({ area: null })))).not.toContain("minutes from home");
+    // How many there are, over the list.
+    expect(render(list())).toContain('<p class="text-lg text-ink-muted">0 shifts</p>');
   });
 
   it("only promises a message to workers who want open shift messages", () => {
@@ -106,30 +106,35 @@ describe("Open shifts page body (Phase 18)", () => {
     const section = html.slice(html.indexOf('aria-label="Your next 8 days"'));
     const days = [...section.matchAll(/<li class="min-w-0">(.*?)<\/li>/g)].map((m) => m[1] ?? "");
     expect(days).toHaveLength(8);
-    // Phase 20: each day its own card (clear glass since Phase 24). Today first, its day in bold;
+    // Phase 24 (round 7): each day a little glass tile. Today first ("Today", set tight to fit);
     // nothing open: not a link.
     expect(days[0]).toMatch(
-      /^<span role="img" aria-label="Sat 7 Nov, today: nothing open" class="[^"]*glass-tile text-ink-muted"><span class="text-xs leading-tight font-semibold">Today<\/span>/,
+      /^<span role="img" aria-label="Sat 7 Nov, today: nothing open" class="flex h-17 [^"]*glass-tile text-ink-muted"><span class="text-sm leading-tight tracking-tight">Today<\/span>/,
     );
-    expect(days[4]).toMatch(/<span class="text-xs leading-tight ">Wed<\/span>/);
-    // An urgent day: a link to that day, pale red, with its count.
+    expect(days[4]).toMatch(/<span class="text-sm leading-tight ">Wed<\/span>/);
+    // An urgent day: a link to that day, its count in red.
     expect(days[1]).toMatch(
-      /^<a aria-label="Sun 8 Nov: 1 urgent shift" class="[^"]*bg-urgent-tile text-urgent-ink shadow-lift[^"]*" href="\/shifts\/open\?day=2026-11-08">/,
+      /^<a aria-label="Sun 8 Nov: 1 urgent shift" class="[^"]*glass-tile text-ink press-glass[^"]*" href="\/shifts\/open\?day=2026-11-08">/,
     );
-    expect(days[1]).toMatch(/rounded-md px-1 text-xs font-semibold ">1<\/span>/);
-    // Her booked day: in the firm's colour, raised like the pass, with a tick.
+    expect(days[1]).toMatch(
+      /<span class="text-sm leading-none tabular-nums font-semibold text-urgent-ink">1<\/span><\/a>$/,
+    );
+    // Her booked day: a sunk grey, with a tick.
     expect(days[2]).toMatch(
-      /^<span role="img" aria-label="Mon 9 Nov: you&#x27;re booked" class="[^"]*bg-brand text-on-brand shadow-pass/,
+      /^<span role="img" aria-label="Mon 9 Nov: you&#x27;re booked" class="[^"]*bg-ink\/12 text-ink inset-ring inset-ring-white\/30">/,
     );
     expect(days[2]).toContain("<svg");
-    // An open day: an outlined count.
+    // An open day: its count, in grey.
     expect(days[3]).toMatch(/href="\/shifts\/open\?day=2026-11-10"/);
-    expect(days[3]).toMatch(/border-\[1\.5px\] border-line-strong">1<\/span>/);
-    expect(text(section)).toContain("You're booked Urgent Open");
-    // The day chosen is marked.
-    expect(render(list(), { day: "2026-11-08" }, strip)).toMatch(
-      /aria-current="true"[^>]*href="\/shifts\/open\?day=2026-11-08"/,
+    expect(days[3]).toMatch(/tabular-nums text-ink-muted">1<\/span><\/a>$/);
+    // Its key in words, so a day's colour never says it alone.
+    expect(text(section)).toContain("You're booked 1 Urgent 1 Open");
+    // The day chosen is in ink.
+    const chosen = render(list(), { day: "2026-11-08" }, strip);
+    expect(chosen).toMatch(
+      /<a aria-label="Sun 8 Nov: 1 urgent shift" aria-current="true" class="[^"]*bg-ink text-on-ink [^"]*" href="\/shifts\/open\?day=2026-11-08">/,
     );
+    expect(chosen).toMatch(/tabular-nums font-semibold">1<\/span>/);
   });
 
   it("urgent shifts first, under their own heading, then the rest; each a card opening its page", () => {
@@ -155,7 +160,9 @@ describe("Open shifts page body (Phase 18)", () => {
     expect(more[0]).toContain("glass-tile text-ink");
     // A card of glass (Phase 24; a hairline card lifted off the page in Phases 17 and 20), no red
     // frame; taking it is on its page.
-    expect(more[0]).toMatch(/class="flex items-start gap-3.5 glass rounded-\[22px\] p-4 /);
+    expect(more[0]).toMatch(
+      /class="group press glass flex items-start gap-4 rounded-\[22px\] p-4 /,
+    );
     expect(more[0]).not.toMatch(/(?<![\w-])(?:border-urgent|shadow-[a-z]+)(?![\w-])/);
     expect(html).not.toContain(">Take shift<");
     // The rest in date order, like the strip, whatever order they came in (nearest first).
@@ -193,7 +200,7 @@ describe("Open shifts page body (Phase 18)", () => {
     expect(text(plain)).not.toContain("Urgent, needed now");
   });
 
-  it("each card (§4.3; 12H.2): date tile, time, role, event and post, the travel line (both ways), seats, places, pay", () => {
+  it("each card (§4.3; 12H.2; round 7): date tile, time, role, event and post, the travel line (both ways), places, pay, a round arrow", () => {
     const html = render(
       list({
         shifts: [
@@ -220,13 +227,25 @@ describe("Open shifts page body (Phase 18)", () => {
     expect(text(card)).toContain(
       "Sat 7 Nov 14:00–22:00 £15.50/hour Door supervisor Riverside Festival, Gate A 3.1 miles · 12 min by car · 24 min by public transport 1 place left",
     );
-    // Not urgent: "1 place left" plain (red only on urgent shifts: Phase 20).
-    expect(card).toContain('<span class="text-base text-ink">1 place left</span>');
-    // The travel line shows, both ways (no drive on its own: 12G.3).
-    expect(card).toContain('<span class="text-base text-ink-muted" data-travel-line="">');
-    // Seats: 3 taken, 1 free.
-    expect(card.match(/data-seat="taken"/g)).toHaveLength(3);
-    expect(card.match(/data-seat="free"/g)).toHaveLength(1);
+    // Not urgent: "1 place left" in ink on a little glass chip (red words only on urgent shifts).
+    expect(card).toContain(
+      '<span class="glass-tile rounded-[10px] px-2.5 py-1 text-base font-medium text-ink">1 place left</span>',
+    );
+    // The travel line shows after a car, both ways (no drive on its own: 12G.3).
+    expect(card).toMatch(
+      /<span class="mt-1 flex items-start gap-2 text-base text-ink-muted" data-travel-line=""><svg[^>]*><path d="M5 11l1\.5-4/,
+    );
+    // The seats are on its page (round 7): here, the places left and a round arrow to open it.
+    expect(card).not.toContain("data-seat");
+    expect(card).toMatch(
+      /1 place left<\/span><span aria-hidden="true" class="glass-tile flex size-10 shrink-0 items-center justify-center rounded-full [^"]*"><svg[^>]*><path d="M5 12h14M13 6l6 6-6 6"/,
+    );
+    const urgentCard =
+      cardsIn(
+        render(list({ shifts: [shift({ shiftId: "u1", isUrgent: true })] })),
+        "urgent-heading",
+      )[0] ?? "";
+    expect(urgentCard).toMatch(/text-base font-medium text-urgent-ink">\d+ places? left<\/span>/);
     // What it needs is on the shift's page.
     expect(html).not.toContain("data-requirements");
     // A night shift says when it finishes; the event's name falls back to the site's.
@@ -243,7 +262,7 @@ describe("Open shifts page body (Phase 18)", () => {
       }),
     );
     expect(text(night)).toContain(
-      "19:00–01:00 £12.60/hour Steward Finishes Sunday morning Demo Arena",
+      "19:00–01:00 £12.60/hour Steward Demo Arena · finishes Sunday morning",
     );
   });
 
@@ -257,7 +276,7 @@ describe("Open shifts page body (Phase 18)", () => {
 
   it("says when the list was cut short, pointing to the filters; the filters right under the strip", () => {
     expect(text(render(list({ truncated: true })))).toContain(
-      "These are the first open shifts. Choose a day, site or role to see others.",
+      "These are the first open shifts. Tap Site and role to choose a day, site or role and see others.",
     );
     expect(text(render(list()))).not.toContain("These are the first open shifts");
     const html = render(
@@ -270,16 +289,32 @@ describe("Open shifts page body (Phase 18)", () => {
         },
       }),
     );
-    // A plain form, so it works without JavaScript: right under the strip (Phase 20), before the
-    // shifts; a day, a site and a role as chips, and its button.
+    // Round 7 (Phase 24): right under the strip, how many shifts and "Site and role", which opens
+    // a plain form (a <details> whose summary is the button, the form shown while it's open: no
+    // JavaScript needed), before the shifts; a day, a site and a role as chips, and its button.
     expect(html).toMatch(
-      /aria-label="Your next 8 days"[\s\S]*?<\/section><form aria-label="Choose a day, site or role" class="-mt-2 grid grid-cols-2 gap-2" method="get">/,
+      /aria-label="Your next 8 days"[\s\S]*?<\/section><div data-filters-box="" class="mt-3 flex flex-col gap-3"><div class="flex min-h-13 items-center justify-between gap-3"><p class="text-lg text-ink-muted">1 shift<\/p><details data-filters=""><summary aria-controls="shift-filters" class="[^"]*glass-button[^"]*\[\[open\]&gt;&amp;\]:lens"><svg[^>]*><path d="M4 7h16M7 12h10M10 17h4"><\/path><\/svg>Site and role<\/summary><\/details><\/div><form id="shift-filters" aria-label="Choose a day, site or role" class="hidden grid-cols-2 gap-2 \[\[data-filters-box\]:has\(\[data-filters\]\[open\]\)_&amp;\]:grid" method="get">/,
     );
+    // Open already when a site or role is chosen, so she sees what's chosen.
+    expect(
+      render(
+        list({
+          ...list(),
+          shifts: [shift({ shiftId: "s1" })],
+          choices: {
+            days: ["2026-11-07", "2026-11-08"],
+            sites: [{ id: arena.id, name: arena.name }],
+            roles: ["door_supervisor", "steward"],
+          },
+        }),
+        { role: "steward" },
+      ),
+    ).toContain('<details data-filters="" open="">');
     expect(html.indexOf("<form")).toBeLessThan(html.indexOf('id="more-heading"'));
     for (const name of ["day", "site", "role"])
       expect(html).toMatch(new RegExp(`<select name="${name}" class="[^"]*rounded-full[^"]*">`));
     expect(html.match(/<span class="sr-only">(Day|Site|Role)<\/span>/g)).toHaveLength(3);
-    expect(html).not.toContain("<details");
+    expect(html.match(/<details/g)).toHaveLength(1);
     expect(text(html)).toContain("Any day");
     expect(html).toContain('value="2026-11-08"');
     expect(text(html)).toContain("Sun 8 Nov");

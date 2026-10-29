@@ -561,6 +561,40 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   1024px, under it on a phone (seen on more than four pages at each width); no heading under the
   tabs repeating the chosen tab (seen on more than three pages at each width); the other office
   specs for each page's words and actions.
+- Phase 24, task 24.6 the casual app (docs/screens.md "The casual app, round 7"):
+  `ui.casual-app.test.ts` the scroll rule (`chromeAfterScroll`: open at the top and within 24px of
+  it, shrunk scrolling down, open scrolling up, a 6px wobble changing nothing), only ChromeWatch
+  marking `<html>` (`data-js`, `data-scrolled`, `data-tabs-mini`) and never under the office's
+  shell, the firm's bar sticky only under `data-js` with its frost only under `data-scrolled`, the
+  tab bar a server component of plain links whose every shrinking rule hangs off
+  `html[data-tabs-mini]` (so it's whole without JavaScript), no tab bar on a shift's page; the
+  pay total rule (`payWeeks`: grouped by period, lowest rate first, the total the sum of payroll's
+  grosses only when every line has one, a zero gross counted, pay days once each) and Pay's
+  newest week and earlier weeks with a total and without; "You're booked." covering the screen as
+  `glass-float`, put in `<body>`; a shift's page in its other states under its own bar; Home's
+  kept copy (what's hidden offline, what's shown). `portal.home.test.ts`, `portal.my-shifts.test.ts`,
+  `portal.open-shifts.test.ts`, `portal.shift-detail.test.ts`, `portal.urgent.test.ts`,
+  `portal.pay.test.ts`, `travel.area.test.ts` and `ui.redesign-copy.test.ts`: each screen's
+  states in round 7's markup and words (Home's three sections of rows, the glass pass, the strip,
+  "Site and role", the cards, a shift's cards, the tab bar's lens and mini values), in place of
+  Phase 20's pins on the tiles, the solid pass and the tab bar's pill. `ui.contrast.test.ts` the
+  pass's warm band, a booked day, red words on a glass chip and the firm's colour on the lens in
+  every look; `ui.glass.test.ts` and `ui.office-system.test.ts` the band and the foot's frost
+  among the glass's own gradients and blurs, `shadow-pass` gone. Seed: `seed.story.test.ts` Zoe's
+  and Ben's pay lines (complete weeks, paid the Friday after; Ben's newest with one line payroll
+  gave no gross for), `seed.test.ts`'s Saturday pay check leaving those two out. Browser:
+  `casual.glass.spec.ts` with JavaScript (the bar sticky and frosting once scrolled, the tab bar
+  68px, 54px scrolling down with its words for screen readers only, open again scrolling up and on
+  a tap), without (the bar in the page, the tab bar whole, plain links, the pass's Details and
+  "Site and role" opening and filtering), and Pay (Zoe's £324.00 over her two rates and four
+  earlier weeks; Ben's week with no total); `flow.worker.spec.ts` "You're booked." filling the
+  screen; `casual.app.spec.ts`, `offline.worker.spec.ts`, `urgent.worker.spec.ts`,
+  `travel.filter.spec.ts` and the walkthrough the new sections, rows and words;
+  `offline.worker.spec.ts` the tab bar in the kept copy (its four plain links, Home current). The
+  browser tests' global setup (`tests/e2e/warmup.ts`) asks the dev server for the pages the tests
+  open first, office and casual, before any test starts: `next dev` builds a page on its first
+  request, and the office's dashboard could take longer than the first office test's 5-second
+  wait after logging in.
 ## Fixtures and the demo seed
 
 `npm run db:seed` creates two fake firms:

@@ -35,7 +35,7 @@ export default async function PayPage() {
   return (
     <main className={page.staff}>
       <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-      <PageHeader title="Your pay" />
+      <PageHeader title="Pay" />
       {lines ? (
         <>
           <PayView lines={lines} firmName={firm.name} />

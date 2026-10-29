@@ -16,6 +16,7 @@ import {
   credentials,
   messages,
   payQueries,
+  payRecords,
   shiftEvents,
   shifts,
   sites,
@@ -584,6 +585,13 @@ export async function loadStory(
       data: { workerId: q.workerId, previous: "open", withNote: true },
     });
   }
+
+  // Zoe's and Ben's pay lines, as payroll's file gives them (Phase 24: the mock-up's Pay). Added
+  // once (fixed ids); an import's own lines are never overwritten.
+  await tx
+    .insert(payRecords)
+    .values(story.pay.map((p) => ({ ...p, firmId })))
+    .onConflictDoNothing();
 
   // The shifts line's messages, stored as the webhook stores them (answered after this
   // transaction: answerStoryMessages).

@@ -4,9 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 import type { OpenShift, OpenShiftsList } from "@/lib/portal/open-shifts";
 import { need } from "../helpers/qualifications";
 
-// Home's open shifts (docs/office-v2.md 4.2 item 3; 12H.1; Phase 18): in "For you", the urgent
-// shifts she can take as one row (how many, which days) to the urgent board, and the others as one
-// row to Open shifts. No shift is listed on Home, so nothing here says what a shift needs: that's on
+// Home's open shifts (docs/office-v2.md 4.2 item 3; 12H.1; Phases 18 and 24): in "Shifts you can
+// take", the urgent shifts she can take as one row (how many, which days, the best pay) to the
+// urgent board, and the others as one row to Open shifts, each with the soonest one's day as its
+// tile; pay day under "Pay". No shift is listed on Home, so nothing here says what a shift needs: that's on
 // the shift's own page ("You need", with her status for each: tests/unit/portal.shift-detail.test.ts).
 
 vi.mock("next/navigation", () => ({
@@ -55,6 +56,7 @@ const home = (shifts: OpenShift[]) => {
       firmName: "Acme Events",
       payDay: "2026-11-13",
       firstName: "Zoe",
+      lastName: "Adeyemi",
       timeZone: TZ,
       now: NOW,
       next: null,
@@ -69,9 +71,23 @@ const text = (html: string) =>
     .replace(/<[^>]+>/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+// What a screen reader hears: without the decorative tiles (a date tile, an icon), which say again
+// what the words say.
+const spoken = (html: string) =>
+  text(
+    html.replace(
+      /<span aria-hidden="true"[^>]*>(?:<span[^>]*>[^<]*<\/span>|<svg[\s\S]*?<\/svg>)*<\/span>/g,
+      "",
+    ),
+  );
+// A row's tile: the day in a date tile (pale red when urgent), hidden from screen readers.
+const tileOf = (row: string) =>
+  /<a class="[^"]*"[^>]*><span aria-hidden="true" class="([^"]*)"><span[^>]*>([A-Z][a-z]{2})<\/span><span[^>]*>(\d+)<\/span><\/span>/.exec(
+    row,
+  );
 
-describe("Home's open shifts, in For you", () => {
-  it("the urgent ones as one tile to the urgent board, the others as one tile to Open shifts; no shift's requirements", () => {
+describe("Home's open shifts, in Shifts you can take", () => {
+  it("the urgent ones as one row to the urgent board, the others as one row to Open shifts; no shift's requirements", () => {
     const html = home([
       shift(1, {
         isUrgent: true,
@@ -84,27 +100,50 @@ describe("Home's open shifts, in For you", () => {
     ]);
     const row = (key: string) =>
       html.match(new RegExp(`<li[^>]*data-for-you="${key}"[^>]*>.*?</li>`))?.[0] ?? "";
+    // Round 7's sections (Phase 24), each a heading over one glass card of rows; "For you" went.
+    expect(html).toMatch(
+      /<section aria-labelledby="can-take-heading"[^>]*><h2 id="can-take-heading" class="[^"]*">Shifts you can take<\/h2><ul role="list" class="glass [^"]*">/,
+    );
+    expect(html).toMatch(/<h2 id="pay-heading" class="[^"]*">Pay<\/h2>/);
+    expect(text(html)).not.toContain("For you");
     expect(row("urgent")).toContain('href="/urgent"');
     expect(row("urgent")).toContain("data-online-only");
-    // Near you: her home area chose them (Phase 20: a tile, its label, its count, its days).
-    expect(text(row("urgent"))).toBe("Urgent near you 1 shift Sat 7 Nov");
+    // Near you: her home area chose them (round 7's words: how many, its days; a chevron).
+    expect(spoken(row("urgent"))).toBe("1 urgent near you Sat 7 Nov");
+    expect(tileOf(row("urgent"))?.slice(1)).toEqual([
+      expect.stringContaining("bg-urgent-tile text-urgent-ink"),
+      "Sat",
+      "7",
+    ]);
+    expect(row("urgent")).toMatch(
+      /<\/span><\/span><svg aria-hidden="true"[^>]*class="shrink-0 text-ink-muted"/,
+    );
     expect(row("apply")).toContain('href="/shifts/open"');
-    expect(text(row("apply"))).toBe("More to apply for 1 shift Sat 7 Nov");
+    expect(spoken(row("apply"))).toBe("1 more to apply for Sat 7 Nov");
+    expect(tileOf(row("apply"))?.slice(1)).toEqual([
+      expect.stringContaining("glass-tile text-ink"),
+      "Sat",
+      "7",
+    ]);
     // The kept copy says they need signal instead (shown only there), with the day it was saved.
     expect(row("offline")).toContain("data-offline-only");
-    expect(text(row("offline"))).toBe(
-      "Open shifts Need signal 1 was urgent at 09:00 on Mon 2 Nov. We&#x27;ll check again when you&#x27;re online.",
+    expect(spoken(row("offline"))).toBe(
+      "Open shifts need signal 1 was urgent at 09:00 on Mon 2 Nov. We&#x27;ll check again when you&#x27;re online.",
     );
-    // Pay day (Phase 20): the pay week's Friday, to the Pay tab, online and offline.
+    expect(row("offline")).not.toContain("<a ");
+    // Pay day (Phase 20): the pay week's Friday, to the Pay tab, online and offline, its day the tile.
     expect(row("pay")).toContain('href="/pay"');
     expect(row("pay")).not.toMatch(/data-o(n|ff)line-only/);
-    expect(text(row("pay"))).toBe("Pay day Fri 13 Nov For this week&#x27;s shifts");
+    expect(spoken(row("pay"))).toBe("Pay day: Fri 13 Nov For this week&#x27;s shifts");
+    expect(tileOf(row("pay"))?.slice(2)).toEqual(["Fri", "13"]);
     expect(html).not.toContain("data-requirements");
     expect(text(html)).not.toMatch(/SIA DS|CSAS/);
-    // Nothing urgent: no urgent row, and the others are "shifts you can apply for".
+    // Nothing urgent: no urgent row, and the others are "shifts to apply for".
     const calm = home([shift(2, {})]);
     expect(calm).not.toContain('data-for-you="urgent"');
-    expect(text(calm)).toContain("To apply for 1 shift Sat 7 Nov");
+    expect(spoken(calm)).toContain("1 shift to apply for Sat 7 Nov");
+    // Nothing needs doing: no "Do this".
+    expect(calm).not.toContain("do-this-heading");
   });
 });
 
@@ -115,6 +154,7 @@ describe("Home with travel areas switched off for the firm (13.4)", () => {
         firmName: "Acme Events",
         payDay: "2026-11-13",
         firstName: "Zoe",
+        lastName: "Adeyemi",
         timeZone: TZ,
         now: NOW,
         next: null,
@@ -140,19 +180,20 @@ describe("Home with travel areas switched off for the firm (13.4)", () => {
     expect(html).not.toContain('href="/profile/travel"');
     expect(html).not.toContain('data-for-you="area"');
     // The open shifts still show, without how far (and not "near you": there's no area).
-    expect(words).toContain("Urgent 1 shift Sat 7 Nov");
-    expect(words).not.toContain("Urgent near you");
-    expect(words).toContain("More to apply for 1 shift Sat 7 Nov");
+    expect(spoken(html)).toContain("1 urgent Sat 7 Nov");
+    expect(words).not.toContain("near you");
+    expect(spoken(html)).toContain("1 more to apply for Sat 7 Nov");
   });
 });
 
-describe("For you: at most five tiles", () => {
-  it("with everything at once: urgent, needs doing, her home area, the rest, pay day; offline, one tile instead of the urgent one", () => {
+describe("Home's rows, at most five", () => {
+  it("with everything at once: needs doing, urgent, her home area, the rest, pay day; offline, one row instead of the urgent one", () => {
     const html = renderToStaticMarkup(
       createElement(HomeView, {
         firmName: "Acme Events",
         payDay: "2026-11-13",
         firstName: "Zoe",
+        lastName: "Adeyemi",
         timeZone: TZ,
         now: NOW,
         next: null,
@@ -169,21 +210,25 @@ describe("For you: at most five tiles", () => {
         },
       }),
     );
-    const forYou = html.slice(html.indexOf('aria-labelledby="for-you-heading"'));
-    const rows = [...forYou.matchAll(/<li ([^>]*)data-for-you="([a-z]+)"/g)].map((m) => ({
+    const rows = [...html.matchAll(/<li ([^>]*)data-for-you="([a-z]+)"/g)].map((m) => ({
       kind: m[2],
       online: (m[1] ?? "").includes("data-online-only"),
       offline: (m[1] ?? "").includes("data-offline-only"),
     }));
-    // Online (the offline tile hidden): five, in this order.
+    // Online (the offline row hidden): five, in this order: "Do this", then "Shifts you can take",
+    // then "Pay" (round 7).
     expect(rows.filter((r) => !r.offline).map((r) => r.kind)).toEqual([
-      "urgent",
       "needs",
+      "urgent",
       "area",
       "apply",
       "pay",
     ]);
-    // In the kept copy (online tiles hidden): the offline tile, what needs doing and pay day.
-    expect(rows.filter((r) => !r.online).map((r) => r.kind)).toEqual(["offline", "needs", "pay"]);
+    // In the kept copy (online rows hidden): what needs doing, the offline row and pay day.
+    expect(rows.filter((r) => !r.online).map((r) => r.kind)).toEqual(["needs", "offline", "pay"]);
+    const headings = [...html.matchAll(/<h2 id="([a-z-]+)-heading"[^>]*>([^<]+)<\/h2>/g)].map(
+      (m) => m[2],
+    );
+    expect(headings).toEqual(["No shifts booked", "Do this", "Shifts you can take", "Pay"]);
   });
 });

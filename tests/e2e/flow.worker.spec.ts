@@ -49,6 +49,15 @@ test("a worker logs in, takes a shift, cancels it, asks for a change and sees th
     await expect(page.getByText("You're booked.")).toBeVisible();
     await expect(page.getByText(/^Reference: [0-9A-F]{8}$/)).toBeVisible();
     await expect(page.getByText("— Acme Events Shift Team")).toBeVisible();
+    // Round 7 (Phase 24): "You're booked." covers the whole screen.
+    const cover = await page.locator("[data-booked]").boundingBox();
+    const screen = page.viewportSize();
+    expect(cover && screen && [cover.x, cover.y, cover.width, cover.height]).toEqual([
+      0,
+      0,
+      screen?.width,
+      screen?.height,
+    ]);
   });
 
   await timed("cancel it", async () => {
@@ -200,7 +209,7 @@ test("a worker logs in, takes a shift, cancels it, asks for a change and sees th
     await page.getByRole("button", { name: "Send me a code" }).click();
     await page.getByLabel("Your code").fill(await codeSentTo(mobile, asked));
     await page.getByRole("button", { name: "Check code" }).click();
-    await expect(page.getByText("The last 8 weeks, from Acme Events's payroll.")).toBeVisible();
+    await expect(page.getByText("The last 8 weeks, from Acme Events' payroll.")).toBeVisible();
     await expect(page.getByText(/ at £13\.50 an hour$/).first()).toBeVisible();
   });
 

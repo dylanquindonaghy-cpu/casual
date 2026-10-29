@@ -4,37 +4,32 @@ import type { MyShift } from "@/lib/portal/my-shifts";
 import { dateParts, inDays, shiftLine, timeRange } from "@/lib/portal/sign-copy";
 import { CancelShift } from "./shifts/cancel-shift";
 import { BringAndWear, Fact, factCard, PayLine, TravelFigures } from "./shifts/shift-parts";
-import { h2, staffBtn } from "./ui/classes";
+import { staffBtn, staffH2 } from "./ui/classes";
 import { Icon } from "./ui/icons";
 import { Plate } from "./ui/plate";
 
-// Her next shift as a pass (Phase 20; docs/screens.md `/` and `/shifts`), on Home and on Booked:
-// a card in the firm's colour, lifted off the page, saying the firm and how soon, the date in
-// words, the time large, the role and the event, the gate on a white plate and the place. Under it, one
-// tap each: Directions (the maps link), Details and "Can't make it?". Details opens a card under
-// the pass (the pass keeps its size and place) with the rest in label and value rows: getting
-// there, where to report, what to bring and wear, the pay, the instructions, then "Open in maps"
-// and "Ask for a change". Details is a <details> whose summary is the button: it opens without
-// JavaScript and in the offline copy, and the card under the buttons shows while it's open (a
-// `:has()` rule on the pass). "Can't make it?" and "Ask for a change" only before it starts.
-// Server-rendered; only "Can't make it?" is a client component.
-
-// The pass's three buttons: icon over words, on clear glass.
-const ACT =
-  "flex min-h-17 flex-col items-center justify-center gap-1 rounded-2xl glass-button press-glass px-1.5 py-2 text-center text-base leading-tight font-medium text-ink hover:bg-button-hover";
+// Her next shift as a pass (Phase 20; docs/screens.md `/` and `/shifts`), on Home and on Booked.
+// Phase 24 (24.6, round 7 of the canvas): one glass card whose top is a warm translucent band with
+// how soon ("In 3 days") and the date in words, the time large, the role and the event; under the
+// band the place, its town and postcode and the gate on a glass plate, then Directions (the maps
+// link, tinted glass) and Details (clear glass) side by side, and "Can't make it?" in red words
+// under them. Details opens a card under the pass (the pass keeps its size and place) with the rest
+// in label and value rows: getting there, where to report, what to bring and wear, the pay, the
+// instructions, then "Open in maps" and "Ask for a change". Details is a <details> whose summary is
+// the button: it opens without JavaScript and in the offline copy, and the card under the pass
+// shows while it's open (a `:has()` rule on the pass). "Can't make it?" and "Ask for a change" only
+// before it starts. Server-rendered; only "Can't make it?" is a client component.
 
 export function NextPass({
   shift,
   timeZone,
   now,
-  firmName,
   heading = "hidden",
   fresh = false,
 }: {
   shift: MyShift;
   timeZone: string;
   now: Date;
-  firmName: string;
   // Home: the pass speaks for itself (its heading for screen readers); Booked: shown above it.
   heading?: "hidden" | "shown";
   // Just taken (`?new=` on Booked): it moves into its place, marked "New".
@@ -49,80 +44,82 @@ export function NextPass({
   const canAct = shift.status === "confirmed" && shift.startsAt.getTime() > now.getTime();
   const event = shift.eventName ?? null;
   const place = shift.site?.name ?? null;
-  const what = [roleLabel(shift.role), event].filter(Boolean).join(", ");
-  const initial = firmName.match(/\p{L}|\p{N}/u)?.[0]?.toUpperCase() ?? "";
+  const what = [roleLabel(shift.role), event].filter(Boolean).join(" · ");
+  // Under the place, its town and postcode (the full address is in Details).
+  const town = shift.site
+    ? [shift.site.town, shift.site.postcode]
+        .map((p) => p?.trim())
+        .filter(Boolean)
+        .join(", ")
+    : "";
   return (
     <section aria-labelledby="next-heading" data-pass="" className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
-        <h2 id="next-heading" className={heading === "hidden" ? "sr-only" : h2}>
+        <h2 id="next-heading" className={heading === "hidden" ? "sr-only" : staffH2}>
           {onNow ? "On now" : "Your next shift"}
         </h2>
         {fresh && <Plate tone="brand">New</Plate>}
       </div>
-      <div
-        className={`flex min-h-56 flex-col justify-between gap-3.5 rounded-3xl bg-brand-bar px-5 pt-4.5 pb-5 text-on-brand-bar shadow-pass ${fresh ? "animate-move" : "animate-in"}`}
-      >
-        <p className="flex items-center gap-2.5 text-base font-semibold">
-          <span
-            aria-hidden="true"
-            className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-on-brand-bar text-base text-brand-bar"
-          >
-            {initial}
-          </span>
-          <span className="min-w-0 truncate">{firmName}</span>
-          <span className="ml-auto shrink-0 font-medium text-on-brand-bar-soft">
-            {inDays(shift.startsAt, shift.endsAt, now, timeZone)}
-          </span>
-        </p>
-        <div>
-          <p className="text-base text-on-brand-bar-soft">{day.long}</p>
-          <p className="font-sign text-4xl leading-tight">{t.range}</p>
-          <p className="text-lg font-medium">{what}</p>
-          {t.endsNote && <p className="text-base text-on-brand-bar-soft">{t.endsNote}</p>}
-        </div>
-        {(shift.post || place) && (
-          <p className="flex items-center gap-2.5 text-base text-on-brand-bar-soft">
-            {shift.post && (
-              <span className="shrink-0 rounded-[10px] bg-pass-plate px-2.5 py-1 font-semibold text-on-pass-plate">
-                {shift.post}
-              </span>
-            )}
-            {place && <span className="min-w-0">{place}</span>}
+      <div className={`glass overflow-hidden rounded-3xl ${fresh ? "animate-move" : "animate-in"}`}>
+        <div className="glass-band px-5 pt-4.5 pb-5">
+          <p className="flex items-center justify-between gap-3">
+            <span className="glass-tile rounded-[10px] px-2.5 py-1 text-base font-medium text-ink">
+              {inDays(shift.startsAt, shift.endsAt, now, timeZone)}
+            </span>{" "}
+            <span className="min-w-0 truncate text-base text-ink-muted">{day.long}</span>
           </p>
-        )}
-      </div>
-      <div className="grid auto-cols-fr grid-flow-col gap-2">
-        {map && (
-          <a href={map} target="_blank" rel="noopener noreferrer" className={ACT}>
-            <Icon name="pin" size={24} />
-            Directions
-          </a>
-        )}
-        <details data-pass-more="" className="group">
-          <summary
-            aria-controls="pass-details"
-            className={`${ACT} h-full list-none group-open:bg-brand-soft group-open:text-brand-ink group-open:shadow-none group-open:inset-shadow-sunk [&::-webkit-details-marker]:hidden`}
-          >
-            <Icon name="info" size={24} className="group-open:hidden" />
-            <Icon name="chevron" size={24} className="hidden -rotate-90 group-open:block" />
-            <span className="group-open:hidden">Details</span>
-            <span className="hidden group-open:inline">Hide details</span>
-          </summary>
-        </details>
-        {canAct && (
-          // Keyed by the booking: after a cancellation the next shift moves into the pass with
-          // its own, empty cancel state.
-          <CancelShift
-            key={shift.assignmentId}
-            shiftId={shift.shiftId}
-            opener="tile"
-            summary={{
-              dow: day.dow,
-              day: day.day,
-              line: shiftLine(shift.role, shift.startsAt, shift.endsAt, timeZone),
-            }}
-          />
-        )}
+          <p className="mt-3 font-sign text-4xl leading-tight text-ink">{t.range}</p>
+          <p className="mt-1 text-lg font-medium text-ink">{what}</p>
+          {t.endsNote && <p className="text-base text-ink-muted">{t.endsNote}</p>}
+        </div>
+        <div className="flex flex-col gap-4 px-5 pt-4 pb-4">
+          {(place || shift.post) && (
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                {place && <p className="text-lg font-medium text-ink">{place}</p>}
+                {town && <p className="text-base text-ink-muted">{town}</p>}
+              </div>
+              {shift.post && (
+                <span className="glass-tile shrink-0 rounded-[10px] px-3 py-1.5 text-base font-medium text-ink">
+                  {shift.post}
+                </span>
+              )}
+            </div>
+          )}
+          <div className="grid auto-cols-fr grid-flow-col gap-2">
+            {map && (
+              <a href={map} target="_blank" rel="noopener noreferrer" className={staffBtn.primary}>
+                <Icon name="pin" size={22} />
+                Directions
+              </a>
+            )}
+            <details data-pass-more="" className="group">
+              <summary
+                aria-controls="pass-details"
+                className={`${staffBtn.secondary} list-none group-open:bg-brand-soft group-open:text-brand-ink group-open:shadow-none group-open:inset-shadow-sunk [&::-webkit-details-marker]:hidden`}
+              >
+                <Icon name="info" size={22} className="group-open:hidden" />
+                <Icon name="chevron" size={22} className="hidden -rotate-90 group-open:block" />
+                <span className="group-open:hidden">Details</span>
+                <span className="hidden group-open:inline">Hide details</span>
+              </summary>
+            </details>
+          </div>
+          {canAct && (
+            // Keyed by the booking: after a cancellation the next shift moves into the pass with
+            // its own, empty cancel state.
+            <CancelShift
+              key={shift.assignmentId}
+              shiftId={shift.shiftId}
+              opener="full"
+              summary={{
+                dow: day.dow,
+                day: day.day,
+                line: shiftLine(shift.role, shift.startsAt, shift.endsAt, timeZone),
+              }}
+            />
+          )}
+        </div>
       </div>
       <div
         id="pass-details"

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import type { TakeShiftOutcome } from "@/lib/portal/take-shift";
 import { staffBtn } from "../../ui/classes";
 import { takeShiftAction } from "./actions";
@@ -43,6 +44,10 @@ export function TakeShiftButton({
     const retry = outcome.status === "error" || outcome.status === "try_again";
     const refresh =
       outcome.status === "filled" || outcome.status === "gone" || outcome.status === "not_yet";
+    // Booked covers the whole screen: in <body>, so nothing it sits in (the floating bar) holds it.
+    if (outcome.status === "booked") {
+      return createPortal(<TakeShiftResult outcome={outcome} shiftId={shiftId} />, document.body);
+    }
     return (
       <div>
         <TakeShiftResult

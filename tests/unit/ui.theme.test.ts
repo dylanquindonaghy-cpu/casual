@@ -77,7 +77,7 @@ describe("colours: tokens only", () => {
     const css = read("src/app/globals.css");
     const hasColour = new RegExp(HEX.source, "i");
     const GLASS_VARS =
-      "glass-rim|glass-drop|glass-drop-sm|glass-sunk|float-shadow|tile-top|tile-bottom|button-top|button-bottom|button-rim|tint-rim|lens-shadow|edge-fill|wash-[a-d]";
+      "glass-rim|glass-drop|glass-drop-sm|glass-sunk|float-shadow|tile-top|tile-bottom|button-top|button-bottom|button-rim|tint-rim|lens-shadow|edge-fill|wash-[a-d]|band-from|band-to";
     const tokens = new RegExp(
       String.raw`^\s*--(?:color-[a-z-]+: (?:#[0-9a-f]{6}|rgb\(\d+ \d+ \d+ \/ [\d.]+\))|(?:${GLASS_VARS}):[^;]+);`,
       "gm",
@@ -159,12 +159,18 @@ describe("one type scale", () => {
         m[0],
       ]),
     );
-    expect(uses.length).toBeGreaterThan(2);
+    // Phase 24 (round 7): a shift's time on the pass and Pay's week total, in their own figures;
+    // the date tile's sizes below. The greeting is a page headline's size since round 7 (28px).
+    expect(uses.map(([file, cls]) => `${file}: ${cls}`).sort()).toEqual([
+      'src/app/next-pass.tsx: "mt-3 font-sign text-4xl leading-tight text-ink"',
+      'src/app/pay/pay-view.tsx: "font-stat text-4xl text-ink"',
+    ]);
     expect(read("src/app/ui/sign.tsx")).toMatch(/className=\{`block font-sign [^`]*\$\{t\.day\}/);
-    // The greetings: Home's at the biggest size (`font-greet`: Geist medium since Phase 24); the
-    // dashboard's inside its one <h1>, at a page headline's size (no display serif).
+    // The greetings: Home's at a page headline's size (`font-greet`: Geist medium, 28px, as round
+    // 7's "Hi Zoe"); the dashboard's inside its one <h1>, at a page headline's size (no display
+    // serif).
     expect(read("src/app/home-view.tsx")).toMatch(
-      /className="font-greet text-4xl[^"]*">Hi \{firstName\}/,
+      /className="font-greet text-3xl[^"]*">Hi \{firstName\}/,
     );
     // The date tile's sizes live in a table beside its font-sign day. In the office, its big
     // counts in their own figures (`font-stat`); no display serif (gone in Phase 23).

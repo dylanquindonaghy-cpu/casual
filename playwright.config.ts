@@ -8,7 +8,7 @@ const ci = !!process.env.CI;
 // End-to-end tests run their own web app and worker on port 3100 against their own *_e2e
 // database (rebuilt and seeded each run), so they never touch the dev server or dev data.
 // Messages go to the console transport's outbox file, where tests pick up login links.
-const PORT = 3100;
+export const PORT = 3100;
 export const OUTBOX = ".dev/e2e-outbox.jsonl";
 export const E2E_TWILIO_AUTH_TOKEN = "e2e-twilio-auth-token-not-real-0000";
 export const CUSTOM_DOMAIN = "shifts.acme-events.test";
@@ -95,6 +95,8 @@ export default defineConfig({
       ? [["json", { outputFile: process.env.E2E_JSON_REPORT }] as const]
       : []),
   ],
+  // Builds the pages the tests open first before any test starts (tests/e2e/warmup.ts).
+  globalSetup: "./tests/e2e/warmup.ts",
   globalTeardown: "./tests/e2e/teardown.ts",
   use: { baseURL: `http://localhost:${PORT}`, trace: "retain-on-failure" },
   // Mobile first: workers use the portal from a phone. The browser (only) maps a made-up domain

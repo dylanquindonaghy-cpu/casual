@@ -203,7 +203,7 @@ test("Part 2: as a worker", async ({ browser }) => {
     const code = await sent(ZOE.e164, asked, /^Your Acme Events code is (\d{6})\./);
     await page.getByLabel("Your code").fill(code);
     await page.getByRole("button", { name: "Check code" }).click();
-    await expect(page.getByText("The last 8 weeks, from Acme Events's payroll.")).toBeVisible();
+    await expect(page.getByText("The last 8 weeks, from Acme Events' payroll.")).toBeVisible();
   });
 
   await test.step("14. Raise a pay query", async () => {
@@ -272,8 +272,8 @@ test("Part 2: as a worker", async ({ browser }) => {
 
   await test.step("18. Log in as Maya Morgan: her expired licence, and the urgent shift she can't take", async () => {
     await workerLogin(page, MAYA);
-    // For you's "Needs doing now" (12F.1; Phase 18), red: her licence stops her working.
-    const needs = page.getByRole("region", { name: "For you" }).locator('[data-for-you="needs"]');
+    // "Do this": "Needs doing now" (12F.1; Phases 18 and 24), red: her licence stops her working.
+    const needs = page.getByRole("region", { name: "Do this" }).locator('[data-for-you="needs"]');
     await expect(needs).toContainText("Needs doing now");
     await expect(needs).toContainText("Renew your SIA door supervisor licence");
     await expect(needs).toContainText(
@@ -294,8 +294,8 @@ test("Part 2: as a worker", async ({ browser }) => {
     // One, the 08:00 dropout; two from Friday noon, when Zoe's cancelled Saturday shift (step 12)
     // is inside the urgent window too.
     const onHome = page
-      .getByRole("region", { name: "For you" })
-      .getByRole("link", { name: /^Urgent( near you)? [12] shifts? / });
+      .getByRole("region", { name: "Shifts you can take" })
+      .getByRole("link", { name: /^[12] urgent( near you)? / });
     await onHome.click();
     await expect(page.getByRole("heading", { name: "Urgent shifts" })).toBeVisible();
     const dropout = page.getByRole("listitem").filter({ hasText: "08:00–" });
@@ -335,7 +335,7 @@ test("Part 2: as a worker", async ({ browser }) => {
   await test.step("21. Log in as Kieran Doyle: his strikes, and where he'd upload his licence", async () => {
     await workerLogin(page, KIERAN);
     // His licence ran out: the one thing to do, straight to its upload page (12F.2).
-    const needs = page.getByRole("region", { name: "For you" }).locator('[data-for-you="needs"]');
+    const needs = page.getByRole("region", { name: "Do this" }).locator('[data-for-you="needs"]');
     await expect(needs).toContainText("Needs doing now");
     await expect(needs).toContainText("Renew your SIA door supervisor licence");
     await expect(needs.getByRole("link")).toHaveAttribute("href", "/profile/upload/SIA_DS");

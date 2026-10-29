@@ -266,6 +266,7 @@ const homeScreen = (o: Partial<Parameters<typeof HomeView>[0]>) =>
     firmName: "Acme Events",
     payDay: "2026-11-13",
     firstName: "Sam",
+    lastName: "Udo",
     timeZone: TZ,
     now: NOW,
     next: null,

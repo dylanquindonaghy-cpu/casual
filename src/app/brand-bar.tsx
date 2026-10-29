@@ -1,4 +1,5 @@
 import type { Brand } from "@/lib/tenancy/brand";
+import { ChromeWatch } from "./chrome-watch";
 
 // The firm's bar at the top of every portal and office page (Phase 8 branding; Phase 18's
 // header; Phase 20): its logo, or its initial on the firm's colour (the band colour worked out in
@@ -8,11 +9,18 @@ import type { Brand } from "@/lib/tenancy/brand";
 // "Offline" plate at its end (globals.css shows [data-offline-only] only there). The name lines up
 // with the 448px staff column under it. Staff pages and logged-out office pages only: under the
 // office shell (data-shell="office") the shell names the firm instead (docs/office-v2.md 3.1). Above
-// the office's login pages, its corners and spacing are the office's (`office:`, Phase 21).
+// the office's login pages, its corners and spacing are the office's (`office:`, Phase 21). Phase
+// 24 (24.6, round 7): it stays at the top once the page runs (ChromeWatch) with a soft frosted edge
+// when the page is under it; a page with a bar of its own (a shift's "‹ Open shifts",
+// `data-own-bar`) hides it.
 export function BrandBar({ brand }: { brand: Brand }) {
   const initial = brand.name.match(/\p{L}|\p{N}/u)?.[0]?.toUpperCase() ?? "";
   return (
-    <header data-testid="brand-bar" className="text-ink [body:has([data-shell=office])_&]:hidden">
+    <header
+      data-testid="brand-bar"
+      className="scroll-edge relative z-20 text-ink [body:has([data-own-bar])_&]:hidden [body:has([data-shell=office])_&]:hidden [html[data-js]_&]:sticky [html[data-js]_&]:top-0"
+    >
+      <ChromeWatch />
       <div className="mx-auto flex min-h-14 max-w-md items-center gap-3 px-4 py-2 sm:px-6">
         {brand.logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element -- a firm's own https logo, from any host (next/image would need each host listed)

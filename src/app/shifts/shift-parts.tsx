@@ -34,11 +34,14 @@ export function TravelFigures({ travel, timeZone }: { travel: TravelFacts; timeZ
           {strip.words}
         </p>
       ) : (
-        <div aria-hidden="true" className="mt-1 grid grid-cols-3 gap-2">
+        <div
+          aria-hidden="true"
+          className={`mt-1 grid gap-2 ${strip.cells.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}
+        >
           {strip.cells.map((c) => (
-            <div key={c.words} className="glass-tile flex flex-col gap-0.5 rounded-2xl px-3 py-2.5">
-              <p className="font-sign text-lg leading-tight">{c.figure}</p>
-              <p className="text-sm leading-snug text-ink-muted">{c.words}</p>
+            <div key={c.words} className="glass-tile flex flex-col gap-0.5 rounded-2xl px-3 py-3">
+              <p className="font-sign text-2xl leading-tight">{c.figure}</p>
+              <p className="text-base leading-snug text-ink-muted">{c.words}</p>
             </div>
           ))}
         </div>
@@ -76,8 +79,9 @@ export function BringAndWear({ text }: { text: string }) {
   );
 }
 
-// "£12.60 an hour", large, and "About £100.80 for the 8 hours" under it.
-export function PayLine({
+// "£12.60 an hour", large, and "About £100.80 for the 8 hours" under it (the full words for screen
+// readers): on a shift's page in its own card, under a "Pay" label on the pass's details.
+export function PayFigures({
   ratePence,
   startsAt,
   endsAt,
@@ -88,14 +92,22 @@ export function PayLine({
 }) {
   const hours = Math.max(0, endsAt.getTime() - startsAt.getTime()) / 3_600_000;
   return (
-    <Fact label="Pay">
+    <div>
       <span className="sr-only">{payWords(ratePence, startsAt, endsAt)}</span>
       <p aria-hidden="true" className="font-sign text-2xl leading-tight">
         {pounds(ratePence)} an hour
       </p>
-      <p aria-hidden="true" className="text-sm text-ink-muted tabular-nums">
+      <p aria-hidden="true" className="text-base text-ink-muted tabular-nums">
         About {pounds(Math.round(ratePence * hours))} for the {hoursText(hours)}
       </p>
+    </div>
+  );
+}
+
+export function PayLine(props: { ratePence: number; startsAt: Date; endsAt: Date }) {
+  return (
+    <Fact label="Pay">
+      <PayFigures {...props} />
     </Fact>
   );
 }

@@ -879,24 +879,31 @@ describe("Acme's Saturday event day", () => {
   });
 
   it("gives every Acme worker pay lines for the last 8 complete weeks, as payroll would", async () => {
-    const [pay] = await acmeRows<{
-      workers_paid: number;
-      most: number;
-      least: number;
-      bad_gross: number;
-      bad_dates: number;
-      oldest_days: number;
-    }>(
-      `select count(distinct worker_id)::int as workers_paid,
+    // The Saturday's 60 workers (the story's Zoe and Ben have their own, in its test: Phase 24).
+    const storyPay = STORY.pay.map((p) => p.id);
+    const [pay] = (
+      await su.query<{
+        workers_paid: number;
+        most: number;
+        least: number;
+        bad_gross: number;
+        bad_dates: number;
+        oldest_days: number;
+      }>(
+        `select count(distinct worker_id)::int as workers_paid,
               max(n)::int as most, min(n)::int as least,
-              (select count(*)::int from pay_records where firm_id = $1 and gross_pence <> round(hours * rate_pence)) as bad_gross,
-              (select count(*)::int from pay_records where firm_id = $1
+              (select count(*)::int from pay_records where firm_id = $1 and id <> all($2::uuid[])
+                 and (gross_pence is null or gross_pence <> round(hours * rate_pence))) as bad_gross,
+              (select count(*)::int from pay_records where firm_id = $1 and id <> all($2::uuid[])
                  and (period_end <> period_start + 6 or pay_date <> period_end + 5 or extract(isodow from period_start) <> 1
                       or period_end >= (now() at time zone 'Europe/London')::date)) as bad_dates,
               (select ((now() at time zone 'Europe/London')::date - min(period_start))::int
-                 from pay_records where firm_id = $1) as oldest_days
-         from (select worker_id, count(*) as n from pay_records where firm_id = $1 group by worker_id) per`,
-    );
+                 from pay_records where firm_id = $1 and id <> all($2::uuid[])) as oldest_days
+         from (select worker_id, count(*) as n from pay_records
+                where firm_id = $1 and id <> all($2::uuid[]) group by worker_id) per`,
+        [ACME, storyPay],
+      )
+    ).rows;
     expect(pay).toMatchObject({ workers_paid: 60, bad_gross: 0, bad_dates: 0 });
     expect(pay?.least).toBeGreaterThanOrEqual(1);
     expect(pay?.most).toBeLessThanOrEqual(8);

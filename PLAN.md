@@ -1696,7 +1696,7 @@ Docs: `docs/ui-design.md`, `docs/screens.md`, `docs/office-v2.md`.
       event, a casual, the offer page, the how-to guide (its words matching the new layout) and the
       logged-out pages, at 390px and 1280px in both themes. Tests: the browser tests of every
       office page, record and login page (24.5)
-- [ ] The casual app as in the mock-up: the firm's bar frosting once the page scrolls under it;
+- [x] The casual app as in the mock-up: the firm's bar frosting once the page scrolls under it;
       Home ("Hi {first name}"; the next shift as a glass pass with its warm band, how soon, the date,
       the time large, role and event, the site, town and postcode with the gate on a plate,
       Directions and Details side by side, Can't make it? under them; Do this, Shifts you can take

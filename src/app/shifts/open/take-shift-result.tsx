@@ -8,7 +8,10 @@ import { Icon } from "../../ui/icons";
 // What the worker sees after tapping "Take shift" (docs/screens.md copy rules: plain words, and a
 // confirmation they can screenshot: what, when, a reference, signed by the firm).
 // Phase 18: booked is a green tick, the shift and its reference, and the way to see it among her
-// shifts (where it arrives marked "New"); someone else taking it first is a red note.
+// shifts (where it arrives marked "New"); someone else taking it first is a red note. Phase 24
+// (round 7): "You're booked." covers the whole screen as what floats does (`glass-float`: the page
+// blurred behind it, solid in the fallbacks); the button puts it in <body>
+// (src/app/shifts/open/take-shift-button.tsx).
 export function TakeShiftResult({
   outcome,
   reviewHref,
@@ -21,15 +24,19 @@ export function TakeShiftResult({
   switch (outcome.status) {
     case "booked":
       return (
-        <div role="status" className="flex animate-toast flex-col items-start gap-3 py-2">
+        <div
+          role="status"
+          data-booked=""
+          className="glass-float fixed inset-0 z-50 flex animate-fade flex-col items-center justify-center gap-4 overflow-y-auto px-6 py-10 text-center"
+        >
           <span
             aria-hidden="true"
-            className="flex size-14 items-center justify-center rounded-xl bg-done-fill text-on-done"
+            className="flex size-20 animate-toast items-center justify-center rounded-full bg-done-fill text-on-done shadow-lift"
           >
-            <Icon name="check" size={32} />
+            <Icon name="check" size={44} />
           </span>
-          <p className="text-2xl font-semibold">You&apos;re booked.</p>
-          <div className="text-base">
+          <p className="text-3xl font-semibold tracking-heading">You&apos;re booked.</p>
+          <div className="text-lg">
             {outcome.when && <p className="font-semibold tabular-nums">{outcome.when}</p>}
             {outcome.role && (
               <p>
@@ -40,7 +47,10 @@ export function TakeShiftResult({
             <p className="mt-1 font-semibold tabular-nums">Reference: {outcome.ref}</p>
             <p className="mt-1 text-ink-muted">— {outcome.signOff}</p>
           </div>
-          <Link href={shiftId ? `/shifts?new=${shiftId}` : "/shifts"} className={staffBtn.primary}>
+          <Link
+            href={shiftId ? `/shifts?new=${shiftId}` : "/shifts"}
+            className={`${staffBtn.primary} mt-2 max-w-sm`}
+          >
             See my shifts
           </Link>
         </div>

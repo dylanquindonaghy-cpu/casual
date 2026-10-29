@@ -1854,7 +1854,7 @@ code emails) go in `docs/messaging-templates.md` first, for Dylan to approve (P2
       for a booking whose `booked_via` is sheet or api (the firm's own system tells those casuals);
       offers and the office's change and cancellation notices still go (decision 9). Tests:
       `shift.reminders.test.ts`, the confirmation, `onboarding.test.ts` (P2.3)
-- [ ] Push first, then a text, then email (M; after P2.1): one `deliverToWorker()` in
+- [x] Push first, then a text, then email (M; after P2.1): one `deliverToWorker()` in
       `src/lib/notify/send.ts`: a push to the casual's phones (delivered once one phone takes it),
       else a WhatsApp or text as now (STOP respected), else an email with P2.1's subject when they
       have an address, else not sent (`no_channel`, logged); a transport with no text sender says so
@@ -1871,14 +1871,14 @@ code emails) go in `docs/messaging-templates.md` first, for Dylan to approve (P2
       a push now instead of the text, not beside it) named in the commit; new: each step, a push gone
       or failed falls to a text, no text sender falls to email, no address is `no_channel`, nothing
       twice on a retry (P2.4)
-- [ ] The worker runs in production with no text sender (M): `MESSAGING_TRANSPORT=none` (an empty
+- [x] The worker runs in production with no text sender (M): `MESSAGING_TRANSPORT=none` (an empty
       value unset), allowed in production; the Compose file's worker runs without its profile,
       with `none` by default and SMTP email as production already insists; the send-failure alert
       ignores `no_text_sender`, as it does `sms_opted_out`. Tests changed on purpose: the production
       refusals (`env.test.ts`, `env.demo.test.ts`, `push*.test.ts`) and `deploy.compose.test.ts`;
       new: the worker starts in production with `none` and SMTP, and still refuses `console`.
       Docs: `docs/runbooks.md`, `docs/architecture.md` (P2.5)
-- [ ] Login links and pay codes by email, switched off (A, M; after P2.1): an owner setting
+- [x] Login links and pay codes by email, switched off (A, M; after P2.1): an owner setting
       `login_by_email` (off); `send-portal-link.ts` and `send-login-code.ts` choose the channel at
       the claim: a text if a sender exists, else (with the setting on and an address) P2.1's
       email, else not sent (`no_channel`); the events log the channel used, never a hard-coded

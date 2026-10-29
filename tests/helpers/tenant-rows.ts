@@ -10,6 +10,7 @@ export const EXPECTED_TABLES = [
   "api_keys",
   "assignments",
   "auth_throttle",
+  "connector_events",
   "credential_rules",
   "credential_types",
   "credentials",
@@ -207,6 +208,19 @@ export async function createTenant(su: Pool): Promise<Tenant> {
      values ($1, 'sheets', $2, '{"version": 1}')`,
     [firmId, fakeSpreadsheetId()],
   );
+  // A switched-off connector of its own (one source on per firm: the sheet above), for its event.
+  const connectorSourceId = await one(
+    su,
+    `insert into roster_sources (firm_id, kind, enabled, connector, base_url, mapping)
+     values ($1, 'connector', false, 'demo_portal', 'https://portal.example.test/api', '{}')`,
+    [firmId],
+  );
+  const connectorEventId = await one(
+    su,
+    `insert into connector_events (firm_id, source_id, event_id, type, ref)
+     values ($1, $2, 'evt-fixture-1', 'session.changed', 'PORTAL-S1')`,
+    [firmId, connectorSourceId],
+  );
   const nameMapId = await one(
     su,
     "insert into name_map (firm_id, kind, outside_name, code) values ($1, 'role', 'door supervisor (nlw)', 'door_supervisor')",
@@ -342,6 +356,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       requests: requestId,
       offers: offerId,
       roster_sources: rosterSourceId,
+      connector_events: connectorEventId,
       firm_secrets: secretId,
       name_map: nameMapId,
       pay_records: payRecordId,
@@ -438,6 +453,11 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
     text: `insert into roster_sources (firm_id, kind, enabled, spreadsheet_id, mapping)
            values ($1, 'sheets', false, $2, '{"version": 1}')`,
     values: [firmId, fakeSpreadsheetId()],
+  }),
+  connector_events: (firmId, p) => ({
+    text: `insert into connector_events (firm_id, source_id, event_id, type, ref)
+           values ($1, $2, $3, 'staff.changed', 'PORTAL-W1')`,
+    values: [firmId, p.rows.roster_sources, `evt-probe-${next()}`],
   }),
   name_map: (firmId) => ({
     text: "insert into name_map (firm_id, kind, outside_name, code) values ($1, 'role', $2, null)",
@@ -537,6 +557,11 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
     text: `insert into api_keys (firm_id, label, token_hash, hint, created_by, revoked_by, revoked_at)
            values ($1, 'Probe planner', $2, 'ab_-', $3, $4, now())`,
     values: [firmId, hash(), own.officeUserId, other.officeUserId],
+  }),
+  connector_events_source_fk: (firmId, _own, other) => ({
+    text: `insert into connector_events (firm_id, source_id, event_id, type, ref)
+           values ($1, $2, $3, 'session.changed', 'PORTAL-S1')`,
+    values: [firmId, other.rows.roster_sources, `evt-fk-${next()}`],
   }),
   credentials_worker_fk: (firmId, _own, other) => ({
     text: "insert into credentials (firm_id, worker_id, type) values ($1, $2, 'PTS')",

@@ -53,6 +53,7 @@ architecture.md, Tenancy).
 | auth_throttle | Rate-limit counters for login and OTP requests, and the shifts line's unknown-number alerts (HMAC-keyed buckets) | 1 |
 | api_keys | A planner's API keys: a label, the key's sha256 and last 4 characters (never the key), who made and revoked it, when last used (12J.1, S11) | 12 |
 | firm_secrets | A firm's own credentials for its systems (its ops portal's API key, its webhook secret), each sealed under a key the database never sees (P5.1, ADR-026) | P5 |
+| connector_events | What a connector's source said changed (a session or a staff record, by its ref), one row per event id per source, and what the job made of it (P5.3) | P5 |
 | push_subscriptions | Web push endpoints per worker | 4 |
 | roster_sources | Where a firm's rota lives when it isn't our tables: a Google Sheet (its id, column mapping) or a connector to the firm's own system (which one, its base address; P5.2), with the last sync, error code and sync lease | 2 |
 | name_map | What the firm's own system calls a role, qualification, staff type or cancellation reason, mapped to a ShiftDesk code or to skip (P3.2) | P3 |
@@ -981,6 +982,31 @@ create table firm_secrets (
   created_at timestamptz not null default now(),
   unique (firm_id, id),
   unique (firm_id, name)
+);
+
+-- What a connector's source said changed (P5.3, migration 0056; src/lib/connector/): one row per
+-- event its webhook sent, unique by the source's own event id (the same webhook twice is one row
+-- and one job), naming what changed and nothing of it: the job reads the record from the source's
+-- API, never from the webhook. The webhook inserts it (with its connector-event job, in the same
+-- transaction) and the job sets its outcome (COLUMN_UPDATES: status, outcome_code, processed_at);
+-- never deleted or rewritten by the app. The webhook finds the source's firm through
+-- app_connector_source_firm(source) (run as the owner, which reads every firm's sources through
+-- roster_sources' owner-only source_lookup policy; the app role may call it), only once the
+-- signature has passed.
+create table connector_events (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  source_id uuid not null,               -- (firm_id, source_id) -> roster_sources (firm_id, id)
+  event_id text not null,                -- the source's webhook-id: 1..100 letters, digits, . _ : -
+  type text not null,                    -- 'session.changed' | 'staff.changed'
+  ref text not null,                     -- the source's ref for the session or staff record
+  status text not null default 'queued', -- queued | applied | refused | ignored | failed
+  outcome_code text,                     -- ^[a-z0-9_]{1,50}$: created, updated, added, gone,
+                                         -- skipped_name, source_off, not_allowed, bad_role…
+  processed_at timestamptz,              -- set with the outcome (queued: neither)
+  created_at timestamptz not null default now(),
+  unique (firm_id, id),
+  unique (firm_id, source_id, event_id)
 );
 
 create table api_keys (

@@ -1,5 +1,6 @@
 import { createECDH } from "node:crypto";
 import { z } from "zod";
+import { CONNECTOR_TRANSPORTS } from "./connector/transport-names";
 import { secretsKey } from "./secret-store/crypto";
 import { databaseTlsOn } from "./db/tls";
 
@@ -336,6 +337,10 @@ export const workerEnvSchema = z
     // "https" sends it (src/lib/integrations/send.ts): required in production, refused under
     // NODE_ENV=test, so no test can reach a real address. An empty value means not set.
     WEBHOOK_TRANSPORT: unsetIfEmpty(z.enum(["console", "https"]).default("console")),
+    // How a connector's job reads a record from the firm's own system (P5.3;
+    // src/lib/connector/transport.ts), worker only: "none" (the default) reads nothing, "fake" the
+    // made-up portal in memory (tests and a local run). A real system's comes with its connector.
+    CONNECTOR_TRANSPORT: unsetIfEmpty(z.enum(CONNECTOR_TRANSPORTS).default("none")),
     // Haiku (CLAUDE.md "Stack").
     AI_MODEL: unsetIfEmpty(
       z
@@ -468,6 +473,17 @@ export const adminEnvSchema = z
     path: ["DATABASE_ADMIN_URL"],
     message: "must be the owner, not the app or jobs role",
   });
+
+// The connector's owner command (P5.3; scripts/firm-connector.ts): the owner's settings, plus the
+// platform address its webhooks go to and the secret their signing secret is worked out from.
+export const connectorOwnerEnvSchema = adminEnvSchema.and(
+  z.object({
+    APP_BASE_DOMAIN: appFields.APP_BASE_DOMAIN,
+    INTEGRATIONS_SECRET: appFields.INTEGRATIONS_SECRET,
+  }),
+);
+export const parseConnectorOwnerEnv = (source: Source) =>
+  parseWith(connectorOwnerEnvSchema, source);
 
 // A demo server's reset (16.2; scripts/demo-reset.ts): the owner's settings, plus demo mode and the
 // outbox it empties.

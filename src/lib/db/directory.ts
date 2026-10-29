@@ -198,3 +198,42 @@ export function resolveApiKey(hash: Buffer): Promise<ApiKeyEntry | null> {
   defaultKeyDirectory ??= onlyDemoFirms(createKeyDirectory(appPool()), (k) => k.firmId, demoMode);
   return defaultKeyDirectory(hash);
 }
+
+// A connector's source -> firm (P5.3): the firm of a connector source that's switched on, through
+// app_connector_source_firm() (drizzle/0056_connector_events.sql), for its webhooks, which name the
+// source in their address. Only once the webhook's signature has passed (src/lib/connector/
+// webhook.ts); the change then runs in withFirm(). Anything but a uuid is null without asking.
+export interface ConnectorSourceEntry {
+  firmId: string;
+}
+
+export type ResolveConnectorSource = (sourceId: string) => Promise<ConnectorSourceEntry | null>;
+
+const sourceRowSchema = z.object({ firm_id: z.uuid() });
+
+export function createConnectorSourceDirectory(pool: Pool): ResolveConnectorSource {
+  const db = drizzleFor(pool);
+  let ready: Promise<void> | undefined;
+  return async (sourceId) => {
+    if (!z.uuid().safeParse(sourceId).success) return null;
+    ready ??= assertSafeAppConnection(pool).catch((err: unknown) => {
+      ready = undefined;
+      throw err;
+    });
+    await ready;
+    const result = await db.execute(sql`select * from app_connector_source_firm(${sourceId})`);
+    if (result.rows.length === 0) return null;
+    return { firmId: sourceRowSchema.parse(result.rows[0]).firm_id };
+  };
+}
+
+let defaultConnectorSourceDirectory: ResolveConnectorSource | undefined;
+
+export function resolveConnectorSource(sourceId: string): Promise<ConnectorSourceEntry | null> {
+  defaultConnectorSourceDirectory ??= onlyDemoFirms(
+    createConnectorSourceDirectory(appPool()),
+    (s) => s.firmId,
+    demoMode,
+  );
+  return defaultConnectorSourceDirectory(sourceId);
+}

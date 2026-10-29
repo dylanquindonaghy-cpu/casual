@@ -83,11 +83,16 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   // A firm's own credentials (P5.1; ADR-026): none at all. Written by the owner command, read by
   // the worker only through app_read_firm_secret(), as the jobs role.
   firm_secrets: [],
+  // What a connector's source said changed (P5.3): added by its webhook, its outcome set by the
+  // job (COLUMN_UPDATES), never deleted or rewritten by the app (what came in, and what was made
+  // of it).
+  connector_events: ["SELECT", "INSERT"],
 };
 
 // Columns the app role may update on a table it can't update as a whole (a column-level grant).
 export const COLUMN_UPDATES: Readonly<Record<string, readonly string[]>> = {
   roster_sources: ["last_synced_at", "last_attempted_at", "last_error_code", "sync_started_at"],
+  connector_events: ["status", "outcome_code", "processed_at"],
   shift_events: ["showing_to_casuals", "name"],
   // The planner's API keys (S11): read and added, never rewritten or deleted; only the last use
   // and the revocation change.

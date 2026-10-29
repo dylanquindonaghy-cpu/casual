@@ -616,6 +616,34 @@ the secret store, sealed with `SECRETS_KEY` before they reach the database.
   acme` lists the names and when each was set, never a value.
 - **Remove one:** `… scripts/firm-secret.ts --firm acme --name portal.api_key --remove`.
 
+## A firm's connector (P5.3)
+
+A connector reads the firm's own system (its ops portal) and brings its sessions and staff in as
+the firm's planner's: through exactly the planner API's rules, logged as the planner's with the
+source in place of a key. Only the made-up portal exists so far (`demo_portal`, for the tests and a
+local run); a real system's connector comes once its API is known (PLAN.md P5), and nothing real
+flows before the firm's agreement and DPA are recorded (Gate B: the command and every change refuse
+on a live database until then).
+
+- **One planner:** a firm sends its sessions through the planner API with a key, or through a
+  connector, never both: the command refuses while a key is live, and while one is the connector
+  changes nothing. One rota source on at a time, too: switch a sheet off first.
+- **Its API key** goes in the secret store: `… scripts/firm-secret.ts --firm acme --name
+  connector.api_key` (the value on standard input: "A firm's secrets").
+- **Connect it:** `npm run -s firm:connector -- --firm acme --connector demo_portal --base-url
+  https://portal.example.test/api` (https, a public name, port 443 if any). It prints the address
+  its webhooks go to; `--webhook-secret` prints the secret they're signed with (worked out from
+  `INTEGRATIONS_SECRET`, never stored): paste both into the system's webhook settings, and keep the
+  secret off screens. The worker reads the system only with `CONNECTOR_TRANSPORT` set to its
+  transport.
+- **What came in:** each webhook is a `connector_events` row with its outcome (applied, refused,
+  ignored, failed, and a code). A system that doesn't answer is tried again for about an hour, then
+  the event is saved as failed; the reconcile pull (P5.4) catches up.
+- **Switch it off:** `… --off` (kept, not deleted: a change waiting on it then changes nothing).
+  **Replace it:** connect another with `--replace`. **Renew its webhook secret:** switch it off and
+  connect it again (a new source: a new id, so a new secret, and a new webhook address); rotating
+  `INTEGRATIONS_SECRET` renews every source's at once.
+
 ## The planner integration secret (INTEGRATIONS_SECRET)
 
 The planner API (`/api/v1`, 12J.1; `docs/office-v2.md` 5.3) answers only when the server has this
@@ -697,7 +725,8 @@ Since P4.2 (ADR-027) nothing waits for ever. In the logs or a failed job:
   behind another transaction's locks (a big sheet sync, a running scan), not that it was slow.
 
 The connection budget: the web app's pool of 10, the worker's 15 and pg-boss's 5, about 30 in all,
-plus a one-off migration or owner command. An offer wave uses up to 4 of the worker's 15 at once
+plus the worker's one jobs-role connection for the secret store (P5.3, made only when a connector
+first reads its key) and a one-off migration or owner command. An offer wave uses up to 4 of the worker's 15 at once
 (its 4 lanes, P4.4), each for a short transaction. The database's `max_connections` must be well
 above that: check the host's plan before choosing one (`show max_connections;` as the owner).
 

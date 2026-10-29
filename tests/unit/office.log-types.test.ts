@@ -81,6 +81,11 @@ const NOT_EVENTS = new Set<string>([
   // A firm's secrets' names (P5.1): what the secret store holds, not log entries.
   "portal.api_key",
   "portal.webhook_secret",
+  "connector.api_key",
+  // A connector's webhook types (P5.3) and the settings key its owner command logs under.
+  "session.changed",
+  "staff.changed",
+  "roster_source.connector",
   // The webhook's keys, changed only through app_set_firm_setting() (12J.2).
   "webhook.url",
   "webhook.rotate",

@@ -393,6 +393,13 @@
       "when": 1793284611229,
       "tag": "0055_roster_connector_source",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1793284948137,
+      "tag": "0056_connector_events",
+      "breakpoints": true
     }
   ]
 }

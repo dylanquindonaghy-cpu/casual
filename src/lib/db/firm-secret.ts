@@ -1,4 +1,4 @@
-import type { Pool } from "pg";
+import { Pool as PgPool, type Pool } from "pg";
 import { isSecretName, openSecret, type SecretsKey } from "../secret-store/crypto";
 
 // A firm's secret, for the worker (P5.1; ADR-026): read through app_read_firm_secret() (migration
@@ -23,4 +23,26 @@ export async function readFirmSecret(
     nonce: row.nonce,
     keyId: row.key_id,
   });
+}
+
+// What a job asks for a firm's secret by (the worker builds it: firmSecretReader).
+export type ReadFirmSecret = (firmId: string, name: string) => Promise<string | null>;
+
+// The worker has no SECRETS_KEY: no secret can be opened.
+export class SecretsKeyMissing extends Error {
+  constructor() {
+    super("SECRETS_KEY isn't set: no firm's secret can be read");
+    this.name = "SecretsKeyMissing";
+  }
+}
+
+// The worker's reader: its own small jobs-role pool, made on first use (one connection: a secret
+// is read once per job, briefly). With no key, every read is refused (SecretsKeyMissing).
+export function firmSecretReader(jobsUrl: string, key: SecretsKey | null): ReadFirmSecret {
+  let pool: Pool | undefined;
+  return async (firmId, name) => {
+    if (!key) throw new SecretsKeyMissing();
+    pool ??= new PgPool({ connectionString: jobsUrl, max: 1, idleTimeoutMillis: 30_000 });
+    return readFirmSecret(pool, key, { firmId, name });
+  };
 }

@@ -183,6 +183,23 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   address on a public name and no spreadsheet, never an IP address, an internal name, another port
   or a dot segment; a sheet the reverse; one source on per firm); and the sheet command leaves a
   connector alone and won't switch a sheet on beside it.
+- `connector.events.test.ts` (P5.3) — a connector's webhooks in and its job, on the real database as
+  the app role against the made-up portal in memory (never a real system): the webhook stores one
+  row per event and queues one job in the same transaction (the same event again, nothing more),
+  and stores nothing for a wrong signature, a switched-off source or a sheet's id; the job reads
+  the record from the portal (never the webhook's body) and applies it as the planner's: a session
+  made then changed, logged with its source, and a job run twice reads once; a staff record added
+  through `upsertWorker()`, its roles through the name map; what isn't applied says why (gone, a
+  skipped or unreadable name, a record under another ref, the planner's own refusal); a source that
+  doesn't answer is tried again and the last try saves it as failed; no key, or no `SECRETS_KEY`,
+  fails at once with nothing read; a source switched off before its job reads nothing, and with a
+  live planner key nothing changes; the key read from the secret store on the jobs role's own
+  connection; and the owner's command connects, keeps, replaces and switches a connector off, each
+  logged, refusing a bad address, a sheet or a live key beside it, and (live) no agreement. The
+  webhook's checks before anything is read (a missing, wrong, old or replayed signature 403; not a
+  source 404; no secret 503; not JSON 415; too big 413; a body that isn't a change 400, its values
+  never logged) and the made-up portal's mapping are unit-tested
+  (`tests/unit/connector.webhook.test.ts`, `tests/unit/connector.demo-portal.test.ts`).
 - `rules.any-of.test.ts` (P3.3, Rules 3) — "any of" licences, on the real database as the app role:
   the security pack's security officer needs one of an SIA security guard or door supervisor
   licence (other rules unchanged), and the database refuses a group of one, a type in both lists

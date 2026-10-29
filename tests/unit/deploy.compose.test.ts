@@ -317,6 +317,8 @@ describe("deploy/docker-compose.yml", () => {
         "DATABASE_ADMIN_URL",
         "DATABASE_JOBS_URL",
         "DATABASE_URL",
+        // To show a connector's webhook secret (npm run firm:connector, P5.3).
+        "INTEGRATIONS_SECRET",
         "NODE_ENV",
         // To seal a firm's secrets (npm run firm:secret, P5.1).
         "SECRETS_KEY",

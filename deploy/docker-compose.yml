@@ -180,6 +180,8 @@ services:
       SESSION_SECRET: ${SESSION_SECRET:?}
       # To seal a firm's secrets so the worker can open them (npm run firm:secret, P5.1).
       SECRETS_KEY: ${SECRETS_KEY:-}
+      # To show a connector's webhook secret, worked out from it (npm run firm:connector, P5.3).
+      INTEGRATIONS_SECRET: ${INTEGRATIONS_SECRET:-}
     volumes:
       - *db-ca
     logging: *logging

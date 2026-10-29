@@ -8,6 +8,7 @@ import {
   integer,
   jsonb,
   numeric,
+  pgPolicy,
   pgTable,
   text,
   unique,
@@ -792,5 +793,14 @@ export const rosterSources = pgTable(
     check("roster_sources_mapping_object", sql`jsonb_typeof(${t.mapping}) = 'object'`),
     check("roster_sources_error_code_format", sql`${t.lastErrorCode} ~ '^[a-z_]{1,50}$'`),
     firmIsolation(t.firmId),
+    // The migrating owner may read every firm's sources: app_connector_source_firm() (0056) runs as
+    // the owner, for a connector's webhook before a firm is known. The app role gets no such
+    // policy: it sees its own firm's sources only.
+    pgPolicy("source_lookup", {
+      as: "permissive",
+      for: "select",
+      to: "current_user",
+      using: sql`true`,
+    }),
   ],
 ).enableRLS();

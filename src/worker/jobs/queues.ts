@@ -26,6 +26,7 @@ import { RETENTION_PURGE_QUEUE, RETENTION_PURGE_TICK_QUEUE } from "../../lib/gdp
 import { OPS_ALERT_QUEUE, OPS_ALERTS_TICK_QUEUE } from "../../lib/ops/tick";
 import { WEBHOOK_DELIVER_QUEUE } from "../../lib/integrations/outbox";
 import { WEBHOOK_RETRY_LIMIT } from "../../lib/integrations/deliver";
+import { CONNECTOR_EVENT_QUEUE, CONNECTOR_RETRY_LIMIT } from "../../lib/connector/job";
 import { HELLO_QUEUE } from "./hello";
 
 // Every queue the app uses. db:migrate creates them (so the web can enqueue before the worker
@@ -88,6 +89,7 @@ const sheetsSync = firmQueue(SHEETS_SYNC_QUEUE);
 const travelEstimates = firmQueue(TRAVEL_ESTIMATES_QUEUE);
 const webhookDeliver = firmQueue(WEBHOOK_DELIVER_QUEUE);
 const inboundMessage = firmQueue(INBOUND_MESSAGE_QUEUE);
+const connectorEvent = firmQueue(CONNECTOR_EVENT_QUEUE);
 
 export const QUEUES: readonly QueueSpec[] = [
   { name: HELLO_QUEUE },
@@ -172,6 +174,20 @@ export const QUEUES: readonly QueueSpec[] = [
     options: {
       ...webhookDeliver.options,
       retryLimit: WEBHOOK_RETRY_LIMIT,
+      retryDelay: 60,
+      retryBackoff: true,
+      retryDelayMax: 30 * 60,
+    },
+  },
+  // A connector's events (P5.3; src/lib/connector/apply.ts): a read from the firm's own system
+  // that fails is tried again 5 times, from a minute later and doubling, at most 30 minutes apart
+  // (about an hour). The last try records the event as failed and completes the job; the
+  // reconcile pull (P5.4) catches up.
+  {
+    ...connectorEvent,
+    options: {
+      ...connectorEvent.options,
+      retryLimit: CONNECTOR_RETRY_LIMIT,
       retryDelay: 60,
       retryBackoff: true,
       retryDelayMax: 30 * 60,

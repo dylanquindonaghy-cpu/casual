@@ -57,7 +57,7 @@ export interface IncomingWorker {
 }
 
 export interface WorkerSource {
-  source: "sheets" | "csv";
+  source: "sheets" | "csv" | "api"; // api: a connector (P5.3)
   actor: { type: ActorType; id?: string | null };
   now: Date;
   via?: "cli"; // an import run from the terminal (its actor isn't a login)

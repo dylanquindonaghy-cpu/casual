@@ -98,6 +98,8 @@ import {
   travelEstimatesTask,
 } from "../../lib/travel/estimates";
 import { webhookDeliverTask } from "../../lib/integrations/deliver";
+import { connectorEventTask } from "../../lib/connector/apply";
+import type { ConnectorEventPayload } from "../../lib/connector/job";
 import type { WebhookDeliverPayload } from "../../lib/integrations/outbox";
 import { ensureQueues } from "./queues";
 
@@ -123,6 +125,7 @@ export interface JobDeps {
   travelEstimates?: FirmTask<TravelEstimatesPayload>;
   inboundMessages?: FirmTask<InboundMessagePayload>;
   webhooks?: FirmTask<WebhookDeliverPayload>;
+  connectorEvents?: FirmTask<ConnectorEventPayload>;
   // Alerts to the founder: where they go (default: the console), and the web app's health check as
   // seen inside the server (unset: not checked).
   alerts?: AlertTransport;
@@ -233,6 +236,13 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   const webhooks = deps.webhooks ?? webhookDeliverTask;
   await boss.work(webhooks.queue, WEBHOOK_WORK_OPTIONS, (jobs) =>
     inOrder(jobs, (j) => runFirmTask(webhooks, j)),
+  );
+
+  // A connector's events (P5.3): one source's in order (one group: src/lib/connector/job.ts), each
+  // try knowing whether it's the last; a source that hangs holds up only its own loop.
+  const connectorEvents = deps.connectorEvents ?? connectorEventTask;
+  await boss.work(connectorEvents.queue, CONNECTOR_WORK_OPTIONS, (jobs) =>
+    inOrder(jobs, (j) => runFirmTask(connectorEvents, j)),
   );
 
   // Shift reminders, 24 h and 2 h before the start: the tick queues a firm's job when one is due.
@@ -407,6 +417,17 @@ export const WEBHOOK_WORK_OPTIONS = {
   batchSize: 1,
   includeMetadata: true,
   localConcurrency: WEBHOOK_LOOPS,
+  localGroupConcurrency: 1,
+} as const;
+
+// A connector's events (P5.3): as the planner's webhooks, one job at a time per loop and one
+// source's events never two at once, so a slow or hanging system holds up only its own events.
+export const CONNECTOR_LOOPS = 2;
+export const CONNECTOR_WORK_OPTIONS = {
+  perJobResults: true,
+  batchSize: 1,
+  includeMetadata: true,
+  localConcurrency: CONNECTOR_LOOPS,
   localGroupConcurrency: 1,
 } as const;
 

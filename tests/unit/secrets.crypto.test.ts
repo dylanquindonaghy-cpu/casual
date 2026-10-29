@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
-import { describe, expect, it } from "vitest";
-import { parseWorkerEnv } from "@/lib/env";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { register } from "@/instrumentation";
+import { parseWorkerEnv, webEnvRefusal } from "@/lib/env";
 import {
   openSecret,
   sealSecret,
@@ -50,6 +51,32 @@ describe("the secret store's key", () => {
     expect(parseWorkerEnv({ ...base, SECRETS_KEY: good }).SECRETS_KEY).toBe(good);
     expect(parseWorkerEnv({ ...base, SECRETS_KEY: "" }).SECRETS_KEY).toBeUndefined();
     expect(() => parseWorkerEnv({ ...base, SECRETS_KEY: "not-a-key" })).toThrow(/SECRETS_KEY/);
+  });
+});
+
+describe("the web app never has the key", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("refuses it on a real address; a local run, where one .env serves both, may have it", () => {
+    const key = randomBytes(32).toString("base64");
+    const live = { NODE_ENV: "production", APP_BASE_DOMAIN: "shifts.example.co.uk" };
+    expect(webEnvRefusal({ ...live, SECRETS_KEY: key })).toMatch(/SECRETS_KEY/);
+    expect(webEnvRefusal({ ...live, SECRETS_KEY: "" })).toBeNull();
+    expect(webEnvRefusal(live)).toBeNull();
+    for (const local of ["localhost", "localhost:3200"]) {
+      expect(webEnvRefusal({ ...live, APP_BASE_DOMAIN: local, SECRETS_KEY: key })).toBeNull();
+    }
+    expect(webEnvRefusal({ ...live, NODE_ENV: "development", SECRETS_KEY: key })).toBeNull();
+  });
+
+  it("the web app's start-up stops with it (src/instrumentation.ts)", async () => {
+    vi.stubEnv("NEXT_RUNTIME", "nodejs");
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("APP_BASE_DOMAIN", "shifts.example.co.uk");
+    vi.stubEnv("SECRETS_KEY", randomBytes(32).toString("base64"));
+    await expect(register()).rejects.toThrow(/SECRETS_KEY/);
   });
 });
 

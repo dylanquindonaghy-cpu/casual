@@ -5,6 +5,10 @@ import type { Instrumentation } from "next";
 // process.stdout) is imported dynamically, and only in the Node.js runtime.
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME === "nodejs") {
+    // A worker-only secret in the web app's settings: refuse to start (src/lib/env.ts).
+    const { webEnvRefusal } = await import("./lib/env");
+    const refusal = webEnvRefusal(process.env);
+    if (refusal) throw new Error(refusal);
     const [{ routeConsoleThroughMasking }, { log }, { logProcessErrors }] = await Promise.all([
       import("./lib/log/console"),
       import("./lib/log"),

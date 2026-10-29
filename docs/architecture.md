@@ -714,7 +714,8 @@ text sender at all). A push that one of their phones takes is the message: nothi
   MFA on all accounts.
 - A firm's own credentials (P5.1, ADR-026: its ops portal's API key and webhook secret) sit in the
   secret store, `firm_secrets`, each sealed with AES-256-GCM under `SECRETS_KEY`, bound to its firm
-  and name. The key is only in the worker's and the owner command's settings; the app role has no
+  and name. The key is only in the worker's and the owner command's settings (the web app refuses to
+  start with it); the app role has no
   rights on the table; only the jobs role (the worker's own connection) may call the one function
   that reads it. So neither a copy of the database nor the web app can open a firm's secret.
 - Dependency updates weekly; `npm audit` in CI.

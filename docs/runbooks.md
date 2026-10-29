@@ -603,7 +603,8 @@ A firm's own credentials for its systems (its ops portal's API key and webhook s
 the secret store, sealed with `SECRETS_KEY` before they reach the database.
 
 - **The key, once:** `openssl rand -base64 32` into `SECRETS_KEY` in `.env` (the worker and the
-  owner service get it; the web app never does), and a copy with your backups: without it no
+  owner service get it; the web app never does, and on a real address it refuses to start with
+  it), and a copy with your backups: without it no
   secret can be read. Never change it while firms have secrets: each would stop opening (the
   worker says `other_key`). If it may have leaked, set a new one and set each firm's secrets again.
 - **Set one:** the value on standard input, never on the command line (it would sit in the shell's

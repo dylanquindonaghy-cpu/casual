@@ -268,8 +268,8 @@ export const workerEnvSchema = z
     ),
     // The secret store's key (P5.1; ADR-026; src/lib/secrets/crypto.ts): 32 random bytes in base64
     // (openssl rand -base64 32), sealing every firm's own credentials in firm_secrets. Worker only
-    // (and the owner command that seals them): never the web app's, never logged, never in the
-    // repo or the database. Unset, the worker reads no secret. An empty value means not set.
+    // (and the owner command that seals them): never the web app's (webEnvRefusal), never logged,
+    // never in the repo or the database. Unset, the worker reads no secret. Empty means not set.
     SECRETS_KEY: unsetIfEmpty(
       z
         .string()
@@ -498,6 +498,17 @@ let admin: AdminEnv | undefined;
 
 export const offlineCopyOn = (e: { NODE_ENV: string; OFFLINE_COPY?: "on" | "off" }) =>
   e.OFFLINE_COPY ? e.OFFLINE_COPY === "on" : e.NODE_ENV === "production";
+
+// The secret store's key is the worker's and the owner command's only (P5.1): a web app on a real
+// address refuses to start with it in its settings (src/instrumentation.ts). Not for a local run,
+// where one .env serves the web app and the worker (APP_BASE_DOMAIN=localhost, as E2E_TEST_PAGES).
+export function webEnvRefusal(source: Source): string | null {
+  if (source.NODE_ENV !== "production") return null;
+  if (/^localhost(:\d+)?$/.test(source.APP_BASE_DOMAIN ?? "")) return null;
+  return source.SECRETS_KEY
+    ? "SECRETS_KEY is the worker's setting only: remove it from the web app's settings"
+    : null;
+}
 
 export function appEnv(): AppEnv {
   app ??= parseAppEnv(process.env);

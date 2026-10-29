@@ -164,8 +164,8 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   reads only through the function; one firm's sealed value copied onto another's row never opens,
   nor does any value under another key. The sealing itself is unit-tested
   (`tests/unit/secrets.crypto.test.ts`: every seal different, bound to its firm and name, a changed
-  byte or another key refused, the worker's settings taking only a real key), and
-  `tests/unit/deploy.compose.test.ts` keeps `SECRETS_KEY` to the worker and the owner service.
+  byte or another key refused, the worker's settings taking only a real key, the web app refusing to start with it on a
+  real address), and `tests/unit/deploy.compose.test.ts` keeps `SECRETS_KEY` to the worker and the owner service.
 - `rules.any-of.test.ts` (P3.3, Rules 3) — "any of" licences, on the real database as the app role:
   the security pack's security officer needs one of an SIA security guard or door supervisor
   licence (other rules unchanged), and the database refuses a group of one, a type in both lists

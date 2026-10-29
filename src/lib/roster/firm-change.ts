@@ -356,6 +356,11 @@ const moveRefusedSchema = z.strictObject({
   reason: reasonCode,
   by: firmCallerSchema,
   workers: z.array(z.object({ workerId: rosterId, codes: z.array(z.enum(RULE_CODES)) })).min(1),
+  // A connector's: what it asked for, as a fingerprint (src/lib/roster/refusal-repeat.ts).
+  attempt: z
+    .string()
+    .regex(/^[0-9a-f]{16}$/)
+    .optional(),
 });
 
 // A refused move on the record (shift.move_refused {by: "firm", reason, workers: [{workerId,
@@ -372,6 +377,7 @@ export async function recordMoveRefused(
     ...callerMarks(r.by),
     reason: FIRM_CHANGE_REASONS[r.reason],
     workers: r.workers.map((w) => ({ workerId: w.workerId, codes: w.codes })),
+    ...(r.attempt ? { attempt: r.attempt } : {}),
   };
   await run(firmId, async (tx) => {
     // A connector's source says the same again at its next read: logged once (refusal-repeat.ts).

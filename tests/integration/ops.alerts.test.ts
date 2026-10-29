@@ -222,6 +222,14 @@ describe("a firm's signals", () => {
         text: `ShiftDesk alert: ${t.slug}'s connector's reconcile pull is failing (unreachable).`,
       },
     ]);
+    // Its staff list failing while its sessions read: the near time keeps moving, but past 26 hours
+    // and a half without a full read it's reported.
+    await source(
+      "last_error_code = 'unreachable', last_near_synced_at = now() - interval '5 minutes', last_synced_at = now() - interval '26 hours'",
+    );
+    expect(await alertsFor(t)).toEqual([]);
+    await source("last_synced_at = now() - interval '27 hours'");
+    expect((await alertsFor(t)).map((a) => a.kind)).toEqual(["sync_failing"]);
   });
 
   it("login links: more than 100 by WhatsApp and text in the last hour, this firm's (14.2)", async () => {

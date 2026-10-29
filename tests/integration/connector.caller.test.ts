@@ -157,7 +157,13 @@ describe("a connector's sessions are the planner's", () => {
     const noReason = await t.put("PORTAL-S1", later);
     expect([noReason.status, noReason.body.error?.code]).toEqual([422, "change_reason_required"]);
     expect((await eventsOf(t.f.firmId, "api.change_refused")).map((e) => e.data)).toEqual([
-      { ...marks, shiftId: id, code: "change_reason_required" },
+      // With what it asked for, as a fingerprint (src/lib/roster/refusal-repeat.ts).
+      {
+        ...marks,
+        shiftId: id,
+        code: "change_reason_required",
+        attempt: expect.stringMatching(/^[0-9a-f]{16}$/),
+      },
     ]);
     const moved = await t.put("PORTAL-S1", { ...later, change_reason: "event_changed" });
     expect([moved.status, moved.body.casuals_told]).toEqual([200, 1]);

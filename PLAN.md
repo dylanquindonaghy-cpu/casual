@@ -2648,6 +2648,13 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
     ever); confirm that's the right way out.
   - A cancellation from the system tells the casual nothing and starts no offers (as a name taken
     off the rota sheet): the firm's system made it, and fills the gap there.
+- The connector's pull (P5.4's second review), before a real one: a pull that runs out of time
+  (8 minutes) keeps no progress, so a source too big to read in 8 minutes never finishes a full
+  pull, and once 26 hours pass every pull is full and the next 48 hours stop being caught up too
+  (the founder's alert fires). Read the next 48 hours first, or keep a cursor. And a webhook event
+  made and applied between the pull's look for it and its own apply of that record is overwritten
+  by the pull's older read for staff records (sessions keep their read time: P5.5's review); it
+  mends at the next pull.
 - The connector (P5.4's review), for Dylan: a connector's new sessions come in hidden from casuals
   (the trial cycle, ADR-026) and nothing ends the trial yet: the office shows them with the Events
   page's switches (`src/lib/office/showing.ts`), an event or a session at a time. Decide when a

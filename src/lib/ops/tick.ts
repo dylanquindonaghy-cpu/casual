@@ -1,4 +1,5 @@
-import { and, eq, gt, isNotNull, sql } from "drizzle-orm";
+import { and, eq, gt, isNotNull, or, sql } from "drizzle-orm";
+import { FULL_OVERDUE_MS } from "../connector/cadence";
 import { systemClock, type Clock } from "../auth/clock";
 import { firms, rosterSources } from "../db/schema";
 import type { ConnectionWaits, FirmTx, WithFirm } from "../db/scoped";
@@ -124,6 +125,7 @@ export async function firmAlerts(tx: FirmTx, firmId: string, now: Date): Promise
   if (!firm) return [];
   const alerts: OpsAlert[] = [];
   const stale = new Date(now.getTime() - SYNC_FAILING_MINUTES * 60_000);
+  const fullStale = new Date(stale.getTime() - FULL_OVERDUE_MS);
   const [failing] = await tx
     .select({ code: rosterSources.lastErrorCode, kind: rosterSources.kind })
     .from(rosterSources)
@@ -131,8 +133,16 @@ export async function firmAlerts(tx: FirmTx, firmId: string, now: Date): Promise
       and(
         eq(rosterSources.enabled, true),
         isNotNull(rosterSources.lastErrorCode),
-        // Not worked for 30 minutes: a connector's near pulls count (P5.4), a sheet has only one.
-        sql`coalesce(greatest(${rosterSources.lastSyncedAt}, ${rosterSources.lastNearSyncedAt}), '-infinity') < ${stale}`,
+        or(
+          // Not worked for 30 minutes: a connector's near pulls count (P5.4), a sheet has one time.
+          sql`coalesce(greatest(${rosterSources.lastSyncedAt}, ${rosterSources.lastNearSyncedAt}), '-infinity') < ${stale}`,
+          // A connector not read in full for 30 minutes past its overdue time: its staff list
+          // failing while its sessions read (P5.4's review), which the near pulls would hide.
+          and(
+            eq(rosterSources.kind, "connector"),
+            sql`coalesce(${rosterSources.lastSyncedAt}, '-infinity') < ${fullStale}`,
+          ),
+        ),
         gt(rosterSources.lastAttemptedAt, new Date(now.getTime() - HOUR_MS)),
       ),
     );

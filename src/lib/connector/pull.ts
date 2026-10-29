@@ -1,6 +1,6 @@
-import { and, eq, gte, isNull, lt, or } from "drizzle-orm";
+import { and, eq, gt, gte, isNull, lt, lte, or } from "drizzle-orm";
 import { z } from "zod";
-import { MINUTE, systemClock, type Clock } from "../auth/clock";
+import { HOUR, MINUTE, systemClock, type Clock } from "../auth/clock";
 import { connectorEvents, firms, rosterSources, type Connector } from "../db/schema";
 import { SecretsKeyMissing } from "../db/firm-secret";
 import type { FirmTx, WithFirm } from "../db/scoped";
@@ -58,6 +58,9 @@ export const CONNECTOR_PULL_EXPIRE_SECONDS = 9 * 60;
 // one still working is inside its job's expiry and its lease, never beside the next pull. Each read
 // of the source is bounded by the transport's own timeout (transport.ts).
 export const PULL_BUDGET_MS = 8 * MINUTE;
+// An event's tries take about an hour at most (5 retries, at most 30 minutes apart: queues.ts);
+// one still queued after two has lost its job.
+const EVENT_TRIES_MS = 2 * HOUR;
 const PULL_SINGLETON_SECONDS = 2_147_483_647; // the key alone decides (as the sheet sync's)
 
 export const connectorPullPayload = firmJobEnvelope.extend({
@@ -72,6 +75,7 @@ export type PullResult =
   | { status: "pulled"; kind: PullKind; counts: Record<string, number> }
   | { status: "failed"; code: string }
   | { status: "busy" } // another pull holds the lease
+  | { status: "superseded" } // a pull ran since this one was queued (the tick queues the next)
   | { status: "off" }; // no connector of that id on
 
 // How a pull ended, saved on the source: read and applied; or not, with why. A full pull whose
@@ -81,10 +85,18 @@ type Outcome = { ok: true } | { ok: false; code: string; sessionsRead?: boolean 
 
 type RecordType = "staff.changed" | "session.changed";
 
+// A code roster_sources can hold (^[a-z_]{1,50}$): a database's SQLSTATE (digits) reads as
+// error_database, anything else that isn't one as error_unexpected.
+function sourceCode(code: string): string {
+  if (/^[a-z_]{1,50}$/.test(code)) return code;
+  return /^error_[0-9a-z]{5}$/.test(code) ? "error_database" : "error_unexpected";
+}
+
 // A listed record a webhook's event about it is newer than, or about to apply: skipped, so the
 // pull never puts back what the event's own read of the source brought in. The event still
-// queued: its job reads the record later. Made or applied since this pull read the source: the
-// source changed after this read, or the event read it after.
+// queued, and from the last EVENT_TRIES_MS (its job reads the record later; one older is stuck, and
+// the pull is what catches it up); or applied since this pull read the source (the event read it
+// after). One that failed brought nothing in, so the pull's read stands.
 async function eventNewer(
   tx: FirmTx,
   sourceId: string,
@@ -101,9 +113,11 @@ async function eventNewer(
         eq(connectorEvents.type, type),
         eq(connectorEvents.ref, ref),
         or(
-          eq(connectorEvents.status, "queued"),
-          gte(connectorEvents.createdAt, readAt),
-          gte(connectorEvents.processedAt, readAt),
+          and(
+            eq(connectorEvents.status, "queued"),
+            gt(connectorEvents.createdAt, new Date(readAt.getTime() - EVENT_TRIES_MS)),
+          ),
+          and(eq(connectorEvents.status, "applied"), gte(connectorEvents.processedAt, readAt)),
         ),
       ),
     )
@@ -186,6 +200,11 @@ export async function runConnectorPull(
   const localDatabase = deps.localDatabase ?? appDatabaseIsLocal();
   const { firmId, sourceId, kind } = payload;
   const staleBefore = new Date(now.getTime() - PULL_LEASE_MS);
+  // The minute the tick queued it (its key): a pull tried since then (a backlog of these jobs, one
+  // a minute while the worker's loops were busy) leaves this one nothing to do.
+  const queuedAt = new Date(
+    Number(payload.idempotencyKey.slice("connector-pull:".length)) * MINUTE,
+  );
 
   const claim = await run(firmId, async (tx) => {
     const [claimed] = await tx
@@ -197,12 +216,13 @@ export async function runConnectorPull(
           eq(rosterSources.kind, "connector"),
           eq(rosterSources.enabled, true),
           or(isNull(rosterSources.syncStartedAt), lt(rosterSources.syncStartedAt, staleBefore)),
+          or(isNull(rosterSources.lastAttemptedAt), lte(rosterSources.lastAttemptedAt, queuedAt)),
         ),
       )
       .returning({ connector: rosterSources.connector, baseUrl: rosterSources.baseUrl });
     if (claimed) return claimed;
     const [on] = await tx
-      .select({ id: rosterSources.id })
+      .select({ syncStartedAt: rosterSources.syncStartedAt })
       .from(rosterSources)
       .where(
         and(
@@ -211,9 +231,12 @@ export async function runConnectorPull(
           eq(rosterSources.enabled, true),
         ),
       );
-    return on ? ("busy" as const) : ("off" as const);
+    if (!on) return "off" as const;
+    return on.syncStartedAt && on.syncStartedAt.getTime() >= staleBefore.getTime()
+      ? ("busy" as const)
+      : ("superseded" as const);
   });
-  if (claim === "busy" || claim === "off") return { status: claim };
+  if (claim === "busy" || claim === "off" || claim === "superseded") return { status: claim };
 
   // The outcome on the source, only while this pull still holds its lease.
   const release = (outcome: Outcome) =>
@@ -230,7 +253,7 @@ export async function runConnectorPull(
               }
             : {
                 syncStartedAt: null,
-                lastErrorCode: outcome.code,
+                lastErrorCode: sourceCode(outcome.code),
                 ...(outcome.sessionsRead ? { lastNearSyncedAt: now } : {}),
               },
         )
@@ -325,7 +348,10 @@ export async function runConnectorPull(
           count({ status: "failed", code: unexpectedCode(err) });
           continue;
         }
-        count(applied.outcome);
+        // A postcode look-up that's down (the planner's 5xx): failed, tried again next pull.
+        count(
+          applied.transient ? { status: "failed", code: applied.outcome.code } : applied.outcome,
+        );
         // Switched off, or a planner key made live, part-way: stop reading into it.
         if (applied.outcome.code === "not_allowed") return await failed("not_allowed");
       }
@@ -345,7 +371,13 @@ export async function runConnectorPull(
     // pull backs off), then the job fails as any job's fault does.
     const code = unexpectedCode(err);
     logger.error("connector pull failed", { firmId, sourceId, code });
-    await release({ ok: false, code }).catch(() => undefined);
+    await release({ ok: false, code }).catch((releaseErr: unknown) =>
+      logger.error("connector pull: its lease wasn't let go", {
+        firmId,
+        sourceId,
+        code: unexpectedCode(releaseErr),
+      }),
+    );
     throw err;
   }
 }

@@ -27,7 +27,7 @@ import {
 import { MoveBlocked, moveShiftInTx, recordMoveRefused } from "../roster/firm-change";
 import { FIRM_CHANGE_REASONS, type FirmChangeReason } from "../roster/firm-reasons";
 import { refreshShiftStatus } from "../roster/native";
-import { sameAsLastRefusal } from "../roster/refusal-repeat";
+import { refusalAttempt, sameAsLastRefusal } from "../roster/refusal-repeat";
 import { automaticEventId } from "../roster/shift-events";
 import { queueTravelEstimates, siteMoved } from "../travel/estimate-queue";
 import type { Geocoder, Point } from "../travel/geocoder";
@@ -224,6 +224,9 @@ export async function putPlannerSession(put: PlannerPut, ref: string): Promise<A
   const geocoder = call.geocoder ?? serverGeocoder();
   const postcode = body.site?.postcode ?? null;
   const siteName = body.site?.name ?? null;
+  // What a connector asked for, on its refusals (refusal-repeat.ts): a different change refused
+  // for the same reason is logged too.
+  const attempt = by.type === "connector" ? refusalAttempt(call.json) : undefined;
   try {
     let located: Located | undefined;
     // A cancelling PUT never uses its site (a cancel applies no other field), so its postcode is
@@ -274,7 +277,14 @@ export async function putPlannerSession(put: PlannerPut, ref: string): Promise<A
     if (error instanceof AgreementNotRecorded) return apiRefusal("agreement_not_recorded");
     if (error instanceof Refusal) {
       if (error.refusedShiftId) {
-        await logChangeRefused(call.run, call.firmId, by, error.refusedShiftId, error.code);
+        await logChangeRefused(
+          call.run,
+          call.firmId,
+          by,
+          error.refusedShiftId,
+          error.code,
+          attempt,
+        );
       }
       return apiRefusal(error.code, error.extra);
     }
@@ -285,6 +295,7 @@ export async function putPlannerSession(put: PlannerPut, ref: string): Promise<A
         reason: error.reason,
         by,
         workers: error.blocked.workers,
+        ...(attempt ? { attempt } : {}),
       });
       return apiRefusal("bookings_block_change", {
         casuals: error.blocked.workers.map((w) => ({ id: w.workerId, codes: w.codes })),
@@ -321,10 +332,18 @@ async function logChangeRefused(
   by: FirmCaller,
   shiftId: string,
   code: ApiErrorCode,
+  attempt: string | undefined,
 ): Promise<void> {
-  const data = { by: "firm", ...callerMarks(by), shiftId, code };
+  const data = {
+    by: "firm",
+    ...callerMarks(by),
+    shiftId,
+    code,
+    ...(attempt ? { attempt } : {}),
+  };
   await run(firmId, async (tx) => {
-    // A connector's source says the same again at its next read: logged once (refusal-repeat.ts).
+    // A connector's source says the same again at its next read: logged again only once it's no
+    // longer standing (refusal-repeat.ts).
     if (
       by.type === "connector" &&
       (await sameAsLastRefusal(tx, shiftId, "api.change_refused", data))

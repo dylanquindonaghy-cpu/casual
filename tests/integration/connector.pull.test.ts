@@ -1,13 +1,16 @@
 import { randomBytes } from "node:crypto";
+import type { PgBoss } from "pg-boss";
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { HOUR, MINUTE } from "@/lib/auth/clock";
 import type { ConnectorApplyDeps } from "@/lib/connector/apply";
 import { demoPortal } from "@/lib/connector/demo-portal";
-import { runConnectorPull, runConnectorPullTick } from "@/lib/connector/pull";
+import { CONNECTOR_PULL_QUEUE, runConnectorPull, runConnectorPullTick } from "@/lib/connector/pull";
 import { ConnectorFetchError, fakeConnectorTransport } from "@/lib/connector/transport";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
+import { loadPlannerRefusals } from "@/lib/office/dashboard";
 import { fakeGeocoder } from "@/lib/travel/geocoder";
+import { CONNECTOR_PULL_WORK_OPTIONS, registerJobs } from "@/worker/jobs";
 import { bookingFirm, NOW } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
 import { plannerKey } from "../helpers/planner-api";
@@ -66,7 +69,13 @@ async function pullFirm() {
   });
   const pull = (kind: "near" | "full", over: Partial<ConnectorApplyDeps> = {}) =>
     runConnectorPull(
-      { firmId: f.firmId, idempotencyKey: "connector-pull:1", sourceId, kind },
+      // Queued by the tick this minute.
+      {
+        firmId: f.firmId,
+        idempotencyKey: `connector-pull:${Math.floor(now.getTime() / MINUTE)}`,
+        sourceId,
+        kind,
+      },
       withFirm,
       { ...deps(), ...over },
     );
@@ -80,7 +89,7 @@ async function pullFirm() {
   const event = (
     type: "session.changed" | "staff.changed",
     ref: string,
-    o: { createdAt: Date; processedAt?: Date },
+    o: { createdAt: Date; processedAt?: Date; status?: "applied" | "failed" },
   ) =>
     su.query(
       `insert into connector_events
@@ -92,8 +101,8 @@ async function pullFirm() {
         `evt-${randomBytes(4).toString("hex")}`,
         type,
         ref,
-        o.processedAt ? "applied" : "queued",
-        o.processedAt ? "updated" : null,
+        o.processedAt ? (o.status ?? "applied") : "queued",
+        o.processedAt ? (o.status === "failed" ? "unreachable" : "updated") : null,
         o.processedAt ?? null,
         o.createdAt,
       ],
@@ -305,45 +314,76 @@ describe("the reconcile pull", () => {
     });
   });
 
-  it("a change the rules refuse, pulled again and again: logged once", async () => {
+  it("a change the rules refuse, pulled again and again: logged once while it stands; again once it's cleared, or a different change", async () => {
     const t = await pullFirm();
     await t.casual("PORTAL-W1");
-    const booked = { bookings: [{ staff_ref: "PORTAL-W1", status: "booked" }] };
-    t.system.sessions.set("PORTAL-S1", session("PORTAL-S1", 24 * HOUR, booked));
+    await t.casual("PORTAL-W2");
+    const w1 = { staff_ref: "PORTAL-W1", status: "booked" };
+    const w2 = { staff_ref: "PORTAL-W2", status: "booked" };
+    t.system.sessions.set("PORTAL-S1", session("PORTAL-S1", 24 * HOUR, { bookings: [w1, w2] }));
     expect(await t.pull("near")).toMatchObject({ status: "pulled" });
     // The system gives the booked session a new role: refused here (they were booked for the old).
-    t.system.sessions.set(
-      "PORTAL-S1",
-      session("PORTAL-S1", 24 * HOUR, { ...booked, role_name: "Door Supervisor" }),
-    );
+    const newRole = (bookings: unknown[]) =>
+      session("PORTAL-S1", 24 * HOUR, { bookings, role_name: "Door Supervisor" });
+    t.system.sessions.set("PORTAL-S1", newRole([w1, w2]));
     const refusals = async () =>
-      Number(
-        (
-          await su.query(
-            "select count(*) from events where firm_id = $1 and action = 'api.change_refused'",
-            [t.f.firmId],
-          )
-        ).rows[0]?.count,
-      );
-    for (const minutes of [15, 30, 45]) {
+      (
+        await su.query<{ code: string }>(
+          `select data ->> 'code' as code from events
+            where firm_id = $1 and action = 'api.change_refused' order by id`,
+          [t.f.firmId],
+        )
+      ).rows.map((r) => r.code);
+    const pullAt = async (minutes: number) => {
       t.at(new Date(NOW.getTime() + minutes * MINUTE));
-      expect(await t.pull("near")).toMatchObject({
+      return t.pull("near");
+    };
+    for (const minutes of [15, 30, 45]) {
+      expect(await pullAt(minutes)).toMatchObject({
         counts: { "refused:session_has_bookings": 1 },
       });
     }
-    expect(await refusals()).toBe(1);
-    // A different refusal is logged: moved an hour later with no reason given.
-    t.system.sessions.set("PORTAL-S1", session("PORTAL-S1", 25 * HOUR, booked));
-    t.at(new Date(NOW.getTime() + 60 * MINUTE));
-    expect(await t.pull("near")).toMatchObject({
-      counts: { "refused:change_reason_required": 1 },
-    });
-    expect(await refusals()).toBe(2);
+    expect(await refusals()).toEqual(["session_has_bookings"]);
+    // W2 cancelled there (it lands, the role change still refused): the office's item was cleared
+    // by the cancellation, so the refusal still standing is said again, and shows again.
+    t.system.sessions.set(
+      "PORTAL-S1",
+      newRole([w1, { staff_ref: "PORTAL-W2", status: "cancelled" }]),
+    );
+    await pullAt(60);
+    await pullAt(75);
+    expect(await refusals()).toEqual(["session_has_bookings", "session_has_bookings"]);
+    const needs = await withFirm(t.f.firmId, (tx) =>
+      loadPlannerRefusals(tx, new Date(NOW.getTime() + 75 * MINUTE)),
+    );
+    expect(needs.items.map((i) => i.why)).toEqual(["session_has_bookings"]);
+    // A different change refused for the same reason (new requirements, not the role): logged.
+    t.system.sessions.set(
+      "PORTAL-S1",
+      session("PORTAL-S1", 24 * HOUR, { bookings: [w1], requirements: ["SIA_DS"] }),
+    );
+    await pullAt(90);
+    expect(await refusals()).toEqual([
+      "session_has_bookings",
+      "session_has_bookings",
+      "session_has_bookings",
+    ]);
+    // A different refusal: moved an hour later with no reason given.
+    t.system.sessions.set("PORTAL-S1", session("PORTAL-S1", 25 * HOUR, { bookings: [w1] }));
+    expect(await pullAt(105)).toMatchObject({ counts: { "refused:change_reason_required": 1 } });
+    expect((await refusals()).at(-1)).toBe("change_reason_required");
   });
 
   it("a record a webhook's event is newer than, or about to apply, is skipped: the event's own read wins", async () => {
     const t = await pullFirm();
-    for (const ref of ["PORTAL-QUEUED", "PORTAL-SINCE", "PORTAL-BEFORE", "PORTAL-OTHER"]) {
+    for (const ref of [
+      "PORTAL-QUEUED",
+      "PORTAL-SINCE",
+      "PORTAL-BEFORE",
+      "PORTAL-OTHER",
+      "PORTAL-STUCK",
+      "PORTAL-FAILED",
+    ]) {
       t.system.sessions.set(ref, session(ref, 24 * HOUR));
     }
     const ago = (minutes: number) => new Date(NOW.getTime() - minutes * MINUTE);
@@ -355,13 +395,23 @@ describe("the reconcile pull", () => {
     await t.event("session.changed", "PORTAL-BEFORE", { createdAt: ago(60), processedAt: ago(59) });
     // About a staff record of that ref, not the session.
     await t.event("staff.changed", "PORTAL-OTHER", { createdAt: ago(1), processedAt: NOW });
+    // Queued three hours ago: its job is lost, and the pull is what catches it up.
+    await t.event("session.changed", "PORTAL-STUCK", { createdAt: ago(180) });
+    // Failed since the read: it brought nothing in.
+    await t.event("session.changed", "PORTAL-FAILED", {
+      createdAt: ago(1),
+      processedAt: NOW,
+      status: "failed",
+    });
     expect(await t.pull("near")).toMatchObject({
       status: "pulled",
-      counts: { "ignored:event_newer": 2, "applied:created": 2 },
+      counts: { "ignored:event_newer": 2, "applied:created": 4 },
     });
     expect((await t.shiftsNow()).map((r) => r.external_ref)).toEqual([
       "PORTAL-BEFORE",
+      "PORTAL-FAILED",
       "PORTAL-OTHER",
+      "PORTAL-STUCK",
     ]);
   });
 
@@ -468,5 +518,83 @@ describe("the reconcile pull", () => {
       last_error_code: "error_typeerror",
       sync_started_at: null,
     });
+  });
+
+  it("a pull queued before one that has run since does nothing: no backlog of reads", async () => {
+    const t = await pullFirm();
+    t.system.sessions.set("PORTAL-S1", session("PORTAL-S1", 24 * HOUR));
+    const later = new Date(NOW.getTime() + 3 * MINUTE);
+    t.at(later);
+    expect((await t.pull("near")).status).toBe("pulled");
+    // Jobs the tick queued at 09:00, 09:01 and 09:02 while the worker was busy, run now.
+    for (const minute of [0, 1, 2]) {
+      const key = `connector-pull:${Math.floor(NOW.getTime() / MINUTE) + minute}`;
+      expect(
+        await runConnectorPull(
+          { firmId: t.f.firmId, idempotencyKey: key, sourceId: t.sourceId, kind: "near" },
+          withFirm,
+          {
+            transport: fakeConnectorTransport,
+            readSecret: async () => API_KEY,
+            clock: { now: () => later },
+            localDatabase: true,
+          },
+        ),
+      ).toEqual({ status: "superseded" });
+    }
+    expect(t.system.lists).toBe(1);
+  });
+
+  it("a database's error code is saved as one the source can hold, and the lease let go", async () => {
+    const t = await pullFirm();
+    t.system.sessions.set("PORTAL-S1", session("PORTAL-S1", 24 * HOUR));
+    const timeout = Object.assign(new Error("canceling statement due to statement timeout"), {
+      code: "57014",
+    });
+    const logger = {
+      info: () => {
+        throw timeout;
+      },
+      warn: () => undefined,
+      error: () => undefined,
+      child: () => logger,
+    };
+    await expect(t.pull("near", { logger })).rejects.toThrow("statement timeout");
+    expect(await t.source()).toMatchObject({
+      last_error_code: "error_database",
+      sync_started_at: null,
+    });
+  });
+
+  it("every record's postcode look-up down: the pull failed, tried again next time", async () => {
+    const t = await pullFirm();
+    for (const ref of ["PORTAL-S1", "PORTAL-S2"]) {
+      t.system.sessions.set(
+        ref,
+        session(ref, 24 * HOUR, { site: { name: `Arena ${ref}`, postcode: "ZZ9 9ZZ" } }),
+      );
+    }
+    const down = { locate: async () => ({ status: "unavailable" as const }) };
+    expect(await t.pull("near", { geocoder: down })).toEqual({
+      status: "failed",
+      code: "records_failed",
+    });
+    expect(await t.source()).toMatchObject({ last_error_code: "records_failed" });
+  });
+
+  it("the worker takes pulls one at a time, two loops (a batch shares one expiry)", async () => {
+    const options = new Map<string, unknown>();
+    const boss = {
+      createQueue: async () => undefined,
+      updateQueue: async () => undefined,
+      work: async (name: string, opts: unknown) => {
+        options.set(name, opts);
+        return "id";
+      },
+      schedule: async () => undefined,
+      unschedule: async () => undefined,
+    } as unknown as PgBoss;
+    await registerJobs(boss);
+    expect(options.get(CONNECTOR_PULL_QUEUE)).toEqual(CONNECTOR_PULL_WORK_OPTIONS);
   });
 });

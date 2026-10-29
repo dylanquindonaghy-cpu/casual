@@ -456,8 +456,9 @@ export const CONNECTOR_WORK_OPTIONS = {
 
 // A connector's reconcile pull (P5.4): one per fetch, as the travel job's. A pull runs for up to its
 // budget (8 minutes: src/lib/connector/pull.ts) and pg-boss fails a whole batch at one job's expiry,
-// so two long pulls in one batch would fail both (each carrying on beside its next). Two loops, so
-// one firm's slow system holds up only its own.
+// so two long pulls in one batch would fail both (each carrying on beside its next). Two loops: one
+// firm's slow system holds up one of them; two slow ones hold both for up to their budgets, and the
+// pulls queued meanwhile that a later one has caught up on do nothing (superseded).
 export const CONNECTOR_PULL_WORK_OPTIONS = {
   perJobResults: true,
   batchSize: 1,

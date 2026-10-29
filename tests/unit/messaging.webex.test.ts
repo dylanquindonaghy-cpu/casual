@@ -7,6 +7,7 @@ import { ChannelRefusedError, NoTextSenderError } from "@/lib/messaging/transpor
 import {
   createWebexTransport,
   WEBEX_SMS_URL,
+  WEBEX_TIMEOUT_MS,
   WebexSendError,
   type WebexCredentials,
 } from "@/lib/messaging/webex";
@@ -80,6 +81,27 @@ describe("a text through Webex Interact", () => {
     // A timeout on every request, and no following a redirect elsewhere.
     expect(call?.init.signal).toBeInstanceOf(AbortSignal);
     expect(call?.init.redirect).toBe("error");
+  });
+
+  it("every request gives up after its time: one that never answers is unavailable (10 seconds unless set)", async () => {
+    let aborted = false;
+    const transport = createWebexTransport({
+      credentialsFor: async () => CREDS,
+      timeoutMs: 20,
+      // A service that never answers: only the request's own timeout ends it.
+      fetch: ((_url: string | URL | Request, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            aborted = true;
+            reject(init.signal?.reason);
+          });
+        })) as typeof fetch,
+    });
+    const started = performance.now();
+    expect(await failure(inFirm(() => transport.send(text)))).toBe("unavailable");
+    expect(aborted).toBe(true);
+    expect(performance.now() - started).toBeLessThan(2000);
+    expect(WEBEX_TIMEOUT_MS).toBe(10_000);
   });
 
   it("the firm is the job's: outside a firm's job nothing is sent; a firm with no key has no text sender (its messages go by email)", async () => {

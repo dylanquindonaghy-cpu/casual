@@ -1214,7 +1214,9 @@ Docs: `docs/messaging-templates.md`, `docs/architecture.md`, `docs/screens.md`.
       sends nothing, each failure a code with nothing personal, the settings (15.2)
 - [ ] Replies by text, only if the text system can pass incoming texts on: its webhook (signature
       checked, one row per message id, a fast 200), into the shifts line (`receiveSms`,
-      `src/lib/inbound/receive.ts`) with STOP and START. Call-to-text goes (it needed Twilio voice)
+      `src/lib/inbound/receive.ts`) with STOP and START; and the sender's delivery reports (Webex
+      Interact's "Outbound SMS - Delivered" and "Failed" webhooks, matched by the transaction id:
+      15.2). Call-to-text goes (it needed Twilio voice)
 
 **The text system's details, found 2026-10-26** (from public docs; to confirm with the pilot firm,
 `docs/discovery-axlr8.md`): AXLR8, the firm's CRM, sends its texts through **Webex Interact**. Webex

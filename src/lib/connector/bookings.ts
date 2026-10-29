@@ -27,8 +27,11 @@ import type { SourceBookings } from "./demo-portal";
 //    notice, the reading that favours the casual. The evidence (which time, and the system's own)
 //    is on the log entry. No message and no offers: the firm made the change in its own system
 //    (as a name taken off the rota sheet), and its gap is filled there. A session cancelled there
-//    skips this step: it's the planner's whole-session cancel (its casuals told). The merge base is
-//    brought up to the read here too, for the bookings both sides hold;
+//    cancels nobody here: it's the planner's whole-session cancel (its casuals told, with the
+//    session's reason). A booking cancelled there on its own before that, arriving in the same read
+//    (a missed webhook), is folded into it: the record can't tell the two apart. The merge base is
+//    brought up to the read here too, for the bookings both sides hold (none, for a session
+//    cancelled there);
 // 2. after it, once the session is in (mirrorBookings), a booking made there: the rules run as
 //    for an office placement (with the office's overrides: rest, weekly hours, a day marked
 //    unavailable), and it's booked only if they pass and a place is left, booked_via "api" and
@@ -233,18 +236,21 @@ async function refusedBefore(
   workerId: string,
   codes: string[],
 ): Promise<boolean> {
-  // By entity, through the log's (firm, entity, id) index: the session's refusals, and the
-  // bookings and cancellations on this casual's places on it.
+  // By entity, each branch through the log's (firm, entity, id) index: the session's refusals, and
+  // the bookings and cancellations on this casual's places on it.
   const { rows } = await tx.execute<{ action: string; codes: unknown }>(sql`
-    select e.action, e.data -> 'codes' as codes from events e
-     where e.firm_id = app_current_firm_id() and e.data ->> 'workerId' = ${workerId}
-       and ((e.entity_id = ${shiftId} and e.action = 'shift.booking_refused'
-             and e.data ->> 'via' = 'api')
-            or (e.entity_id in (select a.id from assignments a
-                                 where a.firm_id = app_current_firm_id()
-                                   and a.shift_id = ${shiftId} and a.worker_id = ${workerId})
-                and e.action in ('shift.assigned', 'shift.cancelled')))
-     order by e.id desc
+    select x.action, x.codes from (
+      select e.id, e.action, e.data -> 'codes' as codes from events e
+       where e.firm_id = app_current_firm_id() and e.entity_id = ${shiftId}
+         and e.action = 'shift.booking_refused' and e.data ->> 'via' = 'api'
+         and e.data ->> 'workerId' = ${workerId}
+      union all
+      select e.id, e.action, null from assignments a
+        join events e on e.firm_id = a.firm_id and e.entity_id = a.id
+       where a.firm_id = app_current_firm_id() and a.shift_id = ${shiftId}
+         and a.worker_id = ${workerId} and e.action in ('shift.assigned', 'shift.cancelled')
+    ) x
+     order by x.id desc
      limit 1
   `);
   const last = rows[0];

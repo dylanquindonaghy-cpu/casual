@@ -421,6 +421,7 @@ describe("reads of a session, and changes the planner's rules refuse", () => {
     });
     expect((await t.booked()).map((b) => b.status)).toEqual(["confirmed", "confirmed"]);
     expect((await eventsOf(t.f.firmId, "api.change_refused")).length).toBe(1);
+
     // With one: the whole session, each casual's cancellation with the session's reason, told.
     expect(
       await t.changed(
@@ -559,6 +560,32 @@ describe("reads of a session, and changes the planner's rules refuse", () => {
 });
 
 describe("the office and a connector's bookings", () => {
+  it("a session cancelled there with no reason: refused, and the office can still end each booking here", async () => {
+    const t = await bookingsFirm();
+    const ann = await t.casual("STAFF-ANN");
+    await t.changed(session([isBooked("STAFF-ANN")]), NOW);
+    expect(
+      await t.changed(
+        session([{ staff_ref: "STAFF-ANN", status: "cancelled" }], { status: "cancelled" }),
+        new Date(NOW.getTime() + HOUR),
+      ),
+    ).toEqual({ status: "refused", code: "change_reason_required" });
+    const admin = await t.f.office("admin");
+    expect(
+      await cancelBooking(
+        withFirm,
+        t.f.firmId,
+        {
+          shiftId: await t.shiftId(),
+          workerId: ann,
+          reason: FIRM_CHANGE_REASONS.other,
+          by: { type: "office", id: admin },
+        },
+        { clock: { now: () => NOW } },
+      ),
+    ).toMatchObject({ status: "cancelled" });
+  });
+
   it("a booking the system lists again is the system's again, even while the session's change is refused", async () => {
     const t = await bookingsFirm();
     const ann = await t.casual("STAFF-ANN");

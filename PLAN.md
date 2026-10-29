@@ -1192,9 +1192,18 @@ Docs: `docs/messaging-templates.md`, `docs/architecture.md`, `docs/screens.md`.
       notifications only (today they'd switch to WhatsApp); every "WhatsApp or text" on screen
       says "text" (login, pay code, Profile, Help, the office's offer list, Enquiries, the
       dashboard's shifts line, the guide). Tests: each message by text, STOP, the words
-- [ ] Our text system's sender: a `MessagingTransport` (`src/lib/messaging/transport.ts`) for the
+- [ ] Our text system's sender (M): a `MessagingTransport` (`src/lib/messaging/transport.ts`) for the
       firm's text provider (`MESSAGING_TRANSPORT` takes only `console` today, so nothing is sent
-      for real), refused in tests like every real sender; its delivery reports if it has them
+      for real), refused in tests like every real sender; its delivery reports if it has them.
+      **The build (2026-10-29), switched off:** `src/lib/messaging/webex.ts`, from Webex
+      Interact's public reference (POST `/v1/sms`, `X-AUTH-KEY`, `{message_body, from, to:
+      [{phone}]}`); `MESSAGING_TRANSPORT=webex`, refused under `NODE_ENV=test` (pinned in
+      `scripts/invariants.sh`) and needing `SECRETS_KEY`: each firm's token and sender from P5's
+      secret store, the firm the job's own (`src/lib/tenancy/job-firm.ts`); texts only (a WhatsApp
+      is refused, so the casual gets the text); a timeout on every request, each failure a code.
+      Not tried against the real service (the firm's account), and its delivery reports wait for
+      the webhooks (with the third task). Tests: the request as the reference says, no firm or no
+      key sends nothing, each failure a code with nothing personal, the settings (15.2)
 - [ ] Replies by text, only if the text system can pass incoming texts on: its webhook (signature
       checked, one row per message id, a fast 200), into the shifts line (`receiveSms`,
       `src/lib/inbound/receive.ts`) with STOP and START. Call-to-text goes (it needed Twilio voice)

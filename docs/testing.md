@@ -183,6 +183,12 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   address on a public name and no spreadsheet, never an IP address, an internal name, another port
   or a dot segment; a sheet the reverse; one source on per firm); and the sheet command leaves a
   connector alone and won't switch a sheet on beside it.
+- `messaging.webex.test.ts` (unit, 15.2) — texts through a firm's Webex Interact account with a
+  stand-in for the network (never the real service): the request as its public reference says
+  (POST `/v1/sms`, `X-AUTH-KEY`, `{message_body, from, to: [{phone}]}`, a timeout, no redirects),
+  the firm the job's own (outside a firm's job, or a firm with no key, nothing sent), a WhatsApp
+  refused so the casual gets the text, each failure a code with nothing personal in it, and the
+  setting refused under `NODE_ENV=test` and without `SECRETS_KEY`.
 - `email.prepare.test.ts` (unit, P7.3) — an email made ready to keep: quoted history off whichever
   way it's quoted (Gmail's header on one line or wrapped, Outlook's block with or without its
   underscores, an Original Message, `>` lines), a reply below the quote kept, nothing left of a

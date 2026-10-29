@@ -142,10 +142,10 @@ docs/
   and `resolveConnectorSource()` for a connector's webhook).
   Firm jobs extend `firmJobEnvelope`; payloads carry ids only.
 - Dev messaging uses `MESSAGING_TRANSPORT=console` and `EMAIL_TRANSPORT=console` (prints
-  outbound messages). Never hit Twilio, an SMTP server, Anthropic, TravelTime, postcodes.io or a
-  planner from tests: the settings refuse each real sender under `NODE_ENV=test`, and
-  `scripts/invariants.sh` checks the test setups' pins (email, AI and Twilio today, and a made-up
-  `INTEGRATIONS_SECRET`).
+  outbound messages). Never hit Twilio, Webex Interact, an SMTP server, Anthropic, TravelTime,
+  postcodes.io or a planner from tests: the settings refuse each real sender under
+  `NODE_ENV=test`, and `scripts/invariants.sh` checks the test setups' pins (texts, email, AI and
+  Twilio today, and a made-up `INTEGRATIONS_SECRET`).
 
 ## How to work each task
 

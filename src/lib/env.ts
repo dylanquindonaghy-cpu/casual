@@ -249,9 +249,11 @@ export const workerEnvSchema = z
     // How WhatsApp and texts go: "console" prints them (development, tests, demo mode); "none"
     // (P2.5): there's no text sender at all, so a casual's messages go by push, else email
     // (src/lib/notify/send.ts deliverToWorker), and production can run the worker before the
-    // firm's text system is connected. "twilio" comes with Phase 15. An empty value (as the env
-    // examples ship it) means not set.
-    MESSAGING_TRANSPORT: unsetIfEmpty(z.enum(["console", "none"]).default("console")),
+    // firm's text system is connected. "webex" (Phase 15, built and switched off): texts through each
+    // firm's own Webex Interact account, its key in the secret store (src/lib/messaging/webex.ts),
+    // so it needs SECRETS_KEY; refused under NODE_ENV=test, so no test can send a real text. An
+    // empty value (as the env examples ship it) means not set.
+    MESSAGING_TRANSPORT: unsetIfEmpty(z.enum(["console", "none", "webex"]).default("console")),
     // Google Sheets sync (src/lib/roster/sheets/transport.ts). "none" (the default): no sheet is
     // ever read, and the sync's tick isn't scheduled. "google": the real client, as the service
     // account whose key file is at GOOGLE_SERVICE_ACCOUNT_JSON_PATH (in the git-ignored secrets/,
@@ -403,6 +405,17 @@ export const workerEnvSchema = z
       message: "VAPID_PRIVATE_KEY isn't the private half of VAPID_PUBLIC_KEY (they come as a pair)",
     },
   )
+  // Tests never send a real text (Phase 15).
+  .refine((e) => e.NODE_ENV !== "test" || e.MESSAGING_TRANSPORT !== "webex", {
+    path: ["MESSAGING_TRANSPORT"],
+    message: "tests never send a real text: webex is refused when NODE_ENV=test",
+  })
+  // Each firm's Webex key is in the secret store: the worker can't read it without the key's key.
+  .refine((e) => e.MESSAGING_TRANSPORT !== "webex" || e.SECRETS_KEY !== undefined, {
+    path: ["SECRETS_KEY"],
+    message:
+      "MESSAGING_TRANSPORT=webex reads each firm's key from the secret store: set SECRETS_KEY",
+  })
   // Production must never silently print messages instead of sending them, except in demo mode,
   // where printing them for the Demo phone page is the point (ADR-025).
   .refine(

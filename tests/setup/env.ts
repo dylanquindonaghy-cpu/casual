@@ -14,6 +14,8 @@ process.env.ALERTS_TRANSPORT = "none";
 // Never a real email server, whatever .env says (the settings also refuse smtp under
 // NODE_ENV=test; scripts/invariants.sh checks these lines stay).
 process.env.EMAIL_TRANSPORT = "console";
+// Texts printed, never sent (Phase 15: the settings refuse webex under NODE_ENV=test too).
+process.env.MESSAGING_TRANSPORT = "console";
 process.env.SMTP_USER = "";
 process.env.SMTP_PASS = "";
 // Never the Anthropic API, whatever .env says (the settings also refuse anthropic under

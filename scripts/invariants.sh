@@ -64,7 +64,8 @@ else echo "ok: only withFirm (and the seed's and the owner commands' firm provis
 #    each real sender under NODE_ENV=test.
 pins_missing=""
 has_pin() { grep -F -- "$2" "$1" | grep -qvE '^[[:space:]]*(//|#|\*)'; }
-for pin in 'process.env.EMAIL_TRANSPORT = "console";' 'process.env.SMTP_USER = "";' \
+for pin in 'process.env.EMAIL_TRANSPORT = "console";' 'process.env.MESSAGING_TRANSPORT = "console";' \
+           'process.env.SMTP_USER = "";' \
            'process.env.SMTP_PASS = "";' 'process.env.AI_TRANSPORT = "none";' \
            'process.env.ANTHROPIC_API_KEY = "";'; do
   has_pin tests/setup/env.ts "$pin" || pins_missing="$pins_missing tests/setup/env.ts:'$pin'"

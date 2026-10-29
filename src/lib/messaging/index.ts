@@ -1,8 +1,16 @@
+import { firmSecretReader, type ReadFirmSecret } from "../db/firm-secret";
 import { isMadeUpEmail, isMadeUpMobile } from "../demo/made-up";
 import type { WorkerEnv } from "../env";
+import { secretsKey } from "../secret-store/crypto";
 import { createConsoleTransport } from "./console";
 import { SmtpEmailTransport } from "./smtp";
 import { NoTextSenderError, type MessagingTransport } from "./transport";
+import {
+  createWebexTransport,
+  WEBEX_API_KEY_SECRET,
+  WEBEX_SENDER_SECRET,
+  type WebexCredentials,
+} from "./webex";
 
 export type { MessagingTransport, OutboundMessage, SendResult } from "./transport";
 
@@ -18,6 +26,8 @@ type TransportConfig = Pick<WorkerEnv, "MESSAGING_TRANSPORT" | "NODE_ENV"> &
       | "SMTP_FROM"
       | "CONSOLE_OUTBOX_FILE"
       | "DEMO_MODE"
+      | "DATABASE_JOBS_URL"
+      | "SECRETS_KEY"
     >
   >;
 
@@ -52,7 +62,29 @@ function phoneTransport(config: TransportConfig): MessagingTransport {
       return consoleOf(config);
     case "none":
       return noTextSender;
+    case "webex":
+      return createWebexTransport({ credentialsFor: webexCredentials(config) });
   }
+}
+
+// Each firm's Webex Interact key and sender, from the secret store, through one reader for the
+// worker (the jobs role's own connection: src/lib/db/firm-secret.ts). A firm without both: none.
+let webexReader: ReadFirmSecret | undefined;
+function webexCredentials(
+  config: TransportConfig,
+): (firmId: string) => Promise<WebexCredentials | null> {
+  return async (firmId) => {
+    if (!config.DATABASE_JOBS_URL) throw new Error("MESSAGING_TRANSPORT=webex needs the worker");
+    webexReader ??= firmSecretReader(
+      config.DATABASE_JOBS_URL,
+      config.SECRETS_KEY ? secretsKey(config.SECRETS_KEY) : null,
+    );
+    const [apiKey, sender] = await Promise.all([
+      webexReader(firmId, WEBEX_API_KEY_SECRET),
+      webexReader(firmId, WEBEX_SENDER_SECRET),
+    ]);
+    return apiKey && sender ? { apiKey, sender } : null;
+  };
 }
 
 // The outbox file holds full message bodies: never in production, except in demo mode (made-up

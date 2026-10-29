@@ -155,7 +155,13 @@ reached. The worker needs the SMTP values ("Connect an email provider (SMTP)" in
 without them it won't start. `docker compose ps` shows the worker "healthy"; if it isn't,
 `docker compose logs --tail 50 worker` shows why (usually a value missing in `.env`). Messages must
 never be printed instead of sent: `MESSAGING_TRANSPORT=console` is refused in production. Once the
-firm's text system is connected (Phase 15), `MESSAGING_TRANSPORT` names it.
+firm's text system is connected (Phase 15), `MESSAGING_TRANSPORT` names it: `webex` is built and
+not yet tried against the real service (it waits for the firm's account). To switch it on, each
+firm's Webex Interact access token and sender (a name or long number set up in Webex Interact) go
+in the secret store (`npm run firm:secret -- --firm <slug> --name webex.api_key`, then
+`--name webex.sender`, each value from standard input), the worker needs `SECRETS_KEY`, and then
+`MESSAGING_TRANSPORT=webex`. A firm without both sends no texts (each failure logged as
+`webex_no_key`); a casual who chose WhatsApp gets a text.
 
 **The first time** (after "Set up the server (once)"), in the server's browser console (`sudo -i`
 first):

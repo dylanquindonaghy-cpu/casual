@@ -340,14 +340,22 @@ describe("who sends what (P2.3)", () => {
     const { t, bookings } = await bookedFiveWays(NO_QUIET);
     expect(await t.run(hoursFromNow(11))).toEqual({ sent: 5, failed: 0, skipped: 0 });
     expect(await reminded(bookings)).toEqual([1, 1, 1, 1, 1]);
+    // 31.5 hours on: the sheet's and the API's 2h reminders (half an hour and 1.5 hours before).
+    expect(await t.run(hoursFromNow(31.5))).toEqual({ sent: 2, failed: 0, skipped: 0 });
+    expect(await reminded(bookings)).toEqual([1, 1, 2, 2, 1]);
   });
 
   it("on: none for the sheet's or the API's bookings; the app's, the office's and one with no record still go", async () => {
     const { t, bookings } = await bookedFiveWays({ ...NO_QUIET, firm_system_sends: true });
     expect(await t.run(hoursFromNow(11))).toEqual({ sent: 3, failed: 0, skipped: 0 });
     expect(await reminded(bookings)).toEqual([1, 1, 0, 0, 1]);
-    // Nor later: the 2h reminder leaves them to the firm's system too.
+    // The app's booking gets its 2h reminder (28.5 hours on: 1.5 hours before its start); the
+    // sheet's and the API's are still in their 24h windows, and still get none.
     expect(await t.run(hoursFromNow(28.5))).toMatchObject({ sent: 1 });
+    expect(await reminded(bookings)).toEqual([2, 1, 0, 0, 1]);
+    // Nor their 2h reminders: inside both 2h windows (31.5 hours on), where with it off those two
+    // go (above), nothing.
+    expect(await t.run(hoursFromNow(31.5))).toEqual({ sent: 0, failed: 0, skipped: 0 });
     expect(await reminded(bookings)).toEqual([2, 1, 0, 0, 1]);
     // Anything but true is off.
     const odd = await bookedFiveWays({ ...NO_QUIET, firm_system_sends: "yes" });

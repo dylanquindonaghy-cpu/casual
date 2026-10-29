@@ -9,6 +9,11 @@ import type { BookVia } from "../db/schema";
 // change and cancellation notices, still go (decision 9). A booking confirmation only ever goes for
 // the office's own booking in ShiftDesk (src/lib/roster/book.ts), never for the sheet's or the
 // API's, whatever this says.
+//
+// A reminder left to the firm's system leaves no `shift_reminders` row and no event, on purpose:
+// nothing is sent and nothing changes. Why it went unsent is on record already: the booking's
+// `booked_via` (and its `shift.assigned` event) and the `firm.settings_changed` event that switched
+// this on. Switched off again, those bookings get the reminders whose windows are still open.
 
 const firmSystemSendsSchema = z.boolean();
 

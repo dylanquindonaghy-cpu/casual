@@ -1105,7 +1105,10 @@ In order (who does it, how, and what done looks like):
    (`--replace` to change it, `--clear` to take it off), logged as a settings change. The firm's
    IT forwards its staffing mailbox there with a mailbox-level forward or a "Redirect" rule, which
    keep the sender's address; never an inbox rule's "Forward", which sends every email from the
-   firm's own mailbox, so none would be any casual's. Until P7's sorting is built (P7.4) the
+   firm's own mailbox, so none would be any casual's. A Redirect keeps the casual's own signature
+   (DKIM) only if nothing changes the email on the way: no banner, disclaimer or footer rule may
+   touch it, or the provider can't vouch for the sender and their words aren't kept (unless the
+   provider trusts Microsoft 365's ARC seal). Until P7's sorting is built (P7.4) the
    settings refuse `EMAIL_INBOUND_SECRET` in production: its emails would only be stored (a known
    casual's words, quoted history off; anyone else's never) and nothing would answer them.
 10. **Privacy notice line** (you send it, the firm publishes it): `docs/privacy-notice.md` has the

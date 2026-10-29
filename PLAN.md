@@ -1191,7 +1191,10 @@ Docs: `docs/messaging-templates.md`, `docs/architecture.md`, `docs/screens.md`.
       `src/lib/inbound/reply.ts`: WhatsApp only today); a casual who replied STOP gets the app's
       notifications only (today they'd switch to WhatsApp); every "WhatsApp or text" on screen
       says "text" (login, pay code, Profile, Help, the office's offer list, Enquiries, the
-      dashboard's shifts line, the guide). Tests: each message by text, STOP, the words
+      dashboard's shifts line, the guide); a firm with no text sender of its own (no Webex key)
+      gets its login link and pay code by email, which needs the choice made per firm (today
+      `texts` is the whole server's, `src/lib/auth/login-channel.ts`: 15.2's review). Tests: each
+      message by text, STOP, the words
 - [ ] Our text system's sender (M): a `MessagingTransport` (`src/lib/messaging/transport.ts`) for the
       firm's text provider (`MESSAGING_TRANSPORT` took only `console` and `none`, so nothing was
       sent for real), refused in tests like every real sender; its delivery reports if it has them.
@@ -1201,8 +1204,8 @@ Docs: `docs/messaging-templates.md`, `docs/architecture.md`, `docs/screens.md`.
       `scripts/invariants.sh`, and refused at send time in a test that doesn't stand in for the
       network) and needing `SECRETS_KEY`: each firm's token and sender from P5's secret store, the
       firm the job's own (`src/lib/tenancy/job-firm.ts`), a firm without both having no text sender
-      (its casuals' messages go by email); texts only (a WhatsApp is refused, so the shared sender
-      gives the casual the text); a timeout on every request, each failure a code, the id kept
+      on any channel, a WhatsApp too (its casuals' messages go by email); texts only (a WhatsApp
+      is refused, so the shared sender gives the casual the text); a timeout on every request, each failure a code, the id kept
       only in a form the log accepts. **Refused in production until 15.1:** the login link and the
       pay code still go by WhatsApp whenever a text sender exists, which Webex won't carry. Not
       tried against the real service (the firm's account), and its delivery reports wait for the
@@ -2728,7 +2731,9 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
   count: with P7.4's words); the privacy notice's line for the inbox (that the firm's staffing
   emails are kept 90 days, a casual's words only) is Dylan's, before any firm's inbox goes live;
   and a casual's words are taken as theirs on the provider's DMARC word, so the provider chosen
-  (its ADR) must give one.
+  (its ADR) must give one. And an email stored first without that word stays so when the same
+  Message-ID comes again with it (one row per Message-ID; P7's second review): with the provider,
+  decide whether a later copy it vouches for may fill in the words.
 - The connector's pull (P5.4's second review), before a real one: a pull that runs out of time
   (8 minutes) keeps no progress, so a source too big to read in 8 minutes never finishes a full
   pull, and once 26 hours pass every pull is full and the next 48 hours stop being caught up too

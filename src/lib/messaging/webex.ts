@@ -26,8 +26,8 @@ import {
 //
 // - Which firm: the job's (src/lib/tenancy/job-firm.ts: every firm job runs inside its firm), so no
 //   sender has to pass it; a send outside a firm job is refused. A firm without its key and sender
-//   has no text sender (NoTextSenderError): its casuals' messages go by email, as with
-//   MESSAGING_TRANSPORT=none, and nothing counts as a failed text.
+//   has no text sender on any channel (NoTextSenderError, a WhatsApp too): its casuals' messages go
+//   by email, as with MESSAGING_TRANSPORT=none, and nothing counts as a failed text.
 // - Texts only. A WhatsApp is refused as a channel it won't carry (ChannelRefusedError): the shared
 //   sender gives the casual the text instead (src/lib/notify/send.ts), but the login link and the
 //   pay code still go by WhatsApp when a text sender exists (src/lib/auth/login-channel.ts), so the
@@ -143,7 +143,6 @@ export function createWebexTransport(deps: WebexDeps): MessagingTransport {
     name: "webex",
     async send(message: OutboundMessage): Promise<SendResult> {
       const msg = outboundMessageSchema.parse(message);
-      if (msg.channel === "whatsapp") throw new ChannelRefusedError("whatsapp");
       if (msg.channel === "email") throw new Error("email never goes through Webex Interact");
       if (process.env.NODE_ENV === "test" && !deps.fetch) {
         throw new Error("tests never send a real text: pass a stand-in for the network");
@@ -151,8 +150,10 @@ export function createWebexTransport(deps: WebexDeps): MessagingTransport {
       const firmId = jobFirmId();
       if (!firmId) throw new WebexSendError("no_firm");
       const creds = await deps.credentialsFor(firmId);
-      // No key: this firm has no text sender (its casuals' messages go by email).
-      if (!creds) throw new NoTextSenderError("sms");
+      // No key: this firm has no text sender on any channel (its casuals' messages go by email),
+      // a WhatsApp included, so nothing waits on a text that can't go.
+      if (!creds) throw new NoTextSenderError(msg.channel);
+      if (msg.channel === "whatsapp") throw new ChannelRefusedError("whatsapp");
       return post(creds, msg.to, msg.body, deps);
     },
   };

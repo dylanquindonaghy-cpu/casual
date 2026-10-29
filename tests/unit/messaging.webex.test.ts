@@ -110,9 +110,15 @@ describe("a text through Webex Interact", () => {
 
   it("a WhatsApp is refused as a channel it won't carry (the casual gets the text); email never comes here", async () => {
     const h = harness(() => queued());
-    await expect(
-      inFirm(() => h.transport.send({ channel: "whatsapp", to: TO, body: "Hi" })),
-    ).rejects.toBeInstanceOf(ChannelRefusedError);
+    const whatsapp = { channel: "whatsapp" as const, to: TO, body: "Hi" };
+    await expect(inFirm(() => h.transport.send(whatsapp))).rejects.toBeInstanceOf(
+      ChannelRefusedError,
+    );
+    // A firm with no key has no text sender on any channel, a WhatsApp too: so its casual's
+    // message goes by email, even one who replied STOP to texts (src/lib/notify/send.ts).
+    const keyless = await inFirm(() => h.transport.send(whatsapp), OTHER).catch((e: unknown) => e);
+    expect(keyless).toBeInstanceOf(NoTextSenderError);
+    expect((keyless as NoTextSenderError).channel).toBe("whatsapp");
     await expect(
       inFirm(() =>
         h.transport.send({ channel: "email", to: "ann@example.com", subject: "Hi", body: "Hi" }),

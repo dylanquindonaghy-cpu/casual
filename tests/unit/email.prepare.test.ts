@@ -60,6 +60,13 @@ describe("quoted history taken off", () => {
     expect(ownWords(lines("I can't make it.", "", ...below))).toBe("I can't make it.");
     expect(ownWords(lines("Fine.", "________________________________", ...below))).toBe("Fine.");
     expect(ownWords(lines("Ok", "-----Original Message-----", ...below))).toBe("Ok");
+    // Under the underscores, a name from the address book with no address: still the block.
+    const named = ["From: Acme Shift Team", "Sent: 02 November 2026 09:00", "To: Ann Example"];
+    expect(ownWords(lines("Fine.", "________________________________", ...named))).toBe("Fine.");
+    // With no underscores, a "From:" with no address is theirs.
+    expect(ownWords(lines("Fine.", "", ...named))).toBe(
+      "Fine.\n\nFrom: Acme Shift Team\nSent: 02 November 2026 09:00\nTo: Ann Example",
+    );
     // "From:" in what they wrote, with no header after it, is theirs; so are times they ask for.
     expect(ownWords("From: me, sorry, I'm off sick.")).toBe("From: me, sorry, I'm off sick.");
     expect(ownWords(lines("Can I change Saturday?", "From: 10:00", "To: 18:00"))).toBe(
@@ -101,7 +108,7 @@ describe("quoted history taken off", () => {
     );
     expect(ownWords(lines("On it.", ...quote))).toBe("On it.");
     // A header with no "On" (some apps write only "Name <address> wrote:"): their "On …" line two
-    // above it, across a blank line, is still theirs.
+    // above it, across a blank line, is still theirs, and the header goes.
     expect(
       ownWords(
         lines(
@@ -111,7 +118,53 @@ describe("quoted history taken off", () => {
           "> Can you do Saturday?",
         ),
       ),
-    ).toContain("On holiday that week, sorry");
+    ).toBe("On holiday that week, sorry");
+    // Straight above it: a line of theirs with no year is never the header's start.
+    expect(
+      ownWords(
+        lines(
+          "On Sunday I can do 10:00 to 18:00",
+          "Acme Shift Team <shifts@acme.example.com> wrote:",
+          "> Can you do Saturday?",
+        ),
+      ),
+    ).toBe("On Sunday I can do 10:00 to 18:00");
+    // Nor one quoted differently from the header, year or not.
+    expect(
+      ownWords(
+        lines(
+          "On Sunday I can do the 2026 rota's late shift",
+          "> Acme Shift Team <shifts@acme.example.com> wrote:",
+          ">> Can you do Saturday?",
+        ),
+      ),
+    ).toBe("On Sunday I can do the 2026 rota's late shift");
+    // "… wrote:" with no "On" and no address isn't a header: theirs.
+    expect(ownWords(lines("On Sunday, my manager wrote:", "> see you then"))).toBe(
+      "On Sunday, my manager wrote:",
+    );
+  });
+
+  it("iPhone's header, wrapped with 'wrote:' on its own line, quoted or not", () => {
+    const header = [
+      "On 2 Nov 2026, at 09:00, Acme Shift Team <shifts@acme.example.com>",
+      "wrote:",
+      "",
+      "> Can you do Saturday?",
+    ];
+    expect(ownWords(lines("Yes, see you then.", "", ...header))).toBe("Yes, see you then.");
+    // Under the quote, in a reply to a reply: the header quoted as deep as each other.
+    expect(
+      ownWords(
+        lines(
+          "> On 2 Nov 2026, at 09:00, Acme Shift Team <shifts@acme.example.com>",
+          "> wrote:",
+          ">> Can you do Saturday?",
+          "",
+          "Yes I can.",
+        ),
+      ),
+    ).toBe("Yes I can.");
     // A wrapped header straight under their own "On …" line: the nearer "On" starts it.
     expect(
       ownWords(
@@ -175,5 +228,35 @@ describe("what's kept of an email", () => {
         fromKnownCasual: false,
       }),
     ).toEqual({ subject: null, body: null, attachments: 1 });
+  });
+});
+
+describe("every header pattern stays linear (the inbox's webhook runs it in the web request)", () => {
+  // Each is about 500,000 characters, the most the webhook takes (512 kB), aimed at one pattern's
+  // worst case. Linear: milliseconds. Quadratic: minutes.
+  const N = 500_000;
+  const fill = (unit: string) => unit.repeat(Math.ceil(N / unit.length)).slice(0, N);
+  const ATTACKS: [string, string][] = [
+    ["Outlook's From: angle brackets never closed", `From: ${fill("<")}`],
+    ["Outlook's From: brackets and letters", `From: ${fill("<a")}`],
+    [
+      "Outlook's From: under underscores, Sent below",
+      `${"_".repeat(32)}\nFrom: ${fill("<")}\nSent: x`,
+    ],
+    ["an On line of spaces", `On ${fill(" ")}x`],
+    ["wrote: then spaces, not at the end", `x wrote:${fill(" ")}x`],
+    ["many wrote:", fill("wrote: ")],
+    ["Original Message dashes", `--- Original Message ${fill("-")}x`],
+    ["a phone's sign-off, very long", `Ok\nSent from my ${fill("a")}`],
+    ["quote marks", fill("> ")],
+    ["one header line after another", fill("From: a <b>\n")],
+    ["one blank line after another", fill("\n")],
+  ];
+
+  it.each(ATTACKS)("%s: in well under a second", (_name, text) => {
+    expect(text.length).toBeGreaterThanOrEqual(N);
+    const started = performance.now();
+    ownWords(text);
+    expect(performance.now() - started).toBeLessThan(750);
   });
 });

@@ -6,6 +6,7 @@ import { BASELINE_KEYS } from "@/lib/metrics/definitions";
 import { firmReadiness, readinessText, type ReadinessItem } from "@/lib/onboarding/readiness";
 import { addOfficeUser, createFirm } from "../../scripts/firm-create-owner";
 import { readFirmSettings, setFirmSettings } from "../../scripts/firm-settings-owner";
+import { connectConnector } from "../../scripts/firm-connector-owner";
 import { connectSheet } from "../../scripts/firm-sheet-owner";
 import { appRolePool, superuserPool, testEvent, uniqueSlug, urls } from "../helpers/db";
 
@@ -583,6 +584,55 @@ describe("the onboarding checklist from a firm's data", () => {
       item: "Rota source",
       state: "done",
       detail: "Google Sheet, last synced 2026-10-04T09:00:00.000Z.",
+    });
+  });
+
+  it("a connector (P5.4): named as the firm's own system, never a rota sheet, never read and then failing", async () => {
+    const f = await created();
+    const made = await connectConnector(urls.admin, f.slug, {
+      connector: "demo_portal",
+      baseUrl: "https://portal.example.test/api",
+      replace: false,
+      localDatabase: true,
+    });
+    expect(made).toMatchObject({ status: "connected" });
+    const rota = async () =>
+      (await withFirm(f.firmId, (tx) => firmReadiness(tx))).find((i) => i.item === "Rota source");
+    expect(await rota()).toEqual({
+      item: "Rota source",
+      state: "todo",
+      detail: "A connector to the firm's own system (demo_portal), not read in full yet.",
+    });
+    await su.query(
+      "update roster_sources set last_error_code = 'unavailable' where firm_id = $1 and enabled",
+      [f.firmId],
+    );
+    expect((await rota())?.detail).toBe(
+      "A connector to the firm's own system (demo_portal), not read in full yet (unavailable).",
+    );
+    await su.query(
+      "update roster_sources set last_synced_at = '2026-10-04T09:00:00Z' where firm_id = $1 and enabled",
+      [f.firmId],
+    );
+    const failing = await rota();
+    expect(failing).toEqual({
+      item: "Rota source",
+      state: "todo",
+      detail:
+        "A connector to the firm's own system (demo_portal), last read 2026-10-04T09:00:00.000Z, now failing (unavailable).",
+    });
+    const text = readinessText("Onboard Test Events", failing ? [failing] : []);
+    expect(text).toContain("now failing (unavailable)");
+    expect(text).not.toMatch(/Google Sheet|sheet/i);
+    await su.query(
+      "update roster_sources set last_error_code = null where firm_id = $1 and enabled",
+      [f.firmId],
+    );
+    expect(await rota()).toEqual({
+      item: "Rota source",
+      state: "done",
+      detail:
+        "A connector to the firm's own system (demo_portal), last read 2026-10-04T09:00:00.000Z.",
     });
   });
 

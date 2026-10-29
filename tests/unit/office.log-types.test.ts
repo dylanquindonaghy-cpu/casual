@@ -82,6 +82,9 @@ const NOT_EVENTS = new Set<string>([
   "portal.api_key",
   "portal.webhook_secret",
   "connector.api_key",
+  // A firm's Webex Interact key and sender (15.2), the same.
+  "webex.api_key",
+  "webex.sender",
   // A connector's webhook types (P5.3) and the settings key its owner command logs under.
   "session.changed",
   "staff.changed",

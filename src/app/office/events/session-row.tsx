@@ -20,8 +20,9 @@ import { ShowingSwitch } from "./showing-switch";
 // One session (docs/office-v2.md 3.3, "What a session is"): the role, its times, "Urgent" on an
 // urgent gap, a chip per requirement, "N/M filled", then its pay per hour, post, meeting point and
 // uniform, and its "…" menu. On the event's page (`full`) also its own switch, who is booked and,
-// once it has started, "Mark who worked". A white row with its hairline (Phase 23), red-edged on
-// an urgent gap (its "Urgent" chip says so in words).
+// once it has started, "Mark who worked". A clear glass tile with no hairline (Phase 24, round 7:
+// the glass's lit rim is its edge), its requirements on clear glass chips as on the event cards;
+// an urgent gap says so with its "Urgent" chip, never a red edge.
 export function SessionItem({
   session: s,
   timeZone,
@@ -47,11 +48,7 @@ export function SessionItem({
   const short = s.booked < s.headcount;
   const unmarked = booked.filter((b) => b.status === "confirmed").length;
   return (
-    <li
-      className={`glass-tile relative flex flex-col gap-2 rounded-row border p-3 ${
-        s.urgentGap ? "border-urgent" : "border-line"
-      }`}
-    >
+    <li className="glass-tile relative flex flex-col gap-2 rounded-row p-3">
       <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-2">
           {full ? (
@@ -69,7 +66,7 @@ export function SessionItem({
           {s.requirements.map((r) => (
             <span
               key={r.code}
-              className="inline-flex h-6 items-center rounded-full bg-quiet-soft px-2 text-sm font-semibold text-quiet-ink"
+              className="inline-flex h-6 items-center rounded-full glass-button px-2 text-sm font-semibold text-ink"
             >
               {requirementChip(r)}
             </span>

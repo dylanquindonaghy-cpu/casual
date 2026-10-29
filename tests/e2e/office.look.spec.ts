@@ -230,6 +230,45 @@ const measure = (page: Page) =>
         );
       })
       .map((el) => `${name(el)}: ${getComputedStyle(el).backgroundImage.slice(0, 60)}`);
+    // No section tinted over (Phase 24, 24.5): a section's status is a leaf before its heading, a
+    // chip, a notice or a second step (none of them a section), never a tint over the whole of it.
+    const softs = ["urgent-soft", "attention-soft", "wait-soft", "done-soft", "quiet-soft"].map(
+      (token) => {
+        const probe = document.createElement("i");
+        probe.style.backgroundColor = `var(--color-${token})`;
+        document.body.append(probe);
+        const rgb = getComputedStyle(probe).backgroundColor;
+        probe.remove();
+        return rgb;
+      },
+    );
+    const tintedSections = [...(main?.querySelectorAll("section") ?? [])]
+      .filter((el) => shown(el) && softs.includes(getComputedStyle(el).backgroundColor))
+      .map(name);
+    // The page header (Phase 24, 24.5): its headline and lines, and the actions beside them (the
+    // next box in the header after the headline's), if it has any.
+    const titleBox = main?.querySelector("header h1")?.parentElement;
+    const headerEl = titleBox?.closest("header");
+    // The headline's own box inside the header (never the header itself, whose next box is the
+    // page's content), and the box after it there.
+    const actionsBox = headerEl && titleBox !== headerEl ? titleBox!.nextElementSibling : null;
+    const edges = (el: Element) => {
+      const r = el.getBoundingClientRect();
+      return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+    };
+    const header =
+      titleBox && actionsBox && shown(actionsBox) && actionsBox.querySelector("a, button")
+        ? { title: edges(titleBox), actions: edges(actionsBox) }
+        : null;
+    // A list under tabs (Phase 24, 24.5): no heading on the page repeating the chosen tab (the tab
+    // says it); it stays for screen readers (`sr-only`: a 1px box).
+    const chosenTab = main?.querySelector('nav[aria-label="Show"] [aria-current="page"]');
+    const tabWords = chosenTab?.textContent?.replace(/\s*\d+\+?$/, "").trim() ?? null;
+    const repeatedTab = tabWords
+      ? [...(main?.querySelectorAll("h2") ?? [])]
+          .filter((h) => h.textContent?.trim() === tabWords && h.getBoundingClientRect().width > 1)
+          .map(name)
+      : [];
     const masks = everything
       .filter((el) => {
         const s = getComputedStyle(el);
@@ -271,6 +310,10 @@ const measure = (page: Page) =>
       bareWhite,
       images,
       masks,
+      tintedSections,
+      header,
+      tabbed: !!tabWords,
+      repeatedTab,
       wide: document.documentElement.scrollWidth,
       window: document.documentElement.clientWidth,
     };
@@ -315,6 +358,8 @@ function expectGlass(
   expect(look.bareWhite, where).toEqual([]);
   expect(look.images, where).toEqual([]);
   expect(look.masks, where).toEqual([]);
+  expect(look.tintedSections, where).toEqual([]);
+  expect(look.repeatedTab, where).toEqual([]);
   expect(look.wide, where).toBeLessThanOrEqual(look.window);
 }
 
@@ -407,6 +452,8 @@ for (const device of ["light", "dark"] as const) {
         "/office/shifts/new",
         "/office/shifts/import",
         "/office/shifts/event",
+        // The how-to guide, in the account menu rather than the rail (24.5).
+        "/office/guide",
         // A worker's data page (download or delete their data), found by name on Data requests.
         await (async () => {
           await page.goto(`${acme}/office/data`);
@@ -444,6 +491,9 @@ for (const device of ["light", "dark"] as const) {
       // pass over none).
       let primaries = 0;
       let sections = 0;
+      // The page headers with actions, and the pages with tabs, seen at each width (Phase 24, 24.5).
+      const headers = new Map<number, number>();
+      const tabbed = new Map<number, number>();
       for (const size of WIDTHS) {
         await page.setViewportSize(size);
         for (const path of [...pages, ...records]) {
@@ -482,6 +532,25 @@ for (const device of ["light", "dark"] as const) {
             expect(look.bar!.fill, where).toBe(FLOAT[device]);
             expect(look.bar!.frost, where).toContain("blur(18px)");
           }
+          // A page header's actions (round 7, as the mock-up's Events & sessions): from 1024px
+          // beside the headline and its lines, level with their foot; on a phone under them.
+          if (look.header) {
+            const { title, actions } = look.header;
+            if (size.width >= 1024) {
+              expect(actions.left, `${where}: actions beside the headline`).toBeGreaterThanOrEqual(
+                title.right,
+              );
+              expect(Math.abs(actions.bottom - title.bottom), `${where}: level`).toBeLessThan(2);
+              // On the headline's row, not wrapped under it.
+              expect(actions.top, `${where}: on the headline's row`).toBeLessThan(title.bottom);
+            } else {
+              expect(actions.top, `${where}: actions under the headline`).toBeGreaterThanOrEqual(
+                title.bottom,
+              );
+            }
+            headers.set(size.width, (headers.get(size.width) ?? 0) + 1);
+          }
+          if (look.tabbed) tabbed.set(size.width, (tabbed.get(size.width) ?? 0) + 1);
           // Glass on every page.
           expect(look.glassParts, where).toBeGreaterThan(0);
           sections += look.sections;
@@ -490,6 +559,14 @@ for (const device of ["light", "dark"] as const) {
       }
       expect(primaries).toBeGreaterThan(0);
       expect(sections).toBeGreaterThan(50);
+      // Headers with actions were seen at both widths (Cancellations, Pay, the shifts list and
+      // more), so the check above never passes over none.
+      for (const size of WIDTHS)
+        expect(headers.get(size.width) ?? 0, `${size.width}px`).toBeGreaterThan(4);
+      // Lists under tabs (Cancellations, Strikes, Enquiries, Casuals, Events & sessions) were seen at
+      // both widths, so the heading check never passes over none.
+      for (const size of WIDTHS)
+        expect(tabbed.get(size.width) ?? 0, `${size.width}px tabs`).toBeGreaterThan(3);
     });
 
     // Logged out: the office's login, "You're logged out.", "Check your email." and the link

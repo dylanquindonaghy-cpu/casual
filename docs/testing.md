@@ -502,6 +502,23 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   (an event's page from its card, a message beside the list), `office.look.spec.ts`,
   `office.shell.spec.ts` (the top bar's To fill in the events line) and `uploads.spec.ts` (the
   staff photo's state, then its date).
+- Phase 24, task 24.5 Every other office page (docs/screens.md "Every other office page, round
+  7"): `office.shell.test.ts` the page header's layout (the headline's box and the actions beside
+  it, level with its foot, only on `office:` values, so the casual app's is as it was) and its
+  way back, nothing above the heading but the header's layout boxes (`guides.test.ts` the same
+  for the workers' help page); `ui.office-system.test.ts` Needs attention's parts and Also needs
+  you as glass sections with an amber or a red leaf before the heading and no tint or edge (in
+  place of 24.1's pin on Also needs you's red wash); `office.events.test.ts` an event's session a
+  clear glass tile with no edge though urgent, its requirements on clear glass chips;
+  `guides.test.ts` the how-to guide's Enquiries and Pay queries steps in their new words (the
+  message beside the list or on its own page, the line under the box, "Close, no reply needed"
+  before "Why close it?", the note beside the group). Browser: `office.look.spec.ts` on every page
+  in the rail, the records opened from them and the how-to guide (in the account menu), at 390px
+  and 1280px, light and dark: no section tinted with a status (a leaf, chip, notice or step
+  instead); a header's actions on the headline's row, beside it and level with its foot from
+  1024px, under it on a phone (seen on more than four pages at each width); no heading under the
+  tabs repeating the chosen tab (seen on more than three pages at each width); the other office
+  specs for each page's words and actions.
 ## Fixtures and the demo seed
 
 `npm run db:seed` creates two fake firms:

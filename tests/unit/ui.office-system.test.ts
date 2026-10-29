@@ -645,8 +645,25 @@ describe("round 7's parts on the office's other pages", () => {
     const section = /<section [^>]*class="([^"]*)"/.exec(also)?.[1];
     expect(section, also).toBeDefined();
     expect(section).toMatch(/(?:^| )lg:col-span-4(?: |$)/);
-    expect(section!.split(" ")).toEqual(
-      expect.arrayContaining(["rounded-inner", "border", "border-urgent-line", "bg-urgent-soft"]),
+    // 24.5: a frosted glass section, as the dashboard's board columns; its status is a red leaf
+    // before its heading, never a tint over the whole section (a status's tint is a chip's, a
+    // notice's or a second step's).
+    expect(section!.split(" ")).toEqual(expect.arrayContaining(["glass", "rounded-inner"]));
+    expect(section).not.toMatch(/(?<![\w-])(?:border|bg-[a-z]+-soft|bg-card)(?![\w-])/);
+    expect(also).toMatch(
+      /<svg [^>]*class="[^"]*(?<![\w-])text-urgent(?![\w-])[^"]*"[^>]*>[\s\S]*?<\/svg><h2 id="also-needs-you"/,
+    );
+    // Each of its parts (Who worked?, Uploads to check and the rest): the same, an amber leaf.
+    const { Need } = await import("@/app/office/needs-items");
+    const need = renderToStaticMarkup(
+      Need({ id: "to-mark", n: 2, children: createElement("p", null, "…") }),
+    );
+    expect(/<section [^>]*class="([^"]*)"/.exec(need)?.[1]?.split(" ")).toEqual(
+      expect.arrayContaining(["glass", "rounded-inner"]),
+    );
+    expect(need).not.toMatch(/(?<![\w-])(?:border|bg-[a-z]+-soft)(?![\w-])/);
+    expect(need).toMatch(
+      /<svg [^>]*class="[^"]*(?<![\w-])text-attention(?![\w-])[^"]*"[^>]*>[\s\S]*?<\/svg><h3 id="to-mark"/,
     );
     // No shadow class and no grain, here or anywhere in what it draws.
     expect(also).not.toMatch(/(?<![\w-])(?:[a-z0-9-]+:)*(?:inset-)?shadow-(?!none)/);

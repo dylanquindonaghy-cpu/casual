@@ -1686,7 +1686,7 @@ Docs: `docs/ui-design.md`, `docs/screens.md`, `docs/office-v2.md`.
       photo, travel area, live strikes, needs updating) with All, Need updating and Uploads to
       check, and the search box over it. Tests: each page's parts and answers, the browser tests
       (24.4)
-- [ ] Every other office page on round 7's parts: Needs attention, Cancellations, Pay dashboard, Pay
+- [x] Every other office page on round 7's parts: Needs attention, Cancellations, Pay dashboard, Pay
       queries, Import pay records, Strikes, Notice report, the records and settings, a shift, an
       event, a casual, the offer page, the how-to guide (its words matching the new layout) and the
       logged-out pages, at 390px and 1280px in both themes. Tests: the browser tests of every
@@ -2475,6 +2475,10 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
 ## Parking lot
 
 (Ideas that came up mid-build. Not in scope until a phase includes them.)
+
+- From Phase 24 (24.5, 2026-10-28): an office address that doesn't exist, opened while logged out
+  (a mistyped `/office/…` link), shows the casual app's "We can't find that page." with "Go to my
+  shifts". Give the office's own logged-out not-found page "Go to the office login" instead.
 
 - From Phase 24 (24.4, 2026-10-27, the guardrails review): Enquiries loads the message beside the
   list on a phone too, where it's hidden (from 1024px only): one more read of a message per phone

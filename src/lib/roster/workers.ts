@@ -1,4 +1,5 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
+import { z } from "zod";
 import { endEverySession } from "../auth/sessions";
 import { workers, WORKER_STATUSES } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
@@ -20,6 +21,10 @@ import { forgetPhones, reflagFutureBookings } from "./worker-effects";
 //   and forgets their phones' notifications, because login goes by mobile number and the old
 //   phone may be someone else's now (audit L81); a changed status signs them out too, so a worker
 //   made inactive and then active again doesn't get their old sessions back (audit L80);
+// - an email address is kept lowercased, and one that isn't an address is refused
+//   (WorkerEmailInvalid): login links and pay codes can go to it (P2.6). A changed or removed
+//   address signs the worker out everywhere, as a changed mobile does: a link may have gone to the
+//   old inbox. A first address signs nobody out (nothing could have gone to it before);
 // - a worker who stops being active has their future bookings flagged on the office's dashboard
 //   (src/lib/office/today.ts), for the office to cancel or keep, and their phones' notifications
 //   forgotten; any status change clears "kept" on their bookings ahead, so each is looked at again;
@@ -66,6 +71,24 @@ export class WorkerNameMismatch extends Error {
   }
 }
 
+export class WorkerEmailInvalid extends Error {
+  constructor() {
+    super("the worker's email isn't an email address");
+    this.name = "WorkerEmailInvalid";
+  }
+}
+
+const emailSchema = z.email().max(254);
+
+// A worker's email as it's kept: trimmed and lowercased (P2.6, as office users' are); none for
+// an empty one; refused if it isn't an address.
+export function workerEmail(value: string | null): string | null {
+  const email = value?.trim().toLowerCase() ?? "";
+  if (email === "") return null;
+  if (!emailSchema.safeParse(email).success) throw new WorkerEmailInvalid();
+  return email;
+}
+
 export class WorkerIdentityChange extends Error {
   constructor() {
     super("this staff id's name and mobile both changed");
@@ -99,6 +122,7 @@ export async function upsertWorker(
   person: IncomingWorker,
   from: WorkerSource,
 ): Promise<{ id: string; outcome: UpsertOutcome }> {
+  const email = person.email === undefined ? undefined : workerEmail(person.email);
   const event = (action: string, id: string, data: object) =>
     recordEvent(tx, {
       actorType: from.actor.type,
@@ -151,7 +175,7 @@ export async function upsertWorker(
         mobileE164: person.mobileE164,
         roles: person.roles ?? [],
         status: person.status ?? "active",
-        email: person.email ?? null,
+        email: email ?? null,
         externalRef: person.ref ?? null,
       })
       .returning({ id: workers.id });
@@ -168,7 +192,7 @@ export async function upsertWorker(
       mobileE164: person.mobileE164,
       roles: person.roles ?? row.roles,
       status: statusAfter(row, person.status),
-      email: person.email === undefined ? row.email : person.email,
+      email: email === undefined ? row.email : email,
     } as const;
     const changed = (Object.keys(next) as (keyof typeof next)[]).filter((k) =>
       k === "roles" ? row.roles.join(",") !== next.roles.join(",") : row[k] !== next[k],
@@ -196,7 +220,9 @@ export async function upsertWorker(
     .set(linking ? { ...next, externalRef: person.ref } : next)
     .where(eq(workers.id, existing.id));
   let ended = { sessions: 0, links: 0 };
-  if (changed.includes("mobileE164") || changed.includes("status")) {
+  // A changed or removed email too (P2.6): a login link may have gone to the old address.
+  const addressChanged = changed.includes("email") && held.email !== null;
+  if (changed.includes("mobileE164") || changed.includes("status") || addressChanged) {
     ended = await endEverySession(tx, { kind: "worker", subjectId: existing.id, now: from.now });
   }
   // A new mobile, or no longer active: their phones' notifications go too (a firm-change notice's

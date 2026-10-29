@@ -117,5 +117,9 @@ export class NoTextSenderError extends Error {
 
 export interface MessagingTransport {
   readonly name: string;
+  // false: there's no text sender at all (MESSAGING_TRANSPORT=none, P2.5), so no WhatsApp or text
+  // can go. Unset: there is one. A sender that must choose its channel before it sends asks this
+  // (the login link and code, P2.6: their token or code is made for the way it goes).
+  readonly texts?: false;
   send(message: OutboundMessage): Promise<SendResult>;
 }

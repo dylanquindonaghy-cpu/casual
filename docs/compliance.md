@@ -9,7 +9,10 @@ reviewed once by a solicitor before the first pilot.
 - **We are the processor.** We only process data on the firm's instructions.
 - **Our sub-processors:** the hosting company (servers and the database, in the UK or the EU; chosen
   when the account is created), the email company (SMTP; chosen when its account is created:
-  "Connect an email provider (SMTP)"), Anthropic (the AI, only once it's switched on; its API may
+  "Connect an email provider (SMTP)"; it carries the office's emails and, since P2, a casual's
+  messages when no notification or text can reach them, and their login links and pay-page codes
+  where the firm has switched `login_by_email` on: to the address the firm holds for them, kept
+  lowercased and checked), Anthropic (the AI, only once it's switched on; its API may
   process requests outside the UK, so its data processing agreement and UK transfer terms are
   checked first: ADR-021), Twilio (numbers, SMS, WhatsApp, voice), Meta (WhatsApp), ElevenLabs (only
   if the AI phone add-on is used), Google (only for a firm whose rota is a Google Sheet: our Google

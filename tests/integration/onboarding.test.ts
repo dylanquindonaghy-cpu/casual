@@ -208,6 +208,9 @@ describe("a firm's settings", () => {
       // Who sends what: ShiftDesk reminds every booking until the owner says the firm's own system
       // reminds its own (P2.3).
       firm_system_sends: [false, "default"],
+      // Login links and pay codes by email with no text sender: off until the pages are reworded
+      // (P2.6, P2.7).
+      login_by_email: [false, "default"],
       // How long the firm keeps things (Phase 10, audit M24): the spec's defaults until agreed.
       "retention.message_days": [90, "default"],
       "retention.request_note_days": [365, "default"],
@@ -289,6 +292,11 @@ describe("a firm's settings", () => {
     expect(
       await setFirmSettings(urls.admin, f.slug, [["firm_system_sends", "true"]]),
     ).toMatchObject({ status: "saved", keys: ["firm_system_sends"] });
+    // Login by email, switched on (P2.6).
+    expect(await setFirmSettings(urls.admin, f.slug, [["login_by_email", "true"]])).toMatchObject({
+      status: "saved",
+      keys: ["login_by_email"],
+    });
   });
 
   it("refuses a value the app would ignore or fall back from; nothing is saved", async () => {
@@ -309,6 +317,7 @@ describe("a firm's settings", () => {
       ["quiet_hours.urgent_override", "maybe"],
       ["auto_replies", "yes"],
       ["firm_system_sends", "1"],
+      ["login_by_email", "on"],
       ["urgent_window_hours", ""],
     ] as const) {
       expect(await setFirmSettings(urls.admin, f.slug, [[key, value]]), `${key}=${value}`).toEqual({

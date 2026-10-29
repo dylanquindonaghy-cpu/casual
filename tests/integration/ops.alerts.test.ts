@@ -47,10 +47,14 @@ async function events(
   t: Tenant,
   action: string,
   n: number,
-  o: { minutesAgo?: number; channel?: string; code?: string } = {},
+  o: { minutesAgo?: number; channel?: string; code?: string; purpose?: string } = {},
 ) {
   const at = new Date(Date.now() - (o.minutesAgo ?? 10) * MINUTE);
-  const data = { channel: o.channel ?? "whatsapp", ...(o.code ? { code: o.code } : {}) };
+  const data = {
+    channel: o.channel ?? "whatsapp",
+    ...(o.code ? { code: o.code } : {}),
+    ...(o.purpose ? { purpose: o.purpose } : {}),
+  };
   await su.query(
     `insert into events (firm_id, actor_type, action, entity_type, data, created_at)
      select $1, 'system', $2, 'offer', $3, $4 from generate_series(1, $5)`,
@@ -205,16 +209,17 @@ describe("a firm's signals", () => {
     await events(t, "auth.link_sent", 90);
     await events(t, "auth.link_send_failed", 10, { code: "timeout" });
     // Not counted: the office's links (by email), links over an hour ago, another firm's.
-    await events(t, "auth.link_sent", 50, { channel: "email" });
+    await events(t, "auth.link_sent", 50, { channel: "email", purpose: "office_login" });
     await events(t, "auth.link_sent", 50, { minutesAgo: 70 });
     await events(other, "auth.link_sent", 200);
     expect(await logins(t)).toEqual([]);
-    await events(t, "auth.link_sent", 1, { channel: "sms" });
+    // A casual's link by email (P2.6) counts, as one by text does.
+    await events(t, "auth.link_sent", 1, { channel: "email", purpose: "worker_login" });
     expect(await logins(t)).toEqual([
       {
         kind: "login_links",
         key: `logins:${t.firmId}`,
-        text: `ShiftDesk alert: ${t.slug}: 101 login links by WhatsApp and text in the last hour. A big briefing can do that; if not, someone may be running up the firm's messages. Check the action log's Logins.`,
+        text: `ShiftDesk alert: ${t.slug}: 101 login links to casuals in the last hour. A big briefing can do that; if not, someone may be running up the firm's messages. Check the action log's Logins.`,
       },
     ]);
     // The other firm's 200 are its own alert.
@@ -236,7 +241,7 @@ describe("a firm's signals", () => {
       {
         kind: "login_links",
         key: `logins-day:${t.firmId}`,
-        text: `ShiftDesk alert: ${t.slug}: 301 login links by WhatsApp and text in the last 24 hours, far more than a firm needs. Someone may be running up the firm's messages. Check the action log's Logins.`,
+        text: `ShiftDesk alert: ${t.slug}: 301 login links to casuals in the last 24 hours, far more than a firm needs. Someone may be running up the firm's messages. Check the action log's Logins.`,
       },
     ]);
     // The day's links never count in the last hour's sends: 2 of this hour's 20 failed, 10%.

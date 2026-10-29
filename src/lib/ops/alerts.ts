@@ -52,7 +52,8 @@ export const THRESHOLDS = {
   // Bad webhook signatures in the last hour, per web process: one is a scanner; 20 is a wrong auth
   // token or someone probing.
   badSignatures: 20,
-  // Login links a firm sent by WhatsApp and text in the last hour (14.2): the backstop for the
+  // Login links a firm sent its casuals (by WhatsApp and text; by email too since P2.6) in the
+  // last hour (14.2): the backstop for the
   // per-address limit (60 every 15 minutes since 13.5, so one address alone can ask for 240 an
   // hour). A briefing of about 50 on one venue's Wi-Fi is the busiest real case; each link is a
   // paid message. An alert, not a ceiling: a ceiling would lock a whole firm's casuals out. A
@@ -238,7 +239,8 @@ export function sendFailureAlert(s: {
   );
 }
 
-// A firm's login links by WhatsApp and text (sent or tried) over the last hour, and over the last
+// A firm's login links to its casuals (sent or tried; by WhatsApp and text, and by email since
+// P2.6) over the last hour, and over the last
 // 24 hours: an alert for each over its threshold (each its own key, so one never hides the other).
 export function loginLinkAlerts(s: {
   firmId: string;
@@ -253,7 +255,7 @@ export function loginLinkAlerts(s: {
       alert(
         "login_links",
         `logins:${s.firmId}`,
-        `${label}: ${s.lastHour} login links by WhatsApp and text in the last hour. A big briefing can do that; if not, someone may be running up the firm's messages. Check the action log's Logins.`,
+        `${label}: ${s.lastHour} login links to casuals in the last hour. A big briefing can do that; if not, someone may be running up the firm's messages. Check the action log's Logins.`,
       ),
     );
   }
@@ -262,7 +264,7 @@ export function loginLinkAlerts(s: {
       alert(
         "login_links",
         `logins-day:${s.firmId}`,
-        `${label}: ${s.lastDay} login links by WhatsApp and text in the last 24 hours, far more than a firm needs. Someone may be running up the firm's messages. Check the action log's Logins.`,
+        `${label}: ${s.lastDay} login links to casuals in the last 24 hours, far more than a firm needs. Someone may be running up the firm's messages. Check the action log's Logins.`,
       ),
     );
   }

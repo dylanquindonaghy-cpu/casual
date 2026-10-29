@@ -136,12 +136,12 @@ describe("the alerts", () => {
     const hour = {
       kind: "login_links",
       key: `logins:${FIRM}`,
-      text: "ShiftDesk alert: acme: 101 login links by WhatsApp and text in the last hour. A big briefing can do that; if not, someone may be running up the firm's messages. Check the action log's Logins.",
+      text: "ShiftDesk alert: acme: 101 login links to casuals in the last hour. A big briefing can do that; if not, someone may be running up the firm's messages. Check the action log's Logins.",
     };
     const day = {
       kind: "login_links",
       key: `logins-day:${FIRM}`,
-      text: "ShiftDesk alert: acme: 301 login links by WhatsApp and text in the last 24 hours, far more than a firm needs. Someone may be running up the firm's messages. Check the action log's Logins.",
+      text: "ShiftDesk alert: acme: 301 login links to casuals in the last 24 hours, far more than a firm needs. Someone may be running up the firm's messages. Check the action log's Logins.",
     };
     expect(links(101, 101)).toEqual([hour]);
     // A slow drip: never 100 in an hour, but over 300 in the day.

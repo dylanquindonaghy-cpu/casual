@@ -5,13 +5,18 @@ import { events, firms, magicLinks, officeUsers, workers } from "../db/schema";
 import { workerEnv } from "../env";
 import { recordEvent } from "../events/record";
 import { firmJobEnvelope, type FirmTask } from "../jobs/firm-job";
-import { sendFailureCode } from "../notify/send";
+import { emailMessageId, NO_CHANNEL, sendFailureCode } from "../notify/send";
 import { getTransport, type MessagingTransport } from "../messaging";
 import type { OutboundMessage } from "../messaging/transport";
-import { loginLinkMessage, officeLoginLinkEmail } from "../messaging/templates";
+import {
+  loginLinkMessage,
+  officeLoginLinkEmail,
+  workerLoginLinkEmail,
+} from "../messaging/templates";
 import { ownDomainUrl, portalUrl } from "../tenancy/portal-url";
 import { signOffFor } from "../tenancy/sign-off";
 import { systemClock, type Clock } from "./clock";
+import { loginChannel } from "./login-channel";
 import { issueMagicLink, markLinkSent } from "./magic-links";
 
 // The send-portal-link job (docs/api-and-jobs.md). The web queues it for every login request
@@ -43,10 +48,13 @@ export interface SendPortalLinkDeps {
 
 export type SendResult =
   | { sent: true; magicLinkId: string }
-  | { sent: false; reason: "no_subject" | "inactive" | "already_sent" | "failed" };
+  | {
+      sent: false;
+      reason: "no_subject" | "inactive" | "already_sent" | "failed" | "no_channel";
+    };
 
 type LinkClaim =
-  | { done: "inactive" | "already_sent" }
+  | { done: "inactive" | "already_sent" | "no_channel" }
   | { magicLinkId: string; message: OutboundMessage; ownDomain: boolean };
 
 // (1) The claim: the link for this login request, marked sent and committed before the message goes.
@@ -57,18 +65,19 @@ async function claimLink(
   now: Date,
 ): Promise<LinkClaim> {
   const office = payload.purpose === "office_login";
-  // Workers get their link by WhatsApp; office users by email. Only while still active. The row is
-  // held (FOR SHARE) until the link is stored, so access being turned off or a mobile changing at
-  // this moment takes turns with it: either this sees the change, or the change sees this link and
-  // spends it (src/lib/auth/sessions.ts endEverySession).
+  // Workers get their link by WhatsApp (by email, P2.6, when there's no text sender and the firm
+  // has it on: login-channel.ts); office users by email. Only while still active. The row is held
+  // (FOR SHARE) until the link is stored, so access being turned off or a mobile or email changing
+  // at this moment takes turns with it: either this sees the change, or the change sees this link
+  // and spends it (src/lib/auth/sessions.ts endEverySession).
   const [recipient] = office
     ? await tx
-        .select({ to: officeUsers.email })
+        .select({ to: officeUsers.email, email: officeUsers.email })
         .from(officeUsers)
         .where(and(eq(officeUsers.id, payload.subjectId), eq(officeUsers.status, "active")))
         .for("share")
     : await tx
-        .select({ to: workers.mobileE164 })
+        .select({ to: workers.mobileE164, email: workers.email })
         .from(workers)
         .where(and(eq(workers.id, payload.subjectId), eq(workers.status, "active")))
         .for("share");
@@ -86,6 +95,30 @@ async function claimLink(
     .from(firms)
     .where(eq(firms.id, payload.firmId));
   if (!firm) throw new Error("firm not visible inside its own transaction");
+  // The way it goes, decided before the token is made (P2.6). The channel an earlier run's link is
+  // caught up with below is this run's: the same unless the setting or the transport changed.
+  const email = recipient.email;
+  const channel = office
+    ? "email"
+    : loginChannel({ transport: deps.transport, settings: firm.settings, email });
+  if (channel === null) {
+    const [earlier] = await tx
+      .select({ id: magicLinks.id })
+      .from(magicLinks)
+      .where(eq(magicLinks.requestId, payload.idempotencyKey));
+    if (!earlier) {
+      // Nothing can carry it (no text sender, and no email for them or the firm hasn't switched
+      // login by email on): no token is made, and the miss is logged (P2.6).
+      await recordEvent(tx, {
+        actorType: "system",
+        action: "auth.link_send_failed",
+        entityType: "worker",
+        entityId: payload.subjectId,
+        data: { purpose: payload.purpose, channel: null, code: NO_CHANNEL },
+      });
+      return { done: "no_channel" };
+    }
+  }
 
   const link = await issueMagicLink(tx, {
     kind: office ? "office" : "worker",
@@ -109,7 +142,7 @@ async function claimLink(
         entityId: earlier.id,
         data: {
           purpose: payload.purpose,
-          channel: office ? "email" : "whatsapp",
+          ...(channel ? { channel } : {}),
           unconfirmed: true,
         },
       });
@@ -130,7 +163,7 @@ async function claimLink(
     payload.address === "own_domain" && firm.domainVerified ? firm.customDomain : null;
   const portal = ownDomain ? ownDomainUrl(ownDomain) : portalUrl(firm.slug, deps.baseDomain);
   const voice = { name: firm.name, signOff: signOffFor(firm.name, firm.settings.sign_off) };
-  // The SMS fallback comes with Twilio, and email with the SMTP sender.
+  // The SMS fallback comes with Twilio.
   return {
     magicLinkId: link.id,
     ownDomain: ownDomain !== null,
@@ -140,12 +173,18 @@ async function claimLink(
           to: recipient.to,
           ...officeLoginLinkEmail(voice, `${portal}/office/l#${link.token}`),
         }
-      : {
-          channel: "whatsapp",
-          to: recipient.to,
-          ...(firm.line ? { from: firm.line } : {}),
-          body: loginLinkMessage(voice, `${portal}/l#${link.token}`),
-        },
+      : channel === "email" && email
+        ? {
+            channel: "email",
+            to: email,
+            ...workerLoginLinkEmail(voice, `${portal}/l#${link.token}`),
+          }
+        : {
+            channel: "whatsapp",
+            to: recipient.to,
+            ...(firm.line ? { from: firm.line } : {}),
+            body: loginLinkMessage(voice, `${portal}/l#${link.token}`),
+          },
   };
 }
 
@@ -207,8 +246,14 @@ export async function sendPortalLink(
         // A link on the firm's own domain says so (the portal is the default, unmarked). Not
         // "address": the log masker treats any key with that word as personal.
         ...(claim.ownDomain ? { ownDomain: true } : {}),
+        // An email's id is kept as the action log takes it (its Message-ID's host refused).
         ...("providerMessageId" in sent
-          ? { providerMessageId: sent.providerMessageId }
+          ? {
+              providerMessageId:
+                claim.message.channel === "email"
+                  ? emailMessageId(sent.providerMessageId)
+                  : sent.providerMessageId,
+            }
           : { code: sent.code }),
       },
     });

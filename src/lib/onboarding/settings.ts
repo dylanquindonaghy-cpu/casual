@@ -1,3 +1,4 @@
+import { loginByEmail } from "../auth/login-channel";
 import { autoRepliesOn } from "../inbound/limits";
 import { firmSystemSends } from "../notices/who-sends";
 import { escalateHours, firstComeWaves, WAVE_MAX } from "../offers/waves";
@@ -34,6 +35,7 @@ export const SETTING_KEYS = [
   "quiet_hours.urgent_override",
   "auto_replies",
   "firm_system_sends",
+  "login_by_email",
   "retention.message_days",
   "retention.request_note_days",
   "retention.hold_until",
@@ -81,6 +83,7 @@ const READ: Record<SettingKey, (s: Settings) => SettingValue> = {
   "quiet_hours.urgent_override": (s) => quietHours(s).urgentOverride,
   auto_replies: (s) => autoRepliesOn(s),
   firm_system_sends: (s) => firmSystemSends(s),
+  login_by_email: (s) => loginByEmail(s),
   "retention.message_days": (s) => retentionSettings(s).messageDays,
   "retention.request_note_days": (s) => retentionSettings(s).requestNoteDays,
   "retention.hold_until": (s) => retentionSettings(s).holdUntil ?? "none",
@@ -108,6 +111,8 @@ export const SETTING_WORDS: Record<SettingKey, string> = {
     "the shifts line answers WhatsApps and texts by itself (true or false; false, the default: nothing is sent back, and every casual's message waits for the office in Need a person)",
   firm_system_sends:
     "the firm's own system (its rota sheet, or its CRM through the API) reminds the casuals it books (true or false; false, the default: ShiftDesk reminds every booking)",
+  login_by_email:
+    "with no text sender, a casual's login link and pay-page code go by email to the address held for them (true or false; false, the default: they go by WhatsApp only. Leave it off until the login and pay pages stop naming WhatsApp: PLAN.md P2.7)",
   "retention.message_days": `days the shifts line's messages are kept (${RETENTION_MIN_DAYS} to ${RETENTION_MAX_DAYS})`,
   "retention.request_note_days": `days a closed request's words are kept, and the office's reason for placing someone despite a rule (${RETENTION_MIN_DAYS} to ${RETENTION_MAX_DAYS})`,
   "retention.hold_until":
@@ -159,7 +164,8 @@ function parseValue(key: SettingKey, raw: string): SettingValue | null {
     key === "quiet_hours.urgent_override" ||
     key === "travel.enabled" ||
     key === "auto_replies" ||
-    key === "firm_system_sends"
+    key === "firm_system_sends" ||
+    key === "login_by_email"
   ) {
     return text === "true" ? true : text === "false" ? false : null;
   }

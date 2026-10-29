@@ -32,9 +32,9 @@ import {
 //   worker's own pg-boss connection reads them: `failedJobs`);
 // - each firm (inside its own transaction, RLS): an enabled rota sheet whose last sync failed, its
 //   WhatsApp and text sends (the events every sender writes) against the failures, its emails the
-//   same (P2.5: with no text sender a casual's messages go by push or email), and its login
-//   links by WhatsApp and text (14.2: more than usual means a crowd, or someone running up its
-//   messages);
+//   same (P2.5: with no text sender a casual's messages go by push or email), and its casuals' login
+//   links by WhatsApp and text, and by email since P2.6 (14.2: more than usual means a crowd, or
+//   someone running up its messages);
 // - each firm, too (P4.8): its messages the AI couldn't sort, its messages in and its offers out;
 // - pg-boss's queues (P4.8, the worker's pg-boss connection again: `queueHealth`): jobs waiting to
 //   start longer than their queue's limit, and jobs running past 80% of their time limit;
@@ -143,6 +143,8 @@ export async function firmAlerts(tx: FirmTx, firmId: string, now: Date): Promise
   // those are read that far back).
   const texts = sql`e.data ->> 'channel' in ('whatsapp', 'sms')`;
   const email = sql`e.data ->> 'channel' = 'email'`;
+  // A casual's login links by WhatsApp and text, and since P2.6 by email (not the office's own).
+  const casualLinks = sql`(${texts} or (${email} and e.data ->> 'purpose' = 'worker_login'))`;
   const counted = sql`(e.data ->> 'code') is null or e.data ->> 'code' not in (${list(NOT_SEND_FAILURES)})`;
   const topCode = (channels: string[]) => sql`
     (select f.data ->> 'code' from events f
@@ -164,9 +166,9 @@ export async function firmAlerts(tx: FirmTx, firmId: string, now: Date): Promise
   }>(sql`
     select count(*) filter (where e.created_at > ${since} and ${texts}
                               and e.action in (${list(SEND_ACTIONS)}))::int as sent,
-           count(*) filter (where e.created_at > ${since} and ${texts}
+           count(*) filter (where e.created_at > ${since} and ${casualLinks}
                               and e.action in (${list(LOGIN_LINK_ACTIONS)}))::int as login_links,
-           count(*) filter (where ${texts}
+           count(*) filter (where ${casualLinks}
                               and e.action in (${list(LOGIN_LINK_ACTIONS)}))::int as login_links_day,
            count(*) filter (where e.created_at > ${since} and ${texts}
                               and e.action in (${list(SEND_FAILED_ACTIONS)})

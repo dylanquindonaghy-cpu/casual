@@ -17,6 +17,26 @@ export function loginCodeMessage(firm: FirmVoice, code: string): string {
   return `Your ${firm.name} code is ${code}. It works for 10 minutes. Don't share it with anyone. — ${firm.signOff}`;
 }
 
+// A casual's login link and pay-page code by email (P2.6; docs/messaging-templates.md "Email to
+// casuals", approved by Dylan on 2026-10-28, the link last on 2026-10-29): only where the firm has
+// switched login by email on (`login_by_email`) and there's no text sender.
+export function workerLoginLinkEmail(
+  firm: FirmVoice,
+  link: string,
+): { subject: string; body: string } {
+  return {
+    subject: `Your ${firm.name} shifts link`,
+    body: `Here's your ${firm.name} shifts link. It works for 15 minutes and only for you. If you didn't ask for it, you can ignore this email: ${link} — ${firm.signOff}`,
+  };
+}
+
+export function loginCodeEmail(firm: FirmVoice, code: string): { subject: string; body: string } {
+  return {
+    subject: `Your ${firm.name} code`,
+    body: `Your ${firm.name} code is ${code}. It works for 10 minutes. Don't share it with anyone. If you didn't ask for it, you can ignore this email. — ${firm.signOff}`,
+  };
+}
+
 // office_login_link (email): office users log in by a one-time link to their work email.
 export function officeLoginLinkEmail(
   firm: FirmVoice,

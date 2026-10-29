@@ -123,7 +123,7 @@ the jobs role owns the pgboss tables and isn't firm-restricted there, so payload
 6. Rate limits (`src/lib/auth/throttle.ts`), in fixed 15-minute windows per firm: 60 link
    requests per IP (anything typed, junk included; raised from 10 in 13.5 so a team briefed on one
    venue's Wi-Fi isn't locked out; the backstop is an ops alert when a firm sends more than 100
-   login links by WhatsApp and text in an hour, or 300 in a day, 14.2) and 3 per number, plus at most 10 per number
+   login links to casuals in an hour, or 300 in a day, 14.2) and 3 per number, plus at most 10 per number
    a day (Phase 10, audit L49: each link is a billed message); 20 failed link uses per IP
    (successful logins don't count; the strikes team's confirmation links count here too, 12B.7).
    Those confirmation links are emails too: a firm sends at most 3 every 15 minutes and 10 a day

@@ -201,7 +201,7 @@ create table workers (
   first_name text not null,
   last_name text not null,
   mobile_e164 text,                      -- empty only once erased (below)
-  email text,
+  email text,                            -- lowercase, checked as an address (upsertWorker, P2.6)
   status text not null default 'active', -- active | inactive | blocked
   roles text[] not null default '{}',
   external_ref text,                     -- the sheet's staff id (Sheets firms); null otherwise
@@ -764,7 +764,10 @@ create table events (
 -- (recordEvent() refuses anything the log masker would change).
 -- Login events (kind worker or office): auth.link_requested (entity login_request; data {kind, matched}),
 -- auth.link_sent (magic_link; {purpose, channel, providerMessageId}, + ownDomain: true when the
--- link was on the firm's own domain), auth.link_rejected
+-- link was on the firm's own domain; channel email for an office user, and for a worker since
+-- P2.6 when it went by email: login_by_email), auth.link_send_failed (magic_link; {purpose,
+-- channel, code}; or, P2.6, on the worker with {purpose, channel: null, code: no_channel} when
+-- nothing could carry it and no link was made), auth.link_rejected
 -- (magic_link or none; {kind, reason: unknown|used|expired|wrong_kind|inactive}), auth.login
 -- (session; actor worker/office), auth.session_rotated, auth.logout, auth.rate_limited
 -- (login_request, magic_link, session, api_key or worker; {limit: "login:mobile" |
@@ -772,7 +775,9 @@ create table events (
 -- "link_fail:ip" | "otp:worker" | "otp:worker_day" | "api:key" | "push:worker" (13.3) |
 -- "take:worker" (13.5) | "strikes_link:…"}; once per window, when the limit is first reached;
 -- the worker's own limits name them as the entity). Pay-page codes: auth.otp_requested (session),
--- auth.otp_sent, auth.otp_failed ({attemptsLeft}), auth.otp_locked, auth.otp_verified (otp_code).
+-- auth.otp_sent ({channel, providerMessageId}: whatsapp, or email since P2.6),
+-- auth.otp_send_failed ({channel, code}; or on the session {channel: null, code: no_channel}, no
+-- code made: P2.6), auth.otp_failed ({attemptsLeft}), auth.otp_locked, auth.otp_verified (otp_code).
 -- Worker requests (src/lib/portal/requests.ts): request.created (request; actor worker; {type,
 -- shiftId}): the typed note and any colleague's name stay on the row (requests.payload:
 -- time_change {start, end, note} local "HH:MM" times; swap {swapWith, note}).

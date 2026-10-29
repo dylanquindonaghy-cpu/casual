@@ -70,6 +70,7 @@ const consoleOf = (config: TransportConfig) =>
 // deliverToWorker) and is never logged as a failed text.
 export const noTextSender: MessagingTransport = {
   name: "none",
+  texts: false,
   async send(message) {
     throw new NoTextSenderError(message.channel);
   },
@@ -82,6 +83,7 @@ export function routeEmail(
 ): MessagingTransport {
   return {
     name: `${phone.name}+${email.name}`,
+    ...(phone.texts === false ? { texts: false as const } : {}),
     send: (message) => (message.channel === "email" ? email : phone).send(message),
   };
 }
@@ -100,6 +102,7 @@ export class NotMadeUpRecipient extends Error {
 export function madeUpPeopleOnly(transport: MessagingTransport): MessagingTransport {
   return {
     name: transport.name,
+    ...(transport.texts === false ? { texts: false as const } : {}),
     send: async (message) => {
       const madeUp =
         message.channel === "email" ? isMadeUpEmail(message.to) : isMadeUpMobile(message.to);

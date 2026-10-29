@@ -23,7 +23,7 @@ import {
 import type { PushTransport } from "@/lib/push/transport";
 import { runShiftReminders } from "@/lib/reminders/send";
 import { previewBooking } from "@/lib/roster/book";
-import { upsertWorker } from "@/lib/roster/workers";
+import { upsertWorker, WorkerEmailInvalid } from "@/lib/roster/workers";
 import { captureTransport } from "../helpers/auth";
 import { bookingFirm, hoursFromNow, NOW } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
@@ -131,7 +131,11 @@ const source = { source: "sheets" as const, actor: { type: "system" as const }, 
 const fromSheet = async (
   firmId: string,
   workerId: string,
-  change: { status?: "active" | "inactive" | "blocked"; mobileE164?: string },
+  change: {
+    status?: "active" | "inactive" | "blocked";
+    mobileE164?: string;
+    email?: string | null;
+  },
 ) => {
   const mobile = await mobileOf(workerId);
   const ref = `S-${workerId.slice(0, 8)}`;
@@ -148,8 +152,9 @@ const fromSheet = async (
         lastName: rows[0]?.last_name ?? "",
         mobileE164: change.mobileE164 ?? mobile,
         ...(change.status ? { status: change.status } : {}),
+        ...(change.email !== undefined ? { email: change.email } : {}),
       },
-      change.mobileE164 ? { ...source, source: "csv" } : source,
+      change.mobileE164 || change.email !== undefined ? { ...source, source: "csv" } : source,
     ),
   );
 };
@@ -719,6 +724,63 @@ describe("a mobile change from the sheet or a file (audit L81)", () => {
       linksSpent: 1,
       devicesForgotten: 1,
     });
+  });
+});
+
+describe("an email from a file (P2.6: login links and pay codes can go to it)", () => {
+  const emailOf = async (workerId: string) =>
+    (
+      await su.query<{ email: string | null }>("select email from workers where id = $1", [
+        workerId,
+      ])
+    ).rows[0]?.email;
+
+  it("kept lowercased; a first address signs nobody out (nothing could have gone to it before)", async () => {
+    const { f } = await firm();
+    const ann = await f.worker({ first: "Ann" });
+    await waysIn(f.firmId, ann);
+    await fromSheet(f.firmId, ann, { email: "  Ann.Booker@Example.TEST " });
+    expect(await emailOf(ann)).toBe("ann.booker@example.test");
+    expect(await waysLeft(ann)).toEqual({ sessions: 1, links: 1, phones: 1 });
+    expect((await events(f.firmId, "worker.updated")).map((e) => e.data)).toEqual([
+      { source: "csv", fields: ["email"] },
+    ]);
+  });
+
+  it("a changed or removed address ends their sessions and unused links (their phones stay)", async () => {
+    const { f } = await firm();
+    const ann = await f.worker({ first: "Ann" });
+    await fromSheet(f.firmId, ann, { email: "ann.booker@example.test" });
+    await waysIn(f.firmId, ann);
+    await fromSheet(f.firmId, ann, { email: "ann.new@example.test" });
+    expect(await waysLeft(ann)).toEqual({ sessions: 0, links: 0, phones: 1 });
+    expect((await events(f.firmId, "worker.updated")).at(-1)?.data).toEqual({
+      source: "csv",
+      fields: ["email"],
+      sessionsRevoked: 1,
+      linksSpent: 1,
+    });
+    await waysIn(f.firmId, ann);
+    await fromSheet(f.firmId, ann, { email: null });
+    expect(await emailOf(ann)).toBeNull();
+    expect((await waysLeft(ann))?.sessions).toBe(0);
+    // The same address in other capitals is no change.
+    await fromSheet(f.firmId, ann, { email: "ann.new@example.test" });
+    await waysIn(f.firmId, ann);
+    expect(await fromSheet(f.firmId, ann, { email: "ANN.NEW@example.test" })).toMatchObject({
+      outcome: "unchanged",
+    });
+    expect((await waysLeft(ann))?.sessions).toBe(1);
+  });
+
+  it("one that isn't an address is refused, and nothing changes", async () => {
+    const { f } = await firm();
+    const ann = await f.worker({ first: "Ann" });
+    await expect(fromSheet(f.firmId, ann, { email: "not an address" })).rejects.toThrow(
+      WorkerEmailInvalid,
+    );
+    expect(await emailOf(ann)).toBeNull();
+    expect(await events(f.firmId, "worker.updated")).toEqual([]);
   });
 });
 

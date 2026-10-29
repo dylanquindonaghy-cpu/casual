@@ -6,13 +6,14 @@ import { events, firms, otpCodes, sessions, workers } from "../db/schema";
 import { workerEnv } from "../env";
 import { recordEvent } from "../events/record";
 import { firmJobEnvelope, type FirmTask } from "../jobs/firm-job";
-import { sendFailureCode } from "../notify/send";
+import { emailMessageId, NO_CHANNEL, sendFailureCode } from "../notify/send";
 import { getTransport, type MessagingTransport } from "../messaging";
 import type { OutboundMessage } from "../messaging/transport";
-import { loginCodeMessage } from "../messaging/templates";
+import { loginCodeEmail, loginCodeMessage } from "../messaging/templates";
 import { signOffFor } from "../tenancy/sign-off";
 import { addMs, MINUTE, systemClock, type Clock } from "./clock";
 import { codeHash } from "./codes";
+import { loginChannel } from "./login-channel";
 
 // The send-login-code job: a 6-digit code for the pay pages' step-up (docs/architecture.md,
 // Login step 5). Like login links, the code is created here, in the worker, so it never sits in
@@ -20,7 +21,8 @@ import { codeHash } from "./codes";
 //
 // At most once, like the notices (a firm task, never a transaction held across a message):
 // (1) a short transaction claims it: the code row, keyed by the job's idempotency key
-// (otp_codes.request_id), committed before anything is sent; (2) the WhatsApp, outside any
+// (otp_codes.request_id), committed before anything is sent; (2) the WhatsApp (or, P2.6, the email
+// when there's no text sender and the firm has login by email on: login-channel.ts), outside any
 // transaction; (3) a second short transaction logs auth.otp_sent, or auth.otp_send_failed. A retried job
 // finds its code and sends nothing: the code it may already have sent still works, and a worker who
 // got nothing asks for another.
@@ -45,7 +47,7 @@ export const newSixDigitCode = () => String(randomInt(0, 1_000_000)).padStart(6,
 
 export type SendCodeResult =
   | { sent: true; otpCodeId: string }
-  | { sent: false; reason: "no_session" | "already_sent" | "failed" };
+  | { sent: false; reason: "no_session" | "already_sent" | "failed" | "no_channel" };
 
 // (1) The claim: the code for this job, if the session is still live and its worker active.
 // Whether the code's send is logged already (sent, unconfirmed, or failed).
@@ -64,7 +66,8 @@ async function codeOutcomeLogged(tx: FirmTx, otpCodeId: string): Promise<boolean
 }
 
 type CodeClaim =
-  { done: "no_session" | "already_sent" } | { otpCodeId: string; message: OutboundMessage };
+  | { done: "no_session" | "already_sent" | "no_channel" }
+  | { otpCodeId: string; message: OutboundMessage };
 
 async function claimCode(
   tx: FirmTx,
@@ -79,7 +82,7 @@ async function claimCode(
   );
   // Only for a live worker session whose worker is still active.
   const [target] = await tx
-    .select({ mobile: workers.mobileE164, workerId: workers.id })
+    .select({ mobile: workers.mobileE164, email: workers.email, workerId: workers.id })
     .from(sessions)
     .innerJoin(workers, and(eq(workers.firmId, sessions.firmId), eq(workers.id, sessions.workerId)))
     .where(
@@ -93,6 +96,19 @@ async function claimCode(
     );
   // An active worker always has a mobile (only an erased one has none, and erasure is inactive).
   if (!target?.mobile) return { done: "no_session" };
+  const [firm] = await tx
+    .select({
+      name: firms.name,
+      settings: firms.settings,
+      line: firms.shiftsLineE164, // the firm's shifts line: the code goes from it
+    })
+    .from(firms)
+    .where(eq(firms.id, payload.firmId));
+  if (!firm) throw new Error("firm not visible inside its own transaction");
+  // The way it goes, decided before the code is made (P2.6). An earlier run's code is caught up
+  // below with this run's channel: the same unless the setting or the transport changed.
+  const email = target.email;
+  const channel = loginChannel({ transport: deps.transport, settings: firm.settings, email });
   // This job's code already made (a retry, or a second copy): it may have gone, so nothing more.
   // If the run that made it stopped before logging it, it's logged now as sent, unconfirmed.
   const [made] = await tx
@@ -107,20 +123,22 @@ async function claimCode(
         action: "auth.otp_sent",
         entityType: "otp_code",
         entityId: made.id,
-        data: { channel: "whatsapp", unconfirmed: true },
+        data: { ...(channel ? { channel } : {}), unconfirmed: true },
       });
     }
     return { done: "already_sent" };
   }
-  const [firm] = await tx
-    .select({
-      name: firms.name,
-      settings: firms.settings,
-      line: firms.shiftsLineE164, // the firm's shifts line: the code goes from it
-    })
-    .from(firms)
-    .where(eq(firms.id, payload.firmId));
-  if (!firm) throw new Error("firm not visible inside its own transaction");
+  if (channel === null) {
+    // Nothing can carry it: no code is made (an earlier live one stays), and the miss is logged.
+    await recordEvent(tx, {
+      actorType: "system",
+      action: "auth.otp_send_failed",
+      entityType: "session",
+      entityId: payload.sessionId,
+      data: { channel: null, code: NO_CHANNEL },
+    });
+    return { done: "no_channel" };
+  }
 
   // One live code per session: the new one replaces any earlier one.
   await tx
@@ -144,12 +162,15 @@ async function claimCode(
   const voice = { name: firm.name, signOff: signOffFor(firm.name, firm.settings.sign_off) };
   return {
     otpCodeId: row.id,
-    message: {
-      channel: "whatsapp",
-      to: target.mobile,
-      ...(firm.line ? { from: firm.line } : {}),
-      body: loginCodeMessage(voice, code),
-    },
+    message:
+      channel === "email" && email
+        ? { channel: "email", to: email, ...loginCodeEmail(voice, code) }
+        : {
+            channel: "whatsapp",
+            to: target.mobile,
+            ...(firm.line ? { from: firm.line } : {}),
+            body: loginCodeMessage(voice, code),
+          },
   };
 }
 
@@ -184,10 +205,17 @@ export async function sendLoginCode(
       action: "providerMessageId" in sent ? "auth.otp_sent" : "auth.otp_send_failed",
       entityType: "otp_code",
       entityId: claim.otpCodeId,
+      // The channel it went by (P2.6); an email's id as the action log takes it.
       data:
         "providerMessageId" in sent
-          ? { channel: "whatsapp", providerMessageId: sent.providerMessageId }
-          : { channel: "whatsapp", code: sent.code },
+          ? {
+              channel: claim.message.channel,
+              providerMessageId:
+                claim.message.channel === "email"
+                  ? emailMessageId(sent.providerMessageId)
+                  : sent.providerMessageId,
+            }
+          : { channel: claim.message.channel, code: sent.code },
     });
   });
   return "providerMessageId" in sent

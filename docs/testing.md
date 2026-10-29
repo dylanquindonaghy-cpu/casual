@@ -105,7 +105,7 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   worker's channel (WhatsApp, or text by their choice), a text only after a refused WhatsApp,
   never both, nothing more after a failure; then, with no text sender, an email with its subject,
   else nothing and `no_channel` logged (the licence messages have no push: they start at the
-  WhatsApp); the 60-second fallback waits for Twilio; STOP; quiet hours; the daily cap;
+  WhatsApp; the office's change and cancellation notices go by both, the proof of notice); the 60-second fallback waits for Twilio; STOP; quiet hours; the daily cap;
   idempotency (retries and doubled jobs, by push and by email too); and no notifications to ineligible workers: over a whole chain, exactly the
   workers the rules allow and who want offers get anything (no licence, expired, suspended, wrong
   role, inactive, blocked, alerts off, day off, clash, cancelled off it, another firm: nothing).

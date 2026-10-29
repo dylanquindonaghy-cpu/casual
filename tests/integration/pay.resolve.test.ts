@@ -309,13 +309,8 @@ describe("telling the worker (the pay-query-update job)", () => {
   const bodies = (sent: OutboundMessage[]) => sent.map((m) => ("body" in m ? m.body : ""));
   const ref = (id: string) => id.slice(0, 8).toUpperCase();
 
-  it("the doc's words: payroll has answered, with the pay page's link, never the note (13.4); once only; a push to the pay page; logged", async () => {
+  it("the doc's words: payroll has answered, with the pay page's link, never the note (13.4); once only; logged", async () => {
     const t = await sortFirm();
-    await su.query(
-      `insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth)
-       values ($1, $2, 'https://push.example.test/ann', 'k', 'a')`,
-      [t.f.firmId, t.ann],
-    );
     const n = await notices();
     await t.sort([t.qa]);
     const [job] = await t.jobs();
@@ -329,7 +324,32 @@ describe("telling the worker (the pay-query-update job)", () => {
     for (const part of [NOTE_ONE_LINE, "new rate", "difference", "13 Nov"]) {
       expect(bodies(n.sent).join(" ")).not.toContain(part);
     }
-    // Nothing about the pay on a lock screen.
+    expect(n.pushed).toEqual([]);
+    expect(await n.run(job ?? {})).toMatchObject({ output: { status: "already" } });
+    expect(n.sent).toHaveLength(1);
+    const logged = await t.eventsOf("pay_query.update%");
+    expect(logged.map((e) => [e.action, e.data])).toEqual([
+      ["pay_query.update_notice", { workerId: t.ann, status: "sending" }],
+      [
+        "pay_query.update_sent",
+        { workerId: t.ann, channel: "whatsapp", providerMessageId: "id-1", pushes: 0 },
+      ],
+    ]);
+    expect(JSON.stringify(logged)).not.toContain("new rate");
+  });
+
+  it("a phone that takes the push: the push to the pay page instead (P2.4), nothing about the pay on a lock screen", async () => {
+    const t = await sortFirm();
+    await su.query(
+      `insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth)
+       values ($1, $2, 'https://push.example.test/ann', 'k', 'a')`,
+      [t.f.firmId, t.ann],
+    );
+    const n = await notices();
+    await t.sort([t.qa]);
+    const [job] = await t.jobs();
+    expect(await n.run(job ?? {})).toMatchObject({ output: { status: "sent", channel: "push" } });
+    expect(n.sent).toEqual([]);
     expect(n.pushed).toEqual([
       {
         title: "Pay query sorted",
@@ -340,16 +360,11 @@ describe("telling the worker (the pay-query-update job)", () => {
     // With no transaction open (14.1): a slow push service holds no database connection.
     expect(n.pushedInTransaction).toEqual([false]);
     expect(await n.run(job ?? {})).toMatchObject({ output: { status: "already" } });
-    expect(n.sent).toHaveLength(1);
-    const logged = await t.eventsOf("pay_query.update%");
-    expect(logged.map((e) => [e.action, e.data])).toEqual([
-      ["pay_query.update_notice", { workerId: t.ann, status: "sending" }],
-      [
-        "pay_query.update_sent",
-        { workerId: t.ann, channel: "whatsapp", providerMessageId: "id-1", pushes: 1 },
-      ],
+    expect(n.pushed).toHaveLength(1);
+    const logged = await t.eventsOf("pay_query.update_sent");
+    expect(logged.map((e) => e.data)).toEqual([
+      { workerId: t.ann, channel: "push", providerMessageId: null, pushes: 1 },
     ]);
-    expect(JSON.stringify(logged)).not.toContain("new rate");
   });
 
   it("by text when WhatsApp refuses it, or when the worker chose text", async () => {

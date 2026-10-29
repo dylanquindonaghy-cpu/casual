@@ -43,7 +43,7 @@ import { wallTimeOf } from "../time/zoned";
 // - shift-reminders (a firm task: several short transactions, never one held across a send). Per
 //   due reminder: (1) claim it: its shift_reminders row, `sending`, if the booking is still there
 //   (unique per booking, reminder and start time), committed before anything is sent; (2) send it by
-//   the worker's channel (src/lib/notify/send.ts), then the push, outside any transaction; (3)
+//   push, else by the worker's channel, else email (deliverToWorker, P2.4), outside any transaction; (3)
 //   record `sent` (with the push's count) or `failed`, and the event. A job that stops after a send (a crash, a failed record)
 //   leaves the row `sending`: it may have gone, so it's never sent again. A retried or doubled job
 //   finds the row and sends nothing. A failed send is never retried either (it may have arrived).

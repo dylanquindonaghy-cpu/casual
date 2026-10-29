@@ -382,8 +382,9 @@ async function claimOfficeOffer(
 }
 
 // At most once, like the waves (a firm task, never a transaction held across a message): (1) the
-// claim above; (2) the message by the worker's channel, then the push, outside any transaction;
-// (3) a short transaction records it: offer.sent with the push's count, or the offer marked failed
+// claim above; (2) the offer, outside any transaction: a push, else by the worker's channel, else
+// email (deliverToWorker, P2.4); (3) a short transaction records it: offer.sent with the channel
+// and the push's count, or the offer marked failed
 // and offer.send_failed. A retried job finds the offer and sends nothing (offer.office_not_sent
 // {duplicate}).
 export async function runOfficeOffer(

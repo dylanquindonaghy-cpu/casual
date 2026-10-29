@@ -205,7 +205,20 @@ describe("queueing the offer", () => {
     );
   });
 
-  it("a text when WhatsApp refuses; the push goes too", async () => {
+  it("a text when WhatsApp refuses (no phone with notifications on)", async () => {
+    const t = await offerFirm();
+    t.state.refuseWhatsApp = true;
+    await offerTo(t.ctx(), t.shiftId, t.ann);
+    await t.runJob((await t.jobs())[0]?.data ?? {});
+    expect(t.sent.map((m) => m.channel)).toEqual(["sms"]);
+    expect(t.sent[0] && "body" in t.sent[0] ? t.sent[0].body : "").toMatch(
+      new RegExp(`^Booking Test ${t.slug}: shift Tue 3 Nov 15:00\\. Take it: `),
+    );
+    expect(t.pushed).toEqual([]);
+    expect((await t.offersOf())[0]).toMatchObject({ channel: "sms" });
+  });
+
+  it("a push to their phones when one takes it, instead of the text (P2.4; Messages 2)", async () => {
     const t = await offerFirm();
     await su.query(
       `insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth)
@@ -215,10 +228,7 @@ describe("queueing the offer", () => {
     t.state.refuseWhatsApp = true;
     await offerTo(t.ctx(), t.shiftId, t.ann);
     await t.runJob((await t.jobs())[0]?.data ?? {});
-    expect(t.sent.map((m) => m.channel)).toEqual(["sms"]);
-    expect(t.sent[0] && "body" in t.sent[0] ? t.sent[0].body : "").toMatch(
-      new RegExp(`^Booking Test ${t.slug}: shift Tue 3 Nov 15:00\\. Take it: `),
-    );
+    expect(t.sent).toEqual([]);
     expect(t.pushed).toEqual([
       {
         title: "Shift available",
@@ -230,7 +240,7 @@ describe("queueing the offer", () => {
     ]);
     // With no transaction open (14.1): a slow push service holds no database connection.
     expect(t.pushedInTransaction).toEqual([false]);
-    expect((await t.offersOf())[0]).toMatchObject({ channel: "sms" });
+    expect((await t.offersOf())[0]).toMatchObject({ channel: "push" });
   });
 
   it("only workers the candidate list allows: never the ineligible, opted out, or capped (unless urgent)", async () => {

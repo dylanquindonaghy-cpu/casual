@@ -330,7 +330,9 @@ with the WhatsApp-to-text fallback (never a text after STOP); else, only when th
 at all, an email to the address the firm holds for them (its subject from
 `docs/messaging-templates.md` "Email to casuals"); else nothing goes and its `_failed` event says
 `no_channel`. The licence messages have no push, so they start at the WhatsApp or text
-(`sendTextOrEmail()`). Each `_sent` event's `channel` is the way it went (`push`, `whatsapp`,
+(`sendTextOrEmail()`). The office's change and cancellation notices (`firm-change-notice`) go by the
+WhatsApp, text or email as well as the push (`proofOfNotice`: the proof of the notice given; Dylan,
+2026-10-29); one that went by push alone logs `alsoFailed` {channel, code}. Each `_sent` event's `channel` is the way it went (`push`, `whatsapp`,
 `sms` or `email`; `providerMessageId` null for a push), and its `pushes` how many phones took it.
 Where a row below says a message goes by the worker's channel and is pushed, it goes in this order.
 A phone the push service

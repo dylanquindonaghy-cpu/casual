@@ -1863,7 +1863,10 @@ code emails) go in `docs/messaging-templates.md` first, for Dylan to approve (P2
       messages (those with no push today skip it: no new push words). The shifts line's own replies
       and STOP or START stay text only (decision 11), and so do the office's replies on Enquiries:
       each answers a message to the shifts line, so a text sender exists, and its `messages` row and
-      the office's page take WhatsApp or text only (Parking lot, P2.4). Migration:
+      the office's page take WhatsApp or text only (Parking lot, P2.4; Dylan, 2026-10-29: this
+      sentence replaced "the office's replies" in the list above). The office's change and
+      cancellation notices, the proof of the notice given, go by the WhatsApp, text or email as
+      well as the push, never instead of it (Dylan, 2026-10-29). Migration:
       `shift_reminders_channel_check` takes push and email. Tests changed on purpose (Messages 2:
       a push now instead of the text, not beside it) named in the commit; new: each step, a push gone
       or failed falls to a text, no text sender falls to email, no address is `no_channel`, nothing
@@ -4418,6 +4421,12 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
 - P2.4 (2026-10-29), for P2.5: the send-failure alert (`src/lib/ops/tick.ts`) counts WhatsApp and
   texts only, so with no text sender (P2.5) an SMTP outage that stops every casual's email, and
   casuals nobody could reach (`no_channel`), raise no alert. P2.5 should count `email` sends too.
+- P2.4 (2026-10-29), from its guardrails review, not blocking: (1) a run that stops after sending is
+  caught up as "sent, unconfirmed" with the channel it was claimed with (the offer's, the licence
+  message's), though it may have gone by push or email; (2) a casual's email goes from the app's
+  one address (`SMTP_FROM`), not one per firm: a firm's own sending address, or its name shown as
+  the sender, needs a setting per firm; (3) a failed email offer, like a failed WhatsApp, can be
+  offered again in a later wave (it may have arrived).
 - P2.4 (2026-10-29), for Phase 15: email goes only when there's no text sender at all. Once texts
   exist, a casual who replied STOP and isn't on WhatsApp gets nothing (`sms_opted_out`), though an
   email couldn't reach them twice. Decide then whether that one goes by email.

@@ -55,8 +55,8 @@ async function reminderFirm(settings: Record<string, unknown> = NO_QUIET) {
   ).rows[0]?.slug;
   const { transport: capture, sent } = captureTransport();
   // `refuseWhatsApp`: the provider refuses WhatsApp; `fail`: every send fails another way;
-  // `pushThrows`: the push sender throws (after the message has gone); `loseDatabaseOnSend`: the
-  // database goes away as a message goes, so every transaction after it fails (`databaseGone`);
+  // `pushThrows`: the push sender throws; `loseDatabaseOnSend`: the database goes away as a message
+  // or a push goes, so every transaction after it fails (`databaseGone`);
   // `onSend`: runs as each message goes (to change the rows mid-run); `afterRead`: runs once, after
   // the next transaction returns (a run's first: its list of what's due).
   const state = {
@@ -90,6 +90,7 @@ async function reminderFirm(settings: Record<string, unknown> = NO_QUIET) {
       pushedInTransaction.push(activeFirmId() !== undefined);
       if (state.pushThrows) throw new Error("push service down");
       pushed.push(payload);
+      if (state.loseDatabaseOnSend) state.databaseGone = true;
       return { status: "sent" };
     },
   };
@@ -263,11 +264,6 @@ describe("the 24-hour and 2-hour reminders", () => {
 
   it("a job that stops after a message went leaves it 'sending', and it's never sent again", async () => {
     const t = await reminderFirm();
-    await su.query(
-      `insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth)
-       values ($1, $2, 'https://push.example.test/rae-2', 'k', 'a')`,
-      [t.f.firmId, t.workerId],
-    );
     const bookingId = await t.f.booking(
       t.workerId,
       await t.f.shift({ startsAt: hoursFromNow(20) }),
@@ -286,6 +282,31 @@ describe("the 24-hour and 2-hour reminders", () => {
     expect(await t.run(NOW)).toEqual({ sent: 0, failed: 0, skipped: 0 });
     expect(await t.run(hoursFromNow(1))).toEqual({ sent: 0, failed: 0, skipped: 0 });
     expect(t.sent).toHaveLength(1);
+  });
+
+  it("the same when it went by push (P2.4): left 'sending', and nothing more goes, by push or text", async () => {
+    const t = await reminderFirm();
+    await su.query(
+      `insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth)
+       values ($1, $2, 'https://push.example.test/rae-2', 'k', 'a')`,
+      [t.f.firmId, t.workerId],
+    );
+    const bookingId = await t.f.booking(
+      t.workerId,
+      await t.f.shift({ startsAt: hoursFromNow(20) }),
+    );
+    t.state.loseDatabaseOnSend = true;
+    await expect(t.run(NOW)).rejects.toThrow("database went away");
+    expect(t.pushed).toHaveLength(1);
+    t.state.loseDatabaseOnSend = false;
+    t.state.databaseGone = false;
+    expect(await reminderRows(bookingId)).toEqual([
+      expect.objectContaining({ kind: "24h", status: "sending", channel: "whatsapp" }),
+    ]);
+    expect(await t.run(NOW)).toEqual({ sent: 0, failed: 0, skipped: 0 });
+    expect(await t.run(hoursFromNow(1))).toEqual({ sent: 0, failed: 0, skipped: 0 });
+    expect(t.pushed).toHaveLength(1);
+    expect(t.sent).toEqual([]);
   });
 
   it("a booking cancelled while the job is running isn't reminded", async () => {
@@ -364,7 +385,17 @@ describe("who sends what (P2.3)", () => {
 });
 
 describe("how a reminder goes", () => {
-  it("by text message when that's the worker's choice, with a push to their phones", async () => {
+  it("by text message when that's the worker's choice and no phone has notifications on", async () => {
+    const t = await reminderFirm();
+    await su.query("update workers set notify_channel = 'sms' where id = $1", [t.workerId]);
+    await t.f.booking(t.workerId, await t.f.shift({ startsAt: hoursFromNow(20) }));
+    await t.run(NOW);
+    expect(t.sent.map((m) => m.channel)).toEqual(["sms"]);
+    expect(t.pushed).toEqual([]);
+    expect((await eventsOf(t.f.firmId))[0]?.data).toMatchObject({ channel: "sms", pushes: 0 });
+  });
+
+  it("a push to their phones when one takes it, instead of the text (P2.4; Messages 2)", async () => {
     const t = await reminderFirm();
     await su.query("update workers set notify_channel = 'sms' where id = $1", [t.workerId]);
     await su.query(
@@ -374,9 +405,9 @@ describe("how a reminder goes", () => {
     );
     const startsAt = hoursFromNow(20);
     const shiftId = await t.f.shift({ startsAt });
-    await t.f.booking(t.workerId, shiftId);
+    const bookingId = await t.f.booking(t.workerId, shiftId);
     await t.run(NOW);
-    expect(t.sent.map((m) => m.channel)).toEqual(["sms"]);
+    expect(t.sent).toEqual([]);
     expect(t.pushed).toEqual([
       {
         title: "Tomorrow: your shift",
@@ -385,7 +416,14 @@ describe("how a reminder goes", () => {
         until: startsAt, // for the push service only (13.3): not delivered once it has started
       },
     ]);
-    expect((await eventsOf(t.f.firmId))[0]?.data).toMatchObject({ channel: "sms", pushes: 1 });
+    expect((await eventsOf(t.f.firmId))[0]?.data).toMatchObject({
+      channel: "push",
+      providerMessageId: null,
+      pushes: 1,
+    });
+    expect(await reminderRows(bookingId)).toEqual([
+      expect.objectContaining({ kind: "24h", status: "sent", channel: "push" }),
+    ]);
     // With no transaction open (14.1): a slow push service holds no database connection.
     expect(t.pushedInTransaction).toEqual([false]);
   });

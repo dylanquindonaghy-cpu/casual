@@ -66,9 +66,9 @@ import { travelSettings } from "../travel/settings";
 // urgent window, the office marking the shift urgent: src/lib/roster/urgent.ts, or showing an
 // urgent session to casuals again: src/lib/office/showing.ts). A session hidden from casuals gets
 // no wave, only the office's escalation check.
-// Messages go through the configured transport (console in development and tests); each offer is
-// also pushed to the worker's subscribed phones (PUSH_TRANSPORT: webpush once the keys are set,
-// console in development and tests). Quiet hours hold a wave unless the firm lets urgent override them; a
+// Each offer goes first as a push to the worker's subscribed phones (PUSH_TRANSPORT: webpush once
+// the keys are set, console in development and tests), else through the configured transport by
+// their channel (console in development and tests), else by email (deliverToWorker, P2.4). Quiet hours hold a wave unless the firm lets urgent override them; a
 // WhatsApp that won't send goes by SMS. Workers come only from waveCandidates() (the rules, and the
 // daily cap, which never holds back an urgent offer).
 //

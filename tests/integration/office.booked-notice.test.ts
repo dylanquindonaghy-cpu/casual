@@ -120,13 +120,8 @@ function capture() {
 }
 
 describe("the office books a worker: they're told", () => {
-  it("one message with the shift and a link to it, once only, logged; their phones get a push", async () => {
+  it("one message with the shift and a link to it, once only, logged", async () => {
     const t = await placingFirm();
-    await su.query(
-      `insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth)
-       values ($1, $2, 'https://push.example/ann', 'key', 'auth')`,
-      [t.f.firmId, t.ann],
-    );
     const booked = await assignWorker(t.ctx(), t.shiftId, t.ann, null);
     expect(booked).toMatchObject({ status: "booked" });
     const [job, ...others] = await jobsOf(t.f.firmId);
@@ -149,6 +144,30 @@ describe("the office books a worker: they're told", () => {
       (await su.query("select mobile_e164 from workers where id = $1", [t.ann])).rows[0]
         ?.mobile_e164,
     );
+    expect(n.pushes).toEqual([]);
+    expect(await n.run(job ?? {})).toMatchObject({ output: { status: "already" } });
+    expect(n.sent).toHaveLength(1);
+    const logged = await eventsOf(t.f.firmId, "shift.booked_notice%");
+    expect(logged.map((e) => [e.action, e.data.status ?? e.data.channel])).toEqual([
+      ["shift.booked_notice", "sending"],
+      ["shift.booked_notice_sent", "whatsapp"],
+    ]);
+    const bookingId = booked.status === "booked" ? booked.assignmentId : "";
+    expect(logged.every((e) => e.entity_id === bookingId && e.data.workerId === t.ann)).toBe(true);
+  });
+
+  it("a phone that takes the push: the push instead of the WhatsApp (P2.4; Messages 2)", async () => {
+    const t = await placingFirm();
+    await su.query(
+      `insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth)
+       values ($1, $2, 'https://push.example/ann', 'key', 'auth')`,
+      [t.f.firmId, t.ann],
+    );
+    await assignWorker(t.ctx(), t.shiftId, t.ann, null);
+    const [job] = await jobsOf(t.f.firmId);
+    const n = capture();
+    expect(await n.run(job ?? {})).toMatchObject({ output: { status: "sent", channel: "push" } });
+    expect(n.sent).toEqual([]);
     expect(n.pushes).toEqual([
       {
         title: "Shift booked",
@@ -159,14 +178,9 @@ describe("the office books a worker: they're told", () => {
     // With no transaction open (14.1): a slow push service holds no database connection.
     expect(n.pushedInTransaction).toEqual([false]);
     expect(await n.run(job ?? {})).toMatchObject({ output: { status: "already" } });
-    expect(n.sent).toHaveLength(1);
-    const logged = await eventsOf(t.f.firmId, "shift.booked_notice%");
-    expect(logged.map((e) => [e.action, e.data.status ?? e.data.channel])).toEqual([
-      ["shift.booked_notice", "sending"],
-      ["shift.booked_notice_sent", "whatsapp"],
-    ]);
-    const bookingId = booked.status === "booked" ? booked.assignmentId : "";
-    expect(logged.every((e) => e.entity_id === bookingId && e.data.workerId === t.ann)).toBe(true);
+    expect(n.pushes).toHaveLength(1);
+    const logged = await eventsOf(t.f.firmId, "shift.booked_notice_sent");
+    expect(logged.map((e) => [e.data.channel, e.data.pushes])).toEqual([["push", 1]]);
   });
 
   it("a shift with no site leaves 'at {site}' out", async () => {
@@ -384,11 +398,6 @@ describe("the office books a worker: they're told", () => {
 
     it("moved after the booking message went: the change notice starts from the times it gave", async () => {
       const t = await placingFirm();
-      await su.query(
-        `insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth)
-         values ($1, $2, 'https://push.example/ann-moved', 'key', 'auth')`,
-        [t.f.firmId, t.ann],
-      );
       await assignWorker(t.ctx(), t.shiftId, t.ann, null);
       const n = capture();
       await n.run((await jobsOf(t.f.firmId))[0] ?? {});
@@ -398,9 +407,6 @@ describe("the office books a worker: they're told", () => {
       expect(n.bodies()[1]).toMatch(
         /^Change to your shift on Sat 7 Nov at Riverside Arena: the times have changed\. New time: 10:00–18:00\./,
       );
-      // Both pushed (the booking, then the change), each with no transaction open (14.1).
-      expect(n.pushes).toHaveLength(2);
-      expect(n.pushedInTransaction).toEqual([false, false]);
     });
 
     it("cancelled before the booking message went (both held for the night): neither goes", async () => {

@@ -38,8 +38,9 @@ import { localDateOf, wallTimeOf } from "../time/zoned";
 //
 // At most once, like shift reminders: (1) a short transaction claims the notice (the
 // shift.change_notice event, under an advisory lock on the booking) and commits; (2) the message goes
-// outside any transaction: a push to their phones, else by their channel with the WhatsApp-to-text
-// fallback, else email (deliverToWorker, P2.4); (3) a second short transaction logs
+// outside any transaction: a push to their phones and, as well (the proof of the notice given:
+// Dylan, 2026-10-29), by their channel with the WhatsApp-to-text fallback, else email
+// (deliverToWorker with proofOfNotice, P2.4); (3) a second short transaction logs
 // shift.change_notice_sent or _failed. A job that
 // stops part-way leaves the claim: the notice may have gone, so it's never sent again.
 //
@@ -373,6 +374,7 @@ export async function runFirmChangeNotice(
       from: claim.from,
     },
     email: claim.email,
+    proofOfNotice: true,
   });
   await run(payload.firmId, async (tx) => {
     // A phone the push service says is gone is forgotten whatever came of the notice.
@@ -404,6 +406,7 @@ export async function runFirmChangeNotice(
         providerMessageId: sent.providerMessageId,
         pushes,
         ...(sent.fellBackFrom ? { fellBackFrom: sent.fellBackFrom } : {}),
+        ...(sent.alsoFailed ? { alsoFailed: sent.alsoFailed } : {}),
       },
     });
   });

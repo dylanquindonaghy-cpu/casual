@@ -306,10 +306,31 @@ describe("deliverToWorker: a push, else a WhatsApp or text, else an email (P2.4)
       providerMessageId: "id-email",
       push: { pushes: 0, forget: [], failed: [] },
     });
-    expect(w.tried).toEqual(["whatsapp", "email:rae@example.test"]);
+    expect(w.tried).toEqual(["whatsapp", "sms", "email:rae@example.test"]);
     expect(w.emails).toEqual([
       { to: "rae@example.test", subject: "Shift available: Sat 7 Nov 14:00–22:00", body: "Hello" },
     ]);
+  });
+
+  it("no WhatsApp sender but a text one (a text-only system): by text, as a refused WhatsApp", async () => {
+    const w = everyWay({ whatsapp: "none" });
+    expect(await deliverToWorker(phones([]), w, delivery)).toMatchObject({
+      ok: true,
+      channel: "sms",
+      fellBackFrom: "whatsapp",
+    });
+    expect(w.tried).toEqual(["whatsapp", "sms"]);
+  });
+
+  it("replied STOP and no WhatsApp sender: no text can go, so by email", async () => {
+    const w = everyWay({ whatsapp: "none" });
+    expect(
+      await deliverToWorker(phones([]), w, {
+        ...delivery,
+        text: { ...delivery.text, smsAllowed: false },
+      }),
+    ).toMatchObject({ ok: true, channel: "email" });
+    expect(w.tried).toEqual(["whatsapp", "email:rae@example.test"]);
   });
 
   it("no text sender and no address for them: not sent, `no_channel`", async () => {
@@ -320,7 +341,7 @@ describe("deliverToWorker: a push, else a WhatsApp or text, else an email (P2.4)
       code: NO_CHANNEL,
       push: { pushes: 0, forget: [], failed: [] },
     });
-    expect(w.tried).toEqual(["whatsapp"]);
+    expect(w.tried).toEqual(["whatsapp", "sms"]);
   });
 
   it("a WhatsApp or text that fails, or might have arrived, is never emailed as well", async () => {
@@ -365,6 +386,50 @@ describe("deliverToWorker: a push, else a WhatsApp or text, else an email (P2.4)
   });
 });
 
+describe("deliverToWorker with proofOfNotice: the office's change and cancellation notices", () => {
+  const notice = { ...delivery, proofOfNotice: true as const };
+
+  it("the push and the WhatsApp both go; logged by the WhatsApp, with the phones that took it", async () => {
+    const w = everyWay({});
+    expect(await deliverToWorker(phones([phone(1)]), w, notice)).toEqual({
+      ok: true,
+      channel: "whatsapp",
+      providerMessageId: "id-whatsapp",
+      push: { pushes: 1, forget: [], failed: [] },
+    });
+    expect(w.tried).toEqual(["push:1", "whatsapp"]);
+  });
+
+  it("no text sender: the push and the email", async () => {
+    const w = everyWay(noTextSender);
+    expect(await deliverToWorker(phones([phone(1)]), w, notice)).toMatchObject({
+      ok: true,
+      channel: "email",
+    });
+    expect(w.tried).toEqual(["push:1", "whatsapp", "sms", "email:rae@example.test"]);
+  });
+
+  it("a phone took the push but the WhatsApp failed: told by push, and why the WhatsApp didn't go", async () => {
+    const w = everyWay({ whatsapp: "fails" });
+    expect(await deliverToWorker(phones([phone(1)]), w, notice)).toEqual({
+      ok: true,
+      channel: "push",
+      providerMessageId: null,
+      push: { pushes: 1, forget: [], failed: [] },
+      alsoFailed: { channel: "whatsapp", code: "TypeError" },
+    });
+  });
+
+  it("no phone took the push and the WhatsApp failed: not told", async () => {
+    const w = everyWay({ push: ["failed"], whatsapp: "fails" });
+    expect(await deliverToWorker(phones([phone(1)]), w, notice)).toMatchObject({
+      ok: false,
+      channel: "whatsapp",
+      code: "TypeError",
+    });
+  });
+});
+
 describe("sendTextOrEmail: a message with no push words (the licence messages)", () => {
   it("no push is tried: a WhatsApp or text, else an email, else `no_channel`", async () => {
     const w = everyWay({});
@@ -387,8 +452,10 @@ describe("sendTextOrEmail: a message with no push words (the licence messages)",
     expect([...w.tried, ...none.tried]).toEqual([
       "whatsapp",
       "whatsapp",
+      "sms",
       "email:rae@example.test",
       "whatsapp",
+      "sms",
     ]);
   });
 
@@ -396,7 +463,7 @@ describe("sendTextOrEmail: a message with no push words (the licence messages)",
     const w = everyWay(noTextSender);
     expect(await sendToWorker(w, delivery.text)).toEqual({
       ok: false,
-      channel: "whatsapp",
+      channel: "sms",
       code: NO_TEXT_SENDER,
     });
   });
@@ -414,6 +481,8 @@ describe("emailMessageId: an email's id as the action log keeps it", () => {
     expect(emailMessageId("<a b@example.test>")).toBeNull();
     expect(emailMessageId("@example.test")).toBeNull();
     expect(emailMessageId("x".repeat(101))).toBeNull();
+    // A run of digits the action log reads as a phone number: not kept, so the record can't fail.
+    expect(emailMessageId("<07700900123-a@example.test>")).toBeNull();
   });
 
   it("deliverToWorker logs an email by that id", async () => {

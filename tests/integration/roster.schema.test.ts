@@ -623,14 +623,15 @@ describe("offers", () => {
     });
   });
 
-  it("waves count from 1 and channels are push, whatsapp or sms", async () => {
+  it("waves count from 1 and channels are push, whatsapp, sms or email (P2.4)", async () => {
     await inT(async (c) => {
       expect(await refused(c, insertOffer, offer({ wave: 0 }))).toMatchObject(
         check("offers_wave_positive"),
       );
-      expect(await refused(c, insertOffer, offer({ channel: "email" }))).toMatchObject(
+      expect(await refused(c, insertOffer, offer({ channel: "voice" }))).toMatchObject(
         check("offers_channel_check"),
       );
+      expect(await rowCount(c, insertOffer, offer({ channel: "email" }))).toBe(1);
     });
   });
 });

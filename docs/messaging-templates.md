@@ -38,7 +38,14 @@ Order for every message to a worker:
 
 As built (P2.4, `deliverToWorker()` in `src/lib/notify/send.ts`): a push that one of their phones
 takes is the message, and no WhatsApp or text goes with it (before P2.4 the push went alongside).
-The licence messages have no push words, so they start at the WhatsApp or text. A WhatsApp or text
+"Takes" means the push service accepted it for the phone, not that the casual saw it; a push that
+fails (a time-out, an outage) goes on to the WhatsApp or text, even though it may have arrived, so a
+casual may now and then get both (PLAN.md P2.4: "a push gone or failed falls to a text").
+The licence messages have no push words, so they start at the WhatsApp or text. The office's change
+and cancellation notices (`shift_changed_by_firm`, `shift_cancelled_by_firm`) are the proof of the
+notice given, so they go by the WhatsApp, text or email as well as the push, never instead of it
+(Dylan, 2026-10-29); one whose WhatsApp, text or email can't go while a phone took the push counts
+as told by push, and the log says why the rest didn't go. A WhatsApp or text
 that fails, or might have arrived, isn't sent again by email: it could reach them twice. The office's
 reply on Enquiries goes only by WhatsApp or text: it answers a message to the shifts line, so a text
 sender exists. `tests/integration/notify.policy.test.ts` holds every sender to this order.
@@ -235,8 +242,9 @@ offer's and the office offer's SMS versions are built so far; the others come wi
 
 When a casual's phones take no push and no text can go (decision 15), a message goes by email to the
 address the firm holds for them. Each email's body is the message's own words, as in the WhatsApp
-templates above, the same in an email; only the subject is new. From the firm's email sender, signed
-like every message (never a person's name).
+templates above, the same in an email; only the subject is new. Signed like every message. As built
+it comes from the app's one sending address (`SMTP_FROM`: a bare address with no display name, so
+never a person's name), not one per firm (PLAN.md Parking lot, P2.4).
 
 - Offer (`shift_offer`): subject "Shift available: {date} {start}–{end}"
 - Urgent offer (`shift_urgent`): subject "URGENT: a {role} needed {day}" ({role} with its "a" or

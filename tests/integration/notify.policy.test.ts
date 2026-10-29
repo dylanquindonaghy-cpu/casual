@@ -162,6 +162,9 @@ const clock = (when: Date) => ({ now: () => when });
 interface Sender {
   name: string;
   push: boolean; // whether the message has push words (the licence messages don't)
+  // The office's change and cancellation notices (Dylan, 2026-10-29): the proof of the notice given,
+  // so the WhatsApp, text or email goes as well as the push.
+  proof?: true;
   sent: string; // the event that logs it sent, with the channel it went by
   failed: string; // the event that logs it failed, with its code
   subject: RegExp; // its email's subject (docs/messaging-templates.md "Email to casuals")
@@ -298,6 +301,7 @@ const bookedSender: Sender = {
 const changeSender: Sender = {
   name: "the office's cancellation",
   push: true,
+  proof: true,
   sent: "shift.change_notice_sent",
   failed: "shift.change_notice_failed",
   subject: /^Your shift on Tue 3 Nov is cancelled$/,
@@ -441,17 +445,53 @@ const SENDERS = ALL.map((s) => [s.name, s] as const);
 const PUSHING = ALL.filter((s) => s.push).map((s) => [s.name, s] as const);
 
 describe.each(PUSHING)("a push first: %s", (_name, sender) => {
-  it("a phone takes the push: that's the message, and nothing else goes", async () => {
-    const t = await sender.setup();
-    const endpoint = await subscribe(t.f, t.workerId);
-    await giveEmail(t.workerId);
-    await t.run();
-    expect(t.rec.log).toEqual([`push:${endpoint}`]);
-    expect((await eventsOf(t.f.firmId, sender.sent)).at(-1)).toMatchObject({
-      channel: "push",
-      pushes: 1,
+  it(
+    sender.proof
+      ? "a phone takes the push: the WhatsApp goes as well (the proof of the notice given)"
+      : "a phone takes the push: that's the message, and nothing else goes",
+    async () => {
+      const t = await sender.setup();
+      const endpoint = await subscribe(t.f, t.workerId);
+      await giveEmail(t.workerId);
+      const mobile = await mobileOf(t.workerId);
+      await t.run();
+      expect(t.rec.log).toEqual(
+        sender.proof ? [`push:${endpoint}`, `whatsapp:${mobile}`] : [`push:${endpoint}`],
+      );
+      expect((await eventsOf(t.f.firmId, sender.sent)).at(-1)).toMatchObject({
+        channel: sender.proof ? "whatsapp" : "push",
+        pushes: 1,
+      });
+    },
+  );
+
+  if (sender.proof) {
+    it("a phone took the push but nothing else could go: told by push, and why it's logged", async () => {
+      const t = await sender.setup();
+      const endpoint = await subscribe(t.f, t.workerId);
+      t.rec.noTexts();
+      await t.run();
+      expect(t.rec.log).toEqual([`push:${endpoint}`]);
+      expect((await eventsOf(t.f.firmId, sender.sent)).at(-1)).toMatchObject({
+        channel: "push",
+        pushes: 1,
+        alsoFailed: { channel: null, code: "no_channel" },
+      });
     });
-  });
+
+    it("with no text sender, the email goes as well as the push", async () => {
+      const t = await sender.setup();
+      const endpoint = await subscribe(t.f, t.workerId);
+      t.rec.noTexts();
+      const email = await giveEmail(t.workerId);
+      await t.run();
+      expect(t.rec.log).toEqual([`push:${endpoint}`, `email:${email}`]);
+      expect((await eventsOf(t.f.firmId, sender.sent)).at(-1)).toMatchObject({
+        channel: "email",
+        pushes: 1,
+      });
+    });
+  }
 
   it("a phone that's gone: forgotten, and the WhatsApp goes", async () => {
     const t = await sender.setup();
@@ -638,7 +678,8 @@ describe.each(SENDERS)("idempotency: %s", (_name, sender) => {
       await subscribe(t.f, t.workerId);
       await Promise.all([t.run(), t.run()]);
       await t.run(new Date(NOW.getTime() + 5 * 60_000));
-      expect(t.rec.log).toHaveLength(1);
+      // A notice's WhatsApp goes with its push (the proof of notice): once too.
+      expect(t.rec.log).toHaveLength(sender.proof ? 2 : 1);
     });
   }
 });

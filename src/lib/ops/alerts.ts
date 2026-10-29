@@ -205,12 +205,19 @@ export function firmLabel(slug: string, firmId: string): string {
     : `firm ${firmId.slice(0, 8)}`;
 }
 
-// A firm's enabled rota sheet whose last sync failed (roster_sources.last_error_code).
-export function syncAlert(source: { firmId: string; slug: string; code: string }): OpsAlert {
+// A firm's enabled rota sheet whose last sync failed, or connector whose last pull did
+// (roster_sources.last_error_code).
+export function syncAlert(source: {
+  firmId: string;
+  slug: string;
+  code: string;
+  kind?: "sheets" | "connector"; // a connector's reconcile pull (P5.4) says so
+}): OpsAlert {
+  const what = source.kind === "connector" ? "connector's reconcile pull" : "rota sheet sync";
   return alert(
     "sync_failing",
     `sync:${source.firmId}`,
-    `${firmLabel(source.slug, source.firmId)}'s rota sheet sync is failing (${source.code}).`,
+    `${firmLabel(source.slug, source.firmId)}'s ${what} is failing (${source.code}).`,
   );
 }
 

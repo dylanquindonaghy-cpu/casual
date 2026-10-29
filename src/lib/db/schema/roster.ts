@@ -746,6 +746,9 @@ export const rosterSources = pgTable(
     baseUrl: text("base_url"), // a connector's only
     mapping: jsonb("mapping").$type<Record<string, unknown>>().notNull(),
     lastSyncedAt: timestamptz("last_synced_at"),
+    // A connector's last quick pull, the sessions in the next 48 hours (P5.4); last_synced_at is
+    // its last full one. Null for a sheet.
+    lastNearSyncedAt: timestamptz("last_near_synced_at"),
     // The last sync that ran, success or not: failures back off from it (cadence.ts).
     lastAttemptedAt: timestamptz("last_attempted_at"),
     // A short code only (e.g. "sheet_not_shared"), never a message or a cell's contents.
@@ -792,6 +795,10 @@ export const rosterSources = pgTable(
     ),
     check("roster_sources_mapping_object", sql`jsonb_typeof(${t.mapping}) = 'object'`),
     check("roster_sources_error_code_format", sql`${t.lastErrorCode} ~ '^[a-z_]{1,50}$'`),
+    check(
+      "roster_sources_near_sync_connector_only",
+      sql`${t.lastNearSyncedAt} is null or ${t.kind} = 'connector'`,
+    ),
     firmIsolation(t.firmId),
     // The migrating owner may read every firm's sources: app_connector_source_firm() (0056) runs as
     // the owner, for a connector's webhook before a firm is known. The app role gets no such

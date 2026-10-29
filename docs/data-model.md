@@ -718,7 +718,8 @@ create table roster_sources (
                                          -- (no IP, bare, .localhost, .internal or .local name),
                                          -- a path with no dot segment; nothing else; <= 300
   mapping jsonb not null,                -- a sheet's tabs and header names ('{}' for a connector)
-  last_synced_at timestamptz,
+  last_synced_at timestamptz,            -- a connector's: its last full pull (P5.4)
+  last_near_synced_at timestamptz,       -- a connector's only: its last pull of the next 48 hours
   last_attempted_at timestamptz,         -- the last sync that ran, success or not (for back-off)
   last_error_code text,                  -- a code only (^[a-z_]{1,50}$), never a message or cell
   sync_started_at timestamptz,           -- the sync's lease (5 minutes)

@@ -84,6 +84,16 @@ describe("the alerts", () => {
     });
   });
 
+  it("a failing connector's pull is named as one (P5.4)", () => {
+    expect(
+      syncAlert({ firmId: FIRM, slug: "acme", code: "unreachable", kind: "connector" }),
+    ).toEqual({
+      kind: "sync_failing",
+      key: `sync:${FIRM}`,
+      text: "ShiftDesk alert: acme's connector's reconcile pull is failing (unreachable).",
+    });
+  });
+
   it("send failures: more than 5% of at least 20 sends in the hour", () => {
     const sends = (sent: number, failed: number) =>
       sendFailureAlert({ firmId: FIRM, slug: "acme", sent, failed, topCode: "twilio_21610" });

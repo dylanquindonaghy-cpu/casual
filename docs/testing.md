@@ -200,6 +200,17 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   source 404; no secret 503; not JSON 415; too big 413; a body that isn't a change 400, its values
   never logged) and the made-up portal's mapping are unit-tested
   (`tests/unit/connector.webhook.test.ts`, `tests/unit/connector.demo-portal.test.ts`).
+- `connector.pull.test.ts` (P5.4) — the reconcile pull, on the real database against the made-up
+  portal: it catches what the webhooks missed (a near pull reads only the next 48 hours, a full one
+  every session ahead and the staff; a connector's new session comes in hidden from casuals; a
+  pull with nothing changed changes and logs nothing; a change no webhook sent is caught by the
+  next pull); two pulls of one source at once, one runs and the other finds it busy; a source that
+  doesn't answer has its error saved and its times kept, the tick backs off for 30 minutes and
+  then queues one pull a minute, and the next good pull clears the error; a switched-off source,
+  or a firm without one, pulls and queues nothing, and a planner key made live stops a pull. The
+  cadence is unit-tested (`tests/unit/connector.cadence.test.ts`: first pull, every 15 minutes,
+  nightly in the firm's zone and its summer time, 26 hours overdue, back-off), and the founder's
+  alert names a connector's pull (`tests/unit/ops.alerts.test.ts`).
 - `rules.any-of.test.ts` (P3.3, Rules 3) — "any of" licences, on the real database as the app role:
   the security pack's security officer needs one of an SIA security guard or door supervisor
   licence (other rules unchanged), and the database refuses a group of one, a type in both lists

@@ -514,6 +514,10 @@ async function create(p: Put): Promise<ApiResult | null> {
       uniform: b.uniform ?? null,
       instructions: b.instructions ?? null,
       requiredCredentials: requirements,
+      // A connector's sessions come in hidden from casuals, so a firm's first cycle can run beside
+      // its old way, a trial casuals don't see (ADR-026; P5.4): the office shows them when it's
+      // ready. The planner's own show at once, as before.
+      showingToCasuals: p.by.type !== "connector",
     })
     .onConflictDoNothing({ target: [shifts.firmId, shifts.source, shifts.externalRef] })
     .returning({ id: shifts.id });

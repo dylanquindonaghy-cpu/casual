@@ -132,6 +132,7 @@ export interface DemoPortalSystem {
   staff: Map<string, unknown>;
   down: boolean; // answers nothing (a fetch fails), as a real system would when it's down
   reads: number; // how many records were asked for
+  lists: number; // how many lists were asked for (the reconcile pull)
 }
 
 // Base address -> that firm's system. Shared by the process (the tests fill it).
@@ -145,6 +146,7 @@ export const demoPortal = {
       staff: new Map(),
       down: false,
       reads: 0,
+      lists: 0,
     };
     systems.set(baseUrl, made);
     return made;

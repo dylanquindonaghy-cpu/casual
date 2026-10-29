@@ -638,7 +638,13 @@ on a live database until then).
   transport.
 - **What came in:** each webhook is a `connector_events` row with its outcome (applied, refused,
   ignored, failed, and a code). A system that doesn't answer is tried again for about an hour, then
-  the event is saved as failed; the reconcile pull (P5.4) catches up.
+  the event is saved as failed; the reconcile pull catches up.
+- **The reconcile pull (P5.4)** reads the system itself on a schedule: the next 48 hours' sessions
+  every 15 minutes, everything (sessions ahead and staff) once a night between 02:00 and 05:00,
+  every 30 minutes while it's failing. `firm:connector` and `firm:check` show when it last read in
+  full and its error code; a failing one sends the founder's alert ("…'s connector's reconcile pull
+  is failing (code)"). A connector's new sessions come in **hidden from casuals**: the office shows
+  them when the firm is ready (a first cycle can run as a shadow beside its old way).
 - **Switch it off:** `… --off` (kept, not deleted: a change waiting on it then changes nothing).
   **Replace it:** connect another with `--replace`. **Renew its webhook secret:** switch it off and
   connect it again (a new source: a new id, so a new secret, and a new webhook address); rotating

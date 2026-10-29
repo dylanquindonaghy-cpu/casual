@@ -100,6 +100,13 @@ import {
 import { webhookDeliverTask } from "../../lib/integrations/deliver";
 import { connectorEventTask } from "../../lib/connector/apply";
 import type { ConnectorEventPayload } from "../../lib/connector/job";
+import {
+  CONNECTOR_PULL_TICK_CRON,
+  CONNECTOR_PULL_TICK_QUEUE,
+  connectorPullTask,
+  runConnectorPullTick,
+  type ConnectorPullPayload,
+} from "../../lib/connector/pull";
 import type { WebhookDeliverPayload } from "../../lib/integrations/outbox";
 import { ensureQueues } from "./queues";
 
@@ -126,6 +133,7 @@ export interface JobDeps {
   inboundMessages?: FirmTask<InboundMessagePayload>;
   webhooks?: FirmTask<WebhookDeliverPayload>;
   connectorEvents?: FirmTask<ConnectorEventPayload>;
+  connectorPulls?: FirmTask<ConnectorPullPayload>;
   // Alerts to the founder: where they go (default: the console), and the web app's health check as
   // seen inside the server (unset: not checked).
   alerts?: AlertTransport;
@@ -347,6 +355,17 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
     }),
   );
   await boss.schedule(OPS_ALERTS_TICK_QUEUE, OPS_ALERTS_CRON);
+
+  // A connector's reconcile pull (P5.4): the tick queues a source's pull when one is due. With
+  // CONNECTOR_TRANSPORT none every pull fails as "off" (saved on the source, backing off).
+  await registerFirmTask(boss, deps.connectorPulls ?? connectorPullTask);
+  await boss.work(
+    CONNECTOR_PULL_TICK_QUEUE,
+    logFailures(CONNECTOR_PULL_TICK_QUEUE, async () => {
+      await runConnectorPullTick({ listFirmIds, run: withFirm, clock: deps.clock ?? systemClock });
+    }),
+  );
+  await boss.schedule(CONNECTOR_PULL_TICK_QUEUE, CONNECTOR_PULL_TICK_CRON);
 
   if (deps.sheets) {
     const clock = deps.clock ?? systemClock;

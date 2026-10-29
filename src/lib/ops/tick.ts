@@ -125,7 +125,7 @@ export async function firmAlerts(tx: FirmTx, firmId: string, now: Date): Promise
   const alerts: OpsAlert[] = [];
   const stale = new Date(now.getTime() - SYNC_FAILING_MINUTES * 60_000);
   const [failing] = await tx
-    .select({ code: rosterSources.lastErrorCode })
+    .select({ code: rosterSources.lastErrorCode, kind: rosterSources.kind })
     .from(rosterSources)
     .where(
       and(
@@ -135,7 +135,9 @@ export async function firmAlerts(tx: FirmTx, firmId: string, now: Date): Promise
         gt(rosterSources.lastAttemptedAt, new Date(now.getTime() - HOUR_MS)),
       ),
     );
-  if (failing?.code) alerts.push(syncAlert({ firmId, slug: firm.slug, code: failing.code }));
+  if (failing?.code) {
+    alerts.push(syncAlert({ firmId, slug: firm.slug, code: failing.code, kind: failing.kind }));
+  }
 
   const since = new Date(now.getTime() - HOUR_MS);
   const dayAgo = new Date(now.getTime() - 24 * HOUR_MS);

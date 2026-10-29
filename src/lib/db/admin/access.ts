@@ -91,7 +91,13 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
 
 // Columns the app role may update on a table it can't update as a whole (a column-level grant).
 export const COLUMN_UPDATES: Readonly<Record<string, readonly string[]>> = {
-  roster_sources: ["last_synced_at", "last_attempted_at", "last_error_code", "sync_started_at"],
+  roster_sources: [
+    "last_synced_at",
+    "last_near_synced_at",
+    "last_attempted_at",
+    "last_error_code",
+    "sync_started_at",
+  ],
   connector_events: ["status", "outcome_code", "processed_at"],
   shift_events: ["showing_to_casuals", "name"],
   // The planner's API keys (S11): read and added, never rewritten or deleted; only the last use

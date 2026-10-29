@@ -9,8 +9,8 @@ import { AgreementNotRecorded, requireAgreementForImport } from "../imports/gate
 import { putPlannerSession } from "../integrations/sessions";
 import type { FirmTask, JobAttempt } from "../jobs/firm-job";
 import { log, type Logger } from "../log";
-import { firmCallerMay } from "../roster/firm-caller";
-import { loadNameMap } from "../roster/names";
+import { firmCallerMay, type PlannerCaller } from "../roster/firm-caller";
+import { loadNameMap, type NameMap } from "../roster/names";
 import {
   upsertWorker,
   WorkerEmailInvalid,
@@ -27,6 +27,7 @@ import {
   type ConnectorEventPayload,
 } from "./job";
 import { ConnectorFetchError, connectorTransport, type ConnectorTransport } from "./transport";
+import type { ConnectorEventType } from "./webhook";
 
 // The `connector-event` job (P5.3): what a connector's source said changed, read from the source
 // itself and applied. In order:
@@ -167,59 +168,102 @@ export async function applyConnectorEvent(
     return done({ status: "failed", code });
   }
   if (fetched.status === "gone") return done({ status: "ignored", code: "gone" });
-  const record = fetched.record;
-  if ((record as { ref?: unknown } | null)?.ref !== found.ref) {
-    return done({ status: "refused", code: "ref_mismatch" });
-  }
   const names = await run(firmId, (tx) => loadNameMap(tx));
+  const applied = await applyRecord({
+    run,
+    firmId,
+    by,
+    type: found.type,
+    ref: found.ref,
+    record: fetched.record,
+    names,
+    now,
+    geocoder: deps.geocoder,
+    localDatabase,
+    // A worker's outcome is saved in the same transaction as the worker.
+    saveInTx: (tx, outcome) => finish(tx, eventId, outcome, now),
+  });
+  // A postcode look-up that's down: tried again, as a failed read is.
+  if (applied.transient && !isLastTry(attempt)) throw new ConnectorFetchError("unreachable");
+  return done(applied.outcome);
+}
 
-  if (found.type === "session.changed") {
-    const mapped = sessionBody(record, names);
-    if (mapped.status === "skipped") return done({ status: "ignored", code: "skipped_name" });
-    if (mapped.status === "unreadable") return done({ status: "refused", code: mapped.code });
+export type RecordOutcome = { status: ConnectorEventStatus; code: string };
+
+// One record read from the source, applied as the planner's: the event job's, and the reconcile
+// pull's for each record it reads (pull.ts). Transient: the planner's PUT answered 5xx (a postcode
+// look-up down), worth trying again.
+export async function applyRecord(a: {
+  run: WithFirm;
+  firmId: string;
+  by: Extract<PlannerCaller, { type: "connector" }>;
+  type: ConnectorEventType;
+  ref: string;
+  record: unknown;
+  names: NameMap;
+  now: Date;
+  geocoder?: Geocoder;
+  localDatabase: boolean;
+  saveInTx?: (tx: FirmTx, outcome: RecordOutcome) => Promise<void>;
+}): Promise<{ outcome: RecordOutcome; transient: boolean }> {
+  const settled = (outcome: RecordOutcome) => ({ outcome, transient: false });
+  if ((a.record as { ref?: unknown } | null)?.ref !== a.ref) {
+    return settled({ status: "refused", code: "ref_mismatch" });
+  }
+  if (a.type === "session.changed") {
+    const mapped = sessionBody(a.record, a.names);
+    if (mapped.status === "skipped") return settled({ status: "ignored", code: "skipped_name" });
+    if (mapped.status === "unreadable") return settled({ status: "refused", code: mapped.code });
     const result = await putPlannerSession(
-      { run, firmId, by, json: mapped.value, now, geocoder: deps.geocoder, localDatabase },
-      found.ref,
+      {
+        run: a.run,
+        firmId: a.firmId,
+        by: a.by,
+        json: mapped.value,
+        now: a.now,
+        geocoder: a.geocoder,
+        localDatabase: a.localDatabase,
+      },
+      a.ref,
     );
-    // A postcode look-up that's down: tried again, as a failed read is.
-    if (result.status >= 500 && !isLastTry(attempt)) {
-      throw new ConnectorFetchError("unreachable");
-    }
-    return done(apiOutcome(result));
+    return { outcome: apiOutcome(result), transient: result.status >= 500 };
   }
 
-  const mapped = staffWorker(record, names);
-  if (mapped.status === "skipped") return done({ status: "ignored", code: "skipped_name" });
-  if (mapped.status === "unreadable") return done({ status: "refused", code: mapped.code });
+  const mapped = staffWorker(a.record, a.names);
+  if (mapped.status === "skipped") return settled({ status: "ignored", code: "skipped_name" });
+  if (mapped.status === "unreadable") return settled({ status: "refused", code: mapped.code });
   const person = mapped.value;
   try {
-    return await run(firmId, async (tx) => {
-      await requireAgreementForImport(tx, { saving: true, localDatabase });
-      // The source first, then the worker (the planner's lock order).
-      if (!(await firmCallerMay(tx, by))) {
-        const outcome = { status: "ignored" as const, code: "not_allowed" };
-        await finish(tx, eventId, outcome, now);
+    return settled(
+      await a.run(a.firmId, async (tx) => {
+        await requireAgreementForImport(tx, { saving: true, localDatabase: a.localDatabase });
+        // The source first, then the worker (the planner's lock order).
+        const outcome: RecordOutcome = (await firmCallerMay(tx, a.by))
+          ? {
+              status: "applied",
+              code: (
+                await upsertWorker(tx, person, {
+                  source: "api",
+                  actor: { type: "system" },
+                  now: a.now,
+                })
+              ).outcome,
+            }
+          : { status: "ignored", code: "not_allowed" };
+        await a.saveInTx?.(tx, outcome);
         return outcome;
-      }
-      const { outcome: upserted } = await upsertWorker(tx, person, {
-        source: "api",
-        actor: { type: "system" },
-        now,
-      });
-      const outcome = { status: "applied" as const, code: upserted };
-      await finish(tx, eventId, outcome, now);
-      return outcome;
-    });
+      }),
+    );
   } catch (err) {
     if (err instanceof AgreementNotRecorded) {
-      return done({ status: "refused", code: "agreement_not_recorded" });
+      return settled({ status: "refused", code: "agreement_not_recorded" });
     }
     if (err instanceof WorkerNameMismatch)
-      return done({ status: "refused", code: "name_mismatch" });
+      return settled({ status: "refused", code: "name_mismatch" });
     if (err instanceof WorkerIdentityChange) {
-      return done({ status: "refused", code: "identity_change" });
+      return settled({ status: "refused", code: "identity_change" });
     }
-    if (err instanceof WorkerEmailInvalid) return done({ status: "refused", code: "bad_email" });
+    if (err instanceof WorkerEmailInvalid) return settled({ status: "refused", code: "bad_email" });
     throw err;
   }
 }
@@ -237,7 +281,7 @@ export function createConnectorEventTask(
 // The worker's: its CONNECTOR_TRANSPORT, and the secret store through its own jobs-role
 // connection with SECRETS_KEY (made once, on first use).
 let readSecret: ReadFirmSecret | undefined;
-const workerDeps = (): ConnectorApplyDeps => {
+export const connectorWorkerDeps = (): ConnectorApplyDeps => {
   const env = workerEnv();
   readSecret ??= firmSecretReader(
     env.DATABASE_JOBS_URL,
@@ -245,4 +289,4 @@ const workerDeps = (): ConnectorApplyDeps => {
   );
   return { transport: connectorTransport(env.CONNECTOR_TRANSPORT), readSecret };
 };
-export const connectorEventTask = createConnectorEventTask(workerDeps);
+export const connectorEventTask = createConnectorEventTask(connectorWorkerDeps);

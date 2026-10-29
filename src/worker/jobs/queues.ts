@@ -27,6 +27,11 @@ import { OPS_ALERT_QUEUE, OPS_ALERTS_TICK_QUEUE } from "../../lib/ops/tick";
 import { WEBHOOK_DELIVER_QUEUE } from "../../lib/integrations/outbox";
 import { WEBHOOK_RETRY_LIMIT } from "../../lib/integrations/deliver";
 import { CONNECTOR_EVENT_QUEUE, CONNECTOR_RETRY_LIMIT } from "../../lib/connector/job";
+import {
+  CONNECTOR_PULL_EXPIRE_SECONDS,
+  CONNECTOR_PULL_QUEUE,
+  CONNECTOR_PULL_TICK_QUEUE,
+} from "../../lib/connector/pull";
 import { HELLO_QUEUE } from "./hello";
 
 // Every queue the app uses. db:migrate creates them (so the web can enqueue before the worker
@@ -90,6 +95,7 @@ const travelEstimates = firmQueue(TRAVEL_ESTIMATES_QUEUE);
 const webhookDeliver = firmQueue(WEBHOOK_DELIVER_QUEUE);
 const inboundMessage = firmQueue(INBOUND_MESSAGE_QUEUE);
 const connectorEvent = firmQueue(CONNECTOR_EVENT_QUEUE);
+const connectorPull = firmQueue(CONNECTOR_PULL_QUEUE);
 
 export const QUEUES: readonly QueueSpec[] = [
   { name: HELLO_QUEUE },
@@ -121,6 +127,10 @@ export const QUEUES: readonly QueueSpec[] = [
   },
   {
     name: OPS_ALERTS_TICK_QUEUE,
+    options: { policy: "standard", deleteAfterSeconds: 24 * 60 * 60 },
+  },
+  {
+    name: CONNECTOR_PULL_TICK_QUEUE,
     options: { policy: "standard", deleteAfterSeconds: 24 * 60 * 60 },
   },
   // Alerts to the founder (no firm): each alert's key is a singleton for the hour, so an ongoing
@@ -178,6 +188,13 @@ export const QUEUES: readonly QueueSpec[] = [
       retryBackoff: true,
       retryDelayMax: 30 * 60,
     },
+  },
+  // A connector's reconcile pull (P5.4; src/lib/connector/pull.ts): given up on before its lease
+  // runs out. A source that doesn't answer is saved on the source, not thrown: the next tick's
+  // pull tries again, backing off while failing.
+  {
+    ...connectorPull,
+    options: { ...connectorPull.options, expireInSeconds: CONNECTOR_PULL_EXPIRE_SECONDS },
   },
   // A connector's events (P5.3; src/lib/connector/apply.ts): a read from the firm's own system
   // that fails is tried again 5 times, from a minute later and doubling, at most 30 minutes apart

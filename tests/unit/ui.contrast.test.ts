@@ -55,6 +55,8 @@ const TEXT: [string, string[]][] = [
       "hivis",
       "wait-tile",
       "done-tile",
+      "glass-band",
+      "booked-day",
     ],
   ],
   // Grey words: also a tab's while it's pressed (`tab`: `active:bg-button-press`).
@@ -82,6 +84,8 @@ const TEXT: [string, string[]][] = [
       "hivis",
       "wait-tile",
       "done-tile",
+      // The pass's date beside "In 3 days", on its warm band (Phase 24).
+      "glass-band",
     ],
   ],
   // The faintest words: a group's name over the menu, a chart's ticks.
@@ -90,8 +94,9 @@ const TEXT: [string, string[]][] = [
   // Statuses as words, on the glass and their own tints; a destructive step's red words on a clear
   // button (btn.danger).
   ["urgent", ["canvas", "card", "panel", "glass-tile", "glass-button", "urgent-soft"]],
-  // (And "Can't make it?" on the pass's clear button.)
-  ["urgent-ink", ["card", "glass-button", "urgent-soft", "urgent-tile"]],
+  // (And "Can't make it?" on a later booking's clear button; Phase 24: the places left, "Urgent"
+  // and a strip day's urgent count on a little glass chip.)
+  ["urgent-ink", ["card", "glass-button", "glass-tile", "urgent-soft", "urgent-tile"]],
   ["attention", ["canvas", "card", "panel", "glass-tile"]],
   ["attention-ink", ["card", "attention-soft"]],
   ["done", ["canvas", "card", "panel", "glass-tile"]],
@@ -101,7 +106,8 @@ const TEXT: [string, string[]][] = [
   // The app's blue as words: the current page's icon, the chosen tab's word, "offered, no reply".
   ["accent", ["canvas", "card", "panel", "glass-tile", "lens"]],
   // The firm's colour as words (the defaults; a firm's own set: tests/unit/tenancy.brand.test.ts).
-  ["brand-ink", ["canvas", "card", "panel", "glass-tile"]],
+  // (Phase 24: the current tab's icon and word, under the lens.)
+  ["brand-ink", ["canvas", "card", "panel", "glass-tile", "lens"]],
   // Words on fills.
   ["on-ink", ["ink", "ink-hover", "ink-press"]],
   ["on-brand", ["brand"]],

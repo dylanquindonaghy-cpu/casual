@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { h2, staffBtn, staffRows } from "../ui/classes";
 import { PageHeader } from "../ui/page-header";
+import { possessive } from "@/lib/portal/copy";
 import type { HelpFacts } from "@/lib/portal/help-facts";
 import { postcodeAttribution } from "@/lib/travel/attribution";
 import { Name, Points, Step, Steps } from "./guide-parts";
@@ -131,8 +132,8 @@ export function HelpView({
             Tap <Name>Shifts</Name>, then <Name>Open</Name>.
           </Step>
           <Step>
-            To see one day, tap it at the top. To narrow the list, tap{" "}
-            <Name>Choose a day, site or role</Name>, then <Name>Show shifts</Name>.
+            To see one day, tap it at the top. To narrow the list, tap <Name>Site and role</Name>,
+            choose, then tap <Name>Show shifts</Name>.
           </Step>
           <Step>
             Tap the shift you want. Read it, then tap <Name>Take shift</Name>.
@@ -163,7 +164,7 @@ export function HelpView({
       <Section id="urgent-shifts">
         <p className="mt-3">
           When a shift you could take starts soon and needs someone, Home shows it in red under{" "}
-          <Name>For you</Name>.
+          <Name>Shifts you can take</Name>.
         </p>
         <Steps>
           <Step>Tap it to see the urgent shifts.</Step>
@@ -254,7 +255,7 @@ export function HelpView({
           </Step>
         </Steps>
         <p className="mt-4">
-          You&apos;ll see the last 8 weeks from {firmName}&apos;s payroll: hours, rates and pay
+          You&apos;ll see the last 8 weeks from {possessive(firmName)} payroll: hours, rates and pay
           dates. Your pay stays open for 30 minutes.
         </p>
         <p className="mt-3">

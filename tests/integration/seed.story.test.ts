@@ -31,6 +31,13 @@ const who = (key: string) => {
   return w.id;
 };
 const ctx = { firm: { id: ACME, timezone: "Europe/London", signOff: "Acme Events Shift Team" } };
+// This week's Monday in London (yyyy-mm-dd): the story's pay weeks all end before it.
+const mondayOfToday = () => {
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/London" });
+  const d = new Date(`${today}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  return d.toISOString().slice(0, 10);
+};
 
 let su: Pool;
 
@@ -45,10 +52,12 @@ async function storyRows() {
      union all select 'worker_travel', count(*)::int, array_agg(worker_id::text order by worker_id) from worker_travel where firm_id = $1
      union all select 'travel_estimates', count(*)::int, null from travel_estimates where firm_id = $1
      union all select 'requests', count(*)::int, array_agg(id::text order by id) from requests where firm_id = $1
+     union all select 'pay_records', count(*)::int, array_agg(id::text order by id) from pay_records
+       where firm_id = $1 and id = any($2::uuid[])
      union all select 'events', count(*)::int, null from events where firm_id = $1
        and action in ('strike.issued', 'strike.withdrawn', 'message.received', 'message.replied',
                       'enquiry.checks', 'pay_query.resolved', 'shift.marked_urgent')`,
-    [ACME],
+    [ACME, STORY.pay.map((p) => p.id)],
   );
   return rows;
 }
@@ -364,6 +373,48 @@ describe("the demo story", () => {
       [today],
     );
     expect(open).toEqual([{ n: 10 }]);
+  });
+
+  it("pay lines for Zoe and Ben as payroll's file gives them (Phase 24: the mock-up's Pay)", async () => {
+    const { rows } = await su.query<{
+      who: string;
+      start: string;
+      days: number;
+      hours: string;
+      rate: number;
+      gross: number | null;
+      paid: number;
+      monday: boolean;
+    }>(
+      `select w.first_name as who, p.period_start::text as start,
+              (p.period_end - p.period_start)::int as days, p.hours::text as hours,
+              p.rate_pence as rate, p.gross_pence as gross,
+              (p.pay_date - p.period_end)::int as paid,
+              extract(isodow from p.period_start) = 1 as monday
+         from pay_records p join workers w on w.firm_id = p.firm_id and w.id = p.worker_id
+        where p.firm_id = $1 and p.id = any($2::uuid[])
+        order by w.first_name desc, p.period_start desc, p.rate_pence`,
+      [ACME, STORY.pay.map((p) => p.id)],
+    );
+    // Complete Monday-to-Sunday weeks, paid the Friday after (D8), none this week or later.
+    expect(rows.every((r) => r.days === 6 && r.paid === 5 && r.monday)).toBe(true);
+    const thisMonday = mondayOfToday();
+    expect(rows.every((r) => r.start < thisMonday)).toBe(true);
+    // Zoe: her last five weeks, the newest two rates (£200 + £124 = £324.00, as the mock-up).
+    expect(rows.filter((r) => r.who === "Zoe").map((r) => [r.hours, r.rate, r.gross])).toEqual([
+      ["16.00", 1250, 20000],
+      ["8.00", 1550, 12400],
+      ["16.00", 1250, 20000],
+      ["24.00", 1250, 30000],
+      ["8.00", 1550, 12400],
+      ["16.00", 1250, 20000],
+    ]);
+    // Ben: his newest week has a line payroll gave no gross for, so Pay shows no total for it.
+    expect(rows.filter((r) => r.who === "Ben").map((r) => [r.hours, r.rate, r.gross])).toEqual([
+      ["12.00", 1260, 15120],
+      ["4.00", 1550, null],
+      ["6.00", 1260, 7560],
+    ]);
   });
 
   it("uploads waiting for the office: Ben's photo and Leah's new licence", async () => {

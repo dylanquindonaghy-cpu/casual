@@ -539,9 +539,10 @@ describe("the office's tokens (src/app/globals.css)", () => {
     );
   });
 
-  // Phase 24 (round 7): gradients are the glass's: a tile's, a clear button's and the main
-  // button's fills, the wash's four lights and the top bar's edge, and the masks that fade an edge
-  // (the menu's, the bar's). None anywhere in the office's own files.
+  // Phase 24 (round 7): gradients are the glass's: a tile's, the pass's warm band, a clear
+  // button's and the main button's fills, the wash's four lights and the bars' edges (the top
+  // bar's, and the foot's under a shift's Take shift), and the masks that fade an edge (the
+  // menu's, the bars'). None anywhere in the office's own files.
   it("gradients only in the glass, the wash and the masks", () => {
     const gradient =
       /(?:repeating-)?(?:linear|radial|conic)-gradient\(|(?<![\w-])bg-(?:linear|radial|conic|gradient)-/;
@@ -563,8 +564,11 @@ describe("the office's tokens (src/app/globals.css)", () => {
       "body::before: radial-gradient(62rem 50rem at 62% 104%, var(--wash-c), transparent 60%),",
       "body::before: radial-gradient(56rem 44rem at 4% 96%, var(--wash-d), transparent 60%);",
       "@utility glass-tile: background-image",
+      "@utility glass-band: background-image",
       "@utility glass-button: background-image",
       "@utility glass-tint: background-image",
+      "&::before: background",
+      "&::before: mask-image",
       "&::before: background",
       "&::before: mask-image",
       '&[data-more="below"]: mask-image',
@@ -581,7 +585,7 @@ describe("the office's tokens (src/app/globals.css)", () => {
       /--(?:grain|stripes|tint-(?:urgent|attention|wait|done)|card-chip|glow-)/,
     );
     expect(css).not.toMatch(/@utility (?:grain|stripes|tint-|card-chip)/);
-    expect(css.match(/background-image:/g)).toHaveLength(3);
+    expect(css.match(/background-image:/g)).toHaveLength(4);
     expect(css.match(/url\(/g)).toEqual(["url("]);
     expect(css).toContain("url(#lg-refract)");
     // Nor round 2's colour cards' own tokens.

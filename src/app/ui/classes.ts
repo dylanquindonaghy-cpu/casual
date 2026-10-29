@@ -79,7 +79,8 @@ export const staffBtn = {
 export const staffBtnInline =
   "press-glass glass-button inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-4 py-2 text-center text-base font-semibold text-ink hover:bg-button-hover disabled:cursor-not-allowed disabled:opacity-60";
 
-// A smaller staff button, two to a row ("Details" beside "Directions" on the pass).
+// A smaller staff button, two to a row ("Ask for a change" beside "Can't make it?" on a later
+// booking).
 export const staffBtnSmall =
   "press-glass glass-button flex min-h-13 items-center justify-center rounded-full px-3 py-2 text-center text-base font-semibold text-ink hover:bg-button-hover";
 
@@ -133,6 +134,9 @@ export const staffRow = "px-4 py-3";
 // In the office (Phase 23) a section heading is bold, as the approved mock-up's.
 export const h2 = "text-lg font-semibold tracking-heading text-ink office:font-bold";
 export const sectionGap = { office: "mt-8 lg:mt-12", staff: "mt-8" };
+// The casual app's section heading between cards (Phase 24, round 7: "Do this", "Urgent, needed
+// now", "Earlier weeks", "Later"): 20px medium. A card's own title stays `h2`.
+export const staffH2 = "text-2xl font-medium tracking-heading text-ink";
 export const headingGap = "mt-3";
 // A number beside a heading ("Requests 2"): the number only, never a word. The office's count
 // (Phase 21; Dylan's brief: "one badge style (grey, red only for urgent)"): a small grey pill, the

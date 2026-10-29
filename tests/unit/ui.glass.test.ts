@@ -248,12 +248,15 @@ describe("the glass's parts (globals.css utilities)", () => {
     expect(layout).toMatch(/<body[^>]*>\s*<RefractionFilter \/>\s*<GlassRefraction \/>/);
   });
 
-  it("nothing blurs but the glass, a table's sticky headings and the bar's edge", () => {
+  it("nothing blurs but the glass, a table's sticky headings and the bars' edges", () => {
     // Declarations only (the @supports test below names it too): a section's, what floats' (and
-    // its bending, and that switched off), and the bar's edge; each with Safari's prefix but the
-    // two that only Chrome reads.
-    expect(css.match(/^\s+backdrop-filter:/gm)).toHaveLength(5);
-    expect(css.match(/^\s+-webkit-backdrop-filter:/gm)).toHaveLength(3);
+    // its bending, and that switched off), the top bar's edge and the foot's (a shift's Take
+    // shift, Phase 24); each with Safari's prefix but the two that only Chrome reads.
+    expect(css.match(/^\s+backdrop-filter:/gm)).toHaveLength(6);
+    expect(css.match(/^\s+-webkit-backdrop-filter:/gm)).toHaveLength(4);
+    expect(body("@utility foot-edge")).toMatch(
+      /-webkit-backdrop-filter: var\(--edge-filter\);\s+backdrop-filter: var\(--edge-filter\);/,
+    );
     expect(
       uses(/(?<![\w-])(?:[a-z0-9-]+:)*backdrop-(?:blur|filter|saturate)[\w-]*(?![\w-])/g),
     ).toEqual({
@@ -342,7 +345,7 @@ describe("depth: a glass's rim and drop, through variables, and no other shadow"
   const SHADOW =
     /(?<![\w-])(?:[a-z0-9-]+:)*(?:drop-|inset-)?shadow(?:-(?!none(?![\w-]))[\w[\]#/.()%,-]+)?(?![\w-])|box-shadow/g;
   const ONE_SHADOW = new RegExp(SHADOW.source);
-  const DEPTH = /^(?:[a-z0-9-]+:)*(?:shadow-(?:lift|panel|pass|bar|float)|inset-shadow-sunk)$/;
+  const DEPTH = /^(?:[a-z0-9-]+:)*(?:shadow-(?:lift|panel|bar|float)|inset-shadow-sunk)$/;
 
   it("finds a shadow when there is one", () => {
     const sample = 'className="rounded-xl shadow-sm" "md:shadow-lg" "shadow" "drop-shadow-md"';
@@ -361,7 +364,6 @@ describe("depth: a glass's rim and drop, through variables, and no other shadow"
     expect(defs).toEqual([
       "shadow-lift: var(--glass-drop-sm)",
       "shadow-panel: var(--glass-drop)",
-      "shadow-pass: var(--glass-drop)",
       "shadow-bar: var(--float-shadow)",
       "shadow-float: var(--float-shadow)",
       "inset-shadow-sunk: var(--glass-sunk)",
@@ -415,13 +417,12 @@ describe("depth: a glass's rim and drop, through variables, and no other shadow"
   });
 
   const USES: Record<string, string[]> = {
-    "src/app/home-view.tsx": ["shadow-lift"], // the For you tiles
-    // The pass; an open Details set in.
-    "src/app/next-pass.tsx": ["group-open:inset-shadow-sunk", "shadow-pass"],
+    // The pass's open Details, set in (the pass itself is glass since Phase 24).
+    "src/app/next-pass.tsx": ["group-open:inset-shadow-sunk"],
     // A switch's knob.
     "src/app/office/events/showing-switch.tsx": ["shadow-lift"],
-    // The strip's urgent days, and her booked day.
-    "src/app/shifts/open/open-shifts-view.tsx": ["shadow-lift", "shadow-pass"],
+    // "You're booked.": its tick.
+    "src/app/shifts/open/take-shift-result.tsx": ["shadow-lift"],
   };
 
   it("only the depth tokens, each where it's pinned, anywhere in the app's code", () => {
@@ -431,12 +432,17 @@ describe("depth: a glass's rim and drop, through variables, and no other shadow"
       for (const use of list) expect(DEPTH.test(use), `${file}: ${use}`).toBe(true);
   });
 
-  it("the pass alone (and the booked day on the strip) takes the pass token", () => {
-    expect(read("src/app/next-pass.tsx")).toMatch(
-      /className=\{`[^`]*rounded-3xl bg-brand-bar[^`]*shadow-pass/,
+  it("the pass is one glass card with its warm band (Phase 24); her booked day on the strip a sunk grey", () => {
+    const pass = read("src/app/next-pass.tsx");
+    expect(pass).toMatch(/className=\{`glass overflow-hidden rounded-3xl \$\{/);
+    expect(pass).toMatch(/<div className="glass-band px-5 /);
+    expect(pass).not.toMatch(/(?<![\w-])bg-brand-bar(?![\w-])/);
+    expect(css).not.toMatch(/--shadow-pass/);
+    expect(css).toMatch(
+      /@utility glass-band \{\s*background-image: linear-gradient\(135deg, var\(--band-from\), var\(--band-to\)\);\s*\}/,
     );
     expect(read("src/app/shifts/open/open-shifts-view.tsx")).toMatch(
-      /booked: "bg-brand text-on-brand shadow-pass"/,
+      /booked: "bg-ink\/12 text-ink inset-ring inset-ring-white\/30"/,
     );
   });
 
@@ -486,7 +492,8 @@ describe("where the glass goes", () => {
       "src/app/office/find-worker-form.tsx": ["glass-float"], // Casuals' search, its matches
       "src/app/office/shift-actions.tsx": ["glass-float"], // the "…" menu
       "src/app/office/dashboard/offer-panel.tsx": ["glass-float"], // the offer panel
-      "src/app/shifts/[id]/shift-view.tsx": ["glass-float"], // Take shift's bar
+      // The comment that names it, and "You're booked." over the whole screen.
+      "src/app/shifts/open/take-shift-result.tsx": ["glass-float", "glass-float"],
       "src/app/shifts/sheet.tsx": ["glass-float"], // the sheet from the foot
       "src/app/tab-bar.tsx": ["glass-float"], // the casual app's tab bar
     });
@@ -508,7 +515,11 @@ describe("where the glass goes", () => {
     expect(read("src/app/office/office-frame.tsx")).toMatch(
       /popover="auto"\s+className="[^"]*glass-float/,
     );
-    expect(read("src/app/tab-bar.tsx")).toMatch(/className="glass-float fixed inset-x-0 bottom-0/);
+    // The tab bar (Phase 24): a floating capsule 14px above the foot, inside a bar that lets the
+    // page take taps around it.
+    expect(read("src/app/tab-bar.tsx")).toMatch(
+      /className="pointer-events-none fixed inset-x-0 bottom-0 z-20 px-4 pb-\[calc\(0\.875rem\+env\(safe-area-inset-bottom\)\)\]"\s*>\s*<div className="glass-float pointer-events-auto mx-auto grid h-17 max-w-md grid-cols-4 gap-1 rounded-full /,
+    );
   });
 
   it("the buttons: the main one tinted glass in the firm's colour, the others clear; each swells under a press", () => {

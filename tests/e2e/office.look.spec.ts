@@ -94,7 +94,6 @@ const measure = (page: Page) =>
     const DEPTH = [
       "shadow-lift",
       "shadow-panel",
-      "shadow-pass",
       "shadow-bar",
       "shadow-float",
       "inset-shadow-sunk",

@@ -26,12 +26,12 @@ test("Home and the urgent board show only shifts in her travel area; a direct li
   await page.getByRole("button", { name: "Log me in" }).click();
   await expect(page.getByRole("heading", { name: /^Hi / })).toBeVisible();
 
-  // Home: two urgent sessions in her role, one in her area: For you counts that one (12H.1; Phase
-  // 18: one row, to the urgent board, where each shows its travel line; Phase 20: a tile, "Urgent
-  // near you").
+  // Home: two urgent sessions in her role, one in her area: "Shifts you can take" counts that one
+  // (12H.1; Phase 18: one row, to the urgent board, where each shows its travel line; Phase 24:
+  // round 7's "1 urgent near you").
   const urgentOnHome = page
-    .getByRole("region", { name: "For you" })
-    .getByRole("link", { name: /^Urgent near you 1 shift / });
+    .getByRole("region", { name: "Shifts you can take" })
+    .getByRole("link", { name: /^1 urgent near you / });
   await expect(urgentOnHome).toBeVisible();
   await urgentOnHome.click();
   await expect(page).toHaveURL(`${acme}/urgent`);

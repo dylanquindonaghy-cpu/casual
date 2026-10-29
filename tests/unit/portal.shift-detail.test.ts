@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -88,12 +89,11 @@ describe("ShiftView", () => {
     });
     const words = text(html);
     expect(words).toContain("Sat 7 Nov 14:00–22:00");
-    // The heading is the role (under the time); then, in the card, where: the event, the site and
-    // its address (12H.2), the post on its plate (Phase 20).
+    // The heading is the role (under the time); then, in the card, where: the event and the site,
+    // its address (12H.2), the post on a glass plate (round 7).
     expect(html).toMatch(/<h1 id="shift-heading"[^>]*>Door supervisor<\/h1>/);
-    expect(words).toContain(
-      "Where Riverside Festival Demo Arena 1 Test Road, Leeds, LS1 1AA Gate A",
-    );
+    expect(words).toContain("Riverside Festival · Demo Arena 1 Test Road, Leeds, LS1 1AA Gate A");
+    expect(html).toMatch(/<span class="glass-tile shrink-0 rounded-\[10px\] [^"]*">Gate A<\/span>/);
     expect(words).toContain(
       "You can't take this shift: Your SIA door supervisor licence expired on 3 Oct. Renew it, then send the new number to the office.",
     );
@@ -128,19 +128,21 @@ describe("ShiftView", () => {
     expect(words).toContain("Places 2 of 4 places left");
     expect(html.match(/data-seat="taken"/g)).toHaveLength(2);
     expect(html.match(/data-seat="free"/g)).toHaveLength(2);
-    // The bar that stays at the bottom of the screen, above the tab bar.
+    // Round 7 (Phase 24): Take shift floats at the foot of the screen (a shift's page has no tab
+    // bar) over a soft frosted strip, no line, no shadow; the strike note under it.
     const bar = html.slice(html.indexOf("data-action-bar"));
     expect(bar).toMatch(
-      /^data-action-bar="" class="sticky bottom-\[calc\(4\.75rem\+env\(safe-area-inset-bottom\)\)\]/,
+      /^data-action-bar="" class="foot-edge sticky bottom-0 z-10 -mx-4 mt-5 -mb-6 px-4 pt-3 pb-\[calc\(0\.75rem\+env\(safe-area-inset-bottom\)\)\] /,
     );
-    // Floating glass over the page (Phase 24; the bar depth token before), no line; the strike
-    // note above Take shift.
-    expect(bar).toMatch(/^data-action-bar="" class="[^"]*glass-float px-4 py-3 /);
-    expect(bar.slice(0, bar.indexOf(">"))).not.toMatch(/(?<![\w-])shadow-/);
+    expect(bar.slice(0, bar.indexOf(">"))).not.toMatch(/(?<![\w-])(?:shadow-|glass-float)/);
     expect(bar.slice(0, bar.indexOf(">"))).not.toContain("border-t");
     expect(text(bar)).toContain(
-      "Cancelling less than 48 hours before the start gives you a strike. Take shift",
+      "Take shift Cancelling less than 48 hours before the start gives you a strike.",
     );
+    expect(bar).toMatch(
+      /<\/button><p class="mt-2 text-center text-base text-ink-muted">Cancelling less than 48 hours/,
+    );
+    expect(readFileSync("src/app/shifts/[id]/page.tsx", "utf8")).not.toMatch(/TabBar/);
     const firmOf24 = text(
       render({
         state: "open",
@@ -153,24 +155,51 @@ describe("ShiftView", () => {
       "Cancelling less than 24 hours before the start gives you a strike.",
     );
   });
-  it("open, in full (§4.4; Phases 18 and 20): the urgent band, the time by its tile, then one card: where, getting there, places, what it needs, report to, bring and wear, pay", () => {
+  it("open, in full (§4.4; Phases 18, 20 and 24): its own bar back, the urgent band, the time by its tile, then a card each: getting there, places, what it needs, report to, bring and wear, pay", () => {
     const html = render({ state: "open", shift: summary, facts });
     const words = text(html);
-    // Back to the list; the urgent band (pale red, with the places left); the date tile (pale
-    // red too), the time large and the role; then one card of label and value rows.
-    expect(html).toMatch(/<a class="[^"]*" href="\/shifts\/open">.*All open shifts<\/a>/);
+    // Round 7: its own bar at the top with the way back (the firm's bar hides while it's here),
+    // sticky once the page runs, frosting when scrolled; a glass card topped by the urgent band
+    // (red, white words); the date tile (pale red), the time, the day and how long, the role, its
+    // chips; then a glass card for each fact.
     expect(html).toMatch(
-      /<section aria-labelledby="shift-heading" class="flex animate-open flex-col gap-4">/,
+      /^<div data-own-bar="" class="scroll-edge relative z-20 -mx-4 -mt-6 mb-2 px-4 pt-1 sm:-mx-6 sm:px-6 \[html\[data-js\]_&amp;\]:sticky \[html\[data-js\]_&amp;\]:top-0"><a class="[^"]*" href="\/shifts\/open"><svg[\s\S]*?<\/svg>Open shifts<\/a><\/div>/,
     );
-    expect(html).toMatch(/<p class="[^"]*bg-urgent-tile[^"]*text-urgent-ink">/);
-    expect(words).toContain(
-      "Urgent, needed now 2 places left Sat 7 Nov 14:00–22:00 Door supervisor Where",
+    expect(html).toMatch(
+      /<section aria-labelledby="shift-heading" class="glass animate-open overflow-hidden rounded-3xl"><p class="flex items-center gap-2\.5 bg-urgent-fill px-5 py-3 text-lg font-medium text-on-urgent"><span aria-hidden="true" class="size-2\.5 rounded-full bg-current"><\/span>Urgent, needed now<\/p>/,
     );
-    expect(html).toContain('role="img" aria-label="Saturday 7 November"');
-    expect(html).toMatch(/<p class="font-sign text-4xl leading-tight text-ink">14:00–22:00<\/p>/);
-    expect(html).toMatch(/<div class="glass [^"]*rounded-3xl px-4\.5 animate-open-late">/);
     expect(words).toContain(
-      "Getting there, from your home area 3.1 miles · 12 min by car · 24 min by public transport 12 min by car 24 min by public transport 3.1 mi away Open in maps",
+      "Urgent, needed now Sat 7 Nov 14:00–22:00 Saturday 7 November · 8 hours Door supervisor Urgent Needs: SIA DS , CSAS",
+    );
+    // The day in words under the time, so the tile is only seen.
+    expect(html).toMatch(
+      /<span aria-hidden="true" class="[^"]*bg-urgent-tile text-urgent-ink"><span class="block font-medium text-sm">Sat<\/span>/,
+    );
+    expect(html).not.toContain('role="img" aria-label="Saturday 7 November"');
+    expect(html).toMatch(
+      /<p class="font-sign text-3xl whitespace-nowrap text-ink">14:00–22:00<\/p>/,
+    );
+    expect(html).toMatch(
+      /<span class="glass-tile rounded-\[10px\] px-2\.5 py-1 text-base font-medium text-urgent-ink">Urgent<\/span>/,
+    );
+    const cards = [
+      ...html.matchAll(
+        /<section aria-labelledby="([a-z-]+)-heading" class="glass flex flex-col gap-3 rounded-3xl p-5"><h2 id="\1-heading" class="text-lg font-semibold text-ink">([^<]+)<\/h2>/g,
+      ),
+    ].map((m) => m[2]);
+    expect(cards).toEqual([
+      "Getting there, from your home area",
+      "Places",
+      "You need",
+      "Report to",
+      "Bring and wear",
+      "Pay",
+    ]);
+    expect(words).toContain(
+      "Getting there, from your home area 3.1 miles · 12 min by car · 24 min by public transport 3.1 miles away 12 min by car 24 min by public transport Open in maps",
+    );
+    expect(html).toMatch(
+      /<svg[^>]*><path d="M9 4\.5 3\.5 6\.5v13l5\.5-2 6 2 5\.5-2v-13l-5\.5 2zM9 4\.5v13M15 6\.5v13"><\/path><\/svg>Open in maps<\/a>/,
     );
     expect(words).toContain(
       "You need SIA door supervisor licence You have it, valid until 3 Mar 2027 CSAS accreditation Missing: ask the office.",
@@ -186,7 +215,7 @@ describe("ShiftView", () => {
     expect(words).toContain("Bring and wear Black trousers and your hi-vis");
     expect(words).toContain("Pay £15.50 an hour, about £124.00");
     const order = [
-      "Where",
+      "Door supervisor",
       "Getting there",
       "Places",
       "You need",
@@ -202,14 +231,24 @@ describe("ShiftView", () => {
     const calm = render({ state: "open", shift: summary, facts: { ...facts, isUrgent: false } });
     expect(text(calm)).not.toContain("Urgent, needed now");
     expect(calm).toMatch(
-      /<span role="img" aria-label="Saturday 7 November" class="[^"]*glass-tile text-ink"/,
+      /<span aria-hidden="true" class="[^"]*glass-tile text-ink"><span class="block font-medium text-sm">Sat<\/span>/,
     );
-    expect(calm).toContain(
-      '<span class="text-lg font-semibold text-ink">2 of 4 places left</span>',
-    );
-    expect(html).toContain(
-      '<span class="text-lg font-semibold text-urgent-ink">2 of 4 places left</span>',
-    );
+    expect(calm).not.toContain(">Urgent</span>");
+    // The places as big seats (round 7, 30px), the free ones red when urgent; the words in ink.
+    for (const page of [calm, html])
+      expect(page).toContain(
+        '<span class="text-lg font-medium text-ink">2 of 4 places left</span>',
+      );
+    expect(
+      html.match(
+        /data-seat="free" class="size-7\.5 rounded-\[9px\] office:rounded-full border-2 border-urgent"/g,
+      ),
+    ).toHaveLength(2);
+    expect(
+      calm.match(
+        /data-seat="free" class="size-7\.5 rounded-\[9px\] office:rounded-full border-2 border-ink-muted"/g,
+      ),
+    ).toHaveLength(2);
   });
   it("What it needs: an upload link where she can send it herself", () => {
     const html = render({

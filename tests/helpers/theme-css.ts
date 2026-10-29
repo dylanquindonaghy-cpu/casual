@@ -182,8 +182,18 @@ export function looks(): Look[] {
 // The places a word or a control can sit that aren't one token: a tile's and a clear button's
 // gradients (`glass-tile`, `glass-button`: the button also under the pointer and pressed), the lens
 // (`lens`: the chosen tab or option, on its track), the main button (`glass-tint`, its colour to its
-// shade), and the firm's pale tint (`brand-soft`).
-export const PLACES = ["glass-tile", "glass-button", "lens", "glass-tint", "brand-soft"] as const;
+// shade), the firm's pale tint (`brand-soft`), the pass's warm band (`glass-band`, both ends,
+// over the section it tops: Phase 24, 24.6), and a booked day on Open shifts' strip (`booked-day`:
+// ink at 12%).
+export const PLACES = [
+  "glass-tile",
+  "glass-button",
+  "lens",
+  "glass-tint",
+  "brand-soft",
+  "glass-band",
+  "booked-day",
+] as const;
 
 // A ground as the screen shows it, and whether the control on it is brightened (pressed:
 // `press-glass`'s brightness(1.06); the main button under the pointer too). A CSS filter brightens
@@ -269,6 +279,10 @@ export function grounds(look: Look, where: string, brand?: Rgb): Ground[] {
     }
     case "brand-soft":
       return at(on([...(brand ?? rgbOnly(colour("brand"))), 0.12], under));
+    case "glass-band":
+      return at([glassVar("band-from"), glassVar("band-to")].flatMap((t) => on(t, section)));
+    case "booked-day":
+      return at(on([...rgbOnly(colour("ink")), 0.12], under));
   }
   const c = colour(where);
   return at(c[3] === 1 ? [rgbOnly(c)] : on(c, under));

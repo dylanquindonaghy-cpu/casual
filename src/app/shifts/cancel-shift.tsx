@@ -42,9 +42,9 @@ export interface CancelSummary {
 // shift" (red, the final step), "Ask for a change instead" and "Keep my shift". The confirmation
 // shows in the sheet ("Done" closes it and reloads the page without the cancelled shift). If what
 // would happen changed while they read it, nothing is cancelled and the new warning is shown.
-// The opener waits for the page (docs/ui-design.md "Forms wait for the page"). `opener`: one of
-// the pass's three buttons (Phase 20: an icon over the words), the small one two to a row, or a
-// full-width one (the shift's page). The reasons are four large buttons, two to a row (Phase 20):
+// The opener waits for the page (docs/ui-design.md "Forms wait for the page"). `opener`: the small
+// one two to a row (a later booking's), or a full-width one in red words (the pass, Phase 24; the
+// shift's page). The reasons are four large buttons, two to a row (Phase 20):
 // confirming without one says so right under them and puts the focus on the first, to choose.
 export function CancelShift({
   shiftId,
@@ -53,7 +53,7 @@ export function CancelShift({
 }: {
   shiftId: string;
   summary: CancelSummary;
-  opener?: "tile" | "small" | "full";
+  opener?: "small" | "full";
 }) {
   const router = useRouter();
   const ready = useHydrated();
@@ -145,15 +145,8 @@ export function CancelShift({
         type="button"
         disabled={!ready}
         onClick={open}
-        className={
-          opener === "tile"
-            ? "flex min-h-17 w-full flex-col items-center justify-center gap-1 rounded-2xl glass-button press-glass px-1.5 py-2 text-center text-base leading-tight font-medium text-urgent-ink hover:bg-urgent-soft disabled:cursor-not-allowed disabled:opacity-60"
-            : opener === "small"
-              ? `${staffBtnSmall} text-urgent-ink`
-              : staffBtn.danger
-        }
+        className={opener === "small" ? `${staffBtnSmall} text-urgent-ink` : staffBtn.danger}
       >
-        {opener === "tile" && <Icon name="dropout" size={24} />}
         Can&apos;t make it?
       </button>
       <Sheet open={asking} onClose={close} labelledBy={titleId} locked={confirming}>

@@ -48,7 +48,7 @@ test("pay needs a code: a wrong one counts down, the right one opens the page", 
   await page.getByLabel("Your code").fill(code);
   await page.getByRole("button", { name: "Check code" }).click();
   // The demo seed's pay lines for this steward: payroll's own figures, the last 8 weeks.
-  await expect(page.getByText("The last 8 weeks, from Acme Events's payroll.")).toBeVisible();
+  await expect(page.getByText("The last 8 weeks, from Acme Events' payroll.")).toBeVisible();
   // Exactly this steward's seeded lines (their hours come from a fixed random seed).
   const mine = expectedPay();
   await expect(page.getByText(/^Pay date: /)).toHaveCount(mine.length);
@@ -59,7 +59,7 @@ test("pay needs a code: a wrong one counts down, the right one opens the page", 
 
   // Still open after a reload (30 minutes).
   await page.reload();
-  await expect(page.getByText("The last 8 weeks, from Acme Events's payroll.")).toBeVisible();
+  await expect(page.getByText("The last 8 weeks, from Acme Events' payroll.")).toBeVisible();
 });
 
 test("pay without logging in goes to the login page", async ({ page }) => {

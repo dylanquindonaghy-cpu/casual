@@ -1,36 +1,45 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import type { NeedsItem } from "@/lib/credentials/status";
+import { initials } from "@/lib/office/board-copy";
 import { timeOnDay } from "@/lib/portal/format";
 import {
-  applyTileText,
+  applyRowText,
   needsRowText,
   offlineUrgentText,
-  payDayTileText,
-  urgentTileText,
-  type TileText,
+  payDayRowText,
+  urgentRowText,
+  type RowText,
 } from "@/lib/portal/home-copy";
 import type { MyShift } from "@/lib/portal/my-shifts";
-import type { OpenShiftsList } from "@/lib/portal/open-shifts";
+import type { OpenShift, OpenShiftsList } from "@/lib/portal/open-shifts";
+import { dateParts, datePartsOfDay } from "@/lib/portal/sign-copy";
 import { AREA_PROMPT, AREA_PROMPT_LINK, TRAVEL_PATH } from "@/lib/portal/travel-copy";
 import { wallTimeOf } from "@/lib/time/zoned";
 import type { StaffPhoto } from "@/lib/uploads/photo";
 import { HomeScreenHint } from "./home-screen-hint";
 import { OfflineNotice } from "./my-shifts-view";
 import { EmptyPass, NextPass } from "./next-pass";
-import { h2 } from "./ui/classes";
+import { staffH2, staffRows, tapRow } from "./ui/classes";
+import { Icon, type IconName } from "./ui/icons";
+import { Plate } from "./ui/plate";
+import { DateTile } from "./ui/sign";
 
-// Home (docs/office-v2.md 4.2; docs/screens.md `/`; 12H.1; Phases 18 and 20), one question:
+// Home (docs/office-v2.md 4.2; docs/screens.md `/`; 12H.1; Phases 18, 20 and 24), one question:
 // "when and where is my next shift, and is there anything I should do?". In this order: "Hi {first
-// name}" and when it was updated; the no-signal notice (shown only in the offline copy); her next
-// shift as a pass with Directions, Details and "Can't make it?" under it (src/app/next-pass.tsx);
-// with nothing booked, an empty pass and "Find a shift"; then "For you" as tiles, each in the
-// colour of what it is: the urgent shifts she can take (or, offline, that they need signal), what
-// needs doing on Profile, her home area to add (while she has none), the other shifts she can
-// apply for, and pay day. Her other booked shifts are on the Shifts tab (`/shifts`).
-// Server-rendered; only "Can't make it?" and the home screen hint are client components.
+// name}" (when it was updated sits at the end of the firm's bar); the no-signal notice (shown only
+// in the offline copy); her next shift as a pass with Directions, Details and "Can't make it?" in
+// it (src/app/next-pass.tsx); with nothing booked, an empty pass and "Find a shift". Then, as round
+// 7 of the canvas has them (24.6), glass cards of rows, each a tile (a date, her initials or an
+// icon), two lines and a chevron: "Do this" (what needs doing on Profile, only when something
+// does), "Shifts you can take" (the urgent shifts she can take, or offline that they need signal;
+// her home area to add while she has none; the other shifts she can apply for) and "Pay" (pay day).
+// Her other booked shifts are on the Shifts tab (`/shifts`). Server-rendered; only "Can't make it?"
+// and the home screen hint are client components.
 
 export interface HomeViewProps {
   firstName: string;
+  lastName: string;
   firmName: string;
   timeZone: string;
   now: Date;
@@ -53,141 +62,220 @@ export function HomeView(props: HomeViewProps) {
   const savedAt = timeOnDay(now, timeZone);
   return (
     <div className="flex flex-col gap-5">
-      <header className="flex items-end justify-between gap-3">
-        <h1 className="font-greet text-4xl text-ink">Hi {firstName}</h1>
-        <p className="pb-1 text-base text-ink-muted tabular-nums">Updated {updated}</p>
+      {/* "Updated 11:20" sits at the end of the firm's bar above (its row's middle is 52px above
+          this header: the bar's 56px row, then the page's 24px top), and scrolls with the page. */}
+      <header className="relative">
+        <h1 className="font-greet text-3xl text-ink">Hi {firstName}</h1>
+        <p
+          data-online-only=""
+          className="absolute right-0 -top-13 -translate-y-1/2 text-base text-ink-muted tabular-nums"
+        >
+          Updated {updated}
+        </p>
       </header>
       <OfflineNotice updated={savedAt} />
-      {props.next ? (
-        <NextPass shift={props.next} timeZone={timeZone} now={now} firmName={props.firmName} />
-      ) : (
-        <EmptyPass />
-      )}
-      <ForYou {...props} savedAt={savedAt} />
+      {props.next ? <NextPass shift={props.next} timeZone={timeZone} now={now} /> : <EmptyPass />}
+      <DoThis {...props} />
+      <ShiftsYouCanTake {...props} savedAt={savedAt} />
+      <PaySection payDay={props.payDay} />
       <HomeScreenHint />
     </div>
   );
 }
 
-// --- For you -------------------------------------------------------------------------------
+// --- The rows ------------------------------------------------------------------------------
 
-// Each tile's colours: what it is about.
-type Tone = "urgent" | "todo" | "wait" | "done" | "quiet";
-const TONE: Record<Tone, string> = {
-  urgent: "bg-urgent-tile text-urgent-ink",
-  todo: "bg-hivis text-on-hivis",
-  wait: "bg-wait-tile text-wait-ink",
-  done: "bg-done-tile text-done-ink",
-  quiet: "bg-raised text-ink",
-};
+// A section of Home: its heading and one glass card of rows.
+function Section({
+  id,
+  title,
+  className = "",
+  children,
+}: {
+  id: string;
+  title: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section aria-labelledby={`${id}-heading`} className="flex animate-in flex-col gap-3">
+      <h2 id={`${id}-heading`} className={`${staffH2} mt-4`}>
+        {title}
+      </h2>
+      <ul
+        role="list"
+        className={[staffRows, "overflow-hidden", className].filter(Boolean).join(" ")}
+      >
+        {children}
+      </ul>
+    </section>
+  );
+}
 
-function Tile({
+// The tile at a row's start: a little glass square with an icon (pale red when urgent).
+function IconTile({ name, urgent = false }: { name: IconName; urgent?: boolean }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`flex size-13 shrink-0 items-center justify-center rounded-[14px] ${
+        urgent ? "bg-urgent-tile text-urgent-ink" : "glass-tile text-ink"
+      }`}
+    >
+      <Icon name={name} size={24} />
+    </span>
+  );
+}
+
+// A shift's day as the row's tile.
+const DayTile = ({
+  day,
+  urgent = false,
+}: {
+  day: { dow: string; day: string };
+  urgent?: boolean;
+}) => <DateTile dow={day.dow} day={day.day} urgent={urgent} />;
+
+// One row: its tile, the words (what it is, then a line), a chevron; the whole row is the link.
+// `kind` marks it for the offline copy and the tests; `extra` carries data-online-only or
+// data-offline-only.
+function Row({
   kind,
   href,
-  tone,
+  lead,
   text,
+  plate,
   extra,
 }: {
   kind: string;
   href?: string;
-  tone: Tone;
-  text: TileText;
+  lead: ReactNode;
+  text: RowText;
+  plate?: ReactNode;
   extra?: Record<string, string>;
 }) {
   const body = (
     <>
-      <span className="text-sm font-semibold">{text.label}</span>
-      <span className="mt-auto pt-3 text-2xl leading-tight font-medium tracking-tight">
-        {text.value}
+      {lead}
+      <span className="min-w-0 flex-1">
+        {plate}
+        {plate && " "}
+        <span className="block text-lg leading-snug font-medium text-ink">{text.title}</span>{" "}
+        <span className="block text-base text-ink-muted">{text.sub}</span>
       </span>
-      {text.caption && <span className="text-sm">{text.caption}</span>}
+      {href && <Icon name="chevron" size={22} className="text-ink-muted" />}
     </>
   );
-  const box = `flex h-full min-h-33 flex-col gap-0.5 rounded-[20px] border border-current/15 px-4 pt-3.5 pb-4 shadow-lift ${TONE[tone]}`;
   return (
     <li {...extra} data-for-you={kind}>
       {href ? (
-        <Link
-          href={href}
-          className={`${box} hover:brightness-[0.97] focus-visible:outline-offset-2`}
-        >
+        <Link href={href} className={`${tapRow} press min-h-20 px-4`}>
           {body}
         </Link>
       ) : (
-        <div className={box}>{body}</div>
+        <div className={`${tapRow} min-h-20 px-4 hover:bg-transparent`}>{body}</div>
       )}
     </li>
   );
 }
 
-function ForYou({
-  timeZone,
-  now,
-  needs,
-  photo,
-  open,
-  savedAt,
-  payDay,
-}: HomeViewProps & { savedAt: string }) {
+// "Do this": what needs doing, worst first (Profile has them all). Her staff photo shows as her
+// initials; a qualification as its icon; something that stops her working is pale red with
+// "Needs doing now" over it. Only when something needs doing.
+function DoThis({ firstName, lastName, timeZone, now, needs, photo }: HomeViewProps) {
+  const need = needsRowText(needs, photo, wallTimeOf(now, timeZone).year);
+  if (!need) return null;
+  const lead = need.photo ? (
+    <span
+      aria-hidden="true"
+      className="glass-tile flex size-13 shrink-0 items-center justify-center rounded-full text-lg font-medium text-ink"
+    >
+      {initials(`${firstName} ${lastName}`)}
+    </span>
+  ) : (
+    <IconTile name={need.urgent ? "urgent" : "notice"} urgent={need.urgent} />
+  );
+  return (
+    <Section id="do-this" title="Do this" className={need.urgent ? "" : "glass-band"}>
+      <Row
+        kind="needs"
+        href={need.href}
+        lead={lead}
+        text={{ title: need.title, sub: need.sub }}
+        plate={
+          need.urgent ? (
+            <Plate tone="urgent" className="mb-1">
+              Needs doing now
+            </Plate>
+          ) : undefined
+        }
+      />
+    </Section>
+  );
+}
+
+const soonest = (shifts: OpenShift[], timeZone: string) => {
+  const first = shifts.reduce<OpenShift | null>(
+    (a, s) => (a === null || s.startsAt.getTime() < a.startsAt.getTime() ? s : a),
+    null,
+  );
+  return first ? dateParts(first.startsAt, timeZone) : null;
+};
+
+// "Shifts you can take": the urgent ones (to the urgent board), the other ones she can apply for
+// (to Open shifts), her home area to add while she has none; offline, that they need signal.
+function ShiftsYouCanTake({ timeZone, open, savedAt }: HomeViewProps & { savedAt: string }) {
   const urgent = open.shifts.filter((s) => s.isUrgent);
   const rest = open.shifts.filter((s) => !s.isUrgent);
-  const need = needsRowText(needs, photo, wallTimeOf(now, timeZone).year);
   const areaPrompt = open.travelOn && !open.area;
+  const urgentDay = soonest(urgent, timeZone);
+  const restDay = soonest(rest, timeZone);
   return (
-    <section aria-labelledby="for-you-heading" className="flex animate-in flex-col gap-2.5">
-      <h2 id="for-you-heading" className={`${h2} mt-2`}>
-        For you
-      </h2>
-      <ul role="list" className="grid grid-cols-2 gap-2.5">
-        {urgent.length > 0 && (
-          <Tile
-            kind="urgent"
-            href="/urgent"
-            tone="urgent"
-            extra={{ "data-online-only": "" }}
-            text={urgentTileText(urgent, open.travelOn && open.area !== null, timeZone)}
-          />
-        )}
-        <Tile
-          kind="offline"
-          tone="quiet"
-          extra={{ "data-offline-only": "" }}
-          text={{
-            label: "Open shifts",
-            value: "Need signal",
-            caption: offlineUrgentText(urgent.length, savedAt),
-          }}
-        />
-        {need && (
-          <Tile
-            kind="needs"
-            href={need.href}
-            tone={need.urgent ? "urgent" : "todo"}
-            text={{
-              label: need.urgent ? "Needs doing now" : "Needs doing",
-              value: need.title,
-              caption: need.sub,
-            }}
-          />
-        )}
-        {areaPrompt && (
-          <Tile
-            kind="area"
-            href={TRAVEL_PATH}
-            tone="wait"
-            extra={{ "data-online-only": "" }}
-            text={{ label: "Your home area", value: AREA_PROMPT_LINK, caption: AREA_PROMPT }}
-          />
-        )}
-        <Tile
-          kind="apply"
-          href="/shifts/open"
-          tone="wait"
+    <Section id="can-take" title="Shifts you can take">
+      {urgent.length > 0 && urgentDay && (
+        <Row
+          kind="urgent"
+          href="/urgent"
           extra={{ "data-online-only": "" }}
-          text={applyTileText(rest, urgent.length > 0, open.offerAlerts, timeZone)}
+          lead={<DayTile day={urgentDay} urgent />}
+          text={urgentRowText(urgent, open.travelOn && open.area !== null, timeZone)}
         />
-        <Tile kind="pay" href="/pay" tone="done" text={payDayTileText(payDay)} />
-      </ul>
-    </section>
+      )}
+      <Row
+        kind="offline"
+        extra={{ "data-offline-only": "" }}
+        lead={<IconTile name="offline" />}
+        text={{ title: "Open shifts need signal", sub: offlineUrgentText(urgent.length, savedAt) }}
+      />
+      {areaPrompt && (
+        <Row
+          kind="area"
+          href={TRAVEL_PATH}
+          extra={{ "data-online-only": "" }}
+          lead={<IconTile name="pin" />}
+          text={{ title: AREA_PROMPT_LINK, sub: AREA_PROMPT }}
+        />
+      )}
+      <Row
+        kind="apply"
+        href="/shifts/open"
+        extra={{ "data-online-only": "" }}
+        lead={restDay ? <DayTile day={restDay} /> : <IconTile name="shifts" />}
+        text={applyRowText(rest, urgent.length > 0, open.offerAlerts, timeZone)}
+      />
+    </Section>
+  );
+}
+
+// "Pay": the Friday this week's shifts are paid (D8), to Pay.
+function PaySection({ payDay }: { payDay: string }) {
+  return (
+    <Section id="pay" title="Pay">
+      <Row
+        kind="pay"
+        href="/pay"
+        lead={<DayTile day={datePartsOfDay(payDay)} />}
+        text={payDayRowText(payDay)}
+      />
+    </Section>
   );
 }

@@ -72,16 +72,35 @@ test("Home (her next shift) and Booked open with no signal, marked as copies; lo
       /^This is your saved copy from \d\d:\d\d on .+\. It updates when you're back online\.$/,
     ),
   ).toBeVisible();
-  // The parts that need signal say so instead (Phase 18: For you's offline row, a tile since Phase
-  // 20; the header's plate).
-  const offline = page.locator('[data-for-you="offline"]');
+  // The parts that need signal say so instead (Phase 18: the offline row, under "Shifts you can
+  // take" since Phase 24; the header's plate), and when it was updated isn't shown.
+  const offline = page
+    .getByRole("region", { name: "Shifts you can take" })
+    .locator('[data-for-you="offline"]');
   await expect(offline).toBeVisible();
-  await expect(offline).toContainText("Open shifts");
-  await expect(offline).toContainText("Need signal");
+  await expect(offline).toContainText("Open shifts need signal");
+  await expect(page.locator('[data-for-you="apply"]')).toBeHidden();
+  await expect(page.getByText(/^Updated \d\d:\d\d$/)).toBeHidden();
   await expect(page.getByTestId("brand-bar").getByText("Offline")).toBeVisible();
   await expect(page.getByText("Taking or cancelling a shift needs signal.")).toBeVisible();
   // The copy still has her next shift in full.
   await expect(page.getByRole("region", { name: "Your next shift" })).toContainText(site);
+  // And the tab bar (Phase 24, 24.6): the floating capsule, its four tabs plain links to their
+  // pages, Home the current one.
+  const tabs = page.getByRole("navigation", { name: "Main" });
+  await expect(tabs.locator(":scope > div")).toBeVisible();
+  const links = tabs.getByRole("link");
+  // (Profile carries her count when something needs doing: "Profile, 1 thing needs doing".)
+  await expect(links).toHaveText(["Home", "Shifts", "Pay", /^\d*Profile$/]);
+  await expect(links.nth(3)).toHaveAccessibleName(/^Profile(, \d+ things? needs? doing)?$/);
+  expect(await links.evaluateAll((as) => as.map((a) => a.getAttribute("href")))).toEqual([
+    "/",
+    "/shifts",
+    "/pay",
+    "/profile",
+  ]);
+  await expect(tabs.getByRole("link", { name: "Home" })).toHaveAttribute("aria-current", "page");
+  await expect(tabs.getByRole("button")).toHaveCount(0);
   await context.setOffline(false);
 
   // Booked, on the Shifts tab, is kept too.

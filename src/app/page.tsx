@@ -37,6 +37,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
         <OfflineCopy enabled={offlineCopyOn(appEnv())} renderedAt={now.getTime()} />
         <HomeView
           firstName={worker.firstName}
+          lastName={worker.lastName}
           firmName={firm.name}
           timeZone={firm.timezone}
           now={now}

@@ -21,6 +21,9 @@ export { STRIKES_TEAM } from "./seed-data";
 //   walkthrough's own workers see stay exactly as they were.
 // - Past sessions for the cancellations (Kieran's two strikes, Priya's flagged for review, Mo's
 //   withdrawn, the office's cancellation of Tom) and two pay groups payroll has sorted.
+// - Pay for Zoe and Ben (Phase 24: the mock-up's Pay): Zoe's last five complete weeks, the newest
+//   with two rates (£324.00 in all), and Ben's last two, the newest with one line payroll gave no
+//   gross for (so no week total shows: only payroll's own grosses).
 // - Ids are fixed and undated: added once, so a re-run changes nothing (`npm run db:reset` moves
 //   the story to a new day).
 
@@ -147,6 +150,19 @@ export interface StoryPayQuery {
   note: string;
 }
 
+// A pay line as payroll's file gives it (pay_records), for a story casual's Pay page (Phase 24).
+// `grossPence` null: payroll gave no gross for that line.
+export interface StoryPay {
+  id: string;
+  workerId: string;
+  periodStart: string;
+  periodEnd: string;
+  hours: string;
+  ratePence: number;
+  grossPence: number | null;
+  payDate: string;
+}
+
 export interface StoryEstimate {
   originPostcode: string;
   siteId: string;
@@ -171,6 +187,7 @@ export interface StorySeed {
   estimates: StoryEstimate[];
   messages: StoryMessage[];
   payQueries: StoryPayQuery[];
+  pay: StoryPay[];
 }
 
 // Two small made-up images (a grey silhouette and a blank card), so the office's pages show a
@@ -998,6 +1015,41 @@ export function acmeStory(firm: SeedFirm, now: Date): StorySeed {
     ),
   ];
 
+  // Pay: complete Monday-to-Sunday weeks before this one, paid the Friday after (D8), as payroll's
+  // file gives them. Week 1 is the last complete week. Undated ids: added once.
+  const thisMonday = addDays(today, -((new Date(`${today}T12:00:00Z`).getUTCDay() + 6) % 7));
+  const payLine = (
+    key: StoryKey,
+    week: number,
+    hours: number,
+    ratePence: number,
+    gross: "given" | "not given" = "given",
+  ): StoryPay => {
+    const periodStart = addDays(thisMonday, -7 * week);
+    const periodEnd = addDays(periodStart, 6);
+    return {
+      id: id(`pay/${key}/${week}/${ratePence}`),
+      workerId: w(key),
+      periodStart,
+      periodEnd,
+      hours: hours.toFixed(2),
+      ratePence,
+      grossPence: gross === "given" ? Math.round(hours * ratePence) : null,
+      payDate: addDays(periodEnd, 5),
+    };
+  };
+  const pay: StoryPay[] = [
+    payLine("zoe", 1, 16, 1250),
+    payLine("zoe", 1, 8, 1550),
+    payLine("zoe", 2, 16, 1250),
+    payLine("zoe", 3, 24, 1250),
+    payLine("zoe", 4, 8, 1550),
+    payLine("zoe", 5, 16, 1250),
+    payLine("ben", 1, 12, 1260),
+    payLine("ben", 1, 4, 1550, "not given"),
+    payLine("ben", 2, 6, 1260),
+  ];
+
   return {
     today,
     sites,
@@ -1012,6 +1064,7 @@ export function acmeStory(firm: SeedFirm, now: Date): StorySeed {
     estimates,
     messages,
     payQueries,
+    pay,
   };
 }
 

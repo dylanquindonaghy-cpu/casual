@@ -309,6 +309,17 @@ const PATHS = {
   // "open the whole list" (an arrow up and to the right).
   leaf: <path d="M5 19C5 10 10 4 20 4c0 10-6 15-15 15z" fill="currentColor" stroke="none" />,
   out: <path d="M7 17 17 7M8 7h9v9" />,
+  // Phase 24 (round 7's casual app): an open shift's travel line (a car, as the line always gives
+  // the drive), "Site and role" (the filters), and a shift's "Open in maps" (a folded map).
+  car: (
+    <>
+      <path d="M5 11l1.5-4a2 2 0 0 1 1.9-1.3h7.2a2 2 0 0 1 1.9 1.3L19 11" />
+      <rect x="3.5" y="11" width="17" height="6" rx="2" />
+      <path d="M6.5 17v2M17.5 17v2M7.5 14h.01M16.5 14h.01" />
+    </>
+  ),
+  filter: <path d="M4 7h16M7 12h10M10 17h4" />,
+  map: <path d="M9 4.5 3.5 6.5v13l5.5-2 6 2 5.5-2v-13l-5.5 2zM9 4.5v13M15 6.5v13" />,
   // ShiftDesk's own mark, in the office's top bar: a calendar with a tick.
   mark: (
     <>

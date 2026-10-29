@@ -103,7 +103,8 @@ export async function loginWithLink(
 
 export interface WorkerSession {
   session: ActiveSession;
-  worker: { id: string; firstName: string };
+  // Her last name for her initials beside "Renew your staff photo" on Home (Phase 24).
+  worker: { id: string; firstName: string; lastName: string };
 }
 
 export async function currentWorker(
@@ -116,7 +117,7 @@ export async function currentWorker(
     const session = await findSession(tx, { kind: "worker", token, now });
     if (!session) return null;
     const [worker] = await tx
-      .select({ id: workers.id, firstName: workers.firstName })
+      .select({ id: workers.id, firstName: workers.firstName, lastName: workers.lastName })
       .from(workers)
       .where(eq(workers.id, session.subjectId));
     return worker ? { session, worker } : null;

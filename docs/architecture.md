@@ -390,8 +390,9 @@ stays out of the rules engine. Personal enquiry replies (12D.2) must use the sam
 
 **Pay query**
 1. Worker (after OTP) fills a structured form.
-2. Code assigns grouping keys: the issue and the week, plus the pay line's rate for a wrong
-   rate or the site for missing hours (`src/lib/pay/grouping.ts`). Haiku writes a one-line
+2. Code assigns grouping keys: the issue and the week (the firm's pay period, so a fortnight
+   is one pay run: P3.1), plus the pay line's rate for a wrong rate or the site for missing hours
+   (`src/lib/pay/grouping.ts`). Haiku writes a one-line
    summary per group from the group's facts only, checked before use, with the app's own line as
    the fallback and always shown as the heading (the Anthropic client is built, Phase 12 task
    12X.3, and off until `AI_TRANSPORT=anthropic`). The app stops waiting after 5 seconds

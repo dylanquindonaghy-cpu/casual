@@ -218,6 +218,37 @@ describe("stable keys", () => {
     expect(await t.keyOf(c)).toBe("pay1:wrong_rate:2026-10-26:rate:none");
   });
 
+  it("on the firm's pay calendar (P3.1): a fortnight's queries share a key, and a new calendar regroups them", async () => {
+    const t = await groupingFirm();
+    // Wed 21 and Fri 30 October: two weeks apart, so two groups on ISO weeks.
+    const a = await t.raise(t.ann, { day: "2026-10-21", issue: "late_pay" });
+    const b = await t.raise(t.ben, { day: "2026-10-30", issue: "late_pay" });
+    expect([await t.keyOf(a), await t.keyOf(b)]).toEqual([
+      "pay1:late_pay:2026-10-19",
+      "pay1:late_pay:2026-10-26",
+    ]);
+    // The owner sets made-up fortnights from Mon 19 October: one pay run, one key. The open
+    // queries follow at the next regroup; one raised now is keyed on the fortnight at once.
+    await su.query(
+      `update firms set settings = settings || '{"pay_calendar": {"days": 14, "anchor": "2026-10-19"}}'
+        where id = $1`,
+      [t.f.firmId],
+    );
+    expect(await withFirm(t.f.firmId, (tx) => regroupPayQueries(tx))).toEqual({ changed: 1 });
+    const c = await t.raise(t.cal, { day: "2026-11-01", issue: "late_pay" });
+    expect([await t.keyOf(a), await t.keyOf(b), await t.keyOf(c)]).toEqual([
+      "pay1:late_pay:2026-10-19",
+      "pay1:late_pay:2026-10-19",
+      "pay1:late_pay:2026-10-19",
+    ]);
+    const { groups } = await withFirm(t.f.firmId, (tx) => loadPayQueryGroups(tx));
+    expect(groups.map((g) => [g.key, g.queries.length])).toEqual([["pay1:late_pay:2026-10-19", 3]]);
+    // Monday 2 November starts the next fortnight.
+    const d = await t.raise(t.ann, { day: "2026-11-02", issue: "late_pay" });
+    expect(await t.keyOf(d)).toBe("pay1:late_pay:2026-11-02");
+    expect(await t.regroupedEvents()).toEqual([{ changed: 1 }]);
+  });
+
   it("two firms with the same facts get the same key text, but never share a group", async () => {
     const one = await groupingFirm();
     const two = await groupingFirm();

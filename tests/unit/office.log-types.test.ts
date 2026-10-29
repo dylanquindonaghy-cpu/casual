@@ -61,6 +61,11 @@ const NOT_EVENTS = new Set<string>([
   "travel.default_max_minutes",
   // The owner's staff photo renewal (12F.2), in src/lib/onboarding/settings.ts.
   "photo.renewal_months",
+  // The owner's pay calendar (P3.1), in src/lib/onboarding/settings.ts.
+  "pay_calendar.days",
+  "pay_calendar.anchor",
+  "pay_calendar.pay_day_after",
+  "pay_calendar.label",
   // The one field asked of Google Sheets for a spreadsheet's locale (src/lib/roster/sheets/google.ts).
   "properties.locale",
   // The evidence email's job queue (src/lib/strikes/evidence-queue.ts, 12C.4; the task's own name).

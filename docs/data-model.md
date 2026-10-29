@@ -105,6 +105,19 @@ code goes by email (`docs/messaging-templates.md` "Email to casuals"); off, or n
 is made and the miss is logged (`no_channel`). With a text sender they go by WhatsApp either way.
 Leave it off until the login and Pay pages stop naming WhatsApp (P2.7).
 
+`pay_calendar` (P3.1, `src/lib/pay/calendar.ts`; "Connecting the firm's systems" 1, replacing
+D8): `{ "days": 14, "anchor": "2026-03-02", "pay_day_after": 5, "label": "cycle" }`, the firm's pay
+periods: 7 or 14 days counted from `anchor`, a Monday that starts period 1 (needed for 14), each
+paid `pay_day_after` days after it ends on a Sunday (0 to 27; 5 is the Friday after), called
+`week` or `cycle` (the default: week for 7 days, cycle for 14). Read whole: nothing set, or
+anything the app can't read, is today's rule, ISO weeks, Monday to Sunday, paid the Friday after.
+Set by the owner with `npm run firm:settings` (`pay_calendar.days`, `.anchor`, `.pay_day_after`,
+`.label`), which refuses a part that would leave the whole unreadable (fortnights without their
+start). A period's number counts on from the anchor's (1) across New Year; the year-end rule waits
+for the firm's payroll (`docs/discovery-axlr8.md` §5.5). Pay-query grouping uses it now; the top
+bar, the dashboards and Home after the UI chat's Phase 24 (P3), so leave a live firm on weeks
+until then.
+
 (The 48-hour short-notice threshold is a placeholder until the 2027 regulations are final.)
 
 `strikes` (12B.7): `{ "email": "…", "email_verified_at": "2026-11-02T09:00:00.000Z" }`, the
@@ -741,8 +754,9 @@ create table pay_queries (
   work_date date not null,               -- the day the question is about (firm time)
   issue_type text not null,              -- missing_hours | wrong_rate | late_pay | other
   details text,                          -- 1-1000 characters, or null
-  group_key text,                        -- set by code (src/lib/pay/grouping.ts): the issue and the week, plus
-                                         -- the pay line's rate (wrong rate) or the site (hours missing); "pay1:" versioned
+  group_key text,                        -- set by code (src/lib/pay/grouping.ts): the issue and the week (the
+                                         -- first Monday of the firm's pay period, P3.1), plus the pay line's
+                                         -- rate (wrong rate) or the site (hours missing); "pay1:" versioned
   status text not null default 'open',   -- open | in_digest | resolved
   resolved_by uuid,                      -- (firm_id, resolved_by) -> office_users: who sorted it
   resolved_at timestamptz,               -- when payroll sorted it

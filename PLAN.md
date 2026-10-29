@@ -1917,9 +1917,9 @@ page, and no casual-facing words beyond those Dylan approves. The proposal's ite
 - [ ] Pay calendar (S): `payPeriod(day, calendar)` beside `payWeek()` (`src/lib/pay/pay-week.ts`,
       pure; with no calendar set, exactly today's ISO week paid the Friday after); an owner setting
       `pay_calendar` (7 or 14 days, an anchor Monday, the pay day as days after the period ends,
-      the label Week or Cycle) through `src/lib/onboarding/settings.ts` with its database check
-      (like `drizzle/0037_firm_setting_checks.sql`); pay-query grouping (`src/lib/pay/grouping.ts`)
-      by the firm's pay period. Tests: made-up anchors, the 53-week year (2026), the clock change,
+      the label Week or Cycle) through `src/lib/onboarding/settings.ts` (no database check: like
+      every owner setting, the app can't write it, `app_set_firm_setting()` taking only its own
+      keys); pay-query grouping (`src/lib/pay/grouping.ts`) by the firm's pay period. Tests: made-up anchors, the 53-week year (2026), the clock change,
       a firm without a calendar unchanged (P3.1)
 - [ ] Name map per firm (S, T): a table of outside names (role, qualification, staff type,
       cancellation reason) each mapped to a ShiftDesk code (a role with its pay rate) or to skip,

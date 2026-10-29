@@ -225,6 +225,11 @@ describe("a firm's settings", () => {
       "travel.default_max_minutes": [45, "default"],
       // Staff photo (12F.2): how often it's renewed.
       "photo.renewal_months": [36, "default"],
+      // The pay calendar (P3.1): ISO weeks, paid the Friday after, until the owner sets one.
+      "pay_calendar.days": [7, "default"],
+      "pay_calendar.anchor": ["none", "default"],
+      "pay_calendar.pay_day_after": [5, "default"],
+      "pay_calendar.label": ["week", "default"],
     });
     expect(await readFirmSettings(urls.admin, "no-such-firm")).toEqual({ status: "no_firm" });
   });
@@ -319,6 +324,16 @@ describe("a firm's settings", () => {
       ["firm_system_sends", "1"],
       ["login_by_email", "on"],
       ["urgent_window_hours", ""],
+      // The pay calendar (P3.1): fortnights need their start first; a start is a real Monday.
+      ["pay_calendar.days", "14"],
+      ["pay_calendar.days", "10"],
+      ["pay_calendar.anchor", "2026-03-03"],
+      ["pay_calendar.anchor", "2026-02-30"],
+      ["pay_calendar.anchor", "2 March 2026"],
+      ["pay_calendar.pay_day_after", "28"],
+      ["pay_calendar.pay_day_after", "2.5"],
+      ["pay_calendar.label", "fortnight"],
+      ["pay_calendar.label", ""],
     ] as const) {
       expect(await setFirmSettings(urls.admin, f.slug, [[key, value]]), `${key}=${value}`).toEqual({
         status: "bad",
@@ -352,6 +367,72 @@ describe("a firm's settings", () => {
       status: "saved",
       keys: ["wave_minutes"],
     });
+  });
+
+  it("the pay calendar (P3.1): a start, then fortnights; read whole, so nothing leaves it half set", async () => {
+    const f = await created();
+    const stored = async () =>
+      (
+        await su.query<{ settings: Record<string, unknown> }>(
+          "select settings from firms where id = $1",
+          [f.firmId],
+        )
+      ).rows[0]?.settings;
+    // A made-up start (a Monday), then 14 days, in one run: fortnights, called Cycle by default.
+    expect(
+      await setFirmSettings(urls.admin, f.slug, [
+        ["pay_calendar.anchor", "2026-03-02"],
+        ["pay_calendar.days", "14"],
+      ]),
+    ).toMatchObject({
+      status: "saved",
+      keys: ["pay_calendar.days", "pay_calendar.anchor", "pay_calendar.label"],
+    });
+    expect(await stored()).toEqual({ pay_calendar: { anchor: "2026-03-02", days: 14 } });
+    const read = await readFirmSettings(urls.admin, f.slug);
+    if (read.status !== "ok") throw new Error(read.status);
+    expect(
+      read.settings.filter((s) => s.key.startsWith("pay_calendar.")).map((s) => [s.key, s.value]),
+    ).toEqual([
+      ["pay_calendar.days", 14],
+      ["pay_calendar.anchor", "2026-03-02"],
+      ["pay_calendar.pay_day_after", 5],
+      ["pay_calendar.label", "cycle"],
+    ]);
+    // Removing the start from fortnights would put the firm back on ISO weeks without a word.
+    expect(await setFirmSettings(urls.admin, f.slug, [["pay_calendar.anchor", "none"]])).toEqual({
+      status: "bad",
+      key: "pay_calendar.anchor",
+    });
+    // Paid 12 days after, called Week: kept beside the rest.
+    expect(
+      await setFirmSettings(urls.admin, f.slug, [
+        ["pay_calendar.pay_day_after", "12"],
+        ["pay_calendar.label", "week"],
+      ]),
+    ).toMatchObject({ status: "saved" });
+    expect(await stored()).toEqual({
+      pay_calendar: { anchor: "2026-03-02", days: 14, pay_day_after: 12, label: "week" },
+    });
+    // Back to weeks, then no start: ISO weeks again, paid 12 days after the Sunday.
+    expect(
+      await setFirmSettings(urls.admin, f.slug, [
+        ["pay_calendar.days", "7"],
+        ["pay_calendar.anchor", "none"],
+      ]),
+    ).toMatchObject({ status: "saved" });
+    expect(await stored()).toEqual({
+      pay_calendar: { days: 7, pay_day_after: 12, label: "week" },
+    });
+    // A calendar edited by hand into something the app can't read starts afresh from one part.
+    await su.query(
+      `update firms set settings = '{"pay_calendar": {"days": 14, "anchor": "Monday"}}' where id = $1`,
+      [f.firmId],
+    );
+    expect(
+      await setFirmSettings(urls.admin, f.slug, [["pay_calendar.anchor", "2026-03-02"]]),
+    ).toMatchObject({ status: "saved" });
+    expect(await stored()).toEqual({ pay_calendar: { anchor: "2026-03-02" } });
   });
 });
 

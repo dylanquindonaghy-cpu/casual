@@ -131,7 +131,8 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
 - `pay.grouping.test.ts` — group keys stable; AI summary failure falls back cleanly. Built in Phase 6
   (`tests/integration/pay.grouping.test.ts`, on the real database): the same facts give the same key
   whoever raises it, whatever they write, whenever and in any order; the firm's week (Monday and
-  Sunday together, across the clocks going back); regrouping and re-importing the same pay file
+  Sunday together, across the clocks going back); on a firm's pay calendar (P3.1), one key for a
+  fortnight, and its open queries regrouped when the calendar is set; regrouping and re-importing the same pay file
   change nothing; keys move only when their facts do (open and in-digest queries, never sorted
   ones); two firms' same facts give the same key text but separate groups. In the digest job, an AI
   that throws, hangs (the 5-second timeout, `AI_SUMMARY_TIMEOUT_MS`), answers late, answers
@@ -139,6 +140,13 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   with no AI, word for word; a failure for some groups leaves just those without a line. The key
   rules and the summary's check are also unit-tested (`tests/unit/pay.group-keys.test.ts`,
   `tests/unit/ai.pay-summary.test.ts`).
+- `pay.calendar.test.ts` (P3.1, unit) — the firm's pay calendar (`src/lib/pay/calendar.ts`): with
+  none set, exactly today's ISO weeks for every day of 2026 (53 weeks) and 2027; made-up fortnights
+  from an anchor, numbered from it across New Year, with no number before it; weeks from an anchor;
+  the pay day any number of days after; the firm's date across both clock changes; every setting
+  it can't read falling back whole. Setting it with `firm:settings` is in
+  `tests/integration/onboarding.test.ts` (a start then fortnights; fortnights without a start
+  refused; a hand-edited one started afresh).
 - `ai.anthropic.test.ts` (built, 12X.3; P4.6 under load) — the Anthropic client on a fake `fetch`.
   Since P4.6: at most 4 calls at once, the rest in order; one still waiting after its 5 seconds
   turned away (`busy`) without calling the API; the breaker opening after 5 failed calls in a row,

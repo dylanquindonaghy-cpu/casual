@@ -3,6 +3,7 @@ import { autoRepliesOn } from "../inbound/limits";
 import { firmSystemSends } from "../notices/who-sends";
 import { escalateHours, firstComeWaves, WAVE_MAX } from "../offers/waves";
 import { shortNoticeThreshold } from "../office/notice-report";
+import { PAY_DAY_AFTER_MAX, payCalendar, readPayCalendar } from "../pay/calendar";
 import { parseAllocationSettings } from "../roster/allocation-input";
 import { ALLOCATION_MODES } from "../rules/allocation";
 import { quietHours } from "../rules/quiet-hours";
@@ -45,6 +46,10 @@ export const SETTING_KEYS = [
   "travel.enabled",
   "travel.default_max_minutes",
   "photo.renewal_months",
+  "pay_calendar.days",
+  "pay_calendar.anchor",
+  "pay_calendar.pay_day_after",
+  "pay_calendar.label",
 ] as const;
 export type SettingKey = (typeof SETTING_KEYS)[number];
 export type SettingValue = string | number | boolean;
@@ -93,6 +98,10 @@ const READ: Record<SettingKey, (s: Settings) => SettingValue> = {
   "travel.enabled": (s) => travelSettings(s).enabled,
   "travel.default_max_minutes": (s) => travelSettings(s).defaultMaxMinutes,
   "photo.renewal_months": (s) => photoSettings(s).renewalMonths,
+  "pay_calendar.days": (s) => payCalendar(s).days,
+  "pay_calendar.anchor": (s) => payCalendar(s).anchor ?? "none",
+  "pay_calendar.pay_day_after": (s) => payCalendar(s).payDayAfter,
+  "pay_calendar.label": (s) => payCalendar(s).label,
 };
 
 // What each key means, for the command's output.
@@ -125,6 +134,13 @@ export const SETTING_WORDS: Record<SettingKey, string> = {
   "travel.default_max_minutes":
     "a casual's travel time limit until they choose their own (30, 45, 60 or 90 minutes)",
   "photo.renewal_months": `months before a casual's staff photo is due again, from the day the current one was uploaded (${PHOTO_RENEWAL_LIMITS.min} to ${PHOTO_RENEWAL_LIMITS.max})`,
+  "pay_calendar.days":
+    "days in each pay period: 7 or 14 (14 needs pay_calendar.anchor first; 7 with no anchor, the default, is the ISO week)",
+  "pay_calendar.anchor":
+    "the Monday that starts pay period 1 (yyyy-mm-dd), counted on from there; none, the default: ISO weeks",
+  "pay_calendar.pay_day_after": `the pay day, as days after a period's last day, a Sunday (0 to ${PAY_DAY_AFTER_MAX}; 5, the default: the Friday after)`,
+  "pay_calendar.label":
+    "what a pay period is called: week or cycle (the default: week for 7 days, cycle for 14)",
 };
 
 const stored = (s: Settings, key: SettingKey): unknown => {
@@ -157,7 +173,13 @@ export function effectiveSettings(s: Settings): EffectiveSetting[] {
 function parseValue(key: SettingKey, raw: string): SettingValue | null {
   const text = raw.trim();
   if (key === "retention.hold_until") return text === "" ? null : text;
-  if (key === "allocation_mode" || key === "quiet_hours.start" || key === "quiet_hours.end") {
+  if (
+    key === "allocation_mode" ||
+    key === "quiet_hours.start" ||
+    key === "quiet_hours.end" ||
+    key === "pay_calendar.anchor" ||
+    key === "pay_calendar.label"
+  ) {
     return text === "" ? null : text;
   }
   if (
@@ -200,6 +222,15 @@ export function applySetting(s: Settings, key: SettingKey, raw: string): Setting
     const part = key.slice("photo.".length);
     const inner = s.photo && typeof s.photo === "object" ? (s.photo as Settings) : {};
     next = { ...s, photo: { ...inner, [part]: value } };
+  } else if (key.startsWith("pay_calendar.")) {
+    // Read whole: the parts already set are kept as they are (an unreadable calendar starts
+    // afresh), and an anchor of "none" removes it.
+    const part = key.slice("pay_calendar.".length);
+    const inner =
+      readPayCalendar(s.pay_calendar) !== null ? { ...(s.pay_calendar as Settings) } : {};
+    if (part === "anchor" && value === "none") delete inner.anchor;
+    else inner[part] = value;
+    next = { ...s, pay_calendar: inner };
   } else if (key.startsWith("quiet_hours.")) {
     // The app reads quiet hours whole (a start without an end is ignored), so the other parts are
     // kept as the app reads them now.
@@ -215,6 +246,12 @@ export function applySetting(s: Settings, key: SettingKey, raw: string): Setting
     parseAllocationSettings(next);
     // A strike's record must outlast its counting by 6 months (the tribunal time limit).
     if (key.startsWith("strikes.") && !keepCoversLive(strikeSettings(next))) return null;
+    // A part that leaves the whole calendar unreadable (an anchor removed from fortnights) would
+    // put the firm back on ISO weeks without saying so.
+    if (key.startsWith("pay_calendar.")) {
+      const c = next.pay_calendar as Settings;
+      if (Object.keys(c).length > 0 && readPayCalendar(c) === null) return null;
+    }
   } catch {
     return null;
   }

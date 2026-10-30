@@ -996,9 +996,9 @@ system (`roster_sources` kind `connector`; P5) was read as a Google Sheet. Now:
 - The portal's names: "the demo portal" (the made-up one the tests use; a real one's name comes
   with it).
 
-**The staffing inbox in Enquiries (P7.4 and P7.5; Phase 25.5; the mock-up named in `PLAN.md`
-25.5, built as recommended: Dylan, 2026-10-30, "just do what you would recommend stop prompting me
-and build it").** The firm's staffing mailbox forwards to its inbox address (P7); each email is
+**The staffing inbox in Enquiries (P7.4 and P7.5; Phase 25.5; the mock-up
+https://claude.ai/artifact/VAnarrjGdN81yJnuydWa8d, built as recommended: Dylan, 2026-10-30, "just
+do what you would recommend stop prompting me and build it").** The firm's staffing mailbox forwards to its inbox address (P7); each email is
 sorted as the shifts line sorts a message and shows in Enquiries beside the shifts line's
 messages. Mail that isn't from one of the firm's casuals (clients, venues, applicants) is left for
 the firm's own inbox, where it already is: listed, never in Need a person, its words not kept. The

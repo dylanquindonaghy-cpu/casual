@@ -54,7 +54,8 @@ architecture.md, Tenancy).
 | api_keys | A planner's API keys: a label, the key's sha256 and last 4 characters (never the key), who made and revoked it, when last used (12J.1, S11) | 12 |
 | firm_secrets | A firm's own credentials for its systems (its ops portal's API key, its webhook secret), each sealed under a key the database never sees (P5.1, ADR-026) | P5 |
 | connector_events | What a connector's source said changed (a session or a staff record, by its ref), one row per event id per source, and what the job made of it (P5.3) | P5 |
-| inbound_emails | Emails to a firm's staffing inbox, one row per Message-ID: who it's from, and only a known casual's subject and words, quoted history taken off; how many attachments were left out (P7.1) | P7 |
+| inbound_emails | Emails to a firm's staffing inbox, one row per Message-ID: who it's from, and only a known casual's subject and words, quoted history taken off; how many attachments were left out (P7.1); how its job handled it, and the AI's draft of the office's reply (P7.4, P7.5) | P7 |
+| email_replies | What went back about an email, as sent: the automatic link email or the office's reply, to the address the firm held for the casual then; added once, never changed (whether it went is in the log); deleted with its email (Phase 25.5) | P7 |
 | push_subscriptions | Web push endpoints per worker | 4 |
 | roster_sources | Where a firm's rota lives when it isn't our tables: a Google Sheet (its id, column mapping) or a connector to the firm's own system (which one, its base address; P5.2), with the last sync, error code and sync lease | 2 |
 | name_map | What the firm's own system calls a role, qualification, staff type or cancellation reason, mapped to a ShiftDesk code or to skip (P3.2) | P3 |
@@ -1083,8 +1084,29 @@ create table inbound_emails (
                                          -- taken off, <= 4000
   attachments integer not null default 0, -- how many were left out (never kept)
   handled_as text, intent text, handled_at timestamptz, -- set once by its job (P7.4)
+  draft_reply text,                      -- the AI's draft of the office's reply (P7.5), 1..1200;
+                                         -- only a known casual's, once handled, never for pay
   created_at timestamptz not null default now(),
   unique (firm_id, provider_message_id)
+);
+
+-- What went back to a casual about their email (P7.5; Phase 25.5): the automatic link email (its
+-- `template`) or the office's reply (`sent_by`, and whether it began as the AI's draft), as it was
+-- sent, to the address the firm held for them then. Added once, never changed: whether it went is in
+-- the action log. Deleted with its email (on delete cascade: the purge and app_erase_worker()).
+create table email_replies (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  inbound_email_id uuid not null,        -- (firm_id, inbound_email_id) -> inbound_emails, cascade
+  worker_id uuid not null,               -- (firm_id, worker_id) -> workers
+  kind text not null,                    -- automatic | office
+  template text,                         -- automatic: shifts | cancel | pay
+  sent_by uuid,                          -- office: (firm_id, sent_by) -> office_users
+  from_draft boolean not null default false, -- office: began as the AI's draft
+  to_address text not null,              -- the address on file, lower case
+  subject text not null,                 -- 1..200
+  body text not null,                    -- 1..4000, as sent
+  created_at timestamptz not null default now()
 );
 
 create table api_keys (

@@ -958,7 +958,15 @@ touches schema, auth, tenancy, messaging or rules; `/close-task` ticks it.
       link to them; the dashboard's "Updated {time} from your planner" (25.4)
 - [ ] P7.4 and P7.5: the inbox's sorting once Dylan approves the office log's words, then Enquiries
       showing emails with the AI-drafted reply the office approves, the casual's answer by a link to
-      their known address, the pay question's link and the 3-hourly summary, their words first (25.5)
+      their known address, the pay question's link and the 3-hourly summary, their words first. The
+      mock-up (https://claude.ai/artifact/VAnarrjGdN81yJnuydWa8d), built as recommended (Dylan,
+      2026-10-30: "just do what you would recommend stop prompting me and build it"): emails beside
+      messages on Enquiries; one not from a casual left for the firm's own inbox, never in Need a
+      person; the link emails to the address on file (Reply-To the inbox, at most 3 a casual a day);
+      the AI's draft for the office to check and send (never for pay or money; a new AI use, its
+      tripwire test extended); the office's summary every 3 hours of the firm's day; a small table
+      (`email_replies`: `firm_id`, RLS, a `TABLE_ACCESS` entry, isolation fixtures, deleted with its
+      email; S, T) and the draft on the email (25.5)
 - [ ] P8: the in-app chat: the casual's chat screen and the office's thread in Enquiries (mock-ups
       first), the `app` channel, notifications for a reply, and its guards (25.6)
 

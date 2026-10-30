@@ -33,9 +33,9 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   - A cancellation from the system tells the casual nothing and starts no offers (as a name taken
     off the rota sheet): the firm's system made it, and fills the gap there.
 - The staffing inbox (P7's review), before it's live: the purge's and the erasure's log entries
-  count messages only (`retention.purged`, `worker.erased`), not the emails they take too (the
-  owner-run functions return one count, and the office's words for the log would need an emails
-  count: with P7.4's words); the privacy notice's line for the inbox (that the firm's staffing
+  count messages only (`retention.purged`, `worker.erased`), not the emails they take too, nor
+  their replies (`email_replies`, deleted with them: Phase 25.5) (the owner-run functions return
+  one count; an emails count needs a migration of both and the log's words); the privacy notice's line for the inbox (that the firm's staffing
   emails are kept 90 days, a casual's words only) is Dylan's, before any firm's inbox goes live;
   and a casual's words are taken as theirs on the provider's DMARC word, so the provider chosen
   (its ADR) must give one. And an email stored first without that word stays so when the same
@@ -2075,3 +2075,13 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   Integrations says why the last read failed, but nothing calls the office there. An item like the
   webhook's ("Your planner's webhook is failing") once reads have failed for, say, an hour; words
   first. With the real connector.
+- **The staffing inbox's loose ends** (Phase 25.5, 2026-10-30):
+  - A link email that fails (`email.reply_failed`) leaves the email as answered by keyword or AI,
+    its page saying "Not sent ({code})", as the shifts line's automatic reply does: neither goes
+    back to Need a person. Worth doing for both together, words first.
+  - A casual's reply to our email goes to the firm's inbox address at our provider (its Reply-To),
+    so it reaches Enquiries but not the firm's own mailbox. With the real provider: whether to copy
+    it to the firm's mailbox too.
+  - The AI's draft is made for every email that needs a person (when the AI is connected), read or
+    not: a few hundred tokens each on Haiku. If a firm's volume makes that matter, draft when the
+    office first opens it instead.

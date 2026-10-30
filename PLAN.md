@@ -914,7 +914,7 @@ skills in `.claude/skills/`) and is built only once Dylan approves it; its new w
 `docs/screens.md` or `docs/messaging-templates.md` first; the `guardrails-reviewer` runs where it
 touches schema, auth, tenancy, messaging or rules; `/close-task` ticks it.
 
-- [ ] P2.7: the login page, the Pay code step, Help and the profile's "How we reach you" say how
+- [x] P2.7: the login page, the Pay code step, Help and the profile's "How we reach you" say how
       links and codes really go: by WhatsApp or text while there's a text sender (today's words),
       by email with `login_by_email` on, and with neither, that they can't be sent (no form, no code
       button) instead of promising one. The web app reads only whether there's a text sender

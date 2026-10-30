@@ -10,13 +10,15 @@ import { getTransport } from "../messaging";
 import {
   changeWords,
   firmChangePush,
+  shiftCancelledByFirmEmailSubject,
   shiftCancelledByFirmMessage,
+  shiftChangedByFirmEmailSubject,
   shiftChangedByFirmMessage,
 } from "../messaging/templates";
 import {
-  pushToWorker,
+  deliverToWorker,
   recordPushes,
-  sendToWorker,
+  type DeliveryChannel,
   type NotifyDeps,
   type WorkerChannel,
   smsAllowedFor,
@@ -36,8 +38,10 @@ import { localDateOf, wallTimeOf } from "../time/zoned";
 //
 // At most once, like shift reminders: (1) a short transaction claims the notice (the
 // shift.change_notice event, under an advisory lock on the booking) and commits; (2) the message goes
-// outside any transaction, by the worker's channel with the WhatsApp-to-text fallback, then the
-// push to their phones; (3) a second short transaction logs shift.change_notice_sent or _failed. A job that
+// outside any transaction: a push to their phones and, as well (the proof of the notice given:
+// Dylan, 2026-10-29), by their channel with the WhatsApp-to-text fallback, else email
+// (deliverToWorker with proofOfNotice, P2.4); (3) a second short transaction logs
+// shift.change_notice_sent or _failed. A job that
 // stops part-way leaves the claim: the notice may have gone, so it's never sent again.
 //
 // Quiet hours: a change to a shift starting within the firm's urgent window (as it was, or as it is
@@ -84,7 +88,7 @@ export interface NoticeDeps extends NotifyDeps {
 }
 
 export type NoticeResult =
-  | { status: "sent"; channel: WorkerChannel }
+  | { status: "sent"; channel: DeliveryChannel }
   | { status: "failed" }
   | { status: "held"; until: Date }
   | { status: "already" }
@@ -118,6 +122,7 @@ type Claim =
       body: string;
       from: string | null; // the firm's shifts line
       push: { title: string; body: string; url: string };
+      email: { to: string; subject: string; body: string } | null; // P2.4
     }
   | Exclude<NoticeResult, { status: "sent" } | { status: "failed" }>;
 
@@ -153,6 +158,7 @@ async function claimNotice(
       mobile: workers.mobileE164,
       channel: workers.notifyChannel,
       smsOptedOutAt: workers.smsOptedOutAt,
+      email: workers.email,
       shiftId: shifts.id,
       startsAt: shifts.startsAt,
       endsAt: shifts.endsAt,
@@ -290,6 +296,7 @@ async function claimNotice(
   const toldSite = await siteName(tx, told.siteId);
   let body: string;
   let push: { title: string; body: string; url: string };
+  let subject: string; // by email (P2.4)
   if (change.action === "shift.cancelled") {
     const start = hhmm(told.start, tz);
     body = shiftCancelledByFirmMessage(voice, {
@@ -300,6 +307,7 @@ async function claimNotice(
       link: `${base}/shifts/open`,
     });
     push = { ...firmChangePush({ kind: "cancelled", date, start }), url: "/shifts/open" };
+    subject = shiftCancelledByFirmEmailSubject({ date });
   } else {
     const curtailed =
       !siteChanged &&
@@ -324,6 +332,7 @@ async function claimNotice(
       ...firmChangePush({ kind: "changed", date, change: change_ }),
       url: `/shifts/${row.shiftId}`,
     };
+    subject = shiftChangedByFirmEmailSubject({ date });
   }
 
   await recordEvent(tx, {
@@ -342,6 +351,7 @@ async function claimNotice(
     body,
     from: row.line,
     push,
+    email: row.email ? { to: row.email, subject, body } : null,
   };
 }
 
@@ -353,18 +363,22 @@ export async function runFirmChangeNotice(
   const now = deps.clock.now();
   const claim = await run(payload.firmId, (tx) => claimNotice(tx, payload, deps, now));
   if (claim.status !== "send") return claim;
-  const sent = await sendToWorker(deps, {
-    mobile: claim.mobile,
-    channel: claim.channel,
-    smsAllowed: claim.smsAllowed,
-    body: { whatsapp: claim.body, sms: claim.body },
-    from: claim.from,
+  const sent = await deliverToWorker((fn) => run(payload.firmId, fn), deps, {
+    workerId: claim.workerId,
+    push: claim.push,
+    text: {
+      mobile: claim.mobile,
+      channel: claim.channel,
+      smsAllowed: claim.smsAllowed,
+      body: { whatsapp: claim.body, sms: claim.body },
+      from: claim.from,
+    },
+    email: claim.email,
+    proofOfNotice: true,
   });
-  // The push once the message has gone, with no transaction open.
-  const pushed = sent.ok
-    ? await pushToWorker((fn) => run(payload.firmId, fn), deps, claim.workerId, claim.push)
-    : null;
   await run(payload.firmId, async (tx) => {
+    // A phone the push service says is gone is forgotten whatever came of the notice.
+    const pushes = await recordPushes(tx, sent.push);
     if (!sent.ok) {
       await recordEvent(tx, {
         actorType: "system",
@@ -380,7 +394,6 @@ export async function runFirmChangeNotice(
       });
       return;
     }
-    const pushes = await recordPushes(tx, pushed);
     await recordEvent(tx, {
       actorType: "system",
       action: "shift.change_notice_sent",
@@ -393,6 +406,7 @@ export async function runFirmChangeNotice(
         providerMessageId: sent.providerMessageId,
         pushes,
         ...(sent.fellBackFrom ? { fellBackFrom: sent.fellBackFrom } : {}),
+        ...(sent.alsoFailed ? { alsoFailed: sent.alsoFailed } : {}),
       },
     });
   });

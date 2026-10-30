@@ -1,5 +1,7 @@
 import { createECDH } from "node:crypto";
 import { z } from "zod";
+import { CONNECTOR_TRANSPORTS } from "./connector/transport-names";
+import { secretsKey } from "./secret-store/crypto";
 import { databaseTlsOn } from "./db/tls";
 
 // Environment, split by who may read it (docs/decisions.md ADR-011):
@@ -118,6 +120,19 @@ const appFields = {
     (v) => (v === "" ? undefined : v),
     z.string().min(32, { message: "must be at least 32 characters" }).optional(),
   ),
+  // The staffing inbox's email provider (P7.2): the signing secret its inbound webhooks carry
+  // (Standard Webhooks: "whsec_" and at least 24 bytes in base64), for the made-up provider the
+  // tests use until the real one is chosen (its ADR). Unset (or empty): POST /api/webhooks/email
+  // answers 503 and stores nothing. A secret: never in the repo.
+  EMAIL_INBOUND_SECRET: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z
+      .string()
+      .regex(/^whsec_[A-Za-z0-9+/]{32,}={0,2}$/, {
+        message: 'must be "whsec_" and a base64 key of at least 24 bytes',
+      })
+      .optional(),
+  ),
   // Demo mode (16.1; docs/decisions.md ADR-025; docs/runbooks.md "A demo server"): a server that
   // holds only the made-up demo firms, to show the app before any real sender exists. "on": the
   // worker prints texts and emails into the outbox file (CONSOLE_OUTBOX_FILE) instead of sending
@@ -182,6 +197,15 @@ function vapidKeysMatch(publicKey: string, privateKey: string): boolean {
   }
 }
 
+// The staffing inbox isn't live until its emails are sorted (P7.4): a live server would only store
+// them, with nothing answering. P7.4 takes this away.
+const inboxNotLiveYet = (e: { NODE_ENV: string; EMAIL_INBOUND_SECRET?: string }) =>
+  e.NODE_ENV !== "production" || e.EMAIL_INBOUND_SECRET === undefined;
+const inboxNotLiveYetMessage = {
+  path: ["EMAIL_INBOUND_SECRET"],
+  message: "the staffing inbox isn't live yet (PLAN.md P7.4): leave EMAIL_INBOUND_SECRET unset",
+};
+
 // Tests never reach postcodes.io or TravelTime.
 const noRealTravelInTests = (e: { NODE_ENV: string; TRAVEL_PROVIDER: string }) =>
   e.NODE_ENV !== "test" || e.TRAVEL_PROVIDER !== "traveltime";
@@ -216,6 +240,7 @@ export const appEnvSchema = z
   .superRefine(tlsInProduction("DATABASE_URL"))
   .refine(realSecret, realSecretMessage)
   .refine(realIntegrationsSecret, realIntegrationsSecretMessage)
+  .refine(inboxNotLiveYet, inboxNotLiveYetMessage)
   .refine(alertsOn, alertsOnMessage)
   .refine(noRealTravelInTests, noRealTravelInTestsMessage)
   .refine(demoHasOutbox, demoHasOutboxMessage)
@@ -231,8 +256,14 @@ export const workerEnvSchema = z
   .object({
     ...appFields,
     DATABASE_JOBS_URL: connectsAs(JOBS_DB_ROLE),
-    // "twilio" is added with the Twilio transport in Phase 4. Until then it is a config error.
-    MESSAGING_TRANSPORT: z.enum(["console"]).default("console"),
+    // How WhatsApp and texts go: "console" prints them (development, tests, demo mode); "none"
+    // (P2.5): there's no text sender at all, so a casual's messages go by push, else email
+    // (src/lib/notify/send.ts deliverToWorker), and production can run the worker before the
+    // firm's text system is connected. "webex" (Phase 15, built and switched off): texts through each
+    // firm's own Webex Interact account, its key in the secret store (src/lib/messaging/webex.ts),
+    // so it needs SECRETS_KEY; refused under NODE_ENV=test, so no test can send a real text. An
+    // empty value (as the env examples ship it) means not set.
+    MESSAGING_TRANSPORT: unsetIfEmpty(z.enum(["console", "none", "webex"]).default("console")),
     // Google Sheets sync (src/lib/roster/sheets/transport.ts). "none" (the default): no sheet is
     // ever read, and the sync's tick isn't scheduled. "google": the real client, as the service
     // account whose key file is at GOOGLE_SERVICE_ACCOUNT_JSON_PATH (in the git-ignored secrets/,
@@ -259,6 +290,18 @@ export const workerEnvSchema = z
       z
         .string()
         .regex(/^[A-Za-z0-9_-]{43}$/, { message: "must be a base64url VAPID private key" })
+        .optional(),
+    ),
+    // The secret store's key (P5.1; ADR-026; src/lib/secret-store/crypto.ts): 32 random bytes in base64
+    // (openssl rand -base64 32), sealing every firm's own credentials in firm_secrets. Worker only
+    // (and the owner command that seals them): never the web app's (webEnvRefusal), never logged,
+    // never in the repo or the database. Unset, the worker reads no secret. Empty means not set.
+    SECRETS_KEY: unsetIfEmpty(
+      z
+        .string()
+        .refine((v) => secretsKey(v) !== null, {
+          message: "must be 32 random bytes in base64 (openssl rand -base64 32)",
+        })
         .optional(),
     ),
     // Who the push services can contact about this sender: a mailto: or https: address.
@@ -319,6 +362,10 @@ export const workerEnvSchema = z
     // "https" sends it (src/lib/integrations/send.ts): required in production, refused under
     // NODE_ENV=test, so no test can reach a real address. An empty value means not set.
     WEBHOOK_TRANSPORT: unsetIfEmpty(z.enum(["console", "https"]).default("console")),
+    // How a connector's job reads a record from the firm's own system (P5.3;
+    // src/lib/connector/transport.ts), worker only: "none" (the default) reads nothing, "fake" the
+    // made-up portal in memory (tests and a local run). A real system's comes with its connector.
+    CONNECTOR_TRANSPORT: unsetIfEmpty(z.enum(CONNECTOR_TRANSPORTS).default("none")),
     // Haiku (CLAUDE.md "Stack").
     AI_MODEL: unsetIfEmpty(
       z
@@ -331,6 +378,7 @@ export const workerEnvSchema = z
   .superRefine(tlsInProduction("DATABASE_URL", "DATABASE_JOBS_URL"))
   .refine(realSecret, realSecretMessage)
   .refine(realIntegrationsSecret, realIntegrationsSecretMessage)
+  .refine(inboxNotLiveYet, inboxNotLiveYetMessage)
   .refine(alertsOn, alertsOnMessage)
   .refine(noRealTravelInTests, noRealTravelInTestsMessage)
   .refine(demoHasOutbox, demoHasOutboxMessage)
@@ -368,6 +416,24 @@ export const workerEnvSchema = z
       message: "VAPID_PRIVATE_KEY isn't the private half of VAPID_PUBLIC_KEY (they come as a pair)",
     },
   )
+  // Tests never send a real text (Phase 15).
+  .refine((e) => e.NODE_ENV !== "test" || e.MESSAGING_TRANSPORT !== "webex", {
+    path: ["MESSAGING_TRANSPORT"],
+    message: "tests never send a real text: webex is refused when NODE_ENV=test",
+  })
+  // Not in production before 15.1 (texts only): the login link and the pay code still go by
+  // WhatsApp when a text sender exists (src/lib/auth/login-channel.ts), which Webex won't carry.
+  .refine((e) => e.NODE_ENV !== "production" || e.MESSAGING_TRANSPORT !== "webex", {
+    path: ["MESSAGING_TRANSPORT"],
+    message:
+      "webex waits for 15.1 (texts only) in production: login links and pay codes still go by WhatsApp",
+  })
+  // Each firm's Webex key is in the secret store: the worker can't read it without the key's key.
+  .refine((e) => e.MESSAGING_TRANSPORT !== "webex" || e.SECRETS_KEY !== undefined, {
+    path: ["SECRETS_KEY"],
+    message:
+      "MESSAGING_TRANSPORT=webex reads each firm's key from the secret store: set SECRETS_KEY",
+  })
   // Production must never silently print messages instead of sending them, except in demo mode,
   // where printing them for the Demo phone page is the point (ADR-025).
   .refine(
@@ -452,6 +518,17 @@ export const adminEnvSchema = z
     message: "must be the owner, not the app or jobs role",
   });
 
+// The connector's owner command (P5.3; scripts/firm-connector.ts): the owner's settings, plus the
+// platform address its webhooks go to and the secret their signing secret is worked out from.
+export const connectorOwnerEnvSchema = adminEnvSchema.and(
+  z.object({
+    APP_BASE_DOMAIN: appFields.APP_BASE_DOMAIN,
+    INTEGRATIONS_SECRET: appFields.INTEGRATIONS_SECRET,
+  }),
+);
+export const parseConnectorOwnerEnv = (source: Source) =>
+  parseWith(connectorOwnerEnvSchema, source);
+
 // A demo server's reset (16.2; scripts/demo-reset.ts): the owner's settings, plus demo mode and the
 // outbox it empties.
 export const demoResetEnvSchema = adminEnvSchema.and(
@@ -481,6 +558,17 @@ let admin: AdminEnv | undefined;
 
 export const offlineCopyOn = (e: { NODE_ENV: string; OFFLINE_COPY?: "on" | "off" }) =>
   e.OFFLINE_COPY ? e.OFFLINE_COPY === "on" : e.NODE_ENV === "production";
+
+// The secret store's key is the worker's and the owner command's only (P5.1): a web app on a real
+// address refuses to start with it in its settings (src/instrumentation.ts). Not for a local run,
+// where one .env serves the web app and the worker (APP_BASE_DOMAIN=localhost, as E2E_TEST_PAGES).
+export function webEnvRefusal(source: Source): string | null {
+  if (source.NODE_ENV !== "production") return null;
+  if (/^localhost(:\d+)?$/.test(source.APP_BASE_DOMAIN ?? "")) return null;
+  return source.SECRETS_KEY
+    ? "SECRETS_KEY is the worker's setting only: remove it from the web app's settings"
+    : null;
+}
 
 export function appEnv(): AppEnv {
   app ??= parseAppEnv(process.env);

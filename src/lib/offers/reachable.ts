@@ -26,6 +26,7 @@ export interface LiveContact {
   mobile: string;
   channel: "whatsapp" | "sms";
   smsAllowed: boolean; // false: they replied STOP to a text
+  email: string | null; // the address the firm holds for them: the offer's last way (P2.4)
 }
 
 // One worker as they are now, their row locked (key share) until the transaction ends: null unless
@@ -37,14 +38,17 @@ export async function lockLiveContact(tx: FirmTx, workerId: string): Promise<Liv
     mobile: string;
     channel: "whatsapp" | "sms";
     sms_allowed: boolean;
+    email: string | null;
   }>(sql`
     select w.mobile_e164 as mobile, w.notify_channel as channel,
-           w.sms_opted_out_at is null as sms_allowed
+           w.sms_opted_out_at is null as sms_allowed, w.email
       from workers w
      where w.id = ${workerId}::uuid
        and w.status = 'active' and w.mobile_e164 is not null and w.offer_alerts
        for key share
   `);
   const row = rows[0];
-  return row ? { mobile: row.mobile, channel: row.channel, smsAllowed: row.sms_allowed } : null;
+  return row
+    ? { mobile: row.mobile, channel: row.channel, smsAllowed: row.sms_allowed, email: row.email }
+    : null;
 }

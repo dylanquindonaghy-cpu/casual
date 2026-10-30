@@ -77,6 +77,9 @@ export const eligibilityInputSchema = z.object({
       // S2): needed on top of the role's, checked the same way. Required, so a new caller can't
       // leave them out by mistake ([] for none).
       extraTypes: z.array(z.string().min(1)),
+      // The rule's one-of group (P3.3; credential_rules.any_of_types): one of these is needed too.
+      // Required like extraTypes ([] for none).
+      anyOfTypes: z.array(z.string().min(1)),
     })
     .and(interval),
   // The worker's other confirmed bookings in every week this shift touches, +/- a day, never
@@ -236,24 +239,71 @@ export function checkEligibility(raw: EligibilityInput): EligibilityResult {
   // 3-4. Every credential the role needs, and every extra requirement of the session, in date on
   // every day the shift touches, or "applied" within the firm's allowance. A suspended one fails
   // whatever else is held. No rule for the role means not eligible (fail closed), whatever the
-  // session adds. A type needed twice (the role's and the session's) is checked once.
+  // session adds. A type needed twice (the role's and the session's) is checked once. The role's
+  // one-of group (P3.3, Rules 3: an SIA security guard or door supervisor licence) passes when one
+  // of its types passes that same check, and none of its types held is suspended; otherwise it
+  // fails as its first type held fails (else its first type), in that type's own words.
+  // What one type's check finds: its failure (none: it passes), and the best record held (valid
+  // with the latest expiry, else a suspended one, else any).
+  const judge = (type: string) => {
+    const held = input.credentials.filter((c) => c.type === type);
+    const valid = held
+      .filter((c) => c.status === "valid")
+      .sort((a, b) =>
+        a.expiresOn === null ? 1 : b.expiresOn === null ? -1 : a.expiresOn < b.expiresOn ? -1 : 1,
+      )
+      .at(-1);
+    const shown = valid ?? held.find((c) => c.status === "suspended") ?? held[0];
+    const seen = { held: shown?.status ?? "none", expiresOn: shown?.expiresOn ?? null };
+    const failing = (code: RuleCode, reason: string) => ({ ...seen, failure: { code, reason } });
+    if (held.some((c) => c.status === "suspended")) {
+      return failing("credential_suspended", REASONS.credential_suspended(name(type)));
+    }
+    if (
+      held.some((c) => c.status === "valid" && (c.expiresOn === null || c.expiresOn >= lastDay))
+    ) {
+      return { ...seen, failure: null };
+    }
+    const applied = held.some((c) => c.status === "applied");
+    if (applied && settings.appliedAllowedTypes.includes(type)) {
+      const pct = settings.appliedAllowancePct;
+      const share = (settings.appliedInUseCount + 1) / (settings.deployedCount + 1);
+      // Counted within the allowance: a passed check that says "applied".
+      if (pct > 0 && share <= pct / 100) return { ...seen, failure: null };
+      return failing("applied_over_allowance", REASONS.applied_over_allowance(name(type)));
+    }
+    if (
+      applied &&
+      !held.some((c) => c.status === "expired" || (c.expiresOn !== null && c.expiresOn < lastDay))
+    ) {
+      // In progress, for a type where only a valid credential counts.
+      return failing("credential_missing", REASONS.applied_not_allowed(name(type)));
+    }
+    if (held.length > 0) {
+      // Out of date by its expiry, or marked expired by the office.
+      const dated = held
+        .map((c) => c.expiresOn)
+        .filter((d): d is string => d !== null && d < lastDay)
+        .sort()
+        .at(-1);
+      return failing(
+        "credential_expired",
+        dated
+          ? REASONS.credential_expired(name(type), shortDate(dated, shiftYear), dated < today)
+          : REASONS.credential_marked_expired(name(type)),
+      );
+    }
+    return failing("credential_missing", REASONS.credential_missing(name(type)));
+  };
   if (shift.requiredTypes === null) {
     fail("no_rule", REASONS.no_rule());
     check("qualification", false, { rule: "none", role: shift.role });
   } else {
     for (const type of new Set([...shift.requiredTypes, ...shift.extraTypes])) {
-      const held = input.credentials.filter((c) => c.type === type);
-      const before = failures.length;
-      // What the check used: the best record held (valid with the latest expiry, else any), and
-      // whether the role or the session asks for it.
-      const valid = held
-        .filter((c) => c.status === "valid")
-        .sort((a, b) =>
-          a.expiresOn === null ? 1 : b.expiresOn === null ? -1 : a.expiresOn < b.expiresOn ? -1 : 1,
-        )
-        .at(-1);
-      const shown = valid ?? held.find((c) => c.status === "suspended") ?? held[0];
-      const detail = {
+      const judged = judge(type);
+      if (judged.failure) fail(judged.failure.code, judged.failure.reason);
+      // What the check used, and whether the role or the session asks for it.
+      check("qualification", judged.failure === null, {
         type,
         neededBy:
           shift.requiredTypes.includes(type) && shift.extraTypes.includes(type)
@@ -261,56 +311,32 @@ export function checkEligibility(raw: EligibilityInput): EligibilityResult {
             : shift.requiredTypes.includes(type)
               ? "role"
               : "session",
-        held: shown?.status ?? "none",
-        expiresOn: shown?.expiresOn ?? null,
+        held: judged.held,
+        expiresOn: judged.expiresOn,
         until: lastDay, // in date to the shift's last day
-      };
-      const passedNow = () => check("qualification", failures.length === before, detail);
-      if (held.some((c) => c.status === "suspended")) {
-        fail("credential_suspended", REASONS.credential_suspended(name(type)));
-        passedNow();
-        continue;
+      });
+    }
+    const group = shift.anyOfTypes.map((type) => ({ type, ...judge(type) }));
+    if (group.length > 0) {
+      const suspended = group.find((g) => g.failure?.code === "credential_suspended");
+      // A valid licence before an application counted within the allowance: the evidence says
+      // the licence she holds, and she doesn't take an applied place she needn't.
+      const passed = suspended
+        ? undefined
+        : (group.find((g) => g.failure === null && g.held === "valid") ??
+          group.find((g) => g.failure === null));
+      const used = passed ?? suspended ?? group.find((g) => g.held !== "none") ?? group[0];
+      if (used) {
+        if (!passed && used.failure) fail(used.failure.code, used.failure.reason);
+        check("qualification", passed !== undefined, {
+          type: used.type,
+          neededBy: "role",
+          anyOf: [...shift.anyOfTypes],
+          held: used.held,
+          expiresOn: used.expiresOn,
+          until: lastDay,
+        });
       }
-      const inDate = held.some(
-        (c) => c.status === "valid" && (c.expiresOn === null || c.expiresOn >= lastDay),
-      );
-      if (inDate) {
-        passedNow();
-        continue;
-      }
-      const applied = held.some((c) => c.status === "applied");
-      if (applied && settings.appliedAllowedTypes.includes(type)) {
-        const pct = settings.appliedAllowancePct;
-        const share = (settings.appliedInUseCount + 1) / (settings.deployedCount + 1);
-        // Counted within the allowance: a passed check that says "applied".
-        if (pct > 0 && share <= pct / 100) {
-          passedNow();
-          continue;
-        }
-        fail("applied_over_allowance", REASONS.applied_over_allowance(name(type)));
-      } else if (
-        applied &&
-        !held.some((c) => c.status === "expired" || (c.expiresOn !== null && c.expiresOn < lastDay))
-      ) {
-        // In progress, for a type where only a valid credential counts.
-        fail("credential_missing", REASONS.applied_not_allowed(name(type)));
-      } else if (held.length > 0) {
-        // Out of date by its expiry, or marked expired by the office.
-        const dated = held
-          .map((c) => c.expiresOn)
-          .filter((d): d is string => d !== null && d < lastDay)
-          .sort()
-          .at(-1);
-        fail(
-          "credential_expired",
-          dated
-            ? REASONS.credential_expired(name(type), shortDate(dated, shiftYear), dated < today)
-            : REASONS.credential_marked_expired(name(type)),
-        );
-      } else {
-        fail("credential_missing", REASONS.credential_missing(name(type)));
-      }
-      passedNow();
     }
   }
 

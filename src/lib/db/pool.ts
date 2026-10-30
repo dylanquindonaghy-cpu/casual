@@ -9,11 +9,57 @@ import * as schema from "./schema";
 
 export type Db = NodePgDatabase<typeof schema>;
 
+// Each process's share of the database and how long its work may take (P4.2; ADR-027). The web
+// app answers people, so it waits briefly for a connection and a page fails rather than hangs; the
+// worker's jobs may wait longer, and pg-boss retries them. The statement and idle limits are set
+// per transaction by withFirm (scoped.ts), so they end with it. 0 means no limit.
+export interface DbLimits {
+  statementMs: number; // statement_timeout
+  idleInTransactionMs: number; // idle_in_transaction_session_timeout
+}
+export interface DbProfile {
+  poolMax: number;
+  connectWaitMs: number; // the longest wait for a free connection (pg's connectionTimeoutMillis)
+  limits: DbLimits;
+}
+export type DbProfileName = "web" | "worker";
+export const DB_PROFILES: Readonly<Record<DbProfileName, DbProfile>> = {
+  web: {
+    poolMax: 10,
+    connectWaitMs: 5_000,
+    limits: { statementMs: 15_000, idleInTransactionMs: 30_000 },
+  },
+  worker: {
+    poolMax: 15,
+    connectWaitMs: 30_000,
+    limits: { statementMs: 60_000, idleInTransactionMs: 60_000 },
+  },
+};
+
+let profileName: DbProfileName = "web";
 let pool: Pool | undefined;
+
+// The worker picks its profile before its first query (src/worker/index.ts); the web app and the
+// scripts are "web". Too late once the pool exists: it was made with the other one's sizes.
+export function chooseDbProfile(name: DbProfileName): void {
+  if (pool && name !== profileName) {
+    throw new Error(`The database pool already runs with the ${profileName} profile`);
+  }
+  profileName = name;
+}
+
+export function dbProfile(): DbProfile {
+  return DB_PROFILES[profileName];
+}
 
 export function appPool(): Pool {
   if (!pool) {
-    pool = new Pool({ connectionString: appEnv().DATABASE_URL, max: 10 });
+    const profile = dbProfile();
+    pool = new Pool({
+      connectionString: appEnv().DATABASE_URL,
+      max: profile.poolMax,
+      connectionTimeoutMillis: profile.connectWaitMs,
+    });
     // An idle connection dropping (e.g. the database restarting) must not crash the process.
     pool.on("error", (err) => log.error("database pool error", { error: err }));
     // Nor one that's checked out but between queries (a transaction waiting on other work, like

@@ -6,13 +6,21 @@
 //   apart from short_notice_threshold_hours (the law's), so firm policy doesn't move when the law
 //   does.
 // - live_days (90): how long a strike counts.
+// - enabled (true, P3.4; "Connecting the firm's systems" 6): whether the firm gives strikes at all.
+//   Only false switches them off: then a casual's own cancellation is never a strike (decided
+//   "strikes_off"), and the strikes already given stay as they are.
 // - keep_months (12): when the strike row is deleted (app_purge_old_strikes(), migrations 0038 and
 //   0039, reads the same range): never inside the 6-month tribunal time limit, and never before a
 //   strike has stopped counting for 6 months. `firm:settings` only accepts a keep_months that
 //   covers live_days plus 6 months (keepCoversLive), so every strike goes at keep_months; the
 //   purge also holds back one that ended under 6 months ago, against settings edited by hand.
 
-export const STRIKE_DEFAULTS = { noticeHours: 48, liveDays: 90, keepMonths: 12 } as const;
+export const STRIKE_DEFAULTS = {
+  enabled: true,
+  noticeHours: 48,
+  liveDays: 90,
+  keepMonths: 12,
+} as const;
 export const STRIKE_LIMITS = {
   noticeHours: { min: 1, max: 336 },
   liveDays: { min: 1, max: 365 },
@@ -20,6 +28,7 @@ export const STRIKE_LIMITS = {
 } as const;
 
 export interface StrikeSettings {
+  enabled: boolean;
   noticeHours: number;
   liveDays: number;
   keepMonths: number;
@@ -44,6 +53,7 @@ export function strikeSettings(settings: Record<string, unknown>): StrikeSetting
   const raw = settings.strikes;
   const s = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   return {
+    enabled: s.enabled !== false,
     noticeHours: whole(s.notice_hours, STRIKE_LIMITS.noticeHours, STRIKE_DEFAULTS.noticeHours),
     liveDays: whole(s.live_days, STRIKE_LIMITS.liveDays, STRIKE_DEFAULTS.liveDays),
     keepMonths: whole(s.keep_months, STRIKE_LIMITS.keepMonths, STRIKE_DEFAULTS.keepMonths),

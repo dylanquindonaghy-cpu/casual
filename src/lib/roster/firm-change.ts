@@ -23,6 +23,7 @@ import {
 } from "./firm-reasons";
 import { changeNoticeHours } from "./notice";
 import { recheckHolders } from "./recheck";
+import { sameAsLastRefusal } from "./refusal-repeat";
 import { isoDate, timesOn } from "./shift-times";
 import { queueTravelEstimates } from "../travel/estimate-queue";
 
@@ -41,7 +42,7 @@ import { queueTravelEstimates } from "../travel/estimate-queue";
 //   start (changeNoticeHours: a move earlier records the warning they really had)}, and a
 //   firm-change-notice job to tell them. The shift itself: shift.changed {by: "firm", fields,
 //   from/to}. Offers still out describe the old shift, so they expire. The planner's entries also
-//   carry {via: "api", keyId}, with the system actor.
+//   carry {via: "api", keyId} (a connector's sourceId in its place), with the system actor.
 // - Before anything is logged, the rules are run for each booked worker at the new time (the
 //   shift itself is left out of their other bookings). If anyone fails a check the office can't
 //   override (a credential not in date through the new day, their role, …), the move is refused
@@ -355,29 +356,43 @@ const moveRefusedSchema = z.strictObject({
   reason: reasonCode,
   by: firmCallerSchema,
   workers: z.array(z.object({ workerId: rosterId, codes: z.array(z.enum(RULE_CODES)) })).min(1),
+  // A connector's: what it asked for, as a fingerprint (src/lib/roster/refusal-repeat.ts).
+  attempt: z
+    .string()
+    .regex(/^[0-9a-f]{16}$/)
+    .optional(),
 });
 
 // A refused move on the record (shift.move_refused {by: "firm", reason, workers: [{workerId,
-// codes}]}, the planner's with {via: "api", keyId} too), in a short transaction of its own after
-// the move's rolled back. Ids and rule codes only: never a name.
+// codes}]}, the planner's with {via: "api", keyId or sourceId} too), in a short transaction of its
+// own after the move's rolled back. Ids and rule codes only: never a name.
 export async function recordMoveRefused(
   run: WithFirm,
   firmId: string,
   input: z.input<typeof moveRefusedSchema>,
 ): Promise<void> {
   const r = moveRefusedSchema.parse(input);
-  await run(firmId, (tx) =>
-    recordEvent(tx, {
+  const data = {
+    by: "firm",
+    ...callerMarks(r.by),
+    reason: FIRM_CHANGE_REASONS[r.reason],
+    workers: r.workers.map((w) => ({ workerId: w.workerId, codes: w.codes })),
+    ...(r.attempt ? { attempt: r.attempt } : {}),
+  };
+  await run(firmId, async (tx) => {
+    // A connector's source says the same again at its next read: logged once (refusal-repeat.ts).
+    if (
+      r.by.type === "connector" &&
+      (await sameAsLastRefusal(tx, r.shiftId, "shift.move_refused", data))
+    ) {
+      return;
+    }
+    await recordEvent(tx, {
       ...callerActor(r.by),
       action: "shift.move_refused",
       entityType: "shift",
       entityId: r.shiftId,
-      data: {
-        by: "firm",
-        ...callerMarks(r.by),
-        reason: FIRM_CHANGE_REASONS[r.reason],
-        workers: r.workers.map((w) => ({ workerId: w.workerId, codes: w.codes })),
-      },
-    }),
-  );
+      data,
+    });
+  });
 }

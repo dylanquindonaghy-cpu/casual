@@ -1,5 +1,6 @@
-import { and, count, eq, isNotNull, isNull, max, notInArray, sql } from "drizzle-orm";
+import { and, count, eq, isNotNull, isNull, lt, max, notInArray, or, sql } from "drizzle-orm";
 import { retryAborted } from "../db/retry";
+import { appDatabaseIsLocal } from "../db/where";
 import {
   assignments,
   CANCELLED_ASSIGNMENT_STATUSES,
@@ -15,10 +16,18 @@ import type { FirmTx, WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { AgreementNotRecorded, requireAgreementForImport } from "../imports/gate-b";
 import { cancelShiftInTx } from "../roster/cancel";
-import { callerActor, callerMarks, firmCallerMay, type FirmCaller } from "../roster/firm-caller";
+import {
+  callerActor,
+  callerMarks,
+  firmCallerMay,
+  firmCallerSchema,
+  type FirmCaller,
+  type PlannerCaller,
+} from "../roster/firm-caller";
 import { MoveBlocked, moveShiftInTx, recordMoveRefused } from "../roster/firm-change";
 import { FIRM_CHANGE_REASONS, type FirmChangeReason } from "../roster/firm-reasons";
 import { refreshShiftStatus } from "../roster/native";
+import { refusalAttempt, sameAsLastRefusal } from "../roster/refusal-repeat";
 import { automaticEventId } from "../roster/shift-events";
 import { queueTravelEstimates, siteMoved } from "../travel/estimate-queue";
 import type { Geocoder, Point } from "../travel/geocoder";
@@ -59,10 +68,11 @@ import {
 //     (every failed rules check blocks it); role or requirements are refused; `"status":
 //     "cancelled"` needs a change_reason and goes through cancelShiftInTx() (never a strike);
 //   - the status follows the places (refreshShiftStatus()), unless the office closed it.
-// Every change is logged with the system actor and {by: "firm", via: "api", keyId}. A refused
-// change to a booked session is logged too (shift.move_refused, api.change_refused), so the office
-// sees it under Needs attention even if the planner ignores the 409. The showing switches and
-// "urgent" are never read from the API: they stay the office's.
+// Every change is logged with the system actor and {by: "firm", via: "api", keyId} (a connector's
+// with sourceId in the key's place: putPlannerSession). A refused change to a booked session is
+// logged too (shift.move_refused, api.change_refused), so the office sees it under Needs attention
+// even if the planner ignores the 409. The showing switches and "urgent" are never read from the
+// API: they stay the office's.
 
 export const SESSION_ROUTE = "/api/v1/sessions/{ref}";
 
@@ -148,27 +158,75 @@ type Held = {
   instructions: string | null;
   requiredCredentials: string[];
   shiftEventId: string;
+  sourceReadAt: Date | null;
 };
 
 interface Put {
   tx: FirmTx;
   ref: string;
   body: PutSessionBody;
-  by: Extract<FirmCaller, { type: "api" }>;
+  by: PlannerCaller;
   now: Date;
   timeZone: string;
   located: Located | undefined;
+  readAt: Date | null;
 }
 
-export async function putSession(call: ApiCall, ref: string): Promise<ApiResult> {
+export function putSession(call: ApiCall, ref: string): Promise<ApiResult> {
+  return putPlannerSession(
+    {
+      run: call.run,
+      firmId: call.firmId,
+      by: { type: "api", keyId: call.keyId },
+      json: call.json,
+      now: call.now,
+      geocoder: call.geocoder,
+      localDatabase: call.localDatabase,
+    },
+    ref,
+  );
+}
+
+// One PUT of a planner's session, from the API (putSession: the key's call) or from a connector
+// (P5.2: a record read from the firm's own system, put in the API's body by its adapter, never
+// trusted any further). The same checks, transaction, logging and answers either way, so a
+// connector's sessions follow exactly the planner's rules. For a connector, `invalid_key` means its
+// source is switched off (src/lib/roster/firm-caller.ts).
+export interface PlannerPut {
+  run: WithFirm;
+  firmId: string;
+  by: PlannerCaller;
+  json: unknown;
+  now: Date;
+  geocoder?: Geocoder;
+  localDatabase?: boolean; // Gate B: appDatabaseIsLocal() when left out
+  // A connector's (P5.5's review): when the record was read from the firm's system. A read older
+  // than the one the session last took applies nothing (`older_read`), and the session keeps the
+  // newer time (shifts.source_read_at).
+  readAt?: Date;
+}
+
+const plannerCaller = firmCallerSchema.refine((by): by is PlannerCaller => by.type !== "office");
+
+export async function putPlannerSession(put: PlannerPut, ref: string): Promise<ApiResult> {
+  const caller = plannerCaller.safeParse(put.by);
+  if (!caller.success) return apiRefusal("invalid_key");
+  const call = {
+    ...put,
+    by: caller.data as PlannerCaller,
+    localDatabase: put.localDatabase ?? appDatabaseIsLocal(),
+  };
   if (!isRef(ref)) return apiRefusal("bad_ref");
   const parsed = putSessionSchema.safeParse(call.json);
   if (!parsed.success) return apiRefusal("validation_failed", { fields: fieldsOf(parsed.error) });
   const body = parsed.data;
-  const by = { type: "api" as const, keyId: call.keyId };
+  const by = call.by;
   const geocoder = call.geocoder ?? serverGeocoder();
   const postcode = body.site?.postcode ?? null;
   const siteName = body.site?.name ?? null;
+  // What a connector asked for, on its refusals (refusal-repeat.ts): a different change refused
+  // for the same reason is logged too.
+  const attempt = by.type === "connector" ? refusalAttempt(call.json) : undefined;
   try {
     let located: Located | undefined;
     // A cancelling PUT never uses its site (a cancel applies no other field), so its postcode is
@@ -177,6 +235,8 @@ export async function putSession(call: ApiCall, ref: string): Promise<ApiResult>
       // Gate B first, so a firm that can't save yet never sends a postcode out.
       const held = await call.run(call.firmId, async (tx) => {
         await requireAgreementForImport(tx, { saving: true, localDatabase: call.localDatabase });
+        // A caller that can't change anything sends no postcode out either (P5.2's review).
+        if (!(await firmCallerMay(tx, by))) throw new Refusal("invalid_key");
         return heldPostcode(tx, siteName);
       });
       if (held !== null && held !== postcode) return apiRefusal("site_postcode_differs");
@@ -193,7 +253,16 @@ export async function putSession(call: ApiCall, ref: string): Promise<ApiResult>
           // The key first, then the session (one lock order with the office's changes).
           if (!(await firmCallerMay(tx, by))) throw new Refusal("invalid_key");
           const timeZone = await firmZone(tx);
-          return putInTx({ tx, ref, body, by, now: call.now, timeZone, located: where });
+          return putInTx({
+            tx,
+            ref,
+            body,
+            by,
+            now: call.now,
+            timeZone,
+            located: where,
+            readAt: by.type === "connector" ? (call.readAt ?? null) : null,
+          });
         }),
       );
     try {
@@ -208,7 +277,14 @@ export async function putSession(call: ApiCall, ref: string): Promise<ApiResult>
     if (error instanceof AgreementNotRecorded) return apiRefusal("agreement_not_recorded");
     if (error instanceof Refusal) {
       if (error.refusedShiftId) {
-        await logChangeRefused(call.run, call.firmId, by, error.refusedShiftId, error.code);
+        await logChangeRefused(
+          call.run,
+          call.firmId,
+          by,
+          error.refusedShiftId,
+          error.code,
+          attempt,
+        );
       }
       return apiRefusal(error.code, error.extra);
     }
@@ -219,6 +295,7 @@ export async function putSession(call: ApiCall, ref: string): Promise<ApiResult>
         reason: error.reason,
         by,
         workers: error.blocked.workers,
+        ...(attempt ? { attempt } : {}),
       });
       return apiRefusal("bookings_block_change", {
         casuals: error.blocked.workers.map((w) => ({ id: w.workerId, codes: w.codes })),
@@ -255,16 +332,32 @@ async function logChangeRefused(
   by: FirmCaller,
   shiftId: string,
   code: ApiErrorCode,
+  attempt: string | undefined,
 ): Promise<void> {
-  await run(firmId, (tx) =>
-    recordEvent(tx, {
+  const data = {
+    by: "firm",
+    ...callerMarks(by),
+    shiftId,
+    code,
+    ...(attempt ? { attempt } : {}),
+  };
+  await run(firmId, async (tx) => {
+    // A connector's source says the same again at its next read: logged again only once it's no
+    // longer standing (refusal-repeat.ts).
+    if (
+      by.type === "connector" &&
+      (await sameAsLastRefusal(tx, shiftId, "api.change_refused", data))
+    ) {
+      return;
+    }
+    await recordEvent(tx, {
       ...callerActor(by),
       action: "api.change_refused",
       entityType: "shift",
       entityId: shiftId,
-      data: { by: "firm", ...callerMarks(by), shiftId, code },
-    }),
-  );
+      data,
+    });
+  });
 }
 
 async function firmZone(tx: FirmTx): Promise<string> {
@@ -292,6 +385,7 @@ async function lockSession(tx: FirmTx, ref: string): Promise<Held | undefined> {
       instructions: shifts.instructions,
       requiredCredentials: shifts.requiredCredentials,
       shiftEventId: shifts.shiftEventId,
+      sourceReadAt: shifts.sourceReadAt,
     })
     .from(shifts)
     .where(and(eq(shifts.source, "api"), eq(shifts.externalRef, ref)))
@@ -300,15 +394,46 @@ async function lockSession(tx: FirmTx, ref: string): Promise<Held | undefined> {
 }
 
 async function putInTx(p: Put): Promise<ApiResult> {
+  const result = await putOrCreate(p);
+  // A connector's read, applied: the session's last read is this one (refused, it rolls back).
+  if (p.readAt && result.status < 300 && !isOlderRead(result)) {
+    await p.tx
+      .update(shifts)
+      .set({ sourceReadAt: p.readAt })
+      .where(
+        and(
+          eq(shifts.source, "api"),
+          eq(shifts.externalRef, p.ref),
+          or(isNull(shifts.sourceReadAt), lt(shifts.sourceReadAt, p.readAt)),
+        ),
+      );
+  }
+  return result;
+}
+
+const OLDER_READ = { status: 200, body: { result: "older_read", session: null } } as const;
+const isOlderRead = (r: ApiResult) =>
+  (r.body as { result?: unknown } | null)?.result === "older_read";
+
+async function putOrCreate(p: Put): Promise<ApiResult> {
   const held = await lockSession(p.tx, p.ref);
-  if (held) return update(p, held);
+  if (held) return updateIfNewer(p, held);
   const created = await create(p);
   if (created) return created;
   // Another PUT for this ref created it a moment ago (it held the unique key until it committed):
   // this one is an update of that session.
   const now = await lockSession(p.tx, p.ref);
   if (!now) throw new Error("the session is neither new nor there");
-  return update(p, now);
+  return updateIfNewer(p, now);
+}
+
+// A connector's read older than the session's last (another read of it was applied since this one
+// was taken): nothing of it applied, so a late read never puts back what a newer one changed.
+function updateIfNewer(p: Put, held: Held): Promise<ApiResult> {
+  if (p.readAt && held.sourceReadAt && held.sourceReadAt.getTime() > p.readAt.getTime()) {
+    return Promise.resolve(OLDER_READ);
+  }
+  return update(p, held);
 }
 
 // Logged with the system actor and the key's id (src/lib/roster/firm-caller.ts).
@@ -464,6 +589,10 @@ async function create(p: Put): Promise<ApiResult | null> {
       uniform: b.uniform ?? null,
       instructions: b.instructions ?? null,
       requiredCredentials: requirements,
+      // A connector's sessions come in hidden from casuals, so a firm's first cycle can run beside
+      // its old way, a trial casuals don't see (ADR-026; P5.4): the office shows them when it's
+      // ready. The planner's own show at once, as before.
+      showingToCasuals: p.by.type !== "connector",
     })
     .onConflictDoNothing({ target: [shifts.firmId, shifts.source, shifts.externalRef] })
     .returning({ id: shifts.id });

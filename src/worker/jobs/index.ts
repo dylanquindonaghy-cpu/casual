@@ -19,7 +19,7 @@ import {
   retentionPurgeFirmTask,
   runRetentionPurgeTick,
 } from "../../lib/gdpr/retention";
-import { withFirm } from "../../lib/db/scoped";
+import { dbProfile, takeConnectionWaits, withFirm } from "../../lib/db/scoped";
 import {
   runFirmJob,
   runFirmTask,
@@ -72,7 +72,12 @@ import {
   SHEETS_TICK_QUEUE,
   sheetsSyncTask,
 } from "../../lib/roster/sheets/jobs";
-import { alertTransport, type AlertTransport, type OpsAlert } from "../../lib/ops/alerts";
+import {
+  alertTransport,
+  THRESHOLDS,
+  type AlertTransport,
+  type OpsAlert,
+} from "../../lib/ops/alerts";
 import { checkWebHealth } from "../../lib/ops/health-check";
 import {
   OPS_ALERT_QUEUE,
@@ -81,6 +86,7 @@ import {
   OPS_ALERTS_TICK_QUEUE,
   runOpsAlertsTick,
   sendOpsAlert,
+  type QueueHealth,
 } from "../../lib/ops/tick";
 import { HELLO_QUEUE, handleHello } from "./hello";
 import type { TravelEstimatesPayload } from "../../lib/travel/estimate-queue";
@@ -92,6 +98,15 @@ import {
   travelEstimatesTask,
 } from "../../lib/travel/estimates";
 import { webhookDeliverTask } from "../../lib/integrations/deliver";
+import { connectorEventTask } from "../../lib/connector/apply";
+import type { ConnectorEventPayload } from "../../lib/connector/job";
+import {
+  CONNECTOR_PULL_TICK_CRON,
+  CONNECTOR_PULL_TICK_QUEUE,
+  connectorPullTask,
+  runConnectorPullTick,
+  type ConnectorPullPayload,
+} from "../../lib/connector/pull";
 import type { WebhookDeliverPayload } from "../../lib/integrations/outbox";
 import { ensureQueues } from "./queues";
 
@@ -117,6 +132,8 @@ export interface JobDeps {
   travelEstimates?: FirmTask<TravelEstimatesPayload>;
   inboundMessages?: FirmTask<InboundMessagePayload>;
   webhooks?: FirmTask<WebhookDeliverPayload>;
+  connectorEvents?: FirmTask<ConnectorEventPayload>;
+  connectorPulls?: FirmTask<ConnectorPullPayload>;
   // Alerts to the founder: where they go (default: the console), and the web app's health check as
   // seen inside the server (unset: not checked).
   alerts?: AlertTransport;
@@ -154,13 +171,55 @@ export async function failedJobCounts(boss: PgBoss): Promise<{ queue: string; co
   return rows as { queue: string; count: number }[];
 }
 
+// pg-boss's queues now (P4.8), through the same connection, not the alerts' own queue: per queue,
+// the jobs due to start and still waiting (`created`, or `retry` once its delay is over: a job
+// held back by startAfter isn't late) with the oldest one's wait since it was due, and the running
+// jobs past THRESHOLDS.runningLongShare of their time limit (pg-boss stops a job at
+// started_on + expire_seconds) with the furthest along.
+export async function queueHealth(boss: PgBoss): Promise<QueueHealth> {
+  const { rows } = await boss.getDb().executeSql(
+    `select name as queue,
+            count(*) filter (where state in ('created', 'retry') and start_after <= now())::int
+              as waiting,
+            coalesce(extract(epoch from now() - min(start_after)
+                       filter (where state in ('created', 'retry') and start_after <= now())), 0)::float8
+              as oldest_seconds,
+            count(*) filter (where state = 'active'
+                               and started_on + expire_seconds * $2::float8 * interval '1s' < now())::int
+              as running_long,
+            coalesce(max(extract(epoch from now() - started_on) / nullif(expire_seconds, 0))
+                       filter (where state = 'active'), 0)::float8
+              as longest_share
+       from pgboss.job
+      where state in ('created', 'retry', 'active') and name <> $1
+      group by name
+      order by name`,
+    [OPS_ALERT_QUEUE, THRESHOLDS.runningLongShare],
+  );
+  const read = rows as {
+    queue: string;
+    waiting: number;
+    oldest_seconds: number;
+    running_long: number;
+    longest_share: number;
+  }[];
+  return {
+    waiting: read
+      .filter((r) => r.waiting > 0)
+      .map((r) => ({ queue: r.queue, waiting: r.waiting, oldestSeconds: r.oldest_seconds })),
+    runningLong: read
+      .filter((r) => r.running_long > 0)
+      .map((r) => ({ queue: r.queue, count: r.running_long, longestShare: r.longest_share })),
+  };
+}
+
 // Used by the worker process and by the integration tests, so both run the same wiring.
 export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<void> {
   await ensureQueues(boss);
   await registerFirmTask(boss, sendPortalLinkTask);
   await registerFirmTask(boss, sendLoginCodeTask);
   // Offer waves and escalation for urgent gaps (messages through the configured transport).
-  await registerFirmTask(boss, deps.offers?.wave ?? offerWaveTask);
+  await registerFirmTask(boss, deps.offers?.wave ?? offerWaveTask, OFFER_WAVE_WORK_OPTIONS);
   await registerFirmTask(boss, deps.offers?.escalate ?? escalateShiftTask);
   // An offer the office sends to one worker (the dashboard's "Offer to someone").
   await registerFirmTask(boss, deps.offers?.office ?? officeOfferTask);
@@ -185,6 +244,13 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   const webhooks = deps.webhooks ?? webhookDeliverTask;
   await boss.work(webhooks.queue, WEBHOOK_WORK_OPTIONS, (jobs) =>
     inOrder(jobs, (j) => runFirmTask(webhooks, j)),
+  );
+
+  // A connector's events (P5.3): one source's in order (one group: src/lib/connector/job.ts), each
+  // try knowing whether it's the last; a source that hangs holds up only its own loop.
+  const connectorEvents = deps.connectorEvents ?? connectorEventTask;
+  await boss.work(connectorEvents.queue, CONNECTOR_WORK_OPTIONS, (jobs) =>
+    inOrder(jobs, (j) => runFirmTask(connectorEvents, j)),
   );
 
   // Shift reminders, 24 h and 2 h before the start: the tick queues a firm's job when one is due.
@@ -279,6 +345,8 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
         run: withFirm,
         clock: deps.clock ?? systemClock,
         failedJobs: () => failedJobCounts(boss),
+        queueHealth: () => queueHealth(boss),
+        connectionWaits: () => ({ ...takeConnectionWaits(), poolMax: dbProfile().poolMax }),
         ...(url ? { health: () => checkWebHealth(url) } : {}),
         queue: async (alert) => {
           await queueOpsAlert(boss, alert);
@@ -287,6 +355,21 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
     }),
   );
   await boss.schedule(OPS_ALERTS_TICK_QUEUE, OPS_ALERTS_CRON);
+
+  // A connector's reconcile pull (P5.4): the tick queues a source's pull when one is due. With
+  // CONNECTOR_TRANSPORT none every pull fails as "off" (saved on the source, backing off).
+  await registerFirmTask(
+    boss,
+    deps.connectorPulls ?? connectorPullTask,
+    CONNECTOR_PULL_WORK_OPTIONS,
+  );
+  await boss.work(
+    CONNECTOR_PULL_TICK_QUEUE,
+    logFailures(CONNECTOR_PULL_TICK_QUEUE, async () => {
+      await runConnectorPullTick({ listFirmIds, run: withFirm, clock: deps.clock ?? systemClock });
+    }),
+  );
+  await boss.schedule(CONNECTOR_PULL_TICK_QUEUE, CONNECTOR_PULL_TICK_CRON);
 
   if (deps.sheets) {
     const clock = deps.clock ?? systemClock;
@@ -360,13 +443,56 @@ export const WEBHOOK_WORK_OPTIONS = {
   localGroupConcurrency: 1,
 } as const;
 
+// A connector's events (P5.3): as the planner's webhooks, one job at a time per loop and one
+// source's events never two at once, so a slow or hanging system holds up only its own events.
+export const CONNECTOR_LOOPS = 2;
+export const CONNECTOR_WORK_OPTIONS = {
+  perJobResults: true,
+  batchSize: 1,
+  includeMetadata: true,
+  localConcurrency: CONNECTOR_LOOPS,
+  localGroupConcurrency: 1,
+} as const;
+
+// A connector's reconcile pull (P5.4): one per fetch, as the travel job's. A pull runs for up to its
+// budget (8 minutes: src/lib/connector/pull.ts) and pg-boss fails a whole batch at one job's expiry,
+// so two long pulls in one batch would fail both (each carrying on beside its next). Two loops: one
+// firm's slow system holds up one of them; two slow ones hold both for up to their budgets, and the
+// pulls queued meanwhile that a later one has caught up on do nothing (superseded).
+export const CONNECTOR_PULL_WORK_OPTIONS = {
+  perJobResults: true,
+  batchSize: 1,
+  localConcurrency: CONNECTOR_LOOPS,
+} as const;
+
 // The travel job (12G.2) runs for up to its budget (10 minutes). pg-boss times a batch out, and
 // fails every job in it, at one job's expiry (15 minutes), so two long runs in one batch would fail
 // both (and the abandoned one would carry on beside its retry). One job per fetch keeps each run
 // inside its own expiry.
 export const TRAVEL_WORK_OPTIONS = { ...FIRM_WORK_OPTIONS, batchSize: 1 } as const;
 
-type FirmWorkOptions = typeof FIRM_WORK_OPTIONS | typeof TRAVEL_WORK_OPTIONS;
+// Offer waves (P4.4): one per fetch. A wave runs for seconds (up to 50 messages, 4 at a time:
+// src/lib/offers/waves.ts), and a fetched batch's other waves are marked taken (active) the whole
+// time it runs: hidden from another worker process, and their expiry clock running. With this one
+// worker process the next wave still waits for the one running (one loop), so this keeps the
+// queue's state true rather than making waves run side by side. pg-boss never bursts at a batch of
+// 1 (burstWhenBatchFull is ignored there), so the loop polls every half second (pg-boss's least)
+// instead of every 2: a wave longer than 0.4 s is followed by the next at once, a shorter one waits
+// at most 0.5 s, and a new urgent wave is picked up within half a second. That costs 2 small
+// fetches a second on this queue (tests/integration/worker.hello.test.ts). Not built on
+// FIRM_WORK_OPTIONS: its burstWhenBatchFull does nothing at a batch of 1, and a default added
+// there later should be chosen for waves on purpose (tests/unit/worker.firm-work.test.ts pins it).
+export const OFFER_WAVE_WORK_OPTIONS = {
+  perJobResults: true,
+  batchSize: 1,
+  pollingIntervalSeconds: 0.5,
+} as const;
+
+type FirmWorkOptions =
+  | typeof FIRM_WORK_OPTIONS
+  | typeof TRAVEL_WORK_OPTIONS
+  | typeof OFFER_WAVE_WORK_OPTIONS
+  | typeof CONNECTOR_PULL_WORK_OPTIONS;
 
 // One after another, in the batch's order, one result per job.
 export async function inOrder<J, R>(jobs: J[], run: (job: J) => Promise<R>): Promise<R[]> {

@@ -6,8 +6,15 @@ database (or, if the host has none, Postgres in Compose). Every firm's data is i
 database, separated by `firm_id` and Row Level Security. Email goes out over SMTP through any
 provider. AI is Claude through the Anthropic API, off until it's switched on. No AWS (ADR-021).
 
-Scale is small (tens to a couple of hundred messages per firm per day, spiking on event
-mornings). Reliability matters far more than scale.
+Built for a big firm (PLAN.md P4): about 2,000 casuals, 110 events a fortnight, 10 office users at
+once and a burst of 1,000 messages in 10 minutes, on one web app and one worker process. The tests
+hold it there: an offer wave for one place among 2,000 casuals texts 5, not 2,000
+(`offers.scale.test.ts`); 2,000 reminders due at once each go once (`shift.reminders.test.ts`); and
+1,000 casuals' messages in one burst are each answered once within 90 seconds of the last with a
+300 ms send each (about 41 to 51 seconds measured), or each made the office's question within 30
+with automatic replies off (about 2) (`inbound.load.test.ts`). Most days are far quieter (tens to a
+couple of hundred messages per firm, spiking on event mornings). Reliability still matters more
+than scale.
 
 ## Diagram
 
@@ -59,6 +66,13 @@ mornings). Reliability matters far more than scale.
   bound parameter, ended by COMMIT/ROLLBACK so a pooled connection never carries a firm into the
   next request. Nesting throws. The pool refuses to run as a superuser, a BYPASSRLS role or a
   table owner. ESLint blocks app code from importing the raw pool, the owner connection or `pg`.
+- **Time limits per transaction** (P4.2, ADR-027): the same statement sets `statement_timeout` and
+  `idle_in_transaction_session_timeout`, so they end with the transaction too. Each process has a
+  profile (`src/lib/db/pool.ts`): the web app a pool of 10, a 5 s wait for a connection, 15 s
+  statements and 30 s idle; the worker (`chooseDbProfile("worker")`) a pool of 15, 30 s, 60 s and
+  60 s. The credential scan's lock holder, the firm's data export, the retention purge and the
+  metrics roll-up (its job and the office's "Update the figures now") take longer ones with
+  `allowLonger()`, from a named list.
 - **RLS** is enabled and forced on every table, with one policy:
   `firm_id = (select app_current_firm_id())`, where `app_current_firm_id()` returns NULL when no
   firm is set, so a query outside `withFirm` sees nothing and can write nothing.
@@ -89,7 +103,9 @@ the jobs role owns the pgboss tables and isn't firm-restricted there, so payload
 **Workers (no passwords):**
 1. Enter mobile number on the firm's portal.
 2. If the number belongs to an active worker in this firm, send a one-time link by WhatsApp
-   (template) or SMS. Same response either way, so numbers can't be probed.
+   (template) or SMS. Same response either way, so numbers can't be probed. With no text sender
+   (P2.5) and the firm's `login_by_email` on, by email to the address held for them instead
+   (P2.6; off by default until the login page stops naming WhatsApp, P2.7).
 3. Link token: random 32 bytes, stored as a hash, single use, 15-minute expiry. The token goes
    in the URL fragment (`/l#<token>`), never the path or query string: browsers don't send the
    fragment to the server, so it never reaches request logs, proxies or Referer headers.
@@ -99,7 +115,8 @@ the jobs role owns the pgboss tables and isn't firm-restricted there, so payload
    working for 60 seconds. Every lookup checks the session kind and that the worker is still
    active. Only token hashes are stored. The link page asks "Log me in" (a POST), so link
    previews and email scanners can't use the link up.
-5. Pay pages need a step-up code (`src/lib/auth/step-up.ts`): 6 digits by WhatsApp, 10 minutes,
+5. Pay pages need a step-up code (`src/lib/auth/step-up.ts`): 6 digits by WhatsApp (by email in
+   the same case as the link, P2.6), 10 minutes,
    5 tries, one live code per session (asking again replaces it), 3 requests per worker per 15
    minutes and 10 a day. After a reload the page offers the code field while a sent code still
    works. Created inside the `send-login-code` job and stored as an HMAC bound to the session.
@@ -109,7 +126,7 @@ the jobs role owns the pgboss tables and isn't firm-restricted there, so payload
 6. Rate limits (`src/lib/auth/throttle.ts`), in fixed 15-minute windows per firm: 60 link
    requests per IP (anything typed, junk included; raised from 10 in 13.5 so a team briefed on one
    venue's Wi-Fi isn't locked out; the backstop is an ops alert when a firm sends more than 100
-   login links by WhatsApp and text in an hour, or 300 in a day, 14.2) and 3 per number, plus at most 10 per number
+   login links to casuals in an hour, or 300 in a day, 14.2) and 3 per number, plus at most 10 per number
    a day (Phase 10, audit L49: each link is a billed message); 20 failed link uses per IP
    (successful logins don't count; the strikes team's confirmation links count here too, 12B.7).
    Those confirmation links are emails too: a firm sends at most 3 every 15 minutes and 10 a day
@@ -163,7 +180,9 @@ interface RosterPlug {
 
 Reads return records keyed by `ref` (our id for native, the sheet or file's row key otherwise,
 stored as `shifts.external_ref`); writes take our ids, and each adapter maps between them.
-Adapters reading an outside source (Sheets, CSV) check its data with the zod schemas in `plug.ts`
+Adapters reading an outside source (Sheets, CSV) read its role names through the firm's name map
+(P3.2, `src/lib/roster/names.ts`: a mapped name is its code, a skipped one isn't a session, the
+rest as `normaliseRole()` spells them) and check its data with the zod schemas in `plug.ts`
 (`rosterStaffSchema`, `rosterShiftSchema`); the native adapter maps our own rows, whose CHECKs
 already hold. Every adapter computes notice with `noticeHours()` (`src/lib/roster/notice.ts`) from
 `cancel.at`, never from when the call runs (a retried job must not shrink a worker's notice). A
@@ -337,15 +356,20 @@ sync may call a plug's `markCancelled` (`tests/unit/booking.boundary.test.ts`).
 
 **Offer waves (pg-boss)** (built in Phase 4: `src/lib/offers/waves.ts`; details in
 docs/api-and-jobs.md, `offer-wave` and `escalate-shift`)
-1. Rank eligible workers (fair rotation: fewest hours this week first; or first come first served).
-2. Send wave 1 (3–5 people): web push + WhatsApp template ("Shift available: Sat 14:00 Gate C.
+1. Rank eligible workers: fewest hours this week first, then longest since their last offer (both
+   modes).
+2. Send wave 1: fair rotation's `wave_size` (default 4); first come, first served's
+   `wave_per_place` (default 5) per free place, at most 50 (P4.3), never everyone eligible.
+   Web push + WhatsApp template ("Shift available: Sat 14:00 Gate C.
    Tap to take it"). Link opens the shift.
 3. Schedule `offer-wave` job for +15 min. If still open, next wave.
 4. Schedule `escalate` at start minus X hours: alert resourcer if unfilled.
 5. When filled, cancel remaining jobs and tell open offers "now filled".
 Each wave claims one worker at a time (the shift locked for milliseconds), then sends with no
 transaction open, then records: a booking never waits for a wave's messages, and a retry never
-messages anyone twice (the reminders' claim → send → record).
+messages anyone twice (the reminders' claim → send → record). Up to 4 messages go at once
+(P4.4), each lane holding at most one of the worker's connections at a time, so a wave of 50 with
+300 ms sends takes about 4 seconds, not 15; the claims stay one after another.
 
 **What casuals see (the event and session switches)** (12B.4; docs/office-v2.md 3.3)
 Every shift belongs to an event (`shift_events`), and both carry a "showing to casuals" switch.
@@ -368,8 +392,9 @@ stays out of the rules engine. Personal enquiry replies (12D.2) must use the sam
 
 **Pay query**
 1. Worker (after OTP) fills a structured form.
-2. Code assigns grouping keys: the issue and the week, plus the pay line's rate for a wrong
-   rate or the site for missing hours (`src/lib/pay/grouping.ts`). Haiku writes a one-line
+2. Code assigns grouping keys: the issue and the week (the firm's pay period, so a fortnight
+   is one pay run: P3.1), plus the pay line's rate for a wrong rate or the site for missing hours
+   (`src/lib/pay/grouping.ts`). Haiku writes a one-line
    summary per group from the group's facts only, checked before use, with the app's own line as
    the fallback and always shown as the heading (the Anthropic client is built, Phase 12 task
    12X.3, and off until `AI_TRANSPORT=anthropic`). The app stops waiting after 5 seconds
@@ -450,7 +475,8 @@ log lines name the host only.
 
 ## Notifications
 
-Order: web push (free) → WhatsApp template → SMS fallback.
+Order: web push (free) → WhatsApp template → SMS fallback → email (P2.4: only when there's no
+text sender at all). A push that one of their phones takes is the message: nothing else goes.
 - Web push works on Android browsers. On iPhone it only works when the portal is added to the
   home screen, so prompt for it after first login. Built in Phase 3: My shifts and Profile show
   iPhone and iPad users "Put your shifts on your home screen" (`src/app/home-screen-hint.tsx`)
@@ -459,11 +485,12 @@ Order: web push (free) → WhatsApp template → SMS fallback.
 - Offline: a service worker (`public/sw.js`, ADR-016) keeps the last copy of My shifts, so it
   opens without signal, marked "No signal. These are your shifts from {time}".
 - Web push: the profile subscribes this phone (`POST /api/push/subscribe`,
-  `push_subscriptions`); offers, reminders and the office's notices push to the worker's phones as
-  well as WhatsApp/SMS; the same service worker shows the notification and opens the page (our own
-  pages only). The real sender (13.3: the `web-push` library, the deployment's VAPID keys, the
-  browser makers' push services) is `PUSH_TRANSPORT=webpush`; each push goes after its message,
-  with no transaction open (14.1). Production keeps `none` until the keys are made on the server
+  `push_subscriptions`); offers, reminders and the office's notices push to the worker's phones
+  first, and go by WhatsApp/SMS only when no phone takes the push (P2.4; before, the push went as
+  well, after the message); the same service worker shows the notification and opens the page (our
+  own pages only). The real sender (13.3: the `web-push` library, the deployment's VAPID keys, the
+  browser makers' push services) is `PUSH_TRANSPORT=webpush`; each push goes with no transaction
+  open (14.1). Production keeps `none` until the keys are made on the server
   (PLAN.md Parking lot, "Connect the real web push").
 - WhatsApp: business-initiated messages must use approved templates (utility category for
   offers and login links). From 1 October 2026 Meta charges per service message beyond the
@@ -471,11 +498,13 @@ Order: web push (free) → WhatsApp template → SMS fallback.
 - SMS costs about 4p per message in the UK via Twilio. Use it only as a fallback.
 - Quiet hours per firm (urgent offers can override if the firm allows).
 - Shift reminders (Phase 4, ADR-017): a tick every 5 minutes finds bookings with a 24 h or 2 h
-  reminder due and queues one job per firm. Each reminder is claimed in `shift_reminders` and
-  committed before it's sent (outside any transaction), then its outcome recorded: a retry never
-  sends it again, and a job that stops part-way leaves it `sending` ("may have gone"). Offers and
-  reminders send through one helper (`src/lib/notify/send.ts`: the worker's channel, the
-  WhatsApp-to-text fallback, the push).
+  reminder due and queues one job per firm (at a big firm, P4.5: 200 a run, 4 at a time, then a
+  follow-up job for the rest, behind other firms' jobs). Each reminder is claimed in
+  `shift_reminders` and committed before it's sent (outside any transaction), then its outcome
+  recorded: a retry never sends it again, and a job that stops part-way leaves it `sending` ("may
+  have gone"). Every message to a casual sends through one helper (`deliverToWorker()`,
+  `src/lib/notify/send.ts`: the push, else the worker's channel with the WhatsApp-to-text
+  fallback, else email).
 
 ## Where AI is used
 
@@ -508,6 +537,16 @@ Order: web push (free) → WhatsApp template → SMS fallback.
 - The 5-second limit in `askAi()` (`src/lib/ai/ask.ts`) is unchanged: the app stops waiting after
   5 seconds whatever the client does. A failed, late or unusable answer means the code's fallback,
   as before.
+- Under load (P4.6): `getAi` keeps one client per worker process for the key and model, so these
+  hold across every job. At most 4 calls at once; the rest wait their turn, in order, and one
+  still waiting when its 5 seconds are up is turned away (`busy`) when its turn comes, without
+  calling the API (its caller's fallback ran at 5 seconds). A breaker: after 5 failed calls in a
+  row (no answer in time, an HTTP error, no connection; a refusal or an empty answer is the API
+  working), every call fails at once (`breaker_open`) for 30 seconds, then one trial call: an
+  answer closes it, a failure opens it for another 30. Each call not made is logged `AI call not
+  made` {purpose, model, stopReason}; the breaker logs `AI breaker open` and `AI breaker closed`.
+  No timers: the client reads the clock as calls come and go. Still no retries
+  (`tests/unit/ai.anthropic.test.ts`).
 - Where requests are processed: Anthropic's API may process requests outside the UK. Before AI is
   switched on, its data processing agreement and UK transfer terms are checked, and the privacy
   notice's line on where Anthropic processes requests is filled in (docs/privacy-notice.md,
@@ -600,7 +639,9 @@ Order: web push (free) → WhatsApp template → SMS fallback.
   new image, runs the one-off `migrate` step, then `up -d`, never between 05:30 and 09:00 UK.
   `deploy/docker-compose.yml`: only Caddy published (80/443), each service given only the secrets
   it needs (the owner's login only to `migrate`), everything `restart: unless-stopped`, the web
-  app's health check `GET /api/health`, the worker behind a profile until the Twilio sender exists.
+  app's health check `GET /api/health`, the worker running from day one with no text sender
+  (`MESSAGING_TRANSPORT=none`, P2.5: a casual's messages go by push, else email, until the firm's
+  text system is connected) and SMTP email.
   Only a push to this repository's `main` that passed CI publishes `:main`, and only while it's the
   tip. Nothing SSHes in to deploy: SSH is closed, or open only to the owner's own address
   (docs/runbooks.md "Set up the server (once)" step 3).)
@@ -671,4 +712,10 @@ Order: web push (free) → WhatsApp template → SMS fallback.
   `docs/testing.md`.)
 - Least privilege: three database roles (ADR-011), and each service gets only the secrets it needs.
   MFA on all accounts.
+- A firm's own credentials (P5.1, ADR-026: its ops portal's API key and webhook secret) sit in the
+  secret store, `firm_secrets`, each sealed with AES-256-GCM under `SECRETS_KEY`, bound to its firm
+  and name. The key is only in the worker's and the owner command's settings (the web app refuses to
+  start with it); the app role has no
+  rights on the table; only the jobs role (the worker's own connection) may call the one function
+  that reads it. So neither a copy of the database nor the web app can open a firm's secret.
 - Dependency updates weekly; `npm audit` in CI.

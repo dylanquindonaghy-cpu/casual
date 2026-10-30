@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import { devices, expect, test, type Browser, type Page } from "@playwright/test";
 import { fakeCall, fakeSms, fakeWhatsApp } from "../../scripts/fake-phone";
 import { walkthroughFiles } from "../../scripts/walkthrough-files";
@@ -12,7 +11,7 @@ import { seedFirms } from "../../src/lib/db/admin/seed-data";
 import { acmeSaturday } from "../../src/lib/db/admin/seed-saturday";
 import { setFirmSetting } from "./db";
 import { accountMenu, DASHBOARD_HEADING, menuLink } from "./fixtures";
-import { emailSentTo, sentTo } from "./outbox";
+import { emailSentTo, readOutbox, sentTo } from "./outbox";
 
 // docs/walkthrough.md, step by step (Phase 10 task 20): what Dylan does on his own computer, done
 // here in the same order, on a fresh demo (its own database: playwright.walkthrough.config.ts) and
@@ -54,11 +53,7 @@ const justBefore = () => new Date(Date.now() - 1000);
 async function anySent(after: Date, pattern: RegExp): Promise<string> {
   const deadline = Date.now() + 20_000;
   while (Date.now() < deadline) {
-    const text = await readFile(WALKTHROUGH_OUTBOX, "utf8").catch(() => "");
-    const match = text
-      .split("\n")
-      .filter(Boolean)
-      .map((l) => JSON.parse(l) as { at: string; body: string })
+    const match = (await readOutbox<{ at: string; body: string }>(WALKTHROUGH_OUTBOX))
       .filter((l) => new Date(l.at) >= after && pattern.test(l.body))
       .at(-1);
     if (match) return match.body;

@@ -19,7 +19,8 @@ import { sendToWorker, smsAllowedFor } from "../notify/send";
 // under an advisory lock on the reply) and commits; (2) the message goes outside any transaction,
 // from the firm's shifts line stored on the row, by the shared sender (`sendToWorker()`: the
 // WhatsApp-to-text fallback, never a text after STOP: a casual's own setting, or for a number that
-// isn't a casual's, its own last STOP or START to the line); (3) a second short transaction
+// isn't a casual's, its own last STOP or START to the line; never a push or an email (P2.4: it
+// answers a message to the shifts line, so a text sender exists)); (3) a second short transaction
 // records `enquiry.reply_sent` (the row gets the provider's id and the channel it went by) or
 // `enquiry.reply_failed`, which reopens the question this reply answered, so the message is back
 // in Need a person. A job that stops part-way leaves the claim: the message may have gone, so it's

@@ -2,7 +2,7 @@ import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { systemClock, type Clock } from "../auth/clock";
 import { retryAborted } from "../db/retry";
-import { assignments, offers, shifts } from "../db/schema";
+import { assignments, offers, shifts, workers } from "../db/schema";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { officeCanPlace, plugFor, rosterId } from "./book";
@@ -13,7 +13,8 @@ import {
   firmCallerSchema,
   sourceRefusal,
 } from "./firm-caller";
-import type { CancelResult } from "./plug";
+import { connectorSession } from "./planner-kind";
+import { cancelAskedBy, type CancelResult } from "./plug";
 import { queueFirmChangeNotice } from "../notices/firm-change";
 import { placeAfterCancel, removeFreedPlace } from "./native";
 import { markUrgentAfterDropout } from "./urgent";
@@ -105,6 +106,15 @@ export async function cancelBooking(
   return retryAborted(() => run(firmId, (tx) => cancelInTransaction(tx, request, now)));
 }
 
+// Whether the firm's system listed this casual as booked at its last read (by their staff ref).
+async function listedThere(tx: FirmTx, workerId: string, listed: string[]): Promise<boolean> {
+  const [worker] = await tx
+    .select({ ref: workers.externalRef })
+    .from(workers)
+    .where(eq(workers.id, workerId));
+  return worker?.ref != null && listed.includes(worker.ref);
+}
+
 async function cancelInTransaction(
   tx: FirmTx,
   request: z.output<typeof cancelRequestSchema>,
@@ -125,6 +135,13 @@ async function cancelInTransaction(
     .where(eq(shifts.id, shiftId))
     .for("no key update");
   if (!shift) return { status: "not_found" };
+  // A connector's session: cancelled in the firm's own system, which comes back in
+  // (planner-kind.ts). A booking that system no longer lists isn't there to cancel: the office
+  // cancels it here (src/lib/connector/bookings.ts keeps it otherwise, for ever).
+  const connector = shift.source === "api" ? await connectorSession(tx, shiftId) : null;
+  if (connector && (by.type !== "office" || (await listedThere(tx, workerId, connector.listed)))) {
+    return { status: "needs_approval" };
+  }
   if (by.type === "worker" && shift.startsAt.getTime() <= now.getTime()) {
     return { status: "started" };
   }
@@ -171,11 +188,15 @@ async function cancelInTransaction(
     }
   }
 
+  const via = by.type === "worker" ? ("app" as const) : ("office" as const);
+  // Who asked (P3.4): recorded on the booking by the plug, and in the log below.
+  const askedBy = cancelAskedBy({ by: initiator, via });
   const cancelled = await plugFor(tx, shift.source, now).markCancelled(shiftId, workerId, {
     reason,
     by: initiator,
     at: now,
-    via: by.type === "worker" ? "app" : "office",
+    via,
+    askedBy,
   });
   if (cancelled.status !== "cancelled") return cancelled;
   if (cancelled.noticeHours !== notice) {
@@ -228,6 +249,7 @@ async function cancelInTransaction(
     entityId: cancelled.assignmentId,
     data: {
       by: initiator,
+      askedBy,
       shiftId,
       workerId,
       noticeHours: cancelled.noticeHours,
@@ -277,7 +299,8 @@ async function cancelInTransaction(
 // shift.cancelled {by: "firm", shiftId, workerId, reason, noticeHours} (never a strike), and the
 // worker is told (a firm-change-notice job). Then the shift is cancelled, offers still out expire,
 // and shift.cancelled_by_firm {reason, bookings} is logged. The planner's entries also carry
-// {via: "api", keyId}, with the system actor. No offer waves: there's no shift to fill.
+// {via: "api", keyId} (a connector's, {via: "api", sourceId}), with the system actor. No offer
+// waves: there's no shift to fill.
 
 export const cancelShiftRequestSchema = z.strictObject({
   shiftId: rosterId,
@@ -355,11 +378,15 @@ async function cancelShiftInTransaction(
   let bookings = 0;
   for (const h of holders) {
     if (!h.workerId) continue;
+    // The planner's whole session (its key or a connector: P5.2) is cancelled via the API.
+    const via = by.type === "office" ? ("office" as const) : ("api" as const);
+    const askedBy = cancelAskedBy({ by: "firm", via });
     const cancelled = await plug.markCancelled(shiftId, h.workerId, {
       reason,
       by: "firm",
       at: now,
-      via: by.type === "api" ? "api" : "office",
+      via,
+      askedBy,
     });
     // Under the shift lock nothing else can change these bookings: anything else is a bug, and
     // the whole cancellation rolls back rather than leave someone booked on a cancelled shift.
@@ -374,6 +401,7 @@ async function cancelShiftInTransaction(
       entityId: cancelled.assignmentId,
       data: {
         by: "firm",
+        askedBy,
         ...marks,
         shiftId,
         workerId: h.workerId,

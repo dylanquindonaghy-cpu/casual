@@ -84,6 +84,8 @@ export async function firmReadiness(tx: FirmTx): Promise<ReadinessItem[]> {
   // firm whose sheet had ever synced).
   const sheet = await tx
     .select({
+      kind: rosterSources.kind,
+      connector: rosterSources.connector,
       last_synced_at: rosterSources.lastSyncedAt,
       last_error_code: rosterSources.lastErrorCode,
     })
@@ -125,20 +127,30 @@ export async function firmReadiness(tx: FirmTx): Promise<ReadinessItem[]> {
       state: c.admins > 0 ? "done" : "todo",
       detail: `${plural(c.admins, "admin", "admins")}, ${plural(c.resourcers, "resourcer", "resourcers")}, ${plural(c.payroll, "payroll user", "payroll users")} (active).${c.admins > 0 ? "" : " There must be an admin."}`,
     },
-    source
+    source?.kind === "connector"
       ? {
+          // A connector (P5.2): the firm's own system, its changes the planner's. Its reads'
+          // status comes with the reconcile pull (P5.4).
           item: "Rota source",
           state: source.last_synced_at && !source.last_error_code ? "done" : "todo",
           detail: source.last_synced_at
-            ? `Google Sheet, last synced ${source.last_synced_at.toISOString()}${source.last_error_code ? `, now failing (${source.last_error_code}): ${syncErrorWords(source.last_error_code)}` : ""}.`
-            : `Google Sheet added, never synced${source.last_error_code ? ` (${source.last_error_code}): ${syncErrorWords(source.last_error_code)}` : ""}.`,
+            ? `A connector to the firm's own system (${source.connector ?? "?"}), last read ${source.last_synced_at.toISOString()}${source.last_error_code ? `, now failing (${source.last_error_code})` : ""}.`
+            : `A connector to the firm's own system (${source.connector ?? "?"}), not read in full yet${source.last_error_code ? ` (${source.last_error_code})` : ""}.`,
         }
-      : {
-          item: "Rota source",
-          state: "confirm",
-          detail:
-            "No Google Sheet: shifts are made in the office or imported from CSV. Confirm that's what the firm wants (a sheet is connected with npm run firm:sheet).",
-        },
+      : source
+        ? {
+            item: "Rota source",
+            state: source.last_synced_at && !source.last_error_code ? "done" : "todo",
+            detail: source.last_synced_at
+              ? `Google Sheet, last synced ${source.last_synced_at.toISOString()}${source.last_error_code ? `, now failing (${source.last_error_code}): ${syncErrorWords(source.last_error_code)}` : ""}.`
+              : `Google Sheet added, never synced${source.last_error_code ? ` (${source.last_error_code}): ${syncErrorWords(source.last_error_code)}` : ""}.`,
+          }
+        : {
+            item: "Rota source",
+            state: "confirm",
+            detail:
+              "No Google Sheet: shifts are made in the office or imported from CSV. Confirm that's what the firm wants (a sheet is connected with npm run firm:sheet).",
+          },
     {
       item: "Workers and credentials imported",
       state: c.workers > 0 && c.credentials > 0 ? "done" : "todo",

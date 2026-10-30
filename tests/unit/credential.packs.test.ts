@@ -78,14 +78,19 @@ describe("credential packs match the doc", () => {
     expect(sort(fromCode)).toEqual(sort(fromDoc));
   });
 
-  it("default role rules: pack, role and the types it needs", () => {
-    const fromDoc = table("Pack").map((r) => [
-      r.Pack,
-      code(r.Role ?? ""),
-      r.Needs === "none" ? [] : (r.Needs ?? "").split(",").map(code),
-    ]);
+  it("default role rules: pack, role, the types it needs and its one-of group", () => {
+    // "`A`, `B`" every one; "one of `A` or `B`" one of them (P3.3); "`A`, and one of `B` or `C`".
+    const needs = (cell: string) => {
+      if (cell === "none") return [[], []];
+      const [all = "", any] = cell.split(/(?:,\s*and\s+)?one of\s+/);
+      return [
+        all.trim() ? all.split(",").map(code) : [],
+        any ? any.split(/\s+or\s+/).map(code) : [],
+      ];
+    };
+    const fromDoc = table("Pack").map((r) => [r.Pack, code(r.Role ?? ""), ...needs(r.Needs ?? "")]);
     const fromCode = Object.values(CREDENTIAL_PACKS).flatMap((p) =>
-      p.rules.map((rule) => [p.sector, rule.role, rule.requiredTypes]),
+      p.rules.map((rule) => [p.sector, rule.role, rule.requiredTypes, rule.anyOfTypes ?? []]),
     );
     expect(fromDoc.length).toBe(11);
     const sort = (rows: unknown[][]) => rows.map((r) => JSON.stringify(r)).sort();
@@ -113,6 +118,15 @@ describe("credential packs are well formed", () => {
         expect(roles.has(rule.role)).toBe(false);
         roles.add(rule.role);
         for (const type of rule.requiredTypes) expect(codes.has(type)).toBe(true);
+        // A one-of group: two or more of its own pack's types, none also needed outright (the
+        // database's check, migration 0052).
+        const group = rule.anyOfTypes ?? [];
+        expect(group.length === 0 || group.length >= 2).toBe(true);
+        for (const type of group) {
+          expect(codes.has(type)).toBe(true);
+          expect(rule.requiredTypes).not.toContain(type);
+        }
+        expect(new Set(group).size).toBe(group.length);
       }
     }
   });
@@ -126,6 +140,14 @@ describe("credential packs are well formed", () => {
       expect(t.name.length).toBeGreaterThan(0);
       expect(t.name.length).toBeLessThanOrEqual(100);
     }
+  });
+
+  it("a security officer takes an SIA security guard or door supervisor licence (P3.3, Rules 3)", () => {
+    expect(CREDENTIAL_PACKS.security.rules).toContainEqual({
+      role: "security_officer",
+      requiredTypes: [],
+      anyOfTypes: ["SIA_SG", "SIA_DS"],
+    });
   });
 
   it("security has CSAS and manual handling, and a CSAS officer needs CSAS (12B.3)", () => {

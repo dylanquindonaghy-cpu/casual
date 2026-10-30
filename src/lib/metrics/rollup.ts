@@ -2,7 +2,7 @@ import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { systemClock, type Clock } from "../auth/clock";
 import { firms, metricsDaily } from "../db/schema";
-import type { FirmTx, WithFirm } from "../db/scoped";
+import { allowLonger, type FirmTx, type WithFirm } from "../db/scoped";
 import { firmJobEnvelope, sendFirmJob, type FirmTask } from "../jobs/firm-job";
 import { log, type Logger } from "../log";
 import { shortNoticeThreshold } from "../office/notice-report";
@@ -135,11 +135,15 @@ export async function countDay(
 }
 
 // Recomputes the last 7 days and `date` (the firm's local date) and stores them. Returns the days.
+// Eight days' figures read from the whole log, by the job and by the office's "Update the figures
+// now" alike: longer limits than a page's or a job's own, from here to the transaction's end
+// (ADR-027).
 export async function rollupFirm(
   tx: FirmTx,
   date: string,
   asAt: Date,
 ): Promise<{ days: string[] }> {
+  await allowLonger(tx, "metricsRollup");
   const [firm] = await tx
     .select({ id: firms.id, timezone: firms.timezone, settings: firms.settings })
     .from(firms)

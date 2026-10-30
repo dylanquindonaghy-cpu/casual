@@ -50,10 +50,14 @@ architecture.md, Tenancy).
 | pay_queries | Structured pay questions + grouping key + status | 6 |
 | events | Append-only action log (the evidence trail) | 1 |
 | magic_links / sessions / otp_codes | Login (hashes only, never raw tokens or codes) | 1 |
-| auth_throttle | Rate-limit counters for login and OTP requests (HMAC-keyed buckets) | 1 |
+| auth_throttle | Rate-limit counters for login and OTP requests, and the shifts line's unknown-number alerts (HMAC-keyed buckets) | 1 |
 | api_keys | A planner's API keys: a label, the key's sha256 and last 4 characters (never the key), who made and revoked it, when last used (12J.1, S11) | 12 |
+| firm_secrets | A firm's own credentials for its systems (its ops portal's API key, its webhook secret), each sealed under a key the database never sees (P5.1, ADR-026) | P5 |
+| connector_events | What a connector's source said changed (a session or a staff record, by its ref), one row per event id per source, and what the job made of it (P5.3) | P5 |
+| inbound_emails | Emails to a firm's staffing inbox, one row per Message-ID: who it's from, and only a known casual's subject and words, quoted history taken off; how many attachments were left out (P7.1) | P7 |
 | push_subscriptions | Web push endpoints per worker | 4 |
-| roster_sources | Where a firm's rota lives when it isn't our tables (Google Sheet id, column mapping, last sync, error code, sync lease) | 2 |
+| roster_sources | Where a firm's rota lives when it isn't our tables: a Google Sheet (its id, column mapping) or a connector to the firm's own system (which one, its base address; P5.2), with the last sync, error code and sync lease | 2 |
+| name_map | What the firm's own system calls a role, qualification, staff type or cancellation reason, mapped to a ShiftDesk code or to skip (P3.2) | P3 |
 | metrics_daily | Pilot baseline and daily counts | 5 |
 
 ## Firm settings (jsonb on `firms.settings`)
@@ -65,6 +69,7 @@ architecture.md, Tenancy).
   "short_notice_threshold_hours": 48,
   "wave_size": 4,
   "wave_minutes": 15,
+  "wave_per_place": 5,
   "escalate_hours_before_start": 3,
   "quiet_hours": { "start": "22:00", "end": "07:00", "urgent_override": true },
   "credential_applied_allowance_pct": 15,
@@ -72,6 +77,7 @@ architecture.md, Tenancy).
   "weekly_hours_cap": 48,
   "travel_buffer_minutes": 0,
   "approve_mode": true,
+  "auto_replies": false,
   "sign_off": "Acme Events Shift Team",
   "pay_digest": { "time": "09:00", "days": ["mon", "tue", "wed", "thu", "fri"] }
 }
@@ -81,6 +87,45 @@ architecture.md, Tenancy).
 Read field by field: a time or day list that makes no sense gets the default (09:00, Monday to
 Friday); `"days": []` means no scheduled digest (payroll can still send one from its page). There's
 no settings screen for it yet.
+
+`auto_replies` (P4.7, `src/lib/inbound/limits.ts`): whether the shifts line answers WhatsApps and
+texts by itself. Only `true` turns it on; missing or anything else is off, the default. Off,
+nothing goes back by WhatsApp or text, and every casual's message waits for the office in Need a
+person (`docs/messaging-templates.md`, "Notification policy"). The made-up firms in the seed have
+it on.
+
+`firm_system_sends` (P2.3, `src/lib/notices/who-sends.ts`; "Connecting the firm's systems" 9 and
+17): whether the firm's own system (its rota sheet, or its CRM through the API: P5) reminds the
+casuals it books. Only `true` turns it on; off, the default, ShiftDesk reminds every booking. On,
+no 24-hour or 2-hour reminder goes from ShiftDesk for a booking whose `assignments.booked_via` is
+sheet or api; offers and the office's change and cancellation notices still go. A booking
+confirmation only ever goes for the office's own booking in ShiftDesk, either way.
+
+`login_by_email` (P2.6, `src/lib/auth/login-channel.ts`; "Connecting the firm's systems" 16):
+whether a casual's login link and pay-page code may go by email. Only `true` turns it on; missing
+or anything else is off, the default. It matters only when there's no text sender
+(`MESSAGING_TRANSPORT=none`, P2.5): then, on and with an address held for the casual, the link or
+code goes by email (`docs/messaging-templates.md` "Email to casuals"); off, or no address, nothing
+is made and the miss is logged (`no_channel`). With a text sender they go by WhatsApp either way.
+Leave it off until the login and Pay pages stop naming WhatsApp (P2.7).
+
+`pay_calendar` (P3.1, `src/lib/pay/calendar.ts`; "Connecting the firm's systems" 1, replacing
+D8): `{ "days": 14, "anchor": "2026-03-02", "pay_day_after": 5, "label": "cycle" }`, the firm's pay
+periods: 7 or 14 days counted from `anchor`, a Monday that starts period 1 (needed for 14), each
+paid `pay_day_after` days after it ends on a Sunday (0 to 27; 5 is the Friday after), called
+`week` or `cycle` (the default: week for 7 days, cycle for 14). Read whole: nothing set, or
+anything the app can't read, is today's rule, ISO weeks, Monday to Sunday, paid the Friday after.
+Set by the owner with `npm run firm:settings` (`pay_calendar.days`, `.anchor`, `.pay_day_after`,
+`.label`), which refuses a part that would leave the whole unreadable (fortnights without their
+start; going back to weeks, set `pay_calendar.days=7` before `pay_calendar.anchor=none`). A
+period's number counts on from the anchor's (1), and its fortnights run on unbroken, across New
+Year: the year-end rule waits for the firm's payroll (`docs/discovery-axlr8.md` §5.5), and could
+move the periods themselves (a new cycle 1 on Mon 4 Jan 2027 would shift every fortnight from Mon
+28 Dec 2026 by a week), not only their numbers. Pay-query grouping uses it now: a new query is keyed
+on the firm's period at once, and the open ones follow at the next regroup (the payroll digest, or a
+pay import). Payroll's pay-query headings and the digest's headline still say "the week of" its
+first Monday, and the top bar, the dashboards and Home read weeks, until after the UI chat's Phase
+24 (P3), so leave a live firm on weeks until then.
 
 (The 48-hour short-notice threshold is a placeholder until the 2027 regulations are final.)
 
@@ -108,6 +153,8 @@ never comes back. Admins change it on Integrations (`src/lib/office/webhook-sett
 
 The owner's strike settings (12C.1), in the same object, read by `src/lib/strikes/settings.ts`
 (a value out of range is ignored for the default) and set with `npm run firm:settings`:
+`strikes.enabled` (true, P3.4: only `false` switches strikes off, and then a casual's own
+cancellation is never a strike, its decision "strikes_off"; those given stay as they are),
 `strikes.notice_hours` (48, 1 to 336: a casual's own cancellation with less notice is a strike;
 kept apart from `short_notice_threshold_hours`, the law's), `strikes.live_days` (90, 1 to 365:
 how long a strike counts) and `strikes.keep_months` (12, 7 to 72: when its row is deleted, never
@@ -146,6 +193,11 @@ create table firms (
                                          -- like workers.mobile_e164's); null
                                          -- until bought (Twilio). One number, one firm. Set by
                                          -- `npm run firm:line` (the owner), never by the app.
+  inbox_address text unique,             -- P7.1: the firm's staffing inbox at our email provider
+                                         -- (its own mailbox forwards there), lower case, a CHECK
+                                         -- on its form. One address, one firm. Set by `npm run
+                                         -- firm:inbox` (the owner), never by the app; found for an
+                                         -- incoming email by app_firm_by_inbox() (0060).
   settings jsonb not null default '{}',
   agreement_signed_on date,              -- Gate B: the day the agreement and DPA were signed, set by
                                          -- `npm run firm:agreement` (the owner), never by the app.
@@ -186,7 +238,7 @@ create table workers (
   first_name text not null,
   last_name text not null,
   mobile_e164 text,                      -- empty only once erased (below)
-  email text,
+  email text,                            -- kept lowercase and checked as an address by upsertWorker (P2.6; the app's rule, no database check)
   status text not null default 'active', -- active | inactive | blocked
   roles text[] not null default '{}',
   external_ref text,                     -- the sheet's staff id (Sheets firms); null otherwise
@@ -389,7 +441,11 @@ create table credential_rules (
   required_types text[] not null,        -- all required; flat list of type codes ('SIA_DS'),
                                          -- no NULL, blank or comma-joined elements; '{}' = needs
                                          -- none. No row for a role = not eligible (fail closed).
-                                         -- Any-of groups can be modelled later.
+  any_of_types text[] not null default '{}', -- and one of these (P3.3, Rules 3; migration 0052):
+                                         -- two or more codes in the same format, none also in
+                                         -- required_types; '{}' = no group. The security pack's
+                                         -- security_officer: {SIA_SG,SIA_DS} (rules a firm already
+                                         -- has keep theirs)
   created_at timestamptz not null default now(),
   unique (firm_id, role)
 );
@@ -445,7 +501,16 @@ create table shifts (
   instructions text,
   synced_holders text[],                 -- Sheets: the "Assigned" cell's staff ids after the last
                                          -- successful sync (the three-way merge's base; names the
-                                         -- sync couldn't book left out, so they're tried again)
+                                         -- sync couldn't book left out, so they're tried again).
+                                         -- A connector's session (P5.5): the staff refs the system
+                                         -- listed at the last read, less those it couldn't book
+                                         -- here (a booking cancelled here stays in, so it isn't
+                                         -- booked again)
+  source_read_at timestamptz,            -- a connector's session only (P5.5's review): when its
+                                         -- record was last read and applied; an older read
+                                         -- changes nothing, and it is the session's "last read"
+                                         -- for a cancellation's notice (null: not a connector's;
+                                         -- shifts_source_read_api_only)
   sheet_issues jsonb,                    -- Sheets only (Phase 10): what the sheet asks for that the last
                                          -- sync couldn't do ({change?: {fields, wanted, reason, workers},
                                          -- names?: [{workerId, codes, dropped?}]}), for the dashboard; null: none
@@ -468,6 +533,9 @@ create table shifts (
   unique (firm_id, source, external_ref) -- one shift per sheet/import row or planner ref (NULLs
                                          -- don't collide)
 );
+-- Indexed by (firm_id, starts_at), (firm_id, event_id) and (firm_id, ends_at): sessions by their
+-- start, an event's sessions, and sessions still running or to come (the last two for a big firm,
+-- PLAN.md P4.1).
 
 -- One row per holder of a slot. A cancellation keeps its row (worker, reason, notice hours) and
 -- a new open row reopens the slot, so only one "live" row (not cancelled) may exist per slot.
@@ -491,6 +559,24 @@ create table assignments (
                                          -- to check"); cleared when that happens again
   cancel_via text,                       -- 12C.1: app | office | sheet | import | api (the planner
                                          -- API, 12J.1); empty on older rows
+  cancel_asked_by text,                  -- P3.4: who asked for it, apart from who carried it out
+                                         -- (status) and where (cancel_via): casual (their own
+                                         -- cancel) | firm (the office's) | client | unknown (a
+                                         -- rota sheet's, a file's or a planner's: their data
+                                         -- doesn't say). Set by every cancellation (the plug's
+                                         -- markCancelled, a caller that knows may say); only on a
+                                         -- cancelled row; migration 0053 filled the cancellations
+                                         -- there were from their status and cancel_via (none:
+                                         -- from the session's source). Each shift.cancelled log
+                                         -- entry says it too (askedBy); the notice report reads
+                                         -- the entry's, else the booking's, and counts by it
+  booked_via text,                       -- P2.2: where the booking was made: app (the casual took it,
+                                         --   or accepted an offer) | office | sheet | api (the firm's
+                                         --   own system, P5); set with the booking, in its
+                                         --   transaction; empty on an open slot; "who sends what"
+                                         --   reads it (P2.3); migration 0049 filled the bookings there
+                                         --   were from their shift.assigned lines, firm by firm (none:
+                                         --   the office's)
   strike_warning_version text,           -- 12C.1: on a casual's own cancellation in the app, the strike
   strike_warning_shown_at timestamptz,   --   warning on screen when they confirmed (its version) and
                                          --   then; both or neither, only on cancelled_worker
@@ -502,6 +588,8 @@ create unique index assignments_one_live_per_slot on assignments (firm_id, shift
   where status not in ('cancelled_worker', 'cancelled_firm');
 create unique index assignments_one_live_per_worker on assignments (firm_id, shift_id, worker_id)
   where worker_id is not null and status not in ('cancelled_worker', 'cancelled_firm');
+-- Also indexed by (firm_id, worker_id) and (firm_id, cancelled_at): a casual's bookings, and the
+-- firm's cancellations by when (P4.1).
 
 -- Strikes (12C.1; src/lib/strikes/): a row only for a strike issued, by strikeDecision() inside
 -- cancelBooking()'s transaction. The app reads and adds rows and may change only the review,
@@ -576,7 +664,7 @@ create table offers (
   worker_id uuid not null,               -- (firm_id, worker_id) -> workers
   wave int,                              -- >= 1: sent in a wave; null: sent by the office
   offered_by uuid,                       -- (firm_id, offered_by) -> office_users; set exactly when wave is null
-  channel text not null,                 -- push | whatsapp | sms
+  channel text not null,                 -- push | whatsapp | sms | email (P2.4: the way it went)
   sent_at timestamptz not null default now(),
   responded_at timestamptz,              -- set exactly when response is set
   response text,                         -- accepted | declined | expired | filled_elsewhere | failed (couldn't be sent)
@@ -586,6 +674,8 @@ create table offers (
   -- plus a unique index on (firm_id, shift_id, worker_id) where wave is null: one office offer
   -- per worker per shift
 );
+-- Indexed by (firm_id, worker_id, sent_at) for the daily offer cap, and by (firm_id, sent_at) for
+-- the firm's offers by when (P4.1).
 
 -- Each shift reminder a booking got, or why not (src/lib/reminders/send.ts). Written before the
 -- message goes. Evidence in a no-show dispute: the app never deletes one.
@@ -597,7 +687,7 @@ create table shift_reminders (
   starts_at timestamptz not null,        -- the start time it was for (a moved shift gets new ones)
   status text not null,                  -- sending (claimed; left so if the job stopped: may have gone, never resent)
                                          -- | sent | failed (not resent: it may have arrived) | skipped (quiet hours)
-  channel text,                          -- whatsapp | sms; null exactly when skipped
+  channel text,                          -- push | whatsapp | sms | email (P2.4); null exactly when skipped
   recorded_at timestamptz not null default now(), -- when it was claimed or skipped
   created_at timestamptz not null default now(),
   unique (firm_id, id),
@@ -623,27 +713,69 @@ create table metrics_daily (
   unique (firm_id, kind, day, metric)
 );
 
--- Where a firm's rota lives when it isn't our tables (native firms have no row). No secrets:
--- the firm shares its sheet with our service account; the key is in the worker's environment.
--- Rows are added and changed only by the owner (npm run firm:sheet); the app role may read them
--- and update only the four sync status columns (last_synced_at, last_attempted_at,
--- last_error_code, sync_started_at: a column-level grant).
+-- Where a firm's rota lives when it isn't our tables (native firms have no row): a Google Sheet,
+-- or (P5.2, migration 0055) a connector reading the firm's own system, whose changes go through
+-- exactly the planner API's rules as the firm's planner (src/lib/roster/firm-caller.ts: allowed
+-- only while its source is on, its row held for the change, and never while the firm has a live
+-- planner API key: one planner writes its sessions, not two). No secrets: the firm shares its
+-- sheet with our service account (the key is in the worker's environment), and a connector's
+-- credentials are in the secret store (firm_secrets). Rows are added and changed only by the owner
+-- (npm run firm:sheet; a connector's in the tests only until P5.3); the app role may read them
+-- and update only the five sync status columns (last_synced_at, last_near_synced_at,
+-- last_attempted_at, last_error_code, sync_started_at: a column-level grant).
 create table roster_sources (
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),
-  kind text not null,                    -- 'sheets'
+  kind text not null,                    -- 'sheets' | 'connector'
   enabled boolean not null default true,
-  spreadsheet_id text not null,          -- ^[A-Za-z0-9_-]{20,100}$
-  mapping jsonb not null,                -- tabs and header names (src/lib/roster/sheets/mapping.ts)
-  last_synced_at timestamptz,
+  spreadsheet_id text,                   -- a sheet's only: ^[A-Za-z0-9_-]{20,100}$
+  connector text,                        -- a connector's only: 'demo_portal' (the made-up portal)
+  base_url text,                         -- a connector's only: https on 443, a public DNS name
+                                         -- (no IP, bare, .localhost, .internal or .local name),
+                                         -- a path with no dot segment; nothing else; <= 300
+  mapping jsonb not null,                -- a sheet's tabs and header names ('{}' for a connector)
+  last_synced_at timestamptz,            -- a connector's: its last full pull (P5.4)
+  last_near_synced_at timestamptz,       -- a connector's only: its last pull of the next 48 hours
   last_attempted_at timestamptz,         -- the last sync that ran, success or not (for back-off)
   last_error_code text,                  -- a code only (^[a-z_]{1,50}$), never a message or cell
-  sync_started_at timestamptz,           -- the sync's lease (5 minutes)
+  sync_started_at timestamptz,           -- the sync's lease (a sheet's 5 minutes, a connector's 10)
   created_at timestamptz not null default now()
 );
+-- roster_sources_kind_fields: a sheet has its spreadsheet and nothing of a connector's; a
+-- connector its connector and base address and no spreadsheet.
 create unique index roster_sources_one_enabled_per_firm on roster_sources (firm_id) where enabled;
 -- One spreadsheet, one firm (audit L45): across firms on purpose (the app can't write the column).
 create unique index roster_sources_spreadsheet_id_key on roster_sources (spreadsheet_id);
+
+-- A firm's name map (P3.2, migration 0051; src/lib/roster/names.ts): what its own system calls a
+-- role ("Door Supervisor (NLW)", "12D"), a qualification, a staff type or a cancellation reason,
+-- and the ShiftDesk code it stands for, or skip (code null: "Holiday", "Not Set"). The rota sheet's
+-- sync and the file import read role names through it, and the credentials import a
+-- qualification's: a mapped name is its code, a skipped one is left off a worker's roles and its
+-- shift or credential row isn't brought in (the import counts it as ignored; the sync counts it,
+-- and reports skipped_live for a row that made a session still to come, which stays as it is), and
+-- a name the firm hasn't mapped is read as before (normaliseRole: a bad role if it can't be, so
+-- never offered). Staff types and cancellation reasons, which neither the sheet nor a file
+-- carries, and a role's pay rate are for the connector (P5): the sheet and the import never write
+-- a session's pay (S2). Set only by the owner (npm run firm:names), logged firm.settings_changed
+-- {keys: ["name_map.<kind>"], name, from, to}, with fromRatePence and toRatePence when either
+-- side has a pay rate; the app role may only read it.
+create table name_map (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  kind text not null,                    -- role | qualification | staff_type | cancellation_reason
+  outside_name text not null,            -- 1-200 characters, as names.ts keys it: trimmed, lower
+                                         -- case, one space between words, no control or format
+                                         -- characters
+  code text,                             -- null: skip. A role as the rules spell it; a qualification
+                                         -- one of the firm's credential types; a staff type casual;
+                                         -- a cancellation reason who asked (P3.4): casual | firm |
+                                         -- client | unknown (the database checks the format)
+  pay_rate_pence integer,                -- a role's only, not skipped, 0 to 100000 (whole pence an hour)
+  created_at timestamptz not null default now(),
+  unique (firm_id, id),
+  unique (firm_id, kind, outside_name)
+);
 
 create table messages (                 -- built in Phase 7 (migrations 0022-0024): WhatsApp, texts, calls
   id uuid primary key default gen_random_uuid(),
@@ -704,8 +836,9 @@ create table pay_queries (
   work_date date not null,               -- the day the question is about (firm time)
   issue_type text not null,              -- missing_hours | wrong_rate | late_pay | other
   details text,                          -- 1-1000 characters, or null
-  group_key text,                        -- set by code (src/lib/pay/grouping.ts): the issue and the week, plus
-                                         -- the pay line's rate (wrong rate) or the site (hours missing); "pay1:" versioned
+  group_key text,                        -- set by code (src/lib/pay/grouping.ts): the issue and the week (the
+                                         -- first Monday of the firm's pay period, P3.1), plus the pay line's
+                                         -- rate (wrong rate) or the site (hours missing); "pay1:" versioned
   status text not null default 'open',   -- open | in_digest | resolved
   resolved_by uuid,                      -- (firm_id, resolved_by) -> office_users: who sorted it
   resolved_at timestamptz,               -- when payroll sorted it
@@ -728,13 +861,17 @@ create table events (
   created_at timestamptz not null default now()
 );
 -- Indexed by (firm_id, created_at) and by (firm_id, entity_id, id): one thing's history (the dashboard's
--- wave status, the action log by shift or worker).
+-- wave status, the action log by shift or worker); and by (firm_id, action, created_at): entries of
+-- one kind over a time (the sends the ops alerts count, the webhook status; P4.1).
 -- events is append-only: the app role has SELECT and INSERT only, and events has only
 -- select and insert policies. data never holds tokens, codes, phones, emails or IPs
 -- (recordEvent() refuses anything the log masker would change).
 -- Login events (kind worker or office): auth.link_requested (entity login_request; data {kind, matched}),
 -- auth.link_sent (magic_link; {purpose, channel, providerMessageId}, + ownDomain: true when the
--- link was on the firm's own domain), auth.link_rejected
+-- link was on the firm's own domain; channel email for an office user, and for a worker since
+-- P2.6 when it went by email: login_by_email), auth.link_send_failed (magic_link; {purpose,
+-- channel, code}; or, P2.6, on the worker with {purpose, channel: null, code: no_channel} when
+-- nothing could carry it and no link was made), auth.link_rejected
 -- (magic_link or none; {kind, reason: unknown|used|expired|wrong_kind|inactive}), auth.login
 -- (session; actor worker/office), auth.session_rotated, auth.logout, auth.rate_limited
 -- (login_request, magic_link, session, api_key or worker; {limit: "login:mobile" |
@@ -742,7 +879,9 @@ create table events (
 -- "link_fail:ip" | "otp:worker" | "otp:worker_day" | "api:key" | "push:worker" (13.3) |
 -- "take:worker" (13.5) | "strikes_link:…"}; once per window, when the limit is first reached;
 -- the worker's own limits name them as the entity). Pay-page codes: auth.otp_requested (session),
--- auth.otp_sent, auth.otp_failed ({attemptsLeft}), auth.otp_locked, auth.otp_verified (otp_code).
+-- auth.otp_sent ({channel, providerMessageId}: whatsapp, or email since P2.6),
+-- auth.otp_send_failed ({channel, code}; or on the session {channel: null, code: no_channel}, no
+-- code made: P2.6), auth.otp_failed ({attemptsLeft}), auth.otp_locked, auth.otp_verified (otp_code).
 -- Worker requests (src/lib/portal/requests.ts): request.created (request; actor worker; {type,
 -- shiftId}): the typed note and any colleague's name stay on the row (requests.payload:
 -- time_change {start, end, note} local "HH:MM" times; swap {swapWith, note}).
@@ -838,6 +977,79 @@ create table auth_throttle (
 -- firm's data export. At most 10 live per firm (in code). Logged: api_key.created and
 -- api_key.revoked (actor office; {keyId}: never the label, which is typed text); the API's own
 -- changes carry {by: "firm", via: "api", keyId} with the system actor.
+-- The secret store (P5.1, migration 0054; ADR-026; src/lib/db/schema/secrets.ts): a firm's own
+-- credentials, each AES-256-GCM under SECRETS_KEY (the worker's and the owner command's settings
+-- only, never the web app's or the database's), with its firm and name bound in, so a value moved
+-- to another firm or name never opens (src/lib/secret-store/crypto.ts). The app role has no rights on it
+-- at all (TABLE_ACCESS []); the owner writes it (npm run firm:secret, the value from standard
+-- input), logged firm.settings_changed {keys: ["secret.<name>"], change: added | replaced |
+-- removed}, never the value. Read only through app_read_firm_secret(firm, name), run as the owner
+-- and callable by the jobs role alone: the worker reads on a jobs-role connection of its own
+-- (src/lib/db/firm-secret.ts). Left out of the firm's data export.
+create table firm_secrets (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  name text not null,                    -- ^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){0,3}$, at most 64:
+                                         -- portal.api_key, portal.webhook_secret
+  ciphertext bytea not null,             -- the sealed value and its 16-byte tag (17 to 4112 bytes)
+  nonce bytea not null,                  -- 12 random bytes, new for every value
+  key_id text not null,                  -- which SECRETS_KEY sealed it: the first 12 hex of its
+                                         -- sha256, never the key
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  unique (firm_id, id),
+  unique (firm_id, name)
+);
+
+-- What a connector's source said changed (P5.3, migration 0056; src/lib/connector/): one row per
+-- event its webhook sent, unique by the source's own event id (the same webhook twice is one row
+-- and one job), naming what changed and nothing of it: the job reads the record from the source's
+-- API, never from the webhook. The webhook inserts it (with its connector-event job, in the same
+-- transaction) and the job sets its outcome (COLUMN_UPDATES: status, outcome_code, processed_at);
+-- never deleted or rewritten by the app. The webhook finds the source's firm through
+-- app_connector_source_firm(source) (run as the owner, which reads every firm's sources through
+-- roster_sources' owner-only source_lookup policy; the app role may call it), only once the
+-- signature has passed. Erasing a worker deletes the staff.changed rows naming their staff ref
+-- (app_erase_worker, 0056).
+create table connector_events (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  source_id uuid not null,               -- (firm_id, source_id) -> roster_sources (firm_id, id)
+  event_id text not null,                -- the source's webhook-id: 1..100 letters, digits, . _ : -
+  type text not null,                    -- 'session.changed' | 'staff.changed'
+  ref text not null,                     -- the source's ref for the session or staff record
+  status text not null default 'queued', -- queued | applied | refused | ignored | failed
+  outcome_code text,                     -- ^[a-z0-9_]{1,50}$: created, updated, added, gone,
+                                         -- skipped_name, source_off, not_allowed, bad_role…
+  processed_at timestamptz,              -- set with the outcome (queued: neither)
+  created_at timestamptz not null default now(),
+  unique (firm_id, id),
+  unique (firm_id, source_id, event_id)
+);
+
+-- Emails to a firm's staffing inbox (P7.1; PLAN.md P7): stored once per Message-ID in the firm by
+-- the email provider's webhook (P7.2; golden rule 3; an email sent to two firms' inboxes is a row
+-- in each). Their own table, not messages, until the office's Enquiries learns email. Words only
+-- from a known casual (the sender's address one active worker's here, and the provider's word that
+-- it passed DMARC); anyone else's are never stored. Attachments are never kept: only how many. Inserted and
+-- read by the app; deleted only by the owner-run app_erase_worker() (theirs, and from their address
+-- before it was known) and app_purge_old_messages() (at retention.message_days, with the messages).
+create table inbound_emails (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  provider_message_id text not null,     -- the email's Message-ID, printable, <= 250
+  worker_id uuid,                        -- (firm_id, worker_id) -> workers: a known casual
+  from_address text not null,            -- lower case, as firms.inbox_address's form
+  to_address text not null,              -- the firm's inbox
+  subject text,                          -- a known casual's only, <= 300
+  body text,                             -- a known casual's only, quoted history and signature
+                                         -- taken off, <= 4000
+  attachments integer not null default 0, -- how many were left out (never kept)
+  handled_as text, intent text, handled_at timestamptz, -- set once by its job (P7.4)
+  created_at timestamptz not null default now(),
+  unique (firm_id, provider_message_id)
+);
+
 create table api_keys (
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),

@@ -308,6 +308,16 @@ describe("what a casual may send", () => {
     });
   });
 
+  it("a security officer may send either licence of her role's one-of group (P3.3), not another", async () => {
+    const t = await uploadsFirm();
+    const so = await t.f.worker({ first: "So", roles: ["security_officer"], credentials: [] });
+    const send = async (type: string) =>
+      (await saveMyUpload(t.casual, so, { kind: "certificate", type }, await picture())).status;
+    expect(await send("SIA_SG")).toBe("sent");
+    expect(await send("SIA_DS")).toBe("sent");
+    expect(await send("SIA_CP")).toBe("not_needed");
+  });
+
   it("a file that isn't a picture, or is too big, saves nothing", async () => {
     const t = await uploadsFirm();
     const gu = await t.f.worker({ first: "Gu" });

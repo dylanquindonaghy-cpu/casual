@@ -151,9 +151,36 @@ export interface Qualification extends QualificationState {
   uploadable: boolean;
 }
 
+// A one-of group (P3.3): the one of its types that stands best for her (the best status, then the
+// latest expiry; its first if she holds none), so she isn't told she's missing, or must renew,
+// the licence she doesn't need. A suspended one first, whatever else: the rules refuse the group
+// then (src/lib/rules/eligibility.ts). Undefined for no group.
+export function bestOfGroup(
+  group: readonly string[],
+  stateOf: (type: string) => { status: QualificationStatus; expiresOn: string | null },
+): string | undefined {
+  const rank = (s: QualificationStatus) => STATUS_ORDER.indexOf(s);
+  const suspended = (x: { state: { status: QualificationStatus } }) =>
+    Number(x.state.status === "suspended");
+  return group
+    .map((type, i) => ({ type, i, state: stateOf(type) }))
+    .sort(
+      (a, b) =>
+        suspended(b) - suspended(a) ||
+        rank(b.state.status) - rank(a.state.status) ||
+        (b.state.expiresOn ?? "9999").localeCompare(a.state.expiresOn ?? "9999") ||
+        a.i - b.i,
+    )[0]?.type;
+}
+
 export function listQualifications(o: {
   roles: readonly string[];
-  rules: readonly { role: string; requiredTypes: readonly string[] }[];
+  // anyOfTypes: the rule's one-of group (P3.3), if it has one.
+  rules: readonly {
+    role: string;
+    requiredTypes: readonly string[];
+    anyOfTypes?: readonly string[];
+  }[];
   names: ReadonlyMap<string, string>; // type code → name
   records: readonly ({ type: string } & CredentialRecord)[];
   today: string;
@@ -162,20 +189,24 @@ export function listQualifications(o: {
   // (default: the packs' list alone).
   uploadable?: (type: string) => boolean;
 }): Qualification[] {
+  const rank = (s: QualificationStatus) => STATUS_ORDER.indexOf(s);
+  const recordsOf = (type: string) => o.records.filter((r) => r.type === type);
   const needed = new Map<string, Set<string>>();
   for (const rule of o.rules) {
     if (!o.roles.includes(rule.role)) continue;
-    for (const type of rule.requiredTypes) {
+    const best = bestOfGroup(rule.anyOfTypes ?? [], (type) =>
+      qualificationStatus(recordsOf(type), o.today),
+    );
+    for (const type of [...rule.requiredTypes, ...(best ? [best] : [])]) {
       if (type === RIGHT_TO_WORK) continue;
       const roles = needed.get(type) ?? new Set<string>();
       roles.add(rule.role);
       needed.set(type, roles);
     }
   }
-  const rank = (s: QualificationStatus) => STATUS_ORDER.indexOf(s);
   return [...needed]
     .map(([type, roles]) => {
-      const records = o.records.filter((r) => r.type === type);
+      const records = recordsOf(type);
       const state = qualificationStatus(records, o.today);
       return {
         type,

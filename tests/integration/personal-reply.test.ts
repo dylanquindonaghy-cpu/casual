@@ -56,7 +56,10 @@ async function freshLine(): Promise<string> {
 
 // Travel areas on (13.4: a firm's are off until its owner switches them on).
 async function replyFirm() {
-  const f = await bookingFirm(su, withFirm, { settings: { travel: { enabled: true } } });
+  // Automatic replies on: what these tests are about (off by default since P4.7).
+  const f = await bookingFirm(su, withFirm, {
+    settings: { travel: { enabled: true }, auto_replies: true },
+  });
   const { rows: firmRows } = await su.query<{ name: string }>(
     "select name from firms where id = $1",
     [f.firmId],

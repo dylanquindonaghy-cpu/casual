@@ -10,14 +10,18 @@ export const EXPECTED_TABLES = [
   "api_keys",
   "assignments",
   "auth_throttle",
+  "connector_events",
   "credential_rules",
   "credential_types",
   "credentials",
   "events",
+  "firm_secrets",
   "firms",
+  "inbound_emails",
   "magic_links",
   "messages",
   "metrics_daily",
+  "name_map",
   "offers",
   "office_users",
   "otp_codes",
@@ -205,6 +209,30 @@ export async function createTenant(su: Pool): Promise<Tenant> {
      values ($1, 'sheets', $2, '{"version": 1}')`,
     [firmId, fakeSpreadsheetId()],
   );
+  // A switched-off connector of its own (one source on per firm: the sheet above), for its event.
+  const connectorSourceId = await one(
+    su,
+    `insert into roster_sources (firm_id, kind, enabled, connector, base_url, mapping)
+     values ($1, 'connector', false, 'demo_portal', 'https://portal.example.test/api', '{}')`,
+    [firmId],
+  );
+  const connectorEventId = await one(
+    su,
+    `insert into connector_events (firm_id, source_id, event_id, type, ref)
+     values ($1, $2, 'evt-fixture-1', 'session.changed', 'PORTAL-S1')`,
+    [firmId, connectorSourceId],
+  );
+  const nameMapId = await one(
+    su,
+    "insert into name_map (firm_id, kind, outside_name, code) values ($1, 'role', 'door supervisor (nlw)', 'door_supervisor')",
+    [firmId],
+  );
+  const secretId = await one(
+    su,
+    `insert into firm_secrets (firm_id, name, ciphertext, nonce, key_id)
+     values ($1, 'portal.api_key', $2, $3, 'aaaaaaaaaaaa')`,
+    [firmId, randomBytes(32), randomBytes(12)],
+  );
   const offerId = await one(
     su,
     "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, 1, 'push')",
@@ -300,6 +328,13 @@ export async function createTenant(su: Pool): Promise<Tenant> {
      values ($1, 'in', 'whatsapp', $2, $3, '+447700900111', '+447700900000', 'shifts')`,
     [firmId, `SM${randomBytes(16).toString("hex")}`, rosterWorkerId],
   );
+  // An email from the rota worker to the staffing inbox (P7.1).
+  const inboundEmailId = await one(
+    su,
+    `insert into inbound_emails (firm_id, provider_message_id, worker_id, from_address, to_address, subject, body)
+     values ($1, $2, $3, 'rota.worker@example.com', 'staffing@inbound.example.test', 'Saturday', 'Can I swap?')`,
+    [firmId, `<${randomBytes(8).toString("hex")}@mail.example.test>`, rosterWorkerId],
+  );
   return {
     firmId,
     slug,
@@ -329,6 +364,9 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       requests: requestId,
       offers: offerId,
       roster_sources: rosterSourceId,
+      connector_events: connectorEventId,
+      firm_secrets: secretId,
+      name_map: nameMapId,
       pay_records: payRecordId,
       worker_unavailable_days: unavailableDayId,
       worker_site_blocks: siteBlockId,
@@ -341,6 +379,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       metrics_daily: metricsId,
       pay_queries: payQueryId,
       messages: messageId,
+      inbound_emails: inboundEmailId,
     },
   };
 }
@@ -424,6 +463,20 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
            values ($1, 'sheets', false, $2, '{"version": 1}')`,
     values: [firmId, fakeSpreadsheetId()],
   }),
+  connector_events: (firmId, p) => ({
+    text: `insert into connector_events (firm_id, source_id, event_id, type, ref)
+           values ($1, $2, $3, 'staff.changed', 'PORTAL-W1')`,
+    values: [firmId, p.rows.roster_sources, `evt-probe-${next()}`],
+  }),
+  name_map: (firmId) => ({
+    text: "insert into name_map (firm_id, kind, outside_name, code) values ($1, 'role', $2, null)",
+    values: [firmId, `probe name ${next()}`],
+  }),
+  firm_secrets: (firmId) => ({
+    text: `insert into firm_secrets (firm_id, name, ciphertext, nonce, key_id)
+           values ($1, $2, $3, $4, 'aaaaaaaaaaaa')`,
+    values: [firmId, `probe.secret_${next()}`, randomBytes(32), randomBytes(12)],
+  }),
   offers: (firmId, p) => ({
     text: "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, $4, 'whatsapp')",
     values: [firmId, p.rows.shifts, p.rosterWorkerId, 1 + next()],
@@ -491,6 +544,11 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
            values ($1, 'in', 'sms', $2, $3, '+447700900112', '+447700900000', 'pay')`,
     values: [firmId, `SM${randomBytes(16).toString("hex")}`, p.rosterWorkerId],
   }),
+  inbound_emails: (firmId, p) => ({
+    text: `insert into inbound_emails (firm_id, provider_message_id, worker_id, from_address, to_address, body)
+           values ($1, $2, $3, 'rota.worker@example.com', 'staffing@inbound.example.test', 'pay')`,
+    values: [firmId, `<${randomBytes(8).toString("hex")}@mail.example.test>`, p.rosterWorkerId],
+  }),
   metrics_daily: (firmId) => ({
     text: `insert into metrics_daily (firm_id, day, kind, metric, value)
            values ($1, $2, 'daily', 'portal_actions', 3)`,
@@ -513,6 +571,11 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
     text: `insert into api_keys (firm_id, label, token_hash, hint, created_by, revoked_by, revoked_at)
            values ($1, 'Probe planner', $2, 'ab_-', $3, $4, now())`,
     values: [firmId, hash(), own.officeUserId, other.officeUserId],
+  }),
+  connector_events_source_fk: (firmId, _own, other) => ({
+    text: `insert into connector_events (firm_id, source_id, event_id, type, ref)
+           values ($1, $2, $3, 'session.changed', 'PORTAL-S1')`,
+    values: [firmId, other.rows.roster_sources, `evt-fk-${next()}`],
   }),
   credentials_worker_fk: (firmId, _own, other) => ({
     text: "insert into credentials (firm_id, worker_id, type) values ($1, $2, 'PTS')",
@@ -683,6 +746,11 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
     text: `insert into messages (firm_id, direction, channel, provider_message_id, worker_id, from_e164, to_e164)
            values ($1, 'in', 'whatsapp', $2, $3, '+447700900113', '+447700900000')`,
     values: [firmId, `SM${randomBytes(16).toString("hex")}`, other.workerId],
+  }),
+  inbound_emails_worker_fk: (firmId, _own, other) => ({
+    text: `insert into inbound_emails (firm_id, provider_message_id, worker_id, from_address, to_address)
+           values ($1, $2, $3, 'someone@example.com', 'staffing@inbound.example.test')`,
+    values: [firmId, `<${randomBytes(8).toString("hex")}@mail.example.test>`, other.workerId],
   }),
   messages_reply_to_fk: (firmId, _own, other) => ({
     text: `insert into messages (firm_id, direction, channel, provider_message_id, from_e164, to_e164, reply_to)

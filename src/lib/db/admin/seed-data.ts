@@ -247,6 +247,9 @@ function acme(today: Date): SeedFirm {
       quiet_hours: { start: "22:00", end: "07:00", urgent_override: true },
       credential_applied_allowance_pct: 15,
       approve_mode: true,
+      // The made-up firms answer on the shifts line, to show it (docs/walkthrough.md); a real firm
+      // starts with automatic replies off (P4.7, src/lib/inbound/limits.ts).
+      auto_replies: true,
       sign_off: "Acme Events Shift Team",
       // The strikes team, already confirmed (the demo story, 12I.1).
       strikes: storyStrikesSettings(today),
@@ -316,6 +319,7 @@ function northline(today: Date): SeedFirm {
       quiet_hours: { start: "23:00", end: "06:00", urgent_override: true },
       credential_applied_allowance_pct: 0,
       approve_mode: true,
+      auto_replies: true, // as Acme's
       sign_off: "Northline Rail Labour Shift Team",
     },
     sites: [

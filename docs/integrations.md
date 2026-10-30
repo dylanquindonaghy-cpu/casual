@@ -279,8 +279,7 @@ curl "$SHIFTDESK/cancellations?since=2026-11-01T00:00:00Z" -H "Authorization: Be
 
 ShiftDesk tells your planner the moment a booking is made or cancelled, or a strike is withdrawn,
 with a signed `POST` to the https address the admin added on the Integrations page. Webhooks are
-sent by ShiftDesk's job worker, so they work once the worker runs in production, which is once
-"Connect Twilio" is done (`PLAN.md` Parking lot). Until then, and if a webhook ever stops, your
+sent by ShiftDesk's job worker, which runs from the first deploy. If a webhook ever stops, your
 planner can catch up with `GET /api/v1/cancellations`.
 
 **Types** (ignore any you don't use; new ones may be added):

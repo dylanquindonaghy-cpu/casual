@@ -47,8 +47,12 @@ async function freshLine(): Promise<string> {
   return line;
 }
 
-async function lineFirm() {
-  const f = await bookingFirm(su, withFirm);
+// `repliesOff`: the firm's own default since P4.7 (nothing set: no automatic replies).
+async function lineFirm(o: { repliesOff?: true } = {}) {
+  // Automatic replies on: what these tests are about (off by default since P4.7).
+  const f = await bookingFirm(su, withFirm, {
+    settings: o.repliesOff ? {} : { auto_replies: true },
+  });
   const line = await freshLine();
   await su.query("update firms set shifts_line_e164 = $2 where id = $1", [f.firmId, line]);
   const ann = await f.worker({ first: "Ann" });
@@ -569,5 +573,67 @@ describe("STOP and START (the inbound-message job)", () => {
       { channel: "sms", reply: "sms_stopped", workerId: t.ann, code: "TypeError" },
     ]);
     expect(await run(job, failing)).toEqual({ status: "already" });
+  });
+
+  // P4.7 (decision 11): with automatic replies off, a STOP still turns texts off, and START on;
+  // nothing is texted back.
+  it("automatic replies off (the default): STOP and START still count, and no confirmation goes", async () => {
+    const t = await lineFirm({ repliesOff: true });
+    const { transport, sent } = captureTransport();
+    expect(await run(await t.text("STOP"), transport)).toEqual({
+      status: "opt_out",
+      optOut: "stop",
+      changed: true,
+      confirmation: "held",
+    });
+    expect(await t.optedOut()).toBe(true);
+    expect(await run(await t.text("START"), transport)).toEqual({
+      status: "opt_out",
+      optOut: "start",
+      changed: true,
+      confirmation: "held",
+    });
+    expect(await t.optedOut()).toBe(false);
+    expect(sent).toEqual([]);
+    // Recorded as before, each saying the confirmation was held; nothing stored as sent.
+    const logged = [...(await t.eventsOf("worker.sms%")), ...(await t.eventsOf("message.%"))];
+    expect(logged.map((e) => [e.action, e.data.optOut, e.data.replyHeld])).toEqual([
+      ["worker.sms_opted_out", undefined, undefined],
+      ["worker.sms_opted_in", undefined, undefined],
+      ["message.received", "stop", true],
+      ["message.received", "start", true],
+    ]);
+    expect((await t.messageRows()).map((r) => r.direction)).toEqual(["in", "in"]);
+  });
+
+  it("automatic replies off: a STOP that changes nothing, or that Twilio confirmed, wasn't going to be confirmed anyway (no 'held')", async () => {
+    const t = await lineFirm({ repliesOff: true });
+    const { transport, sent } = captureTransport();
+    await run(await t.text("STOP"), transport);
+    expect(await run(await t.text("STOP"), transport)).toMatchObject({
+      changed: false,
+      confirmation: "none",
+    });
+    expect(await run(await t.text("START", { twilioOptOut: "start" }), transport)).toMatchObject({
+      changed: true,
+      confirmation: "none",
+    });
+    expect(sent).toEqual([]);
+    const received = (await t.eventsOf("message.received")).map((e) => e.data.replyHeld);
+    expect(received).toEqual([true, undefined, undefined]);
+  });
+
+  it("automatic replies off: an ordinary text from a worker is the office's question, and nothing goes back", async () => {
+    const t = await lineFirm({ repliesOff: true });
+    const { transport, sent } = captureTransport();
+    expect(await run(await t.text("When do wages go in"), transport)).toEqual({
+      status: "held",
+      intent: "office",
+      sortedAs: "pay",
+      handledAs: "keyword",
+    });
+    expect(sent).toEqual([]);
+    const { rows } = await su.query("select 1 from requests where firm_id = $1", [t.f.firmId]);
+    expect(rows).toHaveLength(1);
   });
 });

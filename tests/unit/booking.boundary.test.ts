@@ -3,7 +3,9 @@ import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
 // One booking path (ADR-014): only the booking code may run the rules for a booking, check a
-// booking, or call a roster plug's assign; only the cancel path and the sync may cancel.
+// booking, or call a roster plug's assign; only the cancel path and the syncs may cancel. The syncs
+// are the sheet's and (P5.5) a connector's bookings mirror, each running the rules as the office's
+// placement and logging every booking and cancellation with its notice hours.
 // Anywhere else, a pass could be minted from made-up input to book around the real rows, the
 // authorisation and the action log, or a cancellation could skip its notice-hours event. Tests
 // are exempt (the contract suite mints passes on purpose).
@@ -36,18 +38,18 @@ const CALLS: [string, RegExp, string[]][] = [
   [
     "checkBooking(",
     /\bcheckBooking\(/,
-    ["src/lib/roster/book.ts", "src/lib/roster/sheets/sync.ts"],
+    ["src/lib/roster/book.ts", "src/lib/roster/sheets/sync.ts", "src/lib/connector/bookings.ts"],
   ],
   [
     "a plug's assign(",
     /(?<!Object)\.assign\(/,
-    ["src/lib/roster/book.ts", "src/lib/roster/sheets/sync.ts"],
+    ["src/lib/roster/book.ts", "src/lib/roster/sheets/sync.ts", "src/lib/connector/bookings.ts"],
   ],
-  // Cancellations: every one writes its event with the notice hours (cancel.ts, or the sync).
+  // Cancellations: every one writes its event with the notice hours (cancel.ts, or a sync).
   [
     "a plug's markCancelled(",
     /\.markCancelled\(/,
-    ["src/lib/roster/cancel.ts", "src/lib/roster/sheets/sync.ts"],
+    ["src/lib/roster/cancel.ts", "src/lib/roster/sheets/sync.ts", "src/lib/connector/bookings.ts"],
   ],
 ];
 

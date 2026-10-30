@@ -28,6 +28,8 @@ export interface PackType {
 export interface PackRule {
   role: string;
   requiredTypes: string[]; // every one needed; [] = the role needs none
+  // And one of these (P3.3, Rules 3): two or more, none also in requiredTypes.
+  anyOfTypes?: string[];
 }
 
 export interface CredentialPack {
@@ -93,7 +95,8 @@ export const CREDENTIAL_PACKS: Record<Sector, CredentialPack> = {
     rules: [
       { role: "steward", requiredTypes: ["STEWARD_L2"] },
       { role: "door_supervisor", requiredTypes: ["SIA_DS"] },
-      { role: "security_officer", requiredTypes: ["SIA_SG"] },
+      // A door supervisor licence covers security guarding too (the SIA's licence-linking).
+      { role: "security_officer", requiredTypes: [], anyOfTypes: ["SIA_SG", "SIA_DS"] },
       { role: "close_protection_officer", requiredTypes: ["SIA_CP"] },
       { role: "csas_officer", requiredTypes: ["CSAS"] },
     ],

@@ -1,8 +1,8 @@
 import { activeFirmId, type FirmTx } from "../db/scoped";
-import { recordEvent } from "../events/record";
+import { passesLogCheck, recordEvent } from "../events/record";
 import { errorCode } from "../jobs/firm-job";
 import type { MessagingTransport } from "../messaging";
-import { ChannelRefusedError } from "../messaging/transport";
+import { ChannelRefusedError, NoTextSenderError } from "../messaging/transport";
 import { forgetPushTarget, pushTargets, type PushTarget } from "../push/subscriptions";
 import {
   pushFailureCode,
@@ -21,23 +21,23 @@ const pushHost = (endpoint: string) => {
 };
 
 // One message to a worker (docs/messaging-templates.md, "Notification policy"), the same way for
-// every sender (offer waves, shift reminders):
+// every sender. deliverToWorker (below; P2.4) puts a push first and an email last; sendToWorker is
+// its WhatsApp or text:
 //
 // - by the channel the worker chose (WhatsApp or text message), with that channel's text (a text
 //   message has its own short copy where docs/messaging-templates.md gives one);
-// - a WhatsApp the provider refuses (ChannelRefusedError: the number isn't on WhatsApp) goes by
-//   text at once. Any other failure (a timeout, an outage) might already have arrived, so it's
-//   never sent again: the caller records it as failed. (Falling back when a WhatsApp isn't
-//   delivered within 60 seconds needs Twilio's delivery reports: parked with Twilio.)
+// - a WhatsApp the provider refuses (ChannelRefusedError: the number isn't on WhatsApp), or one with
+//   no WhatsApp sender at all (NoTextSenderError), goes by text at once. Any other failure (a
+//   timeout, an outage) might already have arrived, so it's never sent again: the caller records it
+//   as failed. (Falling back when a WhatsApp isn't delivered within 60 seconds needs Twilio's
+//   delivery reports: parked with Twilio.)
 // - never a text to a worker who replied STOP (`smsAllowed` false: workers.sms_opted_out_at is
 //   set): one who chose texts gets WhatsApp instead (`fellBackFrom: "sms"`), and a WhatsApp refused
 //   for them isn't sent as a text (failed, code `sms_opted_out`). Every sender passes it.
-// - once the message has gone, a push to each phone the worker turned notifications on for
-//   (free), with no transaction open. A phone the push service says is gone is forgotten and logged.
 //
 // The caller claims its own record (offer, reminder, notice) in a committed transaction before
-// calling, sends and pushes with no transaction open, then records the outcome and logs its event in
-// a short one (claim → send → push → record): a retried job never sends twice.
+// calling, pushes and sends with no transaction open, then records the outcome and logs its event
+// in a short one (claim → push or send → record): a retried job never sends twice.
 
 export interface NotifyDeps {
   transport: MessagingTransport;
@@ -86,8 +86,14 @@ export async function sendToWorker(
         body: input.body[channel],
       }));
     } catch (error) {
-      if (!(error instanceof ChannelRefusedError) || channel !== "whatsapp") throw error;
-      if (!input.smsAllowed) return { ok: false, channel, code: "sms_opted_out" };
+      // No WhatsApp sender (P2.5) tries the text as a refusal does: nothing was sent.
+      const noSender = error instanceof NoTextSenderError;
+      if (!(error instanceof ChannelRefusedError || noSender) || channel !== "whatsapp")
+        throw error;
+      if (!input.smsAllowed) {
+        if (noSender) throw error; // no text can go: deliverToWorker moves on to email
+        return { ok: false, channel, code: "sms_opted_out" };
+      }
       channel = "sms";
       ({ providerMessageId } = await deps.transport.send({
         channel,
@@ -97,7 +103,7 @@ export async function sendToWorker(
       }));
     }
   } catch (error) {
-    return { ok: false, channel, code: errorCode(error) };
+    return { ok: false, channel, code: sendFailureCode(error) };
   }
   return {
     ok: true,
@@ -105,6 +111,120 @@ export async function sendToWorker(
     providerMessageId,
     ...(channel !== input.channel ? { fellBackFrom: input.channel } : {}),
   };
+}
+
+// What sendToWorker says when there's no text sender at all (P2.5): nothing was tried.
+export const NO_TEXT_SENDER = "no_text_sender";
+
+// The code a failed send logs: NO_TEXT_SENDER when there was no text sender at all, else the
+// error's (errorCode). Every sender that sends a WhatsApp or text itself (the login link and code,
+// the shifts line's unknown-number reply and STOP or START answer) logs it the same way, so the
+// send-failure alert can leave it out (src/lib/ops/tick.ts).
+export const sendFailureCode = (error: unknown): string =>
+  error instanceof NoTextSenderError ? NO_TEXT_SENDER : errorCode(error);
+
+// Nothing could carry the message: no phone took a push, no text can go, and we hold no email
+// address for them (P2.4). Logged as the sender's failure, so the office can see who wasn't reached.
+export const NO_CHANNEL = "no_channel";
+
+export type DeliveryChannel = WorkerChannel | "push" | "email";
+
+// One message to a casual, every way it can reach them, in order (P2.4; docs/messaging-templates.md
+// "How a message reaches a casual"; Messages 2):
+// 1. a push to the phones they turned notifications on for (free): delivered once one phone takes
+//    it, and nothing else goes;
+// 2. else by WhatsApp or text, as sendToWorker sends (their channel, the WhatsApp-to-text fallback,
+//    STOP respected). One that fails, or might have arrived, is the sender's failure as before: never
+//    sent another way, which could send it twice;
+// 3. else, only when there's no text sender at all (NoTextSenderError), an email to the address the
+//    firm holds for them, its subject from docs/messaging-templates.md "Email to casuals" and its
+//    body the message's own words;
+// 4. else not sent: NO_CHANNEL.
+// Holds no transaction (the push reads the phones in a short one of its own, as pushToWorker always
+// has). The caller records what came of the push (recordPushes) whatever the outcome: a phone found
+// gone is forgotten either way. A message with no push words (the licence messages) starts at 2:
+// sendTextOrEmail.
+//
+// The office's change and cancellation notices (`proofOfNotice`: Dylan, 2026-10-29) are the record
+// of the notice the casual was given (golden rule 12; the Employment Rights Act): a push taken
+// shows only that the push service took it, and it expires unseen once the shift starts. So for
+// them the WhatsApp, text or email (2 to 4) goes as well as the push, never instead of it. One that
+// can't go while a phone took the push still counts as told, by push, and says why the message
+// didn't go (`alsoFailed`).
+export interface Delivery {
+  workerId: string;
+  push: PushPayload;
+  text: Parameters<typeof sendToWorker>[1];
+  email: { to: string; subject: string; body: string } | null;
+  proofOfNotice?: true;
+}
+
+export type TextOrEmail =
+  | {
+      ok: true;
+      channel: DeliveryChannel;
+      providerMessageId: string | null; // none for a push (an email's: emailMessageId)
+      fellBackFrom?: WorkerChannel;
+    }
+  | { ok: false; channel: DeliveryChannel | null; code: string };
+
+export type Delivered = TextOrEmail & {
+  push: PushOutcome;
+  // A notice that went by push only: why its WhatsApp, text or email didn't go (proofOfNotice).
+  alsoFailed?: { channel: DeliveryChannel | null; code: string };
+};
+
+export async function deliverToWorker(
+  inFirm: InFirm,
+  deps: NotifyDeps,
+  delivery: Delivery,
+): Promise<Delivered> {
+  const push = await pushToWorker(inFirm, deps, delivery.workerId, delivery.push);
+  const pushed = { ok: true, channel: "push", providerMessageId: null, push } as const;
+  if (push.pushes > 0 && !delivery.proofOfNotice) return pushed;
+  const sent = await sendTextOrEmail(deps, delivery);
+  if (!sent.ok && push.pushes > 0) {
+    return { ...pushed, alsoFailed: { channel: sent.channel, code: sent.code } };
+  }
+  return { ...sent, push };
+}
+
+// An email's id as the action log keeps it: its Message-ID ("<31fa7821-…@example.test>") holds the
+// sending host after an "@", which the log refuses as an address (src/lib/events/record.ts), so
+// only the part before it; none if that isn't a plain id, or if the log would refuse it anyway (a
+// long run of digits reads as a phone number): the record of an email that went must never fail.
+export const emailMessageId = (id: string): string | null => {
+  const local = /^<?([A-Za-z0-9._-]{1,100})@/.exec(id)?.[1] ?? id;
+  if (!/^[A-Za-z0-9._-]{1,100}$/.test(local)) return null;
+  return passesLogCheck({ providerMessageId: local }) ? local : null;
+};
+
+// Steps 2 to 4 of deliverToWorker: a WhatsApp or text, else (no text sender) an email, else
+// NO_CHANNEL.
+export async function sendTextOrEmail(
+  deps: Pick<NotifyDeps, "transport">,
+  delivery: Pick<Delivery, "text" | "email">,
+): Promise<TextOrEmail> {
+  // Never with a transaction open: an email can take seconds, holding a connection meanwhile.
+  if (activeFirmId() !== undefined) {
+    throw new Error(
+      "sendTextOrEmail must be called with no transaction open (src/lib/notify/send.ts)",
+    );
+  }
+  const text = await sendToWorker(deps, delivery.text);
+  if (text.ok || text.code !== NO_TEXT_SENDER) return text;
+  if (!delivery.email) return { ok: false, channel: null, code: NO_CHANNEL };
+  try {
+    const { providerMessageId } = await deps.transport.send({
+      channel: "email",
+      to: delivery.email.to,
+      subject: delivery.email.subject,
+      body: delivery.email.body,
+    });
+    return { ok: true, channel: "email", providerMessageId: emailMessageId(providerMessageId) };
+  } catch (error) {
+    return { ok: false, channel: "email", code: errorCode(error) };
+  }
 }
 
 // What pushing to a worker's phones came to (pushToWorker), recorded in the sender's outcome
@@ -126,8 +246,8 @@ const safeCode = (error: unknown) => {
 // A firm's withFirm, bound to the firm: each sender's own `inFirm`.
 export type InFirm = <T>(fn: (tx: FirmTx) => Promise<T>) => Promise<T>;
 
-// The push to each phone the worker turned notifications on for, all at once, once the message has
-// gone (14.1). The phones are read in a short transaction of their own and pushed with none open:
+// The push to each phone the worker turned notifications on for, all at once: the first way a
+// message goes (P2.4; before, it went after the message). The phones are read in a short transaction of their own and pushed with none open:
 // each push is cut off at PUSH_TIMEOUT_MS, and a slow push service holds no database connection
 // meanwhile (the worker's pool is shared by every job). It never throws, so a push can't stop the
 // record of a message that went: a push that throws counts as failed, and phones that can't be read

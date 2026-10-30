@@ -98,7 +98,10 @@ export async function loadEligibilityInput(
     // Checked records only (D3; 12F.2): a casual's upload counts once the office approves it.
     .where(and(eq(credentials.workerId, workerId), eq(credentials.checkState, "verified")));
   const [rule] = await tx
-    .select({ requiredTypes: credentialRules.requiredTypes })
+    .select({
+      requiredTypes: credentialRules.requiredTypes,
+      anyOfTypes: credentialRules.anyOfTypes,
+    })
     .from(credentialRules)
     .where(eq(credentialRules.role, shift.role));
   const types = await tx
@@ -167,6 +170,7 @@ export async function loadEligibilityInput(
       siteId: shift.siteId,
       requiredTypes: rule ? [...rule.requiredTypes] : null,
       extraTypes: [...shift.requiredCredentials],
+      anyOfTypes: rule ? [...rule.anyOfTypes] : [],
       startsAt: shift.startsAt,
       endsAt: shift.endsAt,
     },
@@ -203,6 +207,9 @@ async function deployedThatDay(
   const from = wall(day);
   const to = wall(addDays(day, 1));
   const booked = sql.raw(BOOKED_STATUSES.map((s) => `'${s}'`).join(", "));
+  // A type of the role's one-of group counts like one it needs outright: someone deployed on
+  // another type of the group, valid, with this one applied, is counted as applied (a stricter
+  // share, never a looser one).
   const { rows } = await tx.execute<{ deployed: number; applied: number }>(sql`
     select count(distinct a.worker_id)::int as deployed,
            count(distinct a.worker_id) filter (where exists (
@@ -215,7 +222,8 @@ async function deployedThatDay(
                 and (c.type = any (s.required_credentials)
                   or exists (select 1 from credential_rules r
                               where r.firm_id = s.firm_id and r.role = s.role
-                                and c.type = any (r.required_types)))
+                                and (c.type = any (r.required_types)
+                                     or c.type = any (r.any_of_types))))
                 and not exists (
                   select 1 from credentials v
                    where v.firm_id = c.firm_id and v.worker_id = c.worker_id and v.type = c.type
@@ -296,7 +304,11 @@ export async function loadEligibilityInputs(
     );
   const roles = [...new Set(shiftRows.map((s) => s.role))];
   const rules = await tx
-    .select({ role: credentialRules.role, requiredTypes: credentialRules.requiredTypes })
+    .select({
+      role: credentialRules.role,
+      requiredTypes: credentialRules.requiredTypes,
+      anyOfTypes: credentialRules.anyOfTypes,
+    })
     .from(credentialRules)
     .where(inArray(credentialRules.role, roles));
   const types = await tx
@@ -387,8 +399,15 @@ export async function loadEligibilityInputs(
   }
 
   const ruleOf = new Map(rules.map((r) => [r.role, [...r.requiredTypes]]));
+  const groupOf = new Map(rules.map((r) => [r.role, [...r.anyOfTypes]]));
   const appliedAllowedTypes = types.filter((t) => t.appliedAllowed).map((t) => t.code);
   const names = Object.fromEntries(types.map((t) => [t.code, t.name]));
+  // Each worker's rows, grouped once (P4.4): the offer candidate list asks for every worker with
+  // the role (about 2,000 at a big firm), and searching every row for each worker grew with the
+  // square of that. Each group keeps the rows' order, so every input is the same as before.
+  const heldBy = byWorker(held);
+  const othersBy = byWorker(others);
+  const unavailableBy = byWorker(unavailable);
   for (const shift of shiftRows) {
     const span = daysOf(shift);
     const day = booked.get(span.first);
@@ -399,34 +418,31 @@ export async function loadEligibilityInputs(
         now: batch.now,
         timeZone: zone,
         worker: { id: worker.id, status: worker.status, roles: [...worker.roles] },
-        credentials: held
-          .filter((c) => c.workerId === worker.id)
-          .map((c) => ({ type: c.type, status: c.status, expiresOn: c.expiresOn })),
+        credentials: (heldBy.get(worker.id) ?? []).map((c) => ({
+          type: c.type,
+          status: c.status,
+          expiresOn: c.expiresOn,
+        })),
         shift: {
           id: shift.id,
           role: shift.role,
           siteId: shift.siteId,
           requiredTypes: ruleOf.get(shift.role) ?? null,
           extraTypes: [...shift.requiredCredentials],
+          anyOfTypes: groupOf.get(shift.role) ?? [],
           startsAt: shift.startsAt,
           endsAt: shift.endsAt,
         },
-        otherAssignments: others
+        otherAssignments: (othersBy.get(worker.id) ?? [])
           .filter(
             (o) =>
-              o.workerId === worker.id &&
               o.shiftId !== shift.id &&
               o.endsAt.getTime() > shift.startsAt.getTime() - NEARBY_MS &&
               o.startsAt.getTime() < shift.endsAt.getTime() + NEARBY_MS,
           )
           .map((o) => ({ shiftId: o.shiftId, startsAt: o.startsAt, endsAt: o.endsAt })),
-        unavailableDates: unavailable
-          .filter(
-            (u) =>
-              u.workerId === worker.id &&
-              u.day >= addDays(span.first, -1) &&
-              u.day <= addDays(span.last, 1),
-          )
+        unavailableDates: (unavailableBy.get(worker.id) ?? [])
+          .filter((u) => u.day >= addDays(span.first, -1) && u.day <= addDays(span.last, 1))
           .map((u) => u.day),
         settings: {
           minRestHours: settings.min_rest_hours,
@@ -444,6 +460,18 @@ export async function loadEligibilityInputs(
         names,
       });
     }
+  }
+  return out;
+}
+
+// Rows by their worker, each list in the rows' order.
+function byWorker<R extends { workerId: string | null }>(rows: R[]): Map<string, R[]> {
+  const out = new Map<string, R[]>();
+  for (const row of rows) {
+    if (row.workerId === null) continue;
+    const list = out.get(row.workerId);
+    if (list) list.push(row);
+    else out.set(row.workerId, [row]);
   }
   return out;
 }
@@ -478,7 +506,8 @@ async function bookedOnDays(
                   and (c.type = any (s.required_credentials)
                     or exists (select 1 from credential_rules r
                                 where r.firm_id = s.firm_id and r.role = s.role
-                                  and c.type = any (r.required_types)))
+                                  and (c.type = any (r.required_types)
+                                     or c.type = any (r.any_of_types))))
                   and not exists (
                     select 1 from credentials v
                      where v.firm_id = c.firm_id and v.worker_id = c.worker_id and v.type = c.type

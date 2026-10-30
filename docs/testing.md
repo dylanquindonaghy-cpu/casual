@@ -23,7 +23,7 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
 
 | Outside service | Stand-in in tests and the demo | Where |
 |---|---|---|
-| Twilio (WhatsApp, SMS, calls) | `MESSAGING_TRANSPORT=console`, the only sender built so far ("Connect Twilio", Parking lot): prints each message; the browser tests read login links from its outbox file (`CONSOLE_OUTBOX_FILE`) | `src/lib/messaging/` |
+| Twilio (WhatsApp, SMS, calls) | `MESSAGING_TRANSPORT=console`, the only sender built so far ("Connect Twilio", Parking lot): prints each message; the browser tests read login links from its outbox file (`CONSOLE_OUTBOX_FILE`). `none` (P2.5, production before a text system exists) refuses every WhatsApp and text: `tests/unit/messaging.none.test.ts` | `src/lib/messaging/` |
 | Email (any SMTP provider) | `EMAIL_TRANSPORT=console`; `smtp` is refused in tests. The SMTP sender's own tests use no network (12X.2) | `src/lib/messaging/smtp.ts` |
 | Anthropic (AI) | `AI_TRANSPORT=none` (the code's fallback answers); tests that need an answer pass `createFakeAi()`; the Anthropic client's own tests use a fake `fetch` (12X.3) | `src/lib/ai/client.ts`, `src/lib/ai/anthropic.ts` |
 | postcodes.io and TravelTime | `TRAVEL_PROVIDER=fake`: fixed points for the made-up `ZZ` postcodes only (`ZZ0` is never found, for "unknown postcode"), and travel times worked out from the straight line | `src/lib/travel/geocoder.ts` (`fakePoint`), `src/lib/travel/provider.ts` (`fakeTravelProvider`) |
@@ -65,9 +65,10 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   (`tests/helpers/fake-worker.ts`) runs the firm's queued pg-boss jobs in order on a fake clock:
   wave 1 at the dropout, the next after the firm's minutes (15 by default) until nobody's left,
   the office emailed once at the start minus 3 hours; the firm's own size and minutes; first come,
-  first served; quiet hours hold a wave until 07:00; stop on fill (a worker or the office takes it
-  between waves: the next wave stops, the other offers become "filled elsewhere", no escalation);
-  the start ends the chain.
+  first served (one place's 5 in one wave, and the firm's own number per place every 10 minutes,
+  fewest hours first: P4.3); quiet hours hold a wave until 07:00; stop on fill (a worker or the
+  office takes it between waves: the next wave stops, the other offers become "filled
+  elsewhere", no escalation); the start ends the chain.
 - `jobs.no-resend.test.ts` (built, Phase 10) — senders failed during or just after their message and
   run again: the retry sends nothing (the office's offer, the credential warning and expiry notice,
   and login links and codes, which still work, log the send once, as unconfirmed; firm-change notices
@@ -79,23 +80,42 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   first come, first served; after the last fair-rotation wave; the office placing an offered worker
   or someone else; two places (the first booking closes nothing); "Mark as filled"; a headcount cut.
 - `offers.waves.lock.test.ts` (built, Phase 10) — a wave never holds what others wait for: a
-  300-worker first-come wave through a slow transport, where a worker's Take shift and the office's
-  Assign each finish within 2 seconds mid-wave and the wave then stops without messaging the rest;
-  a recipient's STOP or erasure lock isn't held up; a crash just after a claim never messages that
-  worker twice; two copies of a wave share it and queue one next wave; escalation emails with the
-  shift unlocked, one failed address not stopping the rest; the worker runs the real tasks.
-- `notify.policy.test.ts` (built) — the policy for every sender (offer waves and shift reminders,
-  each through its real job): the worker's channel first (WhatsApp, or text by their choice), a
-  text only after a refused WhatsApp, never both, the push after the message has gone and never
-  for a failed one (so "push → WhatsApp → SMS" as built: the push goes alongside, not instead;
-  the 60-second fallback waits for Twilio); quiet hours; the daily cap; idempotency (retries and
-  doubled jobs); and no notifications to ineligible workers: over a whole chain, exactly the
+  300-worker first-come wave (20 per place: P4.3) through a slow transport, where a worker's Take
+  shift and the office's Assign each finish within 2 seconds mid-wave and the wave then stops
+  without messaging the rest; a recipient's STOP or erasure lock isn't held up (a wave at its
+  most, 50); a crash just after a claim never messages that worker twice; two copies of a wave
+  share it and queue one next wave (in both modes since P4.3); escalation emails with the shift
+  unlocked, one failed address not stopping the rest; the worker runs the real tasks. Since P4.4,
+  4 messages at once at most with the claims never overlapping; a crash mid-wave thrown only once
+  the sends already going have finished and been logged, and nobody messaged twice; 50 casuals
+  with 300 ms sends done within 6 seconds. `eligibility.batch.test.ts` holds the batched rules to
+  the single ones for 2,000 workers of every kind on one shift, `worker.firm-work.test.ts` the
+  waves one per fetch, and `worker.hello.test.ts` (real pg-boss) their half-second poll: each short
+  job starts within a second of the one before.
+- `offers.scale.test.ts` (built, P4.3) — a big firm's gap: 2,000 made-up casuals
+  (`tests/helpers/bulk-seed.ts`, from both of Ofcom's drama number ranges) could take one urgent
+  place; each first-come wave texts 5, the fewest hours this week first, never anyone twice (10
+  offers after two waves, not 2,000). `offers.waves.test.ts` has the sizes on the real database:
+  waves of 5, 5 and 2 for one place, 20 for four, and a place booked mid-wave shrinking it to 5,
+  with the next wave reaching anyone it didn't.
+- `notify.policy.test.ts` (built; P2.4) — the policy for every sender (offer waves, the office's
+  offer, shift reminders, the booking confirmation, the office's change notice, a request's and a
+  pay query's answer, the licence messages, each through its real job): a push first, and when a
+  phone takes it nothing else (a phone that's gone is forgotten and the WhatsApp goes); then the
+  worker's channel (WhatsApp, or text by their choice), a text only after a refused WhatsApp,
+  never both, nothing more after a failure; then, with no text sender, an email with its subject,
+  else nothing and `no_channel` logged (the licence messages have no push: they start at the
+  WhatsApp; the office's change and cancellation notices go by both, the proof of notice); the 60-second fallback waits for Twilio; STOP; quiet hours; the daily cap;
+  idempotency (retries and doubled jobs, by push and by email too); and no notifications to ineligible workers: over a whole chain, exactly the
   workers the rules allow and who want offers get anything (no licence, expired, suspended, wrong
   role, inactive, blocked, alerts off, day off, clash, cancelled off it, another firm: nothing).
 - `shift.reminders.test.ts` (built) — the 24 h and 2 h reminders each once per booking and start
   time, never to cancelled bookings or cancelled/draft shifts, a moved shift reminded again, two
   jobs at once send once, quiet hours hold or skip, channel and fallback, the tick; the timing
-  rules in `rules.reminders.test.ts`.
+  rules in `rules.reminders.test.ts`. Since P4.5, at a big firm's size: 2,000 due in one slot go
+  200 a run, 4 at a time at most, each once, with another firm's job run between the first run
+  and its follow-ups; a run killed part-way leaves at most 4 `sending` and the next runs send the
+  rest, nobody twice.
 - `notice.report.test.ts` — worker cancel, firm cancel/move/curtail all produce correct notice hours and flags.
   Built (`tests/integration/notice.report.test.ts`): through the real paths (the portal's take and
   cancel, the office's cancel-one, cancel-shift, move and shorten, and the Google Sheets sync's
@@ -111,7 +131,9 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
 - `pay.grouping.test.ts` — group keys stable; AI summary failure falls back cleanly. Built in Phase 6
   (`tests/integration/pay.grouping.test.ts`, on the real database): the same facts give the same key
   whoever raises it, whatever they write, whenever and in any order; the firm's week (Monday and
-  Sunday together, across the clocks going back); regrouping and re-importing the same pay file
+  Sunday together, across the clocks going back); on a firm's pay calendar (P3.1), one key for a
+  fortnight, a new query keyed on it at once and the open ones at the next regroup, and another
+  firm's keys still weekly; regrouping and re-importing the same pay file
   change nothing; keys move only when their facts do (open and in-digest queries, never sorted
   ones); two firms' same facts give the same key text but separate groups. In the digest job, an AI
   that throws, hangs (the 5-second timeout, `AI_SUMMARY_TIMEOUT_MS`), answers late, answers
@@ -119,6 +141,167 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   with no AI, word for word; a failure for some groups leaves just those without a line. The key
   rules and the summary's check are also unit-tested (`tests/unit/pay.group-keys.test.ts`,
   `tests/unit/ai.pay-summary.test.ts`).
+- `pay.calendar.test.ts` (P3.1, unit) — the firm's pay calendar (`src/lib/pay/calendar.ts`): with
+  none set, exactly today's ISO weeks for every day of 2026 (53 weeks) and 2027; made-up fortnights
+  from an anchor, numbered from it across New Year, with no number before it; weeks from an anchor;
+  the pay day any number of days after; the firm's date across both clock changes; every setting
+  it can't read falling back whole. Setting it with `firm:settings` is in
+  `tests/integration/onboarding.test.ts` (a start then fortnights; fortnights without a start
+  refused; a hand-edited one started afresh).
+- `cancel.asked-by.test.ts` (P3.4) — who asked for a cancellation, on the real database as the app
+  role: the casual's own cancel says the casual, the office's (one booking or the whole session)
+  the firm, a rota sheet's, a file's or a planner's not known, and a caller that knows says so (a
+  client's); the database refuses a value it doesn't know or one on a booking that isn't
+  cancelled; each cancellation's log entry says who asked too; migration 0053's own backfill gives earlier cancellations theirs from their status,
+  `cancel_via` or the session's source; the notice report counts the cancellations it finds by who
+  asked and says so on each; and the firm's strikes switch: off, a casual's late cancellation is
+  no strike ("strikes_off") and the warning is the notice one, on (the default) it is. The
+  decision and the default are unit-tested (`tests/unit/strikes.test.ts`,
+  `tests/unit/roster.plug.test.ts`).
+- `secrets.store.test.ts` (P5.1) — the secret store, on the real database: the owner's command adds,
+  replaces and removes a firm's secret, logged by name only, the listing showing no value and the row
+  holding none; the app role has no rights on the table and can't call the read; the jobs role
+  reads only through the function; one firm's sealed value copied onto another's row never opens,
+  nor does any value under another key. The sealing itself is unit-tested
+  (`tests/unit/secrets.crypto.test.ts`: every seal different, bound to its firm and name, a changed
+  byte or another key refused, the worker's settings taking only a real key, the web app refusing
+  to start with it on a real address), and `tests/unit/deploy.compose.test.ts` keeps `SECRETS_KEY`
+  to the worker and the owner service. The firm's data export leaves the table out
+  (`gdpr.firm-export.test.ts`), and the jobs role may run exactly two functions, the read among
+  them (`rls.every-table.test.ts`).
+- `connector.caller.test.ts` (P5.2) — a connector's source and caller, on the real database as the
+  app role: its session made, changed, moved with a casual booked (a reason needed, then their
+  notice hours) and cancelled (`cancel_via` api, never a strike, who asked unknown), through the
+  planner API's own rules (`putPlannerSession`), each change logged as the planner's with its source
+  in the key's place; it reaches only the planner's sessions (the office's own is unknown to it) and
+  the office can't cancel its sessions as a whole; a source switched off, a sheet's source, a
+  made-up id or another firm's connector changes nothing (401 `invalid_key`), including a source
+  switched off while a change waits on its row (the wait seen in `pg_blocking_pids`), and a
+  switch-off waits for a change already under way; while the firm has a live planner key the
+  connector changes nothing; a caller that isn't one is refused before any postcode is looked up;
+  Gate B holds for a connector; the table's checks (a connector has which one and an https base
+  address on a public name and no spreadsheet, never an IP address, an internal name, another port
+  or a dot segment; a sheet the reverse; one source on per firm); and the sheet command leaves a
+  connector alone and won't switch a sheet on beside it.
+- `messaging.webex.test.ts` (unit, 15.2) — texts through a firm's Webex Interact account with a
+  stand-in for the network (never the real service): the request as its public reference says
+  (POST `/v1/sms`, `X-AUTH-KEY`, `{message_body, from, to: [{phone}]}`, a timeout, no redirects),
+  the firm the job's own (outside a firm's job nothing sent; a firm with no key has no text
+  sender, so its messages go by email), a WhatsApp refused so the casual gets the text, each
+  failure a code with nothing personal in it, the id kept in a form the log accepts, a test
+  without a stand-in refused before anything goes, email still printed with webex on, each
+  firm's key and sender read by name, and the setting refused under `NODE_ENV=test`, without
+  `SECRETS_KEY` and in production until 15.1.
+- `email.prepare.test.ts` (unit, P7.3) — an email made ready to keep: quoted history off whichever
+  way it's quoted (Gmail's header on one line or wrapped, Outlook's block with or without its
+  underscores, an Original Message, `>` lines), a reply below the quote kept, a casual's own "On
+  …" line just above a header, or their "From: 10:00 / To: 18:00", kept, nothing left of a
+  forwarded thread with nothing written above it, the signature and a phone's sign-off off, blank
+  lines and control characters tidied, capped without cutting a character; a known casual's subject
+  and words, anyone else's neither, only how many attachments.
+- `email.webhook.test.ts` (unit, P7.2) — the staffing inbox's webhook with stand-ins: the signature
+  first (missing, wrong, stale, a bad id or a changed body: 403, nothing looked up), 503 with no
+  secret, 415 / 413 / 400 for the wrong body, a row for each firm whose inbox it was sent to, the
+  provider's word on the sender carried, a stand-in for a missing or unusable Message-ID that the
+  same email repeats, long words never refused, 200 and nothing stored for no firm or an
+  unreadable sender, nothing of the email logged.
+- `email.receive.test.ts` (P7.2, P7.3) — the same webhook into the real database as the app role: a
+  known casual's own words kept with the quoted history and signature off, anyone else's (a venue,
+  an inactive casual, an address two casuals share, a casual's address the provider couldn't vouch
+  for) never; the same Message-ID twice stored once;
+  an address no firm has stores nothing; no job queued yet.
+- `firm-inbox.cli.test.ts` (unit, P7.1) — `npm run firm:inbox` given the wrong options: the usage
+  line, exit 2, no database touched.
+- `email.inbox.test.ts` (P7.1) — a firm's staffing inbox on the real database: its address lower
+  case and one firm's only, found for an incoming email by exactly that address (as the app role),
+  set, replaced and cleared only by `firm:inbox`, each logged without the address; its emails keep
+  words only from a known casual and one row per Message-ID in a firm; a casual's export and
+  erasure take theirs (set to them, and from their address before it was known), and the
+  retention purge takes old ones with the messages.
+- `connector.events.test.ts` (P5.3) — a connector's webhooks in and its job, on the real database as
+  the app role against the made-up portal in memory (never a real system): the webhook stores one
+  row per event and queues one job in the same transaction (the same event again, nothing more),
+  and stores nothing for a wrong signature, a switched-off source or a sheet's id; the job reads
+  the record from the portal (never the webhook's body) and applies it as the planner's: a session
+  made then changed, logged with its source, and a job run twice reads once; a staff record added
+  through `upsertWorker()`, its roles through the name map; what isn't applied says why (gone, a
+  skipped or unreadable name, a record under another ref, the planner's own refusal); a source that
+  doesn't answer is tried again and the last try saves it as failed; no key, or no `SECRETS_KEY`,
+  fails at once with nothing read; a source switched off before its job reads nothing, and with a
+  live planner key nothing changes; the key read from the secret store on the jobs role's own
+  connection; and the owner's command connects, keeps, replaces and switches a connector off, each
+  logged, refusing a bad address, a sheet or a live key beside it, and (live) no agreement; and the
+  review's fixes: a staff record whose mobile is another worker's is refused (`mobile_taken`), an
+  unexpected error is tried again and saved as failed on the last try (never left queued), a key
+  the system refuses fails at once, Gate B comes before anything is read, erasing a worker forgets
+  the connector's events about them, and `app_connector_source_firm()` runs as the owner with a
+  pinned search_path, callable by the app role alone, giving only an enabled connector's firm. The
+  webhook's checks before anything is read (a missing, wrong, old or replayed signature 403; not a
+  source 404; no secret 503; not JSON 415; too big 413; a body that isn't a change 400, its values
+  never logged; a chunked body read only up to 16 kB; bytes that aren't UTF-8 400), the made-up
+  portal's mapping and the queues' options (retries, each try knowing if it's the last) are
+  unit-tested (`tests/unit/connector.webhook.test.ts`, `tests/unit/connector.demo-portal.test.ts`,
+  `tests/unit/connector.queues.test.ts`).
+- `connector.pull.test.ts` (P5.4) — the reconcile pull, on the real database against the made-up
+  portal: it catches what the webhooks missed (a near pull reads only the next 48 hours, a full one
+  every session ahead and the staff; a connector's new session comes in hidden from casuals; a
+  pull with nothing changed changes and logs nothing; a change no webhook sent is caught by the
+  next pull); two pulls of one source at once, one runs and the other finds it busy; a source that
+  doesn't answer has its error saved and its times kept, the tick backs off for 30 minutes and
+  then queues one pull a minute, and the next good pull clears the error; a switched-off source,
+  or a firm without one, pulls and queues nothing, and a planner key made live stops a pull. The
+  cadence is unit-tested (`tests/unit/connector.cadence.test.ts`: first pull, every 15 minutes,
+  nightly in the firm's zone and its summer time, 26 hours overdue, back-off), and the founder's
+  alert names a connector's pull (`tests/unit/ops.alerts.test.ts`).
+- `connector.bookings.test.ts` (P5.5) — who's booked on a connector's session, mirrored from the
+  made-up portal on the real database: a booking made there is booked here through the rules as
+  the office's placement (`booked_via` api, logged as the firm's with its source, no message to the
+  casual), a refused one logged with its real reason and again only once something about that
+  casual on the session happened since, one past the places refused as no place; two reads at once
+  book a casual once; one the system stops listing is never cancelled (the office may cancel it
+  here; a casual can't), and a record with no bookings touches none; one cancelled there is
+  cancelled here (cancelled_firm, `cancel_via` api, who asked unknown, never a strike, a reason that
+  isn't ours read as "other"), its notice from the system's own time when that's after the booking
+  here and since the session's last read, else from the read (the latest of its cancellations; a
+  time without its zone reads as none), with the evidence logged; a cancellation lands even when
+  the session change beside it is refused (places lowered past the cancelled place); a read older
+  than the session's last changes nothing, either way round; a session cancelled there is the
+  whole-session cancel (its casuals told, its reason on each; with no reason, refused and nothing
+  touched); a booking the system lists again is its again (the office can't cancel it) even while
+  the session's change is refused; Gate B inside each step; a booking cancelled here while the
+  system still lists it isn't booked again; while the planner is a connector, people can't book or
+  cancel its sessions (`needs_approval`; a casual sees a hidden one as gone first), until it's
+  switched off, and a session a planner key made isn't the connector's.
+- `rules.any-of.test.ts` (P3.3, Rules 3) — "any of" licences, on the real database as the app role:
+  the security pack's security officer needs one of an SIA security guard or door supervisor
+  licence (other rules unchanged), and the database refuses a group of one, a type in both lists
+  or a code that isn't one; booking one at a time and in the offer waves' batch takes either and
+  refuses neither or an expired one; a session shows the group as its first type, a casual's own
+  shift page the one she holds (never "missing" for a door supervisor licence holder), and a casual
+  may send either; a casual's qualifications list the group's licence that stands best for her (not the
+  one she doesn't need); and the office's check of bookings flags one only when no licence of the
+  group will be in date. The engine's cases are in the doc's table (`tests/unit/rules.table.test.ts`:
+  either, neither, the held one out of date, one suspended, applied within the allowance, a group
+  beside an all-of list); the pack parity test reads "one of" in the doc's rules table; uploads and
+  the expiry scan (`uploads.test.ts`, `credential.scan.test.ts`) take a group's types.
+- `roster.names.test.ts` (P3.2) — a firm's name map. Unit (`tests/unit/roster.names.test.ts`): a
+  name's key; a mapped role is its code, a skipped one skipped, the rest exactly as
+  `normaliseRole()` reads them; a worker's list with skipped names left out; the rota sheet's rows
+  through it (a skipped shift row isn't a problem, whatever else it says), and with no map every
+  name as before. Integration (`tests/integration/roster.names.test.ts`, the real database): the
+  owner's command maps, skips and removes names, each logged with what changed, and refuses what
+  it can't use (an unknown qualification, a staff type other than casual, a rate on a skipped
+  role); the app can read its firm's map but never write it or see another's; the sheet's sync and
+  the file import bring mapped names in as codes, leave skipped ones out (the import counts them
+  as ignored, a dry run too, and says so), and report the rest as bad roles; a credentials file's
+  types go through it too; a name skipped after its session came in leaves the session as it is,
+  reported `skipped_live`; another firm's map is never used, by the sync or the import.
+- `ai.anthropic.test.ts` (built, 12X.3; P4.6 under load) — the Anthropic client on a fake `fetch`.
+  Since P4.6: at most 4 calls at once, the rest in order; one still waiting after its 5 seconds
+  turned away (`busy`) without calling the API; the breaker opening after 5 failed calls in a row,
+  failing calls at once for 30 seconds, then one trial (a failure opens it again, an answer
+  closes it), while a refusal or an empty answer never opens it; one client a process from
+  `getAi`; no timers in the client. Each fails with its piece taken out.
 - `gdpr.worker.test.ts`, `gdpr.firm-export.test.ts`, `gdpr.retention.test.ts` — GDPR (Phase 8,
   on the real database). A worker's export holds a row from every table that can be about them
   (messages from their number before it was known, and every action-log row the log's Worker filter
@@ -699,8 +882,16 @@ log has every step.
       leaves nothing stuck for more than about a minute: the 30-second heartbeat, then the
       supervisor's next look (every 15 seconds; `tests/integration/jobs.crash.test.ts`, with
       production's settings).
+      At the target (P4.9, the same file): 1,000 casuals' messages in one burst, each answered
+      once within 90 seconds of the last with a 300 ms send (about 41 to 51 seconds here), or each
+      made the office's question within 30 with automatic replies off (about 2). With them, an
+      offer wave for one place among 2,000 casuals offers 5 (`offers.scale.test.ts`, P4.3) and
+      2,000 reminders due at once each go once (`shift.reminders.test.ts`, P4.5).
       On this laptop: run it once against the server too (PLAN.md "Pre-pilot checks on the
       server").
+- [ ] After loading a big firm's casuals (its first import): `ANALYZE` as the owner, or wait a
+      minute (docs/runbooks.md "Importing workers, credentials or shifts from a spreadsheet"),
+      before the first offer wave.
 - [x] Log masking verified (no phone numbers in logs). Every e2e run keeps the worker's and web
       app's whole output (`.dev/e2e-worker.log`, `.dev/e2e-web.log`) and `tests/e2e/teardown.ts`
       fails the run on any phone number, email or login token it finds there, or any server error

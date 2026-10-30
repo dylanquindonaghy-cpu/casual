@@ -17,6 +17,26 @@ export function loginCodeMessage(firm: FirmVoice, code: string): string {
   return `Your ${firm.name} code is ${code}. It works for 10 minutes. Don't share it with anyone. — ${firm.signOff}`;
 }
 
+// A casual's login link and pay-page code by email (P2.6; docs/messaging-templates.md "Email to
+// casuals", approved by Dylan on 2026-10-28, the link last on 2026-10-29): only where the firm has
+// switched login by email on (`login_by_email`) and there's no text sender.
+export function workerLoginLinkEmail(
+  firm: FirmVoice,
+  link: string,
+): { subject: string; body: string } {
+  return {
+    subject: `Your ${firm.name} shifts link`,
+    body: `Here's your ${firm.name} shifts link. It works for 15 minutes and only for you. If you didn't ask for it, you can ignore this email: ${link} — ${firm.signOff}`,
+  };
+}
+
+export function loginCodeEmail(firm: FirmVoice, code: string): { subject: string; body: string } {
+  return {
+    subject: `Your ${firm.name} code`,
+    body: `Your ${firm.name} code is ${code}. It works for 10 minutes. Don't share it with anyone. If you didn't ask for it, you can ignore this email. — ${firm.signOff}`,
+  };
+}
+
 // office_login_link (email): office users log in by a one-time link to their work email.
 export function officeLoginLinkEmail(
   firm: FirmVoice,
@@ -340,6 +360,59 @@ export function payQueryUpdateMessage(
   query: { ref: string; link: string },
 ): string {
   return `Payroll has answered your pay query (ref ${query.ref}). See their answer on your pay page: ${query.link} — ${firm.signOff}`;
+}
+
+// The subject of each message to a casual that can go by email (docs/messaging-templates.md "Email
+// to casuals", approved by Dylan on 2026-10-28; P2.4): when no phone takes a push and no text can go,
+// it goes by email, its body the message's own words (its WhatsApp text above).
+export function shiftOfferEmailSubject(shift: {
+  date: string;
+  start: string;
+  end: string;
+}): string {
+  return `Shift available: ${shift.date} ${shift.start}–${shift.end}`;
+}
+
+export function shiftUrgentEmailSubject(shift: { role: string; day: string }): string {
+  const role = shift.role.replace(/_/g, " ");
+  const article = /^[aeiou]/i.test(role) ? "an" : "a";
+  return `URGENT: ${article} ${role} needed ${shift.day}`;
+}
+
+export function shiftConfirmedEmailSubject(shift: { date: string }): string {
+  return `Confirmed: your shift on ${shift.date}`;
+}
+
+export function shiftReminder24hEmailSubject(shift: { day: string }): string {
+  return `Reminder: your shift ${shift.day}`;
+}
+
+export function shiftReminder2hEmailSubject(shift: { start: string }): string {
+  return `Your shift starts at ${shift.start}`;
+}
+
+export function shiftChangedByFirmEmailSubject(shift: { date: string }): string {
+  return `Change to your shift on ${shift.date}`;
+}
+
+export function shiftCancelledByFirmEmailSubject(shift: { date: string }): string {
+  return `Your shift on ${shift.date} is cancelled`;
+}
+
+export function requestUpdateEmailSubject(request: { ref: string; status: string }): string {
+  return `Your request (ref ${request.ref}) is ${request.status}`;
+}
+
+export function payQueryUpdateEmailSubject(): string {
+  return "Payroll has answered your pay query";
+}
+
+export function credentialExpiringEmailSubject(credential: string, date: string): string {
+  return `Your ${credential} expires on ${date}`;
+}
+
+export function credentialExpiredEmailSubject(credential: string): string {
+  return `Your ${credential} has expired`;
 }
 
 // Instant replies on the shifts line (docs/messaging-templates.md "Instant replies on the shifts

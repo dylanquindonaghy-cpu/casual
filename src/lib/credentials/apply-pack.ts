@@ -45,10 +45,15 @@ export async function applyCredentialPack(
         sector,
         role: r.role,
         requiredTypes: r.requiredTypes,
+        anyOfTypes: r.anyOfTypes ?? [],
       })),
     )
     .onConflictDoNothing({ target: [credentialRules.firmId, credentialRules.role] })
-    .returning({ role: credentialRules.role, requiredTypes: credentialRules.requiredTypes });
+    .returning({
+      role: credentialRules.role,
+      requiredTypes: credentialRules.requiredTypes,
+      anyOfTypes: credentialRules.anyOfTypes,
+    });
   const result = { typesAdded: addedTypes.length, rulesAdded: addedRules.length };
   if (result.typesAdded + result.rulesAdded > 0) {
     await recordEvent(tx, {
@@ -57,7 +62,15 @@ export async function applyCredentialPack(
       action: "credential_pack.applied",
       entityType: "credential_pack",
       // Exactly what the firm started with: the pack in code may change later.
-      data: { sector, ...result, types: addedTypes, rules: addedRules },
+      // A rule's any-of group only where it has one (P3.3).
+      data: {
+        sector,
+        ...result,
+        types: addedTypes,
+        rules: addedRules.map(({ anyOfTypes, ...r }) =>
+          anyOfTypes.length > 0 ? { ...r, anyOfTypes } : r,
+        ),
+      },
     });
   }
   return result;

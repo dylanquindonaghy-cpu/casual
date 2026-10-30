@@ -58,11 +58,13 @@ What the hooks catch (Phase 13 task 13.1, closing the audit's L1 to L6, L61, L62
   and run-time skips, both in the code and in the browser tests' own JSON reports
   (`scripts/check-e2e-report.mjs`, which Playwright doesn't count as failures); they check
   `scripts/` as well as `src/` for anything setting the firm outside `withFirm()` (the owner-run
-  admin commands are named one by one); and no test imports the Twilio SDK.
+  admin commands are named one by one); no test imports the Twilio SDK; and no file under
+  `src/`, `tests/`, `scripts/`, `drizzle/` or `public/` is git-ignored (an ignore rule meant for
+  key files once kept a code folder out of every commit while the checkout still passed).
 - **Tested like the app.** `tests/unit/safety-net.test.ts` runs each hook as Claude Code runs it,
   in a throwaway git repository. It also runs `invariants.sh` on sample trees (a `fixme`, a test
-  marked to fail, a run-time skip, a new script setting the firm, a Twilio import, and a passing
-  case for each), and runs `verify.sh` with stand-in commands: the build is called, a file changed
+  marked to fail, a run-time skip, a new script setting the firm, a Twilio import, a git-ignored
+  code file, and a passing case for each), and runs `verify.sh` with stand-in commands: the build is called, a file changed
   mid-run or a missing or non-executable `invariants.sh` gives NOT VERIFIED.
 
 ## Why the auditor is a separate agent

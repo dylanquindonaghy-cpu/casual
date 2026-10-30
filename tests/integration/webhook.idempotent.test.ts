@@ -46,7 +46,8 @@ const COPIES = 10;
 
 let nextLine = Math.floor(Math.random() * 400);
 async function lineFirm() {
-  const f = await bookingFirm(su, withFirm);
+  // Automatic replies on: what these tests are about (off by default since P4.7).
+  const f = await bookingFirm(su, withFirm, { settings: { auto_replies: true } });
   nextLine = (nextLine + 1) % 400;
   const line = `+447700900${600 + nextLine}`;
   await su.query("update firms set shifts_line_e164 = null where shifts_line_e164 = $1", [line]);

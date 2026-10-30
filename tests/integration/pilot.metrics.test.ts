@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -257,6 +258,23 @@ describe("the daily counts", () => {
       short_notice_cancellations: 1,
     });
     expect(await daily(t.f.firmId, "2026-10-20")).toMatchObject({ worker_logins: 0 });
+  });
+
+  it("the roll-up has its own longer limits, whether the job or the office's button runs it (ADR-027)", async () => {
+    const t = await metricsFirm();
+    // A page's limits (the "Update the figures now" button runs it on the web).
+    const asOnTheWeb = createWithFirm(app, {
+      limits: { statementMs: 15_000, idleInTransactionMs: 30_000 },
+    });
+    const after = await asOnTheWeb(t.f.firmId, async (tx) => {
+      await rollupFirm(tx, "2026-10-21", at("2026-10-22T12:00:00Z"));
+      const { rows } = await tx.execute<{ statement: string; idle: string }>(
+        sql`select current_setting('statement_timeout') as statement,
+                   current_setting('idle_in_transaction_session_timeout') as idle`,
+      );
+      return rows[0];
+    });
+    expect(after).toEqual({ statement: "5min", idle: "1min" });
   });
 
   it("the rollup stores the last 7 days and today, and running it again corrects late facts", async () => {

@@ -41,7 +41,7 @@ const typesOf = async (firmId: string) =>
 const rulesOf = async (firmId: string) =>
   (
     await su.query(
-      "select sector, role, required_types from credential_rules where firm_id = $1 order by role",
+      "select sector, role, required_types, any_of_types from credential_rules where firm_id = $1 order by role",
       [firmId],
     )
   ).rows;
@@ -97,12 +97,19 @@ describe("applyCredentialPack", () => {
         applied_allowed: false,
       },
     ]);
+    const rule = (role: string, required: string[], anyOf: string[] = []) => ({
+      sector: "security",
+      role,
+      required_types: required,
+      any_of_types: anyOf,
+    });
     expect(await rulesOf(firmId)).toEqual([
-      { sector: "security", role: "close_protection_officer", required_types: ["SIA_CP"] },
-      { sector: "security", role: "csas_officer", required_types: ["CSAS"] },
-      { sector: "security", role: "door_supervisor", required_types: ["SIA_DS"] },
-      { sector: "security", role: "security_officer", required_types: ["SIA_SG"] },
-      { sector: "security", role: "steward", required_types: ["STEWARD_L2"] },
+      rule("close_protection_officer", ["SIA_CP"]),
+      rule("csas_officer", ["CSAS"]),
+      rule("door_supervisor", ["SIA_DS"]),
+      // One of an SIA security guard or door supervisor licence (P3.3, Rules 3).
+      rule("security_officer", [], ["SIA_SG", "SIA_DS"]),
+      rule("steward", ["STEWARD_L2"]),
     ]);
     const [event] = await packEvents(firmId);
     expect(event).toMatchObject({ sector: "security", typesAdded: 8, rulesAdded: 5 });
@@ -117,7 +124,11 @@ describe("applyCredentialPack", () => {
     );
     expect(event.types).toHaveLength(8);
     expect(event.rules).toEqual(
-      expect.arrayContaining([{ role: "door_supervisor", requiredTypes: ["SIA_DS"] }]),
+      expect.arrayContaining([
+        { role: "door_supervisor", requiredTypes: ["SIA_DS"] },
+        // A group only where the rule has one.
+        { role: "security_officer", requiredTypes: [], anyOfTypes: ["SIA_SG", "SIA_DS"] },
+      ]),
     );
     expect(event.rules).toHaveLength(5);
   });

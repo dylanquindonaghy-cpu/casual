@@ -10,6 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { parseWorkerEnv } from "@/lib/env";
 
 // The deploy (Phase 8): the image (Dockerfile), the server's services (deploy/docker-compose.yml),
 // the pull-based deploy (deploy/deploy.sh and its systemd timer) and the workflow that builds the
@@ -75,11 +76,11 @@ function composeRun(args: string[], env: string): string {
   return out;
 }
 
-// Every service, the profiled ones (migrate, worker) included.
+// Every service, the profiled migrate step included.
 const composeConfig = (env = ENV): { services: Record<string, ComposeService> } =>
-  JSON.parse(
-    composeRun(["--profile", "migrate", "--profile", "worker", "config", "--format", "json"], env),
-  ) as { services: Record<string, ComposeService> };
+  JSON.parse(composeRun(["--profile", "migrate", "config", "--format", "json"], env)) as {
+    services: Record<string, ComposeService>;
+  };
 
 describe("deploy/docker-compose.yml", () => {
   const { services } = composeConfig();
@@ -160,6 +161,12 @@ describe("deploy/docker-compose.yml", () => {
     for (const name of Object.keys(services).filter((n) => n !== "worker")) {
       expect(keys(name), name).not.toContain("VAPID_PRIVATE_KEY");
     }
+    // The secret store's key (P5.1): the worker opens firms' secrets and the owner command seals
+    // them; nothing else (the web app above all) gets it.
+    expect(keys("worker")).toContain("SECRETS_KEY");
+    for (const name of Object.keys(services).filter((n) => n !== "worker")) {
+      expect(keys(name), name).not.toContain("SECRETS_KEY");
+    }
     // Travel times (12G.2): the worker alone asks TravelTime, so only it gets the keys.
     expect(keys("worker")).toEqual(
       expect.arrayContaining(["TRAVEL_PROVIDER", "TRAVELTIME_APP_ID", "TRAVELTIME_API_KEY"]),
@@ -211,15 +218,49 @@ describe("deploy/docker-compose.yml", () => {
     expect(services.migrate?.restart).toBeUndefined();
   });
 
-  it("the worker only with COMPOSE_PROFILES=worker (it can't start in production before Twilio), with time to finish its jobs", () => {
-    expect(services.worker?.profiles).toEqual(["worker"]);
+  it("the worker runs from day one (P2.5), with no profile, and has time to finish its jobs", () => {
+    expect(services.worker?.profiles).toBeUndefined();
     expect(services.worker?.stop_grace_period).toBe("45s");
     const running = (env: string) =>
       composeRun(["config", "--services"], env).trim().split("\n").sort();
-    // As env.example ships it (no messaging yet, the worker off): valid, and only web and Caddy.
+    // As env.example ships it (no text sender yet): web, the worker and Caddy.
     const today = ENV.replace("MESSAGING_TRANSPORT=console", "MESSAGING_TRANSPORT=");
-    expect(running(`${today}\nCOMPOSE_PROFILES=`)).toEqual(["caddy", "web"]);
-    expect(running(`${ENV}\nCOMPOSE_PROFILES=worker`)).toEqual(["caddy", "web", "worker"]);
+    expect(running(`${today}\nCOMPOSE_PROFILES=`)).toEqual(["caddy", "web", "worker"]);
+  });
+
+  // P2.5: deploy/env.example as a new server's .env is filled in (its blanks with made-up values:
+  // the secrets, the email provider's details, the database's address), through the compose file,
+  // gives a worker that starts in production: no text sender (none, the compose default for an
+  // empty value) and email over SMTP. "console" is still refused, and so is no email provider.
+  it("env.example filled in: the worker starts in production with no text sender and SMTP email", () => {
+    const filled = (o: Record<string, string> = {}) => {
+      let env = read("deploy/env.example").replaceAll("DB_ADDRESS", "db.example.test");
+      const values: Record<string, string> = {
+        SESSION_SECRET: "made-up-session-secret-for-this-test-only-0123",
+        INTEGRATIONS_SECRET: "made-up-integrations-secret-for-this-test-0123",
+        SMTP_HOST: "smtp.example.test",
+        SMTP_USER: "made-up-user",
+        SMTP_PASS: "made-up-password",
+        SMTP_FROM: "shifts@example.test",
+        ...o,
+      };
+      for (const [key, value] of Object.entries(values)) {
+        env = env.replace(new RegExp(`^${key}=.*$`, "m"), `${key}=${value}`);
+      }
+      return env;
+    };
+    const workerEnv = (env: string) => composeConfig(env).services.worker?.environment ?? {};
+    const shipped = workerEnv(filled());
+    expect(shipped).toMatchObject({ NODE_ENV: "production", MESSAGING_TRANSPORT: "none" });
+    expect(parseWorkerEnv(shipped)).toMatchObject({
+      NODE_ENV: "production",
+      MESSAGING_TRANSPORT: "none",
+      EMAIL_TRANSPORT: "smtp",
+    });
+    expect(() => parseWorkerEnv(workerEnv(filled({ MESSAGING_TRANSPORT: "console" })))).toThrow(
+      /MESSAGING_TRANSPORT/,
+    );
+    expect(() => parseWorkerEnv(workerEnv(filled({ SMTP_HOST: "" })))).toThrow(/SMTP_HOST/);
   });
 
   // The adversarial review (Phase 10 task 17): with no health check, a worker that kept crashing
@@ -276,12 +317,16 @@ describe("deploy/docker-compose.yml", () => {
         "DATABASE_ADMIN_URL",
         "DATABASE_JOBS_URL",
         "DATABASE_URL",
+        // To show a connector's webhook secret (npm run firm:connector, P5.3).
+        "INTEGRATIONS_SECRET",
         "NODE_ENV",
+        // To seal a firm's secrets (npm run firm:secret, P5.1).
+        "SECRETS_KEY",
         "SESSION_SECRET",
       ].sort(),
     );
-    // Not among what `up` starts, whatever the worker's profile.
-    const running = composeRun(["config", "--services"], `${ENV}\nCOMPOSE_PROFILES=worker`)
+    // Not among what `up` starts.
+    const running = composeRun(["config", "--services"], `${ENV}\nCOMPOSE_PROFILES=`)
       .trim()
       .split("\n");
     expect(running).not.toContain("owner");

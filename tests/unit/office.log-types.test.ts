@@ -52,7 +52,8 @@ const NOT_EVENTS = new Set<string>([
   // The strikes team's email keys, changed only through app_set_firm_setting() (12B.7).
   "strikes.email",
   "strikes.email_verified_at",
-  // The owner's strike settings (12C.1), in src/lib/onboarding/settings.ts.
+  // The owner's strike settings (12C.1; the switch, P3.4), in src/lib/onboarding/settings.ts.
+  "strikes.enabled",
   "strikes.notice_hours",
   "strikes.live_days",
   "strikes.keep_months",
@@ -61,6 +62,11 @@ const NOT_EVENTS = new Set<string>([
   "travel.default_max_minutes",
   // The owner's staff photo renewal (12F.2), in src/lib/onboarding/settings.ts.
   "photo.renewal_months",
+  // The owner's pay calendar (P3.1), in src/lib/onboarding/settings.ts.
+  "pay_calendar.days",
+  "pay_calendar.anchor",
+  "pay_calendar.pay_day_after",
+  "pay_calendar.label",
   // The one field asked of Google Sheets for a spreadsheet's locale (src/lib/roster/sheets/google.ts).
   "properties.locale",
   // The evidence email's job queue (src/lib/strikes/evidence-queue.ts, 12C.4; the task's own name).
@@ -72,6 +78,17 @@ const NOT_EVENTS = new Set<string>([
   "booking.created",
   "booking.cancelled",
   "test.ping",
+  // A firm's secrets' names (P5.1): what the secret store holds, not log entries.
+  "portal.api_key",
+  "portal.webhook_secret",
+  "connector.api_key",
+  // A firm's Webex Interact key and sender (15.2), the same.
+  "webex.api_key",
+  "webex.sender",
+  // A connector's webhook types (P5.3) and the settings key its owner command logs under.
+  "session.changed",
+  "staff.changed",
+  "roster_source.connector",
   // The webhook's keys, changed only through app_set_firm_setting() (12J.2).
   "webhook.url",
   "webhook.rotate",

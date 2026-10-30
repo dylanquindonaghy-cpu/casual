@@ -2,7 +2,17 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { sql } from "drizzle-orm";
 import type { Pool } from "pg";
 import { z } from "zod";
-import { appPool, assertSafeAppConnection, drizzleFor, type Db } from "./pool";
+import {
+  appPool,
+  assertSafeAppConnection,
+  dbProfile,
+  drizzleFor,
+  type Db,
+  type DbLimits,
+} from "./pool";
+
+// The worker picks its profile here (src/worker can't import the pool itself: ESLint).
+export { chooseDbProfile, dbProfile, type DbLimits } from "./pool";
 
 // The only way app code reaches firm data (golden rule 2).
 //
@@ -13,6 +23,11 @@ import { appPool, assertSafeAppConnection, drizzleFor, type Db } from "./pool";
 //
 // Rules for code inside fn: use only `tx`. Don't call withFirm again (a nested transaction is a
 // savepoint, and a firm set inside it would leak into the outer one), so nesting throws.
+//
+// The process's time limits (P4.2; ADR-027) are set in the same statement, the same way, so they
+// end with the transaction too: a statement that runs longer fails (SQLSTATE 57014), and a
+// transaction left idle longer ends its connection (25P03). The few that need longer say so with
+// allowLonger(), which holds from that statement to the transaction's end.
 
 export type FirmTx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 export type WithFirm = <T>(firmId: string, fn: (tx: FirmTx) => Promise<T>) => Promise<T>;
@@ -27,10 +42,32 @@ export function activeFirmId(): string | undefined {
   return active.getStore()?.firmId;
 }
 
+// How long withFirm waited for its connections, for the backlog alerts (P4.8): waits of a second
+// or more, and waits that ran out. Counted since the last take.
+export interface ConnectionWaits {
+  slow: number;
+  timedOut: number;
+}
+export const SLOW_CONNECTION_WAIT_MS = 1_000;
+
+const ms = (n: number) => `${n}ms`;
+
+// pg-pool's own words when no connection came within connectionTimeoutMillis: none free in time,
+// or a new one too slow to open.
+const isConnectTimeout = (err: unknown) =>
+  err instanceof Error &&
+  /timeout exceeded when trying to connect|connection terminated due to connection timeout/i.test(
+    err.message,
+  );
+
 // Builds a withFirm bound to a pool. App code uses the default `withFirm` below; tests use this
-// to control the pool size.
-export function createWithFirm(pool: Pool): WithFirm {
+// to control the pool size, and the limits (none unless given).
+export function createWithFirm(
+  pool: Pool,
+  opts: { limits?: DbLimits; waits?: ConnectionWaits } = {},
+): WithFirm {
   const db = drizzleFor(pool);
+  const { limits, waits } = opts;
   let ready: Promise<void> | undefined;
 
   return async (firmId, fn) => {
@@ -43,18 +80,68 @@ export function createWithFirm(pool: Pool): WithFirm {
       throw err;
     });
     await ready;
-    return active.run({ firmId: id }, () =>
-      db.transaction(async (tx) => {
-        await tx.execute(sql`select set_config('app.current_firm_id', ${id}, true)`);
-        return fn(tx);
-      }),
-    );
+    const asked = Date.now();
+    try {
+      return await active.run({ firmId: id }, () =>
+        db.transaction(async (tx) => {
+          if (waits && Date.now() - asked >= SLOW_CONNECTION_WAIT_MS) waits.slow += 1;
+          await tx.execute(
+            limits
+              ? sql`select set_config('app.current_firm_id', ${id}, true),
+                           set_config('statement_timeout', ${ms(limits.statementMs)}, true),
+                           set_config('idle_in_transaction_session_timeout',
+                                      ${ms(limits.idleInTransactionMs)}, true)`
+              : sql`select set_config('app.current_firm_id', ${id}, true)`,
+          );
+          return fn(tx);
+        }),
+      );
+    } catch (err) {
+      if (waits && isConnectTimeout(err)) waits.timedOut += 1;
+      throw err;
+    }
   };
 }
 
+// The transactions that run long, or wait by design, and how long they may (ADR-027).
+export const LONG_TRANSACTIONS = {
+  // The credential scan's lock holder sits idle while the scan's messages go (scan.ts
+  // oneScanAtATime): no idle limit, and its lock wait ends by its own 5-minute lock_timeout first.
+  scanLockHolder: { statementMs: 6 * 60_000, idleInTransactionMs: 0 },
+  firmExport: { statementMs: 2 * 60_000, idleInTransactionMs: 60_000 },
+  retentionPurge: { statementMs: 10 * 60_000, idleInTransactionMs: 60_000 },
+  metricsRollup: { statementMs: 5 * 60_000, idleInTransactionMs: 60_000 },
+} as const satisfies Record<string, DbLimits>;
+
+// Longer limits for this transaction only, from this statement to its end (they end with it, like
+// withFirm's). Only the ones listed above: a new one is added there, with its reason.
+export async function allowLonger(
+  tx: FirmTx,
+  which: keyof typeof LONG_TRANSACTIONS,
+): Promise<void> {
+  const limits: DbLimits = LONG_TRANSACTIONS[which];
+  await tx.execute(
+    sql`select set_config('statement_timeout', ${ms(limits.statementMs)}, true),
+               set_config('idle_in_transaction_session_timeout',
+                          ${ms(limits.idleInTransactionMs)}, true)`,
+  );
+}
+
 let defaultWithFirm: WithFirm | undefined;
+const defaultWaits: ConnectionWaits = { slow: 0, timedOut: 0 };
 
 export function withFirm<T>(firmId: string, fn: (tx: FirmTx) => Promise<T>): Promise<T> {
-  defaultWithFirm ??= createWithFirm(appPool());
+  defaultWithFirm ??= createWithFirm(appPool(), {
+    limits: dbProfile().limits,
+    waits: defaultWaits,
+  });
   return defaultWithFirm(firmId, fn);
+}
+
+// The default withFirm's waits since the last call, then counting from zero (P4.8's tick).
+export function takeConnectionWaits(): ConnectionWaits {
+  const taken = { ...defaultWaits };
+  defaultWaits.slow = 0;
+  defaultWaits.timedOut = 0;
+  return taken;
 }

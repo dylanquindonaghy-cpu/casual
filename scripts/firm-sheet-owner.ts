@@ -35,6 +35,7 @@ export type ConnectResult =
   | { status: "mapping_changed" }
   | { status: "unchanged" }
   | { status: "has_sheet" } // another sheet is connected: needs --replace
+  | { status: "has_connector" } // a connector (npm run firm:connector) is on: switch it off first
   | { status: "booked_ahead"; shifts: number } // needs --same-ids
   | { status: "taken" } // another firm has this sheet
   | { status: "agreement_needed" } // Gate B: live database, signing not recorded
@@ -153,6 +154,12 @@ export async function connectSheet(
         );
         if (!firm[0]?.signed) return { status: "agreement_needed" } as const;
       }
+      // One enabled source per firm: a connector on stays on until it's switched off itself.
+      const { rows: connector } = await owner.query(
+        `select 1 from roster_sources where firm_id = $1 and kind = 'connector' and enabled`,
+        [firmId],
+      );
+      if (connector.length > 0) return { status: "has_connector" } as const;
       const { rows } = await owner.query<{
         id: string;
         spreadsheet_id: string;
@@ -160,7 +167,7 @@ export async function connectSheet(
         mapping: unknown;
       }>(
         `select id::text as id, spreadsheet_id, enabled, mapping from roster_sources
-          where firm_id = $1 and (enabled or spreadsheet_id = $2) for update`,
+          where firm_id = $1 and kind = 'sheets' and (enabled or spreadsheet_id = $2) for update`,
         [firmId, opts.spreadsheetId],
       );
       const live = rows.find((r) => r.enabled);
@@ -232,7 +239,7 @@ export async function disableSheet(adminUrl: string, slug: string): Promise<Disa
   const result = await withOwnerFirm(adminUrl, slug, async (owner, firmId) => {
     const { rows } = await owner.query<{ id: string }>(
       `update roster_sources set enabled = false, sync_started_at = null
-        where firm_id = $1 and enabled returning id::text as id`,
+        where firm_id = $1 and kind = 'sheets' and enabled returning id::text as id`,
       [firmId],
     );
     const id = rows[0]?.id;
@@ -253,7 +260,7 @@ export async function forgetSheet(
   const result = await withOwnerFirm(adminUrl, slug, async (owner, firmId) => {
     const { rows } = await owner.query<{ id: string; enabled: boolean }>(
       `select id::text as id, enabled from roster_sources
-        where firm_id = $1 and spreadsheet_id = $2 for update`,
+        where firm_id = $1 and kind = 'sheets' and spreadsheet_id = $2 for update`,
       [firmId, spreadsheetId],
     );
     const row = rows[0];
@@ -278,7 +285,8 @@ export async function showSheet(adminUrl: string, slug: string): Promise<ShowRes
       last_error_code: string | null;
     }>(
       `select spreadsheet_id, enabled, mapping, last_synced_at, last_attempted_at, last_error_code
-         from roster_sources where firm_id = $1 order by enabled desc, created_at desc limit 1`,
+         from roster_sources where firm_id = $1 and kind = 'sheets'
+        order by enabled desc, created_at desc limit 1`,
       [firmId],
     );
     const row = rows[0];

@@ -8,7 +8,11 @@ import { verifyStepUpCode } from "@/lib/auth/step-up";
 import { consumeWorkerLoginLink } from "@/lib/auth/worker-login";
 import { scanCredentials } from "@/lib/credentials/scan";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
-import type { MessagingTransport, OutboundMessage } from "@/lib/messaging/transport";
+import {
+  NoTextSenderError,
+  type MessagingTransport,
+  type OutboundMessage,
+} from "@/lib/messaging/transport";
 import { runFirmChangeNotice } from "@/lib/notices/firm-change";
 import { runRequestUpdate } from "@/lib/notices/request-update";
 import { runShiftConfirmed } from "@/lib/notices/shift-confirmed";
@@ -54,14 +58,18 @@ const noPush: PushTransport = {
   },
 };
 
-// A transport that remembers what went (or throws, when `down`), and a runner that fails the
-// record step: any transaction a message was sent during, and every one after a message.
-function harness(o: { down?: boolean } = {}) {
+// A transport that remembers what went (or throws, when `down`; with `noTexts`, there's no text
+// sender at all, so a casual's message goes by email: P2.4), and a runner that fails the record
+// step: any transaction a message was sent during, and every one after a message.
+function harness(o: { down?: boolean; noTexts?: boolean } = {}) {
   const sent: OutboundMessage[] = [];
   const transport: MessagingTransport = {
     name: "capture",
+    // No text sender at all, as MESSAGING_TRANSPORT=none says (the login link and code ask: P2.6).
+    ...(o.noTexts ? { texts: false as const } : {}),
     async send(message) {
       if (o.down) throw new Error("provider down");
+      if (o.noTexts && message.channel !== "email") throw new NoTextSenderError(message.channel);
       sent.push(message);
       return { providerMessageId: `capture-${sent.length}` };
     },
@@ -88,8 +96,9 @@ function harness(o: { down?: boolean } = {}) {
 // Runs `job` with the failing runner (it must throw), then again normally; returns the messages.
 async function failThenRetry(
   job: (run: WithFirm, transport: MessagingTransport) => Promise<unknown>,
+  o: { noTexts?: boolean } = {},
 ): Promise<OutboundMessage[]> {
-  const h = harness();
+  const h = harness(o);
   await expect(job(h.failingAfterSend, h.transport)).rejects.toThrow("the record step failed");
   expect(h.sent).toHaveLength(1);
   await job(withFirm, h.transport);
@@ -476,5 +485,117 @@ describe("a send that fails is logged, and never tried again", () => {
       ).toMatchObject({ warned: 0, expired: 0, failed: 0 });
       expect(ok.sent).toEqual([]);
     }
+  });
+});
+
+// The same by email (P2.4: no text sender, so the message goes to the address the firm holds): a
+// job that fails after the email went never sends it again, and logs it once.
+describe("by email: a job that fails after its email is sent never sends it again", () => {
+  const giveEmail = (workerId: string) =>
+    su.query("update workers set email = $2 where id = $1", [
+      workerId,
+      `w-${workerId.slice(0, 8)}@example.test`,
+    ]);
+
+  it("the office's offer", async () => {
+    const t = await officeOfferSetup();
+    await giveEmail(t.workerId);
+    const sent = await failThenRetry(
+      (run, transport) => runOfficeOffer(t.payload, run, t.deps(transport)),
+      { noTexts: true },
+    );
+    expect(sent.map((m) => m.channel)).toEqual(["email"]);
+    expect(await eventsOf(t.f.firmId, "offer.sent")).toHaveLength(1);
+  });
+
+  it("the credential expiry warning", async () => {
+    const t = await scanSetup("2026-11-09");
+    const { rows } = await su.query<{ id: string }>(
+      "select id::text from workers where firm_id = $1",
+      [t.f.firmId],
+    );
+    await giveEmail(rows[0]?.id ?? "");
+    const sent = await failThenRetry(
+      (run, transport) =>
+        scanCredentials(t.payload, run, { transport, baseDomain: "localhost:3000" }),
+      { noTexts: true },
+    );
+    expect(sent.map((m) => m.channel)).toEqual(["email"]);
+    expect(await eventsOf(t.f.firmId, "credential.expiry_warning")).toHaveLength(1);
+  });
+
+  it("telling a worker the office booked them", async () => {
+    const f = await bookingFirm(su, withFirm, {});
+    const workerId = await f.worker({ first: "Ada" });
+    await giveEmail(workerId);
+    const shiftId = await f.shift({ startsAt: hoursFromNow(30) });
+    const officeUserId = await f.office("resourcer");
+    await assignWorker(
+      { firm: { id: f.firmId }, officeUserId, run: withFirm, clock },
+      shiftId,
+      workerId,
+      null,
+    );
+    const { rows } = await su.query<{ data: Record<string, unknown> }>(
+      "select data from pgboss.job where name = 'shift-confirmed' and data ->> 'firmId' = $1",
+      [f.firmId],
+    );
+    const payload = rows[0]?.data as Parameters<typeof runShiftConfirmed>[0];
+    const sent = await failThenRetry(
+      (run, transport) =>
+        runShiftConfirmed(payload, run, {
+          transport,
+          push: noPush,
+          baseDomain: "localhost:3000",
+          clock,
+        }),
+      { noTexts: true },
+    );
+    expect(sent.map((m) => m.channel)).toEqual(["email"]);
+  });
+
+  // P2.6: with no text sender and the firm's login by email on, the link and the code go by email.
+  const loginByEmail = async (firmId: string, workerId: string) => {
+    await su.query(
+      `update firms set settings = settings || '{"login_by_email": true}'::jsonb where id = $1`,
+      [firmId],
+    );
+    await giveEmail(workerId);
+  };
+
+  it("a login link by email: logged once, unconfirmed, by email, and the link that went still logs in", async () => {
+    const t = await linkSetup();
+    await loginByEmail(t.T.firmId, t.T.workerId);
+    const sent = await failThenRetry(
+      (run, transport) => sendPortalLink(t.payload, run, t.deps(transport)),
+      { noTexts: true },
+    );
+    expect(sent.map((m) => m.channel)).toEqual(["email"]);
+    expect((await eventsOf(t.T.firmId, "auth.link_sent")).map((e) => e.data)).toEqual([
+      { purpose: "worker_login", channel: "email", unconfirmed: true },
+    ]);
+    expect(
+      (await consumeWorkerLoginLink({ firm: { id: t.T.firmId }, clock }, tokenFrom(sent[0])))
+        .status,
+    ).toBe("ok");
+  });
+
+  it("a pay-page code by email: logged once, unconfirmed, by email, and the code that went still works", async () => {
+    const t = await codeSetup();
+    await loginByEmail(t.T.firmId, t.T.workerId);
+    const sent = await failThenRetry(
+      (run, transport) => sendLoginCode(t.payload, run, t.deps(transport)),
+      { noTexts: true },
+    );
+    expect(sent.map((m) => m.channel)).toEqual(["email"]);
+    expect((await eventsOf(t.T.firmId, "auth.otp_sent")).map((e) => e.data)).toEqual([
+      { channel: "email", unconfirmed: true },
+    ]);
+    const verified = await verifyStepUpCode(
+      { firm: { id: t.T.firmId }, clock, secret: SECRET },
+      t.session.token,
+      "424242",
+    );
+    expect(verified.status).toBe("ok");
   });
 });

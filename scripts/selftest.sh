@@ -106,6 +106,14 @@ d=$(jq -n '{agent_type:"claims-auditor",tool_name:"Bash",tool_input:{command:"rm
 d=$(jq -n '{agent_type:"claims-auditor",tool_name:"Bash",tool_input:{command:"git diff HEAD~1 -- src"}}' | node .claude/hooks/readonly-agents.mjs | decision)
 [ "$d" = "allow" ] && pass "the auditor can still read a diff" || failf "the auditor can't read a diff" "Got: '$d'"
 
+# 13. The finished phases' archive is frozen (PLAN.md P1.1): a planted change is caught
+planted=$(mktemp)
+cp docs/archive/plan-done.md "$planted" && printf ' ' >> "$planted"
+if scripts/archive-check.sh >/dev/null && ! scripts/archive-check.sh "$planted" >/dev/null; then
+  pass "the archive's pin holds, and a planted change to it fails"
+else failf "the archive's pin doesn't catch a change" "Run: scripts/archive-check.sh"; fi
+rm -f "$planted"
+
 echo
 if [ "$fail" = 0 ]; then echo "SELFTEST PASSED. The safety net works on this machine."
 else echo "SELFTEST FAILED. Fix the FAIL lines above before building."; exit 1; fi

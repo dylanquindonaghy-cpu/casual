@@ -19,9 +19,10 @@ delivers **one** task from `PLAN.md`, end to end, then schedules the next run. E
 
 - No real accounts, money or messages. Don't sign up for, call or configure Twilio, Meta,
   AWS, Google, Bedrock, SES or any other outside service. Build the interface, a console/fake
-  adapter and the tests; put "connect the real X" in the Parking lot. If a task's "Done when"
-  can only be met with a real outside service, build everything short of it, park the rest, and
-  record the task as blocked (not ticked) in the decision log.
+  adapter and the tests; put "connect the real X" in the Parking lot (`docs/plan/parking-lot.md`).
+  If a task's "Done when" can only be met with a real outside service, build everything short of
+  it, park the rest, and record the task as blocked (not ticked) in the decision log and in
+  `docs/plan/blocked.md`.
 - No real personal data, no secrets in the repo, no data from Dylan's employer.
 - Never delete, skip or weaken a test. Never edit `scripts/verify.sh`, `scripts/invariants.sh`,
   `.claude/` or the auditor to get to green.
@@ -34,7 +35,7 @@ delivers **one** task from `PLAN.md`, end to end, then schedules the next run. E
    not on `build/overnight`, switch to it. If the tree has uncommitted work from an earlier run,
    read the decision log to see where it stopped and finish that task first.
 2. Pick the first unchecked `[ ]` task in the earliest unfinished phase of `PLAN.md` (skip
-   ones the decision log marks blocked). If none is left in the current phase, move to the next
+   ones `docs/plan/blocked.md` lists). If none is left in the current phase, move to the next
    phase. If every phase is done or blocked, write the morning summary and stop the loop.
 3. Read the docs the phase lists. Write a short plan into the decision log (files, tests, any
    schema/auth/tenancy/messaging/rules choice and why).
@@ -57,10 +58,12 @@ delivers **one** task from `PLAN.md`, end to end, then schedules the next run. E
 ## Hours and work log (Dylan asked for this: he doesn't log hours himself)
 
 - **Hours:** end time minus the start time from step 1, to one decimal. Add a row to the
-  "Hours log" table at the bottom of `PLAN.md`: date, phase, hours, one-line summary ending
+  "Hours log" table in `docs/plan/hours-log.md`: date, phase, hours, one-line summary ending
   with `(see docs/work-log.md)`. Then total each phase and compare with its estimate in
   `PLAN.md`; if a phase is more than 30% over, say so in the decision log.
-- **In-depth note:** append a section to `docs/work-log.md` (newest at the bottom), written in
+- **In-depth note:** append a section to this month's work log, `docs/logs/work-YYYY-MM.md`
+  (newest at the bottom; in a new month, start the file like the others and list it in
+  `docs/work-log.md`), written in
   plain English for someone new to programming: short sentences, and a few words explaining
   each technical term the first time it appears. Per task: time spent; the result (verify line,
   test totals, auditor verdict, commit, pushed or not); what was built, in plain words, then the
@@ -70,7 +73,8 @@ delivers **one** task from `PLAN.md`, end to end, then schedules the next run. E
 
 ## Decision log
 
-`docs/overnight-log.md`, newest at the bottom. Per task: date/time, task text, plan, every
+This month's `docs/logs/overnight-YYYY-MM.md` (a new month: a new file, listed in
+`docs/overnight-log.md`), newest at the bottom. Per task: date/time, task text, plan, every
 decision Dylan would normally have approved (with the reason and the alternative), guardrails
 findings and fixes, verify line, auditor verdict (verbatim), commit hash, CI run, anything
 parked. At the end: a "Morning summary" section - what's done, hours per phase against the

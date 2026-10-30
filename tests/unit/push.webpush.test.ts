@@ -349,7 +349,7 @@ describe("the settings for web push", () => {
       /tests never reach a push service/,
     );
     // Production takes it (14.1: each push goes with no transaction open). What else production
-    // asks for (a real messaging sender) isn't this test's: the parse runs production's checks, and
+    // asks for (not the console messaging sender) isn't this test's: the parse runs production's checks, and
     // none of them is about the push.
     let problems = "";
     try {

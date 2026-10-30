@@ -1,9 +1,9 @@
 import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
-import { payQueries, payRecords, shifts } from "../db/schema";
+import { firms, payQueries, payRecords, shifts } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import type { PayIssue } from "../portal/pay-query-kinds";
-import { mondayOf } from "../time/zoned";
+import { DEFAULT_PAY_CALENDAR, payCalendar, payPeriod, type PayCalendar } from "./calendar";
 
 // Pay query grouping keys (Phase 6; docs/data-model.md `pay_queries.group_key`; docs/architecture.md
 // "Code assigns grouping keys"). Code, never a model, decides which queries share a likely cause
@@ -13,8 +13,11 @@ import { mondayOf } from "../time/zoned";
 // - hours missing: the week and the site (one site's timesheet);
 // - paid late or not paid: the week (one pay run);
 // - something else: the week.
-// The week is the Monday of the day worked (firm time). Keys are versioned ("pay1:") so a later
-// change of rule never mixes old and new keys in one group.
+// The week is the first day, a Monday, of the firm's pay period holding the day worked (firm time;
+// P3.1, src/lib/pay/calendar.ts): with no pay calendar set, the Monday of that day's week, as
+// before; on fortnights, the Monday that starts the fortnight (one pay run). Keys are versioned
+// ("pay1:") so a later change of rule never mixes old and new keys in one group; a period's first
+// day is still a week's Monday, so the version stays.
 
 export const GROUP_KEY_VERSION = "pay1";
 const KEY_PATTERN = new RegExp(
@@ -26,10 +29,11 @@ export interface GroupFacts {
   workDate: string; // yyyy-mm-dd
   siteId: string | null; // the shift's site, if the query names a shift with one
   ratesPence: number[]; // the rates on the worker's pay lines covering the day (may be none)
+  calendar?: PayCalendar; // the firm's pay calendar; none given: ISO weeks
 }
 
 export function payGroupKey(f: GroupFacts): string {
-  const week = mondayOf(f.workDate);
+  const week = payPeriod(f.workDate, f.calendar ?? DEFAULT_PAY_CALENDAR).start;
   switch (f.issue) {
     case "wrong_rate": {
       const rates = [...new Set(f.ratesPence)].sort((a, b) => a - b);
@@ -69,10 +73,21 @@ export function parsePayGroupKey(key: string): ParsedGroupKey | null {
   return parsed;
 }
 
-// The facts a query's key needs, from the firm's rows (RLS scopes them).
+// The firm's pay calendar, as the app reads it.
+export async function firmPayCalendar(tx: FirmTx): Promise<PayCalendar> {
+  const [firm] = await tx
+    .select({ settings: firms.settings })
+    .from(firms)
+    .where(eq(firms.id, sql`app_current_firm_id()`));
+  return payCalendar(firm?.settings ?? {});
+}
+
+// The facts a query's key needs, from the firm's rows (RLS scopes them). A caller keying many
+// queries passes the firm's calendar, read once.
 export async function groupFactsFor(
   tx: FirmTx,
   q: { workerId: string; shiftId: string | null; workDate: string; issue: PayIssue },
+  calendar?: PayCalendar,
 ): Promise<GroupFacts> {
   let siteId: string | null = null;
   if (q.shiftId) {
@@ -100,12 +115,13 @@ export async function groupFactsFor(
     workDate: q.workDate,
     siteId,
     ratesPence: lines.map((l) => l.ratePence),
+    calendar: calendar ?? (await firmPayCalendar(tx)),
   };
 }
 
 // Recomputes the keys of open and in-digest queries (a pay line imported after the query was
-// raised changes a wrong-rate key). Returns how many changed. The key is worked out from the rows,
-// so this can run as often as needed.
+// raised changes a wrong-rate key; a new pay calendar changes the week). Returns how many changed.
+// The key is worked out from the rows, so this can run as often as needed.
 export async function regroupPayQueries(tx: FirmTx): Promise<{ changed: number }> {
   const open = await tx
     .select({
@@ -120,9 +136,10 @@ export async function regroupPayQueries(tx: FirmTx): Promise<{ changed: number }
     .where(inArray(payQueries.status, ["open", "in_digest"]))
     .orderBy(asc(payQueries.id)) // one lock order, so two regroups can't deadlock
     .for("no key update");
+  const calendar = await firmPayCalendar(tx);
   let changed = 0;
   for (const q of open) {
-    const key = payGroupKey(await groupFactsFor(tx, q));
+    const key = payGroupKey(await groupFactsFor(tx, q, calendar));
     if (key !== q.groupKey) {
       await tx
         .update(payQueries)

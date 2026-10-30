@@ -6,6 +6,7 @@ import { BASELINE_KEYS } from "@/lib/metrics/definitions";
 import { firmReadiness, readinessText, type ReadinessItem } from "@/lib/onboarding/readiness";
 import { addOfficeUser, createFirm } from "../../scripts/firm-create-owner";
 import { readFirmSettings, setFirmSettings } from "../../scripts/firm-settings-owner";
+import { connectConnector } from "../../scripts/firm-connector-owner";
 import { connectSheet } from "../../scripts/firm-sheet-owner";
 import { appRolePool, superuserPool, testEvent, uniqueSlug, urls } from "../helpers/db";
 
@@ -195,17 +196,29 @@ describe("a firm's settings", () => {
       allocation_mode: ["first_come_first_served", "default"],
       wave_size: [4, "default"],
       wave_minutes: [15, "default"],
+      // First come, first served's wave size per free place (P4.3), at most 50 a wave.
+      wave_per_place: [5, "default"],
       urgent_window_hours: [24, "default"],
       escalate_hours_before_start: [3, "default"],
       short_notice_threshold_hours: [48, "default"],
       "quiet_hours.start": ["22:00", "default"],
       "quiet_hours.end": ["07:00", "default"],
       "quiet_hours.urgent_override": [true, "default"],
+      // The shifts line's automatic replies: off until the owner switches them on (P4.7).
+      auto_replies: [false, "default"],
+      // Who sends what: ShiftDesk reminds every booking until the owner says the firm's own system
+      // reminds its own (P2.3).
+      firm_system_sends: [false, "default"],
+      // Login links and pay codes by email with no text sender: off until the pages are reworded
+      // (P2.6, P2.7).
+      login_by_email: [false, "default"],
       // How long the firm keeps things (Phase 10, audit M24): the spec's defaults until agreed.
       "retention.message_days": [90, "default"],
       "retention.request_note_days": [365, "default"],
       "retention.hold_until": ["none", "default"],
-      // Strikes (12C.1): the notice that avoids one, how long it counts, when its record goes.
+      // Strikes (12C.1): on (P3.4), the notice that avoids one, how long it counts, when its record
+      // goes.
+      "strikes.enabled": [true, "default"],
       "strikes.notice_hours": [48, "default"],
       "strikes.live_days": [90, "default"],
       "strikes.keep_months": [12, "default"],
@@ -215,6 +228,11 @@ describe("a firm's settings", () => {
       "travel.default_max_minutes": [45, "default"],
       // Staff photo (12F.2): how often it's renewed.
       "photo.renewal_months": [36, "default"],
+      // The pay calendar (P3.1): ISO weeks, paid the Friday after, until the owner sets one.
+      "pay_calendar.days": [7, "default"],
+      "pay_calendar.anchor": ["none", "default"],
+      "pay_calendar.pay_day_after": [5, "default"],
+      "pay_calendar.label": ["week", "default"],
     });
     expect(await readFirmSettings(urls.admin, "no-such-firm")).toEqual({ status: "no_firm" });
   });
@@ -268,6 +286,32 @@ describe("a firm's settings", () => {
     expect(await setFirmSettings(urls.admin, f.slug, [["wave_size", "6"]])).toEqual({
       status: "unchanged",
     });
+    // First come, first served's number per free place (P4.3), from 1 to 20.
+    expect(await setFirmSettings(urls.admin, f.slug, [["wave_per_place", "20"]])).toMatchObject({
+      status: "saved",
+      keys: ["wave_per_place"],
+    });
+    // The shifts line's automatic replies, switched on (P4.7).
+    expect(await setFirmSettings(urls.admin, f.slug, [["auto_replies", "true"]])).toMatchObject({
+      status: "saved",
+      keys: ["auto_replies"],
+    });
+    // Who sends what, switched on (P2.3).
+    expect(
+      await setFirmSettings(urls.admin, f.slug, [["firm_system_sends", "true"]]),
+    ).toMatchObject({ status: "saved", keys: ["firm_system_sends"] });
+    // Strikes switched off (P3.4), beside the strikes team's settings.
+    expect(await setFirmSettings(urls.admin, f.slug, [["strikes.enabled", "false"]])).toMatchObject(
+      {
+        status: "saved",
+        keys: ["strikes.enabled"],
+      },
+    );
+    // Login by email, switched on (P2.6).
+    expect(await setFirmSettings(urls.admin, f.slug, [["login_by_email", "true"]])).toMatchObject({
+      status: "saved",
+      keys: ["login_by_email"],
+    });
   });
 
   it("refuses a value the app would ignore or fall back from; nothing is saved", async () => {
@@ -277,13 +321,30 @@ describe("a firm's settings", () => {
       ["wave_size", "0"],
       ["wave_size", "4.5"],
       ["wave_minutes", "500"],
+      ["wave_per_place", "0"],
+      ["wave_per_place", "21"],
+      ["wave_per_place", "2.5"],
       ["urgent_window_hours", "500"],
       ["escalate_hours_before_start", "-1"],
       ["short_notice_threshold_hours", "0"],
       ["quiet_hours.start", "25:00"],
       ["quiet_hours.end", "7am"],
       ["quiet_hours.urgent_override", "maybe"],
+      ["auto_replies", "yes"],
+      ["firm_system_sends", "1"],
+      ["login_by_email", "on"],
+      ["strikes.enabled", "off"],
       ["urgent_window_hours", ""],
+      // The pay calendar (P3.1): fortnights need their start first; a start is a real Monday.
+      ["pay_calendar.days", "14"],
+      ["pay_calendar.days", "10"],
+      ["pay_calendar.anchor", "2026-03-03"],
+      ["pay_calendar.anchor", "2026-02-30"],
+      ["pay_calendar.anchor", "2 March 2026"],
+      ["pay_calendar.pay_day_after", "28"],
+      ["pay_calendar.pay_day_after", "2.5"],
+      ["pay_calendar.label", "fortnight"],
+      ["pay_calendar.label", ""],
     ] as const) {
       expect(await setFirmSettings(urls.admin, f.slug, [[key, value]]), `${key}=${value}`).toEqual({
         status: "bad",
@@ -302,6 +363,87 @@ describe("a firm's settings", () => {
     expect(await setFirmSettings(urls.admin, "no-such-firm", [["wave_size", "5"]])).toEqual({
       status: "no_firm",
     });
+  });
+
+  it("first come, first served: the minutes between its waves are read and set as its waves read them (P4.3)", async () => {
+    const f = await created();
+    // A fair-rotation size the app would refuse (written straight to the table): first come's
+    // waves never read it, so it doesn't stop their minutes.
+    await su.query(`update firms set settings = '{"wave_size": 0}' where id = $1`, [f.firmId]);
+    const read = await readFirmSettings(urls.admin, f.slug);
+    if (read.status !== "ok") throw new Error(read.status);
+    const value = (key: string) => read.settings.find((s) => s.key === key)?.value;
+    expect([value("wave_size"), value("wave_minutes")]).toEqual(["(not valid)", 15]);
+    expect(await setFirmSettings(urls.admin, f.slug, [["wave_minutes", "10"]])).toMatchObject({
+      status: "saved",
+      keys: ["wave_minutes"],
+    });
+  });
+
+  it("the pay calendar (P3.1): a start, then fortnights; read whole, so nothing leaves it half set", async () => {
+    const f = await created();
+    const stored = async () =>
+      (
+        await su.query<{ settings: Record<string, unknown> }>(
+          "select settings from firms where id = $1",
+          [f.firmId],
+        )
+      ).rows[0]?.settings;
+    // A made-up start (a Monday), then 14 days, in one run: fortnights, called Cycle by default.
+    expect(
+      await setFirmSettings(urls.admin, f.slug, [
+        ["pay_calendar.anchor", "2026-03-02"],
+        ["pay_calendar.days", "14"],
+      ]),
+    ).toMatchObject({
+      status: "saved",
+      keys: ["pay_calendar.days", "pay_calendar.anchor", "pay_calendar.label"],
+    });
+    expect(await stored()).toEqual({ pay_calendar: { anchor: "2026-03-02", days: 14 } });
+    const read = await readFirmSettings(urls.admin, f.slug);
+    if (read.status !== "ok") throw new Error(read.status);
+    expect(
+      read.settings.filter((s) => s.key.startsWith("pay_calendar.")).map((s) => [s.key, s.value]),
+    ).toEqual([
+      ["pay_calendar.days", 14],
+      ["pay_calendar.anchor", "2026-03-02"],
+      ["pay_calendar.pay_day_after", 5],
+      ["pay_calendar.label", "cycle"],
+    ]);
+    // Removing the start from fortnights would put the firm back on ISO weeks without a word.
+    expect(await setFirmSettings(urls.admin, f.slug, [["pay_calendar.anchor", "none"]])).toEqual({
+      status: "bad",
+      key: "pay_calendar.anchor",
+    });
+    // Paid 12 days after, called Week: kept beside the rest.
+    expect(
+      await setFirmSettings(urls.admin, f.slug, [
+        ["pay_calendar.pay_day_after", "12"],
+        ["pay_calendar.label", "week"],
+      ]),
+    ).toMatchObject({ status: "saved" });
+    expect(await stored()).toEqual({
+      pay_calendar: { anchor: "2026-03-02", days: 14, pay_day_after: 12, label: "week" },
+    });
+    // Back to weeks, then no start: ISO weeks again, paid 12 days after the Sunday.
+    expect(
+      await setFirmSettings(urls.admin, f.slug, [
+        ["pay_calendar.days", "7"],
+        ["pay_calendar.anchor", "none"],
+      ]),
+    ).toMatchObject({ status: "saved" });
+    expect(await stored()).toEqual({
+      pay_calendar: { days: 7, pay_day_after: 12, label: "week" },
+    });
+    // A calendar edited by hand into something the app can't read starts afresh from one part.
+    await su.query(
+      `update firms set settings = '{"pay_calendar": {"days": 14, "anchor": "Monday"}}' where id = $1`,
+      [f.firmId],
+    );
+    expect(
+      await setFirmSettings(urls.admin, f.slug, [["pay_calendar.anchor", "2026-03-02"]]),
+    ).toMatchObject({ status: "saved" });
+    expect(await stored()).toEqual({ pay_calendar: { anchor: "2026-03-02" } });
   });
 });
 
@@ -442,6 +584,55 @@ describe("the onboarding checklist from a firm's data", () => {
       item: "Rota source",
       state: "done",
       detail: "Google Sheet, last synced 2026-10-04T09:00:00.000Z.",
+    });
+  });
+
+  it("a connector (P5.4): named as the firm's own system, never a rota sheet, never read and then failing", async () => {
+    const f = await created();
+    const made = await connectConnector(urls.admin, f.slug, {
+      connector: "demo_portal",
+      baseUrl: "https://portal.example.test/api",
+      replace: false,
+      localDatabase: true,
+    });
+    expect(made).toMatchObject({ status: "connected" });
+    const rota = async () =>
+      (await withFirm(f.firmId, (tx) => firmReadiness(tx))).find((i) => i.item === "Rota source");
+    expect(await rota()).toEqual({
+      item: "Rota source",
+      state: "todo",
+      detail: "A connector to the firm's own system (demo_portal), not read in full yet.",
+    });
+    await su.query(
+      "update roster_sources set last_error_code = 'unavailable' where firm_id = $1 and enabled",
+      [f.firmId],
+    );
+    expect((await rota())?.detail).toBe(
+      "A connector to the firm's own system (demo_portal), not read in full yet (unavailable).",
+    );
+    await su.query(
+      "update roster_sources set last_synced_at = '2026-10-04T09:00:00Z' where firm_id = $1 and enabled",
+      [f.firmId],
+    );
+    const failing = await rota();
+    expect(failing).toEqual({
+      item: "Rota source",
+      state: "todo",
+      detail:
+        "A connector to the firm's own system (demo_portal), last read 2026-10-04T09:00:00.000Z, now failing (unavailable).",
+    });
+    const text = readinessText("Onboard Test Events", failing ? [failing] : []);
+    expect(text).toContain("now failing (unavailable)");
+    expect(text).not.toMatch(/Google Sheet|sheet/i);
+    await su.query(
+      "update roster_sources set last_error_code = null where firm_id = $1 and enabled",
+      [f.firmId],
+    );
+    expect(await rota()).toEqual({
+      item: "Rota source",
+      state: "done",
+      detail:
+        "A connector to the firm's own system (demo_portal), last read 2026-10-04T09:00:00.000Z.",
     });
   });
 

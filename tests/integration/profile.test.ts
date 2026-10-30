@@ -98,19 +98,9 @@ describe("myProfile", () => {
         waiting: null,
         rejected: null,
       },
-      {
-        type: "SIA_SG",
-        name: "SIA security guard licence",
-        status: "applied",
-        expiresOn: null,
-        neededFor: ["security_officer"],
-        appliedCounts: false,
-        renewing: false,
-        uploadable: true,
-        evidenceUploadId: null,
-        waiting: null,
-        rejected: null,
-      },
+      // No security guard licence: a security officer needs one of it or a door supervisor
+      // licence (P3.3), and her door supervisor licence is valid, so her application for the
+      // other isn't one her roles need.
       {
         type: "STEWARD_L2",
         name: "Level 2 spectator safety qualification",
@@ -129,7 +119,7 @@ describe("myProfile", () => {
         name: "SIA door supervisor licence",
         status: "valid",
         expiresOn: "2029-01-01",
-        neededFor: ["door_supervisor"],
+        neededFor: ["door_supervisor", "security_officer"],
         appliedCounts: false,
         renewing: false,
         uploadable: true,
@@ -153,9 +143,10 @@ describe("myProfile", () => {
       ],
     });
     const shown = (await myProfile(ctxFor(f), sam))?.qualifications.map((q) => [q.type, q.status]);
+    // The renewed door supervisor licence covers her security officer shifts too (P3.3), so the
+    // security guard licence being renewed isn't listed.
     expect(shown).toEqual([
       ["STEWARD_L2", "expired"],
-      ["SIA_SG", "applied"],
       ["SIA_DS", "valid"],
     ]);
   });

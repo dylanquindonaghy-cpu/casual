@@ -5,6 +5,7 @@ import { onlyDemoFirms } from "../demo/scope";
 import { appEnv } from "../env";
 import { signOffFor } from "../tenancy/sign-off";
 import { appPool, assertSafeAppConnection, drizzleFor } from "./pool";
+import { EMAIL_ADDRESS } from "./schema/tenancy";
 
 // The app's own look-ups below (the defaults) know the made-up demo firms alone in demo mode
 // (src/lib/demo/scope.ts; ADR-025). listFirmIds isn't one: the demo worker's check needs them all.
@@ -99,6 +100,44 @@ let defaultLineDirectory: ResolveFirmByLine | undefined;
 export function resolveFirmByLine(number: string): Promise<FirmDirectoryEntry | null> {
   defaultLineDirectory ??= onlyDemoFirms(createLineDirectory(appPool()), firmOf, demoMode);
   return defaultLineDirectory(number);
+}
+
+// Incoming email -> firm (P7.1): the firm whose staffing inbox is exactly this address (the one it
+// was sent to), through app_firm_by_inbox() (drizzle/0060_inbound_emails.sql), with the same public
+// directory fields. The caller passes a checked, lower-case address (src/lib/email/address.ts);
+// anything else is null without asking the database. For the email provider's webhook.
+export type ResolveFirmByInbox = (address: string) => Promise<FirmDirectoryEntry | null>;
+
+const inboxAddress = z.string().max(254).regex(new RegExp(EMAIL_ADDRESS));
+
+export function createInboxDirectory(pool: Pool): ResolveFirmByInbox {
+  const db = drizzleFor(pool);
+  let ready: Promise<void> | undefined;
+  return async (address) => {
+    if (!inboxAddress.safeParse(address).success) return null;
+    ready ??= assertSafeAppConnection(pool).catch((err: unknown) => {
+      ready = undefined;
+      throw err;
+    });
+    await ready;
+    const result = await db.execute(sql`select * from app_firm_by_inbox(${address})`);
+    if (result.rows.length === 0) return null;
+    const row = rowSchema.parse(result.rows[0]);
+    return {
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      timezone: row.timezone,
+      signOff: signOffFor(row.name, row.sign_off),
+    };
+  };
+}
+
+let defaultInboxDirectory: ResolveFirmByInbox | undefined;
+
+export function resolveFirmByInbox(address: string): Promise<FirmDirectoryEntry | null> {
+  defaultInboxDirectory ??= onlyDemoFirms(createInboxDirectory(appPool()), firmOf, demoMode);
+  return defaultInboxDirectory(address);
 }
 
 // A firm's own domain -> firm (Phase 8): the firm whose verified custom domain is exactly this
@@ -197,4 +236,43 @@ let defaultKeyDirectory: ResolveApiKey | undefined;
 export function resolveApiKey(hash: Buffer): Promise<ApiKeyEntry | null> {
   defaultKeyDirectory ??= onlyDemoFirms(createKeyDirectory(appPool()), (k) => k.firmId, demoMode);
   return defaultKeyDirectory(hash);
+}
+
+// A connector's source -> firm (P5.3): the firm of a connector source that's switched on, through
+// app_connector_source_firm() (drizzle/0056_connector_events.sql), for its webhooks, which name the
+// source in their address. Only once the webhook's signature has passed (src/lib/connector/
+// webhook.ts); the change then runs in withFirm(). Anything but a uuid is null without asking.
+export interface ConnectorSourceEntry {
+  firmId: string;
+}
+
+export type ResolveConnectorSource = (sourceId: string) => Promise<ConnectorSourceEntry | null>;
+
+const sourceRowSchema = z.object({ firm_id: z.uuid() });
+
+export function createConnectorSourceDirectory(pool: Pool): ResolveConnectorSource {
+  const db = drizzleFor(pool);
+  let ready: Promise<void> | undefined;
+  return async (sourceId) => {
+    if (!z.uuid().safeParse(sourceId).success) return null;
+    ready ??= assertSafeAppConnection(pool).catch((err: unknown) => {
+      ready = undefined;
+      throw err;
+    });
+    await ready;
+    const result = await db.execute(sql`select * from app_connector_source_firm(${sourceId})`);
+    if (result.rows.length === 0) return null;
+    return { firmId: sourceRowSchema.parse(result.rows[0]).firm_id };
+  };
+}
+
+let defaultConnectorSourceDirectory: ResolveConnectorSource | undefined;
+
+export function resolveConnectorSource(sourceId: string): Promise<ConnectorSourceEntry | null> {
+  defaultConnectorSourceDirectory ??= onlyDemoFirms(
+    createConnectorSourceDirectory(appPool()),
+    (s) => s.firmId,
+    demoMode,
+  );
+  return defaultConnectorSourceDirectory(sourceId);
 }

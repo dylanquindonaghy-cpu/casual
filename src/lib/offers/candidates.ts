@@ -34,6 +34,7 @@ export interface WaveCandidate extends RotationCandidate {
   mobile: string;
   channel: "whatsapp" | "sms";
   smsAllowed: boolean; // false: they replied STOP to a text (src/lib/notify/send.ts)
+  email: string | null; // the address the firm holds for them: the offer's last way (P2.4)
 }
 
 // Holds, until the transaction ends, the lock on each worker's offer count for the day (in id
@@ -98,11 +99,12 @@ export async function waveCandidates(
     mobile: string;
     channel: "whatsapp" | "sms";
     sms_allowed: boolean;
+    email: string | null;
     last_offered_at: string | Date | null;
     offers_today: number;
   }>(sql`
     select w.id as worker_id, w.mobile_e164 as mobile, w.notify_channel as channel,
-           w.sms_opted_out_at is null as sms_allowed,
+           w.sms_opted_out_at is null as sms_allowed, w.email,
            (select max(o.sent_at) from offers o where o.worker_id = w.id) as last_offered_at,
            (select count(*)::int from offers o
              where o.worker_id = w.id and o.response is distinct from 'failed'
@@ -156,6 +158,7 @@ export async function waveCandidates(
       mobile: r.mobile,
       channel: r.channel,
       smsAllowed: r.sms_allowed,
+      email: r.email,
       hoursThisWeek: hours.get(r.worker_id) ?? 0,
       lastOfferedAt: r.last_offered_at ? new Date(r.last_offered_at) : null,
     });

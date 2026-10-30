@@ -91,8 +91,9 @@ export async function cancelMyShift(
     case "not_found":
       return { status: "not_booked" };
     default:
-      // ended, not_allowed and needs_approval can't happen for a worker on a shift that hasn't
-      // started, on our tables.
+      // ended and not_allowed can't happen for a worker on a shift that hasn't started, on our
+      // tables. needs_approval can: a connector's session (P5.5), cancelled in the firm's own
+      // system; its own words wait for Dylan (PLAN.md Parking lot, before a real connector).
       return { status: "error" };
   }
 }

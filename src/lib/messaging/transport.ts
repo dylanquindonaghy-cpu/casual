@@ -105,7 +105,21 @@ export class ChannelRefusedError extends Error {
   }
 }
 
+// There is no text sender at all (MESSAGING_TRANSPORT=none: P2.5, before the firm's own text
+// system is connected). Not a failed message: nothing was tried. A sender moves on to email
+// (src/lib/notify/send.ts deliverToWorker).
+export class NoTextSenderError extends Error {
+  constructor(readonly channel: Channel) {
+    super(`there is no text sender for ${channel}`);
+    this.name = "NoTextSenderError";
+  }
+}
+
 export interface MessagingTransport {
   readonly name: string;
+  // false: there's no text sender at all (MESSAGING_TRANSPORT=none, P2.5), so no WhatsApp or text
+  // can go. Unset: there is one. A sender that must choose its channel before it sends asks this
+  // (the login link and code, P2.6: their token or code is made for the way it goes).
+  readonly texts?: false;
   send(message: OutboundMessage): Promise<SendResult>;
 }

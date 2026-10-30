@@ -1,6 +1,6 @@
 import { spreadsheetMobile } from "../../auth/mobile";
 import { WORKER_STATUSES } from "../../db/schema/people";
-import { ROLE_PATTERN } from "../../db/schema/roster";
+import { NO_NAMES, normaliseRole, readRoleName, readRoleNames, type NameMap } from "../names";
 import type { WallTime } from "../../time/zoned";
 import { shiftWindow } from "../shift-window";
 import { rosterShiftSchema, rosterStaffSchema, type RosterShift, type RosterStaff } from "../plug";
@@ -37,6 +37,9 @@ export const SHEET_PROBLEM_CODES = [
   "holder_not_in_sheet", // booked here by someone with no staff id: the shift's holders aren't synced
   "change_refused", // a booked shift's role, times or site changed, and someone booked can't work it
   "started_change", // a shift that has started was re-timed, re-roled, moved or cancelled: ignored
+  // P3.2: a row whose role the firm's name map skips, though a session to come that it made is
+  // still on here: that session is left as it is (cancel or change it in the office).
+  "skipped_live",
   "invalid_row",
 ] as const;
 export type SheetProblemCode = (typeof SHEET_PROBLEM_CODES)[number];
@@ -75,6 +78,8 @@ export interface ParsedSheet {
   // Where the sync writes back: the shifts tab's id and assigned columns (0-based).
   layout: { shiftsTab: string; refColumn: number; assignedColumn: number };
   problems: SheetProblem[];
+  // Shift rows whose role the firm's name map skips (P3.2): not sessions, so not brought in.
+  skipped: { row: number; ref: string }[];
 }
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
@@ -110,14 +115,7 @@ const listOf = (cell: string) =>
     .map((s) => s.trim())
     .filter(Boolean);
 
-const rolePattern = new RegExp(ROLE_PATTERN);
-export function normaliseRole(raw: string): string | null {
-  const role = raw
-    .trim()
-    .toLowerCase()
-    .replace(/[\s-]+/g, "_");
-  return rolePattern.test(role) ? role : null;
-}
+export { normaliseRole };
 
 const MONTHS = [
   "january",
@@ -201,10 +199,14 @@ export function parseSheetTime(raw: string): Pick<WallTime, "hour" | "minute"> |
   return hour <= 23 && minute <= 59 ? { hour, minute } : null;
 }
 
+// `names`: the firm's name map (P3.2, src/lib/roster/names.ts): a role it maps is read as its code,
+// one it skips is left off a worker's roles, and a shift row with one isn't brought in (not a
+// problem: the firm said it isn't a session). Others are read as before.
 export function parseSheet(
   input: { staffRows: string[][]; shiftRows: string[][] },
   mapping: SheetMapping,
   timeZone: string,
+  names: NameMap = NO_NAMES,
 ): ParsedSheet {
   const problems: SheetProblem[] = [];
   const staffCols = columnsOf(
@@ -238,8 +240,8 @@ export function parseSheet(
     const mobile = spreadsheetMobile(cellOf(row, staffCols.mobile));
     if (!mobile) return flag("bad_mobile");
     if (seenMobiles.has(mobile)) return flag("duplicate_mobile");
-    const roles = listOf(cellOf(row, staffCols.roles)).map(normaliseRole);
-    if (roles.some((r) => r === null)) return flag("bad_role");
+    const roles = readRoleNames(listOf(cellOf(row, staffCols.roles)), names);
+    if (roles === null) return flag("bad_role");
     const statusCell = cellOf(row, staffCols.status).toLowerCase();
     const status = statusCell === "" ? "active" : WORKER_STATUSES.find((s) => s === statusCell);
     if (!status) return flag("bad_status");
@@ -248,7 +250,7 @@ export function parseSheet(
       firstName,
       lastName,
       mobileE164: mobile,
-      roles: [...new Set(roles as string[])],
+      roles,
       status,
     });
     if (!parsed.success) return flag("invalid_row");
@@ -257,6 +259,7 @@ export function parseSheet(
   });
 
   const shifts: SheetShift[] = [];
+  const skipped: ParsedSheet["skipped"] = [];
   const seenShifts = new Set<string>();
   input.shiftRows.slice(1).forEach((row, i) => {
     const rowNumber = i + 2;
@@ -267,6 +270,9 @@ export function parseSheet(
     if (!ref) return flag("missing_ref");
     if (seenShifts.has(ref)) return flag("duplicate_ref");
     seenShifts.add(ref);
+    const roleName = readRoleName(cellOf(row, shiftCols.role), names);
+    // A role the firm's name map skips: not a session, whatever else the row says.
+    if (roleName && "skip" in roleName) return void skipped.push({ row: rowNumber, ref });
     const date = parseSheetDate(cellOf(row, shiftCols.date));
     if (!date) return flag("bad_date");
     const start = parseSheetTime(cellOf(row, shiftCols.start));
@@ -275,8 +281,8 @@ export function parseSheet(
     const window = shiftWindow(date, start, end, timeZone);
     if (!window) return flag("bad_time");
     const { startsAt, endsAt } = window;
-    const role = normaliseRole(cellOf(row, shiftCols.role));
-    if (!role) return flag("bad_role");
+    if (!roleName) return flag("bad_role");
+    const { role } = roleName;
     const headcountCell = cellOf(row, shiftCols.headcount);
     const headcount = headcountCell === "" ? 1 : Number(headcountCell);
     if (
@@ -340,5 +346,6 @@ export function parseSheet(
       assignedColumn: shiftCols.assigned ?? 0,
     },
     problems,
+    skipped,
   };
 }

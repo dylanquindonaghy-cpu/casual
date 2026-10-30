@@ -30,6 +30,7 @@ function input(o: Partial<EligibilityInput> & { others?: [string, string][] } = 
       siteId: "site-1",
       requiredTypes: ["SIA_DS"],
       extraTypes: [],
+      anyOfTypes: [],
     },
     otherAssignments: (others ?? []).map(([s, e]) => ({ startsAt: at(s), endsAt: at(e) })),
     unavailableDates: [],
@@ -185,6 +186,7 @@ describe("every check, failed, with its figures", () => {
           siteId: "site-1",
           requiredTypes: ["SIA_DS"],
           extraTypes: ["FIRST_AID"],
+          anyOfTypes: [],
         },
       }),
       "qualification",
@@ -330,6 +332,7 @@ describe("every check, failed, with its figures", () => {
           siteId: null,
           requiredTypes: null,
           extraTypes: [],
+          anyOfTypes: [],
         },
       }),
     );

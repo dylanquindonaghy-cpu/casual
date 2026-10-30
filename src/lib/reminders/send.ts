@@ -8,18 +8,16 @@ import { recordEvent } from "../events/record";
 import { firmJobEnvelope, sendFirmJob, type FirmTask } from "../jobs/firm-job";
 import { log, type Logger } from "../log";
 import { getTransport } from "../messaging";
+import { FIRM_SYSTEM_BOOKINGS, firmSystemSends } from "../notices/who-sends";
+import { eachAtMost } from "../notify/parallel";
 import {
   reminderPush,
+  shiftReminder24hEmailSubject,
   shiftReminder24hMessage,
+  shiftReminder2hEmailSubject,
   shiftReminder2hMessage,
 } from "../messaging/templates";
-import {
-  pushToWorker,
-  recordPushes,
-  sendToWorker,
-  type NotifyDeps,
-  type WorkerChannel,
-} from "../notify/send";
+import { deliverToWorker, recordPushes, type NotifyDeps, type WorkerChannel } from "../notify/send";
 import { dayWords } from "../portal/format";
 import { getPushTransport } from "../push/transport";
 import { quietHours } from "../rules/quiet-hours";
@@ -45,24 +43,42 @@ import { wallTimeOf } from "../time/zoned";
 // - shift-reminders (a firm task: several short transactions, never one held across a send). Per
 //   due reminder: (1) claim it: its shift_reminders row, `sending`, if the booking is still there
 //   (unique per booking, reminder and start time), committed before anything is sent; (2) send it by
-//   the worker's channel (src/lib/notify/send.ts), then the push, outside any transaction; (3)
+//   push, else by the worker's channel, else email (deliverToWorker, P2.4), outside any transaction; (3)
 //   record `sent` (with the push's count) or `failed`, and the event. A job that stops after a send (a crash, a failed record)
 //   leaves the row `sending`: it may have gone, so it's never sent again. A retried or doubled job
 //   finds the row and sends nothing. A failed send is never retried either (it may have arrived).
 //   One quiet hours would hold past its window is recorded `skipped`. Logged shift.reminder_sent /
 //   shift.reminder_failed / shift.reminder_skipped.
+// - At a big firm (P4.5): 4 at a time (each still claimed before it's sent), soonest first, and at
+//   most 200 a run. With more due, the run queues a follow-up job for the rest: queued as the run
+//   ends, it runs after the other firms' jobs already waiting (pg-boss takes them by when they were
+//   queued; a retried job keeps its place), so one firm's 2,000 never hold up another firm's few.
+//   The follow-up reads what's still due (claimed reminders aren't), so a doubled follow-up sends
+//   nothing twice. A run that claimed none of its 200 queues no follow-up: what's left goes to the
+//   next tick, so a list the claims never accept can't chain for ever.
 
 export const SHIFT_REMINDERS_QUEUE = "shift-reminders";
 export const SHIFT_REMINDER_TICK_QUEUE = "shift-reminder-tick";
 export const SHIFT_REMINDER_TICK_CRON = `*/${REMINDER_TICK_MINUTES} * * * *`;
 const SLOT_MS = REMINDER_TICK_MINUTES * 60_000;
 
+// A slot's first run is `shift-reminders:<slot>`; its follow-ups `shift-reminders:<slot>:<n>`, the
+// slot's nth run.
 export const shiftRemindersPayload = firmJobEnvelope.extend({
-  idempotencyKey: z.string().regex(/^shift-reminders:\d{1,12}$/),
+  idempotencyKey: z.string().regex(/^shift-reminders:\d{1,12}(:\d{1,4})?$/),
 });
 export type ShiftRemindersPayload = z.infer<typeof shiftRemindersPayload>;
 
 const job = { queue: SHIFT_REMINDERS_QUEUE, schema: shiftRemindersPayload };
+
+export const REMINDER_SENDS_AT_ONCE = 4;
+export const REMINDERS_PER_RUN = 200;
+
+// The run after this one: the same slot, the next run number.
+export function followUpKey(key: string): string {
+  const [, slot = "0", part = "1"] = key.split(":");
+  return `shift-reminders:${slot}:${Number(part) + 1}`;
+}
 
 export interface ReminderDeps extends NotifyDeps {
   baseDomain: string;
@@ -79,6 +95,7 @@ interface Booking {
   mobile: string;
   channel: WorkerChannel;
   smsAllowed: boolean; // false: they replied STOP to a text
+  email: string | null; // the address the firm holds for them: the reminder's last way (P2.4)
 }
 
 type Due = Booking & { decision: Extract<ReminderDecision, { action: "send" | "skip" }> };
@@ -117,13 +134,14 @@ export async function dueReminders(
     mobile: string;
     channel: WorkerChannel;
     sms_allowed: boolean;
+    email: string | null;
     has_24h: boolean;
     has_2h: boolean;
   }>(sql`
     select a.id as assignment_id, a.worker_id, a.confirmed_at,
            s.id as shift_id, s.starts_at, s.ends_at, si.name as site_name,
            w.mobile_e164 as mobile, w.notify_channel as channel,
-           w.sms_opted_out_at is null as sms_allowed,
+           w.sms_opted_out_at is null as sms_allowed, w.email,
            exists (select 1 from shift_reminders r
                     where r.firm_id = a.firm_id and r.assignment_id = a.id and r.kind = '24h'
                       and r.starts_at = s.starts_at) as has_24h,
@@ -146,6 +164,16 @@ export async function dueReminders(
                               and b.site_id = s.site_id))
        and s.status in ('open', 'filled')
        and s.starts_at > ${now} and s.starts_at <= ${until}
+       -- Who sends what (P2.3): with the setting on, the firm's own system reminds the bookings it
+       -- made (an empty booked_via counts as the office's: reminded).
+       ${
+         firmSystemSends(firm.settings)
+           ? sql`and (a.booked_via is null or a.booked_via not in (${sql.join(
+               FIRM_SYSTEM_BOOKINGS.map((v) => sql`${v}`),
+               sql`, `,
+             )}))`
+           : sql``
+       }
      order by s.starts_at, a.id
   `);
   const quiet = quietHours(firm.settings);
@@ -171,6 +199,7 @@ export async function dueReminders(
       mobile: r.mobile,
       channel: r.channel,
       smsAllowed: r.sms_allowed,
+      email: r.email,
       decision,
     });
   }
@@ -216,7 +245,9 @@ async function claim(
   return rows[0]?.id ?? null;
 }
 
-export type RemindersResult = { sent: number; failed: number; skipped: number };
+// `more`: there were more due than a run takes, and a follow-up job is queued for them (or already
+// was, by an earlier try of this run).
+export type RemindersResult = { sent: number; failed: number; skipped: number; more?: true };
 
 export async function runShiftReminders(
   payload: ShiftRemindersPayload,
@@ -232,8 +263,9 @@ export async function runShiftReminders(
   const voice = { name: firm.name, signOff: signOffFor(firm.name, firm.settings.sign_off) };
   const base = portalUrl(firm.slug, deps.baseDomain);
   const result: RemindersResult = { sent: 0, failed: 0, skipped: 0 };
+  const batch = due.slice(0, REMINDERS_PER_RUN);
 
-  for (const { decision, ...b } of due) {
+  await eachAtMost(batch, REMINDER_SENDS_AT_ONCE, async ({ decision, ...b }) => {
     if (decision.action === "skip") {
       const skipped = await inFirm(async (tx) => {
         const id = await claim(tx, b, decision.kind, "skipped", now);
@@ -253,13 +285,13 @@ export async function runShiftReminders(
         return true;
       });
       if (skipped) result.skipped += 1;
-      continue;
+      return;
     }
 
     const kind = decision.kind;
     // (1) Claimed and committed before anything is sent.
     const id = await inFirm((tx) => claim(tx, b, kind, "sending", now));
-    if (!id) continue;
+    if (!id) return;
 
     // (2) The message, outside any transaction.
     const link = `${base}/shifts/${b.shiftId}`;
@@ -270,30 +302,45 @@ export async function runShiftReminders(
       kind === "24h"
         ? shiftReminder24hMessage(voice, { site: b.siteName, day, start, end, link })
         : shiftReminder2hMessage(voice, { site: b.siteName, start, link });
-    // The doc has no separate SMS version of the reminders: the same text either way.
-    const sent = await sendToWorker(deps, {
-      mobile: b.mobile,
-      channel: b.channel,
-      smsAllowed: b.smsAllowed,
-      body: { whatsapp: body, sms: body },
-      from: firm.line,
+    // A push to their phones first, else by WhatsApp or text, else email (P2.4), with no
+    // transaction open. The doc has no separate SMS version of the reminders: the same text either
+    // way. A push isn't delivered once the shift has started.
+    const sent = await deliverToWorker(inFirm, deps, {
+      workerId: b.workerId,
+      push: {
+        ...reminderPush({ kind, site: b.siteName, day, start, end }),
+        url: `/shifts/${b.shiftId}`,
+        until: b.startsAt,
+      },
+      text: {
+        mobile: b.mobile,
+        channel: b.channel,
+        smsAllowed: b.smsAllowed,
+        body: { whatsapp: body, sms: body },
+        from: firm.line,
+      },
+      email: b.email
+        ? {
+            to: b.email,
+            subject:
+              kind === "24h"
+                ? shiftReminder24hEmailSubject({ day })
+                : shiftReminder2hEmailSubject({ start }),
+            body,
+          }
+        : null,
     });
-    // The push once the message has gone, with no transaction open: not delivered once the shift
-    // has started.
-    const pushed = sent.ok
-      ? await pushToWorker(inFirm, deps, b.workerId, {
-          ...reminderPush({ kind, site: b.siteName, day, start, end }),
-          url: `/shifts/${b.shiftId}`,
-          until: b.startsAt,
-        })
-      : null;
 
     // (3) The outcome and the event.
     await inFirm(async (tx) => {
+      const pushes = await recordPushes(tx, sent.push);
       if (!sent.ok) {
+        // Nothing could carry it at all (no_channel): the row keeps the channel it was claimed with
+        // (only a skipped reminder has none: shift_reminders_channel_unless_skipped); the event
+        // says none.
         await tx
           .update(shiftReminders)
-          .set({ status: "failed", channel: sent.channel })
+          .set({ status: "failed", channel: sent.channel ?? b.channel })
           .where(eq(shiftReminders.id, id));
         await recordEvent(tx, {
           actorType: "system",
@@ -310,7 +357,6 @@ export async function runShiftReminders(
         });
         return;
       }
-      const pushes = await recordPushes(tx, pushed);
       await tx
         .update(shiftReminders)
         .set({ status: "sent", channel: sent.channel })
@@ -333,6 +379,23 @@ export async function runShiftReminders(
     });
     if (sent.ok) result.sent += 1;
     else result.failed += 1;
+  });
+
+  // The rest by a follow-up, queued now (behind other firms' waiting jobs). Once per run number in
+  // the clock hour (a firm-scoped singleton): a retried run finds it queued; one retried across the
+  // hour queues a second, which finds nothing more to send. Only after progress (see above).
+  const progressed = result.sent + result.failed + result.skipped > 0;
+  if (due.length > batch.length && progressed) {
+    const next = followUpKey(payload.idempotencyKey);
+    await inFirm((tx) =>
+      sendFirmJob(
+        tx,
+        job,
+        { idempotencyKey: next },
+        { singletonKey: next, singletonSeconds: 3_600 },
+      ),
+    );
+    return { ...result, more: true };
   }
   return result;
 }

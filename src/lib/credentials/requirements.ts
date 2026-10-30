@@ -6,7 +6,9 @@ import type { FirmTx } from "../db/scoped";
 // session rows and the casual app's chips and "What it needs": its role's qualifications (the
 // firm's rules) and then its own extras (`shifts.required_credentials`), each once, with its name:
 // every type the rules engine checks for it, so nothing it enforces goes unshown (a right to work
-// check the office added as an extra included). Reads only; the rules engine decides who may take
+// check the office added as an extra included). A role's one-of group (P3.3) shows as its first
+// type until the words for "A or B" are approved (after the UI chat's Phase 24, a mock-up first),
+// and any type of it is one a casual may send. Reads only; the rules engine decides who may take
 // the shift (golden rule 1).
 
 export interface Requirement {
@@ -30,6 +32,10 @@ export const requirementChip = (r: Requirement): string =>
 
 export interface RequirementsReader {
   of: (role: string, extras: readonly string[]) => Requirement[];
+  // The role's one-of group (P3.3), [] for none: of() shows its first; a casual's own view shows
+  // the one that stands best for her (src/lib/portal/shift-facts.ts).
+  groupOf: (role: string) => string[];
+  nameOf: (code: string) => string;
   // Whether one of these roles' rules needs the type: what a casual may send herself (the upload
   // page and saveMyUpload() take only those: src/lib/uploads/save.ts).
   rolesNeed: (roles: readonly string[], code: string) => boolean;
@@ -46,12 +52,23 @@ export async function readRequirements(
   const wanted = [...new Set(roles)];
   const rules = wanted.length
     ? await tx
-        .select({ role: credentialRules.role, types: credentialRules.requiredTypes })
+        .select({
+          role: credentialRules.role,
+          types: credentialRules.requiredTypes,
+          anyOf: credentialRules.anyOfTypes,
+        })
         .from(credentialRules)
         .where(inArray(credentialRules.role, wanted))
     : [];
+  // What each role's sessions show (its types, then its group's first), and every type it needs.
   const byRole = new Map<string, string[]>();
-  for (const r of rules) byRole.set(r.role, [...(byRole.get(r.role) ?? []), ...r.types]);
+  const allOf = new Map<string, string[]>();
+  const groups = new Map<string, string[]>();
+  for (const r of rules) {
+    groups.set(r.role, [...r.anyOf]);
+    byRole.set(r.role, [...(byRole.get(r.role) ?? []), ...r.types, ...r.anyOf.slice(0, 1)]);
+    allOf.set(r.role, [...(allOf.get(r.role) ?? []), ...r.types, ...r.anyOf]);
+  }
   const types = await tx
     .select({
       code: credentialTypes.code,
@@ -67,7 +84,9 @@ export async function readRequirements(
         code,
         name: names.get(code) ?? code,
       })),
-    rolesNeed: (roles, code) => roles.some((role) => byRole.get(role)?.includes(code)),
+    groupOf: (role) => groups.get(role) ?? [],
+    nameOf: (code) => names.get(code) ?? code,
+    rolesNeed: (roles, code) => roles.some((role) => allOf.get(role)?.includes(code)),
     officeRecorded: (code) => officeOnly.has(code),
   };
 }

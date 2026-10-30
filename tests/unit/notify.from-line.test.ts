@@ -3,10 +3,11 @@ import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
 // Every WhatsApp and text message to a worker goes from the firm's own number, its shifts line
-// (Phase 7; firms.shifts_line_e164). sendToWorker() and notifyWorker() take `from` as a required
-// argument, so the type checker holds their callers to it; this test holds the rest: every message
-// built with a fixed WhatsApp or text channel passes the firm's line as `from`, and every call to
-// the two helpers names `from`. A new sender must follow suit. That the right number arrives is
+// (Phase 7; firms.shifts_line_e164). sendToWorker() takes `from` as a required argument, and so do
+// deliverToWorker() and sendTextOrEmail() for their WhatsApp or text (P2.4), so the type checker
+// holds their callers to it; this test holds the rest: every message built with a fixed WhatsApp or
+// text channel passes the firm's line as `from`, and every call to the three helpers names `from`.
+// A new sender must follow suit. That the right number arrives is
 // behaviour, tested in tests/integration/shifts-line.test.ts.
 
 const SRC = join(process.cwd(), "src");
@@ -23,6 +24,16 @@ const files = sourceFiles(SRC).map((path) => ({
   path: relative(process.cwd(), path).replace(/\\/g, "/"),
   text: readFileSync(path, "utf8"),
 }));
+
+// Every call to the shared senders (src/lib/notify/send.ts): sendToWorker(deps, {...}), and since
+// P2.4 deliverToWorker(inFirm, deps, {...}) and sendTextOrEmail(deps, {...}), whose `text` holds the
+// WhatsApp or text.
+const SENDER_CALL =
+  /\b(sendToWorker|deliverToWorker|sendTextOrEmail)\((?:inFirm, |\(fn\) => run\(payload\.firmId, fn\), )?deps, \{([\s\S]*?)\}\);/g;
+const senderCalls = () =>
+  files.flatMap((f) =>
+    [...f.text.matchAll(SENDER_CALL)].map((m) => ({ path: f.path, args: m[2] ?? "" })),
+  );
 
 describe("messages go from the firm's shifts line", () => {
   it("every message built with a fixed WhatsApp or text channel passes the line as `from`", () => {
@@ -54,12 +65,8 @@ describe("messages go from the firm's shifts line", () => {
     expect(texts.map((f) => f.path)).toEqual(["src/lib/inbound/opt-out.ts"]);
   });
 
-  it("every call to sendToWorker() or notifyWorker() names `from`", () => {
-    const calls = files.flatMap((f) =>
-      [...f.text.matchAll(/\b(sendToWorker|notifyWorker)\((?:tx, )?deps, \{([\s\S]*?)\}\);/g)].map(
-        (m) => ({ path: f.path, args: m[2] ?? "" }),
-      ),
-    );
+  it("every call to sendToWorker(), deliverToWorker() or sendTextOrEmail() names `from`", () => {
+    const calls = senderCalls();
     expect(calls.map((c) => c.path).sort()).toEqual([
       "src/lib/credentials/scan.ts", // licence expiry messages (13.5)
       "src/lib/inbound/reply.ts",
@@ -79,12 +86,8 @@ describe("messages go from the firm's shifts line", () => {
     }
   });
 
-  it("every call to sendToWorker() or notifyWorker() passes the worker's own STOP setting", () => {
-    const calls = files.flatMap((f) =>
-      [...f.text.matchAll(/\b(sendToWorker|notifyWorker)\((?:tx, )?deps, \{([\s\S]*?)\}\);/g)].map(
-        (m) => ({ path: f.path, args: m[2] ?? "" }),
-      ),
-    );
+  it("every call to the shared senders passes the worker's own STOP setting", () => {
+    const calls = senderCalls();
     expect(calls).toHaveLength(10);
     // Never a hard-coded value: always the worker's, read with their channel.
     for (const c of calls) expect(c.args, c.path).toMatch(/\bsmsAllowed: \w+\.smsAllowed,/);
@@ -107,8 +110,9 @@ describe("messages go from the firm's shifts line", () => {
 
   it("the shared sender passes `from` on to both tries (WhatsApp, then the text fallback)", () => {
     const notify = files.find((f) => f.path === "src/lib/notify/send.ts")?.text ?? "";
-    expect(
-      notify.match(/transport\.send\(\{[\s\S]*?\}\)/g)?.map((s) => /\.\.\.from,/.test(s)),
-    ).toEqual([true, true]);
+    const sends = notify.match(/transport\.send\(\{[\s\S]*?\}\)/g) ?? [];
+    expect(sends.map((s) => /\.\.\.from,/.test(s))).toEqual([true, true, false]);
+    // The third is the email (P2.4): from the firm's email sender, never the shifts line.
+    expect(sends[2]).toMatch(/channel: "email"/);
   });
 });

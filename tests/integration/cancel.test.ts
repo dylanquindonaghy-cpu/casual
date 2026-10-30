@@ -104,6 +104,7 @@ describe("cancelBooking: a worker cancelling", () => {
         // The reason is on the row above; the append-only log never holds typed text.
         data: {
           by: "worker",
+          askedBy: "casual", // who asked (P3.4)
           shiftId,
           workerId: sam,
           noticeHours: 48,
@@ -226,6 +227,7 @@ describe("cancelBooking: the office cancelling", () => {
         entity_id: assignmentId,
         data: {
           by: "firm",
+          askedBy: "firm", // the office's (its form asks after Phase 24: P3.4)
           shiftId,
           workerId: sam,
           noticeHours: 30,

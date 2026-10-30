@@ -39,7 +39,7 @@ afterAll(async () => {
   await Promise.all([su.end(), app.end()]);
 });
 
-const can = (table: string, privilege: "INSERT" | "UPDATE" | "DELETE") =>
+const can = (table: string, privilege: "SELECT" | "INSERT" | "UPDATE" | "DELETE") =>
   (TABLE_ACCESS[table] ?? []).includes(privilege);
 
 it("covers every table in the database, in the schema and in the fixtures", async () => {
@@ -65,6 +65,14 @@ describe.each(EXPECTED_TABLES)("%s", (table) => {
     const id = B.rows[table];
     const truth = await su.query(`select 1 from public.${table} where id = $1`, [id]);
     expect(truth.rowCount).toBe(1);
+    if (!can(table, "SELECT")) {
+      // firm_secrets (P5.1): the app role can't read the table at all, not even its own firm's.
+      for (const firmId of [A.firmId, B.firmId]) {
+        const read = await pgError(inFirm(app, firmId, (c) => countById(c, table, id)));
+        expect(read).toMatchObject({ code: "42501" });
+      }
+      return;
+    }
     expect(await inFirm(app, B.firmId, (c) => countById(c, table, id))).toBe(1);
     expect(await inFirm(app, A.firmId, (c) => countById(c, table, id))).toBe(0);
   });
@@ -159,7 +167,7 @@ describe.each(EXPECTED_TABLES)("%s", (table) => {
         message: expect.stringMatching(/row-level security/),
       });
     } else {
-      // firms and roster_sources: created only by an owner script, never by the app.
+      // firms, roster_sources and name_map: created only by an owner script, never by the app.
       for (const firmId of [A.firmId, B.firmId]) {
         const err = await pgError(inFirm(app, firmId, (c) => run(c, INSERTS[table](firmId, B))));
         expect(err).toMatchObject({
@@ -173,6 +181,11 @@ describe.each(EXPECTED_TABLES)("%s", (table) => {
   it("with no firm set, the app sees none of its rows", async () => {
     const truth = await su.query<{ n: number }>(`select count(*)::int as n from public.${table}`);
     expect(truth.rows[0]?.n).toBeGreaterThan(0);
+    if (!can(table, "SELECT")) {
+      const read = await pgError(inFirm(app, null, (c) => countAll(c, table)));
+      expect(read).toMatchObject({ code: "42501" });
+      return;
+    }
     expect(await inFirm(app, null, (c) => countAll(c, table))).toBe(0);
   });
 });

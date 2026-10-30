@@ -123,7 +123,35 @@ describe.each(EXPECTED_TABLES)("table %s", (table) => {
                   with_check: null,
                 },
               ]
-            : [tenant("firm_isolation", "ALL")];
+            : table === "firm_secrets"
+              ? [
+                  tenant("firm_isolation", "ALL"),
+                  // Only the owner (for app_read_firm_secret, P5.1) may read every firm's
+                  // secrets; the app role has no rights on the table at all.
+                  {
+                    policyname: "secret_read",
+                    permissive: "PERMISSIVE",
+                    roles: `{${urls.owner}}`,
+                    cmd: "SELECT",
+                    qual: "true",
+                    with_check: null,
+                  },
+                ]
+              : table === "roster_sources"
+                ? [
+                    tenant("firm_isolation", "ALL"),
+                    // Only the owner (for app_connector_source_firm, P5.3) may read every firm's
+                    // sources.
+                    {
+                      policyname: "source_lookup",
+                      permissive: "PERMISSIVE",
+                      roles: `{${urls.owner}}`,
+                      cmd: "SELECT",
+                      qual: "true",
+                      with_check: null,
+                    },
+                  ]
+                : [tenant("firm_isolation", "ALL")];
     expect(rows).toEqual(expected);
   });
 
@@ -360,8 +388,10 @@ describe("the rest of the public schema", () => {
   // A new function the app role may run must be added here on purpose (app_firm_by_line: the firm
   // for an incoming message's number, Phase 7, ADR-018; app_resolve_firm_by_domain: the firm for
   // its own verified domain, Phase 8; app_erase_worker and app_purge_old_messages: the only ways
-  // messages are deleted, by erasing their worker or once over 90 days old, Phase 8 GDPR).
-  it("the app role can execute exactly ten functions: app_api_key_lookup, app_current_firm_id, app_erase_worker, app_firm_by_line, app_firm_ids, app_purge_old_messages, app_purge_old_strikes, app_resolve_firm, app_resolve_firm_by_domain and app_set_firm_setting", async () => {
+  // messages are deleted, by erasing their worker or once over 90 days old, Phase 8 GDPR;
+  // app_connector_source_firm: a connector's firm for its webhook, P5.3; app_firm_by_inbox: the firm
+  // for an incoming email's address, P7.1).
+  it("the app role can execute exactly twelve functions: app_api_key_lookup, app_connector_source_firm, app_current_firm_id, app_erase_worker, app_firm_by_inbox, app_firm_by_line, app_firm_ids, app_purge_old_messages, app_purge_old_strikes, app_resolve_firm, app_resolve_firm_by_domain and app_set_firm_setting", async () => {
     const { rows } = await su.query<{ fn: string }>(
       `select p.proname as fn from pg_proc p
         where p.pronamespace = 'public'::regnamespace
@@ -371,8 +401,12 @@ describe("the rest of the public schema", () => {
     expect(rows.map((r) => r.fn)).toEqual([
       // 12J.1: a live API key's firm and key id, before a firm is known (tests/integration/api.keys.test.ts).
       "app_api_key_lookup",
+      // P5.3: a connector source's firm, once its webhook's signature has passed.
+      "app_connector_source_firm",
       "app_current_firm_id",
       "app_erase_worker",
+      // P7.1: the firm for an incoming email's address (tests/integration/email.inbox.test.ts).
+      "app_firm_by_inbox",
       "app_firm_by_line",
       "app_firm_ids",
       "app_purge_old_messages",
@@ -383,6 +417,18 @@ describe("the rest of the public schema", () => {
       // 12B.7: the strikes team's email, and nothing else (tests/integration/settings.test.ts).
       "app_set_firm_setting",
     ]);
+  });
+
+  // The jobs role (pg-boss and the worker's own reads) the same way: a new function it may run is
+  // added here on purpose (app_read_firm_secret: the one read of the secret store, P5.1).
+  it("the jobs role can execute exactly two functions: app_current_firm_id and app_read_firm_secret", async () => {
+    const { rows } = await su.query<{ fn: string }>(
+      `select p.proname as fn from pg_proc p
+        where p.pronamespace = 'public'::regnamespace
+          and has_function_privilege('shiftdesk_jobs', p.oid, 'EXECUTE')
+        order by 1`,
+    );
+    expect(rows.map((r) => r.fn)).toEqual(["app_current_firm_id", "app_read_firm_secret"]);
   });
 
   it("the app and jobs roles have no rights on any sequence (identity columns don't need them)", async () => {

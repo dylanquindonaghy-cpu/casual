@@ -119,17 +119,51 @@ still applies any change you made to `.env` (Docker Compose recreates only the c
 settings changed, and starts the worker once it's turned on), printing "Applied the settings in
 .env" when something changed (otherwise only Docker's own "Pulling … Pulled" lines for the image
 check).
+**A migration that adds an index** (like `drizzle/0048_big_firm_indexes.sql`) builds it inside
+the migrations' one transaction: every pending migration runs in a single transaction, so each table
+it touches stays locked against writes until the whole run commits (reads carry on). At pilot size
+that's a second or two. It also waits behind any transaction already open on those tables, so a
+stuck one holds up the deploy (the old version keeps serving meanwhile). Once a table holds millions
+of rows, add the index without holding writes, in this order, before merging (the server pulls a
+new image within minutes of the merge):
+1. Declare the index in `src/lib/db/schema/` and run `npm run db:generate` (not `--custom`, whose
+   snapshot leaves the index out, so the drift check in `scripts/invariants.sh` fails and the next
+   generate writes it again).
+2. In the generated SQL, change that one line to `CREATE INDEX IF NOT EXISTS` (a deliberate hand
+   edit: say so in the commit).
+3. On the server, as the owner (the `DATABASE_ADMIN_URL` login: only the tables' owner may add an
+   index), run `CREATE INDEX CONCURRENTLY <name> ON …` with the same name and columns, outside any
+   transaction.
+4. Check it's usable: `select indisvalid from pg_index where indexrelid = '<name>'::regclass` must
+   say `t`. A build that failed or was stopped leaves an invalid index that `IF NOT EXISTS` would
+   skip: `DROP INDEX CONCURRENTLY <name>` and build it again.
+5. Merge. The migration finds the index there and does nothing.
+
 **It never deploys between 05:30 and 09:00 UK time on its own** (event mornings): a merge, or a
 change to `.env`, then goes out at 09:00. A fix that can't wait: run `/opt/shiftdesk/deploy.sh
 --now` by hand.
 
-The job worker stays off until the Twilio sender exists: it can't start in production before then
-(messages must never be printed instead of sent), so `.env` has `COMPOSE_PROFILES=` empty and only
-the web app and Caddy run. After "Connect Twilio": set `COMPOSE_PROFILES=worker` and the messaging
-values, then `./deploy.sh --now`: it prints the worker being created and started, waits until
-it's healthy (about a minute), then "Applied the settings in .env", and `docker compose ps` shows
-the worker "healthy". If it fails instead ("No new image, but the app isn't running healthily"),
-`docker compose logs --tail 50 worker` shows why (usually a value missing in `.env`).
+The job worker runs from day one (P2.5), with the web app and Caddy. There's no text sender yet:
+`MESSAGING_TRANSPORT=` empty in `.env` means none, so nothing goes by WhatsApp or text, and a
+casual's messages (offers, reminders, the office's notices, licence messages) go by push to a phone
+they turned notifications on for, else by email to the address you hold for them, else not at all
+(logged `no_channel`: the office should phone them). Pushes need the casual to have logged in on
+that phone, and a casual's login link goes by email only once the firm's `login_by_email` is on
+(P2.6; off until the login page stops naming WhatsApp, P2.7), so until then it's email in
+practice: the more casuals have an email address in the firm's data, the more are
+reached. The worker needs the SMTP values ("Connect an email provider (SMTP)" in PLAN.md):
+without them it won't start. `docker compose ps` shows the worker "healthy"; if it isn't,
+`docker compose logs --tail 50 worker` shows why (usually a value missing in `.env`). Messages must
+never be printed instead of sent: `MESSAGING_TRANSPORT=console` is refused in production. Once the
+firm's text system is connected (Phase 15), `MESSAGING_TRANSPORT` names it: `webex` is built and
+not yet tried against the real service (it waits for the firm's account), and the settings refuse
+it in production until 15.1 makes everything texts (until then the login link and the pay code go
+by WhatsApp whenever a text sender exists, which Webex won't carry, so nobody could log in). Then,
+each firm's Webex Interact access token and sender (a name or long number set up in Webex
+Interact) go in the secret store (`npm run firm:secret -- --firm <slug> --name webex.api_key`, then
+`--name webex.sender`, each value from standard input), the worker needs `SECRETS_KEY`, and then
+`MESSAGING_TRANSPORT=webex`. A firm without both has no text sender: its casuals' messages go by
+email, as with `none`.
 
 **The first time** (after "Set up the server (once)"), in the server's browser console (`sudo -i`
 first):
@@ -158,7 +192,7 @@ first):
    Actions tab.
 5. Start it by hand the first time: `./deploy.sh --now` (it prints "Deploying …" then "Deployed …
    (commit <the commit's 40-character SHA>)"). Then `docker compose ps` shows web ("healthy") and
-   caddy "Up" (and the worker "healthy", once it's turned on after "Connect Twilio"). If the
+   caddy "Up", and the worker "healthy" (P2.5). If the
    migration step stops with a certificate error ("self-signed certificate", "unable to verify",
    "unable to get local issuer certificate", "does not match certificate's altnames"), don't remove
    the end of the database addresses: tell Claude, with the message (the CA file, or the address
@@ -178,8 +212,10 @@ once (the timer could apply a half-done edit saved part-way), then `/opt/shiftde
 --now`. It prints "Applied the settings in .env" (or nothing, if the change didn't affect any
 container). Without `--now`, the timer applies it within 2 minutes (after 09:00 on event mornings).
 
-- **Turning the worker off again:** empty `COMPOSE_PROFILES=` in `.env`, then
-  `docker compose rm --stop --force worker` (turning a profile off doesn't remove its container).
+- **Turning the worker off:** it has no profile since P2.5 (it runs with the web app). To stop it
+  for a while: stop the timer first (below), then `docker compose stop worker`; nothing goes to
+  casuals meanwhile, and jobs wait in the queue. `./deploy.sh --now` (or the timer, once
+  restarted) starts it again: `docker compose start worker` does the same by hand.
 - **Stopping a container on purpose** (the worker during an incident, say): stop the timer first,
   `systemctl stop shiftdesk-deploy.timer`, or its next run starts it again within 2 minutes. Start
   the timer again afterwards: `systemctl start shiftdesk-deploy.timer`.
@@ -416,8 +452,8 @@ database service.
 
 Deploy, Rollback and Restore have never been run: Deploy and Rollback were checked only against the
 scripts, and Restore is written for any host, not yet yours. Try each once on the real server
-**after "Connect Twilio" and "Connect an email provider (SMTP)"** (office logins come by email, sent
-by the worker, which can't run in production before Twilio) and **before any real worker's data is
+**after "Connect an email provider (SMTP)"** (office logins come by email, sent by the worker, which
+runs from day one but needs the SMTP settings to start: P2.5) and **before any real worker's data is
 imported** (Gate B): the database then holds only a test firm of your own, so a restore that goes
 wrong costs nothing. Allow about two hours on a weekday, outside 05:30–09:00 UK. Write each result
 in the table at the end, and tell Claude anything that was wrong or unclear so the runbook gets
@@ -498,9 +534,9 @@ The app's own alerts are below ("Alerts from the app").
 The app watches itself and sends you a short "ShiftDesk alert: …" (no names, numbers or messages
 in it). Until the phone sender is connected (PLAN.md Parking lot, "Connect alerts to your phone"),
 each one is a line in the log: `docker compose logs web worker | grep "ops alert"`. The same
-problem alerts at most once an hour. The worker checks every 5 minutes. Until "Connect Twilio"
-nothing fires in production (the worker is off, and the webhooks don't check signatures until
-Twilio's token is set). To check alerts reach you: `docker compose exec worker npm run -s
+problem alerts at most once an hour. The worker checks every 5 minutes, in production from the
+first deploy (P2.5); only the bad-signature alert waits for Twilio (the webhooks don't check
+signatures until Twilio's token is set). To check alerts reach you: `docker compose exec worker npm run -s
 ops:test-alert` (or on your computer, `npm run -s ops:test-alert`): a "ShiftDesk alert: a test
 alert…" line (a text, once the phone sender is connected).
 
@@ -508,10 +544,17 @@ alert…" line (a text, once the phone sender is connected).
 |---|---|---|
 | "N jobs failed after the last retry in the last hour (queue n, …)" | A background job (an offer wave, a reminder, a notice…) gave up | `docker compose logs worker --since 1h`, look for that queue's errors (codes only, no personal data). Fix the cause; a failed offer wave or notice isn't re-run by itself: tell the firm's office if a worker wasn't told something. A failed `inbound-message` job (a shifts-line answer) has normally already been passed to a person: it's in the firm's Need a person on Enquiries, unless the log says "and so did passing it to a person" (then the message is still unanswered: fix the cause and tell the firm's office) |
 | "{firm}'s rota sheet sync is failing ({code})" | The firm's Google Sheet hasn't synced for over 30 minutes and is still failing | The code says why: "Google Sheets sync failing" below. The office sees each failed sync in its action log |
-| "{firm}: N of M WhatsApps and texts failed to send in the last hour (P%), mostly {code}" | Twilio refused more than 5% of at least 20 messages (offers, reminders, notices, answers, shifts-line replies; a worker who turned texts off doesn't count) | Twilio's own log shows each refusal with its number (console.twilio.com → Monitor → Logs → Errors). Often: a template not approved, the account out of credit, or a number blocked. (The code in the alert is the app's; Twilio's numbered codes come with the Twilio sender) |
+| "{firm}: N of M WhatsApps and texts failed to send in the last hour (P%), mostly {code}" | Twilio refused more than 5% of at least 20 messages (offers, reminders, notices, answers, shifts-line replies; a worker who turned texts off doesn't count, nor a message tried with no text sender at all: `no_text_sender`, P2.5) | Twilio's own log shows each refusal with its number (console.twilio.com → Monitor → Logs → Errors). Often: a template not approved, the account out of credit, or a number blocked. (The code in the alert is the app's; Twilio's numbered codes come with the Twilio sender) |
+| "{firm}: N of M emails failed to send in the last hour (P%), mostly {code}" (P2.5) | The email provider refused more than 5% of at least 20 emails: casuals' messages with no text sender, and the office's emails | "Email not arriving" below: the provider's dashboard shows each refusal. The code is the email sender's (`EmailNotSentError`: it didn't go; `EmailMayHaveArrivedError`: cut off after it was handed over), or the server's own code |
 | "the web app's health check is failing (…)" | The worker can't get an OK from the web app on the same server | `docker compose ps` and `docker compose logs web --since 15m`; the outside uptime check says whether the internet sees it too. "Event-morning outage" below |
-| "{firm}: N login links by WhatsApp and text in the last hour…" or "…in the last 24 hours…" | The firm sent more than 100 login links in an hour, or more than 300 in a day (14.2). A crowd logging in at once (a big briefing) can do the first; otherwise someone may be asking for links to run up the firm's messages (each is paid) | Ask the firm's office whether they had a briefing or a crowd logging in then. If not, or if it comes back day after day: the firm's action log, Type "Logins", shows each link asked for and sent, and "Too many tries: logging in was paused" where a limit stopped someone (the log keeps no address, only who the link was for). If it keeps up, lower `LIMITS.loginPerIp` or `LIMITS.loginPerNumberDaily` in `src/lib/auth/throttle.ts` (tell Claude) |
+| "{firm}: N login links to casuals in the last hour…" or "…in the last 24 hours…" (by WhatsApp and text, and by email since P2.6) | The firm sent more than 100 login links in an hour, or more than 300 in a day (14.2). A crowd logging in at once (a big briefing) can do the first; otherwise someone may be asking for links to run up the firm's messages (each is paid) | Ask the firm's office whether they had a briefing or a crowd logging in then. If not, or if it comes back day after day: the firm's action log, Type "Logins", shows each link asked for and sent, and "Too many tries: logging in was paused" where a limit stopped someone (the log keeps no address, only who the link was for). If it keeps up, lower `LIMITS.loginPerIp` or `LIMITS.loginPerNumberDaily` in `src/lib/auth/throttle.ts` (tell Claude) |
 | "N Twilio webhook requests with a bad signature in the last hour" | Twilio's messages to us are being refused: `TWILIO_AUTH_TOKEN` in `.env` no longer matches the account (someone rotated it), the address set in Twilio differs from the one the app checks against (http instead of https, or a firm's own domain instead of `<slug>.<our domain>`), or someone is probing | Compare the token with Twilio's console (Account → API keys & tokens), and the webhook addresses with "Connect Twilio". If both match, it's probing: nothing to do unless it keeps up |
+| "jobs are waiting too long to start: {queue} N waiting, the oldest … (limit …)" | Jobs are queued but nobody is starting them in time (P4.8): a casual's message over 1 minute, an offer wave over 2, anything else over 15. The worker is down, stuck, or can't keep up | `docker compose ps` (is `worker` up?), then `docker compose logs worker --since 15m`. Restart it if it's stuck: `docker compose restart worker` (every job is safe to run again). If it's up and busy, see "A page or job fails with a database time limit" and the next rows |
+| "jobs are running past 80% of their time limit: {queue} N, the longest at P%" | A job is taking nearly as long as pg-boss allows; at the limit pg-boss stops it and runs it again (P4.8) | `docker compose logs worker --since 1h` for that queue. Usually a slow query or a slow outside service (Twilio, email, Anthropic). After a big import, `ANALYZE` ("Importing workers, credentials or shifts from a spreadsheet") |
+| "the worker waited a second or more for a database connection N times…" | Every one of the worker's database connections was busy (P4.8; its pool is 15). If waits "ran out", those jobs failed and will run again | "A page or job fails with a database time limit" (its connection budget). A slow query holding connections is the usual cause; more connections only if the database can take them |
+| "{firm}: the AI couldn't sort N of M messages in the last hour (P%)…" | More than 20% of at least 20 messages the AI was asked to sort got no answer in time, or no label (P4.8). Each went to the office's Enquiries instead, so nobody is left without an answer, but the office has more to do | Anthropic's status page, and `ANTHROPIC_API_KEY` (a key revoked or out of credit fails every call). The AI's breaker (P4.6) pauses calls for 30 s after 5 failures in a row: the log says "AI breaker open" |
+| "{firm}: N messages came in to the shifts line in the last hour…" | More than 1,500 messages to the firm's line in an hour (P4.8): a huge event, or something flooding it (a loop with another automatic system, or someone) | The office's Enquiries: are they real casuals? If it's a loop or abuse, Twilio's console can block the number. The firm's automatic replies are off unless it asked (`auto_replies`), so we aren't feeding a loop by default |
+| "{firm}: N offers went out in the last hour…" | More than 500 offers in an hour (P4.8; a wave is at most 50) | `npm run -s firm:settings -- --firm <slug>` for the wave settings, and the office's action log for a shift reopening again and again (cancelled and rebooked). Each offer by text costs the firm about 20p |
 
 ### Checking the logs for personal data
 
@@ -559,7 +602,74 @@ but never changes an existing password. Rotate by hand as the owner:
 `ALTER ROLE shiftdesk_app PASSWORD '...'`, update `DATABASE_URL` (or `DATABASE_JOBS_URL`) in
 `.env`, then `docker compose up -d`.
 
-The planner integration secret: only when it may have leaked (next section).
+The secret store's key (`SECRETS_KEY`): the next section. The planner integration secret: only
+when it may have leaked (the section after).
+
+## A firm's secrets (the secret store, P5.1)
+
+A firm's own credentials for its systems (its ops portal's API key and webhook secret, P5) go in
+the secret store, sealed with `SECRETS_KEY` before they reach the database.
+
+- **The key, once:** `openssl rand -base64 32` into `SECRETS_KEY` in `.env` (the worker and the
+  owner service get it; the web app never does, and on a real address it refuses to start with
+  it), and a copy with your backups: without it no
+  secret can be read. Never change it while firms have secrets: each would stop opening (the
+  worker says `other_key`). If it may have leaked, set a new one and set each firm's secrets again.
+- **Set one:** the value on standard input, never typed into a command (it would sit in the
+  shell's history). `read -rs V` (paste the value, then Enter: nothing shows), then `printf '%s'
+  "$V" | docker compose run --rm -T owner node --import tsx scripts/firm-secret.ts --firm acme
+  --name portal.api_key; unset V`. It says "Added" or "Replaced"; the action log says which name
+  changed, never the value. A value is at most 4,096 bytes.
+- **See what's set:** `docker compose run --rm owner node --import tsx scripts/firm-secret.ts --firm
+  acme` lists the names and when each was set, never a value.
+- **Remove one:** `… scripts/firm-secret.ts --firm acme --name portal.api_key --remove`.
+
+## A firm's connector (P5.3)
+
+A connector reads the firm's own system (its ops portal) and brings its sessions and staff in as
+the firm's planner's: through exactly the planner API's rules, logged as the planner's with the
+source in place of a key. Only the made-up portal exists so far (`demo_portal`, for the tests and a
+local run); a real system's connector comes once its API is known (PLAN.md P5), and nothing real
+flows before the firm's agreement and DPA are recorded (Gate B: the command and every change refuse
+on a live database until then).
+
+- **One planner:** a firm sends its sessions through the planner API with a key, or through a
+  connector, never both: the command refuses while a key is live, and while one is the connector
+  changes nothing. One rota source on at a time, too: switch a sheet off first.
+- **Its API key** goes in the secret store: `… scripts/firm-secret.ts --firm acme --name
+  connector.api_key` (the value on standard input: "A firm's secrets").
+- **Connect it:** `npm run -s firm:connector -- --firm acme --connector demo_portal --base-url
+  https://portal.example.test/api` (https, a public name, port 443 if any). It prints the address
+  its webhooks go to; `--webhook-secret` prints the secret they're signed with (worked out from
+  `INTEGRATIONS_SECRET`, never stored): paste both into the system's webhook settings, and keep the
+  secret off screens. The worker reads the system only with `CONNECTOR_TRANSPORT` set to its
+  transport.
+- **What came in:** each webhook is a `connector_events` row with its outcome (applied, refused,
+  ignored, failed, and a code). A system that doesn't answer is tried again for 30 to 60 minutes,
+  then the event is saved as failed (a key it refuses, at once); the reconcile pull catches up.
+  Locally, `CONNECTOR_TRANSPORT=fake` reads the made-up portal, which only the tests fill: every
+  read there is `unreachable`.
+- **The reconcile pull (P5.4)** reads the system itself on a schedule: the next 48 hours' sessions
+  every 15 minutes, everything (sessions ahead and staff) once a night between 02:00 and 05:00,
+  every 30 minutes while it's failing. `firm:connector` and `firm:check` show when it last read in
+  full and its error code; a failing one sends the founder's alert ("…'s connector's reconcile pull
+  is failing (code)"). A connector's new sessions come in **hidden from casuals**: the office shows
+  them when the firm is ready (a first cycle can run beside its old way).
+- **Bookings (P5.5)** come in from the system: a booking made there is booked here if the rules
+  pass (as the office's placement, with its overrides) and a place is left, else the log says why
+  (again only when something changed for that casual); one cancelled there is cancelled here
+  (never a strike, no message or offers: the firm's system made the change), its notice from the
+  system's own time when that's after the booking and since the session was last read, else from
+  when it was read; one the system just stops listing stays booked (the office can cancel that
+  one here). A read older than one already applied to the session changes nothing. While the
+  planner is a connector, nobody else books or cancels its sessions in ShiftDesk: the office does
+  it in the firm's system (the office's screens say the rota can't be changed from here), and it
+  comes back in. A casual trying it gets a plain error until their words are agreed, so keep its
+  sessions hidden from casuals until bookings can go out (PLAN.md P5).
+- **Switch it off:** `… --off` (kept, not deleted: a change waiting on it then changes nothing).
+  **Replace it:** connect another with `--replace`. **Renew its webhook secret:** switch it off and
+  connect it again (a new source: a new id, so a new secret, and a new webhook address); rotating
+  `INTEGRATIONS_SECRET` renews every source's at once.
 
 ## The planner integration secret (INTEGRATIONS_SECRET)
 
@@ -623,6 +733,39 @@ delivery is tried 7 times over about an hour; the last try logs `webhook.failed`
 4. **`INTEGRATIONS_SECRET`:** see "The planner integration secret" above: rotate it, then every firm
    with a webhook pastes its new signing secret.
 
+## A page or job fails with a database time limit
+
+Since P4.2 (ADR-027) nothing waits for ever. In the logs or a failed job:
+- **57014** ("canceling statement due to statement timeout"): one statement ran longer than its
+  limit (15 s on a page, 60 s in a job). A job retries; a page shows its error. If the same one
+  keeps failing, find the query, and either make it faster (an index, a cap) or give its
+  transaction `allowLonger()` with a reason, in code.
+- **25P03** ("terminating connection due to idle-in-transaction timeout") or "Client has
+  encountered a connection error and is not queryable": a transaction sat idle (waiting on
+  something outside the database) longer than its limit (30 s or 60 s). The connection is closed
+  and the pool opens a new one. Work outside the database belongs outside the transaction.
+- **"timeout exceeded when trying to connect"**: every connection in the process's pool was busy
+  for 5 s (web) or 30 s (worker). Look for a slow query holding them, then at the pool sizes.
+  **"Connection terminated due to connection timeout"** is the same limit for a new connection
+  the database was too slow to open: check the database's load and its connection count.
+- A wait for a lock counts against the statement limit: a 57014 can mean the statement was waiting
+  behind another transaction's locks (a big sheet sync, a running scan), not that it was slow.
+
+The connection budget: the web app's pool of 10, the worker's 15 and pg-boss's 5, about 30 in all,
+plus the worker's one jobs-role connection for the secret store (P5.3, made only when a connector
+first reads its key) and a one-off migration or owner command. An offer wave uses up to 4 of the worker's 15 at once
+(its 4 lanes, P4.4), each for a short transaction. The database's `max_connections` must be well
+above that: check the host's plan before choosing one (`show max_connections;` as the owner).
+
+Run **one worker process** (`deploy/docker-compose.yml` has one `worker` service). Its limits are per process: the
+shifts line's 8 loops (`INBOUND_LOOPS`), an offer wave's and the reminders' 4 sends at once, the
+AI's 4 calls at once and its breaker (P4.6). A second worker doubles all of them, and the
+connections (another 15, and another 5 for pg-boss): check the database's budget and the AI's rate
+limits before adding one. One worker meets the target (P4.9): a burst of 1,000 casuals' messages
+answered within about 50 seconds of the last with automatic replies on (300 ms a send), about 2
+with them off. If the alerts say jobs wait too long to start ("Alerts from the app") and the
+worker is up, look for what's slow before adding a second.
+
 ## Event-morning outage (the one that matters)
 
 1. Twilio's fallback already puts calls through to the manager's mobile when the app doesn't
@@ -674,9 +817,9 @@ are sent by the worker, over SMTP, through the email provider in `.env` (docs/of
 Each failed one is logged with its reason, and never sent twice by itself.
 
 1. **Is the worker running?** In the server's browser console, `sudo -i`, `cd /opt/shiftdesk`,
-   `docker compose ps`: `worker` should say "healthy". It's off until "Connect Twilio" (then no
-   email goes at all). It refuses to start without the email settings: `docker compose logs --tail
-   50 worker` says which one is missing.
+   `docker compose ps`: `worker` should say "healthy" (it runs from day one, P2.5; while it's down
+   no email goes at all). It refuses to start without the email settings: `docker compose logs
+   --tail 50 worker` says which one is missing.
 2. **What happened to it:** the office's action log (Records → Action log) shows that it failed
    ("A login link to an office user couldn't be sent."). Why: `docker compose logs --since 2h
    worker | grep -E 'EmailNotSent|EmailMayHave'` shows one line per failed email, with the step
@@ -850,6 +993,12 @@ office shift editor (Phase 5). Shifts that have started can't be imported or cha
 file without Shift IDs matches shifts by site, role and times, so changing a time in such a file
 adds a new shift and leaves the old one (and anyone booked on it) as it was.
 
+After a big first import (a firm's whole workforce), Postgres's statistics on the new rows catch
+up within about a minute (autovacuum). Until then its plans are poor: P4.4 measured the hours
+query behind an offer wave's list at 1.8 seconds for 2,000 casuals, against 4 milliseconds once
+analysed. To skip the wait, run `ANALYZE workers, credentials, assignments, shifts;` as the owner
+(the app role can't: only the tables' owner, the database's owner or a superuser may).
+
 ## Onboarding a pilot firm
 
 The checklist is in `docs/go-to-market.md` ("Pilot onboarding checklist"). At any point,
@@ -858,8 +1007,8 @@ to do, `[?]` confirm yourself (things the app can't see, such as the paperwork).
 settings only, never a person's details.
 
 **Running an owner command on the server.** The live database is only reachable from the server,
-so `firm:create`, `firm:office-user`, `firm:settings`, `firm:check`, `firm:brand`, `firm:line` and
-`firm:domain` run there, in a one-off copy of the app: the `owner` service in
+so `firm:create`, `firm:office-user`, `firm:settings`, `firm:check`, `firm:brand`, `firm:line`,
+`firm:inbox` and `firm:domain` run there, in a one-off copy of the app: the `owner` service in
 `docker-compose.yml`, which reads `.env` itself (so no password goes on the command line). In the
 server's browser console: `sudo -i`, `cd /opt/shiftdesk`, then (not yet tried for real: part of
 "Try the runbooks for real"):
@@ -891,7 +1040,7 @@ In order (who does it, how, and what done looks like):
 3. **Branding and sign-off** (you, with the firm's logo address and colour): "Setting a firm's
    brand" below. Its own domain, if it wants one: "A firm's own domain" below.
 4. **Office users** (you): the admin from step 2 can log in at `acme.<our domain>/office` once the
-   worker is running and emails go out ("Connect Twilio", "Connect an email provider (SMTP)").
+   worker is running and emails go out ("Connect an email provider (SMTP)").
    Resourcers and payroll: `npm run -s firm:office-user -- --firm acme --role resourcer --email
    sam@acme-events.example --name "Sam Rota"` (roles: admin, resourcer, payroll). It says "Added: they can
    now log in to acme's office as resourcer." An email that already has a login is left as it is (it says its role and whether it's active).
@@ -901,6 +1050,19 @@ In order (who does it, how, and what done looks like):
    service account's email as Editor; then `npm run -s firm:sheet -- --firm acme --sheet <link>`
    (on the server, through the owner service). `npm run -s firm:sheet -- --firm acme` shows when it
    last synced, and why it's failing if it is. A sheet can be connected to one firm only.
+   **Names** (P3.2): if the firm's sheet or files name roles in its own way ("Door Supervisor
+   (NLW)", "12D", "Holiday"), map each with `npm run -s firm:names -- --firm acme --kind role
+   --name "Door Supervisor (NLW)" --code door_supervisor` (`--code skip` for one that isn't a
+   session; `--remove` to take one off; on its own, `npm run -s firm:names -- --firm acme` lists
+   them). `--kind qualification` does the same for the credentials file's types (a code the firm
+   has); a role with no credential rule yet is said, as its shifts can't be offered until it has
+   one. A name the map doesn't have is read as before; one that still can't be read is a bad role,
+   so its row isn't brought in. (The security pack's security officer takes an SIA security guard or
+   door supervisor licence, P3.3, for a firm set up after it; a firm set up before keeps its own
+   rule, with no command yet to change it: PLAN.md Parking lot.) Skipping a name never cancels or
+   changes a session already made
+   from it: the next sync reports `skipped_live` for it, so cancel it in the office. Each change is
+   in the office action log (as "The firm's settings changed", until its own words are approved).
 6. **Workers and credentials** (you, from the firm's spreadsheets, **only after Gate B**): "Importing
    workers, credentials or shifts from a spreadsheet" below. `firm:check` then shows how many
    active workers have no credential on file.
@@ -908,9 +1070,23 @@ In order (who does it, how, and what done looks like):
    `firm:check` names any role in use with no rule: the rules refuse that role's shifts to everyone
    until it has one.
 8. **Settings agreed** (the firm decides; you set them): `npm run -s firm:settings -- --firm acme`
-   shows who gets open shifts (first come first served, or fair rotation with its wave size and
-   minutes), the urgent window, when the office is emailed about an unfilled shift, the
-   short-notice threshold and quiet hours, as the app reads them. Change any with `--set`, e.g.
+   shows who gets open shifts (first come first served with how many each wave goes to per free
+   place, or fair rotation with its wave size; the minutes between waves), the urgent window,
+   when the office is emailed about an unfilled shift, the short-notice threshold and quiet
+   hours, whether the shifts line answers by itself (`auto_replies`, off unless the firm asks:
+   decision 11), and whether the firm's own system reminds the casuals it books
+   (`firm_system_sends`: on when its rota sheet or CRM already sends reminders, so nobody hears
+   twice), and whether casuals' login links and pay codes may go by email when there's no text
+   sender (`login_by_email`, P2.6: leave it off until the login and Pay pages stop naming
+   WhatsApp, P2.7), and the pay calendar (`pay_calendar.*`, P3.1: weeks or fortnights, from which
+   Monday, paid how many days after; set the anchor before `pay_calendar.days=14`, and to go back,
+   `pay_calendar.days=7` before `pay_calendar.anchor=none`; leave a live firm on weeks until the
+   top bar, Home and payroll's pay-query words read it, after the UI chat's Phase 24), and whether
+   the firm gives strikes at all (`strikes.enabled`, P3.4: on by default; off, a casual's own
+   cancellation is never a strike, but the Cancellations page's strike column would say "None:
+   strikes are off", words still for Dylan to approve, and the casual's shift page, Help and
+   Profile still say a late cancellation is a strike, until they read the switch after the UI
+   chat's Phase 24: so leave it on until then), as the app reads them. Change any with `--set`, e.g.
    `--set urgent_window_hours=12 --set quiet_hours.start=21:30`. A value the app wouldn't use is
    refused and nothing changes; each change is in the office action log.
    The strikes team's email isn't one of these: an admin sets it on the office's **Settings** page,
@@ -920,7 +1096,21 @@ In order (who does it, how, and what done looks like):
    (it can't change while people are booked on sessions there that are still to come). A firm can
    send at most 3 links every 15 minutes and 10 a day: past that, the page says how long to wait.
 9. **Shifts line** (you): after "Connect Twilio", the firm's number with `npm run firm:line`, and
-   WhatsApp's approval of the display name (start early: it can take days).
+   WhatsApp's approval of the display name (start early: it can take days). With the firm's
+   automatic replies off (`auto_replies`, step 8), ShiftDesk confirms no STOP or START. Twilio's
+   own opt-out handling can still answer one by text (`byTwilio` in the log): if the firm wants
+   nothing back, check the Messaging Service's opt-out settings in Twilio when connecting.
+   The staffing inbox (P7; not live yet: it waits for an email provider and the firm's IT) is set
+   the same way: `npm run firm:inbox -- --firm <slug> --address <its address at the provider>`
+   (`--replace` to change it, `--clear` to take it off), logged as a settings change. The firm's
+   IT forwards its staffing mailbox there with a mailbox-level forward or a "Redirect" rule, which
+   keep the sender's address; never an inbox rule's "Forward", which sends every email from the
+   firm's own mailbox, so none would be any casual's. A Redirect keeps the casual's own signature
+   (DKIM) only if nothing changes the email on the way: no banner, disclaimer or footer rule may
+   touch it, or the provider can't vouch for the sender and their words aren't kept (unless the
+   provider trusts Microsoft 365's ARC seal). Until P7's sorting is built (P7.4) the
+   settings refuse `EMAIL_INBOUND_SECRET` in production: its emails would only be stored (a known
+   casual's words, quoted history off; anyone else's never) and nothing would answer them.
 10. **Privacy notice line** (you send it, the firm publishes it): `docs/privacy-notice.md` has the
     short line and the section for its privacy notice, with what to fill in.
 11. **Staff briefing** (the firm): a message to its staff with the portal link.
@@ -1082,5 +1272,7 @@ deletion").
    file of every table, less login secrets; casuals' travel areas as their postcode district only,
    never the full postcode: `docs/dpia-travel.md`). Hand it over if they ask us instead.
 2. Release the Twilio number after 30 days.
-3. Delete data per retention/agreement; write the final event. (Deleting a whole firm has no
+3. Remove the firm's secrets (`… scripts/firm-secret.ts --firm <slug>` lists them; each `--name
+   <name> --remove`), and ask the firm to revoke those credentials on their side.
+4. Delete data per retention/agreement; write the final event. (Deleting a whole firm has no
    script yet: PLAN.md Parking lot.)

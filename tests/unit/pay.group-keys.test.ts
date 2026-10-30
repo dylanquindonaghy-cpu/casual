@@ -62,4 +62,24 @@ describe("pay query grouping keys", () => {
       expect(parsePayGroupKey(bad)).toBeNull();
     }
   });
+
+  it("on the firm's pay calendar (P3.1): one fortnight, one pay run, one key", () => {
+    // A made-up calendar: fortnights from Mon 31 Aug 2026, so 31 Aug to 13 Sep is one.
+    const calendar = { days: 14, anchor: "2026-08-31", payDayAfter: 5, label: "cycle" } as const;
+    const late = (workDate: string, withCalendar: boolean) =>
+      payGroupKey({
+        issue: "late_pay",
+        workDate,
+        siteId: null,
+        ratesPence: [],
+        ...(withCalendar ? { calendar } : {}),
+      });
+    // Both weeks of the fortnight share the key of its first Monday; the next fortnight doesn't.
+    expect(late("2026-09-01", true)).toBe("pay1:late_pay:2026-08-31");
+    expect(late("2026-09-10", true)).toBe("pay1:late_pay:2026-08-31");
+    expect(late("2026-09-14", true)).toBe("pay1:late_pay:2026-09-14");
+    // Without a calendar, the weeks as before.
+    expect(late("2026-09-10", false)).toBe("pay1:late_pay:2026-09-07");
+    expect(parsePayGroupKey(late("2026-09-10", true))).toMatchObject({ week: "2026-08-31" });
+  });
 });

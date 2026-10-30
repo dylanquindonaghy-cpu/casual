@@ -114,7 +114,8 @@ describe("environment", () => {
       real,
     );
     expect(parseAppEnv({ ...app, ...prod }).INTEGRATIONS_SECRET).toBeUndefined();
-    // The worker can't start in production yet (its console transport), so compare what it says.
+    // The worker can't start in production on the console transport (the default here), so compare
+    // what it says.
     const workerProblems = (secret: string) => {
       try {
         parseWorkerEnv({ ...worker, ...prod, PUSH_TRANSPORT: "none", INTEGRATIONS_SECRET: secret });
@@ -147,6 +148,28 @@ describe("environment", () => {
         secret,
       );
     }
+  });
+
+  it("MESSAGING_TRANSPORT none (no text sender, P2.5): a choice in production too; empty means unset", () => {
+    expect(parseWorkerEnv({ ...worker, MESSAGING_TRANSPORT: "none" }).MESSAGING_TRANSPORT).toBe(
+      "none",
+    );
+    expect(parseWorkerEnv({ ...worker, MESSAGING_TRANSPORT: "" }).MESSAGING_TRANSPORT).toBe(
+      "console",
+    );
+    // In production (its other settings aside, tested in deploy.compose.test.ts): console and an
+    // empty value (console) are refused, none isn't.
+    const problems = (value: string) => {
+      try {
+        parseWorkerEnv({ ...worker, NODE_ENV: "production", MESSAGING_TRANSPORT: value });
+        return "";
+      } catch (err) {
+        return String(err);
+      }
+    };
+    expect(problems("console")).toMatch(/MESSAGING_TRANSPORT/);
+    expect(problems("")).toMatch(/MESSAGING_TRANSPORT/);
+    expect(problems("none")).not.toMatch(/MESSAGING_TRANSPORT/);
   });
 
   it("rejects the twilio transport until it exists (Phase 4)", () => {

@@ -8,6 +8,7 @@ import {
   integer,
   jsonb,
   numeric,
+  pgPolicy,
   pgTable,
   text,
   unique,
@@ -56,6 +57,17 @@ export const CANCELLED_ASSIGNMENT_STATUSES = ["cancelled_worker", "cancelled_fir
 // before.
 export const CANCEL_VIAS = ["app", "office", "sheet", "import", "api"] as const;
 export type CancelVia = (typeof CANCEL_VIAS)[number];
+// Where a booking was made (P2.2): the casual in the app (a shift they took, an offer they
+// accepted), the office, the firm's rota sheet, or the firm's own system through the API (P5).
+// "Who sends what" reads it (P2.3): a booking the firm's own system made may be its to confirm and
+// remind. Empty on an open slot, and on a booking with no record of who made it: counted as the
+// office's, as a strike's is (src/lib/strikes/issue.ts).
+export const BOOK_VIAS = ["app", "office", "sheet", "api"] as const;
+export type BookVia = (typeof BOOK_VIAS)[number];
+// Who asked for a cancellation (P3.4), apart from who carried it out: the casual, the firm, its
+// client, or not known.
+export const CANCEL_ASKERS = ["casual", "firm", "client", "unknown"] as const;
+export type CancelAsker = (typeof CANCEL_ASKERS)[number];
 
 // review: the worker asks the office to look again at a shift the rules won't let them take.
 export const REQUEST_TYPES = ["time_change", "swap", "availability", "general", "review"] as const;
@@ -67,7 +79,8 @@ export const REQUEST_STATUSES = [
   "escalated",
 ] as const;
 
-export const OFFER_CHANNELS = ["push", "whatsapp", "sms"] as const;
+// How an offer went (P2.4: a push to their phones first, else a WhatsApp or text, else email).
+export const OFFER_CHANNELS = ["push", "whatsapp", "sms", "email"] as const;
 // failed: the message couldn't be sent (kept as evidence of the attempt; never counts as offered).
 export const OFFER_RESPONSES = [
   "accepted",
@@ -131,8 +144,15 @@ export const credentialRules = pgTable(
     // name belongs to one pack per firm (unique below), so clashing names must differ.
     sector: text("sector", { enum: SECTORS }).notNull(),
     role: text("role").notNull(),
-    // Every listed type is required. Any-of groups ("SIA_DS or SIA_SG") can be modelled later.
+    // Every listed type is required.
     requiredTypes: text("required_types").array().notNull(),
+    // And one of these, when there are any (P3.3, Rules 3): a security officer's shift takes an SIA
+    // security guard or door supervisor licence ("SIA_SG", "SIA_DS"). Two or more, none of them
+    // also in required_types; empty: no such group.
+    anyOfTypes: text("any_of_types")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     createdAt: createdAt(),
   },
   (t) => [
@@ -153,6 +173,11 @@ export const credentialRules = pgTable(
           or (array_to_string(${t.requiredTypes}, ',') ~ '^[A-Z][A-Z0-9_]*(,[A-Z][A-Z0-9_]*)*$'
             and cardinality(string_to_array(array_to_string(${t.requiredTypes}, ','), ','))
               = cardinality(${t.requiredTypes})))`,
+    ),
+    check(
+      "credential_rules_any_of_types_format",
+      sql`${qualificationCodes(t.anyOfTypes)} and cardinality(${t.anyOfTypes}) <> 1
+        and not (${t.anyOfTypes} && ${t.requiredTypes})`,
     ),
     firmIsolation(t.firmId),
   ],
@@ -249,6 +274,11 @@ export const shifts = pgTable(
     // The base of the three-way merge between the sheet and bookings made here
     // (src/lib/roster/sheets/merge.ts). Null until first synced.
     syncedHolders: text("synced_holders").array(),
+    // A connector's session only (P5.5's review): when its record was last read from the firm's
+    // system and applied (the fetch's time, or the pull's list's). An older read is never applied
+    // over a newer one, and it is the session's "last read" for a cancellation's notice
+    // (src/lib/connector/bookings.ts). Null: not a connector's session.
+    sourceReadAt: timestamptz("source_read_at"),
     // What the firm's Google Sheet asks for that the last sync couldn't do (Phase 10, audit M1, M2,
     // L12), for the dashboard's "From your rota sheet": a change to a booked or started shift the
     // rules refused, and names it couldn't book. Set by each sync to what's true then; null: nothing.
@@ -284,11 +314,16 @@ export const shifts = pgTable(
       foreignColumns: [sites.firmId, sites.id],
     }),
     index("shifts_firm_id_starts_at_idx").on(t.firmId, t.startsAt),
+    // A big firm's lists (P4.1): an event's sessions (shifts_event_fk has no index of its own),
+    // and sessions still running or to come by their end.
+    index("shifts_firm_id_event_id_idx").on(t.firmId, t.shiftEventId),
+    index("shifts_firm_id_ends_at_idx").on(t.firmId, t.endsAt),
     check("shifts_role_format", roleFormat(t.role)),
     check("shifts_ends_after_start", sql`${t.endsAt} > ${t.startsAt}`),
     check("shifts_headcount_range", sql`${t.headcount} between 1 and 1000`),
     check("shifts_status_check", sql`${t.status} in ('draft', 'open', 'filled', 'cancelled')`),
     check("shifts_source_check", sql`${t.source} in ('native', 'sheets', 'csv', 'api')`),
+    check("shifts_source_read_api_only", sql`${t.sourceReadAt} is null or ${t.source} = 'api'`),
     check("shifts_pay_rate_range", sql`${t.payRatePence} is null or ${t.payRatePence} >= 0`),
     check("shifts_post_length", sql`${t.post} is null or char_length(${t.post}) between 1 and 200`),
     check(
@@ -343,6 +378,11 @@ export const assignments = pgTable(
     // How it was cancelled (CANCEL_VIAS), and for a casual's own cancellation in the app, the
     // version of the strike warning on their screen when they confirmed, and when (12C.1, S3).
     cancelVia: text("cancel_via", { enum: CANCEL_VIAS }),
+    // Who asked for it (P3.4), apart from who carried it out (status) and where (cancel_via): the
+    // casual (their own cancel), the firm (the office's), the firm's client, or not known (a rota
+    // sheet or a planner, whose data doesn't say). Set on every cancellation; null otherwise.
+    cancelAskedBy: text("cancel_asked_by", { enum: CANCEL_ASKERS }),
+    bookedVia: text("booked_via", { enum: BOOK_VIAS }),
     strikeWarningVersion: text("strike_warning_version"),
     strikeWarningShownAt: timestamptz("strike_warning_shown_at"),
     createdAt: createdAt(),
@@ -368,6 +408,9 @@ export const assignments = pgTable(
       .on(t.firmId, t.shiftId, t.workerId)
       .where(sql`worker_id is not null and status not in ('cancelled_worker', 'cancelled_firm')`),
     index("assignments_firm_id_worker_id_idx").on(t.firmId, t.workerId),
+    // The firm's cancellations by when (the cancellations page, the planner API's feed and the
+    // dashboard's chart; P4.1).
+    index("assignments_firm_id_cancelled_at_idx").on(t.firmId, t.cancelledAt),
     check(
       "assignments_status_check",
       sql`${t.status} in ('open', 'offered', 'confirmed', 'cancelled_worker', 'cancelled_firm', 'no_show', 'completed')`,
@@ -395,8 +438,17 @@ export const assignments = pgTable(
             and ${t.cancelReason} is not null and length(btrim(${t.cancelReason})) > 0)`,
     ),
     check(
+      "assignments_cancel_asked_by_check",
+      sql`${t.cancelAskedBy} is null or (${t.cancelAskedBy} in ('casual', 'firm', 'client', 'unknown')
+        and ${t.status} in ('cancelled_worker', 'cancelled_firm'))`,
+    ),
+    check(
       "assignments_cancel_via_check",
       sql`${t.cancelVia} is null or ${t.cancelVia} in ('app', 'office', 'sheet', 'import', 'api')`,
+    ),
+    check(
+      "assignments_booked_via_check",
+      sql`${t.bookedVia} is null or ${t.bookedVia} in ('app', 'office', 'sheet', 'api')`,
     ),
     // A warning is stored whole (its version and when), only on a casual's own cancellation.
     check(
@@ -544,9 +596,11 @@ export const offers = pgTable(
       .where(sql`${t.wave} is null`),
     // The daily offer cap counts a worker's offers by sent_at.
     index("offers_firm_id_worker_id_sent_at_idx").on(t.firmId, t.workerId, t.sentAt),
+    // The firm's offers by when, whoever they went to (the week's offers chart; P4.1).
+    index("offers_firm_id_sent_at_idx").on(t.firmId, t.sentAt),
     check("offers_wave_positive", sql`${t.wave} >= 1`),
     check("offers_wave_or_office", sql`(${t.wave} is null) = (${t.offeredBy} is not null)`),
-    check("offers_channel_check", sql`${t.channel} in ('push', 'whatsapp', 'sms')`),
+    check("offers_channel_check", sql`${t.channel} in ('push', 'whatsapp', 'sms', 'email')`),
     check(
       "offers_response_check",
       sql`${t.response} in ('accepted', 'declined', 'expired', 'filled_elsewhere', 'failed')`,
@@ -578,8 +632,10 @@ export const shiftReminders = pgTable(
     // The start time the reminder was for.
     startsAt: timestamptz("starts_at").notNull(),
     status: text("status", { enum: REMINDER_STATUSES }).notNull(),
-    // How the message went, or was going (null when skipped).
-    channel: text("channel", { enum: ["whatsapp", "sms"] }),
+    // How the message went, or was going (null exactly when skipped): P2.4's push first, else a
+    // WhatsApp or text, else email; one nothing could carry (no_channel) keeps the one it was
+    // claimed with.
+    channel: text("channel", { enum: ["whatsapp", "sms", "push", "email"] }),
     // When the reminder was claimed (just before sending) or skipped.
     recordedAt: timestamptz("recorded_at").notNull().defaultNow(),
     createdAt: createdAt(),
@@ -597,7 +653,10 @@ export const shiftReminders = pgTable(
       "shift_reminders_status_check",
       sql`${t.status} in ('sending', 'sent', 'failed', 'skipped')`,
     ),
-    check("shift_reminders_channel_check", sql`${t.channel} in ('whatsapp', 'sms')`),
+    check(
+      "shift_reminders_channel_check",
+      sql`${t.channel} in ('whatsapp', 'sms', 'push', 'email')`,
+    ),
     check(
       "shift_reminders_channel_unless_skipped",
       sql`(${t.status} = 'skipped') = (${t.channel} is null)`,
@@ -606,11 +665,79 @@ export const shiftReminders = pgTable(
   ],
 ).enableRLS();
 
-export const ROSTER_SOURCE_KINDS = ["sheets"] as const;
+// A firm's name map (P3.2; "Connecting the firm's systems" 2): what its own system calls a role, a
+// qualification, a staff type or a cancellation reason, mapped to a ShiftDesk code, or to skip
+// (code null: "Holiday", "Not Set", a pay tier's own pseudo-role). outside_name is held as
+// src/lib/roster/names.ts keys it (trimmed, lower case, one space between words), so "Door
+// Supervisor (NLW)" and "door supervisor  (nlw)" are one name. A role may carry the pay rate its
+// name stands for (whole pence an hour), for the connector (P5): the sheet sync and the file
+// import read role names (and the credentials import qualification names), and never write a
+// session's pay (S2). Set only by the owner
+// (npm run firm:names); the app reads it.
+export const NAME_KINDS = ["role", "qualification", "staff_type", "cancellation_reason"] as const;
+export type NameKind = (typeof NAME_KINDS)[number];
+export const NAME_CODE_PATTERN = "^[A-Za-z][A-Za-z0-9_]{0,49}$";
+if (/['\\]/.test(NAME_CODE_PATTERN)) throw new Error("NAME_CODE_PATTERN must not contain ' or \\");
 
-// Where a firm's rota lives when it isn't our own tables (native firms have no row). The column
-// mapping is validated in code (src/lib/roster/sheets/mapping.ts). Credentials are ours, not the
-// firm's: the firm shares its sheet with our service account, so nothing secret is stored here.
+export const nameMap = pgTable(
+  "name_map",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    kind: text("kind", { enum: NAME_KINDS }).notNull(),
+    outsideName: text("outside_name").notNull(),
+    code: text("code"),
+    payRatePence: integer("pay_rate_pence"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("name_map_firm_id_id_key").on(t.firmId, t.id),
+    unique("name_map_name_key").on(t.firmId, t.kind, t.outsideName),
+    check(
+      "name_map_kind_check",
+      sql`${t.kind} in ('role', 'qualification', 'staff_type', 'cancellation_reason')`,
+    ),
+    check(
+      "name_map_outside_name_format",
+      sql`char_length(${t.outsideName}) between 1 and 200
+          and ${t.outsideName} = lower(${t.outsideName})
+          and ${t.outsideName} !~ '^ | $|  |[[:cntrl:]]'`,
+    ),
+    check(
+      "name_map_code_format",
+      sql`${t.code} is null or (case when ${t.kind} = 'role' then ${roleFormat(t.code)}
+          else ${t.code} ~ ${sql.raw(`'${NAME_CODE_PATTERN}'`)} end)`,
+    ),
+    check(
+      "name_map_pay_rate_role_only",
+      sql`${t.payRatePence} is null
+          or (${t.kind} = 'role' and ${t.code} is not null and ${t.payRatePence} between 0 and 100000)`,
+    ),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();
+
+export const ROSTER_SOURCE_KINDS = ["sheets", "connector"] as const;
+// Which system a connector source talks to (P5; ADR-026), each with its own adapter in
+// src/lib/connector/. Only the made-up portal so far: it stands in for the real one in the tests.
+export const CONNECTORS = ["demo_portal"] as const;
+export type Connector = (typeof CONNECTORS)[number];
+// A connector's base address (P5.2's review): https on its own port (none or 443), a public DNS
+// name (dotted, ending in a word: never an IP address, a bare name like a Compose service's, or a
+// .localhost, .internal or .local one), an optional path with no "." or ".." segment; no user,
+// query or fragment; at most 300 characters. Syntax only: a public name can still point inside,
+// so the real system's transport checks the address it connects to as well (PLAN.md P5).
+export const CONNECTOR_BASE_URL =
+  "^https://(?!.*\\.(localhost|internal|local)(/|:|$))([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}(:443)?(/(?!\\.\\.?(/|$))[A-Za-z0-9._~-]*)*$";
+export const CONNECTOR_BASE_URL_MAX = 300;
+
+// Where a firm's rota lives when it isn't our own tables (native firms have no row). A sheet
+// ("sheets"): its spreadsheet and column mapping (validated in code,
+// src/lib/roster/sheets/mapping.ts); the firm shares it with our service account. A connector
+// ("connector", P5.2): which system and its base address; its credentials are the firm's, kept in
+// the secret store (firm_secrets), never here. So nothing secret is stored in this table.
 export const rosterSources = pgTable(
   "roster_sources",
   {
@@ -620,9 +747,14 @@ export const rosterSources = pgTable(
       .references(() => firms.id),
     kind: text("kind", { enum: ROSTER_SOURCE_KINDS }).notNull(),
     enabled: boolean("enabled").notNull().default(true),
-    spreadsheetId: text("spreadsheet_id").notNull(),
+    spreadsheetId: text("spreadsheet_id"), // a sheet's only
+    connector: text("connector", { enum: CONNECTORS }), // a connector's only
+    baseUrl: text("base_url"), // a connector's only
     mapping: jsonb("mapping").$type<Record<string, unknown>>().notNull(),
     lastSyncedAt: timestamptz("last_synced_at"),
+    // A connector's last quick pull, the sessions in the next 48 hours (P5.4); last_synced_at is
+    // its last full one. Null for a sheet.
+    lastNearSyncedAt: timestamptz("last_near_synced_at"),
     // The last sync that ran, success or not: failures back off from it (cadence.ts).
     lastAttemptedAt: timestamptz("last_attempted_at"),
     // A short code only (e.g. "sheet_not_shared"), never a message or a cell's contents.
@@ -632,6 +764,8 @@ export const rosterSources = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
+    // For links from the firm's other tables (connector_events).
+    unique("roster_sources_firm_id_id_key").on(t.firmId, t.id),
     // One enabled source per firm; an old one can be kept, disabled.
     uniqueIndex("roster_sources_one_enabled_per_firm")
       .on(t.firmId)
@@ -642,13 +776,44 @@ export const rosterSources = pgTable(
     // by the owner (npm run firm:sheet); the app may change only the sync's status columns
     // (src/lib/db/admin/access.ts).
     uniqueIndex("roster_sources_spreadsheet_id_key").on(t.spreadsheetId),
-    check("roster_sources_kind_check", sql`${t.kind} in ('sheets')`),
+    check("roster_sources_kind_check", sql`${t.kind} in ('sheets', 'connector')`),
+    // A sheet has its spreadsheet and nothing of a connector's; a connector the reverse.
+    check(
+      "roster_sources_kind_fields",
+      sql`case when ${t.kind} = 'sheets'
+            then ${t.spreadsheetId} is not null and ${t.connector} is null and ${t.baseUrl} is null
+            else ${t.spreadsheetId} is null
+              and ${t.connector} is not null and ${t.baseUrl} is not null
+          end`,
+    ),
+    check(
+      "roster_sources_connector_check",
+      sql`${t.connector} in (${sql.raw(CONNECTORS.map((c) => `'${c}'`).join(", "))})`,
+    ),
+    check(
+      "roster_sources_base_url_format",
+      sql`${t.baseUrl} ~ ${sql.raw(`'${CONNECTOR_BASE_URL}'`)}
+          and char_length(${t.baseUrl}) <= ${sql.raw(String(CONNECTOR_BASE_URL_MAX))}`,
+    ),
     check(
       "roster_sources_spreadsheet_id_format",
       sql`${t.spreadsheetId} ~ '^[A-Za-z0-9_-]{20,100}$'`,
     ),
     check("roster_sources_mapping_object", sql`jsonb_typeof(${t.mapping}) = 'object'`),
     check("roster_sources_error_code_format", sql`${t.lastErrorCode} ~ '^[a-z_]{1,50}$'`),
+    check(
+      "roster_sources_near_sync_connector_only",
+      sql`${t.lastNearSyncedAt} is null or ${t.kind} = 'connector'`,
+    ),
     firmIsolation(t.firmId),
+    // The migrating owner may read every firm's sources: app_connector_source_firm() (0056) runs as
+    // the owner, for a connector's webhook before a firm is known. The app role gets no such
+    // policy: it sees its own firm's sources only.
+    pgPolicy("source_lookup", {
+      as: "permissive",
+      for: "select",
+      to: "current_user",
+      using: sql`true`,
+    }),
   ],
 ).enableRLS();

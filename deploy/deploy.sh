@@ -11,7 +11,8 @@
 #     healthy is reported as a failure (the unit fails; see journalctl -u shiftdesk-deploy);
 #   - otherwise applies any change to .env or docker-compose.yml (Phase 10, audit M8): Docker
 #     Compose recreates only the containers whose settings changed and starts a service newly turned
-#     on (the worker, with COMPOSE_PROFILES=worker), and changes nothing when nothing changed;
+#     on (one added to the compose file, or a profile named in COMPOSE_PROFILES), and changes
+#     nothing when nothing changed;
 #   - one run at a time.
 #
 #   ./deploy.sh                  the timer's run

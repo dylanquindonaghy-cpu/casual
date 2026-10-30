@@ -9,7 +9,10 @@ reviewed once by a solicitor before the first pilot.
 - **We are the processor.** We only process data on the firm's instructions.
 - **Our sub-processors:** the hosting company (servers and the database, in the UK or the EU; chosen
   when the account is created), the email company (SMTP; chosen when its account is created:
-  "Connect an email provider (SMTP)"), Anthropic (the AI, only once it's switched on; its API may
+  "Connect an email provider (SMTP)"; it carries the office's emails and, since P2, a casual's
+  messages when no notification or text can reach them, and their login links and pay-page codes
+  where the firm has switched `login_by_email` on: to the address the firm holds for them, kept
+  lowercased and checked), Anthropic (the AI, only once it's switched on; its API may
   process requests outside the UK, so its data processing agreement and UK transfer terms are
   checked first: ADR-021), Twilio (numbers, SMS, WhatsApp, voice), Meta (WhatsApp), ElevenLabs (only
   if the AI phone add-on is used), Google (only for a firm whose rota is a Google Sheet: our Google
@@ -82,7 +85,14 @@ legal advice; `docs/dpia-strikes.md` comes first for a real firm.
   version they saw is stored with the cancellation (S3); the help page explains the rule; a casual
   can tap "Tell us what happened"; the office can withdraw a strike.
 - **No strike** when the office, the planner or the sheet cancelled, on a booking the office made,
-  or after the office or the planner changed the session (the future protection against detriment).
+  or after the office or the planner changed the session (the future protection against detriment);
+  and none at all at a firm that switches strikes off (`strikes.enabled`, P3.4).
+- **Who asked is recorded apart from who cancelled** (P3.4, `assignments.cancel_asked_by`): the
+  casual, the firm, its client, or not known (a rota sheet's or a planner's cancellation, whose data
+  doesn't say). A casual who phones in and is cancelled by the office no longer has to read as a
+  short-notice firm cancellation in the evidence; the notice report counts cancellations by it. The
+  office's own cancellations say the firm until its form asks who asked (after the UI chat's
+  Phase 24).
 - **Health and caring reasons are flagged** for a person to review (Equality Act 2010; Acas).
 - **Never linked to money:** no fines, no deductions (s.13 ERA 1996). Payroll never sees strikes.
 - **Evidence goes only to a confirmed strikes-team address** (12B.7), never "unwell" or "health".
@@ -145,6 +155,7 @@ floor, and that a hold covers the whole firm (not one worker).
 | Data | Keep |
 |---|---|
 | Raw messages and transcripts | 90 days by default (built: the nightly purge). A reply newer than that stays, even when the message it answered goes |
+| Emails to the staffing inbox (P7.1, not live yet) | The same age as messages (built: the nightly purge). Only a known casual's subject and words are kept, quoted history and signature taken off, and only when the provider says the sender's address passed its checks (anyone can put another's address in an email); anyone else's (a client's, a venue's, an applicant's) only their address and when. Attachments are never kept. In the casual's export and taken on their erasure (theirs, and from their address before it was known); not yet counted in the purge's or the erasure's log entry (PLAN.md Parking lot) |
 | The words typed into a request (a note, a colleague's name) | 12 months by default, counted from when the request closed (built: removed, the request stays). An open or escalated request keeps them. (Phase 8 built 90 days from creation, with no "Dylan to confirm"; Phase 10 put back the spec's 12 months) |
 | The office's typed reason for placing someone despite a rule | On the booking, not in the log; the same 12 months from the booking (built) |
 | Strikes (a casual's own late cancellations, 12C.1) | The strike counts 90 days (`strikes.live_days`); its row is deleted 12 months after it was issued (`strikes.keep_months`, which must cover the time a strike counts plus 6 months, the tribunal limit; the purge never deletes a strike that stopped counting less than 6 months ago), nothing during a hold (built: the nightly purge). The office's reason for withdrawing one (12C.5) goes with its row, or when the casual is erased. Its `strike.issued`, `strike.withdrawn` and `strike.reviewed` log entries (ids and hours, never a reason or the review flag) stay with the action log. A DPIA comes first: `docs/dpia-strikes.md` |

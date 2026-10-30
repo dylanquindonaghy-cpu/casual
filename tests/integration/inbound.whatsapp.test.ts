@@ -46,8 +46,12 @@ async function freshLine(): Promise<string> {
   return line;
 }
 
-async function lineFirm() {
-  const f = await bookingFirm(su, withFirm);
+// `repliesOff`: the firm's own default since P4.7 (nothing set: no automatic replies).
+async function lineFirm(o: { repliesOff?: true } = {}) {
+  // Automatic replies on: what these tests are about (off by default since P4.7).
+  const f = await bookingFirm(su, withFirm, {
+    settings: o.repliesOff ? {} : { auto_replies: true },
+  });
   const line = await freshLine();
   await su.query("update firms set shifts_line_e164 = $2 where id = $1", [f.firmId, line]);
   const ann = await f.worker({ first: "Ann" });
@@ -282,17 +286,23 @@ describe("the WhatsApp webhook", () => {
 });
 
 describe("replying (the inbound-message job)", () => {
-  const replyDeps = (transport: MessagingTransport, ai: AiClient = noAi) => ({
+  const replyDeps = (transport: MessagingTransport, ai: AiClient = noAi, now?: Date) => ({
     transport,
     ai,
     baseDomain: "shiftdesk.test",
     aiTimeoutMs: 30,
+    ...(now ? { clock: { now: () => now } } : {}),
   });
-  const run = (job: Record<string, unknown>, transport: MessagingTransport, ai: AiClient = noAi) =>
+  const run = (
+    job: Record<string, unknown>,
+    transport: MessagingTransport,
+    ai: AiClient = noAi,
+    now?: Date,
+  ) =>
     runInboundMessage(
       job as Parameters<typeof runInboundMessage>[0],
       withFirm,
-      replyDeps(transport, ai),
+      replyDeps(transport, ai, now),
     );
   const onlyBody = (sent: OutboundMessage[]) => sent.map((m) => ("body" in m ? m.body : ""));
 
@@ -777,5 +787,249 @@ describe("replying (the inbound-message job)", () => {
     expect(await run({ ...job, firmId: t.f.firmId }, transport)).toEqual({ status: "gone" });
     expect(sent).toEqual([]);
     expect((await other.messageRows())[0]?.handled_as).toBeNull();
+  });
+});
+
+// Decisions 11 and 12 (PLAN.md "Connecting the firm's systems"; P4.7): nothing goes back by
+// WhatsApp or text unless the firm switches automatic replies on, and at most 5 unknown-number
+// alert emails per firm an hour.
+describe("automatic replies off (a firm's default since P4.7), and the unknown-number alert limit", () => {
+  const replyDeps = (transport: MessagingTransport, now?: Date, ai: AiClient = noAi) => ({
+    transport,
+    ai,
+    baseDomain: "shiftdesk.test",
+    aiTimeoutMs: 30,
+    ...(now ? { clock: { now: () => now } } : {}),
+  });
+  const run = (
+    job: Record<string, unknown>,
+    transport: MessagingTransport,
+    now?: Date,
+    ai?: AiClient,
+  ) =>
+    runInboundMessage(
+      job as Parameters<typeof runInboundMessage>[0],
+      withFirm,
+      replyDeps(transport, now, ai),
+    );
+
+  it("a worker's WhatsApps: sorted and logged as before, each made the office's question (Need a person), nothing sent back", async () => {
+    const t = await lineFirm({ repliesOff: true });
+    const { transport, sent } = captureTransport();
+    // Sorted as before (a keyword here), then the office's: a cancel, a pay or a shifts question
+    // must never sit as answered when nothing went (decision 11).
+    for (const [text, sortedAs] of [
+      ["When do wages go in", "pay"],
+      ["Can I cancel my shift on Saturday", "cancel"],
+      ["I need to talk to someone about my DBS", "office"],
+    ] as const) {
+      expect(await run(await t.incoming(text), transport)).toEqual({
+        status: "held",
+        intent: "office",
+        sortedAs,
+        handledAs: "keyword",
+      });
+    }
+    expect(sent).toEqual([]);
+    expect((await t.messageRows()).map((r) => [r.direction, r.handled_as, r.intent])).toEqual([
+      ["in", "keyword", "office"],
+      ["in", "keyword", "office"],
+      ["in", "keyword", "office"],
+    ]);
+    // Each a question for the office, with the message as its note.
+    const { rows: asked } = await su.query<{ type: string; payload: Record<string, unknown> }>(
+      "select type, payload from requests where firm_id = $1 order by created_at",
+      [t.f.firmId],
+    );
+    expect(asked).toEqual([
+      { type: "general", payload: { note: "When do wages go in", via: "whatsapp" } },
+      { type: "general", payload: { note: "Can I cancel my shift on Saturday", via: "whatsapp" } },
+      {
+        type: "general",
+        payload: { note: "I need to talk to someone about my DBS", via: "whatsapp" },
+      },
+    ]);
+    // Logged as received, with what it was sorted as and the reply held; no reply, no personal
+    // reply built.
+    const logged = await t.eventsOf("message.%");
+    expect(logged.map((e) => [e.action, e.data.intent, e.data.sortedAs, e.data.replyHeld])).toEqual(
+      [
+        ["message.received", "office", "pay", true],
+        ["message.received", "office", "cancel", true],
+        ["message.received", "office", "office", true],
+      ],
+    );
+    expect(await t.eventsOf("enquiry.checks")).toEqual([]);
+    // All three wait in Need a person.
+    const person = await withFirm(t.f.firmId, (tx) => loadEnquiries(tx, "person", new Date()));
+    expect(person.rows.map((r) => r.text).sort()).toEqual(
+      [
+        "Can I cancel my shift on Saturday",
+        "I need to talk to someone about my DBS",
+        "When do wages go in",
+      ].sort(),
+    );
+  });
+
+  it("a 'shifts' keyword and a message the AI sorts: the office's too, no personal reply read, nothing sent", async () => {
+    const t = await lineFirm({ repliesOff: true });
+    const { transport, sent } = captureTransport();
+    expect(await run(await t.incoming("Any shifts this week?"), transport)).toEqual({
+      status: "held",
+      intent: "office",
+      sortedAs: "shifts",
+      handledAs: "keyword",
+    });
+    const asked: AiRequest[] = [];
+    const cancelling = createFakeAi((r) => {
+      asked.push(r);
+      return "cancel";
+    });
+    expect(
+      await run(await t.incoming("running late, can't make it"), transport, undefined, cancelling),
+    ).toEqual({ status: "held", intent: "office", sortedAs: "cancel", handledAs: "ai" });
+    // The AI still sorts it (only labels: golden rule 1), and its label stays in the log.
+    expect(asked).toHaveLength(1);
+    expect(sent).toEqual([]);
+    expect(
+      (await t.eventsOf("message.received")).map((e) => [e.data.handledAs, e.data.sortedAs]),
+    ).toEqual([
+      ["keyword", "shifts"],
+      ["ai", "cancel"],
+    ]);
+    expect(await t.eventsOf("enquiry.checks")).toEqual([]);
+    const person = await withFirm(t.f.firmId, (tx) => loadEnquiries(tx, "person", new Date()));
+    expect(person.rows.map((r) => r.text).sort()).toEqual(
+      ["Any shifts this week?", "running late, can't make it"].sort(),
+    );
+  });
+
+  it("a worker who has left, with replies off: no reply anyway (never 'held'), and the office alerted", async () => {
+    const t = await lineFirm({ repliesOff: true });
+    await t.f.office("admin");
+    await su.query("update workers set status = 'inactive' where id = $1", [t.ann]);
+    const { transport, sent } = captureTransport();
+    expect(await run(await t.incoming("Hi it's Ann, back again?"), transport)).toEqual({
+      status: "unknown_sender",
+      reply: "none",
+      alerted: 1,
+    });
+    expect(sent.filter((m) => m.channel === "whatsapp")).toEqual([]);
+    expect((await t.eventsOf("message.received"))[0]?.data).toMatchObject({
+      formerWorker: true,
+    });
+    expect((await t.eventsOf("message.received"))[0]?.data.replyHeld).toBeUndefined();
+  });
+
+  it("a number we don't know: no polite reply, and the office still emailed (it doesn't say we asked their name)", async () => {
+    const t = await lineFirm({ repliesOff: true });
+    await t.f.office("admin");
+    const stranger = "+441632960901";
+    const { transport, sent } = captureTransport();
+    expect(await run(await t.incoming("Hi, it's Sam, new phone", stranger), transport)).toEqual({
+      status: "unknown_sender",
+      reply: "held",
+      alerted: 1,
+    });
+    expect(sent.filter((m) => m.channel === "whatsapp")).toEqual([]);
+    const emails = sent.filter(
+      (m): m is Extract<OutboundMessage, { channel: "email" }> => m.channel === "email",
+    );
+    expect(emails).toHaveLength(1);
+    expect(emails[0]?.body).not.toContain("We asked them for their full name.");
+    expect((await t.eventsOf("message.%")).map((e) => [e.action, e.data])).toEqual([
+      [
+        "message.received",
+        {
+          channel: "whatsapp",
+          handledAs: "unknown",
+          repeat: false,
+          formerWorker: false,
+          replyHeld: true,
+        },
+      ],
+      [
+        "message.office_alerted",
+        { reason: "unknown_number", recipients: 1, failed: 0, skipped: 0 },
+      ],
+    ]);
+  });
+
+  it("at most 5 unknown-number alert emails per firm an hour: the 6th number waits on Enquiries; the next hour alerts again", async () => {
+    const t = await lineFirm();
+    await t.f.office("admin");
+    const { transport, sent } = captureTransport();
+    const hour = new Date("2026-11-02T09:20:00Z");
+    const results = [];
+    for (let i = 0; i < 6; i += 1) {
+      results.push(await run(await t.incoming("Hello?", `+44163296091${i}`), transport, hour));
+    }
+    expect(
+      results.map((r) => (r.status === "unknown_sender" ? [r.alerted, r.alertHeld] : r)),
+    ).toEqual([
+      [1, undefined],
+      [1, undefined],
+      [1, undefined],
+      [1, undefined],
+      [1, undefined],
+      [0, true],
+    ]);
+    // The polite replies still go (this firm has them on): only the emails are limited.
+    expect(sent.filter((m) => m.channel === "whatsapp")).toHaveLength(6);
+    expect(sent.filter((m) => m.channel === "email")).toHaveLength(5);
+    const received = (await t.eventsOf("message.received")).map((e) => e.data.alertHeld);
+    expect(received).toEqual([undefined, undefined, undefined, undefined, undefined, true]);
+    // The 6th's alert was held, not tried: no alerted, failed or skipped line for it.
+    expect(await t.eventsOf("message.office_alert%")).toHaveLength(5);
+    // It's on Enquiries with the rest.
+    const person = await withFirm(t.f.firmId, (tx) => loadEnquiries(tx, "person", new Date()));
+    expect(person.rows).toHaveLength(6);
+    // The 6th's job again: already handled, and its hour's count unchanged (counted in the claim).
+    const hits = async () =>
+      (
+        await su.query<{ hits: number }>(
+          "select coalesce(sum(hits), 0)::int as hits from auth_throttle where firm_id = $1 and bucket like 'alert:unknown_number:%'",
+          [t.f.firmId],
+        )
+      ).rows[0]?.hits;
+    expect(await hits()).toBe(6);
+    const { rows: sixth } = await su.query<{ id: string }>(
+      `select id::text as id from messages where firm_id = $1 and from_e164 = '+441632960915'`,
+      [t.f.firmId],
+    );
+    expect(
+      await run(
+        {
+          firmId: t.f.firmId,
+          messageId: sixth[0]?.id,
+          idempotencyKey: `inbound-message:${sixth[0]?.id}`,
+        },
+        transport,
+        hour,
+      ),
+    ).toEqual({ status: "already" });
+    expect(await hits()).toBe(6);
+    // The next hour, a new number alerts again.
+    const later = new Date(hour.getTime() + 60 * 60_000);
+    expect(await run(await t.incoming("Hello?", "+441632960919"), transport, later)).toMatchObject({
+      status: "unknown_sender",
+      alerted: 1,
+    });
+  });
+
+  it("another firm's alerts don't count against this firm's 5", async () => {
+    const t = await lineFirm();
+    const other = await lineFirm();
+    await t.f.office("admin");
+    await other.f.office("admin");
+    const { transport } = captureTransport();
+    const hour = new Date("2026-11-02T10:20:00Z");
+    for (let i = 0; i < 5; i += 1) {
+      await run(await other.incoming("Hello?", `+44163296092${i}`), transport, hour);
+    }
+    expect(await run(await t.incoming("Hello?", "+441632960929"), transport, hour)).toMatchObject({
+      status: "unknown_sender",
+      alerted: 1,
+    });
   });
 });

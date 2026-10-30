@@ -1,6 +1,13 @@
 import { z } from "zod";
 import { WORKER_STATUSES } from "../db/schema/people";
-import { CANCEL_VIAS, ROLE_PATTERN, SHIFT_SOURCES, SHIFT_STATUSES } from "../db/schema/roster";
+import {
+  CANCEL_ASKERS,
+  CANCEL_VIAS,
+  ROLE_PATTERN,
+  SHIFT_SOURCES,
+  SHIFT_STATUSES,
+  type CancelAsker,
+} from "../db/schema/roster";
 import type { EligibilityPass } from "../rules/eligibility";
 
 // The rota can live in different places (docs/architecture.md, Roster plugs): our own tables
@@ -93,7 +100,17 @@ export const cancelInputSchema = z.object({
   // Where it was made (assignments.cancel_via, 12C.1): every caller in the app says so; left out,
   // the casual's own counts as the app's and the firm's as the office's.
   via: z.enum(CANCEL_VIAS).optional(),
+  // Who asked for it (assignments.cancel_asked_by, P3.4); left out, as cancelAskedBy() reads it.
+  askedBy: z.enum(CANCEL_ASKERS).optional(),
 });
+
+// Who asked, when the caller doesn't say: the casual for their own; the firm for the office's;
+// not known for a rota sheet's, a file's or a planner's, whose data doesn't say.
+export function cancelAskedBy(cancel: Pick<CancelInput, "by" | "via" | "askedBy">): CancelAsker {
+  if (cancel.askedBy) return cancel.askedBy;
+  if (cancel.by === "worker") return "casual";
+  return (cancel.via ?? "office") === "office" ? "firm" : "unknown";
+}
 export type CancelInput = z.infer<typeof cancelInputSchema>;
 
 export type AssignResult =

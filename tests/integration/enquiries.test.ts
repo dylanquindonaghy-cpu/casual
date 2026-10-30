@@ -50,9 +50,15 @@ async function freshLine(): Promise<string> {
   return line;
 }
 
-// Travel areas on (13.4: a firm's are off until its owner switches them on).
-async function enquiryFirm() {
-  const f = await bookingFirm(su, withFirm, { settings: { travel: { enabled: true } } });
+// Travel areas on (13.4: a firm's are off until its owner switches them on). `repliesOff`: the
+// firm's own default for automatic replies since P4.7 (nothing set: none).
+async function enquiryFirm(o: { repliesOff?: true } = {}) {
+  // Automatic replies on: what these tests are about (off by default since P4.7).
+  const f = await bookingFirm(su, withFirm, {
+    settings: o.repliesOff
+      ? { travel: { enabled: true } }
+      : { travel: { enabled: true }, auto_replies: true },
+  });
   const line = await freshLine();
   await su.query("update firms set shifts_line_e164 = $2 where id = $1", [f.firmId, line]);
   const zoe = await f.worker({ first: "Zoe" });
@@ -202,6 +208,34 @@ describe("the loader joins a message to its replies, its question and the log", 
     });
     expect((await t.load("person")).rows.map((r) => r.messageId)).toEqual([asked]);
     expect((await t.load("all")).needPerson.count).toBe(1);
+  });
+
+  // P4.7 (decisions 11 and 12): nothing goes back by itself, and the office still has every message.
+  it("automatic replies off (the default): every casual's message waits for a person, and nothing was sent", async () => {
+    const t = await enquiryFirm({ repliesOff: true });
+    const asked = await t.incoming("Is parking free at the festival?");
+    const pay = await t.incoming("when do I get paid");
+    const e = await t.detail(asked);
+    expect(e).toMatchObject({ waiting: true, forAPerson: true });
+    // Her conversation: both her messages, and nothing sent back.
+    expect(e?.conversation.map((c) => [c.direction, c.text])).toEqual([
+      ["in", "Is parking free at the festival?"],
+      ["in", "when do I get paid"],
+    ]);
+    // The later one's page starts at it (a message's page shows it and the ones after): nothing
+    // sent back there either.
+    expect((await t.detail(pay))?.conversation.map((c) => c.direction)).toEqual(["in"]);
+    // The pay question waits for a person too (decision 11): never "answered" when nothing went.
+    expect(await t.detail(pay)).toMatchObject({ waiting: true, forAPerson: true });
+    expect((await t.load("person")).rows.map((r) => r.messageId).sort()).toEqual(
+      [asked, pay].sort(),
+    );
+    expect((await t.load("all")).rows.map((r) => r.messageId).sort()).toEqual([asked, pay].sort());
+    const { rows: out } = await su.query(
+      "select 1 from messages where firm_id = $1 and direction = 'out'",
+      [t.f.firmId],
+    );
+    expect(out).toEqual([]);
   });
 
   it("a reply sent by text after WhatsApp refused it, and a reply that failed", async () => {

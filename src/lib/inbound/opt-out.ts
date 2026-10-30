@@ -2,7 +2,7 @@ import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { messages, workers } from "../db/schema";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
-import { errorCode } from "../jobs/firm-job";
+import { sendFailureCode } from "../notify/send";
 import type { MessagingTransport } from "../messaging";
 import { smsStartedMessage, smsStoppedMessage, type FirmVoice } from "../messaging/templates";
 import { lockUnhandled } from "./claim";
@@ -26,7 +26,9 @@ import type { InboundMessagePayload } from "./job";
 // and marked `opt_out`, the worker's setting changed and logged (only when it changes); then at
 // most one confirmation text, only when it changed and Twilio didn't confirm it itself (no loops,
 // no double confirmations); then it's recorded. The confirmation goes even though texts are now
-// off: it's the answer to their STOP.
+// off: it's the answer to their STOP. Unless the firm has automatic replies off (the default since
+// P4.7: src/lib/inbound/limits.ts): then the word still counts, but no confirmation goes, and
+// `message.received` says `replyHeld` where one would have.
 
 export type OptOutWord = "stop" | "start";
 
@@ -65,13 +67,14 @@ export interface OptOutRead {
   from: string;
   line: string;
   firm: FirmVoice;
+  autoReplies: boolean; // the firm's automatic replies (off: no confirmation goes)
 }
 
 export type OptOutResult = {
   status: "opt_out";
   optOut: OptOutWord;
   changed: boolean; // a worker's texts were turned off or on by it
-  confirmation: "sent" | "failed" | "none";
+  confirmation: "sent" | "failed" | "none" | "held"; // held: automatic replies are off
 };
 
 // A stored text's opt-out word, as the reply job reads it: Twilio's own (when its opt-out handling
@@ -105,10 +108,13 @@ export async function answerOptOut(
   deps: { transport: MessagingTransport },
   c: OptOutRead,
 ): Promise<OptOutResult | { status: "already" }> {
-  const plan = await run(payload.firmId, (tx) => claimOptOut(tx, payload.messageId, c));
+  const plan = await run(payload.firmId, (tx) =>
+    claimOptOut(tx, payload.messageId, c, { holdReply: !c.autoReplies }),
+  );
   if (plan === null) return { status: "already" };
   if (!plan.confirm) {
-    return { status: "opt_out", optOut: c.word, changed: plan.changed, confirmation: "none" };
+    const confirmation = plan.held ? "held" : "none";
+    return { status: "opt_out", optOut: c.word, changed: plan.changed, confirmation };
   }
 
   const body = c.word === "stop" ? smsStoppedMessage(c.firm) : smsStartedMessage(c.firm);
@@ -117,7 +123,7 @@ export async function answerOptOut(
   try {
     sent = await deps.transport.send({ channel: "sms", to: c.from, from: c.line, body });
   } catch (err) {
-    sent = { error: errorCode(err) };
+    sent = { error: sendFailureCode(err) };
   }
 
   return run(payload.firmId, async (tx): Promise<OptOutResult> => {
@@ -159,13 +165,16 @@ export async function answerOptOut(
 // The claim for a STOP or START, in the caller's transaction: the message locked and, if nobody has
 // handled it, marked `opt_out`, the worker's setting changed and logged (only when it changes), and
 // `message.received`. Null: already handled. Also the shifts line's last try (src/lib/inbound/
-// reply.ts), with the failure's code: the word still counts, though no confirmation goes.
+// reply.ts), with the failure's code (`answerFailed`): the word still counts, though no
+// confirmation goes. `holdReply`: the firm's automatic replies are off, so none goes either, and
+// `message.received` says `replyHeld` where one would have (`held`).
 export async function claimOptOut(
   tx: FirmTx,
   messageId: string,
   c: { word: OptOutWord; byTwilio: boolean; from: string },
-  lastTry?: { answerFailed: string },
-): Promise<{ changed: boolean; workerId: string | null; confirm: boolean } | null> {
+  o: { answerFailed?: string; holdReply?: boolean } = {},
+): Promise<{ changed: boolean; workerId: string | null; confirm: boolean; held: boolean } | null> {
+  const lastTry = o.answerFailed !== undefined ? { answerFailed: o.answerFailed } : undefined;
   if (!(await lockUnhandled(tx, messageId))) return null;
   // The worker with this number, whatever their status (one per number in a firm).
   const [worker] = await tx
@@ -200,6 +209,10 @@ export async function claimOptOut(
       data: { via: "sms", byTwilio: c.byTwilio },
     });
   }
+  // A confirmation would go (it changed, Twilio didn't confirm it, not the last try): held if the
+  // firm's automatic replies are off.
+  const wouldConfirm = changed && !c.byTwilio && !lastTry;
+  const held = wouldConfirm && o.holdReply === true;
   await tx
     .update(messages)
     .set({ handledAt: new Date(), handledAs: "opt_out", workerId: worker?.id ?? null })
@@ -217,11 +230,12 @@ export async function claimOptOut(
       changed,
       ...(superseded ? { superseded } : {}),
       ...(lastTry ? { answerFailed: lastTry.answerFailed } : {}),
+      ...(held ? { replyHeld: true } : {}),
       workerId: worker?.id ?? null,
     },
   });
   // On the last try nothing is sent: the confirmation waits on the failure being fixed.
-  return { changed, workerId: worker?.id ?? null, confirm: changed && !c.byTwilio && !lastTry };
+  return { changed, workerId: worker?.id ?? null, confirm: wouldConfirm && !held, held };
 }
 
 // Whether a number that isn't one of the firm's casuals last texted STOP to the shifts line (its

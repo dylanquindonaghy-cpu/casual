@@ -1,4 +1,17 @@
-import { and, asc, eq, isNotNull, isNull, lt, notInArray, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  ne,
+  notInArray,
+  or,
+  sql,
+} from "drizzle-orm";
 import { MINUTE, type Clock } from "../../auth/clock";
 import {
   assignments,
@@ -26,6 +39,8 @@ import {
 import { automaticEventId } from "../shift-events";
 import { upsertWorker, WorkerIdentityChange, WorkerNameMismatch } from "../workers";
 import { changeNoticeHours, noticeHours } from "../notice";
+import { loadNameMap, type NameMap } from "../names";
+import { cancelAskedBy } from "../plug";
 import { cellRange, columnRange, tabRange } from "./a1";
 import { SHEET_LOCALE, SHEET_LOCALE_ERROR, SheetsError, type SheetsClient } from "./client";
 import { sheetMappingSchema } from "./mapping";
@@ -100,6 +115,7 @@ interface Claimed {
   mapping: unknown;
   previousErrorCode: string | null;
   timezone: string;
+  names: NameMap; // the firm's name map (P3.2), read with the claim
 }
 
 interface PendingWrite {
@@ -172,7 +188,7 @@ export async function syncSheet({ run, firmId, client, clock }: SyncDeps): Promi
         tabRange(mapping.data.staff.tab),
         tabRange(mapping.data.shifts.tab),
       ]);
-      parsed = parseSheet({ staffRows, shiftRows }, mapping.data, claim.timezone);
+      parsed = parseSheet({ staffRows, shiftRows }, mapping.data, claim.timezone, claim.names);
     } catch (err) {
       if (err instanceof SheetsError || err instanceof SheetLayoutError) {
         return await fail(err.code);
@@ -261,6 +277,8 @@ export async function syncSheet({ run, firmId, client, clock }: SyncDeps): Promi
           skippedWrites: outcome.skippedWrites,
           notBooked: outcome.notBooked,
           problems: outcome.problems.length,
+          // Shift rows the firm's name map skips (P3.2), when there are some.
+          ...(parsed.skipped.length > 0 ? { skipped: parsed.skipped.length } : {}),
           // Staff rows not taken because they'd give someone else's record to them (the office's
           // to sort out in the sheet): said in the action log.
           ...(staffRefused(outcome.problems) > 0
@@ -303,8 +321,16 @@ async function claimLease(tx: FirmTx, now: Date): Promise<Claimed | "none" | "bu
       .where(and(eq(rosterSources.kind, "sheets"), eq(rosterSources.enabled, true)));
     return exists ? "busy" : "none";
   }
+  // A sheet always has its spreadsheet (roster_sources_kind_fields).
+  if (claimed.spreadsheetId === null) throw new Error("a sheet source without its spreadsheet");
   const [firm] = await tx.select({ timezone: firms.timezone }).from(firms);
-  return { ...claimed, claimedAt: now, timezone: firm?.timezone ?? "Europe/London" };
+  return {
+    ...claimed,
+    spreadsheetId: claimed.spreadsheetId,
+    claimedAt: now,
+    timezone: firm?.timezone ?? "Europe/London",
+    names: await loadNameMap(tx),
+  };
 }
 
 async function liveHolders(tx: FirmTx, shiftId: string) {
@@ -670,6 +696,29 @@ async function mirror(
     await refreshShiftStatus(tx, shiftId, now);
   }
 
+  // Rows the firm's name map skips (P3.2) that a session to come, not cancelled, was made from: the
+  // map never cancels or changes a session, so it stays as it is, and the office is told.
+  if (sheet.skipped.length > 0) {
+    const live = await tx
+      .select({ ref: shifts.externalRef })
+      .from(shifts)
+      .where(
+        and(
+          eq(shifts.source, "sheets"),
+          inArray(
+            shifts.externalRef,
+            sheet.skipped.map((s) => s.ref),
+          ),
+          ne(shifts.status, "cancelled"),
+          gt(shifts.startsAt, now),
+        ),
+      );
+    const refs = new Set(live.map((l) => l.ref));
+    for (const s of sheet.skipped) {
+      if (refs.has(s.ref)) problems.push({ tab: "shifts", row: s.row, problem: "skipped_live" });
+    }
+  }
+
   await queueTravelEstimates(tx, [...travel]);
   return { writes, booked, cancelled, notBooked, problems };
 }
@@ -816,6 +865,11 @@ async function mergeShift(
     if (result.status === "assigned") {
       booked += 1;
       room -= 1;
+      // Made on the firm's rota sheet (P2.2): the firm's own system's booking.
+      await tx
+        .update(assignments)
+        .set({ bookedVia: "sheet" })
+        .where(eq(assignments.id, result.assignmentId));
       // Named on the sheet after being offered it: they took it (src/lib/offers/close.ts).
       await acceptOwnOffer(tx, shiftId, workerId, now);
       await recordEvent(
@@ -957,6 +1011,8 @@ async function logCancel(
     tx,
     system("shift.cancelled", "assignment", cancel.assignmentId, {
       by: "firm",
+      // Who asked (P3.4): the sheet doesn't say (the plug records the same on the booking).
+      askedBy: cancelAskedBy({ by: "firm", via: "sheet" }),
       shiftId: cancel.shiftId,
       workerId: cancel.workerId,
       reason,

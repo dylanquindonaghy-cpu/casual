@@ -40,6 +40,7 @@ function input(
       siteId: "site-1",
       requiredTypes: ["SIA_DS"],
       extraTypes: [],
+      anyOfTypes: [],
       ...o.shift,
     },
     otherAssignments: (o.others ?? []).map(([s, e]) => ({ startsAt: at(s), endsAt: at(e) })),
@@ -280,6 +281,113 @@ describe("docs/rules-and-credentials.md test cases", () => {
     expect(
       codes(csasInput([{ type: "CSAS", status: "valid", expiresOn: "2026-11-08" }], night)),
     ).toEqual(OK);
+  });
+
+  // A security officer's shift: one of an SIA security guard or door supervisor licence (P3.3).
+  const officer = (
+    credentials: EligibilityInput["credentials"],
+    settings: Partial<EligibilityInput["settings"]> = {},
+  ) =>
+    checkEligibility({
+      ...input({
+        worker: { roles: ["security_officer"] },
+        shift: { role: "security_officer", requiredTypes: [], anyOfTypes: ["SIA_SG", "SIA_DS"] },
+        credentials,
+        settings: { appliedAllowedTypes: ["SIA_SG", "SIA_DS"], ...settings },
+      }),
+      names: { SIA_SG: "SIA security guard licence", SIA_DS: "SIA door supervisor licence" },
+    });
+
+  it("One of a group: either licence: security officer, one of SIA_SG or SIA_DS; SIA_DS held and in date -> ok", () => {
+    const result = officer([{ type: "SIA_DS", status: "valid", expiresOn: "2027-11-01" }]);
+    expect(result.ok).toBe(true);
+    expect(result.checks.filter((c) => c.code === "qualification")).toEqual([
+      {
+        code: "qualification",
+        passed: true,
+        detail: {
+          type: "SIA_DS",
+          neededBy: "role",
+          anyOf: ["SIA_SG", "SIA_DS"],
+          held: "valid",
+          expiresOn: "2027-11-01",
+          until: "2026-11-07",
+        },
+      },
+    ]);
+    expect(officer([{ type: "SIA_SG", status: "valid", expiresOn: null }]).ok).toBe(true);
+  });
+
+  it("One of a group: neither held: one of SIA_SG or SIA_DS; neither held -> fail: missing, in SIA_SG's words", () => {
+    const result = officer([]);
+    expect(result.codes).toEqual(["credential_missing"]);
+    expect(result.reasons).toEqual([
+      "This shift needs a valid SIA security guard licence. Send it to the office to be checked.",
+    ]);
+  });
+
+  it("One of a group: the one held is out of date: one of SIA_SG or SIA_DS; SIA_DS expired, no SIA_SG -> fail: expired reason for SIA_DS", () => {
+    const result = officer([{ type: "SIA_DS", status: "valid", expiresOn: "2026-10-20" }]);
+    expect(result.codes).toEqual(["credential_expired"]);
+    expect(result.reasons[0]).toMatch(/^Your SIA door supervisor licence expired on 20 Oct\./);
+  });
+
+  it("One of a group: one suspended: one of SIA_SG or SIA_DS; SIA_SG suspended, SIA_DS in date -> fail: suspended reason", () => {
+    const result = officer([
+      { type: "SIA_SG", status: "suspended", expiresOn: "2027-11-01" },
+      { type: "SIA_DS", status: "valid", expiresOn: "2027-11-01" },
+    ]);
+    expect(result.codes).toEqual(["credential_suspended"]);
+    expect(result.reasons).toEqual([
+      "Your SIA security guard licence is suspended. Contact the office.",
+    ]);
+  });
+
+  it("One of a group: applied within the allowance: one of SIA_SG or SIA_DS; SIA_SG applied, allowance 15%, 20 deployed -> ok", () => {
+    const applied = [{ type: "SIA_SG", status: "applied", expiresOn: null }] as const;
+    expect(
+      officer([...applied], { appliedAllowancePct: 15, deployedCount: 20, appliedInUseCount: 1 })
+        .ok,
+    ).toBe(true);
+    // A valid door supervisor licence beside it: the licence is what's used, not the application.
+    const both = officer(
+      [...applied, { type: "SIA_DS", status: "valid", expiresOn: "2027-11-01" }],
+      { appliedAllowancePct: 15, deployedCount: 20, appliedInUseCount: 1 },
+    );
+    expect(both.ok).toBe(true);
+    expect(both.checks.find((c) => c.code === "qualification")?.detail).toMatchObject({
+      type: "SIA_DS",
+      held: "valid",
+    });
+    // Over the allowance: the applied one's own reason.
+    expect(
+      officer([...applied], { appliedAllowancePct: 15, deployedCount: 10, appliedInUseCount: 1 })
+        .codes,
+    ).toEqual(["applied_over_allowance"]);
+  });
+});
+
+describe("a one-of group beside the rest (P3.3)", () => {
+  it("rules with no group are unchanged; a group adds to the all-of types, never replaces them", () => {
+    // Today's door supervisor rule: no group, as before.
+    expect(codes(input())).toEqual(OK);
+    // A steward rule needing STEWARD_L2, and one of SIA_SG or SIA_DS: both parts must hold.
+    const both = (credentials: EligibilityInput["credentials"]) =>
+      codes(
+        input({
+          shift: { requiredTypes: ["STEWARD_L2"], anyOfTypes: ["SIA_SG", "SIA_DS"] },
+          credentials,
+        }),
+      );
+    const l2 = { type: "STEWARD_L2", status: "valid", expiresOn: null } as const;
+    const ds = { type: "SIA_DS", status: "valid", expiresOn: "2027-11-01" } as const;
+    expect(both([l2, ds])).toEqual(OK);
+    expect(both([ds])).toEqual(["credential_missing"]);
+    expect(both([l2])).toEqual(["credential_missing"]);
+    // No rule at all still fails closed, whatever a group would say.
+    expect(
+      codes(input({ shift: { requiredTypes: null, anyOfTypes: ["SIA_SG", "SIA_DS"] } })),
+    ).toEqual(["no_rule"]);
   });
 });
 

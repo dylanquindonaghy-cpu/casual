@@ -21,8 +21,8 @@ export interface PushPayload {
 // gone: the push service says the subscription no longer exists (forget it); refused: its address
 // isn't a browser maker's push service in the form a browser gives (forget it; nothing was sent);
 // skipped: nothing was pushed (push switched off); failed: it didn't go this time (a code only:
-// never the address). A push never throws: it's free and best effort, and goes after the message
-// it follows.
+// never the address). A push never throws: it's free and best effort. It goes first (P2.4): only
+// when no phone takes it does the WhatsApp, text or email go (src/lib/notify/send.ts).
 export type PushSendResult =
   | { status: "sent" }
   | { status: "gone" }

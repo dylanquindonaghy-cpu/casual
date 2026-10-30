@@ -1,11 +1,10 @@
 import { randomBytes } from "node:crypto";
-import { readFile } from "node:fs/promises";
 import type { APIRequestContext, Page } from "@playwright/test";
 import { twilioSignature } from "../../src/lib/inbound/twilio-signature";
 import { E2E_TWILIO_AUTH_TOKEN } from "../../playwright.config";
 import { addOfficeUser, cancelOwnShift, personalReplyScene } from "./db";
 import { expect, menuLink, test } from "./fixtures";
-import { sentTo } from "./outbox";
+import { readOutbox, sentTo } from "./outbox";
 
 // Enquiries in a real browser (docs/office-v2.md 3.6; docs/screens.md `/office/enquiries`; 12D.1),
 // at phone width: two WhatsApps from numbers nobody here has reach Acme's shifts line (signed as
@@ -181,10 +180,7 @@ test("Need a person: reply to one unknown number, close another with a reason", 
   // Nothing went to that number after it was closed (closing queues no message: give the worker a
   // moment anyway).
   await page.waitForTimeout(1500);
-  const outbox = (await readFile(".dev/e2e-outbox.jsonl", "utf8").catch(() => ""))
-    .split("\n")
-    .filter(Boolean)
-    .map((l) => JSON.parse(l) as { at: string; to: string });
+  const outbox = await readOutbox<{ at: string; to: string }>();
   expect(outbox.filter((l) => l.to === wrong && new Date(l.at) >= closedAt)).toEqual([]);
 
   // "Requests from the app" is the old Requests page.

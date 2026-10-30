@@ -1195,16 +1195,16 @@ planner" email, which are not built.
   strike result) or a strike is withdrawn. The planner marks its own session CANCELLATION from the
   webhook.
 - **Plug and play:** an admin opens Integrations, creates a key and pastes a webhook address. No
-  adapter per planner. A planner that can't call an API or take webhooks itself can go through
+  adapter per planner (amended 2026-10-26 by ADR-026: except a connector for a firm's system that
+  can't call this API, the pilot firm's ops portal first, then AXLR8). A planner that can't call an API or take webhooks itself can go through
   Zapier, Make or n8n, whose generic HTTP steps do both.
 - **Nothing new to trust.** The API never books anyone, never decides eligibility and never calls
   AI. Changes to booked sessions go through `moveShiftByFirm()` and `cancelShiftByFirm()`: the
   rules engine, notice hours and the notices to casuals (golden rules 1, 6, 12). Both accept only
   an active office user today, so S11 adds the API as a second, narrower caller (5.1 S11 (d)).
 - **One database change, S11** (5.1), which also adds a new machine login: approved by Dylan on 2026-10-06.
-- **Webhooks need the worker**, which runs in production only once Twilio is connected
-  (`deploy/docker-compose.yml`: the worker refuses the console messaging transport in
-  production). The API itself runs on the web app alone.
+- **Webhooks need the worker**, which runs in production from the first deploy since P2.5
+  (`MESSAGING_TRANSPORT=none`: no text sender). The API itself runs on the web app alone.
 - **The Google Sheets plug and the file import stay as built, frozen** (5.3.5).
 
 #### 5.3.2 The API
@@ -1558,7 +1558,8 @@ file import also carries casuals, qualifications and pay records.
   session editor.
 - The sheet sync still takes a cancelled casual's name out of the Assigned cell, as today.
 - API sessions have `source: "api"` and book through the native plug: `plugFor()` already treats
-  every source except `sheets` as native (`src/lib/roster/book.ts:341-344`). No new `RosterPlug`.
+  every source except `sheets` as native (`src/lib/roster/book.ts:341-344`). No new `RosterPlug`
+  (amended 2026-10-26 by ADR-026: a connector gets its own plug).
 
 #### 5.3.6 Settings, golden rules and privacy
 
@@ -2090,7 +2091,7 @@ waiting for Dylan"; to change one, tell Claude.
 | D5 | Telling planners about cancellations | **Replaced by Dylan:** the planner API and signed webhooks (5.3). No sheet column and no daily email | Sheets 16 |
 | D6 | "Reply 1 or 2 to take one" | **Deferred** to the Parking lot: a new way of proving who the casual is (an auth change) that also needs live WhatsApp. Replies carry links | Messages 28 |
 | D7 | Dark theme: navy (the original brief) or graphite (the mock-up) | **Navy** at first: page #0f1626, panel #16203a, card #1b2642, raised #22304f, muted text #a3b0c8, switch off #7c8aa8. **Changed 2026-10-21** (Dylan, "yes build this", on the Phase 20 mock-up): true dark greys, page #0b0c0e, card and panel #18191c, raised #232529, muted text #a9adb4, switch off #7d8189 (all checked for contrast). A colour-token swap, so easy to change | Product 10 |
-| D8 | Pay week number and pay day in the top bar | **ISO weeks, Monday to Sunday; pay the Friday after the week ends** ("Week 41 · 5 Oct – 11 Oct · Pay Fri 16 Oct"). One rule for every firm (the per-firm setting was cut) | Pay 10 |
+| D8 | Pay week number and pay day in the top bar | **ISO weeks, Monday to Sunday; pay the Friday after the week ends** ("Week 41 · 5 Oct – 11 Oct · Pay Fri 16 Oct"). One rule for every firm (the per-firm setting was cut). **Replaced 2026-10-26** (Dylan): a pay calendar per firm, with this rule as its default (`PLAN.md` "Connecting the firm's systems" 1, proposal P3) | Pay 10 |
 | D9 | Email provider (new, from "no AWS") | **Any provider over SMTP**; which one is chosen when the accounts are created | Deploy 8 |
 
 Also settled: right to work stays a status only (`PLAN.md` Rules 15), and the mock-up is committed

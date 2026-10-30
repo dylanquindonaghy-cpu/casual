@@ -1,5 +1,9 @@
-import { escalateHours } from "../offers/waves";
+import { loginByEmail } from "../auth/login-channel";
+import { autoRepliesOn } from "../inbound/limits";
+import { firmSystemSends } from "../notices/who-sends";
+import { escalateHours, firstComeWaves, WAVE_MAX } from "../offers/waves";
 import { shortNoticeThreshold } from "../office/notice-report";
+import { PAY_DAY_AFTER_MAX, payCalendar, readPayCalendar } from "../pay/calendar";
 import { parseAllocationSettings } from "../roster/allocation-input";
 import { ALLOCATION_MODES } from "../rules/allocation";
 import { quietHours } from "../rules/quiet-hours";
@@ -23,21 +27,30 @@ export const SETTING_KEYS = [
   "allocation_mode",
   "wave_size",
   "wave_minutes",
+  "wave_per_place",
   "urgent_window_hours",
   "escalate_hours_before_start",
   "short_notice_threshold_hours",
   "quiet_hours.start",
   "quiet_hours.end",
   "quiet_hours.urgent_override",
+  "auto_replies",
+  "firm_system_sends",
+  "login_by_email",
   "retention.message_days",
   "retention.request_note_days",
   "retention.hold_until",
+  "strikes.enabled",
   "strikes.notice_hours",
   "strikes.live_days",
   "strikes.keep_months",
   "travel.enabled",
   "travel.default_max_minutes",
   "photo.renewal_months",
+  "pay_calendar.days",
+  "pay_calendar.anchor",
+  "pay_calendar.pay_day_after",
+  "pay_calendar.label",
 ] as const;
 export type SettingKey = (typeof SETTING_KEYS)[number];
 export type SettingValue = string | number | boolean;
@@ -47,8 +60,10 @@ export const isSettingKey = (key: string): key is SettingKey =>
 
 type Settings = Record<string, unknown>;
 
-// Under fair rotation only: wave_size and wave_minutes are read with the mode set, so they can be
-// agreed before switching to it.
+// Fair rotation's numbers are read with the mode set, so they can be agreed before switching to
+// it: wave_size always, and wave_minutes under fair rotation. Under first come, first served
+// wave_minutes is read as its waves read it (firstComeWaves, P4.3), so a fair-rotation size the
+// app would refuse doesn't stop it.
 const fair = (s: Settings) => parseAllocationSettings({ ...s, allocation_mode: "fair_rotation" });
 
 // What the app reads for each key.
@@ -59,41 +74,62 @@ const READ: Record<SettingKey, (s: Settings) => SettingValue> = {
     return a.mode === "fair_rotation" ? a.groupSize : 0;
   },
   wave_minutes: (s) => {
+    if (parseAllocationSettings(s).mode === "first_come_first_served") {
+      return firstComeWaves(s).minutes;
+    }
     const a = fair(s);
     return a.mode === "fair_rotation" ? a.priorityMinutes : 0;
   },
+  wave_per_place: (s) => firstComeWaves(s).perPlace,
   urgent_window_hours: (s) => urgentWindowHours(s),
   escalate_hours_before_start: (s) => escalateHours(s),
   short_notice_threshold_hours: (s) => shortNoticeThreshold(s).hours,
   "quiet_hours.start": (s) => quietHours(s).start,
   "quiet_hours.end": (s) => quietHours(s).end,
   "quiet_hours.urgent_override": (s) => quietHours(s).urgentOverride,
+  auto_replies: (s) => autoRepliesOn(s),
+  firm_system_sends: (s) => firmSystemSends(s),
+  login_by_email: (s) => loginByEmail(s),
   "retention.message_days": (s) => retentionSettings(s).messageDays,
   "retention.request_note_days": (s) => retentionSettings(s).requestNoteDays,
   "retention.hold_until": (s) => retentionSettings(s).holdUntil ?? "none",
+  "strikes.enabled": (s) => strikeSettings(s).enabled,
   "strikes.notice_hours": (s) => strikeSettings(s).noticeHours,
   "strikes.live_days": (s) => strikeSettings(s).liveDays,
   "strikes.keep_months": (s) => strikeSettings(s).keepMonths,
   "travel.enabled": (s) => travelSettings(s).enabled,
   "travel.default_max_minutes": (s) => travelSettings(s).defaultMaxMinutes,
   "photo.renewal_months": (s) => photoSettings(s).renewalMonths,
+  "pay_calendar.days": (s) => payCalendar(s).days,
+  "pay_calendar.anchor": (s) => payCalendar(s).anchor ?? "none",
+  "pay_calendar.pay_day_after": (s) => payCalendar(s).payDayAfter,
+  "pay_calendar.label": (s) => payCalendar(s).label,
 };
 
 // What each key means, for the command's output.
 export const SETTING_WORDS: Record<SettingKey, string> = {
   allocation_mode: `who gets an open shift: ${ALLOCATION_MODES.join(" or ")}`,
   wave_size: "fair rotation: how many workers each wave goes to",
-  wave_minutes: "fair rotation: minutes each wave has before the next",
+  wave_minutes: "minutes each wave has before the next (both modes)",
+  wave_per_place: `first come, first served: how many workers each wave goes to per free place (1 to 20; at most ${WAVE_MAX} a wave)`,
   urgent_window_hours: "a shift starting within this many hours is urgent (never held back)",
   escalate_hours_before_start: "email the office this many hours before an unfilled start",
   short_notice_threshold_hours: "the notice report's short notice: under this many hours",
   "quiet_hours.start": "no messages to workers from (local time)",
   "quiet_hours.end": "no messages to workers until (local time)",
   "quiet_hours.urgent_override": "urgent messages may still go in quiet hours (true or false)",
+  auto_replies:
+    "the shifts line answers WhatsApps and texts by itself (true or false; false, the default: nothing is sent back, and every casual's message waits for the office in Need a person)",
+  firm_system_sends:
+    "the firm's own system (its rota sheet, or its CRM through the API) reminds the casuals it books (true or false; false, the default: ShiftDesk reminds every booking)",
+  login_by_email:
+    "with no text sender, a casual's login link and pay-page code go by email to the address held for them (true or false; false, the default: they go by WhatsApp only. Leave it off until the login and pay pages stop naming WhatsApp: PLAN.md P2.7)",
   "retention.message_days": `days the shifts line's messages are kept (${RETENTION_MIN_DAYS} to ${RETENTION_MAX_DAYS})`,
   "retention.request_note_days": `days a closed request's words are kept, and the office's reason for placing someone despite a rule (${RETENTION_MIN_DAYS} to ${RETENTION_MAX_DAYS})`,
   "retention.hold_until":
     "nothing personal is purged until after this date (yyyy-mm-dd), for a dispute; none for no hold",
+  "strikes.enabled":
+    "the firm gives strikes (true or false; true, the default. false: a casual's own cancellation is never a strike; those given stay. Leave it on until the casual's shift page, Help and Profile read it: PLAN.md P3)",
   "strikes.notice_hours": `a casual's own cancellation with less notice than this many hours is a strike (${STRIKE_LIMITS.noticeHours.min} to ${STRIKE_LIMITS.noticeHours.max})`,
   "strikes.live_days": `days a strike counts (${STRIKE_LIMITS.liveDays.min} to ${STRIKE_LIMITS.liveDays.max})`,
   "strikes.keep_months": `months before a strike's record is deleted, unless a hold is on (${STRIKE_LIMITS.keepMonths.min} to ${STRIKE_LIMITS.keepMonths.max}, and at least 6 months more than a strike counts)`,
@@ -102,6 +138,13 @@ export const SETTING_WORDS: Record<SettingKey, string> = {
   "travel.default_max_minutes":
     "a casual's travel time limit until they choose their own (30, 45, 60 or 90 minutes)",
   "photo.renewal_months": `months before a casual's staff photo is due again, from the day the current one was uploaded (${PHOTO_RENEWAL_LIMITS.min} to ${PHOTO_RENEWAL_LIMITS.max})`,
+  "pay_calendar.days":
+    "days in each pay period: 7 or 14 (14 needs pay_calendar.anchor first; 7 with no anchor, the default, is the ISO week)",
+  "pay_calendar.anchor":
+    "the Monday that starts pay period 1 (yyyy-mm-dd), counted on from there; none, the default: ISO weeks (only with 7 days: set pay_calendar.days=7 first)",
+  "pay_calendar.pay_day_after": `the pay day, as days after a period's last day, a Sunday (0 to ${PAY_DAY_AFTER_MAX}; 5, the default: the Friday after)`,
+  "pay_calendar.label":
+    "what a pay period is called: week or cycle (the default: week for 7 days, cycle for 14)",
 };
 
 const stored = (s: Settings, key: SettingKey): unknown => {
@@ -134,10 +177,23 @@ export function effectiveSettings(s: Settings): EffectiveSetting[] {
 function parseValue(key: SettingKey, raw: string): SettingValue | null {
   const text = raw.trim();
   if (key === "retention.hold_until") return text === "" ? null : text;
-  if (key === "allocation_mode" || key === "quiet_hours.start" || key === "quiet_hours.end") {
+  if (
+    key === "allocation_mode" ||
+    key === "quiet_hours.start" ||
+    key === "quiet_hours.end" ||
+    key === "pay_calendar.anchor" ||
+    key === "pay_calendar.label"
+  ) {
     return text === "" ? null : text;
   }
-  if (key === "quiet_hours.urgent_override" || key === "travel.enabled") {
+  if (
+    key === "quiet_hours.urgent_override" ||
+    key === "travel.enabled" ||
+    key === "auto_replies" ||
+    key === "firm_system_sends" ||
+    key === "login_by_email" ||
+    key === "strikes.enabled"
+  ) {
     return text === "true" ? true : text === "false" ? false : null;
   }
   if (!/^\d+(\.\d+)?$/.test(text)) return null;
@@ -171,6 +227,15 @@ export function applySetting(s: Settings, key: SettingKey, raw: string): Setting
     const part = key.slice("photo.".length);
     const inner = s.photo && typeof s.photo === "object" ? (s.photo as Settings) : {};
     next = { ...s, photo: { ...inner, [part]: value } };
+  } else if (key.startsWith("pay_calendar.")) {
+    // Read whole: the parts already set are kept as they are (an unreadable calendar starts
+    // afresh), and an anchor of "none" removes it.
+    const part = key.slice("pay_calendar.".length);
+    const inner =
+      readPayCalendar(s.pay_calendar) !== null ? { ...(s.pay_calendar as Settings) } : {};
+    if (part === "anchor" && value === "none") delete inner.anchor;
+    else inner[part] = value;
+    next = { ...s, pay_calendar: inner };
   } else if (key.startsWith("quiet_hours.")) {
     // The app reads quiet hours whole (a start without an end is ignored), so the other parts are
     // kept as the app reads them now.
@@ -186,6 +251,12 @@ export function applySetting(s: Settings, key: SettingKey, raw: string): Setting
     parseAllocationSettings(next);
     // A strike's record must outlast its counting by 6 months (the tribunal time limit).
     if (key.startsWith("strikes.") && !keepCoversLive(strikeSettings(next))) return null;
+    // A part that leaves the whole calendar unreadable (an anchor removed from fortnights) would
+    // put the firm back on ISO weeks without saying so.
+    if (key.startsWith("pay_calendar.")) {
+      const c = next.pay_calendar as Settings;
+      if (Object.keys(c).length > 0 && readPayCalendar(c) === null) return null;
+    }
   } catch {
     return null;
   }

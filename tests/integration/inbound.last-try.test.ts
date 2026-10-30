@@ -47,7 +47,8 @@ async function freshLine(): Promise<string> {
 }
 
 async function lineFirm() {
-  const f = await bookingFirm(su, withFirm);
+  // Automatic replies on: what these tests are about (off by default since P4.7).
+  const f = await bookingFirm(su, withFirm, { settings: { auto_replies: true } });
   const line = await freshLine();
   await su.query("update firms set shifts_line_e164 = $2 where id = $1", [f.firmId, line]);
   const ann = await f.worker({ first: "Ann" });

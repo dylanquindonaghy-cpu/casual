@@ -4,6 +4,7 @@ import { LIMITS, throttle } from "../auth/throttle";
 import { resolveApiKey, type ResolveApiKey } from "../db/directory";
 import { withFirm, type WithFirm } from "../db/scoped";
 import { appDatabaseIsLocal } from "../db/where";
+import { readBoundedBody, strictUtf8 } from "../http/bounded-body";
 import { appEnv } from "../env";
 import { log, type Logger } from "../log";
 import { clientIpFrom, requestIdFrom } from "../request";
@@ -148,37 +149,16 @@ const isJson = (type: string | null) =>
 
 type Body = { json: unknown } | { refusal: ApiErrorCode };
 
-// The body, read up to MAX_BODY_BYTES and no further (a missing or wrong content-length can't get
-// round it), as strict UTF-8 JSON.
+// The body, read up to MAX_BODY_BYTES and no further (readBoundedBody: a missing or wrong
+// content-length can't get round it), as strict UTF-8 JSON.
 async function readJson(request: Request): Promise<Body> {
   if (!isJson(request.headers.get("content-type"))) return { refusal: "not_json" };
-  if (Number(request.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) {
-    await request.body?.cancel().catch(() => undefined);
-    return { refusal: "too_big" };
-  }
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  if (request.body) {
-    const reader = request.body.getReader();
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      size += value.byteLength;
-      if (size > MAX_BODY_BYTES) {
-        await reader.cancel().catch(() => undefined);
-        return { refusal: "too_big" };
-      }
-      chunks.push(value);
-    }
-  }
-  const all = new Uint8Array(size);
-  let at = 0;
-  for (const chunk of chunks) {
-    all.set(chunk, at);
-    at += chunk.byteLength;
-  }
+  const read = await readBoundedBody(request, MAX_BODY_BYTES);
+  if ("tooBig" in read) return { refusal: "too_big" };
+  const text = strictUtf8(read.bytes);
+  if (text === null) return { refusal: "bad_json" };
   try {
-    return { json: JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(all)) as unknown };
+    return { json: JSON.parse(text) as unknown };
   } catch {
     return { refusal: "bad_json" };
   }

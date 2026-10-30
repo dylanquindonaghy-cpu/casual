@@ -7,11 +7,15 @@ import { workerEnv } from "../env";
 import { recordEvent } from "../events/record";
 import { firmJobEnvelope, sendFirmJob, type FirmTask } from "../jobs/firm-job";
 import { getTransport } from "../messaging";
-import { payQueryUpdateMessage, payQueryUpdatePush } from "../messaging/templates";
 import {
-  pushToWorker,
+  payQueryUpdateEmailSubject,
+  payQueryUpdateMessage,
+  payQueryUpdatePush,
+} from "../messaging/templates";
+import {
+  deliverToWorker,
   recordPushes,
-  sendToWorker,
+  type DeliveryChannel,
   type NotifyDeps,
   type WorkerChannel,
   smsAllowedFor,
@@ -27,8 +31,9 @@ import { portalUrl } from "../tenancy/portal-url";
 //
 // At most once, like the other notices: (1) a short transaction claims it
 // (pay_query.update_notice, under an advisory lock on the query) and commits; (2) the message goes
-// outside any transaction, by the worker's channel with the WhatsApp-to-text fallback, then the
-// push to their phones; (3) a second short transaction logs pay_query.update_sent or _failed. A job
+// outside any transaction: a push to their phones, else by their channel with the WhatsApp-to-text
+// fallback, else email (deliverToWorker, P2.4); (3) a second short transaction logs
+// pay_query.update_sent or _failed. A job
 // that stops part-way leaves the claim: the message may have gone, so it's never sent again.
 //
 // Quiet hours: a pay answer is never urgent, so it waits for them to end (logged
@@ -62,7 +67,7 @@ export interface PayQueryUpdateDeps extends NotifyDeps {
 }
 
 export type PayQueryUpdateResult =
-  | { status: "sent"; channel: WorkerChannel }
+  | { status: "sent"; channel: DeliveryChannel }
   | { status: "failed" }
   | { status: "held"; until: Date }
   | { status: "already" }
@@ -77,6 +82,7 @@ type Claim =
       smsAllowed: boolean;
       body: string;
       from: string | null; // the firm's shifts line
+      email: { to: string; subject: string; body: string } | null; // P2.4
     }
   | Exclude<PayQueryUpdateResult, { status: "sent" } | { status: "failed" }>;
 
@@ -103,6 +109,7 @@ async function claim(
       mobile: workers.mobileE164,
       channel: workers.notifyChannel,
       smsOptedOutAt: workers.smsOptedOutAt,
+      email: workers.email,
       firmName: firms.name,
       slug: firms.slug,
       line: firms.shiftsLineE164,
@@ -170,6 +177,7 @@ async function claim(
     smsAllowed: smsAllowedFor(row),
     body,
     from: row.line,
+    email: row.email ? { to: row.email, subject: payQueryUpdateEmailSubject(), body } : null,
   };
 }
 
@@ -181,21 +189,21 @@ export async function runPayQueryUpdate(
   const now = deps.clock.now();
   const c = await run(payload.firmId, (tx) => claim(tx, payload, now, deps.baseDomain));
   if (c.status !== "send") return c;
-  const sent = await sendToWorker(deps, {
-    mobile: c.mobile,
-    channel: c.channel,
-    smsAllowed: c.smsAllowed,
-    body: { whatsapp: c.body, sms: c.body },
-    from: c.from,
+  const sent = await deliverToWorker((fn) => run(payload.firmId, fn), deps, {
+    workerId: c.workerId,
+    push: { ...payQueryUpdatePush(), url: "/pay" },
+    text: {
+      mobile: c.mobile,
+      channel: c.channel,
+      smsAllowed: c.smsAllowed,
+      body: { whatsapp: c.body, sms: c.body },
+      from: c.from,
+    },
+    email: c.email,
   });
-  // The push once the message has gone, with no transaction open.
-  const pushed = sent.ok
-    ? await pushToWorker((fn) => run(payload.firmId, fn), deps, c.workerId, {
-        ...payQueryUpdatePush(),
-        url: "/pay",
-      })
-    : null;
   await run(payload.firmId, async (tx) => {
+    // A phone the push service says is gone is forgotten whatever came of the message.
+    const pushes = await recordPushes(tx, sent.push);
     if (!sent.ok) {
       await recordEvent(tx, {
         actorType: "system",
@@ -206,7 +214,6 @@ export async function runPayQueryUpdate(
       });
       return;
     }
-    const pushes = await recordPushes(tx, pushed);
     await recordEvent(tx, {
       actorType: "system",
       action: "pay_query.update_sent",

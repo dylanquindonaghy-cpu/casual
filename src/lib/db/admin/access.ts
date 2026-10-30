@@ -47,6 +47,9 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   // so no screen can point a firm at another firm's sheet (audit L45). The app reads it, and the
   // sync updates only its status columns (COLUMN_UPDATES).
   roster_sources: ["SELECT"],
+  // A firm's name map (P3.2): set only by the owner (npm run firm:names), read by the sheet sync
+  // and the file import.
+  name_map: ["SELECT"],
   // Imported payroll lines: added and corrected by re-import, never deleted by the app (they are
   // what a pay question is checked against).
   pay_records: NO_DELETE,
@@ -77,11 +80,29 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   // The planner's API keys (S11, 12J.1): read and added; last use and revocation only through
   // COLUMN_UPDATES, so a key's hash and label can never be rewritten; never deleted.
   api_keys: ["SELECT", "INSERT"],
+  // A firm's own credentials (P5.1; ADR-026): none at all. Written by the owner command, read by
+  // the worker only through app_read_firm_secret(), as the jobs role.
+  firm_secrets: [],
+  // What a connector's source said changed (P5.3): added by its webhook, its outcome set by the
+  // job (COLUMN_UPDATES), never deleted or rewritten by the app (what came in, and what was made
+  // of it).
+  connector_events: ["SELECT", "INSERT"],
+  // Emails to a firm's staffing inbox (P7.1): added by the provider's webhook, never rewritten or
+  // deleted by the app (owner-run purges and erasure delete them). Their handling (P7.4) comes
+  // with its column grant.
+  inbound_emails: ["SELECT", "INSERT"],
 };
 
 // Columns the app role may update on a table it can't update as a whole (a column-level grant).
 export const COLUMN_UPDATES: Readonly<Record<string, readonly string[]>> = {
-  roster_sources: ["last_synced_at", "last_attempted_at", "last_error_code", "sync_started_at"],
+  roster_sources: [
+    "last_synced_at",
+    "last_near_synced_at",
+    "last_attempted_at",
+    "last_error_code",
+    "sync_started_at",
+  ],
+  connector_events: ["status", "outcome_code", "processed_at"],
   shift_events: ["showing_to_casuals", "name"],
   // The planner's API keys (S11): read and added, never rewritten or deleted; only the last use
   // and the revocation change.
@@ -162,7 +183,9 @@ export async function applyTableSecurity(client: ClientBase): Promise<void> {
     await client.query(`alter table ${t} force row level security`);
     // Revoking on the table revokes its column-level grants too, so this resets both.
     await client.query(`revoke all on ${t} from public, ${app}, ${jobs}`);
-    await client.query(`grant ${privileges.join(", ")} on ${t} to ${app}`);
+    if (privileges.length > 0) {
+      await client.query(`grant ${privileges.join(", ")} on ${t} to ${app}`);
+    }
     const columns = COLUMN_UPDATES[table];
     if (columns) {
       if (privileges.includes("UPDATE")) {

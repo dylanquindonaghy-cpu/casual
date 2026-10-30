@@ -91,6 +91,8 @@ launched its own AI in November 2025.
 **Decision:** Target spreadsheet/WhatsApp firms. Ask "what do you use to plan your rota?" on
 the first call and move on politely if it's one of those. Offer native mode for firms with nothing.
 **Consequences:** no Deputy/Parim plugs planned.
+**Amended 2026-10-26 (ADR-026):** connectors for the pilot firm's ops portal and then AXLR8, a CRM
+our target firms use.
 
 ## ADR-009: Sell one sector at a time; credentials are generic
 
@@ -142,6 +144,8 @@ snapshots; with Postgres in Compose (a host with no managed Postgres), a `pg_dum
 `postgres` superuser, because the owner still sees no firm rows under forced RLS.
 **Revisit when:** a second service needs database access, or pg-boss changes its table layout
 (the `rls.every-table` test checks the `job_common` policies still exist).
+**Amended 2026-10-26 (ADR-026):** a further owner-run function, reading a firm's encrypted
+credentials, callable by the jobs role only (when proposal P5 is built).
 
 ## ADR-012: Host → firm in two steps: shape check in proxy.ts, firm lookup in each page and action
 
@@ -193,6 +197,9 @@ whose locale is United Kingdom is read (its dates read day first), and a spreads
 firm, connected only by the owner (`npm run firm:sheet`), never by the app.
 **Revisit when:** a firm needs one row per slot instead of an "Assigned" list, or sheets get big
 enough that one read per minute is too slow.
+**Amended 2026-10-26 (ADR-026):** this pattern (tick, lease, merge) is reused for connectors.
+The Sheets key stays in the worker's environment; a firm's own credentials go in ADR-026's
+encrypted secret store.
 
 ## ADR-014: One booking path; "re-check the live source" means current rows and a fresh sheet copy
 
@@ -223,6 +230,15 @@ reason was given). Bookings relying on the "applied" allowance queue per firm an
 applicants can't both take the day's last allowed place.
 **Revisit when:** event-day bookings need a tighter freshness window than 20 minutes, or a
 sheet row deleted by the office must stop being bookable before the sync notices (parked).
+**Amended (P5.5, 2026-10-29):** a connector's bookings mirror (`src/lib/connector/bookings.ts`,
+ADR-026) is a second sync of the same kind: it books through `checkBooking()` with the office's
+overrides and the plug's one conditional update, and cancels through the plug with the notice
+hours logged: its cancellations before the session's own change and its new bookings after it,
+each step one transaction under the source's row and then the shift's lock, and a read older than
+the session's last (`shifts.source_read_at`) changing nothing. While a firm's planner is a
+connector, `bookShift()` and `cancelBooking()` answer `needs_approval` for the sessions it reads
+(people book in the firm's own system), except that the office may cancel a booking the system no
+longer lists.
 
 ## ADR-015: Fair rotation on the Open shifts board is a short priority window
 
@@ -306,6 +322,9 @@ an outage, a still-open window's reminder goes when it's back (the 24 h one then
 that's right), and a closed one is never sent. The tick reads each firm's upcoming bookings every
 5 minutes: cheap at pilot size. **Revisit when:** a firm has thousands of bookings a day, or asks
 for other reminder times (a firm setting).
+**Update (2026-10-26, P4.5):** for a big firm, a run sends 4 at a time and at most 200, and
+queues a follow-up job for the rest behind the other firms' waiting jobs
+(`tests/integration/shift.reminders.test.ts`: 2,000 in one slot, each once).
 
 ## ADR-018: One shifts line per firm, stored on the firm, found by number for incoming messages
 
@@ -527,6 +546,8 @@ the page; never logged), and only public addresses are ever reached. A webhook c
 `INTEGRATIONS_SECRET` changes every firm's signing secret (`docs/runbooks.md`). Planners must send
 one ref's PUTs one at a time with no automatic replays (`docs/integrations.md`). **Revisit when:** a
 planner needs OAuth or per-key scopes, a firm needs more than 10 keys, or `/api/v2`.
+**Amended 2026-10-26 (ADR-026):** "no adapter per planner" now excepts a connector for a firm's
+system that can't call this API (the pilot firm's ops portal first, then AXLR8).
 
 ## ADR-023: Travel times from TravelTime, postcodes from postcodes.io, a straight line when down
 
@@ -663,3 +684,148 @@ page" over showing the link on the login page.
 | Refusing real numbers at every place people are added (forms, imports, the planner API) | Many places to keep in step; the worker's check covers them all, and the demo database refuses them itself |
 | A demo compose file of its own, copying the real one | Two files to keep in step; the demo file changes only what differs |
 | The demo's database at the host (managed Postgres) | Costs more for made-up data loaded afresh every night |
+
+## ADR-026: A connector for a firm's system: its webhooks in, a pull to catch up, writes by its API (the ops portal first, then AXLR8)
+
+**Status:** Accepted, 2026-10-26 (Dylan, in chat: "go with your recommendations on the 8
+decisions"; `PLAN.md`, "Connecting the firm's systems" 2). Built as proposal P5 once it gets the
+go-ahead; nothing is built for it before then.
+**Context:** The pilot firm keeps "everything basically" (events, sessions, roles, staff,
+qualifications, bookings) in AXLR8, a UK staffing CRM used by many event security and staffing
+firms (the firms we sell to first). AXLR8's public material describes "a callable API with
+credentials and Python code examples", its fields shaped in its Report Builder; that reads as a
+pull API, and nothing public mentions webhooks. The firm has nobody to write code that calls our
+planner API (ADR-022), so with a push-only design its sessions would never arrive, and bookings
+made in AXLR8 would never reach ShiftDesk, which would then offer places the office already filled.
+ShiftDesk already polls one outside source safely: the Google Sheets plug (ADR-013), with a
+per-firm tick, a lease, one read, one transaction to mirror and a three-way merge of who holds each
+place. **2026-10-26, Dylan's first answers** (`docs/discovery-axlr8.md`): AXLR8 can't be asked for
+now, but the firm's ops portal has an API that can share attendance and pay lines, and it copies
+from AXLR8 every hour. So the first connector reads the ops portal's API, and AXLR8 directly comes
+later. If the portal can instead call our planner API for its sessions, that push path (ADR-022)
+carries sessions, and the connector reads only what the planner API can't take (staff,
+qualifications, bookings, attendance, pay lines). The office books normally in AXLR8; ShiftDesk
+books overnight next-day places and urgent ones (and the office can book through it too), so
+ShiftDesk offers casuals only the places the office opens to it, and the portal's hour-old copy is
+enough for the rest. **Second answers, the same day:** the portal's API gives sessions, staff,
+qualifications and who's booked; it takes bookings and passes them on to AXLR8; and it sends
+changes as they happen. So the portal is the whole source, both ways. Unlike AXLR8, it is one
+firm's own system, so its connector is the per-firm adapter ADR-022 avoided. It is accepted because
+it is the pilot firm's only way in while AXLR8 can't be asked, and the framework it shares with a
+later AXLR8 connector keeps the firm-specific part small (the field mapping and the transport).
+**Decision:**
+- **Connectors are allowed** for a firm's system that can't call our planner API: a CRM that many
+  of our target firms use (AXLR8), or, for the pilot firm while AXLR8 can't be asked, its own ops
+  portal. The API in and the webhooks out stay the way for every other planner. Each connector
+  needs its own short ADR, or a dated note here.
+- **Push first, a pull to catch up:** when the source sends webhooks, they are a provider webhook
+  under golden rule 3: the route checks the signature, stores one row per event id (unique), queues
+  a job and answers 200 fast; the job fetches the changed record from the source's API rather than
+  trusting the webhook's body alone. A reconcile pull is the backstop for a lost webhook (sessions
+  in the next 48 hours every 15 minutes, everything else nightly). A source with no webhooks is
+  pulled on the polls below.
+- **Writes back by the source's API** when it takes them (bookings and cancellations made in
+  ShiftDesk), with the "confirming" hold below; the office's "Enter in AXLR8" list is the fallback
+  when the source is down, slow or read-only.
+- **One framework, built like the Sheets sync:** a tick job, a lease per firm and source, polls by
+  horizon (sessions in the next 48 hours every minute, the rest every 15 minutes, staff hourly,
+  qualifications nightly), one transaction per event, and the pure three-way merge
+  (`src/lib/roster/sheets/merge.ts`) reused as it is. A connector changes sessions only through the
+  planner API's own functions (`src/lib/integrations/sessions.ts`) and staff only through
+  `upsertWorker()`, so the rules, notice hours and messages to casuals are the same code whatever
+  the source. Polls run as jobs in the worker, never in a request: golden rule 3 covers provider
+  webhooks, and a poll keeps its spirit (one short transaction per event, safe to repeat because
+  each row is matched by the CRM's own id). Only syncs that changed something are logged.
+- **A secret store** for each firm's credentials (the first secret a firm gives us; today secrets
+  live only in the environment, ADR-013): a table the app role has no rights on, written only by an
+  owner script, read through an owner-run function only the jobs role may call, encrypted with
+  AES-GCM under a key only the worker's settings hold. `DATABASE_JOBS_URL` is the worker's (and the
+  one-off migrate and owner containers'), never the web app's; the worker uses it for pg-boss
+  today and does firm work on `DATABASE_URL`, so the connector opens a second, jobs-role
+  connection for that one read. The text system's keys (Phase 15) use the store too.
+- **Never booked twice across the two systems:** a casual is never told "Booked" unless the CRM
+  accepted the booking, or the office handed that place to ShiftDesk. With a CRM that takes
+  writes, the place is held as "confirming" (taken by the same conditional `UPDATE` as any booking,
+  golden rule 4) while the CRM is called outside any transaction; with a read-only one, "Take shift"
+  becomes a request on the office's "Enter in AXLR8" list: a new read-only plug whose `canWrite` is
+  false, so `assign` answers `needs_approval` (`src/lib/roster/plug.ts`), and `plugFor()`
+  (`src/lib/roster/book.ts`) taught the new source (today every source but Sheets gets the native
+  plug). A booking that appears in the CRM runs the
+  rules like an office placement and is flagged, not booked, if they refuse. A confirmed booking is
+  never cancelled by a sync.
+- **Notice hours** for a cancellation seen by a poll use the CRM's own cancelled time only when it
+  belongs to that booking and falls inside the poll window; the evidence is recorded with the
+  cancellation, and an uncertain time is read the way that favours the casual.
+- **Made-up data until signed:** tests run against a made-up AXLR8 server with our own field names
+  (AXLR8's API document is AXLR8's and is never committed); the real transport is refused under
+  `NODE_ENV=test` and pinned in `scripts/invariants.sh`; Gate B applies; a connector's sessions
+  come in hidden from casuals, so a firm's first cycle can run as a shadow.
+**Amends:**
+- **ADR-022** and `docs/office-v2.md` §5.3: "no adapter per planner" becomes "no adapter per
+  planner, except a connector under this ADR".
+- **ADR-008** ("no Deputy/Parim plugs planned"): one named connector, for a CRM our target firms use.
+- `docs/office-v2.md` §5.3.5 ("No new `RosterPlug`"): the connector is a new source behind the
+  same `RosterPlug` interface, with its own plug (a read-only one if the CRM takes no writes).
+- **ADR-011:** a fourth owner-run function, the secret read, callable by the jobs role only.
+- **ADR-013:** the Sheets key stays in the worker's environment, never in the database; a firm's
+  own credentials go in the secret store, encrypted under a key that isn't.
+**Options:**
+| Option | Verdict |
+|---|---|
+| Push only (ADR-022 as it is) | The firm can't push; its data would never arrive |
+| A bridge script outside ShiftDesk that reads AXLR8 and calls our API | Someone has to run and watch it; it can't take part in the booking path, so the double-booking gap stays |
+| The firm's ops portal as the source | First rejected (its builder and API unknown; it copies from AXLR8, so a step behind). **Chosen first, 2026-10-26:** it has an API and AXLR8 can't be asked for now; the hour's lag is covered by ShiftDesk only offering the places the office opens to it |
+| Zapier, Make or n8n | Needs a trigger on AXLR8's side that we haven't seen; same ordering limits as ADR-022 |
+| A copy of the planner API's logic inside the connector | Two places for the rules on booked sessions to drift apart |
+**Consequences:** the first per-firm secret, so a breach of the database alone mustn't reveal it
+(the key lives elsewhere) and the web app can't read it at all. Polls add load on event days: the
+connector's own tests and P4's load tests cover a firm at about 2,000 casuals and 110 events a
+fortnight. A CRM that changes its API breaks one connector, not the API in. The rest is in
+`PLAN.md` proposal P5. **Revisit when:** AXLR8 offers webhooks (then push, through ADR-022), AXLR8 can
+be asked (its connector then replaces the ops portal's), or a second CRM needs a connector.
+
+## ADR-027: The database's time limits are set per transaction, in withFirm
+
+**Status:** Accepted, 2026-10-26 (Dylan, in chat; `PLAN.md`, "Connecting the firm's systems" 14).
+Built in P4.2.
+**Context:** Until P4.2 the app's pool waited for a connection for ever and no statement or idle
+transaction had a limit. At pilot size that never mattered; at a firm of about 2,000 casuals (P4's
+target) one slow query or a stuck transaction holds a connection while every page and job behind
+it queues with no end. Postgres has the limits (`statement_timeout`,
+`idle_in_transaction_session_timeout`); the question is where to set them.
+**Decision:**
+- **Per process, a profile** (`src/lib/db/pool.ts`): the web app waits at most 5 s for a
+  connection from a pool of 10, and its statements and idle transactions end after 15 s and 30 s;
+  the worker waits at most 30 s from a pool of 15, with 60 s and 60 s. The web app answers people, so
+  a page fails rather than hangs; a job can wait longer, and pg-boss retries it. The worker picks
+  its profile before its first query (`chooseDbProfile("worker")` in `src/worker/index.ts`); scripts
+  and the web app run as "web".
+- **Per transaction, in withFirm's own statement:** the limits are set with `set_config(..., true)`
+  in the same `select` that sets `app.current_firm_id`, so they cost no extra round trip and end
+  with the transaction like the firm id does. A pooled connection never carries them into the next
+  transaction, and a connection pooler in transaction mode (pgbouncer) keeps working.
+- **Longer for the few that need it**, named in one list (`LONG_TRANSACTIONS` in
+  `src/lib/db/scoped.ts`; `allowLonger(tx, "…")` takes only a name from it, so a new one is added
+  there with its reason): the credential scan's lock holder (it sits idle by design while the
+  scan's messages go, so no idle limit, and 6 minutes for its statements, above its own 5-minute
+  `lock_timeout`), the firm's data export (2 minutes), the retention purge (10) and the metrics
+  roll-up (5: set inside `rollupFirm()` itself, so the job and the office's "Update the figures
+  now" button both have it). They hold from that statement to the transaction's end.
+- `createWithFirm(pool)` with no limits behaves as before, so tests choose their own.
+- withFirm counts the waits for a connection over 1 s and the waits that ran out, for the backlog
+  alerts (P4.8).
+**Options:**
+| Option | Verdict |
+|---|---|
+| `ALTER ROLE … SET statement_timeout` | One value for the web app and the worker alike (they log in as the same role); shared by the dev, test and e2e databases on one machine; a non-superuser owner needs extra rights to set it; the scan's holder would need it lifted per transaction anyway |
+| Connection options (`options=-c statement_timeout=…` in the URL) | A pooler such as pgbouncer refuses them; a setting per connection, not per piece of work |
+| No limits | One stuck transaction can starve every page and job |
+**Consequences:** a legitimately long statement now fails with SQLSTATE 57014 (statement timeout),
+and a transaction left idle too long ends its connection with 25P03; both show as a failed page or
+a failed job (pg-boss retries it), never as a silent wait. The known long ones are listed above;
+any new one must use `allowLonger`. A wait for a lock counts against the statement limit too: a
+second weekly list behind a running scan's holder fails after 60 s (and pg-boss retries it), and
+an office edit queued behind a big sheet sync's row locks fails after 15 s instead of waiting.
+`docs/runbooks.md` says what the codes mean.
+**Revisit when:** a second web process or a connection pooler is added (the budget: about 30
+connections today), or a job needs more than 10 minutes for one statement.

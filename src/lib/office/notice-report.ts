@@ -3,7 +3,7 @@ import { z } from "zod";
 import { authParts, type AuthContext } from "../auth/link-login";
 import { currentOfficeUser } from "../auth/office-login";
 import { canAccess } from "../auth/roles";
-import { firms } from "../db/schema";
+import { firms, type CancelAsker } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { roleLabel } from "../portal/format";
 import { addDays, localDateOf, wallTimeOf, zonedToUtc } from "../time/zoned";
@@ -69,6 +69,9 @@ export interface NoticeRow {
   // log: gone once the retention purge or a deletion clears it). A worker's typed reason is never
   // logged.
   reason: string | null;
+  // A cancellation's: who asked for it (P3.4, assignments.cancel_asked_by), apart from who carried
+  // it out (initiator): the casual, the firm, its client, or not known. Null for other rows.
+  askedBy: CancelAsker | null;
 }
 
 export interface NoticeReport {
@@ -84,6 +87,9 @@ export interface NoticeReport {
   };
   clamped: boolean;
   total: number;
+  // The cancellations among them (every one the filters match, not just this page's), by who asked
+  // for them (P3.4).
+  askedBy: Record<CancelAsker, number>;
   rows: NoticeRow[];
 }
 
@@ -144,6 +150,7 @@ type Row = {
   first_name: string | null;
   last_name: string | null;
   override_reason: string | null;
+  asked_by: CancelAsker | null;
 };
 
 // Who started it, from the event: the worker, the office, the rota sheet (the Google Sheets sync,
@@ -219,13 +226,26 @@ export async function loadNoticeReport(
 
   const { rows: counted } = await tx.execute<{ n: number }>(sql`
     select count(*)::int as n from events e ${joins} where ${whereSql}`);
+  // Who asked: the cancellation's own log entry (since P3.4), else its booking's record (every one
+  // since migration 0053); one with neither (none should be) counts as not known.
+  const askedBySql = sql`case when e.action = 'shift.cancelled'
+                              then coalesce(case when e.data ->> 'askedBy' in ('casual', 'firm', 'client', 'unknown')
+                                                 then e.data ->> 'askedBy' end,
+                                            a.cancel_asked_by, 'unknown') end`;
+  const { rows: asked } = await tx.execute<{ asked_by: CancelAsker; n: number }>(sql`
+    select ${askedBySql} as asked_by, count(*)::int as n
+      from events e ${joins}
+     where ${whereSql} and e.action = 'shift.cancelled'
+     group by 1`);
+  const askedBy: Record<CancelAsker, number> = { casual: 0, firm: 0, client: 0, unknown: 0 };
+  for (const a of asked) askedBy[a.asked_by] += a.n;
   const { rows } = await tx.execute<Row>(sql`
     select e.id, e.action, e.actor_type, e.data, e.created_at,
            ${notice} as notice,
            (${recorded}) is null and e.action = 'offer.sent' and s.starts_at is not null
              as from_current,
            s.id::text as shift_id, s.role, s.starts_at, si.name as site_name,
-           w.first_name, w.last_name, a.override_reason
+           w.first_name, w.last_name, a.override_reason, ${askedBySql} as asked_by
       from events e ${joins}
      where ${whereSql}
      order by e.id desc
@@ -238,6 +258,7 @@ export async function loadNoticeReport(
     filters: { from, to, kind: query.kind, by: query.by, shortOnly: query.shortOnly },
     clamped,
     total: counted[0]?.n ?? 0,
+    askedBy,
     rows: rows.map((r) => {
       const hours = r.notice === null ? null : Number(r.notice);
       const kind = KIND_OF[r.action] ?? "booked";
@@ -284,6 +305,7 @@ export async function loadNoticeReport(
             : r.action === "shift.assigned" && r.override_reason
               ? r.override_reason
               : null,
+        askedBy: r.asked_by,
       };
     }),
   };
@@ -406,8 +428,9 @@ function noteOf(r: OfficeNoticeRow): string {
 }
 
 // What the office's page and file get: no event numbers. They come from one counter shared by every
-// firm, so a firm could count the others' activity between them (Phase 10 task 19, audit L44).
-export type OfficeNoticeRow = Omit<NoticeRow, "eventId">;
+// firm, so a firm could count the others' activity between them (Phase 10 task 19, audit L44). Who
+// asked for each cancellation (P3.4) joins them with its words, after the UI chat's Phase 24.
+export type OfficeNoticeRow = Omit<NoticeRow, "eventId" | "askedBy">;
 export type OfficeNoticeReport = Omit<NoticeReport, "rows"> & { rows: OfficeNoticeRow[] };
 
 // The report for the logged-in office user, or null (logged out, or a role without it).

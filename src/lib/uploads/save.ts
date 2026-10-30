@@ -41,7 +41,8 @@ async function rolesNeed(tx: FirmTx, roles: readonly string[], type: string): Pr
     .where(
       and(
         sql`${credentialRules.role} = any(${sql.param([...roles])}::text[])`,
-        sql`${type} = any(${credentialRules.requiredTypes})`,
+        // Its one-of group's types too (P3.3): either licence will do, so she may send either.
+        sql`(${type} = any(${credentialRules.requiredTypes}) or ${type} = any(${credentialRules.anyOfTypes}))`,
       ),
     )
     .limit(1);

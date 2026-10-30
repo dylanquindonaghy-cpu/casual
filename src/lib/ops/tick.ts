@@ -1,18 +1,30 @@
-import { and, eq, gt, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
+import { and, eq, gt, isNotNull, or, sql } from "drizzle-orm";
+import { FULL_OVERDUE_MS } from "../connector/cadence";
 import { systemClock, type Clock } from "../auth/clock";
 import { firms, rosterSources } from "../db/schema";
-import type { FirmTx, WithFirm } from "../db/scoped";
+import type { ConnectionWaits, FirmTx, WithFirm } from "../db/scoped";
+import { INBOUND_MESSAGE_QUEUE } from "../inbound/job";
 import { log, type Logger } from "../log";
+import { NO_TEXT_SENDER } from "../notify/send";
+import { OFFER_WAVE_QUEUE } from "../offers/waves";
 import {
+  aiFallbackAlert,
+  backlogAlert,
+  connectionWaitAlert,
   healthAlert,
   jobFailureAlert,
   loginLinkAlerts,
   opsAlertSchema,
+  runningLongAlert,
   sendFailureAlert,
   syncAlert,
+  THRESHOLDS,
+  volumeAlerts,
   type AlertTransport,
   type HealthResult,
   type OpsAlert,
+  type QueueRunningLong,
+  type QueueWait,
 } from "./alerts";
 
 // The ops alerts job (docs/api-and-jobs.md `ops-alerts-tick`, `ops-alert`). Every 5 minutes, with
@@ -20,9 +32,15 @@ import {
 // - jobs that failed after their last retry (pg-boss `failed`), by queue, across all firms (the
 //   worker's own pg-boss connection reads them: `failedJobs`);
 // - each firm (inside its own transaction, RLS): an enabled rota sheet whose last sync failed, its
-//   WhatsApp and text sends (the events every sender writes) against the failures, and its login
-//   links by WhatsApp and text (14.2: more than usual means a crowd, or someone running up its
-//   messages);
+//   WhatsApp and text sends (the events every sender writes) against the failures, its emails the
+//   same (P2.5: with no text sender a casual's messages go by push or email), and its casuals' login
+//   links by WhatsApp and text, and by email since P2.6 (14.2: more than usual means a crowd, or
+//   someone running up its messages);
+// - each firm, too (P4.8): its messages the AI couldn't sort, its messages in and its offers out;
+// - pg-boss's queues (P4.8, the worker's pg-boss connection again: `queueHealth`): jobs waiting to
+//   start longer than their queue's limit, and jobs running past 80% of their time limit;
+// - the worker's own waits for a database connection since the last tick (P4.8:
+//   `connectionWaits`, from withFirm);
 // - the web app's health check from inside the server (`health`, when HEALTH_CHECK_URL is set).
 // Each alert that fires is queued as an `ops-alert` job, unless one with the same key was queued in
 // the last hour (the worker looks: `queueOpsAlert()`), so an ongoing problem alerts at most once an
@@ -69,6 +87,10 @@ export const SEND_FAILED_ACTIONS = [
   "message.reply_failed",
 ] as const;
 
+// Failures that aren't the provider's: a casual who replied STOP (no text is tried), and no text
+// sender at all (P2.5: MESSAGING_TRANSPORT=none; nothing is tried).
+export const NOT_SEND_FAILURES = ["sms_opted_out", NO_TEXT_SENDER] as const;
+
 // A casual's login links (sent or tried), counted for the login-link alerts (14.2).
 export const LOGIN_LINK_ACTIONS = ["auth.link_sent", "auth.link_send_failed"] as const;
 
@@ -83,66 +105,111 @@ const list = (actions: readonly string[]) =>
 // ever).
 export const SYNC_FAILING_MINUTES = 30;
 
-// One firm's part: its failing sheet sync, its sends and its login links over the last hour.
+// How long a queue's jobs may wait to start (P4.8; THRESHOLDS.backlogSeconds): a casual's message,
+// an offer wave, anything else.
+export function backlogLimitSeconds(queue: string): number {
+  if (queue === INBOUND_MESSAGE_QUEUE) return THRESHOLDS.backlogSeconds.inbound;
+  if (queue === OFFER_WAVE_QUEUE) return THRESHOLDS.backlogSeconds.waves;
+  return THRESHOLDS.backlogSeconds.other;
+}
+
+// What the AI said when it couldn't sort a message (`message.received` aiFallback): no answer in
+// time (an error, the 5 seconds, busy or the breaker: P4.6), or not one of the labels. Not
+// "not_connected" (the AI is off, so nothing was asked) or "no_text" (a photo: nothing to ask).
+export const AI_FAILED = ["no_answer", "not_a_label"] as const;
+
+// One firm's part: its failing sheet sync, its sends and its login links over the last hour, and
+// (P4.8) the AI's misses, its messages in and its offers out.
 export async function firmAlerts(tx: FirmTx, firmId: string, now: Date): Promise<OpsAlert[]> {
   const [firm] = await tx.select({ slug: firms.slug }).from(firms).where(eq(firms.id, firmId));
   if (!firm) return [];
   const alerts: OpsAlert[] = [];
   const stale = new Date(now.getTime() - SYNC_FAILING_MINUTES * 60_000);
+  const fullStale = new Date(stale.getTime() - FULL_OVERDUE_MS);
   const [failing] = await tx
-    .select({ code: rosterSources.lastErrorCode })
+    .select({ code: rosterSources.lastErrorCode, kind: rosterSources.kind })
     .from(rosterSources)
     .where(
       and(
         eq(rosterSources.enabled, true),
         isNotNull(rosterSources.lastErrorCode),
-        or(isNull(rosterSources.lastSyncedAt), lt(rosterSources.lastSyncedAt, stale)),
+        or(
+          // Not worked for 30 minutes: a connector's near pulls count (P5.4), a sheet has one time.
+          sql`coalesce(greatest(${rosterSources.lastSyncedAt}, ${rosterSources.lastNearSyncedAt}), '-infinity') < ${stale}`,
+          // A connector not read in full for 30 minutes past its overdue time: its staff list
+          // failing while its sessions read (P5.4's review), which the near pulls would hide.
+          and(
+            eq(rosterSources.kind, "connector"),
+            sql`coalesce(${rosterSources.lastSyncedAt}, '-infinity') < ${fullStale}`,
+          ),
+        ),
         gt(rosterSources.lastAttemptedAt, new Date(now.getTime() - HOUR_MS)),
       ),
     );
-  if (failing?.code) alerts.push(syncAlert({ firmId, slug: firm.slug, code: failing.code }));
+  if (failing?.code) {
+    alerts.push(syncAlert({ firmId, slug: firm.slug, code: failing.code, kind: failing.kind }));
+  }
 
   const since = new Date(now.getTime() - HOUR_MS);
   const dayAgo = new Date(now.getTime() - 24 * HOUR_MS);
-  // The last hour's sends; the login links over the last 24 hours too (only those are read that
-  // far back).
+  // The last hour's sends, texts and emails apart; the login links over the last 24 hours too (only
+  // those are read that far back).
+  const texts = sql`e.data ->> 'channel' in ('whatsapp', 'sms')`;
+  const email = sql`e.data ->> 'channel' = 'email'`;
+  // A casual's login links by WhatsApp and text, and since P2.6 by email (not the office's own).
+  const casualLinks = sql`(${texts} or (${email} and e.data ->> 'purpose' = 'worker_login'))`;
+  const counted = sql`(e.data ->> 'code') is null or e.data ->> 'code' not in (${list(NOT_SEND_FAILURES)})`;
+  const topCode = (channels: string[]) => sql`
+    (select f.data ->> 'code' from events f
+      where f.created_at > ${since} and f.created_at <= ${now}
+        and f.action in (${list(SEND_FAILED_ACTIONS)})
+        and f.data ->> 'channel' in (${list(channels)})
+        and f.data ->> 'code' not in (${list(NOT_SEND_FAILURES)})
+        and f.data ->> 'code' ~ '^[A-Za-z0-9_.-]{1,50}$'
+      group by 1 order by count(*) desc, 1 limit 1)`;
   const { rows } = await tx.execute<{
     sent: number;
     failed: number;
     top_code: string | null;
+    email_sent: number;
+    email_failed: number;
+    email_top_code: string | null;
     login_links: number;
     login_links_day: number;
   }>(sql`
-    select count(*) filter (where e.created_at > ${since}
+    select count(*) filter (where e.created_at > ${since} and ${texts}
                               and e.action in (${list(SEND_ACTIONS)}))::int as sent,
-           count(*) filter (where e.created_at > ${since}
+           count(*) filter (where e.created_at > ${since} and ${casualLinks}
                               and e.action in (${list(LOGIN_LINK_ACTIONS)}))::int as login_links,
-           count(*) filter (where e.action in (${list(LOGIN_LINK_ACTIONS)}))::int as login_links_day,
-           count(*) filter (where e.created_at > ${since}
+           count(*) filter (where ${casualLinks}
+                              and e.action in (${list(LOGIN_LINK_ACTIONS)}))::int as login_links_day,
+           count(*) filter (where e.created_at > ${since} and ${texts}
                               and e.action in (${list(SEND_FAILED_ACTIONS)})
-                              and e.data ->> 'code' is distinct from 'sms_opted_out')::int as failed,
-           (select f.data ->> 'code' from events f
-             where f.created_at > ${since} and f.created_at <= ${now}
-               and f.action in (${list(SEND_FAILED_ACTIONS)})
-               and f.data ->> 'channel' in ('whatsapp', 'sms')
-               and f.data ->> 'code' is distinct from 'sms_opted_out'
-               and f.data ->> 'code' ~ '^[A-Za-z0-9_.-]{1,50}$'
-             group by 1 order by count(*) desc, 1 limit 1) as top_code
+                              and (${counted}))::int as failed,
+           ${topCode(["whatsapp", "sms"])} as top_code,
+           count(*) filter (where e.created_at > ${since} and ${email}
+                              and e.action in (${list(SEND_ACTIONS)}))::int as email_sent,
+           count(*) filter (where e.created_at > ${since} and ${email}
+                              and e.action in (${list(SEND_FAILED_ACTIONS)}))::int as email_failed,
+           ${topCode(["email"])} as email_top_code
       from events e
      where e.created_at <= ${now}
        and (e.created_at > ${since}
             or (e.created_at > ${dayAgo} and e.action in (${list(LOGIN_LINK_ACTIONS)})))
-       and e.data ->> 'channel' in ('whatsapp', 'sms')
+       and e.data ->> 'channel' in ('whatsapp', 'sms', 'email')
   `);
   const counts = rows[0];
-  const sends = sendFailureAlert({
-    firmId,
-    slug: firm.slug,
-    sent: counts?.sent ?? 0,
-    failed: counts?.failed ?? 0,
-    topCode: counts?.top_code ?? null,
-  });
-  if (sends) alerts.push(sends);
+  for (const by of ["texts", "email"] as const) {
+    const sends = sendFailureAlert({
+      firmId,
+      slug: firm.slug,
+      sent: (by === "email" ? counts?.email_sent : counts?.sent) ?? 0,
+      failed: (by === "email" ? counts?.email_failed : counts?.failed) ?? 0,
+      topCode: (by === "email" ? counts?.email_top_code : counts?.top_code) ?? null,
+      by,
+    });
+    if (sends) alerts.push(sends);
+  }
   alerts.push(
     ...loginLinkAlerts({
       firmId,
@@ -151,13 +218,57 @@ export async function firmAlerts(tx: FirmTx, firmId: string, now: Date): Promise
       lastDay: counts?.login_links_day ?? 0,
     }),
   );
+
+  // The AI's part in sorting the shifts line's messages (each `message.received`: sorted by it, or
+  // its fallback), the messages that came in and the offers that went, over the last hour. Each by
+  // its own index (events by action and time, messages and offers by time).
+  const { rows: load } = await tx.execute<{
+    ai_asked: number;
+    ai_failed: number;
+    inbound: number;
+    offers: number;
+  }>(sql`
+    select
+      (select count(*) from events e
+        where e.action = 'message.received' and e.created_at > ${since} and e.created_at <= ${now}
+          and (e.data ->> 'handledAs' = 'ai' or e.data ->> 'aiFallback' in (${list(AI_FAILED)})))::int
+        as ai_asked,
+      (select count(*) from events e
+        where e.action = 'message.received' and e.created_at > ${since} and e.created_at <= ${now}
+          and e.data ->> 'aiFallback' in (${list(AI_FAILED)}))::int as ai_failed,
+      (select count(*) from messages m
+        where m.direction = 'in' and m.created_at > ${since} and m.created_at <= ${now})::int
+        as inbound,
+      (select count(*) from offers o
+        where o.sent_at > ${since} and o.sent_at <= ${now})::int as offers
+  `);
+  const l = load[0];
+  const ai = aiFallbackAlert({
+    firmId,
+    slug: firm.slug,
+    asked: l?.ai_asked ?? 0,
+    fellBack: l?.ai_failed ?? 0,
+  });
+  if (ai) alerts.push(ai);
+  alerts.push(
+    ...volumeAlerts({ firmId, slug: firm.slug, inbound: l?.inbound ?? 0, offers: l?.offers ?? 0 }),
+  );
   return alerts;
+}
+
+// pg-boss's queues, as the worker reads them (src/worker/jobs/index.ts queueHealth).
+export interface QueueHealth {
+  waiting: Omit<QueueWait, "limitSeconds">[];
+  runningLong: QueueRunningLong[];
 }
 
 export interface OpsTickDeps {
   listFirmIds: () => Promise<string[]>;
   run: WithFirm;
   failedJobs: () => Promise<{ queue: string; count: number }[]>;
+  queueHealth: () => Promise<QueueHealth>;
+  // The worker's waits for a connection since the last tick, then counting from zero.
+  connectionWaits: () => ConnectionWaits & { poolMax: number };
   health?: () => Promise<HealthResult>;
   queue: (alert: OpsAlert) => Promise<void>;
   clock?: Clock;
@@ -176,6 +287,23 @@ export async function runOpsAlertsTick(deps: OpsTickDeps): Promise<{ alerts: Ops
   }
   const jobs = jobFailureAlert(failed);
   if (jobs) alerts.push(jobs);
+  try {
+    const queues = await deps.queueHealth();
+    const backlog = backlogAlert(
+      queues.waiting.map((w) => ({ ...w, limitSeconds: backlogLimitSeconds(w.queue) })),
+    );
+    if (backlog) alerts.push(backlog);
+    const long = runningLongAlert(queues.runningLong);
+    if (long) alerts.push(long);
+  } catch (error) {
+    logger.error("ops alerts: the queues couldn't be read", { error });
+  }
+  try {
+    const waits = connectionWaitAlert(deps.connectionWaits());
+    if (waits) alerts.push(waits);
+  } catch (error) {
+    logger.error("ops alerts: the connection waits couldn't be read", { error });
+  }
   let firmIds: string[] = [];
   try {
     firmIds = await deps.listFirmIds();

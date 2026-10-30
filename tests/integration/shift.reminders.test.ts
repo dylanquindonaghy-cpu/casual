@@ -3,9 +3,12 @@ import type { PgBoss } from "pg-boss";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { HOUR } from "@/lib/auth/clock";
 import { activeFirmId, createWithFirm, type WithFirm } from "@/lib/db/scoped";
+import { runFirmTask } from "@/lib/jobs/firm-job";
 import { ChannelRefusedError, type OutboundMessage } from "@/lib/messaging/transport";
 import type { PushTransport } from "@/lib/push/transport";
 import {
+  createShiftRemindersTask,
+  REMINDERS_PER_RUN,
   runShiftReminders,
   runShiftReminderTick,
   SHIFT_REMINDER_TICK_CRON,
@@ -17,6 +20,7 @@ import { registerJobs } from "@/worker/jobs";
 import { QUEUES } from "@/worker/jobs/queues";
 import { captureTransport } from "../helpers/auth";
 import { bookingFirm, hoursFromNow, NOW } from "../helpers/booking-fixture";
+import { BULK_MAX, bulkBookings, bulkWorkers } from "../helpers/bulk-seed";
 import { appRolePool, superuserPool } from "../helpers/db";
 
 // Shift reminders on the real database, as the app role, with a capturing transport (nothing is
@@ -51,9 +55,10 @@ async function reminderFirm(settings: Record<string, unknown> = NO_QUIET) {
   ).rows[0]?.slug;
   const { transport: capture, sent } = captureTransport();
   // `refuseWhatsApp`: the provider refuses WhatsApp; `fail`: every send fails another way;
-  // `pushThrows`: the push sender throws (after the message has gone); `loseDatabaseOnSend`: the
-  // database goes away as a message goes, so every transaction after it fails (`databaseGone`);
-  // `onSend`: runs as each message goes (to change the rows mid-run).
+  // `pushThrows`: the push sender throws; `loseDatabaseOnSend`: the database goes away as a message
+  // or a push goes, so every transaction after it fails (`databaseGone`);
+  // `onSend`: runs as each message goes (to change the rows mid-run); `afterRead`: runs once, after
+  // the next transaction returns (a run's first: its list of what's due).
   const state = {
     refuseWhatsApp: false,
     fail: false,
@@ -61,6 +66,7 @@ async function reminderFirm(settings: Record<string, unknown> = NO_QUIET) {
     loseDatabaseOnSend: false,
     databaseGone: false,
     onSend: async (): Promise<void> => {},
+    afterRead: null as null | (() => Promise<void>),
   };
   const transport: typeof capture = {
     name: "capture",
@@ -84,6 +90,7 @@ async function reminderFirm(settings: Record<string, unknown> = NO_QUIET) {
       pushedInTransaction.push(activeFirmId() !== undefined);
       if (state.pushThrows) throw new Error("push service down");
       pushed.push(payload);
+      if (state.loseDatabaseOnSend) state.databaseGone = true;
       return { status: "sent" };
     },
   };
@@ -93,8 +100,16 @@ async function reminderFirm(settings: Record<string, unknown> = NO_QUIET) {
     baseDomain: "localhost:3000",
     clock: { now: () => when },
   });
-  const inFirm: WithFirm = (firmId, fn) =>
-    state.databaseGone ? Promise.reject(new Error("database went away")) : withFirm(firmId, fn);
+  const inFirm: WithFirm = async (firmId, fn) => {
+    if (state.databaseGone) throw new Error("database went away");
+    const value = await withFirm(firmId, fn);
+    const after = state.afterRead;
+    if (after) {
+      state.afterRead = null;
+      await after();
+    }
+    return value;
+  };
   const run = (when: Date) =>
     runShiftReminders(
       { firmId: f.firmId, idempotencyKey: "shift-reminders:1" },
@@ -249,11 +264,6 @@ describe("the 24-hour and 2-hour reminders", () => {
 
   it("a job that stops after a message went leaves it 'sending', and it's never sent again", async () => {
     const t = await reminderFirm();
-    await su.query(
-      `insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth)
-       values ($1, $2, 'https://push.example.test/rae-2', 'k', 'a')`,
-      [t.f.firmId, t.workerId],
-    );
     const bookingId = await t.f.booking(
       t.workerId,
       await t.f.shift({ startsAt: hoursFromNow(20) }),
@@ -274,13 +284,40 @@ describe("the 24-hour and 2-hour reminders", () => {
     expect(t.sent).toHaveLength(1);
   });
 
+  it("the same when it went by push (P2.4): left 'sending', and nothing more goes, by push or text", async () => {
+    const t = await reminderFirm();
+    await su.query(
+      `insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth)
+       values ($1, $2, 'https://push.example.test/rae-2', 'k', 'a')`,
+      [t.f.firmId, t.workerId],
+    );
+    const bookingId = await t.f.booking(
+      t.workerId,
+      await t.f.shift({ startsAt: hoursFromNow(20) }),
+    );
+    t.state.loseDatabaseOnSend = true;
+    await expect(t.run(NOW)).rejects.toThrow("database went away");
+    expect(t.pushed).toHaveLength(1);
+    t.state.loseDatabaseOnSend = false;
+    t.state.databaseGone = false;
+    expect(await reminderRows(bookingId)).toEqual([
+      expect.objectContaining({ kind: "24h", status: "sending", channel: "whatsapp" }),
+    ]);
+    expect(await t.run(NOW)).toEqual({ sent: 0, failed: 0, skipped: 0 });
+    expect(await t.run(hoursFromNow(1))).toEqual({ sent: 0, failed: 0, skipped: 0 });
+    expect(t.pushed).toHaveLength(1);
+    expect(t.sent).toEqual([]);
+  });
+
   it("a booking cancelled while the job is running isn't reminded", async () => {
     const t = await reminderFirm();
     await t.f.booking(t.workerId, await t.f.shift({ startsAt: hoursFromNow(20) }));
     const lou = await t.f.worker({ first: "Lou" });
     const later = await t.f.booking(lou, await t.f.shift({ startsAt: hoursFromNow(21) }));
-    // As the first reminder goes, Lou cancels.
-    t.state.onSend = async () => {
+    // Once the job has read what's due, Lou cancels: before the claims, which re-check the booking.
+    // (Until P4.5 this was as the first reminder went; 4 at a time, Lou's claim no longer waits
+    // for Rae's message.)
+    t.state.afterRead = async () => {
       await su.query(
         `update assignments set status = 'cancelled_worker', cancelled_at = $2,
                 cancel_reason = 'Unwell', notice_hours = 21 where id = $1`,
@@ -301,8 +338,64 @@ describe("the 24-hour and 2-hour reminders", () => {
   });
 });
 
+// Who sends what (P2.3; "Connecting the firm's systems" 9 and 17): a firm whose own system
+// reminds the casuals it books switches firm_system_sends on, and ShiftDesk leaves those to it.
+describe("who sends what (P2.3)", () => {
+  // Rae booked on five shifts (30 to 34 hours away), each made a different way (booked_via):
+  // 11 hours from now, all five are due their 24h reminder; 28.5 hours from now, the first its 2h one.
+  async function bookedFiveWays(settings: Record<string, unknown>) {
+    const t = await reminderFirm(settings);
+    const ways = ["app", "office", "sheet", "api", null] as const;
+    const bookings: string[] = [];
+    for (const [i, via] of ways.entries()) {
+      const id = await t.f.booking(t.workerId, await t.f.shift({ startsAt: hoursFromNow(30 + i) }));
+      await su.query("update assignments set booked_via = $2 where id = $1", [id, via]);
+      bookings.push(id);
+    }
+    return { t, bookings };
+  }
+  const reminded = async (bookings: string[]) =>
+    Promise.all(bookings.map(async (id) => (await reminderRows(id)).length));
+
+  it("off (the default): every booking is reminded, the sheet's and the API's too", async () => {
+    const { t, bookings } = await bookedFiveWays(NO_QUIET);
+    expect(await t.run(hoursFromNow(11))).toEqual({ sent: 5, failed: 0, skipped: 0 });
+    expect(await reminded(bookings)).toEqual([1, 1, 1, 1, 1]);
+    // 31.5 hours on: the sheet's and the API's 2h reminders (half an hour and 1.5 hours before).
+    expect(await t.run(hoursFromNow(31.5))).toEqual({ sent: 2, failed: 0, skipped: 0 });
+    expect(await reminded(bookings)).toEqual([1, 1, 2, 2, 1]);
+  });
+
+  it("on: none for the sheet's or the API's bookings; the app's, the office's and one with no record still go", async () => {
+    const { t, bookings } = await bookedFiveWays({ ...NO_QUIET, firm_system_sends: true });
+    expect(await t.run(hoursFromNow(11))).toEqual({ sent: 3, failed: 0, skipped: 0 });
+    expect(await reminded(bookings)).toEqual([1, 1, 0, 0, 1]);
+    // The app's booking gets its 2h reminder (28.5 hours on: 1.5 hours before its start); the
+    // sheet's and the API's are still in their 24h windows, and still get none.
+    expect(await t.run(hoursFromNow(28.5))).toMatchObject({ sent: 1 });
+    expect(await reminded(bookings)).toEqual([2, 1, 0, 0, 1]);
+    // Nor their 2h reminders: inside both 2h windows (31.5 hours on), where with it off those two
+    // go (above), nothing.
+    expect(await t.run(hoursFromNow(31.5))).toEqual({ sent: 0, failed: 0, skipped: 0 });
+    expect(await reminded(bookings)).toEqual([2, 1, 0, 0, 1]);
+    // Anything but true is off.
+    const odd = await bookedFiveWays({ ...NO_QUIET, firm_system_sends: "yes" });
+    expect(await odd.t.run(hoursFromNow(11))).toMatchObject({ sent: 5 });
+  });
+});
+
 describe("how a reminder goes", () => {
-  it("by text message when that's the worker's choice, with a push to their phones", async () => {
+  it("by text message when that's the worker's choice and no phone has notifications on", async () => {
+    const t = await reminderFirm();
+    await su.query("update workers set notify_channel = 'sms' where id = $1", [t.workerId]);
+    await t.f.booking(t.workerId, await t.f.shift({ startsAt: hoursFromNow(20) }));
+    await t.run(NOW);
+    expect(t.sent.map((m) => m.channel)).toEqual(["sms"]);
+    expect(t.pushed).toEqual([]);
+    expect((await eventsOf(t.f.firmId))[0]?.data).toMatchObject({ channel: "sms", pushes: 0 });
+  });
+
+  it("a push to their phones when one takes it, instead of the text (P2.4; Messages 2)", async () => {
     const t = await reminderFirm();
     await su.query("update workers set notify_channel = 'sms' where id = $1", [t.workerId]);
     await su.query(
@@ -312,9 +405,9 @@ describe("how a reminder goes", () => {
     );
     const startsAt = hoursFromNow(20);
     const shiftId = await t.f.shift({ startsAt });
-    await t.f.booking(t.workerId, shiftId);
+    const bookingId = await t.f.booking(t.workerId, shiftId);
     await t.run(NOW);
-    expect(t.sent.map((m) => m.channel)).toEqual(["sms"]);
+    expect(t.sent).toEqual([]);
     expect(t.pushed).toEqual([
       {
         title: "Tomorrow: your shift",
@@ -323,7 +416,14 @@ describe("how a reminder goes", () => {
         until: startsAt, // for the push service only (13.3): not delivered once it has started
       },
     ]);
-    expect((await eventsOf(t.f.firmId))[0]?.data).toMatchObject({ channel: "sms", pushes: 1 });
+    expect((await eventsOf(t.f.firmId))[0]?.data).toMatchObject({
+      channel: "push",
+      providerMessageId: null,
+      pushes: 1,
+    });
+    expect(await reminderRows(bookingId)).toEqual([
+      expect.objectContaining({ kind: "24h", status: "sent", channel: "push" }),
+    ]);
     // With no transaction open (14.1): a slow push service holds no database connection.
     expect(t.pushedInTransaction).toEqual([false]);
   });
@@ -444,6 +544,172 @@ describe("quiet hours (the default 22:00–07:00)", () => {
       skipped: 0,
     });
   });
+});
+
+describe("at a big firm's size (P4.5)", () => {
+  const noPush: PushTransport = {
+    name: "none",
+    async send() {
+      return { status: "skipped" };
+    },
+  };
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  // A firm of `count` made-up casuals, each booked on a session 20 hours away (their 24h reminder
+  // is due), at most 1,000 a session.
+  async function bigFirm(count: number) {
+    const f = await bookingFirm(su, withFirm, { settings: NO_QUIET });
+    const ids = await bulkWorkers(su, f.firmId, count);
+    for (let i = 0; i < ids.length; i += 1000) {
+      const shiftId = await f.shift({ startsAt: hoursFromNow(20), headcount: 1000 });
+      await bulkBookings(su, f.firmId, shiftId, ids.slice(i, i + 1000));
+    }
+    return f;
+  }
+  const remindersOf = async (firmId: string) =>
+    (
+      await su.query<{ n: number; bookings: number; sent: number; sending: number }>(
+        `select count(*)::int as n, count(distinct assignment_id)::int as bookings,
+                count(*) filter (where status = 'sent')::int as sent,
+                count(*) filter (where status = 'sending')::int as sending
+           from shift_reminders where firm_id = $1`,
+        [firmId],
+      )
+    ).rows[0];
+
+  it("2,000 due in one slot: 200 a run, 4 at a time, each sent once, and another firm's in between", async () => {
+    const big = await bigFirm(BULK_MAX);
+    const small = await bookingFirm(su, withFirm, { settings: NO_QUIET });
+    for (const first of ["Ann", "Ben", "Cal"]) {
+      await small.booking(
+        await small.worker({ first }),
+        await small.shift({ startsAt: hoursFromNow(20) }),
+      );
+    }
+    // Each message waits (up to 100 ms) until 4 are going, so the most at once is seen whatever
+    // the claims' speed.
+    let going = 0;
+    let most = 0;
+    const sent: OutboundMessage[] = [];
+    const deps: ReminderDeps = {
+      transport: {
+        name: "counting",
+        async send(message) {
+          going += 1;
+          most = Math.max(most, going);
+          for (let waited = 0; going < 4 && waited < 100; waited += 2) await sleep(2);
+          going -= 1;
+          sent.push(message);
+          return { providerMessageId: `counting-${sent.length}` };
+        },
+      },
+      push: noPush,
+      baseDomain: "localhost:3000",
+      clock: { now: () => NOW },
+    };
+    // The tick queues the big firm's job, then the small firm's.
+    expect(
+      await runShiftReminderTick({
+        listFirmIds: async () => [big.firmId, small.firmId],
+        run: withFirm,
+        clock: { now: () => NOW },
+      }),
+    ).toEqual({ queued: 2 });
+    // The worker's order: the two firms' waiting jobs as pg-boss 12.35 fetches them (by priority,
+    // then when they were queued: node_modules/pg-boss/dist/plans.js, the fetch's `next`). A real
+    // fetch can't be kept to two firms in the shared test database, so the order is copied.
+    const task = createShiftRemindersTask(() => deps);
+    const runs: { firm: string; key: string; output: Record<string, unknown> }[] = [];
+    for (let guard = 0; guard < 30; guard += 1) {
+      const { rows } = await su.query<{
+        id: string;
+        data: { firmId: string; idempotencyKey: string };
+      }>(
+        `select id::text as id, data from pgboss.job
+          where name = $1 and state = 'created' and data ->> 'firmId' = any($2)
+          order by priority desc, created_on limit 1`,
+        [SHIFT_REMINDERS_QUEUE, [big.firmId, small.firmId]],
+      );
+      const job = rows[0];
+      if (!job) break;
+      const result = await runFirmTask(task, job, withFirm);
+      await su.query(
+        "update pgboss.job set state = 'completed', completed_on = now() where id = $1",
+        [job.id],
+      );
+      runs.push({
+        firm: job.data.firmId === big.firmId ? "big" : "small",
+        key: job.data.idempotencyKey,
+        output: result.output as Record<string, unknown>,
+      });
+    }
+    const slot = `shift-reminders:${Math.floor(NOW.getTime() / 300_000)}`;
+    // The big firm's first 200, the small firm's 3, then the big firm's follow-ups, 200 each.
+    expect(REMINDERS_PER_RUN).toBe(200);
+    expect(runs.map((r) => [r.firm, r.key, r.output.sent, r.output.more])).toEqual([
+      ["big", slot, 200, true],
+      ["small", slot, 3, undefined],
+      ...[2, 3, 4, 5, 6, 7, 8, 9].map((n) => ["big", `${slot}:${n}`, 200, true]),
+      ["big", `${slot}:10`, 200, undefined],
+    ]);
+    // Each reminder once: 2,000 rows, one a booking, all sent; 2,003 messages in all.
+    expect(await remindersOf(big.firmId)).toEqual({
+      n: 2000,
+      bookings: 2000,
+      sent: 2000,
+      sending: 0,
+    });
+    expect(sent).toHaveLength(2003);
+    expect(most).toBe(4);
+  }, 300_000);
+
+  it("a run that stops part-way: the next runs send the rest, and nobody hears twice", async () => {
+    const big = await bigFirm(300);
+    let gone = false;
+    const sent: OutboundMessage[] = [];
+    const deps: ReminderDeps = {
+      transport: {
+        name: "capture",
+        async send(message) {
+          await sleep(2);
+          sent.push(message);
+          // The database goes away as the 50th message goes: every transaction after fails.
+          if (sent.length === 50) gone = true;
+          return { providerMessageId: `capture-${sent.length}` };
+        },
+      },
+      push: noPush,
+      baseDomain: "localhost:3000",
+      clock: { now: () => NOW },
+    };
+    const inFirm: WithFirm = async (firmId, fn) => {
+      if (gone) throw new Error("database went away");
+      return withFirm(firmId, fn);
+    };
+    const payload = { firmId: big.firmId, idempotencyKey: "shift-reminders:1" };
+    await expect(runShiftReminders(payload, inFirm, deps)).rejects.toThrow("database went away");
+    // Thrown only once the messages already going had gone (at most 3 beside the 50th): nothing is
+    // still sending afterwards.
+    const before = sent.length;
+    expect(before).toBeGreaterThanOrEqual(50);
+    expect(before).toBeLessThanOrEqual(53);
+    await sleep(20);
+    expect(sent).toHaveLength(before);
+    gone = false;
+    // The retry, and its follow-up: the rest.
+    let more = true;
+    for (let guard = 0; more && guard < 5; guard += 1) {
+      more = (await runShiftReminders(payload, withFirm, deps)).more === true;
+    }
+    expect(sent).toHaveLength(300);
+    expect(new Set(sent.map((m) => m.to)).size).toBe(300);
+    // The ones whose record failed stay 'sending' (they went): never sent again.
+    const rows = await remindersOf(big.firmId);
+    expect(rows).toMatchObject({ n: 300, bookings: 300 });
+    expect((rows?.sent ?? 0) + (rows?.sending ?? 0)).toBe(300);
+    expect(rows?.sending).toBeGreaterThanOrEqual(1);
+    expect(rows?.sending).toBeLessThanOrEqual(4);
+  }, 120_000);
 });
 
 describe("the tick", () => {

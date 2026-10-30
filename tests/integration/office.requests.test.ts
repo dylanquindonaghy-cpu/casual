@@ -361,11 +361,6 @@ describe("telling the worker (the request-update job)", () => {
 
   it("the words, with the note on one line; once only; logged", async () => {
     const t = await requestFirm();
-    await su.query(
-      `insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth)
-       values ($1, $2, 'https://push.example.test/ben', 'k', 'a')`,
-      [t.f.firmId, t.ben],
-    );
     const n = await notices(t);
     await answerRequest(t.ctx(), t.swap, "declined", "Cal isn't free.\n\nTry   Dee?");
     const [job] = await jobsOf(t.f.firmId);
@@ -383,14 +378,32 @@ describe("telling the worker (the request-update job)", () => {
       ["request.update_notice", "sending"],
       ["request.update_sent", "whatsapp"],
     ]);
-    // Ben's phone got a push, with no transaction open (14.1).
-    expect(logged[1]?.data.pushes).toBe(1);
-    expect(n.pushedInTransaction).toEqual([false]);
+    // No phone with notifications on: no push.
+    expect(logged[1]?.data.pushes).toBe(0);
+    expect(n.pushedInTransaction).toEqual([]);
     // The office's page says they were told.
     const answered = (await withFirm(t.f.firmId, (tx) => loadRequestQueue(tx, NOW))).answered;
     expect(answered.map((r) => r.answer?.told)).toEqual(["sent"]);
     // The note is on the row and in the message, never in the log.
     expect(JSON.stringify(await eventsOf(t.f.firmId, "%"))).not.toContain("Cal isn't free");
+  });
+
+  it("a phone that takes the push: the push instead of the WhatsApp (P2.4), and the office's page says they were told", async () => {
+    const t = await requestFirm();
+    await su.query(
+      `insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth)
+       values ($1, $2, 'https://push.example.test/ben', 'k', 'a')`,
+      [t.f.firmId, t.ben],
+    );
+    const n = await notices(t);
+    await answerRequest(t.ctx(), t.swap, "declined", "Cal isn't free.");
+    const [job] = await jobsOf(t.f.firmId);
+    expect(await n.run(job ?? {})).toMatchObject({ output: { status: "sent", channel: "push" } });
+    expect(n.sent).toEqual([]);
+    // With no transaction open (14.1).
+    expect(n.pushedInTransaction).toEqual([false]);
+    const answered = (await withFirm(t.f.firmId, (tx) => loadRequestQueue(tx, NOW))).answered;
+    expect(answered.map((r) => r.answer?.told)).toEqual(["sent"]);
   });
 
   it("no note: the no-note wording", async () => {

@@ -1,0 +1,2 @@
+ALTER TABLE "roster_sources" ADD COLUMN "last_near_synced_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "roster_sources" ADD CONSTRAINT "roster_sources_near_sync_connector_only" CHECK ("roster_sources"."last_near_synced_at" is null or "roster_sources"."kind" = 'connector');

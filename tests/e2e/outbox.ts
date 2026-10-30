@@ -1,5 +1,18 @@
 import { readFile } from "node:fs/promises";
 
+// The outbox's messages so far, oldest first: whole lines only. The console transport appends each
+// message as one JSON line ending in "\n" (src/lib/messaging/console.ts), and a long one (an email
+// with its attachments) can be read while it's still being written: that part is left for the
+// next read. A whole line that isn't JSON still throws.
+export async function readOutbox<T>(outbox = ".dev/e2e-outbox.jsonl"): Promise<T[]> {
+  const text = await readFile(outbox, "utf8").catch(() => "");
+  return text
+    .slice(0, text.lastIndexOf("\n") + 1)
+    .split("\n")
+    .filter(Boolean)
+    .map((l) => JSON.parse(l) as T);
+}
+
 // Reads the console transport's outbox (see playwright.config.ts): the newest message to a number
 // after a given moment whose body matches `pattern`. Waits up to 20 seconds: the worker sends
 // messages in the background.
@@ -11,11 +24,7 @@ export async function sentTo(
 ) {
   const deadline = Date.now() + 20_000;
   while (Date.now() < deadline) {
-    const text = await readFile(outbox, "utf8").catch(() => "");
-    const lines = text
-      .split("\n")
-      .filter(Boolean)
-      .map((l) => JSON.parse(l) as { at: string; to: string; body: string });
+    const lines = await readOutbox<{ at: string; to: string; body: string }>(outbox);
     const match = lines
       .filter((l) => l.to === mobile && new Date(l.at) >= after)
       .map((l) => pattern.exec(l.body)?.[1])
@@ -51,11 +60,7 @@ export async function emailSentTo(
 ): Promise<SentEmail> {
   const deadline = Date.now() + 20_000;
   while (Date.now() < deadline) {
-    const text = await readFile(outbox, "utf8").catch(() => "");
-    const match = text
-      .split("\n")
-      .filter(Boolean)
-      .map((l) => JSON.parse(l) as SentEmail & { channel: string })
+    const match = (await readOutbox<SentEmail & { channel: string }>(outbox))
       .filter(
         (l) =>
           l.channel === "email" &&

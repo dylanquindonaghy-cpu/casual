@@ -100,6 +100,7 @@ const dateOrNull = (v: string | Date | null) => (v ? new Date(v) : null);
 const STRIKE_CODES = new Set<string>([
   "issued",
   "by_firm",
+  "strikes_off",
   "enough_notice",
   "booked_by_office",
   "rules_override",

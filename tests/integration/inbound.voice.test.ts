@@ -58,8 +58,12 @@ async function freshLine(): Promise<string> {
   return line;
 }
 
-async function lineFirm() {
-  const f = await bookingFirm(su, withFirm);
+// `repliesOff`: the firm's own default since P4.7 (nothing set: no automatic replies).
+async function lineFirm(o: { repliesOff?: true } = {}) {
+  // Automatic replies on: what these tests are about (off by default since P4.7).
+  const f = await bookingFirm(su, withFirm, {
+    settings: o.repliesOff ? {} : { auto_replies: true },
+  });
   const line = await freshLine();
   await su.query("update firms set shifts_line_e164 = $2 where id = $1", [f.firmId, line]);
   const ann = await f.worker({ first: "Ann" });
@@ -228,6 +232,18 @@ describe("the voice webhook", () => {
     expect(await t.messageRows()).toHaveLength(1);
     expect(await t.jobsOf(SEND_PORTAL_LINK_QUEUE)).toHaveLength(1);
     expect(await t.eventsOf("call.%")).toHaveLength(2);
+  });
+
+  it("automatic replies off (the default): a caller still gets their login link, as the login page sends it (Dylan, 2026-10-27)", async () => {
+    // A call's link isn't an automatic reply to a text: it's the login page's own answer, and it
+    // goes whatever `auto_replies` says (PLAN.md "Connecting the firm's systems" 11).
+    const t = await lineFirm({ repliesOff: true });
+    const res = await handleTwilioVoice(signed(URLS.voice, callFields(t, t.mobile)), voiceDeps());
+    expect(await res.text()).toBe(spoken(t, "sent"));
+    expect(await t.jobsOf(SEND_PORTAL_LINK_QUEUE)).toEqual([
+      expect.objectContaining({ purpose: "worker_login", subjectId: t.ann }),
+    ]);
+    expect((await t.eventsOf("call.answered")).map((e) => e.data)).toEqual([{ link: "sent" }]);
   });
 
   it("a repeat of a call that was told 'not now' hears 'not now' again, and asks for nothing (audit L28)", async () => {
@@ -728,5 +744,29 @@ describe("a voicemail (the inbound-message job)", () => {
       ["voice", { kind: "withheld" }, "Ann again"],
       ["voice", { kind: "withheld" }, "It's Ann, can someone call me"],
     ]);
+  });
+
+  // P4.7 (decision 11): automatic replies off, a voicemail is still the office's question, and
+  // nothing goes back by WhatsApp or text.
+  it("automatic replies off (the default): still a request for the office, and no answer sent", async () => {
+    const t = await lineFirm({ repliesOff: true });
+    const { transport, sent } = captureTransport();
+    const job = await voicemail(t, t.mobile, { text: "I need to cancel my shifts next week" });
+    expect(await run(job, transport)).toEqual({
+      status: "held",
+      intent: "office",
+      sortedAs: "office",
+      handledAs: "office",
+    });
+    expect(await requestsOf(t.f.firmId)).toEqual([
+      expect.objectContaining({
+        type: "general",
+        payload: { note: "I need to cancel my shifts next week", via: "voicemail" },
+      }),
+    ]);
+    expect(sent).toEqual([]);
+    expect((await t.messageRows()).map((r) => r.direction)).toEqual(["in"]);
+    const received = (await t.eventsOf("message.%")).map((e) => [e.action, e.data.replyHeld]);
+    expect(received).toEqual([["message.received", true]]);
   });
 });

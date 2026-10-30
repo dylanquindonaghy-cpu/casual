@@ -22,6 +22,7 @@ import { loadAllocationGate } from "./allocation-input";
 import { loadEligibilityInput, loadEligibilityInputs } from "./eligibility-input";
 import { nativeRosterPlug, sheetsRosterPlug } from "./native";
 import { noticeHours } from "./notice";
+import { connectorSession } from "./planner-kind";
 import type { AssignResult, RosterPlug, RosterSource } from "./plug";
 import { isVisibleToCasuals } from "./visibility";
 
@@ -199,12 +200,13 @@ export interface Verdict {
 }
 
 // Whether the rules may count one of the worker's applications in progress for this shift: a
-// type the role or the session itself (its extra requirements) needs, that may count "applied" at
-// this firm, held as applied. (Holding a valid one too only means the lock wasn't needed.)
+// type the role (its one-of group's included, P3.3) or the session itself (its extra requirements)
+// needs, that may count "applied" at this firm, held as applied. (Holding a valid one too only
+// means the lock wasn't needed.)
 function reliesOnApplied(input: EligibilityInput): boolean {
   const { settings, credentials, shift } = input;
   if (settings.appliedAllowancePct <= 0) return false;
-  return [...(shift.requiredTypes ?? []), ...shift.extraTypes].some(
+  return [...(shift.requiredTypes ?? []), ...shift.extraTypes, ...shift.anyOfTypes].some(
     (type) =>
       settings.appliedAllowedTypes.includes(type) &&
       credentials.some((c) => c.type === type && c.status === "applied"),
@@ -251,6 +253,10 @@ async function bookInTransaction(
   if (by.type === "worker" && !(await isVisibleToCasuals(tx, shiftId, { lock: true }))) {
     return { status: "not_found" };
   }
+  // A connector's session: booked in the firm's own system, not here (planner-kind.ts).
+  if (check.source === "api" && (await connectorSession(tx, shiftId))) {
+    return { status: "needs_approval" };
+  }
   const { result } = check;
   if (!result.pass) {
     await recordEvent(tx, {
@@ -294,12 +300,15 @@ async function bookInTransaction(
   // (audit L23, L30, L85).
   // Only with an override: the shift's page shows it as "placed despite a rule".
   const reason = by.type === "office" && result.overridden.length > 0 ? by.reason : undefined;
-  if (reason) {
-    await tx
-      .update(assignments)
-      .set({ overrideReason: reason })
-      .where(eq(assignments.id, assigned.assignmentId));
-  }
+  // Where the booking was made (P2.2), in this transaction with the booking itself: the casual's
+  // own (a shift they took, an offer they accepted) or the office's.
+  await tx
+    .update(assignments)
+    .set({
+      bookedVia: by.type === "worker" ? "app" : "office",
+      ...(reason ? { overrideReason: reason } : {}),
+    })
+    .where(eq(assignments.id, assigned.assignmentId));
   const assignedEventId = await recordEvent(tx, {
     actorType: by.type,
     actorId: by.id,

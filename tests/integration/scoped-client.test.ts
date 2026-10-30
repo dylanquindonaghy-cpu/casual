@@ -40,6 +40,17 @@ describe("withFirm", () => {
     expect(row).toEqual({ db: urls.name, user: "shiftdesk_app", firm: A.firmId });
   });
 
+  it("the default withFirm runs with the web profile's limits (P4.2; ADR-027)", async () => {
+    const limits = await withFirm(A.firmId, async (tx) => {
+      const r = await tx.execute<{ statement: string; idle: string }>(
+        sql`select current_setting('statement_timeout') as statement,
+                   current_setting('idle_in_transaction_session_timeout') as idle`,
+      );
+      return r.rows[0];
+    });
+    expect(limits).toEqual({ statement: "15s", idle: "30s" });
+  });
+
   it("the firm setting ends with the transaction, on the very same pooled connection", async () => {
     const pool = new Pool({ connectionString: urls.app, max: 1 });
     try {
@@ -170,6 +181,145 @@ describe("the connection check", () => {
       await expect(createWithFirm(pool)(A.firmId, async () => 1)).rejects.toThrow(
         /tests must use a \*_test database, not postgres/,
       );
+    } finally {
+      await pool.end();
+    }
+  });
+});
+
+// The time limits (P4.2; ADR-027): set by withFirm per transaction, like the firm.
+describe("withFirm's time limits", () => {
+  const code = (err: unknown) =>
+    (err as { code?: string; cause?: { code?: string } }).cause?.code ??
+    (err as { code?: string }).code;
+  const settings = (client: { query: Pool["query"] }) =>
+    client
+      .query<{ pid: number; statement: string; idle: string }>(
+        `select pg_backend_pid() as pid, current_setting('statement_timeout') as statement,
+                current_setting('idle_in_transaction_session_timeout') as idle`,
+      )
+      .then((r) => r.rows[0]);
+
+  it("are set inside the transaction and gone after it, on the very same pooled connection", async () => {
+    const pool = new Pool({ connectionString: urls.app, max: 1 });
+    try {
+      const limited = createWithFirm(pool, {
+        limits: { statementMs: 1234, idleInTransactionMs: 5678 },
+      });
+      // The statement that runs in production: the firm and the limits together. The firm is set
+      // and gone with them, as without limits (the canary above).
+      const inside = await limited(A.firmId, async (tx) => {
+        const { rows } = await tx.execute<{
+          pid: number;
+          statement: string;
+          idle: string;
+          firm: string | null;
+        }>(
+          sql`select pg_backend_pid() as pid, current_setting('statement_timeout') as statement,
+                     current_setting('idle_in_transaction_session_timeout') as idle,
+                     app_current_firm_id() as firm`,
+        );
+        return rows[0];
+      });
+      expect(inside).toMatchObject({ statement: "1234ms", idle: "5678ms", firm: A.firmId });
+      const after = await settings(pool);
+      expect(after?.pid).toBe(inside?.pid);
+      expect(after).toMatchObject({ statement: "0", idle: "0" });
+      const firmAfter = await settingAndPid(pool);
+      expect(firmAfter?.pid).toBe(inside?.pid);
+      expect(firmAfter?.firm).toBeNull();
+      expect(firmAfter?.setting ?? "").toBe("");
+    } finally {
+      await pool.end();
+    }
+  });
+
+  it("a statement that runs too long fails (57014), and the next transaction works", async () => {
+    const pool = new Pool({ connectionString: urls.app, max: 1 });
+    try {
+      const limited = createWithFirm(pool, {
+        limits: { statementMs: 200, idleInTransactionMs: 0 },
+      });
+      const slow = limited(A.firmId, (tx) => tx.execute(sql`select pg_sleep(2)`));
+      await expect(slow).rejects.toSatisfy((err: unknown) => code(err) === "57014");
+      expect(
+        await limited(A.firmId, async (tx) => (await tx.execute(sql`select 1 as one`)).rows),
+      ).toEqual([{ one: 1 }]);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  it("a transaction left idle too long is ended, and the pool carries on", async () => {
+    const pool = new Pool({ connectionString: urls.app, max: 1 });
+    // The ended connection's own error, on the idle pool and on the client lent out, as appPool()
+    // logs both (else Node treats it as unhandled).
+    pool.on("error", () => undefined);
+    pool.on("connect", (client) => client.on("error", () => undefined));
+    try {
+      const limited = createWithFirm(pool, {
+        limits: { statementMs: 0, idleInTransactionMs: 200 },
+      });
+      const idle = limited(A.firmId, async (tx) => {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        await tx.execute(sql`select 1`);
+      });
+      // Postgres ends the connection (25P03), so the transaction's next statement finds it gone.
+      await expect(idle).rejects.toSatisfy((err: unknown) =>
+        /connection error and is not queryable|terminating connection/i.test(
+          String((err as { cause?: { message?: string } }).cause?.message ?? err),
+        ),
+      );
+      expect(
+        await limited(A.firmId, async (tx) => (await tx.execute(sql`select 1 as one`)).rows),
+      ).toEqual([{ one: 1 }]);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  it("a full pool fails the wait instead of hanging, and counts it", async () => {
+    const pool = new Pool({ connectionString: urls.app, max: 1, connectionTimeoutMillis: 300 });
+    try {
+      const waits = { slow: 0, timedOut: 0 };
+      const counted = createWithFirm(pool, { waits });
+      let release: () => void = () => undefined;
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      let entered: () => void = () => undefined;
+      const inside = new Promise<void>((resolve) => (entered = resolve));
+      const holding = counted(A.firmId, async () => {
+        entered();
+        await gate;
+      });
+      await inside;
+      const started = Date.now();
+      await expect(counted(A.firmId, async () => 1)).rejects.toThrow(
+        /timeout exceeded when trying to connect/,
+      );
+      expect(Date.now() - started).toBeLessThan(2_000);
+      expect(waits).toEqual({ slow: 0, timedOut: 1 });
+      release();
+      await holding;
+    } finally {
+      await pool.end();
+    }
+  });
+
+  it("a wait of a second or more for a connection is counted as slow", async () => {
+    const pool = new Pool({ connectionString: urls.app, max: 1 });
+    try {
+      const waits = { slow: 0, timedOut: 0 };
+      const counted = createWithFirm(pool, { waits });
+      let entered: () => void = () => undefined;
+      const inside = new Promise<void>((resolve) => (entered = resolve));
+      const holding = counted(A.firmId, async () => {
+        entered();
+        await new Promise((resolve) => setTimeout(resolve, 1_200));
+      });
+      await inside;
+      expect(await counted(A.firmId, async () => "after the wait")).toBe("after the wait");
+      await holding;
+      expect(waits).toEqual({ slow: 1, timedOut: 0 });
     } finally {
       await pool.end();
     }

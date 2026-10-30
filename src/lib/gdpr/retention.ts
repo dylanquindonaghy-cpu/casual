@@ -13,7 +13,7 @@ import {
   travelEstimates,
   uploads,
 } from "../db/schema";
-import { activeFirmId, type FirmTx, type WithFirm } from "../db/scoped";
+import { activeFirmId, allowLonger, type FirmTx, type WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { firmJobEnvelope, sendFirmJob, type FirmTask } from "../jobs/firm-job";
 import { log, type Logger } from "../log";
@@ -49,7 +49,8 @@ const CLOSED_REQUEST_STATUSES = ["approved", "declined", "auto_resolved"] as con
 //   it closed: an open or escalated request keeps them (the request itself stays: it's evidence);
 // - the office's typed reason for placing someone despite a rule (assignments.override_reason),
 //   the same number of days after the person was booked (confirmed_at);
-// - login rate-limit counters a day after their window started (the longest window is a day);
+// - rate-limit counters (login, and since P4.7 the unknown-number alerts) a day after their window
+//   started (the longest window is a day);
 // - login links and one-time codes 7 days after they expired, and sessions (their codes go with
 //   them) 30 days after they expired or were revoked (docs/data-model.md "Retention"): none can
 //   work again.
@@ -232,7 +233,12 @@ async function purgeUploads(tx: FirmTx, cutoff: Date): Promise<number> {
 export function retentionPurgeTask(clock: () => Clock): FirmTask<RetentionPurgePayload> {
   return {
     ...job,
-    task: (payload, run) => run(payload.firmId, (tx) => purgeExpired(tx, clock().now())),
+    task: (payload, run) =>
+      run(payload.firmId, async (tx) => {
+        // A firm's whole purge in one transaction: longer than a job's own limits (ADR-027).
+        await allowLonger(tx, "retentionPurge");
+        return purgeExpired(tx, clock().now());
+      }),
   };
 }
 export const retentionPurgeFirmTask = retentionPurgeTask(() => systemClock);

@@ -10,7 +10,7 @@ import { PAY_QUERY_UPDATE_QUEUE, payQueryUpdatePayload } from "@/lib/notices/pay
 import { inboundMessageJob } from "@/lib/inbound/job";
 import { payDigestJob } from "@/lib/pay/digest";
 import { createBoss } from "@/worker/boss";
-import { registerJobs } from "@/worker/jobs";
+import { OFFER_WAVE_WORK_OPTIONS, registerJobs } from "@/worker/jobs";
 import { HELLO_QUEUE } from "@/worker/jobs/hello";
 import { urls } from "../helpers/db";
 
@@ -69,4 +69,29 @@ describe("worker (real pg-boss on the test database, as the jobs role)", () => {
     const job = await waitForFinalState(boss, id as string);
     expect(job.state).toBe("failed");
   });
+
+  // Offer waves one per fetch (P4.4). pg-boss never bursts at a batch of 1, so at its 2-second poll
+  // each short wave would start about 2 seconds after the one before (8 from first to last of 5); at
+  // the waves' half-second poll, about half a second. On its own queue, so no other file's queued
+  // jobs are in the way.
+  it("a queue of short jobs under the offer waves' options starts each within a second of the one before", async () => {
+    const queue = `waves-drain-${Date.now()}`;
+    await boss.createQueue(queue);
+    const started: number[] = [];
+    await boss.work(queue, OFFER_WAVE_WORK_OPTIONS, async (jobs) => {
+      started.push(...jobs.map(() => Date.now()));
+      return jobs.map((j) => ({ id: j.id, status: "completed" as const }));
+    });
+    for (let i = 0; i < 5; i += 1) await boss.send(queue, { i });
+    const deadline = Date.now() + 15_000;
+    while (started.length < 5 && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    await boss.offWork(queue);
+    await boss.deleteQueue(queue);
+    expect(started).toHaveLength(5);
+    const gaps = started.slice(1).map((at, i) => at - (started[i] ?? at));
+    for (const gap of gaps) expect(gap).toBeLessThan(1_000);
+    expect((started.at(-1) ?? 0) - (started[0] ?? 0)).toBeLessThan(4_000);
+  }, 30_000);
 });

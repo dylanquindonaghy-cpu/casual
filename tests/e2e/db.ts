@@ -102,6 +102,22 @@ export async function setFirmSetting(slug: string, key: string, value: unknown):
   }
 }
 
+// Clears a seeded firm's count of unknown-number alerts this hour (P4.7: at most 5 a firm an
+// hour), in the e2e database (never the dev one). A spec that checks the alert email then gets it
+// however many strangers the specs before it (or its own retries) wrote from.
+export async function resetUnknownAlerts(slug: string): Promise<void> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    await createWithFirm(pool)(seedId(`firm/${slug}`), (tx) =>
+      tx.execute(sql`delete from auth_throttle where bucket like 'alert:unknown_number:%'`),
+    );
+  } finally {
+    await pool.end();
+  }
+}
+
 // Puts a seeded firm's push back as a push spec found it (13.3), in the e2e database (never the
 // dev one): the per-worker push limit counts cleared, and the phones the spec saves (addresses
 // starting `endpointPrefix`, its own made-up ones) removed. A retried test then starts as the first

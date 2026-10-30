@@ -12,6 +12,7 @@ import { createBoss } from "@/worker/boss";
 import { INBOUND_DRAIN_BOUND_MS, registerInboundTask } from "@/worker/jobs";
 import { firmQueue } from "@/worker/jobs/queues";
 import { bookingFirm } from "../helpers/booking-fixture";
+import { BULK_MAX, bulkWorkers } from "../helpers/bulk-seed";
 import { appRolePool, superuserPool } from "../helpers/db";
 import { testUrls } from "../setup/test-db";
 
@@ -70,9 +71,75 @@ async function freshLine(): Promise<string> {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// The target (PLAN.md P4.9): 1,000 messages from 1,000 casuals in one burst. With automatic
+// replies on, each answer is a 300 ms send, and INBOUND_LOOPS (8) answer at once: 1,000 × 300 ms
+// / 8 is 37.5 s of sending at best, so all within 90 s of the last one arriving (about 41 to 51 s
+// here, 2026-10-26). Off (a firm's default since P4.7), nothing is sent and each is a question for
+// the office: within 30 s (about 2 s here, the burst itself taking under 2).
+const BURST = 1_000;
+const BURST_REPLIES_ON_BOUND_MS = 90_000;
+const BURST_REPLIES_OFF_BOUND_MS = 30_000;
+
+// A firm of 2,000 made-up casuals; the burst comes from the 1,000 in the second drama range
+// (+44 1632 960000-960999), never the line's own (07700 900450-900498).
+async function burstFirm(settings: Record<string, unknown>) {
+  const f = await bookingFirm(su, withFirm, { settings });
+  const line = await freshLine();
+  await su.query("update firms set shifts_line_e164 = $2 where id = $1", [f.firmId, line]);
+  const ids = await bulkWorkers(su, f.firmId, BULK_MAX);
+  const { rows } = await su.query<{ id: string; mobile: string }>(
+    `select id::text as id, mobile_e164 as mobile from workers
+      where firm_id = $1 and id = any($2::uuid[]) and mobile_e164 like '+441632%'`,
+    [f.firmId, ids],
+  );
+  expect(rows).toHaveLength(BURST);
+  return { f, line, casuals: rows };
+}
+
+// The burst: every message stored at once, then each queued as the webhook queues it (its own
+// transaction; the app pool's 4 at a time). Returns when the last is queued.
+async function burstIn(firmId: string, line: string, from: string[]): Promise<string[]> {
+  const { rows } = await su.query<{ id: string }>(
+    `insert into messages (firm_id, direction, channel, provider_message_id, from_e164, to_e164, body)
+     select $1, 'in', 'whatsapp', 'SM' || md5(random()::text || m.n::text), m.mobile, $2,
+            'Any shifts this week?'
+       from unnest($3::text[]) with ordinality as m(mobile, n)
+     returning id::text as id`,
+    [firmId, line, from],
+  );
+  const ids = rows.map((r) => r.id);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: 4 }, async () => {
+      for (let i = next++; i < ids.length; i = next++) {
+        const messageId = ids[i] ?? "";
+        await withFirm(firmId, async (tx) =>
+          sendFirmJob(
+            tx,
+            { queue: QUEUE, schema: inboundMessagePayload },
+            { idempotencyKey: `inbound-message:${messageId}`, messageId },
+            await inboundJobOptions(tx, messageId),
+          ),
+        );
+      }
+    }),
+  );
+  return ids;
+}
+
+// Waits until `done()` says all are handled, or fails past the bound; returns how long it took.
+async function drained(done: () => Promise<boolean>, since: number, boundMs: number) {
+  for (;;) {
+    if (await done()) return Date.now() - since;
+    if (Date.now() - since > boundMs) throw new Error(`not all handled after ${boundMs} ms`);
+    await sleep(250);
+  }
+}
+
 describe("the shifts line at pilot size, with a real send's delay", () => {
   it("200 workers' messages answered within the bound; one worker's answered in order", async () => {
-    const f = await bookingFirm(su, withFirm, {});
+    // Automatic replies on: what these tests are about (off by default since P4.7).
+    const f = await bookingFirm(su, withFirm, { settings: { auto_replies: true } });
     const line = await freshLine();
     await su.query("update firms set shifts_line_e164 = $2 where id = $1", [f.firmId, line]);
     const workers: { id: string; mobile: string }[] = [];
@@ -185,8 +252,79 @@ describe("the shifts line at pilot size, with a real send's delay", () => {
     }
   }, 120_000);
 
+  it("the target: 1,000 casuals' messages in a burst, each answered once within the bound (replies on)", async () => {
+    const { f, line, casuals } = await burstFirm({ auto_replies: true });
+    const ids = await burstIn(
+      f.firmId,
+      line,
+      casuals.map((c) => c.mobile),
+    );
+    const lastArrived = Date.now();
+    const took = await drained(
+      async () => {
+        const { rows } = await su.query<{ n: number }>(
+          "select count(*)::int as n from messages where firm_id = $1 and direction = 'out'",
+          [f.firmId],
+        );
+        return (rows[0]?.n ?? 0) >= BURST;
+      },
+      lastArrived,
+      BURST_REPLIES_ON_BOUND_MS,
+    );
+    expect(took).toBeLessThan(BURST_REPLIES_ON_BOUND_MS);
+    // One answer each, to the right number, and every message marked handled.
+    const mobiles = new Set(casuals.map((c) => c.mobile));
+    const mine = sent.filter((s) => "to" in s.message && mobiles.has(s.message.to));
+    expect(mine).toHaveLength(BURST);
+    expect(new Set(mine.map((s) => ("to" in s.message ? s.message.to : ""))).size).toBe(BURST);
+    const { rows } = await su.query<{ handled: number; replies: number }>(
+      `select count(*) filter (where m.handled_at is not null)::int as handled,
+              (select count(*)::int from messages o
+                where o.firm_id = $1 and o.direction = 'out' and o.reply_to = any($2::uuid[])) as replies
+         from messages m where m.firm_id = $1 and m.id = any($2::uuid[])`,
+      [f.firmId, ids],
+    );
+    expect(rows[0]).toEqual({ handled: BURST, replies: BURST });
+  }, 240_000);
+
+  it("the target with automatic replies off (the default): 1,000 messages, each the office's question, nothing sent", async () => {
+    const { f, line, casuals } = await burstFirm({});
+    const before = sent.length;
+    const ids = await burstIn(
+      f.firmId,
+      line,
+      casuals.map((c) => c.mobile),
+    );
+    const lastArrived = Date.now();
+    const took = await drained(
+      async () => {
+        const { rows } = await su.query<{ n: number }>(
+          "select count(*)::int as n from requests where firm_id = $1",
+          [f.firmId],
+        );
+        return (rows[0]?.n ?? 0) >= BURST;
+      },
+      lastArrived,
+      BURST_REPLIES_OFF_BOUND_MS,
+    );
+    expect(took).toBeLessThan(BURST_REPLIES_OFF_BOUND_MS);
+    const mobiles = new Set(casuals.map((c) => c.mobile));
+    expect(
+      sent.slice(before).filter((s) => "to" in s.message && mobiles.has(s.message.to)),
+    ).toEqual([]);
+    const { rows } = await su.query<{ handled: number; office: number; requests: number }>(
+      `select count(*) filter (where m.handled_at is not null)::int as handled,
+              count(*) filter (where m.intent = 'office')::int as office,
+              (select count(*)::int from requests r where r.firm_id = $1) as requests
+         from messages m where m.firm_id = $1 and m.id = any($2::uuid[])`,
+      [f.firmId, ids],
+    );
+    expect(rows[0]).toEqual({ handled: BURST, office: BURST, requests: BURST });
+  }, 240_000);
+
   it("a sender's older message is answered first, even when the newer one's job runs first", async () => {
-    const f = await bookingFirm(su, withFirm, {});
+    // Automatic replies on: what these tests are about (off by default since P4.7).
+    const f = await bookingFirm(su, withFirm, { settings: { auto_replies: true } });
     const line = await freshLine();
     await su.query("update firms set shifts_line_e164 = $2 where id = $1", [f.firmId, line]);
     const id = await f.worker({ first: "Sid" });

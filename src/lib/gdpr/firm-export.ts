@@ -3,7 +3,7 @@ import { PgTable, type SelectedFields } from "drizzle-orm/pg-core";
 import { systemClock } from "../auth/clock";
 import { retryAborted } from "../db/retry";
 import * as schema from "../db/schema";
-import type { FirmTx } from "../db/scoped";
+import { allowLonger, type FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { addressHint } from "../integrations/send";
 import { officeUserMay, parts, type OfficeContext } from "../office/office-context";
@@ -14,7 +14,7 @@ import { renumberEvents } from "./event-numbers";
 // any time"; docs/runbooks.md "Offboarding a firm"). Every firm table, every column as stored
 // (less firm_id, the same on every row), oldest first. Left out, because they are login machinery
 // and not the firm's records: login links, sessions and one-time codes (token and code hashes),
-// the login rate-limit counters (hashed numbers and addresses), phones' push addresses (each one
+// the rate-limit counters (hashed numbers and addresses), phones' push addresses (each one
 // lets anyone holding it send that phone a notification), and travel estimates (keyed by casuals'
 // full postcodes, which the office never sees). A casual's travel area goes out as its
 // district only, never the postcode or its point (FIRM_EXPORT_CUT): the office never sees more
@@ -31,13 +31,15 @@ export const FIRM_EXPORT_EXCLUDED: Readonly<Record<string, string>> = {
   magic_links: "login link hashes",
   sessions: "session token hashes",
   otp_codes: "one-time code hashes",
-  auth_throttle: "login rate-limit counters (hashed numbers and addresses)",
+  auth_throttle: "rate-limit counters (hashed numbers and addresses)",
   push_subscriptions: "phones' push addresses and keys",
   // Worked out from casuals' start postcodes (12G.2): the full postcodes the office never sees
   // (docs/dpia-travel.md), and the job works them out again from the firm's own data.
   travel_estimates: "travel estimates, worked out from casuals' full postcodes",
   // The planner's API keys (12J.1; docs/office-v2.md 5.3.6): key hashes, never the firm's data.
   api_keys: "API key hashes",
+  // A firm's own credentials for its systems (P5.1): sealed, and the app role can't read them.
+  firm_secrets: "the firm's own system credentials, sealed (the app can never read them)",
 };
 
 // Tables exported with some columns cut, and why (the rest of each row as stored).
@@ -125,6 +127,8 @@ export async function exportFirmData(
   const now = (ctx.clock ?? systemClock).now();
   return retryAborted(() =>
     run(firm.id, async (tx): Promise<FirmExportResult> => {
+      // Every table in one read: longer than a page's own limits (ADR-027).
+      await allowLonger(tx, "firmExport");
       if (!(await officeUserMay(tx, by.id, "data"))) return { status: "not_allowed" };
       const data = await collectFirmData(tx, now);
       const rows = Object.values(data.tables).reduce((sum, t) => sum + t.length, 0);

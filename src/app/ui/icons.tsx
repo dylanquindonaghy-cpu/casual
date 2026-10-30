@@ -177,7 +177,7 @@ const PATHS = {
     </>
   ),
   // Enquiries' channels (12D.1), each beside its hidden word: a speech bubble (WhatsApp), a phone
-  // (a text), a tape (a voicemail).
+  // (a text), a tape (a voicemail), an envelope (an email to the staffing inbox: Phase 25.5).
   whatsapp: <path d="M4 5.5h16v10H9.5L4 19.5v-14Z" />,
   sms: (
     <>
@@ -190,6 +190,12 @@ const PATHS = {
       <circle cx="7" cy="12" r="3.5" />
       <circle cx="17" cy="12" r="3.5" />
       <path d="M7 15.5h10" />
+    </>
+  ),
+  email: (
+    <>
+      <rect x="3.5" y="5.5" width="17" height="13" rx="1.5" />
+      <path d="m4 6.5 8 6.5 8-6.5" />
     </>
   ),
   // The office's bell (Needs attention, 12E.1): a bell.

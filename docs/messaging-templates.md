@@ -258,8 +258,8 @@ never a person's name), not one per firm (PLAN.md Parking lot, P2.4).
 - A request's answer (`request_update`): subject "Your request (ref {ref}) is {status}"
 - A pay query's answer (`pay_query_update`): subject "Payroll has answered your pay query"
 - The office's reply on Enquiries: subject "A reply from {firm}"; body "{words} — {firm} Shift Team"
-  (not built yet: a reply answers a message to the shifts line, so it goes by text; PLAN.md Parking
-  lot, P2.4)
+  (not built for a message to the shifts line: its reply goes by text; PLAN.md Parking lot, P2.4. An
+  email to the staffing inbox is answered by email: "The staffing inbox's emails" below)
 - A licence running out (`credential_expiring`): subject "Your {credential} expires on {date}"
 - A licence that has run out (`credential_expired`): subject "Your {credential} has expired"
 - Login link (P2.6, only where the firm has switched it on): subject "Your {firm} shifts link";
@@ -269,6 +269,42 @@ never a person's name), not one per firm (PLAN.md Parking lot, P2.4).
 - Pay code (P2.6, the same): subject "Your {firm} code"; body "Your {firm} code is {code}. It works
   for 10 minutes. Don't share it with anyone. If you didn't ask for it, you can ignore this email.
   — {firm} Shift Team"
+
+## The staffing inbox's emails (P7.5; Phase 25.5)
+
+Built in Phase 25.5 (`src/lib/email/sort.ts`, `src/lib/office/enquiry-actions.ts`; words in
+`src/lib/messaging/templates.ts`), as recommended (Dylan, 2026-10-30: "just do what you would
+recommend stop prompting me and build it"). A casual's email to the firm's staffing inbox is
+sorted as the shifts line sorts a message (P7.4). Every email below goes only to the address the
+firm holds for the casual (never to the one the email came from: a sender can be faked), from the
+app's one sending address with the firm's inbox as its Reply-To, so their reply comes back to
+Enquiries. Its subject is "Re: {their subject}" ("Your email to {firm}" when it had none). Each
+ends with the sign-off; every link is the last thing on its line, never followed by a full stop.
+
+- With the firm's automatic replies on (P4.7), a shifts, cancel or pay email gets its link at once,
+  never an answer in words (golden rules 1 and 9; nothing the AI writes reaches the casual):
+  - Shifts (`email_answer_shifts`): "Hi {first name}," / "The shifts you can take are here:" /
+    "{link to Open shifts}" / "You'll get a code to log in." / "This is an automatic reply. To
+    reach a person, reply to this email." / "— {firm} Shift Team"
+  - Cancel (`email_answer_cancel`): "Hi {first name}," / "To cancel a shift, open it here:" /
+    "{link to My shifts}" / "You'll see what cancelling means for you before you confirm, and it's
+    recorded the moment you do." / the automatic line / the sign-off
+  - Pay (`email_answer_pay`): "Hi {first name}," / "Your hours, rates and pay dates are here:" /
+    "{link to Pay}" / "You'll get a code to log in. If something looks wrong, tap \"Raise a pay
+    query\" there, so payroll sees it." / the automatic line / the sign-off
+  - At most 3 automatic replies to one casual in 24 hours (an out-of-office reply can't start a
+    loop): past that, the email waits for a person.
+  - With automatic replies off, nothing goes: the email waits for a person.
+- An email for the office (they asked for a person, or nothing sorted it) gets no automatic reply.
+  The office answers it on Enquiries in their own words, from a draft the AI may write first (never
+  for a pay email: golden rule 9), which they check and change before sending. 2,000 characters at
+  most: "Hi {first name}," / "{their words}" / "— {firm} Shift Team".
+- The AI's draft (`draft_reply`, Haiku): from the casual's subject and words only (no shifts, pay,
+  names or data of the firm's), a short, polite reply in plain words that promises nothing (no
+  shift, time, pay or decision), offers no facts it wasn't given, and leaves out any greeting and
+  sign-off (the email adds them). At most 1,200 characters; anything else, or no AI: no draft. Code
+  decides when there's one: never for an email sorted as pay, nor for one whose words mention pay
+  or money ("pay", "wages", "salary", "money", "owed", "overtime", "tax", "£" and the like).
 
 ## STOP and START by text
 
@@ -381,6 +417,15 @@ reach the same app, which isn't answering.
   covers the rest." / "See them in Enquiries, under Need a person: {link}" ("See it" for 1) /
   "— {firm} Shift Team". Like the alert, no number and no message (the hour in the firm's time
   zone).
+- `inbox_summary` (email, to active admins and resourcers, Phase 25.5; P7.5's "a summary every 3
+  hours"): at the end of each 3 hours of the firm's day (00:00, 03:00 … 21:00, its time zone) in
+  which the staffing inbox got an email, once: subject "{firm}: {12 emails} to the staffing inbox"
+  ("1 email"); body "Between {09:00} and {12:00}, the staffing inbox got {12 emails}:" / "{5}
+  answered with a link" / "{4} waiting for a person" / "{1} already answered by your office" / "{2}
+  pay questions" ("1 pay question") / "{1} not from your casuals (in your own inbox)" (each line
+  only when it isn't 0; pay questions are counted there only, whatever came of them) / "See them in Enquiries: {link}"
+  / "— {firm} Shift Team". No names, addresses or words (previews, forwards); "waiting for a
+  person" counts those still waiting when it's sent.
 - `credential_weekly_list` (email, Mondays 08:00, to active admins and resourcers, only when there
   is something to list): subject "{firm}: credentials expiring soon"; body "Expiring in the next 30
   days:" then "- {name}: {credential}, expires {date}" lines; "Expired in the last week (these

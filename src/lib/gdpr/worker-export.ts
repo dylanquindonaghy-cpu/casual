@@ -8,6 +8,7 @@ import {
   assignments,
   credentials,
   firms,
+  emailReplies,
   inboundEmails,
   magicLinks,
   messages,
@@ -208,6 +209,13 @@ export async function collectWorkerData(
         : eq(inboundEmails.workerId, workerId),
     )
     .orderBy(asc(inboundEmails.createdAt), asc(inboundEmails.id));
+  // What went back to them about those emails (P7.5): the automatic link emails and the office's
+  // replies, as sent. Deleted with their email (app_erase_worker(), the purge).
+  const emailReplyRows = await tx
+    .select(columnsOf(emailReplies))
+    .from(emailReplies)
+    .where(eq(emailReplies.workerId, workerId))
+    .orderBy(asc(emailReplies.createdAt), asc(emailReplies.id));
   // The same rows the action log's Worker filter finds.
   const { rows: logRows } = await tx.execute<Row>(sql`
     select e.id, e.actor_type as "actorType", e.actor_id as "actorId", e.action,
@@ -286,6 +294,7 @@ export async function collectWorkerData(
       payQueries: payQuestions,
       messages: messageRows,
       emails: emailRows,
+      emailReplies: emailReplyRows,
       // Numbered within this file, not by the counter every firm shares (event-numbers.ts).
       actionLog: renumberEvents(logRows),
       logins,

@@ -14,6 +14,7 @@ export const EXPECTED_TABLES = [
   "credential_rules",
   "credential_types",
   "credentials",
+  "email_replies",
   "events",
   "firm_secrets",
   "firms",
@@ -349,6 +350,14 @@ export async function createTenant(su: Pool): Promise<Tenant> {
      values ($1, $2, $3, 'rota.worker@example.com', 'staffing@inbound.example.test', 'Saturday', 'Can I swap?')`,
     [firmId, `<${randomBytes(8).toString("hex")}@mail.example.test>`, rosterWorkerId],
   );
+  // The automatic reply to it (P7.5). (Not the office's: one naming the office user would stop
+  // the delete test's control deleting that user, as any office user's own record does.)
+  const emailReplyId = await one(
+    su,
+    `insert into email_replies (firm_id, inbound_email_id, worker_id, kind, template, to_address, subject, body)
+     values ($1, $2, $3, 'automatic', 'shifts', 'rota.worker@example.com', 'Re: Saturday', 'The link.')`,
+    [firmId, inboundEmailId, rosterWorkerId],
+  );
   return {
     firmId,
     slug,
@@ -395,6 +404,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       pay_queries: payQueryId,
       messages: messageId,
       inbound_emails: inboundEmailId,
+      email_replies: emailReplyId,
       webhook_status: webhookStatusId,
     },
   };
@@ -575,6 +585,11 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
     text: `insert into inbound_emails (firm_id, provider_message_id, worker_id, from_address, to_address, body)
            values ($1, $2, $3, 'rota.worker@example.com', 'staffing@inbound.example.test', 'pay')`,
     values: [firmId, `<${randomBytes(8).toString("hex")}@mail.example.test>`, p.rosterWorkerId],
+  }),
+  email_replies: (firmId, p) => ({
+    text: `insert into email_replies (firm_id, inbound_email_id, worker_id, kind, template, to_address, subject, body)
+           values ($1, $2, $3, 'automatic', 'pay', 'rota.worker@example.com', 'Re: pay', 'The link.')`,
+    values: [firmId, p.rows.inbound_emails, p.rosterWorkerId],
   }),
   metrics_daily: (firmId) => ({
     text: `insert into metrics_daily (firm_id, day, kind, metric, value)
@@ -788,6 +803,21 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
     text: `insert into inbound_emails (firm_id, provider_message_id, worker_id, from_address, to_address)
            values ($1, $2, $3, 'someone@example.com', 'staffing@inbound.example.test')`,
     values: [firmId, `<${randomBytes(8).toString("hex")}@mail.example.test>`, other.workerId],
+  }),
+  email_replies_email_fk: (firmId, own, other) => ({
+    text: `insert into email_replies (firm_id, inbound_email_id, worker_id, kind, template, to_address, subject, body)
+           values ($1, $2, $3, 'automatic', 'shifts', 'someone@example.com', 'Re: work', 'The link.')`,
+    values: [firmId, other.rows.inbound_emails, own.rosterWorkerId],
+  }),
+  email_replies_worker_fk: (firmId, own, other) => ({
+    text: `insert into email_replies (firm_id, inbound_email_id, worker_id, kind, template, to_address, subject, body)
+           values ($1, $2, $3, 'automatic', 'shifts', 'someone@example.com', 'Re: work', 'The link.')`,
+    values: [firmId, own.rows.inbound_emails, other.workerId],
+  }),
+  email_replies_sent_by_fk: (firmId, own, other) => ({
+    text: `insert into email_replies (firm_id, inbound_email_id, worker_id, kind, sent_by, to_address, subject, body)
+           values ($1, $2, $3, 'office', $4, 'someone@example.com', 'Re: work', 'Yes.')`,
+    values: [firmId, own.rows.inbound_emails, own.rosterWorkerId, other.officeUserId],
   }),
   messages_reply_to_fk: (firmId, _own, other) => ({
     text: `insert into messages (firm_id, direction, channel, provider_message_id, from_e164, to_e164, reply_to)

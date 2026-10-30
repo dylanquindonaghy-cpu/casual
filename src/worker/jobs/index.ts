@@ -40,6 +40,17 @@ import {
   type OfficeAlertsCombinedPayload,
 } from "../../lib/inbound/alerts-combined";
 import { inboundMessageFirmTask } from "../../lib/inbound/reply";
+import {
+  INBOUND_EMAIL_TICK_CRON,
+  INBOUND_EMAIL_TICK_QUEUE,
+  type InboundEmailPayload,
+} from "../../lib/email/job";
+import { inboundEmailFirmTask, runInboundEmailTick } from "../../lib/email/sort";
+import { inboxSummaryTask, type InboxSummaryPayload } from "../../lib/email/summary";
+import {
+  enquiryEmailReplyFirmTask,
+  type EnquiryEmailReplyPayload,
+} from "../../lib/notices/email-reply";
 import { firmChangeNoticeTask, type FirmChangeNoticePayload } from "../../lib/notices/firm-change";
 import { payQueryUpdateTask, type PayQueryUpdatePayload } from "../../lib/notices/pay-query-update";
 import { enquiryReplyTask, type EnquiryReplyPayload } from "../../lib/notices/enquiry-reply";
@@ -136,6 +147,9 @@ export interface JobDeps {
   travelEstimates?: FirmTask<TravelEstimatesPayload>;
   inboundMessages?: FirmTask<InboundMessagePayload>;
   officeAlertsCombined?: FirmTask<OfficeAlertsCombinedPayload>;
+  inboundEmails?: FirmTask<InboundEmailPayload>;
+  inboxSummary?: FirmTask<InboxSummaryPayload>;
+  enquiryEmailReplies?: FirmTask<EnquiryEmailReplyPayload>;
   webhooks?: FirmTask<WebhookDeliverPayload>;
   connectorEvents?: FirmTask<ConnectorEventPayload>;
   connectorPulls?: FirmTask<ConnectorPullPayload>;
@@ -245,6 +259,19 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   await registerInboundTask(boss, deps.inboundMessages ?? inboundMessageFirmTask);
   // The hour's one email about unknown numbers past its 5 alerts (Phase 25.3).
   await registerFirmTask(boss, deps.officeAlertsCombined ?? officeAlertsCombinedTask);
+  // The staffing inbox (P7.4, P7.5; Phase 25.5): sorting each email (as the shifts line: each try
+  // knows whether it's the last, and one casual's emails never run two at once), the hourly sweep
+  // for emails whose job was lost, the office's summary every 3 hours, and the office's replies.
+  await registerInboundTask(boss, deps.inboundEmails ?? inboundEmailFirmTask);
+  await boss.work(
+    INBOUND_EMAIL_TICK_QUEUE,
+    logFailures(INBOUND_EMAIL_TICK_QUEUE, async () => {
+      await runInboundEmailTick({ listFirmIds, run: withFirm });
+    }),
+  );
+  await boss.schedule(INBOUND_EMAIL_TICK_QUEUE, INBOUND_EMAIL_TICK_CRON);
+  await registerFirmTask(boss, deps.inboxSummary ?? inboxSummaryTask);
+  await registerFirmTask(boss, deps.enquiryEmailReplies ?? enquiryEmailReplyFirmTask);
 
   // The planner's webhooks (12J.2): each try knows whether it's the last (includeMetadata), and a
   // firm's deliveries never run two at once (WEBHOOK_WORK_OPTIONS).

@@ -111,6 +111,13 @@ const hours = (value: unknown) => {
   return Number.isFinite(n) ? noticeText(n) : null;
 };
 
+// An automatic link email to a casual's email (P7.5), by which link it gave.
+const INBOX_ANSWER_WORDS: Record<string, string> = {
+  shifts: "open shifts",
+  cancel: "cancel",
+  pay: "pay",
+};
+
 const INTENT_WORDS: Record<string, string> = {
   shifts: "open shifts",
   cancel: "cancelling",
@@ -480,6 +487,10 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `The shifts line built ${worker}'s reply: ${what}${d.sent === false ? " (it couldn't be sent)" : ""}.`;
     }
     case "enquiry.answered": {
+      // An email to the staffing inbox (Phase 25.5) is answered by email.
+      if (d.channel === "email") {
+        return `${officeName} replied to ${worker}'s email (by email, ${d.form === "draft" ? "from an AI draft they checked" : "in their own words"}).`;
+      }
       const whose = d.workerId ? `${worker}'s message` : "a message from a number we don't know";
       const how =
         d.form === "template"
@@ -490,22 +501,80 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `${officeName} replied to ${whose} (${how}).`;
     }
     case "enquiry.closed": {
-      const whose = d.workerId ? `${worker}'s message` : "a message from a number we don't know";
+      const whose =
+        d.channel === "email"
+          ? `${worker}'s email`
+          : d.workerId
+            ? `${worker}'s message`
+            : "a message from a number we don't know";
       const reason = CLOSE_REASON_WORDS[d.reason as CloseReason] ?? "Other";
       return `${officeName} closed ${whose} without a reply (${reason.toLowerCase()}).`;
     }
     case "enquiry.reply_sending":
-      return `Sending the office's reply to ${d.workerId ? worker : "a number we don't know"}.`;
+      return `Sending the office's reply to ${d.workerId ? worker : "a number we don't know"}${d.channel === "email" ? " by email" : ""}.`;
     case "enquiry.reply_sent":
       return `The office's reply to ${d.workerId ? worker : "a number we don't know"} went${
-        d.fellBackFrom === "whatsapp"
-          ? " by text (WhatsApp didn't take it)"
-          : d.channel === "sms"
-            ? " by text"
-            : " on WhatsApp"
+        d.channel === "email"
+          ? " by email"
+          : d.fellBackFrom === "whatsapp"
+            ? " by text (WhatsApp didn't take it)"
+            : d.channel === "sms"
+              ? " by text"
+              : " on WhatsApp"
       }.`;
     case "enquiry.reply_failed":
-      return `The office's reply to ${d.workerId ? worker : "a number we don't know"} couldn't be sent. Their message is back in Need a person.`;
+      return d.channel === "email"
+        ? `The office's reply to ${worker} couldn't be sent by email (${String(d.code ?? "unknown")}). Their email is back in Need a person.`
+        : `The office's reply to ${d.workerId ? worker : "a number we don't know"} couldn't be sent. Their message is back in Need a person.`;
+
+    // The staffing inbox (P7.4, P7.5; Phase 25.5).
+    case "email.received": {
+      if (d.handledAs === "unknown") {
+        return "An email came to the staffing inbox from an address that isn't one of your casuals'. Its words aren't kept: it's in your own inbox.";
+      }
+      if (d.formerWorker === true) {
+        return "An email came to the staffing inbox from someone who isn't active any more. It's waiting for a person.";
+      }
+      if (d.stale === true) {
+        return `${who}'s email came in more than 3 hours before the inbox could answer it, so it's waiting for a person unsorted.`;
+      }
+      if (typeof d.answerFailed === "string") {
+        return `${who}'s email couldn't be sorted (${d.answerFailed}), so it's waiting for a person.`;
+      }
+      const ai = d.handledAs === "ai" ? ", sorted by AI" : "";
+      const held =
+        d.replyHeld === true || d.replyLimit === true || d.noAddress === true
+          ? String(d.sortedAs)
+          : null;
+      if (held === null && d.intent === "office") {
+        return `${who} emailed the staffing inbox (for the office${ai}). It's waiting for a person.`;
+      }
+      const about = INTENT_WORDS[held ?? String(d.intent)] ?? "an email";
+      const why =
+        d.replyHeld === true
+          ? ` ${HELD_REPLY_LOG}`
+          : d.replyLimit === true
+            ? " 3 automatic replies already went to them today: it's waiting for a person."
+            : d.noAddress === true
+              ? " There's no email address on file for them: it's waiting for a person."
+              : "";
+      return `${who} emailed the staffing inbox (${about}${ai}).${why}`;
+    }
+    case "email.replied":
+      return `The ${INBOX_ANSWER_WORDS[String(d.answer)] ?? "automatic"} email went to ${worker}.`;
+    case "email.reply_failed":
+      return `The ${INBOX_ANSWER_WORDS[String(d.answer)] ?? "automatic"} email to ${worker} couldn't be sent (${String(d.code ?? "unknown")}).`;
+    case "message.inbox_summary": {
+      const n = Number(d.emails ?? 0);
+      const emails = n === 1 ? "1 email" : `${n} emails`;
+      const slot = isClock(d.from) && isClock(d.to) ? `, ${d.from} to ${d.to}` : "";
+      const recipients = Number(d.recipients ?? 0);
+      const failed = Number(d.failed ?? 0);
+      if (recipients === 0 && failed === 0) {
+        return `Nobody in the office could be emailed the staffing inbox's summary (${emails}${slot}): no active admin or resourcer has an email address.`;
+      }
+      return `The office was emailed the staffing inbox's summary (${emails}${slot})${failed > 0 ? `; it couldn't be sent to ${failed} of them` : ""}.`;
+    }
     case "request.created":
       return `${worker} sent a request (${kind(d.type)}).`;
     case "request.approved":

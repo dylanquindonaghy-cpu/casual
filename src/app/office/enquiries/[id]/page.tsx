@@ -5,6 +5,7 @@ import { btn, page, sectionGap } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import { officeEnquiry } from "@/lib/office/enquiries";
+import { EmailBody, EmailCasualLink, EmailFacts, emailTitle } from "../email-detail";
 import { CasualPageLink, EnquiryBody, EnquiryFacts, enquiryTitle } from "../enquiry-detail";
 
 export const metadata: Metadata = { title: "Enquiry" };
@@ -18,6 +19,26 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
   const { id } = await params;
   const e = await officeEnquiry({ firm, officeUserId: officeUser.id }, id);
   if (!e) notFound();
+  // An email to the staffing inbox (Phase 25.5): its own parts (../email-detail.tsx).
+  if (e.channel === "email") {
+    return (
+      <main className={page.office}>
+        <PageHeader
+          back={{ href: "/office/enquiries", label: "Enquiries" }}
+          title={emailTitle(e.who)}
+          actions={e.who.kind === "casual" ? <EmailCasualLink e={e} /> : undefined}
+        >
+          <EmailFacts e={e} />
+        </PageHeader>
+        <EmailBody e={e} level={2} />
+        <p className={sectionGap.office}>
+          <Link href="/office/enquiries" className={btn.link}>
+            Back to Enquiries
+          </Link>
+        </p>
+      </main>
+    );
+  }
   const casual = <CasualPageLink e={e} />;
   return (
     <main className={page.office}>

@@ -76,7 +76,7 @@ export function smtpConnectionOptions(config: SmtpConfig): SMTPConnection.Option
   };
 }
 
-// The message as nodemailer builds it: from, to, subject, the plain-text body and the files, each
+// The message as nodemailer builds it: from, to, the Reply-To when there is one, subject, the plain-text body and the files, each
 // file base64-encoded (so the size limits in transport.ts hold once encoded: nodemailer would pick
 // quoted-printable for some text, which can triple non-ASCII bytes). No file or web address is
 // ever read in (only the bytes given here).
@@ -84,6 +84,7 @@ export function smtpMailOptions(from: string, message: EmailMessage) {
   return {
     from,
     to: message.to,
+    ...(message.replyTo ? { replyTo: message.replyTo } : {}),
     subject: message.subject,
     text: message.body,
     attachments: (message.attachments ?? []).map((a) => ({

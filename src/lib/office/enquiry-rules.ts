@@ -23,6 +23,7 @@ export const OUTCOMES = [
   "not_understood", // Not understood
   "pay", // Pay (always a person)
   "in_app", // Done in the app
+  "inbox", // Left for your inbox (an email not from a casual: Phase 25.5)
 ] as const;
 export type Outcome = (typeof OUTCOMES)[number];
 
@@ -33,15 +34,18 @@ export interface OutcomeFacts {
   intent: "shifts" | "cancel" | "pay" | "office" | null;
   waiting: boolean; // Need a person (enquiries.ts NEEDS_PERSON)
   doneInApp: boolean; // the casual booked or cancelled in the app within a day of the reply
+  email?: boolean; // an email to the staffing inbox (Phase 25.5), not a message to the shifts line
 }
 
 // For a person: the casual asked for the office (a keyword or the AI), nothing sorted it (a photo,
-// a voicemail, no AI), or the number isn't one of the firm's casuals.
-export const forAPerson = (f: Pick<OutcomeFacts, "handledAs" | "intent">) =>
-  f.handledAs === "unknown" || f.intent === "office";
+// a voicemail, no AI), or the number isn't one of the firm's casuals. An email not from a casual is
+// left for the firm's own inbox, where it already is (Phase 25.5): never a person's here.
+export const forAPerson = (f: Pick<OutcomeFacts, "handledAs" | "intent" | "email">) =>
+  (f.handledAs === "unknown" && !f.email) || f.intent === "office";
 
 export function enquiryOutcome(f: OutcomeFacts): Outcome {
   if (!f.handled) return "not_understood";
+  if (f.email && f.handledAs === "unknown") return "inbox";
   // Pay is never answered by AI or by the shifts line's words: the casual gets the pay page's link.
   if (f.intent === "pay") return "pay";
   if (forAPerson(f)) return f.waiting ? "person_waiting" : "person_answered";
@@ -100,3 +104,15 @@ export function replyPlan(input: {
 
 // The office's words as one line: runs of spaces, tabs and line breaks become one space.
 export const replyLine = (text: string) => text.replace(/\s+/g, " ").trim();
+
+// The office's reply to an email (P7.5): its own lines kept (spaces at line ends and runs of blank
+// lines tidied), at most EMAIL_REPLY_MAX characters.
+export const EMAIL_REPLY_MAX = 2000;
+export const emailReplyText = (text: string) =>
+  text
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((l) => l.replace(/[ \t]+/g, " ").trimEnd())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();

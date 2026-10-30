@@ -996,6 +996,71 @@ system (`roster_sources` kind `connector`; P5) was read as a Google Sheet. Now:
 - The portal's names: "the demo portal" (the made-up one the tests use; a real one's name comes
   with it).
 
+**The staffing inbox in Enquiries (P7.4 and P7.5; Phase 25.5; the mock-up named in `PLAN.md`
+25.5, built as recommended: Dylan, 2026-10-30, "just do what you would recommend stop prompting me
+and build it").** The firm's staffing mailbox forwards to its inbox address (P7); each email is
+sorted as the shifts line sorts a message and shows in Enquiries beside the shifts line's
+messages. Mail that isn't from one of the firm's casuals (clients, venues, applicants) is left for
+the firm's own inbox, where it already is: listed, never in Need a person, its words not kept. The
+email casuals get is in `docs/messaging-templates.md` ("The staffing inbox's emails").
+
+- **The list** (All, Need a person, Pay): an email's row has the envelope icon ("Email" to screen
+  readers), the casual's name or "Unknown address", the time, the outcome chip, then its subject
+  on its own line ("(No subject)") and their words in quotes (cut at 140 characters; "(An email
+  with no text.)"). One not from a casual: the chip "Left for your inbox" and "(Not from one of
+  your casuals: its words aren't kept. It's in your own inbox.)". A firm with an inbox address
+  reads "No messages to the shifts line or the staffing inbox in the last {90} days.", "Nothing to
+  the shifts line or the staffing inbox today." and "Nothing needs a person. Messages and emails
+  we can't answer show here."
+- **One email** (`/office/enquiries/[id]`, and the pane): "Email from {Priya Shah}" / "Email from
+  an unknown address", the outcome chip (+ "Pay: never answered by AI (rule)"), "Reference {ref}",
+  "{Priya Shah}'s page". **"The email"**: "Subject: {subject}" ("Subject: (none)"), their words
+  ("(No text.)"), "{2 attachments} left out: attachments are never kept." ("1 attachment"); then
+  each reply to it, as it went: "Automatic reply · {09:14 on Mon 2 Nov}" / "{Sam Rota} · {09:14 on
+  Mon 2 Nov}" (+ " · Sending" / " · Not sent" / " · Not confirmed"), its words. One not from a
+  casual: "From {name@example.com}. It isn't one of your casuals' addresses, so its words aren't
+  kept here. It's in your own inbox." **"How it was answered"**: 1 "Received: Email at {time},
+  from {Priya Shah}'s address." ("(not active)"; "from {address}, an address that isn't one of
+  your casuals'."). 2 "Sorted: " as a message's ("A keyword matched: \"{shifts}\"." / "AI sorted it
+  as \"{cancel}\"." / the held, AI and person lines), and an email's own: "It came in more than 3
+  hours before the inbox could answer it, so it was passed to a person unsorted." / "Not one of
+  your casuals' addresses: left for your own inbox." / "From someone who isn't active any more:
+  passed to a person." / "The sorting failed on every try ({code}): passed to a person." / "3
+  automatic replies already went to them today: passed to a person." / "Not sorted yet: the inbox
+  hasn't answered it." 3 "Reply built: " "The open shifts email, with the link to Open shifts." /
+  "The cancel email, with the link to My shifts." / "The pay email: the link to their pay page and
+  to raise a pay query, never an answer about pay." / "No automatic reply: automatic replies are
+  off for your firm. Ask us to turn them on." / "No automatic reply." 4 "Sent: " "Sent by email
+  to their address on file at {time}." / "Not sent ({code}) at {time}." / "Nothing sent." 5
+  "Then: " as a message's, with "{Sam Rota} replied at {time} (by email, from an AI draft they
+  checked / by email, in their own words): sent / sending / not confirmed: it may not have gone,
+  so check with them / not sent ({code}): it's back in Need a person."
+- **"Answer it"** (while it needs a person): "Reply by email". With a draft: "AI drafted this from
+  their email. Check every word before you send it: it can be wrong." over the box, the draft in
+  it to change as they like; a pay email: "Pay questions never get an AI draft (rule)."; no draft
+  (AI off, or it gave none): an empty box. Under the box: "It goes to {Priya}'s email address on
+  file, signed \"{Acme Events} Shift Team\". Their reply comes back here." → "Send reply by email"
+  → "Your reply is on its way: it goes by email in a moment." Then "Why close it?" → "Close without
+  a reply" → "Closed. No reply was sent." Errors: "Write a reply first.", "The reply is too long
+  (2,000 characters at most).", "{Priya} has no email address on file, so a reply can't go. Phone
+  them, then close it.", "Someone has already answered or closed this.", "We can't find that
+  email.", "You can't answer enquiries.", "Your session has ended. Log in again.", "Something went
+  wrong. Try again."
+- **The action log**: `email.received`: "{Priya Shah} emailed the staffing inbox ({open
+  shifts}{, sorted by AI})." (+ " No automatic reply (they're off): it's waiting for a person." /
+  " 3 automatic replies already went to them today: it's waiting for a person.") / "{Priya Shah}
+  emailed the staffing inbox (for the office{, sorted by AI}). It's waiting for a person." /
+  "{Priya Shah}'s email came in more than 3 hours before the inbox could answer it, so it's
+  waiting for a person unsorted." / "{Priya Shah}'s email couldn't be sorted ({code}), so it's
+  waiting for a person." / "An email came to the staffing inbox from an address that isn't one of
+  your casuals'. Its words aren't kept: it's in your own inbox." / "An email came to the staffing
+  inbox from someone who isn't active any more. It's waiting for a person." `email.replied`: "The
+  {open shifts / cancel / pay} email went to {Priya Shah}." `email.reply_failed`: "The {open
+  shifts} email to {Priya Shah} couldn't be sent ({code})." `message.inbox_summary`: "The office was
+  emailed the staffing inbox's summary ({12 emails}, {09:00} to {12:00})." ("… nobody to email it
+  to: no active admin or resourcer has an email address." / "… it couldn't be sent to {1} of
+  them.")
+
 | Route | Screen | What's on it | Empty / error states |
 |---|---|---|---|
 | `/login` | Log in | "Log in to {firm}". Field "Your mobile number" (phone keypad) → "Send me a link". Then: "Check your phone. If {firm} has this number, we've sent a link by WhatsApp or text. It works for 15 minutes." + sign-off, and "Use a different number" (with no text sender, by email or not at all: "How login links and codes go" above). Same message whether or not the number is known. After logout: "You're logged out." | Not a number: "Enter a UK mobile number, like 07700 900123." Rate-limited: "Too many tries. Try again in {n} minutes." Unknown number never revealed. |

@@ -111,6 +111,10 @@ export const LOG_TYPES = {
       "message.reply_failed",
       "message.office_alerted",
       "message.office_alerts_combined",
+      "message.inbox_summary",
+      "email.received",
+      "email.replied",
+      "email.reply_failed",
       "message.office_alert_failed",
       "message.office_alert_skipped",
       // What the shifts line's personal reply was built from (12D.2).

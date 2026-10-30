@@ -1,4 +1,5 @@
 import { roleLabel } from "../portal/format";
+import { cutChars } from "../text/cut";
 // Message copy from docs/messaging-templates.md. Every message ends with the firm's sign-off.
 
 export interface FirmVoice {
@@ -737,4 +738,100 @@ export function requestUpdatePush(request: { type: string; status: string }): {
 // pay page, behind the pay code.
 export function payQueryUpdatePush(): { title: string; body: string } {
   return { title: "Pay query sorted", body: "Payroll has answered. Open your pay page to see it." };
+}
+
+// --- The staffing inbox's emails (P7.5; Phase 25.5; docs/messaging-templates.md "The staffing
+// inbox's emails") ---------------------------------------------------------------------------
+
+// "Re: {their subject}" (one "Re:" only), or "Your email to {firm}" when it had none: at most the
+// 200 characters an email's subject may hold (src/lib/messaging/transport.ts).
+export function inboxReplySubject(firm: FirmVoice, subject: string | null): string {
+  const theirs = subject?.replace(/\s+/g, " ").trim() ?? "";
+  if (!theirs) return cutChars(`Your email to ${firm.name}`, 200);
+  return cutChars(/^re:/i.test(theirs) ? theirs : `Re: ${theirs}`, 200);
+}
+
+export const INBOX_AUTOMATIC_LINE =
+  "This is an automatic reply. To reach a person, reply to this email.";
+
+export type InboxAnswer = "shifts" | "cancel" | "pay";
+
+// email_answer_shifts / _cancel / _pay: a casual's email sorted as one of these, with the firm's
+// automatic replies on. Its link only, never an answer in words; each link last on its line.
+export function inboxAnswerEmail(
+  firm: FirmVoice,
+  answer: InboxAnswer,
+  e: { firstName: string; subject: string | null; link: string },
+): { subject: string; body: string } {
+  const lines = {
+    shifts: ["The shifts you can take are here:", e.link, "You'll get a code to log in."],
+    cancel: [
+      "To cancel a shift, open it here:",
+      e.link,
+      "You'll see what cancelling means for you before you confirm, and it's recorded the moment you do.",
+    ],
+    pay: [
+      "Your hours, rates and pay dates are here:",
+      e.link,
+      'You\'ll get a code to log in. If something looks wrong, tap "Raise a pay query" there, so payroll sees it.',
+    ],
+  }[answer];
+  return {
+    subject: inboxReplySubject(firm, e.subject),
+    body: [
+      `Hi ${e.firstName},`,
+      lines.slice(0, 2).join("\n"),
+      lines[2],
+      INBOX_AUTOMATIC_LINE,
+      `— ${firm.signOff}`,
+    ].join("\n\n"),
+  };
+}
+
+// The office's reply to a casual's email (Enquiries): their own words, checked and sent by a person
+// (it may have begun as the AI's draft, which they changed as they liked).
+export function inboxOfficeReplyEmail(
+  firm: FirmVoice,
+  e: { firstName: string; subject: string | null; words: string },
+): { subject: string; body: string } {
+  return {
+    subject: inboxReplySubject(firm, e.subject),
+    body: [`Hi ${e.firstName},`, e.words.trim(), `— ${firm.signOff}`].join("\n\n"),
+  };
+}
+
+// inbox_summary (email, to active admins and resourcers): a 3-hour slot's emails to the staffing
+// inbox, by what came of them. Counts only: no names, addresses or words. `from` and `to`: the
+// slot in the firm's time ("09:00", "12:00").
+export function inboxSummaryEmail(
+  firm: FirmVoice,
+  link: string, // Enquiries (/office/enquiries)
+  s: {
+    from: string;
+    to: string;
+    emails: number;
+    linked: number;
+    waiting: number;
+    office: number;
+    pay: number;
+    notCasuals: number;
+  },
+): { subject: string; body: string } {
+  const emails = `${s.emails} ${s.emails === 1 ? "email" : "emails"}`;
+  const lines = [
+    s.linked > 0 ? `${s.linked} answered with a link` : null,
+    s.waiting > 0 ? `${s.waiting} waiting for a person` : null,
+    s.office > 0 ? `${s.office} already answered by your office` : null,
+    s.pay > 0 ? `${s.pay} ${s.pay === 1 ? "pay question" : "pay questions"}` : null,
+    s.notCasuals > 0 ? `${s.notCasuals} not from your casuals (in your own inbox)` : null,
+  ].filter((l): l is string => l !== null);
+  return {
+    subject: `${firm.name}: ${emails} to the staffing inbox`,
+    body: [
+      `Between ${s.from} and ${s.to}, the staffing inbox got ${emails}:`,
+      lines.join("\n"),
+      `See them in Enquiries: ${link}`,
+      `— ${firm.signOff}`,
+    ].join("\n\n"),
+  };
 }

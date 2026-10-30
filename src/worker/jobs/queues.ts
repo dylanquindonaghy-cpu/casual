@@ -5,6 +5,13 @@ import { CREDENTIAL_SCAN_QUEUE, CREDENTIAL_SCAN_TICK_QUEUE } from "../../lib/cre
 import { FIRM_CHANGE_NOTICE_QUEUE } from "../../lib/notices/firm-change";
 import { METRICS_ROLLUP_QUEUE, METRICS_ROLLUP_TICK_QUEUE } from "../../lib/metrics/rollup";
 import { OFFICE_ALERTS_COMBINED_QUEUE } from "../../lib/inbound/alerts-combined";
+import {
+  INBOUND_EMAIL_QUEUE,
+  INBOUND_EMAIL_RETRY_LIMIT,
+  INBOUND_EMAIL_TICK_QUEUE,
+} from "../../lib/email/job";
+import { INBOX_SUMMARY_QUEUE } from "../../lib/email/summary";
+import { ENQUIRY_EMAIL_REPLY_QUEUE } from "../../lib/notices/email-reply";
 import { INBOUND_MESSAGE_QUEUE, INBOUND_RETRY_LIMIT } from "../../lib/inbound/job";
 import { PAY_QUERY_UPDATE_QUEUE } from "../../lib/notices/pay-query-update";
 import { ENQUIRY_REPLY_QUEUE } from "../../lib/notices/enquiry-reply";
@@ -90,12 +97,15 @@ const FIRM_QUEUE_NAMES: readonly string[] = [
   STRIKES_EMAIL_LINK_QUEUE,
   STRIKE_EVIDENCE_QUEUE,
   OFFICE_ALERTS_COMBINED_QUEUE,
+  INBOX_SUMMARY_QUEUE,
+  ENQUIRY_EMAIL_REPLY_QUEUE,
 ];
 
 const sheetsSync = firmQueue(SHEETS_SYNC_QUEUE);
 const travelEstimates = firmQueue(TRAVEL_ESTIMATES_QUEUE);
 const webhookDeliver = firmQueue(WEBHOOK_DELIVER_QUEUE);
 const inboundMessage = firmQueue(INBOUND_MESSAGE_QUEUE);
+const inboundEmail = firmQueue(INBOUND_EMAIL_QUEUE);
 const connectorEvent = firmQueue(CONNECTOR_EVENT_QUEUE);
 const connectorPull = firmQueue(CONNECTOR_PULL_QUEUE);
 
@@ -133,6 +143,10 @@ export const QUEUES: readonly QueueSpec[] = [
   },
   {
     name: CONNECTOR_PULL_TICK_QUEUE,
+    options: { policy: "standard", deleteAfterSeconds: 24 * 60 * 60 },
+  },
+  {
+    name: INBOUND_EMAIL_TICK_QUEUE,
     options: { policy: "standard", deleteAfterSeconds: 24 * 60 * 60 },
   },
   // Alerts to the founder (no firm): each alert's key is a singleton for the hour, so an ongoing
@@ -173,6 +187,17 @@ export const QUEUES: readonly QueueSpec[] = [
     options: {
       ...inboundMessage.options,
       retryLimit: INBOUND_RETRY_LIMIT,
+      retryDelay: 2,
+      retryBackoff: false,
+    },
+  },
+  // The staffing inbox (P7.4; src/lib/email/sort.ts): as the shifts line, tried again 3 times, 2
+  // seconds apart; the last try passes the email to a person, then the job still fails.
+  {
+    ...inboundEmail,
+    options: {
+      ...inboundEmail.options,
+      retryLimit: INBOUND_EMAIL_RETRY_LIMIT,
       retryDelay: 2,
       retryBackoff: false,
     },

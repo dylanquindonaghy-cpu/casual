@@ -1,6 +1,7 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { inboundEmails, workers } from "../db/schema";
 import { withFirm, type WithFirm } from "../db/scoped";
+import { queueInboundEmail } from "./job";
 import { prepareEmail } from "./prepare";
 
 // Storing an email the firm's staffing inbox received (P7.2; golden rule 3): one inbound_emails
@@ -9,8 +10,8 @@ import { prepareEmail } from "./prepare";
 // with that address, and only one: two would leave it nobody's; and only when the provider says the
 // address passed its checks, as anyone can put another's address in an email), and only then its
 // subject and words, made ready first (prepare.ts: quoted history and signature off; attachments
-// never kept).
-// Its job comes with P7.4: until then it waits, stored.
+// never kept). Its sorting job (P7.4: src/lib/email/sort.ts) is queued in the same transaction,
+// ids only.
 
 export interface InboundEmail {
   messageId: string;
@@ -62,6 +63,7 @@ export function receiveEmail(
       })
       .onConflictDoNothing({ target: [inboundEmails.firmId, inboundEmails.providerMessageId] })
       .returning({ id: inboundEmails.id });
+    if (row) await queueInboundEmail(tx, { id: row.id, workerId });
     return { stored: row !== undefined };
   });
 }

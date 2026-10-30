@@ -27,7 +27,7 @@ export function LoginForm({
   if (way === "off") {
     return (
       <div role="note" className="mt-6 rounded-xl border-2 border-attention bg-attention-soft p-4">
-        <p className="text-2xl font-bold">Login links aren&apos;t switched on yet.</p>
+        <p className="font-bold">Login links aren&apos;t switched on yet.</p>
         <p className="mt-2">Please contact the office the way you usually do.</p>
         <p className={`mt-2 ${muted}`}>{signOff}</p>
       </div>

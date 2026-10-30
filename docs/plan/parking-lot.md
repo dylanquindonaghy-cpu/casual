@@ -2076,9 +2076,12 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   webhook's ("Your planner's webhook is failing") once reads have failed for, say, an hour; words
   first. With the real connector.
 - **The staffing inbox's loose ends** (Phase 25.5, 2026-10-30):
-  - A link email that fails (`email.reply_failed`) leaves the email as answered by keyword or AI,
-    its page saying "Not sent ({code})", as the shifts line's automatic reply does: neither goes
-    back to Need a person. Worth doing for both together, words first.
+  - The shifts line's automatic reply that fails (`message.reply_failed`) leaves the message as
+    answered by keyword or AI, its page saying "Not sent ({code})": it doesn't go back to Need a
+    person, as an email's failed link email now does (Phase 25.5). Words first.
+  - The database's check keeps a draft off an email whose intent is pay, but not off one held for
+    a person that was sorted as pay (its intent is the office's; what it was sorted as is in the
+    log): only the code and the page keep the draft off that one.
   - A casual's reply to our email goes to the firm's inbox address at our provider (its Reply-To),
     so it reaches Enquiries but not the firm's own mailbox. With the real provider: whether to copy
     it to the firm's mailbox too.

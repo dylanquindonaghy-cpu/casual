@@ -53,7 +53,7 @@ async function inboxFirm(o: { repliesOn?: true } = {}) {
   // Stored as the webhook would, then sorted by its job (no AI unless given).
   const email = async (
     e: { from?: string; subject?: string; text?: string },
-    o: { draft?: string; label?: string } = {},
+    o: { draft?: string; label?: string; failSend?: true } = {},
   ) => {
     const messageId = `<${randomBytes(6).toString("hex")}@mail.example.test>`;
     await receiveEmail(
@@ -74,6 +74,12 @@ async function inboxFirm(o: { repliesOn?: true } = {}) {
       [f.firmId, messageId],
     );
     const id = rows[0]?.id ?? "";
+    const failing: MessagingTransport = {
+      name: "failing",
+      send: async () => {
+        throw new Error("down");
+      },
+    };
     const ai =
       o.draft || o.label
         ? createFakeAi((r) =>
@@ -84,7 +90,7 @@ async function inboxFirm(o: { repliesOn?: true } = {}) {
       { firmId: f.firmId, idempotencyKey: `inbound-email:${id}`, emailId: id },
       withFirm,
       {
-        transport: captureTransport().transport,
+        transport: o.failSend ? failing : captureTransport().transport,
         ai,
         baseDomain: "shiftdesk.test",
       },
@@ -149,13 +155,7 @@ describe("the office answers a casual's email", () => {
     expect(answered).toEqual({
       action: "enquiry.answered",
       actor_type: "office",
-      data: {
-        replyId: reply?.id,
-        channel: "email",
-        form: "draft",
-        edited: true,
-        workerId: t.priya,
-      },
+      data: { replyId: reply?.id, channel: "email", form: "edited", workerId: t.priya },
     });
     // No longer waiting: answered (while its job sends it).
     expect(await withFirm(t.f.firmId, (tx) => needPersonCount(tx, new Date()))).toBe(0);
@@ -176,6 +176,7 @@ describe("the office answers a casual's email", () => {
     ]);
     expect((await t.logged(id)).map((e) => e.action)).toEqual([
       "email.received",
+      "email.drafted",
       "enquiry.answered",
       "enquiry.reply_sending",
       "enquiry.reply_sent",
@@ -187,9 +188,30 @@ describe("the office answers a casual's email", () => {
       draft: null,
       replies: [{ automatic: false, state: "sent", body: reply?.body }],
       timeline: {
-        then: [{ kind: "office_reply", channel: "email", form: "draft", state: "sent" }],
+        then: [{ kind: "office_reply", channel: "email", form: "edited", state: "sent" }],
       },
     });
+  });
+
+  it("the office's reply job never sends an automatic reply", async () => {
+    const t = await inboxFirm({ repliesOn: true });
+    const id = await t.email({ subject: "Shifts", text: "Any work?" });
+    const [automatic] = await t.replyRows(id);
+    expect(automatic?.kind).toBe("automatic");
+    const { transport, sent } = captureTransport();
+    expect(await t.replyJob(automatic?.id ?? "", transport)).toEqual({ status: "gone" });
+    expect(sent).toEqual([]);
+  });
+
+  it("the AI's draft sent as it was: logged as the draft, checked", async () => {
+    const t = await inboxFirm();
+    const draft = "The office will check and come back to you.";
+    const id = await t.email({}, { draft });
+    expect(await replyToEmail(t.ctx(), id, draft)).toEqual({ status: "queued" });
+    expect((await t.logged(id)).find((e) => e.action === "enquiry.answered")?.data).toMatchObject({
+      form: "draft",
+    });
+    expect((await t.replyRows(id))[0]?.from_draft).toBe(true);
   });
 
   it("in their own words (no draft); a failed send puts it back in Need a person", async () => {
@@ -306,6 +328,13 @@ describe("the inbox's summary every 3 hours", () => {
     const closed = await t.email({ subject: "Boots", text: "Is Friday still on?" });
     await closeEnquiry(t.ctx(), closed, "by_phone"); // the office's
     await t.email({ from: "venue@example.org" }); // not a casual
+    // A link email that failed: back with a person, so waiting (never "answered by your office").
+    await t.email({ subject: "Work", text: "Any work going?" }, { failSend: true });
+    // One whose job stopped part-way (no word on whether it went): counted nowhere.
+    const unsure = await t.email({ subject: "More", text: "Any more work?" });
+    await su.query("delete from events where entity_id = $1 and action = 'email.replied'", [
+      unsure,
+    ]);
     const slot = summarySlotOf(new Date(), "Europe/London");
     const payload = {
       firmId: t.f.firmId,
@@ -320,7 +349,7 @@ describe("the inbox's summary every 3 hours", () => {
     });
     expect(result).toMatchObject({
       status: "sent",
-      counts: { emails: 5, linked: 1, waiting: 1, office: 1, pay: 1, notCasuals: 1 },
+      counts: { emails: 7, linked: 1, waiting: 2, office: 1, pay: 1, notCasuals: 1 },
       emailed: 2,
       failed: 0,
     });
@@ -330,7 +359,7 @@ describe("the inbox's summary every 3 hours", () => {
     );
     expect(sent.map((m) => m.to).sort()).toEqual(office.map((o) => o.email).sort());
     const body = sent[0]?.channel === "email" ? sent[0].body : "";
-    expect(body).toContain("got 5 emails:");
+    expect(body).toContain("got 7 emails:");
     expect(body).not.toMatch(/Priya|example\.com|example\.org|boots|payslip/i);
     // Again: claimed, nothing more.
     expect(
@@ -342,7 +371,7 @@ describe("the inbox's summary every 3 hours", () => {
       [t.f.firmId],
     );
     expect(entries.map((e) => e.data)).toEqual([
-      expect.objectContaining({ received: 5, recipients: 2, failed: 0, skipped: 0 }),
+      expect.objectContaining({ received: 7, recipients: 2, failed: 0, skipped: 0 }),
     ]);
   });
 

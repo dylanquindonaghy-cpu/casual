@@ -309,7 +309,7 @@ type ThenLike =
       by: string | null;
       at: Date;
       channel: "whatsapp" | "sms" | "email";
-      form: "free_text" | "template" | "draft";
+      form: "free_text" | "template" | "draft" | "edited";
       state: "sending" | "sent" | "failed" | "unconfirmed";
       code: string | null;
       fellBackFrom: string | null;
@@ -342,8 +342,10 @@ export function thenStep(
       const how =
         t.channel === "email"
           ? t.form === "draft"
-            ? "by email, from an AI draft they checked"
-            : "by email, in their own words"
+            ? "by email, the AI's draft, checked by them"
+            : t.form === "edited"
+              ? "by email, from an AI draft they changed"
+              : "by email, in their own words"
           : t.form === "template"
             ? "as the request update template"
             : t.channel === "sms"

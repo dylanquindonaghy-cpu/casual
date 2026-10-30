@@ -333,7 +333,7 @@ export type ThenFact =
       by: string | null;
       at: Date;
       channel: "whatsapp" | "sms" | "email";
-      form: "free_text" | "template" | "draft";
+      form: "free_text" | "template" | "draft" | "edited";
       // unconfirmed: still "sending" 15 minutes on (the job stopped part-way: it may have gone,
       // and it's never sent again).
       state: "sending" | "sent" | "failed" | "unconfirmed";
@@ -863,7 +863,7 @@ export async function loadEmailEnquiry(
   // the office's `enquiry.reply_sent` / `enquiry.reply_failed`. One with neither 15 minutes on is
   // unconfirmed: it may have gone, and it's never sent again.
   const outcome = new Map<string, { state: "sent" | "failed"; at: Date; code: string | null }>();
-  const forms = new Map<string, "draft" | "free_text">();
+  const forms = new Map<string, "draft" | "edited" | "free_text">();
   const then: ThenFact[] = [];
   for (const x of events) {
     const replyId = str(x.data.replyId);
@@ -879,7 +879,10 @@ export async function loadEmailEnquiry(
         code: str(x.data.code) ?? "unknown",
       });
     } else if (replyId && x.action === "enquiry.answered") {
-      forms.set(replyId, x.data.form === "draft" ? "draft" : "free_text");
+      forms.set(
+        replyId,
+        x.data.form === "draft" ? "draft" : x.data.form === "edited" ? "edited" : "free_text",
+      );
     } else if (x.action === "enquiry.closed") {
       then.push({
         kind: "closed",
@@ -925,6 +928,10 @@ export async function loadEmailEnquiry(
   const d = received?.data ?? {};
   const handledAs = e.handled_as;
   const intent = e.intent;
+  // What it was sorted as when it came in: a link email that failed has made it the office's since.
+  const sortedIntent = (
+    d.intent === null || typeof d.intent === "string" ? d.intent : intent
+  ) as Intent | null;
   const sortedAs = heldIntent(d.sortedAs);
   const by = handledAs === "keyword" || handledAs === "ai" ? handledAs : null;
   const sorted: EmailSorted =
@@ -944,10 +951,10 @@ export async function loadEmailEnquiry(
                   ? { how: "limit", by, intent: sortedAs }
                   : by && sortedAs && d.nothingOnFile === true
                     ? { how: "no_address", by, intent: sortedAs }
-                    : by && intent
-                      ? intent === "office"
+                    : by && sortedIntent
+                      ? sortedIntent === "office"
                         ? { how: "person", why: by === "keyword" ? "asked" : "ai_asked" }
-                        : { how: by, intent }
+                        : { how: by, intent: sortedIntent }
                       : d.aiFallback === "no_text"
                         ? { how: "person", why: "no_text" }
                         : {

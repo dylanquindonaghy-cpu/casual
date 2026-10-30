@@ -15,7 +15,6 @@ import { autoRepliesOn } from "../inbound/limits";
 import { keywordIntent, type Intent } from "../inbound/keywords";
 import { portalUrl } from "../tenancy/portal-url";
 import { signOffFor } from "../tenancy/sign-off";
-import { systemClock, type Clock } from "../auth/clock";
 import { INBOUND_EMAIL_RETRY_LIMIT, inboundEmailJob, type InboundEmailPayload } from "./job";
 import { queueInboxSummary } from "./summary";
 
@@ -49,10 +48,12 @@ import { queueInboxSummary } from "./summary";
 export const STALE_HOURS = 3;
 export const AUTOMATIC_PER_DAY = 3;
 
-// Words about pay or money: such an email never gets the AI's draft (golden rule 9), whatever it
-// was sorted as. Whole words, any case; "£" anywhere.
+// Words about pay or money (golden rule 9): an email with any gets no AI draft, whatever it was
+// sorted as, and a draft with any is thrown away. Whole words, any case; "£" or "€" anywhere. Wide
+// on purpose: a word missed lets a pay question get a draft, a word too many only leaves the office
+// to write its own.
 const MONEY =
-  /\b(pay|paid|payslips?|paye|underpaid|overpaid|wages?|salary|money|owed|owe|owing|overtime|tax|hmrc|p45|p60|invoice|refund|deduction|deductions|holiday pay)\b|£/i;
+  /\b(pay|paid|paying|payment|payments|payroll|payslips?|paye|underpaid|overpaid|unpaid|wages?|salary|money|owed|owe|owes|owing|overtime|tax|hmrc|p45|p60|invoices?|refunds?|deductions?|deducted|rates?|hourly|hours|timesheets?|expenses|bonus|mileage|bacs|bank|pension|ssp|sick pay|holiday pay|cash)\b|[£€]/i;
 export const aboutMoney = (text: string): boolean => MONEY.test(text);
 
 export interface InboundEmailDeps {
@@ -61,7 +62,6 @@ export interface InboundEmailDeps {
   baseDomain: string;
   aiTimeoutMs?: number; // tests pass a short one
   draftTimeoutMs?: number;
-  clock?: Clock;
 }
 
 export type InboundEmailResult =
@@ -157,14 +157,14 @@ async function read(tx: FirmTx, emailId: string): Promise<Read> {
   };
 }
 
-// Locks the email: true if this run is the one handling it (nobody has yet).
-async function lockUnhandled(tx: FirmTx, emailId: string): Promise<boolean> {
+// Locks the email: when it came in if this run is the one handling it (nobody has yet), else null.
+async function lockUnhandled(tx: FirmTx, emailId: string): Promise<Date | null> {
   const [e] = await tx
-    .select({ handledAt: inboundEmails.handledAt })
+    .select({ handledAt: inboundEmails.handledAt, createdAt: inboundEmails.createdAt })
     .from(inboundEmails)
     .where(eq(inboundEmails.id, emailId))
     .for("update");
-  return e !== undefined && e.handledAt === null;
+  return e !== undefined && e.handledAt === null ? e.createdAt : null;
 }
 
 async function firmTimeZone(tx: FirmTx): Promise<string> {
@@ -179,7 +179,6 @@ async function firmTimeZone(tx: FirmTx): Promise<string> {
 async function claimPlain(
   run: WithFirm,
   payload: InboundEmailPayload,
-  now: Date,
   how: {
     handledAs: "unknown" | "office";
     workerId: string | null;
@@ -188,7 +187,8 @@ async function claimPlain(
   },
 ): Promise<boolean> {
   return run(payload.firmId, async (tx) => {
-    if (!(await lockUnhandled(tx, payload.emailId))) return false;
+    const came = await lockUnhandled(tx, payload.emailId);
+    if (!came) return false;
     const intent = how.handledAs === "office" ? ("office" as const) : null;
     await tx
       .update(inboundEmails)
@@ -208,7 +208,8 @@ async function claimPlain(
         ...(how.workerId ? { workerId: how.workerId } : {}),
       },
     });
-    await queueInboxSummary(tx, now, await firmTimeZone(tx));
+    // The summary of the slot it came in (the one that counts it).
+    await queueInboxSummary(tx, came, await firmTimeZone(tx));
     return true;
   });
 }
@@ -224,11 +225,10 @@ export async function runInboundEmail(
   run: WithFirm,
   deps: InboundEmailDeps,
 ): Promise<InboundEmailResult> {
-  const now = (deps.clock ?? systemClock).now();
   const c = await run(payload.firmId, (tx) => read(tx, payload.emailId));
   if (c.kind === "done") return c.result;
   if (c.kind === "not_casual") {
-    const claimed = await claimPlain(run, payload, now, {
+    const claimed = await claimPlain(run, payload, {
       handledAs: "unknown",
       workerId: null,
       active: false,
@@ -237,7 +237,7 @@ export async function runInboundEmail(
     return claimed ? { status: "not_casual" } : { status: "already" };
   }
   if (c.kind === "former" || c.kind === "stale") {
-    const claimed = await claimPlain(run, payload, now, {
+    const claimed = await claimPlain(run, payload, {
       handledAs: "office",
       workerId: c.workerId,
       active: c.kind === "stale",
@@ -287,7 +287,8 @@ export async function runInboundEmail(
 
   // Step 3: the claim, the link email's row, the event and the summary, together.
   const claimed = await run(payload.firmId, async (tx) => {
-    if (!(await lockUnhandled(tx, payload.emailId))) return null;
+    const came = await lockUnhandled(tx, payload.emailId);
+    if (!came) return null;
     await tx
       .update(inboundEmails)
       .set({ handledAt: new Date(), handledAs, intent })
@@ -331,7 +332,7 @@ export async function runInboundEmail(
         workerId: c.workerId,
       },
     });
-    await queueInboxSummary(tx, now, c.firm.timezone);
+    await queueInboxSummary(tx, came, c.firm.timezone);
     return { reply };
   });
   if (claimed === null) return { status: "already" };
@@ -350,16 +351,22 @@ export async function runInboundEmail(
         body: reply.body,
       });
     } catch (err) {
+      // It didn't go: the email waits for a person (its intent the office's, so Need a person
+      // lists it), as an automatic answer held back would.
       const code = safeCode(errorCode(err));
-      await run(payload.firmId, (tx) =>
-        recordEvent(tx, {
+      await run(payload.firmId, async (tx) => {
+        await tx
+          .update(inboundEmails)
+          .set({ intent: "office" })
+          .where(eq(inboundEmails.id, payload.emailId));
+        await recordEvent(tx, {
           actorType: "system",
           action: "email.reply_failed",
           entityType: "inbound_email",
           entityId: payload.emailId,
           data: { replyId: reply.id, answer, code, workerId: c.workerId },
-        }),
-      );
+        });
+      });
       return { status: "reply_failed", answer, replyId: reply.id, code };
     }
     await run(payload.firmId, (tx) =>
@@ -374,23 +381,34 @@ export async function runInboundEmail(
     return { status: "replied", answer, replyId: reply.id };
   }
 
-  // Step 5: for a person. The AI's draft for the office, never about pay or money.
+  // Step 5: for a person. The AI's draft for the office: never about pay or money (its words or
+  // the draft's), and not when there's no address on file to answer by email. Saved only while it
+  // still waits as the office's, and logged `email.drafted` (ids only).
   let drafted = false;
-  if (sortedAs !== "pay" && !aboutMoney(text) && text) {
+  if (sortedAs !== "pay" && held !== "no_address" && text && !aboutMoney(text)) {
     const draft = await draftEmailReply({ subject: c.subject, body: c.body }, deps.ai, {
       timeoutMs: deps.draftTimeoutMs,
     });
-    if (draft) {
-      await run(payload.firmId, (tx) =>
-        tx
+    if (draft && !aboutMoney(draft)) {
+      drafted = await run(payload.firmId, async (tx) => {
+        const saved = await tx
           .update(inboundEmails)
           .set({ draftReply: draft })
           .where(
             sql`${inboundEmails.id} = ${payload.emailId} and ${inboundEmails.intent} = 'office'
                 and ${inboundEmails.draftReply} is null`,
-          ),
-      );
-      drafted = true;
+          )
+          .returning({ id: inboundEmails.id });
+        if (saved.length === 0) return false;
+        await recordEvent(tx, {
+          actorType: "system",
+          action: "email.drafted",
+          entityType: "inbound_email",
+          entityId: payload.emailId,
+          data: { workerId: c.workerId },
+        });
+        return true;
+      });
     }
   }
   return {
@@ -421,7 +439,6 @@ export async function runInboundEmailWithLastTry(
   } catch (err) {
     if (attempt.retryCount < (attempt.retryLimit ?? INBOUND_EMAIL_RETRY_LIMIT)) throw err;
     const code = safeCode(errorCode(err));
-    const now = (deps.clock ?? systemClock).now();
     try {
       const worker = await run(payload.firmId, async (tx) => {
         const { rows } = await tx.execute<{ worker_id: string | null; active: boolean | null }>(
@@ -433,7 +450,7 @@ export async function runInboundEmailWithLastTry(
         return rows[0] ?? null;
       });
       if (worker) {
-        await claimPlain(run, payload, now, {
+        await claimPlain(run, payload, {
           handledAs: worker.worker_id ? "office" : "unknown",
           workerId: worker.worker_id,
           active: worker.active === true,
@@ -442,13 +459,13 @@ export async function runInboundEmailWithLastTry(
       }
       log.warn("inbound email: the last try failed", {
         firmId: payload.firmId,
-        emailId: payload.emailId,
+        entityId: payload.emailId,
         code,
       });
     } catch (markErr) {
       log.error("inbound email: the last try failed, and so did passing it to a person", {
         firmId: payload.firmId,
-        emailId: payload.emailId,
+        entityId: payload.emailId,
         code,
         markCode: errorCode(markErr),
       });

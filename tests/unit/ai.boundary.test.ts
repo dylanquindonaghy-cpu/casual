@@ -11,9 +11,10 @@ import { AI_PURPOSES } from "@/lib/ai/client";
 // inbox (P7.4: src/lib/email/sort.ts, whose link email is the app's fixed text); and (P7.5; Phase
 // 25.5) a draft of the office's reply to such an email, saved for the office to check, never sent
 // from there: the office's reply is what a person typed and sent. This test is a tripwire:
-// - the AI's purposes are a fixed list: that summary, and the shifts line label;
-// - only three files import src/lib/ai/: payroll's grouped view, the digest job, and the shifts
-//   line's reply job (which only ever sends shiftsLineReply()'s fixed words); the AI line is made
+// - the AI's purposes are a fixed list: that summary, the label, and the office's draft;
+// - only these files import src/lib/ai/: payroll's grouped view, the digest job, the shifts line's
+//   reply job (which only ever sends shiftsLineReply()'s fixed words) and the inbox's sorting job
+//   (whose one email is inboxAnswerEmail()'s fixed words; the draft only saved); the AI line is made
 //   in one place (summariseGroups, called only by the digest); the files that import those are
 //   listed too, so passing their output anywhere new means changing this test;
 // - no AI SDK (Bedrock, Anthropic) is imported outside src/lib/ai/;
@@ -123,7 +124,11 @@ describe("AI never answers a dispute", () => {
     // The AI's draft goes to the database only, and never for pay or money.
     expect(sort.match(/draftEmailReply\(/g)).toHaveLength(1);
     expect(sort).toMatch(/\.set\(\{ draftReply: draft \}\)/);
-    expect(sort).toMatch(/if \(sortedAs !== "pay" && !aboutMoney\(text\) && text\) \{/);
+    expect(sort).toMatch(
+      /if \(sortedAs !== "pay" && held !== "no_address" && text && !aboutMoney\(text\)\) \{/,
+    );
+    // And a draft about pay or money is thrown away.
+    expect(sort).toMatch(/if \(draft && !aboutMoney\(draft\)\) \{/);
     // The AI's answers: a label, or a draft (text or null), checked before use.
     const draft = readFileSync(join(SRC, "lib/ai/draft-reply.ts"), "utf8");
     expect(draft).toMatch(/Promise<string \| null>/);

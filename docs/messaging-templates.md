@@ -302,9 +302,13 @@ ends with the sign-off; every link is the last thing on its line, never followed
 - The AI's draft (`draft_reply`, Haiku): from the casual's subject and words only (no shifts, pay,
   names or data of the firm's), a short, polite reply in plain words that promises nothing (no
   shift, time, pay or decision), offers no facts it wasn't given, and leaves out any greeting and
-  sign-off (the email adds them). At most 1,200 characters; anything else, or no AI: no draft. Code
-  decides when there's one: never for an email sorted as pay, nor for one whose words mention pay
-  or money ("pay", "wages", "salary", "money", "owed", "overtime", "tax", "£" and the like).
+  sign-off (the email adds them), and uses or invents no person's name. At most 1,200 characters;
+  anything else, or no AI: no draft. Code decides when there's one: never for an email sorted as
+  pay, nor for one whose words mention pay or money ("pay", "payment", "payroll", "wages",
+  "salary", "money", "owed", "overtime", "tax", "rates", "hours", "timesheet", "expenses", "bank",
+  "£" and the like), nor when there's no address on file to answer; and a draft that itself
+  mentions pay or money is thrown away. Each draft saved is logged (`email.drafted`, ids only); the
+  log says whether the office sent the draft as it was, changed it, or wrote their own.
 
 ## STOP and START by text
 

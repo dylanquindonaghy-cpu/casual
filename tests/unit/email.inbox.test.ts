@@ -164,7 +164,7 @@ describe("an email's words on Enquiries", () => {
     );
     inDoc('"Not sent (code) at time."');
     expect(emailSentStep({ how: "none" }, at)).toBe("Nothing sent.");
-    const reply = (form: "draft" | "free_text") =>
+    const reply = (form: "draft" | "edited" | "free_text") =>
       thenStep(
         {
           kind: "office_reply",
@@ -180,11 +180,12 @@ describe("an email's words on Enquiries", () => {
         { firstName: "Priya", shiftWords: () => "" },
       );
     expect(reply("draft")).toBe(
-      "Sam Rota replied at 09:14 on Mon 2 Nov (by email, from an AI draft they checked): sent.",
+      "Sam Rota replied at 09:14 on Mon 2 Nov (by email, the AI's draft, checked by them): sent.",
     );
+    expect(reply("edited")).toContain("(by email, from an AI draft they changed)");
     expect(reply("free_text")).toContain("(by email, in their own words)");
     inDoc(
-      '"Sam Rota replied at time (by email, from an AI draft they checked / by email, in their own words)',
+      "\"Sam Rota replied at time (by email, the AI's draft, checked by them / by email, from an AI draft they changed / by email, in their own words)",
     );
   });
 
@@ -287,7 +288,7 @@ describe("the action log's words for the inbox", () => {
       "An email came to the staffing inbox from an address that isn't one of your casuals'. Its words aren't kept: it's in your own inbox.",
       "An email came to the staffing inbox from someone who isn't active any more. It's waiting for a person.",
       "The open shifts email went to Priya Shah.",
-      "The open shifts email to Priya Shah couldn't be sent (SmtpRefused).",
+      "The open shifts email to Priya Shah couldn't be sent (SmtpRefused). Their email is waiting for a person.",
       "The office was emailed the staffing inbox's summary (12 emails, 09:00 to 12:00).",
     ]);
     const doc = (s: string) =>
@@ -340,8 +341,19 @@ describe("the action log's words for the inbox", () => {
 
   it("the office's reply and close, by email", () => {
     expect(words("enquiry.answered", { channel: "email", form: "draft", workerId: "w" })).toBe(
-      "Sam Rota replied to Priya Shah's email (by email, from an AI draft they checked).",
+      "Sam Rota replied to Priya Shah's email (by email, the AI's draft, checked by them).",
     );
+    expect(words("enquiry.answered", { channel: "email", form: "edited", workerId: "w" })).toBe(
+      "Sam Rota replied to Priya Shah's email (by email, from an AI draft they changed).",
+    );
+    expect(words("email.drafted", { workerId: "w" })).toBe(
+      "AI drafted a reply to Priya Shah's email, for the office to check.",
+    );
+    inDoc('"AI drafted a reply to Priya Shah\'s email, for the office to check."');
+    inDoc(
+      "\"Sam Rota replied to Priya Shah's email (by email, the AI's draft, checked by them / … from an AI draft they changed / … in their own words).\"",
+    );
+    inDoc('"Sam Rota closed Priya Shah\'s email without a reply (dealt with by phone)."');
     expect(words("enquiry.answered", { channel: "email", form: "free_text", workerId: "w" })).toBe(
       "Sam Rota replied to Priya Shah's email (by email, in their own words).",
     );
@@ -385,6 +397,7 @@ describe("the AI's draft of the office's reply", () => {
     expect(asked[0]).toMatchObject({ purpose: "draft_reply", prompt: "Subject: Boots\n\nCan I?" });
     expect(asked[0]?.system).toMatch(/Never promise or offer anything/);
     expect(asked[0]?.system).toMatch(/never mention pay or money/);
+    expect(asked[0]?.system).toMatch(/never use or invent a person's name/);
   });
 
   it("none: no AI, nothing to read, an empty or too long answer, or a failure", async () => {
@@ -413,10 +426,17 @@ describe("the AI's draft of the office's reply", () => {
       "a tax question",
       "£40 short",
       "Holiday pay?",
+      "about my payment for Saturday",
+      "a payroll question",
+      "My timesheet shows 6 hours, I did 9",
+      "what are the rates?",
+      "my expenses and mileage",
+      "my bank details changed",
+      "€20",
     ]) {
       expect(aboutMoney(text), text).toBe(true);
     }
-    for (const text of ["Can I bring boots?", "Is Tuesday on?", "payment of respect", "Paddy"]) {
+    for (const text of ["Can I bring boots?", "Is Tuesday on?", "Paddy", "a rated venue"]) {
       expect(aboutMoney(text), text).toBe(false);
     }
   });

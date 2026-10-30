@@ -102,8 +102,10 @@ const clock = (at: Date, timeZone: string) => {
 
 // The slot's emails by what came of them now. Pay questions are counted as pay only, whatever came
 // of them (an email held for a person was sorted as pay when its `email.received` says so); one not
-// from a casual as that only; the rest as answered with a link, waiting for a person, or already
-// answered by the office (handled, neither of those). One not handled yet is in none of them.
+// from a casual as that only; the rest as answered with a link (it went), waiting for a person (a
+// link email that failed is back with a person), or already answered by the office (handled, no
+// link email tried, no longer waiting). One not handled yet, or whose link email may not have gone
+// (the job stopped part-way), is in none of them.
 export async function slotCounts(tx: FirmTx, start: Date, end: Date): Promise<SummaryCounts> {
   const { rows } = await tx.execute<{
     emails: number;
@@ -121,7 +123,10 @@ export async function slotCounts(tx: FirmTx, start: Date, end: Date): Promise<Su
                    and r.action = 'email.received' and r.data ->> 'sortedAs' = 'pay')) as pay,
              exists (select 1 from events x
                       where x.firm_id = e.firm_id and x.entity_id = e.id
-                        and x.action = 'email.replied') as linked
+                        and x.action = 'email.replied') as linked,
+             exists (select 1 from email_replies r
+                      where r.firm_id = e.firm_id and r.inbound_email_id = e.id
+                        and r.kind = 'automatic') as tried
         from inbound_emails e
        where e.created_at >= ${start} and e.created_at < ${end}
     )
@@ -133,7 +138,7 @@ export async function slotCounts(tx: FirmTx, start: Date, end: Date): Promise<Su
            count(*) filter (where s.handled_as is distinct from 'unknown' and not s.pay
                               and not s.linked and ${needsPerson("s")})::int as waiting,
            count(*) filter (where s.handled_at is not null and s.handled_as <> 'unknown'
-                              and not s.pay and not s.linked and not ${needsPerson("s")})::int
+                              and not s.pay and not s.tried and not ${needsPerson("s")})::int
              as office
       from slot s
   `);

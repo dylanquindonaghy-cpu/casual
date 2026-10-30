@@ -867,7 +867,7 @@ queues the ones waiting).
       many); mail that isn't from a known casual stored without its subject or words. Tests: each
       quoting style, a reply above and below the quote, nothing left of a forwarded thread, an
       unknown sender's words never in the database (P7.3)
-- [ ] Sorting, held for the office (M; waits for the office's log words for `email.received`, with
+- [x] Sorting, held for the office (M; waits for the office's log words for `email.received`, with
       the UI chat): the `inbound-email` job (queued with each stored email, and once for those
       stored before it: one older than a few hours goes to the office as arrived before the
       inbox was answered, never sorted as if it were new, since a stale "cancel me" isn't one; and
@@ -879,7 +879,7 @@ queues the ones waiting).
       sent, as the shifts line with automatic replies off (P4.7); a pay question is marked pay
       and never answered (golden rule 9); an unknown sender's handled as unknown. Tests: each
       label, the AI down, the same job twice handled once, nothing sent (P7.4)
-- [ ] Waits for Dylan (words) and the UI chat (screens): the casual's answer by a link sent to
+- [x] Waits for Dylan (words) and the UI chat (screens): the casual's answer by a link sent to
       their known address (never on the sender's word alone), a pay question's link to raise it
       in the app (so it reaches the payroll digest), the office's 3-hourly summary email, and
       Enquiries showing emails with the AI-drafted reply the office approves; their words go in
@@ -956,7 +956,7 @@ touches schema, auth, tenancy, messaging or rules; `/close-task` ticks it.
       "just do what you would recommend stop prompting me and build it"): the portal by name, its
       two reads' times, a failed read's reason in plain words, its sessions coming in hidden with a
       link to them; the dashboard's "Updated {time} from your planner" (25.4)
-- [ ] P7.4 and P7.5: the inbox's sorting once Dylan approves the office log's words, then Enquiries
+- [x] P7.4 and P7.5: the inbox's sorting once Dylan approves the office log's words, then Enquiries
       showing emails with the AI-drafted reply the office approves, the casual's answer by a link to
       their known address, the pay question's link and the 3-hourly summary, their words first. The
       mock-up (https://claude.ai/artifact/VAnarrjGdN81yJnuydWa8d), built as recommended (Dylan,

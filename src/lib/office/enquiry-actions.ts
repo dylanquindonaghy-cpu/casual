@@ -334,7 +334,10 @@ export async function replyToEmail(
         subject: e.subject,
         words: text,
       });
+      // Whether it began as the AI's draft, and how it went: the draft as it was, changed (even
+      // wholly), or their own words with no draft shown.
       const fromDraft = e.draft_reply !== null;
+      const form = !fromDraft ? "free_text" : text === e.draft_reply ? "draft" : "edited";
       const [reply] = await tx
         .insert(emailReplies)
         .values({
@@ -360,8 +363,7 @@ export async function replyToEmail(
         data: {
           replyId: reply.id,
           channel: "email",
-          form: fromDraft ? "draft" : "free_text",
-          ...(fromDraft ? { edited: text !== e.draft_reply } : {}),
+          form,
           workerId: e.worker_id,
         },
       });

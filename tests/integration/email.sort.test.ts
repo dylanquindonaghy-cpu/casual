@@ -222,6 +222,8 @@ describe("a casual's email, automatic replies off (the default)", () => {
           workerId: t.priya,
         },
       },
+      // The draft saved, logged with ids only.
+      { action: "email.drafted", actor_type: "system", data: { workerId: t.priya } },
     ]);
     // Waiting for a person on Enquiries, its page showing the draft.
     const detail = await withFirm(t.f.firmId, (tx) => loadEmailEnquiry(tx, id, new Date()));
@@ -257,6 +259,33 @@ describe("a casual's email, automatic replies off (the default)", () => {
     expect(pay.rows.map((r) => r.messageId)).toEqual([id]);
     const detail = await withFirm(t.f.firmId, (tx) => loadEmailEnquiry(tx, id, new Date()));
     expect(detail).toMatchObject({ pay: true, draft: null });
+    // Sorted as pay by the AI, with no money word in it: still no draft.
+    const transfer = await t.store({
+      subject: "Friday",
+      text: "When will last week's transfer come through?",
+    });
+    const second = fakeAi({ label: "pay" });
+    expect(await t.run(transfer, { ai: second.ai })).toMatchObject({
+      status: "person",
+      sortedAs: "pay",
+      handledAs: "ai",
+      drafted: false,
+    });
+    expect(second.asked.map((r) => r.purpose)).toEqual(["classify_message"]);
+  });
+
+  it("erased while the AI drafts: no draft saved and nothing logged about one", async () => {
+    const t = await inboxFirm();
+    const id = await t.store({ subject: "Boots", text: "Can I wear my own boots?" });
+    const ai = createFakeAi(async (r) => {
+      if (r.purpose === "classify_message") return "office";
+      // The casual is erased meanwhile: their email goes.
+      await su.query("delete from events where entity_id = $1", [id]);
+      await su.query("delete from inbound_emails where id = $1", [id]);
+      return "Yes, you can.";
+    });
+    expect(await t.run(id, { ai })).toMatchObject({ status: "person", drafted: false });
+    expect(await t.logged(id)).toEqual([]);
   });
 
   it("the AI's label for the office: drafted; one about money: no draft, whatever it's sorted as", async () => {
@@ -270,6 +299,24 @@ describe("a casual's email, automatic replies off (the default)", () => {
       drafted: true,
     });
     expect(await t.row(id)).toMatchObject({ handled_as: "ai", intent: "office" });
+    // "talk" makes it the office's; "payment" makes it about money: no draft asked for.
+    const payment = await t.store({
+      subject: "Saturday",
+      text: "Can I talk to someone about my payment for Saturday?",
+    });
+    const third = fakeAi();
+    expect(await t.run(payment, { ai: third.ai })).toMatchObject({
+      status: "person",
+      handledAs: "keyword",
+      drafted: false,
+    });
+    expect(third.asked).toEqual([]);
+    // A draft that itself talks about pay is thrown away, and nothing is logged.
+    const odd = await t.store({ subject: "Boots", text: "Can I wear my own boots?" });
+    const fourth = fakeAi({ label: "office", draft: "Yes, and your payment is on Friday." });
+    expect(await t.run(odd, { ai: fourth.ai })).toMatchObject({ drafted: false });
+    expect((await t.row(odd))?.draft_reply).toBeNull();
+    expect((await t.logged(odd)).map((e) => e.action)).toEqual(["email.received"]);
     const money = await t.store({ subject: "Question", text: "I think I'm owed £40 from June" });
     const second = fakeAi({ label: "office" });
     expect(await t.run(money, { ai: second.ai })).toMatchObject({
@@ -384,7 +431,14 @@ describe("a casual's email, automatic replies on", () => {
     const t = await inboxFirm({ repliesOn: true });
     const id = await t.store({ subject: "Shifts", text: "Any work?" });
     await su.query("update workers set email = null where id = $1", [t.priya]);
-    expect(await t.run(id)).toMatchObject({ status: "person", why: "no_address" });
+    // No draft either: there's no address to answer by email.
+    const { ai, asked } = fakeAi();
+    expect(await t.run(id, { ai })).toMatchObject({
+      status: "person",
+      why: "no_address",
+      drafted: false,
+    });
+    expect(asked).toEqual([]);
     expect(await t.replies(id)).toEqual([]);
   });
 
@@ -408,8 +462,20 @@ describe("a casual's email, automatic replies on", () => {
     const { transport, sent } = captureTransport();
     expect(await t.run(id, { transport })).toEqual({ status: "already" });
     expect(sent).toEqual([]);
+    // Back with a person: Need a person lists it, its sorting and the failure kept.
+    expect(await t.row(id)).toMatchObject({ handled_as: "keyword", intent: "office" });
     const detail = await withFirm(t.f.firmId, (tx) => loadEmailEnquiry(tx, id, new Date()));
-    expect(detail?.timeline.sent).toMatchObject({ how: "failed", code: "SmtpRefused" });
+    expect(detail).toMatchObject({
+      outcome: "person_waiting",
+      waiting: true,
+      timeline: {
+        sorted: { how: "keyword", intent: "shifts" },
+        reply: { how: "automatic", answer: "shifts" },
+        sent: { how: "failed", code: "SmtpRefused" },
+      },
+    });
+    const person = await withFirm(t.f.firmId, (tx) => loadEnquiries(tx, "person", new Date()));
+    expect(person.rows.map((r) => r.messageId)).toEqual([id]);
   });
 
   it("the same job twice: handled and answered once", async () => {
@@ -488,6 +554,29 @@ describe("one firm, and the queue", () => {
     });
     expect(result).toEqual({ status: "gone" });
     expect((await other.row(id))?.handled_at).toBeNull();
+  });
+
+  it("an email sorted late queues the summary of the slot it came in", async () => {
+    const t = await inboxFirm();
+    const id = await t.store({ text: "Hello" });
+    await su.query(
+      "update inbound_emails set created_at = now() - interval '7 hours' where id = $1",
+      [id],
+    );
+    const { rows: came } = await su.query<{ created_at: Date }>(
+      "select created_at from inbound_emails where id = $1",
+      [id],
+    );
+    await t.run(id);
+    const { rows } = await su.query<{ data: Record<string, unknown> }>(
+      "select data from pgboss.job where name = 'inbox-summary' and data ->> 'firmId' = $1",
+      [t.f.firmId],
+    );
+    expect(rows).toHaveLength(1);
+    const start = new Date(String(rows[0]?.data.slotStart)).getTime();
+    const end = new Date(String(rows[0]?.data.slotEnd)).getTime();
+    const at = came[0]?.created_at.getTime() ?? 0;
+    expect(start <= at && at < end).toBe(true);
   });
 
   it("each handled email queues its slot's summary, once a slot", async () => {

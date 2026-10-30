@@ -1032,13 +1032,15 @@ email casuals get is in `docs/messaging-templates.md` ("The staffing inbox's ema
   to raise a pay query, never an answer about pay." / "No automatic reply: automatic replies are
   off for your firm. Ask us to turn them on." / "No automatic reply." 4 "Sent: " "Sent by email
   to their address on file at {time}." / "Not sent ({code}) at {time}." / "Nothing sent." 5
-  "Then: " as a message's, with "{Sam Rota} replied at {time} (by email, from an AI draft they
-  checked / by email, in their own words): sent / sending / not confirmed: it may not have gone,
-  so check with them / not sent ({code}): it's back in Need a person."
+  "Then: " as a message's, with "{Sam Rota} replied at {time} (by email, the AI's draft, checked by
+  them / by email, from an AI draft they changed / by email, in their own words): sent / sending /
+  not confirmed: it may not have gone, so check with them / not sent ({code}): it's back in Need a
+  person." A link email that couldn't be sent puts the email back in Need a person (its sorting
+  and "Not sent ({code})" kept).
 - **"Answer it"** (while it needs a person): "Reply by email". With a draft: "AI drafted this from
   their email. Check every word before you send it: it can be wrong." over the box, the draft in
   it to change as they like; a pay email: "Pay questions never get an AI draft (rule)."; no draft
-  (AI off, or it gave none): an empty box. Under the box: "It goes to {Priya}'s email address on
+  (AI off, it gave none, or no address on file): an empty box. Under the box: "It goes to {Priya}'s email address on
   file, signed \"{Acme Events} Shift Team\". Their reply comes back here." → "Send reply by email"
   → "Your reply is on its way: it goes by email in a moment." Then "Why close it?" → "Close without
   a reply" → "Closed. No reply was sent." Errors: "Write a reply first.", "The reply is too long
@@ -1056,7 +1058,12 @@ email casuals get is in `docs/messaging-templates.md` ("The staffing inbox's ema
   your casuals'. Its words aren't kept: it's in your own inbox." / "An email came to the staffing
   inbox from someone who isn't active any more. It's waiting for a person." `email.replied`: "The
   {open shifts / cancel / pay} email went to {Priya Shah}." `email.reply_failed`: "The {open
-  shifts} email to {Priya Shah} couldn't be sent ({code})." `message.inbox_summary`: "The office was emailed the
+  shifts} email to {Priya Shah} couldn't be sent ({code}). Their email is waiting for a person."
+  `email.drafted`: "AI drafted a reply to {Priya Shah}'s email, for the office to check."
+  `enquiry.answered` by email: "{Sam Rota} replied to {Priya Shah}'s email (by email, the AI's
+  draft, checked by them / … from an AI draft they changed / … in their own words)."
+  `enquiry.closed`: "{Sam Rota} closed {Priya Shah}'s email without a reply ({dealt with by
+  phone})." `message.inbox_summary`: "The office was emailed the
   staffing inbox's summary ({12 emails}, {09:00} to {12:00})." ("…; it couldn't be sent to {1} of
   them.") / "Nobody in the office could be emailed the staffing inbox's summary ({1 email}): no
   active admin or resourcer has an email address."

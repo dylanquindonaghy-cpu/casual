@@ -1120,9 +1120,11 @@ In order (who does it, how, and what done looks like):
    firm's own mailbox, so none would be any casual's. A Redirect keeps the casual's own signature
    (DKIM) only if nothing changes the email on the way: no banner, disclaimer or footer rule may
    touch it, or the provider can't vouch for the sender and their words aren't kept (unless the
-   provider trusts Microsoft 365's ARC seal). Until P7's sorting is built (P7.4) the
-   settings refuse `EMAIL_INBOUND_SECRET` in production: its emails would only be stored (a known
-   casual's words, quoted history off; anyone else's never) and nothing would answer them.
+   provider trusts Microsoft 365's ARC seal). Its emails are sorted and answered as on Enquiries
+   (P7.4, P7.5; Phase 25.5), so the settings take `EMAIL_INBOUND_SECRET` in production too; the
+   worker then needs a real email sender (`EMAIL_TRANSPORT=smtp`) for its link emails and the
+   office's replies. Before any firm's inbox goes live: the provider (its ADR, and its word that a
+   sender passed DMARC) and the privacy notice's line (Parking lot, "The staffing inbox").
 10. **Privacy notice line** (you send it, the firm publishes it): `docs/privacy-notice.md` has the
     short line and the section for its privacy notice, with what to fill in.
 11. **Staff briefing** (the firm): a message to its staff with the portal link.

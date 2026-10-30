@@ -489,7 +489,13 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     case "enquiry.answered": {
       // An email to the staffing inbox (Phase 25.5) is answered by email.
       if (d.channel === "email") {
-        return `${officeName} replied to ${worker}'s email (by email, ${d.form === "draft" ? "from an AI draft they checked" : "in their own words"}).`;
+        const how =
+          d.form === "draft"
+            ? "the AI's draft, checked by them"
+            : d.form === "edited"
+              ? "from an AI draft they changed"
+              : "in their own words";
+        return `${officeName} replied to ${worker}'s email (by email, ${how}).`;
       }
       const whose = d.workerId ? `${worker}'s message` : "a message from a number we don't know";
       const how =
@@ -563,7 +569,9 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     case "email.replied":
       return `The ${INBOX_ANSWER_WORDS[String(d.answer)] ?? "automatic"} email went to ${worker}.`;
     case "email.reply_failed":
-      return `The ${INBOX_ANSWER_WORDS[String(d.answer)] ?? "automatic"} email to ${worker} couldn't be sent (${String(d.code ?? "unknown")}).`;
+      return `The ${INBOX_ANSWER_WORDS[String(d.answer)] ?? "automatic"} email to ${worker} couldn't be sent (${String(d.code ?? "unknown")}). Their email is waiting for a person.`;
+    case "email.drafted":
+      return `AI drafted a reply to ${worker}'s email, for the office to check.`;
     case "message.inbox_summary": {
       const n = Number(d.received ?? 0);
       const emails = n === 1 ? "1 email" : `${n} emails`;

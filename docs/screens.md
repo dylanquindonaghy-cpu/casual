@@ -40,7 +40,9 @@ mock-up's word is used (its differences: the README's "Where the build differs")
     none); "{3} more to apply for" ("{3} shifts to apply for" with nothing urgent; "No other
     shifts now" / "No shifts right now" with none), to Open shifts. In the kept copy, "Open shifts
     need signal" with what was urgent when it was saved, in place of the urgent and apply rows.
-  - **Pay:** "Pay day: {Fri 30 Oct}", "For this week's shifts", to Pay.
+  - **Pay:** "Pay day: {Fri 30 Oct}", "For this week's shifts", to Pay. On a fortnight's pay
+    cycle: "For shifts from {Mon 26 Oct} to {Sun 8 Nov}" ("The firm's model on the casual's
+    screens" below).
 - **Open shifts:** "Shifts you can take, up to {45} minutes from home." (no area: "Shifts you can
   take."); the Open | Booked switch; the strip of 8 glass day tiles (an urgent day's count in red,
   an open day's in grey, her booked days a sunk grey with a tick, the chosen day in ink), its key
@@ -855,6 +857,33 @@ With no text sender (either of the last two ways):
   address held, the email part is left out ("Get urgent shift alerts on this phone.").
 - Help's profile line: "How we reach you: choose whether to hear about open shifts, and turn on
   notifications on this phone. Then tap Save settings."
+
+
+**The firm's model on the casual's screens (P3; Phase 25.2; the mock-up approved by Dylan,
+2026-10-30).**
+
+- **Pay day on the firm's pay calendar** (`src/lib/portal/pay-day.ts`): Home's pay row gives the
+  day this pay period's shifts are paid, on the firm's calendar (a week, or a fortnight's cycle),
+  or payroll's own date when it has imported one for her for exactly this period (never a record for
+  other dates, such as a week inside the fortnight). A week reads as before
+  ("For this week's shifts"); a fortnight gives its dates: "For shifts from {Mon 26 Oct} to {Sun 8
+  Nov}".
+- **A shift that takes any one of two or more licences** (a one-of group: a security officer takes
+  an SIA security guard or door supervisor licence), for a casual who holds none of them:
+  - the chip "{SIA SG} or {SIA DS}";
+  - "You need": "{SIA security guard licence} or {SIA door supervisor licence}" / "Missing: upload
+    {SIA SG} or {SIA DS}", each a link to that one's upload page;
+  - the reason she can't take it: "This shift needs a valid {SIA security guard licence} or {SIA
+    door supervisor licence}. Send one to the office to be checked."
+  - One who holds one of them sees just that one, as before (its chip, its status, its reason).
+  - A session that itself asks for one of them shows each as before: that one must be held.
+- **Strikes off** (the firm's `strikes.enabled` false; P3.4):
+  - no "Cancelling less than {48} hours before the start gives you a strike." under Take shift;
+  - Help leaves out "Cancelling and strikes" (the section and its topic);
+  - Profile has no Strikes card, unless strikes were given before: then the card keeps them, and
+    its rule line reads "Strikes are off now: cancelling doesn't give you one. Ones given before
+    count until their {90} days are up."
+  - The cancel screen already says "Cancelling now doesn't give you a strike."
 
 | Route | Screen | What's on it | Empty / error states |
 |---|---|---|---|

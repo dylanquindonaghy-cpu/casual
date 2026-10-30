@@ -318,10 +318,32 @@ describe("docs/rules-and-credentials.md test cases", () => {
     expect(officer([{ type: "SIA_SG", status: "valid", expiresOn: null }]).ok).toBe(true);
   });
 
-  it("One of a group: neither held: one of SIA_SG or SIA_DS; neither held -> fail: missing, in SIA_SG's words", () => {
+  it("One of a group: neither held: one of SIA_SG or SIA_DS; neither held -> fail: missing, naming both (Phase 25.2)", () => {
     const result = officer([]);
     expect(result.codes).toEqual(["credential_missing"]);
     expect(result.reasons).toEqual([
+      "This shift needs a valid SIA security guard licence or SIA door supervisor licence. Send one to the office to be checked.",
+    ]);
+  });
+
+  it("One of a group: the session asks for one, neither held: one of SIA_SG or SIA_DS; the session adds SIA_DS; neither held -> fail: missing, each in its own words", () => {
+    // The session's own SIA_DS must be held, so "either will do" would be wrong (Phase 25.2).
+    const result = checkEligibility({
+      ...input({
+        worker: { roles: ["security_officer"] },
+        shift: {
+          role: "security_officer",
+          requiredTypes: [],
+          anyOfTypes: ["SIA_SG", "SIA_DS"],
+          extraTypes: ["SIA_DS"],
+        },
+        credentials: [],
+      }),
+      names: { SIA_SG: "SIA security guard licence", SIA_DS: "SIA door supervisor licence" },
+    });
+    expect(result.codes).toEqual(["credential_missing", "credential_missing"]);
+    expect(result.reasons).toEqual([
+      "This shift needs a valid SIA door supervisor licence. Send it to the office to be checked.",
       "This shift needs a valid SIA security guard licence. Send it to the office to be checked.",
     ]);
   });

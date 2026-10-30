@@ -4,6 +4,7 @@ import { bestOfGroup, qualificationStatus, type QualificationState } from "../cr
 import { credentials, firms, uploads, workers } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { casualMayUpload } from "../rules/packs";
+import { orList } from "../rules/reasons";
 import { strikeSettings } from "../strikes/settings";
 import { localDateOf } from "../time/zoned";
 import type { TravelFacts } from "../travel/line-copy";
@@ -22,6 +23,9 @@ export interface ShiftRequirement extends Requirement {
   // She may send it herself: one of her roles needs it (the upload page and saveMyUpload() take
   // only those) and the office doesn't record it itself.
   uploadable: boolean;
+  // A one-of group she holds none of (P3.3; 25.2): any one of these will do, so its name and chip
+  // say "A or B", and she may send whichever she has.
+  anyOf?: { code: string; name: string; chip: string; uploadable: boolean }[];
 }
 
 export interface ShiftFacts {
@@ -35,6 +39,7 @@ export interface ShiftFacts {
   travel?: TravelFacts; // none where the firm has travel areas off (13.4)
   requirements: ShiftRequirement[];
   noticeHours: number; // strikes.notice_hours
+  strikesOn: boolean; // strikes.enabled: off, no strike note under Take shift (P3.4)
   lastDay: string; // yyyy-mm-dd, the firm's calendar: the last day the shift touches
 }
 
@@ -133,17 +138,38 @@ export async function shiftFacts(
     ...(travel ? { travel } : {}),
     requirements: needed.map((r) => {
       const { status, expiresOn, waiting } = stateOf(r.code);
+      const uploadable = (code: string) =>
+        reader.rolesNeed(myRoles, code) && !reader.officeRecorded(code) && casualMayUpload(code);
+      // The group's first type standing in for a group she holds none of: say all of it.
+      // Not when the session asks for one of them outright: then that one must be held.
+      const noneHeld =
+        group.length > 1 &&
+        r.code === first &&
+        !group.some((code) => session.requiredCredentials.includes(code)) &&
+        group.every((code) => stateOf(code).status === "missing");
+      if (noneHeld) {
+        const anyOf = group.map((code) => {
+          const one = { code, name: reader.nameOf(code) };
+          return { ...one, chip: requirementChip(one), uploadable: uploadable(code) };
+        });
+        return {
+          code: r.code,
+          name: orList(anyOf.map((a) => a.name)),
+          chip: orList(anyOf.map((a) => a.chip)),
+          status: { status, expiresOn, renewing: false },
+          uploadable: anyOf.some((a) => a.uploadable),
+          anyOf,
+        };
+      }
       return {
         ...r,
         chip: requirementChip(r),
         status: { status, expiresOn, renewing: waiting !== null },
-        uploadable:
-          reader.rolesNeed(myRoles, r.code) &&
-          !reader.officeRecorded(r.code) &&
-          casualMayUpload(r.code),
+        uploadable: uploadable(r.code),
       };
     }),
     noticeHours: strikeSettings(firm?.settings ?? {}).noticeHours,
+    strikesOn: strikeSettings(firm?.settings ?? {}).enabled,
     // A shift ending at midnight doesn't touch the next day.
     lastDay: localDateOf(new Date(session.endsAt.getTime() - 1), zone),
   };

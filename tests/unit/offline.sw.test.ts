@@ -853,7 +853,7 @@ describe("My shifts and the kept copy together", () => {
         which === "Home"
           ? createElement(HomeView, {
               firmName: "Acme Events",
-              payDay: "2026-11-13",
+              pay: { payDay: "2026-11-13", days: 7, start: "2026-11-02", end: "2026-11-08" },
               firstName: "Sam",
               lastName: "Udo",
               timeZone: "Europe/London",

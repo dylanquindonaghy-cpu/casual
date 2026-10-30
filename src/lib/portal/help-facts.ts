@@ -18,6 +18,7 @@ export interface HelpFacts {
   liveDays: number; // strikes.live_days (90)
   photoRenewalMonths: number; // photo.renewal_months (36)
   travelOn: boolean; // travel.enabled (off)
+  strikesOn: boolean; // strikes.enabled (on): off, the strikes section isn't shown (P3.4)
   loginWay: LoginWay; // a text sender, else login_by_email (off)
 }
 
@@ -38,6 +39,7 @@ export async function helpFacts(
       liveDays: strikes.liveDays,
       photoRenewalMonths: photoSettings(settings).renewalMonths,
       travelOn: travelSettings(settings).enabled,
+      strikesOn: strikes.enabled,
       loginWay: loginWay(textSender, settings),
     };
   });

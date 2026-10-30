@@ -63,7 +63,11 @@ export function HelpView({
           On this page
         </h2>
         <ul role="list" className={`${staffRows} mt-2`}>
-          {SECTIONS.filter((s) => s.id !== "travel-area" || facts.travelOn).map((s) => (
+          {SECTIONS.filter(
+            (s) =>
+              (s.id !== "travel-area" || facts.travelOn) &&
+              (s.id !== "cancelling-and-strikes" || facts.strikesOn),
+          ).map((s) => (
             <li key={s.id}>
               <a
                 href={`#${s.id}`}
@@ -208,29 +212,33 @@ export function HelpView({
         </p>
       </Section>
 
-      <Section id="cancelling-and-strikes">
-        <p className="mt-3">
-          If you cancel less than {facts.noticeHours} hours before a shift starts, you get a strike.
-        </p>
-        <Points>
-          <li>A strike is a record, not a fine. It never comes off your pay.</li>
-          <li>
-            {firmName}&apos;s strikes team gets a record of it. It counts for {facts.liveDays} days.
-          </li>
-          <li>
-            You won&apos;t get one if the office booked you, cancelled the shift or changed it.
-          </li>
-          <li>You&apos;ll see if it&apos;s a strike before you confirm.</li>
-          <li>
-            Something stopped you? Tap <Name>Tell us what happened</Name>. It&apos;s on the cancel
-            screen and under the strike on your profile.
-          </li>
-          <li>
-            The office can withdraw a strike. Your profile then says{" "}
-            <Name>Withdrawn by the office</Name>.
-          </li>
-        </Points>
-      </Section>
+      {facts.strikesOn && (
+        <Section id="cancelling-and-strikes">
+          <p className="mt-3">
+            If you cancel less than {facts.noticeHours} hours before a shift starts, you get a
+            strike.
+          </p>
+          <Points>
+            <li>A strike is a record, not a fine. It never comes off your pay.</li>
+            <li>
+              {firmName}&apos;s strikes team gets a record of it. It counts for {facts.liveDays}{" "}
+              days.
+            </li>
+            <li>
+              You won&apos;t get one if the office booked you, cancelled the shift or changed it.
+            </li>
+            <li>You&apos;ll see if it&apos;s a strike before you confirm.</li>
+            <li>
+              Something stopped you? Tap <Name>Tell us what happened</Name>. It&apos;s on the cancel
+              screen and under the strike on your profile.
+            </li>
+            <li>
+              The office can withdraw a strike. Your profile then says{" "}
+              <Name>Withdrawn by the office</Name>.
+            </li>
+          </Points>
+        </Section>
+      )}
 
       <Section id="changes">
         <Steps>

@@ -4,7 +4,7 @@ import { requireWorker } from "@/lib/auth/current-worker";
 import { appEnv, offlineCopyOn } from "@/lib/env";
 import { myNeedsAndPhoto, myShifts, needsDoingCount } from "@/lib/portal/my-shifts";
 import { openShiftsFor } from "@/lib/portal/open-shifts";
-import { payWeekNow } from "@/lib/pay/pay-week";
+import { myPayDay } from "@/lib/portal/pay-day";
 import { parseHost } from "@/lib/tenancy/host";
 import { HomeView } from "./home-view";
 import { OfflineCopy } from "./offline-copy";
@@ -31,6 +31,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
       myNeedsAndPhoto({ firm, clock }, worker.id),
       openShiftsFor({ firm, clock }, worker.id),
     ]);
+    const pay = await myPayDay({ firm, clock }, worker.id);
     return (
       <main className={page.staff}>
         <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
@@ -45,7 +46,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
           needs={needs.needs}
           photo={needs.photo}
           open={open}
-          payDay={payWeekNow(now, firm.timezone).payDay}
+          pay={pay}
         />
         <TabBarSpace />
         <TabBar current="home" profileCount={needsDoingCount(needs)} />

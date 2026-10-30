@@ -108,7 +108,7 @@ const homeBase: HomeViewProps = {
   lastName: "Udo",
   firmName: "Acme Events",
   // The Friday after the week of Mon 2 Nov (D8).
-  payDay: "2026-11-13",
+  pay: { payDay: "2026-11-13", days: 7, start: "2026-11-02", end: "2026-11-08" },
   timeZone: TZ,
   now: at("2026-11-02T09:00:00Z"),
   next: null,

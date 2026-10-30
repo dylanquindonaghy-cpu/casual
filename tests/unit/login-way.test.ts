@@ -122,7 +122,14 @@ describe("Help", () => {
     text(
       createElement(HelpView, {
         firmName,
-        facts: { noticeHours: 48, liveDays: 90, photoRenewalMonths: 36, travelOn: true, loginWay },
+        facts: {
+          noticeHours: 48,
+          liveDays: 90,
+          photoRenewalMonths: 36,
+          strikesOn: true,
+          travelOn: true,
+          loginWay,
+        },
         year: 2026,
       }),
     );
@@ -281,6 +288,7 @@ describe("with no text sender, no casual screen names WhatsApp or texts", () => 
           noticeHours: 48,
           liveDays: 90,
           photoRenewalMonths: 36,
+          strikesOn: true,
           travelOn: true,
           loginWay: way,
         },

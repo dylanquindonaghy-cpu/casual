@@ -26,6 +26,7 @@ import {
   myStrikeRuleText,
   myStrikeSession,
   myStrikesMoreText,
+  myStrikesOffText,
   myStrikeStatus,
   myStrikeTitle,
 } from "@/lib/portal/my-strikes-copy";
@@ -340,6 +341,7 @@ describe("the casual's Strikes on Profile", () => {
       counting: 1,
       liveDays: 90,
       noticeHours: 48,
+      enabled: true,
       strikes: [mine(), mine({ shiftId: "x2", status: "withdrawn", counting: false })],
       more: false,
     });
@@ -355,11 +357,28 @@ describe("the casual's Strikes on Profile", () => {
       counting: 0,
       liveDays: 90,
       noticeHours: 48,
+      enabled: true,
       strikes: [],
       more: false,
     });
     expect(none).toContain("You have 0 strikes in the last 90 days.");
     expect(none).toContain("A strike is given when you cancel less than 48 hours");
+  });
+
+  it("with strikes off (Phase 25.2): no card when none were given; those given before stay, with the line that they're off", () => {
+    const base = { timeZone: TZ, liveDays: 90, noticeHours: 48, enabled: false, more: false };
+    const none = render({ ...base, counting: 0, strikes: [] });
+    expect(none).not.toContain("Strikes");
+    expect(none).not.toContain("strike");
+    const given = render({ ...base, counting: 1, strikes: [mine()] });
+    expect(given).toContain("You have 1 strike in the last 90 days.");
+    expect(given).toContain(
+      "Strikes are off now: cancelling doesn't give you one. Ones given before count until their 90 days are up.",
+    );
+    expect(given).not.toContain("A strike is given when you cancel");
+    expect(myStrikesOffText(30)).toBe(
+      "Strikes are off now: cancelling doesn't give you one. Ones given before count until their 30 days are up.",
+    );
   });
 
   it("one 'Tell us what happened' per session, and a note when there are more than it shows", () => {
@@ -369,6 +388,7 @@ describe("the casual's Strikes on Profile", () => {
       counting: 2,
       liveDays: 90,
       noticeHours: 48,
+      enabled: true,
       strikes: [mine({ cancelledAt: at("2026-11-07T09:00:00Z") }), mine()],
       more: true,
     });

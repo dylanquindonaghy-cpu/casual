@@ -18,6 +18,7 @@ import {
   myStrikeCancelled,
   myStrikeCountText,
   myStrikeRuleText,
+  myStrikesOffText,
   myStrikeSession,
   myStrikesMoreText,
   myStrikeStatus,
@@ -208,7 +209,10 @@ export function ProfileView({
         </section>
       )}
 
-      {strikes && <StrikesSection strikes={strikes} />}
+      {/* With strikes off and none given before, there's nothing to say (P3.4). */}
+      {strikes && (strikes.enabled || strikes.strikes.length > 0) && (
+        <StrikesSection strikes={strikes} />
+      )}
 
       <section aria-labelledby="days-heading" className={`${staffCard} ${sectionGap.staff}`}>
         <h2 id="days-heading" className={h2}>
@@ -305,7 +309,11 @@ function StrikesSection({ strikes }: { strikes: MyStrikes }) {
       <p className={`${headingGap} font-semibold`}>
         {myStrikeCountText(strikes.counting, strikes.liveDays)}
       </p>
-      <p className={`mt-1 ${muted}`}>{myStrikeRuleText(strikes.noticeHours)}</p>
+      <p className={`mt-1 ${muted}`}>
+        {strikes.enabled
+          ? myStrikeRuleText(strikes.noticeHours)
+          : myStrikesOffText(strikes.liveDays)}
+      </p>
       {strikes.more && (
         <p className={`mt-1 ${muted}`}>{myStrikesMoreText(strikes.strikes.length)}</p>
       )}

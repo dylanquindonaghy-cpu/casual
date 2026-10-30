@@ -129,7 +129,7 @@ export const SETTING_WORDS: Record<SettingKey, string> = {
   "retention.hold_until":
     "nothing personal is purged until after this date (yyyy-mm-dd), for a dispute; none for no hold",
   "strikes.enabled":
-    "the firm gives strikes (true or false; true, the default. false: a casual's own cancellation is never a strike; those given stay. Leave it on until the casual's shift page, Help and Profile read it: PLAN.md P3)",
+    "the firm gives strikes (true or false; true, the default. false: a casual's own cancellation is never a strike; those given stay. Leave it on until the office's Cancellations page words are approved: PLAN.md Phase 25.2)",
   "strikes.notice_hours": `a casual's own cancellation with less notice than this many hours is a strike (${STRIKE_LIMITS.noticeHours.min} to ${STRIKE_LIMITS.noticeHours.max})`,
   "strikes.live_days": `days a strike counts (${STRIKE_LIMITS.liveDays.min} to ${STRIKE_LIMITS.liveDays.max})`,
   "strikes.keep_months": `months before a strike's record is deleted, unless a hold is on (${STRIKE_LIMITS.keepMonths.min} to ${STRIKE_LIMITS.keepMonths.max}, and at least 6 months more than a strike counts)`,

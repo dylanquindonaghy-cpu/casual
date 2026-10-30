@@ -30,6 +30,7 @@ export interface MyStrikes {
   counting: number;
   liveDays: number;
   noticeHours: number;
+  enabled: boolean; // strikes.enabled: off, a casual's own cancellation is never a strike (P3.4)
   strikes: MyStrike[];
   more: boolean; // they have more than MY_STRIKES_MAX
 }
@@ -75,6 +76,7 @@ export async function myStrikes(ctx: Ctx, workerId: string): Promise<MyStrikes> 
       counting: Number(counted[0]?.n ?? 0),
       liveDays: settings.liveDays,
       noticeHours: settings.noticeHours,
+      enabled: settings.enabled,
       more: rows.length > MY_STRIKES_MAX,
       strikes: rows.slice(0, MY_STRIKES_MAX).map((r) => {
         const expiresAt = new Date(r.expires_at);

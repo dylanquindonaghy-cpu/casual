@@ -54,7 +54,7 @@ const home = (shifts: OpenShift[]) => {
   return renderToStaticMarkup(
     createElement(HomeView, {
       firmName: "Acme Events",
-      payDay: "2026-11-13",
+      pay: { payDay: "2026-11-13", days: 7, start: "2026-11-02", end: "2026-11-08" },
       firstName: "Zoe",
       lastName: "Adeyemi",
       timeZone: TZ,
@@ -152,7 +152,7 @@ describe("Home with travel areas switched off for the firm (13.4)", () => {
     const html = renderToStaticMarkup(
       createElement(HomeView, {
         firmName: "Acme Events",
-        payDay: "2026-11-13",
+        pay: { payDay: "2026-11-13", days: 7, start: "2026-11-02", end: "2026-11-08" },
         firstName: "Zoe",
         lastName: "Adeyemi",
         timeZone: TZ,
@@ -191,7 +191,7 @@ describe("Home's rows, at most five", () => {
     const html = renderToStaticMarkup(
       createElement(HomeView, {
         firmName: "Acme Events",
-        payDay: "2026-11-13",
+        pay: { payDay: "2026-11-13", days: 7, start: "2026-11-02", end: "2026-11-08" },
         firstName: "Zoe",
         lastName: "Adeyemi",
         timeZone: TZ,

@@ -63,6 +63,7 @@ const HELP_FACTS = {
   noticeHours: 48,
   liveDays: 90,
   photoRenewalMonths: 36,
+  strikesOn: true,
   travelOn: true,
   loginWay: "message",
 } as const;
@@ -157,6 +158,7 @@ const everyReason = [
   REASONS.wrong_role("close_protection_officer"),
   REASONS.no_rule(),
   REASONS.credential_missing("SIA door supervisor licence"),
+  REASONS.credential_missing_any(["SIA security guard licence", "SIA door supervisor licence"]),
   REASONS.credential_expired("SIA door supervisor licence", "3 Oct", true),
   REASONS.credential_expired("SIA door supervisor licence", "3 Dec", false),
   REASONS.credential_marked_expired("SIA door supervisor licence"),
@@ -207,6 +209,7 @@ const pageFacts = (travel: ShiftFacts["travel"]): ShiftFacts => ({
     requirementIn({ status: "suspended", expiresOn: null, renewing: false }),
   ],
   noticeHours: 48,
+  strikesOn: true,
   lastDay: "2026-11-07",
 });
 const arriveBy = new Date("2026-11-07T13:30:00Z");
@@ -243,6 +246,42 @@ const shiftPages: ShiftPage[] = [
     reasons: everyReason.slice(0, 1),
     review: { ref: "3F2A9C1B", askedAt: NOW },
   },
+  // Phase 25.2: a group she holds none of ("A or B"), and the firm's strikes off.
+  {
+    state: "blocked",
+    shift: summary,
+    facts: {
+      ...facts,
+      requirements: [
+        {
+          code: "SIA_SG",
+          name: "SIA security guard licence or SIA door supervisor licence",
+          chip: "SIA SG or SIA DS",
+          status: { status: "missing", expiresOn: null, renewing: false },
+          uploadable: true,
+          anyOf: [
+            {
+              code: "SIA_SG",
+              name: "SIA security guard licence",
+              chip: "SIA SG",
+              uploadable: true,
+            },
+            {
+              code: "SIA_DS",
+              name: "SIA door supervisor licence",
+              chip: "SIA DS",
+              uploadable: true,
+            },
+          ],
+        },
+      ],
+    },
+    reasons: [
+      REASONS.credential_missing_any(["SIA security guard licence", "SIA door supervisor licence"]),
+    ],
+    review: null,
+  },
+  { state: "open", shift: summary, facts: { ...facts, strikesOn: false } },
   { state: "filled", shift: summary },
   { state: "started", shift: summary },
   { state: "cancelled", shift: summary },
@@ -270,7 +309,7 @@ const openList = (o: Partial<Parameters<typeof OpenShiftsView>[0]["list"]> = {})
 const homeScreen = (o: Partial<Parameters<typeof HomeView>[0]>) =>
   createElement(HomeView, {
     firmName: "Acme Events",
-    payDay: "2026-11-13",
+    pay: { payDay: "2026-11-13", days: 7, start: "2026-11-02", end: "2026-11-08" },
     firstName: "Sam",
     lastName: "Udo",
     timeZone: TZ,
@@ -317,6 +356,10 @@ const SCREENS: [string, ReactElement][] = [
   ["Booked, nothing booked", myShifts({})],
   ["Booked, past, nothing", myShifts({ view: "past" })],
   ["Home, nothing booked or open", homeScreen({})],
+  [
+    "Home, a fortnight's pay cycle",
+    homeScreen({ pay: { payDay: "2026-11-13", days: 14, start: "2026-10-26", end: "2026-11-08" } }),
+  ],
   ["Home, one urgent shift and others to apply for", homeScreen({ open: urgentOpen(4) })],
   ["Home, no home area", homeScreen({ open: openList({ area: null }) })],
   ["Urgent board, none", createElement(UrgentView, { list: openList(), timeZone: TZ, now: NOW })],
@@ -756,6 +799,14 @@ const SCREENS: [string, ReactElement][] = [
   ],
   ["The whole page failed", createElement(GlobalError)],
   ["Help", createElement(HelpView, { firmName: "Acme Events", facts: HELP_FACTS, year: 2026 })],
+  [
+    "Help, strikes off",
+    createElement(HelpView, {
+      firmName: "Acme Events",
+      facts: { ...HELP_FACTS, strikesOn: false },
+      year: 2026,
+    }),
+  ],
   ...(["email", "off"] as const).map((loginWay): [string, ReactElement] => [
     `Help, login links ${loginWay === "email" ? "by email" : "not switched on"}`,
     createElement(HelpView, {

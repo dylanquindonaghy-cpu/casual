@@ -406,7 +406,7 @@ describe("Home's kept copy (no signal)", () => {
         firstName: "Zoe",
         lastName: "Adeyemi",
         firmName: "Acme Events",
-        payDay: "2026-11-13",
+        pay: { payDay: "2026-11-13", days: 7, start: "2026-11-02", end: "2026-11-08" },
         timeZone: "Europe/London",
         now: new Date("2026-11-02T09:00:00Z"),
         next: null,

@@ -2050,3 +2050,10 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   confirmations and reminders). Keep it, or send it only by WhatsApp, or not at all? **Decided**
   (Dylan, 2026-10-27): keep sending the link, whatever `auto_replies` says (decision 11;
   `inbound.voice.test.ts` pins it).
+- **A one-of group's extra row when a session asks for one of it outright** (Phase 25.2, found by
+  the guardrails review, 2026-10-30): a security officer session that also requires SIA_DS shows
+  the group's stand-in row ("SIA security guard licence: Missing") beside SIA_DS, and gives both
+  reasons, though holding SIA_DS alone would pass. Pass and fail are right; only a redundant row
+  and reason. Drop the stand-in (`src/lib/portal/shift-facts.ts`) and the group's own failure
+  (`src/lib/rules/eligibility.ts`) when a type of the group is required outright: a rules change,
+  so with tests and the doc's table.

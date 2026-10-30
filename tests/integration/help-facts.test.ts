@@ -27,7 +27,7 @@ describe("helpFacts", () => {
     const plain = await bookingFirm(su, withFirm);
     const own = await bookingFirm(su, withFirm, {
       settings: {
-        strikes: { notice_hours: 24, live_days: 30 },
+        strikes: { notice_hours: 24, live_days: 30, enabled: false },
         photo: { renewal_months: 24 },
         travel: { enabled: true },
       },
@@ -38,6 +38,7 @@ describe("helpFacts", () => {
       liveDays: 90,
       photoRenewalMonths: 36,
       travelOn: false,
+      strikesOn: true, // on unless the firm switches strikes off (P3.4)
       loginWay: "message", // the tests' console sender is a text sender
     });
     expect(await helpFacts(own.firmId, withFirm)).toEqual({
@@ -45,6 +46,7 @@ describe("helpFacts", () => {
       liveDays: 30,
       photoRenewalMonths: 24,
       travelOn: true,
+      strikesOn: false, // switched off: Help leaves its strikes section out (Phase 25.2)
       loginWay: "message",
     });
   });

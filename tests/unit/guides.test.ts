@@ -26,6 +26,7 @@ const HELP_FACTS = {
   noticeHours: 48,
   liveDays: 90,
   photoRenewalMonths: 36,
+  strikesOn: true,
   travelOn: true,
   loginWay: "message",
 } as const;
@@ -470,6 +471,7 @@ describe("the workers' help page", () => {
             noticeHours: 24,
             liveDays: 30,
             photoRenewalMonths: 24,
+            strikesOn: true,
             travelOn: true,
             loginWay: "message",
           },

@@ -107,7 +107,8 @@ or anything else is off, the default. It matters only when there's no text sende
 (`MESSAGING_TRANSPORT=none`, P2.5): then, on and with an address held for the casual, the link or
 code goes by email (`docs/messaging-templates.md` "Email to casuals"); off, or no address, nothing
 is made and the miss is logged (`no_channel`). With a text sender they go by WhatsApp either way.
-Leave it off until the login and Pay pages stop naming WhatsApp (P2.7).
+The login, Pay, Help and Profile pages say which way it goes by the same two facts (P2.7,
+`src/lib/portal/login-way.ts`).
 
 `pay_calendar` (P3.1, `src/lib/pay/calendar.ts`; "Connecting the firm's systems" 1, replacing
 D8): `{ "days": 14, "anchor": "2026-03-02", "pay_day_after": 5, "label": "cycle" }`, the firm's pay

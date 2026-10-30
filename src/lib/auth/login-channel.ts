@@ -5,8 +5,8 @@ import type { MessagingTransport } from "../messaging";
 // 16), decided in the job's claim, before the token or code is made: by WhatsApp when there's a
 // text sender; else by email, when the firm has switched `login_by_email` on (`npm run
 // firm:settings`) and holds an address for them; else not at all (logged as a failed send,
-// `no_channel`). Off by default: the login and pay pages still tell casuals to look on WhatsApp
-// until they're reworded after the UI chat (P2.7). Office users always get theirs by email.
+// `no_channel`). Off by default. The login, pay, help and profile pages say which way it goes by
+// the same two facts (P2.7: src/lib/portal/login-way.ts). Office users always get theirs by email.
 
 const loginByEmailSchema = z.boolean();
 

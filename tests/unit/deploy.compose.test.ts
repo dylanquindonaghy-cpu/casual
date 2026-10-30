@@ -112,6 +112,8 @@ describe("deploy/docker-compose.yml", () => {
         "APP_BASE_DOMAIN",
         "DATABASE_URL",
         "INTEGRATIONS_SECRET", // the planner API answers only with it set (12J.1)
+        // only whether there's a text sender, for the login and pay pages' words (not a secret; P2.7)
+        "MESSAGING_TRANSPORT",
         "NODE_ENV",
         "OFFLINE_COPY", // the phones' offline copy on or off (not a secret; Phase 10 task 17)
         "SESSION_SECRET",
@@ -143,6 +145,11 @@ describe("deploy/docker-compose.yml", () => {
     // The web app gets the same switch (12D.1): the two must never disagree.
     expect(services.web?.environment?.AI_TRANSPORT).toBe(
       services.worker?.environment?.AI_TRANSPORT,
+    );
+    // And whether there's a text sender (P2.7): the web app's words must match the worker's sends.
+    expect(services.worker?.environment?.MESSAGING_TRANSPORT).toBe("console"); // this file's .env
+    expect(services.web?.environment?.MESSAGING_TRANSPORT).toBe(
+      services.worker?.environment?.MESSAGING_TRANSPORT,
     );
     for (const name of ["web", "caddy", "migrate"]) {
       expect(keys(name), name).not.toContain("ANTHROPIC_API_KEY");

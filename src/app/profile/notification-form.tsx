@@ -7,23 +7,33 @@ import { useHydrated } from "@/app/use-hydrated";
 import { CHANNEL_LABELS, CHANNELS, type Channel } from "@/lib/portal/profile-kinds";
 import { saveNotificationSettingsAction } from "./actions";
 import { tryAgainText } from "@/lib/portal/copy";
+import type { LoginWay } from "@/lib/portal/login-way";
 
 // One answer to pick from, as a big bordered row; the picked one is outlined in ink.
 const choice =
   "flex min-h-14 items-center gap-3 glass-tile rounded-2xl border-2 border-line-strong px-4 py-3 has-checked:border-ink has-checked:bg-active";
 
-// How we reach you: WhatsApp or text message, and whether to hear about open shifts.
+// How we reach you: WhatsApp or text message, and whether to hear about open shifts. With no text
+// sender (P2.7) there's no channel to choose: it says how messages come instead (a push, else an
+// email: src/lib/notify/send.ts deliverToWorker).
 export function NotificationForm({
   channel: initialChannel,
   offerAlerts: initialAlerts,
   textsOff,
+  loginWay,
+  email,
   signOff,
 }: {
   channel: Channel;
   offerAlerts: boolean;
   textsOff: boolean; // they replied STOP to a text: no texts until START
+  // How their login links and codes go (src/lib/portal/login-way.ts): "message" only while there's
+  // a text sender.
+  loginWay: LoginWay;
+  email: string | null;
   signOff: string;
 }) {
+  const textSender = loginWay === "message";
   const router = useRouter();
   const [channel, setChannel] = useState<Channel>(initialChannel);
   const [offerAlerts, setOfferAlerts] = useState(initialAlerts);
@@ -40,32 +50,45 @@ export function NotificationForm({
       if (result.status === "logged_out") return router.replace("/login");
       setMessage(
         result.status === "saved"
-          ? { text: savedText(channel, offerAlerts, textsOff), alert: false }
+          ? { text: savedText(channel, offerAlerts, textsOff, textSender), alert: false }
           : { text: tryAgainText(), alert: true },
       );
     });
 
   return (
     <div className="mt-4">
-      <fieldset>
-        <legend className={label}>Send shift messages by</legend>
-        <div className="mt-2 space-y-2">
-          {CHANNELS.map((c) => (
-            <label key={c} className={choice}>
-              <input
-                type="radio"
-                name="channel"
-                value={c}
-                checked={channel === c}
-                onChange={() => setChannel(c)}
-                disabled={!ready}
-                className="h-6 w-6 shrink-0 accent-ink"
-              />
-              <span>{CHANNEL_LABELS[c]}</span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
+      {textSender ? (
+        <fieldset>
+          <legend className={label}>Send shift messages by</legend>
+          <div className="mt-2 space-y-2">
+            {CHANNELS.map((c) => (
+              <label key={c} className={choice}>
+                <input
+                  type="radio"
+                  name="channel"
+                  value={c}
+                  checked={channel === c}
+                  onChange={() => setChannel(c)}
+                  disabled={!ready}
+                  className="h-6 w-6 shrink-0 accent-ink"
+                />
+                <span>{CHANNEL_LABELS[c]}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      ) : (
+        <p>
+          Shift messages come as notifications on this phone, if you turn them on below.{" "}
+          {email ? (
+            <>
+              If not, we email <span className="font-semibold break-all">{email}</span>.
+            </>
+          ) : (
+            "We have no email address for you. To add one, ask the office."
+          )}
+        </p>
+      )}
       <label className={`${choice} mt-4`}>
         <input
           type="checkbox"
@@ -76,9 +99,12 @@ export function NotificationForm({
         />
         <span>Tell me about open shifts</span>
       </label>
-      <p className={`mt-2 ${muted}`}>
-        Login links and codes always come to you when you ask for them.
-      </p>
+      {/* Not when nothing can carry them (no text sender, and email login off or no address). */}
+      {loginWay !== "off" && (
+        <p className={`mt-2 ${muted}`}>
+          Login links and codes always come to you when you ask for them.
+        </p>
+      )}
       <button
         type="button"
         disabled={pending || !ready}
@@ -102,12 +128,19 @@ export function NotificationForm({
 
 // The confirmation says what was saved, and what will really happen: texts chosen while they're
 // off (they replied STOP) go by WhatsApp until START (exported for the tests).
-export function savedText(channel: Channel, offerAlerts: boolean, textsOff = false): string {
+export function savedText(
+  channel: Channel,
+  offerAlerts: boolean,
+  textsOff = false,
+  textSender = true,
+): string {
+  const alerts = offerAlerts
+    ? "We'll tell you about open shifts."
+    : "We won't tell you about open shifts.";
+  if (!textSender) return `Saved. ${alerts}`;
   const how =
     channel === "sms" && textsOff
       ? "Texts are off, so we'll send shift messages by WhatsApp until you text START."
       : `We'll send shift messages by ${channel === "sms" ? "text message" : "WhatsApp"}.`;
-  return `Saved. ${how} ${
-    offerAlerts ? "We'll tell you about open shifts." : "We won't tell you about open shifts."
-  }`;
+  return `Saved. ${how} ${alerts}`;
 }

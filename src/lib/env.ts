@@ -112,6 +112,16 @@ const appFields = {
   // it. Real calls wait for "Connect the Anthropic API" (PLAN.md Parking lot). The web app reads only
   // whether it's on, for the Enquiries banner (12D.1); it never calls the AI. Not a secret.
   AI_TRANSPORT: unsetIfEmpty(z.enum(["none", "anthropic"]).default("none")),
+  // How WhatsApp and texts go: "console" prints them (development, tests, demo mode); "none"
+  // (P2.5): there's no text sender at all, so a casual's messages go by push, else email
+  // (src/lib/notify/send.ts deliverToWorker), and production can run the worker before the
+  // firm's text system is connected. "webex" (Phase 15, built and switched off): texts through each
+  // firm's own Webex Interact account, its key in the secret store (src/lib/messaging/webex.ts),
+  // so it needs SECRETS_KEY; refused under NODE_ENV=test, so no test can send a real text. An
+  // empty value (as the env examples ship it) means not set. The web app reads only whether there's a
+  // text sender, for the login, pay, help and profile pages' words (P2.7; src/lib/portal/login-way.ts):
+  // it never sends a text.
+  MESSAGING_TRANSPORT: unsetIfEmpty(z.enum(["console", "none", "webex"]).default("console")),
   // The planner integration layer (docs/office-v2.md 5.3.6; ADR-022): keys the webhooks' signing
   // secrets and event ids (12J.2). Unset (or empty): every planner API call answers 503
   // not_configured. 32+ characters; the .env.example value is refused in production. A secret:
@@ -244,8 +254,16 @@ export const appEnvSchema = z
   .refine(alertsOn, alertsOnMessage)
   .refine(noRealTravelInTests, noRealTravelInTestsMessage)
   .refine(demoHasOutbox, demoHasOutboxMessage)
-  // The web app looks postcodes up itself (Settings, Profile); AI only says whether it's on.
-  .superRefine(demoSendsNothing({ TRAVEL_PROVIDER: "fake", AI_TRANSPORT: "none" }))
+  // The web app looks postcodes up itself (Settings, Profile); AI only says whether it's on; and the
+  // text sender only what the login and pay pages say, which must be the demo worker's console
+  // (P2.7: with "none" they'd say links can't be sent while the worker sends them).
+  .superRefine(
+    demoSendsNothing({
+      TRAVEL_PROVIDER: "fake",
+      AI_TRANSPORT: "none",
+      MESSAGING_TRANSPORT: "console",
+    }),
+  )
   // The test-only pages never on a real address, even if the switch were copied into one.
   .refine((e) => !e.E2E_TEST_PAGES || /^localhost(:\d+)?$/.test(e.APP_BASE_DOMAIN), {
     path: ["E2E_TEST_PAGES"],
@@ -256,14 +274,6 @@ export const workerEnvSchema = z
   .object({
     ...appFields,
     DATABASE_JOBS_URL: connectsAs(JOBS_DB_ROLE),
-    // How WhatsApp and texts go: "console" prints them (development, tests, demo mode); "none"
-    // (P2.5): there's no text sender at all, so a casual's messages go by push, else email
-    // (src/lib/notify/send.ts deliverToWorker), and production can run the worker before the
-    // firm's text system is connected. "webex" (Phase 15, built and switched off): texts through each
-    // firm's own Webex Interact account, its key in the secret store (src/lib/messaging/webex.ts),
-    // so it needs SECRETS_KEY; refused under NODE_ENV=test, so no test can send a real text. An
-    // empty value (as the env examples ship it) means not set.
-    MESSAGING_TRANSPORT: unsetIfEmpty(z.enum(["console", "none", "webex"]).default("console")),
     // Google Sheets sync (src/lib/roster/sheets/transport.ts). "none" (the default): no sheet is
     // ever read, and the sync's tick isn't scheduled. "google": the real client, as the service
     // account whose key file is at GOOGLE_SERVICE_ACCOUNT_JSON_PATH (in the git-ignored secrets/,

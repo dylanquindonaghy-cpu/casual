@@ -1567,7 +1567,7 @@ file import also carries casuals, qualifications and pay records.
 - `INTEGRATIONS_SECRET` (web and worker): at least 32 characters, and the example value is refused
   in production. It derives the signing secrets and the event ids. Rotating it changes both, so
   every firm with a webhook must paste its new secret (runbook).
-- `WEBHOOK_TRANSPORT` (worker only, like `MESSAGING_TRANSPORT`): `console` or `https`, `https`
+- `WEBHOOK_TRANSPORT` (worker only): `console` or `https`, `https`
   required in production. Not a web setting: the production-mode web app in CI and the walkthrough
   runs with `NODE_ENV=production`, and the web never sends a webhook.
 - **Pinned for every test run:** `INTEGRATIONS_SECRET` gets a made-up test value and

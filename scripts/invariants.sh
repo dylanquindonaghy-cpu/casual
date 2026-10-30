@@ -31,7 +31,8 @@ else echo "ok: every test ran and passed"; fi
 #    And the browser tests, when this verify run included them (VERIFY_E2E=true): Playwright exits
 #    0 with tests skipped or marked to fail, so read its JSON reports (scripts/e2e.mjs; audit L62).
 if [ "${VERIFY_E2E:-false}" = "true" ]; then
-  if node scripts/check-e2e-report.mjs .claude/state/e2e-main.json .claude/state/e2e-walkthrough.json; then
+  if node scripts/check-e2e-report.mjs .claude/state/e2e-main.json .claude/state/e2e-no-texts.json \
+    .claude/state/e2e-walkthrough.json; then
     echo "ok: every browser test ran and passed"
   else echo "FAIL: some browser tests were skipped, marked to fail, flaky or failed"; fail=1; fi
 fi
@@ -59,7 +60,8 @@ if hits=$(grep -rnF "app.current_firm_id" src scripts | grep -v -e "^src/lib/db/
 else echo "ok: only withFirm (and the seed's and the owner commands' firm provisioning) set the firm"; fi
 
 # 6. Tests never reach a real outside service (CLAUDE.md conventions): the Vitest setup and the
-#    browser tests' servers (serverEnv(), the walkthrough's too) pin every real sender off, since
+#    browser tests' servers (serverEnv(), the walkthrough's and the no-text run's too) pin every
+#    real sender off, since
 #    both load .env. A pin only counts on a line that isn't commented out. The settings also refuse
 #    each real sender under NODE_ENV=test.
 pins_missing=""

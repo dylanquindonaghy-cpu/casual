@@ -46,7 +46,7 @@ const { CodeGate } = await import("@/app/pay/code-gate");
 const { ProfileView } = await import("@/app/profile/profile-view");
 const { say } = await import("@/app/profile/availability-form");
 const { savedText } = await import("@/app/profile/notification-form");
-const { LoginForm } = await import("@/app/login/login-form");
+const { LinkSent, LoginForm } = await import("@/app/login/login-form");
 const { TooManyTries } = await import("@/app/too-many-tries");
 const { default: NotFound } = await import("@/app/not-found");
 const { default: ErrorPage } = await import("@/app/error");
@@ -59,7 +59,13 @@ import { postcodeAttribution } from "@/lib/travel/attribution";
 const { HelpView } = await import("@/app/help/help-view");
 // The firm's own strike and photo numbers the help page states (12H.3).
 // A firm with travel areas on: every help section shows.
-const HELP_FACTS = { noticeHours: 48, liveDays: 90, photoRenewalMonths: 36, travelOn: true };
+const HELP_FACTS = {
+  noticeHours: 48,
+  liveDays: 90,
+  photoRenewalMonths: 36,
+  travelOn: true,
+  loginWay: "message",
+} as const;
 
 // Words a worker shouldn't have to know. Whole words, any case.
 const JARGON = [
@@ -577,8 +583,58 @@ const SCREENS: [string, ReactElement][] = [
       ],
     }),
   ],
-  ["Pay code, first", createElement(CodeGate, { codeWaiting: false })],
-  ["Pay code, waiting", createElement(CodeGate, { codeWaiting: true })],
+  ["Pay code, first", createElement(CodeGate, { codeWaiting: false, way: "message" })],
+  ["Pay code, waiting", createElement(CodeGate, { codeWaiting: true, way: "message" })],
+  // How login links and codes go with no text sender (P2.7).
+  ["Pay code by email, first", createElement(CodeGate, { codeWaiting: false, way: "email" })],
+  ["Pay code by email, waiting", createElement(CodeGate, { codeWaiting: true, way: "email" })],
+  ["Pay code, can't send", createElement(CodeGate, { codeWaiting: false, way: "off" })],
+  [
+    "Profile, no text sender, an address held",
+    createElement(ProfileView, {
+      signOff,
+      loginWay: "email",
+      push: { publicKey: null, firmName: "Acme Events" },
+      profile: {
+        firstName: "Sam",
+        lastName: "Booker",
+        mobile: "+447700900123",
+        email: "sam.booker@example.com",
+        notifyChannel: "whatsapp",
+        offerAlerts: true,
+        textsOff: false,
+        today: "2026-11-02",
+        unavailable: [],
+        qualifications: [],
+        rightToWork: { checked: true, checkedOn: "2026-01-12", expired: false },
+        rolesWithoutRule: [],
+        photo: { status: "missing", current: null, waiting: null },
+      },
+    }),
+  ],
+  [
+    "Profile, no text sender, no address",
+    createElement(ProfileView, {
+      signOff,
+      loginWay: "off",
+      push: { publicKey: null, firmName: "Acme Events" },
+      profile: {
+        firstName: "Sam",
+        lastName: "Booker",
+        mobile: "+447700900123",
+        email: null,
+        notifyChannel: "sms",
+        offerAlerts: false,
+        textsOff: true,
+        today: "2026-11-02",
+        unavailable: [],
+        qualifications: [],
+        rightToWork: { checked: false, checkedOn: null, expired: true },
+        rolesWithoutRule: [],
+        photo: { status: "missing", current: null, waiting: null },
+      },
+    }),
+  ],
   [
     "Profile, every licence state and marked days",
     createElement(ProfileView, {
@@ -652,23 +708,45 @@ const SCREENS: [string, ReactElement][] = [
   ["Settings saved (text, no alerts)", paragraph(savedText("sms", false))],
   ["Settings saved (WhatsApp, alerts)", paragraph(savedText("whatsapp", true))],
   ["Settings saved (texts, but texts are off)", paragraph(savedText("sms", true, true))],
-  ["Log in", createElement(LoginForm, { firmName: "Acme Events", signOff })],
+  ["Settings saved, no text sender", paragraph(savedText("sms", false, false, false))],
+  ["Log in", createElement(LoginForm, { firmName: "Acme Events", signOff, way: "message" })],
+  ["Log in by email", createElement(LoginForm, { firmName: "Acme Events", signOff, way: "email" })],
+  [
+    "Log in, links not switched on",
+    createElement(LoginForm, { firmName: "Acme Events", signOff, way: "off" }),
+  ],
+  ["Link sent", createElement(LinkSent, { firmName: "Acme Events", signOff, way: "message" })],
+  [
+    "Link sent by email",
+    createElement(LinkSent, { firmName: "Acme Events", signOff, way: "email" }),
+  ],
   ["Too many tries", createElement(TooManyTries, { minutes: 847 })],
   ["A tap failed, with signal", paragraph(tryAgainText(true))],
   ["A tap failed, no signal", paragraph(tryAgainText(false))],
   [
     "Phone notifications not switched on",
-    createElement(PushSetting, { publicKey: null, firmName: "Acme Events" }),
+    createElement(PushSetting, { publicKey: null, firmName: "Acme Events", otherWay: "text" }),
   ],
   ...(["unsupported", "add_to_home_screen", "blocked", "on", "off"] as const).map(
     (state): [string, ReactElement] => [
       `Phone notifications: ${state}`,
-      createElement(PushSettingView, { state, firmName: "Acme Events" }),
+      createElement(PushSettingView, { state, firmName: "Acme Events", otherWay: "text" }),
     ],
+  ),
+  ...(["email", "none"] as const).flatMap((otherWay) =>
+    (["no_key", "unsupported", "off"] as const).map((state): [string, ReactElement] => [
+      `Phone notifications: ${state}, no text sender (${otherWay})`,
+      createElement(PushSettingView, { state, firmName: "Acme Events", otherWay }),
+    ]),
   ),
   [
     "Phone notifications turned off",
-    createElement(PushSettingView, { state: "off", firmName: "Acme Events", justTurnedOff: true }),
+    createElement(PushSettingView, {
+      state: "off",
+      firmName: "Acme Events",
+      otherWay: "text",
+      justTurnedOff: true,
+    }),
   ],
   ["Page not found", createElement(NotFound)],
   ["Something went wrong", createElement(ErrorPage, { retry: () => undefined })],
@@ -678,6 +756,14 @@ const SCREENS: [string, ReactElement][] = [
   ],
   ["The whole page failed", createElement(GlobalError)],
   ["Help", createElement(HelpView, { firmName: "Acme Events", facts: HELP_FACTS, year: 2026 })],
+  ...(["email", "off"] as const).map((loginWay): [string, ReactElement] => [
+    `Help, login links ${loginWay === "email" ? "by email" : "not switched on"}`,
+    createElement(HelpView, {
+      firmName: "Acme Events",
+      facts: { ...HELP_FACTS, loginWay },
+      year: 2026,
+    }),
+  ]),
   // Uploads (12F.2): every answer after sending a photo or card, the guidance, the photo's statuses
   // and why one wasn't accepted, as she reads them.
   [

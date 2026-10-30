@@ -123,7 +123,7 @@ export const SETTING_WORDS: Record<SettingKey, string> = {
   firm_system_sends:
     "the firm's own system (its rota sheet, or its CRM through the API) reminds the casuals it books (true or false; false, the default: ShiftDesk reminds every booking)",
   login_by_email:
-    "with no text sender, a casual's login link and pay-page code go by email to the address held for them (true or false; false, the default: they go by WhatsApp only. Leave it off until the login and pay pages stop naming WhatsApp: PLAN.md P2.7)",
+    "with no text sender, a casual's login link and pay-page code go by email to the address held for them (true or false; false, the default: they go only by WhatsApp or text, so with no text sender nobody can log in, and the login page says login links aren't switched on yet)",
   "retention.message_days": `days the shifts line's messages are kept (${RETENTION_MIN_DAYS} to ${RETENTION_MAX_DAYS})`,
   "retention.request_note_days": `days a closed request's words are kept, and the office's reason for placing someone despite a rule (${RETENTION_MIN_DAYS} to ${RETENTION_MAX_DAYS})`,
   "retention.hold_until":

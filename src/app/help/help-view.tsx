@@ -79,10 +79,19 @@ export function HelpView({
 
       <Section id="how-it-works">
         <p className="mt-3">
-          There&apos;s no app to download. {firmName} sends you a link by WhatsApp or text message.
+          There&apos;s no app to download.{" "}
+          {facts.loginWay === "message"
+            ? `${firmName} sends you a link by WhatsApp or text message.`
+            : facts.loginWay === "email"
+              ? `${firmName} emails you a link.`
+              : `${firmName} sends you a link.`}
         </p>
         <Steps>
-          <Step>Tap the link in the message.</Step>
+          <Step>
+            {facts.loginWay === "email"
+              ? "Tap the link in the email."
+              : "Tap the link in the message."}
+          </Step>
           <Step>
             Tap <Name>Log me in</Name>. Your shifts open.
           </Step>
@@ -93,7 +102,8 @@ export function HelpView({
           <Link href="/login" className="font-semibold underline underline-offset-4">
             log in page
           </Link>
-          . Enter your mobile number and tap <Name>Send me a link</Name>.
+          . Enter your mobile number and tap{" "}
+          <Name>{facts.loginWay === "email" ? "Email me a link" : "Send me a link"}</Name>.
         </p>
         <p className="mt-3">
           Put your shifts on your home screen, so they open in one tap. On an iPhone, open the Share
@@ -247,8 +257,22 @@ export function HelpView({
             Tap the <Name>Pay</Name> tab.
           </Step>
           <Step>
-            Tap <Name>Send me a code</Name>. We send a 6‑digit code by WhatsApp. It works for 10
-            minutes.
+            {facts.loginWay === "email" ? (
+              <>
+                Tap <Name>Email me a code</Name>. We email you a 6‑digit code. It works for 10
+                minutes.
+              </>
+            ) : facts.loginWay === "message" ? (
+              <>
+                Tap <Name>Send me a code</Name>. We send a 6‑digit code by WhatsApp. It works for 10
+                minutes.
+              </>
+            ) : (
+              <>
+                Tap <Name>Send me a code</Name>. We send you a 6‑digit code. It works for 10
+                minutes.
+              </>
+            )}
           </Step>
           <Step>
             Enter it in <Name>Your code</Name> and tap <Name>Check code</Name>.
@@ -282,8 +306,11 @@ export function HelpView({
             doesn&apos;t cancel a shift you&apos;re booked on.
           </li>
           <li>
-            <Name>How we reach you</Name>: choose WhatsApp or text message, and whether to hear
-            about open shifts. Then tap <Name>Save settings</Name>.
+            <Name>How we reach you</Name>:{" "}
+            {facts.loginWay === "message"
+              ? "choose WhatsApp or text message, and whether to hear about open shifts."
+              : "choose whether to hear about open shifts, and turn on notifications on this phone."}{" "}
+            Then tap <Name>Save settings</Name>.
           </li>
           <li>Your details are there too. To change your name or number, ask the office.</li>
         </Points>

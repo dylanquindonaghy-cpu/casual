@@ -920,9 +920,10 @@ touches schema, auth, tenancy, messaging or rules; `/close-task` ticks it.
       button) instead of promising one. The web app reads only whether there's a text sender
       (`MESSAGING_TRANSPORT`, as it reads `AI_TRANSPORT`); the job still decides each send
       (`loginChannel()`, `src/lib/auth/login-channel.ts`). Then the setting's help text stops saying
-      to leave it off. Mock-up: https://claude.ai/artifact/Ai4kBdJ8rBvEy2YjBjZ1mX (2026-10-30,
-      waiting for Dylan). Tests: each way's words, no email held (Pay and Profile), a browser test
-      that logs in and opens Pay by email (M, A) (25.1)
+      to leave it off. Mock-up: https://claude.ai/artifact/Ai4kBdJ8rBvEy2YjBjZ1mX, approved by Dylan
+      on 2026-10-30 (build as shown; with nothing to send, no login form; Profile shows the address;
+      a browser-test run with no text sender). Tests: each way's words, no email held (Pay and
+      Profile), a browser test that logs in and opens Pay by email (M, A) (25.1)
 - [ ] P3's screens: the list under P3's "After the UI chat's Phase 24 merges" (the pay day from the
       firm's calendar, the name map's Needs attention items, "you need A or B", who asked, the
       strike sentences reading the strikes switch, the one-of chips); a mock-up for the casual's

@@ -188,7 +188,12 @@ describe("the demo server's services (deploy/docker-compose.demo.yml with docker
       DEMO_SITE_PASSWORD: "made-up demo password",
       TRAVEL_PROVIDER: "fake",
       AI_TRANSPORT: "none",
+      MESSAGING_TRANSPORT: "console",
     });
+    // The web app's words follow the worker's sender (P2.7): on the Demo phone, by message.
+    expect(services.web?.environment?.MESSAGING_TRANSPORT).toBe(
+      services.worker?.environment?.MESSAGING_TRANSPORT,
+    );
     expect(services.worker?.environment).toMatchObject({
       DEMO_MODE: "on",
       CONSOLE_OUTBOX_FILE: ".dev/outbox.jsonl",

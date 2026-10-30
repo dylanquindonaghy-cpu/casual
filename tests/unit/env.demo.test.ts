@@ -73,6 +73,7 @@ describe("demo mode settings", () => {
   it.each([
     ["TRAVEL_PROVIDER", "traveltime"],
     ["AI_TRANSPORT", "anthropic"],
+    ["MESSAGING_TRANSPORT", "none"],
   ])("the web app in demo mode too: %s=%s is refused", (key, value) => {
     expect(problems(() => parseAppEnv({ ...demoApp, [key]: value }))).toMatch(
       new RegExp(`demo mode sends nothing outside the server: ${key} must be`),

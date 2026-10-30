@@ -23,6 +23,7 @@
     "test:watch": "vitest",
     "e2e": "node scripts/e2e.mjs",
     "e2e:walkthrough": "playwright test -c playwright.walkthrough.config.ts",
+    "e2e:no-texts": "playwright test -c playwright.no-texts.config.ts",
     "db:up": "docker compose -f docker-compose.dev.yml up -d --wait",
     "db:down": "docker compose -f docker-compose.dev.yml down",
     "db:generate": "drizzle-kit generate",

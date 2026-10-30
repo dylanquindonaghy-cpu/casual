@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { parseEnv as parseDotenv } from "node:util";
 import { describe, expect, it } from "vitest";
 import { serverEnv } from "../../playwright.config";
+import noTexts, { NO_TEXTS_OUTBOX, NO_TEXTS_PORT } from "../../playwright.no-texts.config";
 import walkthrough from "../../playwright.walkthrough.config";
 import { EXAMPLE_INTEGRATIONS_SECRET, parseAdminEnv, parseAppEnv, parseWorkerEnv } from "@/lib/env";
 
@@ -129,6 +130,17 @@ describe("environment", () => {
     expect(workerProblems(real)).not.toMatch(/INTEGRATIONS_SECRET/);
   });
 
+  it("the browser tests' run with no text sender (P2.7) keeps every pin of the others, with no text sender at all", () => {
+    const servers = [noTexts.webServer ?? []].flat();
+    expect(servers).toHaveLength(2); // the worker and the web app
+    for (const server of servers) {
+      expect(server.env).toEqual({
+        ...serverEnv(NO_TEXTS_PORT, NO_TEXTS_OUTBOX, { testPages: false }),
+        MESSAGING_TRANSPORT: "none",
+      });
+    }
+  });
+
   it("INTEGRATIONS_SECRET is pinned to made-up values a production build takes, for the tests and the browser tests' servers", () => {
     const prod = {
       ...app,
@@ -250,6 +262,9 @@ describe("environment", () => {
       "AI_TRANSPORT", // not a credential: "none" when unset; the web app shows Enquiries' banner (12D.1)
       "APP_BASE_DOMAIN",
       "DATABASE_URL",
+      // not a credential: "console" when unset; the web app reads only whether there's a text
+      // sender, for the login and pay pages' words (P2.7)
+      "MESSAGING_TRANSPORT",
       "NODE_ENV",
       "SESSION_SECRET",
       "TRAVEL_PROVIDER", // not a credential: "fake" when unset (12G.1)

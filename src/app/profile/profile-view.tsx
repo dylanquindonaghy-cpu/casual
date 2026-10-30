@@ -42,6 +42,7 @@ import { addDays } from "@/lib/time/zoned";
 import { WhatHappened } from "../shifts/cancel-shift-result";
 import { AvailabilityForm } from "./availability-form";
 import { NotificationForm } from "./notification-form";
+import type { LoginWay } from "@/lib/portal/login-way";
 import { PushSetting } from "./push-setting";
 import { UploadForm } from "./upload-form";
 
@@ -65,14 +66,19 @@ export function ProfileView({
   push = null,
   strikes = null,
   travel = null,
+  loginWay = "message",
 }: {
   profile: Profile;
   signOff: string;
+  // How their login links and codes go (P2.7; src/lib/portal/login-way.ts): anything but "message"
+  // means there's no text sender, so "How we reach you" has no WhatsApp or text.
+  loginWay?: LoginWay;
   push?: { publicKey: string | null; firmName: string } | null;
   strikes?: MyStrikes | null;
   travel?: MyTravel | null;
 }) {
   const year = Number(profile.today.slice(0, 4));
+  const textSender = loginWay === "message";
   return (
     <>
       <PageHeader title={`${profile.firstName} ${profile.lastName}`} />
@@ -224,7 +230,7 @@ export function ProfileView({
         <h2 id="notify-heading" className={h2}>
           How we reach you
         </h2>
-        {profile.textsOff && (
+        {textSender && profile.textsOff && (
           <p
             role="note"
             className={`${headingGap} rounded-lg border border-attention bg-attention-soft p-3`}
@@ -236,9 +242,17 @@ export function ProfileView({
           channel={profile.notifyChannel}
           offerAlerts={profile.offerAlerts}
           textsOff={profile.textsOff}
+          loginWay={loginWay}
+          email={profile.email}
           signOff={signOff}
         />
-        {push && <PushSetting publicKey={push.publicKey} firmName={push.firmName} />}
+        {push && (
+          <PushSetting
+            publicKey={push.publicKey}
+            firmName={push.firmName}
+            otherWay={textSender ? "text" : profile.email ? "email" : "none"}
+          />
+        )}
       </section>
 
       {/* Her requests, help, and last, Log out (docs/office-v2.md 4.1; 12H.1). */}

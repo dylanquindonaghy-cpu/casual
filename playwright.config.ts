@@ -82,8 +82,9 @@ export default defineConfig({
   testDir: "tests/e2e",
   testMatch: "**/*.spec.ts",
   // The walkthrough runs on its own, against a fresh database and a production build in demo mode
-  // (playwright.walkthrough.config.ts, with demo.spec.ts; `npm run e2e` runs both).
-  testIgnore: ["**/walkthrough.spec.ts", "**/demo.spec.ts"],
+  // (playwright.walkthrough.config.ts, with demo.spec.ts), and so does the run with no text sender
+  // (playwright.no-texts.config.ts, P2.7); `npm run e2e` runs all three.
+  testIgnore: ["**/walkthrough.spec.ts", "**/demo.spec.ts", "**/no-texts.spec.ts"],
   forbidOnly: ci,
   retries: ci ? 1 : 0,
   workers: 1,

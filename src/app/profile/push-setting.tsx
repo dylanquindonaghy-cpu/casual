@@ -5,7 +5,7 @@ import { tryAgainText } from "@/lib/portal/copy";
 import { shouldShowHomeScreenHint } from "@/lib/portal/home-screen";
 import { SERVICE_WORKER_URL } from "@/lib/portal/offline";
 import { keyBytes, pushSettingState, type PushState } from "@/lib/portal/push-state";
-import { PushSettingView } from "./push-setting-view";
+import { PushSettingView, type OtherWay } from "./push-setting-view";
 
 // "Notifications on this phone": urgent shift alerts by web push, as well as by message. Only when
 // the deployment's VAPID key is set; on an iPhone, only once the portal is on the home screen.
@@ -14,9 +14,11 @@ import { PushSettingView } from "./push-setting-view";
 export function PushSetting({
   publicKey,
   firmName,
+  otherWay,
 }: {
   publicKey: string | null;
   firmName: string;
+  otherWay: OtherWay;
 }) {
   const [state, setState] = useState<PushState | null>(publicKey ? null : "no_key");
   const [problem, setProblem] = useState<string | null>(null);
@@ -107,6 +109,7 @@ export function PushSetting({
     <PushSettingView
       state={state}
       firmName={firmName}
+      otherWay={otherWay}
       pending={pending}
       problem={problem}
       justTurnedOff={justTurnedOff}

@@ -149,9 +149,12 @@ casual's messages (offers, reminders, the office's notices, licence messages) go
 they turned notifications on for, else by email to the address you hold for them, else not at all
 (logged `no_channel`: the office should phone them). Pushes need the casual to have logged in on
 that phone, and a casual's login link goes by email only once the firm's `login_by_email` is on
-(P2.6; off until the login page stops naming WhatsApp, P2.7), so until then it's email in
-practice: the more casuals have an email address in the firm's data, the more are
-reached. The worker needs the SMTP values ("Connect an email provider (SMTP)" in PLAN.md):
+(P2.6): switch it on with `npm run firm:settings -- --firm <slug> --set login_by_email=true`. Until
+then no casual can log in, and the login page says login links aren't switched on yet (P2.7). So
+it's email in practice: the more casuals have an email address in the firm's data, the more are
+reached. The web app reads `MESSAGING_TRANSPORT` too, only for whether there's a text sender, so
+its login, pay, help and profile pages say how links and codes go: Compose gives it the worker's
+value. The worker needs the SMTP values ("Connect an email provider (SMTP)" in PLAN.md):
 without them it won't start. `docker compose ps` shows the worker "healthy"; if it isn't,
 `docker compose logs --tail 50 worker` shows why (usually a value missing in `.env`). Messages must
 never be printed instead of sent: `MESSAGING_TRANSPORT=console` is refused in production. Once the
@@ -1077,8 +1080,7 @@ In order (who does it, how, and what done looks like):
    decision 11), and whether the firm's own system reminds the casuals it books
    (`firm_system_sends`: on when its rota sheet or CRM already sends reminders, so nobody hears
    twice), and whether casuals' login links and pay codes may go by email when there's no text
-   sender (`login_by_email`, P2.6: leave it off until the login and Pay pages stop naming
-   WhatsApp, P2.7), and the pay calendar (`pay_calendar.*`, P3.1: weeks or fortnights, from which
+   sender (`login_by_email`, P2.6; the login and Pay pages say so, P2.7), and the pay calendar (`pay_calendar.*`, P3.1: weeks or fortnights, from which
    Monday, paid how many days after; set the anchor before `pay_calendar.days=14`, and to go back,
    `pay_calendar.days=7` before `pay_calendar.anchor=none`; leave a live firm on weeks until the
    top bar, Home and payroll's pay-query words read it, after the UI chat's Phase 24), and whether

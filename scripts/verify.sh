@@ -40,7 +40,7 @@ run test      npm test --silent -- --reporter=verbose --reporter=json \
 e2e=false
 # The browser tests' own results (scripts/e2e.mjs), so invariants.sh can refuse skipped ones,
 # which Playwright reports as a pass (audit L62).
-rm -f .claude/state/e2e-main.json .claude/state/e2e-walkthrough.json
+rm -f .claude/state/e2e-main.json .claude/state/e2e-no-texts.json .claude/state/e2e-walkthrough.json
 if [ -f playwright.config.ts ] && [ "${RUN_E2E:-0}" = "1" ]; then
   if E2E_JSON_DIR=.claude/state run e2e npm run --silent e2e; then e2e=true; else ok=false; fi
 fi

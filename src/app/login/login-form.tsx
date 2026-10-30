@@ -6,28 +6,35 @@ import { btn, label, muted, staffBtn, staffField } from "@/app/ui/classes";
 import { TooManyTries } from "../too-many-tries";
 import { requestLoginLinkAction, type LoginFormState } from "./actions";
 import { tryAgainText } from "@/lib/portal/copy";
+import type { LoginWay } from "@/lib/portal/login-way";
 
-export function LoginForm({ firmName, signOff }: { firmName: string; signOff: string }) {
+// The words follow how the link goes (P2.7; docs/screens.md `/login`): by WhatsApp or text, by
+// email, or not at all yet ("off": no form, so no one waits for a link that can't come).
+export function LoginForm({
+  firmName,
+  signOff,
+  way,
+}: {
+  firmName: string;
+  signOff: string;
+  way: LoginWay;
+}) {
   const [state, action, pending] = useActionState<LoginFormState, FormData>(
     requestLoginLinkAction,
     { status: "idle" },
   );
 
-  if (state.status === "sent") {
+  if (way === "off") {
     return (
-      <div role="status" className="mt-6 rounded-xl border-2 border-done bg-done-soft p-4">
-        <p className="text-2xl font-bold">Check your phone.</p>
-        <p className="mt-2">
-          If {firmName} has this number, we&apos;ve sent a link by WhatsApp or text. It works for 15
-          minutes.
-        </p>
+      <div role="note" className="mt-6 rounded-xl border-2 border-attention bg-attention-soft p-4">
+        <p className="text-2xl font-bold">Login links aren&apos;t switched on yet.</p>
+        <p className="mt-2">Please contact the office the way you usually do.</p>
         <p className={`mt-2 ${muted}`}>{signOff}</p>
-        <Link href="/login" className={`${btn.link} mt-2`}>
-          Use a different number
-        </Link>
       </div>
     );
   }
+
+  if (state.status === "sent") return <LinkSent firmName={firmName} signOff={signOff} way={way} />;
 
   return (
     <form action={action} className="mt-6">
@@ -57,8 +64,47 @@ export function LoginForm({ firmName, signOff }: { firmName: string; signOff: st
         </p>
       )}
       <button type="submit" disabled={pending} className={`${staffBtn.primary} mt-4`}>
-        {pending ? "Sending…" : "Send me a link"}
+        {pending ? "Sending…" : way === "email" ? "Email me a link" : "Send me a link"}
       </button>
     </form>
+  );
+}
+
+// The answer once a link is asked for, the same whether or not the number is known (exported for
+// the tests: the form only shows it after a real request).
+export function LinkSent({
+  firmName,
+  signOff,
+  way,
+}: {
+  firmName: string;
+  signOff: string;
+  way: Exclude<LoginWay, "off">; // with nothing to send there's no form to ask with
+}) {
+  return (
+    <div role="status" className="mt-6 rounded-xl border-2 border-done bg-done-soft p-4">
+      {way === "email" ? (
+        <>
+          <p className="text-2xl font-bold">Check your email.</p>
+          <p className="mt-2">
+            If {firmName} has this number and your email address, we&apos;ve emailed you a link. It
+            works for 15 minutes.
+          </p>
+          <p className="mt-2">Not there in a few minutes? Look in your junk folder.</p>
+        </>
+      ) : (
+        <>
+          <p className="text-2xl font-bold">Check your phone.</p>
+          <p className="mt-2">
+            If {firmName} has this number, we&apos;ve sent a link by WhatsApp or text. It works for
+            15 minutes.
+          </p>
+        </>
+      )}
+      <p className={`mt-2 ${muted}`}>{signOff}</p>
+      <Link href="/login" className={`${btn.link} mt-2`}>
+        Use a different number
+      </Link>
+    </div>
   );
 }

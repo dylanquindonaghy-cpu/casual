@@ -945,7 +945,10 @@ replies on and under 5 unknown numbers an hour, every line reads as before.
 - **The action log, Messages:**
   - a casual's held message: "{Priya Shah} sent a {WhatsApp} to the shifts line ({pay}). No
     automatic reply (they're off): it's waiting for a person." (what it was sorted as, not "for the
-    office");
+    office"); a voicemail: "{Priya Shah} left a voicemail on the shifts line (for the office). No
+    automatic reply (they're off): it's waiting for a person."; a number we don't know that would
+    have been asked its name: "… isn't one of your staff. No automatic reply (they're off): it's
+    waiting for a person.";
   - a number we don't know, past the hour's 5 emails: "A {WhatsApp} came to the shifts line from a
     number that isn't one of your staff. No email about it yet: 5 already went this hour, so it'll
     be in one email for the rest." (a former casual: "… from someone who isn't active any more. No

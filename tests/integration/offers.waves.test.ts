@@ -686,6 +686,22 @@ describe("the offer limit: 25 casuals for each free place", () => {
     expect(await t.wave(3, later(30))).toEqual({ status: "sent", sent: 5, next: 4 });
     expect(await t.offered()).toBe(25);
     expect(new Set(phones(t.sent)).size).toBe(25);
+    // The third wave run again (a retry): already sent, and the stop isn't its to log.
+    expect(await t.wave(3, later(31))).toEqual({ status: "already_sent" });
+    expect(await t.stops()).toEqual([]);
+    // Had it died before queueing the fourth, the retry queues it, so the stop is still logged.
+    const fourth = async () =>
+      (await queued(t.shiftId)).filter((j) => j.name === OFFER_WAVE_QUEUE && j.data.wave === 4);
+    expect(await fourth()).toHaveLength(1);
+    await su.query(
+      "delete from pgboss.job where name = $1 and data ->> 'shiftId' = $2 and data ->> 'wave' = '4'",
+      [OFFER_WAVE_QUEUE, t.shiftId],
+    );
+    expect(await t.wave(3, later(32))).toEqual({ status: "already_sent" });
+    expect(await fourth()).toHaveLength(1);
+    // Queued once, however often it's run again.
+    expect(await t.wave(3, later(33))).toEqual({ status: "already_sent" });
+    expect(await fourth()).toHaveLength(1);
     expect(await t.wave(4, later(45))).toEqual({ status: "stopped", reason: "offer_limit" });
     expect(await t.stops()).toEqual([{ reason: "offer_limit", wave: 4, offered: 25, places: 1 }]);
     expect(t.sent).toHaveLength(25);

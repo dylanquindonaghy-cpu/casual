@@ -165,6 +165,38 @@ describe("the board's columns", () => {
     expect(g.toOffer).toMatchObject({ total: 3, places: 4, waiting: 0, more: false });
   });
 
+  it("an urgent session whose waves offered it to 25 casuals for each free place is at the offer limit (Phase 25.3)", async () => {
+    const t = await boardFirm();
+    // The steward session (2 places, both offers said no): 47 more casuals said no too, 49 in all.
+    const { rows: many } = await su.query<{ id: string }>(
+      // Made-up numbers in Ofcom's drama range (07700 900000 to 900999) this firm doesn't use yet.
+      `insert into workers (firm_id, first_name, last_name, mobile_e164)
+       select $1, 'Many', 'Casual ' || x.n, x.m
+         from (select n, '+447700900' || lpad(n::text, 3, '0') as m
+                 from generate_series(0, 999) as n) x
+        where not exists (select 1 from workers w where w.firm_id = $1 and w.mobile_e164 = x.m)
+        order by x.n
+        limit 48
+       returning id::text as id`,
+      [t.f.firmId],
+    );
+    for (const w of many.slice(0, 47)) {
+      await offer(t.f, t.steward, w.id, { response: "declined" });
+    }
+    const steward = async () =>
+      ok((await t.load()).gaps).toOffer.sessions.find((s) => s.shiftId === t.steward)?.offers;
+    expect(await steward()).toMatchObject({ sent: 49, atLimit: false });
+    // The 50th: the most for its 2 places, but it isn't urgent, so no waves ran.
+    await offer(t.f, t.steward, many[47]?.id ?? "", { response: "declined" });
+    expect(await steward()).toMatchObject({ sent: 50, atLimit: false });
+    // Urgent: the waves stop there, and the card says so.
+    await set("shifts", t.steward, { is_urgent: true });
+    expect(await steward()).toMatchObject({ sent: 50, atLimit: true });
+    // A third place: no longer at the limit.
+    await set("shifts", t.steward, { headcount: 3 });
+    expect(await steward()).toMatchObject({ sent: 50, atLimit: false });
+  });
+
   it("each session's facts and offers: who hasn't replied and since when", async () => {
     const t = await boardFirm();
     const g = ok((await t.load()).gaps);

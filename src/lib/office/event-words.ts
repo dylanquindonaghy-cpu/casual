@@ -407,7 +407,9 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       // Automatic replies off (P4.7; Phase 25.3): no reply went, and it waits for a person; past the
       // hour's 5 alerts, the office hears in one email at the end of the hour.
       const heldReply = d.replyHeld === true ? ` ${HELD_REPLY_LOG}` : "";
-      const heldAlert = d.alertHeld === true ? ` ${HELD_ALERT_LOG}` : "";
+      // (An entry from before the hour's one email existed has no hour: it never got one.)
+      const heldAlert =
+        d.alertHeld === true && typeof d.alertHour === "string" ? ` ${HELD_ALERT_LOG}` : "";
       if (d.handledAs === "unknown") {
         return d.formerWorker
           ? `${what} the shifts line from someone who isn't active any more.${heldReply}${heldAlert}`

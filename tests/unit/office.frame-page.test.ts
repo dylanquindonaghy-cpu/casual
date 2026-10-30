@@ -86,6 +86,8 @@ describe("Needs attention's page", () => {
     // The frame's 3 uploads and 2 enquiries: 5 things.
     expect(words(html)).toContain("5 things for you.");
     expect(words(html)).toContain("3 uploads wait for a check.");
+    // Its own urgent places, beside them.
+    expect(words(html)).toContain("2 urgent places to fill, the first on Mon 2 Nov");
     expect(officeFrame).toHaveBeenCalledTimes(1);
     expect(loadNeedsAttention).not.toHaveBeenCalled();
     expect(officeUrgentCount).toHaveBeenCalledTimes(1);

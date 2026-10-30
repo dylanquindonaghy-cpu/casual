@@ -2,6 +2,7 @@ import { activeFirmId, type FirmTx } from "../db/scoped";
 import { events } from "../db/schema";
 import { isWebhookAction, queueWebhooks } from "../integrations/outbox";
 import { redact } from "../log/mask";
+import { WORKER_LIST_ACTIONS } from "./worker-lists";
 
 // The action log (golden rule 5): one append-only row per state change, written in the same
 // transaction as the change. data holds ids, reasons and flags only: never a token, code, phone
@@ -28,6 +29,9 @@ function eventRow(firmId: string, event: EventInput) {
   const data = event.data ?? {};
   if (!passesLogCheck(data)) {
     throw new Error(`events.data for ${event.action} holds personal or secret data`);
+  }
+  if ("workers" in data && !WORKER_LIST_ACTIONS.includes(event.action)) {
+    throw new Error(`events.data for ${event.action} lists workers: add it to WORKER_LIST_ACTIONS`);
   }
   return {
     firmId,

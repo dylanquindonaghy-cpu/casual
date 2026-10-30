@@ -473,8 +473,22 @@ describe("Needs attention's page (Phase 18: the top bar's To check opens it sinc
     );
     expect(heading(evidence)).toMatch(/ 71$/);
     expect(words(evidence)).toContain("Showing the first 2 of 71.");
-    // The bell counts them all.
-    expect(needsCount({ ...needsFull, toMarkTotal: 400 })).toBe(needsCount(needsFull) + 399);
+    // The bell counts them all, each list's total.
+    for (const key of [
+      "toCheckTotal",
+      "fromSheetTotal",
+      "toMarkTotal",
+      "expiredTotal",
+      "plannerRefusedTotal",
+      "sheetNamesTotal",
+    ] as const) {
+      expect(needsCount({ ...needsFull, [key]: needsFull[key] + 399 })).toBe(
+        needsCount(needsFull) + 399,
+      );
+    }
+    expect(
+      needsCount({ ...needsFull, evidence: { ...needsFull.evidence, failedTotal: 400 } }),
+    ).toBe(needsCount(needsFull) + 399);
     // All shown: no line.
     expect(words(part(needsFull, "to-check"))).not.toContain("Showing the first");
   });

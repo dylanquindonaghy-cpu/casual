@@ -392,6 +392,21 @@ async function offeredOrHeld(tx: FirmTx, shiftId: string, workerId: string): Pro
   return rows.length > 0;
 }
 
+// Queues a wave of the chain (once whichever copy asks: a pg-boss singleton key on the shift and
+// wave, in pg-boss's day-long slot). At once unless `startAfter`.
+async function queueWave(tx: FirmTx, shiftId: string, wave: number, startAfter?: Date) {
+  await sendFirmJob(
+    tx,
+    jobs.wave,
+    { idempotencyKey: `offer-wave:${shiftId}:${wave}`, shiftId, wave },
+    {
+      ...(startAfter ? { startAfter } : {}),
+      singletonKey: `offer-wave-next:${shiftId}:${wave}`,
+      singletonSeconds: 86_400,
+    },
+  );
+}
+
 export async function runOfferWave(
   payload: OfferWavePayload,
   run: WithFirm,
@@ -415,11 +430,15 @@ export async function runOfferWave(
       await stopWaves(tx, shift.id, payload.wave, blocked, now);
       return { done: { status: "stopped", reason: blocked } as WaveResult };
     }
-    // The most for its free places already offered it (Phase 25.3): the chain stops here. (A wave
-    // already sent that reached it stopped its own claims, or queued this one to say so.)
+    // The most for its free places already offered it (Phase 25.3): the chain stops here. A wave
+    // run again after it reached the limit (a retry) leaves the stop to the next wave, queued
+    // here in case it died before queueing it (once: the same singleton key as queueNext).
     const offered = await offeredSoFar(tx, shift.id);
     if (offered >= offerLimit(shift.freePlaces)) {
-      if (already > 0) return { done: { status: "already_sent" } as WaveResult };
+      if (already > 0) {
+        await queueWave(tx, shift.id, payload.wave + 1);
+        return { done: { status: "already_sent" } as WaveResult };
+      }
       await stopWaves(tx, shift.id, payload.wave, "offer_limit", now, {
         offered,
         places: shift.freePlaces,
@@ -507,16 +526,7 @@ export async function runOfferWave(
     if (!full && candidates.length <= chosen.length) return null;
     const next = payload.wave + 1;
     await inFirm((tx) =>
-      sendFirmJob(
-        tx,
-        jobs.wave,
-        { idempotencyKey: `offer-wave:${shift.id}:${next}`, shiftId: shift.id, wave: next },
-        {
-          startAfter: new Date(now.getTime() + minutesApart * 60_000),
-          singletonKey: `offer-wave-next:${shift.id}:${next}`,
-          singletonSeconds: 86_400,
-        },
-      ),
+      queueWave(tx, shift.id, next, new Date(now.getTime() + minutesApart * 60_000)),
     );
     return next;
   };

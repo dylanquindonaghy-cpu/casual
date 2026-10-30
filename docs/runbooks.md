@@ -139,6 +139,14 @@ new image within minutes of the merge):
    skip: `DROP INDEX CONCURRENTLY <name>` and build it again.
 5. Merge. The migration finds the index there and does nothing.
 
+**A migration that adds a stored generated column** (`drizzle/0062_webhook_status.sql`: the action
+log's `worker_ref` and `shift_ref`) rewrites the whole table under an exclusive lock: nothing can
+read or write the action log until it commits, and every change the app makes writes to it, so the
+app waits too. Locally, the two columns and their indexes on 700,000 entries took under 5 seconds
+in all. No firm is live yet; once one
+is, deploy such a migration outside event hours, or split it (add the column, backfill in batches,
+then the index concurrently as above).
+
 **It never deploys between 05:30 and 09:00 UK time on its own** (event mornings): a merge, or a
 change to `.env`, then goes out at 09:00. A fix that can't wait: run `/opt/shiftdesk/deploy.sh
 --now` by hand.

@@ -5,8 +5,8 @@ import type { FirmTx } from "../db/scoped";
 // Needs attention show, kept in step with the action log by being written in the same transaction
 // as the entry it sums up. The database's clock, as the log's `created_at` is.
 //
-// - The address set, changed or removed (addWebhook, removeWebhook): a fresh start, nothing
-//   delivered or failed since.
+// - The address set or changed (addWebhook): a fresh start, nothing delivered or failed since.
+//   (A removed one shows no status at all; added again, it starts afresh.)
 // - A delivery that worked (`webhook.delivered`): working, no longer failing.
 // - A delivery's last try that failed (`webhook.failed`): failing since the first such failure
 //   after the last delivery that worked (or the address being set).

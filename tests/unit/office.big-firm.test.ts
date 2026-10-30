@@ -73,6 +73,19 @@ describe("why a message got no automatic reply", () => {
     ).toBe(
       "Priya Shah sent a text to the shifts line (cancelling, sorted by AI). No automatic reply (they're off): it's waiting for a person.",
     );
+    // A voicemail: for the office as ever, and no reply went.
+    expect(
+      theirs({
+        channel: "voice",
+        handledAs: "office",
+        intent: "office",
+        sortedAs: "office",
+        replyHeld: true,
+        workerId: "w1",
+      }),
+    ).toBe(
+      "Priya Shah left a voicemail on the shifts line (for the office). No automatic reply (they're off): it's waiting for a person.",
+    );
     // Replies on: as before (what it asked, nothing more).
     expect(
       theirs({
@@ -103,10 +116,20 @@ describe("why a message got no automatic reply", () => {
         handledAs: "unknown",
         formerWorker: true,
         alertHeld: true,
+        alertHour: "2026-11-02T09:00:00.000Z",
       }),
     ).toBe(
       "A WhatsApp came to the shifts line from someone who isn't active any more. No email about it yet: 5 already went this hour, so it'll be in one email for the rest.",
     );
+    // Held before the hour's one email existed (no hour): it never got one, so it isn't promised.
+    expect(
+      words("message.received", {
+        channel: "whatsapp",
+        handledAs: "unknown",
+        formerWorker: false,
+        alertHeld: true,
+      }),
+    ).toBe("A WhatsApp came to the shifts line from a number that isn't one of your staff.");
     // Its email went: nothing more said.
     expect(
       words("message.received", { channel: "whatsapp", handledAs: "unknown", formerWorker: false }),

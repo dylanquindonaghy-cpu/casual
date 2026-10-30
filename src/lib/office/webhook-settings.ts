@@ -189,7 +189,6 @@ export async function removeWebhook(ctx: WebhookContext): Promise<RemoveWebhookR
     const before = await current(tx);
     if (!before.url) return { status: "no_webhook" };
     await setSetting(tx, "webhook.url", null);
-    await webhookAddressSet(tx);
     const after = await current(tx);
     await logChange(tx, ctx, "removed", before.signingVersion, after.signingVersion);
     return { status: "removed" };

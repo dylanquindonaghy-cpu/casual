@@ -9,6 +9,7 @@ import {
   attentionCount,
   loadExpiredOnBookings,
   loadNeedsAttention,
+  loadPlannerRefusals,
   needsCount,
   officeUrgentCount,
   part,
@@ -125,6 +126,30 @@ describe("Needs attention: a qualification out of date on a booked session", () 
       },
       expect.objectContaining({ worker: "Cara Booker", shiftId: night, expiresOn: "2026-11-07" }),
     ]);
+  });
+
+  it("past 50: the first 50, soonest first, and how many in all (Phase 25.3)", async () => {
+    const t = await scene();
+    const ben = await t.worker({
+      first: "Ben",
+      credentials: [{ type: "SIA_DS", expiresOn: "2026-11-01" }],
+    });
+    // Booked on 52 door supervisor sessions from Saturday on, his licence out of date for all.
+    await su.query(
+      `with s as (
+         insert into shifts (firm_id, event_id, role, starts_at, ends_at, headcount, status, source)
+         select $1, $3, 'door_supervisor', $2::timestamptz + (n || ' hours')::interval,
+                $2::timestamptz + (n || ' hours')::interval + interval '8 hours', 1, 'filled',
+                'native'
+           from generate_series(1, 52) as n
+         returning id)
+       insert into assignments (firm_id, shift_id, slot, worker_id, status, confirmed_at)
+       select $1, s.id, 1, $4, 'confirmed', $5 from s`,
+      [t.firmId, hoursFromNow(121), await t.event(), ben, NOW],
+    );
+    const got = await t.items();
+    expect([got.items.length, got.total]).toEqual([50, 52]);
+    expect(got.items.every((i) => i.workerId === ben)).toBe(true);
   });
 
   it("a session's own requirement too; marked expired by the office; a checked renewal clears it, one waiting for a check doesn't", async () => {
@@ -554,6 +579,30 @@ describe("Needs attention: your planner's change was refused", () => {
         clock,
       }),
     ).toBeNull();
+  });
+});
+
+describe("Needs attention: your planner's refused changes past 50 (Phase 25.3)", () => {
+  it("the first 50, soonest first, and how many in all", async () => {
+    const t = await dashFirm();
+    // 53 of the planner's sessions to come, each with a move the rules refused.
+    await su.query(
+      `with s as (
+         insert into shifts (firm_id, event_id, role, starts_at, ends_at, headcount, status, source,
+                             external_ref)
+         select $1, $3, 'steward', $2::timestamptz + (n || ' hours')::interval,
+                $2::timestamptz + (n || ' hours')::interval + interval '8 hours', 1, 'open', 'api',
+                'P-' || n
+           from generate_series(1, 53) as n
+         returning id)
+       insert into events (firm_id, actor_type, action, entity_type, entity_id, data)
+       select $1, 'system', 'shift.move_refused', 'shift', s.id,
+              jsonb_build_object('by', 'firm', 'via', 'api', 'reason', 'rules', 'workers', '[]'::jsonb)
+         from s`,
+      [t.firmId, hoursFromNow(48), await t.event()],
+    );
+    const got = await withFirm(t.firmId, (tx) => loadPlannerRefusals(tx, NOW));
+    expect([got.items.length, got.total]).toEqual([50, 53]);
   });
 });
 

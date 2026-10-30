@@ -64,7 +64,7 @@ export const apiKeys = pgTable(
 // The planner's webhook status (Phase 25.3; P4's "the webhook status from a small row"): one row per
 // firm, so the Integrations page and Needs attention read it at once instead of searching the
 // action log. Written in the transaction that logs what it sums up (src/lib/integrations/status.ts):
-// the address set (addWebhook, removeWebhook: a fresh start), a delivery (`webhook.delivered`: no
+// the address set (addWebhook: a fresh start), a delivery (`webhook.delivered`: no
 // longer failing) and a last try that failed (`webhook.failed`: failing since the first). Times
 // only, no address or personal data. The app may add a row and change its times (COLUMN_UPDATES),
 // never whose it is; the action log stays the record.

@@ -945,7 +945,7 @@ describe("the webhook's status row (Phase 25.3)", () => {
     expect((await row(t.f.firmId))[0]?.address_set_at.getTime()).toBeGreaterThan(
       set?.address_set_at.getTime() ?? 0,
     );
-    // Removed: no status shown, and the row starts again too.
+    // Removed: no status shown.
     expect(await removeWebhook(t.ctx())).toEqual({ status: "removed" });
     expect((await withFirm(t.f.firmId, webhookStatus)).status).toEqual({ kind: "none" });
     expect(await row(t.f.firmId)).toHaveLength(1);

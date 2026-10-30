@@ -95,7 +95,7 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   // with its column grant.
   inbound_emails: ["SELECT", "INSERT"],
   // The planner's webhook status (Phase 25.3): one row per firm, its times changed
-  // (COLUMN_UPDATES), never whose it is; never deleted (an address removed starts it again).
+  // (COLUMN_UPDATES), never whose it is; never deleted (an address added again starts it again).
   webhook_status: ["SELECT", "INSERT"],
 };
 

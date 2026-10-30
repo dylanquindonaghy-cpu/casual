@@ -901,7 +901,8 @@ create table events (
 -- checked first and every row after), a text column's can.
 -- events is append-only: the app role has SELECT and INSERT only, and events has only
 -- select and insert policies. data never holds tokens, codes, phones, emails or IPs
--- (recordEvent() refuses anything the log masker would change).
+-- (recordEvent() refuses anything the log masker would change, and a `workers` list under any
+-- action but those in src/lib/events/worker-lists.ts, which the action log finds by worker).
 -- Login events (kind worker or office): auth.link_requested (entity login_request; data {kind, matched}),
 -- auth.link_sent (magic_link; {purpose, channel, providerMessageId}, + ownDomain: true when the
 -- link was on the firm's own domain; channel email for an office user, and for a worker since
@@ -1109,7 +1110,7 @@ create table api_keys (
 
 -- The planner's webhook status (Phase 25.3, migration 0062; src/lib/integrations/status.ts): what
 -- Integrations and Needs attention show, written in the transaction that logs what it sums up: the
--- address set or removed (a fresh start), webhook.delivered (working, no longer failing),
+-- address set (a fresh start; a removed one shows no status), webhook.delivered (working, no longer failing),
 -- webhook.failed (failing since the first such failure). Times only. The app role may read and add
 -- a row and change its times (a column grant), never whose it is; never deleted. A firm whose
 -- address was set before 0062 reads "new" until its next delivery.

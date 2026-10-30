@@ -5,6 +5,7 @@ import { currentOfficeUser } from "../auth/office-login";
 import { canAccess } from "../auth/roles";
 import { firms, workers } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
+import { WORKER_LIST_ACTIONS } from "../events/worker-lists";
 import { roleLabel } from "../portal/format";
 import { dayLabel } from "../rules/reasons";
 import { addDays, localDateOf, wallTimeOf, zonedToUtc } from "../time/zoned";
@@ -136,10 +137,6 @@ function range(query: LogQuery, today: string, timeZone: string) {
   };
   return { from, to, start: midnight(from), end: midnight(addDays(to, 1)), clamped };
 }
-
-// The entries whose data lists the workers they're about (`workers: [{workerId, …}]`): a refused
-// move (src/lib/roster/firm-change.ts) and a refused rota sheet change (src/lib/roster/sheets/sync.ts).
-export const WORKER_LIST_ACTIONS = ["shift.move_refused", "roster.sheet_change_refused"] as const;
 
 const actionList = (actions: readonly string[]) =>
   sql.join(

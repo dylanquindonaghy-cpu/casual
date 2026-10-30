@@ -216,13 +216,11 @@ describe("the inbox's setting", () => {
     }
   };
 
-  it("a whsec_ key; refused in production until the inbox is sorted (P7.4)", () => {
+  it("a whsec_ key; in production too, now that its emails are sorted (P7.4; Phase 25.5)", () => {
     expect(refusal({ NODE_ENV: "development", EMAIL_INBOUND_SECRET: SECRET })).toBe("accepted");
     expect(refusal({ NODE_ENV: "development", EMAIL_INBOUND_SECRET: "not-a-key" })).toMatch(
       /whsec_/,
     );
-    expect(refusal({ NODE_ENV: "production", EMAIL_INBOUND_SECRET: SECRET })).toMatch(
-      /isn't live yet/,
-    );
+    expect(refusal({ NODE_ENV: "production", EMAIL_INBOUND_SECRET: SECRET })).toBe("accepted");
   });
 });

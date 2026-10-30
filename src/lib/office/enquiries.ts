@@ -942,7 +942,7 @@ export async function loadEmailEnquiry(
                 ? { how: "held", by, intent: sortedAs }
                 : by && sortedAs && d.replyLimit === true
                   ? { how: "limit", by, intent: sortedAs }
-                  : by && sortedAs && d.noAddress === true
+                  : by && sortedAs && d.nothingOnFile === true
                     ? { how: "no_address", by, intent: sortedAs }
                     : by && intent
                       ? intent === "office"

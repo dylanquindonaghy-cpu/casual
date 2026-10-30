@@ -11,6 +11,10 @@ const ci = !!process.env.CI;
 export const PORT = 3100;
 export const OUTBOX = ".dev/e2e-outbox.jsonl";
 export const E2E_TWILIO_AUTH_TOKEN = "e2e-twilio-auth-token-not-real-0000";
+// A made-up signing key for the staffing inbox's webhook (Phase 25.5): the e2e run posts signed
+// emails as the provider would (tests/e2e/office.inbox.spec.ts). Never a real provider's.
+export const E2E_EMAIL_INBOUND_SECRET =
+  "whsec_ZTJlLW9ubHktbWFkZS11cC1pbmJvdW5kLWtleS1ub3QtcmVhbA==";
 export const CUSTOM_DOMAIN = "shifts.acme-events.test";
 // https for that domain, as Caddy gives a firm's own domain in production (tests/e2e/tls-front.ts):
 // the browser sends https://shifts.acme-events.test here.
@@ -49,6 +53,8 @@ export const serverEnv = (port: number, outbox: string, opts: { testPages?: bool
   GOOGLE_SERVICE_ACCOUNT_JSON_PATH: "",
   // A made-up key, so the e2e run can post signed Twilio webhooks (tests/e2e/whatsapp.inbound.spec.ts).
   TWILIO_AUTH_TOKEN: E2E_TWILIO_AUTH_TOKEN,
+  // A made-up key, so the e2e run can post signed emails to the staffing inbox.
+  EMAIL_INBOUND_SECRET: E2E_EMAIL_INBOUND_SECRET,
   // Never a real email server: .env may hold a provider's settings for a local try
   // (scripts/invariants.sh checks these lines stay).
   EMAIL_TRANSPORT: "console",

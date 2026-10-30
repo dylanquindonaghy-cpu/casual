@@ -40,8 +40,9 @@ export function createConsoleTransport(
       const to = msg.channel === "email" ? maskText(msg.to) : maskPhone(msg.to);
       // The firm's shifts line is a business number, not personal data: shown whole.
       const from = msg.channel !== "email" && msg.from ? ` from ${msg.from}` : "";
-      // A firm's staffing inbox is the firm's own address, not personal data: shown whole.
-      const replyTo = msg.channel === "email" && msg.replyTo ? `Reply-To: ${msg.replyTo}\n` : "";
+      // Masked like the address it goes to (the servers' output is checked for addresses).
+      const replyTo =
+        msg.channel === "email" && msg.replyTo ? `Reply-To: ${maskText(msg.replyTo)}\n` : "";
       const subject = msg.channel === "email" ? `${replyTo}Subject: ${msg.subject}\n` : "";
       const files =
         msg.channel === "email"

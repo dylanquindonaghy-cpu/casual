@@ -1056,10 +1056,10 @@ email casuals get is in `docs/messaging-templates.md` ("The staffing inbox's ema
   your casuals'. Its words aren't kept: it's in your own inbox." / "An email came to the staffing
   inbox from someone who isn't active any more. It's waiting for a person." `email.replied`: "The
   {open shifts / cancel / pay} email went to {Priya Shah}." `email.reply_failed`: "The {open
-  shifts} email to {Priya Shah} couldn't be sent ({code})." `message.inbox_summary`: "The office was
-  emailed the staffing inbox's summary ({12 emails}, {09:00} to {12:00})." ("… nobody to email it
-  to: no active admin or resourcer has an email address." / "… it couldn't be sent to {1} of
-  them.")
+  shifts} email to {Priya Shah} couldn't be sent ({code})." `message.inbox_summary`: "The office was emailed the
+  staffing inbox's summary ({12 emails}, {09:00} to {12:00})." ("…; it couldn't be sent to {1} of
+  them.") / "Nobody in the office could be emailed the staffing inbox's summary ({1 email}): no
+  active admin or resourcer has an email address."
 
 | Route | Screen | What's on it | Empty / error states |
 |---|---|---|---|

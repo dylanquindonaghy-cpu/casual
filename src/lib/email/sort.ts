@@ -37,7 +37,8 @@ import { queueInboxSummary } from "./summary";
 //      by email, to the address the firm holds for them (never the one it came from: a sender can
 //      be faked), outside any transaction, at most AUTOMATIC_PER_DAY a casual in 24 hours; then
 //      `email.replied` or `email.reply_failed` (never retried). With them off, or past that, it
-//      waits for a person (`replyHeld` / `replyLimit`, with what it was sorted as: `sortedAs`);
+//      waits for a person (`replyHeld` / `replyLimit` / `nothingOnFile`, with what it was sorted
+//      as: `sortedAs`);
 //   5. an email for a person gets the AI's draft of a reply for the office to check (never one
 //      sorted as pay, nor one whose words are about pay or money: golden rule 9), saved on the
 //      email; none when there's no AI or no usable draft.
@@ -326,7 +327,7 @@ export async function runInboundEmail(
         ...(aiFallback ? { aiFallback } : {}),
         ...(held === "held" ? { replyHeld: true, sortedAs } : {}),
         ...(held === "limit" ? { replyLimit: true, sortedAs } : {}),
-        ...(held === "no_address" ? { noAddress: true, sortedAs } : {}),
+        ...(held === "no_address" ? { nothingOnFile: true, sortedAs } : {}),
         workerId: c.workerId,
       },
     });

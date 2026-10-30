@@ -1362,3 +1362,60 @@ export async function personalReplyScene(
     await pool.end();
   }
 }
+
+// The staffing inbox (Phase 25.5): a seeded firm's inbox address (`npm run firm:inbox`'s, the
+// owner's to set), and a made-up casual with an email address on file, in the e2e database (never
+// the dev one). Returns the casual's id.
+export async function inboxScene(
+  slug: string,
+  o: { inbox: string; firstName: string; lastName: string; mobileE164: string; email: string },
+): Promise<string> {
+  const admin = new Pool({ connectionString: e2eAdminUrl(), max: 1 });
+  const client = await admin.connect();
+  try {
+    const { rows } = await client.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const firmId = seedId(`firm/${slug}`);
+    await client.query("begin");
+    await client.query("select set_config('app.current_firm_id', $1, true)", [firmId]);
+    await client.query("update firms set inbox_address = $2 where id = $1", [firmId, o.inbox]);
+    const found = await client.query<{ id: string }>(
+      "select id::text as id from workers where firm_id = $1 and email = $2",
+      [firmId, o.email],
+    );
+    const id =
+      found.rows[0]?.id ??
+      (
+        await client.query<{ id: string }>(
+          `insert into workers (firm_id, first_name, last_name, mobile_e164, email, roles)
+           values ($1, $2, $3, $4, $5, '{steward}') returning id::text as id`,
+          [firmId, o.firstName, o.lastName, o.mobileE164, o.email],
+        )
+      ).rows[0]?.id;
+    await client.query("commit");
+    if (!id) throw new Error("no casual for the inbox scene");
+    return id;
+  } catch (err) {
+    await client.query("rollback").catch(() => undefined);
+    throw err;
+  } finally {
+    client.release();
+    await admin.end();
+  }
+}
+
+// Whether a seeded firm's email (by its Message-ID) has been sorted by the worker's job.
+export async function emailSorted(slug: string, messageId: string): Promise<boolean> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    return await createWithFirm(pool)(seedId(`firm/${slug}`), async (tx) => {
+      const { rows } = await tx.execute<{ handled: boolean }>(
+        sql`select handled_at is not null as handled from inbound_emails
+             where provider_message_id = ${messageId}`,
+      );
+      return rows[0]?.handled === true;
+    });
+  } finally {
+    await pool.end();
+  }
+}

@@ -536,18 +536,18 @@ export function eventWords(e: LoggedEvent, names: Names): string {
         return "An email came to the staffing inbox from someone who isn't active any more. It's waiting for a person.";
       }
       if (d.stale === true) {
-        return `${who}'s email came in more than 3 hours before the inbox could answer it, so it's waiting for a person unsorted.`;
+        return `${worker}'s email came in more than 3 hours before the inbox could answer it, so it's waiting for a person unsorted.`;
       }
       if (typeof d.answerFailed === "string") {
-        return `${who}'s email couldn't be sorted (${d.answerFailed}), so it's waiting for a person.`;
+        return `${worker}'s email couldn't be sorted (${d.answerFailed}), so it's waiting for a person.`;
       }
       const ai = d.handledAs === "ai" ? ", sorted by AI" : "";
       const held =
-        d.replyHeld === true || d.replyLimit === true || d.noAddress === true
+        d.replyHeld === true || d.replyLimit === true || d.nothingOnFile === true
           ? String(d.sortedAs)
           : null;
       if (held === null && d.intent === "office") {
-        return `${who} emailed the staffing inbox (for the office${ai}). It's waiting for a person.`;
+        return `${worker} emailed the staffing inbox (for the office${ai}). It's waiting for a person.`;
       }
       const about = INTENT_WORDS[held ?? String(d.intent)] ?? "an email";
       const why =
@@ -555,17 +555,17 @@ export function eventWords(e: LoggedEvent, names: Names): string {
           ? ` ${HELD_REPLY_LOG}`
           : d.replyLimit === true
             ? " 3 automatic replies already went to them today: it's waiting for a person."
-            : d.noAddress === true
+            : d.nothingOnFile === true
               ? " There's no email address on file for them: it's waiting for a person."
               : "";
-      return `${who} emailed the staffing inbox (${about}${ai}).${why}`;
+      return `${worker} emailed the staffing inbox (${about}${ai}).${why}`;
     }
     case "email.replied":
       return `The ${INBOX_ANSWER_WORDS[String(d.answer)] ?? "automatic"} email went to ${worker}.`;
     case "email.reply_failed":
       return `The ${INBOX_ANSWER_WORDS[String(d.answer)] ?? "automatic"} email to ${worker} couldn't be sent (${String(d.code ?? "unknown")}).`;
     case "message.inbox_summary": {
-      const n = Number(d.emails ?? 0);
+      const n = Number(d.received ?? 0);
       const emails = n === 1 ? "1 email" : `${n} emails`;
       const slot = isClock(d.from) && isClock(d.to) ? `, ${d.from} to ${d.to}` : "";
       const recipients = Number(d.recipients ?? 0);

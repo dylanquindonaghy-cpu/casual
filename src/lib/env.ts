@@ -207,15 +207,6 @@ function vapidKeysMatch(publicKey: string, privateKey: string): boolean {
   }
 }
 
-// The staffing inbox isn't live until its emails are sorted (P7.4): a live server would only store
-// them, with nothing answering. P7.4 takes this away.
-const inboxNotLiveYet = (e: { NODE_ENV: string; EMAIL_INBOUND_SECRET?: string }) =>
-  e.NODE_ENV !== "production" || e.EMAIL_INBOUND_SECRET === undefined;
-const inboxNotLiveYetMessage = {
-  path: ["EMAIL_INBOUND_SECRET"],
-  message: "the staffing inbox isn't live yet (PLAN.md P7.4): leave EMAIL_INBOUND_SECRET unset",
-};
-
 // Tests never reach postcodes.io or TravelTime.
 const noRealTravelInTests = (e: { NODE_ENV: string; TRAVEL_PROVIDER: string }) =>
   e.NODE_ENV !== "test" || e.TRAVEL_PROVIDER !== "traveltime";
@@ -250,7 +241,6 @@ export const appEnvSchema = z
   .superRefine(tlsInProduction("DATABASE_URL"))
   .refine(realSecret, realSecretMessage)
   .refine(realIntegrationsSecret, realIntegrationsSecretMessage)
-  .refine(inboxNotLiveYet, inboxNotLiveYetMessage)
   .refine(alertsOn, alertsOnMessage)
   .refine(noRealTravelInTests, noRealTravelInTestsMessage)
   .refine(demoHasOutbox, demoHasOutboxMessage)
@@ -388,7 +378,6 @@ export const workerEnvSchema = z
   .superRefine(tlsInProduction("DATABASE_URL", "DATABASE_JOBS_URL"))
   .refine(realSecret, realSecretMessage)
   .refine(realIntegrationsSecret, realIntegrationsSecretMessage)
-  .refine(inboxNotLiveYet, inboxNotLiveYetMessage)
   .refine(alertsOn, alertsOnMessage)
   .refine(noRealTravelInTests, noRealTravelInTestsMessage)
   .refine(demoHasOutbox, demoHasOutboxMessage)

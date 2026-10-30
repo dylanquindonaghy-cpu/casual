@@ -24,7 +24,7 @@ import { nextDay, wallTimeOf, zonedToUtc } from "../time/zoned";
 //   1. a short transaction claims the slot (an auth_throttle row keyed by its start) and counts its
 //      emails by what came of them; none, or already claimed: nothing more;
 //   2. the email goes to each active admin and resourcer, no transaction open;
-//   3. a short transaction logs `message.inbox_summary {slotStart, from, to, emails, recipients,
+//   3. a short transaction logs `message.inbox_summary {slotStart, from, to, received, recipients,
 //      failed, skipped}` (counts, never an address, a name or anyone's words).
 
 export const INBOX_SUMMARY_QUEUE = "inbox-summary";
@@ -187,7 +187,7 @@ export async function runInboxSummary(
         action: "message.inbox_summary",
         entityType: "firm",
         entityId: payload.firmId,
-        data: { ...slot, emails: counts.emails, recipients: 0, failed: 0, skipped },
+        data: { ...slot, received: counts.emails, recipients: 0, failed: 0, skipped },
       });
       return { status: "no_recipients" as const, counts };
     }
@@ -225,7 +225,7 @@ export async function runInboxSummary(
       entityId: payload.firmId,
       data: {
         ...claim.slot,
-        emails: claim.counts.emails,
+        received: claim.counts.emails,
         recipients: emailed,
         failed,
         skipped: claim.skipped,

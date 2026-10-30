@@ -125,9 +125,8 @@ Year: the year-end rule waits for the firm's payroll (`docs/discovery-axlr8.md` 
 move the periods themselves (a new cycle 1 on Mon 4 Jan 2027 would shift every fortnight from Mon
 28 Dec 2026 by a week), not only their numbers. Pay-query grouping uses it now: a new query is keyed
 on the firm's period at once, and the open ones follow at the next regroup (the payroll digest, or a
-pay import). Home reads it (Phase 25.2). Payroll's pay-query headings and the digest's headline
-still say "the week of" its first Monday, and the dashboards and the pay page read weeks, until the
-office's half of Phase 25.2, so leave a live firm on weeks until then.
+pay import). Home, the office's dashboards, the pay page and payroll's pay-query headings and
+digest read it, in the firm's word for its period ("the cycle of Mon 12 Oct", Phase 25.2).
 
 (The 48-hour short-notice threshold is a placeholder until the 2027 regulations are final.)
 

@@ -937,7 +937,7 @@ touches schema, auth, tenancy, messaging or rules; `/close-task` ticks it.
       2026-10-30: build as shown, the table (`sheet_name_problems`) as proposed; a fortnight reads
       in the firm's own word ("Cycle 22", "the cycle of Mon 12 Oct"); "Who asked for it?" is
       required; "None: strikes are off" stays (25.2)
-- [ ] P4's office half: the list under P4's "After the UI chat's work is merged" (the layout's reads
+- [x] P4's office half: the list under P4's "After the UI chat's work is merged" (the layout's reads
       in one transaction, the dashboard's capped lists, why a reply was held, the stop after 25
       offers, one combined email past the 5). The mock-up
       (https://claude.ai/artifact/RvpGDfQMcTAqtfCTYJFpUk), approved by Dylan on 2026-10-30: build as

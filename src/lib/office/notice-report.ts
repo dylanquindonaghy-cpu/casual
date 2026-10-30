@@ -372,11 +372,21 @@ export function csvCell(value: string | number | null): string {
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
+// Who asked for a cancellation (P3.4), as the page and the file say it (Phase 25.2): the casual's
+// own ask in the report's own word for them, beside "Started by".
+export const ASKED_BY_WORDS: Record<CancelAsker, string> = {
+  casual: "The worker",
+  firm: "The firm",
+  client: "The client",
+  unknown: "Not known",
+};
+
 export const CSV_HEADER = [
   "When (firm time)",
   "When (UTC)",
   "What",
   "Started by",
+  "Asked by",
   "Worker",
   "Shift",
   "Shift start (as it is now)",
@@ -398,6 +408,7 @@ export function noticeReportCsv(report: OfficeNoticeReport): string {
         r.at.toISOString(),
         KIND_WORDS[r.kind],
         INITIATOR_WORDS[r.initiator],
+        r.askedBy ? ASKED_BY_WORDS[r.askedBy] : "",
         r.worker,
         r.shift
           ? `${roleLabel(r.shift.role)}${r.shift.site ? ` at ${r.shift.site}` : ""}`
@@ -429,8 +440,8 @@ function noteOf(r: OfficeNoticeRow): string {
 
 // What the office's page and file get: no event numbers. They come from one counter shared by every
 // firm, so a firm could count the others' activity between them (Phase 10 task 19, audit L44). Who
-// asked for each cancellation (P3.4) joins them with its words, after the UI chat's Phase 24.
-export type OfficeNoticeRow = Omit<NoticeRow, "eventId" | "askedBy">;
+// asked for each cancellation (P3.4) is there, in ASKED_BY_WORDS on both (Phase 25.2).
+export type OfficeNoticeRow = Omit<NoticeRow, "eventId">;
 export type OfficeNoticeReport = Omit<NoticeReport, "rows"> & { rows: OfficeNoticeRow[] };
 
 // The report for the logged-in office user, or null (logged out, or a role without it).
@@ -450,6 +461,7 @@ export async function officeNoticeReport(
       at: r.at,
       kind: r.kind,
       initiator: r.initiator,
+      askedBy: r.askedBy,
       worker: r.worker,
       shift: r.shift,
       moved: r.moved,

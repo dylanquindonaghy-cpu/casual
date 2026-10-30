@@ -8,6 +8,10 @@ import {
   NEEDS_HEADINGS,
   plannerRefusedText,
   SECTIONS,
+  SHEET_NAME_UNREADABLE,
+  SHEET_NAMES_INTRO,
+  sheetNamePlace,
+  sheetNameSkippedText,
   uploadsText,
   webhookFailingText,
   type NeedsKey,
@@ -155,6 +159,31 @@ export function NeedsItems({
                 </div>
               </li>
             ))}
+          </ul>
+        </Need>
+      )}
+
+      {n.sheetNames.length > 0 && (
+        <Need id="sheet-names" n={n.sheetNames.length} more={n.sheetNamesMore}>
+          <p className={`${headingGap} max-w-prose text-ink-muted`}>{SHEET_NAMES_INTRO}</p>
+          <ul role="list" className={items}>
+            {n.sheetNames.map((x) =>
+              x.kind === "unreadable" ? (
+                <li key={`${x.tab}-${x.row}`} className={item}>
+                  <p className="font-semibold">&ldquo;{x.name}&rdquo;</p>
+                  <p className={`${meta} ${nums}`}>{sheetNamePlace(x.tab, x.row)}</p>
+                  <p className="mt-2 max-w-prose">{SHEET_NAME_UNREADABLE}</p>
+                </li>
+              ) : (
+                <li key={`skipped-${x.row}`} className={item}>
+                  <p className="font-semibold">
+                    <ShiftTitle shift={x} />
+                  </p>
+                  <p className={`${meta} ${nums}`}>{shiftWhen(x.startsAt, x.endsAt, tz)}</p>
+                  <p className="mt-2 max-w-prose">{sheetNameSkippedText(x.row, x.name)}</p>
+                </li>
+              ),
+            )}
           </ul>
         </Need>
       )}

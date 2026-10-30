@@ -6,7 +6,7 @@ import { firms } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { loadDigestStatus, type DigestStatus } from "../pay/digest";
 import { digestSchedule, nextDigestAt, type DigestSchedule } from "../pay/digest-schedule";
-import { payWeekNow } from "../pay/pay-week";
+import { payCalendar, payPeriod, payPeriodName, payPeriodNow } from "../pay/calendar";
 import type { PayIssue } from "../portal/pay-query-kinds";
 import { localDateOf, zonedToUtc } from "../time/zoned";
 import { loadPayQueryGroups, type PayQueryGroup } from "./pay-query-groups";
@@ -28,6 +28,7 @@ export interface PaySorting {
   count: number; // queries sorted together
   issue: PayIssue;
   firstDay: string; // the earliest work date among them, yyyy-mm-dd
+  periodStart: string; // the first day of the pay period it's in (Phase 25.2)
 }
 
 export interface PayDashboard {
@@ -35,9 +36,11 @@ export interface PayDashboard {
   waiting: { count: number; oldest: Date | null };
   digest: { schedule: DigestSchedule; status: DigestStatus; next: Date | null };
   sortedThisWeek: number;
-  weekStart: string; // this ISO week's Monday, firm-local (yyyy-mm-dd): "sorted this week" since then
+  weekStart: string; // this pay period's first day, firm-local (yyyy-mm-dd): "sorted" since then
   nextPayDate: string; // yyyy-mm-dd
-  nextPayDateFrom: "pay records" | "pay week"; // imported pay dates, or the Friday after this week
+  nextPayDateFrom: "pay records" | "pay week"; // imported pay dates, or this period's pay day
+  // The firm's pay period now (P3.1; Phase 25.2): "Week 44" or "Cycle 22", its dates and pay day.
+  period: { name: string; label: "week" | "cycle"; start: string; end: string; payDay: string };
   groups: PayQueryGroup[]; // the biggest few
   moreGroups: number; // groups beyond those
   recentlySorted: PaySorting[];
@@ -51,8 +54,10 @@ export async function loadPayDashboard(tx: FirmTx, now: Date = new Date()): Prom
   const timeZone = firm?.timezone ?? "Europe/London";
   const schedule = digestSchedule(firm?.settings ?? {});
   const today = localDateOf(now, timeZone);
-  const week = payWeekNow(now, timeZone);
-  const [y = 2000, m = 1, d = 1] = week.monday.split("-").map(Number);
+  // The firm's pay week or cycle (P3.1; Phase 25.2).
+  const calendar = payCalendar(firm?.settings ?? {});
+  const period = payPeriodNow(now, timeZone, calendar);
+  const [y = 2000, m = 1, d = 1] = period.start.split("-").map(Number);
   const weekStart = zonedToUtc({ year: y, month: m, day: d, hour: 0, minute: 0 }, timeZone);
 
   const { rows: counts } = await tx.execute<{
@@ -96,9 +101,16 @@ export async function loadPayDashboard(tx: FirmTx, now: Date = new Date()): Prom
       next: nextDigestAt(now, timeZone, schedule),
     },
     sortedThisWeek: c?.sorted ?? 0,
-    weekStart: week.monday,
-    nextPayDate: c?.pay_date ?? week.payDay,
+    weekStart: period.start,
+    nextPayDate: c?.pay_date ?? period.payDay,
     nextPayDateFrom: c?.pay_date ? "pay records" : "pay week",
+    period: {
+      name: payPeriodName(period),
+      label: period.label,
+      start: period.start,
+      end: period.end,
+      payDay: period.payDay,
+    },
     groups: groups.slice(0, DASHBOARD_GROUPS),
     moreGroups: Math.max(0, groups.length - DASHBOARD_GROUPS),
     recentlySorted: sortings.map((r) => ({
@@ -108,6 +120,7 @@ export async function loadPayDashboard(tx: FirmTx, now: Date = new Date()): Prom
       count: r.n,
       issue: r.issue,
       firstDay: r.first_day,
+      periodStart: payPeriod(r.first_day, calendar).start,
     })),
   };
 }

@@ -10,6 +10,7 @@ import {
   type Board,
   type BoardShow,
 } from "@/lib/office/dashboard-board";
+import { headLine } from "@/lib/office/board-copy";
 import { officeNeedsAttention } from "@/lib/office/dashboard";
 import {
   offerState,
@@ -19,6 +20,7 @@ import {
   type OfferWhy,
 } from "@/lib/office/offer-state";
 import { officeShellCounts } from "@/lib/office/shell-counts";
+import { DEFAULT_PAY_CALENDAR } from "@/lib/pay/calendar";
 import { bookingFirm, hoursFromNow, NOW, type BookingFirm } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
 import { plannerKey } from "../helpers/planner-api";
@@ -229,6 +231,26 @@ describe("the board's columns", () => {
     expect(g.toOffer.sessions).toHaveLength(BOARD_ROWS);
     expect(g.toOffer).toMatchObject({ total: BOARD_ROWS + 2, places: BOARD_ROWS + 2, more: true });
     expect(g.toOffer.sessions[0]?.startsAt).toEqual(hoursFromNow(10));
+  });
+});
+
+describe("the head's pay period (Phase 25.2)", () => {
+  it("the firm's own pay calendar, read with the board; none set: ISO weeks", async () => {
+    const plain = await bookingFirm(su, withFirm);
+    const weekly = await withFirm(plain.firmId, (tx) => loadBoard(tx, NOW));
+    expect(weekly.payCalendar).toEqual(DEFAULT_PAY_CALENDAR);
+    expect(headLine(weekly.today, null, NOW, weekly.timeZone, weekly.payCalendar)).toBe(
+      "Monday 2 November · Week 45 · Pay Fri 13 Nov",
+    );
+    const f = await bookingFirm(su, withFirm, {
+      settings: {
+        pay_calendar: { days: 14, anchor: "2026-01-05", pay_day_after: 5, label: "cycle" },
+      },
+    });
+    const board = await withFirm(f.firmId, (tx) => loadBoard(tx, NOW));
+    expect(headLine(board.today, null, NOW, board.timeZone, board.payCalendar)).toBe(
+      "Monday 2 November · Cycle 22 · Pay Fri 13 Nov",
+    );
   });
 });
 

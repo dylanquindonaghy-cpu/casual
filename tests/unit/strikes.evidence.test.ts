@@ -326,6 +326,8 @@ describe("the Needs attention item: the top bar's To check and the Needs attenti
     plannerRefused: [],
     plannerRefusedMore: false,
     webhookFailing: null,
+    sheetNames: [],
+    sheetNamesMore: false,
   });
   type View = { timeZone: string; today: string; needs: { ok: true; data: NeedsAttention } };
   const view = (evidence: NeedsAttention["evidence"]): View => ({

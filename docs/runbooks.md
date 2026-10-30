@@ -1064,8 +1064,10 @@ In order (who does it, how, and what done looks like):
    door supervisor licence, P3.3, for a firm set up after it; a firm set up before keeps its own
    rule, with no command yet to change it: PLAN.md Parking lot.) Skipping a name never cancels or
    changes a session already made
-   from it: the next sync reports `skipped_live` for it, so cancel it in the office. Each change is
-   in the office action log (as "The firm's settings changed", until its own words are approved).
+   from it: the next sync reports `skipped_live` for it, and the office's Needs attention lists it
+   under "Names your rota sheet uses" (with each role name the sheet uses that can't be read), so
+   the office cancels or changes it. Each change is in the office action log in its own words ("The
+   name map now skips the role "holiday".", Phase 25.2).
 6. **Workers and credentials** (you, from the firm's spreadsheets, **only after Gate B**): "Importing
    workers, credentials or shifts from a spreadsheet" below. `firm:check` then shows how many
    active workers have no credential on file.

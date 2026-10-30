@@ -150,9 +150,10 @@ describe("the rota sheet through the map", () => {
 
   it("mapped roles come in as their codes; skipped ones don't, and aren't problems; the rest as before", () => {
     const parsed = parseSheet(input, DEFAULT_SHEET_MAPPING, LONDON, MAP);
+    // Each with the role cell as the sheet spells it, for Needs attention (Phase 25.2).
     expect(parsed.skipped).toEqual([
-      { row: 3, ref: "E2" },
-      { row: 4, ref: "E3" },
+      { row: 3, ref: "E2", name: "Holiday" },
+      { row: 4, ref: "E3", name: "Not Set" },
     ]);
     expect(parsed.staff.map((s) => [s.ref, s.roles])).toEqual([["S1", ["door_supervisor"]]]);
     expect(parsed.shifts.map((s) => [s.ref, s.role])).toEqual([
@@ -163,6 +164,34 @@ describe("the rota sheet through the map", () => {
       { tab: "staff", row: 3, problem: "bad_role" },
       { tab: "shifts", row: 6, problem: "bad_role" },
     ]);
+    // The names it couldn't read, for Needs attention (Phase 25.2): a staff row's first one.
+    expect(parsed.unreadable).toEqual([
+      { tab: "staff", row: 3, name: "Event Manager (PAYE)" },
+      { tab: "shifts", row: 6, name: "Event Manager (PAYE)" },
+    ]);
+  });
+
+  it("a staff row's role list: the first name it can't read is the one kept (Phase 25.2)", () => {
+    const parsed = parseSheet(
+      {
+        staffRows: [
+          staffHeader,
+          [
+            "S3",
+            "Cy",
+            "Example",
+            "07700 900303",
+            "Holiday, Door Supervisor (NLW), Steward (PAYE)",
+            "",
+          ],
+        ],
+        shiftRows: [shiftHeader],
+      },
+      DEFAULT_SHEET_MAPPING,
+      LONDON,
+      MAP,
+    );
+    expect(parsed.unreadable).toEqual([{ tab: "staff", row: 2, name: "Steward (PAYE)" }]);
   });
 
   it("with no map, every one of those names is a bad role, as before", () => {

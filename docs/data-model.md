@@ -58,6 +58,7 @@ architecture.md, Tenancy).
 | push_subscriptions | Web push endpoints per worker | 4 |
 | roster_sources | Where a firm's rota lives when it isn't our tables: a Google Sheet (its id, column mapping) or a connector to the firm's own system (which one, its base address; P5.2), with the last sync, error code and sync lease | 2 |
 | name_map | What the firm's own system calls a role, qualification, staff type or cancellation reason, mapped to a ShiftDesk code or to skip (P3.2) | P3 |
+| sheet_name_problems | The role names a rota sheet's last sync couldn't use (one it can't read, a skipped one on a session still to come), for Needs attention; replaced by each sync (Phase 25.2) | P3 |
 | metrics_daily | Pilot baseline and daily counts | 5 |
 
 ## Firm settings (jsonb on `firms.settings`)
@@ -776,6 +777,33 @@ create table name_map (
   created_at timestamptz not null default now(),
   unique (firm_id, id),
   unique (firm_id, kind, outside_name)
+);
+
+-- The role names a rota sheet's last sync couldn't use (Phase 25.2, migration 0061;
+-- src/lib/roster/sheets/name-problems.ts), for Needs attention's "Names your rota sheet uses": a
+-- role it can't read (unreadable: the row isn't brought in) and a role the name map skips on a row
+-- that made a session still to come (skipped_live: the session stays as it is). Each sync deletes
+-- the sheet's rows and writes its own, in its transaction, so the list is always the last sync's
+-- (at most 200, the skipped names kept first); a failed sync leaves them, and switching the sheet
+-- off or replacing it (npm run firm:sheet) deletes them. Only a role cell's text, cleaned
+-- (sheetRoleText): never another column's (a name, a mobile, a staff id), never text with an email
+-- address or 7 or more digits in it, and never copied into the action log. Needs attention reads
+-- the enabled sheet's, and a skipped name only while its session is still to come and not
+-- cancelled. The app role may read, add and delete rows, never change one.
+create table sheet_name_problems (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  source_id uuid not null,               -- (firm_id, source_id) -> roster_sources, on delete cascade
+  kind text not null,                    -- unreadable | skipped_live
+  tab text not null,                     -- staff | shifts (skipped_live: shifts)
+  row integer not null,                  -- the sheet's own row number, 2 to 10000000
+  outside_name text not null,            -- 1-200 characters, no control characters
+  shift_id uuid,                         -- skipped_live only: (firm_id, shift_id) -> shifts, on
+                                         -- delete cascade
+  seen_at timestamptz not null,          -- the sync that found it
+  created_at timestamptz not null default now(),
+  unique (firm_id, id),
+  unique (firm_id, source_id, kind, tab, row)
 );
 
 create table messages (                 -- built in Phase 7 (migrations 0022-0024): WhatsApp, texts, calls

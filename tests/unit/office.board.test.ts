@@ -31,6 +31,7 @@ import {
 import type { Board, BoardSession, ChartDay } from "@/lib/office/dashboard-board";
 import { SECTION_ERROR } from "@/lib/office/dashboard-copy";
 import type { OfferPage } from "@/lib/office/offer-page";
+import { DEFAULT_PAY_CALENDAR, payCalendar } from "@/lib/pay/calendar";
 
 // The office dashboard (Phase 24, 24.3: round 7 of the canvas; docs/mockups/phase-24/README.md;
 // docs/screens.md `/office`): its words (src/lib/office/board-copy.ts) and the page as the server
@@ -138,6 +139,7 @@ const days: ChartDay[] = Array.from({ length: 14 }, (_, i) => ({
 const board: Board = {
   timeZone: TZ,
   today: "2026-10-26",
+  payCalendar: DEFAULT_PAY_CALENDAR,
   now: NOW,
   show: "all",
   planner: ok({ kind: "api", lastChangeAt: at("2026-10-26T11:20:00Z") }),
@@ -229,6 +231,31 @@ describe("the dashboard's words", () => {
       expect(headLine("2026-10-26", p, NOW, TZ)).toBe(
         "Monday 26 October · Week 44 · Pay Fri 6 Nov",
       );
+  });
+
+  it("the head on the firm's pay calendar, in its word (Phase 25.2)", () => {
+    const fortnight = payCalendar({
+      pay_calendar: { days: 14, anchor: "2026-01-05", pay_day_after: 5, label: "cycle" },
+    });
+    // 26 Oct is the first day of cycle 22 (5 Jan + 21 fortnights), paid Fri 13 Nov.
+    expect(headLine("2026-10-30", null, NOW, TZ, fortnight)).toBe(
+      "Friday 30 October · Cycle 22 · Pay Fri 13 Nov",
+    );
+    // Its second week is the same cycle and pay day.
+    expect(headLine("2026-11-02", null, NOW, TZ, fortnight)).toBe(
+      "Monday 2 November · Cycle 22 · Pay Fri 13 Nov",
+    );
+    // A firm that calls its fortnight a week, and paid on the Thursday: its own word and day.
+    const weeks = payCalendar({
+      pay_calendar: { days: 14, anchor: "2026-01-05", pay_day_after: 4, label: "week" },
+    });
+    expect(headLine("2026-10-30", null, NOW, TZ, weeks)).toBe(
+      "Friday 30 October · Week 22 · Pay Thu 12 Nov",
+    );
+    // A day before the calendar starts has no number.
+    expect(headLine("2026-01-02", null, NOW, TZ, fortnight)).toMatch(
+      /^Friday 2 January · Cycle · Pay /,
+    );
   });
 
   it("the track's links and a picked session's address keep the filter", () => {

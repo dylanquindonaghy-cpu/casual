@@ -100,13 +100,20 @@ test("move a booked shift with a reason, see the notice logged, then cancel the 
     await expect(page.getByText(told).first()).toBeVisible({ timeout: 1000 });
   }).toPass({ timeout: 20_000 });
 
-  // Cancel the booking, with a reason. "The client needs fewer staff" would take the place away,
-  // and this shift has only the one: refused, nothing changed (Phase 10 task 19).
+  // Cancel the booking, with a reason and who asked (required: Phase 25.2). "The client needs
+  // fewer staff" would take the place away, and this shift has only the one: refused, nothing
+  // changed (Phase 10 task 19).
   await page.getByText(`Cancel ${name}'s booking`, { exact: true }).click();
   await page
     .locator("details[open]")
     .getByLabel("Why?")
     .selectOption({ label: "The client needs fewer staff" });
+  await page.getByRole("button", { name: `Yes, cancel ${name}'s booking` }).click();
+  await expect(page.getByText("Choose who asked for it.")).toBeVisible();
+  const askedBy = page.locator("details[open]").getByLabel("Who asked for it?");
+  // The casual by name, for one booking.
+  await expect(askedBy.locator("option", { hasText: name })).toHaveCount(1);
+  await askedBy.selectOption({ label: "The client" });
   await page.getByRole("button", { name: `Yes, cancel ${name}'s booking` }).click();
   await expect(
     page.getByText(
@@ -127,4 +134,13 @@ test("move a booked shift with a reason, see the notice logged, then cancel the 
   await expect(page.getByText("Nobody booked yet.")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Cancelled", level: 3 })).toBeVisible();
   await expect(confirmation).toBeVisible();
+
+  // The notice report says who asked (Phase 25.2), newest first.
+  await page.goto(`${acme}/office/reports/notice?kind=cancellations`);
+  const row = page
+    .getByRole("region", { name: "Notice and cancellation report" })
+    .locator("tr", { hasText: name })
+    .filter({ hasText: "The office" })
+    .first();
+  await expect(row).toContainText("The client");
 });

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { systemClock } from "../auth/clock";
 import { CANCELLED_ASSIGNMENT_STATUSES, type OFFER_CHANNELS } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
+import { payCalendar, type PayCalendar } from "../pay/calendar";
 import { payWeekNow } from "../pay/pay-week";
 import { addDays, localDateOf, startOfDay, wallTimeOf, zonedToUtc } from "../time/zoned";
 import { part, type Part } from "./dashboard";
@@ -109,6 +110,7 @@ export interface OvernightTake {
 export interface Board {
   timeZone: string;
   today: string; // yyyy-mm-dd, the firm's calendar
+  payCalendar: PayCalendar; // its pay weeks or cycles (P3.1; Phase 25.2)
   now: Date;
   show: BoardShow;
   planner: Part<PlannerLink>;
@@ -122,7 +124,8 @@ export interface Board {
   toMark: Part<{ items: TodayToMark[]; more: boolean }>;
 }
 
-// This pay week's Monday and the Monday after next, the firm's calendar.
+// This week's Monday and the Monday after next, in the firm's time zone: Monday to Sunday, whatever
+// its pay calendar (a fortnight's cycle is for pay words only: Phase 25.2).
 function weeks(now: Date, timeZone: string) {
   const monday = payWeekNow(now, timeZone).monday;
   return { monday, next: addDays(monday, 7), after: addDays(monday, CHART_DAYS) };
@@ -413,8 +416,8 @@ export async function loadBoard(
   now: Date,
   opts: { show?: BoardShow; session?: string | null } = {},
 ): Promise<Board> {
-  const { rows } = await tx.execute<{ timezone: string }>(
-    sql`select timezone from firms where id = app_current_firm_id()`,
+  const { rows } = await tx.execute<{ timezone: string; settings: Record<string, unknown> }>(
+    sql`select timezone, settings from firms where id = app_current_firm_id()`,
   );
   const timeZone = rows[0]?.timezone ?? "Europe/London";
   const show = opts.show ?? "all";
@@ -422,6 +425,7 @@ export async function loadBoard(
   return {
     timeZone,
     today: localDateOf(now, timeZone),
+    payCalendar: payCalendar(rows[0]?.settings ?? {}),
     now,
     show,
     planner: await part(tx, "planner", (sp) => plannerLink(sp)),

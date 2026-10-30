@@ -169,6 +169,97 @@ describe("each way a booking is cancelled says who asked", () => {
   });
 });
 
+describe("the office's own answer (Phase 25.2: its cancel forms ask who asked)", () => {
+  it("one booking: the client, or the casual who phoned in; a casual's own cancel can't say another", async () => {
+    const t = await bookedFirm();
+    const office = (b: { shiftId: string; workerId: string }, askedBy: "client" | "casual") =>
+      cancelBooking(
+        withFirm,
+        t.f.firmId,
+        {
+          shiftId: b.shiftId,
+          workerId: b.workerId,
+          reason: "Event cancelled",
+          askedBy,
+          by: { type: "office", id: t.resourcer },
+        },
+        at(NOW),
+      );
+    const client = await t.booked();
+    expect(await office(client, "client")).toMatchObject({ status: "cancelled" });
+    expect(await askedOf(client.assignmentId)).toEqual({
+      status: "cancelled_firm",
+      cancel_via: "office",
+      cancel_asked_by: "client",
+    });
+    // The casual phoned the office: carried out by the office, asked for by the casual.
+    const phoned = await t.booked();
+    expect(await office(phoned, "casual")).toMatchObject({ status: "cancelled" });
+    expect(await askedOf(phoned.assignmentId)).toEqual({
+      status: "cancelled_firm",
+      cancel_via: "office",
+      cancel_asked_by: "casual",
+    });
+    // A casual's own cancellation is always her own ask, whatever the request carries.
+    const own = await t.booked();
+    expect(
+      await cancelBooking(
+        withFirm,
+        t.f.firmId,
+        {
+          shiftId: own.shiftId,
+          workerId: own.workerId,
+          reason: "Travel problem",
+          askedBy: "client",
+          by: { type: "worker", id: own.workerId, warning: { kind: "strike", version: "v1" } },
+        },
+        at(NOW),
+      ),
+    ).toMatchObject({ status: "cancelled" });
+    expect((await askedOf(own.assignmentId))?.cancel_asked_by).toBe("casual");
+    const { rows } = await su.query(
+      "select data ->> 'askedBy' as asked from events where firm_id = $1 and action = 'shift.cancelled' order by id",
+      [t.f.firmId],
+    );
+    expect(rows.map((r) => r.asked)).toEqual(["client", "casual", "casual"]);
+  });
+
+  it("a whole session: the office's answer for each booking; never one casual's", async () => {
+    const t = await bookedFirm();
+    const session = await t.booked();
+    expect(
+      await cancelShiftByFirm(
+        withFirm,
+        t.f.firmId,
+        {
+          shiftId: session.shiftId,
+          reason: "event_cancelled",
+          askedBy: "client",
+          by: { type: "office", id: t.resourcer },
+        },
+        at(NOW),
+      ),
+    ).toMatchObject({ status: "cancelled", bookings: 1 });
+    expect((await askedOf(session.assignmentId))?.cancel_asked_by).toBe("client");
+    const other = await t.booked();
+    await expect(
+      cancelShiftByFirm(
+        withFirm,
+        t.f.firmId,
+        {
+          shiftId: other.shiftId,
+          reason: "event_cancelled",
+          // @ts-expect-error -- a whole session is never one casual's ask
+          askedBy: "casual",
+          by: { type: "office", id: t.resourcer },
+        },
+        at(NOW),
+      ),
+    ).rejects.toThrow();
+    expect((await askedOf(other.assignmentId))?.status).toBe("confirmed");
+  });
+});
+
 describe("cancellations from before (migration 0053's backfill)", () => {
   it("each from its own record: the casual's own, the office's, a sheet's or a planner's session", async () => {
     const t = await bookedFirm();

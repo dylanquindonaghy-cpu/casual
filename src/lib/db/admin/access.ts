@@ -50,6 +50,9 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   // A firm's name map (P3.2): set only by the owner (npm run firm:names), read by the sheet sync
   // and the file import.
   name_map: ["SELECT"],
+  // The names the rota sheet's last sync couldn't use (Phase 25.2): replaced by each sync (delete,
+  // then insert), never rewritten.
+  sheet_name_problems: ["SELECT", "INSERT", "DELETE"],
   // Imported payroll lines: added and corrected by re-import, never deleted by the app (they are
   // what a pay question is checked against).
   pay_records: NO_DELETE,

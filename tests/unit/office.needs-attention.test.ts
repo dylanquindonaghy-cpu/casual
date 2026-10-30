@@ -67,6 +67,8 @@ const noNeeds: NeedsAttention = {
   plannerRefused: [],
   plannerRefusedMore: false,
   webhookFailing: null,
+  sheetNames: [],
+  sheetNamesMore: false,
 };
 
 // Every kind of item Needs attention holds, one or two of each.
@@ -383,6 +385,51 @@ describe("Needs attention's page (Phase 18: the top bar's To check opens it sinc
       ["evidence", "Strike evidence 2"],
       ["planner-refused", "Your planner's change was refused 1"],
     ]);
+  });
+
+  it("the names your rota sheet uses that the app can't (Phase 25.2): each, its place, what to do", () => {
+    const n: NeedsAttention = {
+      ...noNeeds,
+      sheetNames: [
+        { kind: "unreadable", name: "Door Supervisor (NLW)", tab: "shifts", row: 14 },
+        { kind: "unreadable", name: "Event Manager <b>", tab: "staff", row: 3 },
+        {
+          kind: "skipped_live",
+          name: "Holiday",
+          row: 9,
+          shiftId: "s9",
+          role: "security_officer",
+          site: "Acme Demo Shopping Centre",
+          startsAt: at("2026-11-07T07:00:00Z"),
+          endsAt: at("2026-11-07T15:00:00Z"),
+        },
+      ],
+      sheetNamesMore: true,
+    };
+    // Each counts, and a list that stopped at 50 says "more".
+    expect(needsCount(n)).toEqual({ count: 3, more: true });
+    expect(needsCount({ ...n, sheetNamesMore: false })).toEqual({ count: 3, more: false });
+    const html = renderToStaticMarkup(
+      createElement(NeedsItems, { n, timeZone: TZ, today: "2026-11-02", isAdmin: false }),
+    );
+    expect(
+      [...html.matchAll(/<h3 id="([^"]+)"[^>]*>([\s\S]*?)<\/h3>/g)].map((m) => words(m[2] ?? "")),
+    ).toEqual(["Names your rota sheet uses 3+"]);
+    const part = words(section(html, "sheet-names"));
+    expect(part).toContain(
+      "Your rota sheet uses these names, but the app can't use them as they are.",
+    );
+    expect(part).toContain(
+      "\u201cDoor Supervisor (NLW)\u201d Shifts tab, row 14 The app can't read this role, so the row isn't brought in. Change it in the sheet, or ask us to add it to your name map.",
+    );
+    expect(part).toContain("Staff tab, row 3");
+    expect(part).toContain(
+      "Security officer at Acme Demo Shopping Centre Sat 7 Nov, 07:00 to 15:00 Row 9 now says \u201cHoliday\u201d, a name your name map skips. The session it made is still on here. Cancel or change it if it's no longer needed.",
+    );
+    // The session's own page; and a sheet's text is only ever text.
+    expect(section(html, "sheet-names")).toMatch(/<a [^>]*href="\/office\/shifts\/s9"/);
+    expect(html).not.toContain("<b>");
+    expect(html).toContain("Event Manager &lt;b&gt;");
   });
 
   it("your planner's webhook failing: since when, what to do, Integrations for an admin", () => {

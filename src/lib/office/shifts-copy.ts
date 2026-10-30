@@ -177,7 +177,20 @@ export function importResultLines(result: ShiftImportResult | Common): string[] 
       const counts = r.dryRun
         ? `This file would add ${plural(r.created, "shift", "shifts")}, change ${r.updated}, leave ${r.unchanged} as they are and skip ${r.skipped}.`
         : `Imported: ${plural(r.created, "shift", "shifts")} added, ${r.updated} changed, ${r.unchanged} left as they were, ${r.skipped} skipped.`;
-      return [counts, ...r.problems.map((p) => `Row ${p.row}: ${PROBLEM_TEXT[p.problem]}.`)];
+      // Rows the firm's name map skips (P3.2): counted apart, so the totals add up.
+      const left = r.ignored ? plural(r.ignored, "row", "rows") : null;
+      const ignored = left
+        ? [
+            r.dryRun
+              ? `It would leave out ${left} your name map skips.`
+              : `Left out ${left} your name map skips.`,
+          ]
+        : [];
+      return [
+        counts,
+        ...ignored,
+        ...r.problems.map((p) => `Row ${p.row}: ${PROBLEM_TEXT[p.problem]}.`),
+      ];
     }
     case "file_error":
       return [FILE_ERROR_TEXT[result.code]];
@@ -220,7 +233,9 @@ export function assignResultText(result: BookingResult | Common, name: string): 
 }
 
 type NoReason = { status: "no_reason" };
+type NoAsker = { status: "no_asker" };
 const NO_REASON = "Choose a reason.";
+const NO_ASKER = "Choose who asked for it.";
 
 export function moveResultLines(result: MoveShiftResult | Common | NoReason): string[] {
   switch (result.status) {
@@ -262,7 +277,9 @@ export function moveResultLines(result: MoveShiftResult | Common | NoReason): st
   }
 }
 
-export function cancelShiftResultText(result: CancelShiftResult | Common | NoReason): string {
+export function cancelShiftResultText(
+  result: CancelShiftResult | Common | NoReason | NoAsker,
+): string {
   switch (result.status) {
     case "cancelled":
       return result.bookings === 0
@@ -280,6 +297,8 @@ export function cancelShiftResultText(result: CancelShiftResult | Common | NoRea
       return "We can't find that shift.";
     case "no_reason":
       return NO_REASON;
+    case "no_asker":
+      return NO_ASKER;
     default:
       return COMMON[result.status];
   }
@@ -296,7 +315,7 @@ const KEEPS_PLACE_WORDS = {
 } as const;
 
 export function cancelBookingResultText(
-  result: CancelBookingResult | Common | NoReason,
+  result: CancelBookingResult | Common | NoReason | NoAsker,
   name: string,
 ): string {
   switch (result.status) {
@@ -321,6 +340,8 @@ export function cancelBookingResultText(
       return "We can't find that shift or person.";
     case "no_reason":
       return NO_REASON;
+    case "no_asker":
+      return NO_ASKER;
     case "warning_changed": // only a casual's own cancellation sends a warning
       return COMMON.error;
     default:

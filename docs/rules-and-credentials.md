@@ -104,7 +104,8 @@ type held would give, in the same words below. Holding none of its types, the re
 to the office to be checked." ("[name], [name] or [name]" for three). On a casual's own shift page a
 group she holds none of shows as "A or B" (its chip and "You need": `docs/screens.md`); one she
 holds shows the one that stands best for her (the suspended one first), as on her qualifications.
-The office's event cards show a group as its first type until the office's 25.2 mock-up. Every
+The office's event cards, session rows and cancellation records show a group as "A or B" too
+("SIA SG or SIA DS"; a session that asks for one of it outright, each as before: Phase 25.2). Every
 required type gets its own reason:
 missing: "This shift needs a valid [name]. Send it to the office to be checked."; suspended:
 "Your [name] is suspended. Contact the office."; out of date before the shift ends: "Your [name]

@@ -3,6 +3,8 @@ import { noticeText } from "../portal/cancel-reasons";
 import { ISSUE_LABELS, type PayIssue } from "../portal/pay-query-kinds";
 import { REJECT_CHOICES } from "../portal/qualification-copy";
 import { KIND_NAMES } from "../portal/request-kinds";
+import { roleLabel } from "../portal/format";
+import { pounds } from "../portal/pay-format";
 import { dayLabel } from "../rules/reasons";
 import { syncErrorWords } from "../roster/sheets/error-words";
 import { CLOSE_REASON_WORDS } from "./enquiries-copy";
@@ -624,6 +626,9 @@ export function eventWords(e: LoggedEvent, names: Names): string {
             return `${officeName} made a new signing secret for your planner's webhook. The old one stopped working.`;
         }
       }
+      // The firm's name map (P3.2, set by the owner): which name, read as what. A name isn't personal.
+      const only = keys.length === 1 ? keys[0] : undefined;
+      if (only?.startsWith("name_map.")) return nameMapWords(only.slice("name_map.".length), d);
       const n = keys.length;
       return `The firm's settings changed (${n === 1 ? "1 setting" : `${n} settings`}).`;
     }
@@ -968,4 +973,34 @@ function webhookFailure(code: unknown): string {
     default:
       return "it couldn't be reached";
   }
+}
+
+// What a name in the firm's own system is read as: "door supervisor", "SIA DS", or skipped.
+const NAME_KIND_WORDS: Record<string, string> = {
+  role: "role",
+  qualification: "qualification",
+  staff_type: "staff type",
+  cancellation_reason: "cancellation reason",
+};
+
+function nameCodeWords(kind: string, code: string): string {
+  if (kind === "role") return roleLabel(code).toLowerCase();
+  if (kind === "qualification") return code.replace(/_/g, " ");
+  return code.replace(/_/g, " ").toLowerCase();
+}
+
+function nameMapWords(kind: string, d: Record<string, unknown>): string {
+  const name = typeof d.name === "string" ? `"${d.name}"` : "a name";
+  const what = NAME_KIND_WORDS[kind] ?? "name";
+  const said = (v: unknown) =>
+    v === "skip" ? "skipped" : typeof v === "string" ? nameCodeWords(kind, v) : null;
+  const to = said(d.to);
+  const from = said(d.from);
+  const rate = typeof d.toRatePence === "number" ? `, paid ${pounds(d.toRatePence)} an hour` : "";
+  if (to === null) return `The name map no longer reads the ${what} ${name}. It's read as before.`;
+  const now =
+    to === "skipped"
+      ? `The name map now skips the ${what} ${name}`
+      : `The name map now reads the ${what} ${name} as ${to}${rate}`;
+  return from === null || from === to ? `${now}.` : `${now} (it was ${from}).`;
 }

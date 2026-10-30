@@ -2057,3 +2057,10 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   and reason. Drop the stand-in (`src/lib/portal/shift-facts.ts`) and the group's own failure
   (`src/lib/rules/eligibility.ts`) when a type of the group is required outright: a rules change,
   so with tests and the doc's table.
+- **Who asked, on a cancellation's own record and the Cancellations file** (Phase 25.2, 2026-10-30):
+  the notice report's page and CSV say who asked for each cancellation (approved); a cancellation's
+  record (`/office/cancellations/[id]`) and the Cancellations page's CSV don't yet. Words to match
+  the report's ("Asked by: The client"), a mock-up first.
+- **A skipped name's session, from Needs attention** (Phase 25.2, 2026-10-30): the item links to the
+  session, where the office cancels or changes it. A "Cancel this session" right on the item would
+  save a click; it needs the cancel form's "Why?" and "Who asked for it?" there too.

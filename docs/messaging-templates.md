@@ -393,6 +393,7 @@ reach the same app, which isn't answering.
   1,000); "The list is attached ({filename}): each query with the worker, the day, the shift, the
   issue and what they wrote."; "Answer them on the pay queries page: {link}"; "— {firm} Shift
   Team". {facts} is what a group shares, written by code from the firm's data ("wrong rate, the
-  week of Mon 7 Sep, paid at £12.50"). The body holds counts and facts only; names and what
+  week of Mon 7 Sep, paid at £12.50"; on a fortnightly pay calendar, in the firm's word for its
+  period: "wrong rate, the cycle of Mon 12 Oct, paid at £13.00", Phase 25.2). The body holds counts and facts only; names and what
   workers wrote are only in the attached list (columns Reference, Worker, Day worked, Shift, Issue,
   What they wrote, Sent (firm time), Group; spreadsheet-safe cells).

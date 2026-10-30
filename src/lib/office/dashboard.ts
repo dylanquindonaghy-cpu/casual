@@ -88,7 +88,25 @@ export interface NeedsAttention {
   // Your planner's webhook is failing (12J.2): its latest delivery gave up after the last try, and
   // the address is still set. One item, from the first failure since it last worked.
   webhookFailing: { since: Date } | null;
+  // The names the rota sheet's last sync couldn't use (Phase 25.2; sheet_name_problems).
+  sheetNames: SheetName[];
+  sheetNamesMore: boolean;
 }
+
+// One of the rota sheet's names (Phase 25.2): a role its last sync couldn't read (the row isn't
+// brought in), or a skipped name on a row that made a session still to come (still on here).
+export type SheetName =
+  | { kind: "unreadable"; name: string; tab: "staff" | "shifts"; row: number }
+  | {
+      kind: "skipped_live";
+      name: string;
+      row: number;
+      shiftId: string;
+      role: string;
+      site: string | null;
+      startsAt: Date;
+      endsAt: Date;
+    };
 
 // "Strike evidence" items: each failed email, and the strikes team's address while it isn't set
 // and confirmed.
@@ -105,6 +123,7 @@ export function needsCount(n: NeedsAttention): { count: number; more: boolean } 
       n.uploads +
       evidenceItems(n.evidence) +
       n.plannerRefused.length +
+      n.sheetNames.length +
       (n.webhookFailing ? 1 : 0),
     more:
       n.toCheckMore ||
@@ -112,7 +131,8 @@ export function needsCount(n: NeedsAttention): { count: number; more: boolean } 
       n.toMarkMore ||
       n.expiredMore ||
       n.evidence.failedMore ||
-      n.plannerRefusedMore,
+      n.plannerRefusedMore ||
+      n.sheetNamesMore,
   };
 }
 
@@ -374,6 +394,62 @@ export async function loadPlannerRefusals(
   };
 }
 
+// The rota sheet's names (Phase 25.2), from its enabled source's last sync: the unreadable ones
+// first (by tab and row), then the skipped names on sessions still to come, soonest first. A
+// skipped name whose session has since been cancelled or has started has been dealt with: not
+// shown. Past 50, the skipped ones are kept first (each a session the office must act on).
+export async function loadSheetNames(
+  tx: FirmTx,
+  now: Date,
+): Promise<{ items: SheetName[]; more: boolean }> {
+  const { rows } = await tx.execute<{
+    kind: "unreadable" | "skipped_live";
+    tab: "staff" | "shifts";
+    row: number;
+    outside_name: string;
+    shift_id: string | null;
+    role: string | null;
+    site_name: string | null;
+    starts_at: string | Date | null;
+    ends_at: string | Date | null;
+  }>(sql`
+    select p.kind, p.tab, p.row, p.outside_name, s.id::text as shift_id, s.role,
+           si.name as site_name, s.starts_at, s.ends_at
+      from sheet_name_problems p
+      join roster_sources r on r.firm_id = p.firm_id and r.id = p.source_id
+                           and r.enabled and r.kind = 'sheets'
+      left join shifts s on s.firm_id = p.firm_id and s.id = p.shift_id
+      left join sites si on si.firm_id = s.firm_id and si.id = s.site_id
+     where p.kind = 'unreadable'
+        or (s.status <> 'cancelled' and s.starts_at > ${now})
+     order by (p.kind = 'skipped_live') desc, s.starts_at, p.tab, p.row
+     limit ${NEEDS_MAX + 1}
+  `);
+  const items: SheetName[] = [];
+  const kept = rows.slice(0, NEEDS_MAX);
+  const shown = [
+    ...kept.filter((r) => r.kind === "unreadable"),
+    ...kept.filter((r) => r.kind === "skipped_live"),
+  ];
+  for (const r of shown) {
+    if (r.kind === "unreadable") {
+      items.push({ kind: "unreadable", name: r.outside_name, tab: r.tab, row: r.row });
+    } else if (r.shift_id && r.role && r.starts_at && r.ends_at) {
+      items.push({
+        kind: "skipped_live",
+        name: r.outside_name,
+        row: r.row,
+        shiftId: r.shift_id,
+        role: r.role,
+        site: r.site_name,
+        startsAt: new Date(r.starts_at),
+        endsAt: new Date(r.ends_at),
+      });
+    }
+  }
+  return { items, more: rows.length > NEEDS_MAX };
+}
+
 export async function loadNeedsAttention(
   tx: FirmTx,
   now: Date,
@@ -385,6 +461,7 @@ export async function loadNeedsAttention(
   const expired = await loadExpiredOnBookings(tx, now, timeZone);
   const plannerRefused = await loadPlannerRefusals(tx, now);
   const webhook = await webhookStatus(tx);
+  const sheetNames = await loadSheetNames(tx, now);
   return {
     toCheck: toCheck.items,
     toCheckMore: toCheck.more,
@@ -400,6 +477,8 @@ export async function loadNeedsAttention(
     plannerRefused: plannerRefused.items,
     plannerRefusedMore: plannerRefused.more,
     webhookFailing: webhook.status.kind === "failing" ? { since: webhook.status.since } : null,
+    sheetNames: sheetNames.items,
+    sheetNamesMore: sheetNames.more,
   };
 }
 

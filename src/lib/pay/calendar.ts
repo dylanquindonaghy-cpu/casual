@@ -113,3 +113,10 @@ export function payPeriod(day: string, calendar: PayCalendar = DEFAULT_PAY_CALEN
 export function payPeriodNow(now: Date, timeZone: string, calendar: PayCalendar): PayPeriod {
   return payPeriod(localDateOf(now, timeZone), calendar);
 }
+
+// "Week 44", "Cycle 22" (Phase 25.2): the period's label and number, for the office's head lines;
+// just the label before a fortnight's first cycle (no number).
+export const payPeriodName = (p: PayPeriod): string => {
+  const word = p.label === "cycle" ? "Cycle" : "Week";
+  return p.number === null ? word : `${word} ${p.number}`;
+};

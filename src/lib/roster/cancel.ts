@@ -2,7 +2,14 @@ import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { systemClock, type Clock } from "../auth/clock";
 import { retryAborted } from "../db/retry";
-import { assignments, offers, shifts, workers } from "../db/schema";
+import {
+  CANCEL_ASKERS,
+  assignments,
+  offers,
+  shifts,
+  workers,
+  type CancelAsker,
+} from "../db/schema";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { officeCanPlace, plugFor, rosterId } from "./book";
@@ -53,6 +60,9 @@ export const cancelRequestSchema = z.strictObject({
   shiftId: rosterId,
   workerId: rosterId,
   reason: z.string().trim().min(1).max(500),
+  // Who asked for it (P3.4; Phase 25.2): the office's own answer on its cancel form. Read only for
+  // the office: a casual's own cancellation is always the casual's ask (cancelAskedBy).
+  askedBy: z.enum(CANCEL_ASKERS).optional(),
   by: z.discriminatedUnion("type", [
     z.strictObject({
       type: z.literal("worker"),
@@ -190,7 +200,11 @@ async function cancelInTransaction(
 
   const via = by.type === "worker" ? ("app" as const) : ("office" as const);
   // Who asked (P3.4): recorded on the booking by the plug, and in the log below.
-  const askedBy = cancelAskedBy({ by: initiator, via });
+  const askedBy = cancelAskedBy({
+    by: initiator,
+    via,
+    askedBy: by.type === "office" ? request.askedBy : undefined,
+  });
   const cancelled = await plugFor(tx, shift.source, now).markCancelled(shiftId, workerId, {
     reason,
     by: initiator,
@@ -302,9 +316,14 @@ async function cancelInTransaction(
 // {via: "api", keyId} (a connector's, {via: "api", sourceId}), with the system actor. No offer
 // waves: there's no shift to fill.
 
+// Who may have asked for a whole session to be cancelled (Phase 25.2): never one casual.
+export const SHIFT_ASKERS = ["firm", "client", "unknown"] as const satisfies readonly CancelAsker[];
+
 export const cancelShiftRequestSchema = z.strictObject({
   shiftId: rosterId,
   reason: z.enum(SHIFT_CHANGE_REASON_CODES),
+  // The office's answer on its form (Phase 25.2); the planner's data doesn't say (not known).
+  askedBy: z.enum(SHIFT_ASKERS).optional(),
   by: firmCallerSchema,
 });
 export type CancelShiftRequest = z.input<typeof cancelShiftRequestSchema>;
@@ -380,7 +399,11 @@ async function cancelShiftInTransaction(
     if (!h.workerId) continue;
     // The planner's whole session (its key or a connector: P5.2) is cancelled via the API.
     const via = by.type === "office" ? ("office" as const) : ("api" as const);
-    const askedBy = cancelAskedBy({ by: "firm", via });
+    const askedBy = cancelAskedBy({
+      by: "firm",
+      via,
+      askedBy: by.type === "office" ? request.askedBy : undefined,
+    });
     const cancelled = await plug.markCancelled(shiftId, h.workerId, {
       reason,
       by: "firm",

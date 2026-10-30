@@ -1,4 +1,4 @@
-import { payWeek } from "../pay/pay-week";
+import { DEFAULT_PAY_CALENDAR, payPeriod, payPeriodName, type PayCalendar } from "../pay/calendar";
 import { roleLabel, soonLabel } from "../portal/format";
 import { datePartsOfDay, timeRange } from "../portal/sign-copy";
 import { dayLabel } from "../rules/reasons";
@@ -40,9 +40,15 @@ export function headLine(
   planner: PlannerLink | null,
   now: Date,
   timeZone: string,
+  calendar: PayCalendar = DEFAULT_PAY_CALENDAR,
 ): string {
-  const week = payWeek(today);
-  const parts = [datePartsOfDay(today).long, `Week ${week.week}`, `Pay ${dayLabel(week.payDay)}`];
+  // The firm's pay week or cycle (Phase 25.2): "Week 44 · Pay Fri 6 Nov", "Cycle 22 · Pay Fri 13 Nov".
+  const period = payPeriod(today, calendar);
+  const parts = [
+    datePartsOfDay(today).long,
+    payPeriodName(period),
+    `Pay ${dayLabel(period.payDay)}`,
+  ];
   if (planner?.kind === "api")
     parts.push(`Updated ${soonLabel(planner.lastChangeAt, now, timeZone)} from your planner`);
   if (planner?.kind === "sheet" && planner.syncedAt)

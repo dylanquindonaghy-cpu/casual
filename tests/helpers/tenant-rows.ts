@@ -31,6 +31,7 @@ export const EXPECTED_TABLES = [
   "requests",
   "roster_sources",
   "sessions",
+  "sheet_name_problems",
   "shift_events",
   "shift_reminders",
   "shifts",
@@ -227,6 +228,12 @@ export async function createTenant(su: Pool): Promise<Tenant> {
     "insert into name_map (firm_id, kind, outside_name, code) values ($1, 'role', 'door supervisor (nlw)', 'door_supervisor')",
     [firmId],
   );
+  const sheetNameProblemId = await one(
+    su,
+    `insert into sheet_name_problems (firm_id, source_id, kind, tab, row, outside_name, shift_id, seen_at)
+     values ($1, $2, 'skipped_live', 'shifts', 9, 'Holiday', $3, now())`,
+    [firmId, rosterSourceId, shiftId],
+  );
   const secretId = await one(
     su,
     `insert into firm_secrets (firm_id, name, ciphertext, nonce, key_id)
@@ -367,6 +374,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       connector_events: connectorEventId,
       firm_secrets: secretId,
       name_map: nameMapId,
+      sheet_name_problems: sheetNameProblemId,
       pay_records: payRecordId,
       worker_unavailable_days: unavailableDayId,
       worker_site_blocks: siteBlockId,
@@ -472,6 +480,11 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
     text: "insert into name_map (firm_id, kind, outside_name, code) values ($1, 'role', $2, null)",
     values: [firmId, `probe name ${next()}`],
   }),
+  sheet_name_problems: (firmId, p) => ({
+    text: `insert into sheet_name_problems (firm_id, source_id, kind, tab, row, outside_name, seen_at)
+           values ($1, $2, 'unreadable', 'shifts', $3, 'Door Supervisor (NLW)', now())`,
+    values: [firmId, p.rows.roster_sources, 10 + next()],
+  }),
   firm_secrets: (firmId) => ({
     text: `insert into firm_secrets (firm_id, name, ciphertext, nonce, key_id)
            values ($1, $2, $3, $4, 'aaaaaaaaaaaa')`,
@@ -571,6 +584,16 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
     text: `insert into api_keys (firm_id, label, token_hash, hint, created_by, revoked_by, revoked_at)
            values ($1, 'Probe planner', $2, 'ab_-', $3, $4, now())`,
     values: [firmId, hash(), own.officeUserId, other.officeUserId],
+  }),
+  sheet_name_problems_source_fk: (firmId, _own, other) => ({
+    text: `insert into sheet_name_problems (firm_id, source_id, kind, tab, row, outside_name, seen_at)
+           values ($1, $2, 'unreadable', 'staff', $3, 'Probe role', now())`,
+    values: [firmId, other.rows.roster_sources, 10 + next()],
+  }),
+  sheet_name_problems_shift_fk: (firmId, own, other) => ({
+    text: `insert into sheet_name_problems (firm_id, source_id, kind, tab, row, outside_name, shift_id, seen_at)
+           values ($1, $2, 'skipped_live', 'shifts', $3, 'Holiday', $4, now())`,
+    values: [firmId, own.rows.roster_sources, 10 + next(), other.rows.shifts],
   }),
   connector_events_source_fk: (firmId, _own, other) => ({
     text: `insert into connector_events (firm_id, source_id, event_id, type, ref)

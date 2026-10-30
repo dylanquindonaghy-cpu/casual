@@ -27,6 +27,7 @@ export const COUNT_ERROR = "Couldn't load";
 export const NEEDS_HEADINGS = {
   "to-check": "Bookings to check",
   "from-sheet": "From your rota sheet",
+  "sheet-names": "Names your rota sheet uses", // Phase 25.2
   "to-mark": "Who worked?",
   expired: "Qualifications out of date on a booking",
   uploads: "Uploads to check",
@@ -82,3 +83,19 @@ export const uploadsText = (n: number) =>
 // reached your planner by webhook. …"
 export const webhookFailingText = (since: Date, tz: string): string =>
   `Since ${timeOnDay(since, tz)}, bookings and cancellations haven't reached your planner by webhook. Check its address with whoever runs your planner, then send a test event. Your planner can catch up on what it missed from ShiftDesk.`;
+
+// The rota sheet's names (Needs attention, Phase 25.2; docs/screens.md "The firm's model on the
+// office's screens").
+export const SHEET_NAMES_INTRO =
+  "Your rota sheet uses these names, but the app can't use them as they are.";
+
+// "Shifts tab, row 14"
+export const sheetNamePlace = (tab: "staff" | "shifts", row: number): string =>
+  `${tab === "shifts" ? "Shifts" : "Staff"} tab, row ${row}`;
+
+export const SHEET_NAME_UNREADABLE =
+  "The app can't read this role, so the row isn't brought in. Change it in the sheet, or ask us to add it to your name map.";
+
+// "Row 9 now says "Holiday", a name your name map skips. …"
+export const sheetNameSkippedText = (row: number, name: string): string =>
+  `Row ${row} now says “${name}”, a name your name map skips. The session it made is still on here. Cancel or change it if it's no longer needed.`;

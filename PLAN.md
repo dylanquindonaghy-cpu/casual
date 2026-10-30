@@ -906,6 +906,44 @@ payroll (golden rule 9), replies signed "[Firm name] Shift Team" (golden rule 8)
   the firm's systems" 11), and no automatic reply to a message carrying our own "Automatic reply."
   line, so an echo can't loop.
 
+## Phase 25 — The screens for P2 to P8 (go-ahead: Dylan, 2026-10-30, "All of it, in order"; this session takes over the UI from the UI chat, which has finished; UI)
+
+The screen halves the phases above left for after the UI chat's Phase 24, in this order. Each task
+starts with a mock-up (before and after at 390px and at 1280px with 150% scaling, made with the UI
+skills in `.claude/skills/`) and is built only once Dylan approves it; its new words go in
+`docs/screens.md` or `docs/messaging-templates.md` first; the `guardrails-reviewer` runs where it
+touches schema, auth, tenancy, messaging or rules; `/close-task` ticks it.
+
+- [ ] P2.7: the login page, the Pay code step, Help and the profile's "How we reach you" say how
+      links and codes really go: by WhatsApp or text while there's a text sender (today's words),
+      by email with `login_by_email` on, and with neither, that they can't be sent (no form, no code
+      button) instead of promising one. The web app reads only whether there's a text sender
+      (`MESSAGING_TRANSPORT`, as it reads `AI_TRANSPORT`); the job still decides each send
+      (`loginChannel()`, `src/lib/auth/login-channel.ts`). Then the setting's help text stops saying
+      to leave it off. Mock-up: https://claude.ai/artifact/Ai4kBdJ8rBvEy2YjBjZ1mX (2026-10-30,
+      waiting for Dylan). Tests: each way's words, no email held (Pay and Profile), a browser test
+      that logs in and opens Pay by email (M, A) (25.1)
+- [ ] P3's screens: the list under P3's "After the UI chat's Phase 24 merges" (the pay day from the
+      firm's calendar, the name map's Needs attention items, "you need A or B", who asked, the
+      strike sentences reading the strikes switch, the one-of chips); a mock-up for the casual's
+      screens and one for the office's (25.2)
+- [ ] P4's office half: the list under P4's "After the UI chat's work is merged" (the layout's reads
+      in one transaction, the dashboard's capped lists, why a reply was held, the stop after 25
+      offers, one combined email past the 5) (25.3)
+- [ ] P5's card: the Integrations card and the dashboard name a connector as the planner, with its
+      sync card (`plannerLink`, `src/lib/office/integrations.ts`) (25.4)
+- [ ] P7.4 and P7.5: the inbox's sorting once Dylan approves the office log's words, then Enquiries
+      showing emails with the AI-drafted reply the office approves, the casual's answer by a link to
+      their known address, the pay question's link and the 3-hourly summary, their words first (25.5)
+- [ ] P8: the in-app chat: the casual's chat screen and the office's thread in Enquiries (mock-ups
+      first), the `app` channel, notifications for a reply, and its guards (25.6)
+
+Done when: 25.1 to 25.6 are ticked, each naming its mock-up and the date Dylan approved it, each
+with a stamp that includes the browser tests; `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; no
+casual-facing words but those in `docs/screens.md` and `docs/messaging-templates.md`; with no text
+sender, no casual screen names WhatsApp or texts; the `claims-auditor` checks the phase against
+this line.
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify

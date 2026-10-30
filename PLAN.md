@@ -927,7 +927,9 @@ touches schema, auth, tenancy, messaging or rules; `/close-task` ticks it.
 - [ ] P3's screens: the list under P3's "After the UI chat's Phase 24 merges" (the pay day from the
       firm's calendar, the name map's Needs attention items, "you need A or B", who asked, the
       strike sentences reading the strikes switch, the one-of chips); a mock-up for the casual's
-      screens and one for the office's (25.2)
+      screens first, then one for the office's (Dylan, 2026-10-30). The sheet sync's unreadable and
+      skipped names are stored per firm (a small table: `firm_id`, RLS, a `TABLE_ACCESS` entry,
+      isolation fixtures; S, T), so Needs attention can list each one (Dylan, 2026-10-30) (25.2)
 - [ ] P4's office half: the list under P4's "After the UI chat's work is merged" (the layout's reads
       in one transaction, the dashboard's capped lists, why a reply was held, the stop after 25
       offers, one combined email past the 5) (25.3)

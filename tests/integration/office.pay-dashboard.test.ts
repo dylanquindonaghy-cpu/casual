@@ -2,11 +2,8 @@ import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createSession } from "@/lib/auth/sessions";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
-import {
-  loadPayDashboard,
-  officePayDashboard,
-  officePayQueriesWaiting,
-} from "@/lib/office/pay-dashboard";
+import { loadOfficeFrame } from "@/lib/office/frame";
+import { loadPayDashboard, officePayDashboard } from "@/lib/office/pay-dashboard";
 import { bookingFirm, NOW } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
 
@@ -207,9 +204,12 @@ describe("the pay dashboard's data", () => {
       created: ago(6),
       resolved: { by: t.payroll, at: ago(2), note: "Done." },
     });
-    const ctx = { firm: { id: t.f.firmId }, run: withFirm };
-    expect(await officePayQueriesWaiting(ctx, "payroll")).toBe(2);
-    expect(await officePayQueriesWaiting(ctx, "admin")).toBe(2);
-    expect(await officePayQueriesWaiting(ctx, "resourcer")).toBeNull();
+    // As the office frame reads it (Phase 25.3), for the office user as they are now.
+    const waiting = async (officeUserId: string) =>
+      (await loadOfficeFrame({ firm: { id: t.f.firmId }, officeUserId, run: withFirm })).payQueries;
+    expect(await waiting(t.payroll)).toEqual({ ok: true, data: 2 });
+    expect(await waiting(await t.f.office("admin"))).toEqual({ ok: true, data: 2 });
+    expect(await waiting(await t.f.office("resourcer"))).toBeNull();
+    expect(await waiting(await t.f.office("payroll", "disabled"))).toBeNull();
   });
 });

@@ -15,6 +15,7 @@ import {
   type AddressProblem,
 } from "../integrations/send";
 import { signingSecret } from "../integrations/secrets";
+import { readWebhookStatusRow, webhookAddressSet } from "../integrations/status";
 import { officeUserMay, parts, type OfficeContext } from "./office-context";
 
 // The planner's webhook on the Integrations page (docs/office-v2.md 5.3.4; 12J.2), admins only,
@@ -139,6 +140,7 @@ export async function addWebhook(ctx: WebhookContext, raw: unknown): Promise<Add
       const before = await current(tx);
       if (before.url === checked.url) return { status: "unchanged" };
       await setSetting(tx, "webhook.url", checked.url);
+      await webhookAddressSet(tx);
       const after = await current(tx);
       await logChange(
         tx,
@@ -187,6 +189,7 @@ export async function removeWebhook(ctx: WebhookContext): Promise<RemoveWebhookR
     const before = await current(tx);
     if (!before.url) return { status: "no_webhook" };
     await setSetting(tx, "webhook.url", null);
+    await webhookAddressSet(tx);
     const after = await current(tx);
     await logChange(tx, ctx, "removed", before.signingVersion, after.signingVersion);
     return { status: "removed" };
@@ -211,42 +214,19 @@ export type WebhookStatus =
   | { kind: "working"; lastDeliveredAt: Date }
   | { kind: "failing"; since: Date };
 
-// From the log: the latest delivery outcome since the address was last set, and while failing,
-// the first failure after the last success (or the address being set).
+// From the firm's status row (src/lib/integrations/status.ts; Phase 25.3), kept in step with the
+// log: the latest delivery outcome since the address was last set, and while failing, the first
+// failure after the last success (or the address being set).
 export async function webhookStatus(
   tx: FirmTx,
 ): Promise<{ hint: string | null; status: WebhookStatus }> {
   const hook = await current(tx);
   if (!hook.url) return { hint: null, status: { kind: "none" } };
-  const { rows } = await tx.execute<{
-    action: string;
-    id: string | number;
-    created_at: string | Date;
-  }>(sql`
-    select e.action, e.id, e.created_at from events e
-     where e.action in ('webhook.delivered', 'webhook.failed')
-        or (e.action = 'firm.settings_changed' and e.data -> 'keys' ? 'webhook.url')
-     order by e.created_at desc, e.id desc
-     limit 1
-  `);
-  const latest = rows[0];
   const hint = addressHint(hook.url);
-  if (!latest || latest.action === "firm.settings_changed")
-    return { hint, status: { kind: "new" } };
-  if (latest.action === "webhook.delivered") {
-    return { hint, status: { kind: "working", lastDeliveredAt: new Date(latest.created_at) } };
+  const row = await readWebhookStatusRow(tx);
+  if (row?.failingSince) return { hint, status: { kind: "failing", since: row.failingSince } };
+  if (row?.lastDeliveredAt) {
+    return { hint, status: { kind: "working", lastDeliveredAt: row.lastDeliveredAt } };
   }
-  const { rows: since } = await tx.execute<{ at: string | Date | null }>(sql`
-    select min(f.created_at) as at from events f
-     where f.action = 'webhook.failed'
-       and f.id > coalesce((select max(e.id) from events e
-                             where e.action = 'webhook.delivered'
-                                or (e.action = 'firm.settings_changed'
-                                    and e.data -> 'keys' ? 'webhook.url')), 0)
-  `);
-  const at = since[0]?.at;
-  return {
-    hint,
-    status: { kind: "failing", since: new Date(at ?? latest.created_at) },
-  };
+  return { hint, status: { kind: "new" } };
 }

@@ -939,7 +939,17 @@ touches schema, auth, tenancy, messaging or rules; `/close-task` ticks it.
       required; "None: strikes are off" stays (25.2)
 - [ ] P4's office half: the list under P4's "After the UI chat's work is merged" (the layout's reads
       in one transaction, the dashboard's capped lists, why a reply was held, the stop after 25
-      offers, one combined email past the 5) (25.3)
+      offers, one combined email past the 5). The mock-up
+      (https://claude.ai/artifact/RvpGDfQMcTAqtfCTYJFpUk), approved by Dylan on 2026-10-30: build as
+      shown, with the webhook's status in a small table (`webhook_status`: `firm_id`, RLS, a
+      `TABLE_ACCESS` entry, isolation fixtures; S, T) and the action log's indexes; the offer limit
+      fixed at 25 for each free place; the combined email once, at the end of the hour; a held pay
+      question in Enquiries' Pay view. An index on `data ->> 'workerId'` can't be used under RLS
+      (jsonb's functions aren't leakproof), so the log gets two generated columns instead,
+      `worker_ref` and `shift_ref`, each with an index, plus one on `actor_id` (Dylan, 2026-10-30:
+      measured on 700,000 entries, 0.6 s to 154 s before, 1.5 to 4 ms after). Dylan, 2026-10-30:
+      "just do what you would recommend stop prompting me and build it": from here each mock-up
+      is still published, and built as recommended without waiting (25.3)
 - [ ] P5's card: the Integrations card and the dashboard name a connector as the planner, with its
       sync card (`plannerLink`, `src/lib/office/integrations.ts`) (25.4)
 - [ ] P7.4 and P7.5: the inbox's sorting once Dylan approves the office log's words, then Enquiries

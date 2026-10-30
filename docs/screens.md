@@ -93,7 +93,7 @@ Every route, label, link and action is as before; what moved is listed here.
 - **The top bar** (from 1024px), three capsules:
   - the counts, each a link: "To fill {26}" (→ `/office/events?view=need`), "Urgent {2}" (→
     `/office/events?view=urgent`; red while there are any), "Offers out {11}" (→
-    `/office#offered`, the dashboard's Offered column; its offers chart until 24.3), "To check {7}" (Needs attention's count, "50+" past a list's 50; →
+    `/office#offered`, the dashboard's Offered column; its offers chart until 24.3), "To check {7}" (Needs attention's count, every item, past a list's 50 too: Phase 25.3; →
     `/office/needs-attention`) and "Pay queries {10}" (→ `/office/pay-queries`): admins all five,
     resourcers the first four, payroll Pay queries. A count that couldn't be read shows its words
     alone;
@@ -270,7 +270,8 @@ happened while I was out? Words: `src/lib/office/board-copy.ts`; data:
   yet}", then a line: "{Mo Rahman} hasn't replied since {07:19}." / "{Ben Fraser} and {Priya
   Shah} haven't replied since {08:02}." / "{Ben Fraser} and {2} others haven't replied since
   {Sun 25 Oct, 21:40}." (amber); "Not offered to anyone yet." / "No offers out. Offer it to
-  someone else." / "Hidden from casuals, so it can't be offered. Show it to casuals first."
+  someone else." / "Offers stopped: {25} casuals were offered it, the most for {1 place}. Offer it
+  to someone yourself." (Phase 25.3) / "Hidden from casuals, so it can't be offered. Show it to casuals first."
   (red). "Offer to someone" (the main button: the offer panel; the offer page until the page is
   ready) and "Open the shift" (`/office/shifts/[id]`). At its top right "…" ("More for
   {Tuesday}'s {door supervisor} at {08:00}"): "Mark as filled" (not a sheet's or planner's
@@ -349,8 +350,8 @@ here. The casual app is unchanged.
   - The date and pay week line ("{Monday 2 November} · Week {45}"), the greeting headline (its
     words as before), and the shifts line.
   - **Four count cards**, white, each a label, a big number and a line: "Urgent places" (red;
-    "Every urgent place is filled" / the days they're on), "Needs attention" (amber; "{12}" or
-    "50+"), "Waiting on others" (blue; "Pay queries with payroll" / "Nothing waiting on others"),
+    "Every urgent place is filled" / the days they're on), "Needs attention" (amber; "{12}", every item,
+    past a list's 50 too: Phase 25.3), "Waiting on others" (blue; "Pay queries with payroll" / "Nothing waiting on others"),
     "Sorted today" (green; "{1 cancellation}, {5 enquiries}"). Each is a link to its list
     (`#urgent-places`, `/office/needs-attention`, `/office/pay-queries` for roles that can open
     Pay or `#waited-chart` for the rest, `/office/cancellations?day=today`). Once the page's
@@ -618,7 +619,7 @@ tokens) is in `docs/ui-design.md` "Phase 20".
   corners on the grey frame, and the menu beside it has the firm at the top on a lifted card, then
   "Dashboard" and "Needs attention" with its count (the bell is gone; the same count as the
   Dashboard's Needs attention tile and its page: its items and the enquiries that need a person;
-  "{12} to deal with" for screen readers, "50+" when a list stopped at 50), the
+  "{12} to deal with" for screen readers, every item, past a list's 50 too: Phase 25.3), the
   groups ("Today": Events & sessions, Cancellations, Enquiries; "Pay"; "People"; "Admin and
   records"), "How-to guide", and at its foot the pay week, the moon/sun button and you (your
   initials, name and role: the account menu, with How-to guide and Log out). The current page:
@@ -927,6 +928,42 @@ With no text sender (either of the last two ways):
   cancellation's record; a session that asks for one of the group outright shows each as before.
 - **Cancellations with strikes off:** a cancellation made then says "Strike: None: strikes are
   off" (P3.4).
+
+**The office for a big firm (P4's office half; Phase 25.3; the mock-up
+https://claude.ai/artifact/RvpGDfQMcTAqtfCTYJFpUk approved by Dylan, 2026-10-30).** With automatic
+replies on and under 5 unknown numbers an hour, every line reads as before.
+
+- **Why a message got no automatic reply** (automatic replies off, P4.7: `message.received` says
+  `replyHeld` and what it was sorted as, `sortedAs`), on the enquiry's "How it was answered":
+  - "Sorted:" 'A keyword matched: "{pay}". Automatic replies are off, so it was passed to a
+    person.' / 'AI sorted it as "{shifts}". Automatic replies are off, so it was passed to a
+    person.' (one sorted as the office's, "office", reads as before: it was a person's anyway);
+  - "Reply built:" "No automatic reply: automatic replies are off for your firm. Ask us to turn
+    them on.";
+  - Enquiries, "Pay": a pay question that waited for a person is listed too, marked "Passed to a
+    person, waiting" (so payroll sees every pay question; never answered by AI either way).
+- **The action log, Messages:**
+  - a casual's held message: "{Priya Shah} sent a {WhatsApp} to the shifts line ({pay}). No
+    automatic reply (they're off): it's waiting for a person." (what it was sorted as, not "for the
+    office");
+  - a number we don't know, past the hour's 5 emails: "A {WhatsApp} came to the shifts line from a
+    number that isn't one of your staff. No email about it yet: 5 already went this hour, so it'll
+    be in one email for the rest." (a former casual: "… from someone who isn't active any more. No
+    email …");
+  - the hour's one email for the rest: "The office was emailed once about {2 more messages} from
+    numbers we don't know, {18:00} to {19:00} ({2 people})." ("1 more message", "1 person"; some
+    not sent: "({2 people}; {1} couldn't be emailed)"; nobody to email: "Nobody in the office could
+    be emailed about {2 more messages} from numbers we don't know, {18:00} to {19:00} (no active
+    admin or resourcer with an email address). They're on Enquiries.").
+- **Offers stop after 25 for each free place** (`OFFER_LIMIT_PER_PLACE`, fixed: Dylan,
+  2026-10-30): an urgent session's waves stop once 25 casuals for each place still free have been
+  offered it (offers that couldn't be sent don't count; the office's own offers do). Another place
+  coming free raises the limit, and its waves carry on.
+  - the dashboard's urgent card, red, when no offer is waiting: "Offers stopped: {25} casuals were
+    offered it, the most for {1 place}. Offer it to someone yourself." ("{2 places}");
+  - the action log, Offers: "Offers stopped: {25} casuals were offered it, the most for {1 place}."
+- **Needs attention's long lists** (each stops at 50): the heading's count is the real number
+  ("{400}", not "50+"), and under the list "Showing the first 50 of {400}.".
 
 | Route | Screen | What's on it | Empty / error states |
 |---|---|---|---|

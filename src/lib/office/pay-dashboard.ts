@@ -1,7 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { authParts, type AuthContext } from "../auth/link-login";
 import { currentOfficeUser } from "../auth/office-login";
-import { canAccess, type OfficeRole } from "../auth/roles";
+import { canAccess } from "../auth/roles";
 import { firms } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { loadDigestStatus, type DigestStatus } from "../pay/digest";
@@ -135,20 +135,4 @@ export async function officePayDashboard(
   if (!me || !canAccess(me.officeUser.role, "pay")) return null;
   const { run } = authParts(ctx);
   return run(ctx.firm.id, (tx) => loadPayDashboard(tx, now));
-}
-
-// The Pay queries menu badge: how many are waiting (open, or in a digest). The office layout asks
-// once it has the session, so the role is the session's; any role without pay gets null.
-export async function officePayQueriesWaiting(
-  ctx: AuthContext,
-  role: OfficeRole,
-): Promise<number | null> {
-  if (!canAccess(role, "pay")) return null;
-  const { run } = authParts(ctx);
-  return run(ctx.firm.id, async (tx) => {
-    const { rows } = await tx.execute<{ n: number }>(
-      sql`select count(*)::int as n from pay_queries where status in ('open', 'in_digest')`,
-    );
-    return rows[0]?.n ?? 0;
-  });
 }

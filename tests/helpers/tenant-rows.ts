@@ -39,6 +39,7 @@ export const EXPECTED_TABLES = [
   "strikes",
   "travel_estimates",
   "uploads",
+  "webhook_status",
   "worker_site_blocks",
   "worker_travel",
   "worker_unavailable_days",
@@ -245,6 +246,12 @@ export async function createTenant(su: Pool): Promise<Tenant> {
     "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, 1, 'push')",
     [firmId, shiftId, rosterWorkerId],
   );
+  const webhookStatusId = await one(
+    su,
+    `insert into webhook_status (firm_id, address_set_at, last_delivered_at)
+     values ($1, now() - interval '1 day', now())`,
+    [firmId],
+  );
   const unavailableDayId = await one(
     su,
     "insert into worker_unavailable_days (firm_id, worker_id, day) values ($1, $2, '2026-12-25')",
@@ -388,6 +395,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       pay_queries: payQueryId,
       messages: messageId,
       inbound_emails: inboundEmailId,
+      webhook_status: webhookStatusId,
     },
   };
 }
@@ -484,6 +492,12 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
     text: `insert into sheet_name_problems (firm_id, source_id, kind, tab, row, outside_name, seen_at)
            values ($1, $2, 'unreadable', 'shifts', $3, 'Door Supervisor (NLW)', now())`,
     values: [firmId, p.rows.roster_sources, 10 + next()],
+  }),
+  // One per firm: a probe firm of its own each time (the row's firm is the one being tested).
+  webhook_status: (firmId) => ({
+    text: `insert into webhook_status (firm_id, address_set_at) values ($1, now())
+           on conflict (firm_id) do update set updated_at = now()`,
+    values: [firmId],
   }),
   firm_secrets: (firmId) => ({
     text: `insert into firm_secrets (firm_id, name, ciphertext, nonce, key_id)

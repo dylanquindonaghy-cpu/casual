@@ -35,6 +35,10 @@ import {
   runMetricsRollupTick,
 } from "../../lib/metrics/rollup";
 import type { InboundMessagePayload } from "../../lib/inbound/job";
+import {
+  officeAlertsCombinedTask,
+  type OfficeAlertsCombinedPayload,
+} from "../../lib/inbound/alerts-combined";
 import { inboundMessageFirmTask } from "../../lib/inbound/reply";
 import { firmChangeNoticeTask, type FirmChangeNoticePayload } from "../../lib/notices/firm-change";
 import { payQueryUpdateTask, type PayQueryUpdatePayload } from "../../lib/notices/pay-query-update";
@@ -131,6 +135,7 @@ export interface JobDeps {
   strikeEvidence?: FirmTask<StrikeEvidencePayload>;
   travelEstimates?: FirmTask<TravelEstimatesPayload>;
   inboundMessages?: FirmTask<InboundMessagePayload>;
+  officeAlertsCombined?: FirmTask<OfficeAlertsCombinedPayload>;
   webhooks?: FirmTask<WebhookDeliverPayload>;
   connectorEvents?: FirmTask<ConnectorEventPayload>;
   connectorPulls?: FirmTask<ConnectorPullPayload>;
@@ -238,6 +243,8 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   await registerFirmTask(boss, deps.strikeEvidence ?? strikeEvidenceTask);
   // Answering WhatsApps on the shifts line (stored by the Twilio webhook).
   await registerInboundTask(boss, deps.inboundMessages ?? inboundMessageFirmTask);
+  // The hour's one email about unknown numbers past its 5 alerts (Phase 25.3).
+  await registerFirmTask(boss, deps.officeAlertsCombined ?? officeAlertsCombinedTask);
 
   // The planner's webhooks (12J.2): each try knows whether it's the last (includeMetadata), and a
   // firm's deliveries never run two at once (WEBHOOK_WORK_OPTIONS).

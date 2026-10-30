@@ -575,7 +575,7 @@ export function Board({
             );
           })}
           more={
-            marks?.more
+            marks && marks.total > marks.items.length
               ? { text: "More on Needs attention", href: "/office/needs-attention#to-mark" }
               : null
           }

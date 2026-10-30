@@ -2064,3 +2064,10 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
 - **A skipped name's session, from Needs attention** (Phase 25.2, 2026-10-30): the item links to the
   session, where the office cancels or changes it. A "Cancel this session" right on the item would
   save a click; it needs the cancel form's "Why?" and "Who asked for it?" there too.
+- **The Shift filter's bookings look-up** (Phase 25.3, 2026-10-30): finding a session's bookings in
+  the action log's Shift filter reads the firm's bookings without an index on `(firm_id, shift_id)`
+  (`assignments` has partial ones only, for live bookings). Measured at 20,000 bookings: 4 ms. An
+  index if a firm's bookings grow tenfold; measure first.
+- **A firm's webhook status from before migration 0062** (Phase 25.3, 2026-10-30): a firm whose
+  planner address was set before the status row existed reads "new" until its next delivery (no
+  firm is live yet). A backfill from the log if one is.

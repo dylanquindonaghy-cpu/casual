@@ -1,13 +1,12 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
-import { z } from "zod";
+import { and, eq, sql } from "drizzle-orm";
 import { getAi } from "../ai/anthropic";
 import { sortMessage, type AiFallback } from "../ai/classify-message";
 import type { AiClient } from "../ai/client";
-import { firms, messages, officeUsers, requests, workers } from "../db/schema";
+import { firms, messages, requests, workers } from "../db/schema";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { workerEnv } from "../env";
 import { passesLogCheck, recordEvent } from "../events/record";
-import { errorCode, type FirmTask, type JobAttempt } from "../jobs/firm-job";
+import { errorCode, sendFirmJob, type FirmTask, type JobAttempt } from "../jobs/firm-job";
 import { log } from "../log";
 import { getTransport, type MessagingTransport } from "../messaging";
 import { sendFailureCode, sendToWorker, smsAllowedFor } from "../notify/send";
@@ -24,7 +23,12 @@ import { systemClock, type Clock } from "../auth/clock";
 import { lockUnhandled } from "./claim";
 import { INBOUND_RETRY_LIMIT, inboundMessageJob, type InboundMessagePayload } from "./job";
 import { keywordIntent, type Intent } from "./keywords";
-import { autoRepliesOn, takeUnknownAlert } from "./limits";
+import {
+  combinedAlertJob,
+  officeAlertRecipients,
+  officeAlertsCombinedJob,
+} from "./alerts-combined";
+import { alertHourOf, autoRepliesOn, takeUnknownAlert } from "./limits";
 import {
   answerOptOut,
   claimOptOut,
@@ -541,23 +545,19 @@ async function answerUnknown(
     const replyHeld = wouldReply && !c.autoReplies;
     let recipients: string[] = [];
     let skipped = 0;
-    let alertHeld = false;
+    let alertHour: Date | null = null;
     if (!repeat) {
-      const office = await tx
-        .select({ email: officeUsers.email })
-        .from(officeUsers)
-        .where(
-          and(eq(officeUsers.status, "active"), inArray(officeUsers.role, ["admin", "resourcer"])),
-        )
-        .orderBy(asc(officeUsers.email));
-      recipients = office.map((o) => o.email).filter((email) => z.email().safeParse(email).success);
-      skipped = office.length - recipients.length;
-      // At most 5 alerts per firm an hour, counted only when there's someone to email.
+      ({ recipients, skipped } = await officeAlertRecipients(tx));
+      // At most 5 alerts per firm an hour, counted only when there's someone to email. Past them,
+      // the hour's one email for the rest is queued for its end (once: alerts-combined.ts).
       if (recipients.length > 0 && !(await takeUnknownAlert(tx, now))) {
-        alertHeld = true;
+        alertHour = alertHourOf(now);
         recipients = [];
+        const job = combinedAlertJob(alertHour);
+        await sendFirmJob(tx, officeAlertsCombinedJob, job.payload, job.options);
       }
     }
+    const alertHeld = alertHour !== null;
     await recordEvent(tx, {
       actorType: "system",
       action: "message.received",
@@ -569,7 +569,7 @@ async function answerUnknown(
         repeat,
         formerWorker: c.formerWorkerId !== null,
         ...(replyHeld ? { replyHeld: true } : {}),
-        ...(alertHeld ? { alertHeld: true } : {}),
+        ...(alertHour ? { alertHeld: true, alertHour: alertHour.toISOString() } : {}),
       },
     });
     return {

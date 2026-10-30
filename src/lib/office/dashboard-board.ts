@@ -3,6 +3,7 @@ import { z } from "zod";
 import { systemClock } from "../auth/clock";
 import { CANCELLED_ASSIGNMENT_STATUSES, type OFFER_CHANNELS } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
+import { atOfferLimit } from "../offers/offer-limit";
 import { payCalendar, type PayCalendar } from "../pay/calendar";
 import { payWeekNow } from "../pay/pay-week";
 import { addDays, localDateOf, startOfDay, wallTimeOf, zonedToUtc } from "../time/zoned";
@@ -59,6 +60,8 @@ export interface BoardOffers {
   failed: number; // couldn't be sent
   waitingSince: Date | null; // the oldest offer still waiting
   waitingNames: string[]; // who hasn't replied, oldest offer first (the first two)
+  // The waves have offered it to the most casuals for its free places (Phase 25.3: offer-limit.ts).
+  atLimit: boolean;
 }
 
 export interface BoardSession {
@@ -121,7 +124,7 @@ export interface Board {
   // soonest (null: none).
   gaps: Part<{ toOffer: BoardColumn; offered: BoardColumn; chosen: BoardSession | null }>;
   overnight: Part<{ from: Date; to: Date; takes: OvernightTake[]; more: boolean }>;
-  toMark: Part<{ items: TodayToMark[]; more: boolean }>;
+  toMark: Part<{ items: TodayToMark[]; total: number }>;
 }
 
 // This week's Monday and the Monday after next, in the firm's time zone: Monday to Sunday, whatever
@@ -245,6 +248,8 @@ function toSession(r: GapRow): BoardSession {
       failed: r.failed,
       waitingSince: r.waiting_since ? date(r.waiting_since) : null,
       waitingNames: r.waiting_names ?? [],
+      // Waves run only for an urgent session.
+      atLimit: r.is_urgent && atOfferLimit(r.sent, r.places_free),
     },
   };
 }

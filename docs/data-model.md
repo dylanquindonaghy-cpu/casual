@@ -59,6 +59,7 @@ architecture.md, Tenancy).
 | roster_sources | Where a firm's rota lives when it isn't our tables: a Google Sheet (its id, column mapping) or a connector to the firm's own system (which one, its base address; P5.2), with the last sync, error code and sync lease | 2 |
 | name_map | What the firm's own system calls a role, qualification, staff type or cancellation reason, mapped to a ShiftDesk code or to skip (P3.2) | P3 |
 | sheet_name_problems | The role names a rota sheet's last sync couldn't use (one it can't read, a skipped one on a session still to come), for Needs attention; replaced by each sync (Phase 25.2) | P3 |
+| webhook_status | The planner's webhook status, one row per firm: when its address was set, the last delivery that worked, failing since when; for Integrations and Needs attention (Phase 25.3) | P4 |
 | metrics_daily | Pilot baseline and daily counts | 5 |
 
 ## Firm settings (jsonb on `firms.settings`)
@@ -886,11 +887,18 @@ create table events (
   entity_type text not null,
   entity_id uuid,
   data jsonb not null default '{}',
+  worker_ref text generated always as (data ->> 'workerId') stored,  -- Phase 25.3, migration 0062
+  shift_ref text generated always as (data ->> 'shiftId') stored,    -- (below)
   created_at timestamptz not null default now()
 );
 -- Indexed by (firm_id, created_at) and by (firm_id, entity_id, id): one thing's history (the dashboard's
--- wave status, the action log by shift or worker); and by (firm_id, action, created_at): entries of
--- one kind over a time (the sends the ops alerts count, the webhook status; P4.1).
+-- wave status, the action log by shift or worker); by (firm_id, action, created_at): entries of
+-- one kind over a time (the sends the ops alerts count; P4.1); and, for the action log by worker
+-- or shift (Phase 25.3), by (firm_id, worker_ref, id), (firm_id, shift_ref, id) and
+-- (firm_id, actor_id, id), each only over the entries that have one. worker_ref and shift_ref are
+-- the data's workerId and shiftId, copied by the database: an index on `data ->> 'workerId'`
+-- itself can't be used under RLS (jsonb's functions aren't leakproof, so the firm's policy is
+-- checked first and every row after), a text column's can.
 -- events is append-only: the app role has SELECT and INSERT only, and events has only
 -- select and insert policies. data never holds tokens, codes, phones, emails or IPs
 -- (recordEvent() refuses anything the log masker would change).
@@ -1098,6 +1106,22 @@ create table api_keys (
 -- Trigger api_keys_revocation_final (migration 0046): once revoked_at is set, any UPDATE of
 -- revoked_at or revoked_by fails (23514), whoever runs it, so a revoked key never comes back
 -- (only a migration, as the owner, could drop the trigger).
+
+-- The planner's webhook status (Phase 25.3, migration 0062; src/lib/integrations/status.ts): what
+-- Integrations and Needs attention show, written in the transaction that logs what it sums up: the
+-- address set or removed (a fresh start), webhook.delivered (working, no longer failing),
+-- webhook.failed (failing since the first such failure). Times only. The app role may read and add
+-- a row and change its times (a column grant), never whose it is; never deleted. A firm whose
+-- address was set before 0062 reads "new" until its next delivery.
+create table webhook_status (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id) unique,   -- one row per firm
+  address_set_at timestamptz not null,
+  last_delivered_at timestamptz,         -- the last delivery that worked since the address was set
+  failing_since timestamptz,             -- set while failing: the first last-try failure since
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
 
 -- The firm for the current transaction. NULL when unset, so policies fail closed. The nullif
 -- matters: a pooled connection that ran a firm transaction returns '' afterwards, not NULL.

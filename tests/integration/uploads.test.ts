@@ -6,7 +6,8 @@ import { collectFirmData } from "@/lib/gdpr/firm-export";
 import { purgeExpired } from "@/lib/gdpr/retention";
 import { eraseWorker } from "@/lib/gdpr/worker-erase";
 import { exportWorkerData } from "@/lib/gdpr/worker-export";
-import { casualsList, uploadsToCheck } from "@/lib/office/casuals";
+import { casualsList } from "@/lib/office/casuals";
+import { loadOfficeFrame } from "@/lib/office/frame";
 import { workerAccessView } from "@/lib/office/worker-access";
 import { myProfile } from "@/lib/portal/profile";
 import { bookShift } from "@/lib/roster/book";
@@ -520,10 +521,13 @@ describe("the office's Casuals pages", () => {
       [newer, "certificate", "SIA_DS", "Lu Booker"],
     ]);
     expect(list?.uploads[1]?.qualificationName).toBe("SIA door supervisor licence");
-    expect(await uploadsToCheck(t.office())).toBe(2);
+    // The Casuals badge, as the office frame reads it (Phase 25.3).
+    const uploadsToCheck = async (ctx: ReturnType<typeof t.office>) =>
+      (await loadOfficeFrame(ctx)).uploads;
+    expect(await uploadsToCheck(t.office())).toEqual({ ok: true, data: 2 });
     expect(await uploadsToCheck(t.office(await t.f.office("payroll")))).toBeNull();
     await rejectUpload(t.office(), older, "wrong_document");
-    expect(await uploadsToCheck(t.office())).toBe(1);
+    expect(await uploadsToCheck(t.office())).toEqual({ ok: true, data: 1 });
     expect((await casualsList(t.office(), "all"))?.counts.uploads).toBe(1);
   });
 

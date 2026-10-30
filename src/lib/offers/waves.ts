@@ -37,6 +37,7 @@ import { isVisibleToCasuals } from "../roster/visibility";
 import { portalUrl } from "../tenancy/portal-url";
 import { signOffFor } from "../tenancy/sign-off";
 import { wallTimeOf } from "../time/zoned";
+import { offerLimit } from "./offer-limit";
 import { lockOfferCounts, waveCandidates, type WaveCandidate } from "./candidates";
 import { closeOpenOffers } from "./close";
 import { lockOfferOutcome, logUnconfirmedOffers } from "./unconfirmed";
@@ -287,7 +288,14 @@ export const timeOf = (d: Date, tz: string) => {
 };
 
 export type StopReason =
-  "filled" | "started" | "not_open" | "hidden" | "not_urgent" | "no_candidates";
+  | "filled"
+  | "started"
+  | "not_open"
+  | "hidden"
+  | "not_urgent"
+  | "no_candidates"
+  // The most casuals for its free places have been offered it (Phase 25.3: offer-limit.ts).
+  | "offer_limit";
 
 export type WaveResult =
   | { status: "sent"; sent: number; next: number | null }
@@ -300,7 +308,10 @@ export type WaveResult =
   | { status: "restarted"; sent: number };
 
 // Why the shift can't be offered now (null: it can).
-function notOfferable(shift: LockedShift, now: Date): Exclude<StopReason, "no_candidates"> | null {
+function notOfferable(
+  shift: LockedShift,
+  now: Date,
+): Exclude<StopReason, "no_candidates" | "offer_limit"> | null {
   if (shift.startsAt.getTime() <= now.getTime()) return "started";
   if (shift.status !== "open" && shift.status !== "filled") return "not_open";
   // No place free, or the office marked it filled (it found someone another way: closeShift()).
@@ -314,12 +325,14 @@ function notOfferable(shift: LockedShift, now: Date): Exclude<StopReason, "no_ca
 
 // Ends the chain. A filled shift's offers still waiting are closed (usually already, by whatever
 // filled it: src/lib/offers/close.ts).
+// At the offer limit, how many were offered it and for how many free places.
 async function stopWaves(
   tx: FirmTx,
   shiftId: string,
   wave: number,
   reason: StopReason,
   now: Date,
+  limit?: { offered: number; places: number },
 ): Promise<void> {
   if (reason === "filled") await closeOpenOffers(tx, shiftId, now);
   await recordEvent(tx, {
@@ -327,8 +340,18 @@ async function stopWaves(
     action: "offer.waves_stopped",
     entityType: "shift",
     entityId: shiftId,
-    data: { reason, wave },
+    data: { reason, wave, ...(limit ?? {}) },
   });
+}
+
+// How many casuals have been offered the shift, in any wave or by the office (one whose offer
+// couldn't be sent doesn't count: they can be offered it again).
+async function offeredSoFar(tx: FirmTx, shiftId: string): Promise<number> {
+  const { rows } = await tx.execute<{ n: number }>(
+    sql`select count(*)::int as n from offers
+         where shift_id = ${shiftId} and response is distinct from 'failed'`,
+  );
+  return rows[0]?.n ?? 0;
 }
 
 // How many workers this wave has been offered to so far (a failed send counts: it was this wave's).
@@ -392,6 +415,17 @@ export async function runOfferWave(
       await stopWaves(tx, shift.id, payload.wave, blocked, now);
       return { done: { status: "stopped", reason: blocked } as WaveResult };
     }
+    // The most for its free places already offered it (Phase 25.3): the chain stops here. (A wave
+    // already sent that reached it stopped its own claims, or queued this one to say so.)
+    const offered = await offeredSoFar(tx, shift.id);
+    if (offered >= offerLimit(shift.freePlaces)) {
+      if (already > 0) return { done: { status: "already_sent" } as WaveResult };
+      await stopWaves(tx, shift.id, payload.wave, "offer_limit", now, {
+        offered,
+        places: shift.freePlaces,
+      });
+      return { done: { status: "stopped", reason: "offer_limit" } as WaveResult };
+    }
     const firm = await firmVoice(tx, shift.firmId);
     // Quiet hours: an urgent wave goes now if the firm lets urgent override them; otherwise it's
     // held until they end, and queued for then (nothing is written or sent before that). A wave
@@ -423,10 +457,10 @@ export async function runOfferWave(
       });
       return { done: { status: "held", until: timing.until } as WaveResult };
     }
-    return { shift, firm, already };
+    return { shift, firm, already, offered };
   });
   if (checked.done) return checked.done;
-  const { shift, firm, already } = checked;
+  const { shift, firm, already, offered } = checked;
   const settings = parseAllocationSettings(firm.settings);
   const firstCome = firstComeWaves(firm.settings);
   const minutesApart =
@@ -453,7 +487,14 @@ export async function runOfferWave(
   // take a while). Waves only run for urgent shifts (checked above), so the daily cap doesn't hold
   // them back. Workers already offered this shift (this wave included) aren't candidates.
   const candidates = await inFirm((tx) => waveCandidates(tx, shift.id, now));
-  const room = Math.max(0, waveCap(settings, firstCome, shift.freePlaces) - already);
+  // The wave's size, and never past the offer limit (Phase 25.3).
+  const room = Math.max(
+    0,
+    Math.min(
+      waveCap(settings, firstCome, shift.freePlaces) - already,
+      offerLimit(shift.freePlaces) - offered,
+    ),
+  );
   const chosen = pickWave(candidates, room, `${shift.id}:${payload.wave}`);
   // The next wave after the firm's minutes, if anyone may be left after this one (either mode):
   // someone not chosen, or chosen but not reached because the wave filled first (a place taken
@@ -556,6 +597,16 @@ export async function runOfferWave(
             waveCap(settings, firstCome, current.freePlaces)
           ) {
             return { kind: "full" };
+          }
+          // The offer limit, as things are now (the office may have offered it meanwhile, or a
+          // place been taken): the chain stops (Phase 25.3).
+          const offeredNow = await offeredSoFar(tx, shift.id);
+          if (offeredNow >= offerLimit(current.freePlaces)) {
+            await stopWaves(tx, shift.id, payload.wave, "offer_limit", now, {
+              offered: offeredNow,
+              places: current.freePlaces,
+            });
+            return { kind: "stop", reason: "offer_limit" };
           }
           // Urgent, so the cap doesn't limit this offer; the lock makes an office offer being counted
           // at the same moment wait for it (candidates.ts).

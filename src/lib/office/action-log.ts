@@ -137,35 +137,76 @@ function range(query: LogQuery, today: string, timeZone: string) {
   return { from, to, start: midnight(from), end: midnight(addDays(to, 1)), clamped };
 }
 
+// The entries whose data lists the workers they're about (`workers: [{workerId, …}]`): a refused
+// move (src/lib/roster/firm-change.ts) and a refused rota sheet change (src/lib/roster/sheets/sync.ts).
+export const WORKER_LIST_ACTIONS = ["shift.move_refused", "roster.sheet_change_refused"] as const;
+
+const actionList = (actions: readonly string[]) =>
+  sql.join(
+    actions.map((a) => sql`${a}`),
+    sql`, `,
+  );
+
+// One look-up per way an entry can be about something, each on an index of its own (Phase 25.3:
+// the worker or session its data names, worker_ref and shift_ref; who did it; what it's about:
+// src/lib/db/schema/events.ts), instead of every entry in the dates being checked against all of
+// them (measured on 700,000 entries: 0.6 s to 154 s before, 1.5 to 4 ms after). The firm comes
+// from RLS.
+const byEntity = (type: string, ids: SQL) =>
+  sql`select x.id from events x where x.entity_type = ${type} and x.entity_id in (${ids})`;
+
 // The action log's rows about one worker (the table aliased `e`): theirs, ones naming them (as the
 // event's worker, or among its workers: a refused move or rota sheet change), and ones
 // about their bookings, requests, credentials, pay lines and queries, login links and codes. The
 // Worker filter here and their data export (src/lib/gdpr/worker-export.ts) both use it.
 export function eventsAboutWorker(w: string): SQL {
-  return sql`(
-      e.data ->> 'workerId' = ${w}
-      or e.data -> 'workers' @> jsonb_build_array(jsonb_build_object('workerId', ${w}::text))
-      or (e.actor_type = 'worker' and e.actor_id = ${w}::uuid)
-      or (e.entity_type = 'worker' and e.entity_id = ${w}::uuid)
-      or (e.entity_type = 'assignment' and e.entity_id in (
-          select a.id from assignments a where a.firm_id = e.firm_id and a.worker_id = ${w}::uuid))
-      or (e.entity_type = 'request' and e.entity_id in (
-          select r.id from requests r where r.firm_id = e.firm_id and r.worker_id = ${w}::uuid))
-      or (e.entity_type = 'credential' and e.entity_id in (
-          select c.id from credentials c where c.firm_id = e.firm_id and c.worker_id = ${w}::uuid))
-      or (e.entity_type = 'pay_record' and e.entity_id in (
-          select p.id from pay_records p where p.firm_id = e.firm_id and p.worker_id = ${w}::uuid))
-      or (e.entity_type = 'pay_query' and e.entity_id in (
-          select q.id from pay_queries q where q.firm_id = e.firm_id and q.worker_id = ${w}::uuid))
-      or (e.entity_type = 'magic_link' and e.entity_id in (
-          select m.id from magic_links m where m.firm_id = e.firm_id and m.worker_id = ${w}::uuid))
-      or (e.entity_type = 'login_request' and e.entity_id in (
-          select m.request_id from magic_links m
-           where m.firm_id = e.firm_id and m.worker_id = ${w}::uuid))
-      or (e.entity_type = 'otp_code' and e.entity_id in (
-          select o.id from otp_codes o
-            join sessions ss on ss.firm_id = o.firm_id and ss.id = o.session_id
-           where o.firm_id = e.firm_id and ss.worker_id = ${w}::uuid)))`;
+  return sql`e.id in (
+      select x.id from events x where x.worker_ref = ${w}
+      union all
+      select x.id from events x
+       where x.action in (${actionList(WORKER_LIST_ACTIONS)})
+         and x.data -> 'workers' @> jsonb_build_array(jsonb_build_object('workerId', ${w}::text))
+      union all
+      select x.id from events x where x.actor_type = 'worker' and x.actor_id = ${w}::uuid
+      union all
+      select x.id from events x where x.entity_type = 'worker' and x.entity_id = ${w}::uuid
+      union all
+      ${byEntity("assignment", sql`select a.id from assignments a where a.worker_id = ${w}::uuid`)}
+      union all
+      ${byEntity("request", sql`select r.id from requests r where r.worker_id = ${w}::uuid`)}
+      union all
+      ${byEntity("credential", sql`select c.id from credentials c where c.worker_id = ${w}::uuid`)}
+      union all
+      ${byEntity("pay_record", sql`select p.id from pay_records p where p.worker_id = ${w}::uuid`)}
+      union all
+      ${byEntity("pay_query", sql`select q.id from pay_queries q where q.worker_id = ${w}::uuid`)}
+      union all
+      ${byEntity("magic_link", sql`select m.id from magic_links m where m.worker_id = ${w}::uuid`)}
+      union all
+      ${byEntity(
+        "login_request",
+        sql`select m.request_id from magic_links m where m.worker_id = ${w}::uuid`,
+      )}
+      union all
+      ${byEntity(
+        "otp_code",
+        sql`select o.id from otp_codes o
+              join sessions ss on ss.firm_id = o.firm_id and ss.id = o.session_id
+             where ss.worker_id = ${w}::uuid`,
+      )})`;
+}
+
+// The action log's rows about one session: about it, naming it (data.shiftId), or about one of its
+// bookings or requests.
+export function eventsAboutShift(s: string): SQL {
+  return sql`e.id in (
+      select x.id from events x where x.entity_type = 'shift' and x.entity_id = ${s}::uuid
+      union all
+      select x.id from events x where x.shift_ref = ${s}
+      union all
+      ${byEntity("assignment", sql`select a.id from assignments a where a.shift_id = ${s}::uuid`)}
+      union all
+      ${byEntity("request", sql`select r.id from requests r where r.shift_id = ${s}::uuid`)})`;
 }
 
 // `before`: the event id to continue before (the cursor, read), or null for the first page.
@@ -216,16 +257,7 @@ export async function loadActionLog(
     where.push(parts.length > 0 ? sql`(${sql.join(parts, sql` or `)})` : sql`false`);
   }
   if (query.worker) where.push(eventsAboutWorker(query.worker));
-  if (query.shift) {
-    const s = query.shift;
-    where.push(sql`(
-      (e.entity_type = 'shift' and e.entity_id = ${s}::uuid)
-      or e.data ->> 'shiftId' = ${s}
-      or (e.entity_type = 'assignment' and e.entity_id in (
-          select a.id from assignments a where a.firm_id = e.firm_id and a.shift_id = ${s}::uuid))
-      or (e.entity_type = 'request' and e.entity_id in (
-          select r.id from requests r where r.firm_id = e.firm_id and r.shift_id = ${s}::uuid)))`);
-  }
+  if (query.shift) where.push(eventsAboutShift(query.shift));
 
   const { rows } = await tx.execute<Row>(sql`
     select e.id, e.action, e.actor_type, e.actor_id::text as actor_id, e.data, e.created_at,

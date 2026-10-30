@@ -463,6 +463,27 @@ export function unknownNumberAlertEmail(
   };
 }
 
+// unknown_numbers_combined (Phase 25.3; email to the same people): once, at the end of a clock hour in
+// which the firm's 5 unknown_number_alert emails were used up, for the messages that hour that got
+// no email. Like the alert, no number and no message. `from` and `to`: the hour in the firm's time
+// ("18:00", "19:00").
+export function unknownNumbersCombinedEmail(
+  firm: FirmVoice,
+  link: string, // Enquiries' Need a person (/office/enquiries?view=person)
+  hour: { messages: number; from: string; to: string },
+): { subject: string; body: string } {
+  const many = hour.messages === 1 ? "1 more message" : `${hour.messages} more messages`;
+  return {
+    subject: `${firm.name}: ${many} from numbers we don't know`,
+    body: [
+      `${many} came to the shifts line between ${hour.from} and ${hour.to} from numbers that aren't your active staff.`,
+      "We send at most 5 of these emails an hour, so this one covers the rest.",
+      `See ${hour.messages === 1 ? "it" : "them"} in Enquiries, under Need a person: ${link}`,
+      `— ${firm.signOff}`,
+    ].join("\n\n"),
+  };
+}
+
 // Call-to-text (docs/messaging-templates.md "Call-to-text recording (voice)"): what a caller hears
 // when they ring the shifts line (src/lib/inbound/voice.ts), then the tone for a voicemail. A
 // withheld number can't be sent a link, so it isn't promised one; nor is a number the login

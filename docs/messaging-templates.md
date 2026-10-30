@@ -10,7 +10,8 @@ unknown-number reply, no STOP or START confirmation (a STOP still turns texts of
 gets the caller's login link by message, as the login page does: the caller asked for it (Dylan,
 2026-10-27). Casuals reach the office in the app (proposal P8). The owner switches them on with
 `npm run firm:settings -- --firm <slug> --set auto_replies=true`. The office is emailed about at
-most 5 unknown numbers per firm an hour; the rest wait in Need a person. No words change.
+most 5 unknown numbers per firm an hour; the rest wait in Need a person, and go in one email at
+the end of that hour (`unknown_numbers_combined`, below; Phase 25.3).
 
 **How a message reaches a casual** (P2.4; the words approved by Dylan on 2026-10-28;
 `PLAN.md` "Connecting the firm's systems" 15; Messages 2): a push to the phones they turned
@@ -371,6 +372,15 @@ reach the same app, which isn't answering.
   them.") / "See it in Enquiries, under Need a person: {link}" / "— {firm} Shift Team". Neither the
   number nor the message is in the email (previews, forwards): they're on Enquiries, "Need a
   person", which the link opens (`/office/enquiries?view=person`).
+- `unknown_numbers_combined` (email, to active admins and resourcers, Phase 25.3; the mock-up
+  approved by Dylan on 2026-10-30, `unknownNumbersCombinedEmail()`): once, at the end of a clock
+  hour in which the firm's 5 `unknown_number_alert` emails were used up, for the messages that
+  hour that got no email: subject "{firm}: {2 more messages} from numbers we don't know" ("1 more
+  message"); body "{2 more messages} came to the shifts line between {18:00} and {19:00} from
+  numbers that aren't your active staff." / "We send at most 5 of these emails an hour, so this one
+  covers the rest." / "See them in Enquiries, under Need a person: {link}" ("See it" for 1) /
+  "— {firm} Shift Team". Like the alert, no number and no message (the hour in the firm's time
+  zone).
 - `credential_weekly_list` (email, Mondays 08:00, to active admins and resourcers, only when there
   is something to list): subject "{firm}: credentials expiring soon"; body "Expiring in the next 30
   days:" then "- {name}: {credential}, expires {date}" lines; "Expired in the last week (these

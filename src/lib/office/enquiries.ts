@@ -53,6 +53,12 @@ type Channel = "whatsapp" | "sms" | "voice";
 type HandledAs = "keyword" | "ai" | "office" | "unknown" | "opt_out";
 type Intent = "shifts" | "cancel" | "pay" | "office";
 
+// What a held message was sorted as (`sortedAs`), when it was one of the shifts line's own
+// answers: one sorted as the office's would have gone to a person anyway.
+const HELD_INTENTS = ["shifts", "cancel", "pay"] as const;
+const heldIntent = (v: unknown): Exclude<Intent, "office"> | null =>
+  HELD_INTENTS.find((i) => i === v) ?? null;
+
 // A message for a person that nobody has dealt with (the alias is the message's). The reply and
 // close actions use it too (src/lib/office/enquiry-actions.ts).
 export const needsPerson = (m: string): SQL =>
@@ -216,7 +222,11 @@ export async function loadEnquiries(
       view === "person"
         ? sql`and ${needsPerson("m")}`
         : view === "pay"
-          ? sql`and m.intent = 'pay'`
+          ? // A pay question, answered or waiting for a person because automatic replies are off
+            // (Phase 25.3: what it was sorted as is in its `message.received`).
+            sql`and (m.intent = 'pay' or exists (select 1 from events e
+                      where e.firm_id = m.firm_id and e.entity_id = m.id
+                        and e.action = 'message.received' and e.data ->> 'sortedAs' = 'pay'))`
           : sql``
     } ${opts.day === "today" ? sql`and m.created_at >= ${midnight}` : sql``}`;
     // Need a person: oldest first (first asked, first answered). The rest: newest first.
@@ -285,8 +295,13 @@ export interface EnquiryTimeline {
     | { how: "person"; why: "answer_failed"; code: string }
     | { how: "unknown"; repeat: boolean }
     | { how: "opt_out" }
-    | { how: "not_yet" };
-  reply: { how: "automatic"; intent: Intent | "unknown_number" | "voicemail" } | { how: "none" };
+    | { how: "not_yet" }
+    // Sorted, but automatic replies are off, so it waits for a person (Phase 25.3).
+    | { how: "held"; by: "keyword" | "ai"; intent: Exclude<Intent, "office"> };
+  reply:
+    | { how: "automatic"; intent: Intent | "unknown_number" | "voicemail" }
+    | { how: "none" }
+    | { how: "held" };
   sent:
     | { how: "sent"; channel: "whatsapp" | "sms"; at: Date; fellBackFrom: string | null }
     | { how: "failed"; channel: string; code: string; at: Date }
@@ -595,41 +610,48 @@ export async function loadEnquiry(
   const handledAs = m.handled_as;
   const intent = m.intent;
   const answerFailed = str(received?.data.answerFailed);
+  // Automatic replies off (P4.7): nothing went, and what it was sorted as is in the log.
+  const held = received?.data.replyHeld === true;
+  const sortedAs = heldIntent(received?.data.sortedAs);
   const sorted: EnquiryTimeline["sorted"] =
     m.handled_at === null
       ? { how: "not_yet" }
-      : answerFailed !== null && handledAs === "office"
-        ? { how: "person", why: "answer_failed", code: answerFailed }
-        : handledAs === "keyword" && intent
-          ? intent === "office"
-            ? { how: "person", why: "asked" }
-            : { how: "keyword", intent }
-          : handledAs === "ai" && intent
+      : held && sortedAs && (handledAs === "keyword" || handledAs === "ai")
+        ? { how: "held", by: handledAs, intent: sortedAs }
+        : answerFailed !== null && handledAs === "office"
+          ? { how: "person", why: "answer_failed", code: answerFailed }
+          : handledAs === "keyword" && intent
             ? intent === "office"
-              ? { how: "person", why: "ai_asked" }
-              : { how: "ai", intent }
-            : handledAs === "unknown"
-              ? { how: "unknown", repeat: received?.data.repeat === true }
-              : handledAs === "opt_out"
-                ? { how: "opt_out" }
-                : m.channel === "voice"
-                  ? { how: "person", why: "voicemail" }
-                  : m.body === null
-                    ? { how: "person", why: "no_text" }
-                    : {
-                        how: "person",
-                        why: "not_sorted",
-                        ...(aiReason(received?.data.aiFallback)
-                          ? { ai: aiReason(received?.data.aiFallback) }
-                          : {}),
-                      };
+              ? { how: "person", why: "asked" }
+              : { how: "keyword", intent }
+            : handledAs === "ai" && intent
+              ? intent === "office"
+                ? { how: "person", why: "ai_asked" }
+                : { how: "ai", intent }
+              : handledAs === "unknown"
+                ? { how: "unknown", repeat: received?.data.repeat === true }
+                : handledAs === "opt_out"
+                  ? { how: "opt_out" }
+                  : m.channel === "voice"
+                    ? { how: "person", why: "voicemail" }
+                    : m.body === null
+                      ? { how: "person", why: "no_text" }
+                      : {
+                          how: "person",
+                          why: "not_sorted",
+                          ...(aiReason(received?.data.aiFallback)
+                            ? { ai: aiReason(received?.data.aiFallback) }
+                            : {}),
+                        };
 
   // The automatic reply: the first one logged against the message.
   const replied = events.find(
     (e) => e.action === "message.replied" || e.action === "message.reply_failed",
   );
   const reply: EnquiryTimeline["reply"] = !replied
-    ? { how: "none" }
+    ? held
+      ? { how: "held" }
+      : { how: "none" }
     : {
         how: "automatic",
         intent:
@@ -669,7 +691,7 @@ export async function loadEnquiry(
     outcome: outcomeOf(m),
     forAPerson: forAPerson({ handledAs, intent }),
     waiting: m.waiting,
-    pay: intent === "pay",
+    pay: intent === "pay" || (held && sortedAs === "pay"),
     voicemail: m.channel === "voice",
     question: question
       ? {
@@ -921,14 +943,5 @@ export async function officeEnquiry(
     (await officeUserMay(tx, ctx.officeUserId, "enquiries"))
       ? loadEnquiry(tx, messageId, now)
       : null,
-  );
-}
-
-// The Enquiries menu badge (admins and resourcers): how many need a person.
-export async function enquiriesWaiting(ctx: OfficeContext): Promise<number | null> {
-  const { run } = parts(ctx);
-  const now = (ctx.clock ?? systemClock).now();
-  return run(ctx.firm.id, async (tx) =>
-    (await officeUserMay(tx, ctx.officeUserId, "enquiries")) ? needPersonCount(tx, now) : null,
   );
 }

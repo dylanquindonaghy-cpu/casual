@@ -688,6 +688,8 @@ async function mirror(
 
     // 6. Tell the office what's new (once: a sync that sees the same sheet says nothing), and keep
     //    what's true now for the dashboard.
+    // (Its `workers` list is how the action log finds it by worker: WORKER_LIST_ACTIONS,
+    // src/lib/office/action-log.ts.)
     if (issues.change && canon(issues.change) !== canon(existing?.sheetIssues?.change ?? null)) {
       await recordEvent(tx, system("roster.sheet_change_refused", "shift", shiftId, issues.change));
     }

@@ -382,7 +382,7 @@ describe("the names a sync couldn't use, kept for Needs attention (Phase 25.2)",
         { kind: "unreadable", name: "Event Manager (PAYE)", tab: "shifts", row: 5 },
         { kind: "unreadable", name: "Event Manager (PAYE)", tab: "staff", row: 3 },
       ],
-      more: false,
+      total: 2,
     });
     // Mapped now: the next sync finds nothing, so the items go.
     await map(f.slug, "role", "Event Manager (PAYE)", "steward");
@@ -425,7 +425,7 @@ describe("the names a sync couldn't use, kept for Needs attention (Phase 25.2)",
           endsAt: session.ends_at,
         },
       ],
-      more: false,
+      total: 1,
     });
     // Never another firm's (RLS): a second firm with its own sheet sees none of these.
     const other = await sheetFirm([], []);
@@ -507,12 +507,12 @@ describe("the names a sync couldn't use, kept for Needs attention (Phase 25.2)",
     expect(kept).toHaveLength(200);
     expect(kept.filter((r) => r.kind === "skipped_live").map((r) => r.row)).toEqual([2]);
     const needs = await needsOf(f.firmId);
-    expect([needs.items.length, needs.more]).toEqual([50, true]);
+    expect([needs.items.length, needs.total]).toEqual([50, 200]);
     expect(needs.items.at(-1)).toMatchObject({ kind: "skipped_live", row: 2 });
     expect(needs.items.slice(0, -1).every((i) => i.kind === "unreadable")).toBe(true);
   });
 
-  it("at most 200 a sync; Needs attention shows the first 50 and says there are more", async () => {
+  it("at most 200 a sync; Needs attention shows the first 50 and says how many there are", async () => {
     const rows = Array.from({ length: 205 }, (_, i) =>
       shiftRow({ ref: `E${i + 1}`, date: day, start: "09:00", end: "17:00", role: `Role (${i})` }),
     );
@@ -520,7 +520,7 @@ describe("the names a sync couldn't use, kept for Needs attention (Phase 25.2)",
     expect(await f.sync()).toMatchObject({ status: "synced", shifts: 0 });
     expect(await problemsOf(f.firmId)).toHaveLength(200);
     const needs = await needsOf(f.firmId);
-    expect([needs.items.length, needs.more]).toEqual([50, true]);
+    expect([needs.items.length, needs.total]).toEqual([50, 200]);
     expect(needs.items[0]).toEqual({ kind: "unreadable", name: "Role (0)", tab: "shifts", row: 2 });
   });
 

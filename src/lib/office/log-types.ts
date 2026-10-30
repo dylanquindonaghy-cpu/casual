@@ -110,6 +110,7 @@ export const LOG_TYPES = {
       "message.replied",
       "message.reply_failed",
       "message.office_alerted",
+      "message.office_alerts_combined",
       "message.office_alert_failed",
       "message.office_alert_skipped",
       // What the shifts line's personal reply was built from (12D.2).

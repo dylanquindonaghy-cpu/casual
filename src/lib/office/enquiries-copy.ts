@@ -205,9 +205,15 @@ export function sortedStep(
     | { how: "person"; why: "answer_failed"; code: string }
     | { how: "unknown"; repeat: boolean }
     | { how: "opt_out" }
-    | { how: "not_yet" },
+    | { how: "not_yet" }
+    | { how: "held"; by: "keyword" | "ai"; intent: Intent },
 ): string {
   switch (s.how) {
+    // Sorted, then passed to a person: automatic replies are off (Phase 25.3).
+    case "held":
+      return s.by === "keyword"
+        ? `A keyword matched: "${s.intent}". Automatic replies are off, so it was passed to a person.`
+        : `AI sorted it as "${s.intent}". Automatic replies are off, so it was passed to a person.`;
     case "keyword":
       return `A keyword matched: "${s.intent}".`;
     case "ai":
@@ -243,9 +249,16 @@ export function sortedStep(
 export const NO_CHECKS = "No checks recorded.";
 
 export function replyStep(
-  r: { how: "automatic"; intent: Intent | "unknown_number" | "voicemail" } | { how: "none" },
+  r:
+    | { how: "automatic"; intent: Intent | "unknown_number" | "voicemail" }
+    | { how: "none" }
+    | { how: "held" },
 ): string {
   if (r.how === "none") return "No automatic reply.";
+  // Automatic replies off for the firm (P4.7; Phase 25.3).
+  if (r.how === "held") {
+    return "No automatic reply: automatic replies are off for your firm. Ask us to turn them on.";
+  }
   return {
     shifts: 'The "open shifts" reply, with the link to Open shifts.',
     cancel: "The cancel reply, with the link to My shifts.",

@@ -12,6 +12,7 @@ import {
   SHEET_NAMES_INTRO,
   sheetNamePlace,
   sheetNameSkippedText,
+  showingFirst,
   uploadsText,
   webhookFailingText,
   type NeedsKey,
@@ -56,12 +57,12 @@ function Empty({ children }: { children: ReactNode }) {
 export function Need({
   id,
   n,
-  more,
+  shown = n,
   children,
 }: {
   id: NeedsKey;
-  n: number;
-  more?: boolean;
+  n: number; // how many in all (Phase 25.3: past a list's 50 too)
+  shown?: number; // how many the list holds, when it stops short of them
   children: ReactNode;
 }) {
   return (
@@ -70,11 +71,11 @@ export function Need({
         <Icon name="leaf" size={18} className="shrink-0 text-attention" />
         <h3 id={id} className="flex items-center text-lg font-bold tracking-heading">
           {NEEDS_HEADINGS[id]}
-          <span className={count}>{more ? `${n}+` : n}</span>
+          <span className={count}>{n}</span>
         </h3>
       </div>
       {children}
-      {more && <p className={`${meta} mt-2`}>Showing the first 50.</p>}
+      {n > shown && <p className={`${meta} mt-2`}>{showingFirst(shown, n)}</p>}
     </section>
   );
 }
@@ -109,12 +110,12 @@ export function NeedsItems({
   isAdmin: boolean;
   needPerson?: number; // enquiries that need a person (Phase 20: they count here too)
 }) {
-  if (needsCount(n).count === 0 && needPerson === 0) return <Empty>{SECTIONS.needs.empty}</Empty>;
+  if (needsCount(n) === 0 && needPerson === 0) return <Empty>{SECTIONS.needs.empty}</Empty>;
   const evidence = evidenceItems(n.evidence);
   return (
     <div className="flex flex-col gap-4">
       {n.toCheck.length > 0 && (
-        <Need id="to-check" n={n.toCheck.length} more={n.toCheckMore}>
+        <Need id="to-check" n={n.toCheckTotal} shown={n.toCheck.length}>
           <p className={`${headingGap} max-w-prose text-ink-muted`}>
             These people are booked, but can&apos;t work these shifts as things stand. Cancel the
             booking (they&apos;re told), or keep it.
@@ -140,7 +141,7 @@ export function NeedsItems({
       )}
 
       {n.fromSheet.length > 0 && (
-        <Need id="from-sheet" n={n.fromSheet.length} more={n.fromSheetMore}>
+        <Need id="from-sheet" n={n.fromSheetTotal} shown={n.fromSheet.length}>
           <p className={`${headingGap} max-w-prose text-ink-muted`}>
             Your rota sheet asks for these, but the app couldn&apos;t do them.
           </p>
@@ -164,7 +165,7 @@ export function NeedsItems({
       )}
 
       {n.sheetNames.length > 0 && (
-        <Need id="sheet-names" n={n.sheetNames.length} more={n.sheetNamesMore}>
+        <Need id="sheet-names" n={n.sheetNamesTotal} shown={n.sheetNames.length}>
           <p className={`${headingGap} max-w-prose text-ink-muted`}>{SHEET_NAMES_INTRO}</p>
           <ul role="list" className={items}>
             {n.sheetNames.map((x) =>
@@ -189,7 +190,7 @@ export function NeedsItems({
       )}
 
       {n.toMark.length > 0 && (
-        <Need id="to-mark" n={n.toMark.length} more={n.toMarkMore}>
+        <Need id="to-mark" n={n.toMarkTotal} shown={n.toMark.length}>
           <ul role="list" className={items}>
             {toMarkGroups(n.toMark).map((g) => (
               <li
@@ -233,7 +234,7 @@ export function NeedsItems({
       )}
 
       {n.expired.length > 0 && (
-        <Need id="expired" n={n.expired.length} more={n.expiredMore}>
+        <Need id="expired" n={n.expiredTotal} shown={n.expired.length}>
           <ul role="list" className={items}>
             {n.expired.map((e) => (
               <li key={`${e.assignmentId}-${e.type}`} className={`${item} flex flex-col gap-1`}>
@@ -307,7 +308,11 @@ export function NeedsItems({
       )}
 
       {evidence > 0 && (
-        <Need id="evidence" n={evidence} more={n.evidence.failedMore}>
+        <Need
+          id="evidence"
+          n={evidence}
+          shown={n.evidence.failed.length + (n.evidence.addressConfirmed ? 0 : 1)}
+        >
           <ul role="list" className={items}>
             {!n.evidence.addressConfirmed && (
               <li className={`${item} flex flex-col gap-2`}>
@@ -346,7 +351,7 @@ export function NeedsItems({
       )}
 
       {n.webhookFailing && (
-        <Need id="webhook" n={1} more={false}>
+        <Need id="webhook" n={1}>
           <div className={`${item} mt-3 flex flex-col gap-2`}>
             <p className={nums}>{webhookFailingText(n.webhookFailing.since, tz)}</p>
             {isAdmin ? (
@@ -361,7 +366,7 @@ export function NeedsItems({
       )}
 
       {n.plannerRefused.length > 0 && (
-        <Need id="planner-refused" n={n.plannerRefused.length} more={n.plannerRefusedMore}>
+        <Need id="planner-refused" n={n.plannerRefusedTotal} shown={n.plannerRefused.length}>
           <ul role="list" className={items}>
             {n.plannerRefused.map((r) => (
               <li key={r.shiftId} className={`${item} flex flex-col gap-1`}>

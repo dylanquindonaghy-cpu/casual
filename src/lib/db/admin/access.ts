@@ -94,6 +94,9 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   // deleted by the app (owner-run purges and erasure delete them). Their handling (P7.4) comes
   // with its column grant.
   inbound_emails: ["SELECT", "INSERT"],
+  // The planner's webhook status (Phase 25.3): one row per firm, its times changed
+  // (COLUMN_UPDATES), never whose it is; never deleted (an address removed starts it again).
+  webhook_status: ["SELECT", "INSERT"],
 };
 
 // Columns the app role may update on a table it can't update as a whole (a column-level grant).
@@ -110,6 +113,7 @@ export const COLUMN_UPDATES: Readonly<Record<string, readonly string[]>> = {
   // The planner's API keys (S11): read and added, never rewritten or deleted; only the last use
   // and the revocation change.
   api_keys: ["last_used_at", "revoked_at", "revoked_by"],
+  webhook_status: ["address_set_at", "last_delivered_at", "failing_since", "updated_at"],
   strikes: [
     "review_needed",
     "reviewed_by",

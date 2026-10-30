@@ -365,7 +365,8 @@ const moveRefusedSchema = z.strictObject({
 
 // A refused move on the record (shift.move_refused {by: "firm", reason, workers: [{workerId,
 // codes}]}, the planner's with {via: "api", keyId or sourceId} too), in a short transaction of its
-// own after the move's rolled back. Ids and rule codes only: never a name.
+// own after the move's rolled back. Ids and rule codes only: never a name. Its `workers` list is
+// how the action log finds it by worker (WORKER_LIST_ACTIONS, src/lib/office/action-log.ts).
 export async function recordMoveRefused(
   run: WithFirm,
   firmId: string,

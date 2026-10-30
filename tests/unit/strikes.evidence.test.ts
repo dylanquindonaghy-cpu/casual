@@ -313,21 +313,21 @@ describe("the log", () => {
 describe("the Needs attention item: the top bar's To check and the Needs attention page (12E.1)", () => {
   const needs = (evidence: NeedsAttention["evidence"]): NeedsAttention => ({
     toCheck: [],
-    toCheckMore: false,
+    toCheckTotal: 0,
     fromSheet: [],
-    fromSheetMore: false,
+    fromSheetTotal: 0,
     toMark: [],
-    toMarkMore: false,
+    toMarkTotal: 0,
     expired: [],
-    expiredMore: false,
+    expiredTotal: 0,
     uploads: 0,
     uploadList: [],
     evidence,
     plannerRefused: [],
-    plannerRefusedMore: false,
+    plannerRefusedTotal: 0,
     webhookFailing: null,
     sheetNames: [],
-    sheetNamesMore: false,
+    sheetNamesTotal: 0,
   });
   type View = { timeZone: string; today: string; needs: { ok: true; data: NeedsAttention } };
   const view = (evidence: NeedsAttention["evidence"]): View => ({
@@ -340,7 +340,7 @@ describe("the Needs attention item: the top bar's To check and the Needs attenti
   const toCheck = (v: View) =>
     barCounts("resourcer", {
       shell: null,
-      attention: needsCount(v.needs.data),
+      attention: { count: needsCount(v.needs.data), more: false },
       payQueries: null,
     }).find((c) => c.key === "toCheck");
   // The Needs attention page's items (the page around them only loads the data).
@@ -371,21 +371,21 @@ describe("the Needs attention item: the top bar's To check and the Needs attenti
 
   it("none while the address is confirmed and nothing failed", () => {
     const html = render(
-      view({ addressConfirmed: true, waiting: 0, failed: [], failedMore: false }),
+      view({ addressConfirmed: true, waiting: 0, failed: [], failedTotal: 0 }),
       true,
     );
     expect(html).not.toContain("Strike evidence");
-    const calm = view({ addressConfirmed: true, waiting: 0, failed: [], failedMore: false });
+    const calm = view({ addressConfirmed: true, waiting: 0, failed: [], failedTotal: 0 });
     expect(toCheck(calm)).toMatchObject({ count: 0, href: "/office/needs-attention" });
   });
 
   it("an unconfirmed address and a failed email: its part, its count (the menu's too), each linking where it's dealt with", () => {
-    const evidence = { addressConfirmed: false, waiting: 2, failed: [failed], failedMore: false };
+    const evidence = { addressConfirmed: false, waiting: 2, failed: [failed], failedTotal: 1 };
     const v = view(evidence);
     const admin = render(v, true);
     expect(admin).toContain('<h3 id="evidence"');
     expect(text(admin)).toContain("Strike evidence 2");
-    expect(needsCount(needs(evidence))).toEqual({ count: 2, more: false });
+    expect(needsCount(needs(evidence))).toBe(2);
     // From every page, the top bar's "To check" counts both items, to Needs attention (Phase 24;
     // a row in the dashboard's Needs attention list until then).
     expect(toCheck(v)).toMatchObject({
@@ -414,7 +414,7 @@ describe("the Needs attention item: the top bar's To check and the Needs attenti
           { ...failed, stuck: true },
           { ...failed, assignmentId: "4f2a9c1b-0000-4000-8000-000000000002", nothingSent: true },
         ],
-        failedMore: false,
+        failedTotal: 2,
       }),
       true,
     );

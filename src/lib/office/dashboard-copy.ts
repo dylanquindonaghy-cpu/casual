@@ -86,6 +86,10 @@ export const webhookFailingText = (since: Date, tz: string): string =>
 
 // The rota sheet's names (Needs attention, Phase 25.2; docs/screens.md "The firm's model on the
 // office's screens").
+// Under a Needs attention list that stops short (Phase 25.3): "Showing the first 50 of 400."
+export const showingFirst = (shown: number, total: number) =>
+  `Showing the first ${shown} of ${total}.`;
+
 export const SHEET_NAMES_INTRO =
   "Your rota sheet uses these names, but the app can't use them as they are.";
 

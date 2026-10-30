@@ -71,6 +71,7 @@ const offers = (o: Partial<BoardSession["offers"]> = {}): BoardSession["offers"]
   failed: 0,
   waitingSince: null,
   waitingNames: [],
+  atLimit: false,
   ...o,
 });
 
@@ -169,7 +170,7 @@ const board: Board = {
     ],
   }),
   toMark: ok({
-    more: false,
+    total: 3,
     items: [
       // Two alike (one card), one on its own.
       ...["m1", "m2"].map((id) => ({
@@ -329,6 +330,43 @@ describe("the dashboard's words", () => {
     expect(
       bannerText(session({ shiftId: "x", offers: offers({ sent: 2, saidNo: 2 }) }), NOW, TZ),
     ).toEqual({ text: "No offers out. Offer it to someone else.", tone: "red" });
+    // The waves stopped at the most for its free places (Phase 25.3): said so, with the count.
+    expect(
+      bannerText(
+        session({ shiftId: "x", placesFree: 1, offers: offers({ sent: 25, atLimit: true }) }),
+        NOW,
+        TZ,
+      ),
+    ).toEqual({
+      text: "Offers stopped: 25 casuals were offered it, the most for 1 place. Offer it to someone yourself.",
+      tone: "red",
+    });
+    expect(
+      bannerText(
+        session({ shiftId: "x", placesFree: 2, offers: offers({ sent: 50, atLimit: true }) }),
+        NOW,
+        TZ,
+      ).text,
+    ).toBe(
+      "Offers stopped: 50 casuals were offered it, the most for 2 places. Offer it to someone yourself.",
+    );
+    // While offers wait, that comes first.
+    expect(
+      bannerText(
+        session({
+          shiftId: "x",
+          offers: offers({
+            sent: 25,
+            waiting: 1,
+            atLimit: true,
+            waitingSince: at("2026-10-26T11:00:00Z"),
+            waitingNames: ["Mo Rahman"],
+          }),
+        }),
+        NOW,
+        TZ,
+      ).text,
+    ).toBe("Mo Rahman hasn't replied since 11:00.");
     // Hidden from casuals comes first: it can't be offered at all.
     expect(bannerText({ ...nll1, hidden: true }, NOW, TZ)).toEqual({
       text: "Hidden from casuals, so it can't be offered. Show it to casuals first.",
@@ -592,7 +630,7 @@ describe("the dashboard page", () => {
         chosen: null,
       }),
       overnight: ok({ ...(board.overnight.ok ? board.overnight.data : ({} as never)), takes: [] }),
-      toMark: ok({ items: [], more: false }),
+      toMark: ok({ items: [], total: 0 }),
     };
     const html = render(none);
     expect(words(section(html, "to-offer"))).toContain("No places to fill.");

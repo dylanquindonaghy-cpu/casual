@@ -30,6 +30,19 @@ export interface Names {
   site?: (id: unknown) => string; // a site's name ("Riverside Arena")
 }
 
+// A message the shifts line didn't answer by itself, and an alert left for the hour's one email
+// (Phase 25.3; docs/screens.md "The office for a big firm").
+export const HELD_REPLY_LOG = "No automatic reply (they're off): it's waiting for a person.";
+export const HELD_ALERT_LOG =
+  "No email about it yet: 5 already went this hour, so it'll be in one email for the rest.";
+
+// "Offers stopped: 25 casuals were offered it, the most for 1 place" (Phase 25.3).
+export function offerLimitText(offered: number, places: number): string {
+  return `Offers stopped: ${offered} casuals were offered it, the most for ${places === 1 ? "1 place" : `${places} places`}`;
+}
+
+const isClock = (v: unknown): v is string => typeof v === "string" && /^\d\d:\d\d$/.test(v);
+
 const LINK_REFUSED: Record<string, string> = {
   expired: "it had run out",
   used: "it had been used already",
@@ -351,6 +364,10 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     case "offer.wave_held":
       return "Offers waiting for quiet hours to end.";
     case "offer.waves_stopped":
+      // At the most offers for its free places (Phase 25.3: OFFER_LIMIT_PER_PLACE).
+      if (d.reason === "offer_limit") {
+        return `${offerLimitText(Number(d.offered ?? 0), Number(d.places ?? 1))}.`;
+      }
       return d.reason === "hidden"
         ? "Offers stopped: it's hidden from casuals."
         : "Offers stopped.";
@@ -387,14 +404,20 @@ export function eventWords(e: LoggedEvent, names: Names): string {
             : `from ${worker}`;
         return `${voicemail ? "A voicemail" : `A ${kind}`} ${from} couldn't be answered automatically (${d.answerFailed}), so it's waiting for a person.`;
       }
+      // Automatic replies off (P4.7; Phase 25.3): no reply went, and it waits for a person; past the
+      // hour's 5 alerts, the office hears in one email at the end of the hour.
+      const heldReply = d.replyHeld === true ? ` ${HELD_REPLY_LOG}` : "";
+      const heldAlert = d.alertHeld === true ? ` ${HELD_ALERT_LOG}` : "";
       if (d.handledAs === "unknown") {
         return d.formerWorker
-          ? `${what} the shifts line from someone who isn't active any more.`
-          : `${what} the shifts line from a number that isn't one of your staff.`;
+          ? `${what} the shifts line from someone who isn't active any more.${heldReply}${heldAlert}`
+          : `${what} the shifts line from a number that isn't one of your staff.${heldReply}${heldAlert}`;
       }
+      // Held: what it was sorted as (the stored intent is the office's: a person answers it).
+      const about = d.replyHeld === true ? String(d.sortedAs) : String(d.intent);
       return voicemail
-        ? `${who} left a voicemail on the shifts line (for the office).`
-        : `${who} sent a ${kind} to the shifts line (${INTENT_WORDS[String(d.intent)] ?? "a message"}${d.handledAs === "ai" ? ", sorted by AI" : ""}).`;
+        ? `${who} left a voicemail on the shifts line (for the office).${heldReply}`
+        : `${who} sent a ${kind} to the shifts line (${INTENT_WORDS[about] ?? "a message"}${d.handledAs === "ai" ? ", sorted by AI" : ""}).${heldReply}`;
     }
     case "call.received":
       return d.withheld
@@ -421,6 +444,20 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       const people = (n: number) => (n === 1 ? "1 person" : `${n} people`);
       const failed = Number(d.failed ?? 0);
       return `The office was emailed about a message from ${d.reason === "former_worker" ? "someone who isn't active any more" : "a number we don't know"} (${people(Number(d.recipients ?? 0))}${failed > 0 ? `; ${failed} couldn't be emailed` : ""}).`;
+    }
+    case "message.office_alerts_combined": {
+      // The hour's one email for the messages past its 5 alerts (Phase 25.3), its hour in the
+      // firm's time as the job wrote it.
+      const n = Number(d.messages ?? 0);
+      const many = n === 1 ? "1 more message" : `${n} more messages`;
+      const hour = isClock(d.from) && isClock(d.to) ? `, ${d.from} to ${d.to}` : "";
+      const recipients = Number(d.recipients ?? 0);
+      const failed = Number(d.failed ?? 0);
+      if (recipients === 0 && failed === 0) {
+        return `Nobody in the office could be emailed about ${many} from numbers we don't know${hour} (no active admin or resourcer with an email address). They're on Enquiries.`;
+      }
+      const people = (k: number) => (k === 1 ? "1 person" : `${k} people`);
+      return `The office was emailed once about ${many} from numbers we don't know${hour} (${people(recipients)}${failed > 0 ? `; ${failed} couldn't be emailed` : ""}).`;
     }
     case "message.office_alert_failed":
       return "Emailing the office about a message from a number we don't know failed.";

@@ -137,7 +137,7 @@ describe("the to-do parts", () => {
       toCheck: [[t.tomorrow, "inactive"]],
       fromSheet: [t.sheetShift],
       toMark: [[t.ended, 1]],
-      evidence: { addressConfirmed: false, waiting: 0, failed: [], failedMore: false },
+      evidence: { addressConfirmed: false, waiting: 0, failed: [], failedTotal: 0 },
     });
   });
 
@@ -164,14 +164,14 @@ describe("the to-do parts", () => {
         stopped: null,
         escalated: false,
       },
-      toCheck: { items: [], more: false },
-      fromSheet: { items: [], more: false },
-      toMark: { items: [], more: false },
+      toCheck: { items: [], total: 0 },
+      fromSheet: { items: [], total: 0 },
+      toMark: { items: [], total: 0 },
       failed: [],
     });
   });
 
-  it("says when a list stopped at 50", async () => {
+  it("says when a list stopped at 50, and how many there are in all (Phase 25.3)", async () => {
     const f = await bookingFirm(su, withFirm);
     const ben = await f.worker({ first: "Ben" });
     await su.query(
@@ -187,6 +187,6 @@ describe("the to-do parts", () => {
     );
     const toMark = await withFirm(f.firmId, (tx) => loadToMark(tx, NOW));
     expect(toMark.items).toHaveLength(50);
-    expect(toMark.more).toBe(true);
+    expect(toMark.total).toBe(51);
   });
 });

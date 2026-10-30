@@ -5,9 +5,7 @@ import type { FirmTx } from "../db/scoped";
 import { errorCode } from "../jobs/firm-job";
 import { log } from "../log";
 import { rulesSettingsSchema } from "../roster/eligibility-input";
-import { localDateOf } from "../time/zoned";
 import { waitingCount, waitingUploads, type WaitingUpload } from "./casuals";
-import { needPersonCount } from "./enquiries";
 import { bookedJoin, urgentGap } from "./events";
 import { officeUserMay, parts, type OfficeContext } from "./office-context";
 import {
@@ -32,7 +30,7 @@ import { webhookStatus } from "./webhook-settings";
 // (Phase 24), whose parts are read the same way; Phase 23's count cards, urgent cards and charts
 // were read here until then.
 
-export const NEEDS_MAX = 50; // each Needs attention list stops here ("more" says there were others)
+export const NEEDS_MAX = 50; // each Needs attention list stops here (its total: how many in all)
 
 // A part of the page: its data, or that it couldn't be read.
 export type Part<T> = { ok: true; data: T } | { ok: false };
@@ -71,26 +69,28 @@ export interface PlannerRefusal {
   casuals: number; // for a move: the booked casuals who can't work it
 }
 
+// Each list holds its first 50; its total is how many there are in all (Phase 25.3: the heading's
+// number, and "Showing the first 50 of 400.").
 export interface NeedsAttention {
   toCheck: TodayBookingToCheck[];
-  toCheckMore: boolean;
+  toCheckTotal: number;
   fromSheet: TodaySheetIssue[];
-  fromSheetMore: boolean;
+  fromSheetTotal: number;
   toMark: TodayToMark[];
-  toMarkMore: boolean;
+  toMarkTotal: number;
   expired: ExpiredOnBooking[];
-  expiredMore: boolean;
+  expiredTotal: number;
   uploads: number; // uploads waiting for a check (12F.2)
   uploadList: WaitingUpload[]; // the first LIST_MAX of them, oldest first (Phase 20)
   evidence: TodayEvidence;
   plannerRefused: PlannerRefusal[];
-  plannerRefusedMore: boolean;
+  plannerRefusedTotal: number;
   // Your planner's webhook is failing (12J.2): its latest delivery gave up after the last try, and
   // the address is still set. One item, from the first failure since it last worked.
   webhookFailing: { since: Date } | null;
   // The names the rota sheet's last sync couldn't use (Phase 25.2; sheet_name_problems).
   sheetNames: SheetName[];
-  sheetNamesMore: boolean;
+  sheetNamesTotal: number;
 }
 
 // One of the rota sheet's names (Phase 25.2): a role its last sync couldn't read (the row isn't
@@ -110,52 +110,42 @@ export type SheetName =
 
 // "Strike evidence" items: each failed email, and the strikes team's address while it isn't set
 // and confirmed.
-export const evidenceItems = (e: TodayEvidence) => e.failed.length + (e.addressConfirmed ? 0 : 1);
+export const evidenceItems = (e: TodayEvidence) => e.failedTotal + (e.addressConfirmed ? 0 : 1);
 
-// The bell's number: every item in Needs attention ("more": a list stopped at 50).
-export function needsCount(n: NeedsAttention): { count: number; more: boolean } {
-  return {
-    count:
-      n.toCheck.length +
-      n.fromSheet.length +
-      n.toMark.length +
-      n.expired.length +
-      n.uploads +
-      evidenceItems(n.evidence) +
-      n.plannerRefused.length +
-      n.sheetNames.length +
-      (n.webhookFailing ? 1 : 0),
-    more:
-      n.toCheckMore ||
-      n.fromSheetMore ||
-      n.toMarkMore ||
-      n.expiredMore ||
-      n.evidence.failedMore ||
-      n.plannerRefusedMore ||
-      n.sheetNamesMore,
-  };
+// The bell's number: every item in Needs attention, past a list's 50 too (Phase 25.3).
+export function needsCount(n: NeedsAttention): number {
+  return (
+    n.toCheckTotal +
+    n.fromSheetTotal +
+    n.toMarkTotal +
+    n.expiredTotal +
+    n.uploads +
+    evidenceItems(n.evidence) +
+    n.plannerRefusedTotal +
+    n.sheetNamesTotal +
+    (n.webhookFailing ? 1 : 0)
+  );
 }
 
 // One count of what needs a person in the office (Phase 20): Needs attention's items and the
 // enquiries that need a person, as the menu's "Needs attention" shows it and the dashboard's
 // headline adds the urgent places to.
-export function attentionCount(
-  n: NeedsAttention,
-  needPerson: number,
-): { count: number; more: boolean } {
-  const items = needsCount(n);
-  return { count: items.count + needPerson, more: items.more };
+export function attentionCount(n: NeedsAttention, needPerson: number): number {
+  return needsCount(n) + needPerson;
 }
 
-// Needs attention's page count from its parts: null when the items couldn't be read; "at least"
+// Needs attention's count from its parts: null when the items couldn't be read; "at least"
 // (`more`) when the enquiries that need a person couldn't be.
 export function attentionOf(
   needs: Part<NeedsAttention>,
-  needPerson: Part<number>,
+  needPerson: Part<number> | null,
 ): { count: number; more: boolean } | null {
   if (!needs.ok) return null;
-  const n = attentionCount(needs.data, needPerson.ok ? needPerson.data : 0);
-  return { ...n, more: n.more || !needPerson.ok };
+  const known = needPerson === null || needPerson.ok;
+  return {
+    count: attentionCount(needs.data, needPerson?.ok ? needPerson.data : 0),
+    more: !known,
+  };
 }
 
 export async function part<T>(
@@ -171,7 +161,7 @@ export async function part<T>(
   }
 }
 
-async function firmFacts(tx: FirmTx) {
+export async function firmFacts(tx: FirmTx) {
   const [firm] = await tx
     .select({ timezone: firms.timezone, settings: firms.settings })
     .from(firms)
@@ -278,7 +268,7 @@ export async function loadExpiredOnBookings(
   tx: FirmTx,
   now: Date,
   timeZone: string,
-): Promise<{ items: ExpiredOnBooking[]; more: boolean }> {
+): Promise<{ items: ExpiredOnBooking[]; total: number }> {
   const { rows } = await tx.execute<{
     assignment_id: string;
     worker_id: string;
@@ -290,10 +280,12 @@ export async function loadExpiredOnBookings(
     type: string;
     type_name: string | null;
     expires_on: string | null;
+    total: number;
   }>(sql`
     with out_of_date as (${await outOfDateBookings(tx, now, timeZone)})
     select o.assignment_id::text, o.worker_id::text, w.first_name, w.last_name,
            o.shift_id::text, o.role, o.starts_at, o.type, ct.name as type_name,
+           (count(*) over ())::int as total,
            -- The date it ran out, from records dated before the session's last day (one marked
            -- expired with a later date, or none, reads "marked as expired").
            (select max(c.expires_on)::text from credentials c
@@ -305,11 +297,11 @@ export async function loadExpiredOnBookings(
       join workers w on w.firm_id = o.firm_id and w.id = o.worker_id
       left join credential_types ct on ct.firm_id = o.firm_id and ct.code = o.type
      order by o.starts_at, w.last_name, w.first_name, o.type
-     limit ${NEEDS_MAX + 1}
+     limit ${NEEDS_MAX}
   `);
   return {
-    more: rows.length > NEEDS_MAX,
-    items: rows.slice(0, NEEDS_MAX).map((r) => ({
+    total: rows[0]?.total ?? 0,
+    items: rows.map((r) => ({
       assignmentId: r.assignment_id,
       workerId: r.worker_id,
       worker: `${r.first_name} ${r.last_name}`,
@@ -334,7 +326,7 @@ export async function loadExpiredOnBookings(
 export async function loadPlannerRefusals(
   tx: FirmTx,
   now: Date,
-): Promise<{ items: PlannerRefusal[]; more: boolean }> {
+): Promise<{ items: PlannerRefusal[]; total: number }> {
   const { rows } = await tx.execute<{
     shift_id: string;
     role: string;
@@ -345,9 +337,11 @@ export async function loadPlannerRefusals(
     code: string | null;
     casuals: number;
     refused_at: string | Date;
+    total: number;
   }>(sql`
     select s.id::text as shift_id, s.role, s.starts_at, s.ends_at, si.name as site_name,
-           r.action, r.code, r.casuals, r.created_at as refused_at
+           r.action, r.code, r.casuals, r.created_at as refused_at,
+           (count(*) over ())::int as total
       from shifts s
       left join sites si on si.firm_id = s.firm_id and si.id = s.site_id
       cross join lateral (
@@ -372,11 +366,11 @@ export async function loadPlannerRefusals(
                         where a.firm_id = s.firm_id and a.shift_id = s.id and c.id > r.id
                           and c.action in ('shift.moved', 'shift.curtailed', 'shift.cancelled'))
      order by s.starts_at, s.id
-     limit ${NEEDS_MAX + 1}
+     limit ${NEEDS_MAX}
   `);
   return {
-    more: rows.length > NEEDS_MAX,
-    items: rows.slice(0, NEEDS_MAX).map((r) => ({
+    total: rows[0]?.total ?? 0,
+    items: rows.map((r) => ({
       shiftId: r.shift_id,
       role: r.role,
       site: r.site_name,
@@ -401,7 +395,7 @@ export async function loadPlannerRefusals(
 export async function loadSheetNames(
   tx: FirmTx,
   now: Date,
-): Promise<{ items: SheetName[]; more: boolean }> {
+): Promise<{ items: SheetName[]; total: number }> {
   const { rows } = await tx.execute<{
     kind: "unreadable" | "skipped_live";
     tab: "staff" | "shifts";
@@ -412,9 +406,10 @@ export async function loadSheetNames(
     site_name: string | null;
     starts_at: string | Date | null;
     ends_at: string | Date | null;
+    total: number;
   }>(sql`
     select p.kind, p.tab, p.row, p.outside_name, s.id::text as shift_id, s.role,
-           si.name as site_name, s.starts_at, s.ends_at
+           si.name as site_name, s.starts_at, s.ends_at, (count(*) over ())::int as total
       from sheet_name_problems p
       join roster_sources r on r.firm_id = p.firm_id and r.id = p.source_id
                            and r.enabled and r.kind = 'sheets'
@@ -423,13 +418,12 @@ export async function loadSheetNames(
      where p.kind = 'unreadable'
         or (s.status <> 'cancelled' and s.starts_at > ${now})
      order by (p.kind = 'skipped_live') desc, s.starts_at, p.tab, p.row
-     limit ${NEEDS_MAX + 1}
+     limit ${NEEDS_MAX}
   `);
   const items: SheetName[] = [];
-  const kept = rows.slice(0, NEEDS_MAX);
   const shown = [
-    ...kept.filter((r) => r.kind === "unreadable"),
-    ...kept.filter((r) => r.kind === "skipped_live"),
+    ...rows.filter((r) => r.kind === "unreadable"),
+    ...rows.filter((r) => r.kind === "skipped_live"),
   ];
   for (const r of shown) {
     if (r.kind === "unreadable") {
@@ -447,7 +441,7 @@ export async function loadSheetNames(
       });
     }
   }
-  return { items, more: rows.length > NEEDS_MAX };
+  return { items, total: rows[0]?.total ?? 0 };
 }
 
 export async function loadNeedsAttention(
@@ -464,62 +458,33 @@ export async function loadNeedsAttention(
   const sheetNames = await loadSheetNames(tx, now);
   return {
     toCheck: toCheck.items,
-    toCheckMore: toCheck.more,
+    toCheckTotal: toCheck.total,
     fromSheet: fromSheet.items,
-    fromSheetMore: fromSheet.more,
+    fromSheetTotal: fromSheet.total,
     toMark: toMark.items,
-    toMarkMore: toMark.more,
+    toMarkTotal: toMark.total,
     expired: expired.items,
-    expiredMore: expired.more,
+    expiredTotal: expired.total,
     uploads: await waitingCount(tx),
     uploadList: await waitingUploads(tx, LIST_MAX),
     evidence: await loadEvidence(tx, now),
     plannerRefused: plannerRefused.items,
-    plannerRefusedMore: plannerRefused.more,
+    plannerRefusedTotal: plannerRefused.total,
     webhookFailing: webhook.status.kind === "failing" ? { since: webhook.status.since } : null,
     sheetNames: sheetNames.items,
-    sheetNamesMore: sheetNames.more,
+    sheetNamesTotal: sheetNames.total,
   };
 }
 
-// Needs attention's items, for the menu's count (Phase 20; the bell's before): how many items it
-// holds (null for anyone without the dashboard; a null count when it couldn't be read: the menu
-// then shows no number). The layout adds the enquiries that need a person (attentionCount).
-export async function needsAttentionBell(
-  ctx: OfficeContext,
-): Promise<{ count: number | null; more: boolean } | null> {
+// "Also needs you" on Needs attention's page (Phase 20): the urgent places still to fill, so the
+// page's count and the dashboard's add up; null for anyone without the dashboard. The page's items
+// and its count come from the office frame (frame.ts; Phase 25.3), read once a request.
+export async function officeUrgentCount(ctx: OfficeContext): Promise<UrgentCount | null> {
   const { run } = parts(ctx);
   const now = (ctx.clock ?? systemClock).now();
-  return run(ctx.firm.id, async (tx) => {
-    if (!(await officeUserMay(tx, ctx.officeUserId, "today"))) return null;
-    const { timeZone } = await firmFacts(tx);
-    const needs = await part(tx, "bell", (sp) => loadNeedsAttention(sp, now, timeZone));
-    return needs.ok ? needsCount(needs.data) : { count: null, more: false };
-  });
-}
-
-// Needs attention on its own page (Phase 18; the bell opens it), for an admin or resourcer, or
-// null (anyone else, or logged out): its items, or that they couldn't be read.
-// Phase 20: with the enquiries that need a person (they count here too) and the urgent places
-// ("Also needs you"), so the page's count and the dashboard's add up.
-export async function officeNeedsAttention(ctx: OfficeContext): Promise<{
-  timeZone: string;
-  today: string;
-  needs: Part<NeedsAttention>;
-  needPerson: Part<number>;
-  urgent: UrgentCount;
-} | null> {
-  const { run } = parts(ctx);
-  const now = (ctx.clock ?? systemClock).now();
-  return run(ctx.firm.id, async (tx) => {
-    if (!(await officeUserMay(tx, ctx.officeUserId, "today"))) return null;
-    const { timeZone } = await firmFacts(tx);
-    return {
-      timeZone,
-      today: localDateOf(now, timeZone),
-      needs: await part(tx, "needs", (sp) => loadNeedsAttention(sp, now, timeZone)),
-      needPerson: await part(tx, "need-person", (sp) => needPersonCount(sp, now)),
-      urgent: await part(tx, "urgent-count", (sp) => urgentCount(sp, now)),
-    };
-  });
+  return run(ctx.firm.id, async (tx) =>
+    (await officeUserMay(tx, ctx.officeUserId, "today"))
+      ? part(tx, "urgent-count", (sp) => urgentCount(sp, now))
+      : null,
+  );
 }

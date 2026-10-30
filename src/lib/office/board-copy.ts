@@ -10,6 +10,7 @@ import type {
   OfferChannel,
   OvernightTake,
 } from "./dashboard-board";
+import { offerLimitText } from "./event-words";
 import type { PlannerLink } from "./integrations";
 import type { TodayToMark } from "./today";
 
@@ -155,7 +156,7 @@ export function repliesText(o: BoardSession["offers"]): string {
 // The detail card's banner: what's in the way of filling it. Amber while offers wait ("Mo Rahman
 // hasn't replied since 07:19."), red when nothing is out or casuals can't see it.
 export function bannerText(
-  s: Pick<BoardSession, "hidden" | "offers">,
+  s: Pick<BoardSession, "hidden" | "offers" | "placesFree">,
   now: Date,
   timeZone: string,
 ): { text: string; tone: "amber" | "red" } {
@@ -177,6 +178,13 @@ export function bannerText(
     return { text: `${who} replied since ${since}.`, tone: "amber" };
   }
   if (o.sent === 0) return { text: "Not offered to anyone yet.", tone: "red" };
+  // The waves stopped at the most for its free places (Phase 25.3).
+  if (o.atLimit) {
+    return {
+      text: `${offerLimitText(o.sent, s.placesFree)}. Offer it to someone yourself.`,
+      tone: "red",
+    };
+  }
   return { text: "No offers out. Offer it to someone else.", tone: "red" };
 }
 

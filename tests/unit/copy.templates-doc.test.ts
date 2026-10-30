@@ -35,6 +35,7 @@ import {
   shiftUrgentMessage,
   shiftUrgentSms,
   unknownNumberAlertEmail,
+  unknownNumbersCombinedEmail,
   smsStartedMessage,
   smsStoppedMessage,
   unknownNumberMessage,
@@ -278,6 +279,38 @@ describe("the code says what the doc says", () => {
     expect(words(unknownNumberAlertEmail(docVoice, "{link}", { askedName: false }).body)).toEqual(
       words([first, notReplied, see, signOff].join(" ")),
     );
+  });
+
+  it("the hour's one email for the rest (unknown_numbers_combined, Phase 25.3): subject and words", () => {
+    const office = section("Office notifications");
+    const [subject, one, body, why, see, seeOne, signOff] = quotes(
+      office,
+      "`unknown_numbers_combined`",
+    );
+    // The doc's {placeholders}, as the code fills them.
+    const fill = (text = "") =>
+      text
+        .replace("{2 more messages}", "2 more messages")
+        .replace("{18:00}", "18:00")
+        .replace("{19:00}", "19:00");
+    const email = unknownNumbersCombinedEmail(docVoice, "{link}", {
+      messages: 2,
+      from: "18:00",
+      to: "19:00",
+    });
+    expect(email.subject).toBe(fill(subject));
+    expect(words(email.body)).toEqual(words(fill([body, why, see, signOff].join(" "))));
+    // One: "1 more message", "See it".
+    const single = unknownNumbersCombinedEmail(docVoice, "{link}", {
+      messages: 1,
+      from: "18:00",
+      to: "19:00",
+    });
+    expect(one).toBe("1 more message");
+    expect(seeOne).toBe("See it");
+    expect(single.subject).toBe(fill(subject).replace("2 more messages", one ?? ""));
+    expect(single.body).toContain(`${one} came to the shifts line between 18:00 and 19:00`);
+    expect(single.body).toContain(`${seeOne} in Enquiries, under Need a person: {link}`);
   });
 
   it("the shifts line's instant replies: each row's words, signed", () => {
@@ -867,6 +900,7 @@ describe("every template function is checked here", () => {
         "shiftUrgentMessage",
         "shiftUrgentSms",
         "unknownNumberAlertEmail",
+        "unknownNumbersCombinedEmail",
         "unknownNumberMessage",
         "smsStartedMessage",
         "smsStoppedMessage",

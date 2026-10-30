@@ -9,17 +9,34 @@ import {
   attentionCount,
   loadExpiredOnBookings,
   loadNeedsAttention,
-  needsAttentionBell,
   needsCount,
-  officeNeedsAttention,
+  officeUrgentCount,
   part,
 } from "@/lib/office/dashboard";
-import { officeShellCounts } from "@/lib/office/shell-counts";
+import { loadOfficeFrame } from "@/lib/office/frame";
 import { cancelBooking } from "@/lib/roster/cancel";
 import { recordMoveRefused } from "@/lib/roster/firm-change";
 import { bookingFirm, hoursFromNow, NOW } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
 import { answer, apiDeps, apiRequest, plannerKey } from "../helpers/planner-api";
+
+// As the office reads them (Phase 25.3: one office frame a request, src/lib/office/frame.ts): the
+// menu's Needs attention count (null for a role without the dashboard), Needs attention's page
+// (the frame's items and enquiries, and its urgent places) and the top bar's sessions.
+type Ctx = Parameters<typeof loadOfficeFrame>[0];
+async function needsAttentionBell(ctx: Ctx): Promise<number | null> {
+  const needs = (await loadOfficeFrame(ctx)).needs;
+  if (!needs) return null;
+  if (!needs.needs.ok) throw new Error("Needs attention didn't load");
+  return needsCount(needs.needs.data);
+}
+async function officeNeedsAttention(ctx: Ctx) {
+  const frame = await loadOfficeFrame(ctx);
+  const urgent = await officeUrgentCount(ctx);
+  if (!frame.needs || !urgent || !frame.needPerson) return null;
+  return { ...frame.needs, needPerson: frame.needPerson, urgent };
+}
+const officeShellCounts = async (ctx: Ctx) => (await loadOfficeFrame(ctx)).shell;
 
 // Needs attention (docs/office-v2.md 3.2, 3.9; 12E.1) on the real database, as the app role: its
 // items (a qualification out of date on a booked session read as the rules read it; the planner's
@@ -93,7 +110,7 @@ describe("Needs attention: a qualification out of date on a booked session", () 
     const dev = await t.worker({ first: "Dev" });
     await t.booking(dev, await t.shift({ startsAt: hoursFromNow(121) }));
     const got = await t.items();
-    expect(got.more).toBe(false);
+    expect(got.total).toBe(2);
     expect(got.items).toEqual([
       {
         assignmentId: benBooking,
@@ -242,7 +259,7 @@ describe("Needs attention and the bell", () => {
     expect(n.uploads).toBe(2);
     // The strikes team's address isn't set: one more item.
     expect(n.evidence.addressConfirmed).toBe(false);
-    expect(needsCount(n)).toEqual({ count: 1 + 1 + 1 + 2 + 1, more: false });
+    expect(needsCount(n)).toBe(1 + 1 + 1 + 2 + 1);
 
     const admin = await t.office("admin");
     const bell = await needsAttentionBell({
@@ -251,7 +268,7 @@ describe("Needs attention and the bell", () => {
       run: withFirm,
       clock,
     });
-    expect(bell).toEqual({ count: 6, more: false });
+    expect(bell).toBe(6);
     const payroll = await t.office("payroll");
     expect(
       await needsAttentionBell({ firm: { id: t.firmId }, officeUserId: payroll, run: withFirm }),
@@ -307,11 +324,8 @@ describe("Needs attention and the bell", () => {
       data: { sessions: 1, places: 2, firstStartsAt: hoursFromNow(5) },
     });
     // Its count, as the menu's: the 2 uploads, the strikes team's address not set, the enquiry.
-    expect(attentionCount(page.needs.data, page.needPerson.ok ? page.needPerson.data : -1)).toEqual(
-      {
-        count: 2 + 1 + 1,
-        more: false,
-      },
+    expect(attentionCount(page.needs.data, page.needPerson.ok ? page.needPerson.data : -1)).toBe(
+      2 + 1 + 1,
     );
     // The top bar reads the same figures: its Urgent is these urgent places, its To check this
     // count (Phase 24).
@@ -329,7 +343,7 @@ describe("Needs attention and the bell", () => {
         run: withFirm,
         clock,
       }),
-    ).toEqual({ count: 2 + 1, more: false });
+    ).toBe(2 + 1);
   });
 });
 
@@ -416,14 +430,14 @@ describe("Needs attention: your planner's change was refused", () => {
       casuals: 0,
     });
     // The strikes team's address isn't set (one item), plus the refused change.
-    expect(await t.bell()).toEqual({ count: 2, more: false });
+    expect(await t.bell()).toBe(2);
     // Sent again as it is now: nothing changes or is logged, so it stays.
     expect((await t.put("S-1", plain())).body.result).toBe("unchanged");
     expect(await t.refused()).toEqual([[id, "session_has_bookings", 0]]);
     // A later change that went through (shift.changed) clears it.
     expect((await t.put("S-1", plain({ pay_rate_pence: 1500 }))).body.result).toBe("updated");
     expect(await t.refused()).toEqual([]);
-    expect(await t.bell()).toEqual({ count: 1, more: false });
+    expect(await t.bell()).toBe(1);
   });
 
   it("places taken away from a booking show; a booking cancelled after it clears it, and a newer refusal shows again", async () => {
@@ -527,9 +541,9 @@ describe("Needs attention: your planner's change was refused", () => {
       "session_has_bookings",
     ]);
     expect(await b.refused()).toEqual([[theirs, "session_has_bookings", 0]]);
-    expect(await b.bell()).toEqual({ count: 2, more: false });
+    expect(await b.bell()).toBe(2);
     expect(await a.refused()).toEqual([]);
-    expect(await a.bell()).toEqual({ count: 1, more: false });
+    expect(await a.bell()).toBe(1);
     expect(JSON.stringify(await a.needs())).not.toContain(theirs);
     // B's admin asking under A's firm: nothing.
     expect(
@@ -615,7 +629,7 @@ describe("isolation", () => {
       plannerRefused: [],
       webhookFailing: null,
     });
-    expect(needsCount(mine)).toEqual({ count: 1, more: false });
+    expect(needsCount(mine)).toBe(1);
     const text = JSON.stringify(mine);
     for (const word of ["Bertram", "Lenora", "Marcella", "call me", gap, ben, ended, b.firmId]) {
       expect(text).not.toContain(word);
@@ -627,7 +641,7 @@ describe("isolation", () => {
       run: withFirm,
       clock,
     });
-    expect(await needsAttentionBell(ctx(a.firmId, admin))).toEqual({ count: 1, more: false });
+    expect(await needsAttentionBell(ctx(a.firmId, admin))).toBe(1);
     // Needs attention's page (Phase 20): B's upload by name, its enquiry and its urgent place;
     // none of them in A's.
     const page = (firmId: string, officeUserId: string) =>

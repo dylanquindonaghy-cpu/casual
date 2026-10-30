@@ -11,7 +11,6 @@ import {
   type BoardShow,
 } from "@/lib/office/dashboard-board";
 import { headLine } from "@/lib/office/board-copy";
-import { officeNeedsAttention } from "@/lib/office/dashboard";
 import {
   offerState,
   offerStateSql,
@@ -19,7 +18,7 @@ import {
   type OfferState,
   type OfferWhy,
 } from "@/lib/office/offer-state";
-import { officeShellCounts } from "@/lib/office/shell-counts";
+import { loadOfficeFrame } from "@/lib/office/frame";
 import { DEFAULT_PAY_CALENDAR } from "@/lib/pay/calendar";
 import { bookingFirm, hoursFromNow, NOW, type BookingFirm } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
@@ -283,7 +282,7 @@ describe("the track's filters and counts", () => {
     const t = await boardFirm();
     const g = ok((await t.load()).gaps);
     const urgent = ok((await t.load("urgent")).gaps);
-    const shell = await officeShellCounts({
+    const { shell } = await loadOfficeFrame({
       firm: { id: t.f.firmId },
       officeUserId: t.admin,
       run: withFirm,
@@ -492,14 +491,17 @@ describe("Who worked?", () => {
     const done = await t.f.shift({ startsAt: hoursFromNow(-30) });
     await t.f.booking(t.ann, done);
     const b = await t.load();
-    const n = await officeNeedsAttention({
-      firm: { id: t.f.firmId },
-      officeUserId: t.admin,
-      run: withFirm,
-      clock: { now: () => NOW },
-    });
+    const n = (
+      await loadOfficeFrame({
+        firm: { id: t.f.firmId },
+        officeUserId: t.admin,
+        run: withFirm,
+        clock: { now: () => NOW },
+      })
+    ).needs;
     if (!n?.needs.ok) throw new Error("Needs attention failed");
     expect(ok(b.toMark).items).toEqual(n.needs.data.toMark);
+    expect(ok(b.toMark).total).toBe(n.needs.data.toMarkTotal);
     expect(ok(b.toMark).items.map((x) => x.shiftId)).toEqual([done]);
   });
 });

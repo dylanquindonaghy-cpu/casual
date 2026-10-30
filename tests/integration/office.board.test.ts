@@ -567,6 +567,25 @@ describe("when the planner or sheet last sent changes", () => {
     ]);
     expect(ok((await t.load()).planner).kind).toBe("sheet");
   });
+
+  // Phase 25.4: a connector to the firm's own portal, by its quick read's time (headLine).
+  it("a connector to the firm's own portal: its reads, never shown as a sheet", async () => {
+    const t = await boardFirm();
+    await su.query(
+      `insert into roster_sources (firm_id, kind, enabled, connector, base_url, mapping,
+                                   last_near_synced_at, last_synced_at)
+       values ($1, 'connector', true, 'demo_portal', 'https://portal.example.test/api', '{}',
+               $2, $3)`,
+      [t.f.firmId, hoursFromNow(-0.25), hoursFromNow(-30)],
+    );
+    expect(ok((await t.load()).planner)).toEqual({
+      kind: "connector",
+      connector: "demo_portal",
+      nearReadAt: hoursFromNow(-0.25),
+      fullReadAt: hoursFromNow(-30),
+      failing: null,
+    });
+  });
 });
 
 describe("the detail card's session", () => {

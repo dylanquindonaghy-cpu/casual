@@ -2071,3 +2071,7 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
 - **A firm's webhook status from before migration 0062** (Phase 25.3, 2026-10-30): a firm whose
   planner address was set before the status row existed reads "new" until its next delivery (no
   firm is live yet). A backfill from the log if one is.
+- **A Needs attention item when the firm's portal keeps failing** (Phase 25.4, 2026-10-30):
+  Integrations says why the last read failed, but nothing calls the office there. An item like the
+  webhook's ("Your planner's webhook is failing") once reads have failed for, say, an hour; words
+  first. With the real connector.

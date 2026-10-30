@@ -7,6 +7,7 @@ import {
   credentialTypes,
   officeUsers,
   rosterSources,
+  type Connector,
 } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { appDatabaseIsLocal } from "../db/where";
@@ -35,6 +36,15 @@ import { webhookStatus, type WebhookStatus } from "./webhook-settings";
 export type PlannerLink =
   | { kind: "api"; lastChangeAt: Date } // a live key, and the latest change the API logged
   | { kind: "sheet"; syncedAt: Date | null } // the firm's Google Sheet (null: not synced yet)
+  // The firm's own system through a connector (P5; Phase 25.4): its last reads (the next 48
+  // hours', and everything's, nightly; null: not yet) and, while reads fail, the last one's code.
+  | {
+      kind: "connector";
+      connector: Connector;
+      nearReadAt: Date | null;
+      fullReadAt: Date | null;
+      failing: string | null;
+    }
   | { kind: "none" };
 
 export interface ApiKeyRow {
@@ -60,7 +70,7 @@ export interface IntegrationsPage {
 // How the planner reaches ShiftDesk, and when it last sent changes: the latest change the API
 // logged while a key is live (every change it makes is logged with {via: "api"}, 5.3.2 "Logging";
 // once every key is revoked the planner isn't connected any more), or else the firm's Google
-// Sheet and its last sync. Integrations' line and the dashboard's "Updated … from your planner"
+// Sheet and its last sync, or its connector and its last reads (Phase 25.4). Integrations' line and the dashboard's "Updated … from your planner"
 // (Phase 24) read it. Inside the firm's transaction (RLS); reads no key itself.
 export async function plannerLink(tx: FirmTx): Promise<PlannerLink> {
   const [live] = await tx
@@ -77,11 +87,28 @@ export async function plannerLink(tx: FirmTx): Promise<PlannerLink> {
     const lastChange = changed[0];
     if (lastChange) return { kind: "api", lastChangeAt: new Date(lastChange.at) };
   }
-  const [sheet] = await tx
-    .select({ syncedAt: rosterSources.lastSyncedAt })
+  // The firm's one enabled source: its Google Sheet, or a connector to its own system.
+  const [source] = await tx
+    .select({
+      kind: rosterSources.kind,
+      connector: rosterSources.connector,
+      syncedAt: rosterSources.lastSyncedAt,
+      nearSyncedAt: rosterSources.lastNearSyncedAt,
+      errorCode: rosterSources.lastErrorCode,
+    })
     .from(rosterSources)
     .where(eq(rosterSources.enabled, true));
-  return sheet ? { kind: "sheet", syncedAt: sheet.syncedAt } : { kind: "none" };
+  if (!source) return { kind: "none" };
+  if (source.kind === "connector" && source.connector) {
+    return {
+      kind: "connector",
+      connector: source.connector,
+      nearReadAt: source.nearSyncedAt,
+      fullReadAt: source.syncedAt,
+      failing: source.errorCode,
+    };
+  }
+  return { kind: "sheet", syncedAt: source.syncedAt };
 }
 
 export async function integrationsPage(ctx: OfficeContext): Promise<IntegrationsPage | null> {

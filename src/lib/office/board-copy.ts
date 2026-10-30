@@ -35,7 +35,7 @@ const inSentence = (role: string) => {
 
 // "Monday 26 October · Week 44 · Pay Fri 6 Nov · Updated 11:20 from your planner": the day, the
 // pay week and its pay day (from the top bar since 24.2), and when the planner or the rota sheet
-// last sent changes (none when neither has: nothing to say).
+// last sent changes, or the firm's portal was last read (none when neither has: nothing to say).
 export function headLine(
   today: string,
   planner: PlannerLink | null,
@@ -54,6 +54,9 @@ export function headLine(
     parts.push(`Updated ${soonLabel(planner.lastChangeAt, now, timeZone)} from your planner`);
   if (planner?.kind === "sheet" && planner.syncedAt)
     parts.push(`Updated ${soonLabel(planner.syncedAt, now, timeZone)} from your rota sheet`);
+  // The firm's portal as its planner (Phase 25.4): its last read.
+  if (planner?.kind === "connector" && planner.nearReadAt)
+    parts.push(`Updated ${soonLabel(planner.nearReadAt, now, timeZone)} from your planner`);
   return parts.join(" · ");
 }
 

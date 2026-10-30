@@ -950,8 +950,12 @@ touches schema, auth, tenancy, messaging or rules; `/close-task` ticks it.
       measured on 700,000 entries, 0.6 s to 154 s before, 1.5 to 4 ms after). Dylan, 2026-10-30:
       "just do what you would recommend stop prompting me and build it": from here each mock-up
       is still published, and built as recommended without waiting (25.3)
-- [ ] P5's card: the Integrations card and the dashboard name a connector as the planner, with its
-      sync card (`plannerLink`, `src/lib/office/integrations.ts`) (25.4)
+- [x] P5's card: the Integrations card and the dashboard name a connector as the planner, with its
+      sync card (`plannerLink`, `src/lib/office/integrations.ts`). The mock-up
+      (https://claude.ai/artifact/CE3FyjKP77ZrQLYRL5yvzK), built as recommended (Dylan, 2026-10-30:
+      "just do what you would recommend stop prompting me and build it"): the portal by name, its
+      two reads' times, a failed read's reason in plain words, its sessions coming in hidden with a
+      link to them; the dashboard's "Updated {time} from your planner" (25.4)
 - [ ] P7.4 and P7.5: the inbox's sorting once Dylan approves the office log's words, then Enquiries
       showing emails with the AI-drafted reply the office approves, the casual's answer by a link to
       their known address, the pay question's link and the 3-hourly summary, their words first (25.5)

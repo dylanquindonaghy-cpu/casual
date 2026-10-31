@@ -3,6 +3,8 @@ import { noticeText } from "../portal/cancel-reasons";
 import { ISSUE_LABELS, type PayIssue } from "../portal/pay-query-kinds";
 import { REJECT_CHOICES } from "../portal/qualification-copy";
 import { KIND_NAMES } from "../portal/request-kinds";
+import { roleLabel } from "../portal/format";
+import { pounds } from "../portal/pay-format";
 import { dayLabel } from "../rules/reasons";
 import { syncErrorWords } from "../roster/sheets/error-words";
 import { CLOSE_REASON_WORDS } from "./enquiries-copy";
@@ -27,6 +29,19 @@ export interface Names {
   credential?: (code: unknown) => string; // a credential type's name ("SIA door supervisor licence")
   site?: (id: unknown) => string; // a site's name ("Riverside Arena")
 }
+
+// A message the shifts line didn't answer by itself, and an alert left for the hour's one email
+// (Phase 25.3; docs/screens.md "The office for a big firm").
+export const HELD_REPLY_LOG = "No automatic reply (they're off): it's waiting for a person.";
+export const HELD_ALERT_LOG =
+  "No email about it yet: 5 already went this hour, so it'll be in one email for the rest.";
+
+// "Offers stopped: 25 casuals were offered it, the most for 1 place" (Phase 25.3).
+export function offerLimitText(offered: number, places: number): string {
+  return `Offers stopped: ${offered} casuals were offered it, the most for ${places === 1 ? "1 place" : `${places} places`}`;
+}
+
+const isClock = (v: unknown): v is string => typeof v === "string" && /^\d\d:\d\d$/.test(v);
 
 const LINK_REFUSED: Record<string, string> = {
   expired: "it had run out",
@@ -96,12 +111,38 @@ const hours = (value: unknown) => {
   return Number.isFinite(n) ? noticeText(n) : null;
 };
 
+// An automatic link email to a casual's email (P7.5), by which link it gave.
+const INBOX_ANSWER_WORDS: Record<string, string> = {
+  shifts: "open shifts",
+  cancel: "cancel",
+  pay: "pay",
+};
+
 const INTENT_WORDS: Record<string, string> = {
   shifts: "open shifts",
   cancel: "cancelling",
   pay: "pay",
   office: "for the office",
 };
+
+// A casual's message in the app (P8; Phase 25.6; docs/screens.md "Messages: the in-app chat"):
+// what it was sorted as, and why no automatic answer went when none did.
+export const APP_LIMIT_LOG =
+  "5 automatic replies already went to them this hour: it's waiting for a person.";
+export const APP_ECHO_LOG = "It quoted our automatic reply: it's waiting for a person.";
+
+function appReceivedWords(d: Record<string, unknown>, worker: string): string {
+  if (typeof d.answerFailed === "string") {
+    return `A message in the app from ${worker} couldn't be answered automatically (${d.answerFailed}), so it's waiting for a person.`;
+  }
+  if (d.formerWorker === true) {
+    return `${worker} sent a message in the app but isn't active any more: it's waiting for a person.`;
+  }
+  const about = d.replyLimit === true ? String(d.sortedAs) : String(d.intent);
+  const note =
+    d.replyLimit === true ? ` ${APP_LIMIT_LOG}` : d.echo === true ? ` ${APP_ECHO_LOG}` : "";
+  return `${worker} sent a message in the app (${INTENT_WORDS[about] ?? "a message"}${d.handledAs === "ai" ? ", sorted by AI" : ""}).${note}`;
+}
 
 const IMPORT_KIND_WORDS: Record<string, string> = {
   workers: "a file of staff",
@@ -349,6 +390,10 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     case "offer.wave_held":
       return "Offers waiting for quiet hours to end.";
     case "offer.waves_stopped":
+      // At the most offers for its free places (Phase 25.3: OFFER_LIMIT_PER_PLACE).
+      if (d.reason === "offer_limit") {
+        return `${offerLimitText(Number(d.offered ?? 0), Number(d.places ?? 1))}.`;
+      }
       return d.reason === "hidden"
         ? "Offers stopped: it's hidden from casuals."
         : "Offers stopped.";
@@ -367,6 +412,8 @@ export function eventWords(e: LoggedEvent, names: Names): string {
 
     // Requests.
     case "message.received": {
+      // A message in the app (P8; Phase 25.6).
+      if (d.channel === "app") return appReceivedWords(d, worker);
       const voicemail = d.channel === "voice";
       const kind = d.channel === "sms" ? "text" : "WhatsApp";
       if (d.handledAs === "opt_out") {
@@ -385,14 +432,22 @@ export function eventWords(e: LoggedEvent, names: Names): string {
             : `from ${worker}`;
         return `${voicemail ? "A voicemail" : `A ${kind}`} ${from} couldn't be answered automatically (${d.answerFailed}), so it's waiting for a person.`;
       }
+      // Automatic replies off (P4.7; Phase 25.3): no reply went, and it waits for a person; past the
+      // hour's 5 alerts, the office hears in one email at the end of the hour.
+      const heldReply = d.replyHeld === true ? ` ${HELD_REPLY_LOG}` : "";
+      // (An entry from before the hour's one email existed has no hour: it never got one.)
+      const heldAlert =
+        d.alertHeld === true && typeof d.alertHour === "string" ? ` ${HELD_ALERT_LOG}` : "";
       if (d.handledAs === "unknown") {
         return d.formerWorker
-          ? `${what} the shifts line from someone who isn't active any more.`
-          : `${what} the shifts line from a number that isn't one of your staff.`;
+          ? `${what} the shifts line from someone who isn't active any more.${heldReply}${heldAlert}`
+          : `${what} the shifts line from a number that isn't one of your staff.${heldReply}${heldAlert}`;
       }
+      // Held: what it was sorted as (the stored intent is the office's: a person answers it).
+      const about = d.replyHeld === true ? String(d.sortedAs) : String(d.intent);
       return voicemail
-        ? `${who} left a voicemail on the shifts line (for the office).`
-        : `${who} sent a ${kind} to the shifts line (${INTENT_WORDS[String(d.intent)] ?? "a message"}${d.handledAs === "ai" ? ", sorted by AI" : ""}).`;
+        ? `${who} left a voicemail on the shifts line (for the office).${heldReply}`
+        : `${who} sent a ${kind} to the shifts line (${INTENT_WORDS[about] ?? "a message"}${d.handledAs === "ai" ? ", sorted by AI" : ""}).${heldReply}`;
     }
     case "call.received":
       return d.withheld
@@ -403,6 +458,7 @@ export function eventWords(e: LoggedEvent, names: Names): string {
         ? "The caller was told a link is on its way (if theirs is a staff number)."
         : "The caller was told a link can't be sent just now.";
     case "message.replied":
+      if (d.channel === "app") return `The automatic answer showed in ${worker}'s app.`;
       if (d.reply === "sms_stopped") return `${worker} was told by text that texts are off.`;
       if (d.reply === "sms_started") return `${worker} was told by text that texts are back on.`;
       return d.reply === "unknown_number"
@@ -419,6 +475,20 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       const people = (n: number) => (n === 1 ? "1 person" : `${n} people`);
       const failed = Number(d.failed ?? 0);
       return `The office was emailed about a message from ${d.reason === "former_worker" ? "someone who isn't active any more" : "a number we don't know"} (${people(Number(d.recipients ?? 0))}${failed > 0 ? `; ${failed} couldn't be emailed` : ""}).`;
+    }
+    case "message.office_alerts_combined": {
+      // The hour's one email for the messages past its 5 alerts (Phase 25.3), its hour in the
+      // firm's time as the job wrote it.
+      const n = Number(d.messages ?? 0);
+      const many = n === 1 ? "1 more message" : `${n} more messages`;
+      const hour = isClock(d.from) && isClock(d.to) ? `, ${d.from} to ${d.to}` : "";
+      const recipients = Number(d.recipients ?? 0);
+      const failed = Number(d.failed ?? 0);
+      if (recipients === 0 && failed === 0) {
+        return `Nobody in the office could be emailed about ${many} from numbers we don't know${hour} (no active admin or resourcer with an email address). They're on Enquiries.`;
+      }
+      const people = (k: number) => (k === 1 ? "1 person" : `${k} people`);
+      return `The office was emailed once about ${many} from numbers we don't know${hour} (${people(recipients)}${failed > 0 ? `; ${failed} couldn't be emailed` : ""}).`;
     }
     case "message.office_alert_failed":
       return "Emailing the office about a message from a number we don't know failed.";
@@ -439,7 +509,18 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `The shifts line built ${worker}'s reply: ${what}${d.sent === false ? " (it couldn't be sent)" : ""}.`;
     }
     case "enquiry.answered": {
+      // An email to the staffing inbox (Phase 25.5) is answered by email.
+      if (d.channel === "email") {
+        const how =
+          d.form === "draft"
+            ? "the AI's draft, checked by them"
+            : d.form === "edited"
+              ? "from an AI draft they changed"
+              : "in their own words";
+        return `${officeName} replied to ${worker}'s email (by email, ${how}).`;
+      }
       const whose = d.workerId ? `${worker}'s message` : "a message from a number we don't know";
+      if (d.channel === "app") return `${officeName} replied to ${whose} (in the app).`;
       const how =
         d.form === "template"
           ? "as the request update template: outside WhatsApp's 24 hours"
@@ -449,22 +530,83 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `${officeName} replied to ${whose} (${how}).`;
     }
     case "enquiry.closed": {
-      const whose = d.workerId ? `${worker}'s message` : "a message from a number we don't know";
+      const whose =
+        d.channel === "email"
+          ? `${worker}'s email`
+          : d.workerId
+            ? `${worker}'s message`
+            : "a message from a number we don't know";
       const reason = CLOSE_REASON_WORDS[d.reason as CloseReason] ?? "Other";
       return `${officeName} closed ${whose} without a reply (${reason.toLowerCase()}).`;
     }
     case "enquiry.reply_sending":
-      return `Sending the office's reply to ${d.workerId ? worker : "a number we don't know"}.`;
+      return `Sending the office's reply to ${d.workerId ? worker : "a number we don't know"}${d.channel === "email" ? " by email" : d.channel === "app" ? " in the app" : ""}.`;
     case "enquiry.reply_sent":
+      if (d.channel === "app") return `The office's reply to ${worker} showed in their app.`;
       return `The office's reply to ${d.workerId ? worker : "a number we don't know"} went${
-        d.fellBackFrom === "whatsapp"
-          ? " by text (WhatsApp didn't take it)"
-          : d.channel === "sms"
-            ? " by text"
-            : " on WhatsApp"
+        d.channel === "email"
+          ? " by email"
+          : d.fellBackFrom === "whatsapp"
+            ? " by text (WhatsApp didn't take it)"
+            : d.channel === "sms"
+              ? " by text"
+              : " on WhatsApp"
       }.`;
     case "enquiry.reply_failed":
-      return `The office's reply to ${d.workerId ? worker : "a number we don't know"} couldn't be sent. Their message is back in Need a person.`;
+      return d.channel === "email"
+        ? `The office's reply to ${worker} couldn't be sent by email (${String(d.code ?? "unknown")}). Their email is back in Need a person.`
+        : `The office's reply to ${d.workerId ? worker : "a number we don't know"} couldn't be sent. Their message is back in Need a person.`;
+
+    // The staffing inbox (P7.4, P7.5; Phase 25.5).
+    case "email.received": {
+      if (d.handledAs === "unknown") {
+        return "An email came to the staffing inbox from an address that isn't one of your casuals'. Its words aren't kept: it's in your own inbox.";
+      }
+      if (d.formerWorker === true) {
+        return "An email came to the staffing inbox from someone who isn't active any more. It's waiting for a person.";
+      }
+      if (d.stale === true) {
+        return `${worker}'s email came in more than 3 hours before the inbox could answer it, so it's waiting for a person unsorted.`;
+      }
+      if (typeof d.answerFailed === "string") {
+        return `${worker}'s email couldn't be sorted (${d.answerFailed}), so it's waiting for a person.`;
+      }
+      const ai = d.handledAs === "ai" ? ", sorted by AI" : "";
+      const held =
+        d.replyHeld === true || d.replyLimit === true || d.nothingOnFile === true
+          ? String(d.sortedAs)
+          : null;
+      if (held === null && d.intent === "office") {
+        return `${worker} emailed the staffing inbox (for the office${ai}). It's waiting for a person.`;
+      }
+      const about = INTENT_WORDS[held ?? String(d.intent)] ?? "an email";
+      const why =
+        d.replyHeld === true
+          ? ` ${HELD_REPLY_LOG}`
+          : d.replyLimit === true
+            ? " 3 automatic replies already went to them today: it's waiting for a person."
+            : d.nothingOnFile === true
+              ? " There's no email address on file for them: it's waiting for a person."
+              : "";
+      return `${worker} emailed the staffing inbox (${about}${ai}).${why}`;
+    }
+    case "email.replied":
+      return `The ${INBOX_ANSWER_WORDS[String(d.answer)] ?? "automatic"} email went to ${worker}.`;
+    case "email.reply_failed":
+      return `The ${INBOX_ANSWER_WORDS[String(d.answer)] ?? "automatic"} email to ${worker} couldn't be sent (${String(d.code ?? "unknown")}). Their email is waiting for a person.`;
+    case "email.drafted":
+      return `AI drafted a reply to ${worker}'s email, for the office to check.`;
+    case "message.inbox_summary": {
+      const n = Number(d.received ?? 0);
+      const emails = n === 1 ? "1 email" : `${n} emails`;
+      const slot = isClock(d.from) && isClock(d.to) ? `, ${d.from} to ${d.to}` : "";
+      const recipients = Number(d.recipients ?? 0);
+      const failed = Number(d.failed ?? 0);
+      if (recipients === 0 && failed === 0) {
+        return `Nobody in the office could be emailed the staffing inbox's summary (${emails}${slot}): no active admin or resourcer has an email address.`;
+      }
+      return `The office was emailed the staffing inbox's summary (${emails}${slot})${failed > 0 ? `; it couldn't be sent to ${failed} of them` : ""}.`;
+    }
     case "request.created":
       return `${worker} sent a request (${kind(d.type)}).`;
     case "request.approved":
@@ -624,6 +766,9 @@ export function eventWords(e: LoggedEvent, names: Names): string {
             return `${officeName} made a new signing secret for your planner's webhook. The old one stopped working.`;
         }
       }
+      // The firm's name map (P3.2, set by the owner): which name, read as what. A name isn't personal.
+      const only = keys.length === 1 ? keys[0] : undefined;
+      if (only?.startsWith("name_map.")) return nameMapWords(only.slice("name_map.".length), d);
       const n = keys.length;
       return `The firm's settings changed (${n === 1 ? "1 setting" : `${n} settings`}).`;
     }
@@ -968,4 +1113,34 @@ function webhookFailure(code: unknown): string {
     default:
       return "it couldn't be reached";
   }
+}
+
+// What a name in the firm's own system is read as: "door supervisor", "SIA DS", or skipped.
+const NAME_KIND_WORDS: Record<string, string> = {
+  role: "role",
+  qualification: "qualification",
+  staff_type: "staff type",
+  cancellation_reason: "cancellation reason",
+};
+
+function nameCodeWords(kind: string, code: string): string {
+  if (kind === "role") return roleLabel(code).toLowerCase();
+  if (kind === "qualification") return code.replace(/_/g, " ");
+  return code.replace(/_/g, " ").toLowerCase();
+}
+
+function nameMapWords(kind: string, d: Record<string, unknown>): string {
+  const name = typeof d.name === "string" ? `"${d.name}"` : "a name";
+  const what = NAME_KIND_WORDS[kind] ?? "name";
+  const said = (v: unknown) =>
+    v === "skip" ? "skipped" : typeof v === "string" ? nameCodeWords(kind, v) : null;
+  const to = said(d.to);
+  const from = said(d.from);
+  const rate = typeof d.toRatePence === "number" ? `, paid ${pounds(d.toRatePence)} an hour` : "";
+  if (to === null) return `The name map no longer reads the ${what} ${name}. It's read as before.`;
+  const now =
+    to === "skipped"
+      ? `The name map now skips the ${what} ${name}`
+      : `The name map now reads the ${what} ${name} as ${to}${rate}`;
+  return from === null || from === to ? `${now}.` : `${now} (it was ${from}).`;
 }

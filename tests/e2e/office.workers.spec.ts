@@ -94,6 +94,7 @@ test("a leaver made inactive, their booking cancelled from the dashboard; anothe
   });
   await lena.getByText(`Cancel ${lenaName}'s booking`, { exact: true }).click();
   await lena.getByLabel("Why?").selectOption("not_available");
+  await lena.getByLabel("Who asked for it?").selectOption("firm");
   await lena.getByRole("button", { name: `Yes, cancel ${lenaName}'s booking` }).click();
   await expect(
     lena.getByText(/^Cancelled .* booking with .* notice\. They'll be told\.$/),

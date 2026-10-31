@@ -10,7 +10,8 @@ unknown-number reply, no STOP or START confirmation (a STOP still turns texts of
 gets the caller's login link by message, as the login page does: the caller asked for it (Dylan,
 2026-10-27). Casuals reach the office in the app (proposal P8). The owner switches them on with
 `npm run firm:settings -- --firm <slug> --set auto_replies=true`. The office is emailed about at
-most 5 unknown numbers per firm an hour; the rest wait in Need a person. No words change.
+most 5 unknown numbers per firm an hour; the rest wait in Need a person, and go in one email at
+the end of that hour (`unknown_numbers_combined`, below; Phase 25.3).
 
 **How a message reaches a casual** (P2.4; the words approved by Dylan on 2026-10-28;
 `PLAN.md` "Connecting the firm's systems" 15; Messages 2): a push to the phones they turned
@@ -257,8 +258,8 @@ never a person's name), not one per firm (PLAN.md Parking lot, P2.4).
 - A request's answer (`request_update`): subject "Your request (ref {ref}) is {status}"
 - A pay query's answer (`pay_query_update`): subject "Payroll has answered your pay query"
 - The office's reply on Enquiries: subject "A reply from {firm}"; body "{words} — {firm} Shift Team"
-  (not built yet: a reply answers a message to the shifts line, so it goes by text; PLAN.md Parking
-  lot, P2.4)
+  (not built for a message to the shifts line: its reply goes by text; PLAN.md Parking lot, P2.4. An
+  email to the staffing inbox is answered by email: "The staffing inbox's emails" below)
 - A licence running out (`credential_expiring`): subject "Your {credential} expires on {date}"
 - A licence that has run out (`credential_expired`): subject "Your {credential} has expired"
 - Login link (P2.6, only where the firm has switched it on): subject "Your {firm} shifts link";
@@ -268,6 +269,46 @@ never a person's name), not one per firm (PLAN.md Parking lot, P2.4).
 - Pay code (P2.6, the same): subject "Your {firm} code"; body "Your {firm} code is {code}. It works
   for 10 minutes. Don't share it with anyone. If you didn't ask for it, you can ignore this email.
   — {firm} Shift Team"
+
+## The staffing inbox's emails (P7.5; Phase 25.5)
+
+Built in Phase 25.5 (`src/lib/email/sort.ts`, `src/lib/office/enquiry-actions.ts`; words in
+`src/lib/messaging/templates.ts`), as recommended (Dylan, 2026-10-30: "just do what you would
+recommend stop prompting me and build it"). A casual's email to the firm's staffing inbox is
+sorted as the shifts line sorts a message (P7.4). Every email below goes only to the address the
+firm holds for the casual (never to the one the email came from: a sender can be faked), from the
+app's one sending address with the firm's inbox as its Reply-To, so their reply comes back to
+Enquiries. Its subject is "Re: {their subject}" ("Your email to {firm}" when it had none). Each
+ends with the sign-off; every link is the last thing on its line, never followed by a full stop.
+
+- With the firm's automatic replies on (P4.7), a shifts, cancel or pay email gets its link at once,
+  never an answer in words (golden rules 1 and 9; nothing the AI writes reaches the casual):
+  - Shifts (`email_answer_shifts`): "Hi {first name}," / "The shifts you can take are here:" /
+    "{link to Open shifts}" / "You'll get a code to log in." / "This is an automatic reply. To
+    reach a person, reply to this email." / "— {firm} Shift Team"
+  - Cancel (`email_answer_cancel`): "Hi {first name}," / "To cancel a shift, open it here:" /
+    "{link to My shifts}" / "You'll see what cancelling means for you before you confirm, and it's
+    recorded the moment you do." / the automatic line / the sign-off
+  - Pay (`email_answer_pay`): "Hi {first name}," / "Your hours, rates and pay dates are here:" /
+    "{link to Pay}" / "You'll get a code to log in. If something looks wrong, tap \"Raise a pay
+    query\" there, so payroll sees it." / the automatic line / the sign-off
+  - At most 3 automatic replies to one casual in 24 hours (an out-of-office reply can't start a
+    loop): past that, the email waits for a person.
+  - With automatic replies off, nothing goes: the email waits for a person.
+- An email for the office (they asked for a person, or nothing sorted it) gets no automatic reply.
+  The office answers it on Enquiries in their own words, from a draft the AI may write first (never
+  for a pay email: golden rule 9), which they check and change before sending. 2,000 characters at
+  most: "Hi {first name}," / "{their words}" / "— {firm} Shift Team".
+- The AI's draft (`draft_reply`, Haiku): from the casual's subject and words only (no shifts, pay,
+  names or data of the firm's), a short, polite reply in plain words that promises nothing (no
+  shift, time, pay or decision), offers no facts it wasn't given, and leaves out any greeting and
+  sign-off (the email adds them), and uses or invents no person's name. At most 1,200 characters;
+  anything else, or no AI: no draft. Code decides when there's one: never for an email sorted as
+  pay, nor for one whose words mention pay or money ("pay", "payment", "payroll", "wages",
+  "salary", "money", "owed", "overtime", "tax", "rates", "hours", "timesheet", "expenses", "bank",
+  "£" and the like), nor when there's no address on file to answer; and a draft that itself
+  mentions pay or money is thrown away. Each draft saved is logged (`email.drafted`, ids only); the
+  log says whether the office sent the draft as it was, changed it, or wrote their own.
 
 ## STOP and START by text
 
@@ -287,6 +328,22 @@ hyphen before the sign-off: text only):
 The worker's profile says "Texts are off: you replied STOP to one of our texts. We'll send shift
 messages by WhatsApp. To turn texts back on, text START to our number." Any other text to the shifts
 line is answered like a WhatsApp (the instant replies above), by text.
+
+## Messages in the app (P8; Phase 25.6)
+
+Built in Phase 25.6 (`src/lib/inbound/reply.ts` for a message in the app; `src/app/messages/`), as
+recommended (Dylan, 2026-10-30: "just do what you would recommend stop prompting me and build
+it"). A casual's message in the app is sorted as a WhatsApp is (a keyword, else the AI's label,
+else the office) and answered there at once, whatever the firm's automatic replies switch (decision
+11: they never go by text): with the WhatsApp words of "Instant replies on the shifts line" and
+"Personal replies on the shifts line" above, each ending "Automatic reply. Send OFFICE to reach a
+person." and the sign-off. Nothing goes by WhatsApp, text or email.
+
+- At most 5 automatic answers to one casual an hour: past that, and for a message that quotes our
+  automatic line (an echo), no automatic answer; it waits for a person on Enquiries.
+- The office's reply on Enquiries shows in the app in their words, signed as on WhatsApp ("{words}
+  — {firm} Shift Team"), with a push (below). An automatic answer comes with none: they're in the
+  app when it comes.
 
 ## Push (title / body)
 
@@ -309,6 +366,8 @@ line is answered like a WhatsApp (the instant replies above), by text.
 - Pay query update: "Pay query sorted" / "Payroll has answered. Open your pay page to see it."
   (built: `payQueryUpdatePush()`, with payroll's answer; nothing about the pay itself, since a lock
   screen shows it; tapping opens the pay page, behind the pay code)
+- The office's reply in the app (Phase 25.6): "The office replied" / "Tap to read it." (built:
+  `officeReplyPush()`; none of their words, since a lock screen shows it; tapping opens Messages)
 
 ## Call-to-text recording (voice)
 
@@ -371,6 +430,24 @@ reach the same app, which isn't answering.
   them.") / "See it in Enquiries, under Need a person: {link}" / "— {firm} Shift Team". Neither the
   number nor the message is in the email (previews, forwards): they're on Enquiries, "Need a
   person", which the link opens (`/office/enquiries?view=person`).
+- `unknown_numbers_combined` (email, to active admins and resourcers, Phase 25.3; the mock-up
+  approved by Dylan on 2026-10-30, `unknownNumbersCombinedEmail()`): once, at the end of a clock
+  hour in which the firm's 5 `unknown_number_alert` emails were used up, for the messages that
+  hour that got no email: subject "{firm}: {2 more messages} from numbers we don't know" ("1 more
+  message"); body "{2 more messages} came to the shifts line between {18:00} and {19:00} from
+  numbers that aren't your active staff." / "We send at most 5 of these emails an hour, so this one
+  covers the rest." / "See them in Enquiries, under Need a person: {link}" ("See it" for 1) /
+  "— {firm} Shift Team". Like the alert, no number and no message (the hour in the firm's time
+  zone).
+- `inbox_summary` (email, to active admins and resourcers, Phase 25.5; P7.5's "a summary every 3
+  hours"): at the end of each 3 hours of the firm's day (00:00, 03:00 … 21:00, its time zone) in
+  which the staffing inbox got an email, once: subject "{firm}: {12 emails} to the staffing inbox"
+  ("1 email"); body "Between {09:00} and {12:00}, the staffing inbox got {12 emails}:" / "{5}
+  answered with a link" / "{4} waiting for a person" / "{1} already answered by your office" / "{2}
+  pay questions" ("1 pay question") / "{1} not from your casuals (in your own inbox)" (each line
+  only when it isn't 0; pay questions are counted there only, whatever came of them) / "See them in Enquiries: {link}"
+  / "— {firm} Shift Team". No names, addresses or words (previews, forwards); "waiting for a
+  person" counts those still waiting when it's sent.
 - `credential_weekly_list` (email, Mondays 08:00, to active admins and resourcers, only when there
   is something to list): subject "{firm}: credentials expiring soon"; body "Expiring in the next 30
   days:" then "- {name}: {credential}, expires {date}" lines; "Expired in the last week (these
@@ -393,6 +470,7 @@ reach the same app, which isn't answering.
   1,000); "The list is attached ({filename}): each query with the worker, the day, the shift, the
   issue and what they wrote."; "Answer them on the pay queries page: {link}"; "— {firm} Shift
   Team". {facts} is what a group shares, written by code from the firm's data ("wrong rate, the
-  week of Mon 7 Sep, paid at £12.50"). The body holds counts and facts only; names and what
+  week of Mon 7 Sep, paid at £12.50"; on a fortnightly pay calendar, in the firm's word for its
+  period: "wrong rate, the cycle of Mon 12 Oct, paid at £13.00", Phase 25.2). The body holds counts and facts only; names and what
   workers wrote are only in the attached list (columns Reference, Worker, Day worked, Shift, Issue,
   What they wrote, Sent (firm time), Group; spreadsheet-safe cells).

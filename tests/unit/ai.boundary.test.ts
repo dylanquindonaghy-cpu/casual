@@ -4,13 +4,17 @@ import { describe, expect, it } from "vitest";
 import { AI_PURPOSES } from "@/lib/ai/client";
 
 // "AI never answers a dispute" (Phase 6; golden rules 1 and 9; docs/compliance.md "Pay disputes
-// always go to a person"). The AI code (src/lib/ai/) does two things: a summary line for payroll
-// about a group of pay queries, beneath the app's own line; and (Phase 7) a label for a worker's
+// always go to a person"). The AI code (src/lib/ai/) does three things: a summary line for payroll
+// about a group of pay queries, beneath the app's own line; (Phase 7) a label for a worker's
 // WhatsApp on the shifts line that no keyword matched, which only picks which of the app's own fixed
-// replies goes back (src/lib/inbound/reply.ts). This test is a tripwire:
-// - the AI's purposes are a fixed list: that summary, and the shifts line label;
-// - only three files import src/lib/ai/: payroll's grouped view, the digest job, and the shifts
-//   line's reply job (which only ever sends shiftsLineReply()'s fixed words); the AI line is made
+// replies goes back (src/lib/inbound/reply.ts), and the same label for their email to the staffing
+// inbox (P7.4: src/lib/email/sort.ts, whose link email is the app's fixed text); and (P7.5; Phase
+// 25.5) a draft of the office's reply to such an email, saved for the office to check, never sent
+// from there: the office's reply is what a person typed and sent. This test is a tripwire:
+// - the AI's purposes are a fixed list: that summary, the label, and the office's draft;
+// - only these files import src/lib/ai/: payroll's grouped view, the digest job, the shifts line's
+//   reply job (which only ever sends shiftsLineReply()'s fixed words) and the inbox's sorting job
+//   (whose one email is inboxAnswerEmail()'s fixed words; the draft only saved); the AI line is made
 //   in one place (summariseGroups, called only by the digest); the files that import those are
 //   listed too, so passing their output anywhere new means changing this test;
 // - no AI SDK (Bedrock, Anthropic) is imported outside src/lib/ai/;
@@ -85,8 +89,8 @@ function aiChain(entry: string): string[] | null {
 }
 
 describe("AI never answers a dispute", () => {
-  it("the AI does two jobs: a summary line for payroll, and a label for a shifts line message", () => {
-    expect([...AI_PURPOSES]).toEqual(["pay_group_summary", "classify_message"]);
+  it("the AI does three jobs: payroll's summary line, a message's or email's label, and the office's draft", () => {
+    expect([...AI_PURPOSES]).toEqual(["pay_group_summary", "classify_message", "draft_reply"]);
   });
 
   it("only payroll's grouped view, the digest and the shifts line's reply job import the AI code", () => {
@@ -97,10 +101,37 @@ describe("AI never answers a dispute", () => {
     expect(importers).toEqual([
       // The demo seed (12I.1; Dylan, 2026-10-12): only `noAi`, for the reply job it runs once.
       "src/lib/db/admin/seed-story-load.ts",
+      // The staffing inbox's sorting job (P7.4, P7.5; Phase 25.5).
+      "src/lib/email/sort.ts",
       "src/lib/inbound/reply.ts",
       "src/lib/office/pay-query-groups.ts",
       "src/lib/pay/digest.ts",
     ]);
+  });
+
+  it("the inbox's sorting job is only worked by the job worker; its email is a fixed text, and the draft only saved", () => {
+    const importers = files
+      .filter((file) => (graph.get(file) ?? []).some((f) => rel(f) === "src/lib/email/sort.ts"))
+      .map(rel);
+    expect(importers).toEqual(["src/worker/jobs/index.ts"]);
+    const sort = readFileSync(join(SRC, "lib/email/sort.ts"), "utf8");
+    // The one email it sends is the link email's row, built from inboxAnswerEmail() in the claim.
+    expect(sort.match(/transport\.send\(\{[\s\S]*?\}\)/g)).toEqual([
+      expect.stringMatching(/subject: reply\.subject,\s*body: reply\.body,/),
+    ]);
+    expect(sort).toMatch(/const email = inboxAnswerEmail\(voice, answer, \{/);
+    expect(sort).toMatch(/reply = \{ id: row\.id, to: c\.address, \.\.\.email \};/);
+    // The AI's draft goes to the database only, and never for pay or money.
+    expect(sort.match(/draftEmailReply\(/g)).toHaveLength(1);
+    expect(sort).toMatch(/\.set\(\{ draftReply: draft \}\)/);
+    expect(sort).toMatch(
+      /if \(sortedAs !== "pay" && held !== "no_address" && text && !aboutMoney\(text\)\) \{/,
+    );
+    // And a draft about pay or money is thrown away.
+    expect(sort).toMatch(/if \(draft && !aboutMoney\(draft\)\) \{/);
+    // The AI's answers: a label, or a draft (text or null), checked before use.
+    const draft = readFileSync(join(SRC, "lib/ai/draft-reply.ts"), "utf8");
+    expect(draft).toMatch(/Promise<string \| null>/);
   });
 
   it("only these files import the two modules that use AI", () => {
@@ -197,6 +228,7 @@ describe("AI never answers a dispute", () => {
       "src/lib/ai/ask.ts",
       "src/lib/ai/classify-message.ts",
       "src/lib/ai/client.ts",
+      "src/lib/ai/draft-reply.ts",
       "src/lib/ai/pay-summary.ts",
     ]);
     const sdk = files
@@ -254,6 +286,26 @@ describe("AI never answers a dispute", () => {
     // STOP and START by text: answered with fixed texts only, never through the AI.
     "src/lib/inbound/opt-out.ts",
     "src/lib/inbound/claim.ts",
+    // The staffing inbox's webhook (P7.2): checks, stores and queues; its job is apart.
+    "src/app/api/webhooks/email/route.ts",
+    "src/lib/email/webhook.ts",
+    "src/lib/email/receive.ts",
+    "src/lib/email/job.ts",
+    "src/lib/email/prepare.ts",
+    "src/lib/email/address.ts",
+  ];
+
+  // The office's reply to an email (P7.5): from the form where a person writes it (the AI's draft
+  // only as the box's starting words, read from the database) through the action that stores it to
+  // the job that sends it, nothing can reach the AI code, so what the casual gets is what a person
+  // sent. And the inbox's summary to the office: counts by code.
+  const OFFICE_EMAIL_REPLY_PATH = [
+    "src/app/office/enquiries/actions.ts",
+    "src/app/office/enquiries/[id]/email-forms.tsx",
+    "src/lib/office/enquiry-actions.ts",
+    "src/lib/office/enquiry-rules.ts",
+    "src/lib/notices/email-reply.ts",
+    "src/lib/email/summary.ts",
   ];
 
   // Payroll's "Mark as sorted and tell them", where the note to the workers is typed and saved;
@@ -295,10 +347,11 @@ describe("AI never answers a dispute", () => {
         path.startsWith("src/lib/notify/") ||
         path.startsWith("src/lib/messaging/") ||
         PAYROLL_PATHS.includes(path) ||
-        WEBHOOK_PATH.includes(path)
+        WEBHOOK_PATH.includes(path) ||
+        OFFICE_EMAIL_REPLY_PATH.includes(path)
       );
     });
-    for (const path of [...PAYROLL_PATHS, ...WEBHOOK_PATH]) {
+    for (const path of [...PAYROLL_PATHS, ...WEBHOOK_PATH, ...OFFICE_EMAIL_REPLY_PATH]) {
       expect(workerFacing.map(rel)).toContain(path);
     }
     expect(workerFacing.length).toBeGreaterThan(50);

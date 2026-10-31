@@ -36,7 +36,7 @@ test("a worker logs in with a link, the link works once, and they can log out", 
   // Home (12H.1): this seeded worker has no bookings yet. The tab bar is at the bottom.
   await expect(page.getByRole("heading", { name: "No shifts booked" })).toBeVisible();
   const tabs = page.getByRole("navigation", { name: "Main" });
-  await expect(tabs.getByRole("link")).toHaveText(["Home", "Shifts", "Pay", "Profile"]);
+  await expect(tabs.getByRole("link")).toHaveText(["Home", "Shifts", "Messages", "Pay", "Profile"]);
   await expect(tabs.getByRole("link", { name: "Home" })).toHaveAttribute("aria-current", "page");
   await page.getByRole("link", { name: "Find a shift" }).click();
   await expect(page).toHaveURL(`${acme}/shifts/open`);

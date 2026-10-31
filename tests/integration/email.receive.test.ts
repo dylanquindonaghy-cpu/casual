@@ -11,8 +11,8 @@ import { appRolePool, superuserPool } from "../helpers/db";
 
 // The staffing inbox's emails stored (P7.2, P7.3; src/lib/email/receive.ts), through the webhook,
 // on the real database as the app role: one row per Message-ID, a known casual's own words with the
-// quoted history off, nobody else's words at all, no job queued yet (P7.4). Made-up people,
-// addresses and secrets only.
+// quoted history off, nobody else's words at all, and its sorting job (P7.4) queued once, in the
+// same transaction, ids only. Made-up people, addresses and secrets only.
 
 let su: Pool;
 let app: Pool;
@@ -139,23 +139,37 @@ describe("emails to the staffing inbox", () => {
     expect(rows[0]?.n).toBe(0);
   });
 
-  it("the same email sent twice is stored once; to an address no firm has, nothing; no job queued yet", async () => {
+  it("the same email sent twice is stored once, its sorting job queued once (ids only); to an address no firm has, nothing", async () => {
     const t = await inboxFirm();
     const jobs = async () =>
-      Number(
-        (
-          await su.query("select count(*)::int as n from pgboss.job where data ->> 'firmId' = $1", [
-            t.f.firmId,
-          ])
-        ).rows[0]?.n,
-      );
-    const before = await jobs();
+      (
+        await su.query<{ name: string; data: Record<string, unknown> }>(
+          "select name, data from pgboss.job where data ->> 'firmId' = $1 order by created_on",
+          [t.f.firmId],
+        )
+      ).rows;
+    const before = (await jobs()).length;
     const body = { message_id: "<same@mail.example.test>", from: "venue@example.com", text: "Hi" };
     await t.post(body);
     await t.post(body);
     expect((await t.rows()).length).toBe(1);
+    const [row] = (
+      await su.query<{ id: string }>(
+        "select id::text as id from inbound_emails where firm_id = $1",
+        [t.f.firmId],
+      )
+    ).rows;
+    const queued = (await jobs()).slice(before);
+    expect(queued).toEqual([
+      {
+        name: "inbound-email",
+        data: { firmId: t.f.firmId, idempotencyKey: `inbound-email:${row?.id}`, emailId: row?.id },
+      },
+    ]);
+    // Never the address or the words.
+    expect(JSON.stringify(queued)).not.toMatch(/venue|example\.com|Hi/);
     await t.post({ from: "venue@example.com", to: "nobody@inbound.example.test", text: "Hi" });
     expect((await t.rows()).length).toBe(1);
-    expect(await jobs()).toBe(before);
+    expect((await jobs()).length).toBe(before + 1);
   });
 });

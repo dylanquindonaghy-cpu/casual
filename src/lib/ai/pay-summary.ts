@@ -16,7 +16,9 @@ import type { AiClient } from "./client";
 export interface PayGroupFacts {
   count: number;
   issue: PayIssue;
-  week: string; // the week's Monday, yyyy-mm-dd
+  week: string; // the pay period's first day (a Monday), yyyy-mm-dd
+  // What the firm calls its pay period (P3.1; Phase 25.2): "the week of …" or "the cycle of …".
+  label?: "week" | "cycle";
   site: string | null; // the site's name, for hours missing
   ratesPence: number[] | null; // the pay line's rate(s), for a wrong rate; [] if none imported
 }
@@ -34,7 +36,10 @@ export function codeSummary(f: PayGroupFacts): string {
 // What a group's queries share, without the count: "wrong rate, the week of Mon 7 Sep, paid at
 // £12.50" (the payroll digest's headline uses it too).
 export function factsPhrase(f: PayGroupFacts): string {
-  const parts = [ISSUE_LABELS[f.issue].toLowerCase(), `the week of ${dayLabel(f.week)}`];
+  const parts = [
+    ISSUE_LABELS[f.issue].toLowerCase(),
+    `the ${f.label ?? "week"} of ${dayLabel(f.week)}`,
+  ];
   if (f.issue === "missing_hours") parts.push(f.site ? `at ${f.site}` : "no site named");
   if (f.issue === "wrong_rate" && f.ratesPence) {
     parts.push(
@@ -55,7 +60,8 @@ function promptFor(f: PayGroupFacts): string {
   return JSON.stringify({
     queries: f.count,
     issue: ISSUE_LABELS[f.issue],
-    weekStarting: dayLabel(f.week),
+    // The firm's word for its pay period (Phase 25.2), so a line never calls a fortnight a week.
+    [f.label === "cycle" ? "payCycleStarting" : "weekStarting"]: dayLabel(f.week),
     site: f.site,
     paidAt: f.ratesPence?.map(pounds) ?? null,
   });
@@ -143,9 +149,16 @@ const NEUTRAL_WORDS = new Set([
   ...["grouped", "say", "says", "said", "report", "reports", "reported", "raise", "raised"],
   ...["ask", "asks", "asked"],
   // what the facts are about
-  ...["week", "weeks", "starting", "beginning", "day", "days", "shift", "shifts", "site", "sites"],
+  ...["starting", "beginning", "day", "days", "shift", "shifts", "site", "sites"],
   ...["rate", "rates", "hour", "hours", "pay", "line", "lines", "show", "shows", "shown", "listed"],
 ]);
+
+// The firm's word for its pay period, and only that (Phase 25.2): a line never calls a fortnight's
+// cycle a week, or a week a cycle.
+const PERIOD_WORDS: Record<"week" | "cycle", readonly string[]> = {
+  week: ["week", "weeks"],
+  cycle: ["cycle", "cycles"],
+};
 
 function onlyFactsWords(line: string, f: PayGroupFacts): boolean {
   let rest = ` ${line.toLowerCase()} `;
@@ -155,7 +168,8 @@ function onlyFactsWords(line: string, f: PayGroupFacts): boolean {
     .sort((a, b) => b.length - a.length);
   for (const phrase of phrases) rest = rest.split(phrase.toLowerCase()).join(" ");
   const words = rest.match(/\p{L}+/gu) ?? [];
-  return words.every((w) => NEUTRAL_WORDS.has(w));
+  const period = PERIOD_WORDS[f.label ?? "week"];
+  return words.every((w) => NEUTRAL_WORDS.has(w) || period.includes(w));
 }
 
 export function checkedLine(raw: string, f: PayGroupFacts): string | null {

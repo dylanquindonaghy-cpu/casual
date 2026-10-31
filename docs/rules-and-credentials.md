@@ -99,11 +99,14 @@ fails whatever the date, and a `valid` status with a past date is expired. An `a
 is used only when there is no valid one of that type. A "one of" group (P3.3) passes when any one
 of its types would pass on its own, and fails if a licence of it held is suspended (whatever else
 is held: a suspension is for the office to look at); when it fails, its reason is the one its first
-type held would give (else its first type's), in the same words below, so a group adds no new
-words until the casual's "you need A or B" wording is approved (after the UI chat's Phase 24, a
-mock-up first). Until then a group shows on a session as its first type (its chips and "What it
-needs"), and on a casual's qualifications as the one of it that stands best for her (the suspended
-one first). Every required type gets its own reason:
+type held would give, in the same words below. Holding none of its types, the reason names them all
+(Phase 25.2; approved by Dylan, 2026-10-30): "This shift needs a valid [name] or [name]. Send one
+to the office to be checked." ("[name], [name] or [name]" for three). On a casual's own shift page a
+group she holds none of shows as "A or B" (its chip and "You need": `docs/screens.md`); one she
+holds shows the one that stands best for her (the suspended one first), as on her qualifications.
+The office's event cards, session rows and cancellation records show a group as "A or B" too
+("SIA SG or SIA DS"; a session that asks for one of it outright, each as before: Phase 25.2). Every
+required type gets its own reason:
 missing: "This shift needs a valid [name]. Send it to the office to be checked."; suspended:
 "Your [name] is suspended. Contact the office."; out of date before the shift ends: "Your [name]
 expires on [date], before this shift. Renew it, then send the new number to the office." (or
@@ -311,7 +314,8 @@ showing ("renewing"), with the new one waiting for the office.
 | Session needs an extra requirement the worker holds | session adds CSAS, held and in date | ok |
 | Extra requirement expires mid-session | night session 22:00–06:00; CSAS expires on its first day | fail: expired reason |
 | One of a group: either licence | security officer, one of SIA_SG or SIA_DS; SIA_DS held and in date | ok |
-| One of a group: neither held | one of SIA_SG or SIA_DS; neither held | fail: missing, in SIA_SG's words |
+| One of a group: neither held | one of SIA_SG or SIA_DS; neither held | fail: missing, naming both (Phase 25.2) |
+| One of a group: the session asks for one, neither held | one of SIA_SG or SIA_DS; the session adds SIA_DS; neither held | fail: missing, each in its own words |
 | One of a group: the one held is out of date | one of SIA_SG or SIA_DS; SIA_DS expired, no SIA_SG | fail: expired reason for SIA_DS |
 | One of a group: one suspended | one of SIA_SG or SIA_DS; SIA_SG suspended, SIA_DS in date | fail: suspended reason |
 | One of a group: applied within the allowance | one of SIA_SG or SIA_DS; SIA_SG applied, allowance 15%, 20 deployed | ok |

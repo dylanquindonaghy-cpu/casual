@@ -60,3 +60,26 @@ export const apiKeys = pgTable(
     }),
   ],
 ).enableRLS();
+
+// The planner's webhook status (Phase 25.3; P4's "the webhook status from a small row"): one row per
+// firm, so the Integrations page and Needs attention read it at once instead of searching the
+// action log. Written in the transaction that logs what it sums up (src/lib/integrations/status.ts):
+// the address set (addWebhook: a fresh start), a delivery (`webhook.delivered`: no
+// longer failing) and a last try that failed (`webhook.failed`: failing since the first). Times
+// only, no address or personal data. The app may add a row and change its times (COLUMN_UPDATES),
+// never whose it is; the action log stays the record.
+export const webhookStatus = pgTable(
+  "webhook_status",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    addressSetAt: timestamptz("address_set_at").notNull(), // when the address was last set
+    lastDeliveredAt: timestamptz("last_delivered_at"), // the last delivery that worked since then
+    failingSince: timestamptz("failing_since"), // the first last-try failure since a delivery
+    updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+    createdAt: createdAt(),
+  },
+  (t) => [unique("webhook_status_firm_id_key").on(t.firmId), firmIsolation(t.firmId)],
+).enableRLS();

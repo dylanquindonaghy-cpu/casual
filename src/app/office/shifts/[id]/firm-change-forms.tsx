@@ -65,6 +65,50 @@ function ReasonSelect({
   );
 }
 
+// Who asked for the cancellation (P3.4; the notice report's "Asked by"): required. One booking can
+// be the casual's own ask (by name); a whole shift can't.
+const ASKERS = [
+  ["firm", "The firm"],
+  ["client", "The client"],
+  ["casual", ""],
+  ["unknown", "Not known"],
+] as const;
+
+function AskedBySelect({
+  value,
+  onChange,
+  id,
+  name,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  id: string;
+  name?: string; // one booking: the casual's name
+}) {
+  const ready = useHydrated();
+  return (
+    <label className={labelStack} htmlFor={id}>
+      <span>Who asked for it?</span>
+      <select
+        id={id}
+        className={input}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={!ready}
+      >
+        <option value="" disabled>
+          Choose who asked
+        </option>
+        {ASKERS.filter(([code]) => name || code !== "casual").map(([code, words]) => (
+          <option key={code} value={code}>
+            {code === "casual" ? name : words}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 // "Move or shorten": new date, times and/or site for everyone booked; each is told, with the
 // notice they had logged. Anyone the rules now say no to is listed for the office.
 export function MoveShiftForm({
@@ -169,13 +213,15 @@ export function MoveShiftForm({
 export function CancelShiftForm({ shiftId, booked }: { shiftId: string; booked: number }) {
   const router = useRouter();
   const [reason, setReason] = useState("");
+  const [askedBy, setAskedBy] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const ready = useHydrated();
   const cancel = () =>
     startTransition(async () => {
       if (!reason) return setMessage("Choose a reason.");
-      const result = await cancelShiftAction(shiftId, reason).catch(() => failed);
+      if (!askedBy) return setMessage("Choose who asked for it.");
+      const result = await cancelShiftAction(shiftId, reason, askedBy).catch(() => failed);
       setMessage(cancelShiftResultText(result));
       if (result.status === "cancelled") router.refresh();
     });
@@ -192,6 +238,7 @@ export function CancelShiftForm({ shiftId, booked }: { shiftId: string; booked: 
             : `${booked === 1 ? "1 person is" : `${booked} people are`} booked: each is told, and the notice they had is logged.`}
         </p>
         <ReasonSelect id="cancel-reason" value={reason} onChange={setReason} />
+        <AskedBySelect id="cancel-asked-by" value={askedBy} onChange={setAskedBy} />
         <button
           type="button"
           className={`${btn.dangerSolid} self-start`}
@@ -251,6 +298,7 @@ export function CancelBookingForm({
   const router = useRouter();
   const placesMessage = useContext(PlacesMessage);
   const [reason, setReason] = useState("");
+  const [askedBy, setAskedBy] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -258,7 +306,10 @@ export function CancelBookingForm({
   const cancel = () =>
     startTransition(async () => {
       if (!reason) return setMessage("Choose a reason.");
-      const result = await cancelBookingAction(shiftId, workerId, reason).catch(() => failed);
+      if (!askedBy) return setMessage("Choose who asked for it.");
+      const result = await cancelBookingAction(shiftId, workerId, reason, askedBy).catch(
+        () => failed,
+      );
       const text = cancelBookingResultText(result, name);
       if (result.status === "cancelled" && refreshOnDone && placesMessage) placesMessage(text);
       else setMessage(text);
@@ -282,6 +333,12 @@ export function CancelBookingForm({
               value={reason}
               onChange={setReason}
               forBooking
+            />
+            <AskedBySelect
+              id={`asked-${shiftId}-${workerId}`}
+              value={askedBy}
+              onChange={setAskedBy}
+              name={name}
             />
             <button
               type="button"

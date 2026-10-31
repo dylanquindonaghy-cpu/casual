@@ -1,3 +1,4 @@
+import type { MyPayDay } from "@/lib/portal/pay-day";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { NeedsItem } from "@/lib/credentials/status";
@@ -47,7 +48,7 @@ export interface HomeViewProps {
   needs: NeedsItem[];
   photo: StaffPhoto;
   open: OpenShiftsList; // the shifts she can take, urgent first (src/lib/portal/open-shifts.ts)
-  payDay: string; // yyyy-mm-dd: the Friday this week's shifts are paid (D8)
+  pay: MyPayDay; // the day this pay period's shifts are paid, on the firm's calendar (P3)
 }
 
 const time = (d: Date, tz: string) => {
@@ -77,7 +78,7 @@ export function HomeView(props: HomeViewProps) {
       {props.next ? <NextPass shift={props.next} timeZone={timeZone} now={now} /> : <EmptyPass />}
       <DoThis {...props} />
       <ShiftsYouCanTake {...props} savedAt={savedAt} />
-      <PaySection payDay={props.payDay} />
+      <PaySection pay={props.pay} />
       <HomeScreenHint />
     </div>
   );
@@ -267,14 +268,14 @@ function ShiftsYouCanTake({ timeZone, open, savedAt }: HomeViewProps & { savedAt
 }
 
 // "Pay": the Friday this week's shifts are paid (D8), to Pay.
-function PaySection({ payDay }: { payDay: string }) {
+function PaySection({ pay }: { pay: MyPayDay }) {
   return (
     <Section id="pay" title="Pay">
       <Row
         kind="pay"
         href="/pay"
-        lead={<DayTile day={datePartsOfDay(payDay)} />}
-        text={payDayRowText(payDay)}
+        lead={<DayTile day={datePartsOfDay(pay.payDay)} />}
+        text={payDayRowText(pay.payDay, pay)}
       />
     </Section>
   );

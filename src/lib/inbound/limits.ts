@@ -13,7 +13,8 @@ import type { FirmTx } from "../db/scoped";
 //   `replyHeld`. Casuals reach the office in the app instead (PLAN.md P8, the in-app chat).
 // - The office's alerts about unknown numbers: at most 5 per firm a clock hour (each one email to
 //   every admin and resourcer). Past that the message still waits in Need a person, and
-//   `message.received` says `alertHeld`.
+//   `message.received` says `alertHeld` and the hour (`alertHour`); the rest that hour go in one
+//   email at its end (Phase 25.3: src/lib/inbound/alerts-combined.ts).
 
 const autoRepliesSchema = z.boolean();
 
@@ -36,6 +37,25 @@ export async function takeUnknownAlert(tx: FirmTx, now: Date): Promise<boolean> 
     limit: UNKNOWN_ALERTS,
     value: "firm",
     now,
+    secret: ONE_BUCKET_PER_FIRM,
+  });
+  return hit.allowed;
+}
+
+// The clock hour an alert is counted in (UNKNOWN_ALERTS' window): its start.
+export function alertHourOf(now: Date): Date {
+  return new Date(Math.floor(now.getTime() / UNKNOWN_ALERTS.windowMs) * UNKNOWN_ALERTS.windowMs);
+}
+
+const COMBINED_ALERT: Limit = { name: "alert:unknown_combined", max: 1, windowMs: HOUR };
+
+// Claims the hour's one combined email (once per firm and hour, however often its job runs), in the
+// caller's transaction. False: it was claimed before.
+export async function takeCombinedAlert(tx: FirmTx, hourStart: Date): Promise<boolean> {
+  const hit = await hitLimit(tx, {
+    limit: COMBINED_ALERT,
+    value: "firm",
+    now: hourStart,
     secret: ONE_BUCKET_PER_FIRM,
   });
   return hit.allowed;

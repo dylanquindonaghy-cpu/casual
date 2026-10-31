@@ -10,7 +10,7 @@ import {
   type Board,
   type BoardShow,
 } from "@/lib/office/dashboard-board";
-import { officeNeedsAttention } from "@/lib/office/dashboard";
+import { headLine } from "@/lib/office/board-copy";
 import {
   offerState,
   offerStateSql,
@@ -18,7 +18,8 @@ import {
   type OfferState,
   type OfferWhy,
 } from "@/lib/office/offer-state";
-import { officeShellCounts } from "@/lib/office/shell-counts";
+import { loadOfficeFrame } from "@/lib/office/frame";
+import { DEFAULT_PAY_CALENDAR } from "@/lib/pay/calendar";
 import { bookingFirm, hoursFromNow, NOW, type BookingFirm } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
 import { plannerKey } from "../helpers/planner-api";
@@ -164,6 +165,38 @@ describe("the board's columns", () => {
     expect(g.toOffer).toMatchObject({ total: 3, places: 4, waiting: 0, more: false });
   });
 
+  it("an urgent session whose waves offered it to 25 casuals for each free place is at the offer limit (Phase 25.3)", async () => {
+    const t = await boardFirm();
+    // The steward session (2 places, both offers said no): 47 more casuals said no too, 49 in all.
+    const { rows: many } = await su.query<{ id: string }>(
+      // Made-up numbers in Ofcom's drama range (07700 900000 to 900999) this firm doesn't use yet.
+      `insert into workers (firm_id, first_name, last_name, mobile_e164)
+       select $1, 'Many', 'Casual ' || x.n, x.m
+         from (select n, '+447700900' || lpad(n::text, 3, '0') as m
+                 from generate_series(0, 999) as n) x
+        where not exists (select 1 from workers w where w.firm_id = $1 and w.mobile_e164 = x.m)
+        order by x.n
+        limit 48
+       returning id::text as id`,
+      [t.f.firmId],
+    );
+    for (const w of many.slice(0, 47)) {
+      await offer(t.f, t.steward, w.id, { response: "declined" });
+    }
+    const steward = async () =>
+      ok((await t.load()).gaps).toOffer.sessions.find((s) => s.shiftId === t.steward)?.offers;
+    expect(await steward()).toMatchObject({ sent: 49, atLimit: false });
+    // The 50th: the most for its 2 places, but it isn't urgent, so no waves ran.
+    await offer(t.f, t.steward, many[47]?.id ?? "", { response: "declined" });
+    expect(await steward()).toMatchObject({ sent: 50, atLimit: false });
+    // Urgent: the waves stop there, and the card says so.
+    await set("shifts", t.steward, { is_urgent: true });
+    expect(await steward()).toMatchObject({ sent: 50, atLimit: true });
+    // A third place: no longer at the limit.
+    await set("shifts", t.steward, { headcount: 3 });
+    expect(await steward()).toMatchObject({ sent: 50, atLimit: false });
+  });
+
   it("each session's facts and offers: who hasn't replied and since when", async () => {
     const t = await boardFirm();
     const g = ok((await t.load()).gaps);
@@ -232,6 +265,26 @@ describe("the board's columns", () => {
   });
 });
 
+describe("the head's pay period (Phase 25.2)", () => {
+  it("the firm's own pay calendar, read with the board; none set: ISO weeks", async () => {
+    const plain = await bookingFirm(su, withFirm);
+    const weekly = await withFirm(plain.firmId, (tx) => loadBoard(tx, NOW));
+    expect(weekly.payCalendar).toEqual(DEFAULT_PAY_CALENDAR);
+    expect(headLine(weekly.today, null, NOW, weekly.timeZone, weekly.payCalendar)).toBe(
+      "Monday 2 November · Week 45 · Pay Fri 13 Nov",
+    );
+    const f = await bookingFirm(su, withFirm, {
+      settings: {
+        pay_calendar: { days: 14, anchor: "2026-01-05", pay_day_after: 5, label: "cycle" },
+      },
+    });
+    const board = await withFirm(f.firmId, (tx) => loadBoard(tx, NOW));
+    expect(headLine(board.today, null, NOW, board.timeZone, board.payCalendar)).toBe(
+      "Monday 2 November · Cycle 22 · Pay Fri 13 Nov",
+    );
+  });
+});
+
 describe("the track's filters and counts", () => {
   it("urgent, this week and next week keep their sessions; each count is its columns' sessions", async () => {
     const t = await boardFirm();
@@ -261,7 +314,7 @@ describe("the track's filters and counts", () => {
     const t = await boardFirm();
     const g = ok((await t.load()).gaps);
     const urgent = ok((await t.load("urgent")).gaps);
-    const shell = await officeShellCounts({
+    const { shell } = await loadOfficeFrame({
       firm: { id: t.f.firmId },
       officeUserId: t.admin,
       run: withFirm,
@@ -470,14 +523,17 @@ describe("Who worked?", () => {
     const done = await t.f.shift({ startsAt: hoursFromNow(-30) });
     await t.f.booking(t.ann, done);
     const b = await t.load();
-    const n = await officeNeedsAttention({
-      firm: { id: t.f.firmId },
-      officeUserId: t.admin,
-      run: withFirm,
-      clock: { now: () => NOW },
-    });
+    const n = (
+      await loadOfficeFrame({
+        firm: { id: t.f.firmId },
+        officeUserId: t.admin,
+        run: withFirm,
+        clock: { now: () => NOW },
+      })
+    ).needs;
     if (!n?.needs.ok) throw new Error("Needs attention failed");
     expect(ok(b.toMark).items).toEqual(n.needs.data.toMark);
+    expect(ok(b.toMark).total).toBe(n.needs.data.toMarkTotal);
     expect(ok(b.toMark).items.map((x) => x.shiftId)).toEqual([done]);
   });
 });
@@ -510,6 +566,25 @@ describe("when the planner or sheet last sent changes", () => {
       t.admin,
     ]);
     expect(ok((await t.load()).planner).kind).toBe("sheet");
+  });
+
+  // Phase 25.4: a connector to the firm's own portal, by its quick read's time (headLine).
+  it("a connector to the firm's own portal: its reads, never shown as a sheet", async () => {
+    const t = await boardFirm();
+    await su.query(
+      `insert into roster_sources (firm_id, kind, enabled, connector, base_url, mapping,
+                                   last_near_synced_at, last_synced_at)
+       values ($1, 'connector', true, 'demo_portal', 'https://portal.example.test/api', '{}',
+               $2, $3)`,
+      [t.f.firmId, hoursFromNow(-0.25), hoursFromNow(-30)],
+    );
+    expect(ok((await t.load()).planner)).toEqual({
+      kind: "connector",
+      connector: "demo_portal",
+      nearReadAt: hoursFromNow(-0.25),
+      fullReadAt: hoursFromNow(-30),
+      failing: null,
+    });
   });
 });
 

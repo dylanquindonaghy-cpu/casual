@@ -363,6 +363,77 @@ describe("the page", () => {
     expect(await planner()).toEqual({ kind: "sheet", syncedAt: NOW });
   });
 
+  // Phase 25.4: a firm whose planner is a connector to its own system (P5) was read as a sheet.
+  it("Your planner: a connector to the firm's own portal, its reads' times and why the last failed", async () => {
+    const t = await keysFirm();
+    const planner = async () => (await integrationsPage(t.ctx(t.admin)))?.planner;
+    const connector = async (firmId: string, enabled = true) =>
+      (
+        await su.query<{ id: string }>(
+          `insert into roster_sources (firm_id, kind, enabled, connector, base_url, mapping)
+           values ($1, 'connector', $2, 'demo_portal', 'https://portal.example.test/api', '{}')
+           returning id::text as id`,
+          [firmId, enabled],
+        )
+      ).rows[0]?.id ?? "";
+    // Another firm's portal, read and failing, is never this firm's planner.
+    const other = await keysFirm();
+    const theirs = await connector(other.f.firmId);
+    await su.query(
+      `update roster_sources set last_synced_at = $2, last_near_synced_at = $2,
+              last_error_code = 'unreachable' where id = $1`,
+      [theirs, NOW],
+    );
+    expect(await planner()).toEqual({ kind: "none" });
+    // Switched off: not the planner.
+    const off = await connector(t.f.firmId, false);
+    expect(await planner()).toEqual({ kind: "none" });
+    await su.query("delete from roster_sources where id = $1", [off]);
+    // Never read yet.
+    const mine = await connector(t.f.firmId);
+    expect(await planner()).toEqual({
+      kind: "connector",
+      connector: "demo_portal",
+      nearReadAt: null,
+      fullReadAt: null,
+      failing: null,
+    });
+    // Read: the quick read of the next 48 hours, and the nightly read of everything.
+    const near = new Date(NOW.getTime() - 29 * 60_000);
+    const full = new Date(NOW.getTime() - 4 * 86_400_000);
+    await su.query(
+      "update roster_sources set last_near_synced_at = $2, last_synced_at = $3 where id = $1",
+      [mine, near, full],
+    );
+    expect(await planner()).toEqual({
+      kind: "connector",
+      connector: "demo_portal",
+      nearReadAt: near,
+      fullReadAt: full,
+      failing: null,
+    });
+    // The last read failed: its code, the times of the reads that worked kept.
+    await su.query("update roster_sources set last_error_code = 'unauthorised' where id = $1", [
+      mine,
+    ]);
+    expect(await planner()).toMatchObject({ kind: "connector", failing: "unauthorised" });
+    expect((await integrationsPage(other.ctx(other.admin)))?.planner).toEqual({
+      kind: "connector",
+      connector: "demo_portal",
+      nearReadAt: NOW,
+      fullReadAt: NOW,
+      failing: "unreachable",
+    });
+    // A live key with a change from it: the API is the planner, as for a sheet.
+    const result = await t.created();
+    await su.query(
+      `insert into events (firm_id, actor_type, action, entity_type, data, created_at)
+       values ($1, 'system', 'shift.changed', 'shift', $2, $3)`,
+      [t.f.firmId, JSON.stringify({ by: "firm", via: "api", keyId: result.keyId }), near],
+    );
+    expect(await planner()).toEqual({ kind: "api", lastChangeAt: near });
+  });
+
   it("Codes your planner can use: the firm's own role and qualification codes, sorted", async () => {
     const t = await keysFirm();
     const other = await keysFirm();

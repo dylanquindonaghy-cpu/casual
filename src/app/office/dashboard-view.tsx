@@ -31,6 +31,7 @@ export function DashboardContent({ board }: { board: BoardData }) {
               board.planner.ok ? board.planner.data : null,
               board.now,
               board.timeZone,
+              board.payCalendar,
             )}
           </p>
         </div>

@@ -11,10 +11,16 @@ import { cutChars } from "../text/cut";
 // AI writes reaches the worker (golden rules 1 and 9: a pay question gets the pay link, never an
 // answer).
 
-const SYSTEM =
-  "You sort a message a casual worker sent to their staffing firm's shifts line. Answer with one " +
-  "word only, from: shifts (wants work or to see open shifts), cancel (wants to cancel a shift), " +
-  "pay (asks about pay, hours or payslips), office (anything else, or wants a person).";
+// The same four labels for an email to the firm's staffing inbox (P7.4), told it's an email.
+const LABELS =
+  "Answer with one word only, from: shifts (wants work or to see open shifts), cancel (wants to " +
+  "cancel a shift), pay (asks about pay, hours or payslips), office (anything else, or wants a " +
+  "person).";
+const SYSTEM = {
+  shifts_line: `You sort a message a casual worker sent to their staffing firm's shifts line. ${LABELS}`,
+  email: `You sort an email a casual worker sent to their staffing firm (its subject, then its words). ${LABELS}`,
+  app: `You sort a message a casual worker sent to their staffing firm in its app. ${LABELS}`,
+};
 
 export async function classifyMessage(
   text: string,
@@ -31,12 +37,17 @@ export type AiFallback = "not_connected" | "no_answer" | "not_a_label";
 export async function sortMessage(
   text: string,
   ai: AiClient,
-  opts: { timeoutMs?: number } = {},
+  opts: { timeoutMs?: number; via?: "shifts_line" | "email" | "app" } = {},
 ): Promise<{ label: Intent } | { label: null; why: AiFallback }> {
   if (ai.name === "none") return { label: null, why: "not_connected" };
   const raw = await askAi(
     ai,
-    { purpose: "classify_message", system: SYSTEM, prompt: cutChars(text, 1600), maxTokens: 5 },
+    {
+      purpose: "classify_message",
+      system: SYSTEM[opts.via ?? "shifts_line"],
+      prompt: cutChars(text, 1600),
+      maxTokens: 5,
+    },
     opts.timeoutMs ?? AI_TIMEOUT_MS,
   );
   if (typeof raw !== "string") return { label: null, why: "no_answer" };

@@ -247,7 +247,7 @@ async function requirementNames(tx: FirmTx, rows: Row[]) {
     tx,
     rows.map((r) => r.role),
   );
-  return (r: Row) => requirements.of(r.role, r.required_credentials ?? []);
+  return (r: Row) => requirements.officeOf(r.role, r.required_credentials ?? []);
 }
 
 // Whether the cancellation reached the firm's planner by webhook (12J.2), from the log: its

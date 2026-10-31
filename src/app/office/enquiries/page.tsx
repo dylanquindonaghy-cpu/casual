@@ -28,11 +28,13 @@ import {
   AI_BANNER,
   appTodayText,
   countsLine,
+  emptyTodayText,
   enquiriesEmptyText,
   showLastDaysText,
   VIEW_LABELS,
 } from "@/lib/office/enquiries-copy";
 import { officeRequestQueue } from "@/lib/office/request-queue";
+import { EmailBody, EmailCasualLink, EmailFacts, emailTitle } from "./email-detail";
 import { CasualPageLink, EnquiryBody, EnquiryFacts, enquiryTitle } from "./enquiry-detail";
 import { EnquiryItem } from "./enquiry-row";
 import { RequestQueueView } from "./request-queue-view";
@@ -47,8 +49,8 @@ export const metadata: Metadata = { title: "Enquiries" };
 // page shows it); on a phone each row opens the message's own page. Admins and resourcers.
 
 // Only today's (since midnight, the firm's time): "Show only today's" under the views (Phase 24,
-// 24.3: the dashboard's "Enquiries today" card linked here until then).
-const EMPTY_TODAY = "Nothing to the shifts line today.";
+// 24.3: the dashboard's "Enquiries today" card linked here until then). A firm with a staffing inbox
+// lists its emails too (Phase 25.5): emptyTodayText().
 
 const isView = (v: unknown): v is EnquiryView =>
   typeof v === "string" && (ENQUIRY_VIEWS as readonly string[]).includes(v);
@@ -164,8 +166,8 @@ export default async function EnquiriesPage({
             {list.rows.length === 0 ? (
               <p className={`${card} text-ink-muted`}>
                 {day
-                  ? EMPTY_TODAY
-                  : enquiriesEmptyText(view as Exclude<EnquiryView, "app">, list.days)}
+                  ? emptyTodayText(list.inbox)
+                  : enquiriesEmptyText(view as Exclude<EnquiryView, "app">, list.days, list.inbox)}
               </p>
             ) : (
               <>
@@ -201,13 +203,25 @@ export default async function EnquiriesPage({
                     id="chosen-title"
                     className="text-2xl font-semibold tracking-heading text-balance text-ink"
                   >
-                    {enquiryTitle(chosen)}
+                    {chosen.channel === "email" ? emailTitle(chosen.who) : enquiryTitle(chosen)}
                   </h2>
-                  <EnquiryFacts e={chosen} />
+                  {chosen.channel === "email" ? (
+                    <EmailFacts e={chosen} />
+                  ) : (
+                    <EnquiryFacts e={chosen} />
+                  )}
                 </div>
-                <CasualPageLink e={chosen} />
+                {chosen.channel === "email" ? (
+                  <EmailCasualLink e={chosen} />
+                ) : (
+                  <CasualPageLink e={chosen} />
+                )}
               </header>
-              <EnquiryBody e={chosen} level={3} stayOn={paneHref(view, day, chosen.messageId)} />
+              {chosen.channel === "email" ? (
+                <EmailBody e={chosen} level={3} stayOn={paneHref(view, day, chosen.messageId)} />
+              ) : (
+                <EnquiryBody e={chosen} level={3} stayOn={paneHref(view, day, chosen.messageId)} />
+              )}
             </section>
           )}
         </div>

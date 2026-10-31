@@ -9,6 +9,7 @@ import { readSessionToken } from "@/lib/auth/session-cookie";
 import { dayWithYear } from "@/lib/office/action-log";
 import {
   FILTER_KIND_WORDS,
+  ASKED_BY_WORDS,
   INITIATOR_WORDS,
   KIND_WORDS,
   officeNoticeReport,
@@ -205,6 +206,7 @@ export default async function NoticeReportPage({
                 <th className={th}>When</th>
                 <th className={th}>What</th>
                 <th className={th}>Started by</th>
+                <th className={th}>Asked by</th>
                 <th className={th}>Worker</th>
                 <th className={th}>Shift</th>
                 <th className={`${th} ${table.num}`}>Notice</th>
@@ -221,6 +223,9 @@ export default async function NoticeReportPage({
                   </td>
                   <td className={`${td} whitespace-nowrap font-semibold`}>{KIND_WORDS[r.kind]}</td>
                   <td className={`${td} whitespace-nowrap`}>{INITIATOR_WORDS[r.initiator]}</td>
+                  <td className={`${td} whitespace-nowrap`}>
+                    {r.askedBy ? ASKED_BY_WORDS[r.askedBy] : ""}
+                  </td>
                   <td className={`${td} min-w-28`}>{r.worker}</td>
                   <td className={`${td} min-w-52`}>
                     {r.shift ? (

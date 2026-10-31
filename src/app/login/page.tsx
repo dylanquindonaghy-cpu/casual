@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { loginCard, loginTitle, page } from "@/app/ui/classes";
 import { getWorkerSession } from "@/lib/auth/current-worker";
+import { firmLoginWay } from "@/lib/portal/login-way";
 import { getCurrentFirm } from "@/lib/tenancy/current-firm";
 import { LoginForm } from "./login-form";
 
@@ -28,7 +29,7 @@ export default async function LoginPage({
             You&apos;re logged out.
           </p>
         )}
-        <LoginForm firmName={firm.name} signOff={firm.signOff} />
+        <LoginForm firmName={firm.name} signOff={firm.signOff} way={await firmLoginWay(firm.id)} />
       </div>
     </main>
   );

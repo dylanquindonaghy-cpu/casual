@@ -17,6 +17,7 @@ import {
   payDigestEmail,
   payQueryUpdateMessage,
   payQueryUpdatePush,
+  officeReplyPush,
   reminderPush,
   requestUpdateMessage,
   requestUpdatePush,
@@ -35,6 +36,12 @@ import {
   shiftUrgentMessage,
   shiftUrgentSms,
   unknownNumberAlertEmail,
+  unknownNumbersCombinedEmail,
+  inboxAnswerEmail,
+  inboxOfficeReplyEmail,
+  inboxReplySubject,
+  inboxSummaryEmail,
+  INBOX_AUTOMATIC_LINE,
   smsStartedMessage,
   smsStoppedMessage,
   unknownNumberMessage,
@@ -278,6 +285,136 @@ describe("the code says what the doc says", () => {
     expect(words(unknownNumberAlertEmail(docVoice, "{link}", { askedName: false }).body)).toEqual(
       words([first, notReplied, see, signOff].join(" ")),
     );
+  });
+
+  it("the hour's one email for the rest (unknown_numbers_combined, Phase 25.3): subject and words", () => {
+    const office = section("Office notifications");
+    const [subject, one, body, why, see, seeOne, signOff] = quotes(
+      office,
+      "`unknown_numbers_combined`",
+    );
+    // The doc's {placeholders}, as the code fills them.
+    const fill = (text = "") =>
+      text
+        .replace("{2 more messages}", "2 more messages")
+        .replace("{18:00}", "18:00")
+        .replace("{19:00}", "19:00");
+    const email = unknownNumbersCombinedEmail(docVoice, "{link}", {
+      messages: 2,
+      from: "18:00",
+      to: "19:00",
+    });
+    expect(email.subject).toBe(fill(subject));
+    expect(words(email.body)).toEqual(words(fill([body, why, see, signOff].join(" "))));
+    // One: "1 more message", "See it".
+    const single = unknownNumbersCombinedEmail(docVoice, "{link}", {
+      messages: 1,
+      from: "18:00",
+      to: "19:00",
+    });
+    expect(one).toBe("1 more message");
+    expect(seeOne).toBe("See it");
+    expect(single.subject).toBe(fill(subject).replace("2 more messages", one ?? ""));
+    expect(single.body).toContain(`${one} came to the shifts line between 18:00 and 19:00`);
+    expect(single.body).toContain(`${seeOne} in Enquiries, under Need a person: {link}`);
+  });
+
+  // Phase 25.5: the staffing inbox's emails (P7.5).
+  it("the staffing inbox's emails: the link emails, the office's reply and the summary", () => {
+    const section = oneLine(
+      doc.slice(
+        doc.indexOf("## The staffing inbox's emails"),
+        doc.indexOf("## STOP and START by text"),
+      ),
+    ).replace(/\\"/g, '"');
+    const inDoc = (line: string) => expect(section, line).toContain(oneLine(line));
+    // The summary is with the office's emails ("Office notifications").
+    const summary = oneLine(doc.slice(doc.indexOf("- `inbox_summary`"))).slice(0, 1200);
+    const inSummary = (line: string) => expect(summary, line).toContain(oneLine(line));
+    const links = {
+      shifts: "{link to Open shifts}",
+      cancel: "{link to My shifts}",
+      pay: "{link to Pay}",
+    } as const;
+    for (const answer of ["shifts", "cancel", "pay"] as const) {
+      const email = inboxAnswerEmail(docVoice, answer, {
+        firstName: "{first name}",
+        subject: null,
+        link: links[answer],
+      });
+      expect(email.subject).toBe("Your email to {firm}");
+      const lines = email.body.split("\n").filter((l) => l.trim());
+      expect(lines[0]).toBe("Hi {first name},");
+      expect(lines.at(-2)).toBe(INBOX_AUTOMATIC_LINE);
+      expect(lines.at(-1)).toBe("— {firm} Shift Team");
+      for (const line of lines) inDoc(line);
+      // The link is the last thing on its line.
+      expect(lines).toContain(links[answer]);
+    }
+    // "Re: {their subject}", one "Re:" only, at most 200 characters.
+    expect(inboxReplySubject(docVoice, "Saturday")).toBe("Re: Saturday");
+    expect(inboxReplySubject(docVoice, "RE: Saturday")).toBe("RE: Saturday");
+    expect(inboxReplySubject(docVoice, "  ")).toBe("Your email to {firm}");
+    expect([...inboxReplySubject(docVoice, "x".repeat(300))]).toHaveLength(200);
+    inDoc('Its subject is "Re: {their subject}" ("Your email to {firm}" when it had none).');
+    // The office's reply: their words between the greeting and the sign-off.
+    const office = inboxOfficeReplyEmail(docVoice, {
+      firstName: "{first name}",
+      subject: "Saturday",
+      words: "  {their words}  ",
+    });
+    expect(office).toEqual({
+      subject: "Re: Saturday",
+      body: "Hi {first name},\n\n{their words}\n\n— {firm} Shift Team",
+    });
+    inDoc('"Hi {first name}," / "{their words}" / "— {firm} Shift Team"');
+    // The summary: counts only, each line only when it isn't 0.
+    const full = inboxSummaryEmail(docVoice, "{link}", {
+      from: "09:00",
+      to: "12:00",
+      emails: 12,
+      linked: 5,
+      waiting: 4,
+      office: 1,
+      pay: 2,
+      notCasuals: 1,
+    });
+    expect(full.subject).toBe("{firm}: 12 emails to the staffing inbox");
+    inSummary('subject "{firm}: {12 emails} to the staffing inbox"');
+    expect(full.body.split("\n").filter((l) => l.trim())).toEqual([
+      "Between 09:00 and 12:00, the staffing inbox got 12 emails:",
+      "5 answered with a link",
+      "4 waiting for a person",
+      "1 already answered by your office",
+      "2 pay questions",
+      "1 not from your casuals (in your own inbox)",
+      "See them in Enquiries: {link}",
+      "— {firm} Shift Team",
+    ]);
+    for (const line of [
+      '"Between {09:00} and {12:00}, the staffing inbox got {12 emails}:"',
+      '"{5} answered with a link"',
+      '"{4} waiting for a person"',
+      '"{1} already answered by your office"',
+      '"{1} not from your casuals (in your own inbox)"',
+      '"See them in Enquiries: {link}"',
+    ]) {
+      inSummary(line);
+    }
+    const one = inboxSummaryEmail(docVoice, "{link}", {
+      from: "21:00",
+      to: "00:00",
+      emails: 1,
+      linked: 0,
+      waiting: 0,
+      office: 0,
+      pay: 1,
+      notCasuals: 0,
+    });
+    expect(one.subject).toBe("{firm}: 1 email to the staffing inbox");
+    expect(one.body).toContain("1 pay question\n");
+    expect(one.body).not.toMatch(/answered|waiting|not from/);
+    inSummary('("1 pay question")');
   });
 
   it("the shifts line's instant replies: each row's words, signed", () => {
@@ -745,6 +882,11 @@ describe("the pushes", () => {
     expect(payQueryUpdatePush()).toEqual({ title: payTitle, body: payBody });
   });
 
+  it("the office's reply in the app (Phase 25.6)", () => {
+    const [title, body] = quotes(push, "The office's reply in the app");
+    expect(officeReplyPush()).toEqual({ title, body });
+  });
+
   it("reminder, 24 h and 2 h", () => {
     const [title24, body24, title2, body2] = quotes(push, "Reminder:");
     expect(
@@ -847,6 +989,7 @@ describe("every template function is checked here", () => {
         "offerPush",
         "officeLoginLinkEmail",
         "officeReplyMessage",
+        "officeReplyPush",
         "payDigestEmail",
         "payQueryUpdateMessage",
         "payQueryUpdatePush",
@@ -867,6 +1010,12 @@ describe("every template function is checked here", () => {
         "shiftUrgentMessage",
         "shiftUrgentSms",
         "unknownNumberAlertEmail",
+        "unknownNumbersCombinedEmail",
+        // The staffing inbox's emails (Phase 25.5), checked above.
+        "inboxAnswerEmail",
+        "inboxOfficeReplyEmail",
+        "inboxReplySubject",
+        "inboxSummaryEmail",
         "unknownNumberMessage",
         "smsStartedMessage",
         "smsStoppedMessage",

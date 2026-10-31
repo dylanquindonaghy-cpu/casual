@@ -110,6 +110,12 @@ export const LOG_TYPES = {
       "message.replied",
       "message.reply_failed",
       "message.office_alerted",
+      "message.office_alerts_combined",
+      "message.inbox_summary",
+      "email.received",
+      "email.replied",
+      "email.reply_failed",
+      "email.drafted",
       "message.office_alert_failed",
       "message.office_alert_skipped",
       // What the shifts line's personal reply was built from (12D.2).
@@ -267,6 +273,7 @@ export const RATE_LIMITED = "auth.rate_limited";
 export const LIMIT_TYPES: Readonly<Record<string, LogType>> = {
   "take:worker": "bookings",
   "push:worker": "workers",
+  "app_message:worker": "messages", // a casual's messages in the app (Phase 25.6)
   "api:key": "firm",
   "strikes_link:firm": "firm",
   "strikes_link:firm_day": "firm",

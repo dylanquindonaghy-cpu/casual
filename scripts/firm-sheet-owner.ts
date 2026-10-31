@@ -197,6 +197,7 @@ export async function connectSheet(
           "update roster_sources set enabled = false, sync_started_at = null where id = $1",
           [live.id],
         );
+        await forgetNameProblems(owner, firmId, live.id);
         await logChange(owner, firmId, DISABLED, live.id, { replaced: true });
       }
       const before = rows.find((r) => r.spreadsheet_id === opts.spreadsheetId);
@@ -234,6 +235,15 @@ export async function connectSheet(
   }
 }
 
+// A switched-off sheet's last sync's names (sheet_name_problems, Phase 25.2) go with it: no sync will
+// replace them, and a role cell can hold text typed by mistake.
+async function forgetNameProblems(owner: Client, firmId: string, sourceId: string) {
+  await owner.query("delete from sheet_name_problems where firm_id = $1 and source_id = $2", [
+    firmId,
+    sourceId,
+  ]);
+}
+
 // Switched off, not deleted (its history stays); a sync running now loses its lease.
 export async function disableSheet(adminUrl: string, slug: string): Promise<DisableResult> {
   const result = await withOwnerFirm(adminUrl, slug, async (owner, firmId) => {
@@ -244,6 +254,7 @@ export async function disableSheet(adminUrl: string, slug: string): Promise<Disa
     );
     const id = rows[0]?.id;
     if (!id) return { status: "none" } as const;
+    await forgetNameProblems(owner, firmId, id);
     await logChange(owner, firmId, DISABLED, id, { replaced: false });
     return { status: "disabled" } as const;
   });

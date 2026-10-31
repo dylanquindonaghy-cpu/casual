@@ -98,7 +98,7 @@ describe("the console push transport", () => {
 describe("the profile's push setting", () => {
   it("without the firm's key, says so plainly (no JavaScript needed)", () => {
     const text = renderToStaticMarkup(
-      createElement(PushSetting, { publicKey: null, firmName: "Acme Events" }),
+      createElement(PushSetting, { publicKey: null, firmName: "Acme Events", otherWay: "text" }),
     )
       .replace(/<[^>]+>/g, " ")
       .replace(/&#x27;/g, "'")
@@ -111,7 +111,11 @@ describe("the profile's push setting", () => {
   it("with a key, the phone decides after the page loads", () => {
     expect(
       renderToStaticMarkup(
-        createElement(PushSetting, { publicKey: "k".repeat(87), firmName: "Acme" }),
+        createElement(PushSetting, {
+          publicKey: "k".repeat(87),
+          firmName: "Acme",
+          otherWay: "text",
+        }),
       ),
     ).toBe("");
   });
@@ -126,7 +130,12 @@ describe("the push setting's words in every state", () => {
   const view = (o: Partial<Parameters<typeof PushSettingView>[0]>) =>
     text(
       renderToStaticMarkup(
-        createElement(PushSettingView, { state: "off", firmName: "Acme Events", ...o }),
+        createElement(PushSettingView, {
+          state: "off",
+          firmName: "Acme Events",
+          otherWay: "text",
+          ...o,
+        }),
       ),
     );
   it("says what's happening and what to do", () => {

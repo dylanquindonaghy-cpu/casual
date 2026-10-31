@@ -76,6 +76,9 @@ export const outboundMessageSchema = z.discriminatedUnion("channel", [
   z.object({
     channel: z.literal("email"),
     to: z.email(),
+    // Where the casual's reply goes (P7.5): the firm's staffing inbox, so it comes back to
+    // Enquiries. None: the app's sending address.
+    replyTo: z.email().optional(),
     subject: z.string().min(1).max(200),
     body: z.string().min(1).max(20_000),
     attachments: z

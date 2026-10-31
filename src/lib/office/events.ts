@@ -190,7 +190,7 @@ async function sessionsOf(
   );
   return {
     rows,
-    requirementsOf: (r) => requirements.of(r.role, r.required_credentials),
+    requirementsOf: (r) => requirements.officeOf(r.role, r.required_credentials),
   };
 }
 

@@ -61,7 +61,8 @@ and hears about bookings, cancellations and withdrawn strikes by signed webhook.
 the key and pastes the webhook address on one page.
 
 **The casual app** keeps working from a link, with no app to download. It has four tabs (Home,
-Shifts, Pay, Profile); cancelling is a step on a shift's page:
+Shifts, Pay, Profile; since Phase 25.6 five, with Messages: the in-app chat, `docs/screens.md`);
+cancelling is a step on a shift's page:
 - **Home:** what needs updating, urgent shifts they can take, and their next shift in full.
 - **Shifts:** only shifts inside their own travel area. Each shows the distance, the time by car and
   the time by public transport, urgent or not.
@@ -966,7 +967,7 @@ the menu.
 ### 4.1 Navigation and theme
 
 - A bottom tab bar with four labelled items: Home · Shifts · Pay · Profile. Profile shows a dot when
-  something needs updating.
+  something needs updating. (Phase 25.6 adds a fifth, Messages, between Shifts and Pay.)
 - The firm's brand bar stays at the top.
 - The theme follows the phone's setting.
 - It is still a link, with no app to download.
@@ -1567,7 +1568,7 @@ file import also carries casuals, qualifications and pay records.
 - `INTEGRATIONS_SECRET` (web and worker): at least 32 characters, and the example value is refused
   in production. It derives the signing secrets and the event ids. Rotating it changes both, so
   every firm with a webhook must paste its new secret (runbook).
-- `WEBHOOK_TRANSPORT` (worker only, like `MESSAGING_TRANSPORT`): `console` or `https`, `https`
+- `WEBHOOK_TRANSPORT` (worker only): `console` or `https`, `https`
   required in production. Not a web setting: the production-mode web app in CI and the walkthrough
   runs with `NODE_ENV=production`, and the web never sends a webhook.
 - **Pinned for every test run:** `INTEGRATIONS_SECRET` gets a made-up test value and

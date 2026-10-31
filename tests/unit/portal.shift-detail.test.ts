@@ -71,6 +71,7 @@ const facts: ShiftFacts = {
     },
   ],
   noticeHours: 48,
+  strikesOn: true,
   lastDay: "2026-11-07",
 };
 const render = (page: ShiftPage) =>

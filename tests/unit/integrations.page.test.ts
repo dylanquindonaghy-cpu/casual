@@ -4,7 +4,14 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { KEY_LABEL_MAX, MAX_LIVE_KEYS } from "@/lib/integrations/keys";
 import { eventWords } from "@/lib/office/event-words";
-import { apiKeyLabelSchema, revokeApiKeySchema, type ApiKeyRow } from "@/lib/office/integrations";
+import {
+  apiKeyLabelSchema,
+  revokeApiKeySchema,
+  type ApiKeyRow,
+  type PlannerLink,
+} from "@/lib/office/integrations";
+import { headLine } from "@/lib/office/board-copy";
+import { ConnectorCard } from "@/app/office/settings/integrations/connector-card";
 import {
   createKeyResultText,
   KEY_SHOWN_ONCE,
@@ -15,6 +22,12 @@ import {
   PLANNER_GUIDE_HREF,
   plannerLine,
   revokeKeyResultText,
+  CONNECTOR_CADENCE,
+  CONNECTOR_HIDDEN,
+  CONNECTOR_HIDDEN_LINK,
+  connectorErrorWords,
+  connectorFailingText,
+  connectorLines,
   revokeQuestion,
 } from "@/lib/office/integrations-copy";
 import { logTypeLabel } from "@/lib/office/log-types";
@@ -84,6 +97,143 @@ describe("Your planner", () => {
     const page = readFileSync("src/app/office/settings/integrations/page.tsx", "utf8");
     expect(page).toContain("How to connect your planner");
     expect(page).toContain("PLANNER_GUIDE_HREF");
+  });
+});
+
+// Phase 25.4 (P5's card; docs/screens.md "Your firm's portal as its planner").
+describe("your firm's portal as its planner", () => {
+  const screens = readFileSync("docs/screens.md", "utf8").replace(/\s+/g, " ");
+  const part = screens.slice(
+    screens.indexOf("**Your firm's portal as its planner"),
+    screens.indexOf("| Route | Screen |", screens.indexOf("**Your firm's portal as its planner")),
+  );
+  const inDoc = (line: string) => expect(part.replace(/[{}]/g, "")).toContain(line);
+  const portal = (o: Partial<Extract<PlannerLink, { kind: "connector" }>> = {}) =>
+    ({
+      kind: "connector",
+      connector: "demo_portal",
+      nearReadAt: new Date("2026-11-02T08:31:00Z"),
+      fullReadAt: new Date("2026-10-29T04:17:00Z"),
+      failing: null,
+      ...o,
+    }) as const;
+
+  it("names the portal; the card gives each read's time (today: the time only)", () => {
+    expect(plannerLine(portal(), NOW, TZ)).toBe("Connected to the demo portal");
+    inDoc("Connected to the demo portal");
+    expect(connectorLines(portal(), NOW, TZ)).toEqual([
+      "The next 48 hours' sessions: read 08:31.",
+      "Everything: read Thu 29 Oct, 04:17.",
+    ]);
+    expect(connectorLines(portal({ nearReadAt: null, fullReadAt: null }), NOW, TZ)).toEqual([
+      "The next 48 hours' sessions: not read yet.",
+      "Everything: not read yet.",
+    ]);
+    inDoc("The next 48 hours' sessions: read 09:31.");
+    inDoc("Everything: read Thu 29 Oct, 04:17.");
+    inDoc(CONNECTOR_CADENCE);
+    inDoc(CONNECTOR_HIDDEN);
+    inDoc(CONNECTOR_HIDDEN_LINK.text);
+    expect(CONNECTOR_HIDDEN_LINK.href).toBe("/office/events?view=hidden");
+    // Working: no failed read said.
+    expect(connectorFailingText(portal())).toBeNull();
+  });
+
+  it("a failed read: why, in plain words, and when it tries again", () => {
+    expect(connectorFailingText(portal({ failing: "unreachable" }))).toBe(
+      "The last read failed: your portal didn't answer. It tries again every 30 minutes until it works.",
+    );
+    inDoc(
+      "The last read failed: your portal didn't answer. It tries again every 30 minutes until it works.",
+    );
+    // Every code a pull can leave (src/lib/connector/pull.ts) has its own words, in the doc.
+    const codes = [
+      "unreachable",
+      "unauthorised",
+      "no_api_key",
+      "secrets_off",
+      "secret_unreadable",
+      "read_failed",
+      "agreement_not_recorded",
+      "not_allowed",
+      "out_of_time",
+      "records_failed",
+      "off",
+    ];
+    const unknown = connectorErrorWords("something_new");
+    expect(unknown).toBe("an error we don't have words for yet");
+    inDoc(unknown);
+    for (const code of codes) {
+      const words = connectorErrorWords(code);
+      expect(words, code).not.toBe(unknown);
+      inDoc(words);
+    }
+    // A fault of ours: "error_" and its kind (pull.ts's sourceCode and unexpectedCode).
+    for (const code of ["error_database", "error_unexpected", "error_typeerror"]) {
+      expect(connectorErrorWords(code), code).toBe("something went wrong on our side");
+    }
+    inDoc("something went wrong on our side");
+    // And a failed pull saves no other code (src/lib/connector/pull.ts): its failed() calls, the
+    // read's codes (readSource, readFailureCode), the lease let go as off, and the transport's.
+    const pull = readFileSync("src/lib/connector/pull.ts", "utf8");
+    const transport = readFileSync("src/lib/connector/transport.ts", "utf8");
+    const left = [
+      ...[...pull.matchAll(/failed\("([a-z_]+)"\)/g)].map((m) => m[1] ?? ""),
+      ...[...pull.matchAll(/\? "([a-z_]+)"\s*:/g)].map((m) => m[1] ?? ""),
+      ...[...pull.matchAll(/: "([a-z_]+)";\n\}/g)].map((m) => m[1] ?? ""),
+      ...[...pull.matchAll(/return \{ code: "([a-z_]+)" \}/g)].map((m) => m[1] ?? ""),
+      ...[...pull.matchAll(/release\(\{ ok: false, code: "([a-z_]+)" \}\)/g)].map(
+        (m) => m[1] ?? "",
+      ),
+      ...(/ConnectorFetchCode = ([^;]+);/.exec(transport)?.[1]?.match(/[a-z_]+/g) ?? []),
+    ];
+    for (const code of ["agreement_not_recorded", "no_api_key", "secrets_off", "read_failed"]) {
+      expect(left).toContain(code);
+    }
+    expect(left).toContain("error_database");
+    for (const code of left) {
+      if (code.startsWith("error_"))
+        expect(connectorErrorWords(code)).toBe(connectorErrorWords("error_x"));
+      else expect(codes, `pull.ts saves "${code}"`).toContain(code);
+    }
+    // Never the raw code.
+    expect(connectorErrorWords("__proto__")).toBe(unknown);
+  });
+
+  it("the card: the reads, a failing read's notice, how often it reads, and the hidden sessions' link", () => {
+    const html = (p: ReturnType<typeof portal>) =>
+      renderToStaticMarkup(createElement(ConnectorCard, { planner: p, now: NOW, timeZone: TZ }))
+        .replace(/&#x27;/g, "'")
+        .replace(/&amp;/g, "&");
+    const working = html(portal());
+    const text = working.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+    expect(text).toContain("The next 48 hours' sessions: read 08:31.");
+    expect(text).toContain("Everything: read Thu 29 Oct, 04:17.");
+    expect(text).toContain(CONNECTOR_CADENCE);
+    expect(text).toContain(CONNECTOR_HIDDEN);
+    expect(working).toContain(`href="${CONNECTOR_HIDDEN_LINK.href}"`);
+    expect(working).toContain(`>${CONNECTOR_HIDDEN_LINK.text}</a>`);
+    expect(working).not.toContain('role="status"');
+    expect(working).not.toContain("The last read failed");
+    // Failing: said at once to a screen reader, between the reads and how often it reads.
+    const failing = html(portal({ failing: "unreachable" }));
+    const status = /<p role="status"[^>]*>([^<]*)<\/p>/.exec(failing);
+    expect(status?.[1]).toBe(connectorFailingText(portal({ failing: "unreachable" })));
+    expect(failing.indexOf("Everything:")).toBeLessThan(failing.indexOf('role="status"'));
+    expect(failing.indexOf('role="status"')).toBeLessThan(failing.indexOf("It reads the next"));
+    // The page shows the card for a connector only.
+    const page = readFileSync("src/app/office/settings/integrations/page.tsx", "utf8");
+    expect(page).toMatch(/data\.planner\.kind === "connector" && \(\s*<ConnectorCard/);
+  });
+
+  it("the dashboard: when it was last read, from your planner", () => {
+    expect(headLine("2026-11-02", portal(), NOW, TZ)).toBe(
+      "Monday 2 November · Week 45 · Pay Fri 13 Nov · Updated 08:31 from your planner",
+    );
+    expect(headLine("2026-11-02", portal({ nearReadAt: null }), NOW, TZ)).toBe(
+      "Monday 2 November · Week 45 · Pay Fri 13 Nov",
+    );
+    inDoc(" · Updated 09:31 from your planner");
   });
 });
 

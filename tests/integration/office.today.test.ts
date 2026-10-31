@@ -137,7 +137,7 @@ describe("the to-do parts", () => {
       toCheck: [[t.tomorrow, "inactive"]],
       fromSheet: [t.sheetShift],
       toMark: [[t.ended, 1]],
-      evidence: { addressConfirmed: false, waiting: 0, failed: [], failedMore: false },
+      evidence: { addressConfirmed: false, waiting: 0, failed: [], failedTotal: 0 },
     });
   });
 
@@ -164,14 +164,14 @@ describe("the to-do parts", () => {
         stopped: null,
         escalated: false,
       },
-      toCheck: { items: [], more: false },
-      fromSheet: { items: [], more: false },
-      toMark: { items: [], more: false },
+      toCheck: { items: [], total: 0 },
+      fromSheet: { items: [], total: 0 },
+      toMark: { items: [], total: 0 },
       failed: [],
     });
   });
 
-  it("says when a list stopped at 50", async () => {
+  it("says when a list stopped at 50, and how many there are in all (Phase 25.3)", async () => {
     const f = await bookingFirm(su, withFirm);
     const ben = await f.worker({ first: "Ben" });
     await su.query(
@@ -187,6 +187,65 @@ describe("the to-do parts", () => {
     );
     const toMark = await withFirm(f.firmId, (tx) => loadToMark(tx, NOW));
     expect(toMark.items).toHaveLength(50);
-    expect(toMark.more).toBe(true);
+    expect(toMark.total).toBe(51);
+  });
+
+  it("bookings to check and the rota sheet's asks: the first 50, and how many in all (Phase 25.3)", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const ben = await f.worker({ first: "Ben" });
+    // 53 sessions ahead, Ben booked on each, then made inactive; each with a sheet issue too.
+    await su.query(
+      `with s as (
+         insert into shifts (firm_id, event_id, role, starts_at, ends_at, headcount, status, source,
+                             sheet_issues)
+         select $1, $3, 'steward', $2::timestamptz + (n || ' minutes')::interval,
+                $2::timestamptz + (n || ' minutes')::interval + interval '8 hours', 1, 'filled',
+                'native', $5::jsonb
+           from generate_series(1, 53) as n
+         returning id)
+       insert into assignments (firm_id, shift_id, slot, worker_id, status, confirmed_at)
+       select $1, s.id, 1, $4, 'confirmed', $2::timestamptz - interval '3 days' from s`,
+      [
+        f.firmId,
+        hoursFromNow(20),
+        await f.event(),
+        ben,
+        JSON.stringify({ names: [{ workerId: ben, codes: ["credential_missing"] }] }),
+      ],
+    );
+    await su.query("update workers set status = 'inactive' where id = $1", [ben]);
+    const got = await withFirm(f.firmId, async (tx) => ({
+      toCheck: await loadBookingsToCheck(tx, NOW),
+      fromSheet: await loadSheetIssues(tx, NOW),
+    }));
+    expect([got.toCheck.items.length, got.toCheck.total]).toEqual([50, 53]);
+    expect([got.fromSheet.items.length, got.fromSheet.total]).toEqual([50, 53]);
+  });
+
+  it("strike evidence that couldn't be emailed: the first 50, and how many in all (Phase 25.3)", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const ben = await f.worker({ first: "Ben" });
+    // 52 bookings Ben cancelled late, each a strike whose evidence email failed.
+    await su.query(
+      `with s as (
+         insert into shifts (firm_id, event_id, role, starts_at, ends_at, headcount, status, source)
+         select $1, $3, 'steward', $2::timestamptz + (n || ' minutes')::interval,
+                $2::timestamptz + (n || ' minutes')::interval + interval '8 hours', 1, 'open', 'native'
+           from generate_series(1, 52) as n
+         returning id),
+       a as (
+         insert into assignments (firm_id, shift_id, slot, worker_id, status, confirmed_at,
+                                  cancelled_at, cancel_reason, notice_hours, cancel_via)
+         select $1, s.id, 1, $4, 'cancelled_worker', now(), now(), 'Travel problem', 20, 'app' from s
+         returning id, shift_id)
+       insert into strikes (firm_id, worker_id, assignment_id, shift_id, notice_hours,
+                            threshold_hours, issued_at, expires_at, evidence_email_status)
+       select $1, $4, a.id, a.shift_id, 20, 48, $5::timestamptz, $5::timestamptz + interval '90 days',
+              'failed'
+         from a`,
+      [f.firmId, hoursFromNow(20), await f.event(), ben, NOW],
+    );
+    const evidence = await withFirm(f.firmId, (tx) => loadEvidence(tx, NOW));
+    expect([evidence.failed.length, evidence.failedTotal]).toEqual([50, 52]);
   });
 });

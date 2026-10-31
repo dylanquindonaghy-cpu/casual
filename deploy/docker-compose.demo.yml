@@ -73,6 +73,9 @@ services:
       DEMO_SITE_PASSWORD: ${DEMO_SITE_PASSWORD:?set DEMO_SITE_PASSWORD in .env (deploy/env.demo.example)}
       TRAVEL_PROVIDER: fake
       AI_TRANSPORT: none
+      # The worker's console sender (below), so the login and pay pages offer a link and a code
+      # by message to the Demo phone (P2.7).
+      MESSAGING_TRANSPORT: console
       # No shifts line: Twilio's webhooks refuse everything without its token, whatever .env says.
       TWILIO_AUTH_TOKEN: ""
     volumes: !override

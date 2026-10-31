@@ -22,7 +22,14 @@ const { HelpView } = await import("@/app/help/help-view");
 const { FROM_PLANNER_WORDS } = await import("@/lib/office/shifts-copy");
 // The firm's own strike and photo numbers the help page states (12H.3).
 // A firm with travel areas on: every help section shows.
-const HELP_FACTS = { noticeHours: 48, liveDays: 90, photoRenewalMonths: 36, travelOn: true };
+const HELP_FACTS = {
+  noticeHours: 48,
+  liveDays: 90,
+  photoRenewalMonths: 36,
+  strikesOn: true,
+  travelOn: true,
+  loginWay: "message",
+} as const;
 
 type Role = "admin" | "resourcer" | "payroll";
 
@@ -460,7 +467,14 @@ describe("the workers' help page", () => {
       renderToStaticMarkup(
         createElement(HelpView, {
           firmName: "Acme Events",
-          facts: { noticeHours: 24, liveDays: 30, photoRenewalMonths: 24, travelOn: true },
+          facts: {
+            noticeHours: 24,
+            liveDays: 30,
+            photoRenewalMonths: 24,
+            strikesOn: true,
+            travelOn: true,
+            loginWay: "message",
+          },
           year: 2026,
         }),
       ),

@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import { canAccess } from "@/lib/auth/roles";
-import { attentionOf, officeNeedsAttention } from "@/lib/office/dashboard";
+import { attentionOf, officeUrgentCount } from "@/lib/office/dashboard";
 import { SECTION_ERROR, SECTIONS } from "@/lib/office/dashboard-copy";
 import { meta, notice, page } from "../../ui/classes";
 import { PageHeader } from "../../ui/page-header";
+import { officeFrame } from "../frame";
 import { AlsoNeedsYou, NeedsItems, needsPageLine } from "../needs-items";
 
 export const metadata: Metadata = { title: "Needs attention" };
@@ -14,14 +15,17 @@ export const metadata: Metadata = { title: "Needs attention" };
 // 20): every to-do the dashboard counts, in full, each with what to do about it, and the
 // enquiries that need a person; beside them "Also needs you", the urgent places still to fill, so
 // this page's count and the dashboard's add up. The menu's "Needs attention" opens it, with the
-// same count. Admins and resourcers, as the dashboard; payroll goes to the pay dashboard.
+// same count. Admins and resourcers, as the dashboard; payroll goes to the pay dashboard. Its items
+// and count are the office frame's, read once with the menu's (Phase 25.3: src/app/office/frame.ts).
 export default async function NeedsAttentionPage() {
   const { firm, officeUser } = await requireOfficeArea("dashboard");
   if (!canAccess(officeUser.role, "today")) redirect("/office/pay");
-  const data = await officeNeedsAttention({ firm, officeUserId: officeUser.id });
-  if (!data) notFound();
-  const needPerson = data.needPerson.ok ? data.needPerson.data : 0;
-  const count = attentionOf(data.needs, data.needPerson);
+  const frame = (await officeFrame())?.frame;
+  const urgent = await officeUrgentCount({ firm, officeUserId: officeUser.id });
+  if (!frame?.needs || !urgent) notFound();
+  const data = { ...frame.needs, urgent };
+  const needPerson = frame.needPerson?.ok ? frame.needPerson.data : 0;
+  const count = attentionOf(data.needs, frame.needPerson);
   return (
     <main className={page.office}>
       <PageHeader

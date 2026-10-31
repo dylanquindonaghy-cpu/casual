@@ -105,7 +105,8 @@ the jobs role owns the pgboss tables and isn't firm-restricted there, so payload
 2. If the number belongs to an active worker in this firm, send a one-time link by WhatsApp
    (template) or SMS. Same response either way, so numbers can't be probed. With no text sender
    (P2.5) and the firm's `login_by_email` on, by email to the address held for them instead
-   (P2.6; off by default until the login page stops naming WhatsApp, P2.7).
+   (P2.6; off by default). The login page says which way it goes, or that login links aren't
+   switched on yet (P2.7; `src/lib/portal/login-way.ts`).
 3. Link token: random 32 bytes, stored as a hash, single use, 15-minute expiry. The token goes
    in the URL fragment (`/l#<token>`), never the path or query string: browsers don't send the
    fragment to the server, so it never reaches request logs, proxies or Referer headers.
@@ -512,7 +513,7 @@ text sender at all). A push that one of their phones takes is the message: nothi
 |---|---|---|
 | Classify unclear WhatsApp text | Haiku | Yes |
 | One-line summaries for pay query groups | Haiku | Yes |
-| Classify and draft email replies (approve mode) | Haiku, Sonnet for hard cases | Stage 2 |
+| Classify a casual's email to the staffing inbox; draft the office's reply (approve mode: a person checks and sends it; never for pay) | Haiku | Built (Phase 25.5; off until the Anthropic API is connected) |
 | AI phone agent | ElevenLabs (existing agent) | Stage 2 add-on |
 
 - All model calls go through `src/lib/ai/` with zod-validated JSON outputs and a fallback

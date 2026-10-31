@@ -381,6 +381,7 @@ describe("the notice and cancellation report", () => {
         "2026-11-02T08:00:00.000Z",
         "Cancelled",
         "The office",
+        "Not known", // asked by: the fixture's log line doesn't say (Phase 25.2's column)
         `"'=HYPERLINK(""x"") Booker"`,
         "Door supervisor at Riverside Arena",
         "2026-11-07 08:00",
@@ -420,11 +421,24 @@ describe("the notice and cancellation report", () => {
       at: hoursFromNow(-1),
       data: { shiftId: t.shiftId, workerId: t.ben, offeredBy: t.resourcer },
     });
+    // And a cancellation the client asked for (the office's form, Phase 25.2).
+    await t.event({
+      action: "shift.cancelled",
+      at: hoursFromNow(-2),
+      actorType: "office",
+      actorId: t.resourcer,
+      data: { by: "firm", askedBy: "client", shiftId: t.shiftId, workerId: t.ben, noticeHours: 30 },
+    });
     const report = await officeNoticeReport(ctx, await sessionFor(t.resourcer), q);
     expect(report).not.toBeNull();
     // No event numbers reach the office (audit L44: one counter shared by every firm).
     expect(report?.rows.length).toBeGreaterThan(0);
     for (const row of report?.rows ?? []) expect(row).not.toHaveProperty("eventId");
+    // Who asked does: the page and the file say it.
+    expect(report?.rows.map((r) => [r.kind, r.askedBy]).sort()).toEqual([
+      ["cancelled", "client"],
+      ["offered", null],
+    ]);
     expect(
       await officeNoticeReport(ctx, await sessionFor(await t.f.office("admin")), q),
     ).not.toBeNull();

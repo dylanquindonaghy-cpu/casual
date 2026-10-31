@@ -23,6 +23,10 @@ const withArticle = (noun: string) => `${/^[aeiou]/i.test(noun) ? "an" : "a"} ${
 const hours = (h: number) =>
   `${Number.isInteger(h) ? String(h) : h.toFixed(1)} ${h === 1 ? "hour's" : "hours'"}`;
 
+// "A or B", "A, B or C".
+export const orList = (items: readonly string[]) =>
+  items.length < 2 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} or ${items.at(-1)}`;
+
 export const REASONS = {
   started: () => "This shift has already started.",
   not_active: () => "Your account isn't active. Contact the office.",
@@ -30,6 +34,9 @@ export const REASONS = {
   no_rule: () => "This shift isn't ready to take yet. Ask the office.",
   credential_missing: (name: string) =>
     `This shift needs a valid ${name}. Send it to the office to be checked.`,
+  // A one-of group she holds none of (P3.3; 25.2): any one will do.
+  credential_missing_any: (names: readonly string[]) =>
+    `This shift needs a valid ${orList(names)}. Send one to the office to be checked.`,
   credential_expired: (name: string, date: string, alreadyExpired: boolean) =>
     alreadyExpired
       ? `Your ${name} expired on ${date}. Renew it, then send the new number to the office.`

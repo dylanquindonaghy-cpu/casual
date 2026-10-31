@@ -15,6 +15,10 @@ const hhmm = (d: Date, tz: string) => {
 export const myStrikeCountText = (n: number, liveDays: number) =>
   `You have ${n} ${n === 1 ? "strike" : "strikes"} in the last ${liveDays} days.`;
 
+// With the firm's strikes switched off (P3.4): those given before stay, and still count.
+export const myStrikesOffText = (liveDays: number) =>
+  `Strikes are off now: cancelling doesn't give you one. Ones given before count until their ${liveDays} days are up.`;
+
 export const myStrikeRuleText = (noticeHours: number) =>
   `A strike is given when you cancel less than ${noticeHours} hours before a shift starts.`;
 

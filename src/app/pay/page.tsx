@@ -7,6 +7,7 @@ import { refreshSessionAction } from "../session-actions";
 import { SessionKeeper } from "../session-keeper";
 import { myPay, StepUpRequiredError, type PayLine } from "@/lib/portal/pay";
 import { myPayQueries, type MyPayQuery } from "@/lib/portal/pay-queries";
+import { workerLoginWay } from "@/lib/portal/login-way";
 import { CodeGate } from "./code-gate";
 import { PayQueries, PayView } from "./pay-view";
 import { CasualTabBar } from "../casual-tab-bar";
@@ -42,7 +43,10 @@ export default async function PayPage() {
           {queries && <PayQueries queries={queries} />}
         </>
       ) : (
-        <CodeGate codeWaiting={await hasLiveCode({ firm }, session)} />
+        <CodeGate
+          codeWaiting={await hasLiveCode({ firm }, session)}
+          way={await workerLoginWay(firm.id, worker.id)}
+        />
       )}
       <CasualTabBar firm={firm} workerId={worker.id} current="pay" />
     </main>

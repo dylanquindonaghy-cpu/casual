@@ -63,7 +63,11 @@ export function HelpView({
           On this page
         </h2>
         <ul role="list" className={`${staffRows} mt-2`}>
-          {SECTIONS.filter((s) => s.id !== "travel-area" || facts.travelOn).map((s) => (
+          {SECTIONS.filter(
+            (s) =>
+              (s.id !== "travel-area" || facts.travelOn) &&
+              (s.id !== "cancelling-and-strikes" || facts.strikesOn),
+          ).map((s) => (
             <li key={s.id}>
               <a
                 href={`#${s.id}`}
@@ -79,10 +83,19 @@ export function HelpView({
 
       <Section id="how-it-works">
         <p className="mt-3">
-          There&apos;s no app to download. {firmName} sends you a link by WhatsApp or text message.
+          There&apos;s no app to download.{" "}
+          {facts.loginWay === "message"
+            ? `${firmName} sends you a link by WhatsApp or text message.`
+            : facts.loginWay === "email"
+              ? `${firmName} emails you a link.`
+              : `${firmName} sends you a link.`}
         </p>
         <Steps>
-          <Step>Tap the link in the message.</Step>
+          <Step>
+            {facts.loginWay === "email"
+              ? "Tap the link in the email."
+              : "Tap the link in the message."}
+          </Step>
           <Step>
             Tap <Name>Log me in</Name>. Your shifts open.
           </Step>
@@ -93,7 +106,8 @@ export function HelpView({
           <Link href="/login" className="font-semibold underline underline-offset-4">
             log in page
           </Link>
-          . Enter your mobile number and tap <Name>Send me a link</Name>.
+          . Enter your mobile number and tap{" "}
+          <Name>{facts.loginWay === "email" ? "Email me a link" : "Send me a link"}</Name>.
         </p>
         <p className="mt-3">
           Put your shifts on your home screen, so they open in one tap. On an iPhone, open the Share
@@ -198,29 +212,33 @@ export function HelpView({
         </p>
       </Section>
 
-      <Section id="cancelling-and-strikes">
-        <p className="mt-3">
-          If you cancel less than {facts.noticeHours} hours before a shift starts, you get a strike.
-        </p>
-        <Points>
-          <li>A strike is a record, not a fine. It never comes off your pay.</li>
-          <li>
-            {firmName}&apos;s strikes team gets a record of it. It counts for {facts.liveDays} days.
-          </li>
-          <li>
-            You won&apos;t get one if the office booked you, cancelled the shift or changed it.
-          </li>
-          <li>You&apos;ll see if it&apos;s a strike before you confirm.</li>
-          <li>
-            Something stopped you? Tap <Name>Tell us what happened</Name>. It&apos;s on the cancel
-            screen and under the strike on your profile.
-          </li>
-          <li>
-            The office can withdraw a strike. Your profile then says{" "}
-            <Name>Withdrawn by the office</Name>.
-          </li>
-        </Points>
-      </Section>
+      {facts.strikesOn && (
+        <Section id="cancelling-and-strikes">
+          <p className="mt-3">
+            If you cancel less than {facts.noticeHours} hours before a shift starts, you get a
+            strike.
+          </p>
+          <Points>
+            <li>A strike is a record, not a fine. It never comes off your pay.</li>
+            <li>
+              {firmName}&apos;s strikes team gets a record of it. It counts for {facts.liveDays}{" "}
+              days.
+            </li>
+            <li>
+              You won&apos;t get one if the office booked you, cancelled the shift or changed it.
+            </li>
+            <li>You&apos;ll see if it&apos;s a strike before you confirm.</li>
+            <li>
+              Something stopped you? Tap <Name>Tell us what happened</Name>. It&apos;s on the cancel
+              screen and under the strike on your profile.
+            </li>
+            <li>
+              The office can withdraw a strike. Your profile then says{" "}
+              <Name>Withdrawn by the office</Name>.
+            </li>
+          </Points>
+        </Section>
+      )}
 
       <Section id="changes">
         <Steps>
@@ -238,7 +256,7 @@ export function HelpView({
           Your shift doesn&apos;t change until the office changes it. You&apos;ll see their answer
           in <Name>My requests</Name>.
         </p>
-        <p className="mt-3">For anything else, contact the office the way you usually do.</p>
+        <p className="mt-3">For anything else, write to the office under Messages.</p>
       </Section>
 
       <Section id="your-pay">
@@ -247,8 +265,22 @@ export function HelpView({
             Tap the <Name>Pay</Name> tab.
           </Step>
           <Step>
-            Tap <Name>Send me a code</Name>. We send a 6‑digit code by WhatsApp. It works for 10
-            minutes.
+            {facts.loginWay === "email" ? (
+              <>
+                Tap <Name>Email me a code</Name>. We email you a 6‑digit code. It works for 10
+                minutes.
+              </>
+            ) : facts.loginWay === "message" ? (
+              <>
+                Tap <Name>Send me a code</Name>. We send a 6‑digit code by WhatsApp. It works for 10
+                minutes.
+              </>
+            ) : (
+              <>
+                Tap <Name>Send me a code</Name>. We send you a 6‑digit code. It works for 10
+                minutes.
+              </>
+            )}
           </Step>
           <Step>
             Enter it in <Name>Your code</Name> and tap <Name>Check code</Name>.
@@ -282,8 +314,11 @@ export function HelpView({
             doesn&apos;t cancel a shift you&apos;re booked on.
           </li>
           <li>
-            <Name>How we reach you</Name>: choose WhatsApp or text message, and whether to hear
-            about open shifts. Then tap <Name>Save settings</Name>.
+            <Name>How we reach you</Name>:{" "}
+            {facts.loginWay === "message"
+              ? "choose WhatsApp or text message, and whether to hear about open shifts."
+              : "choose whether to hear about open shifts, and turn on notifications on this phone."}{" "}
+            Then tap <Name>Save settings</Name>.
           </li>
           <li>Your details are there too. To change your name or number, ask the office.</li>
         </Points>

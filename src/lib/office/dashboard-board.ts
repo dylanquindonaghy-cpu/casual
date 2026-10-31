@@ -3,6 +3,8 @@ import { z } from "zod";
 import { systemClock } from "../auth/clock";
 import { CANCELLED_ASSIGNMENT_STATUSES, type OFFER_CHANNELS } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
+import { atOfferLimit } from "../offers/offer-limit";
+import { payCalendar, type PayCalendar } from "../pay/calendar";
 import { payWeekNow } from "../pay/pay-week";
 import { addDays, localDateOf, startOfDay, wallTimeOf, zonedToUtc } from "../time/zoned";
 import { part, type Part } from "./dashboard";
@@ -58,6 +60,8 @@ export interface BoardOffers {
   failed: number; // couldn't be sent
   waitingSince: Date | null; // the oldest offer still waiting
   waitingNames: string[]; // who hasn't replied, oldest offer first (the first two)
+  // The waves have offered it to the most casuals for its free places (Phase 25.3: offer-limit.ts).
+  atLimit: boolean;
 }
 
 export interface BoardSession {
@@ -109,6 +113,7 @@ export interface OvernightTake {
 export interface Board {
   timeZone: string;
   today: string; // yyyy-mm-dd, the firm's calendar
+  payCalendar: PayCalendar; // its pay weeks or cycles (P3.1; Phase 25.2)
   now: Date;
   show: BoardShow;
   planner: Part<PlannerLink>;
@@ -119,10 +124,11 @@ export interface Board {
   // soonest (null: none).
   gaps: Part<{ toOffer: BoardColumn; offered: BoardColumn; chosen: BoardSession | null }>;
   overnight: Part<{ from: Date; to: Date; takes: OvernightTake[]; more: boolean }>;
-  toMark: Part<{ items: TodayToMark[]; more: boolean }>;
+  toMark: Part<{ items: TodayToMark[]; total: number }>;
 }
 
-// This pay week's Monday and the Monday after next, the firm's calendar.
+// This week's Monday and the Monday after next, in the firm's time zone: Monday to Sunday, whatever
+// its pay calendar (a fortnight's cycle is for pay words only: Phase 25.2).
 function weeks(now: Date, timeZone: string) {
   const monday = payWeekNow(now, timeZone).monday;
   return { monday, next: addDays(monday, 7), after: addDays(monday, CHART_DAYS) };
@@ -242,6 +248,8 @@ function toSession(r: GapRow): BoardSession {
       failed: r.failed,
       waitingSince: r.waiting_since ? date(r.waiting_since) : null,
       waitingNames: r.waiting_names ?? [],
+      // Waves run only for an urgent session.
+      atLimit: r.is_urgent && atOfferLimit(r.sent, r.places_free),
     },
   };
 }
@@ -413,8 +421,8 @@ export async function loadBoard(
   now: Date,
   opts: { show?: BoardShow; session?: string | null } = {},
 ): Promise<Board> {
-  const { rows } = await tx.execute<{ timezone: string }>(
-    sql`select timezone from firms where id = app_current_firm_id()`,
+  const { rows } = await tx.execute<{ timezone: string; settings: Record<string, unknown> }>(
+    sql`select timezone, settings from firms where id = app_current_firm_id()`,
   );
   const timeZone = rows[0]?.timezone ?? "Europe/London";
   const show = opts.show ?? "all";
@@ -422,6 +430,7 @@ export async function loadBoard(
   return {
     timeZone,
     today: localDateOf(now, timeZone),
+    payCalendar: payCalendar(rows[0]?.settings ?? {}),
     now,
     show,
     planner: await part(tx, "planner", (sp) => plannerLink(sp)),

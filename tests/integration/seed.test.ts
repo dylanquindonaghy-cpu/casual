@@ -647,9 +647,14 @@ describe("Acme's Saturday event day", () => {
     const sessions = [...d.gaps.data.toOffer.sessions, ...d.gaps.data.offered.sessions];
     expect(sessions.reduce((n, s) => n + s.offers.saidNo, 0)).toBe(0);
     expect(d.chart.data.days.some((x) => x.toOffer + x.offered > 0)).toBe(true);
-    // Pay queries with payroll (the top bar's count for an admin).
-    const { officePayQueriesWaiting } = await import("@/lib/office/pay-dashboard");
-    expect(await officePayQueriesWaiting({ firm: { id: ACME } }, "admin")).toBeGreaterThan(0);
+    // Pay queries with payroll (the top bar's count for an admin, through the office frame).
+    const { loadOfficeFrame } = await import("@/lib/office/frame");
+    const { rows: admins } = await su.query<{ id: string }>(
+      "select id from office_users where firm_id = $1 and role = 'admin' and status = 'active' limit 1",
+      [ACME],
+    );
+    const frame = await loadOfficeFrame({ firm: { id: ACME }, officeUserId: admins[0]?.id ?? "" });
+    expect(frame.payQueries?.ok && frame.payQueries.data).toBeGreaterThan(0);
   });
 
   it("plans this week's offers from the seed's own day: 10 waiting, none said no, said yes for the bookings made since Monday, none in quiet hours", async () => {

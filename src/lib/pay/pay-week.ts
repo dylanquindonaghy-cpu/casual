@@ -29,6 +29,27 @@ export function payWeekNow(now: Date, timeZone: string): PayWeek {
 // "5 Oct", never with a year (a week spanning New Year reads "28 Dec – 3 Jan").
 const dayMonth = (day: string) => shortDate(day, Number(day.slice(0, 4)));
 
+// "Cycle 22 · 26 Oct – 8 Nov · Pay Fri 13 Nov" (Phase 25.2): a period of the firm's own pay
+// calendar, as payWeekLabel says a week.
+export function payPeriodLabel(p: {
+  name: string;
+  start: string;
+  end: string;
+  payDay: string;
+}): string {
+  return `${p.name} · ${dayMonth(p.start)} – ${dayMonth(p.end)} · Pay ${dayLabel(p.payDay)}`;
+}
+
+// The pay dashboard's "Next pay date" with no later date imported (Phase 25.2): "The Friday after
+// this week. …" / "The Friday after this cycle. …", the weekday the firm's calendar pays on.
+export function payDayFallbackText(p: { label: "week" | "cycle"; payDay: string }): string {
+  const weekday = new Date(`${p.payDay}T12:00:00Z`).toLocaleDateString("en-GB", {
+    weekday: "long",
+    timeZone: "UTC",
+  });
+  return `The ${weekday} after this ${p.label}. No later pay date is in your pay records.`;
+}
+
 // "Week 41 · 5 Oct – 11 Oct · Pay Fri 16 Oct", for the office's top bar.
 export function payWeekLabel(w: PayWeek): string {
   return `Week ${w.week} · ${dayMonth(w.monday)} – ${dayMonth(w.sunday)} · Pay ${dayLabel(w.payDay)}`;

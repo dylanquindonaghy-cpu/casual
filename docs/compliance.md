@@ -128,6 +128,14 @@ Tier 1: £52 a year (£47 by direct debit) for small organisations. Pay before h
   API is connected) into one of four labels, from the worker's text alone; the reply is always the app's own
   fixed words, so the AI never writes to a worker, and a pay question gets the pay link, never an
   answer. The text is kept in `messages` (90 days, with the retention job) and never in the log.
+- The staffing inbox (P7.4, P7.5; Phase 25.5): a casual's email is sorted the same way, from its
+  subject and words alone, and an automatic reply is a fixed link email, never the AI's words. For an
+  email that needs a person, the AI may draft the office's reply from that email alone (none of the
+  firm's data, so it can state no fact and promise nothing); the draft is shown only to the office,
+  marked as the AI's, and nothing goes to the casual until a person has checked it, changed it as
+  they like and sent it. No draft for pay or money (golden rule 9; code checks the words). Emails go
+  only to the address the firm holds for the casual. Mail that isn't from a casual is never sorted,
+  drafted or answered: only who it came from is kept, and the office reads it in its own inbox.
 - Pay disputes always go to a person. Built that way: payroll answers each group of pay queries in
   its own words; the only AI use is a summary line for payroll. A test (`tests/unit/ai.boundary.test.ts`)
   fails if the code that builds what a worker sees or receives (the staff pages, portal, notices,

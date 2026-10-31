@@ -817,3 +817,64 @@ export const rosterSources = pgTable(
     }),
   ],
 ).enableRLS();
+
+// The names a rota sheet's last sync couldn't use (P3.2; Phase 25.2, approved by Dylan 2026-10-30),
+// for Needs attention: a role it can't read ("unreadable": the row isn't brought in) and a role the
+// firm's name map skips on a row that made a session still to come ("skipped_live": the session
+// stays as it is). Replaced on every sync, in the sync's own transaction, so the list is always the
+// last sync's, and deleted when the owner switches the sheet off or replaces it. Only a role cell's
+// text is kept (the sheet's problems otherwise never carry a cell's contents:
+// src/lib/roster/sheets/parse.ts), never another column's, and never text with an email address or
+// a phone number's digits in it (sheetRoleText).
+export const SHEET_NAME_PROBLEM_KINDS = ["unreadable", "skipped_live"] as const;
+export type SheetNameProblemKind = (typeof SHEET_NAME_PROBLEM_KINDS)[number];
+export const SHEET_NAME_MAX = 200;
+
+export const sheetNameProblems = pgTable(
+  "sheet_name_problems",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    sourceId: uuid("source_id").notNull(),
+    kind: text("kind", { enum: SHEET_NAME_PROBLEM_KINDS }).notNull(),
+    tab: text("tab", { enum: ["staff", "shifts"] }).notNull(),
+    row: integer("row").notNull(), // the sheet's own row number (row 1 is the header)
+    outsideName: text("outside_name").notNull(), // as the sheet spells it
+    shiftId: uuid("shift_id"), // skipped_live: the session still on
+    seenAt: timestamptz("seen_at").notNull(), // the sync that found it
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("sheet_name_problems_firm_id_id_key").on(t.firmId, t.id),
+    unique("sheet_name_problems_row_key").on(t.firmId, t.sourceId, t.kind, t.tab, t.row),
+    // Gone with the sheet's connection, or the session.
+    foreignKey({
+      name: "sheet_name_problems_source_fk",
+      columns: [t.firmId, t.sourceId],
+      foreignColumns: [rosterSources.firmId, rosterSources.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "sheet_name_problems_shift_fk",
+      columns: [t.firmId, t.shiftId],
+      foreignColumns: [shifts.firmId, shifts.id],
+    }).onDelete("cascade"),
+    check("sheet_name_problems_kind_check", sql`${t.kind} in ('unreadable', 'skipped_live')`),
+    check("sheet_name_problems_tab_check", sql`${t.tab} in ('staff', 'shifts')`),
+    check("sheet_name_problems_row_check", sql`${t.row} between 2 and 10000000`),
+    check(
+      "sheet_name_problems_name_format",
+      sql`char_length(${t.outsideName}) between 1 and ${sql.raw(String(SHEET_NAME_MAX))}
+          and ${t.outsideName} !~ '[[:cntrl:]]'`,
+    ),
+    // A skipped name is a shifts-tab row with its session; an unreadable one has none.
+    check(
+      "sheet_name_problems_shift_when",
+      sql`case when ${t.kind} = 'skipped_live'
+            then ${t.shiftId} is not null and ${t.tab} = 'shifts'
+            else ${t.shiftId} is null end`,
+    ),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();

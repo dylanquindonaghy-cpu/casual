@@ -99,9 +99,13 @@ describe("booking through the rules", () => {
     });
     expect(await f.book(await shift(), ds)).toMatchObject({ status: "booked" });
     expect(await f.book(await shift(), sg)).toMatchObject({ status: "booked" });
+    // Holding neither, she's told either will do (Phase 25.2).
     expect(await f.book(await shift(), none)).toMatchObject({
       status: "not_eligible",
       codes: ["credential_missing"],
+      reasons: [
+        "This shift needs a valid SIA security guard licence or SIA door supervisor licence. Send one to the office to be checked.",
+      ],
     });
     expect(await f.book(await shift(), out)).toMatchObject({
       status: "not_eligible",
@@ -177,6 +181,64 @@ describe("what a session shows, and what a casual may send", () => {
     expect(await shown(none)).toEqual([["SIA_SG", "missing"]]);
     // A session that asks for the security guard licence itself: shown, as it must be held.
     expect(await shown(ds, ["SIA_SG"])).toEqual([["SIA_SG", "missing"]]);
+
+    // Holding neither (Phase 25.2): the group says "A or B", and she may send either.
+    const facts = (workerId: string, extras: string[] = []) =>
+      withFirm(f.firmId, (tx) =>
+        shiftFacts(tx, {
+          shiftId,
+          workerId,
+          now: NOW,
+          session: { ...session, requiredCredentials: extras },
+        }),
+      );
+    const neither = (await facts(none)).requirements;
+    expect(neither).toHaveLength(1);
+    expect(neither[0]).toMatchObject({
+      code: "SIA_SG",
+      name: "SIA security guard licence or SIA door supervisor licence",
+      chip: "SIA SG or SIA DS",
+      uploadable: true,
+      anyOf: [
+        { code: "SIA_SG", name: "SIA security guard licence", chip: "SIA SG", uploadable: true },
+        { code: "SIA_DS", name: "SIA door supervisor licence", chip: "SIA DS", uploadable: true },
+      ],
+    });
+    // Holding one, just that one, as before; and a session asking for one outright isn't a choice.
+    expect((await facts(ds)).requirements[0]?.anyOf).toBeUndefined();
+    expect((await facts(none, ["SIA_SG"])).requirements.map((r) => r.anyOf)).toEqual([undefined]);
+    // A session asking outright for the group's other type: that one must be held, so not "A or B".
+    expect((await facts(none, ["SIA_DS"])).requirements.map((r) => [r.code, r.anyOf])).toEqual([
+      ["SIA_SG", undefined],
+      ["SIA_DS", undefined],
+    ]);
+    // One applied for, the other missing: she holds one, so it's that one's status, not "A or B".
+    const applied = await f.worker({
+      ...officer,
+      credentials: [{ type: "SIA_DS", status: "applied", expiresOn: null }],
+    });
+    expect((await facts(applied)).requirements).toMatchObject([
+      { code: "SIA_DS", status: { status: "applied" } },
+    ]);
+    expect((await facts(applied)).requirements[0]?.anyOf).toBeUndefined();
+    // Holding the group's first type (the one shown in its place): that one, never "A or B".
+    const sg = await f.worker({
+      ...officer,
+      credentials: [{ type: "SIA_SG", expiresOn: "2029-01-01" }],
+    });
+    expect((await facts(sg)).requirements).toMatchObject([
+      { code: "SIA_SG", name: "SIA security guard licence", status: { status: "valid" } },
+    ]);
+    expect((await facts(sg)).requirements[0]?.anyOf).toBeUndefined();
+
+    // The strike note follows the firm's strikes switch (P3.4; Phase 25.2).
+    expect((await facts(ds)).strikesOn).toBe(true);
+    await su.query(
+      `update firms set settings = jsonb_set(settings, '{strikes}',
+         coalesce(settings->'strikes', '{}'::jsonb) || '{"enabled": false}'::jsonb) where id = $1`,
+      [f.firmId],
+    );
+    expect((await facts(ds)).strikesOn).toBe(false);
   });
 
   it("a casual's qualifications list the licence of the group that stands best for her", async () => {

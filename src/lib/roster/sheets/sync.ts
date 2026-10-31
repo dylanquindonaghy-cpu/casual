@@ -45,6 +45,7 @@ import { cellRange, columnRange, tabRange } from "./a1";
 import { SHEET_LOCALE, SHEET_LOCALE_ERROR, SheetsError, type SheetsClient } from "./client";
 import { sheetMappingSchema } from "./mapping";
 import { mergeHolders, sameHolders } from "./merge";
+import { replaceNameProblems, type SkippedLive } from "./name-problems";
 import {
   parseSheet,
   SheetLayoutError,
@@ -132,6 +133,7 @@ interface MirrorResult {
   cancelled: number;
   notBooked: number;
   problems: SheetProblem[];
+  skippedLive: SkippedLive[]; // for Needs attention (Phase 25.2: name-problems.ts)
 }
 
 export interface SyncDeps {
@@ -252,6 +254,8 @@ export async function syncSheet({ run, firmId, client, clock }: SyncDeps): Promi
           .set({ syncedHolders: w.base })
           .where(and(eq(shifts.source, "sheets"), eq(shifts.externalRef, w.ref)));
       }
+      // The names this sync couldn't use, in place of the last sync's (Needs attention).
+      await replaceNameProblems(tx, claim.id, now, parsed.unreadable, mirrored.skippedLive);
       const outcome = {
         status: "synced" as const,
         staff: parsed.staff.length,
@@ -684,6 +688,8 @@ async function mirror(
 
     // 6. Tell the office what's new (once: a sync that sees the same sheet says nothing), and keep
     //    what's true now for the dashboard.
+    // (Its `workers` list is how the action log finds it by worker:
+    // src/lib/events/worker-lists.ts.)
     if (issues.change && canon(issues.change) !== canon(existing?.sheetIssues?.change ?? null)) {
       await recordEvent(tx, system("roster.sheet_change_refused", "shift", shiftId, issues.change));
     }
@@ -698,9 +704,10 @@ async function mirror(
 
   // Rows the firm's name map skips (P3.2) that a session to come, not cancelled, was made from: the
   // map never cancels or changes a session, so it stays as it is, and the office is told.
+  const skippedLive: SkippedLive[] = [];
   if (sheet.skipped.length > 0) {
     const live = await tx
-      .select({ ref: shifts.externalRef })
+      .select({ id: shifts.id, ref: shifts.externalRef })
       .from(shifts)
       .where(
         and(
@@ -713,14 +720,17 @@ async function mirror(
           gt(shifts.startsAt, now),
         ),
       );
-    const refs = new Set(live.map((l) => l.ref));
+    const ids = new Map(live.map((l) => [l.ref, l.id]));
     for (const s of sheet.skipped) {
-      if (refs.has(s.ref)) problems.push({ tab: "shifts", row: s.row, problem: "skipped_live" });
+      const shiftId = ids.get(s.ref);
+      if (!shiftId) continue;
+      problems.push({ tab: "shifts", row: s.row, problem: "skipped_live" });
+      if (s.name) skippedLive.push({ row: s.row, name: s.name, shiftId });
     }
   }
 
   await queueTravelEstimates(tx, [...travel]);
-  return { writes, booked, cancelled, notBooked, problems };
+  return { writes, booked, cancelled, notBooked, problems, skippedLive };
 }
 
 // The people the sheet took off a shift since the last sync (in the base, booked here, not in the

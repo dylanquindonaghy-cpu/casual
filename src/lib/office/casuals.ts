@@ -123,15 +123,6 @@ export async function waitingUploadDays(
   return rows.map((r) => ({ day: r.day, count: Number(r.n) }));
 }
 
-// The Casuals menu badge: how many uploads wait for the office (admins and resourcers; null for
-// anyone else).
-export async function uploadsToCheck(ctx: OfficeContext): Promise<number | null> {
-  const { run } = parts(ctx);
-  return run(ctx.firm.id, async (tx) =>
-    (await officeUserMay(tx, ctx.officeUserId, "casuals")) ? waitingCount(tx) : null,
-  );
-}
-
 export async function casualsList(
   ctx: OfficeContext,
   view: CasualView,

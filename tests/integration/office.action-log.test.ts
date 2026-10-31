@@ -197,6 +197,81 @@ describe("the action log", () => {
     expect(log.filters.worker).toBe(t.ann);
   });
 
+  it("by worker, too: a refused move or rota sheet change that names them among its workers", async () => {
+    const t = await logFirm();
+    const when = at(-2);
+    const refused = await t.event({
+      action: "shift.move_refused",
+      at: when,
+      entityId: t.shiftId,
+      data: { by: "firm", reason: "rules", workers: [{ workerId: t.ann, codes: ["REST"] }] },
+    });
+    const sheet = await t.event({
+      action: "roster.sheet_change_refused",
+      at: when,
+      entityId: t.otherShift,
+      data: {
+        fields: ["startsAt"],
+        reason: "rules",
+        workers: [
+          { workerId: t.ben, codes: ["REST"] },
+          { workerId: t.ann, codes: ["HOURS"] },
+        ],
+      },
+    });
+    // Ben's alone: not Ann's.
+    await t.event({
+      action: "shift.move_refused",
+      at: when,
+      entityId: t.otherShift,
+      data: { by: "firm", reason: "rules", workers: [{ workerId: t.ben, codes: ["REST"] }] },
+    });
+    expect((await t.log({ worker: t.ann })).entries.map((e) => e.id)).toEqual([sheet, refused]);
+  });
+
+  it("by worker or shift, on indexes the firm's walls let it use (Phase 25.3)", async () => {
+    const t = await logFirm();
+    const id = await t.event({
+      action: "shift.assigned",
+      at: at(-2),
+      actorType: "worker",
+      actorId: t.ann,
+      data: { workerId: t.ann, shiftId: t.shiftId },
+    });
+    // The worker and session an entry's data names, copied by the database.
+    const { rows } = await su.query<{ worker_ref: string; shift_ref: string }>(
+      "select worker_ref, shift_ref from events where id = $1",
+      [id],
+    );
+    expect(rows).toEqual([{ worker_ref: t.ann, shift_ref: t.shiftId }]);
+    // Under RLS, as the app role: each look-up can use its index (one on `data ->> 'workerId'`
+    // couldn't: jsonb's functions aren't leakproof). Sequential scans off, so the plan shows
+    // whether the index is usable at all, whatever the table's size.
+    const plan = async (where: string, value: string) => {
+      const c = await app.connect();
+      try {
+        await c.query("begin");
+        await c.query("select set_config('app.current_firm_id', $1, true)", [t.f.firmId]);
+        await c.query("set local enable_seqscan = off");
+        const { rows: lines } = await c.query<{ "QUERY PLAN": string }>(
+          `explain select id from events where ${where} = $1`,
+          [value],
+        );
+        return lines.map((l) => l["QUERY PLAN"]).join("\n");
+      } finally {
+        await c.query("rollback");
+        c.release();
+      }
+    };
+    expect(await plan("worker_ref", t.ann)).toContain("events_firm_id_worker_ref_idx");
+    expect(await plan("shift_ref", t.shiftId)).toContain("events_firm_id_shift_ref_idx");
+    expect(await plan("actor_id", t.ann)).toContain("events_firm_id_actor_id_idx");
+    // And not on the data itself (why the columns exist).
+    expect(await plan("data ->> 'workerId'", t.ann)).not.toMatch(
+      /Index (Only )?Scan using events_firm_id_worker_ref_idx/,
+    );
+  });
+
   it("by worker, too: their pay records, login links and pay-page codes (the events don't name them)", async () => {
     const t = await logFirm();
     const when = at(-1);

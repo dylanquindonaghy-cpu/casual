@@ -7,6 +7,7 @@ import { useHydrated } from "@/app/use-hydrated";
 import { TooManyTries } from "../too-many-tries";
 import { requestCodeAction, verifyCodeAction } from "./actions";
 import { tryAgainText } from "@/lib/portal/copy";
+import type { LoginWay } from "@/lib/portal/login-way";
 
 type Notice =
   | { kind: "none" }
@@ -21,10 +22,12 @@ type Notice =
 const codeField =
   "mt-2 min-h-14 w-full glass-tile rounded-2xl border-2 border-transparent px-4 py-3 text-2xl font-normal tracking-widest text-ink tabular-nums aria-invalid:border-urgent";
 
-// "To see your pay, we'll send you a 6-digit code." Plain words throughout (no "OTP").
+// "To see your pay, we'll send you a 6-digit code." Plain words throughout (no "OTP"). The words
+// follow how the code goes (P2.7; docs/screens.md `/pay`): by WhatsApp, by email, or not at all yet
+// ("off": no button, so no one waits for a code that can't come).
 // codeWaiting: a code sent earlier still works, so the code field shows straight away (a reload
 // or a dropped tab mustn't make the worker ask again and retire the code they just received).
-export function CodeGate({ codeWaiting }: { codeWaiting: boolean }) {
+export function CodeGate({ codeWaiting, way }: { codeWaiting: boolean; way: LoginWay }) {
   const router = useRouter();
   const [hasCode, setHasCode] = useState(codeWaiting);
   const [notice, setNotice] = useState<Notice>({ kind: "none" });
@@ -72,6 +75,21 @@ export function CodeGate({ codeWaiting }: { codeWaiting: boolean }) {
     </>
   );
 
+  const byEmail = way === "email";
+
+  // Nothing can be sent, so no code step either: one sent before the firm switched email off
+  // would be waiting under words that name a way it didn't come.
+  if (way === "off") {
+    return (
+      <div role="note" className={staffCard}>
+        <p className="font-semibold">
+          We can&apos;t send you a code yet, so your pay can&apos;t open.
+        </p>
+        <p className="mt-2">Please contact the office the way you usually do.</p>
+      </div>
+    );
+  }
+
   if (!hasCode) {
     return (
       <div className={staffCard}>
@@ -80,7 +98,7 @@ export function CodeGate({ codeWaiting }: { codeWaiting: boolean }) {
             This code has stopped working.
           </p>
         ) : (
-          <p>To see your pay, we&apos;ll send you a 6-digit code.</p>
+          <p>To see your pay, we&apos;ll {byEmail ? "email" : "send"} you a 6-digit code.</p>
         )}
         {alerts}
         <button
@@ -92,8 +110,12 @@ export function CodeGate({ codeWaiting }: { codeWaiting: boolean }) {
           {pending
             ? "Sending…"
             : notice.kind === "stopped"
-              ? "Send me a new code"
-              : "Send me a code"}
+              ? byEmail
+                ? "Email me a new code"
+                : "Send me a new code"
+              : byEmail
+                ? "Email me a code"
+                : "Send me a code"}
         </button>
       </div>
     );
@@ -107,7 +129,11 @@ export function CodeGate({ codeWaiting }: { codeWaiting: boolean }) {
         checkCode();
       }}
     >
-      <p>We&apos;ve sent a 6-digit code by WhatsApp. It works for 10 minutes.</p>
+      <p>
+        {byEmail
+          ? "We've emailed you a 6-digit code. It works for 10 minutes."
+          : "We've sent a 6-digit code by WhatsApp. It works for 10 minutes."}
+      </p>
       <label htmlFor="code" className={`${label} mt-4`}>
         Your code
       </label>
@@ -131,7 +157,7 @@ export function CodeGate({ codeWaiting }: { codeWaiting: boolean }) {
       )}
       {notice.kind === "invalid" && (
         <p role="alert" className="mt-2 font-semibold text-urgent">
-          Enter the 6-digit code from your message.
+          Enter the 6-digit code from your {byEmail ? "email" : "message"}.
         </p>
       )}
       {alerts}
@@ -144,7 +170,7 @@ export function CodeGate({ codeWaiting }: { codeWaiting: boolean }) {
         onClick={sendCode}
         className={`${btn.link} mt-2 w-full justify-center`}
       >
-        Send me a new code
+        {byEmail ? "Email me a new code" : "Send me a new code"}
       </button>
     </form>
   );

@@ -11,6 +11,7 @@ import {
   runOfferWave,
   type OfferDeps,
 } from "@/lib/offers/waves";
+import { OFFER_LIMIT_PER_PLACE } from "@/lib/offers/offer-limit";
 import { bookShift } from "@/lib/roster/book";
 import { cancelBooking } from "@/lib/roster/cancel";
 import { setShiftUrgent } from "@/lib/roster/urgent";
@@ -650,6 +651,144 @@ describe("a wave", () => {
     );
     await t.wave(1);
     expect(phones(t.sent).sort()).toEqual([t.ben.mobile, t.cal.mobile, t.dee.mobile].sort());
+  });
+});
+
+// Phase 25.3 (P4's "a stop after 25 offers per free place"; fixed: Dylan, 2026-10-30).
+describe("the offer limit: 25 casuals for each free place", () => {
+  // A first-come firm, one place, waves of 10, and 30 casuals who may take it.
+  async function limitFirm() {
+    const t = await waveFirm({ allocation_mode: "first_come_first_served", wave_per_place: 10 });
+    for (let i = 0; i < 26; i += 1) await t.f.worker({ first: `New${i}` });
+    const offered = async () =>
+      (
+        await su.query<{ n: number }>(
+          "select count(*)::int as n from offers where shift_id = $1 and response is distinct from 'failed'",
+          [t.shiftId],
+        )
+      ).rows[0]?.n;
+    const stops = async () =>
+      (
+        await su.query<{ data: Record<string, unknown> }>(
+          "select data from events where entity_id = $1 and action = 'offer.waves_stopped' order by id",
+          [t.shiftId],
+        )
+      ).rows.map((r) => r.data);
+    return { ...t, offered, stops };
+  }
+
+  it("one place: waves of 10, 10 and 5, then the chain stops at 25, logged with the count", async () => {
+    expect(OFFER_LIMIT_PER_PLACE).toBe(25);
+    const t = await limitFirm();
+    expect(await t.wave(1)).toEqual({ status: "sent", sent: 10, next: 2 });
+    expect(await t.wave(2, later(15))).toEqual({ status: "sent", sent: 10, next: 3 });
+    // The third wave stops short of its 10: 5 more reach the limit.
+    expect(await t.wave(3, later(30))).toEqual({ status: "sent", sent: 5, next: 4 });
+    expect(await t.offered()).toBe(25);
+    expect(new Set(phones(t.sent)).size).toBe(25);
+    // The third wave run again (a retry): already sent, and the stop isn't its to log.
+    expect(await t.wave(3, later(31))).toEqual({ status: "already_sent" });
+    expect(await t.stops()).toEqual([]);
+    // Had it died before queueing the fourth, the retry queues it, so the stop is still logged.
+    const fourth = async () =>
+      (await queued(t.shiftId)).filter((j) => j.name === OFFER_WAVE_QUEUE && j.data.wave === 4);
+    expect(await fourth()).toHaveLength(1);
+    await su.query(
+      "delete from pgboss.job where name = $1 and data ->> 'shiftId' = $2 and data ->> 'wave' = '4'",
+      [OFFER_WAVE_QUEUE, t.shiftId],
+    );
+    expect(await t.wave(3, later(32))).toEqual({ status: "already_sent" });
+    expect(await fourth()).toHaveLength(1);
+    // Queued once, however often it's run again.
+    expect(await t.wave(3, later(33))).toEqual({ status: "already_sent" });
+    expect(await fourth()).toHaveLength(1);
+    expect(await t.wave(4, later(45))).toEqual({ status: "stopped", reason: "offer_limit" });
+    expect(await t.stops()).toEqual([{ reason: "offer_limit", wave: 4, offered: 25, places: 1 }]);
+    expect(t.sent).toHaveLength(25);
+    // Nothing more is queued.
+    expect(
+      (await queued(t.shiftId)).filter((j) => j.name === OFFER_WAVE_QUEUE && j.data.wave === 5),
+    ).toEqual([]);
+  });
+
+  it("an offer that couldn't be sent doesn't count; the office's own offers do", async () => {
+    const t = await limitFirm();
+    expect(await t.wave(1)).toEqual({ status: "sent", sent: 10, next: 2 });
+    // Three of them failed: those casuals weren't offered it.
+    await su.query(
+      `update offers set response = 'failed', responded_at = $2
+        where id in (select id from offers where shift_id = $1 order by id limit 3)`,
+      [t.shiftId, NOW],
+    );
+    expect(await t.offered()).toBe(7);
+    // The office offered it to 10 more by hand (no wave).
+    const { rows: office } = await su.query<{ id: string }>(
+      `select w.id from workers w
+        where w.firm_id = $1 and w.status = 'active'
+          and not exists (select 1 from offers o where o.shift_id = $2 and o.worker_id = w.id)
+        order by w.id limit 10`,
+      [t.f.firmId, t.shiftId],
+    );
+    const admin = await t.f.office("admin");
+    for (const w of office) {
+      await su.query(
+        `insert into offers (firm_id, shift_id, worker_id, channel, sent_at, offered_by)
+         values ($1, $2, $3, 'whatsapp', $4, $5)`,
+        [t.f.firmId, t.shiftId, w.id, NOW, admin],
+      );
+    }
+    expect(await t.offered()).toBe(17);
+    // So the next wave goes to 8, not 10.
+    expect(await t.wave(2, later(15))).toMatchObject({ status: "sent", sent: 8 });
+    expect(await t.offered()).toBe(25);
+    expect(await t.wave(3, later(30))).toEqual({ status: "stopped", reason: "offer_limit" });
+  });
+
+  it("another place coming free raises it, and the waves carry on", async () => {
+    const t = await limitFirm();
+    for (let i = 0; i < 25; i += 1) await t.f.worker({ first: `More${i}` });
+    await t.wave(1);
+    await t.wave(2, later(15));
+    await t.wave(3, later(30));
+    expect(await t.wave(4, later(45))).toEqual({ status: "stopped", reason: "offer_limit" });
+    // A second place: 50 for two.
+    await su.query("update shifts set headcount = 2 where id = $1", [t.shiftId]);
+    expect(await t.wave(5, later(60))).toEqual({ status: "sent", sent: 20, next: 6 });
+    expect(await t.wave(6, later(75))).toMatchObject({ status: "sent", sent: 5 });
+    expect(await t.offered()).toBe(50);
+    expect(await t.wave(7, later(90))).toEqual({ status: "stopped", reason: "offer_limit" });
+    expect((await t.stops()).at(-1)).toEqual({
+      reason: "offer_limit",
+      wave: 7,
+      offered: 50,
+      places: 2,
+    });
+  });
+
+  it("checked again as each casual is claimed: offers made meanwhile stop the wave", async () => {
+    const t = await limitFirm();
+    // While the first wave goes out, the office offers it to 24 others by hand.
+    const { rows: others } = await su.query<{ id: string }>(
+      `select id from workers where firm_id = $1 and status = 'active' order by id desc limit 24`,
+      [t.f.firmId],
+    );
+    const admin = await t.f.office("admin");
+    t.hooks.beforeNextSend = async () => {
+      for (const w of others) {
+        await su.query(
+          `insert into offers (firm_id, shift_id, worker_id, channel, sent_at, offered_by)
+           values ($1, $2, $3, 'whatsapp', $4, $5)`,
+          [t.f.firmId, t.shiftId, w.id, NOW, admin],
+        );
+      }
+    };
+    expect(await t.wave(1)).toMatchObject({ status: "stopped", reason: "offer_limit" });
+    const [stop, ...more] = await t.stops();
+    expect(more).toEqual([]);
+    expect(stop).toMatchObject({ reason: "offer_limit", wave: 1, places: 1 });
+    expect(Number(stop?.offered)).toBeGreaterThanOrEqual(25);
+    // The wave sent fewer than its 10.
+    expect(t.sent.length).toBeLessThan(10);
   });
 });
 

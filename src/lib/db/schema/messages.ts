@@ -22,8 +22,9 @@ import { firms } from "./tenancy";
 // claims a message (handled_at) before replying, so a reply goes at most once.
 
 export const MESSAGE_DIRECTIONS = ["in", "out"] as const;
-// voice: a call (body null) or a voicemail's text (Phase 7, call-to-text).
-export const MESSAGE_CHANNELS = ["whatsapp", "sms", "voice"] as const;
+// voice: a call (body null) or a voicemail's text (Phase 7, call-to-text). app: a casual's message
+// in the app, and its answers there (P8; Phase 25.6): no numbers, always the casual's.
+export const MESSAGE_CHANNELS = ["whatsapp", "sms", "voice", "app"] as const;
 // keyword: a word matched; ai: the AI picked; office: sent to the office (asked for, or unclear);
 // unknown: the sender isn't a worker here; opt_out: a text saying STOP or START (Phase 7).
 export const MESSAGE_HANDLING = ["keyword", "ai", "office", "unknown", "opt_out"] as const;
@@ -43,8 +44,8 @@ export const messages = pgTable(
     channel: text("channel", { enum: MESSAGE_CHANNELS }).notNull(),
     providerMessageId: text("provider_message_id").notNull(),
     workerId: uuid("worker_id"),
-    fromE164: text("from_e164"), // null: a call or voicemail from a withheld number
-    toE164: text("to_e164").notNull(),
+    fromE164: text("from_e164"), // null: a call or voicemail from a withheld number, or the app
+    toE164: text("to_e164"), // null: the app
     body: text("body"), // null when a message had no text (a photo only, say)
     handledAs: text("handled_as", { enum: MESSAGE_HANDLING }),
     intent: text("intent", { enum: MESSAGE_INTENTS }),
@@ -75,7 +76,7 @@ export const messages = pgTable(
     // Messages from a number: STOP, an unknown number's repeats, a worker's data export (L76).
     index("messages_firm_id_from_e164_idx").on(t.firmId, t.fromE164),
     check("messages_direction_check", sql`${t.direction} in ('in', 'out')`),
-    check("messages_channel_check", sql`${t.channel} in ('whatsapp', 'sms', 'voice')`),
+    check("messages_channel_check", sql`${t.channel} in ('whatsapp', 'sms', 'voice', 'app')`),
     check(
       "messages_handled_as_check",
       sql`${t.handledAs} in ('keyword', 'ai', 'office', 'unknown', 'opt_out')`,
@@ -84,10 +85,19 @@ export const messages = pgTable(
     check(
       "messages_from_e164",
       // "is not null" spelled out: a check that comes out null (null ~ …) would let the row in.
-      sql`(${t.fromE164} is not null and ${t.fromE164} ~ '^[+][1-9][0-9]{6,14}$')
-        or (${t.fromE164} is null and ${t.channel} = 'voice' and ${t.direction} = 'in')`,
+      sql`(${t.channel} = 'app' and ${t.fromE164} is null)
+        or (${t.channel} <> 'app'
+            and ((${t.fromE164} is not null and ${t.fromE164} ~ '^[+][1-9][0-9]{6,14}$')
+                 or (${t.fromE164} is null and ${t.channel} = 'voice' and ${t.direction} = 'in')))`,
     ),
-    check("messages_to_e164", sql`${t.toE164} ~ '^[+][1-9][0-9]{6,14}$'`),
+    check(
+      "messages_to_e164",
+      sql`(${t.channel} = 'app' and ${t.toE164} is null)
+        or (${t.channel} <> 'app' and ${t.toE164} is not null
+            and ${t.toE164} ~ '^[+][1-9][0-9]{6,14}$')`,
+    ),
+    // A message in the app is always a casual's, or an answer to one (P8).
+    check("messages_app_worker", sql`${t.channel} <> 'app' or ${t.workerId} is not null`),
     check(
       "messages_twilio_opt_out",
       sql`${t.twilioOptOut} is null

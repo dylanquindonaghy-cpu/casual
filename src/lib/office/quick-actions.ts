@@ -1,3 +1,4 @@
+import type { CancelAsker } from "../db/schema";
 import { parts, type OfficeContext } from "./office-context";
 import {
   saveFigures,
@@ -20,6 +21,7 @@ import {
   cancelBooking,
   cancelShiftByFirm,
   type CancelBookingResult,
+  type SHIFT_ASKERS,
   type CancelShiftResult,
 } from "../roster/cancel";
 import { closeShift, reopenShift, type CloseShiftResult } from "../roster/close";
@@ -110,9 +112,10 @@ export function cancelShift(
   ctx: OfficeContext,
   shiftId: string,
   reason: FirmChangeReason,
+  askedBy?: (typeof SHIFT_ASKERS)[number], // who asked (Phase 25.2); left out, the firm
 ): Promise<CancelShiftResult> {
   const { run, by, deps } = parts(ctx);
-  return cancelShiftByFirm(run, ctx.firm.id, { shiftId, reason, by }, deps);
+  return cancelShiftByFirm(run, ctx.firm.id, { shiftId, reason, askedBy, by }, deps);
 }
 
 export function cancelBookingByOffice(
@@ -120,12 +123,13 @@ export function cancelBookingByOffice(
   shiftId: string,
   workerId: string,
   reason: FirmChangeReason,
+  askedBy?: CancelAsker, // who asked (Phase 25.2); left out, the firm
 ): Promise<CancelBookingResult> {
   const { run, by, deps } = parts(ctx);
   return cancelBooking(
     run,
     ctx.firm.id,
-    { shiftId, workerId, reason: FIRM_CHANGE_REASONS[reason], by },
+    { shiftId, workerId, reason: FIRM_CHANGE_REASONS[reason], askedBy, by },
     deps,
   );
 }

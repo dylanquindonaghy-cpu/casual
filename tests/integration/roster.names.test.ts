@@ -8,6 +8,7 @@ import { summarise } from "@/lib/imports/messages";
 import { readTable } from "@/lib/imports/table";
 import { DEFAULT_SHEET_MAPPING } from "@/lib/roster/sheets/mapping";
 import { syncSheet } from "@/lib/roster/sheets/sync";
+import { loadSheetNames } from "@/lib/office/dashboard";
 import { listNames, setName } from "../../scripts/firm-names-owner";
 import { appRolePool, superuserPool, uniqueSlug, urls } from "../helpers/db";
 import { FakeSheets, SHIFT_HEADER, shiftRow, STAFF_HEADER, staffRow } from "../helpers/fake-sheets";
@@ -226,7 +227,7 @@ async function sheetFirm(staff: string[][], shifts: string[][]) {
   fake.create(sheetId, { Staff: [STAFF_HEADER, ...staff], Shifts: [SHIFT_HEADER, ...shifts] });
   const sync = () =>
     syncSheet({ run: withFirm, firmId: f.firmId, client: fake, clock: { now: () => NOW } });
-  return { ...f, sync };
+  return { ...f, sync, fake, sheetId };
 }
 
 const rowsOf = async (firmId: string) => ({
@@ -331,6 +332,228 @@ describe("a name skipped after its sessions came in", () => {
     expect(rows.map((r) => [r.data.problems, r.data.skipped])).toEqual([
       [0, undefined],
       [1, 1],
+    ]);
+  });
+});
+
+// The names the last sync couldn't use (Phase 25.2), as the table holds them and as Needs attention
+// reads them (inside the firm: RLS scopes both).
+const problemsOf = async (firmId: string) =>
+  (
+    await su.query(
+      `select kind, tab, row, outside_name, shift_id::text as shift_id from sheet_name_problems
+        where firm_id = $1 order by kind desc, tab, row`,
+      [firmId],
+    )
+  ).rows;
+const needsOf = (firmId: string) => withFirm(firmId, (tx) => loadSheetNames(tx, NOW));
+
+describe("the names a sync couldn't use, kept for Needs attention (Phase 25.2)", () => {
+  it("a role it can't read: the cell's text, by tab and row; a skipped name with no session: nothing", async () => {
+    const f = await sheetFirm(SHEET.staff, SHEET.shifts);
+    for (const [name, code] of [
+      ["Door Supervisor (NLW)", "door_supervisor"],
+      ["Door Supervisor (LLW)", "door_supervisor"],
+      ["12D", "traffic_marshal"],
+      ["Holiday", "skip"],
+    ] as const) {
+      await map(f.slug, "role", name, code);
+    }
+    expect(await f.sync()).toMatchObject({ status: "synced" });
+    // Ben's role (staff row 3) and E4's (shifts row 5); E2's "Holiday" made no session.
+    expect(await problemsOf(f.firmId)).toEqual([
+      {
+        kind: "unreadable",
+        tab: "shifts",
+        row: 5,
+        outside_name: "Event Manager (PAYE)",
+        shift_id: null,
+      },
+      {
+        kind: "unreadable",
+        tab: "staff",
+        row: 3,
+        outside_name: "Event Manager (PAYE)",
+        shift_id: null,
+      },
+    ]);
+    expect(await needsOf(f.firmId)).toEqual({
+      items: [
+        { kind: "unreadable", name: "Event Manager (PAYE)", tab: "shifts", row: 5 },
+        { kind: "unreadable", name: "Event Manager (PAYE)", tab: "staff", row: 3 },
+      ],
+      total: 2,
+    });
+    // Mapped now: the next sync finds nothing, so the items go.
+    await map(f.slug, "role", "Event Manager (PAYE)", "steward");
+    expect(await f.sync()).toMatchObject({ status: "synced" });
+    expect(await problemsOf(f.firmId)).toEqual([]);
+    expect((await needsOf(f.firmId)).items).toEqual([]);
+  });
+
+  it("a skipped name on a session still to come: listed with the session, until it's dealt with", async () => {
+    const f = await sheetFirm(SHEET.staff.slice(0, 1), SHEET.shifts.slice(0, 1));
+    await map(f.slug, "role", "Door Supervisor (NLW)", "door_supervisor");
+    await map(f.slug, "role", "Door Supervisor (LLW)", "door_supervisor");
+    expect(await f.sync()).toMatchObject({ status: "synced", shifts: 1 });
+    await map(f.slug, "role", "Door Supervisor (LLW)", "skip");
+    expect(await f.sync()).toMatchObject({ status: "synced", shifts: 0 });
+    const { rows } = await su.query<{ id: string; starts_at: Date; ends_at: Date }>(
+      "select id::text as id, starts_at, ends_at from shifts where firm_id = $1",
+      [f.firmId],
+    );
+    const session = rows[0]!;
+    expect(await problemsOf(f.firmId)).toEqual([
+      {
+        kind: "skipped_live",
+        tab: "shifts",
+        row: 2,
+        outside_name: "Door Supervisor (LLW)",
+        shift_id: session.id,
+      },
+    ]);
+    expect(await needsOf(f.firmId)).toEqual({
+      items: [
+        {
+          kind: "skipped_live",
+          name: "Door Supervisor (LLW)",
+          row: 2,
+          shiftId: session.id,
+          role: "door_supervisor",
+          site: null,
+          startsAt: session.starts_at,
+          endsAt: session.ends_at,
+        },
+      ],
+      total: 1,
+    });
+    // Never another firm's (RLS): a second firm with its own sheet sees none of these.
+    const other = await sheetFirm([], []);
+    expect(await other.sync()).toMatchObject({ status: "synced" });
+    expect((await needsOf(other.firmId)).items).toEqual([]);
+    // A failed sync leaves the last list as it was.
+    f.fake.failNextRead = "sheet_not_shared";
+    expect(await f.sync()).toMatchObject({ status: "failed" });
+    expect(await problemsOf(f.firmId)).toHaveLength(1);
+    // The office cancels the session: dealt with, so not listed (the next sync drops the row).
+    await su.query("update shifts set status = 'cancelled' where id = $1", [session.id]);
+    expect((await needsOf(f.firmId)).items).toEqual([]);
+    await su.query("update shifts set status = 'open' where id = $1", [session.id]);
+    expect((await needsOf(f.firmId)).items).toHaveLength(1);
+    // Started: too late to change, so not listed either.
+    await su.query("update shifts set starts_at = $2, ends_at = $3 where id = $1", [
+      session.id,
+      new Date(NOW.getTime() - 3_600_000),
+      new Date(NOW.getTime() + 7 * 3_600_000),
+    ]);
+    expect((await needsOf(f.firmId)).items).toEqual([]);
+    await su.query("update shifts set starts_at = $2, ends_at = $3 where id = $1", [
+      session.id,
+      session.starts_at,
+      session.ends_at,
+    ]);
+    expect((await needsOf(f.firmId)).items).toHaveLength(1);
+    // The sheet switched off: nothing from it is listed.
+    await su.query("update roster_sources set enabled = false where firm_id = $1", [f.firmId]);
+    expect((await needsOf(f.firmId)).items).toEqual([]);
+  });
+
+  it("both kinds at once: the names it can't read first, then the skipped ones, soonest first", async () => {
+    const f = await sheetFirm(
+      [],
+      [
+        shiftRow({
+          ref: "E1",
+          date: day,
+          start: "09:00",
+          end: "17:00",
+          role: "Door Supervisor (LLW)",
+        }),
+        shiftRow({ ref: "E2", date: day, start: "09:00", end: "17:00", role: "Bad (role)" }),
+      ],
+    );
+    await map(f.slug, "role", "Door Supervisor (LLW)", "door_supervisor");
+    expect(await f.sync()).toMatchObject({ status: "synced", shifts: 1 });
+    await map(f.slug, "role", "Door Supervisor (LLW)", "skip");
+    expect(await f.sync()).toMatchObject({ status: "synced", shifts: 0 });
+    expect((await needsOf(f.firmId)).items.map((i) => [i.kind, i.row])).toEqual([
+      ["unreadable", 3],
+      ["skipped_live", 2],
+    ]);
+  });
+
+  it("past the caps, the skipped names on sessions still to come are kept, and listed last", async () => {
+    const bad = Array.from({ length: 205 }, (_, i) =>
+      shiftRow({ ref: `B${i + 1}`, date: day, start: "09:00", end: "17:00", role: `Role (${i})` }),
+    );
+    const f = await sheetFirm(
+      [],
+      [
+        shiftRow({
+          ref: "E1",
+          date: day,
+          start: "09:00",
+          end: "17:00",
+          role: "Door Supervisor (LLW)",
+        }),
+        ...bad,
+      ],
+    );
+    await map(f.slug, "role", "Door Supervisor (LLW)", "door_supervisor");
+    expect(await f.sync()).toMatchObject({ status: "synced", shifts: 1 });
+    await map(f.slug, "role", "Door Supervisor (LLW)", "skip");
+    expect(await f.sync()).toMatchObject({ status: "synced", shifts: 0 });
+    const kept = await problemsOf(f.firmId);
+    expect(kept).toHaveLength(200);
+    expect(kept.filter((r) => r.kind === "skipped_live").map((r) => r.row)).toEqual([2]);
+    const needs = await needsOf(f.firmId);
+    expect([needs.items.length, needs.total]).toEqual([50, 200]);
+    expect(needs.items.at(-1)).toMatchObject({ kind: "skipped_live", row: 2 });
+    expect(needs.items.slice(0, -1).every((i) => i.kind === "unreadable")).toBe(true);
+  });
+
+  it("at most 200 a sync; Needs attention shows the first 50 and says how many there are", async () => {
+    const rows = Array.from({ length: 205 }, (_, i) =>
+      shiftRow({ ref: `E${i + 1}`, date: day, start: "09:00", end: "17:00", role: `Role (${i})` }),
+    );
+    const f = await sheetFirm([], rows);
+    expect(await f.sync()).toMatchObject({ status: "synced", shifts: 0 });
+    expect(await problemsOf(f.firmId)).toHaveLength(200);
+    const needs = await needsOf(f.firmId);
+    expect([needs.items.length, needs.total]).toEqual([50, 200]);
+    expect(needs.items[0]).toEqual({ kind: "unreadable", name: "Role (0)", tab: "shifts", row: 2 });
+  });
+
+  it("only the role cell's text, cleaned: no control characters, at most 200 characters", async () => {
+    const long = `Steward ${"X".repeat(300)} (NLW)`;
+    const f = await sheetFirm(
+      [],
+      [
+        shiftRow({
+          ref: "E1",
+          date: day,
+          start: "09:00",
+          end: "17:00",
+          role: "Door\u0007 \u00adSup (NLW)",
+        }),
+        shiftRow({ ref: "E2", date: day, start: "09:00", end: "17:00", role: long }),
+        // An empty role cell is a bad role too, but has no name to list.
+        shiftRow({ ref: "E3", date: day, start: "09:00", end: "17:00", role: "" }),
+        // Nor does one with a phone number typed into it: a bad role, never kept.
+        shiftRow({
+          ref: "E4",
+          date: day,
+          start: "09:00",
+          end: "17:00",
+          role: "Priya (cover) 07700 900123",
+        }),
+      ],
+    );
+    expect(await f.sync()).toMatchObject({ status: "synced", shifts: 0 });
+    const names = (await problemsOf(f.firmId)).map((r) => [r.row, r.outside_name]);
+    expect(names).toEqual([
+      [2, "Door Sup (NLW)"],
+      [3, Array.from(long).slice(0, 200).join("")],
     ]);
   });
 });

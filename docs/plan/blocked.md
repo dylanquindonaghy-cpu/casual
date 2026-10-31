@@ -30,5 +30,4 @@ not Bedrock; Phase 15's texts replace the WhatsApp and Twilio items of Phases 4 
 | P5: the real connector | the ops portal's API documentation and a test copy; the agreement and the DPA | Dylan (arranging access) and the firm |
 | P6: attendance and pay lines | the ops portal's API documentation and a test copy (the API exists: answer O1); its "Still coming?" button, a mock-up first | Dylan (arranging access) and the firm |
 | P7: the inbox live | an email provider (its ADR is Dylan's); the firm's IT allowing the Microsoft 365 forward | Dylan and the firm's IT |
-| The screens and words after the UI chat's Phase 24 (PLAN.md Phase 25; the mock-ups for P2.7 and P3's screens approved by Dylan on 2026-10-30; P4's office half, P5's card and the staffing inbox (P7.4, P7.5) built as recommended, Dylan, 2026-10-30): P8 | a mock-up at Dylan's real sizes, published for the record and built as recommended (Dylan, 2026-10-30) | Dylan |
 | Payroll's year-end rule | the firm's payroll (`docs/discovery-axlr8.md` §5, item 5) | the firm |

@@ -284,30 +284,37 @@ describe("Booked: the bookings themselves", () => {
     expect(text(render({ view: "past" }))).toContain("No shifts in the last 30 days.");
   });
 
-  it("the tab bar: Home, Shifts, Pay, Profile, the current one marked, a count on Profile when needed", () => {
-    for (const current of ["home", "shifts", "pay", "profile"] as const) {
+  it("the tab bar: Home, Shifts, Messages, Pay, Profile, the current one marked, a count on Profile and Messages when needed", () => {
+    for (const current of ["home", "shifts", "messages", "pay", "profile"] as const) {
       const html = renderToStaticMarkup(createElement(TabBar, { current }));
       const links = [...html.matchAll(/<a [^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/g)];
       expect(links.map((m) => [m[1], text(m[2] ?? "").trim()])).toEqual([
         ["/", "Home"],
         ["/shifts", "Shifts"],
+        ["/messages", "Messages"],
         ["/pay", "Pay"],
         ["/profile", "Profile"],
       ]);
       const marked = links.filter((m) => m[0].includes('aria-current="page"')).map((m) => m[1]);
       expect(marked).toEqual([
-        { home: "/", shifts: "/shifts", pay: "/pay", profile: "/profile" }[current],
+        {
+          home: "/",
+          shifts: "/shifts",
+          messages: "/messages",
+          pay: "/pay",
+          profile: "/profile",
+        }[current],
       ]);
       // Round 7 (Phase 24): the current tab under a white glass lens, its icon and word in the
       // firm's colour, the word bold: not colour alone. The others grey, their words medium.
       const here = links.find((m) => m[0].includes('aria-current="page"'))?.[0] ?? "";
       expect(here).toMatch(/class="[^"]*(?<![\w-])lens font-semibold text-brand-ink"/);
       expect(html.match(/(?<![\w-])lens(?![\w-])/g)).toHaveLength(1);
-      expect(html.match(/font-medium text-ink-muted hover:text-ink/g)).toHaveLength(3);
+      expect(html.match(/font-medium text-ink-muted hover:text-ink/g)).toHaveLength(4);
       // A floating glass capsule 14px above the foot, inside a bar that lets the page take taps
       // around it; no line.
       expect(html).toMatch(
-        /^<nav aria-label="Main" data-tab-bar="" class="pointer-events-none fixed inset-x-0 bottom-0 z-20 px-4 pb-\[calc\(0\.875rem\+env\(safe-area-inset-bottom\)\)\]"><div class="glass-float pointer-events-auto mx-auto grid h-17 max-w-md grid-cols-4 gap-1 rounded-full p-1\.5 /,
+        /^<nav aria-label="Main" data-tab-bar="" class="pointer-events-none fixed inset-x-0 bottom-0 z-20 px-4 pb-\[calc\(0\.875rem\+env\(safe-area-inset-bottom\)\)\]"><div class="glass-float pointer-events-auto mx-auto grid h-17 max-w-md grid-cols-5 gap-1 rounded-full p-1\.5 /,
       );
       expect(html).not.toMatch(/(?<![\w-])shadow-bar(?![\w-])/);
       expect(html).not.toContain("border-t");
@@ -320,11 +327,12 @@ describe("Booked: the bookings themselves", () => {
       expect(html).toContain("motion-safe:transition-[height,max-width] motion-safe:duration-300");
       expect(
         html.match(/<span class="leading-tight \[html\[data-tabs-mini\]_&amp;\]:sr-only">/g),
-      ).toHaveLength(4);
+      ).toHaveLength(5);
       // The words at 14px, under their icons.
-      expect(html.match(/rounded-full px-1 text-sm /g)).toHaveLength(4);
+      expect(html.match(/rounded-full px-1 text-sm /g)).toHaveLength(5);
       expect(html).toContain('aria-label="Main"');
       expect(html).not.toContain("data-profile-count");
+      expect(html).not.toContain("data-messages-count");
     }
     const counted = renderToStaticMarkup(
       createElement(TabBar, { current: "home", profileCount: 2 }),
@@ -339,6 +347,20 @@ describe("Booked: the bookings themselves", () => {
     expect(
       renderToStaticMarkup(createElement(TabBar, { current: "home", profileCount: 1 })),
     ).toContain('aria-label="Profile, 1 thing needs doing"');
+    // Messages (Phase 25.6): the office's replies she hasn't opened, in the firm's colour.
+    const replies = renderToStaticMarkup(
+      createElement(TabBar, { current: "home", messagesCount: 2 }),
+    );
+    expect(replies).toMatch(
+      /<span aria-hidden="true" data-messages-count="" class="[^"]*glass-tint[^"]*">2<\/span>/,
+    );
+    expect(replies).not.toContain("data-profile-count");
+    expect(/<a [^>]*href="\/messages"[^>]*>/.exec(replies)?.[0]).toContain(
+      'aria-label="Messages, 2 new replies"',
+    );
+    expect(
+      renderToStaticMarkup(createElement(TabBar, { current: "home", messagesCount: 1 })),
+    ).toContain('aria-label="Messages, 1 new reply"');
   });
   it("names the later list 'Later', with its count beside the heading, not in it; kept, with Find open shifts, when nothing else is booked", () => {
     const html = render({

@@ -61,11 +61,12 @@ export const VIEW_LABELS = {
   pay: "Pay",
 } as const;
 
-export const CHANNEL_WORDS: Record<"whatsapp" | "sms" | "voice" | "email", string> = {
+export const CHANNEL_WORDS: Record<"whatsapp" | "sms" | "voice" | "email" | "app", string> = {
   whatsapp: "WhatsApp",
   sms: "Text",
   voice: "Voicemail",
   email: "Email",
+  app: "In the app", // a casual's message in the app (P8; Phase 25.6)
 };
 
 export const CLOSE_REASON_WORDS: Record<CloseReason, string> = {
@@ -124,6 +125,9 @@ export function planLine(plan: ReplyPlan): string {
       texts_off: "They replied STOP to texts, so a reply can't go. Phone them, then close it.",
     }[plan.why];
   }
+  if (plan.channel === "app") {
+    return "In the app: your words go as they are, and they get a notification.";
+  }
   if (plan.channel === "sms") return "By text: your words go as they are.";
   return plan.form === "free_text"
     ? "Inside WhatsApp's 24-hour window: your words go as they are."
@@ -131,7 +135,7 @@ export function planLine(plan: ReplyPlan): string {
 }
 
 export type ReplyOutcome =
-  | { status: "queued"; channel: "whatsapp" | "sms"; form: "free_text" | "template" }
+  | { status: "queued"; channel: "whatsapp" | "sms" | "app"; form: "free_text" | "template" }
   | {
       status: "empty" | "too_long" | "no_line" | "withheld" | "unknown_caller" | "texts_off";
     }
@@ -141,7 +145,9 @@ export type ReplyOutcome =
 export function replyResultText(r: ReplyOutcome): string {
   switch (r.status) {
     case "queued":
-      return `Your reply is on its way: it goes ${r.channel === "sms" ? "by text" : "on WhatsApp"} in a moment.`;
+      return r.channel === "app"
+        ? "Your reply is on its way: it shows in their app in a moment."
+        : `Your reply is on its way: it goes ${r.channel === "sms" ? "by text" : "on WhatsApp"} in a moment.`;
     case "empty":
       return "Write a reply first.";
     case "too_long":
@@ -201,12 +207,12 @@ type WhoFull =
 type Intent = "shifts" | "cancel" | "pay" | "office";
 
 export function receivedStep(
-  r: { channel: "whatsapp" | "sms" | "voice"; at: Date; who: WhoFull },
+  r: { channel: "whatsapp" | "sms" | "voice" | "app"; at: Date; who: WhoFull },
   at: At,
 ): string {
   const from =
     r.who.kind === "casual"
-      ? `from ${r.who.name}'s number${r.who.active ? "" : " (not active)"}`
+      ? `from ${r.who.name}${r.channel === "app" ? "" : "'s number"}${r.who.active ? "" : " (not active)"}`
       : r.who.kind === "unknown" || r.who.kind === "unknown_address"
         ? `from ${r.who.from}, a number that isn't one of your casuals'`
         : "from a withheld number";
@@ -218,7 +224,7 @@ export function sortedStep(
     | { how: "keyword" | "ai"; intent: Intent }
     | {
         how: "person";
-        why: "asked" | "ai_asked" | "voicemail" | "no_text" | "not_sorted";
+        why: "asked" | "ai_asked" | "voicemail" | "no_text" | "not_sorted" | "reply_limit" | "echo";
         ai?: "not_connected" | "no_answer" | "not_a_label";
       }
     | { how: "person"; why: "answer_failed"; code: string }
@@ -261,6 +267,9 @@ export function sortedStep(
         voicemail: "A voicemail: always passed to a person.",
         no_text: "No text (a photo or file): passed to a person.",
         not_sorted: "No keyword matched and AI didn't sort it: passed to a person.",
+        // In the app (Phase 25.6): no automatic answer past the hour's 5, nor to an echo.
+        reply_limit: "5 automatic replies already went to them this hour: passed to a person.",
+        echo: "It quoted our automatic reply: passed to a person.",
       }[s.why];
   }
 }
@@ -290,13 +299,14 @@ export function replyStep(
 
 export function sentStep(
   s:
-    | { how: "sent"; channel: "whatsapp" | "sms"; at: Date; fellBackFrom: string | null }
+    | { how: "sent"; channel: "whatsapp" | "sms" | "app"; at: Date; fellBackFrom: string | null }
     | { how: "failed"; channel: string; code: string; at: Date }
     | { how: "none" },
   at: At,
 ): string {
   if (s.how === "none") return "Nothing sent.";
   if (s.how === "failed") return `Not sent (${s.code}) at ${at(s.at)}.`;
+  if (s.channel === "app") return `Shown in the app at ${at(s.at)}.`;
   if (s.fellBackFrom === "whatsapp") {
     return `Sent by text at ${at(s.at)} after WhatsApp didn't take it.`;
   }
@@ -308,7 +318,7 @@ type ThenLike =
       kind: "office_reply";
       by: string | null;
       at: Date;
-      channel: "whatsapp" | "sms" | "email";
+      channel: "whatsapp" | "sms" | "email" | "app";
       form: "free_text" | "template" | "draft" | "edited";
       state: "sending" | "sent" | "failed" | "unconfirmed";
       code: string | null;
@@ -346,11 +356,13 @@ export function thenStep(
             : t.form === "edited"
               ? "by email, from an AI draft they changed"
               : "by email, in their own words"
-          : t.form === "template"
-            ? "as the request update template"
-            : t.channel === "sms"
-              ? "by text, in their own words"
-              : "on WhatsApp, in their own words";
+          : t.channel === "app"
+            ? "in the app, in their own words"
+            : t.form === "template"
+              ? "as the request update template"
+              : t.channel === "sms"
+                ? "by text, in their own words"
+                : "on WhatsApp, in their own words";
       const state =
         t.state === "sent"
           ? t.fellBackFrom === "whatsapp"

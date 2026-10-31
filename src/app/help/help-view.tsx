@@ -256,7 +256,7 @@ export function HelpView({
           Your shift doesn&apos;t change until the office changes it. You&apos;ll see their answer
           in <Name>My requests</Name>.
         </p>
-        <p className="mt-3">For anything else, contact the office the way you usually do.</p>
+        <p className="mt-3">For anything else, write to the office under Messages.</p>
       </Section>
 
       <Section id="your-pay">

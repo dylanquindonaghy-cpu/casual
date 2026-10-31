@@ -54,7 +54,10 @@ export function EnquiryItem({
           : "hover:bg-active"
       }`}
     >
-      <Icon name={r.channel} className="mt-1 shrink-0 text-ink-muted" />
+      <Icon
+        name={r.channel === "app" ? "messages" : r.channel}
+        className="mt-1 shrink-0 text-ink-muted"
+      />
       <div className="flex min-w-0 flex-col gap-2">
         <p className="flex items-baseline gap-3">
           <span className="sr-only">{CHANNEL_WORDS[r.channel]}:</span>

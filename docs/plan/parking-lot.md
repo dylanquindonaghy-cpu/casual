@@ -2016,7 +2016,9 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   sender exists; one that can't go fails and its question is back in Need a person, as any failed
   reply. Needed once a casual's message can arrive with no text sender (the app's messages, P8):
   then the `messages` channel check, `src/lib/office/enquiry-actions.ts` and the Enquiries pages
-  take email, after the UI chat.
+  take email, after the UI chat. (Phase 25.6, 2026-10-31: a message in the app is answered in the app, so
+  it needs neither: still open only for a WhatsApp or text that arrives once the firm has no text
+  sender.)
 - P2.4 (2026-10-29), for P2.5: the send-failure alert (`src/lib/ops/tick.ts`) counts WhatsApp and
   texts only, so with no text sender (P2.5) an SMTP outage that stops every casual's email, and
   casuals nobody could reach (`no_channel`), raise no alert. P2.5 should count `email` sends too.
@@ -2075,6 +2077,21 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   Integrations says why the last read failed, but nothing calls the office there. An item like the
   webhook's ("Your planner's webhook is failing") once reads have failed for, say, an hour; words
   first. With the real connector.
+- **The in-app chat's loose ends** (Phase 25.6, 2026-10-31):
+  - Messages shows the newest 200 messages of the last 90 days, with no way to older ones; no photos
+    or files in the app yet (a message is words only).
+  - After a send the page looks again for a minute; an office reply that comes later shows the next
+    time she opens the app (with the tab's count, and a push where the firm has push set up). With
+    no push set up (no VAPID key), nothing tells her a reply came until she opens the app: by design
+    it never goes by text. A text or email nudge for that case would need words first.
+  - The office's reply in the app is one line of at most 500 characters, as on WhatsApp; the app
+    could keep its line breaks.
+  - Home's copy kept for no signal (`public/sw.js`) can show an old Messages count.
+  - The guardrails review's lows not done (2026-10-31): if the push job's record fails after its
+    claim, Enquiries shows the office's reply "not confirmed" 15 minutes on, though it's in her app
+    (the same at-most-once shape as every notice); the 20-an-hour send limit is a clock-hour window,
+    so about 40 can go across the hour (as every limit here); pay figures the office types into a
+    reply show on Messages without the pay code (the office's own words, as on WhatsApp).
 - **The staffing inbox's loose ends** (Phase 25.5, 2026-10-30):
   - The shifts line's automatic reply that fails (`message.reply_failed`) leaves the message as
     answered by keyword or AI, its page saying "Not sent ({code})": it doesn't go back to Need a

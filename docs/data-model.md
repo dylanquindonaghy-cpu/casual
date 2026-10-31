@@ -249,6 +249,10 @@ create table workers (
   offer_alerts boolean not null default true,      -- tell me about open shifts (profile page)
   sms_opted_out_at timestamptz,          -- they replied STOP to a text (Phase 7): no texts from any
                                          -- sender until START (src/lib/notify/send.ts)
+  messages_read_at timestamptz,          -- the newest office reply in the app they've seen on
+                                         -- Messages (Phase 25.6, migration 0064): the office's
+                                         -- replies after it are the tab's count
+                                         -- (src/lib/portal/messages.ts); null: none seen yet
   office_deactivated_at timestamptz,     -- the office made them inactive (Phase 10): no sheet or
                                          -- file makes them active again, only the office (clears it)
   erased_at timestamptz,                 -- GDPR deletion (Phase 8, src/lib/gdpr/worker-erase.ts)
@@ -811,14 +815,19 @@ create table messages (                 -- built in Phase 7 (migrations 0022-002
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),
   direction text not null,               -- in | out
-  channel text not null,                 -- whatsapp | sms | voice (a call, or its voicemail)
+  channel text not null,                 -- whatsapp | sms | voice (a call, or its voicemail) | app
+                                         -- (a casual's message in the app and its answers there:
+                                         -- Phase 25.6, migration 0064)
   provider_message_id text not null,     -- Twilio's MessageSid (a call: its CallSid; a voicemail: its
-                                         -- RecordingSid), or the transport's id for a reply;
+                                         -- RecordingSid), or the transport's id for a reply; in the
+                                         -- app our own "app:{uuid}", new each time;
                                          -- unique per firm (golden rule 3: a repeat stores nothing)
   worker_id uuid,                        -- (firm_id, worker_id) -> workers; set when the sender is one
+                                         -- (always in the app: messages_app_worker)
   from_e164 text,                        -- E.164; empty only on an incoming voice row (a call or
-                                         -- its voicemail) from a withheld number (a check says so)
-  to_e164 text not null,                 -- inbound: the firm's shifts line
+                                         -- its voicemail) from a withheld number, and in the app
+                                         -- (always empty there; checks say so)
+  to_e164 text,                          -- inbound: the firm's shifts line; empty in the app only
   body text,                             -- at most 1600; the worker's words: never copied into events
   handled_as text,                       -- keyword | ai | office | unknown | opt_out (inbound only)
   intent text,                           -- shifts | cancel | pay | office
@@ -827,7 +836,10 @@ create table messages (                 -- built in Phase 7 (migrations 0022-002
                                          -- indexed (firm_id, reply_to) for Enquiries (12D.1, S5). The
                                          -- office's reply on Enquiries is stored when sent from the page,
                                          -- provider_message_id "office-reply:{uuid}" until the
-                                         -- enquiry-reply job has sent it (then the provider's id)
+                                         -- enquiry-reply job has sent it (then the provider's id); in
+                                         -- the app stored "app:{uuid}" and shown at once (the job
+                                         -- only pushes). An outbound app row with an intent is the
+                                         -- automatic answer; with none, the office's
   twilio_opt_out text,                   -- stop | start: Twilio's own opt-out handling acted on this
                                          -- incoming text (and confirmed it); null otherwise
   created_at timestamptz not null default now(),

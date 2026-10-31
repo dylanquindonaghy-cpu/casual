@@ -19,6 +19,7 @@ const LABELS =
 const SYSTEM = {
   shifts_line: `You sort a message a casual worker sent to their staffing firm's shifts line. ${LABELS}`,
   email: `You sort an email a casual worker sent to their staffing firm (its subject, then its words). ${LABELS}`,
+  app: `You sort a message a casual worker sent to their staffing firm in its app. ${LABELS}`,
 };
 
 export async function classifyMessage(
@@ -36,7 +37,7 @@ export type AiFallback = "not_connected" | "no_answer" | "not_a_label";
 export async function sortMessage(
   text: string,
   ai: AiClient,
-  opts: { timeoutMs?: number; via?: "shifts_line" | "email" } = {},
+  opts: { timeoutMs?: number; via?: "shifts_line" | "email" | "app" } = {},
 ): Promise<{ label: Intent } | { label: null; why: AiFallback }> {
   if (ai.name === "none") return { label: null, why: "not_connected" };
   const raw = await askAi(

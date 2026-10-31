@@ -57,6 +57,10 @@ const { PushSetting } = await import("@/app/profile/push-setting");
 const { PushSettingView } = await import("@/app/profile/push-setting-view");
 import { postcodeAttribution } from "@/lib/travel/attribution";
 const { HelpView } = await import("@/app/help/help-view");
+const { MessagesView } = await import("@/app/messages/messages-view");
+const { Composer } = await import("@/app/messages/composer");
+const { sendProblemText, messagesCountWords, SENT_WAITING } =
+  await import("@/lib/portal/messages-copy");
 // The firm's own strike and photo numbers the help page states (12H.3).
 // A firm with travel areas on: every help section shows.
 const HELP_FACTS = {
@@ -815,6 +819,62 @@ const SCREENS: [string, ReactElement][] = [
       year: 2026,
     }),
   ]),
+  // Messages (Phase 25.6): empty, a thread with each kind of answer, and every answer to "Send".
+  [
+    "Messages, nothing yet",
+    createElement(MessagesView, {
+      thread: { items: [], more: false, latestMineAt: null, answered: true },
+      now: NOW,
+      timeZone: TZ,
+      linkOrigin: "https://acme.shiftdesk.test",
+      composer: createElement(Composer, { answered: true }),
+    }),
+  ],
+  [
+    "Messages, a thread",
+    createElement(MessagesView, {
+      thread: {
+        items: [
+          { id: "1", mine: true, text: "When do I get paid?", at: NOW, from: null },
+          {
+            id: "2",
+            mine: false,
+            text: "Your hours, rates and pay dates: https://acme.shiftdesk.test/pay (you'll get a code to log in). Automatic reply. Send OFFICE to reach a person. — Acme Events Shift Team",
+            at: NOW,
+            from: "automatic",
+          },
+          {
+            id: "3",
+            mine: false,
+            text: "Friday, as usual. — Acme Events Shift Team",
+            at: new Date("2026-10-30T15:00:00Z"),
+            from: "office",
+          },
+        ],
+        more: false,
+        latestMineAt: NOW,
+        answered: true,
+      },
+      now: NOW,
+      timeZone: TZ,
+      linkOrigin: "https://acme.shiftdesk.test",
+      composer: createElement(Composer, { answered: true }),
+    }),
+  ],
+  [
+    "Messages: every answer to Send, and the tab's count",
+    createElement(
+      "div",
+      null,
+      ...(["empty", "too_long", "rate_limited", "error"] as const).map((p) =>
+        createElement("p", { key: p }, sendProblemText(p, true)),
+      ),
+      createElement("p", { key: "offline" }, sendProblemText("error", false)),
+      createElement("p", { key: "sent" }, SENT_WAITING),
+      createElement("p", { key: "one" }, `Messages, ${messagesCountWords(1)}`),
+      createElement("p", { key: "two" }, `Messages, ${messagesCountWords(2)}`),
+    ),
+  ],
   // Uploads (12F.2): every answer after sending a photo or card, the guidance, the photo's statuses
   // and why one wasn't accepted, as she reads them.
   [

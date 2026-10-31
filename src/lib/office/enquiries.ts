@@ -51,7 +51,8 @@ const UNCONFIRMED_MS = 15 * 60_000; // an office reply still "sending" this long
 export const ENQUIRY_VIEWS = ["all", "person", "app", "pay"] as const;
 export type EnquiryView = (typeof ENQUIRY_VIEWS)[number];
 
-type Channel = "whatsapp" | "sms" | "voice";
+// app: a casual's message in the app (P8; Phase 25.6).
+type Channel = "whatsapp" | "sms" | "voice" | "app";
 type ListChannel = Channel | "email";
 type HandledAs = "keyword" | "ai" | "office" | "unknown" | "opt_out";
 type Intent = "shifts" | "cancel" | "pay" | "office";
@@ -305,7 +306,8 @@ export interface EnquiryTimeline {
     | { how: "keyword" | "ai"; intent: Intent }
     | {
         how: "person";
-        why: "asked" | "ai_asked" | "voicemail" | "no_text" | "not_sorted";
+        // reply_limit, echo: a message in the app given no automatic answer (Phase 25.6).
+        why: "asked" | "ai_asked" | "voicemail" | "no_text" | "not_sorted" | "reply_limit" | "echo";
         // The AI's own reason, when it was logged (12D.2).
         ai?: "not_connected" | "no_answer" | "not_a_label";
       }
@@ -321,7 +323,7 @@ export interface EnquiryTimeline {
     | { how: "none" }
     | { how: "held" };
   sent:
-    | { how: "sent"; channel: "whatsapp" | "sms"; at: Date; fellBackFrom: string | null }
+    | { how: "sent"; channel: "whatsapp" | "sms" | "app"; at: Date; fellBackFrom: string | null }
     | { how: "failed"; channel: string; code: string; at: Date }
     | { how: "none" };
   then: ThenFact[];
@@ -332,7 +334,7 @@ export type ThenFact =
       kind: "office_reply";
       by: string | null;
       at: Date;
-      channel: "whatsapp" | "sms" | "email";
+      channel: "whatsapp" | "sms" | "email" | "app";
       form: "free_text" | "template" | "draft" | "edited";
       // unconfirmed: still "sending" 15 minutes on (the job stopped part-way: it may have gone,
       // and it's never sent again).
@@ -437,7 +439,7 @@ export async function loadEnquiry(
   const { rows: found } = await tx.execute<
     Omit<ListRow, "channel"> & {
       channel: Channel;
-      to_e164: string;
+      to_e164: string | null;
       notify_channel: "whatsapp" | "sms" | null;
       sms_opted_out_at: string | Date | null;
     }
@@ -460,8 +462,9 @@ export async function loadEnquiry(
   const timeZone = firm?.timezone ?? "Europe/London";
   const at = new Date(m.created_at);
 
-  // Their message, its replies, then up to 5 later messages from the same number to this line
-  // (with their replies), in time order.
+  // Their message, its replies, then up to 5 later messages from the same number to this line (a
+  // message in the app: from the same casual in the app), with their replies, in time order.
+  const app = m.channel === "app";
   const { rows: talk } = await tx.execute<{
     id: string;
     direction: "in" | "out";
@@ -472,11 +475,16 @@ export async function loadEnquiry(
   }>(sql`
     with later as (
       select l.id from messages l
-       where l.direction = 'in' and l.from_e164 = ${m.from_e164} and l.to_e164 = ${m.to_e164}
+       where l.direction = 'in'
+         and ${
+           app
+             ? sql`l.channel = 'app' and l.worker_id = ${m.worker_id}`
+             : sql`l.from_e164 = ${m.from_e164} and l.to_e164 = ${m.to_e164}`
+         }
          and (l.created_at, l.id) > (${at}::timestamptz, ${m.id}::uuid)
          and not (l.handled_at is not null and l.handled_as is null)
        order by l.created_at, l.id
-       limit ${m.from_e164 === null ? 0 : CONVERSATION_MAX}
+       limit ${m.from_e164 === null && !app ? 0 : CONVERSATION_MAX}
     ), shown as (
       select ${m.id}::uuid as id union all select id from later
     )
@@ -521,11 +529,12 @@ export async function loadEnquiry(
       by: string | null;
       state: ReplyState;
       code: string | null;
-      channel: "whatsapp" | "sms";
+      channel: "whatsapp" | "sms" | "app";
       fellBackFrom: string | null;
       form: "free_text" | "template";
     }
   >();
+  const replyChannel = (v: unknown) => (v === "sms" ? "sms" : v === "app" ? "app" : "whatsapp");
   const then: ThenFact[] = [];
   for (const e of events) {
     const replyId = str(e.data.replyId);
@@ -536,7 +545,7 @@ export async function loadEnquiry(
         by: e.actor_name,
         state: "sending",
         code: null,
-        channel: e.data.channel === "sms" ? "sms" : "whatsapp",
+        channel: replyChannel(e.data.channel),
         fellBackFrom: null,
         form: e.data.form === "template" ? "template" : "free_text",
       });
@@ -636,33 +645,37 @@ export async function loadEnquiry(
   const sorted: EnquiryTimeline["sorted"] =
     m.handled_at === null
       ? { how: "not_yet" }
-      : held && sortedAs && (handledAs === "keyword" || handledAs === "ai")
-        ? { how: "held", by: handledAs, intent: sortedAs }
-        : answerFailed !== null && handledAs === "office"
-          ? { how: "person", why: "answer_failed", code: answerFailed }
-          : handledAs === "keyword" && intent
-            ? intent === "office"
-              ? { how: "person", why: "asked" }
-              : { how: "keyword", intent }
-            : handledAs === "ai" && intent
-              ? intent === "office"
-                ? { how: "person", why: "ai_asked" }
-                : { how: "ai", intent }
-              : handledAs === "unknown"
-                ? { how: "unknown", repeat: received?.data.repeat === true }
-                : handledAs === "opt_out"
-                  ? { how: "opt_out" }
-                  : m.channel === "voice"
-                    ? { how: "person", why: "voicemail" }
-                    : m.body === null
-                      ? { how: "person", why: "no_text" }
-                      : {
-                          how: "person",
-                          why: "not_sorted",
-                          ...(aiReason(received?.data.aiFallback)
-                            ? { ai: aiReason(received?.data.aiFallback) }
-                            : {}),
-                        };
+      : received?.data.replyLimit === true
+        ? { how: "person", why: "reply_limit" }
+        : received?.data.echo === true
+          ? { how: "person", why: "echo" }
+          : held && sortedAs && (handledAs === "keyword" || handledAs === "ai")
+            ? { how: "held", by: handledAs, intent: sortedAs }
+            : answerFailed !== null && handledAs === "office"
+              ? { how: "person", why: "answer_failed", code: answerFailed }
+              : handledAs === "keyword" && intent
+                ? intent === "office"
+                  ? { how: "person", why: "asked" }
+                  : { how: "keyword", intent }
+                : handledAs === "ai" && intent
+                  ? intent === "office"
+                    ? { how: "person", why: "ai_asked" }
+                    : { how: "ai", intent }
+                  : handledAs === "unknown"
+                    ? { how: "unknown", repeat: received?.data.repeat === true }
+                    : handledAs === "opt_out"
+                      ? { how: "opt_out" }
+                      : m.channel === "voice"
+                        ? { how: "person", why: "voicemail" }
+                        : m.body === null
+                          ? { how: "person", why: "no_text" }
+                          : {
+                              how: "person",
+                              why: "not_sorted",
+                              ...(aiReason(received?.data.aiFallback)
+                                ? { ai: aiReason(received?.data.aiFallback) }
+                                : {}),
+                            };
 
   // The automatic reply: the first one logged against the message.
   const replied = events.find(
@@ -686,7 +699,7 @@ export async function loadEnquiry(
     : replied.action === "message.replied"
       ? {
           how: "sent",
-          channel: replied.data.channel === "sms" ? "sms" : "whatsapp",
+          channel: replyChannel(replied.data.channel),
           at: new Date(replied.created_at),
           fellBackFrom: str(replied.data.fellBackFrom),
         }

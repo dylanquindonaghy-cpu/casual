@@ -125,6 +125,25 @@ const INTENT_WORDS: Record<string, string> = {
   office: "for the office",
 };
 
+// A casual's message in the app (P8; Phase 25.6; docs/screens.md "Messages: the in-app chat"):
+// what it was sorted as, and why no automatic answer went when none did.
+export const APP_LIMIT_LOG =
+  "5 automatic replies already went to them this hour: it's waiting for a person.";
+export const APP_ECHO_LOG = "It quoted our automatic reply: it's waiting for a person.";
+
+function appReceivedWords(d: Record<string, unknown>, worker: string): string {
+  if (typeof d.answerFailed === "string") {
+    return `A message in the app from ${worker} couldn't be answered automatically (${d.answerFailed}), so it's waiting for a person.`;
+  }
+  if (d.formerWorker === true) {
+    return `${worker} sent a message in the app but isn't active any more: it's waiting for a person.`;
+  }
+  const about = d.replyLimit === true ? String(d.sortedAs) : String(d.intent);
+  const note =
+    d.replyLimit === true ? ` ${APP_LIMIT_LOG}` : d.echo === true ? ` ${APP_ECHO_LOG}` : "";
+  return `${worker} sent a message in the app (${INTENT_WORDS[about] ?? "a message"}${d.handledAs === "ai" ? ", sorted by AI" : ""}).${note}`;
+}
+
 const IMPORT_KIND_WORDS: Record<string, string> = {
   workers: "a file of staff",
   credentials: "a file of licences and cards",
@@ -393,6 +412,8 @@ export function eventWords(e: LoggedEvent, names: Names): string {
 
     // Requests.
     case "message.received": {
+      // A message in the app (P8; Phase 25.6).
+      if (d.channel === "app") return appReceivedWords(d, worker);
       const voicemail = d.channel === "voice";
       const kind = d.channel === "sms" ? "text" : "WhatsApp";
       if (d.handledAs === "opt_out") {
@@ -437,6 +458,7 @@ export function eventWords(e: LoggedEvent, names: Names): string {
         ? "The caller was told a link is on its way (if theirs is a staff number)."
         : "The caller was told a link can't be sent just now.";
     case "message.replied":
+      if (d.channel === "app") return `The automatic answer showed in ${worker}'s app.`;
       if (d.reply === "sms_stopped") return `${worker} was told by text that texts are off.`;
       if (d.reply === "sms_started") return `${worker} was told by text that texts are back on.`;
       return d.reply === "unknown_number"
@@ -498,6 +520,7 @@ export function eventWords(e: LoggedEvent, names: Names): string {
         return `${officeName} replied to ${worker}'s email (by email, ${how}).`;
       }
       const whose = d.workerId ? `${worker}'s message` : "a message from a number we don't know";
+      if (d.channel === "app") return `${officeName} replied to ${whose} (in the app).`;
       const how =
         d.form === "template"
           ? "as the request update template: outside WhatsApp's 24 hours"
@@ -517,8 +540,9 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `${officeName} closed ${whose} without a reply (${reason.toLowerCase()}).`;
     }
     case "enquiry.reply_sending":
-      return `Sending the office's reply to ${d.workerId ? worker : "a number we don't know"}${d.channel === "email" ? " by email" : ""}.`;
+      return `Sending the office's reply to ${d.workerId ? worker : "a number we don't know"}${d.channel === "email" ? " by email" : d.channel === "app" ? " in the app" : ""}.`;
     case "enquiry.reply_sent":
+      if (d.channel === "app") return `The office's reply to ${worker} showed in their app.`;
       return `The office's reply to ${d.workerId ? worker : "a number we don't know"} went${
         d.channel === "email"
           ? " by email"

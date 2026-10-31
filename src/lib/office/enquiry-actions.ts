@@ -44,7 +44,7 @@ import { officeUserMay, parts, type OfficeContext } from "./office-context";
 // question's note.
 
 export type ReplyResult =
-  | { status: "queued"; channel: "whatsapp" | "sms"; form: "free_text" | "template" }
+  | { status: "queued"; channel: "whatsapp" | "sms" | "app"; form: "free_text" | "template" }
   | { status: "empty" | "too_long" }
   | { status: "no_line" | "withheld" | "unknown_caller" | "texts_off" }
   | { status: "not_waiting" } // answered, closed or sorted already
@@ -64,9 +64,9 @@ export const closeSchema = z.strictObject({
 
 type Locked = {
   id: string;
-  channel: "whatsapp" | "sms" | "voice";
+  channel: "whatsapp" | "sms" | "voice" | "app";
   from_e164: string | null;
-  to_e164: string;
+  to_e164: string | null;
   worker_id: string | null;
   notify_channel: "whatsapp" | "sms" | null;
   sms_opted_out_at: string | Date | null;
@@ -126,7 +126,6 @@ export async function replyToEnquiry(
       if (!m.waiting) return { status: "not_waiting" };
       const { plan, line } = await replyPlanFor(tx, m, now);
       if (!plan.ok) return { status: plan.why };
-      if (!m.from_e164 || !line) return { status: "withheld" }; // replyPlan said ok: never here
 
       const [firm] = await tx
         .select({ name: firms.name, settings: firms.settings })
@@ -137,6 +136,28 @@ export async function replyToEnquiry(
         signOff: signOffFor(firm?.name ?? "", firm?.settings.sign_off),
       };
       const question = await openQuestion(tx, m.id);
+      // A message in the app (P8; Phase 25.6): the reply shows in their app as soon as it's
+      // stored, signed as on WhatsApp; the job sends the notification and logs it shown.
+      if (plan.channel === "app") {
+        if (!m.worker_id) return { status: "not_found" }; // the table's check: never here
+        const [reply] = await tx
+          .insert(messages)
+          .values({
+            firmId: sql`app_current_firm_id()`,
+            direction: "out",
+            channel: "app",
+            providerMessageId: `app:${randomUUID()}`,
+            workerId: m.worker_id,
+            body: officeReplyMessage(voice, text, "whatsapp"),
+            replyTo: m.id,
+            createdAt: now,
+          })
+          .returning({ id: messages.id });
+        if (!reply) throw new Error("reply insert returned nothing");
+        await answered(tx, { m, reply: reply.id, question, by: by.id, now, text, plan });
+        return { status: "queued", channel: "app", form: "free_text" };
+      }
+      if (!m.from_e164 || !line) return { status: "withheld" }; // replyPlan said ok: never here
       const body =
         plan.form === "free_text"
           ? officeReplyMessage(voice, text, plan.channel)
@@ -164,30 +185,47 @@ export async function replyToEnquiry(
         })
         .returning({ id: messages.id });
       if (!reply) throw new Error("reply insert returned nothing");
-      if (question) {
-        await tx
-          .update(requests)
-          .set({ status: "approved", resolvedBy: by.id, resolvedAt: now, resolutionNote: text })
-          .where(eq(requests.id, question.id));
-      }
-      await recordEvent(tx, {
-        actorType: "office",
-        actorId: by.id,
-        action: "enquiry.answered",
-        entityType: "message",
-        entityId: m.id,
-        data: {
-          replyId: reply.id,
-          channel: plan.channel,
-          form: plan.form,
-          ...(m.worker_id ? { workerId: m.worker_id } : {}),
-          ...(question ? { requestId: question.id } : {}),
-        },
-      });
-      await queueEnquiryReply(tx, reply.id);
+      await answered(tx, { m, reply: reply.id, question, by: by.id, now, text, plan });
       return { status: "queued", channel: plan.channel, form: plan.form };
     }),
   );
+}
+
+// The reply stored: its question (if open) answered with the words, `enquiry.answered`, and the
+// `enquiry-reply` job queued, in the reply's transaction.
+async function answered(
+  tx: FirmTx,
+  o: {
+    m: Locked;
+    reply: string;
+    question: { id: string } | null;
+    by: string;
+    now: Date;
+    text: string;
+    plan: { channel: "whatsapp" | "sms" | "app"; form: "free_text" | "template" };
+  },
+): Promise<void> {
+  if (o.question) {
+    await tx
+      .update(requests)
+      .set({ status: "approved", resolvedBy: o.by, resolvedAt: o.now, resolutionNote: o.text })
+      .where(eq(requests.id, o.question.id));
+  }
+  await recordEvent(tx, {
+    actorType: "office",
+    actorId: o.by,
+    action: "enquiry.answered",
+    entityType: "message",
+    entityId: o.m.id,
+    data: {
+      replyId: o.reply,
+      channel: o.plan.channel,
+      form: o.plan.form,
+      ...(o.m.worker_id ? { workerId: o.m.worker_id } : {}),
+      ...(o.question ? { requestId: o.question.id } : {}),
+    },
+  });
+  await queueEnquiryReply(tx, o.reply);
 }
 
 export async function closeEnquiry(

@@ -18,6 +18,7 @@ const PAGES = [
   "/",
   "/shifts",
   "/shifts/open",
+  "/messages",
   "/pay",
   "/profile",
 ];

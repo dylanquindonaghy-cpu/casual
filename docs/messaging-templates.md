@@ -329,6 +329,22 @@ The worker's profile says "Texts are off: you replied STOP to one of our texts. 
 messages by WhatsApp. To turn texts back on, text START to our number." Any other text to the shifts
 line is answered like a WhatsApp (the instant replies above), by text.
 
+## Messages in the app (P8; Phase 25.6)
+
+Built in Phase 25.6 (`src/lib/inbound/reply.ts` for a message in the app; `src/app/messages/`), as
+recommended (Dylan, 2026-10-30: "just do what you would recommend stop prompting me and build
+it"). A casual's message in the app is sorted as a WhatsApp is (a keyword, else the AI's label,
+else the office) and answered there at once, whatever the firm's automatic replies switch (decision
+11: they never go by text): with the WhatsApp words of "Instant replies on the shifts line" and
+"Personal replies on the shifts line" above, each ending "Automatic reply. Send OFFICE to reach a
+person." and the sign-off. Nothing goes by WhatsApp, text or email.
+
+- At most 5 automatic answers to one casual an hour: past that, and for a message that quotes our
+  automatic line (an echo), no automatic answer; it waits for a person on Enquiries.
+- The office's reply on Enquiries shows in the app in their words, signed as on WhatsApp ("{words}
+  — {firm} Shift Team"), with a push (below). An automatic answer comes with none: they're in the
+  app when it comes.
+
 ## Push (title / body)
 
 - Offer: "Shift available" / "{date} {start} at {site}. Tap to take it." (built: `offerPush()`, with
@@ -350,6 +366,8 @@ line is answered like a WhatsApp (the instant replies above), by text.
 - Pay query update: "Pay query sorted" / "Payroll has answered. Open your pay page to see it."
   (built: `payQueryUpdatePush()`, with payroll's answer; nothing about the pay itself, since a lock
   screen shows it; tapping opens the pay page, behind the pay code)
+- The office's reply in the app (Phase 25.6): "The office replied" / "Tap to read it." (built:
+  `officeReplyPush()`; none of their words, since a lock screen shows it; tapping opens Messages)
 
 ## Call-to-text recording (voice)
 

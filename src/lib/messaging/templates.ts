@@ -740,6 +740,12 @@ export function payQueryUpdatePush(): { title: string; body: string } {
   return { title: "Pay query sorted", body: "Payroll has answered. Open your pay page to see it." };
 }
 
+// Push: the office replied to a casual's message in the app (Phase 25.6). None of their words (a
+// lock screen shows it): tapping opens Messages.
+export function officeReplyPush(): { title: string; body: string } {
+  return { title: "The office replied", body: "Tap to read it." };
+}
+
 // --- The staffing inbox's emails (P7.5; Phase 25.5; docs/messaging-templates.md "The staffing
 // inbox's emails") ---------------------------------------------------------------------------
 

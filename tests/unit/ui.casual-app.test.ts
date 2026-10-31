@@ -122,7 +122,7 @@ describe("the firm's bar and the tab bar, with JavaScript and without", () => {
     expect(source).not.toMatch(/\bon[A-Z][a-zA-Z]*=/);
     const html = renderToStaticMarkup(createElement(TabBar, { current: "shifts" }));
     const links = [...html.matchAll(/<a [^>]*href="([^"]+)"/g)].map((m) => m[1]);
-    expect(links).toEqual(["/", "/shifts", "/pay", "/profile"]);
+    expect(links).toEqual(["/", "/shifts", "/messages", "/pay", "/profile"]);
     expect(html).not.toMatch(/<button|onclick/i);
     // Every shrinking rule hangs off html[data-tabs-mini]; without it (no JavaScript) the capsule
     // is 68px tall with every word shown.
@@ -131,6 +131,7 @@ describe("the firm's bar and the tab bar, with JavaScript and without", () => {
       "h-13.5",
       "max-w-72.5",
       "p-1.25",
+      "sr-only",
       "sr-only",
       "sr-only",
       "sr-only",

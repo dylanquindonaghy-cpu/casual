@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { getAi } from "../ai/anthropic";
 import { sortMessage, type AiFallback } from "../ai/classify-message";
@@ -11,6 +12,7 @@ import { log } from "../log";
 import { getTransport, type MessagingTransport } from "../messaging";
 import { sendFailureCode, sendToWorker, smsAllowedFor } from "../notify/send";
 import {
+  AUTOMATIC_REPLY,
   shiftsLineReply,
   unknownNumberAlertEmail,
   unknownNumberMessage,
@@ -113,6 +115,18 @@ type Read =
       firm: { name: string; slug: string; signOff: string };
       autoReplies: boolean; // the firm's automatic replies (off: nothing is sent back)
     }
+  // A casual's message in the app (P8; Phase 25.6): answered there, whatever the firm's automatic
+  // replies switch (decision 11), within the guards.
+  | {
+      kind: "app";
+      workerId: string;
+      active: boolean;
+      body: string | null;
+      keyword: Intent | null;
+      echo: boolean; // it quotes our automatic line: never answered automatically
+      repliedThisHour: number; // automatic answers in the app to them in the last hour
+      firm: { name: string; slug: string; signOff: string };
+    }
   | {
       kind: "known";
       channel: Channel;
@@ -129,7 +143,7 @@ type Read =
 
 // Step 1: reads only.
 async function read(tx: FirmTx, messageId: string): Promise<Read> {
-  const [m] = await tx
+  const [row] = await tx
     .select({
       direction: messages.direction,
       channel: messages.channel,
@@ -138,16 +152,20 @@ async function read(tx: FirmTx, messageId: string): Promise<Read> {
       to: messages.toE164,
       body: messages.body,
       twilioOptOut: messages.twilioOptOut,
+      workerId: messages.workerId,
     })
     .from(messages)
     .where(eq(messages.id, messageId));
-  if (!m || m.direction !== "in") return { kind: "done", result: { status: "gone" } };
-  if (m.handledAt) return { kind: "done", result: { status: "already" } };
+  if (!row || row.direction !== "in") return { kind: "done", result: { status: "gone" } };
+  if (row.handledAt) return { kind: "done", result: { status: "already" } };
   const [firm] = await tx
     .select({ name: firms.name, slug: firms.slug, settings: firms.settings })
     .from(firms)
     .where(eq(firms.id, sql`app_current_firm_id()`));
   if (!firm) throw new Error("firm not visible inside its own transaction");
+  if (row.channel === "app") return readApp(tx, row, firm);
+  // The shifts line's: to its number, from theirs (or a withheld caller's).
+  const m = { ...row, channel: row.channel, to: row.to ?? "" };
   const from = m.from;
   const autoReplies = autoRepliesOn(firm.settings);
   // A text saying only STOP or START (or one Twilio's own opt-out handling acted on; YES, or
@@ -218,8 +236,52 @@ async function read(tx: FirmTx, messageId: string): Promise<Read> {
   };
 }
 
+// A casual's message in the app (P8; Phase 25.6): theirs (the row says whose), the guard's count
+// by the database's clock (on the log's worker index), and a keyword.
+export const APP_REPLIES_PER_HOUR = 5;
+// Our automatic line's start ("automatic reply."), as every automatic answer carries it, matched
+// in any case: one quoting it back is an echo.
+const AUTOMATIC_LINE = AUTOMATIC_REPLY.slice(0, AUTOMATIC_REPLY.indexOf(".") + 1).toLowerCase();
+
+// Automatic answers in the app to this casual in the last hour.
+async function appRepliesThisHour(tx: FirmTx, workerId: string): Promise<number> {
+  const { rows } = await tx.execute<{ n: number }>(sql`
+    select count(*)::int as n from events e
+     where e.worker_ref = ${workerId} and e.action = 'message.replied'
+       and e.data ->> 'channel' = 'app' and e.created_at > now() - interval '1 hour'
+  `);
+  return rows[0]?.n ?? 0;
+}
+
+async function readApp(
+  tx: FirmTx,
+  m: { workerId: string | null; body: string | null },
+  firm: { name: string; slug: string; settings: Record<string, unknown> },
+): Promise<Read> {
+  if (!m.workerId) return { kind: "done", result: { status: "gone" } };
+  const [worker] = await tx
+    .select({ status: workers.status })
+    .from(workers)
+    .where(eq(workers.id, m.workerId));
+  const repliedThisHour = await appRepliesThisHour(tx, m.workerId);
+  return {
+    kind: "app",
+    workerId: m.workerId,
+    active: worker?.status === "active",
+    body: m.body,
+    keyword: m.body ? keywordIntent(m.body) : null,
+    echo: m.body !== null && m.body.toLowerCase().includes(AUTOMATIC_LINE),
+    repliedThisHour,
+    firm: {
+      name: firm.name,
+      slug: firm.slug,
+      signOff: signOffFor(firm.name, firm.settings.sign_off),
+    },
+  };
+}
+
 // Where an office request came from, in its payload and event.
-const via = (channel: Channel) => (channel === "voice" ? "voicemail" : channel);
+const via = (channel: Channel | "app") => (channel === "voice" ? "voicemail" : channel);
 
 // One sender's messages are answered in the order they arrived, whatever order their jobs run in
 // (several run at once: src/worker/jobs/index.ts). So before this message, any older one from the
@@ -263,10 +325,12 @@ async function olderUnhandled(tx: FirmTx, messageId: string): Promise<string[]> 
     select o.id::text as id
       from messages m
       join messages o
-        on o.firm_id = m.firm_id and o.from_e164 = m.from_e164 and o.to_e164 = m.to_e164
+        on o.firm_id = m.firm_id
+       and ((m.from_e164 is not null and o.from_e164 = m.from_e164 and o.to_e164 = m.to_e164)
+            or (m.channel = 'app' and o.channel = 'app' and o.worker_id = m.worker_id))
        and o.direction = 'in' and o.handled_at is null
        and (o.created_at, o.id) < (m.created_at, m.id)
-     where m.id = ${messageId} and m.direction = 'in' and m.from_e164 is not null
+     where m.id = ${messageId} and m.direction = 'in'
      order by o.created_at, o.id
      limit ${OLDER_LIMIT}
   `);
@@ -282,6 +346,7 @@ async function answerMessage(
   if (c.kind === "done") return c.result;
   if (c.kind === "opt_out") return answerOptOut(payload, run, deps, c);
   if (c.kind === "unknown") return answerUnknown(payload, run, deps, c);
+  if (c.kind === "app") return answerApp(payload, run, deps, c);
 
   // Step 2: what they asked: a keyword, else the AI's label (outside any transaction), else the
   // office.
@@ -488,6 +553,167 @@ async function answerMessage(
         // The provider's id is on the stored reply (replyId).
         replyId: out?.id ?? null,
       },
+    });
+    return { status: "replied", intent, handledAs };
+  });
+}
+
+// A casual's message in the app (P8; Phase 25.6; docs/messaging-templates.md "Messages in the
+// app"): sorted as a WhatsApp is, then answered in the app at once with the WhatsApp words, whatever
+// the firm's automatic replies switch (decision 11: they never go by text). Storing the answer is
+// delivering it (the app shows it), so the claim, the answer's row and its log go together, in one
+// transaction, and nothing is sent anywhere. No automatic answer past APP_REPLIES_PER_HOUR in the
+// hour (`replyLimit`, with `sortedAs`), to a message quoting our automatic line (an echo: `echo`),
+// or from someone no longer active (`formerWorker`): it waits for a person, as the office's question.
+// The hour's count is read first (so past it the AI isn't asked: nothing would go) and again in the
+// claim, under a lock on the casual, so two workers answering two of their messages at once can't
+// both take the fifth answer.
+async function answerApp(
+  payload: InboundMessagePayload,
+  run: WithFirm,
+  deps: InboundReplyDeps,
+  c: Extract<Read, { kind: "app" }>,
+): Promise<InboundResult> {
+  let intent: Intent;
+  let handledAs: "keyword" | "ai" | "office";
+  let aiFallback: AiFallback | "no_text" | null = null;
+  if (c.echo || !c.active) {
+    intent = "office";
+    handledAs = "office";
+  } else if (c.keyword) {
+    intent = c.keyword;
+    handledAs = "keyword";
+  } else if (c.repliedThisHour >= APP_REPLIES_PER_HOUR) {
+    intent = "office";
+    handledAs = "office";
+  } else {
+    const sorted = c.body
+      ? await sortMessage(c.body, deps.ai, { timeoutMs: deps.aiTimeoutMs, via: "app" })
+      : ({ label: null, why: "no_text" } as const);
+    intent = sorted.label ?? "office";
+    handledAs = sorted.label ? "ai" : "office";
+    if (!sorted.label) aiFallback = sorted.why;
+  }
+  const sortedAs = intent;
+  let limited = c.repliedThisHour >= APP_REPLIES_PER_HOUR;
+  let answers = c.active && !c.echo && !limited;
+  if (!answers) intent = "office";
+
+  // The personal reply to "shifts" or "cancel", read before the claim, as the shifts line's.
+  const portal = portalUrl(c.firm.slug, deps.baseDomain);
+  const now = (deps.clock ?? systemClock).now();
+  const voiceOf = { name: c.firm.name, signOff: c.firm.signOff };
+  const personal = !answers
+    ? null
+    : intent === "shifts"
+      ? await shiftsReply(run, {
+          firmId: payload.firmId,
+          workerId: c.workerId,
+          text: c.body,
+          now,
+          firm: voiceOf,
+          portal,
+        })
+      : intent === "cancel"
+        ? await cancelReply(run, {
+            firmId: payload.firmId,
+            workerId: c.workerId,
+            now,
+            firm: voiceOf,
+            portal,
+          })
+        : null;
+  const logged = personal ? settled(personal.checks.whatsapp) : null;
+
+  return run(payload.firmId, async (tx): Promise<InboundResult> => {
+    if (!(await lockUnhandled(tx, payload.messageId))) return { status: "already" };
+    if (answers) {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended('app-replies:' || app_current_firm_id()::text || ':' || ${c.workerId}, 0))`,
+      );
+      if ((await appRepliesThisHour(tx, c.workerId)) >= APP_REPLIES_PER_HOUR) {
+        limited = true;
+        answers = false;
+        intent = "office";
+      }
+    }
+    let built: ShiftsLineReply | null = null;
+    if (intent === "office") {
+      const [request] = await tx
+        .insert(requests)
+        .values({
+          firmId: sql`app_current_firm_id()`,
+          workerId: c.workerId,
+          type: "general",
+          payload: { note: c.body ? cutChars(c.body, OFFICE_NOTE_MAX) : NO_TEXT_NOTE, via: "app" },
+          messageId: payload.messageId,
+        })
+        .returning({ id: requests.id });
+      if (!request) throw new Error("request insert returned nothing");
+      await recordEvent(tx, {
+        actorType: "worker",
+        actorId: c.workerId,
+        action: "request.created",
+        entityType: "request",
+        entityId: request.id,
+        data: { type: "general", shiftId: null, via: "app", workerId: c.workerId },
+      });
+      built = { intent: "office", ref: request.id.slice(0, 8).toUpperCase() };
+    } else if (intent === "pay") {
+      built = { intent: "pay", link: `${portal}/pay` };
+    }
+    await tx
+      .update(messages)
+      .set({ handledAt: new Date(), handledAs, intent })
+      .where(eq(messages.id, payload.messageId));
+    await recordEvent(tx, {
+      actorType: "worker",
+      actorId: c.workerId,
+      action: "message.received",
+      entityType: "message",
+      entityId: payload.messageId,
+      data: {
+        channel: "app",
+        handledAs,
+        intent,
+        ...(aiFallback ? { aiFallback } : {}),
+        ...(!c.active ? { formerWorker: true } : c.echo ? { echo: true } : {}),
+        ...(c.active && !c.echo && limited ? { replyLimit: true, sortedAs } : {}),
+        workerId: c.workerId,
+      },
+    });
+    if (!answers) return { status: "held", intent: "office", sortedAs, handledAs };
+    if (!built && !personal)
+      throw new Error("a shifts or cancel message without its personal reply");
+    const text = built ? shiftsLineReply(voiceOf, built) : (personal?.whatsapp ?? "");
+    if (logged) {
+      await recordEvent(tx, {
+        actorType: "system",
+        action: "enquiry.checks",
+        entityType: "message",
+        entityId: payload.messageId,
+        data: { ...logged, sent: true, channel: "app", workerId: c.workerId },
+      });
+    }
+    const [out] = await tx
+      .insert(messages)
+      .values({
+        firmId: sql`app_current_firm_id()`,
+        direction: "out",
+        channel: "app",
+        providerMessageId: `app:${randomUUID()}`,
+        workerId: c.workerId,
+        body: text,
+        intent,
+        replyTo: payload.messageId,
+      })
+      .returning({ id: messages.id });
+    await recordEvent(tx, {
+      actorType: "system",
+      action: "message.replied",
+      entityType: "message",
+      entityId: payload.messageId,
+      data: { channel: "app", intent, workerId: c.workerId, replyId: out?.id ?? null },
     });
     return { status: "replied", intent, handledAs };
   });
@@ -744,6 +970,7 @@ async function passToAPerson(
         from: messages.fromE164,
         body: messages.body,
         twilioOptOut: messages.twilioOptOut,
+        workerId: messages.workerId,
       })
       .from(messages)
       .where(eq(messages.id, payload.messageId));
@@ -760,13 +987,20 @@ async function passToAPerson(
     }
     // The worker with this number, whatever their status (one per number in a firm), as the
     // shifts line names them.
-    const [worker] = m.from
-      ? await tx
-          .select({ id: workers.id, status: workers.status })
-          .from(workers)
-          .where(eq(workers.mobileE164, m.from))
-          .limit(1)
-      : [];
+    // (A message in the app says whose it is.)
+    const [worker] =
+      m.channel === "app" && m.workerId
+        ? await tx
+            .select({ id: workers.id, status: workers.status })
+            .from(workers)
+            .where(eq(workers.id, m.workerId))
+        : m.from
+          ? await tx
+              .select({ id: workers.id, status: workers.status })
+              .from(workers)
+              .where(eq(workers.mobileE164, m.from))
+              .limit(1)
+          : [];
     const active = worker?.status === "active";
     await tx
       .update(messages)

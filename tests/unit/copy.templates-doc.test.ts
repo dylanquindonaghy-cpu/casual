@@ -17,6 +17,7 @@ import {
   payDigestEmail,
   payQueryUpdateMessage,
   payQueryUpdatePush,
+  officeReplyPush,
   reminderPush,
   requestUpdateMessage,
   requestUpdatePush,
@@ -881,6 +882,11 @@ describe("the pushes", () => {
     expect(payQueryUpdatePush()).toEqual({ title: payTitle, body: payBody });
   });
 
+  it("the office's reply in the app (Phase 25.6)", () => {
+    const [title, body] = quotes(push, "The office's reply in the app");
+    expect(officeReplyPush()).toEqual({ title, body });
+  });
+
   it("reminder, 24 h and 2 h", () => {
     const [title24, body24, title2, body2] = quotes(push, "Reminder:");
     expect(
@@ -983,6 +989,7 @@ describe("every template function is checked here", () => {
         "offerPush",
         "officeLoginLinkEmail",
         "officeReplyMessage",
+        "officeReplyPush",
         "payDigestEmail",
         "payQueryUpdateMessage",
         "payQueryUpdatePush",

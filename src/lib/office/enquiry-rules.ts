@@ -65,13 +65,15 @@ export function insideWhatsAppWindow(lastWhatsAppAt: Date | null, now: Date): bo
 // How the office's reply goes: by which channel, and as their own words ("free_text") or as the
 // `request_update` template ("template"). Always from the firm's shifts line as it is now (an old
 // number may belong to another firm by then), so WhatsApp's window runs from their last WhatsApp to
-// that line.
+// that line. A message in the app (P8; Phase 25.6) is answered in the app, in their words, with no
+// line or number needed.
 export type ReplyPlan =
   | { ok: true; channel: "whatsapp" | "sms"; form: "free_text" | "template" }
+  | { ok: true; channel: "app"; form: "free_text" }
   | { ok: false; why: "no_line" | "withheld" | "unknown_caller" | "texts_off" };
 
 export function replyPlan(input: {
-  channel: "whatsapp" | "sms" | "voice"; // the message's
+  channel: "whatsapp" | "sms" | "voice" | "app"; // the message's
   from: string | null; // null: a withheld number
   line: string | null; // the firm's shifts line now (null: none)
   // The casual on file for that number (null: an unknown number). A text to one who replied STOP
@@ -81,6 +83,7 @@ export function replyPlan(input: {
   lastWhatsAppAt: Date | null; // their latest WhatsApp to the line
   now: Date;
 }): ReplyPlan {
+  if (input.channel === "app") return { ok: true, channel: "app", form: "free_text" };
   if (input.line === null) return { ok: false, why: "no_line" };
   if (input.from === null) return { ok: false, why: "withheld" };
   const whatsapp = (): ReplyPlan => ({

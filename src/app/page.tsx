@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireWorker } from "@/lib/auth/current-worker";
 import { appEnv, offlineCopyOn } from "@/lib/env";
+import { unreadReplies } from "@/lib/portal/messages";
 import { myNeedsAndPhoto, myShifts, needsDoingCount } from "@/lib/portal/my-shifts";
 import { openShiftsFor } from "@/lib/portal/open-shifts";
 import { myPayDay } from "@/lib/portal/pay-day";
@@ -26,10 +27,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
     const { firm, worker, session } = await requireWorker();
     const now = new Date();
     const clock = { now: () => now };
-    const [upcoming, needs, open] = await Promise.all([
+    const [upcoming, needs, open, replies] = await Promise.all([
       myShifts({ firm, clock }, worker.id, "upcoming"),
       myNeedsAndPhoto({ firm, clock }, worker.id),
       openShiftsFor({ firm, clock }, worker.id),
+      unreadReplies({ firm }, worker.id),
     ]);
     const pay = await myPayDay({ firm, clock }, worker.id);
     return (
@@ -49,7 +51,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
           pay={pay}
         />
         <TabBarSpace />
-        <TabBar current="home" profileCount={needsDoingCount(needs)} />
+        <TabBar current="home" profileCount={needsDoingCount(needs)} messagesCount={replies} />
       </main>
     );
   }

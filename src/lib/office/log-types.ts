@@ -273,6 +273,7 @@ export const RATE_LIMITED = "auth.rate_limited";
 export const LIMIT_TYPES: Readonly<Record<string, LogType>> = {
   "take:worker": "bookings",
   "push:worker": "workers",
+  "app_message:worker": "messages", // a casual's messages in the app (Phase 25.6)
   "api:key": "firm",
   "strikes_link:firm": "firm",
   "strikes_link:firm_day": "firm",

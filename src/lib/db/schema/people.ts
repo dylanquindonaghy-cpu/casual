@@ -87,6 +87,9 @@ export const workers = pgTable(
     // When they replied STOP to a text (Phase 7): no texts until they reply START (null: texts are
     // fine). Every sender reads it with the channel (src/lib/notify/send.ts).
     smsOptedOutAt: timestamptz("sms_opted_out_at"),
+    // The newest office reply in the app they've seen on Messages (P8; Phase 25.6): the office's
+    // replies after it are new to them (the tab's count). Null: none seen yet.
+    messagesReadAt: timestamptz("messages_read_at"),
     // When the office made them inactive (Phase 10, src/lib/office/worker-access.ts). While set,
     // no rota sheet or file makes them active again (a blank sheet status reads as "active"):
     // only the office does, which clears it. Null: their status came from elsewhere.

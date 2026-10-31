@@ -1,7 +1,9 @@
-import type { ReactNode } from "react";
 import type { DemoPhoneMessage } from "@/lib/demo/phone";
-import { meta, muted, staffCard, textLink } from "../ui/classes";
+import { meta, muted, staffCard } from "../ui/classes";
 import { PageHeader } from "../ui/page-header";
+import { withLinks } from "../ui/with-links";
+
+export { withLinks };
 
 // The Demo phone (docs/screens.md `/demo`; 16.1, ADR-025): on a demo server no text or email is
 // really sent, so this page shows what would have been, as a phone and an inbox would: newest
@@ -24,36 +26,6 @@ const when = new Intl.DateTimeFormat("en-GB", {
 export function displayNumber(e164: string): string {
   const uk = /^\+44(7\d{3})(\d{6})$/.exec(e164);
   return uk ? `0${uk[1]} ${uk[2]}` : e164;
-}
-
-// The message's words, its links to the firm's own address made tappable. A full stop or comma
-// right after a link ends the sentence, not the link.
-export function withLinks(body: string, linkOrigin: string): ReactNode[] {
-  const parts: ReactNode[] = [];
-  let last = 0;
-  for (const match of body.matchAll(/https?:\/\/[^\s<>"]+/g)) {
-    const url = match[0].replace(/[.,;:!?)]+$/, "");
-    const start = match.index;
-    if (start > last) parts.push(body.slice(last, start));
-    let ours = false;
-    try {
-      ours = new URL(url).origin === linkOrigin;
-    } catch {
-      ours = false;
-    }
-    parts.push(
-      ours ? (
-        <a key={start} href={url} className={`${textLink} break-all font-semibold`}>
-          {url}
-        </a>
-      ) : (
-        url
-      ),
-    );
-    last = start + url.length;
-  }
-  if (last < body.length) parts.push(body.slice(last));
-  return parts;
 }
 
 export function DemoPhoneView({

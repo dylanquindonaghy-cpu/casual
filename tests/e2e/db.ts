@@ -1419,3 +1419,39 @@ export async function emailSorted(slug: string, messageId: string): Promise<bool
     await pool.end();
   }
 }
+
+// Messages' scene (Phase 25.6; tests/e2e/casual.messages.spec.ts): a steward of the spec's own with
+// her steward qualification in date (nothing for Profile's count), and, so a retried test starts as
+// the first try did, none of her messages in the app, Messages never opened and her messages' limit
+// cleared. The app role may not delete messages, so the owner does, with the firm set (RLS is
+// forced for the owner too). In the e2e database only. Returns her id.
+export async function messagesScene(
+  slug: string,
+  casual: { firstName: string; lastName: string; mobileE164: string },
+): Promise<string> {
+  const workerId = await addQualifiedCasual(slug, casual, {
+    roles: ["steward"],
+    held: [{ type: "STEWARD_L2", daysAhead: 300 }],
+  });
+  const pool = new Pool({ connectionString: e2eAdminUrl(), max: 1 });
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    await client.query("begin");
+    await client.query("select set_config('app.current_firm_id', $1, true)", [
+      seedId(`firm/${slug}`),
+    ]);
+    await client.query("delete from messages where channel = 'app' and worker_id = $1", [workerId]);
+    await client.query("update workers set messages_read_at = null where id = $1", [workerId]);
+    await client.query("delete from auth_throttle where bucket like 'app_message:worker:%'");
+    await client.query("commit");
+    return workerId;
+  } catch (err) {
+    await client.query("rollback");
+    throw err;
+  } finally {
+    client.release();
+    await pool.end();
+  }
+}

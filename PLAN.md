@@ -967,8 +967,16 @@ touches schema, auth, tenancy, messaging or rules; `/close-task` ticks it.
       tripwire test extended); the office's summary every 3 hours of the firm's day; a small table
       (`email_replies`: `firm_id`, RLS, a `TABLE_ACCESS` entry, isolation fixtures, deleted with its
       email; S, T) and the draft on the email (25.5)
-- [ ] P8: the in-app chat: the casual's chat screen and the office's thread in Enquiries (mock-ups
-      first), the `app` channel, notifications for a reply, and its guards (25.6)
+- [x] P8: the in-app chat: the casual's chat screen and the office's thread in Enquiries (mock-ups
+      first), the `app` channel, notifications for a reply, and its guards. The mock-up
+      (https://claude.ai/artifact/L3a8sGwXo7anqQW6NayYGc), built as recommended (Dylan, 2026-10-30:
+      "just do what you would recommend stop prompting me and build it"): a fifth tab, Messages,
+      with a count of the office's replies not yet seen; answered in the app at once with the
+      shifts line's replies whatever the automatic replies switch (decision 11), at most 5
+      automatic answers an hour per casual and none to an echo; the office's reply from Enquiries
+      shown in the app with a push that holds none of its words; 20 messages an hour per casual;
+      Help points to Messages; the `app` channel on `messages` (no numbers, always the casual's)
+      and `workers.messages_read_at` (25.6)
 
 Done when: 25.1 to 25.6 are ticked, each naming its mock-up and the date Dylan approved it, each
 with a stamp that includes the browser tests; `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; no

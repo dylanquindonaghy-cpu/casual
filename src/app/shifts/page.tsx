@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requireWorker } from "@/lib/auth/current-worker";
 import { appEnv, offlineCopyOn } from "@/lib/env";
+import { unreadReplies } from "@/lib/portal/messages";
 import { myShifts, profileNeedsCount } from "@/lib/portal/my-shifts";
 import { BookedView } from "./booked-view";
 import { OfflineCopy } from "../offline-copy";
@@ -26,9 +27,10 @@ export default async function BookedPage({
   const newShiftId = typeof params.new === "string" ? params.new : undefined;
   const now = new Date();
   const clock = { now: () => now };
-  const [shifts, needsCount] = await Promise.all([
+  const [shifts, needsCount, replies] = await Promise.all([
     myShifts({ firm, clock }, worker.id, view),
     profileNeedsCount({ firm, clock }, worker.id),
+    unreadReplies({ firm }, worker.id),
   ]);
   return (
     <main className={page.staff}>
@@ -43,7 +45,7 @@ export default async function BookedPage({
         newShiftId={newShiftId}
       />
       <TabBarSpace />
-      <TabBar current="shifts" profileCount={needsCount} />
+      <TabBar current="shifts" profileCount={needsCount} messagesCount={replies} />
     </main>
   );
 }

@@ -21,6 +21,7 @@ const STOPPED: Record<NonNullable<UrgentOffers["stopped"]>, string> = {
   not_open: "Offers stopped: it isn't open any more.",
   hidden: "Offers stopped: it's hidden from casuals.",
   not_urgent: "Offers stopped: it was marked not urgent.",
+  offer_limit: "Offers stopped: the most casuals for its free places were offered it.",
 };
 
 export const stoppedText = (u: Pick<UrgentOffers, "stopped">) =>

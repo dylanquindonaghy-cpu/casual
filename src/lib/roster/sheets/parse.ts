@@ -1,5 +1,6 @@
 import { spreadsheetMobile } from "../../auth/mobile";
 import { WORKER_STATUSES } from "../../db/schema/people";
+import { SHEET_NAME_MAX } from "../../db/schema/roster";
 import { NO_NAMES, normaliseRole, readRoleName, readRoleNames, type NameMap } from "../names";
 import type { WallTime } from "../../time/zoned";
 import { shiftWindow } from "../shift-window";
@@ -78,8 +79,28 @@ export interface ParsedSheet {
   // Where the sync writes back: the shifts tab's id and assigned columns (0-based).
   layout: { shiftsTab: string; refColumn: number; assignedColumn: number };
   problems: SheetProblem[];
-  // Shift rows whose role the firm's name map skips (P3.2): not sessions, so not brought in.
-  skipped: { row: number; ref: string }[];
+  // Shift rows whose role the firm's name map skips (P3.2): not sessions, so not brought in. `name`:
+  // the role cell as the sheet spells it (sheetRoleText), for Needs attention (Phase 25.2); null
+  // when it can't be shown.
+  skipped: { row: number; ref: string; name: string | null }[];
+  // The role names a bad_role row couldn't read (Phase 25.2), for Needs attention: a role cell's
+  // text only, the one exception to "never a cell's contents" (sheetRoleText), and only when it
+  // has some. A staff row's first unreadable role in its list.
+  unreadable: { tab: "staff" | "shifts"; row: number; name: string }[];
+}
+
+// A role cell's text as Needs attention shows it (sheet_name_problems.outside_name): no control or
+// format characters, spaces run together, at most SHEET_NAME_MAX characters; null when nothing is
+// left. Only the role columns are read with it. A role cell can still hold anything typed into it,
+// so text with an email address or a phone number's digits (7 or more) in it is never kept: a role
+// name has neither ("12D", "Door Supervisor (NLW)").
+export function sheetRoleText(raw: string): string | null {
+  const text = raw
+    .replace(/[\p{Cc}\p{Cf}]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (text === "" || text.includes("@") || (text.match(/\d/g) ?? []).length >= 7) return null;
+  return Array.from(text).slice(0, SHEET_NAME_MAX).join("").trim();
 }
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
@@ -222,6 +243,11 @@ export function parseSheet(
     "shifts",
   );
 
+  const unreadable: ParsedSheet["unreadable"] = [];
+  const unreadableRole = (tab: "staff" | "shifts", row: number, raw: string | undefined) => {
+    const name = raw === undefined ? null : sheetRoleText(raw);
+    if (name) unreadable.push({ tab, row, name });
+  };
   const staff: SheetStaff[] = [];
   const seenStaff = new Set<string>();
   const seenMobiles = new Set<string>();
@@ -240,8 +266,16 @@ export function parseSheet(
     const mobile = spreadsheetMobile(cellOf(row, staffCols.mobile));
     if (!mobile) return flag("bad_mobile");
     if (seenMobiles.has(mobile)) return flag("duplicate_mobile");
-    const roles = readRoleNames(listOf(cellOf(row, staffCols.roles)), names);
-    if (roles === null) return flag("bad_role");
+    const roleNames = listOf(cellOf(row, staffCols.roles));
+    const roles = readRoleNames(roleNames, names);
+    if (roles === null) {
+      unreadableRole(
+        "staff",
+        rowNumber,
+        roleNames.find((raw) => readRoleName(raw, names) === null),
+      );
+      return flag("bad_role");
+    }
     const statusCell = cellOf(row, staffCols.status).toLowerCase();
     const status = statusCell === "" ? "active" : WORKER_STATUSES.find((s) => s === statusCell);
     if (!status) return flag("bad_status");
@@ -270,9 +304,12 @@ export function parseSheet(
     if (!ref) return flag("missing_ref");
     if (seenShifts.has(ref)) return flag("duplicate_ref");
     seenShifts.add(ref);
-    const roleName = readRoleName(cellOf(row, shiftCols.role), names);
+    const roleCell = cellOf(row, shiftCols.role);
+    const roleName = readRoleName(roleCell, names);
     // A role the firm's name map skips: not a session, whatever else the row says.
-    if (roleName && "skip" in roleName) return void skipped.push({ row: rowNumber, ref });
+    if (roleName && "skip" in roleName) {
+      return void skipped.push({ row: rowNumber, ref, name: sheetRoleText(roleCell) });
+    }
     const date = parseSheetDate(cellOf(row, shiftCols.date));
     if (!date) return flag("bad_date");
     const start = parseSheetTime(cellOf(row, shiftCols.start));
@@ -281,7 +318,10 @@ export function parseSheet(
     const window = shiftWindow(date, start, end, timeZone);
     if (!window) return flag("bad_time");
     const { startsAt, endsAt } = window;
-    if (!roleName) return flag("bad_role");
+    if (!roleName) {
+      unreadableRole("shifts", rowNumber, roleCell);
+      return flag("bad_role");
+    }
     const { role } = roleName;
     const headcountCell = cellOf(row, shiftCols.headcount);
     const headcount = headcountCell === "" ? 1 : Number(headcountCell);
@@ -347,5 +387,6 @@ export function parseSheet(
     },
     problems,
     skipped,
+    unreadable,
   };
 }

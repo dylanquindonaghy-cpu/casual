@@ -4,6 +4,9 @@ import { StatusChip } from "@/app/ui/status-chip";
 import type { EnquiryRow } from "@/lib/office/enquiries";
 import {
   CHANNEL_WORDS,
+  EMAIL_NO_TEXT,
+  NO_SUBJECT,
+  NOT_CASUAL_ROW,
   OUTCOME_TONES,
   OUTCOME_WORDS,
   PAY_LOCK,
@@ -15,10 +18,12 @@ import { PaneLink } from "./pane-link";
 
 // One enquiry in Enquiries' list (Phase 24, 24.4: round 7 of the canvas): the channel's icon, who
 // sent it and when, the outcome chip, their words in quotes (and, on a pay message, that pay is
-// never answered by AI). The whole row is its name's link (./pane-link.tsx): on a phone to the
-// message's own page, from 1024px picking it into the pane beside the list. The chosen row has a
-// dark outline there (only there: a phone shows no message beside the list). Drawn on the server:
-// only the link runs in the browser, given its addresses and the name it shows.
+// never answered by AI); an email's subject on its own line above its words (Phase 25.5), and one
+// not from a casual says its words weren't kept. The whole row is its name's link
+// (./pane-link.tsx): on a phone to the message's own page, from 1024px picking it into the pane
+// beside the list. The chosen row has a dark outline there (only there: a phone shows no message
+// beside the list). Drawn on the server: only the link runs in the browser, given its addresses
+// and the name it shows.
 
 // Their words, on one line and cut short for the list (the full text is on the message's page).
 export const preview = (text: string | null) => {
@@ -49,7 +54,10 @@ export function EnquiryItem({
           : "hover:bg-active"
       }`}
     >
-      <Icon name={r.channel} className="mt-1 shrink-0 text-ink-muted" />
+      <Icon
+        name={r.channel === "app" ? "messages" : r.channel}
+        className="mt-1 shrink-0 text-ink-muted"
+      />
       <div className="flex min-w-0 flex-col gap-2">
         <p className="flex items-baseline gap-3">
           <span className="sr-only">{CHANNEL_WORDS[r.channel]}:</span>
@@ -66,12 +74,19 @@ export function EnquiryItem({
         <p>
           <StatusChip tone={OUTCOME_TONES[r.outcome]}>{OUTCOME_WORDS[r.outcome]}</StatusChip>
         </p>
+        {r.channel === "email" && r.who.kind === "casual" && (
+          <p className="font-semibold break-words">{preview(r.subject) ?? NO_SUBJECT}</p>
+        )}
         <p className="break-words">
-          {words === null ? (
+          {r.channel === "email" && r.who.kind !== "casual" ? (
+            <span className="text-ink-muted">{NOT_CASUAL_ROW}</span>
+          ) : words === null ? (
             <span className="text-ink-muted">
               {r.channel === "voice"
                 ? "(A voicemail we couldn't turn into text.)"
-                : "(A photo or file, with no text.)"}
+                : r.channel === "email"
+                  ? EMAIL_NO_TEXT
+                  : "(A photo or file, with no text.)"}
             </span>
           ) : (
             <>“{words}”</>

@@ -869,6 +869,102 @@ describe("delivering", () => {
   });
 });
 
+describe("the webhook's status row (Phase 25.3)", () => {
+  // The firm's row as stored, and the log's times it should agree with.
+  const row = async (firmId: string) =>
+    (
+      await su.query<{
+        address_set_at: Date;
+        last_delivered_at: Date | null;
+        failing_since: Date | null;
+      }>(
+        "select address_set_at, last_delivered_at, failing_since from webhook_status where firm_id = $1",
+        [firmId],
+      )
+    ).rows;
+  const loggedAt = async (firmId: string, action: string) =>
+    (
+      await su.query<{ created_at: Date }>(
+        "select created_at from events where firm_id = $1 and action = $2 order by id",
+        [firmId, action],
+      )
+    ).rows.map((r) => r.created_at);
+
+  it("set with the address; failing since the first last-try failure; working again on a delivery; a new address starts again", async () => {
+    const t = await webhookFirm();
+    const [set] = await row(t.f.firmId);
+    expect(set).toMatchObject({ last_delivered_at: null, failing_since: null });
+    // Two deliveries fail on their last try, one after the other: failing since the first.
+    const failing = fakeTransport({ fail: "timeout" });
+    for (let n = 0; n < 2; n += 1) {
+      // (A test event may be queued once each 30 seconds: that limit set aside here.)
+      await su.query("delete from auth_throttle where firm_id = $1", [t.f.firmId]);
+      await su.query("delete from pgboss.job where name = $1 and data ->> 'firmId' = $2", [
+        WEBHOOK_DELIVER_QUEUE,
+        t.f.firmId,
+      ]);
+      expect(await sendTestWebhook(t.ctx())).toEqual({ status: "queued" });
+      for (const job of await deliveries(t.f.firmId)) {
+        await deliver(job, failing.transport, { retryCount: WEBHOOK_RETRY_LIMIT });
+      }
+    }
+    const failedAt = await loggedAt(t.f.firmId, "webhook.failed");
+    expect(failedAt.length).toBeGreaterThanOrEqual(1);
+    expect((await row(t.f.firmId))[0]?.failing_since).toEqual(failedAt[0]);
+    expect((await withFirm(t.f.firmId, webhookStatus)).status).toEqual({
+      kind: "failing",
+      since: failedAt[0],
+    });
+    // One that works: no longer failing, and when.
+    await su.query("delete from pgboss.job where name = $1 and data ->> 'firmId' = $2", [
+      WEBHOOK_DELIVER_QUEUE,
+      t.f.firmId,
+    ]);
+    await su.query("delete from auth_throttle where firm_id = $1", [t.f.firmId]);
+    expect(await sendTestWebhook(t.ctx())).toEqual({ status: "queued" });
+    const [test] = await deliveries(t.f.firmId);
+    if (!test) throw new Error("no test delivery queued");
+    await deliver(test, fakeTransport().transport);
+    const deliveredAt = await loggedAt(t.f.firmId, "webhook.delivered");
+    expect(await row(t.f.firmId)).toEqual([
+      {
+        address_set_at: set?.address_set_at,
+        last_delivered_at: deliveredAt[0],
+        failing_since: null,
+      },
+    ]);
+    expect((await withFirm(t.f.firmId, webhookStatus)).status).toEqual({
+      kind: "working",
+      lastDeliveredAt: deliveredAt[0],
+    });
+    // A new address: a fresh start, still one row.
+    await addWebhook(t.ctx(), { address: "https://other.hooks.example/y" });
+    expect(await row(t.f.firmId)).toEqual([
+      { address_set_at: expect.any(Date), last_delivered_at: null, failing_since: null },
+    ]);
+    expect((await row(t.f.firmId))[0]?.address_set_at.getTime()).toBeGreaterThan(
+      set?.address_set_at.getTime() ?? 0,
+    );
+    // Removed: no status shown.
+    expect(await removeWebhook(t.ctx())).toEqual({ status: "removed" });
+    expect((await withFirm(t.f.firmId, webhookStatus)).status).toEqual({ kind: "none" });
+    expect(await row(t.f.firmId)).toHaveLength(1);
+  });
+
+  it("one firm's deliveries never touch another's row", async () => {
+    const a = await webhookFirm();
+    const b = await webhookFirm();
+    const before = await row(b.f.firmId);
+    await sendTestWebhook(a.ctx());
+    const [job] = await deliveries(a.f.firmId);
+    if (!job) throw new Error("no delivery queued");
+    await deliver(job, fakeTransport().transport);
+    expect((await row(a.f.firmId))[0]?.last_delivered_at).not.toBeNull();
+    expect(await row(b.f.firmId)).toEqual(before);
+    expect((await withFirm(b.f.firmId, webhookStatus)).status).toEqual({ kind: "new" });
+  });
+});
+
 describe("what the office sees", () => {
   it("the record's planner line, the page's status and Needs attention follow the log", async () => {
     const t = await webhookFirm();
@@ -910,7 +1006,7 @@ describe("what the office sees", () => {
     const items = await needs(t);
     expect(items.webhookFailing).not.toBeNull();
     // One item (beside the others this firm has: its strikes team's address isn't set).
-    expect(needsCount(items).count).toBe(needsCount({ ...items, webhookFailing: null }).count + 1);
+    expect(needsCount(items)).toBe(needsCount({ ...items, webhookFailing: null }) + 1);
     // A delivery that works again clears it.
     expect(await sendTestWebhook(t.ctx())).toEqual({ status: "queued" });
     const test = (await deliveries(t.f.firmId)).at(-1);
@@ -994,7 +1090,7 @@ describe("through a real pg-boss worker", () => {
     ).toBe(failedBefore);
     const items = await withFirm(t.f.firmId, (tx) => loadNeedsAttention(tx, NOW, "Europe/London"));
     expect(items.webhookFailing).not.toBeNull();
-    expect(needsCount(items).count).toBe(needsCount({ ...items, webhookFailing: null }).count + 1);
+    expect(needsCount(items)).toBe(needsCount({ ...items, webhookFailing: null }) + 1);
   }, 60_000);
 
   it("with firm A's endpoint hanging, firm B's webhook is still delivered within 5 seconds", async () => {

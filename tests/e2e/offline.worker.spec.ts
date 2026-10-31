@@ -85,17 +85,18 @@ test("Home (her next shift) and Booked open with no signal, marked as copies; lo
   await expect(page.getByText("Taking or cancelling a shift needs signal.")).toBeVisible();
   // The copy still has her next shift in full.
   await expect(page.getByRole("region", { name: "Your next shift" })).toContainText(site);
-  // And the tab bar (Phase 24, 24.6): the floating capsule, its four tabs plain links to their
-  // pages, Home the current one.
+  // And the tab bar (Phase 24, 24.6; Messages since Phase 25.6): the floating capsule, its five
+  // tabs plain links to their pages, Home the current one.
   const tabs = page.getByRole("navigation", { name: "Main" });
   await expect(tabs.locator(":scope > div")).toBeVisible();
   const links = tabs.getByRole("link");
   // (Profile carries her count when something needs doing: "Profile, 1 thing needs doing".)
-  await expect(links).toHaveText(["Home", "Shifts", "Pay", /^\d*Profile$/]);
-  await expect(links.nth(3)).toHaveAccessibleName(/^Profile(, \d+ things? needs? doing)?$/);
+  await expect(links).toHaveText(["Home", "Shifts", /^\d*Messages$/, "Pay", /^\d*Profile$/]);
+  await expect(links.nth(4)).toHaveAccessibleName(/^Profile(, \d+ things? needs? doing)?$/);
   expect(await links.evaluateAll((as) => as.map((a) => a.getAttribute("href")))).toEqual([
     "/",
     "/shifts",
+    "/messages",
     "/pay",
     "/profile",
   ]);

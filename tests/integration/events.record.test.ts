@@ -6,6 +6,7 @@ import { recordEvent } from "@/lib/events/record";
 import { eventMark } from "../helpers/auth";
 import { superuserPool } from "../helpers/db";
 import { createTenant, type Tenant } from "../helpers/tenant-rows";
+import { WORKER_LIST_ACTIONS } from "@/lib/events/worker-lists";
 
 // The action log is kept for a year and shown to firms, so recordEvent refuses any data the log
 // masker would change: phone numbers, email addresses, and fields named like secrets or
@@ -75,5 +76,30 @@ describe("recordEvent refuses personal and secret data", () => {
     const mark = await eventMark(su);
     await write(data);
     expect(await rowsSince(mark)).toEqual([data]);
+  });
+});
+
+// Phase 25.3: the action log finds an entry by a worker it lists only under the actions in
+// src/lib/events/worker-lists.ts, so a list under any other action is refused, not silently missed.
+describe("recordEvent and lists of workers", () => {
+  const listed = { workers: [{ workerId: randomUUID(), codes: ["REST"] }] };
+
+  it("refuses a workers list under an action the action log doesn't look in", async () => {
+    const mark = await eventMark(su);
+    await expect(write(listed)).rejects.toThrow(/lists workers: add it to WORKER_LIST_ACTIONS/);
+    expect(await rowsSince(mark)).toEqual([]);
+  });
+
+  it("control: a refused move and a refused rota sheet change may list them", async () => {
+    for (const action of WORKER_LIST_ACTIONS) {
+      const id = await withFirm(T.firmId, (tx) =>
+        recordEvent(tx, { actorType: "system", action, entityType: "shift", data: listed }),
+      );
+      expect(id).toBeGreaterThan(0);
+    }
+    expect([...WORKER_LIST_ACTIONS].sort()).toEqual([
+      "roster.sheet_change_refused",
+      "shift.move_refused",
+    ]);
   });
 });

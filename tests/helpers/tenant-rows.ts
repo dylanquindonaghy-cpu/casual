@@ -14,6 +14,7 @@ export const EXPECTED_TABLES = [
   "credential_rules",
   "credential_types",
   "credentials",
+  "email_replies",
   "events",
   "firm_secrets",
   "firms",
@@ -31,6 +32,7 @@ export const EXPECTED_TABLES = [
   "requests",
   "roster_sources",
   "sessions",
+  "sheet_name_problems",
   "shift_events",
   "shift_reminders",
   "shifts",
@@ -38,6 +40,7 @@ export const EXPECTED_TABLES = [
   "strikes",
   "travel_estimates",
   "uploads",
+  "webhook_status",
   "worker_site_blocks",
   "worker_travel",
   "worker_unavailable_days",
@@ -227,6 +230,12 @@ export async function createTenant(su: Pool): Promise<Tenant> {
     "insert into name_map (firm_id, kind, outside_name, code) values ($1, 'role', 'door supervisor (nlw)', 'door_supervisor')",
     [firmId],
   );
+  const sheetNameProblemId = await one(
+    su,
+    `insert into sheet_name_problems (firm_id, source_id, kind, tab, row, outside_name, shift_id, seen_at)
+     values ($1, $2, 'skipped_live', 'shifts', 9, 'Holiday', $3, now())`,
+    [firmId, rosterSourceId, shiftId],
+  );
   const secretId = await one(
     su,
     `insert into firm_secrets (firm_id, name, ciphertext, nonce, key_id)
@@ -237,6 +246,12 @@ export async function createTenant(su: Pool): Promise<Tenant> {
     su,
     "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, 1, 'push')",
     [firmId, shiftId, rosterWorkerId],
+  );
+  const webhookStatusId = await one(
+    su,
+    `insert into webhook_status (firm_id, address_set_at, last_delivered_at)
+     values ($1, now() - interval '1 day', now())`,
+    [firmId],
   );
   const unavailableDayId = await one(
     su,
@@ -335,6 +350,14 @@ export async function createTenant(su: Pool): Promise<Tenant> {
      values ($1, $2, $3, 'rota.worker@example.com', 'staffing@inbound.example.test', 'Saturday', 'Can I swap?')`,
     [firmId, `<${randomBytes(8).toString("hex")}@mail.example.test>`, rosterWorkerId],
   );
+  // The automatic reply to it (P7.5). (Not the office's: one naming the office user would stop
+  // the delete test's control deleting that user, as any office user's own record does.)
+  const emailReplyId = await one(
+    su,
+    `insert into email_replies (firm_id, inbound_email_id, worker_id, kind, template, to_address, subject, body)
+     values ($1, $2, $3, 'automatic', 'shifts', 'rota.worker@example.com', 'Re: Saturday', 'The link.')`,
+    [firmId, inboundEmailId, rosterWorkerId],
+  );
   return {
     firmId,
     slug,
@@ -367,6 +390,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       connector_events: connectorEventId,
       firm_secrets: secretId,
       name_map: nameMapId,
+      sheet_name_problems: sheetNameProblemId,
       pay_records: payRecordId,
       worker_unavailable_days: unavailableDayId,
       worker_site_blocks: siteBlockId,
@@ -380,6 +404,8 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       pay_queries: payQueryId,
       messages: messageId,
       inbound_emails: inboundEmailId,
+      email_replies: emailReplyId,
+      webhook_status: webhookStatusId,
     },
   };
 }
@@ -472,6 +498,17 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
     text: "insert into name_map (firm_id, kind, outside_name, code) values ($1, 'role', $2, null)",
     values: [firmId, `probe name ${next()}`],
   }),
+  sheet_name_problems: (firmId, p) => ({
+    text: `insert into sheet_name_problems (firm_id, source_id, kind, tab, row, outside_name, seen_at)
+           values ($1, $2, 'unreadable', 'shifts', $3, 'Door Supervisor (NLW)', now())`,
+    values: [firmId, p.rows.roster_sources, 10 + next()],
+  }),
+  // One per firm: a probe firm of its own each time (the row's firm is the one being tested).
+  webhook_status: (firmId) => ({
+    text: `insert into webhook_status (firm_id, address_set_at) values ($1, now())
+           on conflict (firm_id) do update set updated_at = now()`,
+    values: [firmId],
+  }),
   firm_secrets: (firmId) => ({
     text: `insert into firm_secrets (firm_id, name, ciphertext, nonce, key_id)
            values ($1, $2, $3, $4, 'aaaaaaaaaaaa')`,
@@ -549,6 +586,11 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
            values ($1, $2, $3, 'rota.worker@example.com', 'staffing@inbound.example.test', 'pay')`,
     values: [firmId, `<${randomBytes(8).toString("hex")}@mail.example.test>`, p.rosterWorkerId],
   }),
+  email_replies: (firmId, p) => ({
+    text: `insert into email_replies (firm_id, inbound_email_id, worker_id, kind, template, to_address, subject, body)
+           values ($1, $2, $3, 'automatic', 'pay', 'rota.worker@example.com', 'Re: pay', 'The link.')`,
+    values: [firmId, p.rows.inbound_emails, p.rosterWorkerId],
+  }),
   metrics_daily: (firmId) => ({
     text: `insert into metrics_daily (firm_id, day, kind, metric, value)
            values ($1, $2, 'daily', 'portal_actions', 3)`,
@@ -571,6 +613,16 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
     text: `insert into api_keys (firm_id, label, token_hash, hint, created_by, revoked_by, revoked_at)
            values ($1, 'Probe planner', $2, 'ab_-', $3, $4, now())`,
     values: [firmId, hash(), own.officeUserId, other.officeUserId],
+  }),
+  sheet_name_problems_source_fk: (firmId, _own, other) => ({
+    text: `insert into sheet_name_problems (firm_id, source_id, kind, tab, row, outside_name, seen_at)
+           values ($1, $2, 'unreadable', 'staff', $3, 'Probe role', now())`,
+    values: [firmId, other.rows.roster_sources, 10 + next()],
+  }),
+  sheet_name_problems_shift_fk: (firmId, own, other) => ({
+    text: `insert into sheet_name_problems (firm_id, source_id, kind, tab, row, outside_name, shift_id, seen_at)
+           values ($1, $2, 'skipped_live', 'shifts', $3, 'Holiday', $4, now())`,
+    values: [firmId, own.rows.roster_sources, 10 + next(), other.rows.shifts],
   }),
   connector_events_source_fk: (firmId, _own, other) => ({
     text: `insert into connector_events (firm_id, source_id, event_id, type, ref)
@@ -751,6 +803,21 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
     text: `insert into inbound_emails (firm_id, provider_message_id, worker_id, from_address, to_address)
            values ($1, $2, $3, 'someone@example.com', 'staffing@inbound.example.test')`,
     values: [firmId, `<${randomBytes(8).toString("hex")}@mail.example.test>`, other.workerId],
+  }),
+  email_replies_email_fk: (firmId, own, other) => ({
+    text: `insert into email_replies (firm_id, inbound_email_id, worker_id, kind, template, to_address, subject, body)
+           values ($1, $2, $3, 'automatic', 'shifts', 'someone@example.com', 'Re: work', 'The link.')`,
+    values: [firmId, other.rows.inbound_emails, own.rosterWorkerId],
+  }),
+  email_replies_worker_fk: (firmId, own, other) => ({
+    text: `insert into email_replies (firm_id, inbound_email_id, worker_id, kind, template, to_address, subject, body)
+           values ($1, $2, $3, 'automatic', 'shifts', 'someone@example.com', 'Re: work', 'The link.')`,
+    values: [firmId, own.rows.inbound_emails, other.workerId],
+  }),
+  email_replies_sent_by_fk: (firmId, own, other) => ({
+    text: `insert into email_replies (firm_id, inbound_email_id, worker_id, kind, sent_by, to_address, subject, body)
+           values ($1, $2, $3, 'office', $4, 'someone@example.com', 'Re: work', 'Yes.')`,
+    values: [firmId, own.rows.inbound_emails, own.rosterWorkerId, other.officeUserId],
   }),
   messages_reply_to_fk: (firmId, _own, other) => ({
     text: `insert into messages (firm_id, direction, channel, provider_message_id, from_e164, to_e164, reply_to)

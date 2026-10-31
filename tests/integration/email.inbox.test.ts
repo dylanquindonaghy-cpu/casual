@@ -189,14 +189,34 @@ describe("the inbox's emails", () => {
     const before = await email(t.f.firmId, { from: "ann.example@example.com" });
     const bens = await email(t.f.firmId, { workerId: ben, from: "ben.example@example.com" });
     const stranger = await email(t.f.firmId, { from: "stranger@example.com" });
+    // What went back about Ann's and Ben's emails (Phase 25.5): theirs, as sent.
+    const reply = (emailId: string, workerId: string, to: string) =>
+      su.query<{ id: string }>(
+        `insert into email_replies (firm_id, inbound_email_id, worker_id, kind, template,
+           to_address, subject, body)
+         values ($1, $2, $3, 'automatic', 'shifts', $4, 'Re: Saturday', 'The link.')
+         returning id::text as id`,
+        [t.f.firmId, emailId, workerId, to],
+      );
+    const annsReply = (await reply(known, ann, "ann.example@example.com")).rows[0]?.id;
+    const bensReply = (await reply(bens, ben, "ben.example@example.com")).rows[0]?.id;
 
     const data = await withFirm(t.f.firmId, (tx) => collectWorkerData(tx, ann, NOW));
     const emails = (data?.sections.emails ?? []) as { id: string; body: string | null }[];
     expect(emails.map((e) => e.id).sort()).toEqual([known, before].sort());
     expect(emails.find((e) => e.id === known)?.body).toBe("Can I swap Saturday?");
+    const replies = (data?.sections.emailReplies ?? []) as { id: string; body: string }[];
+    expect(replies.map((r) => r.id)).toEqual([annsReply]);
+    expect(replies[0]?.body).toBe("The link.");
 
     await withFirm(t.f.firmId, (tx) => tx.execute(sql`select app_erase_worker(${ann})`));
     expect((await emailIds(t.f.firmId)).sort()).toEqual([bens, stranger].sort());
+    // Her reply went with her email; Ben's stays.
+    const { rows: left } = await su.query<{ id: string }>(
+      "select id::text as id from email_replies where firm_id = $1",
+      [t.f.firmId],
+    );
+    expect(left.map((r) => r.id)).toEqual([bensReply]);
   });
 
   it("go at the firm's message retention age, with its messages", async () => {
@@ -204,7 +224,24 @@ describe("the inbox's emails", () => {
     const old = await email(t.f.firmId, { from: "stranger@example.com", daysAgo: 91 });
     const recent = await email(t.f.firmId, { from: "stranger@example.com", daysAgo: 89 });
     expect(old).not.toBe("");
+    // A casual's old email with its reply: both go (Phase 25.5).
+    const ann = await t.f.worker({ first: "Ann" });
+    const theirs = await email(t.f.firmId, {
+      workerId: ann,
+      from: "ann.example@example.com",
+      daysAgo: 91,
+    });
+    await su.query(
+      `insert into email_replies (firm_id, inbound_email_id, worker_id, kind, template,
+         to_address, subject, body)
+       values ($1, $2, $3, 'automatic', 'pay', 'ann.example@example.com', 'Re: pay', 'The link.')`,
+      [t.f.firmId, theirs, ann],
+    );
     await withFirm(t.f.firmId, (tx) => tx.execute(sql`select app_purge_old_messages()`));
     expect(await emailIds(t.f.firmId)).toEqual([recent]);
+    const { rows: replies } = await su.query("select 1 from email_replies where firm_id = $1", [
+      t.f.firmId,
+    ]);
+    expect(replies).toEqual([]);
   });
 });

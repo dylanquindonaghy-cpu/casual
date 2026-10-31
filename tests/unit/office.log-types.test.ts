@@ -381,6 +381,7 @@ describe("the action log's types and words", () => {
     const limit = (name: string) => logTypeLabel("auth.rate_limited", { limit: name });
     expect(limit("take:worker")).toBe("Bookings");
     expect(limit("push:worker")).toBe("Workers");
+    expect(limit("app_message:worker")).toBe("Messages to and from workers");
     expect(limit("api:key")).toBe("Firm settings and office team");
     expect(limit("strikes_link:firm")).toBe("Firm settings and office team");
     expect(limit("strikes_link:firm_day")).toBe("Firm settings and office team");

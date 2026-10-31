@@ -2,15 +2,28 @@ import { randomUUID } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { systemClock } from "../auth/clock";
-import { firms, messages, requests } from "../db/schema";
+import { emailReplies, firms, inboundEmails, messages, requests } from "../db/schema";
 import { retryAborted } from "../db/retry";
 import type { FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
-import { officeReplyMessage, requestUpdateMessage } from "../messaging/templates";
+import {
+  inboxOfficeReplyEmail,
+  officeReplyMessage,
+  requestUpdateMessage,
+} from "../messaging/templates";
+import { queueEnquiryEmailReply } from "../notices/email-reply";
 import { OFFICE_REPLY_PREFIX, queueEnquiryReply } from "../notices/enquiry-reply";
 import { signOffFor } from "../tenancy/sign-off";
-import { enquiryWindow, needsPerson, replyPlanFor } from "./enquiries";
-import { CLOSE_REASONS, REPLY_MAX, replyLine, type CloseReason } from "./enquiry-rules";
+import { enquiryWindow, replyPlanFor } from "./enquiries";
+import {
+  CLOSE_REASONS,
+  EMAIL_REPLY_MAX,
+  emailReplyText,
+  REPLY_MAX,
+  replyLine,
+  type CloseReason,
+} from "./enquiry-rules";
+import { needsPerson } from "./enquiry-sql";
 import { officeUserMay, parts, type OfficeContext } from "./office-context";
 
 // The office answering a message that needs a person (docs/office-v2.md 3.6; 12D.1): a reply in
@@ -31,7 +44,7 @@ import { officeUserMay, parts, type OfficeContext } from "./office-context";
 // question's note.
 
 export type ReplyResult =
-  | { status: "queued"; channel: "whatsapp" | "sms"; form: "free_text" | "template" }
+  | { status: "queued"; channel: "whatsapp" | "sms" | "app"; form: "free_text" | "template" }
   | { status: "empty" | "too_long" }
   | { status: "no_line" | "withheld" | "unknown_caller" | "texts_off" }
   | { status: "not_waiting" } // answered, closed or sorted already
@@ -51,9 +64,9 @@ export const closeSchema = z.strictObject({
 
 type Locked = {
   id: string;
-  channel: "whatsapp" | "sms" | "voice";
+  channel: "whatsapp" | "sms" | "voice" | "app";
   from_e164: string | null;
-  to_e164: string;
+  to_e164: string | null;
   worker_id: string | null;
   notify_channel: "whatsapp" | "sms" | null;
   sms_opted_out_at: string | Date | null;
@@ -113,7 +126,6 @@ export async function replyToEnquiry(
       if (!m.waiting) return { status: "not_waiting" };
       const { plan, line } = await replyPlanFor(tx, m, now);
       if (!plan.ok) return { status: plan.why };
-      if (!m.from_e164 || !line) return { status: "withheld" }; // replyPlan said ok: never here
 
       const [firm] = await tx
         .select({ name: firms.name, settings: firms.settings })
@@ -124,6 +136,28 @@ export async function replyToEnquiry(
         signOff: signOffFor(firm?.name ?? "", firm?.settings.sign_off),
       };
       const question = await openQuestion(tx, m.id);
+      // A message in the app (P8; Phase 25.6): the reply shows in their app as soon as it's
+      // stored, signed as on WhatsApp; the job sends the notification and logs it shown.
+      if (plan.channel === "app") {
+        if (!m.worker_id) return { status: "not_found" }; // the table's check: never here
+        const [reply] = await tx
+          .insert(messages)
+          .values({
+            firmId: sql`app_current_firm_id()`,
+            direction: "out",
+            channel: "app",
+            providerMessageId: `app:${randomUUID()}`,
+            workerId: m.worker_id,
+            body: officeReplyMessage(voice, text, "whatsapp"),
+            replyTo: m.id,
+            createdAt: now,
+          })
+          .returning({ id: messages.id });
+        if (!reply) throw new Error("reply insert returned nothing");
+        await answered(tx, { m, reply: reply.id, question, by: by.id, now, text, plan });
+        return { status: "queued", channel: "app", form: "free_text" };
+      }
+      if (!m.from_e164 || !line) return { status: "withheld" }; // replyPlan said ok: never here
       const body =
         plan.form === "free_text"
           ? officeReplyMessage(voice, text, plan.channel)
@@ -151,30 +185,47 @@ export async function replyToEnquiry(
         })
         .returning({ id: messages.id });
       if (!reply) throw new Error("reply insert returned nothing");
-      if (question) {
-        await tx
-          .update(requests)
-          .set({ status: "approved", resolvedBy: by.id, resolvedAt: now, resolutionNote: text })
-          .where(eq(requests.id, question.id));
-      }
-      await recordEvent(tx, {
-        actorType: "office",
-        actorId: by.id,
-        action: "enquiry.answered",
-        entityType: "message",
-        entityId: m.id,
-        data: {
-          replyId: reply.id,
-          channel: plan.channel,
-          form: plan.form,
-          ...(m.worker_id ? { workerId: m.worker_id } : {}),
-          ...(question ? { requestId: question.id } : {}),
-        },
-      });
-      await queueEnquiryReply(tx, reply.id);
+      await answered(tx, { m, reply: reply.id, question, by: by.id, now, text, plan });
       return { status: "queued", channel: plan.channel, form: plan.form };
     }),
   );
+}
+
+// The reply stored: its question (if open) answered with the words, `enquiry.answered`, and the
+// `enquiry-reply` job queued, in the reply's transaction.
+async function answered(
+  tx: FirmTx,
+  o: {
+    m: Locked;
+    reply: string;
+    question: { id: string } | null;
+    by: string;
+    now: Date;
+    text: string;
+    plan: { channel: "whatsapp" | "sms" | "app"; form: "free_text" | "template" };
+  },
+): Promise<void> {
+  if (o.question) {
+    await tx
+      .update(requests)
+      .set({ status: "approved", resolvedBy: o.by, resolvedAt: o.now, resolutionNote: o.text })
+      .where(eq(requests.id, o.question.id));
+  }
+  await recordEvent(tx, {
+    actorType: "office",
+    actorId: o.by,
+    action: "enquiry.answered",
+    entityType: "message",
+    entityId: o.m.id,
+    data: {
+      replyId: o.reply,
+      channel: o.plan.channel,
+      form: o.plan.form,
+      ...(o.m.worker_id ? { workerId: o.m.worker_id } : {}),
+      ...(o.question ? { requestId: o.question.id } : {}),
+    },
+  });
+  await queueEnquiryReply(tx, o.reply);
 }
 
 export async function closeEnquiry(
@@ -189,6 +240,24 @@ export async function closeEnquiry(
   return retryAborted(() =>
     run(ctx.firm.id, async (tx): Promise<CloseResult> => {
       if (!(await officeUserMay(tx, by.id, "enquiries"))) return { status: "not_allowed" };
+      // An email to the staffing inbox (Phase 25.5) closes the same way, with no question.
+      const email = await lockEmail(tx, parsed.data.messageId, now);
+      if (email) {
+        if (!email.waiting) return { status: "not_waiting" };
+        await recordEvent(tx, {
+          actorType: "office",
+          actorId: by.id,
+          action: "enquiry.closed",
+          entityType: "inbound_email",
+          entityId: email.id,
+          data: {
+            reason: parsed.data.reason,
+            channel: "email",
+            ...(email.worker_id ? { workerId: email.worker_id } : {}),
+          },
+        });
+        return { status: "closed" };
+      }
       const m = await lockMessage(tx, parsed.data.messageId, now);
       if (!m) return { status: "not_found" };
       if (!m.waiting) return { status: "not_waiting" };
@@ -218,6 +287,126 @@ export async function closeEnquiry(
         },
       });
       return { status: "closed" };
+    }),
+  );
+}
+
+// --- The office's reply to an email (P7.5; Phase 25.5) -------------------------------------------
+
+type LockedEmail = {
+  id: string;
+  worker_id: string | null;
+  subject: string | null;
+  draft_reply: string | null;
+  first_name: string | null;
+  email: string | null; // the address the firm holds for the casual now
+  waiting: boolean;
+};
+
+// The casual's email, locked, and whether it still needs a person (enquiry-sql.ts's rule).
+async function lockEmail(tx: FirmTx, emailId: string, now: Date): Promise<LockedEmail | null> {
+  const { since } = await enquiryWindow(tx, now);
+  const [row] = await tx
+    .select({ id: inboundEmails.id })
+    .from(inboundEmails)
+    .where(eq(inboundEmails.id, emailId))
+    .for("update");
+  if (!row) return null;
+  const { rows } = await tx.execute<LockedEmail>(sql`
+    select e.id, e.worker_id, e.subject, e.draft_reply, w.first_name, w.email,
+           (e.created_at > ${since} and ${needsPerson("e")}) as waiting
+      from (select x.*, 'email'::text as channel from inbound_emails x where x.id = ${emailId}) e
+      left join workers w on w.firm_id = e.firm_id and w.id = e.worker_id
+  `);
+  return rows[0] ?? null;
+}
+
+export type EmailReplyResult =
+  | { status: "queued" }
+  | { status: "empty" | "too_long" | "no_address" }
+  | { status: "not_waiting" }
+  | { status: "not_found" | "not_allowed" };
+
+export const emailReplySchema = z.strictObject({
+  emailId: z.uuid(),
+  text: z.string().max(40_000),
+});
+
+// A reply in the office's words (it may have begun as the AI's draft, which they checked and changed
+// as they liked): stored as it goes (`email_replies`, to the address the firm holds for the casual
+// now, never the one the email came from), `enquiry.answered` logged (ids and codes, never the
+// words), and the `enquiry-email-reply` job queued to send it (src/lib/notices/email-reply.ts).
+export async function replyToEmail(
+  ctx: OfficeContext,
+  emailId: string,
+  typed: string,
+): Promise<EmailReplyResult> {
+  if (typeof typed === "string" && typed.length > 40_000) return { status: "too_long" };
+  const parsed = emailReplySchema.safeParse({ emailId, text: typed });
+  if (!parsed.success) return { status: "not_found" };
+  const text = emailReplyText(parsed.data.text);
+  if (text === "") return { status: "empty" };
+  if ([...text].length > EMAIL_REPLY_MAX) return { status: "too_long" };
+  const { run, by } = parts(ctx);
+  const now = (ctx.clock ?? systemClock).now();
+  return retryAborted(() =>
+    run(ctx.firm.id, async (tx): Promise<EmailReplyResult> => {
+      if (!(await officeUserMay(tx, by.id, "enquiries"))) return { status: "not_allowed" };
+      const e = await lockEmail(tx, parsed.data.emailId, now);
+      if (!e) return { status: "not_found" };
+      if (!e.waiting) return { status: "not_waiting" };
+      // Only a casual's email has an address on file to answer (one not from a casual never waits).
+      if (!e.worker_id || !e.email || !z.email().safeParse(e.email).success) {
+        return { status: "no_address" };
+      }
+      const [firm] = await tx
+        .select({ name: firms.name, settings: firms.settings })
+        .from(firms)
+        .where(eq(firms.id, sql`app_current_firm_id()`));
+      const voice = {
+        name: firm?.name ?? "",
+        signOff: signOffFor(firm?.name ?? "", firm?.settings.sign_off),
+      };
+      const email = inboxOfficeReplyEmail(voice, {
+        firstName: e.first_name ?? "",
+        subject: e.subject,
+        words: text,
+      });
+      // Whether it began as the AI's draft, and how it went: the draft as it was, changed (even
+      // wholly), or their own words with no draft shown.
+      const fromDraft = e.draft_reply !== null;
+      const form = !fromDraft ? "free_text" : text === e.draft_reply ? "draft" : "edited";
+      const [reply] = await tx
+        .insert(emailReplies)
+        .values({
+          firmId: sql`app_current_firm_id()`,
+          inboundEmailId: e.id,
+          workerId: e.worker_id,
+          kind: "office",
+          sentBy: by.id,
+          fromDraft,
+          toAddress: e.email.toLowerCase(),
+          subject: email.subject,
+          body: email.body,
+          createdAt: now,
+        })
+        .returning({ id: emailReplies.id });
+      if (!reply) throw new Error("email reply insert returned nothing");
+      await recordEvent(tx, {
+        actorType: "office",
+        actorId: by.id,
+        action: "enquiry.answered",
+        entityType: "inbound_email",
+        entityId: e.id,
+        data: {
+          replyId: reply.id,
+          channel: "email",
+          form,
+          workerId: e.worker_id,
+        },
+      });
+      await queueEnquiryEmailReply(tx, reply.id);
+      return { status: "queued" };
     }),
   );
 }

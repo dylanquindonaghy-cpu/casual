@@ -147,9 +147,19 @@ describe("npm run firm:sheet (as the owner)", () => {
     expect(
       await connectSheet(urls.admin, f.slug, { spreadsheetId: second, replace: false }),
     ).toEqual({ status: "has_sheet" });
+    // The first sheet's last sync's names (Phase 25.2) go when it's replaced.
+    await su.query(
+      `insert into sheet_name_problems (firm_id, source_id, kind, tab, row, outside_name, seen_at)
+       select firm_id, id, 'unreadable', 'shifts', 2, 'Bad (role)', now()
+         from roster_sources where firm_id = $1 and enabled`,
+      [f.firmId],
+    );
     expect(
       await connectSheet(urls.admin, f.slug, { spreadsheetId: second, replace: true }),
     ).toEqual({ status: "connected", replaced: true });
+    expect(
+      (await su.query("select 1 from sheet_name_problems where firm_id = $1", [f.firmId])).rows,
+    ).toEqual([]);
     expect(await sourcesOf(f.firmId)).toEqual([
       { spreadsheet_id: first, enabled: false },
       { spreadsheet_id: second, enabled: true },
@@ -193,8 +203,25 @@ describe("npm run firm:sheet (as the owner)", () => {
     expect(await showSheet(urls.admin, f.slug)).toMatchObject({
       source: { defaultMapping: false, enabled: true },
     });
+    // The last sync's names (Phase 25.2) go with it: no sync will replace them.
+    const problem = (sourceId: string) =>
+      su.query(
+        `insert into sheet_name_problems (firm_id, source_id, kind, tab, row, outside_name, seen_at)
+         values ($1, $2, 'unreadable', 'shifts', 2, 'Bad (role)', now())`,
+        [f.firmId, sourceId],
+      );
+    const sourceOf = async () =>
+      (
+        await su.query<{ id: string }>(
+          "select id::text as id from roster_sources where firm_id = $1 and enabled",
+          [f.firmId],
+        )
+      ).rows[0]?.id ?? "";
+    await problem(await sourceOf());
     expect(await disableSheet(urls.admin, f.slug)).toEqual({ status: "disabled" });
     expect(await disableSheet(urls.admin, f.slug)).toEqual({ status: "none" });
+    const left = await su.query("select 1 from sheet_name_problems where firm_id = $1", [f.firmId]);
+    expect(left.rows).toEqual([]);
     expect(await showSheet(urls.admin, f.slug)).toMatchObject({ source: { enabled: false } });
     expect((await eventsOf(f.firmId)).map((e) => [e.action, e.data])).toEqual([
       ["roster.source_connected", { replaced: false, defaultMapping: true }],

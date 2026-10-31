@@ -122,7 +122,7 @@ describe("the firm's bar and the tab bar, with JavaScript and without", () => {
     expect(source).not.toMatch(/\bon[A-Z][a-zA-Z]*=/);
     const html = renderToStaticMarkup(createElement(TabBar, { current: "shifts" }));
     const links = [...html.matchAll(/<a [^>]*href="([^"]+)"/g)].map((m) => m[1]);
-    expect(links).toEqual(["/", "/shifts", "/pay", "/profile"]);
+    expect(links).toEqual(["/", "/shifts", "/messages", "/pay", "/profile"]);
     expect(html).not.toMatch(/<button|onclick/i);
     // Every shrinking rule hangs off html[data-tabs-mini]; without it (no JavaScript) the capsule
     // is 68px tall with every word shown.
@@ -131,6 +131,7 @@ describe("the firm's bar and the tab bar, with JavaScript and without", () => {
       "h-13.5",
       "max-w-72.5",
       "p-1.25",
+      "sr-only",
       "sr-only",
       "sr-only",
       "sr-only",
@@ -406,7 +407,7 @@ describe("Home's kept copy (no signal)", () => {
         firstName: "Zoe",
         lastName: "Adeyemi",
         firmName: "Acme Events",
-        payDay: "2026-11-13",
+        pay: { payDay: "2026-11-13", days: 7, start: "2026-11-02", end: "2026-11-08" },
         timeZone: "Europe/London",
         now: new Date("2026-11-02T09:00:00Z"),
         next: null,

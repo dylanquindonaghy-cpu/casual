@@ -3,6 +3,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createSession } from "@/lib/auth/sessions";
+import { requirementChip } from "@/lib/credentials/requirements";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { officeEventList, officeEventPage } from "@/lib/office/events";
 import { bookingFirm, hoursFromNow, NOW } from "../helpers/booking-fixture";
@@ -130,6 +131,35 @@ describe("the events list", () => {
       ],
     });
     expect(card?.sessions[1]).toMatchObject({ role: "steward", booked: 1, urgentGap: false });
+  });
+
+  it("a role that takes any one of a group: either, in one chip (Phase 25.2); asked for outright: each", async () => {
+    const t = await eventsFirm();
+    await su.query(
+      `update credential_rules set required_types = '{}', any_of_types = '{SIA_SG,SIA_DS}'
+        where firm_id = $1 and role = 'door_supervisor'`,
+      [t.f.firmId],
+    );
+    const token = await t.tokenFor(t.resourcer);
+    const sessionOf = async () =>
+      (await officeEventList(t.ctx, token, "all"))?.events
+        .find((e) => e.name === "Raceday")
+        ?.sessions.find((s) => s.shiftId === t.door);
+    const sg = { code: "SIA_SG", name: "SIA security guard licence" };
+    const ds = { code: "SIA_DS", name: "SIA door supervisor licence" };
+    const firstAid = { code: "FIRST_AID", name: "first aid at work certificate" };
+    const either = await sessionOf();
+    expect(either?.requirements).toEqual([
+      { ...sg, name: "SIA security guard licence or SIA door supervisor licence", group: [sg, ds] },
+      firstAid,
+    ]);
+    expect(either?.requirements.map(requirementChip)).toEqual(["SIA SG or SIA DS", "First aid"]);
+    // The session asks for the door supervisor licence itself: that one must be held, so each
+    // shows as before (P3.3's own reading).
+    await su.query("update shifts set required_credentials = '{FIRST_AID,SIA_DS}' where id = $1", [
+      t.door,
+    ]);
+    expect((await sessionOf())?.requirements).toEqual([sg, firstAid, ds]);
   });
 
   it("the filters' counts, Need people and the open places: this firm's events only", async () => {

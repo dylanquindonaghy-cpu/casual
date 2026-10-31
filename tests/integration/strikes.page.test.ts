@@ -442,7 +442,12 @@ describe("the casual's Strikes on Profile", () => {
       ann,
     );
     expect(mine.counting).toBe(1);
-    expect(mine).toMatchObject({ liveDays: 90, noticeHours: 48, timeZone: "Europe/London" });
+    expect(mine).toMatchObject({
+      liveDays: 90,
+      noticeHours: 48,
+      timeZone: "Europe/London",
+      enabled: true,
+    });
     expect(mine.strikes.map((s) => [s.noticeHours, s.status, s.counting])).toEqual([
       [38, "live", true],
       [19, "withdrawn", false],
@@ -455,5 +460,18 @@ describe("the casual's Strikes on Profile", () => {
     );
     expect(later90.counting).toBe(0);
     expect(later90.strikes.map((s) => s.counting)).toEqual([false, false]);
+    // The firm switches strikes off (P3.4; Phase 25.2): those given stay, and Profile says it's off.
+    await su.query(
+      `update firms set settings = jsonb_set(settings, '{strikes}',
+         coalesce(settings->'strikes', '{}'::jsonb) || '{"enabled": false}'::jsonb) where id = $1`,
+      [t.f.firmId],
+    );
+    const off = await myStrikes(
+      { firm: { id: t.f.firmId }, run: withFirm, clock: at(later(3)) },
+      ann,
+    );
+    expect(off.enabled).toBe(false);
+    expect(off.counting).toBe(1);
+    expect(off.strikes).toHaveLength(2);
   });
 });

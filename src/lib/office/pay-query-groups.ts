@@ -7,10 +7,10 @@ import { codeSummary, summarisePayGroup, type PayGroupFacts } from "../ai/pay-su
 import { uuidArray } from "../db/arrays";
 import { firms, sites } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
+import { payCalendar, payPeriod } from "../pay/calendar";
 import { parsePayGroupKey } from "../pay/grouping";
 import { shiftWhen } from "../portal/format";
 import type { PayIssue } from "../portal/pay-query-kinds";
-import { mondayOf } from "../time/zoned";
 
 // Payroll's pay queries, grouped by likely cause (docs/screens.md `/office/pay-queries`). Payroll and
 // admins: the session and role are checked here as well as on the page. Reads only, inside the firm.
@@ -62,10 +62,12 @@ export async function loadPayQueryGroups(
   only?: { ids: string[] },
 ): Promise<{ timeZone: string; groups: PayQueryGroup[]; more: boolean }> {
   const [firm] = await tx
-    .select({ timezone: firms.timezone })
+    .select({ timezone: firms.timezone, settings: firms.settings })
     .from(firms)
     .where(eq(firms.id, sql`app_current_firm_id()`));
   const timeZone = firm?.timezone ?? "Europe/London";
+  // The firm's pay calendar (P3.1): the groups are its periods, in its word (Phase 25.2).
+  const calendar = payCalendar(firm?.settings ?? {});
   if (only?.ids.length === 0) return { timeZone, groups: [], more: false };
   const which = only
     ? sql`q.id = any(${uuidArray(only.ids)})`
@@ -111,9 +113,10 @@ export async function loadPayQueryGroups(
     const facts: PayGroupFacts = {
       count: members.length,
       issue: parsed?.issue ?? first.issue_type,
-      week: parsed?.week ?? mondayOf(first.work_date),
+      week: parsed?.week ?? payPeriod(first.work_date, calendar).start,
       site: parsed?.siteId ? (siteNames.get(parsed.siteId) ?? null) : null,
       ratesPence: parsed?.ratesPence ?? null,
+      label: calendar.label,
     };
     groups.push({
       key,

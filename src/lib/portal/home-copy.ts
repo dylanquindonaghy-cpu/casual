@@ -78,11 +78,24 @@ export function applyRowText(
   };
 }
 
-// Pay day (D8: the pay week runs Monday to Sunday and is paid the Friday after it): "Pay day: Fri
-// 30 Oct", for the shifts of the week she's in.
-export function payDayRowText(payDay: string): RowText {
+// Pay day, on the firm's pay calendar (P3; 25.2): "Pay day: Fri 30 Oct", for the shifts of the
+// week she's in; on a fortnight's cycle, its dates ("For shifts from Mon 26 Oct to Sun 8 Nov").
+export function payDayRowText(
+  payDay: string,
+  period: { days: 7 | 14; start: string; end: string } = { days: 7, start: "", end: "" },
+): RowText {
   const p = datePartsOfDay(payDay);
-  return { title: `Pay day: ${p.dow} ${p.day} ${p.month}`, sub: "For this week's shifts" };
+  const day = (d: string) => {
+    const x = datePartsOfDay(d);
+    return `${x.dow} ${x.day} ${x.month}`;
+  };
+  return {
+    title: `Pay day: ${p.dow} ${p.day} ${p.month}`,
+    sub:
+      period.days === 7
+        ? "For this week's shifts"
+        : `For shifts from ${day(period.start)} to ${day(period.end)}`,
+  };
 }
 
 // The offline copy's first row: what the urgent row said when it was kept.

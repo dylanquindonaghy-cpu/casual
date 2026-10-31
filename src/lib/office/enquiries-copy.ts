@@ -12,6 +12,7 @@ export const OUTCOME_WORDS: Record<Outcome, string> = {
   not_understood: "Not understood",
   pay: "Pay (always a person)",
   in_app: "Done in the app",
+  inbox: "Left for your inbox",
 };
 
 export const OUTCOME_TONES: Record<Outcome, StatusTone> = {
@@ -22,18 +23,32 @@ export const OUTCOME_TONES: Record<Outcome, StatusTone> = {
   not_understood: "attention",
   pay: "quiet",
   in_app: "done",
+  inbox: "quiet",
 };
 
 export const PAY_LOCK = "Pay: never answered by AI (rule)";
 
 // A view's empty words, and the link back from today's only: they name how far back the list
 // reads, the firm's message retention (90 days unless the owner changed it: enquiryWindow()).
-export function enquiriesEmptyText(view: "all" | "person" | "pay", days: number): string {
+// A firm with a staffing inbox (Phase 25.5) reads its emails here too.
+export function enquiriesEmptyText(
+  view: "all" | "person" | "pay",
+  days: number,
+  inbox = false,
+): string {
   if (view === "person")
-    return "Nothing needs a person. Messages the shifts line can't answer show here.";
+    return inbox
+      ? "Nothing needs a person. Messages and emails we can't answer show here."
+      : "Nothing needs a person. Messages the shifts line can't answer show here.";
   if (view === "pay") return `No pay messages in the last ${days} days.`;
-  return `No messages to the shifts line in the last ${days} days.`;
+  return inbox
+    ? `No messages to the shifts line or the staffing inbox in the last ${days} days.`
+    : `No messages to the shifts line in the last ${days} days.`;
 }
+export const emptyTodayText = (inbox: boolean) =>
+  inbox
+    ? "Nothing to the shifts line or the staffing inbox today."
+    : "Nothing to the shifts line today.";
 export const showLastDaysText = (days: number) => `Show the last ${days} days`;
 
 export const AI_BANNER =
@@ -46,10 +61,12 @@ export const VIEW_LABELS = {
   pay: "Pay",
 } as const;
 
-export const CHANNEL_WORDS: Record<"whatsapp" | "sms" | "voice", string> = {
+export const CHANNEL_WORDS: Record<"whatsapp" | "sms" | "voice" | "email" | "app", string> = {
   whatsapp: "WhatsApp",
   sms: "Text",
   voice: "Voicemail",
+  email: "Email",
+  app: "In the app", // a casual's message in the app (P8; Phase 25.6)
 };
 
 export const CLOSE_REASON_WORDS: Record<CloseReason, string> = {
@@ -63,11 +80,13 @@ export const CLOSE_REASON_WORDS: Record<CloseReason, string> = {
 type WhoLike =
   | { kind: "casual"; name: string; active: boolean }
   | { kind: "unknown"; from: string }
+  | { kind: "unknown_address"; from: string }
   | { kind: "withheld" };
 
-// The list's name: the casual's, or "Unknown number" / "Withheld".
+// The list's name: the casual's, or "Unknown number" / "Unknown address" (an email's) / "Withheld".
 export function whoName(who: WhoLike): string {
   if (who.kind === "casual") return who.name;
+  if (who.kind === "unknown_address") return "Unknown address";
   return who.kind === "unknown" ? "Unknown number" : "Withheld";
 }
 
@@ -106,6 +125,9 @@ export function planLine(plan: ReplyPlan): string {
       texts_off: "They replied STOP to texts, so a reply can't go. Phone them, then close it.",
     }[plan.why];
   }
+  if (plan.channel === "app") {
+    return "In the app: your words go as they are, and they get a notification.";
+  }
   if (plan.channel === "sms") return "By text: your words go as they are.";
   return plan.form === "free_text"
     ? "Inside WhatsApp's 24-hour window: your words go as they are."
@@ -113,7 +135,7 @@ export function planLine(plan: ReplyPlan): string {
 }
 
 export type ReplyOutcome =
-  | { status: "queued"; channel: "whatsapp" | "sms"; form: "free_text" | "template" }
+  | { status: "queued"; channel: "whatsapp" | "sms" | "app"; form: "free_text" | "template" }
   | {
       status: "empty" | "too_long" | "no_line" | "withheld" | "unknown_caller" | "texts_off";
     }
@@ -123,7 +145,9 @@ export type ReplyOutcome =
 export function replyResultText(r: ReplyOutcome): string {
   switch (r.status) {
     case "queued":
-      return `Your reply is on its way: it goes ${r.channel === "sms" ? "by text" : "on WhatsApp"} in a moment.`;
+      return r.channel === "app"
+        ? "Your reply is on its way: it shows in their app in a moment."
+        : `Your reply is on its way: it goes ${r.channel === "sms" ? "by text" : "on WhatsApp"} in a moment.`;
     case "empty":
       return "Write a reply first.";
     case "too_long":
@@ -178,17 +202,18 @@ type At = (d: Date) => string;
 type WhoFull =
   | { kind: "casual"; name: string; active: boolean }
   | { kind: "unknown"; from: string }
+  | { kind: "unknown_address"; from: string }
   | { kind: "withheld" };
 type Intent = "shifts" | "cancel" | "pay" | "office";
 
 export function receivedStep(
-  r: { channel: "whatsapp" | "sms" | "voice"; at: Date; who: WhoFull },
+  r: { channel: "whatsapp" | "sms" | "voice" | "app"; at: Date; who: WhoFull },
   at: At,
 ): string {
   const from =
     r.who.kind === "casual"
-      ? `from ${r.who.name}'s number${r.who.active ? "" : " (not active)"}`
-      : r.who.kind === "unknown"
+      ? `from ${r.who.name}${r.channel === "app" ? "" : "'s number"}${r.who.active ? "" : " (not active)"}`
+      : r.who.kind === "unknown" || r.who.kind === "unknown_address"
         ? `from ${r.who.from}, a number that isn't one of your casuals'`
         : "from a withheld number";
   return `${CHANNEL_WORDS[r.channel]} at ${at(r.at)}, ${from}.`;
@@ -199,15 +224,21 @@ export function sortedStep(
     | { how: "keyword" | "ai"; intent: Intent }
     | {
         how: "person";
-        why: "asked" | "ai_asked" | "voicemail" | "no_text" | "not_sorted";
+        why: "asked" | "ai_asked" | "voicemail" | "no_text" | "not_sorted" | "reply_limit" | "echo";
         ai?: "not_connected" | "no_answer" | "not_a_label";
       }
     | { how: "person"; why: "answer_failed"; code: string }
     | { how: "unknown"; repeat: boolean }
     | { how: "opt_out" }
-    | { how: "not_yet" },
+    | { how: "not_yet" }
+    | { how: "held"; by: "keyword" | "ai"; intent: Intent },
 ): string {
   switch (s.how) {
+    // Sorted, then passed to a person: automatic replies are off (Phase 25.3).
+    case "held":
+      return s.by === "keyword"
+        ? `A keyword matched: "${s.intent}". Automatic replies are off, so it was passed to a person.`
+        : `AI sorted it as "${s.intent}". Automatic replies are off, so it was passed to a person.`;
     case "keyword":
       return `A keyword matched: "${s.intent}".`;
     case "ai":
@@ -236,6 +267,9 @@ export function sortedStep(
         voicemail: "A voicemail: always passed to a person.",
         no_text: "No text (a photo or file): passed to a person.",
         not_sorted: "No keyword matched and AI didn't sort it: passed to a person.",
+        // In the app (Phase 25.6): no automatic answer past the hour's 5, nor to an echo.
+        reply_limit: "5 automatic replies already went to them this hour: passed to a person.",
+        echo: "It quoted our automatic reply: passed to a person.",
       }[s.why];
   }
 }
@@ -243,9 +277,16 @@ export function sortedStep(
 export const NO_CHECKS = "No checks recorded.";
 
 export function replyStep(
-  r: { how: "automatic"; intent: Intent | "unknown_number" | "voicemail" } | { how: "none" },
+  r:
+    | { how: "automatic"; intent: Intent | "unknown_number" | "voicemail" }
+    | { how: "none" }
+    | { how: "held" },
 ): string {
   if (r.how === "none") return "No automatic reply.";
+  // Automatic replies off for the firm (P4.7; Phase 25.3).
+  if (r.how === "held") {
+    return "No automatic reply: automatic replies are off for your firm. Ask us to turn them on.";
+  }
   return {
     shifts: 'The "open shifts" reply, with the link to Open shifts.',
     cancel: "The cancel reply, with the link to My shifts.",
@@ -258,13 +299,14 @@ export function replyStep(
 
 export function sentStep(
   s:
-    | { how: "sent"; channel: "whatsapp" | "sms"; at: Date; fellBackFrom: string | null }
+    | { how: "sent"; channel: "whatsapp" | "sms" | "app"; at: Date; fellBackFrom: string | null }
     | { how: "failed"; channel: string; code: string; at: Date }
     | { how: "none" },
   at: At,
 ): string {
   if (s.how === "none") return "Nothing sent.";
   if (s.how === "failed") return `Not sent (${s.code}) at ${at(s.at)}.`;
+  if (s.channel === "app") return `Shown in the app at ${at(s.at)}.`;
   if (s.fellBackFrom === "whatsapp") {
     return `Sent by text at ${at(s.at)} after WhatsApp didn't take it.`;
   }
@@ -276,8 +318,8 @@ type ThenLike =
       kind: "office_reply";
       by: string | null;
       at: Date;
-      channel: "whatsapp" | "sms";
-      form: "free_text" | "template";
+      channel: "whatsapp" | "sms" | "email" | "app";
+      form: "free_text" | "template" | "draft" | "edited";
       state: "sending" | "sent" | "failed" | "unconfirmed";
       code: string | null;
       fellBackFrom: string | null;
@@ -308,11 +350,19 @@ export function thenStep(
   switch (t.kind) {
     case "office_reply": {
       const how =
-        t.form === "template"
-          ? "as the request update template"
-          : t.channel === "sms"
-            ? "by text, in their own words"
-            : "on WhatsApp, in their own words";
+        t.channel === "email"
+          ? t.form === "draft"
+            ? "by email, the AI's draft, checked by them"
+            : t.form === "edited"
+              ? "by email, from an AI draft they changed"
+              : "by email, in their own words"
+          : t.channel === "app"
+            ? "in the app, in their own words"
+            : t.form === "template"
+              ? "as the request update template"
+              : t.channel === "sms"
+                ? "by text, in their own words"
+                : "on WhatsApp, in their own words";
       const state =
         t.state === "sent"
           ? t.fellBackFrom === "whatsapp"
@@ -507,3 +557,146 @@ export function builtWords(template: string, offered: number, more: number): str
 // counted them in "Enquiries today"); they're listed under their own view.
 export const appTodayText = (n: number) =>
   `Plus ${n} ${n === 1 ? "request" : "requests"} made in the app today.`;
+
+// --- An email to the staffing inbox (P7.4, P7.5; Phase 25.5; docs/screens.md "The staffing inbox
+// in Enquiries") ---------------------------------------------------------------------------------
+
+export const NO_SUBJECT = "(No subject)";
+export const EMAIL_NO_TEXT = "(An email with no text.)";
+export const NOT_CASUAL_ROW =
+  "(Not from one of your casuals: its words aren't kept. It's in your own inbox.)";
+
+// "Email from Priya Shah" / "Email from an unknown address".
+export const emailTitle = (who: WhoLike): string =>
+  who.kind === "casual" ? `Email from ${who.name}` : "Email from an unknown address";
+
+export const subjectLine = (subject: string | null) => `Subject: ${subject ?? "(none)"}`;
+export const attachmentsLine = (n: number) =>
+  `${n === 1 ? "1 attachment" : `${n} attachments`} left out: attachments are never kept.`;
+export const notCasualText = (address: string) =>
+  `From ${address}. It isn't one of your casuals' addresses, so its words aren't kept here. It's in your own inbox.`;
+
+export function emailReceivedStep(r: { at: Date; who: WhoLike }, at: At): string {
+  const from =
+    r.who.kind === "casual"
+      ? `from ${r.who.name}'s address${r.who.active ? "" : " (not active)"}`
+      : r.who.kind === "unknown_address" || r.who.kind === "unknown"
+        ? `from ${r.who.from}, an address that isn't one of your casuals'`
+        : "from an address we can't show";
+  return `Email at ${at(r.at)}, ${from}.`;
+}
+
+export type EmailSorted =
+  | Parameters<typeof sortedStep>[0]
+  | { how: "stale" }
+  | { how: "not_casual" }
+  | { how: "former" }
+  | { how: "failed"; code: string }
+  | { how: "limit"; by: "keyword" | "ai"; intent: Intent }
+  | { how: "no_address"; by: "keyword" | "ai"; intent: Intent };
+
+export function emailSortedStep(s: EmailSorted): string {
+  const sorted = (by: "keyword" | "ai", intent: Intent) =>
+    by === "keyword" ? `A keyword matched: "${intent}".` : `AI sorted it as "${intent}".`;
+  switch (s.how) {
+    case "stale":
+      return "It came in more than 3 hours before the inbox could answer it, so it was passed to a person unsorted.";
+    case "not_casual":
+      return "Not one of your casuals' addresses: left for your own inbox.";
+    case "former":
+      return "From someone who isn't active any more: passed to a person.";
+    case "failed":
+      return `The sorting failed on every try (${s.code}): passed to a person.`;
+    case "limit":
+      return `${sorted(s.by, s.intent)} 3 automatic replies already went to them today: passed to a person.`;
+    case "no_address":
+      return `${sorted(s.by, s.intent)} There's no email address on file for them: passed to a person.`;
+    case "not_yet":
+      return "Not sorted yet: the inbox hasn't answered it.";
+    default:
+      return sortedStep(s);
+  }
+}
+
+export function emailReplyStep(
+  r: { how: "automatic"; answer: "shifts" | "cancel" | "pay" } | { how: "held" } | { how: "none" },
+): string {
+  if (r.how === "none") return "No automatic reply.";
+  if (r.how === "held") {
+    return "No automatic reply: automatic replies are off for your firm. Ask us to turn them on.";
+  }
+  return {
+    shifts: "The open shifts email, with the link to Open shifts.",
+    cancel: "The cancel email, with the link to My shifts.",
+    pay: "The pay email: the link to their pay page and to raise a pay query, never an answer about pay.",
+  }[r.answer];
+}
+
+export function emailSentStep(
+  s:
+    | { how: "sent"; at: Date }
+    | { how: "failed"; code: string; at: Date }
+    | { how: "unconfirmed" }
+    | { how: "none" },
+  at: At,
+): string {
+  if (s.how === "none") return "Nothing sent.";
+  if (s.how === "unconfirmed") return "Not confirmed: it may not have gone.";
+  if (s.how === "failed") return `Not sent (${s.code}) at ${at(s.at)}.`;
+  return `Sent by email to their address on file at ${at(s.at)}.`;
+}
+
+// A reply to their email, as it went: "Automatic reply" or who sent it, then when.
+export function emailReplyByLine(r: {
+  automatic: boolean;
+  by: string | null;
+  state: "sending" | "sent" | "failed" | "unconfirmed";
+}): string {
+  const who = r.automatic ? "Automatic reply" : (r.by ?? "The office");
+  const state =
+    r.state === "sending"
+      ? " · Sending"
+      : r.state === "failed"
+        ? " · Not sent"
+        : r.state === "unconfirmed"
+          ? " · Not confirmed"
+          : "";
+  return `${who}${state}`;
+}
+
+// "Answer it" for an email.
+export const EMAIL_REPLY_LABEL = "Reply by email";
+export const EMAIL_DRAFT_NOTE =
+  "AI drafted this from their email. Check every word before you send it: it can be wrong.";
+export const EMAIL_PAY_NO_DRAFT = "Pay questions never get an AI draft (rule).";
+export const emailReplyHint = (firstName: string, signOff: string) =>
+  `It goes to ${firstName}'s email address on file, signed "${signOff}". Their reply comes back here.`;
+export const EMAIL_REPLY_BUTTON = "Send reply by email";
+
+export type EmailReplyOutcome =
+  | { status: "queued" }
+  | { status: "empty" | "too_long" | "no_address" | "not_waiting" | "not_found" | "not_allowed" }
+  | { status: "logged_out" | "error" };
+
+export function emailReplyResultText(result: EmailReplyOutcome, firstName: string): string {
+  switch (result.status) {
+    case "queued":
+      return "Your reply is on its way: it goes by email in a moment.";
+    case "empty":
+      return "Write a reply first.";
+    case "too_long":
+      return "The reply is too long (2,000 characters at most).";
+    case "no_address":
+      return `${firstName ? `${firstName} has` : "They have"} no email address on file, so a reply can't go. Phone them, then close it.`;
+    case "not_waiting":
+      return "Someone has already answered or closed this.";
+    case "not_found":
+      return "We can't find that email.";
+    case "not_allowed":
+      return "You can't answer enquiries.";
+    case "logged_out":
+      return "Your session has ended. Log in again.";
+    default:
+      return "Something went wrong. Try again.";
+  }
+}

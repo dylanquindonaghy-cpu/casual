@@ -123,13 +123,13 @@ export const SETTING_WORDS: Record<SettingKey, string> = {
   firm_system_sends:
     "the firm's own system (its rota sheet, or its CRM through the API) reminds the casuals it books (true or false; false, the default: ShiftDesk reminds every booking)",
   login_by_email:
-    "with no text sender, a casual's login link and pay-page code go by email to the address held for them (true or false; false, the default: they go by WhatsApp only. Leave it off until the login and pay pages stop naming WhatsApp: PLAN.md P2.7)",
+    "with no text sender, a casual's login link and pay-page code go by email to the address held for them (true or false; false, the default: they go only by WhatsApp or text, so with no text sender nobody can log in, and the login page says login links aren't switched on yet)",
   "retention.message_days": `days the shifts line's messages are kept (${RETENTION_MIN_DAYS} to ${RETENTION_MAX_DAYS})`,
   "retention.request_note_days": `days a closed request's words are kept, and the office's reason for placing someone despite a rule (${RETENTION_MIN_DAYS} to ${RETENTION_MAX_DAYS})`,
   "retention.hold_until":
     "nothing personal is purged until after this date (yyyy-mm-dd), for a dispute; none for no hold",
   "strikes.enabled":
-    "the firm gives strikes (true or false; true, the default. false: a casual's own cancellation is never a strike; those given stay. Leave it on until the casual's shift page, Help and Profile read it: PLAN.md P3)",
+    "the firm gives strikes (true or false; true, the default. false: a casual's own cancellation is never a strike, and its screens say none are given; those given stay)",
   "strikes.notice_hours": `a casual's own cancellation with less notice than this many hours is a strike (${STRIKE_LIMITS.noticeHours.min} to ${STRIKE_LIMITS.noticeHours.max})`,
   "strikes.live_days": `days a strike counts (${STRIKE_LIMITS.liveDays.min} to ${STRIKE_LIMITS.liveDays.max})`,
   "strikes.keep_months": `months before a strike's record is deleted, unless a hold is on (${STRIKE_LIMITS.keepMonths.min} to ${STRIKE_LIMITS.keepMonths.max}, and at least 6 months more than a strike counts)`,

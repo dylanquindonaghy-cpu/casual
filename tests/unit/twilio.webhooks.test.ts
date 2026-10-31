@@ -138,18 +138,37 @@ describe("every Twilio webhook", () => {
 describe("what a Twilio webhook stores, it stores once", () => {
   // Every inbound row: keyed by Twilio's id (MessageSid, CallSid, RecordingSid) within the firm; a
   // repeat (Twilio's retry, or a replayed request: the signature has no timestamp) inserts nothing.
-  const inserts = sourceFiles("src/lib").flatMap((file) =>
+  // A casual's message in the app (Phase 25.6, src/lib/inbound/app.ts) is the one inbound row that
+  // isn't Twilio's: its id is the form's own (one per message, kept for a repeat), checked apart.
+  const APP = "src/lib/inbound/app.ts";
+  const all = sourceFiles("src/lib").flatMap((file) =>
     [...read(file).matchAll(/\.insert\(messages\)\s*\.values\(\{([\s\S]*?)\}\)([\s\S]*?);/g)]
       .filter((m) => /direction: "in"/.test(m[1] ?? ""))
-      .map((m) => ({ file, after: m[2] ?? "", at: m.index ?? 0 })),
+      .map((m) => ({ file, values: m[1] ?? "", after: m[2] ?? "", at: m.index ?? 0 })),
   );
+  const inserts = all.filter((i) => i.file !== APP);
 
   it("every inbound insert is in the webhooks' storage (none anywhere else)", () => {
-    expect(inserts.map((i) => i.file).sort()).toEqual([
+    expect(all.map((i) => i.file).sort()).toEqual([
+      APP,
       "src/lib/inbound/receive.ts",
       "src/lib/inbound/voice.ts",
       "src/lib/inbound/voice.ts",
     ]);
+  });
+
+  it("a message in the app: channel app, the form's own id, theirs, and its job in the same transaction", () => {
+    const [app] = all.filter((i) => i.file === APP);
+    expect(app?.values).toMatch(/channel: "app",/);
+    expect(app?.values).toMatch(/providerMessageId,/);
+    expect(read(APP)).toContain("const providerMessageId = `app:${clientId ?? randomUUID()}`;");
+    // A repeat of the form's own id stores nothing and queues nothing.
+    expect(app?.after).toMatch(
+      /^\s*\.onConflictDoNothing\(\{ target: \[messages\.firmId, messages\.providerMessageId\] \}\)\s*\.returning\(\{ id: messages\.id \}\)$/,
+    );
+    expect(app?.values).toMatch(/workerId,/);
+    const rest = read(APP).slice(app?.at ?? 0);
+    expect(rest).toMatch(/^[\s\S]*?await queueInboundMessage\(tx, row\.id\);/);
   });
 
   it("each one does nothing on a repeat of Twilio's id, and only a new row gets a job or an event", () => {

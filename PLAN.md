@@ -867,7 +867,7 @@ queues the ones waiting).
       many); mail that isn't from a known casual stored without its subject or words. Tests: each
       quoting style, a reply above and below the quote, nothing left of a forwarded thread, an
       unknown sender's words never in the database (P7.3)
-- [ ] Sorting, held for the office (M; waits for the office's log words for `email.received`, with
+- [x] Sorting, held for the office (M; waits for the office's log words for `email.received`, with
       the UI chat): the `inbound-email` job (queued with each stored email, and once for those
       stored before it: one older than a few hours goes to the office as arrived before the
       inbox was answered, never sorted as if it were new, since a stale "cancel me" isn't one; and
@@ -879,7 +879,7 @@ queues the ones waiting).
       sent, as the shifts line with automatic replies off (P4.7); a pay question is marked pay
       and never answered (golden rule 9); an unknown sender's handled as unknown. Tests: each
       label, the AI down, the same job twice handled once, nothing sent (P7.4)
-- [ ] Waits for Dylan (words) and the UI chat (screens): the casual's answer by a link sent to
+- [x] Waits for Dylan (words) and the UI chat (screens): the casual's answer by a link sent to
       their known address (never on the sender's word alone), a pay question's link to raise it
       in the app (so it reaches the payroll digest), the office's 3-hourly summary email, and
       Enquiries showing emails with the AI-drafted reply the office approves; their words go in
@@ -905,6 +905,84 @@ payroll (golden rule 9), replies signed "[Firm name] Shift Team" (golden rule 8)
 - The guards that P4.7 doesn't need yet: at most 5 automatic replies an hour per casual ("Connecting
   the firm's systems" 11), and no automatic reply to a message carrying our own "Automatic reply."
   line, so an echo can't loop.
+
+## Phase 25 — The screens for P2 to P8 (go-ahead: Dylan, 2026-10-30, "All of it, in order"; this session takes over the UI from the UI chat, which has finished; UI)
+
+The screen halves the phases above left for after the UI chat's Phase 24, in this order. Each task
+starts with a mock-up (before and after at 390px and at 1280px with 150% scaling, made with the UI
+skills in `.claude/skills/`) and is built only once Dylan approves it; its new words go in
+`docs/screens.md` or `docs/messaging-templates.md` first; the `guardrails-reviewer` runs where it
+touches schema, auth, tenancy, messaging or rules; `/close-task` ticks it.
+
+- [x] P2.7: the login page, the Pay code step, Help and the profile's "How we reach you" say how
+      links and codes really go: by WhatsApp or text while there's a text sender (today's words),
+      by email with `login_by_email` on, and with neither, that they can't be sent (no form, no code
+      button) instead of promising one. The web app reads only whether there's a text sender
+      (`MESSAGING_TRANSPORT`, as it reads `AI_TRANSPORT`); the job still decides each send
+      (`loginChannel()`, `src/lib/auth/login-channel.ts`). Then the setting's help text stops saying
+      to leave it off. Mock-up: https://claude.ai/artifact/Ai4kBdJ8rBvEy2YjBjZ1mX, approved by Dylan
+      on 2026-10-30 (build as shown; with nothing to send, no login form; Profile shows the address;
+      a browser-test run with no text sender). Tests: each way's words, no email held (Pay and
+      Profile), a browser test that logs in and opens Pay by email (M, A) (25.1)
+- [x] P3's screens: the list under P3's "After the UI chat's Phase 24 merges" (the pay day from the
+      firm's calendar, the name map's Needs attention items, "you need A or B", who asked, the
+      strike sentences reading the strikes switch, the one-of chips); a mock-up for the casual's
+      screens first, then one for the office's (Dylan, 2026-10-30). The casual's mock-up
+      (https://claude.ai/artifact/Wf4qCNqTTDq5Ytq3TryAJw), approved by Dylan on 2026-10-30: build as
+      shown; a fortnight's pay row gives its dates; with strikes off, Help leaves its strikes
+      section out. The sheet sync's unreadable and
+      skipped names are stored per firm (a small table: `firm_id`, RLS, a `TABLE_ACCESS` entry,
+      isolation fixtures; S, T), so Needs attention can list each one (Dylan, 2026-10-30). The
+      office's mock-up (https://claude.ai/artifact/Nu2R4jTRb4qmrhPXxkGg9d), approved by Dylan on
+      2026-10-30: build as shown, the table (`sheet_name_problems`) as proposed; a fortnight reads
+      in the firm's own word ("Cycle 22", "the cycle of Mon 12 Oct"); "Who asked for it?" is
+      required; "None: strikes are off" stays (25.2)
+- [x] P4's office half: the list under P4's "After the UI chat's work is merged" (the layout's reads
+      in one transaction, the dashboard's capped lists, why a reply was held, the stop after 25
+      offers, one combined email past the 5). The mock-up
+      (https://claude.ai/artifact/RvpGDfQMcTAqtfCTYJFpUk), approved by Dylan on 2026-10-30: build as
+      shown, with the webhook's status in a small table (`webhook_status`: `firm_id`, RLS, a
+      `TABLE_ACCESS` entry, isolation fixtures; S, T) and the action log's indexes; the offer limit
+      fixed at 25 for each free place; the combined email once, at the end of the hour; a held pay
+      question in Enquiries' Pay view. An index on `data ->> 'workerId'` can't be used under RLS
+      (jsonb's functions aren't leakproof), so the log gets two generated columns instead,
+      `worker_ref` and `shift_ref`, each with an index, plus one on `actor_id` (Dylan, 2026-10-30:
+      measured on 700,000 entries, 0.6 s to 154 s before, 1.5 to 4 ms after). Dylan, 2026-10-30:
+      "just do what you would recommend stop prompting me and build it": from here each mock-up
+      is still published, and built as recommended without waiting (25.3)
+- [x] P5's card: the Integrations card and the dashboard name a connector as the planner, with its
+      sync card (`plannerLink`, `src/lib/office/integrations.ts`). The mock-up
+      (https://claude.ai/artifact/CE3FyjKP77ZrQLYRL5yvzK), built as recommended (Dylan, 2026-10-30:
+      "just do what you would recommend stop prompting me and build it"): the portal by name, its
+      two reads' times, a failed read's reason in plain words, its sessions coming in hidden with a
+      link to them; the dashboard's "Updated {time} from your planner" (25.4)
+- [x] P7.4 and P7.5: the inbox's sorting once Dylan approves the office log's words, then Enquiries
+      showing emails with the AI-drafted reply the office approves, the casual's answer by a link to
+      their known address, the pay question's link and the 3-hourly summary, their words first. The
+      mock-up (https://claude.ai/artifact/VAnarrjGdN81yJnuydWa8d), built as recommended (Dylan,
+      2026-10-30: "just do what you would recommend stop prompting me and build it"): emails beside
+      messages on Enquiries; one not from a casual left for the firm's own inbox, never in Need a
+      person; the link emails to the address on file (Reply-To the inbox, at most 3 a casual a day);
+      the AI's draft for the office to check and send (never for pay or money; a new AI use, its
+      tripwire test extended); the office's summary every 3 hours of the firm's day; a small table
+      (`email_replies`: `firm_id`, RLS, a `TABLE_ACCESS` entry, isolation fixtures, deleted with its
+      email; S, T) and the draft on the email (25.5)
+- [x] P8: the in-app chat: the casual's chat screen and the office's thread in Enquiries (mock-ups
+      first), the `app` channel, notifications for a reply, and its guards. The mock-up
+      (https://claude.ai/artifact/L3a8sGwXo7anqQW6NayYGc), built as recommended (Dylan, 2026-10-30:
+      "just do what you would recommend stop prompting me and build it"): a fifth tab, Messages,
+      with a count of the office's replies not yet seen; answered in the app at once with the
+      shifts line's replies whatever the automatic replies switch (decision 11), at most 5
+      automatic answers an hour per casual and none to an echo; the office's reply from Enquiries
+      shown in the app with a push that holds none of its words; 20 messages an hour per casual;
+      Help points to Messages; the `app` channel on `messages` (no numbers, always the casual's)
+      and `workers.messages_read_at` (25.6)
+
+Done when: 25.1 to 25.6 are ticked, each naming its mock-up and the date Dylan approved it, each
+with a stamp that includes the browser tests; `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; no
+casual-facing words but those in `docs/screens.md` and `docs/messaging-templates.md`; with no text
+sender, no casual screen names WhatsApp or texts; the `claims-auditor` checks the phase against
+this line.
 
 ## Stage 2 (after 3 paying firms) — not now
 

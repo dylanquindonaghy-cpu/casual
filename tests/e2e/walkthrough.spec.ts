@@ -517,6 +517,10 @@ test("Part 3: as the office", async ({ browser }) => {
       .locator("details[open]")
       .getByLabel("Why?")
       .selectOption({ label: "Weather or safety" });
+    await page
+      .locator("details[open]")
+      .getByLabel("Who asked for it?")
+      .selectOption({ label: "The firm" });
     await page.getByRole("button", { name: `Yes, cancel ${booked}'s booking` }).click();
     await expect(
       page.getByText(

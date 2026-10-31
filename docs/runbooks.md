@@ -139,6 +139,14 @@ new image within minutes of the merge):
    skip: `DROP INDEX CONCURRENTLY <name>` and build it again.
 5. Merge. The migration finds the index there and does nothing.
 
+**A migration that adds a stored generated column** (`drizzle/0062_webhook_status.sql`: the action
+log's `worker_ref` and `shift_ref`) rewrites the whole table under an exclusive lock: nothing can
+read or write the action log until it commits, and every change the app makes writes to it, so the
+app waits too. Locally, the two columns and their indexes on 700,000 entries took under 5 seconds
+in all. No firm is live yet; once one
+is, deploy such a migration outside event hours, or split it (add the column, backfill in batches,
+then the index concurrently as above).
+
 **It never deploys between 05:30 and 09:00 UK time on its own** (event mornings): a merge, or a
 change to `.env`, then goes out at 09:00. A fix that can't wait: run `/opt/shiftdesk/deploy.sh
 --now` by hand.
@@ -149,9 +157,12 @@ casual's messages (offers, reminders, the office's notices, licence messages) go
 they turned notifications on for, else by email to the address you hold for them, else not at all
 (logged `no_channel`: the office should phone them). Pushes need the casual to have logged in on
 that phone, and a casual's login link goes by email only once the firm's `login_by_email` is on
-(P2.6; off until the login page stops naming WhatsApp, P2.7), so until then it's email in
-practice: the more casuals have an email address in the firm's data, the more are
-reached. The worker needs the SMTP values ("Connect an email provider (SMTP)" in PLAN.md):
+(P2.6): switch it on with `npm run firm:settings -- --firm <slug> --set login_by_email=true`. Until
+then no casual can log in, and the login page says login links aren't switched on yet (P2.7). So
+it's email in practice: the more casuals have an email address in the firm's data, the more are
+reached. The web app reads `MESSAGING_TRANSPORT` too, only for whether there's a text sender, so
+its login, pay, help and profile pages say how links and codes go: Compose gives it the worker's
+value. The worker needs the SMTP values ("Connect an email provider (SMTP)" in PLAN.md):
 without them it won't start. `docker compose ps` shows the worker "healthy"; if it isn't,
 `docker compose logs --tail 50 worker` shows why (usually a value missing in `.env`). Messages must
 never be printed instead of sent: `MESSAGING_TRANSPORT=console` is refused in production. Once the
@@ -1061,8 +1072,10 @@ In order (who does it, how, and what done looks like):
    door supervisor licence, P3.3, for a firm set up after it; a firm set up before keeps its own
    rule, with no command yet to change it: PLAN.md Parking lot.) Skipping a name never cancels or
    changes a session already made
-   from it: the next sync reports `skipped_live` for it, so cancel it in the office. Each change is
-   in the office action log (as "The firm's settings changed", until its own words are approved).
+   from it: the next sync reports `skipped_live` for it, and the office's Needs attention lists it
+   under "Names your rota sheet uses" (with each role name the sheet uses that can't be read), so
+   the office cancels or changes it. Each change is in the office action log in its own words ("The
+   name map now skips the role "holiday".", Phase 25.2).
 6. **Workers and credentials** (you, from the firm's spreadsheets, **only after Gate B**): "Importing
    workers, credentials or shifts from a spreadsheet" below. `firm:check` then shows how many
    active workers have no credential on file.
@@ -1077,16 +1090,15 @@ In order (who does it, how, and what done looks like):
    decision 11), and whether the firm's own system reminds the casuals it books
    (`firm_system_sends`: on when its rota sheet or CRM already sends reminders, so nobody hears
    twice), and whether casuals' login links and pay codes may go by email when there's no text
-   sender (`login_by_email`, P2.6: leave it off until the login and Pay pages stop naming
-   WhatsApp, P2.7), and the pay calendar (`pay_calendar.*`, P3.1: weeks or fortnights, from which
+   sender (`login_by_email`, P2.6; the login and Pay pages say so, P2.7), and the pay calendar (`pay_calendar.*`, P3.1: weeks or fortnights, from which
    Monday, paid how many days after; set the anchor before `pay_calendar.days=14`, and to go back,
-   `pay_calendar.days=7` before `pay_calendar.anchor=none`; leave a live firm on weeks until the
-   top bar, Home and payroll's pay-query words read it, after the UI chat's Phase 24), and whether
+   `pay_calendar.days=7` before `pay_calendar.anchor=none`; Home, the office's dashboards and
+   payroll's pay-query words and digest all read it, in the firm's word, `pay_calendar.label`:
+   "Cycle 22", "the cycle of Mon 12 Oct", Phase 25.2), and whether
    the firm gives strikes at all (`strikes.enabled`, P3.4: on by default; off, a casual's own
-   cancellation is never a strike, but the Cancellations page's strike column would say "None:
-   strikes are off", words still for Dylan to approve, and the casual's shift page, Help and
-   Profile still say a late cancellation is a strike, until they read the switch after the UI
-   chat's Phase 24: so leave it on until then), as the app reads them. Change any with `--set`, e.g.
+   cancellation is never a strike, the casual's shift page, Help and Profile say no more about
+   strikes, and the Cancellations page says "None: strikes are off", Phase 25.2), as the app reads
+   them. Change any with `--set`, e.g.
    `--set urgent_window_hours=12 --set quiet_hours.start=21:30`. A value the app wouldn't use is
    refused and nothing changes; each change is in the office action log.
    The strikes team's email isn't one of these: an admin sets it on the office's **Settings** page,
@@ -1108,9 +1120,11 @@ In order (who does it, how, and what done looks like):
    firm's own mailbox, so none would be any casual's. A Redirect keeps the casual's own signature
    (DKIM) only if nothing changes the email on the way: no banner, disclaimer or footer rule may
    touch it, or the provider can't vouch for the sender and their words aren't kept (unless the
-   provider trusts Microsoft 365's ARC seal). Until P7's sorting is built (P7.4) the
-   settings refuse `EMAIL_INBOUND_SECRET` in production: its emails would only be stored (a known
-   casual's words, quoted history off; anyone else's never) and nothing would answer them.
+   provider trusts Microsoft 365's ARC seal). Its emails are sorted and answered as on Enquiries
+   (P7.4, P7.5; Phase 25.5), so the settings take `EMAIL_INBOUND_SECRET` in production too; the
+   worker then needs a real email sender (`EMAIL_TRANSPORT=smtp`) for its link emails and the
+   office's replies. Before any firm's inbox goes live: the provider (its ADR, and its word that a
+   sender passed DMARC) and the privacy notice's line (Parking lot, "The staffing inbox").
 10. **Privacy notice line** (you send it, the firm publishes it): `docs/privacy-notice.md` has the
     short line and the section for its privacy notice, with what to fill in.
 11. **Staff briefing** (the firm): a message to its staff with the portal link.

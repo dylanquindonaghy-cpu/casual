@@ -518,7 +518,7 @@ describe("where the glass goes", () => {
     // The tab bar (Phase 24): a floating capsule 14px above the foot, inside a bar that lets the
     // page take taps around it.
     expect(read("src/app/tab-bar.tsx")).toMatch(
-      /className="pointer-events-none fixed inset-x-0 bottom-0 z-20 px-4 pb-\[calc\(0\.875rem\+env\(safe-area-inset-bottom\)\)\]"\s*>\s*<div className="glass-float pointer-events-auto mx-auto grid h-17 max-w-md grid-cols-4 gap-1 rounded-full /,
+      /className="pointer-events-none fixed inset-x-0 bottom-0 z-20 px-4 pb-\[calc\(0\.875rem\+env\(safe-area-inset-bottom\)\)\]"\s*>\s*<div className="glass-float pointer-events-auto mx-auto grid h-17 max-w-md grid-cols-5 gap-1 rounded-full /,
     );
   });
 

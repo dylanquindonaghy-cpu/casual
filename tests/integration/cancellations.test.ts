@@ -102,6 +102,27 @@ async function recordsFirm() {
   return { f, resourcer, portal, office, take, cancel, list, lookup, record, offer, tokenFor };
 }
 
+describe("what the session needed (Phase 25.2)", () => {
+  it("a role that takes either licence: both, in one line", async () => {
+    const t = await recordsFirm();
+    await su.query(
+      `update credential_rules set required_types = '{}', any_of_types = '{SIA_SG,SIA_DS}'
+        where firm_id = $1 and role = 'door_supervisor'`,
+      [t.f.firmId],
+    );
+    const ben = await t.f.worker({ first: "Ben" });
+    const shiftId = await t.f.shift({ startsAt: hoursFromNow(30) });
+    await t.take(ben, shiftId);
+    expect(await cancelBookingByOffice(t.office(later(1)), shiftId, ben, "weather")).toMatchObject({
+      status: "cancelled",
+    });
+    const [row] = (await t.list()).rows;
+    expect(row?.requirements.map((r) => r.name)).toEqual([
+      "SIA security guard licence or SIA door supervisor licence",
+    ]);
+  });
+});
+
 describe("the list", () => {
   it("every cancellation, newest first, with this week's counts and the three views", async () => {
     const t = await recordsFirm();

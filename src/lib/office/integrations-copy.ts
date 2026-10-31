@@ -1,4 +1,5 @@
 import { soonLabel, timeOnDay } from "../portal/format";
+import type { Connector } from "../db/schema";
 import type { AddressProblem } from "../integrations/send";
 import type {
   ApiKeyRow,
@@ -43,9 +44,71 @@ export function plannerLine(planner: PlannerLink, now: Date, timeZone: string): 
       return planner.syncedAt
         ? `Google Sheet · synced ${soonLabel(planner.syncedAt, now, timeZone)}`
         : "Google Sheet · not synced yet";
+    // Its reads' times are the card's own lines (connectorLines).
+    case "connector":
+      return `Connected to ${CONNECTOR_NAMES[planner.connector]}`;
     case "none":
       return NOT_CONNECTED;
   }
+}
+
+// --- The firm's portal as its planner (P5's card; Phase 25.4) ---------------------------------
+
+// Each connector's name in a sentence ("Connected to the demo portal").
+export const CONNECTOR_NAMES: Record<Connector, string> = {
+  demo_portal: "the demo portal",
+};
+
+// Why a read of the firm's portal failed (roster_sources.last_error_code, src/lib/connector/
+// pull.ts): what happened and, where it can be put right, who does it.
+const CONNECTOR_ERROR_WORDS: Record<string, string> = {
+  unreachable: "your portal didn't answer",
+  unauthorised: "your portal refused our key (ask us to check it)",
+  no_api_key: "there's no key for your portal yet (ours to set up)",
+  secrets_off: "we couldn't read the key for your portal (ours to fix)",
+  secret_unreadable: "we couldn't read the key for your portal (ours to fix)",
+  read_failed: "your portal's answer couldn't be read",
+  agreement_not_recorded:
+    "your firm's agreement with us isn't recorded yet, so nothing is read (ask us to record it)",
+  not_allowed: "an API key is your planner now, so your portal isn't read",
+  out_of_time: "there was too much to read at once (the rest comes at the next read)",
+  records_failed: "nothing your portal sent could be used (ours to look into)",
+  off: "the connection is switched off",
+};
+
+// A fault of ours is saved as "error_" and its kind (pull.ts's unexpectedCode, sourceCode):
+// "error_database", "error_unexpected", or the error's name ("error_typeerror").
+const OUR_FAULT = "something went wrong on our side";
+
+export function connectorErrorWords(code: string): string {
+  if (Object.hasOwn(CONNECTOR_ERROR_WORDS, code)) return CONNECTOR_ERROR_WORDS[code]!;
+  return code.startsWith("error_") ? OUR_FAULT : "an error we don't have words for yet";
+}
+
+export const CONNECTOR_CADENCE =
+  "It reads the next 48 hours every 15 minutes, and everything once a night. Changes your portal sends us come in at once.";
+export const CONNECTOR_HIDDEN = "New sessions from your portal come in hidden from casuals.";
+export const CONNECTOR_HIDDEN_LINK = {
+  href: "/office/events?view=hidden",
+  text: "Show them on Events & sessions",
+};
+
+type ConnectorLink = Extract<PlannerLink, { kind: "connector" }>;
+
+// The card's lines under "Your planner": when each read last worked.
+export function connectorLines(planner: ConnectorLink, now: Date, timeZone: string): string[] {
+  const when = (at: Date | null) => (at ? `read ${soonLabel(at, now, timeZone)}` : "not read yet");
+  return [
+    `The next 48 hours' sessions: ${when(planner.nearReadAt)}.`,
+    `Everything: ${when(planner.fullReadAt)}.`,
+  ];
+}
+
+// While reads are failing: why the last one failed (null: they work).
+export function connectorFailingText(planner: ConnectorLink): string | null {
+  return planner.failing
+    ? `The last read failed: ${connectorErrorWords(planner.failing)}. It tries again every 30 minutes until it works.`
+    : null;
 }
 
 // A key as the list shows it: its last 4 characters, never more ("…k3F9").

@@ -50,6 +50,9 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   // A firm's name map (P3.2): set only by the owner (npm run firm:names), read by the sheet sync
   // and the file import.
   name_map: ["SELECT"],
+  // The names the rota sheet's last sync couldn't use (Phase 25.2): replaced by each sync (delete,
+  // then insert), never rewritten.
+  sheet_name_problems: ["SELECT", "INSERT", "DELETE"],
   // Imported payroll lines: added and corrected by re-import, never deleted by the app (they are
   // what a pay question is checked against).
   pay_records: NO_DELETE,
@@ -88,9 +91,15 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   // of it).
   connector_events: ["SELECT", "INSERT"],
   // Emails to a firm's staffing inbox (P7.1): added by the provider's webhook, never rewritten or
-  // deleted by the app (owner-run purges and erasure delete them). Their handling (P7.4) comes
-  // with its column grant.
+  // deleted by the app (owner-run purges and erasure delete them); only how its job handled it
+  // (P7.4) and the AI's draft (P7.5) are set (COLUMN_UPDATES), never what came in or whose it is.
   inbound_emails: ["SELECT", "INSERT"],
+  // What went back about an email (P7.5): added once, never changed (whether it went is in the
+  // action log); deleted only with its email (the cascade, owner-run).
+  email_replies: ["SELECT", "INSERT"],
+  // The planner's webhook status (Phase 25.3): one row per firm, its times changed
+  // (COLUMN_UPDATES), never whose it is; never deleted (an address added again starts it again).
+  webhook_status: ["SELECT", "INSERT"],
 };
 
 // Columns the app role may update on a table it can't update as a whole (a column-level grant).
@@ -107,6 +116,7 @@ export const COLUMN_UPDATES: Readonly<Record<string, readonly string[]>> = {
   // The planner's API keys (S11): read and added, never rewritten or deleted; only the last use
   // and the revocation change.
   api_keys: ["last_used_at", "revoked_at", "revoked_by"],
+  webhook_status: ["address_set_at", "last_delivered_at", "failing_since", "updated_at"],
   strikes: [
     "review_needed",
     "reviewed_by",
@@ -130,6 +140,7 @@ export const COLUMN_UPDATES: Readonly<Record<string, readonly string[]>> = {
   ],
   travel_estimates: ["minutes", "metres", "provider", "computed_at", "expires_at"],
   uploads: ["status", "checked_by", "checked_at", "reject_reason"],
+  inbound_emails: ["handled_at", "handled_as", "intent", "draft_reply"],
 };
 
 export function schemaTableNames(): string[] {

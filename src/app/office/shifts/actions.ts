@@ -31,7 +31,12 @@ import {
   type MarkRestWorkedResult,
 } from "@/lib/roster/attendance";
 import type { BookingResult } from "@/lib/roster/book";
-import type { CancelBookingResult, CancelShiftResult } from "@/lib/roster/cancel";
+import { CANCEL_ASKERS } from "@/lib/db/schema";
+import {
+  SHIFT_ASKERS,
+  type CancelBookingResult,
+  type CancelShiftResult,
+} from "@/lib/roster/cancel";
 import type { MoveShiftResult } from "@/lib/roster/firm-change";
 import { FIRM_CHANGE_REASON_CODES, SHIFT_CHANGE_REASON_CODES } from "@/lib/roster/firm-reasons";
 import { OVERRIDABLE_CODES } from "@/lib/rules/eligibility";
@@ -153,24 +158,33 @@ export async function moveShiftAction(
 export async function cancelShiftAction(
   shiftId: string,
   reason: unknown,
-): Promise<CancelShiftResult | Common | { status: "no_reason" }> {
+  askedBy: unknown,
+): Promise<CancelShiftResult | Common | { status: "no_reason" } | { status: "no_asker" }> {
   if (!z.uuid().safeParse(shiftId).success) return { status: "not_found" };
   const r = reasonSchema.safeParse(reason);
   if (!r.success) return { status: "no_reason" };
-  return asOffice("cancel shift", (ctx) => cancelShift(ctx, shiftId, r.data));
+  // Who asked (Phase 25.2): required.
+  const a = z.enum(SHIFT_ASKERS).safeParse(askedBy);
+  if (!a.success) return { status: "no_asker" };
+  return asOffice("cancel shift", (ctx) => cancelShift(ctx, shiftId, r.data, a.data));
 }
 
 export async function cancelBookingAction(
   shiftId: string,
   workerId: string,
   reason: unknown,
-): Promise<CancelBookingResult | Common | { status: "no_reason" }> {
+  askedBy: unknown,
+): Promise<CancelBookingResult | Common | { status: "no_reason" } | { status: "no_asker" }> {
   if (!z.uuid().safeParse(shiftId).success || !z.uuid().safeParse(workerId).success) {
     return { status: "not_found" };
   }
   const r = bookingReasonSchema.safeParse(reason);
   if (!r.success) return { status: "no_reason" };
-  return asOffice("cancel booking", (ctx) => cancelBookingByOffice(ctx, shiftId, workerId, r.data));
+  const a = z.enum(CANCEL_ASKERS).safeParse(askedBy);
+  if (!a.success) return { status: "no_asker" };
+  return asOffice("cancel booking", (ctx) =>
+    cancelBookingByOffice(ctx, shiftId, workerId, r.data, a.data),
+  );
 }
 
 // Who worked it and who didn't attend (once it has started).

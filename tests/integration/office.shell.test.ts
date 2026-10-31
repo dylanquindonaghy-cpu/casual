@@ -5,9 +5,14 @@ import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { offerState } from "@/lib/office/offer-state";
 import { officeEventList } from "@/lib/office/events";
 import { officeSearch, officeSearchHits } from "@/lib/office/search";
-import { officeShellCounts } from "@/lib/office/shell-counts";
+import { loadOfficeFrame } from "@/lib/office/frame";
 import { bookingFirm, hoursFromNow, NOW, type BookingFirm } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
+
+// The top bar's counts as the office frame reads them (Phase 25.3: with the menu's, in one
+// transaction): null for a role without Events & sessions.
+const officeShellCounts = async (ctx: Parameters<typeof loadOfficeFrame>[0]) =>
+  (await loadOfficeFrame(ctx)).shell;
 
 // The office shell's loaders on the real database, as the app role, with a fixed clock (NOW is
 // Monday 2 November 2026, 09:00 London; Phase 24, PLAN.md 24.2): the top bar's counts (places to

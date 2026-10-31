@@ -33,9 +33,9 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   - A cancellation from the system tells the casual nothing and starts no offers (as a name taken
     off the rota sheet): the firm's system made it, and fills the gap there.
 - The staffing inbox (P7's review), before it's live: the purge's and the erasure's log entries
-  count messages only (`retention.purged`, `worker.erased`), not the emails they take too (the
-  owner-run functions return one count, and the office's words for the log would need an emails
-  count: with P7.4's words); the privacy notice's line for the inbox (that the firm's staffing
+  count messages only (`retention.purged`, `worker.erased`), not the emails they take too, nor
+  their replies (`email_replies`, deleted with them: Phase 25.5) (the owner-run functions return
+  one count; an emails count needs a migration of both and the log's words); the privacy notice's line for the inbox (that the firm's staffing
   emails are kept 90 days, a casual's words only) is Dylan's, before any firm's inbox goes live;
   and a casual's words are taken as theirs on the provider's DMARC word, so the provider chosen
   (its ADR) must give one. And an email stored first without that word stays so when the same
@@ -2016,7 +2016,9 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   sender exists; one that can't go fails and its question is back in Need a person, as any failed
   reply. Needed once a casual's message can arrive with no text sender (the app's messages, P8):
   then the `messages` channel check, `src/lib/office/enquiry-actions.ts` and the Enquiries pages
-  take email, after the UI chat.
+  take email, after the UI chat. (Phase 25.6, 2026-10-31: a message in the app is answered in the app, so
+  it needs neither: still open only for a WhatsApp or text that arrives once the firm has no text
+  sender.)
 - P2.4 (2026-10-29), for P2.5: the send-failure alert (`src/lib/ops/tick.ts`) counts WhatsApp and
   texts only, so with no text sender (P2.5) an SMTP outage that stops every casual's email, and
   casuals nobody could reach (`no_channel`), raise no alert. P2.5 should count `email` sends too.
@@ -2050,3 +2052,56 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   confirmations and reminders). Keep it, or send it only by WhatsApp, or not at all? **Decided**
   (Dylan, 2026-10-27): keep sending the link, whatever `auto_replies` says (decision 11;
   `inbound.voice.test.ts` pins it).
+- **A one-of group's extra row when a session asks for one of it outright** (Phase 25.2, found by
+  the guardrails review, 2026-10-30): a security officer session that also requires SIA_DS shows
+  the group's stand-in row ("SIA security guard licence: Missing") beside SIA_DS, and gives both
+  reasons, though holding SIA_DS alone would pass. Pass and fail are right; only a redundant row
+  and reason. Drop the stand-in (`src/lib/portal/shift-facts.ts`) and the group's own failure
+  (`src/lib/rules/eligibility.ts`) when a type of the group is required outright: a rules change,
+  so with tests and the doc's table.
+- **Who asked, on a cancellation's own record and the Cancellations file** (Phase 25.2, 2026-10-30):
+  the notice report's page and CSV say who asked for each cancellation (approved); a cancellation's
+  record (`/office/cancellations/[id]`) and the Cancellations page's CSV don't yet. Words to match
+  the report's ("Asked by: The client"), a mock-up first.
+- **A skipped name's session, from Needs attention** (Phase 25.2, 2026-10-30): the item links to the
+  session, where the office cancels or changes it. A "Cancel this session" right on the item would
+  save a click; it needs the cancel form's "Why?" and "Who asked for it?" there too.
+- **The Shift filter's bookings look-up** (Phase 25.3, 2026-10-30): finding a session's bookings in
+  the action log's Shift filter reads the firm's bookings without an index on `(firm_id, shift_id)`
+  (`assignments` has partial ones only, for live bookings). Measured at 20,000 bookings: 4 ms. An
+  index if a firm's bookings grow tenfold; measure first.
+- **A firm's webhook status from before migration 0062** (Phase 25.3, 2026-10-30): a firm whose
+  planner address was set before the status row existed reads "new" until its next delivery (no
+  firm is live yet). A backfill from the log if one is.
+- **A Needs attention item when the firm's portal keeps failing** (Phase 25.4, 2026-10-30):
+  Integrations says why the last read failed, but nothing calls the office there. An item like the
+  webhook's ("Your planner's webhook is failing") once reads have failed for, say, an hour; words
+  first. With the real connector.
+- **The in-app chat's loose ends** (Phase 25.6, 2026-10-31):
+  - Messages shows the newest 200 messages of the last 90 days, with no way to older ones; no photos
+    or files in the app yet (a message is words only).
+  - After a send the page looks again for a minute; an office reply that comes later shows the next
+    time she opens the app (with the tab's count, and a push where the firm has push set up). With
+    no push set up (no VAPID key), nothing tells her a reply came until she opens the app: by design
+    it never goes by text. A text or email nudge for that case would need words first.
+  - The office's reply in the app is one line of at most 500 characters, as on WhatsApp; the app
+    could keep its line breaks.
+  - Home's copy kept for no signal (`public/sw.js`) can show an old Messages count.
+  - The guardrails review's lows not done (2026-10-31): if the push job's record fails after its
+    claim, Enquiries shows the office's reply "not confirmed" 15 minutes on, though it's in her app
+    (the same at-most-once shape as every notice); the 20-an-hour send limit is a clock-hour window,
+    so about 40 can go across the hour (as every limit here); pay figures the office types into a
+    reply show on Messages without the pay code (the office's own words, as on WhatsApp).
+- **The staffing inbox's loose ends** (Phase 25.5, 2026-10-30):
+  - The shifts line's automatic reply that fails (`message.reply_failed`) leaves the message as
+    answered by keyword or AI, its page saying "Not sent ({code})": it doesn't go back to Need a
+    person, as an email's failed link email now does (Phase 25.5). Words first.
+  - The database's check keeps a draft off an email whose intent is pay, but not off one held for
+    a person that was sorted as pay (its intent is the office's; what it was sorted as is in the
+    log): only the code and the page keep the draft off that one.
+  - A casual's reply to our email goes to the firm's inbox address at our provider (its Reply-To),
+    so it reaches Enquiries but not the firm's own mailbox. With the real provider: whether to copy
+    it to the firm's mailbox too.
+  - The AI's draft is made for every email that needs a person (when the AI is connected), read or
+    not: a few hundred tokens each on Haiku. If a firm's volume makes that matter, draft when the
+    office first opens it instead.

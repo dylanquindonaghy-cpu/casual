@@ -14,16 +14,14 @@ import {
   sectionGap,
 } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
-import { systemClock } from "@/lib/auth/clock";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import { readSessionToken } from "@/lib/auth/session-cookie";
 import { officePayDashboard, type PayDashboard } from "@/lib/office/pay-dashboard";
 import { digestLines } from "@/lib/office/pay-digest-copy";
 import { timeOnDay } from "@/lib/portal/format";
-import { payWeekLabel, payWeekNow } from "@/lib/pay/pay-week";
+import { payDayFallbackText, payPeriodLabel } from "@/lib/pay/pay-week";
 import { ISSUE_LABELS } from "@/lib/portal/pay-query-kinds";
 import { dayLabel } from "@/lib/rules/reasons";
-import { mondayOf } from "@/lib/time/zoned";
 import { firmShiftsLine, shiftsLineText } from "@/lib/tenancy/shifts-line";
 import { SendDigestButton } from "../pay-queries/send-digest-button";
 
@@ -63,7 +61,7 @@ function Counts({ d }: { d: PayDashboard }) {
       </div>
       <div className={tile}>
         <p className="font-stat text-3xl text-ink">{d.sortedThisWeek}</p>
-        <p className="font-semibold text-ink">Sorted this week</p>
+        <p className="font-semibold text-ink">Sorted this {d.period.label}</p>
         <p className={meta}>Since {dayLabel(d.weekStart)}.</p>
       </div>
       <div className={tile}>
@@ -74,7 +72,7 @@ function Counts({ d }: { d: PayDashboard }) {
         <p className={meta}>
           {d.nextPayDateFrom === "pay records"
             ? "From your pay records."
-            : "The Friday after this week. No later pay date is in your pay records."}
+            : payDayFallbackText(d.period)}
         </p>
       </div>
     </div>
@@ -100,8 +98,8 @@ export default async function PayDashboardPage() {
           </>
         }
       >
-        {/* The pay week (D8), from the top bar (Phase 24). */}
-        <p className={`${meta} tabular-nums`}>{payWeekLabel(payWeekNow(systemClock.now(), tz))}</p>
+        {/* The firm's pay week or cycle (Phase 25.2), from the top bar (Phase 24). */}
+        <p className={`${meta} tabular-nums`}>{payPeriodLabel(d.period)}</p>
         <p className={meta}>{shiftsLineText(await firmShiftsLine({ firm }))}</p>
       </PageHeader>
 
@@ -155,8 +153,8 @@ export default async function PayDashboardPage() {
                 className={`${row} flex flex-col gap-1`}
               >
                 <p className="font-semibold text-ink">
-                  {plural(s.count, "query", "queries")}: {ISSUE_LABELS[s.issue].toLowerCase()}, the
-                  week of {dayLabel(mondayOf(s.firstDay))}
+                  {plural(s.count, "query", "queries")}: {ISSUE_LABELS[s.issue].toLowerCase()}, the{" "}
+                  {d.period.label} of {dayLabel(s.periodStart)}
                 </p>
                 <p className={meta}>
                   Sorted by {s.by ?? "someone no longer in the office team"} at{" "}

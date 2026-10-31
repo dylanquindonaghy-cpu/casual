@@ -6,8 +6,10 @@ import { workerEnv } from "../env";
 import { recordEvent } from "../events/record";
 import { firmJobEnvelope, sendFirmJob, type FirmTask } from "../jobs/firm-job";
 import { getTransport, type MessagingTransport } from "../messaging";
+import { officeReplyPush } from "../messaging/templates";
 import { strangerTextsOff } from "../inbound/opt-out";
-import { sendToWorker, smsAllowedFor } from "../notify/send";
+import { pushToWorker, recordPushes, sendToWorker, smsAllowedFor } from "../notify/send";
+import { getPushTransport, type PushTransport } from "../push/transport";
 
 // Sending the office's reply on Enquiries (docs/office-v2.md 3.6; docs/api-and-jobs.md
 // `enquiry-reply`; 12D.1). The office's action (src/lib/office/enquiry-actions.ts) has already
@@ -29,6 +31,12 @@ import { sendToWorker, smsAllowedFor } from "../notify/send";
 // No quiet hours: it answers the casual's own message, and a person chose to send it now. Every
 // enquiry entry is on the casual's message (entity), with ids, the channel and codes only, never
 // the words.
+//
+// A reply to a message in the app (P8; Phase 25.6) has nothing to send: it shows in their app as
+// soon as the office's action stores it. Here it gets the push to their phones ("The office
+// replied", none of the words: a lock screen shows it; tapping opens Messages), then
+// `enquiry.reply_sent` with the channel `app` and how many phones took the push. It never fails:
+// no phone, or a push that doesn't go, still leaves the reply in their app.
 
 export const ENQUIRY_REPLY_QUEUE = "enquiry-reply";
 export const OFFICE_REPLY_PREFIX = "office-reply:"; // the stored row's provider id until it's sent
@@ -47,10 +55,11 @@ export async function queueEnquiryReply(tx: FirmTx, replyId: string): Promise<vo
 
 export interface EnquiryReplyDeps {
   transport: MessagingTransport;
+  push?: PushTransport; // a reply in the app's notification (none: nothing pushed)
 }
 
 export type EnquiryReplyResult =
-  | { status: "sent"; channel: "whatsapp" | "sms" }
+  | { status: "sent"; channel: "whatsapp" | "sms" | "app" }
   | { status: "failed"; code: string }
   | { status: "already" }
   | { status: "gone" };
@@ -67,6 +76,7 @@ type Claim =
       from: string;
       body: string;
     }
+  | { status: "push"; messageId: string; workerId: string } // a reply in the app
   | { status: "already" }
   | { status: "gone" };
 
@@ -76,16 +86,17 @@ async function claim(tx: FirmTx, p: EnquiryReplyPayload): Promise<Claim> {
   );
   const { rows } = await tx.execute<{
     reply_to: string | null;
-    channel: "whatsapp" | "sms" | "voice";
+    channel: "whatsapp" | "sms" | "voice" | "app";
     body: string | null;
-    to_e164: string;
+    to_e164: string | null;
     from_e164: string | null;
     provider_message_id: string;
     worker_id: string | null;
+    intent: string | null;
     sms_opted_out_at: string | Date | null;
   }>(sql`
     select o.reply_to, o.channel, o.body, o.to_e164, o.from_e164, o.provider_message_id,
-           o.worker_id, w.sms_opted_out_at
+           o.worker_id, o.intent, w.sms_opted_out_at
       from messages o
       left join workers w on w.firm_id = o.firm_id and w.id = o.worker_id
      where o.id = ${p.replyId} and o.direction = 'out'
@@ -101,10 +112,24 @@ async function claim(tx: FirmTx, p: EnquiryReplyPayload): Promise<Claim> {
      limit 1
   `);
   if (done.length > 0) return { status: "already" };
+  // A reply in the app: already shown, so only its notification.
+  if (o.channel === "app") {
+    // Only the office's (an automatic answer has its intent); always a casual's (the table's check).
+    if (!o.worker_id || o.intent !== null) return { status: "gone" };
+    await recordEvent(tx, {
+      actorType: "system",
+      action: "enquiry.reply_sending",
+      entityType: "message",
+      entityId: o.reply_to,
+      data: { replyId: p.replyId, channel: "app", workerId: o.worker_id },
+    });
+    return { status: "push", messageId: o.reply_to, workerId: o.worker_id };
+  }
   // Not an office reply waiting to go.
   if (
     !o.body ||
     !o.from_e164 ||
+    !o.to_e164 ||
     o.channel === "voice" ||
     !o.provider_message_id.startsWith(OFFICE_REPLY_PREFIX)
   ) {
@@ -145,6 +170,7 @@ export async function runEnquiryReply(
   deps: EnquiryReplyDeps,
 ): Promise<EnquiryReplyResult> {
   const c = await run(payload.firmId, (tx) => claim(tx, payload));
+  if (c.status === "push") return pushAppReply(payload, run, deps, c);
   if (c.status !== "send") return c;
 
   const sent = await sendToWorker(deps, {
@@ -200,6 +226,32 @@ export async function runEnquiryReply(
   });
 }
 
+// A reply in the app: the push (outside any transaction), then the record.
+async function pushAppReply(
+  payload: EnquiryReplyPayload,
+  run: WithFirm,
+  deps: EnquiryReplyDeps,
+  c: { messageId: string; workerId: string },
+): Promise<EnquiryReplyResult> {
+  const pushed = deps.push
+    ? await pushToWorker((fn) => run(payload.firmId, fn), { push: deps.push }, c.workerId, {
+        ...officeReplyPush(),
+        url: "/messages",
+      })
+    : null;
+  await run(payload.firmId, async (tx) => {
+    const pushes = await recordPushes(tx, pushed);
+    await recordEvent(tx, {
+      actorType: "system",
+      action: "enquiry.reply_sent",
+      entityType: "message",
+      entityId: c.messageId,
+      data: { replyId: payload.replyId, channel: "app", pushes, workerId: c.workerId },
+    });
+  });
+  return { status: "sent", channel: "app" };
+}
+
 export function createEnquiryReplyTask(
   deps: () => EnquiryReplyDeps,
 ): FirmTask<EnquiryReplyPayload> {
@@ -210,6 +262,7 @@ export function createEnquiryReplyTask(
   };
 }
 
-export const enquiryReplyTask = createEnquiryReplyTask(() => ({
-  transport: getTransport(workerEnv()),
-}));
+export const enquiryReplyTask = createEnquiryReplyTask(() => {
+  const env = workerEnv();
+  return { transport: getTransport(env), push: getPushTransport(env) };
+});

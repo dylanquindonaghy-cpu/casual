@@ -47,6 +47,10 @@ export const LIMITS = {
   // booked or not. Plenty for anyone picking up shifts; it stops one session hammering the rules
   // and the action log (every refused tap logs shift.booking_refused).
   takePerWorker: { name: "take:worker", max: 20, windowMs: 15 * MINUTE },
+  // A message to the office in the app (P8; Phase 25.6): 20 per worker an hour, counted by the
+  // worker's id. Each is sorted (perhaps by the AI) and may wait in Need a person, so one session
+  // can't flood either.
+  appMessagePerWorker: { name: "app_message:worker", max: 20, windowMs: 60 * MINUTE },
 } as const satisfies Record<string, Limit>;
 
 export function bucketFor(limit: Limit, value: string, secret: string): string {

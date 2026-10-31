@@ -54,23 +54,37 @@ const failed = { ok: false as const };
 
 const noNeeds: NeedsAttention = {
   toCheck: [],
-  toCheckMore: false,
+  toCheckTotal: 0,
   fromSheet: [],
-  fromSheetMore: false,
+  fromSheetTotal: 0,
   toMark: [],
-  toMarkMore: false,
+  toMarkTotal: 0,
   expired: [],
-  expiredMore: false,
+  expiredTotal: 0,
   uploads: 0,
   uploadList: [],
-  evidence: { addressConfirmed: true, waiting: 0, failed: [], failedMore: false },
+  evidence: { addressConfirmed: true, waiting: 0, failed: [], failedTotal: 0 },
   plannerRefused: [],
-  plannerRefusedMore: false,
+  plannerRefusedTotal: 0,
   webhookFailing: null,
+  sheetNames: [],
+  sheetNamesTotal: 0,
 };
 
+// Each list's total as its length (a test of a list past its 50 sets one itself).
+const counted = (n: NeedsAttention): NeedsAttention => ({
+  ...n,
+  toCheckTotal: n.toCheck.length,
+  fromSheetTotal: n.fromSheet.length,
+  toMarkTotal: n.toMark.length,
+  expiredTotal: n.expired.length,
+  plannerRefusedTotal: n.plannerRefused.length,
+  sheetNamesTotal: n.sheetNames.length,
+  evidence: { ...n.evidence, failedTotal: n.evidence.failed.length },
+});
+
 // Every kind of item Needs attention holds, one or two of each.
-const needsFull: NeedsAttention = {
+const needsFull: NeedsAttention = counted({
   ...noNeeds,
   toCheck: [
     {
@@ -151,7 +165,7 @@ const needsFull: NeedsAttention = {
         nothingSent: true,
       },
     ],
-    failedMore: false,
+    failedTotal: 1,
   },
   plannerRefused: [
     {
@@ -165,7 +179,7 @@ const needsFull: NeedsAttention = {
       casuals: 2,
     },
   ],
-};
+});
 
 const words = (html: string) =>
   html
@@ -272,19 +286,20 @@ describe("the words", () => {
         TZ,
       ),
     ).toContain("the door supervisor session on Sat 6 Jun was refused");
-    // Each refused session is one of Needs attention's items; a list stopped at 50 shows "50+".
-    expect(needsCount({ ...noNeeds, plannerRefused: [p, p], plannerRefusedMore: true })).toEqual({
-      count: 2,
-      more: true,
-    });
+    // Each refused session is one of Needs attention's items, past the list's 50 too (Phase 25.3:
+    // the real number, never "50+").
+    expect(needsCount(counted({ ...noNeeds, plannerRefused: [p, p] }))).toBe(2);
+    expect(needsCount({ ...noNeeds, plannerRefused: [p, p], plannerRefusedTotal: 64 })).toBe(64);
     // The one count (Phase 20): those items and the enquiries that need a person, as the menu shows.
-    expect(
-      attentionCount({ ...noNeeds, plannerRefused: [p, p], plannerRefusedMore: true }, 3),
-    ).toEqual({ count: 5, more: true });
-    expect(attentionCount(noNeeds, 0)).toEqual({ count: 0, more: false });
-    // Needs attention's page: unread items give no count; unread enquiries make it "at least".
+    expect(attentionCount({ ...noNeeds, plannerRefused: [p, p], plannerRefusedTotal: 64 }, 3)).toBe(
+      67,
+    );
+    expect(attentionCount(noNeeds, 0)).toBe(0);
+    // Needs attention's page: unread items give no count; unread enquiries make it "at least"; a
+    // role without Enquiries counts the items alone.
     expect(attentionOf(ok(noNeeds), ok(3))).toEqual({ count: 3, more: false });
     expect(attentionOf(ok(noNeeds), failed)).toEqual({ count: 0, more: true });
+    expect(attentionOf(ok(noNeeds), null)).toEqual({ count: 0, more: false });
     expect(attentionOf(failed, ok(3))).toBeNull();
   });
 });
@@ -385,6 +400,99 @@ describe("Needs attention's page (Phase 18: the top bar's To check opens it sinc
     ]);
   });
 
+  it("the names your rota sheet uses that the app can't (Phase 25.2): each, its place, what to do", () => {
+    const n: NeedsAttention = {
+      ...noNeeds,
+      sheetNames: [
+        { kind: "unreadable", name: "Door Supervisor (NLW)", tab: "shifts", row: 14 },
+        { kind: "unreadable", name: "Event Manager <b>", tab: "staff", row: 3 },
+        {
+          kind: "skipped_live",
+          name: "Holiday",
+          row: 9,
+          shiftId: "s9",
+          role: "security_officer",
+          site: "Acme Demo Shopping Centre",
+          startsAt: at("2026-11-07T07:00:00Z"),
+          endsAt: at("2026-11-07T15:00:00Z"),
+        },
+      ],
+      sheetNamesTotal: 3,
+    };
+    // Each counts.
+    expect(needsCount(n)).toBe(3);
+    const html = renderToStaticMarkup(
+      createElement(NeedsItems, { n, timeZone: TZ, today: "2026-11-02", isAdmin: false }),
+    );
+    expect(
+      [...html.matchAll(/<h3 id="([^"]+)"[^>]*>([\s\S]*?)<\/h3>/g)].map((m) => words(m[2] ?? "")),
+    ).toEqual(["Names your rota sheet uses 3"]);
+    // Every one shown: no "Showing the first".
+    expect(html).not.toContain("Showing the first");
+    const part = words(section(html, "sheet-names"));
+    expect(part).toContain(
+      "Your rota sheet uses these names, but the app can't use them as they are.",
+    );
+    expect(part).toContain(
+      "\u201cDoor Supervisor (NLW)\u201d Shifts tab, row 14 The app can't read this role, so the row isn't brought in. Change it in the sheet, or ask us to add it to your name map.",
+    );
+    expect(part).toContain("Staff tab, row 3");
+    expect(part).toContain(
+      "Security officer at Acme Demo Shopping Centre Sat 7 Nov, 07:00 to 15:00 Row 9 now says \u201cHoliday\u201d, a name your name map skips. The session it made is still on here. Cancel or change it if it's no longer needed.",
+    );
+    // The session's own page; and a sheet's text is only ever text.
+    expect(section(html, "sheet-names")).toMatch(/<a [^>]*href="\/office\/shifts\/s9"/);
+    expect(html).not.toContain("<b>");
+    expect(html).toContain("Event Manager &lt;b&gt;");
+  });
+
+  it("a list past its 50 (Phase 25.3): the heading's real number, and how many are shown", () => {
+    const part = (n: NeedsAttention, id: string) =>
+      section(
+        renderToStaticMarkup(
+          createElement(NeedsItems, { n, timeZone: TZ, today: TODAY, isAdmin: true }),
+        ),
+        id,
+      );
+    const heading = (html: string) => words(/<h3[^>]*>([\s\S]*?)<\/h3>/.exec(html)?.[1] ?? "");
+    for (const [id, n] of [
+      ["to-check", { ...needsFull, toCheckTotal: 400 }],
+      ["from-sheet", { ...needsFull, fromSheetTotal: 400 }],
+      ["to-mark", { ...needsFull, toMarkTotal: 400 }],
+      ["expired", { ...needsFull, expiredTotal: 400 }],
+      ["planner-refused", { ...needsFull, plannerRefusedTotal: 400 }],
+    ] as const) {
+      const html = part(n, id);
+      expect(heading(html)).toMatch(/ 400$/);
+      expect(words(html)).toContain("Showing the first 1 of 400.");
+    }
+    // Strike evidence: the failed emails past 50, and the address item, both counted.
+    const evidence = part(
+      { ...needsFull, evidence: { ...needsFull.evidence, failedTotal: 70 } },
+      "evidence",
+    );
+    expect(heading(evidence)).toMatch(/ 71$/);
+    expect(words(evidence)).toContain("Showing the first 2 of 71.");
+    // The bell counts them all, each list's total.
+    for (const key of [
+      "toCheckTotal",
+      "fromSheetTotal",
+      "toMarkTotal",
+      "expiredTotal",
+      "plannerRefusedTotal",
+      "sheetNamesTotal",
+    ] as const) {
+      expect(needsCount({ ...needsFull, [key]: needsFull[key] + 399 })).toBe(
+        needsCount(needsFull) + 399,
+      );
+    }
+    expect(
+      needsCount({ ...needsFull, evidence: { ...needsFull.evidence, failedTotal: 400 } }),
+    ).toBe(needsCount(needsFull) + 399);
+    // All shown: no line.
+    expect(words(part(needsFull, "to-check"))).not.toContain("Showing the first");
+  });
+
   it("your planner's webhook failing: since when, what to do, Integrations for an admin", () => {
     const failing = (isAdmin: boolean) =>
       renderToStaticMarkup(
@@ -456,7 +564,7 @@ describe("Needs attention's page (Phase 18: the top bar's To check opens it sinc
     const grouped = section(
       renderToStaticMarkup(
         createElement(NeedsItems, {
-          n: { ...noNeeds, toMark: alike },
+          n: counted({ ...noNeeds, toMark: alike }),
           timeZone: TZ,
           today: TODAY,
           isAdmin: true,

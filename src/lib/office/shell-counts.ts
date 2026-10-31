@@ -1,10 +1,7 @@
 import { sql } from "drizzle-orm";
-import { systemClock } from "../auth/clock";
 import type { FirmTx } from "../db/scoped";
-import { part, type Part } from "./dashboard";
 import { offerStateSql } from "./offer-state";
 import { bookedJoin, placeFree, urgentGap } from "./events";
-import { officeUserMay, parts, type OfficeContext } from "./office-context";
 
 // The top bar's counts of sessions (Phase 24, round 7: docs/ui-design.md "Office shell"), for an
 // admin or resourcer: places still to fill in sessions to come (Events & sessions' "open places"),
@@ -34,16 +31,4 @@ export async function loadShellCounts(tx: FirmTx, now: Date): Promise<ShellCount
   `);
   const r = rows[0];
   return { toFill: r?.to_fill ?? 0, urgent: r?.urgent ?? 0, offersOut: r?.offers_out ?? 0 };
-}
-
-// The counts for the office user in `ctx`, or that they couldn't be read (the bar then shows each
-// pill's words with no number); null for a role without Events & sessions (payroll).
-export async function officeShellCounts(ctx: OfficeContext): Promise<Part<ShellCounts> | null> {
-  const { run } = parts(ctx);
-  const now = (ctx.clock ?? systemClock).now();
-  return run(ctx.firm.id, async (tx) =>
-    (await officeUserMay(tx, ctx.officeUserId, "shifts"))
-      ? part(tx, "shell", (sp) => loadShellCounts(sp, now))
-      : null,
-  );
 }

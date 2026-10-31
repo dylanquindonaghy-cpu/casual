@@ -4,6 +4,7 @@ import { page } from "@/app/ui/classes";
 import { requireWorker } from "@/lib/auth/current-worker";
 import { appEnv } from "@/lib/env";
 import { myStrikes } from "@/lib/portal/my-strikes";
+import { workerLoginWay } from "@/lib/portal/login-way";
 import { myProfile } from "@/lib/portal/profile";
 import { myTravel } from "@/lib/portal/travel";
 import { refreshSessionAction } from "../session-actions";
@@ -29,6 +30,7 @@ export default async function ProfilePage() {
         push={{ publicKey: appEnv().VAPID_PUBLIC_KEY ?? null, firmName: firm.name }}
         strikes={strikes}
         travel={travel}
+        loginWay={await workerLoginWay(firm.id, worker.id)}
       />
       <HomeScreenHint />
       <CasualTabBar firm={firm} workerId={worker.id} current="profile" />

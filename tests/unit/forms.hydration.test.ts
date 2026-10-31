@@ -363,6 +363,8 @@ describe("in the server's HTML, before the page is ready, the fields are disable
         channel: "whatsapp",
         offerAlerts: true,
         textsOff: false,
+        loginWay: "message",
+        email: null,
         signOff: "Acme Events Shift Team",
       }),
       3,

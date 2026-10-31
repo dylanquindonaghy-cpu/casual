@@ -6,6 +6,8 @@ import { retentionSettings } from "../gdpr/retention-settings";
 import { strangerTextsOff } from "../inbound/opt-out";
 import { signOffFor } from "../tenancy/sign-off";
 import { wallTimeOf, zonedToUtc } from "../time/zoned";
+import type { EmailSorted } from "./enquiries-copy";
+import { needsPerson } from "./enquiry-sql";
 import {
   enquiryOutcome,
   forAPerson,
@@ -49,29 +51,20 @@ const UNCONFIRMED_MS = 15 * 60_000; // an office reply still "sending" this long
 export const ENQUIRY_VIEWS = ["all", "person", "app", "pay"] as const;
 export type EnquiryView = (typeof ENQUIRY_VIEWS)[number];
 
-type Channel = "whatsapp" | "sms" | "voice";
+// app: a casual's message in the app (P8; Phase 25.6).
+type Channel = "whatsapp" | "sms" | "voice" | "app";
+type ListChannel = Channel | "email";
 type HandledAs = "keyword" | "ai" | "office" | "unknown" | "opt_out";
 type Intent = "shifts" | "cancel" | "pay" | "office";
 
-// A message for a person that nobody has dealt with (the alias is the message's). The reply and
-// close actions use it too (src/lib/office/enquiry-actions.ts).
-export const needsPerson = (m: string): SQL =>
-  sql.raw(`(
-    (${m}.handled_as = 'unknown' or ${m}.intent = 'office')
-    and not exists (select 1 from events c
-                     where c.firm_id = ${m}.firm_id and c.entity_id = ${m}.id
-                       and c.action = 'enquiry.closed')
-    and not exists (select 1 from events a
-                     where a.firm_id = ${m}.firm_id and a.entity_id = ${m}.id
-                       and a.action = 'enquiry.answered'
-                       and not exists (select 1 from events f
-                                        where f.firm_id = a.firm_id and f.entity_id = a.entity_id
-                                          and f.action = 'enquiry.reply_failed'
-                                          and f.data ->> 'replyId' = a.data ->> 'replyId'))
-    and not exists (select 1 from requests q
-                     where q.firm_id = ${m}.firm_id and q.message_id = ${m}.id
-                       and q.status not in ('open', 'escalated'))
-  )`);
+// What a held message was sorted as (`sortedAs`), when it was one of the shifts line's own
+// answers: one sorted as the office's would have gone to a person anyway.
+const HELD_INTENTS = ["shifts", "cancel", "pay"] as const;
+const heldIntent = (v: unknown): Exclude<Intent, "office"> | null =>
+  HELD_INTENTS.find((i) => i === v) ?? null;
+
+// A message or email for a person that nobody has dealt with (src/lib/office/enquiry-sql.ts).
+export { needsPerson };
 
 // The casual booked or cancelled a shift in the app within a day after this message.
 const doneInApp = (m: string): SQL =>
@@ -89,20 +82,38 @@ export const isEnquiry = (m: string, since: Date): SQL =>
   sql`${sql.raw(m)}.direction = 'in' and ${sql.raw(m)}.created_at > ${since}
       and not (${sql.raw(m)}.handled_at is not null and ${sql.raw(m)}.handled_as is null)`;
 
+// Every enquiry in the window as one list (Phase 25.5): the shifts line's messages and the staffing
+// inbox's emails (P7), with the columns the list, its counts and needsPerson() read. An email's
+// channel is "email", its subject and how many attachments it left out alongside.
+export const enquirySource = (since: Date): SQL => sql`(
+  select m.id, m.firm_id, m.created_at, m.channel, m.body, null::text as subject, m.from_e164,
+         null::text as from_address, m.handled_at, m.handled_as, m.intent, m.worker_id,
+         0 as attachments
+    from messages m
+   where ${isEnquiry("m", since)}
+  union all
+  select e.id, e.firm_id, e.created_at, 'email'::text, e.body, e.subject, null::text,
+         e.from_address, e.handled_at, e.handled_as, e.intent, e.worker_id, e.attachments
+    from inbound_emails e
+   where e.created_at > ${since}
+)`;
+
 export interface EnquiryRow {
-  messageId: string;
+  messageId: string; // the message's id, or the email's
   at: Date;
-  channel: Channel;
+  channel: ListChannel;
   text: string | null; // their words (null: a photo, or a voicemail not turned into text)
+  subject: string | null; // an email's (Phase 25.5)
   who: Who;
   outcome: Outcome;
 }
 
-// Who sent it: one of the firm's casuals (active or not), a number nobody here has, or a withheld
-// number.
+// Who sent it: one of the firm's casuals (active or not), a number nobody here has, an email
+// address that isn't a casual's (Phase 25.5), or a withheld number.
 export type Who =
   | { kind: "casual"; workerId: string; name: string; firstName: string; active: boolean }
   | { kind: "unknown"; from: string }
+  | { kind: "unknown_address"; from: string }
   | { kind: "withheld" };
 
 export interface EnquiriesPage {
@@ -117,14 +128,17 @@ export interface EnquiriesPage {
   needPerson: { count: number; oldestAt: Date | null };
   rows: EnquiryRow[]; // the view's (empty for "app": that view is the request queue)
   more: boolean;
+  inbox: boolean; // the firm has a staffing inbox (P7): its emails are listed too
 }
 
 type ListRow = {
   id: string;
   created_at: string | Date;
-  channel: Channel;
+  channel: ListChannel;
   body: string | null;
+  subject: string | null;
   from_e164: string | null;
+  from_address: string | null;
   handled_at: string | Date | null;
   handled_as: HandledAs | null;
   intent: Intent | null;
@@ -137,7 +151,10 @@ type ListRow = {
 };
 
 const whoOf = (
-  r: Pick<ListRow, "worker_id" | "first_name" | "last_name" | "worker_status" | "from_e164">,
+  r: Pick<
+    ListRow,
+    "worker_id" | "first_name" | "last_name" | "worker_status" | "from_e164" | "from_address"
+  >,
 ): Who =>
   r.worker_id && r.first_name !== null
     ? {
@@ -147,9 +164,11 @@ const whoOf = (
         firstName: r.first_name,
         active: r.worker_status === "active",
       }
-    : r.from_e164
-      ? { kind: "unknown", from: r.from_e164 }
-      : { kind: "withheld" };
+    : r.from_address
+      ? { kind: "unknown_address", from: r.from_address }
+      : r.from_e164
+        ? { kind: "unknown", from: r.from_e164 }
+        : { kind: "withheld" };
 
 const outcomeOf = (r: ListRow) =>
   enquiryOutcome({
@@ -158,13 +177,14 @@ const outcomeOf = (r: ListRow) =>
     intent: r.intent,
     waiting: r.waiting,
     doneInApp: r.in_app,
+    email: r.channel === "email",
   });
 
-const LIST_SELECT = sql`
-  select m.id, m.created_at, m.channel, m.body, m.from_e164, m.handled_at, m.handled_as, m.intent,
-         m.worker_id, w.first_name, w.last_name, w.status as worker_status,
-         ${needsPerson("m")} as waiting, ${doneInApp("m")} as in_app
-    from messages m
+const listSelect = (since: Date) => sql`
+  select m.id, m.created_at, m.channel, m.body, m.subject, m.from_e164, m.from_address,
+         m.handled_at, m.handled_as, m.intent, m.worker_id, w.first_name, w.last_name,
+         w.status as worker_status, ${needsPerson("m")} as waiting, ${doneInApp("m")} as in_app
+    from ${enquirySource(since)} m
     left join workers w on w.firm_id = m.firm_id and w.id = m.worker_id
 `;
 
@@ -206,8 +226,7 @@ export async function loadEnquiries(
            min(m.created_at) filter (where ${needsPerson("m")}) as oldest,
            (select count(*)::int from requests q
              where q.message_id is null and q.created_at >= ${midnight}) as app_today
-      from messages m
-     where ${isEnquiry("m", since)}
+      from ${enquirySource(since)} m
   `);
   const c = counts[0];
   let rows: ListRow[] = [];
@@ -216,18 +235,26 @@ export async function loadEnquiries(
       view === "person"
         ? sql`and ${needsPerson("m")}`
         : view === "pay"
-          ? sql`and m.intent = 'pay'`
+          ? // A pay question, answered or waiting for a person because automatic replies are off
+            // (Phase 25.3: what it was sorted as is in its `message.received`).
+            sql`and (m.intent = 'pay' or exists (select 1 from events e
+                      where e.firm_id = m.firm_id and e.entity_id = m.id
+                        and e.action in ('message.received', 'email.received')
+                        and e.data ->> 'sortedAs' = 'pay'))`
           : sql``
     } ${opts.day === "today" ? sql`and m.created_at >= ${midnight}` : sql``}`;
     // Need a person: oldest first (first asked, first answered). The rest: newest first.
     const order = view === "person" ? sql`m.created_at, m.id` : sql`m.created_at desc, m.id`;
     ({ rows } = await tx.execute<ListRow>(sql`
-      ${LIST_SELECT}
-       where ${isEnquiry("m", since)} ${where}
+      ${listSelect(since)}
+       where true ${where}
        order by ${order}
        limit ${limit + 1}
     `));
   }
+  const { rows: inboxRows } = await tx.execute<{ inbox: boolean }>(sql`
+    select inbox_address is not null as inbox from firms where id = app_current_firm_id()
+  `);
   return {
     timeZone,
     days,
@@ -241,10 +268,12 @@ export async function loadEnquiries(
       at: new Date(r.created_at),
       channel: r.channel,
       text: r.body,
+      subject: r.subject,
       who: whoOf(r),
       outcome: outcomeOf(r),
     })),
     more: rows.length > limit,
+    inbox: inboxRows[0]?.inbox === true,
   };
 }
 
@@ -252,8 +281,8 @@ export async function loadEnquiries(
 export async function needPersonCount(tx: FirmTx, now: Date): Promise<number> {
   const { since } = await enquiryWindow(tx, now);
   const { rows } = await tx.execute<{ n: number }>(sql`
-    select count(*)::int as n from messages m
-     where ${isEnquiry("m", since)} and ${needsPerson("m")}
+    select count(*)::int as n from ${enquirySource(since)} m
+     where ${needsPerson("m")}
   `);
   return rows[0]?.n ?? 0;
 }
@@ -277,7 +306,8 @@ export interface EnquiryTimeline {
     | { how: "keyword" | "ai"; intent: Intent }
     | {
         how: "person";
-        why: "asked" | "ai_asked" | "voicemail" | "no_text" | "not_sorted";
+        // reply_limit, echo: a message in the app given no automatic answer (Phase 25.6).
+        why: "asked" | "ai_asked" | "voicemail" | "no_text" | "not_sorted" | "reply_limit" | "echo";
         // The AI's own reason, when it was logged (12D.2).
         ai?: "not_connected" | "no_answer" | "not_a_label";
       }
@@ -285,10 +315,15 @@ export interface EnquiryTimeline {
     | { how: "person"; why: "answer_failed"; code: string }
     | { how: "unknown"; repeat: boolean }
     | { how: "opt_out" }
-    | { how: "not_yet" };
-  reply: { how: "automatic"; intent: Intent | "unknown_number" | "voicemail" } | { how: "none" };
+    | { how: "not_yet" }
+    // Sorted, but automatic replies are off, so it waits for a person (Phase 25.3).
+    | { how: "held"; by: "keyword" | "ai"; intent: Exclude<Intent, "office"> };
+  reply:
+    | { how: "automatic"; intent: Intent | "unknown_number" | "voicemail" }
+    | { how: "none" }
+    | { how: "held" };
   sent:
-    | { how: "sent"; channel: "whatsapp" | "sms"; at: Date; fellBackFrom: string | null }
+    | { how: "sent"; channel: "whatsapp" | "sms" | "app"; at: Date; fellBackFrom: string | null }
     | { how: "failed"; channel: string; code: string; at: Date }
     | { how: "none" };
   then: ThenFact[];
@@ -299,8 +334,8 @@ export type ThenFact =
       kind: "office_reply";
       by: string | null;
       at: Date;
-      channel: "whatsapp" | "sms";
-      form: "free_text" | "template";
+      channel: "whatsapp" | "sms" | "email" | "app";
+      form: "free_text" | "template" | "draft" | "edited";
       // unconfirmed: still "sending" 15 minutes on (the job stopped part-way: it may have gone,
       // and it's never sent again).
       state: "sending" | "sent" | "failed" | "unconfirmed";
@@ -402,13 +437,15 @@ export async function loadEnquiry(
 ): Promise<EnquiryDetail | null> {
   const { since } = await enquiryWindow(tx, now);
   const { rows: found } = await tx.execute<
-    ListRow & {
-      to_e164: string;
+    Omit<ListRow, "channel"> & {
+      channel: Channel;
+      to_e164: string | null;
       notify_channel: "whatsapp" | "sms" | null;
       sms_opted_out_at: string | Date | null;
     }
   >(sql`
-    select m.id, m.created_at, m.channel, m.body, m.from_e164, m.to_e164, m.handled_at,
+    select m.id, m.created_at, m.channel, m.body, null::text as subject, m.from_e164,
+           null::text as from_address, m.to_e164, m.handled_at,
            m.handled_as, m.intent, m.worker_id, w.first_name, w.last_name,
            w.status as worker_status, w.notify_channel, w.sms_opted_out_at,
            ${needsPerson("m")} as waiting, ${doneInApp("m")} as in_app
@@ -425,8 +462,9 @@ export async function loadEnquiry(
   const timeZone = firm?.timezone ?? "Europe/London";
   const at = new Date(m.created_at);
 
-  // Their message, its replies, then up to 5 later messages from the same number to this line
-  // (with their replies), in time order.
+  // Their message, its replies, then up to 5 later messages from the same number to this line (a
+  // message in the app: from the same casual in the app), with their replies, in time order.
+  const app = m.channel === "app";
   const { rows: talk } = await tx.execute<{
     id: string;
     direction: "in" | "out";
@@ -437,11 +475,16 @@ export async function loadEnquiry(
   }>(sql`
     with later as (
       select l.id from messages l
-       where l.direction = 'in' and l.from_e164 = ${m.from_e164} and l.to_e164 = ${m.to_e164}
+       where l.direction = 'in'
+         and ${
+           app
+             ? sql`l.channel = 'app' and l.worker_id = ${m.worker_id}`
+             : sql`l.from_e164 = ${m.from_e164} and l.to_e164 = ${m.to_e164}`
+         }
          and (l.created_at, l.id) > (${at}::timestamptz, ${m.id}::uuid)
          and not (l.handled_at is not null and l.handled_as is null)
        order by l.created_at, l.id
-       limit ${m.from_e164 === null ? 0 : CONVERSATION_MAX}
+       limit ${m.from_e164 === null && !app ? 0 : CONVERSATION_MAX}
     ), shown as (
       select ${m.id}::uuid as id union all select id from later
     )
@@ -486,11 +529,12 @@ export async function loadEnquiry(
       by: string | null;
       state: ReplyState;
       code: string | null;
-      channel: "whatsapp" | "sms";
+      channel: "whatsapp" | "sms" | "app";
       fellBackFrom: string | null;
       form: "free_text" | "template";
     }
   >();
+  const replyChannel = (v: unknown) => (v === "sms" ? "sms" : v === "app" ? "app" : "whatsapp");
   const then: ThenFact[] = [];
   for (const e of events) {
     const replyId = str(e.data.replyId);
@@ -501,7 +545,7 @@ export async function loadEnquiry(
         by: e.actor_name,
         state: "sending",
         code: null,
-        channel: e.data.channel === "sms" ? "sms" : "whatsapp",
+        channel: replyChannel(e.data.channel),
         fellBackFrom: null,
         form: e.data.form === "template" ? "template" : "free_text",
       });
@@ -595,41 +639,52 @@ export async function loadEnquiry(
   const handledAs = m.handled_as;
   const intent = m.intent;
   const answerFailed = str(received?.data.answerFailed);
+  // Automatic replies off (P4.7): nothing went, and what it was sorted as is in the log.
+  const held = received?.data.replyHeld === true;
+  const sortedAs = heldIntent(received?.data.sortedAs);
   const sorted: EnquiryTimeline["sorted"] =
     m.handled_at === null
       ? { how: "not_yet" }
-      : answerFailed !== null && handledAs === "office"
-        ? { how: "person", why: "answer_failed", code: answerFailed }
-        : handledAs === "keyword" && intent
-          ? intent === "office"
-            ? { how: "person", why: "asked" }
-            : { how: "keyword", intent }
-          : handledAs === "ai" && intent
-            ? intent === "office"
-              ? { how: "person", why: "ai_asked" }
-              : { how: "ai", intent }
-            : handledAs === "unknown"
-              ? { how: "unknown", repeat: received?.data.repeat === true }
-              : handledAs === "opt_out"
-                ? { how: "opt_out" }
-                : m.channel === "voice"
-                  ? { how: "person", why: "voicemail" }
-                  : m.body === null
-                    ? { how: "person", why: "no_text" }
-                    : {
-                        how: "person",
-                        why: "not_sorted",
-                        ...(aiReason(received?.data.aiFallback)
-                          ? { ai: aiReason(received?.data.aiFallback) }
-                          : {}),
-                      };
+      : received?.data.replyLimit === true
+        ? { how: "person", why: "reply_limit" }
+        : received?.data.echo === true
+          ? { how: "person", why: "echo" }
+          : held && sortedAs && (handledAs === "keyword" || handledAs === "ai")
+            ? { how: "held", by: handledAs, intent: sortedAs }
+            : answerFailed !== null && handledAs === "office"
+              ? { how: "person", why: "answer_failed", code: answerFailed }
+              : handledAs === "keyword" && intent
+                ? intent === "office"
+                  ? { how: "person", why: "asked" }
+                  : { how: "keyword", intent }
+                : handledAs === "ai" && intent
+                  ? intent === "office"
+                    ? { how: "person", why: "ai_asked" }
+                    : { how: "ai", intent }
+                  : handledAs === "unknown"
+                    ? { how: "unknown", repeat: received?.data.repeat === true }
+                    : handledAs === "opt_out"
+                      ? { how: "opt_out" }
+                      : m.channel === "voice"
+                        ? { how: "person", why: "voicemail" }
+                        : m.body === null
+                          ? { how: "person", why: "no_text" }
+                          : {
+                              how: "person",
+                              why: "not_sorted",
+                              ...(aiReason(received?.data.aiFallback)
+                                ? { ai: aiReason(received?.data.aiFallback) }
+                                : {}),
+                            };
 
   // The automatic reply: the first one logged against the message.
   const replied = events.find(
     (e) => e.action === "message.replied" || e.action === "message.reply_failed",
   );
   const reply: EnquiryTimeline["reply"] = !replied
-    ? { how: "none" }
+    ? held
+      ? { how: "held" }
+      : { how: "none" }
     : {
         how: "automatic",
         intent:
@@ -644,7 +699,7 @@ export async function loadEnquiry(
     : replied.action === "message.replied"
       ? {
           how: "sent",
-          channel: replied.data.channel === "sms" ? "sms" : "whatsapp",
+          channel: replyChannel(replied.data.channel),
           at: new Date(replied.created_at),
           fellBackFrom: str(replied.data.fellBackFrom),
         }
@@ -669,7 +724,7 @@ export async function loadEnquiry(
     outcome: outcomeOf(m),
     forAPerson: forAPerson({ handledAs, intent }),
     waiting: m.waiting,
-    pay: intent === "pay",
+    pay: intent === "pay" || (held && sortedAs === "pay"),
     voicemail: m.channel === "voice",
     question: question
       ? {
@@ -702,6 +757,277 @@ export async function loadEnquiry(
       signOff: signOffFor(firm?.name ?? "", firm?.settings.sign_off),
     },
     built,
+  };
+}
+
+// --- One email to the staffing inbox (P7.4, P7.5; Phase 25.5; docs/screens.md "The staffing inbox
+// in Enquiries") -----------------------------------------------------------------------------------
+
+type ReplyState = "sending" | "sent" | "failed" | "unconfirmed";
+
+export interface EmailReplyItem {
+  id: string;
+  automatic: boolean;
+  by: string | null; // the office's: who sent it
+  at: Date;
+  state: ReplyState;
+  body: string; // as it went
+}
+
+export interface EmailEnquiryDetail {
+  timeZone: string;
+  messageId: string; // the email's id (Enquiries' links and forms carry it as a message's)
+  ref: string;
+  at: Date;
+  channel: "email";
+  subject: string | null;
+  text: string | null; // a casual's words (null: none, or not from a casual: never kept)
+  attachments: number;
+  fromAddress: string; // shown only for one not from a casual
+  who: Who;
+  outcome: Outcome;
+  waiting: boolean;
+  pay: boolean;
+  replies: EmailReplyItem[];
+  timeline: {
+    received: { at: Date; who: Who };
+    sorted: EmailSorted;
+    reply:
+      { how: "automatic"; answer: "shifts" | "cancel" | "pay" } | { how: "held" } | { how: "none" };
+    sent:
+      | { how: "sent"; at: Date }
+      | { how: "failed"; code: string; at: Date }
+      | { how: "unconfirmed" }
+      | { how: "none" };
+    then: ThenFact[];
+  };
+  draft: string | null; // the AI's, while it waits for a person (never for pay)
+  firstName: string; // the casual's, for the reply's words
+  firm: { name: string; signOff: string };
+}
+
+const ANSWERS = ["shifts", "cancel", "pay"] as const;
+const answerOf = (v: unknown) => ANSWERS.find((a) => a === v) ?? null;
+
+export async function loadEmailEnquiry(
+  tx: FirmTx,
+  emailId: string,
+  now: Date,
+): Promise<EmailEnquiryDetail | null> {
+  const { since } = await enquiryWindow(tx, now);
+  const { rows: found } = await tx.execute<{
+    id: string;
+    created_at: string | Date;
+    subject: string | null;
+    body: string | null;
+    attachments: number;
+    from_address: string;
+    handled_at: string | Date | null;
+    handled_as: HandledAs | null;
+    intent: Intent | null;
+    worker_id: string | null;
+    draft_reply: string | null;
+    first_name: string | null;
+    last_name: string | null;
+    worker_status: string | null;
+    waiting: boolean;
+  }>(sql`
+    select e.id, e.created_at, e.subject, e.body, e.attachments, e.from_address, e.handled_at,
+           e.handled_as, e.intent, e.worker_id, e.draft_reply, w.first_name, w.last_name,
+           w.status as worker_status, ${needsPerson("e")} as waiting
+      from (select x.*, 'email'::text as channel from inbound_emails x
+             where x.id = ${emailId} and x.created_at > ${since}) e
+      left join workers w on w.firm_id = e.firm_id and w.id = e.worker_id
+  `);
+  const e = found[0];
+  if (!e) return null;
+  const [firm] = await tx
+    .select({ name: firms.name, timezone: firms.timezone, settings: firms.settings })
+    .from(firms)
+    .where(eq(firms.id, sql`app_current_firm_id()`));
+  const timeZone = firm?.timezone ?? "Europe/London";
+  const at = new Date(e.created_at);
+
+  const { rows: events } = await tx.execute<EventRow>(sql`
+    select x.id::text as id, x.action, x.data, x.created_at, o.name as actor_name
+      from events x
+      left join office_users o
+        on o.firm_id = x.firm_id and x.actor_type = 'office' and o.id = x.actor_id
+     where x.entity_id = ${e.id}
+       and (x.action like 'email.%' or x.action like 'enquiry.%')
+     order by x.id
+  `);
+  const { rows: sent } = await tx.execute<{
+    id: string;
+    kind: "automatic" | "office";
+    template: string | null;
+    body: string;
+    created_at: string | Date;
+    by: string | null;
+  }>(sql`
+    select r.id, r.kind, r.template, r.body, r.created_at, o.name as by
+      from email_replies r
+      left join office_users o on o.firm_id = r.firm_id and o.id = r.sent_by
+     where r.inbound_email_id = ${e.id}
+     order by r.created_at, r.id
+  `);
+
+  // Each reply's state, from the log: the automatic one's `email.replied` / `email.reply_failed`,
+  // the office's `enquiry.reply_sent` / `enquiry.reply_failed`. One with neither 15 minutes on is
+  // unconfirmed: it may have gone, and it's never sent again.
+  const outcome = new Map<string, { state: "sent" | "failed"; at: Date; code: string | null }>();
+  const forms = new Map<string, "draft" | "edited" | "free_text">();
+  const then: ThenFact[] = [];
+  for (const x of events) {
+    const replyId = str(x.data.replyId);
+    if (replyId && (x.action === "email.replied" || x.action === "enquiry.reply_sent")) {
+      outcome.set(replyId, { state: "sent", at: new Date(x.created_at), code: null });
+    } else if (
+      replyId &&
+      (x.action === "email.reply_failed" || x.action === "enquiry.reply_failed")
+    ) {
+      outcome.set(replyId, {
+        state: "failed",
+        at: new Date(x.created_at),
+        code: str(x.data.code) ?? "unknown",
+      });
+    } else if (replyId && x.action === "enquiry.answered") {
+      forms.set(
+        replyId,
+        x.data.form === "draft" ? "draft" : x.data.form === "edited" ? "edited" : "free_text",
+      );
+    } else if (x.action === "enquiry.closed") {
+      then.push({
+        kind: "closed",
+        by: x.actor_name,
+        at: new Date(x.created_at),
+        reason: (str(x.data.reason) ?? "other") as CloseReason,
+      });
+    }
+  }
+  const replies: EmailReplyItem[] = sent.map((r) => {
+    const o = outcome.get(r.id);
+    const created = new Date(r.created_at);
+    const state: ReplyState = o
+      ? o.state
+      : now.getTime() - created.getTime() > UNCONFIRMED_MS
+        ? "unconfirmed"
+        : "sending";
+    return {
+      id: r.id,
+      automatic: r.kind === "automatic",
+      by: r.by,
+      at: created,
+      state,
+      body: r.body,
+    };
+  });
+  for (const r of replies) {
+    if (r.automatic) continue;
+    then.push({
+      kind: "office_reply",
+      by: r.by,
+      at: r.at,
+      channel: "email",
+      form: forms.get(r.id) ?? "free_text",
+      state: r.state,
+      code: outcome.get(r.id)?.code ?? null,
+      fellBackFrom: null,
+    });
+  }
+  then.sort((a, b) => a.at.getTime() - b.at.getTime());
+
+  const received = events.find((x) => x.action === "email.received");
+  const d = received?.data ?? {};
+  const handledAs = e.handled_as;
+  const intent = e.intent;
+  // What it was sorted as when it came in: a link email that failed has made it the office's since.
+  const sortedIntent = (
+    d.intent === null || typeof d.intent === "string" ? d.intent : intent
+  ) as Intent | null;
+  const sortedAs = heldIntent(d.sortedAs);
+  const by = handledAs === "keyword" || handledAs === "ai" ? handledAs : null;
+  const sorted: EmailSorted =
+    e.handled_at === null
+      ? { how: "not_yet" }
+      : handledAs === "unknown"
+        ? { how: "not_casual" }
+        : d.formerWorker === true
+          ? { how: "former" }
+          : d.stale === true
+            ? { how: "stale" }
+            : typeof d.answerFailed === "string"
+              ? { how: "failed", code: d.answerFailed }
+              : by && sortedAs && d.replyHeld === true
+                ? { how: "held", by, intent: sortedAs }
+                : by && sortedAs && d.replyLimit === true
+                  ? { how: "limit", by, intent: sortedAs }
+                  : by && sortedAs && d.nothingOnFile === true
+                    ? { how: "no_address", by, intent: sortedAs }
+                    : by && sortedIntent
+                      ? sortedIntent === "office"
+                        ? { how: "person", why: by === "keyword" ? "asked" : "ai_asked" }
+                        : { how: by, intent: sortedIntent }
+                      : d.aiFallback === "no_text"
+                        ? { how: "person", why: "no_text" }
+                        : {
+                            how: "person",
+                            why: "not_sorted",
+                            ...(aiReason(d.aiFallback) ? { ai: aiReason(d.aiFallback) } : {}),
+                          };
+  const automatic = sent.find((r) => r.kind === "automatic");
+  const answer = answerOf(automatic?.template);
+  const auto = automatic ? replies.find((r) => r.id === automatic.id) : undefined;
+  const autoOutcome = automatic ? outcome.get(automatic.id) : undefined;
+  const who = whoOf({ ...e, from_e164: null });
+  const pay = intent === "pay" || sortedAs === "pay";
+  return {
+    timeZone,
+    messageId: e.id,
+    ref: e.id.slice(0, 8).toUpperCase(),
+    at,
+    channel: "email",
+    subject: e.subject,
+    text: e.body,
+    attachments: e.attachments,
+    fromAddress: e.from_address,
+    who,
+    outcome: enquiryOutcome({
+      handled: e.handled_at !== null,
+      handledAs,
+      intent,
+      waiting: e.waiting,
+      doneInApp: false,
+      email: true,
+    }),
+    waiting: e.waiting,
+    pay,
+    replies,
+    timeline: {
+      received: { at, who },
+      sorted,
+      reply: answer
+        ? { how: "automatic", answer }
+        : d.replyHeld === true
+          ? { how: "held" }
+          : { how: "none" },
+      sent: !auto
+        ? { how: "none" }
+        : autoOutcome?.state === "sent"
+          ? { how: "sent", at: autoOutcome.at }
+          : autoOutcome?.state === "failed"
+            ? { how: "failed", code: autoOutcome.code ?? "unknown", at: autoOutcome.at }
+            : auto.state === "unconfirmed"
+              ? { how: "unconfirmed" }
+              : { how: "none" },
+      then,
+    },
+    draft: e.waiting && !pay ? e.draft_reply : null,
+    firstName: e.first_name ?? "",
+    firm: {
+      name: firm?.name ?? "",
+      signOff: signOffFor(firm?.name ?? "", firm?.settings.sign_off),
+    },
   };
 }
 
@@ -910,25 +1236,18 @@ export async function officeEnquiries(
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
+// A message to the shifts line, or an email to the staffing inbox (Phase 25.5): Enquiries links
+// both by their id.
 export async function officeEnquiry(
   ctx: OfficeContext,
   messageId: string,
-): Promise<EnquiryDetail | null> {
+): Promise<EnquiryDetail | EmailEnquiryDetail | null> {
   if (!UUID.test(messageId)) return null;
   const { run } = parts(ctx);
   const now = (ctx.clock ?? systemClock).now();
   return run(ctx.firm.id, async (tx) =>
     (await officeUserMay(tx, ctx.officeUserId, "enquiries"))
-      ? loadEnquiry(tx, messageId, now)
+      ? ((await loadEnquiry(tx, messageId, now)) ?? (await loadEmailEnquiry(tx, messageId, now)))
       : null,
-  );
-}
-
-// The Enquiries menu badge (admins and resourcers): how many need a person.
-export async function enquiriesWaiting(ctx: OfficeContext): Promise<number | null> {
-  const { run } = parts(ctx);
-  const now = (ctx.clock ?? systemClock).now();
-  return run(ctx.firm.id, async (tx) =>
-    (await officeUserMay(tx, ctx.officeUserId, "enquiries")) ? needPersonCount(tx, now) : null,
   );
 }

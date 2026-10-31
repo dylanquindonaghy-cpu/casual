@@ -1,12 +1,18 @@
 import { muted, staffBtn } from "@/app/ui/classes";
 import type { PushState } from "@/lib/portal/push-state";
 
+// How else messages reach them, for the lines below (P2.7): by WhatsApp or text when there's a text
+// sender, else by email when the firm holds an address for them, else no other way.
+export type OtherWay = "text" | "email" | "none";
+const by = (other: OtherWay) => (other === "text" ? "by WhatsApp or text" : "by email");
+
 // What "Notifications on this phone" says in each state (push-setting.tsx decides the state).
 // `justTurnedOff` adds the confirmation after "Turn off notifications". A part of "How we reach
 // you" under its own line; its buttons are secondary there ("Save settings" is the card's main one).
 export function PushSettingView({
   state,
   firmName,
+  otherWay,
   pending = false,
   problem = null,
   justTurnedOff = false,
@@ -15,6 +21,7 @@ export function PushSettingView({
 }: {
   state: PushState;
   firmName: string;
+  otherWay: OtherWay;
   pending?: boolean;
   problem?: string | null;
   justTurnedOff?: boolean;
@@ -27,14 +34,14 @@ export function PushSettingView({
       <h3 className="text-lg font-bold text-ink">Notifications on this phone</h3>
       {state === "no_key" && (
         <p className={note}>
-          Phone notifications aren&apos;t switched on for {firmName} yet. You&apos;ll get messages
-          by WhatsApp or text.
+          Phone notifications aren&apos;t switched on for {firmName} yet.
+          {otherWay !== "none" && ` You'll get messages ${by(otherWay)}.`}
         </p>
       )}
       {state === "unsupported" && (
         <p className={note}>
-          This browser can&apos;t show notifications. You&apos;ll still get messages by WhatsApp or
-          text.
+          This browser can&apos;t show notifications.
+          {otherWay !== "none" && ` You'll still get messages ${by(otherWay)}.`}
         </p>
       )}
       {state === "add_to_home_screen" && (
@@ -52,11 +59,15 @@ export function PushSettingView({
         <>
           {justTurnedOff ? (
             <p role="status" className="mt-1">
-              Notifications are off for this phone. You&apos;ll still get messages by WhatsApp or
-              text.
+              Notifications are off for this phone.
+              {otherWay !== "none" && ` You'll still get messages ${by(otherWay)}.`}
             </p>
           ) : (
-            <p className="mt-1">Get urgent shift alerts on this phone, as well as by message.</p>
+            <p className="mt-1">
+              {otherWay === "none"
+                ? "Get urgent shift alerts on this phone."
+                : `Get urgent shift alerts on this phone, as well as ${otherWay === "text" ? "by message" : "by email"}.`}
+            </p>
           )}
           <button
             type="button"

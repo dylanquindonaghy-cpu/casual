@@ -425,7 +425,14 @@ describe("the planner cancelling a booked session", () => {
       await cancelShiftByFirm(
         withFirm,
         t.f.firmId,
-        { shiftId: t.shiftId, reason: "event_cancelled", by: { type: "api", keyId } },
+        // An asker passed with the planner's own call is not used (Phase 25.2): only the office's
+        // form says who asked; the planner's data doesn't.
+        {
+          shiftId: t.shiftId,
+          reason: "event_cancelled",
+          askedBy: "client",
+          by: { type: "api", keyId },
+        },
         at(NOW),
       ),
     ).toEqual({ status: "cancelled", bookings: 2 });

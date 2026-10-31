@@ -15,6 +15,7 @@ import {
   webhookStatusText,
 } from "@/lib/office/integrations-copy";
 import { roleLabel } from "@/lib/portal/format";
+import { ConnectorCard } from "./connector-card";
 import { ApiKeyTable, CreateKeyForm } from "./key-forms";
 import { WebhookPanel } from "./webhook-forms";
 
@@ -40,17 +41,22 @@ export default async function IntegrationsPage() {
         <h2 id="planner" className={h2}>
           Your planner
         </h2>
-        <p className={`${card} ${headingGap} max-w-2xl`}>
-          {plannerLine(data.planner, data.now, tz)}
-          {data.planner.kind === "none" && (
-            <>
-              {" "}
-              <Link href={PLANNER_GUIDE_HREF} className={`font-semibold ${textLink}`}>
-                How to connect your planner
-              </Link>
-            </>
+        <div className={`${card} ${headingGap} max-w-2xl`}>
+          <p>
+            {plannerLine(data.planner, data.now, tz)}
+            {data.planner.kind === "none" && (
+              <>
+                {" "}
+                <Link href={PLANNER_GUIDE_HREF} className={`font-semibold ${textLink}`}>
+                  How to connect your planner
+                </Link>
+              </>
+            )}
+          </p>
+          {data.planner.kind === "connector" && (
+            <ConnectorCard planner={data.planner} now={data.now} timeZone={tz} />
           )}
-        </p>
+        </div>
       </section>
 
       <section className={sectionGap.office} aria-labelledby="keys">

@@ -184,7 +184,7 @@ function ShiftCard({
                 </span>
                 <span className={`pl-8 text-base ${TONE_WORDS[w.tone]}`}>
                   {w.words}
-                  {w.upload && (
+                  {w.upload && !r.anyOf && (
                     <>
                       {" "}
                       <Link
@@ -194,6 +194,27 @@ function ShiftCard({
                       >
                         upload it
                       </Link>
+                    </>
+                  )}
+                  {/* A group she holds none of (25.2): either will do, so a link for each. */}
+                  {w.upload && r.anyOf && (
+                    <>
+                      {" "}
+                      upload{" "}
+                      {r.anyOf
+                        .filter((a) => a.uploadable)
+                        .map((a, i, all) => (
+                          <span key={a.code}>
+                            {i > 0 && (i === all.length - 1 ? " or " : ", ")}
+                            <Link
+                              href={`/profile/upload/${a.code}`}
+                              aria-label={`Upload your ${a.name}`}
+                              className="font-semibold underline underline-offset-4"
+                            >
+                              {a.chip}
+                            </Link>
+                          </span>
+                        ))}
                     </>
                   )}
                 </span>
@@ -357,9 +378,11 @@ export function ShiftView({
           {page.state === "open" ? (
             <ActionBar>
               <TakeShiftButton shiftId={page.shift.shiftId} onShiftPage />
-              <p className="mt-2 text-center text-base text-ink-muted">
-                {strikeNoteText(page.facts.noticeHours)}
-              </p>
+              {page.facts.strikesOn && (
+                <p className="mt-2 text-center text-base text-ink-muted">
+                  {strikeNoteText(page.facts.noticeHours)}
+                </p>
+              )}
             </ActionBar>
           ) : page.state === "held" ? (
             <ActionBar>

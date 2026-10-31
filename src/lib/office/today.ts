@@ -24,7 +24,8 @@ import { confirmedStrikesEmail } from "../strikes/team-email";
 // - loadEvidence: the strike evidence emails that failed (each with its record, where "Resend
 //   evidence" is), and whether the strikes team's address is confirmed, with how many strikes wait
 //   for it (12C.4).
-// At most 50 in each list; `more` says there were others.
+// At most 50 in each list; `total` says how many in all (Phase 25.3: "Showing the first 50 of
+// 400.").
 
 export const TODAY_MARK_DAYS = 7; // "Who worked?" looks back this far
 export const LIST_MAX = 50;
@@ -94,7 +95,7 @@ export interface TodayEvidence {
     stuck: boolean; // held up: still pending, nothing logged for hours
     nothingSent: boolean; // its last failure proves nothing was sent
   }[];
-  failedMore: boolean;
+  failedTotal: number; // how many in all (the list stops at 50)
 }
 
 // Each shift's offers (the latest wave, how many went, by the office, accepted, not answered yet,
@@ -176,7 +177,7 @@ export async function loadUrgentOffers(
 export async function loadBookingsToCheck(
   tx: FirmTx,
   now: Date,
-): Promise<{ items: TodayBookingToCheck[]; more: boolean }> {
+): Promise<{ items: TodayBookingToCheck[]; total: number }> {
   const { rows: toCheck } = await tx.execute<{
     shift_id: string;
     worker_id: string;
@@ -187,9 +188,10 @@ export async function loadBookingsToCheck(
     starts_at: string | Date;
     ends_at: string | Date;
     site_name: string | null;
+    total: number;
   }>(sql`
     select a.shift_id, a.worker_id, w.first_name, w.last_name, w.status as worker_status,
-           s.role, s.starts_at, s.ends_at, si.name as site_name
+           s.role, s.starts_at, s.ends_at, si.name as site_name, (count(*) over ())::int as total
       from assignments a
       join workers w on w.firm_id = a.firm_id and w.id = a.worker_id
       join shifts s on s.firm_id = a.firm_id and s.id = a.shift_id
@@ -201,11 +203,11 @@ export async function loadBookingsToCheck(
                         where b.firm_id = a.firm_id and b.worker_id = a.worker_id
                           and b.site_id = s.site_id))
      order by s.starts_at, w.last_name, w.first_name, a.id
-     limit ${LIST_MAX + 1}
+     limit ${LIST_MAX}
   `);
   return {
-    more: toCheck.length > LIST_MAX,
-    items: toCheck.slice(0, LIST_MAX).map((b) => ({
+    total: toCheck[0]?.total ?? 0,
+    items: toCheck.map((b) => ({
       shiftId: b.shift_id,
       workerId: b.worker_id,
       worker: `${b.first_name} ${b.last_name}`,
@@ -222,7 +224,7 @@ export async function loadBookingsToCheck(
 export async function loadSheetIssues(
   tx: FirmTx,
   now: Date,
-): Promise<{ items: TodaySheetIssue[]; more: boolean }> {
+): Promise<{ items: TodaySheetIssue[]; total: number }> {
   const { rows: sheetRows } = await tx.execute<{
     id: string;
     role: string;
@@ -230,8 +232,10 @@ export async function loadSheetIssues(
     ends_at: string | Date;
     site_name: string | null;
     sheet_issues: SheetIssues;
+    total: number;
   }>(sql`
-    select s.id, s.role, s.starts_at, s.ends_at, si.name as site_name, s.sheet_issues
+    select s.id, s.role, s.starts_at, s.ends_at, si.name as site_name, s.sheet_issues,
+           (count(*) over ())::int as total
       from shifts s
       left join sites si on si.firm_id = s.firm_id and si.id = s.site_id
      where s.sheet_issues is not null and s.status <> 'cancelled'
@@ -241,7 +245,7 @@ export async function loadSheetIssues(
             or (s.sheet_issues -> 'change' ->> 'reason' = 'started'
                 and (s.sheet_issues -> 'change' -> 'wanted' ->> 'startsAt')::timestamptz > ${now}))
      order by s.starts_at, s.id
-     limit ${LIST_MAX + 1}
+     limit ${LIST_MAX}
   `);
   const sheetWorkerIds = [
     ...new Set(
@@ -263,8 +267,8 @@ export async function loadSheetIssues(
   );
   const nameOf = (id: string) => sheetNames.get(id) ?? "Someone";
   return {
-    more: sheetRows.length > LIST_MAX,
-    items: sheetRows.slice(0, LIST_MAX).map((r) => ({
+    total: sheetRows[0]?.total ?? 0,
+    items: sheetRows.map((r) => ({
       shiftId: r.id,
       role: r.role,
       site: r.site_name,
@@ -293,7 +297,7 @@ export async function loadSheetIssues(
 export async function loadToMark(
   tx: FirmTx,
   now: Date,
-): Promise<{ items: TodayToMark[]; more: boolean }> {
+): Promise<{ items: TodayToMark[]; total: number }> {
   const { rows: toMark } = await tx.execute<{
     id: string;
     role: string;
@@ -301,8 +305,10 @@ export async function loadToMark(
     ends_at: string | Date;
     site_name: string | null;
     unmarked: number;
+    total: number;
   }>(sql`
-    select s.id, s.role, s.starts_at, s.ends_at, si.name as site_name, count(a.id)::int as unmarked
+    select s.id, s.role, s.starts_at, s.ends_at, si.name as site_name, count(a.id)::int as unmarked,
+           (count(*) over ())::int as total
       from shifts s
       join assignments a on a.firm_id = s.firm_id and a.shift_id = s.id and a.status = 'confirmed'
       left join sites si on si.firm_id = s.firm_id and si.id = s.site_id
@@ -310,11 +316,11 @@ export async function loadToMark(
        and s.ends_at > ${new Date(now.getTime() - TODAY_MARK_DAYS * 24 * 3_600_000)}
      group by s.id, si.name
      order by s.ends_at desc, s.id
-     limit ${LIST_MAX + 1}
+     limit ${LIST_MAX}
   `);
   return {
-    more: toMark.length > LIST_MAX,
-    items: toMark.slice(0, LIST_MAX).map((t) => ({
+    total: toMark[0]?.total ?? 0,
+    items: toMark.map((t) => ({
       shiftId: t.id,
       role: t.role,
       site: t.site_name,
@@ -338,8 +344,9 @@ export async function loadEvidence(tx: FirmTx, now: Date): Promise<TodayEvidence
     cancelled_at: string | Date;
     stuck: boolean;
     code: string | null;
+    total: number;
   }>(sql`
-    select * from (
+    select f.*, (count(*) over ())::int as total from (
       select a.id::text as assignment_id, w.first_name, w.last_name, a.cancelled_at,
              s.issued_at, s.id, coalesce(${evidenceStuckSql("s")}, false) as stuck,
              ${lastEvidenceCodeSql("s")} as code, s.evidence_email_status as evidence
@@ -351,7 +358,7 @@ export async function loadEvidence(tx: FirmTx, now: Date): Promise<TodayEvidence
     ) f
      where f.evidence = 'failed' or f.stuck
      order by f.issued_at desc, f.id
-     limit ${LIST_MAX + 1}
+     limit ${LIST_MAX}
   `);
   const { rows: waiting } = await tx.execute<{ n: number }>(sql`
     select count(*)::int as n from strikes
@@ -360,13 +367,13 @@ export async function loadEvidence(tx: FirmTx, now: Date): Promise<TodayEvidence
   return {
     addressConfirmed: confirmedStrikesEmail(firm?.settings ?? {}) !== null,
     waiting: Number(waiting[0]?.n ?? 0),
-    failed: failed.slice(0, LIST_MAX).map((f) => ({
+    failed: failed.map((f) => ({
       assignmentId: f.assignment_id,
       casual: `${f.first_name ?? ""} ${f.last_name ?? ""}`.trim() || "A casual",
       cancelledAt: new Date(f.cancelled_at),
       stuck: f.stuck,
       nothingSent: f.code !== null && NOTHING_SENT_CODES.includes(f.code),
     })),
-    failedMore: failed.length > LIST_MAX,
+    failedTotal: failed[0]?.total ?? 0,
   };
 }

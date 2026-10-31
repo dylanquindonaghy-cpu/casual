@@ -31,6 +31,7 @@ import {
 import type { Board, BoardSession, ChartDay } from "@/lib/office/dashboard-board";
 import { SECTION_ERROR } from "@/lib/office/dashboard-copy";
 import type { OfferPage } from "@/lib/office/offer-page";
+import { DEFAULT_PAY_CALENDAR, payCalendar } from "@/lib/pay/calendar";
 
 // The office dashboard (Phase 24, 24.3: round 7 of the canvas; docs/mockups/phase-24/README.md;
 // docs/screens.md `/office`): its words (src/lib/office/board-copy.ts) and the page as the server
@@ -70,6 +71,7 @@ const offers = (o: Partial<BoardSession["offers"]> = {}): BoardSession["offers"]
   failed: 0,
   waitingSince: null,
   waitingNames: [],
+  atLimit: false,
   ...o,
 });
 
@@ -138,6 +140,7 @@ const days: ChartDay[] = Array.from({ length: 14 }, (_, i) => ({
 const board: Board = {
   timeZone: TZ,
   today: "2026-10-26",
+  payCalendar: DEFAULT_PAY_CALENDAR,
   now: NOW,
   show: "all",
   planner: ok({ kind: "api", lastChangeAt: at("2026-10-26T11:20:00Z") }),
@@ -167,7 +170,7 @@ const board: Board = {
     ],
   }),
   toMark: ok({
-    more: false,
+    total: 3,
     items: [
       // Two alike (one card), one on its own.
       ...["m1", "m2"].map((id) => ({
@@ -229,6 +232,31 @@ describe("the dashboard's words", () => {
       expect(headLine("2026-10-26", p, NOW, TZ)).toBe(
         "Monday 26 October · Week 44 · Pay Fri 6 Nov",
       );
+  });
+
+  it("the head on the firm's pay calendar, in its word (Phase 25.2)", () => {
+    const fortnight = payCalendar({
+      pay_calendar: { days: 14, anchor: "2026-01-05", pay_day_after: 5, label: "cycle" },
+    });
+    // 26 Oct is the first day of cycle 22 (5 Jan + 21 fortnights), paid Fri 13 Nov.
+    expect(headLine("2026-10-30", null, NOW, TZ, fortnight)).toBe(
+      "Friday 30 October · Cycle 22 · Pay Fri 13 Nov",
+    );
+    // Its second week is the same cycle and pay day.
+    expect(headLine("2026-11-02", null, NOW, TZ, fortnight)).toBe(
+      "Monday 2 November · Cycle 22 · Pay Fri 13 Nov",
+    );
+    // A firm that calls its fortnight a week, and paid on the Thursday: its own word and day.
+    const weeks = payCalendar({
+      pay_calendar: { days: 14, anchor: "2026-01-05", pay_day_after: 4, label: "week" },
+    });
+    expect(headLine("2026-10-30", null, NOW, TZ, weeks)).toBe(
+      "Friday 30 October · Week 22 · Pay Thu 12 Nov",
+    );
+    // A day before the calendar starts has no number.
+    expect(headLine("2026-01-02", null, NOW, TZ, fortnight)).toMatch(
+      /^Friday 2 January · Cycle · Pay /,
+    );
   });
 
   it("the track's links and a picked session's address keep the filter", () => {
@@ -302,6 +330,43 @@ describe("the dashboard's words", () => {
     expect(
       bannerText(session({ shiftId: "x", offers: offers({ sent: 2, saidNo: 2 }) }), NOW, TZ),
     ).toEqual({ text: "No offers out. Offer it to someone else.", tone: "red" });
+    // The waves stopped at the most for its free places (Phase 25.3): said so, with the count.
+    expect(
+      bannerText(
+        session({ shiftId: "x", placesFree: 1, offers: offers({ sent: 25, atLimit: true }) }),
+        NOW,
+        TZ,
+      ),
+    ).toEqual({
+      text: "Offers stopped: 25 casuals were offered it, the most for 1 place. Offer it to someone yourself.",
+      tone: "red",
+    });
+    expect(
+      bannerText(
+        session({ shiftId: "x", placesFree: 2, offers: offers({ sent: 50, atLimit: true }) }),
+        NOW,
+        TZ,
+      ).text,
+    ).toBe(
+      "Offers stopped: 50 casuals were offered it, the most for 2 places. Offer it to someone yourself.",
+    );
+    // While offers wait, that comes first.
+    expect(
+      bannerText(
+        session({
+          shiftId: "x",
+          offers: offers({
+            sent: 25,
+            waiting: 1,
+            atLimit: true,
+            waitingSince: at("2026-10-26T11:00:00Z"),
+            waitingNames: ["Mo Rahman"],
+          }),
+        }),
+        NOW,
+        TZ,
+      ).text,
+    ).toBe("Mo Rahman hasn't replied since 11:00.");
     // Hidden from casuals comes first: it can't be offered at all.
     expect(bannerText({ ...nll1, hidden: true }, NOW, TZ)).toEqual({
       text: "Hidden from casuals, so it can't be offered. Show it to casuals first.",
@@ -565,7 +630,7 @@ describe("the dashboard page", () => {
         chosen: null,
       }),
       overnight: ok({ ...(board.overnight.ok ? board.overnight.data : ({} as never)), takes: [] }),
-      toMark: ok({ items: [], more: false }),
+      toMark: ok({ items: [], total: 0 }),
     };
     const html = render(none);
     expect(words(section(html, "to-offer"))).toContain("No places to fill.");

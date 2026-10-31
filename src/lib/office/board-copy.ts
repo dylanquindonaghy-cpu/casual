@@ -1,4 +1,4 @@
-import { payWeek } from "../pay/pay-week";
+import { DEFAULT_PAY_CALENDAR, payPeriod, payPeriodName, type PayCalendar } from "../pay/calendar";
 import { roleLabel, soonLabel } from "../portal/format";
 import { datePartsOfDay, timeRange } from "../portal/sign-copy";
 import { dayLabel } from "../rules/reasons";
@@ -10,6 +10,7 @@ import type {
   OfferChannel,
   OvernightTake,
 } from "./dashboard-board";
+import { offerLimitText } from "./event-words";
 import type { PlannerLink } from "./integrations";
 import type { TodayToMark } from "./today";
 
@@ -34,19 +35,28 @@ const inSentence = (role: string) => {
 
 // "Monday 26 October · Week 44 · Pay Fri 6 Nov · Updated 11:20 from your planner": the day, the
 // pay week and its pay day (from the top bar since 24.2), and when the planner or the rota sheet
-// last sent changes (none when neither has: nothing to say).
+// last sent changes, or the firm's portal was last read (none when neither has: nothing to say).
 export function headLine(
   today: string,
   planner: PlannerLink | null,
   now: Date,
   timeZone: string,
+  calendar: PayCalendar = DEFAULT_PAY_CALENDAR,
 ): string {
-  const week = payWeek(today);
-  const parts = [datePartsOfDay(today).long, `Week ${week.week}`, `Pay ${dayLabel(week.payDay)}`];
+  // The firm's pay week or cycle (Phase 25.2): "Week 44 · Pay Fri 6 Nov", "Cycle 22 · Pay Fri 13 Nov".
+  const period = payPeriod(today, calendar);
+  const parts = [
+    datePartsOfDay(today).long,
+    payPeriodName(period),
+    `Pay ${dayLabel(period.payDay)}`,
+  ];
   if (planner?.kind === "api")
     parts.push(`Updated ${soonLabel(planner.lastChangeAt, now, timeZone)} from your planner`);
   if (planner?.kind === "sheet" && planner.syncedAt)
     parts.push(`Updated ${soonLabel(planner.syncedAt, now, timeZone)} from your rota sheet`);
+  // The firm's portal as its planner (Phase 25.4): its last read.
+  if (planner?.kind === "connector" && planner.nearReadAt)
+    parts.push(`Updated ${soonLabel(planner.nearReadAt, now, timeZone)} from your planner`);
   return parts.join(" · ");
 }
 
@@ -149,7 +159,7 @@ export function repliesText(o: BoardSession["offers"]): string {
 // The detail card's banner: what's in the way of filling it. Amber while offers wait ("Mo Rahman
 // hasn't replied since 07:19."), red when nothing is out or casuals can't see it.
 export function bannerText(
-  s: Pick<BoardSession, "hidden" | "offers">,
+  s: Pick<BoardSession, "hidden" | "offers" | "placesFree">,
   now: Date,
   timeZone: string,
 ): { text: string; tone: "amber" | "red" } {
@@ -171,6 +181,13 @@ export function bannerText(
     return { text: `${who} replied since ${since}.`, tone: "amber" };
   }
   if (o.sent === 0) return { text: "Not offered to anyone yet.", tone: "red" };
+  // The waves stopped at the most for its free places (Phase 25.3).
+  if (o.atLimit) {
+    return {
+      text: `${offerLimitText(o.sent, s.placesFree)}. Offer it to someone yourself.`,
+      tone: "red",
+    };
+  }
   return { text: "No offers out. Offer it to someone else.", tone: "red" };
 }
 

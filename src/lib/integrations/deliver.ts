@@ -16,6 +16,7 @@ import {
 import { addressHost, WebhookSendError, type WebhookFailureCode } from "./send";
 import { signingKey, testEventId, webhookEventId } from "./secrets";
 import { signedHeaders } from "./sign";
+import { webhookOutcome } from "./status";
 import { webhookTransport, type WebhookTransport } from "./webhook-transport";
 import { buildWebhook } from "./webhooks";
 
@@ -31,6 +32,8 @@ import { buildWebhook } from "./webhooks";
 //    raises the Needs attention item) and then completes the job rather than failing it, so a
 //    firm's own endpoint problem isn't an ops alert to Dylan (failedJobCounts()). The planner
 //    catches up with GET /api/v1/cancellations.
+//    Each outcome also updates the firm's status row in the same transaction (status.ts; Phase
+//    25.3), which the Integrations page and Needs attention read.
 // At least once: a crash between sending and logging sends it again, with the same webhook-id.
 // Nothing here logs the address: a failure carries a code, and log lines name the host only.
 
@@ -133,16 +136,17 @@ export async function runWebhookDelivery(
 
   if (code === null && type && eventRef) {
     const delivered = type;
-    await run(payload.firmId, (tx) =>
-      recordEvent(tx, {
+    await run(payload.firmId, async (tx) => {
+      await recordEvent(tx, {
         actorType: "system",
         action: "webhook.delivered",
         ...(bookingId
           ? { entityType: "assignment", entityId: bookingId }
           : { entityType: "firm", entityId: payload.firmId }),
         data: { eventRef, ...(bookingId ? { bookingId } : {}), type: delivered },
-      }),
-    );
+      });
+      await webhookOutcome(tx, "delivered");
+    });
     return { status: "delivered", type: delivered };
   }
   const failure = code ?? "connection";
@@ -151,8 +155,8 @@ export async function runWebhookDelivery(
     if (failure === "not_configured") throw new WebhookNotConfigured();
     throw new WebhookSendError(failure);
   }
-  await run(payload.firmId, (tx) =>
-    recordEvent(tx, {
+  await run(payload.firmId, async (tx) => {
+    await recordEvent(tx, {
       actorType: "system",
       action: "webhook.failed",
       ...(bookingId
@@ -164,8 +168,9 @@ export async function runWebhookDelivery(
         ...(type ? { type } : {}),
         code: failure,
       },
-    }),
-  );
+    });
+    await webhookOutcome(tx, "failed");
+  });
   return { status: "failed", code: failure };
 }
 

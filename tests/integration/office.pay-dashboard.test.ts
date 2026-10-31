@@ -2,11 +2,8 @@ import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createSession } from "@/lib/auth/sessions";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
-import {
-  loadPayDashboard,
-  officePayDashboard,
-  officePayQueriesWaiting,
-} from "@/lib/office/pay-dashboard";
+import { loadOfficeFrame } from "@/lib/office/frame";
+import { loadPayDashboard, officePayDashboard } from "@/lib/office/pay-dashboard";
 import { bookingFirm, NOW } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
 
@@ -29,8 +26,8 @@ afterAll(async () => {
 
 const ago = (hours: number) => new Date(NOW.getTime() - hours * 3_600_000).toISOString();
 
-async function payFirm() {
-  const f = await bookingFirm(su, withFirm);
+async function payFirm(settings: Record<string, unknown> = {}) {
+  const f = await bookingFirm(su, withFirm, { settings });
   const ann = await f.worker({ first: "Ann" });
   const payroll = await f.office("payroll");
   const query = (o: {
@@ -101,6 +98,7 @@ describe("the pay dashboard's data", () => {
         count: 2,
         issue: "wrong_rate",
         firstDay: "2026-10-26",
+        periodStart: "2026-10-26", // its pay week (Phase 25.2)
       },
       {
         by: "Office Person",
@@ -109,7 +107,56 @@ describe("the pay dashboard's data", () => {
         count: 1,
         issue: "wrong_rate",
         firstDay: "2026-10-20",
+        periodStart: "2026-10-19",
       },
+    ]);
+    // A firm with no pay calendar: ISO weeks, as before.
+    expect(d.period).toEqual({
+      name: "Week 45",
+      label: "week",
+      start: "2026-11-02",
+      end: "2026-11-08",
+      payDay: "2026-11-13",
+    });
+    expect(d.groups.map((g) => g.heading).sort()).toEqual([
+      "1 query: paid late or not paid, the week of Mon 26 Oct.",
+      "1 query: wrong rate, the week of Mon 26 Oct.",
+    ]);
+  });
+
+  it("on a fortnight's cycle (Phase 25.2): its name, dates and pay day; sorted this cycle; its words", async () => {
+    const t = await payFirm({
+      pay_calendar: { days: 14, anchor: "2026-01-05", pay_day_after: 5, label: "cycle" },
+    });
+    // Cycle 22 runs Mon 26 Oct to Sun 8 Nov, paid Fri 13 Nov; NOW (Mon 2 Nov) is its second week.
+    const saturday = { by: t.payroll, at: ago(40), note: "Corrected." };
+    await t.query({ day: "2026-10-27", status: "resolved", created: ago(300), resolved: saturday });
+    const tuesday = { by: t.payroll, at: ago(150), note: "Old." }; // Tue 27 Oct: this cycle too
+    await t.query({
+      day: "2026-10-20",
+      status: "resolved",
+      created: ago(400),
+      resolved: tuesday,
+    });
+    await t.query({ day: "2026-10-20", status: "open", created: ago(10) });
+    const d = await withFirm(t.f.firmId, (tx) => loadPayDashboard(tx, NOW));
+    expect(d.period).toEqual({
+      name: "Cycle 22",
+      label: "cycle",
+      start: "2026-10-26",
+      end: "2026-11-08",
+      payDay: "2026-11-13",
+    });
+    // Sorted since the cycle began (both), not since this Monday (neither).
+    expect([d.weekStart, d.sortedThisWeek]).toEqual(["2026-10-26", 2]);
+    expect([d.nextPayDate, d.nextPayDateFrom]).toEqual(["2026-11-13", "pay week"]);
+    expect(d.recentlySorted.map((r) => [r.firstDay, r.periodStart])).toEqual([
+      ["2026-10-27", "2026-10-26"],
+      ["2026-10-20", "2026-10-12"],
+    ]);
+    // A query with no key yet groups on its own, by its cycle, in the cycle's word.
+    expect(d.groups.map((g) => g.heading)).toEqual([
+      "1 query: wrong rate, the cycle of Mon 12 Oct.",
     ]);
   });
 
@@ -157,9 +204,12 @@ describe("the pay dashboard's data", () => {
       created: ago(6),
       resolved: { by: t.payroll, at: ago(2), note: "Done." },
     });
-    const ctx = { firm: { id: t.f.firmId }, run: withFirm };
-    expect(await officePayQueriesWaiting(ctx, "payroll")).toBe(2);
-    expect(await officePayQueriesWaiting(ctx, "admin")).toBe(2);
-    expect(await officePayQueriesWaiting(ctx, "resourcer")).toBeNull();
+    // As the office frame reads it (Phase 25.3), for the office user as they are now.
+    const waiting = async (officeUserId: string) =>
+      (await loadOfficeFrame({ firm: { id: t.f.firmId }, officeUserId, run: withFirm })).payQueries;
+    expect(await waiting(t.payroll)).toEqual({ ok: true, data: 2 });
+    expect(await waiting(await t.f.office("admin"))).toEqual({ ok: true, data: 2 });
+    expect(await waiting(await t.f.office("resourcer"))).toBeNull();
+    expect(await waiting(await t.f.office("payroll", "disabled"))).toBeNull();
   });
 });

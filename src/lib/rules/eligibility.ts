@@ -242,7 +242,9 @@ export function checkEligibility(raw: EligibilityInput): EligibilityResult {
   // session adds. A type needed twice (the role's and the session's) is checked once. The role's
   // one-of group (P3.3, Rules 3: an SIA security guard or door supervisor licence) passes when one
   // of its types passes that same check, and none of its types held is suspended; otherwise it
-  // fails as its first type held fails (else its first type), in that type's own words.
+  // fails as its first type held fails, in that type's own words; holding none of its types, its
+  // reason names them all (Phase 25.2), unless the session asks for one of them outright (that one
+  // must be held, and fails in its own words in the loop above).
   // What one type's check finds: its failure (none: it passes), and the best record held (valid
   // with the latest expiry, else a suspended one, else any).
   const judge = (type: string) => {
@@ -327,7 +329,19 @@ export function checkEligibility(raw: EligibilityInput): EligibilityResult {
           group.find((g) => g.failure === null));
       const used = passed ?? suspended ?? group.find((g) => g.held !== "none") ?? group[0];
       if (used) {
-        if (!passed && used.failure) fail(used.failure.code, used.failure.reason);
+        // Holding none of them, she's told any one will do (25.2); else in the held one's words.
+        const noneHeld =
+          group.length > 1 &&
+          group.every((g) => g.held === "none") &&
+          !group.some((g) => shift.extraTypes.includes(g.type));
+        if (!passed && used.failure) {
+          fail(
+            used.failure.code,
+            noneHeld
+              ? REASONS.credential_missing_any(group.map((g) => name(g.type)))
+              : used.failure.reason,
+          );
+        }
         check("qualification", passed !== undefined, {
           type: used.type,
           neededBy: "role",

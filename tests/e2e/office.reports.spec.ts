@@ -49,6 +49,8 @@ test("the notice report lists bookings and the dropout, filters, and downloads a
     expect(what).toBe("Cancelled");
   }
   await expect(rows.filter({ hasText: "The worker" }).first()).toContainText(/notice/);
+  // Who asked for each (Phase 25.2), after who started it.
+  await expect(page.getByRole("columnheader", { name: "Asked by" })).toBeVisible();
 
   // The same rows as a file.
   const [download] = await Promise.all([
@@ -61,7 +63,9 @@ test("the notice report lists bookings and the dropout, filters, and downloads a
   const csv = await readFile((await download.path()) ?? "", "utf8");
   expect(csv.startsWith("\uFEFF")).toBe(true);
   const lines = csv.slice(1).trimEnd().split("\r\n");
-  expect(lines[0]).toMatch(/^When \(firm time\),When \(UTC\),What,Started by,Worker,Shift,/);
+  expect(lines[0]).toMatch(
+    /^When \(firm time\),When \(UTC\),What,Started by,Asked by,Worker,Shift,/,
+  );
   expect(lines.length).toBe((await rows.count()) + 1);
   expect(lines.slice(1).every((l) => l.includes(",Cancelled,"))).toBe(true);
   // Started from another site (or another firm's address): refused, like the cancellations files.

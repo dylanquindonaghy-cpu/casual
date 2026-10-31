@@ -4,10 +4,14 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createFakeAi, noAi, type AiClient, type AiRequest } from "@/lib/ai/client";
 import { createLineDirectory } from "@/lib/db/directory";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
+import {
+  OFFICE_ALERTS_COMBINED_QUEUE,
+  runOfficeAlertsCombined,
+} from "@/lib/inbound/alerts-combined";
 import { INBOUND_MESSAGE_QUEUE } from "@/lib/inbound/job";
 import { receiveWhatsApp } from "@/lib/inbound/receive";
 import { runInboundMessage } from "@/lib/inbound/reply";
-import { loadEnquiries } from "@/lib/office/enquiries";
+import { loadEnquiries, loadEnquiry } from "@/lib/office/enquiries";
 import { twilioSignature } from "@/lib/inbound/twilio-signature";
 import { handleTwilioWhatsApp, MAX_WEBHOOK_BYTES } from "@/lib/inbound/webhook";
 import type { MessagingTransport, OutboundMessage } from "@/lib/messaging/transport";
@@ -869,6 +873,29 @@ describe("automatic replies off (a firm's default since P4.7), and the unknown-n
         "When do wages go in",
       ].sort(),
     );
+    // Each says why it waited (Phase 25.3): what it was sorted as, and that replies are off; one
+    // that asked for a person reads as before. The pay question is in the Pay view, marked pay.
+    const detail = async (text: string) => {
+      const id = (await t.messageRows()).find((r) => r.body === text)?.id ?? "";
+      const d = await withFirm(t.f.firmId, (tx) => loadEnquiry(tx, id, new Date()));
+      if (!d) throw new Error(`no enquiry for ${text}`);
+      return d;
+    };
+    const wages = await detail("When do wages go in");
+    expect(wages.timeline.sorted).toEqual({ how: "held", by: "keyword", intent: "pay" });
+    expect(wages.timeline.reply).toEqual({ how: "held" });
+    expect(wages.pay).toBe(true);
+    expect((await detail("Can I cancel my shift on Saturday")).timeline.sorted).toEqual({
+      how: "held",
+      by: "keyword",
+      intent: "cancel",
+    });
+    const dbs = await detail("I need to talk to someone about my DBS");
+    expect(dbs.timeline.sorted).toEqual({ how: "person", why: "asked" });
+    expect(dbs.timeline.reply).toEqual({ how: "held" });
+    expect(dbs.pay).toBe(false);
+    const pay = await withFirm(t.f.firmId, (tx) => loadEnquiries(tx, "pay", new Date()));
+    expect(pay.rows.map((r) => r.text)).toEqual(["When do wages go in"]);
   });
 
   it("a 'shifts' keyword and a message the AI sorts: the office's too, no personal reply read, nothing sent", async () => {
@@ -902,6 +929,14 @@ describe("automatic replies off (a firm's default since P4.7), and the unknown-n
     expect(person.rows.map((r) => r.text).sort()).toEqual(
       ["Any shifts this week?", "running late, can't make it"].sort(),
     );
+    // The AI's label, and that replies are off (Phase 25.3).
+    const late = (await t.messageRows()).find((r) => r.body === "running late, can't make it");
+    const d = await withFirm(t.f.firmId, (tx) => loadEnquiry(tx, late?.id ?? "", new Date()));
+    expect(d?.timeline.sorted).toEqual({ how: "held", by: "ai", intent: "cancel" });
+    expect(d?.timeline.reply).toEqual({ how: "held" });
+    // Neither is a pay question.
+    const pay = await withFirm(t.f.firmId, (tx) => loadEnquiries(tx, "pay", new Date()));
+    expect(pay.rows).toEqual([]);
   });
 
   it("a worker who has left, with replies off: no reply anyway (never 'held'), and the office alerted", async () => {
@@ -1031,5 +1066,160 @@ describe("automatic replies off (a firm's default since P4.7), and the unknown-n
       status: "unknown_sender",
       alerted: 1,
     });
+  });
+
+  // Phase 25.3 (docs/messaging-templates.md `unknown_numbers_combined`).
+  it("past the hour's 5: one email for the rest at the hour's end, to each admin and resourcer, once", async () => {
+    const t = await lineFirm();
+    const other = await lineFirm();
+    const admin = await t.f.office("admin");
+    const resourcer = await t.f.office("resourcer");
+    await t.f.office("payroll"); // not emailed
+    await other.f.office("admin");
+    const emailsOf = async (ids: string[]) =>
+      (
+        await su.query<{ email: string }>(
+          "select email from office_users where id = any($1::uuid[]) order by email",
+          [ids],
+        )
+      ).rows.map((r) => r.email);
+    const { transport, sent } = captureTransport();
+    const hour = new Date("2026-11-02T09:20:00Z"); // 09:20 London (GMT)
+    for (let i = 0; i < 7; i += 1) {
+      await run(await t.incoming("Hello?", `+44163296093${i}`), transport, hour);
+    }
+    // Another firm's, past its own 5 the same hour: never counted here.
+    for (let i = 0; i < 6; i += 1) {
+      await run(await other.incoming("Hello?", `+44163296094${i}`), transport, hour);
+    }
+    // The 6th and 7th: held, with their hour.
+    const held = (await t.eventsOf("message.received"))
+      .map((e) => e.data)
+      .filter((d) => d.alertHeld === true);
+    expect(held.map((d) => d.alertHour)).toEqual([
+      "2026-11-02T09:00:00.000Z",
+      "2026-11-02T09:00:00.000Z",
+    ]);
+    // The hour's job: queued once, a minute after the hour ends; ids only.
+    const { rows: jobs } = await su.query<{ data: Record<string, unknown>; start_after: Date }>(
+      "select data, start_after from pgboss.job where name = $1 and data ->> 'firmId' = $2",
+      [OFFICE_ALERTS_COMBINED_QUEUE, t.f.firmId],
+    );
+    const hourStart = "2026-11-02T09:00:00.000Z";
+    const payload = {
+      firmId: t.f.firmId,
+      idempotencyKey: `alerts-combined:${Date.parse(hourStart)}`,
+      hourStart,
+    };
+    // (Two only if the test ran across a real hour's edge: pg-boss's slot is by its own clock.)
+    expect(jobs.length === 1 || jobs.length === 2).toBe(true);
+    for (const j of jobs) {
+      expect(j.data).toEqual(payload);
+      expect(j.start_after).toEqual(new Date("2026-11-02T10:01:00Z"));
+    }
+    sent.length = 0;
+    const deps = { transport, baseDomain: "localhost:3000" };
+    expect(await runOfficeAlertsCombined(payload, withFirm, deps)).toEqual({
+      status: "sent",
+      messages: 2,
+      emailed: 2,
+      failed: 0,
+    });
+    const emails = sent.filter(
+      (m): m is Extract<OutboundMessage, { channel: "email" }> => m.channel === "email",
+    );
+    expect(emails.map((m) => m.to).sort()).toEqual(await emailsOf([admin, resourcer]));
+    expect(emails[0]?.subject).toBe(`${t.name}: 2 more messages from numbers we don't know`);
+    expect(emails[0]?.body).toBe(
+      [
+        "2 more messages came to the shifts line between 09:00 and 10:00 from numbers that aren't your active staff.",
+        "We send at most 5 of these emails an hour, so this one covers the rest.",
+        `See them in Enquiries, under Need a person: http://${t.slug}.localhost:3000/office/enquiries?view=person`,
+        `— ${t.name} Shift Team`,
+      ].join("\n\n"),
+    );
+    // Neither the numbers nor the messages.
+    for (const m of emails) {
+      expect(`${m.subject} ${m.body}`).not.toMatch(/1632|Hello/);
+    }
+    expect((await t.eventsOf("message.office_alerts_combined")).map((e) => e.data)).toEqual([
+      { hourStart, from: "09:00", to: "10:00", messages: 2, recipients: 2, failed: 0, skipped: 0 },
+    ]);
+    // Again (a retry, or the second copy): nothing more.
+    sent.length = 0;
+    expect(await runOfficeAlertsCombined(payload, withFirm, deps)).toEqual({ status: "already" });
+    expect(sent).toEqual([]);
+    expect(await t.eventsOf("message.office_alerts_combined")).toHaveLength(1);
+    // The other firm's own hour: its 1 held message, its own email.
+    const theirs = { ...payload, firmId: other.f.firmId };
+    expect(await runOfficeAlertsCombined(theirs, withFirm, deps)).toMatchObject({
+      status: "sent",
+      messages: 1,
+    });
+    expect(sent.map((m) => ("subject" in m ? m.subject : ""))).toEqual([
+      `${other.name}: 1 more message from numbers we don't know`,
+    ]);
+    // An hour with none held: nothing sent or logged.
+    const next = new Date(Date.parse(hourStart) + 3_600_000).toISOString();
+    expect(
+      await runOfficeAlertsCombined(
+        { ...payload, hourStart: next, idempotencyKey: `alerts-combined:${Date.parse(next)}` },
+        withFirm,
+        deps,
+      ),
+    ).toEqual({ status: "none" });
+    expect(await t.eventsOf("message.office_alerts_combined")).toHaveLength(1);
+  });
+
+  it("the hour's email: a send that fails is counted; with nobody to email, it's logged and nothing goes", async () => {
+    const t = await lineFirm();
+    const admin = await t.f.office("admin");
+    await t.f.office("resourcer");
+    const { transport } = captureTransport();
+    const hour = new Date("2026-11-02T13:05:00Z");
+    for (let i = 0; i < 6; i += 1) {
+      await run(await t.incoming("Hello?", `+44163296095${i}`), transport, hour);
+    }
+    const hourStart = "2026-11-02T13:00:00.000Z";
+    const payload = {
+      firmId: t.f.firmId,
+      idempotencyKey: `alerts-combined:${Date.parse(hourStart)}`,
+      hourStart,
+    };
+    const adminEmail = (
+      await su.query<{ email: string }>("select email from office_users where id = $1", [admin])
+    ).rows[0]?.email;
+    const failing: MessagingTransport = {
+      name: "failing",
+      async send(m) {
+        if (m.channel === "email" && m.to === adminEmail) throw new Error("smtp down");
+        return { providerMessageId: "ok" };
+      },
+    };
+    expect(
+      await runOfficeAlertsCombined(payload, withFirm, { transport: failing, baseDomain: "x" }),
+    ).toEqual({ status: "sent", messages: 1, emailed: 1, failed: 1 });
+    expect((await t.eventsOf("message.office_alerts_combined")).map((e) => e.data)).toEqual([
+      { hourStart, from: "13:00", to: "14:00", messages: 1, recipients: 1, failed: 1, skipped: 0 },
+    ]);
+
+    // Another firm whose office was switched off after its 6th: logged, nothing sent.
+    const u = await lineFirm();
+    const only = await u.f.office("admin");
+    for (let i = 0; i < 6; i += 1) {
+      await run(await u.incoming("Hello?", `+44163296096${i}`), transport, hour);
+    }
+    await su.query("update office_users set status = 'disabled' where id = $1", [only]);
+    const { transport: none, sent } = captureTransport();
+    expect(
+      await runOfficeAlertsCombined({ ...payload, firmId: u.f.firmId }, withFirm, {
+        transport: none,
+        baseDomain: "x",
+      }),
+    ).toEqual({ status: "no_recipients", messages: 1 });
+    expect(sent).toEqual([]);
+    expect((await u.eventsOf("message.office_alerts_combined")).map((e) => e.data)).toEqual([
+      { hourStart, from: "13:00", to: "14:00", messages: 1, recipients: 0, failed: 0, skipped: 0 },
+    ]);
   });
 });

@@ -54,10 +54,13 @@ architecture.md, Tenancy).
 | api_keys | A planner's API keys: a label, the key's sha256 and last 4 characters (never the key), who made and revoked it, when last used (12J.1, S11) | 12 |
 | firm_secrets | A firm's own credentials for its systems (its ops portal's API key, its webhook secret), each sealed under a key the database never sees (P5.1, ADR-026) | P5 |
 | connector_events | What a connector's source said changed (a session or a staff record, by its ref), one row per event id per source, and what the job made of it (P5.3) | P5 |
-| inbound_emails | Emails to a firm's staffing inbox, one row per Message-ID: who it's from, and only a known casual's subject and words, quoted history taken off; how many attachments were left out (P7.1) | P7 |
+| inbound_emails | Emails to a firm's staffing inbox, one row per Message-ID: who it's from, and only a known casual's subject and words, quoted history taken off; how many attachments were left out (P7.1); how its job handled it, and the AI's draft of the office's reply (P7.4, P7.5) | P7 |
+| email_replies | What went back about an email, as sent: the automatic link email or the office's reply, to the address the firm held for the casual then; added once, never changed (whether it went is in the log); deleted with its email (Phase 25.5) | P7 |
 | push_subscriptions | Web push endpoints per worker | 4 |
 | roster_sources | Where a firm's rota lives when it isn't our tables: a Google Sheet (its id, column mapping) or a connector to the firm's own system (which one, its base address; P5.2), with the last sync, error code and sync lease | 2 |
 | name_map | What the firm's own system calls a role, qualification, staff type or cancellation reason, mapped to a ShiftDesk code or to skip (P3.2) | P3 |
+| sheet_name_problems | The role names a rota sheet's last sync couldn't use (one it can't read, a skipped one on a session still to come), for Needs attention; replaced by each sync (Phase 25.2) | P3 |
+| webhook_status | The planner's webhook status, one row per firm: when its address was set, the last delivery that worked, failing since when; for Integrations and Needs attention (Phase 25.3) | P4 |
 | metrics_daily | Pilot baseline and daily counts | 5 |
 
 ## Firm settings (jsonb on `firms.settings`)
@@ -107,7 +110,8 @@ or anything else is off, the default. It matters only when there's no text sende
 (`MESSAGING_TRANSPORT=none`, P2.5): then, on and with an address held for the casual, the link or
 code goes by email (`docs/messaging-templates.md` "Email to casuals"); off, or no address, nothing
 is made and the miss is logged (`no_channel`). With a text sender they go by WhatsApp either way.
-Leave it off until the login and Pay pages stop naming WhatsApp (P2.7).
+The login, Pay, Help and Profile pages say which way it goes by the same two facts (P2.7,
+`src/lib/portal/login-way.ts`).
 
 `pay_calendar` (P3.1, `src/lib/pay/calendar.ts`; "Connecting the firm's systems" 1, replacing
 D8): `{ "days": 14, "anchor": "2026-03-02", "pay_day_after": 5, "label": "cycle" }`, the firm's pay
@@ -123,9 +127,8 @@ Year: the year-end rule waits for the firm's payroll (`docs/discovery-axlr8.md` 
 move the periods themselves (a new cycle 1 on Mon 4 Jan 2027 would shift every fortnight from Mon
 28 Dec 2026 by a week), not only their numbers. Pay-query grouping uses it now: a new query is keyed
 on the firm's period at once, and the open ones follow at the next regroup (the payroll digest, or a
-pay import). Payroll's pay-query headings and the digest's headline still say "the week of" its
-first Monday, and the top bar, the dashboards and Home read weeks, until after the UI chat's Phase
-24 (P3), so leave a live firm on weeks until then.
+pay import). Home, the office's dashboards, the pay page and payroll's pay-query headings and
+digest read it, in the firm's word for its period ("the cycle of Mon 12 Oct", Phase 25.2).
 
 (The 48-hour short-notice threshold is a placeholder until the 2027 regulations are final.)
 
@@ -246,6 +249,10 @@ create table workers (
   offer_alerts boolean not null default true,      -- tell me about open shifts (profile page)
   sms_opted_out_at timestamptz,          -- they replied STOP to a text (Phase 7): no texts from any
                                          -- sender until START (src/lib/notify/send.ts)
+  messages_read_at timestamptz,          -- the newest office reply in the app they've seen on
+                                         -- Messages (Phase 25.6, migration 0064): the office's
+                                         -- replies after it are the tab's count
+                                         -- (src/lib/portal/messages.ts); null: none seen yet
   office_deactivated_at timestamptz,     -- the office made them inactive (Phase 10): no sheet or
                                          -- file makes them active again, only the office (clears it)
   erased_at timestamptz,                 -- GDPR deletion (Phase 8, src/lib/gdpr/worker-erase.ts)
@@ -777,18 +784,50 @@ create table name_map (
   unique (firm_id, kind, outside_name)
 );
 
+-- The role names a rota sheet's last sync couldn't use (Phase 25.2, migration 0061;
+-- src/lib/roster/sheets/name-problems.ts), for Needs attention's "Names your rota sheet uses": a
+-- role it can't read (unreadable: the row isn't brought in) and a role the name map skips on a row
+-- that made a session still to come (skipped_live: the session stays as it is). Each sync deletes
+-- the sheet's rows and writes its own, in its transaction, so the list is always the last sync's
+-- (at most 200, the skipped names kept first); a failed sync leaves them, and switching the sheet
+-- off or replacing it (npm run firm:sheet) deletes them. Only a role cell's text, cleaned
+-- (sheetRoleText): never another column's (a name, a mobile, a staff id), never text with an email
+-- address or 7 or more digits in it, and never copied into the action log. Needs attention reads
+-- the enabled sheet's, and a skipped name only while its session is still to come and not
+-- cancelled. The app role may read, add and delete rows, never change one.
+create table sheet_name_problems (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  source_id uuid not null,               -- (firm_id, source_id) -> roster_sources, on delete cascade
+  kind text not null,                    -- unreadable | skipped_live
+  tab text not null,                     -- staff | shifts (skipped_live: shifts)
+  row integer not null,                  -- the sheet's own row number, 2 to 10000000
+  outside_name text not null,            -- 1-200 characters, no control characters
+  shift_id uuid,                         -- skipped_live only: (firm_id, shift_id) -> shifts, on
+                                         -- delete cascade
+  seen_at timestamptz not null,          -- the sync that found it
+  created_at timestamptz not null default now(),
+  unique (firm_id, id),
+  unique (firm_id, source_id, kind, tab, row)
+);
+
 create table messages (                 -- built in Phase 7 (migrations 0022-0024): WhatsApp, texts, calls
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),
   direction text not null,               -- in | out
-  channel text not null,                 -- whatsapp | sms | voice (a call, or its voicemail)
+  channel text not null,                 -- whatsapp | sms | voice (a call, or its voicemail) | app
+                                         -- (a casual's message in the app and its answers there:
+                                         -- Phase 25.6, migration 0064)
   provider_message_id text not null,     -- Twilio's MessageSid (a call: its CallSid; a voicemail: its
-                                         -- RecordingSid), or the transport's id for a reply;
+                                         -- RecordingSid), or the transport's id for a reply; in the
+                                         -- app our own "app:{uuid}", new each time;
                                          -- unique per firm (golden rule 3: a repeat stores nothing)
   worker_id uuid,                        -- (firm_id, worker_id) -> workers; set when the sender is one
+                                         -- (always in the app: messages_app_worker)
   from_e164 text,                        -- E.164; empty only on an incoming voice row (a call or
-                                         -- its voicemail) from a withheld number (a check says so)
-  to_e164 text not null,                 -- inbound: the firm's shifts line
+                                         -- its voicemail) from a withheld number, and in the app
+                                         -- (always empty there; checks say so)
+  to_e164 text,                          -- inbound: the firm's shifts line; empty in the app only
   body text,                             -- at most 1600; the worker's words: never copied into events
   handled_as text,                       -- keyword | ai | office | unknown | opt_out (inbound only)
   intent text,                           -- shifts | cancel | pay | office
@@ -797,7 +836,10 @@ create table messages (                 -- built in Phase 7 (migrations 0022-002
                                          -- indexed (firm_id, reply_to) for Enquiries (12D.1, S5). The
                                          -- office's reply on Enquiries is stored when sent from the page,
                                          -- provider_message_id "office-reply:{uuid}" until the
-                                         -- enquiry-reply job has sent it (then the provider's id)
+                                         -- enquiry-reply job has sent it (then the provider's id); in
+                                         -- the app stored "app:{uuid}" and shown at once (the job
+                                         -- only pushes). An outbound app row with an intent is the
+                                         -- automatic answer; with none, the office's
   twilio_opt_out text,                   -- stop | start: Twilio's own opt-out handling acted on this
                                          -- incoming text (and confirmed it); null otherwise
   created_at timestamptz not null default now(),
@@ -858,14 +900,22 @@ create table events (
   entity_type text not null,
   entity_id uuid,
   data jsonb not null default '{}',
+  worker_ref text generated always as (data ->> 'workerId') stored,  -- Phase 25.3, migration 0062
+  shift_ref text generated always as (data ->> 'shiftId') stored,    -- (below)
   created_at timestamptz not null default now()
 );
 -- Indexed by (firm_id, created_at) and by (firm_id, entity_id, id): one thing's history (the dashboard's
--- wave status, the action log by shift or worker); and by (firm_id, action, created_at): entries of
--- one kind over a time (the sends the ops alerts count, the webhook status; P4.1).
+-- wave status, the action log by shift or worker); by (firm_id, action, created_at): entries of
+-- one kind over a time (the sends the ops alerts count; P4.1); and, for the action log by worker
+-- or shift (Phase 25.3), by (firm_id, worker_ref, id), (firm_id, shift_ref, id) and
+-- (firm_id, actor_id, id), each only over the entries that have one. worker_ref and shift_ref are
+-- the data's workerId and shiftId, copied by the database: an index on `data ->> 'workerId'`
+-- itself can't be used under RLS (jsonb's functions aren't leakproof, so the firm's policy is
+-- checked first and every row after), a text column's can.
 -- events is append-only: the app role has SELECT and INSERT only, and events has only
 -- select and insert policies. data never holds tokens, codes, phones, emails or IPs
--- (recordEvent() refuses anything the log masker would change).
+-- (recordEvent() refuses anything the log masker would change, and a `workers` list under any
+-- action but those in src/lib/events/worker-lists.ts, which the action log finds by worker).
 -- Login events (kind worker or office): auth.link_requested (entity login_request; data {kind, matched}),
 -- auth.link_sent (magic_link; {purpose, channel, providerMessageId}, + ownDomain: true when the
 -- link was on the firm's own domain; channel email for an office user, and for a worker since
@@ -1046,8 +1096,29 @@ create table inbound_emails (
                                          -- taken off, <= 4000
   attachments integer not null default 0, -- how many were left out (never kept)
   handled_as text, intent text, handled_at timestamptz, -- set once by its job (P7.4)
+  draft_reply text,                      -- the AI's draft of the office's reply (P7.5), 1..1200;
+                                         -- only a known casual's, once handled, never for pay
   created_at timestamptz not null default now(),
   unique (firm_id, provider_message_id)
+);
+
+-- What went back to a casual about their email (P7.5; Phase 25.5): the automatic link email (its
+-- `template`) or the office's reply (`sent_by`, and whether it began as the AI's draft), as it was
+-- sent, to the address the firm held for them then. Added once, never changed: whether it went is in
+-- the action log. Deleted with its email (on delete cascade: the purge and app_erase_worker()).
+create table email_replies (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  inbound_email_id uuid not null,        -- (firm_id, inbound_email_id) -> inbound_emails, cascade
+  worker_id uuid not null,               -- (firm_id, worker_id) -> workers
+  kind text not null,                    -- automatic | office
+  template text,                         -- automatic: shifts | cancel | pay
+  sent_by uuid,                          -- office: (firm_id, sent_by) -> office_users
+  from_draft boolean not null default false, -- office: began as the AI's draft
+  to_address text not null,              -- the address on file, lower case
+  subject text not null,                 -- 1..200
+  body text not null,                    -- 1..4000, as sent
+  created_at timestamptz not null default now()
 );
 
 create table api_keys (
@@ -1070,6 +1141,22 @@ create table api_keys (
 -- Trigger api_keys_revocation_final (migration 0046): once revoked_at is set, any UPDATE of
 -- revoked_at or revoked_by fails (23514), whoever runs it, so a revoked key never comes back
 -- (only a migration, as the owner, could drop the trigger).
+
+-- The planner's webhook status (Phase 25.3, migration 0062; src/lib/integrations/status.ts): what
+-- Integrations and Needs attention show, written in the transaction that logs what it sums up: the
+-- address set (a fresh start; a removed one shows no status), webhook.delivered (working, no longer failing),
+-- webhook.failed (failing since the first such failure). Times only. The app role may read and add
+-- a row and change its times (a column grant), never whose it is; never deleted. A firm whose
+-- address was set before 0062 reads "new" until its next delivery.
+create table webhook_status (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id) unique,   -- one row per firm
+  address_set_at timestamptz not null,
+  last_delivered_at timestamptz,         -- the last delivery that worked since the address was set
+  failing_since timestamptz,             -- set while failing: the first last-try failure since
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
 
 -- The firm for the current transaction. NULL when unset, so policies fail closed. The nullif
 -- matters: a pooled connection that ran a firm transaction returns '' afterwards, not NULL.

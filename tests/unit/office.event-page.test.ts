@@ -35,6 +35,7 @@ const open = (o: Partial<OpenPlace> = {}): OpenPlace => ({
   urgent: true,
   showing: true,
   offers: 0,
+  offering: false,
   requirements: ["SIA door supervisor licence"],
   lastCancel: null,
   ...o,

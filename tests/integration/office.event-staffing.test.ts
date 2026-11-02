@@ -2,8 +2,8 @@ import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createSession } from "@/lib/auth/sessions";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
-import { offerOpenPlaces } from "@/lib/office/event-offers";
-import { officeEventPage } from "@/lib/office/events";
+import { offerOnePlace, offerOpenPlaces } from "@/lib/office/event-offers";
+import { officeEventBasics, officeEventPage } from "@/lib/office/events";
 import { createShifts } from "@/lib/office/shift-editor";
 import { bookingFirm, hoursFromNow, NOW, type BookingFirm } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
@@ -60,7 +60,7 @@ async function arenaDay() {
   const steward = await f.shift({
     eventId: ev,
     role: "steward",
-    startsAt: hoursFromNow(26),
+    startsAt: hoursFromNow(20),
     headcount: 2,
   });
   await f.booking(dee, steward, "confirmed", 1);
@@ -119,18 +119,19 @@ describe("the staffing layout and the open places", () => {
     const st = await pageOf(t);
     expect(st.venue).toEqual({ name: "Arena", town: "Exampleton", postcode: "ZZ1 1AA" });
     // The ended session isn't laid out; the rest in time order.
-    expect(st.sessions.map((s) => s.shiftId)).toEqual([t.door, t.steward, t.full]);
-    expect(st.sessions[0]?.places).toEqual([
+    expect(st.sessions.map((s) => s.shiftId)).toEqual([t.steward, t.door, t.full]);
+    expect(st.sessions[1]?.places).toEqual([
       { slot: 1, state: "booked", worker: { id: t.ann, name: "Ann Booker" } },
       { slot: 2, state: "urgent", worker: null },
       { slot: 3, state: "booked", worker: { id: t.ben, name: "Ben Booker" } },
     ]);
-    expect(st.sessions[1]?.places.map((p) => p.state)).toEqual(["booked", "open"]);
+    expect(st.sessions[0]?.places.map((p) => p.state)).toEqual(["booked", "open"]);
+    // Roles in the order their first sessions start.
     expect(st.roles.map((r) => [r.role, r.booked, r.needed])).toEqual([
-      ["door_supervisor", 2, 3],
       ["steward", 2, 3],
+      ["door_supervisor", 2, 3],
     ]);
-    expect(st.roles[0]?.requirements.join()).toMatch(/door supervisor/i);
+    expect(st.roles[1]?.requirements.join()).toMatch(/door supervisor/i);
     expect([st.booked, st.needed]).toEqual([4, 6]);
   });
 
@@ -193,6 +194,59 @@ describe("Offer N open places", () => {
   });
 });
 
+describe("offering one open place (Phase 26.5's guardrails review)", () => {
+  it("while its offers are going out there's nothing to do; once they stopped, they start again (logged)", async () => {
+    const t = await arenaDay();
+    // The door session is urgent with no stop: its offers are going out.
+    expect((await pageOf(t)).open.find((o) => o.shiftId === t.door)?.offering).toBe(true);
+    expect(await offerOnePlace(t.ctx(t.resourcer), t.door)).toEqual({
+      status: "already_offering",
+    });
+    // Its waves stopped at wave 1 (nobody left to offer it to, say).
+    await su.query(
+      `insert into events (firm_id, actor_type, action, entity_type, entity_id, data)
+       values ($1, 'system', 'offer.waves_stopped', 'shift', $2, '{"reason":"no_candidates","wave":1}')`,
+      [t.f.firmId, t.door],
+    );
+    expect((await pageOf(t)).open.find((o) => o.shiftId === t.door)?.offering).toBe(false);
+    expect(await offerOnePlace(t.ctx(t.resourcer), t.door)).toEqual({ status: "offering" });
+    const { rows: logged } = await su.query(
+      "select 1 from events where firm_id = $1 and action = 'shift.offers_restarted' and entity_id = $2",
+      [t.f.firmId, t.door],
+    );
+    expect(logged).toHaveLength(1);
+    const { rows: waves } = await su.query(
+      "select data from pgboss.job where name = 'offer-wave' and data ->> 'shiftId' = $1",
+      [t.door],
+    );
+    expect(waves.length).toBeGreaterThan(0);
+    // A full session, or one that has ended: nothing to offer.
+    expect(await offerOnePlace(t.ctx(t.resourcer), t.full)).toEqual({ status: "full" });
+    expect(await offerOnePlace(t.ctx(t.resourcer), t.ended)).toEqual({ status: "full" });
+    expect(await offerOnePlace(t.ctx(t.payroll), t.steward)).toEqual({ status: "not_allowed" });
+  });
+
+  it("Offer N open places covers only the firm's urgent window (24 hours by default)", async () => {
+    const t = await arenaDay();
+    const later = await t.f.shift({
+      eventId: t.ev,
+      role: "steward",
+      startsAt: hoursFromNow(72),
+      headcount: 2,
+    });
+    const st = await pageOf(t);
+    // The steward session's 1 free place (20 hours away); not the one 3 days away, nor the door
+    // session's (its offers are going out).
+    expect(st.offerNow).toBe(1);
+    await offerOpenPlaces(t.ctx(t.resourcer), t.ev);
+    const { rows } = await su.query<{ is_urgent: boolean }>(
+      "select is_urgent from shifts where id = $1",
+      [later],
+    );
+    expect(rows[0]?.is_urgent).toBe(false);
+  });
+});
+
 describe("Add shifts (to this event)", () => {
   const add = (t: Awaited<ReturnType<typeof arenaDay>>, extra: Record<string, unknown>) =>
     createShifts(t.ctx(t.resourcer), {
@@ -219,7 +273,24 @@ describe("Add shifts (to this event)", () => {
     const t = await arenaDay();
     const other: BookingFirm = (await arenaDay()).f;
     const theirs = await other.event({ name: "Theirs" });
+    // A site and day's automatic event, and a planner's: they own their events.
+    const auto = (
+      await su.query<{ id: string }>(
+        `insert into shift_events (firm_id, name, planner_ref) values ($1, 'Arena · Sat 7 Nov', 'auto:none:2026-11-07')
+         returning id::text as id`,
+        [t.f.firmId],
+      )
+    ).rows[0]?.id;
+    const planners = (
+      await su.query<{ id: string }>(
+        `insert into shift_events (firm_id, name, source, planner_ref) values ($1, 'Their Day', 'api', 'EV-1')
+         returning id::text as id`,
+        [t.f.firmId],
+      )
+    ).rows[0]?.id;
     for (const extra of [
+      { eventId: auto },
+      { eventId: planners },
       { eventId: theirs },
       { eventId: "11111111-1111-4111-8111-111111111111" },
       { eventId: "not-a-uuid" },
@@ -230,5 +301,23 @@ describe("Add shifts (to this event)", () => {
         problems: [{ line: null, problem: "bad_event" }],
       });
     }
+  });
+
+  it("the page offers it only for an event the office named, never at a firm whose rota is a sheet", async () => {
+    const t = await arenaDay();
+    const ctx = { firm: { id: t.f.firmId }, run: withFirm, clock };
+    const token = await t.token(t.resourcer);
+    expect(await officeEventBasics(ctx, token, t.ev)).toMatchObject({
+      id: t.ev,
+      name: "Arena Day",
+    });
+    expect((await officeEventPage(ctx, token, t.ev))?.canAddShifts).toBe(true);
+    await su.query(
+      `insert into roster_sources (firm_id, kind, enabled, spreadsheet_id, mapping)
+       values ($1, 'sheets', true, $2, '{}')`,
+      [t.f.firmId, `test_sheet_${Date.now()}`],
+    );
+    expect(await officeEventBasics(ctx, token, t.ev)).toBeNull();
+    expect((await officeEventPage(ctx, token, t.ev))?.canAddShifts).toBe(false);
   });
 });

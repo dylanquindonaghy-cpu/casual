@@ -48,6 +48,7 @@ export const LOG_TYPES = {
       "shift.closed",
       "shift.reopened",
       "shift.marked_urgent",
+      "shift.offers_restarted", // Phase 26.5: an urgent session's stopped offers started again
       "shift.urgent_cleared",
       "event.shown",
       "event.hidden",

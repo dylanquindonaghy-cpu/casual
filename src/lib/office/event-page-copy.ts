@@ -126,6 +126,7 @@ export const timeSpan = (startsAt: Date, endsAt: Date, tz: string) =>
 export const TILE_WORDS: Record<Exclude<PlaceState, "booked">, string> = {
   open: "Open",
   urgent: "Urgent",
+  closed: "Not open",
 };
 // What a screen reader hears for each place (each one different on the page: aud-5).
 export function tileLabel(
@@ -135,6 +136,7 @@ export function tileLabel(
 ): string {
   const where = `${roleLabel(s.role)}, ${hhmm(s.startsAt, tz)} to ${hhmm(s.endsAt, tz)}, place ${p.slot}`;
   if (p.worker) return `${p.worker.name}: ${where}. Open the session`;
+  if (p.state === "closed") return `Not open: ${where}`;
   return `${p.state === "urgent" ? "Urgent open place" : "Open place"}: ${where}`;
 }
 export const LEGEND = { booked: "Booked", open: "Open", urgent: "Urgent" } as const;
@@ -187,10 +189,33 @@ export function whyOpen(c: LastCancel, tz: string): string {
         : "No strike.";
   return `${c.worker} cancelled this place at ${when}, with ${noticeText(c.noticeHours)}. ${strike}`;
 }
-// "Offer to the best 5" (the session marked urgent: offers go out a few at a time).
+// "Offer to the best 5" (the session marked urgent, or its stopped offers started again: offers go
+// out a few at a time).
 export const offerBestButton = (n: number | null) =>
   n === null ? "Offer to the best people" : `Offer to the best ${n}`;
 export const OFFERS_GOING = "Offers are going out.";
+export function offerPlaceResultText(r: { status: string }): string {
+  switch (r.status) {
+    case "offering":
+    case "already_offering":
+      return OFFERS_GOING;
+    case "offering_hidden":
+      return "Marked urgent. It's hidden from casuals, so no offers go out while it's hidden.";
+    case "full":
+      return "There's no place to offer now: it's booked, closed or has started.";
+    case "not_found":
+      return "This session isn't there any more.";
+    case "not_allowed":
+      return "You can't offer shifts.";
+    case "logged_out":
+      return "Your session has ended. Log in again.";
+    default:
+      return "Something went wrong. Try again.";
+  }
+}
+// Places further ahead than the firm's urgent window: offered one at a time, from each card.
+export const offerLaterLine = (n: number) =>
+  `${n === 1 ? "1 open place starts" : `${n} open places start`} further ahead: offer each from its card.`;
 export const PICK_SOMEONE = "Pick someone";
 export const NO_OPEN_PLACES = "Every place is booked.";
 

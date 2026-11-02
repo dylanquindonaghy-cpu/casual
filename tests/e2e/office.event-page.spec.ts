@@ -42,7 +42,8 @@ test("the staffing layout, the open places, Offer N open places, the tabs and Ad
     name,
     site: `Staffing Test Hall ${run}`,
     role: "steward",
-    daysAhead: 3,
+    // Inside the firm's urgent window (24 hours), where "Offer N open places" offers.
+    daysAhead: 0.5,
     headcount: 3,
   });
   try {

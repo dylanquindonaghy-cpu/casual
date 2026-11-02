@@ -10,14 +10,12 @@ import {
   OPEN_FIELDS,
   OPEN_PLACES_TITLE,
   offeredWords,
-  OFFERS_GOING,
   openPlacesLine,
   openTimes,
   openTitle,
   PICK_SOMEONE,
   roleLine,
   rolePlural,
-  shortName,
   STAFFING_BOOKED,
   STAFFING_TITLE,
   startsInWords,
@@ -82,10 +80,21 @@ function Tile({
           >
             {initialsOf(place.worker.name)}
           </span>
-          <span className="truncate font-medium text-ink">{shortName(place.worker.name)}</span>
+          <span className="truncate font-medium text-ink">{place.worker.name}</span>
         </span>
         <span className="text-xs text-ink-faint tabular-nums">{time}</span>
       </Link>
+    );
+  }
+  if (place.state === "closed") {
+    return (
+      <span
+        data-place="closed"
+        className={`${base} cursor-default border border-line text-ink-faint`}
+      >
+        <span className="font-semibold">{TILE_WORDS.closed}</span>
+        <span className="text-xs tabular-nums">{time}</span>
+      </span>
     );
   }
   const urgent = place.state === "urgent";
@@ -143,7 +152,6 @@ function OpenCard({
       <li>
         <Link
           href={`${eventHref}?place=${o.shiftId}#open-places`}
-          aria-label={`${openTitle(o)}: ${openTimes(o, tz)}`}
           className="press flex flex-col gap-2 rounded-row glass-tile p-4 hover:bg-button-hover"
         >
           {head}
@@ -189,11 +197,7 @@ function OpenCard({
         </p>
       )}
       <div className="flex flex-wrap gap-2">
-        {o.urgent ? (
-          <p className="flex flex-1 items-center text-sm text-ink-muted">{OFFERS_GOING}</p>
-        ) : (
-          <OfferBest shiftId={o.shiftId} firstWave={firstWave} name={name} />
-        )}
+        <OfferBest shiftId={o.shiftId} firstWave={firstWave} name={name} offering={o.offering} />
         <Link
           href={`/office/offer/${o.shiftId}`}
           aria-label={`${PICK_SOMEONE}: ${name}`}
@@ -222,7 +226,7 @@ export function StaffingTab({
   const eventHref = `/office/events/${eventId}`;
   const chosen =
     st.open.find((o) => o.shiftId === chosenPlace)?.shiftId ?? st.open[0]?.shiftId ?? null;
-  const toFill = st.needed - st.booked;
+  const toFill = st.open.reduce((n, o) => n + o.placesFree, 0);
   return (
     <div className="grid items-start gap-4 @min-[64rem]:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
       <section

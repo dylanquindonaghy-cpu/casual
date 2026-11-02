@@ -353,13 +353,20 @@ the older `/office/events/[id]` row below where they differ.
   Nov} · {Exampleton, ZZ1 1AA} · {23} sessions" (several days: "{Sat 7 Nov} to {Sun 8 Nov}"; the
   venue's town and postcode, else its name). Actions: **Hide from casuals** / **Show to casuals**
   (the event's switch as a button: the same action and answer as before), **Add shifts** (the form
-  for this event, below) and the main **Offer {5} open places** (shown while a place is free):
+  for this event, below; only for an event the office named itself, never a planner's, a sheet's,
+  an import's or a site and day's automatic one, and not at a firm whose rota is a Google Sheet) and
+  the main **Offer {5} open places** (shown while a session starting within the firm's urgent
+  window, 24 hours by default, has a place free and no offers going out; its number counts those
+  places; places further ahead: "{3} open places start further ahead: offer each from its card."
+  Decision 10 in docs/plan/decisions-waiting.md):
   "Each session with a place free is marked urgent: offers go to the best people for it, a few at a
   time, until it's filled. Nothing goes out while a session is hidden from casuals." with **Yes,
   offer them** and **Keep as it is**; then "Offers are going out for {3} sessions." (" {1} session
   is hidden from casuals: no offers go out while hidden.") or "Every open place is already being
-  offered." Each session goes through the office's own Mark urgent, checked and logged
-  (`shift.marked_urgent`) one at a time; never one full, started or already urgent.
+  offered." Each session goes through one locked step (`offerShiftPlaces`): open, not started, a
+  place free, its offers not already going out; marked urgent (`shift.marked_urgent`), or, urgent
+  but its offers stopped (it filled and a place opened again, nobody was left, it was hidden), its
+  offers started again (`shift.offers_restarted`).
 - **Tabs** ("Show"): **Staffing** {places} (the default), **Overview** {sessions} (`?tab=overview`:
   every session as before, past and cancelled too, each with its switch, who is booked, its menu
   and "Mark who worked"), **Cancellations** {n} (`?tab=cancellations`: the event's, newest first,
@@ -374,9 +381,10 @@ the older `/office/events/[id]` row below where they differ.
   with an amber bar; then each role ("Door supervisors", with its qualifications and start times:
   "SIA door supervisor licence · 08:00 and 11:30") and its sessions' places as tiles, in time order
   and place order, for sessions to come (not cancelled, not ended): booked (initials from 576px of
-  panel, "{Amira Z.}" and "{11:30–19:00}": a link to the session, where a booking is cancelled or
-  moved as before), **Open** (dashed amber) or **Urgent** (red), each a link that picks its open
-  place (`?place=`); the picked one ringed in the accent. Each tile's name to a screen reader is
+  panel, the name cut to fit, and "{11:30–19:00}": a link to the session, where a booking is
+  cancelled or moved as before), **Open** (dashed amber) or **Urgent** (red), each a link that picks
+  its open place (`?place=`), the picked one ringed in the accent; **Not open** (grey, not a link)
+  for a place nobody can be booked into now (the session started, or was marked filled). Each tile's name to a screen reader is
   its own: "Open place: Steward, 12:00 to 18:30, place 3" / "Urgent open place: …" / "{Priya Shah}:
   Steward, 12:00 to 18:30, place 2. Open the session". A key ("Booked", "Open", "Urgent", "Tap a
   place to see who's on it or to offer it."). Nothing to come: "No sessions to come. Add shifts to
@@ -385,11 +393,13 @@ the older `/office/events/[id]` row below where they differ.
   urgent"; each session with a place free, urgent first then soonest: "{Door supervisor}" (or
   "{Steward} × {3}"), "{Sat 7 Nov}, {08:00–16:00} · {8} h", "Urgent" / "Open", its qualifications
   and "{2} casuals offered". The picked one (else the first) opened: Needs, Starts in ("{5} days",
-  "{20} h", "{45} min"), Offered, Showing to casuals; why it's open ("{Chloe Quigley} cancelled
-  this place at {04:00} on {Mon 2 Nov}, with {5 days'} notice. No strike." / "Strike issued." /
-  "The office cancelled {name}'s booking at …"); **Offer to the best {5}** (the session marked
-  urgent: the firm's first wave for one place; "Offer to the best people" when the firm's settings
-  don't say) or, already urgent, "Offers are going out."; and **Pick someone** (the offer page).
+  "{20} h", "{45} min"), Offered, Showing to casuals; why it's open, while the cancelled place is
+  still the open one ("{Chloe Quigley} cancelled this place at {04:00} on {Mon 2 Nov}, with {5
+  days'} notice. No strike." / "Strike issued." / "The office cancelled {name}'s booking at …");
+  **Offer to the best {5}** (the same locked step for this session: the firm's first wave for one
+  place; "Offer to the best people" when the firm's settings don't say) or, while its offers are
+  going out (urgent, shown to casuals, its waves not stopped), "Offers are going out."; and **Pick
+  someone** (the offer page). Its answer is heard where the button was, once the page redraws.
   Each button's name to a screen reader adds its session. None: "Every place is booked."
 - **Each session's "…" menu** (Overview, and Events & sessions): its links' names to a screen
   reader add the session ("Assign someone: Steward, 18:00 to 23:00"; aud-5).

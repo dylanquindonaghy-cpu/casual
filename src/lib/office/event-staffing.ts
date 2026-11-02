@@ -5,6 +5,7 @@ import { officeUsers, workers } from "../db/schema";
 import { firstComeWaves, waveCap } from "../offers/waves";
 import { parseAllocationSettings } from "../roster/allocation-input";
 import { eventWords } from "./event-words";
+import { openPlacesInWindow } from "./event-offers";
 import { bookedJoin } from "./events";
 
 // An event's page, round 8 (Phase 26.5; the spec page's "An event's page", evt-1 to evt-6): every
@@ -15,7 +16,8 @@ import { bookedJoin } from "./events";
 
 const CANCELLED_STATUSES = sql.raw("'cancelled_worker', 'cancelled_firm'");
 
-export type PlaceState = "booked" | "open" | "urgent";
+// "closed": a place nobody can be booked into now (the session started, or was marked filled).
+export type PlaceState = "booked" | "open" | "urgent" | "closed";
 
 export interface StaffingPlace {
   slot: number;
@@ -56,6 +58,7 @@ export interface OpenPlace {
   urgent: boolean;
   showing: boolean; // to casuals: its own switch and its event's
   offers: number; // offers sent, any answer
+  offering: boolean; // its offers are going out now (urgent, shown, its waves not stopped)
   requirements: string[];
   lastCancel: LastCancel | null; // the latest cancellation on it, while a place is open
 }
@@ -79,6 +82,7 @@ export interface EventStaffing {
   needed: number;
   open: OpenPlace[];
   firstWave: number | null; // how many "Offer to the best …" goes to for one place (null: unknown)
+  offerNow: number; // free places "Offer N open places" would offer now (inside the urgent window)
   cancellations: EventCancellation[];
   history: { at: Date; words: string }[];
 }
@@ -117,11 +121,18 @@ export async function loadEventStaffing(
     booked: number;
     showing: boolean;
     offers: number;
+    stopped: boolean;
   }>(sql`
     select s.id::text as id, s.role, s.starts_at, s.ends_at, s.headcount, s.status, s.is_urgent,
            b.booked, (s.showing_to_casuals and e.showing_to_casuals) as showing,
            (select count(*)::int from offers o
-             where o.firm_id = s.firm_id and o.shift_id = s.id) as offers
+             where o.firm_id = s.firm_id and o.shift_id = s.id) as offers,
+           coalesce(
+             (select (ev.data ->> 'wave')::int from events ev
+               where ev.entity_id = s.id and ev.action = 'offer.waves_stopped'
+               order by ev.id desc limit 1)
+             > coalesce((select max(o.wave) from offers o where o.shift_id = s.id), 0),
+             false) as stopped
       from shifts s
       join shift_events e on e.firm_id = s.firm_id and e.id = s.event_id
       ${bookedJoin}
@@ -153,13 +164,14 @@ export async function loadEventStaffing(
   const { rows: lastCancels } = idList
     ? await tx.execute<{
         shift_id: string;
+        slot: number;
         name: string;
         cancelled_at: string | Date;
         notice_hours: string | number | null;
         status: string;
         strike: "live" | "withdrawn" | null;
       }>(sql`
-        select distinct on (a.shift_id) a.shift_id::text as shift_id,
+        select distinct on (a.shift_id) a.shift_id::text as shift_id, a.slot,
                trim(w.first_name || ' ' || w.last_name) as name, a.cancelled_at, a.notice_hours,
                a.status,
                (select st.status from strikes st
@@ -195,7 +207,11 @@ export async function loadEventStaffing(
     const places: StaffingPlace[] = [];
     for (let slot = 1; slot <= r.headcount; slot++) {
       const w = holders.get(slot) ?? null;
-      places.push({ slot, state: w ? "booked" : urgent ? "urgent" : "open", worker: w });
+      places.push({
+        slot,
+        state: w ? "booked" : !fillable ? "closed" : urgent ? "urgent" : "open",
+        worker: w,
+      });
     }
     sessions.push({ shiftId: r.id, role: r.role, startsAt, endsAt: date(r.ends_at), places });
     const role = roles.get(r.role) ?? {
@@ -212,7 +228,9 @@ export async function loadEventStaffing(
     if (!role.starts.some((d) => d.getTime() === startsAt.getTime())) role.starts.push(startsAt);
     roles.set(r.role, role);
     if (fillable) {
-      const c = lastBySession.get(r.id);
+      // Why it's open: its latest cancellation, only while that place is still the open one.
+      const latest = lastBySession.get(r.id);
+      const c = latest && !holders.has(latest.slot) ? latest : undefined;
       open.push({
         shiftId: r.id,
         role: r.role,
@@ -222,6 +240,7 @@ export async function loadEventStaffing(
         urgent,
         showing: r.showing,
         offers: r.offers,
+        offering: urgent && r.showing && !r.stopped,
         requirements: needs,
         lastCancel: c
           ? {
@@ -339,6 +358,7 @@ export async function loadEventStaffing(
     needed: all.reduce((n, r) => n + r.needed, 0),
     open,
     firstWave,
+    offerNow: (await openPlacesInWindow(tx, eventId, now)).reduce((n, o) => n + o.free, 0),
     cancellations: cancelRows.map((c) => ({
       assignmentId: c.id,
       worker: c.name,

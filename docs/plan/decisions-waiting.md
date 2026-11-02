@@ -316,6 +316,12 @@ fix (the offer-wave timing tests failing from 09:00 that day) into the review's 
 | 8 | The office's one accent | Firm colour on the main button, plus a separate app blue | Hi-vis yellow in the office; the firm's colour stays on its mark and in the casual app | P10 |
 | 9 | A map service for the venue map | None | MapLibre (open source) with a dark style from a UK or EU tile host, or a self-hosted map file; without one, a cover grid by venue and day | P10 |
 
+### Built with a safe default, for Dylan to confirm (added 2026-11-02)
+
+| # | Decision | Built as (the safe default) | The other way | Where |
+|---|---|---|---|---|
+| 10 | How far ahead an event's "Offer N open places" (Phase 26.5) offers | Only sessions starting within the firm's urgent window (`urgent_window_hours`, 24 by default); one further ahead is offered from its own card ("Offer to the best 5"), one at a time. The page says how many start further ahead. | Every open session of the event, however far ahead. Urgent offers aren't held to a casual's daily limit (3 a day), so one press on an event two weeks out with 15 open sessions could send the same few door supervisors up to 15 offers in minutes (the guardrails review's M3). | `src/lib/office/event-offers.ts`; docs/screens.md "An event's page, round 8" |
+
 ### Checks and to-dos (not choices)
 
 | # | What | Who | Where |

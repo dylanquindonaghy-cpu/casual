@@ -344,6 +344,8 @@ export function eventWords(e: LoggedEvent, names: Names): string {
         : "Marked urgent after a dropout.";
     case "shift.urgent_cleared":
       return `${officeName} marked it not urgent.`;
+    case "shift.offers_restarted":
+      return `${officeName} started its offers again.`;
     // The event and session switches (src/lib/office/showing.ts).
     case "event.shown":
     case "session.shown": {

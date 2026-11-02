@@ -18,6 +18,7 @@ import {
   historyWhen,
   NO_CANCELLATIONS,
   NO_HISTORY,
+  offerLaterLine,
   SEE_IN_LOG,
   SHOWING_CHIP,
   strikeWords,
@@ -88,11 +89,13 @@ export default async function EventPage({
         actions={
           <>
             <ShowHideButton eventId={e.eventId} showing={e.showing} />
-            <Link href={`/office/shifts/event?event=${e.eventId}`} className={btn.secondary}>
-              <Icon name="plus" size={16} />
-              {ADD_SHIFTS}
-            </Link>
-            <OfferOpenPlaces eventId={e.eventId} places={openPlaces} />
+            {data.canAddShifts && (
+              <Link href={`/office/shifts/event?event=${e.eventId}`} className={btn.secondary}>
+                <Icon name="plus" size={16} />
+                {ADD_SHIFTS}
+              </Link>
+            )}
+            <OfferOpenPlaces eventId={e.eventId} places={st.offerNow} />
           </>
         }
       >
@@ -102,6 +105,9 @@ export default async function EventPage({
           </StatusChip>
           <span>{eventLine(e.firstStartsAt, e.lastStartsAt, st.venue, e.sessionCount, tz)}</span>
         </p>
+        {openPlaces > st.offerNow && (
+          <p className="text-sm text-ink-muted">{offerLaterLine(openPlaces - st.offerNow)}</p>
+        )}
       </PageHeader>
 
       <nav aria-label="Show" className={`${tabs} mb-4`}>

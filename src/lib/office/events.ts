@@ -73,6 +73,7 @@ export interface EventPage {
   event: EventCardData;
   booked: Record<string, BookedCasual[]>; // by session (shift id)
   staffing: EventStaffing; // Phase 26.5: the staffing layout, open places, cancellations, history
+  canAddShifts: boolean; // an event the office named, at a firm whose rota isn't a sheet
 }
 
 export interface EventList {
@@ -264,6 +265,14 @@ function cardOf(
   };
 }
 
+async function namedByOffice(tx: FirmTx, eventId: string): Promise<boolean> {
+  const { rows } = await tx.execute(sql`
+    select 1 from shift_events
+     where id = ${eventId}::uuid and source = 'native' and planner_ref is null
+  `);
+  return rows.length > 0;
+}
+
 async function hasPlanner(tx: FirmTx): Promise<boolean> {
   const [source] = await tx
     .select({ id: rosterSources.id })
@@ -417,9 +426,13 @@ export async function officeEventBasics(
 ): Promise<{ id: string; name: string; siteId: string | null } | null> {
   if (!z.uuid().safeParse(eventId).success) return null;
   return asOffice(ctx, token, async (tx) => {
+    // Only an event the office named itself ("Add shifts" adds to nothing else; createShifts
+    // checks the same), and not at a firm whose rota is a Google Sheet (the sheet adds shifts).
+    if (await hasPlanner(tx)) return null;
     const { rows } = await tx.execute<{ id: string; name: string; site_id: string | null }>(sql`
       select e.id::text as id, e.name, e.site_id::text as site_id
-        from shift_events e where e.id = ${eventId}::uuid
+        from shift_events e
+       where e.id = ${eventId}::uuid and e.source = 'native' and e.planner_ref is null
     `);
     const r = rows[0];
     return r ? { id: r.id, name: r.name, siteId: r.site_id } : null;
@@ -480,6 +493,7 @@ export async function officeEventPage(
       event,
       booked,
       staffing: await loadEventStaffing(tx, now, e.id, needs),
+      canAddShifts: !(await hasPlanner(tx)) && (await namedByOffice(tx, e.id)),
     };
   });
 }

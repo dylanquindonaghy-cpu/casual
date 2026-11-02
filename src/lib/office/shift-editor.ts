@@ -201,7 +201,7 @@ export async function createShifts(
     if (eventName !== undefined && (!eventName || [...eventName].length > EVENT_NAME_MAX)) {
       problems.push({ line: null, problem: "bad_event_name" });
     }
-    // An existing event (an event's page's "Add shifts"), held so it can't go meanwhile.
+    // An existing event (an event's page's "Add shifts"), held so a show/hide or rename waits.
     let joinEvent: string | null = null;
     if (input.eventId !== undefined) {
       const id = z.uuid().safeParse(input.eventId);
@@ -210,7 +210,15 @@ export async function createShifts(
           ? await tx
               .select({ id: shiftEvents.id })
               .from(shiftEvents)
-              .where(eq(shiftEvents.id, id.data))
+              .where(
+                and(
+                  eq(shiftEvents.id, id.data),
+                  // Only an event the office named itself: never a planner's, a sheet's or an
+                  // import's (they own their events), nor a site and day's automatic one.
+                  eq(shiftEvents.source, "native"),
+                  isNull(shiftEvents.plannerRef),
+                ),
+              )
               .for("share")
           : [];
       if (found) joinEvent = found.id;

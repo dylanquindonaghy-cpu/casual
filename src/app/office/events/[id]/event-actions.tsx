@@ -1,39 +1,41 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useHydrated } from "@/app/use-hydrated";
 import {
   KEEP_AS_IS,
+  OFFERS_GOING,
   offerBestButton,
   OFFER_OPEN_CONFIRM,
   OFFER_OPEN_YES,
   offerOpenPlacesButton,
   offerOpenResultText,
+  offerPlaceResultText,
   showButton,
 } from "@/lib/office/event-page-copy";
 import { showingResultText } from "@/lib/office/shifts-copy";
-import { urgentResultText } from "@/lib/office/today-copy";
 import { btn } from "../../../ui/classes";
 import { Icon } from "../../../ui/icons";
 import { setShowingAction } from "../../shifts/actions";
-import { offerOpenPlacesAction, setUrgentAction } from "../../today-actions";
+import { offerOnePlaceAction, offerOpenPlacesAction } from "../../today-actions";
 
 const failed = { status: "error" as const };
 
 // An event's page's buttons (Phase 26.5, evt-1 and evt-4), each one the office's existing action:
 // "Hide from casuals" / "Show to casuals" (the event's switch, setShowingAction); "Offer N open
-// places" (each open session marked urgent, after a "Yes": offerOpenPlacesAction); "Offer to the
-// best 5" on an open place (that session marked urgent: setUrgentAction). The server checks the
+// places" (each open session in the urgent window offered, after a "Yes": offerOpenPlacesAction);
+// "Offer to the best 5" on an open place (that session offered: offerOnePlaceAction). The server checks the
 // office user and logs each; the page then reads its figures again. The answer stays beside the
 // button. They wait for the page (docs/ui-design.md "Forms wait for the page").
 
+// Mounted from the start, so a screen reader hears the answer when it arrives.
 function Answer({ text }: { text: string | null }) {
-  return text ? (
-    <p role="status" className="basis-full text-sm text-ink-muted">
-      {text}
+  return (
+    <p role="status" className={text ? "basis-full text-sm text-ink-muted" : "sr-only"}>
+      {text ?? ""}
     </p>
-  ) : null;
+  );
 }
 
 export function ShowHideButton({ eventId, showing }: { eventId: string; showing: boolean }) {
@@ -66,27 +68,39 @@ export function OfferOpenPlaces({ eventId, places }: { eventId: string; places: 
   const [pending, start] = useTransition();
   const [said, setSaid] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const yes = useRef<HTMLButtonElement>(null);
+  // The "Yes" step takes the focus when it opens; closing it gives it back to the button.
+  useEffect(() => {
+    if (asking) yes.current?.focus();
+  }, [asking]);
+  const close = () => {
+    setAsking(false);
+    trigger.current?.focus();
+  };
   const offer = () =>
     start(async () => {
       const r = await offerOpenPlacesAction(eventId).catch(() => failed);
       setSaid(offerOpenResultText(r));
-      setAsking(false);
+      close();
       if (r.status === "offered") router.refresh();
     });
-  if (places === 0) return null;
   return (
     <>
-      <button
-        type="button"
-        aria-expanded={asking}
-        aria-controls="offer-open-confirm"
-        onClick={() => setAsking(true)}
-        disabled={pending || !ready}
-        className={btn.primary}
-      >
-        <Icon name="send" size={16} />
-        {offerOpenPlacesButton(places)}
-      </button>
+      {places > 0 && (
+        <button
+          ref={trigger}
+          type="button"
+          aria-expanded={asking}
+          aria-controls="offer-open-confirm"
+          onClick={() => setAsking(true)}
+          disabled={pending || !ready}
+          className={btn.primary}
+        >
+          <Icon name="send" size={16} />
+          {offerOpenPlacesButton(places)}
+        </button>
+      )}
       {asking && (
         <div
           id="offer-open-confirm"
@@ -94,10 +108,16 @@ export function OfferOpenPlaces({ eventId, places }: { eventId: string; places: 
         >
           <p className="text-sm text-ink">{OFFER_OPEN_CONFIRM}</p>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={offer} disabled={pending} className={btn.primary}>
+            <button
+              ref={yes}
+              type="button"
+              onClick={offer}
+              disabled={pending}
+              className={btn.primary}
+            >
               {OFFER_OPEN_YES}
             </button>
-            <button type="button" onClick={() => setAsking(false)} className={btn.secondary}>
+            <button type="button" onClick={close} className={btn.secondary}>
               {KEEP_AS_IS}
             </button>
           </div>
@@ -108,14 +128,18 @@ export function OfferOpenPlaces({ eventId, places }: { eventId: string; places: 
   );
 }
 
+// One open place's offers: the button while nothing's going out, and "Offers are going out." once
+// they are; one component either way, so its answer stays (and is heard) after the page redraws.
 export function OfferBest({
   shiftId,
   firstWave,
   name,
+  offering,
 }: {
   shiftId: string;
   firstWave: number | null;
   name: string; // the session's, so each button reads as its own (aud-5)
+  offering: boolean;
 }) {
   const router = useRouter();
   const ready = useHydrated();
@@ -124,23 +148,27 @@ export function OfferBest({
   const words = offerBestButton(firstWave);
   const offer = () =>
     start(async () => {
-      const r = await setUrgentAction(shiftId, true).catch(() => failed);
-      setSaid(urgentResultText(r));
-      if (r.status === "marked" || r.status === "marked_hidden") router.refresh();
+      const r = await offerOnePlaceAction(shiftId).catch(() => failed);
+      setSaid(offerPlaceResultText(r));
+      if (r.status === "offering" || r.status === "offering_hidden") router.refresh();
     });
   return (
-    <>
-      <button
-        type="button"
-        onClick={offer}
-        disabled={pending || !ready}
-        aria-label={`${words}: ${name}`}
-        className={`${btn.primary} flex-1`}
-      >
-        <Icon name="send" size={16} />
-        {words}
-      </button>
-      <Answer text={said} />
-    </>
+    <div className="flex flex-1 flex-col gap-2">
+      {!offering && (
+        <button
+          type="button"
+          onClick={offer}
+          disabled={pending || !ready}
+          aria-label={`${words}: ${name}`}
+          className={btn.primary}
+        >
+          <Icon name="send" size={16} />
+          {words}
+        </button>
+      )}
+      <p role="status" className="text-sm text-ink-muted">
+        {said ?? (offering ? OFFERS_GOING : "")}
+      </p>
+    </div>
   );
 }

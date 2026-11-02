@@ -69,9 +69,10 @@ import { travelSettings } from "../travel/settings";
 // no wave, only the office's escalation check.
 // Each offer goes first as a push to the worker's subscribed phones (PUSH_TRANSPORT: webpush once
 // the keys are set, console in development and tests), else through the configured transport by
-// their channel (console in development and tests), else by email (deliverToWorker, P2.4). Quiet hours hold a wave unless the firm lets urgent override them; a
-// WhatsApp that won't send goes by SMS. Workers come only from waveCandidates() (the rules, and the
-// daily cap, which never holds back an urgent offer).
+// their chosen way, a text or an email (console in development and tests), else by email when no
+// text can go (deliverToWorker, P2.4; Phase 26.9: never WhatsApp). Quiet hours hold a wave unless
+// the firm lets urgent override them. Workers come only from waveCandidates() (the rules, the daily
+// cap, which never holds back an urgent offer, and someone an offer can reach).
 //
 // Both are firm tasks: several short transactions, never one held across a message (the shift
 // reminders' claim → send → record, src/lib/reminders/send.ts). A worker who taps "Take shift" while
@@ -505,7 +506,11 @@ export async function runOfferWave(
   // 2. Who it goes to: read with no locks held (the rules for every active worker with the role can
   // take a while). Waves only run for urgent shifts (checked above), so the daily cap doesn't hold
   // them back. Workers already offered this shift (this wave included) aren't candidates.
-  const candidates = await inFirm((tx) => waveCandidates(tx, shift.id, now));
+  // Never a place for someone nothing can reach (Phase 26.9: STOP, or no text sender, with no
+  // email and no phone with notifications on).
+  const candidates = await inFirm((tx) =>
+    waveCandidates(tx, shift.id, now, { reachable: { texts: deps.transport.texts !== false } }),
+  );
   // The wave's size, and never past the offer limit (Phase 25.3).
   const room = Math.max(
     0,

@@ -199,11 +199,20 @@ export async function setNotificationSettings(
   const run = ctx.run ?? withFirm;
   return run(ctx.firm.id, async (tx) => {
     const [before] = await tx
-      .select({ notifyChannel: workers.notifyChannel, offerAlerts: workers.offerAlerts })
+      .select({
+        notifyChannel: workers.notifyChannel,
+        offerAlerts: workers.offerAlerts,
+        email: workers.email,
+      })
       .from(workers)
       .where(eq(workers.id, workerId))
       .for("no key update");
     if (!before) return { status: "invalid" };
+    // Email only while the firm holds their address (Phase 26.9): the page offers it only then. A
+    // choice of email kept from before the address went isn't refused (only alerts may be changing).
+    if (channel === "email" && !before.email && before.notifyChannel !== "email") {
+      return { status: "invalid" };
+    }
     if (before.notifyChannel === channel && before.offerAlerts === settings.offerAlerts) {
       return { status: "saved" };
     }

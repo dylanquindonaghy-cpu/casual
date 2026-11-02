@@ -103,13 +103,11 @@ describe("the alerts", () => {
     expect(sends(18, 2)).toEqual({
       kind: "send_failures",
       key: `send:${FIRM}`,
-      text: "ShiftDesk alert: acme: 2 of 20 WhatsApps and texts failed to send in the last hour (10%), mostly twilio_21610.",
+      text: "ShiftDesk alert: acme: 2 of 20 texts failed to send in the last hour (10%), mostly twilio_21610.",
     });
     expect(
       sendFailureAlert({ firmId: FIRM, slug: "acme", sent: 0, failed: 20, topCode: null })?.text,
-    ).toBe(
-      "ShiftDesk alert: acme: 20 of 20 WhatsApps and texts failed to send in the last hour (100%).",
-    );
+    ).toBe("ShiftDesk alert: acme: 20 of 20 texts failed to send in the last hour (100%).");
     // Emails (P2.5): the same thresholds, their own key and words.
     expect(
       sendFailureAlert({

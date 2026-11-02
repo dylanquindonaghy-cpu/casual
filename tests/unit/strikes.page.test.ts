@@ -324,7 +324,7 @@ describe("the casual's Strikes on Profile", () => {
     photo: { status: "missing", current: null, waiting: null },
     unavailable: [],
     today: "2026-11-09",
-    notifyChannel: "whatsapp",
+    notifyChannel: "sms",
     offerAlerts: true,
     textsOff: false,
   };

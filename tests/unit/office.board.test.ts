@@ -916,10 +916,37 @@ describe("the offer panel lists who can take it as the offer page does", () => {
       hidden: false,
     },
     candidates: [
-      { workerId: "w1", name: "Priya Shah", hoursThisWeek: 4, channel: "whatsapp" },
-      { workerId: "w2", name: "Kieran Doyle", hoursThisWeek: 8, channel: "whatsapp" },
-      { workerId: "w3", name: "Tom Hale", hoursThisWeek: 16, channel: "sms" },
+      {
+        workerId: "w1",
+        name: "Priya Shah",
+        hoursThisWeek: 4,
+        channel: "sms",
+        reach: { how: "push" },
+        outsideArea: false,
+      },
+      {
+        workerId: "w2",
+        name: "Kieran Doyle",
+        hoursThisWeek: 8,
+        channel: "email",
+        reach: { how: "email", why: "chose_email" },
+        outsideArea: true,
+      },
+      {
+        workerId: "w3",
+        name: "Tom Hale",
+        hoursThisWeek: 16,
+        channel: "sms",
+        reach: { how: "sms" },
+        outsideArea: false,
+      },
     ] as OfferPage["candidates"],
+    notOffered: [
+      { workerId: "w4", name: "Ben Fraser", why: "booked" },
+      { workerId: "w5", name: "Mo Rahman", why: "licence" },
+      { workerId: "w6", name: "Zoe Adeyemi", why: "cap" },
+    ],
+    notOfferedMore: 2,
     offered: [
       { worker: "Mo Rahman", wave: null, response: null, sentAt: at("2026-10-26T07:19:00Z") },
       { worker: "Ben Fraser", wave: 1, response: "declined", sentAt: at("2026-10-25T10:00:00Z") },
@@ -935,12 +962,22 @@ describe("the offer panel lists who can take it as the offer page does", () => {
   it("the same people in the same order, each with the same line and Send offer", () => {
     expect(people(panel(page))).toEqual(["Priya Shah", "Kieran Doyle", "Tom Hale"]);
     expect(people(panel(page))).toEqual(people(offerPage(page)));
+    // How each offer will reach them, and why (Phase 26.9, off-1), and the travel area.
     for (const line of [
-      "4 hours booked that week · by WhatsApp",
-      "16 hours booked that week · by text message",
+      "4 hours booked that week By app notification",
+      "8 hours booked that week By email: they chose email Outside their travel area",
+      "16 hours booked that week By text: no app notifications on their phone",
     ]) {
       expect(words(panel(page))).toContain(line);
       expect(words(offerPage(page))).toContain(line);
+    }
+    expect(words(panel(page))).not.toContain("WhatsApp");
+    expect(words(offerPage(page))).not.toContain("WhatsApp");
+    // Not offered, and why (off-2), in the same words in both.
+    for (const html of [panel(page), offerPage(page)]) {
+      expect(words(html)).toContain(
+        "Not offered, and why Ben Fraser Booked on it Mo Rahman No licence in date Zoe Adeyemi Over today's 3 offers And 2 more.",
+      );
     }
     expect(words(panel(page))).toContain("This shift is urgent: they get the urgent message.");
   });
@@ -962,6 +999,9 @@ describe("the offer panel lists who can take it as the offer page does", () => {
     expect(words(panel(closed))).toContain("This shift isn't open any more.");
     expect(words(panel({ ...page, candidates: [] }))).toContain(
       "Nobody else can be offered this shift right now.",
+    );
+    expect(words(panel({ ...page, notOffered: [], notOfferedMore: 0 }))).toContain(
+      "Everyone with the role can be offered it.",
     );
   });
 });

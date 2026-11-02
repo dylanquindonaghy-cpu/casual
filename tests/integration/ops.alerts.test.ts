@@ -133,7 +133,7 @@ describe("a firm's signals", () => {
       {
         kind: "send_failures",
         key: `send:${t.firmId}`,
-        text: `ShiftDesk alert: ${t.slug}: 4 of 24 WhatsApps and texts failed to send in the last hour (17%), mostly twilio_21610.`,
+        text: `ShiftDesk alert: ${t.slug}: 4 of 24 texts failed to send in the last hour (17%), mostly twilio_21610.`,
       },
     ]);
   });
@@ -281,7 +281,7 @@ describe("a firm's signals", () => {
     await events(t, "offer.sent", 18);
     await events(t, "offer.send_failed", 2, { code: "twilio_21610" });
     expect((await alertsFor(t)).find((a) => a.kind === "send_failures")?.text).toBe(
-      `ShiftDesk alert: ${t.slug}: 2 of 20 WhatsApps and texts failed to send in the last hour (10%), mostly twilio_21610.`,
+      `ShiftDesk alert: ${t.slug}: 2 of 20 texts failed to send in the last hour (10%), mostly twilio_21610.`,
     );
   });
 });

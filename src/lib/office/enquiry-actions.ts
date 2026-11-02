@@ -68,7 +68,7 @@ type Locked = {
   from_e164: string | null;
   to_e164: string | null;
   worker_id: string | null;
-  notify_channel: "whatsapp" | "sms" | null;
+  notify_channel: "sms" | "email" | null;
   sms_opted_out_at: string | Date | null;
   waiting: boolean;
 };

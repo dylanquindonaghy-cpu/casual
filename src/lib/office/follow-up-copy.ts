@@ -5,7 +5,7 @@ export const remindAllButton = (n: number) => `Remind all ${n}`;
 export const REMIND = "Remind";
 export const REMINDED = "Reminded";
 export const REMIND_LINE =
-  "Remind sends the licence message again with its upload link: by their chosen way (WhatsApp or text), else email. Each one is logged. They can't take shifts that need it until the new one is checked.";
+  "Remind sends the licence message again with its upload link: by text, or by email if they chose it or texts can't reach them. Each one is logged. They can't take shifts that need it until the new one is checked.";
 
 type Common = { status: "logged_out" } | { status: "not_allowed" } | { status: "error" };
 const COMMON: Record<Common["status"], string> = {

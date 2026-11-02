@@ -16,7 +16,7 @@ const candidate = (
   hoursThisWeek: hours,
   lastOfferedAt,
   mobile: "+447700900100",
-  channel: "whatsapp",
+  channel: "sms",
   smsAllowed: true,
   email: null,
 });

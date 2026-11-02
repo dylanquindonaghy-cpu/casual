@@ -105,7 +105,7 @@ describe("the profile's push setting", () => {
       .replace(/\s+/g, " ");
     expect(text).toContain("Notifications on this phone");
     expect(text).toContain(
-      "Phone notifications aren't switched on for Acme Events yet. You'll get messages by WhatsApp or text.",
+      "Phone notifications aren't switched on for Acme Events yet. You'll get messages by text.",
     );
   });
   it("with a key, the phone decides after the page loads", () => {
@@ -146,7 +146,7 @@ describe("the push setting's words in every state", () => {
       "Notifications are on for this phone. Turn off notifications",
     );
     expect(view({ state: "off", justTurnedOff: true })).toContain(
-      "Notifications are off for this phone. You'll still get messages by WhatsApp or text.",
+      "Notifications are off for this phone. You'll still get messages by text.",
     );
     expect(view({ state: "blocked" })).toContain("You can allow them in your phone's settings.");
     expect(view({ state: "unsupported" })).toContain("This browser can't show notifications.");

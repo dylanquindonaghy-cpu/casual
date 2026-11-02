@@ -102,10 +102,10 @@ the jobs role owns the pgboss tables and isn't firm-restricted there, so payload
 
 **Workers (no passwords):**
 1. Enter mobile number on the firm's portal.
-2. If the number belongs to an active worker in this firm, send a one-time link by WhatsApp
-   (template) or SMS. Same response either way, so numbers can't be probed. With no text sender
-   (P2.5) and the firm's `login_by_email` on, by email to the address held for them instead
-   (P2.6; off by default). The login page says which way it goes, or that login links aren't
+2. If the number belongs to an active worker in this firm, send a one-time link by text (Phase
+   26.9; by WhatsApp until then). Same response either way, so numbers can't be probed. When no
+   text can go (no text sender, P2.5, or they replied STOP) and the firm's `login_by_email` is on,
+   by email to the address held for them instead (P2.6; off by default). The login page says which way it goes, or that login links aren't
    switched on yet (P2.7; `src/lib/portal/login-way.ts`).
 3. Link token: random 32 bytes, stored as a hash, single use, 15-minute expiry. The token goes
    in the URL fragment (`/l#<token>`), never the path or query string: browsers don't send the
@@ -116,8 +116,8 @@ the jobs role owns the pgboss tables and isn't firm-restricted there, so payload
    working for 60 seconds. Every lookup checks the session kind and that the worker is still
    active. Only token hashes are stored. The link page asks "Log me in" (a POST), so link
    previews and email scanners can't use the link up.
-5. Pay pages need a step-up code (`src/lib/auth/step-up.ts`): 6 digits by WhatsApp (by email in
-   the same case as the link, P2.6), 10 minutes,
+5. Pay pages need a step-up code (`src/lib/auth/step-up.ts`): 6 digits by text (by email in
+   the same case as the link, P2.6; by WhatsApp until Phase 26.9), 10 minutes,
    5 tries, one live code per session (asking again replaces it), 3 requests per worker per 15
    minutes and 10 a day. After a reload the page offers the code field while a sent code still
    works. Created inside the `send-login-code` job and stored as an HMAC bound to the session.
@@ -476,8 +476,9 @@ log lines name the host only.
 
 ## Notifications
 
-Order: web push (free) → WhatsApp template → SMS fallback → email (P2.4: only when there's no
-text sender at all). A push that one of their phones takes is the message: nothing else goes.
+Order (Phase 26.9, decision 4): web push (free) → their chosen way, a text (the firm's Webex
+account) or an email → an email when no text can go (no text sender, or they replied STOP). Never
+WhatsApp to a casual. A push that one of their phones takes is the message: nothing else goes.
 - Web push works on Android browsers. On iPhone it only works when the portal is added to the
   home screen, so prompt for it after first login. Built in Phase 3: My shifts and Profile show
   iPhone and iPad users "Put your shifts on your home screen" (`src/app/home-screen-hint.tsx`)
@@ -487,16 +488,16 @@ text sender at all). A push that one of their phones takes is the message: nothi
   opens without signal, marked "No signal. These are your shifts from {time}".
 - Web push: the profile subscribes this phone (`POST /api/push/subscribe`,
   `push_subscriptions`); offers, reminders and the office's notices push to the worker's phones
-  first, and go by WhatsApp/SMS only when no phone takes the push (P2.4; before, the push went as
+  first, and go by text or email only when no phone takes the push (P2.4; before, the push went as
   well, after the message); the same service worker shows the notification and opens the page (our
   own pages only). The real sender (13.3: the `web-push` library, the deployment's VAPID keys, the
   browser makers' push services) is `PUSH_TRANSPORT=webpush`; each push goes with no transaction
   open (14.1). Production keeps `none` until the keys are made on the server
   (PLAN.md Parking lot, "Connect the real web push").
-- WhatsApp: business-initiated messages must use approved templates (utility category for
-  offers and login links). From 1 October 2026 Meta charges per service message beyond the
-  free tier of 1,000 per number per month, and a payment method must be on file.
-- SMS costs about 4p per message in the UK via Twilio. Use it only as a fallback.
+- WhatsApp (not used for casuals since Phase 26.9; only a firm's own WhatsApp Business number,
+  later, if one wants it): business-initiated messages must use approved templates. From 1 October
+  2026 Meta charges per service message beyond the free tier of 1,000 per number per month.
+- Texts go through each firm's own Webex Interact account (Phase 15).
 - Quiet hours per firm (urgent offers can override if the firm allows).
 - Shift reminders (Phase 4, ADR-017): a tick every 5 minutes finds bookings with a 24 h or 2 h
   reminder due and queues one job per firm (at a big firm, P4.5: 200 a run, 4 at a time, then a
@@ -504,8 +505,8 @@ text sender at all). A push that one of their phones takes is the message: nothi
   `shift_reminders` and committed before it's sent (outside any transaction), then its outcome
   recorded: a retry never sends it again, and a job that stops part-way leaves it `sending` ("may
   have gone"). Every message to a casual sends through one helper (`deliverToWorker()`,
-  `src/lib/notify/send.ts`: the push, else the worker's channel with the WhatsApp-to-text
-  fallback, else email).
+  `src/lib/notify/send.ts`: the push, else their chosen text or email, else an email when no text
+  can go).
 
 ## Where AI is used
 

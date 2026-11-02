@@ -54,7 +54,8 @@ async function reminderFirm(settings: Record<string, unknown> = NO_QUIET) {
     await su.query<{ slug: string }>("select slug from firms where id = $1", [f.firmId])
   ).rows[0]?.slug;
   const { transport: capture, sent } = captureTransport();
-  // `refuseWhatsApp`: the provider refuses WhatsApp; `fail`: every send fails another way;
+  // `refuseWhatsApp`: the provider refuses WhatsApp (nothing sends one since Phase 26.9); `fail`:
+  // every send fails another way;
   // `pushThrows`: the push sender throws; `loseDatabaseOnSend`: the database goes away as a message
   // or a push goes, so every transaction after it fails (`databaseGone`);
   // `onSend`: runs as each message goes (to change the rows mid-run); `afterRead`: runs once, after
@@ -148,7 +149,7 @@ describe("the 24-hour and 2-hour reminders", () => {
     expect(await t.run(hoursFromNow(6))).toEqual({ sent: 1, failed: 0, skipped: 0 });
     expect(t.sent).toEqual([
       {
-        channel: "whatsapp",
+        channel: "sms",
         to: t.mobile,
         body: `Reminder: tomorrow 15:00–23:00. Details: http://${t.slug}.localhost:3000/shifts/${shiftId}. Can't make it? Cancel with the link as early as you can. — Booking Test ${t.slug} Shift Team`,
       },
@@ -165,8 +166,8 @@ describe("the 24-hour and 2-hour reminders", () => {
     expect(await t.run(hoursFromNow(31))).toEqual({ sent: 0, failed: 0, skipped: 0 }); // started
 
     expect(await reminderRows(bookingId)).toEqual([
-      { kind: "24h", status: "sent", channel: "whatsapp", starts_at: startsAt },
-      { kind: "2h", status: "sent", channel: "whatsapp", starts_at: startsAt },
+      { kind: "24h", status: "sent", channel: "sms", starts_at: startsAt },
+      { kind: "2h", status: "sent", channel: "sms", starts_at: startsAt },
     ]);
     const events = await eventsOf(t.f.firmId);
     expect(events.map((e) => [e.action, e.data.kind])).toEqual([
@@ -177,7 +178,7 @@ describe("the 24-hour and 2-hour reminders", () => {
       shiftId,
       workerId: t.workerId,
       kind: "24h",
-      channel: "whatsapp",
+      channel: "sms",
       providerMessageId: "capture-1",
       pushes: 0,
     });
@@ -276,7 +277,7 @@ describe("the 24-hour and 2-hour reminders", () => {
     t.state.loseDatabaseOnSend = false;
     t.state.databaseGone = false;
     expect(await reminderRows(bookingId)).toEqual([
-      expect.objectContaining({ kind: "24h", status: "sending", channel: "whatsapp" }),
+      expect.objectContaining({ kind: "24h", status: "sending", channel: "sms" }),
     ]);
     // The retry, and later runs: nothing more.
     expect(await t.run(NOW)).toEqual({ sent: 0, failed: 0, skipped: 0 });
@@ -301,7 +302,7 @@ describe("the 24-hour and 2-hour reminders", () => {
     t.state.loseDatabaseOnSend = false;
     t.state.databaseGone = false;
     expect(await reminderRows(bookingId)).toEqual([
-      expect.objectContaining({ kind: "24h", status: "sending", channel: "whatsapp" }),
+      expect.objectContaining({ kind: "24h", status: "sending", channel: "sms" }),
     ]);
     expect(await t.run(NOW)).toEqual({ sent: 0, failed: 0, skipped: 0 });
     expect(await t.run(hoursFromNow(1))).toEqual({ sent: 0, failed: 0, skipped: 0 });
@@ -442,7 +443,7 @@ describe("how a reminder goes", () => {
     t.state.pushThrows = true;
     expect(await t.run(NOW)).toEqual({ sent: 1, failed: 0, skipped: 0 });
     expect(await reminderRows(bookingId)).toEqual([
-      expect.objectContaining({ kind: "24h", status: "sent", channel: "whatsapp" }),
+      expect.objectContaining({ kind: "24h", status: "sent", channel: "sms" }),
     ]);
     expect(await eventsOf(t.f.firmId)).toEqual([
       expect.objectContaining({
@@ -458,20 +459,21 @@ describe("how a reminder goes", () => {
     expect(rows).toEqual([{ n: 1 }]);
   });
 
-  it("a WhatsApp the provider refuses goes by text, and the record says so", async () => {
+  // Phase 26.9: their chosen way (until then, a WhatsApp the provider refused went by text).
+  it("one who chose email gets it by email, and the record says so", async () => {
     const t = await reminderFirm();
-    t.state.refuseWhatsApp = true;
+    await su.query(
+      "update workers set email = 'rem@example.test', notify_channel = 'email' where id = $1",
+      [t.workerId],
+    );
     const bookingId = await t.f.booking(
       t.workerId,
       await t.f.shift({ startsAt: hoursFromNow(20) }),
     );
     expect(await t.run(NOW)).toEqual({ sent: 1, failed: 0, skipped: 0 });
-    expect(t.sent.map((m) => m.channel)).toEqual(["sms"]);
-    expect((await reminderRows(bookingId))[0]).toMatchObject({ status: "sent", channel: "sms" });
-    expect((await eventsOf(t.f.firmId))[0]?.data).toMatchObject({
-      channel: "sms",
-      fellBackFrom: "whatsapp",
-    });
+    expect(t.sent.map((m) => [m.channel, m.to])).toEqual([["email", "rem@example.test"]]);
+    expect((await reminderRows(bookingId))[0]).toMatchObject({ status: "sent", channel: "email" });
+    expect((await eventsOf(t.f.firmId))[0]?.data).toMatchObject({ channel: "email" });
   });
 
   it("any other failure is recorded and logged, and never sent again", async () => {
@@ -484,12 +486,12 @@ describe("how a reminder goes", () => {
     expect(await t.run(NOW)).toEqual({ sent: 0, failed: 1, skipped: 0 });
     expect((await reminderRows(bookingId))[0]).toMatchObject({
       status: "failed",
-      channel: "whatsapp",
+      channel: "sms",
     });
     expect(await eventsOf(t.f.firmId)).toEqual([
       {
         action: "shift.reminder_failed",
-        data: expect.objectContaining({ kind: "24h", channel: "whatsapp", code: "Error" }),
+        data: expect.objectContaining({ kind: "24h", channel: "sms", code: "Error" }),
       },
     ]);
     t.state.fail = false;
@@ -529,7 +531,7 @@ describe("quiet hours (the default 22:00–07:00)", () => {
     });
     expect(t.sent).toHaveLength(1);
     expect(await reminderRows(bookingId)).toEqual([
-      { kind: "24h", status: "sent", channel: "whatsapp", starts_at: startsAt },
+      { kind: "24h", status: "sent", channel: "sms", starts_at: startsAt },
       { kind: "2h", status: "skipped", channel: null, starts_at: startsAt },
     ]);
     const events = await eventsOf(t.f.firmId);

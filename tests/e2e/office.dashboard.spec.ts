@@ -225,6 +225,12 @@ test("the offer panel lists who can take it as the offer page does; Send offer, 
       .getByRole("button", { name: /^Send offer to / })
       .evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
     expect(onPage).toContain("Send offer to Pippa Example");
+    // How it will reach her, and why (Phase 26.9, off-1): no app notifications on her phone, so
+    // a text; and who can't be offered it, and why (off-2). Never WhatsApp.
+    const pippa = page.getByRole("listitem").filter({ hasText: "Pippa Example" });
+    await expect(pippa.getByText("By text: no app notifications on their phone")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Not offered, and why" })).toBeVisible();
+    await expect(page.getByRole("main").getByText(/WhatsApp/)).toHaveCount(0);
 
     // The dashboard, with the session picked; its paper plane opens the panel.
     await page.goto(`${acme}/office?session=${shiftId}`);

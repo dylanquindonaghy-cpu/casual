@@ -30,9 +30,12 @@ import { clients, firms, sites } from "./tenancy";
 
 export const OFFICE_ROLES = ["admin", "resourcer", "payroll"] as const;
 export const WORKER_STATUSES = ["active", "inactive", "blocked"] as const;
-// How the worker wants shift messages (Phase 4 notify job): WhatsApp, or text message. Login
-// links and codes always go (the worker asked for them).
-export const NOTIFY_CHANNELS = ["whatsapp", "sms"] as const;
+// How the worker wants shift messages when no app notification reaches them (Phase 26.9; decision
+// 4): a text (the default) or an email (only offered while the firm holds their address; one
+// removed since falls back to a text: src/lib/notify/send.ts). WhatsApp was the other choice until
+// Phase 26.9 (migration 0070 moved its rows to texts). Login links and codes always go (the worker
+// asked for them).
+export const NOTIFY_CHANNELS = ["sms", "email"] as const;
 // What an office user asked to be told about, under Updates' "Tell me about" (Phase 26.4, upd-5;
 // decision 5): the kinds (src/lib/office/tell-me-copy.ts).
 const tellMeList = sql.raw(`array[${TELL_ME_KINDS.map((k) => `'${k}'`).join(", ")}]::text[]`);
@@ -131,7 +134,7 @@ export const workers = pgTable(
     // Null for workers who exist only here.
     externalRef: text("external_ref"),
     // The worker's own notification settings (the profile page).
-    notifyChannel: text("notify_channel", { enum: NOTIFY_CHANNELS }).notNull().default("whatsapp"),
+    notifyChannel: text("notify_channel", { enum: NOTIFY_CHANNELS }).notNull().default("sms"),
     offerAlerts: boolean("offer_alerts").notNull().default(true),
     // When they replied STOP to a text (Phase 7): no texts until they reply START (null: texts are
     // fine). Every sender reads it with the channel (src/lib/notify/send.ts).
@@ -167,7 +170,7 @@ export const workers = pgTable(
           and ${t.status} = 'inactive' and ${t.roles} = '{}' and ${t.smsOptedOutAt} is null)`,
     ),
     check("workers_status_check", sql`${t.status} in ('active', 'inactive', 'blocked')`),
-    check("workers_notify_channel_check", sql`${t.notifyChannel} in ('whatsapp', 'sms')`),
+    check("workers_notify_channel_check", sql`${t.notifyChannel} in ('sms', 'email')`),
     firmIsolation(t.firmId),
   ],
 ).enableRLS();

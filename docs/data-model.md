@@ -252,7 +252,7 @@ create table workers (
   status text not null default 'active', -- active | inactive | blocked
   roles text[] not null default '{}',
   external_ref text,                     -- the sheet's staff id (Sheets firms); null otherwise
-  notify_channel text not null default 'whatsapp', -- whatsapp | sms (profile page; Phase 3)
+  notify_channel text not null default 'sms', -- sms | email (profile page; Phase 3; Phase 26.9: whatsapp moved to sms, email added, offered only while email is held)
   offer_alerts boolean not null default true,      -- tell me about open shifts (profile page)
   sms_opted_out_at timestamptz,          -- they replied STOP to a text (Phase 7): no texts from any
                                          -- sender until START (src/lib/notify/send.ts)

@@ -1089,7 +1089,7 @@ function WorkersSee() {
   return (
     <>
       <Points>
-        <li>There&apos;s no app. Workers get a link by WhatsApp or text that logs them in.</li>
+        <li>There&apos;s no app. Workers get a link by text that logs them in.</li>
         <li>A login link works for 15 minutes. They can ask for a new one on the log in page.</li>
         <li>
           They see their shifts, take open shifts, cancel with a reason, and ask for a time change

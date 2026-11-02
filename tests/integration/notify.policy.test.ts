@@ -37,18 +37,17 @@ import { fakeWorker } from "../helpers/fake-worker";
 // notice, a request's answer, a pay query's answer and the licence messages, each run through its
 // real job on the real database, with capturing transports (nothing is sent anywhere). As built
 // (P2.4, deliverToWorker):
-// - the order: a push to their phones, and when one phone takes it nothing else goes; else their
-//   own channel (WhatsApp, or text by their choice), a text only after the provider refuses the
-//   WhatsApp, never both for one message; else, only when there's no text sender at all, an email
-//   to the address the firm holds for them; else nothing goes and the miss is logged (no_channel).
-//   A WhatsApp or text that fails is never sent again another way (it may have arrived). The
-//   licence messages have no push words: they start at the WhatsApp or text. (The 60-second "not
-//   delivered" fallback needs Twilio's delivery reports: parked.)
+// - the order (Phase 26.9, decision 4): a push to their phones, and when one phone takes it nothing
+//   else goes; else their chosen way, a text (the default) or an email; a text that can't go (no
+//   text sender, or STOP) by email to the address the firm holds for them; else nothing goes and
+//   the miss is logged (no_channel, or sms_opted_out). Never WhatsApp. A text or email that fails is
+//   never sent again another way (it may have arrived). The licence messages have no push words:
+//   they start at the text or email.
 // - quiet hours: urgent offers go at night only if the firm allows it; reminders always wait.
 // - the daily cap: at most 3 offers a worker a day unless urgent; reminders aren't offers.
 // - idempotency: a retried or doubled job never sends a message twice, whichever way it went.
-// - STOP: never a text to a worker who replied STOP (workers.sms_opted_out_at): WhatsApp instead
-//   if they chose texts, and no text when the WhatsApp is refused.
+// - STOP: never a text to a worker who replied STOP (workers.sms_opted_out_at): an email instead
+//   when the firm holds their address (WhatsApp until Phase 26.9).
 // - no notifications to ineligible workers: over a whole chain, exactly the workers the booking
 //   rules allow get anything.
 // Before P2.4 the push went alongside the WhatsApp or text, once that had gone (Messages 2 decided
@@ -447,7 +446,7 @@ const PUSHING = ALL.filter((s) => s.push).map((s) => [s.name, s] as const);
 describe.each(PUSHING)("a push first: %s", (_name, sender) => {
   it(
     sender.proof
-      ? "a phone takes the push: the WhatsApp goes as well (the proof of the notice given)"
+      ? "a phone takes the push: the text goes as well (the proof of the notice given)"
       : "a phone takes the push: that's the message, and nothing else goes",
     async () => {
       const t = await sender.setup();
@@ -456,10 +455,10 @@ describe.each(PUSHING)("a push first: %s", (_name, sender) => {
       const mobile = await mobileOf(t.workerId);
       await t.run();
       expect(t.rec.log).toEqual(
-        sender.proof ? [`push:${endpoint}`, `whatsapp:${mobile}`] : [`push:${endpoint}`],
+        sender.proof ? [`push:${endpoint}`, `sms:${mobile}`] : [`push:${endpoint}`],
       );
       expect((await eventsOf(t.f.firmId, sender.sent)).at(-1)).toMatchObject({
-        channel: sender.proof ? "whatsapp" : "push",
+        channel: sender.proof ? "sms" : "push",
         pushes: 1,
       });
     },
@@ -493,13 +492,13 @@ describe.each(PUSHING)("a push first: %s", (_name, sender) => {
     });
   }
 
-  it("a phone that's gone: forgotten, and the WhatsApp goes", async () => {
+  it("a phone that's gone: forgotten, and the text goes", async () => {
     const t = await sender.setup();
     const endpoint = await subscribe(t.f, t.workerId);
     t.rec.state.push = "gone";
     const mobile = await mobileOf(t.workerId);
     await t.run();
-    expect(t.rec.log).toEqual([`push:${endpoint}`, `whatsapp:${mobile}`]);
+    expect(t.rec.log).toEqual([`push:${endpoint}`, `sms:${mobile}`]);
     const { rows } = await su.query("select 1 from push_subscriptions where worker_id = $1", [
       t.workerId,
     ]);
@@ -507,88 +506,93 @@ describe.each(PUSHING)("a push first: %s", (_name, sender) => {
     expect(await eventsOf(t.f.firmId, "push.forgotten")).toEqual([{ reason: "gone" }]);
   });
 
-  it("a push that fails: the phone is kept, and the WhatsApp goes", async () => {
+  it("a push that fails: the phone is kept, and the text goes", async () => {
     const t = await sender.setup();
     const endpoint = await subscribe(t.f, t.workerId);
     t.rec.state.push = "failed";
     const mobile = await mobileOf(t.workerId);
     await t.run();
-    expect(t.rec.log).toEqual([`push:${endpoint}`, `whatsapp:${mobile}`]);
+    expect(t.rec.log).toEqual([`push:${endpoint}`, `sms:${mobile}`]);
     expect((await eventsOf(t.f.firmId, sender.sent)).at(-1)).toMatchObject({
-      channel: "whatsapp",
+      channel: "sms",
       pushes: 0,
     });
   });
 
-  it("a WhatsApp or text that fails after the push failed: forgotten phones still forgotten", async () => {
+  it("a text that fails after the push failed: forgotten phones still forgotten", async () => {
     const t = await sender.setup();
     await subscribe(t.f, t.workerId);
     t.rec.state.push = "gone";
-    t.rec.state.whatsapp = "fails";
+    t.rec.state.sms = "fails";
     await t.run();
     expect(await eventsOf(t.f.firmId, "push.forgotten")).toEqual([{ reason: "gone" }]);
     expect((await eventsOf(t.f.firmId, sender.failed)).at(-1)).toMatchObject({
-      channel: "whatsapp",
+      channel: "sms",
       code: "Error",
     });
   });
 });
 
-describe.each(SENDERS)("then a WhatsApp or text: %s", (_name, sender) => {
-  it("no phones: WhatsApp when that's their channel; nothing else", async () => {
+// Phase 26.9 (decision 4): their chosen way, a text or an email; never WhatsApp. Until then: their
+// channel, WhatsApp or text, with a text after a refused WhatsApp.
+describe.each(SENDERS)("then their chosen way, a text or an email: %s", (_name, sender) => {
+  it("no phones: a text by default, never WhatsApp (even with a WhatsApp sender); nothing else", async () => {
     const t = await sender.setup();
     await giveEmail(t.workerId);
     const mobile = await mobileOf(t.workerId);
     await t.run();
-    expect(t.rec.log).toEqual([`whatsapp:${mobile}`]);
-    expect((await eventsOf(t.f.firmId, sender.sent)).at(-1)).toMatchObject({
-      channel: "whatsapp",
-    });
+    expect(t.rec.log).toEqual([`sms:${mobile}`]);
+    expect((await eventsOf(t.f.firmId, sender.sent)).at(-1)).toMatchObject({ channel: "sms" });
   });
 
   if (!sender.push) {
-    it("no push words: a WhatsApp even when they have a phone with notifications on", async () => {
+    it("no push words: a text even when they have a phone with notifications on", async () => {
       const t = await sender.setup();
       await subscribe(t.f, t.workerId);
       const mobile = await mobileOf(t.workerId);
       await t.run();
-      expect(t.rec.log).toEqual([`whatsapp:${mobile}`]);
+      expect(t.rec.log).toEqual([`sms:${mobile}`]);
     });
   }
 
-  it("a text when they chose texts: never WhatsApp", async () => {
+  it("they chose email: by email to the address the firm holds, no text", async () => {
     const t = await sender.setup();
-    await su.query("update workers set notify_channel = 'sms' where id = $1", [t.workerId]);
+    const email = await giveEmail(t.workerId);
+    await su.query("update workers set notify_channel = 'email' where id = $1", [t.workerId]);
+    await t.run();
+    expect(t.rec.log).toEqual([`email:${email}`]);
+    expect(t.rec.emails[0]?.subject).toMatch(sender.subject);
+    expect((await eventsOf(t.f.firmId, sender.sent)).at(-1)).toMatchObject({ channel: "email" });
+  });
+
+  it("they chose email but the address has gone: a text, logged as such", async () => {
+    const t = await sender.setup();
+    await su.query("update workers set notify_channel = 'email' where id = $1", [t.workerId]);
+    const mobile = await mobileOf(t.workerId);
+    await t.run();
+    expect(t.rec.log).toEqual([`sms:${mobile}`]);
+    expect((await eventsOf(t.f.firmId, sender.sent)).at(-1)).toMatchObject({
+      channel: "sms",
+      fellBackFrom: "email",
+    });
+  });
+
+  it("a text that fails: no email as well (it may have arrived)", async () => {
+    const t = await sender.setup();
+    t.rec.state.sms = "fails";
+    await giveEmail(t.workerId);
     const mobile = await mobileOf(t.workerId);
     await t.run();
     expect(t.rec.log).toEqual([`sms:${mobile}`]);
   });
 
-  it("a text only after the provider refuses the WhatsApp", async () => {
+  it("a refused text: nothing more", async () => {
     const t = await sender.setup();
-    t.rec.state.whatsapp = "refused";
-    const mobile = await mobileOf(t.workerId);
-    await t.run();
-    expect(t.rec.log).toEqual([`whatsapp:${mobile}`, `sms:${mobile}`]);
-  });
-
-  it("any other failure: no text and no email (it may have arrived)", async () => {
-    const t = await sender.setup();
-    t.rec.state.whatsapp = "fails";
+    t.rec.state.sms = "refused";
     await giveEmail(t.workerId);
     const mobile = await mobileOf(t.workerId);
     await t.run();
-    expect(t.rec.log).toEqual([`whatsapp:${mobile}`]);
-  });
-
-  it("a refused WhatsApp and a failed text: nothing more", async () => {
-    const t = await sender.setup();
-    t.rec.state.whatsapp = "refused";
-    t.rec.state.sms = "fails";
-    await giveEmail(t.workerId);
-    const mobile = await mobileOf(t.workerId);
-    await t.run();
-    expect(t.rec.log).toEqual([`whatsapp:${mobile}`, `sms:${mobile}`]);
+    expect(t.rec.log).toEqual([`sms:${mobile}`]);
   });
 });
 
@@ -621,30 +625,39 @@ describe.each(SENDERS)("then an email: %s", (_name, sender) => {
   });
 });
 
+// Phase 26.9: no text after STOP from any sender; by email instead when the firm holds an address,
+// else nothing. (Until then, WhatsApp instead.)
 describe.each(SENDERS)("replied STOP: %s", (_name, sender) => {
   const stopped = (workerId: string) =>
     su.query("update workers set sms_opted_out_at = $2 where id = $1", [workerId, NOW]);
 
-  it("chose texts, then replied STOP: WhatsApp instead", async () => {
+  it("no text: by email instead, logged as such; never WhatsApp", async () => {
     const t = await sender.setup();
-    await su.query("update workers set notify_channel = 'sms' where id = $1", [t.workerId]);
     await stopped(t.workerId);
-    const mobile = await mobileOf(t.workerId);
+    const email = await giveEmail(t.workerId);
     await t.run();
-    expect(t.rec.log).toEqual([`whatsapp:${mobile}`]);
+    expect(t.rec.log).toEqual([`email:${email}`]);
+    expect((await eventsOf(t.f.firmId, sender.sent)).at(-1)).toMatchObject({
+      channel: "email",
+      fellBackFrom: "sms",
+    });
   });
 
-  it("a refused WhatsApp is never sent as a text, nor by email", async () => {
-    for (const channel of ["whatsapp", "sms"]) {
-      const t = await sender.setup();
-      await su.query("update workers set notify_channel = $2 where id = $1", [t.workerId, channel]);
-      await stopped(t.workerId);
-      await giveEmail(t.workerId);
-      t.rec.state.whatsapp = "refused";
-      const mobile = await mobileOf(t.workerId);
-      await t.run();
-      expect(t.rec.log).toEqual([`whatsapp:${mobile}`]);
+  it("no address either: nothing goes, and the miss is logged (sms_opted_out)", async () => {
+    const t = await sender.setup();
+    await stopped(t.workerId);
+    await t.run();
+    expect(t.rec.log).toEqual([]);
+    if (sender === offerSender) {
+      // An offer wave leaves them out: nothing can reach them, so no place is spent on them and
+      // no offer is written (the 26.9 guardrails review, M2). The office's own offer still logs it.
+      expect(await eventsOf(t.f.firmId, sender.failed)).toEqual([]);
+      expect(await eventsOf(t.f.firmId, sender.sent)).toEqual([]);
+      return;
     }
+    expect((await eventsOf(t.f.firmId, sender.failed)).at(-1)).toMatchObject({
+      code: "sms_opted_out",
+    });
   });
 });
 

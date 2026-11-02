@@ -23,7 +23,7 @@ const codeField =
   "mt-2 min-h-14 w-full glass-tile rounded-2xl border-2 border-transparent px-4 py-3 text-2xl font-normal tracking-widest text-ink tabular-nums aria-invalid:border-urgent";
 
 // "To see your pay, we'll send you a 6-digit code." Plain words throughout (no "OTP"). The words
-// follow how the code goes (P2.7; docs/screens.md `/pay`): by WhatsApp, by email, or not at all yet
+// follow how the code goes (P2.7; docs/screens.md `/pay`): by text, by email, or not at all yet
 // ("off": no button, so no one waits for a code that can't come).
 // codeWaiting: a code sent earlier still works, so the code field shows straight away (a reload
 // or a dropped tab mustn't make the worker ask again and retire the code they just received).
@@ -132,7 +132,7 @@ export function CodeGate({ codeWaiting, way }: { codeWaiting: boolean; way: Logi
       <p>
         {byEmail
           ? "We've emailed you a 6-digit code. It works for 10 minutes."
-          : "We've sent a 6-digit code by WhatsApp. It works for 10 minutes."}
+          : "We've sent a 6-digit code by text. It works for 10 minutes."}
       </p>
       <label htmlFor="code" className={`${label} mt-4`}>
         Your code

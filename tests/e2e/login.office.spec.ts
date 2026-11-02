@@ -41,9 +41,7 @@ test("an admin logs in by email link, sees their role and the office team, and l
         /^[A-Z][a-z]+day \d{1,2} [A-Z][a-z]+ · Week \d{1,2} · Pay Fri \d{1,2} [A-Z][a-z]{2}$/,
       ),
   ).toBeVisible();
-  const shiftsLine = page.getByText(
-    "Your shifts line: +44 7700 900000 (WhatsApp, text and calls).",
-  );
+  const shiftsLine = page.getByText("Your shifts line: +44 7700 900000 (texts and calls).");
   await expect(shiftsLine).toHaveCount(0);
   await (await menuLink(page, "Settings")).click();
   await expect(page.getByRole("heading", { name: "Settings", level: 1 })).toBeVisible();

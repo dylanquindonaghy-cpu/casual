@@ -837,10 +837,10 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return "The link to confirm the strikes team's email couldn't be sent.";
     case "firm.shifts_line_changed":
       return d.change === "cleared"
-        ? "The firm's shifts line (its WhatsApp and text number) was removed."
+        ? "The firm's shifts line (its text number) was removed."
         : d.change === "replaced"
-          ? "The firm's shifts line (its WhatsApp and text number) was changed to a new number."
-          : "The firm's shifts line (its WhatsApp and text number) was set.";
+          ? "The firm's shifts line (its text number) was changed to a new number."
+          : "The firm's shifts line (its text number) was set.";
     case "firm.domain_changed":
       switch (d.change) {
         case "set":

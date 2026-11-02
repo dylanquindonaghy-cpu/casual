@@ -5,18 +5,14 @@ import { events, firms, magicLinks, officeUsers, workers } from "../db/schema";
 import { workerEnv } from "../env";
 import { recordEvent } from "../events/record";
 import { firmJobEnvelope, type FirmTask } from "../jobs/firm-job";
-import { emailMessageId, NO_CHANNEL, sendFailureCode } from "../notify/send";
+import { emailMessageId, NO_CHANNEL, sendFailureCode, smsAllowedFor } from "../notify/send";
 import { getTransport, type MessagingTransport } from "../messaging";
-import type { OutboundMessage } from "../messaging/transport";
-import {
-  loginLinkMessage,
-  officeLoginLinkEmail,
-  workerLoginLinkEmail,
-} from "../messaging/templates";
+import { NoTextSenderError, type OutboundMessage } from "../messaging/transport";
+import { loginLinkSms, officeLoginLinkEmail, workerLoginLinkEmail } from "../messaging/templates";
 import { ownDomainUrl, portalUrl } from "../tenancy/portal-url";
 import { signOffFor } from "../tenancy/sign-off";
 import { systemClock, type Clock } from "./clock";
-import { loginChannel } from "./login-channel";
+import { loginChannel, loginEmailAllowed } from "./login-channel";
 import { issueMagicLink, markLinkSent } from "./magic-links";
 
 // The send-portal-link job (docs/api-and-jobs.md). The web queues it for every login request
@@ -55,7 +51,14 @@ export type SendResult =
 
 type LinkClaim =
   | { done: "inactive" | "already_sent" | "no_channel" }
-  | { magicLinkId: string; message: OutboundMessage; ownDomain: boolean };
+  | {
+      magicLinkId: string;
+      message: OutboundMessage;
+      // The email to send instead when the text finds no text sender (Phase 26.9): only where the
+      // firm has login by email on and holds their address.
+      instead: OutboundMessage | null;
+      ownDomain: boolean;
+    };
 
 // (1) The claim: the link for this login request, marked sent and committed before the message goes.
 async function claimLink(
@@ -65,8 +68,8 @@ async function claimLink(
   now: Date,
 ): Promise<LinkClaim> {
   const office = payload.purpose === "office_login";
-  // Workers get their link by WhatsApp (by email, P2.6, when there's no text sender and the firm
-  // has it on: login-channel.ts); office users by email. Only while still active. The row is held
+  // Workers get their link by text (by email, P2.6, when no text can go and the firm has it on:
+  // login-channel.ts); office users by email. Only while still active. The row is held
   // (FOR SHARE) until the link is stored, so access being turned off or a mobile or email changing
   // at this moment takes turns with it: either this sees the change, or the change sees this link
   // and spends it (src/lib/auth/sessions.ts endEverySession).
@@ -77,7 +80,11 @@ async function claimLink(
         .where(and(eq(officeUsers.id, payload.subjectId), eq(officeUsers.status, "active")))
         .for("share")
     : await tx
-        .select({ to: workers.mobileE164, email: workers.email })
+        .select({
+          to: workers.mobileE164,
+          email: workers.email,
+          smsOptedOutAt: workers.smsOptedOutAt,
+        })
         .from(workers)
         .where(and(eq(workers.id, payload.subjectId), eq(workers.status, "active")))
         .for("share");
@@ -100,7 +107,12 @@ async function claimLink(
   const email = recipient.email;
   const channel = office
     ? "email"
-    : loginChannel({ transport: deps.transport, settings: firm.settings, email });
+    : loginChannel({
+        transport: deps.transport,
+        settings: firm.settings,
+        email,
+        smsAllowed: "smsOptedOutAt" in recipient ? smsAllowedFor(recipient) : true,
+      });
   if (channel === null) {
     const [earlier] = await tx
       .select({ id: magicLinks.id })
@@ -163,7 +175,10 @@ async function claimLink(
     payload.address === "own_domain" && firm.domainVerified ? firm.customDomain : null;
   const portal = ownDomain ? ownDomainUrl(ownDomain) : portalUrl(firm.slug, deps.baseDomain);
   const voice = { name: firm.name, signOff: signOffFor(firm.name, firm.settings.sign_off) };
-  // The SMS fallback comes with Twilio.
+  // The same check as the channel's (loginChannel): "email" there always has this message.
+  const byEmail: OutboundMessage | null = loginEmailAllowed(firm.settings, email)
+    ? { channel: "email", to: email, ...workerLoginLinkEmail(voice, `${portal}/l#${link.token}`) }
+    : null;
   return {
     magicLinkId: link.id,
     ownDomain: ownDomain !== null,
@@ -173,18 +188,15 @@ async function claimLink(
           to: recipient.to,
           ...officeLoginLinkEmail(voice, `${portal}/office/l#${link.token}`),
         }
-      : channel === "email" && email
-        ? {
-            channel: "email",
-            to: email,
-            ...workerLoginLinkEmail(voice, `${portal}/l#${link.token}`),
-          }
+      : channel === "email"
+        ? byEmail!
         : {
-            channel: "whatsapp",
+            channel: "sms",
             to: recipient.to,
             ...(firm.line ? { from: firm.line } : {}),
-            body: loginLinkMessage(voice, `${portal}/l#${link.token}`),
+            body: loginLinkSms(voice, `${portal}/l#${link.token}`),
           },
+    instead: office || channel === "email" ? null : byEmail,
   };
 }
 
@@ -219,12 +231,22 @@ export async function sendPortalLink(
   const claim = await inFirm((tx) => claimLink(tx, { ...payload, subjectId }, deps, now));
   if ("done" in claim) return { sent: false, reason: claim.done };
 
-  // (2) The link, outside any transaction.
+  // (2) The link, outside any transaction: by text, or by email instead when there's no text
+  // sender at all (nothing was sent: Phase 26.9).
+  let message = claim.message;
   let sent: { providerMessageId: string } | { code: string };
   try {
-    sent = await deps.transport.send(claim.message);
+    sent = await deps.transport.send(message);
   } catch (err) {
     sent = { code: sendFailureCode(err) };
+    if (err instanceof NoTextSenderError && claim.instead) {
+      message = claim.instead;
+      try {
+        sent = await deps.transport.send(message);
+      } catch (again) {
+        sent = { code: sendFailureCode(again) };
+      }
+    }
   }
 
   // (3) The outcome, logged once (a rerun may have caught it up already, as unconfirmed).
@@ -242,7 +264,7 @@ export async function sendPortalLink(
       entityId: claim.magicLinkId,
       data: {
         purpose: payload.purpose,
-        channel: claim.message.channel,
+        channel: message.channel,
         // A link on the firm's own domain says so (the portal is the default, unmarked). Not
         // "address": the log masker treats any key with that word as personal.
         ...(claim.ownDomain ? { ownDomain: true } : {}),
@@ -250,7 +272,7 @@ export async function sendPortalLink(
         ...("providerMessageId" in sent
           ? {
               providerMessageId:
-                claim.message.channel === "email"
+                message.channel === "email"
                   ? emailMessageId(sent.providerMessageId)
                   : sent.providerMessageId,
             }

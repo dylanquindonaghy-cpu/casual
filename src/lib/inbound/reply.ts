@@ -132,7 +132,7 @@ type Read =
       channel: Channel;
       workerId: string;
       mobile: string;
-      notifyChannel: "whatsapp" | "sms"; // how they asked to be messaged (a voicemail's reply)
+      notifyChannel: "sms" | "email"; // how they asked to be messaged (a voicemail's is a text)
       smsAllowed: boolean; // false: they replied STOP to a text
       line: string;
       body: string | null;
@@ -488,11 +488,12 @@ async function answerMessage(
   if (texts === "held") return { status: "held", intent: "office", sortedAs, handledAs };
   const { replyText, smsText } = texts;
 
-  // By WhatsApp to a WhatsApp (a text if WhatsApp refuses it); a voicemail's by the channel the
-  // worker chose. Always from the number they contacted.
+  // By WhatsApp to a WhatsApp (a text if WhatsApp refuses it); a text to a text, and to a
+  // voicemail (Phase 26.9: never WhatsApp, whatever they chose; nothing after STOP). Always from the
+  // number they contacted.
   const sent = await sendToWorker(deps, {
     mobile: c.mobile,
-    channel: c.channel === "voice" ? c.notifyChannel : c.channel,
+    channel: c.channel === "voice" ? "sms" : c.channel,
     smsAllowed: c.smsAllowed,
     body: { whatsapp: replyText, sms: smsText },
     from: c.line,

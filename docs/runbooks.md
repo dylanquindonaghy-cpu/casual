@@ -168,8 +168,11 @@ without them it won't start. `docker compose ps` shows the worker "healthy"; if 
 never be printed instead of sent: `MESSAGING_TRANSPORT=console` is refused in production. Once the
 firm's text system is connected (Phase 15), `MESSAGING_TRANSPORT` names it: `webex` is built and
 not yet tried against the real service (it waits for the firm's account), and the settings refuse
-it in production until 15.1 makes everything texts (until then the login link and the pay code go
-by WhatsApp whenever a text sender exists, which Webex won't carry, so nobody could log in). Then,
+it in production. Since Phase 26.9 every message to a casual is a text or an email (the login link
+and the pay code went by WhatsApp until then, which Webex won't carry), but two things are still
+missing: a STOP sent to Webex isn't recorded (only the Twilio shifts line sets it: Phase 15's
+replies by text), and the web can't tell which firms have a Webex key, so its pages would promise
+texts that can't go (the 26.9 guardrails review, H2). Then,
 each firm's Webex Interact access token and sender (a name or long number set up in Webex
 Interact) go in the secret store (`npm run firm:secret -- --firm <slug> --name webex.api_key`, then
 `--name webex.sender`, each value from standard input), the worker needs `SECRETS_KEY`, and then

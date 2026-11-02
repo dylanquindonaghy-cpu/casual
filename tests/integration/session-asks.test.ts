@@ -218,7 +218,7 @@ describe("the office chooses", () => {
 
     const n = capture();
     expect(await n.run(job ?? {})).toMatchObject({
-      output: { status: "sent", channel: "whatsapp" },
+      output: { status: "sent", channel: "sms" },
     });
     expect(n.bodies()).toEqual([
       expect.stringMatching(

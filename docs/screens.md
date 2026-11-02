@@ -612,6 +612,55 @@ evidence, Withdraw and Keep).
   table in its order. The PDF keeps §3.4's order.
 - Empty: Strikes "No strikes issued yet."; Today "No cancellations today."
 
+## Offering a shift, and how messages reach casuals, round 8 (Phase 26.9)
+
+The spec page's "Offering a shift" (off-1 to off-5; decision 4) and Phase 15's "Texts only" with
+email as a casual's choice. Words: `src/lib/office/offer-words.ts`, `src/lib/portal/profile-kinds.ts`
+and the casual app's pages; the order: `src/lib/notify/send.ts` (`docs/messaging-templates.md`
+"Notification policy"). This section wins over the older rows below where they differ.
+
+- **The order for every message to a casual** (off-3): an app notification to the phones they
+  turned notifications on for; if no phone takes it, their chosen way: a text (from the firm's own
+  text account) or an email; a text that can't go (no text sender yet, or they replied STOP) goes
+  by email when the firm holds an address for them. WhatsApp leaves every screen, every setting and
+  every message to a casual. (The shifts line's own inbound WhatsApp, on Twilio, which never went
+  live, stays as it is until the shifts line moves to texts: Phase 15's third task.)
+- **Profile, "How we reach you"** (off-4; the casual app keeps its look): "Notifications on this
+  phone" as before, then "If a notification can't reach you, send it by": **Text message** and
+  **Email** (Email only when the firm holds their address: "Email ({address})"; without one, under
+  Text message: "To get them by email instead, ask the office to add your email address.").
+  "Saved. We'll send shift messages by {text / email}." Email chosen but the address has gone since:
+  Text message is ticked (messages go by text), and saving isn't refused. STOP: "Texts are off: you replied STOP to
+  one of our texts. We'll email shift messages to {address}. To turn texts back on, text START to
+  our number." (no address: "…We can only reach you by notifications on your phone. …").
+- **Login links and pay codes** (they asked for them, so their shift-message choice doesn't
+  apply): by text while there's a text sender and they haven't replied STOP; else by email when
+  the firm's `login_by_email` is on and it holds their address (also when a firm has no text
+  account of its own at the moment it sends); else none, logged. The words: "we've sent a link by
+  text", "We've sent a 6-digit code by text." (the email ways as before); under the login page's
+  "Check your phone.": "Replied STOP to our texts? Text START to the number you got them from, then
+  ask again." (it can't say whose number it is). The Pay page and Profile
+  follow the casual's own case: one who replied STOP sees the email way, or "off" ("We can't send
+  you a code yet…"), never "by text"; Profile's STOP note tells them to text START.
+- **The offer page and the dashboard's offer panel** (off-1, off-5): each person under "Who can
+  take it" says how the offer will reach them, and why: "By app notification" (a phone of theirs
+  has notifications on), "By text: no app notifications on their phone", "By email: they chose
+  email", "By email: they turned texts off", "By email: no text account yet", and, in amber,
+  "Outside their travel area" (the office may still offer it). Someone it can't reach at all
+  (no app notifications, no texts and no email) isn't under "Who can take it" but under the next.
+- **"Not offered, and why"** (off-2), beside "Who can take it" from 1024px and under it on a phone:
+  the firm's active casuals with the session's role who can't be offered it, each with one reason,
+  the first that applies: "Booked on it", "Cancelled off it", "Already offered it", "Turned offers
+  off", "Over today's {3} offers", "No licence in date", "Booked elsewhere then", "Too soon after
+  another shift" (rest or travel), "Over their weekly hours", "Marked unavailable", "Blocked from
+  the site", "No rule for the role", "The rules say no" (any other rule), "No way to reach them".
+  At most 20, by name ("And {12} more."); none: "Everyone with the role can be offered it." The
+  offer waves leave out anyone nothing can reach, too (no phone with notifications, no email
+  address, and no text: STOP, or no text sender).
+- **Elsewhere:** every "WhatsApp or text" becomes "text" (login, the pay code, Help, Profile, the
+  guide, Remind's line on Casuals, the dashboard's channel words "text message", "email", "app
+  notification"); the shifts line reads "{+44 7700 900000} (texts and calls)".
+
 ## The office shell, round 7 (Phase 24)
 
 Dylan's approved round 7 of the Design canvas ("Round 7 exactly, layout too"; PLAN.md 24.2;

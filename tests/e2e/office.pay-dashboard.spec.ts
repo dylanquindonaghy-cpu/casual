@@ -30,7 +30,7 @@ test("payroll lands on the pay dashboard: the shifts line, the counts and both s
   await expect(page).toHaveTitle("Pay dashboard · Acme Events shifts");
   await expect(page.getByRole("heading", { name: "Pay dashboard", level: 1 })).toBeVisible();
   await expect(
-    page.getByText("Your shifts line: +44 7700 900000 (WhatsApp, text and calls)."),
+    page.getByText("Your shifts line: +44 7700 900000 (texts and calls)."),
   ).toBeVisible();
   // The pay week and its pay day (Phase 24: from the top bar).
   await expect(

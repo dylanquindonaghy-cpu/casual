@@ -36,12 +36,16 @@ const page = (hidden: boolean): OfferPage => ({
           workerId: "22222222-2222-4222-8222-222222222222",
           name: "Ann Booker",
           mobile: "+447700900123",
-          channel: "whatsapp",
+          channel: "sms",
           smsAllowed: true,
           hoursThisWeek: 0,
           lastOfferedAt: null,
+          reach: { how: "sms" },
+          outsideArea: false,
         },
       ],
+  notOffered: [],
+  notOfferedMore: 0,
   offered: [],
 });
 

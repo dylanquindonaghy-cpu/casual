@@ -13,9 +13,10 @@ import type { LoginWay } from "@/lib/portal/login-way";
 const choice =
   "flex min-h-14 items-center gap-3 glass-tile rounded-2xl border-2 border-line-strong px-4 py-3 has-checked:border-ink has-checked:bg-active";
 
-// How we reach you: WhatsApp or text message, and whether to hear about open shifts. With no text
-// sender (P2.7) there's no channel to choose: it says how messages come instead (a push, else an
-// email: src/lib/notify/send.ts deliverToWorker).
+// How we reach you when a notification on their phone can't (Phase 26.9; decision 4): a text, or an
+// email (offered only while the firm holds their address), and whether to hear about open shifts.
+// With no text sender (P2.7) there's no channel to choose: it says how messages come instead (a
+// push, else an email: src/lib/notify/send.ts deliverToWorker).
 export function NotificationForm({
   channel: initialChannel,
   offerAlerts: initialAlerts,
@@ -35,7 +36,11 @@ export function NotificationForm({
 }) {
   const textSender = loginWay === "message";
   const router = useRouter();
-  const [channel, setChannel] = useState<Channel>(initialChannel);
+  // Email chosen, but the firm no longer holds their address: messages go by text (src/lib/notify/
+  // send.ts), so that's what's ticked, and saving keeps it a text.
+  const [channel, setChannel] = useState<Channel>(
+    initialChannel === "email" && !email ? "sms" : initialChannel,
+  );
   const [offerAlerts, setOfferAlerts] = useState(initialAlerts);
   const [message, setMessage] = useState<{ text: string; alert: boolean } | null>(null);
   const [pending, startTransition] = useTransition();
@@ -50,7 +55,7 @@ export function NotificationForm({
       if (result.status === "logged_out") return router.replace("/login");
       setMessage(
         result.status === "saved"
-          ? { text: savedText(channel, offerAlerts, textsOff, textSender), alert: false }
+          ? { text: savedText(channel, offerAlerts, textsOff, textSender, email), alert: false }
           : { text: tryAgainText(), alert: true },
       );
     });
@@ -59,9 +64,9 @@ export function NotificationForm({
     <div className="mt-4">
       {textSender ? (
         <fieldset>
-          <legend className={label}>Send shift messages by</legend>
+          <legend className={label}>If a notification can&apos;t reach you, send it by</legend>
           <div className="mt-2 space-y-2">
-            {CHANNELS.map((c) => (
+            {CHANNELS.filter((c) => c !== "email" || email).map((c) => (
               <label key={c} className={choice}>
                 <input
                   type="radio"
@@ -72,10 +77,17 @@ export function NotificationForm({
                   disabled={!ready}
                   className="h-6 w-6 shrink-0 accent-ink"
                 />
-                <span>{CHANNEL_LABELS[c]}</span>
+                <span className="min-w-0 break-all">
+                  {c === "email" && email ? `${CHANNEL_LABELS[c]} (${email})` : CHANNEL_LABELS[c]}
+                </span>
               </label>
             ))}
           </div>
+          {!email && (
+            <p className={`mt-2 ${muted}`}>
+              To get them by email instead, ask the office to add your email address.
+            </p>
+          )}
         </fieldset>
       ) : (
         <p>
@@ -127,20 +139,26 @@ export function NotificationForm({
 }
 
 // The confirmation says what was saved, and what will really happen: texts chosen while they're
-// off (they replied STOP) go by WhatsApp until START (exported for the tests).
+// off (they replied STOP) go by email, if we hold their address, until START (exported for the
+// tests).
 export function savedText(
   channel: Channel,
   offerAlerts: boolean,
   textsOff = false,
   textSender = true,
+  email: string | null = null,
 ): string {
   const alerts = offerAlerts
     ? "We'll tell you about open shifts."
     : "We won't tell you about open shifts.";
   if (!textSender) return `Saved. ${alerts}`;
   const how =
-    channel === "sms" && textsOff
-      ? "Texts are off, so we'll send shift messages by WhatsApp until you text START."
-      : `We'll send shift messages by ${channel === "sms" ? "text message" : "WhatsApp"}.`;
+    channel === "email"
+      ? "We'll send shift messages by email."
+      : textsOff
+        ? email
+          ? "Texts are off, so we'll email shift messages until you text START."
+          : "Texts are off, so we can only reach you by notifications on your phone until you text START."
+        : "We'll send shift messages by text.";
   return `Saved. ${how} ${alerts}`;
 }

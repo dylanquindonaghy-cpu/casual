@@ -521,17 +521,21 @@ describe("STOP and START (the inbound-message job)", () => {
     expect(person.rows).toEqual([]);
   });
 
-  it("after STOP, the shifts line answers them by WhatsApp, never by text", async () => {
+  // Phase 26.9 (Phase 15's "Texts only"): no text after STOP, and no WhatsApp instead (until then,
+  // the answer went by WhatsApp). The miss is logged, for the office.
+  it("after STOP, the shifts line sends them no text, and no WhatsApp instead", async () => {
     const t = await lineFirm();
     const { transport, sent } = captureTransport();
     await run(await t.text("STOP"), transport);
+    const before = sent.length;
     expect(await run(await t.text("Any shifts this weekend?"), transport)).toMatchObject({
-      status: "replied",
+      status: "reply_failed",
       intent: "shifts",
+      code: "sms_opted_out",
     });
-    expect(sent.at(-1)).toMatchObject({ channel: "whatsapp", to: t.mobile, from: t.line });
-    const replied = (await t.eventsOf("message.replied")).at(-1)?.data;
-    expect(replied).toMatchObject({ channel: "whatsapp", fellBackFrom: "sms" });
+    expect(sent).toHaveLength(before);
+    const failed = (await t.eventsOf("message.reply_failed")).at(-1)?.data;
+    expect(failed).toMatchObject({ channel: "sms", code: "sms_opted_out" });
   });
 
   it("other firms: a STOP at one firm doesn't touch the same number at another", async () => {

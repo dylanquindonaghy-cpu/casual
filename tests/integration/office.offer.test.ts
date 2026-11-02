@@ -140,15 +140,16 @@ describe("queueing the offer", () => {
     });
     expect(t.sent).toEqual([]); // nothing goes until the job runs
 
+    // By text (Phase 26.9: the default; WhatsApp until then): the doc's short version.
     expect(await t.runJob(job?.data ?? {})).toMatchObject({
       status: "completed",
-      output: { status: "sent", channel: "whatsapp" },
+      output: { status: "sent", channel: "sms" },
     });
     expect(t.sent).toEqual([
       {
-        channel: "whatsapp",
+        channel: "sms",
         to: await t.mobile(t.ann),
-        body: `Shift available: Tue 3 Nov 15:00–23:00 (door supervisor). Tap to take it: http://${t.slug}.localhost:3000/shifts/${t.shiftId}. First to accept gets it. — Booking Test ${t.slug} Shift Team`,
+        body: `Booking Test ${t.slug}: shift Tue 3 Nov 15:00. Take it: http://${t.slug}.localhost:3000/shifts/${t.shiftId} - Booking Test ${t.slug} Shift Team`,
       },
     ]);
     expect(await t.offersOf()).toEqual([
@@ -156,7 +157,7 @@ describe("queueing the offer", () => {
         worker_id: t.ann,
         wave: null,
         offered_by: t.resourcer,
-        channel: "whatsapp",
+        channel: "sms",
         response: null,
       },
     ]);
@@ -182,7 +183,7 @@ describe("queueing the offer", () => {
           workerId: t.ann,
           offeredBy: t.resourcer,
           noticeHours: 30, // the shift starts 30 hours after the offer
-          channel: "whatsapp",
+          channel: "sms",
           providerMessageId: "capture-1",
           pushes: 0,
         },
@@ -190,24 +191,27 @@ describe("queueing the offer", () => {
     ]);
   });
 
-  it("an urgent shift gets the urgent wording; a worker who chose texts gets the short text", async () => {
+  it("an urgent shift gets the urgent wording: in full by email to one who chose it, short by text", async () => {
     const t = await offerFirm();
     await su.query("update shifts set is_urgent = true where id = $1", [t.shiftId]);
+    await su.query(
+      "update workers set email = 'ann@example.test', notify_channel = 'email' where id = $1",
+      [t.ann],
+    );
     const ben = await t.f.worker({ first: "Ben" });
-    await su.query("update workers set notify_channel = 'sms' where id = $1", [ben]);
     await offerTo(t.ctx(), t.shiftId, t.ann);
     await offerTo(t.ctx(), t.shiftId, ben);
     for (const job of await t.jobs()) await t.runJob(job.data);
-    const bodies = t.sent.map((m) => (m.channel === "email" ? "" : `${m.channel}:${m.body}`));
-    expect(bodies[0]).toMatch(/^whatsapp:URGENT: we need a door supervisor tomorrow 15:00–23:00\./);
+    const bodies = t.sent.map((m) => `${m.channel}:${m.body}`);
+    expect(bodies[0]).toMatch(/^email:URGENT: we need a door supervisor tomorrow 15:00–23:00\./);
     expect(bodies[1]).toMatch(
       new RegExp(`^sms:Booking Test ${t.slug} URGENT: door supervisor needed tomorrow 15:00\\. `),
     );
+    expect(t.sent.some((m) => m.channel === "whatsapp")).toBe(false);
   });
 
-  it("a text when WhatsApp refuses (no phone with notifications on)", async () => {
+  it("a text with no phone with notifications on, never WhatsApp", async () => {
     const t = await offerFirm();
-    t.state.refuseWhatsApp = true;
     await offerTo(t.ctx(), t.shiftId, t.ann);
     await t.runJob((await t.jobs())[0]?.data ?? {});
     expect(t.sent.map((m) => m.channel)).toEqual(["sms"]);
@@ -397,7 +401,9 @@ describe("from the guardrails review", () => {
     t.state.fail = false;
     expect(await offerTo(t.ctx(), t.shiftId, t.ann)).toEqual({ status: "failed_before" });
     expect(await t.jobs()).toHaveLength(1); // nothing new queued
-    const listed = await withFirm(t.f.firmId, (tx) => officeOfferCandidates(tx, t.shiftId, NOW));
+    const listed = await withFirm(t.f.firmId, (tx) =>
+      officeOfferCandidates(tx, t.shiftId, NOW, true),
+    );
     expect(listed.map((c) => c.workerId)).not.toContain(t.ann);
     // The same job again (a retry): nothing sent, and the log says why.
     expect(await t.runJob(data)).toMatchObject({ output: { status: "already" } });
@@ -414,7 +420,7 @@ describe("from the guardrails review", () => {
           offerId: expect.any(String),
           workerId: t.ann,
           offeredBy: t.resourcer,
-          channel: "whatsapp",
+          channel: "sms",
           code: "Error",
         },
       },
@@ -503,7 +509,7 @@ describe("the offer page", () => {
       [t.f.firmId, t.shiftId, zoe, hoursFromNow(-1)],
     );
     const candidates = await withFirm(t.f.firmId, (tx) =>
-      officeOfferCandidates(tx, t.shiftId, NOW),
+      officeOfferCandidates(tx, t.shiftId, NOW, true),
     );
     expect(candidates.map((c) => [c.name, c.hoursThisWeek])).toEqual([
       ["Ben Booker", 0],

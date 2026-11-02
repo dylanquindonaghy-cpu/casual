@@ -29,7 +29,7 @@ Replace the parts in [brackets]. Send both parts.
 > upload; the days you've told us you can't work; the shifts you're
 > offered, take, work, miss or cancel, with the notice given and the reason; requests you send us
 > and our answers; your hours, pay rates and pay dates as our payroll records them, and any pay
-> questions you raise; how you want to hear from us (WhatsApp or text); when you log in; notes our
+> questions you raise; how you want to hear from us (text or email); when you log in; notes our
 > office writes about you (such as "bringing the new card on Friday"), and when it reminded you about
 > a licence; and, if you
 > turn on notifications on a phone, that phone's notification address. Notifications can show on
@@ -39,11 +39,12 @@ Replace the parts in [brackets]. Send both parts.
 >
 > **How we contact you:** offers, shift reminders and our answers to your requests and pay
 > questions come as a notification on your phone if you've turned them on there, otherwise by
-> WhatsApp or text. Licence reminders come by WhatsApp or text. Our changes and cancellations of
-> your shifts come by WhatsApp or text even when a notification has reached you, so there's a
-> record of the notice we gave. [While we have no WhatsApp or text service:] a message that would
-> go by WhatsApp or text comes by email to the address we hold for you instead[, and so do your
-> login links and the codes for your pay page].
+> text, or by email if you've chosen email on your profile. Licence reminders come by text, or by
+> email if you chose it. Our changes and cancellations of your shifts come by text or email even
+> when a notification has reached you, so there's a record of the notice we gave. If you've turned
+> texts off (by replying STOP)[, or while we have no text service], a message that would go by text
+> comes by email to the address we hold for you instead. Your login links and the codes for your
+> pay page come by text[, or by email when no text can go].
 >
 > **Why:** to run your shifts with you (our contract with you), to check you hold the licences a
 > shift needs (a legal requirement for some roles), and to keep a record of every offer, change
@@ -124,14 +125,14 @@ Replace the parts in [brackets]. Send both parts.
 >
 > **Who else handles it:** [Our supplier] stores it in [the UK / the EU] ([hosting company], which
 > runs its servers and database). It uses [email company] to send emails, postcodes.io[ and
-> TravelTime] for your travel area (above), Twilio (texts, WhatsApp
-> and calls) and Meta (WhatsApp) to send and receive messages[, and Google, as we keep our rota in
+> TravelTime] for your travel area (above), [our text provider] to send and receive texts[, Twilio
+> (calls and messages to our shifts line, and Meta for any WhatsApp you send to it)][, and Google, as we keep our rota in
 > a Google Sheet], [if you turn on notifications on a phone, your phone's push service (Google's,
 > Apple's, Mozilla's or Microsoft's) to deliver them: each one is locked so only your phone can
 > read it,] and, once the AI service above is switched on, Anthropic [where Anthropic
 > processes it, and the safeguard for any transfer outside the UK: confirmed before the AI is
-> switched on]. Twilio and Meta may handle your number and messages in the United States, under
-> their data transfer terms.
+> switched on]. [Twilio and Meta may handle your number and messages in the United States, under
+> their data transfer terms.]
 >
 > **How long:** messages to the shifts line, [90] days. The words typed into a request (a note, a
 > colleague's name) and the reason our office gave for placing you on a shift a rule would have

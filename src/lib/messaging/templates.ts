@@ -18,6 +18,15 @@ export function loginCodeMessage(firm: FirmVoice, code: string): string {
   return `Your ${firm.name} code is ${code}. It works for 10 minutes. Don't share it with anyone. — ${firm.signOff}`;
 }
 
+// The login link and the pay code by text (Phase 26.9; docs/messaging-templates.md "SMS"): plain
+// characters only (a hyphen, not a dash), so each fits one text.
+export function loginLinkSms(firm: FirmVoice, link: string): string {
+  return `${firm.name} shifts link (15 min): ${link} - ${firm.signOff}`;
+}
+export function loginCodeSms(firm: FirmVoice, code: string): string {
+  return `Your ${firm.name} code is ${code}. It works for 10 minutes. Don't share it. - ${firm.signOff}`;
+}
+
 // A casual's login link and pay-page code by email (P2.6; docs/messaging-templates.md "Email to
 // casuals", approved by Dylan on 2026-10-28, the link last on 2026-10-29): only where the firm has
 // switched login by email on (`login_by_email`) and there's no text sender.

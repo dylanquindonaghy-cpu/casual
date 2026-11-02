@@ -445,12 +445,15 @@ export const workerEnvSchema = z
     path: ["MESSAGING_TRANSPORT"],
     message: "tests never send a real text: webex is refused when NODE_ENV=test",
   })
-  // Not in production before 15.1 (texts only): the login link and the pay code still go by
-  // WhatsApp when a text sender exists (src/lib/auth/login-channel.ts), which Webex won't carry.
+  // Not in production yet. Since Phase 26.9 every message to a casual is a text or an email (the
+  // login link and the pay code went by WhatsApp until then, which Webex won't carry), but a STOP
+  // sent to Webex isn't recorded yet (only the Twilio shifts line sets sms_opted_out_at: Phase 15's
+  // replies by text), and the web can't tell which firms have a Webex key of their own, so the pages
+  // would promise texts that can't go (the guardrails review of 26.9, H2).
   .refine((e) => e.NODE_ENV !== "production" || e.MESSAGING_TRANSPORT !== "webex", {
     path: ["MESSAGING_TRANSPORT"],
     message:
-      "webex waits for 15.1 (texts only) in production: login links and pay codes still go by WhatsApp",
+      "webex waits in production for STOP by text (Phase 15's replies) and a per-firm text account the pages can see",
   })
   // Each firm's Webex key is in the secret store: the worker can't read it without the key's key.
   .refine((e) => e.MESSAGING_TRANSPORT !== "webex" || e.SECRETS_KEY !== undefined, {

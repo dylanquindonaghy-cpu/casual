@@ -379,7 +379,9 @@ describe("offer waves", () => {
     await t.estimate(shiftId, "car", 60);
     expect(await t.candidates(shiftId)).not.toContain(outside);
     expect(await t.candidates(shiftId, { byHand: true })).toContain(outside);
-    const office = await withFirm(t.f.firmId, (tx) => officeOfferCandidates(tx, shiftId, NOW));
+    const office = await withFirm(t.f.firmId, (tx) =>
+      officeOfferCandidates(tx, shiftId, NOW, true),
+    );
     expect(office.map((c) => c.workerId)).toContain(outside);
   });
 });

@@ -2158,3 +2158,22 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
 - **The office's notes and retention** (Phase 26.7): `casual_notes` are kept until the casual's
   details are deleted. Add them to the year-old purge if the pilot shows notes going stale.
 
+## From Phase 26.9 (offers by app notification, text or email; 2026-11-02)
+
+- **Webex in production:** still refused (`src/lib/env.ts`) until a STOP sent to Webex is recorded
+  (Phase 15's replies by text) and the web can see which firms have a Webex key of their own (a
+  non-secret "text account connected" flag per firm, feeding `loginWay`, the offer list's reach and
+  a readiness item), and one real-service trial. The 26.9 guardrails review, H2.
+- **Text versions of every message** with plain characters and under 160: texts are the default
+  now, and a message with no SMS version goes in full (its dashes make it a dearer, multi-part
+  text). For Dylan: the cost (the review's L6).
+- **The Pay page for a casual who replied STOP:** it says "We can't send you a code yet" (or
+  emails one); words of its own ("Texts are off: text START to our number to get a code") need
+  their copy first.
+- **Rename `MessageText.whatsapp`** (`src/lib/notify/send.ts`) to `full`: it's the full wording
+  (an email's body too), not WhatsApp's.
+- **A test of migration 0070** moving `whatsapp` rows in two firms under forced RLS (it ran on the
+  dev database: all 98 casuals moved to texts).
+- **The shifts line's reply to an unknown number by text**, and its inbound WhatsApp on Twilio:
+  with the shifts line moving to texts (Phase 15's third task).
+

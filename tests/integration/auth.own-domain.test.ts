@@ -81,7 +81,7 @@ describe("a worker's login link", () => {
     // The log says the link went to the firm's own domain.
     expect(await sentLog(T)).toEqual({
       purpose: "worker_login",
-      channel: "whatsapp",
+      channel: "sms",
       ownDomain: true,
       providerMessageId: "capture-1",
     });

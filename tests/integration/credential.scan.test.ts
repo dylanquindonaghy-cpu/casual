@@ -19,7 +19,6 @@ import { readTable } from "@/lib/imports/table";
 import { runFirmTask } from "@/lib/jobs/firm-job";
 import { WEEKLY_LIST_MAX_LINES } from "@/lib/messaging/templates";
 import {
-  ChannelRefusedError,
   outboundMessageSchema,
   type MessagingTransport,
   type OutboundMessage,
@@ -186,8 +185,9 @@ function scanner() {
   return { scan, sent };
 }
 
-const whatsapp = (sent: OutboundMessage[]) =>
-  sent.filter((m) => m.channel === "whatsapp").map((m) => ({ to: m.to, body: m.body }));
+// The texts sent (Phase 26.9: a casual's default way; WhatsApp until then).
+const texts = (sent: OutboundMessage[]) =>
+  sent.filter((m) => m.channel === "sms").map((m) => ({ to: m.to, body: m.body }));
 
 describe("credential-scan: warnings", () => {
   it("one only the office records (CSAS) says to send it to the office, with no upload link (12F.2)", async () => {
@@ -196,7 +196,7 @@ describe("credential-scan: warnings", () => {
     await addCredential(f.firmId, cas.id, { type: "CSAS", expiresOn: "2026-11-05" }); // 30 days
     const { scan, sent } = scanner();
     expect(await scan(f.firmId, TUESDAY_DATE)).toMatchObject({ warned: 1 });
-    expect(whatsapp(sent)).toEqual([
+    expect(texts(sent)).toEqual([
       {
         to: cas.mobile,
         body: `Your CSAS accreditation expires on 5 Nov. Renew it and send the new details to the office so you can keep taking shifts. — ${f.name} Shift Team`,
@@ -210,7 +210,7 @@ describe("credential-scan: warnings", () => {
     await addCredential(f.firmId, so.id, { type: "SIA_DS", expiresOn: "2026-11-05" }); // 30 days
     const { scan, sent } = scanner();
     expect(await scan(f.firmId, TUESDAY_DATE)).toMatchObject({ warned: 1 });
-    expect(whatsapp(sent)).toEqual([
+    expect(texts(sent)).toEqual([
       {
         to: so.mobile,
         body: `Your SIA door supervisor licence expires on 5 Nov. Upload your renewed card so you can keep taking shifts that need it: ${uploadLink(f, "SIA_DS")} — ${f.name} Shift Team`,
@@ -250,7 +250,7 @@ describe("credential-scan: warnings", () => {
       weeklyList: "not_today",
     });
     const signOff = `${f.name} Shift Team`;
-    expect(whatsapp(first.sent)).toEqual([
+    expect(texts(first.sent)).toEqual([
       {
         to: sam.mobile,
         body: `Your first aid at work certificate expires on 11 Oct. Renew it and send the new details to the office so you can keep taking shifts. — ${signOff}`,
@@ -279,7 +279,7 @@ describe("credential-scan: warnings", () => {
           expiresOn: "2026-10-11",
           days: 7,
           daysLeft: 5,
-          channel: "whatsapp",
+          channel: "sms",
           providerMessageId: "capture-1",
         },
       },
@@ -290,7 +290,7 @@ describe("credential-scan: warnings", () => {
           expiresOn: "2026-11-05",
           days: 30,
           daysLeft: 30,
-          channel: "whatsapp",
+          channel: "sms",
           providerMessageId: "capture-2",
         },
       },
@@ -311,7 +311,7 @@ describe("credential-scan: warnings", () => {
     expect(await credentialRow(far)).toMatchObject({ warnedDays: 30 }); // 15 days: its first
     expect(await credentialRow(aid)).toMatchObject({ status: "expired" });
     expect(await credentialRow(leaver)).toMatchObject({ status: "expired", warnedDays: null });
-    expect(whatsapp(later.sent).map((m) => m.to)).toEqual([sam.mobile, sam.mobile, sam.mobile]);
+    expect(texts(later.sent).map((m) => m.to)).toEqual([sam.mobile, sam.mobile, sam.mobile]);
   });
 
   it("starts the warnings again when a credential is renewed with a new expiry date", async () => {
@@ -330,7 +330,7 @@ describe("credential-scan: warnings", () => {
       warnedFor: "2026-11-01",
       warnedDays: 30,
     });
-    expect(whatsapp(sent)[0]?.body).toContain("expires on 1 Nov");
+    expect(texts(sent)[0]?.body).toContain("expires on 1 Nov");
   });
 });
 
@@ -413,7 +413,7 @@ describe("credential-scan: expiry (block on expiry)", () => {
     expect(await credentialRow(today)).toMatchObject({ status: "valid" }); // in date today
     expect(await credentialRow(leaversExpired)).toMatchObject({ status: "expired" });
     // Only the active worker is messaged.
-    expect(whatsapp(sent)).toEqual([
+    expect(texts(sent)).toEqual([
       {
         to: sam.mobile,
         body: `Your SIA door supervisor licence expired on 5 Oct. You can't take shifts that need it until you upload your renewed card and the office checks it: ${uploadLink(f, "SIA_DS")} — ${f.name} Shift Team`,
@@ -425,7 +425,7 @@ describe("credential-scan: expiry (block on expiry)", () => {
         {
           entity_id: yesterday,
           // The channel it goes by first (13.5): the worker's own.
-          data: { type: "SIA_DS", expiresOn: "2026-10-05", notified: true, channel: "whatsapp" },
+          data: { type: "SIA_DS", expiresOn: "2026-10-05", notified: true, channel: "sms" },
         },
         {
           entity_id: leaversExpired,
@@ -441,7 +441,7 @@ describe("credential-scan: expiry (block on expiry)", () => {
         data: {
           type: "SIA_DS",
           expiresOn: "2026-10-05",
-          channel: "whatsapp",
+          channel: "sms",
           providerMessageId: "capture-1",
         },
       },
@@ -816,13 +816,13 @@ describe("credential-scan: failures and races", () => {
       type: "SIA_DS",
       expiresOn: "2026-10-12",
     });
-    const whatsappSent: OutboundMessage[] = [];
+    const textsSent: OutboundMessage[] = [];
     const emailDown: MessagingTransport = {
       name: "email-down",
       async send(message) {
         if (message.channel === "email") throw new Error("email is down");
-        whatsappSent.push(message);
-        return { providerMessageId: `ok-${whatsappSent.length}` };
+        textsSent.push(message);
+        return { providerMessageId: `ok-${textsSent.length}` };
       },
     };
     const payload = { firmId: f.firmId, idempotencyKey: "credential-scan:2026-10-05" };
@@ -835,7 +835,7 @@ describe("credential-scan: failures and races", () => {
       weeklyList: "sent",
     });
     // The worker's warning stands (marked and logged).
-    expect(whatsappSent).toHaveLength(1);
+    expect(textsSent).toHaveLength(1);
     expect(await credentialRow(licence)).toMatchObject({ warnedDays: 7 });
     expect(await eventsOf(f.firmId, "credential.expiry_warning")).toHaveLength(1);
     // The list was claimed before its email (it may have gone): logged as sent, and the failure.
@@ -966,16 +966,12 @@ describe("credential-scan: failures and races", () => {
   });
 });
 
-describe("credential-scan: by the channel the casual chose (13.5)", () => {
-  // A transport that refuses WhatsApp for some numbers (a number not on WhatsApp).
-  const refusing = (noWhatsApp: string[]) => {
+describe("credential-scan: by the casual's chosen way (13.5; Phase 26.9)", () => {
+  const capture = () => {
     const sent: OutboundMessage[] = [];
     const transport: MessagingTransport = {
       name: "capture",
       async send(message) {
-        if (message.channel === "whatsapp" && noWhatsApp.includes(message.to)) {
-          throw new ChannelRefusedError("whatsapp");
-        }
         sent.push(message);
         return { providerMessageId: `capture-${sent.length}` };
       },
@@ -983,15 +979,19 @@ describe("credential-scan: by the channel the casual chose (13.5)", () => {
     return { transport, sent };
   };
 
-  it("texts a casual who chose texts; WhatsApp after STOP; a text when WhatsApp refuses; each logged by its channel", async () => {
+  it("a text by default; an email for one who chose it; an email after STOP; each logged by its way, never WhatsApp", async () => {
     const f = await newFirm();
     const tess = await addWorker(f.firmId, { first: "Tess", roles: ["door_supervisor"] });
     const stop = await addWorker(f.firmId, { first: "Stop", roles: ["door_supervisor"] });
     const wren = await addWorker(f.firmId, { first: "Wren", roles: ["door_supervisor"] });
-    await su.query("update workers set notify_channel = 'sms' where id = any($1)", [
-      [tess.id, stop.id],
-    ]);
-    await su.query("update workers set sms_opted_out_at = now() where id = $1", [stop.id]);
+    await su.query(
+      "update workers set email = 'stop@example.test', sms_opted_out_at = now() where id = $1",
+      [stop.id],
+    );
+    await su.query(
+      "update workers set email = 'wren@example.test', notify_channel = 'email' where id = $1",
+      [wren.id],
+    );
     // A warning (30 days) for each, and an expiry for Tess.
     const warnings = await Promise.all(
       [tess, stop, wren].map((w) =>
@@ -1004,25 +1004,27 @@ describe("credential-scan: by the channel the casual chose (13.5)", () => {
       warnedFor: "2026-10-05",
       warnedDays: 7,
     });
-    const { transport, sent } = refusing([wren.mobile]);
+    const { transport, sent } = capture();
     const scan = await scanCredentials(
       { firmId: f.firmId, idempotencyKey: `credential-scan:${TUESDAY_DATE}` },
       withFirm,
       { transport, baseDomain: BASE_DOMAIN },
     );
     expect(scan).toMatchObject({ warned: 3, expired: 1, failed: 0 });
-    // Who got what, by which channel (the words are the same either way).
+    // Who got what, by which way.
     const by = (to: string) => sent.filter((m) => m.to === to).map((m) => m.channel);
     expect(by(tess.mobile)).toEqual(["sms", "sms"]);
-    expect(by(stop.mobile)).toEqual(["whatsapp"]);
-    expect(by(wren.mobile)).toEqual(["sms"]);
+    expect(by("stop@example.test")).toEqual(["email"]);
+    expect(by("wren@example.test")).toEqual(["email"]);
+    expect(sent.some((m) => m.channel === "whatsapp")).toBe(false);
     for (const m of sent) expect(m.body).toMatch(/Shift Team$/);
-    // Logged by the channel each went by; the fallback says so.
+    // Logged by the way each went; an email after STOP says so.
     const warned = await eventsOf(f.firmId, "credential.expiry_warning");
     const channelOf = (id: string | undefined) => warned.find((e) => e.entity_id === id)?.data;
     expect(channelOf(warnings[0])).toMatchObject({ channel: "sms" });
-    expect(channelOf(warnings[1])).toMatchObject({ channel: "whatsapp" });
-    expect(channelOf(warnings[2])).toMatchObject({ channel: "sms", fellBackFrom: "whatsapp" });
+    expect(channelOf(warnings[1])).toMatchObject({ channel: "email", fellBackFrom: "sms" });
+    expect(channelOf(warnings[2])).toMatchObject({ channel: "email" });
+    expect(channelOf(warnings[2])).not.toHaveProperty("fellBackFrom");
     expect(await eventsOf(f.firmId, "credential.expiry_notice_sent")).toEqual([
       {
         entity_id: expired,
@@ -1037,7 +1039,7 @@ describe("credential-scan: by the channel the casual chose (13.5)", () => {
     ]);
   });
 
-  it("STOP and no WhatsApp: nothing sent, logged as failed with the reason, never retried", async () => {
+  it("STOP and no email: nothing sent (never WhatsApp), logged as failed with the reason, never retried", async () => {
     const f = await newFirm();
     const kit = await addWorker(f.firmId, { first: "Kit", roles: ["door_supervisor"] });
     await su.query("update workers set sms_opted_out_at = now() where id = $1", [kit.id]);
@@ -1045,7 +1047,7 @@ describe("credential-scan: by the channel the casual chose (13.5)", () => {
       type: "SIA_DS",
       expiresOn: "2026-11-05",
     });
-    const { transport, sent } = refusing([kit.mobile]);
+    const { transport, sent } = capture();
     const deps = { transport, baseDomain: BASE_DOMAIN };
     const run = () =>
       scanCredentials(
@@ -1058,7 +1060,7 @@ describe("credential-scan: by the channel the casual chose (13.5)", () => {
     expect(await eventsOf(f.firmId, "credential.expiry_warning_failed")).toEqual([
       {
         entity_id: credential,
-        data: expect.objectContaining({ channel: "whatsapp", code: "sms_opted_out" }),
+        data: expect.objectContaining({ channel: "sms", code: "sms_opted_out" }),
       },
     ]);
     expect(await run()).toMatchObject({ warned: 0, failed: 0 });

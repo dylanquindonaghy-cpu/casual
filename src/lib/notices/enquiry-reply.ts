@@ -19,8 +19,8 @@ import { getPushTransport, type PushTransport } from "../push/transport";
 //
 // At most once, like the other notices: (1) a short transaction claims it (`enquiry.reply_sending`,
 // under an advisory lock on the reply) and commits; (2) the message goes outside any transaction,
-// from the firm's shifts line stored on the row, by the shared sender (`sendToWorker()`: the
-// WhatsApp-to-text fallback, never a text after STOP: a casual's own setting, or for a number that
+// from the firm's shifts line stored on the row, by the shared sender (`sendToWorker()`: on the
+// channel they wrote on, a WhatsApp's text fallback, never a text after STOP: a casual's own setting, or for a number that
 // isn't a casual's, its own last STOP or START to the line; never a push or an email (P2.4: it
 // answers a message to the shifts line, so a text sender exists)); (3) a second short transaction
 // records `enquiry.reply_sent` (the row gets the provider's id and the channel it went by) or

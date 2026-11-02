@@ -21,19 +21,19 @@ const pushHost = (endpoint: string) => {
 };
 
 // One message to a worker (docs/messaging-templates.md, "Notification policy"), the same way for
-// every sender. deliverToWorker (below; P2.4) puts a push first and an email last; sendToWorker is
-// its WhatsApp or text:
+// every sender. Since Phase 26.9 (decision 4; Phase 15's "Texts only") no message to a casual goes
+// by WhatsApp: deliverToWorker (below; P2.4) puts a push first, then their chosen way (a text, or an
+// email), then an email when no text can go (sendTextOrEmail).
 //
-// - by the channel the worker chose (WhatsApp or text message), with that channel's text (a text
-//   message has its own short copy where docs/messaging-templates.md gives one);
-// - a WhatsApp the provider refuses (ChannelRefusedError: the number isn't on WhatsApp), or one with
-//   no WhatsApp sender at all (NoTextSenderError), goes by text at once. Any other failure (a
-//   timeout, an outage) might already have arrived, so it's never sent again: the caller records it
-//   as failed. (Falling back when a WhatsApp isn't delivered within 60 seconds needs Twilio's
-//   delivery reports: parked with Twilio.)
-// - never a text to a worker who replied STOP (`smsAllowed` false: workers.sms_opted_out_at is
-//   set): one who chose texts gets WhatsApp instead (`fellBackFrom: "sms"`), and a WhatsApp refused
-//   for them isn't sent as a text (failed, code `sms_opted_out`). Every sender passes it.
+// sendToWorker is the shifts line's own reply (src/lib/inbound/reply.ts, the office's reply on
+// Enquiries): an answer on the channel the casual wrote on, from the number they wrote to.
+// - A text never goes to a worker who replied STOP (`smsAllowed` false: workers.sms_opted_out_at is
+//   set): nothing goes (failed, `sms_opted_out`). Until Phase 26.9 they got WhatsApp instead.
+// - A WhatsApp to the Twilio shifts line (which never went live) is answered by WhatsApp; one the
+//   provider refuses (ChannelRefusedError) or with no WhatsApp sender (NoTextSenderError) goes by
+//   text at once, unless they replied STOP. Any other failure (a timeout, an outage) might already
+//   have arrived, so it's never sent again: the caller records it as failed.
+// sendText is a text alone, the way every other message to a casual goes when it goes by text.
 //
 // The caller claims its own record (offer, reminder, notice) in a committed transaction before
 // calling, pushes and sends with no transaction open, then records the outcome and logs its event
@@ -44,73 +44,82 @@ export interface NotifyDeps {
   push: PushTransport;
 }
 
-export type WorkerChannel = "whatsapp" | "sms";
+// The channel a shifts-line conversation is on (the message the casual sent).
+export type LineChannel = "whatsapp" | "sms";
+// How a casual wants messages when no app notification reaches them (workers.notify_channel).
+export type WorkerChannel = "sms" | "email";
 
 // Whether a worker may be sent texts: not after they replied STOP (workers.sms_opted_out_at).
 export const smsAllowedFor = (w: { smsOptedOutAt: Date | string | null }) =>
   w.smsOptedOutAt === null;
 
-// A message's text for each channel (the same text for both when the doc has no SMS version).
+// A message's words: `whatsapp` is the full wording (an email's body too; named for WhatsApp,
+// which carried it until Phase 26.9), `sms` the short one for a text (the same words when the doc
+// has no SMS version).
 export interface MessageText {
   whatsapp: string;
   sms: string;
 }
 
-// The message only, by the worker's channel with the WhatsApp-to-text fallback. Holds no
-// transaction, so a caller can send between its own (the reminder job records each reminder before
-// and after sending, so a failure afterwards can't undo the record of a message that went).
-// `from` is the firm's shifts line (null when it has none yet): every message to a worker goes
-// from it (tests/unit/notify.from-line.test.ts holds every sender to this).
+type SendOutcome<C> =
+  | { ok: true; channel: C; providerMessageId: string; fellBackFrom?: LineChannel }
+  | { ok: false; channel: C; code: string };
+
+// The shifts line's reply on the casual's own channel (above). Holds no transaction. `from` is the
+// firm's shifts line (null when it has none yet): every message to a worker goes from it
+// (tests/unit/notify.from-line.test.ts holds every sender to this).
 export async function sendToWorker(
   deps: Pick<NotifyDeps, "transport">,
   input: {
     mobile: string;
-    channel: WorkerChannel;
+    channel: LineChannel;
     smsAllowed: boolean; // false: they replied STOP (never a text)
     body: MessageText;
     from: string | null;
   },
-): Promise<
-  | { ok: true; channel: WorkerChannel; providerMessageId: string; fellBackFrom?: WorkerChannel }
-  | { ok: false; channel: WorkerChannel; code: string }
-> {
-  let channel: WorkerChannel = input.smsAllowed ? input.channel : "whatsapp";
-  let providerMessageId: string;
+): Promise<SendOutcome<LineChannel>> {
+  if (input.channel === "sms") return sendText(deps, input);
   const from = input.from ? { from: input.from } : {};
   try {
-    try {
-      ({ providerMessageId } = await deps.transport.send({
-        channel,
-        to: input.mobile,
-        ...from,
-        body: input.body[channel],
-      }));
-    } catch (error) {
-      // No WhatsApp sender (P2.5) tries the text as a refusal does: nothing was sent.
-      const noSender = error instanceof NoTextSenderError;
-      if (!(error instanceof ChannelRefusedError || noSender) || channel !== "whatsapp")
-        throw error;
-      if (!input.smsAllowed) {
-        if (noSender) throw error; // no text can go: deliverToWorker moves on to email
-        return { ok: false, channel, code: "sms_opted_out" };
-      }
-      channel = "sms";
-      ({ providerMessageId } = await deps.transport.send({
-        channel,
-        to: input.mobile,
-        ...from,
-        body: input.body[channel],
-      }));
-    }
+    const { providerMessageId } = await deps.transport.send({
+      channel: "whatsapp",
+      to: input.mobile,
+      ...from,
+      body: input.body.whatsapp,
+    });
+    return { ok: true, channel: "whatsapp", providerMessageId };
   } catch (error) {
-    return { ok: false, channel, code: sendFailureCode(error) };
+    // No WhatsApp sender, or the number isn't on WhatsApp: nothing was sent, so a text may go.
+    const noSender = error instanceof NoTextSenderError;
+    if (!(error instanceof ChannelRefusedError || noSender)) {
+      return { ok: false, channel: "whatsapp", code: sendFailureCode(error) };
+    }
+    if (!input.smsAllowed) {
+      return { ok: false, channel: "whatsapp", code: noSender ? NO_TEXT_SENDER : "sms_opted_out" };
+    }
+    const text = await sendText(deps, input);
+    return text.ok ? { ...text, fellBackFrom: "whatsapp" } : text;
   }
-  return {
-    ok: true,
-    channel,
-    providerMessageId,
-    ...(channel !== input.channel ? { fellBackFrom: input.channel } : {}),
-  };
+}
+
+// A text, and nothing else: never to a casual who replied STOP (`sms_opted_out`, nothing tried);
+// NO_TEXT_SENDER when there's no text sender (nothing was sent: the caller may email instead).
+export async function sendText(
+  deps: Pick<NotifyDeps, "transport">,
+  input: { mobile: string; smsAllowed: boolean; body: MessageText; from: string | null },
+): Promise<SendOutcome<"sms">> {
+  if (!input.smsAllowed) return { ok: false, channel: "sms", code: "sms_opted_out" };
+  try {
+    const { providerMessageId } = await deps.transport.send({
+      channel: "sms",
+      to: input.mobile,
+      ...(input.from ? { from: input.from } : {}),
+      body: input.body.sms,
+    });
+    return { ok: true, channel: "sms", providerMessageId };
+  } catch (error) {
+    return { ok: false, channel: "sms", code: sendFailureCode(error) };
+  }
 }
 
 // What sendToWorker says when there's no text sender at all (P2.5): nothing was tried.
@@ -127,19 +136,22 @@ export const sendFailureCode = (error: unknown): string =>
 // address for them (P2.4). Logged as the sender's failure, so the office can see who wasn't reached.
 export const NO_CHANNEL = "no_channel";
 
-export type DeliveryChannel = WorkerChannel | "push" | "email";
+// How a message went: a push, a text or an email (and "whatsapp" on the shifts line's own replies
+// and on records from before Phase 26.9).
+export type DeliveryChannel = LineChannel | "push" | "email";
 
-// One message to a casual, every way it can reach them, in order (P2.4; docs/messaging-templates.md
-// "How a message reaches a casual"; Messages 2):
+// One message to a casual, every way it can reach them, in order (Phase 26.9, decision 4; P2.4;
+// docs/messaging-templates.md "How a message reaches a casual"):
 // 1. a push to the phones they turned notifications on for (free): delivered once one phone takes
 //    it, and nothing else goes;
-// 2. else by WhatsApp or text, as sendToWorker sends (their channel, the WhatsApp-to-text fallback,
-//    STOP respected). One that fails, or might have arrived, is the sender's failure as before: never
-//    sent another way, which could send it twice;
-// 3. else, only when there's no text sender at all (NoTextSenderError), an email to the address the
-//    firm holds for them, its subject from docs/messaging-templates.md "Email to casuals" and its
-//    body the message's own words;
-// 4. else not sent: NO_CHANNEL.
+// 2. else their chosen way (`text.channel`, workers.notify_channel): a text, or an email to the
+//    address the firm holds for them (one who chose email whose address has gone gets a text);
+// 3. a text that can't go because there's no text sender (NoTextSenderError) or they replied STOP
+//    goes by email instead, when the firm holds an address for them (its subject from
+//    docs/messaging-templates.md "Email to casuals", its body the message's own words);
+// 4. else not sent: NO_CHANNEL (no text sender) or `sms_opted_out` (STOP).
+// A text or email that fails, or might have arrived, is the sender's failure: never sent another
+// way, which could send it twice. Never by WhatsApp.
 // Holds no transaction (the push reads the phones in a short one of its own, as pushToWorker always
 // has). The caller records what came of the push (recordPushes) whatever the outcome: a phone found
 // gone is forgotten either way. A message with no push words (the licence messages) starts at 2:
@@ -148,13 +160,19 @@ export type DeliveryChannel = WorkerChannel | "push" | "email";
 // The office's change and cancellation notices (`proofOfNotice`: Dylan, 2026-10-29) are the record
 // of the notice the casual was given (golden rule 12; the Employment Rights Act): a push taken
 // shows only that the push service took it, and it expires unseen once the shift starts. So for
-// them the WhatsApp, text or email (2 to 4) goes as well as the push, never instead of it. One that
-// can't go while a phone took the push still counts as told, by push, and says why the message
-// didn't go (`alsoFailed`).
+// them the text or email (2 to 4) goes as well as the push, never instead of it. One that can't go
+// while a phone took the push still counts as told, by push, and says why the message didn't go
+// (`alsoFailed`).
 export interface Delivery {
   workerId: string;
   push: PushPayload;
-  text: Parameters<typeof sendToWorker>[1];
+  text: {
+    mobile: string;
+    channel: WorkerChannel; // their choice: a text or an email
+    smsAllowed: boolean; // false: they replied STOP (never a text)
+    body: MessageText;
+    from: string | null;
+  };
   email: { to: string; subject: string; body: string } | null;
   proofOfNotice?: true;
 }
@@ -164,13 +182,15 @@ export type TextOrEmail =
       ok: true;
       channel: DeliveryChannel;
       providerMessageId: string | null; // none for a push (an email's: emailMessageId)
-      fellBackFrom?: WorkerChannel;
+      // Not their chosen way: "sms" when a text couldn't go (STOP) and it went by email; "email"
+      // when they chose email but the firm no longer holds an address, so it went by text.
+      fellBackFrom?: WorkerChannel | LineChannel;
     }
   | { ok: false; channel: DeliveryChannel | null; code: string };
 
 export type Delivered = TextOrEmail & {
   push: PushOutcome;
-  // A notice that went by push only: why its WhatsApp, text or email didn't go (proofOfNotice).
+  // A notice that went by push only: why its text or email didn't go (proofOfNotice).
   alsoFailed?: { channel: DeliveryChannel | null; code: string };
 };
 
@@ -199,8 +219,8 @@ export const emailMessageId = (id: string): string | null => {
   return passesLogCheck({ providerMessageId: local }) ? local : null;
 };
 
-// Steps 2 to 4 of deliverToWorker: a WhatsApp or text, else (no text sender) an email, else
-// NO_CHANNEL.
+// Steps 2 to 4 of deliverToWorker: their chosen way (a text, or an email), a text that can't go
+// (no text sender, or STOP) by email instead, else NO_CHANNEL or `sms_opted_out`.
 export async function sendTextOrEmail(
   deps: Pick<NotifyDeps, "transport">,
   delivery: Pick<Delivery, "text" | "email">,
@@ -211,15 +231,29 @@ export async function sendTextOrEmail(
       "sendTextOrEmail must be called with no transaction open (src/lib/notify/send.ts)",
     );
   }
-  const text = await sendToWorker(deps, delivery.text);
-  if (text.ok || text.code !== NO_TEXT_SENDER) return text;
-  if (!delivery.email) return { ok: false, channel: null, code: NO_CHANNEL };
+  const email = delivery.email;
+  if (delivery.text.channel === "email" && email) return sendEmail(deps, email);
+  const text = await sendText(deps, delivery.text);
+  const chose = delivery.text.channel === "email" ? { fellBackFrom: "email" as const } : {};
+  if (text.ok) return { ...text, ...chose };
+  // Nothing was sent: no text sender, or they replied STOP.
+  const noSender = text.code === NO_TEXT_SENDER;
+  if (!noSender && text.code !== "sms_opted_out") return text;
+  if (!email) return noSender ? { ok: false, channel: null, code: NO_CHANNEL } : text;
+  const sent = await sendEmail(deps, email);
+  return sent.ok && !noSender ? { ...sent, fellBackFrom: "sms" } : sent;
+}
+
+async function sendEmail(
+  deps: Pick<NotifyDeps, "transport">,
+  email: NonNullable<Delivery["email"]>,
+): Promise<TextOrEmail> {
   try {
     const { providerMessageId } = await deps.transport.send({
       channel: "email",
-      to: delivery.email.to,
-      subject: delivery.email.subject,
-      body: delivery.email.body,
+      to: email.to,
+      subject: email.subject,
+      body: email.body,
     });
     return { ok: true, channel: "email", providerMessageId: emailMessageId(providerMessageId) };
   } catch (error) {

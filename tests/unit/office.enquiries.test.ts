@@ -117,7 +117,7 @@ describe("how the office's reply goes", () => {
   const hour = 3_600_000;
   const recent = new Date(now.getTime() - hour);
   const old = new Date(now.getTime() - WHATSAPP_WINDOW_MS);
-  const casual = (notifyChannel: "whatsapp" | "sms", smsAllowed = true) => ({
+  const casual = (notifyChannel: "sms" | "email", smsAllowed = true) => ({
     notifyChannel,
     smsAllowed,
   });
@@ -158,20 +158,22 @@ describe("how the office's reply goes", () => {
     });
   });
 
-  it("a voicemail: the casual's own channel (WhatsApp after STOP); never a caller we don't know", () => {
-    expect(plan({ channel: "voice", casual: casual("sms"), lastWhatsAppAt: null })).toEqual({
-      ok: true,
-      channel: "sms",
-      form: "free_text",
-    });
+  // Phase 26.9: never WhatsApp (until then, the casual's channel, and WhatsApp after STOP).
+  it("a voicemail: a text, whatever they chose; nothing after STOP; never a caller we don't know", () => {
+    for (const chose of ["sms", "email"] as const) {
+      expect(plan({ channel: "voice", casual: casual(chose), lastWhatsAppAt: null })).toEqual({
+        ok: true,
+        channel: "sms",
+        form: "free_text",
+      });
+    }
     expect(plan({ channel: "voice", casual: casual("sms", false), lastWhatsAppAt: null })).toEqual({
-      ok: true,
-      channel: "whatsapp",
-      form: "template",
+      ok: false,
+      why: "texts_off",
     });
-    expect(plan({ channel: "voice", casual: casual("whatsapp") })).toMatchObject({
-      channel: "whatsapp",
-      form: "free_text",
+    expect(plan({ channel: "voice", casual: casual("sms", false) })).toEqual({
+      ok: false,
+      why: "texts_off",
     });
     expect(plan({ channel: "voice", lastWhatsAppAt: null })).toEqual({
       ok: false,

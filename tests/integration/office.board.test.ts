@@ -625,7 +625,9 @@ describe("isolation", () => {
     expect(g.chosen?.shiftId).toBe(mine.door);
     const takers = b.takers;
     if (!takers) throw new Error("no session chosen");
-    const list = await withFirm(mine.f.firmId, (tx) => officeOfferCandidates(tx, mine.door, NOW));
+    const list = await withFirm(mine.f.firmId, (tx) =>
+      officeOfferCandidates(tx, mine.door, NOW, true),
+    );
     expect(ok(takers).count).toBe(list.length);
     expect(list.map((c) => c.workerId)).not.toContain(w);
     expect(ok(takers).only?.workerId).not.toBe(w);
@@ -704,7 +706,7 @@ describe("round 8: the venue map", () => {
     const b = await boardFirm();
     const board = await b.load();
     expect(ok(board.gaps).chosen?.shiftId).toBe(b.door);
-    const list = await withFirm(b.f.firmId, (tx) => officeOfferCandidates(tx, b.door, NOW));
+    const list = await withFirm(b.f.firmId, (tx) => officeOfferCandidates(tx, b.door, NOW, true));
     const takers = board.takers?.ok ? board.takers.data : null;
     expect(takers?.count).toBe(list.length);
     expect(takers?.only?.name ?? null).toBe(list.length === 1 ? list[0]!.name : null);

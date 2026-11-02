@@ -360,11 +360,12 @@ describe("in the server's HTML, before the page is ready, the fields are disable
     [
       "Notification settings",
       createElement(NotificationForm, {
-        channel: "whatsapp",
+        channel: "sms",
         offerAlerts: true,
         textsOff: false,
         loginWay: "message",
-        email: null,
+        // An address held, so both ways to choose show (Phase 26.9): a text and an email.
+        email: "sam@example.test",
         signOff: "Acme Events Shift Team",
       }),
       3,

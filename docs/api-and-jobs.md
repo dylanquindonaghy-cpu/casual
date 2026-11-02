@@ -117,10 +117,11 @@ issue (asking again returns its reference, under a per-worker lock); a `pay_quer
 {issueType, shiftId, workDate}, never the details; outcomes: created with a reference, already_open,
 invalid with problems, not_yours, needs_code, logged_out, error) ·
 `updateNotificationPrefs(...)` (built: `saveNotificationSettingsAction(channel, offerAlerts)` in
-`src/app/profile/actions.ts` → `setNotificationSettings()`; WhatsApp or SMS, and open-shift alerts
-on or off; a `worker.notification_settings_changed` event only when something changed. The Phase 4
-sender must read both: `notify_channel` picks WhatsApp or SMS, and `offer_alerts = false` means no
-open-shift offers, while login links and codes are always sent)
+`src/app/profile/actions.ts` → `setNotificationSettings()`; a text or an email (Phase 26.9; email
+refused while no address is held; WhatsApp or SMS until then), and open-shift alerts on or off; a
+`worker.notification_settings_changed` event only when something changed. Every sender reads both:
+`notify_channel` picks a text or an email after the push (`src/lib/notify/send.ts`), and
+`offer_alerts = false` means no open-shift offers, while login links and codes are always sent)
 
 Office server actions: `createShift` (built: `createShifts()` in `src/lib/office/shift-editor.ts`,
 one shift or up to 12 for an event, all checked before any is saved; logged `shift.created` {by:

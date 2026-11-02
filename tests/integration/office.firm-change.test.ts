@@ -628,7 +628,7 @@ describe("telling the worker (the firm-change-notice job)", () => {
     await cancelShift(t.ctx(), t.shiftId, "event_cancelled");
     const [annJob] = await noticeJobs(t.f.firmId);
     expect(await n.run(annJob ?? {})).toMatchObject({
-      output: { status: "sent", channel: "whatsapp" },
+      output: { status: "sent", channel: "sms" },
     });
     expect(bodies(n.sent)).toEqual([
       `Your shift on Sat 7 Nov 08:00–16:00 at Riverside Arena has been cancelled by the office. Open shifts: http://${n.slug}.localhost:3000/shifts/open. — Booking Test ${n.slug} Shift Team`,
@@ -642,7 +642,7 @@ describe("telling the worker (the firm-change-notice job)", () => {
       ]),
     ).toEqual([
       ["shift.change_notice", "sending"],
-      ["shift.change_notice_sent", "whatsapp"],
+      ["shift.change_notice_sent", "sms"],
     ]);
   });
 
@@ -895,7 +895,8 @@ describe("telling the worker (the firm-change-notice job)", () => {
     expect(n.sent).toEqual([]);
   });
 
-  it("a failed send is logged and never sent again; a refused WhatsApp goes by text", async () => {
+  // Phase 26.9: never WhatsApp (until then, a refused WhatsApp went by text).
+  it("a failed send is logged and never sent again; the next goes by text, never WhatsApp", async () => {
     const t = await changeFirm();
     const n = await notices(t);
     await cancelShift(t.ctx(), t.shiftId, "weather");
@@ -904,7 +905,6 @@ describe("telling the worker (the firm-change-notice job)", () => {
     expect(await n.run(a ?? {})).toMatchObject({ output: { status: "failed" } });
     n.state.fail = false;
     expect(await n.run(a ?? {})).toMatchObject({ output: { status: "already" } });
-    n.state.refuseWhatsApp = true;
     expect(await n.run(b ?? {})).toMatchObject({ output: { status: "sent", channel: "sms" } });
     expect(n.sent.map((m) => m.channel)).toEqual(["sms"]);
     expect(await eventsOf(t.f.firmId, "shift.change_notice_failed")).toHaveLength(1);

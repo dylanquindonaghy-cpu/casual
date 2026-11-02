@@ -74,9 +74,9 @@ describe("worker login, start to finish", () => {
     const result = await runLinkJob(job ?? { id: "", data: {} }, { transport, clock: time.clock });
     expect(result.status).toBe("completed");
     expect(sent).toHaveLength(1);
-    expect(sent[0]).toMatchObject({ channel: "whatsapp", to: mobile });
+    expect(sent[0]).toMatchObject({ channel: "sms", to: mobile });
     expect(sent[0]?.body).toContain(`http://${A.slug}.localhost:3000/l#`);
-    expect(sent[0]?.body).toMatch(/— Test Firm \S+ Shift Team$/);
+    expect(sent[0]?.body).toMatch(/ - Test Firm \S+ Shift Team$/);
     const token = tokenFrom(sent[0]);
 
     // 4. Only the hash is stored, and the token appears nowhere in the queue.

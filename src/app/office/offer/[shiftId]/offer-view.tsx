@@ -7,8 +7,14 @@ import {
   ALREADY_OFFERED,
   candidateLine,
   NOBODY_ELSE,
+  NOBODY_LEFT_OUT,
   NOBODY_YET,
+  NOT_OFFERED,
+  notOfferedMore,
+  notOfferedWhy,
+  OUTSIDE_AREA,
   placesFreeText,
+  reachLine,
   RESPONSE_WORDS,
   sentBy,
   URGENT_NOTE,
@@ -22,7 +28,8 @@ import { OfferButton } from "./offer-button";
 
 // The offer page's content (pure: the page loads the data). The header names the shift (a link
 // to its page) and says how many places are free; then the people who can take it, one row each
-// with its "Send offer" button, then who has already been offered it.
+// with how the offer will reach them (Phase 26.9, off-1) and its "Send offer" button, beside them
+// from 1024px who can't be offered it and why (off-2), then who has already been offered it.
 
 export function OfferView({ page }: { page: OfferPage }) {
   const { shift, timeZone } = page;
@@ -54,30 +61,39 @@ export function OfferView({ page }: { page: OfferPage }) {
           or assign someone from the shift&apos;s page.
         </p>
       ) : shift.open ? (
-        <section aria-labelledby="who-can-take-it">
-          <h2 id="who-can-take-it" className={h2}>
-            {WHO_CAN_TAKE_IT}
-          </h2>
-          <p className={`${muted} mt-1 max-w-prose`}>{whoRule(DAILY_OFFER_CAP)}</p>
-          {page.candidates.length === 0 ? (
-            <p className={`${card} ${headingGap} text-ink-muted`}>{NOBODY_ELSE}</p>
-          ) : (
-            <ul role="list" className={`${rows} ${headingGap}`}>
-              {page.candidates.map((c) => (
-                <li
-                  key={c.workerId}
-                  className={`${row} flex flex-wrap items-center justify-between gap-x-4 gap-y-2`}
-                >
-                  <div className="min-w-0">
-                    <p className="font-semibold">{c.name}</p>
-                    <p className="text-sm text-ink-muted tabular-nums">{candidateLine(c)}</p>
-                  </div>
-                  <OfferButton shiftId={shift.shiftId} workerId={c.workerId} name={c.name} />
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        <div className="grid gap-x-8 gap-y-12 lg:grid-cols-2">
+          <section aria-labelledby="who-can-take-it">
+            <h2 id="who-can-take-it" className={h2}>
+              {WHO_CAN_TAKE_IT}
+            </h2>
+            <p className={`${muted} mt-1 max-w-prose`}>{whoRule(DAILY_OFFER_CAP)}</p>
+            {page.candidates.length === 0 ? (
+              <p className={`${card} ${headingGap} text-ink-muted`}>{NOBODY_ELSE}</p>
+            ) : (
+              <ul role="list" className={`${rows} ${headingGap}`}>
+                {page.candidates.map((c) => (
+                  <li
+                    key={c.workerId}
+                    className={`${row} flex flex-wrap items-center justify-between gap-x-4 gap-y-2`}
+                  >
+                    <div className="min-w-0">
+                      <p className="font-semibold">{c.name}</p>
+                      <p className="text-sm text-ink-muted tabular-nums">{candidateLine(c)}</p>
+                      <p className="text-sm text-ink">{reachLine(c.reach)}</p>
+                      {c.outsideArea && (
+                        <p className="mt-1">
+                          <StatusChip tone="attention">{OUTSIDE_AREA}</StatusChip>
+                        </p>
+                      )}
+                    </div>
+                    <OfferButton shiftId={shift.shiftId} workerId={c.workerId} name={c.name} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+          <NotOfferedList page={page} />
+        </div>
       ) : (
         <p className={`${card} text-ink-muted`}>This shift isn&apos;t open any more.</p>
       )}
@@ -106,5 +122,40 @@ export function OfferView({ page }: { page: OfferPage }) {
         )}
       </section>
     </>
+  );
+}
+
+// "Not offered, and why" (off-2): each with one reason, by name; at most 20, then how many more.
+export function NotOfferedList({
+  page,
+}: {
+  page: Pick<OfferPage, "notOffered" | "notOfferedMore">;
+}) {
+  return (
+    <section aria-labelledby="not-offered">
+      <h2 id="not-offered" className={h2}>
+        {NOT_OFFERED}
+      </h2>
+      {page.notOffered.length === 0 ? (
+        <p className={`${card} ${headingGap} text-ink-muted`}>{NOBODY_LEFT_OUT}</p>
+      ) : (
+        <ul role="list" className={`${rows} ${headingGap}`}>
+          {page.notOffered.map((n) => (
+            <li
+              key={n.workerId}
+              className={`${row} flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1`}
+            >
+              <span className="font-semibold">{n.name}</span>
+              <span className="text-sm text-ink-muted">
+                {notOfferedWhy(n.why, DAILY_OFFER_CAP)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {page.notOfferedMore > 0 && (
+        <p className={`${muted} mt-3`}>{notOfferedMore(page.notOfferedMore)}</p>
+      )}
+    </section>
   );
 }

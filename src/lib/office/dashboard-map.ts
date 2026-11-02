@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { uuidArray } from "../db/arrays";
 import type { FirmTx } from "../db/scoped";
 import { officeOfferCandidates } from "../offers/office-offer";
+import { hasTextSender } from "../portal/login-way";
 import { localDateOf } from "../time/zoned";
 import { sitesSql } from "./contract-scope";
 import {
@@ -117,7 +118,10 @@ export interface Takers {
 }
 
 export async function loadTakers(tx: FirmTx, shiftId: string, now: Date): Promise<Takers> {
-  const list = await officeOfferCandidates(tx, shiftId, now);
+  // Only those an offer can reach (Phase 26.9), as the offer page lists them.
+  const list = (await officeOfferCandidates(tx, shiftId, now, hasTextSender())).filter(
+    (c) => c.reach.how !== "none",
+  );
   const one = list.length === 1 ? list[0]! : null;
   return {
     count: list.length,

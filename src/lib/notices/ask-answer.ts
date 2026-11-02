@@ -46,7 +46,7 @@ import { localDateOf, wallTimeOf } from "../time/zoned";
 //
 // At most once, like the other notices: a short transaction claims it (shift.ask_answer_notice,
 // under an advisory lock on the ask) and commits; the message goes outside any transaction (a push
-// to their phones, else by their channel with the WhatsApp-to-text fallback, else email:
+// to their phones, else their chosen text or email, else email when no text can go:
 // deliverToWorker); a second short transaction logs shift.ask_answer_sent or _failed. A job that
 // stops part-way leaves the claim: the message may have gone, so it's never sent again.
 //

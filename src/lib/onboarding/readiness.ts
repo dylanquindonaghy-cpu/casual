@@ -170,11 +170,11 @@ export async function firmReadiness(tx: FirmTx): Promise<ReadinessItem[]> {
       detail: `As the app reads them now: ${settings}. Change with npm run firm:settings.`,
     },
     {
-      item: "Shifts line (Twilio number) and WhatsApp display name",
+      item: "Shifts line number",
       state: firm.line ? "confirm" : "todo",
       detail: firm.line
-        ? `Number ${firm.line} set. Confirm WhatsApp approved the display name.`
-        : "No number yet: after Connect Twilio, npm run firm:line.",
+        ? `Number ${firm.line} set. Confirm texts to it reach the firm's text account.`
+        : "No number yet: npm run firm:line once the firm's text account has one.",
     },
     {
       item: "Privacy notice line added by the firm",

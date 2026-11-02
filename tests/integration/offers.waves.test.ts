@@ -278,22 +278,18 @@ describe("a wave", () => {
   it("goes to the 2 best eligible workers, then the next 2 after 15 minutes; never the rest", async () => {
     const t = await waveFirm();
     expect(await t.wave(1)).toEqual({ status: "sent", sent: 2, next: 2 });
-    // Ann (0 hours) and Ben (8): Ben by text message, as his profile says.
+    // Ann (0 hours) and Ben (8), each by text (Phase 26.9: the default; WhatsApp until then).
     expect(await offersOf(t.shiftId)).toEqual(
       [
-        { worker_id: t.ann.id, wave: 1, channel: "whatsapp", response: null },
+        { worker_id: t.ann.id, wave: 1, channel: "sms", response: null },
         { worker_id: t.ben.id, wave: 1, channel: "sms", response: null },
       ].sort((a, b) => a.worker_id.localeCompare(b.worker_id)),
     );
     expect(t.sent.map((m) => [m.channel, m.channel === "email" ? "" : m.to]).sort()).toEqual(
       [
         ["sms", t.ben.mobile],
-        ["whatsapp", t.ann.mobile],
+        ["sms", t.ann.mobile],
       ].sort(),
-    );
-    const body = t.sent[0] && "body" in t.sent[0] ? t.sent[0].body : "";
-    expect(body).toBe(
-      `URGENT: we need a door supervisor today 19:00–03:00. Tap to take it: http://${t.slug}.localhost:3000/shifts/${t.shiftId}. — Booking Test ${t.slug} Shift Team`,
     );
     // Wave 2 is queued for 15 minutes later.
     const next = (await queued(t.shiftId)).find((j) => j.data.wave === 2);
@@ -449,44 +445,50 @@ describe("a wave", () => {
     expect((await t.wave(1, later(14.5 * 60))).status).toBe("sent");
   });
 
-  it("a WhatsApp the transport won't send goes by text instead, and the offer says so", async () => {
+  // Phase 26.9 (decision 4): their chosen way, a text or an email (until then, a WhatsApp the
+  // transport wouldn't send went by text).
+  it("one who chose email gets the offer by email, in its full words, and the offer says so", async () => {
     const t = await waveFirm();
-    t.sendState.refuseWhatsApp = true;
-    await t.wave(1); // Ann (WhatsApp) and Ben (text already)
-    expect(t.sent.map((m) => [m.channel, m.channel === "email" ? "" : m.to]).sort()).toEqual(
+    await su.query(
+      "update workers set email = 'ann@example.test', notify_channel = 'email' where id = $1",
+      [t.ann.id],
+    );
+    await t.wave(1); // Ann by email, Ben by text
+    expect(t.sent.map((m) => [m.channel, m.to]).sort()).toEqual(
       [
-        ["sms", t.ann.mobile],
+        ["email", "ann@example.test"],
         ["sms", t.ben.mobile],
       ].sort(),
     );
-    expect((await offersOf(t.shiftId)).map((o) => o.channel)).toEqual(["sms", "sms"]);
+    const email = t.sent.find((m) => m.channel === "email");
+    expect(email && "body" in email ? email.body : "").toBe(
+      `URGENT: we need a door supervisor today 19:00–03:00. Tap to take it: http://${t.slug}.localhost:3000/shifts/${t.shiftId}. — Booking Test ${t.slug} Shift Team`,
+    );
+    expect((await offersOf(t.shiftId)).map((o) => [o.worker_id, o.channel]).sort()).toEqual(
+      [
+        [t.ann.id, "email"],
+        [t.ben.id, "sms"],
+      ].sort(),
+    );
     const { rows } = await su.query(
       "select data from events where firm_id = $1 and action = 'offer.sent' and data ->> 'workerId' = $2",
       [t.f.firmId, t.ann.id],
     );
-    expect(rows[0]?.data).toMatchObject({ channel: "sms", fellBackFrom: "whatsapp" });
+    expect(rows[0]?.data).toMatchObject({ channel: "email" });
     // The notice they had of the shift, for the notice report: sent at 09:00 for 19:00.
     expect(rows[0]?.data).toMatchObject({ noticeHours: 10 });
   });
 
-  it("by text, the offer is the doc's short SMS version (the fallback too)", async () => {
+  it("by text, the offer is the doc's short SMS version", async () => {
     const t = await waveFirm();
     const sms = `Booking Test ${t.slug} URGENT: door supervisor needed today 19:00. http://${t.slug}.localhost:3000/shifts/${t.shiftId} - Booking Test ${t.slug} Shift Team`;
-    await t.wave(1); // Ann by WhatsApp, Ben by text (his choice)
+    await t.wave(1); // Ann and Ben, each by text
     const bodyTo = (mobile: string) => {
       const m = t.sent.find((s) => s.channel !== "email" && s.to === mobile);
       return m && "body" in m ? m.body : "";
     };
     expect(bodyTo(t.ben.mobile)).toBe(sms);
-    expect(bodyTo(t.ann.mobile)).toMatch(/^URGENT: we need a door supervisor today 19:00–03:00\./);
-
-    const again = await waveFirm();
-    again.sendState.refuseWhatsApp = true;
-    await again.wave(1);
-    const annText = again.sent.find((s) => s.channel === "sms" && s.to === again.ann.mobile);
-    expect(annText && "body" in annText ? annText.body : "").toMatch(
-      new RegExp(`^Booking Test ${again.slug} URGENT: door supervisor needed today 19:00\\. `),
-    );
+    expect(bodyTo(t.ann.mobile)).toBe(sms);
   });
 
   it("any other failure isn't sent again by text; that offer is dropped and logged, the rest still go", async () => {
@@ -499,7 +501,7 @@ describe("a wave", () => {
       (await offersOf(t.shiftId)).map((o) => [o.worker_id, o.channel, o.response]).sort(),
     ).toEqual(
       [
-        [t.ann.id, "whatsapp", "failed"],
+        [t.ann.id, "sms", "failed"],
         [t.ben.id, "sms", null],
       ].sort(),
     );
@@ -513,7 +515,7 @@ describe("a wave", () => {
           offerId: expect.any(String),
           workerId: t.ann.id,
           wave: 1,
-          channel: "whatsapp",
+          channel: "sms",
           code: "Error",
         },
       },

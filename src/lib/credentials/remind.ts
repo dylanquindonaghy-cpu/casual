@@ -14,7 +14,7 @@ import {
   credentialExpiringEmailSubject,
   credentialExpiringMessage,
 } from "../messaging/templates";
-import { sendTextOrEmail, smsAllowedFor } from "../notify/send";
+import { sendTextOrEmail, smsAllowedFor, type WorkerChannel } from "../notify/send";
 import { mayMessageNow, quietHours } from "../rules/quiet-hours";
 import { shortDate } from "../rules/reasons";
 import { portalUrl } from "../tenancy/portal-url";
@@ -31,7 +31,7 @@ import { qualificationsFor } from "./qualifications";
 //
 // At most once, like the notices: a short transaction claims it (casual.reminder_notice under an
 // advisory lock on the worker; a second run finds it and sends nothing), the message goes with no
-// transaction open (by their channel with the WhatsApp-to-text fallback, else email:
+// transaction open (a text, or an email when they chose it or a text can't go:
 // sendTextOrEmail, as the scan's), and a second short transaction logs casual.reminder_sent or
 // _failed. Not sent (casual.reminder_skipped {reason}): erased or no longer active (gone), or the
 // qualification has been sorted since (sorted: renewed, or it's waiting for the office's check).
@@ -72,7 +72,7 @@ type Claim =
       status: "send";
       workerId: string;
       mobile: string;
-      channel: "whatsapp" | "sms";
+      channel: WorkerChannel;
       smsAllowed: boolean;
       body: string;
       from: string | null;

@@ -156,7 +156,8 @@ describe("the shifts line at pilot size, with a real send's delay", () => {
       { id: string; mobile: string },
       ...{ id: string; mobile: string }[],
     ];
-    // The STOP sender has chosen texts: after STOP, an answer must never go by text.
+    // The STOP sender texts: after STOP, an answer must never go by text, nor by WhatsApp instead
+    // (Phase 26.9): their next message gets none, logged as a failed reply.
     await su.query("update workers set notify_channel = 'sms' where id = $1", [stopper.id]);
 
     // Each message stored and queued as the webhook does: one transaction each, in order.
@@ -186,7 +187,9 @@ describe("the shifts line at pilot size, with a real send's delay", () => {
     await store(stopper.mobile, "shifts", "sms");
     for (const w of rest.slice(100)) await store(w.mobile, "Any shifts?", "whatsapp");
     const lastArrived = Date.now();
-    const total = 200 + 5 + 2;
+    const received = 200 + 5 + 2;
+    // Every one answered but the stopper's second (texts off: no text, and never WhatsApp).
+    const total = received - 1;
 
     // Every message answered: its reply sent and stored (a message is marked handled when it's
     // claimed, just before its reply goes), within the bound.
@@ -222,11 +225,11 @@ describe("the shifts line at pilot size, with a real send's delay", () => {
     );
     expect(replies.map((r) => r.reply_to)).toEqual(burstIds);
 
-    // The STOP came first: texts off, then the next answer by WhatsApp, never by text.
+    // The STOP came first: texts off, so only its confirmation; the next message got no answer.
     const toStopper = mine
       .filter((s) => s.message.to === stopper.mobile)
       .sort((a, b) => a.at - b.at);
-    expect(toStopper.map((s) => s.message.channel)).toEqual(["sms", "whatsapp"]);
+    expect(toStopper.map((s) => s.message.channel)).toEqual(["sms"]);
 
     // Never two sends to one number at once: each starts after the one before it finished.
     for (const w of [burst, stopper]) {
@@ -243,7 +246,7 @@ describe("the shifts line at pilot size, with a real send's delay", () => {
       "select group_id from pgboss.job where name = $1 and data ->> 'firmId' = $2",
       [QUEUE, f.firmId],
     );
-    expect(groups).toHaveLength(total);
+    expect(groups).toHaveLength(received); // one job a message received
     const ids = new Set(workers.map((w) => w.id));
     for (const { group_id } of groups) {
       const m = /^([0-9a-f-]{36}):w:([0-9a-f-]{36})$/.exec(group_id ?? "");
@@ -359,8 +362,9 @@ describe("the shifts line at pilot size, with a real send's delay", () => {
         withFirm,
         { transport, ai: noAi, baseDomain: "localhost:3000" },
       ),
-    ).toMatchObject({ status: "replied", intent: "shifts" });
-    expect(out.map((m) => m.channel)).toEqual(["sms", "whatsapp"]);
+    ).toMatchObject({ status: "reply_failed", intent: "shifts", code: "sms_opted_out" });
+    // The STOP's confirmation first; then nothing for the later one (texts off, never WhatsApp).
+    expect(out.map((m) => m.channel)).toEqual(["sms"]);
     const { rows: handled } = await su.query<{ n: number }>(
       "select count(*)::int as n from messages where firm_id = $1 and direction = 'in' and handled_at is not null",
       [f.firmId],

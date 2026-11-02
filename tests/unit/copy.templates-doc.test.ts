@@ -53,7 +53,7 @@ import {
   urgentPush,
   voicemailReceivedMessage,
 } from "@/lib/messaging/templates";
-import { TEXTS_OFF } from "@/app/profile/profile-view";
+import { textsOffText } from "@/app/profile/profile-view";
 import { askedDays, cancelReplyText, shiftsReplyText } from "@/lib/inbound/personal-reply";
 import { fillWhatsAppTemplate, WHATSAPP_TEMPLATES } from "@/lib/messaging/whatsapp-templates";
 
@@ -279,7 +279,11 @@ describe("the code says what the doc says", () => {
     const stop = section("STOP and START by text");
     expect(smsStoppedMessage(docVoice)).toBe(quotes(stop, "`sms_stopped`:")[0]);
     expect(smsStartedMessage(docVoice)).toBe(quotes(stop, "`sms_started`:")[0]);
-    expect(stop).toContain(`"${TEXTS_OFF}"`);
+    // Phase 26.9: by email when we hold their address (WhatsApp until then), else notifications.
+    expect(stop).toContain(`"${textsOffText("{address}")}"`);
+    expect(stop).toContain(
+      textsOffText(null).replace(/^.*?one of our texts\. (.*?) To turn.*$/, "$1"),
+    );
   });
 
   it("the call fallback (Twilio's, when our app doesn't answer), as the doc says it", () => {
@@ -827,7 +831,7 @@ describe("the code says what the doc says", () => {
 });
 
 describe("the SMS versions", () => {
-  const sms = section("SMS (fallback only, keep under 160 characters)");
+  const sms = section("SMS (keep under 160 characters)");
 
   it("the urgent offer says what the doc says, with and without a site", () => {
     const [text] = quotes(sms, "Urgent:");
@@ -859,6 +863,19 @@ describe("the SMS versions", () => {
     });
     expect(Number.isFinite(gsmLength(real))).toBe(true);
     expect(parts(real)).toBe(2); // with the sign-off: parked for Dylan (the doc says under 160)
+  });
+
+  // Phase 26.9: the login link and the pay code by text, plain characters only.
+  it("the login link and the pay code say what the doc says, each one text", () => {
+    const [login] = quotes(sms, "Login:");
+    expect(templates.loginLinkSms(docVoice, "{link}")).toBe(login);
+    const [code] = quotes(sms, "Pay code:");
+    expect(templates.loginCodeSms(docVoice, "{code}")).toBe(code);
+    const realLink = templates.loginLinkSms(demo, `${link}/l#${"A".repeat(43)}`);
+    expect(Number.isFinite(gsmLength(realLink))).toBe(true);
+    const realCode = templates.loginCodeSms(demo, "123456");
+    expect(Number.isFinite(gsmLength(realCode))).toBe(true);
+    expect(parts(realCode)).toBe(1);
   });
 
   // GSM 03.38: the characters one standard text message can carry (anything else, like a dash,
@@ -1114,7 +1131,9 @@ describe("every template function is checked here", () => {
         "changeWords",
         "firmChangePush",
         "loginCodeMessage",
+        "loginCodeSms",
         "loginLinkMessage",
+        "loginLinkSms",
         "offerPush",
         "officeLoginLinkEmail",
         "officeReplyMessage",

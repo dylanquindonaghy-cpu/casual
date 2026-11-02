@@ -302,8 +302,8 @@ export async function runShiftReminders(
       kind === "24h"
         ? shiftReminder24hMessage(voice, { site: b.siteName, day, start, end, link })
         : shiftReminder2hMessage(voice, { site: b.siteName, start, link });
-    // A push to their phones first, else by WhatsApp or text, else email (P2.4), with no
-    // transaction open. The doc has no separate SMS version of the reminders: the same text either
+    // A push to their phones first, else their chosen text or email, else email when no text can
+    // go (P2.4; Phase 26.9), with no transaction open. The doc has no separate SMS version of the reminders: the same text either
     // way. A push isn't delivered once the shift has started.
     const sent = await deliverToWorker(inFirm, deps, {
       workerId: b.workerId,

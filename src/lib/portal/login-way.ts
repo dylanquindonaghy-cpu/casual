@@ -6,10 +6,10 @@ import { appEnv, type AppEnv } from "../env";
 
 // How a casual's login link and pay-page code reach them, as the login, pay, help and profile pages
 // say it (P2.7; docs/screens.md "How login links and codes go"). The job decides each send itself,
-// by the same two facts (src/lib/auth/login-channel.ts): "message" while there's a text sender
-// (WhatsApp or text, the words as before); else "email" when the firm has switched
-// `login_by_email` on; else "off": nothing can be sent, and the pages say so instead of promising a
-// link.
+// by the same facts (src/lib/auth/login-channel.ts): "message" while there's a text sender (a text
+// since Phase 26.9; for one casual, only while they haven't replied STOP); else "email" when the
+// firm has switched `login_by_email` on; else "off": nothing can be sent, and the pages say so
+// instead of promising a link.
 export type LoginWay = "message" | "email" | "off";
 
 export function loginWay(textSender: boolean, settings: Record<string, unknown>): LoginWay {
@@ -45,22 +45,25 @@ export async function firmLoginWay(
   return run(firmId, async (tx) => loginWay(textSender, await firmSettings(tx, firmId)));
 }
 
-// One casual's way, for the pay page's code: "email" only when the firm holds an address for them
-// (the job sends nothing otherwise: no_channel), else "off".
+// One casual's way, for the pay page's code and their profile, by the job's own rule
+// (src/lib/auth/login-channel.ts): "message" (a text) while there's a text sender and they haven't
+// replied STOP (Phase 26.9: a casual who did gets no text); else "email" only when the firm has
+// login by email on and holds an address for them (the job sends nothing otherwise: no_channel);
+// else "off".
 export async function workerLoginWay(
   firmId: string,
   workerId: string,
   run: WithFirm = withFirm,
   textSender: boolean = hasTextSender(),
 ): Promise<LoginWay> {
-  if (textSender) return "message";
   return run(firmId, async (tx) => {
-    const way = loginWay(textSender, await firmSettings(tx, firmId));
-    if (way !== "email") return way;
     const [worker] = await tx
-      .select({ email: workers.email })
+      .select({ email: workers.email, smsOptedOutAt: workers.smsOptedOutAt })
       .from(workers)
       .where(and(eq(workers.firmId, firmId), eq(workers.id, workerId)));
+    if (textSender && worker && worker.smsOptedOutAt === null) return "message";
+    const way = loginWay(false, await firmSettings(tx, firmId));
+    if (way !== "email") return way;
     return worker?.email ? "email" : "off";
   });
 }

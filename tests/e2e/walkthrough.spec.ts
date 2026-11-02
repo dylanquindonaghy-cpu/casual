@@ -92,7 +92,8 @@ async function workerLogin(page: Page, who: { typed: string; e164: string }) {
   const link = await sent(
     who.e164,
     asked,
-    /^Here's your Acme Events shifts link\. It works for 15 minutes and only for you: (http:\/\/acme\.localhost:\d+\/l#[A-Za-z0-9_-]{43}) /,
+    // By text (Phase 26.9; by WhatsApp until then).
+    /^Acme Events shifts link \(15 min\): (http:\/\/acme\.localhost:\d+\/l#[A-Za-z0-9_-]{43}) - /,
   );
   await page.goto(link);
   await page.getByRole("button", { name: "Log me in" }).click();

@@ -6,14 +6,14 @@ import { events, firms, otpCodes, sessions, workers } from "../db/schema";
 import { workerEnv } from "../env";
 import { recordEvent } from "../events/record";
 import { firmJobEnvelope, type FirmTask } from "../jobs/firm-job";
-import { emailMessageId, NO_CHANNEL, sendFailureCode } from "../notify/send";
+import { emailMessageId, NO_CHANNEL, sendFailureCode, smsAllowedFor } from "../notify/send";
 import { getTransport, type MessagingTransport } from "../messaging";
-import type { OutboundMessage } from "../messaging/transport";
-import { loginCodeEmail, loginCodeMessage } from "../messaging/templates";
+import { NoTextSenderError, type OutboundMessage } from "../messaging/transport";
+import { loginCodeEmail, loginCodeSms } from "../messaging/templates";
 import { signOffFor } from "../tenancy/sign-off";
 import { addMs, MINUTE, systemClock, type Clock } from "./clock";
 import { codeHash } from "./codes";
-import { loginChannel } from "./login-channel";
+import { loginChannel, loginEmailAllowed } from "./login-channel";
 
 // The send-login-code job: a 6-digit code for the pay pages' step-up (docs/architecture.md,
 // Login step 5). Like login links, the code is created here, in the worker, so it never sits in
@@ -21,9 +21,9 @@ import { loginChannel } from "./login-channel";
 //
 // At most once, like the notices (a firm task, never a transaction held across a message):
 // (1) a short transaction claims it: the code row, keyed by the job's idempotency key
-// (otp_codes.request_id), committed before anything is sent; (2) the WhatsApp (or, P2.6, the email
-// when there's no text sender and the firm has login by email on: login-channel.ts), outside any
-// transaction; (3) a second short transaction logs auth.otp_sent, or auth.otp_send_failed. A retried job
+// (otp_codes.request_id), committed before anything is sent; (2) the text (or, P2.6, the email
+// when no text can go and the firm has login by email on: login-channel.ts; by WhatsApp until Phase
+// 26.9), outside any transaction; (3) a second short transaction logs auth.otp_sent, or auth.otp_send_failed. A retried job
 // finds its code and sends nothing: the code it may already have sent still works, and a worker who
 // got nothing asks for another.
 
@@ -67,7 +67,12 @@ async function codeOutcomeLogged(tx: FirmTx, otpCodeId: string): Promise<boolean
 
 type CodeClaim =
   | { done: "no_session" | "already_sent" | "no_channel" }
-  | { otpCodeId: string; message: OutboundMessage };
+  | {
+      otpCodeId: string;
+      message: OutboundMessage;
+      // The email to send instead when the text finds no text sender (Phase 26.9).
+      instead: OutboundMessage | null;
+    };
 
 async function claimCode(
   tx: FirmTx,
@@ -82,7 +87,12 @@ async function claimCode(
   );
   // Only for a live worker session whose worker is still active.
   const [target] = await tx
-    .select({ mobile: workers.mobileE164, email: workers.email, workerId: workers.id })
+    .select({
+      mobile: workers.mobileE164,
+      email: workers.email,
+      workerId: workers.id,
+      smsOptedOutAt: workers.smsOptedOutAt,
+    })
     .from(sessions)
     .innerJoin(workers, and(eq(workers.firmId, sessions.firmId), eq(workers.id, sessions.workerId)))
     .where(
@@ -108,7 +118,12 @@ async function claimCode(
   // The way it goes, decided before the code is made (P2.6). An earlier run's code is caught up
   // below with this run's channel: the same unless the setting or the transport changed.
   const email = target.email;
-  const channel = loginChannel({ transport: deps.transport, settings: firm.settings, email });
+  const channel = loginChannel({
+    transport: deps.transport,
+    settings: firm.settings,
+    email,
+    smsAllowed: smsAllowedFor(target),
+  });
   // This job's code already made (a retry, or a second copy): it may have gone, so nothing more.
   // If the run that made it stopped before logging it, it's logged now as sent, unconfirmed.
   const [made] = await tx
@@ -161,17 +176,22 @@ async function claimCode(
     .returning({ id: otpCodes.id });
   if (!row) return { done: "already_sent" };
   const voice = { name: firm.name, signOff: signOffFor(firm.name, firm.settings.sign_off) };
+  // The same check as the channel's (loginChannel): "email" there always has this message.
+  const byEmail: OutboundMessage | null = loginEmailAllowed(firm.settings, email)
+    ? { channel: "email", to: email, ...loginCodeEmail(voice, code) }
+    : null;
   return {
     otpCodeId: row.id,
     message:
-      channel === "email" && email
-        ? { channel: "email", to: email, ...loginCodeEmail(voice, code) }
+      channel === "email"
+        ? byEmail!
         : {
-            channel: "whatsapp",
+            channel: "sms",
             to: target.mobile,
             ...(firm.line ? { from: firm.line } : {}),
-            body: loginCodeMessage(voice, code),
+            body: loginCodeSms(voice, code),
           },
+    instead: channel === "email" ? null : byEmail,
   };
 }
 
@@ -185,12 +205,22 @@ export async function sendLoginCode(
   const claim = await inFirm((tx) => claimCode(tx, payload, deps, now));
   if ("done" in claim) return { sent: false, reason: claim.done };
 
-  // (2) The code, outside any transaction.
+  // (2) The code, outside any transaction: by text, or by email instead when there's no text
+  // sender at all (nothing was sent: Phase 26.9).
+  let message = claim.message;
   let sent: { providerMessageId: string } | { code: string };
   try {
-    sent = await deps.transport.send(claim.message);
+    sent = await deps.transport.send(message);
   } catch (err) {
     sent = { code: sendFailureCode(err) };
+    if (err instanceof NoTextSenderError && claim.instead) {
+      message = claim.instead;
+      try {
+        sent = await deps.transport.send(message);
+      } catch (again) {
+        sent = { code: sendFailureCode(again) };
+      }
+    }
   }
 
   // (3) The outcome, logged once (a rerun may have caught it up already, as unconfirmed).
@@ -210,13 +240,13 @@ export async function sendLoginCode(
       data:
         "providerMessageId" in sent
           ? {
-              channel: claim.message.channel,
+              channel: message.channel,
               providerMessageId:
-                claim.message.channel === "email"
+                message.channel === "email"
                   ? emailMessageId(sent.providerMessageId)
                   : sent.providerMessageId,
             }
-          : { channel: claim.message.channel, code: sent.code },
+          : { channel: message.channel, code: sent.code },
     });
   });
   return "providerMessageId" in sent

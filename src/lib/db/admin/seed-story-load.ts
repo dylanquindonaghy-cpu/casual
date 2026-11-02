@@ -484,7 +484,7 @@ export async function loadStory(
         data: {
           changeEventId: cancelEvent,
           workerId: b.workerId,
-          channel: "whatsapp",
+          channel: "sms",
           providerMessageId: `seed-story-notice-${b.id.slice(0, 8)}`,
           pushes: 0,
         },
@@ -638,7 +638,7 @@ export async function loadStory(
           id: m.id,
           firmId,
           direction: "in" as const,
-          channel: "whatsapp" as const,
+          channel: "sms" as const,
           providerMessageId: `seed-story-${m.workerKey}`,
           fromE164: w.mobileE164,
           toE164: STORY_LINE,

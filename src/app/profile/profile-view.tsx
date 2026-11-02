@@ -54,9 +54,25 @@ import { UploadForm } from "./upload-form";
 // certificate" for the ones I may upload), where I work (12G.1), my strikes (12C.5), days I can't
 // work, and how we reach me. One card per section.
 
-// A worker who replied STOP to a text (docs/screens.md `/profile`): texts are off until START.
-export const TEXTS_OFF =
-  "Texts are off: you replied STOP to one of our texts. We'll send shift messages by WhatsApp. To turn texts back on, text START to our number.";
+// A worker who replied STOP to a text (docs/screens.md `/profile`): texts are off until START, so
+// shift messages go by email if we hold their address, else only as notifications (Phase 26.9).
+export function textsOffText(email: string | null): string {
+  const how = email
+    ? `We'll email shift messages to ${email}.`
+    : "We can only reach you by notifications on your phone.";
+  return `Texts are off: you replied STOP to one of our texts. ${how} To turn texts back on, text START to our number.`;
+}
+
+// How a message goes when no notification reaches their phone (Phase 26.9): their choice (a text,
+// or an email while we hold their address); an email instead of a text when there's no text sender
+// or they replied STOP; else no other way.
+export function otherWayOf(
+  textSender: boolean,
+  p: { notifyChannel: "sms" | "email"; email: string | null; textsOff: boolean },
+): "text" | "email" | "none" {
+  if (p.email && (p.notifyChannel === "email" || !textSender || p.textsOff)) return "email";
+  return textSender && !p.textsOff ? "text" : "none";
+}
 
 // "07700 900123" from "+447700900123"; other numbers as stored.
 export const ukMobile = (e164: string) =>
@@ -242,7 +258,7 @@ export function ProfileView({
             role="note"
             className={`${headingGap} rounded-lg border border-attention bg-attention-soft p-3`}
           >
-            {TEXTS_OFF}
+            {textsOffText(profile.email)}
           </p>
         )}
         <NotificationForm
@@ -257,7 +273,7 @@ export function ProfileView({
           <PushSetting
             publicKey={push.publicKey}
             firmName={push.firmName}
-            otherWay={textSender ? "text" : profile.email ? "email" : "none"}
+            otherWay={otherWayOf(textSender, profile)}
           />
         )}
       </section>

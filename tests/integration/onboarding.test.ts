@@ -463,7 +463,7 @@ describe("the onboarding checklist from a firm's data", () => {
       "Workers and credentials imported": "todo",
       "Credential rules for every role": "done",
       "Settings agreed": "confirm",
-      "Shifts line (Twilio number) and WhatsApp display name": "todo",
+      "Shifts line number": "todo",
       "Privacy notice line added by the firm": "confirm",
       "Staff briefing message sent with the portal link": "confirm",
       "Dry-run event day with the resourcer": "confirm",
@@ -532,7 +532,7 @@ describe("the onboarding checklist from a firm's data", () => {
     const states = byItem(items);
     expect(states["Firm branding and sign-off"]).toBe("done");
     expect(states["Workers and credentials imported"]).toBe("done");
-    expect(states["Shifts line (Twilio number) and WhatsApp display name"]).toBe("confirm");
+    expect(states["Shifts line number"]).toBe("confirm");
     expect(states["Baseline numbers recorded"]).toBe("done");
     // A role in use with no credential rule: the rules refuse its shifts to everyone.
     expect(states["Credential rules for every role"]).toBe("todo");

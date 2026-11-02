@@ -417,8 +417,8 @@ reach the same app, which isn't answering.
 - Summary (`office_summary`, email, Phase 26.4, `officeSummaryEmail()`: at 08:00 the firm's time (up
   to 11:00 if the worker was down), to each admin or resourcer who left the 08:00 summary on, what
   needs action now and what happened since 08:00 yesterday on their contracts; nothing to say, no
-  email; once a day; no casual's name): subject "Updates for {Mon 2 Nov}: {2} need action" ("…:
-  nothing needs action"); body "Here's what's happened on your contracts since 08:00 yesterday."
+  email; once a day; no casual's name): subject "Updates for {Mon 2 Nov}: {2} need action" ("…: 1
+  needs action", "…: nothing needs action"); body "Here's what's happened on your contracts since 08:00 yesterday."
   ("at every venue" with no contracts) / "Needs action ({2}):" ("Nothing needs action." with none)
   / "- {1 place still to fill, starts in 5 h: Steward, Acme Demo Arena, Mon 2 Nov 14:00}" (at most
   10) / "- and {1} more" / "Since 08:00 yesterday: {3 places taken}, {2 cancellations} ({1} under

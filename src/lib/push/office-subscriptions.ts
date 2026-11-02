@@ -88,15 +88,12 @@ export async function saveOfficePushSubscription(
           officeUserId: sql`excluded.office_user_id`,
           p256dh: sql`excluded.p256dh`,
           auth: sql`excluded.auth`,
+          // Taken over: the newest of its new owner's, not the first to go.
+          createdAt: sql`now()`,
         },
       })
       .returning({ id: officePushSubscriptions.id });
-    // At most MAX_BROWSERS_PER_OFFICE_USER: the oldest go.
-    await tx.execute(sql`
-      delete from office_push_subscriptions where id in (
-        select id from office_push_subscriptions where office_user_id = ${ctx.officeUserId}
-         order by created_at desc, id desc offset ${MAX_BROWSERS_PER_OFFICE_USER})
-    `);
+    await keepNewest(tx, ctx.officeUserId);
     await recordEvent(tx, {
       actorType: "office",
       actorId: ctx.officeUserId,
@@ -104,6 +101,89 @@ export async function saveOfficePushSubscription(
       entityType: "office_push_subscription",
       entityId: row?.id ?? null,
       data: {},
+    });
+    return { status: "saved" };
+  });
+}
+
+// At most MAX_BROWSERS_PER_OFFICE_USER each: the oldest go, each logged.
+async function keepNewest(tx: FirmTx, officeUserId: string) {
+  const { rows } = await tx.execute<{ id: string }>(sql`
+    delete from office_push_subscriptions where id in (
+      select id from office_push_subscriptions where office_user_id = ${officeUserId}
+       order by created_at desc, id desc offset ${MAX_BROWSERS_PER_OFFICE_USER})
+    returning id::text as id
+  `);
+  for (const r of rows) {
+    await recordEvent(tx, {
+      actorType: "system",
+      action: "office_push.forgotten",
+      entityType: "office_push_subscription",
+      entityId: r.id,
+      data: { reason: "too_many" },
+    });
+  }
+}
+
+// The browser renewed a subscription (the service worker), or the page checks one it already has:
+// only one already this person's (`old`) is changed to the new address and keys. Anything else is
+// left alone: a browser's subscription follows a person only when they press "Turn on
+// notifications here" (another person's, a casual's in the same browser, never by itself).
+export async function renewOfficePushSubscription(
+  ctx: OfficeContext & { secret?: string },
+  old: string,
+  input: PushSubscriptionInput,
+  opts: { limit?: boolean } = {},
+): Promise<OfficeSaveResult | { status: "not_found" }> {
+  const run = parts(ctx).run;
+  const mine = (tx: FirmTx) =>
+    tx
+      .select({ id: officePushSubscriptions.id })
+      .from(officePushSubscriptions)
+      .where(
+        and(
+          eq(officePushSubscriptions.officeUserId, ctx.officeUserId),
+          eq(officePushSubscriptions.endpoint, old),
+        ),
+      )
+      .for("update");
+  if (opts.limit) {
+    const before = await run(ctx.firm.id, async (tx) => {
+      if (!(await officeUserMay(tx, ctx.officeUserId, "today"))) return "not_allowed" as const;
+      if ((await mine(tx)).length === 0) return "not_found" as const;
+      return (await unchanged(tx, ctx.officeUserId, input))
+        ? ("same" as const)
+        : ("write" as const);
+    });
+    if (before !== "write") return { status: before === "same" ? "saved" : before };
+    const limited = await throttleOfficePush(ctx);
+    if (limited) return { status: "rate_limited", retryAfterSeconds: limited.retryAfterSeconds };
+  }
+  return run(ctx.firm.id, async (tx) => {
+    if (!(await officeUserMay(tx, ctx.officeUserId, "today"))) return { status: "not_allowed" };
+    const [row] = await mine(tx);
+    if (!row) return { status: "not_found" };
+    if (await unchanged(tx, ctx.officeUserId, input)) return { status: "saved" };
+    // The new address is this browser's: any other row with it (an older login) gives way.
+    await tx
+      .delete(officePushSubscriptions)
+      .where(
+        and(
+          eq(officePushSubscriptions.endpoint, input.endpoint),
+          sql`${officePushSubscriptions.id} <> ${row.id}`,
+        ),
+      );
+    await tx
+      .update(officePushSubscriptions)
+      .set({ endpoint: input.endpoint, p256dh: input.keys.p256dh, auth: input.keys.auth })
+      .where(eq(officePushSubscriptions.id, row.id));
+    await recordEvent(tx, {
+      actorType: "office",
+      actorId: ctx.officeUserId,
+      action: "office_push.subscribed",
+      entityType: "office_push_subscription",
+      entityId: row.id,
+      data: { renewed: true },
     });
     return { status: "saved" };
   });

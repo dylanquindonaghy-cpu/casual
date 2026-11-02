@@ -655,7 +655,7 @@ export function officeSummaryEmail(
       ? "no cancellations"
       : `${n(s.cancelled, "cancellation", "cancellations")} (${s.under48} under 48 hours' notice)`;
   return {
-    subject: `Updates for ${s.day}: ${total === 0 ? "nothing needs action" : `${total} need action`}`,
+    subject: `Updates for ${s.day}: ${total === 0 ? "nothing needs action" : total === 1 ? "1 needs action" : `${total} need action`}`,
     body: [
       `Here's what's happened ${s.mine ? "on your contracts" : "at every venue"} since 08:00 yesterday.`,
       needs.join("\n"),

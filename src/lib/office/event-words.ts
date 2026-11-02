@@ -920,10 +920,11 @@ export function eventWords(e: LoggedEvent, names: Names): string {
         d.kind === "cancel_push"
           ? "a cancellation under 48 hours' notice"
           : "places still open 6 hours before the start";
-      return `Sent ${names.office(d.officeUserId)} a notification: ${what}.`;
+      // Claimed for them before it goes (whether a browser took it is in the server's log).
+      return `Sending ${names.office(d.officeUserId)} a notification: ${what}.`;
     }
     case "office.summary_emailed":
-      return `Emailed ${names.office(d.officeUserId)} their 08:00 summary.`;
+      return `Sending ${names.office(d.officeUserId)} their 08:00 summary.`;
     case "office.summary_failed":
       return `The 08:00 summary to ${names.office(d.officeUserId)} couldn't be sent.`;
 

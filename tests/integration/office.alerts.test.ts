@@ -5,6 +5,7 @@ import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import type { MessagingTransport, OutboundMessage } from "@/lib/messaging/transport";
 import { saveContract, saveMyDashboard } from "@/lib/office/contracts";
 import {
+  OPEN_ALERT_SESSIONS,
   runOfficeAlertsTick,
   runOfficeCancelAlert,
   runOfficeOpenAlert,
@@ -172,11 +173,14 @@ async function office() {
       on: false,
     });
   }
+  // Gil: an admin whose access is off, with a browser and the defaults: never told anything.
+  const gil = await f.office("admin", "disabled");
   const ends = {
     anna: await browser(f, anna),
     ben: await browser(f, ben),
     cara: await browser(f, cara),
     pat: await browser(f, pat),
+    gil: await browser(f, gil),
   };
   const worker = await f.worker({ first: "Mo" });
   return { f, anna, ben, cara, dev, pat, arena, depot, ctx, ends, worker };
@@ -291,6 +295,20 @@ describe("a casual's cancellation under 48 hours' notice", () => {
     expect(await jobsOf(t.f, "office-cancel-alert")).toHaveLength(1);
   });
 
+  it("two copies of the job at once: each person still told once", async () => {
+    const t = await office();
+    const x = fakes();
+    const shift = await shiftAt(t.f, t.depot, hoursFromNow(10));
+    const assignmentId = await casualCancels(t.f, t.worker, shift);
+    const payload = { firmId: t.f.firmId, idempotencyKey: "k", assignmentId };
+    await Promise.all([
+      runOfficeCancelAlert(payload, withFirm, x.deps()),
+      runOfficeCancelAlert(payload, withFirm, x.deps()),
+    ]);
+    expect(x.pushes.map((p) => p.endpoint).sort()).toEqual([t.ends.anna, t.ends.ben].sort());
+    expect(await eventsOf(t.f, "office.alerted")).toHaveLength(2);
+  });
+
   it("another firm's office is never told", async () => {
     const a = await office();
     const b = await office();
@@ -343,6 +361,25 @@ describe("places still open 6 hours before the start", () => {
   });
 });
 
+describe("places still open: more sessions than one batch", () => {
+  it(`every one is looked at (${OPEN_ALERT_SESSIONS} at a time), each person told once per session`, async () => {
+    const t = await office();
+    const x = fakes();
+    const n = OPEN_ALERT_SESSIONS + 3;
+    for (let i = 0; i < n; i++) await shiftAt(t.f, t.arena, hoursFromNow(1 + i / 60));
+    const payload = { firmId: t.f.firmId, idempotencyKey: "k" };
+    // Anna only (Ben looks after the depot; Cara's off; Gil's access is off).
+    expect(await runOfficeOpenAlert(payload, withFirm, x.deps())).toEqual({
+      status: "sent",
+      people: n,
+      pushes: n,
+    });
+    expect(new Set(x.pushes.map((p) => p.payload.url)).size).toBe(n);
+    expect(x.pushes.every((p) => p.endpoint === t.ends.anna)).toBe(true);
+    expect(await runOfficeOpenAlert(payload, withFirm, x.deps())).toEqual({ status: "not_needed" });
+  });
+});
+
 describe("the 08:00 summary", () => {
   it("each person who asked, narrowed to their contracts, once a day, with no casual's name", async () => {
     const t = await office();
@@ -357,7 +394,8 @@ describe("the 08:00 summary", () => {
       failed: 0,
       empty: 1,
     });
-    // Anna, Cara and Dev (every venue); Ben's depot had nothing (no email); Pat is payroll.
+    // Anna, Cara and Dev (every venue); Ben's depot had nothing (no email); Pat is payroll; Gil's
+    // access is off.
     expect(x.mail.map((m) => m.channel === "email" && m.to).length).toBe(3);
     const first = x.mail[0];
     if (first?.channel !== "email") throw new Error("not an email");
@@ -378,6 +416,31 @@ describe("the 08:00 summary", () => {
     // The same day again: nobody's emailed twice.
     expect(await runOfficeSummary(payload, withFirm, x.deps())).toMatchObject({ emailed: 0 });
     expect(x.mail).toHaveLength(3);
+  });
+
+  it("counts from 08:00 yesterday, the firm's time, whenever today's goes", async () => {
+    const t = await office();
+    const x = fakes();
+    // Cancelled at 07:30 yesterday (before the window) and 08:30 yesterday (in it), each session
+    // filled since (so neither needs action), at the arena.
+    for (const at of ["2026-11-01T07:30:00Z", "2026-11-01T08:30:00Z"]) {
+      const shift = await shiftAt(t.f, t.arena, hoursFromNow(100));
+      await casualCancels(t.f, await t.f.worker(), shift, new Date(at));
+      await su.query("update shifts set status = 'filled' where id = $1", [shift]);
+    }
+    // Sent at 10:30 (the worker was down at 08:00): still from 08:00 yesterday, not 24 hours.
+    const late = new Date("2026-11-02T10:30:00Z");
+    await runOfficeSummary(
+      { firmId: t.f.firmId, idempotencyKey: "k", date: "2026-11-02" },
+      withFirm,
+      x.deps(late),
+    );
+    const first = x.mail[0];
+    if (first?.channel !== "email") throw new Error("not an email");
+    expect(first.subject).toBe("Updates for Mon 2 Nov: nothing needs action");
+    expect(first.body).toContain(
+      "Since 08:00 yesterday: 0 places taken, 1 cancellation (0 under 48 hours' notice), 0 uploads to check.",
+    );
   });
 
   it("an email that can't be sent is logged, and not tried again that day", async () => {

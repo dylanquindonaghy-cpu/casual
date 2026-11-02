@@ -320,7 +320,8 @@ Page title "Updates".
 - **Notifications on this device** (under the switches): the two notification switches reach only
   browsers that turned them on here. "Off. Turn them on to get the notifications you switched on
   above here." with **Turn on notifications here** (the browser asks; then "Notifications are on for
-  this device."); "On. The two notification switches above reach this device." with **Turn off
+  this device."; a subscription the browser already has counts as on only when it's already this
+  person's, so one a casual or another office user made here is never taken on by itself); "On. The two notification switches above reach this device." with **Turn off
   here** ("Notifications are off for this device."); "Notifications are blocked for this site.
   Allow them in your browser's settings."; "This browser can't show notifications."; on an iPhone
   not on the home screen, "On an iPhone, add this page to your home screen first: Share, then Add to

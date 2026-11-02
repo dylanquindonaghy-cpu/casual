@@ -78,8 +78,11 @@ describe("the office frame", () => {
     if (!read.needs?.needs.ok) throw new Error("Needs attention didn't load");
     expect(read.needs.timeZone).toBe("Europe/London");
     expect(read.needs.today).toBe("2026-11-02");
-    // The upload, the session to mark, and the strikes team's address not set.
-    expect(needsCount(read.needs.needs.data)).toBe(1 + 1 + 1);
+    // The upload and the strikes team's address not set (sessions to mark are the dashboard's
+    // since Phase 26.4, upd-6).
+    expect(needsCount(read.needs.needs.data)).toBe(1 + 1);
+    // The bell (Phase 26.4): Updates' new count and the pop-up's cancellations, in the same read.
+    expect(read.updates).toMatchObject({ ok: true, data: { timeZone: "Europe/London" } });
   });
 
   it("each role sees its own: a resourcer no pay queries, payroll only those", async () => {
@@ -99,13 +102,21 @@ describe("the office frame", () => {
       needPerson: null,
       needs: null,
       shell: null,
+      updates: null,
     });
   });
 
   it("nothing for a switched-off account, or one from another firm", async () => {
     const t = await frameFirm();
     const other = await frameFirm();
-    const none = { payQueries: null, uploads: null, needPerson: null, needs: null, shell: null };
+    const none = {
+      payQueries: null,
+      uploads: null,
+      needPerson: null,
+      needs: null,
+      shell: null,
+      updates: null,
+    };
     expect((await t.frame(await t.f.office("admin", "disabled"))).read).toEqual(none);
     // Another firm's admin, asking under this firm: not one of its users.
     expect((await t.frame(await other.f.office("admin"), t.f.firmId)).read).toEqual(none);

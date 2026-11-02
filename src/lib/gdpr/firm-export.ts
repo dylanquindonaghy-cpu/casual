@@ -33,6 +33,8 @@ export const FIRM_EXPORT_EXCLUDED: Readonly<Record<string, string>> = {
   otp_codes: "one-time code hashes",
   auth_throttle: "rate-limit counters (hashed numbers and addresses)",
   push_subscriptions: "phones' push addresses and keys",
+  // Phase 26.4: office users' browsers for notifications, the same parts.
+  office_push_subscriptions: "office browsers' push addresses and keys",
   // Worked out from casuals' start postcodes (12G.2): the full postcodes the office never sees
   // (docs/dpia-travel.md), and the job works them out again from the firm's own data.
   travel_estimates: "travel estimates, worked out from casuals' full postcodes",

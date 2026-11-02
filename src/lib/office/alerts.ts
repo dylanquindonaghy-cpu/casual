@@ -15,7 +15,7 @@ import { getPushTransport, type PushPayload, type PushTransport } from "../push/
 import { firmVoice } from "../offers/waves";
 import { noticeText } from "../portal/cancel-reasons";
 import { portalUrl } from "../tenancy/portal-url";
-import { localDateOf, wallTimeOf } from "../time/zoned";
+import { addDays, localDateOf, wallTimeOf, zonedToUtc } from "../time/zoned";
 import { dayMonthLabel } from "./dashboard-cards-copy";
 import { sessionWhen } from "./dashboard-map-copy";
 import { bookedJoin, placeFree } from "./events";
@@ -38,7 +38,7 @@ import {
   type OfficeOpenAlertPayload,
   type OfficeSummaryPayload,
 } from "./alert-jobs";
-import { loadUpdatesPage } from "./updates";
+import { countNeedsAction, countSince, loadUpdatesPage, mySites } from "./updates";
 import { startsIn, summaryLine } from "./updates-copy";
 
 // Office alerts (Phase 26.4; the spec page's upd-4 and upd-5, decision 5), each to the admins and
@@ -55,7 +55,7 @@ import { startsIn, summaryLine } from "./updates-copy";
 
 const SLOT_MS = 5 * 60_000;
 const DAY_SECONDS = 24 * 3600;
-// At most this many sessions are looked at per firm per tick, soonest first (the rest next tick).
+// Sessions are looked at this many at a time, soonest first, each batch in its own transaction.
 export const OPEN_ALERT_SESSIONS = 50;
 // The summary lists this many things that need action ("and N more" after).
 export const SUMMARY_NEEDS_LISTED = 10;
@@ -132,6 +132,12 @@ async function pushToEach(
   return pushes;
 }
 
+// A yyyy-mm-dd date's year, month and day.
+const wallOf = (date: string) => {
+  const [year = 2000, month = 1, day = 1] = date.split("-").map(Number);
+  return { year, month, day };
+};
+
 const timeZoneOf = async (tx: FirmTx) => {
   const [firm] = await tx.select({ tz: firms.timezone }).from(firms);
   return firm?.tz ?? "Europe/London";
@@ -204,64 +210,98 @@ export async function runOfficeOpenAlert(
 ): Promise<AlertResult> {
   const inFirm: InFirm = (fn) => run(payload.firmId, fn);
   const now = deps.clock.now();
-  const toSend = await inFirm(async (tx) => {
-    const timeZone = await timeZoneOf(tx);
-    const { rows } = await tx.execute<{
-      shift_id: string;
-      role: string;
-      starts_at: string | Date;
-      site_id: string | null;
-      site: string | null;
-      places_free: number;
-      offers: number;
-    }>(sql`
-      select s.id::text as shift_id, s.role, s.starts_at,
-             coalesce(s.site_id, e.site_id)::text as site_id, coalesce(si.name, esi.name) as site,
-             (s.headcount - b.booked)::int as places_free,
-             (select count(*)::int from offers o
-               where o.firm_id = s.firm_id and o.shift_id = s.id) as offers
-        from shifts s
-        join shift_events e on e.firm_id = s.firm_id and e.id = s.event_id
-        ${bookedJoin}
-        left join sites si on si.firm_id = s.firm_id and si.id = s.site_id
-        left join sites esi on esi.firm_id = e.firm_id and esi.id = e.site_id
-       where ${placeFree(now)}
-         and s.starts_at <= ${new Date(now.getTime() + OPEN_PUSH_HOURS * 3_600_000)}
-       order by s.starts_at, s.id
-       limit ${OPEN_ALERT_SESSIONS}
-    `);
-    const sends: { people: string[]; payload: PushPayload }[] = [];
-    for (const r of rows) {
-      const startsAt = new Date(r.starts_at);
-      const people: string[] = [];
-      for (const p of await recipientsFor(tx, "open_push", {
-        siteId: r.site_id,
-        withBrowser: true,
-      })) {
-        if (await claim(tx, p.id, "open_push", { type: "shift", id: r.shift_id }))
-          people.push(p.id);
-      }
-      if (people.length === 0) continue;
-      const words = officeOpenPush({
-        placesFree: r.places_free,
-        startsIn: startsIn(startsAt, now),
-        role: r.role,
-        site: r.site,
-        when: sessionWhen(startsAt, timeZone),
-        offers: r.offers,
-      });
-      sends.push({
-        people,
-        payload: { ...words, url: `/office/offer/${r.shift_id}`, urgent: true, until: startsAt },
-      });
-    }
-    return sends;
-  });
+  const until = new Date(now.getTime() + OPEN_PUSH_HOURS * 3_600_000);
   let people = 0;
   let pushes = 0;
-  for (const s of toSend) {
-    people += s.people.length;
-    pushes += await pushToEach(inFirm, deps, s.people, s.payload);
+  // Every session in the window, OPEN_ALERT_SESSIONS at a time by (start, id): one already told
+  // stays in the window while it's open, so a batch never stands in for the ones after it.
+  let after: { startsAt: Date; id: string } | null = null;
+  for (;;) {
+    const batch = await inFirm(async (tx) => {
+      const timeZone = await timeZoneOf(tx);
+      const { rows } = await tx.execute<{
+        shift_id: string;
+        role: string;
+        starts_at: string | Date;
+        site_id: string | null;
+        site: string | null;
+        places_free: number;
+        offers: number;
+      }>(sql`
+        select s.id::text as shift_id, s.role, s.starts_at,
+               coalesce(s.site_id, e.site_id)::text as site_id, coalesce(si.name, esi.name) as site,
+               (s.headcount - b.booked)::int as places_free,
+               (select count(*)::int from offers o
+                 where o.firm_id = s.firm_id and o.shift_id = s.id) as offers
+          from shifts s
+          join shift_events e on e.firm_id = s.firm_id and e.id = s.event_id
+          ${bookedJoin}
+          left join sites si on si.firm_id = s.firm_id and si.id = s.site_id
+          left join sites esi on esi.firm_id = e.firm_id and esi.id = e.site_id
+         where ${placeFree(now)} and s.starts_at <= ${until}
+           ${after ? sql`and (s.starts_at, s.id) > (${after.startsAt}, ${after.id}::uuid)` : sql``}
+         order by s.starts_at, s.id
+         limit ${OPEN_ALERT_SESSIONS}
+      `);
+      // Who's to be told about each, then the claims in one order (each person's row, by id),
+      // so two senders at once never lock two people the other way round.
+      const pairs: { person: string; shift: (typeof rows)[number] }[] = [];
+      for (const r of rows) {
+        for (const p of await recipientsFor(tx, "open_push", {
+          siteId: r.site_id,
+          withBrowser: true,
+        })) {
+          pairs.push({ person: p.id, shift: r });
+        }
+      }
+      pairs.sort((a, b) =>
+        a.person === b.person
+          ? a.shift.shift_id.localeCompare(b.shift.shift_id)
+          : a.person.localeCompare(b.person),
+      );
+      const told = new Map<string, string[]>();
+      for (const { person, shift } of pairs) {
+        if (await claim(tx, person, "open_push", { type: "shift", id: shift.shift_id })) {
+          told.set(shift.shift_id, [...(told.get(shift.shift_id) ?? []), person]);
+        }
+      }
+      const sends = rows.flatMap((r) => {
+        const who = told.get(r.shift_id);
+        if (!who) return [];
+        const startsAt = new Date(r.starts_at);
+        const words = officeOpenPush({
+          placesFree: r.places_free,
+          startsIn: startsIn(startsAt, now),
+          role: r.role,
+          site: r.site,
+          when: sessionWhen(startsAt, timeZone),
+          offers: r.offers,
+        });
+        return [
+          {
+            people: who,
+            payload: {
+              ...words,
+              url: `/office/offer/${r.shift_id}`,
+              urgent: true,
+              until: startsAt,
+            } satisfies PushPayload,
+          },
+        ];
+      });
+      const last = rows.at(-1);
+      return {
+        sends,
+        next: last ? { startsAt: new Date(last.starts_at), id: last.shift_id } : null,
+        full: rows.length === OPEN_ALERT_SESSIONS,
+      };
+    });
+    for (const s of batch.sends) {
+      people += s.people.length;
+      pushes += await pushToEach(inFirm, deps, s.people, s.payload);
+    }
+    if (!batch.full || !batch.next) break;
+    after = batch.next;
   }
   return people === 0 ? { status: "not_needed" } : { status: "sent", people, pushes };
 }
@@ -277,7 +317,6 @@ export async function runOfficeSummary(
 ): Promise<SummaryResult> {
   const inFirm: InFirm = (fn) => run(payload.firmId, fn);
   const now = deps.clock.now();
-  const dayAgo = new Date(now.getTime() - 24 * 3_600_000);
   const people = await inFirm((tx) =>
     recipientsFor(tx, "summary", { siteId: null, anyVenue: true }),
   );
@@ -303,31 +342,31 @@ export async function runOfficeSummary(
         .limit(1);
       if (done) return null;
       const page = await loadUpdatesPage(tx, now, p.id);
-      const recent = page.everything.filter((u) => u.at >= dayAgo && u.at <= now);
-      const counts = {
-        took: recent.filter((u) => u.kind === "took").length,
-        cancelled: recent.filter((u) => u.kind === "cancelled").length,
-        under48: recent.filter((u) => u.kind === "cancelled" && u.noticeHours < 48).length,
-        uploads: recent.filter((u) => u.kind === "upload").length,
-      };
+      // Counted on their own, over the whole window (the page's list stops at its newest 100):
+      // since 08:00 yesterday, the firm's time, whenever today's goes (08:00 to 11:00).
+      const sites = await mySites(tx, p.id);
+      const from = zonedToUtc(
+        { ...wallOf(addDays(payload.date, -1)), hour: SUMMARY_HOUR, minute: 0 },
+        page.timeZone,
+      );
+      const counts = await countSince(tx, from, now, sites);
+      const needs = await countNeedsAction(tx, now, sites);
       // Nothing to say: no email (an empty one every morning would teach people to ignore it).
-      if (page.needsAction.length === 0 && Object.values(counts).every((n) => n === 0)) {
-        return "empty" as const;
-      }
+      if (needs === 0 && Object.values(counts).every((n) => n === 0)) return "empty" as const;
       const firm = await firmVoice(tx, payload.firmId);
       await recordEvent(tx, {
         actorType: "system",
         action: "office.summary_emailed",
         entityType: "office_user",
         entityId: p.id,
-        data: { officeUserId: p.id, date: payload.date, needs: page.needsAction.length, ...counts },
+        data: { officeUserId: p.id, date: payload.date, needs, ...counts },
       });
       const listed = page.needsAction.slice(0, SUMMARY_NEEDS_LISTED);
       return officeSummaryEmail(firm.voice, {
         day: dayMonthLabel(payload.date),
         mine: page.mine,
         needs: listed.map((u) => summaryLine(u, now, page.timeZone)),
-        moreNeeds: page.needsAction.length - listed.length,
+        moreNeeds: Math.max(0, needs - listed.length),
         ...counts,
         link: `${portalUrl(firm.slug, deps.baseDomain)}/office/updates`,
       });

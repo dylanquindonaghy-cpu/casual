@@ -214,6 +214,79 @@ export async function markUpdatesSeen(ctx: OfficeContext, shownAt: Date): Promis
   });
 }
 
+// --- For the 08:00 summary (src/lib/office/alerts.ts): counted, not capped like the page's list ---
+
+export interface SummaryCounts {
+  took: number;
+  cancelled: number; // casuals' cancellations
+  under48: number; // of those, under 48 hours' notice
+  uploads: number; // photos and certificates sent and still waiting
+}
+
+// What happened on the person's contracts in (from, now].
+export async function countSince(
+  tx: FirmTx,
+  from: Date,
+  now: Date,
+  sites: string[] | null,
+): Promise<SummaryCounts> {
+  const { rows } = await tx.execute<{
+    took: number;
+    cancelled: number;
+    under48: number;
+    uploads: number;
+  }>(sql`
+    with c as (
+      select a.notice_hours from assignments a
+        join shifts s on s.firm_id = a.firm_id and s.id = a.shift_id
+       where a.status = 'cancelled_worker' and a.cancelled_at > ${from}
+         and a.cancelled_at <= ${now} and ${sitesSql(sites)})
+    select
+      (select count(*)::int from offers o
+         join shifts s on s.firm_id = o.firm_id and s.id = o.shift_id
+        where o.response = 'accepted' and o.responded_at > ${from} and o.responded_at <= ${now}
+          and ${sitesSql(sites)}) as took,
+      (select count(*)::int from c) as cancelled,
+      (select count(*)::int from c where c.notice_hours < 48) as under48,
+      (select count(*)::int from uploads u
+        where u.status = 'waiting' and u.created_at > ${from} and u.created_at <= ${now}) as uploads
+  `);
+  const r = rows[0];
+  return {
+    took: r?.took ?? 0,
+    cancelled: r?.cancelled ?? 0,
+    under48: r?.under48 ?? 0,
+    uploads: r?.uploads ?? 0,
+  };
+}
+
+// How many things need action now, as Updates' "Needs action" lists them (every one, uncapped):
+// places still to fill near their start, the week's cancellations whose place is open again, and
+// the week's uploads waiting for a check.
+export async function countNeedsAction(
+  tx: FirmTx,
+  now: Date,
+  sites: string[] | null,
+): Promise<number> {
+  const weekAgo = new Date(now.getTime() - UPDATES_PAGE_HOURS * 3_600_000);
+  const { rows } = await tx.execute<{ n: number }>(sql`
+    select
+      (select count(*) from shifts s ${bookedJoin}
+        where ${placeFree(now)}
+          and s.starts_at <= ${new Date(now.getTime() + OPEN_SOON_HOURS * 3_600_000)}
+          and ${sitesSql(sites)})
+    + (select count(*) from assignments a
+         join shifts s on s.firm_id = a.firm_id and s.id = a.shift_id
+         ${bookedJoin}
+        where a.status = 'cancelled_worker' and a.cancelled_at >= ${weekAgo}
+          and a.cancelled_at <= ${now} and ${placeFree(now)} and ${sitesSql(sites)})
+    + (select count(*) from uploads u
+        where u.status = 'waiting' and u.created_at >= ${weekAgo} and u.created_at <= ${now})
+    as n
+  `);
+  return Number(rows[0]?.n ?? 0);
+}
+
 // --- The bell and the pop-up (the office frame) -------------------------------------------------
 
 export interface NewCancellation {

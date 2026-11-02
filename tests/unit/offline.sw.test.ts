@@ -1003,10 +1003,19 @@ describe("a renewed push subscription", () => {
         "DELETE",
         JSON.stringify({ endpoint: "https://fcm.googleapis.com/fcm/send/old" }),
       ],
+      // And the office's (Phase 26.4): it renews it only where the old one was an office user's.
+      [
+        "/api/office/push",
+        "PUT",
+        JSON.stringify({
+          old: "https://fcm.googleapis.com/fcm/send/old",
+          subscription: { endpoint: "https://fcm.googleapis.com/fcm/send/new", keys: {} },
+        }),
+      ],
     ]);
   });
 
-  it("an office user's browser (nobody logged in as a casual): the office's route instead", async () => {
+  it("an office user's (Phase 26.4): the office's route renews it only where the old one was theirs", async () => {
     const w = loadWorker(async (path) =>
       path === "/api/push/subscribe" ? answer('{"status":"logged_out"}', 401) : answer("{}"),
     );
@@ -1017,11 +1026,25 @@ describe("a renewed push subscription", () => {
         toJSON: () => ({ endpoint: "https://fcm.googleapis.com/fcm/send/new", keys: {} }),
       },
     });
-    expect(w.calls.map((c) => [c.path, c.init?.method])).toEqual([
-      ["/api/push/subscribe", "POST"],
-      ["/api/office/push", "POST"],
-      ["/api/push/subscribe", "DELETE"],
-      ["/api/office/push", "DELETE"],
+    expect(w.calls.map((c) => [c.path, c.init?.method, c.init?.body])).toEqual([
+      [
+        "/api/push/subscribe",
+        "POST",
+        JSON.stringify({ endpoint: "https://fcm.googleapis.com/fcm/send/new", keys: {} }),
+      ],
+      [
+        "/api/push/subscribe",
+        "DELETE",
+        JSON.stringify({ endpoint: "https://fcm.googleapis.com/fcm/send/old" }),
+      ],
+      [
+        "/api/office/push",
+        "PUT",
+        JSON.stringify({
+          old: "https://fcm.googleapis.com/fcm/send/old",
+          subscription: { endpoint: "https://fcm.googleapis.com/fcm/send/new", keys: {} },
+        }),
+      ],
     ]);
   });
 
@@ -1034,7 +1057,8 @@ describe("a renewed push subscription", () => {
       },
     });
     expect(w.resubscribed).toEqual([{ userVisibleOnly: true, applicationServerKey: "KEY" }]);
-    expect(w.calls.map((c) => c.init?.method)).toEqual(["POST", "DELETE"]);
+    // The casual's route, then the office's renewal (Phase 26.4).
+    expect(w.calls.map((c) => c.init?.method)).toEqual(["POST", "DELETE", "PUT"]);
   });
 
   it("does nothing it can't: no old key, no new subscription", async () => {

@@ -145,15 +145,13 @@ function ThisDevice({ publicKey }: { publicKey: string | null }) {
         }),
       );
     if (!supported) return decide(false);
-    // Already subscribed: saved again for this person (unchanged is a no-op), so the server
-    // matches what the browser does.
+    // The browser's subscription counts as on only when it's already this person's (renewed on the
+    // server if its keys changed): one made for someone else here (a casual, another office user)
+    // is never taken on without "Turn on notifications here".
     navigator.serviceWorker
       .getRegistration()
       .then((r) => r?.pushManager.getSubscription() ?? null)
-      .then(async (sub) => {
-        if (sub) await save(sub).catch(() => undefined);
-        decide(!!sub);
-      })
+      .then(async (sub) => decide(sub ? await alreadyMine(sub).catch(() => false) : false))
       .catch(() => decide(false));
   }, [publicKey]);
 
@@ -234,6 +232,15 @@ function ThisDevice({ publicKey }: { publicKey: string | null }) {
       )}
     </div>
   );
+}
+
+async function alreadyMine(subscription: PushSubscription): Promise<boolean> {
+  const checked = await fetch(OFFICE_PUSH, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ old: subscription.endpoint, subscription: subscription.toJSON() }),
+  });
+  return checked.ok;
 }
 
 async function save(subscription: PushSubscription): Promise<void> {

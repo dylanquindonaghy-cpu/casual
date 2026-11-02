@@ -6,6 +6,7 @@ import {
   bellLabel,
   overnight,
   popupLines,
+  summaryLine,
   updateRow,
   updatesLine,
 } from "@/lib/office/updates-copy";
@@ -137,6 +138,36 @@ describe("each update's lines, button and whether it needs action", () => {
     expect(isNew(upload, seen, true)).toBe(false);
     // States, not news: never "new".
     expect(isNew(openSoon, null, true)).toBe(false);
+  });
+});
+
+describe("the 08:00 summary's lines (Phase 26.4)", () => {
+  it("say what needs action with no casual's name, for every kind", () => {
+    const noReply: PageUpdate = {
+      kind: "no-reply",
+      at: at("2026-11-02T08:00:00Z"),
+      oldest: at("2026-11-02T07:00:00Z"),
+      offers: 3,
+      sessions: 2,
+    };
+    const lines = [
+      openSoon,
+      cancelled(true),
+      cancelled(false),
+      took("2026-11-02T08:30:00Z"),
+      upload,
+      noReply,
+    ].map((u) => summaryLine(u, NOW, TZ));
+    expect(lines).toEqual([
+      "2 places still to fill, starts in 5 h: Steward, Acme Demo Arena, Mon 2 Nov 14:00",
+      "A cancellation · 9 hours' notice: Door supervisor, Acme Demo Arena, Mon 2 Nov 18:00 (the place is open again)",
+      "A cancellation · 9 hours' notice: Door supervisor, Acme Demo Arena, Mon 2 Nov 18:00",
+      "A place taken: Steward, Sat 7 Nov 10:00",
+      "A staff photo to check",
+      "3 offers with no reply yet",
+    ]);
+    for (const name of ["Mo Rahman", "Ben Fraser", "Zoe Adeyemi"])
+      expect(lines.join(" ")).not.toContain(name);
   });
 });
 

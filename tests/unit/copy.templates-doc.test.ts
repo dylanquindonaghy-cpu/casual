@@ -668,7 +668,8 @@ describe("the code says what the doc says", () => {
   it("office_summary (email): the subject, and the body's words", () => {
     const office = section("Office notifications");
     const q = quotes(office, "Summary");
-    const [subject, , opening, , needs, , line, more, since, link, stop, signOff] = q;
+    // The subject, its "1 needs action" and "nothing needs action", then the body's lines.
+    const [subject, , , opening, , needs, , line, more, since, link, stop, signOff] = q;
     const email = officeSummaryEmail(docVoice, {
       day: "Mon 2 Nov",
       mine: true,
@@ -704,6 +705,18 @@ describe("the code says what the doc says", () => {
       link: "{link}",
     });
     expect(none.subject).toBe("Updates for Mon 2 Nov: nothing needs action");
+    const one = officeSummaryEmail(docVoice, {
+      day: "Mon 2 Nov",
+      mine: true,
+      needs: ["A staff photo to check"],
+      moreNeeds: 0,
+      took: 0,
+      cancelled: 0,
+      under48: 0,
+      uploads: 1,
+      link: "{link}",
+    });
+    expect(one.subject).toBe("Updates for Mon 2 Nov: 1 needs action");
     expect(none.body).toContain("Here's what's happened at every venue since 08:00 yesterday.");
     expect(none.body).toContain("Nothing needs action.");
     expect(none.body).toContain("1 place taken, no cancellations, 0 uploads to check.");

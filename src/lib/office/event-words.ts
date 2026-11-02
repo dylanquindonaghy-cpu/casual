@@ -346,6 +346,25 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `${officeName} marked it not urgent.`;
     case "shift.offers_restarted":
       return `${officeName} started its offers again.`;
+    // Following up casuals (Phase 26.7, src/lib/office/casual-follow-up.ts).
+    case "casual.reminded":
+      return `${officeName} reminded ${worker} to update their ${credential(d.type)}.`;
+    case "casual.reminder_notice":
+      return `Reminding ${worker} to update their ${credential(d.type)}.`;
+    case "casual.reminder_sent":
+      return `${worker} was reminded.`;
+    case "casual.reminder_failed":
+      return `Reminding ${worker} failed.`;
+    case "casual.reminder_held":
+      return `Reminding ${worker} waits for quiet hours to end.`;
+    case "casual.reminder_skipped":
+      return d.reason === "sorted"
+        ? `${worker} wasn't reminded: it's been sorted since.`
+        : `${worker} wasn't reminded: they've left or their details were deleted.`;
+    case "casual.note_added":
+      return `${officeName} added a note about ${worker}.`;
+    case "casual.needs_sorted":
+      return `${officeName} marked ${worker}'s update as sorted.`;
     // "Casuals ask, you choose" (Phase 26.6, src/lib/roster/asks.ts).
     case "shift.asked":
       return `${worker} asked for it ("I can do this").`;

@@ -250,7 +250,7 @@ describe("each person's own dashboard", () => {
     expect(admins.sites).toBeNull();
     // Unknown cards, another firm's contract, or payroll: nothing saved.
     expect(
-      (await saveMyDashboard(t.ctx(t.resourcer), { clientIds: [], cards: ["watchList"] })).status,
+      (await saveMyDashboard(t.ctx(t.resourcer), { clientIds: [], cards: ["nope"] })).status,
     ).toBe("invalid");
     const other = await firm();
     const theirs = await saveContract(other.ctx(other.admin), {

@@ -54,6 +54,12 @@ export default async function CancellationRecordPage({
     liveStrikes: record.liveStrikes,
     forExport: false,
   });
+  // can-5: notice, strike and reason first; then every other field in §3.4's order (the PDF keeps
+  // that order throughout).
+  const firstLabels = ["Notice", `Under ${record.threshold} hours`, "Strike", "Reason"];
+  const first = firstLabels.flatMap((label) => fields.filter((f) => f.label === label));
+  const rest = fields.filter((f) => !firstLabels.includes(f.label));
+  const hot = record.row.noticeHours < record.threshold;
   return (
     <main className={page.office}>
       <PageHeader
@@ -74,6 +80,15 @@ export default async function CancellationRecordPage({
         </p>
         <p>{AS_IT_IS_NOW}</p>
       </PageHeader>
+      <section
+        aria-labelledby="first"
+        className={`mb-6 max-w-3xl ${hot ? "rounded-inner border-l-4 border-l-urgent bg-urgent-soft p-4 sm:p-6" : card}`}
+      >
+        <h2 id="first" className="sr-only">
+          Notice, strike and reason
+        </h2>
+        <Fields fields={first} hot={hot} />
+      </section>
       {strike && (
         <section aria-labelledby="strike" className="mb-6 flex max-w-3xl flex-col gap-2">
           <h2 id="strike" className="font-bold text-ink">
@@ -99,16 +114,29 @@ export default async function CancellationRecordPage({
       )}
       {/* Always here (it shows nothing without a note), so a resend's answer outlives the refresh. */}
       <ResendEvidence assignmentId={record.row.assignmentId} note={resend} />
-      {/* The record's facts as label and value rows in one white card (Phase 21: Neo Financial's). */}
-      <dl className={`${card} grid max-w-3xl gap-x-6 gap-y-3 sm:grid-cols-[12rem_1fr]`}>
-        {fields.map((f) => (
-          <div key={f.label} className="contents">
-            <dt className="font-semibold text-ink">{f.label}</dt>
-            <dd className="mb-2 text-ink sm:mb-0">{f.value}</dd>
-          </div>
-        ))}
-      </dl>
+      {/* The rest of the record's facts as label and value rows in one card (Phase 21). */}
+      <div className={`${card} max-w-3xl`}>
+        <Fields fields={rest} hot={false} />
+      </div>
     </main>
+  );
+}
+
+// Label and value rows. `hot`: the notice was under the threshold, so it reads in red.
+function Fields({ fields, hot }: { fields: { label: string; value: string }[]; hot: boolean }) {
+  return (
+    <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-[12rem_1fr]">
+      {fields.map((f) => (
+        <div key={f.label} className="contents">
+          <dt className="font-semibold text-ink">{f.label}</dt>
+          <dd
+            className={`mb-2 sm:mb-0 ${hot && f.label === "Notice" ? "font-semibold text-urgent-ink" : "text-ink"}`}
+          >
+            {f.value}
+          </dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 

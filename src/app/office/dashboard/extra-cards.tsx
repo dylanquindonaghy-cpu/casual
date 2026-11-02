@@ -1,4 +1,7 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
+import { roleLabel } from "@/lib/portal/format";
+import { ReliabilityBar } from "../reliability-bar";
 import type { Board } from "@/lib/office/dashboard-board";
 import {
   CANCELLATIONS_CARD,
@@ -12,6 +15,8 @@ import {
   NO_SHOWS_CARD,
   noShowsSummary,
   SHOW_TABLE,
+  WATCH_CARD,
+  watchSummary,
   weekLabel,
 } from "@/lib/office/dashboard-cards-copy";
 import { SECTION_ERROR } from "@/lib/office/dashboard-copy";
@@ -21,7 +26,7 @@ import { Icon } from "../../ui/icons";
 
 // The dashboard's extra cards (Phase 26.3; the spec page's cus-3, the pre-build audit's aud-9,
 // aud-10 and aud-13), each shown only when its person chose it under Customise: Next 2 weeks,
-// Cancellations, No-shows and Fill rate. Each says where its figures come from and when, draws
+// Cancellations, No-shows, Watch list (Phase 26.7) and Fill rate. Each says where its figures come from and when, draws
 // them as plain bars (decorative: the sentence under the title says it in words), keeps its
 // figures as a table one tap away, and says what will show there when it's empty. The figures
 // are the loader's (src/lib/office/dashboard-cards-data.ts), counted by code from the firm's own
@@ -169,15 +174,20 @@ const dataOf = <T,>(p: Part<T> | null): T | null => (p?.ok ? p.data : null);
 export function ExtraCards({
   board,
 }: {
-  board: Pick<Board, "nextTwoWeeks" | "cancelWeeks" | "noShowWeeks" | "fillRates">;
+  board: Pick<Board, "nextTwoWeeks" | "cancelWeeks" | "noShowWeeks" | "fillRates" | "watchList">;
 }) {
   const next = dataOf(board.nextTwoWeeks);
   const cancels = dataOf(board.cancelWeeks);
   const noShows = dataOf(board.noShowWeeks);
   const fill = dataOf(board.fillRates);
-  const any = [board.nextTwoWeeks, board.cancelWeeks, board.noShowWeeks, board.fillRates].some(
-    (p) => p !== null,
-  );
+  const watch = dataOf(board.watchList);
+  const any = [
+    board.nextTwoWeeks,
+    board.cancelWeeks,
+    board.noShowWeeks,
+    board.fillRates,
+    board.watchList,
+  ].some((p) => p !== null);
   if (!any) return null;
   return (
     <div className="grid items-start gap-3 @min-[48rem]:grid-cols-2">
@@ -267,6 +277,54 @@ export function ExtraCards({
               parts: [{ n: w.noShows, cls: "bg-mark-urgent" }],
             }))}
           />
+        </Card>
+      )}
+      {board.watchList !== null && (
+        <Card
+          id="watch-list"
+          title={WATCH_CARD.title}
+          source={WATCH_CARD.source}
+          summary={watch ? watchSummary(watch.length) : ""}
+          failed={failedOf(board.watchList)}
+          empty={watch && watch.length === 0 ? WATCH_CARD.empty : null}
+          table={{
+            heads: WATCH_CARD.heads,
+            rows: (watch ?? []).map((w) => [
+              w.name,
+              `${w.percent}%`,
+              `${roleLabel(w.next.role)}${w.next.site ? `, ${w.next.site}` : ""}`,
+            ]),
+          }}
+        >
+          <ul role="list" className="flex flex-col divide-y divide-line">
+            {(watch ?? []).map((w) => (
+              <li key={w.workerId} className="flex items-center justify-between gap-3 py-2">
+                <span className="min-w-0">
+                  <Link
+                    href={`/office/casuals/${w.workerId}`}
+                    className="press block truncate font-medium text-ink hover:underline"
+                  >
+                    {w.name}
+                  </Link>
+                  <Link
+                    href={`/office/shifts/${w.next.shiftId}`}
+                    className="press block truncate text-sm text-ink-muted hover:underline"
+                  >
+                    {roleLabel(w.next.role)}
+                    {w.next.site ? `, ${w.next.site}` : ""}
+                  </Link>
+                </span>
+                <ReliabilityBar
+                  reliability={{
+                    kind: "figure",
+                    percent: w.percent,
+                    band: w.band,
+                    counts: { worked: 0, noShows: 0, lateCancels: 0 },
+                  }}
+                />
+              </li>
+            ))}
+          </ul>
         </Card>
       )}
       {board.fillRates !== null && (

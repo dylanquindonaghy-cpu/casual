@@ -484,6 +484,13 @@
       "when": 1793648758324,
       "tag": "0068_session_asks",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1793653057483,
+      "tag": "0069_casual_notes",
+      "breakpoints": true
     }
   ]
 }

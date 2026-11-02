@@ -301,6 +301,7 @@ const board: Board = {
   cancelWeeks: null,
   noShowWeeks: null,
   fillRates: null,
+  watchList: null,
 };
 
 const render = (b: Board) =>

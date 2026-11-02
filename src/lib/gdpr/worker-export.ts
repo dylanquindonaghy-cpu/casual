@@ -14,6 +14,7 @@ import {
   messages,
   offers,
   sessionAsks,
+  casualNotes,
   payQueries,
   payRecords,
   pushSubscriptions,
@@ -156,6 +157,11 @@ export async function collectWorkerData(
     .from(offers)
     .where(eq(offers.workerId, workerId))
     .orderBy(asc(offers.createdAt), asc(offers.id));
+  const noteRows = await tx
+    .select(columnsOf(casualNotes))
+    .from(casualNotes)
+    .where(eq(casualNotes.workerId, workerId))
+    .orderBy(asc(casualNotes.createdAt), asc(casualNotes.id));
   const askRows = await tx
     .select(columnsOf(sessionAsks))
     .from(sessionAsks)
@@ -296,6 +302,7 @@ export async function collectWorkerData(
       strikes: strikeRows,
       offers: offerRows,
       asks: askRows,
+      officeNotes: noteRows,
       requests: requestRows,
       shiftReminders: reminders,
       payRecords: payLines,

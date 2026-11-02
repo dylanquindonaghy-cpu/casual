@@ -136,6 +136,10 @@ describe("the rest", () => {
     expect(strikesText(2)).toBe("2");
     expect(CASUAL_VIEW_WORDS).toEqual({
       all: "All",
+      regulars: "Regulars",
+      reliable: "Reliable",
+      cancel_often: "Cancel often",
+      not_worked: "Not worked lately",
       needs: "Need updating",
       uploads: "Uploads to check",
     });

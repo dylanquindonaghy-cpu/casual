@@ -71,6 +71,16 @@ export const noShowsSummary = (weeks: NoShowWeek[]) =>
     "no-shows",
   )} in the last 8 weeks.`;
 
+export const WATCH_CARD = {
+  title: "Watch list",
+  source: "Reliability over the last 90 days, of casuals booked in the next 14 days",
+  empty:
+    "Nobody booked in the next 14 days is under 90%. Anyone who is shows here, least reliable first.",
+  heads: ["Casual", "Reliability", "Next booked"],
+};
+export const watchSummary = (n: number) =>
+  n === 0 ? "" : `${plural(n, "casual", "casuals")} booked soon under 90% reliable.`;
+
 export const FILL_RATE_CARD = {
   title: "Fill rate",
   source: "Places booked of places needed, next 14 days, counted now",

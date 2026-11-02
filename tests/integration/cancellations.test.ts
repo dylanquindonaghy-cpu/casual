@@ -15,6 +15,7 @@ import { cancelBookingByOffice, cancelShift } from "@/lib/office/quick-actions";
 import { cancelMyShift } from "@/lib/portal/cancel-shift";
 import { takeShift } from "@/lib/portal/take-shift";
 import { recordPdf } from "@/lib/pdf/record";
+import { withdrawStrike } from "@/lib/strikes/manage";
 import { STRIKE_WARNING_VERSION, type WarningKind } from "@/lib/strikes/words";
 import { bookingFirm, hoursFromNow, NOW } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
@@ -71,7 +72,7 @@ async function recordsFirm() {
         version: STRIKE_WARNING_VERSION,
       }),
     ).toMatchObject({ status: "cancelled" });
-  const list = (view: "all" | "under" | "office" = "all", now = NOW) =>
+  const list = (view: "all" | "under" | "strikes" | "office" = "all", now = NOW) =>
     withFirm(f.firmId, (tx) => loadCancellations(tx, { view, now, limit: 100 }));
   const lookup = (refOrId: string, now = NOW) =>
     withFirm(f.firmId, (tx) => loadCancellationRecord(tx, refOrId, now));
@@ -124,7 +125,7 @@ describe("what the session needed (Phase 25.2)", () => {
 });
 
 describe("the list", () => {
-  it("every cancellation, newest first, with this week's counts and the three views", async () => {
+  it("every cancellation, newest first, with the four counts and the four views", async () => {
     const t = await recordsFirm();
     const [sam, jo, ben] = [
       await t.f.worker(),
@@ -149,16 +150,59 @@ describe("the list", () => {
       ["Sam Booker", "casual", 19],
     ]);
     expect(all.total).toBe(3);
-    expect(all.week).toEqual({ byCasuals: 2, byOffice: 1, strikes: 1 });
+    // This week: 2 by casuals, 1 by the office, 2 under 48 hours' notice (Sam's 19 and Ben's 27),
+    // 1 strike (Sam's).
+    expect(all.week).toEqual({ byCasuals: 2, byOffice: 1, strikes: 1, under: 2 });
+    expect(all.overall).toEqual({ under: 2, liveStrikes: 1, last8: 3, last8Under: 2 });
+    expect(all.tabs).toEqual({ all: 3, under: 2, strikes: 1, office: 1 });
     expect(all.threshold).toBe(48);
     expect((await t.list("under")).rows.map((r) => r.casual)).toEqual(["Ben Booker", "Sam Booker"]);
     expect((await t.list("office")).rows.map((r) => r.casual)).toEqual(["Ben Booker"]);
-    // The next week: still listed, not counted.
-    expect((await t.list("all", later(24 * 7))).week).toEqual({
-      byCasuals: 0,
-      byOffice: 0,
-      strikes: 0,
-    });
+    const strikes = await t.list("strikes");
+    expect(strikes.rows.map((r) => [r.casual, r.strike?.number, r.strike?.counting])).toEqual([
+      ["Sam Booker", 1, true],
+    ]);
+    expect(strikes.total).toBe(1);
+    // The next week: still listed, not counted this week; still in the last 8 weeks, and the strike
+    // still counts.
+    const next = await t.list("all", later(24 * 7));
+    expect(next.week).toEqual({ byCasuals: 0, byOffice: 0, strikes: 0, under: 0 });
+    expect(next.overall).toEqual({ under: 2, liveStrikes: 1, last8: 3, last8Under: 2 });
+    // 8 weeks on: out of the last 8 weeks, and the strike has stopped counting (90 days).
+    const later91 = await t.list("strikes", later(24 * 91));
+    expect(later91.overall).toEqual({ under: 2, liveStrikes: 0, last8: 0, last8Under: 0 });
+    expect(later91.rows.map((r) => [r.strike?.number, r.strike?.counting])).toEqual([[1, false]]);
+  });
+
+  it("a strike's number: the casual's strikes counting when it was issued, it included", async () => {
+    const t = await recordsFirm();
+    const sam = await t.f.worker();
+    const [a, b, c] = [
+      await t.f.shift({ startsAt: hoursFromNow(20) }),
+      await t.f.shift({ startsAt: hoursFromNow(30) }),
+      await t.f.shift({ startsAt: hoursFromNow(40) }),
+    ];
+    await t.take(sam, a);
+    await t.cancel(sam, a, later(1), "strike");
+    await t.take(sam, b, later(1));
+    await t.cancel(sam, b, later(2), "strike");
+    // The first is withdrawn before the third: it no longer counts, so the third is number 2.
+    const { rows: first } = await su.query<{ id: string }>(
+      "select id::text as id from assignments where shift_id = $1 and worker_id = $2",
+      [a, sam],
+    );
+    expect(
+      await withdrawStrike(t.office(later(3)), first[0]?.id ?? "", "Their train was cancelled"),
+    ).toMatchObject({ status: "withdrawn" });
+    await t.take(sam, c, later(3));
+    await t.cancel(sam, c, later(4), "strike");
+    const rows = (await t.list("strikes", later(5))).rows;
+    expect(rows.map((r) => [r.strike?.status, r.strike?.number])).toEqual([
+      ["live", 2],
+      ["live", 2],
+      ["withdrawn", 1],
+    ]);
+    expect((await t.list("all", later(5))).overall.liveStrikes).toBe(2);
   });
 });
 

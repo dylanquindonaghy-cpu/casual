@@ -22,6 +22,7 @@ const text = (html: string) =>
     .replace(/\s+/g, " ");
 
 const profile = (over: Partial<Profile> = {}): Profile => ({
+  reliability: { kind: "new", counted: 0, counts: { worked: 0, noShows: 0, lateCancels: 0 } },
   firstName: "Sam",
   lastName: "Booker",
   mobile: "+447700900123",

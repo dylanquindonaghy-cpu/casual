@@ -39,6 +39,7 @@ import {
 } from "@/lib/portal/qualification-copy";
 import { PHOTO_GUIDANCE, PHOTO_TONES, PHOTO_WORDS, photoDates } from "@/lib/portal/upload-copy";
 import { shortDate } from "@/lib/rules/reasons";
+import { countsWords, reliabilityWords, type Reliability } from "@/lib/rules/reliability";
 import { addDays } from "@/lib/time/zoned";
 import { WhatHappened } from "../shifts/cancel-shift-result";
 import { AvailabilityForm } from "./availability-form";
@@ -209,6 +210,8 @@ export function ProfileView({
         </section>
       )}
 
+      {profile.reliability && <ReliabilitySection reliability={profile.reliability} />}
+
       {/* With strikes off and none given before, there's nothing to say (P3.4). */}
       {strikes && (strikes.enabled || strikes.strikes.length > 0) && (
         <StrikesSection strikes={strikes} />
@@ -342,6 +345,38 @@ function StrikesSection({ strikes }: { strikes: MyStrikes }) {
           ))}
         </ul>
       )}
+    </section>
+  );
+}
+
+// Their own reliability (Phase 26.7, cas-6): the same figure and counts the office sees.
+function ReliabilitySection({ reliability }: { reliability: Reliability }) {
+  return (
+    <section aria-labelledby="reliability-heading" className={`${staffCard} ${sectionGap.staff}`}>
+      <h2 id="reliability-heading" className={h2}>
+        Your reliability
+      </h2>
+      <p className={`${headingGap} text-lg`}>
+        {reliability.kind === "figure" ? (
+          <>
+            <span className="font-semibold">{reliabilityWords(reliability)}</span> over the last 90
+            days
+          </>
+        ) : (
+          <>
+            <span className="font-semibold">{reliabilityWords(reliability)}</span>. It shows as a
+            figure once you have 5.
+          </>
+        )}
+      </p>
+      <p className="mt-1 text-base text-ink-muted tabular-nums">
+        {countsWords(reliability.counts)}
+      </p>
+      <p className="mt-2 text-base">
+        Shifts you worked, out of those plus no-shows and cancellations with under 48 hours&apos;
+        notice. Our office sees the same figure. It doesn&apos;t change which shifts you&apos;re
+        offered.
+      </p>
     </section>
   );
 }

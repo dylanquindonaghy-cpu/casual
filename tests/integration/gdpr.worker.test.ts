@@ -104,6 +104,11 @@ async function everything() {
      values ($1, $2, $3, 1, 'whatsapp', 'accepted', $4)`,
     [b.firmId, past, worker, hoursFromNow(-80)],
   );
+  const note = await one(
+    `insert into casual_notes (firm_id, worker_id, office_user_id, body)
+     values ($1, $2, $3, 'Called about the licence')`,
+    [b.firmId, worker, admin],
+  );
   const ask = await one(
     `insert into session_asks (firm_id, shift_id, worker_id, status, asked_at, answered_at)
      values ($1, $2, $3, 'not_this_time', $4, $5)`,
@@ -265,6 +270,7 @@ async function everything() {
       cancelled,
       offer,
       ask,
+      note,
       reminder,
       question,
       timeChange,
@@ -346,6 +352,9 @@ describe("a worker's data export", () => {
       noticeHours: "20.00",
     });
     expect(idsIn(s.offers)).toEqual([t.ids.offer]);
+    expect(s.officeNotes).toEqual([
+      expect.objectContaining({ id: t.ids.note, body: "Called about the licence" }),
+    ]);
     expect(s.asks).toEqual([
       expect.objectContaining({
         id: t.ids.ask,
@@ -514,6 +523,7 @@ describe("erasing a worker", () => {
       sheetMentions: 1,
       withdrawalReasons: 0, // no strike withdrawn (12C.5: tests/integration/strikes.page.test.ts)
       images: 1, // their staff photo (12F.2)
+      notes: 1, // the office's note about them (Phase 26.7)
     };
     expect(result).toEqual({ status: "erased", name: "Ann Booker", counts });
     expect(

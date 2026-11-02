@@ -10,6 +10,7 @@ export const EXPECTED_TABLES = [
   "api_keys",
   "assignments",
   "auth_throttle",
+  "casual_notes",
   "clients",
   "connector_events",
   "credential_rules",
@@ -363,6 +364,20 @@ export async function createTenant(su: Pool): Promise<Tenant> {
      select $1, 'Our planner', $3, 'k3F9', u.id from u`,
     [firmId, `key-maker-${next()}@example.com`, hash()],
   );
+  // Written by the planner key's maker (its own office user, access off): the isolation tests
+  // delete rows.office_users (rolled back), and the note's link to its author has no ON DELETE
+  // action.
+  const noteAuthorId = (
+    await su.query<{ id: string }>("select created_by::text as id from api_keys where id = $1", [
+      apiKeyId,
+    ])
+  ).rows[0]?.id;
+  const casualNoteId = await one(
+    su,
+    `insert into casual_notes (firm_id, worker_id, office_user_id, body)
+     values ($1, $2, $3, 'Called about the licence')`,
+    [firmId, rosterWorkerId, noteAuthorId],
+  );
   // A WhatsApp from the rota worker (no ON DELETE action on its worker link either); the reply
   // link is tested in FK_CASES.
   const messageId = await one(
@@ -418,6 +433,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       requests: requestId,
       offers: offerId,
       session_asks: sessionAskId,
+      casual_notes: casualNoteId,
       roster_sources: rosterSourceId,
       connector_events: connectorEventId,
       firm_secrets: secretId,
@@ -564,6 +580,10 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
   offers: (firmId, p) => ({
     text: "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, $4, 'whatsapp')",
     values: [firmId, p.rows.shifts, p.rosterWorkerId, 1 + next()],
+  }),
+  casual_notes: (firmId, p) => ({
+    text: "insert into casual_notes (firm_id, worker_id, office_user_id, body) values ($1, $2, $3, 'Probe note')",
+    values: [firmId, p.workerId, p.officeUserId],
   }),
   // On a session of its own: one ask per casual and session.
   session_asks: (firmId, p) => ({
@@ -782,6 +802,14 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
   offers_worker_fk: (firmId, own, other) => ({
     text: "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, $4, 'sms')",
     values: [firmId, own.rows.shifts, other.workerId, 1 + next()],
+  }),
+  casual_notes_worker_fk: (firmId, own, other) => ({
+    text: "insert into casual_notes (firm_id, worker_id, office_user_id, body) values ($1, $2, $3, 'x')",
+    values: [firmId, other.workerId, own.officeUserId],
+  }),
+  casual_notes_office_user_fk: (firmId, own, other) => ({
+    text: "insert into casual_notes (firm_id, worker_id, office_user_id, body) values ($1, $2, $3, 'x')",
+    values: [firmId, own.workerId, other.officeUserId],
   }),
   session_asks_shift_fk: (firmId, own, other) => ({
     text: "insert into session_asks (firm_id, shift_id, worker_id, asked_at) values ($1, $2, $3, now())",

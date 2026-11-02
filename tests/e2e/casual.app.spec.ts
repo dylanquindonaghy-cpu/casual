@@ -40,7 +40,10 @@ const HOLLY = { firstName: "Holly", lastName: "Grant", mobileE164: "+44770090062
 // Casuals' words for her (Phase 24, 24.4: each qualification's short name with its date), the
 // worst first.
 const TAGS = new RegExp(`CSAS: missing.*Steward L2: expires ${DAY}.*SIA DS: valid until ${DAY}`);
-const SUMMARY = new RegExp(`^Steward L2: expires ${DAY}, and 1 more$`);
+// Need updating's chips (Phase 26.7): her worst first, then her photo.
+const OUT_OF_DATE = new RegExp(`Steward L2: expires ${DAY}.*CSAS: missing.*Staff photo: missing`);
+const NEW_FIGURE = /^New: \d+ shifts? so far$/;
+const REMINDER = /^(Not reminded|Sent automatically · .+)$/;
 
 const noSidewaysScroll = async (page: Page) =>
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBe(
@@ -378,14 +381,11 @@ test("the office sees Zoe on Casuals and on her own page", async ({ page }, test
     expect(needCount).toBeLessThan(await countIn(page, "All"));
     await expect(needsList.getByRole("listitem")).toHaveCount(needCount);
     const card = needsList.getByRole("listitem").filter({ hasText: "Zoe Adeyemi" });
-    await expect(card).toContainText(TAGS);
-    await expect(card.locator("dt")).toHaveText([
-      "Staff photo",
-      "Travel area",
-      "Live strikes",
-      "Needs updating",
-    ]);
-    await expect(card.locator("dd")).toHaveText(["Missing", "Not set", String(strikes), SUMMARY]);
+    // Round 8 (Phase 26.7): what's out of date, her reliability and the last reminder.
+    await expect(card).toContainText(OUT_OF_DATE);
+    await expect(card).toContainText(`${strikes} live ${strikes === 1 ? "strike" : "strikes"}`);
+    await expect(card.locator("dt")).toHaveText(["Reliability", "Last reminder"]);
+    await expect(card.locator("dd")).toHaveText([NEW_FIGURE, REMINDER]);
     await noSidewaysScroll(page);
 
     // On a computer: the table's columns, and Zoe's row; the cards are hidden.
@@ -393,28 +393,43 @@ test("the office sees Zoe on Casuals and on her own page", async ({ page }, test
     const table = page.getByRole("region", { name: "Need updating: casuals" });
     await expect(table.getByRole("columnheader")).toHaveText([
       "Casual",
-      "Qualifications",
-      "Staff photo",
-      "Travel area",
-      "Live strikes",
-      "Needs updating",
+      "Out of date",
+      "Last reminder",
+      "Reliability",
+      "Actions",
     ]);
     await expect(table.getByRole("row")).toHaveCount(needCount + 1);
     const row = table.getByRole("row").filter({ hasText: "Zoe Adeyemi" });
-    await expect(row.getByRole("cell").nth(1)).toContainText(TAGS);
-    await expect(row.getByRole("cell").nth(2)).toHaveText("Missing"); // no staff photo yet
-    await expect(row.getByRole("cell").nth(3)).toHaveText("Not set");
-    await expect(row.getByRole("cell").nth(4)).toHaveText(String(strikes));
-    await expect(row.getByRole("cell").nth(5)).toHaveText(SUMMARY);
+    await expect(row.getByRole("cell").nth(1)).toContainText(OUT_OF_DATE);
+    await expect(row.getByRole("cell").nth(2)).toHaveText(REMINDER);
+    await expect(row.getByRole("cell").nth(3)).toHaveText(NEW_FIGURE);
     await expect(needsList.getByRole("listitem")).toHaveCount(0);
-    // The search on the filters' row, at its right (Phase 24, 24.4); her initials beside her name.
+    // The search at the top right, beside the title (round 8); her initials beside her name.
     const tabsBox = (await page
       .getByRole("navigation", { name: "Show", exact: true })
       .boundingBox())!;
     const searchBox = (await page.getByRole("search").boundingBox())!;
-    expect(searchBox.y).toBeLessThan(tabsBox.y + tabsBox.height);
-    expect(tabsBox.y).toBeLessThan(searchBox.y + searchBox.height);
-    expect(searchBox.x).toBeGreaterThan(tabsBox.x + tabsBox.width);
+    expect(searchBox.y + searchBox.height).toBeLessThanOrEqual(tabsBox.y);
+    // All's columns: her qualifications, photo, travel area and strikes, as before.
+    await page.goto(`${acme}/office/casuals`);
+    const allTable = page.getByRole("region", { name: "All: casuals" });
+    await expect(allTable.getByRole("columnheader")).toHaveText([
+      "Casual",
+      "Qualifications",
+      "Staff photo",
+      "Travel area",
+      "Live strikes",
+      "Last worked",
+      "Reliability",
+      "Actions",
+    ]);
+    // By her id: the demo's story has a Zoe Adeyemi of its own (all in date) on All.
+    const allRow = allTable.locator(`tr[data-casual="${zoe}"]`);
+    await expect(allRow.getByRole("cell").nth(1)).toContainText(TAGS);
+    await expect(allRow.getByRole("cell").nth(2)).toHaveText("Missing"); // no staff photo yet
+    await expect(allRow.getByRole("cell").nth(3)).toHaveText("Not set");
+    await expect(allRow.getByRole("cell").nth(4)).toHaveText(String(strikes));
+    await page.goto(`${acme}/office/casuals?view=needs`);
     await expect(row.getByRole("cell").nth(0)).toHaveText(/^ZA\s*Zoe Adeyemi/);
 
     // Her page, on a phone again.

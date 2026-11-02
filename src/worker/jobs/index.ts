@@ -57,6 +57,7 @@ import { enquiryReplyTask, type EnquiryReplyPayload } from "../../lib/notices/en
 import { requestUpdateTask, type RequestUpdatePayload } from "../../lib/notices/request-update";
 import { shiftConfirmedTask, type ShiftConfirmedPayload } from "../../lib/notices/shift-confirmed";
 import { askAnswerTask, type AskAnswerPayload } from "../../lib/notices/ask-answer";
+import { casualReminderTask, type CasualReminderPayload } from "../../lib/credentials/remind";
 import { officeOfferTask, type OfficeOfferPayload } from "../../lib/offers/office-offer";
 import { strikesEmailLinkTask, type StrikesEmailLinkPayload } from "../../lib/office/strikes-email";
 import { strikeEvidenceTask } from "../../lib/strikes/evidence";
@@ -148,6 +149,7 @@ export interface JobDeps {
   firmChangeNotices?: FirmTask<FirmChangeNoticePayload>;
   shiftConfirmed?: FirmTask<ShiftConfirmedPayload>;
   askAnswers?: FirmTask<AskAnswerPayload>;
+  casualReminders?: FirmTask<CasualReminderPayload>;
   requestUpdates?: FirmTask<RequestUpdatePayload>;
   enquiryReplies?: FirmTask<EnquiryReplyPayload>;
   payDigest?: FirmTask<PayDigestPayload>;
@@ -263,6 +265,8 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   await registerFirmTask(boss, deps.shiftConfirmed ?? shiftConfirmedTask);
   // Telling a casual who asked for a session they weren't booked (Phase 26.6).
   await registerFirmTask(boss, deps.askAnswers ?? askAnswerTask);
+  // The office's "Remind" on Casuals (Phase 26.7): the licence message again.
+  await registerFirmTask(boss, deps.casualReminders ?? casualReminderTask);
   await registerFirmTask(boss, deps.requestUpdates ?? requestUpdateTask);
   // The office's reply to a message on the shifts line (Enquiries, 12D.1).
   await registerFirmTask(boss, deps.enquiryReplies ?? enquiryReplyTask);

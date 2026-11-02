@@ -489,6 +489,41 @@ export const officePushSubscriptions = pgTable(
   ],
 ).enableRLS();
 
+// The office's notes about a casual (Phase 26.7, cas-4: "Add a note" on Casuals): who wrote it and
+// when, 1 to 500 characters, never a phone number or email address (checked when it's saved).
+// Personal data: in the casual's data export, deleted with their details (worker-erase.ts), and
+// never in the action log (casual.note_added holds no words). The app adds and deletes rows, never
+// rewrites one.
+export const casualNotes = pgTable(
+  "casual_notes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    workerId: uuid("worker_id").notNull(),
+    officeUserId: uuid("office_user_id").notNull(),
+    body: text("body").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("casual_notes_firm_id_id_key").on(t.firmId, t.id),
+    foreignKey({
+      name: "casual_notes_worker_fk",
+      columns: [t.firmId, t.workerId],
+      foreignColumns: [workers.firmId, workers.id],
+    }),
+    foreignKey({
+      name: "casual_notes_office_user_fk",
+      columns: [t.firmId, t.officeUserId],
+      foreignColumns: [officeUsers.firmId, officeUsers.id],
+    }),
+    index("casual_notes_firm_id_worker_id_idx").on(t.firmId, t.workerId, t.createdAt),
+    check("casual_notes_body_length", sql`char_length(${t.body}) between 1 and 500`),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();
+
 // A casual's travel area (docs/office-v2.md 4.6, 5.4; S8; 12G.1): where they start from (a postcode,
 // which can differ from home, and its central point: never a house number, GPS or movement), how
 // they travel and their time limit. Set on /profile/travel; one row per casual. A table of its own,

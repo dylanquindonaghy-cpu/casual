@@ -83,8 +83,40 @@ test("a resourcer opens a cancellation's record and downloads its PDF and the CS
     await officeLogin(page);
     await (await menuLink(page, "Cancellations")).click();
     await expect(page.getByRole("heading", { name: "Cancellations", level: 1 })).toBeVisible();
-    await expect(page.getByText("Cancellations this week")).toBeVisible();
+    // Round 8 (Phase 26.8): four counts, the four tabs with their counts, Every day · Today.
+    const counts = page.getByRole("list", { name: "Counts" });
+    for (const label of ["This week", "Under 48 hours' notice", "Strikes issued", "Last 8 weeks"]) {
+      await expect(counts.getByText(label, { exact: true })).toBeVisible();
+    }
+    const show = page.getByRole("navigation", { name: "Show" });
+    for (const name of [
+      /^All \d+$/,
+      /^Under 48 hours \d+$/,
+      /^Strikes \d+$/,
+      /^By the office \d+$/,
+    ]) {
+      await expect(show.getByRole("link", { name })).toBeVisible();
+    }
+    await expect(page.getByText("Red rows had under 48 hours' notice.")).toBeVisible();
     await noApproval(page);
+    // Rhona's: 4 or 5 days' notice (the session is 5 days ahead), no strike, not red.
+    const mine = page.locator("main [data-record]:visible").filter({ hasText: "Rhona Record" });
+    await expect(mine.getByText(/^[45] days$/)).toBeVisible();
+    await expect(mine.getByText("No strike · enough notice")).toBeVisible();
+    await expect(mine).not.toHaveClass(/bg-urgent-soft/);
+    // Under 48 hours: every row red (can-1); Strikes: each with its badge or struck through.
+    await show.getByRole("link", { name: /^Under 48 hours \d+$/ }).click();
+    await expect(page).toHaveURL(`${acme}/office/cancellations?view=under`);
+    for (const r of await page.locator("main [data-record]:visible").all()) {
+      await expect(r).toHaveClass(/bg-urgent-soft/);
+    }
+    await show.getByRole("link", { name: /^Strikes \d+$/ }).click();
+    await expect(page).toHaveURL(`${acme}/office/cancellations?view=strikes`);
+    for (const r of await page.locator("main [data-record]:visible").all()) {
+      await expect(r.getByText(/^(Strike \d+ issued|Strike withdrawn)$/)).toBeVisible();
+    }
+    await show.getByRole("link", { name: /^All \d+$/ }).click();
+    await expect(page).toHaveURL(`${acme}/office/cancellations`);
 
     const record = page.getByRole("link").filter({ hasText: "Rhona Record" }).first();
     await expect(record).toBeVisible();
@@ -93,6 +125,32 @@ test("a resourcer opens a cancellation's record and downloads its PDF and the CS
     await expect(page.getByRole("heading", { name: `Cancellation ${ref}` })).toBeVisible();
     const field = (label: string) =>
       page.locator("dt", { hasText: new RegExp(`^${label}$`) }).locator("+ dd");
+    // can-5: notice, strike and reason first; then the rest in §3.4's order.
+    await expect(page.locator("main dt")).toHaveText([
+      "Notice",
+      "Under 48 hours",
+      "Strike",
+      "Reason",
+      "Reference",
+      "Casual",
+      "Staff id",
+      "Event",
+      "Session",
+      "Site",
+      "Post",
+      "Pay rate",
+      "Requirements",
+      "Meeting point",
+      "Uniform",
+      "Booked at",
+      "Cancelled at",
+      "How",
+      "Live strikes now",
+      "Evidence email",
+      "Your planner",
+      "Then",
+      "Warning on the cancel screen",
+    ]);
     await expect(page.getByText(AS_IT_IS_NOW)).toBeVisible();
     await expect(field("Session")).toContainText("Steward");
     await expect(field("Site")).toHaveText(SITE);
@@ -127,18 +185,25 @@ test("a resourcer opens a cancellation's record and downloads its PDF and the CS
     expect(rows).toMatchObject({ kind: "cancellations_csv", view: "all" });
     expect(rows.rows).toBeGreaterThanOrEqual(1);
 
-    // Today's only ("Show only today's", under the views; the dashboard's "Cancellations today"
-    // until Phase 24): the file holds just the rows the page lists, fewer than every day's (the
-    // demo's cancellations are on earlier days), and is named with the date. "Show every day" goes
-    // back.
-    await page.getByRole("main").getByRole("link", { name: "Show only today's" }).click();
+    // Today's only (the "Today" tab beside the views, aud-15; "Show only today's" until Phase
+    // 26.8): the file holds just the rows the page lists, fewer than every day's (the demo's
+    // cancellations are on earlier days), and is named with the date. "Every day" goes back.
+    const days = page.getByRole("navigation", { name: "Which days" });
+    await expect(days.getByRole("link", { name: "Every day" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    // At least 44px tall (aud-15).
+    const box = await days.getByRole("link", { name: "Today" }).boundingBox();
+    expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+    await days.getByRole("link", { name: "Today" }).click();
     await expect(page).toHaveURL(`${acme}/office/cancellations?day=today`);
-    await expect(page.getByRole("main")).toContainText("Only today's.");
+    await expect(days.getByRole("link", { name: "Today" })).toHaveAttribute("aria-current", "page");
     await expect(page.getByRole("link", { name: "Download CSV" })).toHaveAttribute(
       "href",
       "/office/cancellations/export?view=all&day=today",
     );
-    const todayRows = await page.locator('main li a[href^="/office/cancellations/"]').count();
+    const todayRows = await page.locator("main [data-record]:visible").count();
     const todays = page.waitForEvent("download");
     await page.getByRole("link", { name: "Download CSV" }).click();
     const todayFile = await todays;
@@ -152,11 +217,9 @@ test("a resourcer opens a cancellation's record and downloads its PDF and the CS
     expect(today.rows).toBe(todayRows);
     expect(today.rows).toBeGreaterThanOrEqual(1);
     expect(today.rows).toBeLessThan(rows.rows);
-    await page.getByRole("main").getByRole("link", { name: "Show every day" }).click();
+    await days.getByRole("link", { name: "Every day" }).click();
     await expect(page).toHaveURL(`${acme}/office/cancellations`);
-    await expect(
-      page.getByRole("main").getByRole("link", { name: "Show only today's" }),
-    ).toBeVisible();
+    await expect(days.getByRole("link", { name: "Today" })).toBeVisible();
 
     // Started from another site (or another firm's address): refused, nothing logged.
     for (const site of ["cross-site", "same-site"]) {

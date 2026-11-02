@@ -15,6 +15,7 @@ export const DASHBOARD_CARDS = [
   "cancellations",
   "fillRate",
   "noShows",
+  "watchList",
 ] as const;
 export type DashboardCard = (typeof DASHBOARD_CARDS)[number];
 
@@ -30,6 +31,7 @@ export const CARD_WORDS: Record<DashboardCard, { name: string; line: string }> =
   cancellations: { name: "Cancellations", line: "By week, under 48 hours in red" },
   fillRate: { name: "Fill rate", line: "Booked of needed, per contract" },
   noShows: { name: "No-shows", line: "By week" },
+  watchList: { name: "Watch list", line: "Least reliable who are booked" },
 };
 
 // What's saved: a set of known cards (unknown ones dropped, each once, in the dashboard's order).

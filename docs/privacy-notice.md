@@ -29,7 +29,9 @@ Replace the parts in [brackets]. Send both parts.
 > upload; the days you've told us you can't work; the shifts you're
 > offered, take, work, miss or cancel, with the notice given and the reason; requests you send us
 > and our answers; your hours, pay rates and pay dates as our payroll records them, and any pay
-> questions you raise; how you want to hear from us (WhatsApp or text); when you log in; and, if you
+> questions you raise; how you want to hear from us (WhatsApp or text); when you log in; notes our
+> office writes about you (such as "bringing the new card on Friday"), and when it reminded you about
+> a licence; and, if you
 > turn on notifications on a phone, that phone's notification address. Notifications can show on
 > your phone's lock screen: they say what the shift is (the role, the place, the day and time) or
 > that we've answered you, never your pay or anyone's details. You can turn them off on your
@@ -87,6 +89,20 @@ Replace the parts in [brackets]. Send both parts.
 > removed. We never use face matching or read your card automatically. We ask for a new photo
 > every [3 years].
 >
+> **Your reliability:** from your own shifts over the last 90 days, the app works out how many you
+> worked, out of those plus no-shows and cancellations with under 48 hours' notice. It's a fixed
+> sum, never AI. Until you have 5 of those it says "New" and shows the counts. You see it on your
+> profile, and our office sees the same figure, with labels from the same records (such as
+> "Regular" if you worked in 6 of the last 8 weeks). The office uses it when it chooses who to book
+> from the people who asked for a shift, and to see who might need a call. It doesn't change which
+> shifts you're offered, and nothing happens to you automatically: a person decides anything that
+> follows. We use it because it's in our interest to staff shifts reliably (our legitimate
+> interest; you can object, and you can ask us to correct a shift we marked wrongly).
+>
+> **Notes about you:** someone in our office can write a short note about you (up to 500
+> characters, never a phone number or email address, and never your health or other personal
+> details). It's kept with your details, not sent to you or anyone else.
+>
 > **Cancelling at short notice (strikes):** if you cancel a shift less than [48] hours before it
 > starts, you get a strike. You see this before you confirm, and we keep which warning you saw. A
 > strike is a record, not a fine: it never comes off your pay, and nothing happens to you
@@ -122,7 +138,7 @@ Replace the parts in [brackets]. Send both parts.
 > stopped, [12 months] after the request closed or the booking was made. Login links and codes, 7
 > days after they run out; login sessions, 30 days after they end. A photo or card picture we
 > turned down, or an old photo you've replaced, 30 days later. A strike, [12 months] after it was
-> given. Your travel area, until you remove it or we record that you've left [if the firm stops
+> given. A note our office wrote about you, [until you leave us / for [period]]. Your travel area, until you remove it or we record that you've left [if the firm stops
 > using travel areas: say whether the areas already saved are deleted then, or kept unused until
 > you leave (docs/dpia-travel.md, Part 2 item 3)]. A phone's
 > notification address, until you turn notifications off on it, log out on it, or its push service
@@ -136,7 +152,7 @@ Replace the parts in [brackets]. Send both parts.
 > email, staff number, licences, photos and card pictures, travel area, days off, messages and
 > logins are deleted, and so are the notes on your own
 > requests, pay questions and cancellations, the reasons our office typed when it placed you on a
-> shift, and its reasons for withdrawing a strike. The record of the shifts you were offered, worked or cancelled, and your pay records,
+> shift, its reasons for withdrawing a strike, and its notes about you. The record of the shifts you were offered, worked or cancelled, and your pay records,
 > stay without your name, because we must be able to show the notice we gave and what we paid.
 > What other people wrote that mentions you (a colleague's swap request or pay question naming you,
 > say, or a message someone else sent us) isn't changed by your request: some of it is deleted on
@@ -167,6 +183,14 @@ Replace the parts in [brackets]. Send both parts.
   (`docs/runbooks.md` "GDPR requests"). A firm that must keep licence-check records after someone
   leaves (BS 7858, SIA rules) should say so here: today a deletion removes them (parked in "GDPR
   follow-ups", for you to confirm).
+- **Reliability and notes** (Phase 26.7; decision 3): the sum and its labels are in
+  `src/lib/rules/reliability.ts` (90 days, 5 before it's a figure, 48 hours' notice; Regular, Reliable,
+  Cancel often, Not worked lately), the same for every firm today. It's profiling in UK GDPR's sense
+  (a person's reliability, evaluated from their records), so the notice names it and the right to
+  object; it isn't a solely automated decision with legal or similar effect, because a person
+  chooses who to book and the offer order doesn't read it (cas-7). How long the office's notes are
+  kept is decision 12 (`docs/plan/decisions-waiting.md`): until then they stay until the casual is
+  deleted, so fill the bracket with "until you leave us" only once a firm deletes leavers' details.
 - **The Google line** only if the firm's rota is a Google Sheet (onboarding step 5).
 - **The logo line** only if the firm sets a logo (`npm run firm:brand -- --logo …`).
 - **Strikes, photos and the planner** (Phase 12): the numbers in brackets are the firm's own

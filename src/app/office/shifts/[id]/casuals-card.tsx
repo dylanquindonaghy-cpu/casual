@@ -14,16 +14,11 @@ import {
   clockTime,
   holdsLine,
   MOST_RELIABLE_FIRST,
-  reliabilityText,
   whenText,
   type FilterKey,
 } from "@/lib/office/session-page-copy";
-import {
-  CASUALS_TABS,
-  type CasualsTab,
-  type SessionCasual,
-  type SessionCasuals,
-} from "@/lib/office/session-casuals";
+import { CASUALS_TABS, type CasualsTab, type SessionCasuals } from "@/lib/office/session-casuals";
+import { ReliabilityBar } from "../../reliability-bar";
 import { BookButton, RowMenu } from "./casual-actions";
 
 // "Casuals for this session" (Phase 26.6, ses-2 and ses-3; docs/screens.md "A session, round 8"):
@@ -33,8 +28,6 @@ import { BookButton, RowMenu } from "./casual-actions";
 // reliability with its band's bar, how far, and the row's chip ("Asked 14:02"); "Book" where the
 // rules say yes and a place is free, and a "…" menu with "Not this time" for an ask still waiting.
 // The Booked tab shows the session's own bookings (`booked`: cancel one, mark who worked).
-
-const BAND_BAR = { green: "bg-done-fill", amber: "bg-attention", red: "bg-urgent-fill" };
 
 export type CasualsQuery = {
   show: CasualsTab;
@@ -50,23 +43,6 @@ export function casualsHref(shiftId: string, q: CasualsQuery, change: Partial<Ca
   if (next.filters.here) params.set("here", "1");
   const s = params.toString();
   return `/office/shifts/${shiftId}${s ? `?${s}` : ""}`;
-}
-
-function Reliability({ c }: { c: SessionCasual }) {
-  const r = c.reliability;
-  return (
-    <span className="flex flex-col gap-1">
-      <span className="font-semibold text-ink tabular-nums">{reliabilityText(c)}</span>
-      {r.kind === "figure" && (
-        <span aria-hidden="true" className="h-1.5 w-20 overflow-hidden rounded-full bg-line">
-          <span
-            className={`block h-full rounded-full ${BAND_BAR[r.band]}`}
-            style={{ width: `${r.percent}%` }}
-          />
-        </span>
-      )}
-    </span>
-  );
 }
 
 export function CasualsCard({
@@ -162,7 +138,7 @@ export function CasualsCard({
                   <span className="block text-sm text-ink-muted">{holdsLine(c)}</span>
                 </span>
                 <div className="col-span-2 flex flex-wrap items-center gap-x-4 gap-y-2 @min-[40rem]:contents">
-                  <Reliability c={c} />
+                  <ReliabilityBar reliability={c.reliability} />
                   <span className="text-sm text-ink tabular-nums">{distanceText(c)}</span>
                   <span>
                     <StatusChip

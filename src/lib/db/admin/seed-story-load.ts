@@ -433,6 +433,17 @@ export async function loadStory(
         data: { by: "firm", shiftId: b.shiftId, workerId: b.workerId, from: "confirmed" },
       });
     }
+    if (b.status === "no_show") {
+      // Marked as not attending by the office after the shift (aud-14's history).
+      await recordEvent(tx, {
+        actorType: "office",
+        actorId: resourcer,
+        action: "shift.no_show",
+        entityType: "assignment",
+        entityId: b.id,
+        data: { by: "firm", shiftId: b.shiftId, workerId: b.workerId, from: "confirmed" },
+      });
+    }
     if (b.status !== "cancelled_worker" && b.status !== "cancelled_firm") continue;
     const byFirm = b.status === "cancelled_firm";
     const cancelEvent = await recordEvent(tx, {

@@ -5,12 +5,18 @@ import {
   CANCELLATIONS_CSV_HEADER,
   CASUAL_OWN_REASON,
   cancellationsCsv,
+  cancelledLine,
+  countTiles,
   evidenceText,
   exportReason,
   howText,
   isThenPlace,
+  noticeShort,
   OFFICE_OWN_REASON,
+  RED_ROWS,
   recordFields,
+  sessionLine,
+  strikeBadge,
   strikeShort,
   strikeText,
   thenText,
@@ -168,6 +174,121 @@ describe("the record's fields", () => {
       cancellations: "9 by casuals · 2 by the office",
       strikes: "3 strikes issued",
     });
+  });
+});
+
+// Round 8 (Phase 26.8; docs/screens.md "Cancellations, round 8"): the four counts, the notice chip,
+// the strike badge and the list's lines.
+describe("the list, round 8", () => {
+  it("the four counts (can-3): this week, under the threshold, strikes, the last 8 weeks", () => {
+    const tiles = countTiles(
+      {
+        week: { byCasuals: 2, byOffice: 0, strikes: 0, under: 0 },
+        overall: { under: 5, liveStrikes: 3, last8: 17, last8Under: 9 },
+      },
+      48,
+    );
+    expect(tiles.map((t) => [t.label, t.value, t.line, t.urgent])).toEqual([
+      ["This week", 2, "2 by casuals · 0 by the office", false],
+      ["Under 48 hours' notice", 0, "This week · 5 in all", false],
+      ["Strikes issued", 0, "This week · 3 counting now", false],
+      ["Last 8 weeks", 17, "Cancellations, 9 under 48 hours", false],
+    ]);
+    // Under the threshold this week: red. The firm's own threshold names it.
+    const hot = countTiles(
+      {
+        week: { byCasuals: 1, byOffice: 1, strikes: 1, under: 1 },
+        overall: { under: 1, liveStrikes: 1, last8: 2, last8Under: 1 },
+      },
+      24,
+    );
+    expect(hot[1]).toEqual({
+      label: "Under 24 hours' notice",
+      value: 1,
+      line: "This week · 1 in all",
+      urgent: true,
+    });
+    expect(hot[0]?.line).toBe("1 by a casual · 1 by the office");
+    expect(RED_ROWS(48)).toBe("Red rows had under 48 hours' notice.");
+  });
+
+  it("the notice chip (can-2): hours or days, without 'notice'", () => {
+    expect(noticeShort(0.5)).toBe("less than an hour");
+    expect(noticeShort(1.2)).toBe("1 hour");
+    expect(noticeShort(6)).toBe("6 hours");
+    expect(noticeShort(30.9)).toBe("30 hours");
+    expect(noticeShort(48)).toBe("2 days");
+    expect(noticeShort(98)).toBe("4 days");
+  });
+
+  it("the strike badge (can-2): issued with its number and date, review, withdrawn, or why none", () => {
+    const live = row().strike;
+    if (!live) throw new Error("no strike");
+    expect(
+      strikeBadge(row({ strike: { ...live, number: 2, counting: true, reviewNeeded: false } }), TZ),
+    ).toEqual({
+      kind: "issued",
+      text: "Strike 2 issued",
+      line: "Counts until Thu 4 Feb",
+      review: false,
+    });
+    expect(
+      strikeBadge(row({ strike: { ...live, number: 1, counting: false, reviewNeeded: true } }), TZ),
+    ).toEqual({
+      kind: "issued",
+      text: "Strike 1 issued",
+      line: "Stopped counting Thu 4 Feb",
+      review: true,
+    });
+    expect(strikeBadge(row({ strike: { ...live, status: "withdrawn" } }), TZ)).toEqual({
+      kind: "withdrawn",
+      text: "Strike withdrawn",
+    });
+    const none = (o: Partial<CancellationRow>) => strikeBadge(row({ strike: null, ...o }), TZ).text;
+    expect(none({ strikeCode: "enough_notice" })).toBe("No strike · enough notice");
+    expect(none({ strikeCode: "strikes_off" })).toBe("No strike · strikes are off");
+    expect(none({ strikeCode: "booked_by_office" })).toBe("No strike · booked by the office");
+    expect(none({ strikeCode: "rules_override" })).toBe(
+      "No strike · booked over a rest or hours rule",
+    );
+    expect(none({ strikeCode: "changed_after_booking" })).toBe(
+      "No strike · the office changed it after booking",
+    );
+    expect(none({ strikeCode: null })).toBe("No strike · from before strikes");
+    // The firm cancelled: who, whatever the code says.
+    expect(none({ by: "office", strikeCode: "by_firm" })).toBe("No strike · the office cancelled");
+    expect(none({ by: "planner", via: "api", strikeCode: "by_firm" })).toBe(
+      "No strike · your planner cancelled",
+    );
+    expect(none({ by: "sheet", via: "sheet", strikeCode: null })).toBe(
+      "No strike · cancelled on the rota sheet",
+    );
+  });
+
+  it("the Cancelled and session lines: the office's fixed reason, never a casual's", () => {
+    // 18:00 GMT on Fri 6 Nov.
+    expect(cancelledLine(row(), TZ)).toBe("18:00 Fri 6 Nov · in the app");
+    expect(
+      cancelledLine(
+        row({ by: "office", via: "office", officeName: "Sam Rota", reason: "Weather or safety" }),
+        TZ,
+      ),
+    ).toBe("18:00 Fri 6 Nov · by the office (Sam Rota) · weather or safety");
+    // Typed words and "Another reason" stay off the list.
+    expect(
+      cancelledLine(row({ by: "office", via: "office", officeName: null, reason: "Typed" }), TZ),
+    ).toBe("18:00 Fri 6 Nov · by the office");
+    expect(
+      cancelledLine(
+        row({ by: "office", via: "office", officeName: null, reason: "Another reason" }),
+        TZ,
+      ),
+    ).toBe("18:00 Fri 6 Nov · by the office");
+    expect(cancelledLine(row({ by: "planner", via: "api", reason: "Weather or safety" }), TZ)).toBe(
+      "18:00 Fri 6 Nov · by your planner · weather or safety",
+    );
+    expect(sessionLine(row(), TZ)).toBe("Door supervisor · Riverside Arena · Sat 7 Nov 14:00");
+    expect(sessionLine(row({ siteName: null }), TZ)).toBe("Door supervisor · Sat 7 Nov 14:00");
   });
 });
 

@@ -44,6 +44,7 @@ architecture.md, Tenancy).
 | strikes | A strike issued for a casual's own late cancellation (one per booking), its review flag, withdrawal and evidence email (12C.1) | 12 |
 | requests | Time changes, swaps, general asks, reviews of refused shifts, and their status | 2 |
 | offers | Each offer sent (in a wave, or by the office to one worker) and the response (table Phase 2; waves Phase 4; office offers Phase 5) | 2 |
+| casual_notes | The office's notes about a casual: who wrote it, when, 1 to 500 characters (26.7). Deleted with the casual's details | 26 |
 | session_asks | A casual's "I can do this" for a session where the office chooses, and how it ended: booked, "Not this time", or closed (26.6) | 26 |
 | shift_reminders | Each 24 h / 2 h reminder a booking got (sent, failed or skipped for quiet hours) | 4 |
 | messages | Every inbound/outbound message (WhatsApp, SMS, email, voice, portal) | 7 |

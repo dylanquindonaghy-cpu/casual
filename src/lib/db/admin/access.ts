@@ -73,6 +73,9 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   push_subscriptions: CRUD,
   // An office user's browser for notifications (Phase 26.4): the same, for "Tell me about".
   office_push_subscriptions: CRUD,
+  // The office's notes about a casual (Phase 26.7): added, and deleted with the casual's details;
+  // never rewritten.
+  casual_notes: ["SELECT", "INSERT", "DELETE"],
   // A site a worker may not work at: added and removed by the office (both logged), never edited.
   worker_site_blocks: ["SELECT", "INSERT", "DELETE"],
   // Strikes (12C.1): issued, then reviewed, withdrawn or emailed (COLUMN_UPDATES), never rewritten

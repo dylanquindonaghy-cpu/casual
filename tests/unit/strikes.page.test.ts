@@ -313,6 +313,7 @@ describe("the casual's Strikes on Profile", () => {
   });
 
   const profile: Profile = {
+    reliability: { kind: "new", counted: 0, counts: { worked: 0, noShows: 0, lateCancels: 0 } },
     firstName: "Ann",
     lastName: "Booker",
     mobile: "+447700900123",

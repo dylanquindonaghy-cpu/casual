@@ -87,7 +87,7 @@ export interface StoryBooking {
   shiftId: string;
   slot: number;
   workerId: string;
-  status: "confirmed" | "completed" | "cancelled_worker" | "cancelled_firm";
+  status: "confirmed" | "completed" | "no_show" | "cancelled_worker" | "cancelled_firm";
   confirmedAt: Date;
   bookedNoticeHours: number;
   cancelledAt: Date | null;
@@ -752,6 +752,62 @@ export function acmeStory(firm: SeedFirm, now: Date): StorySeed {
       pay: S.steward,
     }),
   ];
+  // aud-14 (Phase 26.7): 10 past weeks of made-up history, so the demo's charts and reliability
+  // aren't empty: three sessions a week at the story's venues, 16 to 83 days ago (clear of the
+  // story's own past sessions, nothing new to mark, and the walkthrough's lists stay as they are), worked by six of the story's casuals
+  // (never Zoe or Kieran, whom the walkthrough follows), mostly marked worked, the odd no-show.
+  const HISTORY = [
+    {
+      who: ["ben", "priya", "mo"] as StoryKey[],
+      role: "steward",
+      site: riverside,
+      time: "11:00",
+      hours: 8,
+      post: "Gate 2",
+      meet: "Volunteer tent by the river gate",
+      pay: S.steward,
+    },
+    {
+      who: ["leah", "jamal", "tom"] as StoryKey[],
+      role: "door_supervisor",
+      site: arena,
+      time: "18:00",
+      hours: 6,
+      post: "North entrance",
+      meet: "Staff entrance, Gate C",
+      pay: S.ds,
+    },
+    {
+      who: ["mo", "jamal"] as StoryKey[],
+      role: "csas_officer",
+      site: northgate,
+      time: "19:00",
+      hours: 6,
+      post: "Market Square patrol",
+      meet: "The Demo Town Centre police box",
+      pay: S.csas,
+    },
+  ];
+  for (let week = 3; week <= 12; week++) {
+    HISTORY.forEach((h, i) => {
+      sessions.push(
+        session(`hist-${week}-${i}`, {
+          event: null,
+          site: h.site,
+          role: h.role,
+          // Days 3, 5 and 1 of each week back: clear of the story's own past sessions (a casual
+          // always has 11 hours' rest, as the rules want).
+          start: on(-7 * week + [3, 5, 1][i]!, h.time),
+          hours: h.hours,
+          headcount: h.who.length,
+          booked: h.who.length,
+          post: h.post,
+          meet: h.meet,
+          pay: h.pay,
+        }),
+      );
+    });
+  }
   const sessionOf = (key: string) => {
     const s = sessions.find((x) => x.id === id(`session/${key}`));
     if (!s) throw new Error(`no story session ${key}`);
@@ -837,6 +893,15 @@ export function acmeStory(firm: SeedFirm, now: Date): StorySeed {
   book("past-patrol", "mo", 2, { status: "completed" });
   book("past-riverside", "ben", 1, { status: "completed" });
   book("past-riverside", "priya", 2, { status: "completed" });
+  // The history's bookings (aud-14): worked, with the odd no-show (Priya's and Tom's, now and then).
+  for (let week = 3; week <= 12; week++) {
+    HISTORY.forEach((h, i) => {
+      h.who.forEach((key, slot) => {
+        const noShow = (key === "priya" && week % 4 === 1) || (key === "tom" && week % 5 === 0);
+        book(`hist-${week}-${i}`, key, slot + 1, { status: noShow ? "no_show" : "completed" });
+      });
+    });
+  }
 
   // Strikes: each casual's own cancellation inside the firm's notice, issued as it was cancelled,
   // counting for the firm's strikes.live_days.

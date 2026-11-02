@@ -508,6 +508,110 @@ panel.
 - **Take shift** on a session the office has just switched to choosing: "The office now chooses who
   works this one. Ask for it instead." with **Ask for it** (the page again, with I can do this).
 
+## Casuals, round 8 (Phase 26.7)
+
+`/office/casuals` for admins and resourcers, as the mock-up's Casuals (the spec page's "Casuals:
+reliability and chasing", cas-1 to cas-7; aud-11, aud-12, aud-14; decision 3). Words:
+`src/lib/office/casuals-copy.ts` and `follow-up-copy.ts`; data: `src/lib/office/casuals.ts`; the
+rules: `src/lib/rules/reliability.ts`. This section wins over the older `/office/casuals` rows
+below where they differ.
+
+- **Reliability** (cas-1, decision 3): over the last 90 days, worked ÷ (worked + no-shows +
+  cancellations under 48 hours' notice), from what the office marked and what was logged, never by
+  AI; "{98%}" with a green (90%+), amber (75%+) or red bar; under 5 counted shifts "New: {3} shifts
+  so far" (aud-11). It changes nobody's place in the offers (cas-7).
+- **The head:** "Casuals", "{68} casuals · reliability over the last 90 days"; the search ("Name or
+  mobile number") at the top right; on Need updating, **Remind all {6}** (the casuals below with a
+  licence out of date or expiring, not sorted, and not reminded in the last 24 hours).
+- **Four counts** (cas-2), each a link to its tab: **Regulars** ("Worked 6 of the last 8 weeks"),
+  **Reliable** ("95% or more, of {52} who worked"), **Cancel often** (red when any: "3 or more under
+  48 hours"), **Not worked lately** ("Nothing in 60 days"). Active casuals only.
+- **Tabs** ("Show"), each with its count: All, Regulars, Reliable, Cancel often, Not worked lately,
+  Need updating, Uploads to check (as before); and the sort (cas-3): "By name" ("Most urgent first"
+  on Need updating), "Least reliable first", "Last worked longest ago", "Most strikes first".
+- **The list** (one glass table from 768px, stacked cards on a phone): each casual's name and roles
+  (and the office's latest note: "Note: …"), then on All and the standing tabs their
+  qualifications, staff photo, travel area, live strikes and "Last worked" ("{28 Oct}", "Never"),
+  their reliability, and a **"…"** ("More for {name}"): **Call {Ruth}** (their phone), **Add a
+  note** (up to 500 characters, never a phone number or email address: "Note added."; kept with
+  them, never in the log; under the box: "For the office only. Don't write health or other personal
+  details, phone numbers or email addresses."), **Mark as sorted** (while something needs updating) and "See {Ruth}'s
+  page".
+- **Need updating** (cas-4, cas-5): active casuals with a qualification to update, or a missing or
+  overdue staff photo; the worst first, a photo alone after them, the office's "sorted" ones last.
+  Columns: Out of date (chips: "SIA DS: expired 28 Sep", "Staff photo: missing", "{2} live
+  strikes"), Last reminder ("Reminded by {Ann} · {14:02}" or "· {28 Oct}", "Sent automatically ·
+  {28 Oct}" for the daily scan's, "Not reminded"; "Sorted by {Ann} · {date}" once sorted),
+  Reliability, and **Remind** ("Remind: {name}") for a licence out of date or expiring: the
+  licence message again (`credential_expired` / `credential_expiring`, with its upload link where
+  they may upload it), "Reminder on its way. It's in the log." ("{3} reminders on their way."; at
+  night it waits for the morning; not twice in 24 hours: "One was reminded
+  in the last 24 hours, so not again."); then "Reminded". Under the list: "Remind sends the licence
+  message again with its upload link: by their chosen way (WhatsApp or text), else email. Each one
+  is logged. They can't take shifts that need it until the new one is checked." "Mark as sorted"
+  ("Marked as sorted. They move to the end of the list until something else changes.") holds while
+  the worst thing it was about stands; a new problem shows them again.
+- **A casual's page** (cas-6): **Reliability** (the figure and bar, "{19} worked · {1} no-show · {0}
+  late cancellations · last 90 days", chips "Regular", "Reliable", "Cancels often", "Not worked
+  lately", "Last worked {28 Oct}." or "Not worked yet.") and **Notes** (newest first, "{Ann} · {14:02
+  on Mon 2 Nov}", "No notes yet.", and the add form).
+- **In the casual app** (cas-6), Profile: **Your reliability**: "{98%} over the last 90 days" or
+  "{New: 3 shifts so far}. It shows as a figure once you have 5.", the counts, and "Shifts you
+  worked, out of those plus no-shows and cancellations with under 48 hours' notice. Our office sees
+  the same figure. It doesn't change which shifts you're offered."
+- **The dashboard's Watch list** (cus-3, under Customise): casuals booked in the next 14 days whose
+  reliability is under 90%, least reliable first (at most 6), each with their figure and bar and
+  their next booked session (links to them and to it); "Reliability over the last 90 days, of
+  casuals booked in the next 14 days"; empty: "Nobody booked in the next 14 days is under 90%.
+  Anyone who is shows here, least reliable first."
+- **Updates' "Mark who worked"** (aud-12): a session still not marked 2 days after it ended (back to
+  28 days) is in Needs action: "Mark who worked: {3} people not marked yet", "{Steward, Acme Demo
+  Racecourse, Sun 1 Nov 10:30}", **Mark who worked** (its Booked list); the 08:00 summary counts it.
+- **The demo** (aud-14): 10 weeks of made-up history (three sessions a week at the story's venues,
+  16 to 83 days ago), worked by six of the story's casuals with the odd no-show, so reliability, the
+  counts and the charts have something to show; the walkthrough's people and lists are as before.
+
+## Cancellations, round 8 (Phase 26.8)
+
+`/office/cancellations` and its records, for admins and resourcers, as the mock-up's Cancellations
+(the spec page's "Cancellations", can-1 to can-5; aud-15). Words: `src/lib/office/cancellations-copy.ts`;
+data: `src/lib/office/cancellations.ts`. This section wins over the `/office/cancellations` rows
+below where they differ; the rest of them stands (the CSV, the PDF, the downloads' checks, Resend
+evidence, Withdraw and Keep).
+
+- **Four counts** (can-3), not links: **This week** "{2}", "{2} by casuals · {0} by the office" (the
+  firm's Monday to Sunday); **Under {48} hours' notice** "{0}", "This week · {5} in all" (red when
+  it isn't 0); **Strikes issued** "{0}", "This week · {3} counting now"; **Last 8 weeks** "{17}",
+  "Cancellations, {9} under {48} hours" (this week and the 7 before). They replace "Under 48 hours'
+  notice this week" over the strikes figure. {48} is the firm's `strikes.notice_hours`.
+- **Tabs** ("Show", can-4), each with its count: All, Under {48} hours, Strikes (every cancellation
+  that gave a strike, withdrawn ones too), By the office (the firm: the office, its planner or its
+  rota sheet). Beside them (aud-15), "Which days": **Every day** and **Today** (tabs at least 44px
+  tall, `?day=today`: since midnight, the firm's time; the tabs' counts follow it). "Red rows had
+  under {48} hours' notice." under them.
+- **The list** (one glass table from 768px, stacked cards on a phone; newest first, at most 100):
+  - **Casual and session:** the name (a link to the record), then "{Steward} · {Riverside Demo
+    Park} · {Thu 5 Nov 14:00}".
+  - **Cancelled:** "{09:06 Mon 2 Nov} · in the app", "· by the office (Sam Rota) · weather or
+    safety" (the office's reason only when it's one of its fixed reasons; never a casual's), "· by
+    your planner", "· removed on the rota sheet".
+  - **Notice** (can-2): "{6 hours}" as a chip, red under the threshold, grey otherwise ("less than
+    an hour", "1 hour", "{30} hours", "{3} days").
+  - **Strike** (can-2): "Strike {2} issued" as a red badge with "Counts until {Sat 23 Jan}"
+    ("Stopped counting {Sat 23 Jan}" once it has), and "Needs review" in amber while it's flagged
+    and nobody has kept it; "Strike withdrawn" struck through; otherwise grey "No strike · {why}":
+    enough notice, the office cancelled, your planner cancelled, cancelled on the rota sheet,
+    booked by the office, booked over a rest or hours rule, the office changed it after booking,
+    strikes are off, or from before strikes. {2}: how many of the casual's strikes counted when it
+    was issued, this one included.
+  - Rows with under {48} hours' notice are tinted red with a red edge, in every tab, All included
+    (can-1).
+- **A cancellation's record** (can-5): under the header, first **Notice** ("{6 hours' notice}
+  ({5.75} hours)", red under the threshold), **Under {48} hours**, **Strike** and **Reason** (as
+  given), with the strike's lines and Withdraw and Keep beneath; then every other field of §3.4's
+  table in its order. The PDF keeps §3.4's order.
+- Empty: Strikes "No strikes issued yet."; Today "No cancellations today."
+
 ## The office shell, round 7 (Phase 24)
 
 Dylan's approved round 7 of the Design canvas ("Round 7 exactly, layout too"; PLAN.md 24.2;

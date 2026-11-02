@@ -4,6 +4,7 @@ import { addDays, localDateOf, startOfDay } from "../time/zoned";
 import { sitesSql } from "./contract-scope";
 import { bookedJoin, placeFree } from "./events";
 import { offerStateSql } from "./offer-state";
+import { loadCasualRecords } from "./reliability";
 
 // The dashboard's extra cards (Phase 26.3; the spec page's cus-3, the pre-build audit's aud-9,
 // aud-10 and aud-13), each counted by code from the firm's own records, under the person's
@@ -188,4 +189,69 @@ export async function loadFillRates(
     needed: r.needed,
     booked: r.booked,
   }));
+}
+
+// Watch list (Phase 26.7; cus-3): casuals booked on sessions in the next 14 days whose reliability
+// is a figure under 90% (amber or red), least reliable first, each with their next booked session.
+// At most WATCH_MAX. New casuals (under 5 counted shifts) aren't on it: there's no figure yet.
+export const WATCH_MAX = 6;
+export const WATCH_BELOW = 90;
+
+export interface WatchCasual {
+  workerId: string;
+  name: string;
+  percent: number;
+  band: "green" | "amber" | "red";
+  next: { shiftId: string; role: string; startsAt: Date; site: string | null };
+}
+
+export async function loadWatchList(
+  tx: FirmTx,
+  now: Date,
+  timeZone: string,
+  sites: string[] | null,
+): Promise<WatchCasual[]> {
+  const after = addDays(localDateOf(now, timeZone), CARD_DAYS);
+  const { rows } = await tx.execute<{
+    worker_id: string;
+    first_name: string;
+    last_name: string;
+    shift_id: string;
+    role: string;
+    starts_at: Date | string;
+    site: string | null;
+  }>(sql`
+    select distinct on (a.worker_id) a.worker_id::text, w.first_name, w.last_name,
+           s.id::text as shift_id, s.role, s.starts_at, v.name as site
+      from assignments a
+      join workers w on w.firm_id = a.firm_id and w.id = a.worker_id
+      join shifts s on s.firm_id = a.firm_id and s.id = a.shift_id
+      ${eventJoin}
+      left join sites v on v.firm_id = s.firm_id and v.id = ${venue}
+     where a.status = 'confirmed' and s.status <> 'cancelled'
+       and s.starts_at >= ${now} and s.starts_at < ${startOfDay(after, timeZone)}
+       ${siteSql(sites)}
+     order by a.worker_id, s.starts_at, s.id
+  `);
+  if (rows.length === 0) return [];
+  const records = await loadCasualRecords(
+    tx,
+    now,
+    rows.map((r) => r.worker_id),
+  );
+  const out: WatchCasual[] = [];
+  for (const r of rows) {
+    const rel = records.get(r.worker_id)?.reliability;
+    if (!rel || rel.kind !== "figure" || rel.percent >= WATCH_BELOW) continue;
+    out.push({
+      workerId: r.worker_id,
+      name: `${r.first_name} ${r.last_name}`,
+      percent: rel.percent,
+      band: rel.band,
+      next: { shiftId: r.shift_id, role: r.role, startsAt: new Date(r.starts_at), site: r.site },
+    });
+  }
+  return out
+    .sort((a, b) => a.percent - b.percent || a.next.startsAt.getTime() - b.next.startsAt.getTime())
+    .slice(0, WATCH_MAX);
 }

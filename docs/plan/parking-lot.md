@@ -2150,3 +2150,11 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
 - **A sheet's or file import's retime and asks** (Phase 26.6 review): a session the rota sheet or a
   re-import moves (nobody booked) keeps its asks open, as it keeps its offers out (neither path
   expires them). Close both there too before a Sheets firm turns on "Casuals ask, you choose".
+- **Remind for a staff photo or a missing qualification** (Phase 26.7): "Remind" sends the licence
+  messages only (a licence out of date or expiring). A casual whose only need is a staff photo, or
+  a qualification they've never had, has no message to send yet: it needs a new WhatsApp template
+  ("Please add your staff photo…") and Meta's approval. Until then the office calls or messages
+  them.
+- **The office's notes and retention** (Phase 26.7): `casual_notes` are kept until the casual's
+  details are deleted. Add them to the year-old purge if the pilot shows notes going stale.
+

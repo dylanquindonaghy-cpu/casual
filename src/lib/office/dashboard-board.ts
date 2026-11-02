@@ -15,10 +15,12 @@ import {
   loadFillRates,
   loadNextTwoWeeks,
   loadNoShowWeeks,
+  loadWatchList,
   type CancelWeek,
   type ContractFill,
   type DayPlaces,
   type NoShowWeek,
+  type WatchCasual,
 } from "./dashboard-cards-data";
 import { bookedJoin, placeFree, urgentGap } from "./events";
 import { plannerLink, type PlannerLink } from "./integrations";
@@ -150,6 +152,7 @@ export interface Board {
   cancelWeeks: Part<CancelWeek[]> | null;
   noShowWeeks: Part<NoShowWeek[]> | null;
   fillRates: Part<ContractFill[]> | null;
+  watchList: Part<WatchCasual[]> | null;
 }
 
 export interface BoardOptions {
@@ -482,6 +485,9 @@ export async function loadBoard(tx: FirmTx, now: Date, opts: BoardOptions = {}):
       loadNoShowWeeks(sp, now, timeZone, sites),
     ),
     fillRates: await card("fillRate", "fill rate", (sp) => loadFillRates(sp, now, timeZone, sites)),
+    watchList: await card("watchList", "watch list", (sp) =>
+      loadWatchList(sp, now, timeZone, sites),
+    ),
   };
 }
 

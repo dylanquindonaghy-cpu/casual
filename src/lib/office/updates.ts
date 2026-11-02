@@ -37,11 +37,27 @@ export interface OpenSoon {
   urgent: boolean;
   offers: number; // offers sent for it, any answer
 }
-export type PageUpdate = Update | OpenSoon;
+// A session still not marked 2 days after it ended (Phase 26.7, aud-12): "Mark who worked"
+// (reliability counts only marked sessions). Looked for back to MARK_LOOKBACK_DAYS.
+export const MARK_AFTER_HOURS = 48;
+export const MARK_LOOKBACK_DAYS = 28;
+export interface ToMark {
+  kind: "to-mark";
+  at: Date; // when it ended
+  shiftId: string;
+  role: string;
+  site: string | null;
+  startsAt: Date;
+  unmarked: number;
+}
+export type PageUpdate = Update | OpenSoon | ToMark;
 
 // What needs someone to act now.
 export const needsAction = (u: PageUpdate): boolean =>
-  u.kind === "open-soon" || u.kind === "upload" || (u.kind === "cancelled" && u.reopened);
+  u.kind === "open-soon" ||
+  u.kind === "to-mark" ||
+  u.kind === "upload" ||
+  (u.kind === "cancelled" && u.reopened);
 
 // New since the person last marked Updates seen (what the bell counts): places taken, casuals'
 // cancellations, and uploads when they asked for them ("Tell me about"). Places still open and
@@ -114,6 +130,43 @@ async function loadOpenSoon(tx: FirmTx, now: Date, sites: string[] | null): Prom
   }));
 }
 
+// Sessions that ended more than MARK_AFTER_HOURS ago with bookings nobody marked, oldest first.
+async function loadToMark(tx: FirmTx, now: Date, sites: string[] | null): Promise<ToMark[]> {
+  const { rows } = await tx.execute<{
+    shift_id: string;
+    role: string;
+    site: string | null;
+    starts_at: string | Date;
+    ends_at: string | Date;
+    unmarked: number;
+  }>(sql`
+    select s.id::text as shift_id, s.role, coalesce(si.name, esi.name) as site, s.starts_at,
+           s.ends_at, count(a.id)::int as unmarked
+      from shifts s
+      join shift_events e on e.firm_id = s.firm_id and e.id = s.event_id
+      join assignments a on a.firm_id = s.firm_id and a.shift_id = s.id
+                        and a.worker_id is not null and a.status = 'confirmed'
+      left join sites si on si.firm_id = s.firm_id and si.id = s.site_id
+      left join sites esi on esi.firm_id = e.firm_id and esi.id = e.site_id
+     where s.status <> 'cancelled'
+       and s.ends_at <= ${new Date(now.getTime() - MARK_AFTER_HOURS * 3_600_000)}
+       and s.ends_at > ${new Date(now.getTime() - MARK_LOOKBACK_DAYS * 24 * 3_600_000)}
+       and ${sitesSql(sites)}
+     group by s.id, s.role, si.name, esi.name, s.starts_at, s.ends_at
+     order by s.ends_at, s.id
+     limit ${UPDATES_PAGE_SHOWN}
+  `);
+  return rows.map((r) => ({
+    kind: "to-mark",
+    at: new Date(r.ends_at),
+    shiftId: r.shift_id,
+    role: r.role,
+    site: r.site,
+    startsAt: new Date(r.starts_at),
+    unmarked: r.unmarked,
+  }));
+}
+
 async function firmTimeZone(tx: FirmTx): Promise<string> {
   const { rows } = await tx.execute<{ timezone: string }>(
     sql`select timezone from firms where id = app_current_firm_id()`,
@@ -167,9 +220,10 @@ export async function loadUpdatesPage(
   const sites = await mySites(tx, officeUserId);
   const seenAt = await seenAtOf(tx, officeUserId);
   const tellMe = await loadTellMe(tx, officeUserId);
-  const [events, soon] = [
+  const [events, soon, toMark] = [
     await loadUpdates(tx, now, sites, { hours: UPDATES_PAGE_HOURS, shown: UPDATES_PAGE_SHOWN }),
     await loadOpenSoon(tx, now, sites),
+    await loadToMark(tx, now, sites),
   ];
   const today = localDateOf(now, timeZone);
   return {
@@ -181,8 +235,8 @@ export async function loadUpdatesPage(
     newCount: await countNew(tx, now, seenAt, sites, tellMe.includes("uploads")),
     today: events.items.filter((u) => localDateOf(u.at, timeZone) === today).length,
     // Places still open, soonest start first; then the rest, newest first (as loadUpdates sorts).
-    needsAction: [...soon, ...events.items.filter(needsAction)],
-    everything: [...soon, ...events.items],
+    needsAction: [...soon, ...toMark, ...events.items.filter(needsAction)],
+    everything: [...soon, ...toMark, ...events.items],
     more: events.more,
   };
 }
@@ -282,6 +336,14 @@ export async function countNeedsAction(
           and a.cancelled_at <= ${now} and ${placeFree(now)} and ${sitesSql(sites)})
     + (select count(*) from uploads u
         where u.status = 'waiting' and u.created_at >= ${weekAgo} and u.created_at <= ${now})
+    + (select count(*) from shifts s
+        where s.status <> 'cancelled'
+          and s.ends_at <= ${new Date(now.getTime() - MARK_AFTER_HOURS * 3_600_000)}
+          and s.ends_at > ${new Date(now.getTime() - MARK_LOOKBACK_DAYS * 24 * 3_600_000)}
+          and ${sitesSql(sites)}
+          and exists (select 1 from assignments a
+                       where a.firm_id = s.firm_id and a.shift_id = s.id
+                         and a.worker_id is not null and a.status = 'confirmed'))
     as n
   `);
   return Number(rows[0]?.n ?? 0);

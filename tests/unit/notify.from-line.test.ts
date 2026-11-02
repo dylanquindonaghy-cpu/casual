@@ -68,6 +68,7 @@ describe("messages go from the firm's shifts line", () => {
   it("every call to sendToWorker(), deliverToWorker() or sendTextOrEmail() names `from`", () => {
     const calls = senderCalls();
     expect(calls.map((c) => c.path).sort()).toEqual([
+      "src/lib/credentials/remind.ts", // the office's "Remind" (Phase 26.7)
       "src/lib/credentials/scan.ts", // licence expiry messages (13.5)
       "src/lib/inbound/reply.ts",
       "src/lib/notices/ask-answer.ts", // not booked from an ask (Phase 26.6)
@@ -89,11 +90,12 @@ describe("messages go from the firm's shifts line", () => {
 
   it("every call to the shared senders passes the worker's own STOP setting", () => {
     const calls = senderCalls();
-    expect(calls).toHaveLength(11);
+    expect(calls).toHaveLength(12);
     // Never a hard-coded value: always the worker's, read with their channel.
     for (const c of calls) expect(c.args, c.path).toMatch(/\bsmsAllowed: \w+\.smsAllowed,/);
     // Where each reads it: the worker row's sms_opted_out_at.
     for (const path of [
+      "src/lib/credentials/remind.ts",
       "src/lib/credentials/scan.ts",
       "src/lib/inbound/reply.ts",
       "src/lib/notices/ask-answer.ts",

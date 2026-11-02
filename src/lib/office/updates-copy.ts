@@ -77,6 +77,17 @@ export function updateRow(u: PageUpdate, now: Date, timeZone: string): UpdateRow
       action: { label: "Offer the place", href: `/office/offer/${u.shiftId}` },
     };
   }
+  if (u.kind === "to-mark") {
+    return {
+      title: `Mark who worked: ${plural(u.unmarked, "person", "people")} not marked yet`,
+      line: [roleLabel(u.role), u.site, sessionWhen(u.startsAt, timeZone)]
+        .filter(Boolean)
+        .join(", "),
+      tone: "attention",
+      href: `/office/shifts/${u.shiftId}`,
+      action: { label: "Mark who worked", href: `/office/shifts/${u.shiftId}?show=booked` },
+    };
+  }
   const l = updateLines(u, timeZone);
   const base = { title: l.title, line: l.line, tone: l.tone, href: l.href };
   switch (u.kind) {
@@ -132,5 +143,7 @@ export function summaryLine(u: PageUpdate, now: Date, timeZone: string): string 
       return `A place taken: ${where(u)}`;
     case "no-reply":
       return `${plural(u.offers, "offer", "offers")} with no reply yet`;
+    case "to-mark":
+      return `${plural(u.unmarked, "person", "people")} not marked yet as worked: ${where(u)}`;
   }
 }

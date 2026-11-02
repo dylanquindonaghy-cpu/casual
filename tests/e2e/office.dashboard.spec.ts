@@ -544,15 +544,10 @@ test.describe("on a laptop with a mouse", () => {
     );
     // "Cancellations today" and a cancellation's record.
     await go(await menuLink(page, "Cancellations"), "/office/cancellations");
-    await go(
-      main.getByRole("link", { name: "Show only today's" }),
-      "/office/cancellations?day=today",
-    );
-    await go(main.getByRole("link", { name: "Show every day" }), "/office/cancellations");
-    await go(
-      main.locator('li a[href^="/office/cancellations/"]').first(),
-      /\/office\/cancellations\/[^/?]+$/,
-    );
+    const days = main.getByRole("navigation", { name: "Which days" });
+    await go(days.getByRole("link", { name: "Today" }), "/office/cancellations?day=today");
+    await go(days.getByRole("link", { name: "Every day" }), "/office/cancellations");
+    await go(main.locator("[data-record] a:visible").first(), /\/office\/cancellations\/[^/?]+$/);
     // "Enquiries today" and a message: on a laptop beside the list (Phase 24, 24.4); its row is
     // still a link to its own page (a phone's, and with a modifier key).
     await go(await menuLink(page, "Enquiries"), "/office/enquiries");

@@ -49,10 +49,11 @@ describe("the cards a person sees", () => {
     expect(readCards(null)).toEqual(DEFAULT_CARDS);
     expect(readCards("map")).toEqual(DEFAULT_CARDS);
     // Chosen: in the dashboard's order, each once, nothing unknown; none chosen is none.
-    expect(readCards(["noShows", "map", "watchList", "map", "fillRate"])).toEqual([
+    expect(readCards(["noShows", "map", "watchList", "map", "fillRate", "nope"])).toEqual([
       "map",
       "fillRate",
       "noShows",
+      "watchList",
     ]);
     expect(readCards([])).toEqual([]);
   });
@@ -67,6 +68,7 @@ describe("the cards a person sees", () => {
       "Cancellations",
       "Fill rate",
       "No-shows",
+      "Watch list",
     ]);
     expect(CARD_WORDS.cancellations.line).toBe("By week, under 48 hours in red");
   });
@@ -170,6 +172,7 @@ describe("Customise's form", () => {
       ["cancellations", false],
       ["fillRate", true],
       ["noShows", false],
+      ["watchList", false],
     ]);
     expect(html).toMatch(/<button type="submit"[^>]*>Save my dashboard<\/button>/);
   });
@@ -189,7 +192,13 @@ describe("Customise's form", () => {
 
 describe("the extra cards", () => {
   const ok = <T>(data: T) => ({ ok: true as const, data });
-  const none = { nextTwoWeeks: null, cancelWeeks: null, noShowWeeks: null, fillRates: null };
+  const none = {
+    nextTwoWeeks: null,
+    cancelWeeks: null,
+    noShowWeeks: null,
+    fillRates: null,
+    watchList: null,
+  };
 
   it("only the chosen ones; each with where its figures come from, its sentence and a table", () => {
     expect(renderToStaticMarkup(createElement(ExtraCards, { board: none }))).toBe("");
@@ -202,6 +211,7 @@ describe("the extra cards", () => {
             { week: "2026-10-26", short: 0, longer: 1 },
           ]),
           fillRates: ok([{ clientId: "c1", name: "Acme Demo Arena", needed: 4, booked: 3 }]),
+          watchList: null,
         },
       }),
     );
@@ -238,6 +248,7 @@ describe("the extra cards", () => {
           cancelWeeks: ok([{ week: "2026-10-26", short: 0, longer: 0 }]),
           noShowWeeks: { ok: false },
           fillRates: ok([]),
+          watchList: ok([]),
         },
       }),
     );

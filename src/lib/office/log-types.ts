@@ -98,6 +98,13 @@ export const LOG_TYPES = {
       "shift.booked_notice_failed",
       "shift.booked_notice_held",
       "shift.booked_notice_skipped",
+      // The office's "Remind" on Casuals (Phase 26.7): the licence message again.
+      "casual.reminded",
+      "casual.reminder_notice",
+      "casual.reminder_sent",
+      "casual.reminder_failed",
+      "casual.reminder_held",
+      "casual.reminder_skipped",
       // Telling a casual who asked that they weren't booked (Phase 26.6).
       "shift.ask_answer_notice",
       "shift.ask_answer_sent",
@@ -188,6 +195,9 @@ export const LOG_TYPES = {
       "worker.site_unblocked",
       "travel.profile_changed",
       "travel.profile_removed",
+      // Phase 26.7: the office's note about a casual (never its words) and "Mark as sorted".
+      "casual.note_added",
+      "casual.needs_sorted",
     ],
   },
   logins: {

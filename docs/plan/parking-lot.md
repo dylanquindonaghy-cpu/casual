@@ -2125,3 +2125,12 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   sessions; we're planner-first), "Call supervisor to cancel" inside 24 hours (we log the notice and
   strike), and a manager approving every application (instant booking stays; "Casuals ask, you
   choose" is per event).
+- **Development tools with known advisories** (`npm audit`, 2026-11-02, after Next went to 16.4.3,
+  zod to 4.6.6 and nodemailer to 10.1.4 for the advisories that reach the server). What's left is
+  in the test and lint tools only, never in the image (`npm prune --omit=dev`): vite 8.3.0 to 8.3.2
+  (high: launch-editor on Windows), vitest 5.0.0 to 5.0.2 (moderate: its mock server), and the
+  eslint chain's minimatch (moderate: a slow pattern). Move vitest and vite on when a patch release
+  is out a couple of weeks, and run the whole suite on it.
+- **The street map's file for each server** (Phase 26.2): the map shows streets only once someone
+  puts a UK `.pmtiles` file in the server's `maps` folder and sets `MAP_TILES_URL`
+  (`docs/runbooks.md` "The street map"). The demo server too, if the demo should show streets.

@@ -65,6 +65,9 @@ interface FakeOptions {
   starttls?: boolean;
   authReply?: string;
   rcptReply?: string;
+  // A server that answers DATA with 354 even when it refused every recipient (RFC 5321 says to
+  // refuse it: 503 or 554). Real ones refuse; nodemailer meets the lenient kind too.
+  dataWithoutRecipients?: boolean;
   bodyReply?: string;
   hangUpAfterBody?: boolean;
 }
@@ -90,6 +93,7 @@ function fakeServer(options: FakeOptions = {}): Promise<Fake> {
     let socket: net.Socket = raw;
     let secure = false;
     let inData = false;
+    let recipients = 0; // RCPT TOs accepted in this message
     let buffer = "";
     const reply = (...lines: string[]) => socket.write(lines.map((l) => `${l}\r\n`).join(""));
     const stalls = (at: Stall) => options.stall === at;
@@ -98,10 +102,14 @@ function fakeServer(options: FakeOptions = {}): Promise<Fake> {
       buffer += chunk.toString("latin1");
       for (;;) {
         if (inData) {
-          const end = buffer.indexOf("\r\n.\r\n");
+          // The message ends at a line of just "." (RFC 5321 4.1.1.4), the first line included:
+          // the line break before it can be DATA's own.
+          const empty = buffer.startsWith(".\r\n");
+          const end = empty ? 0 : buffer.indexOf("\r\n.\r\n");
           if (end === -1) return;
           fake.message = buffer.slice(0, end);
-          buffer = buffer.slice(end + 5);
+          buffer = buffer.slice(empty ? 3 : end + 5);
+          recipients = 0;
           inData = false;
           if (stalls("body")) return;
           if (options.hangUpAfterBody) return void socket.destroy();
@@ -154,9 +162,15 @@ function fakeServer(options: FakeOptions = {}): Promise<Fake> {
           reply("250 2.1.0 Ok");
         } else if (verb === "RCPT") {
           if (stalls("rcpt")) return;
-          reply(options.rcptReply ?? "250 2.1.5 Ok");
+          const rcptReply = options.rcptReply ?? "250 2.1.5 Ok";
+          if (rcptReply.startsWith("2")) recipients += 1;
+          reply(rcptReply);
         } else if (verb === "DATA") {
           if (stalls("data")) return;
+          if (recipients === 0 && !options.dataWithoutRecipients) {
+            reply("554 5.5.1 Error: no valid recipients");
+            continue;
+          }
           reply("354 End data with <CR><LF>.<CR><LF>");
           inData = true;
         } else if (verb === "QUIT") {
@@ -284,6 +298,27 @@ describe("the SMTP sender, against a fake server", () => {
     expect(rcpt.err).toBeInstanceOf(EmailNotSentError);
     expect(rcpt.err).toMatchObject({ step: "envelope", responseCode: 550 });
     expect(String((rcpt.err as Error).message)).not.toContain("@");
+  });
+
+  // With PIPELINING (nodemailer 10.1 on), MAIL FROM, RCPT TO and DATA go out together, before any
+  // reply: DATA being written isn't DATA starting. A refused recipient stays not sent whether the
+  // server then refuses DATA (as it should) or takes it anyway (nodemailer ends the empty message:
+  // it has nobody to go to).
+  it("a refused recipient with the envelope pipelined: not sent, whether DATA is refused or taken", async () => {
+    for (const dataWithoutRecipients of [false, true]) {
+      const fake = await fakeServer({
+        rcptReply: "550 5.1.1 <payroll@acme.example>: no such user",
+        dataWithoutRecipients,
+      });
+      const { err } = await failure(fake);
+      expect(err).toBeInstanceOf(EmailNotSentError);
+      expect(err).toMatchObject({ step: "envelope", smtpCode: "EENVELOPE", responseCode: 550 });
+      // The three went out in one batch, and nothing of the message's own did.
+      expect(fake.commands.map((c) => c.line.split(/[ :]/)[0])).toEqual(
+        expect.arrayContaining(["MAIL", "RCPT", "DATA"]),
+      );
+      expect(fake.message).toBe("");
+    }
   });
 
   it("a server that hangs up before its greeting: not sent (connect)", async () => {

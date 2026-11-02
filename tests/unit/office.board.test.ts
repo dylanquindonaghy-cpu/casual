@@ -793,13 +793,14 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
     const buttons = [...col.matchAll(/<button [^>]*aria-label="([^"]+)"/g)].map((m) =>
       m[1]!.replace(/&#x27;/g, "'"),
     );
+    // Each named for its person and session (unique on the page: aud-5).
     expect(buttons).toEqual([
-      "Nathan Reid worked",
-      "Nathan Reid didn't attend",
-      "Tomasz Walsh worked",
-      "Tomasz Walsh didn't attend",
-      "Bea Patel worked",
-      "Bea Patel didn't attend",
+      "Nathan Reid worked, Sun 25 Oct 09:00",
+      "Nathan Reid didn't attend, Sun 25 Oct 09:00",
+      "Tomasz Walsh worked, Sun 25 Oct 09:00",
+      "Tomasz Walsh didn't attend, Sun 25 Oct 09:00",
+      "Bea Patel worked, Sun 25 Oct 10:00",
+      "Bea Patel didn't attend, Sun 25 Oct 10:00",
     ]);
     // Everyone else, after a "Yes": only where there are several.
     expect(col.match(/>Everyone else worked</g)).toHaveLength(1);

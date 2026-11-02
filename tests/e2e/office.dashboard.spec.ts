@@ -383,10 +383,12 @@ test("Updates: a place a casual took from an offer; Who worked? by name", async 
   const worker = await addSteward("acme", {
     firstName: "Nadia",
     lastName: `Night${n}`,
-    mobileE164: "+447700900690",
+    // Its own number on each attempt: a retry would otherwise find the first attempt's casual,
+    // under that attempt's name.
+    mobileE164: `+44770090069${testInfo.retry}`,
   });
-  // An hour ago, by WhatsApp (Updates holds the last two days).
-  const at = new Date(Date.now() - 60 * 60 * 1000);
+  // Just now, by WhatsApp, so it's the newest of Updates' six whatever the other specs did.
+  const at = new Date(Date.now() - 1000);
   await addTakenOffer("acme", { workerId: worker, shiftId, at, channel: "whatsapp" });
   try {
     await officeLogin(page, email);
@@ -398,16 +400,20 @@ test("Updates: a place a casual took from an offer; Who worked? by name", async 
       "href",
       "/office/log",
     );
-    // Who worked?: each person by name with Worked and Didn't attend, each named for its person;
-    // each session's line a link to it.
+    // Who worked?: each person by name with Worked and Didn't attend, each named for its person and
+    // session (unique on the page, though one person can be in two groups: aud-5); each group's
+    // line a link to its session, or to Needs attention for several.
     const marks = column(page, "who-worked");
     const worked = await marks
-      .getByRole("button", { name: / worked$/ })
+      .getByRole("button", { name: / worked, / })
       .evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
     expect(worked.length).toBeGreaterThan(0);
-    for (const name of worked) expect(name).toMatch(/^\S+ \S+ worked$/);
+    for (const name of worked)
+      expect(name).toMatch(/^\S+ \S+ worked, \w{3} \d{1,2} \w{3} \d\d:\d\d$/);
     expect(new Set(worked).size).toBe(worked.length);
-    await expect(marks.getByRole("button", { name: / didn't attend$/ })).toHaveCount(worked.length);
+    await expect(marks.getByRole("button", { name: / didn't attend, / })).toHaveCount(
+      worked.length,
+    );
     for (const href of await marks
       .getByRole("link")
       .evaluateAll((els) => els.map((e) => e.getAttribute("href"))))
@@ -440,8 +446,30 @@ test.describe("on a laptop with a mouse", () => {
       ),
     );
     expect(new Set(tops).size).toBe(1);
-    // The pins carry their venue's name from a laptop's width, and the key shows.
-    await expect(map.getByText(/^Acme Demo Arena/).first()).toBeVisible();
+    // The pins carry their venue's name from a laptop's width where it fits (other specs' venues
+    // can crowd the map), and no name covers another, a pin or the card; the key shows.
+    await expect(map.locator("[data-pin-label]:visible").first()).toBeVisible();
+    const boxes = await page.evaluate(() => {
+      const r = (el: Element) => {
+        const b = el.getBoundingClientRect();
+        return { x0: b.left, y0: b.top, x1: b.right, y1: b.bottom };
+      };
+      const labels = [...document.querySelectorAll("[data-venue-map] [data-pin-label]")]
+        .filter((el) => (el as HTMLElement).offsetWidth > 0)
+        .map(r);
+      const discs = [
+        ...document.querySelectorAll("[data-venue-map] a[data-venue] > span:first-child"),
+      ].map(r);
+      const card = r(document.querySelector("[data-chosen]")!);
+      return { labels, discs, card };
+    });
+    const over = (a: typeof boxes.card, b: typeof boxes.card) =>
+      a.x0 < b.x1 - 1 && b.x0 < a.x1 - 1 && a.y0 < b.y1 - 1 && b.y0 < a.y1 - 1;
+    for (const [i, l] of boxes.labels.entries()) {
+      expect(over(l, boxes.card)).toBe(false);
+      for (const m of boxes.labels.slice(i + 1)) expect(over(l, m)).toBe(false);
+      expect(boxes.discs.filter((d) => over(l, d)).length).toBe(0);
+    }
     await expect(map.getByRole("list", { name: "Key" })).toBeVisible();
     // No sideways scrolling.
     expect(

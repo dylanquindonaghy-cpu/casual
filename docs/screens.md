@@ -169,9 +169,10 @@ part that couldn't load and the empty card are round 7's. Words: `src/lib/office
     Needs attention's sessions to mark, alike ones together as round 7's cards (one role, place and
     time), the first 3: each "{Sun 1 Nov} · {Steward} · {Acme Demo Racecourse} · {10:30–18:30}"
     (and " · {3} sessions"; a link to the session, or to Needs attention's list for several) and
-    each person still booked on them by name: their initials,
-    their name, "Worked" (read as "{name} worked") and a red cross (read as "{name} didn't attend"),
-    the shift page's own actions (the server checks and logs each; the answer under the name).
+    each person still booked on them by name: their initials, their name, "Worked" (read as "{Zoe
+    Adeyemi} worked, {Sun 1 Nov 10:30}") and a red cross (read as "{Zoe Adeyemi} didn't attend,
+    {Sun 1 Nov 10:30}": with the session, as one person can be in two groups; aud-5), the shift
+    page's own actions (the server checks and logs each; the answer under the name).
     With more than one: "Everyone else worked", then "Only if they all worked it. You can change
     anyone afterwards." and "Yes, everyone else worked" (each session in turn). More sessions:
     "More on Needs attention". Empty: "Nothing to mark."

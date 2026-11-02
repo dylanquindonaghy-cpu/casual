@@ -84,7 +84,14 @@ export const serverEnv = (port: number, outbox: string, opts: { testPages?: bool
   DEMO_MODE: "",
   DEMO_SITE_PASSWORD: "",
 });
-const env = serverEnv(PORT, OUTBOX);
+// With CI set (a production build, as GitHub's CI runs it): a session secret of the run's own,
+// shared by the web app and the worker, since `next start` runs as production, which refuses
+// .env.example's (serverEnv already gives the planner integration secret its own). On GitHub there's
+// no .env; here, .env's would otherwise reach the servers.
+const env = {
+  ...serverEnv(PORT, OUTBOX),
+  ...(ci ? { SESSION_SECRET: "e2e-ci-only-secret-not-for-any-real-use-0000" } : {}),
+};
 
 export default defineConfig({
   testDir: "tests/e2e",
@@ -135,7 +142,10 @@ export default defineConfig({
     {
       command: `(${ci ? `npm run build && npx next start -p ${PORT}` : `npx next dev -p ${PORT}`}) 2>&1 | tee ${SERVER_LOGS[1]}`,
       url: `http://localhost:${PORT}`,
-      env,
+      // A production build runs as production: .env's NODE_ENV=development (loaded above) would
+      // reach the build, which then can't prerender its pages ("non-standard NODE_ENV"; Next 16.4),
+      // as the walkthrough's config says too.
+      env: ci ? { ...env, NODE_ENV: "production" } : env,
       reuseExistingServer: false,
       timeout: 240_000,
     },

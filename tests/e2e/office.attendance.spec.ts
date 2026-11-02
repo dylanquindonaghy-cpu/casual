@@ -28,25 +28,34 @@ test("mark who worked a shift that ended: one not attended, the rest worked, a m
 }) => {
   const email = "attendance.resourcer@example.com";
   await addOfficeUser("acme", { email, name: "Attendance Resourcer", role: "resourcer" });
+  // Ended a few hours ago (half a day's start, 8 hours long), so it's among the dashboard's first
+  // sessions to mark (newest ended first) whatever the other specs left.
   const { shiftId, names } = await addPastBookedShift("acme", {
     role: "steward",
-    daysAgo: 3,
+    daysAgo: 0.5,
     people: 3,
   });
   const [first = "", second = "", third = ""] = names;
   await officeLogin(page, email);
 
-  // The dashboard's Who worked? column holds it (Phase 24), a card to where it's marked (its own
-  // page: no other session is like it); Needs attention lists it too, under "Who worked?".
+  // The dashboard's Who worked? column holds it (round 8, Phase 26.2): its line ("Sun 1 Nov ·
+  // Steward · …"), a link to its page (no other session is like it), and its three people by name,
+  // each with Worked and Didn't attend; Needs attention lists it too, under "Who worked?".
   await page.goto(`${acme}/office`);
   await expect(page.locator("dialog[data-offer-panel][data-ready]")).toHaveCount(1);
   const worked = page.locator("section#who-worked");
-  const more = worked.getByRole("button", { name: /^Show \d+ more$/ });
-  if (await more.count()) await more.click();
-  await expect(worked.locator(`a[href="/office/shifts/${shiftId}"]`)).toHaveAttribute(
-    "aria-label",
-    /^Mark who worked: Steward, \w{3} \d{1,2} \w{3}, \d\d:\d\d–\d\d:\d\d, 3 people to mark$/,
-  );
+  const line = worked.locator(`a[href="/office/shifts/${shiftId}"]`);
+  await expect(line).toHaveText(/^\w{3} \d{1,2} \w{3} · Steward · .*\d\d:\d\d–\d\d:\d\d$/);
+  // Its own group (the line's parent): the same casuals can be in another one too.
+  const group = line.locator("..");
+  for (const name of names) {
+    await expect(
+      group.getByRole("button", { name: new RegExp(`^${name} worked, `) }),
+    ).toBeVisible();
+    await expect(
+      group.getByRole("button", { name: new RegExp(`^${name} didn't attend, `) }),
+    ).toBeVisible();
+  }
   await page.goto(`${acme}/office/needs-attention#to-mark`);
   await expect(page).toHaveURL(`${acme}/office/needs-attention#to-mark`);
   const section = page.getByRole("region", { name: "Who worked?" });

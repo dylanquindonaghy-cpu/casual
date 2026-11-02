@@ -14,6 +14,7 @@ import {
   workedHeading,
   workedHref,
   workedLabel,
+  workedWhen,
 } from "@/lib/office/dashboard-map-copy";
 import type { Update, WhoWorkedGroup } from "@/lib/office/dashboard-map";
 import { initials } from "@/lib/office/board-copy";
@@ -90,7 +91,17 @@ export function UpdatesList({
 
 const failed = { status: "error" as const };
 
-function Person({ shiftId, workerId, name }: { shiftId: string; workerId: string; name: string }) {
+function Person({
+  shiftId,
+  workerId,
+  name,
+  when,
+}: {
+  shiftId: string;
+  workerId: string;
+  name: string;
+  when: string; // the session's day and start, in the buttons' names
+}) {
   const router = useRouter();
   const ready = useHydrated();
   const [pending, start] = useTransition();
@@ -114,7 +125,7 @@ function Person({ shiftId, workerId, name }: { shiftId: string; workerId: string
         <button
           type="button"
           disabled={pending || !ready}
-          aria-label={workedLabel(name)}
+          aria-label={workedLabel(name, when)}
           onClick={() => mark("completed")}
           className="press-glass glass-button inline-flex min-h-11 items-center gap-1 rounded-full px-3 text-sm font-medium text-ink hover:bg-button-hover active:bg-button-press disabled:cursor-not-allowed disabled:opacity-60"
         >
@@ -124,7 +135,7 @@ function Person({ shiftId, workerId, name }: { shiftId: string; workerId: string
         <button
           type="button"
           disabled={pending || !ready}
-          aria-label={noShowLabel(name)}
+          aria-label={noShowLabel(name, when)}
           onClick={() => mark("no_show")}
           className="press-glass glass-button inline-flex size-11 items-center justify-center rounded-full text-urgent hover:bg-button-hover active:bg-button-press disabled:cursor-not-allowed disabled:opacity-60"
         >
@@ -218,6 +229,7 @@ export function WhoWorkedList({
                 shiftId={p.shiftId}
                 workerId={p.workerId}
                 name={p.name}
+                when={workedWhen(g, timeZone)}
               />
             ))}
           </ul>

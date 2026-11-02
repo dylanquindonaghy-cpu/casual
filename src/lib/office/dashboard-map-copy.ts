@@ -204,8 +204,15 @@ export function workedHeading(g: Worked, timeZone: string): string {
 // Where a group's heading goes: its session, or Needs attention's list for several.
 export const workedHref = (g: Pick<WhoWorkedGroup, "shiftIds">) =>
   g.shiftIds.length === 1 ? `/office/shifts/${g.shiftIds[0]}` : "/office/needs-attention#to-mark";
-export const workedLabel = (name: string) => `${name} worked`;
-export const noShowLabel = (name: string) => `${name} didn't attend`;
+// The session a person's buttons are for, in their names (each unique on the page, as one person
+// can be in two groups: the pre-build audit's aud-5): "Sun 1 Nov 10:30".
+export function workedWhen(g: Pick<WhoWorkedGroup, "startsAt">, timeZone: string): string {
+  const day = localDateOf(g.startsAt, timeZone);
+  const [, m = 1] = day.split("-").map(Number);
+  return `${dayShort(day)} ${MONTHS[m - 1]} ${hhmm(g.startsAt, timeZone)}`;
+}
+export const workedLabel = (name: string, when: string) => `${name} worked, ${when}`;
+export const noShowLabel = (name: string, when: string) => `${name} didn't attend, ${when}`;
 export const EVERYONE_ELSE = "Everyone else worked";
 export const everyoneElseLabel = (g: Worked, timeZone: string) =>
   `Everyone else worked: ${workedHeading(g, timeZone)}`;

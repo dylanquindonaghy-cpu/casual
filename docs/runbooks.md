@@ -335,8 +335,11 @@ The steps are done once, in this order. Where a step says "on the server", you'r
 10. **Try it** on your phone: `https://acme.<your domain>`. The browser asks for a user name and
     password: `demo` and your `DEMO_SITE_PASSWORD`. The yellow bar says it's a demo. (The first
     visit to each address takes a few seconds longer: the server gets its certificate then.)
-    - As a casual: enter `07700 900101` (Zoe) and tap **Send me a link**, then **Demo phone** in
-      the bar: the text with the link shows within a few seconds. Tap the link, then **Log me in**.
+    - As a casual: enter `07700 900400` (Zoe Adeyemi, the story's casual: a shift tomorrow, an
+      urgent CSAS shift she can take and a photo to renew) and tap **Send me a link**, then **Demo
+      phone** in the bar: the text with the link shows within a few seconds. Tap the link, then
+      **Log me in**. (Not `07700 900100` to `900104`: the seed keeps those five casuals free of
+      shifts, so their app is empty.)
     - As the office: `https://acme.<your domain>/office/login` with `acme.admin@example.com`
       (or `acme.resourcer@…`, `acme.payroll@…`); the email shows on the Demo phone.
     - Northline: `https://northline.<your domain>` (asks for the password again, once), with

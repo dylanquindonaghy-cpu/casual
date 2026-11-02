@@ -984,6 +984,50 @@ casual-facing words but those in `docs/screens.md` and `docs/messaging-templates
 sender, no casual screen names WhatsApp or texts; the `claims-auditor` checks the phase against
 this line.
 
+## Proposed 2026-11-02: P9 — The office review's changes (not started; mock-up first; S, M, UI)
+
+Dylan, 2026-11-02, after using the live demo: see who works regularly, who's reliable and who
+cancels often; each resourcer selects their contracts and what they see, graphs included; updates
+when cancellations come in or something needs doing; "Who worked? … section doesnt make sense";
+"casuals needs updating section should have an actioning button to follow up"; cancellations "should
+highlight under 48 hours in the all section show when strikes are given clearer"; sessions showing to
+casuals with "a section where you can see who has applied and filterable"; offers "via app
+notifcation or email or webex text unless we can use a company whatsapp thing"; and a review of the
+site with notes and an audit against his Haulix reference.
+
+The review, the reference audit and the mock-up of every change (before and after at 1280px and
+390px, light and dark): https://claude.ai/artifact/N2xeceFhjsDVdA9eopsAGs, recorded in
+`docs/mockups/review-2026-11/` (its README lists what was found and where in the code). **Not
+approved yet.** Its five decisions are in `docs/plan/decisions-waiting.md` ("Office review"). Each
+task gets a box, a number and a "Done when" line when Dylan gives it the go-ahead (golden rule 10).
+
+- **Fix first** (from the review): the demo's history rows stamped 04:00 (the demo loader writes the
+  story's own times); the Pay dashboard's two pay days, each saying what work it pays for; the
+  cancellations card that shows strikes under "Under 48 hours"; "apply" → "take" on the casual's
+  screens; a missing staff photo counted under Need updating; the phone dashboard's cut-off tab and
+  crowded chart labels; pilot metrics empty on the demo. Done on the review's branch: the runbook's
+  demo number (`07700 900400`).
+- **D. Who worked?** each person by name with Worked / Didn't attend, and "Everyone else worked";
+  the same marks and rules as now (UI).
+- **E. Need updating:** "Remind" per casual and "Remind all", re-sending `credential_expired` with its
+  upload link, logged, with "Last reminder" shown (M, UI).
+- **F. Cancellations:** rows under 48 hours tinted in every view; notice and strike in their own
+  columns; three cards; a Strikes tab (UI).
+- **G. Casuals for a session showing to casuals:** Asked for it (if decision 2 adds asking), Offered,
+  Said no, Booked, Could take it, filtered by reliability, distance and worked here before; booking
+  from it runs every rule and check, first yes wins (S if asking is added, R, UI).
+- **A. Reliability:** per casual over 90 days, worked out by code from `assignments` and `strikes`
+  (golden rule 1): worked, no-shows, cancellations under 48 hours, reliability, Regular; on Casuals
+  (sortable, tabs), each casual's page, the offer list and the casual's Profile (UI).
+- **B. Each resourcer's dashboard:** their contracts and the cards and charts they pick, saved per
+  person, "Show everything" one tap away (S: contracts and per-user settings; T; UI).
+- **C. Updates:** a feed from the bell, a pop-up on each cancellation, phone or desktop
+  notifications for the urgent kinds, each resourcer choosing (S, M: web push for office users,
+  UI).
+- **H. Offers by app notification, text or email:** Phase 15.1 ("Texts only") with email as a
+  casual's choice, each offer saying how it will reach them; a company WhatsApp Business number
+  only if a firm wants it later. Needs Phase 4's web push finished (M, UI).
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify

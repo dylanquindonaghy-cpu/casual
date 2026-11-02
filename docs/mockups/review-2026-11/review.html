@@ -1,0 +1,766 @@
+<title>ShiftDesk office review</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@500&display=swap">
+<style>
+/* Layout: one reading column for the notes, wide stages for the before/after frames.
+   The frames reuse the office's own round 7 tokens (src/app/globals.css) so the mock-ups
+   look like the app; the page around them is quiet. */
+:root {
+  --ink: #17181a; --ink-muted: #55585f; --line: rgb(16 24 40 / 0.1);
+  --canvas: #eef1f8; --card: rgb(255 255 255 / 0.55); --raised: rgb(255 255 255 / 0.66);
+  --pill: rgb(255 255 255 / 0.92); --track: rgb(118 118 128 / 0.12);
+  --urgent: #b0201f; --urgent-ink: #7d1a10; --urgent-soft: rgb(255 236 230 / 0.85); --urgent-fill: #c4242a; --urgent-line: #f5c2bb;
+  --attn: #92400e; --attn-ink: #5c3f00; --attn-soft: rgb(255 246 224 / 0.85); --attn-line: #f0d39a;
+  --done: #166534; --done-ink: #155230; --done-soft: rgb(233 246 238 / 0.85); --done-line: #b4dfc3; --done-fill: #1f7a47;
+  --wait-ink: #163b6e; --wait-soft: rgb(238 244 253 / 0.85); --wait-line: #b8cff2; --wait-tile: rgb(214 228 250 / 0.85);
+  --quiet-ink: #464b52; --quiet-soft: rgb(241 242 244 / 0.85); --quiet-line: #d6d8dc;
+  --accent: #1d4ed8; --tint: #1e3fae; --on-tint: #ffffff;
+  --wash-a: rgb(201 216 255); --wash-b: rgb(230 214 255); --wash-c: rgb(255 226 201); --wash-d: rgb(205 243 232);
+  --rim: inset 0 1px 0 rgb(255 255 255 / 0.95), inset 0 0 0 1px rgb(255 255 255 / 0.55);
+  --drop: 0 1px 2px rgb(16 24 40 / 0.04), 0 16px 40px rgb(60 72 120 / 0.12);
+  --drop-sm: 0 1px 2px rgb(16 24 40 / 0.05), 0 6px 16px rgb(16 24 40 / 0.08);
+  --page: #f4f5f8; --page-card: #ffffff; --page-line: #e3e5ea; --mark: #fff3c4;
+  --sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --ink: #f3f4f6; --ink-muted: #c4c5ca; --line: rgb(255 255 255 / 0.1);
+  --canvas: #07080c; --card: rgb(26 27 34 / 0.6); --raised: rgb(255 255 255 / 0.07);
+  --pill: rgb(255 255 255 / 0.16); --track: rgb(255 255 255 / 0.08);
+  --urgent: #ffa59c; --urgent-ink: #ffcabf; --urgent-soft: rgb(60 26 24 / 0.85); --urgent-fill: #cf3a33; --urgent-line: #6a2a28;
+  --attn: #fbbf77; --attn-ink: #ffe2b0; --attn-soft: rgb(52 38 14 / 0.85); --attn-line: #6b5120;
+  --done: #86efac; --done-ink: #bff5d2; --done-soft: rgb(18 44 30 / 0.85); --done-line: #2b5a3e; --done-fill: #2f9a5c;
+  --wait-ink: #c9dcff; --wait-soft: rgb(22 32 54 / 0.85); --wait-line: #34507e; --wait-tile: rgb(36 52 86 / 0.85);
+  --quiet-ink: #d2d4d8; --quiet-soft: rgb(40 42 48 / 0.85); --quiet-line: #44474e;
+  --accent: #9cb8ff; --tint: #3b63e0; --on-tint: #ffffff;
+  --wash-a: rgb(37 99 235 / 0.42); --wash-b: rgb(124 58 237 / 0.34); --wash-c: rgb(234 88 12 / 0.2); --wash-d: rgb(13 148 136 / 0.26);
+  --rim: inset 0 1px 0 rgb(255 255 255 / 0.16), inset 0 0 0 1px rgb(255 255 255 / 0.08);
+  --drop: 0 1px 2px rgb(0 0 0 / 0.4), 0 18px 48px rgb(0 0 0 / 0.45);
+  --drop-sm: 0 1px 2px rgb(0 0 0 / 0.35), 0 6px 16px rgb(0 0 0 / 0.3);
+  --page: #0e0f13; --page-card: #17181e; --page-line: #2a2c33; --mark: #4a3d12;
+  color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --ink: #f3f4f6; --ink-muted: #c4c5ca; --line: rgb(255 255 255 / 0.1);
+  --canvas: #07080c; --card: rgb(26 27 34 / 0.6); --raised: rgb(255 255 255 / 0.07);
+  --pill: rgb(255 255 255 / 0.16); --track: rgb(255 255 255 / 0.08);
+  --urgent: #ffa59c; --urgent-ink: #ffcabf; --urgent-soft: rgb(60 26 24 / 0.85); --urgent-fill: #cf3a33; --urgent-line: #6a2a28;
+  --attn: #fbbf77; --attn-ink: #ffe2b0; --attn-soft: rgb(52 38 14 / 0.85); --attn-line: #6b5120;
+  --done: #86efac; --done-ink: #bff5d2; --done-soft: rgb(18 44 30 / 0.85); --done-line: #2b5a3e; --done-fill: #2f9a5c;
+  --wait-ink: #c9dcff; --wait-soft: rgb(22 32 54 / 0.85); --wait-line: #34507e; --wait-tile: rgb(36 52 86 / 0.85);
+  --quiet-ink: #d2d4d8; --quiet-soft: rgb(40 42 48 / 0.85); --quiet-line: #44474e;
+  --accent: #9cb8ff; --tint: #3b63e0; --on-tint: #ffffff;
+  --wash-a: rgb(37 99 235 / 0.42); --wash-b: rgb(124 58 237 / 0.34); --wash-c: rgb(234 88 12 / 0.2); --wash-d: rgb(13 148 136 / 0.26);
+  --rim: inset 0 1px 0 rgb(255 255 255 / 0.16), inset 0 0 0 1px rgb(255 255 255 / 0.08);
+  --drop: 0 1px 2px rgb(0 0 0 / 0.4), 0 18px 48px rgb(0 0 0 / 0.45);
+  --drop-sm: 0 1px 2px rgb(0 0 0 / 0.35), 0 6px 16px rgb(0 0 0 / 0.3);
+  --page: #0e0f13; --page-card: #17181e; --page-line: #2a2c33; --mark: #4a3d12;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--page); color: var(--ink); font: 15px/1.55 var(--sans); }
+.wrap { max-width: 1340px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 80px; }
+.read { max-width: 760px; }
+h1, h2, h3 { text-wrap: balance; letter-spacing: -0.01em; line-height: 1.2; margin: 0; }
+h1 { font-size: 32px; font-weight: 600; }
+h2 { font-size: 24px; font-weight: 600; }
+h3 { font-size: 18px; font-weight: 600; }
+p { margin: 0; }
+.lede { font-size: 17px; color: var(--ink-muted); margin-top: 8px; }
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-muted); }
+a { color: inherit; text-underline-offset: 3px; }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--page-card); border: 1px solid var(--page-line); border-radius: 6px; padding: 0 5px; overflow-wrap: anywhere; }
+mark { background: var(--mark); color: inherit; padding: 0 3px; border-radius: 4px; }
+
+nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; margin: 22px 0 8px; background: color-mix(in srgb, var(--page) 88%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); padding-block: 10px; border-bottom: 1px solid var(--page-line); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 21; background: var(--page); }
+nav.toc ul { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+nav.toc a { display: inline-block; white-space: nowrap; padding: 6px 12px; border-radius: 999px; text-decoration: none; font-weight: 500; font-size: 14px; color: var(--ink-muted); }
+nav.toc a:hover, nav.toc a:focus-visible { background: var(--page-card); color: var(--ink); }
+
+section.part { padding-top: 44px; display: grid; gap: 18px; scroll-margin-top: 70px; }
+.callout { background: var(--page-card); border: 1px solid var(--page-line); border-radius: 14px; padding: 16px 18px; display: grid; gap: 8px; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.fact { background: var(--page-card); border: 1px solid var(--page-line); border-radius: 14px; padding: 14px 16px; display: grid; gap: 4px; }
+.fact b { font-family: var(--mono); font-size: 26px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.fact span { color: var(--ink-muted); font-size: 14px; }
+
+ol.finds { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; counter-reset: f; }
+ol.finds > li { counter-increment: f; background: var(--page-card); border: 1px solid var(--page-line); border-radius: 14px; padding: 14px 16px 14px 52px; position: relative; display: grid; gap: 6px; min-width: 0; }
+ol.finds > li::before { content: counter(f); position: absolute; left: 14px; top: 14px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font: 500 13px var(--mono); background: var(--page); border: 1px solid var(--page-line); }
+.finds .what { font-weight: 600; }
+.finds .why, .finds .fix { color: var(--ink-muted); font-size: 14px; }
+.finds .fix b { color: var(--ink); font-weight: 600; }
+.sev { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; border: 1px solid; vertical-align: 2px; margin-right: 6px; }
+.sev.hi { color: var(--urgent-ink); background: var(--urgent-soft); border-color: var(--urgent-line); }
+.sev.md { color: var(--attn-ink); background: var(--attn-soft); border-color: var(--attn-line); }
+.sev.lo { color: var(--quiet-ink); background: var(--quiet-soft); border-color: var(--quiet-line); }
+.cols3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.listcard { background: var(--page-card); border: 1px solid var(--page-line); border-radius: 14px; padding: 16px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.listcard ul { margin: 0; padding-left: 18px; display: grid; gap: 7px; font-size: 14px; }
+.listcard ul li::marker { color: var(--ink-muted); }
+.was { text-decoration: line-through; color: var(--ink-muted); }
+table.audit { width: 100%; border-collapse: collapse; font-size: 14px; background: var(--page-card); border: 1px solid var(--page-line); border-radius: 14px; overflow: hidden; }
+.tablewrap { overflow-x: auto; border-radius: 14px; }
+table.audit th, table.audit td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--page-line); vertical-align: top; }
+table.audit th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-muted); font-weight: 600; }
+table.audit tr:last-child td { border-bottom: 0; }
+.ok { color: var(--done); font-weight: 600; } .no { color: var(--urgent); font-weight: 600; } .part-ok { color: var(--attn); font-weight: 600; }
+
+/* ---------- a change: notes + before/after ---------- */
+.change { display: grid; gap: 14px; padding: 20px; background: var(--page-card); border: 1px solid var(--page-line); border-radius: 18px; min-width: 0; }
+.change-head { display: flex; flex-wrap: wrap; gap: 10px 18px; justify-content: space-between; align-items: end; }
+.change-head .read { display: grid; gap: 6px; }
+.asked { font-size: 14px; color: var(--ink-muted); }
+.asked q { font-style: italic; }
+.seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--page); border: 1px solid var(--page-line); border-radius: 999px; }
+.seg button { font: 500 13px var(--sans); color: var(--ink-muted); background: transparent; border: 0; border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--page-card); color: var(--ink); box-shadow: 0 1px 3px rgb(0 0 0 / 0.12); }
+.seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ba { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
+.ba-label { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-muted); display: flex; gap: 8px; align-items: center; }
+.ba-label i { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-muted); display: inline-block; }
+.ba-label.new i { background: var(--done-fill); }
+.now-img { border: 1px solid var(--page-line); border-radius: 12px; overflow: hidden; background: var(--canvas); max-height: 520px; overflow-y: auto; }
+.now-img img { display: block; width: 100%; height: auto; }
+.now-img.phone { max-width: 390px; }
+.notes { display: grid; gap: 8px; font-size: 14px; }
+.notes ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.stage { position: relative; overflow: hidden; border-radius: 14px; border: 1px solid var(--page-line); }
+.scaler { transform-origin: 0 0; }
+
+/* ---------- inside the frames: the office, round 7 ---------- */
+.frame { width: 1280px; container-type: inline-size; background: var(--canvas); color: var(--ink); font: 14px/1.45 var(--sans); position: relative; overflow: hidden; isolation: isolate; }
+.frame.phone { width: 390px; }
+.frame::before { content: ""; position: absolute; inset: 0; z-index: -1; background:
+  radial-gradient(60% 50% at 0% 0%, var(--wash-a), transparent 70%),
+  radial-gradient(50% 45% at 100% 0%, var(--wash-b), transparent 70%),
+  radial-gradient(55% 45% at 60% 70%, var(--wash-c), transparent 70%),
+  radial-gradient(50% 45% at 0% 100%, var(--wash-d), transparent 70%); }
+.f-shell { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 20px; padding: 16px 20px 28px 12px; }
+.f-rail { background: var(--card); box-shadow: var(--rim), var(--drop-sm); border-radius: 22px; padding: 14px 0; display: flex; flex-direction: column; align-items: center; gap: 14px; height: max-content; position: sticky; top: 0; }
+.f-rail .mark { width: 40px; height: 40px; border-radius: 12px; background: var(--tint); color: var(--on-tint); display: grid; place-items: center; font-weight: 600; }
+.f-rail .ic { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--ink-muted); position: relative; }
+.f-rail .ic.on { background: var(--pill); color: var(--accent); box-shadow: var(--rim), var(--drop-sm); }
+.f-rail .ic .dot { position: absolute; top: 7px; right: 8px; width: 7px; height: 7px; border-radius: 50%; background: var(--urgent-fill); }
+.f-main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; min-width: 0; align-content: start; }
+.f-top { display: flex; gap: 12px; align-items: center; }
+.capsule { background: var(--card); box-shadow: var(--rim), var(--drop-sm); border-radius: 999px; padding: 9px 16px; display: flex; gap: 16px; align-items: center; color: var(--ink-muted); white-space: nowrap; }
+.capsule b { color: var(--ink); font-weight: 600; }
+.capsule .u b { color: var(--urgent); }
+.capsule.grow { flex: 1; }
+.f-phonebar { display: flex; align-items: center; gap: 10px; padding: 12px 16px; }
+.f-phonebar .menu { background: var(--card); box-shadow: var(--rim), var(--drop-sm); border-radius: 999px; padding: 7px 14px; font-weight: 600; display: flex; gap: 8px; align-items: center; }
+.f-phonebar .mark { width: 30px; height: 30px; border-radius: 9px; background: var(--tint); color: var(--on-tint); display: grid; place-items: center; font-weight: 600; font-size: 13px; }
+.f-phonebar .firm { font-weight: 600; flex: 1; }
+.f-phonebar .bell { width: 36px; height: 36px; border-radius: 50%; background: var(--card); box-shadow: var(--rim); display: grid; place-items: center; position: relative; }
+.f-phonebar .bell .dot { position: absolute; top: 6px; right: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--urgent-fill); }
+.f-phone-main { padding: 4px 16px 28px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.f-h1 { font-size: 30px; font-weight: 600; letter-spacing: -0.02em; }
+.f-sub { color: var(--ink-muted); margin-top: 4px; }
+.f-headrow { display: flex; justify-content: space-between; align-items: end; gap: 12px; flex-wrap: wrap; }
+.glass { background: var(--card); box-shadow: var(--rim), var(--drop); border-radius: 22px; -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6); }
+.pane { padding: 18px 20px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; }
+.tile { background: var(--raised); box-shadow: var(--rim); border-radius: 16px; padding: 12px 14px; min-width: 0; }
+.btn { font: 600 14px var(--sans); border: 0; border-radius: 999px; padding: 9px 16px; background: var(--raised); color: var(--ink); box-shadow: var(--rim), var(--drop-sm); display: inline-flex; gap: 8px; align-items: center; justify-content: center; white-space: nowrap; cursor: default; }
+.btn.main { background: var(--tint); color: var(--on-tint); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35), 0 6px 16px rgb(30 63 174 / 0.3); }
+.btn.sm { font-size: 13px; padding: 6px 12px; }
+.btn.danger { color: var(--urgent); }
+.btn.ghost { box-shadow: none; background: transparent; }
+.tabs { display: inline-flex; gap: 2px; padding: 4px; border-radius: 999px; background: var(--track); flex-wrap: nowrap; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.tabs span { padding: 7px 14px; border-radius: 999px; color: var(--ink-muted); font-weight: 500; white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; }
+.tabs span.on { background: var(--pill); color: var(--ink); box-shadow: var(--rim), var(--drop-sm); }
+.count { font: 500 12px var(--sans); min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--raised); box-shadow: var(--rim); display: inline-grid; place-items: center; color: var(--ink); }
+.count.u { background: var(--urgent-fill); color: #fff; box-shadow: none; }
+.count.blue { background: var(--accent); color: var(--canvas); box-shadow: none; }
+.chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; border: 1px solid transparent; white-space: nowrap; }
+.chip.u { color: var(--urgent-ink); background: var(--urgent-soft); border-color: var(--urgent-line); }
+.chip.uf { color: #fff; background: var(--urgent-fill); }
+.chip.a { color: var(--attn-ink); background: var(--attn-soft); border-color: var(--attn-line); }
+.chip.d { color: var(--done-ink); background: var(--done-soft); border-color: var(--done-line); }
+.chip.w { color: var(--wait-ink); background: var(--wait-soft); border-color: var(--wait-line); }
+.chip.q { color: var(--quiet-ink); background: var(--quiet-soft); border-color: var(--quiet-line); }
+.chip.strike { text-decoration: line-through; }
+.muted { color: var(--ink-muted); }
+.small { font-size: 12.5px; }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.big { font-family: var(--mono); font-size: 30px; font-weight: 500; line-height: 1.1; }
+.av { width: 36px; height: 36px; border-radius: 50%; background: var(--wait-tile); color: var(--wait-ink); display: grid; place-items: center; font-size: 12px; font-weight: 600; flex: none; box-shadow: var(--rim); }
+.rowlist { display: grid; gap: 8px; }
+.r { background: var(--raised); box-shadow: var(--rim); border-radius: 16px; padding: 12px 14px; display: grid; gap: 10px; align-items: center; min-width: 0; position: relative; }
+.r.hot { background: var(--urgent-soft); box-shadow: inset 3px 0 0 var(--urgent-fill), var(--rim); }
+.who { display: flex; gap: 10px; align-items: center; min-width: 0; }
+.who b { display: block; font-weight: 600; }
+.who .muted { font-size: 13px; }
+.dtile { width: 44px; flex: none; border-radius: 12px; background: var(--raised); box-shadow: var(--rim); text-align: center; padding: 5px 0; line-height: 1.15; }
+.dtile small { display: block; font-size: 11px; color: var(--ink-muted); }
+.dtile b { font-size: 17px; }
+.dtile.u { background: var(--urgent-soft); } .dtile.u small { color: var(--urgent); }
+.meter { height: 6px; border-radius: 999px; background: var(--track); overflow: hidden; }
+.meter i { display: block; height: 100%; border-radius: 999px; background: var(--done-fill); }
+.meter.warn i { background: #d48a12; } .meter.bad i { background: var(--urgent-fill); }
+.toast { position: absolute; right: 24px; bottom: 24px; background: var(--ink); color: var(--canvas); border-radius: 16px; padding: 12px 16px; display: flex; gap: 10px; align-items: center; box-shadow: var(--drop); font-weight: 500; max-width: 360px; }
+.toast .btn { background: rgb(255 255 255 / 0.15); color: inherit; box-shadow: none; }
+.f-grid2 { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.f-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.f-grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.cancel-row { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1.1fr) 170px 230px; }
+.need-row { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.2fr) 170px; }
+.cas-row { grid-template-columns: minmax(0, 1.3fr) 90px 90px 90px minmax(0, 1fr) 150px; }
+.int-row { grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.8fr) 110px minmax(0, 1fr) 180px; }
+.head-row { padding: 0 14px; display: grid; gap: 10px; font-size: 12px; font-weight: 600; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.stack { display: grid; gap: 4px; justify-items: start; }
+.hr { height: 1px; background: var(--line); }
+.chk { width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--ink-muted); display: inline-grid; place-items: center; flex: none; }
+.chk.on { background: var(--tint); border-color: var(--tint); color: #fff; }
+.toggle { width: 40px; height: 24px; border-radius: 999px; background: var(--quiet-line); position: relative; flex: none; }
+.toggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / 0.2); }
+.toggle.on { background: var(--done-fill); } .toggle.on::after { left: 19px; }
+.opt { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 14px; background: var(--raised); box-shadow: var(--rim); }
+.opt.on { box-shadow: inset 0 0 0 2px var(--ink), var(--rim); }
+.radio { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--ink-muted); flex: none; display: grid; place-items: center; }
+.radio.on::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--ink); }
+.panel-side { position: absolute; top: 0; right: 0; bottom: 0; width: 420px; border-radius: 22px 0 0 22px; padding: 22px; display: grid; gap: 14px; align-content: start; background: var(--card); box-shadow: var(--rim), -20px 0 60px rgb(30 40 80 / 0.18); -webkit-backdrop-filter: blur(28px) saturate(1.8); backdrop-filter: blur(28px) saturate(1.8); }
+.scrim { position: absolute; inset: 0; background: rgb(21 23 26 / 0.18); }
+.feed { display: grid; gap: 0; }
+.feed .ev { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.feed .ev:last-child { border-bottom: 0; }
+.evic { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; }
+.evic.u { background: var(--urgent-soft); color: var(--urgent); } .evic.a { background: var(--attn-soft); color: var(--attn); } .evic.d { background: var(--done-soft); color: var(--done); } .evic.w { background: var(--wait-soft); color: var(--wait-ink); }
+svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+svg.i.s { width: 15px; height: 15px; }
+.bars { display: flex; align-items: end; gap: 10px; height: 130px; padding-top: 8px; }
+.bars .b { flex: 1; display: grid; gap: 4px; justify-items: center; align-content: end; height: 100%; }
+.bars .b i { width: 100%; max-width: 28px; border-radius: 7px 7px 3px 3px; background: var(--ink); display: block; }
+.bars .b i.u { background: var(--urgent-fill); }
+.bars .b i.q { background: var(--quiet-line); }
+.bars .b small { font-size: 11px; color: var(--ink-muted); font-family: var(--mono); }
+.legend { display: flex; gap: 14px; font-size: 12.5px; color: var(--ink-muted); flex-wrap: wrap; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.widget-pick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.wp { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; padding: 12px; border-radius: 14px; background: var(--raised); box-shadow: var(--rim); align-items: start; }
+.wp.on { box-shadow: inset 0 0 0 2px var(--accent), var(--rim); }
+.spark { width: 100%; height: 44px; display: block; }
+
+/* the phone frame's own layout */
+@container (max-width: 600px) {
+  .f-grid2, .f-grid3, .f-grid4 { grid-template-columns: minmax(0, 1fr); }
+  .f-grid4.keep2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cancel-row, .need-row, .cas-row, .int-row { grid-template-columns: minmax(0, 1fr); }
+  .head-row { display: none; }
+  .hide-phone { display: none !important; }
+  .tabs { -webkit-mask-image: linear-gradient(to right, #000 82%, transparent); mask-image: linear-gradient(to right, #000 82%, transparent); }
+  .f-h1 { font-size: 28px; }
+  .panel-side { position: relative; width: auto; border-radius: 22px; box-shadow: var(--rim), var(--drop); }
+  .scrim { display: none; }
+  .toast { position: static; max-width: none; }
+  .widget-pick { grid-template-columns: minmax(0, 1fr); }
+  .bars { gap: 6px; }
+}
+@container (min-width: 601px) { .only-phone { display: none !important; } }
+
+.decide { display: grid; gap: 12px; }
+.dq { background: var(--page-card); border: 1px solid var(--page-line); border-radius: 14px; padding: 16px; display: grid; gap: 8px; }
+.dq .rec { font-size: 14px; color: var(--ink-muted); }
+.dq .rec b { color: var(--done); }
+.footer { margin-top: 48px; color: var(--ink-muted); font-size: 13px; }
+@media (max-width: 640px) {
+  h1 { font-size: 26px; } h2 { font-size: 21px; }
+  .change { padding: 14px; }
+  ol.finds > li { padding-left: 46px; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="read">
+    <p class="eyebrow">Acme Events demo · reviewed Mon 2 Nov 2026</p>
+    <h1 style="margin-top:6px">Office review and changes to approve</h1>
+    <p class="lede">I logged in to the live demo as the admin and as two made-up casuals, went through every office page on a laptop and a phone, and checked what you asked for against the code. Nothing here is built yet. Each change has a mock-up for you to approve or change first.</p>
+  </header>
+
+  <nav class="toc" aria-label="On this page">
+    <ul>
+      <li><a href="#summary">Summary</a></li>
+      <li><a href="#fixes">Fix first</a></li>
+      <li><a href="#changes">Your changes</a></li>
+      <li><a href="#wording">Remove and reword</a></li>
+      <li><a href="#reference">Reference audit</a></li>
+      <li><a href="#decide">Your decisions</a></li>
+    </ul>
+  </nav>
+
+  <!-- ===================== SUMMARY ===================== -->
+  <section class="part" id="summary" aria-labelledby="h-summary">
+    <h2 id="h-summary">Summary</h2>
+    <div class="facts">
+      <div class="fact"><b>29</b><span>office and casual pages checked, at 1280px and 390px</span></div>
+      <div class="fact"><b>9</b><span>things to fix first: wrong or confusing on the live demo</span></div>
+      <div class="fact"><b>8</b><span>changes you asked for, each with a mock-up below</span></div>
+      <div class="fact"><b>5</b><span>decisions only you can make before I build</span></div>
+    </div>
+    <div class="callout read">
+      <p><b>The short version.</b> The office looks finished and the casual app works well. The biggest problems are in the words and in what the screens don't let you do: "Who worked?" makes you open sessions by number, "Need updating" has no button to chase anyone, cancellations hide the 48-hour cases in small grey text, and WhatsApp still appears in six places. The data you want for reliability already exists (no-shows, late cancellations and strikes are all logged); nothing adds it up per person yet.</p>
+    </div>
+  </section>
+
+  <!-- ===================== FIX FIRST ===================== -->
+  <section class="part" id="fixes" aria-labelledby="h-fixes">
+    <h2 id="h-fixes">Fix first</h2>
+    <p class="read muted">Things that are wrong, contradict each other or would confuse someone you show the demo to. Most are small.</p>
+    <ol class="finds">
+      <li>
+        <p class="what"><span class="sev hi">High</span>The demo's casual login number opens an empty account</p>
+        <p class="why">The runbook says to try the casual app with 07700 900101 ("Zoe"). That number belongs to one of the five casuals the seed keeps free of shifts, so the app says "No shifts booked" everywhere. The story's Zoe Adeyemi, with a booking tomorrow, a CSAS shift to take and a photo to renew, is 07700 900400.</p>
+        <p class="fix"><b>Fix:</b> point the runbook (step 10) at 07700 900400. Done in this branch: it only changes the instructions.</p>
+      </li>
+      <li>
+        <p class="what"><span class="sev hi">High</span>Every demo history row says it happened at 04:00 today</p>
+        <p class="why">The notice report lists "Booked 04:00 on Mon 2 Nov" for a shift on Sun 18 Oct "with 6 days' notice", and every shift's History says "04:00 on Mon 2 Nov". The action log can't be backdated: each row is stamped when it's written, and the demo is reloaded at 04:00 each night. So bookings appear to be made after the shift they're for.</p>
+        <p class="fix"><b>Fix:</b> let the demo loader (only) write each history row with the story's own time. Real use is not affected.</p>
+      </li>
+      <li>
+        <p class="what"><span class="sev hi">High</span>WhatsApp is still on six screens</p>
+        <p class="why">Offer list: "by WhatsApp". Casual Profile: "Send shift messages by WhatsApp / Text message" (WhatsApp is the default for everyone). Profile: "You'll get messages by WhatsApp or text". Pay dashboard: "Your shifts line … (WhatsApp, text and calls)". Automatic replies in the app: "Send OFFICE to reach a person" (a WhatsApp keyword shown inside the app). Pilot metrics: "WhatsApp messages per day" (fine there: it counts the old way).</p>
+        <p class="fix"><b>Fix:</b> change H below. Most of it is the planned Phase 15.1 ("Texts only").</p>
+      </li>
+      <li>
+        <p class="what"><span class="sev md">Medium</span>The Pay dashboard shows two different pay days</p>
+        <p class="why">Under the title: "Pay Fri 13 Nov". In the cards: "Next pay date Fri 6 Nov". Both are true (6 Nov pays earlier work from the imported pay records, 13 Nov pays this week's shifts) but the page doesn't say which work each pays for.</p>
+        <p class="fix"><b>Fix:</b> "Next pay day: Fri 6 Nov, for shifts in the week of 26 Oct" and "This week's shifts are paid Fri 13 Nov".</p>
+      </li>
+      <li>
+        <p class="what"><span class="sev md">Medium</span>A cancellations card measures two things at once</p>
+        <p class="why">The card is titled "Under 48 hours' notice this week" but its number is "0 strikes issued". A short-notice cancellation by the office gives no strike, so the two numbers differ.</p>
+        <p class="fix"><b>Fix:</b> three cards: cancellations, under 48 hours, strikes issued (change F).</p>
+      </li>
+      <li>
+        <p class="what"><span class="sev md">Medium</span>Casuals are told they "apply" but they book instantly</p>
+        <p class="why">Home and Open shifts say "shifts you can apply for"; the button on the shift says "Take shift" and books it at once (first yes wins). "Apply" makes people wait for an answer that never comes.</p>
+        <p class="fix"><b>Fix:</b> say "take" everywhere, unless you choose the apply-and-pick option in change G.</p>
+      </li>
+      <li>
+        <p class="what"><span class="sev md">Medium</span>"Needs updating" ignores missing staff photos</p>
+        <p class="why">Most casuals show "Staff photo: Missing" in one column and "Needs updating: Nothing" in the next.</p>
+        <p class="fix"><b>Fix:</b> count a missing or due photo as needing updating, or stop showing it as a problem.</p>
+      </li>
+      <li>
+        <p class="what"><span class="sev lo">Low</span>The phone dashboard cuts off a tab, and the chart labels crowd</p>
+        <p class="why">At 390px, "Next week" is pushed off the tab row and the 14 day numbers under the chart touch each other.</p>
+        <p class="fix"><b>Fix:</b> on a phone, show this week's 7 days and a "Next week" switch; let the tab row scroll with a fade.</p>
+      </li>
+      <li>
+        <p class="what"><span class="sev lo">Low</span>Pilot metrics are always empty on the demo</p>
+        <p class="why">The page says "No daily figures for these dates yet" and "Portal adoption 0% (0 of 5)". The figures are worked out each night at 00:30 and the demo is reloaded at 04:00, which looks like why they never build up (worth confirming).</p>
+        <p class="fix"><b>Fix:</b> have the demo loader work the figures out after each reload, and say "Last worked out at 00:30" next to them.</p>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ===================== CHANGES ===================== -->
+  <section class="part" id="changes" aria-labelledby="h-changes">
+    <h2 id="h-changes">Your changes, as mock-ups</h2>
+    <p class="read muted">Each one shows the proposed version and, folded under it, the page now (a screenshot of the live demo). Switch between laptop (1280px) and phone (390px). Names are the demo's made-up people. Reliability figures, charts and history are examples: the demo has no 90 days of history to work them out from.</p>
+    <div id="changes-list" style="display:grid; gap:18px"></div>
+  </section>
+
+  <!-- ===================== WORDING ===================== -->
+  <section class="part" id="wording" aria-labelledby="h-wording">
+    <h2 id="h-wording">Remove and reword</h2>
+    <div class="cols3">
+      <div class="listcard">
+        <h3>Remove</h3>
+        <ul>
+          <li>The shifts line number on the Pay dashboard. You said in round 5 that it isn't needed, and it lists WhatsApp and calls.</li>
+          <li>"Send OFFICE to reach a person" from replies shown in the app. In the app there's a "Write to the office" box instead.</li>
+          <li>Login rows from the action log's default view (each login writes 3 rows). Keep them under the "Logins" type.</li>
+          <li>Show the "AI sorting isn't connected yet" banner on Enquiries to admins only: it's a setup message, not news for resourcers.</li>
+          <li>On a shift page with people booked, the date and time fields in "Edit this shift": the page says they can't change there, and "Move, shorten or cancel" below has its own.</li>
+          <li>"Needs updating: Nothing" on every row of Casuals. Leave the cell empty.</li>
+        </ul>
+      </div>
+      <div class="listcard">
+        <h3>Reword</h3>
+        <ul>
+          <li><span class="was">Mark who worked: Session 1, Session 2</span> → each person's name with Worked / Didn't attend (change D).</li>
+          <li><span class="was">Strike: Not recorded (before strikes)</span> → "No strike (strikes weren't on yet)".</li>
+          <li><span class="was">Your planner: No webhook set up</span> → leave out unless a planner is connected.</li>
+          <li><span class="was">Shifts you can apply for</span> → "Shifts you can take".</li>
+          <li><span class="was">22 hours' notice (22.89 hours)</span> → "22 hours' notice".</li>
+          <li><span class="was">by WhatsApp</span> → "by app notification" / "by text" / "by email".</li>
+          <li><span class="was">Under 48 hours' notice this week: 0 strikes issued</span> → two cards (change F).</li>
+          <li>Role field "csas officer" → "CSAS officer", as everywhere else.</li>
+        </ul>
+      </div>
+      <div class="listcard">
+        <h3>Improve</h3>
+        <ul>
+          <li>A shift page uses one 500px column on a laptop; half the screen is empty. Put Places, Offers and History on the left and the edit forms on the right.</li>
+          <li>The offer page lists who can take it but not who was left out and why (the enquiry pages already show "Considered but not offered").</li>
+          <li>Cancellation detail: 23 rows in one table, with notice, strike and reason near the bottom. Put those three at the top.</li>
+                    <li>Casuals: 68 people in one long list. Add sorting by reliability, last worked or strikes (change A).</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== REFERENCE ===================== -->
+  <section class="part" id="reference" aria-labelledby="h-ref">
+    <h2 id="h-ref">Reference audit: Haulix</h2>
+    <div class="callout read">
+      <p><b>I couldn't open the Haulix shot.</b> Dribbble refuses automated visits, and I won't get round that. Please paste screenshots of it (and of any other reference you meant to send again) straight into the chat, and I'll do a side-by-side, screen by screen.</p>
+      <p class="muted">Below is what I could check now: the goals you set from Haulix in rounds 4 and 5 of the design canvas (recorded in <code>docs/archive/plan-done.md</code>), and how the live office meets them.</p>
+    </div>
+    <div class="tablewrap">
+      <table class="audit">
+        <thead><tr><th>What you asked for from Haulix</th><th>Live office now</th><th>Verdict</th></tr></thead>
+        <tbody>
+          <tr><td>Fold the sidebar (round 4)</td><td>A 72px icon rail that opens to names and counts</td><td class="ok">Met</td></tr>
+          <tr><td>Apple-style depth: shadows, layers (round 5)</td><td>Glass panels with a lit rim and drop shadows on a pastel wash</td><td class="ok">Met</td></tr>
+          <tr><td>Don't show what's been filled, unless the system filled it out of hours (round 5)</td><td>"While you were out" shows 18:00–08:00 fills; events fold filled sessions. But the shift page and casual lists still lead with filled places.</td><td class="part-ok">Mostly</td></tr>
+          <tr><td>"Your shifts line isn't needed" (round 5)</td><td>Gone from the top bar, still on the Pay dashboard with "(WhatsApp, text and calls)"</td><td class="no">Not met</td></tr>
+          <tr><td>Tailored "a lot more like" Haulix and BizLink (round 4)</td><td>Can't judge without the pictures</td><td class="part-ok">To check</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout read">
+      <p><b>From my own review of the dashboard, against operations dashboards in general</b> (not claims about Haulix):</p>
+      <ul style="margin:0; padding-left:18px; display:grid; gap:6px">
+        <li>The numbers have no direction. "To fill 33" doesn't say whether that's more or less than last week. Add a small change against last week to each count.</li>
+        <li>The big chart only shows places to fill. The things you asked about (cancellations, no-shows, reliability) have no chart at all. Change B lets each resourcer pick.</li>
+        <li>Nothing moves on the page when something happens. A live feed of events (change C) is the usual centre of an operations screen.</li>
+        <li>The four board columns are mostly empty in normal use ("No offers waiting", "Nothing taken last night"). Empty columns take a third of the screen. Collapse an empty column to its title.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== DECISIONS ===================== -->
+  <section class="part" id="decide" aria-labelledby="h-decide">
+    <h2 id="h-decide">Your decisions</h2>
+    <p class="read muted">I need these before building. My recommendation is in green.</p>
+    <div class="decide read">
+      <div class="dq">
+        <h3>1. What is a "contract"?</h3>
+        <p>The app knows events, sites (venues) and roles, but has no idea of a client or contract. A resourcer who "looks after the Arena and the council patrols" could mean sites, or the client who pays for several sites.</p>
+        <p class="rec"><b>Recommended:</b> a client (contract) that owns one or more sites, set by the admin, so a resourcer picks clients and sees every site under them. It's a new table, so it needs your OK (schema).</p>
+      </div>
+      <div class="dq">
+        <h3>2. "Who has applied": keep instant booking, or let casuals apply?</h3>
+        <p>Today a casual taps "Take shift" and it's theirs at once. Nobody applies, so there's no list of applicants to show.</p>
+        <p class="rec"><b>Recommended:</b> a setting per event: "Casuals take places" (now, best for urgent and overnight) or "Casuals ask, you choose" (they tap "I can do this", you pick from a list sorted by reliability). Change G shows the list for both.</p>
+      </div>
+      <div class="dq">
+        <h3>3. How is reliability worked out?</h3>
+        <p>Code works it out from facts the app already logs, never AI. It's a number about people, so casuals should be able to see their own.</p>
+        <p class="rec"><b>Recommended:</b> over the last 90 days, shifts worked ÷ (shifts worked + no-shows + cancellations under 48 hours). Show the counts beside it. "Regular" means worked in 6 of the last 8 weeks. Shown to the office and to the casual on their Profile. Should it change who's offered first? Not yet: decide after a month of pilot data.</p>
+      </div>
+      <div class="dq">
+        <h3>4. Which ways can an offer reach a casual?</h3>
+        <p>The back end already tries the app notification first, then a text, then email. The screens and settings still say WhatsApp.</p>
+        <p class="rec"><b>Recommended:</b> app notification, then a text through the firm's Webex account, then email. A company WhatsApp (WhatsApp Business through Meta) only if the firm wants it later: it needs Meta's approval of each message and costs per message. Note: app notifications are off on the demo server; finishing them (Phase 4's open "Web push" task) comes first.</p>
+      </div>
+      <div class="dq">
+        <h3>5. Alerts: who gets told, and how?</h3>
+        <p>Today nothing tells a resourcer a cancellation has come in. The office gets an email only when a place is still free 3 hours before start (a firm setting).</p>
+        <p class="rec"><b>Recommended:</b> in the office, a live feed and a pop-up for each cancellation (on by default); a phone or desktop notification for cancellations under 48 hours and gaps still open 6 hours before start; each resourcer chooses, and only for their contracts.</p>
+      </div>
+    </div>
+    <p class="footer read">Made from the live demo at acme.staffingresourcingtest.uk on Mon 2 Nov 2026 (made-up people only). Screenshots: <code>docs/mockups/review-2026-11/now/</code>. Nothing on this page has been built or ticked.</p>
+  </section>
+</div>
+
+<script>
+(function () {
+  // ---------- icons (simple strokes) ----------
+  var P = {
+    home: '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/>',
+    bell: '<path d="M6 8a6 6 0 1112 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 20a2 2 0 004 0"/>',
+    cal: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+    inbox: '<path d="M3 13l3-8h12l3 8v6H3z"/><path d="M3 13h5l1 2h6l1-2h5"/>',
+    calx: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4M10 13l4 4M14 13l-4 4"/>',
+    pay: '<rect x="3" y="6" width="18" height="12" rx="3"/><circle cx="12" cy="12" r="2.5"/>',
+    people: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.3-6 6.5-6s5.9 2.4 6.5 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.4 0 4.2 1.7 4.6 4.5"/>',
+    sliders: '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>',
+    send: '<path d="M21 3L10 14"/><path d="M21 3l-7 18-4-7-7-4z"/>',
+    check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    x: '<path d="M6 6l12 12M18 6L6 18"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    alert: '<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c.8-4.3 4-7 8-7s7.2 2.7 8 7"/>',
+    filter: '<path d="M4 6h16M7 12h10M10 18h4"/>',
+    phone: '<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/>',
+    mail: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3.5 6.5L12 13l8.5-6.5"/>',
+    text: '<path d="M4 5h16v11H9l-5 4z"/>',
+    more: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
+    down: '<path d="M6 9l6 6 6-6"/>',
+    star: '<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>',
+    gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
+    grid: '<rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/>',
+    pin: '<path d="M12 21s7-6.2 7-11.5A7 7 0 005 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
+    menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
+    strike: '<circle cx="12" cy="12" r="9"/><path d="M6 18L18 6"/>'
+  };
+  function I(n, cls) { return '<svg class="i' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" aria-hidden="true">' + P[n] + '</svg>'; }
+
+  // ---------- the office shell around each mock ----------
+  function shell(content, size, on, toast) {
+    if (size === 'phone') {
+      return '<div class="f-phonebar"><span class="menu">' + I('menu', 's') + 'Menu</span><span class="mark">A</span><span class="firm">Acme Events</span><span class="bell">' + I('bell', 's') + '<span class="dot"></span></span></div>' +
+        '<div class="f-phone-main">' + content + (toast ? '<div class="toast">' + toast + '</div>' : '') + '</div>';
+    }
+    var icons = ['home', 'bell', 'cal', 'inbox', 'calx', 'pay', 'people'];
+    var rail = '<div class="f-rail"><span class="mark">A</span>' + icons.map(function (n) {
+      return '<span class="ic' + (n === on ? ' on' : '') + '">' + I(n) + (n === 'bell' || n === 'people' ? '<span class="dot"></span>' : '') + '</span>';
+    }).join('') + '<span class="ic">' + I('sliders') + '</span></div>';
+    var top = '<div class="f-top"><span class="capsule">' + I('user', 's') + 'To fill <b>33</b>' + I('clock', 's') + 'Urgent <span class="u"><b>2</b></span>' + I('send', 's') + 'Offers out <b>0</b>' + I('check', 's') + 'To check <b>7</b></span><span class="capsule grow">' + I('filter', 's') + 'Search</span><span class="capsule">' + I('bell', 's') + '<b>3</b> new</span><span class="capsule"><span class="av" style="width:28px;height:28px">RD</span><b>Resourcer (demo)</b></span></div>';
+    return '<div class="f-shell">' + rail + '<div class="f-main">' + top + content + '</div></div>' + (toast ? '<div class="toast">' + toast + '</div>' : '');
+  }
+
+  // ---------- the mock-ups ----------
+  var M = {};
+
+  // D. Who worked?
+  M.worked = function () {
+    function person(ini, name, role, post, state) {
+      var right = state === 'worked' ? '<span class="chip d">' + I('check', 's') + 'Worked</span><span class="btn sm ghost">Change</span>'
+        : state === 'no' ? '<span class="chip u">' + I('x', 's') + 'Didn\'t attend</span><span class="btn sm ghost">Change</span>'
+        : '<span class="btn sm">' + I('check', 's') + 'Worked</span><span class="btn sm danger">' + I('x', 's') + 'Didn\'t attend</span>';
+      return '<div class="r" style="grid-template-columns:minmax(0,1fr) auto"><div class="who"><span class="av">' + ini + '</span><span><b>' + name + '</b><span class="muted">' + role + ' · ' + post + '</span></span></div><div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">' + right + '</div></div>';
+    }
+    function group(day, date, title, sub, people, left) {
+      return '<div class="tile" style="display:grid;gap:10px;padding:14px">' +
+        '<div style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap"><div class="who"><span class="dtile"><small>' + day + '</small><b>' + date + '</b></span><span><b>' + title + '</b><span class="muted">' + sub + '</span></span></div>' +
+        '<div style="display:flex;gap:8px;align-items:center"><span class="chip a">' + I('clock', 's') + left + '</span><span class="btn sm main">' + I('check', 's') + 'Everyone else worked</span></div></div>' +
+        '<div class="rowlist">' + people + '</div></div>';
+    }
+    var c = '<div class="f-headrow"><div><div class="f-h1">Needs attention</div><div class="f-sub">3 people still to confirm from the weekend. Each mark is logged.</div></div></div>' +
+      '<div class="f-grid2"><div class="glass pane"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h3 style="font-size:18px">Did they work? <span class="count">3</span></h3><span class="muted small">From the last 7 days</span></div>' +
+      group('Sun', '1', 'Acme Demo Racecourse', 'Steward · 10:30–18:30', person('SW', 'Sam Walsh', 'Steward', 'Gate 3', 'worked') + person('OH', 'Olu Hughes', 'Steward', 'Paddock', '') + person('ZV', 'Zoe Vaughan', 'Steward', 'Gate 1', ''), '2 to confirm') +
+      group('Sun', '1', 'Acme Demo Shopping Centre', 'Security officer · 07:00–15:00', person('GC', 'Grace Chowdhury', 'Security officer', 'North mall', '') + person('YD', 'Yasmin Doyle', 'Security officer', 'Car park', 'no'), '1 to confirm') +
+      '</div><div class="glass pane"><h3 style="font-size:18px">How marking works</h3><p class="muted">Tap <b>Worked</b> or <b>Didn\'t attend</b> for each person, or <b>Everyone else worked</b> for the rest (once the session has ended, as now). The casual sees "Didn\'t attend" in their past shifts, and it will count in their reliability (change A). A mark can be changed; every change is logged.</p><div class="hr"></div><h3 style="font-size:16px">Also needs you</h3><div class="r" style="grid-template-columns:minmax(0,1fr) auto"><span>2 uploads to check</span><span class="btn sm">Check</span></div><div class="r" style="grid-template-columns:minmax(0,1fr) auto"><span>2 urgent places, first Wed 4 Nov</span><span class="btn sm">Offer</span></div></div></div>';
+    return c;
+  };
+
+  // E. Casuals: Need updating, with actions
+  M.needs = function () {
+    function row(ini, name, roles, chipTxt, last, state, extra) {
+      var act = state === 'sent' ? '<span class="chip d">' + I('check', 's') + 'Reminded just now</span>'
+        : '<span class="btn sm main">' + I('send', 's') + 'Remind</span><span class="btn sm" aria-label="More">' + I('more', 's') + '</span>';
+      return '<div class="r need-row"><div class="who"><span class="av">' + ini + '</span><span><b>' + name + '</b><span class="muted">' + roles + '</span></span></div>' +
+        '<div class="stack"><span class="chip u">' + I('alert', 's') + chipTxt + '</span>' + (extra || '') + '</div>' +
+        '<div class="stack small"><span>' + last + '</span><span class="muted">Can\'t take door supervisor shifts</span></div>' +
+        '<div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">' + act + '</div></div>';
+    }
+    return '<div class="f-headrow"><div><div class="f-h1">Casuals</div><div class="f-sub">Qualifications, reliability and strikes. Chase anything out of date from here.</div></div></div>' +
+      '<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center"><span class="tabs"><span>All <span class="count">68</span></span><span class="on">Need updating <span class="count blue">6</span></span><span>Uploads to check <span class="count">2</span></span></span>' +
+      '<span class="btn">' + I('send', 's') + 'Remind all 6</span></div>' +
+      '<div class="glass pane"><div class="head-row need-row"><span>Casual</span><span>Out of date</span><span>Last reminder</span><span></span></div><div class="rowlist">' +
+      row('DC', 'Daniel Chowdhury', 'Door supervisor, Steward', 'SIA DS expired 28 Sep', 'Automatic, 28 Sep · no upload', 'sent', '<span class="chip a">Staff photo missing</span>') +
+      row('KD', 'Kieran Doyle', 'Door supervisor', 'SIA DS expired 28 Oct', 'Automatic, 28 Oct · no upload', '', '<span class="chip uf">2 live strikes</span>') +
+      row('MM', 'Maya Morgan', 'Door supervisor, Steward', 'SIA DS expired 24 Sep', 'You, 30 Oct · no upload', '') +
+      row('YR', 'Yasmin Reid', 'Door supervisor, Steward', 'SIA DS expired 26 Sep', 'Automatic, 26 Sep · no upload', '') +
+      '</div><p class="muted small">"Remind" sends the expired-licence message again (app notification, then text, then email) with a link to upload. The "…" menu has: call them, add a note, mark as sorted.</p></div>';
+  };
+
+  // F. Cancellations
+  M.cancel = function () {
+    function row(hot, name, sess, when, how, notice, strike, reason) {
+      return '<div class="r cancel-row' + (hot ? ' hot' : '') + '"><div class="stack"><b>' + name + '</b><span class="muted small">' + sess + '</span></div>' +
+        '<div class="stack small"><span>Cancelled ' + when + '</span><span class="muted">' + how + (reason ? ' · ' + reason : '') + '</span></div>' +
+        '<div>' + notice + '</div><div>' + strike + '</div></div>';
+    }
+    var u = function (t) { return '<span class="chip u">' + I('clock', 's') + t + '</span>'; };
+    var q = function (t) { return '<span class="chip q">' + t + '</span>'; };
+    var s = function (n, until) { return '<span class="stack"><span class="chip uf">' + I('strike', 's') + 'Strike ' + n + ' issued</span><span class="muted small">Counts until ' + until + '</span></span>'; };
+    return '<div class="f-headrow"><div><div class="f-h1">Cancellations</div><div class="f-sub">Every cancellation, by casuals and by the office. Final the moment it\'s made.</div></div><span class="btn">Download CSV</span></div>' +
+      '<div class="f-grid4 keep2"><div class="glass pane"><span class="muted small">This week</span><span class="big">2</span><span class="muted small">2 by casuals · 0 by the office</span></div>' +
+      '<div class="glass pane"><span class="muted small">Under 48 hours\' notice</span><span class="big">0</span><span class="muted small">This week · 5 in all</span></div>' +
+      '<div class="glass pane"><span class="muted small">Strikes issued</span><span class="big">0</span><span class="muted small">This week · 3 live in all</span></div>' +
+      '<div class="glass pane hide-phone"><span class="muted small">Last 8 weeks</span><svg class="spark" viewBox="0 0 160 44" aria-hidden="true"><polyline fill="none" stroke="currentColor" stroke-width="2" points="0,30 22,26 44,34 66,18 88,22 110,12 132,24 160,20"/><circle cx="160" cy="20" r="3" fill="currentColor"/></svg></div></div>' +
+      '<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span class="tabs"><span class="on">All <span class="count">7</span></span><span>Under 48 hours <span class="count u">5</span></span><span>Strikes <span class="count">4</span></span><span>By the office <span class="count">1</span></span></span><span class="muted small">Red rows had under 48 hours\' notice</span></div>' +
+      '<div class="glass pane"><div class="head-row cancel-row"><span>Casual and session</span><span>Cancelled</span><span>Notice</span><span>Strike</span></div><div class="rowlist">' +
+      row(false, 'Zoe Adeyemi', 'Steward · Riverside Demo Park · Thu 5 Nov 14:00', '09:06 Mon 2 Nov', 'In the app', q('3 days'), q('No strike · enough notice')) +
+      row(false, 'Chloe Quigley', 'Door supervisor · Acme Demo Arena · Sat 7 Nov 08:00', '04:00 Mon 2 Nov', 'In the app', q('5 days'), q('No strike · strikes weren\'t on yet')) +
+      row(true, 'Kieran Doyle', 'Door supervisor · Acme Demo Arena · Sun 25 Oct 08:00', '02:00 Sun 25 Oct', 'In the app', u('6 hours'), s('2', 'Sat 23 Jan')) +
+      row(true, 'Tom Hale', 'Door supervisor · Acme Demo Racecourse · Sat 24 Oct 12:00', '06:00 Fri 23 Oct', 'By the office', u('30 hours'), q('No strike · the office cancelled'), 'Weather or safety') +
+      row(true, 'Priya Shah', 'Steward · Riverside Demo Park · Wed 21 Oct 11:00', '05:00 Tue 20 Oct', 'In the app', u('30 hours'), '<span class="stack"><span class="chip uf">' + I('strike', 's') + 'Strike 1 issued</span><span class="chip a">Needs review</span></span>') +
+      row(true, 'Kieran Doyle', 'Door supervisor · Acme Demo Arena · Tue 13 Oct 18:00', '22:00 Mon 12 Oct', 'In the app', u('20 hours'), s('1', 'Sun 10 Jan')) +
+      row(true, 'Mo Rahman', 'CSAS officer · Northgate Demo Town Centre · Sat 3 Oct 19:00', '09:00 Sat 3 Oct', 'In the app', u('10 hours'), '<span class="chip q strike">Strike withdrawn</span>') +
+      '</div></div>';
+  };
+
+  // G. Who's interested in a session showing to casuals
+  M.interest = function () {
+    function row(ini, name, rel, relCls, dist, status, act, extra) {
+      return '<div class="r int-row"><div class="who"><span class="av">' + ini + '</span><span><b>' + name + '</b><span class="muted">' + (extra || 'Steward L2 · Manual handling') + '</span></span></div>' +
+        '<div class="stack small"><span><b class="num">' + rel + '</b> reliable</span><div class="meter ' + relCls + '" style="width:90px"><i style="width:' + rel + '"></i></div></div>' +
+        '<div class="small"><span class="num">' + dist + '</span></div><div>' + status + '</div><div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">' + act + '</div></div>';
+    }
+    var book = '<span class="btn sm main">Book</span>';
+    return '<div class="f-headrow"><div><div class="f-h1">Steward · Fri 6 Nov, 11:00–19:00</div><div class="f-sub">Riverside Food Festival · Gate 2 · 0 of 3 booked · <span class="chip d" style="vertical-align:1px">' + I('check', 's') + 'Showing to casuals</span></div></div><span class="btn main">' + I('send', 's') + 'Offer to someone</span></div>' +
+      '<div class="glass pane"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><h3 style="font-size:18px">Casuals for this session</h3><span class="muted small">Sorted by reliability, then distance</span></div>' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span class="tabs"><span class="on">Asked for it <span class="count blue">4</span></span><span>Offered <span class="count">3</span></span><span>Said no <span class="count">1</span></span><span>Booked <span class="count">0</span></span><span>Could take it <span class="count">18</span></span></span>' +
+      '<span class="btn sm">' + I('filter', 's') + 'Reliability 80%+</span><span class="btn sm">' + I('pin', 's') + 'Within 45 min</span><span class="btn sm hide-phone">Worked here before</span></div>' +
+      '<div class="head-row int-row"><span>Casual</span><span>Reliability</span><span>Distance</span><span>Status</span><span></span></div><div class="rowlist">' +
+      row('SW', 'Sam Walsh', '98%', '', '5.0 mi', '<span class="chip w">Asked 14:02 today</span>', book, 'Steward L2 · worked here 6 times') +
+      row('BF', 'Ben Fraser', '94%', '', '7.1 mi', '<span class="chip w">Asked 13:40 today</span>', book) +
+      row('PS', 'Priya Shah', '81%', 'warn', '3.2 mi', '<span class="chip w">Asked 12:15 today</span>', book, 'Steward L2 · 1 live strike') +
+      row('KD', 'Kieran Doyle', '62%', 'bad', '9.8 mi', '<span class="chip w">Asked 11:58 today</span>', '<span class="btn sm">Book</span><span class="btn sm ghost">Turn down</span>', 'Steward L2 · 2 live strikes · 1 no-show') +
+      '</div><p class="muted small">Booking someone here is the same as taking the place: first yes wins, and the rules and credential checks run first. In "Casuals take places" mode this list has no "Asked for it" tab: it shows Offered, Said no, Booked and Could take it.</p></div>';
+  };
+
+  // A. Reliability on Casuals
+  M.reliable = function () {
+    function row(ini, name, roles, worked, ns, late, rel, cls, tag) {
+      return '<div class="r cas-row"><div class="who"><span class="av">' + ini + '</span><span><b>' + name + '</b><span class="muted">' + roles + '</span></span></div>' +
+        '<div class="small"><span class="only-phone muted">Worked </span><b class="num">' + worked + '</b></div><div class="small"><span class="only-phone muted">No-shows </span><b class="num"' + (ns > 0 ? ' style="color:var(--urgent)"' : '') + '>' + ns + '</b></div><div class="small"><span class="only-phone muted">Late cancels </span><b class="num"' + (late > 0 ? ' style="color:var(--urgent)"' : '') + '>' + late + '</b></div>' +
+        '<div class="stack small"><span><b class="num">' + rel + '</b></span><div class="meter ' + cls + '" style="width:100%;max-width:140px"><i style="width:' + rel + '"></i></div></div><div>' + tag + '</div></div>';
+    }
+    return '<div class="f-headrow"><div><div class="f-h1">Casuals</div><div class="f-sub">Last 90 days. Reliability = shifts worked ÷ (worked + no-shows + cancellations under 48 hours).</div></div><span class="btn">' + I('filter', 's') + 'Sort: least reliable first</span></div>' +
+      '<div class="f-grid4 keep2"><div class="glass pane"><span class="muted small">Regulars</span><span class="big">21</span><span class="muted small">Worked 6 of the last 8 weeks</span></div><div class="glass pane"><span class="muted small">Reliable, 95%+</span><span class="big">39</span><span class="muted small">of 52 who worked</span></div><div class="glass pane"><span class="muted small">Cancel often</span><span class="big" style="color:var(--urgent)">4</span><span class="muted small">3+ late cancels</span></div><div class="glass pane"><span class="muted small">Not worked lately</span><span class="big">16</span><span class="muted small">Nothing in 60 days</span></div></div>' +
+      '<span class="tabs"><span>All <span class="count">68</span></span><span class="on">Cancel often <span class="count u">4</span></span><span>Regulars <span class="count">21</span></span><span>Not worked lately <span class="count">16</span></span><span>Need updating <span class="count">6</span></span></span>' +
+      '<div class="glass pane"><div class="head-row cas-row"><span>Casual</span><span>Worked</span><span>No-shows</span><span>Late cancels</span><span>Reliability</span><span></span></div><div class="rowlist">' +
+      row('KD', 'Kieran Doyle', 'Door supervisor', 9, 1, 3, '69%', 'bad', '<span class="chip uf">2 live strikes</span>') +
+      row('MR', 'Mo Rahman', 'CSAS officer, Steward', 14, 0, 3, '82%', 'warn', '<span class="chip q">Strike withdrawn</span>') +
+      row('PS', 'Priya Shah', 'Steward', 11, 1, 2, '79%', 'warn', '<span class="chip u">1 live strike</span>') +
+      row('TH', 'Tom Hale', 'Door supervisor', 18, 0, 3, '86%', 'warn', '<span class="chip a">Regular</span>') +
+      '</div></div>';
+  };
+
+  // B. My dashboard: contracts and charts
+  M.mine = function () {
+    function pick(on, t, d) { return '<div class="wp' + (on ? ' on' : '') + '"><span class="chk' + (on ? ' on' : '') + '">' + (on ? I('check', 's') : '') + '</span><span><b>' + t + '</b><br><span class="muted small">' + d + '</span></span></div>'; }
+    function contract(on, t, d) { return '<div class="opt' + (on ? ' on' : '') + '" style="justify-content:space-between"><span><b>' + t + '</b><br><span class="muted small">' + d + '</span></span><span class="toggle' + (on ? ' on' : '') + '"></span></div>'; }
+    var days = [[3,1,0],[4,1,0],[5,2,1],[6,3,0],[7,6,2],[8,2,0],[9,1,0]];
+    var bars = days.map(function (d) { return '<div class="b"><i class="u" style="height:' + d[2] * 14 + 'px"></i><i style="height:' + d[1] * 14 + 'px"></i><small>' + d[0] + '</small></div>'; }).join('');
+    var dash = '<div class="f-headrow"><div><div class="f-h1">Dashboard</div><div class="f-sub">Monday 2 November · Showing <b>your 3 contracts</b> · <a href="#" onclick="return false">Show everything</a></div></div><span class="btn">' + I('grid', 's') + 'Customise</span></div>' +
+      '<div class="f-grid3"><div class="glass pane"><div style="display:flex;justify-content:space-between"><b>Places to fill</b><span class="muted small">Your contracts</span></div><div class="legend"><span><i style="background:var(--ink)"></i>To offer</span><span><i style="background:var(--urgent-fill)"></i>Urgent</span></div><div class="bars">' + bars + '</div></div>' +
+      '<div class="glass pane"><div style="display:flex;justify-content:space-between"><b>Cancellations</b><span class="muted small">8 weeks</span></div><div class="bars">' + [2,3,1,4,2,5,3,2].map(function (v, i) { return '<div class="b"><i class="' + (i === 5 ? 'u' : '') + '" style="height:' + v * 18 + 'px"></i><small>W' + (38 + i) + '</small></div>'; }).join('') + '</div><span class="muted small">Under 48 hours in red. Week 43: 5, the most in 8 weeks.</span></div>' +
+      '<div class="glass pane"><b>Watch list</b><span class="muted small">Least reliable who are booked this week</span><div class="rowlist">' +
+      '<div class="r" style="grid-template-columns:minmax(0,1fr) auto"><span class="who"><span class="av">KD</span><span><b>Kieran Doyle</b><span class="muted">Booked Sat 7 Nov</span></span></span><b class="num" style="color:var(--urgent)">69%</b></div>' +
+      '<div class="r" style="grid-template-columns:minmax(0,1fr) auto"><span class="who"><span class="av">PS</span><span><b>Priya Shah</b><span class="muted">Booked Fri 6 Nov</span></span></span><b class="num" style="color:var(--attn)">79%</b></div></div></div></div>';
+    var panel = '<div class="scrim"></div><div class="panel-side"><div style="display:flex;justify-content:space-between;align-items:center"><h3 style="font-size:20px">Customise your dashboard</h3><span class="btn sm ghost">' + I('x', 's') + '</span></div>' +
+      '<b>Your contracts</b><span class="muted small">You only see these on the dashboard and in alerts. Everything stays in Events &amp; sessions.</span>' +
+      contract(true, 'Acme Demo Arena', '2 sites · 28 sessions this week') + contract(true, 'Northgate Council patrols', '1 site · 2 sessions') + contract(true, 'Riverside Food Festival', '1 site · 2 sessions') + contract(false, 'Acme Demo Racecourse', '1 site · 11 sessions') +
+      '<b style="margin-top:6px">What you see</b><div class="widget-pick">' +
+      pick(true, 'Places to fill', 'By day, this week and next') + pick(true, 'Cancellations', 'By week, under 48h in red') + pick(true, 'Watch list', 'Least reliable who are booked') + pick(false, 'Fill rate', 'Booked ÷ needed, per contract') + pick(false, 'No-shows', 'By week') + pick(false, 'Reliability', 'Spread across your casuals') + '</div>' +
+      '<span class="btn main" style="margin-top:4px">Save my dashboard</span></div>';
+    return { body: dash, overlay: panel };
+  };
+
+  // C. Alerts
+  M.alerts = function () {
+    function ev(cls, ic, title, sub, when, act) {
+      return '<div class="ev"><span class="evic ' + cls + '">' + I(ic, 's') + '</span><span class="stack"><b>' + title + '</b><span class="muted small">' + sub + '</span></span><span class="stack" style="justify-items:end"><span class="muted small">' + when + '</span>' + (act || '') + '</span></div>';
+    }
+    var feed = '<div class="glass pane"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h3 style="font-size:18px">Updates <span class="count u">3</span></h3><span class="tabs"><span class="on">Needs action</span><span>Everything</span></span></div><div class="feed">' +
+      ev('u', 'calx', 'Chloe Quigley cancelled · 20 hours\' notice', 'Door supervisor, Acme Demo Arena, Sat 7 Nov 08:00 · Strike 1 issued · place reopened and marked urgent', '2 min ago', '<span class="btn sm main">Offer the place</span>') +
+      ev('a', 'clock', 'Still 1 place to fill, 6 hours to start', 'CSAS officer, Night patrols, Wed 4 Nov 19:00 · offered to 1, no reply', '13:00', '<span class="btn sm">Open</span>') +
+      ev('a', 'user', 'Ben Fraser uploaded a staff photo', 'Waiting for a check', '08:00', '<span class="btn sm">Check</span>') +
+      ev('d', 'check', 'Sam Walsh took Steward, Riverside, Thu 5 Nov', 'From the open shifts list · 1 of 2 booked', '07:42', '') +
+      ev('w', 'calx', 'Zoe Adeyemi cancelled · 3 days\' notice', 'Steward, Riverside Demo Park, Thu 5 Nov 14:00 · no strike', 'Yesterday', '') +
+      '</div></div>';
+    var settings = '<div class="glass pane"><h3 style="font-size:18px">Tell me about</h3><span class="muted small">Only for your contracts. Saved for you, not the whole office.</span>' +
+      ['Every cancellation|Pop-up in the office|on', 'Cancellations under 48 hours|Also a notification on my phone|on', 'Places still open 6 hours before start|Notification on my phone|on', 'Uploads to check|In Updates only|', 'A daily summary at 08:00|Email|on'].map(function (s) { var p = s.split('|'); return '<div class="opt" style="justify-content:space-between"><span><b>' + p[0] + '</b><br><span class="muted small">' + p[1] + '</span></span><span class="toggle' + (p[2] ? ' on' : '') + '"></span></div>'; }).join('') + '</div>';
+    return '<div class="f-headrow"><div><div class="f-h1">Updates</div><div class="f-sub">What\'s happened on your contracts, newest first. Opens from the bell.</div></div></div><div class="f-grid2">' + feed + settings + '</div>';
+  };
+
+  // H. How offers reach casuals
+  M.channels = function () {
+    function cand(ini, name, sub, ch, chIc) {
+      return '<div class="r" style="grid-template-columns:minmax(0,1fr) auto"><div class="who"><span class="av">' + ini + '</span><span><b>' + name + '</b><span class="muted">' + sub + '</span><span class="chip w" style="margin-top:4px">' + I(chIc, 's') + ch + '</span></span></div><span class="btn sm main">Send offer</span></div>';
+    }
+    var office = '<div class="glass pane"><div class="who"><span class="dtile u"><small>Wed</small><b>4</b></span><span><b style="font-size:18px">Offer this shift</b><span class="muted">CSAS officer · Night patrols · 19:00–01:00 · 1 place</span></span></div>' +
+      '<b>Who can take it</b><div class="rowlist">' + cand('ZA', 'Zoe Adeyemi', '8 hours booked that week · 98% reliable · 8.4 mi', 'App notification', 'phone') + cand('OE', 'Olu Evans', '12 hours booked that week · 92% reliable · 6.0 mi', 'Text (no app notifications on)', 'text') + cand('CF', 'Callum Fraser', '0 hours that week · 91% reliable · 4.1 mi', 'Email (their choice)', 'mail') + '</div>' +
+      '<div class="tile small"><b>How it reaches them.</b> <span class="muted">1. An app notification if their phone has them on (free). 2. Otherwise a text from your Webex account (about 20p). 3. Otherwise an email. Each offer is logged with how it went.</span></div></div>';
+    var casual = '<div class="glass pane"><b style="font-size:18px">How we reach you</b><span class="muted small">For offers, changes and reminders.</span>' +
+      '<div class="opt on"><span class="radio on"></span><span><b>App notifications</b><br><span class="muted small">Fastest and free. We\'ll text you if your phone can\'t get them.</span></span></div>' +
+      '<div class="opt"><span class="radio"></span><span><b>Text message</b><br><span class="muted small">To 07700 900400</span></span></div>' +
+      '<div class="opt"><span class="radio"></span><span><b>Email</b><br><span class="muted small">To zoe.adeyemi@example.com</span></span></div>' +
+      '<div class="opt" style="justify-content:space-between"><span><b>Tell me about open shifts</b></span><span class="toggle on"></span></div><span class="btn main">Save</span>' +
+      '<div class="hr"></div><b>Notifications on this phone</b><span class="muted small">Off. Turn them on to get offers first.</span><span class="btn">Turn on notifications</span></div>';
+    return '<div class="f-headrow"><div><div class="f-h1">Offers: app, text, email</div><div class="f-sub">The office\'s offer list (left) and the casual\'s Profile (right). No WhatsApp unless the firm connects its own WhatsApp Business number.</div></div></div><div class="f-grid2">' + office + casual + '</div>';
+  };
+
+  // ---------- the changes, in order ----------
+  var CHANGES = [
+    { id: 'worked', key: 'D', title: 'Who worked?', on: 'bell',
+      asked: 'Who worked? … section doesn\'t make sense',
+      now: { laptop: 'now/needs-attention-laptop.jpg', phone: 'now/dashboard-phone.jpg' },
+      notes: ['Now: "Session 1 / Session 2 / Session 3" buttons open each session; nothing says who is on which. The count says 5 but shows 2 items, and the dashboard column calls them sessions while the list says people.', 'Proposed: every person by name, with Worked / Didn\'t attend right there, and "Everyone else worked" for the common case. Grouped by venue and day. The count is people to confirm.', 'Same marks and log entries as today (Worked, Didn\'t attend), and the same rules (only after the session starts; "everyone else" only after it ends), so this is a screen change only.'] },
+    { id: 'needs', key: 'E', title: 'Casuals who need updating: chase them', on: 'people',
+      asked: 'casuals needs updating section should have an actioning button to follow up',
+      now: { laptop: 'now/casuals-needs-laptop.jpg', phone: 'now/casuals-needs-phone.jpg' },
+      notes: ['Now: a list with no action. The "Needs updating" column repeats the qualification chip.', 'Proposed: "Remind" on each row and "Remind all 6" at the top. It re-sends the expired-licence message that already exists (with the upload link), logs who sent it and when, and shows "Last reminder" so two people don\'t chase the same casual.', 'The "…" menu: call them, add a note, mark as sorted.'] },
+    { id: 'cancel', key: 'F', title: 'Cancellations: under 48 hours and strikes, clearly', on: 'calx',
+      asked: 'cancel section should highlight under 48 hours in the all section show when strikes are given clearer',
+      now: { laptop: 'now/cancellations-laptop.jpg', phone: 'now/cancellations-phone.jpg' },
+      notes: ['Now: every row looks the same; notice and strike are one line of small grey text at the right.', 'Proposed: rows under 48 hours are tinted red with a red edge, in the All view too. Notice and strike get their own columns: a red "Strike 2 issued" badge with the date it stops counting, a grey "No strike" with why, a struck-out "Strike withdrawn".', 'Three cards instead of two (fixes the card that measured two things), and a Strikes tab.'] },
+    { id: 'interest', key: 'G', title: 'Who\'s interested in a session showing to casuals', on: 'cal',
+      asked: 'shifts need filling that are being shown to casuals should have a section where you can see who has applied and filterable',
+      now: { laptop: 'now/shift-laptop.jpg', phone: 'now/casual-open-phone.jpg' },
+      notes: ['Now: a session page shows who is booked and the offers sent, nothing about who else could take it or wants it.', 'Proposed: "Casuals for this session" with tabs (Asked for it, Offered, Said no, Booked, Could take it) and filters (reliability, distance, worked here before).', '"Asked for it" only exists if you choose decision 2 ("Casuals ask, you choose"). Booking from here still runs every rule and credential check, and first yes still wins.'] },
+    { id: 'reliable', key: 'A', title: 'Who works regularly, who\'s reliable, who cancels often', on: 'people',
+      asked: 'make it so you can see data on who works regulary reliable and cancels often',
+      now: { laptop: 'now/casuals-needs-laptop.jpg', phone: 'now/casuals-needs-phone.jpg' },
+      notes: ['The data is already logged: bookings worked, no-shows (marked in Who worked?), cancellations with notice hours, strikes. Nothing adds it up per person yet (it\'s in the Parking lot).', 'Proposed: four counts at the top, tabs for Cancel often, Regulars and Not worked lately, and Worked / No-shows / Late cancels / Reliability columns you can sort. The same numbers on each casual\'s page and in the offer list.', 'Worked out by code from the log, never AI (golden rule 1). See decision 3 for the formula.'] },
+    { id: 'mine', key: 'B', title: 'Each resourcer\'s own dashboard: contracts and charts', on: 'home',
+      asked: 'make it so resourcers can select their contracts and what they want to see / what graphs they want to see',
+      now: { laptop: 'now/dashboard-laptop.jpg', phone: 'now/dashboard-phone.jpg' },
+      notes: ['Now: one dashboard for everyone, one chart (places to fill).', 'Proposed: "Customise" opens a panel: tick your contracts and the cards you want. Saved per person. "Show everything" is one tap away, so nothing is hidden for good.', 'Cards to choose from: Places to fill, Cancellations, Watch list, Fill rate, No-shows, Reliability, plus today\'s board. Needs decision 1 (what a contract is).'] },
+    { id: 'alerts', key: 'C', title: 'Updates when cancellations come in or something needs doing', on: 'bell',
+      asked: 'give you updates when cancelles come in or if they need actioning etc',
+      now: { laptop: 'now/needs-attention-laptop.jpg', phone: 'now/dashboard-phone.jpg' },
+      notes: ['Now: nobody in the office is told when a casual cancels. It shows on Cancellations (no badge) and the dashboard\'s counts. The only alert email is for a place still free 3 hours before start.', 'Proposed: an Updates feed from the bell, with "Needs action" first and a button on each item; a pop-up the moment a cancellation lands; phone or desktop notifications for the urgent kinds. Each resourcer chooses what they\'re told about, for their contracts only.', 'Built on the action log, which already records every one of these events. Phone and desktop notifications for office users are new: today only casuals can get them.'] },
+    { id: 'channels', key: 'H', title: 'Offers by app notification, text or email, not WhatsApp', on: 'home',
+      asked: 'offering a shift etc wont be done by whatsapp it should be done via app notifcation or email or webex text unless we can use a company whatsapp thing',
+      now: { laptop: 'now/offer-laptop.jpg', phone: 'now/casual-profile-phone.jpg' },
+      notes: ['Now: the offer list says "by WhatsApp" and casuals choose WhatsApp or text (WhatsApp is everyone\'s default). The sending code already tries the app notification first, then text, then email.', 'Proposed: each casual\'s row says how the offer will reach them; casuals choose app notifications, text or email. A company WhatsApp Business number can be added later if the firm wants it.', 'Mostly Phase 15.1 ("Texts only"), plus email as a choice. App notifications need Phase 4\'s web push finished: they\'re off on the demo server today.'] }
+  ];
+
+  var list = document.getElementById('changes-list');
+  CHANGES.forEach(function (c) {
+    var el = document.createElement('article');
+    el.className = 'change';
+    el.id = 'change-' + c.id;
+    el.innerHTML =
+      '<div class="change-head"><div class="read"><p class="eyebrow">Change ' + c.key + '</p><h3 style="font-size:21px">' + c.title + '</h3><p class="asked">You asked: <q>' + c.asked + '</q></p></div>' +
+      '<div class="seg" role="group" aria-label="Size for ' + c.title + '"><button type="button" data-size="laptop" aria-pressed="true">Laptop 1280</button><button type="button" data-size="phone" aria-pressed="false">Phone 390</button></div></div>' +
+      '<div class="notes"><ul>' + c.notes.map(function (n) { return '<li>' + n + '</li>'; }).join('') + '</ul></div>' +
+      '<div class="ba"><div><p class="ba-label new"><i></i>Proposed</p><div class="stage"><div class="scaler"></div></div></div>' +
+      '<details><summary class="ba-label" style="cursor:pointer"><i></i>Now, on the live demo</summary><div class="now-img" style="margin-top:8px"><img alt="The page now on the live demo" loading="lazy"></div></details></div>';
+    list.appendChild(el);
+    var stage = el.querySelector('.stage'), scaler = el.querySelector('.scaler'), img = el.querySelector('.now-img img'), nowBox = el.querySelector('.now-img');
+    function render(size) {
+      var out = M[c.id]();
+      var body = typeof out === 'string' ? out : out.body;
+      var overlay = typeof out === 'string' ? '' : out.overlay;
+      var html = shell(body, size, c.on);
+      if (overlay && size === 'laptop') html += overlay;
+      if (overlay && size === 'phone') html = shell(body + overlay, size, c.on);
+      scaler.innerHTML = '<div class="frame ' + size + '">' + html + '</div>';
+      img.src = c.now[size];
+      nowBox.classList.toggle('phone', size === 'phone');
+      el.querySelectorAll('.seg button').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.size === size ? 'true' : 'false'); });
+      fit();
+    }
+    function fit() {
+      var frame = scaler.firstElementChild; if (!frame) return;
+      // Measure the column, not the stage: the stage's own width is set from this.
+      var w = frame.offsetWidth, avail = stage.parentElement.clientWidth - 2;
+      var s = Math.min(1, avail / w);
+      scaler.style.transform = 'scale(' + s + ')';
+      scaler.style.width = w + 'px';
+      stage.style.height = Math.ceil(frame.offsetHeight * s) + 'px';
+      stage.style.width = Math.ceil(w * s) + 2 + 'px';
+      stage.style.maxWidth = '100%';
+    }
+    el.querySelectorAll('.seg button').forEach(function (b) { b.addEventListener('click', function () { render(b.dataset.size); }); });
+    if (window.ResizeObserver) new ResizeObserver(fit).observe(stage.parentElement);
+    render(window.innerWidth < 700 ? 'phone' : 'laptop');
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+  });
+})();
+</script>

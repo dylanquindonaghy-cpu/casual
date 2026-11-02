@@ -295,6 +295,19 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
 | 16 | **Decided** (Dylan, 2026-10-28: recommended): login links and pay codes by email, built now and switched off per firm; the login and Pay pages' words change after the UI chat's Phase 24, `docs/screens.md` first | WhatsApp only | P2.6; P2.7 |
 | 17 | **Decided** (Dylan, 2026-10-28: recommended): build "who sends what" now: every booking records where it came from, and a firm setting stops ShiftDesk's confirmation and reminders for bookings the firm's own system made | ShiftDesk sends for every booking | P2.2; P2.3 |
 
+### Office review (added 2026-11-02)
+
+For proposal P9 in `PLAN.md` (the review and its mock-up:
+https://claude.ai/artifact/N2xeceFhjsDVdA9eopsAGs, "Your decisions"). None decided yet.
+
+| # | Decision | Default now | Recommended | Where |
+|---|---|---|---|---|
+| 1 | What a "contract" is, for a resourcer choosing theirs | No such idea: events, sites and roles only | A client that owns one or more sites, set by the admin; a resourcer picks clients and sees every site under them (a new table: S, T) | P9 B, C |
+| 2 | "Who has applied": keep instant booking, or let casuals apply | A casual's "Take shift" books at once (first yes wins); nobody applies | A setting per event: "Casuals take places" (now; best for urgent and overnight) or "Casuals ask, you choose" ("I can do this", the office picks from a list sorted by reliability) | P9 G |
+| 3 | How reliability is worked out, who sees it, and whether it changes who's offered first | Not worked out; offers ranked by hours this week, then last offered | Last 90 days: worked ÷ (worked + no-shows + cancellations under 48 hours), counts beside it; "Regular" = worked in 6 of the last 8 weeks; the office and the casual both see it; offer order unchanged until a month of pilot data | P9 A |
+| 4 | Which ways an offer can reach a casual | Push, then WhatsApp or text, then email (the code); WhatsApp on screen and the default | App notification, then a text through the firm's Webex account, then email; email a casual's choice; WhatsApp only through a firm's own WhatsApp Business number, later, if wanted | P9 H; Phase 15.1 |
+| 5 | Office alerts: what, to whom, how | Nothing on a cancellation; an email for a place still free 3 h before start | A live feed and a pop-up for each cancellation (on); a phone or desktop notification for cancellations under 48 hours and places open 6 h before start; each resourcer chooses, for their contracts only | P9 C |
+
 ### Checks and to-dos (not choices)
 
 | # | What | Who | Where |

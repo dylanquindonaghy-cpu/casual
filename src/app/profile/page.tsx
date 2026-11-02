@@ -4,7 +4,7 @@ import { page } from "@/app/ui/classes";
 import { requireWorker } from "@/lib/auth/current-worker";
 import { appEnv } from "@/lib/env";
 import { myStrikes } from "@/lib/portal/my-strikes";
-import { workerLoginWay } from "@/lib/portal/login-way";
+import { hasTextSender, workerLoginWay } from "@/lib/portal/login-way";
 import { myProfile } from "@/lib/portal/profile";
 import { myTravel } from "@/lib/portal/travel";
 import { refreshSessionAction } from "../session-actions";
@@ -31,6 +31,7 @@ export default async function ProfilePage() {
         strikes={strikes}
         travel={travel}
         loginWay={await workerLoginWay(firm.id, worker.id)}
+        textSender={hasTextSender()}
       />
       <HomeScreenHint />
       <CasualTabBar firm={firm} workerId={worker.id} current="profile" />

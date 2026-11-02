@@ -22,6 +22,7 @@ export function NotificationForm({
   offerAlerts: initialAlerts,
   textsOff,
   loginWay,
+  textSender: textSenderProp,
   email,
   signOff,
 }: {
@@ -31,10 +32,13 @@ export function NotificationForm({
   // How their login links and codes go (src/lib/portal/login-way.ts): "message" only while there's
   // a text sender.
   loginWay: LoginWay;
+  // Whether texts exist at all (Profile passes it; else the login way says): the choice shows even
+  // for a casual who replied STOP (Phase 26.9).
+  textSender?: boolean;
   email: string | null;
   signOff: string;
 }) {
-  const textSender = loginWay === "message";
+  const textSender = textSenderProp ?? loginWay === "message";
   const router = useRouter();
   // Email chosen, but the firm no longer holds their address: messages go by text (src/lib/notify/
   // send.ts), so that's what's ticked, and saving keeps it a text.

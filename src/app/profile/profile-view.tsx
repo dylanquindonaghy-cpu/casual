@@ -85,18 +85,24 @@ export function ProfileView({
   strikes = null,
   travel = null,
   loginWay = "message",
+  textSender: textSenderProp,
 }: {
   profile: Profile;
   signOff: string;
-  // How their login links and codes go (P2.7; src/lib/portal/login-way.ts): anything but "message"
-  // means there's no text sender, so "How we reach you" has no WhatsApp or text.
+  // How their login links and codes go (P2.7; src/lib/portal/login-way.ts): their own case (Phase
+  // 26.9: not by text after STOP).
   loginWay?: LoginWay;
+  // Whether there's a text sender at all (src/lib/portal/login-way.ts hasTextSender): without one,
+  // "How we reach you" has no text to choose and no STOP note. Not their login way: a casual who
+  // replied STOP has no text login way, but texts exist and the note must show. Defaults to the
+  // login way, for callers that don't say.
+  textSender?: boolean;
   push?: { publicKey: string | null; firmName: string } | null;
   strikes?: MyStrikes | null;
   travel?: MyTravel | null;
 }) {
   const year = Number(profile.today.slice(0, 4));
-  const textSender = loginWay === "message";
+  const textSender = textSenderProp ?? loginWay === "message";
   return (
     <>
       <PageHeader title={`${profile.firstName} ${profile.lastName}`} />
@@ -266,6 +272,7 @@ export function ProfileView({
           offerAlerts={profile.offerAlerts}
           textsOff={profile.textsOff}
           loginWay={loginWay}
+          textSender={textSender}
           email={profile.email}
           signOff={signOff}
         />

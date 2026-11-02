@@ -220,6 +220,20 @@ describe("ProfileView", () => {
     ).toContain(
       "Texts are off: you replied STOP to one of our texts. We'll email shift messages to sam@example.test. To turn texts back on, text START to our number.",
     );
+    // Their own login way isn't a text after STOP ("off" here), but texts exist: the note and the
+    // choice still show (the page passes the text sender itself).
+    const stopped = text(
+      renderToStaticMarkup(
+        createElement(ProfileView, {
+          profile: profile({ notifyChannel: "sms", textsOff: true }),
+          signOff: "Acme Events Shift Team",
+          loginWay: "off",
+          textSender: true,
+        }),
+      ),
+    );
+    expect(stopped).toContain("Texts are off: you replied STOP to one of our texts.");
+    expect(stopped).toContain("If a notification can't reach you, send it by");
   });
 
   // Phase 26.9 (off-4): a text or an email, the email only while the firm holds their address;

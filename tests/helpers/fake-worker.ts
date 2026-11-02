@@ -22,17 +22,24 @@ export function fakeWorker(su: Pool, firmId: string, handlers: Record<string, Ha
   const names = Object.keys(handlers);
   const ran: Ran[] = [];
 
-  // The earliest waiting job of this firm on the handled queues.
+  // The earliest waiting job of this firm on the handled queues. A job queued to run at once (no
+  // startAfter) carries the database's real time, not the test's: pg-boss stamps its start_after and
+  // created_on with the same job_now() in one statement. So it's due now on the fake clock, ahead of
+  // any job queued for a set time, whatever the real date. (Ordering by its real stamp alone only
+  // worked while the real date was before the tests' fixed NOW: from 09:00 on 2 Nov 2026 the at-once
+  // waves jumped to the real time of the run.)
   async function nextJob() {
     const { rows } = await su.query<{
       id: string;
       name: string;
       data: Record<string, unknown>;
       start_after: Date;
+      at_once: boolean;
     }>(
-      `select id::text as id, name, data, start_after from pgboss.job
+      `select id::text as id, name, data, start_after, start_after = created_on as at_once
+         from pgboss.job
         where name = any($1) and data ->> 'firmId' = $2 and state = 'created'
-        order by start_after, created_on, id
+        order by start_after = created_on desc, start_after, created_on, id
         limit 1`,
       [names, firmId],
     );
@@ -41,15 +48,17 @@ export function fakeWorker(su: Pool, firmId: string, handlers: Record<string, Ha
 
   return {
     ran,
-    // Runs every job due by `until`, in order, each at max(its start_after, `from`): the clock only
-    // moves forward. A job queued by a job (for later) runs in its turn if it's due by `until`.
+    // Runs every job due by `until`, in order, each at max(its time, `from`), a job queued at once
+    // at the clock: the clock only moves forward. A job queued by a job (for later) runs in its turn
+    // if it's due by `until`.
     async runUntil(until: Date, from: Date): Promise<Ran[]> {
       const start = ran.length;
       let clock = from;
       for (let guard = 0; guard < 500; guard++) {
         const job = await nextJob();
-        if (!job || job.start_after.getTime() > until.getTime()) break;
-        if (job.start_after.getTime() > clock.getTime()) clock = job.start_after;
+        const due = job && (job.at_once ? clock : job.start_after);
+        if (!job || !due || due.getTime() > until.getTime()) break;
+        if (due.getTime() > clock.getTime()) clock = due;
         const handler = handlers[job.name];
         if (!handler) throw new Error(`no handler for ${job.name}`);
         const result = await handler({ id: job.id, data: job.data }, clock);

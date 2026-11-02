@@ -1061,6 +1061,23 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `${officeName} saved the weekly tally${isDay(d.weekStart) ? ` (the week of ${dayLabel(d.weekStart)})` : ""}.`;
     case "site.created":
       return fromPlanner ? "Your planner added a site." : "A site was added from the rota sheet.";
+    // Contracts (Phase 26.3): no names in the log, so the counts.
+    case "client.added":
+    case "client.saved": {
+      const n = typeof d.sites === "number" ? d.sites : 0;
+      const venues = n === 1 ? "1 venue" : `${n} venues`;
+      return e.action === "client.added"
+        ? `${officeName} added a contract with ${venues}.`
+        : `${officeName} saved a contract: ${venues}.`;
+    }
+    case "client.removed":
+      return `${officeName} removed a contract.`;
+    case "office_user.dashboard_saved": {
+      const n = typeof d.contracts === "number" ? d.contracts : 0;
+      return n === 0
+        ? `${officeName} saved their dashboard, with no contracts chosen.`
+        : `${officeName} saved their dashboard, looking after ${n === 1 ? "1 contract" : `${n} contracts`}.`;
+    }
     case "site.changed": {
       const site = names.site?.(d.siteId) ?? "a site";
       // A site's first postcode, from a planner's session (12J.1).

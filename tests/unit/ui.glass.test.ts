@@ -490,9 +490,9 @@ describe("where the glass goes", () => {
       // drawer; the search's panel. Round 8 (Phase 26): the rail is section glass, the counts
       // chips, the search a flat pill and you no capsule: nothing floats there at rest.
       "src/app/glass-refraction.tsx": ["glass-float"],
-      // The dashboard's Filter menu, and its session card over the map (its error, its "nothing to
-      // fill" and itself: round 8, Phase 26.2).
-      "src/app/office/dashboard-view.tsx": ["glass-float"],
+      // The dashboard's Filter menu and its date choice (Phase 26.3), and its session card over the
+      // map (its error, its "nothing to fill" and itself: round 8, Phase 26.2).
+      "src/app/office/dashboard-view.tsx": ["glass-float", "glass-float"],
       "src/app/office/dashboard/board.tsx": ["glass-float", "glass-float", "glass-float"],
       "src/app/office/office-frame.tsx": ["glass-float", "glass-float", "max-lg:glass-float"],
       "src/app/office/office-search.tsx": ["glass-float"],
@@ -500,6 +500,7 @@ describe("where the glass goes", () => {
       "src/app/office/find-worker-form.tsx": ["glass-float"], // Casuals' search, its matches
       "src/app/office/shift-actions.tsx": ["glass-float"], // the "…" menu
       "src/app/office/dashboard/offer-panel.tsx": ["glass-float"], // the offer panel
+      "src/app/office/customise-panel.tsx": ["glass-float"], // Customise's panel (Phase 26.3)
       // The comment that names it, and "You're booked." over the whole screen.
       "src/app/shifts/open/take-shift-result.tsx": ["glass-float", "glass-float"],
       "src/app/shifts/sheet.tsx": ["glass-float"], // the sheet from the foot

@@ -3,12 +3,14 @@ import {
   boolean,
   check,
   date,
+  foreignKey,
   jsonb,
   numeric,
   pgPolicy,
   pgTable,
   text,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { createdAt, firmIsolation } from "./helpers";
@@ -88,6 +90,31 @@ export const firms = pgTable(
   ],
 ).enableRLS();
 
+// A firm's client: a contract the firm staffs (Phase 26.3; decision 1 of the office review, the
+// spec page's cus-1). It owns some of the firm's sites (sites.client_id), so a resourcer who looks
+// after it sees its venues (office_user_clients). Added, saved and removed by an admin on Settings,
+// each logged (client.added, client.saved, client.removed; ids and counts only); removing one
+// leaves its sites without a contract (in the same transaction) and drops it from everyone's
+// choice (office_user_clients cascades).
+export const clients = pgTable(
+  "clients",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    name: text("name").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("clients_firm_id_id_key").on(t.firmId, t.id),
+    // One name per firm whatever its case: "Arena" and "ARENA" are one contract.
+    uniqueIndex("clients_firm_id_lower_name_key").on(t.firmId, sql`lower(${t.name})`),
+    check("clients_name_length", sql`char_length(${t.name}) between 1 and 120`),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();
+
 export const sites = pgTable(
   "sites",
   {
@@ -104,11 +131,19 @@ export const sites = pgTable(
     lat: numeric("lat", { precision: 9, scale: 6 }),
     lng: numeric("lng", { precision: 9, scale: 6 }),
     notes: text("notes"),
+    // The contract it belongs to, if any (Phase 26.3): one at most. A contract's removal clears it
+    // first (no ON DELETE action: a composite key's SET NULL would clear firm_id too).
+    clientId: uuid("client_id"),
     createdAt: createdAt(),
   },
   (t) => [
     unique("sites_firm_id_id_key").on(t.firmId, t.id),
     unique("sites_firm_id_name_key").on(t.firmId, t.name),
+    foreignKey({
+      name: "sites_client_fk",
+      columns: [t.firmId, t.clientId],
+      foreignColumns: [clients.firmId, clients.id],
+    }),
     firmIsolation(t.firmId),
   ],
 ).enableRLS();

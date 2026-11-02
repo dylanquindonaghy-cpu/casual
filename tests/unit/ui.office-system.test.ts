@@ -816,11 +816,13 @@ describe("round 7's parts on the office's other pages", () => {
     expect(count(/(?<![\w-])glass-button(?![\w-])/)).toBeGreaterThan(4);
     expect(count(/(?<![\w-])glass-float(?![\w-])/)).toBeGreaterThan(4);
     // 24px corners are what floats beside the page: the rail's (Phase 24: the menu card's, in the
-    // frame, until then) and the dashboard's offer panel's (24.3, the mock-up's sheet), and the
-    // login card's; a section on a page is 22px (rounded-inner), a row 14px.
+    // frame, until then), the dashboard's offer panel's (24.3, the mock-up's sheet) and its
+    // Customise panel's (26.3, beside the page from 1024px), and the login card's; a section on a
+    // page is 22px (rounded-inner), a row 14px.
     const big = /(?<![\w-])(?:[a-z0-9-]+:)*rounded-(?:[trblse]{1,2}-)?card(?![\w-])/;
     const bigFiles = OFFICE.filter((file) => big.test(code(read(file))));
     expect(bigFiles).toEqual([
+      "src/app/office/customise-panel.tsx",
       "src/app/office/dashboard/offer-panel.tsx",
       "src/app/office/office-rail.tsx",
     ]);

@@ -19,7 +19,11 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   // Firms are created by an admin script. No Phase 1 feature edits a firm.
   firms: ["SELECT"],
   sites: CRUD,
+  // Contracts (Phase 26.3): an admin adds, renames and removes them (logged).
+  clients: CRUD,
   office_users: CRUD,
+  // Each office user's contracts (Phase 26.3): replaced whole when they save Customise (logged).
+  office_user_clients: ["SELECT", "INSERT", "DELETE"],
   workers: CRUD,
   credentials: CRUD,
   events: ["SELECT", "INSERT"],

@@ -1,3 +1,4 @@
+import { sitesSql } from "./contract-scope";
 import { eq, inArray, sql } from "drizzle-orm";
 import { firms, workers, type SheetIssues } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
@@ -297,6 +298,8 @@ export async function loadSheetIssues(
 export async function loadToMark(
   tx: FirmTx,
   now: Date,
+  // The dashboard narrowed to a person's contracts (Phase 26.3): only their venues' sessions.
+  sites: string[] | null = null,
 ): Promise<{ items: TodayToMark[]; total: number }> {
   const { rows: toMark } = await tx.execute<{
     id: string;
@@ -314,6 +317,7 @@ export async function loadToMark(
       left join sites si on si.firm_id = s.firm_id and si.id = s.site_id
      where s.ends_at <= ${now}
        and s.ends_at > ${new Date(now.getTime() - TODAY_MARK_DAYS * 24 * 3_600_000)}
+       and ${sitesSql(sites)}
      group by s.id, si.name
      order by s.ends_at desc, s.id
      limit ${LIST_MAX}

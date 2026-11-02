@@ -11,10 +11,22 @@ import {
 } from "@/lib/office/board-copy";
 import { roleLabel } from "@/lib/portal/format";
 import { FULL_VENUES } from "@/lib/office/dashboard-map-copy";
+import {
+  ALL_DATES,
+  dateChoiceLabel,
+  dayChoice,
+  MY_CONTRACTS,
+  NO_CONTRACT_VENUES,
+  SHOW_EVERYTHING,
+} from "@/lib/office/customise-copy";
+import { dayMonthLabel } from "@/lib/office/dashboard-cards-copy";
+import { readCards } from "@/lib/office/dashboard-cards";
 import { SECTION_ERROR } from "@/lib/office/dashboard-copy";
 import { notice, tab, tabCount, tabCurrent, tabs } from "../ui/classes";
 import { Icon } from "../ui/icons";
 import { Board } from "./dashboard/board";
+import { ExtraCards } from "./dashboard/extra-cards";
+import { CustomiseButton } from "./customise-panel";
 
 // The office dashboard (Phase 24, 24.3; round 8 since Phase 26.2: the spec page's "Dashboard",
 // docs/mockups/round-8/; docs/screens.md `/office`), one question: "which places still need people,
@@ -28,11 +40,21 @@ import { Board } from "./dashboard/board";
 
 export function DashboardContent({ board, tiles }: { board: BoardData; tiles: string | null }) {
   const counts = board.counts.ok ? board.counts.data : null;
-  const view: BoardView = { show: board.show, full: board.full, role: board.role };
+  const me = board.me.ok ? board.me.data : null;
+  const hasContracts = (me?.clientIds.length ?? 0) > 0;
+  const view: BoardView = {
+    show: board.show,
+    full: board.full,
+    role: board.role,
+    day: board.day,
+    everything: hasContracts && !board.mine,
+  };
   const roles = board.roles.ok ? board.roles.data : [];
+  const days = board.days.ok ? board.days.data : [];
+  const cards = me?.cards ?? readCards(undefined);
   return (
     <div className="@container flex flex-col gap-6">
-      <header>
+      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
         <div className="min-w-0">
           <h1 className="text-title text-ink">Dashboard</h1>
           <p className="mt-1 text-sm text-ink-muted tabular-nums">
@@ -44,6 +66,42 @@ export function DashboardContent({ board, tiles }: { board: BoardData; tiles: st
               board.payCalendar,
             )}
           </p>
+        </div>
+        {/* Customise and the date choice (Phase 26.3: dash-7, cus-5). */}
+        <div className="flex flex-wrap items-center gap-2">
+          {me && <CustomiseButton me={me} />}
+          {days.length > 0 && (
+            <details className="group relative">
+              <summary
+                aria-label={dateChoiceLabel(board.day)}
+                className={`press-glass glass-button inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-full px-4 text-sm font-medium hover:bg-button-hover active:bg-button-press [&::-webkit-details-marker]:hidden ${board.day ? "text-ink" : "text-ink-muted"}`}
+              >
+                {board.day ? dayMonthLabel(board.day) : ALL_DATES}
+                <Icon
+                  name="chevron"
+                  size={16}
+                  className="rotate-90 transition-transform duration-150 ease-sd group-open:-rotate-90 motion-reduce:transition-none"
+                />
+              </summary>
+              <ul
+                role="list"
+                className="glass-float absolute top-full right-0 z-30 mt-2 flex max-h-80 w-64 flex-col gap-1 overflow-y-auto rounded-inner p-2"
+              >
+                {[null, ...days].map((d) => (
+                  <li key={d?.date ?? "all"}>
+                    <Link
+                      href={boardHref({ ...view, day: d?.date ?? null })}
+                      scroll={false}
+                      aria-current={(d?.date ?? null) === board.day ? "true" : undefined}
+                      className={`press flex min-h-11 items-center rounded-row px-3 tabular-nums hover:bg-active ${(d?.date ?? null) === board.day ? "font-semibold text-ink" : "text-ink-muted"}`}
+                    >
+                      {d ? dayChoice(d) : ALL_DATES}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </div>
       </header>
       {/* Under the headline (round 8): the track, Filter and Show full venues. */}
@@ -98,12 +156,32 @@ export function DashboardContent({ board, tiles }: { board: BoardData; tiles: st
             </ul>
           </details>
         )}
+        {/* My contracts (Phase 26.3, cus-2): on, only the person's contracts; off, everything. */}
+        {hasContracts && (
+          <Link
+            href={boardHref({ ...view, everything: board.mine })}
+            scroll={false}
+            role="switch"
+            aria-checked={board.mine}
+            className="press @min-[48rem]:ml-auto inline-flex min-h-11 items-center gap-3 rounded-full px-2 text-sm text-ink-muted hover:text-ink"
+          >
+            {MY_CONTRACTS}
+            <span
+              aria-hidden="true"
+              className={`inline-flex h-6 w-10 items-center rounded-full p-1 transition-colors ${board.mine ? "bg-accent" : "bg-switch-off"}`}
+            >
+              <span
+                className={`size-4 rounded-full bg-knob transition-transform duration-150 ease-sd motion-reduce:transition-none ${board.mine ? "translate-x-4" : "translate-x-0"}`}
+              />
+            </span>
+          </Link>
+        )}
         <Link
           href={boardHref({ ...view, full: !board.full })}
           scroll={false}
           role="switch"
           aria-checked={board.full}
-          className="press @min-[48rem]:ml-auto inline-flex min-h-11 items-center gap-3 rounded-full px-2 text-sm text-ink-muted hover:text-ink"
+          className={`press inline-flex min-h-11 items-center gap-3 rounded-full px-2 text-sm text-ink-muted hover:text-ink ${hasContracts ? "" : "@min-[48rem]:ml-auto"}`}
         >
           {FULL_VENUES}
           <span
@@ -116,6 +194,19 @@ export function DashboardContent({ board, tiles }: { board: BoardData; tiles: st
           </span>
         </Link>
       </div>
+      {board.mine && me?.sites?.length === 0 && (
+        <p role="status" className={`${notice} flex flex-wrap items-center gap-x-3 gap-y-2`}>
+          <Icon name="info" size={18} />
+          <span className="min-w-0 flex-1">{NO_CONTRACT_VENUES}</span>
+          <Link
+            href={boardHref({ ...view, everything: true })}
+            scroll={false}
+            className="font-medium text-ink underline underline-offset-2"
+          >
+            {SHOW_EVERYTHING}
+          </Link>
+        </p>
+      )}
       {!board.counts.ok && (
         <p role="status" className={`${notice} flex items-start gap-2`}>
           <Icon name="info" size={18} className="mt-1" />
@@ -138,7 +229,9 @@ export function DashboardContent({ board, tiles }: { board: BoardData; tiles: st
         }}
         view={view}
         tiles={tiles}
+        cards={cards}
       />
+      <ExtraCards board={board} />
     </div>
   );
 }

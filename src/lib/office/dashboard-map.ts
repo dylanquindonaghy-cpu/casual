@@ -3,7 +3,15 @@ import { uuidArray } from "../db/arrays";
 import type { FirmTx } from "../db/scoped";
 import { officeOfferCandidates } from "../offers/office-offer";
 import { localDateOf } from "../time/zoned";
-import { type BoardShow, boardWindow, roleSql, showSql } from "./dashboard-board";
+import { sitesSql } from "./contract-scope";
+import {
+  type BoardScope,
+  type BoardShow,
+  boardWindow,
+  EVERYWHERE,
+  scopeSql,
+  showSql,
+} from "./dashboard-board";
 import { bookedJoin, placeFree, urgentGap } from "./events";
 import { offerStateSql } from "./offer-state";
 import type { TodayToMark } from "./today";
@@ -53,7 +61,7 @@ export async function loadVenues(
   now: Date,
   timeZone: string,
   show: BoardShow,
-  role: string | null = null,
+  scope: BoardScope = EVERYWHERE,
 ): Promise<MapVenue[]> {
   const w = boardWindow(now, timeZone);
   const { rows } = await tx.execute<{
@@ -84,7 +92,7 @@ export async function loadVenues(
       ${bookedJoin}
       join sites v on v.firm_id = s.firm_id and v.id = coalesce(s.site_id, e.site_id)
      where s.status = 'open' and s.starts_at > ${now} and s.starts_at < ${w.to}
-       and ${showSql(show, now, timeZone)} and ${roleSql(role)}
+       and ${showSql(show, now, timeZone)} and ${scopeSql(scope, timeZone)}
      group by v.id
      order by urgent desc, places desc, v.name, v.id
   `);
@@ -160,6 +168,9 @@ export type Update =
 export async function loadUpdates(
   tx: FirmTx,
   now: Date,
+  // A person's contracts' venues (Phase 26.3; null: every venue). Uploads to check are a casual's,
+  // not a venue's: they show whatever the contracts.
+  mine: string[] | null = null,
 ): Promise<{ items: Update[]; more: boolean }> {
   const since = new Date(now.getTime() - UPDATES_HOURS * 3_600_000);
   const limit = UPDATES_SHOWN + 1;
@@ -186,6 +197,7 @@ export async function loadUpdates(
       ${bookedJoin}
       ${sites}
      where o.response = 'accepted' and o.responded_at >= ${since} and o.responded_at <= ${now}
+       and ${sitesSql(mine)}
      order by o.responded_at desc, o.id
      limit ${limit}
   `);
@@ -214,7 +226,7 @@ export async function loadUpdates(
       join workers w on w.firm_id = a.firm_id and w.id = a.worker_id
       ${bookedJoin}
       ${sites}
-     where a.status = 'cancelled_worker' and a.cancelled_at >= ${since}
+     where a.status = 'cancelled_worker' and a.cancelled_at >= ${since} and ${sitesSql(mine)}
        and a.cancelled_at <= ${now}
      order by a.cancelled_at desc, a.id
      limit ${limit}
@@ -244,7 +256,7 @@ export async function loadUpdates(
       from offers o
       join shifts s on s.firm_id = o.firm_id and s.id = o.shift_id
       ${bookedJoin}
-     where ${offerStateSql(now)} = 'waiting' and ${placeFree(now)}
+     where ${offerStateSql(now)} = 'waiting' and ${placeFree(now)} and ${sitesSql(mine)}
   `);
   const name = (r: { first_name: string; last_name: string }) => `${r.first_name} ${r.last_name}`;
   const items: Update[] = [

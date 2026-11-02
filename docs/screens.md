@@ -185,6 +185,67 @@ part that couldn't load and the empty card are round 7's. Words: `src/lib/office
 - **Loading:** the skeleton follows this layout (the head and track, the map with the card on it,
   the three columns).
 
+## Contracts and each person's own dashboard (Phase 26.3)
+
+The spec page's "Customise and contracts" (cus-1 to cus-5), dash-7's date choice, and the pre-build
+audit's aud-9, aud-10 and aud-13. Words: `src/lib/office/customise-copy.ts`,
+`src/lib/office/dashboard-cards.ts` and `src/lib/office/dashboard-cards-copy.ts`; data:
+`src/lib/office/contracts.ts` and `src/lib/office/dashboard-cards-data.ts`.
+
+- **Settings → Contracts** (`/office/settings#contracts`, admins): "Contracts", "Each contract is a
+  client of yours and the venues you staff for it. Resourcers pick the ones they look after under
+  Customise on the dashboard."; each contract a row: "Name" (up to 120 characters), "Its venues" (a
+  tick each; a venue another contract has says whose: "(Northgate Council's)", and ticking it moves
+  it here), "Save", and "Remove" ("Its venues stay, without a contract. Anyone looking after it stops
+  seeing it." and "Yes, remove it"). Last, a blank one with "Add a contract". Answers under it:
+  "Saved {Northgate Council}.", "Removed.", "There's a contract with that name already.", "Give it a
+  name of up to 120 characters.", "That contract or one of its venues is gone. Reload the page.",
+  "Only an admin can change contracts.". None yet: "No contracts yet.". "Save" changes only the
+  venues ticked or unticked since the page was loaded, so a page left open can't take back a
+  venue someone has since moved; a row starts again from its contract when that changes. Names are
+  one per firm whatever their case. Each change is logged (`client.added`, `client.saved`,
+  `client.removed`: the contract's id, how many venues it has, how many were added and removed, and
+  each one taken from another contract, by ids).
+- **The dashboard's title row** (beside the headline where there's room, under it on a phone):
+  "Customise" (a link to `/office/customise` until the page is ready, then the panel) and the date
+  choice: "All dates" (read as "Choose a date") or the day ("Tue 3 Nov", read as "Date: Tue 3
+  Nov"), a list of "All dates" and each day in the track's window with places to fill ("Sat 7 Nov ·
+  4 places"; `?day=2026-11-07`), the chosen one current. Every link on the page keeps it. No day
+  with places: no date choice.
+- **My contracts** (beside the track, before Show full venues; only for someone looking after a
+  contract): a switch, on while the dashboard shows only their contracts' venues (a session's own
+  venue, or else its event's): the track's counts, the map, To offer, the card, Updates' places
+  taken, cancellations and offers with no reply (not uploads: they're a casual's), Who worked? and
+  the extra cards. Off: everything (`?all=1`). Events & sessions always shows everything. On, with
+  none of their contracts having a venue yet: "Your contracts have no venues yet, so nothing shows
+  here. An admin adds venues to contracts on Settings." and "Show everything".
+- **Customise** (the panel: from the right on a laptop, 480px wide; the whole screen on a phone;
+  or `/office/customise`, "Customise your dashboard"): "Customise your dashboard", "Close";
+  "Your contracts", "You see these on the dashboard and in Updates. Everything stays in Events &
+  sessions.", each contract a switch ("{Acme Demo Arena}", "{1 site} · {27 sessions to come}");
+  none yet: "No contracts yet. An admin adds them on Settings, under Contracts."; "What you see",
+  a tick per card with its line: "Venue map" (Places to fill at each venue), "To offer" (Sessions
+  with places), "Updates" (Cancellations and to-dos), "Who worked?" (To confirm after a session),
+  "Next 2 weeks" (Booked, offered and open places each day), "Cancellations" (By week, under 48
+  hours in red), "Fill rate" (Booked of needed, per contract), "No-shows" (By week); the first
+  four ticked until someone saves. "Save my dashboard" ("Saving…"), then "Saved. Your dashboard
+  shows what you chose." and the panel closes with the dashboard updated; "Back to the dashboard".
+  Saved to the person, not the browser (logged `office_user.dashboard_saved`). The Watch list
+  card (least reliable who are booked) comes with reliability (26.7).
+- **The cards chosen:** without the venue map, the session card stands on its own above the
+  columns; only the columns chosen show. The extra cards follow, two across from 768px of page,
+  each a glass section with its title, where its figures come from ("Places on sessions to come,
+  counted now"; "From the cancellation records, by the week they were made"; "People marked as not
+  attending, by the week of the session"; "Places booked of places needed, next 14 days, counted
+  now"), a sentence of what it shows ("Next 2 weeks: {7} booked, {1} offered with no reply yet, {3}
+  open."; "{5} cancellations in the last 8 weeks, {3} under 48 hours' notice."; "{1} no-show in the
+  last 8 weeks."; "{Northgate Council}: {6} of {8} booked, {75}%"), its bars (decorative: stacked
+  from the foot, a key above), and "Show as a table" with every figure. Empty: "No sessions in the
+  next 2 weeks. Sessions from your planner show here as they come in."; "No cancellations in the
+  last 8 weeks. Each one shows here, by week."; "No no-shows in the last 8 weeks. Anyone marked as
+  not attending shows here, by week."; "No sessions in the next 14 days. Each contract's places show
+  here.". Venues with no contract are "No contract" in Fill rate.
+
 ## The office shell, round 7 (Phase 24)
 
 Dylan's approved round 7 of the Design canvas ("Round 7 exactly, layout too"; PLAN.md 24.2;
@@ -1352,7 +1413,7 @@ shows the way: each page still checks who can open it.
   dashboard", "Events & sessions", "Cancellations", "Cancellation record", "Shifts", "New shift", "Shifts for an event", "Import shifts from a file", "Offer this
   shift", "Enquiries", "Enquiry", "Strikes", "Casuals", "Action log", "Notice and cancellation report", "Pilot metrics",
   "Pay queries", "Import pay records", "Office team", "Settings", "Integrations", "Data requests",
-  "How-to guide". A shift's, an event's, a casual's and a worker's data page keep "{firm} shifts".
+  "How-to guide", "Customise" (Phase 26.3). A shift's, an event's, a casual's and a worker's data page keep "{firm} shifts".
   `tests/unit/office.titles.test.ts` holds the pages to this list; the browser test checks "Events
   & sessions · Acme Events shifts".
 

@@ -68,6 +68,8 @@ export interface BoardView {
   show: BoardShow;
   full: boolean;
   role: string | null;
+  day?: string | null; // the date choice (Phase 26.3)
+  everything?: boolean; // "Show everything", not just the person's contracts (Phase 26.3)
 }
 
 // The dashboard's address for a view, with a session picked into the card or not.
@@ -76,6 +78,8 @@ export function boardHref(view: BoardView, session?: string | null): string {
   if (view.show !== "all") params.set("show", view.show);
   if (view.role) params.set("role", view.role);
   if (view.full) params.set("full", "1");
+  if (view.day) params.set("day", view.day);
+  if (view.everything) params.set("all", "1");
   if (session) params.set("session", session);
   const q = params.toString();
   return q ? `/office?${q}` : "/office";

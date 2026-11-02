@@ -13,6 +13,7 @@ import { STRIKE_WARNING_VERSION } from "../../strikes/words";
 import { fakePoint } from "../../travel/geocoder";
 import {
   assignments,
+  clients,
   credentials,
   messages,
   payQueries,
@@ -27,7 +28,7 @@ import {
   workerTravel,
 } from "../schema";
 import type { FirmTx, WithFirm } from "../scoped";
-import type { SeedFirm } from "./seed-data";
+import { seedId, type SeedFirm } from "./seed-data";
 import {
   STORY_CERTIFICATE_JPEG,
   STORY_LINE,
@@ -87,6 +88,27 @@ export async function loadStory(
         lng: sql`excluded.lng`,
       },
     });
+
+  // Two made-up contracts (Phase 26.3), so Customise has some to choose from: the Northgate venues
+  // for a council, Riverside for a festival. Nobody looks after them yet: the demo's dashboard
+  // shows everything until someone picks theirs.
+  const contracts = [
+    { key: "northgate", name: "Northgate Demo Council", sites: ["site/northgate", "site/common"] },
+    { key: "riverside", name: "Riverside Demo Festival", sites: ["site/riverside"] },
+  ];
+  for (const c of contracts) {
+    const clientId = seedId(`acme/story/client/${c.key}`);
+    await tx.insert(clients).values({ id: clientId, firmId, name: c.name }).onConflictDoNothing();
+    await tx
+      .update(sites)
+      .set({ clientId })
+      .where(
+        inArray(
+          sites.id,
+          c.sites.map((k) => seedId(`acme/story/${k}`)),
+        ),
+      );
+  }
 
   await tx
     .insert(workers)

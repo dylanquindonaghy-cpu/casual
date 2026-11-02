@@ -228,6 +228,11 @@ export const LOG_TYPES = {
       "firm.strikes_email_link_sent",
       "firm.strikes_email_link_failed",
       "site.changed",
+      // Contracts (Phase 26.3): a contract's id and how many venues; a person's own dashboard.
+      "client.added",
+      "client.saved",
+      "client.removed",
+      "office_user.dashboard_saved",
       "firm.branding_changed",
       "firm.domain_changed",
       "firm.shifts_line_changed",

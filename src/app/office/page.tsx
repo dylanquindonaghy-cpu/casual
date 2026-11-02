@@ -11,7 +11,8 @@ import { DashboardContent } from "./dashboard-view";
 // `/office`). `?show=` is the track's filter (urgent, this-week, next-week; anything else is All)
 // and `?session=` the session the detail card shows (one with a place free; else the page
 // chooses); `?full=1` puts venues with nothing to fill on the map too and `?role=` narrows the board to one
-// role with places to fill (round 8, Phase 26.2). Payroll's home is the pay dashboard (`/office/pay`, 12A.3): they're sent there. The
+// role with places to fill (round 8, Phase 26.2); `?day=` is the date choice's day and `?all=1`
+// shows everything rather than the person's contracts (Phase 26.3). Payroll's home is the pay dashboard (`/office/pay`, 12A.3): they're sent there. The
 // menu, the top bar's counts, the account menu and the session keeper are the office shell's
 // (src/app/office/office-shell.tsx). `/office/today` redirects here.
 
@@ -20,11 +21,18 @@ export const metadata: Metadata = { title: "Dashboard" };
 export default async function OfficeHome({
   searchParams,
 }: {
-  searchParams: Promise<{ show?: string; session?: string; full?: string; role?: string }>;
+  searchParams: Promise<{
+    show?: string;
+    session?: string;
+    full?: string;
+    role?: string;
+    day?: string;
+    all?: string;
+  }>;
 }) {
   const { firm, officeUser } = await requireOfficeArea("dashboard");
   if (!canAccess(officeUser.role, "today")) redirect("/office/pay");
-  const { show, session, full, role } = await searchParams;
+  const { show, session, full, role, day, all } = await searchParams;
   const board = await officeDashboard(
     { firm, officeUserId: officeUser.id },
     {
@@ -32,6 +40,8 @@ export default async function OfficeHome({
       session: session ?? null,
       full: full === "1",
       role: typeof role === "string" ? role : null,
+      day: typeof day === "string" ? day : null,
+      everything: all === "1",
     },
   );
   if (!board) notFound();

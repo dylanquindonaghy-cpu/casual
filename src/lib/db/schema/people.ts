@@ -21,7 +21,7 @@ import {
   type TravelMinutes,
   type TravelMode,
 } from "../../travel/modes";
-import { firms, sites } from "./tenancy";
+import { clients, firms, sites } from "./tenancy";
 
 // Links between firm tables use composite foreign keys (firm_id, x_id) -> parent (firm_id, id).
 // Postgres checks foreign keys without RLS, so a plain FK would let one firm point a row at
@@ -46,6 +46,9 @@ export const officeUsers = pgTable(
     status: text("status", { enum: ["active", "disabled"] })
       .notNull()
       .default("active"),
+    // The dashboard cards this person chose under Customise (Phase 26.3, cus-3 and cus-4): saved to
+    // them, not to a browser. Null: the defaults (src/lib/office/dashboard-cards.ts).
+    dashboardCards: text("dashboard_cards").array(),
     createdAt: createdAt(),
   },
   (t) => [
@@ -57,6 +60,41 @@ export const officeUsers = pgTable(
     ),
     check("office_users_role_check", sql`${t.role} in ('admin', 'resourcer', 'payroll')`),
     check("office_users_status_check", sql`${t.status} in ('active', 'disabled')`),
+    check(
+      "office_users_dashboard_cards_check",
+      sql`${t.dashboardCards} is null or cardinality(${t.dashboardCards}) <= 20`,
+    ),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();
+
+// The contracts an office user looks after (Phase 26.3, cus-2): their dashboard shows those
+// venues' sessions, "Show everything" one tap away. Saved by the person under Customise
+// (office_user.dashboard_saved); gone with the person or the contract.
+export const officeUserClients = pgTable(
+  "office_user_clients",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    officeUserId: uuid("office_user_id").notNull(),
+    clientId: uuid("client_id").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("office_user_clients_firm_id_id_key").on(t.firmId, t.id),
+    unique("office_user_clients_firm_id_user_client_key").on(t.firmId, t.officeUserId, t.clientId),
+    foreignKey({
+      name: "office_user_clients_office_user_fk",
+      columns: [t.firmId, t.officeUserId],
+      foreignColumns: [officeUsers.firmId, officeUsers.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "office_user_clients_client_fk",
+      columns: [t.firmId, t.clientId],
+      foreignColumns: [clients.firmId, clients.id],
+    }).onDelete("cascade"),
     firmIsolation(t.firmId),
   ],
 ).enableRLS();

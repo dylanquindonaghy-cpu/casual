@@ -26,6 +26,7 @@ import {
 import type { Board as BoardData, BoardSession, BoardShow } from "@/lib/office/dashboard-board";
 import { SECTION_ERROR } from "@/lib/office/dashboard-copy";
 import { toMarkGroups } from "@/lib/office/to-mark";
+import { DEFAULT_CARDS, type DashboardCard } from "@/lib/office/dashboard-cards";
 import type { Takers } from "@/lib/office/dashboard-map";
 import {
   bookedText,
@@ -427,6 +428,7 @@ export function Board({
   board,
   view,
   tiles,
+  cards = DEFAULT_CARDS,
 }: {
   board: Pick<
     BoardData,
@@ -434,6 +436,7 @@ export function Board({
   >;
   view: BoardView; // what the board shows: every link keeps it
   tiles: string | null; // the street map's file (MAP_TILES_URL), or none
+  cards?: readonly DashboardCard[]; // what the person chose under Customise (Phase 26.3)
 }) {
   const { show, now, timeZone, gaps, toMark, venues, takers, updates, whoWorked } = board;
   const { open, panel } = useOfferPanel();
@@ -476,80 +479,96 @@ export function Board({
   const ups = updates.ok ? updates.data : null;
   const marks = toMark.ok ? toMark.data : null;
   const groups = whoWorked.ok ? whoWorked.data : null;
+  const on = new Set(cards);
+  const detail = (
+    <DetailCard
+      s={current}
+      takers={current ? chosenTakers : null}
+      show={show}
+      now={now}
+      timeZone={timeZone}
+      failed={!gaps.ok}
+      onOffer={open}
+    />
+  );
+  const columns = (["toOffer", "updates", "whoWorked"] as const).filter((k) => on.has(k));
 
   return (
     <>
-      {venues.ok ? (
+      {!on.has("map") ? (
+        // Without the map, the session card on its own (it's where a session is offered).
+        <div className="@min-[64rem]:w-101">{detail}</div>
+      ) : venues.ok ? (
         <VenueMap
           venues={venues.data}
           chosenSite={current?.siteId ?? null}
           view={view}
           tiles={tiles}
-          card={
-            <DetailCard
-              s={current}
-              takers={current ? chosenTakers : null}
-              show={show}
-              now={now}
-              timeZone={timeZone}
-              failed={!gaps.ok}
-              onOffer={open}
-            />
-          }
+          card={detail}
         />
       ) : (
         <section aria-label="Venues with places to fill" className="glass rounded-inner p-6">
           <SectionError />
         </section>
       )}
-      <div className="grid items-start gap-3 @min-[48rem]:grid-cols-2 @min-[72rem]:grid-cols-3">
-        <Column
-          k="toOffer"
-          count={total}
-          line={toFillLine(places, waiting)}
-          failed={!g}
-          empty={emptyText("toOffer", true, show)}
-          foot={viewAll}
+      {columns.length > 0 && (
+        <div
+          className={`grid items-start gap-3 @min-[48rem]:grid-cols-2 ${columns.length === 3 ? "@min-[72rem]:grid-cols-3" : ""}`}
         >
-          <ul role="list" className="mt-3 flex flex-col gap-2">
-            {all.slice(0, SHOWN).map((s) => (
-              <li key={s.shiftId}>
-                <OfferRow
-                  s={s}
-                  picked={current?.shiftId === s.shiftId}
-                  view={view}
-                  timeZone={timeZone}
-                  onPick={pick}
-                  onOffer={open}
-                />
-              </li>
-            ))}
-          </ul>
-        </Column>
-        <Column
-          k="updates"
-          count={ups?.items.length ?? 0}
-          line={null}
-          failed={!ups}
-          empty={emptyText("updates", false, show)}
-        >
-          <UpdatesList items={ups?.items ?? []} now={now} timeZone={timeZone} />
-        </Column>
-        <Column
-          k="toMark"
-          count={marks?.items.length ?? 0}
-          line={toMarkLine(marks?.items ?? [], timeZone)}
-          failed={!marks || !groups}
-          empty={emptyText("toMark", false, show)}
-          foot={
-            marks && toMarkGroups(marks.items).length > (groups?.length ?? 0)
-              ? { text: "More on Needs attention", href: "/office/needs-attention#to-mark" }
-              : null
-          }
-        >
-          <WhoWorkedList groups={groups ?? []} timeZone={timeZone} />
-        </Column>
-      </div>
+          {on.has("toOffer") && (
+            <Column
+              k="toOffer"
+              count={total}
+              line={toFillLine(places, waiting)}
+              failed={!g}
+              empty={emptyText("toOffer", true, show)}
+              foot={viewAll}
+            >
+              <ul role="list" className="mt-3 flex flex-col gap-2">
+                {all.slice(0, SHOWN).map((s) => (
+                  <li key={s.shiftId}>
+                    <OfferRow
+                      s={s}
+                      picked={current?.shiftId === s.shiftId}
+                      view={view}
+                      timeZone={timeZone}
+                      onPick={pick}
+                      onOffer={open}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </Column>
+          )}
+          {on.has("updates") && (
+            <Column
+              k="updates"
+              count={ups?.items.length ?? 0}
+              line={null}
+              failed={!ups}
+              empty={emptyText("updates", false, show)}
+            >
+              <UpdatesList items={ups?.items ?? []} now={now} timeZone={timeZone} />
+            </Column>
+          )}
+          {on.has("whoWorked") && (
+            <Column
+              k="toMark"
+              count={marks?.items.length ?? 0}
+              line={toMarkLine(marks?.items ?? [], timeZone)}
+              failed={!marks || !groups}
+              empty={emptyText("toMark", false, show)}
+              foot={
+                marks && toMarkGroups(marks.items).length > (groups?.length ?? 0)
+                  ? { text: "More on Needs attention", href: "/office/needs-attention#to-mark" }
+                  : null
+              }
+            >
+              <WhoWorkedList groups={groups ?? []} timeZone={timeZone} />
+            </Column>
+          )}
+        </div>
+      )}
       {panel}
     </>
   );

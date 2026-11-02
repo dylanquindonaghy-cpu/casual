@@ -27,6 +27,7 @@ import {
   whereText,
 } from "@/lib/office/board-copy";
 import type { Board, BoardSession, ChartDay } from "@/lib/office/dashboard-board";
+import { DEFAULT_CARDS } from "@/lib/office/dashboard-cards";
 import { SECTION_ERROR } from "@/lib/office/dashboard-copy";
 import type { OfferPage } from "@/lib/office/offer-page";
 import { DEFAULT_PAY_CALENDAR, payCalendar } from "@/lib/pay/calendar";
@@ -288,6 +289,18 @@ const board: Board = {
       people: [{ shiftId: "m3", workerId: "w-bp", name: "Bea Patel" }],
     },
   ]),
+  // Phase 26.3: their own dashboard (the default cards, no contracts), every date, no extra cards.
+  me: ok({ cards: [...DEFAULT_CARDS], clientIds: [], sites: null, choices: [] }),
+  mine: false,
+  day: null,
+  days: ok([
+    { date: "2026-10-27", places: 5 },
+    { date: "2026-10-30", places: 2 },
+  ]),
+  nextTwoWeeks: null,
+  cancelWeeks: null,
+  noShowWeeks: null,
+  fillRates: null,
 };
 
 const render = (b: Board) =>
@@ -579,7 +592,7 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
 
   it("Filter: the roles with places to fill, by name, and Every role; the chosen one current", () => {
     const filter = (html: string) =>
-      /<details class="group relative"><summary aria-label="([^"]+)"[^>]*>([\s\S]*?)<\/details>/.exec(
+      /<details class="group relative"><summary aria-label="(Filter[^"]*)"[^>]*>([\s\S]*?)<\/details>/.exec(
         html,
       );
     const off = filter(render(board));
@@ -955,5 +968,93 @@ describe("the offer panel lists who can take it as the offer page does", () => {
     expect(words(panel({ ...page, candidates: [] }))).toContain(
       "Nobody else can be offered this shift right now.",
     );
+  });
+});
+
+// Phase 26.3: each person's own dashboard (the spec page's "Customise and contracts", dash-7).
+describe("the dashboard, each person's own (Phase 26.3)", () => {
+  it("Customise and the date choice in the title row: every day with places, the chosen one current", () => {
+    const html = render(board);
+    const header = /<header[\s\S]*?<\/header>/.exec(html)?.[0] ?? "";
+    // Customise: the page of its own until the page is ready (then the panel).
+    expect(links(header).find((l) => l.name === "Customise")?.href).toBe("/office/customise");
+    expect(header).toContain('aria-haspopup="dialog"');
+    const choice = /<summary aria-label="(Choose a date|Date: [^"]+)"[\s\S]*?<\/details>/.exec(
+      header,
+    );
+    expect(choice?.[1]).toBe("Choose a date");
+    expect(links(choice?.[0] ?? "").map((l) => [l.href, l.name, l.current])).toEqual([
+      ["/office", "All dates", "true"],
+      ["/office?day=2026-10-27", "Tue 27 Oct · 5 places", null],
+      ["/office?day=2026-10-30", "Fri 30 Oct · 2 places", null],
+    ]);
+    const picked = /<header[\s\S]*?<\/header>/.exec(render({ ...board, day: "2026-10-30" }))?.[0];
+    expect(picked).toContain('aria-label="Date: Fri 30 Oct"');
+    // Every other link on the page keeps the day.
+    expect(
+      links(render({ ...board, day: "2026-10-30" })).find((l) => l.name.startsWith("Urgent"))?.href,
+    ).toBe("/office?show=urgent&day=2026-10-30");
+    // No day with places: no date choice.
+    expect(render({ ...board, days: ok([]) })).not.toContain("All dates");
+  });
+
+  it("My contracts: a switch only for someone with contracts, on while narrowed to them", () => {
+    expect(render(board)).not.toContain("My contracts");
+    const me = ok({
+      cards: [...DEFAULT_CARDS],
+      clientIds: ["c1"],
+      sites: ["site-arena"],
+      choices: [{ clientId: "c1", name: "Acme Demo Arena", sites: 1, sessions: 4 }],
+    });
+    const mine =
+      /<a role="switch" aria-checked="(true|false)"[^>]*href="([^"]+)"[^>]*>My contracts/.exec(
+        render({ ...board, me, mine: true }),
+      );
+    // On: its link shows everything (`?all=1`), and the page's other links keep that choice.
+    expect(mine?.slice(1)).toEqual(["true", "/office?all=1"]);
+    const everything = render({ ...board, me, mine: false });
+    expect(
+      /<a role="switch" aria-checked="(true|false)"[^>]*href="([^"]+)"[^>]*>My contracts/
+        .exec(everything)
+        ?.slice(1),
+    ).toEqual(["false", "/office"]);
+    expect(links(everything).find((l) => l.name.startsWith("Urgent"))?.href).toBe(
+      "/office?show=urgent&all=1",
+    );
+  });
+
+  it("contracts with no venues yet: the dashboard says why it's empty, and Show everything", () => {
+    const me = ok({ cards: [...DEFAULT_CARDS], clientIds: ["c1"], sites: [], choices: [] });
+    const html = render({ ...board, me, mine: true });
+    expect(words(html)).toContain(
+      "Your contracts have no venues yet, so nothing shows here. An admin adds venues to contracts on Settings. Show everything",
+    );
+    expect(links(html).find((l) => l.name === "Show everything")?.href).toBe("/office?all=1");
+    expect(render({ ...board, me, mine: false })).not.toContain("Your contracts have no venues");
+  });
+
+  it("only the cards chosen: no map (the session card on its own), the columns chosen, the extra cards", () => {
+    const me = (cards: string[]) =>
+      ok({ cards: cards as never, clientIds: [], sites: null, choices: [] });
+    const html = render({
+      ...board,
+      me: me(["toOffer", "noShows"]),
+      noShowWeeks: ok([{ week: "2026-10-19", noShows: 2 }]),
+    });
+    expect(html).not.toContain("data-venue-map");
+    expect(html).toContain("data-chosen");
+    expect(html).toContain('id="to-offer"');
+    expect(html).not.toContain('id="updates"');
+    expect(html).not.toContain('id="who-worked"');
+    expect(
+      words(/<section id="no-shows-by-week"[\s\S]*?<\/section>/.exec(html)?.[0] ?? ""),
+    ).toMatch(
+      /^No-shows People marked as not attending, by the week of the session 2 no-shows in the last 8 weeks\./,
+    );
+    // The defaults: the map and the three columns, no extra card.
+    const all = render(board);
+    expect(all).toContain("data-venue-map");
+    for (const id of ["to-offer", "updates", "who-worked"]) expect(all).toContain(`id="${id}"`);
+    expect(all).not.toContain("no-shows-by-week");
   });
 });

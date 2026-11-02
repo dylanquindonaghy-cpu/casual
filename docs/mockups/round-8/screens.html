@@ -237,29 +237,25 @@ body { margin: 0; background: #0c0c0d; }
 }
 
 
-/* Dark glass on the sections and the cards inside them (Dylan, 2026-11-02: "can we make the sections
-   these bits ... a bit more glass looking"). Glass on a dark ground reads through three things: a
-   bright edge where light catches the top corner, a soft sheen from top to bottom, and something
-   behind it to blur. All neutral: no colour wash. */
-.f8 { background-color: var(--g0); background-image: radial-gradient(900px 520px at 22% 8%, rgb(255 255 255 / 0.055), transparent 62%), radial-gradient(760px 560px at 88% 72%, rgb(255 255 255 / 0.04), transparent 60%); }
-.f8 .panel, .f8 .kpis, .f8 .sheet:not(.side) { position: relative; }
-.f8 .panel, .f8 .kpis, .f8 .sheet { border-color: transparent; background-color: transparent; background-image: linear-gradient(180deg, rgb(255 255 255 / 0.075), rgb(255 255 255 / 0.028) 55%, rgb(255 255 255 / 0.02)); -webkit-backdrop-filter: blur(24px) saturate(1.6); backdrop-filter: blur(24px) saturate(1.6); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.14), 0 16px 40px rgb(0 0 0 / 0.42); }
-.f8 .sheet.side { background-color: rgb(24 24 27 / 0.72); }
-.f8 .card { border-color: transparent; background-color: rgb(28 28 31 / 0.55); background-image: linear-gradient(180deg, rgb(255 255 255 / 0.09), rgb(255 255 255 / 0.02) 60%); -webkit-backdrop-filter: blur(16px) saturate(1.6); backdrop-filter: blur(16px) saturate(1.6); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.16), 0 18px 50px rgb(0 0 0 / 0.5); }
-.f8 .li:not(.hot), .f8 .tile, .f8 .slot:not(.open):not(.urg), .f8 .oc, .f8 .setrow, .f8 .pick:not(.on) { position: relative; border-color: transparent; background-color: transparent; background-image: linear-gradient(180deg, rgb(255 255 255 / 0.085), rgb(255 255 255 / 0.035)); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.1); }
-.f8 .panel::before, .f8 .kpis::before, .f8 .sheet::before, .f8 .card::before,
-.f8 .li:not(.hot)::before, .f8 .tile::before, .f8 .slot:not(.open):not(.urg)::before, .f8 .oc::before, .f8 .setrow::before, .f8 .pick:not(.on)::before {
-  content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
-  background: linear-gradient(160deg, rgb(255 255 255 / 0.32), rgb(255 255 255 / 0.08) 28%, rgb(255 255 255 / 0.03) 62%, rgb(255 255 255 / 0.12));
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-}
-.f8 .li:not(.hot)::before, .f8 .tile::before, .f8 .slot:not(.open):not(.urg)::before, .f8 .oc::before, .f8 .setrow::before, .f8 .pick:not(.on)::before { background: linear-gradient(160deg, rgb(255 255 255 / 0.2), rgb(255 255 255 / 0.05) 35%, rgb(255 255 255 / 0.03) 70%, rgb(255 255 255 / 0.08)); }
-.f8 .dt { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08); }
+/* Glass, translucent and sharp (Dylan, 2026-11-02: "by glass i mean translucent and sharp", after the
+   first try read "thick and bubbly"). A see-through fill and a real blur over a faint street map that
+   runs behind the whole page; one even 1px hairline; tighter corners; no gloss, sheen, inner light or
+   resting shadow. Only what floats (the map's session card, panels that slide in) keeps a shadow. */
+.f8 { background-color: var(--g0); background-image: none; }
+.f8 > canvas.backdrop { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+.f8 > :not(canvas) { position: relative; z-index: 1; }
+.f8 .panel, .f8 .kpis, .f8 .sheet { border: 1px solid rgb(255 255 255 / 0.1); border-radius: 12px; background: rgb(22 22 24 / 0.28); -webkit-backdrop-filter: blur(6px) saturate(1.15); backdrop-filter: blur(6px) saturate(1.15); box-shadow: none; }
+.f8 .sheet.side { background: rgb(18 18 20 / 0.72); border-radius: 12px; box-shadow: -24px 0 60px rgb(0 0 0 / 0.5); }
+.f8 .card { border: 1px solid rgb(255 255 255 / 0.12); border-radius: 12px; background: rgb(18 18 20 / 0.5); -webkit-backdrop-filter: blur(8px) saturate(1.15); backdrop-filter: blur(8px) saturate(1.15); box-shadow: 0 18px 50px rgb(0 0 0 / 0.5); }
+.f8 .li:not(.hot), .f8 .tile, .f8 .slot:not(.open):not(.urg), .f8 .oc, .f8 .setrow, .f8 .pick:not(.on) { border: 1px solid rgb(255 255 255 / 0.08); border-radius: 8px; background: rgb(255 255 255 / 0.03); box-shadow: none; }
+.f8 .li.hot { border-radius: 8px; }
+.f8 .slot.open, .f8 .slot.urg, .f8 .pick.on { border-radius: 8px; }
+.f8 .map { border-radius: 12px; border-color: rgb(255 255 255 / 0.1); }
+.f8 .dt { box-shadow: none; border-radius: 8px; }
 @media (prefers-reduced-transparency: reduce) {
-  .f8 { background-image: none; }
-  .f8 .panel, .f8 .kpis, .f8 .sheet, .f8 .card { -webkit-backdrop-filter: none; backdrop-filter: none; background: #1b1b1d; border-color: var(--edge); }
-  .f8 .li:not(.hot), .f8 .tile, .f8 .slot:not(.open):not(.urg), .f8 .oc, .f8 .setrow, .f8 .pick:not(.on) { background: #232325; border-color: var(--edge); }
-  .f8 .panel::before, .f8 .kpis::before, .f8 .sheet::before, .f8 .card::before, .f8 .li::before, .f8 .tile::before, .f8 .slot::before, .f8 .oc::before, .f8 .setrow::before, .f8 .pick::before { display: none; }
+  .f8 > canvas.backdrop { display: none; }
+  .f8 .panel, .f8 .kpis, .f8 .sheet, .f8 .card { -webkit-backdrop-filter: none; backdrop-filter: none; background: #1b1b1d; }
+  .f8 .li:not(.hot), .f8 .tile, .f8 .slot:not(.open):not(.urg), .f8 .oc, .f8 .setrow, .f8 .pick:not(.on) { background: #232325; }
 }
 </style></head><body><div id="out"></div><script>
 (function () {
@@ -574,11 +570,30 @@ body { margin: 0; background: #0c0c0d; }
     return '<div style="position:relative">' + dashboard(size) + '<div class="dim"></div>' + panel.replace('class="sheet"', 'class="sheet side"') + '</div>';
   }
 
+
+  // The faint streets behind every page: the same drawn town as the venue map, a few lines only, so the
+  // glass has something to see through. Drawn, not a real place.
+  function drawBackdrop(frame) {
+    var cv = document.createElement('canvas'); cv.className = 'backdrop'; cv.setAttribute('aria-hidden', 'true');
+    frame.insertBefore(cv, frame.firstChild);
+    var w = frame.offsetWidth, h = frame.offsetHeight, dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = w * dpr; cv.height = h * dpr; var c = cv.getContext('2d'); c.scale(dpr, dpr);
+    var s = 11; function rnd() { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; }
+    c.save(); c.translate(w / 2, h / 2); c.rotate(-0.28);
+    var R = Math.max(w, h), step = 42;
+    c.strokeStyle = 'rgba(255,255,255,0.06)'; c.lineWidth = 1.5;
+    for (var x = -R; x < R; x += step * (0.8 + rnd() * 0.7)) { c.beginPath(); var y = -R; c.moveTo(x, y); while (y < R) { y += step * (1 + rnd() * 3); if (rnd() < 0.2) c.moveTo(x, y); else c.lineTo(x, y); } c.stroke(); }
+    for (var yy = -R; yy < R; yy += step * (0.8 + rnd() * 0.7)) { c.beginPath(); var xx = -R; c.moveTo(xx, yy); while (xx < R) { xx += step * (1 + rnd() * 3); if (rnd() < 0.2) c.moveTo(xx, yy); else c.lineTo(xx, yy); } c.stroke(); }
+    c.restore();
+    c.strokeStyle = 'rgba(255,255,255,0.085)'; c.lineWidth = 4; c.lineCap = 'round'; c.lineJoin = 'round';
+    for (var k = 0; k < 6; k++) { c.beginPath(); var px = rnd() * w, py = k % 2 ? -10 : h + 10, ang = (k % 2 ? 1 : -1) * (Math.PI / 2) + (rnd() - 0.5) * 0.9; c.moveTo(px, py); for (var n = 0; n < 60; n++) { ang += (rnd() - 0.5) * 0.3; px += Math.cos(ang) * 30; py += Math.sin(ang) * 30; c.lineTo(px, py); } c.stroke(); }
+  }
   var SCREENS = { dashboard: dashboard, event: eventPage, casuals: casuals, cancellations: cancellations, session: session, updates: updates, offer: offer, customise: customise };
   var m = (location.hash || '').match(/^#(\w+)-(laptop|phone)$/);
   var name = m ? m[1] : 'dashboard', size = m ? m[2] : 'laptop';
   document.getElementById('out').innerHTML = '<div class="f8 ' + size + '">' + SCREENS[name](size) + '</div>';
   document.querySelectorAll('#out canvas').forEach(drawMap);
+  drawBackdrop(document.querySelector('#out .f8'));
   window.SCREEN_READY = true;
 })();
 </script></body></html>

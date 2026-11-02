@@ -35,9 +35,10 @@ shows a note where those two frames go).
 
 The office only (every page, label and action stays; the casual app keeps its look):
 
-- **The system:** dark by default, neutral charcoal with dark glass on the panels and the cards in
-  them (a see-through fill, a soft blur, light on the top edge and a faint sheen: Dylan, 2026-11-02,
-  "can we make the sections ... a bit more glass looking"); deeper shadows only on what floats; one accent, hi-vis yellow (`#e9f86f`, from the stewards' vests) on the main
+- **The system:** dark by default, neutral charcoal with translucent, sharp glass on the panels and
+  the cards in them: see-through over a faint street map behind every page, a light blur, one 1px
+  hairline, 12px and 8px corners, no gloss or sheen (Dylan, 2026-11-02: "a bit more glass looking",
+  then "by glass i mean translucent and sharp"); shadows only on what floats; one accent, hi-vis yellow (`#e9f86f`, from the stewards' vests) on the main
   button, switches and what's selected; status in one code (Urgent red, Open amber, Booked green,
   Offered blue, Hidden grey); Geist kept, references in Geist Mono; no glass, no wash.
 - **The dashboard:** a map of the firm's venues, each pin showing its places to fill (33 across 7

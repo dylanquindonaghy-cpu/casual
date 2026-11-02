@@ -785,6 +785,78 @@ body:has([data-office])::before {
   backdrop-filter: var(--float-filter);
 }
 
+/* MapLibre's own parts, for the office map once it has its street map (Phase 26.2,
+   src/app/office/dashboard/venue-map.tsx; the library's stylesheet isn't loaded): its canvas laid
+   over the map's box, the touch and pointer rules it sets, its markers placed by transform, and its
+   note when one finger (or a wheel without Ctrl) tries to move it, in the office's own words' look. */
+.maplibregl-map {
+  position: relative;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+.maplibregl-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+.maplibregl-canvas-container.maplibregl-interactive {
+  cursor: grab;
+  user-select: none;
+}
+.maplibregl-canvas-container.maplibregl-interactive:active {
+  cursor: grabbing;
+}
+.maplibregl-canvas-container.maplibregl-touch-zoom-rotate,
+.maplibregl-canvas-container.maplibregl-touch-zoom-rotate .maplibregl-canvas {
+  touch-action: pan-x pan-y;
+}
+.maplibregl-canvas-container.maplibregl-touch-drag-pan,
+.maplibregl-canvas-container.maplibregl-touch-drag-pan .maplibregl-canvas {
+  touch-action: pinch-zoom;
+}
+.maplibregl-canvas-container.maplibregl-touch-zoom-rotate.maplibregl-touch-drag-pan,
+.maplibregl-canvas-container.maplibregl-touch-zoom-rotate.maplibregl-touch-drag-pan
+  .maplibregl-canvas {
+  touch-action: none;
+}
+.maplibregl-marker {
+  position: absolute;
+  top: 0;
+  left: 0;
+  will-change: transform;
+}
+.maplibregl-cooperative-gesture-screen {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background-color: var(--color-panel);
+  color: var(--color-ink);
+  font-size: var(--text-base);
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1s 1s;
+}
+.maplibregl-cooperative-gesture-screen.maplibregl-show {
+  opacity: 1;
+  transition: opacity 0.05s;
+}
+.maplibregl-cooperative-gesture-screen .maplibregl-mobile-message {
+  display: none;
+}
+@media (hover: none), (pointer: coarse) {
+  .maplibregl-cooperative-gesture-screen .maplibregl-desktop-message {
+    display: none;
+  }
+  .maplibregl-cooperative-gesture-screen .maplibregl-mobile-message {
+    display: block;
+  }
+}
+
 /* The office's sizes (every page under /office carries [data-office]: src/app/office/layout.tsx):
    round 8's one scale, 12 · 13 · 14 · 16 · 20 · 30px (the pre-build audit's aud-3: nothing under
    12px; a page's headline 30px, a section's 16px, words 14px; round 7's were 15, 17 and 40px),

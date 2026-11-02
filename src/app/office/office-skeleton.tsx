@@ -2,9 +2,10 @@
 // in the menu is on its way, menu-pending.tsx): grey bars that slowly fade in and out while they
 // wait (Phase 22, `animate-wait`; still in Phase 21; no shimmer, and with reduced motion one fade).
 // Phase 24 (round 7): glass, as the pages are: frosted sections, no tints. The dashboard's own
-// follows its layout, a part for every section (its head and track, the places chart, the detail
-// card and the board's four columns); every other page shares one (a headline, a line, then a card
-// of rows). Hidden from screen readers but for one line that says it's loading.
+// follows its layout, a part for every section (round 8, Phase 26.2: its head and track, the venue
+// map with the session card on it, and the three columns); every other page shares one (a
+// headline, a line, then a card of rows). Hidden from screen readers but for one line that says
+// it's loading.
 // Hook-free.
 
 const BAR = "block animate-wait rounded-full bg-raised";
@@ -14,9 +15,6 @@ const CARD = "glass rounded-inner";
 function Loading({ what }: { what: string }) {
   return <p className="sr-only">Loading {what}…</p>;
 }
-
-const DAYS = ["h-12", "h-20", "h-28", "h-16", "h-24", "h-8", "h-4"] as const;
-const FORTNIGHT = [...DAYS, ...DAYS];
 
 // A column of the board: its title and count, its line, then cards.
 function ColumnSkeleton({ part }: { part: string }) {
@@ -46,36 +44,30 @@ function ColumnSkeleton({ part }: { part: string }) {
   );
 }
 
-// The dashboard's own (Phase 24, round 7): "Dashboard" and its line with the track beside them,
-// the places chart (a bar a day for two weeks) with the detail card, then the board's four columns.
+// The dashboard's own (round 8, Phase 26.2): "Dashboard" and its line, the track with Filter and
+// Show full venues, the venue map (300px on a phone, 528px from 1024px) with the session card over
+// its top left from 1024px (under it before), then the three columns.
 export function DashboardSkeleton() {
   return (
     <div aria-busy="true" data-skeleton="">
       <Loading what="the dashboard" />
       <div aria-hidden="true" className="@container flex flex-col gap-6">
-        <div data-skeleton-part="header" className="flex flex-wrap items-end gap-x-6 gap-y-4">
+        <div data-skeleton-part="header" className="flex flex-col gap-4">
           <span className="flex flex-col gap-2">
             <span className={`${BAR} h-9 w-48 max-w-full`} />
             <span className={`${BAR} h-4 w-96 max-w-full`} />
           </span>
-          <span className={`${BAR} h-12 w-96 max-w-full @min-[48rem]:ml-auto`} />
-        </div>
-        <span className="grid gap-3 @min-[56rem]:grid-cols-[minmax(0,1fr)_21.25rem] @min-[72rem]:grid-cols-[minmax(0,1fr)_23.25rem]">
-          <span data-skeleton-part="places" className={`flex flex-col gap-4 p-6 ${CARD}`}>
-            <span className="flex flex-col gap-2">
-              <span className={`${BAR} h-5 w-40 max-w-full`} />
-              <span className={`${BAR} h-4 w-56 max-w-full`} />
-            </span>
-            <span className="flex h-44 items-end gap-2 border-b border-line">
-              {FORTNIGHT.map((h, i) => (
-                <span
-                  key={i}
-                  className={`block max-w-6 flex-1 animate-wait rounded-t-row bg-raised ${h}`}
-                />
-              ))}
-            </span>
+          <span className="flex flex-wrap items-center gap-3">
+            <span className={`${BAR} h-12 w-96 max-w-full`} />
+            <span className={`${BAR} h-11 w-28`} />
           </span>
-          <span data-skeleton-part="detail" className={`flex flex-col gap-4 p-6 ${CARD}`}>
+        </div>
+        <span className="relative block">
+          <span data-skeleton-part="map" className={`block h-75 @min-[64rem]:h-132 ${CARD}`} />
+          <span
+            data-skeleton-part="detail"
+            className={`mt-3 flex flex-col gap-4 p-6 @min-[64rem]:absolute @min-[64rem]:top-3 @min-[64rem]:left-3 @min-[64rem]:mt-0 @min-[64rem]:w-101 ${CARD}`}
+          >
             <span className="flex items-start gap-3">
               <span className="block size-12 shrink-0 animate-wait rounded-row bg-raised" />
               <span className="flex flex-1 flex-col gap-2">
@@ -91,10 +83,9 @@ export function DashboardSkeleton() {
             <span className={`${BAR} h-11 w-full`} />
           </span>
         </span>
-        <span className="grid items-start gap-3 @min-[36rem]:grid-cols-2 @min-[64rem]:grid-cols-4">
+        <span className="grid items-start gap-3 @min-[48rem]:grid-cols-2 @min-[72rem]:grid-cols-3">
           <ColumnSkeleton part="offer" />
-          <ColumnSkeleton part="offered" />
-          <ColumnSkeleton part="overnight" />
+          <ColumnSkeleton part="updates" />
           <ColumnSkeleton part="mark" />
         </span>
       </div>

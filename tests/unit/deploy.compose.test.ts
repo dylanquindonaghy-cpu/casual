@@ -112,6 +112,7 @@ describe("deploy/docker-compose.yml", () => {
         "APP_BASE_DOMAIN",
         "DATABASE_URL",
         "INTEGRATIONS_SECRET", // the planner API answers only with it set (12J.1)
+        "MAP_TILES_URL", // the dashboard's street map file, if any (not a secret; Phase 26.2)
         // only whether there's a text sender, for the login and pay pages' words (not a secret; P2.7)
         "MESSAGING_TRANSPORT",
         "NODE_ENV",
@@ -306,6 +307,12 @@ describe("deploy/docker-compose.yml", () => {
     expect(services.web?.healthcheck?.test.join(" ")).toContain("http://localhost:3000/api/health");
     const caddyfile = services.caddy?.volumes?.find((v) => v.target === "/etc/caddy/Caddyfile");
     expect(caddyfile?.read_only).toBe(true);
+    // The street map's file (Phase 26.2): the server's maps folder, read only, where the
+    // Caddyfile's /maps/* looks (tests/integration/deploy.caddy.test.ts).
+    const maps = services.caddy?.volumes?.find((v) => v.target === "/srv/maps");
+    expect(maps?.read_only).toBe(true);
+    expect(maps?.type).toBe("bind");
+    expect(maps?.source).toMatch(/\/maps$/);
     expect(services.caddy?.volumes?.find((v) => v.target === "/data")?.type).toBe("volume");
   });
 

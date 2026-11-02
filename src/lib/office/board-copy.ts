@@ -3,13 +3,7 @@ import { roleLabel, soonLabel } from "../portal/format";
 import { datePartsOfDay, timeRange } from "../portal/sign-copy";
 import { dayLabel } from "../rules/reasons";
 import { addDays, localDateOf, wallTimeOf } from "../time/zoned";
-import type {
-  BoardShow,
-  BoardSession,
-  ChartDay,
-  OfferChannel,
-  OvernightTake,
-} from "./dashboard-board";
+import type { BoardShow, BoardSession, ChartDay } from "./dashboard-board";
 import { offerLimitText } from "./event-words";
 import type { PlannerLink } from "./integrations";
 import type { TodayToMark } from "./today";
@@ -68,12 +62,36 @@ export const SHOW_WORDS: Record<BoardShow, string> = {
   "next-week": "Next week",
 };
 
-export const showHref = (show: BoardShow): string =>
-  show === "all" ? "/office" : `/office?show=${show}`;
+// What the board is showing (round 8, Phase 26.2): the track's filter, "Show full venues" and the
+// role chosen under Filter. Every link on the dashboard keeps it.
+export interface BoardView {
+  show: BoardShow;
+  full: boolean;
+  role: string | null;
+}
+
+// The dashboard's address for a view, with a session picked into the card or not.
+export function boardHref(view: BoardView, session?: string | null): string {
+  const params = new URLSearchParams();
+  if (view.show !== "all") params.set("show", view.show);
+  if (view.role) params.set("role", view.role);
+  if (view.full) params.set("full", "1");
+  if (session) params.set("session", session);
+  const q = params.toString();
+  return q ? `/office?${q}` : "/office";
+}
+
+export const showHref = (show: BoardShow): string => boardHref({ show, full: false, role: null });
 
 // The address with a session picked into the detail card (the filter kept).
 export const pickHref = (show: BoardShow, shiftId: string): string =>
-  `/office?${show === "all" ? "" : `show=${show}&`}session=${shiftId}`;
+  boardHref({ show, full: false, role: null }, shiftId);
+
+// Filter (dash-3): the roles with places to fill, by name; "Every role" clears it.
+export const FILTER = "Filter";
+export const EVERY_ROLE = "Every role";
+export const filterLabel = (role: string | null, name: (r: string) => string) =>
+  role ? `Filter: ${name(role)}` : "Filter by role";
 
 // --- The places chart ------------------------------------------------------------------------
 
@@ -211,24 +229,31 @@ export function moreLabel(s: Pick<BoardSession, "role" | "startsAt">, timeZone: 
 
 // --- The board's columns ---------------------------------------------------------------------
 
+// Round 8 (Phase 26.2): Updates took round 7's Offered and While you were out's events (dash-5).
 export const COLUMN_TITLES = {
   toOffer: "To offer",
-  offered: "Offered",
-  overnight: "While you were out",
+  updates: "Updates",
   toMark: "Who worked?",
 } as const;
 export type ColumnKey = keyof typeof COLUMN_TITLES;
 
-// Each column's anchor (the top bar's "Offers out" opens #offered).
+// Each column's anchor (the top bar's "Offers out" opens #updates).
 export const COLUMN_IDS: Record<ColumnKey, string> = {
   toOffer: "to-offer",
-  offered: "offered",
-  overnight: "while-you-were-out",
+  updates: "updates",
   toMark: "who-worked",
 };
 
 export const toOfferLine = (places: number) =>
   `${plural(places, "place", "places")}, no offers out`;
+
+// Round 8's To offer holds every session with places (dash-4): "33 places, none offered" or
+// "33 places · 10 offers, no reply yet".
+export const toFillLine = (places: number, waiting: number) =>
+  `${plural(places, "place", "places")}${waiting === 0 ? ", none offered" : ` · ${plural(waiting, "offer", "offers")}, no reply yet`}`;
+
+// "View all 17" (on Events & sessions).
+export const viewAllText = (n: number) => `View all ${n}`;
 
 export const offeredLine = (places: number, waiting: number) =>
   `${plural(places, "place", "places")} · ${plural(waiting, "offer", "offers")}, no reply yet`;
@@ -251,9 +276,8 @@ export function toMarkLine(items: Pick<TodayToMark, "startsAt">[], timeZone: str
 // The count beside a column's title, for a screen reader.
 export const countWords = {
   toOffer: (n: number) => plural(n, "session", "sessions"),
-  offered: (n: number) => plural(n, "session", "sessions"),
-  overnight: (n: number) => plural(n, "place taken", "places taken"),
   toMark: (n: number) => plural(n, "session to mark", "sessions to mark"),
+  updates: (n: number) => plural(n, "update", "updates"),
 };
 
 // What an empty column says. With nothing at all to fill, To offer says so (under a filter, for
@@ -267,29 +291,25 @@ export function emptyText(key: ColumnKey, nothingToFill: boolean, show: BoardSho
         : show === "urgent"
           ? "No urgent places to fill."
           : `No places to fill ${show === "this-week" ? "this week" : "next week"}.`;
-    case "offered":
-      return "No offers waiting.";
-    case "overnight":
-      return "Nothing taken last night.";
     case "toMark":
       return "Nothing to mark.";
+    case "updates":
+      return "Nothing new in the last two days.";
   }
 }
+
+// Under an empty column (round 8, the pre-build audit's aud-10): what will show there.
+export const EMPTY_HINTS: Partial<Record<ColumnKey, string>> = {
+  toOffer: "Sessions with a place free show here, soonest first.",
+  updates: "Places taken, cancellations, and photos or certificates to check show here.",
+  toMark: "Sessions show here when they end, so you can mark who worked.",
+};
 
 export const showMoreText = (n: number) => `Show ${n} more`;
 
 // A column cut at its first 50: where the rest are.
 export const columnMoreText = (n: number) =>
   `${plural(n, "more session", "more sessions")} on Events & sessions`;
-
-// --- While you were out ----------------------------------------------------------------------
-
-export const CHANNEL_WORDS: Record<OfferChannel, string> = {
-  whatsapp: "WhatsApp",
-  sms: "text message",
-  push: "app notification",
-  email: "email", // P2.4: the offer's last way (Dylan, 2026-10-29)
-};
 
 // "BF" for Ben Fraser.
 export const initials = (name: string) =>
@@ -299,19 +319,6 @@ export const initials = (name: string) =>
     .slice(0, 2)
     .map((w) => w.charAt(0).toUpperCase())
     .join("");
-
-export function takeCard(t: OvernightTake, timeZone: string) {
-  const p = datePartsOfDay(localDateOf(t.startsAt, timeZone));
-  const at = clock(t.answeredAt, timeZone);
-  const how = CHANNEL_WORDS[t.channel];
-  return {
-    title: `${t.worker} said yes`,
-    sub: `${roleLabel(t.role)} · ${t.eventName}`,
-    when: `${p.dow} ${p.day} · ${clock(t.startsAt, timeZone)}`,
-    said: `${at} · ${how}`,
-    label: `${t.worker} took ${inSentence(t.role)}, ${t.eventName}, ${dayLabel(localDateOf(t.startsAt, timeZone))} at ${clock(t.startsAt, timeZone)}: said yes at ${at} by ${how}. Open the shift.`,
-  };
-}
 
 // --- Who worked? -----------------------------------------------------------------------------
 

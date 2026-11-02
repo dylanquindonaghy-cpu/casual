@@ -366,8 +366,8 @@ test("Part 3: as the office", async ({ browser }) => {
   });
 
   await test.step("23. The dashboard", async () => {
-    // Round 7 (Phase 24): the track, the places chart (a bar a day, this week and next), the
-    // session picked beside it, and the board's four columns.
+    // Round 8 (Phase 26.2): the track, the venue map with the session's card on it, and the three
+    // columns.
     const track = page.getByRole("navigation", { name: "Show" });
     await expect(track.getByRole("link")).toHaveText([
       /^All \d+$/,
@@ -375,17 +375,17 @@ test("Part 3: as the office", async ({ browser }) => {
       /^This week \d+$/,
       /^Next week \d+$/,
     ]);
-    await expect(page.locator("section#places-chart [data-day]")).toHaveCount(14);
+    await expect(page.locator("[data-venue-map]")).toBeVisible();
     await expect(page.locator("dialog[data-offer-panel][data-ready]")).toHaveCount(1);
-    for (const name of ["To offer", "Offered", "While you were out", "Who worked?"])
+    for (const name of ["To offer", "Updates", "Who worked?"])
       await expect(page.getByRole("heading", { name, exact: true, level: 2 })).toBeVisible();
-    // A card picks itself into the detail card.
+    // A row picks itself into the card.
     const pick = page.locator('section#to-offer a[href^="/office?"]').nth(1);
     const id = /session=([0-9a-f-]{36})$/.exec((await pick.getAttribute("href")) ?? "")?.[1];
     await pick.click();
     await expect(page.locator(`[data-chosen="${id}"]`)).toBeVisible();
     await expect(
-      page.locator(`[data-chosen="${id}"]`).getByRole("link", { name: "Offer to someone" }),
+      page.locator(`[data-chosen="${id}"]`).getByRole("link", { name: /^Offer to / }),
     ).toBeVisible();
     // Who worked?: yesterday's racecourse bookings to mark.
     await expect(

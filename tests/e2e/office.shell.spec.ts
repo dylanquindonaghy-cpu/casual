@@ -650,12 +650,13 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
         ? new RegExp(`^Needs attention, ${toCheck}\\+? to deal with$`)
         : "Needs attention",
     );
-    // Urgent: the places of the dashboard's urgent sessions (its Urgent filter's two columns).
+    // Urgent: the places of the dashboard's urgent sessions (its Urgent filter's To offer: round 8
+    // holds every session with places in one column).
     const urgent = await count("Urgent");
     const places = async (id: string) =>
       Number(/^(\d+) places?/.exec(await page.locator(`section#${id} p`).first().innerText())?.[1]);
     await page.goto(`${acme}/office?show=urgent`);
-    expect((await places("to-offer")) + (await places("offered"))).toBe(urgent);
+    expect(await places("to-offer")).toBe(urgent);
     // Pay queries: those waiting, as Pay's fold says them.
     const pay = await count("Pay queries");
     const fold = menu.getByRole("button", { name: "Pay", exact: true });
@@ -663,13 +664,15 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
     await expect(fold.locator("xpath=..").locator("[data-rail-tip]")).toHaveText(
       pay > 0 ? `Pay, ${pay} waiting` : "Pay",
     );
-    // Offers out: the dashboard's Offered column, its offers waiting for a reply.
+    // Offers out: the dashboard's Updates (round 8), and To offer's line says the same offers.
     const out = await count("Offers out");
     await bar.getByRole("link", { name: /^Offers out \d+$/ }).click();
-    await expect(page).toHaveURL(`${acme}/office#offered`);
-    await expect(page.locator("section#offered")).toBeInViewport();
-    await expect(page.locator("section#offered p").first()).toHaveText(
-      new RegExp(` · ${out} ${out === 1 ? "offer" : "offers"}, no reply yet$`),
+    await expect(page).toHaveURL(`${acme}/office#updates`);
+    await expect(page.locator("section#updates")).toBeInViewport();
+    await expect(page.locator("section#to-offer p").first()).toHaveText(
+      out === 0
+        ? /, none offered$/
+        : new RegExp(` · ${out} ${out === 1 ? "offer" : "offers"}, no reply yet$`),
     );
     // To fill: Events & sessions' places to fill, with sessions that need people (its line, round
     // 7: "{10} events with sessions to come · {33} places free").
@@ -779,7 +782,7 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
     await officeLogin(page, "press", "admin");
     const card = page.locator("section#to-offer [data-session]").first();
     await expect(card).toHaveCount(1);
-    // The board sits under the chart and the detail card: below a 640px window until scrolled to.
+    // The board sits under the map: below a 640px window until scrolled to.
     await card.scrollIntoViewIfNeeded();
     const box = (await card.boundingBox())!;
     await page.mouse.move(box.x + 40, box.y + 40);
@@ -794,8 +797,9 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
     await page.mouse.move(heading.x + 8, heading.y + heading.height / 2);
     await page.mouse.up();
     await expect.poll(() => card.evaluate((el) => getComputedStyle(el).scale)).toBe("none");
-    // A glass button swells a little and springs back (`press-glass`): the places chart's ↗.
-    const open = page.getByRole("main").getByRole("link", { name: "Open Events & sessions" });
+    // A glass button swells a little and springs back (`press-glass`): a To offer row's paper
+    // plane (round 8; the places chart's ↗ until then).
+    const open = page.locator('section#to-offer [data-session] a[href^="/office/offer/"]').first();
     await open.scrollIntoViewIfNeeded();
     const nb = (await open.boundingBox())!;
     await page.mouse.move(nb.x + nb.width / 2, nb.y + nb.height / 2);
@@ -900,18 +904,18 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
   }) => {
     await officeLogin(page, "under");
     const bar = page.getByRole("banner");
-    // The places chart's ↗, and what the keyboard reaches next: the chosen session's "…".
-    const numbers = page.getByRole("main").getByRole("link", { name: "Open Events & sessions" });
-    const first = page.locator("[data-chosen] summary").first();
+    // Round 8: Show full venues, and what the keyboard reaches next: the map's first pin.
+    const numbers = page.getByRole("main").getByRole("switch", { name: "Show full venues" });
+    const first = page.locator("[data-venue-map] a").first();
     await expect(first).toBeVisible();
     const under = await bar.evaluate((el) => el.getBoundingClientRect().bottom);
     expect(under).toBe(64);
-    // Scrolled (with a wheel or a trackpad) until the ↗ sits under the bar, 8px from the top.
+    // Scrolled (with a wheel or a trackpad) until the switch sits under the bar, 8px from the top.
     await numbers.evaluate((el) => window.scrollBy(0, el.getBoundingClientRect().top - 8));
     await expect
       .poll(() => numbers.evaluate((el) => Math.round(el.getBoundingClientRect().top)))
       .toBe(8);
-    // The keyboard moves to it: Shift+Tab back from the "…".
+    // The keyboard moves to it: Shift+Tab back from the pin.
     await first.evaluate((el) => (el as HTMLElement).focus({ preventScroll: true }));
     await page.keyboard.press("Shift+Tab");
     await expect(numbers).toBeFocused();

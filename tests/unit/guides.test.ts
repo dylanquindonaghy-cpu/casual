@@ -292,23 +292,22 @@ describe("the office how-to guide", () => {
   // Phase 24 (24.3): the dashboard's places chart, its chosen session and the board's four
   // columns (Phase 23's four counts, urgent places and six charts went), the offer panel, and the
   // guide's links to it land on what's there now.
-  it("Start your day on the dashboard: the places chart, the chosen session and the board's four columns (Phase 24)", () => {
+  it("Start your day on the dashboard: the venue map, the chosen session and the three columns (round 8, Phase 26.2)", () => {
     for (const role of ["admin", "resourcer"] as const) {
       const html = section(guide(role), "today");
       const names = [
         ...html.matchAll(/<li class="py-3"><p class="font-semibold text-ink">([^<]*)<\/p>/g),
       ].map((m) => m[1]);
       expect(names).toEqual([
-        "Places to fill",
+        "The venue map",
         "The chosen session",
         "To offer",
-        "Offered",
-        "While you were out",
+        "Updates",
         "Who worked?",
       ]);
       const text = words(html);
       expect(text).toContain(
-        "It shows the places still to fill, the offers waiting for a reply, and what happened while you were out.",
+        "It shows where the places still to fill are, the offers waiting for a reply, and what has happened lately.",
       );
       expect(text).toContain(
         "The line under Dashboard says the date, the pay week and its pay day, and when your planner or rota sheet last sent changes.",
@@ -316,17 +315,24 @@ describe("the office how-to guide", () => {
       expect(text).toContain(
         "All , Urgent , This week and Next week choose the sessions with places to fill that the board shows.",
       );
-      // The chart's two parts, as the dashboard names them.
+      // The map, Filter and Show full venues, as the dashboard names them.
       expect(text).toContain(
-        "A bar for each day of this week and next: the places with no offers out, and on them the places offered with no reply yet.",
+        "A pin for each venue with places to fill: its number is its places, red when one is urgent, a dashed ring when it's hidden from casuals.",
+      );
+      expect(text).toContain(
+        "Filter shows one role only; Show full venues puts the venues with nothing to fill on the map too.",
       );
       // The detail card keeps the urgent places' actions under its "…".
       expect(text).toContain(
         "Offer to someone and Open the shift are under it; … has Mark as filled and Not urgent.",
       );
-      // While you were out: what casuals took from offers, never "filled by the shifts line".
+      // Updates: what casuals took and cancelled, never "filled by the shifts line"; Who worked? by
+      // name.
       expect(text).toContain(
-        "Places casuals took themselves from offers between 18:00 and 08:00, with how the offer reached them and when they said yes.",
+        "The last two days: places casuals took, cancellations with their notice and strike, photos and certificates to check, and offers with no reply.",
+      );
+      expect(text).toContain(
+        "each person by name: Worked or Didn't attend, or Everyone else worked.",
       );
       expect(text).not.toContain("Filled by the shifts line");
       // The offer panel, step by step.
@@ -368,7 +374,7 @@ describe("the office how-to guide", () => {
     expect(admin).toContain('href="/office/needs-attention#to-mark"');
     expect(admin).not.toMatch(/href="\/office#(?:urgent|urgent-places|needs-attention)"/);
     expect(words(section(admin, "fill-a-gap"))).toContain(
-      "Every one is on the dashboard, under To offer or Offered ( Urgent shows only the urgent ones). Select one to see it in full: Mark as filled and Not urgent are under its … .",
+      "Every one is on the dashboard, under To offer and on its map ( Urgent shows only the urgent ones). Select one to see it in full: Mark as filled and Not urgent are under its … .",
     );
     // A leaver's bookings ahead are on Needs attention now, not the dashboard.
     expect(words(admin)).toContain(

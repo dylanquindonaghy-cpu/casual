@@ -1,37 +1,41 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { useState, type MouseEvent, type ReactNode } from "react";
 import {
   bannerText,
+  boardHref,
   cardLabel,
   COLUMN_IDS,
   COLUMN_TITLES,
-  columnMoreText,
   countWords,
+  EMPTY_HINTS,
   emptyText,
-  initials,
-  markLabel,
   moreLabel,
-  offeredLine,
   offerLabel,
-  OVERNIGHT_LINE,
-  pickHref,
   placesText,
-  repliesText,
-  showMoreText,
-  sinceText,
   startsIn,
-  takeCard,
+  toFillLine,
   toMarkLine,
-  toOfferLine,
+  viewAllText,
   whenText,
   whereText,
+  type BoardView,
   type ColumnKey,
 } from "@/lib/office/board-copy";
 import type { Board as BoardData, BoardSession, BoardShow } from "@/lib/office/dashboard-board";
 import { SECTION_ERROR } from "@/lib/office/dashboard-copy";
 import { toMarkGroups } from "@/lib/office/to-mark";
+import type { Takers } from "@/lib/office/dashboard-map";
+import {
+  bookedText,
+  CAN_TAKE_IT,
+  CAN_TAKE_LINE,
+  lengthAndPay,
+  offerButton,
+  offeredText,
+  takersWarning,
+} from "@/lib/office/dashboard-map-copy";
 import { roleLabel } from "@/lib/portal/format";
 import { datePartsOfDay, timeRange } from "@/lib/portal/sign-copy";
 import { localDateOf } from "@/lib/time/zoned";
@@ -39,22 +43,22 @@ import { btn, chip, countPill, notice } from "../../ui/classes";
 import { Icon } from "../../ui/icons";
 import { ShiftActions } from "../shift-actions";
 import { useOfferPanel, type OpenOffer } from "./offer-panel";
+import { UpdatesList, WhoWorkedList } from "./updates-worked";
+import { VenueMap } from "./venue-map";
 
-// The dashboard's board (Phase 24, 24.3; round 7 of the canvas, docs/mockups/phase-24/README.md):
-// beside the places chart, the detail card for the chosen session; under them four columns of
-// glass: To offer and Offered (the sessions with places to fill under the track's filter, by
-// whether an offer waits for a reply), While you were out (places casuals took from offers last
-// night) and Who worked? (Needs attention's sessions to mark). A session card picks itself into the
-// detail card (a link to the dashboard with that session until the page is ready, so it works
-// without JavaScript), its paper plane opens the offer panel (a link to the offer page until then),
-// and "Show N more" shows a column's other cards. The detail card's "Offer to someone" opens the
-// panel too, "Open the shift" goes to its page, and "…" holds "Mark as filled" and "Not urgent".
+// The dashboard's board (Phase 24, 24.3; round 8 since Phase 26.2: the spec page's "Dashboard",
+// docs/mockups/round-8/): the venue map (./venue-map.tsx) with the chosen session's card on it
+// (under it on a phone), then three columns of glass: To offer (every session with places to fill
+// under the track's filter, soonest first: the first four, then "View all"), Updates (the last two
+// days: places taken, casuals' cancellations, uploads to check and offers with no reply: in place of
+// round 7's Offered and While you were out) and Who worked? (each person by name, with Worked and
+// Didn't attend). A session row picks itself into the card (a link to the dashboard with that
+// session until the page is ready, so it works without JavaScript), its paper plane opens the offer
+// panel (a link to the offer page until then). The card shows what, where and when, its pay, how
+// many are booked of how many (a gauge), who can take it under the rules right now, what's in the
+// way, and "Offer to someone" ("Offer to Zoe" when she's the only one), "Open the shift" and "…".
 
-export const SHOWN = 3; // cards a column shows before "Show N more"
-
-// The id of a column's card's link ("to-offer-card-3"): "Show N more" moves focus to the first it
-// showed.
-const cardId = (k: ColumnKey, i: number) => `${COLUMN_IDS[k]}-card-${i}`;
+export const SHOWN = 4; // To offer's rows before "View all" (round 8)
 
 // A plain click (not one opening a new tab or window): the page handles it once it's ready.
 const plain = (e: MouseEvent) =>
@@ -62,19 +66,9 @@ const plain = (e: MouseEvent) =>
 
 const LEAF: Record<ColumnKey, string> = {
   toOffer: "text-mark-open",
-  offered: "text-mark-wait",
-  overnight: "text-mark-done",
+  updates: "text-mark-wait",
   toMark: "text-attention",
 };
-
-// A card's chips: 28px glass pills, tight enough that a card's three fit one line in a column a
-// quarter of the board wide.
-const CHIP =
-  "glass-button inline-flex h-7 items-center gap-1 rounded-full px-2 text-sm whitespace-nowrap tabular-nums";
-const CHIP_URGENT =
-  "glass-rim inline-flex h-7 items-center gap-1 rounded-full bg-urgent-soft px-2 text-sm whitespace-nowrap text-urgent-ink tabular-nums";
-const CHIP_DONE =
-  "glass-rim inline-flex h-7 items-center gap-1 rounded-full bg-done-soft px-2 text-sm whitespace-nowrap text-done-ink tabular-nums";
 
 // A date tile: the day's short name over its number, red when the session is urgent.
 function DateTile({ day, urgent, big = false }: { day: string; urgent: boolean; big?: boolean }) {
@@ -101,29 +95,26 @@ function SectionError() {
   );
 }
 
-// A column of the board: its leaf, title and count, its line, its cards (the first SHOWN, then
-// "Show N more"), what it says when it's empty, and where the rest are when it was cut at 50.
+// A column of the board: its leaf, title and count, its line, what's in it (or what it says when
+// it's empty), and its foot ("View all 17", the action log, Needs attention).
 function Column({
   k,
   count,
   line,
   failed,
   empty,
-  cards,
-  more,
+  children,
+  foot,
 }: {
   k: ColumnKey;
   count: number;
-  line: string;
+  line: string | null;
   failed: boolean;
   empty: string;
-  cards: ReactNode[]; // each card's focusable link has the id cardId(k, i)
-  more?: { text: string; href: string } | null;
+  children: ReactNode;
+  foot?: { text: string; href: string } | null;
 }) {
-  const [open, setOpen] = useState(false);
   const id = COLUMN_IDS[k];
-  const shown = open ? cards : cards.slice(0, SHOWN);
-  const hidden = cards.length - shown.length;
   return (
     <section id={id} aria-labelledby={`${id}-title`} className="glass min-w-0 rounded-inner p-4">
       <div className="flex items-center gap-3 px-1">
@@ -140,37 +131,23 @@ function Column({
           </>
         )}
       </div>
-      {!failed && <p className="mt-1 px-1 text-sm text-ink-muted tabular-nums">{line}</p>}
+      {!failed && line && <p className="mt-1 px-1 text-sm text-ink-muted tabular-nums">{line}</p>}
       {failed ? (
         <SectionError />
-      ) : cards.length === 0 ? (
-        <p className="mt-3 rounded-row glass-tile p-4 text-sm text-ink-muted">{empty}</p>
+      ) : count === 0 ? (
+        <div className="mt-3 rounded-row glass-tile p-4 text-sm">
+          <p className="text-ink-muted">{empty}</p>
+          {EMPTY_HINTS[k] && <p className="mt-1 text-ink-faint">{EMPTY_HINTS[k]}</p>}
+        </div>
       ) : (
-        <ul role="list" className="mt-3 flex flex-col gap-2">
-          {shown.map((card, i) => (
-            <li key={i}>{card}</li>
-          ))}
-        </ul>
+        children
       )}
-      {hidden > 0 && (
-        <button
-          type="button"
-          onClick={() => {
-            setOpen(true);
-            // On to the first card it showed.
-            requestAnimationFrame(() => document.getElementById(cardId(k, SHOWN))?.focus());
-          }}
-          className="press mt-2 flex min-h-10 w-full items-center justify-center rounded-row text-sm text-ink-muted hover:bg-active hover:text-ink active:bg-button-press"
-        >
-          {showMoreText(hidden)}
-        </button>
-      )}
-      {more && (open || hidden === 0) && (
+      {!failed && foot && (
         <Link
-          href={more.href}
-          className="press mt-2 flex min-h-10 w-full items-center justify-center gap-1 rounded-row text-sm text-ink-muted hover:bg-active hover:text-ink active:bg-button-press"
+          href={foot.href}
+          className="press mt-2 flex min-h-11 w-full items-center justify-center gap-1 rounded-row text-sm text-ink-muted hover:bg-active hover:text-ink active:bg-button-press"
         >
-          {more.text}
+          {foot.text}
           <Icon name="chevron" size={16} />
         </Link>
       )}
@@ -178,33 +155,31 @@ function Column({
   );
 }
 
-// A session with places to fill: its date, role and event; a chip with when it starts, one with
-// how many to fill (red when urgent), one with the offers waiting; its paper plane.
-function SessionCard({
-  id,
+// A session with places to fill, in To offer: its date, role (and "Urgent"), venue and start, how
+// many are booked of how many, and its paper plane.
+function OfferRow({
   s,
   picked,
-  show,
+  view,
   timeZone,
   onPick,
   onOffer,
 }: {
-  id: string;
   s: BoardSession;
   picked: boolean;
-  show: BoardShow;
+  view: BoardView;
   timeZone: string;
   onPick: (s: BoardSession) => void;
   onOffer: OpenOffer;
 }) {
+  const start = timeRange(s.startsAt, s.endsAt, timeZone).range.split("–")[0];
   return (
     <div
       data-session={s.shiftId}
-      className={`press relative rounded-row px-3 py-4 ${picked ? "glass-button outline-2 -outline-offset-2 outline-ink" : "glass-tile hover:bg-active"}`}
+      className={`press relative grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 rounded-row px-3 py-3 ${picked ? "glass-button outline-2 -outline-offset-2 outline-ink" : "glass-tile hover:bg-active"}`}
     >
       <Link
-        id={id}
-        href={pickHref(show, s.shiftId)}
+        href={boardHref(view, s.shiftId)}
         prefetch={false}
         scroll={false}
         aria-label={cardLabel(s, timeZone)}
@@ -216,13 +191,27 @@ function SessionCard({
         }}
         className="press absolute inset-0 rounded-row"
       />
-      <div className="pointer-events-none relative flex items-start gap-3 pr-12">
+      <span className="pointer-events-none relative">
         <DateTile day={localDateOf(s.startsAt, timeZone)} urgent={s.urgent} />
-        <div className="min-w-0">
-          <b className="block text-base leading-snug font-medium text-ink">{roleLabel(s.role)}</b>
-          <span className="block text-sm leading-snug text-ink-muted">{s.eventName}</span>
-        </div>
-      </div>
+      </span>
+      <span className="pointer-events-none relative min-w-0">
+        <b className="flex flex-wrap items-center gap-2 leading-snug font-medium text-ink">
+          {roleLabel(s.role)}
+          {s.urgent && <span className={`${chip.base} ${chip.urgent}`}>Urgent</span>}
+        </b>
+        <span className="block text-sm leading-snug text-ink-muted">
+          {[s.site ?? s.eventName, start].filter(Boolean).join(" · ")}
+        </span>
+      </span>
+      <span
+        aria-hidden="true"
+        className="pointer-events-none relative text-right text-sm leading-tight text-ink-muted tabular-nums"
+      >
+        <b className="block font-semibold text-ink">
+          {bookedText(s.headcount - s.placesFree, s.headcount).replace(" / ", "/")}
+        </b>
+        booked
+      </span>
       <Link
         href={`/office/offer/${s.shiftId}`}
         prefetch={false}
@@ -232,34 +221,54 @@ function SessionCard({
           e.preventDefault();
           onOffer(s.shiftId, e.currentTarget);
         }}
-        className="press-glass glass-button absolute top-3 right-3 flex size-9 items-center justify-center rounded-full text-ink hover:bg-button-hover active:bg-button-press"
+        className="press-glass glass-button relative flex size-11 items-center justify-center rounded-full text-ink hover:bg-button-hover active:bg-button-press"
       >
         <Icon name="send" size={16} />
       </Link>
-      <div aria-hidden="true" className="pointer-events-none relative mt-3 flex flex-wrap gap-2">
-        <span className={CHIP}>
-          <Icon name="clock" size={14} className="text-ink-muted" />
-          {timeRange(s.startsAt, s.endsAt, timeZone).range.split("–")[0]}
-        </span>
-        <span className={s.urgent ? CHIP_URGENT : CHIP}>
-          <Icon name="profile" size={14} className={s.urgent ? "" : "text-ink-muted"} />
-          {s.placesFree} to fill
-        </span>
-        {s.offers.waiting > 0 && (
-          <span className={CHIP}>
-            <Icon name="send" size={14} className="text-ink-muted" />
-            {s.offers.waiting}
-          </span>
-        )}
-      </div>
     </div>
   );
 }
 
-// The chosen session in full: what, where and when, how soon, its offers and what's in the way,
+// How many are booked of how many, as a half-circle gauge (decorative: the words say it).
+function Gauge({
+  booked,
+  headcount,
+  urgent,
+}: {
+  booked: number;
+  headcount: number;
+  urgent: boolean;
+}) {
+  const share = headcount > 0 ? Math.min(1, booked / headcount) : 0;
+  const r = 40;
+  const length = Math.PI * r;
+  return (
+    <svg aria-hidden="true" viewBox="0 0 100 56" className="h-14 w-25">
+      <path
+        d="M10 50 A40 40 0 0 1 90 50"
+        fill="none"
+        stroke="var(--color-mark-base)"
+        strokeWidth="8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M10 50 A40 40 0 0 1 90 50"
+        fill="none"
+        stroke={urgent ? "var(--color-mark-urgent)" : "var(--color-mark-open)"}
+        strokeWidth="8"
+        strokeLinecap="round"
+        strokeDasharray={`${share * length} ${length}`}
+      />
+    </svg>
+  );
+}
+
+// The chosen session (round 8's card on the map): what, where and when, its length and pay, how
+// many are booked of how many, who can take it under the rules right now (and what's in the way),
 // and what to do about it. With none, what there is to fill under the filter says so.
 function DetailCard({
   s,
+  takers,
   show,
   now,
   timeZone,
@@ -267,6 +276,7 @@ function DetailCard({
   onOffer,
 }: {
   s: BoardSession | null;
+  takers: Takers | null;
   show: BoardShow;
   now: Date;
   timeZone: string;
@@ -276,7 +286,7 @@ function DetailCard({
   const [message, setMessage] = useState<{ id: string; words: string } | null>(null);
   if (failed)
     return (
-      <section aria-label="Chosen session" className="glass rounded-inner p-6">
+      <section aria-label="Chosen session" className="glass-float rounded-inner p-6">
         <SectionError />
       </section>
     );
@@ -284,7 +294,7 @@ function DetailCard({
     return (
       <section
         aria-label="Chosen session"
-        className="glass flex flex-col items-start gap-4 rounded-inner p-6"
+        className="glass-float flex flex-col items-start gap-4 rounded-inner p-6"
       >
         <span
           aria-hidden="true"
@@ -297,11 +307,15 @@ function DetailCard({
     );
   const soon = startsIn(s.startsAt, now, timeZone);
   const banner = bannerText(s, now, timeZone);
+  // While an offer waits for a reply, who hasn't replied matters more than who else could take it.
+  const warning = s.offers.waiting > 0 ? null : takersWarning(takers);
+  const booked = s.headcount - s.placesFree;
+  const share = s.headcount > 0 ? booked / s.headcount : 0;
   return (
     <section
       aria-labelledby="chosen-title"
       data-chosen={s.shiftId}
-      className="glass flex min-w-0 flex-col rounded-inner p-4 @min-[36rem]:p-6"
+      className="glass-float relative flex min-w-0 flex-col gap-3 rounded-inner p-4 has-[details[open]]:z-10"
     >
       <div className="flex items-start gap-3">
         <DateTile day={localDateOf(s.startsAt, timeZone)} urgent={s.urgent} big />
@@ -325,32 +339,61 @@ function DetailCard({
           onMessage={(words) => setMessage({ id: s.shiftId, words })}
         />
       </div>
-      <p className="mt-4 flex flex-wrap justify-between gap-x-3 gap-y-1 rounded-row glass-tile px-4 py-3 text-sm tabular-nums">
-        <b className="font-medium text-ink">{whenText(s, timeZone)}</b>
-        <span className="text-ink-muted">{placesText(s.placesFree)}</span>
-      </p>
-      <div className="mt-3 grid grid-cols-2 gap-3">
-        <p className="rounded-row glass-tile px-4 py-3">
-          <span className="block text-sm text-ink-muted">Starts in</span>
-          <b
-            className={`mt-1 block font-stat text-3xl font-semibold ${soon.soon ? "text-urgent" : "text-ink"}`}
-          >
-            {soon.text}
-          </b>
+      <div className="rounded-row glass-tile px-4 py-3 text-sm tabular-nums">
+        <p className="flex flex-wrap justify-between gap-x-3 gap-y-1">
+          <b className="font-medium text-ink">{whenText(s, timeZone)}</b>
+          <span className="text-ink-muted">
+            {lengthAndPay(s.startsAt, s.endsAt, s.payRatePence)}
+          </span>
         </p>
-        <p className="rounded-row glass-tile px-4 py-3">
-          <span className="block text-sm text-ink-muted">Offers sent</span>
-          <b className="mt-1 block font-stat text-3xl font-semibold text-ink">{s.offers.sent}</b>
-          <small className="block text-sm text-ink-muted">{repliesText(s.offers)}</small>
+        <span
+          aria-hidden="true"
+          className="mt-2 block h-1.5 overflow-hidden rounded-full bg-raised"
+        >
+          <span
+            className={`block h-full rounded-full ${s.urgent ? "bg-mark-urgent" : "bg-mark-open"}`}
+            style={{ width: `${Math.round(share * 100)}%` }}
+          />
+        </span>
+        <p className="mt-2 flex flex-wrap justify-between gap-x-3 gap-y-1 text-ink-muted">
+          <span className={soon.soon ? "text-urgent" : undefined}>Starts in {soon.text}</span>
+          <span>{placesText(s.placesFree)}</span>
         </p>
       </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col rounded-row glass-tile px-4 py-3">
+          <p className="flex items-center justify-between gap-2 text-sm text-ink-muted">
+            Booked
+            <span className={`${chip.base} ${s.urgent ? chip.urgent : chip.attention}`}>
+              {s.urgent ? "Urgent" : "Open"}
+            </span>
+          </p>
+          <span className="relative mx-auto mt-1">
+            <Gauge booked={booked} headcount={s.headcount} urgent={s.urgent} />
+            <b className="absolute inset-x-0 bottom-0 text-center font-stat text-2xl text-ink">
+              {bookedText(booked, s.headcount)}
+            </b>
+          </span>
+          <span className="text-center text-xs text-ink-faint">booked</span>
+        </div>
+        <div className="flex flex-col rounded-row glass-tile px-4 py-3">
+          <p className="flex flex-wrap items-center justify-between gap-2 text-sm text-ink-muted">
+            <span className="whitespace-nowrap">{CAN_TAKE_IT}</span>
+            <span className={`${chip.base} ${chip.wait}`}>{offeredText(s.offers.sent)}</span>
+          </p>
+          <b className="mt-2 text-center font-stat text-3xl text-ink">
+            {takers ? takers.count : "–"}
+          </b>
+          <span className="mt-auto text-center text-xs text-ink-faint">{CAN_TAKE_LINE}</span>
+        </div>
+      </div>
       <p
-        className={`mt-3 flex items-center gap-3 rounded-row px-4 py-3 text-sm glass-rim ${banner.tone === "amber" ? "bg-attention-soft text-attention-ink" : "bg-urgent-soft text-urgent-ink"}`}
+        className={`flex items-center gap-3 rounded-row px-4 py-3 text-sm glass-rim ${banner.tone === "amber" ? "bg-attention-soft text-attention-ink" : "bg-urgent-soft text-urgent-ink"}`}
       >
         <Icon name="urgent" size={18} />
-        {banner.text}
+        {warning ?? banner.text}
       </p>
-      <div className="mt-auto flex flex-wrap gap-2 pt-4">
+      <div className="flex flex-wrap gap-2">
         <Link
           href={`/office/offer/${s.shiftId}`}
           prefetch={false}
@@ -361,8 +404,8 @@ function DetailCard({
           }}
           className={`${btn.primary} grow whitespace-nowrap`}
         >
-          Offer to someone
-          <Icon name="arrow" size={17} />
+          <Icon name="send" size={17} />
+          {offerButton(takers)}
         </Link>
         <Link
           href={`/office/shifts/${s.shiftId}`}
@@ -372,7 +415,7 @@ function DetailCard({
         </Link>
       </div>
       {message && message.id === s.shiftId && (
-        <p role="status" className="mt-3 font-medium text-ink">
+        <p role="status" className="font-medium text-ink">
           {message.words}
         </p>
       )}
@@ -382,204 +425,130 @@ function DetailCard({
 
 export function Board({
   board,
-  chart,
+  view,
+  tiles,
 }: {
-  board: Pick<BoardData, "show" | "now" | "timeZone" | "gaps" | "overnight" | "toMark">;
-  chart: ReactNode;
+  board: Pick<
+    BoardData,
+    "show" | "now" | "timeZone" | "gaps" | "toMark" | "venues" | "takers" | "updates" | "whoWorked"
+  >;
+  view: BoardView; // what the board shows: every link keeps it
+  tiles: string | null; // the street map's file (MAP_TILES_URL), or none
 }) {
-  const { show, now, timeZone, gaps, overnight, toMark } = board;
+  const { show, now, timeZone, gaps, toMark, venues, takers, updates, whoWorked } = board;
   const { open, panel } = useOfferPanel();
-  const detail = useRef<HTMLDivElement>(null);
   const [picked, setPicked] = useState<BoardSession | null>(null);
   const g = gaps.ok ? gaps.data : null;
-  const all = g ? [...g.toOffer.sessions, ...g.offered.sessions] : [];
+  // Every session with places to fill, soonest first (round 8's To offer: dash-4).
+  const all = g
+    ? [...g.toOffer.sessions, ...g.offered.sessions].sort(
+        (a, b) => a.startsAt.getTime() - b.startsAt.getTime() || a.shiftId.localeCompare(b.shiftId),
+      )
+    : [];
   // The one picked while it's still on the board (the page's data may have changed since), else
-  // the one the page chose.
+  // the one the page chose. Who can take it is the page's: for another one, the card says so.
   const current = (picked && all.find((s) => s.shiftId === picked.shiftId)) ?? g?.chosen ?? null;
+  const chosenTakers =
+    takers?.ok && current && g?.chosen?.shiftId === current.shiftId ? takers.data : null;
 
   const pick = (s: BoardSession) => {
     setPicked(s);
-    window.history.replaceState(null, "", pickHref(show, s.shiftId));
-    // Where the detail card is out of sight (under the chart on a narrow screen), bring it in.
-    const box = detail.current?.getBoundingClientRect();
+    window.history.replaceState(null, "", boardHref(view, s.shiftId));
+    const card = document.querySelector("[data-chosen]");
+    const box = card?.getBoundingClientRect();
     if (box && (box.top < 0 || box.bottom > window.innerHeight))
-      detail.current?.scrollIntoView({
+      card?.scrollIntoView({
         block: "nearest",
         behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
       });
   };
 
-  const sessionCards = (k: ColumnKey, list: BoardSession[]) =>
-    list.map((s, i) => (
-      <SessionCard
-        key={s.shiftId}
-        id={cardId(k, i)}
-        s={s}
-        picked={current?.shiftId === s.shiftId}
-        show={show}
-        timeZone={timeZone}
-        onPick={pick}
-        onOffer={open}
-      />
-    ));
-  const rest = (column: { total: number; sessions: unknown[]; more: boolean }) =>
-    column.more
+  const total = g ? g.toOffer.total + g.offered.total : 0;
+  const places = g ? g.toOffer.places + g.offered.places : 0;
+  const waiting = g ? g.offered.waiting : 0;
+  const viewAll =
+    total > SHOWN
       ? {
-          text: columnMoreText(column.total - column.sessions.length),
+          text: viewAllText(total),
           href: show === "urgent" ? "/office/events?view=urgent" : "/office/events?view=need",
         }
       : null;
-  const nothingToFill = g !== null && g.toOffer.total + g.offered.total === 0;
-  const night = overnight.ok ? overnight.data : null;
+  const ups = updates.ok ? updates.data : null;
   const marks = toMark.ok ? toMark.data : null;
+  const groups = whoWorked.ok ? whoWorked.data : null;
 
   return (
     <>
-      <div className="grid gap-3 @min-[56rem]:grid-cols-[minmax(0,1fr)_21.25rem] @min-[72rem]:grid-cols-[minmax(0,1fr)_23.25rem]">
-        {chart}
-        <div ref={detail} className="flex min-w-0 flex-col [&>section]:flex-1">
-          <DetailCard
-            s={current}
-            show={show}
-            now={now}
-            timeZone={timeZone}
-            failed={!gaps.ok}
-            onOffer={open}
-          />
-        </div>
-      </div>
-      <div className="grid items-start gap-3 @min-[36rem]:grid-cols-2 @min-[64rem]:grid-cols-4">
+      {venues.ok ? (
+        <VenueMap
+          venues={venues.data}
+          chosenSite={current?.siteId ?? null}
+          view={view}
+          tiles={tiles}
+          card={
+            <DetailCard
+              s={current}
+              takers={current ? chosenTakers : null}
+              show={show}
+              now={now}
+              timeZone={timeZone}
+              failed={!gaps.ok}
+              onOffer={open}
+            />
+          }
+        />
+      ) : (
+        <section aria-label="Venues with places to fill" className="glass rounded-inner p-6">
+          <SectionError />
+        </section>
+      )}
+      <div className="grid items-start gap-3 @min-[48rem]:grid-cols-2 @min-[72rem]:grid-cols-3">
         <Column
           k="toOffer"
-          count={g?.toOffer.total ?? 0}
-          line={toOfferLine(g?.toOffer.places ?? 0)}
+          count={total}
+          line={toFillLine(places, waiting)}
           failed={!g}
-          empty={emptyText("toOffer", nothingToFill, show)}
-          cards={sessionCards("toOffer", g?.toOffer.sessions ?? [])}
-          more={g ? rest(g.toOffer) : null}
-        />
-        <Column
-          k="offered"
-          count={g?.offered.total ?? 0}
-          line={offeredLine(g?.offered.places ?? 0, g?.offered.waiting ?? 0)}
-          failed={!g}
-          empty={emptyText("offered", nothingToFill, show)}
-          cards={sessionCards("offered", g?.offered.sessions ?? [])}
-          more={g ? rest(g.offered) : null}
-        />
-        <Column
-          k="overnight"
-          count={night?.takes.length ?? 0}
-          line={OVERNIGHT_LINE}
-          failed={!night}
-          empty={emptyText("overnight", nothingToFill, show)}
-          cards={(night?.takes ?? []).map((t, i) => {
-            const c = takeCard(t, timeZone);
-            const id = cardId("overnight", i);
-            return (
-              <div
-                key={t.offerId}
-                className="press relative rounded-row glass-tile px-3 py-4 hover:bg-active"
-              >
-                <Link
-                  id={id}
-                  href={`/office/shifts/${t.shiftId}`}
-                  aria-label={c.label}
-                  className="press absolute inset-0 rounded-row"
+          empty={emptyText("toOffer", true, show)}
+          foot={viewAll}
+        >
+          <ul role="list" className="mt-3 flex flex-col gap-2">
+            {all.slice(0, SHOWN).map((s) => (
+              <li key={s.shiftId}>
+                <OfferRow
+                  s={s}
+                  picked={current?.shiftId === s.shiftId}
+                  view={view}
+                  timeZone={timeZone}
+                  onPick={pick}
+                  onOffer={open}
                 />
-                <div className="pointer-events-none relative flex items-start gap-3">
-                  <span
-                    aria-hidden="true"
-                    className="flex size-10 shrink-0 items-center justify-center rounded-full bg-wait-tile text-xs font-semibold text-wait-ink glass-rim"
-                  >
-                    {initials(t.worker)}
-                  </span>
-                  <div className="min-w-0">
-                    <b className="block text-base leading-snug font-medium text-ink">{c.title}</b>
-                    <span className="block text-sm leading-snug text-ink-muted">{c.sub}</span>
-                  </div>
-                </div>
-                <div
-                  aria-hidden="true"
-                  className="pointer-events-none relative mt-3 flex flex-wrap gap-2"
-                >
-                  <span className={CHIP}>
-                    <Icon name="clock" size={14} className="text-ink-muted" />
-                    {c.when}
-                  </span>
-                  <span className={CHIP_DONE}>
-                    <Icon name="check" size={14} />
-                    {c.said}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        />
+              </li>
+            ))}
+          </ul>
+        </Column>
+        <Column
+          k="updates"
+          count={ups?.items.length ?? 0}
+          line={null}
+          failed={!ups}
+          empty={emptyText("updates", false, show)}
+        >
+          <UpdatesList items={ups?.items ?? []} now={now} timeZone={timeZone} />
+        </Column>
         <Column
           k="toMark"
           count={marks?.items.length ?? 0}
           line={toMarkLine(marks?.items ?? [], timeZone)}
-          failed={!marks}
-          empty={emptyText("toMark", nothingToFill, show)}
-          cards={toMarkGroups(marks?.items ?? []).map((m, i) => {
-            const one = m.sessions.length === 1;
-            const id = cardId("toMark", i);
-            return (
-              <div
-                key={m.sessions[0]!.shiftId}
-                className="press relative rounded-row glass-tile px-3 py-4 hover:bg-active"
-              >
-                <Link
-                  id={id}
-                  href={
-                    one
-                      ? `/office/shifts/${m.sessions[0]!.shiftId}`
-                      : "/office/needs-attention#to-mark"
-                  }
-                  aria-label={markLabel(m, m.sessions.length, timeZone)}
-                  className="press absolute inset-0 rounded-row"
-                />
-                <div className="pointer-events-none relative flex items-start gap-3 pr-12">
-                  <DateTile day={localDateOf(m.startsAt, timeZone)} urgent={false} />
-                  <div className="min-w-0">
-                    <b className="block text-base leading-snug font-medium text-ink">
-                      {roleLabel(m.role)}
-                    </b>
-                    {m.site && (
-                      <span className="block text-sm leading-snug text-ink-muted">{m.site}</span>
-                    )}
-                  </div>
-                </div>
-                <span
-                  aria-hidden="true"
-                  className="glass-button pointer-events-none absolute top-3 right-3 flex size-9 items-center justify-center rounded-full text-ink"
-                >
-                  <Icon name="check" size={16} />
-                </span>
-                <div
-                  aria-hidden="true"
-                  className="pointer-events-none relative mt-3 flex flex-wrap gap-2"
-                >
-                  <span className={CHIP}>
-                    {one
-                      ? timeRange(m.startsAt, m.endsAt, timeZone).range
-                      : `${m.sessions.length} sessions`}
-                  </span>
-                  <span className={CHIP}>
-                    <Icon name="clock" size={14} className="text-ink-muted" />
-                    {sinceText(m.endsAt, now, timeZone)}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-          more={
-            marks && marks.total > marks.items.length
+          failed={!marks || !groups}
+          empty={emptyText("toMark", false, show)}
+          foot={
+            marks && toMarkGroups(marks.items).length > (groups?.length ?? 0)
               ? { text: "More on Needs attention", href: "/office/needs-attention#to-mark" }
               : null
           }
-        />
+        >
+          <WhoWorkedList groups={groups ?? []} timeZone={timeZone} />
+        </Column>
       </div>
       {panel}
     </>

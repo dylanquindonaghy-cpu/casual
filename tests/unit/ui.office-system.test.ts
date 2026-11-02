@@ -885,19 +885,23 @@ describe("the office's loading skeletons", () => {
     );
   });
 
-  // Phase 24 (24.3): the dashboard's sections are its head and track, the places chart, the detail
-  // card and the board's four columns (Phase 23's counts, urgent places and six charts went).
+  // Round 8 (Phase 26.2): the dashboard's sections are its head and track, the venue map with the
+  // session card, and the three columns (round 7's places chart and four columns went).
   it("the dashboard's has a part for every section", () => {
     const html = renderToStaticMarkup(createElement(DashboardSkeleton));
     expect([...html.matchAll(/data-skeleton-part="([a-z]+)"/g)].map((m) => m[1])).toEqual([
       "header",
-      "places",
+      "map",
       "detail",
       "offer",
-      "offered",
-      "overnight",
+      "updates",
       "mark",
     ]);
+    // The map's own heights, and the card over its top left from 1024px, as the page's.
+    expect(html).toMatch(/data-skeleton-part="map" class="[^"]*h-75 @min-\[64rem\]:h-132/);
+    expect(html).toMatch(
+      /data-skeleton-part="detail" class="[^"]*@min-\[64rem\]:absolute @min-\[64rem\]:top-3 @min-\[64rem\]:left-3[^"]*@min-\[64rem\]:w-101/,
+    );
     // Glass, as the dashboard's (Phase 24): its sections frosted, no white card, no tints, no
     // shadow class, no grain.
     expect(html).toContain("glass rounded-inner");

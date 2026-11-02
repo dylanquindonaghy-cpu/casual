@@ -1,16 +1,17 @@
+import { randomBytes } from "node:crypto";
 import { sql } from "drizzle-orm";
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import {
   BOARD_ROWS,
-  lastNight,
   loadBoard,
   officeDashboard,
   type Board,
   type BoardShow,
 } from "@/lib/office/dashboard-board";
 import { headLine } from "@/lib/office/board-copy";
+import { toMarkGroups } from "@/lib/office/to-mark";
 import {
   offerState,
   offerStateSql,
@@ -19,6 +20,7 @@ import {
   type OfferWhy,
 } from "@/lib/office/offer-state";
 import { loadOfficeFrame } from "@/lib/office/frame";
+import { officeOfferCandidates } from "@/lib/offers/office-offer";
 import { DEFAULT_PAY_CALENDAR } from "@/lib/pay/calendar";
 import { bookingFirm, hoursFromNow, NOW, type BookingFirm } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
@@ -145,7 +147,22 @@ async function boardFirm() {
   await offer(f, started, ann);
   const load = (show: BoardShow = "all", session: string | null = null, now = NOW) =>
     withFirm(f.firmId, (tx) => loadBoard(tx, now, { show, session }));
-  return { f, admin, door, steward, fair, later, hidden, started, full, ann, ben, load };
+  return {
+    f,
+    admin,
+    arena,
+    depot,
+    door,
+    steward,
+    fair,
+    later,
+    hidden,
+    started,
+    full,
+    ann,
+    ben,
+    load,
+  };
 }
 
 const ids = (b: Board, col: "toOffer" | "offered") =>
@@ -390,29 +407,6 @@ describe("an offer's state (the rule the board, the chart and the top bar count 
   });
 });
 
-describe("the places chart", () => {
-  it("this pay week and next, Monday to Sunday: each day's places, with an offer waiting and without", async () => {
-    const t = await boardFirm();
-    const c = ok((await t.load()).chart);
-    expect(c.first).toBe("2026-11-02");
-    expect(c.days.map((d) => d.date)).toEqual(
-      Array.from({ length: 14 }, (_, i) => `2026-11-${String(2 + i).padStart(2, "0")}`),
-    );
-    const day = (d: string) => c.days.find((x) => x.date === d);
-    expect(day("2026-11-03")).toEqual({ date: "2026-11-03", toOffer: 0, offered: 2 }); // the door
-    expect(day("2026-11-04")).toEqual({ date: "2026-11-04", toOffer: 1, offered: 0 }); // hidden
-    expect(day("2026-11-05")).toEqual({ date: "2026-11-05", toOffer: 2, offered: 0 }); // steward
-    expect(day("2026-11-10")).toEqual({ date: "2026-11-10", toOffer: 1, offered: 0 }); // fair
-    // The 16th is past next week: not on the chart.
-    const sum = (k: "toOffer" | "offered") => c.days.reduce((n, d) => n + d[k], 0);
-    expect(sum("toOffer") + sum("offered")).toBe(6);
-    // The chart's places are this week's and next week's columns'.
-    const weeks = [ok((await t.load("this-week")).gaps), ok((await t.load("next-week")).gaps)];
-    expect(sum("toOffer")).toBe(weeks.reduce((n, g) => n + g.toOffer.places, 0));
-    expect(sum("offered")).toBe(weeks.reduce((n, g) => n + g.offered.places, 0));
-  });
-});
-
 describe("the clock change (the clocks go back at 02:00 on Sun 25 Oct 2026)", () => {
   // Thursday 22 Oct 2026, 12:00 BST: this pay week Mon 19 to Sun 25, next Mon 26 to Sun 1 Nov.
   const THURSDAY = new Date("2026-10-22T11:00:00Z");
@@ -426,94 +420,6 @@ describe("the clock change (the clocks go back at 02:00 on Sun 25 Oct 2026)", ()
     const load = (show: BoardShow) => withFirm(f.firmId, (tx) => loadBoard(tx, THURSDAY, { show }));
     expect(ids(await load("this-week"), "toOffer")).toEqual([sunday]);
     expect(ids(await load("next-week"), "toOffer")).toEqual([monday]);
-    const c = ok((await load("all")).chart);
-    expect(c.first).toBe("2026-10-19");
-    expect(c.days.find((d) => d.date === "2026-10-25")?.toOffer).toBe(1);
-    expect(c.days.find((d) => d.date === "2026-10-26")?.toOffer).toBe(1);
-    expect(c.days.at(-1)?.date).toBe("2026-11-01");
-  });
-
-  it("the night the clocks go back is 15 hours long: Sat 18:00 BST to Sun 08:00 GMT", () => {
-    const sunday = new Date("2026-10-25T10:00:00Z");
-    expect(lastNight(sunday, TZ)).toEqual({
-      from: new Date("2026-10-24T17:00:00Z"),
-      to: new Date("2026-10-25T08:00:00Z"),
-    });
-  });
-
-  it("While you were out that night: the takes inside it, by the firm's clock", async () => {
-    const f = await bookingFirm(su, withFirm);
-    const shift = await f.shift({ startsAt: new Date("2026-10-27T09:00:00Z"), headcount: 4 });
-    const at = [
-      ["early", "2026-10-24T16:30:00Z"], // 17:30 BST: before the night
-      ["first", "2026-10-24T17:30:00Z"], // 18:30 BST
-      ["last", "2026-10-25T07:59:00Z"], // 07:59 GMT
-      ["late", "2026-10-25T08:01:00Z"], // 08:01 GMT: after it
-    ] as const;
-    for (const [first, when] of at) {
-      const w = await f.worker({ first });
-      await offer(f, shift, w, { response: "accepted", answeredAt: new Date(when) });
-      await f.booking(w, shift, "confirmed", at.findIndex(([n]) => n === first) + 1);
-    }
-    const sunday = new Date("2026-10-25T10:00:00Z");
-    const o = ok((await withFirm(f.firmId, (tx) => loadBoard(tx, sunday))).overnight);
-    expect(o.takes.map((x) => x.worker)).toEqual(["last Booker", "first Booker"]);
-  });
-});
-
-describe("While you were out", () => {
-  it("the places casuals took from offers between 18:00 and 08:00, still booked, latest first, with how and when", async () => {
-    const t = await boardFirm();
-    // Monday 09:00: last night is Sun 1 Nov 18:00 to Mon 2 Nov 08:00 (GMT).
-    const night = (h: number, m = 0) => new Date(Date.UTC(2026, 10, 1, 18 + h, m));
-    const shift = await t.f.shift({ startsAt: hoursFromNow(30), headcount: 5 });
-    const take = async (
-      first: string,
-      answeredAt: Date,
-      o: { channel?: "push" | "whatsapp" | "sms"; cancelled?: boolean; slot: number },
-    ) => {
-      const w = await t.f.worker({ first });
-      await offer(t.f, shift, w, { response: "accepted", answeredAt, channel: o.channel });
-      await t.f.booking(w, shift, o.cancelled ? "cancelled_worker" : "confirmed", o.slot);
-    };
-    await take("Eve", night(5, 12), { channel: "whatsapp", slot: 1 }); // 23:12
-    await take("Fay", night(12, 40), { channel: "sms", slot: 2 }); // 06:40
-    await take("Gus", night(2), { channel: "push", slot: 3 }); // 20:00
-    await take("Hal", night(3), { cancelled: true, slot: 4 }); // took it, then cancelled
-    await take("Ivy", night(-1), { slot: 5 }); // 17:00 Sunday: before the night
-    const other = await t.f.worker({ first: "Jo" });
-    await offer(t.f, shift, other, { response: "declined", answeredAt: night(4) });
-    const o = ok((await t.load()).overnight);
-    expect(o.from).toEqual(night(0));
-    expect(o.to).toEqual(new Date("2026-11-02T08:00:00Z"));
-    expect(o.takes.map((x) => [x.worker, x.channel, x.answeredAt])).toEqual([
-      ["Fay Booker", "sms", night(12, 40)],
-      ["Eve Booker", "whatsapp", night(5, 12)],
-      ["Gus Booker", "push", night(2)],
-    ]);
-    expect(o.takes[0]).toMatchObject({ shiftId: shift, role: "door_supervisor" });
-    expect(o.more).toBe(false);
-  });
-
-  it("which night: before 08:00 it is still going; after 18:00 it is tonight's", () => {
-    const at = (iso: string) => lastNight(new Date(iso), TZ);
-    expect(at("2026-11-02T06:30:00Z")).toEqual({
-      from: new Date("2026-11-01T18:00:00Z"),
-      to: new Date("2026-11-02T06:30:00Z"),
-    });
-    expect(at("2026-11-02T17:59:00Z")).toEqual({
-      from: new Date("2026-11-01T18:00:00Z"),
-      to: new Date("2026-11-02T08:00:00Z"),
-    });
-    expect(at("2026-11-02T19:15:00Z")).toEqual({
-      from: new Date("2026-11-02T18:00:00Z"),
-      to: new Date("2026-11-02T19:15:00Z"),
-    });
-    // In summer time, 18:00 and 08:00 are London's (17:00 and 07:00 UTC).
-    expect(lastNight(new Date("2026-07-14T12:00:00Z"), TZ)).toEqual({
-      from: new Date("2026-07-13T17:00:00Z"),
-      to: new Date("2026-07-14T07:00:00Z"),
-    });
   });
 });
 
@@ -634,11 +540,16 @@ describe("isolation", () => {
   it("one firm's board never counts or shows another firm's rows, and every part loads", async () => {
     const mine = await boardFirm();
     const theirs = await boardFirm();
-    // Theirs: a take last night, a session to mark, a rota sheet, and a planner change through a
-    // live key. Mine: a live key with no change logged (so only another firm's change could make
-    // it "api") and no sheet.
+    // Theirs: a place a casual took 3 hours ago (an update), in a role mine has no session in; a
+    // session to mark (Who worked?); a rota sheet; and a planner change through a live key. Mine: a
+    // live key with no change logged (so only another firm's change could make it "api") and no
+    // sheet.
     const w = await theirs.f.worker({ first: "Theirs" });
-    const s = await theirs.f.shift({ startsAt: hoursFromNow(20), headcount: 2 });
+    const s = await theirs.f.shift({
+      role: "csas_officer",
+      startsAt: hoursFromNow(20),
+      headcount: 2,
+    });
     await offer(theirs.f, s, w, { response: "accepted", answeredAt: hoursFromNow(-3) });
     await theirs.f.booking(w, s);
     const done = await theirs.f.shift({ startsAt: hoursFromNow(-30) });
@@ -658,12 +569,29 @@ describe("isolation", () => {
     await plannerKey(su, mine.f.firmId, mine.admin);
     // Theirs shows on their own board (so mine's empty parts below aren't empty by accident).
     const their = await theirs.load();
-    expect(ok(their.overnight).takes.map((x) => x.shiftId)).toEqual([s]);
+    expect(ok(their.updates).items.some((u) => u.kind === "took" && u.shiftId === s)).toBe(true);
     expect(ok(their.toMark).items.map((x) => x.shiftId)).toEqual([done]);
+    expect(ok(their.whoWorked).map((g) => g.shiftIds)).toEqual([[done]]);
+    expect(ok(their.whoWorked)[0]?.people.map((p) => p.workerId)).toEqual([w]);
+    expect(ok(their.roles)).toContain("csas_officer");
+    expect(
+      ok(their.venues)
+        .map((v) => v.siteId)
+        .sort(),
+    ).toEqual([theirs.arena, theirs.depot].sort());
     expect(ok(their.planner)).toEqual({ kind: "api", lastChangeAt: hoursFromNow(-0.5) });
     expect(ok(their.counts).all).toBe(6);
     const b = await mine.load();
-    for (const p of [b.planner, b.counts, b.chart, b.gaps, b.overnight, b.toMark]) {
+    for (const p of [
+      b.planner,
+      b.counts,
+      b.gaps,
+      b.toMark,
+      b.roles,
+      b.venues,
+      b.updates,
+      b.whoWorked,
+    ]) {
       expect(p.ok).toBe(true);
     }
     const theirIds = new Set([
@@ -673,17 +601,197 @@ describe("isolation", () => {
       theirs.later,
       theirs.hidden,
       s,
+      done,
     ]);
     const g = ok(b.gaps);
     for (const x of [...g.toOffer.sessions, ...g.offered.sessions]) {
       expect(theirIds.has(x.shiftId)).toBe(false);
     }
     expect(ok(b.counts).all).toBe(5);
-    expect(ok(b.chart).days.reduce((n, d) => n + d.toOffer + d.offered, 0)).toBe(6);
-    expect(ok(b.overnight).takes).toEqual([]);
     expect(ok(b.toMark).items).toEqual([]);
     expect(ok(b.planner)).toEqual({ kind: "none" });
+    // Round 8's parts (Phase 26.2): only my roles, my venues, my updates, nobody of theirs to mark,
+    // and who can take my chosen session counted from my casuals only.
+    expect(ok(b.roles)).not.toContain("csas_officer");
+    expect(
+      ok(b.venues)
+        .map((v) => v.siteId)
+        .sort(),
+    ).toEqual([mine.arena, mine.depot].sort());
+    for (const u of ok(b.updates).items) {
+      if (u.kind === "took" || u.kind === "cancelled") expect(theirIds.has(u.shiftId)).toBe(false);
+      if (u.kind === "upload") expect(u.workerId).not.toBe(w);
+    }
+    expect(ok(b.updates).items.some((u) => u.kind === "took")).toBe(false);
+    expect(ok(b.whoWorked)).toEqual([]);
+    expect(g.chosen?.shiftId).toBe(mine.door);
+    const takers = b.takers;
+    if (!takers) throw new Error("no session chosen");
+    const list = await withFirm(mine.f.firmId, (tx) => officeOfferCandidates(tx, mine.door, NOW));
+    expect(ok(takers).count).toBe(list.length);
+    expect(list.map((c) => c.workerId)).not.toContain(w);
+    expect(ok(takers).only?.workerId).not.toBe(w);
     // Their session asked for by id: not found here (RLS), so the default.
     expect(ok((await mine.load("all", theirs.door)).gaps).chosen?.shiftId).toBe(mine.door);
+  });
+});
+
+// Round 8's dashboard (Phase 26.2; src/lib/office/dashboard-map.ts): the venue map, who can take the
+// chosen session, Updates and Who worked? by name, read from the firm's own rows.
+describe("round 8: the venue map", () => {
+  it("each venue with places to fill under the filter: its places, urgent, days, position and soonest session", async () => {
+    const b = await boardFirm();
+    const arena = (
+      await su.query<{ site_id: string }>(
+        "select site_id::text from shift_events where id = (select event_id from shifts where id = $1)",
+        [b.door],
+      )
+    ).rows[0]!.site_id;
+    await set("sites", arena, { lat: "53.800000", lng: "-1.550000", town: "Leeds" });
+    const all = ok((await b.load()).venues);
+    expect(
+      all.map((v) => [v.name, v.places, v.urgent, v.hidden, v.days, v.firstShiftId, v.lat, v.lng]),
+    ).toEqual([
+      // The door supervisor (2 free) and the steward (2): the urgent one first, its pin's link.
+      ["Acme Arena", 4, true, false, ["2026-11-03", "2026-11-05"], b.door, 53.8, -1.55],
+      // The Depot's own session (Tue 10, inside next week); no position: listed, never placed.
+      ["Acme Depot", 1, false, false, ["2026-11-10"], b.fair, null, null],
+    ]);
+    // Under Urgent, only the urgent session's places.
+    expect(ok((await b.load("urgent")).venues).map((v) => [v.name, v.places])).toEqual([
+      ["Acme Arena", 2],
+    ]);
+  });
+
+  it("Show full venues: a venue whose sessions are all booked too, with nothing to fill", async () => {
+    const b = await boardFirm();
+    const hall = await site(b.f, "Acme Hall");
+    await set("shifts", b.full, { site_id: hall });
+    const shown = (full: boolean) =>
+      withFirm(b.f.firmId, (tx) => loadBoard(tx, NOW, { full })).then((x) =>
+        ok(x.venues).map((v) => [v.name, v.places, v.sessions]),
+      );
+    expect(await shown(false)).toEqual([
+      ["Acme Arena", 4, 2],
+      ["Acme Depot", 1, 1],
+    ]);
+    expect(await shown(true)).toEqual([
+      ["Acme Arena", 4, 2],
+      ["Acme Depot", 1, 1],
+      ["Acme Hall", 0, 1],
+    ]);
+  });
+
+  it("Filter: the roles with places to fill; one chosen narrows the counts, the columns and the map", async () => {
+    const b = await boardFirm();
+    const all = await b.load();
+    expect(ok(all.roles)).toEqual(["door_supervisor", "steward"]);
+    expect(all.role).toBeNull();
+    const stewards = await withFirm(b.f.firmId, (tx) => loadBoard(tx, NOW, { role: "steward" }));
+    expect(stewards.role).toBe("steward");
+    const sessions = [...ids(stewards, "toOffer"), ...ids(stewards, "offered")];
+    expect(sessions.sort()).toEqual([b.steward, b.fair].sort());
+    expect(ok(stewards.counts).all).toBe(2);
+    expect(ok(stewards.venues).map((v) => [v.name, v.places])).toEqual([
+      ["Acme Arena", 2],
+      ["Acme Depot", 1],
+    ]);
+    // A role with nothing to fill (or made up) is every role.
+    const made = await withFirm(b.f.firmId, (tx) => loadBoard(tx, NOW, { role: "lifeguard" }));
+    expect(made.role).toBeNull();
+    expect(ok(made.counts).all).toBe(ok(all.counts).all);
+  });
+
+  it("who can take the chosen session: the rules' own list, as the offer page's", async () => {
+    const b = await boardFirm();
+    const board = await b.load();
+    expect(ok(board.gaps).chosen?.shiftId).toBe(b.door);
+    const list = await withFirm(b.f.firmId, (tx) => officeOfferCandidates(tx, b.door, NOW));
+    const takers = board.takers?.ok ? board.takers.data : null;
+    expect(takers?.count).toBe(list.length);
+    expect(takers?.only?.name ?? null).toBe(list.length === 1 ? list[0]!.name : null);
+  });
+});
+
+describe("round 8: Updates", () => {
+  it("the last two days: places taken, casuals' cancellations, uploads to check, and offers with no reply as one line", async () => {
+    const b = await boardFirm();
+    const eve = await b.f.worker({ first: "Eve" });
+    // Eve took the steward's place an hour ago (her offer said yes, and she's booked).
+    await offer(b.f, b.steward, eve, {
+      response: "accepted",
+      sentAt: hoursFromNow(-2),
+      answeredAt: hoursFromNow(-1),
+    });
+    await b.f.booking(eve, b.steward);
+    // Cal cancelled the Depot's session 5 hours ago, with 20 hours' notice; one 3 days ago isn't
+    // an update any more.
+    const cal = await b.f.worker({ first: "Cal2" });
+    const late = await b.f.booking(cal, b.fair, "cancelled_worker");
+    await set("assignments", late, { cancelled_at: hoursFromNow(-5) });
+    const old = await b.f.booking(cal, b.door, "cancelled_worker", 2);
+    await set("assignments", old, { cancelled_at: hoursFromNow(-72) });
+    // Ann's photo, waiting for a check, 3 hours ago.
+    await su.query(
+      `insert into uploads (firm_id, worker_id, kind, content_type, size, sha256, data, created_at)
+       values ($1, $2, 'photo', 'image/jpeg', 3, $3, '\\xffd8ff'::bytea, $4)`,
+      [b.f.firmId, b.ann, randomBytes(32).toString("hex"), hoursFromNow(-3)],
+    );
+    const u = ok((await b.load()).updates);
+    expect(u.more).toBe(false);
+    expect(
+      u.items.map((i) =>
+        i.kind === "took"
+          ? [i.kind, i.worker, i.shiftId, i.placesFree]
+          : i.kind === "cancelled"
+            ? [i.kind, i.worker, i.shiftId, i.noticeHours, i.strike, i.reopened]
+            : i.kind === "upload"
+              ? [i.kind, i.worker, i.what]
+              : [i.kind, i.offers, i.sessions],
+      ),
+    ).toEqual([
+      // Newest first: Eve's take (1 h ago, the steward session now 1 to fill), Ann's photo (3 h),
+      // the offers waiting (Ann's on the door supervisor and the later one: the newest 2 h ago),
+      // Cal's cancellation (5 h, no strike in this fixture, its place open again).
+      ["took", "Eve Booker", b.steward, 1],
+      ["no-reply", 2, 2],
+      ["upload", "Ann Booker", "photo"],
+      ["cancelled", "Cal2 Booker", b.fair, 20, null, true],
+    ]);
+  });
+});
+
+describe("round 8: Who worked? by name", () => {
+  it("each session to mark with the people still booked on it, by name; alike sessions together; the first three groups", async () => {
+    const b = await boardFirm();
+    const ended = await b.f.shift({ startsAt: hoursFromNow(-10), hours: 8, headcount: 3 });
+    const zed = await b.f.worker({ first: "Zed" });
+    const amy = await b.f.worker({ first: "Amy" });
+    const kim = await b.f.worker({ first: "Kim" });
+    await b.f.booking(zed, ended, "confirmed", 1);
+    await b.f.booking(amy, ended, "confirmed", 2);
+    await b.f.booking(kim, ended, "completed", 3); // marked already: not listed
+    // A session alike to it (same role, place and times: one group), with its own person.
+    const twin = await b.f.shift({ startsAt: hoursFromNow(-10), hours: 8, headcount: 1 });
+    const bo = await b.f.worker({ first: "Bo" });
+    await b.f.booking(bo, twin, "confirmed", 4);
+    const board = await b.load();
+    const w = ok(board.whoWorked);
+    const mine = w.find((g) => g.shiftIds.includes(ended));
+    expect(mine?.shiftIds).toEqual(expect.arrayContaining([ended, twin]));
+    // By name across the group, each with their own session.
+    expect(mine?.people.map((p) => [p.name, p.shiftId])).toEqual([
+      ["Amy Booker", ended],
+      ["Bo Booker", twin],
+      ["Zed Booker", ended],
+    ]);
+    expect(w.length).toBeLessThanOrEqual(3);
+    // Needs attention's sessions, alike ones together, in its order.
+    const items = ok(board.toMark).items;
+    expect(w.map((g) => g.shiftIds)).toEqual(
+      toMarkGroups(items)
+        .slice(0, 3)
+        .map((g) => g.sessions.map((s) => s.shiftId)),
+    );
   });
 });

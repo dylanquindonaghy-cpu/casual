@@ -166,8 +166,10 @@ describe("the glass's parts (globals.css utilities)", () => {
     // detail card, Phase 24, the urgent places' cards until then: tests/e2e/office.dashboard.spec.ts
     // clicks "Not urgent" in its menu).
     expect(glass).toMatch(/&:has\(details\[open\]\) \{\s*z-index: 10;\s*\}/);
+    // Round 8 (Phase 26.2): the dashboard's session card floats over the map (glass-float, the
+    // only drop on the dashboard), and comes forward the same way while its "…" menu is open.
     expect(read("src/app/office/dashboard/board.tsx")).toMatch(
-      /<section\s+aria-labelledby="chosen-title"\s+data-chosen=\{s\.shiftId\}\s+className="glass [\s\S]*?<ShiftActions/,
+      /<section\s+aria-labelledby="chosen-title"\s+data-chosen=\{s\.shiftId\}\s+className="glass-float relative [^"]*has-\[details\[open\]\]:z-10"[\s\S]*?<ShiftActions/,
     );
   });
 
@@ -488,6 +490,10 @@ describe("where the glass goes", () => {
       // drawer; the search's panel. Round 8 (Phase 26): the rail is section glass, the counts
       // chips, the search a flat pill and you no capsule: nothing floats there at rest.
       "src/app/glass-refraction.tsx": ["glass-float"],
+      // The dashboard's Filter menu, and its session card over the map (its error, its "nothing to
+      // fill" and itself: round 8, Phase 26.2).
+      "src/app/office/dashboard-view.tsx": ["glass-float"],
+      "src/app/office/dashboard/board.tsx": ["glass-float", "glass-float", "glass-float"],
       "src/app/office/office-frame.tsx": ["glass-float", "glass-float", "max-lg:glass-float"],
       "src/app/office/office-search.tsx": ["glass-float"],
       "src/app/office/events/session-menu.tsx": ["glass-float"], // a session's menu

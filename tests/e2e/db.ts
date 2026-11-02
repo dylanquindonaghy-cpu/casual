@@ -187,6 +187,8 @@ export async function addEventWithSession(
     daysAhead: number;
     hours?: number;
     urgent?: boolean;
+    // Where its venue is (round 8's map, Phase 26.2): none by default, as a venue with no postcode.
+    point?: { lat: number; lng: number };
   },
 ): Promise<{ eventId: string; shiftId: string }> {
   const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
@@ -199,7 +201,11 @@ export async function addEventWithSession(
     return await createWithFirm(pool)(firmId, async (tx) => {
       const [site] = await tx
         .insert(sites)
-        .values({ firmId, name: o.site })
+        .values({
+          firmId,
+          name: o.site,
+          ...(o.point ? { lat: o.point.lat.toFixed(6), lng: o.point.lng.toFixed(6) } : {}),
+        })
         .returning({ id: sites.id });
       if (!site) throw new Error("site insert returned nothing");
       const eventId = await createNamedEvent(tx, { name: o.name, siteId: site.id });

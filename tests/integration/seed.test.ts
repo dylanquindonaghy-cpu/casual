@@ -633,12 +633,21 @@ describe("Acme's Saturday event day", () => {
     expect(jobs).toEqual([]);
   });
 
-  it("the demo's dashboard reads every part of its board: the offers waiting on Offered, places on the chart, pay queries with payroll", async () => {
+  it("the demo's dashboard reads every part of its board: the offers waiting, venues on the map, Updates and Who worked?, pay queries with payroll", async () => {
     const { loadBoard } = await import("@/lib/office/dashboard-board");
     const d = await withFirm(ACME, (tx) => loadBoard(tx, new Date()));
-    const parts = [d.planner, d.counts, d.chart, d.gaps, d.overnight, d.toMark];
-    expect(parts.map((c) => c.ok)).toEqual(Array(6).fill(true));
-    if (!d.gaps.ok || !d.chart.ok) throw new Error("a part failed");
+    const parts = [
+      d.planner,
+      d.counts,
+      d.gaps,
+      d.toMark,
+      d.roles,
+      d.venues,
+      d.updates,
+      d.whoWorked,
+    ];
+    expect(parts.map((c) => c.ok)).toEqual(Array(8).fill(true));
+    if (!d.gaps.ok || !d.venues.ok) throw new Error("a part failed");
     // Offers waiting, unless the seed ran on Monday before quiet hours ended (it plans none then).
     const { waiting } = await plannedFromStore();
     expect(d.gaps.data.offered.waiting > 0).toBe(waiting > 0);
@@ -646,7 +655,9 @@ describe("Acme's Saturday event day", () => {
     // Nobody said no: the app can't record a "no" yet, so the demo shows none.
     const sessions = [...d.gaps.data.toOffer.sessions, ...d.gaps.data.offered.sessions];
     expect(sessions.reduce((n, s) => n + s.offers.saidNo, 0)).toBe(0);
-    expect(d.chart.data.days.some((x) => x.toOffer + x.offered > 0)).toBe(true);
+    // Venues with places to fill, each placed by its postcode's position (the demo's made-up ZZ
+    // postcodes have made-up positions near Leeds).
+    expect(d.venues.data.some((v) => v.places > 0 && v.lat !== null && v.lng !== null)).toBe(true);
     // Pay queries with payroll (the top bar's count for an admin, through the office frame).
     const { loadOfficeFrame } = await import("@/lib/office/frame");
     const { rows: admins } = await su.query<{ id: string }>(

@@ -7,7 +7,6 @@ import {
   cardLabel,
   chartSummary,
   chartTop,
-  COLUMN_IDS,
   columnMoreText,
   dayTip,
   emptyText,
@@ -22,7 +21,6 @@ import {
   showHref,
   sinceText,
   startsIn,
-  takeCard,
   toMarkLine,
   toOfferLine,
   whenText,
@@ -42,6 +40,10 @@ import { DEFAULT_PAY_CALENDAR, payCalendar } from "@/lib/pay/calendar";
 // checks the loader on the database; tests/e2e/office.dashboard.spec.ts the page in a browser.
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: () => undefined }) }));
+vi.mock("@/app/office/shifts/actions", () => ({
+  markAttendanceAction: vi.fn(),
+  markRestWorkedAction: vi.fn(),
+}));
 vi.mock("@/app/office/today-actions", () => ({
   setUrgentAction: vi.fn(),
   closeShiftAction: vi.fn(),
@@ -81,10 +83,12 @@ const session = (o: Partial<BoardSession> & Pick<BoardSession, "shiftId">): Boar
   role: "door_supervisor",
   post: "Gate A",
   site: "Acme Demo Arena",
+  siteId: "site-arena",
   startsAt: at("2026-10-27T08:00:00Z"),
   endsAt: at("2026-10-27T16:00:00Z"),
   headcount: 4,
   placesFree: 1,
+  payRatePence: 1550,
   urgent: false,
   hidden: false,
   fromSheet: false,
@@ -111,6 +115,7 @@ const rff = session({
   eventName: "Riverside Food Festival",
   post: "Gate 2",
   site: "Riverside Demo Park",
+  siteId: "site-riverside",
   startsAt: at("2026-10-30T14:00:00Z"),
   endsAt: at("2026-10-30T22:00:00Z"),
   placesFree: 2,
@@ -145,29 +150,10 @@ const board: Board = {
   show: "all",
   planner: ok({ kind: "api", lastChangeAt: at("2026-10-26T11:20:00Z") }),
   counts: ok({ all: 6, urgent: 2, "this-week": 6, "next-week": 0 }),
-  chart: ok({ first: "2026-10-26", days }),
   gaps: ok({
     toOffer: { sessions: toOffer, total: 4, places: 4, waiting: 0, more: false },
     offered: { sessions: [nll1, rff], total: 2, places: 3, waiting: 3, more: false },
     chosen: nll1,
-  }),
-  overnight: ok({
-    from: at("2026-10-25T18:00:00Z"),
-    to: at("2026-10-26T08:00:00Z"),
-    more: false,
-    takes: [
-      {
-        offerId: "o1",
-        shiftId: "nll3",
-        worker: "Ben Fraser",
-        role: "steward",
-        eventName: "Northern Lights Live",
-        startsAt: at("2026-11-01T17:00:00Z"),
-        endsAt: at("2026-11-01T23:00:00Z"),
-        answeredAt: at("2026-10-25T23:12:00Z"),
-        channel: "whatsapp",
-      },
-    ],
   }),
   toMark: ok({
     total: 3,
@@ -191,9 +177,121 @@ const board: Board = {
       },
     ],
   }),
+  // Round 8 (Phase 26.2): the venue map, who can take the chosen session, Updates and Who worked?
+  // by name.
+  full: false,
+  role: null,
+  roles: ok(["csas_officer", "door_supervisor", "steward"]),
+  venues: ok([
+    {
+      siteId: "site-arena",
+      name: "Acme Demo Arena",
+      town: "Exampleton",
+      lat: 53.83,
+      lng: -1.53,
+      places: 5,
+      sessions: 5,
+      urgent: true,
+      hidden: false,
+      days: ["2026-10-27", "2026-10-28", "2026-10-29", "2026-10-30"],
+      firstShiftId: "nll1",
+    },
+    {
+      siteId: "site-riverside",
+      name: "Riverside Demo Park",
+      town: "Exampleton",
+      lat: 54.01,
+      lng: -1.41,
+      places: 2,
+      sessions: 1,
+      urgent: false,
+      hidden: false,
+      days: ["2026-10-30"],
+      firstShiftId: "rff",
+    },
+    {
+      siteId: "site-hillside",
+      name: "Hillside Demo Square",
+      town: "Sampleford",
+      lat: null,
+      lng: null,
+      places: 4,
+      sessions: 1,
+      urgent: false,
+      hidden: true,
+      days: ["2026-11-22"],
+      firstShiftId: "hs1",
+    },
+  ]),
+  takers: ok({ count: 1, only: { workerId: "w-zoe", name: "Zoe Adeyemi", hoursThisWeek: 8 } }),
+  updates: ok({
+    more: false,
+    items: [
+      {
+        kind: "took",
+        at: at("2026-10-26T09:06:00Z"),
+        shiftId: "nll3",
+        worker: "Ben Fraser",
+        role: "steward",
+        site: "Acme Demo Arena",
+        startsAt: at("2026-11-01T17:00:00Z"),
+        placesFree: 0,
+      },
+      {
+        kind: "cancelled",
+        at: at("2026-10-26T06:00:00Z"),
+        shiftId: "nll1",
+        ref: "a-chloe",
+        worker: "Chloe Quigley",
+        role: "door_supervisor",
+        site: "Acme Demo Arena",
+        startsAt: at("2026-10-27T08:00:00Z"),
+        noticeHours: 26,
+        strike: "live",
+        reopened: true,
+      },
+      {
+        kind: "no-reply",
+        at: at("2026-10-26T08:02:00Z"),
+        oldest: at("2026-10-26T07:19:00Z"),
+        offers: 3,
+        sessions: 2,
+      },
+      {
+        kind: "upload",
+        at: at("2026-10-25T15:44:00Z"),
+        workerId: "w-ben",
+        worker: "Ben Fraser",
+        what: "photo",
+      },
+    ],
+  }),
+  whoWorked: ok([
+    // The two alike sessions together, each person with their own.
+    {
+      role: "steward",
+      site: "Acme Demo Racecourse",
+      startsAt: at("2026-10-25T09:00:00Z"),
+      endsAt: at("2026-10-25T17:00:00Z"),
+      shiftIds: ["m1", "m2"],
+      people: [
+        { shiftId: "m1", workerId: "w-nr", name: "Nathan Reid" },
+        { shiftId: "m2", workerId: "w-tw", name: "Tomasz Walsh" },
+      ],
+    },
+    {
+      role: "security_officer",
+      site: "Acme Demo Shopping Centre",
+      startsAt: at("2026-10-25T10:00:00Z"),
+      endsAt: at("2026-10-25T18:00:00Z"),
+      shiftIds: ["m3"],
+      people: [{ shiftId: "m3", workerId: "w-bp", name: "Bea Patel" }],
+    },
+  ]),
 };
 
-const render = (b: Board) => renderToStaticMarkup(createElement(DashboardContent, { board: b }));
+const render = (b: Board) =>
+  renderToStaticMarkup(createElement(DashboardContent, { board: b, tiles: null }));
 const words = (html: string) =>
   html
     .replace(/<[^>]+>/g, " ")
@@ -404,26 +502,12 @@ describe("the dashboard's words", () => {
     expect(emptyText("toOffer", true, "all")).toBe("No places to fill.");
     expect(emptyText("toOffer", true, "urgent")).toBe("No urgent places to fill.");
     expect(emptyText("toOffer", true, "next-week")).toBe("No places to fill next week.");
-    expect(emptyText("offered", true, "all")).toBe("No offers waiting.");
-    expect(emptyText("overnight", true, "all")).toBe("Nothing taken last night.");
     expect(emptyText("toMark", true, "all")).toBe("Nothing to mark.");
     expect(columnMoreText(1)).toBe("1 more session on Events & sessions");
     expect(columnMoreText(7)).toBe("7 more sessions on Events & sessions");
   });
 
-  it("a take last night: who said yes, to what, how the offer reached them and when", () => {
-    const t = board.overnight.ok ? board.overnight.data.takes[0]! : null;
-    if (!t) throw new Error("fixture");
-    expect(takeCard(t, TZ)).toEqual({
-      title: "Ben Fraser said yes",
-      sub: "Steward · Northern Lights Live",
-      when: "Sun 1 · 17:00",
-      said: "23:12 · WhatsApp",
-      label:
-        "Ben Fraser took steward, Northern Lights Live, Sun 1 Nov at 17:00: said yes at 23:12 by WhatsApp. Open the shift.",
-    });
-    expect(takeCard({ ...t, channel: "sms" }, TZ).said).toBe("23:12 · text message");
-    expect(takeCard({ ...t, channel: "push" }, TZ).said).toBe("23:12 · app notification");
+  it("a person's initials", () => {
     expect(initials("Ben Fraser")).toBe("BF");
     expect(initials("Mo  Rahman Smith")).toBe("MR");
   });
@@ -448,95 +532,182 @@ describe("the dashboard's words", () => {
   });
 });
 
-describe("the dashboard page", () => {
-  it("one heading for the page, its line, and the track: each filter a link with its count, the chosen one current", () => {
+describe("the dashboard page (round 8: Phase 26.2)", () => {
+  const track = (html: string) =>
+    /<nav aria-label="Show"[^>]*>([\s\S]*?)<\/nav>/.exec(html)?.[1] ?? "";
+  const map = (html: string) =>
+    /<section aria-labelledby="venue-map-title"[^>]*>([\s\S]*)/
+      .exec(html)?.[1]
+      ?.split('<section id="to-offer"')[0] ?? "";
+  const card = (html: string) =>
+    /<section aria-labelledby="chosen-title" data-chosen="nll1"[^>]*>([\s\S]*?)<\/section>/.exec(
+      html,
+    )?.[1] ?? "";
+
+  it("one heading for the page, its line, the track with its counts, and Show full venues", () => {
     const html = render(board);
     expect(html.match(/<h1[ >]/g)).toHaveLength(1);
     expect(html).toMatch(/<h1 class="text-title text-ink">Dashboard<\/h1>/);
     expect(words(html)).toContain(
       "Monday 26 October · Week 44 · Pay Fri 6 Nov · Updated 11:20 from your planner",
     );
-    const track = /<nav aria-label="Show"[^>]*>([\s\S]*?)<\/nav>/.exec(html)?.[1] ?? "";
-    expect(links(track).map((l) => [l.href, l.name, l.current])).toEqual([
+    expect(links(track(html)).map((l) => [l.href, l.name, l.current])).toEqual([
       ["/office", "All 6", "page"],
       ["/office?show=urgent", "Urgent 2", null],
       ["/office?show=this-week", "This week 6", null],
       ["/office?show=next-week", "Next week 0", null],
     ]);
-    // Under another filter, that one is current.
-    const urgent = render({ ...board, show: "urgent" });
-    const t2 = /<nav aria-label="Show"[^>]*>([\s\S]*?)<\/nav>/.exec(urgent)?.[1] ?? "";
+    // Show full venues: a switch, off; on, the track keeps it and the switch goes back.
+    expect(html).toMatch(
+      /<a role="switch" aria-checked="false" [^>]*href="\/office\?full=1"[^>]*>Show full venues/,
+    );
+    const full = render({ ...board, full: true, show: "urgent", role: "steward" });
+    expect(full).toMatch(
+      /<a role="switch" aria-checked="true" [^>]*href="\/office\?show=urgent&amp;role=steward"[^>]*>Show full venues/,
+    );
+    expect(links(track(full)).map((l) => l.href)).toEqual([
+      "/office?role=steward&full=1",
+      "/office?show=urgent&role=steward&full=1",
+      "/office?show=this-week&role=steward&full=1",
+      "/office?show=next-week&role=steward&full=1",
+    ]);
+    // A picked session keeps the whole view.
+    expect(links(map(full)).find((l) => l.href.includes("session="))?.href).toBe(
+      "/office?show=urgent&role=steward&full=1&session=nll1",
+    );
+  });
+
+  it("Filter: the roles with places to fill, by name, and Every role; the chosen one current", () => {
+    const filter = (html: string) =>
+      /<details class="group relative"><summary aria-label="([^"]+)"[^>]*>([\s\S]*?)<\/details>/.exec(
+        html,
+      );
+    const off = filter(render(board));
+    expect(off?.[1]).toBe("Filter by role");
+    expect(links(off?.[2] ?? "").map((l) => [l.href, l.name, l.current])).toEqual([
+      ["/office", "Every role", "true"],
+      ["/office?role=csas_officer", "CSAS officer", null],
+      ["/office?role=door_supervisor", "Door supervisor", null],
+      ["/office?role=steward", "Steward", null],
+    ]);
+    const on = filter(render({ ...board, role: "steward" }));
+    expect(on?.[1]).toBe("Filter: Steward");
+    expect(words(on?.[2] ?? "")).toMatch(/^Steward /);
     expect(
-      links(t2)
+      links(on?.[2] ?? "")
         .filter((l) => l.current)
         .map((l) => l.name),
-    ).toEqual(["Urgent 2"]);
+    ).toEqual(["Steward"]);
+    // No roles with places to fill: no Filter.
+    expect(filter(render({ ...board, roles: ok([]) }))).toBeNull();
   });
 
-  it("the places chart: a bar a day for two weeks, stacked to offer under offered, today marked, the numbers as a table", () => {
-    const html = render(board);
-    const chart = section(html, "places-chart");
-    expect(words(chart)).toMatch(/^Places to fill This week and next, by day /);
-    expect(links(chart)).toEqual([
-      {
-        href: "/office/events?view=need",
-        label: "Open Events & sessions",
-        current: null,
-        name: "",
-      },
+  it("the venue map: a pin per placed venue, its number its places, each a link to its soonest session; the rest listed", () => {
+    const m = map(render(board));
+    const pins = links(m).filter((l) => l.label?.includes("place"));
+    expect(pins.map((l) => [l.href, l.label, l.current])).toEqual([
+      [
+        "/office?session=nll1",
+        "Acme Demo Arena: 5 places to fill, urgent, Tue 27, Wed 28, Thu 29 and 1 more",
+        "true",
+      ],
+      ["/office?session=rff", "Riverside Demo Park: 2 places to fill, Fri 30", null],
     ]);
-    const bars = [...chart.matchAll(/data-day="([^"]+)"/g)].map((m) => m[1]);
-    expect(bars).toEqual(days.map((d) => d.date));
-    // Tue 27: 1 offered of a top of 10; Sat 31: 3 to offer.
-    expect(chart).toMatch(
-      /data-day="2026-10-27"[^>]*>\s*<span data-part="offered" style="height:10%"/,
+    // Placed by their positions (no street map here): the further north, the higher up. As the
+    // page arrives (before it has measured the map), by share of the part right of the card (the
+    // box's --inset: 27rem from 1024px, where the card sits over the map).
+    const spots = [
+      ...m.matchAll(
+        /style="left:calc\(var\(--inset\) \+ \(100% - var\(--inset\)\) \* ([\d.]+)\);top:([\d.]+)%"/g,
+      ),
+    ].map((x) => [Number(x[1]), Number(x[2])] as const);
+    expect(spots).toHaveLength(2);
+    expect(spots[1]![1]).toBeLessThan(spots[0]![1]);
+    for (const [x] of spots) expect(x).toBeGreaterThanOrEqual(0);
+    expect(m).toMatch(
+      /data-venue-map="plain" class="[^"]*\[--inset:0px\][^"]*@min-\[64rem\]:\[--inset:27rem\]/,
     );
-    expect(chart).toMatch(
-      /data-day="2026-10-31"[^>]*>\s*<span data-part="to-offer" style="height:30%"/,
+    expect(m).toContain('data-venue-map="plain"');
+    // The urgent venue's pin red; a venue with no position listed under the map, never guessed.
+    expect(m).toMatch(/border-urgent-fill bg-urgent-fill text-on-urgent[^"]*">5</);
+    expect(words(m)).toContain(
+      "Placed by each venue's postcode · a pin's number is its places to fill 3 venues · 11 places to fill",
     );
-    // The axis: 10, 5, 0. Today in its ink disc.
-    expect(words(chart)).toContain("10 5 0");
-    expect(chart).toMatch(
-      /<span class="min-w-6 rounded-full bg-ink px-1 font-semibold text-on-ink">26<\/span>/,
+    expect(words(m)).toContain(
+      "Not on the map (no postcode yet): Hillside Demo Square, 4 places to fill.",
     );
-    expect(chart.match(/bg-ink px-1/g)).toHaveLength(1);
-    // Read out: its sentence, and a table of every day.
-    expect(html).toContain(
-      '<section id="places-chart" aria-labelledby="places-chart-title" aria-describedby="places-chart-summary"',
+    // The key: what a pin's ring means; "All filled" too while Show full venues is on.
+    const key = (html: string) =>
+      words(/<ul role="list" aria-label="Key"[^>]*>([\s\S]*?)<\/ul>/.exec(html)?.[1] ?? "");
+    expect(key(m)).toBe("Urgent Places to fill Hidden from casuals");
+    expect(key(map(render({ ...board, full: true })))).toBe(
+      "Urgent Places to fill Hidden from casuals All filled",
     );
-    expect(chart).toContain(chartSummary(days));
-    expect(chart.match(/<tr>/g)).toHaveLength(15);
-    expect(chart).toContain('<th scope="row">Saturday 31 October</th><td>3</td><td>0</td>');
+    // The same figures as a table, one tap away (aud-9): every venue, placed or not, each a link
+    // like its pin.
+    const table =
+      /<details[^>]*><summary[^>]*>Show as a table[\s\S]*?<\/details>/.exec(m)?.[0] ?? "";
+    expect(words(table)).toBe(
+      [
+        "Show as a table Venues with places to fill Venue Places to fill Days",
+        "Acme Demo Arena Exampleton 5 · urgent Tue 27, Wed 28, Thu 29 and 1 more",
+        "Riverside Demo Park Exampleton 2 Fri 30",
+        "Hillside Demo Square Sampleford 4 Sun 22 · hidden",
+      ].join(" "),
+    );
+    expect(links(table).map((l) => l.href)).toEqual([
+      "/office?session=nll1",
+      "/office?session=rff",
+      "/office?session=hs1",
+    ]);
   });
 
-  it("the detail card: the chosen session in full, with Offer to someone, Open the shift and …", () => {
+  it("the session card on the map: what, where, when, pay, booked, who can take it and what to do", () => {
     const html = render(board);
-    const detail =
-      /<section aria-labelledby="chosen-title" data-chosen="nll1"[^>]*>([\s\S]*?)<\/section>/.exec(
-        html,
-      )?.[1] ?? "";
-    expect(words(detail)).toBe(
+    expect(words(card(html))).toBe(
       [
         "Tue 27 Door supervisor Urgent",
         "Northern Lights Live · Gate A, Acme Demo Arena",
         // The "…" menu's own words (shut until its button is pressed).
         "Mark as filled Only if you've filled it another way. Nobody else will be offered it.",
         "Yes, mark as filled Not urgent",
-        "Tue 27 Oct, 08:00–16:00 1 place to fill",
-        "Starts in 20 h Offers sent 1 No reply yet",
+        "Tue 27 Oct, 08:00–16:00 8 h · £15.50/h",
+        "Starts in 20 h 1 place to fill",
+        "Booked Urgent 3 / 4 booked",
+        "Can take it 1 offered 1 Under the rules, right now",
+        // An offer still waiting: who hasn't replied, before who else could take it.
         "Mo Rahman hasn't replied since 07:19.",
-        "Offer to someone Open the shift",
+        "Offer to Zoe Open the shift",
       ].join(" "),
     );
-    expect(detail).toMatch(/<details class="group relative shrink-0"><summary aria-label=/);
-    expect(links(detail).map((l) => [l.href, l.name])).toEqual([
-      ["/office/offer/nll1", "Offer to someone"],
+    expect(links(card(html)).map((l) => [l.href, l.name])).toEqual([
+      ["/office/offer/nll1", "Offer to Zoe"],
       ["/office/shifts/nll1", "Open the shift"],
     ]);
-    expect(detail).toContain('aria-label="More for Tuesday&#x27;s door supervisor at 08:00"');
     // Starting in under 2 days: red.
-    expect(detail).toMatch(/text-urgent">20 h</);
-    // A planner's session: no Mark as filled, but Offer to someone.
+    expect(card(html)).toMatch(/text-urgent">Starts in 20 h</);
+    // No offer waiting: who can take it, when it's one person or nobody.
+    const quiet = (takers: Board["takers"]) =>
+      render({
+        ...board,
+        takers,
+        gaps: ok({
+          ...(board.gaps.ok ? board.gaps.data : ({} as never)),
+          chosen: { ...nll1, offers: offers({ sent: 1, saidNo: 1 }) },
+        }),
+      });
+    expect(words(card(quiet(board.takers)))).toContain(
+      "Only Zoe Adeyemi can take it: 8 hours booked that week. Offer to Zoe",
+    );
+    expect(words(card(quiet(ok({ count: 0, only: null }))))).toContain(
+      "Nobody can be offered it right now. Offer to someone",
+    );
+    // Several can take it: "Offer to someone", and the session's own line.
+    const several = render({ ...board, takers: ok({ count: 4, only: null }) });
+    expect(words(card(several))).toContain(
+      "Can take it 1 offered 4 Under the rules, right now Mo Rahman hasn't replied since 07:19. Offer to someone",
+    );
+    // A planner's session: no Mark as filled.
     const planner = render({
       ...board,
       gaps: ok({
@@ -546,81 +717,117 @@ describe("the dashboard page", () => {
     });
     expect(planner).not.toContain("Mark as filled");
     expect(planner).toContain("Not urgent");
-    expect(planner).toContain(">Offer to someone<");
   });
 
-  it("the board: four columns, each with its leaf, count, line, first three cards and Show N more", () => {
+  it("three columns under the map: To offer, Updates and Who worked?", () => {
     const html = render(board);
     const ids = [...html.matchAll(/<section id="([a-z-]+)" aria-labelledby="\1-title"/g)].map(
       (m) => m[1],
     );
-    // The chart first (beside the detail card), then the four columns.
-    expect(ids).toEqual([
-      "places-chart",
-      "to-offer",
-      "offered",
-      "while-you-were-out",
-      "who-worked",
-    ]);
-    expect(COLUMN_IDS.offered).toBe("offered");
-    const head = (id: string) => words(section(html, id)).split(/ (?=[A-Z][a-z]{2} \d)/)[0];
-    expect(head("to-offer")).toBe("To offer 4 4 sessions 4 places, no offers out");
-    expect(head("offered")).toBe("Offered 2 2 sessions 3 places · 3 offers, no reply yet");
-    expect(words(section(html, "while-you-were-out"))).toMatch(
-      /^While you were out 1 1 place taken Taken by casuals from offers, 18:00 to 08:00 /,
+    expect(ids).toEqual(["to-offer", "updates", "who-worked"]);
+    expect(html.indexOf('aria-labelledby="venue-map-title"')).toBeLessThan(
+      html.indexOf('<section id="to-offer"'),
     );
-    expect(words(section(html, "who-worked"))).toMatch(
-      /^Who worked\? 3 3 sessions to mark 3 sessions from Sun 25 Oct /,
-    );
-    // To offer: soonest first, three shown, then "Show 1 more".
-    const col = section(html, "to-offer");
+    expect(html).not.toContain('id="offered"');
+    expect(html).not.toContain('id="while-you-were-out"');
+    expect(html).not.toContain('id="places-chart"');
+  });
+
+  it("To offer: every session with places, soonest first, four rows then View all", () => {
+    const col = section(render(board), "to-offer");
+    expect(words(col)).toMatch(/^To offer 6 6 sessions 7 places · 3 offers, no reply yet /);
     expect([...col.matchAll(/data-session="([^"]+)"/g)].map((m) => m[1])).toEqual([
+      "nll1",
       "np1",
       "nll2",
-      "rc",
+      // Fri 30 at 14:00, before the racecourse's at 19:00 that day.
+      "rff",
     ]);
-    expect(col).toMatch(/<button type="button" class="[^"]*">Show 1 more<\/button>/);
-    expect(section(html, "offered")).not.toMatch(/>Show \d+ more</);
-  });
-
-  it("a session card: a link that picks it (current when it's the chosen one), its paper plane to the offer page, its chips", () => {
-    const col = section(render(board), "offered");
     const l = links(col);
-    expect(l.map((x) => [x.href, x.label, x.current])).toEqual([
+    expect(l.slice(0, 2).map((x) => [x.href, x.label, x.current])).toEqual([
       ["/office?session=nll1", cardLabel(nll1, TZ), "true"],
       ["/office/offer/nll1", offerLabel(nll1, TZ), null],
-      ["/office?session=rff", cardLabel(rff, TZ), null],
-      ["/office/offer/rff", offerLabel(rff, TZ), null],
     ]);
-    // The chips: when it starts, how many to fill (red when urgent), the offers waiting.
-    const card = col.split('data-session="').find((c) => c.startsWith('nll1"')) ?? "";
-    expect(words(card)).toContain("08:00 1 to fill 1");
-    expect(card).toMatch(/bg-urgent-soft[^"]*">.*?1 to fill/);
-    expect(card).toMatch(/outline-ink/);
+    expect(l.at(-1)).toMatchObject({ href: "/office/events?view=need", name: "View all 6" });
+    // A row: its role, "Urgent", venue and start, booked of how many.
+    const row = col.split('data-session="').find((c) => c.startsWith('nll1"')) ?? "";
+    expect(words(row)).toContain("Door supervisor Urgent Acme Demo Arena · 08:00 3/4 booked");
   });
 
-  it("the cards of last night's takes and of sessions to mark, each one link to where it's dealt with", () => {
-    const html = render(board);
-    expect(links(section(html, "while-you-were-out")).map((l) => [l.href, l.label])).toEqual([
-      [
-        "/office/shifts/nll3",
-        takeCard(board.overnight.ok ? board.overnight.data.takes[0]! : ({} as never), TZ).label,
-      ],
-    ]);
-    expect(words(section(html, "while-you-were-out"))).toContain(
-      "BF Ben Fraser said yes Steward · Northern Lights Live Sun 1 · 17:00 23:12 · WhatsApp",
+  it("Updates: each one a link to where it's dealt with, then the action log", () => {
+    const col = section(render(board), "updates");
+    expect(words(col)).toMatch(/^Updates 4 4 updates /);
+    expect(words(col)).toContain(
+      "Ben Fraser took a place Steward, Acme Demo Arena, Sun 1 Nov 17:00 · now full 09:06",
     );
-    // Two alike sessions in one card, to Needs attention; one on its own to its page.
-    expect(links(section(html, "who-worked")).map((l) => l.href)).toEqual([
+    expect(words(col)).toContain(
+      "Chloe Quigley cancelled · 26 hours' notice Door supervisor, Acme Demo Arena, Tue 27 Oct 08:00 · strike issued · reopened 06:00",
+    );
+    expect(words(col)).toContain(
+      "No reply yet · 3 offers On 2 sessions · the oldest sent Mon 07:19 08:02",
+    );
+    expect(words(col)).toContain("Ben Fraser sent a staff photo Waiting for a check Sun 15:44");
+    expect(links(col).map((l) => l.href)).toEqual([
+      "/office/shifts/nll3",
+      "/office/cancellations/a-chloe",
+      "/office/events?view=need",
+      "/office/casuals/w-ben",
+      "/office/log",
+    ]);
+  });
+
+  it("Who worked?: alike sessions together with their day, each person by name with Worked and Didn't attend; Everyone else worked for several", () => {
+    const col = section(render(board), "who-worked");
+    expect(words(col)).toMatch(/^Who worked\? 3 3 sessions to mark 3 sessions from Sun 25 Oct /);
+    expect(words(col)).toContain(
+      "Sun 25 Oct · Steward · Acme Demo Racecourse · 09:00–17:00 · 2 sessions NR Nathan Reid",
+    );
+    expect(words(col)).toContain(
+      "Sun 25 Oct · Security officer · Acme Demo Shopping Centre · 10:00–18:00 BP Bea Patel",
+    );
+    // A group's heading: Needs attention's list for several sessions, the session for one.
+    expect(links(col).map((l) => l.href)).toEqual([
       "/office/needs-attention#to-mark",
       "/office/shifts/m3",
     ]);
-    expect(words(section(html, "who-worked"))).toContain(
-      "Steward Acme Demo Racecourse 2 sessions Since yesterday",
+    const buttons = [...col.matchAll(/<button [^>]*aria-label="([^"]+)"/g)].map((m) =>
+      m[1]!.replace(/&#x27;/g, "'"),
     );
+    expect(buttons).toEqual([
+      "Nathan Reid worked",
+      "Nathan Reid didn't attend",
+      "Tomasz Walsh worked",
+      "Tomasz Walsh didn't attend",
+      "Bea Patel worked",
+      "Bea Patel didn't attend",
+    ]);
+    // Everyone else, after a "Yes": only where there are several.
+    expect(col.match(/>Everyone else worked</g)).toHaveLength(1);
+    expect(col).toContain(
+      'aria-label="Everyone else worked: Sun 25 Oct · Steward · Acme Demo Racecourse · 09:00–17:00 · 2 sessions"',
+    );
+    expect(col).toContain(">Yes, everyone else worked<");
+    // Both groups shown: nothing more. A fourth session elsewhere is a third group, not shown here:
+    // the rest on Needs attention.
+    expect(links(col).map((l) => l.name)).not.toContain("More on Needs attention");
+    const marks = board.toMark.ok ? board.toMark.data : { items: [], total: 0 };
+    const more = section(
+      render({
+        ...board,
+        toMark: ok({
+          total: 4,
+          items: [...marks.items, { ...marks.items[2]!, shiftId: "m4", site: "Acme Demo Arena" }],
+        }),
+      }),
+      "who-worked",
+    );
+    expect(links(more).at(-1)).toMatchObject({
+      href: "/office/needs-attention#to-mark",
+      name: "More on Needs attention",
+    });
   });
 
-  it("empty columns say so; with nothing to fill, the detail card says that instead", () => {
+  it("empty columns say so; with nothing to fill, the card says that instead", () => {
     const none: Board = {
       ...board,
       counts: ok({ all: 0, urgent: 0, "this-week": 0, "next-week": 0 }),
@@ -629,58 +836,58 @@ describe("the dashboard page", () => {
         offered: { sessions: [], total: 0, places: 0, waiting: 0, more: false },
         chosen: null,
       }),
-      overnight: ok({ ...(board.overnight.ok ? board.overnight.data : ({} as never)), takes: [] }),
+      venues: ok([]),
+      takers: null,
+      updates: ok({ items: [], more: false }),
       toMark: ok({ items: [], total: 0 }),
+      whoWorked: ok([]),
     };
     const html = render(none);
-    expect(words(section(html, "to-offer"))).toContain("No places to fill.");
-    expect(words(section(html, "offered"))).toContain("No offers waiting.");
-    expect(words(section(html, "while-you-were-out"))).toContain("Nothing taken last night.");
-    expect(words(section(html, "who-worked"))).toContain("Nothing to mark.");
+    // Each says what will show there (the pre-build audit's aud-10).
+    expect(words(section(html, "to-offer"))).toContain(
+      "No places to fill. Sessions with a place free show here, soonest first.",
+    );
+    expect(words(section(html, "updates"))).toContain(
+      "Nothing new in the last two days. Places taken, cancellations, and photos or certificates to check show here.",
+    );
+    expect(words(section(html, "who-worked"))).toContain(
+      "Nothing to mark. Sessions show here when they end, so you can mark who worked.",
+    );
+    // Nothing on the map, so no table of it.
+    expect(html).not.toContain("Show as a table");
     expect(html).toMatch(/<section aria-label="Chosen session"[^>]*>.*No places to fill\./);
-  });
-
-  it("a column cut at 50 says where the rest are, once its cards are all shown", () => {
-    const many = Array.from({ length: 2 }, (_, i) => session({ shiftId: `s${i}` }));
-    const html = render({
-      ...board,
-      gaps: ok({
-        toOffer: { sessions: many, total: 52, places: 52, waiting: 0, more: true },
-        offered: { sessions: [], total: 0, places: 0, waiting: 0, more: false },
-        chosen: many[0]!,
-      }),
-    });
-    expect(links(section(html, "to-offer")).at(-1)).toMatchObject({
-      href: "/office/events?view=need",
-      name: "50 more sessions on Events & sessions",
-    });
+    expect(words(map(html))).toContain("No places to fill here.");
   });
 
   it("a part that couldn't load says so where it shows; the rest still shows", () => {
     const html = render({
       ...board,
       counts: failed,
-      chart: failed,
       gaps: failed,
-      overnight: failed,
       toMark: failed,
+      venues: failed,
+      updates: failed,
+      whoWorked: failed,
       planner: failed,
     });
-    // The track, the chart, the detail card and the four columns.
-    expect(html.split(SECTION_ERROR.replace("'", "&#x27;")).length - 1).toBe(7);
+    // The track, the map, To offer, Updates and Who worked?.
+    expect(html.split(SECTION_ERROR.replace("'", "&#x27;")).length - 1).toBe(5);
     expect(html).toContain(">Dashboard</h1>");
     expect(words(html)).toContain("Monday 26 October · Week 44 · Pay Fri 6 Nov");
     expect(words(html)).not.toContain("Updated");
-    // The track keeps its links, without counts.
-    const track = /<nav aria-label="Show"[^>]*>([\s\S]*?)<\/nav>/.exec(html)?.[1] ?? "";
-    expect(links(track).map((l) => l.name)).toEqual(["All", "Urgent", "This week", "Next week"]);
+    expect(links(track(html)).map((l) => l.name)).toEqual([
+      "All",
+      "Urgent",
+      "This week",
+      "Next week",
+    ]);
   });
 
   it("no link on the dashboard repeats a menu link's name", () => {
     const menu = officeMenu("admin").flatMap((g) => g.links.map((l) => l.label));
     expect(menu).toEqual(expect.arrayContaining(["Dashboard", "Events & sessions"]));
     const names = links(render(board)).map((l) => l.label ?? l.name);
-    expect(names.length).toBeGreaterThan(15);
+    expect(names.length).toBeGreaterThan(12);
     for (const label of menu) expect(names).not.toContain(label);
   });
 });

@@ -877,6 +877,53 @@ when it's saved (12G.1; `docs/office-v2.md` 5.4). Which service does that is the
    service was off). Save the same postcode again on Settings.
 4. Northern Ireland (BT) postcodes need a separate licence first (`PLAN.md` Checks 16).
 
+## The street map (the dashboard's venue map)
+
+The dashboard's venue map (Phase 26.2) draws real streets only when the server has a UK map file
+and `MAP_TILES_URL` points to it. Without one (the default) every pin is still placed by its
+venue's position on a plain ground, and the map's foot says "Placed by each venue's postcode". The
+file is ours, on our own server (the pre-build audit's aud-8): no map company is paid per view or
+told where anyone is. It's OpenStreetMap's data (from Protomaps' daily builds), so "©
+OpenStreetMap contributors" shows on the map: never hide it.
+
+**Set it up (once, then once or twice a year to refresh):**
+
+1. On any computer, get the `pmtiles` tool (https://github.com/protomaps/go-pmtiles, its releases).
+2. Find the newest world build's name (the last `key` in
+   https://build-metadata.protomaps.dev/builds.json, such as `20261102.pmtiles`; the whole world is
+   about 140 GB, so never download it). Cut out the UK; the tool reads only the parts it needs:
+
+   ```bash
+   pmtiles extract https://build.protomaps.com/20261102.pmtiles uk.pmtiles --bbox=-8.65,49.86,1.77,60.86
+   ```
+
+   Check its size (`ls -lh uk.pmtiles`) against the server's free disk (`df -h /opt/shiftdesk`).
+   Adding `--maxzoom=13` makes it smaller and still shows the streets around a venue.
+3. Copy it to the server as `/opt/shiftdesk/maps/uk.pmtiles` (Caddy serves that folder at
+   `/maps/`, read only, on every firm's address: `deploy/Caddyfile`).
+4. In `/opt/shiftdesk/.env` set `MAP_TILES_URL=/maps/uk.pmtiles`. The next deploy run applies it
+   (`deploy/deploy.sh` recreates the web app when `.env` changes).
+5. Check: `curl -sI -H "Range: bytes=0-15" https://<a firm's address>/maps/uk.pmtiles` answers
+   `206 Partial Content`; then open the dashboard: the map shows streets, its foot says "Drag to
+   move · Ctrl + scroll to zoom", and "© OpenStreetMap contributors" is at its bottom right.
+
+To refresh it, replace the file (same name) and reload the dashboard; nothing else changes. To turn
+the streets off, empty `MAP_TILES_URL`.
+
+**The map shows no streets** (the foot still says "Placed by each venue's postcode"):
+
+1. `grep '^MAP_TILES_URL=' /opt/shiftdesk/.env`: empty means off. Anything but a path on this
+   server ending `.pmtiles` (such as `/maps/uk.pmtiles`) stops the app starting (its settings
+   check), so look at the web app's logs too. Another host's address is refused on purpose: each
+   office user's address and the area around the firm's venues would reach it.
+2. The file: the `curl` in step 5 above. `404`: it isn't at exactly
+   `/opt/shiftdesk/maps/uk.pmtiles`, or can't be read (`ls -l /opt/shiftdesk/maps/`).
+3. The browser: its console on the dashboard. "Worker failed to load" means `/office/map-worker`
+   didn't answer (MapLibre's worker, served from the app's own `node_modules`).
+
+A venue with no position (its site has no postcode looked up yet) is never placed by guesswork:
+it's listed under the map. See "Postcodes not found" above.
+
 ## Travel provider outage (travel times missing)
 
 Each shift's travel line ("7.2 miles · 18 min by car · 41 min by public transport") comes from

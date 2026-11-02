@@ -106,6 +106,22 @@ const appFields = {
   // under NODE_ENV=test, so no test can reach either. Real use waits for "Connect postcodes.io and
   // TravelTime" (PLAN.md Parking lot). An empty value means not set.
   TRAVEL_PROVIDER: unsetIfEmpty(z.enum(["fake", "traveltime"]).default("fake")),
+  // The office dashboard's street map (Phase 26.2; the pre-build audit's aud-8): the firm's UK map
+  // file (a Protomaps .pmtiles file, read by the browser in pieces) on our own server, so a path on
+  // this one ("/maps/uk.pmtiles", served by Caddy: docs/runbooks.md "The street map"). Never another
+  // host (each office user's address and the firm's venues' area would reach it): no "https://",
+  // and no "//" or "/\" (which a browser reads as another host). Unset (as in dev, the tests and a
+  // demo without the file), the map places each venue by its own position on a plain ground.
+  // Refused under NODE_ENV=test, so no test can fetch a map. An empty value means not set.
+  MAP_TILES_URL: unsetIfEmpty(
+    z
+      .string()
+      .regex(/^\/(?![/\\])[A-Za-z0-9._~\/-]+\.pmtiles$/, {
+        message: "must be a path on this server, such as /maps/uk.pmtiles",
+      })
+      .optional(),
+  ),
+
   // AI (docs/office-v2.md 5.8): Claude through the Anthropic API (src/lib/ai/anthropic.ts), asked
   // by the worker only, which alone gets the key. "none" (the default): no AI, and the code's
   // fallback answers. "anthropic": refused for the worker under NODE_ENV=test, so no test can call
@@ -207,6 +223,14 @@ function vapidKeysMatch(publicKey: string, privateKey: string): boolean {
   }
 }
 
+// Tests never fetch a street map.
+const noMapInTests = (e: { NODE_ENV: string; MAP_TILES_URL?: string }) =>
+  e.NODE_ENV !== "test" || !e.MAP_TILES_URL;
+const noMapInTestsMessage = {
+  path: ["MAP_TILES_URL"],
+  message: "tests never fetch a street map: MAP_TILES_URL is refused when NODE_ENV=test",
+};
+
 // Tests never reach postcodes.io or TravelTime.
 const noRealTravelInTests = (e: { NODE_ENV: string; TRAVEL_PROVIDER: string }) =>
   e.NODE_ENV !== "test" || e.TRAVEL_PROVIDER !== "traveltime";
@@ -243,6 +267,7 @@ export const appEnvSchema = z
   .refine(realIntegrationsSecret, realIntegrationsSecretMessage)
   .refine(alertsOn, alertsOnMessage)
   .refine(noRealTravelInTests, noRealTravelInTestsMessage)
+  .refine(noMapInTests, noMapInTestsMessage)
   .refine(demoHasOutbox, demoHasOutboxMessage)
   // The web app looks postcodes up itself (Settings, Profile); AI only says whether it's on; and the
   // text sender only what the login and pay pages say, which must be the demo worker's console

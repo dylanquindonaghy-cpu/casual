@@ -97,6 +97,93 @@ every route, label, link and action is as round 7's.
   you come back to it after 30 seconds or more away, it asks for its figures again (what you've
   typed or opened stays); "Updated {10:42}" says when it last did.
 
+## The dashboard, round 8 (Phase 26.2)
+
+`/office` for admins and resourcers, as Dylan approved it in round 8 (the spec page's "Dashboard",
+dash-1 to dash-9, and the pre-build audit's aud-7 and aud-8). This section wins over round 7's below
+where they differ: the head line, the track's words and links, the "…" menu, the offer panel, a
+part that couldn't load and the empty card are round 7's. Words: `src/lib/office/board-copy.ts` and
+`src/lib/office/dashboard-map-copy.ts`; data: `src/lib/office/dashboard-board.ts` and
+`src/lib/office/dashboard-map.ts`.
+
+- **Under the head:** the track (round 7's: All, Urgent, This week, Next week, with their counts),
+  then **Filter** (a button with a funnel, read as "Filter by role"; it opens a list of the roles
+  with places to fill and "Every role"; picked, the button says the role and is read as "Filter:
+  {Steward}"; `?role=steward`), then **Show full venues** on the right from 768px of page (a switch:
+  on, the map shows the venues with nothing left to fill too; `?full=1`). Every link on the page
+  keeps all three.
+- **The venue map** (a glass panel, 300px tall on a phone and 528px from 1024px of page): a pin for
+  each venue with places to fill under the track and the filter, its number the places to fill
+  there, red when a session there is urgent, a dashed ring when every one is hidden from casuals,
+  green when it's full (only with Show full venues), and the venue the card shows ringed in the
+  accent. From 640px a pin carries the venue's name and its days ("Tue 3, Sat 7, Sun 8 and 2 more",
+  "… · hidden", "All places filled"), and the key sits top right ("Urgent", "Places to fill",
+  "Hidden from casuals", and "All filled" with Show full venues). A pin is a link to the dashboard
+  with that venue's soonest session in the card, read as "{Acme Demo Arena}: {10} places to fill,
+  urgent, {Tue 3, Sat 7, Sun 8 and 2 more}" (", hidden from casuals"; "{name}: all places filled").
+  Under the map, on the left, "Placed by each venue's postcode · a pin's number is its places to
+  fill", or, with a street map, "Drag to move · Ctrl + scroll to zoom (two fingers on a phone) · a
+  pin's number is its places to fill"; on the right "{3} venues · {11} places to fill". A venue
+  with no position is never placed by guesswork: "Not on the map (no postcode yet): {Hillside Demo
+  Square}, {4} places to fill." Nothing to place: "No places to fill here." / "None of these
+  venues has a postcode yet, so none is on the map." From 1024px no pin or label sits under the
+  card. Pins that would cover each other are nudged apart, and a label goes on whichever side of
+  its pin it fits, or is left off where it fits on neither (its name is still the pin's link words).
+- **Show as a table** (under the map, the pre-build audit's aud-9): opens a table of the same
+  figures, every venue on or off the map: "Venue" (its name, a link like its pin, and its town),
+  "Places to fill" ("{5} · urgent" in red) and "Days".
+  - **With a street map** (the firm's server has a UK map file: `MAP_TILES_URL`, `docs/runbooks.md`
+    "The street map"): the streets, water and land under the pins (no place names: the pins carry
+    them), fitted to the venues; it moves with a drag and zooms with Ctrl + scroll on a laptop, two
+    fingers on a phone (one finger scrolls the page); "© OpenStreetMap contributors" bottom right.
+  - **Without one** (development, the tests, before the file is up): the pins placed by their own
+    latitude and longitude on the office's faint street pattern, north up and to scale.
+- **The chosen session** (a floating glass card over the map's top left from 1024px of page, 404px
+  wide; under the map before): round 7's choice (the address's `?session=`, else the soonest
+  urgent, else the soonest). Its date tile, the role (and "Urgent"), "{Northern Lights Live} ·
+  {Gate A}, {Acme Demo Arena}" and "…" (round 7's menu); a tile with "{Tue 27 Oct, 08:00–16:00}" and
+  "{8 h} · {£15.50/h}" (no rate: the length alone), a bar of how many are booked, "Starts in {20 h}"
+  (red under 2 days) and "{1 place to fill}"; two tiles: "Booked" with "Urgent" or "Open", a
+  half-circle gauge and "{3 / 4}" "booked"; "Can take it" with "{1} offered", the number of people
+  the rules let it be offered to right now (the offer panel's own list), "Under the rules, right
+  now". Then a line: while an offer waits, round 7's (who hasn't replied since when); with none
+  waiting, "Only {Zoe Adeyemi} can take it: {1 hour} booked that week." or "Nobody can be offered
+  it right now.", else round 7's. Then "Offer to someone" ("Offer to {Zoe}" when she's the only one
+  who can take it) and "Open the shift".
+- **The board**, three glass columns under the map (three across from 1152px of page, two from
+  768px, one on a phone):
+  - **To offer** (`#to-offer`): every session with places to fill under the track and the filter,
+    soonest first, "{11} places · {3} offers, no reply yet" (or "…, none offered"). A row: its date
+    tile (red when urgent), the role (and "Urgent"), "{venue} · {08:00}", "{3/4} booked" and its
+    paper plane (the offer panel, as round 7's). The row picks itself into the card. The first 4,
+    then "View all {17}" (Events & sessions' "Need people", or "Urgent").
+  - **Updates** (`#updates`, where the top bar's "Offers out" lands): the last two days, newest
+    first, 6 at most, each a link to where it's dealt with: "{Ben Fraser} took a place" ("{Steward},
+    {Acme Demo Arena}, {Tue 3 Nov 08:00} · {2 places to fill}" or "now full"); "{Mo Rahman}
+    cancelled · {6 hours' notice}" ("… · strike issued" / "strike withdrawn" / "no strike", and "·
+    reopened"; red under 48 hours' notice), to the cancellation; "{Zoe Adeyemi} sent a staff photo"
+    / "a certificate", "Waiting for a check", to the casual; "No reply yet · {3} offers" for a
+    session's offers with no reply. The time on the right ("09:06" today, "Sun 08:00" before). Then
+    "Everything in the action log". Empty: "Nothing new in the last two days."
+  - **Who worked?** (`#who-worked`): round 7's line ("{5} sessions from {Sun 25 Oct}"), then
+    Needs attention's sessions to mark, alike ones together as round 7's cards (one role, place and
+    time), the first 3: each "{Sun 1 Nov} · {Steward} · {Acme Demo Racecourse} · {10:30–18:30}"
+    (and " · {3} sessions"; a link to the session, or to Needs attention's list for several) and
+    each person still booked on them by name: their initials,
+    their name, "Worked" (read as "{name} worked") and a red cross (read as "{name} didn't attend"),
+    the shift page's own actions (the server checks and logs each; the answer under the name).
+    With more than one: "Everyone else worked", then "Only if they all worked it. You can change
+    anyone afterwards." and "Yes, everyone else worked" (each session in turn). More sessions:
+    "More on Needs attention". Empty: "Nothing to mark."
+  - **An empty column** says what will show there (the pre-build audit's aud-10), under its own
+    words: To offer "Sessions with a place free show here, soonest first."; Updates "Places taken,
+    cancellations, and photos or certificates to check show here."; Who worked? "Sessions show
+    here when they end, so you can mark who worked."
+- **On a phone:** the counts row (the shell's), the head, the track, Filter and the switch, the map
+  (300px, pins without names), the card, then the three columns one under another.
+- **Loading:** the skeleton follows this layout (the head and track, the map with the card on it,
+  the three columns).
+
 ## The office shell, round 7 (Phase 24)
 
 Dylan's approved round 7 of the Design canvas ("Round 7 exactly, layout too"; PLAN.md 24.2;

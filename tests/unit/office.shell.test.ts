@@ -593,7 +593,7 @@ describe("the shell", () => {
     expect(links.map((m) => [m[2], text(m[3] ?? "")])).toEqual([
       ["/office/events?view=need", "To fill 26"],
       ["/office/events?view=urgent", "Urgent 2"],
-      ["/office#offered", "Offers out 11"],
+      ["/office#updates", "Offers out 11"],
       ["/office/needs-attention", "To check 7"],
       ["/office/pay-queries", "Pay queries 10"],
     ]);
@@ -631,7 +631,7 @@ describe("the shell", () => {
     expect(links.map((m) => [m[2], text(m[3] ?? "")])).toEqual([
       ["/office/events?view=need", "To fill 26"],
       ["/office/events?view=urgent", "Urgent 2"],
-      ["/office#offered", "Offers out 11"],
+      ["/office#updates", "Offers out 11"],
       ["/office/needs-attention", "To check 7"],
       ["/office/pay-queries", "Pay queries 10"],
     ]);
@@ -1083,7 +1083,9 @@ describe("the top bar's counts", () => {
     }
   });
 
-  it("their numbers, words and pages; Offers out lands on the dashboard's Offered column", () => {
+  // Round 8 (Phase 26.2): Offers out lands on the dashboard's Updates, where offers with no reply
+  // are listed (round 7's Offered column went).
+  it("their numbers, words and pages; Offers out lands on the dashboard's Updates", () => {
     expect(barCounts("admin", all)).toEqual([
       {
         key: "toFill",
@@ -1103,7 +1105,7 @@ describe("the top bar's counts", () => {
       {
         key: "offersOut",
         label: "Offers out",
-        href: `/office#${COLUMN_IDS.offered}`,
+        href: `/office#${COLUMN_IDS.updates}`,
         icon: "send",
         count: 3,
       },

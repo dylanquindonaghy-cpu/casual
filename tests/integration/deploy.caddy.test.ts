@@ -7,8 +7,9 @@ import { beforeAll, describe, expect, it } from "vitest";
 // Caddy version production runs (deploy/docker-compose.yml), in Docker like the test database:
 // - `caddy validate`: Caddy reads the file, builds the whole configuration and says it's valid;
 // - `caddy adapt`: the file as Caddy's own JSON, where what the app relies on is checked: on-demand
-//   certificates only after asking our check, HSTS on every answer (audit L50), our check closed
-//   to the outside, and the web app reached with an X-Real-IP Caddy sets itself.
+//   certificates only after asking our check, HSTS on every answer (audit L50), the street map's
+//   file from the server's maps folder (Phase 26.2), our check closed to the outside, and the web
+//   app reached with an X-Real-IP Caddy sets itself.
 // Made-up values for the two settings it reads from the server's .env.
 
 const ROOT = process.cwd();
@@ -43,6 +44,7 @@ const caddy = (...args: string[]) =>
 
 interface Handler {
   handler: string;
+  root?: string;
   status_code?: number;
   response?: { set?: Record<string, string[]> };
   headers?: { request?: { set?: Record<string, string[]> } };
@@ -79,7 +81,7 @@ describe("the Caddyfile, read by Caddy itself", () => {
     expect(() => caddy("validate")).not.toThrow();
   });
 
-  it("serves our domain and every other name the same way: HSTS, our check closed, then the web app", () => {
+  it("serves our domain and every other name the same way: HSTS, the street map's file, our check closed, then the web app", () => {
     const json = JSON.parse(caddy("adapt")) as {
       apps: {
         http: { servers: Record<string, { listen: string[]; routes: Route[] }> };
@@ -104,12 +106,21 @@ describe("the Caddyfile, read by Caddy itself", () => {
       const inner = route.handle[0]?.routes ?? [];
       expect(inner.map((r) => r.handle[0]?.handler)).toEqual([
         "headers",
+        "subroute",
         "static_response",
         "reverse_proxy",
       ]);
-      const [hsts, closed, proxy] = inner.map((r) => r.handle[0]);
+      const [hsts, maps, closed, proxy] = inner.map((r) => r.handle[0]);
       expect(hsts?.response?.set).toEqual({ "Strict-Transport-Security": ["max-age=31536000"] });
-      expect(inner[1]?.match).toEqual([{ path: ["/api/caddy/*"] }]);
+      // /maps/* from /srv/maps (docker-compose.yml mounts the server's maps folder there, read
+      // only), cached for a day, and never passed on to the web app.
+      expect(inner[1]?.match).toEqual([{ path: ["/maps/*"] }]);
+      const files = maps?.routes?.[0]?.handle ?? [];
+      expect(files.map((h) => h.handler)).toEqual(["vars", "headers", "file_server"]);
+      expect(files[0]?.root).toBe("/srv");
+      expect(files[1]?.response?.set).toEqual({ "Cache-Control": ["public, max-age=86400"] });
+      expect(compose).toMatch(/\n {6}- \.\/maps:\/srv\/maps:ro\n/);
+      expect(inner[2]?.match).toEqual([{ path: ["/api/caddy/*"] }]);
       expect(closed?.status_code).toBe(404);
       expect(proxy?.upstreams).toEqual([{ dial: "web:3000" }]);
       expect(proxy?.headers?.request?.set).toEqual({

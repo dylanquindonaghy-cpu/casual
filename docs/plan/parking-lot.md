@@ -2105,3 +2105,23 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   - The AI's draft is made for every email that needs a person (when the AI is connected), read or
     not: a few hundred tokens each on Haiku. If a firm's volume makes that matter, draft when the
     office first opens it instead.
+- **From Parim, for after Phase 26** (the pre-build audit, 2026-11-02,
+  https://claude.ai/artifact/4DRBzVM5k6BLCmfin7Zgff, `docs/mockups/round-8/audit.html`). Parim, the
+  UK staffing and events tool firms are most likely to compare us with, does these; we don't:
+  - **Reconfirm before a shift:** N hours before the start (a firm setting), the casual is asked
+    "Still on for tomorrow?" with Yes or Can't make it; no answer by a set time shows in Updates.
+    Parim turns the shift back to unconfirmed and staff confirm by app, email or text. The
+    strongest idea against no-shows; it changes what casuals are sent (templates and words first,
+    `docs/messaging-templates.md`), so its own phase.
+  - Clock-in and a live board of today's sessions (late, left early). Parim: GPS geofence, QR, NFC,
+    a kiosk or a text. Geofencing is already parked (native app, DPIA first).
+  - A rest-time check between shifts (Parim flags "rest-time breaches"): an eligibility rule,
+    data per sector, with its tests.
+  - Preferred casuals per venue (Parim: preferred and banned lists per location; we have only
+    "blocked at this venue", `worker_site_blocks`).
+  - A client portal: clients ask for shifts and see coverage.
+  - Coverage and margin reports: these need charge rates, which we don't hold.
+  Not to copy (the audit's reasons): Parim's people-by-days scheduler grid (the firm's planner makes
+  sessions; we're planner-first), "Call supervisor to cancel" inside 24 hours (we log the notice and
+  strike), and a manager approving every application (instant booking stays; "Casuals ask, you
+  choose" is per event).

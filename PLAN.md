@@ -1059,6 +1059,14 @@ task reads his edits from the page's database (`ArtifactData` list of `edits`) a
 say. Each task: its words in `docs/screens.md` first, tests, the `guardrails-reviewer` where it
 touches schema, tenancy, messaging or rules, then `/close-task`. The casual app keeps round 7's look.
 
+**The pre-build audit** (2026-11-02, https://claude.ai/artifact/4DRBzVM5k6BLCmfin7Zgff,
+`docs/mockups/round-8/audit.html`: how the map and charts get real data, today's office against round 8
+measured, and Parim) added 16 changes as the spec page's last section, "From the pre-build audit"
+(aud-1 to aud-16), each built in the task its screen belongs to: aud-1, 2, 3, 4, 6 and 16 in 26.1;
+aud-7, 8, 9, 10 and 13 in 26.2; aud-5 in 26.5; aud-11 and 12 in 26.7; aud-15 in 26.8; aud-14 (12
+weeks of made-up history for the demo) with 26.2 and 26.7. Its six Parim ideas for later are in the
+Parking lot.
+
 - [ ] Round 8's system and the office shell: dark by default with a light version on the same
       rules, neutral charcoal with translucent, sharp glass on panels and their cards over a faint
       street map (Dylan, 2026-11-02), no gloss, wash or glow; one hi-vis accent; one status code; the rail and

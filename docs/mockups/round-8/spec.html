@@ -128,7 +128,7 @@ textarea.note::placeholder { color: #b89356; }
         <li>Updates and alerts; Customise and contracts.</li>
         <li>Offers by app, text or email; the fixes and words.</li>
       </ol>
-      <p class="muted small">Each step: tests, the full verify with browser tests, and the independent audit before it's ticked.</p>
+      <p class="muted small">Each step: tests, the full verify with browser tests, and the independent audit before it's ticked. The pre-build audit's 16 changes (last section) go into the step their screen belongs to.</p>
     </div>
   </div>
 
@@ -232,6 +232,24 @@ textarea.note::placeholder { color: #b89356; }
     { id: 'others', title: 'Every other office page', route: 'Enquiries, Strikes, Notice report, Pay, Pay queries, Import, Action log, Pilot metrics, Team, Settings, Integrations, Data requests, Guide', purpose: 'Same content, round 8\'s look.', shots: null, items: [
       ['oth-1', 'Each of these pages keeps its content and actions and takes round 8\'s panels, lists, tables, buttons, pills and fields. No new features on them beyond the fixes above.'],
       ['oth-2', 'Lists and tables: names left, figures right and lined up, 12px grey column labels, one status pill per row, no zebra stripes.']
+    ] },
+    { id: 'audit', title: 'From the pre-build audit', route: 'several pages', purpose: 'What the audit of today\'s office, round 8 and Parim found (https://claude.ai/artifact/4DRBzVM5k6BLCmfin7Zgff), ranked by how much each helps for the work. Each goes into the build step its screen belongs to.', shots: null, items: [
+      ['aud-1', 'Badges with white words use a darker red, #d13438 (4.93:1), in place of #e5484d (3.91:1, under the 4.5:1 minimum): the bell\'s count and the strike badges.'],
+      ['aud-2', 'Pages update themselves: every 30 seconds while the tab is showing, and as soon as you come back to it, with "Updated 10:42" in the title row. Today an open page never picks up a casual\'s cancellation by itself.'],
+      ['aud-3', 'One type scale, 12, 13, 14, 16, 20, 24 and 30px, with nothing under 12px. The round 8 dashboard has 14 sizes, down to 9.5px.'],
+      ['aud-4', 'Six text colours: ink, muted, faint, red, amber and green. The round 8 dashboard has 13.'],
+      ['aud-5', 'Each repeated button tells a screen reader which place it\'s for ("Assign someone: Steward, 18:00 to 23:00, place 3"). The Arena\'s page has 23 "Assign someone" buttons today.'],
+      ['aud-6', 'Keep what today\'s office gets right: 44px buttons, a visible focus ring, the skip link, one heading per page. The browser tests check them on every round 8 page.'],
+      ['aud-7', 'On a phone, moving the map takes two fingers, so one finger scrolls the page; on a laptop, Ctrl + scroll zooms. Every pin is also a row in To offer.'],
+      ['aud-8', 'Map tiles from one UK map file on our own server (no charge per view, nobody\'s location sent to a map company), with "© OpenStreetMap contributors" shown. A venue without a postcode is listed under the map, never placed by guesswork.'],
+      ['aud-9', 'Every chart says where its numbers come from and when ("Nightly count, 00:30 today"), with its figures as a table one tap away.'],
+      ['aud-10', 'Every card has an empty state that says what will show and what to do ("No cancellations in the last 8 weeks").'],
+      ['aud-11', 'Reliability needs at least 5 shifts in the 90 days; below that it says "New: 3 shifts so far" instead of a figure. The counts always show beside it.'],
+      ['aud-12', 'A session still not marked 2 days after it ends goes to Updates as "Mark who worked" (reliability counts only marked sessions).'],
+      ['aud-13', 'A new card under Customise, "Next 2 weeks": booked, offered and open places per day, as stacked bars (from Parim; it keeps the look ahead that today\'s bar chart gives).'],
+      ['aud-14', 'The demo gets 12 weeks of made-up history (sessions worked, cancellations, no-shows, at believable venues) so its charts and reliability aren\'t empty; the walkthrough\'s lists stay as they are.'],
+      ['aud-15', '"Show only today\'s" on Cancellations becomes a 44px switch or a tab (it\'s 108×17px today).'],
+      ['aud-16', 'The street map behind every page is drawn once as a still picture; smooth scrolling is checked on a mid-range laptop before it ships.']
     ] }
   ];
 

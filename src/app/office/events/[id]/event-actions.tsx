@@ -38,17 +38,26 @@ function Answer({ text }: { text: string | null }) {
   );
 }
 
-export function ShowHideButton({ eventId, showing }: { eventId: string; showing: boolean }) {
+// The event's switch, or (on a session's page, Phase 26.6) the session's own.
+export function ShowHideButton({
+  eventId,
+  showing,
+  target = "event",
+}: {
+  eventId: string; // the event's id, or the session's with target "session"
+  showing: boolean;
+  target?: "event" | "session";
+}) {
   const router = useRouter();
   const ready = useHydrated();
   const [pending, start] = useTransition();
   const [said, setSaid] = useState<string | null>(null);
   const flip = () =>
     start(async () => {
-      const r = await setShowingAction({ target: "event", id: eventId, showing: !showing }).catch(
+      const r = await setShowingAction({ target, id: eventId, showing: !showing }).catch(
         () => failed,
       );
-      setSaid(showingResultText(r, "event"));
+      setSaid(showingResultText(r, target));
       if (r.status === "shown" || r.status === "hidden") router.refresh();
     });
   return (

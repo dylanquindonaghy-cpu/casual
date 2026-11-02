@@ -38,12 +38,13 @@ architecture.md, Tenancy).
 | credential_rules | Which credentials a role needs, per sector | 2 |
 | credential_types | The credential types a firm uses (code, name, sector, whether "applied" may count, whether only the office records it: 12F.2), seeded from its sector's pack | 2 |
 | sites | Venues/sites (address; the postcode's central point in lat/lng, looked up when the postcode is saved: 12G.1) | 1 |
-| shift_events | Events: the sessions (shifts) of one job, with a "show to casuals" switch. Not `events`, the action log | 12 |
+| shift_events | Events: the sessions (shifts) of one job, with a "show to casuals" switch and "Casuals ask, you choose" (26.6). Not `events`, the action log | 12 |
 | shifts | Sessions: site, role, start/end, headcount, urgent flag, source; their event, pay rate, post, meeting point, uniform, extra requirements and "show to casuals" switch (12B.1) | 2 |
 | assignments | Worker on a shift slot: open → (offered) → confirmed → cancelled/no-show/completed; how a cancellation was made and the strike warning the casual confirmed against (12C.1) | 2 |
 | strikes | A strike issued for a casual's own late cancellation (one per booking), its review flag, withdrawal and evidence email (12C.1) | 12 |
 | requests | Time changes, swaps, general asks, reviews of refused shifts, and their status | 2 |
 | offers | Each offer sent (in a wave, or by the office to one worker) and the response (table Phase 2; waves Phase 4; office offers Phase 5) | 2 |
+| session_asks | A casual's "I can do this" for a session where the office chooses, and how it ended: booked, "Not this time", or closed (26.6) | 26 |
 | shift_reminders | Each 24 h / 2 h reminder a booking got (sent, failed or skipped for quiet hours) | 4 |
 | messages | Every inbound/outbound message (WhatsApp, SMS, email, voice, portal) | 7 |
 | pay_records | Imported hours, rates, pay dates | 3 |
@@ -502,6 +503,8 @@ create table shift_events (
   planner_ref text,                      -- 1..200; an automatic event's 'auto:' key, or the
                                          -- planner's own id for its event (source api)
   showing_to_casuals boolean not null default true,
+  casuals_ask boolean not null default false, -- "Casuals ask, you choose" (Phase 26.6): casuals ask,
+                                         -- the office books from who asked; ShiftDesk's own
   created_at timestamptz not null default now(),
   unique (firm_id, id),
   unique (firm_id, source, planner_ref)  -- one event per planner ref (12J.1; NULLs don't collide),
@@ -705,6 +708,26 @@ create table offers (
 );
 -- Indexed by (firm_id, worker_id, sent_at) for the daily offer cap, and by (firm_id, sent_at) for
 -- the firm's offers by when (P4.1).
+
+-- A casual asking for a session of an event where the office chooses (Phase 26.6, decision 2;
+-- src/lib/roster/asks.ts). One row per casual and session. Who answered and why is in the action
+-- log (shift.ask_*), never here. The app adds rows and changes only status, asked_at and
+-- answered_at (TABLE_ACCESS, COLUMN_UPDATES); never deleted by the app. In a casual's data export.
+create table session_asks (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  shift_id uuid not null,                -- (firm_id, shift_id) -> shifts(firm_id, id)
+  worker_id uuid not null,               -- (firm_id, worker_id) -> workers(firm_id, id)
+  status text not null default 'asked',  -- asked | booked | not_this_time | closed (filled,
+                                         -- cancelled or moved without them)
+  asked_at timestamptz not null,         -- the latest ask (asking again after a cancelled
+                                         -- booking or a closed ask)
+  answered_at timestamptz,               -- null exactly while asked
+  created_at timestamptz not null default now(),
+  unique (firm_id, id),
+  unique (firm_id, shift_id, worker_id)  -- one per casual and session
+);
+-- Indexed by (firm_id, worker_id) for a casual's own asks.
 
 -- Each shift reminder a booking got, or why not (src/lib/reminders/send.ts). Written before the
 -- message goes. Evidence in a no-show dispute: the app never deletes one.

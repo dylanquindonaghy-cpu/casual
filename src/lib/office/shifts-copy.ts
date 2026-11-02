@@ -228,6 +228,11 @@ export function assignResultText(result: BookingResult | Common, name: string): 
       return "Try again in a few minutes.";
     case "needs_approval":
       return "This rota can't be changed from here.";
+    case "ask_first":
+      // A casual's own booking only: the office never gets it.
+      return COMMON.error;
+    case "not_asking":
+      return `${name} isn't asking any more (answered since), so wasn't booked.`;
     default:
       return COMMON[result.status];
   }

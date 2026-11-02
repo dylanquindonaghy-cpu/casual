@@ -109,6 +109,12 @@ export function TakeShiftResult({
           {outcome.opensAt}.
         </p>
       );
+    case "ask_first":
+      return (
+        <p role="alert" className="font-semibold">
+          The office now chooses who works this one. Ask for it instead.
+        </p>
+      );
     case "try_again":
       return (
         <p role="alert" className="font-semibold">

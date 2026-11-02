@@ -74,6 +74,20 @@ export interface EventPage {
   booked: Record<string, BookedCasual[]>; // by session (shift id)
   staffing: EventStaffing; // Phase 26.5: the staffing layout, open places, cancellations, history
   canAddShifts: boolean; // an event the office named, at a firm whose rota isn't a sheet
+  // Interested (Phase 26.6, evt-2): who has asked for its sessions to come ("Casuals ask, you
+  // choose"), waiting first then "Not this time", soonest session first.
+  interested: InterestedAsk[];
+  casualsAsk: boolean;
+}
+
+export interface InterestedAsk {
+  shiftId: string;
+  role: string;
+  startsAt: Date;
+  endsAt: Date;
+  name: string;
+  askedAt: Date;
+  waiting: boolean; // false: the office said "Not this time"
 }
 
 export interface EventList {
@@ -494,6 +508,46 @@ export async function officeEventPage(
       booked,
       staffing: await loadEventStaffing(tx, now, e.id, needs),
       canAddShifts: !(await hasPlanner(tx)) && (await namedByOffice(tx, e.id)),
+      interested: await loadInterested(tx, e.id, now),
+      casualsAsk:
+        (
+          await tx.execute<{ on: boolean }>(
+            sql`select casuals_ask as on from shift_events where id = ${e.id}`,
+          )
+        ).rows[0]?.on === true,
     };
   });
+}
+
+// Who has asked for the event's sessions still to come (Phase 26.6, evt-2), as the "Interested"
+// tab lists them.
+async function loadInterested(tx: FirmTx, eventId: string, now: Date): Promise<InterestedAsk[]> {
+  const { rows } = await tx.execute<{
+    shift_id: string;
+    role: string;
+    starts_at: Date | string;
+    ends_at: Date | string;
+    first_name: string;
+    last_name: string;
+    asked_at: Date | string;
+    status: string;
+  }>(sql`
+    select sa.shift_id::text, s.role, s.starts_at, s.ends_at, w.first_name, w.last_name,
+           sa.asked_at, sa.status
+      from session_asks sa
+      join shifts s on s.firm_id = sa.firm_id and s.id = sa.shift_id
+      join workers w on w.firm_id = sa.firm_id and w.id = sa.worker_id
+     where s.event_id = ${eventId} and s.status <> 'cancelled' and s.starts_at > ${now}
+       and sa.status in ('asked', 'not_this_time')
+     order by s.starts_at, s.id, (sa.status = 'not_this_time'), sa.asked_at, sa.id
+  `);
+  return rows.map((r) => ({
+    shiftId: r.shift_id,
+    role: r.role,
+    startsAt: new Date(r.starts_at),
+    endsAt: new Date(r.ends_at),
+    name: `${r.first_name} ${r.last_name}`,
+    askedAt: new Date(r.asked_at),
+    waiting: r.status === "asked",
+  }));
 }

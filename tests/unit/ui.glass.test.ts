@@ -499,6 +499,10 @@ describe("where the glass goes", () => {
       "src/app/office/events/session-menu.tsx": ["glass-float"], // a session's menu
       "src/app/office/find-worker-form.tsx": ["glass-float"], // Casuals' search, its matches
       "src/app/office/shift-actions.tsx": ["glass-float"], // the "…" menu
+      // A session's page (Phase 26.6): a row's "…" menu, the session's own, and its slide-in panel.
+      "src/app/office/shifts/[id]/casual-actions.tsx": ["glass-float"],
+      "src/app/office/shifts/[id]/page.tsx": ["glass-float"],
+      "src/app/office/shifts/[id]/session-panel.tsx": ["glass-float"],
       "src/app/office/dashboard/offer-panel.tsx": ["glass-float"], // the offer panel
       "src/app/office/customise-panel.tsx": ["glass-float"], // Customise's panel (Phase 26.3)
       "src/app/office/updates-bell.tsx": ["glass-float"], // a cancellation's pop-up (Phase 26.4)

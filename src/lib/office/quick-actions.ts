@@ -78,6 +78,7 @@ export function assignWorker(
   shiftId: string,
   workerId: string,
   override: { codes: OverridableCode[]; reason: string } | null,
+  opts: { fromAsk?: true } = {},
 ): Promise<BookingResult> {
   const { run, deps } = parts(ctx);
   return bookShift(
@@ -91,6 +92,7 @@ export function assignWorker(
         id: ctx.officeUserId,
         overrides: override?.codes ?? [],
         ...(override ? { reason: override.reason } : {}),
+        ...(opts.fromAsk ? { fromAsk: true as const } : {}),
       },
     },
     deps,

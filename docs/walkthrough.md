@@ -190,22 +190,24 @@ which explains each job step by step, and "Log out".
     before the demo was made. Click "Requests from the app". On Sam Walsh's time
     change, click "Approve and tell Sam". It says "Approved. Sam will be told." The message to Sam
     appears in the dev window.
-26. **Mark who worked.** Click "Dashboard" in the menu. Under "Who worked?", click the line of
-    yesterday's racecourse shift ("{Sun 1 Nov} · Steward · Acme Demo Racecourse · 10:30–18:30"): it
-    opens the shift. Click "Mark as worked" for a person on it: "Marked … as worked." (On a shift
-    with several people, "Mark as not attended" and "Mark the … not marked yet as worked" are there
-    too.)
+26. **Mark who worked.** Click "Dashboard" in the menu. Under "Who worked?", yesterday's
+    racecourse sessions are together under one line ("{Sun 1 Nov} · Steward · Acme Demo Racecourse
+    · 10:30–18:30 · 3 sessions"), each person with "Worked" and a cross for "Didn't attend". Click
+    "Worked" beside one: "Marked … as worked." (A line for one session is a link to it, where
+    "Mark as not attended" and "Mark the … not marked yet as worked" are too.)
 27. **Make a shift and book someone.** Click "Events & sessions", then "All shifts by day", then
     "New shift". Pick a date next week,
     Role "steward", Start 10:00, Finish 18:00, Places 2, and click "Create shift". On the new
-    shift's page, under "Assign someone", choose a person in "Who?" and click "Check" (if it says
-    they can't work it, and why, choose someone else), then "Assign …". It says "… is booked on this shift. They'll get a message to say so.", and the "Confirmed:
-    …" message appears in the dev window.
-28. **Move it, then cancel the booking.** Under "Move, shorten or cancel", set "New start" to 11:00
-    and "New finish" to 19:00, choose the reason "The event's times or place changed", and click
-    "Move for everyone booked". It says "Moved. 1 person booked will be told." Then click "Cancel
-    …'s booking", choose "Weather or safety", and click "Yes, cancel …'s booking": "Cancelled
-    …'s booking with … notice. They'll be told."
+    session's page, open its "…" menu (top right) and click "Assign someone": a panel opens.
+    Choose a person in "Who?" and click "Check" (if it says they can't work it, and why, choose
+    someone else), then "Assign …". It says "… is booked on this shift. They'll get a message to
+    say so.", and the "Confirmed: …" message appears in the dev window.
+28. **Move it, then cancel the booking.** Close the panel, open the "…" menu again and click "Move,
+    shorten or cancel": set "New start" to 11:00 and "New finish" to 19:00, choose the reason "The
+    event's times or place changed", and click "Move for everyone booked". It says "Moved. 1 person
+    booked will be told." Close the panel: under "Casuals for this session", "Booked" lists them.
+    Click "Cancel …'s booking", choose "Weather or safety", and click "Yes, cancel …'s booking":
+    "Cancelled …'s booking with … notice. They'll be told."
 29. **A whole event, and an import.** Click "Events & sessions", then "Add shifts": give the event a
     name (for example "Cup final"), pick a date and fill in two lines (for example a steward 08:00 to 16:00 and a door supervisor 20:00 to 04:00),
     then click "Create these shifts". It says "2 shifts created." Then make the sample files in

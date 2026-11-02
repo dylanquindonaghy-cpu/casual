@@ -98,6 +98,7 @@ it.
 | `cancellation_ack` | Utility | "We've recorded your cancellation of {date} {start} at {site} (ref {ref}). — {firm} Shift Team" |
 | `shift_changed_by_firm` | Utility | "Change to your shift on {date} at {site}: {change}. New time: {start}–{end}. Details: {link}. — {firm} Shift Team" ({date} and {site} are the shift as it was; {change} is "the times have changed", "it's now shorter", "it's now at {new site}" or "new times, and it's now at {new site}"; {start} names the day too when the shift moved to another day; "at {site}" left out when there was none. Sent to each booked worker when the office moves or shortens a shift, `src/lib/notices/firm-change.ts`) |
 | `shift_cancelled_by_firm` | Utility | "Your shift on {date} {start}–{end} at {site} has been cancelled by the office. Open shifts: {link}. — {firm} Shift Team" ("at {site}" left out when there's none. Sent when the office cancels a shift, or someone's booking) |
+| `shift_not_booked` | Utility | "Not this time: you're not booked for {date} {start}–{end} at {site} ({role}). Thanks for asking. Open shifts: {link}. — {firm} Shift Team" ("at {site}" left out when there's none: `shift_not_booked_no_site`. Phase 26.6, "Casuals ask, you choose": sent when the office answers a casual's "I can do this" with "Not this time", or the session fills with others while they wait, `src/lib/notices/ask-answer.ts`; one the office books gets `shift_confirmed`. Nobody is told when the office cancels or moves the session: they may ask again. Quiet hours hold it unless the session starts within the urgent window) |
 | `request_update` | Utility | "Your request ({type}, ref {ref}) is {status}. The office says: {note} — {firm} Shift Team" ({type} is the kind in words: "time change", "swap", "availability", "question" or "review"; {status} "approved" or "declined", and "answered" for a question the office answered ("approved" can read as "booked"); {note} is the office's note on one line; "The office says: {note}" is left out when there isn't one: `request_update_no_note`. Sent when the office answers a request, `src/lib/notices/request-update.ts`, and as the office's reply on Enquiries outside WhatsApp's 24-hour window, below) |
 | `credential_expiring` | Utility | "Your {credential} expires on {date}. Upload your renewed card so you can keep taking shifts that need it: {link} — {firm} Shift Team" ({link}: her upload page for it, `/profile/upload/{type}`; 12F.2). One she can't upload (the office records it, or none of her roles needs it), `credential_expiring_to_office`: "Your {credential} expires on {date}. Renew it and send the new details to the office so you can keep taking shifts. — {firm} Shift Team" |
 | `credential_expired` | Utility | "Your {credential} expired on {date}. You can't take shifts that need it until you upload your renewed card and the office checks it: {link} — {firm} Shift Team". One she can't upload, `credential_expired_to_office`: "Your {credential} expired on {date}. You can't take shifts that need it until you renew it and send the new details to the office. — {firm} Shift Team" |
@@ -255,6 +256,7 @@ never a person's name), not one per firm (PLAN.md Parking lot, P2.4).
 - Reminder, 2 hours before (`shift_reminder_2h`): subject "Your shift starts at {start}"
 - The office's change (`shift_changed_by_firm`): subject "Change to your shift on {date}"
 - The office's cancellation (`shift_cancelled_by_firm`): subject "Your shift on {date} is cancelled"
+- Not chosen from an ask (`shift_not_booked`): subject "Not this time: {date}"
 - A request's answer (`request_update`): subject "Your request (ref {ref}) is {status}"
 - A pay query's answer (`pay_query_update`): subject "Payroll has answered your pay query"
 - The office's reply on Enquiries: subject "A reply from {firm}"; body "{words} — {firm} Shift Team"
@@ -361,6 +363,9 @@ person." and the sign-off. Nothing goes by WhatsApp, text or email.
   office's change notices)
 - Booked: "Shift booked" / "{date} {start} at {site}. Tap for details." (built: `bookedPush()`, with
   `shift_confirmed` when the office books a worker; tapping opens the shift)
+- Not booked from an ask: "Not this time" / "{date} {start} at {site}. See other open shifts."
+  (built: `notBookedPush()`, with `shift_not_booked`; no site: "{date} {start}. See other open
+  shifts."; tapping opens Open shifts)
 - Request update: "Request {status}" / "{type} — tap to view." (built: `requestUpdatePush()`, with
   the office's answer; {type} as the list names it, "Time change"; tapping opens My requests)
 - Pay query update: "Pay query sorted" / "Payroll has answered. Open your pay page to see it."

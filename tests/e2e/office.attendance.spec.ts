@@ -77,7 +77,8 @@ test("mark who worked a shift that ended: one not attended, the rest worked, a m
   await expect(rest).toHaveCount(0);
   await expect(page.getByText("Marked 2 people as worked.")).toBeVisible();
   await page.reload();
-  const places = page.getByRole("region", { name: "Places" });
+  // The session's Booked list (round 8, Phase 26.6: the casuals' Booked tab).
+  const places = page.getByRole("region", { name: "Booked places" });
   await expect(places.getByText(`${first}: Worked`)).toBeVisible();
   await expect(places.getByText(`${second}: Didn't attend`)).toBeVisible();
   await expect(places.getByText(`${third}: Worked`)).toBeVisible();
@@ -87,6 +88,8 @@ test("mark who worked a shift that ended: one not attended, the rest worked, a m
   await expect(page.getByText(`Marked ${second} as worked.`)).toBeVisible();
   await page.reload();
   await expect(places.getByText(`${second}: Worked`)).toBeVisible();
+  // The history is a tab away.
+  await page.goto(`${acme}/office/shifts/${shiftId}?tab=history`);
   const history = page.getByRole("region", { name: "History" });
   await expect(
     history.getByText(`marked ${second} as worked (was: not attended).`, { exact: false }),

@@ -2137,3 +2137,16 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
 - **The street map's file for each server** (Phase 26.2): the map shows streets only once someone
   puts a UK `.pmtiles` file in the server's `maps` folder and sets `MAP_TILES_URL`
   (`docs/runbooks.md` "The street map"). The demo server too, if the demo should show streets.
+- **Asks left waiting when a session starts** (Phase 26.6): an ask the office never answered stays
+  "asked" once the session has started (the casual's app no longer shows the session). Nobody is
+  told. A small job could close them at the start and send `shift_not_booked`; only if the pilot
+  shows offices leaving asks unanswered.
+- **A casual taking back an ask** (Phase 26.6): "I can do this" can't be undone in the app before
+  the office answers; a casual who can't make it any more tells the office (or cancels once
+  booked, as any booking). Add "I can't do it any more" if the pilot asks for it.
+- **Asks in the retention purge** (Phase 26.6): `session_asks` rows are kept like offers (never
+  deleted by the app); add them to the year-old purge with offers when that decision is taken
+  (decisions-waiting "Before the pilot's data is a year old").
+- **A sheet's or file import's retime and asks** (Phase 26.6 review): a session the rota sheet or a
+  re-import moves (nobody booked) keeps its asks open, as it keeps its offers out (neither path
+  expires them). Close both there too before a Sheets firm turns on "Casuals ask, you choose".

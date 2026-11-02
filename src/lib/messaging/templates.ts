@@ -330,6 +330,25 @@ export function shiftConfirmedMessage(
   return `Confirmed: ${shift.date} ${shift.start}–${shift.end}${at} (${shift.role.replace(/_/g, " ")}). Details and instructions: ${shift.link}. — ${firm.signOff}`;
 }
 
+// shift_not_booked (WhatsApp or SMS, utility; Phase 26.6, ses-6): a casual asked for a session the
+// office chooses for ("I can do this"), and wasn't booked: the office said "Not this time", or it
+// filled with others while they waited (src/lib/notices/ask-answer.ts). "at {site}" left out when
+// there's none (`shift_not_booked_no_site`). One the office books hears `shift_confirmed` instead.
+export function shiftNotBookedMessage(
+  firm: FirmVoice,
+  shift: {
+    role: string;
+    site: string | null;
+    date: string;
+    start: string;
+    end: string;
+    link: string;
+  },
+): string {
+  const at = shift.site ? ` at ${shift.site}` : "";
+  return `Not this time: you're not booked for ${shift.date} ${shift.start}–${shift.end}${at} (${shift.role.replace(/_/g, " ")}). Thanks for asking. Open shifts: ${shift.link}. — ${firm.signOff}`;
+}
+
 // request_update (WhatsApp or SMS, utility): the office answered a worker's request. {type} is the
 // kind in words ("time change"), {status} "approved" or "declined", {note} the office's note on
 // one line. With no note, "The office says: {note}" is left out (request_update_no_note: WhatsApp
@@ -382,6 +401,10 @@ export function shiftUrgentEmailSubject(shift: { role: string; day: string }): s
 
 export function shiftConfirmedEmailSubject(shift: { date: string }): string {
   return `Confirmed: your shift on ${shift.date}`;
+}
+
+export function notBookedEmailSubject(shift: { date: string }): string {
+  return `Not this time: ${shift.date}`;
 }
 
 export function shiftReminder24hEmailSubject(shift: { day: string }): string {
@@ -804,6 +827,18 @@ export function bookedPush(shift: { site: string | null; date: string; start: st
 } {
   const at = shift.site ? ` at ${shift.site}` : "";
   return { title: "Shift booked", body: `${shift.date} ${shift.start}${at}. Tap for details.` };
+}
+
+// Push: a casual's ask wasn't chosen (shift_not_booked). Tapping opens Open shifts.
+export function notBookedPush(shift: { site: string | null; date: string; start: string }): {
+  title: string;
+  body: string;
+} {
+  const at = shift.site ? ` at ${shift.site}` : "";
+  return {
+    title: "Not this time",
+    body: `${shift.date} ${shift.start}${at}. See other open shifts.`,
+  };
 }
 
 // Push (title / body): the office answered a request. {Type} is the kind as the list names it

@@ -362,7 +362,9 @@ describe("a session row with every field", () => {
     // The "…" menu reaches today's forms.
     expect(html).toContain('aria-label="More for Door supervisor 08:00–16:00"');
     expect(html).toContain('href="/office/offer/11111111-1111-4111-8111-111111111111"');
-    expect(html).toContain('href="/office/shifts/11111111-1111-4111-8111-111111111111#assign"');
+    expect(html).toContain(
+      'href="/office/shifts/11111111-1111-4111-8111-111111111111?panel=assign"',
+    );
     // It's urgent: the menu offers to clear that.
     expect(words).toContain("Not urgent");
     expect(html).toContain('aria-label="Not urgent: Door supervisor 08:00–16:00"');

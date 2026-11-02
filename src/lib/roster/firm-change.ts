@@ -3,6 +3,7 @@ import { z } from "zod";
 import { systemClock, type Clock } from "../auth/clock";
 import { retryAborted } from "../db/retry";
 import { firms, offers, shifts, sites } from "../db/schema";
+import { closeAsksOnChange } from "./asks";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { queueFirmChangeNotice } from "../notices/firm-change";
@@ -281,6 +282,8 @@ async function moveInTx(
     .update(offers)
     .set({ response: "expired", respondedAt: now })
     .where(and(eq(offers.shiftId, shiftId), isNull(offers.response)));
+  // Asks for the old time close too, untold: they may ask again for the new one (Phase 26.6).
+  await closeAsksOnChange(tx, shiftId, now, "moved");
 
   const actor = callerActor(by);
   const marks = callerMarks(by);

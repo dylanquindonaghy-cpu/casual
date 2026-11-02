@@ -18,6 +18,8 @@ import {
   historyWhen,
   NO_CANCELLATIONS,
   NO_HISTORY,
+  noInterestText,
+  CHOOSE_WHO,
   offerLaterLine,
   SEE_IN_LOG,
   SHOWING_CHIP,
@@ -25,6 +27,7 @@ import {
   type EventTab,
 } from "@/lib/office/event-page-copy";
 import { officeEventPage } from "@/lib/office/events";
+import { roleLabel, shiftWhen } from "@/lib/portal/format";
 import { eventStatus, eventSummary, spansDays, uniqueSessionNames } from "@/lib/office/events-copy";
 import { SessionItem } from "../session-row";
 import { OfferOpenPlaces, ShowHideButton } from "./event-actions";
@@ -58,8 +61,13 @@ export default async function EventPage({
   const counts: Partial<Record<EventTab, number>> = {
     staffing: st.needed,
     overview: e.sessionCount,
+    interested: data.interested.filter((a) => a.waiting).length,
     cancellations: st.cancellations.length,
   };
+  // The Interested tab's asks, one group per session.
+  const bySession = new Map<string, typeof data.interested>();
+  for (const a of data.interested)
+    bySession.set(a.shiftId, [...(bySession.get(a.shiftId) ?? []), a]);
   return (
     <main className={`${page.office} @container`}>
       <nav aria-label="Breadcrumb" className="mb-3 text-sm text-ink-muted">
@@ -137,6 +145,51 @@ export default async function EventPage({
       )}
 
       {current === "overview" && <OverviewTab data={data} />}
+
+      {current === "interested" && (
+        <section aria-labelledby="event-interested" className="glass rounded-inner p-4">
+          <h2 id="event-interested" className="px-1 text-lg font-semibold text-ink">
+            {EVENT_TAB_WORDS.interested}
+          </h2>
+          {bySession.size === 0 ? (
+            <p className={`${headingGap} rounded-row glass-tile p-4 text-sm text-ink-muted`}>
+              {noInterestText(data.casualsAsk)}
+            </p>
+          ) : (
+            <ul role="list" className={`${headingGap} flex flex-col gap-3`}>
+              {[...bySession.entries()].map(([shiftId, asks]) => {
+                const first = asks[0];
+                if (!first) return null;
+                const name = `${roleLabel(first.role)}, ${shiftWhen(first.startsAt, first.endsAt, tz)}`;
+                return (
+                  <li key={shiftId} className="rounded-row glass-tile p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <b className="font-semibold text-ink">{name}</b>
+                      <Link
+                        href={`/office/shifts/${shiftId}?show=asked`}
+                        aria-label={`${CHOOSE_WHO}: ${name}`}
+                        className={btn.secondary}
+                      >
+                        {CHOOSE_WHO}
+                      </Link>
+                    </div>
+                    <ul role="list" className="mt-2 flex flex-wrap gap-2 text-sm">
+                      {asks.map((a) => (
+                        <li key={`${a.name}-${a.askedAt.toISOString()}`}>
+                          <StatusChip tone={a.waiting ? "wait" : "quiet"}>
+                            {a.name}
+                            {a.waiting ? "" : ": not this time"}
+                          </StatusChip>
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
 
       {current === "cancellations" && (
         <section aria-labelledby="event-cancellations" className="glass rounded-inner p-4">

@@ -11,6 +11,13 @@ export const LOG_TYPES = {
       "shift.booking_refused",
       "roster.sheet_booking_refused",
       "booking.kept",
+      // "Casuals ask, you choose" (Phase 26.6): a casual's ask, the rules' no to one, the office's
+      // "Not this time", and asks closed when the session filled, was cancelled or moved.
+      "shift.asked",
+      "shift.ask_refused",
+      "shift.ask_declined",
+      "shift.ask_closed",
+      "shift.asks_closed",
     ],
   },
   cancellations: {
@@ -54,6 +61,8 @@ export const LOG_TYPES = {
       "event.hidden",
       "session.shown",
       "session.hidden",
+      "event.asks_on", // Phase 26.6: the event's "Casuals ask, you choose"
+      "event.asks_off",
       "shift.escalated",
       "shift.escalation_emailed",
       "shift.escalation_failed",
@@ -89,6 +98,12 @@ export const LOG_TYPES = {
       "shift.booked_notice_failed",
       "shift.booked_notice_held",
       "shift.booked_notice_skipped",
+      // Telling a casual who asked that they weren't booked (Phase 26.6).
+      "shift.ask_answer_notice",
+      "shift.ask_answer_sent",
+      "shift.ask_answer_failed",
+      "shift.ask_answer_held",
+      "shift.ask_answer_skipped",
       "shift.reminder_sent",
       "shift.reminder_failed",
       "shift.reminder_skipped",

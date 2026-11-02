@@ -321,6 +321,7 @@ fix (the offer-wave timing tests failing from 09:00 that day) into the review's 
 | # | Decision | Built as (the safe default) | The other way | Where |
 |---|---|---|---|---|
 | 10 | How far ahead an event's "Offer N open places" (Phase 26.5) offers | Only sessions starting within the firm's urgent window (`urgent_window_hours`, 24 by default); one further ahead is offered from its own card ("Offer to the best 5"), one at a time. The page says how many start further ahead. | Every open session of the event, however far ahead. Urgent offers aren't held to a casual's daily limit (3 a day), so one press on an event two weeks out with 15 open sessions could send the same few door supervisors up to 15 offers in minutes (the guardrails review's M3). | `src/lib/office/event-offers.ts`; docs/screens.md "An event's page, round 8" |
+| 11 | Whether an offer still books itself on an event where "Casuals ask, you choose" is on (Phase 26.6) | Yes: a casual holding an offer of the session (the office's own, or its waves' after the office marked it urgent) taps "Take shift" as before; everyone else asks. The office chose to offer it to them, and urgent sessions keep filling at once. | Everyone asks, offered or not: an offer would then only invite them to ask, and an urgent session in such an event waits for the office to book from the list. | `src/lib/roster/asks.ts` (`officeChooses`); docs/screens.md "A session, and who wants it" |
 
 ### Checks and to-dos (not choices)
 

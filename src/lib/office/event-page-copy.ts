@@ -22,14 +22,29 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 
 // The tabs (`?tab=`): Staffing first (the page's point), then the list as it was (Overview), the
 // event's cancellations and its history. "Interested" comes with casuals asking (Phase 26.6).
-export const EVENT_TABS = ["staffing", "overview", "cancellations", "history"] as const;
+export const EVENT_TABS = [
+  "staffing",
+  "overview",
+  "interested",
+  "cancellations",
+  "history",
+] as const;
 export type EventTab = (typeof EVENT_TABS)[number];
 export const EVENT_TAB_WORDS: Record<EventTab, string> = {
   staffing: "Staffing",
   overview: "Overview",
+  interested: "Interested",
   cancellations: "Cancellations",
   history: "History",
 };
+
+// The Interested tab (Phase 26.6, evt-2): who asked for its sessions to come.
+export function noInterestText(casualsAsk: boolean): string {
+  return casualsAsk
+    ? 'Nobody has asked for a session yet. Casuals see "I can do this" on this event\'s sessions.'
+    : 'Casuals take places on this event. Switch on "Casuals ask, you choose" on a session\'s page to choose from who asks.';
+}
+export const CHOOSE_WHO = "Choose who works it";
 export const eventTabHref = (eventId: string, tab: EventTab) =>
   tab === "staffing" ? `/office/events/${eventId}` : `/office/events/${eventId}?tab=${tab}`;
 

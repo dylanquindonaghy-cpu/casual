@@ -44,6 +44,9 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   assignments: NO_DELETE,
   requests: NO_DELETE,
   offers: NO_DELETE,
+  // Casuals' asks for a session (Phase 26.6): added and answered, never deleted (the evidence of
+  // who asked and what they were told); only their status and times change (COLUMN_UPDATES).
+  session_asks: ["SELECT", "INSERT"],
   // Each reminder a booking got (or why not): evidence in a no-show dispute.
   shift_reminders: NO_DELETE,
   metrics_daily: NO_DELETE, // pilot figures: corrected, never removed (the week-4 report's evidence)
@@ -118,7 +121,8 @@ export const COLUMN_UPDATES: Readonly<Record<string, readonly string[]>> = {
     "sync_started_at",
   ],
   connector_events: ["status", "outcome_code", "processed_at"],
-  shift_events: ["showing_to_casuals", "name"],
+  shift_events: ["showing_to_casuals", "name", "casuals_ask"],
+  session_asks: ["status", "asked_at", "answered_at"],
   // The planner's API keys (S11): read and added, never rewritten or deleted; only the last use
   // and the revocation change.
   api_keys: ["last_used_at", "revoked_at", "revoked_by"],

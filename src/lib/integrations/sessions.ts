@@ -12,6 +12,7 @@ import {
   shifts,
   sites,
 } from "../db/schema";
+import { closeAsksOnChange } from "../roster/asks";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { AgreementNotRecorded, requireAgreementForImport } from "../imports/gate-b";
@@ -795,6 +796,8 @@ async function update(p: Put, held: Held): Promise<ApiResult> {
         .update(offers)
         .set({ response: "expired", respondedAt: p.now })
         .where(and(eq(offers.shiftId, shiftId), isNull(offers.response)));
+      // Asks for the old session close too (Phase 26.6): they may ask for the new one.
+      await closeAsksOnChange(p.tx, shiftId, p.now, "moved");
       await queueTravelEstimates(p.tx, [shiftId]);
     }
     await logged(p, "shift.changed", "shift", shiftId, {

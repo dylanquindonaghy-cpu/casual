@@ -821,10 +821,12 @@ describe("round 7's parts on the office's other pages", () => {
     // page is 22px (rounded-inner), a row 14px.
     const big = /(?<![\w-])(?:[a-z0-9-]+:)*rounded-(?:[trblse]{1,2}-)?card(?![\w-])/;
     const bigFiles = OFFICE.filter((file) => big.test(code(read(file))));
+    // A session's slide-in panel (Phase 26.6) floats beside the page as Customise's does.
     expect(bigFiles).toEqual([
       "src/app/office/customise-panel.tsx",
       "src/app/office/dashboard/offer-panel.tsx",
       "src/app/office/office-rail.tsx",
+      "src/app/office/shifts/[id]/session-panel.tsx",
     ]);
     expect(
       Object.entries(classes)

@@ -99,9 +99,10 @@ describe("the office's sticky top bar never hides what the keyboard moves to (WC
     ])
       expect(read(file), file).not.toMatch(/scroll-mt-/);
     // The places they land on are still there.
-    expect(read("src/app/office/shifts/[id]/page.tsx")).toContain(
-      '<h2 id="assign" className={h2}>',
-    );
+    // A session's forms are its slide-in panels now (Phase 26.6, `?panel=assign`): the panel's
+    // heading takes the focus, so nothing lands under the bar.
+    expect(read("src/app/office/shifts/[id]/page.tsx")).toContain('panel === "assign"');
+    expect(read("src/app/office/shifts/[id]/session-panel.tsx")).toContain('id="panel-title"');
     expect(read("src/app/office/casuals/[id]/upload-checks.tsx")).toContain(
       '<section className={card} aria-labelledby="uploads-heading" id="uploads">',
     );

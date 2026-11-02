@@ -25,6 +25,8 @@ import {
   shiftCancelledByFirmMessage,
   shiftChangedByFirmMessage,
   shiftConfirmedMessage,
+  shiftNotBookedMessage,
+  notBookedPush,
   shiftEscalationEmail,
   officeCancelPush,
   officeOpenPush,
@@ -129,6 +131,7 @@ describe("the doc's templates table", () => {
       "cancellation_ack",
       "shift_changed_by_firm",
       "shift_cancelled_by_firm",
+      "shift_not_booked",
       "request_update",
       "credential_expiring",
       "credential_expired",
@@ -153,6 +156,7 @@ describe("the doc's templates table", () => {
     "shift_changed_by_firm",
     "shift_cancelled_by_firm",
     "shift_confirmed",
+    "shift_not_booked",
     "request_update",
     "pay_query_update",
     "voicemail_received",
@@ -228,6 +232,21 @@ describe("the code says what the doc says", () => {
     expect(shiftConfirmedMessage(docVoice, shift)).toBe(docBody("shift_confirmed"));
     expect(shiftConfirmedMessage(docVoice, { ...shift, site: null })).toBe(
       docBody("shift_confirmed").replace(" at {site}", ""),
+    );
+  });
+
+  it("shift_not_booked, with and without a site", () => {
+    const shift = {
+      role: "{role}",
+      site: "{site}",
+      date: "{date}",
+      start: "{start}",
+      end: "{end}",
+      link: "{link}",
+    };
+    expect(shiftNotBookedMessage(docVoice, shift)).toBe(docBody("shift_not_booked"));
+    expect(shiftNotBookedMessage(docVoice, { ...shift, site: null })).toBe(
+      docBody("shift_not_booked").replace(" at {site}", ""),
     );
   });
 
@@ -909,6 +928,7 @@ describe("every message to a worker ends with the firm's sign-off (golden rule 8
     ],
     ["shift_offer", shiftOfferMessage(voice, { ...shift, date: "Sat 7 Nov", link: "L" })],
     ["shift_confirmed", shiftConfirmedMessage(voice, { ...shift, date: "Sat 7 Nov", link: "L" })],
+    ["shift_not_booked", shiftNotBookedMessage(voice, { ...shift, date: "Sat 7 Nov", link: "L" })],
     ["shift_offer (SMS)", shiftOfferSms(voice, { ...shift, date: "Sat 7 Nov", link: "L" })],
     ["shift_urgent", shiftUrgentMessage(voice, { ...shift, link: "L" })],
     ["shift_urgent (SMS)", shiftUrgentSms(voice, { ...shift, link: "L" })],
@@ -966,6 +986,18 @@ describe("the pushes", () => {
     });
   });
 
+  it("not booked from an ask (Phase 26.6)", () => {
+    const [title, body, noSiteBody] = quotes(push, "Not booked from an ask:");
+    expect(notBookedPush({ site: "{site}", date: "{date}", start: "{start}" })).toEqual({
+      title,
+      body,
+    });
+    expect(notBookedPush({ site: null, date: "{date}", start: "{start}" })).toEqual({
+      title,
+      body: noSiteBody,
+    });
+  });
+
   it("request update", () => {
     const [title, body] = quotes(push, "Request update:");
     expect(requestUpdatePush({ type: "{type}", status: "{status}" })).toEqual({ title, body });
@@ -1016,6 +1048,9 @@ describe("emails to casuals: their subjects", () => {
     );
     expect(templates.shiftConfirmedEmailSubject({ date: "{date}" })).toBe(
       subject("Booking confirmation (`shift_confirmed`)"),
+    );
+    expect(templates.notBookedEmailSubject({ date: "{date}" })).toBe(
+      subject("Not chosen from an ask (`shift_not_booked`)"),
     );
     expect(templates.shiftReminder24hEmailSubject({ day: "{day}" })).toBe(
       subject("Reminder, the day before (`shift_reminder_24h`)"),
@@ -1073,6 +1108,9 @@ describe("every template function is checked here", () => {
         "credentialExpiringMessage",
         "credentialWeeklyListEmail",
         "bookedPush",
+        "notBookedPush",
+        "notBookedEmailSubject",
+        "shiftNotBookedMessage",
         "changeWords",
         "firmChangePush",
         "loginCodeMessage",
@@ -1198,6 +1236,24 @@ describe("the WhatsApp submission pack", () => {
         start: ex("shift_confirmed", "start"),
         end: ex("shift_confirmed", "end"),
         link: ex("shift_confirmed", "link"),
+      }),
+    shift_not_booked: () =>
+      shiftNotBookedMessage(voice("shift_not_booked"), {
+        role: ex("shift_not_booked", "roleName").replace(/ /g, "_"),
+        site: ex("shift_not_booked", "site"),
+        date: ex("shift_not_booked", "date"),
+        start: ex("shift_not_booked", "start"),
+        end: ex("shift_not_booked", "end"),
+        link: ex("shift_not_booked", "link"),
+      }),
+    shift_not_booked_no_site: () =>
+      shiftNotBookedMessage(voice("shift_not_booked_no_site"), {
+        role: ex("shift_not_booked_no_site", "roleName").replace(/ /g, "_"),
+        site: null,
+        date: ex("shift_not_booked_no_site", "date"),
+        start: ex("shift_not_booked_no_site", "start"),
+        end: ex("shift_not_booked_no_site", "end"),
+        link: ex("shift_not_booked_no_site", "link"),
       }),
     shift_confirmed_no_site: () =>
       shiftConfirmedMessage(voice("shift_confirmed_no_site"), {

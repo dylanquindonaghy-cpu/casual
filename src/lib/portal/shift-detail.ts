@@ -5,10 +5,12 @@ import {
   assignments,
   CANCELLED_ASSIGNMENT_STATUSES,
   requests,
+  sessionAsks,
   shiftEvents,
   shifts,
   sites,
 } from "../db/schema";
+import { officeChooses } from "../roster/asks";
 import type { FirmTx } from "../db/scoped";
 import { withFirm } from "../db/scoped";
 import { loadAllocationGate } from "../roster/allocation-input";
@@ -50,6 +52,15 @@ export type ShiftPage =
   | { state: "booked"; shift: MyShift; facts: ShiftFacts }
   | { state: "open"; shift: ShiftSummary; facts: ShiftFacts }
   | { state: "held"; shift: ShiftSummary; facts: ShiftFacts; opensAt: Date }
+  // "Casuals ask, you choose" (Phase 26.6): the office chooses who works it (its event's setting,
+  // and she holds no offer of it). She can ask ("I can do this"), has asked (when), or the office
+  // said "Not this time".
+  | {
+      state: "ask";
+      shift: ShiftSummary;
+      facts: ShiftFacts;
+      ask: { status: "ask" } | { status: "asked"; askedAt: Date } | { status: "not_this_time" };
+    }
   | {
       state: "blocked";
       shift: ShiftSummary;
@@ -218,6 +229,19 @@ export async function shiftForWorker(
         reasons: verdict.reasons,
         review: waiting ? { ref: refOf(waiting.id), askedAt: waiting.createdAt } : null,
       };
+    }
+    if (await officeChooses(tx, shiftId, workerId)) {
+      const [mineAsk] = await tx
+        .select({ status: sessionAsks.status, askedAt: sessionAsks.askedAt })
+        .from(sessionAsks)
+        .where(and(eq(sessionAsks.shiftId, shiftId), eq(sessionAsks.workerId, workerId)));
+      const ask =
+        mineAsk?.status === "asked"
+          ? { status: "asked" as const, askedAt: mineAsk.askedAt }
+          : mineAsk?.status === "not_this_time"
+            ? { status: "not_this_time" as const }
+            : { status: "ask" as const };
+      return { state: "ask", shift, facts: full, ask };
     }
     const gate = await loadAllocationGate(tx, { shiftId, workerId, now });
     return gate.ok

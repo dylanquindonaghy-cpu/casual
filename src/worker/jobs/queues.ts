@@ -17,6 +17,7 @@ import { PAY_QUERY_UPDATE_QUEUE } from "../../lib/notices/pay-query-update";
 import { ENQUIRY_REPLY_QUEUE } from "../../lib/notices/enquiry-reply";
 import { REQUEST_UPDATE_QUEUE } from "../../lib/notices/request-update";
 import { SHIFT_CONFIRMED_QUEUE } from "../../lib/notices/shift-confirmed";
+import { ASK_ANSWER_QUEUE } from "../../lib/notices/ask-answer";
 import { PAY_DIGEST_QUEUE, PAY_DIGEST_TICK_QUEUE } from "../../lib/pay/digest";
 import {
   OFFICE_ALERTS_TICK_QUEUE,
@@ -94,6 +95,7 @@ const FIRM_QUEUE_NAMES: readonly string[] = [
   OFFICE_OFFER_QUEUE,
   FIRM_CHANGE_NOTICE_QUEUE,
   SHIFT_CONFIRMED_QUEUE,
+  ASK_ANSWER_QUEUE,
   REQUEST_UPDATE_QUEUE,
   ENQUIRY_REPLY_QUEUE,
   METRICS_ROLLUP_QUEUE,

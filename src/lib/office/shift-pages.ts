@@ -8,15 +8,18 @@ import {
   credentialTypes,
   firms,
   officeUsers,
+  shiftEvents,
   shifts,
   sites,
   workers,
 } from "../db/schema";
+import { readRequirements } from "../credentials/requirements";
 import type { FirmTx } from "../db/scoped";
 import { previewBooking } from "../roster/book";
 import { OVERRIDABLE_CODES, type RuleCode } from "../rules/eligibility";
 import { localDateOf, wallTimeOf } from "../time/zoned";
 import { eventWords } from "./event-words";
+import { loadSessionCasuals, type CasualsFilters, type SessionCasuals } from "./session-casuals";
 
 // The office's shift pages (docs/screens.md `/office/shifts`, `/office/shifts/[id]`): reads only,
 // inside the firm (RLS scopes every row), for admins and resourcers. The session and role are
@@ -169,7 +172,15 @@ export interface ShiftDetail {
     fromImport: boolean;
     started: boolean;
     ended: boolean;
+    showing: boolean; // the session's own casuals switch (its event's is `event.showing`)
+    payRatePence: number | null;
+    post: string | null;
+    needs: string[]; // what it needs, by name (its role's qualifications, then its extras)
   };
+  // Its event (the breadcrumb, and "Casuals ask, you choose": Phase 26.6).
+  event: { id: string; name: string; showing: boolean; named: boolean };
+  // "Casuals for this session" (Phase 26.6): see src/lib/office/session-casuals.ts.
+  casuals: SessionCasuals;
   // The whole session's edit, move and cancel: not a sheet's or the planner's (changed there).
   edit: { date: string; start: string; end: string; editable: boolean };
   // Assigning someone and cancelling one booking: on the planner's sessions too (5.3.2).
@@ -222,6 +233,7 @@ export async function officeShiftDetail(
   token: string,
   shiftId: string,
   checkWorkerId?: string,
+  filters: CasualsFilters = {},
 ): Promise<ShiftDetail | null> {
   if (!z.uuid().safeParse(shiftId).success) return null;
   return asOffice(ctx, token, async (tx, now) => {
@@ -243,9 +255,18 @@ export async function officeShiftDetail(
         meetingPoint: shifts.meetingPoint,
         uniform: shifts.uniform,
         requiredCredentials: shifts.requiredCredentials,
+        showing: shifts.showingToCasuals,
+        eventId: shifts.shiftEventId,
+        eventName: shiftEvents.name,
+        eventShowing: shiftEvents.showingToCasuals,
+        eventKey: shiftEvents.plannerRef,
       })
       .from(shifts)
       .leftJoin(sites, and(eq(sites.firmId, shifts.firmId), eq(sites.id, shifts.siteId)))
+      .innerJoin(
+        shiftEvents,
+        and(eq(shiftEvents.firmId, shifts.firmId), eq(shiftEvents.id, shifts.shiftEventId)),
+      )
       .where(eq(shifts.id, shiftId));
     if (!s) return null;
     const form = await formData(tx);
@@ -397,6 +418,12 @@ export async function officeShiftDetail(
         fromImport: s.source === "csv",
         started,
         ended: s.endsAt.getTime() <= now.getTime(),
+        showing: s.showing,
+        payRatePence: s.payRatePence,
+        post: s.post,
+        needs: (await readRequirements(tx, [s.role]))
+          .of(s.role, s.requiredCredentials)
+          .map((n) => n.name),
       },
       edit: {
         date: localDateOf(s.startsAt, tz),
@@ -448,6 +475,29 @@ export async function officeShiftDetail(
       })),
       people,
       check,
+      event: {
+        id: s.eventId,
+        name: s.eventName,
+        showing: s.eventShowing,
+        // An automatic event (a site and day's) only repeats the site and date.
+        named: !(s.eventKey ?? "").startsWith("auto:"),
+      },
+      casuals: await loadSessionCasuals(
+        tx,
+        {
+          shiftId,
+          eventId: s.eventId,
+          role: s.role,
+          siteId: s.siteId,
+          startsAt: s.startsAt,
+          headcount: s.headcount,
+          status: s.status,
+          requiredCredentials: s.requiredCredentials,
+          timeZone: tz,
+        },
+        now,
+        filters,
+      ),
     };
   });
 }

@@ -11,6 +11,7 @@ import {
   shifts,
   sites,
 } from "../db/schema";
+import { closeAsksOnChange } from "../roster/asks";
 import type { FirmTx } from "../db/scoped";
 import { withFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
@@ -436,6 +437,8 @@ export async function editShift(
         .update(offers)
         .set({ response: "expired", respondedAt: now })
         .where(and(eq(offers.shiftId, shiftId), isNull(offers.response)));
+      // Asks for the old session close too (Phase 26.6): they may ask for the new one.
+      await closeAsksOnChange(tx, shiftId, now, "moved");
       await queueTravelEstimates(tx, [shiftId]);
     }
     await recordEvent(tx, {

@@ -30,6 +30,7 @@ export type TakeShiftOutcome =
   | { status: "gone" } // not open any more, or not there
   | { status: "not_eligible"; reasons: string[] }
   | { status: "try_again" } // the firm's sheet copy is too old to confirm against
+  | { status: "ask_first" } // the office chooses who works it now (Phase 26.6): she asks instead
   | { status: "not_yet"; opensAt: string } // fair rotation: held for others until this time
   | { status: "rate_limited"; retryAfterMinutes: number } // too many taps (LIMITS.takePerWorker)
   | { status: "logged_out" }
@@ -103,6 +104,8 @@ export async function takeShift(
       return { status: "not_eligible", reasons: result.reasons };
     case "source_stale":
       return { status: "try_again" };
+    case "ask_first":
+      return { status: "ask_first" };
     case "not_yet":
       return {
         status: "not_yet",

@@ -104,6 +104,11 @@ async function everything() {
      values ($1, $2, $3, 1, 'whatsapp', 'accepted', $4)`,
     [b.firmId, past, worker, hoursFromNow(-80)],
   );
+  const ask = await one(
+    `insert into session_asks (firm_id, shift_id, worker_id, status, asked_at, answered_at)
+     values ($1, $2, $3, 'not_this_time', $4, $5)`,
+    [b.firmId, past, worker, hoursFromNow(-90), hoursFromNow(-85)],
+  );
   const reminder = await one(
     `insert into shift_reminders (firm_id, assignment_id, kind, starts_at, status, channel)
      values ($1, $2, '24h', $3, 'sent', 'whatsapp')`,
@@ -259,6 +264,7 @@ async function everything() {
       booking,
       cancelled,
       offer,
+      ask,
       reminder,
       question,
       timeChange,
@@ -340,6 +346,13 @@ describe("a worker's data export", () => {
       noticeHours: "20.00",
     });
     expect(idsIn(s.offers)).toEqual([t.ids.offer]);
+    expect(s.asks).toEqual([
+      expect.objectContaining({
+        id: t.ids.ask,
+        status: "not_this_time",
+        shiftId: expect.any(String),
+      }),
+    ]);
     expect(idsIn(s.shiftReminders)).toEqual([t.ids.reminder]);
     expect(idsIn(s.requests).sort()).toEqual([t.ids.question, t.ids.timeChange, t.ids.swap].sort());
     expect(idsIn(s.payRecords)).toEqual([t.ids.payRecord]);

@@ -10,6 +10,7 @@ import {
   workers,
   type CancelAsker,
 } from "../db/schema";
+import { closeAsksOnChange } from "./asks";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { officeCanPlace, plugFor, rosterId } from "./book";
@@ -449,6 +450,8 @@ async function cancelShiftInTransaction(
     .update(offers)
     .set({ response: "expired", respondedAt: now })
     .where(and(eq(offers.shiftId, shiftId), isNull(offers.response)));
+  // Asks still waiting close, untold: the session won't happen (Phase 26.6).
+  await closeAsksOnChange(tx, shiftId, now, "cancelled");
   await recordEvent(tx, {
     ...actor,
     action: "shift.cancelled_by_firm",

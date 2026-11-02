@@ -10,7 +10,7 @@ import {
 import { seedFirms } from "../../src/lib/db/admin/seed-data";
 import { acmeSaturday } from "../../src/lib/db/admin/seed-saturday";
 import { setFirmSetting } from "./db";
-import { accountMenu, DASHBOARD_HEADING, menuLink } from "./fixtures";
+import { accountMenu, DASHBOARD_HEADING, menuLink, sessionPanel } from "./fixtures";
 import { emailSentTo, readOutbox, sentTo } from "./outbox";
 
 // docs/walkthrough.md, step by step (Phase 10 task 20): what Dylan does on his own computer, done
@@ -452,23 +452,24 @@ test("Part 3: as the office", async ({ browser }) => {
   });
 
   await test.step("26. Mark who worked", async () => {
-    // The dashboard's Who worked? (Phase 26.4): yesterday's racecourse session's line opens it.
+    // The dashboard's Who worked? (Phase 26.4): yesterday's racecourse sessions (three alike ones,
+    // together under one line), each person with Worked and Didn't attend, marked right there.
     await page.goto(`${acme}/office`);
-    await page
-      .locator('section#who-worked a[href^="/office/shifts/"]', {
-        hasText: "Acme Demo Racecourse",
-      })
-      .first()
-      .click();
-    await expect(page.getByText("Mark who worked it and who didn't attend.")).toBeVisible();
-    const mark = page.getByRole("button", { name: /^Mark as worked: / }).first();
-    // The person's name is in the button's label (it shows "Mark as worked").
-    const name = ((await mark.getAttribute("aria-label")) ?? "").replace(/^Mark as worked: /, "");
+    const group = page
+      .locator("section#who-worked div.flex-col")
+      .filter({ hasText: "Acme Demo Racecourse" })
+      .first();
+    const mark = group
+      .getByRole("button", { name: / worked, \w{3} \d{1,2} \w{3} \d\d:\d\d$/ })
+      .first();
+    // The person's name starts the button's label ("Nathan Reid worked, Sun 1 Nov 10:30").
+    const name = ((await mark.getAttribute("aria-label")) ?? "").replace(/ worked, .*$/, "");
     await mark.click();
     await expect(page.getByText(`Marked ${name} as worked.`)).toBeVisible();
   });
 
   let booked = "";
+  let session = "";
   await test.step("27. Make a shift and book someone", async () => {
     await page.goto(`${acme}/office`);
     await (await menuLink(page, "Events & sessions")).click();
@@ -481,7 +482,10 @@ test("Part 3: as the office", async ({ browser }) => {
     await page.getByLabel("Places").fill("2");
     await page.getByRole("button", { name: "Create shift" }).click();
     await expect(page).toHaveURL(/\/office\/shifts\/[0-9a-f-]{36}$/);
-    await expect(page.getByText("0 of 2 booked · Open")).toBeVisible();
+    session = page.url();
+    await expect(page.getByText(/· 0 of 2 booked$/)).toBeVisible();
+    // "Assign someone" is in the session's "…" menu (Phase 26.6).
+    await sessionPanel(page, "Assign someone");
     const options = await page
       .getByLabel("Who?")
       .locator("option:not([disabled])")
@@ -506,6 +510,8 @@ test("Part 3: as the office", async ({ browser }) => {
   });
 
   await test.step("28. Move it, then cancel the booking", async () => {
+    await page.goto(session);
+    await sessionPanel(page, "Move, shorten or cancel");
     await page.getByLabel("New start").fill("11:00");
     await page.getByLabel("New finish").fill("19:00");
     await page
@@ -513,7 +519,8 @@ test("Part 3: as the office", async ({ browser }) => {
       .selectOption({ label: "The event's times or place changed" });
     await page.getByRole("button", { name: "Move for everyone booked" }).click();
     await expect(page.getByText(/^Moved\. 1 person booked will be told\./)).toBeVisible();
-    await page.reload();
+    // The booking is cancelled from the session's Booked list.
+    await page.goto(session);
     await page.getByText(`Cancel ${booked}'s booking`, { exact: true }).click();
     await page
       .locator("details[open]")

@@ -50,7 +50,7 @@ export function SessionMenu({
         )}
         {live && (
           <Link
-            href={`${page}#assign`}
+            href={`${page}?panel=assign`}
             aria-label={`Assign someone: ${name}`}
             className={`${btn.secondary} justify-start`}
           >

@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { accountMenu, expect, menuLink, test } from "./fixtures";
+import { accountMenu, expect, menuLink, sessionPanel, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
 // The office's shift screens in a real browser, on the demo seed: a resourcer creates a shift,
@@ -51,11 +51,20 @@ test("a resourcer creates a shift and assigns someone the rules allow", async ({
   await page.getByLabel("Places").fill("2");
   await page.getByRole("button", { name: "Create shift" }).click();
   await expect(page).toHaveURL(/\/office\/shifts\/[0-9a-f-]{36}$/);
-  await expect(page.getByRole("heading", { name: "Steward", level: 1 })).toBeVisible();
-  await expect(page.getByText("0 of 2 booked · Open")).toBeVisible();
-  await expect(page.getByText(/Created by /)).toBeVisible(); // the history
+  const session = page.url();
+  // Round 8 (Phase 26.6): the role and day, then its times and how full it is.
+  await expect(page.getByRole("heading", { name: /^Steward · /, level: 1 })).toBeVisible();
+  await expect(page.getByText(/· 0 of 2 booked$/)).toBeVisible();
+  // The history is a tab away.
+  await page
+    .getByRole("navigation", { name: "Show" })
+    .getByRole("link", { name: "History" })
+    .click();
+  await expect(page.getByText(/Created by /)).toBeVisible();
+  await page.goto(session);
 
-  // The session's own details (12B.1): pay in pounds an hour, a post.
+  // The session's own details (12B.1): pay in pounds an hour, a post (in its "…" menu's panel).
+  await sessionPanel(page, "Session details");
   await page.getByLabel("Pay rate, £ an hour (optional)").fill("12.50");
   await page.getByLabel("Post (optional)").fill("Gate A");
   await page.getByRole("button", { name: "Save details" }).click();
@@ -63,8 +72,14 @@ test("a resourcer creates a shift and assigns someone the rules allow", async ({
   await page.reload();
   await expect(page.getByLabel("Pay rate, £ an hour (optional)")).toHaveValue("12.50");
   await expect(page.getByLabel("Post (optional)")).toHaveValue("Gate A");
+  // "This session" shows them.
+  await page.goto(session);
+  const facts = page.getByRole("region", { name: "This session" });
+  await expect(facts.getByText("£12.50/hour")).toBeVisible();
+  await expect(facts.getByText("Gate A")).toBeVisible();
 
   // Check people in turn until the rules say yes, then assign them.
+  await sessionPanel(page, "Assign someone");
   const options = await page
     .getByLabel("Who?")
     .locator("option:not([disabled])")
@@ -82,7 +97,7 @@ test("a resourcer creates a shift and assigns someone the rules allow", async ({
   expect(name).not.toBe("");
   await page.getByRole("button", { name: `Assign ${name}` }).click();
   await expect(page.getByText(`${name} is booked on this shift.`)).toBeVisible();
-  await expect(page.getByText("1 of 2 booked · Open")).toBeVisible();
+  await expect(page.getByText(/· 1 of 2 booked$/)).toBeVisible();
 });
 
 test("several shifts for an event, and a file import checked first", async ({ page }) => {

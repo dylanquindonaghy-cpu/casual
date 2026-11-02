@@ -34,6 +34,7 @@ export const EXPECTED_TABLES = [
   "push_subscriptions",
   "requests",
   "roster_sources",
+  "session_asks",
   "sessions",
   "sheet_name_problems",
   "shift_events",
@@ -268,6 +269,12 @@ export async function createTenant(su: Pool): Promise<Tenant> {
     "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, 1, 'push')",
     [firmId, shiftId, rosterWorkerId],
   );
+  const sessionAskId = await one(
+    su,
+    `insert into session_asks (firm_id, shift_id, worker_id, asked_at)
+     values ($1, $2, $3, now())`,
+    [firmId, shiftId, rosterWorkerId],
+  );
   const webhookStatusId = await one(
     su,
     `insert into webhook_status (firm_id, address_set_at, last_delivered_at)
@@ -410,6 +417,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       assignments: assignmentId,
       requests: requestId,
       offers: offerId,
+      session_asks: sessionAskId,
       roster_sources: rosterSourceId,
       connector_events: connectorEventId,
       firm_secrets: secretId,
@@ -556,6 +564,15 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
   offers: (firmId, p) => ({
     text: "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, $4, 'whatsapp')",
     values: [firmId, p.rows.shifts, p.rosterWorkerId, 1 + next()],
+  }),
+  // On a session of its own: one ask per casual and session.
+  session_asks: (firmId, p) => ({
+    text: `with s as (
+             insert into shifts (firm_id, event_id, site_id, role, starts_at, ends_at)
+             values ($1, $2, $3, 'steward', $4, $5) returning id)
+           insert into session_asks (firm_id, shift_id, worker_id, asked_at)
+           select $1, s.id, $6, now() from s`,
+    values: [firmId, p.rows.shift_events, p.rosterSiteId, ...shiftTimes(), p.rosterWorkerId],
   }),
   worker_unavailable_days: (firmId, p) => ({
     text: "insert into worker_unavailable_days (firm_id, worker_id, day) values ($1, $2, $3)",
@@ -765,6 +782,14 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
   offers_worker_fk: (firmId, own, other) => ({
     text: "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, $4, 'sms')",
     values: [firmId, own.rows.shifts, other.workerId, 1 + next()],
+  }),
+  session_asks_shift_fk: (firmId, own, other) => ({
+    text: "insert into session_asks (firm_id, shift_id, worker_id, asked_at) values ($1, $2, $3, now())",
+    values: [firmId, other.rows.shifts, own.workerId],
+  }),
+  session_asks_worker_fk: (firmId, own, other) => ({
+    text: "insert into session_asks (firm_id, shift_id, worker_id, asked_at) values ($1, $2, $3, now())",
+    values: [firmId, own.rows.shifts, other.workerId],
   }),
   offers_offered_by_fk: (firmId, own, other) => ({
     text: "insert into offers (firm_id, shift_id, worker_id, offered_by, channel) values ($1, $2, $3, $4, 'sms')",

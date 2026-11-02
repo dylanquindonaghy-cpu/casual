@@ -374,8 +374,8 @@ the older `/office/events/[id]` row below where they differ.
   link to its record), "Strike issued" / "Strike withdrawn", and "{Steward}, {Sat 7 Nov 12:00} ·
   cancelled {04:00} on {Mon 2 Nov}"; empty: "No cancellations on this event.") and **History**
   (`?tab=history`: the event's, its sessions', bookings' and offers' log, newest first, at most
-  100, in the log's words; "See everything in the action log"). "Interested" comes with casuals
-  asking (Phase 26.6).
+  100, in the log's words; "See everything in the action log") and **Interested** {asks waiting}
+  (Phase 26.6, below).
 - **Staffing layout** (a glass panel, `#staffing-layout`; "{5} to fill" in red beside the title):
   booked of needed overall ("{18} / {23} booked") and per role ("{7} / {9} door supervisors"), each
   with an amber bar; then each role ("Door supervisors", with its qualifications and start times:
@@ -410,6 +410,103 @@ the older `/office/events/[id]` row below where they differ.
   firm's transaction: an event that isn't there, another firm's, or one sent with a new name:
   "That event isn't there any more. Go back to Events & sessions and choose it again."); then "Back
   to {event}".
+
+## A session, and who wants it, round 8 (Phase 26.6)
+
+`/office/shifts/[id]` for admins and resourcers, as the mock-up's session page (the spec page's "A
+session, and who wants it", ses-1 to ses-6; decision 2). Words: `src/lib/office/session-page-copy.ts`;
+the list: `src/lib/office/session-casuals.ts`; asks: `src/lib/roster/asks.ts`. This section wins
+over the older `/office/shifts/[id]` row below where they differ: every form is still there, in a
+panel.
+
+- **"Casuals ask, you choose"** (ses-1): a setting per event (`shift_events.casuals_ask`), off by
+  default (the first to tap takes a place, as before; best for urgent and overnight work). On:
+  casuals tap **I can do this** on its sessions instead of taking a place, and the office books
+  from who asked. A casual holding an offer of the session (the office's, or its waves') still
+  takes it: an offer is the office's choice (decision 11 in docs/plan/decisions-waiting.md). The
+  switch is in "This session" (below); "On: casuals on this event now tap "I can do this", and you
+  choose." / "Off: the first casual to tap takes a place." Logged `event.asks_on` /
+  `event.asks_off`. Asks made stay when it's switched off.
+- **Breadcrumb:** "Dashboard" › "Events & sessions" › the event (a link to its page) › "{Steward,
+  Fri 6 Nov}".
+- **The head:** "{Steward} · {Fri 6 Nov}"; "Showing to casuals" (green) or "Hidden from casuals"
+  (the session's switch and its event's); "{11:00–19:00} · {Riverside Demo Park} · {Gate 2} · {0} of
+  {3} booked", its status ("Open", "Filled"...) and "Urgent"; the sheet's, planner's or import's
+  note and the instructions as before. Actions: **Hide from casuals** / **Show to casuals** (the
+  session's own switch), the main **Book the best {3}** (where the office chooses and someone who
+  asked can be booked: the asks waiting the rules allow, most reliable first, as many as places
+  free; after "Book {Sam Walsh, Ella Young and Nathan Fraser}? Each is checked against the rules
+  first, and told by message." with **Yes, book them** and **Not now**: only those named, each
+  booked in turn through the one booking path and only while their ask is still waiting (checked
+  inside the booking), "Booked: {names}. They'll get a message to say so.", "Not booked, their ask
+  was answered since: {names}." and any refusal in the booking's own words), else **Offer to someone** (the main button while it can be offered), and a
+  **"…"** menu ("More for this session"): Offer to someone (when it isn't the main button), **Assign
+  someone**, **Edit this session**, **Session details**, **Move, shorten or cancel** ("Cancel" with
+  nobody booked; not for a sheet's or planner's), **See it in the action log**.
+- **Panels** (ses-5): each of those forms opens in a panel (`?panel=assign|edit|details|change`),
+  from the right on a laptop (512px), the whole screen on a phone, over a scrim; its heading takes
+  the focus; **Close**, the scrim and Escape go back. The forms, their words and answers are as
+  before ("Who?" and **Check** keep the panel open with the answer).
+- **Tabs** ("Show"): **Casuals** (the default) and **History** (`?tab=history`: the log as before,
+  and "See this shift in the action log").
+- **Casuals for this session** (ses-2, ses-3), "Most reliable first": tabs **Asked for it**,
+  **Offered**, **Said no**, **Booked** and **Could take it**, each with its count (`?show=`; Asked
+  for it first where the office chooses or someone asked, else Booked). Filters (links, on and off):
+  **Reliability 80%+**, **Within 45 min** (with travel areas on: the quickest of their ways there,
+  from the travel job), **Worked here before**. Each row: initials, the name, what they hold of what
+  it needs and how they've done here ("Steward Level 2 · worked here 6 times · 1 live strike";
+  "Nothing needed for this one"), reliability ("98%" with its band's bar, or "New: 3 shifts so
+  far": `src/lib/rules/reliability.ts`), distance ("5.0 mi · 25 min" in a straight line from their
+  home area, "Not known"), and a chip: "Asked {14:02}" / "Not this time" / "Offered {14:02}" /
+  "Offer closed" / "Filled by others" / "Not sent" / "Said no {14:05}" / "Not asked". **Book**
+  ("Book {name}" to a screen reader) where the rules say yes now and a place is free: the office's
+  own booking (every rule and licence check again, first yes wins; they're told by message); and a
+  **"…"** ("More for {name}") with **Not this time** (an ask still waiting: "Not this time: {name}
+  will be told.") and "See {Sam}'s page". A row the rules say no to: "Can't be booked: {reasons}".
+  Asked for it: asks waiting, then the "Not this time" ones. Offered: each casual's latest offer
+  not declined. Said no: offers declined. Booked: the session's bookings as before ("{name}:
+  Booked", cancel one, mark who worked, the cancelled ones under "Cancelled"; "Booked places" to a
+  screen reader). Could take it: active casuals with the role the rules allow now who haven't
+  asked, been offered or booked (the most reliable 100: "More could take it: the most reliable 100
+  are shown."). Empty: "Nobody has asked yet. Casuals see "I can do this" on this event's
+  sessions." (setting on) / "Casuals take places on this event. Switch on "Casuals ask, you
+  choose" to choose from who asks." / "Nobody has been offered it." / "Nobody has said no." /
+  "Nobody booked yet." / "Nobody else the rules allow right now." / "Nobody here matches these
+  filters."
+- **This session** (beside it from 1024px of page, under it before): Booked "{0} of {3}", Pay
+  "{£12.60/hour}" ("Not set"), Needs (its qualifications, "Nothing extra"), Post ("None"); the
+  **Casuals ask, you choose** switch ("Set for this event. Off: the first to tap takes it."); and
+  "**Booking runs every check first:** the rules, their licence and their hours. A place can only
+  be booked once." (ses-4).
+- **The event's Interested tab** (evt-2): its sessions to come with asks, soonest first: "{Steward},
+  {Fri 6 Nov, 11:00 to 19:00}", **Choose who works it** (the session's Asked for it), and each
+  person who asked as a chip ("{name}" waiting, "{name}: not this time"). The tab's count is the
+  asks waiting. Empty: "Nobody has asked for a session yet. Casuals see "I can do this" on this
+  event's sessions." (setting on) or how to switch it on.
+- **When asks end** (ses-6): the office books someone → `shift_confirmed` as before; "Not this
+  time" → `shift_not_booked`; the session fills while others wait → their asks close and each gets
+  `shift_not_booked` (not sent if, by then, they hold a place or asked again); the office cancels
+  or moves the session (its move, its Edit with nobody booked, or the planner's change) → asks close
+  untold, "Not this time" ones too on a move (they may ask again for the new session). Logged `shift.asked`, `shift.ask_refused`, `shift.ask_declined`, `shift.ask_closed`,
+  `shift.asks_closed` and the message's `shift.ask_answer_*`.
+- **On a phone:** the head and its buttons, the tabs, the casuals card (rows wrap: name, then
+  reliability, distance and chip, then Book and "…"), then This session; a panel covers the screen.
+
+### In the casual app (ses-6)
+
+- **A session where the office chooses** (`/shifts/[id]`): the shift's card as always; at its foot
+  "The office chooses who works this one. Ask for it, and we'll message you when they decide." and
+  **I can do this** ("Asking…"); then "**Asked: we'll tell you.** You asked at {09:00 on Mon 2
+  Nov}. The office chooses who works this one. We'll message you when they decide." (green tick). The
+  office said no: "**Not this time.** You're not booked for this one. Thanks for asking." with
+  **See other shifts**. Other answers: "You're already booked on this shift." (See my shifts),
+  "Every place has been filled. You haven't been booked.", "This shift isn't open any more.", "You
+  can't ask for this shift:" with the rules' reasons, the usual too-many-tries and try-again words.
+  Never held by fair rotation (the office chooses).
+- **Open shifts and the urgent board:** such a session's card says "The office chooses: ask for
+  it" (hi-vis), "Asked: we'll tell you" (green tick) or "Not this time" (red).
+- **Take shift** on a session the office has just switched to choosing: "The office now chooses who
+  works this one. Ask for it instead." with **Ask for it** (the page again, with I can do this).
 
 ## The office shell, round 7 (Phase 24)
 

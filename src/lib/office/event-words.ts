@@ -346,6 +346,41 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `${officeName} marked it not urgent.`;
     case "shift.offers_restarted":
       return `${officeName} started its offers again.`;
+    // "Casuals ask, you choose" (Phase 26.6, src/lib/roster/asks.ts).
+    case "shift.asked":
+      return `${worker} asked for it ("I can do this").`;
+    case "shift.ask_refused":
+      return `${worker} couldn't ask for it (the rules said no).`;
+    case "shift.ask_declined":
+      return `${officeName} said "Not this time" to ${worker}.`;
+    case "shift.ask_closed":
+      return `${worker}'s ask closed: the session filled.`;
+    case "shift.asks_closed": {
+      const n = Number(d.count ?? 0);
+      const asks = n === 1 ? "1 ask" : `${n} asks`;
+      return d.reason === "moved"
+        ? `${asks} closed: the session moved (they may ask again).`
+        : `${asks} closed: the session was cancelled.`;
+    }
+    case "event.asks_on":
+      return `${officeName} switched on "Casuals ask, you choose" for the event.`;
+    case "event.asks_off":
+      return `${officeName} switched off "Casuals ask, you choose" for the event.`;
+    case "shift.ask_answer_notice":
+      return `Telling ${worker} they weren't booked.`;
+    case "shift.ask_answer_sent":
+      return `${worker} was told they weren't booked.`;
+    case "shift.ask_answer_failed":
+      return `Telling ${worker} they weren't booked failed.`;
+    case "shift.ask_answer_held":
+      return `Telling ${worker} they weren't booked waits for quiet hours to end.`;
+    case "shift.ask_answer_skipped":
+      if (d.reason === "erased") return "A deleted worker wasn't told about their ask (no number).";
+      if (d.reason === "booked")
+        return `${worker} wasn't told "not this time": they're booked now.`;
+      if (d.reason === "changed")
+        return `${worker} wasn't told "not this time": they asked again, or the session moved.`;
+      return `${worker} wasn't told about their ask: the session is over.`;
     // The event and session switches (src/lib/office/showing.ts).
     case "event.shown":
     case "session.shown": {

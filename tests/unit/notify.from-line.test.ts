@@ -70,6 +70,7 @@ describe("messages go from the firm's shifts line", () => {
     expect(calls.map((c) => c.path).sort()).toEqual([
       "src/lib/credentials/scan.ts", // licence expiry messages (13.5)
       "src/lib/inbound/reply.ts",
+      "src/lib/notices/ask-answer.ts", // not booked from an ask (Phase 26.6)
       "src/lib/notices/enquiry-reply.ts", // the office's reply on Enquiries (12D.1)
       "src/lib/notices/firm-change.ts",
       "src/lib/notices/pay-query-update.ts",
@@ -88,13 +89,14 @@ describe("messages go from the firm's shifts line", () => {
 
   it("every call to the shared senders passes the worker's own STOP setting", () => {
     const calls = senderCalls();
-    expect(calls).toHaveLength(10);
+    expect(calls).toHaveLength(11);
     // Never a hard-coded value: always the worker's, read with their channel.
     for (const c of calls) expect(c.args, c.path).toMatch(/\bsmsAllowed: \w+\.smsAllowed,/);
     // Where each reads it: the worker row's sms_opted_out_at.
     for (const path of [
       "src/lib/credentials/scan.ts",
       "src/lib/inbound/reply.ts",
+      "src/lib/notices/ask-answer.ts",
       "src/lib/notices/enquiry-reply.ts", // and a stranger's own last STOP or START (12D.1)
       "src/lib/notices/firm-change.ts",
       "src/lib/notices/pay-query-update.ts",

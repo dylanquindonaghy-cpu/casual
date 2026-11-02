@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { addOfficeUser } from "./db";
-import { expect, test } from "./fixtures";
+import { expect, sessionPanel, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
 // Firm-initiated changes in a real browser (golden rule 12): a resourcer makes a shift of their
@@ -41,8 +41,10 @@ test("move a booked shift with a reason, see the notice logged, then cancel the 
   await page.getByLabel("Finish").fill("17:00");
   await page.getByRole("button", { name: "Create shift" }).click();
   await expect(page).toHaveURL(/\/office\/shifts\/[0-9a-f-]{36}$/);
+  const session = page.url();
 
-  // Book someone the rules allow.
+  // Book someone the rules allow: "Assign someone" is in the session's "…" menu (Phase 26.6).
+  await sessionPanel(page, "Assign someone");
   const options = await page
     .getByLabel("Who?")
     .locator("option:not([disabled])")
@@ -65,13 +67,15 @@ test("move a booked shift with a reason, see the notice logged, then cancel the 
   const booked = new RegExp(
     `${name} was told they're booked\\.|Telling ${name} they're booked waits for quiet hours to end`,
   );
+  // The session's history is a tab away (Phase 26.6).
   await expect(async () => {
-    await page.reload();
+    await page.goto(`${session}?tab=history`);
     await expect(page.getByText(booked).first()).toBeVisible({ timeout: 1000 });
   }).toPass({ timeout: 20_000 });
 
   // Move it: a reason is required.
-  await expect(page.getByRole("heading", { name: "Move, shorten or cancel" })).toBeVisible();
+  await page.goto(session);
+  await sessionPanel(page, "Move, shorten or cancel");
   await page.getByLabel("New start").fill("11:00");
   await page.getByLabel("New finish").fill("19:00");
   await page.getByRole("button", { name: "Move for everyone booked" }).click();
@@ -81,7 +85,7 @@ test("move a booked shift with a reason, see the notice logged, then cancel the 
   await expect(
     page.getByText(/^Moved\. 1 person booked will be told\. Their notice: \d+ days' notice\.$/),
   ).toBeVisible();
-  await page.reload();
+  await page.goto(`${session}?tab=history`);
   await expect(
     page.getByText(
       new RegExp(
@@ -99,6 +103,8 @@ test("move a booked shift with a reason, see the notice logged, then cancel the 
     await page.reload();
     await expect(page.getByText(told).first()).toBeVisible({ timeout: 1000 });
   }).toPass({ timeout: 20_000 });
+  // The booking is cancelled from the Booked tab (the session's casuals).
+  await page.goto(session);
 
   // Cancel the booking, with a reason and who asked (required: Phase 25.2). "The client needs
   // fewer staff" would take the place away, and this shift has only the one: refused, nothing
@@ -132,7 +138,7 @@ test("move a booked shift with a reason, see the notice logged, then cancel the 
   // The page refreshes: the booking moves to Cancelled and its row, with its form, leaves the list.
   // The confirmation stays (it went with the row a moment after it showed, until Phase 22).
   await expect(page.getByText("Nobody booked yet.")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Cancelled", level: 3 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Cancelled", level: 4 })).toBeVisible();
   await expect(confirmation).toBeVisible();
 
   // The notice report says who asked (Phase 25.2), newest first.

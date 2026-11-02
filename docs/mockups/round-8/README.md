@@ -1,0 +1,63 @@
+# Round 8: the office, held up against Haulix (proposal P10; not approved yet)
+
+Dylan, 2026-11-02, after the office review: "i like these changes but what about the actual look
+compared to the link i sent you i dont think its screaming high end professional dashboard yet". He
+then sent a 12-second screen recording of the Haulix shot (Phenomenon's "UI/UX Design for Logistics
+Dashboard – Haulix" on Dribbble). The recording isn't kept in the repo: it's Phenomenon's design.
+The published page shows two of its frames beside the office for comparison:
+https://claude.ai/artifact/2cHizkZcrYG7C8U8C1H3cF (`round-8.html` here; opened from this folder it
+shows a note where those two frames go).
+
+| File | What it shows |
+|---|---|
+| `round-8.html` | The comparison, why the office doesn't read as high-end, and the round 8 mock-up of two screens (the dashboard; an event's page) at 1280px and 390px, with four decisions |
+| `now/shiftdesk-dashboard-dark.jpg`, `now/shiftdesk-event-dark.jpg` | The live demo's dashboard and the Arena's event page in dark mode, Mon 2 Nov 2026, 1280px |
+
+## What Haulix does (from the recording)
+
+- Near-black, neutral ground (about `#141414`); panels one shade lighter (`#1a1a1a`–`#222`), tiles
+  and chips `#252525`; a fine edge, no blur, no coloured glow.
+- One accent, a pale lime (`#f3fca8`): the main button ("Activate Route"), the switches, the logo,
+  the selected truck's halo. Red, amber, green and blue only on status pills, one code everywhere
+  (Critical, High, Normal, Low).
+- An icon rail of dark circles, the current page a solid white circle; a top bar of small figure
+  chips ("Active: 6/10"), search with a shortcut, alerts with a count, the person.
+- The job itself as the hero: a dark map of the fleet with a floating vehicle card (ID, status,
+  route progress, speed and fuel gauges, an amber warning, actions); on a vehicle's page, its cargo
+  laid out slot by slot beside the package list, one package opened with its facts and actions.
+- A detail page: breadcrumb, the ID as the title with a status pill, an action row with one lime
+  primary, underline tabs with counts.
+
+## What round 8 proposes
+
+The office only (every page, label and action stays; the casual app keeps its look):
+
+- **The system:** dark by default, neutral charcoal, flat (shade steps and a 1px edge; a shadow only
+  on what floats); one accent, hi-vis yellow (`#e9f86f`, from the stewards' vests) on the main
+  button, switches and what's selected; status in one code (Urgent red, Open amber, Booked green,
+  Offered blue, Hidden grey); Geist kept, references in Geist Mono; no glass, no wash.
+- **The dashboard:** a map of the firm's venues, each pin showing its places to fill (33 across 7
+  venues on the demo; red where a session is urgent), the selected session in a floating card
+  (time, booked bar and gauge, who can take it, a warning, Offer); To offer, Updates (P9 C) and Who
+  worked (P9 D) below.
+- **An event's page:** breadcrumb, the event as the title with "Showing to casuals", actions with one
+  primary ("Offer 5 open places"), tabs with counts; a "Staffing layout" of every place by role, each
+  booked (with who), open or urgent; "Open places" beside it, the urgent one opened (Chloe Quigley's
+  cancellation, its facts, "Offer to the best 5").
+
+Every figure and name in the mock-up is the live demo's (made-up people): 51 sessions, 75 places,
+42 booked, 33 to fill; the Arena on Sat 7 Nov 18 of 23 booked, with the booked casuals' names; the
+five people under Who worked. The map's streets are drawn for the mock-up, not a real place.
+
+## Decisions (in `docs/plan/decisions-waiting.md`, "Office review" 6 to 9)
+
+Move the office away from glass (round 7, approved 26 Oct); dark by default; hi-vis or the firm's
+colour as the accent; a map service for the venue map (MapLibre with a UK or EU tile host, or a
+self-hosted map file; without one the dashboard falls back to a cover grid by venue and day).
+
+## How it was made
+
+`design-taste-frontend` (`--app`): the dealt style was `framed-sheet` (light); Dylan's reference is
+dark, so its rules were applied to a dark ground instead (his words win over a dealt style). Three
+look-and-fix rounds on screenshots at 1280px and 390px. The skill's `inspect.mjs` wasn't run: it
+measures a whole page, and these screens are scaled frames inside a review page.

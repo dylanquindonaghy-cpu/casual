@@ -1,0 +1,542 @@
+<title>ShiftDesk office round 8</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* The page: a quiet reading column around wide stages. The frames inside are the proposal itself:
+   one dark, flat, neutral office with a single hi-vis accent (round 8), so they keep their own look
+   whatever the viewer's theme. */
+:root {
+  --bg: #f3f3f2; --card: #ffffff; --line: #e2e2e0; --ink: #161616; --muted: #5b5b5a; --mark: #f4f7c9;
+  --ok: #1e7b4f; --no: #b3261e; --part: #8a5a00;
+  --sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0c0c0d; --card: #161617; --line: #2a2a2c; --ink: #f2f2f1; --muted: #a3a3a6; --mark: #3b3d16;
+  --ok: #8fe28c; --no: #ff8a80; --part: #f2b55a; color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bg: #0c0c0d; --card: #161617; --line: #2a2a2c; --ink: #f2f2f1; --muted: #a3a3a6; --mark: #3b3d16;
+  --ok: #8fe28c; --no: #ff8a80; --part: #f2b55a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--sans); }
+.wrap { max-width: 1340px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 80px; display: grid; gap: 40px; }
+.read { max-width: 760px; }
+h1, h2, h3 { margin: 0; line-height: 1.2; letter-spacing: -0.015em; text-wrap: balance; }
+h1 { font-size: 32px; font-weight: 600; } h2 { font-size: 24px; font-weight: 600; } h3 { font-size: 18px; font-weight: 600; }
+p { margin: 0; }
+.lede { font-size: 17px; color: var(--muted); margin-top: 8px; }
+.kicker { font-size: 13px; color: var(--muted); }
+section { display: grid; gap: 16px; }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 0 5px; }
+.pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+figure { margin: 0; display: grid; gap: 8px; min-width: 0; }
+figure img { display: block; width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--line); background: #111; }
+figcaption { font-size: 13px; color: var(--muted); }
+figure.missing img { display: none; }
+figure.missing::before { content: "Shown on the published page only (Haulix is Phenomenon's design, so its frames aren't kept in the repo)."; display: block; padding: 40px 16px; border: 1px dashed var(--line); border-radius: 12px; color: var(--muted); font-size: 13px; }
+.tablewrap { overflow-x: auto; border-radius: 14px; border: 1px solid var(--line); }
+table { width: 100%; border-collapse: collapse; font-size: 14px; background: var(--card); min-width: 720px; }
+th, td { text-align: left; vertical-align: top; padding: 11px 14px; border-bottom: 1px solid var(--line); }
+th { font-size: 13px; font-weight: 500; color: var(--muted); }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 600; white-space: nowrap; }
+.v { font-weight: 600; } .v.ok { color: var(--ok); } .v.no { color: var(--no); } .v.part { color: var(--part); }
+.callout { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; display: grid; gap: 8px; }
+.callout ul, .dec ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.dec { display: grid; gap: 12px; }
+.dq { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: grid; gap: 6px; }
+.dq .rec { font-size: 14px; color: var(--muted); }
+.dq .rec b { color: var(--ok); }
+.screen { display: grid; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 18px; min-width: 0; }
+.screen-head { display: flex; flex-wrap: wrap; gap: 10px 18px; justify-content: space-between; align-items: end; }
+.seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--bg); border: 1px solid var(--line); border-radius: 999px; }
+.seg button { font: 500 13px var(--sans); color: var(--muted); background: transparent; border: 0; border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgb(0 0 0 / 0.14); }
+.seg button:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+.stage { position: relative; overflow: hidden; border-radius: 14px; background: #0c0c0d; }
+.scaler { transform-origin: 0 0; }
+.notes { font-size: 14px; color: var(--muted); }
+.notes ul { margin: 0; padding-left: 18px; display: grid; gap: 5px; }
+.footer { color: var(--muted); font-size: 13px; }
+@media (max-width: 700px) { .pair { grid-template-columns: minmax(0, 1fr); } h1 { font-size: 26px; } .screen { padding: 12px; } }
+
+/* =================== round 8: the office (inside the frames) =================== */
+.f8 {
+  --g0: #0f0f10;  /* the window and the rail */
+  --g1: #141415;  /* the page ground */
+  --p1: #1b1b1d;  /* a panel */
+  --p2: #232325;  /* a tile, a chip, a row inside a panel */
+  --p3: #2c2c2f;  /* a control, hover, the selected tab */
+  --edge: #29292c; --edge2: #343438;
+  --ink: #f4f4f3; --muted: #a2a2a7; --faint: #8c8c91;
+  --hv: #e9f86f; --on-hv: #171800; --hv-soft: rgb(233 248 111 / 0.12);
+  --red: #ff8a80; --red-bg: #3a1a19; --red-fill: #e5484d;
+  --amb: #f2b55a; --amb-bg: #33260f; --amb-line: #5a4318;
+  --grn: #8fe28c; --grn-bg: #15291a;
+  --blu: #8ab4ff; --blu-bg: #172338;
+  width: 1280px; container-type: inline-size; background: var(--g0); color: var(--ink);
+  font: 14px/1.45 "Geist", ui-sans-serif, system-ui, sans-serif; position: relative; overflow: hidden;
+  font-variant-numeric: tabular-nums;
+}
+.f8.phone { width: 390px; }
+.f8 svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.f8 svg.i.s { width: 15px; height: 15px; } .f8 svg.i.xs { width: 13px; height: 13px; }
+.f8 .shell { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 20px; padding: 18px 22px 26px 14px; }
+.f8 .rail { background: var(--g1); border: 1px solid var(--edge); border-radius: 24px; padding: 16px 0; display: flex; flex-direction: column; align-items: center; gap: 12px; height: 760px; }
+.f8 .mark { width: 36px; height: 36px; border-radius: 11px; background: var(--hv); color: var(--on-hv); display: grid; place-items: center; font-weight: 600; font-size: 16px; }
+.f8 .rail .sep { width: 28px; height: 1px; background: var(--edge); margin: 4px 0; }
+.f8 .rb { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); background: var(--p1); border: 1px solid var(--edge); position: relative; }
+.f8 .rb.on { background: #fff; color: #111; border-color: #fff; }
+.f8 .rb .dot { position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--red-fill); box-shadow: 0 0 0 2px var(--g1); }
+.f8 .rail .grow { flex: 1; }
+.f8 .main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-content: start; min-width: 0; }
+.f8 .top { display: flex; align-items: center; gap: 8px; }
+.f8 .chip { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 12px; border-radius: 999px; background: var(--p2); border: 1px solid var(--edge); color: var(--muted); white-space: nowrap; font-size: 13px; }
+.f8 .chip b { color: var(--ink); font-weight: 600; }
+.f8 .chip.u b { color: var(--red); }
+.f8 .search { margin-left: auto; display: flex; align-items: center; gap: 8px; height: 36px; width: 270px; padding: 0 6px 0 12px; border-radius: 999px; background: var(--p1); border: 1px solid var(--edge); color: var(--faint); font-size: 13px; white-space: nowrap; overflow: hidden; }
+.f8 .search kbd { margin-left: auto; font: 500 11px "Geist Mono", monospace; color: var(--muted); background: var(--p3); border-radius: 999px; padding: 3px 8px; }
+.f8 .vr { width: 1px; height: 26px; background: var(--edge); margin: 0 6px; }
+.f8 .bell { width: 36px; height: 36px; border-radius: 50%; background: var(--p1); border: 1px solid var(--edge); display: grid; place-items: center; position: relative; color: var(--ink); }
+.f8 .bell .n { position: absolute; top: -5px; right: -7px; background: var(--red-fill); color: #fff; font-size: 10.5px; font-weight: 600; border-radius: 999px; padding: 1px 5px; }
+.f8 .me { display: flex; align-items: center; gap: 9px; margin-left: 6px; }
+.f8 .av { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 11.5px; font-weight: 600; background: #2e3112; color: var(--hv); flex: none; }
+.f8 .me small { display: block; color: var(--faint); font-size: 11.5px; line-height: 1.2; }
+.f8 .me b { display: block; font-weight: 500; font-size: 13px; line-height: 1.2; white-space: nowrap; }
+.f8 .crumb { display: flex; gap: 8px; align-items: center; color: var(--faint); font-size: 13px; }
+.f8 .crumb b { color: var(--ink); font-weight: 500; }
+.f8 .titlerow { display: flex; justify-content: space-between; align-items: end; gap: 16px; flex-wrap: wrap; }
+.f8 h1 { font-size: 30px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; display: flex; align-items: center; gap: 12px; }
+.f8 .sub { color: var(--faint); font-size: 13px; margin-top: 4px; }
+.f8 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 38px; padding: 0 16px; border-radius: 999px; background: var(--p2); border: 1px solid var(--edge2); color: var(--ink); font-weight: 500; font-size: 13.5px; white-space: nowrap; }
+.f8 .btn.hv { background: var(--hv); color: var(--on-hv); border-color: var(--hv); font-weight: 600; }
+.f8 .btn.sm { height: 30px; padding: 0 12px; font-size: 12.5px; }
+.f8 .btn.icon { width: 38px; padding: 0; }
+.f8 .btn.sm.icon { width: 30px; }
+.f8 .btn.red { color: var(--red); }
+.f8 .row { display: flex; align-items: center; gap: 10px; }
+.f8 .tabs { display: inline-flex; gap: 2px; padding: 4px; border-radius: 999px; background: var(--p1); border: 1px solid var(--edge); }
+.f8 .tabs > span { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 14px; border-radius: 999px; color: var(--muted); font-weight: 500; font-size: 13px; white-space: nowrap; }
+.f8 .tabs > span.on { background: var(--p3); color: var(--ink); }
+.f8 .cnt { min-width: 20px; height: 18px; padding: 0 6px; border-radius: 999px; background: var(--p3); color: var(--muted); font-size: 11px; font-weight: 600; display: inline-grid; place-items: center; }
+.f8 .tabs > span.on .cnt { background: #fff; color: #111; }
+.f8 .cnt.u { background: var(--red-fill); color: #fff; }
+.f8 .tg { display: inline-flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; white-space: nowrap; }
+.f8 .sw { width: 38px; height: 22px; border-radius: 999px; background: var(--p3); border: 1px solid var(--edge2); position: relative; }
+.f8 .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #6d6d72; }
+.f8 .sw.on { background: var(--hv); border-color: var(--hv); } .f8 .sw.on::after { left: 18px; background: #171800; }
+.f8 .pill { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 999px; font-size: 11.5px; font-weight: 500; white-space: nowrap; flex: none; }
+.f8 .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.f8 .pill.u { color: var(--red); background: var(--red-bg); }
+.f8 .pill.o { color: var(--amb); background: var(--amb-bg); }
+.f8 .pill.b { color: var(--grn); background: var(--grn-bg); }
+.f8 .pill.w { color: var(--blu); background: var(--blu-bg); }
+.f8 .pill.q { color: var(--muted); background: var(--p3); }
+.f8 .tag { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 999px; background: var(--p3); color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+.f8 .tag.a { color: var(--amb); background: var(--amb-bg); }
+.f8 .panel { background: var(--p1); border: 1px solid var(--edge); border-radius: 20px; padding: 18px; display: grid; gap: 14px; align-content: start; min-width: 0; }
+.f8 .ph { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.f8 .ph h3 { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.f8 .ph h3 .i { color: var(--muted); }
+.f8 .tile { background: var(--p2); border: 1px solid var(--edge); border-radius: 14px; padding: 12px 14px; min-width: 0; }
+.f8 .muted { color: var(--muted); } .f8 .faint { color: var(--faint); } .f8 .small { font-size: 12.5px; }
+.f8 .mono { font-family: "Geist Mono", ui-monospace, monospace; font-size: 12px; }
+.f8 .bar { height: 6px; border-radius: 999px; background: var(--p3); overflow: hidden; }
+.f8 .bar i { display: block; height: 100%; border-radius: 999px; background: var(--amb); }
+.f8 .bar.g i { background: var(--grn); } .f8 .bar.r i { background: var(--red-fill); }
+.f8 .notice { display: flex; gap: 10px; align-items: flex-start; padding: 11px 13px; border-radius: 12px; background: var(--amb-bg); border: 1px solid var(--amb-line); color: #f6dcb0; font-size: 13px; }
+.f8 .notice .i { color: var(--amb); margin-top: 1px; }
+.f8 .notice b { color: #fff3dc; font-weight: 600; }
+.f8 .dt { width: 42px; flex: none; text-align: center; border-radius: 11px; background: var(--p3); padding: 5px 0; line-height: 1.1; }
+.f8 .dt small { display: block; font-size: 10.5px; color: var(--muted); }
+.f8 .dt b { font-size: 16px; font-weight: 600; }
+.f8 .dt.u { background: var(--red-bg); } .f8 .dt.u small { color: var(--red); }
+.f8 .list { display: grid; gap: 8px; }
+.f8 .li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 14px; background: var(--p2); border: 1px solid var(--edge); }
+.f8 .li b { font-weight: 600; display: block; }
+.f8 .li .meta { color: var(--faint); font-size: 12.5px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 2px; }
+.f8 .more { text-align: center; color: var(--muted); font-size: 13px; padding-top: 2px; }
+.f8 .feed { display: grid; }
+.f8 .ev { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--edge); align-items: start; }
+.f8 .ev:first-child { padding-top: 0; } .f8 .ev:last-child { border-bottom: 0; padding-bottom: 0; }
+.f8 .evi { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--p3); color: var(--muted); }
+.f8 .evi.u { background: var(--red-bg); color: var(--red); } .f8 .evi.b { background: var(--grn-bg); color: var(--grn); } .f8 .evi.o { background: var(--amb-bg); color: var(--amb); }
+.f8 .ev b { font-weight: 500; display: block; } .f8 .ev .when { color: var(--faint); font-size: 12px; white-space: nowrap; }
+.f8 .wk { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--edge); }
+.f8 .wk:last-child { border-bottom: 0; }
+.f8 .grp { color: var(--faint); font-size: 12px; padding-top: 6px; display: flex; justify-content: space-between; }
+/* the map */
+.f8 .map { position: relative; height: 528px; border-radius: 22px; overflow: hidden; border: 1px solid var(--edge); background: #18181a; }
+.f8 .map canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.f8 .pin { position: absolute; transform: translate(-17px, -50%); display: flex; align-items: center; gap: 8px; }
+.f8 .pin.l { flex-direction: row-reverse; transform: translate(calc(-100% + 17px), -50%); }
+.f8 .pin .dotp { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 600; font-size: 13px; background: #2a2a2d; color: var(--ink); border: 2px solid var(--amb); }
+.f8 .pin.u .dotp { background: var(--red-fill); border-color: var(--red-fill); color: #fff; }
+.f8 .pin.h .dotp { border-style: dashed; border-color: #6d6d72; color: var(--muted); }
+.f8 .pin.sel .dotp { box-shadow: 0 0 0 6px rgb(233 248 111 / 0.22), 0 0 0 14px rgb(233 248 111 / 0.08); border-color: var(--hv); }
+.f8 .pin .lab { background: rgb(20 20 21 / 0.9); border: 1px solid var(--edge); border-radius: 10px; padding: 4px 8px; font-size: 12px; line-height: 1.25; white-space: nowrap; }
+.f8 .pin .lab small { display: block; color: var(--faint); font-size: 11px; }
+.f8 .mapctl { position: absolute; right: 14px; bottom: 14px; display: grid; gap: 8px; }
+.f8 .mapctl span { width: 34px; height: 34px; border-radius: 50%; background: var(--p2); border: 1px solid var(--edge2); display: grid; place-items: center; color: var(--muted); }
+.f8 .maplegend { position: absolute; right: 14px; top: 14px; display: flex; gap: 6px; }
+.f8 .maplegend .tag { background: rgb(27 27 29 / 0.92); border: 1px solid var(--edge); }
+.f8 .maplegend .k { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--amb); background: #2a2a2d; }
+.f8 .maplegend .k.u { background: var(--red-fill); border-color: var(--red-fill); }
+.f8 .maplegend .k.h { border-color: #6d6d72; border-style: dashed; }
+.f8 .card { position: absolute; left: 14px; top: 14px; width: 404px; background: var(--p1); border: 1px solid var(--edge2); border-radius: 18px; padding: 16px; display: grid; gap: 12px; box-shadow: 0 18px 50px rgb(0 0 0 / 0.5); }
+.f8 .mapfoot { display: flex; justify-content: space-between; color: var(--faint); font-size: 12px; padding: 0 4px; }
+.f8 .cols3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+.f8 .cols3 > .panel { display: flex; flex-direction: column; }
+.f8 .cols3 > .panel > .more { margin-top: auto; }
+.f8 .two > * { min-width: 0; }
+.f8 .gauge { display: grid; place-items: center; position: relative; height: 96px; }
+.f8 .gauge svg { width: 150px; height: 84px; }
+.f8 .gauge .gv { position: absolute; bottom: 4px; text-align: center; line-height: 1.1; }
+.f8 .gauge .gv b { font-size: 22px; font-weight: 600; } .f8 .gauge .gv small { display: block; color: var(--faint); font-size: 11.5px; }
+.f8 .kv { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+.f8 .kv small { display: block; color: var(--faint); font-size: 12px; } .f8 .kv b { font-weight: 500; font-size: 13.5px; }
+/* event page */
+.f8 .ulTabs { display: flex; gap: 22px; border-bottom: 1px solid var(--edge); overflow-x: auto; scrollbar-width: none; }
+.f8 .ulTabs > span { flex: none; display: inline-flex; align-items: center; gap: 7px; padding: 0 2px 12px; color: var(--muted); font-weight: 500; font-size: 13.5px; margin-bottom: -1px; }
+.f8 .ulTabs > span.on { color: var(--ink); border-bottom: 2px solid var(--ink); }
+.f8 .two { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.f8 .metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--edge); border-bottom: 1px solid var(--edge); }
+.f8 .metric { padding: 12px 14px; display: grid; gap: 7px; }
+.f8 .metric + .metric { border-left: 1px solid var(--edge); }
+.f8 .metric .big { font-size: 22px; font-weight: 600; } .f8 .metric .big span { color: var(--faint); font-size: 14px; font-weight: 400; }
+.f8 .bay { display: grid; gap: 10px; }
+.f8 .bay-h { display: flex; justify-content: space-between; color: var(--muted); font-size: 12.5px; }
+.f8 .bay-h b { color: var(--ink); font-weight: 600; }
+.f8 .slots { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.f8 .slots.s7 { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.f8 .slot { border-radius: 12px; background: var(--p2); border: 1px solid var(--edge); padding: 9px 10px; display: grid; gap: 6px; align-content: center; min-width: 0; min-height: 58px; }
+.f8 .slots.s7 .slot { padding: 9px 10px; }
+.f8 .slots.s7 .who .av { display: none; }
+.f8 .slot .who { display: flex; gap: 7px; align-items: center; min-width: 0; }
+.f8 .slot .who .av { width: 24px; height: 24px; font-size: 9.5px; }
+.f8 .slot .who span { font-size: 12.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.f8 .slot .t { color: var(--faint); font-size: 11px; }
+.f8 .slot.open { background: transparent; border: 1.5px dashed var(--amb-line); }
+.f8 .slot.open .lab { color: var(--amb); font-size: 12.5px; font-weight: 600; }
+.f8 .slot.urg { background: var(--red-bg); border: 1.5px solid var(--red-fill); }
+.f8 .slot.urg .lab { color: var(--red); font-size: 12.5px; font-weight: 600; }
+.f8 .slot.sel { outline: 2px solid var(--hv); outline-offset: 2px; }
+.f8 .oc { border-radius: 16px; background: var(--p2); border: 1px solid var(--edge); padding: 12px 14px; display: grid; gap: 10px; }
+.f8 .oc.sel { border-color: var(--edge2); background: #252527; }
+.f8 .oc .top2 { display: flex; justify-content: space-between; gap: 8px; align-items: start; }
+.f8 .oc b { font-weight: 600; }
+.f8 .hr { height: 1px; background: var(--edge); }
+/* the phone */
+.f8 .pbar { display: flex; align-items: center; gap: 10px; padding: 14px 16px 6px; }
+.f8 .pbar .title { flex: 1; font-weight: 600; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.f8 .pbar .title .mark { width: 28px; height: 28px; border-radius: 9px; font-size: 13px; }
+.f8 .pmain { padding: 8px 16px 28px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.f8 .scrollx { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; -webkit-mask-image: linear-gradient(to right, #000 85%, transparent); mask-image: linear-gradient(to right, #000 85%, transparent); }
+@container (max-width: 600px) {
+  .f8 h1 { font-size: 24px; }
+  .f8 .map { height: 300px; border-radius: 18px; }
+  .f8 .card { position: relative; left: auto; top: auto; width: auto; box-shadow: none; margin-top: -40px; z-index: 2; }
+  .f8 .cols3, .f8 .two { grid-template-columns: minmax(0, 1fr); }
+  .f8 .slots, .f8 .slots.s7 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .f8 .metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .f8 .metric { padding: 10px 8px; } .f8 .metric .big { font-size: 18px; }
+  .f8 .pin .lab { display: none; }
+  .f8 .crumb { display: none; }
+  .f8 .maplegend { display: none; }
+  .f8 .hide-phone { display: none !important; }
+  .f8 .tabs { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+}
+@container (min-width: 601px) { .f8 .only-phone { display: none !important; } }
+.f8 .back { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 4px; }
+</style>
+
+<div class="wrap">
+  <header class="read">
+    <p class="kicker">ShiftDesk office · round 8 proposal · Mon 2 Nov 2026</p>
+    <h1 style="margin-top:6px">The office, held up against Haulix</h1>
+    <p class="lede">Your video of Haulix, the office as it is today, and what it would take to get there: a dark, flat, neutral office with one accent and one big picture of the job. Every page, label and action stays; this changes how they look. Nothing is built until you approve it.</p>
+  </header>
+
+  <section aria-labelledby="h-side">
+    <h2 id="h-side">Side by side</h2>
+    <div class="pair">
+      <figure><img src="ref/haulix-dashboard.jpg" alt="Haulix's operations dashboard: dark map, vehicle card with gauges" onerror="this.closest('figure').classList.add('missing')"><figcaption>Haulix, from your video (Phenomenon's design on Dribbble).</figcaption></figure>
+      <figure><img src="now/shiftdesk-dashboard-dark.jpg" alt="ShiftDesk's dashboard today in dark mode"><figcaption>ShiftDesk today, dark mode, the live demo.</figcaption></figure>
+      <figure><img src="ref/haulix-detail.jpg" alt="Haulix's vehicle page: a truck's cargo laid out by slot beside the package list" onerror="this.closest('figure').classList.add('missing')"><figcaption>Haulix's vehicle page: the cargo, slot by slot.</figcaption></figure>
+      <figure><img src="now/shiftdesk-event-dark.jpg" alt="ShiftDesk's event page today in dark mode"><figcaption>ShiftDesk's event page today.</figcaption></figure>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-gap">
+    <h2 id="h-gap">Why ShiftDesk doesn't read as high-end yet</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>What</th><th>Haulix</th><th>ShiftDesk now</th><th>Round 8</th></tr></thead>
+        <tbody>
+          <tr><td>Ground</td><td>Near-black, neutral, flat (#141414)</td><td class="">Pastel wash in light; blue, purple and teal glows in dark</td><td>Neutral charcoal, flat. No glows, no wash</td></tr>
+          <tr><td>Surfaces</td><td>Panels one shade lighter, a fine edge, no blur</td><td>Frosted glass everywhere: blur, lit rims, drop shadows</td><td>Shade steps and a 1px edge. A shadow only on what floats (the map card, menus)</td></tr>
+          <tr><td>Colour</td><td>One pale lime: the main button, switches, the logo, the selected truck</td><td>Firm blue, link blue, coloured leaf icons, red, amber and green all at once</td><td>One hi-vis yellow, from the stewards' vests: the main button, switches, what's selected. Red, amber, green only on status</td></tr>
+          <tr><td>The big picture</td><td>A live map of the fleet; the truck's cargo slot by slot</td><td>A bar chart of places to fill</td><td>A map of your venues with the places to fill at each; an event's staffing laid out place by place</td></tr>
+          <tr><td>Detail card</td><td>ID, status, route progress, gauges, a warning, two actions</td><td>Date tile, two number tiles, a warning, two buttons</td><td>The same shape for a session: time, booked bar, gauge, who can take it, a warning, Offer</td></tr>
+          <tr><td>Status</td><td>One code everywhere: Critical red, High amber, Normal blue, Low grey</td><td>Varies by page</td><td>One code: Urgent red, Open amber, Booked green, Offered blue, Hidden grey</td></tr>
+          <tr><td>Menu rail</td><td>Dark circles; the current page a solid white circle</td><td>Glass circles; the current page a blue icon</td><td>As Haulix</td></tr>
+          <tr><td>Top bar</td><td>Small figure chips, search, alerts with a count, the person</td><td>Already close (one capsule of counts)</td><td>Separate chips; a bell with new updates (change C)</td></tr>
+          <tr><td>Detail page</td><td>Breadcrumb, title with status, action row, tabs with counts</td><td>Title and cards; no tabs</td><td>Breadcrumb, title with status, actions, tabs with counts</td></tr>
+          <tr><td>Type</td><td>One clean sans, white titles, small grey sublines, IDs</td><td>Geist, already clean</td><td>Geist kept; references in Geist Mono; tighter titles</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout read">
+      <p><b>In one line:</b> Haulix looks expensive because it's restrained (one colour, flat surfaces) and because it shows the job itself (the map, the truck). ShiftDesk today has the opposite of both: lots of colour and glass, and no picture of its world.</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-dash">
+    <h2 id="h-dash">Round 8: the dashboard</h2>
+    <article class="screen" id="s-dash">
+      <div class="screen-head"><p class="notes read">Your venues on a map, each pin showing its places to fill (red: urgent). The selected session opens in a card, as Haulix's truck does. Below: To offer, Updates (change C) and Who worked (change D). Every figure is the live demo's: 33 places to fill across 7 venues, 2 urgent.</p>
+      <div class="seg" role="group" aria-label="Dashboard size"><button type="button" data-size="laptop" aria-pressed="true">Laptop 1280</button><button type="button" data-size="phone" aria-pressed="false">Phone 390</button></div></div>
+      <div class="stage"><div class="scaler"></div></div>
+    </article>
+  </section>
+
+  <section aria-labelledby="h-event">
+    <h2 id="h-event">Round 8: an event's page</h2>
+    <article class="screen" id="s-event">
+      <div class="screen-head"><p class="notes read">Haulix's cargo page, for an event: every place at Acme Demo Arena on Sat 7 Nov laid out by role, each one booked (with who), open or urgent. The open places are listed on the right, the urgent one opened. The names are the demo's own: 18 of 23 booked.</p>
+      <div class="seg" role="group" aria-label="Event page size"><button type="button" data-size="laptop" aria-pressed="true">Laptop 1280</button><button type="button" data-size="phone" aria-pressed="false">Phone 390</button></div></div>
+      <div class="stage"><div class="scaler"></div></div>
+    </article>
+  </section>
+
+  <section aria-labelledby="h-dec">
+    <h2 id="h-dec">Your decisions</h2>
+    <div class="dec read">
+      <div class="dq"><h3>1. Move away from glass?</h3><p>You approved round 7 (Liquid Glass) on 26 Oct. Round 8 replaces it in the office with flat surfaces like Haulix's.</p><p class="rec"><b>Recommended:</b> yes for the office. The casual app keeps its look for now: it's used outdoors on phones, where light and clear works better.</p></div>
+      <div class="dq"><h3>2. Dark by default?</h3><p>Haulix is dark only.</p><p class="rec"><b>Recommended:</b> dark by default for the office, with a light version built on the same flat rules for anyone who prefers it.</p></div>
+      <div class="dq"><h3>3. The accent: hi-vis yellow or the firm's own colour?</h3><p>Haulix uses one pale lime. Hi-vis yellow does the same job and comes from event security itself.</p><p class="rec"><b>Recommended:</b> hi-vis in the office; the firm's colour stays on its mark and in the casual app.</p></div>
+      <div class="dq"><h3>4. The venue map needs a map service</h3><p>Venues already have postcodes, and postcodes.io already turns them into coordinates. Drawing streets needs map tiles.</p><p class="rec"><b>Recommended:</b> MapLibre (open source) with a dark style from a UK or EU tile host, or a self-hosted map file. A new supplier, so your call; without it, the dashboard falls back to the cover grid by venue and day.</p></div>
+    </div>
+    <p class="footer read">Figures and names: the live demo (made-up people) on Mon 2 Nov 2026. The map's streets are drawn for the mock-up, not a real place. Haulix is Phenomenon's design, shown here from your video for comparison only.</p>
+  </section>
+</div>
+
+<script>
+(function () {
+  var P = {
+    grid: '<rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/>',
+    bell: '<path d="M6 9a6 6 0 1112 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9"/><path d="M10 20a2 2 0 004 0"/>',
+    cal: '<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+    inbox: '<path d="M3.5 13l2.5-7.5h12L20.5 13v6h-17z"/><path d="M3.5 13h5l1 2h5l1-2h5"/>',
+    calx: '<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4M10 13.5l4 4M14 13.5l-4 4"/>',
+    pay: '<rect x="3" y="6" width="18" height="12" rx="3"/><circle cx="12" cy="12" r="2.5"/>',
+    people: '<circle cx="9" cy="8.5" r="3.3"/><path d="M3 19.5c.6-3.3 3-5.4 6-5.4s5.4 2.1 6 5.4"/><circle cx="17" cy="9.5" r="2.4"/><path d="M17 14.3c2.2 0 3.8 1.6 4.2 4.2"/>',
+    help: '<circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.4a2.5 2.5 0 014.8 1c0 1.7-2.4 2.1-2.4 3.6M12 17v.3"/>',
+    gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/>',
+    side: '<rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M9.5 4.5v15"/>',
+    user: '<circle cx="12" cy="8.5" r="3.6"/><path d="M5 20c.8-3.8 3.6-6.2 7-6.2s6.2 2.4 7 6.2"/>',
+    clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+    send: '<path d="M20.5 3.5L10 14"/><path d="M20.5 3.5l-6.5 17-4-6.5-6.5-4z"/>',
+    check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    x: '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
+    search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/>',
+    filter: '<path d="M4 6h16l-6 7.5V19l-4-1.5v-4z"/>',
+    alert: '<path d="M12 4l9 15.5H3z"/><path d="M12 10v4.5M12 17.2v.3"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>', minus: '<path d="M5 12h14"/>',
+    target: '<circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/>',
+    expand: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+    layers: '<path d="M12 4l8.5 4.5L12 13 3.5 8.5z"/><path d="M3.5 12.5L12 17l8.5-4.5"/>',
+    list: '<path d="M8.5 7h11M8.5 12h11M8.5 17h11"/><circle cx="4.7" cy="7" r=".9"/><circle cx="4.7" cy="12" r=".9"/><circle cx="4.7" cy="17" r=".9"/>',
+    shield: '<path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.2-7.5 9.5-4.3-1.3-7.5-4.9-7.5-9.5V6z"/>',
+    down: '<path d="M6.5 9.5l5.5 5.5 5.5-5.5"/>', right: '<path d="M9.5 6l6 6-6 6"/>', home: '<path d="M4 11l8-6.5 8 6.5"/><path d="M6 10v9.5h12V10"/>',
+    more: '<circle cx="5.5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18.5" cy="12" r="1.3"/>',
+    eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.6"/>',
+    menu: '<path d="M4 7h16M4 12h16M4 17h16"/>', layout: '<rect x="3.5" y="4" width="17" height="16" rx="2.5"/><path d="M3.5 10h17M10 10v10"/>',
+    pin: '<path d="M12 21s7-6.2 7-11.5A7 7 0 005 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.4"/>'
+  };
+  function I(n, c) { return '<svg class="i' + (c ? ' ' + c : '') + '" viewBox="0 0 24 24" aria-hidden="true">' + (P[n] || '') + '</svg>'; }
+  function ini(n) { return n.split(' ').map(function (p) { return p[0]; }).join(''); }
+
+  // ---------- the live demo's data (Mon 2 Nov 2026) ----------
+  var VENUES = [ // places to fill across every session to come (33 in all), urgent if a session there is urgent and open
+    { name: 'Acme Demo Arena', fill: 10, urgent: true, x: 0.47, y: 0.40, note: 'Tue 3, Sat 7, Sun 8' },
+    { name: 'Northgate Demo Town Centre', fill: 3, urgent: true, x: 0.66, y: 0.30, sel: true, note: 'Wed 4, Mon 9' },
+    { name: 'Riverside Demo Park', fill: 4, x: 0.58, y: 0.72, note: 'Thu 5, Fri 6' },
+    { name: 'Acme Demo Shopping Centre', fill: 1, x: 0.82, y: 0.55, note: 'Sat 7' },
+    { name: 'Acme Demo Racecourse', fill: 5, x: 0.90, y: 0.22, note: 'Sat 7' },
+    { name: 'Northgate Demo Common', fill: 6, x: 0.74, y: 0.84, note: 'Tue 10' },
+    { name: 'Hillside Demo Square', fill: 4, hidden: true, x: 0.40, y: 0.86, note: 'Sun 22 · hidden' }
+  ];
+  var TOTAL = VENUES.reduce(function (a, v) { return a + v.fill; }, 0);
+  console.assert(TOTAL === 33, 'places to fill add up to 33');
+  var ARENA = { // Acme Demo Arena, Sat 7 Nov: 23 places, who's booked (the demo's own names)
+    ds: [['Door supervisor', '08:00–16:00', 'urgent', null]].concat([null, 'Amira Zielinski', 'Vikram Chowdhury', 'Maya Zielinski', 'Wes Usman', 'Tomasz Morgan', 'Ben Usman', 'Harry Usman'].map(function (n) { return ['Door supervisor', '11:30–19:00', n ? 'booked' : 'open', n]; })),
+    st: ['Priya Reid', 'Ruth Barker', 'Ella Young', null, 'Ella Singh', 'Ruth Singh', 'Vikram Evans', 'Quinn Vaughan', null, null, 'Jamal Fraser', 'Sam Walsh', 'Nathan Fraser', 'Aled Adeyemi'].map(function (n) { return ['Steward', '12:00–18:30', n ? 'booked' : 'open', n]; })
+  };
+  var all = ARENA.ds.concat(ARENA.st), booked = all.filter(function (s) { return s[2] === 'booked'; }).length;
+  console.assert(all.length === 23 && booked === 18, 'the Arena: 18 of 23 booked');
+
+  // ---------- the shell ----------
+  function shell(body, size, on) {
+    if (size === 'phone') {
+      return '<div class="pbar"><span class="btn icon sm" style="width:38px;height:38px">' + I('menu', 's') + '</span><span class="title"><span class="mark">A</span>Acme Events</span><span class="bell">' + I('bell', 's') + '<span class="n">3</span></span></div>' +
+        '<div class="pmain">' + body + '</div>';
+    }
+    var icons = [['grid', 'home'], ['bell', 'na', 1], ['cal', 'events'], ['inbox'], ['calx'], ['pay'], ['people', 'p', 1]];
+    var rail = '<nav class="rail" aria-label="Menu"><span class="mark">A</span><span class="sep"></span>' + icons.map(function (c) {
+      return '<span class="rb' + (c[1] === on.rail ? ' on' : '') + '">' + I(c[0], 's') + (c[2] ? '<span class="dot"></span>' : '') + '</span>';
+    }).join('') + '<span class="grow"></span><span class="rb">' + I('help', 's') + '</span><span class="rb">' + I('gear', 's') + '</span><span class="sep"></span><span class="rb">' + I('side', 's') + '</span></nav>';
+    var top = '<div class="top"><span class="chip">' + I('user', 'xs') + 'To fill: <b>33</b></span><span class="chip u">' + I('clock', 'xs') + 'Urgent: <b>2</b></span><span class="chip">' + I('send', 'xs') + 'Offers out: <b>0</b></span><span class="chip">' + I('check', 'xs') + 'To check: <b>7</b></span><span class="chip">' + I('pay', 'xs') + 'Pay queries: <b>10</b></span>' +
+      '<span class="search">' + I('search', 'xs') + 'Search casuals, shifts, sites<kbd>Ctrl K</kbd></span><span class="vr"></span><span class="bell">' + I('bell', 's') + '<span class="n">+3</span></span>' +
+      '<span class="me"><span class="av">RD</span><span><b>Resourcer (demo)</b><small>Resourcer</small></span>' + I('down', 'xs') + '</span></div>';
+    return '<div class="shell">' + rail + '<div class="main">' + top + body + '</div></div>';
+  }
+
+  // ---------- the dashboard ----------
+  function gauge(val, max) {
+    var a0 = Math.PI, r = 58, cx = 75, cy = 76, frac = val / max;
+    function pt(f) { var a = a0 + Math.PI * f; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; }
+    var s = pt(0), e = pt(1), m = pt(frac);
+    var ticks = '';
+    for (var k = 0; k <= max; k++) { var t = pt(k / max), u = [cx + (r - 13) * Math.cos(a0 + Math.PI * k / max), cy + (r - 13) * Math.sin(a0 + Math.PI * k / max)]; ticks += '<line x1="' + t[0].toFixed(1) + '" y1="' + t[1].toFixed(1) + '" x2="' + u[0].toFixed(1) + '" y2="' + u[1].toFixed(1) + '" stroke="#5a5a5f" stroke-width="1.5"/>'; }
+    return '<div class="gauge"><svg viewBox="0 0 150 84" aria-hidden="true"><path d="M' + s[0] + ' ' + s[1] + ' A' + r + ' ' + r + ' 0 0 1 ' + e[0] + ' ' + e[1] + '" fill="none" stroke="#2c2c2f" stroke-width="9" stroke-linecap="round"/>' +
+      '<path d="M' + s[0] + ' ' + s[1] + ' A' + r + ' ' + r + ' 0 0 1 ' + m[0].toFixed(1) + ' ' + m[1].toFixed(1) + '" fill="none" stroke="#f2b55a" stroke-width="9" stroke-linecap="round"/>' + ticks + '</svg>' +
+      '<div class="gv"><b>' + val + ' / ' + max + '</b><small>booked</small></div></div>';
+  }
+  function sessionCard(size) {
+    return '<div class="card" role="dialog" aria-label="CSAS officer, Wed 4 Nov">' +
+      '<div class="row" style="align-items:flex-start"><span class="dt u"><small>Wed</small><b>4</b></span><span style="flex:1;min-width:0"><span class="row" style="gap:8px"><b style="font-size:19px;font-weight:600;letter-spacing:-0.01em">CSAS officer</b><span class="pill u">Urgent</span></span><span class="faint small">Night patrols · Northgate Demo Town Centre</span></span><span class="btn sm icon">' + I('x', 'xs') + '</span></div>' +
+      '<div class="tile" style="display:grid;gap:8px"><div class="row" style="justify-content:space-between"><b style="font-weight:500">19:00 → 01:00 Thu</b><span class="muted small">6 h · £15.00/h</span></div><div class="bar"><i style="width:75%"></i></div><div class="row" style="justify-content:space-between" ><span class="faint small">' + I('clock', 'xs') + ' Starts in 2 days</span><span class="small"><b>1</b> <span class="faint">place to fill</span></span></div></div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div class="tile"><div class="row" style="justify-content:space-between"><span class="muted small">Booked</span><span class="pill o">Open</span></div>' + gauge(3, 4) + '</div>' +
+      '<div class="tile" style="display:grid;align-content:space-between"><div class="row" style="justify-content:space-between"><span class="muted small">Can take it</span><span class="pill q">0 offered</span></div><div style="text-align:center;padding:10px 0 4px"><b style="font-size:34px;font-weight:600;line-height:1">1</b><span class="faint small" style="display:block;margin-top:6px">CSAS card, free that night</span></div></div></div>' +
+      '<div class="notice">' + I('alert', 's') + '<span><b>Only Zoe Adeyemi can take it:</b> 8 h booked that week, 8.4 miles away.</span></div>' +
+      '<div class="row"><span class="btn hv" style="flex:1">' + I('send', 'xs') + 'Offer to Zoe</span><span class="btn" style="flex:1">Open the shift</span></div></div>';
+  }
+  function dashboard(size) {
+    var phone = size === 'phone';
+    var title = '<div class="titlerow"><div><h1>Dashboard</h1><p class="sub">Monday 2 November · Week 45 · pay Fri 13 Nov · updated 09:21</p></div>' +
+      '<div class="row hide-phone"><span class="btn">' + I('grid', 'xs') + 'Customise</span><span class="btn">All dates' + I('down', 'xs') + '</span></div></div>';
+    var chipsPhone = '<div class="scrollx only-phone"><span class="chip">To fill: <b>33</b></span><span class="chip u">Urgent: <b>2</b></span><span class="chip">Offers out: <b>0</b></span><span class="chip">To check: <b>7</b></span><span class="chip">Pay queries: <b>10</b></span></div>';
+    var tabs = '<div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:10px"><div class="row" style="min-width:0;max-width:100%"><span class="tabs" style="min-width:0"><span class="on">All <span class="cnt">17</span></span><span>Urgent <span class="cnt u">2</span></span><span>This week <span class="cnt">14</span></span><span>Next week <span class="cnt">2</span></span></span><span class="btn icon hide-phone">' + I('filter', 'xs') + '</span></div>' +
+      '<div class="row hide-phone" style="gap:18px"><span class="tg">My contracts<span class="sw on"></span></span><span class="tg">Show full venues<span class="sw"></span></span></div></div>';
+    var pins = VENUES.map(function (v) {
+      return '<span class="pin' + (v.urgent ? ' u' : '') + (v.hidden ? ' h' : '') + (v.sel ? ' sel' : '') + (v.x > 0.75 ? ' l' : '') + '" style="left:' + (v.x * 100) + '%;top:' + (v.y * 100) + '%"><span class="dotp">' + v.fill + '</span><span class="lab">' + v.name + '<small>' + v.note + '</small></span></span>';
+    }).join('');
+    var map = '<div class="map"><canvas aria-hidden="true"></canvas>' + pins +
+      '<div class="maplegend"><span class="tag"><span class="k u"></span>Urgent</span><span class="tag"><span class="k"></span>Places to fill</span><span class="tag"><span class="k h"></span>Hidden from casuals</span></div>' +
+      '<div class="mapctl hide-phone"><span>' + I('list', 'xs') + '</span><span>' + I('plus', 'xs') + '</span><span>' + I('minus', 'xs') + '</span><span>' + I('target', 'xs') + '</span><span>' + I('expand', 'xs') + '</span><span>' + I('layers', 'xs') + '</span></div>' +
+      (phone ? '' : sessionCard(size)) + '</div>' + (phone ? sessionCard(size) : '') +
+      '<div class="mapfoot hide-phone"><span>Drag to move · scroll to zoom · a pin\'s number is its places to fill</span><span>7 venues · 33 places to fill</span></div>';
+    var toOffer = '<div class="panel"><div class="ph"><h3>' + I('send', 's') + 'To offer <span class="cnt">17</span></h3><span class="faint small">33 places, none offered</span></div><div class="list">' +
+      [['Tue', '3', 'Response team lead', 'Acme Demo Arena', '09:00', '0/1', ''], ['Wed', '4', 'CSAS officer', 'Northgate Demo Town Centre', '19:00', '3/4', 'u'], ['Thu', '5', 'Steward', 'Riverside Demo Park', '14:00', '1/2', ''], ['Fri', '6', 'Steward', 'Riverside Demo Park', '11:00', '0/3', '']].map(function (r) {
+        return '<div class="li"><span class="dt' + (r[6] ? ' u' : '') + '"><small>' + r[0] + '</small><b>' + r[1] + '</b></span><span style="min-width:0"><span class="row" style="gap:8px"><b>' + r[2] + '</b>' + (r[6] ? '<span class="pill u">Urgent</span>' : '') + '</span><span class="meta">' + r[3] + ' · ' + r[4] + '</span></span><span class="small" style="text-align:right;line-height:1.2"><b style="font-weight:600;font-size:14px">' + r[5] + '</b><span class="faint" style="display:block;font-size:11.5px">booked</span></span><span class="btn sm icon" aria-label="Offer">' + I('send', 'xs') + '</span></div>';
+      }).join('') + '</div><div class="more">View all 17</div></div>';
+    var updates = '<div class="panel"><div class="ph"><h3>' + I('bell', 's') + 'Updates <span class="cnt u">3</span></h3><span class="faint small">Today</span></div><div class="feed">' +
+      '<div class="ev"><span class="evi b">' + I('check', 'xs') + '</span><span><b>Zoe Adeyemi took a place</b><span class="faint small">Door supervisor, Acme Demo Arena, Tue 3 Nov 08:00 · now full</span></span><span class="when">09:06</span></div>' +
+      '<div class="ev"><span class="evi o">' + I('calx', 'xs') + '</span><span><b>Zoe Adeyemi cancelled · 3 days\' notice</b><span class="faint small">Steward, Riverside Demo Park, Thu 5 Nov 14:00 · no strike</span></span><span class="when">09:06</span></div>' +
+      '<div class="ev"><span class="evi o">' + I('calx', 'xs') + '</span><span><b>Chloe Quigley cancelled · 5 days\' notice</b><span class="faint small">Door supervisor, Acme Demo Arena, Sat 7 Nov 08:00 · reopened</span></span><span class="when">04:00</span></div>' +
+      '<div class="ev"><span class="evi">' + I('user', 'xs') + '</span><span><b>Ben Fraser sent a staff photo</b><span class="faint small">Waiting for a check</span></span><span class="when">Sun 08:00</span></div></div>' +
+      '<div class="more">Everything in the action log</div></div>';
+    function w(n) { return '<div class="wk"><span class="row" style="gap:8px"><span class="av" style="width:26px;height:26px;font-size:10px;background:#26262a;color:#d6d6da">' + ini(n) + '</span>' + n + '</span><span class="row" style="gap:6px"><span class="btn sm">' + I('check', 'xs') + 'Worked</span><span class="btn sm red">' + I('x', 'xs') + '</span></span></div>'; }
+    var worked = '<div class="panel"><div class="ph"><h3>' + I('check', 's') + 'Who worked? <span class="cnt">5</span></h3><span class="faint small">Sun 1 Nov</span></div><div>' +
+      '<div class="grp"><span>Steward · Acme Demo Racecourse · 10:30–18:30</span></div>' + w('Nathan Reid') + w('Tomasz Walsh') + w('Sam Walsh') +
+      '<div class="grp"><span>Security officer · Acme Demo Shopping Centre · 07:00–15:00</span></div>' + w('Bea Patel') + w('Grace Chowdhury') +
+      '</div><div class="more">Everyone else worked</div></div>';
+    return shell(title + chipsPhone + tabs + map + '<div class="cols3">' + toOffer + updates + worked + '</div>', size, { rail: 'home', title: 'Dashboard' });
+  }
+
+  // ---------- an event's page ----------
+  function slot(s, i, sel, showTime) {
+    var cls = s[2] === 'booked' ? '' : s[2] === 'urgent' ? ' urg' : ' open';
+    var who = s[3] ? '<span class="who"><span class="av" style="background:#26262a;color:#d6d6da">' + ini(s[3]) + '</span><span>' + s[3].split(' ')[0] + ' ' + s[3].split(' ')[1][0] + '.</span></span>'
+      : '<span class="lab">' + (s[2] === 'urgent' ? 'Urgent' : 'Open') + '</span>';
+    return '<div class="slot' + cls + (sel ? ' sel' : '') + '">' + who + (showTime ? '<span class="t">' + s[1] + '</span>' : '') + '</div>';
+  }
+  function eventPage(size) {
+    var phone = size === 'phone';
+    var head = '<div class="back only-phone">' + I('right', 'xs').replace('M9.5 6l6 6-6 6', 'M14.5 6l-6 6 6 6') + 'Events &amp; sessions</div><div class="crumb">' + I('home', 'xs') + 'Dashboard ' + I('right', 'xs') + ' Events &amp; sessions ' + I('right', 'xs') + ' <b>Acme Demo Arena</b></div>' +
+      '<div class="titlerow"><div><h1>Acme Demo Arena <span class="pill b" style="font-size:12px;height:22px">Showing to casuals</span></h1><p class="sub">Sat 7 Nov · Exampleton, ZZ1 1AA · 23 sessions</p></div>' +
+      '<div class="row hide-phone"><span class="btn">' + I('eye', 'xs') + 'Hide from casuals</span><span class="btn">' + I('plus', 'xs') + 'Add shifts</span><span class="btn hv">' + I('send', 'xs') + 'Offer 5 open places</span><span class="btn icon">' + I('more', 'xs') + '</span></div></div>' +
+      '<div class="only-phone"><span class="btn hv" style="width:100%">' + I('send', 'xs') + 'Offer 5 open places</span></div>' +
+      '<div class="ulTabs"><span>Overview</span><span class="on">Staffing <span class="cnt">23</span></span><span>Interested <span class="cnt">0</span></span><span>Cancellations <span class="cnt">1</span></span><span class="hide-phone">History</span></div>';
+    var dsBooked = ARENA.ds.filter(function (s) { return s[2] === 'booked'; }).length, stBooked = ARENA.st.filter(function (s) { return s[2] === 'booked'; }).length;
+    var layout = '<div class="panel"><div class="ph"><h3>' + I('layout', 's') + 'Staffing layout <span class="pill u">5 to fill</span></h3><span class="btn sm icon">' + I('filter', 'xs') + '</span></div>' +
+      '<div class="metrics"><div class="metric"><span class="big">' + booked + ' <span>/ 23 booked</span></span><div class="bar"><i style="width:' + Math.round(booked / 23 * 100) + '%"></i></div></div>' +
+      '<div class="metric"><span class="big">' + dsBooked + ' <span>/ 9 door supervisors</span></span><div class="bar"><i style="width:' + Math.round(dsBooked / 9 * 100) + '%"></i></div></div>' +
+      '<div class="metric"><span class="big">' + stBooked + ' <span>/ 14 stewards</span></span><div class="bar"><i style="width:' + Math.round(stBooked / 14 * 100) + '%"></i></div></div></div>' +
+      '<div class="bay"><div class="bay-h"><b>Door supervisors</b><span>SIA door supervisor licence · 08:00 and 11:30</span></div><div class="slots">' + ARENA.ds.map(function (s, i) { return slot(s, i, i === 0, true); }).join('') + '</div></div>' +
+      '<div class="bay"><div class="bay-h"><b>Stewards</b><span>Steward Level 2 · 12:00–18:30</span></div><div class="slots s7">' + ARENA.st.map(function (s, i) { return slot(s, i, false, false); }).join('') + '</div></div>' +
+      '<div class="row faint small" style="gap:16px;flex-wrap:wrap"><span class="row" style="gap:6px"><span class="pill b">Booked</span></span><span class="pill o">Open</span><span class="pill u">Urgent</span><span>Tap a place to see who\'s on it or to offer it.</span></div></div>';
+    function oc(role, time, tags, pill) { return '<div class="oc"><div class="top2"><span><b>' + role + '</b><span class="faint small" style="display:block">' + time + '</span></span>' + pill + '</div><div class="row" style="gap:6px;flex-wrap:wrap">' + tags.map(function (t) { return '<span class="tag">' + t + '</span>'; }).join('') + '</div></div>'; }
+    var open = '<div class="panel"><div class="ph"><h3>' + I('list', 's') + 'Open places</h3><span class="faint small">5 open · 1 urgent</span></div>' +
+      '<div class="oc sel"><div class="top2"><span><b>Door supervisor</b><span class="faint small" style="display:block">08:00–16:00 · 8 h</span></span><span class="pill u">Urgent</span></div>' +
+      '<div class="kv"><span><small>Needs</small><b>SIA door supervisor licence</b></span><span><small>Starts in</small><b>5 days</b></span><span><small>Offered</small><b>0 casuals</b></span><span><small>Showing to casuals</small><b>Yes</b></span></div>' +
+      '<div class="hr"></div><div class="notice">' + I('alert', 's') + '<span><b>Chloe Quigley cancelled this place</b> at 04:00 on Mon 2 Nov, with 5 days\' notice. No strike.</span></div>' +
+      '<div class="row"><span class="btn hv" style="flex:1">' + I('send', 'xs') + 'Offer to the best 5</span><span class="btn" style="flex:1">Pick someone</span></div></div>' +
+      oc('Door supervisor', '11:30–19:00 · 7.5 h', ['SIA DS', '0 offered'], '<span class="pill o">Open</span>') +
+      oc('Steward × 3', '12:00–18:30 · 6.5 h', ['Steward L2', '0 offered'], '<span class="pill o">Open</span>') + '</div>';
+    return shell(head + '<div class="two">' + layout + open + '</div>', size, { rail: 'events', title: 'Acme Demo Arena' });
+  }
+
+  // ---------- the map's streets (drawn, not a real place) ----------
+  function drawMap(cv) {
+    var r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+    var w = cv.offsetWidth, h = cv.offsetHeight; if (!w || !h) return;
+    cv.width = w * dpr; cv.height = h * dpr;
+    var c = cv.getContext('2d'); c.scale(dpr, dpr);
+    var s = 7; function rnd() { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; }
+    c.fillStyle = '#18181a'; c.fillRect(0, 0, w, h);
+    // a river
+    c.strokeStyle = '#121518'; c.lineWidth = Math.max(18, w * 0.03); c.lineCap = 'round';
+    c.beginPath(); c.moveTo(-20, h * 0.62); c.bezierCurveTo(w * 0.25, h * 0.5, w * 0.4, h * 0.95, w * 0.62, h * 0.88); c.bezierCurveTo(w * 0.8, h * 0.82, w * 0.9, h * 1.02, w + 20, h * 0.96); c.stroke();
+    // parks
+    c.fillStyle = '#1a1d1b';
+    [[0.12, 0.18, 0.1, 0.12], [0.78, 0.66, 0.08, 0.1], [0.3, 0.7, 0.07, 0.08]].forEach(function (p) { c.beginPath(); c.roundRect ? c.roundRect(p[0] * w, p[1] * h, p[2] * w, p[3] * h, 10) : c.rect(p[0] * w, p[1] * h, p[2] * w, p[3] * h); c.fill(); });
+    // minor streets: a tilted grid with breaks
+    c.save(); c.translate(w / 2, h / 2); c.rotate(-0.28); c.lineCap = 'butt';
+    var step = Math.max(26, w / 40), R = Math.max(w, h);
+    c.strokeStyle = '#222224'; c.lineWidth = 2.2;
+    for (var x = -R; x < R; x += step * (0.8 + rnd() * 0.6)) { c.beginPath(); var y = -R; c.moveTo(x, y); while (y < R) { y += step * (1 + rnd() * 3); if (rnd() < 0.18) c.moveTo(x + (rnd() - 0.5) * 4, y); else c.lineTo(x + (rnd() - 0.5) * 4, y); } c.stroke(); }
+    for (var yy = -R; yy < R; yy += step * (0.8 + rnd() * 0.6)) { c.beginPath(); var xx = -R; c.moveTo(xx, yy); while (xx < R) { xx += step * (1 + rnd() * 3); if (rnd() < 0.18) c.moveTo(xx, yy + (rnd() - 0.5) * 4); else c.lineTo(xx, yy + (rnd() - 0.5) * 4); } c.stroke(); }
+    c.restore();
+    // main roads
+    c.strokeStyle = '#2d2d30'; c.lineWidth = 5; c.lineCap = 'round'; c.lineJoin = 'round';
+    for (var k = 0; k < 7; k++) {
+      c.beginPath(); var px = rnd() * w, py = k % 2 ? -10 : h + 10, ang = (k % 2 ? 1 : -1) * (Math.PI / 2) + (rnd() - 0.5) * 0.9;
+      c.moveTo(px, py);
+      for (var n = 0; n < 40; n++) { ang += (rnd() - 0.5) * 0.35; px += Math.cos(ang) * 26; py += Math.sin(ang) * 26; c.lineTo(px, py); }
+      c.stroke();
+    }
+    // a ring road
+    c.strokeStyle = '#2a2a2d'; c.lineWidth = 6; c.beginPath(); c.ellipse(w * 0.6, h * 0.5, w * 0.36, h * 0.46, -0.1, 0, Math.PI * 2); c.stroke();
+  }
+
+  // ---------- stages ----------
+  function setup(id, render) {
+    var el = document.getElementById(id), stage = el.querySelector('.stage'), scaler = el.querySelector('.scaler');
+    function show(size) {
+      scaler.innerHTML = '<div class="f8 ' + size + '">' + render(size) + '</div>';
+      el.querySelectorAll('.seg button').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.size === size ? 'true' : 'false'); });
+      fit();
+      scaler.querySelectorAll('canvas').forEach(drawMap);
+    }
+    function fit() {
+      var f = scaler.firstElementChild; if (!f) return;
+      var w = f.offsetWidth, avail = stage.parentElement.clientWidth, s = Math.min(1, avail / w);
+      scaler.style.width = w + 'px'; scaler.style.transform = 'scale(' + s + ')';
+      stage.style.width = Math.ceil(w * s) + 'px'; stage.style.maxWidth = '100%';
+      stage.style.height = Math.ceil(f.offsetHeight * s) + 'px';
+    }
+    el.querySelectorAll('.seg button').forEach(function (b) { b.addEventListener('click', function () { show(b.dataset.size); }); });
+    if (window.ResizeObserver) new ResizeObserver(fit).observe(stage.parentElement);
+    show(window.innerWidth < 700 ? 'phone' : 'laptop');
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+  }
+  setup('s-dash', dashboard);
+  setup('s-event', eventPage);
+})();
+</script>

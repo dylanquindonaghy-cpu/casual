@@ -48,6 +48,6 @@ is built. Open it in a browser from this folder (it loads `now/` beside it).
 - **No office alert on a cancellation:** only an email for a place still free at start minus
   `escalate_hours_before_start` (3 h). Web push is for casuals only and is off on the demo
   (`PUSH_TRANSPORT=none`).
-- **The Haulix shot couldn't be opened** (Dribbble refuses automated visits). The audit checks the
-  goals recorded from it in rounds 4 and 5 (`docs/archive/plan-done.md`, Phase 24) and asks Dylan
-  for screenshots for a side-by-side.
+- **The Haulix shot couldn't be opened** (Dribbble refuses automated visits), so the audit first
+  checked the goals recorded from it in rounds 4 and 5 (`docs/archive/plan-done.md`, Phase 24).
+  Dylan then sent a recording of it: the side-by-side and round 8 are in `../round-8/`.

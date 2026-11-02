@@ -1028,6 +1028,26 @@ task gets a box, a number and a "Done when" line when Dylan gives it the go-ahea
   casual's choice, each offer saying how it will reach them; a company WhatsApp Business number
   only if a firm wants it later. Needs Phase 4's web push finished (M, UI).
 
+## Proposed 2026-11-02: P10 — Round 8, the office's look after Haulix (not started; mock-up first; UI)
+
+Dylan, 2026-11-02: "i like these changes but what about the actual look compared to the link i sent
+you i dont think its screaming high end professional dashboard yet", with a screen recording of the
+Haulix shot. The comparison and the mock-up (the dashboard and an event's page, 1280px and 390px):
+https://claude.ai/artifact/2cHizkZcrYG7C8U8C1H3cF, recorded in `docs/mockups/round-8/` (its README
+says what Haulix does and what round 8 changes). **Not approved yet**; its four decisions are
+"Office review" 6 to 9 in `docs/plan/decisions-waiting.md`. Boxes when Dylan gives the go-ahead.
+
+- **The system (office only):** dark by default, neutral charcoal and flat (no glass, wash or glow);
+  one accent, hi-vis yellow, on the main button, switches and what's selected; one status code
+  everywhere; the rail's current page a solid white circle; the top bar's counts as separate chips.
+  Replaces round 7 in the office; the casual app keeps its look.
+- **The dashboard:** a map of the firm's venues with places to fill per venue, the selected session
+  in a floating card; To offer, Updates (P9 C) and Who worked (P9 D) below. Needs a map service
+  (decision 9); venues' coordinates come from their postcodes (postcodes.io, already used).
+- **An event's page:** breadcrumb, actions with one primary, tabs with counts, a staffing layout of
+  every place (booked with who, open, urgent) and the open places beside it.
+- **Every other office page** on the same system, as round 7 did (24.4, 24.5).
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify

@@ -410,7 +410,7 @@ svg.i.s { width: 15px; height: 15px; }
   <section class="part" id="reference" aria-labelledby="h-ref">
     <h2 id="h-ref">Reference audit: Haulix</h2>
     <div class="callout read">
-      <p><b>I couldn't open the Haulix shot.</b> Dribbble refuses automated visits, and I won't get round that. Please paste screenshots of it (and of any other reference you meant to send again) straight into the chat, and I'll do a side-by-side, screen by screen.</p>
+      <p><b>Update:</b> you sent a recording of the Haulix shot, so the full side-by-side and a mock-up of the office in that style (round 8) are on their own page: <a href="https://claude.ai/artifact/2cHizkZcrYG7C8U8C1H3cF">ShiftDesk office round 8</a>.</p>
       <p class="muted">Below is what I could check now: the goals you set from Haulix in rounds 4 and 5 of the design canvas (recorded in <code>docs/archive/plan-done.md</code>), and how the live office meets them.</p>
     </div>
     <div class="tablewrap">
@@ -421,7 +421,7 @@ svg.i.s { width: 15px; height: 15px; }
           <tr><td>Apple-style depth: shadows, layers (round 5)</td><td>Glass panels with a lit rim and drop shadows on a pastel wash</td><td class="ok">Met</td></tr>
           <tr><td>Don't show what's been filled, unless the system filled it out of hours (round 5)</td><td>"While you were out" shows 18:00–08:00 fills; events fold filled sessions. But the shift page and casual lists still lead with filled places.</td><td class="part-ok">Mostly</td></tr>
           <tr><td>"Your shifts line isn't needed" (round 5)</td><td>Gone from the top bar, still on the Pay dashboard with "(WhatsApp, text and calls)"</td><td class="no">Not met</td></tr>
-          <tr><td>Tailored "a lot more like" Haulix and BizLink (round 4)</td><td>Can't judge without the pictures</td><td class="part-ok">To check</td></tr>
+          <tr><td>Tailored "a lot more like" Haulix and BizLink (round 4)</td><td>Pastel glass and coloured icons against Haulix's flat charcoal and one accent; no picture of the job (Haulix's map and truck)</td><td class="no">Not met: see round 8</td></tr>
         </tbody>
       </table>
     </div>
@@ -537,8 +537,8 @@ svg.i.s { width: 15px; height: 15px; }
     }
     var c = '<div class="f-headrow"><div><div class="f-h1">Needs attention</div><div class="f-sub">3 people still to confirm from the weekend. Each mark is logged.</div></div></div>' +
       '<div class="f-grid2"><div class="glass pane"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h3 style="font-size:18px">Did they work? <span class="count">3</span></h3><span class="muted small">From the last 7 days</span></div>' +
-      group('Sun', '1', 'Acme Demo Racecourse', 'Steward · 10:30–18:30', person('SW', 'Sam Walsh', 'Steward', 'Gate 3', 'worked') + person('OH', 'Olu Hughes', 'Steward', 'Paddock', '') + person('ZV', 'Zoe Vaughan', 'Steward', 'Gate 1', ''), '2 to confirm') +
-      group('Sun', '1', 'Acme Demo Shopping Centre', 'Security officer · 07:00–15:00', person('GC', 'Grace Chowdhury', 'Security officer', 'North mall', '') + person('YD', 'Yasmin Doyle', 'Security officer', 'Car park', 'no'), '1 to confirm') +
+      group('Sun', '1', 'Acme Demo Racecourse', 'Steward · 10:30–18:30', person('SW', 'Sam Walsh', 'Steward', '10:30–18:30', 'worked') + person('NR', 'Nathan Reid', 'Steward', '10:30–18:30', '') + person('TW', 'Tomasz Walsh', 'Steward', '10:30–18:30', ''), '2 to confirm') +
+      group('Sun', '1', 'Acme Demo Shopping Centre', 'Security officer · 07:00–15:00', person('GC', 'Grace Chowdhury', 'Security officer', '07:00–15:00', '') + person('BP', 'Bea Patel', 'Security officer', '07:00–15:00', 'no'), '1 to confirm') +
       '</div><div class="glass pane"><h3 style="font-size:18px">How marking works</h3><p class="muted">Tap <b>Worked</b> or <b>Didn\'t attend</b> for each person, or <b>Everyone else worked</b> for the rest (once the session has ended, as now). The casual sees "Didn\'t attend" in their past shifts, and it will count in their reliability (change A). A mark can be changed; every change is logged.</p><div class="hr"></div><h3 style="font-size:16px">Also needs you</h3><div class="r" style="grid-template-columns:minmax(0,1fr) auto"><span>2 uploads to check</span><span class="btn sm">Check</span></div><div class="r" style="grid-template-columns:minmax(0,1fr) auto"><span>2 urgent places, first Wed 4 Nov</span><span class="btn sm">Offer</span></div></div></div>';
     return c;
   };

@@ -297,8 +297,9 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
 
 ### Office review (added 2026-11-02)
 
-For proposal P9 in `PLAN.md` (the review and its mock-up:
-https://claude.ai/artifact/N2xeceFhjsDVdA9eopsAGs, "Your decisions"). None decided yet.
+For proposals P9 (rows 1 to 5: the review and its mock-up,
+https://claude.ai/artifact/N2xeceFhjsDVdA9eopsAGs, "Your decisions") and P10 (rows 6 to 9: round 8,
+https://claude.ai/artifact/2cHizkZcrYG7C8U8C1H3cF) in `PLAN.md`. None decided yet.
 
 | # | Decision | Default now | Recommended | Where |
 |---|---|---|---|---|
@@ -307,6 +308,10 @@ https://claude.ai/artifact/N2xeceFhjsDVdA9eopsAGs, "Your decisions"). None decid
 | 3 | How reliability is worked out, who sees it, and whether it changes who's offered first | Not worked out; offers ranked by hours this week, then last offered | Last 90 days: worked ÷ (worked + no-shows + cancellations under 48 hours), counts beside it; "Regular" = worked in 6 of the last 8 weeks; the office and the casual both see it; offer order unchanged until a month of pilot data | P9 A |
 | 4 | Which ways an offer can reach a casual | Push, then WhatsApp or text, then email (the code); WhatsApp on screen and the default | App notification, then a text through the firm's Webex account, then email; email a casual's choice; WhatsApp only through a firm's own WhatsApp Business number, later, if wanted | P9 H; Phase 15.1 |
 | 5 | Office alerts: what, to whom, how | Nothing on a cancellation; an email for a place still free 3 h before start | A live feed and a pop-up for each cancellation (on); a phone or desktop notification for cancellations under 48 hours and places open 6 h before start; each resourcer chooses, for their contracts only | P9 C |
+| 6 | Move the office away from glass (round 7, approved 2026-10-26) to round 8's flat look after Haulix (https://claude.ai/artifact/2cHizkZcrYG7C8U8C1H3cF) | Round 7: glass on a pastel wash | Yes, the office only; the casual app keeps its look (used outdoors on phones) | P10 |
+| 7 | Dark by default in the office | Follows the device; light unless set | Dark by default, with a light version on the same flat rules | P10 |
+| 8 | The office's one accent | Firm colour on the main button, plus a separate app blue | Hi-vis yellow in the office; the firm's colour stays on its mark and in the casual app | P10 |
+| 9 | A map service for the venue map | None | MapLibre (open source) with a dark style from a UK or EU tile host, or a self-hosted map file; without one, a cover grid by venue and day | P10 |
 
 ### Checks and to-dos (not choices)
 

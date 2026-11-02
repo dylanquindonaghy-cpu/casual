@@ -268,7 +268,8 @@ function GettingAround({ role, menu }: { role: OfficeRole; menu: MenuGroup[] }) 
       </Para>
       <Para>
         The button beside them switches between dark and light too. Its name says which:{" "}
-        <Name>Switch to dark mode</Name> or <Name>Switch to light mode</Name>.
+        <Name>Switch to dark mode</Name> or <Name>Switch to light mode</Name>. The office is dark
+        until you pick light.
         {/* Needs attention is in the menu only for the roles with it, the "today" area
             (src/app/office/office-menu.ts). */}
         {canAccess(role, "today")

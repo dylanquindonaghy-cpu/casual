@@ -1,8 +1,10 @@
 # UI design system
 
 How every screen looks and is laid out. Added 2026-10-05 (Phase 11) at Dylan's request: "make it a
-lot easier to see and understand where everything is". The newest look is first ("Phase 24");
-the sections after it are the earlier phases, kept for their reasons where they still stand.
+lot easier to see and understand where everything is". The newest look is first: "Phase 26" for
+the office (round 8), "Phase 24" for the casual app (round 7, and the office's parts that round 8
+doesn't change); the sections after them are the earlier phases, kept for their reasons where they
+still stand.
 Words on screens still come from `docs/screens.md`; this file covers layout, hierarchy, colour
 and components only.
 
@@ -16,7 +18,8 @@ Principles, in order:
    destructive.
 4. **Colour is never the only signal.** Every coloured status carries its word. Contrast meets
    WCAG AA (text 4.5:1, borders and controls 3:1).
-5. **Glass, and nothing else for decoration** (Phase 24, Dylan's round 7). Sections, buttons and
+5. **Glass, and nothing else for decoration** (Phase 24, Dylan's round 7; in the office, round 8's
+   translucent and sharp glass over a faint street map: "Phase 26"). Sections, buttons and
    what floats are translucent glass over one soft pastel wash, in the office and the casual app
    alike (see "Phase 24"); no grain, glows, coloured shadows or images. Motion only to show what
    changed, as Phase 18's spec (below), and press feedback. The firm's colour tints the one main
@@ -25,6 +28,47 @@ Principles, in order:
    and the office's own colours and face are gone.
 6. **Works without JavaScript** where pages already do (server-action forms, `<details>`
    confirmations, GET filter forms, anchor links).
+
+## Phase 26: round 8, the office after Haulix
+
+Dylan, 2026-11-02: "i dont think its screaming high end professional dashboard yet", then his
+recording of the Haulix shot; round 8's mock-ups and the exact changes, all approved
+(`docs/mockups/round-8/`, https://claude.ai/artifact/EqgPhrjHXB2XMJGFofH6WU), and the pre-build
+audit (https://claude.ai/artifact/4DRBzVM5k6BLCmfin7Zgff). The office has its own look again; the
+casual app keeps round 7's ("Phase 24"). What round 8 doesn't change (the parts, the spacing, the
+motion) stays as Phase 24's.
+
+- **Where it lives:** `src/app/globals.css`, the round 8 blocks. The office's colours and glass are
+  set on its wrapper (`[data-office]`, `src/app/office/layout.tsx`), so inside the office they win
+  over `<body>`'s firm colours; the page's ground and the browser's colour scheme on `<html>` for an
+  office page. The office's sizes stay in `body:has([data-office])`.
+- **Dark by default:** no `sd-theme` cookie, or a dark one, gives the dark look; a light one the
+  light look, on the same flat rules. The light or dark button treats "nothing picked" as dark in the
+  office (`ThemeButton`'s `fallback`).
+- **Colour:** neutral charcoal (`#0f0f10` ground; words `#f4f4f3`, `#b4b4b9`, `#9d9da2`) or off-white
+  (`#f2f2f0`; words as round 7's light). One accent, hi-vis yellow `#e9f86f` with `#171800` words: the
+  main button (flat: no shade, no glow), the switches, the firm's mark, your initials, what's
+  selected (as words on the light look, a dark olive `#4a5200`). One status code: urgent red, open
+  amber, booked green, offered blue, hidden grey. White words on red at 4.93:1 (`#d13438`; aud-1).
+- **Glass, translucent and sharp:** sections a see-through fill (`rgb(22 22 24 / 0.28)` dark) over a
+  faint street map, blurred 6px; what floats (menus, the drawer, the bar below 1024px) 88% with a
+  12px blur and the only drop; one even 1px hairline (10% white, or 10% ink on light) instead of a
+  lit rim; no gloss, sheen, glow or bending (round 7's refraction is off in the office); 12px
+  panels, 8px rows.
+- **The street map:** one still picture (`src/app/office-streets.svg`, from the mock-up's pattern)
+  behind every office page as `<body>`'s `::before`, its lines in `--map-line` and `--map-road`
+  (6% and 8.5% white; 5% and 7% ink on light); drawn once, fixed as the page scrolls (aud-16).
+- **Less transparency, more contrast, or no blur:** every office surface solid; with the first two
+  the street map goes too.
+- **Type** (aud-3): 12 · 13 · 14 · 16 · 20 · 30px in the office, nothing under 12px; words 14px, a
+  section's title 16px, a page's headline 30px semibold.
+- **Contrast:** checked pair by pair in six office looks (dark and light, each also solid and with
+  no blur) over the ground and both strengths of the map's lines (`tests/unit/ui.contrast.test.ts`).
+- **The shell:** the rail section glass, shut icons dark circles (`glass-button`), the page you're on
+  a solid white circle (`bg-ink`, its icon `text-on-ink`); the top bar's counts separate 44px chips
+  (their icons from a 1344px bar), the search a flat 44px pill, you with no capsule; below 1024px
+  the counts a row over the page. Every office page refreshes its figures every 30 seconds while
+  in view ("Updated 10:42": aud-2; `src/app/office/auto-refresh.ts`).
 
 ## Phase 24: Liquid Glass
 
@@ -36,7 +80,8 @@ round 7's boards in light and dark, its stylesheets, and in words what each page
 the build differs. This section is the system (task 24.1); the pages take its parts in 24.2 to
 24.6. Phase 21's spacing steps, states and shared parts stand where this doesn't change them.
 
-- **One look for the office and the casual app.** The office has no colours of its own any more
+- **One look for the office and the casual app** (Replaced in the office by Phase 26: round 8 gives
+  it its own again, above). The office has no colours of its own any more
   (its block in `globals.css` sets only its sizes): both take the same tokens, the same glass and
   the same face. Phase 23's flat white cards, the office's sky button and Plus Jakarta Sans are
   gone.

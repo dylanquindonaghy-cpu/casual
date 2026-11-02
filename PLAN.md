@@ -1077,7 +1077,9 @@ Parking lot.
 - [ ] Contracts and each resourcer's dashboard: a contracts table (clients owning sites), per-user
       settings, Customise (spec "Customise and contracts"; S, T, UI) (26.3)
 - [ ] Updates and alerts: the Updates page, the pop-up on a cancellation, app notifications for office
-      users, each person's "Tell me about" (spec "Updates and alerts"; S, M, UI) (26.4)
+      users, each person's "Tell me about", and the top bar's bell with new updates (spec "Updates
+      and alerts", and "The look" sys-8's bell: it opens the Updates page, so it comes with it; S,
+      M, UI) (26.4)
 - [ ] An event's page: staffing layout and open places (spec "An event's page"; UI) (26.5)
 - [ ] A session and who wants it: the per-event "Casuals ask, you choose" setting, "I can do this" in
       the casual app, the list with filters, booking through the rules (spec "A session"; S, R, UI) (26.6)

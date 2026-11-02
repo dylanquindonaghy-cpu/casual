@@ -23,6 +23,7 @@ import { OfficeRail } from "./office-rail";
 import { OfficeSearch } from "./office-search";
 import { DashboardSkeleton, PageSkeleton } from "./office-skeleton";
 import type { SearchResult } from "./search-actions";
+import { useAutoRefresh } from "./auto-refresh";
 import { ThemeButton } from "./theme-button";
 
 // The frame around every office page once someone is logged in (docs/office-v2.md 3.1;
@@ -98,44 +99,54 @@ function Firm({ firmName, office }: { firmName: string; office: string }) {
   );
 }
 
-// The first capsule: the counts, each a link that swells under a press, a hairline between them;
-// a count that couldn't be read shows its words alone; Urgent's number red while there are any.
-// The bar is a container (its column's width changes with the window and the rail): the counts'
-// icons show only when there's room for all three capsules with them (1172px: a 1280px window with
-// the rail shut), your name (up to 112px) and role from 1008px, the search 250px wide from 1172px
-// (200px below); in a column narrower still (the rail open on a 1024px window) the counts scroll
-// sideways, with no bar.
-function BarCounts({ counts }: { counts: BarCount[] }) {
+// The counts (round 8, Phase 26): each its own chip, a link 44px tall with a hairline (clear glass,
+// flat in the office), pressed it swells; a count that couldn't be read shows its words alone;
+// Urgent's number red while there are any. From 1024px in the top bar (the bar is a container: the
+// chips' icons show only when there's room, 1344px; in a column narrower still, the rail open on a
+// 1024px window, they scroll sideways with no bar); below it, a row of their own at the top of the
+// page that scrolls sideways (`row`), fading at its edges.
+function BarCounts({ counts, row = false }: { counts: BarCount[]; row?: boolean }) {
   if (counts.length === 0) return null;
   return (
     <div
-      data-bar-counts=""
-      className="glass-float scrollbar-none hidden min-w-0 shrink items-center overflow-x-auto rounded-full p-1 lg:flex"
+      data-bar-counts={row ? "row" : ""}
+      className={
+        row
+          ? "scrollbar-none -mx-2 flex gap-2 overflow-x-auto px-2 pb-1 lg:hidden"
+          : "scrollbar-none hidden min-w-0 shrink items-center gap-2 overflow-x-auto lg:flex"
+      }
     >
-      {counts.map((c, i) => (
-        <span key={c.key} className="flex shrink-0 items-center">
-          {i > 0 ? <span aria-hidden="true" className="h-5 w-px bg-line" /> : null}
-          <Link
-            href={c.href}
-            className="press-glass flex h-10 items-center gap-2 rounded-full px-3 text-ink-muted hover:bg-active hover:text-ink active:bg-button-press"
-          >
-            <Icon name={c.icon} size={16} className="hidden @min-[73.25rem]:block" />
-            {c.label}
-            {/* Read as "To fill 26". */}
-            {c.count === null ? null : " "}
-            {c.count === null ? null : (
-              <b
-                className={`font-semibold tabular-nums ${c.urgent ? "text-urgent-ink" : "text-ink"}`}
-              >
-                {c.count}
-                {c.more ? "+" : ""}
-              </b>
-            )}
-          </Link>
-        </span>
+      {counts.map((c) => (
+        <Link
+          key={c.key}
+          href={c.href}
+          className="press-glass glass-button flex h-11 shrink-0 items-center gap-2 rounded-full px-3 text-sm whitespace-nowrap text-ink-muted hover:bg-button-hover hover:text-ink active:bg-button-press"
+        >
+          <Icon name={c.icon} size={16} className={row ? "hidden" : "hidden @min-[84rem]:block"} />
+          {c.label}
+          {/* Read as "To fill 26". */}
+          {c.count === null ? null : " "}
+          {c.count === null ? null : (
+            <b className={`font-semibold tabular-nums ${c.urgent ? "text-urgent" : "text-ink"}`}>
+              {c.count}
+              {c.more ? "+" : ""}
+            </b>
+          )}
+        </Link>
       ))}
     </div>
   );
+}
+
+// When the page last asked the server for its figures (aud-2, Phase 26): "Updated 10:42", London
+// time, shown once the page is in the browser (the server's clock would differ from the reader's).
+const UPDATED_AT = new Intl.DateTimeFormat("en-GB", {
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: "Europe/London",
+});
+export function updatedWords(at: Date): string {
+  return `Updated ${UPDATED_AT.format(at)}`;
 }
 
 export function OfficeFrame({
@@ -191,6 +202,9 @@ export function OfficeFrame({
   const picked = pendingPage(pending, pathname);
   const menuPending = useMemo<MenuPendingApi>(() => ({ start, end, picked }), [start, end, picked]);
   const loading = pending !== null && late === pending ? picked : null;
+  // The page keeps itself up to date (aud-2): when it last did.
+  const updated = useAutoRefresh(pathname);
+  const stamp = updated ? updatedWords(updated) : null;
 
   useEffect(() => {
     if (!pending) return;
@@ -311,10 +325,15 @@ export function OfficeFrame({
                 <Firm firmName={firmName} office="hidden" />
               </div>
               <BarCounts counts={counts} />
+              {stamp ? (
+                <p className="hidden shrink-0 text-xs text-ink-faint tabular-nums lg:block">
+                  {stamp}
+                </p>
+              ) : null}
               <span aria-hidden="true" className="min-w-0 flex-1" />
               {search ? <OfficeSearch search={search} /> : null}
-              <div className="flex shrink-0 items-center gap-2 sm:gap-3 lg:glass-float lg:gap-1 lg:rounded-full lg:p-1">
-                <ThemeButton initial={theme} look="square" />
+              <div className="flex shrink-0 items-center gap-2 sm:gap-3 lg:gap-2">
+                <ThemeButton initial={theme} look="square" fallback="dark" />
                 <button
                   ref={you}
                   type="button"
@@ -323,7 +342,7 @@ export function OfficeFrame({
                 >
                   <span
                     aria-hidden="true"
-                    className="flex size-9 shrink-0 items-center justify-center rounded-full glass-button text-sm font-bold text-ink-muted lg:size-8 lg:glass-rim lg:bg-wait-tile lg:bg-none lg:text-xs lg:font-semibold lg:text-wait-ink"
+                    className="flex size-9 shrink-0 items-center justify-center rounded-full bg-hivis text-sm font-bold text-on-hivis lg:size-8 lg:text-xs lg:font-semibold"
                   >
                     {initials(name)}
                   </span>
@@ -352,7 +371,7 @@ export function OfficeFrame({
                   <span className="block font-semibold break-words">{name}</span>
                   <span className="block text-sm text-ink-muted">{roleLabel}</span>
                 </p>
-                <ThemeButton initial={theme} />
+                <ThemeButton initial={theme} fallback="dark" />
                 <Link
                   href="/office/guide"
                   className="press flex min-h-11 items-center gap-3 rounded-row px-3 font-medium hover:bg-raised active:bg-button-press"
@@ -410,6 +429,16 @@ export function OfficeFrame({
                   under the capsules. */}
               <div className="flex-1">
                 <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:max-w-[100rem] lg:px-0 lg:pt-3 lg:pb-8">
+                  {/* Below 1024px the counts are a row of their own over the page (round 8), with
+                      when it was last updated. */}
+                  {counts.length > 0 ? (
+                    <div className="mb-6 lg:hidden">
+                      <BarCounts counts={counts} row />
+                      {stamp ? (
+                        <p className="mt-1 text-xs text-ink-faint tabular-nums">{stamp}</p>
+                      ) : null}
+                    </div>
+                  ) : null}
                   {loading && (loading === "/office" ? <DashboardSkeleton /> : <PageSkeleton />)}
                   <div hidden={loading !== null}>{children}</div>
                 </div>

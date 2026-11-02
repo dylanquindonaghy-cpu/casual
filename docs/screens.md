@@ -73,6 +73,30 @@ mock-up's word is used (its differences: the README's "Where the build differs")
   the same pass, its "Later" and the past list under 20px headings; the urgent board's cards are
   Open shifts' cards.
 
+## The office shell, round 8 (Phase 26)
+
+Dylan's approved round 8 (2026-11-02, after the Haulix shot; the exact changes, "The look", and the
+pre-build audit: https://claude.ai/artifact/EqgPhrjHXB2XMJGFofH6WU, `docs/mockups/round-8/`). The
+look is `docs/ui-design.md` "Phase 26". This section wins over round 7's below where they differ;
+every route, label, link and action is as round 7's.
+
+- **The look:** dark until someone picks light (the light or dark button: "Switch to light mode" /
+  "Switch to dark mode"; with no choice the office is dark, whatever the device prefers). The casual
+  app keeps round 7's look and still follows the device.
+- **The rail** (from 1024px): as round 7's, each shut icon a dark circle and the page you're on a
+  solid white one; the firm's initial in hi-vis; the red dot as before.
+- **The top bar** (from 1024px): the counts as separate chips ("To fill {26}", "Urgent {2}", "Offers
+  out {11}", "To check {7}", "Pay queries {10}": the same words, links and roles as round 7's), then
+  "Updated {10:42}" (when the page last asked for its figures, London time), then "Search", the
+  light or dark button and you (your initials on hi-vis, your name and role, the account menu as
+  before). The bell with new updates comes with the Updates page (26.4).
+- **Below 1024px:** the top bar as round 7's ("Menu", the firm, the light or dark button, you); the
+  counts are a row of their own at the top of every page, the same chips, scrolling sideways, with
+  "Updated {10:42}" under them.
+- **Every office page keeps itself up to date:** every 30 seconds while it's in view, and as soon as
+  you come back to it after 30 seconds or more away, it asks for its figures again (what you've
+  typed or opened stays); "Updated {10:42}" says when it last did.
+
 ## The office shell, round 7 (Phase 24)
 
 Dylan's approved round 7 of the Design canvas ("Round 7 exactly, layout too"; PLAN.md 24.2;

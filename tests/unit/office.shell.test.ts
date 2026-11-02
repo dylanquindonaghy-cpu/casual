@@ -1,6 +1,10 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+
+const read = (file: string) => readFileSync(join(process.cwd(), file), "utf8");
 
 // The office shell (src/app/office/office-shell.tsx, office-frame.tsx, office-nav.tsx,
 // theme-button.tsx; docs/office-v2.md 3.1; docs/ui-design.md "Office shell"): which links each
@@ -482,33 +486,34 @@ describe("the shell", () => {
     expect(html.match(/>Log out</g)).toHaveLength(1);
   });
 
-  // Phase 24 (round 7): no ground of the shell's own, so the wash shows through; from 1024px the
-  // rail beside the column (72px, or 236px open: the grid's first column follows it), the bar no
-  // glass of its own but three floating capsules and the frosted edge, the page no card. Below
-  // 1024px the bar is floating glass the window's full width. No shadow class at all (the glass
-  // draws its own rim and drop), no grain, no blur of a class's own.
-  it("glass: no ground of its own, the rail and the three capsules float, no page card", () => {
+  // Phase 24 (round 7): no ground of the shell's own, so what's behind shows through; from 1024px
+  // the rail beside the column (72px, or 236px open: the grid's first column follows it), the page
+  // no card. Round 8 (Phase 26): the rail is glass like a section (no drop: it doesn't float), the
+  // counts each their own flat chip, the search a flat pill and you no capsule, with "Updated" after
+  // the counts; only the bar below 1024px, the account menu and the drawer float. No shadow class
+  // at all (the glass draws its own rim), no grain, no blur of a class's own.
+  it("glass: no ground of its own, a glass rail, flat chips, no page card", () => {
     const html = shell();
     expect(html).toContain(
       '<div data-shell="office" class="flex flex-1 flex-col text-base text-ink lg:grid lg:grid-cols-[auto_minmax(0,1fr)] lg:items-start lg:gap-x-3 lg:px-3">',
     );
     expect(html).toMatch(
-      /<div id="office-rail" data-rail="shut" class="glass-float sticky top-3 z-30 mt-3 hidden flex-col self-start rounded-card [^"]*lg:flex scrollbar-none w-18 items-center [^"]*">/,
+      /<div id="office-rail" data-rail="shut" class="glass sticky top-3 z-30 mt-3 hidden flex-col self-start rounded-card [^"]*lg:flex scrollbar-none w-18 items-center [^"]*">/,
     );
     // The bar: a container (its capsules fit the column), floating glass below 1024px, the frosted
     // edge from there, sticking to the top.
     expect(barOf(html)).toMatch(
       /^<header class="@container max-lg:glass-float lg:scroll-edge sticky top-0 z-20 flex min-h-14 items-center gap-2 px-3 sm:gap-3 lg:min-h-0 lg:gap-2 lg:px-0 lg:pt-3 lg:pb-2">/,
     );
-    // The three capsules (from 1024px): the counts, the search, you.
+    // From 1024px: the counts as chips (no capsule round them), the search a flat pill, you.
     expect(barOf(html)).toContain(
-      '<div data-bar-counts="" class="glass-float scrollbar-none hidden min-w-0 shrink items-center overflow-x-auto rounded-full p-1 lg:flex">',
+      '<div data-bar-counts="" class="scrollbar-none hidden min-w-0 shrink items-center gap-2 overflow-x-auto lg:flex">',
     );
     expect(barOf(html)).toMatch(
-      /<div class="relative hidden lg:block"><div class="glass-float flex h-12 w-50 items-center gap-2 rounded-full pr-2 pl-4 @min-\[73.25rem\]:w-62.5">/,
+      /<div class="relative hidden lg:block"><div class="glass-button flex h-11 w-50 items-center gap-2 rounded-full pr-2 pl-4 @min-\[73.25rem\]:w-62.5">/,
     );
     expect(barOf(html)).toContain(
-      '<div class="flex shrink-0 items-center gap-2 sm:gap-3 lg:glass-float lg:gap-1 lg:rounded-full lg:p-1">',
+      '<div class="flex shrink-0 items-center gap-2 sm:gap-3 lg:gap-2">',
     );
     // The page (`#main > div > div`): no card, no fill, no edge; the column's width from 1024px.
     expect(html).toContain(
@@ -520,11 +525,10 @@ describe("the shell", () => {
     expect(html).toMatch(
       /<dialog id="office-menu-drawer" aria-label="Menu" class="[^"]*glass-float/,
     );
-    // Floating glass: the rail, the counts, the search, the account menu and the drawer; the bar
-    // below 1024px and you from there.
-    expect(html.match(/(?<![\w:-])glass-float(?![\w-])/g)).toHaveLength(5);
+    // Floating glass: the account menu and the drawer; the bar below 1024px. Nothing else.
+    expect(html.match(/(?<![\w:-])glass-float(?![\w-])/g)).toHaveLength(2);
     expect(html.match(/ max-lg:glass-float /g)).toHaveLength(1);
-    expect(html.match(/ lg:glass-float /g)).toHaveLength(1);
+    expect(html).not.toMatch(/ lg:glass-float /);
     expect(html).not.toMatch(/(?<![\w-])(?:grain|stripes|tint-|backdrop-blur|card-chip)/);
     expect(html).not.toMatch(/(?<![\w-])bg-(?:canvas|sheet|card)(?![\w-])/);
     // The menu card of Phases 22 and 23 is gone.
@@ -548,11 +552,11 @@ describe("the shell", () => {
     expect(bar).toContain(
       '<div class="min-w-0 lg:hidden"><p class="flex min-w-0 items-center gap-3 leading-tight"><span aria-hidden="true" class="flex size-9 shrink-0 items-center justify-center rounded-row bg-brand-bar text-base font-extrabold text-on-brand-bar">A</span><span class="min-w-0"><span class="block truncate font-bold text-ink">Acme Events</span><span class="hidden">Office</span></span></p></div>',
     );
-    // The light or dark switch: 44px, 14px corners, clear glass below 1024px; round, 40px, in the
-    // capsule from there; its words its name and shown beside it on keyboard focus and under the
+    // The light or dark switch (the office dark until someone picks: round 8): 44px, 14px corners,
+    // clear glass below 1024px; round, 40px, from there; its words its name and shown beside it on keyboard focus and under the
     // pointer (WCAG 1.4.13: they take the pointer, an 8px bridge over the gap).
     expect(bar).toMatch(
-      /<span class="group\/tip relative flex shrink-0"><button type="button" aria-label="Switch to dark mode" disabled="" class="peer press-glass max-lg:glass-button inline-flex size-11 items-center justify-center rounded-row [^"]*lg:size-10 lg:rounded-full"><svg [^>]*><path [^>]*><\/path><\/svg><\/button><span aria-hidden="true" data-theme-tip="" class="absolute top-full right-0 z-30 mt-2 hidden animate-pop rounded-row bg-ink px-3 py-2 text-sm font-semibold whitespace-nowrap text-on-ink before:absolute before:inset-x-0 before:-top-2 before:h-2 peer-focus-visible:block pointer-fine:group-hover\/tip:block">Switch to dark mode<\/span><\/span>/,
+      /<span class="group\/tip relative flex shrink-0"><button type="button" aria-label="Switch to light mode" disabled="" class="peer press-glass max-lg:glass-button inline-flex size-11 items-center justify-center rounded-row [^"]*lg:size-10 lg:rounded-full"><svg [^>]*>(?:(?!<\/svg>).)*<\/svg><\/button><span aria-hidden="true" data-theme-tip="" class="absolute top-full right-0 z-30 mt-2 hidden animate-pop rounded-row bg-ink px-3 py-2 text-sm font-semibold whitespace-nowrap text-on-ink before:absolute before:inset-x-0 before:-top-2 before:h-2 peer-focus-visible:block pointer-fine:group-hover\/tip:block">Switch to light mode<\/span><\/span>/,
     );
     // In that order, left to right (HTML attribute names ignore case: React writes
     // "popoverTarget").
@@ -562,7 +566,7 @@ describe("the shell", () => {
       ">Acme Events<",
       "data-bar-counts",
       'type="search"',
-      'aria-label="Switch to dark mode"',
+      'aria-label="Switch to light mode"',
       `popovertarget="${ACCOUNT_MENU_ID}"`,
     ].map(at);
     expect(order.every((n) => n > -1)).toBe(true);
@@ -578,9 +582,10 @@ describe("the shell", () => {
     expect(html).not.toMatch(/xl:flex/);
   });
 
-  // The counts (round 7's first capsule), from 1024px: each a link to where it's worked, swelling
-  // under a press, a hairline between them; its icon only when the bar has room for all three
-  // capsules with it; Urgent's number red while there are any.
+  // The counts (round 8: each its own chip; round 7's first capsule), from 1024px: each a link to
+  // where it's worked, 44px tall, swelling under a press; its icon only when the bar has room for
+  // it (1344px); Urgent's number red while there are any. Below 1024px the same chips are a row of
+  // their own over the page (the next test).
   it("the counts: To fill, Urgent, Offers out, To check and Pay queries, each opening where it's worked", () => {
     const html = shell();
     const counts = countsOf(html);
@@ -594,14 +599,12 @@ describe("the shell", () => {
     ]);
     for (const m of links) {
       expect(m[1]).toBe(
-        "press-glass flex h-10 items-center gap-2 rounded-full px-3 text-ink-muted hover:bg-active hover:text-ink active:bg-button-press",
+        "press-glass glass-button flex h-11 shrink-0 items-center gap-2 rounded-full px-3 text-sm whitespace-nowrap text-ink-muted hover:bg-button-hover hover:text-ink active:bg-button-press",
       );
-      expect(m[3]).toMatch(/^<svg [^>]*class="shrink-0 hidden @min-\[73.25rem\]:block">/);
+      expect(m[3]).toMatch(/^<svg [^>]*class="shrink-0 hidden @min-\[84rem\]:block">/);
     }
-    expect(
-      counts.match(/<span aria-hidden="true" class="h-5 w-px bg-line"><\/span>/g),
-    ).toHaveLength(4);
-    expect(counts).toContain('Urgent <b class="font-semibold tabular-nums text-urgent-ink">2</b>');
+    expect(counts).not.toContain("bg-line");
+    expect(counts).toContain('Urgent <b class="font-semibold tabular-nums text-urgent">2</b>');
     expect(counts).toContain('To fill <b class="font-semibold tabular-nums text-ink">26</b>');
     // No urgent places: its number in ink.
     expect(countsOf(shell(undefined, "admin", { shell: { ...COUNTS, urgent: 0 } }))).toContain(
@@ -610,6 +613,41 @@ describe("the shell", () => {
     // Counts that couldn't be read: the words alone.
     const unread = countsOf(shell(undefined, "admin", { shell: null }));
     expect(text(unread)).toBe("To fill Urgent Offers out To check 7 Pay queries 10");
+  });
+
+  // Round 8 (Phase 26, sys-9): below 1024px the counts are a row of their own over the page, the
+  // same chips with no icons, scrolling sideways inside itself; in the top bar they're hidden till
+  // 1024px. The "Updated" line under them and after them in the bar shows once the page is in the
+  // browser (no server time: none in this static render).
+  it("below 1024px the counts are a row over the page; from there, in the top bar", () => {
+    const html = shell();
+    const main = html.slice(html.indexOf('id="main"'));
+    const row = main.match(
+      /<div class="mb-6 lg:hidden"><div data-bar-counts="row" class="([^"]*)">(.*?)<\/div><\/div>/,
+    );
+    expect(row?.[1]).toBe("scrollbar-none -mx-2 flex gap-2 overflow-x-auto px-2 pb-1 lg:hidden");
+    expect(main.indexOf('data-bar-counts="row"')).toBeLessThan(main.indexOf("<main>PAGE</main>"));
+    const links = [...(row?.[2] ?? "").matchAll(/<a class="([^"]*)" href="([^"]*)">(.*?)<\/a>/g)];
+    expect(links.map((m) => [m[2], text(m[3] ?? "")])).toEqual([
+      ["/office/events?view=need", "To fill 26"],
+      ["/office/events?view=urgent", "Urgent 2"],
+      ["/office#offered", "Offers out 11"],
+      ["/office/needs-attention", "To check 7"],
+      ["/office/pay-queries", "Pay queries 10"],
+    ]);
+    for (const m of links) {
+      expect(m[1]).toContain("press-glass glass-button flex h-11 ");
+      expect(m[3]).toMatch(/^<svg [^>]*class="shrink-0 hidden">/);
+    }
+    // The bar's own counts are hidden below 1024px.
+    expect(barOf(html)).toContain('<div data-bar-counts="" class="scrollbar-none hidden ');
+    expect(html).not.toContain("Updated ");
+    // No counts (a role with none): no row.
+    const frame = read("src/app/office/office-frame.tsx");
+    expect(frame).toMatch(/counts\.length > 0 \? \(\s*<div className="mb-6 lg:hidden">/);
+    expect(frame).toMatch(
+      /<p className="hidden shrink-0 text-xs text-ink-faint tabular-nums lg:block">/,
+    );
   });
 
   it("each role's counts and search: payroll has its pay queries and no search", () => {
@@ -636,8 +674,7 @@ describe("the shell", () => {
     expect(bar).not.toMatch(/role="(?:status|combobox|listbox)"/);
   });
 
-  // Round 7's third capsule: the light or dark button, then you: your initials (a pale blue disc
-  // from 1024px), your name (from 640px; with your role under it from 1024px when the bar has the
+  // Then the light or dark button and you: your initials (a hi-vis disc: round 8), your name (from 640px; with your role under it from 1024px when the bar has the
   // room) and a chevron. Read out at every width as "Sam Admin Admin".
   it("you: your initials, name and role, opening the account menu", () => {
     const bar = barOf(shell());
@@ -649,7 +686,7 @@ describe("the shell", () => {
     )?.[1];
     expect(account).toBeDefined();
     expect(account).toMatch(
-      /^<span aria-hidden="true" class="flex size-9 shrink-0 items-center justify-center rounded-full glass-button text-sm font-bold text-ink-muted lg:size-8 lg:glass-rim lg:bg-wait-tile lg:bg-none lg:text-xs lg:font-semibold lg:text-wait-ink">SA<\/span>/,
+      /^<span aria-hidden="true" class="flex size-9 shrink-0 items-center justify-center rounded-full bg-hivis text-sm font-bold text-on-hivis lg:size-8 lg:text-xs lg:font-semibold">SA<\/span>/,
     );
     expect(account).toContain(
       '<span class="sr-only leading-tight sm:not-sr-only lg:sr-only lg:@min-[63rem]:not-sr-only"><span class="block max-w-48 truncate font-semibold text-ink lg:max-w-28 lg:font-medium">Sam Admin</span><span class="sr-only lg:not-sr-only lg:block lg:text-sm lg:leading-tight lg:text-ink-muted"> Admin</span></span>',
@@ -663,7 +700,7 @@ describe("the shell", () => {
     // Everything in the bar, read in order (the switch's words under it are hidden from screen
     // readers, and said once here by its name).
     expect(text(barOnly(shell()))).toBe(
-      "Menu A Acme Events Office To fill 26 Urgent 2 Offers out 11 To check 7 Pay queries 10 Find a casual, shift or site Switch to dark mode SA Sam Admin Admin",
+      "Menu A Acme Events Office To fill 26 Urgent 2 Offers out 11 To check 7 Pay queries 10 Find a casual, shift or site Switch to light mode SA Sam Admin Admin",
     );
   });
 
@@ -672,7 +709,7 @@ describe("the shell", () => {
     const at = html.indexOf(`<div id="${ACCOUNT_MENU_ID}" popover="auto"`);
     expect(at).toBeGreaterThan(-1);
     const menu = html.slice(at, html.indexOf("</header>"));
-    expect(text(menu)).toBe("Sam Admin Admin Switch to dark mode How-to guide Log out");
+    expect(text(menu)).toBe("Sam Admin Admin Switch to light mode How-to guide Log out");
     // Under you, growing from its corner (the page puts its corner under yours as it opens:
     // office-frame.tsx); floating glass with its 22px corners.
     expect(menu).toMatch(
@@ -683,19 +720,20 @@ describe("the shell", () => {
     expect(html.match(/href="\/office\/guide"/g)).toHaveLength(1);
     // The theme switch waits for the page, and says what it switches to.
     expect(menu).toMatch(
-      /<button type="button" disabled="" class="press [^"]*">.*?Switch to dark mode<\/button>/,
+      /<button type="button" disabled="" class="press [^"]*">.*?Switch to light mode<\/button>/,
     );
     // No ARIA menu roles: a native popover of plain buttons and a link.
     expect(menu).not.toMatch(/role="/);
   });
 
   // Both switches, the bar's and the account menu's, read the page's theme: they always say the
-  // same (theme-button.tsx; the browser test switches with each and reads the other).
+  // same (theme-button.tsx; the browser test switches with each and reads the other). With no
+  // cookie the office is dark (round 8), so they offer light.
   it("both theme switches' words follow the cookie's theme, and say the same", () => {
     for (const [theme, words, other] of [
       ["dark", "Switch to light mode", "Switch to dark mode"],
       ["light", "Switch to dark mode", "Switch to light mode"],
-      [undefined, "Switch to dark mode", "Switch to light mode"],
+      [undefined, "Switch to light mode", "Switch to dark mode"],
     ] as const) {
       const html = shell(theme);
       expect(barOnly(html)).toContain(`aria-label="${words}"`);
@@ -835,9 +873,10 @@ describe("the rail", () => {
   it("shut: the firm's mark, its own button, and icons named by their words alone", () => {
     const html = render("/office");
     expect(html).toMatch(
-      /^<div id="office-rail" data-rail="shut" class="glass-float sticky top-3 z-30 mt-3 hidden flex-col self-start rounded-card px-2 py-4 transition-\[width\] duration-200 ease-sd lg:flex scrollbar-none w-18 items-center \[@media\(height&lt;40rem\)\]:max-h-\[calc\(100dvh-1.5rem\)\] \[@media\(height&lt;40rem\)\]:overflow-y-auto">/,
+      /^<div id="office-rail" data-rail="shut" class="glass sticky top-3 z-30 mt-3 hidden flex-col self-start rounded-card px-2 py-4 transition-\[width\] duration-200 ease-sd lg:flex scrollbar-none w-18 items-center \[@media\(height&lt;40rem\)\]:max-h-\[calc\(100dvh-1.5rem\)\] \[@media\(height&lt;40rem\)\]:overflow-y-auto">/,
     );
-    // The mark (the firm's initial on its colour); its name for screen readers.
+    // The mark (the firm's initial in hi-vis: round 8's brand-bar in the office); its name for
+    // screen readers.
     expect(html).toContain(
       '<span aria-hidden="true" class="flex size-10 shrink-0 items-center justify-center rounded-row bg-brand-bar text-lg font-semibold text-on-brand-bar">A</span><span class="sr-only">Acme Events</span>',
     );
@@ -868,7 +907,8 @@ describe("the rail", () => {
       "Integrations",
       "Data requests",
     ]);
-    // Round icons, 48px; the folds shut with their pages (rows with their names) hidden.
+    // Round icons, 44px, each a dark circle with its hairline (round 8); the folds shut with their
+    // pages (rows with their names) hidden.
     const folds = ["Pay", "People", "Admin and records"];
     const pages = r.filter((x) => / min-h-9.5 /.test(x.el)).map((x) => x.name);
     expect(pages).toEqual([
@@ -886,7 +926,9 @@ describe("the rail", () => {
       "Data requests",
     ]);
     for (const x of r.filter((y) => !pages.includes(y.name)))
-      expect(x.el).toMatch(/ size-12 justify-center rounded-full /);
+      expect(x.el).toMatch(
+        / size-11 justify-center rounded-full (?:glass-button text-ink-muted|bg-ink font-medium text-on-ink)/,
+      );
     expect(folds.every((f) => r.some((x) => x.name === f && x.el.startsWith("<button")))).toBe(
       true,
     );
@@ -913,7 +955,7 @@ describe("the rail", () => {
     // (an admin's pay queries are with payroll).
     expect(dotted).toEqual(["Needs attention", "Enquiries", "People"]);
     expect(html).toContain(
-      '<span aria-hidden="true" data-rail-dot="" class="absolute top-2 right-2 size-3 rounded-full border-2 border-panel bg-urgent bg-clip-padding"></span>',
+      '<span aria-hidden="true" data-rail-dot="" class="absolute top-1 right-1 size-3 rounded-full border-2 border-canvas bg-urgent-fill bg-clip-padding"></span>',
     );
     const tip = (name: string) =>
       r.find((x) => x.name === name)?.after.match(/data-rail-tip="" class="([^"]*)">([^<]*)</);
@@ -938,19 +980,22 @@ describe("the rail", () => {
     );
   });
 
-  it("the page you're on under the lens, its icon in the accent; inside a shut fold, the fold wears it", () => {
+  // Round 8 (Phase 26): the page you're on is a solid white circle (ink; on the light look an ink
+  // one), its icon on-ink; inside a shut fold, the fold is.
+  it("the page you're on a solid white circle, its icon dark; inside a shut fold, the fold is", () => {
     const home = rows(render("/office"));
     expect(home[0]?.el).toMatch(
-      /^<a aria-current="page" class="[^"]* lens font-medium text-ink" href="\/office">/,
+      /^<a aria-current="page" class="[^"]* bg-ink font-medium text-on-ink" href="\/office">/,
     );
-    expect(home[0]?.el).toMatch(/<svg [^>]*class="shrink-0 text-accent">/);
-    expect(home.filter((x) => x.el.includes(" lens "))).toHaveLength(1);
-    // A casual's page: Casuals is the section (aria-current=true, inside People); People, shut,
-    // wears the lens.
+    expect(home[0]?.el).toMatch(/<svg [^>]*class="shrink-0 text-on-ink">/);
+    expect(home.filter((x) => x.el.includes(" bg-ink "))).toHaveLength(1);
+    expect(home.filter((x) => x.el.includes(" lens "))).toHaveLength(0);
+    // A casual's page: Casuals is the section (aria-current=true, inside People); People, shut, is
+    // the white circle.
     const casual = rows(render("/office/casuals/11111111-1111-4111-8111-111111111111"));
     expect(casual.find((x) => x.name === "Casuals")?.el).toMatch(/aria-current="true"/);
-    expect(casual.find((x) => x.name === "People")?.el).toMatch(/ lens font-medium text-ink"/);
-    expect(casual.filter((x) => x.el.includes(" lens ")).map((x) => x.name)).toEqual([
+    expect(casual.find((x) => x.name === "People")?.el).toMatch(/ bg-ink font-medium text-on-ink"/);
+    expect(casual.filter((x) => x.el.includes(" bg-ink ")).map((x) => x.name)).toEqual([
       "People",
       "Casuals",
     ]);
@@ -959,7 +1004,7 @@ describe("the rail", () => {
   it("open: names and counts, its button says so, the fold you're in open", () => {
     const html = render("/office/casuals", true);
     expect(html).toMatch(
-      /^<div id="office-rail" data-rail="open" class="glass-float [^"]* lg:flex max-h-\[calc\(100dvh-1.5rem\)\] w-59">/,
+      /^<div id="office-rail" data-rail="open" class="glass [^"]* lg:flex max-h-\[calc\(100dvh-1.5rem\)\] w-59">/,
     );
     expect(html).toContain(
       '<span class="min-w-0 flex-1 truncate font-semibold text-ink">Acme Events</span>',

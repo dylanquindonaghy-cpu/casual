@@ -235,7 +235,7 @@ describe("the office how-to guide", () => {
       );
       // The light or dark button in the bar, by its words (its icon has none).
       expect(text).toContain(
-        "The button beside them switches between dark and light too. Its name says which: Switch to dark mode or Switch to light mode .",
+        "The button beside them switches between dark and light too. Its name says which: Switch to dark mode or Switch to light mode . The office is dark until you pick light.",
       );
       expect(text).not.toMatch(/\bmoon\b/i);
       // Not the places of Phases 22 and 23: the menu's card, the pay week and shifts line in the bar.

@@ -9,6 +9,7 @@ import {
   hexOf,
   looks,
   lowest,
+  officeLooks,
   parseColour,
 } from "../helpers/theme-css";
 
@@ -22,9 +23,11 @@ import {
 // its colour to its shade. In six looks: light and dark (the cookie's block; the device's must hold
 // the same), each also solid (less transparency or more contrast: no wash, no glass) and with no
 // blur (a browser that can't: every ground solid too, the wash still round them). Phase 21 to
-// 23's office looks are gone: the office takes the same colours (its block sets only sizes).
+// 23's office looks are gone. Phase 26 (round 8, after Haulix): the office has its own looks again,
+// dark by default and light when picked, translucent glass over a faint street map (no wash): each
+// also solid and with no blur, so twelve looks in all.
 
-const LOOKS = looks();
+const LOOKS = [...looks(), ...officeLooks()];
 
 // Words (4.5:1), each on everywhere it sits: a token (a translucent one over every glass under
 // it; `button` is the file input's button), or one of the places (theme-css.ts PLACES).
@@ -174,11 +177,50 @@ describe("the looks (src/app/globals.css)", () => {
     );
   });
 
-  it("the office has no colours of its own (Phase 24): its block sets only sizes", () => {
-    const office = block(/body:has\(\[data-office\]\) \{([^}]*)\}/);
-    expect(office).not.toMatch(/--color-/);
-    expect(css).not.toMatch(/body:has\(\[data-office\]\)\s*\{[^}]*--color-/);
-    expect(css).not.toMatch(/\[data-theme="dark"\] body:has\(\[data-office\]\)/);
+  // Round 8 (Phase 26): the office's own looks, every token in each (none left to the casual
+  // app's), set on [data-office] so they win over <body>'s firm colours inside it; the page's ground
+  // and the browser's colour scheme on <html> for an office page. One hi-vis accent on the main
+  // button (flat: no glow, no shade), the firm's mark and what's selected; white words on red at
+  // 4.93:1 (#d13438; the pre-build audit's aud-1); no drop under anything at rest.
+  it("the office has its own looks (round 8): every token, dark by default, light when picked", () => {
+    const app = [...colourTokens(block(BLOCKS.theme)).keys()].sort();
+    for (const name of ["officeDark", "officeLight"] as const)
+      expect([...colourTokens(block(BLOCKS[name])).keys()].sort(), name).toEqual(app);
+    const dark = colourTokens(block(BLOCKS.officeDark));
+    const light = colourTokens(block(BLOCKS.officeLight));
+    for (const look of [dark, light]) {
+      expect([look.get("tint"), look.get("tint-shade"), look.get("on-tint")]).toEqual([
+        "#e9f86f",
+        "#e9f86f",
+        "#171800",
+      ]);
+      expect(look.get("brand-bar")).toBe("#e9f86f");
+    }
+    expect([dark.get("urgent-fill"), dark.get("on-urgent")]).toEqual(["#d13438", "#ffffff"]);
+    expect(dark.get("accent")).toBe("#e9f86f");
+    expect(
+      lowest(
+        LOOKS.find((l) => l.name === "office dark")!,
+        "on-urgent",
+        "urgent-fill",
+      ),
+    ).toBeCloseTo(4.93, 2);
+    for (const name of ["officeDark", "officeLight"] as const) {
+      const body = block(BLOCKS[name]);
+      expect(body, name).toMatch(/--glass-drop: 0 0 #0000;/);
+      expect(body, name).toMatch(/--glass-drop-sm: 0 0 #0000;/);
+      expect(body, name).toMatch(/--tint-glow: 0 0 #0000;/);
+      expect(body, name).toMatch(/--glass-rim: inset 0 0 0 1px rgb\(\d+ \d+ \d+ \/ 0\.1\);/);
+      expect(body, name).toMatch(/--glass-filter: blur\(6px\) saturate\(1\.15\);/);
+    }
+    expect(css).toMatch(
+      /:root:not\(\[data-theme="light"\]\):has\(\[data-office\]\) \{\s*color-scheme: dark;/,
+    );
+    expect(css).toMatch(
+      /:root\[data-theme="light"\]:has\(\[data-office\]\) \{\s*color-scheme: light;/,
+    );
+    // The office's sizes stay in their own block, with no colour.
+    expect(block(/body:has\(\[data-office\]\) \{([^}]*)\}/)).not.toMatch(/--color-/);
   });
 
   it("each theme sets the browser's colour scheme; the device's dark gives way to a light cookie", () => {
@@ -210,6 +252,26 @@ describe("the looks (src/app/globals.css)", () => {
       expect(Math.max(r, g, b) - Math.min(r, g, b), `${t}: ${dark.get(t)}`).toBeLessThanOrEqual(12);
     }
     expect([dark.get("urgent-fill"), dark.get("on-urgent")]).toEqual(["#cf3a33", "#ffffff"]);
+    // And round 8's office dark (Phase 26): neutral charcoal.
+    const office = colourTokens(block(BLOCKS.officeDark));
+    for (const t of [
+      "canvas",
+      "card",
+      "sheet",
+      "panel",
+      "ink",
+      "ink-muted",
+      "ink-faint",
+      "line-strong",
+      "switch-off",
+      "quiet-soft",
+    ]) {
+      const [r, g, b] = parseColour(office.get(t))!;
+      expect(
+        Math.max(r, g, b) - Math.min(r, g, b),
+        `office ${t}: ${office.get(t)}`,
+      ).toBeLessThanOrEqual(12);
+    }
   });
 
   it("the grounds: six looks, each with the glass's every point", () => {
@@ -220,6 +282,12 @@ describe("the looks (src/app/globals.css)", () => {
       "dark, solid",
       "light, no blur",
       "dark, no blur",
+      "office dark",
+      "office dark, solid",
+      "office dark, no blur",
+      "office light",
+      "office light, solid",
+      "office light, no blur",
     ]);
     const [light, dark, solid] = LOOKS;
     // 15 points of the wash (its base, four lights, and halfway between each two of those), a
@@ -237,6 +305,19 @@ describe("the looks (src/app/globals.css)", () => {
     expect(Math.max(...grounds(dark!, "card").map((g) => lum(g.colour)))).toBeGreaterThan(3 * 20);
     // (Both its ends over each of the 45 grounds under it.)
     expect(grounds(light!, "glass-button").filter((g) => g.brightened)).toHaveLength(90);
+    // The office's: its flat ground and the street map's two strengths of line; solid, the ground.
+    const office = LOOKS.find((l) => l.name === "office dark")!;
+    expect(grounds(office, "canvas").map((g) => g.colour)).toEqual([
+      [15, 15, 16],
+      [29, 29, 30],
+      [35, 35, 36],
+    ]);
+    expect(
+      grounds(
+        LOOKS.find((l) => l.name === "office dark, solid")!,
+        "card",
+      ),
+    ).toHaveLength(2);
   });
 
   it("words meet 4.5:1 on every ground they sit on, in every look", () => {

@@ -64,24 +64,25 @@ describe("the office's sticky top bar never hides what the keyboard moves to (WC
   const css = read("src/app/globals.css");
 
   it("the page scrolls a focused control or a link's place 80px under the window's top", () => {
-    expect(css).toContain('html:has([data-shell="office"]) {\n  scroll-padding-top: 5rem;\n}');
+    expect(css).toContain('html:has([data-shell="office"]) {\n  scroll-padding-top: 4.75rem;\n}');
     expect(css.match(/scroll-padding/g)).toHaveLength(1);
-    // 80px: the bar's height and a 12px step. Below 1024px the bar is 56px; from there (Phase 24)
-    // it's its 48px capsules with 12px above them and 8px below: 68px.
+    // 76px: the bar's height and a 12px step. Below 1024px the bar is 56px; from there (round 8,
+    // Phase 26) it's its 44px chips, search and buttons with 12px above them and 8px below: 64px
+    // (round 7's 48px capsules made it 68px, and 80px of room).
     const frame = read("src/app/office/office-frame.tsx");
     const search = read("src/app/office/office-search.tsx");
     const bar = /<header\s+ref=\{bar\}\s+className="([^"]*)"/.exec(frame)?.[1] ?? "";
     expect(bar).toMatch(/(?<![\w-])sticky top-0(?![\w-])/);
     const px = (re: RegExp, s: string) => Number(re.exec(s)?.[1]) * 4;
     const phone = px(/(?<![\w:-])min-h-(\d+)(?![\w-])/, bar);
-    // The capsules: the search 48px tall; the counts' and your pills 40px in 4px of capsule.
-    expect(search).toContain('className="glass-float flex h-12 ');
-    expect(frame).toContain("press-glass flex h-10 items-center");
-    expect(frame).toMatch(/lg:glass-float lg:gap-1 lg:rounded-full lg:p-1/);
+    // Round 8: the search 44px tall, the count chips 44px, no capsule round anything.
+    expect(search).toContain('className="glass-button flex h-11 ');
+    expect(frame).toContain("press-glass glass-button flex h-11 shrink-0 items-center");
+    expect(frame).not.toMatch(/lg:glass-float lg:gap-1 lg:rounded-full lg:p-1/);
     const wide =
-      px(/(?<![\w-])lg:pt-(\d+)(?![\w-])/, bar) + 48 + px(/(?<![\w-])lg:pb-(\d+)(?![\w-])/, bar);
-    const padding = Number(/scroll-padding-top: (\d+)rem;/.exec(css)?.[1]) * 16;
-    expect([phone, wide, padding]).toEqual([56, 68, 80]);
+      px(/(?<![\w-])lg:pt-(\d+)(?![\w-])/, bar) + 44 + px(/(?<![\w-])lg:pb-(\d+)(?![\w-])/, bar);
+    const padding = Number(/scroll-padding-top: ([\d.]+)rem;/.exec(css)?.[1]) * 16;
+    expect([phone, wide, padding]).toEqual([56, 64, 76]);
     expect(padding).toBe(Math.max(phone, wide) + 12);
     // The shell the rule looks for.
     expect(frame).toMatch(/<div\s+data-shell="office"/);

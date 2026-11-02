@@ -473,11 +473,13 @@ describe("the office's tokens (src/app/globals.css)", () => {
   const light = block("body:has([data-office])");
   const value = (name: string) => light.match(new RegExp(`--${name}: ([^;]+);`))?.[1];
 
-  // Phase 24 (round 7): one look for the office and the casual app. The office's block sets its
-  // sizes and its headline's weight and tracking, and nothing else: no colour (Phase 23's white
-  // cards on a cool grey ground and the sky main button are gone), no face, and no dark block of
-  // its own. Its main button is the app's: tinted glass in the firm's colour.
-  it("the office takes the app's colours and glass: its block sets only its sizes", () => {
+  // Phase 24 (round 7) gave the office and the casual app one look. Round 8 (Phase 26) gives the
+  // office its own again, on its wrapper ([data-office]: its colours and glass, dark and light;
+  // tests/unit/ui.contrast.test.ts checks every pair), and its sizes stay in their own block on
+  // <body> with nothing else: no colour there, no face. Its main button is the system's glass-tint,
+  // hi-vis in the office; the firm's colour still reaches the casual app (and the firm's bar above
+  // the office) from <body>.
+  it("the office's sizes in their own block; its colours on its wrapper, not on <body>", () => {
     expect([...light.matchAll(/--([a-z0-9-]+):/g)].map((m) => m[1])).toEqual([
       "text-sm",
       "text-sm--line-height",
@@ -498,14 +500,21 @@ describe("the office's tokens (src/app/globals.css)", () => {
     expect(css).not.toMatch(/:root:not\(\[data-theme="light"\]\) body:has\(\[data-office\]\)/);
     expect(css).not.toMatch(/\[data-office\] \{\s*font-family/);
     expect(read("src/app/ui/classes.ts")).toMatch(/primary: `\$\{office\} glass-tint /);
-    // And the firm's colour reaches the office as everywhere (Phase 23 kept it off its buttons).
+    // The firm's colour reaches <body> as before; inside the office its wrapper's hi-vis wins.
     expect(block("body[data-firm-colour]")).toContain("--color-tint: var(--firm-fill);");
+    for (const selector of [
+      ':root:not([data-theme="light"]) [data-office]',
+      ':root[data-theme="light"] [data-office]',
+    ])
+      expect(block(selector)).toContain("--color-tint: #e9f86f;");
   });
 
-  it("the type scale's office values: 13, 15, 17, 30 and 40px in place of 14, 16, 18, 28 and 44", () => {
+  // Round 8 (Phase 26, the pre-build audit's aud-3): 12, 13, 14, 16, 20 and 30px, nothing under
+  // 12 (round 7's office: 15, 17 and 40px).
+  it("the type scale's office values: 13, 14, 16 and 30px in place of 14, 16, 18 and 28", () => {
     expect(value("text-sm")).toBe("0.8125rem");
-    expect(value("text-base")).toBe("0.9375rem");
-    expect(value("text-lg")).toBe("1.0625rem");
+    expect(value("text-base")).toBe("0.875rem");
+    expect(value("text-lg")).toBe("1rem");
     expect(value("text-3xl")).toBe("1.875rem");
     expect(value("text-4xl")).toBe("2.5rem");
     expect(value("text-2xl")).toBeUndefined();
@@ -528,6 +537,16 @@ describe("the office's tokens (src/app/globals.css)", () => {
     expect(css).toMatch(/--radius-card: 1\.5rem;/);
     expect(css).toMatch(/--radius-inner: 1\.375rem;/);
     expect(css).toMatch(/--radius-row: 0\.875rem;/);
+    // Round 8's office: tighter corners, 12px panels and 8px rows (in both its looks).
+    for (const selector of [
+      ':root:not([data-theme="light"]) [data-office]',
+      ':root[data-theme="light"] [data-office]',
+    ]) {
+      const office = block(selector);
+      expect(office).toContain("--radius-card: 0.75rem;");
+      expect(office).toContain("--radius-inner: 0.75rem;");
+      expect(office).toContain("--radius-row: 0.5rem;");
+    }
     for (const token of ["soft", "raise", "sheet", "tint"])
       expect(css).not.toMatch(new RegExp(`--shadow-${token}:`));
     expect(css).toContain("--shadow-float: var(--float-shadow);");
@@ -579,15 +598,27 @@ describe("the office's tokens (src/app/globals.css)", () => {
   });
 
   // No grain, stripes, glows or colour cards (round 2's), and no picture: the only images are the
-  // glass's gradients and the only url() the refraction filter's (ui.glass.test.ts).
-  it("no grain, stripes, glows, tinted cards or pictures", () => {
+  // glass's gradients, the refraction filter's url() (ui.glass.test.ts) and round 8's street map
+  // behind the office (one still picture: Phase 26, the pre-build audit's aud-16).
+  it("no grain, stripes, glows, tinted cards or pictures but the office's street map", () => {
     expect(css).not.toMatch(
       /--(?:grain|stripes|tint-(?:urgent|attention|wait|done)|card-chip|glow-)/,
     );
     expect(css).not.toMatch(/@utility (?:grain|stripes|tint-|card-chip)/);
     expect(css.match(/background-image:/g)).toHaveLength(4);
-    expect(css.match(/url\(/g)).toEqual(["url("]);
-    expect(css).toContain("url(#lg-refract)");
+    expect([...css.matchAll(/url\(([^)]*)\)/g)].map((m) => m[1])).toEqual([
+      '"./office-streets.svg"',
+      '"./office-streets.svg"',
+      "#lg-refract",
+    ]);
+    expect(css).toMatch(
+      /body:has\(\[data-office\]\)::before \{\s*background: var\(--map-road\);\s*-webkit-mask: url\("\.\/office-streets\.svg"\) center \/ cover no-repeat;\s*mask: url\("\.\/office-streets\.svg"\) center \/ cover no-repeat;\s*\}/,
+    );
+    // The picture itself: lines only, no fill, no text, no image inside it.
+    const svg = read("src/app/office-streets.svg");
+    expect(svg).toMatch(/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 1600 1000"/);
+    expect(svg).not.toMatch(/<(?:text|image|use|script|style|foreignObject)\b|href=/);
+    expect(svg.length).toBeLessThan(30_000);
     // Nor round 2's colour cards' own tokens.
     expect(css).not.toMatch(/--color-(?:urgent|attention|wait|done)-card/);
     const texture =
@@ -600,12 +631,31 @@ describe("the office's tokens (src/app/globals.css)", () => {
 
   // The office's table (Phase 23) is history: its values are the app's now, matched against the
   // doc's one token table (tests/unit/ui.design-system.test.ts), and the doc says so.
-  it("docs/ui-design.md: the office's colours are the app's (Phase 24)", () => {
+  // Round 8 (Phase 26): the office's own look again, first in the doc; Phase 24 stays for the
+  // casual app and what round 8 doesn't change, and says round 8 replaced its office colours.
+  it("docs/ui-design.md: round 8's office look first (Phase 26), round 7's after it", () => {
     const doc = read("docs/ui-design.md");
+    const p26 = doc
+      .slice(
+        doc.indexOf("## Phase 26: round 8, the office after Haulix"),
+        doc.indexOf("## Phase 24"),
+      )
+      .replace(/\s+/g, " ");
+    expect(doc.indexOf("## Phase 26")).toBeLessThan(doc.indexOf("## Phase 24"));
+    for (const words of [
+      "Dark by default",
+      "hi-vis yellow `#e9f86f`",
+      "4.93:1 (`#d13438`; aud-1)",
+      "12 · 13 · 14 · 16 · 20 · 30px in the office",
+      "`src/app/office-streets.svg`",
+      "six office looks",
+    ])
+      expect(p26, words).toContain(words);
     const p24 = doc
       .slice(doc.indexOf("## Phase 24: Liquid Glass"), doc.indexOf("## Phase 23"))
       .replace(/\s+/g, " ");
     expect(p24).toContain("The office has no colours of its own any more");
+    expect(p24).toContain("Replaced in the office by Phase 26");
     expect(p24).toContain("the office's 12, 13, 15, 17, 20, 30 and 40px");
     const p23 = doc.slice(doc.indexOf("## Phase 23"), doc.indexOf("## Phase 22"));
     expect(p23).toMatch(/^## Phase 23: the office's look, round 3\n\nReplaced by Phase 24/);

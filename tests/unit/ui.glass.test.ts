@@ -196,8 +196,9 @@ describe("the glass's parts (globals.css utilities)", () => {
       "background-image: linear-gradient(180deg, var(--color-tint), var(--color-tint-shade));",
     );
     expect(tint).toContain("color: var(--color-on-tint);");
+    // Its soft drop in its own colour, through --tint-glow (round 8's office sets it to none).
     expect(tint).toMatch(
-      /box-shadow:\s*var\(--tint-rim\),\s*0 8px 22px color-mix\(in srgb, var\(--color-tint\) 32%, transparent\);/,
+      /box-shadow:\s*var\(--tint-rim\),\s*var\(--tint-glow, 0 8px 22px color-mix\(in srgb, var\(--color-tint\) 32%, transparent\)\);/,
     );
     expect(body("@utility glass-rim")).toMatch(
       /^@utility glass-rim \{\s*box-shadow: var\(--glass-rim\);/,
@@ -250,9 +251,13 @@ describe("the glass's parts (globals.css utilities)", () => {
 
   it("nothing blurs but the glass, a table's sticky headings and the bars' edges", () => {
     // Declarations only (the @supports test below names it too): a section's, what floats' (and
-    // its bending, and that switched off), the top bar's edge and the foot's (a shift's Take
-    // shift, Phase 24); each with Safari's prefix but the two that only Chrome reads.
-    expect(css.match(/^\s+backdrop-filter:/gm)).toHaveLength(6);
+    // its bending, and that switched off, and switched off in round 8's office: Phase 26), the top
+    // bar's edge and the foot's (a shift's Take shift, Phase 24); each with Safari's prefix but the
+    // three that only Chrome reads.
+    expect(css.match(/^\s+backdrop-filter:/gm)).toHaveLength(7);
+    expect(css).toMatch(
+      /\.rf \[data-office\] \.glass-float \{\s*backdrop-filter: var\(--float-filter\);\s*\}/,
+    );
     expect(css.match(/^\s+-webkit-backdrop-filter:/gm)).toHaveLength(4);
     expect(body("@utility foot-edge")).toMatch(
       /-webkit-backdrop-filter: var\(--edge-filter\);\s+backdrop-filter: var\(--edge-filter\);/,
@@ -391,7 +396,11 @@ describe("depth: a glass's rim and drop, through variables, and no other shadow"
       expect(dark.get(v), v).toBeDefined();
       expect(dark.get(v), v).not.toBe(root.get(v));
       expect(device.get(v), v).toBe(dark.get(v));
-      expect(css.match(new RegExp(`^\\s*--${v}:`, "gm")), v).toHaveLength(3);
+      // Light, the cookie's dark and the device's dark; and round 8's office, dark and light
+      // (Phase 26): flat, an even hairline where there's one, no drop at rest.
+      expect(css.match(new RegExp(`^\\s*--${v}:`, "gm")), v).toHaveLength(5);
+      for (const office of [BLOCKS.officeDark, BLOCKS.officeLight])
+        expect(props(block(office)).get(v), `office ${v}`).toBeDefined();
     }
   });
 
@@ -475,19 +484,12 @@ describe("where the glass goes", () => {
 
   it("what floats is glass-float, each where it's pinned", () => {
     expect(uses(/(?<![\w-])(?:[a-z0-9-]+:)*glass-float(?![\w-])/g)).toEqual({
-      // The comments that name it, then (Phase 24): the counts' capsule, the account menu, the
-      // drawer, you (from 1024px) and the top bar (below 1024px); the rail; the search's capsule
-      // and its panel.
+      // The comments that name it, then: the top bar below 1024px, the account menu and the
+      // drawer; the search's panel. Round 8 (Phase 26): the rail is section glass, the counts
+      // chips, the search a flat pill and you no capsule: nothing floats there at rest.
       "src/app/glass-refraction.tsx": ["glass-float"],
-      "src/app/office/office-frame.tsx": [
-        "glass-float",
-        "glass-float",
-        "glass-float",
-        "lg:glass-float",
-        "max-lg:glass-float",
-      ],
-      "src/app/office/office-rail.tsx": ["glass-float"],
-      "src/app/office/office-search.tsx": ["glass-float", "glass-float"],
+      "src/app/office/office-frame.tsx": ["glass-float", "glass-float", "max-lg:glass-float"],
+      "src/app/office/office-search.tsx": ["glass-float"],
       "src/app/office/events/session-menu.tsx": ["glass-float"], // a session's menu
       "src/app/office/find-worker-form.tsx": ["glass-float"], // Casuals' search, its matches
       "src/app/office/shift-actions.tsx": ["glass-float"], // the "…" menu
@@ -500,17 +502,9 @@ describe("where the glass goes", () => {
     expect(read("src/app/office/office-frame.tsx")).toMatch(
       /<header\s+ref=\{bar\}\s+className="@container max-lg:glass-float lg:scroll-edge sticky top-0 /,
     );
-    expect(read("src/app/office/office-frame.tsx")).toMatch(
-      /data-bar-counts=""\s+className="glass-float /,
-    );
-    expect(read("src/app/office/office-frame.tsx")).toMatch(
-      /<div className="flex shrink-0 items-center [^"]*lg:glass-float /,
-    );
-    expect(read("src/app/office/office-rail.tsx")).toMatch(
-      /className=\{`glass-float sticky top-3 /,
-    );
+    expect(read("src/app/office/office-rail.tsx")).toMatch(/className=\{`glass sticky top-3 /);
     expect(read("src/app/office/office-search.tsx")).toMatch(
-      /<div className="glass-float flex h-12 [\s\S]*data-search-panel=""[\s\S]*className="glass-float absolute /,
+      /<div className="glass-button flex h-11 [\s\S]*data-search-panel=""[\s\S]*className="glass-float absolute /,
     );
     expect(read("src/app/office/office-frame.tsx")).toMatch(
       /popover="auto"\s+className="[^"]*glass-float/,

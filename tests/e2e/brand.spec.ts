@@ -27,6 +27,13 @@ test("each firm's pages open with its own bar: name, colour and readable text", 
   await expect(page).toHaveTitle("Acme Events shifts");
   await page.goto(`${acme}/office/login`);
   await expect(page.getByTestId("brand-name")).toHaveText("Acme Events");
+  // Round 8 (Phase 26): the office is hi-vis inside, but the firm's bar over its login keeps the
+  // firm's own colour.
+  await expect(page.getByTestId("brand-mark")).toHaveCSS("background-color", "rgb(29, 78, 216)");
+  await expect(page.getByRole("button", { name: "Send me a link" })).toHaveCSS(
+    "background-color",
+    "rgb(233, 248, 111)",
+  );
 
   // The casual app's main button is in the firm's own colour too (Phase 17): tinted glass since
   // Phase 24, the blue as it reads on every point of the glass (#1a45bf) to its shade (#15399d).

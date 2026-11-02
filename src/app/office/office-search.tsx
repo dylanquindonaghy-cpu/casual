@@ -162,7 +162,7 @@ export function OfficeSearch({ search }: { search: (q: string) => Promise<Search
         if (!box.current?.contains(e.relatedTarget as Node | null)) close();
       }}
     >
-      <div className="glass-float flex h-12 w-50 items-center gap-2 rounded-full pr-2 pl-4 @min-[73.25rem]:w-62.5">
+      <div className="glass-button flex h-11 w-50 items-center gap-2 rounded-full pr-2 pl-4 @min-[73.25rem]:w-62.5">
         <Icon name="search" size={18} className="text-ink-muted" />
         <label htmlFor={`${id}-q`} className="sr-only">
           {SEARCH_LABEL}

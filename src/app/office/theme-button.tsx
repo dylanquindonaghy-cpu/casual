@@ -30,9 +30,11 @@ function subscribeToTheme(onChange: () => void) {
     picked.disconnect();
   };
 }
-function pageTheme(): Theme {
+// In the office (round 8, Phase 26) nothing picked means dark (`fallback`), whatever the device says.
+function pageTheme(fallback?: Theme): Theme {
   return (
     themeFromCookie(document.documentElement.dataset.theme) ??
+    fallback ??
     (window.matchMedia(DARK_QUERY).matches ? "dark" : "light")
   );
 }
@@ -56,13 +58,20 @@ export function themeSwitchLabel(shown: Theme): string {
 export function ThemeButton({
   initial,
   look = "row",
+  fallback,
 }: {
   initial: Theme | undefined;
   look?: "row" | "square";
+  fallback?: Theme; // the theme with none picked: the office's dark (round 8); else the device's
 }) {
   const hydrated = useHydrated();
-  // On the server (and until the page is ready), the cookie's theme: light with none.
-  const shown = useSyncExternalStore(subscribeToTheme, pageTheme, () => initial ?? "light");
+  // On the server (and until the page is ready), the cookie's theme: the fallback (or light) with
+  // none.
+  const shown = useSyncExternalStore(
+    subscribeToTheme,
+    () => pageTheme(fallback),
+    () => initial ?? fallback ?? "light",
+  );
   const next: Theme = shown === "dark" ? "light" : "dark";
   const label = themeSwitchLabel(shown);
   const icon = shown === "dark" ? "sun" : "moon";

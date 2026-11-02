@@ -984,7 +984,7 @@ casual-facing words but those in `docs/screens.md` and `docs/messaging-templates
 sender, no casual screen names WhatsApp or texts; the `claims-auditor` checks the phase against
 this line.
 
-## Proposed 2026-11-02: P9 — The office review's changes (not started; mock-up first; S, M, UI)
+## Proposed 2026-11-02: P9 — The office review's changes (go-ahead: Dylan, 2026-11-02; built as Phase 26; S, M, UI)
 
 Dylan, 2026-11-02, after using the live demo: see who works regularly, who's reliable and who
 cancels often; each resourcer selects their contracts and what they see, graphs included; updates
@@ -1028,7 +1028,7 @@ task gets a box, a number and a "Done when" line when Dylan gives it the go-ahea
   casual's choice, each offer saying how it will reach them; a company WhatsApp Business number
   only if a firm wants it later. Needs Phase 4's web push finished (M, UI).
 
-## Proposed 2026-11-02: P10 — Round 8, the office's look after Haulix (not started; mock-up first; UI)
+## Proposed 2026-11-02: P10 — Round 8, the office's look after Haulix (go-ahead: Dylan, 2026-11-02; built as Phase 26; UI)
 
 Dylan, 2026-11-02: "i like these changes but what about the actual look compared to the link i sent
 you i dont think its screaming high end professional dashboard yet", with a screen recording of the
@@ -1047,6 +1047,46 @@ says what Haulix does and what round 8 changes). **Not approved yet**; its four 
 - **An event's page:** breadcrumb, actions with one primary, tabs with counts, a staffing layout of
   every place (booked with who, open, urgent) and the open places beside it.
 - **Every other office page** on the same system, as round 7 did (24.4, 24.5).
+
+## Phase 26 — Round 8 and the office review (go-ahead: Dylan, 2026-11-02, "1 yes 2 yes 3 yes 4 yes 5 yes all yes to all recommendations"; S, T, M, R, UI)
+
+P9 and P10 above, with all nine "Office review" decisions taken as recommended
+(`docs/plan/decisions-waiting.md`). **The exact changes, screen by screen, before and after at
+1280px and 390px:** https://claude.ai/artifact/EqgPhrjHXB2XMJGFofH6WU (`docs/mockups/round-8/spec.html`;
+the after pictures from `docs/mockups/round-8/screens.html`). Dylan can mark each change Build, Change
+or Drop, reword it or add his own there; **nothing is built until he says the page is done**, then each
+task reads his edits from the page's database (`ArtifactData` list of `edits`) and builds what they
+say. Each task: its words in `docs/screens.md` first, tests, the `guardrails-reviewer` where it
+touches schema, tenancy, messaging or rules, then `/close-task`. The casual app keeps round 7's look.
+
+- [ ] Round 8's system and the office shell: dark by default with a light version on the same flat
+      rules, neutral charcoal, no glass, wash or glow; one hi-vis accent; one status code; the rail and
+      top bar as in the spec (spec "The look"; UI) (26.1)
+- [ ] The dashboard: the venue map (MapLibre with a UK or EU tile host; decision 9) with places to fill
+      per venue, the session card, To offer, Updates in place of Offered and While you were out, Who
+      worked by name (spec "Dashboard"; UI, a new supplier) (26.2)
+- [ ] Contracts and each resourcer's dashboard: a contracts table (clients owning sites), per-user
+      settings, Customise (spec "Customise and contracts"; S, T, UI) (26.3)
+- [ ] Updates and alerts: the Updates page, the pop-up on a cancellation, app notifications for office
+      users, each person's "Tell me about" (spec "Updates and alerts"; S, M, UI) (26.4)
+- [ ] An event's page: staffing layout and open places (spec "An event's page"; UI) (26.5)
+- [ ] A session and who wants it: the per-event "Casuals ask, you choose" setting, "I can do this" in
+      the casual app, the list with filters, booking through the rules (spec "A session"; S, R, UI) (26.6)
+- [ ] Casuals: reliability worked out by code over 90 days, the four counts and tabs, Remind and Remind
+      all, a missing photo counted, reliability on each casual's page and Profile (spec "Casuals"; R, M,
+      UI) (26.7)
+- [ ] Cancellations: under 48 hours tinted in every tab, notice and strike columns, four counts, a
+      Strikes tab, the detail page's order (spec "Cancellations"; UI) (26.8)
+- [ ] Offers by app notification, text or email: Phase 15.1 with email as a casual's choice, each
+      offer's channel and "Not offered, and why" (spec "Offering a shift"; M, UI; app notifications need
+      Phase 4's web push) (26.9)
+- [ ] The fixes and words, and every other office page on round 8 (spec "Fixes and words", "Every
+      other office page"; UI) (26.10)
+
+Done when: every task is ticked with a stamp that includes the browser tests; each built what the spec
+page said after Dylan's edits; `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; screenshots at 390px
+and 1280px sit beside the spec in `docs/mockups/round-8/`; no route, label, link or action is lost
+unless the spec drops it; the `claims-auditor` checks the phase against this line.
 
 ## Stage 2 (after 3 paying firms) — not now
 

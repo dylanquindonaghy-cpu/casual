@@ -299,7 +299,10 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
 
 For proposals P9 (rows 1 to 5: the review and its mock-up,
 https://claude.ai/artifact/N2xeceFhjsDVdA9eopsAGs, "Your decisions") and P10 (rows 6 to 9: round 8,
-https://claude.ai/artifact/2cHizkZcrYG7C8U8C1H3cF) in `PLAN.md`. None decided yet.
+https://claude.ai/artifact/2cHizkZcrYG7C8U8C1H3cF) in `PLAN.md`. **All nine decided** (Dylan,
+2026-11-02, in chat: "1 yes 2 yes 3 yes 4 yes 5 yes all yes to all recommendations"): each row's
+"Recommended" is the decision, built as Phase 26. The same message put the fake job worker's clock
+fix (the offer-wave timing tests failing from 09:00 that day) into the review's PR, as recommended.
 
 | # | Decision | Default now | Recommended | Where |
 |---|---|---|---|---|

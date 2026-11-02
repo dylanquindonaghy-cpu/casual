@@ -1,0 +1,559 @@
+<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ShiftDesk office round 8 screens</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Every round 8 office screen, one at a time: open with #<screen>-<laptop|phone>
+   (dashboard, event, casuals, cancellations, session, updates, offer, customise). The source of the
+   "after" pictures on the UI change spec (docs/mockups/round-8/spec/). Figures are the live demo's,
+   except reliability and "asked" times, which are examples (the demo has no 90 days of history). */
+* { box-sizing: border-box; }
+body { margin: 0; background: #0c0c0d; }
+/* =================== round 8: the office (inside the frames) =================== */
+.f8 {
+  --g0: #0f0f10;  /* the window and the rail */
+  --g1: #141415;  /* the page ground */
+  --p1: #1b1b1d;  /* a panel */
+  --p2: #232325;  /* a tile, a chip, a row inside a panel */
+  --p3: #2c2c2f;  /* a control, hover, the selected tab */
+  --edge: #29292c; --edge2: #343438;
+  --ink: #f4f4f3; --muted: #a2a2a7; --faint: #8c8c91;
+  --hv: #e9f86f; --on-hv: #171800; --hv-soft: rgb(233 248 111 / 0.12);
+  --red: #ff8a80; --red-bg: #3a1a19; --red-fill: #e5484d;
+  --amb: #f2b55a; --amb-bg: #33260f; --amb-line: #5a4318;
+  --grn: #8fe28c; --grn-bg: #15291a;
+  --blu: #8ab4ff; --blu-bg: #172338;
+  width: 1280px; container-type: inline-size; background: var(--g0); color: var(--ink);
+  font: 14px/1.45 "Geist", ui-sans-serif, system-ui, sans-serif; position: relative; overflow: hidden;
+  font-variant-numeric: tabular-nums;
+}
+.f8.phone { width: 390px; }
+.f8 svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.f8 svg.i.s { width: 15px; height: 15px; } .f8 svg.i.xs { width: 13px; height: 13px; }
+.f8 .shell { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 20px; padding: 18px 22px 26px 14px; }
+.f8 .rail { background: var(--g1); border: 1px solid var(--edge); border-radius: 24px; padding: 16px 0; display: flex; flex-direction: column; align-items: center; gap: 12px; height: 760px; }
+.f8 .mark { width: 36px; height: 36px; border-radius: 11px; background: var(--hv); color: var(--on-hv); display: grid; place-items: center; font-weight: 600; font-size: 16px; }
+.f8 .rail .sep { width: 28px; height: 1px; background: var(--edge); margin: 4px 0; }
+.f8 .rb { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); background: var(--p1); border: 1px solid var(--edge); position: relative; }
+.f8 .rb.on { background: #fff; color: #111; border-color: #fff; }
+.f8 .rb .dot { position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--red-fill); box-shadow: 0 0 0 2px var(--g1); }
+.f8 .rail .grow { flex: 1; }
+.f8 .main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-content: start; min-width: 0; }
+.f8 .top { display: flex; align-items: center; gap: 8px; }
+.f8 .chip { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 12px; border-radius: 999px; background: var(--p2); border: 1px solid var(--edge); color: var(--muted); white-space: nowrap; font-size: 13px; }
+.f8 .chip b { color: var(--ink); font-weight: 600; }
+.f8 .chip.u b { color: var(--red); }
+.f8 .search { margin-left: auto; display: flex; align-items: center; gap: 8px; height: 36px; width: 270px; padding: 0 6px 0 12px; border-radius: 999px; background: var(--p1); border: 1px solid var(--edge); color: var(--faint); font-size: 13px; white-space: nowrap; overflow: hidden; }
+.f8 .search kbd { margin-left: auto; font: 500 11px "Geist Mono", monospace; color: var(--muted); background: var(--p3); border-radius: 999px; padding: 3px 8px; }
+.f8 .vr { width: 1px; height: 26px; background: var(--edge); margin: 0 6px; }
+.f8 .bell { width: 36px; height: 36px; border-radius: 50%; background: var(--p1); border: 1px solid var(--edge); display: grid; place-items: center; position: relative; color: var(--ink); }
+.f8 .bell .n { position: absolute; top: -5px; right: -7px; background: var(--red-fill); color: #fff; font-size: 10.5px; font-weight: 600; border-radius: 999px; padding: 1px 5px; }
+.f8 .me { display: flex; align-items: center; gap: 9px; margin-left: 6px; }
+.f8 .av { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 11.5px; font-weight: 600; background: #2e3112; color: var(--hv); flex: none; }
+.f8 .me small { display: block; color: var(--faint); font-size: 11.5px; line-height: 1.2; }
+.f8 .me b { display: block; font-weight: 500; font-size: 13px; line-height: 1.2; white-space: nowrap; }
+.f8 .crumb { display: flex; gap: 8px; align-items: center; color: var(--faint); font-size: 13px; }
+.f8 .crumb b { color: var(--ink); font-weight: 500; }
+.f8 .titlerow { display: flex; justify-content: space-between; align-items: end; gap: 16px; flex-wrap: wrap; }
+.f8 h1 { font-size: 30px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; display: flex; align-items: center; gap: 12px; }
+.f8 .sub { color: var(--faint); font-size: 13px; margin-top: 4px; }
+.f8 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 38px; padding: 0 16px; border-radius: 999px; background: var(--p2); border: 1px solid var(--edge2); color: var(--ink); font-weight: 500; font-size: 13.5px; white-space: nowrap; }
+.f8 .btn.hv { background: var(--hv); color: var(--on-hv); border-color: var(--hv); font-weight: 600; }
+.f8 .btn.sm { height: 30px; padding: 0 12px; font-size: 12.5px; }
+.f8 .btn.icon { width: 38px; padding: 0; }
+.f8 .btn.sm.icon { width: 30px; }
+.f8 .btn.red { color: var(--red); }
+.f8 .row { display: flex; align-items: center; gap: 10px; }
+.f8 .tabs { display: inline-flex; gap: 2px; padding: 4px; border-radius: 999px; background: var(--p1); border: 1px solid var(--edge); }
+.f8 .tabs > span { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 14px; border-radius: 999px; color: var(--muted); font-weight: 500; font-size: 13px; white-space: nowrap; }
+.f8 .tabs > span.on { background: var(--p3); color: var(--ink); }
+.f8 .cnt { min-width: 20px; height: 18px; padding: 0 6px; border-radius: 999px; background: var(--p3); color: var(--muted); font-size: 11px; font-weight: 600; display: inline-grid; place-items: center; }
+.f8 .tabs > span.on .cnt { background: #fff; color: #111; }
+.f8 .cnt.u { background: var(--red-fill); color: #fff; }
+.f8 .tg { display: inline-flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; white-space: nowrap; }
+.f8 .sw { width: 38px; height: 22px; border-radius: 999px; background: var(--p3); border: 1px solid var(--edge2); position: relative; }
+.f8 .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #6d6d72; }
+.f8 .sw.on { background: var(--hv); border-color: var(--hv); } .f8 .sw.on::after { left: 18px; background: #171800; }
+.f8 .pill { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 999px; font-size: 11.5px; font-weight: 500; white-space: nowrap; flex: none; }
+.f8 .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.f8 .pill.u { color: var(--red); background: var(--red-bg); }
+.f8 .pill.o { color: var(--amb); background: var(--amb-bg); }
+.f8 .pill.b { color: var(--grn); background: var(--grn-bg); }
+.f8 .pill.w { color: var(--blu); background: var(--blu-bg); }
+.f8 .pill.q { color: var(--muted); background: var(--p3); }
+.f8 .tag { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 999px; background: var(--p3); color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+.f8 .tag.a { color: var(--amb); background: var(--amb-bg); }
+.f8 .panel { background: var(--p1); border: 1px solid var(--edge); border-radius: 20px; padding: 18px; display: grid; gap: 14px; align-content: start; min-width: 0; }
+.f8 .ph { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.f8 .ph h3 { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.f8 .ph h3 .i { color: var(--muted); }
+.f8 .tile { background: var(--p2); border: 1px solid var(--edge); border-radius: 14px; padding: 12px 14px; min-width: 0; }
+.f8 .muted { color: var(--muted); } .f8 .faint { color: var(--faint); } .f8 .small { font-size: 12.5px; }
+.f8 .mono { font-family: "Geist Mono", ui-monospace, monospace; font-size: 12px; }
+.f8 .bar { height: 6px; border-radius: 999px; background: var(--p3); overflow: hidden; }
+.f8 .bar i { display: block; height: 100%; border-radius: 999px; background: var(--amb); }
+.f8 .bar.g i { background: var(--grn); } .f8 .bar.r i { background: var(--red-fill); }
+.f8 .notice { display: flex; gap: 10px; align-items: flex-start; padding: 11px 13px; border-radius: 12px; background: var(--amb-bg); border: 1px solid var(--amb-line); color: #f6dcb0; font-size: 13px; }
+.f8 .notice .i { color: var(--amb); margin-top: 1px; }
+.f8 .notice b { color: #fff3dc; font-weight: 600; }
+.f8 .dt { width: 42px; flex: none; text-align: center; border-radius: 11px; background: var(--p3); padding: 5px 0; line-height: 1.1; }
+.f8 .dt small { display: block; font-size: 10.5px; color: var(--muted); }
+.f8 .dt b { font-size: 16px; font-weight: 600; }
+.f8 .dt.u { background: var(--red-bg); } .f8 .dt.u small { color: var(--red); }
+.f8 .list { display: grid; gap: 8px; }
+.f8 .li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 14px; background: var(--p2); border: 1px solid var(--edge); }
+.f8 .li b { font-weight: 600; display: block; }
+.f8 .li .meta { color: var(--faint); font-size: 12.5px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 2px; }
+.f8 .more { text-align: center; color: var(--muted); font-size: 13px; padding-top: 2px; }
+.f8 .feed { display: grid; }
+.f8 .ev { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--edge); align-items: start; }
+.f8 .ev:first-child { padding-top: 0; } .f8 .ev:last-child { border-bottom: 0; padding-bottom: 0; }
+.f8 .evi { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--p3); color: var(--muted); }
+.f8 .evi.u { background: var(--red-bg); color: var(--red); } .f8 .evi.b { background: var(--grn-bg); color: var(--grn); } .f8 .evi.o { background: var(--amb-bg); color: var(--amb); }
+.f8 .ev b { font-weight: 500; display: block; } .f8 .ev .when { color: var(--faint); font-size: 12px; white-space: nowrap; }
+.f8 .wk { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--edge); }
+.f8 .wk:last-child { border-bottom: 0; }
+.f8 .grp { color: var(--faint); font-size: 12px; padding-top: 6px; display: flex; justify-content: space-between; }
+/* the map */
+.f8 .map { position: relative; height: 528px; border-radius: 22px; overflow: hidden; border: 1px solid var(--edge); background: #18181a; }
+.f8 .map canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.f8 .pin { position: absolute; transform: translate(-17px, -50%); display: flex; align-items: center; gap: 8px; }
+.f8 .pin.l { flex-direction: row-reverse; transform: translate(calc(-100% + 17px), -50%); }
+.f8 .pin .dotp { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 600; font-size: 13px; background: #2a2a2d; color: var(--ink); border: 2px solid var(--amb); }
+.f8 .pin.u .dotp { background: var(--red-fill); border-color: var(--red-fill); color: #fff; }
+.f8 .pin.h .dotp { border-style: dashed; border-color: #6d6d72; color: var(--muted); }
+.f8 .pin.sel .dotp { box-shadow: 0 0 0 6px rgb(233 248 111 / 0.22), 0 0 0 14px rgb(233 248 111 / 0.08); border-color: var(--hv); }
+.f8 .pin .lab { background: rgb(20 20 21 / 0.9); border: 1px solid var(--edge); border-radius: 10px; padding: 4px 8px; font-size: 12px; line-height: 1.25; white-space: nowrap; }
+.f8 .pin .lab small { display: block; color: var(--faint); font-size: 11px; }
+.f8 .mapctl { position: absolute; right: 14px; bottom: 14px; display: grid; gap: 8px; }
+.f8 .mapctl span { width: 34px; height: 34px; border-radius: 50%; background: var(--p2); border: 1px solid var(--edge2); display: grid; place-items: center; color: var(--muted); }
+.f8 .maplegend { position: absolute; right: 14px; top: 14px; display: flex; gap: 6px; }
+.f8 .maplegend .tag { background: rgb(27 27 29 / 0.92); border: 1px solid var(--edge); }
+.f8 .maplegend .k { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--amb); background: #2a2a2d; }
+.f8 .maplegend .k.u { background: var(--red-fill); border-color: var(--red-fill); }
+.f8 .maplegend .k.h { border-color: #6d6d72; border-style: dashed; }
+.f8 .card { position: absolute; left: 14px; top: 14px; width: 404px; background: var(--p1); border: 1px solid var(--edge2); border-radius: 18px; padding: 16px; display: grid; gap: 12px; box-shadow: 0 18px 50px rgb(0 0 0 / 0.5); }
+.f8 .mapfoot { display: flex; justify-content: space-between; color: var(--faint); font-size: 12px; padding: 0 4px; }
+.f8 .cols3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+.f8 .cols3 > .panel { display: flex; flex-direction: column; }
+.f8 .cols3 > .panel > .more { margin-top: auto; }
+.f8 .two > * { min-width: 0; }
+.f8 .gauge { display: grid; place-items: center; position: relative; height: 96px; }
+.f8 .gauge svg { width: 150px; height: 84px; }
+.f8 .gauge .gv { position: absolute; bottom: 4px; text-align: center; line-height: 1.1; }
+.f8 .gauge .gv b { font-size: 22px; font-weight: 600; } .f8 .gauge .gv small { display: block; color: var(--faint); font-size: 11.5px; }
+.f8 .kv { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+.f8 .kv small { display: block; color: var(--faint); font-size: 12px; } .f8 .kv b { font-weight: 500; font-size: 13.5px; }
+/* event page */
+.f8 .ulTabs { display: flex; gap: 22px; border-bottom: 1px solid var(--edge); overflow-x: auto; scrollbar-width: none; }
+.f8 .ulTabs > span { flex: none; display: inline-flex; align-items: center; gap: 7px; padding: 0 2px 12px; color: var(--muted); font-weight: 500; font-size: 13.5px; margin-bottom: -1px; }
+.f8 .ulTabs > span.on { color: var(--ink); border-bottom: 2px solid var(--ink); }
+.f8 .two { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.f8 .metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--edge); border-bottom: 1px solid var(--edge); }
+.f8 .metric { padding: 12px 14px; display: grid; gap: 7px; }
+.f8 .metric + .metric { border-left: 1px solid var(--edge); }
+.f8 .metric .big { font-size: 22px; font-weight: 600; } .f8 .metric .big span { color: var(--faint); font-size: 14px; font-weight: 400; }
+.f8 .bay { display: grid; gap: 10px; }
+.f8 .bay-h { display: flex; justify-content: space-between; color: var(--muted); font-size: 12.5px; }
+.f8 .bay-h b { color: var(--ink); font-weight: 600; }
+.f8 .slots { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.f8 .slots.s7 { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.f8 .slot { border-radius: 12px; background: var(--p2); border: 1px solid var(--edge); padding: 9px 10px; display: grid; gap: 6px; align-content: center; min-width: 0; min-height: 58px; }
+.f8 .slots.s7 .slot { padding: 9px 10px; }
+.f8 .slots.s7 .who .av { display: none; }
+.f8 .slot .who { display: flex; gap: 7px; align-items: center; min-width: 0; }
+.f8 .slot .who .av { width: 24px; height: 24px; font-size: 9.5px; }
+.f8 .slot .who span { font-size: 12.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.f8 .slot .t { color: var(--faint); font-size: 11px; }
+.f8 .slot.open { background: transparent; border: 1.5px dashed var(--amb-line); }
+.f8 .slot.open .lab { color: var(--amb); font-size: 12.5px; font-weight: 600; }
+.f8 .slot.urg { background: var(--red-bg); border: 1.5px solid var(--red-fill); }
+.f8 .slot.urg .lab { color: var(--red); font-size: 12.5px; font-weight: 600; }
+.f8 .slot.sel { outline: 2px solid var(--hv); outline-offset: 2px; }
+.f8 .oc { border-radius: 16px; background: var(--p2); border: 1px solid var(--edge); padding: 12px 14px; display: grid; gap: 10px; }
+.f8 .oc.sel { border-color: var(--edge2); background: #252527; }
+.f8 .oc .top2 { display: flex; justify-content: space-between; gap: 8px; align-items: start; }
+.f8 .oc b { font-weight: 600; }
+.f8 .hr { height: 1px; background: var(--edge); }
+/* the phone */
+.f8 .pbar { display: flex; align-items: center; gap: 10px; padding: 14px 16px 6px; }
+.f8 .pbar .title { flex: 1; font-weight: 600; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.f8 .pbar .title .mark { width: 28px; height: 28px; border-radius: 9px; font-size: 13px; }
+.f8 .pmain { padding: 8px 16px 28px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.f8 .scrollx { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; -webkit-mask-image: linear-gradient(to right, #000 85%, transparent); mask-image: linear-gradient(to right, #000 85%, transparent); }
+@container (max-width: 600px) {
+  .f8 h1 { font-size: 24px; }
+  .f8 .map { height: 300px; border-radius: 18px; }
+  .f8 .card { position: relative; left: auto; top: auto; width: auto; box-shadow: none; margin-top: -40px; z-index: 2; }
+  .f8 .cols3, .f8 .two { grid-template-columns: minmax(0, 1fr); }
+  .f8 .slots, .f8 .slots.s7 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .f8 .metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .f8 .metric { padding: 10px 8px; } .f8 .metric .big { font-size: 18px; }
+  .f8 .pin .lab { display: none; }
+  .f8 .crumb { display: none; }
+  .f8 .maplegend { display: none; }
+  .f8 .hide-phone { display: none !important; }
+  .f8 .tabs { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+}
+@container (min-width: 601px) { .f8 .only-phone { display: none !important; } }
+.f8 .back { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 4px; }
+
+/* round 8: the other office screens */
+.f8 .panel, .f8 .sheet { grid-template-columns: minmax(0, 1fr); }
+.f8 .tabs { min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.f8 .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: var(--p1); border: 1px solid var(--edge); border-radius: 20px; }
+.f8 .kpi { padding: 14px 18px; display: grid; gap: 3px; }
+.f8 .kpi + .kpi { border-left: 1px solid var(--edge); }
+.f8 .kpi b { font-size: 26px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.15; }
+.f8 .thead { display: grid; gap: 12px; padding: 0 12px; color: var(--faint); font-size: 12px; }
+.f8 .li.casrow, .f8 .thead.casrow { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.1fr) minmax(0, 1fr) 130px 150px; }
+.f8 .li.canrow, .f8 .thead.canrow { grid-template-columns: minmax(0, 1.7fr) minmax(0, 1.1fr) 100px 220px; }
+.f8 .li.sesrow, .f8 .thead.sesrow { grid-template-columns: minmax(0, 1.6fr) 100px 56px 104px 104px; }
+.f8 .li.offrow { grid-template-columns: minmax(0, 1fr) auto auto; }
+.f8 .li.hot { background: var(--red-bg); border-color: #5a2423; box-shadow: inset 3px 0 0 var(--red-fill); }
+.f8 .stack2 { display: grid; gap: 4px; justify-items: start; min-width: 0; }
+.f8 .who2 { display: flex; gap: 10px; align-items: center; min-width: 0; }
+.f8 .who2 b { display: block; font-weight: 600; }
+.f8 .av2 { width: 34px; height: 34px; background: #26262a; color: #d6d6da; font-size: 11px; }
+.f8 .rel { display: grid; gap: 5px; }
+.f8 .rel b { font-weight: 600; font-size: 13.5px; }
+.f8 .strike { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 9px; border-radius: 999px; background: var(--red-fill); color: #fff; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.f8 .setrow { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 11px 12px; border-radius: 14px; background: var(--p2); border: 1px solid var(--edge); }
+.f8 .sheet { background: var(--p1); border: 1px solid var(--edge2); border-radius: 22px; padding: 20px; display: grid; gap: 12px; align-content: start; }
+.f8 .sheet.side { position: absolute; top: 14px; right: 14px; bottom: 14px; width: 440px; box-shadow: -24px 0 60px rgb(0 0 0 / 0.55); overflow: hidden; }
+.f8 .dim { position: absolute; inset: 0; background: rgb(0 0 0 / 0.45); }
+.f8 .picks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.f8 .pick { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; padding: 10px 12px; border-radius: 14px; background: var(--p2); border: 1px solid var(--edge); }
+.f8 .pick.on { border-color: var(--hv); }
+.f8 .chk { width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid #6d6d72; display: grid; place-items: center; }
+.f8 .chk.on { background: var(--hv); border-color: var(--hv); color: var(--on-hv); }
+@container (max-width: 600px) {
+  .f8 .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .f8 .kpi:nth-child(3) { border-left: 0; } .f8 .kpi:nth-child(n+3) { border-top: 1px solid var(--edge); }
+  .f8 .kpi b { font-size: 22px; }
+  .f8 .thead { display: none; }
+  .f8 .li.casrow, .f8 .li.canrow, .f8 .li.sesrow { grid-template-columns: minmax(0, 1fr); }
+  .f8 .li.offrow { grid-template-columns: minmax(0, 1fr); }
+  .f8 .picks { grid-template-columns: minmax(0, 1fr); }
+}
+
+</style></head><body><div id="out"></div><script>
+(function () {
+  var P = {
+    grid: '<rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/>',
+    bell: '<path d="M6 9a6 6 0 1112 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9"/><path d="M10 20a2 2 0 004 0"/>',
+    cal: '<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+    inbox: '<path d="M3.5 13l2.5-7.5h12L20.5 13v6h-17z"/><path d="M3.5 13h5l1 2h5l1-2h5"/>',
+    calx: '<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4M10 13.5l4 4M14 13.5l-4 4"/>',
+    pay: '<rect x="3" y="6" width="18" height="12" rx="3"/><circle cx="12" cy="12" r="2.5"/>',
+    people: '<circle cx="9" cy="8.5" r="3.3"/><path d="M3 19.5c.6-3.3 3-5.4 6-5.4s5.4 2.1 6 5.4"/><circle cx="17" cy="9.5" r="2.4"/><path d="M17 14.3c2.2 0 3.8 1.6 4.2 4.2"/>',
+    help: '<circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.4a2.5 2.5 0 014.8 1c0 1.7-2.4 2.1-2.4 3.6M12 17v.3"/>',
+    gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/>',
+    side: '<rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M9.5 4.5v15"/>',
+    user: '<circle cx="12" cy="8.5" r="3.6"/><path d="M5 20c.8-3.8 3.6-6.2 7-6.2s6.2 2.4 7 6.2"/>',
+    clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+    send: '<path d="M20.5 3.5L10 14"/><path d="M20.5 3.5l-6.5 17-4-6.5-6.5-4z"/>',
+    check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    x: '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
+    search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/>',
+    filter: '<path d="M4 6h16l-6 7.5V19l-4-1.5v-4z"/>',
+    alert: '<path d="M12 4l9 15.5H3z"/><path d="M12 10v4.5M12 17.2v.3"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>', minus: '<path d="M5 12h14"/>',
+    target: '<circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/>',
+    expand: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+    layers: '<path d="M12 4l8.5 4.5L12 13 3.5 8.5z"/><path d="M3.5 12.5L12 17l8.5-4.5"/>',
+    list: '<path d="M8.5 7h11M8.5 12h11M8.5 17h11"/><circle cx="4.7" cy="7" r=".9"/><circle cx="4.7" cy="12" r=".9"/><circle cx="4.7" cy="17" r=".9"/>',
+    shield: '<path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.2-7.5 9.5-4.3-1.3-7.5-4.9-7.5-9.5V6z"/>',
+    down: '<path d="M6.5 9.5l5.5 5.5 5.5-5.5"/>', right: '<path d="M9.5 6l6 6-6 6"/>', home: '<path d="M4 11l8-6.5 8 6.5"/><path d="M6 10v9.5h12V10"/>',
+    more: '<circle cx="5.5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18.5" cy="12" r="1.3"/>',
+    eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.6"/>',
+    menu: '<path d="M4 7h16M4 12h16M4 17h16"/>', layout: '<rect x="3.5" y="4" width="17" height="16" rx="2.5"/><path d="M3.5 10h17M10 10v10"/>',
+    pin: '<path d="M12 21s7-6.2 7-11.5A7 7 0 005 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.4"/>'
+  };
+  function I(n, c) { return '<svg class="i' + (c ? ' ' + c : '') + '" viewBox="0 0 24 24" aria-hidden="true">' + (P[n] || '') + '</svg>'; }
+  function ini(n) { return n.split(' ').map(function (p) { return p[0]; }).join(''); }
+
+  // ---------- the live demo's data (Mon 2 Nov 2026) ----------
+  var VENUES = [ // places to fill across every session to come (33 in all), urgent if a session there is urgent and open
+    { name: 'Acme Demo Arena', fill: 10, urgent: true, x: 0.47, y: 0.40, note: 'Tue 3, Sat 7, Sun 8' },
+    { name: 'Northgate Demo Town Centre', fill: 3, urgent: true, x: 0.66, y: 0.30, sel: true, note: 'Wed 4, Mon 9' },
+    { name: 'Riverside Demo Park', fill: 4, x: 0.58, y: 0.72, note: 'Thu 5, Fri 6' },
+    { name: 'Acme Demo Shopping Centre', fill: 1, x: 0.82, y: 0.55, note: 'Sat 7' },
+    { name: 'Acme Demo Racecourse', fill: 5, x: 0.90, y: 0.22, note: 'Sat 7' },
+    { name: 'Northgate Demo Common', fill: 6, x: 0.74, y: 0.84, note: 'Tue 10' },
+    { name: 'Hillside Demo Square', fill: 4, hidden: true, x: 0.40, y: 0.86, note: 'Sun 22 · hidden' }
+  ];
+  var TOTAL = VENUES.reduce(function (a, v) { return a + v.fill; }, 0);
+  console.assert(TOTAL === 33, 'places to fill add up to 33');
+  var ARENA = { // Acme Demo Arena, Sat 7 Nov: 23 places, who's booked (the demo's own names)
+    ds: [['Door supervisor', '08:00–16:00', 'urgent', null]].concat([null, 'Amira Zielinski', 'Vikram Chowdhury', 'Maya Zielinski', 'Wes Usman', 'Tomasz Morgan', 'Ben Usman', 'Harry Usman'].map(function (n) { return ['Door supervisor', '11:30–19:00', n ? 'booked' : 'open', n]; })),
+    st: ['Priya Reid', 'Ruth Barker', 'Ella Young', null, 'Ella Singh', 'Ruth Singh', 'Vikram Evans', 'Quinn Vaughan', null, null, 'Jamal Fraser', 'Sam Walsh', 'Nathan Fraser', 'Aled Adeyemi'].map(function (n) { return ['Steward', '12:00–18:30', n ? 'booked' : 'open', n]; })
+  };
+  var all = ARENA.ds.concat(ARENA.st), booked = all.filter(function (s) { return s[2] === 'booked'; }).length;
+  console.assert(all.length === 23 && booked === 18, 'the Arena: 18 of 23 booked');
+
+  // ---------- the shell ----------
+  function shell(body, size, on) {
+    if (size === 'phone') {
+      return '<div class="pbar"><span class="btn icon sm" style="width:38px;height:38px">' + I('menu', 's') + '</span><span class="title"><span class="mark">A</span>Acme Events</span><span class="bell">' + I('bell', 's') + '<span class="n">3</span></span></div>' +
+        '<div class="pmain">' + body + '</div>';
+    }
+    var icons = [['grid', 'home'], ['bell', 'na', 1], ['cal', 'events'], ['inbox'], ['calx'], ['pay'], ['people', 'p', 1]];
+    var rail = '<nav class="rail" aria-label="Menu"><span class="mark">A</span><span class="sep"></span>' + icons.map(function (c) {
+      return '<span class="rb' + (c[1] === on.rail ? ' on' : '') + '">' + I(c[0], 's') + (c[2] ? '<span class="dot"></span>' : '') + '</span>';
+    }).join('') + '<span class="grow"></span><span class="rb">' + I('help', 's') + '</span><span class="rb">' + I('gear', 's') + '</span><span class="sep"></span><span class="rb">' + I('side', 's') + '</span></nav>';
+    var top = '<div class="top"><span class="chip">' + I('user', 'xs') + 'To fill: <b>33</b></span><span class="chip u">' + I('clock', 'xs') + 'Urgent: <b>2</b></span><span class="chip">' + I('send', 'xs') + 'Offers out: <b>0</b></span><span class="chip">' + I('check', 'xs') + 'To check: <b>7</b></span><span class="chip">' + I('pay', 'xs') + 'Pay queries: <b>10</b></span>' +
+      '<span class="search">' + I('search', 'xs') + 'Search casuals, shifts, sites<kbd>Ctrl K</kbd></span><span class="vr"></span><span class="bell">' + I('bell', 's') + '<span class="n">+3</span></span>' +
+      '<span class="me"><span class="av">RD</span><span><b>Resourcer (demo)</b><small>Resourcer</small></span>' + I('down', 'xs') + '</span></div>';
+    return '<div class="shell">' + rail + '<div class="main">' + top + body + '</div></div>';
+  }
+
+  // ---------- the dashboard ----------
+  function gauge(val, max) {
+    var a0 = Math.PI, r = 58, cx = 75, cy = 76, frac = val / max;
+    function pt(f) { var a = a0 + Math.PI * f; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; }
+    var s = pt(0), e = pt(1), m = pt(frac);
+    var ticks = '';
+    for (var k = 0; k <= max; k++) { var t = pt(k / max), u = [cx + (r - 13) * Math.cos(a0 + Math.PI * k / max), cy + (r - 13) * Math.sin(a0 + Math.PI * k / max)]; ticks += '<line x1="' + t[0].toFixed(1) + '" y1="' + t[1].toFixed(1) + '" x2="' + u[0].toFixed(1) + '" y2="' + u[1].toFixed(1) + '" stroke="#5a5a5f" stroke-width="1.5"/>'; }
+    return '<div class="gauge"><svg viewBox="0 0 150 84" aria-hidden="true"><path d="M' + s[0] + ' ' + s[1] + ' A' + r + ' ' + r + ' 0 0 1 ' + e[0] + ' ' + e[1] + '" fill="none" stroke="#2c2c2f" stroke-width="9" stroke-linecap="round"/>' +
+      '<path d="M' + s[0] + ' ' + s[1] + ' A' + r + ' ' + r + ' 0 0 1 ' + m[0].toFixed(1) + ' ' + m[1].toFixed(1) + '" fill="none" stroke="#f2b55a" stroke-width="9" stroke-linecap="round"/>' + ticks + '</svg>' +
+      '<div class="gv"><b>' + val + ' / ' + max + '</b><small>booked</small></div></div>';
+  }
+  function sessionCard(size) {
+    return '<div class="card" role="dialog" aria-label="CSAS officer, Wed 4 Nov">' +
+      '<div class="row" style="align-items:flex-start"><span class="dt u"><small>Wed</small><b>4</b></span><span style="flex:1;min-width:0"><span class="row" style="gap:8px"><b style="font-size:19px;font-weight:600;letter-spacing:-0.01em">CSAS officer</b><span class="pill u">Urgent</span></span><span class="faint small">Night patrols · Northgate Demo Town Centre</span></span><span class="btn sm icon">' + I('x', 'xs') + '</span></div>' +
+      '<div class="tile" style="display:grid;gap:8px"><div class="row" style="justify-content:space-between"><b style="font-weight:500">19:00 → 01:00 Thu</b><span class="muted small">6 h · £15.00/h</span></div><div class="bar"><i style="width:75%"></i></div><div class="row" style="justify-content:space-between" ><span class="faint small">' + I('clock', 'xs') + ' Starts in 2 days</span><span class="small"><b>1</b> <span class="faint">place to fill</span></span></div></div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div class="tile"><div class="row" style="justify-content:space-between"><span class="muted small">Booked</span><span class="pill o">Open</span></div>' + gauge(3, 4) + '</div>' +
+      '<div class="tile" style="display:grid;align-content:space-between"><div class="row" style="justify-content:space-between"><span class="muted small">Can take it</span><span class="pill q">0 offered</span></div><div style="text-align:center;padding:10px 0 4px"><b style="font-size:34px;font-weight:600;line-height:1">1</b><span class="faint small" style="display:block;margin-top:6px">CSAS card, free that night</span></div></div></div>' +
+      '<div class="notice">' + I('alert', 's') + '<span><b>Only Zoe Adeyemi can take it:</b> 8 h booked that week, 8.4 miles away.</span></div>' +
+      '<div class="row"><span class="btn hv" style="flex:1">' + I('send', 'xs') + 'Offer to Zoe</span><span class="btn" style="flex:1">Open the shift</span></div></div>';
+  }
+  function dashboard(size) {
+    var phone = size === 'phone';
+    var title = '<div class="titlerow"><div><h1>Dashboard</h1><p class="sub">Monday 2 November · Week 45 · pay Fri 13 Nov · updated 09:21</p></div>' +
+      '<div class="row hide-phone"><span class="btn">' + I('grid', 'xs') + 'Customise</span><span class="btn">All dates' + I('down', 'xs') + '</span></div></div>';
+    var chipsPhone = '<div class="scrollx only-phone"><span class="chip">To fill: <b>33</b></span><span class="chip u">Urgent: <b>2</b></span><span class="chip">Offers out: <b>0</b></span><span class="chip">To check: <b>7</b></span><span class="chip">Pay queries: <b>10</b></span></div>';
+    var tabs = '<div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:10px"><div class="row" style="min-width:0;max-width:100%"><span class="tabs" style="min-width:0"><span class="on">All <span class="cnt">17</span></span><span>Urgent <span class="cnt u">2</span></span><span>This week <span class="cnt">14</span></span><span>Next week <span class="cnt">2</span></span></span><span class="btn icon hide-phone">' + I('filter', 'xs') + '</span></div>' +
+      '<div class="row hide-phone" style="gap:18px"><span class="tg">My contracts<span class="sw on"></span></span><span class="tg">Show full venues<span class="sw"></span></span></div></div>';
+    var pins = VENUES.map(function (v) {
+      return '<span class="pin' + (v.urgent ? ' u' : '') + (v.hidden ? ' h' : '') + (v.sel ? ' sel' : '') + (v.x > 0.75 ? ' l' : '') + '" style="left:' + (v.x * 100) + '%;top:' + (v.y * 100) + '%"><span class="dotp">' + v.fill + '</span><span class="lab">' + v.name + '<small>' + v.note + '</small></span></span>';
+    }).join('');
+    var map = '<div class="map"><canvas aria-hidden="true"></canvas>' + pins +
+      '<div class="maplegend"><span class="tag"><span class="k u"></span>Urgent</span><span class="tag"><span class="k"></span>Places to fill</span><span class="tag"><span class="k h"></span>Hidden from casuals</span></div>' +
+      '<div class="mapctl hide-phone"><span>' + I('list', 'xs') + '</span><span>' + I('plus', 'xs') + '</span><span>' + I('minus', 'xs') + '</span><span>' + I('target', 'xs') + '</span><span>' + I('expand', 'xs') + '</span><span>' + I('layers', 'xs') + '</span></div>' +
+      (phone ? '' : sessionCard(size)) + '</div>' + (phone ? sessionCard(size) : '') +
+      '<div class="mapfoot hide-phone"><span>Drag to move · scroll to zoom · a pin\'s number is its places to fill</span><span>7 venues · 33 places to fill</span></div>';
+    var toOffer = '<div class="panel"><div class="ph"><h3>' + I('send', 's') + 'To offer <span class="cnt">17</span></h3><span class="faint small">33 places, none offered</span></div><div class="list">' +
+      [['Tue', '3', 'Response team lead', 'Acme Demo Arena', '09:00', '0/1', ''], ['Wed', '4', 'CSAS officer', 'Northgate Demo Town Centre', '19:00', '3/4', 'u'], ['Thu', '5', 'Steward', 'Riverside Demo Park', '14:00', '1/2', ''], ['Fri', '6', 'Steward', 'Riverside Demo Park', '11:00', '0/3', '']].map(function (r) {
+        return '<div class="li"><span class="dt' + (r[6] ? ' u' : '') + '"><small>' + r[0] + '</small><b>' + r[1] + '</b></span><span style="min-width:0"><span class="row" style="gap:8px"><b>' + r[2] + '</b>' + (r[6] ? '<span class="pill u">Urgent</span>' : '') + '</span><span class="meta">' + r[3] + ' · ' + r[4] + '</span></span><span class="small" style="text-align:right;line-height:1.2"><b style="font-weight:600;font-size:14px">' + r[5] + '</b><span class="faint" style="display:block;font-size:11.5px">booked</span></span><span class="btn sm icon" aria-label="Offer">' + I('send', 'xs') + '</span></div>';
+      }).join('') + '</div><div class="more">View all 17</div></div>';
+    var updates = '<div class="panel"><div class="ph"><h3>' + I('bell', 's') + 'Updates <span class="cnt u">3</span></h3><span class="faint small">Today</span></div><div class="feed">' +
+      '<div class="ev"><span class="evi b">' + I('check', 'xs') + '</span><span><b>Zoe Adeyemi took a place</b><span class="faint small">Door supervisor, Acme Demo Arena, Tue 3 Nov 08:00 · now full</span></span><span class="when">09:06</span></div>' +
+      '<div class="ev"><span class="evi o">' + I('calx', 'xs') + '</span><span><b>Zoe Adeyemi cancelled · 3 days\' notice</b><span class="faint small">Steward, Riverside Demo Park, Thu 5 Nov 14:00 · no strike</span></span><span class="when">09:06</span></div>' +
+      '<div class="ev"><span class="evi o">' + I('calx', 'xs') + '</span><span><b>Chloe Quigley cancelled · 5 days\' notice</b><span class="faint small">Door supervisor, Acme Demo Arena, Sat 7 Nov 08:00 · reopened</span></span><span class="when">04:00</span></div>' +
+      '<div class="ev"><span class="evi">' + I('user', 'xs') + '</span><span><b>Ben Fraser sent a staff photo</b><span class="faint small">Waiting for a check</span></span><span class="when">Sun 08:00</span></div></div>' +
+      '<div class="more">Everything in the action log</div></div>';
+    function w(n) { return '<div class="wk"><span class="row" style="gap:8px"><span class="av" style="width:26px;height:26px;font-size:10px;background:#26262a;color:#d6d6da">' + ini(n) + '</span>' + n + '</span><span class="row" style="gap:6px"><span class="btn sm">' + I('check', 'xs') + 'Worked</span><span class="btn sm red">' + I('x', 'xs') + '</span></span></div>'; }
+    var worked = '<div class="panel"><div class="ph"><h3>' + I('check', 's') + 'Who worked? <span class="cnt">5</span></h3><span class="faint small">Sun 1 Nov</span></div><div>' +
+      '<div class="grp"><span>Steward · Acme Demo Racecourse · 10:30–18:30</span></div>' + w('Nathan Reid') + w('Tomasz Walsh') + w('Sam Walsh') +
+      '<div class="grp"><span>Security officer · Acme Demo Shopping Centre · 07:00–15:00</span></div>' + w('Bea Patel') + w('Grace Chowdhury') +
+      '</div><div class="more">Everyone else worked</div></div>';
+    return shell(title + chipsPhone + tabs + map + '<div class="cols3">' + toOffer + updates + worked + '</div>', size, { rail: 'home', title: 'Dashboard' });
+  }
+
+  // ---------- an event's page ----------
+  function slot(s, i, sel, showTime) {
+    var cls = s[2] === 'booked' ? '' : s[2] === 'urgent' ? ' urg' : ' open';
+    var who = s[3] ? '<span class="who"><span class="av" style="background:#26262a;color:#d6d6da">' + ini(s[3]) + '</span><span>' + s[3].split(' ')[0] + ' ' + s[3].split(' ')[1][0] + '.</span></span>'
+      : '<span class="lab">' + (s[2] === 'urgent' ? 'Urgent' : 'Open') + '</span>';
+    return '<div class="slot' + cls + (sel ? ' sel' : '') + '">' + who + (showTime ? '<span class="t">' + s[1] + '</span>' : '') + '</div>';
+  }
+  function eventPage(size) {
+    var phone = size === 'phone';
+    var head = '<div class="back only-phone">' + I('right', 'xs').replace('M9.5 6l6 6-6 6', 'M14.5 6l-6 6 6 6') + 'Events &amp; sessions</div><div class="crumb">' + I('home', 'xs') + 'Dashboard ' + I('right', 'xs') + ' Events &amp; sessions ' + I('right', 'xs') + ' <b>Acme Demo Arena</b></div>' +
+      '<div class="titlerow"><div><h1>Acme Demo Arena <span class="pill b" style="font-size:12px;height:22px">Showing to casuals</span></h1><p class="sub">Sat 7 Nov · Exampleton, ZZ1 1AA · 23 sessions</p></div>' +
+      '<div class="row hide-phone"><span class="btn">' + I('eye', 'xs') + 'Hide from casuals</span><span class="btn">' + I('plus', 'xs') + 'Add shifts</span><span class="btn hv">' + I('send', 'xs') + 'Offer 5 open places</span><span class="btn icon">' + I('more', 'xs') + '</span></div></div>' +
+      '<div class="only-phone"><span class="btn hv" style="width:100%">' + I('send', 'xs') + 'Offer 5 open places</span></div>' +
+      '<div class="ulTabs"><span>Overview</span><span class="on">Staffing <span class="cnt">23</span></span><span>Interested <span class="cnt">0</span></span><span>Cancellations <span class="cnt">1</span></span><span class="hide-phone">History</span></div>';
+    var dsBooked = ARENA.ds.filter(function (s) { return s[2] === 'booked'; }).length, stBooked = ARENA.st.filter(function (s) { return s[2] === 'booked'; }).length;
+    var layout = '<div class="panel"><div class="ph"><h3>' + I('layout', 's') + 'Staffing layout <span class="pill u">5 to fill</span></h3><span class="btn sm icon">' + I('filter', 'xs') + '</span></div>' +
+      '<div class="metrics"><div class="metric"><span class="big">' + booked + ' <span>/ 23 booked</span></span><div class="bar"><i style="width:' + Math.round(booked / 23 * 100) + '%"></i></div></div>' +
+      '<div class="metric"><span class="big">' + dsBooked + ' <span>/ 9 door supervisors</span></span><div class="bar"><i style="width:' + Math.round(dsBooked / 9 * 100) + '%"></i></div></div>' +
+      '<div class="metric"><span class="big">' + stBooked + ' <span>/ 14 stewards</span></span><div class="bar"><i style="width:' + Math.round(stBooked / 14 * 100) + '%"></i></div></div></div>' +
+      '<div class="bay"><div class="bay-h"><b>Door supervisors</b><span>SIA door supervisor licence · 08:00 and 11:30</span></div><div class="slots">' + ARENA.ds.map(function (s, i) { return slot(s, i, i === 0, true); }).join('') + '</div></div>' +
+      '<div class="bay"><div class="bay-h"><b>Stewards</b><span>Steward Level 2 · 12:00–18:30</span></div><div class="slots s7">' + ARENA.st.map(function (s, i) { return slot(s, i, false, false); }).join('') + '</div></div>' +
+      '<div class="row faint small" style="gap:16px;flex-wrap:wrap"><span class="row" style="gap:6px"><span class="pill b">Booked</span></span><span class="pill o">Open</span><span class="pill u">Urgent</span><span>Tap a place to see who\'s on it or to offer it.</span></div></div>';
+    function oc(role, time, tags, pill) { return '<div class="oc"><div class="top2"><span><b>' + role + '</b><span class="faint small" style="display:block">' + time + '</span></span>' + pill + '</div><div class="row" style="gap:6px;flex-wrap:wrap">' + tags.map(function (t) { return '<span class="tag">' + t + '</span>'; }).join('') + '</div></div>'; }
+    var open = '<div class="panel"><div class="ph"><h3>' + I('list', 's') + 'Open places</h3><span class="faint small">5 open · 1 urgent</span></div>' +
+      '<div class="oc sel"><div class="top2"><span><b>Door supervisor</b><span class="faint small" style="display:block">08:00–16:00 · 8 h</span></span><span class="pill u">Urgent</span></div>' +
+      '<div class="kv"><span><small>Needs</small><b>SIA door supervisor licence</b></span><span><small>Starts in</small><b>5 days</b></span><span><small>Offered</small><b>0 casuals</b></span><span><small>Showing to casuals</small><b>Yes</b></span></div>' +
+      '<div class="hr"></div><div class="notice">' + I('alert', 's') + '<span><b>Chloe Quigley cancelled this place</b> at 04:00 on Mon 2 Nov, with 5 days\' notice. No strike.</span></div>' +
+      '<div class="row"><span class="btn hv" style="flex:1">' + I('send', 'xs') + 'Offer to the best 5</span><span class="btn" style="flex:1">Pick someone</span></div></div>' +
+      oc('Door supervisor', '11:30–19:00 · 7.5 h', ['SIA DS', '0 offered'], '<span class="pill o">Open</span>') +
+      oc('Steward × 3', '12:00–18:30 · 6.5 h', ['Steward L2', '0 offered'], '<span class="pill o">Open</span>') + '</div>';
+    return shell(head + '<div class="two">' + layout + open + '</div>', size, { rail: 'events', title: 'Acme Demo Arena' });
+  }
+
+  // ---------- the map's streets (drawn, not a real place) ----------
+  function drawMap(cv) {
+    var r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+    var w = cv.offsetWidth, h = cv.offsetHeight; if (!w || !h) return;
+    cv.width = w * dpr; cv.height = h * dpr;
+    var c = cv.getContext('2d'); c.scale(dpr, dpr);
+    var s = 7; function rnd() { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; }
+    c.fillStyle = '#18181a'; c.fillRect(0, 0, w, h);
+    // a river
+    c.strokeStyle = '#121518'; c.lineWidth = Math.max(18, w * 0.03); c.lineCap = 'round';
+    c.beginPath(); c.moveTo(-20, h * 0.62); c.bezierCurveTo(w * 0.25, h * 0.5, w * 0.4, h * 0.95, w * 0.62, h * 0.88); c.bezierCurveTo(w * 0.8, h * 0.82, w * 0.9, h * 1.02, w + 20, h * 0.96); c.stroke();
+    // parks
+    c.fillStyle = '#1a1d1b';
+    [[0.12, 0.18, 0.1, 0.12], [0.78, 0.66, 0.08, 0.1], [0.3, 0.7, 0.07, 0.08]].forEach(function (p) { c.beginPath(); c.roundRect ? c.roundRect(p[0] * w, p[1] * h, p[2] * w, p[3] * h, 10) : c.rect(p[0] * w, p[1] * h, p[2] * w, p[3] * h); c.fill(); });
+    // minor streets: a tilted grid with breaks
+    c.save(); c.translate(w / 2, h / 2); c.rotate(-0.28); c.lineCap = 'butt';
+    var step = Math.max(26, w / 40), R = Math.max(w, h);
+    c.strokeStyle = '#222224'; c.lineWidth = 2.2;
+    for (var x = -R; x < R; x += step * (0.8 + rnd() * 0.6)) { c.beginPath(); var y = -R; c.moveTo(x, y); while (y < R) { y += step * (1 + rnd() * 3); if (rnd() < 0.18) c.moveTo(x + (rnd() - 0.5) * 4, y); else c.lineTo(x + (rnd() - 0.5) * 4, y); } c.stroke(); }
+    for (var yy = -R; yy < R; yy += step * (0.8 + rnd() * 0.6)) { c.beginPath(); var xx = -R; c.moveTo(xx, yy); while (xx < R) { xx += step * (1 + rnd() * 3); if (rnd() < 0.18) c.moveTo(xx, yy + (rnd() - 0.5) * 4); else c.lineTo(xx, yy + (rnd() - 0.5) * 4); } c.stroke(); }
+    c.restore();
+    // main roads
+    c.strokeStyle = '#2d2d30'; c.lineWidth = 5; c.lineCap = 'round'; c.lineJoin = 'round';
+    for (var k = 0; k < 7; k++) {
+      c.beginPath(); var px = rnd() * w, py = k % 2 ? -10 : h + 10, ang = (k % 2 ? 1 : -1) * (Math.PI / 2) + (rnd() - 0.5) * 0.9;
+      c.moveTo(px, py);
+      for (var n = 0; n < 40; n++) { ang += (rnd() - 0.5) * 0.35; px += Math.cos(ang) * 26; py += Math.sin(ang) * 26; c.lineTo(px, py); }
+      c.stroke();
+    }
+    // a ring road
+    c.strokeStyle = '#2a2a2d'; c.lineWidth = 6; c.beginPath(); c.ellipse(w * 0.6, h * 0.5, w * 0.36, h * 0.46, -0.1, 0, Math.PI * 2); c.stroke();
+  }
+
+
+  P.textmsg = '<path d="M4 5h16v11H9l-5 4z"/>';
+
+  // =================== round 8: the other office screens ===================
+  function head(crumb, title, pill, sub, actions) {
+    return (crumb ? '<div class="crumb">' + I('home', 'xs') + crumb + '</div>' : '') +
+      '<div class="titlerow"><div><h1>' + title + (pill || '') + '</h1>' + (sub ? '<p class="sub">' + sub + '</p>' : '') + '</div>' +
+      (actions ? '<div class="row hide-phone">' + actions + '</div>' : '') + '</div>';
+  }
+  function kpis(items) {
+    return '<div class="kpis">' + items.map(function (k) { return '<div class="kpi"><span class="faint small">' + k[0] + '</span><b' + (k[3] ? ' style="color:var(--' + k[3] + ')"' : '') + '>' + k[1] + '</b><span class="faint small">' + k[2] + '</span></div>'; }).join('') + '</div>';
+  }
+  function tabs(list) { return '<span class="tabs">' + list.map(function (t) { return '<span' + (t[2] ? ' class="on"' : '') + '>' + t[0] + (t[1] != null ? ' <span class="cnt' + (t[3] ? ' u' : '') + '">' + t[1] + '</span>' : '') + '</span>'; }).join('') + '</span>'; }
+  function relBar(p) { var cls = p >= 90 ? 'g' : p >= 75 ? '' : 'r'; return '<span class="rel"><b>' + p + '%</b><span class="bar ' + cls + '" style="width:72px"><i style="width:' + p + '%"></i></span></span>'; }
+  function person(n, sub) { return '<span class="who2"><span class="av av2">' + ini(n) + '</span><span><b>' + n + '</b><span class="faint small">' + sub + '</span></span></span>'; }
+
+  // A + E. Casuals: reliability, and chasing what's out of date
+  function casuals(size) {
+    var rows = [
+      ['Daniel Chowdhury', 'Door supervisor, Steward', 'SIA DS expired 28 Sep', 'Reminded by you · just now', 92, '', true],
+      ['Kieran Doyle', 'Door supervisor', 'SIA DS expired 28 Oct', 'Sent automatically · 28 Oct', 69, '2 live strikes'],
+      ['Maya Morgan', 'Door supervisor, Steward', 'SIA DS expired 24 Sep', 'Sent automatically · 24 Sep', 96, ''],
+      ['Tomasz Usman', 'Door supervisor, Steward', 'SIA DS expired 25 Sep', 'Sent automatically · 25 Sep', 88, ''],
+      ['Yasmin Reid', 'Door supervisor, Steward', 'SIA DS expired 26 Sep', 'Sent automatically · 26 Sep', 100, ''],
+      ['Jamal Walsh', 'Door supervisor, Steward', 'SIA DS expired 27 Sep', 'Sent automatically · 27 Sep', 94, '']
+    ];
+    var body = head('', 'Casuals', '', '68 casuals · reliability over the last 90 days', '<span class="search" style="width:240px;margin:0">' + I('search', 'xs') + 'Name or mobile number</span><span class="btn hv">' + I('send', 'xs') + 'Remind all 6</span>') +
+      kpis([['Regulars', '21', 'Worked 6 of the last 8 weeks'], ['Reliable', '39', '95% or more, of 52 who worked'], ['Cancel often', '4', '3 or more under 48 hours', 'red'], ['Not worked lately', '16', 'Nothing in 60 days']]) +
+      '<div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:10px"><div class="row" style="min-width:0;max-width:100%">' + tabs([['All', 68], ['Regulars', 21], ['Cancel often', 4, false, true], ['Not worked lately', 16], ['Need updating', 6, true], ['Uploads to check', 2]]) + '</div><span class="btn hide-phone">' + I('filter', 'xs') + 'Least reliable first</span></div>' +
+      '<div class="panel"><div class="thead casrow"><span>Casual</span><span>Out of date</span><span>Last reminder</span><span>Reliability</span><span></span></div><div class="list">' +
+      rows.map(function (r) {
+        return '<div class="li casrow">' + person(r[0], r[1]) +
+          '<span class="stack2"><span class="pill u">' + r[2] + '</span>' + (r[5] ? '<span class="pill u" style="background:var(--red-fill);color:#fff">' + r[5] + '</span>' : '') + '</span>' +
+          '<span class="faint small">' + r[3] + '</span>' + relBar(r[4]) +
+          '<span class="row" style="justify-content:flex-end;gap:6px">' + (r[6] ? '<span class="pill b">Reminded</span>' : '<span class="btn sm">' + I('send', 'xs') + 'Remind</span>') + '<span class="btn sm icon">' + I('more', 'xs') + '</span></span></div>';
+      }).join('') + '</div><p class="faint small">Remind sends the expired-licence message again with its upload link: app notification, then text, then email. Each one is logged. They can\'t take door supervisor shifts until the new licence is checked.</p></div>';
+    return shell(body, size, { rail: 'p', title: 'Casuals' });
+  }
+
+  // F. Cancellations
+  function cancellations(size) {
+    var u = function (t) { return '<span class="pill u">' + t + '</span>'; }, q = function (t) { return '<span class="pill q">' + t + '</span>'; };
+    var st = function (n, until) { return '<span class="stack2"><span class="strike">' + I('alert', 'xs') + 'Strike ' + n + ' issued</span><span class="faint small">Counts until ' + until + '</span></span>'; };
+    var rows = [
+      [false, 'Zoe Adeyemi', 'Steward · Riverside Demo Park · Thu 5 Nov 14:00', '09:06 Mon 2 Nov · in the app', q('3 days'), q('No strike · enough notice')],
+      [false, 'Chloe Quigley', 'Door supervisor · Acme Demo Arena · Sat 7 Nov 08:00', '04:00 Mon 2 Nov · in the app', q('5 days'), q('No strike · strikes weren\'t on yet')],
+      [true, 'Kieran Doyle', 'Door supervisor · Acme Demo Arena · Sun 25 Oct 08:00', '02:00 Sun 25 Oct · in the app', u('6 hours'), st(2, 'Sat 23 Jan')],
+      [true, 'Tom Hale', 'Door supervisor · Acme Demo Racecourse · Sat 24 Oct 12:00', '06:00 Fri 23 Oct · by the office · weather or safety', u('30 hours'), q('No strike · the office cancelled')],
+      [true, 'Priya Shah', 'Steward · Riverside Demo Park · Wed 21 Oct 11:00', '05:00 Tue 20 Oct · in the app', u('30 hours'), '<span class="stack2"><span class="strike">' + I('alert', 'xs') + 'Strike 1 issued</span><span class="pill o">Needs review</span></span>'],
+      [true, 'Kieran Doyle', 'Door supervisor · Acme Demo Arena · Tue 13 Oct 18:00', '22:00 Mon 12 Oct · in the app', u('20 hours'), st(1, 'Sun 10 Jan')],
+      [true, 'Mo Rahman', 'CSAS officer · Northgate Demo Town Centre · Sat 3 Oct 19:00', '09:00 Sat 3 Oct · in the app', u('10 hours'), '<span class="pill q" style="text-decoration:line-through">Strike withdrawn</span>']
+    ];
+    var body = head('', 'Cancellations', '', 'Every cancellation, by casuals and by the office. Final the moment it\'s made.', '<span class="btn">Download CSV</span>') +
+      kpis([['This week', '2', '2 by casuals · 0 by the office'], ['Under 48 hours\' notice', '0', 'This week · 5 in all'], ['Strikes issued', '0', 'This week · 3 live in all'], ['Last 8 weeks', '17', 'Cancellations, 9 under 48 hours']]) +
+      '<div class="row" style="flex-wrap:wrap;gap:10px"><div class="row" style="min-width:0;max-width:100%">' + tabs([['All', 7, true], ['Under 48 hours', 5, false, true], ['Strikes', 4], ['By the office', 1]]) + '</div><span class="faint small hide-phone">Red rows had under 48 hours\' notice</span></div>' +
+      '<div class="panel"><div class="thead canrow"><span>Casual and session</span><span>Cancelled</span><span>Notice</span><span>Strike</span></div><div class="list">' +
+      rows.map(function (r) { return '<div class="li canrow' + (r[0] ? ' hot' : '') + '"><span class="stack2"><b>' + r[1] + '</b><span class="faint small">' + r[2] + '</span></span><span class="faint small">' + r[3] + '</span><span>' + r[4] + '</span><span>' + r[5] + '</span></div>'; }).join('') + '</div></div>';
+    return shell(body, size, { rail: 'calx', title: 'Cancellations' });
+  }
+
+  // G. A session showing to casuals: who asked for it
+  function session(size) {
+    var rows = [
+      ['Sam Walsh', 'Steward L2 · worked here 6 times', 98, '5.0 mi', '<span class="pill w">Asked 14:02</span>'],
+      ['Ella Young', 'Steward L2 · worked here twice', 95, '7.1 mi', '<span class="pill w">Asked 13:40</span>'],
+      ['Nathan Fraser', 'Steward L2 · Manual handling', 91, '3.2 mi', '<span class="pill w">Asked 12:15</span>'],
+      ['Priya Shah', 'Steward L2 · 1 live strike', 79, '4.4 mi', '<span class="pill w">Asked 11:58</span>']
+    ];
+    var body = head('Dashboard ' + I('right', 'xs') + ' Events &amp; sessions ' + I('right', 'xs') + ' Riverside Food Festival ' + I('right', 'xs') + ' <b>Steward, Fri 6 Nov</b>', 'Steward · Fri 6 Nov', '<span class="pill b" style="font-size:12px;height:22px">Showing to casuals</span>', '11:00–19:00 · Riverside Demo Park · Gate 2 · 0 of 3 booked', '<span class="btn">' + I('eye', 'xs') + 'Hide from casuals</span><span class="btn hv">' + I('send', 'xs') + 'Book the best 3</span><span class="btn icon">' + I('more', 'xs') + '</span>') +
+      '<div class="two"><div class="panel"><div class="ph"><h3>' + I('people', 's') + 'Casuals for this session</h3><span class="faint small hide-phone">Most reliable first</span></div>' +
+      '<div class="row" style="flex-wrap:wrap;gap:8px"><div class="row" style="min-width:0;max-width:100%">' + tabs([['Asked for it', 4, true], ['Offered', 0], ['Said no', 0], ['Booked', 0], ['Could take it', 18]]) + '</div></div>' +
+      '<div class="row hide-phone" style="gap:8px"><span class="btn sm">' + I('filter', 'xs') + 'Reliability 80%+</span><span class="btn sm">' + I('pin', 'xs') + 'Within 45 min</span><span class="btn sm">Worked here before</span></div>' +
+      '<div class="thead sesrow"><span>Casual</span><span>Reliability</span><span>Distance</span><span>Asked</span><span></span></div><div class="list">' +
+      rows.map(function (r) { return '<div class="li sesrow">' + person(r[0], r[1]) + relBar(r[2]) + '<span class="small">' + r[3] + '</span>' + r[4] + '<span class="row" style="justify-content:flex-end;gap:6px"><span class="btn sm hv">Book</span><span class="btn sm icon" title="Not this time">' + I('more', 'xs') + '</span></span></div>'; }).join('') +
+      '</div></div>' +
+      '<div class="panel"><div class="ph"><h3>' + I('list', 's') + 'This session</h3></div><div class="kv"><span><small>Booked</small><b>0 of 3</b></span><span><small>Pay</small><b>£12.60 an hour</b></span><span><small>Needs</small><b>Steward Level 2</b></span><span><small>Post</small><b>Gate 2</b></span></div><div class="hr"></div>' +
+      '<div class="row" style="justify-content:space-between"><span><b style="font-weight:500">Casuals ask, you choose</b><span class="faint small" style="display:block">Set for this event. Off: the first to tap takes it.</span></span><span class="sw on"></span></div>' +
+      '<div class="notice">' + I('alert', 's') + '<span><b>Booking runs every check first:</b> the rules, their licence and their hours. A place can only be booked once.</span></div></div></div>';
+    return shell(body, size, { rail: 'events', title: 'Steward, Fri 6 Nov' });
+  }
+
+  // C. Updates
+  function updates(size) {
+    function ev(c, ic, t, s, w, a) { return '<div class="ev"><span class="evi ' + c + '">' + I(ic, 'xs') + '</span><span><b>' + t + '</b><span class="faint small">' + s + '</span></span><span class="stack2" style="justify-items:end"><span class="when">' + w + '</span>' + (a || '') + '</span></div>'; }
+    function tg(t, d, on) { return '<div class="setrow"><span><b style="font-weight:500">' + t + '</b><span class="faint small" style="display:block">' + d + '</span></span><span class="sw' + (on ? ' on' : '') + '"></span></div>'; }
+    var body = head('', 'Updates', '', 'What\'s happened on your contracts, newest first. Opens from the bell.', '<span class="btn">Mark all as seen</span>') +
+      '<div class="two"><div class="panel"><div class="ph"><h3>' + I('bell', 's') + 'Today <span class="cnt u">3</span></h3>' + tabs([['Needs action', 3, true], ['Everything', null]]) + '</div><div class="feed">' +
+      ev('o', 'calx', 'Chloe Quigley cancelled · 5 days\' notice', 'Door supervisor, Acme Demo Arena, Sat 7 Nov 08:00 · no strike · place reopened', '04:00', '<span class="btn sm hv">Offer the place</span>') +
+      ev('u', 'clock', '1 place still to fill, starts in 2 days', 'CSAS officer, Night patrols, Wed 4 Nov 19:00 · offered to nobody yet', '09:00', '<span class="btn sm">Offer</span>') +
+      ev('', 'user', 'Ben Fraser sent a staff photo', 'Waiting for a check', 'Sun 08:00', '<span class="btn sm">Check</span>') +
+      ev('b', 'check', 'Zoe Adeyemi took a place', 'Door supervisor, Acme Demo Arena, Tue 3 Nov 08:00 · now full', '09:06', '') +
+      ev('o', 'calx', 'Zoe Adeyemi cancelled · 3 days\' notice', 'Steward, Riverside Demo Park, Thu 5 Nov 14:00 · no strike', '09:06', '') +
+      '</div></div><div class="panel"><div class="ph"><h3>' + I('gear', 's') + 'Tell me about</h3></div><span class="faint small">For your contracts only. Saved for you, not the whole office.</span>' +
+      tg('Every cancellation', 'A pop-up in the office', true) + tg('Cancellations under 48 hours', 'Also a notification on my phone', true) + tg('Places still open 6 hours before start', 'A notification on my phone', true) + tg('Uploads to check', 'In Updates only', false) + tg('A summary at 08:00', 'By email', true) +
+      '</div></div>';
+    return shell(body, size, { rail: 'na', title: 'Updates' });
+  }
+
+  // H (office). Offer a shift: how it reaches each person, and who was left out
+  function offer(size) {
+    var body = head('Dashboard ' + I('right', 'xs') + ' <b>Offer this shift</b>', 'Offer this shift', '<span class="pill u" style="font-size:12px;height:22px">Urgent</span>', 'CSAS officer · Night patrols · Northgate Demo Town Centre · Wed 4 Nov, 19:00–01:00 · 1 place', '') +
+      '<div class="two"><div class="panel"><div class="ph"><h3>' + I('people', 's') + 'Who can take it <span class="cnt">1</span></h3><span class="faint small">The rules decide; fewest hours that week first</span></div><div class="list">' +
+      '<div class="li offrow">' + person('Zoe Adeyemi', '8 hours booked that week · 8.4 miles') + '<span class="stack2"><span class="tag">' + I('textmsg', 'xs') + 'By text</span><span class="faint small">No app notifications on her phone</span></span><span class="btn sm hv">' + I('send', 'xs') + 'Send offer</span></div></div>' +
+      '<div class="tile small"><b style="font-weight:600">How an offer reaches them.</b> <span class="muted">An app notification if their phone has them on (free); otherwise a text from your Webex account (about 20p); otherwise an email. Each offer is logged with how it went.</span></div></div>' +
+      '<div class="panel"><div class="ph"><h3>' + I('list', 's') + 'Not offered, and why</h3></div><div class="list">' +
+      [['Jamal Morgan', 'Already booked on this shift'], ['Mo Rahman', 'Already booked on this shift'], ['Tom Hale', 'Already booked on this shift'], ['Everyone else', 'No CSAS card']].map(function (r) { return '<div class="li" style="grid-template-columns:minmax(0,1fr) auto"><b style="font-weight:500">' + r[0] + '</b><span class="faint small">' + r[1] + '</span></div>'; }).join('') +
+      '</div></div></div>';
+    return shell(body, size, { rail: 'home', title: 'Offer this shift' });
+  }
+
+  // B. The dashboard with Customise open
+  function customise(size) {
+    function c(on, t, d) { return '<div class="setrow"><span><b style="font-weight:500">' + t + '</b><span class="faint small" style="display:block">' + d + '</span></span><span class="sw' + (on ? ' on' : '') + '"></span></div>'; }
+    function k(on, t, d) { return '<div class="pick' + (on ? ' on' : '') + '"><span class="chk' + (on ? ' on' : '') + '">' + (on ? I('check', 'xs') : '') + '</span><span><b style="font-weight:500">' + t + '</b><span class="faint small" style="display:block">' + d + '</span></span></div>'; }
+    var panel = '<div class="sheet"><div class="ph"><h3 style="font-size:18px">Customise your dashboard</h3><span class="btn sm icon">' + I('x', 'xs') + '</span></div>' +
+      '<b>Your contracts</b><span class="faint small">You see these on the dashboard and in Updates. Everything stays in Events &amp; sessions.</span>' +
+      c(true, 'Acme Demo Arena', '1 site · 27 sessions to come') + c(true, 'Northgate Council', '2 sites · 3 sessions') + c(true, 'Riverside Food Festival', '1 site · 2 sessions') + c(false, 'Acme Demo Racecourse', '1 site · 11 sessions') +
+      '<b style="margin-top:6px">What you see</b><div class="picks">' + k(true, 'Venue map', 'Places to fill at each venue') + k(true, 'To offer', 'Sessions with places') + k(true, 'Updates', 'Cancellations and to-dos') + k(true, 'Who worked?', 'To confirm after a session') + k(false, 'Cancellations', 'By week, under 48 hours in red') + k(false, 'Watch list', 'Least reliable who are booked') + k(false, 'Fill rate', 'Booked of needed, per contract') + k(false, 'No-shows', 'By week') + '</div>' +
+      '<span class="btn hv" style="margin-top:4px">Save my dashboard</span></div>';
+    if (size === 'phone') return shell(panel, size, { rail: 'home', title: 'Customise' });
+    return '<div style="position:relative">' + dashboard(size) + '<div class="dim"></div>' + panel.replace('class="sheet"', 'class="sheet side"') + '</div>';
+  }
+
+  var SCREENS = { dashboard: dashboard, event: eventPage, casuals: casuals, cancellations: cancellations, session: session, updates: updates, offer: offer, customise: customise };
+  var m = (location.hash || '').match(/^#(\w+)-(laptop|phone)$/);
+  var name = m ? m[1] : 'dashboard', size = m ? m[2] : 'laptop';
+  document.getElementById('out').innerHTML = '<div class="f8 ' + size + '">' + SCREENS[name](size) + '</div>';
+  document.querySelectorAll('#out canvas').forEach(drawMap);
+  window.SCREEN_READY = true;
+})();
+</script></body></html>

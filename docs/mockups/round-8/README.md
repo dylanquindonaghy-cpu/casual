@@ -1,4 +1,4 @@
-# Round 8: the office, held up against Haulix (proposal P10; not approved yet)
+# Round 8: the office, held up against Haulix (proposal P10; go-ahead 2026-11-02, Phase 26)
 
 Dylan, 2026-11-02, after the office review: "i like these changes but what about the actual look
 compared to the link i sent you i dont think its screaming high end professional dashboard yet". He
@@ -12,6 +12,9 @@ shows a note where those two frames go).
 |---|---|
 | `round-8.html` | The comparison, why the office doesn't read as high-end, and the round 8 mock-up of two screens (the dashboard; an event's page) at 1280px and 390px, with four decisions |
 | `now/shiftdesk-dashboard-dark.jpg`, `now/shiftdesk-event-dark.jpg` | The live demo's dashboard and the Arena's event page in dark mode, Mon 2 Nov 2026, 1280px |
+| `spec.html` | **The exact changes (Phase 26):** every office screen that changes, before and after at 1280px and 390px, and the list of changes under each, which Dylan marks Build, Change or Drop, rewords or adds to (published: https://claude.ai/artifact/EqgPhrjHXB2XMJGFofH6WU; his edits are in that page's database, collection `edits`, keyed by each change's id; opened from this folder it's read-only) |
+| `screens.html` | Every round 8 office screen, one at a time (`screens.html#casuals-phone` and so on: dashboard, event, casuals, cancellations, session, updates, offer, customise): the source of the after pictures |
+| `before/*.jpg`, `after/*.jpg` | The pictures on the spec page: the live demo (light, as the admin, Mon 2 Nov 2026) and round 8, `{screen}-{laptop,phone}.jpg` (laptop 1280px; phone 390px at 2x) |
 
 ## What Haulix does (from the recording)
 
@@ -49,7 +52,7 @@ Every figure and name in the mock-up is the live demo's (made-up people): 51 ses
 42 booked, 33 to fill; the Arena on Sat 7 Nov 18 of 23 booked, with the booked casuals' names; the
 five people under Who worked. The map's streets are drawn for the mock-up, not a real place.
 
-## Decisions (in `docs/plan/decisions-waiting.md`, "Office review" 6 to 9)
+## Decisions (in `docs/plan/decisions-waiting.md`, "Office review" 6 to 9; all taken as recommended, 2026-11-02)
 
 Move the office away from glass (round 7, approved 26 Oct); dark by default; hi-vis or the firm's
 colour as the accent; a map service for the venue map (MapLibre with a UK or EU tile host, or a

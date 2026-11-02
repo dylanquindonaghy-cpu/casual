@@ -586,6 +586,87 @@ export function shiftEscalationEmail(
   };
 }
 
+// Office alerts (Phase 26.4; Updates' "Tell me about", decision 5; docs/messaging-templates.md
+// "Office alerts"). No casual's name leaves the office in a notification or an email (a lock screen
+// or an inbox is a wider audience than the office's own screens): the role, venue and time say what
+// to fill, and Updates names them.
+
+// Push to an office user's phone or computer: a casual cancelled with under 48 hours' notice.
+export function officeCancelPush(c: {
+  notice: string; // "9 hours' notice"
+  role: string;
+  site: string | null;
+  when: string; // "Mon 2 Nov 18:00"
+  reopened: boolean;
+}): { title: string; body: string } {
+  const where = [roleLabel(c.role), c.site, c.when].filter(Boolean).join(", ");
+  return {
+    title: `Cancellation · ${c.notice}`,
+    body: `${where}. ${c.reopened ? "The place is open again." : "Already covered."}`,
+  };
+}
+
+// Push: places still to fill on a session starting within 6 hours.
+export function officeOpenPush(s: {
+  placesFree: number;
+  startsIn: string; // "in 5 h"
+  role: string;
+  site: string | null;
+  when: string;
+  offers: number;
+}): { title: string; body: string } {
+  const places = s.placesFree === 1 ? "1 place" : `${s.placesFree} places`;
+  const where = [roleLabel(s.role), s.site, s.when].filter(Boolean).join(", ");
+  const offered =
+    s.offers === 0
+      ? "Offered to nobody yet."
+      : `Offered to ${s.offers === 1 ? "1 person" : `${s.offers} people`}.`;
+  return { title: `${places} still to fill, starts ${s.startsIn}`, body: `${where}. ${offered}` };
+}
+
+// office_summary (email at 08:00, the firm's time, to each admin or resourcer who asked for it):
+// what needs action now and what happened since 08:00 yesterday, on their contracts.
+export function officeSummaryEmail(
+  firm: FirmVoice,
+  s: {
+    day: string; // "Mon 2 Nov"
+    mine: boolean; // narrowed to their contracts
+    needs: string[]; // each "1 place still to fill, starts in 5 h: Steward, Acme Demo Arena, …"
+    moreNeeds: number; // past the ones listed
+    took: number;
+    cancelled: number;
+    under48: number;
+    uploads: number;
+    link: string; // the Updates page
+  },
+): { subject: string; body: string } {
+  const n = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`;
+  const total = s.needs.length + s.moreNeeds;
+  const needs =
+    total === 0
+      ? ["Nothing needs action."]
+      : [
+          `Needs action (${total}):`,
+          ...s.needs.map((l) => `- ${l}`),
+          ...(s.moreNeeds > 0 ? [`- and ${s.moreNeeds} more`] : []),
+        ];
+  const cancelled =
+    s.cancelled === 0
+      ? "no cancellations"
+      : `${n(s.cancelled, "cancellation", "cancellations")} (${s.under48} under 48 hours' notice)`;
+  return {
+    subject: `Updates for ${s.day}: ${total === 0 ? "nothing needs action" : `${total} need action`}`,
+    body: [
+      `Here's what's happened ${s.mine ? "on your contracts" : "at every venue"} since 08:00 yesterday.`,
+      needs.join("\n"),
+      `Since 08:00 yesterday: ${n(s.took, "place taken", "places taken")}, ${cancelled}, ${n(s.uploads, "upload", "uploads")} to check.`,
+      `Open Updates: ${s.link}`,
+      "To stop these emails, switch off the 08:00 summary under Tell me about on Updates.",
+      `— ${firm.signOff}`,
+    ].join("\n\n"),
+  };
+}
+
 // pay_digest (email to payroll, at the firm's digest time): the new pay queries grouped by likely
 // cause, biggest first, with the list attached. The body holds counts and the groups' facts only;
 // names and what workers wrote are in the attachment. At most PAY_DIGEST_MAX_GROUPS group lines

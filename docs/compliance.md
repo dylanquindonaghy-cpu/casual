@@ -42,6 +42,15 @@ recipient.
   a locked phone: its words name the shift (the role, the place, the day and time) or say a request
   or pay question was answered, never pay figures, a reason or anyone's details
   (`docs/messaging-templates.md` "Push").
+- **Office notifications (Phase 26.4, Updates' "Tell me about"):** an office user's browser address
+  (`office_push_subscriptions`, the same parts) is kept until they turn notifications off there, log
+  out or in again on it, the push service says it no longer works (`office_push.forgotten`), a sixth
+  browser replaces the oldest, or an admin turns their access off or logs them out on every device
+  (a lost laptop). A notification and the 08:00 summary
+  email name the session (role, venue, day and time) and how much notice, never a casual's name or
+  reason: a lock screen or an inbox is a wider audience than the office's own screens. What each
+  person asked to be told about (`office_users.tell_me`) is their own setting, changed only by them
+  and logged.
 - **Sent:** the session's facts (event, site name and postcode, role, times, pay rate, post,
   meeting point, uniform, requirements), the booking's facts (status, who booked it, times), the
   casual's first and last name and staff ref, and the cancellation and strike result (notice hours,

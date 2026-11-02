@@ -167,18 +167,18 @@ which explains each job step by step, and "Log out".
     `acme.resourcer@example.com` in "Your work email", and click "Send me a link". In the dev
     window an email ("Your Acme Events office login link") has the link: open it, then click "Log
     me in". You see the "Dashboard", with today, the pay week and its pay day under it.
-23. **The dashboard.** On the right, "All", "Urgent", "This week" and "Next week", each with how
-    many sessions have places to fill. Under them "Places to fill": a bar for each day of this week
-    and next, black for places with no offers out and blue for places offered with no reply yet
-    (point at a bar for its figures). Beside it the session you picked (the soonest urgent one at
-    first): when and where, how soon it starts, the offers sent and who hasn't replied, "Offer to
-    someone", "Open the shift", and "…" with "Mark as filled" and "Not urgent". Under them four
-    columns: "To offer", "Offered", "While you were out" (places casuals took from offers between
-    18:00 and 08:00) and "Who worked?" (yesterday's racecourse bookings, not marked yet). Click a
-    card to see it beside the chart; "Show … more" shows the rest of a column. The bar's "To check"
-    counts what Needs attention holds. Click "Cancellations" in the menu: every cancellation, Zoe's
-    among them, and "nothing here needs approving".
-24. **Offer a gap.** Back on the "Dashboard", click the paper plane on a card under "To offer". A
+23. **The dashboard.** Under "Dashboard", "All", "Urgent", "This week" and "Next week", each with
+    how many sessions have places to fill, then "Filter". Under them a map of the venues: a pin for
+    each with its places to fill (red where a session there is urgent). On the map, the session you
+    picked (the soonest urgent one at first): when and where, how many are booked, how many can take
+    it, "Offer to someone" and "Open the shift". Under the map three columns: "To offer" (sessions
+    with places free, soonest first: click one to see it on the map), "Updates" (places taken,
+    cancellations, uploads to check and offers with no reply; "All updates" opens the Updates page,
+    as the bell at the top does) and "Who worked?" (yesterday's racecourse bookings, each person by
+    name with "Worked" and "Didn't attend"). The top bar's "To check" counts what Needs attention
+    holds. Click "Cancellations" in the menu: every cancellation, Zoe's among them, and "nothing
+    here needs approving".
+24. **Offer a gap.** Back on the "Dashboard", click the paper plane on a row under "To offer". A
     panel lists who can take it: click "Send offer to …" on the first person. It says "Offered",
     the foot of the panel says "Offer on its way to …", and the offer appears in the dev window.
     Press Escape. (Events & sessions has every session too: "Need people", then a session's "…"
@@ -190,10 +190,11 @@ which explains each job step by step, and "Log out".
     before the demo was made. Click "Requests from the app". On Sam Walsh's time
     change, click "Approve and tell Sam". It says "Approved. Sam will be told." The message to Sam
     appears in the dev window.
-26. **Mark who worked.** Click "Needs attention" in the menu. Under "Who worked?", open one of
-    yesterday's racecourse shifts. Click "Mark as worked" for the person on it:
-    "Marked … as worked." (On a shift with several people, "Mark as not attended" and "Mark the …
-    not marked yet as worked" are there too.)
+26. **Mark who worked.** Click "Dashboard" in the menu. Under "Who worked?", click the line of
+    yesterday's racecourse shift ("{Sun 1 Nov} · Steward · Acme Demo Racecourse · 10:30–18:30"): it
+    opens the shift. Click "Mark as worked" for a person on it: "Marked … as worked." (On a shift
+    with several people, "Mark as not attended" and "Mark the … not marked yet as worked" are there
+    too.)
 27. **Make a shift and book someone.** Click "Events & sessions", then "All shifts by day", then
     "New shift". Pick a date next week,
     Role "steward", Start 10:00, Finish 18:00, Places 2, and click "Create shift". On the new

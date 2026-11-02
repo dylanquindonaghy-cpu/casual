@@ -25,6 +25,7 @@ export const EXPECTED_TABLES = [
   "metrics_daily",
   "name_map",
   "offers",
+  "office_push_subscriptions",
   "office_user_clients",
   "office_users",
   "otp_codes",
@@ -118,6 +119,13 @@ export async function createTenant(su: Pool): Promise<Tenant> {
     su,
     "insert into office_user_clients (firm_id, office_user_id, client_id) values ($1, $2, $3)",
     [firmId, officeUserId, clientId],
+  );
+  // The office user's browser with notifications on (Phase 26.4).
+  const officePushSubscriptionId = await one(
+    su,
+    `insert into office_push_subscriptions (firm_id, office_user_id, endpoint, p256dh, auth)
+     values ($1, $2, $3, 'test-p256dh', 'test-auth')`,
+    [firmId, officeUserId, `https://push.example.test/office-${next()}`],
   );
   const credentialId = await one(
     su,
@@ -388,6 +396,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       sites: siteId,
       clients: clientId,
       office_user_clients: officeUserClientId,
+      office_push_subscriptions: officePushSubscriptionId,
       credentials: credentialId,
       events: eventId,
       magic_links: magicLinkId,
@@ -458,6 +467,10 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
            insert into office_user_clients (firm_id, office_user_id, client_id)
            select $1, $2, c.id from c`,
     values: [firmId, p.officeUserId, `Probe contract ${next()}`],
+  }),
+  office_push_subscriptions: (firmId, p) => ({
+    text: "insert into office_push_subscriptions (firm_id, office_user_id, endpoint, p256dh, auth) values ($1, $2, $3, 'k', 'a')",
+    values: [firmId, p.officeUserId, `https://push.example.test/office-extra-${next()}`],
   }),
   credentials: (firmId, p) => ({
     text: "insert into credentials (firm_id, worker_id, type) values ($1, $2, 'PTS')",
@@ -820,6 +833,10 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
                                       max_minutes, privacy_notice_version, updated_at)
            values ($1, $2, 'ZZ3 3CC', 53.89, -1.49, 'car', 60, 'travel-v1', now())`,
     values: [firmId, other.rosterWorkerId],
+  }),
+  office_push_subscriptions_office_user_fk: (firmId, _own, other) => ({
+    text: "insert into office_push_subscriptions (firm_id, office_user_id, endpoint, p256dh, auth) values ($1, $2, $3, 'k', 'a')",
+    values: [firmId, other.officeUserId, `https://push.example.test/office-fk-${next()}`],
   }),
   push_subscriptions_worker_fk: (firmId, _own, other) => ({
     text: "insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth) values ($1, $2, $3, 'k', 'a')",

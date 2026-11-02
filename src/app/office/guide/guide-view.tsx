@@ -690,7 +690,7 @@ function AfterAShift() {
         attended”.
       </Note>
       <Links>
-        <GoTo href="/office/needs-attention#to-mark" icon="home">
+        <GoTo href="/office#who-worked" icon="home">
           See who to mark
         </GoTo>
       </Links>

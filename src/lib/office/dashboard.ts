@@ -13,11 +13,9 @@ import {
   loadBookingsToCheck,
   loadEvidence,
   loadSheetIssues,
-  loadToMark,
   type TodayBookingToCheck,
   type TodayEvidence,
   type TodaySheetIssue,
-  type TodayToMark,
 } from "./today";
 import { webhookStatus } from "./webhook-settings";
 
@@ -76,8 +74,7 @@ export interface NeedsAttention {
   toCheckTotal: number;
   fromSheet: TodaySheetIssue[];
   fromSheetTotal: number;
-  toMark: TodayToMark[];
-  toMarkTotal: number;
+  // Who worked? moved to the dashboard (Phase 26.4, upd-6): it's no longer one of these.
   expired: ExpiredOnBooking[];
   expiredTotal: number;
   uploads: number; // uploads waiting for a check (12F.2)
@@ -117,7 +114,6 @@ export function needsCount(n: NeedsAttention): number {
   return (
     n.toCheckTotal +
     n.fromSheetTotal +
-    n.toMarkTotal +
     n.expiredTotal +
     n.uploads +
     evidenceItems(n.evidence) +
@@ -451,7 +447,6 @@ export async function loadNeedsAttention(
 ): Promise<NeedsAttention> {
   const toCheck = await loadBookingsToCheck(tx, now);
   const fromSheet = await loadSheetIssues(tx, now);
-  const toMark = await loadToMark(tx, now);
   const expired = await loadExpiredOnBookings(tx, now, timeZone);
   const plannerRefused = await loadPlannerRefusals(tx, now);
   const webhook = await webhookStatus(tx);
@@ -461,8 +456,6 @@ export async function loadNeedsAttention(
     toCheckTotal: toCheck.total,
     fromSheet: fromSheet.items,
     fromSheetTotal: fromSheet.total,
-    toMark: toMark.items,
-    toMarkTotal: toMark.total,
     expired: expired.items,
     expiredTotal: expired.total,
     uploads: await waitingCount(tx),

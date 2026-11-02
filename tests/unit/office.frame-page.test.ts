@@ -11,8 +11,6 @@ const needs: NeedsAttention = {
   toCheckTotal: 0,
   fromSheet: [],
   fromSheetTotal: 0,
-  toMark: [],
-  toMarkTotal: 0,
   expired: [],
   expiredTotal: 0,
   uploads: 3,

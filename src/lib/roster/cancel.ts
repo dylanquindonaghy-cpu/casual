@@ -23,6 +23,7 @@ import {
 import { connectorSession } from "./planner-kind";
 import { cancelAskedBy, type CancelResult } from "./plug";
 import { queueFirmChangeNotice } from "../notices/firm-change";
+import { queueOfficeCancelAlert } from "../office/alert-jobs";
 import { placeAfterCancel, removeFreedPlace } from "./native";
 import { markUrgentAfterDropout } from "./urgent";
 import { FIRM_CHANGE_REASONS, SHIFT_CHANGE_REASON_CODES, firmReasonWords } from "./firm-reasons";
@@ -275,6 +276,13 @@ async function cancelInTransaction(
   // The firm cancelled someone's booking: they're told (golden rule 12).
   if (initiator === "firm") {
     await queueFirmChangeNotice(tx, { eventId, assignmentId: cancelled.assignmentId });
+  }
+  // A casual's under 48 hours' notice: the office users who asked are told (Phase 26.4).
+  if (initiator === "worker") {
+    await queueOfficeCancelAlert(tx, {
+      assignmentId: cancelled.assignmentId,
+      noticeHours: cancelled.noticeHours,
+    });
   }
   if (fewerStaff) {
     if (lowered) {

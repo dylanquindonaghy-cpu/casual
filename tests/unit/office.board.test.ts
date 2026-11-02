@@ -767,7 +767,7 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
     expect(words(row)).toContain("Door supervisor Urgent Acme Demo Arena · 08:00 3/4 booked");
   });
 
-  it("Updates: each one a link to where it's dealt with, then the action log", () => {
+  it("Updates: each one a link to where it's dealt with, then All updates (Phase 26.4)", () => {
     const col = section(render(board), "updates");
     expect(words(col)).toMatch(/^Updates 4 4 updates /);
     expect(words(col)).toContain(
@@ -785,7 +785,7 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
       "/office/cancellations/a-chloe",
       "/office/events?view=need",
       "/office/casuals/w-ben",
-      "/office/log",
+      "/office/updates",
     ]);
   });
 
@@ -798,11 +798,8 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
     expect(words(col)).toContain(
       "Sun 25 Oct · Security officer · Acme Demo Shopping Centre · 10:00–18:00 BP Bea Patel",
     );
-    // A group's heading: Needs attention's list for several sessions, the session for one.
-    expect(links(col).map((l) => l.href)).toEqual([
-      "/office/needs-attention#to-mark",
-      "/office/shifts/m3",
-    ]);
+    // A group's heading: a link to the session for one; plain words for several (no one page).
+    expect(links(col).map((l) => l.href)).toEqual(["/office/shifts/m3"]);
     const buttons = [...col.matchAll(/<button [^>]*aria-label="([^"]+)"/g)].map((m) =>
       m[1]!.replace(/&#x27;/g, "'"),
     );
@@ -821,24 +818,21 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
       'aria-label="Everyone else worked: Sun 25 Oct · Steward · Acme Demo Racecourse · 09:00–17:00 · 2 sessions"',
     );
     expect(col).toContain(">Yes, everyone else worked<");
-    // Both groups shown: nothing more. A fourth session elsewhere is a third group, not shown here:
-    // the rest on Needs attention.
-    expect(links(col).map((l) => l.name)).not.toContain("More on Needs attention");
-    const marks = board.toMark.ok ? board.toMark.data : { items: [], total: 0 };
-    const more = section(
-      render({
-        ...board,
-        toMark: ok({
-          total: 4,
-          items: [...marks.items, { ...marks.items[2]!, shiftId: "m4", site: "Acme Demo Arena" }],
-        }),
-      }),
+    // Both groups shown: nothing more. More than three: the first three, then "Show all 4"
+    // (Phase 26.4: every session to mark is here now, none on Needs attention).
+    expect(col).not.toContain("Show all");
+    const group = (n: number) => ({
+      ...(board.whoWorked.ok ? board.whoWorked.data : [])[1]!,
+      shiftIds: [`g${n}`],
+      people: [{ shiftId: `g${n}`, workerId: `w${n}`, name: `Person ${n}` }],
+    });
+    const many = section(
+      render({ ...board, whoWorked: ok([1, 2, 3, 4].map(group)) }),
       "who-worked",
     );
-    expect(links(more).at(-1)).toMatchObject({
-      href: "/office/needs-attention#to-mark",
-      name: "More on Needs attention",
-    });
+    expect(many.match(/ worked, /g)).toHaveLength(3);
+    expect(many).toMatch(/<button type="button"[^>]*>Show all 4<svg /);
+    expect(many).not.toContain("needs-attention");
   });
 
   it("empty columns say so; with nothing to fill, the card says that instead", () => {

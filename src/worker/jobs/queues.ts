@@ -18,6 +18,12 @@ import { ENQUIRY_REPLY_QUEUE } from "../../lib/notices/enquiry-reply";
 import { REQUEST_UPDATE_QUEUE } from "../../lib/notices/request-update";
 import { SHIFT_CONFIRMED_QUEUE } from "../../lib/notices/shift-confirmed";
 import { PAY_DIGEST_QUEUE, PAY_DIGEST_TICK_QUEUE } from "../../lib/pay/digest";
+import {
+  OFFICE_ALERTS_TICK_QUEUE,
+  OFFICE_CANCEL_ALERT_QUEUE,
+  OFFICE_OPEN_ALERT_QUEUE,
+  OFFICE_SUMMARY_QUEUE,
+} from "../../lib/office/alert-jobs";
 import { OFFICE_OFFER_QUEUE } from "../../lib/offers/office-offer";
 import { STRIKES_EMAIL_LINK_QUEUE } from "../../lib/office/strikes-email";
 import { STRIKE_EVIDENCE_QUEUE } from "../../lib/strikes/evidence-queue";
@@ -99,6 +105,10 @@ const FIRM_QUEUE_NAMES: readonly string[] = [
   OFFICE_ALERTS_COMBINED_QUEUE,
   INBOX_SUMMARY_QUEUE,
   ENQUIRY_EMAIL_REPLY_QUEUE,
+  // Office alerts (Phase 26.4, "Tell me about"): a cancellation's, open places', the 08:00 summary.
+  OFFICE_CANCEL_ALERT_QUEUE,
+  OFFICE_OPEN_ALERT_QUEUE,
+  OFFICE_SUMMARY_QUEUE,
 ];
 
 const sheetsSync = firmQueue(SHEETS_SYNC_QUEUE);
@@ -127,6 +137,10 @@ export const QUEUES: readonly QueueSpec[] = [
   },
   {
     name: PAY_DIGEST_TICK_QUEUE,
+    options: { policy: "standard", deleteAfterSeconds: 24 * 60 * 60 },
+  },
+  {
+    name: OFFICE_ALERTS_TICK_QUEUE,
     options: { policy: "standard", deleteAfterSeconds: 24 * 60 * 60 },
   },
   {

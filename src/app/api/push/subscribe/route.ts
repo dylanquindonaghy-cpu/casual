@@ -5,6 +5,7 @@ import {
   removePushSubscription,
   savePushSubscription,
 } from "@/lib/push/subscriptions";
+import { checkedPushBody as checked } from "@/lib/push/route-body";
 import { requestLog } from "@/lib/request";
 import { getCurrentFirm } from "@/lib/tenancy/current-firm";
 
@@ -16,32 +17,6 @@ import { getCurrentFirm } from "@/lib/tenancy/current-firm";
 // minutes, the auth throttle: 429 with Retry-After past it), since each writes to the action log;
 // removing is never limited (turning notifications off, or logging out, must always work). Answers
 // are plain JSON statuses; nothing about the subscription is logged.
-
-const MAX_BODY = 4096;
-
-async function checked(request: Request): Promise<Response | { body: unknown }> {
-  const origin = request.headers.get("origin");
-  const host = request.headers.get("host");
-  let sameOrigin = false;
-  try {
-    sameOrigin = !!origin && !!host && new URL(origin).host === host;
-  } catch {
-    sameOrigin = false;
-  }
-  if (!sameOrigin) return Response.json({ status: "forbidden" }, { status: 403 });
-  // Refuse a large body before reading it where the size is declared, and count bytes after.
-  const declared = Number(request.headers.get("content-length") ?? "0");
-  if (declared > MAX_BODY) return Response.json({ status: "too_large" }, { status: 413 });
-  const text = await request.text();
-  if (Buffer.byteLength(text) > MAX_BODY) {
-    return Response.json({ status: "too_large" }, { status: 413 });
-  }
-  try {
-    return { body: JSON.parse(text) as unknown };
-  } catch {
-    return Response.json({ status: "invalid" }, { status: 400 });
-  }
-}
 
 export async function POST(request: Request): Promise<Response> {
   const firm = await getCurrentFirm();

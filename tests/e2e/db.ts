@@ -304,6 +304,26 @@ export async function addOfficeUser(
   }
 }
 
+// When the office user with `email` last opened Updates (Phase 26.4; null: never), as the page's
+// own marker wrote it.
+export async function updatesSeenAt(slug: string, email: string): Promise<Date | null> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const firmId = seedId(`firm/${slug}`);
+    const [me] = await createWithFirm(pool)(firmId, (tx) =>
+      tx
+        .select({ at: officeUsers.updatesSeenAt })
+        .from(officeUsers)
+        .where(eq(officeUsers.email, email)),
+    );
+    return me?.at ?? null;
+  } finally {
+    await pool.end();
+  }
+}
+
 // A shift that has already happened (`daysAgo` days ago, 8 hours), with `people` seeded workers who
 // have the role booked on it: for marking who worked. The workers are taken from the end of the
 // list (the booking specs pick from the start), and the shift is days back, so it can't break the

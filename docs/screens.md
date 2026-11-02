@@ -89,8 +89,9 @@ every route, label, link and action is as round 7's.
   out {11}", "To check {7}", "Pay queries {10}": the same words, links and roles as round 7's), then
   "Updated {10:42}" (when the page last asked for its figures, London time), then "Search", the
   light or dark button and you (your initials on hi-vis, your name and role, the account menu as
-  before). The bell with new updates comes with the Updates page (26.4).
-- **Below 1024px:** the top bar as round 7's ("Menu", the firm, the light or dark button, you); the
+  before). Before the light or dark button, the bell (Phase 26.4): "Updates" below.
+- **Below 1024px:** the top bar as round 7's ("Menu", the firm, the bell, the light or dark button,
+  you); the
   counts are a row of their own at the top of every page, the same chips, scrolling sideways, with
   "Updated {10:42}" under them.
 - **Every office page keeps itself up to date:** every 30 seconds while it's in view, and as soon as
@@ -164,18 +165,21 @@ part that couldn't load and the empty card are round 7's. Words: `src/lib/office
     reopened"; red under 48 hours' notice), to the cancellation; "{Zoe Adeyemi} sent a staff photo"
     / "a certificate", "Waiting for a check", to the casual; "No reply yet · {3} offers" for a
     session's offers with no reply. The time on the right ("09:06" today, "Sun 08:00" before). Then
-    "Everything in the action log". Empty: "Nothing new in the last two days."
-  - **Who worked?** (`#who-worked`): round 7's line ("{5} sessions from {Sun 25 Oct}"), then
-    Needs attention's sessions to mark, alike ones together as round 7's cards (one role, place and
-    time), the first 3: each "{Sun 1 Nov} · {Steward} · {Acme Demo Racecourse} · {10:30–18:30}"
-    (and " · {3} sessions"; a link to the session, or to Needs attention's list for several) and
+    "All updates" (the Updates page, Phase 26.4; "Everything in the action log" until then). Empty:
+    "Nothing new in the last two days."
+  - **Who worked?** (`#who-worked`): round 7's line ("{5} sessions from {Sun 25 Oct}"), then the
+    sessions to mark (ended in the last 7 days, someone booked not marked yet, newest ended first;
+    only here since Phase 26.4, when it left Needs attention: the spec's upd-6), alike ones together
+    as round 7's cards (one role, place and time), the first 3: each "{Sun 1 Nov} · {Steward} ·
+    {Acme Demo Racecourse} · {10:30–18:30}" (and " · {3} sessions"; a link to the session; for
+    several, no link: each person's buttons name their own session) and
     each person still booked on them by name: their initials, their name, "Worked" (read as "{Zoe
     Adeyemi} worked, {Sun 1 Nov 10:30}") and a red cross (read as "{Zoe Adeyemi} didn't attend,
     {Sun 1 Nov 10:30}": with the session, as one person can be in two groups; aud-5), the shift
     page's own actions (the server checks and logs each; the answer under the name).
     With more than one: "Everyone else worked", then "Only if they all worked it. You can change
-    anyone afterwards." and "Yes, everyone else worked" (each session in turn). More sessions:
-    "More on Needs attention". Empty: "Nothing to mark."
+    anyone afterwards." and "Yes, everyone else worked" (each session in turn). More groups:
+    "Show all {7}" shows the rest in place. Empty: "Nothing to mark."
   - **An empty column** says what will show there (the pre-build audit's aud-10), under its own
     words: To offer "Sessions with a place free show here, soonest first."; Updates "Places taken,
     cancellations, and photos or certificates to check show here."; Who worked? "Sessions show
@@ -245,6 +249,95 @@ audit's aud-9, aud-10 and aud-13. Words: `src/lib/office/customise-copy.ts`,
   last 8 weeks. Each one shows here, by week."; "No no-shows in the last 8 weeks. Anyone marked as
   not attending shows here, by week."; "No sessions in the next 14 days. Each contract's places show
   here.". Venues with no contract are "No contract" in Fill rate.
+
+## Updates (Phase 26.4)
+
+`/office/updates` for admins and resourcers, as the mock-up's Updates (the spec page's "Updates and
+alerts", upd-1 to upd-6 and decision 5, and "The look" sys-8's bell). Words:
+`src/lib/office/updates-copy.ts` and `src/lib/office/tell-me-copy.ts`; data:
+`src/lib/office/updates.ts`, `src/lib/office/tell-me.ts`; the alerts: `src/lib/office/alerts.ts`.
+Page title "Updates".
+
+- **Where it opens:** the bell in the top bar, "Updates" in the menu's Home group (under
+  "Dashboard", a bell icon; Needs attention's icon is now a notice), the dashboard's Updates column
+  ("All updates") and the pop-up ("Open Updates").
+- **The head:** "Updates", then "What's happened on your contracts in the last 7 days, newest
+  first." (with no contracts: "What's happened in the last 7 days, newest first."); on the right,
+  "Mark all as seen" while something is new.
+- **The list** (a glass panel, `#updates-list`): its heading "Today" with a red count of the updates
+  since midnight (read as "{3} updates today"; places still open aside), and on the right two views
+  ("Show"): **Needs action** with its count (the default) and **Everything** (`?view=everything`).
+  - **Needs action:** places still to fill on a session starting in the next 48 hours (soonest
+    first), then, newest first, a casual's cancellation whose place is open again and a photo or
+    certificate waiting for a check.
+  - **Everything:** those, then places casuals took (" · overnight" when taken between 18:00 and
+    08:00 London time), cancellations already covered and offers with no reply, newest first.
+  - Only sessions at the person's contracts' venues (every venue with no contracts); uploads are a
+    casual's, so they show whatever the contracts.
+- **Each update** (rows split by hairlines): a tile in the status colour, its title (a link to
+  where it's dealt with) and line, then on the right when ("09:06" today, "Sun 08:00" before; none
+  on a place still to fill, whose title has its start) and its button (under the words on a phone):
+  - "{1 place} still to fill, starts in {5 h}" / "{Steward}, {Acme Demo Arena}, {Mon 2 Nov 14:00} ·
+    offered to nobody yet" ("offered to {3} people"; " · urgent") with **Offer the place**.
+  - "{Mo Rahman} cancelled · {9 hours'} notice" (the dashboard's line) with **Offer the place**
+    while the place is open again, else **Open** (the record).
+  - "{Zoe Adeyemi} sent a staff photo" with **Check** (the casual).
+  - A place taken and offers with no reply with **Open**.
+  - Offer the place is the main button; the rest are secondary.
+- **New:** a place taken, a casual's cancellation or (with "Uploads to check" on) an upload since the
+  person last pressed "Mark all as seen" has a hi-vis dot before its title (read as "New: …"). "Mark all as seen" marks what
+  the page showed, as of when it was drawn (an update after that stays new), never backwards, each
+  person's own; then "Marked as seen.". A read marker, like a casual's Messages: not logged.
+- **Empty:** "Nothing needs action. Cancellations with a place open again, places still open near
+  their start and uploads to check show here." / "Nothing in the last 7 days."
+- **The foot:** "Older updates are in the action log." (→ `/office/log`), after "Showing the newest
+  100." when the week holds more.
+- **The bell** (top bar, every office page, admins and resourcers): a bell icon, a link to
+  `/office/updates`, read as "Updates" or "Updates, {3} new"; the number (red, "99+" past 99) counts
+  the "New" updates (at most the last 7 days), on the person's contracts as the page counts them
+  (uploads only with "Uploads to check" on).
+  On Updates it's the page you're on.
+- **The pop-up** (upd-3, any office page, while "Every cancellation" is on): a casual's cancellation
+  from the last 30 minutes, newer than the person's "Mark all as seen", appears by itself with the page's own refresh, bottom right
+  (across the foot on a phone), read out as an alert: "{Mo Rahman} cancelled · {9 hours'} notice",
+  "{Door supervisor}, {Acme Demo Arena}, {Mon 2 Nov 18:00}", then **Offer the place** (while it's
+  open again), **Open Updates** and **Dismiss**. Each shows once in a browser tab (the newest
+  first, the next after Dismiss).
+- **Tell me about** (upd-4, upd-5; a glass panel beside the list from 1024px of page, under it
+  before; `#tell-me-about`): "Tell me about", then "For your contracts only. Saved for you, not the
+  whole office." (with no contracts: "For every venue, as you look after no contracts. Saved for
+  you, not the whole office."), then five switches, each a row with its words, saved the moment it's
+  flipped (to the person, not the browser; logged `office_user.tell_me_saved`), the answer under
+  them ("Saved. {Every cancellation}: off."):
+  - "Every cancellation" / "A pop-up in the office" (on): the pop-up below.
+  - "Cancellations under 48 hours" / "Also a notification on my phone or computer" (on).
+  - "Places still open 6 hours before start" / "A notification on my phone or computer" (on).
+  - "Uploads to check" / "Counted as new in Updates" (off): uploads still list under Needs action
+    either way; on, they count as new (the dot, the bell).
+  - "A summary at 08:00" / "By email" (on): what needs action and what happened since 08:00
+    yesterday, on the person's contracts; nothing to say, no email (docs/messaging-templates.md
+    "Office notifications").
+- **Notifications on this device** (under the switches): the two notification switches reach only
+  browsers that turned them on here. "Off. Turn them on to get the notifications you switched on
+  above here." with **Turn on notifications here** (the browser asks; then "Notifications are on for
+  this device."); "On. The two notification switches above reach this device." with **Turn off
+  here** ("Notifications are off for this device."); "Notifications are blocked for this site.
+  Allow them in your browser's settings."; "This browser can't show notifications."; on an iPhone
+  not on the home screen, "On an iPhone, add this page to your home screen first: Share, then Add to
+  Home Screen."; no web push on the server: "Notifications aren't set up on this server yet."
+  Logging out (or a new login) forgets this browser. A notification has no casual's name (a lock
+  screen is a wider audience): "Cancellation · {9 hours'} notice" / "{Door supervisor}, {Acme Demo
+  Arena}, {Mon 2 Nov 18:00}. The place is open again." (opens Updates); "{1 place} still to fill,
+  starts {in 5 h}" / "… Offered to nobody yet." (opens the offer page). Each once per person.
+- **Where the build differs from the mock-up:** the open place's button says "Offer the place" (the
+  spec's upd-1 names it; the picture says "Offer"); the subtitle leaves out "Opens from the bell";
+  "Mark all as seen" shows on a phone too, under the subtitle; the views wrap rather than run off a
+  phone's edge; the notification rows say "on my phone or computer" (a laptop's browser can take
+  them too); "Uploads to check" says what it does ("Counted as new in Updates", for "In Updates
+  only"); and "Notifications on this device" is added (a browser must be asked once).
+- **Needs attention** (upd-6): "Who worked?" has left it (the dashboard's column has every session
+  to mark, with "Show all"); everything else stays, and its count no longer counts sessions to mark.
+  The guide's "See who to mark" goes to `/office#who-worked`.
 
 ## The office shell, round 7 (Phase 24)
 
@@ -1413,7 +1506,7 @@ shows the way: each page still checks who can open it.
   dashboard", "Events & sessions", "Cancellations", "Cancellation record", "Shifts", "New shift", "Shifts for an event", "Import shifts from a file", "Offer this
   shift", "Enquiries", "Enquiry", "Strikes", "Casuals", "Action log", "Notice and cancellation report", "Pilot metrics",
   "Pay queries", "Import pay records", "Office team", "Settings", "Integrations", "Data requests",
-  "How-to guide", "Customise" (Phase 26.3). A shift's, an event's, a casual's and a worker's data page keep "{firm} shifts".
+  "How-to guide", "Customise" (Phase 26.3), "Updates" (Phase 26.4). A shift's, an event's, a casual's and a worker's data page keep "{firm} shifts".
   `tests/unit/office.titles.test.ts` holds the pages to this list; the browser test checks "Events
   & sessions · Acme Events shifts".
 

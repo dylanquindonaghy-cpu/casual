@@ -396,9 +396,9 @@ test("Updates: a place a casual took from an offer; Who worked? by name", async 
     const take = col.getByRole("link", { name: new RegExp(`^Nadia Night${n} took a place `) });
     await expect(take).toHaveAttribute("href", `/office/shifts/${shiftId}`);
     await expect(take).toContainText(`Steward, Night Hall ${n}, `);
-    await expect(col.getByRole("link", { name: "Everything in the action log" })).toHaveAttribute(
+    await expect(col.getByRole("link", { name: "All updates" })).toHaveAttribute(
       "href",
-      "/office/log",
+      "/office/updates",
     );
     // Who worked?: each person by name with Worked and Didn't attend, each named for its person and
     // session (unique on the page, though one person can be in two groups: aud-5); each group's

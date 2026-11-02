@@ -259,15 +259,25 @@ export async function pushToWorker(
   workerId: string,
   payload: PushPayload,
 ): Promise<PushOutcome> {
+  return pushToTargets(inFirm, deps, (tx) => pushTargets(tx, workerId), payload, "pushToWorker");
+}
+
+// The same for any list of browsers (`read`, in its own short transaction): a worker's phones, or an
+// office user's browsers (Phase 26.4, src/lib/office/alerts.ts).
+export async function pushToTargets(
+  inFirm: InFirm,
+  deps: Pick<NotifyDeps, "push">,
+  read: (tx: FirmTx) => Promise<PushTarget[]>,
+  payload: PushPayload,
+  caller = "pushToTargets",
+): Promise<PushOutcome> {
   if (activeFirmId() !== undefined) {
-    throw new Error(
-      "pushToWorker must be called with no transaction open (src/lib/notify/send.ts)",
-    );
+    throw new Error(`${caller} must be called with no transaction open (src/lib/notify/send.ts)`);
   }
   const outcome: PushOutcome = { pushes: 0, forget: [], failed: [] };
   let targets: PushTarget[];
   try {
-    targets = await inFirm((tx) => pushTargets(tx, workerId));
+    targets = await inFirm(read);
   } catch (error) {
     return { ...outcome, readFailed: safeCode(error) };
   }
@@ -312,6 +322,13 @@ export async function recordPushes(
   tx: FirmTx,
   outcome: PushOutcome | null,
   logger: Logger = log,
+  // Whose browsers they were: a worker's phones (push_subscriptions), or an office user's
+  // (office_push_subscriptions, Phase 26.4).
+  whose: {
+    forget: (tx: FirmTx, target: PushTarget) => Promise<boolean>;
+    entityType: string;
+    action: string;
+  } = { forget: forgetPushTarget, entityType: "push_subscription", action: "push.forgotten" },
 ): Promise<number> {
   if (!outcome) return 0;
   if (outcome.readFailed) {
@@ -322,11 +339,11 @@ export async function recordPushes(
     // and never rolls back the record of the message that went.
     try {
       await tx.transaction(async (sp) => {
-        if (!(await forgetPushTarget(sp, target))) return;
+        if (!(await whose.forget(sp, target))) return;
         await recordEvent(sp, {
           actorType: "system",
-          action: "push.forgotten",
-          entityType: "push_subscription",
+          action: whose.action,
+          entityType: whose.entityType,
           entityId: target.id,
           data: { reason },
         });

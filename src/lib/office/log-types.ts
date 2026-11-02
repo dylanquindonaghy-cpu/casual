@@ -104,6 +104,14 @@ export const LOG_TYPES = {
       "push.subscribed",
       "push.unsubscribed",
       "push.forgotten",
+      // Office alerts (Phase 26.4, "Tell me about"): an office user's browser, a notification
+      // claimed for them, the 08:00 summary (the person's id, the kind, counts only).
+      "office_push.subscribed",
+      "office_push.unsubscribed",
+      "office_push.forgotten",
+      "office.alerted",
+      "office.summary_emailed",
+      "office.summary_failed",
       "message.received",
       "call.received",
       "call.answered",
@@ -233,6 +241,7 @@ export const LOG_TYPES = {
       "client.saved",
       "client.removed",
       "office_user.dashboard_saved",
+      "office_user.tell_me_saved",
       "firm.branding_changed",
       "firm.domain_changed",
       "firm.shifts_line_changed",
@@ -278,6 +287,7 @@ export const RATE_LIMITED = "auth.rate_limited";
 export const LIMIT_TYPES: Readonly<Record<string, LogType>> = {
   "take:worker": "bookings",
   "push:worker": "workers",
+  "push:office_user": "firm", // an office user's browser for notifications (Phase 26.4)
   "app_message:worker": "messages", // a casual's messages in the app (Phase 25.6)
   "api:key": "firm",
   "strikes_link:firm": "firm",

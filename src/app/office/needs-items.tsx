@@ -17,8 +17,7 @@ import {
   webhookFailingText,
   type NeedsKey,
 } from "@/lib/office/dashboard-copy";
-import { sheetChangeText, sheetNameText, toCheckText, toMarkText } from "@/lib/office/today-copy";
-import { toMarkGroups } from "@/lib/office/to-mark";
+import { sheetChangeText, sheetNameText, toCheckText } from "@/lib/office/today-copy";
 import { roleLabel, shiftWhen, timeOnDay } from "@/lib/portal/format";
 import { qualificationTitle } from "@/lib/portal/qualification-copy";
 import { uploadWhat } from "@/lib/portal/upload-copy";
@@ -26,7 +25,6 @@ import { dayLabel } from "@/lib/rules/reasons";
 import { localDateOf } from "@/lib/time/zoned";
 import { btn, count, headingGap, meta, nums, textLink } from "../ui/classes";
 import { Icon } from "../ui/icons";
-import { StatusChip } from "../ui/status-chip";
 import { BookingToCheckActions } from "./keep-booking";
 
 // Needs attention's items, in parts (docs/office-v2.md 3.2; Phases 18 and 20: on their own page,
@@ -185,50 +183,6 @@ export function NeedsItems({
                 </li>
               ),
             )}
-          </ul>
-        </Need>
-      )}
-
-      {n.toMark.length > 0 && (
-        <Need id="to-mark" n={n.toMarkTotal} shown={n.toMark.length}>
-          <ul role="list" className={items}>
-            {toMarkGroups(n.toMark).map((g) => (
-              <li
-                key={g.sessions[0]!.shiftId}
-                className={`${item} flex flex-wrap items-center gap-x-4 gap-y-2`}
-              >
-                {/* At least 192px for the words, so on a phone the chip goes under them. */}
-                <div className="min-w-48 flex-1">
-                  <p className="font-semibold">
-                    {roleLabel(g.role)}
-                    {g.site ? ` at ${g.site}` : ""}
-                  </p>
-                  <p className={`${meta} ${nums}`}>
-                    {shiftWhen(g.startsAt, g.endsAt, tz)}
-                    {g.sessions.length > 1 ? ` · ${g.sessions.length} sessions` : ""}
-                  </p>
-                </div>
-                <StatusChip tone="attention">{toMarkText(g.unmarked)}</StatusChip>
-                {g.sessions.length === 1 ? (
-                  <Link href={`/office/shifts/${g.sessions[0]!.shiftId}`} className={btn.secondary}>
-                    Mark who worked
-                  </Link>
-                ) : (
-                  <p className="flex w-full flex-wrap items-center gap-2">
-                    <span className={meta}>Mark who worked:</span>
-                    {g.sessions.map((t, i) => (
-                      <Link
-                        key={t.shiftId}
-                        href={`/office/shifts/${t.shiftId}`}
-                        className={btn.secondary}
-                      >
-                        Session {i + 1}
-                      </Link>
-                    ))}
-                  </p>
-                )}
-              </li>
-            ))}
           </ul>
         </Need>
       )}

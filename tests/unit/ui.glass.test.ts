@@ -501,6 +501,7 @@ describe("where the glass goes", () => {
       "src/app/office/shift-actions.tsx": ["glass-float"], // the "…" menu
       "src/app/office/dashboard/offer-panel.tsx": ["glass-float"], // the offer panel
       "src/app/office/customise-panel.tsx": ["glass-float"], // Customise's panel (Phase 26.3)
+      "src/app/office/updates-bell.tsx": ["glass-float"], // a cancellation's pop-up (Phase 26.4)
       // The comment that names it, and "You're booked." over the whole screen.
       "src/app/shifts/open/take-shift-result.tsx": ["glass-float", "glass-float"],
       "src/app/shifts/sheet.tsx": ["glass-float"], // the sheet from the foot

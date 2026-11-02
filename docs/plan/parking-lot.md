@@ -1122,7 +1122,10 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   in the test; tagging each template function by channel would make a missing WhatsApp template
   fail by itself.
 - **Connect the real web push** (the Phase 4 web push task is blocked on it: a secret key and real
-  phones; no account or money). Most of Claude's steps were built in 13.3: the sender (`web-push`,
+  phones; no account or money). Since Phase 26.4 the same keys switch on the office's notifications
+  too (Updates, "Tell me about": cancellations under 48 hours and places still open 6 hours before
+  the start); until then "Notifications on this device" says "Notifications aren't set up on this
+  server yet." and only the pop-up, the bell and the 08:00 email reach the office. Most of Claude's steps were built in 13.3: the sender (`web-push`,
   `PUSH_TRANSPORT=webpush`, 404/410 forget the phone, an address that isn't a push service's in a
   browser's own form is never contacted), the worker's settings in the compose file, the rate limit
   on `POST /api/push/subscribe`, and the compliance and privacy wording. The last of Claude's, each

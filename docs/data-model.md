@@ -57,6 +57,7 @@ architecture.md, Tenancy).
 | inbound_emails | Emails to a firm's staffing inbox, one row per Message-ID: who it's from, and only a known casual's subject and words, quoted history taken off; how many attachments were left out (P7.1); how its job handled it, and the AI's draft of the office's reply (P7.4, P7.5) | P7 |
 | email_replies | What went back about an email, as sent: the automatic link email or the office's reply, to the address the firm held for the casual then; added once, never changed (whether it went is in the log); deleted with its email (Phase 25.5) | P7 |
 | push_subscriptions | Web push endpoints per worker | 4 |
+| office_push_subscriptions | Web push endpoints per office user, for Updates' "Tell me about" notifications (one row per browser, at most 5 each) | 26.4 |
 | roster_sources | Where a firm's rota lives when it isn't our tables: a Google Sheet (its id, column mapping) or a connector to the firm's own system (which one, its base address; P5.2), with the last sync, error code and sync lease | 2 |
 | name_map | What the firm's own system calls a role, qualification, staff type or cancellation reason, mapped to a ShiftDesk code or to skip (P3.2) | P3 |
 | sheet_name_problems | The role names a rota sheet's last sync couldn't use (one it can't read, a skipped one on a session still to come), for Needs attention; replaced by each sync (Phase 25.2) | P3 |
@@ -218,6 +219,10 @@ create table office_users (
   name text not null,
   role text not null,                   -- admin | resourcer | payroll
   status text not null default 'active', -- active | disabled (never deleted)
+  dashboard_cards text[],               -- Phase 26.3: the cards chosen under Customise (null: defaults)
+  updates_seen_at timestamptz,          -- Phase 26.4: "Mark all as seen" on Updates, as of the page
+  tell_me text[],                       -- Phase 26.4: "Tell me about" (null: all but uploads); only
+                                        -- popup, cancel_push, open_push, uploads, summary
   created_at timestamptz not null default now(),
   unique (firm_id, id),
   unique (firm_id, email)
@@ -278,6 +283,23 @@ create table push_subscriptions (
   worker_id uuid not null,               -- (firm_id, worker_id) -> workers, on delete cascade
   endpoint text not null,                -- https only, at most 2048 characters
   p256dh text not null,                  -- the browser's keys for encrypting the push
+  auth text not null,
+  created_at timestamptz not null default now(),
+  unique (firm_id, id),
+  unique (firm_id, endpoint)
+);
+
+-- Phase 26.4 (src/lib/db/schema/people.ts). An office user's browser that turned on notifications
+-- under Updates' "Tell me about": the same as a worker's above, for an admin or resourcer (one row
+-- per endpoint in a firm, a new login on the same computer takes it over; at most 5 each, the
+-- oldest go). Deleted with the office user, on "Turn off here", on logging out, and when the push
+-- service says it's gone (office_push.forgotten). Never logged with its address.
+create table office_push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  office_user_id uuid not null,          -- (firm_id, office_user_id) -> office_users, on delete cascade
+  endpoint text not null,                -- https only, at most 2048 characters
+  p256dh text not null,
   auth text not null,
   created_at timestamptz not null default now(),
   unique (firm_id, id),

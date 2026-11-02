@@ -90,6 +90,7 @@ export function ContractForm({
           value={name}
           maxLength={120}
           required
+          disabled={!ready}
           onChange={(e) => setName(e.target.value)}
           className={`${field} w-full max-w-md`}
         />
@@ -106,6 +107,7 @@ export function ContractForm({
                   <input
                     type="checkbox"
                     checked={picked.has(s.siteId)}
+                    disabled={!ready}
                     onChange={(e) => {
                       const next = new Set(picked);
                       if (e.target.checked) next.add(s.siteId);

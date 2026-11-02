@@ -452,12 +452,14 @@ test("Part 3: as the office", async ({ browser }) => {
   });
 
   await test.step("26. Mark who worked", async () => {
-    await page.goto(`${acme}/office/needs-attention`);
-    const card = page
-      .getByRole("region", { name: "Who worked?" })
-      .locator("li", { hasText: "Acme Demo Racecourse" })
-      .first();
-    await card.getByRole("link").first().click();
+    // The dashboard's Who worked? (Phase 26.4): yesterday's racecourse session's line opens it.
+    await page.goto(`${acme}/office`);
+    await page
+      .locator('section#who-worked a[href^="/office/shifts/"]', {
+        hasText: "Acme Demo Racecourse",
+      })
+      .first()
+      .click();
     await expect(page.getByText("Mark who worked it and who didn't attend.")).toBeVisible();
     const mark = page.getByRole("button", { name: /^Mark as worked: / }).first();
     // The person's name is in the button's label (it shows "Mark as worked").

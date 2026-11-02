@@ -181,7 +181,8 @@ export function updateLines(
 
 export const UPDATES_TITLE = "Updates";
 export const UPDATES_EMPTY = "Nothing new in the last two days.";
-export const UPDATES_ALL = "Everything in the action log";
+// The column's foot: the Updates page (Phase 26.4; until then the action log).
+export const UPDATES_ALL = "All updates";
 
 // --- Who worked? ---
 
@@ -201,9 +202,12 @@ export function workedHeading(g: Worked, timeZone: string): string {
     .filter(Boolean)
     .join(" · ");
 }
-// Where a group's heading goes: its session, or Needs attention's list for several.
+// Where a group's heading goes: its session (several alike: no one page, so none).
 export const workedHref = (g: Pick<WhoWorkedGroup, "shiftIds">) =>
-  g.shiftIds.length === 1 ? `/office/shifts/${g.shiftIds[0]}` : "/office/needs-attention#to-mark";
+  g.shiftIds.length === 1 ? `/office/shifts/${g.shiftIds[0]}` : null;
+export const showAllWorked = (n: number) => `Show all ${n}`;
+// Who worked?'s groups before "Show all" (here, with no database code, for the page's own parts).
+export const WHO_WORKED_GROUPS = 3;
 // The session a person's buttons are for, in their names (each unique on the page, as one person
 // can be in two groups: the pre-build audit's aud-5): "Sun 1 Nov 10:30".
 export function workedWhen(g: Pick<WhoWorkedGroup, "startsAt">, timeZone: string): string {
@@ -216,4 +220,3 @@ export const noShowLabel = (name: string, when: string) => `${name} didn't atten
 export const EVERYONE_ELSE = "Everyone else worked";
 export const everyoneElseLabel = (g: Worked, timeZone: string) =>
   `Everyone else worked: ${workedHeading(g, timeZone)}`;
-export const WHO_WORKED_EMPTY = "Nobody to mark from the last 7 days.";

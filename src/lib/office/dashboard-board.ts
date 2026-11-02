@@ -1,12 +1,11 @@
 import { sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { systemClock } from "../auth/clock";
-import { CANCELLED_ASSIGNMENT_STATUSES, type OFFER_CHANNELS } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { atOfferLimit } from "../offers/offer-limit";
 import { payCalendar, type PayCalendar } from "../pay/calendar";
 import { payWeekNow } from "../pay/pay-week";
-import { addDays, localDateOf, startOfDay, wallTimeOf, zonedToUtc } from "../time/zoned";
+import { addDays, localDateOf, startOfDay } from "../time/zoned";
 import { sitesSql } from "./contract-scope";
 import { readCards, type DashboardCard } from "./dashboard-cards";
 import { loadMyDashboard, type MyDashboard } from "./contracts";
@@ -69,7 +68,6 @@ export const boardShow = (raw: unknown): BoardShow =>
 export const BOARD_ROWS = 50; // sessions a column holds (`more`: there were others)
 const WINDOW_DAYS = 14; // this pay week and next
 
-const CANCELLED = sql.raw(CANCELLED_ASSIGNMENT_STATUSES.map((s) => `'${s}'`).join(", "));
 const date = (v: string | Date) => new Date(v);
 
 export interface BoardOffers {

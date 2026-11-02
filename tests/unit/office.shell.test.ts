@@ -58,7 +58,7 @@ describe("the office menu (v2 groups; Phases 18 and 20)", () => {
   // and Admin and records each a fold in the rail, with its own icon.
   it("admins see every link, in groups: the dashboard and Needs attention first, then today's, the records and settings folded", () => {
     expect(labels("admin")).toEqual([
-      ["Home", ["Dashboard", "Needs attention"]],
+      ["Home", ["Dashboard", "Updates", "Needs attention"]],
       ["Today", ["Events & sessions", "Enquiries", "Cancellations"]],
       ["Pay", ["Pay dashboard", "Pay queries", "Import pay records"]],
       ["People", ["Casuals", "Strikes", "Notice report"]],
@@ -90,7 +90,7 @@ describe("the office menu (v2 groups; Phases 18 and 20)", () => {
 
   it("resourcers don't see pay or configuration links", () => {
     expect(labels("resourcer")).toEqual([
-      ["Home", ["Dashboard", "Needs attention"]],
+      ["Home", ["Dashboard", "Updates", "Needs attention"]],
       ["Today", ["Events & sessions", "Enquiries", "Cancellations"]],
       ["People", ["Casuals", "Strikes", "Notice report"]],
       ["Admin and records", ["Action log", "Pilot metrics"]],
@@ -813,6 +813,7 @@ describe("the rail", () => {
       items.map((i) => (i.kind === "link" ? i.link.label : `fold:${i.group.label}:${i.apart}`)),
     ).toEqual([
       "Dashboard",
+      "Updates",
       "Needs attention",
       "Events & sessions",
       "Enquiries",
@@ -827,6 +828,7 @@ describe("the rail", () => {
       ),
     ).toEqual([
       "Dashboard",
+      "Updates",
       "Needs attention",
       "Events & sessions",
       "Enquiries",
@@ -887,6 +889,7 @@ describe("the rail", () => {
     const r = rows(html);
     expect(r.map((x) => x.name)).toEqual([
       "Dashboard",
+      "Updates",
       "Needs attention",
       "Events & sessions",
       "Enquiries",

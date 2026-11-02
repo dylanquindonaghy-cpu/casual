@@ -33,14 +33,14 @@ import { toMarkGroups } from "./to-mark";
 // - Updates (dash-5): in the last two days, places casuals took, casuals' cancellations (their
 //   notice, the strike, whether the place is open again) and photos and certificates waiting for a
 //   check; and, as one line, every offer still waiting for a reply; newest first.
-// - Who worked? by name (dash-6): Needs attention's sessions to mark (today.ts loadToMark), alike
-//   ones together, the first three groups, each with the people still booked (not marked).
+// - Who worked? by name (dash-6): the sessions to mark (today.ts loadToMark), alike ones together,
+//   each with the people still booked (not marked); the column shows WHO_WORKED_GROUPS of them.
 
 const date = (v: string | Date) => new Date(v);
 
 export const UPDATES_SHOWN = 6;
 export const UPDATES_HOURS = 48;
-export const WHO_WORKED_GROUPS = 3;
+export { WHO_WORKED_GROUPS } from "./dashboard-map-copy";
 
 export interface MapVenue {
   siteId: string;
@@ -171,9 +171,13 @@ export async function loadUpdates(
   // A person's contracts' venues (Phase 26.3; null: every venue). Uploads to check are a casual's,
   // not a venue's: they show whatever the contracts.
   mine: string[] | null = null,
+  // The dashboard's column: the last two days, six shown. The Updates page (Phase 26.4): a week.
+  opts: { hours?: number; shown?: number } = {},
 ): Promise<{ items: Update[]; more: boolean }> {
-  const since = new Date(now.getTime() - UPDATES_HOURS * 3_600_000);
-  const limit = UPDATES_SHOWN + 1;
+  const hours = opts.hours ?? UPDATES_HOURS;
+  const shown = opts.shown ?? UPDATES_SHOWN;
+  const since = new Date(now.getTime() - hours * 3_600_000);
+  const limit = shown + 1;
   const site = sql`coalesce(si.name, esi.name)`;
   const sites = sql`
     left join sites si on si.firm_id = s.firm_id and si.id = s.site_id
@@ -300,7 +304,7 @@ export async function loadUpdates(
         sessions: r.sessions,
       })),
   ].sort((a, b) => b.at.getTime() - a.at.getTime());
-  return { items: items.slice(0, UPDATES_SHOWN), more: items.length > UPDATES_SHOWN };
+  return { items: items.slice(0, shown), more: items.length > shown };
 }
 
 // Who worked?'s groups: Needs attention's sessions to mark, alike ones together (one role, place
@@ -316,7 +320,9 @@ export interface WhoWorkedGroup {
 }
 
 export async function loadWhoWorked(tx: FirmTx, toMark: TodayToMark[]): Promise<WhoWorkedGroup[]> {
-  const groups = toMarkGroups(toMark).slice(0, WHO_WORKED_GROUPS);
+  // Every group (Needs attention's first 50 sessions): the column shows the first few, the rest
+  // with "Show all" (Phase 26.4: Who worked? is the dashboard's alone).
+  const groups = toMarkGroups(toMark);
   if (groups.length === 0) return [];
   const ids = groups.flatMap((g) => g.sessions.map((m) => m.shiftId));
   const { rows } = await tx.execute<{

@@ -57,8 +57,6 @@ const noNeeds: NeedsAttention = {
   toCheckTotal: 0,
   fromSheet: [],
   fromSheetTotal: 0,
-  toMark: [],
-  toMarkTotal: 0,
   expired: [],
   expiredTotal: 0,
   uploads: 0,
@@ -76,7 +74,6 @@ const counted = (n: NeedsAttention): NeedsAttention => ({
   ...n,
   toCheckTotal: n.toCheck.length,
   fromSheetTotal: n.fromSheet.length,
-  toMarkTotal: n.toMark.length,
   expiredTotal: n.expired.length,
   plannerRefusedTotal: n.plannerRefused.length,
   sheetNamesTotal: n.sheetNames.length,
@@ -107,16 +104,6 @@ const needsFull: NeedsAttention = counted({
       endsAt: at("2026-11-08T06:00:00Z"),
       change: null,
       names: [{ name: "Ben Example", codes: ["credential_missing"], dropped: false }],
-    },
-  ],
-  toMark: [
-    {
-      shiftId: "m1",
-      role: "steward",
-      site: "Acme Demo Racecourse",
-      startsAt: at("2026-10-31T10:00:00Z"),
-      endsAt: at("2026-10-31T18:00:00Z"),
-      unmarked: 3,
     },
   ],
   expired: [
@@ -357,12 +344,8 @@ describe("Needs attention's page (Phase 18: the top bar's To check opens it sinc
     expect(words(part("to-check"))).toContain("Cancel Lena Leaver's booking");
     expect(words(part("from-sheet"))).toContain("Track operative at Demo Junction");
     expect(part("from-sheet")).toMatch(/href="\/office\/shifts\/f1"/);
-    // Who worked?: one link per row, the shift.
-    const marks = [...part("to-mark").matchAll(/<li[^>]*>([\s\S]*?)<\/li>/g)];
-    expect(marks).toHaveLength(1);
-    expect(marks[0]?.[1]?.match(/<a /g)).toHaveLength(1);
-    expect(marks[0]?.[1]).toMatch(/href="\/office\/shifts\/m1"/);
-    expect(words(part("to-mark"))).toContain("3 people not marked yet.");
+    // Who worked? isn't here: it's the dashboard's (Phase 26.4, upd-6).
+    expect(html).not.toContain('id="to-mark"');
     expect(words(part("expired"))).toContain(
       "Ben Example's SIA door supervisor licence expired on Sun 1 Nov",
     );
@@ -392,7 +375,6 @@ describe("Needs attention's page (Phase 18: the top bar's To check opens it sinc
     ).toEqual([
       ["to-check", "Bookings to check 1"],
       ["from-sheet", "From your rota sheet 1"],
-      ["to-mark", "Who worked? 1"],
       ["expired", "Qualifications out of date on a booking 1"],
       ["uploads", "Uploads to check 2"],
       ["evidence", "Strike evidence 2"],
@@ -458,7 +440,6 @@ describe("Needs attention's page (Phase 18: the top bar's To check opens it sinc
     for (const [id, n] of [
       ["to-check", { ...needsFull, toCheckTotal: 400 }],
       ["from-sheet", { ...needsFull, fromSheetTotal: 400 }],
-      ["to-mark", { ...needsFull, toMarkTotal: 400 }],
       ["expired", { ...needsFull, expiredTotal: 400 }],
       ["planner-refused", { ...needsFull, plannerRefusedTotal: 400 }],
     ] as const) {
@@ -477,7 +458,6 @@ describe("Needs attention's page (Phase 18: the top bar's To check opens it sinc
     for (const key of [
       "toCheckTotal",
       "fromSheetTotal",
-      "toMarkTotal",
       "expiredTotal",
       "plannerRefusedTotal",
       "sheetNamesTotal",
@@ -544,9 +524,16 @@ describe("Needs attention's page (Phase 18: the top bar's To check opens it sinc
       }),
     );
     expect(words(section(lots, "uploads"))).toContain("Showing the first 2.");
-    // Sessions alike (role, place, times): one row, how many sessions, the people summed, and
-    // each session's way in.
-    const m1 = needsFull.toMark[0]!;
+    // Sessions alike (role, place, times) still group as one (the dashboard's Who worked? groups
+    // them so: Phase 26.4), the people summed.
+    const m1 = {
+      shiftId: "m1",
+      role: "steward",
+      site: "Acme Demo Racecourse",
+      startsAt: at("2026-10-31T10:00:00Z"),
+      endsAt: at("2026-10-31T18:00:00Z"),
+      unmarked: 3,
+    };
     const alike = [
       m1,
       { ...m1, shiftId: "m2", unmarked: 1 },
@@ -560,27 +547,6 @@ describe("Needs attention's page (Phase 18: the top bar's To check opens it sinc
     ).toEqual([
       [["m1", "m2", "m3"], 6],
       [["m4"], m1.unmarked],
-    ]);
-    const grouped = section(
-      renderToStaticMarkup(
-        createElement(NeedsItems, {
-          n: counted({ ...noNeeds, toMark: alike }),
-          timeZone: TZ,
-          today: TODAY,
-          isAdmin: true,
-        }),
-      ),
-      "to-mark",
-    );
-    const row = [...grouped.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/g)];
-    expect(row).toHaveLength(1);
-    expect(words(row[0]?.[1] ?? "")).toContain(
-      "· 3 sessions 6 people not marked yet. Mark who worked: Session 1 Session 2 Session 3",
-    );
-    expect([...grouped.matchAll(/href="\/office\/shifts\/(m\d)"/g)].map((m) => m[1])).toEqual([
-      "m1",
-      "m2",
-      "m3",
     ]);
     // The enquiries that need a person: a part of their own, counted, to Enquiries.
     const asked = renderToStaticMarkup(

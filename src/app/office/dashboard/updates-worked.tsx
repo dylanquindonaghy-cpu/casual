@@ -12,6 +12,8 @@ import {
   updateWhen,
   UPDATES_ALL,
   workedHeading,
+  showAllWorked,
+  WHO_WORKED_GROUPS,
   workedHref,
   workedLabel,
   workedWhen,
@@ -26,9 +28,9 @@ import { markAttendanceAction, markRestWorkedAction } from "../shifts/actions";
 // Round 8's Updates and Who worked? (Phase 26.2; the spec's dash-5 and dash-6). Updates: the last
 // two days' places taken, casuals' cancellations (their notice, the strike, whether the place is
 // open again), photos and certificates waiting for a check, and offers with no reply, newest first,
-// each a link to where it's dealt with, and the action log for the rest (the full Updates page comes
-// with 26.4). Who worked?: Needs attention's first sessions to mark, alike ones together (with the
-// day), each person still booked by name with "Worked" and "Didn't attend" on their own session (the
+// each a link to where it's dealt with, and "All updates" for the week (the Updates page, Phase
+// 26.4). Who worked?: the first sessions to mark (only here since Phase 26.4), alike ones together
+// (with the day), each person still booked by name with "Worked" and "Didn't attend" on their own session (the
 // shift page's own actions: the server checks everything again and logs it), and "Everyone else
 // worked" for the rest after a "Yes" (the shift page's own action, for each session in turn).
 
@@ -79,7 +81,7 @@ export function UpdatesList({
         })}
       </ul>
       <Link
-        href="/office/log"
+        href="/office/updates"
         className="press mt-2 flex min-h-11 w-full items-center justify-center gap-1 rounded-row text-sm text-ink-muted hover:bg-active hover:text-ink active:bg-button-press"
       >
         {UPDATES_ALL}
@@ -212,30 +214,51 @@ export function WhoWorkedList({
   groups: WhoWorkedGroup[];
   timeZone: string;
 }) {
+  // The first few, then "Show all" (Phase 26.4: every session to mark is here now).
+  const [all, setAll] = useState(false);
+  const shown = all ? groups : groups.slice(0, WHO_WORKED_GROUPS);
   return (
     <div className="mt-3 flex flex-col gap-3">
-      {groups.map((g) => (
-        <div key={g.shiftIds[0]} className="flex flex-col">
-          <Link
-            href={workedHref(g)}
-            className="press flex min-h-11 items-center rounded-row px-1 text-xs text-ink-faint hover:text-ink"
-          >
-            {workedHeading(g, timeZone)}
-          </Link>
-          <ul role="list" className="flex flex-col divide-y divide-line">
-            {g.people.map((p) => (
-              <Person
-                key={`${p.shiftId}-${p.workerId}`}
-                shiftId={p.shiftId}
-                workerId={p.workerId}
-                name={p.name}
-                when={workedWhen(g, timeZone)}
-              />
-            ))}
-          </ul>
-          {g.people.length > 1 && <EveryoneElse g={g} timeZone={timeZone} />}
-        </div>
-      ))}
+      {shown.map((g) => {
+        const href = workedHref(g);
+        const heading = workedHeading(g, timeZone);
+        return (
+          <div key={g.shiftIds[0]} className="flex flex-col">
+            {href ? (
+              <Link
+                href={href}
+                className="press flex min-h-11 items-center rounded-row px-1 text-xs text-ink-faint hover:text-ink"
+              >
+                {heading}
+              </Link>
+            ) : (
+              <p className="flex min-h-11 items-center px-1 text-xs text-ink-faint">{heading}</p>
+            )}
+            <ul role="list" className="flex flex-col divide-y divide-line">
+              {g.people.map((p) => (
+                <Person
+                  key={`${p.shiftId}-${p.workerId}`}
+                  shiftId={p.shiftId}
+                  workerId={p.workerId}
+                  name={p.name}
+                  when={workedWhen(g, timeZone)}
+                />
+              ))}
+            </ul>
+            {g.people.length > 1 && <EveryoneElse g={g} timeZone={timeZone} />}
+          </div>
+        );
+      })}
+      {!all && groups.length > WHO_WORKED_GROUPS && (
+        <button
+          type="button"
+          onClick={() => setAll(true)}
+          className="press flex min-h-11 w-full items-center justify-center gap-1 rounded-row text-sm text-ink-muted hover:bg-active hover:text-ink active:bg-button-press"
+        >
+          {showAllWorked(groups.length)}
+          <Icon name="chevron" size={16} className="rotate-90" />
+        </button>
+      )}
     </div>
   );
 }

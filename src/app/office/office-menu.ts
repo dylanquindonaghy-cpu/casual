@@ -27,12 +27,14 @@ const MENU: {
     top: true,
     items: [
       { area: "today", href: "/office", label: "Dashboard", icon: "home" },
+      // Updates (Phase 26.4): what happened on your contracts; the top bar's bell opens it too.
+      { area: "today", href: "/office/updates", label: "Updates", icon: "bell" },
       // Its count: the one count of what needs a person (menuBadges).
       {
         area: "today",
         href: "/office/needs-attention",
         label: "Needs attention",
-        icon: "bell",
+        icon: "notice",
       },
     ],
   },

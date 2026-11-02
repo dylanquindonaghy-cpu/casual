@@ -1,4 +1,5 @@
 import type { RejectReason } from "../db/schema";
+import { TELL_ME_ROWS, type TellMeKind } from "./tell-me-copy";
 import { noticeText } from "../portal/cancel-reasons";
 import { ISSUE_LABELS, type PayIssue } from "../portal/pay-query-kinds";
 import { REJECT_CHOICES } from "../portal/qualification-copy";
@@ -907,6 +908,24 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `${worker} switched off notifications on a phone.`;
     case "push.forgotten":
       return `A phone of ${worker}'s stopped taking notifications.`;
+    // Office alerts (Phase 26.4, Updates' "Tell me about").
+    case "office_push.subscribed":
+      return `${officeName} switched on notifications on a phone or computer.`;
+    case "office_push.unsubscribed":
+      return `${officeName} switched off notifications on a phone or computer.`;
+    case "office_push.forgotten":
+      return "A phone or computer stopped taking the office's notifications.";
+    case "office.alerted": {
+      const what =
+        d.kind === "cancel_push"
+          ? "a cancellation under 48 hours' notice"
+          : "places still open 6 hours before the start";
+      return `Sent ${names.office(d.officeUserId)} a notification: ${what}.`;
+    }
+    case "office.summary_emailed":
+      return `Emailed ${names.office(d.officeUserId)} their 08:00 summary.`;
+    case "office.summary_failed":
+      return `The 08:00 summary to ${names.office(d.officeUserId)} couldn't be sent.`;
 
     // Logins.
     case "auth.link_requested":
@@ -1072,6 +1091,11 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     }
     case "client.removed":
       return `${officeName} removed a contract.`;
+    case "office_user.tell_me_saved": {
+      const kind = String(d.kind) as TellMeKind;
+      const title = TELL_ME_ROWS[kind]?.title ?? "an alert";
+      return `${officeName} switched "${title}" ${d.on ? "on" : "off"} under Tell me about.`;
+    }
     case "office_user.dashboard_saved": {
       const n = typeof d.contracts === "number" ? d.contracts : 0;
       return n === 0

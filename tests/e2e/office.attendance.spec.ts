@@ -3,10 +3,10 @@ import { addOfficeUser, addPastBookedShift } from "./db";
 import { expect, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
-// Marking who worked a shift in a real browser: a shift that ran 3 days ago with three people
-// booked shows under "Who worked?" in Needs attention (its own page, which the dashboard's row and
-// the menu open: Phases 18 and 20); the resourcer marks one as not attended, the rest as
-// worked in one go, then puts a mistake right. The resourcer is this spec's own (the seeded ones'
+// Marking who worked a shift in a real browser: a shift that ended a few hours ago with three people
+// booked shows under the dashboard's "Who worked?" (round 8: Phase 26.2, and only there since
+// Phase 26.4); its line opens the shift, where the resourcer marks one as not attended, the rest as
+// worked in one go, then puts a mistake right; it's gone from the dashboard once all are marked. The resourcer is this spec's own (the seeded ones'
 // login links are used up by the other office specs: 3 per email every 15 minutes).
 
 const acme = "http://acme.localhost:3100";
@@ -40,7 +40,7 @@ test("mark who worked a shift that ended: one not attended, the rest worked, a m
 
   // The dashboard's Who worked? column holds it (round 8, Phase 26.2): its line ("Sun 1 Nov ·
   // Steward · …"), a link to its page (no other session is like it), and its three people by name,
-  // each with Worked and Didn't attend; Needs attention lists it too, under "Who worked?".
+  // each with Worked and Didn't attend.
   await page.goto(`${acme}/office`);
   await expect(page.locator("dialog[data-offer-panel][data-ready]")).toHaveCount(1);
   const worked = page.locator("section#who-worked");
@@ -56,12 +56,11 @@ test("mark who worked a shift that ended: one not attended, the rest worked, a m
       group.getByRole("button", { name: new RegExp(`^${name} didn't attend, `) }),
     ).toBeVisible();
   }
-  await page.goto(`${acme}/office/needs-attention#to-mark`);
-  await expect(page).toHaveURL(`${acme}/office/needs-attention#to-mark`);
-  const section = page.getByRole("region", { name: "Who worked?" });
-  const card = section.locator("li", { has: page.locator(`a[href="/office/shifts/${shiftId}"]`) });
-  await expect(card.getByText("3 people not marked yet.")).toBeVisible();
-  await card.getByRole("link").click();
+  // Needs attention no longer lists it (Phase 26.4: the dashboard is where it's marked).
+  await page.goto(`${acme}/office/needs-attention`);
+  await expect(page.getByRole("region", { name: "Who worked?" })).toHaveCount(0);
+  await page.goto(`${acme}/office`);
+  await line.click();
   await expect(page).toHaveURL(`${acme}/office/shifts/${shiftId}`);
 
   // One didn't attend.
@@ -93,7 +92,8 @@ test("mark who worked a shift that ended: one not attended, the rest worked, a m
     history.getByText(`marked ${second} as worked (was: not attended).`, { exact: false }),
   ).toBeVisible();
 
-  // Nothing left to mark in Needs attention.
-  await page.goto(`${acme}/office/needs-attention`);
-  await expect(section.locator(`a[href="/office/shifts/${shiftId}"]`)).toHaveCount(0);
+  // Nothing left to mark: gone from the dashboard's Who worked?.
+  await page.goto(`${acme}/office`);
+  await expect(page.locator("section#who-worked")).toBeVisible();
+  await expect(line).toHaveCount(0);
 });

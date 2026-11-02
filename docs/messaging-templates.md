@@ -402,6 +402,28 @@ reach the same app, which isn't answering.
   {Role} at {site}, {Sat 7 Nov, 08:00 to 16:00}"; body "The {role} shift at {site}, {when}, still
   has {n place(s)} free." / "{k offer(s)} sent, none accepted for the free place(s)." / "Open the
   office dashboard: {link}" / "— {firm} Shift Team". To active admins and resourcers.
+- Cancellation alert (`office_cancel_push`, push, Phase 26.4, `officeCancelPush()`: a casual's
+  cancellation under 48 hours' notice, to each admin or resourcer who switched cancellations under
+  48 hours on under Tell me about on Updates, looks after the venue (or no contracts) and turned
+  notifications on in a browser; once each; no casual's name, as a lock screen is a wider audience
+  than the office): title "Cancellation · {9 hours' notice}"; body "{Door supervisor}, {Acme Demo
+  Arena}, {Mon 2 Nov 18:00}. The place is open again." (or "Already covered." when it's filled
+  again). Tapping it opens Updates.
+- Open places alert (`office_open_push`, push, Phase 26.4, `officeOpenPush()`: a session with places
+  still to fill 6 hours before its start, to each admin or resourcer who switched that on, looks
+  after the venue and turned notifications on; once each per session; no names): title "{1 place}
+  still to fill, starts {in 5 h}"; body "{Steward}, {Acme Demo Arena}, {Mon 2 Nov 14:00}. Offered to
+  nobody yet." (or "Offered to {3 people}."). Tapping it opens the offer page.
+- Summary (`office_summary`, email, Phase 26.4, `officeSummaryEmail()`: at 08:00 the firm's time (up
+  to 11:00 if the worker was down), to each admin or resourcer who left the 08:00 summary on, what
+  needs action now and what happened since 08:00 yesterday on their contracts; nothing to say, no
+  email; once a day; no casual's name): subject "Updates for {Mon 2 Nov}: {2} need action" ("…:
+  nothing needs action"); body "Here's what's happened on your contracts since 08:00 yesterday."
+  ("at every venue" with no contracts) / "Needs action ({2}):" ("Nothing needs action." with none)
+  / "- {1 place still to fill, starts in 5 h: Steward, Acme Demo Arena, Mon 2 Nov 14:00}" (at most
+  10) / "- and {1} more" / "Since 08:00 yesterday: {3 places taken}, {2 cancellations} ({1} under
+  48 hours' notice), {1 upload} to check." / "Open Updates: {link}" / "To stop these emails, switch
+  off the 08:00 summary under Tell me about on Updates." / "— {firm} Shift Team".
 - Strikes team confirmation (`strikes_email_confirm`, email, built in 12B.7,
   `strikesEmailConfirmEmail()`: to the address an admin saves on Settings, and to nobody else; the
   link is signed for that address and works for 7 days): subject "Confirm {firm}'s strikes team

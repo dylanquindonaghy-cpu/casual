@@ -252,6 +252,47 @@ describe("turning office access off and back on", () => {
     ]);
   });
 
+  it("log out on every device and turning access off forget their browsers' notifications (Phase 26.4)", async () => {
+    const T = await createTenant(su);
+    const sam = await addOffice(T, "resourcer");
+    const browser = (n: number) =>
+      su.query(
+        `insert into office_push_subscriptions (firm_id, office_user_id, endpoint, p256dh, auth)
+         values ($1, $2, $3, 'k', 'a')`,
+        [T.firmId, sam, `https://fcm.googleapis.com/fcm/send/team-${n}-${Date.now()}`],
+      );
+    const left = async () =>
+      (await su.query("select 1 from office_push_subscriptions where office_user_id = $1", [sam]))
+        .rows.length;
+    // Nobody logged in, but a laptop still taking notifications: it's forgotten, and logged.
+    await browser(1);
+    await browser(2);
+    expect(await byAdmin(T, T.officeUserId, sam, { kind: "sign_out" })).toMatchObject({
+      status: "done",
+      sessionsEnded: 0,
+    });
+    expect(await left()).toBe(0);
+    await browser(3);
+    await byAdmin(T, T.officeUserId, sam, { kind: "disable" });
+    expect(await left()).toBe(0);
+    expect((await teamEvents(T.firmId)).map((e) => [e.action, e.data])).toEqual([
+      [
+        "office_user.signed_out",
+        { officeUserId: sam, sessionsEnded: 0, linksSpent: 0, browsersForgotten: 2 },
+      ],
+      [
+        "office_user.disabled",
+        {
+          officeUserId: sam,
+          role: "resourcer",
+          sessionsEnded: 0,
+          linksSpent: 0,
+          browsersForgotten: 1,
+        },
+      ],
+    ]);
+  });
+
   it("a change that changes nothing says so and logs nothing", async () => {
     const T = await createTenant(su);
     const sam = await addOffice(T, "resourcer");

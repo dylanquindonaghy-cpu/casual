@@ -1006,6 +1006,25 @@ describe("a renewed push subscription", () => {
     ]);
   });
 
+  it("an office user's browser (nobody logged in as a casual): the office's route instead", async () => {
+    const w = loadWorker(async (path) =>
+      path === "/api/push/subscribe" ? answer('{"status":"logged_out"}', 401) : answer("{}"),
+    );
+    await change(w, {
+      oldSubscription: { endpoint: "https://fcm.googleapis.com/fcm/send/old" },
+      newSubscription: {
+        endpoint: "https://fcm.googleapis.com/fcm/send/new",
+        toJSON: () => ({ endpoint: "https://fcm.googleapis.com/fcm/send/new", keys: {} }),
+      },
+    });
+    expect(w.calls.map((c) => [c.path, c.init?.method])).toEqual([
+      ["/api/push/subscribe", "POST"],
+      ["/api/office/push", "POST"],
+      ["/api/push/subscribe", "DELETE"],
+      ["/api/office/push", "DELETE"],
+    ]);
+  });
+
   it("subscribes again with the old key when the browser gives no new one", async () => {
     const w = loadWorker(async () => answer("{}"));
     await change(w, {

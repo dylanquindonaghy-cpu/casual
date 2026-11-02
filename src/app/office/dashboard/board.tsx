@@ -25,7 +25,6 @@ import {
 } from "@/lib/office/board-copy";
 import type { Board as BoardData, BoardSession, BoardShow } from "@/lib/office/dashboard-board";
 import { SECTION_ERROR } from "@/lib/office/dashboard-copy";
-import { toMarkGroups } from "@/lib/office/to-mark";
 import { DEFAULT_CARDS, type DashboardCard } from "@/lib/office/dashboard-cards";
 import type { Takers } from "@/lib/office/dashboard-map";
 import {
@@ -558,11 +557,6 @@ export function Board({
               line={toMarkLine(marks?.items ?? [], timeZone)}
               failed={!marks || !groups}
               empty={emptyText("toMark", false, show)}
-              foot={
-                marks && toMarkGroups(marks.items).length > (groups?.length ?? 0)
-                  ? { text: "More on Needs attention", href: "/office/needs-attention#to-mark" }
-                  : null
-              }
             >
               <WhoWorkedList groups={groups ?? []} timeZone={timeZone} />
             </Column>

@@ -461,6 +461,8 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
     expect(await rows()).toEqual(
       [
         "Dashboard",
+        // Phase 26.4: what happened on your contracts (the top bar's bell opens it too).
+        "Updates",
         "Needs attention",
         "Events & sessions",
         "Enquiries",
@@ -875,8 +877,11 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
     await expect(tip).toBeVisible();
     await page.mouse.move(640, 400);
     await expect(tip).toBeHidden();
-    // From the keyboard: Tab to it from the search box beside it, then on to you.
+    // From the keyboard: Tab to it from the search box, past the bell (Phase 26.4: search, the bell,
+    // then this button and you, as the spec's sys-8 orders the top bar), then on to you.
     await bar.getByRole("searchbox").focus();
+    await page.keyboard.press("Tab");
+    await expect(bar.getByRole("link", { name: /^Updates/ })).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(square).toBeFocused();
     await expect(tip).toBeVisible();

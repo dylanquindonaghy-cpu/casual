@@ -26,6 +26,9 @@ import {
   shiftChangedByFirmMessage,
   shiftConfirmedMessage,
   shiftEscalationEmail,
+  officeCancelPush,
+  officeOpenPush,
+  officeSummaryEmail,
   strikeEvidenceEmail,
   strikesEmailConfirmEmail,
   shiftOfferMessage,
@@ -631,6 +634,81 @@ describe("the code says what the doc says", () => {
     expect(words(email.body)).toEqual(words(expected));
   });
 
+  // Phase 26.4's office alerts: the doc's examples (braces round what changes) are what they give.
+  const plain = (text: string | undefined) => (text ?? "").replace(/[{}]/g, "");
+  it("office_cancel_push and office_open_push (push): the title and body", () => {
+    const office = section("Office notifications");
+    const [title, body, covered] = quotes(office, "Cancellation alert");
+    const cancel = (reopened: boolean) =>
+      officeCancelPush({
+        notice: "9 hours' notice",
+        role: "door_supervisor",
+        site: "Acme Demo Arena",
+        when: "Mon 2 Nov 18:00",
+        reopened,
+      });
+    expect(cancel(true)).toEqual({ title: plain(title), body: plain(body) });
+    expect(cancel(false).body).toBe(
+      plain(body).replace("The place is open again.", plain(covered)),
+    );
+    const [openTitle, openBody, offered] = quotes(office, "Open places alert");
+    const open = (offers: number) =>
+      officeOpenPush({
+        placesFree: 1,
+        startsIn: "in 5 h",
+        role: "steward",
+        site: "Acme Demo Arena",
+        when: "Mon 2 Nov 14:00",
+        offers,
+      });
+    expect(open(0)).toEqual({ title: plain(openTitle), body: plain(openBody) });
+    expect(open(3).body).toBe(plain(openBody).replace("Offered to nobody yet.", plain(offered)));
+  });
+
+  it("office_summary (email): the subject, and the body's words", () => {
+    const office = section("Office notifications");
+    const q = quotes(office, "Summary");
+    const [subject, , opening, , needs, , line, more, since, link, stop, signOff] = q;
+    const email = officeSummaryEmail(docVoice, {
+      day: "Mon 2 Nov",
+      mine: true,
+      needs: ["1 place still to fill, starts in 5 h: Steward, Acme Demo Arena, Mon 2 Nov 14:00"],
+      moreNeeds: 1,
+      took: 3,
+      cancelled: 2,
+      under48: 1,
+      uploads: 1,
+      link: "{link}",
+    });
+    expect(email.subject).toBe(plain(subject));
+    expect(words(email.body)).toEqual(
+      words(
+        [
+          ...[opening, needs, line, more, since, link, stop].map((t) =>
+            plain(t).replace("link", "{link}"),
+          ),
+          signOff,
+        ].join(" "),
+      ),
+    );
+    // Nothing to act on: said so, in the subject and the body.
+    const none = officeSummaryEmail(docVoice, {
+      day: "Mon 2 Nov",
+      mine: false,
+      needs: [],
+      moreNeeds: 0,
+      took: 1,
+      cancelled: 0,
+      under48: 0,
+      uploads: 0,
+      link: "{link}",
+    });
+    expect(none.subject).toBe("Updates for Mon 2 Nov: nothing needs action");
+    expect(none.body).toContain("Here's what's happened at every venue since 08:00 yesterday.");
+    expect(none.body).toContain("Nothing needs action.");
+    expect(none.body).toContain("1 place taken, no cancellations, 0 uploads to check.");
+  });
+
   it("strikes_email_confirm (email): the subject, and the body's words", () => {
     const [subject, ...body] = quotes(section("Office notifications"), "Strikes team confirmation");
     const email = strikesEmailConfirmEmail(docVoice, "{link}");
@@ -1000,6 +1078,9 @@ describe("every template function is checked here", () => {
         "shiftChangedByFirmMessage",
         "shiftConfirmedMessage",
         "shiftEscalationEmail",
+        "officeCancelPush",
+        "officeOpenPush",
+        "officeSummaryEmail",
         "strikeEvidenceEmail",
         "strikesEmailConfirmEmail",
         "shiftOfferMessage",

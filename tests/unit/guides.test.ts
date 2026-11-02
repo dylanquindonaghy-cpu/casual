@@ -367,11 +367,12 @@ describe("the office how-to guide", () => {
       expect(html).toContain("bg-wait-soft text-wait-ink");
     }
     // Its links land on what's there now: the dashboard's urgent sessions (its Urgent filter), and
-    // Who worked? on Needs attention (the urgent places' section went in Phase 24; there was never
-    // an "#urgent").
+    // Who worked? on the dashboard (Phase 26.4: it left Needs attention; the urgent places' section
+    // went in Phase 24; there was never an "#urgent").
     const admin = guide("admin");
     expect(admin).toContain('href="/office?show=urgent"');
-    expect(admin).toContain('href="/office/needs-attention#to-mark"');
+    expect(admin).toContain('href="/office#who-worked"');
+    expect(admin).not.toContain("needs-attention#to-mark");
     expect(admin).not.toMatch(/href="\/office#(?:urgent|urgent-places|needs-attention)"/);
     expect(words(section(admin, "fill-a-gap"))).toContain(
       "Every one is on the dashboard, under To offer and on its map ( Urgent shows only the urgent ones). Select one to see it in full: Mark as filled and Not urgent are under its … .",

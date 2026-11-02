@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import type { UpdatesBell } from "@/lib/office/updates";
 import { LogoutButton } from "../logout-button";
 import { SessionKeeper } from "../session-keeper";
 import type { Theme } from "../theme";
@@ -21,6 +22,7 @@ import type { BarCount } from "./office-menu";
 import { OfficeNav, type MenuGroup } from "./office-nav";
 import { OfficeRail } from "./office-rail";
 import { OfficeSearch } from "./office-search";
+import { CancellationPopup, UpdatesBellLink } from "./updates-bell";
 import { DashboardSkeleton, PageSkeleton } from "./office-skeleton";
 import type { SearchResult } from "./search-actions";
 import { useAutoRefresh } from "./auto-refresh";
@@ -159,6 +161,7 @@ export function OfficeFrame({
   railOpen,
   theme,
   rotationDue,
+  updates = null,
   refresh,
   children,
 }: {
@@ -171,6 +174,7 @@ export function OfficeFrame({
   railOpen: boolean; // the sd-rail cookie's (rail-cookie.ts)
   theme: Theme | undefined;
   rotationDue: boolean;
+  updates?: UpdatesBell | null; // the bell and the pop-up (admins and resourcers; Phase 26.4)
   refresh: () => Promise<void>;
   children: ReactNode;
 }) {
@@ -333,6 +337,7 @@ export function OfficeFrame({
               <span aria-hidden="true" className="min-w-0 flex-1" />
               {search ? <OfficeSearch search={search} /> : null}
               <div className="flex shrink-0 items-center gap-2 sm:gap-3 lg:gap-2">
+                {updates ? <UpdatesBellLink bell={updates} /> : null}
                 <ThemeButton initial={theme} look="square" fallback="dark" />
                 <button
                   ref={you}
@@ -441,6 +446,7 @@ export function OfficeFrame({
                   ) : null}
                   {loading && (loading === "/office" ? <DashboardSkeleton /> : <PageSkeleton />)}
                   <div hidden={loading !== null}>{children}</div>
+                  {updates ? <CancellationPopup bell={updates} /> : null}
                 </div>
               </div>
             </div>

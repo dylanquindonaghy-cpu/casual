@@ -21,6 +21,7 @@ import {
   type TravelMinutes,
   type TravelMode,
 } from "../../travel/modes";
+import { TELL_ME_KINDS } from "../../office/tell-me-copy";
 import { clients, firms, sites } from "./tenancy";
 
 // Links between firm tables use composite foreign keys (firm_id, x_id) -> parent (firm_id, id).
@@ -32,6 +33,9 @@ export const WORKER_STATUSES = ["active", "inactive", "blocked"] as const;
 // How the worker wants shift messages (Phase 4 notify job): WhatsApp, or text message. Login
 // links and codes always go (the worker asked for them).
 export const NOTIFY_CHANNELS = ["whatsapp", "sms"] as const;
+// What an office user asked to be told about, under Updates' "Tell me about" (Phase 26.4, upd-5;
+// decision 5): the kinds (src/lib/office/tell-me-copy.ts).
+const tellMeList = sql.raw(`array[${TELL_ME_KINDS.map((k) => `'${k}'`).join(", ")}]::text[]`);
 
 export const officeUsers = pgTable(
   "office_users",
@@ -49,6 +53,12 @@ export const officeUsers = pgTable(
     // The dashboard cards this person chose under Customise (Phase 26.3, cus-3 and cus-4): saved to
     // them, not to a browser. Null: the defaults (src/lib/office/dashboard-cards.ts).
     dashboardCards: text("dashboard_cards").array(),
+    // When this person last pressed "Mark all as seen" on Updates (Phase 26.4), as of the page they
+    // saw: the bell counts what came after.
+    updatesSeenAt: timestamptz("updates_seen_at"),
+    // What they asked to be told about (TELL_ME_KINDS). Null: the defaults, all but uploads
+    // (src/lib/office/tell-me.ts).
+    tellMe: text("tell_me").array(),
     createdAt: createdAt(),
   },
   (t) => [
@@ -64,6 +74,7 @@ export const officeUsers = pgTable(
       "office_users_dashboard_cards_check",
       sql`${t.dashboardCards} is null or cardinality(${t.dashboardCards}) <= 20`,
     ),
+    check("office_users_tell_me_check", sql`${t.tellMe} is null or ${t.tellMe} <@ ${tellMeList}`),
     firmIsolation(t.firmId),
   ],
 ).enableRLS();
@@ -437,6 +448,41 @@ export const pushSubscriptions = pgTable(
     }).onDelete("cascade"),
     check(
       "push_subscriptions_endpoint_https",
+      sql`${t.endpoint} like 'https://%' and length(${t.endpoint}) <= 2048`,
+    ),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();
+
+// An office user's browser that turned on notifications under Updates' "Tell me about" (Phase
+// 26.4, upd-4): pushed to for the kinds they chose (office_users.tell_me), on their contracts. One
+// row per browser (a new login on a shared computer takes it over); forgotten when the push service
+// says it's gone, on "Turn off" and when they log out. Kept apart from the casuals'
+// push_subscriptions, whose senders and limits are a worker's.
+export const officePushSubscriptions = pgTable(
+  "office_push_subscriptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    officeUserId: uuid("office_user_id").notNull(),
+    endpoint: text("endpoint").notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("office_push_subscriptions_firm_id_id_key").on(t.firmId, t.id),
+    unique("office_push_subscriptions_firm_id_endpoint_key").on(t.firmId, t.endpoint),
+    index("office_push_subscriptions_firm_id_office_user_id_idx").on(t.firmId, t.officeUserId),
+    foreignKey({
+      name: "office_push_subscriptions_office_user_fk",
+      columns: [t.firmId, t.officeUserId],
+      foreignColumns: [officeUsers.firmId, officeUsers.id],
+    }).onDelete("cascade"),
+    check(
+      "office_push_subscriptions_endpoint_https",
       sql`${t.endpoint} like 'https://%' and length(${t.endpoint}) <= 2048`,
     ),
     firmIsolation(t.firmId),

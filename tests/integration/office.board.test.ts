@@ -46,8 +46,6 @@ afterAll(async () => {
   await Promise.all([su.end(), app.end()]);
 });
 
-const TZ = "Europe/London";
-
 async function offer(
   f: BookingFirm,
   shiftId: string,
@@ -424,11 +422,13 @@ describe("the clock change (the clocks go back at 02:00 on Sun 25 Oct 2026)", ()
 });
 
 describe("Who worked?", () => {
-  it("is Needs attention's sessions to mark, the same items", async () => {
+  it("is every session to mark (Phase 26.4: the dashboard's alone, no longer on Needs attention)", async () => {
     const t = await boardFirm();
     const done = await t.f.shift({ startsAt: hoursFromNow(-30) });
     await t.f.booking(t.ann, done);
     const b = await t.load();
+    expect(ok(b.toMark).items.map((x) => x.shiftId)).toEqual([done]);
+    expect(ok(b.whoWorked).map((g) => g.shiftIds)).toEqual([[done]]);
     const n = (
       await loadOfficeFrame({
         firm: { id: t.f.firmId },
@@ -438,9 +438,7 @@ describe("Who worked?", () => {
       })
     ).needs;
     if (!n?.needs.ok) throw new Error("Needs attention failed");
-    expect(ok(b.toMark).items).toEqual(n.needs.data.toMark);
-    expect(ok(b.toMark).total).toBe(n.needs.data.toMarkTotal);
-    expect(ok(b.toMark).items.map((x) => x.shiftId)).toEqual([done]);
+    expect(n.needs.data).not.toHaveProperty("toMark");
   });
 });
 

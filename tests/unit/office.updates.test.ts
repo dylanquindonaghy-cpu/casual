@@ -177,6 +177,7 @@ describe("the bell and the pop-up", () => {
     cancellations,
     today: "2026-11-02",
     timeZone: TZ,
+    now: NOW,
   });
 
   it("the bell: Updates, with how many are new (none: no number)", () => {
@@ -203,6 +204,7 @@ describe("the bell and the pop-up", () => {
   it("the pop-up's words: who, how much notice, what and when; Offer the place while it's open", () => {
     const c: NewCancellation = {
       ref: "a2",
+      at: at("2026-11-02T08:50:00Z"),
       shiftId: "s2",
       worker: "Mo Rahman",
       role: "door_supervisor",

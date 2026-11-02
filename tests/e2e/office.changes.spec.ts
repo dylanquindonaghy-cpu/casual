@@ -35,7 +35,7 @@ test("move a booked shift with a reason, see the notice logged, then cancel the 
   await addOfficeUser("acme", { email, name: "Changes Resourcer", role: "resourcer" });
   await officeLogin(page, email);
   await page.goto(`${acme}/office/shifts/new`);
-  await page.getByLabel("Date").fill(dayFromNow(16));
+  await page.getByLabel("Date", { exact: true }).fill(dayFromNow(16));
   await page.getByLabel("Role").fill("steward");
   await page.getByLabel("Start").fill("09:00");
   await page.getByLabel("Finish").fill("17:00");

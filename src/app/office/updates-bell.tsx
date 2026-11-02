@@ -16,9 +16,11 @@ import { Icon } from "../ui/icons";
 
 // The top bar's bell (Phase 26.4; sys-8, upd-1): Updates, with how many came in since the person
 // last marked them seen (none: no number). And the pop-up (upd-3): a casual's cancellation the moment it
-// lands, from the office's own refresh (every 30 seconds while the page is in view), each one once
-// in this browser tab (sessionStorage; a page that can't keep it shows each once until reloaded),
-// with "Offer the place" while it's open again, "Open Updates" and "Dismiss".
+// lands, from the office's own refresh (every 30 seconds while the page is in view): only one that
+// lands after this browser tab first opened the office (by the server's clock; earlier ones are in
+// Updates and the bell, not a stack of pop-ups on logging in), each once in the tab
+// (sessionStorage; a page that can't keep it shows each once until reloaded), with "Offer the
+// place" while it's open again, "Open Updates" and "Dismiss".
 
 const UPDATES_HREF = "/office/updates";
 
@@ -46,6 +48,19 @@ export function UpdatesBellLink({ bell }: { bell: Bell }) {
 }
 
 const SHOWN_KEY = "sd-cancellations-shown";
+const SINCE_KEY = "sd-cancellations-since";
+
+// When this tab first opened the office (the server's time then), kept for the tab.
+function tabSince(serverNow: Date): number {
+  try {
+    const kept = Number(sessionStorage.getItem(SINCE_KEY));
+    if (kept > 0) return kept;
+    sessionStorage.setItem(SINCE_KEY, String(serverNow.getTime()));
+  } catch {
+    // Not kept: from this page's first read.
+  }
+  return serverNow.getTime();
+}
 function shownBefore(): Set<string> {
   try {
     return new Set(JSON.parse(sessionStorage.getItem(SHOWN_KEY) ?? "[]") as string[]);
@@ -65,18 +80,27 @@ function remember(ref: string) {
 export function CancellationPopup({ bell }: { bell: Bell }) {
   const [shown, setShown] = useState<NewCancellation | null>(null);
   const [gone, setGone] = useState<Set<string>>(() => new Set());
-  // The newest one not shown yet in this tab.
+  const [since, setSince] = useState<number | null>(null);
+  // The tab's start, once it's in the browser.
   useEffect(() => {
-    if (shown) return;
+    // Read from the tab's own storage, once: not a render to keep in step.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (since === null) setSince(tabSince(new Date(bell.now)));
+  }, [bell.now, since]);
+  // The newest one not shown yet in this tab, landed since it opened.
+  useEffect(() => {
+    if (shown || since === null) return;
     const before = shownBefore();
-    const next = bell.cancellations.find((c) => !before.has(c.ref) && !gone.has(c.ref));
+    const next = bell.cancellations.find(
+      (c) => new Date(c.at).getTime() > since && !before.has(c.ref) && !gone.has(c.ref),
+    );
     if (next) {
       remember(next.ref);
       // Shown from the office's own refresh: a new cancellation, not a render to keep in step.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setShown(next);
     }
-  }, [bell, shown, gone]);
+  }, [bell, shown, gone, since]);
   if (!shown) return null;
   const l = popupLines(shown, bell.timeZone);
   const close = () => {

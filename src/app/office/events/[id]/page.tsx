@@ -65,13 +65,13 @@ export default async function EventPage({
         <ol role="list" className="flex flex-wrap items-center gap-1">
           <li className="flex items-center gap-1">
             <Icon name="home" size={14} />
-            <Link href="/office" className="hover:text-ink hover:underline">
+            <Link href="/office" className="press hover:text-ink hover:underline">
               {BREADCRUMB[0]}
             </Link>
           </li>
           <li aria-hidden="true">›</li>
           <li>
-            <Link href="/office/events" className="hover:text-ink hover:underline">
+            <Link href="/office/events" className="press hover:text-ink hover:underline">
               {BREADCRUMB[1]}
             </Link>
           </li>
@@ -150,7 +150,7 @@ export default async function EventPage({
                 >
                   <Link
                     href={`/office/cancellations/${c.assignmentId}`}
-                    className="font-medium text-ink hover:underline"
+                    className="press font-medium text-ink hover:underline"
                   >
                     {cancellationLine(c)}
                   </Link>

@@ -82,26 +82,27 @@ export function TellMePanel({
       <ul role="list" className="flex flex-col gap-2">
         {TELL_ME_KINDS.map((k) => (
           <li key={k}>
-            <label className="flex min-h-16 cursor-pointer items-center justify-between gap-4 rounded-row glass-tile px-4 py-3 has-disabled:cursor-not-allowed">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={on.has(k)}
+              disabled={!ready || pending}
+              onClick={() => flip(k, !on.has(k))}
+              className="press flex min-h-16 w-full items-center justify-between gap-4 rounded-row glass-tile px-4 py-3 text-left disabled:cursor-not-allowed"
+            >
               <span className="min-w-0">
                 <b className="block font-medium text-ink">{TELL_ME_ROWS[k].title}</b>
                 <span className="block text-sm text-ink-faint">{TELL_ME_ROWS[k].line}</span>
               </span>
-              <input
-                type="checkbox"
-                role="switch"
-                checked={on.has(k)}
-                disabled={!ready || pending}
-                onChange={(e) => flip(k, e.target.checked)}
-                className="peer sr-only"
-              />
               <span
                 aria-hidden="true"
-                className="inline-flex h-6 w-10 shrink-0 items-center rounded-full bg-switch-off p-1 transition-colors peer-checked:bg-accent peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-disabled:opacity-60 [&>span]:transition-transform peer-checked:[&>span]:translate-x-4"
+                className={`inline-flex h-6 w-10 shrink-0 items-center rounded-full p-1 transition-colors ${on.has(k) ? "bg-accent" : "bg-switch-off"}`}
               >
-                <span className="size-4 rounded-full bg-knob duration-150 ease-sd motion-reduce:transition-none" />
+                <span
+                  className={`size-4 rounded-full bg-knob transition-transform duration-150 ease-sd motion-reduce:transition-none ${on.has(k) ? "translate-x-4" : ""}`}
+                />
               </span>
-            </label>
+            </button>
           </li>
         ))}
       </ul>

@@ -86,7 +86,7 @@ function Rows({
                     className="size-2 shrink-0 translate-y-[-1px] rounded-full bg-accent"
                   />
                 )}
-                <Link href={r.href} className="font-medium text-ink hover:underline">
+                <Link href={r.href} className="press font-medium text-ink hover:underline">
                   {fresh && <span className="sr-only">{NEW_WORD}: </span>}
                   {r.title}
                 </Link>

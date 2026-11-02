@@ -184,17 +184,19 @@ test("Tell me about: a switch saved for the person; this device; the office's pu
     ["A summary at 08:00", true],
   ] as const) {
     const sw = panel.getByRole("switch", { name: new RegExp(`^${name}`) });
-    if (on) await expect(sw).toBeChecked();
-    else await expect(sw).not.toBeChecked();
+    await expect(sw).toHaveAttribute("aria-checked", String(on));
   }
-  // As a person does it: the row (the switch's label).
+  // The whole row is the switch.
   const uploads = panel.getByRole("switch", { name: /^Uploads to check/ });
   await expect(uploads).toBeEnabled();
-  await panel.locator("label", { hasText: "Uploads to check" }).click();
+  await uploads.click();
   await expect(panel.getByRole("status")).toHaveText("Saved. Uploads to check: on.");
   await page.reload();
-  await expect(panel.getByRole("switch", { name: /^Uploads to check/ })).toBeChecked();
-  await panel.locator("label", { hasText: "Uploads to check" }).click();
+  await expect(panel.getByRole("switch", { name: /^Uploads to check/ })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await panel.getByRole("switch", { name: /^Uploads to check/ }).click();
   await expect(panel.getByRole("status")).toHaveText("Saved. Uploads to check: off.");
   // This device: no web push on the test server (no VAPID key), and it says so.
   await expect(panel.locator("[data-device-push]")).toHaveAttribute("data-device-push", "no_key");

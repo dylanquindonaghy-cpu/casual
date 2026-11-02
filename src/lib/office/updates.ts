@@ -291,6 +291,7 @@ export async function countNeedsAction(
 
 export interface NewCancellation {
   ref: string; // the booking's id: its record
+  at: Date; // when they cancelled
   shiftId: string;
   worker: string;
   role: string;
@@ -306,6 +307,7 @@ export interface UpdatesBell {
   // when they switched the pop-up off)
   today: string; // yyyy-mm-dd, the firm's calendar (for the pop-up's day)
   timeZone: string;
+  now: Date; // the server's time of this read: a browser tab pops up only what lands after it opened
 }
 
 export async function loadUpdatesBell(
@@ -322,6 +324,7 @@ export async function loadUpdatesBell(
   );
   const { rows: cancelled } = await tx.execute<{
     ref: string;
+    cancelled_at: string | Date;
     shift_id: string;
     first_name: string;
     last_name: string;
@@ -331,7 +334,8 @@ export async function loadUpdatesBell(
     notice_hours: string | number;
     reopened: boolean;
   }>(sql`
-    select a.id::text as ref, s.id::text as shift_id, w.first_name, w.last_name, s.role,
+    select a.id::text as ref, a.cancelled_at, s.id::text as shift_id, w.first_name, w.last_name,
+           s.role,
            coalesce(si.name, esi.name) as site, s.starts_at, a.notice_hours,
            (${placeFree(now)}) as reopened
       from assignments a
@@ -351,6 +355,7 @@ export async function loadUpdatesBell(
     newCount: await countNew(tx, now, seenAt, sites, tellMe.includes("uploads")),
     cancellations: cancelled.map((r) => ({
       ref: r.ref,
+      at: new Date(r.cancelled_at),
       shiftId: r.shift_id,
       worker: `${r.first_name} ${r.last_name}`,
       role: r.role,
@@ -361,5 +366,6 @@ export async function loadUpdatesBell(
     })),
     today: localDateOf(now, timeZone),
     timeZone,
+    now,
   };
 }

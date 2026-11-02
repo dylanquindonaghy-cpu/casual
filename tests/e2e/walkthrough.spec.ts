@@ -474,7 +474,7 @@ test("Part 3: as the office", async ({ browser }) => {
     await (await menuLink(page, "Events & sessions")).click();
     await page.getByRole("link", { name: "All shifts by day" }).click();
     await page.getByRole("link", { name: "New shift" }).click();
-    await page.getByLabel("Date").fill(daysFromToday(9));
+    await page.getByLabel("Date", { exact: true }).fill(daysFromToday(9));
     await page.getByLabel("Role").fill("steward");
     await page.getByLabel("Start").fill("10:00");
     await page.getByLabel("Finish").fill("18:00");
@@ -536,7 +536,7 @@ test("Part 3: as the office", async ({ browser }) => {
     await (await menuLink(page, "Events & sessions")).click();
     await page.getByRole("link", { name: "Add shifts" }).click();
     await page.getByLabel("Event name").fill("Cup final");
-    await page.getByLabel("Date").fill(daysFromToday(13));
+    await page.getByLabel("Date", { exact: true }).fill(daysFromToday(13));
     const lines = page.getByRole("group");
     await lines.nth(0).getByLabel("Role").fill("steward");
     await lines.nth(0).getByLabel("Start").fill("08:00");

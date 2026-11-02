@@ -44,7 +44,7 @@ test("a resourcer creates a shift and assigns someone the rules allow", async ({
   await expect(page.getByRole("heading", { name: "Shifts", exact: true })).toBeVisible();
   await expect(page).toHaveTitle("Shifts · Acme Events shifts");
   await page.getByRole("link", { name: "New shift" }).click();
-  await page.getByLabel("Date").fill(dayFromNow(12));
+  await page.getByLabel("Date", { exact: true }).fill(dayFromNow(12));
   await page.getByLabel("Role").fill("steward");
   await page.getByLabel("Start").fill("10:00");
   await page.getByLabel("Finish").fill("18:00");
@@ -89,7 +89,7 @@ test("several shifts for an event, and a file import checked first", async ({ pa
   await officeLogin(page, "acme.admin@example.com");
   await page.goto(`${acme}/office/shifts/event`);
   // The form makes the event, so it needs a name (12B.1); nothing is saved without one.
-  await page.getByLabel("Date").fill(dayFromNow(13));
+  await page.getByLabel("Date", { exact: true }).fill(dayFromNow(13));
   const lines = page.getByRole("group");
   await lines.nth(0).getByLabel("Role").fill("steward");
   await lines.nth(0).getByLabel("Start").fill("08:00");

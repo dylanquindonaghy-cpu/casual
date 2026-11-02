@@ -189,6 +189,7 @@ export async function addEventWithSession(
     urgent?: boolean;
     // Where its venue is (round 8's map, Phase 26.2): none by default, as a venue with no postcode.
     point?: { lat: number; lng: number };
+    headcount?: number; // its places (1 by default)
   },
 ): Promise<{ eventId: string; shiftId: string }> {
   const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
@@ -218,7 +219,7 @@ export async function addEventWithSession(
           role: o.role,
           startsAt,
           endsAt: new Date(startsAt.getTime() + (o.hours ?? 8) * 3_600_000),
-          headcount: 1,
+          headcount: o.headcount ?? 1,
           status: "open",
           isUrgent: o.urgent ?? false,
           source: "native",

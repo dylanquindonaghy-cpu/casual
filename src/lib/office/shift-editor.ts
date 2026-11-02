@@ -7,6 +7,7 @@ import {
   credentialTypes,
   firms,
   offers,
+  shiftEvents,
   shifts,
   sites,
 } from "../db/schema";
@@ -32,7 +33,8 @@ import { queueTravelEstimates } from "../travel/estimate-queue";
 //   the clocks skip is refused (src/lib/roster/shift-window.ts). Never in the past. If any line is
 //   wrong nothing is saved, and each problem names its line. Native shifts, open at once, each
 //   logged shift.created {by: "firm"}. With an event name ("Shifts for an event") they make a new
-//   event of that name; without ("New shift") they join their site and day's automatic event.
+//   event of that name; with an event's id (Phase 26.5: its page's "Add shifts") they join it;
+//   with neither ("New shift") they join their site and day's automatic event.
 // - editShiftDetails: the session's own details (pay rate, post, meeting point, uniform, extra
 //   requirements; docs/office-v2.md S2) on any shift, from a sheet or a file too: the sync and the
 //   import never write them. Not a session from the firm's planner, whose PUTs send them
@@ -66,6 +68,7 @@ export const SHIFT_PROBLEMS = [
   "text_too_long",
   "no_lines",
   "bad_event_name",
+  "bad_event", // Phase 26.5: the event to add to isn't there (or a new name came with it)
   "bad_pay",
   "post_too_long",
   "details_too_long", // meeting point or uniform
@@ -93,6 +96,8 @@ export const createShiftsSchema = z.strictObject({
   instructions: z.string().max(10_000),
   // "Shifts for an event" sends one (required there); "New shift" doesn't.
   eventName: z.string().max(1000).optional(),
+  // Phase 26.5: an event's page's "Add shifts": the sessions join that event (never with a name).
+  eventId: z.string().max(100).optional(),
   meetingPoint: z.string().max(2000).optional(),
   uniform: z.string().max(2000).optional(),
   lines: z.array(lineSchema).max(MAX_EVENT_LINES),
@@ -196,6 +201,21 @@ export async function createShifts(
     if (eventName !== undefined && (!eventName || [...eventName].length > EVENT_NAME_MAX)) {
       problems.push({ line: null, problem: "bad_event_name" });
     }
+    // An existing event (an event's page's "Add shifts"), held so it can't go meanwhile.
+    let joinEvent: string | null = null;
+    if (input.eventId !== undefined) {
+      const id = z.uuid().safeParse(input.eventId);
+      const [found] =
+        id.success && eventName === undefined
+          ? await tx
+              .select({ id: shiftEvents.id })
+              .from(shiftEvents)
+              .where(eq(shiftEvents.id, id.data))
+              .for("share")
+          : [];
+      if (found) joinEvent = found.id;
+      else problems.push({ line: null, problem: "bad_event" });
+    }
     const meetingPoint = optionalText(input.meetingPoint, MAX_PLACE_TEXT);
     const uniform = optionalText(input.uniform, MAX_PLACE_TEXT);
     if (meetingPoint === false || uniform === false) {
@@ -249,8 +269,10 @@ export async function createShifts(
       return { status: "invalid", problems };
     }
 
-    // "Shifts for an event" makes its event; "New shift" joins its site and day's automatic one.
-    const named = eventName ? await createNamedEvent(tx, { name: eventName, siteId }) : null;
+    // "Shifts for an event" makes its event; "Add shifts" on an event's page joins that one; "New
+    // shift" joins its site and day's automatic one.
+    const named =
+      joinEvent ?? (eventName ? await createNamedEvent(tx, { name: eventName, siteId }) : null);
     const shiftIds: string[] = [];
     for (const c of checked) {
       const [added] = await tx

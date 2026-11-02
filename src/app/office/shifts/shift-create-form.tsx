@@ -47,8 +47,11 @@ export function ShiftCreateForm({
   roles,
   qualifications,
   today,
+  toEvent,
 }: {
   mode: "single" | "event";
+  // Phase 26.5: an event's page's "Add shifts": these join that event, at its venue to start with.
+  toEvent?: { id: string; name: string; siteId: string | null };
   sites: { id: string; name: string }[];
   roles: string[];
   qualifications: { code: string; name: string }[];
@@ -57,7 +60,7 @@ export function ShiftCreateForm({
   const router = useRouter();
   const [eventName, setEventName] = useState("");
   const [date, setDate] = useState(today);
-  const [siteId, setSiteId] = useState("");
+  const [siteId, setSiteId] = useState(toEvent?.siteId ?? "");
   const [meetingPoint, setMeetingPoint] = useState("");
   const [uniform, setUniform] = useState("");
   const [instructions, setInstructions] = useState("");
@@ -82,7 +85,7 @@ export function ShiftCreateForm({
           instructions,
           meetingPoint,
           uniform,
-          ...(mode === "event" ? { eventName } : {}),
+          ...(toEvent ? { eventId: toEvent.id } : mode === "event" ? { eventName } : {}),
           lines,
         }).catch(() => ({
           status: "error" as const,
@@ -107,7 +110,8 @@ export function ShiftCreateForm({
         save();
       }}
     >
-      {mode === "event" && (
+      {toEvent && <p className="text-ink">Adding shifts to {toEvent.name}.</p>}
+      {mode === "event" && !toEvent && (
         <label className={labelStack}>
           Event name
           <input
@@ -290,11 +294,16 @@ export function ShiftCreateForm({
               ))}
             </ul>
           )}
-          {created.length > 0 && (
-            <Link href="/office/shifts" className={btn.link}>
-              See the shifts
-            </Link>
-          )}
+          {created.length > 0 &&
+            (toEvent ? (
+              <Link href={`/office/events/${toEvent.id}`} className={btn.link}>
+                Back to {toEvent.name}
+              </Link>
+            ) : (
+              <Link href="/office/shifts" className={btn.link}>
+                See the shifts
+              </Link>
+            ))}
         </div>
       )}
     </form>

@@ -340,6 +340,67 @@ Page title "Updates".
   to mark, with "Show all"); everything else stays, and its count no longer counts sessions to mark.
   The guide's "See who to mark" goes to `/office#who-worked`.
 
+## An event's page, round 8 (Phase 26.5)
+
+`/office/events/[id]` for admins and resourcers, as the mock-up's event page (the spec page's "An
+event's page", evt-1 to evt-6, and the pre-build audit's aud-5). Words:
+`src/lib/office/event-page-copy.ts`; data: `src/lib/office/event-staffing.ts` (with the page's own
+`officeEventPage`); "Offer N open places": `src/lib/office/event-offers.ts`. This section wins over
+the older `/office/events/[id]` row below where they differ.
+
+- **Breadcrumb** ("Breadcrumb" to screen readers): "Dashboard" › "Events & sessions" › the event.
+- **The head:** the event's name; "Showing to casuals" (green) or "Hidden from casuals"; "{Sat 7
+  Nov} · {Exampleton, ZZ1 1AA} · {23} sessions" (several days: "{Sat 7 Nov} to {Sun 8 Nov}"; the
+  venue's town and postcode, else its name). Actions: **Hide from casuals** / **Show to casuals**
+  (the event's switch as a button: the same action and answer as before), **Add shifts** (the form
+  for this event, below) and the main **Offer {5} open places** (shown while a place is free):
+  "Each session with a place free is marked urgent: offers go to the best people for it, a few at a
+  time, until it's filled. Nothing goes out while a session is hidden from casuals." with **Yes,
+  offer them** and **Keep as it is**; then "Offers are going out for {3} sessions." (" {1} session
+  is hidden from casuals: no offers go out while hidden.") or "Every open place is already being
+  offered." Each session goes through the office's own Mark urgent, checked and logged
+  (`shift.marked_urgent`) one at a time; never one full, started or already urgent.
+- **Tabs** ("Show"): **Staffing** {places} (the default), **Overview** {sessions} (`?tab=overview`:
+  every session as before, past and cancelled too, each with its switch, who is booked, its menu
+  and "Mark who worked"), **Cancellations** {n} (`?tab=cancellations`: the event's, newest first,
+  each "{Mo Rahman} cancelled · {9 hours'} notice" or "The office cancelled {Mo Rahman} · …" (a
+  link to its record), "Strike issued" / "Strike withdrawn", and "{Steward}, {Sat 7 Nov 12:00} ·
+  cancelled {04:00} on {Mon 2 Nov}"; empty: "No cancellations on this event.") and **History**
+  (`?tab=history`: the event's, its sessions', bookings' and offers' log, newest first, at most
+  100, in the log's words; "See everything in the action log"). "Interested" comes with casuals
+  asking (Phase 26.6).
+- **Staffing layout** (a glass panel, `#staffing-layout`; "{5} to fill" in red beside the title):
+  booked of needed overall ("{18} / {23} booked") and per role ("{7} / {9} door supervisors"), each
+  with an amber bar; then each role ("Door supervisors", with its qualifications and start times:
+  "SIA door supervisor licence · 08:00 and 11:30") and its sessions' places as tiles, in time order
+  and place order, for sessions to come (not cancelled, not ended): booked (initials from 576px of
+  panel, "{Amira Z.}" and "{11:30–19:00}": a link to the session, where a booking is cancelled or
+  moved as before), **Open** (dashed amber) or **Urgent** (red), each a link that picks its open
+  place (`?place=`); the picked one ringed in the accent. Each tile's name to a screen reader is
+  its own: "Open place: Steward, 12:00 to 18:30, place 3" / "Urgent open place: …" / "{Priya Shah}:
+  Steward, 12:00 to 18:30, place 2. Open the session". A key ("Booked", "Open", "Urgent", "Tap a
+  place to see who's on it or to offer it."). Nothing to come: "No sessions to come. Add shifts to
+  lay out their places here."
+- **Open places** (`#open-places`, beside it from 1024px of page, under it before): "{5} open · {1}
+  urgent"; each session with a place free, urgent first then soonest: "{Door supervisor}" (or
+  "{Steward} × {3}"), "{Sat 7 Nov}, {08:00–16:00} · {8} h", "Urgent" / "Open", its qualifications
+  and "{2} casuals offered". The picked one (else the first) opened: Needs, Starts in ("{5} days",
+  "{20} h", "{45} min"), Offered, Showing to casuals; why it's open ("{Chloe Quigley} cancelled
+  this place at {04:00} on {Mon 2 Nov}, with {5 days'} notice. No strike." / "Strike issued." /
+  "The office cancelled {name}'s booking at …"); **Offer to the best {5}** (the session marked
+  urgent: the firm's first wave for one place; "Offer to the best people" when the firm's settings
+  don't say) or, already urgent, "Offers are going out."; and **Pick someone** (the offer page).
+  Each button's name to a screen reader adds its session. None: "Every place is booked."
+- **Each session's "…" menu** (Overview, and Events & sessions): its links' names to a screen
+  reader add the session ("Assign someone: Steward, 18:00 to 23:00"; aud-5).
+- **On a phone:** the head, its buttons under it, the tabs (scrolling sideways), the layout with
+  tiles three across (names without initials), then the open places.
+- **Add shifts** (`/office/shifts/event?event={id}`): "Add shifts", "Adding shifts to {event}.",
+  the venue chosen to start with, no event name; the shifts join this event (checked inside the
+  firm's transaction: an event that isn't there, another firm's, or one sent with a new name:
+  "That event isn't there any more. Go back to Events & sessions and choose it again."); then "Back
+  to {event}".
+
 ## The office shell, round 7 (Phase 24)
 
 Dylan's approved round 7 of the Design canvas ("Round 7 exactly, layout too"; PLAN.md 24.2;

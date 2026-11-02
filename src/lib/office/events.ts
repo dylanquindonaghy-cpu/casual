@@ -1,4 +1,5 @@
 import { and, eq, sql, type SQL } from "drizzle-orm";
+import { loadEventStaffing, type EventStaffing } from "./event-staffing";
 import { z } from "zod";
 import { authParts, type AuthContext } from "../auth/link-login";
 import { currentOfficeUser } from "../auth/office-login";
@@ -71,6 +72,7 @@ export interface EventPage {
   timeZone: string;
   event: EventCardData;
   booked: Record<string, BookedCasual[]>; // by session (shift id)
+  staffing: EventStaffing; // Phase 26.5: the staffing layout, open places, cancellations, history
 }
 
 export interface EventList {
@@ -407,6 +409,23 @@ export async function officeEventList(
   });
 }
 
+// An event's name and venue, for "Add shifts" from its page (Phase 26.5).
+export async function officeEventBasics(
+  ctx: AuthContext,
+  token: string,
+  eventId: string,
+): Promise<{ id: string; name: string; siteId: string | null } | null> {
+  if (!z.uuid().safeParse(eventId).success) return null;
+  return asOffice(ctx, token, async (tx) => {
+    const { rows } = await tx.execute<{ id: string; name: string; site_id: string | null }>(sql`
+      select e.id::text as id, e.name, e.site_id::text as site_id
+        from shift_events e where e.id = ${eventId}::uuid
+    `);
+    const r = rows[0];
+    return r ? { id: r.id, name: r.name, siteId: r.site_id } : null;
+  });
+}
+
 // One event: every session (past and cancelled too), and who is booked on each.
 export async function officeEventPage(
   ctx: AuthContext,
@@ -452,10 +471,15 @@ export async function officeEventPage(
         status: p.status,
       });
     }
+    const event = cardOf(e, rows, requirementsOf, now, Number.MAX_SAFE_INTEGER);
+    const needs = new Map(
+      event.sessions.map((s) => [s.shiftId, s.requirements.map((q) => q.name)]),
+    );
     return {
       timeZone: await timeZoneOf(tx),
-      event: cardOf(e, rows, requirementsOf, now, Number.MAX_SAFE_INTEGER),
+      event,
       booked,
+      staffing: await loadEventStaffing(tx, now, e.id, needs),
     };
   });
 }

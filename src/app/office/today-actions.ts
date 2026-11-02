@@ -13,6 +13,7 @@ import {
   type OfficeContext,
 } from "@/lib/office/quick-actions";
 import { officeOfferPage, type OfferPage } from "@/lib/office/offer-page";
+import { offerOpenPlaces, type OfferOpenPlacesResult } from "@/lib/office/event-offers";
 import { keepFlaggedBooking, type KeepResult } from "@/lib/office/worker-access";
 import type { CloseShiftResult } from "@/lib/roster/close";
 import type { SetUrgentResult } from "@/lib/roster/urgent";
@@ -47,6 +48,14 @@ export async function setUrgentAction(
 ): Promise<SetUrgentResult | Common> {
   if (!id.safeParse(shiftId).success || typeof urgent !== "boolean") return { status: "not_found" };
   return asOffice("set urgent", (ctx) => markUrgent(ctx, shiftId, urgent));
+}
+
+// An event's page's "Offer N open places" (Phase 26.5): each open session marked urgent.
+export async function offerOpenPlacesAction(
+  eventId: string,
+): Promise<OfferOpenPlacesResult | Common> {
+  if (!id.safeParse(eventId).success) return { status: "not_found" };
+  return asOffice("offer open places", (ctx) => offerOpenPlaces(ctx, eventId));
 }
 
 export async function closeShiftAction(shiftId: string): Promise<CloseShiftResult | Common> {

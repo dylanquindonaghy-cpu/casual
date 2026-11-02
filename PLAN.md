@@ -1059,8 +1059,9 @@ task reads his edits from the page's database (`ArtifactData` list of `edits`) a
 say. Each task: its words in `docs/screens.md` first, tests, the `guardrails-reviewer` where it
 touches schema, tenancy, messaging or rules, then `/close-task`. The casual app keeps round 7's look.
 
-- [ ] Round 8's system and the office shell: dark by default with a light version on the same flat
-      rules, neutral charcoal, no glass, wash or glow; one hi-vis accent; one status code; the rail and
+- [ ] Round 8's system and the office shell: dark by default with a light version on the same
+      rules, neutral charcoal with dark glass on panels and their cards (Dylan, 2026-11-02), no wash or
+      glow; one hi-vis accent; one status code; the rail and
       top bar as in the spec (spec "The look"; UI) (26.1)
 - [ ] The dashboard: the venue map (MapLibre with a UK or EU tile host; decision 9) with places to fill
       per venue, the session card, To offer, Updates in place of Offered and While you were out, Who

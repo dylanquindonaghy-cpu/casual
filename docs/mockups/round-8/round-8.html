@@ -252,6 +252,31 @@ td:first-child { font-weight: 600; white-space: nowrap; }
 }
 @container (min-width: 601px) { .f8 .only-phone { display: none !important; } }
 .f8 .back { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 4px; }
+
+/* Dark glass on the sections and the cards inside them (Dylan, 2026-11-02: "can we make the sections
+   these bits ... a bit more glass looking"). Glass on a dark ground reads through three things: a
+   bright edge where light catches the top corner, a soft sheen from top to bottom, and something
+   behind it to blur. All neutral: no colour wash. */
+.f8 { background-color: var(--g0); background-image: radial-gradient(900px 520px at 22% 8%, rgb(255 255 255 / 0.055), transparent 62%), radial-gradient(760px 560px at 88% 72%, rgb(255 255 255 / 0.04), transparent 60%); }
+.f8 .panel, .f8 .kpis, .f8 .sheet:not(.side) { position: relative; }
+.f8 .panel, .f8 .kpis, .f8 .sheet { border-color: transparent; background-color: transparent; background-image: linear-gradient(180deg, rgb(255 255 255 / 0.075), rgb(255 255 255 / 0.028) 55%, rgb(255 255 255 / 0.02)); -webkit-backdrop-filter: blur(24px) saturate(1.6); backdrop-filter: blur(24px) saturate(1.6); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.14), 0 16px 40px rgb(0 0 0 / 0.42); }
+.f8 .sheet.side { background-color: rgb(24 24 27 / 0.72); }
+.f8 .card { border-color: transparent; background-color: rgb(28 28 31 / 0.55); background-image: linear-gradient(180deg, rgb(255 255 255 / 0.09), rgb(255 255 255 / 0.02) 60%); -webkit-backdrop-filter: blur(16px) saturate(1.6); backdrop-filter: blur(16px) saturate(1.6); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.16), 0 18px 50px rgb(0 0 0 / 0.5); }
+.f8 .li:not(.hot), .f8 .tile, .f8 .slot:not(.open):not(.urg), .f8 .oc, .f8 .setrow, .f8 .pick:not(.on) { position: relative; border-color: transparent; background-color: transparent; background-image: linear-gradient(180deg, rgb(255 255 255 / 0.085), rgb(255 255 255 / 0.035)); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.1); }
+.f8 .panel::before, .f8 .kpis::before, .f8 .sheet::before, .f8 .card::before,
+.f8 .li:not(.hot)::before, .f8 .tile::before, .f8 .slot:not(.open):not(.urg)::before, .f8 .oc::before, .f8 .setrow::before, .f8 .pick:not(.on)::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
+  background: linear-gradient(160deg, rgb(255 255 255 / 0.32), rgb(255 255 255 / 0.08) 28%, rgb(255 255 255 / 0.03) 62%, rgb(255 255 255 / 0.12));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+.f8 .li:not(.hot)::before, .f8 .tile::before, .f8 .slot:not(.open):not(.urg)::before, .f8 .oc::before, .f8 .setrow::before, .f8 .pick:not(.on)::before { background: linear-gradient(160deg, rgb(255 255 255 / 0.2), rgb(255 255 255 / 0.05) 35%, rgb(255 255 255 / 0.03) 70%, rgb(255 255 255 / 0.08)); }
+.f8 .dt { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08); }
+@media (prefers-reduced-transparency: reduce) {
+  .f8 { background-image: none; }
+  .f8 .panel, .f8 .kpis, .f8 .sheet, .f8 .card { -webkit-backdrop-filter: none; backdrop-filter: none; background: #1b1b1d; border-color: var(--edge); }
+  .f8 .li:not(.hot), .f8 .tile, .f8 .slot:not(.open):not(.urg), .f8 .oc, .f8 .setrow, .f8 .pick:not(.on) { background: #232325; border-color: var(--edge); }
+  .f8 .panel::before, .f8 .kpis::before, .f8 .sheet::before, .f8 .card::before, .f8 .li::before, .f8 .tile::before, .f8 .slot::before, .f8 .oc::before, .f8 .setrow::before, .f8 .pick::before { display: none; }
+}
 </style>
 
 <div class="wrap">
@@ -278,7 +303,7 @@ td:first-child { font-weight: 600; white-space: nowrap; }
         <thead><tr><th>What</th><th>Haulix</th><th>ShiftDesk now</th><th>Round 8</th></tr></thead>
         <tbody>
           <tr><td>Ground</td><td>Near-black, neutral, flat (#141414)</td><td class="">Pastel wash in light; blue, purple and teal glows in dark</td><td>Neutral charcoal, flat. No glows, no wash</td></tr>
-          <tr><td>Surfaces</td><td>Panels one shade lighter, a fine edge, no blur</td><td>Frosted glass everywhere: blur, lit rims, drop shadows</td><td>Shade steps and a 1px edge. A shadow only on what floats (the map card, menus)</td></tr>
+          <tr><td>Surfaces</td><td>Panels one shade lighter, a fine edge, no blur</td><td>Frosted glass everywhere: blur, lit rims, drop shadows</td><td>Dark glass on panels and the cards in them: a see-through fill, a soft blur, light on the top edge. No colour wash. Deeper shadows only on what floats</td></tr>
           <tr><td>Colour</td><td>One pale lime: the main button, switches, the logo, the selected truck</td><td>Firm blue, link blue, coloured leaf icons, red, amber and green all at once</td><td>One hi-vis yellow, from the stewards' vests: the main button, switches, what's selected. Red, amber, green only on status</td></tr>
           <tr><td>The big picture</td><td>A live map of the fleet; the truck's cargo slot by slot</td><td>A bar chart of places to fill</td><td>A map of your venues with the places to fill at each; an event's staffing laid out place by place</td></tr>
           <tr><td>Detail card</td><td>ID, status, route progress, gauges, a warning, two actions</td><td>Date tile, two number tiles, a warning, two buttons</td><td>The same shape for a session: time, booked bar, gauge, who can take it, a warning, Offer</td></tr>
@@ -316,7 +341,7 @@ td:first-child { font-weight: 600; white-space: nowrap; }
   <section aria-labelledby="h-dec">
     <h2 id="h-dec">Your decisions</h2>
     <div class="dec read">
-      <div class="dq"><h3>1. Move away from glass?</h3><p>You approved round 7 (Liquid Glass) on 26 Oct. Round 8 replaces it in the office with flat surfaces like Haulix's.</p><p class="rec"><b>Recommended:</b> yes for the office. The casual app keeps its look for now: it's used outdoors on phones, where light and clear works better.</p></div>
+      <div class="dq"><h3>1. Move away from glass?</h3><p>You approved round 7 (Liquid Glass) on 26 Oct. Round 8 replaces its pastel wash and frosted white glass in the office with Haulix's charcoal, keeping dark glass on the panels and cards (your ask on 2 Nov).</p><p class="rec"><b>Recommended:</b> yes for the office. The casual app keeps its look for now: it's used outdoors on phones, where light and clear works better.</p></div>
       <div class="dq"><h3>2. Dark by default?</h3><p>Haulix is dark only.</p><p class="rec"><b>Recommended:</b> dark by default for the office, with a light version built on the same flat rules for anyone who prefers it.</p></div>
       <div class="dq"><h3>3. The accent: hi-vis yellow or the firm's own colour?</h3><p>Haulix uses one pale lime. Hi-vis yellow does the same job and comes from event security itself.</p><p class="rec"><b>Recommended:</b> hi-vis in the office; the firm's colour stays on its mark and in the casual app.</p></div>
       <div class="dq"><h3>4. The venue map needs a map service</h3><p>Venues already have postcodes, and postcodes.io already turns them into coordinates. Drawing streets needs map tiles.</p><p class="rec"><b>Recommended:</b> MapLibre (open source) with a dark style from a UK or EU tile host, or a self-hosted map file. A new supplier, so your call; without it, the dashboard falls back to the cover grid by venue and day.</p></div>

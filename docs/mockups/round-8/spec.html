@@ -144,10 +144,10 @@ textarea.note::placeholder { color: #b89356; }
   var SPEC = [
     { id: 'look', title: 'The look, everywhere in the office', route: 'every office page', purpose: 'The system every screen below is built on. The casual app keeps its look.', shots: null, swatches: true, items: [
       ['sys-1', 'Dark by default in the office (decision 7). A light version on the same flat rules for anyone who prefers it; the light or dark button stays in the top bar.'],
-      ['sys-2', 'Flat neutral charcoal: page #141415, panels #1b1b1d, tiles and chips #232325, a 1px edge #29292c. No frosted glass, no pastel wash, no coloured glow (decision 6).'],
+      ['sys-2', 'Neutral charcoal (page #141415) with dark glass on the panels and the cards inside them: a see-through fill, a soft blur of what\'s behind, light catching the top edge and a faint sheen (your ask on 2 Nov). No pastel wash and no coloured glow (decision 6).'],
       ['sys-3', 'One accent, hi-vis yellow #e9f86f, on the main button, the switches and whatever is selected (decision 8). At most one hi-vis button per screen. The firm\'s own colour stays on its mark and in the casual app.'],
       ['sys-4', 'One status code on every page: Urgent red, Open amber, Booked green, Offered blue, Hidden grey. The same pill shape everywhere.'],
-      ['sys-5', 'Shadows only on what floats: the map\'s session card, menus and panels that slide in. Everything else separated by a shade step and a 1px edge.'],
+      ['sys-5', 'Deeper shadows only on what floats: the map\'s session card, menus and panels that slide in. With "reduce transparency" switched on, the glass turns solid.'],
       ['sys-6', 'Geist stays for all words and figures; page titles 30px; figures line up (tabular); references and IDs in Geist Mono.'],
       ['sys-7', 'The menu rail: dark circles, the page you\'re on a solid white circle, a red dot where something needs you. The firm\'s mark at the top in hi-vis.'],
       ['sys-8', 'The top bar: the counts as separate chips (To fill, Urgent, Offers out, To check, Pay queries), each opening where it\'s worked; search with Ctrl K; the bell with new updates; you and your role.'],
@@ -259,7 +259,7 @@ textarea.note::placeholder { color: #b89356; }
       '<figure><figcaption><b>After</b><span>round 8</span></figcaption><div class="shot"><img src="' + a + '" alt="' + esc(sec.title) + ' after the change" loading="lazy"></div></figure></div>';
   }
   function swatchHtml() {
-    var s = [['#141415', 'Page'], ['#1b1b1d', 'Panel'], ['#232325', 'Tile'], ['#e9f86f', 'Hi-vis accent'], ['#ff8a80', 'Urgent'], ['#f2b55a', 'Open'], ['#8fe28c', 'Booked'], ['#8ab4ff', 'Offered'], ['#8f8f94', 'Hidden']];
+    var s = [['#141415', 'Page'], ['#1b1b1d', 'Panel (glass)'], ['#232325', 'Card (glass)'], ['#e9f86f', 'Hi-vis accent'], ['#ff8a80', 'Urgent'], ['#f2b55a', 'Open'], ['#8fe28c', 'Booked'], ['#8ab4ff', 'Offered'], ['#8f8f94', 'Hidden']];
     return '<div class="swatches">' + s.map(function (x) { return '<span class="sw"><i style="background:' + x[0] + '"></i>' + x[1] + ' <span style="font-family:var(--mono);font-size:11px">' + x[0] + '</span></span>'; }).join('') + '</div>';
   }
   function itemHtml(it) {

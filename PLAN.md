@@ -1132,7 +1132,7 @@ https://claude.ai/artifact/9GPXjLG2NXmz4FvbMXBdiu (sections 1, 2 and 6).
       which reads `--map-road` from the page's root, so the pictures' lines were at 8.5% (review §2's
       note); at 10.2% six colour pairs fall under their minimum. Dylan to confirm:
       `docs/plan/decisions-waiting.md` 13
-- [ ] The words: every "fix before launch" and "one thing, one name" item (review §5, office and
+- [x] The words: every "fix before launch" and "one thing, one name" item (review §5, office and
       casual app), "Who worked?", "Tell me about" and Updates' "Last 7 days · 2 new today" (the
       mock-up's section 2), with `docs/screens.md` and `docs/messaging-templates.md`; and the two
       that change what's listed: a casual's own page lists a missing photo under "Needs updating",

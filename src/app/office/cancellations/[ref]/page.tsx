@@ -85,9 +85,12 @@ export default async function CancellationRecordPage({
         </p>
         <p>{AS_IT_IS_NOW}</p>
       </PageHeader>
+      {/* Notice, strike and reason first (round 8's can-5). Under the threshold, its status is a red
+          edge and the notice in red, never a tint over the whole section (Phase 24.5's rule, which
+          tests/e2e/office.look.spec.ts checks on every office page). */}
       <section
         aria-labelledby="first"
-        className={`mb-6 max-w-3xl ${hot ? "rounded-inner border-l-4 border-l-urgent bg-urgent-soft p-4 sm:p-6" : card}`}
+        className={`mb-6 max-w-3xl ${card} ${hot ? "border-l-4 border-l-urgent" : ""}`}
       >
         <h2 id="first" className="sr-only">
           Notice, strike and reason

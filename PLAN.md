@@ -1067,11 +1067,11 @@ aud-7, 8, 9, 10 and 13 in 26.2; aud-5 in 26.5; aud-11 and 12 in 26.7; aud-15 in 
 weeks of made-up history for the demo) with 26.2 and 26.7. Its six Parim ideas for later are in the
 Parking lot.
 
-- [ ] Round 8's system and the office shell: dark by default with a light version on the same
+- [x] Round 8's system and the office shell: dark by default with a light version on the same
       rules, neutral charcoal with translucent, sharp glass on panels and their cards over a faint
       street map (Dylan, 2026-11-02), no gloss, wash or glow; one hi-vis accent; one status code; the rail and
       top bar as in the spec (spec "The look"; UI) (26.1)
-- [ ] The dashboard: the venue map (MapLibre with a UK or EU tile host; decision 9) with places to fill
+- [x] The dashboard: the venue map (MapLibre with a UK or EU tile host; decision 9) with places to fill
       per venue, the session card, To offer, Updates in place of Offered and While you were out, Who
       worked by name (spec "Dashboard"; UI, a new supplier) (26.2)
 - [x] Contracts and each resourcer's dashboard: a contracts table (clients owning sites), per-user
@@ -1080,7 +1080,7 @@ Parking lot.
       users, each person's "Tell me about", and the top bar's bell with new updates (spec "Updates
       and alerts", and "The look" sys-8's bell: it opens the Updates page, so it comes with it; S,
       M, UI) (26.4)
-- [ ] An event's page: staffing layout and open places (spec "An event's page"; UI) (26.5)
+- [x] An event's page: staffing layout and open places (spec "An event's page"; UI) (26.5)
 - [ ] A session and who wants it: the per-event "Casuals ask, you choose" setting, "I can do this" in
       the casual app, the list with filters, booking through the rules (spec "A session"; S, R, UI) (26.6)
 - [ ] Casuals: reliability worked out by code over 90 days, the four counts and tabs, Remind and Remind
@@ -1088,10 +1088,10 @@ Parking lot.
       UI) (26.7)
 - [x] Cancellations: under 48 hours tinted in every tab, notice and strike columns, four counts, a
       Strikes tab, the detail page's order (spec "Cancellations"; UI) (26.8)
-- [ ] Offers by app notification, text or email: Phase 15.1 with email as a casual's choice, each
+- [x] Offers by app notification, text or email: Phase 15.1 with email as a casual's choice, each
       offer's channel and "Not offered, and why" (spec "Offering a shift"; M, UI; app notifications need
       Phase 4's web push) (26.9)
-- [ ] The fixes and words, and every other office page on round 8 (spec "Fixes and words", "Every
+- [x] The fixes and words, and every other office page on round 8 (spec "Fixes and words", "Every
       other office page"; UI) (26.10)
 
 Done when: every task is ticked with a stamp that includes the browser tests; each built what the spec

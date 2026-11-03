@@ -6,7 +6,7 @@ import type { RemoveTravelOutcome, SaveTravelOutcome } from "@/lib/portal/travel
 import { requestLog } from "@/lib/request";
 import { getCurrentFirm } from "@/lib/tenancy/current-firm";
 
-// "Where you work": save or remove the travel area. The firm comes from the request's host and the
+// "Your travel area": save or remove it. The firm comes from the request's host and the
 // casual from their session; the browser sends only the postcode, how they travel and the limit
 // (checked again in saveMyTravel). Errors are logged without the postcode.
 

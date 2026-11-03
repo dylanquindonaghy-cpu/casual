@@ -48,7 +48,7 @@ test("Messages: answered at once in the app, then the office's reply, counted on
   await expect(page.getByRole("heading", { level: 1, name: "Messages" })).toBeVisible();
   await expect(
     page.getByText(
-      "Write to the office here. Questions about your shifts, cancelling or pay are answered at once.",
+      "Ask about your shifts, cancelling or pay days and get an answer straight away. Anything else goes to the office, and their reply comes here.",
     ),
   ).toBeVisible();
   await expect(

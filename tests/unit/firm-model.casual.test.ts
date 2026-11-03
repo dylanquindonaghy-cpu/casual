@@ -24,10 +24,13 @@ const text = (html: string) =>
     .replace(/\s+/g, " ");
 
 describe("Home's pay row", () => {
-  it("a week reads as before; a fortnight gives its dates", () => {
+  it("a week gives its dates (Phase 27.2), the month once; a fortnight gives its dates", () => {
     expect(
       payDayRowText("2026-11-06", { days: 7, start: "2026-10-26", end: "2026-11-01" }),
-    ).toEqual({ title: "Pay day: Fri 6 Nov", sub: "For this week's shifts" });
+    ).toEqual({ title: "Pay day: Fri 6 Nov", sub: "For shifts Mon 26 Oct to Sun 1 Nov" });
+    expect(
+      payDayRowText("2026-11-13", { days: 7, start: "2026-11-02", end: "2026-11-08" }),
+    ).toEqual({ title: "Pay day: Fri 13 Nov", sub: "For shifts Mon 2 to Sun 8 Nov" });
     expect(
       payDayRowText("2026-11-13", { days: 14, start: "2026-10-26", end: "2026-11-08" }),
     ).toEqual({ title: "Pay day: Fri 13 Nov", sub: "For shifts from Mon 26 Oct to Sun 8 Nov" });
@@ -64,12 +67,22 @@ const summary: ShiftSummary = {
 const either = {
   code: "SIA_SG",
   name: "SIA security guard licence or SIA door supervisor licence",
-  chip: "SIA SG or SIA DS",
+  chip: "SIA security guard licence or SIA door supervisor licence",
   status: { status: "missing" as const, expiresOn: null, renewing: false },
   uploadable: true,
   anyOf: [
-    { code: "SIA_SG", name: "SIA security guard licence", chip: "SIA SG", uploadable: true },
-    { code: "SIA_DS", name: "SIA door supervisor licence", chip: "SIA DS", uploadable: true },
+    {
+      code: "SIA_SG",
+      name: "SIA security guard licence",
+      chip: "SIA security guard licence",
+      uploadable: true,
+    },
+    {
+      code: "SIA_DS",
+      name: "SIA door supervisor licence",
+      chip: "SIA door supervisor licence",
+      uploadable: true,
+    },
   ],
 };
 const facts = (o: Partial<ShiftFacts> = {}): ShiftFacts => ({
@@ -110,9 +123,9 @@ describe("the shift page", () => {
       review: null,
     });
     const words = text(html);
-    expect(words).toContain("Needs: SIA SG or SIA DS");
+    expect(words).toContain("Needs: SIA security guard licence or SIA door supervisor licence");
     expect(words).toContain(
-      "SIA security guard licence or SIA door supervisor licence Missing: upload SIA SG or SIA DS",
+      "SIA security guard licence or SIA door supervisor licence Missing: upload SIA security guard licence or SIA door supervisor licence",
     );
     expect(html).toContain('href="/profile/upload/SIA_SG"');
     expect(html).toContain('href="/profile/upload/SIA_DS"');
@@ -136,18 +149,19 @@ describe("the shift page", () => {
       reasons: [],
       review: null,
     });
-    expect(text(html)).toContain("Missing: upload SIA SG");
+    expect(text(html)).toContain("Missing: upload SIA security guard licence");
     expect(html).toContain('href="/profile/upload/SIA_SG"');
     expect(html).not.toContain('href="/profile/upload/SIA_DS"');
   });
 
   it("the strike note under Take shift only while the firm gives strikes", () => {
-    const note = "Cancelling less than 48 hours before the start gives you a strike.";
+    const note =
+      "Cancelling less than 48 hours before the start gives you a strike. A strike is a record, not a fine. It never comes off your pay.";
     const holder = {
       ...either,
       anyOf: undefined,
       name: "SIA security guard licence",
-      chip: "SIA SG",
+      chip: "SIA security guard licence",
     };
     const on = render({ state: "open", shift: summary, facts: facts({ requirements: [holder] }) });
     expect(text(on)).toContain(note);

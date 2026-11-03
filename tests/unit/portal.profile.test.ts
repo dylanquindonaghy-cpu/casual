@@ -7,6 +7,13 @@ import { ProfileView, ukMobile } from "@/app/profile/profile-view";
 import { NOTIFY_CHANNELS } from "@/lib/db/schema/people";
 import type { Profile } from "@/lib/portal/profile";
 import { CHANNEL_LABELS, CHANNELS } from "@/lib/portal/profile-kinds";
+import {
+  chipTail,
+  meaning,
+  otherMeaning,
+  otherShiftText,
+  rightToWorkText,
+} from "@/lib/portal/qualification-copy";
 import { EVERY_STATUS, qual } from "../helpers/qualifications";
 
 // The profile page (docs/screens.md, `/profile`): what the worker sees about themselves, and the
@@ -71,26 +78,26 @@ describe("ProfileView", () => {
       "SIA close protection licence Suspended You can't take close protection officer shifts. Contact the office.",
     );
     expect(page).toContain(
-      "First aid at work certificate Expired · Expired 1 Oct Until it's renewed you won't see response team lead shifts. Upload the new one. Upload a certificate",
+      "First aid at work certificate Expired · Expired 1 Oct Until it's renewed you won't see response team lead shifts. Upload the new one. Upload a new one",
     );
     expect(page).toContain(
       "CSAS accreditation Missing · Needed for CSAS officer shifts You won't see CSAS officer shifts until the office has it.",
     );
     expect(page).toContain(
-      "SIA door supervisor licence Expiring soon · Expires 20 Nov Renew it before then to keep getting door supervisor shifts. Upload the new one. Upload a certificate",
+      "SIA door supervisor licence Expiring soon · Expires 20 Nov Renew it before then to keep getting door supervisor shifts. Upload the new one. Upload a new one",
     );
     expect(page).toContain(
-      "SIA security guard licence Applied for · Not issued yet You won't see security officer shifts until it's issued. Upload it when it arrives. Upload a certificate",
+      "SIA security guard licence Applied for · Not issued yet You won't see security officer shifts until it's issued. Upload it when it arrives. Upload a new one",
     );
     expect(page).toContain("Level 2 spectator safety qualification Valid · No expiry date");
     // Her uploads (12F.2): turned down, with why; waiting for the office.
     expect(page).toContain(
-      "PTS card Not accepted: too blurry to read · Sent 30 Oct Upload a new one so you can take track worker shifts. Upload a certificate",
+      "PTS card Not accepted: too blurry to read · Sent 30 Oct Upload a new one so you can take track worker shifts. Upload a new one",
     );
     expect(page).toContain(
-      "CSCS card Being checked · Sent 31 Oct The office will check it soon. Until then you won't see labourer shifts. Upload a certificate",
+      "CSCS card Being checked · Sent 31 Oct The office will check it soon. Until then you won't see labourer shifts. Upload a new one",
     );
-    // "Upload a certificate" for each one she may upload: never CSAS (the office records it), never
+    // "Upload a new one" for each one she may upload: never CSAS (the office records it), never
     // a suspended one (an upload can't lift it).
     const uploads = [...html.matchAll(/href="\/profile\/upload\/([A-Z0-9_]+)"/g)].map((m) => m[1]);
     expect(uploads).toEqual(["FIRST_AID", "PTS", "CSCS", "SIA_DS", "SIA_SG", "STEWARD_L2"]);
@@ -99,7 +106,7 @@ describe("ProfileView", () => {
     expect(page.toLowerCase()).not.toContain("credential");
   });
 
-  it("a valid one with a date says until when; a different year shows the year", () => {
+  it("a valid one with a date says until when, straight after its chip; a different year shows the year", () => {
     const page = text(
       render(
         profile({
@@ -117,11 +124,14 @@ describe("ProfileView", () => {
         }),
       ),
     );
-    expect(page).toContain("SIA door supervisor licence Valid · Valid until 1 Jan 2029");
+    expect(page).toContain("SIA door supervisor licence Valid until 1 Jan 2029");
+    expect(page).not.toContain("Valid · ");
   });
 
   it("right to work: a status only, never 'you can't be booked'", () => {
-    expect(text(render(profile()))).toContain("Right to work Not checked yet: ask the office");
+    expect(text(render(profile()))).toContain(
+      "Right to work Not recorded yet. The office will ask you for your documents if they need them.",
+    );
     expect(
       text(
         render(
@@ -233,7 +243,7 @@ describe("ProfileView", () => {
       ),
     );
     expect(stopped).toContain("Texts are off: you replied STOP to one of our texts.");
-    expect(stopped).toContain("If a notification can't reach you, send it by");
+    expect(stopped).toContain("If we can't reach this phone, send my messages by");
   });
 
   // Phase 26.9 (off-4): a text or an email, the email only while the firm holds their address;
@@ -243,7 +253,7 @@ describe("ProfileView", () => {
     const html = render(profile({ notifyChannel: "email", offerAlerts: false, email }));
     const page = text(html);
     expect(page).toContain(
-      "If a notification can't reach you, send it by Text message Email (sam@example.test)",
+      "If we can't reach this phone, send my messages by Text message Email (sam@example.test)",
     );
     expect(page).not.toContain("WhatsApp");
     expect(page).toContain("Tell me about open shifts");
@@ -372,13 +382,13 @@ describe("ProfileView: Your reliability", () => {
     );
     expect(page).toContain("Your reliability");
     expect(page).toContain("83% over the last 90 days");
-    expect(page).toContain("5 worked · 1 no-show · 0 late cancellations");
+    expect(page).toContain("5 shifts worked · 1 no-show · 0 late cancellations");
     expect(page).toContain(
       "Shifts you worked, out of those plus no-shows and cancellations with under 48 hours' notice. Our office sees the same figure. It doesn't change which shifts you're offered.",
     );
   });
 
-  it("new: how many so far, and when it becomes a figure", () => {
+  it("new: no score yet, when they get one, and the counts so far", () => {
     const page = text(
       render(
         profile({
@@ -391,8 +401,141 @@ describe("ProfileView: Your reliability", () => {
       ),
     );
     expect(page).toContain("Your reliability");
-    expect(page).toContain("New: 2 shifts so far . It shows as a figure once you have 5.");
-    expect(page).toContain("1 worked · 0 no-shows · 1 late cancellation");
+    expect(page).toContain("You're new, so there's no score yet. You'll get one after 5 shifts.");
+    expect(page).not.toContain("New: 2 shifts so far");
+    expect(page).toContain("1 shift worked · 0 no-shows · 1 late cancellation");
     expect(page).toContain("It doesn't change which shifts you're offered.");
+  });
+});
+
+// Phase 27.2 (the launch review's words, approved by Dylan, 2026-11-03).
+describe("qualification words (Phase 27.2)", () => {
+  it("a valid one's date follows its chip as one phrase; any other date line after a dot", () => {
+    expect(chipTail(qual({ status: "valid", expiresOn: "2028-03-27" }), 2026)).toBe(
+      " until 27 Mar 2028",
+    );
+    expect(chipTail(qual({ status: "valid", expiresOn: null }), 2026)).toBe(" · No expiry date");
+    expect(chipTail(qual({ status: "expiring_soon", expiresOn: "2026-11-20" }), 2026)).toBe(
+      " · Expires 20 Nov",
+    );
+    expect(chipTail(qual({ status: "suspended", expiresOn: null }), 2026)).toBe("");
+  });
+
+  it("right to work: her words, and the office's own (O9)", () => {
+    const none = { checked: false, checkedOn: null, expired: false };
+    const lapsed = { checked: false, checkedOn: null, expired: true };
+    expect(rightToWorkText(none, 2026)).toBe(
+      "Not recorded yet. The office will ask you for your documents if they need them.",
+    );
+    expect(rightToWorkText(lapsed, 2026)).toBe("The office's check has run out: ask the office");
+    expect(rightToWorkText(none, 2026, "office")).toBe("not checked yet");
+    expect(rightToWorkText(lapsed, 2026, "office")).toBe("check has run out");
+    // Checked reads the same for both.
+    const checked = { checked: true, checkedOn: "2026-01-12", expired: false };
+    expect(rightToWorkText(checked, 2026, "office")).toBe(rightToWorkText(checked, 2026));
+  });
+
+  it("one the office records itself: renewed, tell the office under Messages (C5)", () => {
+    const csas = {
+      type: "CSAS",
+      name: "CSAS accreditation",
+      neededFor: ["csas_officer"],
+      uploadable: false,
+    };
+    expect(meaning(qual({ ...csas, status: "expired", expiresOn: "2026-10-01" }))).toBe(
+      "Until it's renewed you won't see CSAS officer shifts. Once you've renewed it, tell the office under Messages.",
+    );
+    expect(meaning(qual({ ...csas, status: "expiring_soon", expiresOn: "2026-11-20" }))).toBe(
+      "Renew it before then to keep getting CSAS officer shifts. Once you've renewed it, tell the office under Messages.",
+    );
+    expect(
+      meaning(qual({ ...csas, status: "expiring_soon", expiresOn: "2026-11-20", renewing: true })),
+    ).toBe("You've applied to renew it. When it arrives, tell the office under Messages.");
+    expect(meaning(qual({ ...csas, status: "applied", expiresOn: null }))).toBe(
+      "You won't see CSAS officer shifts until it's issued. When it arrives, tell the office under Messages.",
+    );
+    // One she may upload: as before.
+    expect(meaning(qual({ status: "expired", expiresOn: "2026-10-01" }))).toBe(
+      "Until it's renewed you won't see door supervisor shifts. Upload the new one.",
+    );
+  });
+
+  it("other qualifications on file: the shift that needs it, and what to do (C5)", () => {
+    expect(otherShiftText({ role: "steward", day: "2026-11-07", booked: true })).toBe(
+      "Your steward shift on Sat 7 Nov needs it.",
+    );
+    expect(otherShiftText({ role: "csas_officer", day: "2026-11-07", booked: false })).toBe(
+      "The CSAS officer shift you're offered on Sat 7 Nov needs it.",
+    );
+    const aid = { type: "FIRST_AID", name: "first aid at work certificate", neededFor: [] };
+    expect(otherMeaning(qual({ ...aid, status: "valid" }))).toBeNull();
+    expect(otherMeaning(qual({ ...aid, status: "expiring_soon", expiresOn: "2026-11-20" }))).toBe(
+      "Renew it before then to keep taking shifts that need it. Once you've renewed it, tell the office under Messages.",
+    );
+    expect(otherMeaning(qual({ ...aid, status: "expired", expiresOn: "2026-10-01" }))).toBe(
+      "You can't take shifts that need it until it's renewed. Once you've renewed it, tell the office under Messages.",
+    );
+    expect(otherMeaning(qual({ ...aid, status: "applied", expiresOn: null }))).toBe(
+      "When it arrives, tell the office under Messages.",
+    );
+    expect(otherMeaning(qual({ ...aid, status: "suspended", expiresOn: null }))).toBe(
+      "You can't take shifts that need it. Contact the office.",
+    );
+  });
+
+  it("Profile lists them under Other qualifications on file, with no upload link", () => {
+    const html = render(
+      profile({
+        qualifications: [qual({})],
+        others: [
+          {
+            ...qual({
+              type: "FIRST_AID",
+              name: "first aid at work certificate",
+              status: "expiring_soon",
+              expiresOn: "2026-11-20",
+              neededFor: [],
+              uploadable: false,
+            }),
+            shift: { role: "steward", day: "2026-11-07", booked: true },
+          },
+          {
+            ...qual({
+              type: "CSAS",
+              name: "CSAS accreditation",
+              status: "expired",
+              expiresOn: "2026-10-01",
+              neededFor: [],
+              uploadable: false,
+            }),
+            shift: { role: "steward", day: "2026-11-09", booked: false },
+          },
+        ],
+      }),
+    );
+    const page = text(html);
+    expect(page).toContain(
+      "SIA door supervisor licence Valid until 1 Jan 2029 Upload a new one Other qualifications on file First aid at work certificate Expiring soon · Expires 20 Nov Your steward shift on Sat 7 Nov needs it. Renew it before then to keep taking shifts that need it. Once you've renewed it, tell the office under Messages.",
+    );
+    expect(page).toContain(
+      "CSAS accreditation Expired · Expired 1 Oct The steward shift you're offered on Mon 9 Nov needs it. You can't take shifts that need it until it's renewed. Once you've renewed it, tell the office under Messages. Right to work",
+    );
+    expect(html).toContain('<h3 id="other-qualifications-heading"');
+    expect(html).toContain('aria-labelledby="other-qualifications-heading"');
+    // Her upload page takes only what her roles need: no link for these.
+    expect([...html.matchAll(/href="\/profile\/upload\/([A-Z0-9_]+)"/g)].map((m) => m[1])).toEqual([
+      "SIA_DS",
+    ]);
+    // The expired one is red, like her main list's.
+    expect(html.match(/border-l-4 border-urgent bg-urgent-soft/g)).toHaveLength(1);
+    // None: no heading.
+    expect(text(render(profile({ others: [] })))).not.toContain("Other qualifications on file");
+    expect(text(render(profile()))).not.toContain("Other qualifications on file");
+  });
+
+  it("the days she can't work: how many, how far ahead", () => {
+    expect(text(render(profile()))).toContain(
+      "We won't offer you shifts on these days. You can mark up to 60 days, up to 6 months ahead.",
+    );
   });
 });

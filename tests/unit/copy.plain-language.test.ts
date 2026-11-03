@@ -700,6 +700,14 @@ const SCREENS: [string, ReactElement][] = [
           { day: "2026-11-07", booked: false },
         ],
         qualifications: EVERY_STATUS,
+        // Phase 27.2: one a shift of hers needs on top of its role, of each status (one on file:
+        // never missing).
+        others: EVERY_STATUS.filter((q) => q.status !== "missing").map((q, i) => ({
+          ...q,
+          neededFor: [],
+          uploadable: false,
+          shift: { role: "steward", day: "2026-11-07", booked: i % 2 === 0 },
+        })),
         rightToWork: { checked: true, checkedOn: "2026-01-12", expired: false },
         rolesWithoutRule: ["response_team_lead"],
         photo: {

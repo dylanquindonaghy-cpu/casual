@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { requirementChip } from "@/lib/credentials/requirements";
+import { casualChip, requirementChip } from "@/lib/credentials/requirements";
 import {
   gettingThereLines,
   placesText,
@@ -137,7 +137,7 @@ describe("places, the strike note and the chips", () => {
   it("says how many of how many are left, and the firm's own notice", () => {
     expect(placesText(1, 4)).toBe("1 of 4 left");
     expect(strikeNoteText(48)).toBe(
-      "Cancelling less than 48 hours before the start gives you a strike.",
+      "Cancelling less than 48 hours before the start gives you a strike. A strike is a record, not a fine. It never comes off your pay.",
     );
   });
 
@@ -145,5 +145,30 @@ describe("places, the strike note and the chips", () => {
     expect(requirementChip({ code: "SIA_DS", name: "SIA door supervisor licence" })).toBe("SIA DS");
     expect(requirementChip({ code: "CSAS", name: "CSAS accreditation" })).toBe("CSAS");
     expect(requirementChip({ code: "DBS", name: "DBS check" })).toBe("DBS check");
+  });
+
+  // Phase 27.2: a casual may not know the office's short codes, so her chips say the full name.
+  it("labels a requirement for the casual by its full name, never a short code", () => {
+    const ds = { code: "SIA_DS", name: "SIA door supervisor licence" };
+    const sg = { code: "SIA_SG", name: "SIA security guard licence" };
+    expect(casualChip(ds)).toBe("SIA door supervisor licence");
+    expect(casualChip({ code: "CSAS", name: "CSAS accreditation" })).toBe("CSAS accreditation");
+    expect(casualChip({ code: "FIRST_AID", name: "first aid at work certificate" })).toBe(
+      "First aid at work certificate",
+    );
+    // A one-of group: "A or B", capitalised once.
+    expect(casualChip({ ...sg, group: [sg, ds] })).toBe(
+      "SIA security guard licence or SIA door supervisor licence",
+    );
+    expect(
+      casualChip({
+        code: "FIRST_AID",
+        name: "first aid at work certificate",
+        group: [
+          { code: "FIRST_AID", name: "first aid at work certificate" },
+          { code: "EFAW", name: "emergency first aid certificate" },
+        ],
+      }),
+    ).toBe("First aid at work certificate or emergency first aid certificate");
   });
 });

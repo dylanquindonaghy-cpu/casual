@@ -600,23 +600,23 @@ describe("the code says what the doc says", () => {
   });
 
   it("credential_expiring and credential_expired, with the upload page's link (12F.2)", () => {
-    expect(credentialExpiringMessage(docVoice, "{credential}", "{date}", "{link}")).toBe(
-      docBody("credential_expiring"),
-    );
-    expect(credentialExpiredMessage(docVoice, "{credential}", "{date}", "{link}")).toBe(
-      docBody("credential_expired"),
-    );
-    // One she can't upload: the row's second quote, with no link.
+    expect(
+      credentialExpiringMessage(docVoice, "{credential}", "{date}", "{link}", "{messages}"),
+    ).toBe(docBody("credential_expiring"));
+    expect(
+      credentialExpiredMessage(docVoice, "{credential}", "{date}", "{link}", "{messages}"),
+    ).toBe(docBody("credential_expired"));
+    // One she can't upload: the row's second quote, with the link to her Messages (Phase 27.2).
     const second = (name: string) =>
       [
         ...(doc.split("\n").find((l) => l.startsWith(`| \`${name}\``)) ?? "").matchAll(
           /"([^"]+)"/g,
         ),
       ][1]?.[1];
-    expect(credentialExpiringMessage(docVoice, "{credential}", "{date}", null)).toBe(
+    expect(credentialExpiringMessage(docVoice, "{credential}", "{date}", null, "{messages}")).toBe(
       second("credential_expiring"),
     );
-    expect(credentialExpiredMessage(docVoice, "{credential}", "{date}", null)).toBe(
+    expect(credentialExpiredMessage(docVoice, "{credential}", "{date}", null, "{messages}")).toBe(
       second("credential_expired"),
     );
     // The screen copy is My shifts' "Needs updating" card (12F.1), not a message: the doc says so
@@ -855,7 +855,7 @@ describe("the SMS versions", () => {
     };
     expect(shiftUrgentSms(docVoice, shift)).toBe(text);
     expect(shiftUrgentSms(docVoice, { ...shift, site: null })).toBe(
-      (text ?? "").replace(" {site}", ""),
+      (text ?? "").replace(" at {site}", ""),
     );
   });
 
@@ -962,8 +962,16 @@ describe("every message to a worker ends with the firm's sign-off (golden rule 8
     ["shift_urgent (SMS)", shiftUrgentSms(voice, { ...shift, link: "L" })],
     ["shift_reminder_24h", shiftReminder24hMessage(voice, { ...shift, link: "L" })],
     ["shift_reminder_2h", shiftReminder2hMessage(voice, { ...shift, link: "L" })],
-    ["credential_expiring", credentialExpiringMessage(voice, "PTS card", "3 Oct", "L")],
-    ["credential_expired", credentialExpiredMessage(voice, "PTS card", "3 Oct", "L")],
+    ["credential_expiring", credentialExpiringMessage(voice, "PTS card", "3 Oct", "L", "M")],
+    ["credential_expired", credentialExpiredMessage(voice, "PTS card", "3 Oct", "L", "M")],
+    [
+      "credential_expiring (to the office)",
+      credentialExpiringMessage(voice, "PTS card", "3 Oct", null, "M"),
+    ],
+    [
+      "credential_expired (to the office)",
+      credentialExpiredMessage(voice, "PTS card", "3 Oct", null, "M"),
+    ],
     ["office_login_link", officeLoginLinkEmail(voice, "L").body],
     ["login link by email (P2.6)", templates.workerLoginLinkEmail(voice, "L").body],
     ["pay code by email (P2.6)", templates.loginCodeEmail(voice, "123456").body],
@@ -1367,6 +1375,7 @@ describe("the WhatsApp submission pack", () => {
         ex("credential_expiring", "credential"),
         ex("credential_expiring", "date"),
         ex("credential_expiring", "link"),
+        "unused: she can upload it",
       ),
     credential_expired: () =>
       credentialExpiredMessage(
@@ -1374,6 +1383,7 @@ describe("the WhatsApp submission pack", () => {
         ex("credential_expired", "credential"),
         ex("credential_expired", "date"),
         ex("credential_expired", "link"),
+        "unused: she can upload it",
       ),
     credential_expiring_to_office: () =>
       credentialExpiringMessage(
@@ -1381,6 +1391,7 @@ describe("the WhatsApp submission pack", () => {
         ex("credential_expiring_to_office", "credential"),
         ex("credential_expiring_to_office", "date"),
         null,
+        ex("credential_expiring_to_office", "messages"),
       ),
     credential_expired_to_office: () =>
       credentialExpiredMessage(
@@ -1388,6 +1399,7 @@ describe("the WhatsApp submission pack", () => {
         ex("credential_expired_to_office", "credential"),
         ex("credential_expired_to_office", "date"),
         null,
+        ex("credential_expired_to_office", "messages"),
       ),
     request_update: () =>
       requestUpdateMessage(voice("request_update"), {

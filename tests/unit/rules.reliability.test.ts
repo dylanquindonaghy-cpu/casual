@@ -30,8 +30,13 @@ describe("reliability", () => {
     expect(reliabilityWords(r)).toBe("New: 3 shifts so far");
     expect(reliabilityWords(reliabilityOf(counts(1)))).toBe("New: 1 shift so far");
     expect(reliabilityWords(reliabilityOf(counts(19, 1)))).toBe("95%");
-    expect(countsWords(counts(19, 1, 0))).toBe("19 worked · 1 no-show · 0 late cancellations");
-    expect(countsWords(counts(1, 2, 1))).toBe("1 worked · 2 no-shows · 1 late cancellation");
+    expect(countsWords(counts(19, 1, 0))).toBe(
+      "19 shifts worked · 1 no-show · 0 late cancellations",
+    );
+    expect(countsWords(counts(1, 2, 1))).toBe("1 shift worked · 2 no-shows · 1 late cancellation");
+    expect(countsWords(counts(0, 0, 0))).toBe(
+      "0 shifts worked · 0 no-shows · 0 late cancellations",
+    );
   });
 });
 

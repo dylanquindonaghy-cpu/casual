@@ -1,12 +1,12 @@
-import { possessive } from "../portal/copy";
 import type { StrikeDecision } from "./decide";
 
-// What the casual is told about strikes (docs/office-v2.md 5.7 item 4), exact words. Pure and
-// browser-safe: the warning is chosen by strikeDecision() and worded here.
+// What the casual is told about strikes (docs/office-v2.md 5.7 item 4; the strike's words since
+// Phase 27.2: docs/screens.md), exact words. Pure and browser-safe: the warning is chosen by
+// strikeDecision() and worded here.
 
 // The warning's wording version, stored on the booking with when they confirmed it (S3). Raise it
 // whenever the warning's words change.
-export const STRIKE_WARNING_VERSION = "v1";
+export const STRIKE_WARNING_VERSION = "v2";
 
 export type WarningKind = "strike" | "exempt" | "notice";
 
@@ -28,6 +28,9 @@ export function startsInText(hours: number): string {
 
 const strikesText = (n: number) => (n === 1 ? "1 strike" : `${n} strikes`);
 
+// What a strike is, wherever one is explained (the cancel sheet, a shift's page, Profile, Help).
+export const STRIKE_IS_A_RECORD = "A strike is a record, not a fine. It never comes off your pay.";
+
 export interface WarningFacts {
   hoursToStart: number;
   thresholdHours: number;
@@ -40,10 +43,9 @@ export function strikeWarningText(kind: WarningKind, f: WarningFacts): string {
   switch (kind) {
     case "strike":
       return (
-        `This shift starts in ${startsInText(f.hoursToStart)}. Cancelling with less than ` +
-        `${f.thresholdHours} hours' notice gives you a strike. ${possessive(f.firmName)} strikes ` +
-        `team gets a record of it. You have ${strikesText(f.liveStrikes)} in the last ` +
-        `${f.liveDays} days.`
+        `This shift starts in ${startsInText(f.hoursToStart)}. Cancelling now gives you a strike ` +
+        `(less than ${f.thresholdHours} hours' notice). ${STRIKE_IS_A_RECORD} You have ` +
+        `${strikesText(f.liveStrikes)} in the last ${f.liveDays} days.`
       );
     case "exempt":
       return "The office booked or changed this shift, so cancelling doesn't give you a strike.";

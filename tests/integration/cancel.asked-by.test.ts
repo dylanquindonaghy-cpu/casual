@@ -6,6 +6,7 @@ import { loadNoticeReport, parseNoticeQuery } from "@/lib/office/notice-report";
 import { bookShift } from "@/lib/roster/book";
 import { cancelBooking, cancelShiftByFirm } from "@/lib/roster/cancel";
 import { nativeRosterPlug } from "@/lib/roster/native";
+import { STRIKE_WARNING_VERSION } from "@/lib/strikes/words";
 import { bookingFirm, hoursFromNow, NOW } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
 
@@ -71,7 +72,11 @@ describe("each way a booking is cancelled says who asked", () => {
           shiftId: own.shiftId,
           workerId: own.workerId,
           reason: "Travel problem",
-          by: { type: "worker", id: own.workerId, warning: { kind: "strike", version: "v1" } },
+          by: {
+            type: "worker",
+            id: own.workerId,
+            warning: { kind: "strike", version: STRIKE_WARNING_VERSION },
+          },
         },
         at(NOW),
       ),
@@ -211,7 +216,11 @@ describe("the office's own answer (Phase 25.2: its cancel forms ask who asked)",
           workerId: own.workerId,
           reason: "Travel problem",
           askedBy: "client",
-          by: { type: "worker", id: own.workerId, warning: { kind: "strike", version: "v1" } },
+          by: {
+            type: "worker",
+            id: own.workerId,
+            warning: { kind: "strike", version: STRIKE_WARNING_VERSION },
+          },
         },
         at(NOW),
       ),
@@ -329,7 +338,11 @@ describe("the notice report", () => {
         shiftId: own.shiftId,
         workerId: own.workerId,
         reason: "Travel problem",
-        by: { type: "worker", id: own.workerId, warning: { kind: "strike", version: "v1" } },
+        by: {
+          type: "worker",
+          id: own.workerId,
+          warning: { kind: "strike", version: STRIKE_WARNING_VERSION },
+        },
       },
       at(NOW),
     );
@@ -403,7 +416,11 @@ describe("the firm's strikes switch", () => {
           shiftId: own.shiftId,
           workerId: own.workerId,
           reason: "Travel problem",
-          by: { type: "worker", id: own.workerId, warning: { kind: "strike", version: "v1" } },
+          by: {
+            type: "worker",
+            id: own.workerId,
+            warning: { kind: "strike", version: STRIKE_WARNING_VERSION },
+          },
         },
         at(NOW),
       ),
@@ -416,7 +433,11 @@ describe("the firm's strikes switch", () => {
           shiftId: own.shiftId,
           workerId: own.workerId,
           reason: "Travel problem",
-          by: { type: "worker", id: own.workerId, warning: { kind: "notice", version: "v1" } },
+          by: {
+            type: "worker",
+            id: own.workerId,
+            warning: { kind: "notice", version: STRIKE_WARNING_VERSION },
+          },
         },
         at(NOW),
       ),
@@ -441,7 +462,11 @@ describe("the firm's strikes switch", () => {
           shiftId: b.shiftId,
           workerId: b.workerId,
           reason: "Travel problem",
-          by: { type: "worker", id: b.workerId, warning: { kind: "strike", version: "v1" } },
+          by: {
+            type: "worker",
+            id: b.workerId,
+            warning: { kind: "strike", version: STRIKE_WARNING_VERSION },
+          },
         },
         at(NOW),
       ),

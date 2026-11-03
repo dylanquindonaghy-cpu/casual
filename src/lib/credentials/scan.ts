@@ -412,7 +412,7 @@ async function claimCredential(
     return {
       kind: "warn",
       message: to(
-        credentialExpiringMessage(voice, name, date, upload),
+        credentialExpiringMessage(voice, name, date, upload, `${portal}/messages`),
         credentialExpiringEmailSubject(name, date),
       ),
       data: { type: c.type, expiresOn, days: action.days, daysLeft: action.daysLeft },
@@ -446,7 +446,7 @@ async function claimCredential(
     return {
       kind: "expire",
       message: to(
-        credentialExpiredMessage(voice, name, date, upload),
+        credentialExpiredMessage(voice, name, date, upload, `${portal}/messages`),
         credentialExpiredEmailSubject(name),
       ),
       data: { type: c.type, expiresOn },

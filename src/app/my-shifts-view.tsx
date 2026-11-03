@@ -93,7 +93,7 @@ export function ShiftDetails({ shift }: { shift: MyShift }) {
               rel="noopener noreferrer"
               className={`${staffBtn.secondary} mt-3`}
             >
-              Open in maps
+              Directions
             </a>
           )}
         </div>

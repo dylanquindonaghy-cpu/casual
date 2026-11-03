@@ -13,7 +13,7 @@ import { CasualTabBar } from "../../casual-tab-bar";
 
 export const metadata: Metadata = { title: TRAVEL_TITLE };
 
-// "Where you work" (docs/office-v2.md 4.6; docs/screens.md `/profile/travel`; 12G.1): the casual's
+// "Your travel area" (docs/office-v2.md 4.6; docs/screens.md `/profile/travel`; 12G.1): the casual's
 // start-from postcode, how they travel and how long for, with who sees what. Their own only. Not
 // found where the firm has travel areas switched off (13.4).
 export default async function TravelPage() {

@@ -469,7 +469,12 @@ describe("the workers' help page", () => {
       "If you cancel less than 48 hours before a shift starts, you get a strike.",
     );
     expect(text).toContain("It counts for 90 days.");
-    expect(text).toContain("Your staff photo needs renewing every 36 months.");
+    // Phase 27.2: what a strike is, the firm's name as a possessive, and no "strikes team".
+    expect(text).toContain("A strike is a record, not a fine. It never comes off your pay.");
+    expect(text).toContain("Acme Events' office keeps a record of it. It counts for 90 days.");
+    expect(text).not.toContain("strikes team");
+    expect(text).not.toContain("Events's");
+    expect(text).toContain("Your staff photo needs renewing every 3 years.");
     const firm24 = words(
       renderToStaticMarkup(
         createElement(HelpView, {
@@ -490,12 +495,45 @@ describe("the workers' help page", () => {
       "If you cancel less than 24 hours before a shift starts, you get a strike.",
     );
     expect(firm24).toContain("It counts for 30 days.");
-    expect(firm24).toContain("Your staff photo needs renewing every 24 months.");
+    expect(firm24).toContain("Your staff photo needs renewing every 2 years.");
     expect(text).toContain("The office only sees the first part of your postcode, like ZZ1.");
     // The postcode data's licence line, last.
     expect(html).toMatch(
       /<p data-attribution=""[^>]*>Postcode locations: Contains OS data © Crown copyright/,
     );
+  });
+
+  // Phase 27.2 (the launch review's words): every button named as it reads on screen.
+  it("names the tabs, Directions, Details and the other qualifications as they read now", () => {
+    // Its words as read, the buttons' names inline.
+    const text = help()
+      .replace(/<\/(p|li)>/g, " ")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&#x27;|&#39;/g, "'")
+      .replace(/\s+/g, " ");
+    expect(text).toContain(
+      "The tabs at the bottom take you to Home, Shifts, Messages, Pay and Profile.",
+    );
+    expect(text).toContain(
+      "Tap Details to see the rest: getting there, your pay and any instructions.",
+    );
+    expect(text).toContain("Tap Directions to find your way to the site.");
+    expect(text).not.toContain("Open in maps");
+    expect(text).toContain("You'll see when you can take it. At that time, tap Check again.");
+    expect(text).toContain(
+      "Find the shift on Home or under Shifts. Tap Details, then Ask for a change.",
+    );
+    expect(text).toContain(
+      "One only a shift of yours needs is under Other qualifications on file.",
+    );
+    expect(text).toContain(
+      "Got a new one? Tap Upload a new one under it and take a clear photo of it.",
+    );
+    expect(text).toContain(
+      "Some, like CSAS, the office records itself. Once you've renewed one of those, tell the office under Messages.",
+    );
+    expect(text).toContain("Tap the Profile tab, then Set your travel area.");
+    expect(text).not.toContain("Where you work");
   });
 
   it("ends with the usual way back to My shifts", () => {

@@ -68,7 +68,7 @@ export function NotificationForm({
     <div className="mt-4">
       {textSender ? (
         <fieldset>
-          <legend className={label}>If a notification can&apos;t reach you, send it by</legend>
+          <legend className={label}>If we can&apos;t reach this phone, send my messages by</legend>
           <div className="mt-2 space-y-2">
             {CHANNELS.filter((c) => c !== "email" || email).map((c) => (
               <label key={c} className={choice}>

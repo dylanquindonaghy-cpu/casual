@@ -178,13 +178,12 @@ async function claim(
   const voice = { name: w.firmName, signOff: signOffFor(w.firmName, w.settings.sign_off) };
   const year = Number(localDateOf(now, w.timezone).slice(0, 4));
   const date = shortDate(q.expiresOn, year);
-  const upload = q.uploadable
-    ? `${portalUrl(w.slug, deps.baseDomain)}/profile/upload/${q.type}`
-    : null;
+  const portal = portalUrl(w.slug, deps.baseDomain);
+  const upload = q.uploadable ? `${portal}/profile/upload/${q.type}` : null;
   const expired = q.status === "expired";
   const body = expired
-    ? credentialExpiredMessage(voice, q.name, date, upload)
-    : credentialExpiringMessage(voice, q.name, date, upload);
+    ? credentialExpiredMessage(voice, q.name, date, upload, `${portal}/messages`)
+    : credentialExpiringMessage(voice, q.name, date, upload, `${portal}/messages`);
   const subject = expired
     ? credentialExpiredEmailSubject(q.name)
     : credentialExpiringEmailSubject(q.name, date);

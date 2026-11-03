@@ -320,13 +320,13 @@ test("Part 2: as a worker", async ({ browser }) => {
     await expect(page.getByRole("region", { name: "Staff photo", exact: true })).toContainText(
       "Due soon",
     );
-    const where = page.getByRole("region", { name: "Where you work" });
+    const where = page.getByRole("region", { name: "Your travel area" });
     await where.getByRole("link", { name: "Change your travel area" }).click();
     await expect(page).toHaveURL(`${acme}/profile/travel`);
     await page.getByLabel("60 minutes").check();
     await page.getByRole("button", { name: "Save travel area" }).click();
     await expect(
-      page.getByRole("region", { name: "Where you work" }).getByRole("status"),
+      page.getByRole("region", { name: "Your travel area" }).getByRole("status"),
     ).toContainText("Saved. This is your travel area now.");
     await page.getByRole("link", { name: "Back to my profile" }).click();
     await expect(page).toHaveURL(`${acme}/profile`);

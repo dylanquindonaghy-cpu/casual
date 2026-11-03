@@ -206,22 +206,22 @@ describe("Pay: each week, and its total only when payroll gave every gross", () 
     return at < 0 ? "" : html.slice(at, html.indexOf("</section>", at));
   };
 
-  it("the newest week: its dates, Gross pay and the total large, a glass row per rate, the pay date on a warm chip", () => {
+  it("the newest week: its dates, Pay before tax and the total large, a glass row per rate, the pay day on a warm chip", () => {
     const html = render(zoe);
     const top = section(html, "latest-pay");
     expect(top).toMatch(
       /^aria-labelledby="latest-pay" data-pay-week="2026-10-19" class="mt-5 glass /,
     );
     expect(text(top.slice(top.indexOf(">") + 1))).toBe(
-      "Mon 19 Oct to Sun 25 Oct Gross pay Gross pay: £324.00 16 hours at £12.50 an hour 8 hours at £15.50 an hour Pay date: Fri 30 Oct",
+      "Mon 19 Oct to Sun 25 Oct Pay before tax Pay before tax: £324.00 16 hours at £12.50 an hour 8 hours at £15.50 an hour Pay day: Fri 30 Oct",
     );
     expect(top).toMatch(
-      /<span data-pay-total="" class="font-stat text-4xl text-ink"><span class="sr-only">Gross pay: <\/span>£324\.00<\/span>/,
+      /<span data-pay-total="" class="font-stat text-4xl text-ink"><span class="sr-only">Pay before tax: <\/span>£324\.00<\/span>/,
     );
     expect(top.match(/data-pay-line="" class="glass-tile /g)).toHaveLength(2);
     // With a total, no line repeats a gross.
-    expect(top.match(/Gross pay: /g)).toHaveLength(1);
-    expect(top).toMatch(/<p class="glass-band glass-rim w-fit [^"]*">Pay date: Fri 30 Oct<\/p>/);
+    expect(top.match(/Pay before tax: /g)).toHaveLength(1);
+    expect(top).toMatch(/<p class="glass-band glass-rim w-fit [^"]*">Pay day: Fri 30 Oct<\/p>/);
     expect(text(html)).toContain("The last 8 weeks, from Acme Events' payroll.");
   });
 
@@ -232,13 +232,13 @@ describe("Pay: each week, and its total only when payroll gave every gross", () 
     );
     expect(top).not.toContain("data-pay-total");
     expect(text(top)).toContain(
-      "16 hours at £12.50 an hour Gross pay: £200.00 4 hours at £15.50 an hour Pay date: Fri 30 Oct",
+      "16 hours at £12.50 an hour Pay before tax: £200.00 4 hours at £15.50 an hour Pay day: Fri 30 Oct",
     );
     expect(top).not.toContain("£62.00");
-    expect(top.match(/Gross pay: /g)).toHaveLength(1);
+    expect(top.match(/Pay before tax: /g)).toHaveLength(1);
   });
 
-  it("earlier weeks, one row a week: the total and pay date at the right, or each line's gross", () => {
+  it("earlier weeks, one row a week: the total and pay day at the right, or each line's gross", () => {
     const html = render([
       ...zoe,
       line({
@@ -264,18 +264,18 @@ describe("Pay: each week, and its total only when payroll gave every gross", () 
     expect(rows).toEqual([
       [
         "2026-10-12",
-        "Mon 12 Oct to Sun 18 Oct Gross pay: £200.00 16 hours at £12.50 an hour Pay date: Fri 23 Oct",
+        "Mon 12 Oct to Sun 18 Oct Pay before tax: £200.00 16 hours at £12.50 an hour Pay day: Fri 23 Oct",
       ],
       [
         "2026-10-05",
-        "Mon 5 Oct to Sun 11 Oct 24 hours at £12.50 an hour Gross pay: £300.00 2 hours at £15.50 an hour Pay date: Fri 16 Oct",
+        "Mon 5 Oct to Sun 11 Oct 24 hours at £12.50 an hour Pay before tax: £300.00 2 hours at £15.50 an hour Pay day: Fri 16 Oct",
       ],
     ]);
     expect(earlier).toMatch(
       /<h2 id="earlier-pay" class="text-2xl font-medium [^"]*">Earlier weeks<\/h2>/,
     );
     expect(earlier).toMatch(
-      /<span data-pay-total="" class="shrink-0 text-lg font-semibold text-ink"><span class="sr-only">Gross pay: <\/span>£200\.00<\/span>/,
+      /<span data-pay-total="" class="shrink-0 text-lg font-semibold text-ink"><span class="sr-only">Pay before tax: <\/span>£200\.00<\/span>/,
     );
     // The week with a missing gross has no total of its own.
     const without = earlier.slice(earlier.indexOf('data-pay-week="2026-10-05"'));
@@ -283,7 +283,7 @@ describe("Pay: each week, and its total only when payroll gave every gross", () 
   });
 
   it("nothing from payroll yet: says so", () => {
-    expect(text(render([]))).toBe("No pay data yet for this period.");
+    expect(text(render([]))).toBe("No pay to show yet. It appears here once payroll sends it.");
   });
 });
 

@@ -18,7 +18,7 @@ export const ISSUE_LABELS: Record<PayIssue, string> = {
 export const PAY_QUERY_STATUS_WORDS: Record<string, string> = {
   open: "With payroll",
   in_digest: "With payroll",
-  resolved: "Sorted",
+  resolved: "Answered by payroll",
 };
 
 export const MAX_PAY_QUERY_DETAILS = 1000;

@@ -4,7 +4,7 @@ import { expect, test } from "./fixtures";
 import { loginLinkSentTo, sentTo } from "./outbox";
 
 // The casual's travel area in a real browser, on a phone (12G.1; docs/office-v2.md 4.6): from
-// Profile, a casual of this spec's own sets "Where you work" (an unknown postcode first: nothing
+// Profile, a casual of this spec's own sets "Your travel area" (an unknown postcode first: nothing
 // saved), sees it kept after a reload, and removes it. The office's page for them shows the
 // district only. The casual and the resourcer are made up and this spec's own; their travel area
 // is cleared first, so a retry starts the same way. The postcodes are made up (the fake geocoder:
@@ -36,11 +36,11 @@ test("a casual sets their travel area, the office sees only the district, and th
   await expect(page).toHaveURL(`${acme}/`);
 
   await page.goto(`${acme}/profile`);
-  const where = page.getByRole("region", { name: "Where you work" });
+  const where = page.getByRole("region", { name: "Your travel area" });
   await expect(where).toContainText("Not set yet.");
   await where.getByRole("link", { name: "Set your travel area" }).click();
   await expect(page).toHaveURL(`${acme}/profile/travel`);
-  await expect(page.getByRole("heading", { name: "Where you work", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your travel area", level: 1 })).toBeVisible();
   await expect(
     page.getByText("The office only sees your postcode district (the first part, like ZZ1)"),
   ).toBeVisible();

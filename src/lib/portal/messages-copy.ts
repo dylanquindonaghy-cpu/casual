@@ -3,8 +3,9 @@ import { tryAgainText } from "./copy";
 // The words of a casual's Messages (P8; Phase 25.6; docs/screens.md "Messages: the in-app chat").
 // Browser-safe: no server imports.
 
+// Pay days get an answer straight away; anything about pay itself goes to a person (golden rule 9).
 export const MESSAGES_INTRO =
-  "Write to the office here. Questions about your shifts, cancelling or pay are answered at once.";
+  "Ask about your shifts, cancelling or pay days and get an answer straight away. Anything else goes to the office, and their reply comes here.";
 export const MESSAGES_EMPTY =
   "No messages yet. Ask about your shifts, cancelling or pay, or write to the office.";
 export const COMPOSER_LABEL = "Write to the office";

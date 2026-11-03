@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { isOnNow, mapLink, roleLabel, siteAddress } from "@/lib/portal/format";
+import { isOnNow, mapLink, NO_RATE_UNDER_LABEL, roleLabel, siteAddress } from "@/lib/portal/format";
 import type { MyShift } from "@/lib/portal/my-shifts";
 import { dateParts, inDays, shiftLine, timeRange } from "@/lib/portal/sign-copy";
 import { CancelShift } from "./shifts/cancel-shift";
@@ -14,9 +14,10 @@ import { Plate } from "./ui/plate";
 // band the place, its town and postcode and the gate on a glass plate, then Directions (the maps
 // link, tinted glass) and Details (clear glass) side by side, and "Can't make it?" in red words
 // under them. Details opens a card under the pass (the pass keeps its size and place) with the rest
-// in label and value rows: getting there, where to report, what to bring and wear, the pay, the
-// instructions, then "Open in maps" and "Ask for a change". Details is a <details> whose summary is
-// the button: it opens without JavaScript and in the offline copy, and the card under the pass
+// in label and value rows: getting there, where to report, what to bring and wear, the pay ("Ask the
+// office" when the session has no rate), the instructions, then "Directions" and "Ask for a
+// change". Details is a <details> whose summary is the button: it opens without JavaScript and in
+// the offline copy, and the card under the pass
 // shows while it's open (a `:has()` rule on the pass). "Can't make it?" and "Ask for a change" only
 // before it starts. Server-rendered; only "Can't make it?" is a client component.
 
@@ -126,7 +127,7 @@ export function NextPass({
         className={`${factCard} hidden animate-open [[data-pass]:has([data-pass-more][open])_&]:flex`}
       >
         {shift.travel && (
-          <Fact label="Getting there, from your home area">
+          <Fact label="Getting there, from your travel area">
             <TravelFigures travel={shift.travel} timeZone={timeZone} />
           </Fact>
         )}
@@ -145,8 +146,12 @@ export function NextPass({
             <BringAndWear text={shift.uniform} />
           </Fact>
         )}
-        {shift.payRatePence != null && (
+        {shift.payRatePence != null ? (
           <PayLine ratePence={shift.payRatePence} startsAt={shift.startsAt} endsAt={shift.endsAt} />
+        ) : (
+          <Fact label="Pay">
+            <p className="text-lg">{NO_RATE_UNDER_LABEL}</p>
+          </Fact>
         )}
         {shift.instructions && (
           <Fact label="Instructions">
@@ -158,7 +163,7 @@ export function NextPass({
             {map && (
               <a href={map} target="_blank" rel="noopener noreferrer" className={staffBtn.primary}>
                 <Icon name="pin" size={22} />
-                Open in maps
+                Directions
               </a>
             )}
             {canAct && (

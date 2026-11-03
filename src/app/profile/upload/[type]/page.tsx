@@ -7,7 +7,7 @@ import { StatusChip } from "@/app/ui/status-chip";
 import { requireWorker } from "@/lib/auth/current-worker";
 import { myProfile } from "@/lib/portal/profile";
 import {
-  dateLine,
+  chipTail,
   qualificationTitle,
   statusLabel,
   STATUS_TONES,
@@ -21,7 +21,7 @@ import { CasualTabBar } from "../../../casual-tab-bar";
 export const metadata: Metadata = { title: "Upload a certificate" };
 
 // Upload one qualification's card or certificate (docs/office-v2.md 4.6, 5.5, 5.7 item 5;
-// docs/screens.md `/profile/upload/[type]`; 12F.2): where Profile's "Upload a certificate" and the
+// docs/screens.md `/profile/upload/[type]`; 12F.2): where Profile's "Upload a new one" and the
 // expiry reminders lead. Only a type one of her roles needs (any other goes to her Profile); one the
 // office records itself (CSAS, right to work, health or criminal record details) says to send it to
 // them instead.
@@ -42,7 +42,7 @@ export default async function UploadPage({ params }: { params: Promise<{ type: s
       <section className={staffCard} aria-label={name}>
         <p className={`text-base ${nums}`}>
           <StatusChip tone={STATUS_TONES[q.status]}>{statusLabel(q)}</StatusChip>
-          {dateLine(q, year) && ` · ${dateLine(q, year)}`}
+          {chipTail(q, year)}
         </p>
         {q.uploadable ? (
           <UploadForm

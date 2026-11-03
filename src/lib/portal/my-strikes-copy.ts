@@ -1,6 +1,7 @@
 import { noticeText } from "./cancel-reasons";
 import { roleLabel, timeOnDay } from "./format";
 import { dayLabel } from "../rules/reasons";
+import { STRIKE_IS_A_RECORD } from "../strikes/words";
 import { localDateOf, wallTimeOf } from "../time/zoned";
 import type { MyStrike } from "./my-strikes";
 
@@ -20,7 +21,7 @@ export const myStrikesOffText = (liveDays: number) =>
   `Strikes are off now: cancelling doesn't give you one. Ones given before count until their ${liveDays} days are up.`;
 
 export const myStrikeRuleText = (noticeHours: number) =>
-  `A strike is given when you cancel less than ${noticeHours} hours before a shift starts.`;
+  `A strike is given when you cancel less than ${noticeHours} hours before a shift starts. ${STRIKE_IS_A_RECORD}`;
 
 // "Steward at Riverside Arena" / "Sat 7 Nov, 14:00 to 22:00" / "Cancelled 18:00 on Fri 6 Nov, with
 // 20 hours' notice."

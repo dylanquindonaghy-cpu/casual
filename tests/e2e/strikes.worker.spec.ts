@@ -78,7 +78,7 @@ test("a cancellation under 48 hours shows the warning and records a strike; one 
     await expect(notice).toHaveCSS("border-top-color", "rgb(176, 32, 31)"); // urgent (#b0201f)
     await expect(notice.locator("svg")).toHaveCount(1);
     await expect(sheet.getByRole("note")).toHaveText(
-      /^This shift starts in (19|20) hours\. Cancelling with less than 48 hours' notice gives you a strike\. Acme Events' strikes team gets a record of it\. You have \d+ strikes? in the last 90 days\.$/,
+      /^This shift starts in (19|20) hours\. Cancelling now gives you a strike \(less than 48 hours' notice\)\. A strike is a record, not a fine\. It never comes off your pay\. You have \d+ strikes? in the last 90 days\.$/,
     );
     await expect(
       sheet.getByText(

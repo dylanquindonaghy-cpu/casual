@@ -39,6 +39,13 @@ export function sendUploadText(o: SendUploadOutcome): string {
 // One line of the SIA's photo guidance, under "Upload a new photo".
 export const PHOTO_GUIDANCE =
   "Face the camera against a plain, light background, with nothing covering your face.";
+// How often the staff photo is renewed, after "every": "3 years", "year", "18 months" (the firm's
+// photo.renewal_months; whole years in years).
+export function renewalText(months: number): string {
+  if (months % 12 === 0) return months === 12 ? "year" : `${months / 12} years`;
+  return months === 1 ? "month" : `${months} months`;
+}
+
 // Under a certificate's upload.
 export const CARD_GUIDANCE =
   "Take a clear photo of the front, with all four corners showing and nothing covering it.";

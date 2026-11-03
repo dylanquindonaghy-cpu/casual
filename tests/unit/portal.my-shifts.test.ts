@@ -215,7 +215,8 @@ describe("Booked: the bookings themselves", () => {
     expect(html).toContain(
       'href="https://www.google.com/maps/search/?api=1&amp;query=Demo%20Arena',
     );
-    expect(words).toContain("Open in maps");
+    expect(words).toContain("Directions");
+    expect(words).not.toContain("Open in maps");
     expect(words).toContain("Instructions");
     expect(words).toContain("Report to Gate C at 13:30.");
     expect(words).toContain("Later");
@@ -526,13 +527,13 @@ describe("Home: what she can take, and her next shift in full", () => {
       (m) => [m[1], spoken(m[2] ?? "")],
     );
     expect(rowsOf).toEqual([
-      ["urgent", "2 urgent near you Sat 7 and Sun 8 Nov · up to £15.50/hour"],
+      ["urgent", "2 urgent shifts near you Sat 7 and Sun 8 Nov · up to £15.50/hour"],
       [
         "offline",
         "Open shifts need signal 2 were urgent at 09:00 on Mon 2 Nov. We'll check again when you're online.",
       ],
       ["apply", "3 more you can take Sat 7 and Tue 10 Nov · up to £12.60/hour"],
-      ["pay", "Pay day: Fri 13 Nov For this week's shifts"],
+      ["pay", "Pay day: Fri 13 Nov For shifts Mon 2 to Sun 8 Nov"],
     ]);
     expect(section).toMatch(
       /<li data-online-only="" data-for-you="urgent"><a class="[^"]*" href="\/urgent"/,
@@ -567,18 +568,18 @@ describe("Home: what she can take, and her next shift in full", () => {
     // No shift's own travel line on Home: that's on each shift.
     expect(html).not.toContain("data-travel-line");
   });
-  it("with no home area: a row to add one, its pin on a glass tile", () => {
+  it("with no travel area: a row to add one, its pin on a glass tile", () => {
     const html = home({ open: { ...noOpen, area: null, shifts: [open({ shiftId: "a1" })] } });
     const at = html.indexOf('data-for-you="area"');
     expect(spoken(html.slice(html.lastIndexOf("<li", at), html.indexOf("</li>", at)))).toBe(
-      "Add your home area Add your home area to see how far each shift is and only see shifts you can get to.",
+      "Add your travel area Add your travel area to see how far each shift is and only see shifts you can get to.",
     );
     expect(html.slice(at, html.indexOf("</li>", at))).toMatch(
       /^data-for-you="area"><a class="[^"]*min-h-20 px-4" href="\/profile\/travel"><span aria-hidden="true" class="[^"]*glass-tile text-ink"><svg[^>]*><path d="M12 21s7-6\.2/,
     );
     expect(html.slice(at)).toContain('href="/profile/travel"');
     expect(text(home({ open: { ...noOpen, shifts: [open({ shiftId: "a1" })] } }))).not.toContain(
-      "Add your home area",
+      "Add your travel area",
     );
   });
   it("her next shift as a pass that opens into its details: getting there, report to, bring and wear, pay, actions", () => {
@@ -661,10 +662,10 @@ describe("Home: what she can take, and her next shift in full", () => {
       /<div id="pass-details" class="[^"]*hidden animate-open \[\[data-pass\]:has\(\[data-pass-more\]\[open\]\)_&amp;\]:flex">/,
     );
     // The card: getting there as three figures, report to (with where), the uniform (what the firm
-    // gives in hi-vis yellow), the pay, the instructions, then Open in maps and Ask for a change.
+    // gives in hi-vis yellow), the pay, the instructions, then Directions and Ask for a change.
     const details = text(pass.slice(pass.indexOf('id="pass-details"'))).replace(/\s+/g, " ");
     expect(details).toContain(
-      "Getting there, from your home area 3.1 miles · 12 min by car · 24 min by public transport 3.1 miles away 12 min by car 24 min by public transport",
+      "Getting there, from your travel area 3.1 miles · 12 min by car · 24 min by public transport 3.1 miles away 12 min by car 24 min by public transport",
     );
     expect(details).toContain(
       "Report to Staff entrance, Gate B Demo Arena, 1 Test Road, Leeds, LS1 1AA",
@@ -672,7 +673,7 @@ describe("Home: what she can take, and her next shift in full", () => {
     expect(details).toContain("Bring and wear Hi-vis tabard We provide it Black trousers");
     expect(pass).toMatch(/<span class="[^"]*bg-hivis[^"]*text-on-hivis">We provide it<\/span>/);
     expect(details).toContain(
-      "Pay £12.60 an hour, about £100.80 £12.60 an hour About £100.80 for the 8 hours",
+      "Pay £12.60 an hour, about £100.80 before tax £12.60 an hour About £100.80 before tax for the 8 hours",
     );
     expect(details).toContain("Instructions Ask for the steward lead.");
     expect(pass).toMatch(
@@ -680,7 +681,7 @@ describe("Home: what she can take, and her next shift in full", () => {
         `<a href="[^"]*" target="_blank" rel="noopener noreferrer" class="${staffBtn.primary.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}">`,
       ),
     );
-    expect(details).toContain("Open in maps Ask for a change");
+    expect(details).toContain("Directions Ask for a change");
     expect(pass).toMatch(
       new RegExp(
         `<a class="${staffBtn.secondary.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}" href="/requests/new\\?shift=[^"]+">Ask for a change</a>`,
@@ -693,13 +694,22 @@ describe("Home: what she can take, and her next shift in full", () => {
     expect(text(onNow)).toContain("On now Saturday 7 November 14:00–22:00");
     expect(onNow).not.toContain("Can&#x27;t make it?");
     expect(onNow).not.toContain("Ask for a change");
+    // No pay rate set: the pay row says to ask, never left out (Phase 27.2, C3).
+    const noRate = home({ next: { ...next, payRatePence: null } });
+    const noRateDetails = text(noRate.slice(noRate.indexOf('id="pass-details"'))).replace(
+      /\s+/g,
+      " ",
+    );
+    expect(noRateDetails).toContain("Bring and wear Hi-vis tabard We provide it Black trousers");
+    expect(noRateDetails).toContain("Pay Ask the office Instructions");
+    expect(noRateDetails).not.toContain("an hour");
   });
   it("puts pay and the event into words", () => {
     expect(payWords(1260, at("2026-11-07T14:00:00Z"), at("2026-11-07T22:00:00Z"))).toBe(
-      "£12.60 an hour, about £100.80",
+      "£12.60 an hour, about £100.80 before tax",
     );
     expect(payWords(1155, at("2026-11-07T14:00:00Z"), at("2026-11-07T20:30:00Z"))).toBe(
-      "£11.55 an hour, about £75.08",
+      "£11.55 an hour, about £75.08 before tax",
     );
     expect(roleAndEvent("door_supervisor", "Raceday")).toBe("Door supervisor · Raceday");
     expect(roleAndEvent("door_supervisor", null)).toBe("Door supervisor");
@@ -754,7 +764,7 @@ describe("Booked: every upcoming shift's details", () => {
     const row = rowsOf[0] ?? "";
     expect(text(row)).toContain("Sun 8 10:00–18:00");
     expect(text(row)).toContain("2 Test Lane, York, YO1 1AA");
-    expect(text(row)).toContain("Open in maps");
+    expect(text(row)).toContain("Directions");
     expect(text(row)).toContain("Report to Gate C.");
     expect(text(rowsOf[1] ?? "")).toContain("Mon 9 10:00–18:00");
     expect(text(rowsOf[1] ?? "")).toContain("No site or instructions yet.");

@@ -175,6 +175,8 @@ const eventsOf = async (firmId: string, action: string) =>
 const BASE_DOMAIN = "localhost:3000";
 const uploadLink = (f: { slug: string }, type: string) =>
   `http://${f.slug}.${BASE_DOMAIN}/profile/upload/${type}`;
+// One she can't upload: her Messages, where she tells the office (Phase 27.2).
+const messagesLink = (f: { slug: string }) => `http://${f.slug}.${BASE_DOMAIN}/messages`;
 
 // The scan is for the date in its payload (the firm's local date when the tick ran).
 function scanner() {
@@ -190,7 +192,7 @@ const texts = (sent: OutboundMessage[]) =>
   sent.filter((m) => m.channel === "sms").map((m) => ({ to: m.to, body: m.body }));
 
 describe("credential-scan: warnings", () => {
-  it("one only the office records (CSAS) says to send it to the office, with no upload link (12F.2)", async () => {
+  it("one only the office records (CSAS) says to tell the office under Messages, with that link, not an upload link (12F.2; Phase 27.2)", async () => {
     const f = await newFirm();
     const cas = await addWorker(f.firmId, { first: "Cas", roles: ["csas_officer"] });
     await addCredential(f.firmId, cas.id, { type: "CSAS", expiresOn: "2026-11-05" }); // 30 days
@@ -199,7 +201,7 @@ describe("credential-scan: warnings", () => {
     expect(texts(sent)).toEqual([
       {
         to: cas.mobile,
-        body: `Your CSAS accreditation expires on 5 Nov. Renew it and send the new details to the office so you can keep taking shifts. — ${f.name} Shift Team`,
+        body: `Your CSAS accreditation expires on 5 Nov. Renew it to keep taking shifts that need it. Once you've renewed it, tell the office under Messages: ${messagesLink(f)} — ${f.name} Shift Team`,
       },
     ]);
   });
@@ -213,7 +215,7 @@ describe("credential-scan: warnings", () => {
     expect(texts(sent)).toEqual([
       {
         to: so.mobile,
-        body: `Your SIA door supervisor licence expires on 5 Nov. Upload your renewed card so you can keep taking shifts that need it: ${uploadLink(f, "SIA_DS")} — ${f.name} Shift Team`,
+        body: `Your SIA door supervisor licence expires on 5 Nov. Upload the new one so you can keep taking shifts that need it: ${uploadLink(f, "SIA_DS")} — ${f.name} Shift Team`,
       },
     ]);
   });
@@ -253,11 +255,11 @@ describe("credential-scan: warnings", () => {
     expect(texts(first.sent)).toEqual([
       {
         to: sam.mobile,
-        body: `Your first aid at work certificate expires on 11 Oct. Renew it and send the new details to the office so you can keep taking shifts. — ${signOff}`,
+        body: `Your first aid at work certificate expires on 11 Oct. Renew it to keep taking shifts that need it. Once you've renewed it, tell the office under Messages: ${messagesLink(f)} — ${signOff}`,
       },
       {
         to: sam.mobile,
-        body: `Your SIA door supervisor licence expires on 5 Nov. Upload your renewed card so you can keep taking shifts that need it: ${uploadLink(f, "SIA_DS")} — ${signOff}`,
+        body: `Your SIA door supervisor licence expires on 5 Nov. Upload the new one so you can keep taking shifts that need it: ${uploadLink(f, "SIA_DS")} — ${signOff}`,
       },
     ]);
     expect(await credentialRow(door)).toEqual({
@@ -416,7 +418,7 @@ describe("credential-scan: expiry (block on expiry)", () => {
     expect(texts(sent)).toEqual([
       {
         to: sam.mobile,
-        body: `Your SIA door supervisor licence expired on 5 Oct. You can't take shifts that need it until you upload your renewed card and the office checks it: ${uploadLink(f, "SIA_DS")} — ${f.name} Shift Team`,
+        body: `Your SIA door supervisor licence expired on 5 Oct. You can't take shifts that need it until you upload the new one and the office checks it: ${uploadLink(f, "SIA_DS")} — ${f.name} Shift Team`,
       },
     ]);
     const logged = await eventsOf(f.firmId, "credential.expired");

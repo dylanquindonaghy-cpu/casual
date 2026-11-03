@@ -73,5 +73,5 @@ test("payroll checks and imports a pay file; the worker sees the line", async ({
   await page.getByLabel("Your code").fill(await codeSentTo(mobile, codeAsked));
   await page.getByRole("button", { name: "Check code" }).click();
   await expect(page.getByText("12.5 hours at £19.87 an hour")).toBeVisible();
-  await expect(page.getByText("Gross pay: £248.38")).toBeVisible();
+  await expect(page.getByText("Pay before tax: £248.38")).toBeVisible();
 });

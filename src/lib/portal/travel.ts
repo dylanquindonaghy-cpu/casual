@@ -20,11 +20,11 @@ import { travelSettings } from "../travel/settings";
 import type { PortalContext } from "./my-shifts";
 import { casualMoved } from "../travel/estimate-queue";
 
-// The casual's travel area, "Where you work" (docs/office-v2.md 4.6, 5.4; S8; 12G.1), for the
+// The casual's travel area, "Your travel area" (docs/office-v2.md 4.6, 5.4; S8; 12G.1), for the
 // logged-in casual only, inside their firm. Server only; the words are in travel-copy.ts.
 //
 // Only where the firm has travel areas switched on (`travel.enabled`, 13.4): otherwise myTravel is
-// null (no "Where you work") and saveMyTravel saves nothing ("off"). Removing one always works.
+// null (no "Your travel area") and saveMyTravel saves nothing ("off"). Removing one always works.
 //
 // - myTravel: their start postcode (theirs to see; the office sees the district only), how they
 //   travel and their time limit; or, before they set one, the firm's default limit.

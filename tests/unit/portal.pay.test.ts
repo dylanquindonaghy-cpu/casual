@@ -100,8 +100,8 @@ describe("showing pay", () => {
     expect(words).toContain("The last 8 weeks, from Acme Events' payroll.");
     expect(words).toContain("Mon 26 Oct to Sun 1 Nov");
     expect(words).toContain("37.5 hours at £12.50 an hour");
-    expect(words).toContain("Gross pay: £468.75");
-    expect(words).toContain("Pay date: Fri 6 Nov");
+    expect(words).toContain("Pay before tax: £468.75");
+    expect(words).toContain("Pay day: Fri 6 Nov");
     expect(words).toContain("4 hours at £15.00 an hour");
     // Never worked out: no gross for the line payroll didn't give one.
     expect(words).not.toContain("£60.00");
@@ -134,7 +134,7 @@ describe("showing pay", () => {
     expect(top).toContain("Mon 26 Oct to Sun 1 Nov");
     expect(top).toContain("4 hours at £15.00 an hour");
     expect(top).toContain("37.5 hours at £12.50 an hour");
-    expect(top).toContain("Gross pay: £468.75");
+    expect(top).toContain("Pay before tax: £468.75");
     expect(text(oneWeek)).not.toContain("Earlier weeks");
 
     const twoWeeks = renderToStaticMarkup(
@@ -155,11 +155,11 @@ describe("showing pay", () => {
     expect(section(twoWeeks, "latest-pay")).not.toContain("Mon 19 Oct");
     const earlier = section(twoWeeks, "earlier-pay");
     expect(earlier).toContain("Mon 19 Oct to Sun 25 Oct");
-    expect(earlier).toContain("Gross pay: £300.00");
-    expect(earlier).toContain("Pay date: Fri 30 Oct");
+    expect(earlier).toContain("Pay before tax: £300.00");
+    expect(earlier).toContain("Pay day: Fri 30 Oct");
     expect(earlier).not.toContain("Mon 26 Oct");
-    // "Gross pay" is read out once per amount, not twice.
-    expect(twoWeeks.match(/<span aria-hidden="true"[^>]*>Gross pay<\/span>/g)).toHaveLength(1);
+    // "Pay before tax" is read out once per amount, not twice.
+    expect(twoWeeks.match(/<span aria-hidden="true"[^>]*>Pay before tax<\/span>/g)).toHaveLength(1);
   });
 
   it("the worker's pay queries: a way to raise one, and each one's status", () => {
@@ -179,7 +179,8 @@ describe("showing pay", () => {
     expect(words).toContain("Paid late or not paid: Thu 1 Oct");
     expect(words.match(/With payroll/g)).toHaveLength(2);
     expect(words).toContain("Hours missing: Sat 26 Sep");
-    expect(words).toContain("Sorted");
+    // Sorted with no date (none are, since Phase 6): who answered, without a day.
+    expect(words).toContain("Answered by payroll Hours missing");
     expect(words).toContain("Reference 3F2A9C1B");
     expect(text(renderToStaticMarkup(createElement(PayQueries, { queries: [] })))).toContain(
       "None in the last 90 days.",
@@ -205,7 +206,7 @@ describe("showing pay", () => {
       ),
     );
     expect(words).toContain("Wrong rate: Thu 29 Oct");
-    expect(words).toContain("Sorted on Tue 3 Nov");
+    expect(words).toContain("Answered by payroll on Tue 3 Nov");
     expect(words).toContain(
       "Payroll says: “The new rate is now applied. The difference is paid on Fri 13 Nov.”",
     );
@@ -246,6 +247,6 @@ describe("showing pay", () => {
   it("says so plainly when there's nothing yet", () => {
     expect(
       text(renderToStaticMarkup(createElement(PayView, { firmName: "Acme Events", lines: [] }))),
-    ).toContain("No pay data yet for this period.");
+    ).toContain("No pay to show yet. It appears here once payroll sends it.");
   });
 });

@@ -298,7 +298,7 @@ describe("the casual's Strikes on Profile", () => {
     expect(myStrikeCountText(0, 90)).toBe("You have 0 strikes in the last 90 days.");
     expect(myStrikeCountText(1, 90)).toBe("You have 1 strike in the last 90 days.");
     expect(myStrikeRuleText(48)).toBe(
-      "A strike is given when you cancel less than 48 hours before a shift starts.",
+      "A strike is given when you cancel less than 48 hours before a shift starts. A strike is a record, not a fine. It never comes off your pay.",
     );
     expect(myStrikeTitle(mine())).toBe("Steward at Riverside Arena");
     expect(myStrikeSession(mine(), TZ)).toBe("Sat 7 Nov, 14:00 to 22:00");

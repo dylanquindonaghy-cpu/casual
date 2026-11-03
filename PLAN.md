@@ -1099,7 +1099,7 @@ page said after Dylan's edits; `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; 
 and 1280px sit beside the spec in `docs/mockups/round-8/`; no route, label, link or action is lost
 unless the spec drops it; the `claims-auditor` checks the phase against this line.
 
-## Proposed 2026-11-03: P11 — Launch words, the glass turned up, and a map you can use (waiting for Dylan's go-ahead; UI, M)
+## Proposed 2026-11-03: P11 — Launch words, the glass turned up, and a map you can use (go-ahead: Dylan, 2026-11-03, "+20%, yes to the words, yes to the map idea"; built as Phase 27; UI, M)
 
 Dylan, 2026-11-03, after Phase 26 went live: the glass and side bar "turned up by like 15-20%",
 "what does this section mean" ("Who worked?"), the "Tell me about" words, the Haulix video again
@@ -1116,6 +1116,35 @@ https://claude.ai/artifact/9GPXjLG2NXmz4FvbMXBdiu. Three parts, each its own yes
 - **The dashboard map** made the dashboard's top, interactive both ways, "To offer" as a list on it,
   the page behind plain charcoal: after the street map file is on the server, a mock-up on the real
   streets first.
+
+## Phase 27 — Launch words, the glass at +20%, and a map you can use (go-ahead: Dylan, 2026-11-03; UI, M)
+
+P11 above; every finding, quote and place in the code: `docs/mockups/round-8/launch-review-2026-11-03.md`
+(its sections named here). The mock-up Dylan approved for 27.1 and 27.2:
+https://claude.ai/artifact/9GPXjLG2NXmz4FvbMXBdiu (sections 1, 2 and 6).
+
+- [ ] The glass at +20% in the office's dark theme: panels and the side bar a light 4% tint, a 3px
+      blur, 12% edges, menus and the phone's top bar 70%, the street lines 10.2%; the faintest words
+      still at least 4.5:1 on the lightest spot; the light theme and "reduce transparency" unchanged
+      (review §2; UI) (27.1)
+- [ ] The words: every "fix before launch" and "one thing, one name" item (review §5, office and
+      casual app), "Who worked?", "Tell me about" and Updates' "Last 7 days · 2 new today" (the
+      mock-up's section 2), with `docs/screens.md` and `docs/messaging-templates.md`; and the two
+      that change what's listed: a casual's own page lists a missing photo under "Needs updating",
+      and Profile lists a shift's extra certificate (review §5; M, UI) (27.2)
+- [ ] The street map on the server: the UK file (zoom 13, about 740 MB) and `MAP_TILES_URL` set
+      (review §4; waits for Dylan: `docs/plan/blocked.md`) (27.3)
+- [ ] The dashboard map you can use: the map as the dashboard's top with the chosen session's card on
+      it, a pin moves the map and shows its sessions ("1 of 3"), the tabs, Filter and the list move
+      the map back, "To offer" as a list on the map, zoom and reset buttons, the page behind plain
+      charcoal; a mock-up on the real streets first (after 27.3) (review §3; UI) (27.4)
+- [ ] The layout changes: words on the icon-only buttons, the phone map's key, the card's booked bar,
+      the casual's "To do" row; a mock-up first (review §5 "Layout changes"; UI) (27.5)
+
+Done when: every task is ticked with a stamp that includes the browser tests; each built what the
+review and the approved mock-up say; `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; screenshots at
+390px and 1280px sit in `docs/mockups/round-8/`; no route, label, link or action is lost; the
+`claims-auditor` checks the phase against this line.
 
 ## Stage 2 (after 3 paying firms) — not now
 

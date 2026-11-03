@@ -26,6 +26,7 @@ not Bedrock; Phase 15's texts replace the WhatsApp and Twilio items of Phases 4 
 | Phase 15: the sender (15.2), live | the firm's Webex Interact account (built and switched off) | the firm |
 | Phase 15: replies by text (the third task) | the firm turning replies on, with a dedicated inbound number | the firm |
 | Phase 22: every other office page on round 2's parts (22.4) | nothing: Phase 23 replaced round 2's look (left open on purpose, 2026-10-23) | nobody |
+| Phase 27.3: the street map file on the server | someone logged in to the server once (its firewall lets SSH in from Dylan's own address only, with the key on the computer he set it up from): the 7 steps in `docs/mockups/round-8/launch-review-2026-11-03.md` §4. Or, Dylan's call, the map shipped inside the app's image (no logins, but each image about 740 MB bigger: check GitHub's storage for private packages first) | Dylan |
 | Phase 26.1 (aud-16): smooth scrolling over the still street map, checked on a mid-range laptop before it ships | a person with a mid-range laptop (a headless browser here can't judge it); the map is one still picture, solid under "reduce transparency" | Dylan |
 | P3: availability out (the proposal's fifth item) | discovery: does AXLR8 keep availability? | Dylan |
 | P5: the real connector | the ops portal's API documentation and a test copy; the agreement and the DPA | Dylan (arranging access) and the firm |

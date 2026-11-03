@@ -553,11 +553,18 @@ body[data-firm-colour] {
    own wrapper ([data-office], src/app/office/layout.tsx), so they win over <body>'s firm colours
    inside it: the firm's colour stays on its bar above the office. The page's ground and the
    browser's own controls follow from <html> (the second pair). Every pair's contrast is checked in
-   each of these looks, solid and with no blur too (tests/unit/ui.contrast.test.ts). */
+   each of these looks, solid and with no blur too (tests/unit/ui.contrast.test.ts). Phase 27.1
+   (Dylan, 2026-11-03, "+20%"; docs/mockups/round-8/launch-review-2026-11-03.md §2): in the dark
+   look the panels and the side bar are a light 4% tint (were a dark 28%), the blur 3px (was 6px),
+   the edge 12% (was 10%) and what floats 70% (was 88%), so the street lines (still 8.5%, as in
+   the approved pictures) show through: more see-through, still sharp. The lighter glass lifts
+   what sits on it, so three colours are a shade lighter to keep their contrast (the contrast test
+   stacks a button on a panel on a street line): the grey words, the urgent words and a switch
+   that's off. The light look is as it was. */
 :root:not([data-theme="light"]) [data-office] {
   color-scheme: dark;
   --color-ink: #f4f4f3;
-  --color-ink-muted: #b4b4b9;
+  --color-ink-muted: #bfbfc4;
   --color-ink-faint: #9d9da2;
   --color-ink-hover: #ffffff;
   --color-on-ink: #0f0f10;
@@ -565,9 +572,9 @@ body[data-firm-colour] {
   --color-line: rgb(255 255 255 / 0.1);
   --color-line-strong: #7c7c82;
   --color-canvas: #0f0f10;
-  --color-card: rgb(22 22 24 / 0.28);
-  --color-sheet: rgb(22 22 24 / 0.28);
-  --color-panel: rgb(24 24 26 / 0.88);
+  --color-card: rgb(255 255 255 / 0.04);
+  --color-sheet: rgb(255 255 255 / 0.04);
+  --color-panel: rgb(24 24 26 / 0.7);
   --color-raised: rgb(255 255 255 / 0.03);
   --color-track: rgb(255 255 255 / 0.06);
   --color-pill: rgb(255 255 255 / 0.1);
@@ -577,7 +584,7 @@ body[data-firm-colour] {
   --color-button-line: rgb(255 255 255 / 0.14);
   --color-button-hover: rgb(255 255 255 / 0.08);
   --color-button-press: rgb(255 255 255 / 0.12);
-  --color-switch-off: #7a7a80;
+  --color-switch-off: #818186;
   --color-knob: #0f0f10;
   --color-scrim: #000000;
   --color-brand: #f4f4f3;
@@ -591,7 +598,7 @@ body[data-firm-colour] {
   --color-on-brand-bar-soft: #4a4f14;
   --color-pass-plate: #ffffff;
   --color-on-pass-plate: #171800;
-  --color-urgent: #ff9187;
+  --color-urgent: #ffa299;
   --color-urgent-soft: rgb(58 26 25 / 0.8);
   --color-urgent-ink: #ffc4bc;
   --color-urgent-tile: rgb(58 26 25 / 0.9);
@@ -632,10 +639,10 @@ body[data-firm-colour] {
   --color-mark-calm: #6d6d72;
   --color-mark-grid: rgb(255 255 255 / 0.06);
   --color-mark-base: rgb(255 255 255 / 0.15);
-  --glass-filter: blur(6px) saturate(1.15);
+  --glass-filter: blur(3px) saturate(1.15);
   --float-filter: blur(12px) saturate(1.15);
   --edge-filter: blur(8px);
-  --glass-rim: inset 0 0 0 1px rgb(255 255 255 / 0.1);
+  --glass-rim: inset 0 0 0 1px rgb(255 255 255 / 0.12);
   --glass-drop: 0 0 #0000;
   --glass-drop-sm: 0 0 #0000;
   --glass-sunk: inset 0 0 0 1px rgb(255 255 255 / 0.1);

@@ -205,13 +205,22 @@ describe("the looks (src/app/globals.css)", () => {
         "urgent-fill",
       ),
     ).toBeCloseTo(4.93, 2);
-    for (const name of ["officeDark", "officeLight"] as const) {
+    // Phase 27.1 (Dylan, "+20%"): the dark look's glass is see-through and sharper (a 12% edge,
+    // a 3px blur); the light look's is as it was (10%, 6px).
+    for (const [name, rim, blur] of [
+      ["officeDark", "0\\.12", "3px"],
+      ["officeLight", "0\\.1", "6px"],
+    ] as const) {
       const body = block(BLOCKS[name]);
       expect(body, name).toMatch(/--glass-drop: 0 0 #0000;/);
       expect(body, name).toMatch(/--glass-drop-sm: 0 0 #0000;/);
       expect(body, name).toMatch(/--tint-glow: 0 0 #0000;/);
-      expect(body, name).toMatch(/--glass-rim: inset 0 0 0 1px rgb\(\d+ \d+ \d+ \/ 0\.1\);/);
-      expect(body, name).toMatch(/--glass-filter: blur\(6px\) saturate\(1\.15\);/);
+      expect(body, name).toMatch(
+        new RegExp(`--glass-rim: inset 0 0 0 1px rgb\\(\\d+ \\d+ \\d+ \\/ ${rim}\\);`),
+      );
+      expect(body, name).toMatch(
+        new RegExp(`--glass-filter: blur\\(${blur}\\) saturate\\(1\\.15\\);`),
+      );
     }
     expect(css).toMatch(
       /:root:not\(\[data-theme="light"\]\):has\(\[data-office\]\) \{\s*color-scheme: dark;/,

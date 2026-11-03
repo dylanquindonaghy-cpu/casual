@@ -54,7 +54,12 @@ motion) stays as Phase 24's.
   faint street map, blurred 6px; what floats (menus, the drawer, the bar below 1024px) 88% with a
   12px blur and the only drop; one even 1px hairline (10% white, or 10% ink on light) instead of a
   lit rim; no gloss, sheen, glow or bending (round 7's refraction is off in the office); 12px
-  panels, 8px rows.
+  panels, 8px rows. **Phase 27.1** (Dylan, 2026-11-03, "+20%"; `docs/mockups/round-8/launch-review-2026-11-03.md`
+  §2, screenshots `docs/mockups/round-8/built/27.1-glass-*`): on the dark look, sections and the
+  side bar a light see-through fill (`rgb(255 255 255 / 0.04)`) blurred 3px, a 12% hairline, and
+  what floats 70%, so the street map's lines show through; the grey words (`#bfbfc4`), the urgent
+  words (`#ffa299`) and a switch that's off (`#818186`) a shade lighter to keep their contrast on
+  the lighter glass. The light look is unchanged.
 - **The street map:** one still picture (`src/app/office-streets.svg`, from the mock-up's pattern)
   behind every office page as `<body>`'s `::before`, its lines in `--map-line` and `--map-road`
   (6% and 8.5% white; 5% and 7% ink on light); drawn once, fixed as the page scrolls (aud-16).

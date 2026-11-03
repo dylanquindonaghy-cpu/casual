@@ -477,6 +477,31 @@ export async function workerName(slug: string, mobileE164: string): Promise<stri
   }
 }
 
+// A drama-range number from 07700 900`from` to 900`to` that no casual of the firm has, in the e2e
+// database: a stranger for the shifts line. Other specs add casuals in that range (casual.messages'
+// Kay on 900972, office.inbox's Ira on 900971), so the range alone doesn't make a number unknown.
+export async function unusedMobile(slug: string, from: number, to: number): Promise<string> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const firmId = seedId(`firm/${slug}`);
+    const held = await createWithFirm(pool)(firmId, async (tx) => {
+      const rows = await tx
+        .select({ mobile: workers.mobileE164 })
+        .from(workers)
+        .where(like(workers.mobileE164, "+447700900%"));
+      return new Set(rows.map((r) => r.mobile));
+    });
+    const free = Array.from({ length: to - from + 1 }, (_, i) => `+447700900${from + i}`).filter(
+      (m) => !held.has(m),
+    );
+    const pick = free[Math.floor(Math.random() * free.length)];
+    if (!pick) throw new Error(`every number 900${from}-900${to} is a casual's`);
+    return pick;
+  } finally {
+    await pool.end();
+  }
+}
+
 // A shift `daysAhead` days from now at a site of its own (a made-up name), with `workerId` booked
 // on it (confirmed): for the office's worker pages. Returns the shift's and the site's ids.
 export async function addBookedShift(

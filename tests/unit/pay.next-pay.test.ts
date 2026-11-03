@@ -77,9 +77,7 @@ describe("the next pay day", () => {
   });
 
   it("this week's records naming the date: no second line about it", () => {
-    expect(
-      nextPayFor("2026-11-07", weeks, [{ start: "2026-11-02", next: "2026-11-12" }]),
-    ).toEqual({
+    expect(nextPayFor("2026-11-07", weeks, [{ start: "2026-11-02", next: "2026-11-12" }])).toEqual({
       day: "2026-11-12",
       from: "pay records",
       periodStart: "2026-11-02",
@@ -119,7 +117,10 @@ describe("its words", () => {
       ),
     ).toEqual(["For shifts in the week of 26 Oct.", "This week's shifts are paid Fri 13 Nov."]);
     expect(
-      nextPayLines({ from: "pay records", periodStart: "2026-10-26", thisPeriodPaid: null }, "week"),
+      nextPayLines(
+        { from: "pay records", periodStart: "2026-10-26", thisPeriodPaid: null },
+        "week",
+      ),
     ).toEqual(["For shifts in the week of 26 Oct.", "From your pay records."]);
     expect(
       nextPayLines(

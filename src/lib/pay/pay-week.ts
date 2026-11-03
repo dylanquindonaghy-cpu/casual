@@ -44,7 +44,11 @@ export function payPeriodLabel(p: {
 // ("in the cycle from …" on a cycle), "This week's shifts are paid Fri 13 Nov." when that's a later
 // day, and "From your pay records." when the date came from them.
 export function nextPayLines(
-  next: { from: "pay records" | "pay calendar"; periodStart: string; thisPeriodPaid: string | null },
+  next: {
+    from: "pay records" | "pay calendar";
+    periodStart: string;
+    thisPeriodPaid: string | null;
+  },
   label: "week" | "cycle",
 ): string[] {
   const lines = [

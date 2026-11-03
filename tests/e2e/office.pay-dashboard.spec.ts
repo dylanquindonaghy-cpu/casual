@@ -42,9 +42,7 @@ test("payroll lands on the pay dashboard: the pay week, the counts and both sect
     await expect(page.getByText(name, { exact: true })).toBeVisible();
   }
   // Which shifts the next pay day pays (Phase 26.10, fix-1).
-  await expect(
-    page.getByText(/^For shifts in the week of \d{1,2} [A-Z][a-z]{2}\.$/),
-  ).toBeVisible();
+  await expect(page.getByText(/^For shifts in the week of \d{1,2} [A-Z][a-z]{2}\.$/)).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Waiting, grouped by likely cause", exact: true }),
   ).toBeVisible();

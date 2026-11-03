@@ -222,6 +222,35 @@ describe("the looks (src/app/globals.css)", () => {
         new RegExp(`--glass-filter: blur\\(${blur}\\) saturate\\(1\\.15\\);`),
       );
     }
+    // And its fills: a section (card, sheet) and what floats (panel: the menus and, on a phone, the
+    // top bar, `max-lg:glass-float` in office-frame.tsx, pinned in tests/unit/office.shell.test.ts),
+    // and the street lines, in the office's block and on the page's root, which draws them
+    // (body::before reads --map-road from there). Dark: 4%, 70%, 8.5% (27.1; the lines as in the
+    // approved pictures: docs/plan/decisions-waiting.md 13). Light: as it was.
+    expect(css).toMatch(/@utility glass-float \{\s*background-color: var\(--color-panel\);/);
+    for (const [name, root, card, panel, road] of [
+      [
+        "officeDark",
+        /:root:not\(\[data-theme="light"\]\):has\(\[data-office\]\) \{([^}]*)\}/,
+        "rgb\\(255 255 255 \\/ 0\\.04\\)",
+        "rgb\\(24 24 26 \\/ 0\\.7\\)",
+        "rgb\\(255 255 255 \\/ 0\\.085\\)",
+      ],
+      [
+        "officeLight",
+        /:root\[data-theme="light"\]:has\(\[data-office\]\) \{([^}]*)\}/,
+        "rgb\\(255 255 255 \\/ 0\\.55\\)",
+        "rgb\\(255 255 255 \\/ 0\\.92\\)",
+        "rgb\\(16 24 40 \\/ 0\\.07\\)",
+      ],
+    ] as const) {
+      const body = block(BLOCKS[name]);
+      expect(body, name).toMatch(new RegExp(`--color-card: ${card};`));
+      expect(body, name).toMatch(new RegExp(`--color-sheet: ${card};`));
+      expect(body, name).toMatch(new RegExp(`--color-panel: ${panel};`));
+      expect(body, name).toMatch(new RegExp(`--map-road: ${road};`));
+      expect(block(root), `${name}: the page's root`).toMatch(new RegExp(`--map-road: ${road};`));
+    }
     expect(css).toMatch(
       /:root:not\(\[data-theme="light"\]\):has\(\[data-office\]\) \{\s*color-scheme: dark;/,
     );

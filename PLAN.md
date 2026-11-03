@@ -1138,7 +1138,8 @@ https://claude.ai/artifact/9GPXjLG2NXmz4FvbMXBdiu (sections 1, 2 and 6).
       that change what's listed: a casual's own page lists a missing photo under "Needs updating",
       and Profile lists a shift's extra certificate (review §5; M, UI) (27.2)
 - [ ] The street map on the server: the UK file (zoom 13, about 740 MB) and `MAP_TILES_URL` set
-      (review §4; waits for Dylan: `docs/plan/blocked.md`) (27.3)
+      (review §4; waits for Dylan: `docs/plan/blocked.md`) (27.3). Dylan ran it on 2026-11-03, so its
+      `blocked.md` row went; what the live site answers: `docs/mockups/round-8/built/27.3-live-evidence.md`
 - [ ] The dashboard map you can use: the map as the dashboard's top with the chosen session's card on
       it, a pin moves the map and shows its sessions ("1 of 3"), the tabs, Filter and the list move
       the map back, "To offer" as a list on the map, zoom and reset buttons, the page behind plain

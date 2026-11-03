@@ -1081,9 +1081,9 @@ Parking lot.
       and alerts", and "The look" sys-8's bell: it opens the Updates page, so it comes with it; S,
       M, UI) (26.4)
 - [x] An event's page: staffing layout and open places (spec "An event's page"; UI) (26.5)
-- [ ] A session and who wants it: the per-event "Casuals ask, you choose" setting, "I can do this" in
+- [x] A session and who wants it: the per-event "Casuals ask, you choose" setting, "I can do this" in
       the casual app, the list with filters, booking through the rules (spec "A session"; S, R, UI) (26.6)
-- [ ] Casuals: reliability worked out by code over 90 days, the four counts and tabs, Remind and Remind
+- [x] Casuals: reliability worked out by code over 90 days, the four counts and tabs, Remind and Remind
       all, a missing photo counted, reliability on each casual's page and Profile (spec "Casuals"; R, M,
       UI) (26.7)
 - [x] Cancellations: under 48 hours tinted in every tab, notice and strike columns, four counts, a

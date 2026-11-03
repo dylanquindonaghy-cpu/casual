@@ -70,6 +70,25 @@ test("casuals ask, the office chooses: Not this time, then Book the best 1", asy
     await expect(
       office.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: event }),
     ).toHaveAttribute("href", `/office/events/${eventId}`);
+    // With the event not asking and nobody asked, the page opens on Booked; "Asked for it" still
+    // opens its own tab (its link names it), with its words for an event that doesn't ask.
+    const list = office.getByRole("region", { name: "Casuals for this session" });
+    await expect(list.getByRole("link", { name: /^Booked 0$/ })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await list.getByRole("link", { name: /^Asked for it 0$/ }).click();
+    await expect(office).toHaveURL(new RegExp(`/office/shifts/${shiftId}\\?show=asked$`));
+    await expect(list.getByRole("link", { name: /^Asked for it 0$/ })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await expect(
+      list.getByText(
+        'Casuals take places on this event. Switch on "Casuals ask, you choose" to choose from who asks.',
+      ),
+    ).toBeVisible();
+
     // The event's setting, in "This session": off, then on.
     const session = office.getByRole("region", { name: "This session" });
     const ask = session.getByRole("switch", { name: /Casuals ask, you choose/ });
@@ -114,6 +133,21 @@ test("casuals ask, the office chooses: Not this time, then Book the best 1", asy
       "aria-current",
       "page",
     );
+    await expect(casuals.locator("[data-casual]")).toHaveCount(2);
+    // A filter (ses-3): Reliability 80%+ leaves out the two, both new (no figure yet); off again,
+    // they're back. Each a link that keeps the tab.
+    const reliable = casuals.getByRole("button", { name: "Reliability 80%+" });
+    await expect(reliable).toHaveAttribute("aria-pressed", "false");
+    await reliable.click();
+    await expect(office).toHaveURL(new RegExp(`/office/shifts/${shiftId}\\?show=asked&rel=80$`));
+    await expect(casuals.getByRole("button", { name: "Reliability 80%+" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(casuals.locator("[data-casual]")).toHaveCount(0);
+    await expect(casuals.getByText("Nobody here matches these filters.")).toBeVisible();
+    await casuals.getByRole("button", { name: "Reliability 80%+" }).click();
+    await expect(office).toHaveURL(new RegExp(`/office/shifts/${shiftId}\\?show=asked$`));
     await expect(casuals.locator("[data-casual]")).toHaveCount(2);
     const benRow = casuals.locator('[data-casual="Ben Asker"]');
     await expect(benRow.getByText(/^Asked \d\d:\d\d$/)).toBeVisible();

@@ -34,10 +34,33 @@ export type CasualsQuery = {
   filters: Record<FilterKey, boolean>;
 };
 
+// The list's tab and filters from the page's address (as casualsHref writes them); with no tab
+// named, `fallback` (the page's own first: "Asked for it" while the event asks or someone has).
+export function casualsQueryOf(
+  sp: Record<string, string | string[] | undefined>,
+  fallback: CasualsTab,
+): CasualsQuery {
+  const one = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : undefined);
+  const show = one("show");
+  return {
+    show: (CASUALS_TABS as readonly string[]).includes(show ?? "")
+      ? (show as CasualsTab)
+      : fallback,
+    filters: {
+      reliable: one("rel") === "80",
+      near: one("near") === "45",
+      here: one("here") === "1",
+    },
+  };
+}
+
+// The list's address: its tab always named (the page's own first tab is "Asked for it" or
+// "Booked", as the event asks or not, so a link that left it out would open the other one), then
+// the filters that are on.
 export function casualsHref(shiftId: string, q: CasualsQuery, change: Partial<CasualsQuery>) {
   const next = { show: change.show ?? q.show, filters: { ...q.filters, ...change.filters } };
   const params = new URLSearchParams();
-  if (next.show !== "asked") params.set("show", next.show);
+  params.set("show", next.show);
   if (next.filters.reliable) params.set("rel", "80");
   if (next.filters.near) params.set("near", "45");
   if (next.filters.here) params.set("here", "1");

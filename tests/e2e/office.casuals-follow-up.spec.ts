@@ -57,6 +57,18 @@ test("counts open their tabs; Remind, a note and Mark as sorted on Need updating
     page.getByRole("navigation", { name: "Show" }).getByRole("link", { name: /^Regulars \d+$/ }),
   ).toHaveAttribute("aria-current", "page");
 
+  // The sort (cas-3): "Most strikes first", keeping the tab; its words then name the button.
+  await page.locator("summary:visible", { hasText: /^By name$/ }).click();
+  await page.getByRole("link", { name: "Most strikes first" }).click();
+  await expect(page).toHaveURL(`${acme}/office/casuals?view=regulars&sort=strikes`);
+  // The menu closes once a sort is chosen (it's keyed by the choice), named by the new one.
+  await expect(page.getByRole("link", { name: "Most strikes first" })).toBeHidden();
+  await page.locator("summary:visible", { hasText: /^Most strikes first$/ }).click();
+  await expect(page.getByRole("link", { name: "Most strikes first" })).toHaveAttribute(
+    "aria-current",
+    "true",
+  );
+
   // Need updating: Ruth's row, Remind. Quiet hours off for Acme while it goes (at night the
   // reminder waits for them to end, 22:00 to 07:00), then put back as they were.
   await page.goto(`${acme}/office/casuals?view=needs`);
@@ -87,6 +99,17 @@ test("counts open their tabs; Remind, a note and Mark as sorted on Need updating
   await row.getByRole("button", { name: "Save note" }).click();
   await expect(row.getByRole("status").filter({ hasText: "Note added." })).toBeVisible();
   await expect(row.getByText("Note: Renewed, bringing the card in on Friday")).toBeVisible();
+  // And on a phone, on her card (the list as cards below 640px).
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await expect(
+    page
+      .getByRole("listitem")
+      .filter({ hasText: "Ruth Reminder" })
+      .getByText("Note: Renewed, bringing the card in on Friday"),
+  ).toBeVisible();
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.reload();
   await row.getByLabel("More for Ruth Reminder").click();
   await row.getByRole("button", { name: "Mark as sorted: Ruth Reminder" }).click();
   await expect(row.getByText(/^Sorted by Follow Up Resourcer · /)).toBeVisible();

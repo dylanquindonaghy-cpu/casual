@@ -73,6 +73,13 @@ test("Profile shows Zoe's qualifications: one Valid, one Expiring soon, one Miss
   await needs.getByRole("link").click();
 
   await expect(page).toHaveURL(`${acme}/profile`);
+  // Her own reliability (Phase 26.7, cas-6), as the office sees it: new, so far no shifts counted.
+  const reliability = page.getByRole("region", { name: "Your reliability" });
+  await expect(reliability).toContainText(
+    "New: 0 shifts so far. It shows as a figure once you have 5.",
+  );
+  await expect(reliability).toContainText("0 worked · 0 no-shows · 0 late cancellations");
+  await expect(reliability).toContainText("Our office sees the same figure.");
   const qualifications = page.getByRole("region", { name: "Qualifications" });
   const items = qualifications.getByRole("listitem");
   await expect(items).toHaveCount(3);

@@ -236,7 +236,8 @@ export default async function OfficeCasualsPage({
           ))}
         </nav>
         {view !== "uploads" && (
-          <details className="group relative sm:ml-auto">
+          // Keyed by the choice: the links here keep the page, so a new key closes the menu after.
+          <details key={`${view}:${sort}`} className="group relative sm:ml-auto">
             <summary className="press-glass glass-button inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-full px-4 text-sm font-medium text-ink hover:bg-button-hover [&::-webkit-details-marker]:hidden">
               <Icon name="data" size={16} />
               {sort === "default" && needsView ? NEEDS_DEFAULT_SORT : SORT_WORDS[sort]}
@@ -390,6 +391,10 @@ export default async function OfficeCasualsPage({
                         {r.name}
                       </Link>
                       <p className={meta}>{who(r)}</p>
+                      {/* The office's latest note, as the laptop's table shows it (cas-6). */}
+                      {r.note && (
+                        <p className="truncate text-sm text-ink-faint">Note: {r.note.body}</p>
+                      )}
                     </div>
                     <CasualMenu
                       workerId={r.id}

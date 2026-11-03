@@ -21,7 +21,6 @@ import { requireOfficeArea } from "@/lib/auth/current-office";
 import { readSessionToken } from "@/lib/auth/session-cookie";
 import { ERASED_REASON } from "@/lib/gdpr/free-text";
 import { BREADCRUMB, SHOWING_CHIP } from "@/lib/office/event-page-copy";
-import { CASUALS_TABS, type CasualsTab } from "@/lib/office/session-casuals";
 import {
   CHECKS_FIRST,
   CHECKS_FIRST_LEAD,
@@ -52,7 +51,7 @@ import { FLAG_TONE, PLACE_TONE, SHIFT_TONE } from "../shift-tones";
 import { AssignButton } from "./assign-button";
 import { AttendanceButtons, MarkRestWorked } from "./attendance-forms";
 import { BookBest, CasualsAskSwitch } from "./casual-actions";
-import { CasualsCard, casualsHref, type CasualsQuery } from "./casuals-card";
+import { CasualsCard, casualsHref, casualsQueryOf, type CasualsQuery } from "./casuals-card";
 import { summaryButton } from "./chevron";
 import { SessionDetailsForm } from "./details-form";
 import { EditShiftForm } from "./edit-form";
@@ -92,11 +91,7 @@ export default async function OfficeShiftPage({
   const { id } = await params;
   const sp = await searchParams;
   const one = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : undefined);
-  const filters = {
-    reliable: one("rel") === "80",
-    near: one("near") === "45",
-    here: one("here") === "1",
-  };
+  const { filters } = casualsQueryOf(sp, "asked");
   const worker = one("worker");
   const page = await officeShiftDetail(
     { firm },
@@ -115,13 +110,10 @@ export default async function OfficeShiftPage({
   const shown = shift.showing && page.event.showing;
   const base = `/office/shifts/${shift.shiftId}`;
 
-  const showParam = one("show");
-  const show: CasualsTab = (CASUALS_TABS as readonly string[]).includes(showParam ?? "")
-    ? (showParam as CasualsTab)
-    : casuals.casualsAsk || casuals.counts.asked > 0
-      ? "asked"
-      : "booked";
-  const query: CasualsQuery = { show, filters };
+  const query: CasualsQuery = casualsQueryOf(
+    sp,
+    casuals.casualsAsk || casuals.counts.asked > 0 ? "asked" : "booked",
+  );
   const current: SessionTab = one("tab") === "history" ? "history" : "casuals";
   const panelParam = one("panel");
   // A check from "Assign someone" (`?worker=`) shows its answer in that panel.
@@ -274,7 +266,7 @@ export default async function OfficeShiftPage({
                 Offer to someone
               </Link>
             )}
-            <details className="group relative shrink-0">
+            <details key={panel ?? "none"} className="group relative shrink-0">
               <summary
                 aria-label={MORE_FOR_SESSION}
                 className={`${summaryButton} press-glass glass-button inline-flex size-11 items-center justify-center rounded-full text-ink-muted hover:bg-button-hover hover:text-ink active:bg-button-press group-open:bg-button-press group-open:text-ink`}

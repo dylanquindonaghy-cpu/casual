@@ -364,6 +364,8 @@ test("To offer: the first four, soonest first, then View all on Events & session
     await page.locator("summary", { hasText: "Filter" }).click();
     await page.getByRole("link", { name: "Show check" }).click();
     await expect(page).toHaveURL(`${acme}/office?role=show_check`);
+    // The menu closes once a role is chosen (it's keyed by the choice), off the map.
+    await expect(page.getByRole("link", { name: "Show check", exact: true })).toBeHidden();
     await expect(col.locator("[data-session]")).toHaveCount(4);
     expect(await countOf(page, "to-offer")).toBe(4);
     await expect(

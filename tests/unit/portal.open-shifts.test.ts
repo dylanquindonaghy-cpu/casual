@@ -347,6 +347,13 @@ describe("after Take shift", () => {
   const show = (outcome: Exclude<TakeShiftOutcome, { status: "logged_out" }>) =>
     text(renderToStaticMarkup(createElement(TakeShiftResult, { outcome })));
 
+  // The office chose who works it while she looked (Phase 26.6, ses-6): say so, and ask instead.
+  it("the office chooses now: ask for it instead", () => {
+    expect(show({ status: "ask_first" }).trim()).toBe(
+      "The office now chooses who works this one. Ask for it instead.",
+    );
+  });
+
   it("too many taps (13.5): how long to wait, as the login page says it", () => {
     expect(show({ status: "rate_limited", retryAfterMinutes: 12 }).trim()).toBe(
       "Too many tries. Try again in 12 minutes.",

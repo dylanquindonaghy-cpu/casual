@@ -75,7 +75,7 @@ export function DashboardContent({ board, tiles }: { board: BoardData; tiles: st
         <div className="flex flex-wrap items-center gap-2">
           {me && <CustomiseButton me={me} />}
           {days.length > 0 && (
-            <details className="group relative">
+            <details key={board.day ?? "all"} className="group relative">
               <summary
                 aria-label={dateChoiceLabel(board.day)}
                 className={`press-glass glass-button inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-full px-4 text-sm font-medium hover:bg-button-hover active:bg-button-press [&::-webkit-details-marker]:hidden ${board.day ? "text-ink" : "text-ink-muted"}`}
@@ -133,7 +133,7 @@ export function DashboardContent({ board, tiles }: { board: BoardData; tiles: st
         {/* Filter (dash-3): one role with places to fill, or every role; a native disclosure of
               plain links, so it works before the page is ready. */}
         {roles.length > 0 && (
-          <details className="group relative">
+          <details key={board.role ?? "every"} className="group relative">
             <summary
               aria-label={filterLabel(board.role, roleLabel)}
               className={`press-glass glass-button inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-full px-4 text-sm font-medium hover:bg-button-hover active:bg-button-press [&::-webkit-details-marker]:hidden ${board.role ? "text-ink" : "text-ink-muted"}`}

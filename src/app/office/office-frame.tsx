@@ -129,7 +129,7 @@ function BarCounts({ counts, row = false }: { counts: BarCount[]; row?: boolean 
           {/* Read as "To fill 26". */}
           {c.count === null ? null : " "}
           {c.count === null ? null : (
-            <b className={`font-semibold tabular-nums ${c.urgent ? "text-urgent" : "text-ink"}`}>
+            <b className={`font-semibold tabular-nums ${c.urgent ? "text-urgent-ink" : "text-ink"}`}>
               {c.count}
               {c.more ? "+" : ""}
             </b>

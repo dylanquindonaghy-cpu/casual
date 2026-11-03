@@ -46,13 +46,13 @@ export function OfficeLoginForm({ firmName, signOff }: { firmName: string; signO
         className={`${field} mt-2 w-full`}
       />
       {invalid && (
-        <p id="email-problem" className="mt-2 font-semibold text-urgent">
+        <p id="email-problem" className="mt-2 font-semibold text-urgent-ink">
           Enter your work email address, like name@example.com.
         </p>
       )}
       {state.status === "rate_limited" && <TooManyTries minutes={state.retryAfterMinutes} />}
       {state.status === "error" && (
-        <p role="alert" className="mt-2 font-semibold text-urgent">
+        <p role="alert" className="mt-2 font-semibold text-urgent-ink">
           Something went wrong. Try again.
         </p>
       )}

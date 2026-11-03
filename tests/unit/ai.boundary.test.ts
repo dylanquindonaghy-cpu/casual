@@ -331,10 +331,15 @@ describe("AI never answers a dispute", () => {
 
   it("the sort form takes only the query ids: no note or draft handed to it", () => {
     const form = readFileSync(join(SRC, "app/office/pay-queries/sort-group-form.tsx"), "utf8");
-    expect(form).toMatch(/export function SortGroupForm\(\{ ids \}: \{ ids: string\[\] \}\)/);
+    // The ids, and (Phase 26.10) whether it's the page's one hi-vis button: nothing else.
+    expect(form).toMatch(
+      /export function SortGroupForm\(\{ ids, main = false \}: \{ ids: string\[\]; main\?: boolean \}\)/,
+    );
     expect(form).toMatch(/const \[note, setNote\] = useState\(""\);/);
     const page = readFileSync(join(SRC, "app/office/pay-queries/page.tsx"), "utf8");
-    expect(page).toMatch(/<SortGroupForm ids=\{g\.queries\.map\(\(q\) => q\.id\)\} \/>/);
+    expect(page).toMatch(
+      /<SortGroupForm ids=\{g\.queries\.map\(\(q\) => q\.id\)\} main=\{i === 0\} \/>/,
+    );
   });
 
   it("nothing a worker sees or receives, and nothing on payroll's sorting path, can reach the AI code", () => {

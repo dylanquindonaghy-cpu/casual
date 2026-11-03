@@ -74,7 +74,7 @@ function Initials({ row }: { row: CasualRow }) {
   return (
     <span
       aria-hidden="true"
-      className="flex size-10 shrink-0 items-center justify-center rounded-full bg-wait-tile text-xs font-semibold text-wait-ink glass-rim"
+      className="flex size-10 shrink-0 items-center justify-center rounded-full bg-wait-tile text-xs font-semibold text-ink glass-rim"
     >
       {initials(row.name)}
     </span>
@@ -90,7 +90,7 @@ const who = (row: CasualRow) =>
 // Live strikes: "None", or the number in red (it counts against them).
 function Strikes({ n }: { n: number }) {
   return (
-    <span className={`tabular-nums ${n > 0 ? "font-semibold text-urgent" : "text-ink"}`}>
+    <span className={`tabular-nums ${n > 0 ? "font-semibold text-urgent-ink" : "text-ink"}`}>
       {strikesText(n)}
     </span>
   );
@@ -211,7 +211,7 @@ export default async function OfficeCasualsPage({
               <span className="text-sm text-ink-muted">{CASUAL_VIEW_WORDS[v]}</span>
               <span
                 className={`text-3xl font-semibold tabular-nums ${
-                  v === "cancel_often" && list.counts[v] > 0 ? "text-urgent" : "text-ink"
+                  v === "cancel_often" && list.counts[v] > 0 ? "text-urgent-ink" : "text-ink"
                 }`}
               >
                 {list.counts[v]}

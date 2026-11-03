@@ -699,7 +699,7 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
       ["/office/shifts/nll1", "Open the shift"],
     ]);
     // Starting in under 2 days: red.
-    expect(card(html)).toMatch(/text-urgent">Starts in 20 h</);
+    expect(card(html)).toMatch(/text-urgent-ink">Starts in 20 h</);
     // No offer waiting: who can take it, when it's one person or nobody.
     const quiet = (takers: Board["takers"]) =>
       render({

@@ -66,7 +66,7 @@ export function Need({
   return (
     <section aria-labelledby={id} className="glass rounded-inner p-4 sm:p-6">
       <div className="flex items-center gap-3">
-        <Icon name="leaf" size={18} className="shrink-0 text-attention" />
+        <Icon name="leaf" size={18} className="shrink-0 text-attention-ink" />
         <h3 id={id} className="flex items-center text-lg font-bold tracking-heading">
           {NEEDS_HEADINGS[id]}
           <span className={count}>{n}</span>
@@ -363,7 +363,7 @@ export function AlsoNeedsYou({
       className="glass flex flex-col items-start gap-3 self-start rounded-inner p-4 sm:p-6 lg:col-span-4"
     >
       <div className="flex items-center gap-3">
-        <Icon name="leaf" size={18} className="shrink-0 text-urgent" />
+        <Icon name="leaf" size={18} className="shrink-0 text-urgent-ink" />
         <h2 id="also-needs-you" className="text-lg font-bold tracking-heading">
           Also needs you
         </h2>

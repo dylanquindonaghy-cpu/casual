@@ -328,7 +328,7 @@ describe("the office's controls: hover, focus and pressed (Dylan's brief)", () =
       /rounded-full .* glass-button text-ink hover:bg-button-hover active:bg-button-press$/,
     );
     expect(btn.danger).toMatch(
-      /rounded-full .* glass-button text-urgent hover:bg-button-hover active:bg-button-press$/,
+      /rounded-full .* glass-button text-urgent-ink hover:bg-button-hover active:bg-button-press$/,
     );
     expect(btn.dangerSolid).toMatch(
       / bg-urgent-fill text-on-urgent hover:bg-urgent-fill-hover active:bg-urgent-fill-hover$/,
@@ -438,7 +438,8 @@ describe("the office's controls: hover, focus and pressed (Dylan's brief)", () =
       / office:max-w-full office:shrink-0 office:whitespace-normal$/,
     );
     // The blue tone (Phase 23): waiting on someone else.
-    expect(classes.chip.wait).toBe("border-wait-line bg-wait-soft text-wait-ink");
+    // Its words in ink in the office (round 8's six text colours, aud-4): the blue is its tint.
+    expect(classes.chip.wait).toBe("border-wait-line bg-wait-soft text-wait-ink office:text-ink");
     // Every count a pill with no edge (Phase 23): the grey one clear glass since Phase 24, the
     // others tinted.
     for (const [name, cls, fill] of [
@@ -705,7 +706,7 @@ describe("round 7's parts on the office's other pages", () => {
     expect(section!.split(" ")).toEqual(expect.arrayContaining(["glass", "rounded-inner"]));
     expect(section).not.toMatch(/(?<![\w-])(?:border|bg-[a-z]+-soft|bg-card)(?![\w-])/);
     expect(also).toMatch(
-      /<svg [^>]*class="[^"]*(?<![\w-])text-urgent(?![\w-])[^"]*"[^>]*>[\s\S]*?<\/svg><h2 id="also-needs-you"/,
+      /<svg [^>]*class="[^"]*(?<![\w-])text-urgent-ink(?![\w-])[^"]*"[^>]*>[\s\S]*?<\/svg><h2 id="also-needs-you"/,
     );
     // Each of its parts (Who worked?, Uploads to check and the rest): the same, an amber leaf.
     const { Need } = await import("@/app/office/needs-items");
@@ -717,7 +718,7 @@ describe("round 7's parts on the office's other pages", () => {
     );
     expect(need).not.toMatch(/(?<![\w-])(?:border|bg-[a-z]+-soft)(?![\w-])/);
     expect(need).toMatch(
-      /<svg [^>]*class="[^"]*(?<![\w-])text-attention(?![\w-])[^"]*"[^>]*>[\s\S]*?<\/svg><h3 id="to-mark"/,
+      /<svg [^>]*class="[^"]*(?<![\w-])text-attention-ink(?![\w-])[^"]*"[^>]*>[\s\S]*?<\/svg><h3 id="to-mark"/,
     );
     // No shadow class and no grain, here or anywhere in what it draws.
     expect(also).not.toMatch(/(?<![\w-])(?:[a-z0-9-]+:)*(?:inset-)?shadow-(?!none)/);
@@ -963,5 +964,61 @@ describe("every other office page's tables, round 8 (Phase 26.10, oth-2)", () =>
     for (const f of OFFICE) {
       expect([f, code(read(f))]).not.toEqual([f, expect.stringMatching(/\b(odd|even):bg-/)]);
     }
+  });
+});
+
+// Six text colours (round 8, aud-4): ink, muted, faint, red, amber and green (each status's "ink"
+// shade, the one checked for contrast on its tint and on the glass); the status pills and tiles keep
+// their tints (sys-4: Offered blue, Hidden grey) with words in those six. A filled control's or
+// badge's own words (`on-*`: on ink, on red, on hi-vis, on the firm's bar), a pressed link's darker
+// ink, and the map's marks on the column icons (`mark-*`) aren't page text.
+describe("the office's text colours (round 8, aud-4)", () => {
+  it("six: ink, muted, faint, red, amber, green", () => {
+    const NOT_COLOUR = new Set([
+      "left",
+      "right",
+      "center",
+      "justify",
+      "start",
+      "end",
+      "balance",
+      "pretty",
+      "wrap",
+      "nowrap",
+      "ellipsis",
+      "clip",
+      "xs",
+      "sm",
+      "base",
+      "lg",
+      "xl",
+      "2xl",
+      "3xl",
+      "4xl",
+      "5xl",
+      "title",
+      "inherit",
+      "current",
+      "transparent",
+    ]);
+    const SIX = new Set([
+      "ink",
+      "ink-muted",
+      "ink-faint",
+      "urgent-ink",
+      "attention-ink",
+      "done-ink",
+    ]);
+    const TEXT_COLOUR = new RegExp(`${V}text-([a-z][a-z0-9-]*)${END}`, "g");
+    const off = found(
+      TEXT_COLOUR,
+      (value) =>
+        NOT_COLOUR.has(value) ||
+        SIX.has(value) ||
+        value.startsWith("on-") ||
+        value === "ink-press" ||
+        value.startsWith("mark-"),
+    );
+    expect(off).toEqual([]);
   });
 });

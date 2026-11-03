@@ -73,7 +73,7 @@ export function LinkLogin({
       <p>{prompt}</p>
       {waitMinutes !== null && <TooManyTries minutes={waitMinutes} />}
       {failed && (
-        <p role="alert" className="mt-4 font-semibold text-urgent">
+        <p role="alert" className="mt-4 font-semibold text-urgent office:text-urgent-ink">
           {tryAgainText()}
         </p>
       )}

@@ -94,7 +94,7 @@ export default async function CancellationsPage({
           >
             <span className="text-sm text-ink-muted">{t.label}</span>
             <span
-              className={`text-3xl font-semibold tabular-nums ${t.urgent ? "text-urgent" : "text-ink"}`}
+              className={`text-3xl font-semibold tabular-nums ${t.urgent ? "text-urgent-ink" : "text-ink"}`}
             >
               {t.value}
             </span>

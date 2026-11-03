@@ -44,7 +44,7 @@ const TONE: Record<ReturnType<typeof updateRow>["tone"], { bg: string; icon: Ico
   done: { bg: "bg-done-tile text-done-ink", icon: "check" },
   urgent: { bg: "bg-urgent-tile text-urgent-ink", icon: "cancel" },
   attention: { bg: "bg-attention-soft text-attention-ink", icon: "clock" },
-  wait: { bg: "bg-wait-tile text-wait-ink", icon: "profile" },
+  wait: { bg: "bg-wait-tile text-ink", icon: "profile" },
 };
 
 function Rows({

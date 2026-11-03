@@ -193,7 +193,7 @@ function PanelBody({
           role="status"
           className={confirm ? "flex items-center gap-2 font-medium text-ink" : "sr-only"}
         >
-          {confirm ? <Icon name="check" size={18} className="text-done" /> : null}
+          {confirm ? <Icon name="check" size={18} className="text-done-ink" /> : null}
           {confirm ?? ""}
         </p>
         <button type="button" onClick={onClose} className={`${btn.secondary} self-start`}>
@@ -257,7 +257,7 @@ export function OfferContent({
                 >
                   <span
                     aria-hidden="true"
-                    className="flex size-10 items-center justify-center rounded-full bg-wait-tile text-xs font-semibold text-wait-ink glass-rim"
+                    className="flex size-10 items-center justify-center rounded-full bg-wait-tile text-xs font-semibold text-ink glass-rim"
                   >
                     {initials(c.name)}
                   </span>

@@ -173,7 +173,8 @@ describe("the office menu (v2 groups; Phases 18 and 20)", () => {
       expect(badgeOf(href), href).toBe(countNeeds);
     expect(badgeOf("/office/pay-queries")).toBe(countWaiting);
     expect(countNeeds).toMatch(/(?<![\w-])bg-hivis text-on-hivis(?![\w-])/);
-    expect(countWaiting).toMatch(/(?<![\w-])bg-wait-tile text-wait-ink(?![\w-])/);
+    // Its words in ink (round 8's six text colours, aud-4): the blue is its tint.
+    expect(countWaiting).toMatch(/(?<![\w-])bg-wait-tile text-ink(?![\w-])/);
     // Flat tinted pills (Phase 23): no edge, no depth.
     for (const c of [countNeeds, countWaiting])
       expect(c).not.toMatch(/(?<![\w-])(?:border|(?:inset-)?shadow)(?:-[\w/-]+)?(?![\w-])/);
@@ -553,10 +554,10 @@ describe("the shell", () => {
       '<div class="min-w-0 lg:hidden"><p class="flex min-w-0 items-center gap-3 leading-tight"><span aria-hidden="true" class="flex size-9 shrink-0 items-center justify-center rounded-row bg-brand-bar text-base font-extrabold text-on-brand-bar">A</span><span class="min-w-0"><span class="block truncate font-bold text-ink">Acme Events</span><span class="hidden">Office</span></span></p></div>',
     );
     // The light or dark switch (the office dark until someone picks: round 8): 44px, 14px corners,
-    // clear glass below 1024px; round, 40px, from there; its words its name and shown beside it on keyboard focus and under the
+    // clear glass below 1024px; round, 44px, from there (aud-6's 44px, Phase 26.10); its words its name and shown beside it on keyboard focus and under the
     // pointer (WCAG 1.4.13: they take the pointer, an 8px bridge over the gap).
     expect(bar).toMatch(
-      /<span class="group\/tip relative flex shrink-0"><button type="button" aria-label="Switch to light mode" disabled="" class="peer press-glass max-lg:glass-button inline-flex size-11 items-center justify-center rounded-row [^"]*lg:size-10 lg:rounded-full"><svg [^>]*>(?:(?!<\/svg>).)*<\/svg><\/button><span aria-hidden="true" data-theme-tip="" class="absolute top-full right-0 z-30 mt-2 hidden animate-pop rounded-row bg-ink px-3 py-2 text-sm font-semibold whitespace-nowrap text-on-ink before:absolute before:inset-x-0 before:-top-2 before:h-2 peer-focus-visible:block pointer-fine:group-hover\/tip:block">Switch to light mode<\/span><\/span>/,
+      /<span class="group\/tip relative flex shrink-0"><button type="button" aria-label="Switch to light mode" disabled="" class="peer press-glass max-lg:glass-button inline-flex size-11 items-center justify-center rounded-row [^"]*disabled:opacity-60 lg:rounded-full"><svg [^>]*>(?:(?!<\/svg>).)*<\/svg><\/button><span aria-hidden="true" data-theme-tip="" class="absolute top-full right-0 z-30 mt-2 hidden animate-pop rounded-row bg-ink px-3 py-2 text-sm font-semibold whitespace-nowrap text-on-ink before:absolute before:inset-x-0 before:-top-2 before:h-2 peer-focus-visible:block pointer-fine:group-hover\/tip:block">Switch to light mode<\/span><\/span>/,
     );
     // In that order, left to right (HTML attribute names ignore case: React writes
     // "popoverTarget").
@@ -604,7 +605,7 @@ describe("the shell", () => {
       expect(m[3]).toMatch(/^<svg [^>]*class="shrink-0 hidden @min-\[84rem\]:block">/);
     }
     expect(counts).not.toContain("bg-line");
-    expect(counts).toContain('Urgent <b class="font-semibold tabular-nums text-urgent">2</b>');
+    expect(counts).toContain('Urgent <b class="font-semibold tabular-nums text-urgent-ink">2</b>');
     expect(counts).toContain('To fill <b class="font-semibold tabular-nums text-ink">26</b>');
     // No urgent places: its number in ink.
     expect(countsOf(shell(undefined, "admin", { shell: { ...COUNTS, urgent: 0 } }))).toContain(

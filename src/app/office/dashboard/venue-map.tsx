@@ -461,7 +461,7 @@ export function VenueMap({
                       <span className="block text-xs font-normal text-ink-faint">{v.town}</span>
                     )}
                   </th>
-                  <td className={`px-3 py-2 text-right ${v.urgent ? "text-urgent" : "text-ink"}`}>
+                  <td className={`px-3 py-2 text-right ${v.urgent ? "text-urgent-ink" : "text-ink"}`}>
                     {v.places}
                     {v.urgent && " · urgent"}
                   </td>

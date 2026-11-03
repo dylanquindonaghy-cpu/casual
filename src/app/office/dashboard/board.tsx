@@ -67,7 +67,7 @@ const plain = (e: MouseEvent) =>
 const LEAF: Record<ColumnKey, string> = {
   toOffer: "text-mark-open",
   updates: "text-mark-wait",
-  toMark: "text-attention",
+  toMark: "text-attention-ink",
 };
 
 // A date tile: the day's short name over its number, red when the session is urgent.
@@ -356,7 +356,7 @@ function DetailCard({
           />
         </span>
         <p className="mt-2 flex flex-wrap justify-between gap-x-3 gap-y-1 text-ink-muted">
-          <span className={soon.soon ? "text-urgent" : undefined}>Starts in {soon.text}</span>
+          <span className={soon.soon ? "text-urgent-ink" : undefined}>Starts in {soon.text}</span>
           <span>{placesText(s.placesFree)}</span>
         </p>
       </div>

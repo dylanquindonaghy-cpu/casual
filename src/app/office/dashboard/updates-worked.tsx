@@ -38,7 +38,7 @@ const TONE: Record<ReturnType<typeof updateLines>["tone"], { bg: string; icon: I
   done: { bg: "bg-done-tile text-done-ink", icon: "check" },
   urgent: { bg: "bg-urgent-tile text-urgent-ink", icon: "cancel" },
   attention: { bg: "bg-attention-soft text-attention-ink", icon: "clock" },
-  wait: { bg: "bg-wait-tile text-wait-ink", icon: "profile" },
+  wait: { bg: "bg-wait-tile text-ink", icon: "profile" },
 };
 
 export function UpdatesList({
@@ -139,7 +139,7 @@ function Person({
           disabled={pending || !ready}
           aria-label={noShowLabel(name, when)}
           onClick={() => mark("no_show")}
-          className="press-glass glass-button inline-flex size-11 items-center justify-center rounded-full text-urgent hover:bg-button-hover active:bg-button-press disabled:cursor-not-allowed disabled:opacity-60"
+          className="press-glass glass-button inline-flex size-11 items-center justify-center rounded-full text-urgent-ink hover:bg-button-hover active:bg-button-press disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Icon name="close" size={15} />
         </button>

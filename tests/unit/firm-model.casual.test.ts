@@ -48,10 +48,10 @@ describe("either licence", () => {
     expect(
       REASONS.credential_missing_any(["SIA security guard licence", "SIA door supervisor licence"]),
     ).toBe(
-      "This shift needs a valid SIA security guard licence or SIA door supervisor licence. Send one to the office to be checked.",
+      "This shift needs a valid SIA security guard licence or SIA door supervisor licence. Once you have one, tell the office under Messages so they can check it.",
     );
     expect(REASONS.credential_missing_any(["A", "B", "C"])).toBe(
-      "This shift needs a valid A, B or C. Send one to the office to be checked.",
+      "This shift needs a valid A, B or C. Once you have one, tell the office under Messages so they can check it.",
     );
   });
 });
@@ -131,7 +131,7 @@ describe("the shift page", () => {
     expect(html).toContain('href="/profile/upload/SIA_DS"');
     expect(html).not.toContain(">upload it<");
     expect(words).toContain(
-      "This shift needs a valid SIA security guard licence or SIA door supervisor licence. Send one to the office to be checked.",
+      "This shift needs a valid SIA security guard licence or SIA door supervisor licence. Once you have one, tell the office under Messages so they can check it.",
     );
   });
 

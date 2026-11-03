@@ -469,10 +469,16 @@ export const APP_AUTOMATIC_REPLY = "Automatic reply.";
 export const forTheApp = (text: string): string =>
   text.split(AUTOMATIC_REPLY).join(APP_AUTOMATIC_REPLY);
 
+// Where a pay question that's really a dispute goes: a pay query, which reaches payroll's digest.
+export const PAY_QUERY_HINT =
+  "If something looks wrong, tap 'Raise a pay query' there, so payroll sees it.";
+
 export function shiftsLineReply(firm: FirmVoice, reply: ShiftsLineReply): string {
   const text =
     reply.intent === "pay"
-      ? `Your hours, rates and pay dates: ${reply.link} (you'll get a code to log in).`
+      ? // Golden rule 9: a pay question never gets an AI answer, and a dispute goes to payroll by a
+        // pay query (the guardrails review of 27.2, H1), as the inbox's pay answer says too.
+        `Your hours, rates and pay dates: ${reply.link} (you'll get a code to log in). ${PAY_QUERY_HINT}`
       : `The office will see this and get back to you. Ref ${reply.ref}.`;
   return `${text} ${AUTOMATIC_REPLY} — ${firm.signOff}`;
 }

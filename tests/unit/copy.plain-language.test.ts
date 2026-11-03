@@ -847,7 +847,7 @@ const SCREENS: [string, ReactElement][] = [
           {
             id: "2",
             mine: false,
-            text: "Your hours, rates and pay dates: https://acme.shiftdesk.test/pay (you'll get a code to log in). Automatic reply. Send OFFICE to reach a person. — Acme Events Shift Team",
+            text: "Your hours, rates and pay dates: https://acme.shiftdesk.test/pay (you'll get a code to log in). If something looks wrong, tap 'Raise a pay query' there, so payroll sees it. Automatic reply. Send OFFICE to reach a person. — Acme Events Shift Team",
             at: NOW,
             from: "automatic",
           },

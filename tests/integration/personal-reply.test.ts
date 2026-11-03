@@ -674,7 +674,7 @@ describe("through the shifts line's job", () => {
     );
     const pay = await t.send("when do I get paid");
     expect(t.capture.sent.at(-1)?.body).toBe(
-      `Your hours, rates and pay dates: https://${slugs[0]?.slug}.shiftdesk.test/pay (you'll get a code to log in). ${AUTOMATIC} — ${t.firmName} Shift Team`,
+      `Your hours, rates and pay dates: https://${slugs[0]?.slug}.shiftdesk.test/pay (you'll get a code to log in). If something looks wrong, tap 'Raise a pay query' there, so payroll sees it. ${AUTOMATIC} — ${t.firmName} Shift Team`,
     );
     expect(await t.eventsOf(pay.messageId, "enquiry.checks")).toEqual([]);
     const unsorted = await t.send("is there parking at the venue");

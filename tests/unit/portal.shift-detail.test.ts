@@ -84,7 +84,7 @@ describe("ShiftView", () => {
       shift: summary,
       facts,
       reasons: [
-        "Your SIA door supervisor licence expired on 3 Oct. Renew it, then send the new number to the office.",
+        "Your SIA door supervisor licence expired on 3 Oct. Once you've renewed it, tell the office under Messages.",
       ],
       review: null,
     });
@@ -96,7 +96,7 @@ describe("ShiftView", () => {
     expect(words).toContain("Riverside Festival · Demo Arena 1 Test Road, Leeds, LS1 1AA Gate A");
     expect(html).toMatch(/<span class="glass-tile shrink-0 rounded-\[10px\] [^"]*">Gate A<\/span>/);
     expect(words).toContain(
-      "You can't take this shift: Your SIA door supervisor licence expired on 3 Oct. Renew it, then send the new number to the office.",
+      "You can't take this shift: Your SIA door supervisor licence expired on 3 Oct. Once you've renewed it, tell the office under Messages.",
     );
     expect(words).toContain("If you think this is wrong, ask the office to review it.");
     expect(words).toContain("Anything the office should know? (optional)");

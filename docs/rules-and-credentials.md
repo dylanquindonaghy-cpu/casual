@@ -74,7 +74,7 @@ type RuleCheck = {
 | 0 | The shift hasn't started (`startsAt > now`) | "This shift has already started." |
 | 1 | Worker status is `active` | "Your account isn't active. Contact the office." |
 | 2 | Role match (worker.roles includes shift.role) | "This shift needs a [role]." |
-| 3 | Each required credential present, `valid`, and `expiresOn >= shift date`; and one of the role's "one of" group (P3.3, Rules 3: `credential_rules.any_of_types`, a security officer's SIA security guard or door supervisor licence) passing the same check, none of the group's held licences suspended. The required list comes from the firm's `credential_rules` row for the shift's role, plus the session's own extra requirements (`shifts.required_credentials`: CSAS, first aid… set on the session, 12B.3), each checked exactly like the role's, valid until the session ends; **no row for the role means not eligible** (fail closed: a deleted or forgotten rule must never drop a licence check), whatever the session adds. A row with an empty list means the role needs no credential. | "Your SIA licence expired on 3 Oct. Renew it, then send the new number to the office." / no rule: "This shift isn't ready to take yet. Ask the office." |
+| 3 | Each required credential present, `valid`, and `expiresOn >= shift date`; and one of the role's "one of" group (P3.3, Rules 3: `credential_rules.any_of_types`, a security officer's SIA security guard or door supervisor licence) passing the same check, none of the group's held licences suspended. The required list comes from the firm's `credential_rules` row for the shift's role, plus the session's own extra requirements (`shifts.required_credentials`: CSAS, first aid… set on the session, 12B.3), each checked exactly like the role's, valid until the session ends; **no row for the role means not eligible** (fail closed: a deleted or forgotten rule must never drop a licence check), whatever the session adds. A row with an empty list means the role needs no credential. | "Your SIA licence expired on 3 Oct. Once you've renewed it, tell the office under Messages." / no rule: "This shift isn't ready to take yet. Ask the office." |
 | 4 | If credential is `applied`: allowed only if firm allowance > 0 and adding this worker keeps applied share ≤ allowance % | "Your licence is still being processed. The office can only deploy a limited number of staff in that position today." |
 | 5 | No overlap with other assignments (± travel buffer) | "You're already booked at [time] that day." (or "on Fri 6 Nov" for another day) |
 | 6 | Rest gap ≥ `minRestHours` from the previous and the next assignment | "This is too close to your previous shift (11 hours' rest needed)." / "...your next shift..." |
@@ -107,11 +107,11 @@ holds shows the one that stands best for her (the suspended one first), as on he
 The office's event cards, session rows and cancellation records show a group as "A or B" too
 ("SIA SG or SIA DS"; a session that asks for one of it outright, each as before: Phase 25.2). Every
 required type gets its own reason:
-missing: "This shift needs a valid [name]. Send it to the office to be checked."; suspended:
+missing: "This shift needs a valid [name]. Once you have it, tell the office under Messages so they can check it."; suspended:
 "Your [name] is suspended. Contact the office."; out of date before the shift ends: "Your [name]
-expires on [date], before this shift. Renew it, then send the new number to the office." (or
+expires on [date], before this shift. Once you've renewed it, tell the office under Messages." (or
 "expired on [date]" once past); marked expired with no earlier date: "Your [name] is marked as
-expired. Renew it, then send the new number to the office."; applied over the allowance: "Your
+expired. Once you've renewed it, tell the office under Messages."; applied over the allowance: "Your
 [name] is still being processed. Only a few people waiting for theirs can work each day, and
 today's places are taken." A booking that clashes only because of the travel buffer: "This is too
 close to your booking at [time] to travel between them."
@@ -207,7 +207,7 @@ share of staff whose licence application is in progress (reported as up to 15%).
 firm setting `credential_applied_allowance_pct` (above: no command sets it yet); default 0; and it
 counts only for credential types marked
 `applied_allowed` (the three SIA licences). Any other type in progress: "Your [name] is still
-being processed. This shift needs a valid one. Send it to the office when you have it." Confirm
+being processed. This shift needs a valid one. Tell the office under Messages when you have it." Confirm
 the current SIA rule before enabling.
 
 ## Expiry warnings

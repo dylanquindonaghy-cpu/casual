@@ -151,7 +151,7 @@ describe("My requests and New request", () => {
       ),
     );
     expect(words).toContain(
-      "No requests yet. To change a shift's times or swap it, tap Ask for a change. The office's answer shows here.",
+      "No requests yet. To change a shift's times or swap it, tap Ask for a change to a shift. The office's answer shows here.",
     );
   });
 

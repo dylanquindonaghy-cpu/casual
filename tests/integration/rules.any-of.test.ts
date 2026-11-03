@@ -104,7 +104,7 @@ describe("booking through the rules", () => {
       status: "not_eligible",
       codes: ["credential_missing"],
       reasons: [
-        "This shift needs a valid SIA security guard licence or SIA door supervisor licence. Send one to the office to be checked.",
+        "This shift needs a valid SIA security guard licence or SIA door supervisor licence. Once you have one, tell the office under Messages so they can check it.",
       ],
     });
     expect(await f.book(await shift(), out)).toMatchObject({

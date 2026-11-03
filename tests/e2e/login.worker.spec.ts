@@ -60,7 +60,7 @@ test("a worker logs in with a link, the link works once, and they can log out", 
   await expect(page).toHaveURL(`${acme}/requests`);
   await expect(
     page.getByText(
-      "No requests yet. To change a shift's times or swap it, tap Ask for a change. The office's answer shows here.",
+      "No requests yet. To change a shift's times or swap it, tap Ask for a change to a shift. The office's answer shows here.",
     ),
   ).toBeVisible();
   // Booked is on the Shifts tab, with the last 30 days a toggle away; the old address goes there.

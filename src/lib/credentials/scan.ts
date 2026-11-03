@@ -396,7 +396,8 @@ async function claimCredential(
       : null;
   const date = shortDate(expiresOn, year);
   // Where she uploads the renewed card (12F.2). One she can't upload (the office records it, or none
-  // of her roles needs it, so her upload page wouldn't take it) says to send it to the office.
+  // of her roles needs it, so her upload page wouldn't take it) says to tell the office under
+  // Messages, with the link to her Messages (Phase 27.2).
   const upload =
     c.needed && !c.officeRecorded && casualMayUpload(c.type)
       ? `${portal}/profile/upload/${c.type}`

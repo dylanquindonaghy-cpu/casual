@@ -94,7 +94,7 @@ describe("docs/rules-and-credentials.md test cases", () => {
     );
     expect(result.codes).toEqual(["credential_expired"]);
     expect(result.reasons).toEqual([
-      "Your SIA door supervisor licence expires on 6 Nov, before this shift. Renew it, then send the new number to the office.",
+      "Your SIA door supervisor licence expires on 6 Nov, before this shift. Once you've renewed it, tell the office under Messages.",
     ]);
   });
 
@@ -108,7 +108,7 @@ describe("docs/rules-and-credentials.md test cases", () => {
     const result = checkEligibility(input({ credentials: [] }));
     expect(result.codes).toEqual(["credential_missing"]);
     expect(result.reasons).toEqual([
-      "This shift needs a valid SIA door supervisor licence. Send it to the office to be checked.",
+      "This shift needs a valid SIA door supervisor licence. Once you have it, tell the office under Messages so they can check it.",
     ]);
   });
 
@@ -220,7 +220,7 @@ describe("docs/rules-and-credentials.md test cases", () => {
     expect(result.ok).toBe(false);
     expect(result.codes).toEqual(["credential_expired", "overlap"]);
     expect(result.reasons).toEqual([
-      "Your SIA door supervisor licence expired on 3 Oct. Renew it, then send the new number to the office.",
+      "Your SIA door supervisor licence expired on 3 Oct. Once you've renewed it, tell the office under Messages.",
       "You're already booked at 10:00 that day.",
     ]);
     expect(result.pass).toBeUndefined();
@@ -256,7 +256,7 @@ describe("docs/rules-and-credentials.md test cases", () => {
     });
     expect(result.codes).toEqual(["credential_missing"]);
     expect(result.reasons).toEqual([
-      "This shift needs a valid CSAS accreditation. Send it to the office to be checked.",
+      "This shift needs a valid CSAS accreditation. Once you have it, tell the office under Messages so they can check it.",
     ]);
   });
 
@@ -275,7 +275,7 @@ describe("docs/rules-and-credentials.md test cases", () => {
     });
     expect(result.codes).toEqual(["credential_expired"]);
     expect(result.reasons).toEqual([
-      "Your CSAS accreditation expires on 7 Nov, before this shift. Renew it, then send the new number to the office.",
+      "Your CSAS accreditation expires on 7 Nov, before this shift. Once you've renewed it, tell the office under Messages.",
     ]);
     // In date to the morning it ends: fine.
     expect(
@@ -322,7 +322,7 @@ describe("docs/rules-and-credentials.md test cases", () => {
     const result = officer([]);
     expect(result.codes).toEqual(["credential_missing"]);
     expect(result.reasons).toEqual([
-      "This shift needs a valid SIA security guard licence or SIA door supervisor licence. Send one to the office to be checked.",
+      "This shift needs a valid SIA security guard licence or SIA door supervisor licence. Once you have one, tell the office under Messages so they can check it.",
     ]);
   });
 
@@ -343,8 +343,8 @@ describe("docs/rules-and-credentials.md test cases", () => {
     });
     expect(result.codes).toEqual(["credential_missing", "credential_missing"]);
     expect(result.reasons).toEqual([
-      "This shift needs a valid SIA door supervisor licence. Send it to the office to be checked.",
-      "This shift needs a valid SIA security guard licence. Send it to the office to be checked.",
+      "This shift needs a valid SIA door supervisor licence. Once you have it, tell the office under Messages so they can check it.",
+      "This shift needs a valid SIA security guard licence. Once you have it, tell the office under Messages so they can check it.",
     ]);
   });
 
@@ -512,7 +512,7 @@ describe("credentials: status and date both count", () => {
     expect(result.codes).toEqual(["credential_expired"]);
     // Expired before today, in another year: the year is shown.
     expect(result.reasons[0]).toBe(
-      "Your SIA door supervisor licence expired on 31 Dec 2025. Renew it, then send the new number to the office.",
+      "Your SIA door supervisor licence expired on 31 Dec 2025. Once you've renewed it, tell the office under Messages.",
     );
   });
 
@@ -557,7 +557,7 @@ describe("credentials: status and date both count", () => {
       "credential_missing",
     ]);
     expect(result.reasons[2]).toBe(
-      "This shift needs a valid RAIL DA. Send it to the office to be checked.",
+      "This shift needs a valid RAIL DA. Once you have it, tell the office under Messages so they can check it.",
     );
   });
 
@@ -769,7 +769,7 @@ describe("credentials over a whole night, and suspensions", () => {
     const result = checkEligibility(input({ shift: night, credentials: expiresSaturday }));
     expect(result.codes).toEqual(["credential_expired"]);
     expect(result.reasons).toEqual([
-      "Your SIA door supervisor licence expires on 7 Nov, before this shift. Renew it, then send the new number to the office.",
+      "Your SIA door supervisor licence expires on 7 Nov, before this shift. Once you've renewed it, tell the office under Messages.",
     ]);
     const expiresSunday = [{ type: "SIA_DS", status: "valid" as const, expiresOn: "2026-11-08" }];
     expect(codes(input({ shift: night, credentials: expiresSunday }))).toEqual(OK);
@@ -803,7 +803,7 @@ describe("credentials over a whole night, and suspensions", () => {
       input({ credentials: [{ type: "SIA_DS", status: "expired", expiresOn: "2028-01-01" }] }),
     );
     expect(marked.reasons).toEqual([
-      "Your SIA door supervisor licence is marked as expired. Renew it, then send the new number to the office.",
+      "Your SIA door supervisor licence is marked as expired. Once you've renewed it, tell the office under Messages.",
     ]);
     const mixed = checkEligibility(
       input({
@@ -815,7 +815,7 @@ describe("credentials over a whole night, and suspensions", () => {
       }),
     );
     expect(mixed.reasons).toEqual([
-      "Your SIA door supervisor licence expires on 6 Nov, before this shift. Renew it, then send the new number to the office.",
+      "Your SIA door supervisor licence expires on 6 Nov, before this shift. Once you've renewed it, tell the office under Messages.",
     ]);
   });
 });
@@ -897,7 +897,7 @@ describe("the applied allowance is per credential type", () => {
     const result = checkEligibility(appliedPts);
     expect(result.codes).toEqual(["credential_missing"]);
     expect(result.reasons).toEqual([
-      "Your PTS card is still being processed. This shift needs a valid one. Send it to the office when you have it.",
+      "Your PTS card is still being processed. This shift needs a valid one. Tell the office under Messages when you have it.",
     ]);
     // The same numbers pass for an SIA licence, which allows it.
     expect(
@@ -919,7 +919,7 @@ describe("the applied allowance is per credential type", () => {
     );
     expect(result.codes).toEqual(["credential_missing"]);
     expect(result.reasons).toEqual([
-      "Your PTS card is still being processed. This shift needs a valid one. Send it to the office when you have it.",
+      "Your PTS card is still being processed. This shift needs a valid one. Tell the office under Messages when you have it.",
     ]);
   });
 
@@ -935,7 +935,7 @@ describe("the applied allowance is per credential type", () => {
     );
     expect(result.codes).toEqual(["credential_expired"]);
     expect(result.reasons).toEqual([
-      "Your PTS card expired on 1 Sep. Renew it, then send the new number to the office.",
+      "Your PTS card expired on 1 Sep. Once you've renewed it, tell the office under Messages.",
     ]);
   });
 

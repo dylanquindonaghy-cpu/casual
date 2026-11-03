@@ -35,19 +35,19 @@ export const REASONS = {
   wrong_role: (role: string) => `This shift needs ${withArticle(roleName(role))}.`,
   no_rule: () => "This shift isn't ready to take yet. Ask the office.",
   credential_missing: (name: string) =>
-    `This shift needs a valid ${name}. Send it to the office to be checked.`,
+    `This shift needs a valid ${name}. Once you have it, tell the office under Messages so they can check it.`,
   // A one-of group she holds none of (P3.3; 25.2): any one will do.
   credential_missing_any: (names: readonly string[]) =>
-    `This shift needs a valid ${orList(names)}. Send one to the office to be checked.`,
+    `This shift needs a valid ${orList(names)}. Once you have one, tell the office under Messages so they can check it.`,
   credential_expired: (name: string, date: string, alreadyExpired: boolean) =>
     alreadyExpired
-      ? `Your ${name} expired on ${date}. Renew it, then send the new number to the office.`
-      : `Your ${name} expires on ${date}, before this shift. Renew it, then send the new number to the office.`,
+      ? `Your ${name} expired on ${date}. Once you've renewed it, tell the office under Messages.`
+      : `Your ${name} expires on ${date}, before this shift. Once you've renewed it, tell the office under Messages.`,
   credential_marked_expired: (name: string) =>
-    `Your ${name} is marked as expired. Renew it, then send the new number to the office.`,
+    `Your ${name} is marked as expired. Once you've renewed it, tell the office under Messages.`,
   credential_suspended: (name: string) => `Your ${name} is suspended. Contact the office.`,
   applied_not_allowed: (name: string) =>
-    `Your ${name} is still being processed. This shift needs a valid one. Send it to the office when you have it.`,
+    `Your ${name} is still being processed. This shift needs a valid one. Tell the office under Messages when you have it.`,
   applied_over_allowance: (name: string) =>
     `Your ${name} is still being processed. Only a few people waiting for theirs can work each day, and today's places are taken.`,
   overlap: (time: string, day: string | null) =>

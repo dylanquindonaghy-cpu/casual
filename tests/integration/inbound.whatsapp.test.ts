@@ -328,7 +328,7 @@ describe("replying (the inbound-message job)", () => {
       ],
       [
         "When do wages go in",
-        `Your hours, rates and pay dates: ${portal}/pay (you'll get a code to log in). ${automatic} — ${t.name} Shift Team`,
+        `Your hours, rates and pay dates: ${portal}/pay (you'll get a code to log in). If something looks wrong, tap 'Raise a pay query' there, so payroll sees it. ${automatic} — ${t.name} Shift Team`,
       ],
     ] as const) {
       expect(await run(await t.incoming(text), transport)).toMatchObject({

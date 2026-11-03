@@ -922,6 +922,34 @@ describe("the SMS versions", () => {
     expect(parts(whatsapp)).toBe(3);
   });
 
+  // What each costs (the guardrails review of 27.2, L1), so a change of words that adds a text
+  // shows here. A short urgent offer is 165 characters with Phase 27.2's "Take it: " (156 without:
+  // one text), so two texts: Dylan's call. The licence reminders keep WhatsApp's words by text,
+  // dash and all, so the dearer kind: their own standard-characters versions are in the Parking lot.
+  it("how many texts the short urgent offer and the licence reminders cost (Phase 27.2)", () => {
+    const short = shiftUrgentSms(demo, {
+      role: "steward",
+      site: "Arena",
+      day: "today",
+      start: "19:00",
+      link,
+    });
+    expect(Number.isFinite(gsmLength(short))).toBe(true);
+    expect([...short].length).toBe(165);
+    expect(parts(short)).toBe(2);
+    const messages = "https://acme.shiftdesk.example/messages";
+    const upload = "https://acme.shiftdesk.example/profile/upload/SIA_DS";
+    const name = "SIA door supervisor licence";
+    const reminders = [
+      templates.credentialExpiringMessage(demo, name, "Sat 7 Nov", null, messages),
+      templates.credentialExpiredMessage(demo, name, "Sat 7 Nov", null, messages),
+      templates.credentialExpiringMessage(demo, name, "Sat 7 Nov", upload, messages),
+      templates.credentialExpiredMessage(demo, name, "Sat 7 Nov", upload, messages),
+    ];
+    for (const text of reminders) expect(Number.isFinite(gsmLength(text))).toBe(false);
+    expect(reminders.map(parts)).toEqual([4, 4, 3, 4]);
+  });
+
   it("a firm's own sign-off, after a plain hyphen", () => {
     const text = shiftUrgentSms(
       { name: "Acme Events", signOff: "Acme Rota Desk" },

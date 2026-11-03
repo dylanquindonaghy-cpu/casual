@@ -263,6 +263,19 @@ describe("myProfile", () => {
     // Another worker of the firm, with none of those bookings or offers: nothing.
     const kit = await f.worker({ first: "Kit", roles: ["steward"] });
     expect((await myProfile(ctxFor(f), kit))?.others).toEqual([]);
+    // Only her own records (the guardrails review of 27.2, M2): Kit booked on a shift needing first
+    // aid, which only Sam holds, sees none of Sam's; Lee holds CSAS but has no booking or offer of
+    // her own, while Sam is offered a CSAS shift, and sees nothing either.
+    const kits = await f.shift({ role: "steward", startsAt: hoursFromNow(60) });
+    await extras(kits, "{FIRST_AID}");
+    await f.booking(kit, kits);
+    expect((await myProfile(ctxFor(f), kit))?.others).toEqual([]);
+    const lee = await f.worker({
+      first: "Lee",
+      roles: ["steward"],
+      credentials: [{ type: "CSAS", expiresOn: "2029-01-01" }],
+    });
+    expect((await myProfile(ctxFor(f), lee))?.others).toEqual([]);
   });
 });
 

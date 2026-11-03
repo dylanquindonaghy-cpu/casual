@@ -143,7 +143,7 @@ the words are always these.
 | Worker types | Reply |
 |---|---|
 | "cancel" | The personal cancel reply (below, 12D.2: their next booking, with its link) |
-| "pay", "paid", "wages", "payslip" | "Your hours, rates and pay dates: {link} (you'll get a code to log in). Automatic reply. Send OFFICE to reach a person." ({link} is the pay page; never a list or an answer about pay) |
+| "pay", "paid", "wages", "payslip" | "Your hours, rates and pay dates: {link} (you'll get a code to log in). If something looks wrong, tap 'Raise a pay query' there, so payroll sees it. Automatic reply. Send OFFICE to reach a person." ({link} is the pay page; never a list or an answer about pay) |
 | "shifts", "work", "available" | The personal shift list (below, 12D.2). Not when the message also says they can't make it or are late ("can't", "cannot", "won't", "not", "unable", "sick", "ill", "late"): that's about their own shift, so the AI or the office gets it. "shift" alone isn't a keyword for the same reason |
 | "help", "office", "talk" | "The office will see this and get back to you. Ref {ref}. Automatic reply. Send OFFICE to reach a person." + a request for the office (a question, the message as its note) |
 | anything else | Haiku picks one of the rows above (the worker's text only; an answer that isn't exactly one label counts as none); no AI, a failure, or no answer within 5 seconds: the office row. A photo with no text: the office row |

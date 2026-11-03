@@ -32,8 +32,8 @@ export function RequestsList({ requests, timeZone }: { requests: MyRequest[]; ti
       />
       {requests.length === 0 ? (
         <p>
-          No requests yet. To change a shift&apos;s times or swap it, tap Ask for a change. The
-          office&apos;s answer shows here.
+          No requests yet. To change a shift&apos;s times or swap it, tap Ask for a change to a
+          shift. The office&apos;s answer shows here.
         </p>
       ) : (
         <ul role="list" className={staffRows}>

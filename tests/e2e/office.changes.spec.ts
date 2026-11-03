@@ -141,12 +141,13 @@ test("move a booked shift with a reason, see the notice logged, then cancel the 
   await expect(page.getByRole("heading", { name: "Cancelled", level: 4 })).toBeVisible();
   await expect(confirmation).toBeVisible();
 
-  // The notice report says who asked (Phase 25.2), newest first.
+  // The notice report says who asked (Phase 25.2), newest first, and who started it: an office
+  // person (Phase 27.2's guardrails review: "The firm (office)").
   await page.goto(`${acme}/office/reports/notice?kind=cancellations`);
   const row = page
     .getByRole("region", { name: "Notice and cancellation report" })
     .locator("tr", { hasText: name })
-    .filter({ hasText: "The firm" })
+    .filter({ hasText: "The firm (office)" })
     .first();
   await expect(row).toContainText("The client");
 });

@@ -1146,7 +1146,7 @@ https://claude.ai/artifact/9GPXjLG2NXmz4FvbMXBdiu (sections 1, 2 and 6).
       charcoal; a mock-up on the real streets first (after 27.3) (review §3; UI) (27.4)
 - [ ] The layout changes: words on the icon-only buttons, the phone map's key, the card's booked bar,
       the casual's "To do" row; a mock-up first (review §5 "Layout changes"; UI) (27.5)
-- [ ] The casual app in round 8's look: the office's ground, faint street map and sharp glass (no
+- [x] The casual app in round 8's look: the office's ground, faint street map and sharp glass (no
       wash, no bending) on every casual page, in light and dark as the phone is set, with the firm's
       own colour on the main button and its mark; the casual's own sizes, words and layout kept;
       solid with less transparency; every pair's contrast checked (go-ahead: Dylan, 2026-11-03,

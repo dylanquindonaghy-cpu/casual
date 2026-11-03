@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { LogoutButton } from "../logout-button";
 import { Icon } from "../ui/icons";
 import {
@@ -13,6 +14,7 @@ import {
 } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { StatusChip, type StatusTone } from "@/app/ui/status-chip";
+import type { Qualification } from "@/lib/credentials/status";
 import type { MyStrikes } from "@/lib/portal/my-strikes";
 import {
   myStrikeCancelled,
@@ -29,9 +31,11 @@ import type { MyTravel } from "@/lib/portal/travel";
 import { TRAVEL_PATH, TRAVEL_TITLE, travelSummaryText } from "@/lib/portal/travel-copy";
 import { MAX_UNAVAILABLE_DAYS, UNAVAILABLE_AHEAD_DAYS } from "@/lib/portal/profile-kinds";
 import {
-  dateLine,
+  chipTail,
   meaning,
   noRuleText,
+  otherMeaning,
+  otherShiftText,
   qualificationTitle,
   rightToWorkText,
   statusLabel,
@@ -39,7 +43,14 @@ import {
 } from "@/lib/portal/qualification-copy";
 import { PHOTO_GUIDANCE, PHOTO_TONES, PHOTO_WORDS, photoDates } from "@/lib/portal/upload-copy";
 import { shortDate } from "@/lib/rules/reasons";
-import { countsWords, reliabilityWords, type Reliability } from "@/lib/rules/reliability";
+import {
+  countsWords,
+  LATE_NOTICE_HOURS,
+  NEW_RELIABILITY_TEXT,
+  NEW_RELIABILITY_WHEN,
+  reliabilityWords,
+  type Reliability,
+} from "@/lib/rules/reliability";
 import { addDays } from "@/lib/time/zoned";
 import { WhatHappened } from "../shifts/cancel-shift-result";
 import { AvailabilityForm } from "./availability-form";
@@ -50,9 +61,9 @@ import { UploadForm } from "./upload-form";
 
 // Me (docs/screens.md, `/profile`): contact details (read-only), my staff photo (12F.2: the current
 // one, when it's due again, its status and "Upload a new photo"), my qualifications as they stand
-// today (12F.1: each status, its date line and what it means, then right to work; 12F.2: "Upload a
-// certificate" for the ones I may upload), where I work (12G.1), my strikes (12C.5), days I can't
-// work, and how we reach me. One card per section.
+// today (12F.1: each status, its date line and what it means; 12F.2: "Upload a new one" for the
+// ones I may upload; then "Other qualifications on file", Phase 27.2, and right to work), my travel
+// area (12G.1), my strikes (12C.5), days I can't work, and how we reach me. One card per section.
 
 // A worker who replied STOP to a text (docs/screens.md `/profile`): texts are off until START, so
 // shift messages go by email if we hold their address, else only as notifications (Phase 26.9).
@@ -177,42 +188,51 @@ export function ProfileView({
             <p className={headingGap}>Your roles don&apos;t need any.</p>
           )
         ) : (
-          // Rows run to the card's edges; one that stops you working is red, with a red edge.
           <ul
             role="list"
             className={`${headingGap} -mx-4 divide-y divide-line border-t border-line`}
           >
             {profile.qualifications.map((q) => {
-              const blocked =
-                q.status === "expired" || q.status === "suspended" || q.status === "rejected";
               const means = meaning(q);
               return (
-                <li
-                  key={q.type}
-                  className={
-                    blocked
-                      ? "border-l-4 border-urgent bg-urgent-soft py-3 pr-4 pl-3 text-urgent-ink"
-                      : "px-4 py-3"
-                  }
-                >
-                  <p className="font-semibold">{qualificationTitle(q.name)}</p>
-                  <p className={`mt-1 text-base ${nums}`}>
-                    <StatusChip tone={QUALIFICATION_TONES[q.status]}>{statusLabel(q)}</StatusChip>
-                    {dateLine(q, year) && ` · ${dateLine(q, year)}`}
-                  </p>
+                <QualificationRow key={q.type} q={q} year={year}>
                   {means && <p className="mt-2 text-base">{means}</p>}
                   {/* An upload can't lift a suspension; one waiting may be replaced. */}
                   {q.uploadable && q.status !== "suspended" && (
                     <p className="mt-2">
                       <Link href={`/profile/upload/${q.type}`} className={btn.link}>
-                        Upload a certificate
+                        Upload a new one
                       </Link>
                     </p>
                   )}
-                </li>
+                </QualificationRow>
               );
             })}
           </ul>
+        )}
+        {/* One a shift of hers needs on top of its role (Phase 27.2): no upload here (her upload
+            page takes only what her roles need), so what to tell the office instead. */}
+        {profile.others && profile.others.length > 0 && (
+          <div className="-mx-4 border-t border-line">
+            <h3 id="other-qualifications-heading" className="px-4 pt-3 text-lg font-bold text-ink">
+              Other qualifications on file
+            </h3>
+            <ul
+              role="list"
+              aria-labelledby="other-qualifications-heading"
+              className="mt-2 divide-y divide-line border-t border-line"
+            >
+              {profile.others.map((q) => {
+                const means = otherMeaning(q);
+                return (
+                  <QualificationRow key={q.type} q={q} year={year}>
+                    <p className="mt-2 text-base">{otherShiftText(q.shift)}</p>
+                    {means && <p className="mt-1 text-base">{means}</p>}
+                  </QualificationRow>
+                );
+              })}
+            </ul>
+          </div>
         )}
         <div className="-mx-4 -mb-4 border-t border-line px-4 py-3">
           <p className="font-semibold">Right to work</p>
@@ -244,8 +264,8 @@ export function ProfileView({
           Days you can&apos;t work
         </h2>
         <p className={`mt-1 ${muted}`}>
-          We won&apos;t offer you shifts on these days. Up to {MAX_UNAVAILABLE_DAYS} days, in the
-          next 6 months.
+          We won&apos;t offer you shifts on these days. You can mark up to {MAX_UNAVAILABLE_DAYS}{" "}
+          days, up to 6 months ahead.
         </p>
         <AvailabilityForm
           signOff={signOff}
@@ -307,6 +327,37 @@ export function ProfileView({
         </li>
       </ul>
     </>
+  );
+}
+
+// One qualification, as a row running to the card's edges: its name, its status chip and date
+// ("Valid until 27 Mar 2028"), then what follows (`children`). One that stops her working is red,
+// with a red edge.
+function QualificationRow({
+  q,
+  year,
+  children,
+}: {
+  q: Qualification;
+  year: number;
+  children: ReactNode;
+}) {
+  const blocked = q.status === "expired" || q.status === "suspended" || q.status === "rejected";
+  return (
+    <li
+      className={
+        blocked
+          ? "border-l-4 border-urgent bg-urgent-soft py-3 pr-4 pl-3 text-urgent-ink"
+          : "px-4 py-3"
+      }
+    >
+      <p className="font-semibold">{qualificationTitle(q.name)}</p>
+      <p className={`mt-1 text-base ${nums}`}>
+        <StatusChip tone={QUALIFICATION_TONES[q.status]}>{statusLabel(q)}</StatusChip>
+        {chipTail(q, year)}
+      </p>
+      {children}
+    </li>
   );
 }
 
@@ -372,7 +423,9 @@ function StrikesSection({ strikes }: { strikes: MyStrikes }) {
   );
 }
 
-// Their own reliability (Phase 26.7, cas-6): the same figure and counts the office sees.
+// Their own reliability (Phase 26.7, cas-6): the same figure and counts the office sees. The
+// notice is the reliability rule's own (LATE_NOTICE_HOURS), not the firm's strike notice: the count
+// uses it (src/lib/office/reliability.ts).
 function ReliabilitySection({ reliability }: { reliability: Reliability }) {
   return (
     <section aria-labelledby="reliability-heading" className={`${staffCard} ${sectionGap.staff}`}>
@@ -387,8 +440,7 @@ function ReliabilitySection({ reliability }: { reliability: Reliability }) {
           </>
         ) : (
           <>
-            <span className="font-semibold">{reliabilityWords(reliability)}</span>. It shows as a
-            figure once you have 5.
+            <span className="font-semibold">{NEW_RELIABILITY_TEXT}</span> {NEW_RELIABILITY_WHEN}
           </>
         )}
       </p>
@@ -396,9 +448,9 @@ function ReliabilitySection({ reliability }: { reliability: Reliability }) {
         {countsWords(reliability.counts)}
       </p>
       <p className="mt-2 text-base">
-        Shifts you worked, out of those plus no-shows and cancellations with under 48 hours&apos;
-        notice. Our office sees the same figure. It doesn&apos;t change which shifts you&apos;re
-        offered.
+        Shifts you worked, out of those plus no-shows and cancellations with under{" "}
+        {LATE_NOTICE_HOURS} hours&apos; notice. Our office sees the same figure. It doesn&apos;t
+        change which shifts you&apos;re offered.
       </p>
     </section>
   );

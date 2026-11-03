@@ -1,6 +1,13 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { mapLink, roleLabel, siteAddress, soonLabel, timeOnDay } from "@/lib/portal/format";
+import {
+  mapLink,
+  NO_RATE_UNDER_LABEL,
+  roleLabel,
+  siteAddress,
+  soonLabel,
+  timeOnDay,
+} from "@/lib/portal/format";
 import type { MyShift } from "@/lib/portal/my-shifts";
 import type { ShiftFacts } from "@/lib/portal/shift-facts";
 import { requirementWords, strikeNoteText } from "@/lib/portal/shift-page-copy";
@@ -25,11 +32,12 @@ import { ReviewForm } from "./review-form";
 // and 24). As round 7 of the canvas has it (24.6): its own bar at the top with the way back (the
 // firm's bar hides, and there's no tab bar), frosting once the page scrolls under it; a glass card
 // topped by "Urgent, needed now" on a red band when it is, the time large beside the date tile
-// (pale red when urgent), the day and how long, the role (the page's heading), chips (Urgent and
-// what it needs), the place and its address with the post on a plate; then a glass card each for
-// getting there from her home area (three figures and "Open in maps"), the places as seats ("1 of
-// 4 places left"), what it needs (each with her status, and where she can sort one herself,
-// "upload it"), where to report, what to bring and wear, and the pay with its estimate. Under them
+// (pale red when urgent), the day and how long, the role (the page's heading), chips (what it
+// needs, by full name), the place and its address with the post on a plate; then a glass card each
+// for getting there from her travel area (three figures and "Directions"), the places as seats ("1
+// of 4 places left"), what it needs (each with her status, and where she can sort one herself,
+// "upload it"), where to report, what to bring and wear, and the pay with its estimate ("Ask the
+// office" when the session has no rate). Under them
 // what she can do: "Take shift" floating at the foot over a frosted strip, the strike note under it
 // ("You're booked." then covers the screen); when it opens (fair rotation); the rules' reasons with
 // "Ask the office to review"; or, booked, her instructions and actions. Filled, started and
@@ -62,7 +70,7 @@ function Card({ id, title, children }: { id: string; title: string; children: Re
   );
 }
 
-// A little glass chip under the role ("Urgent", "SIA DS").
+// A little glass chip under the role ("SIA door supervisor licence").
 const chip = "glass-tile rounded-[10px] px-2.5 py-1 text-base font-medium";
 
 function ShiftCard({
@@ -115,10 +123,10 @@ function ShiftCard({
           <h1 id="shift-heading" className="text-3xl font-semibold tracking-heading text-ink">
             {roleLabel(shift.role)}
           </h1>
-          {(facts.isUrgent || facts.requirements.length > 0) && (
+          {/* No "Urgent" chip: the red band above says it. */}
+          {facts.requirements.length > 0 && (
             <p className="-mt-1 flex flex-wrap gap-2" data-requirements="">
-              {facts.isUrgent && <span className={`${chip} text-urgent-ink`}>Urgent</span>}
-              {facts.requirements.length > 0 && <span className="sr-only">Needs: </span>}
+              <span className="sr-only">Needs: </span>
               {facts.requirements.map((r, i) => (
                 <span key={r.code} className={`${chip} text-ink`}>
                   {r.chip}
@@ -144,13 +152,13 @@ function ShiftCard({
       {(facts.travel || map) && (
         <Card
           id="getting-there-heading"
-          title={`Getting there${facts.travel ? ", from your home area" : ""}`}
+          title={`Getting there${facts.travel ? ", from your travel area" : ""}`}
         >
           {facts.travel && <TravelFigures travel={facts.travel} timeZone={timeZone} />}
           {map && (
             <a href={map} target="_blank" rel="noopener noreferrer" className={staffBtn.secondary}>
               <Icon name="map" size={22} />
-              Open in maps
+              Directions
             </a>
           )}
         </Card>
@@ -213,7 +221,7 @@ function ShiftCard({
                               aria-label={`Upload your ${a.name}`}
                               className="font-semibold underline underline-offset-4"
                             >
-                              {a.chip}
+                              {a.name}
                             </Link>
                           </span>
                         ))}
@@ -235,15 +243,17 @@ function ShiftCard({
           <BringAndWear text={facts.uniform} />
         </Card>
       )}
-      {facts.payRatePence != null && (
-        <Card id="pay-heading" title="Pay">
+      <Card id="pay-heading" title="Pay">
+        {facts.payRatePence != null ? (
           <PayFigures
             ratePence={facts.payRatePence}
             startsAt={shift.startsAt}
             endsAt={shift.endsAt}
           />
-        </Card>
-      )}
+        ) : (
+          <p className="text-lg text-ink">{NO_RATE_UNDER_LABEL}</p>
+        )}
+      </Card>
     </div>
   );
 }

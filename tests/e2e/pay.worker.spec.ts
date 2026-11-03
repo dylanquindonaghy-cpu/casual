@@ -32,7 +32,9 @@ test("pay needs a code: a wrong one counts down, the right one opens the page", 
 
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Pay" }).click();
   await expect(page).toHaveURL(`${acme}/pay`);
-  await expect(page.getByText("To see your pay, we'll send you a 6-digit code.")).toBeVisible();
+  await expect(
+    page.getByText("To keep your pay private, we'll text you a 6-digit code."),
+  ).toBeVisible();
   const codeAsked = new Date(Date.now() - 1000);
   await page.getByRole("button", { name: "Send me a code" }).click();
   const code = await codeSentTo(mobile, codeAsked);
@@ -52,10 +54,12 @@ test("pay needs a code: a wrong one counts down, the right one opens the page", 
   await expect(page.getByText("The last 8 weeks, from Acme Events' payroll.")).toBeVisible();
   // Exactly this steward's seeded lines (their hours come from a fixed random seed).
   const mine = expectedPay();
-  await expect(page.getByText(/^Pay date: /)).toHaveCount(mine.length);
+  await expect(page.getByText(/^Pay day: /)).toHaveCount(mine.length);
   await expect(page.getByText(/ at £13\.00 an hour$/)).toHaveCount(mine.length);
   for (const line of mine) {
-    await expect(page.getByText(`Gross pay: ${pounds(line.grossPence)}`).first()).toBeVisible();
+    await expect(
+      page.getByText(`Pay before tax: ${pounds(line.grossPence)}`).first(),
+    ).toBeVisible();
   }
 
   // Still open after a reload (30 minutes).

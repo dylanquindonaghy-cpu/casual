@@ -76,9 +76,9 @@ test("Profile shows Zoe's qualifications: one Valid, one Expiring soon, one Miss
   // Her own reliability (Phase 26.7, cas-6), as the office sees it: new, so far no shifts counted.
   const reliability = page.getByRole("region", { name: "Your reliability" });
   await expect(reliability).toContainText(
-    "New: 0 shifts so far. It shows as a figure once you have 5.",
+    "You're new, so there's no score yet. You'll get one after 5 shifts.",
   );
-  await expect(reliability).toContainText("0 worked · 0 no-shows · 0 late cancellations");
+  await expect(reliability).toContainText("0 shifts worked · 0 no-shows · 0 late cancellations");
   await expect(reliability).toContainText("Our office sees the same figure.");
   const qualifications = page.getByRole("region", { name: "Qualifications" });
   const items = qualifications.getByRole("listitem");
@@ -92,15 +92,17 @@ test("Profile shows Zoe's qualifications: one Valid, one Expiring soon, one Miss
   await expect(items.nth(1)).toContainText("Level 2 spectator safety qualification");
   await expect(items.nth(1)).toContainText(/Expiring soon · Expires \d{1,2} \w{3}/);
   await expect(items.nth(2)).toContainText("SIA door supervisor licence");
-  await expect(items.nth(2)).toContainText(/Valid · Valid until \d{1,2} \w{3}/);
+  await expect(items.nth(2)).toContainText(/Valid until \d{1,2} \w{3}/);
   // One she can upload has its link (12F.2); CSAS is recorded by the office, so it doesn't.
-  await expect(items.nth(1).getByRole("link", { name: "Upload a certificate" })).toHaveAttribute(
+  await expect(items.nth(1).getByRole("link", { name: "Upload a new one" })).toHaveAttribute(
     "href",
     "/profile/upload/STEWARD_L2",
   );
   await expect(items.nth(0).getByRole("link")).toHaveCount(0);
   await expect(qualifications).toContainText("Right to work");
-  await expect(qualifications).toContainText("Not checked yet: ask the office");
+  await expect(qualifications).toContainText(
+    "Not recorded yet. The office will ask you for your documents if they need them.",
+  );
   expect((await page.locator("body").innerText()).toLowerCase()).not.toContain("credential");
   await noSidewaysScroll(page);
 });
@@ -139,10 +141,10 @@ test("Home shows Holly's photo row, the urgent row and her next shift in full", 
   );
   await expect(needs.getByRole("link")).toHaveAttribute("href", "/profile#photo-heading");
 
-  // Shifts you can take: the urgent row (round 7's words: how many, near her home area, when, the
+  // Shifts you can take: the urgent row (round 7's words: how many, near her travel area, when, the
   // top rate) to the urgent board.
   const canTake = page.getByRole("region", { name: "Shifts you can take" });
-  const urgentRow = canTake.getByRole("link", { name: /^1 urgent near you / });
+  const urgentRow = canTake.getByRole("link", { name: /^1 urgent shift near you / });
   await expect(urgentRow).toContainText("up to £13.00/hour");
   await expect(urgentRow).toHaveAttribute("href", "/urgent");
   // Nothing else in her role is open, so the apply row says so (to Open shifts).
@@ -155,7 +157,9 @@ test("Home shows Holly's photo row, the urgent row and her next shift in full", 
   await expect(pay.getByRole("link")).toHaveAttribute("href", "/pay");
   await expect(pay).toContainText("Pay day");
   await expect(pay).toContainText(/Fri \d{1,2} [A-Z][a-z]{2}/);
-  await expect(pay).toContainText("For this week's shifts");
+  await expect(pay).toContainText(
+    /For shifts Mon \d{1,2}( [A-Z][a-z]{2})? to Sun \d{1,2} [A-Z][a-z]{2}/,
+  );
 
   // Her next shift: a glass pass (when, what, where, the gate), Directions and Details side by
   // side, its Details opening the card under it.
@@ -171,7 +175,7 @@ test("Home shows Holly's photo row, the urgent row and her next shift in full", 
   await expect(next).toContainText("Gate 3");
   await expect(next.getByRole("link", { name: "Ask for a change" })).toBeHidden();
   await next.locator("[data-pass-more] summary").click();
-  await expect(next).toContainText(/£12\.60 an hour, about £100\.80/);
+  await expect(next).toContainText(/£12\.60 an hour, about £100\.80 before tax/);
   await expect(next).toContainText("Staff entrance on Mill Lane");
   await expect(next).toContainText("Black trousers and your hi-vis");
   await expect(next).toContainText("5.0 miles · 15 min by car · 30 min by public transport");
@@ -204,9 +208,11 @@ test("Home shows Holly's photo row, the urgent row and her next shift in full", 
   await expect(urgent).toContainText("Home check");
   await expect(urgent).toContainText("£13.00/hour");
   await expect(urgent).toContainText("3.1 miles · 12 min by car · 24 min by public transport");
-  // Open shifts says how far she travels (round 7's words).
+  // Open shifts says how far she travels: her travel area (Phase 27.2: one name for it).
   await page.goto(`${acme}/shifts/open`);
-  await expect(page.getByText("Shifts you can take, up to 45 minutes from home.")).toBeVisible();
+  await expect(
+    page.getByText("Shifts you can take, inside your travel area (up to 45 minutes)."),
+  ).toBeVisible();
 
   // Profile's staff photo card (12H.3; §4.6): the photo, its dates and its status.
   await page.goto(`${acme}/`);
@@ -284,23 +290,25 @@ test("Shifts: Zoe sees the Arena shift with its travel line, and its page in ful
   await expect(page.getByText("1 Example Road, Exampleton, ZZ1 1AA")).toBeVisible();
   // A glass card for each fact (round 7).
   const payCard = page.getByRole("region", { name: "Pay" });
-  await expect(payCard.getByText("£15.50 an hour, about £124.00").first()).toBeVisible();
+  await expect(payCard.getByText("£15.50 an hour, about £124.00 before tax").first()).toBeVisible();
   await expect(page.getByRole("region", { name: "Report to" })).toBeVisible();
   await expect(page.getByText("Staff entrance on Mill Lane")).toBeVisible();
   await expect(page.getByText("Black trousers and your hi-vis")).toBeVisible();
   await expect(page.getByRole("region", { name: "Places" })).toContainText("4 of 4 places left");
-  const there = page.getByRole("region", { name: "Getting there, from your home area" });
+  const there = page.getByRole("region", { name: "Getting there, from your travel area" });
   await expect(there).toContainText("3.1 miles · 12 min by car · 24 min by public transport");
   await expect(there).toContainText("12 min");
   await expect(there).toContainText("24 min");
-  await expect(there.getByRole("link", { name: "Open in maps" })).toBeVisible();
+  await expect(there.getByRole("link", { name: "Directions" })).toBeVisible();
   const needs = page.getByRole("region", { name: "You need" });
   await expect(needs.getByRole("listitem")).toHaveText([
     new RegExp(`^SIA door supervisor licence\\s*You have it, valid until ${DAY}$`),
   ]);
   await expect(page.getByRole("button", { name: "Take shift" })).toBeVisible();
   await expect(
-    page.getByText("Cancelling less than 48 hours before the start gives you a strike."),
+    page.getByText(
+      "Cancelling less than 48 hours before the start gives you a strike. A strike is a record, not a fine. It never comes off your pay.",
+    ),
   ).toBeVisible();
   // Its own bar back to Open shifts (the firm's bar hides), and no tab bar on a shift's page.
   await expect(page.getByRole("link", { name: "Open shifts" })).toHaveAttribute(
@@ -465,7 +473,7 @@ test("the office sees Zoe on Casuals and on her own page", async ({ page }, test
       "SIA door supervisor licence",
       new RegExp(`^Valid · Valid until ${DAY}$`),
     ]);
-    await expect(quals).toContainText("Right to work: Not checked yet: ask the office");
+    await expect(quals).toContainText("Right to work: not checked yet");
     const strikesSection = page.getByRole("region", { name: "Strikes", exact: true });
     await expect(strikesSection).toContainText(
       `${strikes} live ${strikes === 1 ? "strike" : "strikes"}.`,

@@ -75,22 +75,22 @@ describe("areaVerdict: in, out or unknown", () => {
   });
 });
 
-describe("the 'further than you travel' words", () => {
+describe("the 'outside your travel area' words", () => {
   it("counts shifts, and urgent shifts on the urgent board", () => {
     expect(furtherText({ count: 1, atLeast: false })).toBe(
-      "1 more shift is further than you travel.",
+      "1 more shift is outside your travel area.",
     );
     expect(furtherText({ count: 2, atLeast: false })).toBe(
-      "2 more shifts are further than you travel.",
+      "2 more shifts are outside your travel area.",
     );
     expect(furtherText({ count: 50, atLeast: true })).toBe(
-      "At least 50 more shifts are further than you travel.",
+      "At least 50 more shifts are outside your travel area.",
     );
     expect(furtherText({ count: 1, atLeast: true })).toBe(
-      "At least 1 more shift is further than you travel.",
+      "At least 1 more shift is outside your travel area.",
     );
     expect(furtherText({ count: 3, atLeast: false }, true)).toBe(
-      "3 more urgent shifts are further than you travel.",
+      "3 more urgent shifts are outside your travel area.",
     );
   });
 });
@@ -154,29 +154,29 @@ describe("Open shifts and the urgent board", () => {
     expect(words).toContain("Demo Arena Distance not known yet 1 place left");
   });
 
-  it("no travel area: the prompt, linking to Where you work, and no 'further' line", () => {
+  it("no travel area: the prompt, linking to Your travel area, and no 'outside' line", () => {
     for (const html of [
       open(list({ area: null })),
       urgent(list({ area: null, shifts: [shift({ isUrgent: true })] })),
     ]) {
-      expect(text(html)).toContain(`${AREA_PROMPT} Add your home area`);
+      expect(text(html)).toContain(`${AREA_PROMPT} Add your travel area`);
       expect(html).toContain(`href="${TRAVEL_PATH}"`);
-      expect(text(html)).not.toContain("further than you travel");
+      expect(text(html)).not.toContain("outside your travel area");
     }
     expect(text(open(list()))).not.toContain(AREA_PROMPT);
   });
 
-  it("'N more shifts are further than you travel. Change how far', under the list", () => {
+  it("'N more shifts are outside your travel area. Change your travel area', under the list", () => {
     const words = text(open(list({ further: { count: 2, atLeast: false } })));
-    expect(words).toContain("2 more shifts are further than you travel. Change how far");
+    expect(words).toContain("2 more shifts are outside your travel area. Change your travel area");
     expect(open(list({ further: { count: 2, atLeast: false } }))).toContain(
       `href="${TRAVEL_PATH}"`,
     );
     expect(text(urgent(list({ further: { count: 1, atLeast: false } })))).toContain(
-      "1 more urgent shift is further than you travel. Change how far",
+      "1 more urgent shift is outside your travel area. Change your travel area",
     );
     // None further: no line.
-    expect(text(open(list()))).not.toContain("further than you travel");
+    expect(text(open(list()))).not.toContain("outside your travel area");
   });
 });
 
@@ -217,7 +217,7 @@ describe("Booked (My shifts' upcoming)", () => {
     // The pass (Phase 20): getting there in its Details card, both ways, then the three figures
     // (how far first since Phase 24: round 7's "3.1 miles away").
     expect(words).toContain(
-      "Getting there, from your home area 7.2 miles · 18 min by car · 41 min by public transport 7.2 miles away 18 min by car 41 min by public transport",
+      "Getting there, from your travel area 7.2 miles · 18 min by car · 41 min by public transport 7.2 miles away 18 min by car 41 min by public transport",
     );
     expect(words).toContain(
       "Door supervisor Demo Arena about 7 miles (straight line) · Travel time not known yet",
@@ -243,7 +243,7 @@ describe("travel areas switched off for the firm (13.4)", () => {
     }
     // Even with a "further" count somehow set, nothing about distance.
     expect(text(open({ ...off(), further: { count: 2, atLeast: false } }))).not.toContain(
-      "further than you travel",
+      "outside your travel area",
     );
   });
 });

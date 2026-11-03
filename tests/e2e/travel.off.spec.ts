@@ -4,14 +4,14 @@ import { loginLinkSentTo } from "./outbox";
 
 // Travel areas switched off for a firm (13.4; `travel.enabled`), in a real browser on a phone: the
 // demo firm has them on, so this spec switches them off for itself and puts the setting back after,
-// even when it fails. Off, a casual has no "Where you work" (its page is not found), Open shifts
-// asks for no home area and shows no travel lines, and Help has no travel area section. A steward
+// even when it fails. Off, a casual has no "Your travel area" (its page is not found), Open shifts
+// asks for no travel area and shows no travel lines, and Help has no travel area section. A steward
 // of this spec's own (made up) and an open shift of its own.
 
 const acme = "http://acme.localhost:3100";
 const CASUAL = { firstName: "Otto", lastName: "Offtravel", mobileE164: "+447700900661" };
 
-test("travel areas off: no Where you work, no prompt or travel lines, no help on it; on again: back", async ({
+test("travel areas off: no Your travel area, no prompt or travel lines, no help on it; on again: back", async ({
   page,
 }) => {
   await addSteward("acme", CASUAL);
@@ -25,11 +25,11 @@ test("travel areas off: no Where you work, no prompt or travel lines, no help on
     await page.goto(await loginLinkSentTo(CASUAL.mobileE164, asked));
     await page.getByRole("button", { name: "Log me in" }).click();
     await expect(page).toHaveURL(`${acme}/`);
-    await expect(page.getByText(/home area|minutes from your home/)).toHaveCount(0);
+    await expect(page.getByText(/travel area|home area|minutes from your home/)).toHaveCount(0);
 
     await page.goto(`${acme}/profile`);
     await expect(page.getByRole("heading", { name: "Otto Offtravel", level: 1 })).toBeVisible();
-    await expect(page.getByRole("region", { name: "Where you work" })).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Your travel area" })).toHaveCount(0);
     expect((await page.goto(`${acme}/profile/travel`))?.status()).toBe(404);
 
     await page.goto(`${acme}/shifts/open`);
@@ -38,7 +38,7 @@ test("travel areas off: no Where you work, no prompt or travel lines, no help on
     await expect(
       page.locator('main li a[href^="/shifts/"]:not([href^="/shifts/open"])').first(),
     ).toBeVisible();
-    await expect(page.getByText("Add your home area")).toHaveCount(0);
+    await expect(page.getByText("Add your travel area")).toHaveCount(0);
     await expect(page.locator("[data-travel-line]")).toHaveCount(0);
 
     await page.goto(`${acme}/help`);
@@ -47,7 +47,7 @@ test("travel areas off: no Where you work, no prompt or travel lines, no help on
   } finally {
     await setFirmSetting("acme", "travel", before);
   }
-  // On again (the demo firm's own setting): Where you work is back.
+  // On again (the demo firm's own setting): Your travel area is back.
   await page.goto(`${acme}/profile`);
-  await expect(page.getByRole("region", { name: "Where you work" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Your travel area" })).toBeVisible();
 });

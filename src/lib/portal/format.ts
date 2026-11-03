@@ -32,15 +32,21 @@ export function roleAndEvent(role: string, eventName: string | null | undefined)
   return eventName ? `${roleLabel(role)} · ${eventName}` : roleLabel(role);
 }
 
-// "£12.60 an hour, about £100.80": the rate, and the rate times the session's length (a guide:
-// breaks and the firm's own rounding can change it).
+// "£12.60 an hour, about £100.80 before tax": the rate, and the rate times the session's length (a
+// guide: breaks and the firm's own rounding can change it).
 export function payWords(ratePence: number, startsAt: Date, endsAt: Date): string {
   const hours = Math.max(0, endsAt.getTime() - startsAt.getTime()) / 3_600_000;
-  return `${pounds(ratePence)} an hour, about ${pounds(Math.round(ratePence * hours))}`;
+  return `${pounds(ratePence)} an hour, about ${pounds(Math.round(ratePence * hours))} before tax`;
 }
 
 // "£12.60/hour", for a line of facts.
 export const perHour = (ratePence: number): string => `${pounds(ratePence)}/hour`;
+
+// A session with no pay rate set: where its pay would be, so the casual knows to ask, never a blank.
+// On its own ("Pay: ask the office", an open shift's card), or under a "Pay" label ("Ask the
+// office", a shift's page and the pass's details).
+export const NO_RATE_TEXT = "Pay: ask the office";
+export const NO_RATE_UNDER_LABEL = "Ask the office";
 
 // A role mid-sentence: "CSAS officer" (src/lib/text/role.ts).
 export { roleWords };

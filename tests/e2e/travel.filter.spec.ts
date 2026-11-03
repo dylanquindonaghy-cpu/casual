@@ -28,10 +28,10 @@ test("Home and the urgent board show only shifts in her travel area; a direct li
 
   // Home: two urgent sessions in her role, one in her area: "Shifts you can take" counts that one
   // (12H.1; Phase 18: one row, to the urgent board, where each shows its travel line; Phase 24:
-  // round 7's "1 urgent near you").
+  // round 7's "1 urgent near you"; Phase 27.2: "1 urgent shift near you").
   const urgentOnHome = page
     .getByRole("region", { name: "Shifts you can take" })
-    .getByRole("link", { name: /^1 urgent near you / });
+    .getByRole("link", { name: /^1 urgent shift near you / });
   await expect(urgentOnHome).toBeVisible();
   await urgentOnHome.click();
   await expect(page).toHaveURL(`${acme}/urgent`);
@@ -39,8 +39,8 @@ test("Home and the urgent board show only shifts in her travel area; a direct li
   await expect(card).toHaveCount(1);
   await expect(card).toContainText("Travel check");
   await expect(card).toContainText("7.5 miles · 20 min by car · no public transport by");
-  await expect(page.getByText("1 more urgent shift is further than you travel.")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Change how far" })).toHaveAttribute(
+  await expect(page.getByText("1 more urgent shift is outside your travel area.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Change your travel area" })).toHaveAttribute(
     "href",
     "/profile/travel",
   );
@@ -53,7 +53,7 @@ test("Home and the urgent board show only shifts in her travel area; a direct li
       .getByRole("listitem")
       .filter({ has: page.locator('a[href^="/shifts/"]:not([href^="/shifts/open"])') }),
   ).toHaveCount(1);
-  await expect(page.getByText("1 more shift is further than you travel.")).toBeVisible();
+  await expect(page.getByText("1 more shift is outside your travel area.")).toBeVisible();
 
   // The far one, opened from a direct link: still bookable.
   await page.goto(`${acme}/shifts/${far}`);

@@ -34,7 +34,7 @@ import { DateTile } from "./ui/sign";
 // 7 of the canvas has them (24.6), glass cards of rows, each a tile (a date, her initials or an
 // icon), two lines and a chevron: "Do this" (what needs doing on Profile, only when something
 // does), "Shifts you can take" (the urgent shifts she can take, or offline that they need signal;
-// her home area to add while she has none; the other shifts she can apply for) and "Pay" (pay day).
+// her travel area to add while she has none; the other shifts she can apply for) and "Pay" (pay day).
 // Her other booked shifts are on the Shifts tab (`/shifts`). Server-rendered; only "Can't make it?"
 // and the home screen hint are client components.
 
@@ -223,7 +223,7 @@ const soonest = (shifts: OpenShift[], timeZone: string) => {
 };
 
 // "Shifts you can take": the urgent ones (to the urgent board), the other ones she can apply for
-// (to Open shifts), her home area to add while she has none; offline, that they need signal.
+// (to Open shifts), her travel area to add while she has none; offline, that they need signal.
 function ShiftsYouCanTake({ timeZone, open, savedAt }: HomeViewProps & { savedAt: string }) {
   const urgent = open.shifts.filter((s) => s.isUrgent);
   const rest = open.shifts.filter((s) => !s.isUrgent);

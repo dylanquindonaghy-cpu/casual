@@ -108,8 +108,8 @@ describe("Home's open shifts, in Shifts you can take", () => {
     expect(text(html)).not.toContain("For you");
     expect(row("urgent")).toContain('href="/urgent"');
     expect(row("urgent")).toContain("data-online-only");
-    // Near you: her home area chose them (round 7's words: how many, its days; a chevron).
-    expect(spoken(row("urgent"))).toBe("1 urgent near you Sat 7 Nov");
+    // Near you: her travel area chose them (round 7's words: how many, its days; a chevron).
+    expect(spoken(row("urgent"))).toBe("1 urgent shift near you Sat 7 Nov");
     expect(tileOf(row("urgent"))?.slice(1)).toEqual([
       expect.stringContaining("bg-urgent-tile text-urgent-ink"),
       "Sat",
@@ -134,7 +134,7 @@ describe("Home's open shifts, in Shifts you can take", () => {
     // Pay day (Phase 20): the pay week's Friday, to the Pay tab, online and offline, its day the tile.
     expect(row("pay")).toContain('href="/pay"');
     expect(row("pay")).not.toMatch(/data-o(n|ff)line-only/);
-    expect(spoken(row("pay"))).toBe("Pay day: Fri 13 Nov For this week&#x27;s shifts");
+    expect(spoken(row("pay"))).toBe("Pay day: Fri 13 Nov For shifts Mon 2 to Sun 8 Nov");
     expect(tileOf(row("pay"))?.slice(2)).toEqual(["Fri", "13"]);
     expect(html).not.toContain("data-requirements");
     expect(text(html)).not.toMatch(/SIA DS|CSAS/);
@@ -175,12 +175,12 @@ describe("Home with travel areas switched off for the firm (13.4)", () => {
       }),
     );
     const words = text(html);
-    expect(words).not.toMatch(/minutes from your home area|home area|miles|min by car/);
+    expect(words).not.toMatch(/travel area|home area|miles|min by car/);
     expect(html).not.toContain("data-travel-line");
     expect(html).not.toContain('href="/profile/travel"');
     expect(html).not.toContain('data-for-you="area"');
     // The open shifts still show, without how far (and not "near you": there's no area).
-    expect(spoken(html)).toContain("1 urgent Sat 7 Nov");
+    expect(spoken(html)).toContain("1 urgent shift Sat 7 Nov");
     expect(words).not.toContain("near you");
     expect(spoken(html)).toContain("1 more you can take Sat 7 Nov");
   });

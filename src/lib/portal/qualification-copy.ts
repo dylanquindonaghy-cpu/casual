@@ -97,21 +97,35 @@ export function dateLine(q: Qualification, year: number): string | null {
   }
 }
 
+// What follows her status chip on the same line: a valid one's date straight after it, as one
+// phrase ("Valid until 27 Mar 2028": the chip, then "until 27 Mar 2028"), any other date line after
+// a dot ("Expiring soon · Expires 3 Dec"). Empty: nothing to add.
+export function chipTail(q: Qualification, year: number): string {
+  if (q.status === "valid" && q.expiresOn) return ` until ${shortDate(q.expiresOn, year)}`;
+  const line = dateLine(q, year);
+  return line ? ` · ${line}` : "";
+}
+
+// How she sends one she can't upload (the office records it, or none of her roles needs it): she
+// tells the office under Messages (Phase 27.2, the same words as the expiry reminders).
+export const TELL_OFFICE_RENEWED = "Once you've renewed it, tell the office under Messages.";
+const TELL_OFFICE_ARRIVES = "When it arrives, tell the office under Messages.";
+
 // What it means for her (null: nothing to say). Where she may upload it (12F.2), that's what she's
-// asked to do; one the office records itself, she sends to them.
+// asked to do; one the office records itself, she tells them about under Messages.
 export function meaning(q: Qualification): string | null {
   const roles = rolesText(q.neededFor);
-  const send = q.uploadable ? "Upload the new one" : "Send the new details to the office";
+  const send = q.uploadable ? "Upload the new one." : TELL_OFFICE_RENEWED;
   switch (q.status) {
     case "valid":
       return null;
     case "expiring_soon":
       if (q.waiting) return "You've sent your new one. The office will check it.";
       return q.renewing
-        ? `You've applied to renew it. ${q.uploadable ? "Upload the new one" : "Send the new details to the office"} when it arrives.`
-        : `Renew it before then to keep getting ${roles} shifts. ${send}.`;
+        ? `You've applied to renew it. ${q.uploadable ? "Upload the new one when it arrives." : TELL_OFFICE_ARRIVES}`
+        : `Renew it before then to keep getting ${roles} shifts. ${send}`;
     case "expired":
-      return `Until it's renewed you won't see ${roles} shifts. ${send}.`;
+      return `Until it's renewed you won't see ${roles} shifts. ${send}`;
     case "missing":
       return q.uploadable
         ? `You won't see ${roles} shifts until you upload it and the office checks it.`
@@ -122,7 +136,7 @@ export function meaning(q: Qualification): string | null {
         q.appliedCounts
           ? `You may be offered some ${roles} shifts while you wait.`
           : `You won't see ${roles} shifts until it's issued.`
-      } ${q.uploadable ? "Upload it" : "Send it to the office"} when it arrives.`;
+      } ${q.uploadable ? "Upload it when it arrives." : TELL_OFFICE_ARRIVES}`;
     case "suspended":
       return `You can't take ${roles} shifts. Contact the office.`;
     case "being_checked":
@@ -132,12 +146,49 @@ export function meaning(q: Qualification): string | null {
   }
 }
 
-// Right to work: a status only (Rules 15), never "you can't be booked".
-export function rightToWorkText(r: RightToWork, year: number) {
+// "Other qualifications on file" on her Profile (Phase 27.2): one she holds that a shift she's
+// booked on or offered needs on top of its role, though none of her roles does. The shift: "Your
+// steward shift on Sat 7 Nov needs it." / "The steward shift you're offered on Sat 7 Nov needs it."
+export function otherShiftText(shift: { role: string; day: string; booked: boolean }): string {
+  const what = `${roleWords(shift.role)} shift`;
+  const day = dayLabel(shift.day);
+  return shift.booked
+    ? `Your ${what} on ${day} needs it.`
+    : `The ${what} you're offered on ${day} needs it.`;
+}
+
+// What it means for her, for one of those (null: nothing to say). She can't upload it here (her
+// upload page takes only what her roles need), so she tells the office under Messages.
+export function otherMeaning(q: Qualification): string | null {
+  switch (q.status) {
+    case "valid":
+    case "missing": // not on file: never listed
+      return null;
+    case "expiring_soon":
+      return q.renewing
+        ? TELL_OFFICE_ARRIVES
+        : `Renew it before then to keep taking shifts that need it. ${TELL_OFFICE_RENEWED}`;
+    case "expired":
+      return `You can't take shifts that need it until it's renewed. ${TELL_OFFICE_RENEWED}`;
+    case "applied":
+      return TELL_OFFICE_ARRIVES;
+    case "suspended":
+      return "You can't take shifts that need it. Contact the office.";
+    case "being_checked":
+      return "The office will check it soon.";
+    case "rejected":
+      return "When you have a new one, tell the office under Messages.";
+  }
+}
+
+// Right to work: a status only (Rules 15), never "you can't be booked". In her own words, or the
+// office's (after its "Right to work:" label), which needn't tell the office to ask itself.
+export function rightToWorkText(r: RightToWork, year: number, who: "casual" | "office" = "casual") {
   if (!r.checked) {
+    if (who === "office") return r.expired ? "check has run out" : "not checked yet";
     return r.expired
       ? "The office's check has run out: ask the office"
-      : "Not checked yet: ask the office";
+      : "Not recorded yet. The office will ask you for your documents if they need them.";
   }
   return r.checkedOn
     ? `Checked by the office on ${shortDate(r.checkedOn, year)}`
@@ -180,7 +231,7 @@ export function needsText(
     return `${name} ${state}, and ${shift} needs it. ${
       q.uploadable && q.status !== "suspended"
         ? "Upload the new one, or contact the office."
-        : "Send the new details to the office, or contact them."
+        : "Tell the office under Messages."
     }`;
   }
   const roles = rolesText(q.neededFor);

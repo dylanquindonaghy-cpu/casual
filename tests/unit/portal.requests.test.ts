@@ -61,7 +61,7 @@ describe("the request payload check", () => {
       escalated: "Waiting for the office",
       approved: "Approved",
       declined: "Declined",
-      auto_resolved: "Sorted",
+      auto_resolved: "Done",
     });
   });
 });
@@ -133,7 +133,7 @@ describe("My requests and New request", () => {
     );
     const words = text(html);
     expect(words).toContain("My requests");
-    expect(words).toContain("New request");
+    expect(words).toContain("Ask for a change to a shift");
     expect(words).toContain("Time change: Sat 7 Nov, 14:00 to 22:00");
     expect(words).toContain("Door supervisor at Demo Arena");
     expect(words).toContain("Waiting for the office");
@@ -150,7 +150,9 @@ describe("My requests and New request", () => {
         createElement(RequestsList, { timeZone: "Europe/London", requests: [] }),
       ),
     );
-    expect(words).toContain("No requests yet.");
+    expect(words).toContain(
+      "No requests yet. To change a shift's times or swap it, tap Ask for a change. The office's answer shows here.",
+    );
   });
 
   it("the form starts with the shift, the two kinds and Send request", () => {

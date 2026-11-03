@@ -17,7 +17,7 @@ import { dayLabel } from "@/lib/rules/reasons";
 
 // The pay page once the code has been checked (docs/screens.md, `/pay`; Phases 17 and 24): the last
 // 8 weeks of pay lines as payroll sent them, a week at a time (newest first: src/lib/portal/pay.ts).
-// As round 7 of the canvas has it (24.6): the newest week as a glass card (its dates, "Gross pay"
+// As round 7 of the canvas has it (24.6): the newest week as a glass card (its dates, "Pay before tax"
 // and its total, a glass row per rate, the pay date on a warm chip), then "Earlier weeks", one row
 // a week (its dates and lines, its total and pay date on the right). A week's total shows only when
 // payroll gave a gross for every line of it (payWeeks: src/lib/portal/pay-format.ts); otherwise each
@@ -25,7 +25,7 @@ import { dayLabel } from "@/lib/rules/reasons";
 export function PayView({ lines, firmName }: { lines: PayLine[]; firmName: string }) {
   const [latest, ...earlier] = payWeeks(lines);
   if (!latest) {
-    return <p>No pay data yet for this period.</p>;
+    return <p>No pay to show yet. It appears here once payroll sends it.</p>;
   }
   return (
     <>
@@ -40,12 +40,12 @@ export function PayView({ lines, firmName }: { lines: PayLine[]; firmName: strin
         </h2>
         {latest.totalPence !== null && (
           <p className="flex flex-col">
-            {/* Seen, not read out: the amount below carries "Gross pay: " for screen readers. */}
+            {/* Seen, not read out: the amount below carries "Pay before tax: " for screen readers. */}
             <span aria-hidden="true" className="text-base text-ink-muted">
-              Gross pay
+              Pay before tax
             </span>
             <span data-pay-total="" className="font-stat text-4xl text-ink">
-              <span className="sr-only">Gross pay: </span>
+              <span className="sr-only">Pay before tax: </span>
               {pounds(latest.totalPence)}
             </span>
           </p>
@@ -62,7 +62,9 @@ export function PayView({ lines, firmName }: { lines: PayLine[]; firmName: strin
                 <span className="text-ink">at {pounds(line.ratePence)} an hour</span>
               </span>{" "}
               {latest.totalPence === null && line.grossPence !== null && (
-                <span className="font-semibold text-ink">Gross pay: {pounds(line.grossPence)}</span>
+                <span className="font-semibold text-ink">
+                  Pay before tax: {pounds(line.grossPence)}
+                </span>
               )}
             </li>
           ))}
@@ -89,7 +91,7 @@ export function PayView({ lines, firmName }: { lines: PayLine[]; firmName: strin
                   <span className="min-w-0 text-lg font-medium text-ink">{weekDates(week)}</span>{" "}
                   {week.totalPence !== null && (
                     <span data-pay-total="" className="shrink-0 text-lg font-semibold text-ink">
-                      <span className="sr-only">Gross pay: </span>
+                      <span className="sr-only">Pay before tax: </span>
                       {pounds(week.totalPence)}
                     </span>
                   )}
@@ -108,7 +110,7 @@ export function PayView({ lines, firmName }: { lines: PayLine[]; firmName: strin
                     {week.totalPence === null
                       ? line.grossPence !== null && (
                           <span className="ml-auto text-base font-semibold text-ink">
-                            <span className="sr-only">Gross pay: </span>
+                            <span className="sr-only">Pay before tax: </span>
                             {pounds(line.grossPence)}
                           </span>
                         )
@@ -134,13 +136,13 @@ export function PayView({ lines, firmName }: { lines: PayLine[]; firmName: strin
 // "Mon 19 Oct to Sun 25 Oct".
 const weekDates = (week: PayWeek) => `${dayLabel(week.periodStart)} to ${dayLabel(week.periodEnd)}`;
 
-// "Pay date: Fri 30 Oct"; a week paid on two days names both.
+// "Pay day: Fri 30 Oct"; a week paid on two days names both.
 const payDateText = (days: string[]) =>
   days.length === 1
-    ? `Pay date: ${dayLabel(days[0]!)}`
-    : `Pay dates: ${days.slice(0, -1).map(dayLabel).join(", ")} and ${dayLabel(days.at(-1)!)}`;
+    ? `Pay day: ${dayLabel(days[0]!)}`
+    : `Pay days: ${days.slice(0, -1).map(dayLabel).join(", ")} and ${dayLabel(days.at(-1)!)}`;
 
-// "With payroll" is waiting on payroll; "Sorted" is done (docs/ui-design.md "Status tones").
+// "With payroll" is waiting on payroll; "Answered by payroll" is done (docs/ui-design.md "Status tones").
 const TONES: Record<string, StatusTone> = {
   open: "attention",
   in_digest: "attention",
@@ -177,7 +179,7 @@ export function PayQueries({
             <li key={q.ref} className={staffRow}>
               <StatusChip tone={q.sortedOn ? "done" : (TONES[q.status] ?? "quiet")}>
                 {q.sortedOn
-                  ? `Sorted on ${dayLabel(q.sortedOn)}`
+                  ? `Answered by payroll on ${dayLabel(q.sortedOn)}`
                   : (PAY_QUERY_STATUS_WORDS[q.status] ?? q.status)}
               </StatusChip>
               <p className="mt-2 font-semibold">

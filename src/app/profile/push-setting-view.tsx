@@ -34,8 +34,8 @@ export function PushSettingView({
       <h3 className="text-lg font-bold text-ink">Notifications on this phone</h3>
       {state === "no_key" && (
         <p className={note}>
-          Phone notifications aren&apos;t switched on for {firmName} yet.
-          {otherWay !== "none" && ` You'll get messages ${by(otherWay)}.`}
+          {firmName} doesn&apos;t use phone notifications yet.
+          {otherWay !== "none" && ` We'll send your messages ${by(otherWay)}.`}
         </p>
       )}
       {state === "unsupported" && (

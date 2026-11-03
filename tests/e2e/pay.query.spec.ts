@@ -7,7 +7,8 @@ import { codeSentTo, emailSentTo, loginLinkSentTo, sentTo } from "./outbox";
 // confirmation, then the query listed on the pay page "With payroll". A different seeded worker
 // from the pay spec, so the two don't share the per-number login and code limits. Then payroll
 // sees it in its group and sends the digest: the email, with the list attached, reaches the outbox.
-// Last, payroll sorts it with a note: the worker gets the message and sees "Sorted" on the pay page.
+// Last, payroll sorts it with a note: the worker gets the message and sees "Answered by payroll" on
+// the pay page.
 
 const acme = "http://acme.localhost:3100";
 const mobile = "+447700900103"; // a seeded Acme worker
@@ -148,6 +149,6 @@ test("raise a pay query about a day, then see it on the pay page", async ({ page
   const today = dayLabel(
     new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(new Date()),
   );
-  await expect(page.getByText(`Sorted on ${today}`)).toBeVisible();
+  await expect(page.getByText(`Answered by payroll on ${today}`)).toBeVisible();
   await expect(page.getByText("Payroll says: “Paid on Friday with the rest (e2e).”")).toBeVisible();
 });

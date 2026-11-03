@@ -65,10 +65,16 @@ export function reliabilityWords(r: Reliability): string {
   return `New: ${r.counted} ${r.counted === 1 ? "shift" : "shifts"} so far`;
 }
 
+// A casual's own Profile while they're new (fewer than RELIABILITY_MIN counted): no score yet, and
+// when they'll get one (the counts beside it show how far along they are).
+export const NEW_RELIABILITY_TEXT = "You're new, so there's no score yet.";
+export const NEW_RELIABILITY_WHEN = `You'll get one after ${RELIABILITY_MIN} shifts.`;
+
+// "0 shifts worked · 0 no-shows · 0 late cancellations" (the office's casual page shows it too).
 export function countsWords(c: ReliabilityCounts): string {
   const n = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`;
   return [
-    n(c.worked, "worked", "worked"),
+    n(c.worked, "shift worked", "shifts worked"),
     n(c.noShows, "no-show", "no-shows"),
     n(c.lateCancels, "late cancellation", "late cancellations"),
   ].join(" · ");

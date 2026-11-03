@@ -68,7 +68,7 @@ describe("the pay query form", () => {
     expect(PAY_QUERY_STATUS_WORDS).toEqual({
       open: "With payroll",
       in_digest: "With payroll",
-      resolved: "Sorted",
+      resolved: "Answered by payroll",
     });
     expect(PROBLEM_WORDS.too_old).toBe(
       "Pay queries can go back 90 days. For anything older, contact the office.",

@@ -105,7 +105,7 @@ describe("the profile's push setting", () => {
       .replace(/\s+/g, " ");
     expect(text).toContain("Notifications on this phone");
     expect(text).toContain(
-      "Phone notifications aren't switched on for Acme Events yet. You'll get messages by text.",
+      "Acme Events doesn't use phone notifications yet. We'll send your messages by text.",
     );
   });
   it("with a key, the phone decides after the page loads", () => {

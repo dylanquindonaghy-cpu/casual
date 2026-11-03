@@ -204,7 +204,9 @@ test("a worker logs in, takes a shift, cancels it, asks for a change and sees th
 
   await timed("see pay with a code", async () => {
     await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Pay" }).click();
-    await expect(page.getByText("To see your pay, we'll send you a 6-digit code.")).toBeVisible();
+    await expect(
+      page.getByText("To keep your pay private, we'll text you a 6-digit code."),
+    ).toBeVisible();
     const asked = new Date(Date.now() - 1000);
     await page.getByRole("button", { name: "Send me a code" }).click();
     await page.getByLabel("Your code").fill(await codeSentTo(mobile, asked));

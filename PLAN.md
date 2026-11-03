@@ -1137,7 +1137,7 @@ https://claude.ai/artifact/9GPXjLG2NXmz4FvbMXBdiu (sections 1, 2 and 6).
       mock-up's section 2), with `docs/screens.md` and `docs/messaging-templates.md`; and the two
       that change what's listed: a casual's own page lists a missing photo under "Needs updating",
       and Profile lists a shift's extra certificate (review §5; M, UI) (27.2)
-- [ ] The street map on the server: the UK file (zoom 13, about 740 MB) and `MAP_TILES_URL` set
+- [x] The street map on the server: the UK file (zoom 13, about 740 MB) and `MAP_TILES_URL` set
       (review §4; waits for Dylan: `docs/plan/blocked.md`) (27.3). Dylan ran it on 2026-11-03, so its
       `blocked.md` row went; what the live site answers: `docs/mockups/round-8/built/27.3-live-evidence.md`
 - [ ] The dashboard map you can use: the map as the dashboard's top with the chosen session's card on
@@ -1146,6 +1146,12 @@ https://claude.ai/artifact/9GPXjLG2NXmz4FvbMXBdiu (sections 1, 2 and 6).
       charcoal; a mock-up on the real streets first (after 27.3) (review §3; UI) (27.4)
 - [ ] The layout changes: words on the icon-only buttons, the phone map's key, the card's booked bar,
       the casual's "To do" row; a mock-up first (review §5 "Layout changes"; UI) (27.5)
+- [ ] The casual app in round 8's look: the office's ground, faint street map and sharp glass (no
+      wash, no bending) on every casual page, in light and dark as the phone is set, with the firm's
+      own colour on the main button and its mark; the casual's own sizes, words and layout kept;
+      solid with less transparency; every pair's contrast checked (go-ahead: Dylan, 2026-11-03,
+      "casual round 8: yes, firm's colour, follow the phone", on the mock-up
+      https://claude.ai/artifact/6Qi4Dt5qW5xnWWSVf9oNVC; UI, M) (27.6)
 
 Done when: every task is ticked with a stamp that includes the browser tests; each built what the
 review and the approved mock-up say; `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; screenshots at

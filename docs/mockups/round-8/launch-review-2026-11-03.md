@@ -84,7 +84,7 @@ newest build's name (`curl -s https://build-metadata.protomaps.dev/builds.json |
 `https://build.protomaps.com/20261103.pmtiles` answers byte ranges (206, "PMTiles"). Not run from
 here (the session may not run outside tools): the `protomaps/go-pmtiles` Docker image.
 
-1. `ssh root@<server IPv4>` (Ubuntu/WSL on his laptop; the firewall allows port 22 from his address only).
+1. `ssh root@<server IPv4>` (from any SSH app, such as Termius on a phone; how the server's SSH and firewall were really set up isn't recorded, so the first try shows it: it connects, it hangs (the firewall), or "Permission denied" (the key or password)).
 2. `df -h /opt/shiftdesk` (free space).
 3. Size only: `B=$(curl -s https://build-metadata.protomaps.dev/builds.json | grep -o '[0-9]\{8\}\.pmtiles' | tail -1); docker run --rm protomaps/go-pmtiles extract https://build.protomaps.com/$B /tmp/uk.pmtiles --bbox=-8.65,49.86,1.77,60.86 --maxzoom=14 --dry-run`
 4. Make it: `mkdir -p /opt/shiftdesk/maps; B=…; docker run --rm -v /opt/shiftdesk/maps:/maps protomaps/go-pmtiles extract https://build.protomaps.com/$B /maps/uk.pmtiles --bbox=-8.65,49.86,1.77,60.86 --maxzoom=14; ls -lh /opt/shiftdesk/maps` (13 instead of 14 if it's big).

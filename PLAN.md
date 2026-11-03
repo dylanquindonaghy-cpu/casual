@@ -1074,9 +1074,9 @@ Parking lot.
 - [ ] The dashboard: the venue map (MapLibre with a UK or EU tile host; decision 9) with places to fill
       per venue, the session card, To offer, Updates in place of Offered and While you were out, Who
       worked by name (spec "Dashboard"; UI, a new supplier) (26.2)
-- [ ] Contracts and each resourcer's dashboard: a contracts table (clients owning sites), per-user
+- [x] Contracts and each resourcer's dashboard: a contracts table (clients owning sites), per-user
       settings, Customise (spec "Customise and contracts"; S, T, UI) (26.3)
-- [ ] Updates and alerts: the Updates page, the pop-up on a cancellation, app notifications for office
+- [x] Updates and alerts: the Updates page, the pop-up on a cancellation, app notifications for office
       users, each person's "Tell me about", and the top bar's bell with new updates (spec "Updates
       and alerts", and "The look" sys-8's bell: it opens the Updates page, so it comes with it; S,
       M, UI) (26.4)
@@ -1086,7 +1086,7 @@ Parking lot.
 - [ ] Casuals: reliability worked out by code over 90 days, the four counts and tabs, Remind and Remind
       all, a missing photo counted, reliability on each casual's page and Profile (spec "Casuals"; R, M,
       UI) (26.7)
-- [ ] Cancellations: under 48 hours tinted in every tab, notice and strike columns, four counts, a
+- [x] Cancellations: under 48 hours tinted in every tab, notice and strike columns, four counts, a
       Strikes tab, the detail page's order (spec "Cancellations"; UI) (26.8)
 - [ ] Offers by app notification, text or email: Phase 15.1 with email as a casual's choice, each
       offer's channel and "Not offered, and why" (spec "Offering a shift"; M, UI; app notifications need

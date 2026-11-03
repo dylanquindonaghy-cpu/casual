@@ -368,7 +368,7 @@ the older `/office/events/[id]` row below where they differ.
   the main **Offer {5} open places** (shown while a session starting within the firm's urgent
   window, 24 hours by default, has a place free and no offers going out; its number counts those
   places; places further ahead: "{3} open places start further ahead: offer each from its card."
-  Decision 10 in docs/plan/decisions-waiting.md):
+  Decision 10 in docs/plan/decisions-waiting.md, decided as built on 2026-11-03):
   "Each session with a place free is marked urgent: offers go to the best people for it, a few at a
   time, until it's filled. Nothing goes out while a session is hidden from casuals." with **Yes,
   offer them** and **Keep as it is**; then "Offers are going out for {3} sessions." (" {1} session
@@ -433,7 +433,8 @@ panel.
   default (the first to tap takes a place, as before; best for urgent and overnight work). On:
   casuals tap **I can do this** on its sessions instead of taking a place, and the office books
   from who asked. A casual holding an offer of the session (the office's, or its waves') still
-  takes it: an offer is the office's choice (decision 11 in docs/plan/decisions-waiting.md). The
+  takes it: an offer is the office's choice (decision 11 in docs/plan/decisions-waiting.md, decided
+  as built on 2026-11-03). The
   switch is in "This session" (below); "On: casuals on this event now tap "I can do this", and you
   choose." / "Off: the first casual to tap takes a place." Logged `event.asks_on` /
   `event.asks_off`. Asks made stay when it's switched off.

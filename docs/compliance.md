@@ -168,7 +168,8 @@ Tier 1: £52 a year (£47 by direct debit) for small organisations. Pay before h
   up to 500 characters, refused if they hold a phone number or email address, and the form says
   not to write health or other personal details (Article 9 data has no place there). Kept with the
   casual, never in the log (`casual.note_added` holds ids only), in the worker's export, deleted
-  on erasure. How long they're kept is decision 12 (`docs/plan/decisions-waiting.md`).
+  on erasure. They're kept until the casual's details are erased, with no purge (decision 12 in
+  `docs/plan/decisions-waiting.md`, decided as built on 2026-11-03).
 - A firm's logo (Phase 8) is an address on the firm's own website: a worker's browser fetches it
   from there, so the firm's site sees the worker's IP address, as it would for any visit. It's
   fetched with no referrer (the firm's site isn't told which page), and only from https://
@@ -195,7 +196,7 @@ floor, and that a hold covers the whole firm (not one worker).
 | Travel estimates (12G.2: minutes and distance from a postcode to a site, keyed by postcode, not by person) | 7 days after the last session they were for, by the nightly purge (even during a hold: not about anyone in particular), and when a site's postcode changes (built). Not in the firm's data export |
 | A casual's travel area (12G.1: their start-from postcode and its central point, how they travel, their limit) | While they keep it: deleted when they remove it, when the office makes them inactive as "They've left", and on erasure (built). Never in the action log, with one exception: a personal shifts-line reply's `enquiry.checks` entry (12D.2) keeps their limit in minutes and the minutes to each session it offered (never the postcode or the point), and stays with the action log. A DPIA and the legitimate-interests balancing test come first: `docs/dpia-travel.md` |
 | Staff photos and certificate images (12F.2) | One the office turned down: 30 days after the check. A staff photo replaced by a newer approved one: 30 days after that one was approved. The current photo and the image behind a current certificate stay while they're current, then follow the firm's retention (a later task); all of them go on erasure (built: the nightly purge, nothing during a hold). In the exports as details only (kind, date, status, fingerprint); each image is its own download |
-| The office's notes about a casual (Phase 26.7) | Until the casual's details are erased (built: no purge yet). How long is decision 12 (`docs/plan/decisions-waiting.md`): the recommendation is 12 months after the note, like a request's words. In the worker's export; deleted on erasure (built) |
+| The office's notes about a casual (Phase 26.7) | Until the casual's details are erased, with no purge (decision 12 in `docs/plan/decisions-waiting.md`, decided as built on 2026-11-03). In the worker's export; deleted on erasure (built) |
 | Call audio | We store none: only a voicemail's text. But Twilio records every voicemail (up to 2 minutes) to transcribe it, and keeps the recording until it's deleted there: a deletion job comes with the Twilio sender ("Connect Twilio", "Before going live") |
 | Requests, events, notice report | 12 months (review once 2027 rules are final). **Not purged yet**: the log is append-only by design, so deleting it needs a deliberate change (PLAN.md Parking lot). Nothing can be 12 months old until a year after the pilot starts |
 | Workers and credentials | Until the firm deletes them |

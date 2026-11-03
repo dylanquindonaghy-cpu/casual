@@ -189,9 +189,10 @@ Replace the parts in [brackets]. Send both parts.
   Cancel often, Not worked lately), the same for every firm today. It's profiling in UK GDPR's sense
   (a person's reliability, evaluated from their records), so the notice names it and the right to
   object; it isn't a solely automated decision with legal or similar effect, because a person
-  chooses who to book and the offer order doesn't read it (cas-7). How long the office's notes are
-  kept is decision 12 (`docs/plan/decisions-waiting.md`): until then they stay until the casual is
-  deleted, so fill the bracket with "until you leave us" only once a firm deletes leavers' details.
+  chooses who to book and the offer order doesn't read it (cas-7). The office's notes stay until
+  the casual's details are erased (decision 12 in `docs/plan/decisions-waiting.md`, decided on
+  2026-11-03), so fill the bracket with "until you leave us" only once a firm deletes leavers'
+  details.
 - **The Google line** only if the firm's rota is a Google Sheet (onboarding step 5).
 - **The logo line** only if the firm sets a logo (`npm run firm:brand -- --logo …`).
 - **Strikes, photos and the planner** (Phase 12): the numbers in brackets are the firm's own

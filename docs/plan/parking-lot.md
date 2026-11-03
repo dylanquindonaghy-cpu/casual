@@ -2156,7 +2156,8 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   ("Please add your staff photo…") and Meta's approval. Until then the office calls or messages
   them.
 - **The office's notes and retention** (Phase 26.7): `casual_notes` are kept until the casual's
-  details are deleted. Add them to the year-old purge if the pilot shows notes going stale.
+  details are deleted (decision 12, decided as built on 2026-11-03). Add them to the year-old purge
+  if the pilot shows notes going stale.
 
 ## From Phase 26.9 (offers by app notification, text or email; 2026-11-02)
 

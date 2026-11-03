@@ -14,8 +14,9 @@ import { officeUserMay, parts, type OfficeContext } from "./office-context";
 // - "Offer N open places": each of the event's sessions starting within the firm's urgent window
 //   (`urgent_window_hours`, 24 by default) with a place free and no offers going out, one at a
 //   time. Urgent offers aren't held to a casual's daily limit, so one press never offers a whole
-//   event days ahead to the same few people (the guardrails review; a decision for Dylan,
-//   docs/plan/decisions-waiting.md): a place further ahead is offered from its own card.
+//   event days ahead to the same few people (the guardrails review; decision 10 in
+//   docs/plan/decisions-waiting.md, decided as built on 2026-11-03): a place further ahead is
+//   offered from its own card.
 
 export function offerOnePlace(ctx: OfficeContext, shiftId: string): Promise<OfferPlacesResult> {
   const { run, by } = parts(ctx);

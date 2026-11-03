@@ -278,7 +278,7 @@ export function OpenShiftsView({
           )}
           <section aria-labelledby="more-heading" className="flex flex-col gap-2.5">
             <h2 id="more-heading" className={heading}>
-              {urgent.length > 0 ? "More shifts you can apply for" : "Shifts you can apply for"}
+              {urgent.length > 0 ? "More shifts you can take" : "Shifts you can take"}
             </h2>
             {rest.length > 0 ? (
               cards(rest)

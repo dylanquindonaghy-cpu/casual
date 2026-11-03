@@ -1,4 +1,4 @@
-import { roleLabel } from "../portal/format";
+import { roleLabel, roleWords } from "../portal/format";
 import { cutChars } from "../text/cut";
 // Message copy from docs/messaging-templates.md. Every message ends with the firm's sign-off.
 
@@ -237,7 +237,7 @@ export function shiftOfferMessage(
   },
 ): string {
   const at = shift.site ? ` at ${shift.site}` : "";
-  return `Shift available: ${shift.date} ${shift.start}–${shift.end}${at} (${shift.role.replace(/_/g, " ")}). Tap to take it: ${shift.link}. First to accept gets it. — ${firm.signOff}`;
+  return `Shift available: ${shift.date} ${shift.start}–${shift.end}${at} (${roleWords(shift.role)}). Tap to take it: ${shift.link}. First to accept gets it. — ${firm.signOff}`;
 }
 
 // The office's offer as a text message (docs/messaging-templates.md, "SMS"): standard text
@@ -263,7 +263,7 @@ export function shiftUrgentMessage(
     link: string;
   },
 ): string {
-  const role = shift.role.replace(/_/g, " ");
+  const role = roleWords(shift.role);
   const article = /^[aeiou]/i.test(role) ? "an" : "a";
   const at = shift.site ? ` at ${shift.site}` : "";
   return `URGENT: we need ${article} ${role}${at} ${shift.day} ${shift.start}–${shift.end}. Tap to take it: ${shift.link}. — ${firm.signOff}`;
@@ -276,7 +276,7 @@ export function shiftUrgentSms(
   firm: FirmVoice,
   shift: { role: string; site: string | null; day: string; start: string; link: string },
 ): string {
-  const role = shift.role.replace(/_/g, " ");
+  const role = roleWords(shift.role);
   const site = shift.site ? ` ${shift.site}` : "";
   return `${firm.name} URGENT: ${role} needed${site} ${shift.day} ${shift.start}. ${shift.link} - ${firm.signOff}`;
 }
@@ -336,7 +336,7 @@ export function shiftConfirmedMessage(
   },
 ): string {
   const at = shift.site ? ` at ${shift.site}` : "";
-  return `Confirmed: ${shift.date} ${shift.start}–${shift.end}${at} (${shift.role.replace(/_/g, " ")}). Details and instructions: ${shift.link}. — ${firm.signOff}`;
+  return `Confirmed: ${shift.date} ${shift.start}–${shift.end}${at} (${roleWords(shift.role)}). Details and instructions: ${shift.link}. — ${firm.signOff}`;
 }
 
 // shift_not_booked (WhatsApp or SMS, utility; Phase 26.6, ses-6): a casual asked for a session the
@@ -355,7 +355,7 @@ export function shiftNotBookedMessage(
   },
 ): string {
   const at = shift.site ? ` at ${shift.site}` : "";
-  return `Not this time: you're not booked for ${shift.date} ${shift.start}–${shift.end}${at} (${shift.role.replace(/_/g, " ")}). Thanks for asking. Open shifts: ${shift.link}. — ${firm.signOff}`;
+  return `Not this time: you're not booked for ${shift.date} ${shift.start}–${shift.end}${at} (${roleWords(shift.role)}). Thanks for asking. Open shifts: ${shift.link}. — ${firm.signOff}`;
 }
 
 // request_update (WhatsApp or SMS, utility): the office answered a worker's request. {type} is the
@@ -403,7 +403,7 @@ export function shiftOfferEmailSubject(shift: {
 }
 
 export function shiftUrgentEmailSubject(shift: { role: string; day: string }): string {
-  const role = shift.role.replace(/_/g, " ");
+  const role = roleWords(shift.role);
   const article = /^[aeiou]/i.test(role) ? "an" : "a";
   return `URGENT: ${article} ${role} needed ${shift.day}`;
 }
@@ -460,6 +460,12 @@ export type ShiftsLineReply = { intent: "pay"; link: string } | { intent: "offic
 // Before the sign-off of every automatic reply on the shifts line (docs/office-v2.md 5.7 item 3:
 // WhatsApp's rule that people can reach a person; "office" is a keyword).
 export const AUTOMATIC_REPLY = "Automatic reply. Send OFFICE to reach a person.";
+
+// A reply in the app (Phase 26.10, fix-3): the same words without "Send OFFICE to reach a person."
+// (the app has its own way to the office); "Automatic reply." stays.
+export const APP_AUTOMATIC_REPLY = "Automatic reply.";
+export const forTheApp = (text: string): string =>
+  text.split(AUTOMATIC_REPLY).join(APP_AUTOMATIC_REPLY);
 
 export function shiftsLineReply(firm: FirmVoice, reply: ShiftsLineReply): string {
   const text =
@@ -598,8 +604,8 @@ export function shiftEscalationEmail(
     link: string; // the office dashboard
   },
 ): { subject: string; body: string } {
-  const role = shift.role.replace(/_/g, " ");
-  const Role = role.charAt(0).toUpperCase() + role.slice(1);
+  const role = roleWords(shift.role);
+  const Role = roleLabel(shift.role);
   const at = shift.site ? ` at ${shift.site}` : "";
   const places = shift.freePlaces === 1 ? "1 place" : `${shift.freePlaces} places`;
   const free = shift.freePlaces === 1 ? "place" : "places";

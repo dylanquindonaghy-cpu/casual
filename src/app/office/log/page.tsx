@@ -138,6 +138,10 @@ export default async function ActionLogPage({
           A shift shows only the chosen dates here. For all of one shift, open it and choose
           &quot;See this shift in the action log&quot;.
         </p>
+        {/* Phase 26.10 (fix-4): logins only under their own type. */}
+        {!query.type && (
+          <p className={`${hint} mt-2`}>Logins are hidden. Choose Logins under Type to see them.</p>
+        )}
       </div>
 
       <p className="mt-8 font-semibold">

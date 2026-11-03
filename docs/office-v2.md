@@ -869,7 +869,7 @@ The staff-facing word is "qualifications" or "licences and cards", never "creden
 | Pay queries waiting (oldest) | open + in_digest `pay_queries` |
 | Next digest (last sent and how many; any problem) | new `nextDigestAt()` next to `digestDueOn()` in `src/lib/pay/digest-schedule.ts`; `loadDigestStatus()` |
 | Sorted this week | `pay_queries.resolved_at` |
-| Next pay date | the earliest `pay_records.pay_date` from today on, otherwise the Friday after the current ISO week (D8) |
+| Next pay day (Phase 26.10, fix-1) | the first pay day not yet past: last period's while it's ahead, else this period's, each from `pay_records.pay_date` when imported for that period, else the firm's pay calendar; an earlier imported date first (`src/lib/pay/next-pay.ts`) |
 
 **Sections:**
 1. **Waiting, grouped by likely cause** ("Pay questions never get an AI answer: they come here"): the

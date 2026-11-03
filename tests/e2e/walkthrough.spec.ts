@@ -423,7 +423,8 @@ test("Part 3: as the office", async ({ browser }) => {
         panel.getByRole("status").filter({ hasText: `Offer on its way to ${name}.` }),
       ).toBeVisible();
       await expect(panel.getByText("Offered", { exact: true })).toBeVisible();
-      await anySent(asked, /^(Shift available|URGENT): /);
+      // By text since Phase 26.9 (the doc's short versions; by WhatsApp's words until then).
+      await anySent(asked, /^Acme Events(: shift | URGENT: )/);
       sent = true;
     }
     expect(sent).toBe(true);

@@ -140,7 +140,7 @@ function UploadsList({
 }
 
 // The table's head and cells (round 7: one glass table, no lines between its rows).
-const th = "px-4 pt-4 pb-3 text-sm font-medium whitespace-nowrap text-ink-muted";
+const th = "px-4 pt-4 pb-3 text-xs font-medium whitespace-nowrap text-ink-muted";
 const td = "px-4 py-3 align-middle";
 
 // Casuals, round 8 (Phase 26.7, cas-1 to cas-6; docs/screens.md "Casuals, round 8"): "Casuals",

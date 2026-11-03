@@ -51,10 +51,11 @@ const THRESHOLD_WORDS: Record<NoticeReport["threshold"]["source"], string> = {
   invalid: "your firm's setting isn't a number of hours from 1 to 720, so the usual 48 is used",
 };
 
-// The notice as the office reads it: "2 days' notice (71.99 hours)", or after the start.
+// The notice as the office reads it (Phase 26.10, fix-6): "22 hours' notice", "2 days' notice",
+// or "After the start". The exact hours stay on the cancellation record, its PDF and the CSVs.
 function noticeWords(hours: number): string {
-  if (hours < 0) return `After the start (${Math.abs(hours).toFixed(2)} hours after)`;
-  return `${noticeText(hours).replace(/^./, (c) => c.toUpperCase())} (${hours.toFixed(2)} hours)`;
+  if (hours < 0) return "After the start";
+  return noticeText(hours).replace(/^./, (c) => c.toUpperCase());
 }
 
 // The notice and cancellation report (docs/screens.md `/office/reports/notice`): every offer,

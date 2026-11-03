@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { and, inArray, isNull, sql } from "drizzle-orm";
-import { recordEvent } from "../../events/record";
+import { recordEvent, recordEventAt } from "../../events/record";
 import { noAi } from "../../ai/client";
 import { runInboundMessage } from "../../inbound/reply";
 import type { MessagingTransport } from "../../messaging/transport";
@@ -170,23 +170,32 @@ export async function loadStory(
       kind: u.kind,
       ...(u.credentialType ? { qualificationType: u.credentialType } : {}),
     };
-    await recordEvent(tx, {
-      actorType: "worker",
-      actorId: u.workerId,
-      action: "upload.received",
-      entityType: "upload",
-      entityId: u.id,
-      data: what,
-    });
-    if (u.status === "approved") {
-      await recordEvent(tx, {
-        actorType: "office",
-        actorId: resourcer,
-        action: "upload.approved",
+    // Each at its story's time (Phase 26.10, fix-8), as every entry below.
+    await recordEventAt(
+      tx,
+      {
+        actorType: "worker",
+        actorId: u.workerId,
+        action: "upload.received",
         entityType: "upload",
         entityId: u.id,
         data: what,
-      });
+      },
+      u.createdAt,
+    );
+    if (u.status === "approved") {
+      await recordEventAt(
+        tx,
+        {
+          actorType: "office",
+          actorId: resourcer,
+          action: "upload.approved",
+          entityType: "upload",
+          entityId: u.id,
+          data: what,
+        },
+        u.checkedAt ?? u.createdAt,
+      );
     }
   }
 
@@ -277,15 +286,23 @@ export async function loadStory(
     .onConflictDoNothing()
     .returning({ id: shiftEvents.id, showing: shiftEvents.showingToCasuals });
   // One switched off: the office's switch, logged as the app logs it.
+  // (When its sessions were added: the story has no time of its own for the switch.)
   for (const e of addedEvents.filter((x) => !x.showing)) {
-    await recordEvent(tx, {
-      actorType: "office",
-      actorId: resourcer,
-      action: "event.hidden",
-      entityType: "shift_event",
-      entityId: e.id,
-      data: { by: "firm" },
-    });
+    const added = story.sessions
+      .filter((x) => x.eventId === e.id)
+      .map((x) => x.createdAt.getTime());
+    await recordEventAt(
+      tx,
+      {
+        actorType: "office",
+        actorId: resourcer,
+        action: "event.hidden",
+        entityType: "shift_event",
+        entityId: e.id,
+        data: { by: "firm" },
+      },
+      added.length > 0 ? new Date(Math.min(...added)) : now,
+    );
   }
 
   // Sessions: added once. One whose booking was cancelled has its place open again.
@@ -339,13 +356,17 @@ export async function loadStory(
       : [];
   const fresh = new Set(added.map((s) => s.id));
   for (const s of story.sessions.filter((x) => fresh.has(x.id))) {
-    await recordEvent(tx, {
-      actorType: "system",
-      action: "shift.created",
-      entityType: "shift",
-      entityId: s.id,
-      data: { source: "seed" },
-    });
+    await recordEventAt(
+      tx,
+      {
+        actorType: "system",
+        action: "shift.created",
+        entityType: "shift",
+        entityId: s.id,
+        data: { source: "seed" },
+      },
+      s.createdAt,
+    );
     // Marked urgent by the office (as src/lib/roster/urgent.ts logs it); one made urgent by a
     // dropout is logged with its cancellation, below.
     if (s.urgentCause === "office") {
@@ -408,87 +429,116 @@ export async function loadStory(
     }
   }
   for (const b of bookings) {
-    await recordEvent(tx, {
-      actorType: "worker",
-      actorId: b.workerId,
-      action: "shift.assigned",
-      entityType: "assignment",
-      entityId: b.id,
-      data: {
-        by: "worker",
-        shiftId: b.shiftId,
-        workerId: b.workerId,
-        slot: b.slot,
-        noticeHours: b.bookedNoticeHours,
-      },
-    });
-    if (b.status === "completed") {
-      // Marked worked by the office after the shift (src/lib/roster/attendance.ts).
-      await recordEvent(tx, {
-        actorType: "office",
-        actorId: resourcer,
-        action: "shift.completed",
-        entityType: "assignment",
-        entityId: b.id,
-        data: { by: "firm", shiftId: b.shiftId, workerId: b.workerId, from: "confirmed" },
-      });
-    }
-    if (b.status === "no_show") {
-      // Marked as not attending by the office after the shift (aud-14's history).
-      await recordEvent(tx, {
-        actorType: "office",
-        actorId: resourcer,
-        action: "shift.no_show",
-        entityType: "assignment",
-        entityId: b.id,
-        data: { by: "firm", shiftId: b.shiftId, workerId: b.workerId, from: "confirmed" },
-      });
-    }
-    if (b.status !== "cancelled_worker" && b.status !== "cancelled_firm") continue;
-    const byFirm = b.status === "cancelled_firm";
-    const cancelEvent = await recordEvent(tx, {
-      actorType: byFirm ? "office" : "worker",
-      actorId: byFirm ? resourcer : b.workerId,
-      action: "shift.cancelled",
-      entityType: "assignment",
-      entityId: b.id,
-      data: {
-        by: byFirm ? "firm" : "worker",
-        shiftId: b.shiftId,
-        workerId: b.workerId,
-        noticeHours: b.noticeHours,
-        ...(byFirm && b.cancelReason ? { reason: b.cancelReason } : {}),
-        strike: byFirm ? "by_firm" : "issued",
-        place: "reopened",
-        reopenedId: b.reopenedId,
-      },
-    });
     const session = story.sessions.find((x) => x.id === b.shiftId);
-    // A dropout inside the urgent window: the system marked the place urgent (as urgent.ts does).
-    if (!byFirm && session?.urgentCause === "dropout" && b.noticeHours !== null) {
-      await recordEvent(tx, {
-        actorType: "system",
-        action: "shift.marked_urgent",
-        entityType: "shift",
-        entityId: b.shiftId,
-        data: { by: "system", cause: "dropout", hoursToStart: b.noticeHours },
-      });
-    }
-    // The office's cancellation: the casual was told (golden rule 12; src/lib/notices/firm-change.ts).
-    if (byFirm) {
-      await recordEvent(tx, {
-        actorType: "system",
-        action: "shift.change_notice_sent",
+    await recordEventAt(
+      tx,
+      {
+        actorType: "worker",
+        actorId: b.workerId,
+        action: "shift.assigned",
         entityType: "assignment",
         entityId: b.id,
         data: {
-          changeEventId: cancelEvent,
+          by: "worker",
+          shiftId: b.shiftId,
           workerId: b.workerId,
-          channel: "sms",
-          providerMessageId: `seed-story-notice-${b.id.slice(0, 8)}`,
-          pushes: 0,
+          slot: b.slot,
+          noticeHours: b.bookedNoticeHours,
         },
-      });
+      },
+      b.confirmedAt,
+    );
+    // Marked by the office an hour after the shift ended (never later than now).
+    const markedAt = new Date(
+      Math.min((session?.endsAt ?? now).getTime() + 60 * 60_000, now.getTime()),
+    );
+    if (b.status === "completed") {
+      // Marked worked by the office after the shift (src/lib/roster/attendance.ts).
+      await recordEventAt(
+        tx,
+        {
+          actorType: "office",
+          actorId: resourcer,
+          action: "shift.completed",
+          entityType: "assignment",
+          entityId: b.id,
+          data: { by: "firm", shiftId: b.shiftId, workerId: b.workerId, from: "confirmed" },
+        },
+        markedAt,
+      );
+    }
+    if (b.status === "no_show") {
+      // Marked as not attending by the office after the shift (aud-14's history).
+      await recordEventAt(
+        tx,
+        {
+          actorType: "office",
+          actorId: resourcer,
+          action: "shift.no_show",
+          entityType: "assignment",
+          entityId: b.id,
+          data: { by: "firm", shiftId: b.shiftId, workerId: b.workerId, from: "confirmed" },
+        },
+        markedAt,
+      );
+    }
+    if (b.status !== "cancelled_worker" && b.status !== "cancelled_firm") continue;
+    const byFirm = b.status === "cancelled_firm";
+    const cancelledAt = b.cancelledAt ?? now;
+    const cancelEvent = await recordEventAt(
+      tx,
+      {
+        actorType: byFirm ? "office" : "worker",
+        actorId: byFirm ? resourcer : b.workerId,
+        action: "shift.cancelled",
+        entityType: "assignment",
+        entityId: b.id,
+        data: {
+          by: byFirm ? "firm" : "worker",
+          shiftId: b.shiftId,
+          workerId: b.workerId,
+          noticeHours: b.noticeHours,
+          ...(byFirm && b.cancelReason ? { reason: b.cancelReason } : {}),
+          strike: byFirm ? "by_firm" : "issued",
+          place: "reopened",
+          reopenedId: b.reopenedId,
+        },
+      },
+      cancelledAt,
+    );
+    // A dropout inside the urgent window: the system marked the place urgent (as urgent.ts does).
+    if (!byFirm && session?.urgentCause === "dropout" && b.noticeHours !== null) {
+      await recordEventAt(
+        tx,
+        {
+          actorType: "system",
+          action: "shift.marked_urgent",
+          entityType: "shift",
+          entityId: b.shiftId,
+          data: { by: "system", cause: "dropout", hoursToStart: b.noticeHours },
+        },
+        cancelledAt,
+      );
+    }
+    // The office's cancellation: the casual was told (golden rule 12; src/lib/notices/firm-change.ts).
+    if (byFirm) {
+      await recordEventAt(
+        tx,
+        {
+          actorType: "system",
+          action: "shift.change_notice_sent",
+          entityType: "assignment",
+          entityId: b.id,
+          data: {
+            changeEventId: cancelEvent,
+            workerId: b.workerId,
+            channel: "sms",
+            providerMessageId: `seed-story-notice-${b.id.slice(0, 8)}`,
+            pushes: 0,
+          },
+        },
+        new Date(cancelledAt.getTime() + 60_000),
+      );
     }
   }
 
@@ -522,30 +572,42 @@ export async function loadStory(
       createdAt: s.issuedAt,
     });
     const data = { assignmentId: s.bookingId, shiftId: s.shiftId, workerId: s.workerId };
-    await recordEvent(tx, {
-      actorType: "system",
-      action: "strike.issued",
-      entityType: "strike",
-      entityId: s.id,
-      data: { ...data, noticeHours: s.noticeHours, thresholdHours: strikeRules.noticeHours },
-    });
-    // Its evidence emailed to the strikes team (src/lib/strikes/evidence.ts).
-    await recordEvent(tx, {
-      actorType: "system",
-      action: "strike.evidence_sent",
-      entityType: "strike",
-      entityId: s.id,
-      data: { request: `strike-evidence:${s.id}`, attempt: 1 },
-    });
-    if (s.withdrawn) {
-      await recordEvent(tx, {
-        actorType: "office",
-        actorId: resourcer,
-        action: "strike.withdrawn",
+    await recordEventAt(
+      tx,
+      {
+        actorType: "system",
+        action: "strike.issued",
         entityType: "strike",
         entityId: s.id,
-        data,
-      });
+        data: { ...data, noticeHours: s.noticeHours, thresholdHours: strikeRules.noticeHours },
+      },
+      s.issuedAt,
+    );
+    // Its evidence emailed to the strikes team (src/lib/strikes/evidence.ts), as the row says.
+    await recordEventAt(
+      tx,
+      {
+        actorType: "system",
+        action: "strike.evidence_sent",
+        entityType: "strike",
+        entityId: s.id,
+        data: { request: `strike-evidence:${s.id}`, attempt: 1 },
+      },
+      new Date(s.issuedAt.getTime() + 2 * 60_000),
+    );
+    if (s.withdrawn) {
+      await recordEventAt(
+        tx,
+        {
+          actorType: "office",
+          actorId: resourcer,
+          action: "strike.withdrawn",
+          entityType: "strike",
+          entityId: s.id,
+          data,
+        },
+        s.withdrawn.at,
+      );
     }
   }
 
@@ -601,22 +663,30 @@ export async function loadStory(
       resolutionNote: q.note,
       createdAt: q.createdAt,
     });
-    await recordEvent(tx, {
-      actorType: "worker",
-      actorId: q.workerId,
-      action: "pay_query.created",
-      entityType: "pay_query",
-      entityId: q.id,
-      data: { issueType: q.issue, shiftId: q.shiftId, workDate: q.workDate, groupKey },
-    });
-    await recordEvent(tx, {
-      actorType: "office",
-      actorId: payroll,
-      action: "pay_query.resolved",
-      entityType: "pay_query",
-      entityId: q.id,
-      data: { workerId: q.workerId, previous: "open", withNote: true },
-    });
+    await recordEventAt(
+      tx,
+      {
+        actorType: "worker",
+        actorId: q.workerId,
+        action: "pay_query.created",
+        entityType: "pay_query",
+        entityId: q.id,
+        data: { issueType: q.issue, shiftId: q.shiftId, workDate: q.workDate, groupKey },
+      },
+      q.createdAt,
+    );
+    await recordEventAt(
+      tx,
+      {
+        actorType: "office",
+        actorId: payroll,
+        action: "pay_query.resolved",
+        entityType: "pay_query",
+        entityId: q.id,
+        data: { workerId: q.workerId, previous: "open", withNote: true },
+      },
+      q.resolvedAt,
+    );
   }
 
   // Zoe's and Ben's pay lines, as payroll's file gives them (Phase 24: the mock-up's Pay). Added

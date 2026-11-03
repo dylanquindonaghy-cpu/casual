@@ -6,6 +6,7 @@ import type {
 } from "../credentials/status";
 import type { RejectReason } from "../db/schema";
 import { dayLabel, shortDate } from "../rules/reasons";
+import { roleWords } from "../text/role";
 
 // Qualifications in plain words (docs/office-v2.md 3.7, 4.2, 4.6; 12F.1), for the casual's Profile
 // and My shifts and the office's Casuals pages. Pure, so the browser can use it. The staff-facing
@@ -64,7 +65,7 @@ export const STATUS_TONES: Record<QualificationStatus, "urgent" | "attention" | 
 export const qualificationTitle = (name: string) => name.charAt(0).toUpperCase() + name.slice(1);
 
 // Mid-sentence: "door supervisor"; an acronym stays in capitals ("CSAS officer").
-const roleWords = (role: string) => role.replace(/_/g, " ").replace(/\bcsas\b/g, "CSAS");
+// "CSAS officer" mid-sentence (src/lib/text/role.ts).
 // "door supervisor", "door supervisor and steward", "a, b and c".
 export function rolesText(roles: readonly string[]): string {
   const words = roles.map(roleWords);

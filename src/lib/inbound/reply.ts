@@ -13,6 +13,7 @@ import { getTransport, type MessagingTransport } from "../messaging";
 import { sendFailureCode, sendToWorker, smsAllowedFor } from "../notify/send";
 import {
   AUTOMATIC_REPLY,
+  forTheApp,
   shiftsLineReply,
   unknownNumberAlertEmail,
   unknownNumberMessage,
@@ -686,7 +687,8 @@ async function answerApp(
     if (!answers) return { status: "held", intent: "office", sortedAs, handledAs };
     if (!built && !personal)
       throw new Error("a shifts or cancel message without its personal reply");
-    const text = built ? shiftsLineReply(voiceOf, built) : (personal?.whatsapp ?? "");
+    // In the app, without "Send OFFICE to reach a person." (Phase 26.10, fix-3).
+    const text = forTheApp(built ? shiftsLineReply(voiceOf, built) : (personal?.whatsapp ?? ""));
     if (logged) {
       await recordEvent(tx, {
         actorType: "system",

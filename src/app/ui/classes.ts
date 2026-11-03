@@ -182,12 +182,12 @@ export const loginTitle = "text-title text-balance text-ink";
 
 // Report tables: the wrapper scrolls sideways on small screens. Give it role="region",
 // tabIndex={0} and an aria-label. Numbers right aligned (`num`). A glass section, 22px round; its
-// grey headers on frosted glass of their own (so a sticky heading, the notice report's, blurs the
-// rows going under it).
+// grey headers, 12px (round 8's column labels: Phase 26.10, oth-2), on frosted glass of their own
+// (so a sticky heading, the notice report's, blurs the rows going under it). No zebra stripes.
 export const table = {
   wrap: "glass overflow-x-auto rounded-inner",
   table: "w-full border-collapse text-left text-sm",
-  th: "border-b border-line bg-panel px-4 py-3 font-medium text-ink-muted backdrop-blur-md",
+  th: "border-b border-line bg-panel px-4 py-3 text-xs font-medium text-ink-muted backdrop-blur-md",
   td: "border-b border-line px-4 py-3 align-top",
   num: "text-right tabular-nums",
 };

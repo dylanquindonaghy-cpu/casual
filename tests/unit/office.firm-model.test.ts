@@ -14,7 +14,7 @@ import {
   importResultLines,
 } from "@/lib/office/shifts-copy";
 import { payCalendar, payPeriod, payPeriodName } from "@/lib/pay/calendar";
-import { payDayFallbackText, payPeriodLabel } from "@/lib/pay/pay-week";
+import { nextPayLines, payPeriodLabel } from "@/lib/pay/pay-week";
 import { sheetRoleText } from "@/lib/roster/sheets/parse";
 
 // The firm's model on the office's screens (Phase 25.2; docs/screens.md "The firm's model on the
@@ -27,7 +27,7 @@ const fortnight = payCalendar({
 });
 
 describe("the pay cycle in the office", () => {
-  it("its name, its line and the pay day's fallback, in the firm's word", () => {
+  it("its name, its line and the next pay day's line, in the firm's word", () => {
     const cycle = payPeriod("2026-10-30", fortnight);
     expect(payPeriodName(cycle)).toBe("Cycle 22");
     expect(payPeriodName(payPeriod("2026-10-30", payCalendar({})))).toBe("Week 44");
@@ -35,12 +35,10 @@ describe("the pay cycle in the office", () => {
     expect(payPeriodLabel({ ...cycle, name: payPeriodName(cycle) })).toBe(
       "Cycle 22 · 26 Oct – 8 Nov · Pay Fri 13 Nov",
     );
-    expect(payDayFallbackText({ label: "week", payDay: "2026-11-06" })).toBe(
-      "The Friday after this week. No later pay date is in your pay records.",
-    );
-    expect(payDayFallbackText({ label: "cycle", payDay: "2026-11-12" })).toBe(
-      "The Thursday after this cycle. No later pay date is in your pay records.",
-    );
+    // The next pay day's lines (Phase 26.10, fix-1, in place of "The Friday after this week. …").
+    const next = { from: "pay calendar" as const, periodStart: "2026-10-12", thisPeriodPaid: null };
+    expect(nextPayLines(next, "week")).toEqual(["For shifts in the week of 12 Oct."]);
+    expect(nextPayLines(next, "cycle")).toEqual(["For shifts in the cycle from 12 Oct."]);
   });
 
   it("payroll's headings and the digest: the cycle of …; the AI is told it's a cycle", async () => {

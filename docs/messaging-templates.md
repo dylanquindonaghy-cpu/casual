@@ -347,8 +347,9 @@ recommended (Dylan, 2026-10-30: "just do what you would recommend stop prompting
 it"). A casual's message in the app is sorted as a WhatsApp is (a keyword, else the AI's label,
 else the office) and answered there at once, whatever the firm's automatic replies switch (decision
 11: they never go by text): with the WhatsApp words of "Instant replies on the shifts line" and
-"Personal replies on the shifts line" above, each ending "Automatic reply. Send OFFICE to reach a
-person." and the sign-off. Nothing goes by WhatsApp, text or email.
+"Personal replies on the shifts line" above, each ending "Automatic reply." and the sign-off
+(Phase 26.10, fix-3: without "Send OFFICE to reach a person.", which texts and WhatsApp keep; the
+app has its own way to the office: `forTheApp()`). Nothing goes by WhatsApp, text or email.
 
 - At most 5 automatic answers to one casual an hour: past that, and for a message that quotes our
   automatic line (an echo), no automatic answer; it waits for a person on Enquiries.

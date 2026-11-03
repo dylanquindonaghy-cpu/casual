@@ -56,7 +56,7 @@ export function urgentRowText(
   };
 }
 
-// The other shifts she can apply for ("3 more to apply for" under the urgent row), their days and
+// The other shifts she can take ("3 more you can take" under the urgent row), their days and
 // the best pay; with none, when she'll hear of the next.
 export function applyRowText(
   shifts: Pick<OpenShift, "startsAt" | "payRatePence">[],
@@ -71,9 +71,10 @@ export function applyRowText(
     };
   }
   return {
+    // Phase 26.10 (fix-2): "take", never "apply".
     title: afterUrgent
-      ? `${shifts.length} more to apply for`
-      : `${shiftsWord(shifts.length)} to apply for`,
+      ? `${shifts.length} more you can take`
+      : `${shiftsWord(shifts.length)} you can take`,
     sub: daysAndPay(shifts, timeZone),
   };
 }

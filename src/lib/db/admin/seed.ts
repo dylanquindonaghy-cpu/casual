@@ -1,7 +1,7 @@
 import { and, eq, gt, inArray, lt, notInArray, sql } from "drizzle-orm";
 import { Client, Pool } from "pg";
 import { applyCredentialPack } from "../../credentials/apply-pack";
-import { recordEvent } from "../../events/record";
+import { recordEvent, recordEventAt } from "../../events/record";
 import { createWithFirm, type FirmTx } from "../scoped";
 import { automaticEventId } from "../../roster/shift-events";
 import {
@@ -277,14 +277,19 @@ export async function loadSaturday(
   // Bookings and requests only on shifts added just now: a shift already there (and whatever a
   // demo did with it) is left exactly as it is.
   const fresh = new Set(newShifts.map((s) => s.id));
+  // Each entry at the story's own time (Phase 26.10, fix-8), as the rest below.
   for (const s of newShifts) {
-    await recordEvent(tx, {
-      actorType: "system",
-      action: "shift.created",
-      entityType: "shift",
-      entityId: s.id,
-      data: { source: "seed" },
-    });
+    await recordEventAt(
+      tx,
+      {
+        actorType: "system",
+        action: "shift.created",
+        entityType: "shift",
+        entityId: s.id,
+        data: { source: "seed" },
+      },
+      day.shiftsCreatedAt,
+    );
   }
   const bookings = day.bookings.filter((b) => fresh.has(b.shiftId));
   const toAsk = day.requests.filter((r) => fresh.has(r.shiftId));
@@ -316,34 +321,42 @@ export async function loadSaturday(
   const newlyAdded = new Set(added.map((a) => a.id));
   for (const b of bookings) {
     if (!newlyAdded.has(b.id)) continue;
-    await recordEvent(tx, {
-      actorType: "worker",
-      actorId: b.workerId,
-      action: "shift.assigned",
-      entityType: "assignment",
-      entityId: b.id,
-      data: {
-        by: "worker",
-        shiftId: b.shiftId,
-        workerId: b.workerId,
-        slot: 1,
-        noticeHours: b.bookedNoticeHours,
-      },
-    });
-    if (b.status === "cancelled_worker") {
-      await recordEvent(tx, {
+    await recordEventAt(
+      tx,
+      {
         actorType: "worker",
         actorId: b.workerId,
-        action: "shift.cancelled",
+        action: "shift.assigned",
         entityType: "assignment",
         entityId: b.id,
         data: {
           by: "worker",
           shiftId: b.shiftId,
           workerId: b.workerId,
-          noticeHours: b.noticeHours,
+          slot: 1,
+          noticeHours: b.bookedNoticeHours,
         },
-      });
+      },
+      b.confirmedAt,
+    );
+    if (b.status === "cancelled_worker") {
+      await recordEventAt(
+        tx,
+        {
+          actorType: "worker",
+          actorId: b.workerId,
+          action: "shift.cancelled",
+          entityType: "assignment",
+          entityId: b.id,
+          data: {
+            by: "worker",
+            shiftId: b.shiftId,
+            workerId: b.workerId,
+            noticeHours: b.noticeHours,
+          },
+        },
+        b.cancelledAt ?? now,
+      );
       // Marked urgent as the app would (src/lib/roster/urgent.ts): by the system if the dropout
       // was inside the firm's urgent window, otherwise by the firm's resourcer, by hand.
       const shift = day.shifts.find((s) => s.id === b.shiftId);
@@ -353,21 +366,26 @@ export async function loadSaturday(
         insideUrgentWindow(shift.startsAt, b.cancelledAt, urgentWindowHours(firm.settings));
       const resourcer = firm.officeUsers.find((u) => u.role === "resourcer");
       if (!byTheSystem && !resourcer) throw new Error(`${firm.slug} has no resourcer to mark it`);
-      await recordEvent(tx, {
-        actorType: byTheSystem ? "system" : "office",
-        actorId: byTheSystem ? null : (resourcer?.id ?? null),
-        action: "shift.marked_urgent",
-        entityType: "shift",
-        entityId: b.shiftId,
-        data: byTheSystem
-          ? { by: "system", cause: "dropout", hoursToStart: b.noticeHours }
-          : {
-              by: "firm",
-              cause: "office",
-              // The office marks it now, as the seed runs: hours to the start from now.
-              hoursToStart: shift ? hoursToStart(shift.startsAt, now) : null,
-            },
-      });
+      // The system's as the dropout came in; the office's now, as the seed runs.
+      await recordEventAt(
+        tx,
+        {
+          actorType: byTheSystem ? "system" : "office",
+          actorId: byTheSystem ? null : (resourcer?.id ?? null),
+          action: "shift.marked_urgent",
+          entityType: "shift",
+          entityId: b.shiftId,
+          data: byTheSystem
+            ? { by: "system", cause: "dropout", hoursToStart: b.noticeHours }
+            : {
+                by: "firm",
+                cause: "office",
+                // The office marks it now, as the seed runs: hours to the start from now.
+                hoursToStart: shift ? hoursToStart(shift.startsAt, now) : null,
+              },
+        },
+        byTheSystem ? (b.cancelledAt ?? now) : now,
+      );
     }
   }
   const asked =
@@ -481,19 +499,23 @@ export async function loadWeekOffers(
   for (const p of planned) {
     if (!newlyAdded.has(p.id)) continue;
     const startsAt = startOf.get(p.shiftId);
-    await recordEvent(tx, {
-      actorType: "system",
-      action: "offer.sent",
-      entityType: "offer",
-      entityId: p.id,
-      data: {
-        shiftId: p.shiftId,
-        workerId: p.workerId,
-        offeredBy: resourcer.id,
-        noticeHours: startsAt ? noticeHours(startsAt, p.sentAt) : null,
-        channel: "sms",
+    await recordEventAt(
+      tx,
+      {
+        actorType: "system",
+        action: "offer.sent",
+        entityType: "offer",
+        entityId: p.id,
+        data: {
+          shiftId: p.shiftId,
+          workerId: p.workerId,
+          offeredBy: resourcer.id,
+          noticeHours: startsAt ? noticeHours(startsAt, p.sentAt) : null,
+          channel: "sms",
+        },
       },
-    });
+      p.sentAt,
+    );
   }
 }
 
@@ -556,13 +578,17 @@ async function loadExtraShifts(
     .returning({ id: shifts.id });
   const fresh = new Set(added.map((s) => s.id));
   for (const s of added) {
-    await recordEvent(tx, {
-      actorType: "system",
-      action: "shift.created",
-      entityType: "shift",
-      entityId: s.id,
-      data: { source: "seed" },
-    });
+    await recordEventAt(
+      tx,
+      {
+        actorType: "system",
+        action: "shift.created",
+        entityType: "shift",
+        entityId: s.id,
+        data: { source: "seed" },
+      },
+      extra.shiftsCreatedAt,
+    );
   }
   const bookings = extra.bookings.filter((b) => fresh.has(b.shiftId) && !clashes.has(b.id));
   if (bookings.length === 0) return;
@@ -585,36 +611,44 @@ async function loadExtraShifts(
   );
   const resourcer = firm.officeUsers.find((u) => u.role === "resourcer");
   for (const b of bookings) {
-    await recordEvent(tx, {
-      actorType: "worker",
-      actorId: b.workerId,
-      action: "shift.assigned",
-      entityType: "assignment",
-      entityId: b.id,
-      data: {
-        by: "worker",
-        shiftId: b.shiftId,
-        workerId: b.workerId,
-        slot: 1,
-        noticeHours: b.bookedNoticeHours,
-      },
-    });
-    if (b.status === "cancelled_firm") {
-      if (!resourcer) throw new Error(`${firm.slug} has no resourcer to cancel it`);
-      await recordEvent(tx, {
-        actorType: "office",
-        actorId: resourcer.id,
-        action: "shift.cancelled",
+    await recordEventAt(
+      tx,
+      {
+        actorType: "worker",
+        actorId: b.workerId,
+        action: "shift.assigned",
         entityType: "assignment",
         entityId: b.id,
         data: {
-          by: "firm",
+          by: "worker",
           shiftId: b.shiftId,
           workerId: b.workerId,
-          noticeHours: b.noticeHours,
-          ...(b.cancelReason ? { reason: b.cancelReason } : {}),
+          slot: 1,
+          noticeHours: b.bookedNoticeHours,
         },
-      });
+      },
+      b.confirmedAt,
+    );
+    if (b.status === "cancelled_firm") {
+      if (!resourcer) throw new Error(`${firm.slug} has no resourcer to cancel it`);
+      await recordEventAt(
+        tx,
+        {
+          actorType: "office",
+          actorId: resourcer.id,
+          action: "shift.cancelled",
+          entityType: "assignment",
+          entityId: b.id,
+          data: {
+            by: "firm",
+            shiftId: b.shiftId,
+            workerId: b.workerId,
+            noticeHours: b.noticeHours,
+            ...(b.cancelReason ? { reason: b.cancelReason } : {}),
+          },
+        },
+        b.cancelledAt ?? new Date(),
+      );
     }
   }
 }

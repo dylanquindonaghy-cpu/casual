@@ -2,6 +2,7 @@ import { dayLabel } from "../rules/reasons";
 import { addDays, localDateOf, wallTimeOf } from "../time/zoned";
 import type { MyShift } from "./my-shifts";
 import { pounds } from "./pay-format";
+import { roleWords } from "../text/role";
 
 // How the staff portal shows a shift (docs/screens.md copy rules: short, plain, readable). Pure
 // functions: the page passes the firm's time zone (times are stored in UTC, shown in London time).
@@ -41,12 +42,13 @@ export function payWords(ratePence: number, startsAt: Date, endsAt: Date): strin
 // "£12.60/hour", for a line of facts.
 export const perHour = (ratePence: number): string => `${pounds(ratePence)}/hour`;
 
+// A role mid-sentence: "CSAS officer" (src/lib/text/role.ts).
+export { roleWords };
+
 // "door_supervisor" -> "Door supervisor"; an acronym stays in capitals ("csas_officer" -> "CSAS
 // officer").
 export function roleLabel(role: string): string {
-  const words = role
-    .replace(/_/g, " ")
-    .replace(/\b(csas|sia|cctv|pts|cscs)\b/g, (a) => a.toUpperCase());
+  const words = roleWords(role);
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 

@@ -17,6 +17,8 @@ import { isDemoFirm } from "@/lib/demo/firms";
 import { NotADemoServer } from "@/lib/demo/guard";
 import { isMadeUpEmail } from "@/lib/demo/made-up";
 import { seedId } from "@/lib/demo/seed-id";
+import { PILOT_MAX_DAYS } from "@/lib/office/pilot-report";
+import { addDays } from "@/lib/time/zoned";
 import { urls } from "../helpers/db";
 import { LOOK_ALIKE_EMAILS } from "../helpers/look-alike-emails";
 
@@ -160,6 +162,49 @@ describe("the demo reset, run", () => {
     expect(firms.rows.map((r) => r.id).sort()).toEqual(
       [seedId("firm/acme"), seedId("firm/northline")].sort(),
     );
+    // Phase 26.10, fix-8: the seeded log carries the story's own times (each booking's entry at
+    // its confirmation, not at the reload), and the pilot figures are worked out straight away,
+    // over the Pilot metrics page's longest period.
+    const booked = await asSuperuser((c) =>
+      c.query<{ n: number; at_story: number; earliest: string }>(
+        `select count(*)::int as n,
+                count(*) filter (where e.created_at = a.confirmed_at)::int as at_story,
+                min(e.created_at)::text as earliest
+           from events e
+           join assignments a on a.firm_id = e.firm_id and a.id::text = e.entity_id::text
+          where e.action = 'shift.assigned'`,
+      ),
+    );
+    expect(booked.rows[0]?.n).toBeGreaterThan(20);
+    expect(booked.rows[0]?.at_story).toBe(booked.rows[0]?.n);
+    // The made-up history's 10 weeks: its first bookings long before the reset's day.
+    expect(new Date(booked.rows[0]?.earliest ?? "").getTime()).toBeLessThan(
+      new Date("2026-08-20T00:00:00Z").getTime(),
+    );
+    const figures = await asSuperuser((c) =>
+      c.query<{ firm_id: string; days: number; first: string; last: string }>(
+        `select firm_id::text, count(distinct day)::int as days, min(day)::text as first,
+                max(day)::text as last
+           from metrics_daily where kind = 'daily' group by firm_id order by firm_id`,
+      ),
+    );
+    expect(figures.rows.map((r) => r.firm_id).sort()).toEqual(
+      [seedId("firm/acme"), seedId("firm/northline")].sort(),
+    );
+    for (const r of figures.rows) {
+      expect(r.last).toBe("2026-10-20");
+      expect(r.days).toBeGreaterThanOrEqual(PILOT_MAX_DAYS);
+      expect(r.first <= addDays("2026-10-20", -(PILOT_MAX_DAYS - 1))).toBe(true);
+    }
+    // The history's cancellations counted on their own days, weeks before the reload's.
+    const earlier = await asSuperuser((c) =>
+      c.query<{ n: string | null }>(
+        `select sum(value)::text as n from metrics_daily
+          where firm_id = $1 and metric = 'worker_cancellations' and day < '2026-10-06'`,
+        [seedId("firm/acme")],
+      ),
+    );
+    expect(Number(earlier.rows[0]?.n ?? 0)).toBeGreaterThan(0);
     // What a visitor did is gone after the next reset.
     await asSuperuser((c) =>
       c.query("update workers set first_name = 'Changed' where firm_id = $1", [

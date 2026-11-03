@@ -48,11 +48,23 @@ function eventRow(firmId: string, event: EventInput) {
 // a cancellation or a withdrawn strike also queues the firm's planner webhook, in this same
 // transaction, when the firm has one (the action log is the outbox: src/lib/integrations/outbox.ts).
 export async function recordEvent(tx: FirmTx, event: EventInput): Promise<number> {
+  return insertEvent(tx, event, null);
+}
+
+// The made-up demo's history (Phase 26.10, fix-8): the same entry, at the time its story says it
+// happened (a booking at its confirmation, a cancellation when it was cancelled), so the log, the
+// Updates feed and the pilot figures read as the story does after each nightly reload. Only the
+// seed calls it (tests/unit/events.boundary.test.ts): every other entry is the database's now().
+export async function recordEventAt(tx: FirmTx, event: EventInput, at: Date): Promise<number> {
+  return insertEvent(tx, event, at);
+}
+
+async function insertEvent(tx: FirmTx, event: EventInput, at: Date | null): Promise<number> {
   const firmId = activeFirmId();
   if (!firmId) throw new Error("recordEvent must be called inside withFirm");
   const [row] = await tx
     .insert(events)
-    .values(eventRow(firmId, event))
+    .values({ ...eventRow(firmId, event), ...(at ? { createdAt: at } : {}) })
     .returning({ id: events.id });
   if (!row) throw new Error("event insert returned nothing");
   if (isWebhookAction(event.action)) await queueWebhooks(tx, row.id, event.action);

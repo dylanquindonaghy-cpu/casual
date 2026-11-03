@@ -148,7 +148,7 @@ describe("Open shifts page body (Phase 18)", () => {
       }),
     );
     expect(text(html)).toContain("Urgent, needed now");
-    expect(text(html)).toContain("More shifts you can apply for");
+    expect(text(html)).toContain("More shifts you can take");
     const urgent = cardsIn(html, "urgent-heading");
     const more = cardsIn(html, "more-heading");
     expect(urgent.map((c) => /href="\/shifts\/([a-z0-9]+)"/.exec(c)?.[1])).toEqual(["u1"]);
@@ -196,7 +196,7 @@ describe("Open shifts page body (Phase 18)", () => {
     ).toEqual(["u9"]);
     // With nothing urgent: one heading.
     const plain = render(list({ shifts: [shift({ shiftId: "n1" })] }));
-    expect(text(plain)).toContain("Shifts you can apply for");
+    expect(text(plain)).toContain("Shifts you can take");
     expect(text(plain)).not.toContain("Urgent, needed now");
   });
 

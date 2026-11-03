@@ -531,7 +531,7 @@ describe("Home: what she can take, and her next shift in full", () => {
         "offline",
         "Open shifts need signal 2 were urgent at 09:00 on Mon 2 Nov. We'll check again when you're online.",
       ],
-      ["apply", "3 more to apply for Sat 7 and Tue 10 Nov · up to £12.60/hour"],
+      ["apply", "3 more you can take Sat 7 and Tue 10 Nov · up to £12.60/hour"],
       ["pay", "Pay day: Fri 13 Nov For this week's shifts"],
     ]);
     expect(section).toMatch(

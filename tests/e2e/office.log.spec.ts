@@ -30,8 +30,15 @@ test("filter the action log by type and worker, and follow a shift", async ({ pa
   await (await menuLink(page, "Action log")).click();
   await expect(page).toHaveURL(`${acme}/office/log`);
   await expect(page.getByRole("heading", { name: "Action log" })).toBeVisible();
-  // Someone logging in is logged too: this spec's own login is there.
+  // Someone logging in is logged too, but only listed under Logins (Phase 26.10, fix-4): this
+  // spec's own login is there once that type is chosen.
+  await expect(page.getByText("Logins are hidden. Choose Logins under Type to see them.")).toBeVisible();
+  await expect(page.getByText("Log Resourcer logged in.")).toHaveCount(0);
+  await page.getByLabel("Type").selectOption({ label: "Logins" });
+  await page.getByRole("button", { name: "Show" }).click();
+  await expect(page).toHaveURL(/type=logins/);
   await expect(page.getByText("Log Resourcer logged in.").first()).toBeVisible();
+  await expect(page.getByText("Logins are hidden.")).toHaveCount(0);
 
   // Cancellations only.
   await page.getByLabel("Type").selectOption({ label: "Cancellations" });

@@ -119,7 +119,7 @@ describe("Home's open shifts, in Shifts you can take", () => {
       /<\/span><\/span><svg aria-hidden="true"[^>]*class="shrink-0 text-ink-muted"/,
     );
     expect(row("apply")).toContain('href="/shifts/open"');
-    expect(spoken(row("apply"))).toBe("1 more to apply for Sat 7 Nov");
+    expect(spoken(row("apply"))).toBe("1 more you can take Sat 7 Nov");
     expect(tileOf(row("apply"))?.slice(1)).toEqual([
       expect.stringContaining("glass-tile text-ink"),
       "Sat",
@@ -138,10 +138,10 @@ describe("Home's open shifts, in Shifts you can take", () => {
     expect(tileOf(row("pay"))?.slice(2)).toEqual(["Fri", "13"]);
     expect(html).not.toContain("data-requirements");
     expect(text(html)).not.toMatch(/SIA DS|CSAS/);
-    // Nothing urgent: no urgent row, and the others are "shifts to apply for".
+    // Nothing urgent: no urgent row, and the others are "shifts you can take" (Phase 26.10; "to apply for" until then).
     const calm = home([shift(2, {})]);
     expect(calm).not.toContain('data-for-you="urgent"');
-    expect(spoken(calm)).toContain("1 shift to apply for Sat 7 Nov");
+    expect(spoken(calm)).toContain("1 shift you can take Sat 7 Nov");
     // Nothing needs doing: no "Do this".
     expect(calm).not.toContain("do-this-heading");
   });
@@ -182,7 +182,7 @@ describe("Home with travel areas switched off for the firm (13.4)", () => {
     // The open shifts still show, without how far (and not "near you": there's no area).
     expect(spoken(html)).toContain("1 urgent Sat 7 Nov");
     expect(words).not.toContain("near you");
-    expect(spoken(html)).toContain("1 more to apply for Sat 7 Nov");
+    expect(spoken(html)).toContain("1 more you can take Sat 7 Nov");
   });
 });
 

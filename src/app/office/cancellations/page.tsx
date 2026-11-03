@@ -31,7 +31,7 @@ const hrefOf = (view: CancellationView, day?: "today") => {
   return q.length === 0 ? "/office/cancellations" : `/office/cancellations?${q.join("&")}`;
 };
 
-const th = "px-4 pt-4 pb-3 text-sm font-medium whitespace-nowrap text-ink-muted";
+const th = "px-4 pt-4 pb-3 text-xs font-medium whitespace-nowrap text-ink-muted";
 const td = "px-4 py-3 align-middle";
 // A row with under the threshold's notice (can-1): tinted red with a red edge, in every tab. On a
 // phone its card is the tint instead of glass (glass keeps one fill everywhere: office.look).

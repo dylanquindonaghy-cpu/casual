@@ -830,6 +830,17 @@ describe("the code says what the doc says", () => {
   });
 });
 
+describe("in the app (Phase 26.10, fix-3)", () => {
+  it("the same reply without 'Send OFFICE to reach a person.'; texts keep it", () => {
+    const office = templates.shiftsLineReply(docVoice, { intent: "office", ref: "ABC12345" });
+    expect(office).toContain("Automatic reply. Send OFFICE to reach a person. — ");
+    expect(templates.forTheApp(office)).toBe(
+      `The office will see this and get back to you. Ref ABC12345. Automatic reply. — ${docVoice.signOff}`,
+    );
+    expect(templates.forTheApp("No automatic line here.")).toBe("No automatic line here.");
+  });
+});
+
 describe("the SMS versions", () => {
   const sms = section("SMS (keep under 160 characters)");
 
@@ -1167,6 +1178,8 @@ describe("every template function is checked here", () => {
         "inboxOfficeReplyEmail",
         "inboxReplySubject",
         "inboxSummaryEmail",
+        // A reply in the app (Phase 26.10, fix-3), checked above.
+        "forTheApp",
         "unknownNumberMessage",
         "smsStartedMessage",
         "smsStoppedMessage",

@@ -253,7 +253,9 @@ Nothing real happens on it:
   the worker stops if one ever gets in. Names, notes and photos aren't checked, so never type,
   import or upload anything real on it (golden rule 7), and say so to whoever you show it to.
 - **Loaded afresh every night** at 04:00 UK time: the demo's dates move on with the calendar and
-  whatever visitors did is cleared. No backups: there's nothing to keep.
+  whatever visitors did is cleared. Its history's log entries carry the made-up story's own times,
+  and the pilot figures (Pilot metrics) are worked out straight after, over the page's longest
+  period, 92 days (Phase 26.10, fix-8). No backups: there's nothing to keep.
 
 It costs the server (Hetzner CX23: about €5.49 a month, plus €0.50 for its IPv4 address) and your
 domain. Nothing else: no text or email account, no database service.

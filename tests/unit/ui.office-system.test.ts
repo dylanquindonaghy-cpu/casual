@@ -938,3 +938,30 @@ describe("the office's loading skeletons", () => {
     }
   });
 });
+
+describe("every other office page's tables, round 8 (Phase 26.10, oth-2)", () => {
+  it("column labels are 12px grey, the shared report table's and each page's own", () => {
+    expect(classes.table.th.split(" ")).toEqual(
+      expect.arrayContaining(["text-xs", "text-ink-muted"]),
+    );
+    // A page's own header class (Casuals, Cancellations): the same size and colour.
+    const own = OFFICE.flatMap((f) =>
+      [...code(read(f)).matchAll(/const th = "([^"]+)"/g)].map((m) => ({ f, cls: m[1] ?? "" })),
+    );
+    expect(own.length).toBeGreaterThan(0);
+    for (const { f, cls } of own) {
+      expect([f, cls.split(" ")]).toEqual([
+        f,
+        expect.arrayContaining(["text-xs", "text-ink-muted"]),
+      ]);
+      expect([f, cls]).not.toEqual([f, expect.stringMatching(/\btext-(sm|base)\b/)]);
+    }
+  });
+
+  it("figures right and lined up; no zebra stripes", () => {
+    expect(classes.table.num.split(" ")).toEqual(["text-right", "tabular-nums"]);
+    for (const f of OFFICE) {
+      expect([f, code(read(f))]).not.toEqual([f, expect.stringMatching(/\b(odd|even):bg-/)]);
+    }
+  });
+});

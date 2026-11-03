@@ -1099,6 +1099,24 @@ page said after Dylan's edits; `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; 
 and 1280px sit beside the spec in `docs/mockups/round-8/`; no route, label, link or action is lost
 unless the spec drops it; the `claims-auditor` checks the phase against this line.
 
+## Proposed 2026-11-03: P11 — Launch words, the glass turned up, and a map you can use (waiting for Dylan's go-ahead; UI, M)
+
+Dylan, 2026-11-03, after Phase 26 went live: the glass and side bar "turned up by like 15-20%",
+"what does this section mean" ("Who worked?"), the "Tell me about" words, the Haulix video again
+with an idea (the sessions on the map, the map interactive both ways), the map upload steps, and
+"review the website to make sure that all the data and features are easily understood via the
+text and UI so we dont have any other issues on launch". The findings, every quote with its place
+in the code, the map steps and the proposals: `docs/mockups/round-8/launch-review-2026-11-03.md`;
+the pictures (today, +15% and +20%; the words before and after):
+https://claude.ai/artifact/9GPXjLG2NXmz4FvbMXBdiu. Three parts, each its own yes or no:
+
+- **The words** (16 to fix before launch, about 40 for one name per thing and clearer words; a few
+  change layout, so a mock-up first).
+- **The glass** at +15% or +20% (the office's dark theme only; the numbers in the review).
+- **The dashboard map** made the dashboard's top, interactive both ways, "To offer" as a list on it,
+  the page behind plain charcoal: after the street map file is on the server, a mock-up on the real
+  streets first.
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify

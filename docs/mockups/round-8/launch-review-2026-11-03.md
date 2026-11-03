@@ -78,21 +78,25 @@ real streets, then the build.
 
 ## 4. The street map on the server (the steps Dylan has)
 
-Made on the server itself, so nothing big crosses his home connection. Checked from here: the
-newest build's name (`curl -s https://build-metadata.protomaps.dev/builds.json | grep -o
-'[0-9]\{8\}\.pmtiles' | tail -1` gave `20261103.pmtiles`, the world file 139 GB) and that
-`https://build.protomaps.com/20261103.pmtiles` answers byte ranges (206, "PMTiles"). Not run from
-here (the session may not run outside tools): the `protomaps/go-pmtiles` Docker image.
+From his phone (Termius) or any computer, after logging in as root (how the server's SSH and
+firewall were really set up isn't recorded; the page's Part B finds out whether it's a key or a
+password, and the first connection shows whether a firewall is in the way). One command does it all:
+the newest build's name, the UK cut out at zoom 13 (about 740 MB, measured from the build's own
+index), `MAP_TILES_URL=/maps/uk.pmtiles` set in `/opt/shiftdesk/.env` (added if missing), and the
+settings applied (`deploy.sh --now`, which also works in the 05:30–09:00 window):
 
-1. `ssh root@<server IPv4>` (from any SSH app, such as Termius on a phone; how the server's SSH and firewall were really set up isn't recorded, so the first try shows it: it connects, it hangs (the firewall), or "Permission denied" (the key or password)).
-2. `df -h /opt/shiftdesk` (free space).
-3. Size only: `B=$(curl -s https://build-metadata.protomaps.dev/builds.json | grep -o '[0-9]\{8\}\.pmtiles' | tail -1); docker run --rm protomaps/go-pmtiles extract https://build.protomaps.com/$B /tmp/uk.pmtiles --bbox=-8.65,49.86,1.77,60.86 --maxzoom=14 --dry-run`
-4. Make it: `mkdir -p /opt/shiftdesk/maps; B=…; docker run --rm -v /opt/shiftdesk/maps:/maps protomaps/go-pmtiles extract https://build.protomaps.com/$B /maps/uk.pmtiles --bbox=-8.65,49.86,1.77,60.86 --maxzoom=14; ls -lh /opt/shiftdesk/maps` (13 instead of 14 if it's big).
-5. Switch on: set `MAP_TILES_URL=/maps/uk.pmtiles` in `/opt/shiftdesk/.env` (added if missing), then `/opt/shiftdesk/deploy.sh --now` ("Applied the settings in .env"; `--now` works in the 05:30–09:00 window too).
-6. `curl -sI -H "Range: bytes=0-15" https://acme.staffingresourcingtest.uk/maps/uk.pmtiles | head -1` says `HTTP/2 206` (Caddy serves `/maps/*` itself, `deploy/Caddyfile`, so the demo's password doesn't apply).
-7. The dashboard with Ctrl+Shift+R: streets under the pins; the foot no longer says "Placed by each venue's postcode".
+```
+B=$(curl -s https://build-metadata.protomaps.dev/builds.json | grep -o '[0-9]\{8\}\.pmtiles' | tail -1) && echo "Map build: $B" && mkdir -p /opt/shiftdesk/maps && docker run --rm -v /opt/shiftdesk/maps:/maps protomaps/go-pmtiles extract "https://build.protomaps.com/$B" /maps/uk.pmtiles --bbox=-8.65,49.86,1.77,60.86 --maxzoom=13 && ls -lh /opt/shiftdesk/maps && { grep -q '^MAP_TILES_URL=' /opt/shiftdesk/.env && sed -i 's|^MAP_TILES_URL=.*|MAP_TILES_URL=/maps/uk.pmtiles|' /opt/shiftdesk/.env || echo 'MAP_TILES_URL=/maps/uk.pmtiles' >> /opt/shiftdesk/.env; } && /opt/shiftdesk/deploy.sh --now && echo "ALL DONE: the street map is on."
+```
 
-Once he's run them, `docs/runbooks.md` "The street map" gets this server-side route.
+Checked from here: the command parses (`bash -n`); the newest build's name (`20261103.pmtiles`,
+the world file 139 GB); `https://build.protomaps.com/20261103.pmtiles` answers byte ranges (206,
+"PMTiles"); the `.env` line is set whether or not it was there. Not run from here (the session may
+not run outside tools): the `protomaps/go-pmtiles` Docker image. Then
+`curl -sI -H "Range: bytes=0-15" https://acme.staffingresourcingtest.uk/maps/uk.pmtiles | head -1`
+says `HTTP/2 206` (Caddy serves `/maps/*` itself, `deploy/Caddyfile`, so the demo's password doesn't
+apply), and the dashboard with Ctrl+Shift+R shows the streets. Once he's run it,
+`docs/runbooks.md` "The street map" gets this route.
 
 ## 5. Every page's words, for launch
 

@@ -232,6 +232,29 @@ function typeCondition(type: keyof typeof LOG_TYPES): SQL {
   return parts.length > 0 ? sql`(${sql.join(parts, sql` or `)})` : sql`false`;
 }
 
+// The filter's sessions, each name told apart (the launch review): one whose name repeats another's
+// gets its post ("Steward at Acme Demo Arena, Sat 7 Nov 08:00 · Gate A"), else its finish
+// ("… · until 16:00"), else a number ("… (2)").
+export function uniqueShiftOptions(
+  list: { id: string; label: string; post: string | null; until: string }[],
+): { id: string; label: string }[] {
+  const count = (labels: string[]) =>
+    labels.reduce((m, l) => m.set(l, (m.get(l) ?? 0) + 1), new Map<string, number>());
+  const base = count(list.map((s) => s.label));
+  const withMore = list.map((s) =>
+    (base.get(s.label) ?? 0) > 1 ? `${s.label} · ${s.post ?? `until ${s.until}`}` : s.label,
+  );
+  const again = count(withMore);
+  const seen = new Map<string, number>();
+  return list.map((s, i) => {
+    const label = withMore[i]!;
+    if ((again.get(label) ?? 0) < 2) return { id: s.id, label };
+    const n = (seen.get(label) ?? 0) + 1;
+    seen.set(label, n);
+    return { id: s.id, label: n === 1 ? label : `${label} (${n})` };
+  });
+}
+
 export async function loadActionLog(
   tx: FirmTx,
   query: LogQuery,
@@ -423,8 +446,8 @@ export async function loadActionLog(
   const inRange =
     days.start && days.end
       ? (
-          await tx.execute<ShiftRow>(sql`
-            select s.id::text, s.role, s.starts_at, si.name as site_name
+          await tx.execute<ShiftRow & { post: string | null; ends_at: string | Date }>(sql`
+            select s.id::text, s.role, s.starts_at, si.name as site_name, s.post, s.ends_at
               from shifts s
               left join sites si on si.firm_id = s.firm_id and si.id = s.site_id
              where s.starts_at >= ${days.start} and s.starts_at < ${days.end}
@@ -432,7 +455,17 @@ export async function loadActionLog(
              limit 200`)
         ).rows
       : [];
-  const shiftOptions = inRange.map((s) => ({ id: s.id, label: shiftLabel(s) }));
+  const shiftOptions = uniqueShiftOptions(
+    inRange.map((s) => {
+      const end = wallTimeOf(new Date(s.ends_at), timeZone);
+      return {
+        id: s.id,
+        label: shiftLabel(s),
+        post: s.post,
+        until: `${pad(end.hour)}:${pad(end.minute)}`,
+      };
+    }),
+  );
   if (
     query.shift &&
     shiftLabels.has(query.shift) &&

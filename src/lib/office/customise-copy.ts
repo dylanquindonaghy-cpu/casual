@@ -9,7 +9,7 @@ export const CUSTOMISE = "Customise";
 export const CUSTOMISE_TITLE = "Customise your dashboard";
 export const YOUR_CONTRACTS = "Your contracts";
 export const CONTRACTS_LINE =
-  "You see these on the dashboard and in Updates. Everything stays in Events & sessions.";
+  "You see these on the dashboard and in Updates. Events & sessions always shows every contract.";
 export const NO_CONTRACTS = "No contracts yet. An admin adds them on Settings, under Contracts.";
 export const WHAT_YOU_SEE = "What you see";
 export const SAVE_DASHBOARD = "Save my dashboard";
@@ -18,9 +18,9 @@ export const BACK_TO_DASHBOARD = "Back to the dashboard";
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
-// "2 sites · 27 sessions to come".
+// "2 venues · 27 sessions to come".
 export const contractLine = (c: Pick<ContractChoice, "sites" | "sessions">) =>
-  `${plural(c.sites, "site", "sites")} · ${plural(c.sessions, "session to come", "sessions to come")}`;
+  `${plural(c.sites, "venue", "venues")} · ${plural(c.sessions, "session to come", "sessions to come")}`;
 
 export type CustomiseState =
   { status: "idle" } | SaveDashboardResult | { status: "logged_out" } | { status: "error" };
@@ -46,9 +46,12 @@ export function customiseResultText(s: CustomiseState): string | null {
 export const MY_CONTRACTS = "My contracts";
 
 // The date choice (dash-7): every day, or one day with places to fill.
+// The date button while no day is chosen (the launch review: "All dates" read as a state, not a
+// choice), and its menu's first item, back to every day.
+export const PICK_A_DAY = "Pick a day";
 export const ALL_DATES = "All dates";
 export const dateChoiceLabel = (day: string | null) =>
-  day ? `Date: ${dayMonthLabel(day)}` : "Choose a date";
+  day ? `Date: ${dayMonthLabel(day)}` : PICK_A_DAY;
 export const dayChoice = (d: { date: string; places: number }) =>
   `${dayMonthLabel(d.date)} · ${plural(d.places, "place", "places")}`;
 

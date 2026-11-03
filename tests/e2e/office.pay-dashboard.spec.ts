@@ -35,7 +35,7 @@ test("payroll lands on the pay dashboard: the pay week, the counts and both sect
     page
       .getByRole("main")
       .getByText(
-        /^Week \d{1,2} · \d{1,2} [A-Z][a-z]{2} – \d{1,2} [A-Z][a-z]{2} · Pay Fri \d{1,2} [A-Z][a-z]{2}$/,
+        /^Week \d{1,2} \(paid Fri \d{1,2} [A-Z][a-z]{2}\) · \d{1,2} [A-Z][a-z]{2} – \d{1,2} [A-Z][a-z]{2}$/,
       ),
   ).toBeVisible();
   for (const name of ["Pay queries waiting", "Next digest", "Sorted this week", "Next pay day"]) {

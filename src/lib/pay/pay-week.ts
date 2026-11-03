@@ -29,15 +29,20 @@ export function payWeekNow(now: Date, timeZone: string): PayWeek {
 // "5 Oct", never with a year (a week spanning New Year reads "28 Dec – 3 Jan").
 const dayMonth = (day: string) => shortDate(day, Number(day.slice(0, 4)));
 
-// "Cycle 22 · 26 Oct – 8 Nov · Pay Fri 13 Nov" (Phase 25.2): a period of the firm's own pay
-// calendar, as payWeekLabel says a week.
+// "Week 45 (paid Fri 13 Nov)": a pay week or cycle and the day its shifts are paid, so it can't be
+// read as the next pay day (the launch review's O3: the dashboard's head and the pay dashboard's).
+export const payPeriodPaid = (name: string, payDay: string): string =>
+  `${name} (paid ${dayLabel(payDay)})`;
+
+// "Cycle 22 (paid Fri 13 Nov) · 26 Oct – 8 Nov" (Phase 25.2): a period of the firm's own pay
+// calendar, for the pay dashboard's header.
 export function payPeriodLabel(p: {
   name: string;
   start: string;
   end: string;
   payDay: string;
 }): string {
-  return `${p.name} · ${dayMonth(p.start)} – ${dayMonth(p.end)} · Pay ${dayLabel(p.payDay)}`;
+  return `${payPeriodPaid(p.name, p.payDay)} · ${dayMonth(p.start)} – ${dayMonth(p.end)}`;
 }
 
 // The pay dashboard's "Next pay day" lines (Phase 26.10, fix-1): "For shifts in the week of 26 Oct."

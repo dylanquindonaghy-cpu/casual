@@ -7,15 +7,19 @@ import type { CasualStrike, StrikeView } from "./strikes";
 // The Strikes page in words (docs/office-v2.md 3.5; docs/screens.md `/office/strikes`; 12C.5).
 // Pure.
 
+// A strike flagged for a review: the casual gave a reason when they cancelled (the launch review's
+// words for "Needs review", on the tab, the Strikes list and Cancellations).
+export const REVIEW_WORDS = "They gave a reason: check it";
+
 export const STRIKE_VIEW_WORDS: Record<StrikeView, string> = {
   live: "Live",
-  review: "Needs review",
+  review: REVIEW_WORDS,
   all: "All",
 };
 
 export const STRIKE_VIEW_EMPTY: Record<StrikeView, string> = {
   live: "No live strikes.",
-  review: "No strikes need a review.",
+  review: "No reasons to check.",
   all: "No strikes yet.",
 };
 

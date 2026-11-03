@@ -41,7 +41,7 @@ describe("the pilot metrics page's words", () => {
       now: "None yet",
       target: "Under 2%",
     });
-    expect(row(r, /^Portal adoption/)?.now).toBe("No active workers");
+    expect(row(r, /^App adoption/)?.now).toBe("No active workers");
     expect(row(r, /^Time to refill/)?.now).toBe("No refilled cancellations");
   });
 
@@ -89,8 +89,8 @@ describe("the pilot metrics page's words", () => {
     expect(pilotRows(r).map((x) => [x.baseline, x.now])).toEqual([
       ["82", "25"],
       ["40%", "25%"],
-      ["Before the app", "90 (12.9 a day)"],
-      ["Before the app", "90%"],
+      ["None before the app", "90 (12.9 a day)"],
+      ["None before the app", "90%"],
       ["4 hours", "1 hour 35 minutes (3 refilled)"],
       ["", "40"],
       ["", "65% (26 of 40)"],

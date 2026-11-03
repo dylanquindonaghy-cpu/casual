@@ -29,9 +29,9 @@ export const CARD_WORDS: Record<DashboardCard, { name: string; line: string }> =
   whoWorked: { name: "Who worked?", line: "To confirm after a session" },
   nextTwoWeeks: { name: "Next 2 weeks", line: "Booked, offered and open places each day" },
   cancellations: { name: "Cancellations", line: "By week, under 48 hours in red" },
-  fillRate: { name: "Fill rate", line: "Booked of needed, per contract" },
+  fillRate: { name: "Fill rate", line: "Places booked out of places needed, per contract" },
   noShows: { name: "No-shows", line: "By week" },
-  watchList: { name: "Watch list", line: "Least reliable who are booked" },
+  watchList: { name: "Watch list", line: "Booked casuals with the lowest reliability" },
 };
 
 // What's saved: a set of known cards (unknown ones dropped, each once, in the dashboard's order).

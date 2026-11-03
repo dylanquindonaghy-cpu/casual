@@ -37,7 +37,7 @@ const noSidewaysScroll = async (page: Page) =>
     0,
   );
 
-test("the staffing layout, the open places, Offer N open places, the tabs and Add shifts", async ({
+test("the staffing layout, the open places, Offer N open places, the tabs and Add sessions", async ({
   page,
 }, testInfo) => {
   test.setTimeout(120_000);
@@ -107,10 +107,10 @@ test("the staffing layout, the open places, Offer N open places, the tabs and Ad
       page.getByRole("link", { name: /^Assign someone: /, includeHidden: true }),
     ).toHaveCount(1);
 
-    // Add shifts: the form for this event.
-    await page.getByRole("link", { name: "Add shifts" }).click();
+    // Add sessions: the form for this event.
+    await page.getByRole("link", { name: "Add sessions" }).click();
     await expect(page).toHaveURL(`${acme}/office/shifts/event?event=${eventId}`);
-    await expect(page.getByRole("heading", { name: "Add shifts", level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Add sessions", level: 1 })).toBeVisible();
     await expect(page.getByText(`Adding shifts to ${name}.`)).toBeVisible();
   } finally {
     await cancelOwnShift("acme", shiftId);

@@ -5,6 +5,7 @@ import { appEnvSchema } from "@/lib/env";
 import {
   dayShort,
   lengthAndPay,
+  mapCountLine,
   mapFoot,
   offerButton,
   pinDays,
@@ -348,5 +349,28 @@ describe("MapLibre's web worker (/office/map-worker)", () => {
         readFileSync(join(process.cwd(), "node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs")),
       ),
     ).toBe(true);
+  });
+});
+
+// The launch review's O4: the map holds this pay week and next (the top bar counts every place to
+// fill), so its count says which days it covers, under each tab and a chosen day.
+describe("the map's count", () => {
+  it("its venues and places, and the days they cover", () => {
+    expect(mapCountLine(6, 29, { show: "all" })).toBe(
+      "6 venues · 29 places to fill this week and next",
+    );
+    expect(mapCountLine(1, 1, { show: "urgent" })).toBe(
+      "1 venue · 1 place to fill this week and next",
+    );
+    expect(mapCountLine(3, 11, { show: "this-week" })).toBe(
+      "3 venues · 11 places to fill this week",
+    );
+    expect(mapCountLine(2, 4, { show: "next-week" })).toBe("2 venues · 4 places to fill next week");
+    expect(mapCountLine(2, 4, { show: "all", day: "2026-11-03" })).toBe(
+      "2 venues · 4 places to fill on Tue 3 Nov",
+    );
+    expect(mapCountLine(0, 0, { show: "all", day: null })).toBe(
+      "0 venues · 0 places to fill this week and next",
+    );
   });
 });

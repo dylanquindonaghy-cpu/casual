@@ -117,7 +117,7 @@ export function EmailBody({
             <span className="font-semibold">Sorted:</span> {emailSortedStep(t.sorted)}
           </li>
           <li>
-            <span className="font-semibold">Reply built:</span> {emailReplyStep(t.reply)}
+            <span className="font-semibold">Reply sent:</span> {emailReplyStep(t.reply)}
           </li>
           <li>
             <span className="font-semibold">Sent:</span> {emailSentStep(t.sent, at)}

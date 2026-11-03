@@ -68,9 +68,12 @@ export function eventLine(
   return [days, where, plural(sessions, "session", "sessions")].filter(Boolean).join(" · ");
 }
 
-export const SHOWING_CHIP = { on: "Showing to casuals", off: "Hidden from casuals" } as const;
+export const SHOWING_CHIP = {
+  on: "Showing to casuals",
+  off: "Hidden: casuals can't see it",
+} as const;
 export const showButton = (showing: boolean) => (showing ? "Hide from casuals" : "Show to casuals");
-export const ADD_SHIFTS = "Add shifts";
+export const ADD_SHIFTS = "Add sessions";
 export const offerOpenPlacesButton = (n: number) =>
   `Offer ${plural(n, "open place", "open places")}`;
 export const OFFER_OPEN_CONFIRM =
@@ -97,7 +100,7 @@ export function offerOpenResultText(
     case "not_found":
       return "This event isn't there any more.";
     case "not_allowed":
-      return "You can't offer shifts.";
+      return "You can't offer sessions.";
     case "logged_out":
       return "Your session has ended. Log in again.";
     case "error":
@@ -156,7 +159,8 @@ export function tileLabel(
 }
 export const LEGEND = { booked: "Booked", open: "Open", urgent: "Urgent" } as const;
 export const LEGEND_HINT = "Tap a place to see who's on it or to offer it.";
-export const NO_SESSIONS_TO_COME = "No sessions to come. Add shifts to lay out their places here.";
+export const NO_SESSIONS_TO_COME =
+  "No sessions to come. Add sessions to lay out their places here.";
 
 // --- Open places ---
 export const OPEN_PLACES_TITLE = "Open places";
@@ -221,7 +225,7 @@ export function offerPlaceResultText(r: { status: string }): string {
     case "not_found":
       return "This session isn't there any more.";
     case "not_allowed":
-      return "You can't offer shifts.";
+      return "You can't offer sessions.";
     case "logged_out":
       return "Your session has ended. Log in again.";
     default:

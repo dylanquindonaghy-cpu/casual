@@ -76,7 +76,7 @@ describe("the office's words", () => {
 
   it("a site's location status and the save's answers", () => {
     expect(siteLocationText({ postcode: null, located: false })).toBe(
-      "No postcode yet, so distances to this site can't be worked out.",
+      "No postcode yet, so distances to this venue can't be worked out.",
     );
     expect(siteLocationText({ postcode: "ZZ1 1AA", located: true })).toBe("Location found.");
     expect(siteLocationText({ postcode: "ZZ1 1AA", located: false })).toBe(

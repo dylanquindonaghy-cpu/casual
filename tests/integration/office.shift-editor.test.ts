@@ -500,7 +500,7 @@ describe("events and a session's own details (12B.1)", () => {
     r.status === "created" ? r.shiftIds : [];
   const NO_DETAILS = { payRate: "", post: "", meetingPoint: "", uniform: "", requirements: [] };
 
-  it('"New shift" joins its site and day\'s automatic event; "Shifts for an event" makes its own, named', async () => {
+  it('"New shift" joins its site and day\'s automatic event; "Sessions for an event" makes its own, named', async () => {
     const t = await editorFirm();
     const day = { date: "2026-11-07", siteId: t.siteId, instructions: "" };
     const [a = ""] = created(

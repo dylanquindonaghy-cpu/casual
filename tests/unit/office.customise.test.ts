@@ -76,10 +76,10 @@ describe("the cards a person sees", () => {
 
 describe("the words", () => {
   it("a contract's line, the date choice, and what saving says", () => {
-    expect(contractLine({ sites: 1, sessions: 27 })).toBe("1 site · 27 sessions to come");
-    expect(contractLine({ sites: 2, sessions: 1 })).toBe("2 sites · 1 session to come");
+    expect(contractLine({ sites: 1, sessions: 27 })).toBe("1 venue · 27 sessions to come");
+    expect(contractLine({ sites: 2, sessions: 1 })).toBe("2 venues · 1 session to come");
     expect(dayMonthLabel("2026-11-03")).toBe("Tue 3 Nov");
-    expect(dateChoiceLabel(null)).toBe("Choose a date");
+    expect(dateChoiceLabel(null)).toBe("Pick a day");
     expect(dateChoiceLabel("2026-11-03")).toBe("Date: Tue 3 Nov");
     expect(dayChoice({ date: "2026-11-07", places: 4 })).toBe("Sat 7 Nov · 4 places");
     expect(dayChoice({ date: "2026-11-07", places: 1 })).toBe("Sat 7 Nov · 1 place");
@@ -152,9 +152,9 @@ describe("Customise's form", () => {
       createElement(CustomiseForm, { me: { ...me, cards: [...me.cards] } }),
     );
     expect(words(html)).toContain(
-      "Your contracts You see these on the dashboard and in Updates. Everything stays in Events & sessions.",
+      "Your contracts You see these on the dashboard and in Updates. Events & sessions always shows every contract.",
     );
-    expect(words(html)).toContain("Acme Demo Arena 1 site · 27 sessions to come");
+    expect(words(html)).toContain("Acme Demo Arena 1 venue · 27 sessions to come");
     // Each input's own attributes, whatever their order.
     const inputs = (name: string) =>
       [...html.matchAll(/<input ([^>]*)\/?>/g)]

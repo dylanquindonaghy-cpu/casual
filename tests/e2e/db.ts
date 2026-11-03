@@ -177,7 +177,7 @@ export async function addOpenShift(
   }
 }
 
-// An event of a spec's own (named, as "Shifts for an event" makes) holding one open session at a
+// An event of a spec's own (named, as "Sessions for an event" makes) holding one open session at a
 // site of its own (`site`, so a casual's list can find it), starting `daysAhead` days from now:
 // switching it off can't hide another spec's shifts. `urgent`: marked urgent by the office.
 export async function addEventWithSession(

@@ -157,10 +157,10 @@ describe("the words", () => {
       "Too many tries. Try again in 1 minute.",
     );
     expect(sitePostcodeResultText({ status: "in_use", sessions: 3 })).toBe(
-      "3 booked sessions use this site: move them first.",
+      "3 booked sessions use this venue: move them first.",
     );
     expect(sitePostcodeResultText({ status: "in_use", sessions: 1 })).toBe(
-      "1 booked session uses this site: move it first.",
+      "1 booked session uses this venue: move it first.",
     );
     expect(confirmResultText({ status: "confirmed" }, "Acme Events")).toBe(
       "Confirmed. Acme Events can now send records of late cancellations to this address.",

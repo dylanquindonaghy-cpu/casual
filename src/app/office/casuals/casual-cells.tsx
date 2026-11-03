@@ -10,7 +10,7 @@ import { STATUS_TONES } from "@/lib/portal/qualification-copy";
 
 // Their staff photo: its state ("Up to date" in words; a missing one, most rows of a new firm, a
 // small amber dot and the word; due soon, overdue, waiting for a check: a tag), and under it the
-// date it was taken (or sent, while it waits for a check).
+// date it was taken ("renew by …" when due soon or overdue; sent, while it waits for a check).
 export function PhotoCell({ row, year }: { row: CasualRow; year: number }) {
   const cell = photoCell(row.photo, year);
   return (

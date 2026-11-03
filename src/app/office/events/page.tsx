@@ -74,24 +74,24 @@ export default async function EventsPage({
               <p className="mt-2 flex flex-wrap items-center gap-x-3 font-semibold text-ink">
                 At {list.site.name}.
                 <Link href={viewHref(view)} className={textLink}>
-                  Show every site
+                  Show every venue
                 </Link>
               </p>
             )}
           </div>
           <div className="flex flex-wrap gap-2">
             <Link href="/office/shifts" className={btn.secondary}>
-              All shifts by day
+              All sessions by day
             </Link>
             {!list.hasPlanner && (
               <>
                 <Link href="/office/shifts/import" className={btn.secondary}>
                   <Icon name="import" size={17} />
-                  Import shifts
+                  Import sessions
                 </Link>
                 <Link href="/office/shifts/event" className={btn.primary}>
                   <Icon name="plus" size={17} />
-                  Add shifts
+                  Add sessions
                 </Link>
               </>
             )}

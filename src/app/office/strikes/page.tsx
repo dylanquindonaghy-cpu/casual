@@ -26,6 +26,7 @@ import {
 } from "@/lib/office/strikes";
 import {
   liveCountText,
+  REVIEW_WORDS,
   STRIKE_VIEW_EMPTY,
   STRIKE_VIEW_WORDS,
   strikeLine,
@@ -55,7 +56,7 @@ const evidenceOf = (s: CasualStrike, tz: string) =>
   );
 
 // Strikes (docs/office-v2.md 3.5; docs/screens.md `/office/strikes`): one row per casual with a
-// strike, by how many still count, in the chosen view (links: Live · Needs review · All). Each
+// strike, by how many still count, in the chosen view (links: Live · They gave a reason: check it · All). Each
 // strike links to its cancellation record, where it's withdrawn or kept. No badge, no CSV (the
 // cancellations CSV has the strike). Admins and resourcers.
 export default async function StrikesPage({
@@ -103,7 +104,7 @@ export default async function StrikesPage({
                   <StatusChip tone={r.live > 0 ? "urgent" : "quiet"}>
                     {liveCountText(r.live)}
                   </StatusChip>
-                  {r.review && <StatusChip tone="attention">Needs review</StatusChip>}
+                  {r.review && <StatusChip tone="attention">{REVIEW_WORDS}</StatusChip>}
                 </div>
                 {latest && (
                   <div className="flex flex-col gap-1">

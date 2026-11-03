@@ -228,10 +228,10 @@ describe("your firm's portal as its planner", () => {
 
   it("the dashboard: when it was last read, from your planner", () => {
     expect(headLine("2026-11-02", portal(), NOW, TZ)).toBe(
-      "Monday 2 November · Week 45 · Pay Fri 13 Nov · Updated 08:31 from your planner",
+      "Monday 2 November · Week 45 (paid Fri 13 Nov) · Updated 08:31 from your planner",
     );
     expect(headLine("2026-11-02", portal({ nearReadAt: null }), NOW, TZ)).toBe(
-      "Monday 2 November · Week 45 · Pay Fri 13 Nov",
+      "Monday 2 November · Week 45 (paid Fri 13 Nov)",
     );
     inDoc(" · Updated 09:31 from your planner");
   });

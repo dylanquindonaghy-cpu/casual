@@ -163,7 +163,7 @@ export function ShiftCreateForm({
             className="grid grid-cols-2 gap-x-4 gap-y-3 glass-tile rounded-row p-4 pt-3 sm:grid-cols-[minmax(0,1fr)_8.5rem_8.5rem_6rem]"
           >
             <legend className="float-left col-span-2 font-semibold text-ink sm:col-span-4">
-              {mode === "single" ? "The shift" : `Line ${i + 1}`}
+              {mode === "single" ? "The session" : `Line ${i + 1}`}
             </legend>
             <label className={`${labelStack} col-span-2 sm:col-span-1`}>
               <span>Role</span>
@@ -282,7 +282,7 @@ export function ShiftCreateForm({
         />
       </label>
       <button type="submit" className={`${btn.primary} self-start`} disabled={pending || !ready}>
-        {mode === "single" ? "Create shift" : "Create these shifts"}
+        {mode === "single" ? "Create session" : "Create these sessions"}
       </button>
       {message && (
         <div role="status" className={resultBox}>
@@ -301,7 +301,7 @@ export function ShiftCreateForm({
               </Link>
             ) : (
               <Link href="/office/shifts" className={btn.link}>
-                See the shifts
+                See the sessions
               </Link>
             ))}
         </div>

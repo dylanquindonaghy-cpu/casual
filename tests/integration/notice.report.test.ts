@@ -241,7 +241,7 @@ describe("the firm's changes, from the office's screens", () => {
     });
     const csv = noticeReportCsv(r).slice(1).trimEnd().split("\r\n");
     expect(csv[2]).toContain(
-      ",Moved,The office,,Ann Booker,Door supervisor,2026-11-07 10:00,2026-11-07 08:00 to 2026-11-07 16:00,2026-11-07 10:00 to 2026-11-07 18:00,72.00,No,The event's times or place changed,",
+      ",Moved,The firm,,Ann Booker,Door supervisor,2026-11-07 10:00,2026-11-07 08:00 to 2026-11-07 16:00,2026-11-07 10:00 to 2026-11-07 18:00,72.00,No,The event's times or place changed,",
     );
   });
 

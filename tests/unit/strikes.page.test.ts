@@ -66,10 +66,14 @@ const strike = (o: Partial<CasualStrike> = {}): CasualStrike => ({
 
 describe("the Strikes page's words", () => {
   it("views, empty states, the intro and the live count", () => {
-    expect(STRIKE_VIEW_WORDS).toEqual({ live: "Live", review: "Needs review", all: "All" });
+    expect(STRIKE_VIEW_WORDS).toEqual({
+      live: "Live",
+      review: "They gave a reason: check it",
+      all: "All",
+    });
     expect(STRIKE_VIEW_EMPTY).toEqual({
       live: "No live strikes.",
-      review: "No strikes need a review.",
+      review: "No reasons to check.",
       all: "No strikes yet.",
     });
     expect(strikesIntro(48, 90)).toBe(

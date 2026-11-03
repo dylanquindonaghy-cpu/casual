@@ -48,8 +48,8 @@ export const SUMMARY_LATEST_HOUR = 11;
 export const TELL_ME_TITLE = "Tell me about";
 export const tellMeLine = (mine: boolean) =>
   mine
-    ? "For your contracts only. Saved for you, not the whole office."
-    : "For every venue, as you look after no contracts. Saved for you, not the whole office.";
+    ? "Only you get these, for your contracts."
+    : "Only you get these. You don't look after any contracts, so they cover every venue.";
 export const TELL_ME_ROWS: Record<TellMeKind, { title: string; line: string }> = {
   popup: { title: "Every cancellation", line: "A pop-up in the office" },
   cancel_push: {
@@ -80,7 +80,9 @@ export function tellMeResultText(r: TellMeResult): string {
 // Notifications on this browser: the device's own switch, under the list.
 export const DEVICE_TITLE = "Notifications on this device";
 export const DEVICE_WORDS = {
-  no_key: "Notifications aren't set up on this server yet.",
+  // No web push keys on the server (O8): the two switches above can't reach anyone yet.
+  no_key:
+    "Phone and computer notifications aren't turned on for your firm yet, so these two switches do nothing for now.",
   unsupported: "This browser can't show notifications.",
   add_to_home_screen:
     "On an iPhone, add this page to your home screen first: Share, then Add to Home Screen.",

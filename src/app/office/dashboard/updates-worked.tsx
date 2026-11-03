@@ -7,6 +7,7 @@ import { useHydrated } from "@/app/use-hydrated";
 import {
   everyoneElseLabel,
   EVERYONE_ELSE,
+  EVERYONE_ELSE_YES,
   noShowLabel,
   updateLines,
   updateWhen,
@@ -31,7 +32,7 @@ import { markAttendanceAction, markRestWorkedAction } from "../shifts/actions";
 // each a link to where it's dealt with, and "All updates" for the week (the Updates page, Phase
 // 26.4). Who worked?: the first sessions to mark (only here since Phase 26.4), alike ones together
 // (with the day), each person still booked by name with "Worked" and "Didn't attend" on their own session (the
-// shift page's own actions: the server checks everything again and logs it), and "Everyone else
+// shift page's own actions: the server checks everything again and logs it), and "All of these
 // worked" for the rest after a "Yes" (the shift page's own action, for each session in turn).
 
 const TONE: Record<ReturnType<typeof updateLines>["tone"], { bg: string; icon: IconName }> = {
@@ -194,7 +195,7 @@ function EveryoneElse({ g, timeZone }: { g: WhoWorkedGroup; timeZone: string }) 
             onClick={mark}
             className="press-glass glass-tint inline-flex min-h-11 items-center justify-center self-start rounded-full px-4 font-semibold disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Yes, everyone else worked
+            {EVERYONE_ELSE_YES}
           </button>
         </div>
       </details>

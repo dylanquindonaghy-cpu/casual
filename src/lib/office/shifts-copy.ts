@@ -28,6 +28,18 @@ export const SHIFT_STATUS_WORDS = {
   cancelled: "Cancelled",
 } as const;
 
+// A session's status chip, with an open one's places in place of "Open" (the launch review): "1
+// place to fill", "3 places to fill"; "Full" once every place is booked.
+export function sessionStatusWords(s: {
+  status: keyof typeof SHIFT_STATUS_WORDS;
+  booked: number;
+  headcount: number;
+}): string {
+  if (s.status !== "open") return SHIFT_STATUS_WORDS[s.status];
+  const free = Math.max(0, s.headcount - s.booked);
+  return free === 0 ? "Full" : free === 1 ? "1 place to fill" : `${free} places to fill`;
+}
+
 // A booked person who can't work it as things stand (Phase 10): also on the dashboard's "Bookings to
 // check".
 export const PLACE_FLAG_WORDS = {
@@ -54,7 +66,7 @@ export const SHIFT_PROBLEM_TEXT: Record<ShiftProblem, string> = {
   bad_site: "Choose a site from the list.",
   in_past: "That start time has already passed.",
   text_too_long: "The instructions are too long (2,000 characters at most).",
-  no_lines: "Fill in at least one shift.",
+  no_lines: "Fill in at least one session.",
   bad_event_name: "Enter the event's name (200 characters at most).",
   bad_event: "That event isn't there any more. Go back to Events & sessions and choose it again.",
   bad_pay: "Enter the pay rate in pounds an hour, like 12.50 (£1,000 at most).",
@@ -68,7 +80,7 @@ export const SHIFT_PROBLEM_TEXT: Record<ShiftProblem, string> = {
 type Common = { status: "logged_out" } | { status: "not_allowed" } | { status: "error" };
 const COMMON: Record<Common["status"], string> = {
   logged_out: "Your session has ended. Log in again.",
-  not_allowed: "You can't change shifts.",
+  not_allowed: "You can't change sessions.",
   error: "Something went wrong. Try again.",
 };
 
@@ -89,8 +101,8 @@ export function createResultText(result: CreateShiftsResult | Common): string {
   switch (result.status) {
     case "created":
       return result.shiftIds.length === 1
-        ? "Shift created."
-        : `${plural(result.shiftIds.length, "shift", "shifts")} created.`;
+        ? "Session created."
+        : `${plural(result.shiftIds.length, "session", "sessions")} created.`;
     case "invalid":
       return "Check the form: nothing has been saved.";
     default:
@@ -107,17 +119,17 @@ export function editResultText(result: EditShiftResult | Common): string {
     case "invalid":
       return result.problems.map((p) => SHIFT_PROBLEM_TEXT[p]).join(" ");
     case "has_bookings":
-      return 'People are booked on this shift, so its date, times, role and site can\'t change here. Use "Move, shorten or cancel" below: everyone booked is told.';
+      return 'People are booked on this session, so its date, times, role and site can\'t change here. Use "Move, shorten or cancel" below: everyone booked is told.';
     case "below_bookings":
       return "There are more people booked than that. Cancel a booking first, or keep more places.";
     case "not_open":
-      return "This shift has started or was cancelled, so it can't be changed.";
+      return "This session has started or was cancelled, so it can't be changed.";
     case "sheet":
-      return "This shift comes from your Google Sheet. Change it there.";
+      return "This session comes from your Google Sheet. Change it there.";
     case "planner":
       return FROM_PLANNER_WORDS;
     case "not_found":
-      return "We can't find that shift.";
+      return "We can't find that session.";
     default:
       return COMMON[result.status];
   }
@@ -132,13 +144,13 @@ export function detailsResultText(result: EditDetailsResult | Common): string {
     case "invalid":
       return result.problems.map((p) => SHIFT_PROBLEM_TEXT[p]).join(" ");
     case "has_bookings":
-      return "People are booked on this shift, so its extra requirements can't change. The other details can.";
+      return "People are booked on this session, so its extra requirements can't change. The other details can.";
     case "not_open":
-      return "This shift has started or was cancelled, so it can't be changed.";
+      return "This session has started or was cancelled, so it can't be changed.";
     case "planner":
       return FROM_PLANNER_WORDS;
     case "not_found":
-      return "We can't find that shift.";
+      return "We can't find that session.";
     default:
       return COMMON[result.status];
   }
@@ -155,16 +167,16 @@ export function showingResultText(
         return "Switched on, but its event is hidden from casuals, so they still can't see it.";
       }
       return result.offering > 0
-        ? `Showing to casuals. Offers are going out for ${plural(result.offering, "urgent shift", "urgent shifts")}.`
+        ? `Showing to casuals. Offers are going out for ${plural(result.offering, "urgent session", "urgent sessions")}.`
         : "Showing to casuals.";
     case "hidden":
-      return "Hidden from casuals. Booked casuals keep their shifts.";
+      return "Hidden: casuals can't see it. Booked casuals keep their places.";
     case "unchanged":
       return "Already done.";
     case "invalid":
       return SHIFT_PROBLEM_TEXT.bad_form;
     case "not_found":
-      return target === "event" ? "We can't find that event." : "We can't find that shift.";
+      return target === "event" ? "We can't find that event." : "We can't find that session.";
     default:
       return COMMON[result.status];
   }
@@ -176,8 +188,8 @@ export function importResultLines(result: ShiftImportResult | Common): string[] 
     case "done": {
       const r: ImportResult = result.result;
       const counts = r.dryRun
-        ? `This file would add ${plural(r.created, "shift", "shifts")}, change ${r.updated}, leave ${r.unchanged} as they are and skip ${r.skipped}.`
-        : `Imported: ${plural(r.created, "shift", "shifts")} added, ${r.updated} changed, ${r.unchanged} left as they were, ${r.skipped} skipped.`;
+        ? `This file would add ${plural(r.created, "session", "sessions")}, change ${r.updated}, leave ${r.unchanged} as they are and skip ${r.skipped}.`
+        : `Imported: ${plural(r.created, "session", "sessions")} added, ${r.updated} changed, ${r.unchanged} left as they were, ${r.skipped} skipped.`;
       // Rows the firm's name map skips (P3.2): counted apart, so the totals add up.
       const left = r.ignored ? plural(r.ignored, "row", "rows") : null;
       const ignored = left
@@ -208,18 +220,18 @@ export function assignResultText(result: BookingResult | Common, name: string): 
   switch (result.status) {
     case "booked":
       return result.overridden.length > 0
-        ? `${name} is booked on this shift. They'll get a message to say so. The override is in the log, and your reason is kept with the booking.`
-        : `${name} is booked on this shift. They'll get a message to say so.`;
+        ? `${name} is booked on this session. They'll get a message to say so. The override is in the log, and your reason is kept with the booking.`
+        : `${name} is booked on this session. They'll get a message to say so.`;
     case "not_eligible":
       return `${name} can't be booked: ${result.reasons.join(" ")}`;
     case "filled":
       return "Every place is taken.";
     case "already_assigned":
-      return `${name} is already booked on this shift.`;
+      return `${name} is already booked on this session.`;
     case "not_open":
-      return "This shift isn't open (a draft, or cancelled).";
+      return "This session isn't open (a draft, or cancelled).";
     case "not_found":
-      return "We can't find that shift or person.";
+      return "We can't find that session or person.";
     case "source_stale":
       return "We can't confirm against your Google Sheet right now. Try again in a few minutes.";
     case "invalid_reason":
@@ -269,13 +281,13 @@ export function moveResultLines(result: MoveShiftResult | Common | NoReason): st
     case "invalid":
       return [SHIFT_PROBLEM_TEXT[result.problem]];
     case "not_open":
-      return ["This shift has started or was cancelled, so it can't be moved."];
+      return ["This session has started or was cancelled, so it can't be moved."];
     case "sheet":
-      return ["This shift comes from your Google Sheet. Change it there."];
+      return ["This session comes from your Google Sheet. Change it there."];
     case "planner":
       return [FROM_PLANNER_WORDS];
     case "not_found":
-      return ["We can't find that shift."];
+      return ["We can't find that session."];
     case "no_reason":
       return [NO_REASON];
     default:
@@ -289,18 +301,18 @@ export function cancelShiftResultText(
   switch (result.status) {
     case "cancelled":
       return result.bookings === 0
-        ? "Shift cancelled. Nobody was booked on it."
-        : `Shift cancelled. ${plural(result.bookings, "person", "people")} booked will be told, and the notice they had is logged.`;
+        ? "Session cancelled. Nobody was booked on it."
+        : `Session cancelled. ${plural(result.bookings, "person", "people")} booked will be told, and the notice they had is logged.`;
     case "unchanged":
-      return "This shift is already cancelled.";
+      return "This session is already cancelled.";
     case "started":
-      return "This shift has started, so it can't be cancelled.";
+      return "This session has started, so it can't be cancelled.";
     case "sheet":
-      return "This shift comes from your Google Sheet. Change it there.";
+      return "This session comes from your Google Sheet. Change it there.";
     case "planner":
       return FROM_PLANNER_WORDS;
     case "not_found":
-      return "We can't find that shift.";
+      return "We can't find that session.";
     case "no_reason":
       return NO_REASON;
     case "no_asker":
@@ -313,9 +325,9 @@ export function cancelShiftResultText(
 // "The client needs fewer staff" refused: the place can't go.
 const KEEPS_PLACE_WORDS = {
   last_place:
-    "This is the shift's only place, so it can't go. To drop it, cancel the whole shift. Nothing was changed.",
+    "This is the session's only place, so it can't go. To drop it, cancel the whole session. Nothing was changed.",
   sheet:
-    "This shift's places come from your rota sheet, so change them there. Nothing was changed.",
+    "This session's places come from your rota sheet, so change them there. Nothing was changed.",
   planner:
     "This session's places come from your planner, so change them there. Nothing was changed.",
 } as const;
@@ -330,20 +342,20 @@ export function cancelBookingResultText(
       // "The client needs fewer staff": the place went too (Phase 10 task 19).
       if (!("placesNow" in result) || result.placesNow === undefined) return done;
       const n = result.placesNow;
-      return `${done} The shift now needs ${n} ${n === 1 ? "person" : "people"}.`;
+      return `${done} The session now needs ${n} ${n === 1 ? "person" : "people"}.`;
     }
     case "keeps_place":
       return KEEPS_PLACE_WORDS[result.why];
     case "not_assigned":
-      return `${name} isn't booked on this shift any more.`;
+      return `${name} isn't booked on this session any more.`;
     case "ended":
-      return "This shift has ended, so bookings on it can't be cancelled.";
+      return "This session has ended, so bookings on it can't be cancelled.";
     case "started":
-      return "This shift has started.";
+      return "This session has started.";
     case "needs_approval":
       return "This rota can't be changed from here.";
     case "not_found":
-      return "We can't find that shift or person.";
+      return "We can't find that session or person.";
     case "no_reason":
       return NO_REASON;
     case "no_asker":
@@ -365,11 +377,11 @@ export function attendanceResultText(result: MarkAttendanceResult | Common, name
     case "unchanged":
       return `${name} is already marked that way.`;
     case "not_started":
-      return "This shift hasn't started yet.";
+      return "This session hasn't started yet.";
     case "not_booked":
-      return `${name} isn't booked on this shift any more.`;
+      return `${name} isn't booked on this session any more.`;
     case "not_found":
-      return "We can't find that shift or person.";
+      return "We can't find that session or person.";
     default:
       return COMMON[result.status];
   }
@@ -382,9 +394,9 @@ export function restWorkedResultText(result: MarkRestWorkedResult | Common): str
         ? "Everyone was already marked."
         : `Marked ${plural(result.count, "person", "people")} as worked.`;
     case "not_ended":
-      return "This shift hasn't ended yet. Mark each person instead.";
+      return "This session hasn't ended yet. Mark each person instead.";
     case "not_found":
-      return "We can't find that shift.";
+      return "We can't find that session.";
     default:
       return COMMON[result.status];
   }

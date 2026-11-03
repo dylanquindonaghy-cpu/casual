@@ -50,7 +50,7 @@ test("the notice report lists bookings and the dropout, filters, and downloads a
   }
   await expect(rows.filter({ hasText: "The worker" }).first()).toContainText(/notice/);
   // Who asked for each (Phase 25.2), after who started it.
-  await expect(page.getByRole("columnheader", { name: "Asked by" })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "At whose request" })).toBeVisible();
 
   // The same rows as a file.
   const [download] = await Promise.all([
@@ -64,7 +64,7 @@ test("the notice report lists bookings and the dropout, filters, and downloads a
   expect(csv.startsWith("\uFEFF")).toBe(true);
   const lines = csv.slice(1).trimEnd().split("\r\n");
   expect(lines[0]).toMatch(
-    /^When \(firm time\),When \(UTC\),What,Started by,Asked by,Worker,Shift,/,
+    /^When \(firm time\),When \(UTC\),What,Started by,At whose request,Worker,Shift,/,
   );
   expect(lines.length).toBe((await rows.count()) + 1);
   expect(lines.slice(1).every((l) => l.includes(",Cancelled,"))).toBe(true);

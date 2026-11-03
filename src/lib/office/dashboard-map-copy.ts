@@ -44,7 +44,7 @@ export function pinLabel(
 export const MAP_KEY = {
   urgent: "Urgent",
   open: "Places to fill",
-  hidden: "Hidden from casuals",
+  hidden: "Hidden: casuals can't see it",
   full: "All filled",
 } as const;
 
@@ -53,6 +53,23 @@ export function mapFoot(streets: boolean): string {
   return streets
     ? "Drag to move · Ctrl + scroll to zoom (two fingers on a phone) · a pin's number is its places to fill"
     : "Placed by each venue's postcode · a pin's number is its places to fill";
+}
+
+// Under the map, on the right: its venues and places, and the days they cover (the launch review's
+// O4: the map holds this pay week and next, while the top bar counts every place to fill): "6
+// venues · 29 places to fill this week and next", "… this week", "… next week", "… on Tue 3 Nov".
+export function mapCountLine(
+  venues: number,
+  places: number,
+  view: { show: "all" | "urgent" | "this-week" | "next-week"; day?: string | null },
+): string {
+  let when = "this week and next";
+  if (view.day) {
+    const [, m = 1] = view.day.split("-").map(Number);
+    when = `on ${dayShort(view.day)} ${MONTHS[m - 1]}`;
+  } else if (view.show === "this-week") when = "this week";
+  else if (view.show === "next-week") when = "next week";
+  return `${plural(venues, "venue", "venues")} · ${plural(places, "place to fill", "places to fill")} ${when}`;
 }
 
 // The venues with no position: "Not on the map (no postcode yet): Hillside Demo Square, 4 places
@@ -66,14 +83,15 @@ export function unplacedLine(list: Pick<MapVenue, "name" | "places">[]): string 
 export const MAP_TABLE = "Show as a table";
 export const MAP_TABLE_HEADS = ["Venue", "Places to fill", "Days"] as const;
 
-// "Show full venues": venues with nothing to fill shown too.
-export const FULL_VENUES = "Show full venues";
+// "Show filled venues too": venues with nothing to fill shown too.
+export const FULL_VENUES = "Show filled venues too";
 
-// The session card's tiles.
+// The session card's tiles. Who can take it: the number big, then what it means ("2 have the
+// licence, rest and hours for it"), then a chip of the offers sent ("None offered yet", "1 offered").
 export const bookedText = (booked: number, headcount: number) => `${booked} / ${headcount}`;
-export const CAN_TAKE_IT = "Can take it";
-export const offeredText = (n: number) => `${n} offered`;
-export const CAN_TAKE_LINE = "Under the rules, right now";
+export const canTakeLine = (n: number | null) =>
+  n === 1 ? "has the licence, rest and hours for it" : "have the licence, rest and hours for it";
+export const offeredText = (n: number) => (n === 0 ? "None offered yet" : `${n} offered`);
 
 // What the card warns about who can take it, or null: "Only Zoe Adeyemi can take it: 8 hours
 // booked that week." / "Nobody can take it right now."
@@ -188,7 +206,8 @@ export const UPDATES_ALL = "All updates";
 
 type Worked = Pick<WhoWorkedGroup, "role" | "site" | "startsAt" | "endsAt" | "shiftIds">;
 
-// "Sun 1 Nov · Steward · Acme Demo Racecourse · 10:30–18:30", and " · 3 sessions" for alike ones.
+// "Sun 1 Nov · Steward · Acme Demo Racecourse · 10:30–18:30", alike sessions too (the people under
+// it are what count, so no " · 3 sessions": round 8's "Clearer words", 3 Nov 2026).
 export function workedHeading(g: Worked, timeZone: string): string {
   const day = localDateOf(g.startsAt, timeZone);
   const [, m = 1] = day.split("-").map(Number);
@@ -197,7 +216,6 @@ export function workedHeading(g: Worked, timeZone: string): string {
     roleLabel(g.role),
     g.site,
     `${hhmm(g.startsAt, timeZone)}–${hhmm(g.endsAt, timeZone)}`,
-    g.shiftIds.length > 1 ? `${g.shiftIds.length} sessions` : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -217,6 +235,8 @@ export function workedWhen(g: Pick<WhoWorkedGroup, "startsAt">, timeZone: string
 }
 export const workedLabel = (name: string, when: string) => `${name} worked, ${when}`;
 export const noShowLabel = (name: string, when: string) => `${name} didn't attend, ${when}`;
-export const EVERYONE_ELSE = "Everyone else worked";
+// The link under a group that marks everyone still listed as worked, after a "Yes".
+export const EVERYONE_ELSE = "All of these worked";
 export const everyoneElseLabel = (g: Worked, timeZone: string) =>
-  `Everyone else worked: ${workedHeading(g, timeZone)}`;
+  `All of these worked: ${workedHeading(g, timeZone)}`;
+export const EVERYONE_ELSE_YES = "Yes, all of these worked";

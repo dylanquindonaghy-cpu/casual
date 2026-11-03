@@ -13,7 +13,7 @@ import { SITE_BLOCK_REASON_WORDS } from "@/lib/office/worker-reasons";
 import { roleLabel, shiftWhen, timeOnDay } from "@/lib/portal/format";
 import { casualPageExtras } from "@/lib/office/casual-follow-up";
 import { countsWords } from "@/lib/rules/reliability";
-import { standingWords } from "@/lib/office/casuals-copy";
+import { photoNeedLine, RELIABILITY_HOW, standingWords } from "@/lib/office/casuals-copy";
 import { ReliabilityBar } from "../../reliability-bar";
 import { NoteForm } from "./note-form";
 import {
@@ -33,6 +33,7 @@ import { CSAS } from "@/lib/uploads/check";
 import { SignOutButton, SiteBlocks, StatusForm } from "./access-forms";
 import { RecordCsas, UploadsToCheck } from "./upload-checks";
 import { Ref } from "@/app/ui/ref";
+import { lineWords } from "@/lib/tenancy/shifts-line";
 
 // An upload's image, opening full size in a new tab (access-checked: src/app/files/[id]/route.ts).
 function Evidence({ id, alt, size }: { id: string; alt: string; size: number }) {
@@ -74,6 +75,7 @@ export default async function OfficeCasualPage({ params }: { params: Promise<{ i
   const extras = await casualPageExtras({ firm, officeUserId: officeUser.id }, id);
   const tz = firm.timezone;
   const thisYear = localDateOf(new Date(), tz).slice(0, 4);
+  const photoNeed = photoNeedLine(worker.photo);
   return (
     <main className={page.office}>
       <PageHeader title={worker.name}>
@@ -81,7 +83,9 @@ export default async function OfficeCasualPage({ params }: { params: Promise<{ i
           <p>Their details were deleted. There&apos;s nothing to change here.</p>
         ) : (
           <>
-            {worker.mobile && <p className="text-ink-muted tabular-nums">{worker.mobile}</p>}
+            {worker.mobile && (
+              <p className="text-ink-muted tabular-nums">{lineWords(worker.mobile)}</p>
+            )}
             <p>
               <StatusChip tone={STATUS_TONES[worker.status]}>
                 {STATUS_WORDS[worker.status]}
@@ -106,9 +110,9 @@ export default async function OfficeCasualPage({ params }: { params: Promise<{ i
                     {countsWords(extras.record.reliability.counts)} · last 90 days
                   </p>
                 </div>
-                {standingWords(extras.record.standing).length > 0 && (
+                {standingWords(extras.record.standing, extras.record.lastWorked).length > 0 && (
                   <p className="mt-2 flex flex-wrap gap-2">
-                    {standingWords(extras.record.standing).map((w) => (
+                    {standingWords(extras.record.standing, extras.record.lastWorked).map((w) => (
                       <StatusChip key={w.words} tone={w.tone}>
                         {w.words}
                       </StatusChip>
@@ -119,8 +123,7 @@ export default async function OfficeCasualPage({ params }: { params: Promise<{ i
                   {extras.record.lastWorked
                     ? `Last worked ${shortDate(localDateOf(extras.record.lastWorked, tz), Number(thisYear))}.`
                     : "Not worked yet."}{" "}
-                  Worked ÷ (worked + no-shows + cancellations under 48 hours), from what the office
-                  marked.
+                  {RELIABILITY_HOW}
                 </p>
               </section>
             )}
@@ -129,13 +132,16 @@ export default async function OfficeCasualPage({ params }: { params: Promise<{ i
               <h2 id="needs" className={h2}>
                 Needs updating
               </h2>
-              {worker.needs.length === 0 ? (
+              {/* Their qualifications, then a missing or overdue staff photo (O5: as Casuals'
+                  Need updating counts it). */}
+              {worker.needs.length === 0 && !photoNeed ? (
                 <p className="mt-2 text-ink-muted">Nothing.</p>
               ) : (
                 <ul role="list" className="mt-2 flex flex-col gap-2">
                   {worker.needs.map((n) => (
                     <li key={n.qualification.type}>{needsText(n, Number(thisYear), "office")}</li>
                   ))}
+                  {photoNeed && <li>{photoNeed}</li>}
                 </ul>
               )}
             </section>

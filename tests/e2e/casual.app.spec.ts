@@ -456,6 +456,8 @@ test("the office sees Zoe on Casuals and on her own page", async ({ page }, test
     ).toHaveText([
       new RegExp(`^Level 2 spectator safety qualification expires on ${DAY}\\.$`),
       "CSAS accreditation is missing. Needed for CSAS officer shifts.",
+      // No staff photo yet: listed as Casuals' Need updating counts it (the launch review's O5).
+      "Staff photo is missing.",
     ]);
     // Each with its status and date line, worst first.
     const quals = page.getByRole("region", { name: "Qualifications", exact: true });

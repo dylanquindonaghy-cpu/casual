@@ -1,11 +1,13 @@
 // Casuals' follow-up words (Phase 26.7, cas-4): Remind, notes and "Mark as sorted". Pure, with no
 // imports, so the page's buttons (client components) can use them.
 
-export const remindAllButton = (n: number) => `Remind all ${n}`;
+// "Remind all 5 with a licence to renew" (the launch review's O6: Remind is for licences, so "all"
+// isn't everyone on Need updating).
+export const remindAllButton = (n: number) => `Remind all ${n} with a licence to renew`;
 export const REMIND = "Remind";
 export const REMINDED = "Reminded";
 export const REMIND_LINE =
-  "Remind sends the licence message again with its upload link: by text, or by email if they chose it or texts can't reach them. Each one is logged. They can't take shifts that need it until the new one is checked.";
+  "Remind is for licences. It sends the licence message again with its upload link: by text, or by email if they chose it or texts can't reach them. Each one is logged. They can't take shifts that need it until the new one is checked. Staff photos are asked for in the app.";
 
 type Common = { status: "logged_out" } | { status: "not_allowed" } | { status: "error" };
 const COMMON: Record<Common["status"], string> = {

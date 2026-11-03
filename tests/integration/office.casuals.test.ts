@@ -2,6 +2,7 @@ import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { casualsList } from "@/lib/office/casuals";
+import { photoNeedLine } from "@/lib/office/casuals-copy";
 import { workerAccessView } from "@/lib/office/worker-access";
 import { saveMyTravel } from "@/lib/portal/travel";
 import { fakeGeocoder } from "@/lib/travel/geocoder";
@@ -239,6 +240,23 @@ describe("one casual's page", () => {
     expect(page?.strikes[1]?.assignmentId).toBe(record);
     expect(page?.ahead).toHaveLength(1);
     expect(page?.timeZone).toBe("Europe/London");
+  });
+
+  // The launch review's O5: their page said "Nothing." while Casuals listed them under Need
+  // updating for a missing photo. Now both count it the same way.
+  it("a missing staff photo needs updating on their page, as Casuals' Need updating lists them", async () => {
+    const t = await casualsFirm();
+    const fine = await t.f.worker({
+      first: "Fine",
+      roles: ["door_supervisor"],
+      credentials: [{ type: "SIA_DS", expiresOn: "2029-01-01" }],
+    });
+    const page = await workerAccessView(t.ctx(), fine);
+    expect(page?.needs).toEqual([]);
+    expect(page?.photo.status).toBe("missing");
+    expect(page ? photoNeedLine(page.photo) : null).toBe("Staff photo is missing.");
+    const needs = await t.list("needs");
+    expect(needs?.rows.find((r) => r.id === fine)).toMatchObject({ photoNeeds: true, needs: [] });
   });
 
   it("live strikes counted in full, beyond the 10 strikes the page lists", async () => {

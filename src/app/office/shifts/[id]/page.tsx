@@ -39,7 +39,7 @@ import {
   FROM_PLANNER_WORDS,
   PLACE_FLAG_WORDS,
   PLACE_STATUS_WORDS,
-  SHIFT_STATUS_WORDS,
+  sessionStatusWords,
 } from "@/lib/office/shifts-copy";
 import { noticeText } from "@/lib/portal/cancel-reasons";
 import { dayLabel } from "@/lib/rules/reasons";
@@ -314,18 +314,16 @@ export default async function OfficeShiftPage({
             {shown ? SHOWING_CHIP.on : SHOWING_CHIP.off}
           </StatusChip>
           <span>{line.join(" · ")}</span>
-          <StatusChip tone={SHIFT_TONE[shift.status]}>
-            {SHIFT_STATUS_WORDS[shift.status]}
-          </StatusChip>
+          <StatusChip tone={SHIFT_TONE[shift.status]}>{sessionStatusWords(shift)}</StatusChip>
           {shift.isUrgent && <StatusChip tone="urgent">Urgent</StatusChip>}
         </p>
         {shift.fromSheet && (
-          <p className={muted}>This shift comes from your Google Sheet. Change it there.</p>
+          <p className={muted}>This session comes from your Google Sheet. Change it there.</p>
         )}
         {shift.fromPlanner && <p className={muted}>{FROM_PLANNER_WORDS}</p>}
         {shift.fromImport && (
           <p className={muted}>
-            This shift came from an import. Importing the file again updates it.
+            This session came from an import. Importing the file again updates it.
           </p>
         )}
         {shift.instructions && (
@@ -423,7 +421,7 @@ export default async function OfficeShiftPage({
           )}
           <p className="mt-3 px-1">
             <Link href={`/office/log?shift=${shift.shiftId}`} className={btn.link}>
-              See this shift in the action log
+              See this session in the action log
             </Link>
           </p>
         </section>
@@ -431,7 +429,7 @@ export default async function OfficeShiftPage({
 
       <p className="mt-6 px-1">
         <Link href="/office/shifts" className={btn.link}>
-          Back to shifts
+          Back to sessions
         </Link>
       </p>
 
@@ -475,7 +473,7 @@ export default async function OfficeShiftPage({
             >
               {page.check.ok ? (
                 <p className="font-semibold">
-                  The rules say {page.check.name} can work this shift.
+                  The rules say {page.check.name} can work this session.
                 </p>
               ) : (
                 <>
@@ -528,7 +526,7 @@ export default async function OfficeShiftPage({
                 ? "Change it in your Google Sheet."
                 : shift.fromPlanner
                   ? "Change it in your planner."
-                  : "This shift has started or was cancelled, so it can't be changed."}
+                  : "This session has started or was cancelled, so it can't be changed."}
             </p>
           )}
         </SessionPanel>
@@ -553,7 +551,7 @@ export default async function OfficeShiftPage({
             <p className={`${card} text-ink-muted`}>
               {shift.fromPlanner && !shift.started && shift.status !== "cancelled"
                 ? "Change it in your planner."
-                : "This shift has started or was cancelled, so its details can't be changed."}
+                : "This session has started or was cancelled, so its details can't be changed."}
             </p>
           )}
         </SessionPanel>
@@ -567,7 +565,7 @@ export default async function OfficeShiftPage({
                 ? "Change it in your Google Sheet."
                 : shift.fromPlanner
                   ? "Change it in your planner."
-                  : "This shift has started or was cancelled, so it can't be changed."}
+                  : "This session has started or was cancelled, so it can't be changed."}
             </p>
           ) : shift.booked > 0 ? (
             <div className="flex flex-col gap-4">

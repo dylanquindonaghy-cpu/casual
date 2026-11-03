@@ -322,7 +322,7 @@ export const KIND_WORDS: Record<RowKind, string> = {
 };
 export const INITIATOR_WORDS: Record<Initiator, string> = {
   worker: "The worker",
-  office: "The office",
+  office: "The firm", // one name with the filter and "Who asked for it?" (the launch review)
   rota_sheet: "The rota sheet",
   offer_wave: "An offer wave",
   firm: "The firm",
@@ -381,7 +381,8 @@ export function csvCell(value: string | number | null): string {
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
-// Who asked for a cancellation (P3.4), as the page and the file say it (Phase 25.2): the casual's
+// Who asked for a cancellation (P3.4), as the page and the file say it under "At whose request"
+// (Phase 25.2; named so since the launch review): the casual's
 // own ask in the report's own word for them, beside "Started by".
 export const ASKED_BY_WORDS: Record<CancelAsker, string> = {
   casual: "The worker",
@@ -395,7 +396,7 @@ export const CSV_HEADER = [
   "When (UTC)",
   "What",
   "Started by",
-  "Asked by",
+  "At whose request",
   "Worker",
   "Shift",
   "Shift start (as it is now)",

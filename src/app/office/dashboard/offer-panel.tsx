@@ -47,9 +47,9 @@ import { offerPanelAction, offerShiftAction, type OfferPanelResult } from "../to
 export const PANEL_TITLE_ID = "offer-panel-title";
 
 const LOAD_WORDS: Record<Exclude<OfferPanelResult["status"], "found">, string> = {
-  not_found: "We can't find that shift.",
+  not_found: "We can't find that session.",
   logged_out: "Your session has ended. Log in again.",
-  not_allowed: "Your role can't offer shifts.",
+  not_allowed: "Your role can't offer sessions.",
   error: "Something went wrong. Close this and try again.",
 };
 
@@ -160,7 +160,7 @@ function PanelBody({
           tabIndex={-1}
           className="min-w-0 flex-1 text-2xl font-semibold tracking-heading text-ink focus:outline-none"
         >
-          Offer this shift
+          Offer this session
         </h2>
         <button
           type="button"
@@ -236,11 +236,11 @@ export function OfferContent({
         </p>
       )}
       {!shift.open ? (
-        <p className={`${notice} mt-4`}>This shift isn&apos;t open any more.</p>
+        <p className={`${notice} mt-4`}>This session isn&apos;t open any more.</p>
       ) : shift.hidden ? (
         <p className={`${notice} mt-4`}>
-          This shift is hidden from casuals, so it can&apos;t be offered. Show it to casuals first,
-          or assign someone from the shift&apos;s page.
+          This session is hidden from casuals, so it can&apos;t be offered. Show it to casuals
+          first, or assign someone from the session&apos;s page.
         </p>
       ) : (
         <>

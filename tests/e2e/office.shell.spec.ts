@@ -364,11 +364,16 @@ for (const device of ["light", "dark"] as const) {
       await expect(bar.getByText("Acme Events", { exact: true })).toBeHidden();
       await expect(rail.getByText("A", { exact: true })).toBeVisible();
       // A resourcer's counts (Pay queries are payroll's and admins'), and the search.
-      for (const name of [/^To fill \d+$/, /^Urgent \d+$/, /^Offers out \d+$/, /^To check \d+\+?$/])
+      for (const name of [
+        /^To fill \d+$/,
+        /^Urgent \d+$/,
+        /^Offers out \d+$/,
+        /^Needs attention \d+\+?$/,
+      ])
         await expect(bar.getByRole("link", { name })).toBeVisible();
       await expect(bar.getByRole("link", { name: /^Pay queries/ })).toHaveCount(0);
       await expect(
-        bar.getByRole("searchbox", { name: "Find a casual, shift or site" }),
+        bar.getByRole("searchbox", { name: "Find a casual, session or venue" }),
       ).toBeVisible();
       // No pay week and no shifts line (the dashboards and Settings have them).
       await expect(bar.getByText(/^Week \d/)).toHaveCount(0);
@@ -647,8 +652,8 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
       await expect(link).toBeVisible();
       return Number(/(\d+)\+?$/.exec((await link.innerText()).trim())?.[1]);
     };
-    // To check: Needs attention's own count, as the rail says it.
-    const toCheck = await count("To check");
+    // Needs attention: its own count, as the rail says it.
+    const toCheck = await count("Needs attention");
     const needs = menu.getByRole("link", { name: "Needs attention", exact: true });
     await needs.hover();
     await expect(needs.locator("xpath=..").locator("[data-rail-tip]")).toHaveText(
@@ -681,7 +686,7 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
         : new RegExp(` · ${out} ${out === 1 ? "offer" : "offers"}, no reply yet$`),
     );
     // To fill: Events & sessions' places to fill, with sessions that need people (its line, round
-    // 7: "{10} events with sessions to come · {33} places free").
+    // 7: "{10} events with sessions to come · {33} places to fill").
     const toFill = await count("To fill");
     await bar.getByRole("link", { name: /^To fill \d+$/ }).click();
     await expect(page).toHaveURL(`${acme}/office/events?view=need`);
@@ -696,7 +701,7 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
     ).toBeVisible();
     await bar.getByRole("link", { name: /^Urgent \d+$/ }).click();
     await expect(page).toHaveURL(`${acme}/office/events?view=urgent`);
-    await bar.getByRole("link", { name: /^To check \d+\+?$/ }).click();
+    await bar.getByRole("link", { name: /^Needs attention \d+\+?$/ }).click();
     await expect(page).toHaveURL(`${acme}/office/needs-attention`);
     await bar.getByRole("link", { name: /^Pay queries \d+$/ }).click();
     await expect(page).toHaveURL(`${acme}/office/pay-queries`);
@@ -721,7 +726,7 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
     });
     await officeLogin(page, "search");
     const bar = page.getByRole("banner");
-    const box = bar.getByRole("searchbox", { name: "Find a casual, shift or site" });
+    const box = bar.getByRole("searchbox", { name: "Find a casual, session or venue" });
     const panel = bar.locator("[data-search-panel]");
     const live = bar.locator('[aria-live="polite"]');
     await expect(box).toBeEnabled();
@@ -755,16 +760,16 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(`${acme}/office/casuals/${ours}`);
     await expect(box).toHaveValue("");
-    // A site: Events & sessions at that site, with a way back to every site.
+    // A venue: Events & sessions at that venue, with a way back to every venue.
     await box.fill("demo arena");
     const site = panel.getByRole("link", { name: /^Acme Demo Arena\b/ });
     await expect(site).toBeVisible();
-    await expect(panel.getByText("Sites", { exact: true })).toBeVisible();
+    await expect(panel.getByText("Venues", { exact: true })).toBeVisible();
     await site.click();
     await expect(page).toHaveURL(/\/office\/events\?site=[0-9a-f-]{36}$/);
     await expect(page.getByRole("main")).toContainText("At Acme Demo Arena.");
     await expect(
-      page.getByRole("main").getByRole("link", { name: "Show every site" }),
+      page.getByRole("main").getByRole("link", { name: "Show every venue" }),
     ).toBeVisible();
     // A shift: its page.
     await box.fill("door supervisor");
@@ -913,8 +918,8 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
   }) => {
     await officeLogin(page, "under");
     const bar = page.getByRole("banner");
-    // Round 8: Show full venues, and what the keyboard reaches next: the map's first pin.
-    const numbers = page.getByRole("main").getByRole("switch", { name: "Show full venues" });
+    // Round 8: Show filled venues too, and what the keyboard reaches next: the map's first pin.
+    const numbers = page.getByRole("main").getByRole("switch", { name: "Show filled venues too" });
     const first = page.locator("[data-venue-map] a").first();
     await expect(first).toBeVisible();
     const under = await bar.evaluate((el) => el.getBoundingClientRect().bottom);

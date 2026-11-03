@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { OfferPage } from "@/lib/office/offer-page";
 
-// "Offer this shift" (src/app/office/offer/[shiftId]/offer-view.tsx): a shift hidden from casuals
+// "Offer this session" (src/app/office/offer/[shiftId]/offer-view.tsx): a shift hidden from casuals
 // (12B.4) lists nobody to offer it to and says why; a showing one lists who can take it.
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace() {}, refresh() {} }) }));
 
@@ -56,7 +56,7 @@ describe("the offer page and the casuals' switches", () => {
   it("a hidden shift: nobody listed, and why", () => {
     const words = render(true);
     expect(words).toContain(
-      "This shift is hidden from casuals, so it can't be offered. Show it to casuals first, or assign someone from the shift's page.",
+      "This session is hidden from casuals, so it can't be offered. Show it to casuals first, or assign someone from the session's page.",
     );
     expect(words).not.toContain("Who can take it");
     expect(words).not.toContain("Send offer");

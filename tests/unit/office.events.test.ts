@@ -110,11 +110,11 @@ describe("an event card's words", () => {
     expect(eventStatus(event())).toEqual({ tone: "done", words: "Showing to casuals" });
     expect(eventStatus(event({ showing: false }))).toEqual({
       tone: "quiet",
-      words: "Hidden from casuals",
+      words: "Hidden: casuals can't see it",
     });
-    expect(eventSummary(event())).toBe("2 sessions · 1 place free");
+    expect(eventSummary(event())).toBe("2 sessions · 1 place to fill");
     expect(eventSummary(event({ sessionCount: 1, placesFree: 3 }))).toBe(
-      "1 session · 3 places free",
+      "1 session · 3 places to fill",
     );
     expect(eventSummary(event({ placesFree: 0, full: true }))).toBe("2 sessions · Full");
     // None free to offer, but not full (one has started, or is a draft).
@@ -144,13 +144,13 @@ describe("an event's card (Phase 24, round 7)", () => {
       /<span id="event-22222222-2222-4222-8222-222222222222-status"><span class="[^"]*">[\s\S]*?Showing to casuals<\/span><\/span>/,
     );
     expect(words).toContain("Urgent, not filled");
-    expect(words).toContain("2 sessions · 1 place free");
+    expect(words).toContain("2 sessions · 1 place to fill");
     // Hidden: the switch off, its answer in words; no urgent tag without an urgent gap.
     const hidden = card(event({ showing: false, urgentGap: false }));
     expect(hidden).toMatch(
       /role="switch" aria-checked="false" aria-label="Show Northern Lights Live/,
     );
-    expect(text(hidden)).toContain("Hidden from casuals");
+    expect(text(hidden)).toContain("Hidden: casuals can't see it");
     expect(text(hidden)).not.toContain("Urgent, not filled");
   });
 
@@ -296,7 +296,9 @@ describe("each session's switch label", () => {
 
   it("says beside it whether casuals see it", () => {
     expect(sessionShowingText(session(), true)).toBe("Showing to casuals");
-    expect(sessionShowingText(session({ showing: false }), true)).toBe("Hidden from casuals");
+    expect(sessionShowingText(session({ showing: false }), true)).toBe(
+      "Hidden: casuals can't see it",
+    );
     expect(sessionShowingText(session(), false)).toBe("Its event is hidden from casuals");
     expect(sessionShowingText(session({ booked: 4 }), true)).toBe("Full: not showing");
     expect(sessionShowingText(session({ started: true }), true)).toBe("Started: not showing");
@@ -306,7 +308,7 @@ describe("each session's switch label", () => {
 });
 
 describe("a session row with every field", () => {
-  it("role, times, Urgent, a chip per requirement, N/M filled, £/hour, post, meeting point, uniform", () => {
+  it("role, times, Urgent, a chip per requirement, N/M booked, £/hour, post, meeting point, uniform", () => {
     expect(sessionDetails(session())).toEqual([
       "£15.50/h",
       "Post: Gate A",
@@ -344,7 +346,7 @@ describe("a session row with every field", () => {
       "SIA DS",
       "CSAS",
       "First aid",
-      "3/4 filled",
+      "3/4 booked",
       "£15.50/h",
       "Post: Gate A",
       "Meeting point: Main gate",

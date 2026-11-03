@@ -21,11 +21,11 @@ export const EVENT_FILTERS: EventView[] = ["all", "showing", "hidden", "urgent"]
 export const eventFilters = (view: EventView): EventView[] =>
   view === "need" ? ["all", "need", ...EVENT_FILTERS.slice(1)] : EVENT_FILTERS;
 
-// Beside the filters: "8 events with sessions to come · 26 places free" (over every event to come,
+// Beside the filters: "8 events with sessions to come · 26 places to fill" (over every event to come,
 // whatever the filter; the list itself stops at 50).
 export function eventsLine(events: number, placesFree: number): string {
   const e = `${events} ${events === 1 ? "event" : "events"} with sessions to come`;
-  return `${e} · ${placesFree} ${placesFree === 1 ? "place free" : "places free"}`;
+  return `${e} · ${placesFree} ${placesFree === 1 ? "place to fill" : "places to fill"}`;
 }
 
 export const EVENT_VIEW_EMPTY: Record<EventView, string> = {
@@ -33,7 +33,7 @@ export const EVENT_VIEW_EMPTY: Record<EventView, string> = {
   need: "Every session to come is full.",
   showing: "No events are showing to casuals.",
   hidden: "No events are hidden from casuals.",
-  urgent: "Every urgent shift is filled.",
+  urgent: "Every urgent session is filled.",
 };
 
 // The chips' short names live with the requirements (the casual app uses them too).
@@ -73,16 +73,16 @@ export function eventCardTitle(e: EventCardData, tz: string): { title: string; l
 export const eventStatus = (e: EventCardData) =>
   e.showing
     ? { tone: "done" as const, words: "Showing to casuals" }
-    : { tone: "quiet" as const, words: "Hidden from casuals" };
+    : { tone: "quiet" as const, words: "Hidden: casuals can't see it" };
 
-// "2 sessions · 3 places free", "1 session · Full" (every one booked to its places), or "No
+// "2 sessions · 3 places to fill", "1 session · Full" (every one booked to its places), or "No
 // places to offer" (none free in a session still to start, though not all are full: one has
 // started, or is a draft).
 export function eventSummary(e: EventCardData): string {
   const sessions = `${e.sessionCount} ${e.sessionCount === 1 ? "session" : "sessions"}`;
   const free =
     e.placesFree > 0
-      ? `${e.placesFree} ${e.placesFree === 1 ? "place free" : "places free"}`
+      ? `${e.placesFree} ${e.placesFree === 1 ? "place to fill" : "places to fill"}`
       : e.full
         ? "Full"
         : "No places to offer";
@@ -143,12 +143,13 @@ export function sessionShowingText(s: SessionRow, eventShowing: boolean): string
   if (s.status === "draft") return "Draft: not showing";
   if (s.started) return "Started: not showing";
   if (isFull(s)) return "Full: not showing";
-  if (!s.showing) return "Hidden from casuals";
+  if (!s.showing) return "Hidden: casuals can't see it";
   if (!eventShowing) return "Its event is hidden from casuals";
   return "Showing to casuals";
 }
 
-export const filledText = (s: SessionRow): string => `${s.booked}/${s.headcount} filled`;
+// "3/4 booked" (one name for it: the dashboard's "3 / 4 booked" and "{3/4} booked").
+export const filledText = (s: SessionRow): string => `${s.booked}/${s.headcount} booked`;
 
 // On an event's card (Phase 24): "Tue 27, 08:00–16:00" when the event spans days (its card's line
 // gives the month), else "08:00–16:00".

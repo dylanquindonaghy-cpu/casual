@@ -182,9 +182,9 @@ const section = (html: string, id: string) =>
   "";
 
 describe("the words", () => {
-  it("places free; why offers stopped; people not marked yet", () => {
-    expect(placesText(1, 1)).toBe("1 place free");
-    expect(placesText(2, 3)).toBe("2 of 3 places free");
+  it("places to fill; why offers stopped; people not marked yet", () => {
+    expect(placesText(1, 1)).toBe("1 place to fill");
+    expect(placesText(2, 3)).toBe("2 of 3 places to fill");
     expect(stoppedText({ stopped: "no_candidates" })).toBe(
       "Offers stopped: nobody else can take it.",
     );
@@ -196,18 +196,18 @@ describe("the words", () => {
 
   it("each quick action says what happened", () => {
     expect(urgentResultText({ status: "marked" })).toBe("Marked urgent. Offers are going out.");
-    expect(urgentResultText({ status: "not_allowed" })).toBe("You can't change shifts.");
+    expect(urgentResultText({ status: "not_allowed" })).toBe("You can't change sessions.");
     expect(closeResultText({ status: "closed", placesLeft: 1 })).toBe(
       "Marked as filled. Nobody else will be offered it.",
     );
     expect(closeResultText({ status: "sheet" })).toBe(
-      "This shift comes from your Google Sheet. Change it there.",
+      "This session comes from your Google Sheet. Change it there.",
     );
     expect(offerResultText({ status: "queued" }, "Ann Booker")).toBe(
       "Offer on its way to Ann Booker.",
     );
     expect(offerResultText({ status: "not_candidate" }, "Ann Booker")).toBe(
-      "Ann Booker can't be offered this shift now.",
+      "Ann Booker can't be offered this session now.",
     );
     expect(offerResultText({ status: "logged_out" }, "Ann Booker")).toBe(
       "Your session has ended. Log in again.",
@@ -216,7 +216,7 @@ describe("the words", () => {
       "Marked urgent. It's hidden from casuals, so no offers go out while it's hidden.",
     );
     expect(offerResultText({ status: "hidden" }, "Ann Booker")).toBe(
-      "This shift is hidden from casuals, so it can't be offered. Show it to casuals first.",
+      "This session is hidden from casuals, so it can't be offered. Show it to casuals first.",
     );
   });
 
@@ -224,13 +224,13 @@ describe("the words", () => {
     const e = needsFull.expired[0];
     if (!e) throw new Error("fixture");
     expect(expiredText(e, "2026-11-02", TZ)).toBe(
-      "Ben Example's SIA door supervisor licence expired on Sun 1 Nov, before their door supervisor shift on Sat 7 Nov.",
+      "Ben Example's SIA door supervisor licence expired on Sun 1 Nov, before their door supervisor session on Sat 7 Nov.",
     );
     expect(expiredText({ ...e, expiresOn: "2026-11-05" }, "2026-11-02", TZ)).toBe(
-      "Ben Example's SIA door supervisor licence runs out on Thu 5 Nov, before their door supervisor shift on Sat 7 Nov.",
+      "Ben Example's SIA door supervisor licence runs out on Thu 5 Nov, before their door supervisor session on Sat 7 Nov.",
     );
     expect(expiredText({ ...e, expiresOn: null }, "2026-11-02", TZ)).toBe(
-      "Ben Example's SIA door supervisor licence is marked as expired, and they're booked on a door supervisor shift on Sat 7 Nov.",
+      "Ben Example's SIA door supervisor licence is marked as expired, and they're booked on a door supervisor session on Sat 7 Nov.",
     );
     // Runs out on the day a night shift starts: during it, not before it.
     expect(
@@ -240,7 +240,7 @@ describe("the words", () => {
         TZ,
       ),
     ).toBe(
-      "Ben Example's SIA door supervisor licence runs out on Sat 7 Nov, during their door supervisor shift on Sat 7 Nov.",
+      "Ben Example's SIA door supervisor licence runs out on Sat 7 Nov, during their door supervisor session on Sat 7 Nov.",
     );
     // Enquiries today's list points to the requests from the app its count includes.
     expect(appTodayText(1)).toBe("Plus 1 request made in the app today.");

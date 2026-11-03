@@ -41,7 +41,7 @@ export const LOG_TYPES = {
     ],
   },
   changes: {
-    label: "Changes to shifts",
+    label: "Changes to sessions",
     actions: [
       "shift.created",
       "shift.changed",

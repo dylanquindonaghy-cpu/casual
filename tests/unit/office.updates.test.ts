@@ -9,7 +9,10 @@ import {
   summaryLine,
   updateRow,
   updatesLine,
+  LAST_7_DAYS,
+  newTodayWords,
 } from "@/lib/office/updates-copy";
+import { DEVICE_WORDS, tellMeLine } from "@/lib/office/tell-me-copy";
 
 let pathname = "/office";
 vi.mock("next/navigation", () => ({
@@ -221,5 +224,29 @@ describe("the bell and the pop-up", () => {
     expect(popupLines({ ...c, reopened: false }, TZ).offer).toBeNull();
     // Nothing shows before the page is running (it appears from the office's own refresh).
     expect(renderToStaticMarkup(createElement(CancellationPopup, { bell: bell(1, [c]) }))).toBe("");
+  });
+});
+
+// The launch review (3 Nov 2026): the list's heading says what it holds; "Tell me about" says the
+// switches are the person's own; with no web push on the server, the two notification switches
+// say they do nothing yet (O8).
+describe("Updates' clearer words", () => {
+  it("the list's heading: the last 7 days, and how many came in today", () => {
+    expect(LAST_7_DAYS).toBe("Last 7 days");
+    expect(newTodayWords(2)).toBe("2 new today");
+    expect(newTodayWords(1)).toBe("1 new today");
+  });
+
+  it("Tell me about: only you get these, for your contracts or every venue", () => {
+    expect(tellMeLine(true)).toBe("Only you get these, for your contracts.");
+    expect(tellMeLine(false)).toBe(
+      "Only you get these. You don't look after any contracts, so they cover every venue.",
+    );
+  });
+
+  it("no web push on the server: the two switches do nothing for now (O8)", () => {
+    expect(DEVICE_WORDS.no_key).toBe(
+      "Phone and computer notifications aren't turned on for your firm yet, so these two switches do nothing for now.",
+    );
   });
 });

@@ -18,7 +18,7 @@ const WORDS: Record<NotOfferedWhy, string> = {
   cap: "Over today's 3 offers",
   licence: "No licence in date",
   elsewhere: "Booked elsewhere then",
-  rest: "Too soon after another shift",
+  rest: "Too soon after another session",
   hours: "Over their weekly hours",
   unavailable: "Marked unavailable",
   blocked: "Blocked from the site",

@@ -19,7 +19,7 @@ import { StatusChip } from "@/app/ui/status-chip";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import { readSessionToken } from "@/lib/auth/session-cookie";
 import { officeShiftList, SHIFT_LIST_DAYS } from "@/lib/office/shift-pages";
-import { SHIFT_STATUS_WORDS } from "@/lib/office/shifts-copy";
+import { sessionStatusWords } from "@/lib/office/shifts-copy";
 import { roleLabel } from "@/lib/portal/format";
 import { dayLabel } from "@/lib/rules/reasons";
 import { parseSheetDate } from "@/lib/roster/sheets/parse";
@@ -27,7 +27,7 @@ import { systemClock } from "@/lib/auth/clock";
 import { addDays, localDateOf, wallTimeOf, zonedToUtc } from "@/lib/time/zoned";
 import { SHIFT_TONE } from "./shift-tones";
 
-export const metadata: Metadata = { title: "Shifts" };
+export const metadata: Metadata = { title: "Sessions" };
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const hhmm = (d: Date, tz: string) => {
@@ -87,14 +87,14 @@ export default async function ShiftsPage({
   return (
     <main className={page.office}>
       <PageHeader
-        title="Shifts"
+        title="Sessions"
         actions={
           <>
             <Link href="/office/shifts/new" className={btn.primary}>
-              New shift
+              New session
             </Link>
             <Link href="/office/shifts/event" className={btn.secondary}>
-              Shifts for an event
+              Sessions for an event
             </Link>
             <Link href="/office/shifts/import" className={btn.secondary}>
               Import from a file
@@ -133,7 +133,9 @@ export default async function ShiftsPage({
       </div>
 
       {list.shifts.length === 0 ? (
-        <p className={`${card} ${sectionGap.office} text-ink-muted`}>No shifts in these 4 weeks.</p>
+        <p className={`${card} ${sectionGap.office} text-ink-muted`}>
+          No sessions in these 4 weeks.
+        </p>
       ) : (
         [...days.entries()].map(([day, dayShifts]) => (
           <section key={day} className={sectionGap.office} aria-label={dayLabel(day)}>
@@ -163,10 +165,7 @@ export default async function ShiftsPage({
                     <span className="tabular-nums">
                       {s.booked} of {s.headcount} booked
                     </span>{" "}
-                    ·{" "}
-                    <StatusChip tone={SHIFT_TONE[s.status]}>
-                      {SHIFT_STATUS_WORDS[s.status]}
-                    </StatusChip>
+                    · <StatusChip tone={SHIFT_TONE[s.status]}>{sessionStatusWords(s)}</StatusChip>
                     {s.isUrgent && (
                       <>
                         {" "}

@@ -11,7 +11,7 @@ import { localDateOf } from "@/lib/time/zoned";
 import { officeEventBasics } from "@/lib/office/events";
 import { ShiftCreateForm } from "../shift-create-form";
 
-export const metadata: Metadata = { title: "Shifts for an event" };
+export const metadata: Metadata = { title: "Sessions for an event" };
 
 // "Shifts for an event" (docs/screens.md `/office/shifts`). Admins and resourcers.
 // Phase 26.5: from an event's page ("Add shifts", `?event=`), the shifts join that event.
@@ -29,7 +29,7 @@ export default async function Page({
   if (event && !toEvent) notFound();
   return (
     <main className={page.officeForm}>
-      <PageHeader title={toEvent ? "Add shifts" : "Shifts for an event"} />
+      <PageHeader title={toEvent ? "Add sessions" : "Sessions for an event"} />
       <ShiftCreateForm
         mode="event"
         sites={form.sites}
@@ -40,7 +40,7 @@ export default async function Page({
       />
       <p className={sectionGap.office}>
         <Link href="/office/shifts" className={btn.link}>
-          Back to shifts
+          Back to sessions
         </Link>
       </p>
     </main>

@@ -23,7 +23,7 @@ import type { SearchResult } from "./search-actions";
 const WAIT_MS = 200;
 const MESSAGES = {
   logged_out: "Log in again, then try again.",
-  not_allowed: "Your role can't search casuals or shifts.",
+  not_allowed: "Your role can't search casuals or sessions.",
   error: "Search isn't working right now. Try again.",
 } as const;
 

@@ -113,6 +113,52 @@ const pageOf = async (t: Awaited<ReturnType<typeof arenaDay>>) => {
   return page.staffing;
 };
 
+// The Interested tab (Phase 26.6, evt-2): who asked for the event's sessions still to come, one
+// group per session, soonest first, those waiting before those told "Not this time"; a session
+// that has ended, or a casual since booked or whose ask closed, isn't listed. The tab's count is
+// those waiting.
+describe("the Interested tab", () => {
+  it("who asked, by session soonest first, waiting before not this time", async () => {
+    const t = await arenaDay();
+    const ask = (shiftId: string, workerId: string, status: string, hoursAgo: number) =>
+      su.query(
+        `insert into session_asks (firm_id, shift_id, worker_id, status, asked_at, answered_at)
+         values ($1, $2, $3, $4, $5, $6)`,
+        [
+          t.f.firmId,
+          shiftId,
+          workerId,
+          status,
+          hoursFromNow(-hoursAgo),
+          status === "asked" ? null : hoursFromNow(-1),
+        ],
+      );
+    const fay = await t.f.worker({ first: "Fay" });
+    const gus = await t.f.worker({ first: "Gus" });
+    // Stewards (in 20 hours): Gus asked first but was told "Not this time"; Fay asked after.
+    await ask(t.steward, gus, "not_this_time", 5);
+    await ask(t.steward, fay, "asked", 3);
+    // Door supervisors (in 24 hours): Fay waiting; Gus's ask closed when it filled (not listed).
+    await ask(t.door, fay, "asked", 2);
+    await ask(t.door, gus, "closed", 4);
+    // The session that has ended: not listed.
+    await ask(t.ended, gus, "asked", 40);
+    const page = await officeEventPage(
+      { firm: { id: t.f.firmId }, run: withFirm, clock },
+      await t.token(t.resourcer),
+      t.ev,
+    );
+    expect(page?.casualsAsk).toBe(false);
+    expect(page?.interested.map((a) => [a.shiftId, a.name, a.waiting])).toEqual([
+      [t.steward, "Fay Booker", true],
+      [t.steward, "Gus Booker", false],
+      [t.door, "Fay Booker", true],
+    ]);
+    // The tab's count: those waiting.
+    expect(page?.interested.filter((a) => a.waiting)).toHaveLength(2);
+  });
+});
+
 describe("the staffing layout and the open places", () => {
   it("every place of the sessions to come, by slot; booked of needed per role", async () => {
     const t = await arenaDay();

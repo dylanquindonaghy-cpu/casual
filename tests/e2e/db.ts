@@ -21,6 +21,7 @@ import {
 import { createWithFirm } from "../../src/lib/db/scoped";
 import { eraseWorker } from "../../src/lib/gdpr/worker-erase";
 import type { FirmTx } from "../../src/lib/db/scoped";
+import { setCasualsAsk } from "../../src/lib/office/casuals-ask";
 import { bookShift } from "../../src/lib/roster/book";
 import { cancelBooking } from "../../src/lib/roster/cancel";
 import { automaticEventId, createNamedEvent } from "../../src/lib/roster/shift-events";
@@ -628,6 +629,33 @@ export async function bookAndCancel(
     if (cancelled.status !== "cancelled") throw new Error(`not cancelled: ${cancelled.status}`);
     const { assignmentId } = cancelled;
     return { ref: assignmentId.slice(0, 8).toUpperCase(), assignmentId };
+  } finally {
+    await pool.end();
+  }
+}
+
+// A spec's casual books its own session through the real code; then the spec's office user switches
+// on "Casuals ask, you choose" for the event (as the session's page does), so the session's page
+// opens on "Asked for it" (Phase 26.5's booked tile must still land on the booking).
+export async function bookThenCasualsAsk(
+  slug: string,
+  o: { shiftId: string; workerId: string; eventId: string; officeEmail: string },
+): Promise<void> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const run = createWithFirm(pool);
+    const firmId = seedId(`firm/${slug}`);
+    const by = { type: "worker" as const, id: o.workerId };
+    const booked = await bookShift(run, firmId, { shiftId: o.shiftId, workerId: o.workerId, by });
+    if (booked.status !== "booked") throw new Error(`not booked: ${booked.status}`);
+    const officeUserId = await officeUserByEmail(run, firmId, o.officeEmail);
+    const on = await setCasualsAsk(
+      { firm: { id: firmId }, officeUserId, run },
+      { eventId: o.eventId, on: true },
+    );
+    if (on.status !== "on") throw new Error(`casuals ask not on: ${on.status}`);
   } finally {
     await pool.end();
   }

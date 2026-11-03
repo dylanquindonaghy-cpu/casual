@@ -96,6 +96,18 @@ test("casuals ask, the office chooses: Not this time, then Book the best 1", asy
       asha.getByRole("listitem").filter({ hasText: event }).getByText("Asked: we'll tell you"),
     ).toBeVisible();
 
+    // The event's Interested tab (evt-2): both waiting, under their session, with "Choose who
+    // works it" back to the session's Asked for it.
+    const sessionPage = office.url();
+    await office.goto(`${acme}/office/events/${eventId}?tab=interested`);
+    await expect(office.getByRole("link", { name: /^Interested 2$/ })).toBeVisible();
+    const interested = office.getByRole("region", { name: "Interested" });
+    await expect(interested.getByText("Asha Asker", { exact: true })).toBeVisible();
+    await expect(interested.getByText("Ben Asker", { exact: true })).toBeVisible();
+    await interested.getByRole("link", { name: /^Choose who works it: Steward, / }).click();
+    await expect(office).toHaveURL(new RegExp(`/office/shifts/${shiftId}\\?show=asked$`));
+    await office.goto(sessionPage);
+
     // The office: both under "Asked for it", most reliable first, each with Book and a menu.
     await office.reload();
     await expect(office.getByRole("link", { name: /^Asked for it 2$/ })).toHaveAttribute(

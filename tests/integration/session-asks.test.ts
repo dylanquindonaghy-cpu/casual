@@ -552,6 +552,61 @@ describe("the review's cases (Phase 26.6 guardrails)", () => {
     expect(reliable.counts.could).toBe(1);
   });
 
+  it("the Worked here before filter: only those who worked at this venue", async () => {
+    const t = await askingFirm(2);
+    const [amy, ben] = [await t.f.worker({ first: "Amy" }), await t.f.worker({ first: "Ben" })];
+    const { rows } = await su.query<{ site_id: string; tz: string }>(
+      "select s.site_id::text, f.timezone as tz from shifts s join firms f on f.id = s.firm_id where s.id = $1",
+      [t.shiftId],
+    );
+    const siteId = rows[0]?.site_id ?? null;
+    // Amy worked a session at this venue last month; Ben worked one elsewhere, and one here he
+    // didn't attend (not "worked").
+    const here = await t.f.shift({ role: "steward", startsAt: hoursFromNow(-24 * 30) });
+    const elsewhere = await t.f.shift({ role: "steward", startsAt: hoursFromNow(-24 * 20) });
+    const missed = await t.f.shift({ role: "steward", startsAt: hoursFromNow(-24 * 10) });
+    await su.query("update shifts set site_id = $2 where id = any($1::uuid[])", [
+      [here, missed],
+      siteId,
+    ]);
+    await t.f.booking(amy, here, "completed");
+    await t.f.booking(ben, elsewhere, "completed");
+    await t.f.booking(ben, missed, "no_show");
+    await t.ask(amy);
+    await t.ask(ben);
+    const load = (filters = {}) =>
+      withFirm(t.f.firmId, (tx) =>
+        loadSessionCasuals(
+          tx,
+          {
+            shiftId: t.shiftId,
+            eventId: t.eventId,
+            role: "steward",
+            siteId,
+            startsAt: new Date("2026-11-06T11:00:00Z"),
+            headcount: 2,
+            status: "open",
+            requiredCredentials: [],
+            timeZone: rows[0]?.tz ?? "Europe/London",
+          },
+          NOW,
+          filters,
+        ),
+      );
+    const all = await load();
+    expect(Object.fromEntries(all.rows.asked.map((c) => [c.name, c.workedHere]))).toEqual({
+      "Amy Booker": 1,
+      "Ben Booker": 0,
+    });
+    expect((await load({ here: true })).rows.asked.map((c) => c.name)).toEqual(["Amy Booker"]);
+    // Travel areas are off for this firm: Within 45 min changes nothing.
+    expect(all.travelOn).toBe(false);
+    expect((await load({ near: true })).rows.asked.map((c) => c.name).sort()).toEqual([
+      "Amy Booker",
+      "Ben Booker",
+    ]);
+  });
+
   it("the message isn't sent when the answer no longer stands (they asked again), and waits for quiet hours", async () => {
     const t = await askingFirm(1);
     const [amy, ben] = [await t.f.worker({ first: "Amy" }), await t.f.worker({ first: "Ben" })];

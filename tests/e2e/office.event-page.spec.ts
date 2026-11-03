@@ -1,5 +1,12 @@
 import type { Page } from "@playwright/test";
-import { addEventWithSession, addOfficeUser, cancelOwnShift } from "./db";
+import {
+  addEventWithSession,
+  addOfficeUser,
+  addSteward,
+  bookAndCancel,
+  bookThenCasualsAsk,
+  cancelOwnShift,
+} from "./db";
 import { expect, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
@@ -105,6 +112,62 @@ test("the staffing layout, the open places, Offer N open places, the tabs and Ad
     await expect(page).toHaveURL(`${acme}/office/shifts/event?event=${eventId}`);
     await expect(page.getByRole("heading", { name: "Add shifts", level: 1 })).toBeVisible();
     await expect(page.getByText(`Adding shifts to ${name}.`)).toBeVisible();
+  } finally {
+    await cancelOwnShift("acme", shiftId);
+  }
+});
+
+// The event's Cancellations tab, empty and then with one (evt-2); then a booked place's tile opens
+// the session's Booked list, where the booking is cancelled or moved (evt-5), even while casuals
+// ask for the event's sessions and the session's page would open on "Asked for it" (the
+// claims-auditor's round 1).
+test("the Cancellations tab; a booked tile opens the booking, to cancel or move it, while casuals ask", async ({
+  page,
+}, testInfo) => {
+  const run = `${Date.now().toString(36)}${testInfo.retry}`;
+  const email = `event.booked${testInfo.retry || ""}@example.com`;
+  await addOfficeUser("acme", { email, name: "Event Booked Resourcer", role: "resourcer" });
+  const nina = await addSteward("acme", {
+    firstName: "Nina",
+    lastName: "Tiled",
+    mobileE164: "+447700900691",
+  });
+  const { eventId, shiftId } = await addEventWithSession("acme", {
+    name: `Booked Tile Event ${run}`,
+    site: `Booked Tile Hall ${run}`,
+    role: "steward",
+    daysAhead: 3,
+    headcount: 2,
+  });
+  const oscar = await addSteward("acme", {
+    firstName: "Oscar",
+    lastName: "Tiled",
+    mobileE164: "+447700900692",
+  });
+  try {
+    await officeLogin(page, email);
+    await page.goto(`${acme}/office/events/${eventId}?tab=cancellations`);
+    const cancellations = page.getByRole("region", { name: "Cancellations" });
+    await expect(cancellations.getByText("No cancellations on this event.")).toBeVisible();
+    await bookAndCancel("acme", { shiftId, workerId: oscar, reason: "Something came up" });
+    await page.reload();
+    await expect(
+      cancellations.getByRole("link").filter({ hasText: "Oscar Tiled" }),
+    ).toHaveAttribute("href", /^\/office\/cancellations\/[0-9a-f-]{36}$/);
+
+    await bookThenCasualsAsk("acme", { shiftId, workerId: nina, eventId, officeEmail: email });
+    await page.goto(`${acme}/office/events/${eventId}`);
+    await page
+      .locator("#staffing-layout")
+      .getByRole("link", { name: /^Nina Tiled: Steward, .*place \d\. Open the session$/ })
+      .click();
+    await expect(page).toHaveURL(new RegExp(`/office/shifts/${shiftId}\\?show=booked#places$`));
+    await expect(page.getByRole("link", { name: /^Booked 1$/ })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    // Its "Cancel …'s booking" (the opener of the form; its confirm button is inside).
+    await expect(page.locator("summary", { hasText: "Cancel Nina Tiled's booking" })).toBeVisible();
   } finally {
     await cancelOwnShift("acme", shiftId);
   }

@@ -8,6 +8,7 @@ import { myShifts } from "@/lib/portal/my-shifts";
 import { MAX_CANDIDATES, openShiftsFor } from "@/lib/portal/open-shifts";
 import { takeShift } from "@/lib/portal/take-shift";
 import { shiftForWorker } from "@/lib/portal/shift-detail";
+import { loadSessionCasuals } from "@/lib/office/session-casuals";
 import { saveMyTravel } from "@/lib/portal/travel";
 import { areaVerdict, type TravelArea, type WayEstimate } from "@/lib/travel/area";
 import { fakeGeocoder, fakePoint } from "@/lib/travel/geocoder";
@@ -531,5 +532,60 @@ describe("travel areas switched off for the firm (13.4)", () => {
     const mine = await shiftForWorker(ctx, cass, ahead);
     expect(mine.state).toBe("booked");
     expect(mine.state === "booked" && "travel" in mine.facts).toBe(false);
+  });
+});
+
+// A session's "Casuals for this session" list, filtered "Within 45 min" (Phase 26.6, ses-3): only
+// those whose quickest way there is 45 minutes or less; one with no estimate isn't shown by it;
+// with travel areas off the filter changes nothing (the page doesn't offer it then).
+describe("the session list's Within 45 min filter", () => {
+  it("keeps those within 45 minutes, and changes nothing with travel areas off", async () => {
+    const t = await filterFirm();
+    const [near, far, unknown] = [
+      await t.casual("car", 60, "ZZ2 2BB"),
+      await t.casual("car", 60, "ZZ3 3CC"),
+      await t.casual("car", 60, "ZZ4 4DD"),
+    ];
+    const shiftId = await t.session(48);
+    await t.estimate(shiftId, "car", 40, "ZZ2 2BB");
+    await t.estimate(shiftId, "car", 55, "ZZ3 3CC");
+    const { rows } = await su.query<{ event_id: string; starts_at: Date }>(
+      "select event_id::text, starts_at from shifts where id = $1",
+      [shiftId],
+    );
+    const load = (filters: { near?: boolean }) =>
+      withFirm(t.f.firmId, (tx) =>
+        loadSessionCasuals(
+          tx,
+          {
+            shiftId,
+            eventId: rows[0]?.event_id ?? "",
+            role: "door_supervisor",
+            siteId: t.arena,
+            startsAt: rows[0]?.starts_at ?? NOW,
+            headcount: 1,
+            status: "open",
+            requiredCredentials: [],
+            timeZone: "Europe/London",
+          },
+          NOW,
+          filters,
+        ),
+      );
+    const all = await load({});
+    expect(all.travelOn).toBe(true);
+    expect(new Set(all.rows.could.map((c) => c.workerId))).toEqual(new Set([near, far, unknown]));
+    expect(Object.fromEntries(all.rows.could.map((c) => [c.workerId, c.minutes]))).toEqual({
+      [near]: 40,
+      [far]: 55,
+      [unknown]: null,
+    });
+    const within = await load({ near: true });
+    expect(within.rows.could.map((c) => c.workerId)).toEqual([near]);
+    expect(within.counts.could).toBe(3); // the tab's count stays the whole list's
+    await t.travelSwitch(false);
+    const off = await load({ near: true });
+    expect(off.travelOn).toBe(false);
+    expect(new Set(off.rows.could.map((c) => c.workerId))).toEqual(new Set([near, far, unknown]));
   });
 });

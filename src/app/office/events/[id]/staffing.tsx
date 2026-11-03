@@ -68,7 +68,9 @@ function Tile({
   if (place.worker) {
     return (
       <Link
-        href={`/office/shifts/${session.shiftId}#places`}
+        // The session's Booked list, where the booking is cancelled or moved: named, as the page
+        // opens on "Asked for it" while casuals ask (26.6).
+        href={`/office/shifts/${session.shiftId}?show=booked#places`}
         aria-label={label}
         data-place="booked"
         className={`${base} glass-tile hover:bg-button-hover`}

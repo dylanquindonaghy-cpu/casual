@@ -147,3 +147,18 @@ describe("open places", () => {
     );
   });
 });
+
+// The Interested tab's words (Phase 26.6, evt-2): its link to choose, and the empty line, which
+// says how casuals come to ask on an event that lets them, and how to let them on one that doesn't.
+describe("the Interested tab's words", () => {
+  it("Choose who works it, and nothing asked yet either way", async () => {
+    const { CHOOSE_WHO, noInterestText } = await import("@/lib/office/event-page-copy");
+    expect(CHOOSE_WHO).toBe("Choose who works it");
+    expect(noInterestText(true)).toBe(
+      'Nobody has asked for a session yet. Casuals see "I can do this" on this event\'s sessions.',
+    );
+    expect(noInterestText(false)).toBe(
+      'Casuals take places on this event. Switch on "Casuals ask, you choose" on a session\'s page to choose from who asks.',
+    );
+  });
+});

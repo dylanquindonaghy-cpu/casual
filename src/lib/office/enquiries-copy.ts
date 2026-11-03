@@ -10,9 +10,10 @@ export const OUTCOME_WORDS: Record<Outcome, string> = {
   person_waiting: "Passed to a person, waiting",
   person_answered: "Passed to a person, answered",
   not_understood: "Not understood",
-  // The casual gets the link to their Pay page (and "Raise a pay query" there): nothing goes to
-  // payroll by itself, so the chip never says it did (the guardrails review, Phase 27.2).
-  pay: "Pay: sent their pay page link",
+  // The shifts line's answer is the link to their Pay page (and "Raise a pay query" there): nothing
+  // goes to payroll by itself. The chip names the answer, not its delivery: a WhatsApp or text that
+  // failed is only on the message's own page (the guardrails reviews, Phase 27.2; the Parking lot).
+  pay: "Pay: link to their pay page",
   in_app: "They sorted it in the app",
   inbox: "Left for your inbox",
 };

@@ -2229,3 +2229,17 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   (`cancellations/export`, `cancellations/[ref]/pdf`, `data/export`, `data/workers/[id]/export`)
   and a cancellation's "Casual's own reason (see ShiftDesk)" (`cancellations/[ref]/page.tsx:84`).
   One pass once the product's name is settled.
+- **A failed reply doesn't show on Enquiries' list.** The shifts line writes a message's outcome
+  (`handled_at`, `intent`) when it claims the message, before the WhatsApp or text goes
+  (`src/lib/inbound/reply.ts`); a send that fails only adds `message.reply_failed`, which the
+  message's own page shows but the list's chip doesn't read (`enquiries.ts` `outcomeOf`,
+  `enquiry-rules.ts`). So "Answered by keyword", "Sorted by AI, answered from your data" and the pay
+  chip can sit on a message whose reply never arrived, and Need a person doesn't list it. Proposed:
+  a `replyFailed` fact in the list's query, a "Reply didn't go" outcome (amber), and those messages
+  under Need a person (an email already moves there: `src/lib/email/sort.ts`). A messaging change,
+  so its own plan. Until then the pay chip names the answer, not its delivery ("Pay: link to their
+  pay page"; the second guardrails review, Phase 27.2).
+- **A failed office offer drops someone from the session card's count.** The office can't send a
+  second offer after one that failed (it may have arrived: `office-offer.ts`), so that casual leaves
+  "{n} have the licence, rest and hours for it" while the chip still says "None offered yet" (it
+  counts offers that went). Small; the offer panel says who and why.

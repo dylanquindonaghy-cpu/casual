@@ -1126,7 +1126,12 @@ https://claude.ai/artifact/9GPXjLG2NXmz4FvbMXBdiu (sections 1, 2 and 6).
 - [ ] The glass at +20% in the office's dark theme: panels and the side bar a light 4% tint, a 3px
       blur, 12% edges, menus and the phone's top bar 70%, the street lines 10.2%; the faintest words
       still at least 4.5:1 on the lightest spot; the light theme and "reduce transparency" unchanged
-      (review §2; UI) (27.1)
+      (review §2; UI) (27.1). Correction, 2026-11-03: the street lines stay 8.5%, as in the approved
+      pictures. The review's mock-up put its values on the office's own box (`[data-office]`), but the
+      street map is the page's background (`body:has([data-office])::before`, `src/app/globals.css`),
+      which reads `--map-road` from the page's root, so the pictures' lines were at 8.5% (review §2's
+      note); at 10.2% six colour pairs fall under their minimum. Dylan to confirm:
+      `docs/plan/decisions-waiting.md` 13
 - [ ] The words: every "fix before launch" and "one thing, one name" item (review §5, office and
       casual app), "Who worked?", "Tell me about" and Updates' "Last 7 days · 2 new today" (the
       mock-up's section 2), with `docs/screens.md` and `docs/messaging-templates.md`; and the two

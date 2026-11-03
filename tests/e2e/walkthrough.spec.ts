@@ -440,7 +440,7 @@ test("Part 3: as the office", async ({ browser }) => {
     for (const name of ["Kieran Doyle", "Ben Fraser", "Zoe Adeyemi"]) {
       await expect(page.getByRole("link", { name, exact: true }).first()).toBeVisible();
     }
-    await expect(page.getByText("Pay: sent their pay page link").first()).toBeVisible();
+    await expect(page.getByText("Pay: link to their pay page").first()).toBeVisible();
     await page.getByRole("link", { name: "Requests from the app" }).click();
     await expect(page).toHaveURL(`${acme}/office/enquiries?view=app`);
     const card = page

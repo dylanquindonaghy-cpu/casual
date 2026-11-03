@@ -328,6 +328,12 @@ until the casual's details are erased, not the 12 months the row recommended.
 | 11 | Whether an offer still books itself on an event where "Casuals ask, you choose" is on (Phase 26.6) | **Decided** (Dylan, 2026-11-03). Yes: a casual holding an offer of the session (the office's own, or its waves' after the office marked it urgent) taps "Take shift" as before; everyone else asks. The office chose to offer it to them, and urgent sessions keep filling at once. | Everyone asks, offered or not: an offer would then only invite them to ask, and an urgent session in such an event waits for the office to book from the list. | `src/lib/roster/asks.ts` (`officeChooses`); docs/screens.md "A session, and who wants it" |
 | 12 | How long the office's notes about a casual are kept (Phase 26.7, `casual_notes`) | **Decided** (Dylan, 2026-11-03). Until the casual's details are erased (a GDPR erasure on Data requests); no purge. In the casual's export; never in the log. | 12 months after the note, by the nightly purge (like a request's words, `retention.request_note_days`), never during a hold. Recommended: notes are free text about a person, so UK GDPR's storage limit wants an end date; the guardrails review's M2. | `src/lib/office/casual-follow-up.ts`; docs/compliance.md "Retention defaults" |
 
+### Built with a safe default, for Dylan to confirm (added 2026-11-03, Phase 27)
+
+| # | Decision | Built as (the safe default) | The other way | Where |
+|---|---|---|---|---|
+| 13 | How strong the street map's lines are behind the office's dark glass (27.1, "+20%") | 8.5% white, as before: what the approved pictures showed. The review's table said 10.2% for +20%, but its browser-only mock-up set the lines on the office's own box, which the page's background never reads, so the pictures' lines were at 8.5%. The panels, blur, edges and menus are at +20% as approved. | 10.2%: the lines a little stronger than any picture you saw. Six colour pairs then fall under their minimum contrast (grey words on a lens 4.40:1, faint words on a tile 4.47:1, urgent words on a clear button 4.34:1, under 4.5:1; a strong hairline 2.91:1 under 3:1; a switch that's off 3.40:1 under 3.5:1), so those colours go a shade lighter again. A mock-up first. | `src/app/globals.css` (`--map-road`, the `:root:has([data-office])` block); `tests/unit/ui.contrast.test.ts`; `docs/mockups/round-8/launch-review-2026-11-03.md` §2 |
+
 ### Checks and to-dos (not choices)
 
 | # | What | Who | Where |

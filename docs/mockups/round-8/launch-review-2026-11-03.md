@@ -46,6 +46,14 @@ The office's dark theme only (`src/app/globals.css`, the `[data-office]` block; 
 live in `src/lib/tenancy/glass-grounds.ts` and its tests). The light theme and "reduce
 transparency" don't change. The top bar's chips use `glass-button` and aren't in this change.
 
+Note (found in the build, 2026-11-03): the browser-only values were put on the office's own box
+(`:root [data-office] { … }`), but the street map is drawn on the page's background
+(`body:has([data-office])::before`), which reads `--map-road` from the page's root, not from that
+box. So the street lines in these pictures were the 8.5% of today; only the panels, blur, edges
+and menus changed. The build keeps the lines at 8.5%, as the
+pictures show (at 10.2% six colour pairs fall under their minimum contrast); Dylan to confirm
+(`docs/plan/decisions-waiting.md` 13).
+
 ## 3. The video (Haulix) and the map idea
 
 What the video does that we don't: the street map lives only inside the map panel (the page behind
@@ -135,7 +143,7 @@ Office:
 - "Show full venues" → "Show filled venues too" (`dashboard-map-copy.ts:70`); "Hidden from casuals" → "Hidden: casuals can't see it" (`dashboard-map-copy.ts:44-49`, `events-copy.ts:76,146`, `event-page-copy.ts:71`).
 - "Not worked lately" for the never-worked → "New: not worked yet"; "Nothing in 60 days" → "Nothing worked in 60 days"; "Reliable 0 · 95% or more, of 0 who worked" → "Turned up 95% or more. Needs 5 shifts in 90 days to count."; "Cancel often · 3 or more under 48 hours" → "… late cancellations (under 48 hours) in 90 days" (`casuals-copy.ts:36-42,179`).
 - Staff photo "Due soon · 23 Nov 2023" (the date taken) → "Due soon · renew by 23 Nov 2026" (`casuals-copy.ts:156-160`).
-- Enquiries "Done in the app" → "They sorted it in the app" (`enquiries-copy.ts:14`); "Pay (always a person)" → "Pay: sent to payroll" (built as "Pay: sent their pay page link": the casual gets their Pay page link and nothing goes to payroll by itself, so the guardrails review had the chip say what happens); "Pay: never answered by AI (rule)" → without "(rule)"; the answer page's "Checks made by code" / "Reply built" → "What we checked" / "Reply sent" (`enquiries/enquiry-detail.tsx:192,217`).
+- Enquiries "Done in the app" → "They sorted it in the app" (`enquiries-copy.ts:14`); "Pay (always a person)" → "Pay: sent to payroll" (built as "Pay: link to their pay page": the casual gets their Pay page link and nothing goes to payroll by itself, so the guardrails review had the chip say what happens); "Pay: never answered by AI (rule)" → without "(rule)"; the answer page's "Checks made by code" / "Reply built" → "What we checked" / "Reply sent" (`enquiries/enquiry-detail.tsx:192,217`).
 - "No strike · from before strikes" → "No strike: cancelled before strikes were turned on" (`cancellations-copy.ts:247`); "Needs review" → "They gave a reason: check it" (`strikes-copy.ts:12`, `cancellations/page.tsx:273`, `strikes/page.tsx:106`).
 - Session page "Casuals ask, you choose · Set for this event. Off: the first to tap takes it." → "On: casuals ask, you choose who gets it. Off: the first casual to tap gets it. Applies to every session in this event." (`session-page-copy.ts:170-171`).
 - Notice report "Started by" / "Asked by", filter "The firm" against rows "The office" → one name; the column "At whose request" (`notice-report.ts:323-329,387-390`, `reports/notice/page.tsx:136-147,203`).

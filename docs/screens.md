@@ -557,8 +557,8 @@ below where they differ.
   they may upload it), "Reminder on its way. It's in the log." ("{3} reminders on their way."; at
   night it waits for the morning; not twice in 24 hours: "One was reminded
   in the last 24 hours, so not again."); then "Reminded". Under the list: "Remind sends the licence
-  message again with its upload link: by their chosen way (WhatsApp or text), else email. Each one
-  is logged. They can't take shifts that need it until the new one is checked." "Mark as sorted"
+  message again with its upload link: by text, or by email if they chose it or texts can't reach
+  them (Phase 26.9: offers and reminders no longer go by WhatsApp). Each one is logged. They can't take shifts that need it until the new one is checked." "Mark as sorted"
   ("Marked as sorted. They move to the end of the list until something else changes.") holds while
   the worst thing it was about stands; a new problem shows them again.
 - **A casual's page** (cas-6): **Reliability** (the figure and bar, "{19} worked · {1} no-show · {0}

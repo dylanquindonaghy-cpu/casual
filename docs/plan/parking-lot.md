@@ -2188,3 +2188,13 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   event's History read newest first by the entry's number, which for real firms is the order they
   were written. Sorting by `(created_at, id)`, with the log's cursor carrying both, would make it
   hold whatever writes the entries; the demo's seed writes in time order for now.
+- **Role fields' starting words (fix-7's leftovers):** "New shift" and a session's Edit fill the
+  role field with the code's name with spaces (`replace(/_/g, " ")`), not `roleLabel()`'s words
+  ("Sia door supervisor" rather than "SIA door supervisor"). The field is the value saved, so
+  changing it needs the form to map words back to the code (the claims-auditor's note, round 2).
+- **The dashboard's old places chart:** `places-chart.tsx` and `hover-tips.tsx` are no longer on
+  any page since the venue map (26.2); only their unit tests use them. Remove them with their
+  tests, or bring the chart back where the spec wants one (the claims-auditor's note, round 2).
+- **A browser click on a single "Book":** the session list's per-row Book is tested through the
+  same booking path (`assignWorker`) in the integration tests and by "Book the best 1" in the
+  browser, but not clicked on its own (the claims-auditor's note, round 3).

@@ -2199,3 +2199,16 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
 - **A browser click on a single "Book":** the session list's per-row Book is tested through the
   same booking path (`assignWorker`) in the integration tests and by "Book the best 1" in the
   browser, but not clicked on its own (the claims-auditor's note, round 3).
+
+## From Phase 27 (the street map on the live server; 2026-11-03)
+
+- **The server's own files never update themselves.** `deploy.sh` pulls each new image, but the
+  files beside it in `/opt/shiftdesk` (`docker-compose.yml`, `docker-compose.demo.yml`,
+  `Caddyfile`, `deploy.sh` itself) are copies made once at setup (`docs/runbooks.md`, "A demo
+  server" step 6). So Phase 26.2's map setting, map folder and `/maps/` route never reached the live
+  demo: with the map file made and `MAP_TILES_URL` set, `/maps/uk.pmtiles` still went to the web
+  app (its 404, behind the demo's password) and the dashboard stayed plain. For now, Dylan's
+  one-line refresh (the review page's Part D2, the setup step's `docker cp` then `deploy.sh --now`).
+  Proposed: `deploy.sh` copies the image's `deploy/` files over its own on each new image (each by
+  a temporary file and a rename, so the running script isn't cut off; never `.env`), says which
+  changed, and the runbook gets a "the server's files" check. A deploy change, so its own go-ahead.

@@ -1,5 +1,11 @@
 import type { Browser, Page } from "@playwright/test";
-import { addEventWithSession, addOfficeUser, addSteward, cancelOwnShift } from "./db";
+import {
+  addEventWithSession,
+  addOfficeUser,
+  addSteward,
+  cancelOwnShift,
+  setFirmSetting,
+} from "./db";
 import { expect, test } from "./fixtures";
 import { loginLinkSentTo, sentTo } from "./outbox";
 
@@ -100,14 +106,24 @@ test("casuals ask, the office chooses: Not this time, then Book the best 1", asy
     const benRow = casuals.locator('[data-casual="Ben Asker"]');
     await expect(benRow.getByText(/^Asked \d\d:\d\d$/)).toBeVisible();
     await expect(benRow.getByText("New: 0 shifts so far")).toBeVisible();
-    // Not this time, from Ben's menu: he's told.
-    const toldAfter = new Date(Date.now() - 1000);
-    await benRow.getByLabel("More for Ben Asker").click();
-    await benRow.getByRole("button", { name: "Not this time: Ben Asker" }).click();
-    await expect(
-      office.getByRole("status").filter({ hasText: "Not this time: Ben Asker will be told." }),
-    ).toBeVisible();
-    await sentTo(BEN.mobileE164, toldAfter, /^(Not this time: you're not booked for .+)$/);
+    // Not this time, from Ben's menu: he's told. Quiet hours off for Acme while it goes (at night
+    // the message waits for them to end: CI ran it at 00:06 once), then put back as they were.
+    const quietBefore = await setFirmSetting("acme", "quiet_hours", {
+      start: "00:00",
+      end: "00:00",
+      urgent_override: true,
+    });
+    try {
+      const toldAfter = new Date(Date.now() - 1000);
+      await benRow.getByLabel("More for Ben Asker").click();
+      await benRow.getByRole("button", { name: "Not this time: Ben Asker" }).click();
+      await expect(
+        office.getByRole("status").filter({ hasText: "Not this time: Ben Asker will be told." }),
+      ).toBeVisible();
+      await sentTo(BEN.mobileE164, toldAfter, /^(Not this time: you're not booked for .+)$/);
+    } finally {
+      await setFirmSetting("acme", "quiet_hours", quietBefore);
+    }
     await ben.reload();
     await expect(ben.getByText("Not this time.")).toBeVisible();
     await expect(ben.getByRole("button", { name: "I can do this" })).toHaveCount(0);

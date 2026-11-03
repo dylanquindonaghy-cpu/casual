@@ -50,7 +50,7 @@ architecture.md, Tenancy).
 | messages | Every inbound/outbound message (WhatsApp, SMS, email, voice, portal) | 7 |
 | pay_records | Imported hours, rates, pay dates | 3 |
 | pay_queries | Structured pay questions + grouping key + status | 6 |
-| events | Append-only action log (the evidence trail). `created_at` is always the database's now(), except the made-up demo's history, which the seed writes at its story's times (Phase 26.10, fix-8; `recordEventAt`, seed only: tests/unit/events.boundary.test.ts) | 1 |
+| events | Append-only action log (the evidence trail). `created_at` is always the database's now(), except the made-up demo's history, which the seed writes at its story's times, in time order (Phase 26.10, fix-8; `recordEventAt` through the seed's log only, and only for the demo firms: tests/unit/events.boundary.test.ts, tests/integration/events.record.test.ts) | 1 |
 | magic_links / sessions / otp_codes | Login (hashes only, never raw tokens or codes) | 1 |
 | auth_throttle | Rate-limit counters for login and OTP requests, and the shifts line's unknown-number alerts (HMAC-keyed buckets) | 1 |
 | api_keys | A planner's API keys: a label, the key's sha256 and last 4 characters (never the key), who made and revoked it, when last used (12J.1, S11) | 12 |

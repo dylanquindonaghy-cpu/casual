@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { loadSaturday, loadWeekOffers, seed } from "@/lib/db/admin/seed";
+import { seedLog } from "@/lib/db/admin/seed-log";
 import { seedId } from "@/lib/db/admin/seed-data";
 import { resolveFirmBySlug } from "@/lib/db/directory";
 import { withFirm, type FirmTx } from "@/lib/db/scoped";
@@ -853,12 +854,17 @@ describe("Acme's Saturday event day", () => {
             from offers o where o.shift_id in (${shiftIds}) order by o.id
         `)
       ).rows;
-    const load = async (tx: FirmTx) =>
-      loadWeekOffers(tx, firm, {
+    // The seed's own way (Phase 26.10, fix-8): the log entries written once the rows are in.
+    const load = async (tx: FirmTx) => {
+      const log = seedLog(now);
+      await loadWeekOffers(tx, firm, {
         saturday: day,
-        fresh: await loadSaturday(tx, firm, day, now),
+        fresh: await loadSaturday(tx, firm, day, now, log),
         now,
+        log,
       });
+      await log.write(tx);
+    };
     let first: Awaited<ReturnType<typeof offersNow>> = [];
     let again: Awaited<ReturnType<typeof offersNow>> = [];
     await expect(

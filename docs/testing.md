@@ -757,7 +757,8 @@ before a call so it's the coming one):
   has none yet, and one on Monday before 07:00 has no offers at all). None is sent in Acme's quiet
   hours, as the app holds offers then. Only the run that adds the Saturday writes its offers, so a
   re-run never adds one, even after a demo cancels a booking. Like the seed's bookings, their `offer.sent` entries in the action log are
-  dated when the seed ran (the log can't be backdated), not when each offer says it was sent. None
+  dated when each offer says it was sent (Phase 26.10, fix-8: the seed's log writes the made-up
+  history at its own times, in time order; only the demo firms' log can be written so). None
   said no: the app can't record a "no" yet. Never to the five workers kept free for demo logins
   or to anyone the walkthrough logs in as; each to a casual the booking rules allow, none over
   the daily offer cap (3 a day), and nothing is sent. The seed takes the offer-count lock as every
@@ -766,8 +767,9 @@ before a call so it's the coming one):
 - Every Acme worker has 1 to 8 weekly pay lines from the last 8 complete weeks (stewards £13.00
   an hour, door supervisors £14.50, security officers £13.50).
 - The action log has each shift's creation, each booking, the cancellation (with notice hours) and
-  the requests. Those entries are dated when the seed ran (the log can't be backdated); the
-  shifts are dated a week earlier, before every booking.
+  the requests. Each entry carries its row's time (Phase 26.10, fix-8: a booking its confirmation,
+  the cancellation when it was cancelled; the requests, added as the seed runs, then), written in
+  time order; the shifts are dated a week earlier, before every booking.
 - Re-running `npm run db:seed` the same week adds nothing and never undoes a demo's changes. Run
   in a later week, it adds that week's Saturday too; run on a Saturday, it adds next Saturday
   while today's is still there. Use `npm run db:reset` for exactly one Saturday.

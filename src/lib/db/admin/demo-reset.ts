@@ -31,8 +31,8 @@ import {
 // holding no firm but the made-up demo firms. All checked before anything is dropped. Then, as
 // `npm run db:reset` does locally: the owner role, the database recreated as the owner's and
 // tagged, every migration, the demo's own rule that refuses real people (below), the seed; the
-// pilot figures worked out over the made-up history (Phase 26.10, fix-8: below); and the outbox
-// emptied, so the Demo phone starts empty too.
+// outbox emptied, so the Demo phone starts empty too; and the pilot figures worked out over the
+// made-up history (Phase 26.10, fix-8: below).
 
 // The comment on a database the reset made (COMMENT ON DATABASE): a real database never has it.
 export const DEMO_DATABASE_TAG = "shiftdesk-demo";
@@ -84,8 +84,9 @@ export async function demoReset(o: DemoResetOptions): Promise<SeedSummary> {
     demoMode: "on",
     ...(o.today ? { today: o.today } : {}),
   });
-  await rollUpDemoFigures(o.appUrl, o.today ?? new Date());
+  // The outbox first: the Demo phone starts empty even if working out the figures fails.
   if (o.outboxFile) await writeFile(o.outboxFile, "");
+  await rollUpDemoFigures(o.appUrl, o.today ?? new Date());
   return summary;
 }
 

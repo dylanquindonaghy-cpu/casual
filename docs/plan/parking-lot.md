@@ -2177,3 +2177,14 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
 - **The shifts line's reply to an unknown number by text**, and its inbound WhatsApp on Twilio:
   with the shifts line moving to texts (Phase 15's third task).
 
+
+## From Phase 26.10 (fixes and words; 2026-11-03)
+
+- **A database rule for the log's times:** a trigger on `events` refusing an explicit
+  `created_at` for any firm but the made-up demo firms, so a backdated entry for a real firm is
+  refused by the database itself, not only by `recordEventAt` and the boundary test (the
+  guardrails review of 26.10). It needs a migration and a way for the seed to pass.
+- **The history lists sorted by time:** the action log, the notice report and a session's and an
+  event's History read newest first by the entry's number, which for real firms is the order they
+  were written. Sorting by `(created_at, id)`, with the log's cursor carrying both, would make it
+  hold whatever writes the entries; the demo's seed writes in time order for now.

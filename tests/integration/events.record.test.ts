@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { withFirm } from "@/lib/db/scoped";
-import { recordEvent } from "@/lib/events/record";
+import { recordEvent, recordEventAt } from "@/lib/events/record";
+import { seedLog } from "@/lib/db/admin/seed-log";
 import { eventMark } from "../helpers/auth";
 import { superuserPool } from "../helpers/db";
 import { createTenant, type Tenant } from "../helpers/tenant-rows";
@@ -101,5 +102,34 @@ describe("recordEvent and lists of workers", () => {
       "roster.sheet_change_refused",
       "shift.move_refused",
     ]);
+  });
+});
+
+// The made-up demo's history at its story's own times (Phase 26.10, fix-8): recordEventAt writes
+// only for the demo firms. A real firm's log is evidence, so a backdated entry there is refused and
+// nothing is written; the seed's log refuses a time after the seed's now.
+describe("an entry at a time of its own", () => {
+  it("is refused for any firm but the made-up demo's", async () => {
+    const mark = await eventMark(su);
+    const lastYear = new Date("2025-11-03T09:00:00Z");
+    await expect(
+      withFirm(T.firmId, (tx) =>
+        recordEventAt(
+          tx,
+          { actorType: "system", action: "test.guard", entityType: "test" },
+          lastYear,
+        ),
+      ),
+    ).rejects.toThrow("recordEventAt only writes the made-up demo firms' history");
+    expect(await rowsSince(mark)).toEqual([]);
+  });
+
+  it("the seed's log refuses a time after the seed's now", () => {
+    const now = new Date("2026-11-03T09:00:00Z");
+    const log = seedLog(now);
+    const event = { actorType: "system" as const, action: "test.guard", entityType: "test" };
+    expect(log.add(event, now)).toEqual({ seedRef: 0 });
+    expect(log.add(event)).toEqual({ seedRef: 1 }); // the seed's now
+    expect(() => log.add(event, new Date(now.getTime() + 1))).toThrow(/after the seed's now/);
   });
 });

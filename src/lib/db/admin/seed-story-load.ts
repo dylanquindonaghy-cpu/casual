@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import { and, inArray, isNull, sql } from "drizzle-orm";
-import { recordEvent, recordEventAt } from "../../events/record";
 import { noAi } from "../../ai/client";
 import { runInboundMessage } from "../../inbound/reply";
 import type { MessagingTransport } from "../../messaging/transport";
@@ -29,6 +28,7 @@ import {
 } from "../schema";
 import type { FirmTx, WithFirm } from "../scoped";
 import { seedId, type SeedFirm } from "./seed-data";
+import type { SeedLog } from "./seed-log";
 import {
   STORY_CERTIFICATE_JPEG,
   STORY_LINE,
@@ -41,8 +41,9 @@ import {
 // people, their qualifications and travel areas are put back as seeded on every run (like the
 // generated workers); everything that happened (events, sessions, bookings, cancellations, strikes,
 // uploads, messages, pay queries) is added once by its fixed id and logged once, as the app logs
-// it, so a re-run changes nothing and never undoes a demo. Row times are the story's (the log can't
-// be backdated: its entries say what happened, stamped when the seed ran).
+// it, so a re-run changes nothing and never undoes a demo. Row times are the story's, and so are its
+// log entries' (Phase 26.10, fix-8): each goes to the seed's log (./seed-log.ts) at its row's time,
+// written in time order once the firm's rows are in.
 
 const located = (postcode: string) => {
   const point = fakePoint(postcode);
@@ -61,6 +62,7 @@ export async function loadStory(
   firm: SeedFirm,
   story: StorySeed,
   now: Date,
+  log: SeedLog,
 ): Promise<void> {
   const firmId = firm.id;
   const strikeRules = strikeSettings(firm.settings);
@@ -171,8 +173,7 @@ export async function loadStory(
       ...(u.credentialType ? { qualificationType: u.credentialType } : {}),
     };
     // Each at its story's time (Phase 26.10, fix-8), as every entry below.
-    await recordEventAt(
-      tx,
+    log.add(
       {
         actorType: "worker",
         actorId: u.workerId,
@@ -184,8 +185,7 @@ export async function loadStory(
       u.createdAt,
     );
     if (u.status === "approved") {
-      await recordEventAt(
-        tx,
+      log.add(
         {
           actorType: "office",
           actorId: resourcer,
@@ -291,8 +291,7 @@ export async function loadStory(
     const added = story.sessions
       .filter((x) => x.eventId === e.id)
       .map((x) => x.createdAt.getTime());
-    await recordEventAt(
-      tx,
+    log.add(
       {
         actorType: "office",
         actorId: resourcer,
@@ -356,8 +355,7 @@ export async function loadStory(
       : [];
   const fresh = new Set(added.map((s) => s.id));
   for (const s of story.sessions.filter((x) => fresh.has(x.id))) {
-    await recordEventAt(
-      tx,
+    log.add(
       {
         actorType: "system",
         action: "shift.created",
@@ -370,7 +368,7 @@ export async function loadStory(
     // Marked urgent by the office (as src/lib/roster/urgent.ts logs it); one made urgent by a
     // dropout is logged with its cancellation, below.
     if (s.urgentCause === "office") {
-      await recordEvent(tx, {
+      log.add({
         actorType: "office",
         actorId: resourcer,
         action: "shift.marked_urgent",
@@ -430,8 +428,7 @@ export async function loadStory(
   }
   for (const b of bookings) {
     const session = story.sessions.find((x) => x.id === b.shiftId);
-    await recordEventAt(
-      tx,
+    log.add(
       {
         actorType: "worker",
         actorId: b.workerId,
@@ -454,8 +451,7 @@ export async function loadStory(
     );
     if (b.status === "completed") {
       // Marked worked by the office after the shift (src/lib/roster/attendance.ts).
-      await recordEventAt(
-        tx,
+      log.add(
         {
           actorType: "office",
           actorId: resourcer,
@@ -469,8 +465,7 @@ export async function loadStory(
     }
     if (b.status === "no_show") {
       // Marked as not attending by the office after the shift (aud-14's history).
-      await recordEventAt(
-        tx,
+      log.add(
         {
           actorType: "office",
           actorId: resourcer,
@@ -485,8 +480,7 @@ export async function loadStory(
     if (b.status !== "cancelled_worker" && b.status !== "cancelled_firm") continue;
     const byFirm = b.status === "cancelled_firm";
     const cancelledAt = b.cancelledAt ?? now;
-    const cancelEvent = await recordEventAt(
-      tx,
+    const cancelEvent = log.add(
       {
         actorType: byFirm ? "office" : "worker",
         actorId: byFirm ? resourcer : b.workerId,
@@ -508,8 +502,7 @@ export async function loadStory(
     );
     // A dropout inside the urgent window: the system marked the place urgent (as urgent.ts does).
     if (!byFirm && session?.urgentCause === "dropout" && b.noticeHours !== null) {
-      await recordEventAt(
-        tx,
+      log.add(
         {
           actorType: "system",
           action: "shift.marked_urgent",
@@ -522,8 +515,7 @@ export async function loadStory(
     }
     // The office's cancellation: the casual was told (golden rule 12; src/lib/notices/firm-change.ts).
     if (byFirm) {
-      await recordEventAt(
-        tx,
+      log.add(
         {
           actorType: "system",
           action: "shift.change_notice_sent",
@@ -572,8 +564,7 @@ export async function loadStory(
       createdAt: s.issuedAt,
     });
     const data = { assignmentId: s.bookingId, shiftId: s.shiftId, workerId: s.workerId };
-    await recordEventAt(
-      tx,
+    log.add(
       {
         actorType: "system",
         action: "strike.issued",
@@ -584,8 +575,7 @@ export async function loadStory(
       s.issuedAt,
     );
     // Its evidence emailed to the strikes team (src/lib/strikes/evidence.ts), as the row says.
-    await recordEventAt(
-      tx,
+    log.add(
       {
         actorType: "system",
         action: "strike.evidence_sent",
@@ -596,8 +586,7 @@ export async function loadStory(
       new Date(s.issuedAt.getTime() + 2 * 60_000),
     );
     if (s.withdrawn) {
-      await recordEventAt(
-        tx,
+      log.add(
         {
           actorType: "office",
           actorId: resourcer,
@@ -663,8 +652,7 @@ export async function loadStory(
       resolutionNote: q.note,
       createdAt: q.createdAt,
     });
-    await recordEventAt(
-      tx,
+    log.add(
       {
         actorType: "worker",
         actorId: q.workerId,
@@ -675,8 +663,7 @@ export async function loadStory(
       },
       q.createdAt,
     );
-    await recordEventAt(
-      tx,
+    log.add(
       {
         actorType: "office",
         actorId: payroll,

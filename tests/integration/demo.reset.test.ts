@@ -196,6 +196,30 @@ describe("the demo reset, run", () => {
       expect(r.days).toBeGreaterThanOrEqual(PILOT_MAX_DAYS);
       expect(r.first <= addDays("2026-10-20", -(PILOT_MAX_DAYS - 1))).toBe(true);
     }
+    // Written in the order they happened, so the history lists (newest first, by the entry's
+    // number) read in time order: no entry is older than the one before it, per firm.
+    const outOfOrder = await asSuperuser((c) =>
+      c.query<{ n: number }>(
+        `select count(*)::int as n from (
+           select created_at, lag(created_at) over (partition by firm_id order by id) as before
+             from events) e
+          where e.created_at < e.before`,
+      ),
+    );
+    expect(outOfOrder.rows[0]?.n).toBe(0);
+    // A change notice names its cancellation, written before it.
+    const notices = await asSuperuser((c) =>
+      c.query<{ n: number; linked: number }>(
+        `select count(*)::int as n,
+                count(c.id)::int as linked
+           from events e
+           left join events c on c.firm_id = e.firm_id and c.action = 'shift.cancelled'
+            and c.id = (e.data ->> 'changeEventId')::bigint and c.id < e.id
+          where e.action = 'shift.change_notice_sent'`,
+      ),
+    );
+    expect(notices.rows[0]?.n).toBeGreaterThan(0);
+    expect(notices.rows[0]?.linked).toBe(notices.rows[0]?.n);
     // The history's cancellations counted on their own days, weeks before the reload's.
     const earlier = await asSuperuser((c) =>
       c.query<{ n: string | null }>(

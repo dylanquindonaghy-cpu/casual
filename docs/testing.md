@@ -615,9 +615,10 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   hovered and put away with Escape, the panel from the right closed by the scrim; every page
   Phase 23's dashboard linked to still a click away: the offer page and a session's page from the
   detail card, the shifts list and its weeks, the top bar's four counts, Events & sessions'
-  Showing filter and an event's page, Cancellations' and Enquiries' "Show only today's" and a
+  Showing filter and an event's page, Cancellations' "Today" tab (round 8) and Enquiries' "Show
+  only today's" and a
   record and a message, Casuals' uploads and a casual, the Notice report's offers; payroll sent
-  away), `office.cancellations.spec.ts` (today's list and its CSV reached by "Show only today's"),
+  away), `office.cancellations.spec.ts` (today's list and its CSV reached by the "Today" tab, round 8),
   `office.events.spec.ts` (the Showing filter clicked), `login.office.spec.ts` (the head's day and
   pay week; the shifts line on Settings, no longer on the dashboard), `office.offer.test.ts` (the
   offer page never another firm's shift or office user, as the panel reads it),

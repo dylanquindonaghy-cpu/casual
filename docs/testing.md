@@ -522,7 +522,8 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   only the window's height changes); `office.attendance.spec.ts`
   (Mark who worked from the Needs attention card's panel); `walkthrough.spec.ts` (steps 23 and 24
   through the charts and panels).
-- Phase 24 (Liquid Glass, round 7; docs/ui-design.md "Phase 24"), task 24.1 the system:
+- Phase 24 (Liquid Glass, round 7; docs/ui-design.md "Phase 24"), task 24.1 the system (the wash
+  and the refraction pins below were replaced in Phase 27.6: see its entry):
   `ui.glass.test.ts` (in place of `ui.flat.test.ts`) pins the glass: `globals.css` draws
   `src/lib/tenancy/glass-grounds.ts`'s numbers (the wash's base and four lights, a section's, a
   float's, a tile's, a button's, the track's and the lens's fills, in light and both darks; the
@@ -711,6 +712,23 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   open first, office and casual, before any test starts: `next dev` builds a page on its first
   request, and the office's dashboard could take longer than the first office test's 5-second
   wait after logging in.
+- Phase 27.6, the casual app in round 8's look (docs/ui-design.md "Phase 27.6"): `ui.contrast.test.ts`
+  holds the casual app's blocks to the office's, value by value (light, both darks, solid and with
+  no blur in each), but for the firm's colour, the app's blue, the to-do tint and the office's
+  corners; the firm's colour on the main button in both looks (`body[data-firm-colour]`) and hi-vis
+  only in the office's blocks; still following the phone; and every pair over round 8's grounds
+  (the flat ground and the street map's two lines, in place of the wash's 15 points) in twelve
+  looks. `ui.glass.test.ts` `glass-grounds.ts`'s ground and glass drawn in light and both darks
+  (the office's the same numbers), saturate() leaving the grey ground as it is, the street map as
+  every page's `body::before` (no wash, no radial gradient, no office-only map rule), the blurs
+  (6px, 3px in dark, 12px floating), no bending anywhere (no `glass-refraction.tsx`, no `.rf`, no
+  `url(#…)`), no glow on the main button, the dark fallbacks switching the blur off.
+  `tenancy.brand.test.ts` the cube over the new grounds and the demo firms' values on them;
+  `ui.office-system.test.ts` gradients only in the glass and the masks, and the map's one url().
+  Browser: `theme.spec.ts`, `casual.app.spec.ts` (the casual page's ground and tab bar in round 8's
+  values, light and dark), `brand.spec.ts` (the firm's colour on the casual main button in both
+  looks, its new values), `strikes.worker.spec.ts` (round 8's tints), `office.look.spec.ts` (no
+  `.rf` on any page).
 ## Fixtures and the demo seed
 
 `npm run db:seed` creates two fake firms:

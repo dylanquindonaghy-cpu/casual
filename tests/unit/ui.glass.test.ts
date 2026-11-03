@@ -1,8 +1,6 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { RefractionFilter } from "@/app/glass-refraction";
 import {
   btn,
   card,
@@ -22,24 +20,34 @@ import {
   table,
   tabs,
 } from "@/app/ui/classes";
-import { GLASS, SATURATE, WASH, type Rgb, type Rgba } from "@/lib/tenancy/glass-grounds";
+import {
+  GLASS,
+  GROUND,
+  SATURATE,
+  groundPoints,
+  saturate,
+  type Rgb,
+  type Rgba,
+} from "@/lib/tenancy/glass-grounds";
 import { BLOCKS, block, colourTokens, css, parseColour, props } from "../helpers/theme-css";
 
-// Liquid Glass (Phase 24, round 7 of the Design canvas, Dylan: "keep round 7 and build it into the
-// app"; docs/ui-design.md "Phase 24: Liquid Glass"), in place of Phase 23's flat look (white cards
-// with hairlines, ui.flat.test.ts until now). One look for the office and the casual app: a pastel
-// wash fixed behind every page, and on it glass. A section (a card, a list, a table, a row of tabs)
-// is frosted (`glass`: it blurs and saturates what's behind it, with a lit rim and a soft drop);
-// what floats over the page is the strongest glass (`glass-float`: the office's top bar, menus,
-// the drawer, a chart's panel, the casual app's tab bar, Take shift's bar, the sheet), bending
-// what's behind it a little in Chrome; the parts inside a section are clear glass that doesn't blur
-// again (`glass-tile`, `glass-button`); the one main button is tinted glass in the firm's colour
-// (`glass-tint`); the chosen tab or option is a lens of bright glass (`lens`) on a glass track.
-// Each value is pinned here, and src/lib/tenancy/glass-grounds.ts holds the same numbers (the
-// contrast test, tests/unit/ui.contrast.test.ts, works every word out over them). Where someone
-// asks for less transparency or more contrast, every ground is solid and the wash goes; where a
-// browser can't blur, every ground is solid too. Depth is the glass's rim and drop, through
-// variables, so the dark theme's reach the classes; no other shadow anywhere.
+// The glass (Phase 24's parts, docs/ui-design.md "Phase 24: Liquid Glass"), in round 8's look:
+// the office's since Phase 26, the casual app's since Phase 27.6 (Dylan, 2026-11-03: "casual round
+// 8: yes, firm's colour, follow the phone"; docs/ui-design.md "Phase 27.6"). Behind every page a
+// faint street map on a flat ground (round 7's pastel wash of four lights is gone), and on it glass,
+// translucent and sharp. A section (a card, a list, a table, a row of tabs) is frosted (`glass`: it
+// blurs what's behind it a little, with one even hairline and no drop at rest); what floats over
+// the page is the strongest glass (`glass-float`: the office's top bar on a phone, menus, the
+// drawer, the casual app's tab bar, the sheet), and nothing bends what's behind it (round 7's
+// refraction is gone); the parts inside a section are clear glass that doesn't blur again
+// (`glass-tile`, `glass-button`); the one main button is tinted glass in the firm's colour
+// (`glass-tint`; hi-vis in the office), with no glow; the chosen tab or option is a lens
+// (`lens`) on a glass track. Each value is pinned here, and src/lib/tenancy/glass-grounds.ts holds
+// the same numbers (the contrast test, tests/unit/ui.contrast.test.ts, works every word out over
+// them). Where someone asks for less transparency or more contrast, every ground is solid and the
+// street map goes; where a browser can't blur, every ground is solid too. Depth is the glass's
+// hairline (and only what floats has a drop), through variables, so the dark theme's reach the
+// classes; no other shadow anywhere.
 
 const ROOT = process.cwd();
 const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
@@ -85,19 +93,39 @@ const DARKS = [
 ] as const;
 
 describe("the glass's numbers: globals.css draws glass-grounds.ts's", () => {
-  it("the wash: its base and four lights, in light and both darks", () => {
-    const lights = ["wash-a", "wash-b", "wash-c", "wash-d"];
-    expect(theme().get("canvas")).toBe(written(WASH.light.base));
+  // Phase 27.6: the casual app's ground is round 8's, as the office's: a flat colour and the
+  // street map's two strengths of line over it (round 7's wash and its four lights are gone).
+  it("the ground: its colour and the street map's two lines, in light and both darks", () => {
+    const lines = ["map-line", "map-road"];
+    expect(theme().get("canvas")).toBe(written(GROUND.light.base));
     const root = props(block(BLOCKS.root));
-    expect(lights.map((l) => root.get(l))).toEqual(WASH.light.lights.map(written));
+    expect(lines.map((l) => root.get(l))).toEqual(GROUND.light.lines.map(written));
     for (const [name, pattern] of DARKS) {
       const dark = props(block(pattern));
-      expect(dark.get("color-canvas"), name).toBe(written(WASH.dark.base));
+      expect(dark.get("color-canvas"), name).toBe(written(GROUND.dark.base));
       expect(
-        lights.map((l) => dark.get(l)),
+        lines.map((l) => dark.get(l)),
         name,
-      ).toEqual(WASH.dark.lights.map(written));
+      ).toEqual(GROUND.dark.lines.map(written));
     }
+    // And the office's are the same numbers.
+    for (const [theme8, pattern] of [
+      ["light", BLOCKS.officeLight],
+      ["dark", BLOCKS.officeDark],
+    ] as const) {
+      const office = props(block(pattern));
+      expect(office.get("color-canvas"), theme8).toBe(written(GROUND[theme8].base));
+      expect(
+        lines.map((l) => office.get(l)),
+        theme8,
+      ).toEqual(GROUND[theme8].lines.map(written));
+    }
+    // No wash anywhere: none of its lights, none of its gradients.
+    expect(css).not.toMatch(/--wash-|radial-gradient/);
+    // The glass's saturate() leaves round 8's grey ground as it is, point by point (so the contrast
+    // test needn't saturate it).
+    for (const t of ["light", "dark"] as const)
+      for (const point of groundPoints(t)) expect(saturate(point), `${t}: ${point}`).toEqual(point);
   });
 
   it("the glass: a section, what floats, a tile's and a button's two ends, the track and the lens", () => {
@@ -121,30 +149,46 @@ describe("the glass's numbers: globals.css draws glass-grounds.ts's", () => {
       expect(pick(props(block(pattern)), keys), name).toEqual(expected("dark"));
   });
 
-  it("a section and what floats blur and saturate it by SATURATE; the bar's edge a little less", () => {
+  // Round 8 (Phase 27.6, as the office's): a light blur, saturated SATURATE times; in dark a
+  // section's blur is lighter still (Phase 27.1's 3px), what floats and the bar's edge as light's.
+  it("a section and what floats blur a little and saturate it by SATURATE; the bar's edge only blurs", () => {
     const root = props(block(BLOCKS.root));
-    expect(root.get("glass-filter")).toBe(`blur(24px) saturate(${SATURATE})`);
-    expect(root.get("float-filter")).toBe(`blur(18px) saturate(${SATURATE})`);
-    expect(root.get("edge-filter")).toBe("blur(10px) saturate(1.6)");
-    // The dark blocks keep light's: only the fills change.
-    for (const [, pattern] of DARKS) expect(block(pattern)).not.toMatch(/-filter:/);
+    expect(root.get("glass-filter")).toBe(`blur(6px) saturate(${SATURATE})`);
+    expect(root.get("float-filter")).toBe(`blur(12px) saturate(${SATURATE})`);
+    expect(root.get("edge-filter")).toBe("blur(8px)");
+    for (const [name, pattern] of DARKS) {
+      const dark = props(block(pattern));
+      expect(dark.get("glass-filter"), name).toBe(`blur(3px) saturate(${SATURATE})`);
+      expect(dark.get("float-filter"), name).toBe(`blur(12px) saturate(${SATURATE})`);
+      expect(dark.get("edge-filter"), name).toBe("blur(8px)");
+    }
+    // Nothing blurs as round 7's glass did (24px, saturated 1.8 times).
+    expect(css).not.toMatch(/blur\(24px\)|blur\(18px\)|saturate\(1\.[68]\)/);
   });
 
-  it("the wash: four soft lights fixed behind every page, under everything", () => {
-    const wash = body("  body::before", "@layer base");
+  // Phase 27.6: round 8's street map behind every page, the casual app's as the office's, in place
+  // of round 7's wash (one rule for both now: body::before, reading --map-road from the root).
+  it("the street map: one still picture fixed behind every page, under everything", () => {
+    const map = body("  body::before", "@layer base");
     for (const line of [
       'content: "";',
       "position: fixed;",
       "inset: 0;",
       "z-index: -1;",
       "pointer-events: none;",
+      "background: var(--map-road);",
+      '-webkit-mask: url("./office-streets.svg") center / cover no-repeat;',
+      'mask: url("./office-streets.svg") center / cover no-repeat;',
     ])
-      expect(wash).toContain(line);
-    expect(
-      [...wash.matchAll(/radial-gradient\([^)]*var\(--(wash-[a-d])\)/g)].map((m) => m[1]),
-    ).toEqual(["wash-a", "wash-b", "wash-c", "wash-d"]);
-    // The page's own ground is the wash's base (the root layout's <body>), and no shell paints
-    // over the wash (the office's frame and the casual app's bar did, until Phase 24).
+      expect(map).toContain(line);
+    // Every page's: no rule of the office's own any more, and nothing else draws behind the page.
+    expect(css).not.toMatch(/body:has\(\[data-office\]\)::before/);
+    expect(css.match(/body::before \{/g)).toHaveLength(2); // the map, and the fallback hiding it
+    // <html> has no background of its own: <body>'s ground goes to the canvas, and the map (z -1)
+    // sits over it, under everything else.
+    expect(css).not.toMatch(/(?:^|\n)\s*html[^{]*\{[^}]*background/);
+    // The page's own ground is the street map's (the root layout's <body>), and no shell paints
+    // over the map (the office's frame and the casual app's bar did, until Phase 24).
     expect(read("src/app/layout.tsx")).toMatch(/<body[\s\S]*?className="bg-canvas /);
     expect(Object.keys(uses(/(?<![\w-])(?:[a-z0-9-]+:)*bg-canvas(?![\w-])/g))).toEqual([
       "src/app/global-error.tsx",
@@ -173,17 +217,17 @@ describe("the glass's parts (globals.css utilities)", () => {
     );
   });
 
-  it("glass-float: what floats, the strongest; in Chrome it bends what's behind, never otherwise", () => {
+  // Phase 27.6: round 8's glass is sharp everywhere: nothing bends what's behind what floats (round
+  // 7's refraction, an SVG filter switched on in Chromium, is gone from the casual app too).
+  it("glass-float: what floats, the strongest, frosted and never bent", () => {
     const float = body("@utility glass-float");
     expect(float).toContain("background-color: var(--color-panel);");
     expect(float).toContain("-webkit-backdrop-filter: var(--float-filter);");
+    expect(float).toContain("  backdrop-filter: var(--float-filter);");
     expect(float).toContain("box-shadow: var(--float-shadow);");
-    expect(float).toMatch(/\.rf & \{\s*backdrop-filter: url\(#lg-refract\) var\(--float-filter\);/);
-    expect(float).toMatch(
-      /@media \(prefers-reduced-transparency: reduce\), \(prefers-contrast: more\) \{\s*\.rf & \{\s*backdrop-filter: none;/,
-    );
-    // The bending only there.
-    expect(css.match(/url\(#lg-refract\)/g)).toHaveLength(1);
+    expect(float).not.toMatch(/url\(|\.rf\b/);
+    // No bending anywhere: no filter by reference, no .rf switch.
+    expect(css).not.toMatch(/url\(#|lg-refract|\.rf\b/);
   });
 
   it("the clear parts, the main button, the track and the lens", () => {
@@ -198,10 +242,10 @@ describe("the glass's parts (globals.css utilities)", () => {
       "background-image: linear-gradient(180deg, var(--color-tint), var(--color-tint-shade));",
     );
     expect(tint).toContain("color: var(--color-on-tint);");
-    // Its soft drop in its own colour, through --tint-glow (round 8's office sets it to none).
-    expect(tint).toMatch(
-      /box-shadow:\s*var\(--tint-rim\),\s*var\(--tint-glow, 0 8px 22px color-mix\(in srgb, var\(--color-tint\) 32%, transparent\)\);/,
-    );
+    // Its edge and no glow (round 8: the office's since Phase 26, the casual app's since 27.6;
+    // round 7's soft drop in its own colour is gone).
+    expect(tint).toMatch(/box-shadow: var\(--tint-rim\);/);
+    expect(css).not.toMatch(/--tint-glow|color-mix\(in srgb, var\(--color-tint\)/);
     expect(body("@utility glass-rim")).toMatch(
       /^@utility glass-rim \{\s*box-shadow: var\(--glass-rim\);/,
     );
@@ -232,34 +276,26 @@ describe("the glass's parts (globals.css utilities)", () => {
     expect(css.match(/@media \(forced-colors: active\)/g)).toHaveLength(5);
   });
 
-  it("the bending: one filter in the root layout with a fixed, large region, switched on only in Chromium", () => {
-    const svg = renderToStaticMarkup(RefractionFilter());
-    expect(svg).toMatch(/^<svg aria-hidden="true" focusable="false"/);
-    expect(svg).toContain(
-      '<filter id="lg-refract" filterUnits="userSpaceOnUse" x="-2000" y="-2000" width="8000" height="8000" color-interpolation-filters="sRGB">',
-    );
-    for (const part of [
-      '<feTurbulence type="fractalNoise" baseFrequency="0.008 0.012" numOctaves="2" seed="11" result="noise"',
-      '<feGaussianBlur in="noise" stdDeviation="2" result="soft"',
-      '<feDisplacementMap in="SourceGraphic" in2="soft" scale="18" xChannelSelector="R" yChannelSelector="G"',
-    ])
-      expect(svg).toContain(part);
-    const source = read("src/app/glass-refraction.tsx");
-    expect(source).toContain('data?.brands?.some((b) => b.brand === "Chromium")');
-    expect(source).toContain('document.documentElement.classList.add("rf");');
+  // Phase 27.6 (round 8's glass is sharp): round 7's bending is gone, not just unused: no
+  // refraction filter in the root layout, no component that puts .rf on <html>, nothing in the
+  // app's code that names either.
+  it("no bending: no refraction filter, no .rf switch, anywhere", () => {
+    expect(existsSync(join(ROOT, "src/app/glass-refraction.tsx"))).toBe(false);
     const layout = read("src/app/layout.tsx");
-    expect(layout).toMatch(/<body[^>]*>\s*<RefractionFilter \/>\s*<GlassRefraction \/>/);
+    expect(layout).not.toMatch(/Refraction|<svg|<filter/);
+    expect(layout).toMatch(/<body[^>]*>\s*\{demo && <DemoBar \/>\}/);
+    const named = CODE.filter((file) =>
+      /lg-refract|feDisplacementMap|classList\.add\(["']rf["']\)|GlassRefraction/.test(read(file)),
+    );
+    expect(named).toEqual([]);
+    expect(css).not.toMatch(/lg-refract|\.rf\b/);
   });
 
   it("nothing blurs but the glass, a table's sticky headings and the bars' edges", () => {
-    // Declarations only (the @supports test below names it too): a section's, what floats' (and
-    // its bending, and that switched off, and switched off in round 8's office: Phase 26), the top
-    // bar's edge and the foot's (a shift's Take shift, Phase 24); each with Safari's prefix but the
-    // three that only Chrome reads.
-    expect(css.match(/^\s+backdrop-filter:/gm)).toHaveLength(7);
-    expect(css).toMatch(
-      /\.rf \[data-office\] \.glass-float \{\s*backdrop-filter: var\(--float-filter\);\s*\}/,
-    );
+    // Declarations only (the @supports test below names it too): a section's, what floats', the top
+    // bar's edge and the foot's (a shift's Take shift, Phase 24); each with Safari's prefix (round
+    // 7's bending, Chrome's alone, and the rules switching it off are gone: Phase 27.6).
+    expect(css.match(/^\s+backdrop-filter:/gm)).toHaveLength(4);
     expect(css.match(/^\s+-webkit-backdrop-filter:/gm)).toHaveLength(4);
     expect(body("@utility foot-edge")).toMatch(
       /-webkit-backdrop-filter: var\(--edge-filter\);\s+backdrop-filter: var\(--edge-filter\);/,
@@ -308,7 +344,7 @@ describe("the fallbacks", () => {
     expect(seeThrough).toEqual(TRANSLUCENT);
   });
 
-  it("less transparency or more contrast: every one solid, in light and both darks; no blur, no wash", () => {
+  it("less transparency or more contrast: every one solid, in light and both darks; no blur, no map", () => {
     for (const [name, pattern] of [
       ["light", BLOCKS.solid],
       ["the cookie's dark", BLOCKS.solidDark],
@@ -320,9 +356,13 @@ describe("the fallbacks", () => {
       for (const v of ["tile-top", "tile-bottom", "button-top", "button-bottom", "edge-fill"])
         expect(solid.get(v), `${name}: --${v}`).toMatch(/^#[0-9a-f]{6}$/);
     }
-    const solid = props(block(BLOCKS.solid));
-    for (const f of ["glass-filter", "float-filter", "edge-filter"])
-      expect(solid.get(f)).toBe("none");
+    // No blur in light or either dark (the dark blocks set their own 3px blur, so their fallbacks
+    // switch it off again: Phase 27.6).
+    for (const pattern of [BLOCKS.solid, BLOCKS.solidDark, BLOCKS.solidDeviceDark]) {
+      const solid = props(block(pattern));
+      for (const f of ["glass-filter", "float-filter", "edge-filter"])
+        expect(solid.get(f), `${pattern}: ${f}`).toBe("none");
+    }
     expect(css).toMatch(
       /@media \(prefers-reduced-transparency: reduce\), \(prefers-contrast: more\) \{[\s\S]*?body::before \{\s*display: none;\s*\}\s*\}/,
     );
@@ -393,10 +433,15 @@ describe("depth: a glass's rim and drop, through variables, and no other shadow"
     const root = props(block(BLOCKS.root));
     const dark = props(block(BLOCKS.dark));
     const device = props(block(BLOCKS.deviceDark));
+    // No drop at rest in any look (round 8: the office's since Phase 26, the casual app's since
+    // 27.6); every other value a theme's own.
+    const NO_DROP = ["glass-drop", "glass-drop-sm"];
     for (const v of VARS) {
       expect(root.get(v), v).toBeDefined();
       expect(dark.get(v), v).toBeDefined();
-      expect(dark.get(v), v).not.toBe(root.get(v));
+      if (NO_DROP.includes(v)) {
+        expect([root.get(v), dark.get(v)], v).toEqual(["0 0 #0000", "0 0 #0000"]);
+      } else expect(dark.get(v), v).not.toBe(root.get(v));
       expect(device.get(v), v).toBe(dark.get(v));
       // Light, the cookie's dark and the device's dark; and round 8's office, dark and light
       // (Phase 26): flat, an even hairline where there's one, no drop at rest.
@@ -421,10 +466,7 @@ describe("depth: a glass's rim and drop, through variables, and no other shadow"
     expect(inOwners).toEqual([1, 1, 1, 1, 1, 1, 1, 1]);
     expect(css.match(/box-shadow/g)).toHaveLength(owners.length);
     for (const value of css.matchAll(/box-shadow:\s*([^;]+);/g))
-      expect(
-        value[1]!.replace(/color-mix\(in srgb, var\(--color-tint\) 32%, transparent\)/, ""),
-        value[1],
-      ).not.toMatch(/rgb|#[0-9a-f]/i);
+      expect(value[1], value[1]).not.toMatch(/rgb|#[0-9a-f]|color-mix/i);
   });
 
   const USES: Record<string, string[]> = {
@@ -443,7 +485,7 @@ describe("depth: a glass's rim and drop, through variables, and no other shadow"
       for (const use of list) expect(DEPTH.test(use), `${file}: ${use}`).toBe(true);
   });
 
-  it("the pass is one glass card with its warm band (Phase 24); her booked day on the strip a sunk grey", () => {
+  it("the pass is one glass card with its band (Phase 24; round 8's plain one since 27.6); her booked day on the strip a sunk grey", () => {
     const pass = read("src/app/next-pass.tsx");
     expect(pass).toMatch(/className=\{`glass overflow-hidden rounded-3xl \$\{/);
     expect(pass).toMatch(/<div className="glass-band px-5 /);
@@ -486,10 +528,9 @@ describe("where the glass goes", () => {
 
   it("what floats is glass-float, each where it's pinned", () => {
     expect(uses(/(?<![\w-])(?:[a-z0-9-]+:)*glass-float(?![\w-])/g)).toEqual({
-      // The comments that name it, then: the top bar below 1024px, the account menu and the
-      // drawer; the search's panel. Round 8 (Phase 26): the rail is section glass, the counts
-      // chips, the search a flat pill and you no capsule: nothing floats there at rest.
-      "src/app/glass-refraction.tsx": ["glass-float"],
+      // The top bar below 1024px, the account menu and the drawer; the search's panel. Round 8
+      // (Phase 26): the rail is section glass, the counts chips, the search a flat pill and you no
+      // capsule: nothing floats there at rest.
       // The dashboard's Filter menu and its date choice (Phase 26.3), and its session card over the
       // map (its error, its "nothing to fill" and itself: round 8, Phase 26.2).
       "src/app/office/dashboard-view.tsx": ["glass-float", "glass-float"],
@@ -583,7 +624,7 @@ describe("where the glass goes", () => {
     expect(uses(/(?<![\w-])(?:[a-z0-9-]+:)*bg-(?:card|sheet)(?![\w-])/g)).toEqual({});
   });
 
-  it("the office's page has no card of its own: its sections are glass on the wash", () => {
+  it("the office's page has no card of its own: its sections are glass on the street map", () => {
     const frame = read("src/app/office/office-frame.tsx").replace(/^\s*\{?\/[/*].*$/gm, "");
     const page = /id="main"[\s\S]*?<div className="([^"]+)">/.exec(frame)?.[1];
     expect(page).toBe("flex-1");

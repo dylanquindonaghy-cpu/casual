@@ -600,10 +600,10 @@ for (const device of ["dark", "light"] as const) {
           const h1 = page.getByRole("heading", { level: 1 });
           await expect(h1, where).toBeVisible();
           await page.evaluate(() => document.fonts.ready);
-          // The browser tests run Chromium: once the page is running, glass-refraction.tsx puts .rf
-          // on <html> (the casual app's floating glass bends what's behind it; the office's doesn't:
-          // expectGlass checks).
-          await expect(page.locator("html"), where).toHaveClass(/(?:^|\s)rf(?:\s|$)/);
+          // Nothing bends anywhere (Phase 27.6): round 7's refraction, which put .rf on <html> in
+          // Chromium for the casual app's floating glass, is gone (expectGlass checks no float is
+          // bent, too).
+          await expect(page.locator("html"), where).not.toHaveClass(/(?:^|\s)rf(?:\s|$)/);
           await calm(page);
           // As a person first sees it (before measure() opens every hidden step).
           const kept = await keptRight(page);

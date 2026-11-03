@@ -571,11 +571,12 @@ describe("the office's tokens (src/app/globals.css)", () => {
     );
   });
 
-  // Phase 24 (round 7): gradients are the glass's: a tile's, the pass's warm band, a clear
-  // button's and the main button's fills, the wash's four lights and the bars' edges (the top
-  // bar's, and the foot's under a shift's Take shift), and the masks that fade an edge (the
-  // menu's, the bars'). None anywhere in the office's own files.
-  it("gradients only in the glass, the wash and the masks", () => {
+  // Phase 24 (round 7): gradients are the glass's: a tile's, the pass's band, a clear button's and
+  // the main button's fills and the bars' edges (the top bar's, and the foot's under a shift's Take
+  // shift), and the masks that fade an edge (the menu's, the bars'). Round 7's wash of four radial
+  // lights is gone (the office's since Phase 26, the casual app's since Phase 27.6: a street map in
+  // its place). None anywhere in the office's own files.
+  it("gradients only in the glass and the masks; no wash", () => {
     const gradient =
       /(?:repeating-)?(?:linear|radial|conic)-gradient\(|(?<![\w-])bg-(?:linear|radial|conic|gradient)-/;
     const inOffice = SOURCES.filter(({ text }) => gradient.test(text)).map(({ file }) => file);
@@ -591,10 +592,6 @@ describe("the office's tokens (src/app/globals.css)", () => {
       if (gradient.test(line)) owners.push(`${current}: ${line.trim().split(":")[0]}`);
     }
     expect(owners).toEqual([
-      "body::before: radial-gradient(70rem 48rem at -4% -10%, var(--wash-a), transparent 62%),",
-      "body::before: radial-gradient(62rem 48rem at 104% 4%, var(--wash-b), transparent 58%),",
-      "body::before: radial-gradient(62rem 50rem at 62% 104%, var(--wash-c), transparent 60%),",
-      "body::before: radial-gradient(56rem 44rem at 4% 96%, var(--wash-d), transparent 60%);",
       "@utility glass-tile: background-image",
       "@utility glass-band: background-image",
       "@utility glass-button: background-image",
@@ -615,9 +612,10 @@ describe("the office's tokens (src/app/globals.css)", () => {
   });
 
   // No grain, stripes, glows or colour cards (round 2's), and no picture: the only images are the
-  // glass's gradients, the refraction filter's url() (ui.glass.test.ts) and round 8's street map
-  // behind the office (one still picture: Phase 26, the pre-build audit's aud-16).
-  it("no grain, stripes, glows, tinted cards or pictures but the office's street map", () => {
+  // glass's gradients and round 8's street map behind every page (one still picture: Phase 26, the
+  // pre-build audit's aud-16; the casual app's too since Phase 27.6, when round 7's refraction
+  // filter and its url() went: ui.glass.test.ts).
+  it("no grain, stripes, glows, tinted cards or pictures but the street map", () => {
     expect(css).not.toMatch(
       /--(?:grain|stripes|tint-(?:urgent|attention|wait|done)|card-chip|glow-)/,
     );
@@ -626,10 +624,9 @@ describe("the office's tokens (src/app/globals.css)", () => {
     expect([...css.matchAll(/url\(([^)]*)\)/g)].map((m) => m[1])).toEqual([
       '"./office-streets.svg"',
       '"./office-streets.svg"',
-      "#lg-refract",
     ]);
     expect(css).toMatch(
-      /body:has\(\[data-office\]\)::before \{\s*background: var\(--map-road\);\s*-webkit-mask: url\("\.\/office-streets\.svg"\) center \/ cover no-repeat;\s*mask: url\("\.\/office-streets\.svg"\) center \/ cover no-repeat;\s*\}/,
+      /\n {2}body::before \{\s*content: "";\s*position: fixed;\s*inset: 0;\s*z-index: -1;\s*pointer-events: none;\s*background: var\(--map-road\);\s*-webkit-mask: url\("\.\/office-streets\.svg"\) center \/ cover no-repeat;\s*mask: url\("\.\/office-streets\.svg"\) center \/ cover no-repeat;\s*\}/,
     );
     // The picture itself: lines only, no fill, no text, no image inside it.
     const svg = read("src/app/office-streets.svg");

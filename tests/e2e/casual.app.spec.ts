@@ -190,16 +190,33 @@ test("Home shows Holly's photo row, the urgent row and her next shift in full", 
 
   // The theme follows the phone (§4.1; 12H.1 audit): no cookie set, so a dark phone gets the dark
   // page and tab bar (Phase 20; D7), a light one the light; the tab bar a floating glass capsule
-  // (Phase 24, round 7).
-  const LIGHT = { page: "rgb(238, 241, 248)", bar: "rgba(255, 255, 255, 0.78)" }; // #eef1f8
-  const DARK = { page: "rgb(7, 8, 12)", bar: "rgba(30, 30, 34, 0.8)" }; // #07080c
+  // (Phase 24). Round 8's look since Phase 27.6: the office's ground (off-white or charcoal) and
+  // floating glass (92% white, or 70% charcoal), frosted 12px and never bent; behind the page the
+  // street map, not round 7's wash.
+  const LIGHT = { page: "rgb(242, 242, 240)", bar: "rgba(255, 255, 255, 0.92)" }; // #f2f2f0
+  const DARK = { page: "rgb(15, 15, 16)", bar: "rgba(24, 24, 26, 0.7)" }; // #0f0f10
+  const FLOAT_FROST = "blur(12px) saturate(1.15)";
   const capsule = tabs.locator(":scope > div");
   await page.emulateMedia({ colorScheme: "dark" });
   await expect(page.locator("body")).toHaveCSS("background-color", DARK.page);
   await expect(capsule).toHaveCSS("background-color", DARK.bar);
+  await expect(capsule).toHaveCSS("backdrop-filter", FLOAT_FROST);
   await page.emulateMedia({ colorScheme: "light" });
   await expect(page.locator("body")).toHaveCSS("background-color", LIGHT.page);
   await expect(capsule).toHaveCSS("background-color", LIGHT.bar);
+  await expect(capsule).toHaveCSS("backdrop-filter", FLOAT_FROST);
+  const behind = await page.evaluate(() => {
+    const before = getComputedStyle(document.body, "::before");
+    return {
+      position: before.position,
+      z: before.zIndex,
+      lights: before.backgroundImage.match(/radial-gradient\(/g)?.length ?? 0,
+      map: /office-streets/.test(before.maskImage || before.webkitMaskImage || ""),
+    };
+  });
+  expect(behind).toEqual({ position: "fixed", z: "-1", lights: 0, map: true });
+  // Nothing bends: round 7's refraction switch (.rf on <html>) is gone.
+  await expect(page.locator("html")).not.toHaveClass(/(?:^|\s)rf(?:\s|$)/);
 
   // The urgent board's card: the site and both travel times.
   await urgentRow.click();

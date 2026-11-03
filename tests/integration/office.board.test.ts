@@ -762,7 +762,7 @@ describe("round 8: Updates", () => {
 });
 
 describe("round 8: Who worked? by name", () => {
-  it("each session to mark with the people still booked on it, by name; alike sessions together; the first three groups", async () => {
+  it("each session to mark with the people still booked on it, by name; alike sessions together; every group (the column shows the first three, then Show all)", async () => {
     const b = await boardFirm();
     const ended = await b.f.shift({ startsAt: hoursFromNow(-10), hours: 8, headcount: 3 });
     const zed = await b.f.worker({ first: "Zed" });
@@ -785,13 +785,11 @@ describe("round 8: Who worked? by name", () => {
       ["Bo Booker", twin],
       ["Zed Booker", ended],
     ]);
-    expect(w.length).toBeLessThanOrEqual(3);
-    // Needs attention's sessions, alike ones together, in its order.
+    // Every group of Needs attention's sessions, alike ones together, in its order (Phase 26.4:
+    // the column shows the first WHO_WORKED_GROUPS, the rest under "Show all": unit-tested).
     const items = ok(board.toMark).items;
     expect(w.map((g) => g.shiftIds)).toEqual(
-      toMarkGroups(items)
-        .slice(0, 3)
-        .map((g) => g.sessions.map((s) => s.shiftId)),
+      toMarkGroups(items).map((g) => g.sessions.map((s) => s.shiftId)),
     );
   });
 });

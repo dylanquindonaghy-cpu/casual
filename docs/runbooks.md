@@ -891,6 +891,11 @@ file is ours, on our own server (the pre-build audit's aud-8): no map company is
 told where anyone is. It's OpenStreetMap's data (from Protomaps' daily builds), so "©
 OpenStreetMap contributors" shows on the map: never hide it.
 
+The browser tests' street-map run (`npm run e2e:streets`, part of `npm run e2e`) runs this whole
+path with a tiny made-up map file: MapLibre reads it by byte range from the server's own path, its
+worker comes from `/office/map-worker`, and the streets draw. Your real file still needs the check
+by eye below once it's up.
+
 **Set it up (once, then once or twice a year to refresh):**
 
 1. On any computer, get the `pmtiles` tool (https://github.com/protomaps/go-pmtiles, its releases).

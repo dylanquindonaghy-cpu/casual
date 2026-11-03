@@ -98,8 +98,14 @@ export default defineConfig({
   testMatch: "**/*.spec.ts",
   // The walkthrough runs on its own, against a fresh database and a production build in demo mode
   // (playwright.walkthrough.config.ts, with demo.spec.ts), and so does the run with no text sender
-  // (playwright.no-texts.config.ts, P2.7); `npm run e2e` runs all three.
-  testIgnore: ["**/walkthrough.spec.ts", "**/demo.spec.ts", "**/no-texts.spec.ts"],
+  // (playwright.no-texts.config.ts, P2.7), and the one with the street map
+  // (playwright.streets.config.ts, Phase 26.2); `npm run e2e` runs all four.
+  testIgnore: [
+    "**/walkthrough.spec.ts",
+    "**/demo.spec.ts",
+    "**/no-texts.spec.ts",
+    "**/streets.spec.ts",
+  ],
   forbidOnly: ci,
   retries: ci ? 1 : 0,
   workers: 1,

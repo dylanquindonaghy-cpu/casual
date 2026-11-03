@@ -896,29 +896,36 @@ path with a tiny made-up map file: MapLibre reads it by byte range from the serv
 worker comes from `/office/map-worker`, and the streets draw. Your real file still needs the check
 by eye below once it's up.
 
-**Set it up (once, then once or twice a year to refresh):**
+**Set it up (once, then once or twice a year to refresh)**, on the server itself, so nothing big
+crosses your own connection. This is how the live demo got its map (2026-11-03, from a phone with
+Termius; `docs/mockups/round-8/launch-review-2026-11-03.md` §4):
 
-1. On any computer, get the `pmtiles` tool (https://github.com/protomaps/go-pmtiles, its releases).
-2. Find the newest world build's name (the last `key` in
-   https://build-metadata.protomaps.dev/builds.json, such as `20261102.pmtiles`; the whole world is
-   about 140 GB, so never download it). Cut out the UK; the tool reads only the parts it needs:
+1. Log in to the server as root (any SSH app; Termius works from a phone).
+2. Paste this one command. It finds the newest world build, cuts out the UK at zoom 13 (about
+   740 MB; zoom 14 is about 1.5 GB) into `/opt/shiftdesk/maps/uk.pmtiles` with the `pmtiles` tool's
+   Docker image, sets `MAP_TILES_URL=/maps/uk.pmtiles` in `/opt/shiftdesk/.env` (adding the line if
+   it's missing) and applies it (`deploy.sh --now`). It ends "ALL DONE: the street map is on.":
 
-   ```bash
-   pmtiles extract https://build.protomaps.com/20261102.pmtiles uk.pmtiles --bbox=-8.65,49.86,1.77,60.86
+   ```
+   B=$(curl -s https://build-metadata.protomaps.dev/builds.json | grep -o '[0-9]\{8\}\.pmtiles' | tail -1) && echo "Map build: $B" && mkdir -p /opt/shiftdesk/maps && docker run --rm -v /opt/shiftdesk/maps:/maps protomaps/go-pmtiles extract "https://build.protomaps.com/$B" /maps/uk.pmtiles --bbox=-8.65,49.86,1.77,60.86 --maxzoom=13 && ls -lh /opt/shiftdesk/maps && { grep -q '^MAP_TILES_URL=' /opt/shiftdesk/.env && sed -i 's|^MAP_TILES_URL=.*|MAP_TILES_URL=/maps/uk.pmtiles|' /opt/shiftdesk/.env || echo 'MAP_TILES_URL=/maps/uk.pmtiles' >> /opt/shiftdesk/.env; } && /opt/shiftdesk/deploy.sh --now && echo "ALL DONE: the street map is on."
    ```
 
-   Check its size (`ls -lh uk.pmtiles`) against the server's free disk (`df -h /opt/shiftdesk`).
-   Adding `--maxzoom=13` makes it smaller and still shows the streets around a venue.
-3. Copy it to the server as `/opt/shiftdesk/maps/uk.pmtiles` (Caddy serves that folder at
-   `/maps/`, read only, on every firm's address: `deploy/Caddyfile`).
-4. In `/opt/shiftdesk/.env` set `MAP_TILES_URL=/maps/uk.pmtiles`. The next deploy run applies it
-   (`deploy/deploy.sh` recreates the web app when `.env` changes).
-5. Check: `curl -sI -H "Range: bytes=0-15" https://<a firm's address>/maps/uk.pmtiles` answers
-   `206 Partial Content`; then open the dashboard: the map shows streets, its foot says "Drag to
-   move · Ctrl + scroll to zoom", and "© OpenStreetMap contributors" is at its bottom right.
+3. **If the server was set up before 2 Nov 2026** (Phase 26.2), its own copies of
+   `docker-compose.yml` and the `Caddyfile` predate the map: `/maps/uk.pmtiles` goes to the web app
+   (its 404) and the dashboard stays plain. Copy the newest ones out of the image (never `.env`) and
+   apply them; it ends "ALL DONE: the server's files are up to date." (the Parking lot, "The
+   server's own files never update themselves"):
 
-To refresh it, replace the file (same name) and reload the dashboard; nothing else changes. To turn
-the streets off, empty `MAP_TILES_URL`.
+   ```
+   cd /opt/shiftdesk && docker pull ghcr.io/dylanquindonaghy-cpu/casual:main && id=$(docker create ghcr.io/dylanquindonaghy-cpu/casual:main) && docker cp "$id":/app/deploy/. /opt/shiftdesk/ && docker rm "$id" && chmod 700 deploy.sh demo-reset.sh && ls -lh maps && grep '^MAP_TILES_URL=' .env && ./deploy.sh --now && echo "ALL DONE: the server's files are up to date."
+   ```
+
+4. Check: `curl -sI -H "Range: bytes=0-15" https://<a firm's address>/maps/uk.pmtiles | head -1`
+   says `HTTP/2 206` (Caddy serves `/maps/*` itself, so a demo server's password doesn't apply),
+   and the dashboard, reloaded, shows streets under the pins, "© OpenStreetMap contributors" in its
+   corner, and no longer "Placed by each venue's postcode".
+
+To refresh the map later, step 2 again: the new file replaces the old one.
 
 **The map shows no streets** (the foot still says "Placed by each venue's postcode"):
 

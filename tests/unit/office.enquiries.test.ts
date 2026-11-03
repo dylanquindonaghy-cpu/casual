@@ -341,3 +341,18 @@ describe("the travel check on an enquiry's reply", () => {
     );
   });
 });
+
+// "AI sorting isn't connected yet" (Phase 26.10, fix-5): admins only, and only while no AI is
+// connected; never a resourcer or payroll.
+describe("the AI banner on Enquiries", () => {
+  it("shows for an admin while no AI is connected, for nobody else", async () => {
+    const { AI_BANNER, showsAiBanner } = await import("@/lib/office/enquiries-copy");
+    expect(AI_BANNER).toBe(
+      "AI sorting isn't connected yet: messages without a keyword go to a person.",
+    );
+    expect(showsAiBanner("admin", "none")).toBe(true);
+    expect(showsAiBanner("admin", "anthropic")).toBe(false);
+    expect(showsAiBanner("resourcer", "none")).toBe(false);
+    expect(showsAiBanner("payroll", "none")).toBe(false);
+  });
+});

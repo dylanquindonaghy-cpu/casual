@@ -142,6 +142,86 @@ describe("who can be offered it, how, and who can't and why", () => {
     expect(await ids({ reachable: { texts: false } })).toEqual([ann, ben].sort());
   });
 
+  // Every other reason, and the first that applies when two do (the claims-auditor's round 1).
+  it("each other reason someone isn't offered it, the first that applies, and a role with no rule", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const resourcer = await f.office("resourcer");
+    // Tuesday 15:00 to 23:00, not urgent; two places, so one booking elsewhere leaves room.
+    const shiftId = await f.shift({ startsAt: hoursFromNow(30), headcount: 2 });
+    // At a venue, so a block from it can apply.
+    const { rows: at } = await su.query<{ id: string }>(
+      "insert into sites (firm_id, name) values ($1, 'Reach Arena') returning id::text",
+      [f.firmId],
+    );
+    const siteId = at[0]?.id;
+    if (!siteId) throw new Error("no site");
+    await su.query("update shifts set site_id = $2 where id = $1", [shiftId, siteId]);
+    const offerOf = (workerId: string, onShift: string) =>
+      su.query(
+        `insert into offers (firm_id, shift_id, worker_id, wave, channel, sent_at)
+         values ($1, $2, $3, 1, 'sms', $4)`,
+        [f.firmId, onShift, workerId, hoursFromNow(-30)],
+      );
+    const jo = await f.worker({ first: "Jo" }); // cancelled off it
+    await f.booking(jo, shiftId, "cancelled_worker", 2);
+    const kit = await f.worker({ first: "Kit" }); // already offered it
+    await offerOf(kit, shiftId);
+    const lou = await f.worker({ first: "Lou" }); // booked elsewhere then (Tue 17:00)
+    await f.booking(lou, await f.shift({ startsAt: hoursFromNow(32) }));
+    const max = await f.worker({ first: "Max" }); // ends 10:00 Tue: 5 hours before, 11 needed
+    await f.booking(max, await f.shift({ startsAt: hoursFromNow(17) }));
+    const ned = await f.worker({ first: "Ned" }); // 48 hours booked from Thursday to Sunday
+    for (const start of [72, 96, 120, 144]) {
+      await f.booking(ned, await f.shift({ startsAt: hoursFromNow(start), hours: 12 }));
+    }
+    const oli = await f.worker({ first: "Oli" }); // marked Tuesday unavailable
+    await su.query(
+      "insert into worker_unavailable_days (firm_id, worker_id, day) values ($1, $2, '2026-11-03')",
+      [f.firmId, oli],
+    );
+    const pam = await f.worker({ first: "Pam" }); // blocked from the site
+    await su.query(
+      "insert into worker_site_blocks (firm_id, worker_id, site_id, reason) values ($1, $2, $3, 'incident')",
+      [f.firmId, pam, siteId],
+    );
+    // Two reasons: the first that applies.
+    const rex = await f.worker({ first: "Rex" }); // offers off, and booked elsewhere then
+    await su.query("update workers set offer_alerts = false where id = $1", [rex]);
+    await f.booking(rex, await f.shift({ startsAt: hoursFromNow(31) }));
+    const sue = await f.worker({ first: "Sue" }); // cancelled off it, and offered it before
+    await f.booking(sue, shiftId, "cancelled_worker", 2);
+    await offerOf(sue, shiftId);
+    const tom = await f.worker({ first: "Tom" }); // free: offered as usual
+
+    const ctx = { firm: { id: f.firmId }, run: withFirm, clock: { now: () => NOW } };
+    const token = (
+      await withFirm(f.firmId, (tx) =>
+        createSession(tx, { kind: "office", subjectId: resourcer, now: NOW }),
+      )
+    ).token;
+    const page = await officeOfferPage(ctx, token, shiftId);
+    if (!page) throw new Error("no page");
+    expect(page.candidates.map((c) => c.workerId)).toEqual([tom]);
+    expect(Object.fromEntries(page.notOffered.map((n) => [n.workerId, n.why]))).toEqual({
+      [jo]: "cancelled",
+      [kit]: "offered",
+      [lou]: "elsewhere",
+      [max]: "rest",
+      [ned]: "hours",
+      [oli]: "unavailable",
+      [pam]: "blocked",
+      [rex]: "offers_off",
+      [sue]: "cancelled",
+    });
+
+    // A role with no rule for it: nobody can be offered it, each says why.
+    const lifeguard = await f.worker({ first: "Uma", roles: ["lifeguard"] });
+    const noRule = await f.shift({ role: "lifeguard", startsAt: hoursFromNow(30) });
+    const unruled = await officeOfferPage(ctx, token, noRule);
+    expect(unruled?.candidates).toEqual([]);
+    expect(unruled?.notOffered.map((n) => [n.workerId, n.why])).toEqual([[lifeguard, "no_rule"]]);
+  });
+
   it("an urgent session isn't held to the day's offers; more than 20 left out are counted", async () => {
     const f = await bookingFirm(su, withFirm);
     const resourcer = await f.office("resourcer");

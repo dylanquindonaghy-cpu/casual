@@ -137,11 +137,7 @@ export function ContractForm({
         </ul>
       </fieldset>
       <div className="flex flex-wrap items-start gap-3">
-        <button
-          type="submit"
-          disabled={pending || !ready}
-          className={contract ? btn.secondary : btn.primary}
-        >
+        <button type="submit" disabled={pending || !ready} className={btn.secondary}>
           {contract ? SAVE_CONTRACT : ADD_CONTRACT}
         </button>
         {contract && (

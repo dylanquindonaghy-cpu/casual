@@ -118,7 +118,8 @@ export function WebhookPanel({
           <p id={hintId} className={hint}>
             The https address your planner gives you for webhooks. Keep it secret, like a password.
           </p>
-          <button type="submit" className={`${btn.primary} self-start`} disabled={off}>
+          {/* An ordinary button: "Create a key" is the page's one hi-vis button (round 8, sys-3). */}
+          <button type="submit" className={`${btn.secondary} self-start`} disabled={off}>
             Add a webhook
           </button>
         </form>

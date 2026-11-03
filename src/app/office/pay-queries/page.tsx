@@ -96,7 +96,7 @@ export default async function PayQueriesPage() {
               ))}
             </ul>
           </div>
-          <SortGroupForm ids={g.queries.map((q) => q.id)} />
+          <SortGroupForm ids={g.queries.map((q) => q.id)} main={i === 0} />
         </section>
       ))}
       {data.more && <p className={`mt-4 ${meta}`}>Showing the newest 2,000.</p>}

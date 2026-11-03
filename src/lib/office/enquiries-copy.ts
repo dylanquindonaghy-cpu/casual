@@ -51,6 +51,11 @@ export const emptyTodayText = (inbox: boolean) =>
     : "Nothing to the shifts line today.";
 export const showLastDaysText = (days: number) => `Show the last ${days} days`;
 
+// Who sees the AI banner (Phase 26.10, fix-5): admins only, and only while no AI is connected; it's
+// about the firm's setup, not a resourcer's work.
+export const showsAiBanner = (role: string, aiTransport: string): boolean =>
+  role === "admin" && aiTransport === "none";
+
 export const AI_BANNER =
   "AI sorting isn't connected yet: messages without a keyword go to a person.";
 

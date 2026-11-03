@@ -353,3 +353,46 @@ describe("ProfileView: the staff photo (12F.2)", () => {
     expect(html).toMatch(/<input type="file" accept="image\/\*" capture="user"/);
   });
 });
+
+// Their own reliability (Phase 26.7, cas-6; the claims-auditor's round 1): the figure and counts
+// the office sees, with the line that it doesn't change which shifts they're offered.
+describe("ProfileView: Your reliability", () => {
+  it("a figure over the last 90 days, with the counts and what it's for", () => {
+    const page = text(
+      render(
+        profile({
+          reliability: {
+            kind: "figure",
+            percent: 83,
+            band: "amber",
+            counts: { worked: 5, noShows: 1, lateCancels: 0 },
+          },
+        }),
+      ),
+    );
+    expect(page).toContain("Your reliability");
+    expect(page).toContain("83% over the last 90 days");
+    expect(page).toContain("5 worked · 1 no-show · 0 late cancellations");
+    expect(page).toContain(
+      "Shifts you worked, out of those plus no-shows and cancellations with under 48 hours' notice. Our office sees the same figure. It doesn't change which shifts you're offered.",
+    );
+  });
+
+  it("new: how many so far, and when it becomes a figure", () => {
+    const page = text(
+      render(
+        profile({
+          reliability: {
+            kind: "new",
+            counted: 2,
+            counts: { worked: 1, noShows: 0, lateCancels: 1 },
+          },
+        }),
+      ),
+    );
+    expect(page).toContain("Your reliability");
+    expect(page).toContain("New: 2 shifts so far . It shows as a figure once you have 5.");
+    expect(page).toContain("1 worked · 0 no-shows · 1 late cancellation");
+    expect(page).toContain("It doesn't change which shifts you're offered.");
+  });
+});

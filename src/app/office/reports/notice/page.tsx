@@ -12,6 +12,7 @@ import {
   ASKED_BY_WORDS,
   INITIATOR_WORDS,
   KIND_WORDS,
+  noticeWords,
   officeNoticeReport,
   parseNoticeQuery,
   REPORT_KINDS,
@@ -23,7 +24,6 @@ import {
   type OfficeNoticeReport as NoticeReport,
   type ReportKind,
 } from "@/lib/office/notice-report";
-import { noticeText } from "@/lib/portal/cancel-reasons";
 
 export const metadata: Metadata = { title: "Notice and cancellation report" };
 
@@ -50,13 +50,6 @@ const THRESHOLD_WORDS: Record<NoticeReport["threshold"]["source"], string> = {
   default: "your firm hasn't set its own, so the usual one is used",
   invalid: "your firm's setting isn't a number of hours from 1 to 720, so the usual 48 is used",
 };
-
-// The notice as the office reads it (Phase 26.10, fix-6): "22 hours' notice", "2 days' notice",
-// or "After the start". The exact hours stay on the cancellation record, its PDF and the CSVs.
-function noticeWords(hours: number): string {
-  if (hours < 0) return "After the start";
-  return noticeText(hours).replace(/^./, (c) => c.toUpperCase());
-}
 
 // The notice and cancellation report (docs/screens.md `/office/reports/notice`): every offer,
 // booking, move, shortening and cancellation, with when, who started it and the notice the worker

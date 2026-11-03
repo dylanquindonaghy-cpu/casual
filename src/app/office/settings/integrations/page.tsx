@@ -105,7 +105,7 @@ export default async function IntegrationsPage() {
         </p>
         <div className={`${headingGap} flex max-w-2xl flex-col gap-3`}>
           <details className={card}>
-            <summary className="press cursor-pointer font-semibold">
+            <summary className="press flex min-h-11 cursor-pointer items-center font-semibold">
               Role codes ({data.roles.length})
             </summary>
             {data.roles.length === 0 ? (
@@ -122,7 +122,7 @@ export default async function IntegrationsPage() {
             )}
           </details>
           <details className={card}>
-            <summary className="press cursor-pointer font-semibold">
+            <summary className="press flex min-h-11 cursor-pointer items-center font-semibold">
               Qualification codes ({data.qualifications.length})
             </summary>
             {data.qualifications.length === 0 ? (

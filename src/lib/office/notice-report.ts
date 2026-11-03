@@ -5,6 +5,7 @@ import { currentOfficeUser } from "../auth/office-login";
 import { canAccess } from "../auth/roles";
 import { firms, type CancelAsker } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
+import { noticeText } from "../portal/cancel-reasons";
 import { roleLabel } from "../portal/format";
 import { addDays, localDateOf, wallTimeOf, zonedToUtc } from "../time/zoned";
 import { dayWithYear } from "./action-log";
@@ -334,6 +335,14 @@ export const FILTER_KIND_WORDS: Record<ReportKind, string> = {
 };
 
 // "09:14 on Mon 2 Nov" (the year when it isn't this year).
+// The notice as the office reads it on the report (Phase 26.10, fix-6): "22 hours' notice", "2
+// days' notice", or "After the start", never the exact hours in brackets. The exact hours stay on
+// the cancellation record, its PDF and the CSVs.
+export function noticeWords(hours: number): string {
+  if (hours < 0) return "After the start";
+  return noticeText(hours).replace(/^./, (c) => c.toUpperCase());
+}
+
 export function whenWords(instant: Date, timeZone: string, thisYear: string): string {
   const w = wallTimeOf(instant, timeZone);
   return `${pad(w.hour)}:${pad(w.minute)} on ${dayWithYear(localDateOf(instant, timeZone), thisYear)}`;

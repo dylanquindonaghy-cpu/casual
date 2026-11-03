@@ -343,7 +343,7 @@ export function OfficeFrame({
                   ref={you}
                   type="button"
                   popoverTarget={ACCOUNT_MENU_ID}
-                  className="press inline-flex min-h-11 items-center gap-2 rounded-full p-1 text-left hover:bg-raised active:bg-button-press sm:pr-3 lg:min-h-10 lg:py-0 lg:pr-2 lg:pl-1"
+                  className="press inline-flex min-h-11 items-center gap-2 rounded-full p-1 text-left hover:bg-raised active:bg-button-press sm:pr-3 lg:py-0 lg:pr-2 lg:pl-1"
                 >
                   <span
                     aria-hidden="true"

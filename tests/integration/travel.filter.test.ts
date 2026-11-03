@@ -384,6 +384,26 @@ describe("offer waves", () => {
     );
     expect(office.map((c) => c.workerId)).toContain(outside);
   });
+
+  // The office's list says so (Phase 26.9, off-5): "Outside their travel area", in amber.
+  it("the office's list marks the casual outside the area, not the one inside or unknown", async () => {
+    const t = await filterFirm();
+    const [inside, outside, unknown] = [
+      await t.casual("car", 30, "ZZ2 2BB"),
+      await t.casual("car", 30, "ZZ3 3CC"),
+      await t.casual("car", 30, "ZZ4 4DD"),
+    ];
+    const shiftId = await t.session(48);
+    await t.estimate(shiftId, "car", 20, "ZZ2 2BB");
+    await t.estimate(shiftId, "car", 60, "ZZ3 3CC");
+    const office = await withFirm(t.f.firmId, (tx) =>
+      officeOfferCandidates(tx, shiftId, NOW, true),
+    );
+    const flag = Object.fromEntries(office.map((c) => [c.workerId, c.outsideArea]));
+    expect(flag[inside]).toBe(false);
+    expect(flag[outside]).toBe(true);
+    expect(flag[unknown]).toBe(false);
+  });
 });
 
 describe("what the area never stops", () => {

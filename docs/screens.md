@@ -283,7 +283,8 @@ Page title "Updates".
     while the place is open again, else **Open** (the record).
   - "{Zoe Adeyemi} sent a staff photo" with **Check** (the casual).
   - A place taken and offers with no reply with **Open**.
-  - Offer the place is the main button; the rest are secondary.
+  - Offer the place is the main button; the rest are secondary. With several, only the first is the
+    main (hi-vis) one: at most one per screen (sys-3; Phase 26.10's look checks).
 - **New:** a place taken, a casual's cancellation or (with "Uploads to check" on) an upload since the
   person last pressed "Mark all as seen" has a hi-vis dot before its title (read as "New: …"). "Mark all as seen" marks what
   the page showed, as of when it was drawn (an update after that stays new), never backwards, each

@@ -91,6 +91,38 @@ test("counts open their tabs; Remind, a note and Mark as sorted on Need updating
   await row.getByRole("button", { name: "Mark as sorted: Ruth Reminder" }).click();
   await expect(row.getByText(/^Sorted by Follow Up Resourcer · /)).toBeVisible();
 
+  // Remind all (cas-4): a second casual of the spec's own (a number of each try's own, so a retry
+  // within the day still has someone to remind) is on the button's count; pressing it reminds
+  // everyone on it, says so, and they drop off it for 24 hours (Ruth, reminded above and now
+  // sorted, was never on it).
+  const rob = {
+    firstName: "Rob",
+    lastName: "Reminder",
+    mobileE164: `+44770090068${2 + testInfo.retry}`,
+  };
+  await addQualifiedCasual("acme", rob, {
+    roles: ["door_supervisor"],
+    held: [{ type: "SIA_DS", daysAhead: -5 }],
+  });
+  await page.goto(`${acme}/office/casuals?view=needs`);
+  const remindAll = page.getByRole("button", { name: /^Remind all \d+$/ });
+  await expect(remindAll).toBeVisible();
+  const before = Number(((await remindAll.textContent()) ?? "").replace(/\D+/g, ""));
+  expect(before).toBeGreaterThanOrEqual(1);
+  await remindAll.click();
+  await expect(
+    page.getByRole("status").filter({
+      hasText:
+        before === 1
+          ? "Reminder on its way. It's in the log."
+          : `${before} reminders on their way.`,
+    }),
+  ).toBeVisible();
+  await page.reload();
+  const robRow = page.getByRole("row").filter({ hasText: "Rob Reminder" });
+  await expect(robRow.getByText(/^Reminded by Follow Up Resourcer · /)).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Remind all \d+$/ })).toHaveCount(0);
+
   // Her page: her reliability and the note.
   await page.goto(`${acme}/office/casuals/${ruth}`);
   await expect(page.getByRole("region", { name: "Reliability" })).toContainText(

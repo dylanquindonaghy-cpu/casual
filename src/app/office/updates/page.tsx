@@ -60,6 +60,11 @@ function Rows({
   seenAt: Date | null;
   uploads: boolean; // uploads count as new ("Tell me about")
 }) {
+  // One hi-vis button on the screen (round 8, sys-3): the first "Offer the place"; the rest are
+  // ordinary buttons with the same words and link.
+  const firstOffer = items.findIndex(
+    (u) => updateRow(u, now, timeZone).action?.label === "Offer the place",
+  );
   return (
     <ul role="list" className="flex flex-col divide-y divide-line">
       {items.map((u, i) => {
@@ -102,7 +107,7 @@ function Rows({
               {r.action && (
                 <Link
                   href={r.action.href}
-                  className={r.action.label === "Offer the place" ? btn.primary : btn.secondary}
+                  className={i === firstOffer ? btn.primary : btn.secondary}
                 >
                   {r.action.label}
                 </Link>

@@ -400,6 +400,51 @@ const slip = (page: Page) =>
     };
   });
 
+// aud-6, oth-2 and sys-3 on one page: the first Tab lands on the skip link with the focus ring (a real key
+// press: a script's focus() doesn't show the ring); every button you can see in the page or its
+// frame is at least 44px tall; and no table row holds two status pills. Each problem is named.
+async function keptRight(page: import("@playwright/test").Page) {
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await page.keyboard.press("Tab");
+  const found = await page.evaluate(() => {
+    const active = document.activeElement as HTMLElement | null;
+    const style = active ? getComputedStyle(active) : null;
+    // What you can see: the browser's own test (a closed check step's content still has a size,
+    // but isn't shown), and a size.
+    const visible = (el: Element) => {
+      const r = el.getBoundingClientRect();
+      return (
+        el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) &&
+        r.width > 0 &&
+        r.height > 0
+      );
+    };
+    const small = [...document.querySelectorAll("button, summary, [role='button']")]
+      .filter((el) => visible(el) && !el.closest("[aria-hidden='true']"))
+      .filter((el) => Math.round(el.getBoundingClientRect().height) < 44)
+      .map(
+        (el) =>
+          `${el.tagName.toLowerCase()} "${(el.getAttribute("aria-label") ?? el.textContent ?? "").trim().slice(0, 40)}" ${Math.round(el.getBoundingClientRect().height)}px`,
+      );
+    const hivis = [...document.querySelectorAll("main a.glass-tint, main button.glass-tint")]
+      .filter(visible)
+      .map((el) => (el.textContent ?? "").trim().slice(0, 40));
+    const pills = [...document.querySelectorAll("main tbody tr")]
+      .filter((tr) => tr.querySelectorAll("[class*='office:min-h-7']").length > 1)
+      .map((tr) => (tr.textContent ?? "").trim().slice(0, 60));
+    return {
+      skip: active?.textContent?.trim() ?? "",
+      ring: style ? `${style.outlineWidth} ${style.outlineStyle}` : "",
+      small,
+      pills,
+      hivis,
+    };
+  });
+  await page.keyboard.press("Escape");
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  return found;
+}
+
 // Each office look, with the device set the other way: dark with no choice made (on a light
 // device), light when picked (on a dark one).
 for (const device of ["dark", "light"] as const) {
@@ -511,6 +556,8 @@ for (const device of ["dark", "light"] as const) {
       // pass over none).
       let primaries = 0;
       let sections = 0;
+      let checked = 0;
+      const problems: string[] = [];
       // The page headers with actions, and the pages with tabs, seen at each width (Phase 24, 24.5).
       const headers = new Map<number, number>();
       const tabbed = new Map<number, number>();
@@ -527,6 +574,8 @@ for (const device of ["dark", "light"] as const) {
           // expectGlass checks).
           await expect(page.locator("html"), where).toHaveClass(/(?:^|\s)rf(?:\s|$)/);
           await calm(page);
+          // As a person first sees it (before measure() opens every hidden step).
+          const kept = await keptRight(page);
           const look = await measure(page);
           expectGlass(look, where, device);
           // No page card: the page's own box has no fill, no edge, no corners, no depth.
@@ -576,10 +625,26 @@ for (const device of ["dark", "light"] as const) {
           expect(look.glassParts, where).toBeGreaterThan(0);
           sections += look.sections;
           primaries += look.primaries.length;
+          // What today's office gets right, kept on every round 8 page (aud-6): one heading, the
+          // skip link first in the tab order with the focus ring, 44px buttons; and a table row has
+          // one status pill at most (oth-2).
+          // Every page's problems are gathered and named together, below.
+          await expect(page.getByRole("heading", { level: 1 }), where).toHaveCount(1);
+          if (kept.skip !== "Skip to content") problems.push(`${where}: first Tab "${kept.skip}"`);
+          if (kept.ring !== "2px solid") problems.push(`${where}: focus ring "${kept.ring}"`);
+          for (const b of kept.small) problems.push(`${where}: under 44px: ${b}`);
+          for (const r of kept.pills) problems.push(`${where}: two status pills: ${r}`);
+          // At most one hi-vis button on the screen (sys-3): those you can see (a "Yes, …" inside a
+          // closed check step shows only once it's opened).
+          if (kept.hivis.length > 1)
+            problems.push(`${where}: hi-vis buttons: ${kept.hivis.join(" | ")}`);
+          checked += 1;
         }
       }
       expect(primaries).toBeGreaterThan(0);
       expect(sections).toBeGreaterThan(50);
+      expect(checked).toBeGreaterThan(40);
+      expect(problems).toEqual([]);
       // Headers with actions were seen at both widths (Cancellations, Pay, the shifts list and
       // more), so the check above never passes over none.
       for (const size of WIDTHS)

@@ -183,6 +183,46 @@ describe("myProfile", () => {
   });
 });
 
+describe("their own reliability (Phase 26.7, cas-6)", () => {
+  it("the same figure and counts the office sees, over the last 90 days; New below 5", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const sam = await f.worker({ first: "Sam" });
+    const ann = await f.worker({ first: "Ann" });
+    // Sam: 5 worked and 1 not attended in the last weeks (5 of 6: 83%); one worked 100 days ago
+    // doesn't count.
+    for (let i = 1; i <= 6; i++) {
+      await f.booking(
+        sam,
+        await f.shift({ role: "steward", startsAt: hoursFromNow(-i * 48) }),
+        i === 3 ? "no_show" : "completed",
+      );
+    }
+    await f.booking(
+      sam,
+      await f.shift({ role: "steward", startsAt: hoursFromNow(-100 * 24) }),
+      "completed",
+    );
+    // Ann: one worked, so far.
+    await f.booking(
+      ann,
+      await f.shift({ role: "steward", startsAt: hoursFromNow(-30) }),
+      "completed",
+    );
+
+    expect((await myProfile(ctxFor(f), sam))?.reliability).toEqual({
+      kind: "figure",
+      percent: 83,
+      band: "amber",
+      counts: { worked: 5, noShows: 1, lateCancels: 0 },
+    });
+    expect((await myProfile(ctxFor(f), ann))?.reliability).toEqual({
+      kind: "new",
+      counted: 1,
+      counts: { worked: 1, noShows: 0, lateCancels: 0 },
+    });
+  });
+});
+
 describe("marking days unavailable", () => {
   it("marks and clears a day, logging each change with the date only", async () => {
     const f = await bookingFirm(su, withFirm);

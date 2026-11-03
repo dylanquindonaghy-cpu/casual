@@ -1,0 +1,1 @@
+ALTER TABLE "office_users" ADD COLUMN "updates_seen_at" timestamp with time zone;

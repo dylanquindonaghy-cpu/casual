@@ -295,6 +295,39 @@ its proposal, once that proposal gets the go-ahead; until then the app works as 
 | 16 | **Decided** (Dylan, 2026-10-28: recommended): login links and pay codes by email, built now and switched off per firm; the login and Pay pages' words change after the UI chat's Phase 24, `docs/screens.md` first | WhatsApp only | P2.6; P2.7 |
 | 17 | **Decided** (Dylan, 2026-10-28: recommended): build "who sends what" now: every booking records where it came from, and a firm setting stops ShiftDesk's confirmation and reminders for bookings the firm's own system made | ShiftDesk sends for every booking | P2.2; P2.3 |
 
+### Office review (added 2026-11-02)
+
+For proposals P9 (rows 1 to 5: the review and its mock-up,
+https://claude.ai/artifact/N2xeceFhjsDVdA9eopsAGs, "Your decisions") and P10 (rows 6 to 9: round 8,
+https://claude.ai/artifact/2cHizkZcrYG7C8U8C1H3cF) in `PLAN.md`. **All nine decided** (Dylan,
+2026-11-02, in chat: "1 yes 2 yes 3 yes 4 yes 5 yes all yes to all recommendations"): each row's
+"Recommended" is the decision, built as Phase 26. The same message put the fake job worker's clock
+fix (the offer-wave timing tests failing from 09:00 that day) into the review's PR, as recommended.
+
+| # | Decision | Default now | Recommended | Where |
+|---|---|---|---|---|
+| 1 | What a "contract" is, for a resourcer choosing theirs | No such idea: events, sites and roles only | A client that owns one or more sites, set by the admin; a resourcer picks clients and sees every site under them (a new table: S, T) | P9 B, C |
+| 2 | "Who has applied": keep instant booking, or let casuals apply | A casual's "Take shift" books at once (first yes wins); nobody applies | A setting per event: "Casuals take places" (now; best for urgent and overnight) or "Casuals ask, you choose" ("I can do this", the office picks from a list sorted by reliability) | P9 G |
+| 3 | How reliability is worked out, who sees it, and whether it changes who's offered first | Not worked out; offers ranked by hours this week, then last offered | Last 90 days: worked ÷ (worked + no-shows + cancellations under 48 hours), counts beside it; "Regular" = worked in 6 of the last 8 weeks; the office and the casual both see it; offer order unchanged until a month of pilot data | P9 A |
+| 4 | Which ways an offer can reach a casual | Push, then WhatsApp or text, then email (the code); WhatsApp on screen and the default | App notification, then a text through the firm's Webex account, then email; email a casual's choice; WhatsApp only through a firm's own WhatsApp Business number, later, if wanted | P9 H; Phase 15.1 |
+| 5 | Office alerts: what, to whom, how | Nothing on a cancellation; an email for a place still free 3 h before start | A live feed and a pop-up for each cancellation (on); a phone or desktop notification for cancellations under 48 hours and places open 6 h before start; each resourcer chooses, for their contracts only | P9 C |
+| 6 | Move the office away from glass (round 7, approved 2026-10-26) to round 8's flat look after Haulix (https://claude.ai/artifact/2cHizkZcrYG7C8U8C1H3cF) | Round 7: glass on a pastel wash | Yes, the office only; the casual app keeps its look (used outdoors on phones). **Amended** (Dylan, 2026-11-02, "can we make the sections ... a bit more glass looking"): the panels and their cards are glass on the charcoal, "translucent and sharp" (see-through over a faint street map, one hairline edge, tight corners, no gloss); still no pastel wash or coloured glow | P10 |
+| 7 | Dark by default in the office | Follows the device; light unless set | Dark by default, with a light version on the same flat rules | P10 |
+| 8 | The office's one accent | Firm colour on the main button, plus a separate app blue | Hi-vis yellow in the office; the firm's colour stays on its mark and in the casual app | P10 |
+| 9 | A map service for the venue map | None | MapLibre (open source) with a dark style from a UK or EU tile host, or a self-hosted map file; without one, a cover grid by venue and day | P10 |
+
+### Built with a safe default, for Dylan to confirm (added 2026-11-02)
+
+**All three decided** (Dylan, 2026-11-03, in chat: "yes to all three defaults"): each row's "Built
+as" is the decision, so nothing in the code changes. For 12 that means no purge: the notes stay
+until the casual's details are erased, not the 12 months the row recommended.
+
+| # | Decision | Built as (the safe default) | The other way | Where |
+|---|---|---|---|---|
+| 10 | How far ahead an event's "Offer N open places" (Phase 26.5) offers | **Decided** (Dylan, 2026-11-03). Only sessions starting within the firm's urgent window (`urgent_window_hours`, 24 by default); one further ahead is offered from its own card ("Offer to the best 5"), one at a time. The page says how many start further ahead. | Every open session of the event, however far ahead. Urgent offers aren't held to a casual's daily limit (3 a day), so one press on an event two weeks out with 15 open sessions could send the same few door supervisors up to 15 offers in minutes (the guardrails review's M3). | `src/lib/office/event-offers.ts`; docs/screens.md "An event's page, round 8" |
+| 11 | Whether an offer still books itself on an event where "Casuals ask, you choose" is on (Phase 26.6) | **Decided** (Dylan, 2026-11-03). Yes: a casual holding an offer of the session (the office's own, or its waves' after the office marked it urgent) taps "Take shift" as before; everyone else asks. The office chose to offer it to them, and urgent sessions keep filling at once. | Everyone asks, offered or not: an offer would then only invite them to ask, and an urgent session in such an event waits for the office to book from the list. | `src/lib/roster/asks.ts` (`officeChooses`); docs/screens.md "A session, and who wants it" |
+| 12 | How long the office's notes about a casual are kept (Phase 26.7, `casual_notes`) | **Decided** (Dylan, 2026-11-03). Until the casual's details are erased (a GDPR erasure on Data requests); no purge. In the casual's export; never in the log. | 12 months after the note, by the nightly purge (like a request's words, `retention.request_note_days`), never during a hold. Recommended: notes are free text about a person, so UK GDPR's storage limit wants an end date; the guardrails review's M2. | `src/lib/office/casual-follow-up.ts`; docs/compliance.md "Retention defaults" |
+
 ### Checks and to-dos (not choices)
 
 | # | What | Who | Where |

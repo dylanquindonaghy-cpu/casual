@@ -56,6 +56,7 @@ export const SHIFT_PROBLEM_TEXT: Record<ShiftProblem, string> = {
   text_too_long: "The instructions are too long (2,000 characters at most).",
   no_lines: "Fill in at least one shift.",
   bad_event_name: "Enter the event's name (200 characters at most).",
+  bad_event: "That event isn't there any more. Go back to Events & sessions and choose it again.",
   bad_pay: "Enter the pay rate in pounds an hour, like 12.50 (£1,000 at most).",
   post_too_long: "The post is too long (200 characters at most).",
   details_too_long: "The meeting point and the uniform can each be 300 characters at most.",
@@ -227,6 +228,11 @@ export function assignResultText(result: BookingResult | Common, name: string): 
       return "Try again in a few minutes.";
     case "needs_approval":
       return "This rota can't be changed from here.";
+    case "ask_first":
+      // A casual's own booking only: the office never gets it.
+      return COMMON.error;
+    case "not_asking":
+      return `${name} isn't asking any more (answered since), so wasn't booked.`;
     default:
       return COMMON[result.status];
   }

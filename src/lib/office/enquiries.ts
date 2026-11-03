@@ -440,7 +440,7 @@ export async function loadEnquiry(
     Omit<ListRow, "channel"> & {
       channel: Channel;
       to_e164: string | null;
-      notify_channel: "whatsapp" | "sms" | null;
+      notify_channel: "sms" | "email" | null;
       sms_opted_out_at: string | Date | null;
     }
   >(sql`
@@ -1184,7 +1184,7 @@ export async function replyPlanFor(
     channel: Channel;
     from_e164: string | null;
     worker_id: string | null;
-    notify_channel: "whatsapp" | "sms" | null;
+    notify_channel: "sms" | "email" | null;
     sms_opted_out_at: string | Date | null;
   },
   now: Date,

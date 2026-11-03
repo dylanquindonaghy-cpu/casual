@@ -2,6 +2,7 @@ import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { CANCELLED_ASSIGNMENT_STATUSES, offers } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
+import { closeAsksOnFill } from "../roster/asks";
 
 // Offers still waiting when their shift fills are answered at once, whatever filled it and whatever
 // the firm's allocation mode: a worker taking the last place, the office placing someone (Assign)
@@ -39,7 +40,8 @@ export async function acceptOwnOffer(
 
 // Closes every offer of the shift still waiting: holders' as accepted, the rest filled elsewhere.
 // For a caller that already knows the shift is full (the office marking it filled, a wave finding
-// it filled).
+// it filled). Casuals' asks for it close the same way, and those still waiting are told (Phase 26.6,
+// src/lib/roster/asks.ts).
 export async function closeOpenOffers(
   tx: FirmTx,
   shiftId: string,
@@ -68,6 +70,7 @@ export async function closeOpenOffers(
       data: { reason: "filled", ...closed },
     });
   }
+  await closeAsksOnFill(tx, shiftId, now);
   return closed;
 }
 

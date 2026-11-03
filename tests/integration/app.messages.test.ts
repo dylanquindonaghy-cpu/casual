@@ -118,7 +118,10 @@ async function appFirm() {
 }
 
 const signOff = (name: string) => `${name} Shift Team`;
+// The shifts line's automatic line (an echo quotes it), and the app's own (Phase 26.10, fix-3:
+// without "Send OFFICE to reach a person.").
 const AUTOMATIC = "Automatic reply. Send OFFICE to reach a person.";
+const APP_AUTOMATIC = "Automatic reply.";
 
 describe("a casual's message in the app", () => {
   it("is stored as theirs with no numbers, its words tidied, and one job queued in their group", async () => {
@@ -196,7 +199,7 @@ describe("a casual's message in the app", () => {
       to_e164: null,
       intent: "pay",
       reply_to: id,
-      body: `Your hours, rates and pay dates: https://${t.slug}.shiftdesk.test/pay (you'll get a code to log in). ${AUTOMATIC} — ${signOff(t.name)}`,
+      body: `Your hours, rates and pay dates: https://${t.slug}.shiftdesk.test/pay (you'll get a code to log in). ${APP_AUTOMATIC} — ${signOff(t.name)}`,
     });
     expect(answer?.provider_message_id).toMatch(/^app:[0-9a-f-]{36}$/);
     expect(t.line.sent).toEqual([]);
@@ -222,7 +225,7 @@ describe("a casual's message in the app", () => {
     const answer = (await t.rowsOf()).find((r) => r.direction === "out");
     expect(answer?.body).toMatch(/^Hi Kay, /);
     expect(answer?.body).toContain(`https://${t.slug}.shiftdesk.test/`);
-    expect(answer?.body?.endsWith(`\n${AUTOMATIC}\n— ${signOff(t.name)}`)).toBe(true);
+    expect(answer?.body?.endsWith(`\n${APP_AUTOMATIC}\n— ${signOff(t.name)}`)).toBe(true);
     const [checks] = await t.eventsOf("enquiry.checks");
     expect(checks?.data).toMatchObject({ sent: true, channel: "app", workerId: t.kay });
     expect(t.line.sent).toEqual([]);
@@ -255,7 +258,7 @@ describe("a casual's message in the app", () => {
     const ref = q[0]?.id.slice(0, 8).toUpperCase();
     const answer = (await t.rowsOf()).filter((r) => r.direction === "out").at(-1);
     expect(answer?.body).toBe(
-      `The office will see this and get back to you. Ref ${ref}. ${AUTOMATIC} — ${signOff(t.name)}`,
+      `The office will see this and get back to you. Ref ${ref}. ${APP_AUTOMATIC} — ${signOff(t.name)}`,
     );
     expect((await t.eventsOf("request.created")).at(-1)?.data).toEqual({
       type: "general",

@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { getWorkerSession } from "@/lib/auth/current-worker";
+import { askShift, type AskShiftOutcome } from "@/lib/portal/ask-shift";
 import { takeShift, type TakeShiftOutcome } from "@/lib/portal/take-shift";
 import { requestLog } from "@/lib/request";
 import { getCurrentFirm } from "@/lib/tenancy/current-firm";
@@ -19,6 +20,21 @@ export async function takeShiftAction(shiftId: string): Promise<TakeShiftOutcome
     return await takeShift({ firm }, session.worker.id, id.data);
   } catch (error) {
     (await requestLog()).error("take shift failed", { firmId: firm.id, error });
+    return { status: "error" };
+  }
+}
+
+// "I can do this" (Phase 26.6): the same as "Take shift", for a session the office chooses for.
+export async function askShiftAction(shiftId: string): Promise<AskShiftOutcome> {
+  const firm = await getCurrentFirm();
+  const session = await getWorkerSession();
+  if (!session) return { status: "logged_out" };
+  const id = z.uuid().safeParse(shiftId);
+  if (!id.success) return { status: "gone" };
+  try {
+    return await askShift({ firm }, session.worker.id, id.data);
+  } catch (error) {
+    (await requestLog()).error("ask for shift failed", { firmId: firm.id, error });
     return { status: "error" };
   }
 }

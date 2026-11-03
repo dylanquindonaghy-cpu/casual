@@ -25,6 +25,14 @@ import {
 } from "@/lib/office/shift-editor";
 import { importShiftsFile, type ShiftImportResult } from "@/lib/office/shift-import";
 import { setShowing, setShowingSchema, type SetShowingResult } from "@/lib/office/showing";
+import { setCasualsAsk, type SetCasualsAskResult } from "@/lib/office/casuals-ask";
+import {
+  bookBestSchema,
+  bookTheBest,
+  notThisTime,
+  type BookBestResult,
+} from "@/lib/office/session-asks-office";
+import type { DeclineAskResult } from "@/lib/roster/asks";
 import {
   ATTENDANCE_OUTCOMES,
   type MarkAttendanceResult,
@@ -205,4 +213,35 @@ export async function markRestWorkedAction(
 ): Promise<MarkRestWorkedResult | Common> {
   if (!z.uuid().safeParse(shiftId).success) return { status: "not_found" };
   return asOffice("mark the rest worked", (ctx) => markTheRestWorked(ctx, shiftId));
+}
+
+// "Casuals ask, you choose" (Phase 26.6): the event's switch, "Not this time" for one ask, and
+// "Book the best N" (each through the one booking path).
+const casualsAskSchema = z.strictObject({ eventId: z.uuid(), on: z.boolean() });
+
+export async function setCasualsAskAction(
+  raw: unknown,
+): Promise<SetCasualsAskResult | Common | { status: "invalid" }> {
+  const input = casualsAskSchema.safeParse(raw);
+  if (!input.success) return { status: "invalid" };
+  return asOffice("set casuals ask", (ctx) => setCasualsAsk(ctx, input.data));
+}
+
+export async function notThisTimeAction(
+  shiftId: string,
+  workerId: string,
+): Promise<DeclineAskResult | Common> {
+  if (!z.uuid().safeParse(shiftId).success || !z.uuid().safeParse(workerId).success) {
+    return { status: "not_waiting" };
+  }
+  return asOffice("not this time", (ctx) => notThisTime(ctx, shiftId, workerId));
+}
+
+export async function bookTheBestAction(
+  shiftId: string,
+  workerIds: unknown,
+): Promise<BookBestResult | Common> {
+  const ids = bookBestSchema.safeParse(workerIds);
+  if (!z.uuid().safeParse(shiftId).success || !ids.success) return { status: "nobody" };
+  return asOffice("book the best", (ctx) => bookTheBest(ctx, shiftId, ids.data));
 }

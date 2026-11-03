@@ -18,32 +18,38 @@ import {
 import { railCookie } from "./rail-cookie";
 import { foldBadge, railItems, tipWords, type RailItem } from "./rail-items";
 
-// The office menu from 1024px (Phase 24, round 7 of the canvas; docs/ui-design.md "Office shell"):
-// a floating glass column at the left, 72px wide, that stays put as the page scrolls. At its top the
-// firm's mark (its initial on its own colour), and under it the rail's own button, which opens the
-// rail to 236px with names and counts and shuts it to icons again (kept in the sd-rail cookie:
-// rail-cookie.ts). Then the menu's links, in its order (office-menu.ts): Dashboard, Needs attention,
-// Events & sessions, Enquiries and Cancellations as icons; Pay and People as folds; under a line,
-// Admin and records, a fold too. Pressing a fold while the rail is shut opens the rail with that
-// fold open. A red dot on an icon whose page needs you (a count that `needs` this person: Needs
-// attention, enquiries that need a person, uploads to check, pay queries for payroll), on a fold's
-// icon when one of its pages does. Shut, an icon's name shows beside it under the pointer and on
-// keyboard focus (with its count's words), stays while the pointer moves onto it, and Escape puts it
-// away (WCAG 1.4.13). Shut, it's 585px tall: in a window under 640px it scrolls, with no bar (its
-// names then show only with the rail open). The page you're on sits under a white glass lens, its icon in the accent; a
-// fold holding it wears the lens while it's shut. Plain links and buttons (no list items, headings,
-// regions or menu roles, which the browser tests count on pages), each named by its words alone,
-// its count's words read after it. Below 1024px the drawer holds the menu instead (office-nav.tsx).
+// The office menu from 1024px (Phase 24, round 7 of the canvas; round 8's look since Phase 26;
+// docs/ui-design.md "Office shell"): a glass column at the left, 72px wide, that stays put as the
+// page scrolls. At its top the firm's mark (its initial in hi-vis: round 8), and under it the rail's
+// own button, which opens the rail to 236px with names and counts and shuts it to icons again (kept
+// in the sd-rail cookie: rail-cookie.ts). Then the menu's links, in its order (office-menu.ts):
+// Dashboard, Needs attention, Events & sessions, Enquiries and Cancellations as icons; Pay and People
+// as folds; under a line, Admin and records, a fold too. Pressing a fold while the rail is shut opens
+// the rail with that fold open. A red dot on an icon whose page needs you (a count that `needs` this
+// person: Needs attention, enquiries that need a person, uploads to check, pay queries for payroll),
+// on a fold's icon when one of its pages does. Shut, an icon's name shows beside it under the pointer
+// and on keyboard focus (with its count's words), stays while the pointer moves onto it, and Escape
+// puts it away (WCAG 1.4.13). Shut, it's 585px tall: in a window under 640px it scrolls, with no bar
+// (its names then show only with the rail open). Shut, each icon is a dark circle and the page
+// you're on a solid white one (ink on the light look), its icon dark; a fold holding it is the same
+// while it's shut. Plain links and buttons (no list items, headings, regions or menu roles, which the
+// browser tests count on pages), each named by its words alone, its count's words read after it.
+// Below 1024px the drawer holds the menu instead (office-nav.tsx).
 
 export const RAIL_ID = "office-rail";
 
+// Round 8 (Phase 26): shut, each icon a dark circle with its hairline (`glass-button`, flat in the
+// office) and the page you're on a solid white one (ink, its icon on-ink: white on the dark office,
+// ink on the light one); open, rows, the page you're on the same solid fill.
 const ROW =
   "press peer relative z-10 flex shrink-0 items-center text-base whitespace-nowrap disabled:cursor-default";
-const SHUT = "size-12 justify-center rounded-full";
+const SHUT = "size-11 justify-center rounded-full";
 const OPEN = "min-h-11 w-full gap-3 rounded-row px-3 text-left";
 const CHILD = "min-h-9.5 w-full gap-3 rounded-row px-3 text-left";
 const IDLE = "text-ink-muted hover:bg-active hover:text-ink active:bg-button-press";
-const LIT = "lens font-medium text-ink";
+const IDLE_SHUT =
+  "glass-button text-ink-muted hover:bg-button-hover hover:text-ink active:bg-button-press";
+const LIT = "bg-ink font-medium text-on-ink";
 
 function Count({ badge }: { badge: MenuBadge }) {
   return (
@@ -61,7 +67,7 @@ function Dot() {
     <span
       aria-hidden="true"
       data-rail-dot=""
-      className="absolute top-2 right-2 size-3 rounded-full border-2 border-panel bg-urgent bg-clip-padding"
+      className="absolute top-1 right-1 size-3 rounded-full border-2 border-canvas bg-urgent-fill bg-clip-padding"
     />
   );
 }
@@ -161,13 +167,13 @@ export function OfficeRail({
           onNavigate={() => start(l.href)}
           onFocus={back}
           onBlur={back}
-          className={`${ROW} ${child ? CHILD : open ? OPEN : SHUT} ${lit ? LIT : IDLE}`}
+          className={`${ROW} ${child ? CHILD : open ? OPEN : SHUT} ${lit ? LIT : named ? IDLE : IDLE_SHUT}`}
         >
           {child ? (
             // Where a fold's icon is, so its pages' names line up with its own.
             <span aria-hidden="true" className="w-5 shrink-0" />
           ) : (
-            <Icon name={l.icon} className={lit ? "text-accent" : "text-ink-muted"} />
+            <Icon name={l.icon} className={lit ? "text-on-ink" : "text-ink-muted"} />
           )}
           <span className={named ? "min-w-0 flex-1 truncate" : "sr-only"}>{l.label}</span>
           <MenuPendingReporter href={l.href} />
@@ -202,9 +208,9 @@ export function OfficeRail({
                 setChosen((c) => ({ ...c, [id]: true }));
               } else setChosen((c) => ({ ...c, [id]: !expanded }));
             }}
-            className={`${ROW} ${open ? OPEN : SHUT} ${lit ? LIT : IDLE}`}
+            className={`${ROW} ${open ? OPEN : SHUT} ${lit ? LIT : open ? IDLE : IDLE_SHUT}`}
           >
-            <Icon name={icon} className={lit ? "text-accent" : "text-ink-muted"} />
+            <Icon name={icon} className={lit ? "text-on-ink" : "text-ink-muted"} />
             <span className={open ? "min-w-0 flex-1 truncate" : "sr-only"}>{group.label}</span>
             {open && badge && !expanded ? <Count badge={badge} /> : null}
             {open ? (
@@ -236,7 +242,7 @@ export function OfficeRail({
       ref={rail}
       id={RAIL_ID}
       data-rail={open ? "open" : "shut"}
-      className={`glass-float sticky top-3 z-30 mt-3 hidden flex-col self-start rounded-card px-2 py-4 transition-[width] duration-200 ease-sd lg:flex ${open ? "max-h-[calc(100dvh-1.5rem)] w-59" : "scrollbar-none w-18 items-center [@media(height<40rem)]:max-h-[calc(100dvh-1.5rem)] [@media(height<40rem)]:overflow-y-auto"}`}
+      className={`glass sticky top-3 z-30 mt-3 hidden flex-col self-start rounded-card px-2 py-4 transition-[width] duration-200 ease-sd lg:flex ${open ? "max-h-[calc(100dvh-1.5rem)] w-59" : "scrollbar-none w-18 items-center [@media(height<40rem)]:max-h-[calc(100dvh-1.5rem)] [@media(height<40rem)]:overflow-y-auto"}`}
     >
       {/* The firm (its name only while the rail is open), then the rail's own button. */}
       <div

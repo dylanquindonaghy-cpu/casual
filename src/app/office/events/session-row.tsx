@@ -74,7 +74,7 @@ export function SessionItem({
         </div>
         <div className="flex items-start gap-2">
           <span
-            className={`flex min-h-11 items-center whitespace-nowrap text-sm font-semibold tabular-nums ${short && !s.ended ? "text-urgent" : "text-ink"}`}
+            className={`flex min-h-11 items-center whitespace-nowrap text-sm font-semibold tabular-nums ${short && !s.ended ? "text-urgent-ink" : "text-ink"}`}
           >
             {filledText(s)}
           </span>

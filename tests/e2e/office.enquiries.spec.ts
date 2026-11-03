@@ -80,9 +80,8 @@ test("Need a person: reply to one unknown number, close another with a reason", 
   await link.click();
   await expect(page).toHaveURL(`${acme}/office/enquiries`);
   await expect(page.getByRole("heading", { name: "Enquiries", level: 1 })).toBeVisible();
-  await expect(
-    page.getByText("AI sorting isn't connected yet: messages without a keyword go to a person."),
-  ).toBeVisible();
+  // About the firm's setup: admins only (Phase 26.10, fix-5); this is a resourcer.
+  await expect(page.getByText("AI sorting isn't connected yet")).toHaveCount(0);
   await expect(
     page.getByText(/^\d+ enquir(y|ies) today · \d+ needs? a person, the oldest /),
   ).toBeVisible();

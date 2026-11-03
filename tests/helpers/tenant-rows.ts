@@ -10,6 +10,8 @@ export const EXPECTED_TABLES = [
   "api_keys",
   "assignments",
   "auth_throttle",
+  "casual_notes",
+  "clients",
   "connector_events",
   "credential_rules",
   "credential_types",
@@ -24,6 +26,8 @@ export const EXPECTED_TABLES = [
   "metrics_daily",
   "name_map",
   "offers",
+  "office_push_subscriptions",
+  "office_user_clients",
   "office_users",
   "otp_codes",
   "pay_queries",
@@ -31,6 +35,7 @@ export const EXPECTED_TABLES = [
   "push_subscriptions",
   "requests",
   "roster_sources",
+  "session_asks",
   "sessions",
   "sheet_name_problems",
   "shift_events",
@@ -106,6 +111,24 @@ export async function createTenant(su: Pool): Promise<Tenant> {
     firmId,
     `Site ${next()}`,
   ]);
+  // A contract (Phase 26.3) and the office user looking after it. Not this firm's site's: the
+  // isolation tests delete the contract (rolled back), and sites_client_fk has no ON DELETE action.
+  const clientId = await one(su, "insert into clients (firm_id, name) values ($1, $2)", [
+    firmId,
+    `Client ${next()}`,
+  ]);
+  const officeUserClientId = await one(
+    su,
+    "insert into office_user_clients (firm_id, office_user_id, client_id) values ($1, $2, $3)",
+    [firmId, officeUserId, clientId],
+  );
+  // The office user's browser with notifications on (Phase 26.4).
+  const officePushSubscriptionId = await one(
+    su,
+    `insert into office_push_subscriptions (firm_id, office_user_id, endpoint, p256dh, auth)
+     values ($1, $2, $3, 'test-p256dh', 'test-auth')`,
+    [firmId, officeUserId, `https://push.example.test/office-${next()}`],
+  );
   const credentialId = await one(
     su,
     "insert into credentials (firm_id, worker_id, type) values ($1, $2, 'SIA_DS')",
@@ -247,6 +270,12 @@ export async function createTenant(su: Pool): Promise<Tenant> {
     "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, 1, 'push')",
     [firmId, shiftId, rosterWorkerId],
   );
+  const sessionAskId = await one(
+    su,
+    `insert into session_asks (firm_id, shift_id, worker_id, asked_at)
+     values ($1, $2, $3, now())`,
+    [firmId, shiftId, rosterWorkerId],
+  );
   const webhookStatusId = await one(
     su,
     `insert into webhook_status (firm_id, address_set_at, last_delivered_at)
@@ -335,6 +364,20 @@ export async function createTenant(su: Pool): Promise<Tenant> {
      select $1, 'Our planner', $3, 'k3F9', u.id from u`,
     [firmId, `key-maker-${next()}@example.com`, hash()],
   );
+  // Written by the planner key's maker (its own office user, access off): the isolation tests
+  // delete rows.office_users (rolled back), and the note's link to its author has no ON DELETE
+  // action.
+  const noteAuthorId = (
+    await su.query<{ id: string }>("select created_by::text as id from api_keys where id = $1", [
+      apiKeyId,
+    ])
+  ).rows[0]?.id;
+  const casualNoteId = await one(
+    su,
+    `insert into casual_notes (firm_id, worker_id, office_user_id, body)
+     values ($1, $2, $3, 'Called about the licence')`,
+    [firmId, rosterWorkerId, noteAuthorId],
+  );
   // A WhatsApp from the rota worker (no ON DELETE action on its worker link either); the reply
   // link is tested in FK_CASES.
   const messageId = await one(
@@ -373,6 +416,9 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       workers: workerId,
       office_users: officeUserId,
       sites: siteId,
+      clients: clientId,
+      office_user_clients: officeUserClientId,
+      office_push_subscriptions: officePushSubscriptionId,
       credentials: credentialId,
       events: eventId,
       magic_links: magicLinkId,
@@ -386,6 +432,8 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       assignments: assignmentId,
       requests: requestId,
       offers: offerId,
+      session_asks: sessionAskId,
+      casual_notes: casualNoteId,
       roster_sources: rosterSourceId,
       connector_events: connectorEventId,
       firm_secrets: secretId,
@@ -432,6 +480,21 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
   sites: (firmId) => ({
     text: "insert into sites (firm_id, name) values ($1, $2)",
     values: [firmId, `Probe site ${next()}`],
+  }),
+  clients: (firmId) => ({
+    text: "insert into clients (firm_id, name) values ($1, $2)",
+    values: [firmId, `Probe client ${next()}`],
+  }),
+  // One per office user and contract: a new contract for the firm's office user.
+  office_user_clients: (firmId, p) => ({
+    text: `with c as (insert into clients (firm_id, name) values ($1, $3) returning id)
+           insert into office_user_clients (firm_id, office_user_id, client_id)
+           select $1, $2, c.id from c`,
+    values: [firmId, p.officeUserId, `Probe contract ${next()}`],
+  }),
+  office_push_subscriptions: (firmId, p) => ({
+    text: "insert into office_push_subscriptions (firm_id, office_user_id, endpoint, p256dh, auth) values ($1, $2, $3, 'k', 'a')",
+    values: [firmId, p.officeUserId, `https://push.example.test/office-extra-${next()}`],
   }),
   credentials: (firmId, p) => ({
     text: "insert into credentials (firm_id, worker_id, type) values ($1, $2, 'PTS')",
@@ -517,6 +580,19 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
   offers: (firmId, p) => ({
     text: "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, $4, 'whatsapp')",
     values: [firmId, p.rows.shifts, p.rosterWorkerId, 1 + next()],
+  }),
+  casual_notes: (firmId, p) => ({
+    text: "insert into casual_notes (firm_id, worker_id, office_user_id, body) values ($1, $2, $3, 'Probe note')",
+    values: [firmId, p.workerId, p.officeUserId],
+  }),
+  // On a session of its own: one ask per casual and session.
+  session_asks: (firmId, p) => ({
+    text: `with s as (
+             insert into shifts (firm_id, event_id, site_id, role, starts_at, ends_at)
+             values ($1, $2, $3, 'steward', $4, $5) returning id)
+           insert into session_asks (firm_id, shift_id, worker_id, asked_at)
+           select $1, s.id, $6, now() from s`,
+    values: [firmId, p.rows.shift_events, p.rosterSiteId, ...shiftTimes(), p.rosterWorkerId],
   }),
   worker_unavailable_days: (firmId, p) => ({
     text: "insert into worker_unavailable_days (firm_id, worker_id, day) values ($1, $2, $3)",
@@ -727,6 +803,22 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
     text: "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, $4, 'sms')",
     values: [firmId, own.rows.shifts, other.workerId, 1 + next()],
   }),
+  casual_notes_worker_fk: (firmId, own, other) => ({
+    text: "insert into casual_notes (firm_id, worker_id, office_user_id, body) values ($1, $2, $3, 'x')",
+    values: [firmId, other.workerId, own.officeUserId],
+  }),
+  casual_notes_office_user_fk: (firmId, own, other) => ({
+    text: "insert into casual_notes (firm_id, worker_id, office_user_id, body) values ($1, $2, $3, 'x')",
+    values: [firmId, own.workerId, other.officeUserId],
+  }),
+  session_asks_shift_fk: (firmId, own, other) => ({
+    text: "insert into session_asks (firm_id, shift_id, worker_id, asked_at) values ($1, $2, $3, now())",
+    values: [firmId, other.rows.shifts, own.workerId],
+  }),
+  session_asks_worker_fk: (firmId, own, other) => ({
+    text: "insert into session_asks (firm_id, shift_id, worker_id, asked_at) values ($1, $2, $3, now())",
+    values: [firmId, own.rows.shifts, other.workerId],
+  }),
   offers_offered_by_fk: (firmId, own, other) => ({
     text: "insert into offers (firm_id, shift_id, worker_id, offered_by, channel) values ($1, $2, $3, $4, 'sms')",
     values: [firmId, own.rows.shifts, own.rosterWorkerId, other.officeUserId],
@@ -738,6 +830,26 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
   worker_site_blocks_worker_fk: (firmId, own, other) => ({
     text: "insert into worker_site_blocks (firm_id, worker_id, site_id, reason) values ($1, $2, $3, 'other')",
     values: [firmId, other.workerId, own.rosterSiteId],
+  }),
+  // Contracts (Phase 26.3): a site, and an office user's choice, only with the firm's own.
+  sites_client_fk: (firmId, _own, other) => ({
+    text: "insert into sites (firm_id, name, client_id) values ($1, $2, $3)",
+    values: [firmId, `Probe site ${next()}`, other.rows.clients],
+  }),
+  // Each with a fresh partner row (a new contract, a new office user), so the firm's own case never
+  // repeats the pair the tenant already has.
+  office_user_clients_office_user_fk: (firmId, _own, other) => ({
+    text: `with c as (insert into clients (firm_id, name) values ($1, $3) returning id)
+           insert into office_user_clients (firm_id, office_user_id, client_id)
+           select $1, $2, c.id from c`,
+    values: [firmId, other.officeUserId, `Probe contract ${next()}`],
+  }),
+  office_user_clients_client_fk: (firmId, _own, other) => ({
+    text: `with u as (insert into office_users (firm_id, email, name, role)
+                      values ($1, $3, 'Probe', 'resourcer') returning id)
+           insert into office_user_clients (firm_id, office_user_id, client_id)
+           select $1, u.id, $2 from u`,
+    values: [firmId, other.rows.clients, `probe${next()}@example.com`],
   }),
   worker_site_blocks_site_fk: (firmId, own, other) => ({
     text: "insert into worker_site_blocks (firm_id, worker_id, site_id, reason) values ($1, $2, $3, 'other')",
@@ -774,6 +886,10 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
                                       max_minutes, privacy_notice_version, updated_at)
            values ($1, $2, 'ZZ3 3CC', 53.89, -1.49, 'car', 60, 'travel-v1', now())`,
     values: [firmId, other.rosterWorkerId],
+  }),
+  office_push_subscriptions_office_user_fk: (firmId, _own, other) => ({
+    text: "insert into office_push_subscriptions (firm_id, office_user_id, endpoint, p256dh, auth) values ($1, $2, $3, 'k', 'a')",
+    values: [firmId, other.officeUserId, `https://push.example.test/office-fk-${next()}`],
   }),
   push_subscriptions_worker_fk: (firmId, _own, other) => ({
     text: "insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth) values ($1, $2, $3, 'k', 'a')",

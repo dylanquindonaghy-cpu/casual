@@ -268,7 +268,8 @@ function GettingAround({ role, menu }: { role: OfficeRole; menu: MenuGroup[] }) 
       </Para>
       <Para>
         The button beside them switches between dark and light too. Its name says which:{" "}
-        <Name>Switch to dark mode</Name> or <Name>Switch to light mode</Name>.
+        <Name>Switch to dark mode</Name> or <Name>Switch to light mode</Name>. The office is dark
+        until you pick light.
         {/* Needs attention is in the menu only for the roles with it, the "today" area
             (src/app/office/office-menu.ts). */}
         {canAccess(role, "today")
@@ -286,29 +287,25 @@ function listWords(items: string[]): string {
     : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
 
-// The dashboard's parts (Phase 24, round 7): the places chart, the chosen session, and the board's
-// four columns.
+// The dashboard's parts (round 8, Phase 26.2): the venue map, the chosen session on it, and the
+// three columns under it.
 const DASHBOARD_SECTIONS: [string, ReactNode][] = [
   [
-    "Places to fill",
-    "A bar for each day of this week and next: the places with no offers out, and on them the places offered with no reply yet.",
+    "The venue map",
+    "A pin for each venue with places to fill: its number is its places, red when one is urgent, a dashed ring when it's hidden from casuals. Select a pin to see its soonest session. Each venue is placed by its postcode.",
   ],
   [
     "The chosen session",
-    "Its day and time, where, its places to fill, how soon it starts, the offers sent and who hasn't replied. Offer to someone and Open the shift are under it; … has Mark as filled and Not urgent.",
+    "On the map (under it on a phone): its day and time, where, its pay, how many are booked, how soon it starts, who can take it and who hasn't replied. Offer to someone and Open the shift are under it; … has Mark as filled and Not urgent.",
   ],
+  ["To offer", "Every session with places to fill, soonest first: the first four, then View all."],
   [
-    "To offer",
-    "Sessions with places to fill and no offers out: never offered, or everyone offered has answered.",
-  ],
-  ["Offered", "Sessions with an offer waiting for a reply, and how many offers are out."],
-  [
-    "While you were out",
-    "Places casuals took themselves from offers between 18:00 and 08:00, with how the offer reached them and when they said yes.",
+    "Updates",
+    "The last two days: places casuals took, cancellations with their notice and strike, photos and certificates to check, and offers with no reply.",
   ],
   [
     "Who worked?",
-    "Sessions from the last 7 days with people not marked yet. Select one to mark who worked.",
+    "Sessions from the last 7 days with people not marked yet, each person by name: Worked or Didn't attend, or Everyone else worked.",
   ],
 ];
 
@@ -336,8 +333,8 @@ function DashboardPart() {
   return (
     <>
       <Para>
-        The <Name>Dashboard</Name> is the page you land on after logging in. It shows the places
-        still to fill, the offers waiting for a reply, and what happened while you were out.
+        The <Name>Dashboard</Name> is the page you land on after logging in. It shows where the
+        places still to fill are, the offers waiting for a reply, and what has happened lately.
       </Para>
       <Steps>
         <Step>
@@ -347,11 +344,13 @@ function DashboardPart() {
         <Step>
           <Name>All</Name>, <Name>Urgent</Name>, <Name>This week</Name> and <Name>Next week</Name>{" "}
           choose the sessions with places to fill that the board shows. Each says how many there
-          are.
+          are. <Name>Filter</Name> shows one role only; <Name>Show full venues</Name> puts the
+          venues with nothing to fill on the map too.
         </Step>
         <Step>
-          Select a session&apos;s card to see it in full beside the chart.{" "}
-          <Name>Open the shift</Name> goes to its page, where you can change everything about it.
+          Select a pin on the map, or a session under <Name>To offer</Name>, to see it in full on
+          the map. <Name>Open the shift</Name> goes to its page, where you can change everything
+          about it.
         </Step>
         <Step>
           <Name>Needs attention</Name> lists everything someone has to sort out, in full. The bar at
@@ -414,9 +413,9 @@ function FillAGap({ role }: { role: OfficeRole }) {
     <>
       <Para>
         A gap is a shift with a place free. Every one is on the dashboard, under{" "}
-        <Name>To offer</Name> or <Name>Offered</Name> (<Name>Urgent</Name> shows only the urgent
-        ones). Select one to see it in full: <Name>Mark as filled</Name> and <Name>Not urgent</Name>{" "}
-        are under its <Name>…</Name>. Every session and its places free is on{" "}
+        <Name>To offer</Name> and on its map (<Name>Urgent</Name> shows only the urgent ones).
+        Select one to see it in full: <Name>Mark as filled</Name> and <Name>Not urgent</Name> are
+        under its <Name>…</Name>. Every session and its places free is on{" "}
         <Name>Events &amp; sessions</Name>, where its <Name>…</Name> menu has them too.
       </Para>
       <Task title="To offer it to someone">
@@ -691,7 +690,7 @@ function AfterAShift() {
         attended”.
       </Note>
       <Links>
-        <GoTo href="/office/needs-attention#to-mark" icon="home">
+        <GoTo href="/office#who-worked" icon="home">
           See who to mark
         </GoTo>
       </Links>
@@ -1090,7 +1089,7 @@ function WorkersSee() {
   return (
     <>
       <Points>
-        <li>There&apos;s no app. Workers get a link by WhatsApp or text that logs them in.</li>
+        <li>There&apos;s no app. Workers get a link by text that logs them in.</li>
         <li>A login link works for 15 minutes. They can ask for a new one on the log in page.</li>
         <li>
           They see their shifts, take open shifts, cancel with a reason, and ask for a time change

@@ -126,7 +126,9 @@ self.addEventListener("notificationclick", (event) => {
 });
 
 // The browser renewed this phone's push subscription: save the new one for the logged-in worker and
-// drop the old one (the same route the profile uses; the session cookie goes with it).
+// drop the old one (the same route the profile uses; the session cookie goes with it). And for an
+// office user (Phase 26.4, Updates' "Tell me about"): the office's route renews it only where the
+// old one was theirs (it never takes one on by itself).
 self.addEventListener("pushsubscriptionchange", (event) => {
   event.waitUntil(
     (async () => {
@@ -140,16 +142,21 @@ self.addEventListener("pushsubscriptionchange", (event) => {
             })
           : null);
       if (!renewed) return;
-      const send = (method, body) =>
-        fetch("/api/push/subscribe", {
+      const send = (path, method, body) =>
+        fetch(path, {
           method,
           headers: { "content-type": "application/json" },
           body: JSON.stringify(body),
           credentials: "same-origin",
         });
-      await send("POST", renewed.toJSON());
+      await send("/api/push/subscribe", "POST", renewed.toJSON());
       if (old && old.endpoint !== renewed.endpoint)
-        await send("DELETE", { endpoint: old.endpoint });
+        await send("/api/push/subscribe", "DELETE", { endpoint: old.endpoint });
+      if (old)
+        await send("/api/office/push", "PUT", {
+          old: old.endpoint,
+          subscription: renewed.toJSON(),
+        });
     })().catch(() => undefined),
   );
 });

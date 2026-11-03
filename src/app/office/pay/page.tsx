@@ -19,17 +19,16 @@ import { readSessionToken } from "@/lib/auth/session-cookie";
 import { officePayDashboard, type PayDashboard } from "@/lib/office/pay-dashboard";
 import { digestLines } from "@/lib/office/pay-digest-copy";
 import { timeOnDay } from "@/lib/portal/format";
-import { payDayFallbackText, payPeriodLabel } from "@/lib/pay/pay-week";
+import { nextPayLines, payPeriodLabel } from "@/lib/pay/pay-week";
 import { ISSUE_LABELS } from "@/lib/portal/pay-query-kinds";
 import { dayLabel } from "@/lib/rules/reasons";
-import { firmShiftsLine, shiftsLineText } from "@/lib/tenancy/shifts-line";
 import { SendDigestButton } from "../pay-queries/send-digest-button";
 
 export const metadata: Metadata = { title: "Pay dashboard" };
 
 // Payroll's home (docs/office-v2.md 3.8; docs/screens.md `/office/pay`); `/office` sends payroll
-// here. Admins and payroll. The firm's shifts line under the title (as on `/office`), the four
-// counts, the waiting queries grouped by likely cause (each opening Pay queries) and what was
+// here. Admins and payroll. The pay period under the title (no shifts line: Phase 26.10, fix-1), the
+// four counts, the waiting queries grouped by likely cause (each opening Pay queries) and what was
 // sorted in the last 7 days. No AI answers a pay question, and no pay figure is shown here.
 
 const tile = `${card} flex flex-col gap-1`;
@@ -66,14 +65,14 @@ function Counts({ d }: { d: PayDashboard }) {
       </div>
       <div className={tile}>
         <p className="text-2xl font-semibold tracking-heading text-ink">
-          {dayLabel(d.nextPayDate)}
+          {dayLabel(d.nextPay.day)}
         </p>
-        <p className="font-semibold text-ink">Next pay date</p>
-        <p className={meta}>
-          {d.nextPayDateFrom === "pay records"
-            ? "From your pay records."
-            : payDayFallbackText(d.period)}
-        </p>
+        <p className="font-semibold text-ink">Next pay day</p>
+        {nextPayLines(d.nextPay, d.period.label).map((line) => (
+          <p key={line} className={meta}>
+            {line}
+          </p>
+        ))}
       </div>
     </div>
   );
@@ -100,7 +99,6 @@ export default async function PayDashboardPage() {
       >
         {/* The firm's pay week or cycle (Phase 25.2), from the top bar (Phase 24). */}
         <p className={`${meta} tabular-nums`}>{payPeriodLabel(d.period)}</p>
-        <p className={meta}>{shiftsLineText(await firmShiftsLine({ firm }))}</p>
       </PageHeader>
 
       <Counts d={d} />

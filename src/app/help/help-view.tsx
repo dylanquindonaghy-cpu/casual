@@ -85,7 +85,7 @@ export function HelpView({
         <p className="mt-3">
           There&apos;s no app to download.{" "}
           {facts.loginWay === "message"
-            ? `${firmName} sends you a link by WhatsApp or text message.`
+            ? `${firmName} sends you a link by text message.`
             : facts.loginWay === "email"
               ? `${firmName} emails you a link.`
               : `${firmName} sends you a link.`}
@@ -272,7 +272,7 @@ export function HelpView({
               </>
             ) : facts.loginWay === "message" ? (
               <>
-                Tap <Name>Send me a code</Name>. We send a 6‑digit code by WhatsApp. It works for 10
+                Tap <Name>Send me a code</Name>. We send a 6‑digit code by text. It works for 10
                 minutes.
               </>
             ) : (
@@ -316,7 +316,7 @@ export function HelpView({
           <li>
             <Name>How we reach you</Name>:{" "}
             {facts.loginWay === "message"
-              ? "choose WhatsApp or text message, and whether to hear about open shifts."
+              ? "choose text message or email, and whether to hear about open shifts."
               : "choose whether to hear about open shifts, and turn on notifications on this phone."}{" "}
             Then tap <Name>Save settings</Name>.
           </li>

@@ -1,7 +1,7 @@
-import { and, eq, inArray, isNull, ne, or } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { systemClock, type Clock } from "../auth/clock";
-import { offers, shifts, workers } from "../db/schema";
+import { firms, offers, shifts, workers } from "../db/schema";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { workerEnv } from "../env";
 import { noticeHours } from "../roster/notice";
@@ -29,6 +29,9 @@ import { portalUrl } from "../tenancy/portal-url";
 import { localDateOf } from "../time/zoned";
 import { lockOfferCounts, waveCandidates, type WaveCandidate } from "./candidates";
 import { lockReachableWorkers } from "./reachable";
+import { reachOf, type Reach } from "./reach";
+import { outsideArea } from "../travel/area";
+import { travelSettings } from "../travel/settings";
 import { lockOfferOutcome, logUnconfirmedOffers } from "./unconfirmed";
 import { firmVoice, lockShift, timeOf, type OfferDeps } from "./waves";
 
@@ -61,15 +64,20 @@ const job = { queue: OFFICE_OFFER_QUEUE, schema: officeOfferPayload };
 const uuid = z.uuid();
 
 // Who the office could offer a shift to now: the candidate list, with names, in fair-rotation
-// data order (fewest hours this week first). Reads only. Not their email: the page doesn't show it.
+// data order (fewest hours this week first), each with how the offer would reach them and why
+// (Phase 26.9, off-1: src/lib/offers/reach.ts) and whether the session is outside their travel area
+// (the office may still offer it: D2). Reads only. Not their email: the page doesn't show it.
 export interface OfficeCandidate extends Omit<WaveCandidate, "email"> {
   name: string;
+  reach: Reach;
+  outsideArea: boolean;
 }
 
 export async function officeOfferCandidates(
   tx: FirmTx,
   shiftId: string,
   now: Date,
+  textSender: boolean, // whether texts can go at all (src/lib/portal/login-way.ts hasTextSender)
 ): Promise<OfficeCandidate[]> {
   // An office offer that failed to send leaves the worker on the candidate list (a wave may try
   // again), but the office can't send them a second one: it may have arrived.
@@ -95,6 +103,11 @@ export async function officeOfferCandidates(
       ),
     );
   const nameOf = new Map(names.map((n) => [n.id, `${n.first} ${n.last}`]));
+  const facts = await reachFacts(
+    tx,
+    shiftId,
+    candidates.map((c) => c.workerId),
+  );
   return candidates
     .map((c) => ({
       workerId: c.workerId,
@@ -104,8 +117,54 @@ export async function officeOfferCandidates(
       smsAllowed: c.smsAllowed,
       hoursThisWeek: c.hoursThisWeek,
       lastOfferedAt: c.lastOfferedAt,
+      reach: reachOf(
+        {
+          phones: facts.get(c.workerId)?.phones ?? 0,
+          channel: c.channel,
+          smsAllowed: c.smsAllowed,
+          hasEmail: c.email !== null,
+        },
+        textSender,
+      ),
+      outsideArea: facts.get(c.workerId)?.outside ?? false,
     }))
     .sort((a, b) => a.hoursThisWeek - b.hoursThisWeek || a.name.localeCompare(b.name));
+}
+
+// For each worker: how many of their phones have notifications on, and whether the session is
+// outside their travel area (only when the firm uses travel areas and the session has a site).
+async function reachFacts(
+  tx: FirmTx,
+  shiftId: string,
+  workerIds: string[],
+): Promise<Map<string, { phones: number; outside: boolean }>> {
+  if (workerIds.length === 0) return new Map();
+  const [shift] = await tx
+    .select({ siteId: shifts.siteId, startsAt: shifts.startsAt, settings: firms.settings })
+    .from(shifts)
+    .innerJoin(firms, eq(firms.id, shifts.firmId))
+    .where(eq(shifts.id, shiftId));
+  const areas = shift?.siteId && travelSettings(shift.settings ?? {}).enabled;
+  const { rows } = await tx.execute<{ worker_id: string; phones: number; outside: boolean }>(sql`
+    select w.id::text as worker_id,
+           (select count(*)::int from push_subscriptions p where p.worker_id = w.id) as phones,
+           ${
+             areas && shift
+               ? outsideArea({
+                   firmId: sql`w.firm_id`,
+                   workerId: sql`w.id`,
+                   siteId: sql`${shift.siteId}::uuid`,
+                   startsAt: sql`${shift.startsAt}::timestamptz`,
+                 })
+               : sql`false`
+           } as outside
+      from workers w
+     where w.id in (${sql.join(
+       workerIds.map((id) => sql`${id}::uuid`),
+       sql`, `,
+     )})
+  `);
+  return new Map(rows.map((r) => [r.worker_id, { phones: Number(r.phones), outside: r.outside }]));
 }
 
 export const officeOfferRequestSchema = z.strictObject({

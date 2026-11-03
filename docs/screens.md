@@ -37,7 +37,7 @@ mock-up's word is used (its differences: the README's "Where the build differs")
     working has a red "Needs doing now" plate and a pale red tile; to its upload page or Profile.
   - **Shifts you can take:** "{2} urgent near you" ("{1} urgent" with no home area), "{Tue 27 and
     Wed 28 Oct} · up to £15.50/hour", to the urgent board; her home area to add (while she has
-    none); "{3} more to apply for" ("{3} shifts to apply for" with nothing urgent; "No other
+    none); "{3} more you can take" ("{3} shifts you can take" with nothing urgent; "No other
     shifts now" / "No shifts right now" with none), to Open shifts. In the kept copy, "Open shifts
     need signal" with what was urgent when it was saved, in place of the urgent and apply rows.
   - **Pay:** "Pay day: {Fri 30 Oct}", "For this week's shifts", to Pay. On a fortnight's pay
@@ -48,7 +48,7 @@ mock-up's word is used (its differences: the README's "Where the build differs")
   an open day's in grey, her booked days a sunk grey with a tick, the chosen day in ink), its key
   in words under it; "{3} shifts" and "Site and role", which opens the day, site and role and
   "Show shifts" under them (open already when a site or role is chosen; it works without
-  JavaScript). Then "Urgent, needed now" and "More shifts you can apply for" as before, each shift
+  JavaScript). Then "Urgent, needed now" and "More shifts you can take" as before, each shift
   a glass card: its date tile, the time with "£15.50/hour" across, the role, the event and post
   ("· finishes Sunday morning" after them for a night shift), the travel line after a car, then
   "1 place left" on a glass chip (red words when urgent) and a round arrow. The seats are on its
@@ -72,6 +72,638 @@ mock-up's word is used (its differences: the README's "Where the build differs")
 - **Booked, Profile, Requests and the urgent board** take the same parts: Booked's next shift is
   the same pass, its "Later" and the past list under 20px headings; the urgent board's cards are
   Open shifts' cards.
+
+## The office shell, round 8 (Phase 26)
+
+Dylan's approved round 8 (2026-11-02, after the Haulix shot; the exact changes, "The look", and the
+pre-build audit: https://claude.ai/artifact/EqgPhrjHXB2XMJGFofH6WU, `docs/mockups/round-8/`). The
+look is `docs/ui-design.md` "Phase 26". This section wins over round 7's below where they differ;
+every route, label, link and action is as round 7's.
+
+- **The look:** dark until someone picks light (the light or dark button: "Switch to light mode" /
+  "Switch to dark mode"; with no choice the office is dark, whatever the device prefers). The casual
+  app keeps round 7's look and still follows the device.
+- **The rail** (from 1024px): as round 7's, each shut icon a dark circle and the page you're on a
+  solid white one; the firm's initial in hi-vis; the red dot as before.
+- **The top bar** (from 1024px): the counts as separate chips ("To fill {26}", "Urgent {2}", "Offers
+  out {11}", "To check {7}", "Pay queries {10}": the same words, links and roles as round 7's), then
+  "Search", the light or dark button and you (your initials on hi-vis, your name and role, the
+  account menu as before), each 44px. Before the light or dark button, the bell (Phase 26.4):
+  "Updates" below.
+- **Below 1024px:** the top bar as round 7's ("Menu", the firm, the bell, the light or dark button,
+  you); the
+  counts are a row of their own at the top of every page, the same chips, scrolling sideways and
+  fading at the edge with more to scroll to (as every tab row does: sys-9).
+- **Every office page keeps itself up to date:** every 30 seconds while it's in view, and as soon as
+  you come back to it after 30 seconds or more away, it asks for its figures again (what you've
+  typed or opened stays); "Updated {10:42}" in the page's title row, beside its headline, says when
+  it last did (London time; Phase 26.10 moved it there from the top bar, as aud-2 says).
+- **Round 8's last rules (Phase 26.10, the audit's round 1):** six text colours (ink, muted, faint,
+  red, amber, green: each status's darker "ink" shade; the blue Offered and grey Hidden pills keep
+  their tints with ink and muted words: aud-4); references and IDs in Geist Mono ("Reference
+  {0695DD8C}", "Cancellation {0695DD8C}": sys-6); at most one hi-vis button on the screen (the
+  first "Offer the place" on Updates, the first group's "Mark as sorted and tell them" on Pay
+  queries, "Save and send a link" on Settings, "Create a key" on Integrations; the rest ordinary:
+  sys-3); 44px buttons, the skip link, the focus ring and one heading on every page (aud-6). The
+  look browser test checks each on every office page at both sizes.
+
+## The dashboard, round 8 (Phase 26.2)
+
+`/office` for admins and resourcers, as Dylan approved it in round 8 (the spec page's "Dashboard",
+dash-1 to dash-9, and the pre-build audit's aud-7 and aud-8). This section wins over round 7's below
+where they differ: the head line, the track's words and links, the "…" menu, the offer panel, a
+part that couldn't load and the empty card are round 7's. Words: `src/lib/office/board-copy.ts` and
+`src/lib/office/dashboard-map-copy.ts`; data: `src/lib/office/dashboard-board.ts` and
+`src/lib/office/dashboard-map.ts`.
+
+- **Under the head:** the track (round 7's: All, Urgent, This week, Next week, with their counts),
+  then **Filter** (a button with a funnel, read as "Filter by role"; it opens a list of the roles
+  with places to fill and "Every role"; picked, the button says the role and is read as "Filter:
+  {Steward}"; `?role=steward`), then **Show full venues** on the right from 768px of page (a switch:
+  on, the map shows the venues with nothing left to fill too; `?full=1`). Every link on the page
+  keeps all three.
+- **The venue map** (a glass panel, 300px tall on a phone and 528px from 1024px of page): a pin for
+  each venue with places to fill under the track and the filter, its number the places to fill
+  there, red when a session there is urgent, a dashed ring when every one is hidden from casuals,
+  green when it's full (only with Show full venues), and the venue the card shows ringed in the
+  accent. From 640px a pin carries the venue's name and its days ("Tue 3, Sat 7, Sun 8 and 2 more",
+  "… · hidden", "All places filled"), and the key sits top right ("Urgent", "Places to fill",
+  "Hidden from casuals", and "All filled" with Show full venues). A pin is a link to the dashboard
+  with that venue's soonest session in the card, read as "{Acme Demo Arena}: {10} places to fill,
+  urgent, {Tue 3, Sat 7, Sun 8 and 2 more}" (", hidden from casuals"; "{name}: all places filled").
+  Under the map, on the left, "Placed by each venue's postcode · a pin's number is its places to
+  fill", or, with a street map, "Drag to move · Ctrl + scroll to zoom (two fingers on a phone) · a
+  pin's number is its places to fill"; on the right "{3} venues · {11} places to fill". A venue
+  with no position is never placed by guesswork: "Not on the map (no postcode yet): {Hillside Demo
+  Square}, {4} places to fill." Nothing to place: "No places to fill here." / "None of these
+  venues has a postcode yet, so none is on the map." From 1024px no pin or label sits under the
+  card. Pins that would cover each other are nudged apart, and a label goes on whichever side of
+  its pin it fits, or is left off where it fits on neither (its name is still the pin's link words).
+- **Show as a table** (under the map, the pre-build audit's aud-9): opens a table of the same
+  figures, every venue on or off the map: "Venue" (its name, a link like its pin, and its town),
+  "Places to fill" ("{5} · urgent" in red) and "Days".
+  - **With a street map** (the firm's server has a UK map file: `MAP_TILES_URL`, `docs/runbooks.md`
+    "The street map"): the streets, water and land under the pins (no place names: the pins carry
+    them), fitted to the venues; it moves with a drag and zooms with Ctrl + scroll on a laptop, two
+    fingers on a phone (one finger scrolls the page); "© OpenStreetMap contributors" bottom right.
+  - **Without one** (development, the tests, before the file is up): the pins placed by their own
+    latitude and longitude on the office's faint street pattern, north up and to scale.
+- **The chosen session** (a floating glass card over the map's top left from 1024px of page, 404px
+  wide; under the map before): round 7's choice (the address's `?session=`, else the soonest
+  urgent, else the soonest). Its date tile, the role (and "Urgent"), "{Northern Lights Live} ·
+  {Gate A}, {Acme Demo Arena}" and "…" (round 7's menu); a tile with "{Tue 27 Oct, 08:00–16:00}" and
+  "{8 h} · {£15.50/h}" (no rate: the length alone), a bar of how many are booked, "Starts in {20 h}"
+  (red under 2 days) and "{1 place to fill}"; two tiles: "Booked" with "Urgent" or "Open", a
+  half-circle gauge and "{3 / 4}" "booked"; "Can take it" with "{1} offered", the number of people
+  the rules let it be offered to right now (the offer panel's own list), "Under the rules, right
+  now". Then a line: while an offer waits, round 7's (who hasn't replied since when); with none
+  waiting, "Only {Zoe Adeyemi} can take it: {1 hour} booked that week." or "Nobody can be offered
+  it right now.", else round 7's. Then "Offer to someone" ("Offer to {Zoe}" when she's the only one
+  who can take it) and "Open the shift".
+- **The board**, three glass columns under the map (three across from 1152px of page, two from
+  768px, one on a phone):
+  - **To offer** (`#to-offer`): every session with places to fill under the track and the filter,
+    soonest first, "{11} places · {3} offers, no reply yet" (or "…, none offered"). A row: its date
+    tile (red when urgent), the role (and "Urgent"), "{venue} · {08:00}", "{3/4} booked" and its
+    paper plane (the offer panel, as round 7's). The row picks itself into the card. The first 4,
+    then "View all {17}" (Events & sessions' "Need people", or "Urgent").
+  - **Updates** (`#updates`, where the top bar's "Offers out" lands): the last two days, newest
+    first, 6 at most, each a link to where it's dealt with: "{Ben Fraser} took a place" ("{Steward},
+    {Acme Demo Arena}, {Tue 3 Nov 08:00} · {2 places to fill}" or "now full"); "{Mo Rahman}
+    cancelled · {6 hours' notice}" ("… · strike issued" / "strike withdrawn" / "no strike", and "·
+    reopened"; red under 48 hours' notice), to the cancellation; "{Zoe Adeyemi} sent a staff photo"
+    / "a certificate", "Waiting for a check", to the casual; "No reply yet · {3} offers" for a
+    session's offers with no reply. The time on the right ("09:06" today, "Sun 08:00" before). Then
+    "All updates" (the Updates page, Phase 26.4; "Everything in the action log" until then). Empty:
+    "Nothing new in the last two days."
+  - **Who worked?** (`#who-worked`): round 7's line ("{5} sessions from {Sun 25 Oct}"), then the
+    sessions to mark (ended in the last 7 days, someone booked not marked yet, newest ended first;
+    only here since Phase 26.4, when it left Needs attention: the spec's upd-6), alike ones together
+    as round 7's cards (one role, place and time), the first 3: each "{Sun 1 Nov} · {Steward} ·
+    {Acme Demo Racecourse} · {10:30–18:30}" (and " · {3} sessions"; a link to the session; for
+    several, no link: each person's buttons name their own session) and
+    each person still booked on them by name: their initials, their name, "Worked" (read as "{Zoe
+    Adeyemi} worked, {Sun 1 Nov 10:30}") and a red cross (read as "{Zoe Adeyemi} didn't attend,
+    {Sun 1 Nov 10:30}": with the session, as one person can be in two groups; aud-5), the shift
+    page's own actions (the server checks and logs each; the answer under the name).
+    With more than one: "Everyone else worked", then "Only if they all worked it. You can change
+    anyone afterwards." and "Yes, everyone else worked" (each session in turn). More groups:
+    "Show all {7}" shows the rest in place. Empty: "Nothing to mark."
+  - **An empty column** says what will show there (the pre-build audit's aud-10), under its own
+    words: To offer "Sessions with a place free show here, soonest first."; Updates "Places taken,
+    cancellations, and photos or certificates to check show here."; Who worked? "Sessions show
+    here when they end, so you can mark who worked."
+- **On a phone:** the counts row (the shell's), the head, the track, Filter and the switch, the map
+  (300px, pins without names), the card, then the three columns one under another.
+- **Loading:** the skeleton follows this layout (the head and track, the map with the card on it,
+  the three columns).
+
+## Contracts and each person's own dashboard (Phase 26.3)
+
+The spec page's "Customise and contracts" (cus-1 to cus-5), dash-7's date choice, and the pre-build
+audit's aud-9, aud-10 and aud-13. Words: `src/lib/office/customise-copy.ts`,
+`src/lib/office/dashboard-cards.ts` and `src/lib/office/dashboard-cards-copy.ts`; data:
+`src/lib/office/contracts.ts` and `src/lib/office/dashboard-cards-data.ts`.
+
+- **Settings → Contracts** (`/office/settings#contracts`, admins): "Contracts", "Each contract is a
+  client of yours and the venues you staff for it. Resourcers pick the ones they look after under
+  Customise on the dashboard."; each contract a row: "Name" (up to 120 characters), "Its venues" (a
+  tick each; a venue another contract has says whose: "(Northgate Council's)", and ticking it moves
+  it here), "Save", and "Remove" ("Its venues stay, without a contract. Anyone looking after it stops
+  seeing it." and "Yes, remove it"). Last, a blank one with "Add a contract". Answers under it:
+  "Saved {Northgate Council}.", "There's a contract with that name already.", "Give it a
+  name of up to 120 characters.", "That contract or one of its venues is gone. Reload the page.",
+  "Only an admin can change contracts."; a removal's, "Removed {Northgate Council}.", above the list (its row goes when the page reloads; Phase 26.10). None yet: "No contracts yet.". "Save" changes only the
+  venues ticked or unticked since the page was loaded, so a page left open can't take back a
+  venue someone has since moved; a row starts again from its contract when that changes. Names are
+  one per firm whatever their case. Each change is logged (`client.added`, `client.saved`,
+  `client.removed`: the contract's id, how many venues it has, how many were added and removed, and
+  each one taken from another contract, by ids).
+- **The dashboard's title row** (beside the headline where there's room, under it on a phone):
+  "Customise" (a link to `/office/customise` until the page is ready, then the panel) and the date
+  choice: "All dates" (read as "Choose a date") or the day ("Tue 3 Nov", read as "Date: Tue 3
+  Nov"), a list of "All dates" and each day in the track's window with places to fill ("Sat 7 Nov ·
+  4 places"; `?day=2026-11-07`), the chosen one current. Every link on the page keeps it. No day
+  with places: no date choice.
+- **My contracts** (beside the track, before Show full venues; only for someone looking after a
+  contract): a switch, on while the dashboard shows only their contracts' venues (a session's own
+  venue, or else its event's): the track's counts, the map, To offer, the card, Updates' places
+  taken, cancellations and offers with no reply (not uploads: they're a casual's), Who worked? and
+  the extra cards. Off: everything (`?all=1`). Events & sessions always shows everything. On, with
+  none of their contracts having a venue yet: "Your contracts have no venues yet, so nothing shows
+  here. An admin adds venues to contracts on Settings." and "Show everything".
+- **Customise** (the panel: from the right on a laptop, 480px wide; the whole screen on a phone;
+  or `/office/customise`, "Customise your dashboard"): "Customise your dashboard", "Close";
+  "Your contracts", "You see these on the dashboard and in Updates. Everything stays in Events &
+  sessions.", each contract a switch ("{Acme Demo Arena}", "{1 site} · {27 sessions to come}");
+  none yet: "No contracts yet. An admin adds them on Settings, under Contracts."; "What you see",
+  a tick per card with its line: "Venue map" (Places to fill at each venue), "To offer" (Sessions
+  with places), "Updates" (Cancellations and to-dos), "Who worked?" (To confirm after a session),
+  "Next 2 weeks" (Booked, offered and open places each day), "Cancellations" (By week, under 48
+  hours in red), "Fill rate" (Booked of needed, per contract), "No-shows" (By week); the first
+  four ticked until someone saves. "Save my dashboard" ("Saving…"), then "Saved. Your dashboard
+  shows what you chose." and the panel closes with the dashboard updated; "Back to the dashboard".
+  Saved to the person, not the browser (logged `office_user.dashboard_saved`). The Watch list
+  card (least reliable who are booked) comes with reliability (26.7).
+- **The cards chosen:** without the venue map, the session card stands on its own above the
+  columns; only the columns chosen show. The extra cards follow, two across from 768px of page,
+  each a glass section with its title, where its figures come from ("Places on sessions to come,
+  counted now"; "From the cancellation records, by the week they were made"; "People marked as not
+  attending, by the week of the session"; "Places booked of places needed, next 14 days, counted
+  now"), a sentence of what it shows ("Next 2 weeks: {7} booked, {1} offered with no reply yet, {3}
+  open."; "{5} cancellations in the last 8 weeks, {3} under 48 hours' notice."; "{1} no-show in the
+  last 8 weeks."; "{Northgate Council}: {6} of {8} booked, {75}%"), its bars (decorative: stacked
+  from the foot, a key above), and "Show as a table" with every figure. Empty: "No sessions in the
+  next 2 weeks. Sessions from your planner show here as they come in."; "No cancellations in the
+  last 8 weeks. Each one shows here, by week."; "No no-shows in the last 8 weeks. Anyone marked as
+  not attending shows here, by week."; "No sessions in the next 14 days. Each contract's places show
+  here.". Venues with no contract are "No contract" in Fill rate.
+
+## Updates (Phase 26.4)
+
+`/office/updates` for admins and resourcers, as the mock-up's Updates (the spec page's "Updates and
+alerts", upd-1 to upd-6 and decision 5, and "The look" sys-8's bell). Words:
+`src/lib/office/updates-copy.ts` and `src/lib/office/tell-me-copy.ts`; data:
+`src/lib/office/updates.ts`, `src/lib/office/tell-me.ts`; the alerts: `src/lib/office/alerts.ts`.
+Page title "Updates".
+
+- **Where it opens:** the bell in the top bar, "Updates" in the menu's Home group (under
+  "Dashboard", a bell icon; Needs attention's icon is now a notice), the dashboard's Updates column
+  ("All updates") and the pop-up ("Open Updates").
+- **The head:** "Updates", then "What's happened on your contracts in the last 7 days, newest
+  first." (with no contracts: "What's happened in the last 7 days, newest first."); on the right,
+  "Mark all as seen" while something is new.
+- **The list** (a glass panel, `#updates-list`): its heading "Today" with a red count of the updates
+  since midnight (read as "{3} updates today"; places still open aside), and on the right two views
+  ("Show"): **Needs action** with its count (the default) and **Everything** (`?view=everything`).
+  - **Needs action:** places still to fill on a session starting in the next 48 hours (soonest
+    first), then, newest first, a casual's cancellation whose place is open again and a photo or
+    certificate waiting for a check.
+  - **Everything:** those, then places casuals took (" · overnight" when taken between 18:00 and
+    08:00 London time), cancellations already covered and offers with no reply, newest first.
+  - Only sessions at the person's contracts' venues (every venue with no contracts); uploads are a
+    casual's, so they show whatever the contracts.
+- **Each update** (rows split by hairlines): a tile in the status colour, its title (a link to
+  where it's dealt with) and line, then on the right when ("09:06" today, "Sun 08:00" before; none
+  on a place still to fill, whose title has its start) and its button (under the words on a phone):
+  - "{1 place} still to fill, starts in {5 h}" / "{Steward}, {Acme Demo Arena}, {Mon 2 Nov 14:00} ·
+    offered to nobody yet" ("offered to {3} people"; " · urgent") with **Offer the place**.
+  - "{Mo Rahman} cancelled · {9 hours'} notice" (the dashboard's line) with **Offer the place**
+    while the place is open again, else **Open** (the record).
+  - "{Zoe Adeyemi} sent a staff photo" with **Check** (the casual).
+  - A place taken and offers with no reply with **Open**.
+  - Offer the place is the main button; the rest are secondary. With several, only the first is the
+    main (hi-vis) one: at most one per screen (sys-3; Phase 26.10's look checks).
+- **New:** a place taken, a casual's cancellation or (with "Uploads to check" on) an upload since the
+  person last pressed "Mark all as seen" has a hi-vis dot before its title (read as "New: …"). "Mark all as seen" marks what
+  the page showed, as of when it was drawn (an update after that stays new), never backwards, each
+  person's own; then "Marked as seen.". A read marker, like a casual's Messages: not logged.
+- **Empty:** "Nothing needs action. Cancellations with a place open again, places still open near
+  their start and uploads to check show here." / "Nothing in the last 7 days."
+- **The foot:** "Older updates are in the action log." (→ `/office/log`), after "Showing the newest
+  100." when the week holds more.
+- **The bell** (top bar, every office page, admins and resourcers): a bell icon, a link to
+  `/office/updates`, read as "Updates" or "Updates, {3} new"; the number (red, "99+" past 99) counts
+  the "New" updates (at most the last 7 days), on the person's contracts as the page counts them
+  (uploads only with "Uploads to check" on).
+  On Updates it's the page you're on.
+- **The pop-up** (upd-3, any office page, while "Every cancellation" is on): a casual's cancellation
+  from the last 30 minutes, newer than the person's "Mark all as seen", appears by itself with the page's own refresh, bottom right
+  (across the foot on a phone), read out as an alert: "{Mo Rahman} cancelled · {9 hours'} notice",
+  "{Door supervisor}, {Acme Demo Arena}, {Mon 2 Nov 18:00}", then **Offer the place** (while it's
+  open again), **Open Updates** and **Dismiss**. Each shows once in a browser tab (the newest
+  first, the next after Dismiss).
+- **Tell me about** (upd-4, upd-5; a glass panel beside the list from 1024px of page, under it
+  before; `#tell-me-about`): "Tell me about", then "For your contracts only. Saved for you, not the
+  whole office." (with no contracts: "For every venue, as you look after no contracts. Saved for
+  you, not the whole office."), then five switches, each a row with its words, saved the moment it's
+  flipped (to the person, not the browser; logged `office_user.tell_me_saved`), the answer under
+  them ("Saved. {Every cancellation}: off."):
+  - "Every cancellation" / "A pop-up in the office" (on): the pop-up below.
+  - "Cancellations under 48 hours" / "Also a notification on my phone or computer" (on).
+  - "Places still open 6 hours before start" / "A notification on my phone or computer" (on).
+  - "Uploads to check" / "Counted as new in Updates" (off): uploads still list under Needs action
+    either way; on, they count as new (the dot, the bell).
+  - "A summary at 08:00" / "By email" (on): what needs action and what happened since 08:00
+    yesterday, on the person's contracts; nothing to say, no email (docs/messaging-templates.md
+    "Office notifications").
+- **Notifications on this device** (under the switches): the two notification switches reach only
+  browsers that turned them on here. "Off. Turn them on to get the notifications you switched on
+  above here." with **Turn on notifications here** (the browser asks; then "Notifications are on for
+  this device."; a subscription the browser already has counts as on only when it's already this
+  person's, so one a casual or another office user made here is never taken on by itself); "On. The two notification switches above reach this device." with **Turn off
+  here** ("Notifications are off for this device."); "Notifications are blocked for this site.
+  Allow them in your browser's settings."; "This browser can't show notifications."; on an iPhone
+  not on the home screen, "On an iPhone, add this page to your home screen first: Share, then Add to
+  Home Screen."; no web push on the server: "Notifications aren't set up on this server yet."
+  Logging out (or a new login) forgets this browser. A notification has no casual's name (a lock
+  screen is a wider audience): "Cancellation · {9 hours'} notice" / "{Door supervisor}, {Acme Demo
+  Arena}, {Mon 2 Nov 18:00}. The place is open again." (opens Updates); "{1 place} still to fill,
+  starts {in 5 h}" / "… Offered to nobody yet." (opens the offer page). Each once per person.
+- **Where the build differs from the mock-up:** the open place's button says "Offer the place" (the
+  spec's upd-1 names it; the picture says "Offer"); the subtitle leaves out "Opens from the bell";
+  "Mark all as seen" shows on a phone too, under the subtitle; the views wrap rather than run off a
+  phone's edge; the notification rows say "on my phone or computer" (a laptop's browser can take
+  them too); "Uploads to check" says what it does ("Counted as new in Updates", for "In Updates
+  only"); and "Notifications on this device" is added (a browser must be asked once).
+- **Needs attention** (upd-6): "Who worked?" has left it (the dashboard's column has every session
+  to mark, with "Show all"); everything else stays, and its count no longer counts sessions to mark.
+  The guide's "See who to mark" goes to `/office#who-worked`.
+
+## An event's page, round 8 (Phase 26.5)
+
+`/office/events/[id]` for admins and resourcers, as the mock-up's event page (the spec page's "An
+event's page", evt-1 to evt-6, and the pre-build audit's aud-5). Words:
+`src/lib/office/event-page-copy.ts`; data: `src/lib/office/event-staffing.ts` (with the page's own
+`officeEventPage`); "Offer N open places": `src/lib/office/event-offers.ts`. This section wins over
+the older `/office/events/[id]` row below where they differ.
+
+- **Breadcrumb** ("Breadcrumb" to screen readers): "Dashboard" › "Events & sessions" › the event.
+- **The head:** the event's name; "Showing to casuals" (green) or "Hidden from casuals"; "{Sat 7
+  Nov} · {Exampleton, ZZ1 1AA} · {23} sessions" (several days: "{Sat 7 Nov} to {Sun 8 Nov}"; the
+  venue's town and postcode, else its name). Actions: **Hide from casuals** / **Show to casuals**
+  (the event's switch as a button: the same action and answer as before), **Add shifts** (the form
+  for this event, below; only for an event the office named itself, never a planner's, a sheet's,
+  an import's or a site and day's automatic one, and not at a firm whose rota is a Google Sheet) and
+  the main **Offer {5} open places** (shown while a session starting within the firm's urgent
+  window, 24 hours by default, has a place free and no offers going out; its number counts those
+  places; places further ahead: "{3} open places start further ahead: offer each from its card."
+  Decision 10 in docs/plan/decisions-waiting.md, decided as built on 2026-11-03):
+  "Each session with a place free is marked urgent: offers go to the best people for it, a few at a
+  time, until it's filled. Nothing goes out while a session is hidden from casuals." with **Yes,
+  offer them** and **Keep as it is**; then "Offers are going out for {3} sessions." (" {1} session
+  is hidden from casuals: no offers go out while hidden.") or "Every open place is already being
+  offered." Each session goes through one locked step (`offerShiftPlaces`): open, not started, a
+  place free, its offers not already going out; marked urgent (`shift.marked_urgent`), or, urgent
+  but its offers stopped (it filled and a place opened again, nobody was left, it was hidden), its
+  offers started again (`shift.offers_restarted`).
+- **Tabs** ("Show"): **Staffing** {places} (the default), **Overview** {sessions} (`?tab=overview`:
+  every session as before, past and cancelled too, each with its switch, who is booked, its menu
+  and "Mark who worked"), **Cancellations** {n} (`?tab=cancellations`: the event's, newest first,
+  each "{Mo Rahman} cancelled · {9 hours'} notice" or "The office cancelled {Mo Rahman} · …" (a
+  link to its record), "Strike issued" / "Strike withdrawn", and "{Steward}, {Sat 7 Nov 12:00} ·
+  cancelled {04:00} on {Mon 2 Nov}"; empty: "No cancellations on this event.") and **History**
+  (`?tab=history`: the event's, its sessions', bookings' and offers' log, newest first, at most
+  100, in the log's words; "See everything in the action log") and **Interested** {asks waiting}
+  (Phase 26.6, below).
+- **Staffing layout** (a glass panel, `#staffing-layout`; "{5} to fill" in red beside the title):
+  booked of needed overall ("{18} / {23} booked") and per role ("{7} / {9} door supervisors"), each
+  with an amber bar; then each role ("Door supervisors", with its qualifications and start times:
+  "SIA door supervisor licence · 08:00 and 11:30") and its sessions' places as tiles, in time order
+  and place order, for sessions to come (not cancelled, not ended): booked (initials from 576px of
+  panel, the name cut to fit, and "{11:30–19:00}": a link to the session, where a booking is
+  cancelled or moved as before), **Open** (dashed amber) or **Urgent** (red), each a link that picks
+  its open place (`?place=`), the picked one ringed in the accent; **Not open** (grey, not a link)
+  for a place nobody can be booked into now (the session started, or was marked filled). Each tile's name to a screen reader is
+  its own: "Open place: Steward, 12:00 to 18:30, place 3" / "Urgent open place: …" / "{Priya Shah}:
+  Steward, 12:00 to 18:30, place 2. Open the session". A key ("Booked", "Open", "Urgent", "Tap a
+  place to see who's on it or to offer it."). Nothing to come: "No sessions to come. Add shifts to
+  lay out their places here."
+- **Open places** (`#open-places`, beside it from 1024px of page, under it before): "{5} open · {1}
+  urgent"; each session with a place free, urgent first then soonest: "{Door supervisor}" (or
+  "{Steward} × {3}"), "{Sat 7 Nov}, {08:00–16:00} · {8} h", "Urgent" / "Open", its qualifications
+  and "{2} casuals offered". The picked one (else the first) opened: Needs, Starts in ("{5} days",
+  "{20} h", "{45} min"), Offered, Showing to casuals; why it's open, while the cancelled place is
+  still the open one ("{Chloe Quigley} cancelled this place at {04:00} on {Mon 2 Nov}, with {5
+  days'} notice. No strike." / "Strike issued." / "The office cancelled {name}'s booking at …");
+  **Offer to the best {5}** (the same locked step for this session: the firm's first wave for one
+  place; "Offer to the best people" when the firm's settings don't say) or, while its offers are
+  going out (urgent, shown to casuals, its waves not stopped), "Offers are going out."; and **Pick
+  someone** (the offer page). Its answer is heard where the button was, once the page redraws.
+  Each button's name to a screen reader adds its session. None: "Every place is booked."
+- **Each session's "…" menu** (Overview, and Events & sessions): its links' names to a screen
+  reader add the session ("Assign someone: Steward, 18:00 to 23:00"; aud-5).
+- **On a phone:** the head, its buttons under it, the tabs (scrolling sideways), the layout with
+  tiles three across (names without initials), then the open places.
+- **Add shifts** (`/office/shifts/event?event={id}`): "Add shifts", "Adding shifts to {event}.",
+  the venue chosen to start with, no event name; the shifts join this event (checked inside the
+  firm's transaction: an event that isn't there, another firm's, or one sent with a new name:
+  "That event isn't there any more. Go back to Events & sessions and choose it again."); then "Back
+  to {event}".
+
+## A session, and who wants it, round 8 (Phase 26.6)
+
+`/office/shifts/[id]` for admins and resourcers, as the mock-up's session page (the spec page's "A
+session, and who wants it", ses-1 to ses-6; decision 2). Words: `src/lib/office/session-page-copy.ts`;
+the list: `src/lib/office/session-casuals.ts`; asks: `src/lib/roster/asks.ts`. This section wins
+over the older `/office/shifts/[id]` row below where they differ: every form is still there, in a
+panel.
+
+- **"Casuals ask, you choose"** (ses-1): a setting per event (`shift_events.casuals_ask`), off by
+  default (the first to tap takes a place, as before; best for urgent and overnight work). On:
+  casuals tap **I can do this** on its sessions instead of taking a place, and the office books
+  from who asked. A casual holding an offer of the session (the office's, or its waves') still
+  takes it: an offer is the office's choice (decision 11 in docs/plan/decisions-waiting.md, decided
+  as built on 2026-11-03). The
+  switch is in "This session" (below); "On: casuals on this event now tap "I can do this", and you
+  choose." / "Off: the first casual to tap takes a place." Logged `event.asks_on` /
+  `event.asks_off`. Asks made stay when it's switched off.
+- **Breadcrumb:** "Dashboard" › "Events & sessions" › the event (a link to its page) › "{Steward,
+  Fri 6 Nov}".
+- **The head:** "{Steward} · {Fri 6 Nov}"; "Showing to casuals" (green) or "Hidden from casuals"
+  (the session's switch and its event's); "{11:00–19:00} · {Riverside Demo Park} · {Gate 2} · {0} of
+  {3} booked", its status ("Open", "Filled"...) and "Urgent"; the sheet's, planner's or import's
+  note and the instructions as before. Actions: **Hide from casuals** / **Show to casuals** (the
+  session's own switch), the main **Book the best {3}** (where the office chooses and someone who
+  asked can be booked: the asks waiting the rules allow, most reliable first, as many as places
+  free; after "Book {Sam Walsh, Ella Young and Nathan Fraser}? Each is checked against the rules
+  first, and told by message." with **Yes, book them** and **Not now**: only those named, each
+  booked in turn through the one booking path and only while their ask is still waiting (checked
+  inside the booking), "Booked: {names}. They'll get a message to say so.", "Not booked, their ask
+  was answered since: {names}." and any refusal in the booking's own words), else **Offer to someone** (the main button while it can be offered), and a
+  **"…"** menu ("More for this session"): Offer to someone (when it isn't the main button), **Assign
+  someone**, **Edit this session**, **Session details**, **Move, shorten or cancel** ("Cancel" with
+  nobody booked; not for a sheet's or planner's), **See it in the action log**.
+- **Panels** (ses-5): each of those forms opens in a panel (`?panel=assign|edit|details|change`),
+  from the right on a laptop (512px), the whole screen on a phone, over a scrim; its heading takes
+  the focus; **Close**, the scrim and Escape go back. The forms, their words and answers are as
+  before ("Who?" and **Check** keep the panel open with the answer).
+- **Tabs** ("Show"): **Casuals** (the default) and **History** (`?tab=history`: the log as before,
+  and "See this shift in the action log").
+- **Casuals for this session** (ses-2, ses-3), "Most reliable first": tabs **Asked for it**,
+  **Offered**, **Said no**, **Booked** and **Could take it**, each with its count (`?show=`; Asked
+  for it first where the office chooses or someone asked, else Booked). Filters (links, on and off):
+  **Reliability 80%+**, **Within 45 min** (with travel areas on: the quickest of their ways there,
+  from the travel job), **Worked here before**. Each row: initials, the name, what they hold of what
+  it needs and how they've done here ("Steward Level 2 · worked here 6 times · 1 live strike";
+  "Nothing needed for this one"), reliability ("98%" with its band's bar, or "New: 3 shifts so
+  far": `src/lib/rules/reliability.ts`), distance ("5.0 mi · 25 min" in a straight line from their
+  home area, "Not known"), and a chip: "Asked {14:02}" / "Not this time" / "Offered {14:02}" /
+  "Offer closed" / "Filled by others" / "Not sent" / "Said no {14:05}" / "Not asked". **Book**
+  ("Book {name}" to a screen reader) where the rules say yes now and a place is free: the office's
+  own booking (every rule and licence check again, first yes wins; they're told by message); and a
+  **"…"** ("More for {name}") with **Not this time** (an ask still waiting: "Not this time: {name}
+  will be told.") and "See {Sam}'s page". A row the rules say no to: "Can't be booked: {reasons}".
+  Asked for it: asks waiting, then the "Not this time" ones. Offered: each casual's latest offer
+  not declined. Said no: offers declined. Booked: the session's bookings as before ("{name}:
+  Booked", cancel one, mark who worked, the cancelled ones under "Cancelled"; "Booked places" to a
+  screen reader). Could take it: active casuals with the role the rules allow now who haven't
+  asked, been offered or booked (the most reliable 100: "More could take it: the most reliable 100
+  are shown."). Empty: "Nobody has asked yet. Casuals see "I can do this" on this event's
+  sessions." (setting on) / "Casuals take places on this event. Switch on "Casuals ask, you
+  choose" to choose from who asks." / "Nobody has been offered it." / "Nobody has said no." /
+  "Nobody booked yet." / "Nobody else the rules allow right now." / "Nobody here matches these
+  filters."
+- **This session** (beside it from 1024px of page, under it before): Booked "{0} of {3}", Pay
+  "{£12.60/hour}" ("Not set"), Needs (its qualifications, "Nothing extra"), Post ("None"); the
+  **Casuals ask, you choose** switch ("Set for this event. Off: the first to tap takes it."); and
+  "**Booking runs every check first:** the rules, their licence and their hours. A place can only
+  be booked once." (ses-4).
+- **The event's Interested tab** (evt-2): its sessions to come with asks, soonest first: "{Steward},
+  {Fri 6 Nov, 11:00 to 19:00}", **Choose who works it** (the session's Asked for it), and each
+  person who asked as a chip ("{name}" waiting, "{name}: not this time"). The tab's count is the
+  asks waiting. Empty: "Nobody has asked for a session yet. Casuals see "I can do this" on this
+  event's sessions." (setting on) or how to switch it on.
+- **When asks end** (ses-6): the office books someone → `shift_confirmed` as before; "Not this
+  time" → `shift_not_booked`; the session fills while others wait → their asks close and each gets
+  `shift_not_booked` (not sent if, by then, they hold a place or asked again); the office cancels
+  or moves the session (its move, its Edit with nobody booked, or the planner's change) → asks close
+  untold, "Not this time" ones too on a move (they may ask again for the new session). Logged `shift.asked`, `shift.ask_refused`, `shift.ask_declined`, `shift.ask_closed`,
+  `shift.asks_closed` and the message's `shift.ask_answer_*`.
+- **On a phone:** the head and its buttons, the tabs, the casuals card (rows wrap: name, then
+  reliability, distance and chip, then Book and "…"), then This session; a panel covers the screen.
+
+### In the casual app (ses-6)
+
+- **A session where the office chooses** (`/shifts/[id]`): the shift's card as always; at its foot
+  "The office chooses who works this one. Ask for it, and we'll message you when they decide." and
+  **I can do this** ("Asking…"); then "**Asked: we'll tell you.** You asked at {09:00 on Mon 2
+  Nov}. The office chooses who works this one. We'll message you when they decide." (green tick). The
+  office said no: "**Not this time.** You're not booked for this one. Thanks for asking." with
+  **See other shifts**. Other answers: "You're already booked on this shift." (See my shifts),
+  "Every place has been filled. You haven't been booked.", "This shift isn't open any more.", "You
+  can't ask for this shift:" with the rules' reasons, the usual too-many-tries and try-again words.
+  Never held by fair rotation (the office chooses).
+- **Open shifts and the urgent board:** such a session's card says "The office chooses: ask for
+  it" (hi-vis), "Asked: we'll tell you" (green tick) or "Not this time" (red).
+- **Take shift** on a session the office has just switched to choosing: "The office now chooses who
+  works this one. Ask for it instead." with **Ask for it** (the page again, with I can do this).
+
+## Casuals, round 8 (Phase 26.7)
+
+`/office/casuals` for admins and resourcers, as the mock-up's Casuals (the spec page's "Casuals:
+reliability and chasing", cas-1 to cas-7; aud-11, aud-12, aud-14; decision 3). Words:
+`src/lib/office/casuals-copy.ts` and `follow-up-copy.ts`; data: `src/lib/office/casuals.ts`; the
+rules: `src/lib/rules/reliability.ts`. This section wins over the older `/office/casuals` rows
+below where they differ.
+
+- **Reliability** (cas-1, decision 3): over the last 90 days, worked ÷ (worked + no-shows +
+  cancellations under 48 hours' notice), from what the office marked and what was logged, never by
+  AI; "{98%}" with a green (90%+), amber (75%+) or red bar; under 5 counted shifts "New: {3} shifts
+  so far" (aud-11). It changes nobody's place in the offers (cas-7).
+- **The head:** "Casuals", "{68} casuals · reliability over the last 90 days"; the search ("Name or
+  mobile number") at the top right; on Need updating, **Remind all {6}** (the casuals below with a
+  licence out of date or expiring, not sorted, and not reminded in the last 24 hours).
+- **Four counts** (cas-2), each a link to its tab: **Regulars** ("Worked 6 of the last 8 weeks"),
+  **Reliable** ("95% or more, of {52} who worked"), **Cancel often** (red when any: "3 or more under
+  48 hours"), **Not worked lately** ("Nothing in 60 days"). Active casuals only.
+- **Tabs** ("Show"), each with its count: All, Regulars, Reliable, Cancel often, Not worked lately,
+  Need updating, Uploads to check (as before); and the sort (cas-3): "By name" ("Most urgent first"
+  on Need updating), "Least reliable first", "Last worked longest ago", "Most strikes first".
+- **The list** (one glass table from 768px, stacked cards on a phone): each casual's name and roles
+  (and the office's latest note: "Note: …"), then on All and the standing tabs their
+  qualifications, staff photo, travel area, live strikes and "Last worked" ("{28 Oct}", "Never"),
+  their reliability, and a **"…"** ("More for {name}"): **Call {Ruth}** (their phone), **Add a
+  note** (up to 500 characters, never a phone number or email address: "Note added."; kept with
+  them, never in the log; under the box: "For the office only. Don't write health or other personal
+  details, phone numbers or email addresses."), **Mark as sorted** (while something needs updating) and "See {Ruth}'s
+  page".
+- **Need updating** (cas-4, cas-5): active casuals with a qualification to update, or a missing or
+  overdue staff photo; the worst first, a photo alone after them, the office's "sorted" ones last.
+  Columns: Out of date (chips: "SIA DS: expired 28 Sep", "Staff photo: missing", "{2} live
+  strikes"), Last reminder ("Reminded by {Ann} · {14:02}" or "· {28 Oct}", "Sent automatically ·
+  {28 Oct}" for the daily scan's, "Not reminded"; "Sorted by {Ann} · {date}" once sorted),
+  Reliability, and **Remind** ("Remind: {name}") for a licence out of date or expiring: the
+  licence message again (`credential_expired` / `credential_expiring`, with its upload link where
+  they may upload it), "Reminder on its way. It's in the log." ("{3} reminders on their way."; at
+  night it waits for the morning; not twice in 24 hours: "One was reminded
+  in the last 24 hours, so not again."); then "Reminded". Under the list: "Remind sends the licence
+  message again with its upload link: by text, or by email if they chose it or texts can't reach
+  them (Phase 26.9: offers and reminders no longer go by WhatsApp). Each one is logged. They can't take shifts that need it until the new one is checked." "Mark as sorted"
+  ("Marked as sorted. They move to the end of the list until something else changes.") holds while
+  the worst thing it was about stands; a new problem shows them again.
+- **A casual's page** (cas-6): **Reliability** (the figure and bar, "{19} worked · {1} no-show · {0}
+  late cancellations · last 90 days", chips "Regular", "Reliable", "Cancels often", "Not worked
+  lately", "Last worked {28 Oct}." or "Not worked yet.") and **Notes** (newest first, "{Ann} · {14:02
+  on Mon 2 Nov}", "No notes yet.", and the add form).
+- **In the casual app** (cas-6), Profile: **Your reliability**: "{98%} over the last 90 days" or
+  "{New: 3 shifts so far}. It shows as a figure once you have 5.", the counts, and "Shifts you
+  worked, out of those plus no-shows and cancellations with under 48 hours' notice. Our office sees
+  the same figure. It doesn't change which shifts you're offered."
+- **The dashboard's Watch list** (cus-3, under Customise): casuals booked in the next 14 days whose
+  reliability is under 90%, least reliable first (at most 6), each with their figure and bar and
+  their next booked session (links to them and to it); "Reliability over the last 90 days, of
+  casuals booked in the next 14 days"; empty: "Nobody booked in the next 14 days is under 90%.
+  Anyone who is shows here, least reliable first."
+- **Updates' "Mark who worked"** (aud-12): a session still not marked 2 days after it ended (back to
+  28 days) is in Needs action: "Mark who worked: {3} people not marked yet", "{Steward, Acme Demo
+  Racecourse, Sun 1 Nov 10:30}", **Mark who worked** (its Booked list); the 08:00 summary counts it.
+- **The demo** (aud-14): 10 weeks of made-up history (three sessions a week at the story's venues,
+  16 to 83 days ago), worked by six of the story's casuals with the odd no-show, so reliability, the
+  counts and the charts have something to show; the walkthrough's people and lists are as before.
+
+## Cancellations, round 8 (Phase 26.8)
+
+`/office/cancellations` and its records, for admins and resourcers, as the mock-up's Cancellations
+(the spec page's "Cancellations", can-1 to can-5; aud-15). Words: `src/lib/office/cancellations-copy.ts`;
+data: `src/lib/office/cancellations.ts`. This section wins over the `/office/cancellations` rows
+below where they differ; the rest of them stands (the CSV, the PDF, the downloads' checks, Resend
+evidence, Withdraw and Keep).
+
+- **Four counts** (can-3), not links: **This week** "{2}", "{2} by casuals · {0} by the office" (the
+  firm's Monday to Sunday); **Under {48} hours' notice** "{0}", "This week · {5} in all" (red when
+  it isn't 0); **Strikes issued** "{0}", "This week · {3} counting now"; **Last 8 weeks** "{17}",
+  "Cancellations, {9} under {48} hours" (this week and the 7 before). They replace "Under 48 hours'
+  notice this week" over the strikes figure. {48} is the firm's `strikes.notice_hours`.
+- **Tabs** ("Show", can-4), each with its count: All, Under {48} hours, Strikes (every cancellation
+  that gave a strike, withdrawn ones too), By the office (the firm: the office, its planner or its
+  rota sheet). Beside them (aud-15), "Which days": **Every day** and **Today** (tabs at least 44px
+  tall, `?day=today`: since midnight, the firm's time; the tabs' counts follow it). "Red rows had
+  under {48} hours' notice." under them.
+- **The list** (one glass table from 768px, stacked cards on a phone; newest first, at most 100):
+  - **Casual and session:** the name (a link to the record), then "{Steward} · {Riverside Demo
+    Park} · {Thu 5 Nov 14:00}".
+  - **Cancelled:** "{09:06 Mon 2 Nov} · in the app", "· by the office (Sam Rota) · weather or
+    safety" (the office's reason only when it's one of its fixed reasons; never a casual's), "· by
+    your planner", "· removed on the rota sheet".
+  - **Notice** (can-2): "{6 hours}" as a chip, red under the threshold, grey otherwise ("less than
+    an hour", "1 hour", "{30} hours", "{3} days").
+  - **Strike** (can-2): "Strike {2} issued" as a red badge with "Counts until {Sat 23 Jan}"
+    ("Stopped counting {Sat 23 Jan}" once it has), and "Needs review" in amber while it's flagged
+    and nobody has kept it; "Strike withdrawn" struck through; otherwise grey "No strike · {why}":
+    enough notice, the office cancelled, your planner cancelled, cancelled on the rota sheet,
+    booked by the office, booked over a rest or hours rule, the office changed it after booking,
+    strikes are off, or from before strikes. {2}: how many of the casual's strikes counted when it
+    was issued, this one included.
+  - Rows with under {48} hours' notice are tinted red with a red edge, in every tab, All included
+    (can-1).
+- **A cancellation's record** (can-5): under the header, first **Notice** ("{6 hours' notice}
+  ({5.75} hours)", red under the threshold), **Under {48} hours**, **Strike** and **Reason** (as
+  given), with the strike's lines and Withdraw and Keep beneath; then every other field of §3.4's
+  table in its order. The PDF keeps §3.4's order.
+- Empty: Strikes "No strikes issued yet."; Today "No cancellations today."
+
+## Offering a shift, and how messages reach casuals, round 8 (Phase 26.9)
+
+The spec page's "Offering a shift" (off-1 to off-5; decision 4) and Phase 15's "Texts only" with
+email as a casual's choice. Words: `src/lib/office/offer-words.ts`, `src/lib/portal/profile-kinds.ts`
+and the casual app's pages; the order: `src/lib/notify/send.ts` (`docs/messaging-templates.md`
+"Notification policy"). This section wins over the older rows below where they differ.
+
+- **The order for every message to a casual** (off-3): an app notification to the phones they
+  turned notifications on for; if no phone takes it, their chosen way: a text (from the firm's own
+  text account) or an email; a text that can't go (no text sender yet, or they replied STOP) goes
+  by email when the firm holds an address for them. WhatsApp leaves every screen, every setting and
+  every message to a casual. (The shifts line's own inbound WhatsApp, on Twilio, which never went
+  live, stays as it is until the shifts line moves to texts: Phase 15's third task.)
+- **Profile, "How we reach you"** (off-4; the casual app keeps its look): "Notifications on this
+  phone" as before, then "If a notification can't reach you, send it by": **Text message** and
+  **Email** (Email only when the firm holds their address: "Email ({address})"; without one, under
+  Text message: "To get them by email instead, ask the office to add your email address.").
+  "Saved. We'll send shift messages by {text / email}." Email chosen but the address has gone since:
+  Text message is ticked (messages go by text), and saving isn't refused. STOP: "Texts are off: you replied STOP to
+  one of our texts. We'll email shift messages to {address}. To turn texts back on, text START to
+  our number." (no address: "…We can only reach you by notifications on your phone. …").
+- **Login links and pay codes** (they asked for them, so their shift-message choice doesn't
+  apply): by text while there's a text sender and they haven't replied STOP; else by email when
+  the firm's `login_by_email` is on and it holds their address (also when a firm has no text
+  account of its own at the moment it sends); else none, logged. The words: "we've sent a link by
+  text", "We've sent a 6-digit code by text." (the email ways as before); under the login page's
+  "Check your phone.": "Replied STOP to our texts? Text START to the number you got them from, then
+  ask again." (it can't say whose number it is). The Pay page and Profile
+  follow the casual's own case: one who replied STOP sees the email way, or "off" ("We can't send
+  you a code yet…"), never "by text"; Profile's STOP note tells them to text START.
+- **The offer page and the dashboard's offer panel** (off-1, off-5): each person under "Who can
+  take it" says how the offer will reach them, and why: "By app notification" (a phone of theirs
+  has notifications on), "By text: no app notifications on their phone", "By email: they chose
+  email", "By email: they turned texts off", "By email: no text account yet", and, in amber,
+  "Outside their travel area" (the office may still offer it). Someone it can't reach at all
+  (no app notifications, no texts and no email) isn't under "Who can take it" but under the next.
+- **"Not offered, and why"** (off-2), beside "Who can take it" from 1024px and under it on a phone:
+  the firm's active casuals with the session's role who can't be offered it, each with one reason,
+  the first that applies: "Booked on it", "Cancelled off it", "Already offered it", "Turned offers
+  off", "Over today's {3} offers", "No licence in date", "Booked elsewhere then", "Too soon after
+  another shift" (rest or travel), "Over their weekly hours", "Marked unavailable", "Blocked from
+  the site", "No rule for the role", "The rules say no" (any other rule), "No way to reach them".
+  At most 20, by name ("And {12} more."); none: "Everyone with the role can be offered it." The
+  offer waves leave out anyone nothing can reach, too (no phone with notifications, no email
+  address, and no text: STOP, or no text sender).
+- **Elsewhere:** every "WhatsApp or text" becomes "text" (login, the pay code, Help, Profile, the
+  guide, Remind's line on Casuals, the dashboard's channel words "text message", "email", "app
+  notification"); the shifts line reads "{+44 7700 900000} (texts and calls)".
+
+## Fixes and words, and every other office page, round 8 (Phase 26.10)
+
+The spec page's "Fixes and words" (fix-1 to fix-8) and "Every other office page" (oth-1, oth-2).
+This section wins over the older rows below where they differ.
+
+- **Pay dashboard** (fix-1): no shifts line under the title. The last count: "{Fri 6 Nov}", "Next
+  pay day", "For shifts in the week of {26 Oct}." ("in the cycle from {…}" on a cycle), and "This
+  week's shifts are paid {Fri 13 Nov}." when that's a later day; "From your pay records." when the
+  date came from them. The next pay day is the first one not yet past: last week's when it's still
+  ahead (the pay calendar's), else this week's, unless the pay records name an earlier one.
+- **Casual app** (fix-2): "Shifts you can take" / "More shifts you can take" (Open shifts), "{3}
+  shifts you can take" / "{2} more you can take" (Home), never "apply"; "I can do this" stays on a
+  session whose event is "Casuals ask, you choose".
+- **Automatic replies in the app** (fix-3): end "Automatic reply. — {firm} Shift Team", without
+  "Send OFFICE to reach a person." (the app has its own way to the office). Texts and WhatsApp keep
+  it.
+- **Action log** (fix-4): logins (links, codes, sessions, their limits) aren't listed unless Type
+  is Logins; under the filters: "Logins are hidden. Choose Logins under Type to see them."
+- **Enquiries** (fix-5): "AI sorting isn't connected yet: messages without a keyword go to a
+  person." for admins only.
+- **Notice report** (fix-6): "{22 hours' notice}", "{2 days' notice}", "After the start", with no
+  hours in brackets (the cancellation record, its PDF and the CSVs keep the exact hours).
+- **Role names** (fix-7): in their proper case everywhere, mid-sentence too: "a CSAS officer",
+  "CSAS officer needed" (texts, emails, the rules' reasons, replies), never "csas officer" or
+  "Csas officer".
+- **The demo** (fix-8): its history's log entries carry the story's own times (not the reload's),
+  and the pilot figures are worked out right after each nightly reload.
+- **Every other office page** (oth-1, oth-2): Enquiries, Strikes, the notice report, Pay, Pay
+  queries, Import, the action log, Pilot metrics, Team, Settings, Integrations, Data requests and
+  the Guide keep their content and actions, on round 8's panels, lists, tables, buttons, pills and
+  fields (26.1's system); tables have names left, figures right and lined up, 12px grey column
+  labels, one status pill per row and no zebra stripes.
 
 ## The office shell, round 7 (Phase 24)
 
@@ -578,7 +1210,7 @@ tokens) is in `docs/ui-design.md` "Phase 20".
   - "Needs doing" (hi-vis yellow) or "Needs doing now" (pale red, when it stops her working) with
     the one thing and its sentence, or "{3} things need doing" (→ where she sorts it).
   - "Your home area" "Add your home area" with its prompt, pale blue (while she has none).
-  - "More to apply for" ("To apply for" with none urgent) "{3} shifts" "{Sun 25, Tue 27 and Wed
+  - "More you can take" ("You can take" with none urgent) "{3} shifts" "{Sun 25, Tue 27 and Wed
     28 Oct}", pale blue (→ `/shifts/open`); none: "No others now" or "None right now", with
     "We'll message you when something matches." or "Check back later."
   - "Pay day" "{Fri 30 Oct}" "For this week's shifts", pale green (→ `/pay`): the pay week's
@@ -597,7 +1229,7 @@ tokens) is in `docs/ui-design.md` "Phase 20".
   day filled in the firm's colour with a tick, an urgent day pale red with its red count, an open
   day white with an outlined count; today's day name bold), the key in words under it; the
   filters right under that ("Any day", "Any site", "Any role", "Show shifts": no longer folded
-  away); "Urgent, needed now" (with a red dot), then "More shifts you can apply for" in date order,
+  away); "Urgent, needed now" (with a red dot), then "More shifts you can take" in date order,
   like the strip. Each card: the date tile with its month, the time and "{£15.50}/hour" on the
   first line, the role, "{event}, {post}", the travel line, the seats and "{1} place left": red
   only on urgent shifts.
@@ -706,7 +1338,7 @@ date tile, the sign plate, the seats, the plates) is in `docs/ui-design.md` "Pha
   new photo."; a qualification: "Renew your {SIA door supervisor licence}", "Add your …", "Send your
   … again", with the Needs updating sentence under it; several: "{3} things need doing" "{first},
   and {2} more.") → where she sorts it; with no travel area, "Add your home area" with its prompt;
-  "{3} more shifts you can apply for" "{Sun 25, Tue 27 and Wed 28 Oct}" (→ `/shifts/open`; none:
+  "{3} more shifts you can take" "{Sun 25, Tue 27 and Wed 28 Oct}" (→ `/shifts/open`; none:
   "No open shifts right now" / "No other shifts open", "We'll message you when something
   matches." or "Check back later.").
 - **Can't make it?** (`src/app/shifts/cancel-shift.tsx`, on the pass, Booked and a booked shift's
@@ -724,7 +1356,7 @@ date tile, the sign plate, the seats, the plates) is in `docs/ui-design.md` "Pha
   first; a booked day filled in the firm's colour with a tick, a red count on days with urgent
   shifts, an outlined count on days with open ones; a day with shifts a link to that day:
   `?day=`), with its key ("You're booked", "Urgent", "Open"); "Urgent, needed now" then "More
-  shifts you can apply for" (just "Shifts you can apply for" with none urgent), one card each,
+  shifts you can take" (just "Shifts you can take" with none urgent), one card each,
   each opening the shift's page: the date tile (red when urgent), the time in sign figures, the
   role, "{event}, {post}", the travel line ("{3.1 miles} · {12 min by car} · {24 min by public
   transport}", both ways whatever she chose, as on Booked: 12G.3), the seats with "{1} place left"
@@ -896,8 +1528,8 @@ With no text sender (either of the last two ways):
   - the dashboard's head: "{Friday 30 October} · {Cycle 22} · Pay {Fri 13 Nov}" (a weekly firm:
     "Week {44}"; a period before the calendar's anchor has no number: "Cycle");
   - the pay dashboard's header: "{Cycle 22} · {26 Oct} – {8 Nov} · Pay {Fri 13 Nov}"; its tile
-    "Sorted this {cycle}", "Since {Mon 26 Oct}." (the period's first day); with no pay date
-    imported, "The {Friday} after this {cycle}. No later pay date is in your pay records.";
+    "Sorted this {cycle}", "Since {Mon 26 Oct}." (the period's first day); the next pay day's
+    "For shifts in the cycle from {12 Oct}." (Phase 26.10, fix-1: "Fixes and words" above);
     "Recently sorted": "{3 queries}: {wrong rate}, the {cycle} of {Mon 12 Oct}";
   - payroll's pay-query headings and the digest email: "{14 queries}: {wrong rate}, the {cycle} of
     {Mon 12 Oct}, paid at {£13.00}." (the group is already the period's: `src/lib/pay/grouping.ts`).
@@ -1240,7 +1872,7 @@ shows the way: each page still checks who can open it.
   dashboard", "Events & sessions", "Cancellations", "Cancellation record", "Shifts", "New shift", "Shifts for an event", "Import shifts from a file", "Offer this
   shift", "Enquiries", "Enquiry", "Strikes", "Casuals", "Action log", "Notice and cancellation report", "Pilot metrics",
   "Pay queries", "Import pay records", "Office team", "Settings", "Integrations", "Data requests",
-  "How-to guide". A shift's, an event's, a casual's and a worker's data page keep "{firm} shifts".
+  "How-to guide", "Customise" (Phase 26.3), "Updates" (Phase 26.4). A shift's, an event's, a casual's and a worker's data page keep "{firm} shifts".
   `tests/unit/office.titles.test.ts` holds the pages to this list; the browser test checks "Events
   & sessions · Acme Events shifts".
 
@@ -1249,7 +1881,7 @@ shows the way: each page still checks who can open it.
 | `/office/login` | Office login | "Office login for {firm}". Field "Your work email" → "Send me a link". Then: "Check your email. If {firm} has this address, we've sent a login link. It works for 15 minutes." + sign-off. Same answer whether or not the address is known. Not an address: "Enter your work email address, like name@example.com." Rate-limited: "Too many tries. Try again in {n} minutes." After logout: "You're logged out." |
 | `/office/l#<token>` | Office link login | "Log in to the {firm} office" → "Log me in" → the dashboard. Expired, used or wrong: "This link has expired or was already used." → "Send me a new link". |
 | `/office` | Dashboard (admins and resourcers) | **Phase 23:** the count cards, the urgent places' cards and the six charts with their panels are in "The office's look, round 3, and the dashboard's charts (Phase 23)" above, which wins where this row differs (its sections, the week strip and the bell are older). Built in 12E.1 (`src/app/office/page.tsx` and `dashboard-view.tsx`; data from `src/lib/office/dashboard.ts`, reusing the queries of `today.ts`, Events & sessions, Cancellations and Enquiries; words in `src/lib/office/dashboard-copy.ts`; `docs/office-v2.md` 3.2, 3.9). Where everyone lands after logging in. Payroll is sent on to the pay dashboard (`/office/pay`, below). "Dashboard" (no label above it: the top bar names the firm; Phase 17), and under it the shifts line (Phase 7, `src/lib/tenancy/shifts-line.ts`): "Your shifts line: {+44 7700 900000} (WhatsApp, text and calls)." / "No shifts line yet." **Four counts** ("Counts" to screen readers), in this order, each labelled exactly so and a link to its filtered list: "Urgent shifts not filled" (→ `/office/events?view=urgent`; its number in red when there are some: sessions marked urgent, not started, open, with a place free; "{3 places} · first starts {Wed 10:30}" / "Every urgent shift is filled"), "Events showing to casuals" (→ `/office/events?view=showing`; events with a session to come that casuals can see; "{12 open places} across {5 sessions}" / "Nothing is showing"), "Cancellations today" (→ `/office/cancellations?day=today`; cancellations recorded since midnight; "{1} under {24} hours · {1 strike} issued" / "None since midnight"), "Enquiries today" (→ `/office/enquiries?day=today`; messages to the shifts line and requests from the app since midnight; "{4} answered automatically · {1} needs a person" (that number is everything waiting for a person, any day) / "None since midnight"). "Today" and "midnight" are the firm's calendar day in London. A count that can't be read says "Couldn't load". The four counts are one strip split by hairlines, each its label, then its number, then its line (Phase 17). Then five sections, each a heading with a hint under it, laid out so what needs someone comes first (Phase 17): "Urgent shifts not filled" and "Needs attention" in the main column, "Cancellations" and "Enquiries" beside them (below them under 1280px), and "Showing to casuals" last, across the page. **"Urgent shifts not filled"** ("Casuals see these first, and get an alert"): a card per event with an urgent gap: its name (→ its page) and place; "Hidden from casuals: nobody can see this gap." under the event's name when the event is hidden, or on the session itself when only the session is; then each urgent session (no "Urgent" tag: the section says so): "{1 place free / 2 of 3 places free}" (a pale red tag), "From your Google Sheet" (a sheet's), "From your planner" (one the firm's planner sent through the API, 12J.1), "{Door supervisor}, {Sat 7 Nov, 06:00 to 14:00}" (→ the shift's page), the line written by code from its offers: "Offered to {3 casuals}", or why offers stopped ("Offers stopped: nobody else can take it.", or it was filled / has started / isn't open / is hidden from casuals / was marked not urgent), "The office was emailed about it.", and the quick actions (below); "Showing the first 50 events."; empty: "Every urgent shift is filled." **"Showing to casuals"** ("Switch an event off to hide all its sessions from casuals"): the first 6 events showing, soonest first, as a table ("Events showing to casuals" to screen readers; columns Event, Where and when, Sessions, Showing), one row each: its name (→ its page), "{place} · {Sat 10 Oct}", "{2 sessions} · {3 places free}", its switch ("Show {event} to casuals", as on Events & sessions); each event's sessions are on its own page (Phase 17); then "And {n} more. All events showing" (→ `/office/events?view=showing`); empty: "No events are showing to casuals." **"Cancellations"** ("Recorded automatically, never approved or declined"): the latest 3, any day, each "{Ben Carter} cancelled" / "The office cancelled {Ben Carter}" / "Your planner cancelled …" / "Your rota sheet cancelled …" (→ its record), "{Role} · {event}, {site} · {when}", a notice chip ("{2 hours'} notice", red under the firm's strike threshold), "Strike issued" / "Strike withdrawn", "Cancelled {14:05 on Mon 2 Nov}"; empty: "No cancellations recorded."; then "All records" (→ `/office/cancellations`). No Approve, Decline or Deny button or link anywhere on the page. **"Enquiries"** ("What casuals asked, and the reply they got"): the latest 4 from the firm's message retention (`retention.message_days`, 90 days by default), each as on Enquiries (who, how, their words, what happened) with "Reply: {its first line}" (an automatic reply, or the office's once it has gone; one waiting to be sent or that failed isn't shown) or "No reply yet."; empty: "No enquiries in the last {90} days." (the firm's number of days); then "All enquiries" (→ `/office/enquiries`). **"Needs attention"** (`#needs-attention`; "Each item links to where it's dealt with"): its parts in this order, each only when it has something, its heading with its count ("50+" and "Showing the first 50." when a list stopped at 50): **"Bookings to check"** (Phase 10; only when there are some: future bookings whose worker isn't active, by any path, or is blocked from the shift's site, not kept, soonest first, at most 50: "Showing the first 50."): "These people are booked, but can't work these shifts as things stand. Cancel the booking (they're told), or keep it."; each "{Ann Booker} is booked, but is no longer active." / "… but is blocked." / "… but is blocked from {Riverside Arena}.", "{Role} at {site}" (→ the shift's page), the times, "{Ann Booker}'s page" (→ `/office/casuals/[id]`), "Cancel {name}'s booking" (the shift page's form, its reasons with "They've left, or can't work here") and "Keep the booking" → "Kept. {Ann Booker}'s booking stays, and it won't show here again unless something changes." (+ " They can't log in and get no reminders: tell them yourself." when they aren't active) (or "… was already kept.", "{Ann Booker}'s booking doesn't need checking any more.", "{Ann Booker}'s booking isn't there any more (cancelled, or the shift has started).", "You can't change bookings.", "Something went wrong. Reload the page to see if it was kept."). Whichever is done, its confirmation stays in place of both (the list updates on the next visit). A kept booking is shown again when the worker's status changes, a site block is added, or the shift moves to another site. **"From your rota sheet"** (Phase 10; Google Sheets firms, only when there's something: what the sheet asks for that the last sync couldn't do, per shift that hasn't ended, soonest first, at most 50: "Showing the first 50."): "Your rota sheet asks for these, but the app couldn't do them."; each "{Role} at {site}" (→ the shift's page), the times, then "Your rota sheet changes its {start and finish}, but {Ada Example} ({a licence or card out of date}) can't work it: not changed here. Change the sheet back, or cancel that booking (those bookings) and the next sync makes the change." / "Your rota sheet changes its {finish}, but the shift has started: not changed here." / "Your rota sheet changes its {start} to a time that has already passed: not changed here. Check the date in the sheet." / "Your rota sheet changes its {role}, but the firm's rules settings need fixing first: not changed here." and per name "{Ben Example} is in your rota sheet but isn't booked: {a licence or card missing}. The next sync tries again." / "{Dee Example} was in your rota sheet, but every place was taken: taken out of the sheet." (refused for another reason: "…, but they couldn't be booked ({reasons}) and every place is now taken: taken out of the sheet.") (the rules' reasons in the office's words: "not active", "not that role", "no licence rule for the role", "a licence or card missing", "a licence or card out of date", "a licence suspended", "over the day's limit for applications in progress", "booked elsewhere then", "too little rest", "over the weekly hours", "marked as a day off", "blocked from the site", "it had started", "no place left", "the firm's rules settings need fixing"). A change goes when the sheet and the app agree again (one refused because the shift had started stays while the sheet's new start is still ahead); a name when it's booked or out of the sheet, and a name taken out of a full sheet stays until the shift ends. **"Names your rota sheet uses"** (Phase 25.2; from the last sync's `sheet_name_problems`, at most 50: "Showing the first 50."): "Your rota sheet uses these names, but the app can't use them as they are."; a role it can't read and a skipped name on a session still to come, in the words of "The firm's model on the office's screens" above; each goes once the next sync no longer finds it. **"Who worked?"** (shifts that ended in the last 7 days with people booked not marked yet, latest first, at most 50): "{Role} at {site}" (→ the shift's page), the times, "{3 people} not marked yet." ("Showing the first 50." when there are more); "Nothing to mark from the last 7 days." **"Qualifications out of date on a booking"** (12E.1; bookings on sessions to come where a qualification the session needs (the role's and the session's own extra ones) was checked by the office and has expired, or runs out before the session's last day, with no other checked one in date; not a suspended one, and not when an application in progress counts as the rules count it: a type that allows it, at a firm with an allowance above 0): "{Ben Example}'s {SIA door supervisor licence} expired on {Sun 1 Nov}, before their {door supervisor} shift on {Sat 7 Nov}." ("runs out on" while it's still in date today; "during their … shift" when it runs out on a day the session covers, as with a night shift; with no date before the session's last day, as when one is marked expired with a later date: "… is marked as expired, and they're booked on a {door supervisor} shift on {Sat 7 Nov}."), "{Ben Example}'s page" (→ `/office/casuals/[id]`) and "The {door supervisor} shift" (→ the shift's page). **"Uploads to check"** (12F.2's photos and certificates waiting for the office): "{3 uploads wait} for a check." and "Check uploads" (→ `/office/casuals?view=uploads`). **"Strike evidence"** (12C.4, moved here in 12E.1): while the strikes team's email isn't set and confirmed, "The strikes team's email isn't set and confirmed, so strike records can't be emailed to them." (+ " {2} records wait for it.") with "Set it in Settings" (→ `/office/settings`, admins) or "An admin can set it in Settings." (resourcers); and each evidence email that failed or is held up (still waiting, nothing logged about it for 4 hours), on strikes still counting and not withdrawn, newest first, at most 50 ("Showing the first 50."): "{Ann Booker}'s strike record couldn't be emailed to the strikes team (cancelled {10:00 on Mon 2 Nov}). It may have arrived anyway." ("Nothing was sent." when its failure proves it; held up: "… hasn't been emailed to the strikes team (…). It's held up.") with "Open the record to resend it" (→ `/office/cancellations/{the booking's id}`). It counts each failed email, plus one for the address. **"Your planner's webhook is failing"** (12J.2; one item while the firm has a webhook and its latest delivery gave up after the last try, from the first failure since one last worked or the address was set): "Since {03:10 on Mon 12 Oct}, bookings and cancellations haven't reached your planner by webhook. Check its address with whoever runs your planner, then send a test event. Your planner can catch up on what it missed from ShiftDesk." with "Open Integrations" (admins) or "An admin can check it in Integrations." (resourcers). **"Your planner's change was refused"** (12J.1; `docs/office-v2.md` 5.3.2 step 5; worked out from the action log: each session from the firm's planner, not ended or cancelled, whose latest refused API change (`shift.move_refused` with `via` "api", or `api.change_refused`) has no later `shift.changed`, `shift.moved`, `shift.curtailed`, `shift.cancelled` or `shift.cancelled_by_firm` for it, soonest first, at most 50: "Showing the first 50."): "Your planner's change to the {steward} session on {Sat 7 Nov} was refused: {2 booked casuals} can't work it. Cancel their bookings, then ask your planner to send it again." ("1 booked casual … Cancel their booking, …"; a role or requirements change: "… was refused: it changes the role or the qualifications needed, and casuals are booked. Cancel their bookings, then ask your planner to send it again."; too few places: "… was refused: it takes away places casuals are booked in. Cancel those bookings, then ask your planner to send it again."; a booked session's move or cancellation sent with no reason: "… was refused: it moves or cancels a session casuals are booked on, and gave no reason. Ask your planner to send it again with a reason."), "{Role} at {site}" (→ the session's page, where its bookings are cancelled), the times, "Refused {08:30 on Mon 2 Nov}". It goes when a later change or cancellation of the session is logged (a PUT sent again unchanged logs nothing, so it stays), or when the session ends. Nothing in any part: "Nothing needs attention." A section that can't be read says "This couldn't load. Reload the page to try again." and the rest of the page still shows. **The bell** in the top bar of every office page (admins and resourcers): Needs attention's count ("50+" past a list's 50; no number at 0 or when it couldn't be read), "Needs attention, {n}" to screen readers, a link to `/office#needs-attention`. No dashboard link has the same name as a menu link. **Quick actions** on each urgent session: "Offer to someone" (→ `/office/offer/[id]`), "Mark urgent" / "Not urgent" ("Marked urgent. Offers are going out." / "No longer urgent. No more offers will go out."; on a shift hidden from casuals: "Marked urgent. It's hidden from casuals, so no offers go out while it's hidden." (showing it again starts them, if a place is free)), "Mark as filled" (opens: "Only if you've filled it another way. Nobody else will be offered it." → "Yes, mark as filled" → "Marked as filled. Nobody else will be offered it." + "Open it again" → "Open again. It shows as a gap until someone takes it."; not on a Google Sheet's shift: "This shift comes from your Google Sheet. Change it there.", nor on a session from the firm's planner: "This session comes from your planner. Change it there."). Errors: "This shift can't be marked urgent now. It has started or isn't open.", "This shift isn't open any more.", "You can't change shifts.", "Your session has ended. Log in again.", "Something went wrong. Try again." |
-| `/office/pay` | Pay dashboard (admins and payroll; payroll's home) | Phase 12 task 12A.3 (`src/app/office/pay/page.tsx`, data from `src/lib/office/pay-dashboard.ts`; `docs/office-v2.md` 3.8). "{firm} office", "Pay dashboard", the shifts line under it ("Your shifts line: {+44 7700 900000} (WhatsApp, text and calls)." / "No shifts line yet."), then "Import pay records" (→ `/office/pay/import`) and "Send the digest now" (as on Pay queries). Four counts: **"Pay queries waiting"** (open or in a digest) with "Oldest: {09:14 on Mon 2 Nov}." / "None waiting."; **"Next digest"** ("{09:00 on Tue 3 Nov}" or "None scheduled"), with the last one sent ("Last digest: …" / "No digest sent yet.") and any problem, in Pay queries' words; **"Sorted this week"** with "Since {Mon 2 Nov}." (the pay period's first day; on a fortnight "Sorted this {cycle}", Phase 25.2); **"Next pay date"** ("{Fri 6 Nov}"), "From your pay records." (the earliest imported pay date from today on) or "The Friday after this week. No later pay date is in your pay records." ("this {cycle}" on a fortnight). **"Waiting, grouped by likely cause"** (the number waiting beside it): "Pay questions never get an AI answer: they come here.", the 5 biggest groups' lines (each → `/office/pay-queries`), "{n} more groups on Pay queries."; none: "No pay queries waiting." **"Recently sorted"**: "The last 7 days.", one row per "Mark as sorted": "{3 queries}: {wrong rate}, the week of {Mon 26 Oct}" (the firm's word for its pay period: "the cycle of …"), "Sorted by {name} at {14:05 on Mon 2 Nov}." (someone since removed: "someone no longer in the office team") and their note in quotes; none: "Nothing sorted in the last 7 days." No strikes, and no pay figure (what someone was paid). | Nothing waiting, nothing sorted: the empty lines above. |
+| `/office/pay` | Pay dashboard (admins and payroll; payroll's home) | Phase 12 task 12A.3 (`src/app/office/pay/page.tsx`, data from `src/lib/office/pay-dashboard.ts`; `docs/office-v2.md` 3.8). "{firm} office", "Pay dashboard", the pay period under it ("{Week 45} · {2 Nov} – {8 Nov} · Pay {Fri 13 Nov}"; no shifts line since Phase 26.10, fix-1), then "Import pay records" (→ `/office/pay/import`) and "Send the digest now" (as on Pay queries). Four counts: **"Pay queries waiting"** (open or in a digest) with "Oldest: {09:14 on Mon 2 Nov}." / "None waiting."; **"Next digest"** ("{09:00 on Tue 3 Nov}" or "None scheduled"), with the last one sent ("Last digest: …" / "No digest sent yet.") and any problem, in Pay queries' words; **"Sorted this week"** with "Since {Mon 2 Nov}." (the pay period's first day; on a fortnight "Sorted this {cycle}", Phase 25.2); **"Next pay day"** ("{Fri 6 Nov}"; Phase 26.10, fix-1): the first pay day not yet past (last period's while it's ahead, else this period's; each the pay records' date when they date that period, else the pay calendar's; an earlier imported date first; `src/lib/pay/next-pay.ts`), "For shifts in the week of {26 Oct}." ("in the cycle from {…}" on a fortnight), "This week's shifts are paid {Fri 13 Nov}." when that's a later day, and "From your pay records." when the date came from them. **"Waiting, grouped by likely cause"** (the number waiting beside it): "Pay questions never get an AI answer: they come here.", the 5 biggest groups' lines (each → `/office/pay-queries`), "{n} more groups on Pay queries."; none: "No pay queries waiting." **"Recently sorted"**: "The last 7 days.", one row per "Mark as sorted": "{3 queries}: {wrong rate}, the week of {Mon 26 Oct}" (the firm's word for its pay period: "the cycle of …"), "Sorted by {name} at {14:05 on Mon 2 Nov}." (someone since removed: "someone no longer in the office team") and their note in quotes; none: "Nothing sorted in the last 7 days." No strikes, and no pay figure (what someone was paid). | Nothing waiting, nothing sorted: the empty lines above. |
 | `/office/team` | Office team (admin only) | Everyone with office access (Phase 10, `src/app/office/team/`, changes in `src/lib/office/team.ts`). "Office team", "Everyone who can log in to the office. Someone leaving: turn off their access. A lost laptop or phone: log them out on every device, and turn off their access too if their email is on it, until it's secure." Each person: their name (yours with " (you)"), email, "{Role} · Can log in" or "{Role} · Access off". Yours: "To change your own access, ask another admin." Everyone else's: "Role" (Admin, Resourcer, Payroll) → "Change role" → "{Name} is now {Role}. This applies from their next page." (to Admin, first: "Make {Name} an admin? Admins can change the office team and download or delete workers' data." "Yes, make them an admin" · "Keep their role"); with access: "Log out on every device" → "{Name} has been logged out on every device. They can log in again with a new link." (nobody logged in: "{Name} wasn't logged in anywhere."), and "Turn off access" → "Turn off {Name}'s access? They're logged out at once and can't log in until it's turned back on." "Yes, turn off access" · "Keep their access" → "{Name}'s access is off. They've been logged out everywhere and can't log in until it's turned back on."; with access off: "Turn access back on" → "{Name} can log in again. They'll need a new login link." The page refreshes under the message to show the change (also when someone else had already made it). Other roles get the not-found page. Refusals: the firm's only admin: "{Name} is the only admin. Make someone else an admin first." Already so: "{Name}'s access is already off." / "{Name} can already log in." / "{Name} is already {Role}." Not on this firm's team: "That person isn't on your office team." Not an admin (any more): "Only admins can change the office team." Session over: "Your session has ended. Log in again." A failure: "Something went wrong. Nothing was changed. Try again."; the browser's request failing (the server may have finished): "Something went wrong. Reload the page to see if it changed." |
 | `/office/data` | Data requests (admin only; Phase 8, `src/app/office/data/page.tsx`) | "Data requests": "When someone asks for their data, or asks to be deleted, find them here. Send their data within a month of the request. Every download and deletion goes in the action log." **Find a worker:** "Name or mobile number" (part of a name, or a mobile written any UK way), "Find" (a server action: what's typed never goes in the address, the browser's history or a request log); up to 20 matches, each a link to their page with their mobile and status ("Active", "Not active", "Blocked"; an erased one "Deleted"); none: "Nobody matches "{q}"." **All {firm}'s data:** what's in it, "Login records aren't included.", "Download all your data" (one JSON file, `/office/data/export`; started from another site, or another firm's address, it answers "Open this from ShiftDesk." (403) and logs nothing, 12L.1). **How long we keep things** (from the firm's own retention settings, `src/lib/office/data-copy.ts` `keepTimeLines`): "Messages to and from your shifts line: {90} days.", "What a worker typed into a request (a note, a colleague's name): {365} days after the request is closed. An open request keeps it.", "The office's typed reason for placing someone despite a rule: {365} days after they were booked.", with a hold "A hold is on until {Wed 31 Mar 2027}: nothing above is deleted until then.", then login links and codes 7 days after they run out; logins 30 days after they end; workers and their licences and cards until you delete them here; shifts, bookings, offers, requests, pay records and the action log kept as the firm's records (deleted workers' without a name), and "To change how long, or to hold everything for a dispute, ask us." Other roles get the not-found page. |
 | `/office/data/workers/[id]` | One worker's data (admin only; Phase 8) | Their name and mobile. **Download their data:** what's in it, "Send it to them within a month of their request.", "Download (JSON)", "Download (CSV, opens in Excel)" (`/office/data/workers/[id]/export?format=json|csv`: one value per line, Section, Record, Field, Value; UTF-8 with a byte order mark; formulas made inert; the file named by id and date, never by name; started from another site, or another firm's address, either answers "Open this from ShiftDesk." (403) and logs nothing, 12L.1). Each file carries their photos' and certificate images' details only (kind, type, date, status, the check, the sha256 fingerprint), never the image; "Their photos and card images" lists each as its own download: "Download {photo / SIA_DS card image} ({Mon 2 Nov})" (→ `/files/{id}?download=1`; 12F.2). **Delete their personal details:** what goes and what stays ("This deletes {name}'s name, mobile number, email, licences and cards, days off, messages, notes and logins, and the office's typed reasons on their bookings." "Their shifts, offers, cancellations and pay lines stay, without a name, as {firm}'s records (the notice report needs them)." "Words other people wrote that name them, like a colleague's swap request or pay query, aren't changed."), "If {name} is in your rota sheet or a staff file you import, remove them there too, or the next sync or import adds them back.", a checkbox "I understand this can't be undone", "Delete {name}'s personal details" → "Deleted. {name}'s personal details are gone. Their shift history stays, without a name. Words other people wrote that name them, like a colleague's swap request or pay query, aren't changed." Not ticked: "Tick the box to say you understand this can't be undone." Booked on a shift that hasn't ended: the form is replaced by "{name} is booked on 1 shift that hasn't ended (2 shifts that haven't ended). Cancel those first (with a reason), then come back to delete." Already erased: the heading is "Deleted worker" and "Deleted on {date}. Their shift history stays, without a name. Words other people wrote that name them, like a colleague's swap request or pay query, aren't changed." Errors: "Only an admin can delete a worker's details.", "Log in again, then try again.", "Something went wrong. Reload the page to see if it was deleted." (the browser's request can fail after the server has finished) |

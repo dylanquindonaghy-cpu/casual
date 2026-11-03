@@ -4,8 +4,8 @@ import { expect, menuLink, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
 // Payroll's pay dashboard in a real browser (docs/office-v2.md 3.8; PLAN.md 12A.3), on the demo
-// seed: payroll lands there from /office; the title with the firm's shifts line under it, the four
-// counts, the two sections, the Pay queries badge in the menu; resourcers can't open it. (Other
+// seed: payroll lands there from /office; the title with the pay week under it (no shifts line:
+// Phase 26.10, fix-1), the four counts, the two sections, the Pay queries badge in the menu; resourcers can't open it. (Other
 // specs add pay queries, so the counts are read, not assumed.)
 
 const acme = "http://acme.localhost:3100";
@@ -22,16 +22,14 @@ async function officeLogin(page: Page, email: string, role: "payroll" | "resourc
   await page.getByRole("button", { name: "Log me in" }).click();
 }
 
-test("payroll lands on the pay dashboard: the shifts line, the counts and both sections", async ({
+test("payroll lands on the pay dashboard: the pay week, the counts and both sections", async ({
   page,
 }) => {
   await officeLogin(page, "dash.payroll@example.com", "payroll");
   await expect(page).toHaveURL(`${acme}/office/pay`);
   await expect(page).toHaveTitle("Pay dashboard · Acme Events shifts");
   await expect(page.getByRole("heading", { name: "Pay dashboard", level: 1 })).toBeVisible();
-  await expect(
-    page.getByText("Your shifts line: +44 7700 900000 (WhatsApp, text and calls)."),
-  ).toBeVisible();
+  await expect(page.getByText(/^Your shifts line:/)).toHaveCount(0);
   // The pay week and its pay day (Phase 24: from the top bar).
   await expect(
     page
@@ -40,9 +38,11 @@ test("payroll lands on the pay dashboard: the shifts line, the counts and both s
         /^Week \d{1,2} · \d{1,2} [A-Z][a-z]{2} – \d{1,2} [A-Z][a-z]{2} · Pay Fri \d{1,2} [A-Z][a-z]{2}$/,
       ),
   ).toBeVisible();
-  for (const name of ["Pay queries waiting", "Next digest", "Sorted this week", "Next pay date"]) {
+  for (const name of ["Pay queries waiting", "Next digest", "Sorted this week", "Next pay day"]) {
     await expect(page.getByText(name, { exact: true })).toBeVisible();
   }
+  // Which shifts the next pay day pays (Phase 26.10, fix-1).
+  await expect(page.getByText(/^For shifts in the week of \d{1,2} [A-Z][a-z]{2}\.$/)).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Waiting, grouped by likely cause", exact: true }),
   ).toBeVisible();

@@ -67,6 +67,8 @@ export const serverEnv = (port: number, outbox: string, opts: { testPages?: bool
   // Never postcodes.io or TravelTime: the made-up points for the ZZ postcodes (the e2e servers
   // don't run with NODE_ENV=test, so this pin is what keeps them off).
   TRAVEL_PROVIDER: "fake",
+  // Never a street map (Phase 26.2): the office map places venues on a plain ground.
+  MAP_TILES_URL: "",
   TRAVELTIME_APP_ID: "",
   TRAVELTIME_API_KEY: "",
   // A made-up planner integration secret (12J.1), never .env's own; not .env.example's either,
@@ -82,15 +84,28 @@ export const serverEnv = (port: number, outbox: string, opts: { testPages?: bool
   DEMO_MODE: "",
   DEMO_SITE_PASSWORD: "",
 });
-const env = serverEnv(PORT, OUTBOX);
+// With CI set (a production build, as GitHub's CI runs it): a session secret of the run's own,
+// shared by the web app and the worker, since `next start` runs as production, which refuses
+// .env.example's (serverEnv already gives the planner integration secret its own). On GitHub there's
+// no .env; here, .env's would otherwise reach the servers.
+const env = {
+  ...serverEnv(PORT, OUTBOX),
+  ...(ci ? { SESSION_SECRET: "e2e-ci-only-secret-not-for-any-real-use-0000" } : {}),
+};
 
 export default defineConfig({
   testDir: "tests/e2e",
   testMatch: "**/*.spec.ts",
   // The walkthrough runs on its own, against a fresh database and a production build in demo mode
   // (playwright.walkthrough.config.ts, with demo.spec.ts), and so does the run with no text sender
-  // (playwright.no-texts.config.ts, P2.7); `npm run e2e` runs all three.
-  testIgnore: ["**/walkthrough.spec.ts", "**/demo.spec.ts", "**/no-texts.spec.ts"],
+  // (playwright.no-texts.config.ts, P2.7), and the one with the street map
+  // (playwright.streets.config.ts, Phase 26.2); `npm run e2e` runs all four.
+  testIgnore: [
+    "**/walkthrough.spec.ts",
+    "**/demo.spec.ts",
+    "**/no-texts.spec.ts",
+    "**/streets.spec.ts",
+  ],
   forbidOnly: ci,
   retries: ci ? 1 : 0,
   workers: 1,
@@ -133,7 +148,10 @@ export default defineConfig({
     {
       command: `(${ci ? `npm run build && npx next start -p ${PORT}` : `npx next dev -p ${PORT}`}) 2>&1 | tee ${SERVER_LOGS[1]}`,
       url: `http://localhost:${PORT}`,
-      env,
+      // A production build runs as production: .env's NODE_ENV=development (loaded above) would
+      // reach the build, which then can't prerender its pages ("non-standard NODE_ENV"; Next 16.4),
+      // as the walkthrough's config says too.
+      env: ci ? { ...env, NODE_ENV: "production" } : env,
       reuseExistingServer: false,
       timeout: 240_000,
     },

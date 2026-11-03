@@ -48,5 +48,18 @@ export const geistExt = localFont({
   ],
 });
 
-// The two variables, for <html>'s class (the root layout and the whole-page error screen).
-export const fontVariables = [geist, geistExt].map((f) => f.variable).join(" ");
+// Geist Mono for references and IDs ("0695DD8C") in the office (round 8, sys-6: src/app/ui/ref.tsx)
+// and keys on Integrations, so 0 and O, 1 and l differ. Latin only (they're letters and digits),
+// not preloaded: the browser fetches it only for a page that shows one. From
+// @fontsource-variable/geist-mono (SIL Open Font License 1.1), served by the app as Geist is.
+export const geistMono = localFont({
+  src: "../../node_modules/@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2",
+  weight: "100 900",
+  style: "normal",
+  display: "swap",
+  preload: false,
+  variable: "--font-geist-mono",
+});
+
+// The three variables, for <html>'s class (the root layout and the whole-page error screen).
+export const fontVariables = [geist, geistExt, geistMono].map((f) => f.variable).join(" ");

@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { loadSaturday, loadWeekOffers, seed } from "@/lib/db/admin/seed";
+import { seedLog } from "@/lib/db/admin/seed-log";
 import { seedId } from "@/lib/db/admin/seed-data";
 import { resolveFirmBySlug } from "@/lib/db/directory";
 import { withFirm, type FirmTx } from "@/lib/db/scoped";
@@ -633,12 +634,21 @@ describe("Acme's Saturday event day", () => {
     expect(jobs).toEqual([]);
   });
 
-  it("the demo's dashboard reads every part of its board: the offers waiting on Offered, places on the chart, pay queries with payroll", async () => {
+  it("the demo's dashboard reads every part of its board: the offers waiting, venues on the map, Updates and Who worked?, pay queries with payroll", async () => {
     const { loadBoard } = await import("@/lib/office/dashboard-board");
     const d = await withFirm(ACME, (tx) => loadBoard(tx, new Date()));
-    const parts = [d.planner, d.counts, d.chart, d.gaps, d.overnight, d.toMark];
-    expect(parts.map((c) => c.ok)).toEqual(Array(6).fill(true));
-    if (!d.gaps.ok || !d.chart.ok) throw new Error("a part failed");
+    const parts = [
+      d.planner,
+      d.counts,
+      d.gaps,
+      d.toMark,
+      d.roles,
+      d.venues,
+      d.updates,
+      d.whoWorked,
+    ];
+    expect(parts.map((c) => c.ok)).toEqual(Array(8).fill(true));
+    if (!d.gaps.ok || !d.venues.ok) throw new Error("a part failed");
     // Offers waiting, unless the seed ran on Monday before quiet hours ended (it plans none then).
     const { waiting } = await plannedFromStore();
     expect(d.gaps.data.offered.waiting > 0).toBe(waiting > 0);
@@ -646,7 +656,9 @@ describe("Acme's Saturday event day", () => {
     // Nobody said no: the app can't record a "no" yet, so the demo shows none.
     const sessions = [...d.gaps.data.toOffer.sessions, ...d.gaps.data.offered.sessions];
     expect(sessions.reduce((n, s) => n + s.offers.saidNo, 0)).toBe(0);
-    expect(d.chart.data.days.some((x) => x.toOffer + x.offered > 0)).toBe(true);
+    // Venues with places to fill, each placed by its postcode's position (the demo's made-up ZZ
+    // postcodes have made-up positions near Leeds).
+    expect(d.venues.data.some((v) => v.places > 0 && v.lat !== null && v.lng !== null)).toBe(true);
     // Pay queries with payroll (the top bar's count for an admin, through the office frame).
     const { loadOfficeFrame } = await import("@/lib/office/frame");
     const { rows: admins } = await su.query<{ id: string }>(
@@ -842,12 +854,17 @@ describe("Acme's Saturday event day", () => {
             from offers o where o.shift_id in (${shiftIds}) order by o.id
         `)
       ).rows;
-    const load = async (tx: FirmTx) =>
-      loadWeekOffers(tx, firm, {
+    // The seed's own way (Phase 26.10, fix-8): the log entries written once the rows are in.
+    const load = async (tx: FirmTx) => {
+      const log = seedLog(now);
+      await loadWeekOffers(tx, firm, {
         saturday: day,
-        fresh: await loadSaturday(tx, firm, day, now),
+        fresh: await loadSaturday(tx, firm, day, now, log),
         now,
+        log,
       });
+      await log.write(tx);
+    };
     let first: Awaited<ReturnType<typeof offersNow>> = [];
     let again: Awaited<ReturnType<typeof offersNow>> = [];
     await expect(

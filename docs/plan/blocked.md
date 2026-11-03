@@ -22,10 +22,11 @@ not Bedrock; Phase 15's texts replace the WhatsApp and Twilio items of Phases 4 
 | Phase 8: the server, Compose deploy, backups and alerts, the runbooks tried for real | a UK or EU Docker host and its account (ADR-021) | Dylan |
 | Phase 8: the Twilio fallback (calls forward to the manager's phone) | Twilio; whether it stays now texts go through Phase 15 is Dylan's call (`docs/architecture.md` still relies on it) | Dylan |
 | Phase 9: real data imported, the privacy notice line sent, the pre-pilot checklist, the baseline week, a dry-run day, the weekly reviews | Gate B, then the pilot itself | Dylan and the firm |
-| Phase 15: texts only (15.1) | Dylan's go-ahead; the text system's details (how a text is sent, the sending number or name; Webex Interact itself confirmed 2026-10-26); a mock-up first, as it changes screens | Dylan and the firm |
+| Phase 15: texts only (15.1) | Most of it built in Phase 26.9 (decision 4 was the go-ahead, the round 8 spec page the mock-up): every message to a casual by app notification, text or email, the login link and pay code by text, no WhatsApp choice. Left: the shifts line's reply to an unknown number by text (`src/lib/inbound/reply.ts`), which comes with the shifts line moving to texts (the third task). Webex stays refused in production until a STOP sent to it is recorded (the third task) and the web can see which firms have a Webex key (Parking lot) | the firm |
 | Phase 15: the sender (15.2), live | the firm's Webex Interact account (built and switched off) | the firm |
 | Phase 15: replies by text (the third task) | the firm turning replies on, with a dedicated inbound number | the firm |
 | Phase 22: every other office page on round 2's parts (22.4) | nothing: Phase 23 replaced round 2's look (left open on purpose, 2026-10-23) | nobody |
+| Phase 26.1 (aud-16): smooth scrolling over the still street map, checked on a mid-range laptop before it ships | a person with a mid-range laptop (a headless browser here can't judge it); the map is one still picture, solid under "reduce transparency" | Dylan |
 | P3: availability out (the proposal's fifth item) | discovery: does AXLR8 keep availability? | Dylan |
 | P5: the real connector | the ops portal's API documentation and a test copy; the agreement and the DPA | Dylan (arranging access) and the firm |
 | P6: attendance and pay lines | the ops portal's API documentation and a test copy (the API exists: answer O1); its "Still coming?" button, a mock-up first | Dylan (arranging access) and the firm |

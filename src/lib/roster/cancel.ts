@@ -10,6 +10,7 @@ import {
   workers,
   type CancelAsker,
 } from "../db/schema";
+import { closeAsksOnChange } from "./asks";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { officeCanPlace, plugFor, rosterId } from "./book";
@@ -23,6 +24,7 @@ import {
 import { connectorSession } from "./planner-kind";
 import { cancelAskedBy, type CancelResult } from "./plug";
 import { queueFirmChangeNotice } from "../notices/firm-change";
+import { queueOfficeCancelAlert } from "../office/alert-jobs";
 import { placeAfterCancel, removeFreedPlace } from "./native";
 import { markUrgentAfterDropout } from "./urgent";
 import { FIRM_CHANGE_REASONS, SHIFT_CHANGE_REASON_CODES, firmReasonWords } from "./firm-reasons";
@@ -276,6 +278,13 @@ async function cancelInTransaction(
   if (initiator === "firm") {
     await queueFirmChangeNotice(tx, { eventId, assignmentId: cancelled.assignmentId });
   }
+  // A casual's under 48 hours' notice: the office users who asked are told (Phase 26.4).
+  if (initiator === "worker") {
+    await queueOfficeCancelAlert(tx, {
+      assignmentId: cancelled.assignmentId,
+      noticeHours: cancelled.noticeHours,
+    });
+  }
   if (fewerStaff) {
     if (lowered) {
       await recordEvent(tx, {
@@ -441,6 +450,8 @@ async function cancelShiftInTransaction(
     .update(offers)
     .set({ response: "expired", respondedAt: now })
     .where(and(eq(offers.shiftId, shiftId), isNull(offers.response)));
+  // Asks still waiting close, untold: the session won't happen (Phase 26.6).
+  await closeAsksOnChange(tx, shiftId, now, "cancelled");
   await recordEvent(tx, {
     ...actor,
     action: "shift.cancelled_by_firm",

@@ -1,3 +1,4 @@
+import { roleWords } from "../text/role";
 // The reasons a worker sees when a shift is blocked (docs/rules-and-credentials.md, docs/screens.md
 // copy rules: short sentences, plain words, say what to do next).
 
@@ -18,7 +19,8 @@ export function dayLabel(isoDate: string): string {
   return `${DAYS[weekday]} ${d} ${MONTHS[(m ?? 1) - 1]}`;
 }
 
-const roleName = (role: string) => role.replace(/_/g, " ");
+// "a CSAS officer" (Phase 26.10, fix-7).
+const roleName = roleWords;
 const withArticle = (noun: string) => `${/^[aeiou]/i.test(noun) ? "an" : "a"} ${noun}`;
 const hours = (h: number) =>
   `${Number.isInteger(h) ? String(h) : h.toFixed(1)} ${h === 1 ? "hour's" : "hours'"}`;

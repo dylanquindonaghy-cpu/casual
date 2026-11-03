@@ -47,6 +47,9 @@ describe("messages go from the firm's shifts line", () => {
       "src/lib/auth/send-portal-link.ts",
       // (The credential scan goes through sendToWorker since 13.5: the worker's own channel.)
       "src/lib/inbound/reply.ts",
+      // The shifts line's WhatsApp reply and the text (sendToWorker, sendText: Phase 26.9).
+      "src/lib/notify/send.ts",
+      "src/lib/notify/send.ts",
     ]);
     for (const m of found) expect(m.next, m.path).toMatch(/\bfrom\b/);
     // Written on one line: the same rule.
@@ -58,18 +61,35 @@ describe("messages go from the firm's shifts line", () => {
     for (const m of short) expect(m.rest, m.path).toMatch(/\bfrom: /);
   });
 
-  it("only the STOP / START confirmation sends a text directly: every other text goes through sendToWorker() (never to a worker who replied STOP)", () => {
+  // Since Phase 26.9 the login link and the pay code go by text, built in their own jobs: each
+  // decides its channel with loginChannel(), which never picks a text for a worker who replied STOP.
+  it("only the STOP / START confirmation, the login link, the pay code and sendText() send a text directly (never to a worker who replied STOP)", () => {
     const texts = files.filter((f) =>
       /channel: "sms"(?: as const)?,\s*(?:\n\s*)?to: /.test(f.text),
     );
-    expect(texts.map((f) => f.path)).toEqual(["src/lib/inbound/opt-out.ts"]);
+    expect(texts.map((f) => f.path).sort()).toEqual([
+      "src/lib/auth/send-login-code.ts",
+      "src/lib/auth/send-portal-link.ts",
+      "src/lib/inbound/opt-out.ts",
+      "src/lib/notify/send.ts",
+    ]);
+    for (const path of ["src/lib/auth/send-login-code.ts", "src/lib/auth/send-portal-link.ts"]) {
+      const text = files.find((f) => f.path === path)?.text ?? "";
+      expect(text, path).toMatch(/loginChannel\(\{[\s\S]*?smsAllowed: [^,]*smsAllowedFor\(/);
+    }
+    const notify = files.find((f) => f.path === "src/lib/notify/send.ts")?.text ?? "";
+    expect(notify).toMatch(
+      /if \(!input\.smsAllowed\) return \{ ok: false, channel: "sms", code: "sms_opted_out" \};/,
+    );
   });
 
   it("every call to sendToWorker(), deliverToWorker() or sendTextOrEmail() names `from`", () => {
     const calls = senderCalls();
     expect(calls.map((c) => c.path).sort()).toEqual([
+      "src/lib/credentials/remind.ts", // the office's "Remind" (Phase 26.7)
       "src/lib/credentials/scan.ts", // licence expiry messages (13.5)
       "src/lib/inbound/reply.ts",
+      "src/lib/notices/ask-answer.ts", // not booked from an ask (Phase 26.6)
       "src/lib/notices/enquiry-reply.ts", // the office's reply on Enquiries (12D.1)
       "src/lib/notices/firm-change.ts",
       "src/lib/notices/pay-query-update.ts",
@@ -88,13 +108,15 @@ describe("messages go from the firm's shifts line", () => {
 
   it("every call to the shared senders passes the worker's own STOP setting", () => {
     const calls = senderCalls();
-    expect(calls).toHaveLength(10);
+    expect(calls).toHaveLength(12);
     // Never a hard-coded value: always the worker's, read with their channel.
     for (const c of calls) expect(c.args, c.path).toMatch(/\bsmsAllowed: \w+\.smsAllowed,/);
     // Where each reads it: the worker row's sms_opted_out_at.
     for (const path of [
+      "src/lib/credentials/remind.ts",
       "src/lib/credentials/scan.ts",
       "src/lib/inbound/reply.ts",
+      "src/lib/notices/ask-answer.ts",
       "src/lib/notices/enquiry-reply.ts", // and a stranger's own last STOP or START (12D.1)
       "src/lib/notices/firm-change.ts",
       "src/lib/notices/pay-query-update.ts",
@@ -108,10 +130,12 @@ describe("messages go from the firm's shifts line", () => {
     }
   });
 
-  it("the shared sender passes `from` on to both tries (WhatsApp, then the text fallback)", () => {
+  it("the shared sender passes `from` on to its WhatsApp and its text, never to the email", () => {
     const notify = files.find((f) => f.path === "src/lib/notify/send.ts")?.text ?? "";
     const sends = notify.match(/transport\.send\(\{[\s\S]*?\}\)/g) ?? [];
-    expect(sends.map((s) => /\.\.\.from,/.test(s))).toEqual([true, true, false]);
+    expect(sends.map((s) => /\.\.\.from,|from: input\.from/.test(s))).toEqual([true, true, false]);
+    expect(sends[0]).toMatch(/channel: "whatsapp"/);
+    expect(sends[1]).toMatch(/channel: "sms"/);
     // The third is the email (P2.4): from the firm's email sender, never the shifts line.
     expect(sends[2]).toMatch(/channel: "email"/);
   });

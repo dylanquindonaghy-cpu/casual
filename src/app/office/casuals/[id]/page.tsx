@@ -10,7 +10,12 @@ import { workerAccessView } from "@/lib/office/worker-access";
 import { STRIKES_PER_CASUAL } from "@/lib/office/strikes";
 import { liveCountText, strikeLine, strikeStatusText } from "@/lib/office/strikes-copy";
 import { SITE_BLOCK_REASON_WORDS } from "@/lib/office/worker-reasons";
-import { roleLabel, shiftWhen } from "@/lib/portal/format";
+import { roleLabel, shiftWhen, timeOnDay } from "@/lib/portal/format";
+import { casualPageExtras } from "@/lib/office/casual-follow-up";
+import { countsWords } from "@/lib/rules/reliability";
+import { standingWords } from "@/lib/office/casuals-copy";
+import { ReliabilityBar } from "../../reliability-bar";
+import { NoteForm } from "./note-form";
 import {
   dateLine,
   needsText,
@@ -27,6 +32,7 @@ import { officeTravelText } from "@/lib/travel/copy";
 import { CSAS } from "@/lib/uploads/check";
 import { SignOutButton, SiteBlocks, StatusForm } from "./access-forms";
 import { RecordCsas, UploadsToCheck } from "./upload-checks";
+import { Ref } from "@/app/ui/ref";
 
 // An upload's image, opening full size in a new tab (access-checked: src/app/files/[id]/route.ts).
 function Evidence({ id, alt, size }: { id: string; alt: string; size: number }) {
@@ -65,6 +71,7 @@ export default async function OfficeCasualPage({ params }: { params: Promise<{ i
   const { id } = await params;
   const worker = await workerAccessView({ firm, officeUserId: officeUser.id }, id);
   if (!worker) notFound();
+  const extras = await casualPageExtras({ firm, officeUserId: officeUser.id }, id);
   const tz = firm.timezone;
   const thisYear = localDateOf(new Date(), tz).slice(0, 4);
   return (
@@ -88,6 +95,36 @@ export default async function OfficeCasualPage({ params }: { params: Promise<{ i
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] lg:items-start">
         {!worker.erased && (
           <div className="flex min-w-0 flex-col gap-6">
+            {extras?.record && (
+              <section className={card} aria-labelledby="reliability">
+                <h2 id="reliability" className={h2}>
+                  Reliability
+                </h2>
+                <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2">
+                  <ReliabilityBar reliability={extras.record.reliability} />
+                  <p className="text-sm text-ink-muted tabular-nums">
+                    {countsWords(extras.record.reliability.counts)} · last 90 days
+                  </p>
+                </div>
+                {standingWords(extras.record.standing).length > 0 && (
+                  <p className="mt-2 flex flex-wrap gap-2">
+                    {standingWords(extras.record.standing).map((w) => (
+                      <StatusChip key={w.words} tone={w.tone}>
+                        {w.words}
+                      </StatusChip>
+                    ))}
+                  </p>
+                )}
+                <p className={`${meta} mt-2`}>
+                  {extras.record.lastWorked
+                    ? `Last worked ${shortDate(localDateOf(extras.record.lastWorked, tz), Number(thisYear))}.`
+                    : "Not worked yet."}{" "}
+                  Worked ÷ (worked + no-shows + cancellations under 48 hours), from what the office
+                  marked.
+                </p>
+              </section>
+            )}
+
             <section className={card} aria-labelledby="needs">
               <h2 id="needs" className={h2}>
                 Needs updating
@@ -233,7 +270,7 @@ export default async function OfficeCasualPage({ params }: { params: Promise<{ i
                           href={`/office/cancellations/${st.assignmentId}`}
                           className={textLink}
                         >
-                          Cancellation record {st.ref}
+                          Cancellation record <Ref>{st.ref}</Ref>
                         </Link>
                       </p>
                     </li>
@@ -243,6 +280,27 @@ export default async function OfficeCasualPage({ params }: { params: Promise<{ i
               {worker.strikesMore && (
                 <p className={`${meta} mt-2`}>Showing the latest {STRIKES_PER_CASUAL}.</p>
               )}
+            </section>
+
+            <section className={card} aria-labelledby="notes">
+              <h2 id="notes" className={h2}>
+                Notes
+              </h2>
+              {extras && extras.notes.length > 0 ? (
+                <ul role="list" className="mt-2 divide-y divide-line">
+                  {extras.notes.map((n, i) => (
+                    <li key={i} className="py-2">
+                      <p className="whitespace-pre-line">{n.body}</p>
+                      <p className={`${meta} mt-1`}>
+                        {n.by} · {timeOnDay(n.at, tz)}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className={`${meta} mt-2`}>No notes yet.</p>
+              )}
+              <NoteForm workerId={worker.id} />
             </section>
 
             <section className={card} aria-labelledby="access">

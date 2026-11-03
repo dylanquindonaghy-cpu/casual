@@ -229,9 +229,11 @@ describe("the setting (worker only)", () => {
     );
   });
 
-  it("refused in production until 15.1 makes everything texts (the login link still goes by WhatsApp)", () => {
+  // Since Phase 26.9 the login link and the pay code go by text, but a STOP sent to Webex isn't
+  // recorded yet and the pages can't tell which firms have a key: still refused in production.
+  it("refused in production until STOP by text and a per-firm text account the pages can see", () => {
     expect(refusal({ MESSAGING_TRANSPORT: "webex", SECRETS_KEY, NODE_ENV: "production" })).toMatch(
-      /webex waits for 15.1/,
+      /webex waits in production for STOP by text/,
     );
   });
 

@@ -148,7 +148,7 @@ describe("Open shifts page body (Phase 18)", () => {
       }),
     );
     expect(text(html)).toContain("Urgent, needed now");
-    expect(text(html)).toContain("More shifts you can apply for");
+    expect(text(html)).toContain("More shifts you can take");
     const urgent = cardsIn(html, "urgent-heading");
     const more = cardsIn(html, "more-heading");
     expect(urgent.map((c) => /href="\/shifts\/([a-z0-9]+)"/.exec(c)?.[1])).toEqual(["u1"]);
@@ -196,7 +196,7 @@ describe("Open shifts page body (Phase 18)", () => {
     ).toEqual(["u9"]);
     // With nothing urgent: one heading.
     const plain = render(list({ shifts: [shift({ shiftId: "n1" })] }));
-    expect(text(plain)).toContain("Shifts you can apply for");
+    expect(text(plain)).toContain("Shifts you can take");
     expect(text(plain)).not.toContain("Urgent, needed now");
   });
 
@@ -346,6 +346,13 @@ describe("after Take shift", () => {
 
   const show = (outcome: Exclude<TakeShiftOutcome, { status: "logged_out" }>) =>
     text(renderToStaticMarkup(createElement(TakeShiftResult, { outcome })));
+
+  // The office chose who works it while she looked (Phase 26.6, ses-6): say so, and ask instead.
+  it("the office chooses now: ask for it instead", () => {
+    expect(show({ status: "ask_first" }).trim()).toBe(
+      "The office now chooses who works this one. Ask for it instead.",
+    );
+  });
 
   it("too many taps (13.5): how long to wait, as the login page says it", () => {
     expect(show({ status: "rate_limited", retryAfterMinutes: 12 }).trim()).toBe(

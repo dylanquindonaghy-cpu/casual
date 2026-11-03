@@ -106,6 +106,22 @@ const appFields = {
   // under NODE_ENV=test, so no test can reach either. Real use waits for "Connect postcodes.io and
   // TravelTime" (PLAN.md Parking lot). An empty value means not set.
   TRAVEL_PROVIDER: unsetIfEmpty(z.enum(["fake", "traveltime"]).default("fake")),
+  // The office dashboard's street map (Phase 26.2; the pre-build audit's aud-8): the firm's UK map
+  // file (a Protomaps .pmtiles file, read by the browser in pieces) on our own server, so a path on
+  // this one ("/maps/uk.pmtiles", served by Caddy: docs/runbooks.md "The street map"). Never another
+  // host (each office user's address and the firm's venues' area would reach it): no "https://",
+  // and no "//" or "/\" (which a browser reads as another host). Unset (as in dev, the tests and a
+  // demo without the file), the map places each venue by its own position on a plain ground.
+  // Refused under NODE_ENV=test, so no test can fetch a map. An empty value means not set.
+  MAP_TILES_URL: unsetIfEmpty(
+    z
+      .string()
+      .regex(/^\/(?![/\\])[A-Za-z0-9._~\/-]+\.pmtiles$/, {
+        message: "must be a path on this server, such as /maps/uk.pmtiles",
+      })
+      .optional(),
+  ),
+
   // AI (docs/office-v2.md 5.8): Claude through the Anthropic API (src/lib/ai/anthropic.ts), asked
   // by the worker only, which alone gets the key. "none" (the default): no AI, and the code's
   // fallback answers. "anthropic": refused for the worker under NODE_ENV=test, so no test can call
@@ -207,6 +223,14 @@ function vapidKeysMatch(publicKey: string, privateKey: string): boolean {
   }
 }
 
+// Tests never fetch a street map.
+const noMapInTests = (e: { NODE_ENV: string; MAP_TILES_URL?: string }) =>
+  e.NODE_ENV !== "test" || !e.MAP_TILES_URL;
+const noMapInTestsMessage = {
+  path: ["MAP_TILES_URL"],
+  message: "tests never fetch a street map: MAP_TILES_URL is refused when NODE_ENV=test",
+};
+
 // Tests never reach postcodes.io or TravelTime.
 const noRealTravelInTests = (e: { NODE_ENV: string; TRAVEL_PROVIDER: string }) =>
   e.NODE_ENV !== "test" || e.TRAVEL_PROVIDER !== "traveltime";
@@ -243,6 +267,7 @@ export const appEnvSchema = z
   .refine(realIntegrationsSecret, realIntegrationsSecretMessage)
   .refine(alertsOn, alertsOnMessage)
   .refine(noRealTravelInTests, noRealTravelInTestsMessage)
+  .refine(noMapInTests, noMapInTestsMessage)
   .refine(demoHasOutbox, demoHasOutboxMessage)
   // The web app looks postcodes up itself (Settings, Profile); AI only says whether it's on; and the
   // text sender only what the login and pay pages say, which must be the demo worker's console
@@ -420,12 +445,15 @@ export const workerEnvSchema = z
     path: ["MESSAGING_TRANSPORT"],
     message: "tests never send a real text: webex is refused when NODE_ENV=test",
   })
-  // Not in production before 15.1 (texts only): the login link and the pay code still go by
-  // WhatsApp when a text sender exists (src/lib/auth/login-channel.ts), which Webex won't carry.
+  // Not in production yet. Since Phase 26.9 every message to a casual is a text or an email (the
+  // login link and the pay code went by WhatsApp until then, which Webex won't carry), but a STOP
+  // sent to Webex isn't recorded yet (only the Twilio shifts line sets sms_opted_out_at: Phase 15's
+  // replies by text), and the web can't tell which firms have a Webex key of their own, so the pages
+  // would promise texts that can't go (the guardrails review of 26.9, H2).
   .refine((e) => e.NODE_ENV !== "production" || e.MESSAGING_TRANSPORT !== "webex", {
     path: ["MESSAGING_TRANSPORT"],
     message:
-      "webex waits for 15.1 (texts only) in production: login links and pay codes still go by WhatsApp",
+      "webex waits in production for STOP by text (Phase 15's replies) and a per-firm text account the pages can see",
   })
   // Each firm's Webex key is in the secret store: the worker can't read it without the key's key.
   .refine((e) => e.MESSAGING_TRANSPORT !== "webex" || e.SECRETS_KEY !== undefined, {

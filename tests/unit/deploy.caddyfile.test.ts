@@ -25,9 +25,9 @@ describe("the Caddyfile", () => {
     expect(caddyfile).toMatch(/https:\/\/ \{\s*tls \{\s*on_demand\s*\}\s*import app\s*\}/);
   });
 
-  it("proxies to the web app with X-Real-IP from the connection (replacing any the client sent), but not our certificate check; HSTS on every answer", () => {
+  it("proxies to the web app with X-Real-IP from the connection (replacing any the client sent), but not our certificate check or the street map's file; HSTS on every answer", () => {
     expect(caddyfile).toMatch(
-      /\(app\) \{\s*header Strict-Transport-Security "max-age=31536000"\s*respond \/api\/caddy\/\* 404\s*reverse_proxy web:3000 \{\s*header_up X-Real-IP \{remote_host\}\s*\}\s*\}/,
+      /\(app\) \{\s*header Strict-Transport-Security "max-age=31536000"\s*handle \/maps\/\* \{\s*header Cache-Control "public, max-age=86400"\s*root \* \/srv\s*file_server\s*\}\s*respond \/api\/caddy\/\* 404\s*reverse_proxy web:3000 \{\s*header_up X-Real-IP \{remote_host\}\s*\}\s*\}/,
     );
     // Nothing rewrites Host: the app finds the firm from it.
     expect(caddyfile).not.toMatch(/header_up Host/i);

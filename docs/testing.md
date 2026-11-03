@@ -9,7 +9,7 @@ without breaking a 6am cancellation.
 |---|---|---|---|
 | Unit | Vitest | Rules engine (table-driven), ranking, notice-hours maths, grouping keys, template rendering, zod schemas for AI outputs | every commit |
 | Integration | Vitest + real Postgres (Docker) | RLS isolation per table, scoped client, atomic assign race, idempotent webhook insert, job handlers with a fake clock, Sheets adapter against a mocked Sheets API | every commit |
-| E2E | Playwright (mobile viewport; own web app, worker and seeded `*_e2e` database; login links read from the console transport's outbox file) | login → my shifts → take shift → cancel → request → pay OTP (built: `tests/e2e/flow.worker.spec.ts`, timed); office: create shift → make urgent → wave → assign; firm cancel → notice report. Then a run with no text sender (`playwright.no-texts.config.ts`, P2.7, port 3300; with CI set, on the main run's production build): `no-texts.spec.ts` checks the login page says links can't be sent while email login is off, then switches it on and logs a casual in and opens Pay by email, with no WhatsApp named and none sent. Then the walkthrough's run (`playwright.walkthrough.config.ts`, Phase 10 task 20): `walkthrough.spec.ts` does every step of `docs/walkthrough.md` in order, on its own freshly seeded database and a **production build** (`next build`, `next start`, port 3200), the office at desktop size and the worker at phone size, so a verified run proves the production build too (audit L16, L88, L66). That run is in demo mode (16.1; ADR-025), as a demo server is: the web app and the worker both in production, behind the demo's password (the browser gives it). After the walkthrough, `demo.spec.ts` checks the password is asked everywhere but the health check, logs a casual and the office in from each firm's Demo phone and checks neither firm's Demo phone shows the other's messages (a number in both firms: `tests/integration/demo.phone.test.ts`); the main run's `demo.off.spec.ts` checks there's no Demo phone or demo bar without it | on PR and before deploy |
+| E2E | Playwright (mobile viewport; own web app, worker and seeded `*_e2e` database; login links read from the console transport's outbox file) | login → my shifts → take shift → cancel → request → pay OTP (built: `tests/e2e/flow.worker.spec.ts`, timed); office: create shift → make urgent → wave → assign; firm cancel → notice report. Then a run with no text sender (`playwright.no-texts.config.ts`, P2.7, port 3300; with CI set, on the main run's production build): `no-texts.spec.ts` checks the login page says links can't be sent while email login is off, then switches it on and logs a casual in and opens Pay by email, with no WhatsApp named and none sent. Then the street map's run (`playwright.streets.config.ts`, Phase 26.2, port 3500; the only run with `MAP_TILES_URL` set, to a path on its own server): `streets.spec.ts` answers that path with a tiny PMTiles file made in memory (`tests/e2e/pmtiles-fixture.ts`, as Caddy serves the real one), and checks MapLibre reads it by byte range, loads its worker from `/office/map-worker` (200), draws the streets with OpenStreetMap's credit, and asks no other host. Then the walkthrough's run (`playwright.walkthrough.config.ts`, Phase 10 task 20): `walkthrough.spec.ts` does every step of `docs/walkthrough.md` in order, on its own freshly seeded database and a **production build** (`next build`, `next start`, port 3200), the office at desktop size and the worker at phone size, so a verified run proves the production build too (audit L16, L88, L66). That run is in demo mode (16.1; ADR-025), as a demo server is: the web app and the worker both in production, behind the demo's password (the browser gives it). After the walkthrough, `demo.spec.ts` checks the password is asked everywhere but the health check, logs a casual and the office in from each firm's Demo phone and checks neither firm's Demo phone shows the other's messages (a number in both firms: `tests/integration/demo.phone.test.ts`); the main run's `demo.off.spec.ts` checks there's no Demo phone or demo bar without it | on PR and before deploy |
 | Contract | Vitest | Twilio signature verification with real sample payloads; TwiML output; template variable coverage | every commit |
 | Security | scripts | `npm audit`, secrets scan, RLS "enabled on every table" check, log masking test | every commit |
 | Manual | checklist | Real phone, real Twilio number, iPhone home-screen push, poor-signal open of My shifts | before pilot |
@@ -615,9 +615,10 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   hovered and put away with Escape, the panel from the right closed by the scrim; every page
   Phase 23's dashboard linked to still a click away: the offer page and a session's page from the
   detail card, the shifts list and its weeks, the top bar's four counts, Events & sessions'
-  Showing filter and an event's page, Cancellations' and Enquiries' "Show only today's" and a
+  Showing filter and an event's page, Cancellations' "Today" tab (round 8) and Enquiries' "Show
+  only today's" and a
   record and a message, Casuals' uploads and a casual, the Notice report's offers; payroll sent
-  away), `office.cancellations.spec.ts` (today's list and its CSV reached by "Show only today's"),
+  away), `office.cancellations.spec.ts` (today's list and its CSV reached by the "Today" tab, round 8),
   `office.events.spec.ts` (the Showing filter clicked), `login.office.spec.ts` (the head's day and
   pay week; the shifts line on Settings, no longer on the dashboard), `office.offer.test.ts` (the
   offer page never another firm's shift or office user, as the panel reads it),
@@ -757,7 +758,8 @@ before a call so it's the coming one):
   has none yet, and one on Monday before 07:00 has no offers at all). None is sent in Acme's quiet
   hours, as the app holds offers then. Only the run that adds the Saturday writes its offers, so a
   re-run never adds one, even after a demo cancels a booking. Like the seed's bookings, their `offer.sent` entries in the action log are
-  dated when the seed ran (the log can't be backdated), not when each offer says it was sent. None
+  dated when each offer says it was sent (Phase 26.10, fix-8: the seed's log writes the made-up
+  history at its own times, in time order; only the demo firms' log can be written so). None
   said no: the app can't record a "no" yet. Never to the five workers kept free for demo logins
   or to anyone the walkthrough logs in as; each to a casual the booking rules allow, none over
   the daily offer cap (3 a day), and nothing is sent. The seed takes the offer-count lock as every
@@ -766,8 +768,9 @@ before a call so it's the coming one):
 - Every Acme worker has 1 to 8 weekly pay lines from the last 8 complete weeks (stewards £13.00
   an hour, door supervisors £14.50, security officers £13.50).
 - The action log has each shift's creation, each booking, the cancellation (with notice hours) and
-  the requests. Those entries are dated when the seed ran (the log can't be backdated); the
-  shifts are dated a week earlier, before every booking.
+  the requests. Each entry carries its row's time (Phase 26.10, fix-8: a booking its confirmation,
+  the cancellation when it was cancelled; the requests, added as the seed runs, then), written in
+  time order; the shifts are dated a week earlier, before every booking.
 - Re-running `npm run db:seed` the same week adds nothing and never undoes a demo's changes. Run
   in a later week, it adds that week's Saturday too; run on a Saturday, it adds next Saturday
   while today's is still there. Use `npm run db:reset` for exactly one Saturday.

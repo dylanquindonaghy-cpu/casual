@@ -14,6 +14,7 @@ import { ISSUE_LABELS } from "@/lib/portal/pay-query-kinds";
 import { dayLabel } from "@/lib/rules/reasons";
 import { SendDigestButton } from "./send-digest-button";
 import { SortGroupForm } from "./sort-group-form";
+import { Ref } from "@/app/ui/ref";
 
 export const metadata: Metadata = { title: "Pay queries" };
 
@@ -84,7 +85,7 @@ export default async function PayQueriesPage() {
                   </p>
                   {q.details && <p className="mt-1">&ldquo;{q.details}&rdquo;</p>}
                   <p className={`mt-1 ${meta} tabular-nums`}>
-                    Sent {timeOnDay(q.createdAt, tz)} · Reference {q.ref}
+                    Sent {timeOnDay(q.createdAt, tz)} · Reference <Ref>{q.ref}</Ref>
                     {q.status === "in_digest" ? (
                       <>
                         {" · "}
@@ -96,7 +97,7 @@ export default async function PayQueriesPage() {
               ))}
             </ul>
           </div>
-          <SortGroupForm ids={g.queries.map((q) => q.id)} />
+          <SortGroupForm ids={g.queries.map((q) => q.id)} main={i === 0} />
         </section>
       ))}
       {data.more && <p className={`mt-4 ${meta}`}>Showing the newest 2,000.</p>}

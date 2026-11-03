@@ -1,8 +1,15 @@
 import { writeFile } from "node:fs/promises";
-import { Client } from "pg";
-import { isDemoFirm } from "../../demo/firms";
+import { eq } from "drizzle-orm";
+import { Client, Pool } from "pg";
+import { DEMO_FIRM_SLUGS, isDemoFirm } from "../../demo/firms";
 import { NotADemoServer } from "../../demo/guard";
+import { seedId } from "../../demo/seed-id";
 import { APP_DB_ROLE, JOBS_DB_ROLE } from "../../env";
+import { ROLLUP_DAYS_BACK, rollupFirm } from "../../metrics/rollup";
+import { PILOT_MAX_DAYS } from "../../office/pilot-report";
+import { addDays, localDateOf } from "../../time/zoned";
+import { firms } from "../schema";
+import { createWithFirm } from "../scoped";
 import { ensureOwnerRole, recreateDatabase, syncRolePassword } from "./bootstrap";
 import { runMigrations } from "./migrate";
 import { seed, type SeedSummary } from "./seed";
@@ -23,8 +30,9 @@ import {
 // security), and, if the database is already there, one the reset made itself (it's tagged, below)
 // holding no firm but the made-up demo firms. All checked before anything is dropped. Then, as
 // `npm run db:reset` does locally: the owner role, the database recreated as the owner's and
-// tagged, every migration, the demo's own rule that refuses real people (below), the seed; and the
-// outbox emptied, so the Demo phone starts empty too.
+// tagged, every migration, the demo's own rule that refuses real people (below), the seed; the
+// outbox emptied, so the Demo phone starts empty too; and the pilot figures worked out over the
+// made-up history (Phase 26.10, fix-8: below).
 
 // The comment on a database the reset made (COMMENT ON DATABASE): a real database never has it.
 export const DEMO_DATABASE_TAG = "shiftdesk-demo";
@@ -76,8 +84,38 @@ export async function demoReset(o: DemoResetOptions): Promise<SeedSummary> {
     demoMode: "on",
     ...(o.today ? { today: o.today } : {}),
   });
+  // The outbox first: the Demo phone starts empty even if working out the figures fails.
   if (o.outboxFile) await writeFile(o.outboxFile, "");
+  await rollUpDemoFigures(o.appUrl, o.today ?? new Date());
   return summary;
+}
+
+// The pilot figures, straight after the reload (Phase 26.10, fix-8): the nightly rollup's own code
+// (src/lib/metrics/rollup.ts), as the app role inside each demo firm, over the longest period the
+// Pilot metrics page shows (92 days: the made-up history's 10 weeks and more). The seeded log
+// carries the story's own times, so each day counts what the story says happened on it. Without
+// this the page would be empty until 00:30, then show its last 8 days only.
+async function rollUpDemoFigures(appUrl: string, now: Date): Promise<void> {
+  const pool = new Pool({ connectionString: appUrl, max: 1 });
+  const withFirm = createWithFirm(pool);
+  try {
+    for (const slug of DEMO_FIRM_SLUGS) {
+      const firmId = seedId(`firm/${slug}`);
+      const today = await withFirm(firmId, async (tx) => {
+        const [firm] = await tx
+          .select({ timezone: firms.timezone })
+          .from(firms)
+          .where(eq(firms.id, firmId));
+        return localDateOf(now, firm?.timezone ?? "Europe/London");
+      });
+      // Each run works out 8 days (that day and the 7 before), one transaction each.
+      for (let back = 0; back < PILOT_MAX_DAYS; back += ROLLUP_DAYS_BACK + 1) {
+        await withFirm(firmId, (tx) => rollupFirm(tx, addDays(today, -back), now));
+      }
+    }
+  } finally {
+    await pool.end();
+  }
 }
 
 // Why the database mustn't be dropped, or null. With the login the reset uses (the superuser:

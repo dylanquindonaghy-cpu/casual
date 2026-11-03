@@ -130,7 +130,7 @@ describe("messages go from the firm's shifts line", () => {
         { transport, clock: { now: () => NOW }, secret: "x".repeat(32), newCode: () => "123456" },
       );
       expect(sent).toHaveLength(1);
-      if (line) expect(sent[0]).toMatchObject({ channel: "whatsapp", from: line });
+      if (line) expect(sent[0]).toMatchObject({ channel: "sms", from: line });
       else expect(sent[0]).not.toHaveProperty("from");
     }
   });
@@ -148,7 +148,7 @@ describe("messages go from the firm's shifts line", () => {
       withFirm,
       { transport, baseDomain: "localhost:3000" },
     );
-    expect(sent.filter((m) => m.channel === "whatsapp")).toEqual([
+    expect(sent.filter((m) => m.channel === "sms")).toEqual([
       expect.objectContaining({ from: line }),
     ]);
 
@@ -183,7 +183,7 @@ describe("messages go from the firm's shifts line", () => {
       { id: "job", data: jobs[0]?.data ?? {} },
       withFirm,
     );
-    expect(answer.sent).toEqual([expect.objectContaining({ channel: "whatsapp", from: line })]);
+    expect(answer.sent).toEqual([expect.objectContaining({ channel: "sms", from: line })]);
   });
 });
 

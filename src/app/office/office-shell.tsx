@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { UpdatesBell } from "@/lib/office/updates";
 import type { Theme } from "../theme";
 import { OfficeFrame } from "./office-frame";
 import type { BarCount } from "./office-menu";
@@ -24,6 +25,7 @@ export function OfficeShell({
   railOpen,
   theme,
   rotationDue,
+  updates = null,
   children,
 }: {
   name: string;
@@ -35,6 +37,7 @@ export function OfficeShell({
   railOpen: boolean;
   theme: Theme | undefined;
   rotationDue: boolean;
+  updates?: UpdatesBell | null; // the bell and the pop-up (admins and resourcers; Phase 26.4)
   children: ReactNode;
 }) {
   return (
@@ -48,6 +51,7 @@ export function OfficeShell({
       railOpen={railOpen}
       theme={theme}
       rotationDue={rotationDue}
+      updates={updates}
       refresh={refreshOfficeSessionAction}
     >
       {children}

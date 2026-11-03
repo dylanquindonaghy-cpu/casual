@@ -49,3 +49,27 @@ test("a light cookie wins over the device's dark setting; an unknown value is ig
   await expect(page.locator("html")).not.toHaveAttribute("data-theme", /.*/);
   await expect(page.locator("body")).toHaveCSS("background-color", DARK_CANVAS);
 });
+
+// Round 8 (Phase 26): the office has its own look, dark until someone picks light, whatever the
+// device says; the casual pages above still follow the device.
+const OFFICE = { dark: "rgb(15, 15, 16)", light: "rgb(242, 242, 240)" }; // #0f0f10, #f2f2f0
+
+test("the office: dark with no cookie on a light device; light only when picked", async ({
+  page,
+  context,
+}) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto(`${acme}/office/login`);
+  await expect(page.locator("html")).not.toHaveAttribute("data-theme", /.*/);
+  await expect(page.locator("body")).toHaveCSS("background-color", OFFICE.dark);
+  await expect(page.locator("html")).toHaveCSS("color-scheme", "dark");
+
+  await context.addCookies([{ name: "sd-theme", value: "light", url: acme }]);
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto(`${acme}/office/login`);
+  await expect(page.locator("body")).toHaveCSS("background-color", OFFICE.light);
+  await expect(page.locator("html")).toHaveCSS("color-scheme", "light");
+  // The casual login, on the same device, keeps the app's own look.
+  await page.goto(`${acme}/login`);
+  await expect(page.locator("body")).toHaveCSS("background-color", LIGHT_CANVAS);
+});

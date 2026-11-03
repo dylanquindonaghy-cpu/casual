@@ -169,16 +169,67 @@ describe("a casual's login link by email (P2.6)", () => {
     expect(await linksFor(payload.idempotencyKey)).toBe(0);
   });
 
-  it("with a text sender, by WhatsApp as before, whatever the setting", async () => {
+  // Phase 26.9: by text (by WhatsApp until then).
+  it("with a text sender, by text, whatever the setting", async () => {
     const t = await createTenant(su);
     await loginByEmail(t, true);
     await giveEmail(t, "rae.casual@example.test");
     const c = capture({ texts: true });
     await sendPortalLink(linkPayload(t), withFirm, linkDeps(c.transport));
-    expect(c.sent.map((m) => m.channel)).toEqual(["whatsapp"]);
+    expect(c.sent.map((m) => m.channel)).toEqual(["sms"]);
+    expect(c.sent[0]?.body).toMatch(/shifts link \(15 min\): http\S+\/l#[A-Za-z0-9_-]{43} - /);
     expect((await eventsOf(t.firmId, "auth.link_sent")).map((e) => e.data.channel)).toEqual([
-      "whatsapp",
+      "sms",
     ]);
+  });
+
+  it("replied STOP: never a text; by email where the firm has it on, else not sent", async () => {
+    const t = await createTenant(su);
+    await su.query("update workers set sms_opted_out_at = $2 where id = $1", [t.workerId, NOW]);
+    await giveEmail(t, "rae.casual@example.test");
+    const off = capture({ texts: true });
+    expect(await sendPortalLink(linkPayload(t), withFirm, linkDeps(off.transport))).toEqual({
+      sent: false,
+      reason: "no_channel",
+    });
+    expect(off.sent).toEqual([]);
+    await loginByEmail(t, true);
+    const on = capture({ texts: true });
+    await sendPortalLink(linkPayload(t), withFirm, linkDeps(on.transport));
+    expect(on.sent.map((m) => [m.channel, m.to])).toEqual([["email", "rae.casual@example.test"]]);
+  });
+
+  it("a firm with no text sender when it sends (a Webex firm without a key): the email instead, where allowed", async () => {
+    const t = await createTenant(su);
+    await loginByEmail(t, true);
+    await giveEmail(t, "rae.casual@example.test");
+    const tried: string[] = [];
+    const keyless: MessagingTransport = {
+      name: "keyless",
+      async send(message) {
+        tried.push(message.channel);
+        if (message.channel !== "email") throw new NoTextSenderError(message.channel);
+        return { providerMessageId: "<id-1@mail.example.test>" };
+      },
+    };
+    expect(await sendPortalLink(linkPayload(t), withFirm, linkDeps(keyless))).toMatchObject({
+      sent: true,
+    });
+    expect(tried).toEqual(["sms", "email"]);
+    expect((await eventsOf(t.firmId, "auth.link_sent")).map((e) => e.data.channel)).toEqual([
+      "email",
+    ]);
+    // Without login by email: nothing goes, logged by the text's code.
+    await loginByEmail(t, false);
+    tried.length = 0;
+    expect(await sendPortalLink(linkPayload(t), withFirm, linkDeps(keyless))).toEqual({
+      sent: false,
+      reason: "failed",
+    });
+    expect(tried).toEqual(["sms"]);
+    expect((await eventsOf(t.firmId, "auth.link_send_failed")).map((e) => e.data.code).at(-1)).toBe(
+      "no_text_sender",
+    );
   });
 
   it("the same job again sends nothing more", async () => {
@@ -242,6 +293,21 @@ describe("a casual's pay-page code by email (P2.6)", () => {
     expect((await verify(t, s.token, "424242")).status).toBe("ok");
   });
 
+  it("replied STOP: never a text; by email where the firm has it on, else no code is made", async () => {
+    const t = await createTenant(su);
+    await su.query("update workers set sms_opted_out_at = $2 where id = $1", [t.workerId, NOW]);
+    await giveEmail(t, "rae.casual@example.test");
+    const off = capture({ texts: true });
+    expect(
+      await sendLoginCode((await session(t)).payload, withFirm, codeDeps(off.transport)),
+    ).toEqual({ sent: false, reason: "no_channel" });
+    expect(off.sent).toEqual([]);
+    await loginByEmail(t, true);
+    const on = capture({ texts: true });
+    await sendLoginCode((await session(t)).payload, withFirm, codeDeps(on.transport));
+    expect(on.sent.map((m) => m.channel)).toEqual(["email"]);
+  });
+
   it("switched off: no email, no new code (an earlier one still works), and the miss logged", async () => {
     const t = await createTenant(su);
     await giveEmail(t, "rae.casual@example.test");
@@ -263,16 +329,20 @@ describe("a casual's pay-page code by email (P2.6)", () => {
     expect((await verify(t, s.token, "111111")).status).toBe("ok");
   });
 
-  it("with a text sender, by WhatsApp as before, logged by its channel", async () => {
+  // Phase 26.9: by text (by WhatsApp until then).
+  it("with a text sender, by text, logged by its channel", async () => {
     const t = await createTenant(su);
     await loginByEmail(t, true);
     await giveEmail(t, "rae.casual@example.test");
     const { payload } = await session(t);
     const c = capture({ texts: true });
     await sendLoginCode(payload, withFirm, codeDeps(c.transport));
-    expect(c.sent.map((m) => m.channel)).toEqual(["whatsapp"]);
+    expect(c.sent.map((m) => m.channel)).toEqual(["sms"]);
+    expect(c.sent[0]?.body).toMatch(
+      /code is 424242\. It works for 10 minutes\. Don't share it\. - /,
+    );
     expect((await eventsOf(t.firmId, "auth.otp_sent")).map((e) => e.data)).toEqual([
-      { channel: "whatsapp", providerMessageId: "SM1" },
+      { channel: "sms", providerMessageId: "SM1" },
     ]);
   });
 });

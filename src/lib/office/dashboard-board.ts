@@ -1,17 +1,41 @@
 import { sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { systemClock } from "../auth/clock";
-import { CANCELLED_ASSIGNMENT_STATUSES, type OFFER_CHANNELS } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { atOfferLimit } from "../offers/offer-limit";
 import { payCalendar, type PayCalendar } from "../pay/calendar";
 import { payWeekNow } from "../pay/pay-week";
-import { addDays, localDateOf, startOfDay, wallTimeOf, zonedToUtc } from "../time/zoned";
+import { addDays, localDateOf, startOfDay } from "../time/zoned";
+import { sitesSql } from "./contract-scope";
+import { readCards, type DashboardCard } from "./dashboard-cards";
+import { loadMyDashboard, type MyDashboard } from "./contracts";
 import { part, type Part } from "./dashboard";
+import {
+  loadCancelWeeks,
+  loadFillRates,
+  loadNextTwoWeeks,
+  loadNoShowWeeks,
+  loadWatchList,
+  type CancelWeek,
+  type ContractFill,
+  type DayPlaces,
+  type NoShowWeek,
+  type WatchCasual,
+} from "./dashboard-cards-data";
 import { bookedJoin, placeFree, urgentGap } from "./events";
 import { plannerLink, type PlannerLink } from "./integrations";
 import { offerStateSql } from "./offer-state";
 import { officeUserMay, parts, type OfficeContext } from "./office-context";
+import {
+  loadTakers,
+  loadUpdates,
+  loadVenues,
+  loadWhoWorked,
+  type MapVenue,
+  type Takers,
+  type Update,
+  type WhoWorkedGroup,
+} from "./dashboard-map";
 import { loadToMark, type TodayToMark } from "./today";
 
 // The office dashboard (Phase 24, 24.3: round 7 of the canvas, docs/mockups/phase-24/; docs/
@@ -44,11 +68,8 @@ export const boardShow = (raw: unknown): BoardShow =>
   (BOARD_SHOWS as readonly unknown[]).includes(raw) ? (raw as BoardShow) : "all";
 
 export const BOARD_ROWS = 50; // sessions a column holds (`more`: there were others)
-export const CHART_DAYS = 14; // this pay week and next
-export const NIGHT_STARTS = 18; // "While you were out": from 18:00 ...
-export const NIGHT_ENDS = 8; // ... to 08:00, the firm's clock
+const WINDOW_DAYS = 14; // this pay week and next
 
-const CANCELLED = sql.raw(CANCELLED_ASSIGNMENT_STATUSES.map((s) => `'${s}'`).join(", "));
 const date = (v: string | Date) => new Date(v);
 
 export interface BoardOffers {
@@ -71,10 +92,12 @@ export interface BoardSession {
   role: string;
   post: string | null;
   site: string | null; // the session's own site, or its event's
+  siteId: string | null; // which venue that is (round 8: its pin on the map)
   startsAt: Date;
   endsAt: Date;
   headcount: number;
   placesFree: number;
+  payRatePence: number | null; // its pay an hour, if it has one (round 8's card)
   urgent: boolean; // marked urgent (every session here has a place free, so it's an urgent gap)
   hidden: boolean; // its switch or its event's is off: casuals can't see it, so it can't be offered
   fromSheet: boolean;
@@ -96,20 +119,6 @@ export interface ChartDay {
   offered: number; // places to fill with an offer waiting for a reply
 }
 
-export type OfferChannel = (typeof OFFER_CHANNELS)[number];
-
-export interface OvernightTake {
-  offerId: string;
-  shiftId: string;
-  worker: string;
-  role: string;
-  eventName: string;
-  startsAt: Date;
-  endsAt: Date;
-  answeredAt: Date; // when they said yes
-  channel: OfferChannel; // how the offer reached them
-}
-
 export interface Board {
   timeZone: string;
   today: string; // yyyy-mm-dd, the firm's calendar
@@ -118,24 +127,77 @@ export interface Board {
   show: BoardShow;
   planner: Part<PlannerLink>;
   counts: Part<Record<BoardShow, number>>;
-  chart: Part<{ first: string; days: ChartDay[] }>;
   // The two columns of places to fill, and the session the detail card shows: the one asked for
   // (`?session=`) while it has a place free, else the soonest urgent one under the filter, else the
   // soonest (null: none).
   gaps: Part<{ toOffer: BoardColumn; offered: BoardColumn; chosen: BoardSession | null }>;
-  overnight: Part<{ from: Date; to: Date; takes: OvernightTake[]; more: boolean }>;
   toMark: Part<{ items: TodayToMark[]; total: number }>;
+  // Round 8 (Phase 26.2): the venue map (with "Show full venues" or not), who can take the chosen
+  // session under the rules, Updates, and Who worked? by name (dashboard-map.ts).
+  full: boolean;
+  role: string | null; // Filter's role (one of `roles`), or every role
+  roles: Part<string[]>; // the roles with places to fill (Filter's choices)
+  venues: Part<MapVenue[]>;
+  takers: Part<Takers> | null; // null: no session chosen
+  updates: Part<{ items: Update[]; more: boolean }>;
+  whoWorked: Part<WhoWorkedGroup[]>;
+  // Phase 26.3: the person's own dashboard (their cards and contracts, saved to them), whether it's
+  // narrowed to their contracts (they chose some and haven't asked for everything), the date
+  // choice's day and its choices, and the extra cards they chose (null: not chosen).
+  me: Part<MyDashboard>;
+  mine: boolean;
+  day: string | null;
+  days: Part<{ date: string; places: number }[]>;
+  nextTwoWeeks: Part<DayPlaces[]> | null;
+  cancelWeeks: Part<CancelWeek[]> | null;
+  noShowWeeks: Part<NoShowWeek[]> | null;
+  fillRates: Part<ContractFill[]> | null;
+  watchList: Part<WatchCasual[]> | null;
+}
+
+export interface BoardOptions {
+  show?: BoardShow;
+  session?: string | null;
+  full?: boolean;
+  role?: string | null;
+  day?: string | null; // the date choice (yyyy-mm-dd)
+  everything?: boolean; // "Show everything": not narrowed to the person's contracts
+  officeUserId?: string | null; // whose dashboard (their cards and contracts); none: the defaults
 }
 
 // This week's Monday and the Monday after next, in the firm's time zone: Monday to Sunday, whatever
 // its pay calendar (a fortnight's cycle is for pay words only: Phase 25.2).
 function weeks(now: Date, timeZone: string) {
   const monday = payWeekNow(now, timeZone).monday;
-  return { monday, next: addDays(monday, 7), after: addDays(monday, CHART_DAYS) };
+  return { monday, next: addDays(monday, 7), after: addDays(monday, WINDOW_DAYS) };
+}
+
+// The map's window: from now to the end of next pay week.
+export function boardWindow(now: Date, timeZone: string): { to: Date } {
+  return { to: startOfDay(weeks(now, timeZone).after, timeZone) };
+}
+
+// Filter's role as a condition over `s`: that role, or every one.
+export const roleSql = (role: string | null): SQL => (role ? sql`s.role = ${role}` : sql`true`);
+
+// What the board is narrowed to (round 8): Filter's role, the person's contracts' venues (Phase
+// 26.3: null, every venue) and the date choice's day (null, every day), as one condition over `s`.
+export interface BoardScope {
+  role: string | null;
+  sites: string[] | null;
+  day: string | null; // yyyy-mm-dd, the firm's calendar
+}
+export const EVERYWHERE: BoardScope = { role: null, sites: null, day: null };
+export function scopeSql(scope: BoardScope, timeZone: string): SQL {
+  const day = scope.day
+    ? sql`s.starts_at >= ${startOfDay(scope.day, timeZone)}
+          and s.starts_at < ${startOfDay(addDays(scope.day, 1), timeZone)}`
+    : sql`true`;
+  return sql`${roleSql(scope.role)} and ${sitesSql(scope.sites)} and ${day}`;
 }
 
 // The filter as a condition over `s` (with `b`).
-function showSql(show: BoardShow, now: Date, timeZone: string): SQL {
+export function showSql(show: BoardShow, now: Date, timeZone: string): SQL {
   const w = weeks(now, timeZone);
   switch (show) {
     case "all":
@@ -151,24 +213,6 @@ function showSql(show: BoardShow, now: Date, timeZone: string): SQL {
   }
 }
 
-// The night "While you were out" covers: from 18:00 on the day before to 08:00 (or now, while it
-// lasts), or from 18:00 today once it's past 18:00. Each end is a wall time on its own day, so a
-// night the clocks change in is as long as it really was.
-export function lastNight(now: Date, timeZone: string): { from: Date; to: Date } {
-  const today = localDateOf(now, timeZone);
-  const at = (day: string, hour: number) => {
-    const [year = 2000, month = 1, d = 1] = day.split("-").map(Number);
-    return zonedToUtc({ year, month, day: d, hour, minute: 0 }, timeZone);
-  };
-  if (wallTimeOf(now, timeZone).hour >= NIGHT_STARTS)
-    return { from: at(today, NIGHT_STARTS), to: now };
-  const end = at(today, NIGHT_ENDS);
-  return {
-    from: at(addDays(today, -1), NIGHT_STARTS),
-    to: end.getTime() < now.getTime() ? end : now,
-  };
-}
-
 type GapRow = {
   shift_id: string;
   event_id: string;
@@ -176,10 +220,12 @@ type GapRow = {
   role: string;
   post: string | null;
   site_name: string | null;
+  site_id: string | null;
   starts_at: string | Date;
   ends_at: string | Date;
   headcount: number;
   places_free: number;
+  pay_rate_pence: number | null;
   is_urgent: boolean;
   hidden: boolean;
   source: string;
@@ -196,8 +242,9 @@ type GapRow = {
 // The sessions with a place free (placeFree) that `where` keeps, with their offers.
 const gapSql = (now: Date, where: SQL) => sql`
   select s.id::text as shift_id, s.event_id::text as event_id, e.name as event_name, s.role,
-         s.post, coalesce(si.name, esi.name) as site_name, s.starts_at, s.ends_at, s.headcount,
-         (s.headcount - b.booked)::int as places_free, s.is_urgent,
+         s.post, coalesce(si.name, esi.name) as site_name,
+         coalesce(s.site_id, e.site_id)::text as site_id, s.starts_at, s.ends_at, s.headcount,
+         (s.headcount - b.booked)::int as places_free, s.pay_rate_pence, s.is_urgent,
          not (s.showing_to_casuals and e.showing_to_casuals) as hidden, s.source,
          o.sent, o.waiting, o.said_no, o.took_it, o.closed, o.failed, o.waiting_since,
          o.waiting_names
@@ -231,10 +278,12 @@ function toSession(r: GapRow): BoardSession {
     role: r.role,
     post: r.post,
     site: r.site_name,
+    siteId: r.site_id,
     startsAt: date(r.starts_at),
     endsAt: date(r.ends_at),
     headcount: r.headcount,
     placesFree: r.places_free,
+    payRatePence: r.pay_rate_pence,
     urgent: r.is_urgent,
     hidden: r.hidden,
     fromSheet: r.source === "sheets",
@@ -262,6 +311,7 @@ async function loadGaps(
   timeZone: string,
   show: BoardShow,
   asked: string | null,
+  scope: BoardScope = EVERYWHERE,
 ): Promise<{ toOffer: BoardColumn; offered: BoardColumn; chosen: BoardSession | null }> {
   const { rows } = await tx.execute<
     GapRow & { n: number; total: number; places: number; waiting_total: number }
@@ -273,7 +323,7 @@ async function loadGaps(
              (count(*) over (partition by g.waiting > 0))::int as total,
              (sum(g.places_free) over (partition by g.waiting > 0))::int as places,
              (sum(g.waiting) over (partition by g.waiting > 0))::int as waiting_total
-        from (${gapSql(now, showSql(show, now, timeZone))}) g
+        from (${gapSql(now, sql`${showSql(show, now, timeZone)} and ${scopeSql(scope, timeZone)}`)}) g
     ) x
      where x.n <= ${BOARD_ROWS}
      order by x.starts_at, x.shift_id
@@ -311,6 +361,7 @@ async function loadCounts(
   tx: FirmTx,
   now: Date,
   timeZone: string,
+  scope: BoardScope = EVERYWHERE,
 ): Promise<Record<BoardShow, number>> {
   const { rows } = await tx.execute<Record<"every" | "urgent" | "this_week" | "next_week", number>>(
     sql`
@@ -320,7 +371,7 @@ async function loadCounts(
              (count(*) filter (where ${showSql("next-week", now, timeZone)}))::int as next_week
         from shifts s
         ${bookedJoin}
-       where ${placeFree(now)}
+       where ${placeFree(now)} and ${scopeSql({ ...scope, day: null }, timeZone)}
     `,
   );
   const r = rows[0];
@@ -332,101 +383,70 @@ async function loadCounts(
   };
 }
 
-// Each firm day of this pay week and next: its places to fill, with an offer waiting and without.
-async function loadChart(
+// The roles with places to fill now at the person's venues (Filter's choices), A to Z.
+async function loadRoles(tx: FirmTx, now: Date, sites: string[] | null): Promise<string[]> {
+  const { rows } = await tx.execute<{ role: string }>(sql`
+    select distinct s.role from shifts s ${bookedJoin}
+     where ${placeFree(now)} and ${sitesSql(sites)} order by s.role
+  `);
+  return rows.map((r) => r.role);
+}
+
+// The date choice's days: each day in the track's window with places to fill under the rest of the
+// scope, and how many.
+async function loadDays(
   tx: FirmTx,
   now: Date,
   timeZone: string,
-): Promise<{ first: string; days: ChartDay[] }> {
-  const w = weeks(now, timeZone);
-  const { rows } = await tx.execute<{ day: string; to_offer: number; offered: number }>(sql`
+  show: BoardShow,
+  scope: BoardScope,
+): Promise<{ date: string; places: number }[]> {
+  const { rows } = await tx.execute<{ day: string; places: number }>(sql`
     select to_char(s.starts_at at time zone ${timeZone}, 'YYYY-MM-DD') as day,
-           coalesce(sum(s.headcount - b.booked) filter (where not w.waiting), 0)::int as to_offer,
-           coalesce(sum(s.headcount - b.booked) filter (where w.waiting), 0)::int as offered
+           sum(s.headcount - b.booked)::int as places
       from shifts s
       ${bookedJoin}
-      cross join lateral (
-        select exists (select 1 from offers o
-                        where o.firm_id = s.firm_id and o.shift_id = s.id
-                          and ${offerStateSql(now)} = 'waiting') as waiting
-      ) w
-     where ${placeFree(now)}
-       and s.starts_at >= ${startOfDay(w.monday, timeZone)}
-       and s.starts_at < ${startOfDay(w.after, timeZone)}
+     where ${placeFree(now)} and s.starts_at < ${boardWindow(now, timeZone).to}
+       and ${showSql(show, now, timeZone)} and ${scopeSql({ ...scope, day: null }, timeZone)}
      group by 1
+     order by 1
   `);
-  const byDay = new Map(rows.map((r) => [r.day, r]));
-  return {
-    first: w.monday,
-    days: Array.from({ length: CHART_DAYS }, (_, i) => {
-      const day = addDays(w.monday, i);
-      const r = byDay.get(day);
-      return { date: day, toOffer: r?.to_offer ?? 0, offered: r?.offered ?? 0 };
-    }),
-  };
+  return rows.map((r) => ({ date: r.day, places: r.places }));
 }
 
-// The places casuals took from offers last night (lastNight), still booked, latest first.
-async function loadOvernight(
-  tx: FirmTx,
-  now: Date,
-  timeZone: string,
-): Promise<{ from: Date; to: Date; takes: OvernightTake[]; more: boolean }> {
-  const { from, to } = lastNight(now, timeZone);
-  const { rows } = await tx.execute<{
-    offer_id: string;
-    shift_id: string;
-    first_name: string;
-    last_name: string;
-    role: string;
-    event_name: string;
-    starts_at: string | Date;
-    ends_at: string | Date;
-    responded_at: string | Date;
-    channel: OfferChannel;
-  }>(sql`
-    select o.id::text as offer_id, s.id::text as shift_id, w.first_name, w.last_name, s.role,
-           e.name as event_name, s.starts_at, s.ends_at, o.responded_at, o.channel
-      from offers o
-      join shifts s on s.firm_id = o.firm_id and s.id = o.shift_id
-      join shift_events e on e.firm_id = s.firm_id and e.id = s.event_id
-      join workers w on w.firm_id = o.firm_id and w.id = o.worker_id
-     where o.response = 'accepted' and o.responded_at >= ${from} and o.responded_at < ${to}
-       and exists (select 1 from assignments a
-                    where a.firm_id = o.firm_id and a.shift_id = o.shift_id
-                      and a.worker_id = o.worker_id and a.status not in (${CANCELLED}))
-     order by o.responded_at desc, o.id
-     limit ${BOARD_ROWS + 1}
-  `);
-  return {
-    from,
-    to,
-    more: rows.length > BOARD_ROWS,
-    takes: rows.slice(0, BOARD_ROWS).map((r) => ({
-      offerId: r.offer_id,
-      shiftId: r.shift_id,
-      worker: `${r.first_name} ${r.last_name}`,
-      role: r.role,
-      eventName: r.event_name,
-      startsAt: date(r.starts_at),
-      endsAt: date(r.ends_at),
-      answeredAt: date(r.responded_at),
-      channel: r.channel,
-    })),
-  };
-}
-
-export async function loadBoard(
-  tx: FirmTx,
-  now: Date,
-  opts: { show?: BoardShow; session?: string | null } = {},
-): Promise<Board> {
+export async function loadBoard(tx: FirmTx, now: Date, opts: BoardOptions = {}): Promise<Board> {
   const { rows } = await tx.execute<{ timezone: string; settings: Record<string, unknown> }>(
     sql`select timezone, settings from firms where id = app_current_firm_id()`,
   );
   const timeZone = rows[0]?.timezone ?? "Europe/London";
   const show = opts.show ?? "all";
+  const full = opts.full === true;
   const asked = z.uuid().safeParse(opts.session).success ? (opts.session as string) : null;
+  // Whose dashboard: their cards and contracts (none: the defaults, every venue).
+  const me = opts.officeUserId
+    ? await part(tx, "my dashboard", (sp) => loadMyDashboard(sp, opts.officeUserId!, now))
+    : {
+        ok: true as const,
+        data: { cards: readCards(undefined), clientIds: [], sites: null, choices: [] },
+      };
+  const sites = me.ok && !opts.everything ? me.data.sites : null;
+  const cards = new Set(me.ok ? me.data.cards : readCards(undefined));
+  // Filter's role only when it's one with places to fill (anything else: every role); the day only
+  // when it's one of the date choice's.
+  const roles = await part(tx, "roles", (sp) => loadRoles(sp, now, sites));
+  const role = roles.ok && opts.role && roles.data.includes(opts.role) ? opts.role : null;
+  const days = await part(tx, "date choice", (sp) =>
+    loadDays(sp, now, timeZone, show, { role, sites, day: null }),
+  );
+  const day = days.ok && opts.day && days.data.some((d) => d.date === opts.day) ? opts.day : null;
+  const scope: BoardScope = { role, sites, day };
+  const gaps = await part(tx, "board gaps", (sp) =>
+    loadGaps(sp, now, timeZone, show, asked, scope),
+  );
+  const chosen = gaps.ok ? gaps.data.chosen : null;
+  const toMark = await part(tx, "who worked", (sp) => loadToMark(sp, now, sites));
+  const card = <T>(key: DashboardCard, label: string, load: (sp: FirmTx) => Promise<T>) =>
+    cards.has(key) ? part(tx, label, load) : Promise.resolve(null);
   return {
     timeZone,
     today: localDateOf(now, timeZone),
@@ -434,22 +454,53 @@ export async function loadBoard(
     now,
     show,
     planner: await part(tx, "planner", (sp) => plannerLink(sp)),
-    counts: await part(tx, "board counts", (sp) => loadCounts(sp, now, timeZone)),
-    chart: await part(tx, "places chart", (sp) => loadChart(sp, now, timeZone)),
-    gaps: await part(tx, "board gaps", (sp) => loadGaps(sp, now, timeZone, show, asked)),
-    overnight: await part(tx, "while you were out", (sp) => loadOvernight(sp, now, timeZone)),
-    toMark: await part(tx, "who worked", (sp) => loadToMark(sp, now)),
+    counts: await part(tx, "board counts", (sp) => loadCounts(sp, now, timeZone, scope)),
+    gaps,
+    toMark,
+    full,
+    role,
+    roles,
+    venues: await part(tx, "venue map", async (sp) => {
+      const all = await loadVenues(sp, now, timeZone, show, scope);
+      return full ? all : all.filter((v) => v.places > 0);
+    }),
+    takers: chosen
+      ? await part(tx, "who can take it", (sp) => loadTakers(sp, chosen.shiftId, now))
+      : null,
+    updates: await part(tx, "updates", (sp) => loadUpdates(sp, now, sites)),
+    whoWorked: toMark.ok
+      ? await part(tx, "who worked by name", (sp) => loadWhoWorked(sp, toMark.data.items))
+      : { ok: false },
+    me,
+    mine: sites !== null,
+    day,
+    days,
+    nextTwoWeeks: await card("nextTwoWeeks", "next 2 weeks", (sp) =>
+      loadNextTwoWeeks(sp, now, timeZone, sites),
+    ),
+    cancelWeeks: await card("cancellations", "cancellations by week", (sp) =>
+      loadCancelWeeks(sp, now, timeZone, sites),
+    ),
+    noShowWeeks: await card("noShows", "no-shows by week", (sp) =>
+      loadNoShowWeeks(sp, now, timeZone, sites),
+    ),
+    fillRates: await card("fillRate", "fill rate", (sp) => loadFillRates(sp, now, timeZone, sites)),
+    watchList: await card("watchList", "watch list", (sp) =>
+      loadWatchList(sp, now, timeZone, sites),
+    ),
   };
 }
 
 // The dashboard for an admin or resourcer, or null (anyone else, or logged out).
 export async function officeDashboard(
   ctx: OfficeContext,
-  opts: { show?: BoardShow; session?: string | null } = {},
+  opts: Omit<BoardOptions, "officeUserId"> = {},
 ): Promise<Board | null> {
   const { run } = parts(ctx);
   const now = (ctx.clock ?? systemClock).now();
   return run(ctx.firm.id, async (tx) =>
-    (await officeUserMay(tx, ctx.officeUserId, "today")) ? loadBoard(tx, now, opts) : null,
+    (await officeUserMay(tx, ctx.officeUserId, "today"))
+      ? loadBoard(tx, now, { ...opts, officeUserId: ctx.officeUserId })
+      : null,
   );
 }

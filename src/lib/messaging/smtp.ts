@@ -160,10 +160,21 @@ export class SmtpEmailTransport implements MessagingTransport {
       const { SMTP_USER: user, SMTP_PASS: pass } = this.config;
       if (user && pass) await run<boolean>((done) => connection.login({ user, pass }, done));
       step = "envelope";
-      watchForData(connection, () => {
+      const envelope = mail.getEnvelope();
+      const toData = () => {
         step = "data";
-      });
-      await run((done) => connection.send(mail.getEnvelope(), mail.createReadStream(), done));
+      };
+      watchForData(connection, envelope.to.length, toData);
+      // nodemailer pipes the message into the connection only once the server has taken the
+      // envelope and said to go ahead, before any of it is written: from then on it may arrive,
+      // whatever the replies looked like.
+      const message = mail.createReadStream();
+      const pipe = message.pipe.bind(message);
+      message.pipe = ((...args: Parameters<typeof message.pipe>) => {
+        toData();
+        return pipe(...args);
+      }) as typeof message.pipe;
+      await run((done) => connection.send(envelope, message, done));
       connection.quit();
       return { providerMessageId: mail.messageId() };
     } catch (err) {
@@ -184,24 +195,69 @@ export class SmtpEmailTransport implements MessagingTransport {
 
 // nodemailer labels every timeout, socket error and dropped connection "CONN", whatever step the
 // conversation had reached, so its label can't say whether DATA had started. The step is tracked
-// here instead: by the time send() starts, the connection's socket is final (TLS done, logged in),
-// and the DATA command is written to it as a line of its own (alone, or after other commands if
-// they're ever sent together). If the socket can't be watched, the whole send counts as DATA (may
-// have arrived), never the other way round. A false match only ever errs the same, safe way.
+// here instead, two ways, either one enough:
+//   - the message itself: nodemailer pipes it into the connection only after the server has
+//     taken the envelope and DATA, and before any of it is written (send() above);
+//   - the conversation (RFC 5321), read by nodemailer's own rules (lines end "\r\n" or "\n"; a line
+//     "NNN-" continues a reply, any other line ends it; a reply starting "2" is a yes): DATA has
+//     started once the DATA command has been written to the socket (a line of its own) and the
+//     server has said yes to MAIL FROM and to every RCPT TO, or once it has said yes to DATA (a
+//     reply starting "2" or "3", after a yes to the sender and to at least one recipient).
+// The second keeps the line where it always was: a server that took the envelope and was sent DATA
+// may have the message even if it never answers. It needs both checks since nodemailer 10.1
+// pipelines (RFC 2920): with a server that offers PIPELINING, MAIL FROM, RCPT TO and DATA leave in
+// one batch before any reply, so DATA being written no longer means the envelope was accepted.
+// Without pipelining, DATA goes out only after the envelope is accepted, as before. (nodemailer
+// reads the replies first, one at a time, and with pipelining holds a refused MAIL FROM or RCPT TO
+// until DATA's reply; a refusal is never counted as a yes here.) If the socket can't be watched, the
+// whole send counts as DATA (may have arrived), never the other way round. A false match only ever
+// errs the same, safe way: a lost email, never a second one.
 const DATA_LINE = /(^|\r\n)DATA\r\n/;
-function watchForData(connection: SMTPConnection, onData: () => void) {
+function watchForData(connection: SMTPConnection, recipients: number, onData: () => void) {
   const socket = connection._socket;
   if (!socket) {
     onData();
     return;
   }
+  let written = false; // DATA has gone out
+  let replies = 0; // replies to the envelope's commands so far: MAIL FROM, then each RCPT TO
+  let senderOk = false; // MAIL FROM's was a yes
+  let recipientsOk = 0; // RCPT TO's that were a yes
+  let marked = false;
+  let partial = ""; // a reply line not yet ended
+  const mark = () => {
+    if (marked) return;
+    marked = true;
+    onData();
+  };
+  const check = () => {
+    if (written && senderOk && recipientsOk === recipients) mark();
+  };
   const write = socket.write.bind(socket) as (...args: unknown[]) => boolean;
   socket.write = ((chunk: unknown, ...rest: unknown[]) => {
     if ((typeof chunk === "string" || Buffer.isBuffer(chunk)) && DATA_LINE.test(chunk.toString())) {
-      onData();
+      written = true;
+      check();
     }
     return write(chunk, ...rest);
   }) as typeof socket.write;
+  socket.on("data", (chunk: Buffer | string) => {
+    const lines = (partial + chunk.toString("latin1")).split(/\r?\n/);
+    partial = lines.pop() ?? "";
+    for (const line of lines) {
+      // A blank line is nothing; "NNN-…" continues a reply; any other line ends one.
+      if (!line.trim() || /^\d+-/.test(line)) continue;
+      const yes = line.startsWith("2");
+      if (replies < 1 + recipients) {
+        if (replies === 0) senderOk = yes;
+        else if (yes) recipientsOk += 1;
+        replies += 1;
+      } else if (/^[23]/.test(line) && senderOk && recipientsOk > 0) {
+        mark();
+      }
+    }
+    check();
+  });
 }
 
 function sendError(err: unknown, step: SmtpStep): EmailNotSentError | EmailMayHaveArrivedError {

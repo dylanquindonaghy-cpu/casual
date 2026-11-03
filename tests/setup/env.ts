@@ -25,6 +25,8 @@ process.env.ANTHROPIC_API_KEY = "";
 // Never postcodes.io or TravelTime, whatever .env says (the settings also refuse traveltime under
 // NODE_ENV=test).
 process.env.TRAVEL_PROVIDER = "fake";
+// Never a street map (Phase 26.2): the office map places venues on a plain ground.
+process.env.MAP_TILES_URL = "";
 process.env.TRAVELTIME_APP_ID = "";
 process.env.TRAVELTIME_API_KEY = "";
 // A made-up planner integration secret (12J.1), never .env's own: the planner API answers with it

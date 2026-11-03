@@ -5,9 +5,12 @@ import { PageHeader } from "@/app/ui/page-header";
 import { StatusChip } from "@/app/ui/status-chip";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import { readSessionToken } from "@/lib/auth/session-cookie";
+import { officeContracts } from "@/lib/office/contracts";
+import { CONTRACTS_INTRO, CONTRACTS_TITLE } from "@/lib/office/customise-copy";
 import { siteLocationText, strikesEmailStatus } from "@/lib/office/settings-copy";
 import { officeSettingsPage } from "@/lib/office/settings-page";
 import { firmShiftsLine, shiftsLineText } from "@/lib/tenancy/shifts-line";
+import { ContractsList } from "./contracts-list";
 import { SitePostcodeForm } from "./site-postcode-form";
 import { StrikesEmailForm } from "./strikes-email-form";
 
@@ -15,15 +18,18 @@ export const metadata: Metadata = { title: "Settings" };
 
 // Settings (docs/office-v2.md 3.10; docs/screens.md `/office/settings`; 12B.7). Admins only
 // (checked here, in the loader and again in every change). The strikes team's email, the firm's
-// shifts line (its number, to read: Phase 24) and the sites' postcodes. Everything else the firm
+// shifts line (its number, to read: Phase 24), the sites' postcodes and the contracts (clients and
+// their venues: Phase 26.3). Everything else the firm
 // agreed stays with the owner (`firm:settings`).
 export default async function SettingsPage() {
-  const { firm } = await requireOfficeArea("settings");
-  const [data, line] = await Promise.all([
+  const { firm, officeUser } = await requireOfficeArea("settings");
+  const [data, line, contracts] = await Promise.all([
     officeSettingsPage({ firm }, (await readSessionToken("office")) ?? ""),
     firmShiftsLine({ firm }),
+    officeContracts({ firm, officeUserId: officeUser.id }),
   ]);
-  if (!data) notFound();
+  if (!data || !contracts) notFound();
+  const names = Object.fromEntries(contracts.contracts.map((c) => [c.clientId, c.name]));
   const s = data.strikesEmail;
   return (
     <main className={page.officeForm}>
@@ -85,6 +91,20 @@ export default async function SettingsPage() {
             ))}
           </ul>
         )}
+      </section>
+
+      {/* Contracts (Phase 26.3, cus-1): each client and the venues staffed for it. */}
+      <section className={sectionGap.office} aria-labelledby="contracts">
+        <h2 id="contracts" className={h2}>
+          {CONTRACTS_TITLE}
+        </h2>
+        <p className={`${muted} mt-1`}>{CONTRACTS_INTRO}</p>
+        <ContractsList
+          contracts={contracts.contracts}
+          sites={contracts.sites}
+          names={names}
+          className={headingGap}
+        />
       </section>
     </main>
   );

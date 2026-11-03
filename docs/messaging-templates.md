@@ -13,11 +13,13 @@ gets the caller's login link by message, as the login page does: the caller aske
 most 5 unknown numbers per firm an hour; the rest wait in Need a person, and go in one email at
 the end of that hour (`unknown_numbers_combined`, below; Phase 25.3).
 
-**How a message reaches a casual** (P2.4; the words approved by Dylan on 2026-10-28;
-`PLAN.md` "Connecting the firm's systems" 15; Messages 2): a push to the phones they turned
-notifications on for; if no phone takes it, a WhatsApp or text (once a text sender exists: Phase
-15); if no text can go, an email to the address the firm holds for them ("Email to casuals" below);
-if none of those, nothing goes and the miss is logged. The shifts line's own replies and the STOP
+**How a message reaches a casual** (Phase 26.9, decision 4: app notification, then text, then
+email, email a casual's choice; before it, P2.4): a push to the phones they turned notifications on
+for; if no phone takes it, their chosen way: a text from the firm's own text account (the default)
+or, if they chose it on Profile, an email to the address the firm holds for them ("Email to
+casuals" below); a text that can't go (no text sender yet, or they replied STOP) goes by email when
+the firm holds an address; if none of those, nothing goes and the miss is logged. **No message to a
+casual goes by WhatsApp** (Phase 15's "Texts only"; decision 4). The shifts line's own replies and the STOP
 or START answers go only by text (decision 11).
 
 **Who sends what** (P2.3; decisions 9 and 17): ShiftDesk tells casuals about the bookings made in
@@ -26,30 +28,28 @@ system made (its rota sheet; its CRM through the API, P5), which that system sen
 confirmation (`shift_confirmed`) only ever goes for the office's own booking in ShiftDesk. Offers
 and the office's change and cancellation notices still go.
 
-Order for every message to a worker:
+Order for every message to a worker (Phase 26.9):
 1. **Web push** (free). Works on Android; on iPhone only once the portal is added to the home screen.
-2. **WhatsApp template** (about 2p each incl. Twilio fee; business-initiated messages must use
-   approved templates).
-3. **SMS fallback** (about 4p each). Only if WhatsApp isn't delivered within 60 seconds, or the
-   worker has no WhatsApp. (Built so far: the worker's own choice of text messages, and a WhatsApp
-   the transport refuses goes by SMS at once, logged `fellBackFrom`. The 60-second rule needs
-   Twilio's delivery reports: parked with "Connect Twilio".)
-4. **Email** (P2.4). Only when no text can go at all (no text sender yet), to the address the firm
-   holds for them, with the subject from "Email to casuals" below.
+2. **Their chosen way:** a **text** (the firm's own Webex account, Phase 15; the default) or an
+   **email** (their choice on Profile, offered only when the firm holds their address).
+3. **Email instead of a text** when no text can go: no text sender yet, or they replied STOP. Only
+   to the address the firm holds for them, with the subject from "Email to casuals" below.
+4. **Nothing**, logged: no phone took a push, and no text or email can go (`no_channel`, or
+   `sms_opted_out` for a casual who replied STOP and has no email address).
 
 As built (P2.4, `deliverToWorker()` in `src/lib/notify/send.ts`): a push that one of their phones
-takes is the message, and no WhatsApp or text goes with it (before P2.4 the push went alongside).
+takes is the message, and no text or email goes with it (before P2.4 the push went alongside).
 "Takes" means the push service accepted it for the phone, not that the casual saw it; a push that
-fails (a time-out, an outage) goes on to the WhatsApp or text, even though it may have arrived, so a
+fails (a time-out, an outage) goes on to the text or email, even though it may have arrived, so a
 casual may now and then get both (PLAN.md P2.4: "a push gone or failed falls to a text").
-The licence messages have no push words, so they start at the WhatsApp or text. The office's change
+The licence messages have no push words, so they start at the text or email. The office's change
 and cancellation notices (`shift_changed_by_firm`, `shift_cancelled_by_firm`) are the proof of the
-notice given, so they go by the WhatsApp, text or email as well as the push, never instead of it
-(Dylan, 2026-10-29); one whose WhatsApp, text or email can't go while a phone took the push counts
-as told by push, and the log says why the rest didn't go. A WhatsApp or text
-that fails, or might have arrived, isn't sent again by email: it could reach them twice. The office's
-reply on Enquiries goes only by WhatsApp or text: it answers a message to the shifts line, so a text
-sender exists. `tests/integration/notify.policy.test.ts` holds every sender to this order.
+notice given, so they go by text or email as well as the push, never instead of it
+(Dylan, 2026-10-29); one whose text or email can't go while a phone took the push counts
+as told by push, and the log says why the rest didn't go. A text or email
+that fails, or might have arrived, isn't sent again another way: it could reach them twice. The office's
+reply on Enquiries answers a message to the shifts line on the channel it came by (a text, or a
+WhatsApp while the Twilio shifts line exists). `tests/integration/notify.policy.test.ts` holds every sender to this order.
 
 Rules:
 - Quiet hours per firm (default 22:00–07:00). Non-urgent waits. Urgent may override if the firm
@@ -69,8 +69,9 @@ Rules:
   per number per month free (from 1 October 2026), then charged per message.
 - Workers can reply STOP to SMS; honour it and mark the channel opted-out. (Built in Phase 7,
   short of Twilio: see "STOP and START by text" below. A worker who replied STOP gets no texts from
-  any sender: one who chose texts gets WhatsApp instead, and a WhatsApp refused for them isn't sent
-  as a text. `sendToWorker()` takes `smsAllowed` from every sender.)
+  any sender: their messages go by email when the firm holds their address (Phase 26.9; before it,
+  by WhatsApp), else only as app notifications. `sendToWorker()` takes `smsAllowed` from every
+  sender.)
 
 ## Sign-off
 
@@ -83,6 +84,9 @@ message, Phase 7), once the firm has one; `tests/unit/notify.from-line.test.ts` 
 it.
 
 ## WhatsApp templates (submission pack built in Phase 4, submitted with "Connect Twilio"; category shown is our expectation — confirm on approval)
+
+**Not used for casuals since Phase 26.9** (decision 4: app notification, text, then email). Kept for
+a firm that later adds its own WhatsApp Business number, and for the Twilio shifts line's replies.
 
 | Name | Category | Body (variables in braces) |
 |---|---|---|
@@ -98,6 +102,7 @@ it.
 | `cancellation_ack` | Utility | "We've recorded your cancellation of {date} {start} at {site} (ref {ref}). — {firm} Shift Team" |
 | `shift_changed_by_firm` | Utility | "Change to your shift on {date} at {site}: {change}. New time: {start}–{end}. Details: {link}. — {firm} Shift Team" ({date} and {site} are the shift as it was; {change} is "the times have changed", "it's now shorter", "it's now at {new site}" or "new times, and it's now at {new site}"; {start} names the day too when the shift moved to another day; "at {site}" left out when there was none. Sent to each booked worker when the office moves or shortens a shift, `src/lib/notices/firm-change.ts`) |
 | `shift_cancelled_by_firm` | Utility | "Your shift on {date} {start}–{end} at {site} has been cancelled by the office. Open shifts: {link}. — {firm} Shift Team" ("at {site}" left out when there's none. Sent when the office cancels a shift, or someone's booking) |
+| `shift_not_booked` | Utility | "Not this time: you're not booked for {date} {start}–{end} at {site} ({role}). Thanks for asking. Open shifts: {link}. — {firm} Shift Team" ("at {site}" left out when there's none: `shift_not_booked_no_site`. Phase 26.6, "Casuals ask, you choose": sent when the office answers a casual's "I can do this" with "Not this time", or the session fills with others while they wait, `src/lib/notices/ask-answer.ts`; one the office books gets `shift_confirmed`. Nobody is told when the office cancels or moves the session: they may ask again. Quiet hours hold it unless the session starts within the urgent window) |
 | `request_update` | Utility | "Your request ({type}, ref {ref}) is {status}. The office says: {note} — {firm} Shift Team" ({type} is the kind in words: "time change", "swap", "availability", "question" or "review"; {status} "approved" or "declined", and "answered" for a question the office answered ("approved" can read as "booked"); {note} is the office's note on one line; "The office says: {note}" is left out when there isn't one: `request_update_no_note`. Sent when the office answers a request, `src/lib/notices/request-update.ts`, and as the office's reply on Enquiries outside WhatsApp's 24-hour window, below) |
 | `credential_expiring` | Utility | "Your {credential} expires on {date}. Upload your renewed card so you can keep taking shifts that need it: {link} — {firm} Shift Team" ({link}: her upload page for it, `/profile/upload/{type}`; 12F.2). One she can't upload (the office records it, or none of her roles needs it), `credential_expiring_to_office`: "Your {credential} expires on {date}. Renew it and send the new details to the office so you can keep taking shifts. — {firm} Shift Team" |
 | `credential_expired` | Utility | "Your {credential} expired on {date}. You can't take shifts that need it until you upload your renewed card and the office checks it: {link} — {firm} Shift Team". One she can't upload, `credential_expired_to_office`: "Your {credential} expired on {date}. You can't take shifts that need it until you renew it and send the new details to the office. — {firm} Shift Team" |
@@ -224,13 +229,17 @@ words on one line (500 characters at most). The page says which way it will go b
   stranger's own STOP). A voicemail from a number that isn't a casual's gets no message: the office
   phones back. A withheld number can't be answered. In those cases the office closes it instead.
 
-## SMS (fallback only, keep under 160 characters)
+## SMS (keep under 160 characters)
 
-A message with no SMS version below goes by text in full (the WhatsApp wording). Only the urgent
+Texts are the default way since Phase 26.9. A message with no SMS version below goes by text in full
+(its full wording, the one an email carries). Only the urgent
 offer's and the office offer's SMS versions are built so far; the others come with their messages (login by text with
 "Connect Twilio", confirmations with their tasks).
 
-- Login: "{firm} shifts link (15 min): {link}"
+- Login: "{firm} shifts link (15 min): {link} - {firm} Shift Team" (built in Phase 26.9:
+  `loginLinkSms()`)
+- Pay code: "Your {firm} code is {code}. It works for 10 minutes. Don't share it. - {firm} Shift Team"
+  (built in Phase 26.9: `loginCodeSms()`)
 - Offer: "{firm}: shift {date} {start} at {site}. Take it: {link} - {firm} Shift Team" (built:
   `shiftOfferSms()`, the office's offer by text; "at {site}" left out when there's none)
 - Urgent: "{firm} URGENT: {role} needed {site} {day} {start}. {link} - {firm} Shift Team" (built:
@@ -255,6 +264,7 @@ never a person's name), not one per firm (PLAN.md Parking lot, P2.4).
 - Reminder, 2 hours before (`shift_reminder_2h`): subject "Your shift starts at {start}"
 - The office's change (`shift_changed_by_firm`): subject "Change to your shift on {date}"
 - The office's cancellation (`shift_cancelled_by_firm`): subject "Your shift on {date} is cancelled"
+- Not chosen from an ask (`shift_not_booked`): subject "Not this time: {date}"
 - A request's answer (`request_update`): subject "Your request (ref {ref}) is {status}"
 - A pay query's answer (`pay_query_update`): subject "Payroll has answered your pay query"
 - The office's reply on Enquiries: subject "A reply from {firm}"; body "{words} — {firm} Shift Team"
@@ -325,8 +335,9 @@ hyphen before the sign-off: text only):
 - `sms_started`: "Texts from {firm} are back on. Reply STOP to turn them off. Automatic reply. Send
   OFFICE to reach a person. - {firm} Shift Team"
 
-The worker's profile says "Texts are off: you replied STOP to one of our texts. We'll send shift
-messages by WhatsApp. To turn texts back on, text START to our number." Any other text to the shifts
+The worker's profile says "Texts are off: you replied STOP to one of our texts. We'll email shift
+messages to {address}. To turn texts back on, text START to our number." (no address held: "We can
+only reach you by notifications on your phone.") (Phase 26.9.) Any other text to the shifts
 line is answered like a WhatsApp (the instant replies above), by text.
 
 ## Messages in the app (P8; Phase 25.6)
@@ -336,8 +347,9 @@ recommended (Dylan, 2026-10-30: "just do what you would recommend stop prompting
 it"). A casual's message in the app is sorted as a WhatsApp is (a keyword, else the AI's label,
 else the office) and answered there at once, whatever the firm's automatic replies switch (decision
 11: they never go by text): with the WhatsApp words of "Instant replies on the shifts line" and
-"Personal replies on the shifts line" above, each ending "Automatic reply. Send OFFICE to reach a
-person." and the sign-off. Nothing goes by WhatsApp, text or email.
+"Personal replies on the shifts line" above, each ending "Automatic reply." and the sign-off
+(Phase 26.10, fix-3: without "Send OFFICE to reach a person.", which texts and WhatsApp keep; the
+app has its own way to the office: `forTheApp()`). Nothing goes by WhatsApp, text or email.
 
 - At most 5 automatic answers to one casual an hour: past that, and for a message that quotes our
   automatic line (an echo), no automatic answer; it waits for a person on Enquiries.
@@ -361,6 +373,9 @@ person." and the sign-off. Nothing goes by WhatsApp, text or email.
   office's change notices)
 - Booked: "Shift booked" / "{date} {start} at {site}. Tap for details." (built: `bookedPush()`, with
   `shift_confirmed` when the office books a worker; tapping opens the shift)
+- Not booked from an ask: "Not this time" / "{date} {start} at {site}. See other open shifts."
+  (built: `notBookedPush()`, with `shift_not_booked`; no site: "{date} {start}. See other open
+  shifts."; tapping opens Open shifts)
 - Request update: "Request {status}" / "{type} — tap to view." (built: `requestUpdatePush()`, with
   the office's answer; {type} as the list names it, "Time change"; tapping opens My requests)
 - Pay query update: "Pay query sorted" / "Payroll has answered. Open your pay page to see it."
@@ -402,6 +417,28 @@ reach the same app, which isn't answering.
   {Role} at {site}, {Sat 7 Nov, 08:00 to 16:00}"; body "The {role} shift at {site}, {when}, still
   has {n place(s)} free." / "{k offer(s)} sent, none accepted for the free place(s)." / "Open the
   office dashboard: {link}" / "— {firm} Shift Team". To active admins and resourcers.
+- Cancellation alert (`office_cancel_push`, push, Phase 26.4, `officeCancelPush()`: a casual's
+  cancellation under 48 hours' notice, to each admin or resourcer who switched cancellations under
+  48 hours on under Tell me about on Updates, looks after the venue (or no contracts) and turned
+  notifications on in a browser; once each; no casual's name, as a lock screen is a wider audience
+  than the office): title "Cancellation · {9 hours' notice}"; body "{Door supervisor}, {Acme Demo
+  Arena}, {Mon 2 Nov 18:00}. The place is open again." (or "Already covered." when it's filled
+  again). Tapping it opens Updates.
+- Open places alert (`office_open_push`, push, Phase 26.4, `officeOpenPush()`: a session with places
+  still to fill 6 hours before its start, to each admin or resourcer who switched that on, looks
+  after the venue and turned notifications on; once each per session; no names): title "{1 place}
+  still to fill, starts {in 5 h}"; body "{Steward}, {Acme Demo Arena}, {Mon 2 Nov 14:00}. Offered to
+  nobody yet." (or "Offered to {3 people}."). Tapping it opens the offer page.
+- Summary (`office_summary`, email, Phase 26.4, `officeSummaryEmail()`: at 08:00 the firm's time (up
+  to 11:00 if the worker was down), to each admin or resourcer who left the 08:00 summary on, what
+  needs action now and what happened since 08:00 yesterday on their contracts; nothing to say, no
+  email; once a day; no casual's name): subject "Updates for {Mon 2 Nov}: {2} need action" ("…: 1
+  needs action", "…: nothing needs action"); body "Here's what's happened on your contracts since 08:00 yesterday."
+  ("at every venue" with no contracts) / "Needs action ({2}):" ("Nothing needs action." with none)
+  / "- {1 place still to fill, starts in 5 h: Steward, Acme Demo Arena, Mon 2 Nov 14:00}" (at most
+  10) / "- and {1} more" / "Since 08:00 yesterday: {3 places taken}, {2 cancellations} ({1} under
+  48 hours' notice), {1 upload} to check." / "Open Updates: {link}" / "To stop these emails, switch
+  off the 08:00 summary under Tell me about on Updates." / "— {firm} Shift Team".
 - Strikes team confirmation (`strikes_email_confirm`, email, built in 12B.7,
   `strikesEmailConfirmEmail()`: to the address an admin saves on Settings, and to nobody else; the
   link is signed for that address and works for 7 days): subject "Confirm {firm}'s strikes team

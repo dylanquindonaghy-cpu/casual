@@ -1122,7 +1122,10 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   in the test; tagging each template function by channel would make a missing WhatsApp template
   fail by itself.
 - **Connect the real web push** (the Phase 4 web push task is blocked on it: a secret key and real
-  phones; no account or money). Most of Claude's steps were built in 13.3: the sender (`web-push`,
+  phones; no account or money). Since Phase 26.4 the same keys switch on the office's notifications
+  too (Updates, "Tell me about": cancellations under 48 hours and places still open 6 hours before
+  the start); until then "Notifications on this device" says "Notifications aren't set up on this
+  server yet." and only the pop-up, the bell and the 08:00 email reach the office. Most of Claude's steps were built in 13.3: the sender (`web-push`,
   `PUSH_TRANSPORT=webpush`, 404/410 forget the phone, an address that isn't a push service's in a
   browser's own form is never contacted), the worker's settings in the compose file, the rate limit
   on `POST /api/push/subscribe`, and the compliance and privacy wording. The last of Claude's, each
@@ -2105,3 +2108,94 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   - The AI's draft is made for every email that needs a person (when the AI is connected), read or
     not: a few hundred tokens each on Haiku. If a firm's volume makes that matter, draft when the
     office first opens it instead.
+- **From Parim, for after Phase 26** (the pre-build audit, 2026-11-02,
+  https://claude.ai/artifact/4DRBzVM5k6BLCmfin7Zgff, `docs/mockups/round-8/audit.html`). Parim, the
+  UK staffing and events tool firms are most likely to compare us with, does these; we don't:
+  - **Reconfirm before a shift:** N hours before the start (a firm setting), the casual is asked
+    "Still on for tomorrow?" with Yes or Can't make it; no answer by a set time shows in Updates.
+    Parim turns the shift back to unconfirmed and staff confirm by app, email or text. The
+    strongest idea against no-shows; it changes what casuals are sent (templates and words first,
+    `docs/messaging-templates.md`), so its own phase.
+  - Clock-in and a live board of today's sessions (late, left early). Parim: GPS geofence, QR, NFC,
+    a kiosk or a text. Geofencing is already parked (native app, DPIA first).
+  - A rest-time check between shifts (Parim flags "rest-time breaches"): an eligibility rule,
+    data per sector, with its tests.
+  - Preferred casuals per venue (Parim: preferred and banned lists per location; we have only
+    "blocked at this venue", `worker_site_blocks`).
+  - A client portal: clients ask for shifts and see coverage.
+  - Coverage and margin reports: these need charge rates, which we don't hold.
+  Not to copy (the audit's reasons): Parim's people-by-days scheduler grid (the firm's planner makes
+  sessions; we're planner-first), "Call supervisor to cancel" inside 24 hours (we log the notice and
+  strike), and a manager approving every application (instant booking stays; "Casuals ask, you
+  choose" is per event).
+- **Development tools with known advisories** (`npm audit`, 2026-11-02, after Next went to 16.4.3,
+  zod to 4.6.6 and nodemailer to 10.1.4 for the advisories that reach the server). What's left is
+  in the test and lint tools only, never in the image (`npm prune --omit=dev`): vite 8.3.0 to 8.3.2
+  (high: launch-editor on Windows), vitest 5.0.0 to 5.0.2 (moderate: its mock server), and the
+  eslint chain's minimatch (moderate: a slow pattern). Move vitest and vite on when a patch release
+  is out a couple of weeks, and run the whole suite on it.
+- **The street map's file for each server** (Phase 26.2): the map shows streets only once someone
+  puts a UK `.pmtiles` file in the server's `maps` folder and sets `MAP_TILES_URL`
+  (`docs/runbooks.md` "The street map"). The demo server too, if the demo should show streets.
+- **Asks left waiting when a session starts** (Phase 26.6): an ask the office never answered stays
+  "asked" once the session has started (the casual's app no longer shows the session). Nobody is
+  told. A small job could close them at the start and send `shift_not_booked`; only if the pilot
+  shows offices leaving asks unanswered.
+- **A casual taking back an ask** (Phase 26.6): "I can do this" can't be undone in the app before
+  the office answers; a casual who can't make it any more tells the office (or cancels once
+  booked, as any booking). Add "I can't do it any more" if the pilot asks for it.
+- **Asks in the retention purge** (Phase 26.6): `session_asks` rows are kept like offers (never
+  deleted by the app); add them to the year-old purge with offers when that decision is taken
+  (decisions-waiting "Before the pilot's data is a year old").
+- **A sheet's or file import's retime and asks** (Phase 26.6 review): a session the rota sheet or a
+  re-import moves (nobody booked) keeps its asks open, as it keeps its offers out (neither path
+  expires them). Close both there too before a Sheets firm turns on "Casuals ask, you choose".
+- **Remind for a staff photo or a missing qualification** (Phase 26.7): "Remind" sends the licence
+  messages only (a licence out of date or expiring). A casual whose only need is a staff photo, or
+  a qualification they've never had, has no message to send yet: it needs a new WhatsApp template
+  ("Please add your staff photo…") and Meta's approval. Until then the office calls or messages
+  them.
+- **The office's notes and retention** (Phase 26.7): `casual_notes` are kept until the casual's
+  details are deleted (decision 12, decided as built on 2026-11-03). Add them to the year-old purge
+  if the pilot shows notes going stale.
+
+## From Phase 26.9 (offers by app notification, text or email; 2026-11-02)
+
+- **Webex in production:** still refused (`src/lib/env.ts`) until a STOP sent to Webex is recorded
+  (Phase 15's replies by text) and the web can see which firms have a Webex key of their own (a
+  non-secret "text account connected" flag per firm, feeding `loginWay`, the offer list's reach and
+  a readiness item), and one real-service trial. The 26.9 guardrails review, H2.
+- **Text versions of every message** with plain characters and under 160: texts are the default
+  now, and a message with no SMS version goes in full (its dashes make it a dearer, multi-part
+  text). For Dylan: the cost (the review's L6).
+- **The Pay page for a casual who replied STOP:** it says "We can't send you a code yet" (or
+  emails one); words of its own ("Texts are off: text START to our number to get a code") need
+  their copy first.
+- **Rename `MessageText.whatsapp`** (`src/lib/notify/send.ts`) to `full`: it's the full wording
+  (an email's body too), not WhatsApp's.
+- **A test of migration 0070** moving `whatsapp` rows in two firms under forced RLS (it ran on the
+  dev database: all 98 casuals moved to texts).
+- **The shifts line's reply to an unknown number by text**, and its inbound WhatsApp on Twilio:
+  with the shifts line moving to texts (Phase 15's third task).
+
+
+## From Phase 26.10 (fixes and words; 2026-11-03)
+
+- **A database rule for the log's times:** a trigger on `events` refusing an explicit
+  `created_at` for any firm but the made-up demo firms, so a backdated entry for a real firm is
+  refused by the database itself, not only by `recordEventAt` and the boundary test (the
+  guardrails review of 26.10). It needs a migration and a way for the seed to pass.
+- **The history lists sorted by time:** the action log, the notice report and a session's and an
+  event's History read newest first by the entry's number, which for real firms is the order they
+  were written. Sorting by `(created_at, id)`, with the log's cursor carrying both, would make it
+  hold whatever writes the entries; the demo's seed writes in time order for now.
+- **Role fields' starting words (fix-7's leftovers):** "New shift" and a session's Edit fill the
+  role field with the code's name with spaces (`replace(/_/g, " ")`), not `roleLabel()`'s words
+  ("Sia door supervisor" rather than "SIA door supervisor"). The field is the value saved, so
+  changing it needs the form to map words back to the code (the claims-auditor's note, round 2).
+- **The dashboard's old places chart:** `places-chart.tsx` and `hover-tips.tsx` are no longer on
+  any page since the venue map (26.2); only their unit tests use them. Remove them with their
+  tests, or bring the chart back where the spec wants one (the claims-auditor's note, round 2).
+- **A browser click on a single "Book":** the session list's per-row Book is tested through the
+  same booking path (`assignWorker`) in the integration tests and by "Book the best 1" in the
+  browser, but not clicked on its own (the claims-auditor's note, round 3).

@@ -9,8 +9,14 @@ import {
   ALREADY_OFFERED,
   candidateLine,
   NOBODY_ELSE,
+  NOBODY_LEFT_OUT,
   NOBODY_YET,
+  NOT_OFFERED,
+  notOfferedMore,
+  notOfferedWhy,
+  OUTSIDE_AREA,
   placesFreeText,
+  reachLine,
   RESPONSE_WORDS,
   sentBy,
   URGENT_NOTE,
@@ -187,7 +193,7 @@ function PanelBody({
           role="status"
           className={confirm ? "flex items-center gap-2 font-medium text-ink" : "sr-only"}
         >
-          {confirm ? <Icon name="check" size={18} className="text-done" /> : null}
+          {confirm ? <Icon name="check" size={18} className="text-done-ink" /> : null}
           {confirm ?? ""}
         </p>
         <button type="button" onClick={onClose} className={`${btn.secondary} self-start`}>
@@ -251,7 +257,7 @@ export function OfferContent({
                 >
                   <span
                     aria-hidden="true"
-                    className="flex size-10 items-center justify-center rounded-full bg-wait-tile text-xs font-semibold text-wait-ink glass-rim"
+                    className="flex size-10 items-center justify-center rounded-full bg-wait-tile text-xs font-semibold text-ink glass-rim"
                   >
                     {initials(c.name)}
                   </span>
@@ -260,6 +266,12 @@ export function OfferContent({
                     <span className="block text-sm text-ink-muted tabular-nums">
                       {candidateLine(c)}
                     </span>
+                    <span className="block text-sm text-ink">{reachLine(c.reach)}</span>
+                    {c.outsideArea && (
+                      <span className="mt-1 block">
+                        <StatusChip tone="attention">{OUTSIDE_AREA}</StatusChip>
+                      </span>
+                    )}
                   </span>
                   <SendButton
                     shiftId={shift.shiftId}
@@ -271,6 +283,23 @@ export function OfferContent({
                 </li>
               ))}
             </ul>
+          )}
+          {/* "Not offered, and why" (Phase 26.9, off-2). */}
+          <h3 className="mt-6 text-base font-semibold">{NOT_OFFERED}</h3>
+          {page.notOffered.length === 0 ? (
+            <p className="mt-2 text-sm text-ink-muted">{NOBODY_LEFT_OUT}</p>
+          ) : (
+            <ul role="list" aria-label={NOT_OFFERED} className="mt-2 flex flex-col gap-1 text-sm">
+              {page.notOffered.map((n) => (
+                <li key={n.workerId} className="flex flex-wrap justify-between gap-x-3 leading-7">
+                  <span className="font-medium text-ink">{n.name}</span>
+                  <span className="text-ink-muted">{notOfferedWhy(n.why, DAILY_OFFER_CAP)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {page.notOfferedMore > 0 && (
+            <p className="mt-2 text-sm text-ink-muted">{notOfferedMore(page.notOfferedMore)}</p>
           )}
         </>
       )}

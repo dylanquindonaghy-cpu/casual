@@ -78,7 +78,9 @@ test("Messages: answered at once in the app, then the office's reply, counted on
     .getByRole("listitem")
     .filter({ hasText: "Your hours, rates and pay dates:" });
   await expect(payAnswer).toBeVisible({ timeout: 20_000 });
-  await expect(payAnswer).toContainText("Automatic reply. Send OFFICE to reach a person.");
+  // In the app, without "Send OFFICE to reach a person." (Phase 26.10, fix-3).
+  await expect(payAnswer).toContainText("Automatic reply. — Acme Events Shift Team");
+  await expect(payAnswer).not.toContainText("Send OFFICE");
   await expect(payAnswer).toContainText("— Acme Events Shift Team");
   await expect(payAnswer.getByRole("link", { name: `${acme}/pay` })).toHaveAttribute(
     "href",

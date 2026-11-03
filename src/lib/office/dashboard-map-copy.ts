@@ -1,0 +1,222 @@
+import { noticeText } from "../portal/cancel-reasons";
+import { localDateOf } from "../time/zoned";
+import { roleLabel } from "../portal/format";
+import type { MapVenue, Takers, Update, WhoWorkedGroup } from "./dashboard-map";
+
+// Round 8's dashboard in words (Phase 26.2; docs/screens.md "/office, round 8"): the venue map's
+// pins and foot, the session card's booked and who-can-take-it tiles, Updates and Who worked?.
+// Plain functions, so the tests read every line.
+
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// "Tue 3" for a yyyy-mm-dd day (a calendar date: no time zone of its own).
+export function dayShort(day: string): string {
+  const [y = 2000, m = 1, d = 1] = day.split("-").map(Number);
+  return `${DAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]} ${d}`;
+}
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+export const MAP_ATTRIBUTION =
+  '<a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors</a>';
+
+// A pin's days with places to fill: "Tue 3, Sat 7, Sun 8", then "and 2 more".
+export function pinDays(v: Pick<MapVenue, "days" | "places" | "hidden">): string {
+  if (v.places === 0) return "All places filled";
+  const shown = v.days.slice(0, 3).map(dayShort).join(", ");
+  const rest = v.days.length > 3 ? ` and ${v.days.length - 3} more` : "";
+  return `${shown}${rest}${v.hidden ? " · hidden" : ""}`;
+}
+
+// What a pin says to a screen reader (and its link's name): "Acme Demo Arena: 10 places to fill,
+// urgent, Tue 3, Sat 7, Sun 8".
+export function pinLabel(
+  v: Pick<MapVenue, "name" | "places" | "urgent" | "hidden" | "days">,
+): string {
+  if (v.places === 0) return `${v.name}: all places filled`;
+  const parts = [plural(v.places, "place to fill", "places to fill")];
+  if (v.urgent) parts.push("urgent");
+  if (v.hidden) parts.push("hidden from casuals");
+  return `${v.name}: ${parts.join(", ")}, ${pinDays({ ...v, hidden: false })}`;
+}
+
+export const MAP_KEY = {
+  urgent: "Urgent",
+  open: "Places to fill",
+  hidden: "Hidden from casuals",
+  full: "All filled",
+} as const;
+
+// Under the map, on the left: how to use it, or how it's drawn while there's no street map.
+export function mapFoot(streets: boolean): string {
+  return streets
+    ? "Drag to move · Ctrl + scroll to zoom (two fingers on a phone) · a pin's number is its places to fill"
+    : "Placed by each venue's postcode · a pin's number is its places to fill";
+}
+
+// The venues with no position: "Not on the map (no postcode yet): Hillside Demo Square, 4 places
+// to fill."
+export function unplacedLine(list: Pick<MapVenue, "name" | "places">[]): string {
+  const each = list.map((v) => `${v.name}, ${plural(v.places, "place to fill", "places to fill")}`);
+  return `Not on the map (no postcode yet): ${each.join("; ")}.`;
+}
+
+// The map's figures as a table, one tap away (the pre-build audit's aud-9).
+export const MAP_TABLE = "Show as a table";
+export const MAP_TABLE_HEADS = ["Venue", "Places to fill", "Days"] as const;
+
+// "Show full venues": venues with nothing to fill shown too.
+export const FULL_VENUES = "Show full venues";
+
+// The session card's tiles.
+export const bookedText = (booked: number, headcount: number) => `${booked} / ${headcount}`;
+export const CAN_TAKE_IT = "Can take it";
+export const offeredText = (n: number) => `${n} offered`;
+export const CAN_TAKE_LINE = "Under the rules, right now";
+
+// What the card warns about who can take it, or null: "Only Zoe Adeyemi can take it: 8 hours
+// booked that week." / "Nobody can take it right now."
+export function takersWarning(t: Takers | null): string | null {
+  if (!t) return null;
+  if (t.count === 0) return "Nobody can be offered it right now.";
+  if (t.only) {
+    const h = t.only.hoursThisWeek;
+    return `Only ${t.only.name} can take it: ${h === 1 ? "1 hour" : `${h} hours`} booked that week.`;
+  }
+  return null;
+}
+
+// The main button: "Offer to Zoe" when one person can take it, else "Offer to someone".
+export function offerButton(t: Takers | null): string {
+  return t?.only ? `Offer to ${t.only.name.split(" ")[0]}` : "Offer to someone";
+}
+
+// "6 h · £15.00/h" (whole hours shown to the quarter: "7.5 h").
+export function lengthAndPay(startsAt: Date, endsAt: Date, payRatePence: number | null): string {
+  const hours = Math.round(((endsAt.getTime() - startsAt.getTime()) / 3_600_000) * 4) / 4;
+  const length = `${Number.isInteger(hours) ? hours : hours.toFixed(2).replace(/0$/, "")} h`;
+  return payRatePence === null ? length : `${length} · £${(payRatePence / 100).toFixed(2)}/h`;
+}
+
+// --- Updates ---
+
+const TIME = new Map<string, Intl.DateTimeFormat>();
+function hhmm(at: Date, timeZone: string): string {
+  let f = TIME.get(timeZone);
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone });
+    TIME.set(timeZone, f);
+  }
+  return f.format(at);
+}
+
+// "Tue 3 Nov 08:00".
+export function sessionWhen(at: Date, timeZone: string): string {
+  const day = localDateOf(at, timeZone);
+  const [, m = 1] = day.split("-").map(Number);
+  return `${dayShort(day)} ${MONTHS[m - 1]} ${hhmm(at, timeZone)}`;
+}
+
+// "Mon 08:17": a time with its day.
+export function updateWhenLong(at: Date, timeZone: string): string {
+  const day = localDateOf(at, timeZone);
+  return `${DAYS[new Date(`${day}T12:00:00Z`).getUTCDay()]} ${hhmm(at, timeZone)}`;
+}
+
+// When it happened, on the right: "09:06" today, "Sun 08:00" before.
+export function updateWhen(at: Date, now: Date, timeZone: string): string {
+  const day = localDateOf(at, timeZone);
+  return day === localDateOf(now, timeZone)
+    ? hhmm(at, timeZone)
+    : `${DAYS[new Date(`${day}T12:00:00Z`).getUTCDay()]} ${hhmm(at, timeZone)}`;
+}
+
+const where = (u: { role: string; site: string | null; startsAt: Date }, timeZone: string) =>
+  [roleLabel(u.role), u.site, sessionWhen(u.startsAt, timeZone)].filter(Boolean).join(", ");
+
+// Each update's two lines, its tone and where it opens.
+export function updateLines(
+  u: Update,
+  timeZone: string,
+): { title: string; line: string; tone: "done" | "urgent" | "attention" | "wait"; href: string } {
+  switch (u.kind) {
+    case "took":
+      return {
+        title: `${u.worker} took a place`,
+        line: `${where(u, timeZone)} · ${u.placesFree === 0 ? "now full" : plural(u.placesFree, "place to fill", "places to fill")}`,
+        tone: "done",
+        href: `/office/shifts/${u.shiftId}`,
+      };
+    case "cancelled": {
+      const strike =
+        u.strike === "live"
+          ? "strike issued"
+          : u.strike === "withdrawn"
+            ? "strike withdrawn"
+            : "no strike";
+      return {
+        title: `${u.worker} cancelled · ${noticeText(u.noticeHours)}`,
+        line: `${where(u, timeZone)} · ${strike}${u.reopened ? " · reopened" : ""}`,
+        tone: u.noticeHours < 48 ? "urgent" : "attention",
+        href: `/office/cancellations/${u.ref}`,
+      };
+    }
+    case "upload":
+      return {
+        title: `${u.worker} sent ${u.what === "photo" ? "a staff photo" : "a certificate"}`,
+        line: "Waiting for a check",
+        tone: "wait",
+        href: `/office/casuals/${u.workerId}`,
+      };
+    case "no-reply":
+      return {
+        title: `No reply yet · ${plural(u.offers, "offer", "offers")}`,
+        line: `On ${plural(u.sessions, "session", "sessions")} · the oldest sent ${updateWhenLong(u.oldest, timeZone)}`,
+        tone: "attention",
+        href: "/office/events?view=need",
+      };
+  }
+}
+
+export const UPDATES_TITLE = "Updates";
+export const UPDATES_EMPTY = "Nothing new in the last two days.";
+// The column's foot: the Updates page (Phase 26.4; until then the action log).
+export const UPDATES_ALL = "All updates";
+
+// --- Who worked? ---
+
+type Worked = Pick<WhoWorkedGroup, "role" | "site" | "startsAt" | "endsAt" | "shiftIds">;
+
+// "Sun 1 Nov · Steward · Acme Demo Racecourse · 10:30–18:30", and " · 3 sessions" for alike ones.
+export function workedHeading(g: Worked, timeZone: string): string {
+  const day = localDateOf(g.startsAt, timeZone);
+  const [, m = 1] = day.split("-").map(Number);
+  return [
+    `${dayShort(day)} ${MONTHS[m - 1]}`,
+    roleLabel(g.role),
+    g.site,
+    `${hhmm(g.startsAt, timeZone)}–${hhmm(g.endsAt, timeZone)}`,
+    g.shiftIds.length > 1 ? `${g.shiftIds.length} sessions` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+// Where a group's heading goes: its session (several alike: no one page, so none).
+export const workedHref = (g: Pick<WhoWorkedGroup, "shiftIds">) =>
+  g.shiftIds.length === 1 ? `/office/shifts/${g.shiftIds[0]}` : null;
+export const showAllWorked = (n: number) => `Show all ${n}`;
+// Who worked?'s groups before "Show all" (here, with no database code, for the page's own parts).
+export const WHO_WORKED_GROUPS = 3;
+// The session a person's buttons are for, in their names (each unique on the page, as one person
+// can be in two groups: the pre-build audit's aud-5): "Sun 1 Nov 10:30".
+export function workedWhen(g: Pick<WhoWorkedGroup, "startsAt">, timeZone: string): string {
+  const day = localDateOf(g.startsAt, timeZone);
+  const [, m = 1] = day.split("-").map(Number);
+  return `${dayShort(day)} ${MONTHS[m - 1]} ${hhmm(g.startsAt, timeZone)}`;
+}
+export const workedLabel = (name: string, when: string) => `${name} worked, ${when}`;
+export const noShowLabel = (name: string, when: string) => `${name} didn't attend, ${when}`;
+export const EVERYONE_ELSE = "Everyone else worked";
+export const everyoneElseLabel = (g: Worked, timeZone: string) =>
+  `Everyone else worked: ${workedHeading(g, timeZone)}`;

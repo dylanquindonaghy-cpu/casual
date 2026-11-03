@@ -87,7 +87,13 @@ describe("the pay dashboard's data", () => {
     expect(d.digest.status.lastSent).toBeNull();
     expect(d.sortedThisWeek).toBe(2);
     expect(d.weekStart).toBe("2026-11-02");
-    expect([d.nextPayDate, d.nextPayDateFrom]).toEqual(["2026-11-06", "pay records"]);
+    // Last week's pay day, from the records; this week's is later (Phase 26.10, fix-1).
+    expect(d.nextPay).toEqual({
+      day: "2026-11-06",
+      from: "pay records",
+      periodStart: "2026-10-26",
+      thisPeriodPaid: "2026-11-13",
+    });
     expect(d.groups.map((g) => g.queries.length)).toEqual([1, 1]);
     expect(d.moreGroups).toBe(0);
     expect(d.recentlySorted).toEqual([
@@ -149,7 +155,13 @@ describe("the pay dashboard's data", () => {
     });
     // Sorted since the cycle began (both), not since this Monday (neither).
     expect([d.weekStart, d.sortedThisWeek]).toEqual(["2026-10-26", 2]);
-    expect([d.nextPayDate, d.nextPayDateFrom]).toEqual(["2026-11-13", "pay week"]);
+    // Cycle 21's pay day (Fri 30 Oct) is past: this cycle's.
+    expect(d.nextPay).toEqual({
+      day: "2026-11-13",
+      from: "pay calendar",
+      periodStart: "2026-10-26",
+      thisPeriodPaid: null,
+    });
     expect(d.recentlySorted.map((r) => [r.firstDay, r.periodStart])).toEqual([
       ["2026-10-27", "2026-10-26"],
       ["2026-10-20", "2026-10-12"],
@@ -160,11 +172,17 @@ describe("the pay dashboard's data", () => {
     ]);
   });
 
-  it("with nothing imported, the pay date is the Friday after this week; nothing waiting", async () => {
+  it("with nothing imported, the next pay day is last week's Friday, still ahead; nothing waiting", async () => {
     const t = await payFirm();
     const d = await withFirm(t.f.firmId, (tx) => loadPayDashboard(tx, NOW));
     expect(d.waiting).toEqual({ count: 0, oldest: null });
-    expect([d.nextPayDate, d.nextPayDateFrom]).toEqual(["2026-11-13", "pay week"]);
+    // Monday 2 Nov: last week's Fri 6 Nov comes before this week's Fri 13 Nov (Phase 26.10, fix-1).
+    expect(d.nextPay).toEqual({
+      day: "2026-11-06",
+      from: "pay calendar",
+      periodStart: "2026-10-26",
+      thisPeriodPaid: "2026-11-13",
+    });
     expect(d.sortedThisWeek).toBe(0);
     expect(d.groups).toEqual([]);
     expect(d.recentlySorted).toEqual([]);

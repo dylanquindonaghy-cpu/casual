@@ -48,7 +48,7 @@ test("an admin saves the strikes team's email and its link confirms it; a site's
     // The firm's shifts line, to read (Phase 24: it left the top bar).
     await expect(page.getByRole("heading", { name: "Shifts line", level: 2 })).toBeVisible();
     await expect(
-      page.getByText("Your shifts line: +44 7700 900000 (WhatsApp, text and calls)."),
+      page.getByText("Your shifts line: +44 7700 900000 (texts and calls)."),
     ).toBeVisible();
 
     const asked = new Date(Date.now() - 1000);

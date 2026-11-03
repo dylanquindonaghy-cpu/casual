@@ -17,8 +17,9 @@ import { rng, seedId, type SeedFirm } from "./seed-data";
 // Workers 0 to FREE_WORKERS - 1 (07700 900100 to 900104) are never booked: free for a demo login.
 // Ids are fixed and include the Saturday's date, so a re-run the same week adds nothing and a
 // re-run the next week adds that week's Saturday without moving anything already booked. The
-// shifts are dated a week before the seed ran (before any booking); the action log's entries are
-// dated when the seed ran (the log can't be backdated).
+// shifts are dated a week before the seed ran (before any booking); the action log's entries carry
+// the same times as their rows, written in time order by the seed's log (Phase 26.10, fix-8:
+// ./seed-log.ts; only the made-up demo firms' log can be written so).
 
 const TZ = "Europe/London";
 const HOUR = 3_600_000;

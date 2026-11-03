@@ -40,14 +40,27 @@ export function payPeriodLabel(p: {
   return `${p.name} · ${dayMonth(p.start)} – ${dayMonth(p.end)} · Pay ${dayLabel(p.payDay)}`;
 }
 
-// The pay dashboard's "Next pay date" with no later date imported (Phase 25.2): "The Friday after
-// this week. …" / "The Friday after this cycle. …", the weekday the firm's calendar pays on.
-export function payDayFallbackText(p: { label: "week" | "cycle"; payDay: string }): string {
-  const weekday = new Date(`${p.payDay}T12:00:00Z`).toLocaleDateString("en-GB", {
-    weekday: "long",
-    timeZone: "UTC",
-  });
-  return `The ${weekday} after this ${p.label}. No later pay date is in your pay records.`;
+// The pay dashboard's "Next pay day" lines (Phase 26.10, fix-1): "For shifts in the week of 26 Oct."
+// ("in the cycle from …" on a cycle), "This week's shifts are paid Fri 13 Nov." when that's a later
+// day, and "From your pay records." when the date came from them.
+export function nextPayLines(
+  next: {
+    from: "pay records" | "pay calendar";
+    periodStart: string;
+    thisPeriodPaid: string | null;
+  },
+  label: "week" | "cycle",
+): string[] {
+  const lines = [
+    label === "cycle"
+      ? `For shifts in the cycle from ${dayMonth(next.periodStart)}.`
+      : `For shifts in the week of ${dayMonth(next.periodStart)}.`,
+  ];
+  if (next.thisPeriodPaid !== null) {
+    lines.push(`This ${label}'s shifts are paid ${dayLabel(next.thisPeriodPaid)}.`);
+  }
+  if (next.from === "pay records") lines.push("From your pay records.");
+  return lines;
 }
 
 // "Week 41 · 5 Oct – 11 Oct · Pay Fri 16 Oct", for the office's top bar.

@@ -73,6 +73,7 @@ type Row = {
   strike_code: string | null;
   strike_status: "live" | "withdrawn" | null;
   strike_expires_at: string | Date | null;
+  strike_number: number | null;
   review_needed: boolean | null;
   evidence_email_status: string | null;
   evidence_email_to: string | null;
@@ -107,9 +108,14 @@ const STRIKE_CODES = new Set<string>([
   "changed_after_booking",
 ]);
 
+// "Strikes" (Phase 26.8, can-4): every cancellation that gave a strike, withdrawn ones too.
+const HAS_STRIKE = sql`exists (select 1 from strikes x
+                                where x.firm_id = a.firm_id and x.assignment_id = a.id)`;
+
 function viewFilter(view: CancellationView, threshold: number) {
   if (view === "office") return sql`and a.status = 'cancelled_firm'`;
   if (view === "under") return sql`and a.notice_hours < ${threshold}`;
+  if (view === "strikes") return sql`and ${HAS_STRIKE}`;
   return sql``;
 }
 
@@ -160,6 +166,12 @@ async function loadRows(
            si.name as site_name, si.postcode as site_postcode, ev.name as event_name,
            ou.name as office_name, ce.data ->> 'strike' as strike_code,
            st.status as strike_status, st.expires_at as strike_expires_at, st.review_needed,
+           -- "Strike 2 issued" (can-2): the casual's strikes that counted when it was issued, it
+           -- included (issued by then, not yet past their date, not withdrawn by then).
+           (select count(*)::int from strikes p
+             where st.id is not null and p.firm_id = st.firm_id and p.worker_id = st.worker_id
+               and p.issued_at <= st.issued_at and p.expires_at > st.issued_at
+               and (p.withdrawn_at is null or p.withdrawn_at > st.issued_at)) as strike_number,
            st.withdrawn_at, ${o.id || o.ref ? sql`st.withdrawn_reason` : sql`null::text`}
              as withdrawn_reason, wo.name as withdrawn_by_name,
            st.reviewed_at, ro.name as reviewed_by_name,
@@ -269,6 +281,7 @@ function plannerOf(r: Row, webhookOn: boolean): CancellationRow["planner"] {
 function toRow(
   r: Row,
   requirements: CancellationRow["requirements"],
+  now: Date,
   webhookOn = false,
 ): CancellationRow {
   const by: CancellationRow["by"] =
@@ -311,6 +324,8 @@ function toRow(
         ? {
             status: r.strike_status,
             expiresAt: date(r.strike_expires_at),
+            number: Math.max(1, Number(r.strike_number ?? 1)),
+            counting: r.strike_status === "live" && date(r.strike_expires_at) > now,
             reviewNeeded: Boolean(r.review_needed),
             withdrawn: r.withdrawn_at
               ? {
@@ -367,8 +382,14 @@ export interface CancellationList {
   timeZone: string;
   threshold: number;
   view: CancellationView;
-  day: "today" | null; // only today's (since midnight, the firm's time): "Show only today's"
-  week: { byCasuals: number; byOffice: number; strikes: number };
+  day: "today" | null; // only today's (since midnight, the firm's time): the "Today" tab
+  // This week (the firm's Monday to Sunday): cancellations by casuals and by the firm, those under
+  // the notice threshold, and strikes issued.
+  week: { byCasuals: number; byOffice: number; strikes: number; under: number };
+  // The four counts' other figures (Phase 26.8, can-3): under the threshold in all, strikes counting
+  // now, and the last 8 weeks (this week and the 7 before) with how many of those were under it.
+  overall: { under: number; liveStrikes: number; last8: number; last8Under: number };
+  tabs: Record<CancellationView, number>; // each tab's count, today's only on the Today tab
   rows: CancellationRow[];
   total: number; // in the view, beyond the rows shown
 }
@@ -396,19 +417,48 @@ export async function loadCancellations(
   };
   const from = at(monday);
   const to = at(addDays(monday, 7));
-  const { rows: counts } = await tx.execute<{ casuals: number; office: number; strikes: number }>(
+  const from8 = at(addDays(monday, -7 * 7));
+  const cancelled = sql`a.status in ('cancelled_worker', 'cancelled_firm')`;
+  const under = sql`a.notice_hours < ${firm.threshold}`;
+  const { rows: counts } = await tx.execute<{
+    casuals: number;
+    office: number;
+    strikes: number;
+    under_week: number;
+    under_all: number;
+    live_strikes: number;
+    last8: number;
+    last8_under: number;
+  }>(
     sql`select
           (select count(*)::int from assignments a where a.status = 'cancelled_worker'
              and a.cancelled_at >= ${from} and a.cancelled_at < ${to}) as casuals,
           (select count(*)::int from assignments a where a.status = 'cancelled_firm'
              and a.cancelled_at >= ${from} and a.cancelled_at < ${to}) as office,
           (select count(*)::int from strikes s
-            where s.issued_at >= ${from} and s.issued_at < ${to}) as strikes`,
+            where s.issued_at >= ${from} and s.issued_at < ${to}) as strikes,
+          (select count(*)::int from assignments a where ${cancelled} and ${under}
+             and a.cancelled_at >= ${from} and a.cancelled_at < ${to}) as under_week,
+          (select count(*)::int from assignments a where ${cancelled} and ${under}) as under_all,
+          (select count(*)::int from strikes s
+            where s.status = 'live' and s.expires_at > ${o.now}) as live_strikes,
+          (select count(*)::int from assignments a where ${cancelled}
+             and a.cancelled_at >= ${from8} and a.cancelled_at < ${to}) as last8,
+          (select count(*)::int from assignments a where ${cancelled} and ${under}
+             and a.cancelled_at >= ${from8} and a.cancelled_at < ${to}) as last8_under`,
   );
   const since =
     o.day === "today"
       ? zonedToUtc({ ...wallTimeOf(o.now, firm.timezone), hour: 0, minute: 0 }, firm.timezone)
       : o.since;
+  const { rows: tabRows } = await tx.execute<Record<CancellationView, number>>(sql`
+    select count(*)::int as "all",
+           (count(*) filter (where ${under}))::int as "under",
+           (count(*) filter (where ${HAS_STRIKE}))::int as "strikes",
+           (count(*) filter (where a.status = 'cancelled_firm'))::int as "office"
+      from assignments a
+     where ${cancelled} ${sinceFilter(since, o.until)}
+  `);
   const total = await countRows(tx, o.view, firm.threshold, since, o.until);
   const rows =
     o.allOrNothing && total > o.limit
@@ -431,8 +481,21 @@ export async function loadCancellations(
       byCasuals: Number(counts[0]?.casuals ?? 0),
       byOffice: Number(counts[0]?.office ?? 0),
       strikes: Number(counts[0]?.strikes ?? 0),
+      under: Number(counts[0]?.under_week ?? 0),
     },
-    rows: rows.map((r) => toRow(r, requirementsOf(r))),
+    overall: {
+      under: Number(counts[0]?.under_all ?? 0),
+      liveStrikes: Number(counts[0]?.live_strikes ?? 0),
+      last8: Number(counts[0]?.last8 ?? 0),
+      last8Under: Number(counts[0]?.last8_under ?? 0),
+    },
+    tabs: {
+      all: Number(tabRows[0]?.all ?? 0),
+      under: Number(tabRows[0]?.under ?? 0),
+      strikes: Number(tabRows[0]?.strikes ?? 0),
+      office: Number(tabRows[0]?.office ?? 0),
+    },
+    rows: rows.map((r) => toRow(r, requirementsOf(r), o.now)),
     total,
   };
 }
@@ -488,7 +551,7 @@ export async function loadCancellationRecord(
       shared: {
         ref,
         timeZone: firm.timezone,
-        choices: rows.map((r) => toRow(r, requirementsOf(r))),
+        choices: rows.map((r) => toRow(r, requirementsOf(r), now)),
       },
     };
   }
@@ -499,7 +562,7 @@ export async function loadCancellationRecord(
       firmName: firm.name,
       timeZone: firm.timezone,
       threshold: firm.threshold,
-      row: toRow(row, requirementsOf(row), firm.webhookOn),
+      row: toRow(row, requirementsOf(row), now, firm.webhookOn),
       liveStrikes: await liveStrikeCount(tx, row.worker_id, now),
     },
   };

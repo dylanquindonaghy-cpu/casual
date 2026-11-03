@@ -14,7 +14,9 @@ import { UrgentToggle } from "./urgent-toggle";
 // Mark urgent / Not urgent in place. A <details>,
 // so it opens without waiting for the page. Phase 24 (round 7): a round clear-glass button, as the
 // dashboard's detail card's; its panel floats under it, its right edge with the button's, at most
-// 80% of the window wide, so it never widens the page.
+// 80% of the window wide, so it never widens the page. Phase 26.5 (the pre-build audit's aud-5): each
+// link's name to a screen reader starts with its words and says which session it's for ("Assign
+// someone: Steward, 18:00 to 23:00"), as an event's page holds one menu per session.
 export function SessionMenu({
   session,
   name,
@@ -40,13 +42,18 @@ export function SessionMenu({
         {live && placeFree && shown && (
           <Link
             href={`/office/offer/${session.shiftId}`}
+            aria-label={`Offer a place: ${name}`}
             className={`${btn.secondary} justify-start`}
           >
             Offer a place
           </Link>
         )}
         {live && (
-          <Link href={`${page}#assign`} className={`${btn.secondary} justify-start`}>
+          <Link
+            href={`${page}?panel=assign`}
+            aria-label={`Assign someone: ${name}`}
+            className={`${btn.secondary} justify-start`}
+          >
             Assign someone
           </Link>
         )}
@@ -58,12 +65,20 @@ export function SessionMenu({
             <p className="text-sm text-ink-muted">
               {session.fromSheet ? SHEET_SESSION_WORDS : PLANNER_SESSION_WORDS}
             </p>
-            <Link href={page} className={`${btn.secondary} justify-start`}>
+            <Link
+              href={page}
+              aria-label={`Open this session: ${name}`}
+              className={`${btn.secondary} justify-start`}
+            >
               Open this session
             </Link>
           </>
         ) : (
-          <Link href={page} className={`${btn.secondary} justify-start`}>
+          <Link
+            href={page}
+            aria-label={`Change or cancel: ${name}`}
+            className={`${btn.secondary} justify-start`}
+          >
             Change or cancel
           </Link>
         )}

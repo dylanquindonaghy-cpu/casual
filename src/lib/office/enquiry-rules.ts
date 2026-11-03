@@ -78,7 +78,7 @@ export function replyPlan(input: {
   line: string | null; // the firm's shifts line now (null: none)
   // The casual on file for that number (null: an unknown number). A text to one who replied STOP
   // never goes.
-  casual: { notifyChannel: "whatsapp" | "sms"; smsAllowed: boolean } | null;
+  casual: { notifyChannel: "sms" | "email"; smsAllowed: boolean } | null;
   strangerTextsOff: boolean; // an unknown number whose last word to the line was STOP
   lastWhatsAppAt: Date | null; // their latest WhatsApp to the line
   now: Date;
@@ -97,12 +97,12 @@ export function replyPlan(input: {
     textsOff ? { ok: false, why: "texts_off" } : { ok: true, channel: "sms", form: "free_text" };
   if (input.channel === "whatsapp") return whatsapp();
   if (input.channel === "sms") return text();
-  // A voicemail: by the channel the casual chose (WhatsApp if they replied STOP to texts). Never a
+  // A voicemail: a text (Phase 26.9: never WhatsApp; until then, by the channel the casual chose,
+  // and WhatsApp after STOP), so nothing after they replied STOP: the office phones them. Never a
   // message to a caller we don't know (as the shifts line itself: src/lib/inbound/reply.ts): the
   // office phones them back.
   if (!input.casual) return { ok: false, why: "unknown_caller" };
-  if (input.casual.notifyChannel === "sms" && input.casual.smsAllowed) return text();
-  return whatsapp();
+  return text();
 }
 
 // The office's words as one line: runs of spaces, tabs and line breaks become one space.

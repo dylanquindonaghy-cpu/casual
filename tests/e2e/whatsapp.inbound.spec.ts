@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { twilioSignature } from "../../src/lib/inbound/twilio-signature";
 import { E2E_TWILIO_AUTH_TOKEN } from "../../playwright.config";
-import { addOfficeUser, resetUnknownAlerts } from "./db";
+import { addOfficeUser, resetUnknownAlerts, unusedMobile } from "./db";
 import { expect, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
@@ -50,9 +50,11 @@ test("a WhatsApp from a number we don't know gets the polite reply, and the offi
   page,
   request,
 }) => {
-  // A different drama-range number each attempt (07700 900940-900979: no seeded worker has one),
-  // so a retry within 24 hours isn't a repeat.
-  const stranger = `+4477009009${40 + Math.floor(Math.random() * 40)}`;
+  // A different drama-range number each attempt (07700 900940-900979), one no casual has (other
+  // specs add casuals in that range), so a retry within 24 hours isn't a repeat. The message
+  // carries the attempt's own tag, so its row on Enquiries is this attempt's and no other's.
+  const stranger = await unusedMobile("acme", 940, 979);
+  const tag = randomBytes(3).toString("hex");
   const email = "unknown.admin@example.com";
   await addOfficeUser("acme", { email, name: "Unknown Admin", role: "admin" });
   // The alert below is one of at most 5 an hour for the firm: start the count afresh.
@@ -61,7 +63,7 @@ test("a WhatsApp from a number we don't know gets the polite reply, and the offi
     MessageSid: `SM${randomBytes(16).toString("hex")}`,
     From: `whatsapp:${stranger}`,
     To: `whatsapp:${acmeLine}`,
-    Body: "Hi it's Sam Smith, new phone (e2e)",
+    Body: `Hi it's Sam Smith, new phone (e2e ${tag})`,
     NumMedia: "0",
   };
   const asked = new Date(Date.now() - 1000);
@@ -99,7 +101,7 @@ test("a WhatsApp from a number we don't know gets the polite reply, and the offi
   const row = page
     .getByRole("region", { name: "Need a person" })
     .getByRole("listitem")
-    .filter({ hasText: "“Hi it's Sam Smith, new phone (e2e)”" });
+    .filter({ hasText: `“Hi it's Sam Smith, new phone (e2e ${tag})”` });
   await expect(row).toContainText("Unknown number");
   await expect(row).toContainText("Passed to a person, waiting");
 });

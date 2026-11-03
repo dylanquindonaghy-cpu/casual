@@ -279,12 +279,14 @@ describe("Needs attention and the bell", () => {
     }
     const n = await t.load();
     expect(n.toCheck.map((b) => b.worker)).toEqual(["Lena Booker"]);
-    expect(n.toMark).toEqual([expect.objectContaining({ shiftId: ended, unmarked: 2 })]);
+    // The ended session to mark isn't one of these (Phase 26.4: Who worked? is the dashboard's).
+    expect(n).not.toHaveProperty("toMark");
     expect(n.expired.map((e) => e.worker)).toEqual(["Ben Booker"]);
     expect(n.uploads).toBe(2);
     // The strikes team's address isn't set: one more item.
     expect(n.evidence.addressConfirmed).toBe(false);
-    expect(needsCount(n)).toBe(1 + 1 + 1 + 2 + 1);
+    // A booking to check, a qualification out of date, two uploads, the strikes team's address.
+    expect(needsCount(n)).toBe(1 + 1 + 2 + 1);
 
     const admin = await t.office("admin");
     const bell = await needsAttentionBell({
@@ -293,7 +295,7 @@ describe("Needs attention and the bell", () => {
       run: withFirm,
       clock,
     });
-    expect(bell).toBe(6);
+    expect(bell).toBe(5);
     const payroll = await t.office("payroll");
     expect(
       await needsAttentionBell({ firm: { id: t.firmId }, officeUserId: payroll, run: withFirm }),
@@ -665,13 +667,11 @@ describe("isolation", () => {
     // B's own Needs attention holds them.
     expect(theirs.expired.map((e) => e.worker)).toEqual(["Bertram Booker"]);
     expect(theirs.toCheck.map((e) => e.worker)).toEqual(["Lenora Booker"]);
-    expect(theirs.toMark.map((e) => e.shiftId)).toEqual([ended]);
     expect(theirs.uploads).toBe(1);
     // A's holds nothing of B's: only its own strikes-team address, not confirmed.
     expect(mine).toMatchObject({
       toCheck: [],
       fromSheet: [],
-      toMark: [],
       expired: [],
       uploads: 0,
       uploadList: [],

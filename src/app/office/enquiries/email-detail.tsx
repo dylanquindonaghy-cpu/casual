@@ -21,6 +21,7 @@ import { roleLabel, timeOnDay } from "@/lib/portal/format";
 import { dayLabel } from "@/lib/rules/reasons";
 import { localDateOf } from "@/lib/time/zoned";
 import { EmailForms } from "./[id]/email-forms";
+import { Ref } from "@/app/ui/ref";
 
 // One email to the staffing inbox (P7.4, P7.5; Phase 25.5; docs/screens.md "The staffing inbox in
 // Enquiries"), as its own page shows it and as Enquiries shows the chosen one beside the list from
@@ -37,7 +38,9 @@ export function EmailFacts({ e }: { e: EmailEnquiryDetail }) {
     <p className="flex flex-wrap items-center gap-2">
       <StatusChip tone={OUTCOME_TONES[e.outcome]}>{OUTCOME_WORDS[e.outcome]}</StatusChip>
       {e.pay && <StatusChip tone="quiet">{PAY_LOCK}</StatusChip>}
-      <span className={`${meta} ${nums}`}>Reference {e.ref}</span>
+      <span className={`${meta} ${nums}`}>
+        Reference <Ref>{e.ref}</Ref>
+      </span>
     </p>
   );
 }

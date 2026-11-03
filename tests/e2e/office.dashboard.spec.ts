@@ -1,5 +1,4 @@
 import type { Locator, Page } from "@playwright/test";
-import { lastNight } from "../../src/lib/office/dashboard-board";
 import {
   addEventWithSession,
   addOfficeUser,
@@ -11,18 +10,18 @@ import {
 import { DASHBOARD_HEADING, expect, menuLink, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
-// The office dashboard in a real browser, on the demo seed (Phase 24, 24.3: round 7 of the canvas;
-// docs/screens.md `/office`): "Dashboard" with the day, the pay week and its pay day; the track
-// (All, Urgent, This week, Next week, each with its count, the columns adding up to it); the
-// places chart, a bar a day for this week and next, its numbers under the pointer (Escape puts
-// them away) and in a table; the detail card for the chosen session, a card picking itself into
-// it; the board's four columns, "Show N more" showing the rest; the offer panel (from the foot on
-// a phone, the side on a laptop) listing who can take a session as the offer page does, Send
-// offer, then Offered; the detail card's "…" with Not urgent and Mark as filled; While you were
-// out with a place a casual took last night; Who worked? to where it's marked; nothing to
-// approve, decline or deny; the offer page leads back here; `/office/today` redirects here;
-// payroll is sent to the pay dashboard. (Other specs change the seed's numbers, so this one checks
-// the words, the links, and that the counts add up on one page.)
+// The office dashboard in a real browser, on the demo seed (Phase 24, 24.3; round 8 since Phase
+// 26.2: the spec page's "Dashboard"; docs/screens.md `/office`): "Dashboard" with the day, the pay
+// week and its pay day; the track (All, Urgent, This week, Next week, each with its count, To offer
+// adding up to it), Filter and Show full venues; the venue map (no street map in the tests: each
+// venue placed by its own position), a pin opening its venue's soonest session in the card; the
+// card on the map (under it on a phone), with who can take it; To offer's first four rows and View
+// all; the offer panel (from the foot on a phone, the side on a laptop) listing who can take a
+// session as the offer page does, Send offer, then offered; the card's "…" with Not urgent and Mark
+// as filled; Updates with a place a casual took an hour ago; Who worked? by name; nothing to approve,
+// decline or deny; the offer page leads back here; `/office/today` redirects here; payroll is sent
+// to the pay dashboard. (Other specs change the seed's numbers, so this one checks the words, the
+// links, and that the counts add up on one page.)
 
 const acme = "http://acme.localhost:3100";
 
@@ -52,7 +51,7 @@ async function countOf(page: Page, id: string): Promise<number> {
   return Number(/^(\d+)/.exec(words)?.[1] ?? NaN);
 }
 
-test("a resourcer's dashboard: its head, the track adding up, the chart, the detail card, four columns, and nothing to approve", async ({
+test("a resourcer's dashboard: its head, the track adding up, the map, the card, three columns, and nothing to approve", async ({
   page,
 }) => {
   await officeLogin(page, "acme.resourcer@example.com");
@@ -80,33 +79,43 @@ test("a resourcer's dashboard: its head, the track adding up, the chart, the det
   ]);
   await expect(track.getByRole("link", { name: /^All/ })).toHaveAttribute("aria-current", "page");
   const all = Number((await track.getByRole("link", { name: /^All/ }).innerText()).split(/\s/)[1]);
-  // The two place columns hold every session the track counts.
-  expect((await countOf(page, "to-offer")) + (await countOf(page, "offered"))).toBe(all);
+  // To offer holds every session the track counts (round 8: one column of them).
+  expect(await countOf(page, "to-offer")).toBe(all);
 
-  // The headings, in order: the chart, the chosen session, the four columns.
+  // The headings, in order: the map, the chosen session, the three columns.
   const headings = page.getByRole("main").getByRole("heading", { level: 2 });
-  await expect(headings.first()).toHaveText("Places to fill");
+  await expect(headings.first()).toHaveText("Venues with places to fill");
   await expect(
-    headings.filter({ hasText: /^(To offer|Offered|While you were out|Who worked\?)$/ }),
-  ).toHaveText(["To offer", "Offered", "While you were out", "Who worked?"]);
-  // The chart: a bar a day for this week and next, its numbers read out as a table.
-  const chart = page.locator("section#places-chart");
-  await expect(chart.locator("[data-day]")).toHaveCount(14);
-  await expect(chart.getByRole("table")).toHaveCount(1);
-  await expect(chart.getByRole("row")).toHaveCount(15);
-  await expect(chart.getByRole("link", { name: "Open Events & sessions" })).toHaveAttribute(
-    "href",
-    "/office/events?view=need",
-  );
-  // The detail card: a session with places to fill, its two buttons and its "…".
+    headings.filter({ hasText: /^(To offer|Updates|Who worked\?|Offered|While you were out)$/ }),
+  ).toHaveText(["To offer", "Updates", "Who worked?"]);
+  // The map: the seed's venues placed by their positions (no street map in the tests), each pin a
+  // link to its venue's soonest session; under it, how they're placed and the totals.
+  const map = page.locator("[data-venue-map]");
+  await expect(map).toHaveAttribute("data-venue-map", "plain");
+  const pins = map.getByRole("link", { name: /: \d+ places? to fill/ });
+  expect(await pins.count()).toBeGreaterThan(2);
+  for (const href of await pins.evaluateAll((els) => els.map((e) => e.getAttribute("href"))))
+    expect(href).toMatch(/^\/office\?session=[0-9a-f-]{36}$/);
+  await expect(
+    page.getByText("Placed by each venue's postcode · a pin's number is its places to fill"),
+  ).toBeVisible();
+  await expect(page.getByText(/^\d+ venues · \d+ places to fill$/)).toBeVisible();
+  // The card: a session with places to fill, who can take it, its two buttons and its "…".
   const detail = page.locator("[data-chosen]");
-  await expect(detail.getByRole("link", { name: "Offer to someone" })).toBeVisible();
+  await expect(detail.getByRole("link", { name: /^Offer to / })).toBeVisible();
   await expect(detail.getByRole("link", { name: "Open the shift" })).toHaveAttribute(
     "href",
     /^\/office\/shifts\/[0-9a-f-]{36}$/,
   );
-  await expect(detail.getByText(/^Starts in$/)).toBeVisible();
-  await expect(detail.getByText(/^Offers sent$/)).toBeVisible();
+  await expect(detail.getByText(/^Starts in .+$/)).toBeVisible();
+  await expect(detail.getByText("Can take it", { exact: true })).toBeVisible();
+  await expect(detail.getByText("Under the rules, right now")).toBeVisible();
+  // Three columns: To offer's first four rows, then View all.
+  await expect(column(page, "to-offer").locator("[data-session]")).toHaveCount(Math.min(4, all));
+  if (all > 4)
+    await expect(
+      column(page, "to-offer").getByRole("link", { name: `View all ${all}` }),
+    ).toHaveAttribute("href", "/office/events?view=need");
 
   // Nothing to approve, decline or deny anywhere on it (cancellations are recorded, never approved).
   for (const name of [/approve/i, /decline/i, /deny/i]) {
@@ -132,6 +141,8 @@ test("the track filters the board, and a card picks itself into the detail card 
     role: "pick_check",
     daysAhead: 1,
     urgent: true,
+    // On the map, among the seed's venues (each placed near Leeds by its made-up postcode).
+    point: { lat: 53.9, lng: -1.5 },
   });
   try {
     await officeLogin(page, email);
@@ -146,30 +157,31 @@ test("the track filters the board, and a card picks itself into the detail card 
     const urgent = Number(
       (await track.getByRole("link", { name: /^Urgent/ }).innerText()).split(/\s/)[1],
     );
-    expect((await countOf(page, "to-offer")) + (await countOf(page, "offered"))).toBe(urgent);
-    // Every card under Urgent is urgent: its pick names it so.
-    const picks = page.locator("section#to-offer, section#offered").locator('a[href^="/office?"]');
+    expect(await countOf(page, "to-offer")).toBe(urgent);
+    // Every row under Urgent is urgent: its pick names it so.
+    const picks = column(page, "to-offer").locator('a[href^="/office?"]');
     for (const label of await picks.evaluateAll((els) =>
       els.map((e) => e.getAttribute("aria-label")),
     ))
       expect(label).toMatch(/^Urgent\. /);
 
-    // Pick ours (it's never been offered: To offer, maybe past the first three).
+    // Pick ours from the map: its venue's pin opens its soonest session, ours (round 8; it's never
+    // been offered and nobody holds the role).
     await ready(page);
-    const more = column(page, "to-offer").getByRole("button", { name: /^Show \d+ more$/ });
-    if (await more.count()) await more.click();
-    const card = page.locator(`[data-session="${shiftId}"]`);
-    const pick = card.locator('a[href^="/office?"]');
-    await expect(pick).toHaveAttribute("aria-label", /^Urgent\. Pick check, Pick Gala \d+, /);
-    await pick.click();
+    const pin = page
+      .locator("[data-venue-map]")
+      .getByRole("link", { name: new RegExp(`^Pick Hall ${n}: 1 place to fill, urgent, `) });
+    await expect(pin).toHaveAttribute("href", `/office?show=urgent&session=${shiftId}`);
+    await pin.click();
     await expect(page).toHaveURL(`${acme}/office?show=urgent&session=${shiftId}`);
-    await expect(pick).toHaveAttribute("aria-current", "true");
+    await expect(pin).toHaveAttribute("aria-current", "true");
     const detail = page.locator(`[data-chosen="${shiftId}"]`);
     await expect(detail.getByRole("heading", { level: 2 })).toContainText("Pick check");
     await expect(detail.getByRole("heading", { level: 2 }).getByText("Urgent")).toBeVisible();
     await expect(detail.getByText(`Pick Gala ${n} · Pick Hall ${n}`)).toBeVisible();
-    await expect(detail.getByText("Not offered to anyone yet.")).toBeVisible();
-    await expect(detail.getByText("Not offered yet")).toBeVisible();
+    // Nobody holds the role: nobody can take it, and nothing's been offered.
+    await expect(detail.getByText("Nobody can be offered it right now.")).toBeVisible();
+    await expect(detail.getByText("0 offered")).toBeVisible();
     // The address keeps it: a reload shows the same session.
     await page.reload();
     await expect(page.locator(`[data-chosen="${shiftId}"]`)).toBeVisible();
@@ -213,12 +225,18 @@ test("the offer panel lists who can take it as the offer page does; Send offer, 
       .getByRole("button", { name: /^Send offer to / })
       .evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
     expect(onPage).toContain("Send offer to Pippa Example");
+    // How it will reach her, and why (Phase 26.9, off-1): no app notifications on her phone, so
+    // a text; and who can't be offered it, and why (off-2). Never WhatsApp.
+    const pippa = page.getByRole("listitem").filter({ hasText: "Pippa Example" });
+    await expect(pippa.getByText("By text: no app notifications on their phone")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Not offered, and why" })).toBeVisible();
+    await expect(page.getByRole("main").getByText(/WhatsApp/)).toHaveCount(0);
 
     // The dashboard, with the session picked; its paper plane opens the panel.
     await page.goto(`${acme}/office?session=${shiftId}`);
     await ready(page);
     const detail = page.locator(`[data-chosen="${shiftId}"]`);
-    const offer = detail.getByRole("link", { name: "Offer to someone" });
+    const offer = detail.getByRole("link", { name: /^Offer to / });
     await offer.click();
     const panel = page.getByRole("dialog", { name: "Offer this shift" });
     await expect(panel).toBeVisible();
@@ -248,14 +266,11 @@ test("the offer panel lists who can take it as the offer page does; Send offer, 
     await page.keyboard.press("Escape");
     await expect(panel).toBeHidden();
     await expect(offer).toBeFocused();
-    // Once the offer has gone out (the worker sends it), the session waits on Offered (past its
-    // first three cards, perhaps), and its card says who hasn't replied.
+    // Once the offer has gone out (the worker sends it), its card says so and who hasn't replied.
     await expect(async () => {
       await page.goto(`${acme}/office?session=${shiftId}`);
       await ready(page);
-      const more = column(page, "offered").getByRole("button", { name: /^Show \d+ more$/ });
-      if (await more.count()) await more.click();
-      await expect(column(page, "offered").locator(`[data-session="${shiftId}"]`)).toHaveCount(1);
+      await expect(page.locator(`[data-chosen="${shiftId}"]`).getByText("1 offered")).toBeVisible();
     }).toPass({ timeout: 30_000 });
     await expect(
       page
@@ -316,13 +331,13 @@ test("the detail card's …: Not urgent takes it off Urgent; Mark as filled, the
   }
 });
 
-test("Show N more shows the rest of a column, and focus goes to the first it showed", async ({
+test("To offer: the first four, soonest first, then View all on Events & sessions", async ({
   page,
 }, testInfo) => {
-  const email = `dashboard.showmore${testInfo.retry || ""}@example.com`;
+  const email = `dashboard.viewall${testInfo.retry || ""}@example.com`;
   await addOfficeUser("acme", { email, name: "Show Resourcer", role: "resourcer" });
   const n = Date.now() % 100_000;
-  // Four never offered, so To offer has more than three.
+  // Four never offered, so To offer has more than four.
   const made = [];
   for (let i = 0; i < 4; i++)
     made.push(
@@ -331,26 +346,37 @@ test("Show N more shows the rest of a column, and focus goes to the first it sho
         site: `Show Hall ${n}-${i}`,
         role: "show_check",
         daysAhead: 9 + i,
+        point: { lat: 53.85 + i * 0.03, lng: -1.5 + i * 0.02 },
       }),
     );
   try {
     await officeLogin(page, email);
     await ready(page);
     const col = column(page, "to-offer");
-    const cards = col.locator("[data-session]");
-    await expect(cards).toHaveCount(3);
+    await expect(col.locator("[data-session]")).toHaveCount(4);
     const total = await countOf(page, "to-offer");
-    const more = col.getByRole("button", { name: `Show ${total - 3} more` });
-    await more.click();
-    await expect(cards).toHaveCount(Math.min(total, 50));
-    await expect(more).toHaveCount(0);
-    await expect(page.locator("#to-offer-card-3")).toBeFocused();
+    expect(total).toBeGreaterThan(4);
+    await expect(col.getByRole("link", { name: `View all ${total}` })).toHaveAttribute(
+      "href",
+      "/office/events?view=need",
+    );
+    // Filter by the role: only ours, all four, and the map has only their venues.
+    await page.locator("summary", { hasText: "Filter" }).click();
+    await page.getByRole("link", { name: "Show check" }).click();
+    await expect(page).toHaveURL(`${acme}/office?role=show_check`);
+    // The menu closes once a role is chosen (it's keyed by the choice), off the map.
+    await expect(page.getByRole("link", { name: "Show check", exact: true })).toBeHidden();
+    await expect(col.locator("[data-session]")).toHaveCount(4);
+    expect(await countOf(page, "to-offer")).toBe(4);
+    await expect(
+      page.locator("[data-venue-map]").getByRole("link", { name: /: 1 place to fill/ }),
+    ).toHaveCount(4);
   } finally {
     for (const m of made) await cancelOwnShift("acme", m.shiftId);
   }
 });
 
-test("While you were out: a place a casual took from an offer last night; Who worked? to where it's marked", async ({
+test("Updates: a place a casual took from an offer; Who worked? by name", async ({
   page,
 }, testInfo) => {
   const email = `dashboard.night${testInfo.retry || ""}@example.com`;
@@ -365,32 +391,41 @@ test("While you were out: a place a casual took from an offer last night; Who wo
   const worker = await addSteward("acme", {
     firstName: "Nadia",
     lastName: `Night${n}`,
-    mobileE164: "+447700900690",
+    // Its own number on each attempt: a retry would otherwise find the first attempt's casual,
+    // under that attempt's name.
+    mobileE164: `+44770090069${testInfo.retry}`,
   });
-  // A minute into last night (18:00 to 08:00 London; tonight's, just after 18:00), by WhatsApp.
-  const now = new Date();
-  const { from } = lastNight(now, "Europe/London");
-  const at = new Date(Math.min(from.getTime() + 60_000, now.getTime() - 1000));
+  // Just now, by WhatsApp, so it's the newest of Updates' six whatever the other specs did.
+  const at = new Date(Date.now() - 1000);
   await addTakenOffer("acme", { workerId: worker, shiftId, at, channel: "whatsapp" });
   try {
     await officeLogin(page, email);
-    const col = column(page, "while-you-were-out");
-    const take = col.getByRole("link", {
-      name: new RegExp(
-        `^Nadia Night${n} took steward, Night Ball ${n}, .+: said yes at 18:0[01] by WhatsApp\\. Open the shift\\.$`,
-      ),
-    });
+    const col = column(page, "updates");
+    const take = col.getByRole("link", { name: new RegExp(`^Nadia Night${n} took a place `) });
     await expect(take).toHaveAttribute("href", `/office/shifts/${shiftId}`);
-    await expect(col.getByText(`Nadia Night${n} said yes`)).toBeVisible();
-    await expect(col.getByText(/^18:0[01] · WhatsApp$/)).toBeVisible();
-    // Who worked?: each card is a link to where its sessions are marked.
-    const marks = column(page, "who-worked").getByRole("link");
-    for (const href of await marks.evaluateAll((els) => els.map((e) => e.getAttribute("href"))))
+    await expect(take).toContainText(`Steward, Night Hall ${n}, `);
+    await expect(col.getByRole("link", { name: "All updates" })).toHaveAttribute(
+      "href",
+      "/office/updates",
+    );
+    // Who worked?: each person by name with Worked and Didn't attend, each named for its person and
+    // session (unique on the page, though one person can be in two groups: aud-5); each group's
+    // line a link to its session, or to Needs attention for several.
+    const marks = column(page, "who-worked");
+    const worked = await marks
+      .getByRole("button", { name: / worked, / })
+      .evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
+    expect(worked.length).toBeGreaterThan(0);
+    for (const name of worked)
+      expect(name).toMatch(/^\S+ \S+ worked, \w{3} \d{1,2} \w{3} \d\d:\d\d$/);
+    expect(new Set(worked).size).toBe(worked.length);
+    await expect(marks.getByRole("button", { name: / didn't attend, / })).toHaveCount(
+      worked.length,
+    );
+    for (const href of await marks
+      .getByRole("link")
+      .evaluateAll((els) => els.map((e) => e.getAttribute("href"))))
       expect(href).toMatch(/^\/office\/(shifts\/[0-9a-f-]{36}|needs-attention#to-mark)$/);
-    for (const name of await marks.evaluateAll((els) =>
-      els.map((e) => e.getAttribute("aria-label")),
-    ))
-      expect(name).toMatch(/^Mark who worked: .+ to mark$/);
   } finally {
     await cancelOwnShift("acme", shiftId);
   }
@@ -399,41 +434,57 @@ test("While you were out: a place a casual took from an offer last night; Who wo
 test.describe("on a laptop with a mouse", () => {
   test.use({ viewport: { width: 1280, height: 800 }, hasTouch: false, isMobile: false });
 
-  test("the chart beside the detail card, four columns in a row, a bar's figures under the pointer (Escape puts them away), the panel from the side", async ({
+  test("the card over the map, the pins with their names, three columns in a row, the panel from the side", async ({
     page,
   }, testInfo) => {
     const email = `dashboard.laptop${testInfo.retry || ""}@example.com`;
     await addOfficeUser("acme", { email, name: "Laptop Resourcer", role: "resourcer" });
     await officeLogin(page, email);
     await ready(page);
-    // The chart and the detail card side by side; the columns in one row.
-    const chart = page.locator("section#places-chart");
+    // The card over the map, 12px in from its top left corner (round 8); the columns in one row.
+    const map = page.locator("[data-venue-map]");
     const detail = page.locator("[data-chosen]");
-    const [c, d] = [await chart.boundingBox(), await detail.boundingBox()];
-    expect(Math.round(c?.y ?? 0)).toBe(Math.round(d?.y ?? 1));
-    expect((c?.x ?? 0) + (c?.width ?? 0)).toBeLessThan(d?.x ?? 0);
+    const [m, d] = [await map.boundingBox(), await detail.boundingBox()];
+    expect(Math.round((d?.x ?? 0) - (m?.x ?? 0))).toBe(12);
+    expect(Math.round((d?.y ?? 0) - (m?.y ?? 0))).toBe(12);
+    expect((d?.y ?? 0) + (d?.height ?? 0)).toBeLessThanOrEqual((m?.y ?? 0) + (m?.height ?? 0));
     const tops = await Promise.all(
-      ["to-offer", "offered", "while-you-were-out", "who-worked"].map(async (id) =>
+      ["to-offer", "updates", "who-worked"].map(async (id) =>
         Math.round((await column(page, id).boundingBox())?.y ?? -1),
       ),
     );
     expect(new Set(tops).size).toBe(1);
-    // A bar's figures: under the pointer, still there on the tip itself, gone with Escape.
-    const day = chart.locator("[data-day]").nth(3);
-    const tip = day.locator("[data-bar-tip]");
-    await expect(tip).toBeHidden();
-    await day.hover();
-    await expect(tip).toBeVisible();
-    await expect(tip).toHaveText(/^\w{3} \d{1,2}: (nothing to fill|.+)$/);
-    await tip.hover();
-    await expect(tip).toBeVisible();
-    await page.keyboard.press("Escape");
-    await expect(tip).toBeHidden();
-    // The next day's shows again.
-    await chart.locator("[data-day]").nth(4).hover();
-    await expect(chart.locator("[data-day]").nth(4).locator("[data-bar-tip]")).toBeVisible();
+    // The pins carry their venue's name from a laptop's width where it fits (other specs' venues
+    // can crowd the map), and no name covers another, a pin or the card; the key shows.
+    await expect(map.locator("[data-pin-label]:visible").first()).toBeVisible();
+    const boxes = await page.evaluate(() => {
+      const r = (el: Element) => {
+        const b = el.getBoundingClientRect();
+        return { x0: b.left, y0: b.top, x1: b.right, y1: b.bottom };
+      };
+      const labels = [...document.querySelectorAll("[data-venue-map] [data-pin-label]")]
+        .filter((el) => (el as HTMLElement).offsetWidth > 0)
+        .map(r);
+      const discs = [
+        ...document.querySelectorAll("[data-venue-map] a[data-venue] > span:first-child"),
+      ].map(r);
+      const card = r(document.querySelector("[data-chosen]")!);
+      return { labels, discs, card };
+    });
+    const over = (a: typeof boxes.card, b: typeof boxes.card) =>
+      a.x0 < b.x1 - 1 && b.x0 < a.x1 - 1 && a.y0 < b.y1 - 1 && b.y0 < a.y1 - 1;
+    for (const [i, l] of boxes.labels.entries()) {
+      expect(over(l, boxes.card)).toBe(false);
+      for (const m of boxes.labels.slice(i + 1)) expect(over(l, m)).toBe(false);
+      expect(boxes.discs.filter((d) => over(l, d)).length).toBe(0);
+    }
+    await expect(map.getByRole("list", { name: "Key" })).toBeVisible();
+    // No sideways scrolling.
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
+    ).toBeLessThanOrEqual(0);
     // The panel from the right, the page's height less its margins.
-    await detail.getByRole("link", { name: "Offer to someone" }).click();
+    await detail.getByRole("link", { name: /^Offer to / }).click();
     const panel = page.getByRole("dialog", { name: "Offer this shift" });
     await expect(panel).toBeVisible();
     await expect(panel.getByText(/Loading who can take it/)).toHaveCount(0);
@@ -475,7 +526,7 @@ test.describe("on a laptop with a mouse", () => {
     // The detail card: the urgent cards' "Offer to someone" (the offer page, with a modifier key or
     // before the page is ready) and the session's page; from there, the shifts list and its weeks.
     const detail = page.locator("[data-chosen]");
-    await expect(detail.getByRole("link", { name: "Offer to someone" })).toHaveAttribute(
+    await expect(detail.getByRole("link", { name: /^Offer to / })).toHaveAttribute(
       "href",
       new RegExp(`^/office/offer/${id}$`),
     );
@@ -501,15 +552,10 @@ test.describe("on a laptop with a mouse", () => {
     );
     // "Cancellations today" and a cancellation's record.
     await go(await menuLink(page, "Cancellations"), "/office/cancellations");
-    await go(
-      main.getByRole("link", { name: "Show only today's" }),
-      "/office/cancellations?day=today",
-    );
-    await go(main.getByRole("link", { name: "Show every day" }), "/office/cancellations");
-    await go(
-      main.locator('li a[href^="/office/cancellations/"]').first(),
-      /\/office\/cancellations\/[^/?]+$/,
-    );
+    const days = main.getByRole("navigation", { name: "Which days" });
+    await go(days.getByRole("link", { name: "Today" }), "/office/cancellations?day=today");
+    await go(days.getByRole("link", { name: "Every day" }), "/office/cancellations");
+    await go(main.locator("[data-record] a:visible").first(), /\/office\/cancellations\/[^/?]+$/);
     // "Enquiries today" and a message: on a laptop beside the list (Phase 24, 24.4); its row is
     // still a link to its own page (a phone's, and with a modifier key).
     await go(await menuLink(page, "Enquiries"), "/office/enquiries");
@@ -552,7 +598,7 @@ test("payroll doesn't get the dashboard, Needs attention or the offer page", asy
   // /office sends payroll to their pay dashboard (12A.3; tests/e2e/office.pay-dashboard.spec.ts).
   await expect(page).toHaveURL(`${acme}/office/pay`);
   await expect(page.getByRole("heading", { name: "Pay dashboard", level: 1 })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Places to fill" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Venues with places to fill" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: /^Needs attention/ })).toHaveCount(0);
   const response = await page.goto(`${acme}/office/offer/00000000-0000-4000-8000-000000000000`);
   expect(response?.status()).toBe(404);

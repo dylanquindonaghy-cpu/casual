@@ -11,6 +11,7 @@ import { decideForWorker, firmStrikeSettings } from "../strikes/issue";
 import { addDays, localDateOf, wallTimeOf, zonedToUtc } from "../time/zoned";
 import { travelLineText, type TravelFacts } from "../travel/line-copy";
 import { cutChars, cutUnits } from "../text/cut";
+import { roleWords } from "../text/role";
 
 // The shifts line's personal replies (docs/office-v2.md 3.6, 5.7 items 1 and 2; 12D.2): the answer
 // to "shifts" and "cancel", built by code from the firm's data, never by AI. Server only.
@@ -64,7 +65,7 @@ const midnight = (date: string, timeZone: string) => {
 const money = (pence: number) => `£${(pence / 100).toFixed(2)}/h`;
 // "Door supervisor", "CSAS officer" (an acronym stays in capitals, as on her Profile).
 const roleLabel = (role: string) => {
-  const words = role.replace(/_/g, " ").replace(/\bcsas\b/g, "CSAS");
+  const words = roleWords(role);
   return words.charAt(0).toUpperCase() + words.slice(1);
 };
 

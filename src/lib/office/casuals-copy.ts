@@ -10,15 +10,87 @@ import type { CasualView } from "./casuals";
 
 export const CASUAL_VIEW_WORDS: Record<CasualView, string> = {
   all: "All",
+  regulars: "Regulars",
+  reliable: "Reliable",
+  cancel_often: "Cancel often",
+  not_worked: "Not worked lately",
   needs: "Need updating",
   uploads: "Uploads to check",
 };
 
 export const CASUAL_VIEW_EMPTY: Record<CasualView, string> = {
   all: "No casuals yet. Add them from a staff file or your rota sheet.",
+  regulars: "Nobody has worked 6 of the last 8 weeks yet.",
+  reliable: "Nobody is at 95% or more yet. It needs 5 shifts in 90 days to count.",
+  cancel_often: "Nobody has cancelled 3 or more times under 48 hours. Good.",
+  not_worked: "Everyone has worked in the last 60 days.",
   needs: "Nobody needs to update anything.",
   uploads: "Nothing to check. New photos and certificates show here.",
 };
+
+// The four counts at the top (cas-2), each opening its tab.
+export const COUNT_VIEWS = ["regulars", "reliable", "cancel_often", "not_worked"] as const;
+export function countLine(view: (typeof COUNT_VIEWS)[number], withFigure: number): string {
+  switch (view) {
+    case "regulars":
+      return "Worked 6 of the last 8 weeks";
+    case "reliable":
+      return `95% or more, of ${withFigure} who worked`;
+    case "cancel_often":
+      return "3 or more under 48 hours";
+    case "not_worked":
+      return "Nothing in 60 days";
+  }
+}
+
+// "68 casuals · reliability over the last 90 days".
+export const casualsLine = (n: number) =>
+  `${n} ${n === 1 ? "casual" : "casuals"} · reliability over the last 90 days`;
+
+// The sort (cas-3): Need updating starts with the most urgent, the rest by name.
+export const SORT_WORDS = {
+  default: "By name",
+  least_reliable: "Least reliable first",
+  last_worked: "Last worked longest ago",
+  strikes: "Most strikes first",
+} as const;
+export const NEEDS_DEFAULT_SORT = "Most urgent first";
+
+// "Reminded by Ann · 14:02" (today), "… · 28 Oct"; "Sent automatically · 28 Oct"; "Not reminded".
+export function reminderText(
+  r: { by: string | null; at: Date } | null,
+  when: (d: Date) => string,
+): string {
+  if (!r) return "Not reminded";
+  return r.by ? `Reminded by ${r.by} · ${when(r.at)}` : `Sent automatically · ${when(r.at)}`;
+}
+export const sortedText = (s: { by: string; at: Date }, when: (d: Date) => string) =>
+  `Sorted by ${s.by} · ${when(s.at)}`;
+
+// What's out of date, as short chips: "SIA DS expired 28 Sep", "Staff photo missing".
+export function outOfDate(
+  needs: readonly NeedsItem[],
+  photo: StaffPhoto,
+  photoNeeds: boolean,
+  year: number,
+): string[] {
+  const chips = needs.map((n) => qualificationLine(n.qualification, year, n.blocks !== null));
+  if (photoNeeds) chips.push(`Staff photo: ${photo.status === "overdue" ? "overdue" : "missing"}`);
+  return chips;
+}
+
+export {
+  ADD_NOTE,
+  CALL,
+  MARK_SORTED,
+  noteResultText,
+  REMIND,
+  REMIND_LINE,
+  remindAllButton,
+  REMINDED,
+  remindResultText,
+  sortedResultText,
+} from "./follow-up-copy";
 
 // A qualification's state, mid-line, with its date where it has one ("valid until 12 May 2027",
 // "expires 14 Nov": the year only when it isn't this year's).
@@ -91,3 +163,19 @@ export function photoCell(
 
 // "None", or the number (red on the page: a live strike counts against them).
 export const strikesText = (n: number): string => (n === 0 ? "None" : String(n));
+
+// A casual's standing as chips on their page (Phase 26.7, cas-2's four): good ones green, the
+// rest amber.
+export function standingWords(s: {
+  regular: boolean;
+  reliable: boolean;
+  cancelOften: boolean;
+  notWorkedLately: boolean;
+}): { words: string; tone: "done" | "attention" }[] {
+  const out: { words: string; tone: "done" | "attention" }[] = [];
+  if (s.regular) out.push({ words: "Regular", tone: "done" });
+  if (s.reliable) out.push({ words: "Reliable", tone: "done" });
+  if (s.cancelOften) out.push({ words: "Cancels often", tone: "attention" });
+  if (s.notWorkedLately) out.push({ words: "Not worked lately", tone: "attention" });
+  return out;
+}

@@ -63,6 +63,7 @@ export default async function OfficeLayout({ children }: { children: ReactNode }
         railOpen={railOpenFromCookie(jar.get(RAIL_COOKIE)?.value)}
         theme={themeFromCookie(jar.get(THEME_COOKIE)?.value)}
         rotationDue={s.session.rotationDue}
+        updates={frame.updates?.ok ? frame.updates.data : null}
       >
         {children}
       </OfficeShell>

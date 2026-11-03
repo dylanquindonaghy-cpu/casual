@@ -71,7 +71,7 @@ describe("myProfile", () => {
       firstName: "Sam",
       lastName: "Booker",
       email: "sam.booker@example.com",
-      notifyChannel: "whatsapp",
+      notifyChannel: "sms", // the default (Phase 26.9; WhatsApp until then)
       offerAlerts: true,
       textsOff: false,
       today: TODAY,
@@ -180,6 +180,46 @@ describe("myProfile", () => {
     const kit = await theirs.worker({ first: "Kit" });
     expect(await myProfile(ctxFor(mine), kit)).toBeNull();
     expect((await myProfile(ctxFor(theirs), kit))?.firstName).toBe("Kit");
+  });
+});
+
+describe("their own reliability (Phase 26.7, cas-6)", () => {
+  it("the same figure and counts the office sees, over the last 90 days; New below 5", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const sam = await f.worker({ first: "Sam" });
+    const ann = await f.worker({ first: "Ann" });
+    // Sam: 5 worked and 1 not attended in the last weeks (5 of 6: 83%); one worked 100 days ago
+    // doesn't count.
+    for (let i = 1; i <= 6; i++) {
+      await f.booking(
+        sam,
+        await f.shift({ role: "steward", startsAt: hoursFromNow(-i * 48) }),
+        i === 3 ? "no_show" : "completed",
+      );
+    }
+    await f.booking(
+      sam,
+      await f.shift({ role: "steward", startsAt: hoursFromNow(-100 * 24) }),
+      "completed",
+    );
+    // Ann: one worked, so far.
+    await f.booking(
+      ann,
+      await f.shift({ role: "steward", startsAt: hoursFromNow(-30) }),
+      "completed",
+    );
+
+    expect((await myProfile(ctxFor(f), sam))?.reliability).toEqual({
+      kind: "figure",
+      percent: 83,
+      band: "amber",
+      counts: { worked: 5, noShows: 1, lateCancels: 0 },
+    });
+    expect((await myProfile(ctxFor(f), ann))?.reliability).toEqual({
+      kind: "new",
+      counted: 1,
+      counts: { worked: 1, noShows: 0, lateCancels: 0 },
+    });
   });
 });
 
@@ -367,16 +407,24 @@ describe("notification settings", () => {
 
     expect(await save("sms", false)).toEqual({ status: "saved" });
     expect(await save("sms", false)).toEqual({ status: "saved" }); // no change: not logged again
-    expect(await save("whatsapp", false)).toEqual({ status: "saved" });
+    // Phase 26.9: no WhatsApp to choose; email only while the firm holds their address.
+    expect(await save("whatsapp", false)).toEqual({ status: "invalid" });
     expect(await save("email", true)).toEqual({ status: "invalid" });
+    await su.query("update workers set email = 'sam@example.test' where id = $1", [sam]);
+    expect(await save("email", false)).toEqual({ status: "saved" });
     const { rows } = await su.query(
       "select notify_channel, offer_alerts from workers where id = $1",
       [sam],
     );
-    expect(rows).toEqual([{ notify_channel: "whatsapp", offer_alerts: false }]);
+    expect(rows).toEqual([{ notify_channel: "email", offer_alerts: false }]);
+    // The address gone since: keeping email (only alerts change) isn't refused; the page shows
+    // and sends a text meanwhile (src/lib/notify/send.ts).
+    await su.query("update workers set email = null where id = $1", [sam]);
+    expect(await save("email", true)).toEqual({ status: "saved" });
     expect((await workerEvents(f.firmId)).map((e) => [e.action, e.data])).toEqual([
       ["worker.notification_settings_changed", { notifyChannel: "sms", offerAlerts: false }],
-      ["worker.notification_settings_changed", { notifyChannel: "whatsapp", offerAlerts: false }],
+      ["worker.notification_settings_changed", { notifyChannel: "email", offerAlerts: false }],
+      ["worker.notification_settings_changed", { notifyChannel: "email", offerAlerts: true }],
     ]);
   });
 
@@ -394,7 +442,7 @@ describe("notification settings", () => {
       "select notify_channel, offer_alerts from workers where id = $1",
       [kit],
     );
-    expect(rows).toEqual([{ notify_channel: "whatsapp", offer_alerts: true }]);
+    expect(rows).toEqual([{ notify_channel: "sms", offer_alerts: true }]);
   });
 
   it("the database refuses a channel that isn't one of the two", async () => {
@@ -403,5 +451,10 @@ describe("notification settings", () => {
     await expect(
       su.query("update workers set notify_channel = 'pigeon' where id = $1", [sam]),
     ).rejects.toThrow(/workers_notify_channel_check/);
+    // Not WhatsApp either, since migration 0070 (Phase 26.9): a text or an email.
+    await expect(
+      su.query("update workers set notify_channel = 'whatsapp' where id = $1", [sam]),
+    ).rejects.toThrow(/workers_notify_channel_check/);
+    await su.query("update workers set notify_channel = 'email' where id = $1", [sam]);
   });
 });

@@ -11,7 +11,7 @@ describe("the shifts line in words", () => {
 
   it("the dashboard's line, with a number or without one", () => {
     expect(shiftsLineText("+447700900000")).toBe(
-      "Your shifts line: +44 7700 900000 (WhatsApp, text and calls).",
+      "Your shifts line: +44 7700 900000 (texts and calls).",
     );
     expect(shiftsLineText(null)).toBe("No shifts line yet.");
   });

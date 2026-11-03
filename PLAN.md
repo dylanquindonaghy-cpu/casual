@@ -984,6 +984,121 @@ casual-facing words but those in `docs/screens.md` and `docs/messaging-templates
 sender, no casual screen names WhatsApp or texts; the `claims-auditor` checks the phase against
 this line.
 
+## Proposed 2026-11-02: P9 — The office review's changes (go-ahead: Dylan, 2026-11-02; built as Phase 26; S, M, UI)
+
+Dylan, 2026-11-02, after using the live demo: see who works regularly, who's reliable and who
+cancels often; each resourcer selects their contracts and what they see, graphs included; updates
+when cancellations come in or something needs doing; "Who worked? … section doesnt make sense";
+"casuals needs updating section should have an actioning button to follow up"; cancellations "should
+highlight under 48 hours in the all section show when strikes are given clearer"; sessions showing to
+casuals with "a section where you can see who has applied and filterable"; offers "via app
+notifcation or email or webex text unless we can use a company whatsapp thing"; and a review of the
+site with notes and an audit against his Haulix reference.
+
+The review, the reference audit and the mock-up of every change (before and after at 1280px and
+390px, light and dark): https://claude.ai/artifact/N2xeceFhjsDVdA9eopsAGs, recorded in
+`docs/mockups/review-2026-11/` (its README lists what was found and where in the code). **Not
+approved yet.** Its five decisions are in `docs/plan/decisions-waiting.md` ("Office review"). Each
+task gets a box, a number and a "Done when" line when Dylan gives it the go-ahead (golden rule 10).
+
+- **Fix first** (from the review): the demo's history rows stamped 04:00 (the demo loader writes the
+  story's own times); the Pay dashboard's two pay days, each saying what work it pays for; the
+  cancellations card that shows strikes under "Under 48 hours"; "apply" → "take" on the casual's
+  screens; a missing staff photo counted under Need updating; the phone dashboard's cut-off tab and
+  crowded chart labels; pilot metrics empty on the demo. Done on the review's branch: the runbook's
+  demo number (`07700 900400`).
+- **D. Who worked?** each person by name with Worked / Didn't attend, and "Everyone else worked";
+  the same marks and rules as now (UI).
+- **E. Need updating:** "Remind" per casual and "Remind all", re-sending `credential_expired` with its
+  upload link, logged, with "Last reminder" shown (M, UI).
+- **F. Cancellations:** rows under 48 hours tinted in every view; notice and strike in their own
+  columns; three cards; a Strikes tab (UI).
+- **G. Casuals for a session showing to casuals:** Asked for it (if decision 2 adds asking), Offered,
+  Said no, Booked, Could take it, filtered by reliability, distance and worked here before; booking
+  from it runs every rule and check, first yes wins (S if asking is added, R, UI).
+- **A. Reliability:** per casual over 90 days, worked out by code from `assignments` and `strikes`
+  (golden rule 1): worked, no-shows, cancellations under 48 hours, reliability, Regular; on Casuals
+  (sortable, tabs), each casual's page, the offer list and the casual's Profile (UI).
+- **B. Each resourcer's dashboard:** their contracts and the cards and charts they pick, saved per
+  person, "Show everything" one tap away (S: contracts and per-user settings; T; UI).
+- **C. Updates:** a feed from the bell, a pop-up on each cancellation, phone or desktop
+  notifications for the urgent kinds, each resourcer choosing (S, M: web push for office users,
+  UI).
+- **H. Offers by app notification, text or email:** Phase 15.1 ("Texts only") with email as a
+  casual's choice, each offer saying how it will reach them; a company WhatsApp Business number
+  only if a firm wants it later. Needs Phase 4's web push finished (M, UI).
+
+## Proposed 2026-11-02: P10 — Round 8, the office's look after Haulix (go-ahead: Dylan, 2026-11-02; built as Phase 26; UI)
+
+Dylan, 2026-11-02: "i like these changes but what about the actual look compared to the link i sent
+you i dont think its screaming high end professional dashboard yet", with a screen recording of the
+Haulix shot. The comparison and the mock-up (the dashboard and an event's page, 1280px and 390px):
+https://claude.ai/artifact/2cHizkZcrYG7C8U8C1H3cF, recorded in `docs/mockups/round-8/` (its README
+says what Haulix does and what round 8 changes). **Not approved yet**; its four decisions are
+"Office review" 6 to 9 in `docs/plan/decisions-waiting.md`. Boxes when Dylan gives the go-ahead.
+
+- **The system (office only):** dark by default, neutral charcoal and flat (no glass, wash or glow);
+  one accent, hi-vis yellow, on the main button, switches and what's selected; one status code
+  everywhere; the rail's current page a solid white circle; the top bar's counts as separate chips.
+  Replaces round 7 in the office; the casual app keeps its look.
+- **The dashboard:** a map of the firm's venues with places to fill per venue, the selected session
+  in a floating card; To offer, Updates (P9 C) and Who worked (P9 D) below. Needs a map service
+  (decision 9); venues' coordinates come from their postcodes (postcodes.io, already used).
+- **An event's page:** breadcrumb, actions with one primary, tabs with counts, a staffing layout of
+  every place (booked with who, open, urgent) and the open places beside it.
+- **Every other office page** on the same system, as round 7 did (24.4, 24.5).
+
+## Phase 26 — Round 8 and the office review (go-ahead: Dylan, 2026-11-02, "1 yes 2 yes 3 yes 4 yes 5 yes all yes to all recommendations"; S, T, M, R, UI)
+
+P9 and P10 above, with all nine "Office review" decisions taken as recommended
+(`docs/plan/decisions-waiting.md`). **The exact changes, screen by screen, before and after at
+1280px and 390px:** https://claude.ai/artifact/EqgPhrjHXB2XMJGFofH6WU (`docs/mockups/round-8/spec.html`;
+the after pictures from `docs/mockups/round-8/screens.html`). Dylan can mark each change Build, Change
+or Drop, reword it or add his own there; **nothing is built until he says the page is done**, then each
+task reads his edits from the page's database (`ArtifactData` list of `edits`) and builds what they
+say. Each task: its words in `docs/screens.md` first, tests, the `guardrails-reviewer` where it
+touches schema, tenancy, messaging or rules, then `/close-task`. The casual app keeps round 7's look.
+
+**The pre-build audit** (2026-11-02, https://claude.ai/artifact/4DRBzVM5k6BLCmfin7Zgff,
+`docs/mockups/round-8/audit.html`: how the map and charts get real data, today's office against round 8
+measured, and Parim) added 16 changes as the spec page's last section, "From the pre-build audit"
+(aud-1 to aud-16), each built in the task its screen belongs to: aud-1, 2, 3, 4, 6 and 16 in 26.1;
+aud-7, 8, 9, 10 and 13 in 26.2; aud-5 in 26.5; aud-11 and 12 in 26.7; aud-15 in 26.8; aud-14 (12
+weeks of made-up history for the demo) with 26.2 and 26.7. Its six Parim ideas for later are in the
+Parking lot.
+
+- [x] Round 8's system and the office shell: dark by default with a light version on the same
+      rules, neutral charcoal with translucent, sharp glass on panels and their cards over a faint
+      street map (Dylan, 2026-11-02), no gloss, wash or glow; one hi-vis accent; one status code; the rail and
+      top bar as in the spec (spec "The look"; UI) (26.1)
+- [x] The dashboard: the venue map (MapLibre with a UK or EU tile host; decision 9) with places to fill
+      per venue, the session card, To offer, Updates in place of Offered and While you were out, Who
+      worked by name (spec "Dashboard"; UI, a new supplier) (26.2)
+- [x] Contracts and each resourcer's dashboard: a contracts table (clients owning sites), per-user
+      settings, Customise (spec "Customise and contracts"; S, T, UI) (26.3)
+- [x] Updates and alerts: the Updates page, the pop-up on a cancellation, app notifications for office
+      users, each person's "Tell me about", and the top bar's bell with new updates (spec "Updates
+      and alerts", and "The look" sys-8's bell: it opens the Updates page, so it comes with it; S,
+      M, UI) (26.4)
+- [x] An event's page: staffing layout and open places (spec "An event's page"; UI) (26.5)
+- [x] A session and who wants it: the per-event "Casuals ask, you choose" setting, "I can do this" in
+      the casual app, the list with filters, booking through the rules (spec "A session"; S, R, UI) (26.6)
+- [x] Casuals: reliability worked out by code over 90 days, the four counts and tabs, Remind and Remind
+      all, a missing photo counted, reliability on each casual's page and Profile (spec "Casuals"; R, M,
+      UI) (26.7)
+- [x] Cancellations: under 48 hours tinted in every tab, notice and strike columns, four counts, a
+      Strikes tab, the detail page's order (spec "Cancellations"; UI) (26.8)
+- [x] Offers by app notification, text or email: Phase 15.1 with email as a casual's choice, each
+      offer's channel and "Not offered, and why" (spec "Offering a shift"; M, UI; app notifications need
+      Phase 4's web push) (26.9)
+- [x] The fixes and words, and every other office page on round 8 (spec "Fixes and words", "Every
+      other office page"; UI) (26.10)
+
+Done when: every task is ticked with a stamp that includes the browser tests; each built what the spec
+page said after Dylan's edits; `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; screenshots at 390px
+and 1280px sit beside the spec in `docs/mockups/round-8/`; no route, label, link or action is lost
+unless the spec drops it; the `claims-auditor` checks the phase against this line.
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify

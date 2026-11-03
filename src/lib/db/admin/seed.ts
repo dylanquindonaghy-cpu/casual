@@ -1,7 +1,6 @@
 import { and, eq, gt, inArray, lt, notInArray, sql } from "drizzle-orm";
 import { Client, Pool } from "pg";
 import { applyCredentialPack } from "../../credentials/apply-pack";
-import { recordEvent } from "../../events/record";
 import { createWithFirm, type FirmTx } from "../scoped";
 import { automaticEventId } from "../../roster/shift-events";
 import {
@@ -18,6 +17,7 @@ import {
   sites,
   workers,
 } from "../schema";
+import { seedLog, type SeedLog } from "./seed-log";
 import { seedFirms, weekOffers, type SeedFirm } from "./seed-data";
 import { acmeSaturday, type SaturdaySeed } from "./seed-saturday";
 import {
@@ -92,22 +92,26 @@ export async function seed(opts: {
       // The mock-up's story (seed-story.ts, 12I.1): Acme only.
       const story = firm.slug === "acme" ? acmeStory(firm, now) : null;
       await withFirm(firm.id, async (tx) => {
-        await loadFirm(tx, firm);
+        // The firm's log entries, written in the order they happened once its rows are in
+        // (Phase 26.10, fix-8: ./seed-log.ts).
+        const log = seedLog(now);
+        await loadFirm(tx, firm, log);
         const freshSaturday = saturday
-          ? await loadSaturday(tx, firm, saturday, now)
+          ? await loadSaturday(tx, firm, saturday, now, log)
           : new Set<string>();
         // The walkthrough's other states (seed-extras.ts, Phase 10 task 20).
         if (firm.slug === "acme") {
           const past = acmePastEvent(firm.workers, firm.sites, now);
-          await loadExtraShifts(tx, firm, past);
-          await loadPayQueries(tx, acmePayQueries(firm.workers, past, now));
+          await loadExtraShifts(tx, firm, past, log);
+          await loadPayQueries(tx, acmePayQueries(firm.workers, past, now), log);
         }
-        if (story) await loadStory(tx, firm, story, now);
+        if (story) await loadStory(tx, firm, story, now, log);
         // This week's offers (the dashboard's offers chart, Phase 23), once the bookings are in.
-        if (saturday) await loadWeekOffers(tx, firm, { saturday, fresh: freshSaturday, now });
+        if (saturday) await loadWeekOffers(tx, firm, { saturday, fresh: freshSaturday, now, log });
         if (firm.slug === "northline") {
-          await loadExtraShifts(tx, firm, northlineNight(firm.workers, firm.sites, now));
+          await loadExtraShifts(tx, firm, northlineNight(firm.workers, firm.sites, now), log);
         }
+        await log.write(tx);
       });
       // Its messages answered by the shifts line's own job, once the story is in.
       if (story) {
@@ -163,10 +167,13 @@ async function provisionFirm(owner: Client, firm: SeedFirm): Promise<void> {
   }
 }
 
-async function loadFirm(tx: FirmTx, firm: SeedFirm): Promise<void> {
+async function loadFirm(tx: FirmTx, firm: SeedFirm, log: SeedLog): Promise<void> {
   const firmId = firm.id;
   // The sector's credential types and default role rules first; existing ones stay as they are.
-  await applyCredentialPack(tx, firm.sector, { type: "system" });
+  // Its entry, if any, in the seed's log at the seed's now (Phase 26.10, fix-8).
+  await applyCredentialPack(tx, firm.sector, { type: "system" }, async (_tx, event) =>
+    log.add(event),
+  );
   // Each made-up ZZ postcode with the fake geocoder's point for it (12G.1), as Settings would save.
   const located = (postcode: string | undefined) => {
     const point = postcode ? fakePoint(postcode) : null;
@@ -259,6 +266,7 @@ export async function loadSaturday(
   firm: SeedFirm,
   day: SaturdaySeed,
   now: Date,
+  log: SeedLog,
 ): Promise<Set<string>> {
   const firmId = firm.id;
   const newShifts = await tx
@@ -277,14 +285,18 @@ export async function loadSaturday(
   // Bookings and requests only on shifts added just now: a shift already there (and whatever a
   // demo did with it) is left exactly as it is.
   const fresh = new Set(newShifts.map((s) => s.id));
+  // Each entry at the story's own time (Phase 26.10, fix-8), as the rest below.
   for (const s of newShifts) {
-    await recordEvent(tx, {
-      actorType: "system",
-      action: "shift.created",
-      entityType: "shift",
-      entityId: s.id,
-      data: { source: "seed" },
-    });
+    log.add(
+      {
+        actorType: "system",
+        action: "shift.created",
+        entityType: "shift",
+        entityId: s.id,
+        data: { source: "seed" },
+      },
+      day.shiftsCreatedAt,
+    );
   }
   const bookings = day.bookings.filter((b) => fresh.has(b.shiftId));
   const toAsk = day.requests.filter((r) => fresh.has(r.shiftId));
@@ -316,34 +328,40 @@ export async function loadSaturday(
   const newlyAdded = new Set(added.map((a) => a.id));
   for (const b of bookings) {
     if (!newlyAdded.has(b.id)) continue;
-    await recordEvent(tx, {
-      actorType: "worker",
-      actorId: b.workerId,
-      action: "shift.assigned",
-      entityType: "assignment",
-      entityId: b.id,
-      data: {
-        by: "worker",
-        shiftId: b.shiftId,
-        workerId: b.workerId,
-        slot: 1,
-        noticeHours: b.bookedNoticeHours,
-      },
-    });
-    if (b.status === "cancelled_worker") {
-      await recordEvent(tx, {
+    log.add(
+      {
         actorType: "worker",
         actorId: b.workerId,
-        action: "shift.cancelled",
+        action: "shift.assigned",
         entityType: "assignment",
         entityId: b.id,
         data: {
           by: "worker",
           shiftId: b.shiftId,
           workerId: b.workerId,
-          noticeHours: b.noticeHours,
+          slot: 1,
+          noticeHours: b.bookedNoticeHours,
         },
-      });
+      },
+      b.confirmedAt,
+    );
+    if (b.status === "cancelled_worker") {
+      log.add(
+        {
+          actorType: "worker",
+          actorId: b.workerId,
+          action: "shift.cancelled",
+          entityType: "assignment",
+          entityId: b.id,
+          data: {
+            by: "worker",
+            shiftId: b.shiftId,
+            workerId: b.workerId,
+            noticeHours: b.noticeHours,
+          },
+        },
+        b.cancelledAt ?? now,
+      );
       // Marked urgent as the app would (src/lib/roster/urgent.ts): by the system if the dropout
       // was inside the firm's urgent window, otherwise by the firm's resourcer, by hand.
       const shift = day.shifts.find((s) => s.id === b.shiftId);
@@ -353,21 +371,25 @@ export async function loadSaturday(
         insideUrgentWindow(shift.startsAt, b.cancelledAt, urgentWindowHours(firm.settings));
       const resourcer = firm.officeUsers.find((u) => u.role === "resourcer");
       if (!byTheSystem && !resourcer) throw new Error(`${firm.slug} has no resourcer to mark it`);
-      await recordEvent(tx, {
-        actorType: byTheSystem ? "system" : "office",
-        actorId: byTheSystem ? null : (resourcer?.id ?? null),
-        action: "shift.marked_urgent",
-        entityType: "shift",
-        entityId: b.shiftId,
-        data: byTheSystem
-          ? { by: "system", cause: "dropout", hoursToStart: b.noticeHours }
-          : {
-              by: "firm",
-              cause: "office",
-              // The office marks it now, as the seed runs: hours to the start from now.
-              hoursToStart: shift ? hoursToStart(shift.startsAt, now) : null,
-            },
-      });
+      // The system's as the dropout came in; the office's now, as the seed runs.
+      log.add(
+        {
+          actorType: byTheSystem ? "system" : "office",
+          actorId: byTheSystem ? null : (resourcer?.id ?? null),
+          action: "shift.marked_urgent",
+          entityType: "shift",
+          entityId: b.shiftId,
+          data: byTheSystem
+            ? { by: "system", cause: "dropout", hoursToStart: b.noticeHours }
+            : {
+                by: "firm",
+                cause: "office",
+                // The office marks it now, as the seed runs: hours to the start from now.
+                hoursToStart: shift ? hoursToStart(shift.startsAt, now) : null,
+              },
+        },
+        byTheSystem ? (b.cancelledAt ?? now) : now,
+      );
     }
   }
   const asked =
@@ -384,7 +406,7 @@ export async function loadSaturday(
             type: requests.type,
           });
   for (const r of asked) {
-    await recordEvent(tx, {
+    log.add({
       actorType: "worker",
       actorId: r.workerId,
       action: "request.created",
@@ -404,14 +426,14 @@ export async function loadSaturday(
 // Parking lot). None in Acme's quiet hours, when the app holds an offer. Each sent by Acme's
 // resourcer, added once (fixed ids; one already there, or another office offer of the same session
 // to the same casual, is left as it is) and logged once as the app logs a sent offer (offer.sent,
-// ids and notice hours only; dated when the seed ran, as the log can't be backdated). It takes the
+// ids and notice hours only; dated when each was sent, by the seed's log: Phase 26.10, fix-8). It takes the
 // offer-count lock before its insert, like every offer writer (tests/unit/offers.boundary.test.ts),
 // but doesn't check the daily cap: tests/integration/seed.test.ts checks what it wrote against it.
 // Nothing is sent. Exported for that test too.
 export async function loadWeekOffers(
   tx: FirmTx,
   firm: SeedFirm,
-  o: { saturday: SaturdaySeed; fresh: Set<string>; now: Date },
+  o: { saturday: SaturdaySeed; fresh: Set<string>; now: Date; log: SeedLog },
 ): Promise<void> {
   const resourcer = firm.officeUsers.find((u) => u.role === "resourcer");
   if (!resourcer) throw new Error(`${firm.slug} has no resourcer to send offers`);
@@ -481,19 +503,22 @@ export async function loadWeekOffers(
   for (const p of planned) {
     if (!newlyAdded.has(p.id)) continue;
     const startsAt = startOf.get(p.shiftId);
-    await recordEvent(tx, {
-      actorType: "system",
-      action: "offer.sent",
-      entityType: "offer",
-      entityId: p.id,
-      data: {
-        shiftId: p.shiftId,
-        workerId: p.workerId,
-        offeredBy: resourcer.id,
-        noticeHours: startsAt ? noticeHours(startsAt, p.sentAt) : null,
-        channel: "sms",
+    o.log.add(
+      {
+        actorType: "system",
+        action: "offer.sent",
+        entityType: "offer",
+        entityId: p.id,
+        data: {
+          shiftId: p.shiftId,
+          workerId: p.workerId,
+          offeredBy: resourcer.id,
+          noticeHours: startsAt ? noticeHours(startsAt, p.sentAt) : null,
+          channel: "sms",
+        },
       },
-    });
+      p.sentAt,
+    );
   }
 }
 
@@ -514,6 +539,7 @@ async function loadExtraShifts(
   tx: FirmTx,
   firm: SeedFirm,
   extra: { shiftsCreatedAt: Date; shifts: ExtraShift[]; bookings: ExtraBooking[] },
+  log: SeedLog,
 ): Promise<void> {
   const firmId = firm.id;
   const clashes = new Set<string>();
@@ -556,13 +582,16 @@ async function loadExtraShifts(
     .returning({ id: shifts.id });
   const fresh = new Set(added.map((s) => s.id));
   for (const s of added) {
-    await recordEvent(tx, {
-      actorType: "system",
-      action: "shift.created",
-      entityType: "shift",
-      entityId: s.id,
-      data: { source: "seed" },
-    });
+    log.add(
+      {
+        actorType: "system",
+        action: "shift.created",
+        entityType: "shift",
+        entityId: s.id,
+        data: { source: "seed" },
+      },
+      extra.shiftsCreatedAt,
+    );
   }
   const bookings = extra.bookings.filter((b) => fresh.has(b.shiftId) && !clashes.has(b.id));
   if (bookings.length === 0) return;
@@ -585,43 +614,49 @@ async function loadExtraShifts(
   );
   const resourcer = firm.officeUsers.find((u) => u.role === "resourcer");
   for (const b of bookings) {
-    await recordEvent(tx, {
-      actorType: "worker",
-      actorId: b.workerId,
-      action: "shift.assigned",
-      entityType: "assignment",
-      entityId: b.id,
-      data: {
-        by: "worker",
-        shiftId: b.shiftId,
-        workerId: b.workerId,
-        slot: 1,
-        noticeHours: b.bookedNoticeHours,
-      },
-    });
-    if (b.status === "cancelled_firm") {
-      if (!resourcer) throw new Error(`${firm.slug} has no resourcer to cancel it`);
-      await recordEvent(tx, {
-        actorType: "office",
-        actorId: resourcer.id,
-        action: "shift.cancelled",
+    log.add(
+      {
+        actorType: "worker",
+        actorId: b.workerId,
+        action: "shift.assigned",
         entityType: "assignment",
         entityId: b.id,
         data: {
-          by: "firm",
+          by: "worker",
           shiftId: b.shiftId,
           workerId: b.workerId,
-          noticeHours: b.noticeHours,
-          ...(b.cancelReason ? { reason: b.cancelReason } : {}),
+          slot: 1,
+          noticeHours: b.bookedNoticeHours,
         },
-      });
+      },
+      b.confirmedAt,
+    );
+    if (b.status === "cancelled_firm") {
+      if (!resourcer) throw new Error(`${firm.slug} has no resourcer to cancel it`);
+      log.add(
+        {
+          actorType: "office",
+          actorId: resourcer.id,
+          action: "shift.cancelled",
+          entityType: "assignment",
+          entityId: b.id,
+          data: {
+            by: "firm",
+            shiftId: b.shiftId,
+            workerId: b.workerId,
+            noticeHours: b.noticeHours,
+            ...(b.cancelReason ? { reason: b.cancelReason } : {}),
+          },
+        },
+        b.cancelledAt ?? log.now,
+      );
     }
   }
 }
 
 // Pay queries from seed-extras.ts: added once, each with the group key the app gives it (from the
 // pay lines and the shift's site: src/lib/pay/grouping.ts), and logged as a raised query.
-async function loadPayQueries(tx: FirmTx, queries: PayQuerySeed[]): Promise<void> {
+async function loadPayQueries(tx: FirmTx, queries: PayQuerySeed[], log: SeedLog): Promise<void> {
   for (const q of queries) {
     // A query about a shift only from someone booked on it (a booking left out as an overlap,
     // above, takes its query with it).
@@ -661,7 +696,7 @@ async function loadPayQueries(tx: FirmTx, queries: PayQuerySeed[]): Promise<void
       .onConflictDoNothing()
       .returning({ id: payQueries.id });
     if (!created) continue;
-    await recordEvent(tx, {
+    log.add({
       actorType: "worker",
       actorId: q.workerId,
       action: "pay_query.created",

@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { FirmTx } from "../db/scoped";
+import type { WorkerChannel } from "../notify/send";
 import { outsideArea } from "../travel/area";
 import { travelSettings } from "../travel/settings";
 import { weeklyHours } from "../roster/allocation-input";
@@ -32,7 +33,7 @@ import { localDateOf } from "../time/zoned";
 
 export interface WaveCandidate extends RotationCandidate {
   mobile: string;
-  channel: "whatsapp" | "sms";
+  channel: WorkerChannel; // their choice: a text or an email (Phase 26.9)
   smsAllowed: boolean; // false: they replied STOP to a text (src/lib/notify/send.ts)
   email: string | null; // the address the firm holds for them: the offer's last way (P2.4)
 }
@@ -51,11 +52,15 @@ export async function lockOfferCounts(tx: FirmTx, workerIds: string[]): Promise<
 
 // `only`: just these workers (the office's offer to one person), the same rules for each.
 // `byHand`: the office's own offer, which a travel area doesn't limit.
+// `reachable` (the offer waves, Phase 26.9): leave out those nothing can reach, so a wave doesn't
+// spend a place on them each time: no phone with notifications on, no email address held, and no
+// text (they replied STOP, or `texts` false: there's no text sender). The office's list shows them
+// under "Not offered, and why" instead (src/lib/office/offer-page.ts).
 export async function waveCandidates(
   tx: FirmTx,
   shiftId: string,
   now: Date,
-  opts: { only?: string[]; byHand?: boolean } = {},
+  opts: { only?: string[]; byHand?: boolean; reachable?: { texts: boolean } } = {},
 ): Promise<WaveCandidate[]> {
   const { rows: found } = await tx.execute<{
     role: string;
@@ -97,11 +102,12 @@ export async function waveCandidates(
   const { rows } = await tx.execute<{
     worker_id: string;
     mobile: string;
-    channel: "whatsapp" | "sms";
+    channel: WorkerChannel;
     sms_allowed: boolean;
     email: string | null;
     last_offered_at: string | Date | null;
     offers_today: number;
+    phones: number;
   }>(sql`
     select w.id as worker_id, w.mobile_e164 as mobile, w.notify_channel as channel,
            w.sms_opted_out_at is null as sms_allowed, w.email,
@@ -109,7 +115,8 @@ export async function waveCandidates(
            (select count(*)::int from offers o
              where o.worker_id = w.id and o.response is distinct from 'failed'
                and o.sent_at >= ${today.from}
-               and o.sent_at < ${today.to}) as offers_today
+               and o.sent_at < ${today.to}) as offers_today,
+           (select count(*)::int from push_subscriptions p where p.worker_id = w.id) as phones
       from workers w
      where w.status = 'active' and w.offer_alerts and ${shift.role} = any (w.roles)
        and w.mobile_e164 is not null -- only an erased worker has none (and is never active)
@@ -151,8 +158,14 @@ export async function waveCandidates(
     now,
   });
   const kept: WaveCandidate[] = [];
+  const reached = (r: (typeof capped)[number]) =>
+    !opts.reachable ||
+    Number(r.phones) > 0 ||
+    r.email !== null ||
+    (r.sms_allowed && opts.reachable.texts);
   for (const r of capped) {
     if (!verdicts.get(pairKey(shift.id, r.worker_id))?.ok) continue;
+    if (!reached(r)) continue;
     kept.push({
       workerId: r.worker_id,
       mobile: r.mobile,

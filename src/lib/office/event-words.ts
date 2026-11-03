@@ -1,4 +1,5 @@
 import type { RejectReason } from "../db/schema";
+import { TELL_ME_ROWS, type TellMeKind } from "./tell-me-copy";
 import { noticeText } from "../portal/cancel-reasons";
 import { ISSUE_LABELS, type PayIssue } from "../portal/pay-query-kinds";
 import { REJECT_CHOICES } from "../portal/qualification-copy";
@@ -343,6 +344,62 @@ export function eventWords(e: LoggedEvent, names: Names): string {
         : "Marked urgent after a dropout.";
     case "shift.urgent_cleared":
       return `${officeName} marked it not urgent.`;
+    case "shift.offers_restarted":
+      return `${officeName} started its offers again.`;
+    // Following up casuals (Phase 26.7, src/lib/office/casual-follow-up.ts).
+    case "casual.reminded":
+      return `${officeName} reminded ${worker} to update their ${credential(d.type)}.`;
+    case "casual.reminder_notice":
+      return `Reminding ${worker} to update their ${credential(d.type)}.`;
+    case "casual.reminder_sent":
+      return `${worker} was reminded.`;
+    case "casual.reminder_failed":
+      return `Reminding ${worker} failed.`;
+    case "casual.reminder_held":
+      return `Reminding ${worker} waits for quiet hours to end.`;
+    case "casual.reminder_skipped":
+      return d.reason === "sorted"
+        ? `${worker} wasn't reminded: it's been sorted since.`
+        : `${worker} wasn't reminded: they've left or their details were deleted.`;
+    case "casual.note_added":
+      return `${officeName} added a note about ${worker}.`;
+    case "casual.needs_sorted":
+      return `${officeName} marked ${worker}'s update as sorted.`;
+    // "Casuals ask, you choose" (Phase 26.6, src/lib/roster/asks.ts).
+    case "shift.asked":
+      return `${worker} asked for it ("I can do this").`;
+    case "shift.ask_refused":
+      return `${worker} couldn't ask for it (the rules said no).`;
+    case "shift.ask_declined":
+      return `${officeName} said "Not this time" to ${worker}.`;
+    case "shift.ask_closed":
+      return `${worker}'s ask closed: the session filled.`;
+    case "shift.asks_closed": {
+      const n = Number(d.count ?? 0);
+      const asks = n === 1 ? "1 ask" : `${n} asks`;
+      return d.reason === "moved"
+        ? `${asks} closed: the session moved (they may ask again).`
+        : `${asks} closed: the session was cancelled.`;
+    }
+    case "event.asks_on":
+      return `${officeName} switched on "Casuals ask, you choose" for the event.`;
+    case "event.asks_off":
+      return `${officeName} switched off "Casuals ask, you choose" for the event.`;
+    case "shift.ask_answer_notice":
+      return `Telling ${worker} they weren't booked.`;
+    case "shift.ask_answer_sent":
+      return `${worker} was told they weren't booked.`;
+    case "shift.ask_answer_failed":
+      return `Telling ${worker} they weren't booked failed.`;
+    case "shift.ask_answer_held":
+      return `Telling ${worker} they weren't booked waits for quiet hours to end.`;
+    case "shift.ask_answer_skipped":
+      if (d.reason === "erased") return "A deleted worker wasn't told about their ask (no number).";
+      if (d.reason === "booked")
+        return `${worker} wasn't told "not this time": they're booked now.`;
+      if (d.reason === "changed")
+        return `${worker} wasn't told "not this time": they asked again, or the session moved.`;
+      return `${worker} wasn't told about their ask: the session is over.`;
     // The event and session switches (src/lib/office/showing.ts).
     case "event.shown":
     case "session.shown": {
@@ -780,10 +837,10 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return "The link to confirm the strikes team's email couldn't be sent.";
     case "firm.shifts_line_changed":
       return d.change === "cleared"
-        ? "The firm's shifts line (its WhatsApp and text number) was removed."
+        ? "The firm's shifts line (its text number) was removed."
         : d.change === "replaced"
-          ? "The firm's shifts line (its WhatsApp and text number) was changed to a new number."
-          : "The firm's shifts line (its WhatsApp and text number) was set.";
+          ? "The firm's shifts line (its text number) was changed to a new number."
+          : "The firm's shifts line (its text number) was set.";
     case "firm.domain_changed":
       switch (d.change) {
         case "set":
@@ -907,6 +964,25 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `${worker} switched off notifications on a phone.`;
     case "push.forgotten":
       return `A phone of ${worker}'s stopped taking notifications.`;
+    // Office alerts (Phase 26.4, Updates' "Tell me about").
+    case "office_push.subscribed":
+      return `${officeName} switched on notifications on a phone or computer.`;
+    case "office_push.unsubscribed":
+      return `${officeName} switched off notifications on a phone or computer.`;
+    case "office_push.forgotten":
+      return "A phone or computer stopped taking the office's notifications.";
+    case "office.alerted": {
+      const what =
+        d.kind === "cancel_push"
+          ? "a cancellation under 48 hours' notice"
+          : "places still open 6 hours before the start";
+      // Claimed for them before it goes (whether a browser took it is in the server's log).
+      return `Sending ${names.office(d.officeUserId)} a notification: ${what}.`;
+    }
+    case "office.summary_emailed":
+      return `Sending ${names.office(d.officeUserId)} their 08:00 summary.`;
+    case "office.summary_failed":
+      return `The 08:00 summary to ${names.office(d.officeUserId)} couldn't be sent.`;
 
     // Logins.
     case "auth.link_requested":
@@ -1061,6 +1137,28 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `${officeName} saved the weekly tally${isDay(d.weekStart) ? ` (the week of ${dayLabel(d.weekStart)})` : ""}.`;
     case "site.created":
       return fromPlanner ? "Your planner added a site." : "A site was added from the rota sheet.";
+    // Contracts (Phase 26.3): no names in the log, so the counts.
+    case "client.added":
+    case "client.saved": {
+      const n = typeof d.sites === "number" ? d.sites : 0;
+      const venues = n === 1 ? "1 venue" : `${n} venues`;
+      return e.action === "client.added"
+        ? `${officeName} added a contract with ${venues}.`
+        : `${officeName} saved a contract: ${venues}.`;
+    }
+    case "client.removed":
+      return `${officeName} removed a contract.`;
+    case "office_user.tell_me_saved": {
+      const kind = String(d.kind) as TellMeKind;
+      const title = TELL_ME_ROWS[kind]?.title ?? "an alert";
+      return `${officeName} switched "${title}" ${d.on ? "on" : "off"} under Tell me about.`;
+    }
+    case "office_user.dashboard_saved": {
+      const n = typeof d.contracts === "number" ? d.contracts : 0;
+      return n === 0
+        ? `${officeName} saved their dashboard, with no contracts chosen.`
+        : `${officeName} saved their dashboard, looking after ${n === 1 ? "1 contract" : `${n} contracts`}.`;
+    }
     case "site.changed": {
       const site = names.site?.(d.siteId) ?? "a site";
       // A site's first postcode, from a planner's session (12J.1).

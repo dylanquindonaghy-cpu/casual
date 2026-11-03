@@ -8,7 +8,7 @@ import { requestLoginLinkAction, type LoginFormState } from "./actions";
 import { tryAgainText } from "@/lib/portal/copy";
 import type { LoginWay } from "@/lib/portal/login-way";
 
-// The words follow how the link goes (P2.7; docs/screens.md `/login`): by WhatsApp or text, by
+// The words follow how the link goes (P2.7; docs/screens.md `/login`): by text, by
 // email, or not at all yet ("off": no form, so no one waits for a link that can't come).
 export function LoginForm({
   firmName,
@@ -96,8 +96,11 @@ export function LinkSent({
         <>
           <p className="text-2xl font-bold">Check your phone.</p>
           <p className="mt-2">
-            If {firmName} has this number, we&apos;ve sent a link by WhatsApp or text. It works for
-            15 minutes.
+            If {firmName} has this number, we&apos;ve sent a link by text. It works for 15 minutes.
+          </p>
+          {/* Phase 26.9: no text goes after STOP, and this page can't say whose number it is. */}
+          <p className="mt-2">
+            Replied STOP to our texts? Text START to the number you got them from, then ask again.
           </p>
         </>
       )}

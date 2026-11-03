@@ -15,6 +15,8 @@ import { PageHeader } from "../../ui/page-header";
 import { Seats } from "../../ui/seats";
 import { DateTile } from "../../ui/sign";
 import { StatusChip } from "../../ui/status-chip";
+import { AskButton } from "../open/ask-button";
+import { AskedNote, NotThisTimeNote } from "../open/ask-result";
 import { TakeShiftButton } from "../open/take-shift-button";
 import { BringAndWear, PayFigures, TravelFigures } from "../shift-parts";
 import { ReviewForm } from "./review-form";
@@ -414,6 +416,33 @@ export function ShiftView({
               <Blocked page={page} timeZone={timeZone} />
             </div>
           )}
+        </>
+      );
+    case "ask":
+      return (
+        <>
+          <BackBar to={ALL_OPEN} />
+          <ShiftCard
+            shift={page.shift}
+            facts={page.facts}
+            placesLeft={page.shift.placesLeft}
+            timeZone={timeZone}
+          />
+          <ActionBar>
+            {page.ask.status === "asked" ? (
+              <AskedNote at={timeOnDay(page.ask.askedAt, timeZone)} />
+            ) : page.ask.status === "not_this_time" ? (
+              <NotThisTimeNote />
+            ) : (
+              <>
+                <p className="mb-2.5 text-base">
+                  The office chooses who works this one. Ask for it, and we&apos;ll message you when
+                  they decide.
+                </p>
+                <AskButton shiftId={page.shift.shiftId} />
+              </>
+            )}
+          </ActionBar>
         </>
       );
     case "filled":

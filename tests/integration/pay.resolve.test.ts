@@ -315,7 +315,7 @@ describe("telling the worker (the pay-query-update job)", () => {
     await t.sort([t.qa]);
     const [job] = await t.jobs();
     expect(await n.run(job ?? {})).toMatchObject({
-      output: { status: "sent", channel: "whatsapp" },
+      output: { status: "sent", channel: "sms" },
     });
     expect(bodies(n.sent)).toEqual([
       `Payroll has answered your pay query (ref ${ref(t.qa)}). See their answer on your pay page: http://${t.slug}.localhost:3000/pay — ${t.firmName} Shift Team`,
@@ -332,7 +332,7 @@ describe("telling the worker (the pay-query-update job)", () => {
       ["pay_query.update_notice", { workerId: t.ann, status: "sending" }],
       [
         "pay_query.update_sent",
-        { workerId: t.ann, channel: "whatsapp", providerMessageId: "id-1", pushes: 0 },
+        { workerId: t.ann, channel: "sms", providerMessageId: "id-1", pushes: 0 },
       ],
     ]);
     expect(JSON.stringify(logged)).not.toContain("new rate");
@@ -367,17 +367,22 @@ describe("telling the worker (the pay-query-update job)", () => {
     ]);
   });
 
-  it("by text when WhatsApp refuses it, or when the worker chose text", async () => {
+  // Phase 26.9: a text by default, an email for one who chose it; never WhatsApp (until then,
+  // WhatsApp by default, a text when it was refused).
+  it("by text by default, by email for one who chose it; never WhatsApp", async () => {
     const t = await sortFirm();
     const n = await notices();
-    await su.query("update workers set notify_channel = 'sms' where id = $1", [t.ben]);
+    await su.query(
+      "update workers set email = 'ben@example.test', notify_channel = 'email' where id = $1",
+      [t.ben],
+    );
     await t.sort([t.qa, t.qb]);
-    n.state.refuseWhatsApp = true;
     for (const job of await t.jobs()) await n.run(job);
-    expect(n.sent.map((m) => m.channel)).toEqual(["sms", "sms"]);
-    expect(
-      (await t.eventsOf("pay_query.update_sent")).map((e) => e.data.fellBackFrom ?? null).sort(),
-    ).toEqual(["whatsapp", null].sort());
+    expect(n.sent.map((m) => m.channel).sort()).toEqual(["email", "sms"]);
+    expect((await t.eventsOf("pay_query.update_sent")).map((e) => e.data.channel).sort()).toEqual([
+      "email",
+      "sms",
+    ]);
   });
 
   it("quiet hours: it waits for the morning (pay answers are never urgent)", async () => {
@@ -411,7 +416,7 @@ describe("telling the worker (the pay-query-update job)", () => {
     expect(await n.run(job ?? {})).toMatchObject({ output: { status: "failed" } });
     expect((await t.eventsOf("pay_query.update_failed"))[0]?.data).toMatchObject({
       workerId: t.ann,
-      channel: "whatsapp",
+      channel: "sms",
     });
     n.state.fail = false;
     expect(await n.run(job ?? {})).toMatchObject({ output: { status: "already" } });

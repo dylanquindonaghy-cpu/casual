@@ -140,6 +140,41 @@ describe("the offer boundary", () => {
     expect(office).not.toMatch(/mobile_e164|mobileE164/);
   });
 
+  // Reliability doesn't change who's offered first (Phase 26.7, cas-7; decision 3: "offer order
+  // unchanged until a month of pilot data"). It's read only where people see it: the office's
+  // Casuals pages, a session's list of who asked, the dashboard's Watch list and the casual's own
+  // Profile. A new reader goes on this list on purpose, and never in the offer code.
+  it("reliability is read only by the pages that show it, never by the offer code", () => {
+    const READS = /from\s+"[^"]*\/reliability"/;
+    const readers = files.filter((f) => READS.test(f.text)).map((f) => f.path);
+    expect(readers.sort()).toEqual(
+      [
+        "src/app/office/casuals/[id]/page.tsx",
+        "src/app/office/reliability-bar.tsx",
+        "src/app/profile/profile-view.tsx",
+        "src/lib/office/casual-follow-up.ts",
+        "src/lib/office/casuals.ts",
+        "src/lib/office/dashboard-cards-data.ts",
+        "src/lib/office/reliability.ts",
+        "src/lib/office/session-casuals.ts",
+        "src/lib/office/session-page-copy.ts",
+        "src/lib/portal/profile.ts",
+      ].sort(),
+    );
+    // Nothing that picks or ranks who's offered reads it, or the loader that counts it.
+    for (const f of files) {
+      if (
+        !/^src\/(lib\/offers\/|lib\/rules\/allocation|lib\/roster\/allocation|worker\/)/.test(
+          f.path,
+        )
+      )
+        continue;
+      expect(f.text, f.path).not.toMatch(READS);
+      expect(f.text, f.path).not.toMatch(/\bloadCasualRecords\(|\breliabilityOf\(/);
+    }
+    expect(files.some((f) => f.path === WAVES)).toBe(true);
+  });
+
   it("the check catches the ways code can write an offer, and not updates", () => {
     for (const code of [
       "await tx.insert(offers).values({ workerId })",

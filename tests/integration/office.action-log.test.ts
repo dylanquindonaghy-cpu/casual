@@ -124,16 +124,19 @@ describe("the action log", () => {
     });
     const log = await t.log();
     expect(log.filters).toMatchObject({ from: "2025-10-28", to: "2025-11-03" });
+    // Logins only under their own type (Phase 26.10, fix-4).
     expect(log.entries.map((e) => [e.type, e.words, e.shift?.label ?? null])).toEqual([
-      ["Logins", "Sam Rota logged in.", null],
       [
         "Cancellations",
         "Ann Booker cancelled, with 4 days' notice.",
         "Door supervisor at Riverside Arena, Sat 7 Nov 2026 08:00",
       ],
     ]);
-    expect(log.entries[1]?.shift?.id).toBe(t.shiftId);
+    expect(log.entries[0]?.shift?.id).toBe(t.shiftId);
     expect(log.older).toBeNull();
+    expect((await t.log({ type: "logins" })).entries.map((e) => [e.type, e.words])).toEqual([
+      ["Logins", "Sam Rota logged in."],
+    ]);
   });
 
   it("by worker: events naming them, done by them, about them, or about their bookings, requests and credentials", async () => {
@@ -185,14 +188,18 @@ describe("the action log", () => {
       entityId: t.benBooking,
     });
     const log = await t.log({ worker: t.ann });
-    expect(log.entries.map((e) => e.id)).toEqual([...mine].reverse());
+    // Her login only under Logins (Phase 26.10, fix-4).
+    const login = mine[1];
+    expect(log.entries.map((e) => e.id)).toEqual([...mine].reverse().filter((id) => id !== login));
     expect(words(log.entries)).toEqual([
       "Ann Booker's SIA door supervisor licence was updated.",
       "Sam Rota approved Ann Booker's request (swap).",
       "Reminder sent to Ann Booker.",
       "Ann Booker's details were updated.",
-      "Ann Booker logged in.",
       "Ann Booker took it.",
+    ]);
+    expect(words((await t.log({ worker: t.ann, type: "logins" })).entries)).toEqual([
+      "Ann Booker logged in.",
     ]);
     expect(log.filters.worker).toBe(t.ann);
   });
@@ -311,16 +318,23 @@ describe("the action log", () => {
         data: { purpose: "worker_login", channel: "whatsapp" },
       }),
     ];
+    // Her pay record by default; her login link's two lines under Logins (Phase 26.10, fix-4).
     const log = await t.log({ worker: t.ann });
-    expect(log.entries.map((e) => e.id)).toEqual([...mine].reverse());
+    expect(log.entries.map((e) => e.id)).toEqual([mine[0]]);
     expect(words(log.entries)).toEqual([
-      "Login link sent to Ann Booker.",
-      "Ann Booker asked for a login link.",
       "A pay record was added for Ann Booker (Mon 20 Oct to Sun 26 Oct).",
     ]);
+    const logins = await t.log({ worker: t.ann, type: "logins" });
+    expect(logins.entries.map((e) => e.id)).toEqual([mine[2], mine[1]]);
+    expect(words(logins.entries)).toEqual([
+      "Login link sent to Ann Booker.",
+      "Ann Booker asked for a login link.",
+    ]);
     expect((await t.log({ worker: t.ben })).entries).toEqual([]);
+    expect((await t.log({ worker: t.ben, type: "logins" })).entries).toEqual([]);
     // An upper-case id in the address works the same.
-    expect((await t.log({ worker: t.ann.toUpperCase() })).entries).toHaveLength(3);
+    expect((await t.log({ worker: t.ann.toUpperCase() })).entries).toHaveLength(1);
+    expect((await t.log({ worker: t.ann.toUpperCase(), type: "logins" })).entries).toHaveLength(2);
     expect((await t.log({ type: "pay" })).entries.map((e) => e.type)).toEqual([
       "Pay records and queries",
     ]);
@@ -418,8 +432,11 @@ describe("the action log", () => {
     expect(await ids("workers")).toEqual([phones]);
     expect(await ids("firm")).toEqual([key, strikes]);
     expect(await ids("logins")).toEqual([ip, unnamed]);
-    // Each line says its group too.
-    const all = (await t.log()).entries;
+    // Each line says its group too. Logins only under their own type (Phase 26.10, fix-4).
+    const plain = (await t.log()).entries.map((e) => e.id);
+    expect(plain).not.toContain(ip);
+    expect(plain).not.toContain(unnamed);
+    const all = [...(await t.log()).entries, ...(await t.log({ type: "logins" })).entries];
     expect(
       [take, phones, key, ip, unnamed].map((id) => all.find((e) => e.id === id)?.type),
     ).toEqual(["Bookings", "Workers", "Firm settings and office team", "Logins", "Logins"]);

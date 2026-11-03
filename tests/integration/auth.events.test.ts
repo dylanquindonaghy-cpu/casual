@@ -110,7 +110,7 @@ describe("worker login events", () => {
       }),
       system("auth.link_sent", "magic_link", linkId, {
         purpose: "worker_login",
-        channel: "whatsapp",
+        channel: "sms",
         providerMessageId: "capture-1",
       }),
       {
@@ -263,7 +263,7 @@ describe("pay-page code events", () => {
         data: {},
       },
       system("auth.otp_sent", "otp_code", codeId, {
-        channel: "whatsapp",
+        channel: "sms",
         providerMessageId: "capture-1",
       }),
       {

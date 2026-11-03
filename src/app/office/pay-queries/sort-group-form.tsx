@@ -12,7 +12,9 @@ const failed = { status: "error" as const };
 // answer stays here (the group leaves the list when the page is next loaded), so the confirmation
 // can't vanish on a refresh. Under the queries on a phone; beside them on a desk (the group card
 // is a grid there), with a line between.
-export function SortGroupForm({ ids }: { ids: string[] }) {
+// `main`: the first group's button is the page's one hi-vis button (round 8, sys-3); the rest are
+// ordinary buttons with the same words.
+export function SortGroupForm({ ids, main = false }: { ids: string[]; main?: boolean }) {
   const [note, setNote] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -50,7 +52,7 @@ export function SortGroupForm({ ids }: { ids: string[] }) {
           />
           <button
             type="button"
-            className={`${btn.primary} mt-3 w-full sm:w-auto lg:w-full`}
+            className={`${main ? btn.primary : btn.secondary} mt-3 w-full sm:w-auto lg:w-full`}
             disabled={pending || !ready}
             onClick={sort}
           >

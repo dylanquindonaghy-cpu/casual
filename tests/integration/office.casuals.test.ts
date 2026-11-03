@@ -109,7 +109,16 @@ describe("the Casuals list", () => {
     await t.strike(ann, 5, "withdrawn");
 
     const list = await t.list();
-    expect(list?.counts).toEqual({ all: 2, needs: 1, uploads: 0 });
+    // Phase 26.7: the standing counts too, and Ben's missing staff photo needs updating (cas-5).
+    expect(list?.counts).toEqual({
+      all: 2,
+      regulars: 0,
+      reliable: 0,
+      cancel_often: 0,
+      not_worked: 2,
+      needs: 2,
+      uploads: 0,
+    });
     expect(list?.rows.map((r) => r.id)).toEqual([ann, ben]); // both "Booker": by first name
     const [a, b] = list?.rows ?? [];
     expect(a?.qualifications.map((q) => [q.type, q.status])).toEqual([
@@ -147,7 +156,7 @@ describe("the Casuals list", () => {
       credentials: [],
     });
     await su.query("update workers set status = 'inactive' where id = $1", [inactive]);
-    await t.f.worker({
+    const fine = await t.f.worker({
       first: "Fine",
       roles: ["door_supervisor"],
       credentials: [{ type: "SIA_DS", expiresOn: "2029-01-01" }],
@@ -155,8 +164,10 @@ describe("the Casuals list", () => {
 
     const needs = await t.list("needs");
     expect(needs?.view).toBe("needs");
-    expect(needs?.counts).toEqual({ all: 5, needs: 3, uploads: 0 });
-    expect(needs?.rows.map((r) => r.id)).toEqual([blocking, soon, missing]);
+    expect(needs?.counts).toMatchObject({ all: 5, needs: 4, uploads: 0 });
+    // Phase 26.7 (cas-5): a missing staff photo needs updating too, after the qualifications.
+    expect(needs?.rows.map((r) => r.id)).toEqual([blocking, soon, missing, fine]);
+    expect(needs?.rows.at(-1)).toMatchObject({ photoNeeds: true, needs: [] });
     expect(needs?.rows[0]?.needs[0]).toMatchObject({
       level: 1,
       blocks: { role: "door_supervisor", day: "2026-11-06" },

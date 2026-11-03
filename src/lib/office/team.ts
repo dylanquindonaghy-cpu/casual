@@ -3,7 +3,7 @@ import { systemClock, type Clock } from "../auth/clock";
 import { normaliseEmail } from "../auth/office-login";
 import type { OfficeRole } from "../auth/roles";
 import { endEverySession } from "../auth/sessions";
-import { officeUsers } from "../db/schema";
+import { officePushSubscriptions, officeUsers } from "../db/schema";
 import type { WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { officeUserMay, parts, type OfficeContext } from "./office-context";
@@ -109,7 +109,17 @@ export async function changeOfficeAccess(
         entityId: person.id,
         data: { officeUserId: person.id, ...data },
       });
-    const end = () => endEverySession(tx, { kind: "office", subjectId: person.id, now });
+    // Every session and link ended, and (Phase 26.4) every browser of theirs with notifications on
+    // forgotten: a lost laptop stops showing the office's alerts too.
+    const end = async () => {
+      const ended = await endEverySession(tx, { kind: "office", subjectId: person.id, now });
+      const browsers = await tx
+        .delete(officePushSubscriptions)
+        .where(eq(officePushSubscriptions.officeUserId, person.id))
+        .returning({ id: officePushSubscriptions.id });
+      return { ...ended, browsers: browsers.length };
+    };
+    const forgotten = (n: number) => (n > 0 ? { browsersForgotten: n } : {});
 
     switch (change.kind) {
       case "disable": {
@@ -124,6 +134,7 @@ export async function changeOfficeAccess(
           role: person.role,
           sessionsEnded: ended.sessions,
           linksSpent: ended.links,
+          ...forgotten(ended.browsers),
         });
         return { status: "done", ...same, sessionsEnded: ended.sessions };
       }
@@ -150,10 +161,13 @@ export async function changeOfficeAccess(
       }
       case "sign_out": {
         const ended = await end();
-        if (ended.sessions === 0 && ended.links === 0) return { status: "unchanged", ...same };
+        if (ended.sessions === 0 && ended.links === 0 && ended.browsers === 0) {
+          return { status: "unchanged", ...same };
+        }
         await log("office_user.signed_out", {
           sessionsEnded: ended.sessions,
           linksSpent: ended.links,
+          ...forgotten(ended.browsers),
         });
         return { status: "done", ...same, sessionsEnded: ended.sessions };
       }

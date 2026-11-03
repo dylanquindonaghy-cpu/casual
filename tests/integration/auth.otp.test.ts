@@ -78,7 +78,8 @@ describe("the code", () => {
     expect(sent[0]?.to).toBe(await mobileOf(su, T.workerId));
     const code = /code is (\d{6})\./.exec(sent[0]?.body ?? "")?.[1] ?? "";
     expect(code).toMatch(/^\d{6}$/);
-    expect(sent[0]?.body).toMatch(/— Test Firm \S+ Shift Team$/);
+    // By text (Phase 26.9): plain characters, a hyphen before the sign-off.
+    expect(sent[0]?.body).toMatch(/ - Test Firm \S+ Shift Team$/);
 
     const { rows } = await su.query<{ hash: Buffer; expires_at: Date }>(
       "select code_hash as hash, expires_at from otp_codes where session_id = $1",

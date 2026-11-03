@@ -14,3 +14,4 @@ as it was before the cut.
 
 - [September 2026](logs/work-2026-09.md)
 - [October 2026](logs/work-2026-10.md)
+- [November 2026](logs/work-2026-11.md)

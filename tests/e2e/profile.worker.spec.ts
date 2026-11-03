@@ -62,7 +62,7 @@ test("a worker checks their licences, marks a day off and changes how we reach t
   await page.getByLabel("Tell me about open shifts").uncheck();
   await page.getByRole("button", { name: "Save settings" }).click();
   await expect(reach.getByRole("status")).toContainText(
-    "Saved. We'll send shift messages by text message. We won't tell you about open shifts.",
+    "Saved. We'll send shift messages by text. We won't tell you about open shifts.",
   );
   await expect(reach.getByRole("status")).toContainText("Acme Events Shift Team");
   await page.reload();

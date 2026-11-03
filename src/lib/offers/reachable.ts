@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { FirmTx } from "../db/scoped";
+import type { WorkerChannel } from "../notify/send";
 
 // Just before offers are written (waves.ts, office-offer.ts): of the workers already chosen from
 // the candidate list (candidates.ts, the one place offer recipients come from), the ones still
@@ -24,7 +25,7 @@ export async function lockReachableWorkers(tx: FirmTx, workerIds: string[]): Pro
 
 export interface LiveContact {
   mobile: string;
-  channel: "whatsapp" | "sms";
+  channel: WorkerChannel; // their choice: a text or an email (Phase 26.9)
   smsAllowed: boolean; // false: they replied STOP to a text
   email: string | null; // the address the firm holds for them: the offer's last way (P2.4)
 }
@@ -36,7 +37,7 @@ export interface LiveContact {
 export async function lockLiveContact(tx: FirmTx, workerId: string): Promise<LiveContact | null> {
   const { rows } = await tx.execute<{
     mobile: string;
-    channel: "whatsapp" | "sms";
+    channel: WorkerChannel;
     sms_allowed: boolean;
     email: string | null;
   }>(sql`

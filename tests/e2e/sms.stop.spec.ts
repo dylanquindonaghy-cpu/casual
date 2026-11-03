@@ -33,6 +33,15 @@ test("a worker texts STOP: texts are off, confirmed by text, shown on their prof
   page,
   request,
 }) => {
+  // Logged in first: after STOP no text goes, the login link included (Phase 26.9).
+  const asked = new Date(Date.now() - 1000);
+  await page.goto(`${acme}/login`);
+  await page.getByLabel("Your mobile number").fill("07700 900115");
+  await page.getByRole("button", { name: "Send me a link" }).click();
+  await page.goto(await loginLinkSentTo(worker, asked));
+  await page.getByRole("button", { name: "Log me in" }).click();
+  await expect(page).toHaveURL(`${acme}/`);
+
   const stopped = new Date(Date.now() - 1000);
   await text(request, "STOP");
   expect(
@@ -44,13 +53,6 @@ test("a worker texts STOP: texts are off, confirmed by text, shown on their prof
   ).toBeTruthy();
 
   // Their profile says so.
-  const asked = new Date(Date.now() - 1000);
-  await page.goto(`${acme}/login`);
-  await page.getByLabel("Your mobile number").fill("07700 900115");
-  await page.getByRole("button", { name: "Send me a link" }).click();
-  await page.goto(await loginLinkSentTo(worker, asked));
-  await page.getByRole("button", { name: "Log me in" }).click();
-  await expect(page).toHaveURL(`${acme}/`);
   await page.goto(`${acme}/profile`);
   await expect(page.getByRole("note")).toContainText(note);
 

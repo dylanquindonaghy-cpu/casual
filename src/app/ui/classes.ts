@@ -26,7 +26,7 @@ export const btn = {
   // Any other action: a clear glass pill, brighter under the pointer and pressed.
   secondary: `${office} glass-button text-ink hover:bg-button-hover active:bg-button-press`,
   // Opens a destructive step ("Cancel this shift", "Turn off access"): red words on clear glass.
-  danger: `${office} glass-button text-urgent hover:bg-button-hover active:bg-button-press`,
+  danger: `${office} glass-button text-urgent-ink hover:bg-button-hover active:bg-button-press`,
   // The final click of a destructive change: a step's "Yes, …", or a destructive action that
   // happens at once ("Block from this site").
   dangerSolid: `${office} bg-urgent-fill text-on-urgent hover:bg-urgent-fill-hover active:bg-urgent-fill-hover`,
@@ -41,8 +41,9 @@ export const btn = {
 // The office's tabs: the "Show" navs over a list (Casuals, Cancellations, Enquiries, Strikes) and
 // the filters over the events. A glass track (`tabs`), each tab a pill 44px tall; the current one
 // (`tabCurrent`, with aria-current) under a lens of bright glass, never the main button. On a phone
-// the row scrolls sideways inside its track, never the page.
-export const tabs = "glass flex w-fit max-w-full gap-1 overflow-x-auto rounded-full p-1";
+// the row scrolls sideways inside its track, never the page, fading at the edge with more to scroll
+// to (`fade-x`: round 8, sys-9).
+export const tabs = "glass fade-x flex w-fit max-w-full gap-1 overflow-x-auto rounded-full p-1";
 export const tab =
   "press-glass inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-4 text-base font-medium text-ink-muted hover:text-ink active:bg-button-press";
 export const tabCurrent =
@@ -149,7 +150,7 @@ const countShape =
   "inline-flex h-6 min-w-6 items-center justify-center rounded-full px-2 text-xs font-semibold tabular-nums";
 export const countPill = `${countShape} glass-button text-ink-muted`;
 export const countNeeds = `${countShape} glass-rim bg-hivis text-on-hivis`;
-export const countWaiting = `${countShape} glass-rim bg-wait-tile text-wait-ink`;
+export const countWaiting = `${countShape} glass-rim bg-wait-tile text-ink`;
 export const count = `ml-2 align-middle ${countPill}`;
 export const staffCount =
   "glass-button ml-2 inline-flex min-w-7 items-center justify-center rounded-full px-2 align-middle text-sm font-semibold tabular-nums text-ink-muted";
@@ -182,12 +183,12 @@ export const loginTitle = "text-title text-balance text-ink";
 
 // Report tables: the wrapper scrolls sideways on small screens. Give it role="region",
 // tabIndex={0} and an aria-label. Numbers right aligned (`num`). A glass section, 22px round; its
-// grey headers on frosted glass of their own (so a sticky heading, the notice report's, blurs the
-// rows going under it).
+// grey headers, 12px (round 8's column labels: Phase 26.10, oth-2), on frosted glass of their own
+// (so a sticky heading, the notice report's, blurs the rows going under it). No zebra stripes.
 export const table = {
   wrap: "glass overflow-x-auto rounded-inner",
   table: "w-full border-collapse text-left text-sm",
-  th: "border-b border-line bg-panel px-4 py-3 font-medium text-ink-muted backdrop-blur-md",
+  th: "border-b border-line bg-panel px-4 py-3 text-xs font-medium text-ink-muted backdrop-blur-md",
   td: "border-b border-line px-4 py-3 align-top",
   num: "text-right tabular-nums",
 };
@@ -204,7 +205,9 @@ export const chip = {
   base: "glass-rim inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-0.5 align-middle text-sm font-semibold leading-5 office:min-h-7 office:border-0 office:px-3 office:py-1 office:leading-4 office:max-w-full office:shrink-0 office:whitespace-normal",
   urgent: "border-urgent-line bg-urgent-soft text-urgent-ink",
   attention: "border-attention-line bg-attention-soft text-attention-ink",
-  wait: "border-wait-line bg-wait-soft text-wait-ink",
+  // In the office, its words in ink (round 8's six text colours: aud-4); the blue is its tint.
+  wait: "border-wait-line bg-wait-soft text-wait-ink office:text-ink",
   done: "border-done-line bg-done-soft text-done-ink",
-  quiet: "border-quiet-line bg-quiet-soft text-quiet-ink",
+  // In the office, its words muted (aud-4); the grey is its tint.
+  quiet: "border-quiet-line bg-quiet-soft text-quiet-ink office:text-ink-muted",
 };

@@ -224,6 +224,11 @@ export const shiftEvents = pgTable(
     source: text("source", { enum: SHIFT_SOURCES }).notNull().default("native"),
     plannerRef: text("planner_ref"),
     showingToCasuals: boolean("showing_to_casuals").notNull().default(true),
+    // "Casuals ask, you choose" (Phase 26.6; decision 2): casuals tap "I can do this" on its sessions
+    // instead of taking a place, and the office books from who asked (session_asks). Off (the
+    // default, and best for urgent and overnight work): the first to tap takes it. ShiftDesk's own,
+    // like the switch above; changed only by the office (COLUMN_UPDATES), logged.
+    casualsAsk: boolean("casuals_ask").notNull().default(false),
     createdAt: createdAt(),
   },
   (t) => [
@@ -606,6 +611,58 @@ export const offers = pgTable(
       sql`${t.response} in ('accepted', 'declined', 'expired', 'filled_elsewhere', 'failed')`,
     ),
     check("offers_response_has_time", sql`(${t.response} is null) = (${t.respondedAt} is null)`),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();
+
+// A casual asking for a session of an event where the office chooses (Phase 26.6; decision 2;
+// shift_events.casuals_ask): "I can do this" in the casual app (src/lib/roster/asks.ts). One row per
+// casual and session, by status:
+// - asked: waiting for the office (asked_at: when, the latest ask);
+// - booked: they hold a place on it (the office booked them, or they took an offer of it);
+// - not_this_time: the office said no ("Not this time"); they can't ask again for it;
+// - closed: it ended without the office choosing them: the session filled (they're told), or was
+//   cancelled or moved (asks then start again: they may ask once more).
+// A booked casual whose booking was later cancelled, or a closed ask's casual, may ask again: the
+// row goes back to asked. Who answered and why is in the action log (shift.ask_*), never here.
+// Never deleted by the app (TABLE_ACCESS); only its status and times change (COLUMN_UPDATES).
+export const ASK_STATUSES = ["asked", "booked", "not_this_time", "closed"] as const;
+export type AskStatus = (typeof ASK_STATUSES)[number];
+
+export const sessionAsks = pgTable(
+  "session_asks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    shiftId: uuid("shift_id").notNull(),
+    workerId: uuid("worker_id").notNull(),
+    status: text("status", { enum: ASK_STATUSES }).notNull().default("asked"),
+    askedAt: timestamptz("asked_at").notNull(),
+    answeredAt: timestamptz("answered_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("session_asks_firm_id_id_key").on(t.firmId, t.id),
+    unique("session_asks_one_per_casual").on(t.firmId, t.shiftId, t.workerId),
+    foreignKey({
+      name: "session_asks_shift_fk",
+      columns: [t.firmId, t.shiftId],
+      foreignColumns: [shifts.firmId, shifts.id],
+    }),
+    foreignKey({
+      name: "session_asks_worker_fk",
+      columns: [t.firmId, t.workerId],
+      foreignColumns: [workers.firmId, workers.id],
+    }),
+    // A casual's own asks (the open shifts list).
+    index("session_asks_firm_id_worker_id_idx").on(t.firmId, t.workerId),
+    check(
+      "session_asks_status_check",
+      sql`${t.status} in ('asked', 'booked', 'not_this_time', 'closed')`,
+    ),
+    check("session_asks_answered", sql`(${t.status} = 'asked') = (${t.answeredAt} is null)`),
     firmIsolation(t.firmId),
   ],
 ).enableRLS();

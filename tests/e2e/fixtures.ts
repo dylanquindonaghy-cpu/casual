@@ -60,3 +60,13 @@ export async function accountMenu(page: Page): Promise<Locator> {
   await expect(menu).toBeVisible();
   return menu;
 }
+
+// One of a session's forms (Phase 26.6, ses-5): its "…" menu ("More for this session"), then the
+// link, then the slide-in panel it opens (a region named for the form). Returns the panel.
+export async function sessionPanel(page: Page, name: string): Promise<Locator> {
+  await page.getByLabel("More for this session").click();
+  await page.getByRole("link", { name, exact: true }).click();
+  const panel = page.getByRole("region", { name });
+  await expect(panel).toBeVisible();
+  return panel;
+}

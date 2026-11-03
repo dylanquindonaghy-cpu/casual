@@ -26,6 +26,7 @@ import {
 } from "@/lib/office/enquiries";
 import {
   AI_BANNER,
+  showsAiBanner,
   appTodayText,
   countsLine,
   emptyTodayText,
@@ -100,7 +101,10 @@ export default async function EnquiriesPage({
       <PageHeader title="Enquiries">
         <p className={nums}>{countsLine(list.today, list.needPerson, now)}</p>
       </PageHeader>
-      {appEnv().AI_TRANSPORT === "none" && <p className={`${notice} mb-6`}>{AI_BANNER}</p>}
+      {/* Admins only (Phase 26.10, fix-5): it's about the firm's setup, not a resourcer's work. */}
+      {showsAiBanner(officeUser.role, appEnv().AI_TRANSPORT) && (
+        <p className={`${notice} mb-6`}>{AI_BANNER}</p>
+      )}
 
       <nav aria-label="Show" className={tabs}>
         {ENQUIRY_VIEWS.map((v) => (

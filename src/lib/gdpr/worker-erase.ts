@@ -2,6 +2,7 @@ import { and, asc, eq, gt, inArray, isNotNull, lte, or, sql } from "drizzle-orm"
 import { systemClock } from "../auth/clock";
 import { retryAborted } from "../db/retry";
 import {
+  casualNotes,
   assignments,
   credentials,
   magicLinks,
@@ -72,6 +73,7 @@ export interface ErasedCounts {
   overrideReasons: number; // the office's typed reasons on their bookings, replaced likewise
   sheetMentions: number; // shifts whose kept rota-sheet names (synced_holders) held their staff id
   withdrawalReasons: number; // the office's typed reasons for withdrawing their strikes (12C.5)
+  notes: number; // the office's notes about them (Phase 26.7)
 }
 
 export type EraseWorkerResult =
@@ -206,6 +208,9 @@ async function eraseLocked(tx: FirmTx, id: string, now: Date): Promise<ErasedCou
         .set({ withdrawnReason: null })
         .where(and(eq(strikes.workerId, id), isNotNull(strikes.withdrawnReason)))
         .returning({ id: strikes.id }),
+    ),
+    notes: await deleted(
+      tx.delete(casualNotes).where(eq(casualNotes.workerId, id)).returning({ id: casualNotes.id }),
     ),
   };
   return counts;

@@ -216,9 +216,14 @@ type CredentialClaim =
       data: Record<string, unknown>;
     };
 
-// The channel a message goes by first: theirs, unless they replied STOP (then WhatsApp).
-const firstChannel = (w: { channel: WorkerChannel; smsOptedOutAt: Date | string | null }) =>
-  smsAllowedFor(w) ? w.channel : "whatsapp";
+// The way a message goes first (a licence message has no push words): their choice, an email
+// when they chose it or replied STOP and the firm holds their address, else a text (Phase 26.9:
+// src/lib/notify/send.ts sendTextOrEmail).
+const firstChannel = (w: {
+  channel: WorkerChannel;
+  smsOptedOutAt: Date | string | null;
+  email: string | null;
+}): WorkerChannel => (w.email && (w.channel === "email" || !smsAllowedFor(w)) ? "email" : "sms");
 
 // The row as it is now, locked: the scan decides from this, never from the list read earlier.
 async function lockDue(tx: FirmTx, id: string) {
@@ -328,8 +333,10 @@ async function catchUpExpiryNotices(run: WithFirm, firmId: string): Promise<void
         data: {
           type: r.data.type ?? null,
           expiresOn: r.data.expiresOn ?? null,
-          // The channel it was to go by first (claims before 13.5 were WhatsApp only).
-          channel: r.data.channel === "sms" ? "sms" : "whatsapp",
+          // The channel it was to go by first: a text or an email since Phase 26.9 (claims before
+          // 13.5 were WhatsApp only, and until 26.9 it could be WhatsApp).
+          channel:
+            r.data.channel === "sms" || r.data.channel === "email" ? r.data.channel : "whatsapp",
           unconfirmed: true,
         },
       });

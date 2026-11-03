@@ -47,6 +47,12 @@ const ROOT = String.raw`:root \{([^}]*)\}`;
 const DARK = String.raw`:root\[data-theme="dark"\] \{([^}]*)\}`;
 const DEVICE = String.raw`:root:not\(\[data-theme="light"\]\) \{([^}]*)\}`;
 
+// Round 8's office (Phase 26): its own blocks on [data-office], dark with no cookie or a dark one,
+// light with a light one, each also solid (less transparency or more contrast, and no blur).
+const OFFICE_DARK = String.raw`:root:not\(\[data-theme="light"\]\) \[data-office\] \{([^}]*)\}`;
+const OFFICE_LIGHT = String.raw`:root\[data-theme="light"\] \[data-office\] \{([^}]*)\}`;
+const OFFICE_PAIR = String.raw`:root:not\(\[data-theme="light"\]\) \[data-office\] \{[^}]*\}\s*${OFFICE_LIGHT}`;
+
 // Each block, by what it is. `theme` is the @theme block's tokens (they come before its keyframes,
 // the first closing brace); `root` the glass's own variables in light.
 export const BLOCKS = {
@@ -62,6 +68,12 @@ export const BLOCKS = {
   clearDeviceDark: new RegExp(
     `${NO_BLUR}:root \\{[^}]*\\}\\s*:root\\[data-theme="dark"\\] \\{[^}]*\\}\\s*@media \\(prefers-color-scheme: dark\\) \\{\\s*${DEVICE}`,
   ),
+  officeDark: new RegExp(`^${OFFICE_DARK}`, "m"),
+  officeLight: new RegExp(`^${OFFICE_LIGHT}`, "m"),
+  officeSolidDark: new RegExp(`${REDUCE}${OFFICE_DARK}`),
+  officeSolidLight: new RegExp(`${REDUCE}${OFFICE_PAIR}`),
+  officeClearDark: new RegExp(`${NO_BLUR}${OFFICE_DARK}`),
+  officeClearLight: new RegExp(`${NO_BLUR}${OFFICE_PAIR}`),
 } as const;
 
 // A colour as the stylesheet writes it: #rrggbb, or rgb(r g b / a).
@@ -177,6 +189,64 @@ export function looks(): Look[] {
       saturates: false,
     },
   ];
+}
+
+// Round 8's office looks (Phase 26): the app's tokens with the office's own laid over them. Behind
+// the glass there is no wash but a faint street map on a flat ground: the ground itself, and its
+// lines at both strengths (--map-line, --map-road); solid, the ground alone (the map goes). Its
+// greys don't change under the glass's saturate(), so nothing is saturated.
+export function officeLooks(): Look[] {
+  const theme = colourTokens(block(BLOCKS.theme));
+  const root = props(block(BLOCKS.root));
+  const tokens = (m: Map<string, string>) =>
+    new Map([...m].filter(([k]) => k.startsWith("color-")).map(([k, v]) => [k.slice(6), v]));
+  const solidOnly = (m: Map<string, string>) =>
+    new Map([...m].filter(([k]) => !k.startsWith("color-")));
+  const map = (vars: Map<string, string>, ground: Rgba): Rgb[] => {
+    const g = rgbOnly(ground);
+    const line = (name: string) => {
+      const c = parseColour(vars.get(name));
+      if (!c) throw new Error(`office: no colour in --${name}`);
+      return over(c, g);
+    };
+    return [g, line("map-line"), line("map-road")];
+  };
+  return (["dark", "light"] as const).flatMap((theme8) => {
+    const base = props(block(theme8 === "dark" ? BLOCKS.officeDark : BLOCKS.officeLight));
+    const solid = props(
+      block(theme8 === "dark" ? BLOCKS.officeSolidDark : BLOCKS.officeSolidLight),
+    );
+    const clear = props(
+      block(theme8 === "dark" ? BLOCKS.officeClearDark : BLOCKS.officeClearLight),
+    );
+    const colours = parsed(merge(theme, tokens(base)));
+    const solidColours = parsed(merge(theme, tokens(base), tokens(solid)));
+    const clearColours = parsed(merge(theme, tokens(base), tokens(clear)));
+    const vars = merge(root, solidOnly(base));
+    return [
+      {
+        name: `office ${theme8}`,
+        colours,
+        vars,
+        wash: map(vars, colours.get("canvas")!),
+        saturates: false,
+      },
+      {
+        name: `office ${theme8}, solid`,
+        colours: solidColours,
+        vars: merge(vars, solidOnly(solid)),
+        wash: [rgbOnly(solidColours.get("canvas")!)],
+        saturates: false,
+      },
+      {
+        name: `office ${theme8}, no blur`,
+        colours: clearColours,
+        vars: merge(vars, solidOnly(clear)),
+        wash: map(vars, clearColours.get("canvas")!),
+        saturates: false,
+      },
+    ];
+  });
 }
 
 // The places a word or a control can sit that aren't one token: a tile's and a clear button's

@@ -20,6 +20,14 @@
 
 (app) {
 	header Strict-Transport-Security "max-age=31536000"
+	# The street map's file (MAP_TILES_URL=/maps/uk.pmtiles; docs/runbooks.md "The street map"):
+	# straight from the server's maps folder, never the web app. A map reads only the parts of the
+	# file it shows (range requests, which Caddy answers itself), and the file changes rarely.
+	handle /maps/* {
+		header Cache-Control "public, max-age=86400"
+		root * /srv
+		file_server
+	}
 	# Our certificate check is for Caddy alone (it asks web:3000 directly): not from outside.
 	respond /api/caddy/* 404
 	reverse_proxy web:3000 {

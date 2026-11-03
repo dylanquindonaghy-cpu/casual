@@ -242,7 +242,7 @@ export function sendFailureAlert(s: {
   return alert(
     "send_failures",
     email ? `send-email:${s.firmId}` : `send:${s.firmId}`,
-    `${firmLabel(s.slug, s.firmId)}: ${s.failed} of ${total} ${email ? "emails" : "WhatsApps and texts"} failed to send in the last hour (${pct}%)${s.topCode ? `, mostly ${s.topCode}` : ""}.`,
+    `${firmLabel(s.slug, s.firmId)}: ${s.failed} of ${total} ${email ? "emails" : "texts"} failed to send in the last hour (${pct}%)${s.topCode ? `, mostly ${s.topCode}` : ""}.`,
   );
 }
 

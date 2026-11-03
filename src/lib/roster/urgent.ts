@@ -146,3 +146,82 @@ export async function setShiftUrgent(
     return { status: offering ? "marked" : "marked_hidden" };
   });
 }
+
+// "Offer to the best …" and "Offer N open places" on an event's page (Phase 26.5): offer one
+// session's free places now. Under the session's lock: it must be open, not started, with a place
+// free; with its offers already going out (urgent, and its wave chain not stopped: the dashboard's
+// rule, src/lib/office/today.ts) there's nothing to do. Not urgent yet: marked urgent, as "Mark
+// urgent" does (logged shift.marked_urgent). Urgent but its waves stopped (it filled and a place
+// opened again, it ran out of people, it was hidden): its offers start again (logged
+// shift.offers_restarted). Either way the waves start only while it's shown to casuals.
+export type OfferPlacesResult =
+  | { status: "offering" }
+  | { status: "offering_hidden" } // urgent now, but hidden from casuals: nothing goes out yet
+  | { status: "already_offering" }
+  | { status: "full" } // no place free, or not open, or started
+  | { status: "not_found" }
+  | { status: "not_allowed" };
+
+export async function offerShiftPlaces(
+  run: WithFirm,
+  firmId: string,
+  input: { shiftId: string; by: { type: "office"; id: string } },
+  deps: { clock?: Clock } = {},
+): Promise<OfferPlacesResult> {
+  if (!uuid.safeParse(input.shiftId).success) return { status: "not_found" };
+  const now = (deps.clock ?? systemClock).now();
+  return run(firmId, async (tx) => {
+    if (!(await officeCanPlace(tx, input.by.id))) return { status: "not_allowed" };
+    const [shift] = await tx
+      .select({
+        status: shifts.status,
+        startsAt: shifts.startsAt,
+        headcount: shifts.headcount,
+        isUrgent: shifts.isUrgent,
+      })
+      .from(shifts)
+      .where(eq(shifts.id, input.shiftId))
+      .for("no key update");
+    if (!shift) return { status: "not_found" };
+    const { rows: held } = await tx.execute<{ booked: number }>(sql`
+      select count(*)::int as booked from assignments
+       where shift_id = ${input.shiftId} and worker_id is not null
+         and status not in (${CANCELLED}) and slot <= ${shift.headcount}
+    `);
+    const free = shift.headcount - (held[0]?.booked ?? 0);
+    if (shift.status !== "open" || shift.startsAt.getTime() <= now.getTime() || free <= 0) {
+      return { status: "full" };
+    }
+    if (shift.isUrgent && !(await wavesStopped(tx, input.shiftId))) {
+      return { status: "already_offering" };
+    }
+    if (!shift.isUrgent) {
+      await tx.update(shifts).set({ isUrgent: true }).where(eq(shifts.id, input.shiftId));
+    }
+    const offering = await startOfferWaves(tx, { shiftId: input.shiftId, now });
+    await queueTravelEstimates(tx, [input.shiftId], { startAfter: AFTER_WAVE_DELAY_SECONDS });
+    await recordEvent(tx, {
+      actorType: "office",
+      actorId: input.by.id,
+      action: shift.isUrgent ? "shift.offers_restarted" : "shift.marked_urgent",
+      entityType: "shift",
+      entityId: input.shiftId,
+      data: { by: "firm", cause: "office", hoursToStart: hoursToStart(shift.startsAt, now) },
+    });
+    return { status: offering ? "offering" : "offering_hidden" };
+  });
+}
+
+// Whether a session's offer waves have stopped: its latest stop names a wave no offer went in
+// since (a later wave means they started again). No stop at all: they haven't.
+export async function wavesStopped(tx: FirmTx, shiftId: string): Promise<boolean> {
+  const { rows } = await tx.execute<{ stopped: boolean }>(sql`
+    select coalesce(
+      (select (e.data ->> 'wave')::int from events e
+        where e.entity_id = ${shiftId}::uuid and e.action = 'offer.waves_stopped'
+        order by e.id desc limit 1)
+      > coalesce((select max(o.wave) from offers o where o.shift_id = ${shiftId}::uuid), 0),
+      false) as stopped
+  `);
+  return rows[0]?.stopped ?? false;
+}

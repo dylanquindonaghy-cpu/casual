@@ -3,11 +3,13 @@
 // imported here: the profile's forms (client components) use it (tests/unit/client-boundary.test.ts).
 
 // Must match NOTIFY_CHANNELS in src/lib/db/schema/people.ts (tests/unit/portal.profile.test.ts).
-export const CHANNELS = ["whatsapp", "sms"] as const;
+// How messages come when no app notification reaches them (Phase 26.9; decision 4): a text, or an
+// email (only while the firm holds their address).
+export const CHANNELS = ["sms", "email"] as const;
 export type Channel = (typeof CHANNELS)[number];
 export const CHANNEL_LABELS: Record<Channel, string> = {
-  whatsapp: "WhatsApp",
   sms: "Text message",
+  email: "Email",
 };
 
 export const UNAVAILABLE_AHEAD_DAYS = 180;

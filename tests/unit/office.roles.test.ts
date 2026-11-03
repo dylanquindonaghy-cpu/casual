@@ -67,6 +67,7 @@ describe("office roles", () => {
     for (const area of MENU_AREAS) expect(Object.keys(OFFICE_AREAS)).toContain(area);
     const AREA_OF_HREF: Record<string, readonly string[]> = {
       "/office": ["today"],
+      "/office/updates": ["today"],
       "/office/needs-attention": ["today"],
       "/office/pay": ["pay"],
       "/office/events": ["shifts"],

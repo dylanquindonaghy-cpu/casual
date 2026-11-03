@@ -57,3 +57,18 @@ describe("the notice report", () => {
     });
   });
 });
+
+// The notice on the report's rows (Phase 26.10, fix-6): in days or hours, never the exact hours in
+// brackets (the cancellation record, its PDF and the CSVs keep them).
+describe("the report's notice words", () => {
+  it("hours, days, and after the start; no hours in brackets", async () => {
+    const { noticeWords } = await import("@/lib/office/notice-report");
+    expect(noticeWords(22.89)).toBe("22 hours' notice");
+    expect(noticeWords(48)).toBe("2 days' notice");
+    expect(noticeWords(96)).toBe("4 days' notice");
+    expect(noticeWords(-1.5)).toBe("After the start");
+    for (const h of [0.5, 1, 22.89, 47.99, 48, 96, 300]) {
+      expect(noticeWords(h)).not.toMatch(/\(|\d+\.\d+/);
+    }
+  });
+});

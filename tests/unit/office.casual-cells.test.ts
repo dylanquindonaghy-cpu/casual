@@ -26,6 +26,19 @@ const row = (over: Partial<CasualRow>): CasualRow => ({
   needs: [],
   rolesWithoutRule: [],
   photo: { status: "missing", current: null, waiting: null },
+  record: {
+    workerId: "w1",
+    reliability: { kind: "new", counted: 0, counts: { worked: 0, noShows: 0, lateCancels: 0 } },
+    standing: { regular: false, reliable: false, cancelOften: false, notWorkedLately: true },
+    lastWorked: null,
+    weeksWorked: 0,
+  },
+  mobile: "+447700900000",
+  photoNeeds: true,
+  remindAbout: null,
+  lastReminder: null,
+  sorted: null,
+  note: null,
   ...over,
 });
 

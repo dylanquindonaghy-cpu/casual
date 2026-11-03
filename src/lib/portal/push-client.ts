@@ -5,8 +5,9 @@ const WAIT_MS = 1500;
 const within = <T>(p: Promise<T>): Promise<T | undefined> =>
   Promise.race([p, new Promise<undefined>((resolve) => setTimeout(resolve, WAIT_MS))]);
 
-// Logging out or in on a shared phone: this phone stops getting the last worker's alerts. The
-// server forgets it (best effort) and the browser drops the subscription.
+// Logging out or in on a shared phone or computer: it stops getting the last person's alerts. The
+// server forgets it (best effort), on the casuals' route and the office's (Phase 26.4: each removes
+// only its own logged-in person's), and the browser drops the subscription.
 export async function forgetThisPhonesPush(): Promise<void> {
   try {
     if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
@@ -15,13 +16,13 @@ export async function forgetThisPhonesPush(): Promise<void> {
       registration?.pushManager.getSubscription() ?? Promise.resolve(null),
     );
     if (!subscription) return;
-    await within(
-      fetch("/api/push/subscribe", {
+    const forget = (path: string) =>
+      fetch(path, {
         method: "DELETE",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ endpoint: subscription.endpoint }),
-      }).catch(() => undefined),
-    );
+      }).catch(() => undefined);
+    await within(Promise.all([forget("/api/push/subscribe"), forget("/api/office/push")]));
     await within(subscription.unsubscribe());
   } catch {
     // Nothing to forget.

@@ -17,8 +17,7 @@ import {
   webhookFailingText,
   type NeedsKey,
 } from "@/lib/office/dashboard-copy";
-import { sheetChangeText, sheetNameText, toCheckText, toMarkText } from "@/lib/office/today-copy";
-import { toMarkGroups } from "@/lib/office/to-mark";
+import { sheetChangeText, sheetNameText, toCheckText } from "@/lib/office/today-copy";
 import { roleLabel, shiftWhen, timeOnDay } from "@/lib/portal/format";
 import { qualificationTitle } from "@/lib/portal/qualification-copy";
 import { uploadWhat } from "@/lib/portal/upload-copy";
@@ -26,7 +25,6 @@ import { dayLabel } from "@/lib/rules/reasons";
 import { localDateOf } from "@/lib/time/zoned";
 import { btn, count, headingGap, meta, nums, textLink } from "../ui/classes";
 import { Icon } from "../ui/icons";
-import { StatusChip } from "../ui/status-chip";
 import { BookingToCheckActions } from "./keep-booking";
 
 // Needs attention's items, in parts (docs/office-v2.md 3.2; Phases 18 and 20: on their own page,
@@ -68,7 +66,7 @@ export function Need({
   return (
     <section aria-labelledby={id} className="glass rounded-inner p-4 sm:p-6">
       <div className="flex items-center gap-3">
-        <Icon name="leaf" size={18} className="shrink-0 text-attention" />
+        <Icon name="leaf" size={18} className="shrink-0 text-attention-ink" />
         <h3 id={id} className="flex items-center text-lg font-bold tracking-heading">
           {NEEDS_HEADINGS[id]}
           <span className={count}>{n}</span>
@@ -185,50 +183,6 @@ export function NeedsItems({
                 </li>
               ),
             )}
-          </ul>
-        </Need>
-      )}
-
-      {n.toMark.length > 0 && (
-        <Need id="to-mark" n={n.toMarkTotal} shown={n.toMark.length}>
-          <ul role="list" className={items}>
-            {toMarkGroups(n.toMark).map((g) => (
-              <li
-                key={g.sessions[0]!.shiftId}
-                className={`${item} flex flex-wrap items-center gap-x-4 gap-y-2`}
-              >
-                {/* At least 192px for the words, so on a phone the chip goes under them. */}
-                <div className="min-w-48 flex-1">
-                  <p className="font-semibold">
-                    {roleLabel(g.role)}
-                    {g.site ? ` at ${g.site}` : ""}
-                  </p>
-                  <p className={`${meta} ${nums}`}>
-                    {shiftWhen(g.startsAt, g.endsAt, tz)}
-                    {g.sessions.length > 1 ? ` · ${g.sessions.length} sessions` : ""}
-                  </p>
-                </div>
-                <StatusChip tone="attention">{toMarkText(g.unmarked)}</StatusChip>
-                {g.sessions.length === 1 ? (
-                  <Link href={`/office/shifts/${g.sessions[0]!.shiftId}`} className={btn.secondary}>
-                    Mark who worked
-                  </Link>
-                ) : (
-                  <p className="flex w-full flex-wrap items-center gap-2">
-                    <span className={meta}>Mark who worked:</span>
-                    {g.sessions.map((t, i) => (
-                      <Link
-                        key={t.shiftId}
-                        href={`/office/shifts/${t.shiftId}`}
-                        className={btn.secondary}
-                      >
-                        Session {i + 1}
-                      </Link>
-                    ))}
-                  </p>
-                )}
-              </li>
-            ))}
           </ul>
         </Need>
       )}
@@ -409,7 +363,7 @@ export function AlsoNeedsYou({
       className="glass flex flex-col items-start gap-3 self-start rounded-inner p-4 sm:p-6 lg:col-span-4"
     >
       <div className="flex items-center gap-3">
-        <Icon name="leaf" size={18} className="shrink-0 text-urgent" />
+        <Icon name="leaf" size={18} className="shrink-0 text-urgent-ink" />
         <h2 id="also-needs-you" className="text-lg font-bold tracking-heading">
           Also needs you
         </h2>

@@ -64,8 +64,13 @@ describe("the login page", () => {
   it("by message: today's words", () => {
     expect(form("message")).toContain("Send me a link");
     expect(sent("message")).toContain(
-      "Check your phone. If Acme Events has this number, we've sent a link by WhatsApp or text. It works for 15 minutes.",
+      "Check your phone. If Acme Events has this number, we've sent a link by text. It works for 15 minutes.",
     );
+    // Phase 26.9: no text after STOP, and the page can't say whose number it is.
+    expect(sent("message")).toContain(
+      "Replied STOP to our texts? Text START to the number you got them from, then ask again.",
+    );
+    expect(sent("email")).not.toContain("Replied STOP");
   });
   it("by email: the button and the answer say email", () => {
     expect(form("email")).toContain("Email me a link");
@@ -92,7 +97,7 @@ describe("the Pay code step", () => {
     expect(gate("message", false)).toContain("To see your pay, we'll send you a 6-digit code.");
     expect(gate("message", false)).toContain("Send me a code");
     expect(gate("message", true)).toContain(
-      "We've sent a 6-digit code by WhatsApp. It works for 10 minutes.",
+      "We've sent a 6-digit code by text. It works for 10 minutes.",
     );
     expect(gate("message", true)).toContain("Send me a new code");
   });
@@ -137,12 +142,10 @@ describe("Help", () => {
   it("by message: today's words", () => {
     const words = help("message");
     expect(words).toContain(
-      "There's no app to download. Acme Events sends you a link by WhatsApp or text message.",
+      "There's no app to download. Acme Events sends you a link by text message.",
     );
-    expect(words).toContain("We send a 6‑digit code by WhatsApp.");
-    expect(words).toContain(
-      "choose WhatsApp or text message, and whether to hear about open shifts.",
-    );
+    expect(words).toContain("We send a 6‑digit code by text.");
+    expect(words).toContain("choose text message or email, and whether to hear about open shifts.");
   });
   it("by email", () => {
     const words = help("email");
@@ -183,9 +186,11 @@ describe("Profile's How we reach you", () => {
       }),
     );
 
-  it("with a text sender, the choice as today", () => {
+  it("with a text sender, the choice: a text, or an email while we hold their address", () => {
     expect(form("message", null)).toContain('type="radio"');
-    expect(strip(form("message", null))).toContain("Send shift messages by");
+    expect(strip(form("message", null))).toContain("If a notification can't reach you, send it by");
+    expect(form("message", "sam.booker@example.com")).toContain('value="email"');
+    expect(form("message", null)).not.toContain('value="email"');
   });
   it("with no text sender, no choice: a push, else an email to the address shown", () => {
     const html = form("email", "sam.booker@example.com");
@@ -207,15 +212,13 @@ describe("Profile's How we reach you", () => {
     expect(strip(form("off", "sam.booker@example.com"))).not.toContain(promise);
   });
   it("Save settings says only what was saved", () => {
-    expect(savedText("whatsapp", true, false, false)).toBe(
-      "Saved. We'll tell you about open shifts.",
-    );
+    expect(savedText("email", true, false, false)).toBe("Saved. We'll tell you about open shifts.");
     expect(savedText("sms", false, true, false)).toBe(
       "Saved. We won't tell you about open shifts.",
     );
     // With a text sender, as before.
     expect(savedText("sms", true)).toBe(
-      "Saved. We'll send shift messages by text message. We'll tell you about open shifts.",
+      "Saved. We'll send shift messages by text. We'll tell you about open shifts.",
     );
   });
 });
@@ -227,7 +230,7 @@ describe("Notifications on this phone", () => {
   it("by text, as today", () => {
     expect(view("text")).toContain("Get urgent shift alerts on this phone, as well as by message.");
     expect(view("text", { state: "no_key" })).toContain(
-      "Phone notifications aren't switched on for Acme Events yet. You'll get messages by WhatsApp or text.",
+      "Phone notifications aren't switched on for Acme Events yet. You'll get messages by text.",
     );
   });
   it("by email", () => {

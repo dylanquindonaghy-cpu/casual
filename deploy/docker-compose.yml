@@ -44,6 +44,9 @@ services:
       OFFLINE_COPY: ${OFFLINE_COPY:-on}
       # Postcode look-ups (Settings, Profile): fake knows only the made-up ZZ postcodes.
       TRAVEL_PROVIDER: ${TRAVEL_PROVIDER:-fake}
+      # The dashboard's street map file (docs/runbooks.md "The street map"): /maps/uk.pmtiles from the
+      # maps folder Caddy serves; empty: the venues on a plain ground.
+      MAP_TILES_URL: ${MAP_TILES_URL:-}
       # Only whether AI sorting is on, for the Enquiries banner (not a secret; the key stays with
       # the worker).
       AI_TRANSPORT: ${AI_TRANSPORT:-none}
@@ -200,6 +203,8 @@ services:
       ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env (for Let's Encrypt)}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # The street map's file, if the firm has one (docs/runbooks.md "The street map").
+      - ./maps:/srv/maps:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:

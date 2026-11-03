@@ -1,4 +1,4 @@
-import { roleLabel } from "../portal/format";
+import { roleLabel, roleWords } from "../portal/format";
 import { cutChars } from "../text/cut";
 // Message copy from docs/messaging-templates.md. Every message ends with the firm's sign-off.
 
@@ -16,6 +16,15 @@ export function loginLinkMessage(firm: FirmVoice, link: string): string {
 // login_code (WhatsApp, utility): the pay pages' 6-digit step-up code.
 export function loginCodeMessage(firm: FirmVoice, code: string): string {
   return `Your ${firm.name} code is ${code}. It works for 10 minutes. Don't share it with anyone. — ${firm.signOff}`;
+}
+
+// The login link and the pay code by text (Phase 26.9; docs/messaging-templates.md "SMS"): plain
+// characters only (a hyphen, not a dash), so each fits one text.
+export function loginLinkSms(firm: FirmVoice, link: string): string {
+  return `${firm.name} shifts link (15 min): ${link} - ${firm.signOff}`;
+}
+export function loginCodeSms(firm: FirmVoice, code: string): string {
+  return `Your ${firm.name} code is ${code}. It works for 10 minutes. Don't share it. - ${firm.signOff}`;
 }
 
 // A casual's login link and pay-page code by email (P2.6; docs/messaging-templates.md "Email to
@@ -228,7 +237,7 @@ export function shiftOfferMessage(
   },
 ): string {
   const at = shift.site ? ` at ${shift.site}` : "";
-  return `Shift available: ${shift.date} ${shift.start}–${shift.end}${at} (${shift.role.replace(/_/g, " ")}). Tap to take it: ${shift.link}. First to accept gets it. — ${firm.signOff}`;
+  return `Shift available: ${shift.date} ${shift.start}–${shift.end}${at} (${roleWords(shift.role)}). Tap to take it: ${shift.link}. First to accept gets it. — ${firm.signOff}`;
 }
 
 // The office's offer as a text message (docs/messaging-templates.md, "SMS"): standard text
@@ -254,7 +263,7 @@ export function shiftUrgentMessage(
     link: string;
   },
 ): string {
-  const role = shift.role.replace(/_/g, " ");
+  const role = roleWords(shift.role);
   const article = /^[aeiou]/i.test(role) ? "an" : "a";
   const at = shift.site ? ` at ${shift.site}` : "";
   return `URGENT: we need ${article} ${role}${at} ${shift.day} ${shift.start}–${shift.end}. Tap to take it: ${shift.link}. — ${firm.signOff}`;
@@ -267,7 +276,7 @@ export function shiftUrgentSms(
   firm: FirmVoice,
   shift: { role: string; site: string | null; day: string; start: string; link: string },
 ): string {
-  const role = shift.role.replace(/_/g, " ");
+  const role = roleWords(shift.role);
   const site = shift.site ? ` ${shift.site}` : "";
   return `${firm.name} URGENT: ${role} needed${site} ${shift.day} ${shift.start}. ${shift.link} - ${firm.signOff}`;
 }
@@ -327,7 +336,26 @@ export function shiftConfirmedMessage(
   },
 ): string {
   const at = shift.site ? ` at ${shift.site}` : "";
-  return `Confirmed: ${shift.date} ${shift.start}–${shift.end}${at} (${shift.role.replace(/_/g, " ")}). Details and instructions: ${shift.link}. — ${firm.signOff}`;
+  return `Confirmed: ${shift.date} ${shift.start}–${shift.end}${at} (${roleWords(shift.role)}). Details and instructions: ${shift.link}. — ${firm.signOff}`;
+}
+
+// shift_not_booked (WhatsApp or SMS, utility; Phase 26.6, ses-6): a casual asked for a session the
+// office chooses for ("I can do this"), and wasn't booked: the office said "Not this time", or it
+// filled with others while they waited (src/lib/notices/ask-answer.ts). "at {site}" left out when
+// there's none (`shift_not_booked_no_site`). One the office books hears `shift_confirmed` instead.
+export function shiftNotBookedMessage(
+  firm: FirmVoice,
+  shift: {
+    role: string;
+    site: string | null;
+    date: string;
+    start: string;
+    end: string;
+    link: string;
+  },
+): string {
+  const at = shift.site ? ` at ${shift.site}` : "";
+  return `Not this time: you're not booked for ${shift.date} ${shift.start}–${shift.end}${at} (${roleWords(shift.role)}). Thanks for asking. Open shifts: ${shift.link}. — ${firm.signOff}`;
 }
 
 // request_update (WhatsApp or SMS, utility): the office answered a worker's request. {type} is the
@@ -375,13 +403,17 @@ export function shiftOfferEmailSubject(shift: {
 }
 
 export function shiftUrgentEmailSubject(shift: { role: string; day: string }): string {
-  const role = shift.role.replace(/_/g, " ");
+  const role = roleWords(shift.role);
   const article = /^[aeiou]/i.test(role) ? "an" : "a";
   return `URGENT: ${article} ${role} needed ${shift.day}`;
 }
 
 export function shiftConfirmedEmailSubject(shift: { date: string }): string {
   return `Confirmed: your shift on ${shift.date}`;
+}
+
+export function notBookedEmailSubject(shift: { date: string }): string {
+  return `Not this time: ${shift.date}`;
 }
 
 export function shiftReminder24hEmailSubject(shift: { day: string }): string {
@@ -428,6 +460,12 @@ export type ShiftsLineReply = { intent: "pay"; link: string } | { intent: "offic
 // Before the sign-off of every automatic reply on the shifts line (docs/office-v2.md 5.7 item 3:
 // WhatsApp's rule that people can reach a person; "office" is a keyword).
 export const AUTOMATIC_REPLY = "Automatic reply. Send OFFICE to reach a person.";
+
+// A reply in the app (Phase 26.10, fix-3): the same words without "Send OFFICE to reach a person."
+// (the app has its own way to the office); "Automatic reply." stays.
+export const APP_AUTOMATIC_REPLY = "Automatic reply.";
+export const forTheApp = (text: string): string =>
+  text.split(AUTOMATIC_REPLY).join(APP_AUTOMATIC_REPLY);
 
 export function shiftsLineReply(firm: FirmVoice, reply: ShiftsLineReply): string {
   const text =
@@ -566,8 +604,8 @@ export function shiftEscalationEmail(
     link: string; // the office dashboard
   },
 ): { subject: string; body: string } {
-  const role = shift.role.replace(/_/g, " ");
-  const Role = role.charAt(0).toUpperCase() + role.slice(1);
+  const role = roleWords(shift.role);
+  const Role = roleLabel(shift.role);
   const at = shift.site ? ` at ${shift.site}` : "";
   const places = shift.freePlaces === 1 ? "1 place" : `${shift.freePlaces} places`;
   const free = shift.freePlaces === 1 ? "place" : "places";
@@ -581,6 +619,87 @@ export function shiftEscalationEmail(
       `The ${role} shift${at}, ${shift.when}, still has ${places} free.`,
       offers,
       `Open the office dashboard: ${shift.link}`,
+      `— ${firm.signOff}`,
+    ].join("\n\n"),
+  };
+}
+
+// Office alerts (Phase 26.4; Updates' "Tell me about", decision 5; docs/messaging-templates.md
+// "Office alerts"). No casual's name leaves the office in a notification or an email (a lock screen
+// or an inbox is a wider audience than the office's own screens): the role, venue and time say what
+// to fill, and Updates names them.
+
+// Push to an office user's phone or computer: a casual cancelled with under 48 hours' notice.
+export function officeCancelPush(c: {
+  notice: string; // "9 hours' notice"
+  role: string;
+  site: string | null;
+  when: string; // "Mon 2 Nov 18:00"
+  reopened: boolean;
+}): { title: string; body: string } {
+  const where = [roleLabel(c.role), c.site, c.when].filter(Boolean).join(", ");
+  return {
+    title: `Cancellation · ${c.notice}`,
+    body: `${where}. ${c.reopened ? "The place is open again." : "Already covered."}`,
+  };
+}
+
+// Push: places still to fill on a session starting within 6 hours.
+export function officeOpenPush(s: {
+  placesFree: number;
+  startsIn: string; // "in 5 h"
+  role: string;
+  site: string | null;
+  when: string;
+  offers: number;
+}): { title: string; body: string } {
+  const places = s.placesFree === 1 ? "1 place" : `${s.placesFree} places`;
+  const where = [roleLabel(s.role), s.site, s.when].filter(Boolean).join(", ");
+  const offered =
+    s.offers === 0
+      ? "Offered to nobody yet."
+      : `Offered to ${s.offers === 1 ? "1 person" : `${s.offers} people`}.`;
+  return { title: `${places} still to fill, starts ${s.startsIn}`, body: `${where}. ${offered}` };
+}
+
+// office_summary (email at 08:00, the firm's time, to each admin or resourcer who asked for it):
+// what needs action now and what happened since 08:00 yesterday, on their contracts.
+export function officeSummaryEmail(
+  firm: FirmVoice,
+  s: {
+    day: string; // "Mon 2 Nov"
+    mine: boolean; // narrowed to their contracts
+    needs: string[]; // each "1 place still to fill, starts in 5 h: Steward, Acme Demo Arena, …"
+    moreNeeds: number; // past the ones listed
+    took: number;
+    cancelled: number;
+    under48: number;
+    uploads: number;
+    link: string; // the Updates page
+  },
+): { subject: string; body: string } {
+  const n = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`;
+  const total = s.needs.length + s.moreNeeds;
+  const needs =
+    total === 0
+      ? ["Nothing needs action."]
+      : [
+          `Needs action (${total}):`,
+          ...s.needs.map((l) => `- ${l}`),
+          ...(s.moreNeeds > 0 ? [`- and ${s.moreNeeds} more`] : []),
+        ];
+  const cancelled =
+    s.cancelled === 0
+      ? "no cancellations"
+      : `${n(s.cancelled, "cancellation", "cancellations")} (${s.under48} under 48 hours' notice)`;
+  return {
+    subject: `Updates for ${s.day}: ${total === 0 ? "nothing needs action" : total === 1 ? "1 needs action" : `${total} need action`}`,
+    body: [
+      `Here's what's happened ${s.mine ? "on your contracts" : "at every venue"} since 08:00 yesterday.`,
+      needs.join("\n"),
+      `Since 08:00 yesterday: ${n(s.took, "place taken", "places taken")}, ${cancelled}, ${n(s.uploads, "upload", "uploads")} to check.`,
+      `Open Updates: ${s.link}`,
+      "To stop these emails, switch off the 08:00 summary under Tell me about on Updates.",
       `— ${firm.signOff}`,
     ].join("\n\n"),
   };
@@ -723,6 +842,18 @@ export function bookedPush(shift: { site: string | null; date: string; start: st
 } {
   const at = shift.site ? ` at ${shift.site}` : "";
   return { title: "Shift booked", body: `${shift.date} ${shift.start}${at}. Tap for details.` };
+}
+
+// Push: a casual's ask wasn't chosen (shift_not_booked). Tapping opens Open shifts.
+export function notBookedPush(shift: { site: string | null; date: string; start: string }): {
+  title: string;
+  body: string;
+} {
+  const at = shift.site ? ` at ${shift.site}` : "";
+  return {
+    title: "Not this time",
+    body: `${shift.date} ${shift.start}${at}. See other open shifts.`,
+  };
 }
 
 // Push (title / body): the office answered a request. {Type} is the kind as the list names it

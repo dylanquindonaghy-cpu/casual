@@ -27,6 +27,7 @@ import { roleLabel, timeOnDay } from "@/lib/portal/format";
 import { dayLabel, shortDate } from "@/lib/rules/reasons";
 import { localDateOf, wallTimeOf } from "@/lib/time/zoned";
 import { EnquiryForms } from "./[id]/enquiry-forms";
+import { Ref } from "@/app/ui/ref";
 
 // One message on the shifts line (docs/office-v2.md 3.6; docs/screens.md `/office/enquiries/[id]`;
 // 12D.1), as its own page shows it and as Enquiries shows the chosen one beside the list from
@@ -54,7 +55,9 @@ export function EnquiryFacts({ e }: { e: EnquiryDetail }) {
     <p className="flex flex-wrap items-center gap-2">
       <StatusChip tone={OUTCOME_TONES[e.outcome]}>{OUTCOME_WORDS[e.outcome]}</StatusChip>
       {e.pay && <StatusChip tone="quiet">{PAY_LOCK}</StatusChip>}
-      <span className={`${meta} ${nums}`}>Reference {e.ref}</span>
+      <span className={`${meta} ${nums}`}>
+        Reference <Ref>{e.ref}</Ref>
+      </span>
     </p>
   );
 }

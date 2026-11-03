@@ -44,6 +44,8 @@ export function TakeShiftButton({
     const retry = outcome.status === "error" || outcome.status === "try_again";
     const refresh =
       outcome.status === "filled" || outcome.status === "gone" || outcome.status === "not_yet";
+    // The office chooses who works it now (Phase 26.6): the shift's page, with "I can do this".
+    const askInstead = outcome.status === "ask_first";
     // Booked covers the whole screen: in <body>, so nothing it sits in (the floating bar) holds it.
     if (outcome.status === "booked") {
       return createPortal(<TakeShiftResult outcome={outcome} shiftId={shiftId} />, document.body);
@@ -56,6 +58,15 @@ export function TakeShiftButton({
           shiftId={shiftId}
         />
         {onShiftPage && outcome.status === "not_eligible" && <ReviewForm shiftId={shiftId} />}
+        {askInstead && (
+          <button
+            type="button"
+            onClick={() => (onShiftPage ? router.refresh() : router.push(`/shifts/${shiftId}`))}
+            className={`${staffBtn.primary} mt-3`}
+          >
+            Ask for it
+          </button>
+        )}
         {(retry || refresh) && (
           <button
             type="button"

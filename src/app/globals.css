@@ -241,6 +241,8 @@
   --font-sans:
     var(--font-geist), var(--font-geist-ext), ui-sans-serif, system-ui, -apple-system, "Segoe UI",
     Roboto, Arial, sans-serif;
+  /* References, IDs and keys (round 8, sys-6): Geist Mono (src/app/fonts.ts), then the system's. */
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   /* The firm's colour as a pale tint over whatever it lies on (the current tab, the gate's plate,
      the "shifts to apply for" tile): ink reads on it in both themes. */
   --color-brand-soft: color-mix(in srgb, var(--color-brand) 12%, transparent);
@@ -539,16 +541,334 @@ body[data-firm-colour] {
   }
 }
 
-/* The office (every page under /office carries [data-office]: src/app/office/layout.tsx) has the
-   same colours and glass, and its own sizes: 12 · 13 · 15 · 17 · 20 · 30 · 40px (round 7's office
-   mock-up: a page's headline 30px, a section's 17px, a card's title 15px), headings a little
-   tighter, a page's headline semibold. */
+/* Round 8 (Phase 26; Dylan, 2026-11-02, after Haulix; the spec page's "The look" and the pre-build
+   audit, docs/mockups/round-8/): the office has its own look again, the casual app keeps round 7's.
+   Dark by default (no sd-theme cookie, or a dark one), light when someone picks light: neutral
+   charcoal (or off-white), translucent and sharp glass over a faint street map (body::before
+   below), a light blur, one even 1px hairline, 12px panels and 8px rows, no gloss, no glow and no
+   shadow at rest (only what floats has one). One accent, hi-vis yellow, on the main button, the
+   switches, the firm's mark and whatever is selected (as words in light: a dark olive); one status
+   code (urgent red, open amber, booked green, offered blue, hidden grey); white words on red at
+   4.93:1 (the pre-build audit's aud-1: the mock-up's red was 3.91:1). The tokens are set on the office's
+   own wrapper ([data-office], src/app/office/layout.tsx), so they win over <body>'s firm colours
+   inside it: the firm's colour stays on its bar above the office. The page's ground and the
+   browser's own controls follow from <html> (the second pair). Every pair's contrast is checked in
+   each of these looks, solid and with no blur too (tests/unit/ui.contrast.test.ts). */
+:root:not([data-theme="light"]) [data-office] {
+  color-scheme: dark;
+  --color-ink: #f4f4f3;
+  --color-ink-muted: #b4b4b9;
+  --color-ink-faint: #9d9da2;
+  --color-ink-hover: #ffffff;
+  --color-on-ink: #0f0f10;
+  --color-ink-press: #ffffff;
+  --color-line: rgb(255 255 255 / 0.1);
+  --color-line-strong: #7c7c82;
+  --color-canvas: #0f0f10;
+  --color-card: rgb(22 22 24 / 0.28);
+  --color-sheet: rgb(22 22 24 / 0.28);
+  --color-panel: rgb(24 24 26 / 0.88);
+  --color-raised: rgb(255 255 255 / 0.03);
+  --color-track: rgb(255 255 255 / 0.06);
+  --color-pill: rgb(255 255 255 / 0.1);
+  --color-active: rgb(255 255 255 / 0.07);
+  --color-count: rgb(255 255 255 / 0.08);
+  --color-button: rgb(255 255 255 / 0.05);
+  --color-button-line: rgb(255 255 255 / 0.14);
+  --color-button-hover: rgb(255 255 255 / 0.08);
+  --color-button-press: rgb(255 255 255 / 0.12);
+  --color-switch-off: #7a7a80;
+  --color-knob: #0f0f10;
+  --color-scrim: #000000;
+  --color-brand: #f4f4f3;
+  --color-on-brand: #0f0f10;
+  --color-brand-ink: #f4f4f3;
+  --color-tint: #e9f86f;
+  --color-on-tint: #171800;
+  --color-tint-shade: #e9f86f;
+  --color-brand-bar: #e9f86f;
+  --color-on-brand-bar: #171800;
+  --color-on-brand-bar-soft: #4a4f14;
+  --color-pass-plate: #ffffff;
+  --color-on-pass-plate: #171800;
+  --color-urgent: #ff9187;
+  --color-urgent-soft: rgb(58 26 25 / 0.8);
+  --color-urgent-ink: #ffc4bc;
+  --color-urgent-tile: rgb(58 26 25 / 0.9);
+  --color-urgent-fill: #d13438;
+  --color-urgent-fill-hover: #b42a2e;
+  --color-on-urgent: #ffffff;
+  --color-attention: #f2b55a;
+  --color-attention-soft: rgb(51 38 15 / 0.8);
+  --color-attention-ink: #f6dcb0;
+  --color-hivis: rgb(233 248 111 / 0.12);
+  --color-on-hivis: #e9f86f;
+  --color-wait-tile: rgb(23 35 56 / 0.9);
+  --color-wait-ink: #b8d0ff;
+  --color-wait-soft: rgb(23 35 56 / 0.8);
+  --color-done: #8fe28c;
+  --color-done-soft: rgb(21 41 26 / 0.8);
+  --color-done-ink: #c2efc0;
+  --color-done-tile: rgb(21 41 26 / 0.9);
+  --color-done-fill: #1f7a47;
+  --color-on-done: #ffffff;
+  --color-quiet-soft: rgb(255 255 255 / 0.06);
+  --color-quiet-ink: #d6d6da;
+  --color-urgent-line: #6a2a28;
+  --color-attention-line: #5a4318;
+  --color-wait-line: #2b4170;
+  --color-done-line: #2b5a3e;
+  --color-quiet-line: #38383c;
+  --color-demo: #3d2e0a;
+  --color-on-demo: #fde7b0;
+  --color-accent: #e9f86f;
+  --color-accent-hover: #f1fb9a;
+  --color-accent-press: #d9e85a;
+  --color-on-accent: #171800;
+  --color-mark-urgent: #e5484d;
+  --color-mark-open: #f2b55a;
+  --color-mark-wait: #8ab4ff;
+  --color-mark-done: #8fe28c;
+  --color-mark-calm: #6d6d72;
+  --color-mark-grid: rgb(255 255 255 / 0.06);
+  --color-mark-base: rgb(255 255 255 / 0.15);
+  --glass-filter: blur(6px) saturate(1.15);
+  --float-filter: blur(12px) saturate(1.15);
+  --edge-filter: blur(8px);
+  --glass-rim: inset 0 0 0 1px rgb(255 255 255 / 0.1);
+  --glass-drop: 0 0 #0000;
+  --glass-drop-sm: 0 0 #0000;
+  --glass-sunk: inset 0 0 0 1px rgb(255 255 255 / 0.1);
+  --float-shadow: 0 18px 50px rgb(0 0 0 / 0.5), inset 0 0 0 1px rgb(255 255 255 / 0.12);
+  --tile-top: rgb(255 255 255 / 0.03);
+  --tile-bottom: rgb(255 255 255 / 0.03);
+  --button-top: rgb(255 255 255 / 0.05);
+  --button-bottom: rgb(255 255 255 / 0.05);
+  --button-rim: inset 0 0 0 1px rgb(255 255 255 / 0.14);
+  --tint-rim: inset 0 0 0 1px rgb(0 0 0 / 0.08);
+  --tint-glow: 0 0 #0000;
+  --lens-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
+  --edge-fill: rgb(15 15 16 / 0.85);
+  --band-from: rgb(255 255 255 / 0.04);
+  --band-to: rgb(255 255 255 / 0.02);
+  --map-line: rgb(255 255 255 / 0.06);
+  --map-road: rgb(255 255 255 / 0.085);
+  --radius-card: 0.75rem;
+  --radius-inner: 0.75rem;
+  --radius-row: 0.5rem;
+}
+:root[data-theme="light"] [data-office] {
+  color-scheme: light;
+  --color-ink: #17181a;
+  --color-ink-muted: #55585f;
+  --color-ink-faint: #5d6067;
+  --color-ink-hover: #2b2e33;
+  --color-on-ink: #ffffff;
+  --color-ink-press: #000000;
+  --color-line: rgb(16 24 40 / 0.1);
+  --color-line-strong: #6e737b;
+  --color-canvas: #f2f2f0;
+  --color-card: rgb(255 255 255 / 0.55);
+  --color-sheet: rgb(255 255 255 / 0.55);
+  --color-panel: rgb(255 255 255 / 0.92);
+  --color-raised: rgb(16 24 40 / 0.03);
+  --color-track: rgb(16 24 40 / 0.06);
+  --color-pill: rgb(255 255 255 / 0.96);
+  --color-active: rgb(16 24 40 / 0.05);
+  --color-count: rgb(16 24 40 / 0.06);
+  --color-button: rgb(255 255 255 / 0.7);
+  --color-button-line: rgb(16 24 40 / 0.14);
+  --color-button-hover: rgb(16 24 40 / 0.05);
+  --color-button-press: rgb(16 24 40 / 0.09);
+  --color-switch-off: #6e737b;
+  --color-knob: #ffffff;
+  --color-scrim: #15171a;
+  --color-brand: #17181a;
+  --color-on-brand: #ffffff;
+  --color-brand-ink: #17181a;
+  --color-tint: #e9f86f;
+  --color-on-tint: #171800;
+  --color-tint-shade: #e9f86f;
+  --color-brand-bar: #e9f86f;
+  --color-on-brand-bar: #171800;
+  --color-on-brand-bar-soft: #4a4f14;
+  --color-pass-plate: #ffffff;
+  --color-on-pass-plate: #171800;
+  --color-urgent: #b0201f;
+  --color-urgent-soft: rgb(255 239 234 / 0.85);
+  --color-urgent-ink: #7d1a10;
+  --color-urgent-tile: rgb(255 216 207 / 0.9);
+  --color-urgent-fill: #c4242a;
+  --color-urgent-fill-hover: #9b1c21;
+  --color-on-urgent: #ffffff;
+  --color-attention: #92400e;
+  --color-attention-soft: rgb(255 246 224 / 0.85);
+  --color-attention-ink: #5c3f00;
+  --color-hivis: rgb(233 248 111 / 0.5);
+  --color-on-hivis: #3a3f00;
+  --color-wait-tile: rgb(214 228 250 / 0.9);
+  --color-wait-ink: #163b6e;
+  --color-wait-soft: rgb(238 244 253 / 0.85);
+  --color-done: #166534;
+  --color-done-soft: rgb(233 246 238 / 0.85);
+  --color-done-ink: #155230;
+  --color-done-tile: rgb(210 239 219 / 0.9);
+  --color-done-fill: #1f7a47;
+  --color-on-done: #ffffff;
+  --color-quiet-soft: rgb(16 24 40 / 0.05);
+  --color-quiet-ink: #464b52;
+  --color-urgent-line: #f5c2bb;
+  --color-attention-line: #f0d39a;
+  --color-wait-line: #b8cff2;
+  --color-done-line: #b4dfc3;
+  --color-quiet-line: #d6d8dc;
+  --color-demo: #3d2e0a;
+  --color-on-demo: #fde7b0;
+  --color-accent: #4a5200;
+  --color-accent-hover: #3a4100;
+  --color-accent-press: #2c3100;
+  --color-on-accent: #ffffff;
+  --color-mark-urgent: #c4242a;
+  --color-mark-open: #b86e00;
+  --color-mark-wait: #1d4ed8;
+  --color-mark-done: #1f7a47;
+  --color-mark-calm: #98a2b3;
+  --color-mark-grid: rgb(16 24 40 / 0.06);
+  --color-mark-base: rgb(16 24 40 / 0.15);
+  --glass-filter: blur(6px) saturate(1.15);
+  --float-filter: blur(12px) saturate(1.15);
+  --edge-filter: blur(8px);
+  --glass-rim: inset 0 0 0 1px rgb(16 24 40 / 0.1);
+  --glass-drop: 0 0 #0000;
+  --glass-drop-sm: 0 0 #0000;
+  --glass-sunk: inset 0 0 0 1px rgb(16 24 40 / 0.1);
+  --float-shadow: 0 12px 36px rgb(16 24 40 / 0.14), inset 0 0 0 1px rgb(16 24 40 / 0.1);
+  --tile-top: rgb(16 24 40 / 0.03);
+  --tile-bottom: rgb(16 24 40 / 0.03);
+  --button-top: rgb(255 255 255 / 0.7);
+  --button-bottom: rgb(255 255 255 / 0.7);
+  --button-rim: inset 0 0 0 1px rgb(16 24 40 / 0.14);
+  --tint-rim: inset 0 0 0 1px rgb(23 24 0 / 0.3);
+  --tint-glow: 0 0 #0000;
+  --lens-shadow: inset 0 0 0 1px rgb(16 24 40 / 0.12);
+  --edge-fill: rgb(242 242 240 / 0.85);
+  --band-from: rgb(255 255 255 / 0.6);
+  --band-to: rgb(255 255 255 / 0.3);
+  --map-line: rgb(16 24 40 / 0.05);
+  --map-road: rgb(16 24 40 / 0.07);
+  --radius-card: 0.75rem;
+  --radius-inner: 0.75rem;
+  --radius-row: 0.5rem;
+}
+:root:not([data-theme="light"]):has([data-office]) {
+  color-scheme: dark;
+  --color-canvas: #0f0f10;
+  --map-line: rgb(255 255 255 / 0.06);
+  --map-road: rgb(255 255 255 / 0.085);
+}
+:root[data-theme="light"]:has([data-office]) {
+  color-scheme: light;
+  --color-canvas: #f2f2f0;
+  --map-line: rgb(16 24 40 / 0.05);
+  --map-road: rgb(16 24 40 / 0.07);
+}
+
+/* Round 8's street map behind every office page (body::before, in place of round 7's wash): a still
+   picture drawn once (src/app/office-streets.svg, from the mock-up's pattern; the pre-build audit's
+   aud-16), its lines in --map-road at the picture's own strength, fixed as the page scrolls. Gone
+   with less transparency or more contrast (the fallback above hides body::before). And no bending
+   of the page behind what floats (round 7's refraction, .rf): round 8's glass is sharp. */
+body:has([data-office])::before {
+  background: var(--map-road);
+  -webkit-mask: url("./office-streets.svg") center / cover no-repeat;
+  mask: url("./office-streets.svg") center / cover no-repeat;
+}
+.rf [data-office] .glass-float {
+  backdrop-filter: var(--float-filter);
+}
+
+/* MapLibre's own parts, for the office map once it has its street map (Phase 26.2,
+   src/app/office/dashboard/venue-map.tsx; the library's stylesheet isn't loaded): its canvas laid
+   over the map's box, the touch and pointer rules it sets, its markers placed by transform, and its
+   note when one finger (or a wheel without Ctrl) tries to move it, in the office's own words' look. */
+.maplibregl-map {
+  position: relative;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+.maplibregl-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+.maplibregl-canvas-container.maplibregl-interactive {
+  cursor: grab;
+  user-select: none;
+}
+.maplibregl-canvas-container.maplibregl-interactive:active {
+  cursor: grabbing;
+}
+.maplibregl-canvas-container.maplibregl-touch-zoom-rotate,
+.maplibregl-canvas-container.maplibregl-touch-zoom-rotate .maplibregl-canvas {
+  touch-action: pan-x pan-y;
+}
+.maplibregl-canvas-container.maplibregl-touch-drag-pan,
+.maplibregl-canvas-container.maplibregl-touch-drag-pan .maplibregl-canvas {
+  touch-action: pinch-zoom;
+}
+.maplibregl-canvas-container.maplibregl-touch-zoom-rotate.maplibregl-touch-drag-pan,
+.maplibregl-canvas-container.maplibregl-touch-zoom-rotate.maplibregl-touch-drag-pan
+  .maplibregl-canvas {
+  touch-action: none;
+}
+.maplibregl-marker {
+  position: absolute;
+  top: 0;
+  left: 0;
+  will-change: transform;
+}
+.maplibregl-cooperative-gesture-screen {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background-color: var(--color-panel);
+  color: var(--color-ink);
+  font-size: var(--text-base);
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1s 1s;
+}
+.maplibregl-cooperative-gesture-screen.maplibregl-show {
+  opacity: 1;
+  transition: opacity 0.05s;
+}
+.maplibregl-cooperative-gesture-screen .maplibregl-mobile-message {
+  display: none;
+}
+@media (hover: none), (pointer: coarse) {
+  .maplibregl-cooperative-gesture-screen .maplibregl-desktop-message {
+    display: none;
+  }
+  .maplibregl-cooperative-gesture-screen .maplibregl-mobile-message {
+    display: block;
+  }
+}
+
+/* The office's sizes (every page under /office carries [data-office]: src/app/office/layout.tsx):
+   round 8's one scale, 12 · 13 · 14 · 16 · 20 · 30px (the pre-build audit's aud-3: nothing under
+   12px; a page's headline 30px, a section's 16px, words 14px; round 7's were 15, 17 and 40px),
+   headings a little tighter, a page's headline semibold. Its colours and glass are above. */
 body:has([data-office]) {
   --text-sm: 0.8125rem;
   --text-sm--line-height: 1.25rem;
-  --text-base: 0.9375rem;
-  --text-base--line-height: 1.5rem;
-  --text-lg: 1.0625rem;
+  --text-base: 0.875rem;
+  --text-base--line-height: 1.25rem;
+  --text-lg: 1rem;
   --text-lg--line-height: 1.5rem;
   --text-3xl: 1.875rem;
   --text-3xl--line-height: 2.25rem;
@@ -763,6 +1083,146 @@ body:has([data-office]) {
   }
 }
 
+/* Round 8's office, solid: with less transparency or more contrast, or in a browser that can't
+   blur, every office surface is solid too and the street map goes (it stays round them with no
+   blur), as the app's own looks above. */
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  :root:not([data-theme="light"]) [data-office] {
+    --color-card: #161618;
+    --color-sheet: #161618;
+    --color-panel: #1b1b1d;
+    --color-raised: #1f1f21;
+    --color-track: #232325;
+    --color-pill: #2c2c2f;
+    --color-active: #262628;
+    --color-count: #262628;
+    --color-button: #1f1f21;
+    --color-button-line: #8a8a90;
+    --color-button-hover: #262628;
+    --color-button-press: #2c2c2f;
+    --color-urgent-soft: #3a1a19;
+    --color-attention-soft: #33260f;
+    --color-wait-soft: #172338;
+    --color-done-soft: #15291a;
+    --color-quiet-soft: #1f1f21;
+    --color-urgent-tile: #3a1a19;
+    --color-hivis: #2a2d16;
+    --color-wait-tile: #172338;
+    --color-done-tile: #15291a;
+    --glass-filter: none;
+    --float-filter: none;
+    --edge-filter: none;
+    --tile-top: #1f1f21;
+    --tile-bottom: #1f1f21;
+    --button-top: #1f1f21;
+    --button-bottom: #1f1f21;
+    --edge-fill: #0f0f10;
+    --band-from: #1b1b1d;
+    --band-to: #161618;
+  }
+  :root[data-theme="light"] [data-office] {
+    --color-card: #ffffff;
+    --color-sheet: #ffffff;
+    --color-panel: #ffffff;
+    --color-raised: #f4f4f2;
+    --color-track: #ebebe8;
+    --color-pill: #ffffff;
+    --color-active: #efefec;
+    --color-count: #efefec;
+    --color-button: #ffffff;
+    --color-button-line: #6e737b;
+    --color-button-hover: #f1f1ee;
+    --color-button-press: #e8e8e5;
+    --color-urgent-soft: #ffefea;
+    --color-attention-soft: #fff6e0;
+    --color-wait-soft: #eef4fd;
+    --color-done-soft: #e9f6ee;
+    --color-quiet-soft: #f1f1ee;
+    --color-urgent-tile: #ffd8cf;
+    --color-hivis: #f4fbb7;
+    --color-wait-tile: #d6e4fa;
+    --color-done-tile: #d2efdb;
+    --glass-filter: none;
+    --float-filter: none;
+    --edge-filter: none;
+    --tile-top: #f4f4f2;
+    --tile-bottom: #f4f4f2;
+    --button-top: #ffffff;
+    --button-bottom: #ffffff;
+    --edge-fill: #f2f2f0;
+    --band-from: #ffffff;
+    --band-to: #ffffff;
+  }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root:not([data-theme="light"]) [data-office] {
+    --color-card: #161618;
+    --color-sheet: #161618;
+    --color-panel: #1b1b1d;
+    --color-raised: #1f1f21;
+    --color-track: #232325;
+    --color-pill: #2c2c2f;
+    --color-active: #262628;
+    --color-count: #262628;
+    --color-button: #1f1f21;
+    --color-button-line: #8a8a90;
+    --color-button-hover: #262628;
+    --color-button-press: #2c2c2f;
+    --color-urgent-soft: #3a1a19;
+    --color-attention-soft: #33260f;
+    --color-wait-soft: #172338;
+    --color-done-soft: #15291a;
+    --color-quiet-soft: #1f1f21;
+    --color-urgent-tile: #3a1a19;
+    --color-hivis: #2a2d16;
+    --color-wait-tile: #172338;
+    --color-done-tile: #15291a;
+    --glass-filter: none;
+    --float-filter: none;
+    --edge-filter: none;
+    --tile-top: #1f1f21;
+    --tile-bottom: #1f1f21;
+    --button-top: #1f1f21;
+    --button-bottom: #1f1f21;
+    --edge-fill: #0f0f10;
+    --band-from: #1b1b1d;
+    --band-to: #161618;
+  }
+  :root[data-theme="light"] [data-office] {
+    --color-card: #ffffff;
+    --color-sheet: #ffffff;
+    --color-panel: #ffffff;
+    --color-raised: #f4f4f2;
+    --color-track: #ebebe8;
+    --color-pill: #ffffff;
+    --color-active: #efefec;
+    --color-count: #efefec;
+    --color-button: #ffffff;
+    --color-button-line: #6e737b;
+    --color-button-hover: #f1f1ee;
+    --color-button-press: #e8e8e5;
+    --color-urgent-soft: #ffefea;
+    --color-attention-soft: #fff6e0;
+    --color-wait-soft: #eef4fd;
+    --color-done-soft: #e9f6ee;
+    --color-quiet-soft: #f1f1ee;
+    --color-urgent-tile: #ffd8cf;
+    --color-hivis: #f4fbb7;
+    --color-wait-tile: #d6e4fa;
+    --color-done-tile: #d2efdb;
+    --glass-filter: none;
+    --float-filter: none;
+    --edge-filter: none;
+    --tile-top: #f4f4f2;
+    --tile-bottom: #f4f4f2;
+    --button-top: #ffffff;
+    --button-bottom: #ffffff;
+    --edge-fill: #f2f2f0;
+    --band-from: #ffffff;
+    --band-to: #ffffff;
+  }
+}
+
 /* Reduced motion: every movement is a 150ms fade (and a leaving item a fade out). */
 @media (prefers-reduced-motion: reduce) {
   [class*="animate-"] {
@@ -909,9 +1369,10 @@ body:has([data-office]) {
   background-color: var(--color-tint);
   background-image: linear-gradient(180deg, var(--color-tint), var(--color-tint-shade));
   color: var(--color-on-tint);
+  /* Its soft drop in its own colour (round 7); none in the office (round 8: no glow). */
   box-shadow:
     var(--tint-rim),
-    0 8px 22px color-mix(in srgb, var(--color-tint) 32%, transparent);
+    var(--tint-glow, 0 8px 22px color-mix(in srgb, var(--color-tint) 32%, transparent));
   @media (forced-colors: active) {
     border: 1px solid ButtonText;
   }
@@ -1083,6 +1544,46 @@ body:has([data-office]) {
     );
   }
 }
+/* A row that scrolls sideways (the office's tab rows and its counts row: round 8, sys-9) fades at
+   the edge that has more to scroll to, by the browser's own scroll timeline: at the start only the
+   end fades, at the end only the start, between them both. A row with nothing to scroll (an
+   inactive timeline) or a browser without scroll timelines shows no fade at all. */
+@property --fade-start {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --fade-end {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@keyframes fade-x-scroll {
+  0% {
+    --fade-start: 0px;
+    --fade-end: 1.5rem;
+  }
+  8%,
+  92% {
+    --fade-start: 1.5rem;
+    --fade-end: 1.5rem;
+  }
+  100% {
+    --fade-start: 1.5rem;
+    --fade-end: 0px;
+  }
+}
+@utility fade-x {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black var(--fade-start),
+    black calc(100% - var(--fade-end)),
+    transparent
+  );
+  animation: fade-x-scroll linear both;
+  animation-timeline: scroll(self inline);
+}
 /* A lens sliding to the option you pick, on the spring a press returns on. */
 @utility slide {
   transition:
@@ -1102,7 +1603,8 @@ body:not(:has([data-offline-notice]:not([hidden]))) [data-offline-only] {
 }
 
 /* The office's sticky top bar never hides what the keyboard moves to or a link lands on (WCAG
-   2.4.11): the page scrolls it to at least 80px under the window's top. */
+   2.4.11): the page scrolls it to at least 76px under the window's top (round 8's 64px bar and a
+   12px step). */
 html:has([data-shell="office"]) {
-  scroll-padding-top: 5rem;
+  scroll-padding-top: 4.75rem;
 }

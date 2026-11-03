@@ -365,7 +365,7 @@ describe("telling the worker (the request-update job)", () => {
     await answerRequest(t.ctx(), t.swap, "declined", "Cal isn't free.\n\nTry   Dee?");
     const [job] = await jobsOf(t.f.firmId);
     expect(await n.run(job ?? {})).toMatchObject({
-      output: { status: "sent", channel: "whatsapp" },
+      output: { status: "sent", channel: "sms" },
     });
     expect(bodies(n.sent)).toEqual([
       `Your request (swap, ref ${ref(t.swap)}) is declined. The office says: Cal isn't free. Try Dee? — Booking Test ${n.slug} Shift Team`,
@@ -376,7 +376,7 @@ describe("telling the worker (the request-update job)", () => {
     const logged = await eventsOf(t.f.firmId, "request.update%");
     expect(logged.map((e) => [e.action, e.data.status ?? e.data.channel])).toEqual([
       ["request.update_notice", "sending"],
-      ["request.update_sent", "whatsapp"],
+      ["request.update_sent", "sms"],
     ]);
     // No phone with notifications on: no push.
     expect(logged[1]?.data.pushes).toBe(0);
@@ -388,7 +388,7 @@ describe("telling the worker (the request-update job)", () => {
     expect(JSON.stringify(await eventsOf(t.f.firmId, "%"))).not.toContain("Cal isn't free");
   });
 
-  it("a phone that takes the push: the push instead of the WhatsApp (P2.4), and the office's page says they were told", async () => {
+  it("a phone that takes the push: the push instead of the text (P2.4), and the office's page says they were told", async () => {
     const t = await requestFirm();
     await su.query(
       `insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth)
@@ -498,7 +498,8 @@ describe("telling the worker (the request-update job)", () => {
     expect(await n.run(soonJob ?? {}, night)).toMatchObject({ output: { status: "sent" } });
   });
 
-  it("a failed send is logged and never sent again; a refused WhatsApp goes by text", async () => {
+  // Phase 26.9: never WhatsApp; their chosen way (until then, a refused WhatsApp went by text).
+  it("a failed send is logged and never sent again; one who chose email gets an email", async () => {
     const t = await requestFirm();
     const n = await notices(t);
     await answerRequest(t.ctx(), t.swap, "approved", "");
@@ -511,13 +512,24 @@ describe("telling the worker (the request-update job)", () => {
     expect(await n.run(swapJob ?? {})).toMatchObject({ output: { status: "already" } });
     expect(n.sent).toEqual([]);
     const [failed] = await eventsOf(t.f.firmId, "request.update_failed");
-    expect(failed?.data).toMatchObject({ workerId: t.ben, channel: "whatsapp" });
+    expect(failed?.data).toMatchObject({ workerId: t.ben, channel: "sms" });
 
-    n.state.refuseWhatsApp = true;
     const tcJob = jobs.find((j) => j.requestId === t.timeChange);
-    expect(await n.run(tcJob ?? {})).toMatchObject({ output: { status: "sent", channel: "sms" } });
+    const tcWorker = (
+      await su.query<{ worker_id: string }>("select worker_id::text from requests where id = $1", [
+        t.timeChange,
+      ])
+    ).rows[0]?.worker_id;
+    await su.query(
+      "update workers set email = 'tc@example.test', notify_channel = 'email' where id = $1",
+      [tcWorker],
+    );
+    expect(await n.run(tcJob ?? {})).toMatchObject({
+      output: { status: "sent", channel: "email" },
+    });
+    expect(n.sent.map((m) => [m.channel, m.to])).toEqual([["email", "tc@example.test"]]);
     const sentEvent = (await eventsOf(t.f.firmId, "request.update_sent"))[0];
-    expect(sentEvent?.data).toMatchObject({ channel: "sms", fellBackFrom: "whatsapp" });
+    expect(sentEvent?.data).toMatchObject({ channel: "email" });
   });
 
   it("nothing for a request that isn't answered, or another firm's", async () => {

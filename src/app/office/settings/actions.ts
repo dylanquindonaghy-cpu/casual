@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getOfficeSession } from "@/lib/auth/current-office";
 import { canAccess } from "@/lib/auth/roles";
 import type { OfficeContext } from "@/lib/office/office-context";
+import { removeContract, saveContract, type ContractResult } from "@/lib/office/contracts";
 import { editSitePostcode, type EditSitePostcodeResult } from "@/lib/office/settings-page";
 import { saveStrikesEmail, type SaveStrikesEmailResult } from "@/lib/office/strikes-email";
 import { requestLog } from "@/lib/request";
@@ -45,4 +46,27 @@ export async function editSitePostcodeAction(
   return asAdmin("edit site postcode", (ctx) =>
     editSitePostcode(ctx, siteId as string, { postcode }),
   );
+}
+
+// Contracts (Phase 26.3): add one (no id) or save one (its name, and the venues ticked or unticked
+// against `before`, those it had when the form was loaded), and remove one. Checked again inside
+// (src/lib/office/contracts.ts), each logged.
+export async function saveContractAction(
+  clientId: unknown,
+  name: unknown,
+  siteIds: unknown,
+  before: unknown = [],
+): Promise<ContractResult | Common> {
+  if (clientId !== null && !z.uuid().safeParse(clientId).success) return { status: "not_found" };
+  if (typeof name !== "string" || name.length > 1000) return { status: "invalid" };
+  if (!Array.isArray(siteIds) || siteIds.length > 500) return { status: "invalid" };
+  if (!Array.isArray(before) || before.length > 500) return { status: "invalid" };
+  return asAdmin("save contract", (ctx) =>
+    saveContract(ctx, { clientId: clientId as string | null, name, siteIds, before }),
+  );
+}
+
+export async function removeContractAction(clientId: unknown): Promise<ContractResult | Common> {
+  if (!z.uuid().safeParse(clientId).success) return { status: "not_found" };
+  return asAdmin("remove contract", (ctx) => removeContract(ctx, clientId as string));
 }

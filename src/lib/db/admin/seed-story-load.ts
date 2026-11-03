@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import { and, inArray, isNull, sql } from "drizzle-orm";
-import { recordEvent } from "../../events/record";
 import { noAi } from "../../ai/client";
 import { runInboundMessage } from "../../inbound/reply";
 import type { MessagingTransport } from "../../messaging/transport";
@@ -13,6 +12,7 @@ import { STRIKE_WARNING_VERSION } from "../../strikes/words";
 import { fakePoint } from "../../travel/geocoder";
 import {
   assignments,
+  clients,
   credentials,
   messages,
   payQueries,
@@ -27,7 +27,8 @@ import {
   workerTravel,
 } from "../schema";
 import type { FirmTx, WithFirm } from "../scoped";
-import type { SeedFirm } from "./seed-data";
+import { seedId, type SeedFirm } from "./seed-data";
+import type { SeedLog } from "./seed-log";
 import {
   STORY_CERTIFICATE_JPEG,
   STORY_LINE,
@@ -40,8 +41,9 @@ import {
 // people, their qualifications and travel areas are put back as seeded on every run (like the
 // generated workers); everything that happened (events, sessions, bookings, cancellations, strikes,
 // uploads, messages, pay queries) is added once by its fixed id and logged once, as the app logs
-// it, so a re-run changes nothing and never undoes a demo. Row times are the story's (the log can't
-// be backdated: its entries say what happened, stamped when the seed ran).
+// it, so a re-run changes nothing and never undoes a demo. Row times are the story's, and so are its
+// log entries' (Phase 26.10, fix-8): each goes to the seed's log (./seed-log.ts) at its row's time,
+// written in time order once the firm's rows are in.
 
 const located = (postcode: string) => {
   const point = fakePoint(postcode);
@@ -60,6 +62,7 @@ export async function loadStory(
   firm: SeedFirm,
   story: StorySeed,
   now: Date,
+  log: SeedLog,
 ): Promise<void> {
   const firmId = firm.id;
   const strikeRules = strikeSettings(firm.settings);
@@ -87,6 +90,27 @@ export async function loadStory(
         lng: sql`excluded.lng`,
       },
     });
+
+  // Two made-up contracts (Phase 26.3), so Customise has some to choose from: the Northgate venues
+  // for a council, Riverside for a festival. Nobody looks after them yet: the demo's dashboard
+  // shows everything until someone picks theirs.
+  const contracts = [
+    { key: "northgate", name: "Northgate Demo Council", sites: ["site/northgate", "site/common"] },
+    { key: "riverside", name: "Riverside Demo Festival", sites: ["site/riverside"] },
+  ];
+  for (const c of contracts) {
+    const clientId = seedId(`acme/story/client/${c.key}`);
+    await tx.insert(clients).values({ id: clientId, firmId, name: c.name }).onConflictDoNothing();
+    await tx
+      .update(sites)
+      .set({ clientId })
+      .where(
+        inArray(
+          sites.id,
+          c.sites.map((k) => seedId(`acme/story/${k}`)),
+        ),
+      );
+  }
 
   await tx
     .insert(workers)
@@ -148,23 +172,30 @@ export async function loadStory(
       kind: u.kind,
       ...(u.credentialType ? { qualificationType: u.credentialType } : {}),
     };
-    await recordEvent(tx, {
-      actorType: "worker",
-      actorId: u.workerId,
-      action: "upload.received",
-      entityType: "upload",
-      entityId: u.id,
-      data: what,
-    });
-    if (u.status === "approved") {
-      await recordEvent(tx, {
-        actorType: "office",
-        actorId: resourcer,
-        action: "upload.approved",
+    // Each at its story's time (Phase 26.10, fix-8), as every entry below.
+    log.add(
+      {
+        actorType: "worker",
+        actorId: u.workerId,
+        action: "upload.received",
         entityType: "upload",
         entityId: u.id,
         data: what,
-      });
+      },
+      u.createdAt,
+    );
+    if (u.status === "approved") {
+      log.add(
+        {
+          actorType: "office",
+          actorId: resourcer,
+          action: "upload.approved",
+          entityType: "upload",
+          entityId: u.id,
+          data: what,
+        },
+        u.checkedAt ?? u.createdAt,
+      );
     }
   }
 
@@ -255,15 +286,22 @@ export async function loadStory(
     .onConflictDoNothing()
     .returning({ id: shiftEvents.id, showing: shiftEvents.showingToCasuals });
   // One switched off: the office's switch, logged as the app logs it.
+  // (When its sessions were added: the story has no time of its own for the switch.)
   for (const e of addedEvents.filter((x) => !x.showing)) {
-    await recordEvent(tx, {
-      actorType: "office",
-      actorId: resourcer,
-      action: "event.hidden",
-      entityType: "shift_event",
-      entityId: e.id,
-      data: { by: "firm" },
-    });
+    const added = story.sessions
+      .filter((x) => x.eventId === e.id)
+      .map((x) => x.createdAt.getTime());
+    log.add(
+      {
+        actorType: "office",
+        actorId: resourcer,
+        action: "event.hidden",
+        entityType: "shift_event",
+        entityId: e.id,
+        data: { by: "firm" },
+      },
+      added.length > 0 ? new Date(Math.min(...added)) : now,
+    );
   }
 
   // Sessions: added once. One whose booking was cancelled has its place open again.
@@ -317,17 +355,20 @@ export async function loadStory(
       : [];
   const fresh = new Set(added.map((s) => s.id));
   for (const s of story.sessions.filter((x) => fresh.has(x.id))) {
-    await recordEvent(tx, {
-      actorType: "system",
-      action: "shift.created",
-      entityType: "shift",
-      entityId: s.id,
-      data: { source: "seed" },
-    });
+    log.add(
+      {
+        actorType: "system",
+        action: "shift.created",
+        entityType: "shift",
+        entityId: s.id,
+        data: { source: "seed" },
+      },
+      s.createdAt,
+    );
     // Marked urgent by the office (as src/lib/roster/urgent.ts logs it); one made urgent by a
     // dropout is logged with its cancellation, below.
     if (s.urgentCause === "office") {
-      await recordEvent(tx, {
+      log.add({
         actorType: "office",
         actorId: resourcer,
         action: "shift.marked_urgent",
@@ -386,76 +427,110 @@ export async function loadStory(
     }
   }
   for (const b of bookings) {
-    await recordEvent(tx, {
-      actorType: "worker",
-      actorId: b.workerId,
-      action: "shift.assigned",
-      entityType: "assignment",
-      entityId: b.id,
-      data: {
-        by: "worker",
-        shiftId: b.shiftId,
-        workerId: b.workerId,
-        slot: b.slot,
-        noticeHours: b.bookedNoticeHours,
-      },
-    });
-    if (b.status === "completed") {
-      // Marked worked by the office after the shift (src/lib/roster/attendance.ts).
-      await recordEvent(tx, {
-        actorType: "office",
-        actorId: resourcer,
-        action: "shift.completed",
-        entityType: "assignment",
-        entityId: b.id,
-        data: { by: "firm", shiftId: b.shiftId, workerId: b.workerId, from: "confirmed" },
-      });
-    }
-    if (b.status !== "cancelled_worker" && b.status !== "cancelled_firm") continue;
-    const byFirm = b.status === "cancelled_firm";
-    const cancelEvent = await recordEvent(tx, {
-      actorType: byFirm ? "office" : "worker",
-      actorId: byFirm ? resourcer : b.workerId,
-      action: "shift.cancelled",
-      entityType: "assignment",
-      entityId: b.id,
-      data: {
-        by: byFirm ? "firm" : "worker",
-        shiftId: b.shiftId,
-        workerId: b.workerId,
-        noticeHours: b.noticeHours,
-        ...(byFirm && b.cancelReason ? { reason: b.cancelReason } : {}),
-        strike: byFirm ? "by_firm" : "issued",
-        place: "reopened",
-        reopenedId: b.reopenedId,
-      },
-    });
     const session = story.sessions.find((x) => x.id === b.shiftId);
-    // A dropout inside the urgent window: the system marked the place urgent (as urgent.ts does).
-    if (!byFirm && session?.urgentCause === "dropout" && b.noticeHours !== null) {
-      await recordEvent(tx, {
-        actorType: "system",
-        action: "shift.marked_urgent",
-        entityType: "shift",
-        entityId: b.shiftId,
-        data: { by: "system", cause: "dropout", hoursToStart: b.noticeHours },
-      });
-    }
-    // The office's cancellation: the casual was told (golden rule 12; src/lib/notices/firm-change.ts).
-    if (byFirm) {
-      await recordEvent(tx, {
-        actorType: "system",
-        action: "shift.change_notice_sent",
+    log.add(
+      {
+        actorType: "worker",
+        actorId: b.workerId,
+        action: "shift.assigned",
         entityType: "assignment",
         entityId: b.id,
         data: {
-          changeEventId: cancelEvent,
+          by: "worker",
+          shiftId: b.shiftId,
           workerId: b.workerId,
-          channel: "whatsapp",
-          providerMessageId: `seed-story-notice-${b.id.slice(0, 8)}`,
-          pushes: 0,
+          slot: b.slot,
+          noticeHours: b.bookedNoticeHours,
         },
-      });
+      },
+      b.confirmedAt,
+    );
+    // Marked by the office an hour after the shift ended (never later than now).
+    const markedAt = new Date(
+      Math.min((session?.endsAt ?? now).getTime() + 60 * 60_000, now.getTime()),
+    );
+    if (b.status === "completed") {
+      // Marked worked by the office after the shift (src/lib/roster/attendance.ts).
+      log.add(
+        {
+          actorType: "office",
+          actorId: resourcer,
+          action: "shift.completed",
+          entityType: "assignment",
+          entityId: b.id,
+          data: { by: "firm", shiftId: b.shiftId, workerId: b.workerId, from: "confirmed" },
+        },
+        markedAt,
+      );
+    }
+    if (b.status === "no_show") {
+      // Marked as not attending by the office after the shift (aud-14's history).
+      log.add(
+        {
+          actorType: "office",
+          actorId: resourcer,
+          action: "shift.no_show",
+          entityType: "assignment",
+          entityId: b.id,
+          data: { by: "firm", shiftId: b.shiftId, workerId: b.workerId, from: "confirmed" },
+        },
+        markedAt,
+      );
+    }
+    if (b.status !== "cancelled_worker" && b.status !== "cancelled_firm") continue;
+    const byFirm = b.status === "cancelled_firm";
+    const cancelledAt = b.cancelledAt ?? now;
+    const cancelEvent = log.add(
+      {
+        actorType: byFirm ? "office" : "worker",
+        actorId: byFirm ? resourcer : b.workerId,
+        action: "shift.cancelled",
+        entityType: "assignment",
+        entityId: b.id,
+        data: {
+          by: byFirm ? "firm" : "worker",
+          shiftId: b.shiftId,
+          workerId: b.workerId,
+          noticeHours: b.noticeHours,
+          ...(byFirm && b.cancelReason ? { reason: b.cancelReason } : {}),
+          strike: byFirm ? "by_firm" : "issued",
+          place: "reopened",
+          reopenedId: b.reopenedId,
+        },
+      },
+      cancelledAt,
+    );
+    // A dropout inside the urgent window: the system marked the place urgent (as urgent.ts does).
+    if (!byFirm && session?.urgentCause === "dropout" && b.noticeHours !== null) {
+      log.add(
+        {
+          actorType: "system",
+          action: "shift.marked_urgent",
+          entityType: "shift",
+          entityId: b.shiftId,
+          data: { by: "system", cause: "dropout", hoursToStart: b.noticeHours },
+        },
+        cancelledAt,
+      );
+    }
+    // The office's cancellation: the casual was told (golden rule 12; src/lib/notices/firm-change.ts).
+    if (byFirm) {
+      log.add(
+        {
+          actorType: "system",
+          action: "shift.change_notice_sent",
+          entityType: "assignment",
+          entityId: b.id,
+          data: {
+            changeEventId: cancelEvent,
+            workerId: b.workerId,
+            channel: "sms",
+            providerMessageId: `seed-story-notice-${b.id.slice(0, 8)}`,
+            pushes: 0,
+          },
+        },
+        new Date(cancelledAt.getTime() + 60_000),
+      );
     }
   }
 
@@ -489,30 +564,39 @@ export async function loadStory(
       createdAt: s.issuedAt,
     });
     const data = { assignmentId: s.bookingId, shiftId: s.shiftId, workerId: s.workerId };
-    await recordEvent(tx, {
-      actorType: "system",
-      action: "strike.issued",
-      entityType: "strike",
-      entityId: s.id,
-      data: { ...data, noticeHours: s.noticeHours, thresholdHours: strikeRules.noticeHours },
-    });
-    // Its evidence emailed to the strikes team (src/lib/strikes/evidence.ts).
-    await recordEvent(tx, {
-      actorType: "system",
-      action: "strike.evidence_sent",
-      entityType: "strike",
-      entityId: s.id,
-      data: { request: `strike-evidence:${s.id}`, attempt: 1 },
-    });
-    if (s.withdrawn) {
-      await recordEvent(tx, {
-        actorType: "office",
-        actorId: resourcer,
-        action: "strike.withdrawn",
+    log.add(
+      {
+        actorType: "system",
+        action: "strike.issued",
         entityType: "strike",
         entityId: s.id,
-        data,
-      });
+        data: { ...data, noticeHours: s.noticeHours, thresholdHours: strikeRules.noticeHours },
+      },
+      s.issuedAt,
+    );
+    // Its evidence emailed to the strikes team (src/lib/strikes/evidence.ts), as the row says.
+    log.add(
+      {
+        actorType: "system",
+        action: "strike.evidence_sent",
+        entityType: "strike",
+        entityId: s.id,
+        data: { request: `strike-evidence:${s.id}`, attempt: 1 },
+      },
+      new Date(s.issuedAt.getTime() + 2 * 60_000),
+    );
+    if (s.withdrawn) {
+      log.add(
+        {
+          actorType: "office",
+          actorId: resourcer,
+          action: "strike.withdrawn",
+          entityType: "strike",
+          entityId: s.id,
+          data,
+        },
+        s.withdrawn.at,
+      );
     }
   }
 
@@ -568,22 +652,28 @@ export async function loadStory(
       resolutionNote: q.note,
       createdAt: q.createdAt,
     });
-    await recordEvent(tx, {
-      actorType: "worker",
-      actorId: q.workerId,
-      action: "pay_query.created",
-      entityType: "pay_query",
-      entityId: q.id,
-      data: { issueType: q.issue, shiftId: q.shiftId, workDate: q.workDate, groupKey },
-    });
-    await recordEvent(tx, {
-      actorType: "office",
-      actorId: payroll,
-      action: "pay_query.resolved",
-      entityType: "pay_query",
-      entityId: q.id,
-      data: { workerId: q.workerId, previous: "open", withNote: true },
-    });
+    log.add(
+      {
+        actorType: "worker",
+        actorId: q.workerId,
+        action: "pay_query.created",
+        entityType: "pay_query",
+        entityId: q.id,
+        data: { issueType: q.issue, shiftId: q.shiftId, workDate: q.workDate, groupKey },
+      },
+      q.createdAt,
+    );
+    log.add(
+      {
+        actorType: "office",
+        actorId: payroll,
+        action: "pay_query.resolved",
+        entityType: "pay_query",
+        entityId: q.id,
+        data: { workerId: q.workerId, previous: "open", withNote: true },
+      },
+      q.resolvedAt,
+    );
   }
 
   // Zoe's and Ben's pay lines, as payroll's file gives them (Phase 24: the mock-up's Pay). Added
@@ -605,7 +695,7 @@ export async function loadStory(
           id: m.id,
           firmId,
           direction: "in" as const,
-          channel: "whatsapp" as const,
+          channel: "sms" as const,
           providerMessageId: `seed-story-${m.workerKey}`,
           fromE164: w.mobileE164,
           toE164: STORY_LINE,

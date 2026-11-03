@@ -26,7 +26,5 @@ export function lineWords(e164: string): string {
 
 // The office dashboard's line.
 export function shiftsLineText(e164: string | null): string {
-  return e164
-    ? `Your shifts line: ${lineWords(e164)} (WhatsApp, text and calls).`
-    : "No shifts line yet.";
+  return e164 ? `Your shifts line: ${lineWords(e164)} (texts and calls).` : "No shifts line yet.";
 }

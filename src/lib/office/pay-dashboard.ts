@@ -7,6 +7,7 @@ import type { FirmTx } from "../db/scoped";
 import { loadDigestStatus, type DigestStatus } from "../pay/digest";
 import { digestSchedule, nextDigestAt, type DigestSchedule } from "../pay/digest-schedule";
 import { payCalendar, payPeriod, payPeriodName, payPeriodNow } from "../pay/calendar";
+import { nextPayFor, recordWindow, type NextPay } from "../pay/next-pay";
 import type { PayIssue } from "../portal/pay-query-kinds";
 import { localDateOf, zonedToUtc } from "../time/zoned";
 import { loadPayQueryGroups, type PayQueryGroup } from "./pay-query-groups";
@@ -37,8 +38,9 @@ export interface PayDashboard {
   digest: { schedule: DigestSchedule; status: DigestStatus; next: Date | null };
   sortedThisWeek: number;
   weekStart: string; // this pay period's first day, firm-local (yyyy-mm-dd): "sorted" since then
-  nextPayDate: string; // yyyy-mm-dd
-  nextPayDateFrom: "pay records" | "pay week"; // imported pay dates, or this period's pay day
+  // The first pay day not yet past and which shifts it pays (Phase 26.10, fix-1): from the pay
+  // records where they date it, else the firm's pay calendar.
+  nextPay: NextPay;
   // The firm's pay period now (P3.1; Phase 25.2): "Week 44" or "Cycle 22", its dates and pay day.
   period: { name: string; label: "week" | "cycle"; start: string; end: string; payDay: string };
   groups: PayQueryGroup[]; // the biggest few
@@ -64,15 +66,25 @@ export async function loadPayDashboard(tx: FirmTx, now: Date = new Date()): Prom
     waiting: number;
     oldest: string | null;
     sorted: number;
-    pay_date: string | null;
   }>(sql`
     select
       (select count(*)::int from pay_queries where status in ('open', 'in_digest')) as waiting,
       (select min(created_at)::text from pay_queries where status in ('open', 'in_digest')) as oldest,
       (select count(*)::int from pay_queries
-        where status = 'resolved' and resolved_at >= ${weekStart.toISOString()}::timestamptz) as sorted,
-      (select min(pay_date)::text from pay_records where pay_date >= ${today}::date) as pay_date`);
+        where status = 'resolved' and resolved_at >= ${weekStart.toISOString()}::timestamptz) as sorted`);
   const c = counts[0];
+
+  // The pay records' pay dates the next pay day needs (src/lib/pay/next-pay.ts): last period's and
+  // this one's, and any from today on, per period start.
+  const window = recordWindow(today, calendar);
+  const { rows: recorded } = await tx.execute<{ start: string; next: string | null }>(sql`
+    select period_start::text as start,
+           (min(pay_date) filter (where pay_date >= ${today}::date))::text as next
+      from pay_records
+     where pay_date is not null
+       and (pay_date >= ${today}::date
+            or period_start between ${window.from}::date and ${window.to}::date)
+     group by period_start`);
 
   const { rows: sortings } = await tx.execute<{
     by_name: string | null;
@@ -102,8 +114,7 @@ export async function loadPayDashboard(tx: FirmTx, now: Date = new Date()): Prom
     },
     sortedThisWeek: c?.sorted ?? 0,
     weekStart: period.start,
-    nextPayDate: c?.pay_date ?? period.payDay,
-    nextPayDateFrom: c?.pay_date ? "pay records" : "pay week",
+    nextPay: nextPayFor(today, calendar, recorded),
     period: {
       name: payPeriodName(period),
       label: period.label,

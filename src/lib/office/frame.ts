@@ -1,3 +1,4 @@
+import { loadUpdatesBell, type UpdatesBell } from "./updates";
 import { sql } from "drizzle-orm";
 import { systemClock } from "../auth/clock";
 import { canAccess, type OfficeArea, type OfficeRole } from "../auth/roles";
@@ -20,6 +21,7 @@ export interface OfficeFrame {
   needPerson: Part<number> | null; // enquiries that need a person (Enquiries)
   needs: { timeZone: string; today: string; needs: Part<NeedsAttention> } | null; // (dashboard)
   shell: Part<ShellCounts> | null; // the top bar's sessions (Events & sessions)
+  updates: Part<UpdatesBell> | null; // the bell and the pop-up (Phase 26.4: admins, resourcers)
 }
 
 const NO_FRAME: OfficeFrame = {
@@ -28,6 +30,7 @@ const NO_FRAME: OfficeFrame = {
   needPerson: null,
   needs: null,
   shell: null,
+  updates: null,
 };
 
 export async function loadOfficeFrame(ctx: OfficeContext): Promise<OfficeFrame> {
@@ -50,6 +53,9 @@ export async function loadOfficeFrame(ctx: OfficeContext): Promise<OfficeFrame> 
         : null,
       needs: may("today") ? await needsOf(tx, now) : null,
       shell: may("shifts") ? await part(tx, "shell", (sp) => loadShellCounts(sp, now)) : null,
+      updates: may("today")
+        ? await part(tx, "updates bell", (sp) => loadUpdatesBell(sp, now, ctx.officeUserId))
+        : null,
     };
   });
 }

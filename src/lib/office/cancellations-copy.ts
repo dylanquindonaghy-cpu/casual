@@ -19,7 +19,7 @@ import { csvCell } from "./notice-report";
 // reasons keep their fixed words; anything else the office typed reads "Office's own reason (see
 // ShiftDesk)". The real reason is on the record's page only (admins and resourcers).
 
-export const CANCELLATION_VIEWS = ["all", "under", "office"] as const;
+export const CANCELLATION_VIEWS = ["all", "under", "strikes", "office"] as const;
 export type CancellationView = (typeof CANCELLATION_VIEWS)[number];
 
 export const CASUAL_OWN_REASON = "Casual's own reason (see ShiftDesk)";
@@ -99,6 +99,10 @@ export interface CancellationRow {
   strike: {
     status: "live" | "withdrawn";
     expiresAt: Date;
+    // "Strike 2 issued" (Phase 26.8): how many of the casual's strikes counted when it was issued,
+    // it included; and whether it still counts (live and not past its date).
+    number?: number;
+    counting?: boolean;
     reviewNeeded: boolean;
     // Who withdrew it, when and why (the reason: on screen only, never in the PDF or CSV), and who
     // kept it after a review (12C.5).
@@ -136,14 +140,148 @@ const dash = (v: string | null | undefined) => (v && v.trim() ? v : "—");
 export const VIEW_WORDS: Record<CancellationView, (threshold: number) => string> = {
   all: () => "All",
   under: (threshold) => `Under ${threshold} hours`,
+  strikes: () => "Strikes",
   office: () => "By the office",
 };
 
 export const VIEW_EMPTY: Record<CancellationView, string> = {
   all: "No cancellations yet.",
   under: "No cancellations at short notice.",
+  strikes: "No strikes issued yet.",
   office: "The office hasn't cancelled anyone.",
 };
+
+// Round 8 (Phase 26.8; docs/screens.md "Cancellations, round 8"): the four counts (can-3), the
+// notice chip and the strike badge (can-2), and the list's "Cancelled" line.
+
+export const RED_ROWS = (threshold: number) => `Red rows had under ${threshold} hours' notice.`;
+
+export interface CountTile {
+  label: string;
+  value: number;
+  line: string;
+  urgent: boolean; // red when it isn't 0
+}
+
+export function countTiles(
+  c: {
+    week: { byCasuals: number; byOffice: number; strikes: number; under: number };
+    overall: { under: number; liveStrikes: number; last8: number; last8Under: number };
+  },
+  threshold: number,
+): CountTile[] {
+  return [
+    {
+      label: "This week",
+      value: c.week.byCasuals + c.week.byOffice,
+      line: weekCountsText(c.week).cancellations,
+      urgent: false,
+    },
+    {
+      label: `Under ${threshold} hours' notice`,
+      value: c.week.under,
+      line: `This week · ${c.overall.under} in all`,
+      urgent: c.week.under > 0,
+    },
+    {
+      label: "Strikes issued",
+      value: c.week.strikes,
+      line: `This week · ${c.overall.liveStrikes} counting now`,
+      urgent: false,
+    },
+    {
+      label: "Last 8 weeks",
+      value: c.overall.last8,
+      line: `Cancellations, ${c.overall.last8Under} under ${threshold} hours`,
+      urgent: false,
+    },
+  ];
+}
+
+// The Notice column's chip: "6 hours", "3 days" (noticeText without "notice").
+export function noticeShort(hours: number): string {
+  if (hours < 1) return "less than an hour";
+  if (hours >= 48) return `${Math.floor(hours / 24)} days`;
+  const whole = Math.floor(hours);
+  return whole === 1 ? "1 hour" : `${whole} hours`;
+}
+
+export type StrikeBadge =
+  | { kind: "issued"; text: string; line: string; review: boolean }
+  | { kind: "withdrawn"; text: string }
+  | { kind: "none"; text: string };
+
+// Why there's no strike, after "No strike · ".
+const NO_STRIKE_WHY: Record<Exclude<StrikeCode, "issued">, string> = {
+  by_firm: "the office cancelled",
+  strikes_off: "strikes are off",
+  enough_notice: "enough notice",
+  booked_by_office: "booked by the office",
+  rules_override: "booked over a rest or hours rule",
+  changed_after_booking: "the office changed it after booking",
+};
+
+function firmWhy(by: CancellationRow["by"]): string {
+  if (by === "planner") return "your planner cancelled";
+  if (by === "sheet") return "cancelled on the rota sheet";
+  return NO_STRIKE_WHY.by_firm;
+}
+
+export function strikeBadge(
+  r: Pick<CancellationRow, "strike" | "strikeCode" | "by">,
+  tz: string,
+): StrikeBadge {
+  const s = r.strike;
+  if (s) {
+    if (s.status === "withdrawn") return { kind: "withdrawn", text: "Strike withdrawn" };
+    const day = dayLabel(localDateOf(s.expiresAt, tz));
+    return {
+      kind: "issued",
+      text: `Strike ${s.number ?? 1} issued`,
+      line: s.counting === false ? `Stopped counting ${day}` : `Counts until ${day}`,
+      review: s.reviewNeeded,
+    };
+  }
+  if (r.by !== "casual") return { kind: "none", text: `No strike · ${firmWhy(r.by)}` };
+  if (!r.strikeCode || r.strikeCode === "issued") {
+    return { kind: "none", text: "No strike · from before strikes" };
+  }
+  const why = r.strikeCode === "by_firm" ? firmWhy(r.by) : NO_STRIKE_WHY[r.strikeCode];
+  return { kind: "none", text: `No strike · ${why}` };
+}
+
+const lowerFirst = (t: string) => t.charAt(0).toLowerCase() + t.slice(1);
+
+// "09:06 Mon 2 Nov · in the app", "… · by the office (Sam Rota) · weather or safety": the firm's
+// reason only when it's one of the office's fixed reasons, never a casual's.
+export function cancelledLine(
+  r: Pick<CancellationRow, "by" | "via" | "officeName" | "reason" | "cancelledAt">,
+  tz: string,
+): string {
+  const at = `${hhmm(r.cancelledAt, tz)} ${dayLabel(localDateOf(r.cancelledAt, tz))}`;
+  const parts = [at, lowerFirst(howText(r))];
+  const officeReason =
+    r.by !== "casual" &&
+    r.via !== "sheet" &&
+    r.reason !== FIRM_CHANGE_REASONS.other &&
+    (Object.values(FIRM_CHANGE_REASONS) as string[]).includes(r.reason);
+  if (officeReason) parts.push(lowerFirst(r.reason));
+  return parts.join(" · ");
+}
+
+// "Steward · Riverside Demo Park · Thu 5 Nov 14:00"
+export function sessionLine(
+  r: Pick<CancellationRow, "role" | "siteName" | "startsAt">,
+  tz: string,
+): string {
+  return [
+    roleLabel(r.role),
+    r.siteName,
+    `${dayLabel(localDateOf(r.startsAt, tz))} ${hhmm(r.startsAt, tz)}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
 
 // This week's counts: "9 by casuals · 2 by the office" and "3 strikes issued".
 export function weekCountsText(c: { byCasuals: number; byOffice: number; strikes: number }): {

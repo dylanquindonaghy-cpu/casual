@@ -39,6 +39,7 @@ import {
 } from "@/lib/portal/qualification-copy";
 import { PHOTO_GUIDANCE, PHOTO_TONES, PHOTO_WORDS, photoDates } from "@/lib/portal/upload-copy";
 import { shortDate } from "@/lib/rules/reasons";
+import { countsWords, reliabilityWords, type Reliability } from "@/lib/rules/reliability";
 import { addDays } from "@/lib/time/zoned";
 import { WhatHappened } from "../shifts/cancel-shift-result";
 import { AvailabilityForm } from "./availability-form";
@@ -53,9 +54,25 @@ import { UploadForm } from "./upload-form";
 // certificate" for the ones I may upload), where I work (12G.1), my strikes (12C.5), days I can't
 // work, and how we reach me. One card per section.
 
-// A worker who replied STOP to a text (docs/screens.md `/profile`): texts are off until START.
-export const TEXTS_OFF =
-  "Texts are off: you replied STOP to one of our texts. We'll send shift messages by WhatsApp. To turn texts back on, text START to our number.";
+// A worker who replied STOP to a text (docs/screens.md `/profile`): texts are off until START, so
+// shift messages go by email if we hold their address, else only as notifications (Phase 26.9).
+export function textsOffText(email: string | null): string {
+  const how = email
+    ? `We'll email shift messages to ${email}.`
+    : "We can only reach you by notifications on your phone.";
+  return `Texts are off: you replied STOP to one of our texts. ${how} To turn texts back on, text START to our number.`;
+}
+
+// How a message goes when no notification reaches their phone (Phase 26.9): their choice (a text,
+// or an email while we hold their address); an email instead of a text when there's no text sender
+// or they replied STOP; else no other way.
+export function otherWayOf(
+  textSender: boolean,
+  p: { notifyChannel: "sms" | "email"; email: string | null; textsOff: boolean },
+): "text" | "email" | "none" {
+  if (p.email && (p.notifyChannel === "email" || !textSender || p.textsOff)) return "email";
+  return textSender && !p.textsOff ? "text" : "none";
+}
 
 // "07700 900123" from "+447700900123"; other numbers as stored.
 export const ukMobile = (e164: string) =>
@@ -68,18 +85,24 @@ export function ProfileView({
   strikes = null,
   travel = null,
   loginWay = "message",
+  textSender: textSenderProp,
 }: {
   profile: Profile;
   signOff: string;
-  // How their login links and codes go (P2.7; src/lib/portal/login-way.ts): anything but "message"
-  // means there's no text sender, so "How we reach you" has no WhatsApp or text.
+  // How their login links and codes go (P2.7; src/lib/portal/login-way.ts): their own case (Phase
+  // 26.9: not by text after STOP).
   loginWay?: LoginWay;
+  // Whether there's a text sender at all (src/lib/portal/login-way.ts hasTextSender): without one,
+  // "How we reach you" has no text to choose and no STOP note. Not their login way: a casual who
+  // replied STOP has no text login way, but texts exist and the note must show. Defaults to the
+  // login way, for callers that don't say.
+  textSender?: boolean;
   push?: { publicKey: string | null; firmName: string } | null;
   strikes?: MyStrikes | null;
   travel?: MyTravel | null;
 }) {
   const year = Number(profile.today.slice(0, 4));
-  const textSender = loginWay === "message";
+  const textSender = textSenderProp ?? loginWay === "message";
   return (
     <>
       <PageHeader title={`${profile.firstName} ${profile.lastName}`} />
@@ -209,6 +232,8 @@ export function ProfileView({
         </section>
       )}
 
+      {profile.reliability && <ReliabilitySection reliability={profile.reliability} />}
+
       {/* With strikes off and none given before, there's nothing to say (P3.4). */}
       {strikes && (strikes.enabled || strikes.strikes.length > 0) && (
         <StrikesSection strikes={strikes} />
@@ -239,7 +264,7 @@ export function ProfileView({
             role="note"
             className={`${headingGap} rounded-lg border border-attention bg-attention-soft p-3`}
           >
-            {TEXTS_OFF}
+            {textsOffText(profile.email)}
           </p>
         )}
         <NotificationForm
@@ -247,6 +272,7 @@ export function ProfileView({
           offerAlerts={profile.offerAlerts}
           textsOff={profile.textsOff}
           loginWay={loginWay}
+          textSender={textSender}
           email={profile.email}
           signOff={signOff}
         />
@@ -254,7 +280,7 @@ export function ProfileView({
           <PushSetting
             publicKey={push.publicKey}
             firmName={push.firmName}
-            otherWay={textSender ? "text" : profile.email ? "email" : "none"}
+            otherWay={otherWayOf(textSender, profile)}
           />
         )}
       </section>
@@ -342,6 +368,38 @@ function StrikesSection({ strikes }: { strikes: MyStrikes }) {
           ))}
         </ul>
       )}
+    </section>
+  );
+}
+
+// Their own reliability (Phase 26.7, cas-6): the same figure and counts the office sees.
+function ReliabilitySection({ reliability }: { reliability: Reliability }) {
+  return (
+    <section aria-labelledby="reliability-heading" className={`${staffCard} ${sectionGap.staff}`}>
+      <h2 id="reliability-heading" className={h2}>
+        Your reliability
+      </h2>
+      <p className={`${headingGap} text-lg`}>
+        {reliability.kind === "figure" ? (
+          <>
+            <span className="font-semibold">{reliabilityWords(reliability)}</span> over the last 90
+            days
+          </>
+        ) : (
+          <>
+            <span className="font-semibold">{reliabilityWords(reliability)}</span>. It shows as a
+            figure once you have 5.
+          </>
+        )}
+      </p>
+      <p className="mt-1 text-base text-ink-muted tabular-nums">
+        {countsWords(reliability.counts)}
+      </p>
+      <p className="mt-2 text-base">
+        Shifts you worked, out of those plus no-shows and cancellations with under 48 hours&apos;
+        notice. Our office sees the same figure. It doesn&apos;t change which shifts you&apos;re
+        offered.
+      </p>
     </section>
   );
 }

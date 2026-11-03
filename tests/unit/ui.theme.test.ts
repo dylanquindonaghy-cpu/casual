@@ -72,12 +72,13 @@ describe("colours: tokens only", () => {
     expect(found).toEqual([]);
     // In the CSS, a colour value only defines a token (Phase 24): a colour token (#rrggbb, or
     // rgb(r g b / a) for the glass), or one of the glass's own variables (its rims, drops and
-    // gradients' ends, the wash's lights, the bar's edge), in a theme's block or a fallback's.
+    // gradients' ends, the wash's lights, the bar's edge; round 8's office: the main button's glow
+    // switched off and the street map's two lines), in a theme's block or a fallback's.
     // Read declaration by declaration, since a long one wraps onto several lines.
     const css = read("src/app/globals.css");
     const hasColour = new RegExp(HEX.source, "i");
     const GLASS_VARS =
-      "glass-rim|glass-drop|glass-drop-sm|glass-sunk|float-shadow|tile-top|tile-bottom|button-top|button-bottom|button-rim|tint-rim|lens-shadow|edge-fill|wash-[a-d]|band-from|band-to";
+      "glass-rim|glass-drop|glass-drop-sm|glass-sunk|float-shadow|tile-top|tile-bottom|button-top|button-bottom|button-rim|tint-rim|tint-glow|lens-shadow|edge-fill|wash-[a-d]|band-from|band-to|map-line|map-road";
     const tokens = new RegExp(
       String.raw`^\s*--(?:color-[a-z-]+: (?:#[0-9a-f]{6}|rgb\(\d+ \d+ \d+ \/ [\d.]+\))|(?:${GLASS_VARS}):[^;]+);`,
       "gm",
@@ -106,8 +107,9 @@ describe("colours: tokens only", () => {
 });
 
 describe("one type scale", () => {
-  // Round 7's sizes (Phase 24): the casual app's 12, 14, 16, 18, 20, 28 and 44px; the office's
-  // (body:has([data-office])) 13, 15, 17, 30 and 40px in place of 14, 16, 18, 28 and 44.
+  // Round 7's sizes (Phase 24): the casual app's 12, 14, 16, 18, 20, 28 and 44px. Round 8's office
+  // (Phase 26, the pre-build audit's aud-3; body:has([data-office])): 13, 14, 16 and 30px in place
+  // of 14, 16, 18 and 28 (its 40px stays defined; no office page uses it: below).
   const sizes = (block: string) =>
     Object.fromEntries(
       [...block.matchAll(/--text-([a-z0-9]+): ([\d.]+)rem;/g)].map((m) => [
@@ -115,7 +117,7 @@ describe("one type scale", () => {
         Number(m[2]) * 16,
       ]),
     );
-  it("the only sizes are 12, 14, 16, 18, 20, 28 and 44px; the office's 12, 13, 15, 17, 20, 30 and 40px", () => {
+  it("the only sizes are 12, 14, 16, 18, 20, 28 and 44px; the office's 12, 13, 14, 16, 20, 30 (and 40) px", () => {
     const css = read("src/app/globals.css");
     const theme = css.match(/@theme\s*\{([^}]*)\}/)?.[1] ?? "";
     expect(theme).toContain("--text-*: initial;");
@@ -129,12 +131,12 @@ describe("one type scale", () => {
       "4xl": 44,
     });
     const office = css.match(/body:has\(\[data-office\]\) \{([^}]*)\}/)?.[1] ?? "";
-    expect(sizes(office)).toEqual({ sm: 13, base: 15, lg: 17, "3xl": 30, "4xl": 40 });
+    expect(sizes(office)).toEqual({ sm: 13, base: 14, lg: 16, "3xl": 30, "4xl": 40 });
     expect({ ...sizes(theme), ...sizes(office) }).toEqual({
       xs: 12,
       sm: 13,
-      base: 15,
-      lg: 17,
+      base: 14,
+      lg: 16,
       "2xl": 20,
       "3xl": 30,
       "4xl": 40,
@@ -203,6 +205,8 @@ describe("the font", () => {
     expect(sources).toEqual([
       "../../node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2",
       "../../node_modules/@fontsource-variable/geist/files/geist-latin-ext-wght-normal.woff2",
+      // Geist Mono's latin face, for references, IDs and keys (round 8, sys-6).
+      "../../node_modules/@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2",
     ]);
     for (const src of sources)
       expect(statSync(join(ROOT, "src/app", src!)).size).toBeGreaterThan(5000);
@@ -222,6 +226,8 @@ describe("the font", () => {
     // 20's Instrument Sans and Serif and Phase 23's Plus Jakarta Sans).
     const pkg = JSON.parse(read("package.json")) as { dependencies: Record<string, string> };
     expect(pkg.dependencies["@fontsource-variable/geist"]).toBe("5.3.0");
+    // And Geist Mono, for references, IDs and keys (round 8, sys-6).
+    expect(pkg.dependencies["@fontsource-variable/geist-mono"]).toBe("5.3.0");
     for (const old of [
       "@fontsource-variable/public-sans",
       "@fontsource/barlow-condensed",
@@ -236,9 +242,13 @@ describe("the font", () => {
     expect(
       SOURCE.filter((f) => /instrument[- ]?(?:sans|serif)|plus[- ]?jakarta/i.test(read(f))),
     ).toEqual([]);
-    // Only the latin face is fetched before it's needed; both on <html>, the error screen's too.
-    expect(fonts.match(/preload: false/g)).toHaveLength(1);
-    expect(fonts).toMatch(/export const fontVariables = \[geist, geistExt\]/);
+    // Only the latin face is fetched before it's needed (latin-ext and the mono wait); all three on
+    // <html>, the error screen's too.
+    expect(fonts.match(/preload: false/g)).toHaveLength(2);
+    expect(fonts).toMatch(/export const fontVariables = \[geist, geistExt, geistMono\]/);
+    expect(read("src/app/globals.css")).toMatch(
+      /--font-mono: var\(--font-geist-mono\), ui-monospace,/,
+    );
     expect(read("src/app/layout.tsx")).toContain("className={fontVariables}");
     expect(read("src/app/global-error.tsx")).toContain("className={fontVariables}");
     // Words in Geist, and every one of its uses: the sign figures in its semibold with fixed-width

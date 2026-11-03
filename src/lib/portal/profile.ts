@@ -1,3 +1,5 @@
+import { loadCasualRecords } from "../office/reliability";
+import type { Reliability } from "../rules/reliability";
 import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
 import { systemClock } from "../auth/clock";
 import { qualificationsFor } from "../credentials/qualifications";
@@ -47,6 +49,8 @@ export interface Profile {
   photo: StaffPhoto; // her staff photo (12F.2)
   unavailable: { day: string; booked: boolean }[];
   today: string;
+  // Phase 26.7 (cas-6): their own reliability over the last 90 days, as the office sees it.
+  reliability?: Reliability; // always set by myProfile; left out by the pages' own fixtures
 }
 
 // Which of the firm-local days have a confirmed booking of the worker's on a shift touching them
@@ -114,6 +118,11 @@ export async function myProfile(ctx: Ctx, workerId: string): Promise<Profile | n
       photo: held?.photo ?? { status: "missing", current: null, waiting: null },
       unavailable: days.map(({ day }) => ({ day, booked: booked.has(day) })),
       today,
+      reliability: (await loadCasualRecords(tx, now, [workerId])).get(workerId)?.reliability ?? {
+        kind: "new",
+        counted: 0,
+        counts: { worked: 0, noShows: 0, lateCancels: 0 },
+      },
     };
   });
 }
@@ -190,11 +199,20 @@ export async function setNotificationSettings(
   const run = ctx.run ?? withFirm;
   return run(ctx.firm.id, async (tx) => {
     const [before] = await tx
-      .select({ notifyChannel: workers.notifyChannel, offerAlerts: workers.offerAlerts })
+      .select({
+        notifyChannel: workers.notifyChannel,
+        offerAlerts: workers.offerAlerts,
+        email: workers.email,
+      })
       .from(workers)
       .where(eq(workers.id, workerId))
       .for("no key update");
     if (!before) return { status: "invalid" };
+    // Email only while the firm holds their address (Phase 26.9): the page offers it only then. A
+    // choice of email kept from before the address went isn't refused (only alerts may be changing).
+    if (channel === "email" && !before.email && before.notifyChannel !== "email") {
+      return { status: "invalid" };
+    }
     if (before.notifyChannel === channel && before.offerAlerts === settings.offerAlerts) {
       return { status: "saved" };
     }

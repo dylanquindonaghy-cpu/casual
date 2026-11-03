@@ -21,6 +21,7 @@ import {
 import { createWithFirm } from "../../src/lib/db/scoped";
 import { eraseWorker } from "../../src/lib/gdpr/worker-erase";
 import type { FirmTx } from "../../src/lib/db/scoped";
+import { setCasualsAsk } from "../../src/lib/office/casuals-ask";
 import { bookShift } from "../../src/lib/roster/book";
 import { cancelBooking } from "../../src/lib/roster/cancel";
 import { automaticEventId, createNamedEvent } from "../../src/lib/roster/shift-events";
@@ -187,6 +188,9 @@ export async function addEventWithSession(
     daysAhead: number;
     hours?: number;
     urgent?: boolean;
+    // Where its venue is (round 8's map, Phase 26.2): none by default, as a venue with no postcode.
+    point?: { lat: number; lng: number };
+    headcount?: number; // its places (1 by default)
   },
 ): Promise<{ eventId: string; shiftId: string }> {
   const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
@@ -199,7 +203,11 @@ export async function addEventWithSession(
     return await createWithFirm(pool)(firmId, async (tx) => {
       const [site] = await tx
         .insert(sites)
-        .values({ firmId, name: o.site })
+        .values({
+          firmId,
+          name: o.site,
+          ...(o.point ? { lat: o.point.lat.toFixed(6), lng: o.point.lng.toFixed(6) } : {}),
+        })
         .returning({ id: sites.id });
       if (!site) throw new Error("site insert returned nothing");
       const eventId = await createNamedEvent(tx, { name: o.name, siteId: site.id });
@@ -212,7 +220,7 @@ export async function addEventWithSession(
           role: o.role,
           startsAt,
           endsAt: new Date(startsAt.getTime() + (o.hours ?? 8) * 3_600_000),
-          headcount: 1,
+          headcount: o.headcount ?? 1,
           status: "open",
           isUrgent: o.urgent ?? false,
           source: "native",
@@ -293,6 +301,26 @@ export async function addOfficeUser(
         .values({ firmId, email: o.email, name: o.name, role: o.role })
         .onConflictDoNothing(),
     );
+  } finally {
+    await pool.end();
+  }
+}
+
+// When the office user with `email` last opened Updates (Phase 26.4; null: never), as the page's
+// own marker wrote it.
+export async function updatesSeenAt(slug: string, email: string): Promise<Date | null> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const firmId = seedId(`firm/${slug}`);
+    const [me] = await createWithFirm(pool)(firmId, (tx) =>
+      tx
+        .select({ at: officeUsers.updatesSeenAt })
+        .from(officeUsers)
+        .where(eq(officeUsers.email, email)),
+    );
+    return me?.at ?? null;
   } finally {
     await pool.end();
   }
@@ -444,6 +472,31 @@ export async function workerName(slug: string, mobileE164: string): Promise<stri
       if (!row) throw new Error(`no worker with ${mobileE164}`);
       return `${row.first} ${row.last}`;
     });
+  } finally {
+    await pool.end();
+  }
+}
+
+// A drama-range number from 07700 900`from` to 900`to` that no casual of the firm has, in the e2e
+// database: a stranger for the shifts line. Other specs add casuals in that range (casual.messages'
+// Kay on 900972, office.inbox's Ira on 900971), so the range alone doesn't make a number unknown.
+export async function unusedMobile(slug: string, from: number, to: number): Promise<string> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const firmId = seedId(`firm/${slug}`);
+    const held = await createWithFirm(pool)(firmId, async (tx) => {
+      const rows = await tx
+        .select({ mobile: workers.mobileE164 })
+        .from(workers)
+        .where(like(workers.mobileE164, "+447700900%"));
+      return new Set(rows.map((r) => r.mobile));
+    });
+    const free = Array.from({ length: to - from + 1 }, (_, i) => `+447700900${from + i}`).filter(
+      (m) => !held.has(m),
+    );
+    const pick = free[Math.floor(Math.random() * free.length)];
+    if (!pick) throw new Error(`every number 900${from}-900${to} is a casual's`);
+    return pick;
   } finally {
     await pool.end();
   }
@@ -601,6 +654,33 @@ export async function bookAndCancel(
     if (cancelled.status !== "cancelled") throw new Error(`not cancelled: ${cancelled.status}`);
     const { assignmentId } = cancelled;
     return { ref: assignmentId.slice(0, 8).toUpperCase(), assignmentId };
+  } finally {
+    await pool.end();
+  }
+}
+
+// A spec's casual books its own session through the real code; then the spec's office user switches
+// on "Casuals ask, you choose" for the event (as the session's page does), so the session's page
+// opens on "Asked for it" (Phase 26.5's booked tile must still land on the booking).
+export async function bookThenCasualsAsk(
+  slug: string,
+  o: { shiftId: string; workerId: string; eventId: string; officeEmail: string },
+): Promise<void> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const run = createWithFirm(pool);
+    const firmId = seedId(`firm/${slug}`);
+    const by = { type: "worker" as const, id: o.workerId };
+    const booked = await bookShift(run, firmId, { shiftId: o.shiftId, workerId: o.workerId, by });
+    if (booked.status !== "booked") throw new Error(`not booked: ${booked.status}`);
+    const officeUserId = await officeUserByEmail(run, firmId, o.officeEmail);
+    const on = await setCasualsAsk(
+      { firm: { id: firmId }, officeUserId, run },
+      { eventId: o.eventId, on: true },
+    );
+    if (on.status !== "on") throw new Error(`casuals ask not on: ${on.status}`);
   } finally {
     await pool.end();
   }

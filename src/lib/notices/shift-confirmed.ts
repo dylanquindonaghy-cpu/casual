@@ -38,7 +38,7 @@ import { localDateOf, wallTimeOf } from "../time/zoned";
 // At most once, like the office's change notices (src/lib/notices/firm-change.ts): a short
 // transaction claims it (the shift.booked_notice event, under an advisory lock on the booking) and
 // commits; the message goes outside any transaction (shift_confirmed: a push to their phones, else
-// by their channel with the WhatsApp-to-text fallback, else email: deliverToWorker, P2.4); a second
+// their chosen text or email, else email when no text can go: deliverToWorker, P2.4); a second
 // short transaction logs shift.booked_notice_sent or _failed. A job that stops part-way leaves the claim: the message may
 // have gone, so it's never sent again.
 //

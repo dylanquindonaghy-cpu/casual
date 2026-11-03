@@ -1,0 +1,394 @@
+<title>ShiftDesk UI changes</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* One deliberate look: round 8's own dark charcoal and hi-vis, so the page reads like the office it
+   describes. Layout: a reading column of screens, each a before/after stage and its editable list. */
+:root {
+  --g0: #0d0d0e; --g1: #141415; --p1: #1b1b1d; --p2: #232325; --p3: #2c2c2f;
+  --edge: #29292c; --edge2: #38383c;
+  --ink: #f4f4f3; --muted: #a8a8ad; --faint: #8f8f94;
+  --hv: #e9f86f; --on-hv: #171800;
+  --red: #ff8a80; --red-bg: #3a1a19; --amb: #f2b55a; --amb-bg: #33260f; --grn: #8fe28c; --grn-bg: #15291a;
+  --sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--g0); color: var(--ink); font: 15px/1.55 var(--sans); }
+.wrap { max-width: 1240px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 96px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; }
+h1, h2, h3 { margin: 0; line-height: 1.2; letter-spacing: -0.015em; text-wrap: balance; }
+h1 { font-size: 32px; font-weight: 600; } h2 { font-size: 22px; font-weight: 600; } h3 { font-size: 16px; font-weight: 600; }
+p { margin: 0; }
+.read { max-width: 760px; }
+.muted { color: var(--muted); } .faint { color: var(--faint); } .small { font-size: 13px; }
+code { font-family: var(--mono); font-size: 0.85em; background: var(--p2); border-radius: 6px; padding: 1px 6px; }
+.lede { font-size: 17px; color: var(--muted); margin-top: 8px; }
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: color-mix(in srgb, var(--g0) 92%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid var(--edge); padding-block: 10px; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; justify-content: space-between; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 21; background: var(--g0); }
+.counts { display: flex; gap: 8px; flex-wrap: wrap; }
+.cnt { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 999px; background: var(--p2); border: 1px solid var(--edge); font-size: 13px; color: var(--muted); white-space: nowrap; }
+.cnt b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.cnt.change b { color: var(--amb); } .cnt.drop b { color: var(--red); } .cnt.added b { color: var(--hv); }
+.state { font-size: 13px; color: var(--faint); }
+.toc { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; flex: 1 1 100%; min-width: 0; -webkit-mask-image: linear-gradient(to right, #000 92%, transparent); mask-image: linear-gradient(to right, #000 92%, transparent); }
+.toc a { white-space: nowrap; color: var(--muted); text-decoration: none; font-size: 13px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--edge); }
+.toc a:hover, .toc a:focus-visible { color: var(--ink); border-color: var(--edge2); }
+.intro { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; }
+.card { background: var(--p1); border: 1px solid var(--edge); border-radius: 18px; padding: 18px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.card ol, .card ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.howto li b { color: var(--ink); }
+section.screen { display: grid; gap: 14px; scroll-margin-top: 120px; }
+.shead { display: flex; flex-wrap: wrap; gap: 10px 18px; justify-content: space-between; align-items: end; }
+.shead .route { font-family: var(--mono); font-size: 12px; color: var(--faint); }
+.seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--p1); border: 1px solid var(--edge); border-radius: 999px; }
+.seg button { font: 500 13px var(--sans); color: var(--muted); background: transparent; border: 0; border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--p3); color: var(--ink); }
+.seg button:focus-visible, .st button:focus-visible, .lnk:focus-visible, textarea:focus-visible, .add:focus-visible { outline: 2px solid var(--hv); outline-offset: 2px; }
+.ba { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.ba.phone { grid-template-columns: repeat(2, minmax(0, 300px)); justify-content: start; }
+figure { margin: 0; display: grid; gap: 6px; min-width: 0; }
+figcaption { font-size: 12.5px; color: var(--faint); display: flex; justify-content: space-between; gap: 8px; }
+figcaption b { color: var(--muted); font-weight: 500; }
+.shot { border: 1px solid var(--edge); border-radius: 12px; overflow: auto; max-height: 560px; background: var(--g1); }
+.shot img { display: block; width: 100%; height: auto; }
+.items { display: grid; gap: 8px; }
+.item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; align-items: start; padding: 12px 14px; border-radius: 14px; background: var(--p1); border: 1px solid var(--edge); }
+.item.change { border-color: #5a4318; }
+.item.drop { opacity: 0.62; }
+.item.drop textarea.text { text-decoration: line-through; }
+.st { display: inline-flex; gap: 4px; order: 2; padding-top: 1px; }
+.st button { font: 500 11.5px var(--sans); border: 1px solid var(--edge2); background: var(--p2); color: var(--muted); border-radius: 999px; padding: 3px 9px; cursor: pointer; white-space: nowrap; text-align: left; }
+.st button[aria-pressed="true"].build { background: var(--grn-bg); color: var(--grn); border-color: #2b5a3e; }
+.st button[aria-pressed="true"].change { background: var(--amb-bg); color: var(--amb); border-color: #5a4318; }
+.st button[aria-pressed="true"].drop { background: var(--red-bg); color: var(--red); border-color: #6a2a28; }
+.st button:disabled { cursor: default; opacity: 0.6; }
+.body { display: grid; gap: 6px; min-width: 0; }
+textarea { font: inherit; color: inherit; background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 4px 6px; margin: -4px -6px; resize: none; width: calc(100% + 12px); overflow: hidden; line-height: 1.5; }
+textarea:hover:not([readonly]) { border-color: var(--edge2); }
+textarea:focus { background: var(--g1); border-color: var(--edge2); }
+textarea.note { font-size: 13.5px; color: var(--amb); background: var(--amb-bg); border-color: #5a4318; margin: 0; width: 100%; padding: 6px 8px; }
+textarea.note::placeholder { color: #b89356; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 12px; color: var(--faint); }
+.tag { display: inline-flex; align-items: center; height: 19px; padding: 0 7px; border-radius: 999px; background: var(--p3); color: var(--muted); font-size: 11px; font-weight: 500; }
+.tag.mine { background: #2e3112; color: var(--hv); }
+.lnk { font: inherit; font-size: 12px; color: var(--muted); background: none; border: 0; padding: 0; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.saved { color: var(--grn); } .err { color: var(--red); }
+.add { justify-self: start; font: 500 13px var(--sans); color: var(--on-hv); background: var(--hv); border: 0; border-radius: 999px; padding: 7px 14px; cursor: pointer; }
+.add:disabled { opacity: 0.5; cursor: default; }
+.note-banner { background: var(--amb-bg); border: 1px solid #5a4318; color: #f6dcb0; border-radius: 12px; padding: 10px 14px; font-size: 13.5px; }
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.sw { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px 6px 6px; border-radius: 999px; background: var(--p2); border: 1px solid var(--edge); font-size: 12.5px; color: var(--muted); }
+.sw i { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--edge2); display: inline-block; }
+.foot { color: var(--faint); font-size: 13px; }
+@media (max-width: 760px) {
+  h1 { font-size: 26px; }
+  .intro { grid-template-columns: minmax(0, 1fr); }
+  .ba, .ba.phone { grid-template-columns: minmax(0, 1fr); }
+  .shot { max-height: 520px; }
+  .item { grid-template-columns: minmax(0, 1fr); }
+  .st { flex-wrap: wrap; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+  <header class="read">
+    <p class="faint small">Round 8 and the office review · for Dylan · Mon 2 Nov 2026</p>
+    <h1 style="margin-top:6px">Exactly what I'll change in the office</h1>
+    <p class="lede">Every screen that changes, before (the live demo) and after (round 8), and the list of changes under it. You said yes to all nine recommendations; this is them, item by item. Change anything you like on this page before I build.</p>
+  </header>
+
+  <div class="bar" role="region" aria-label="Your edits">
+    <div class="counts" id="counts" aria-live="polite"></div>
+    <span class="state" id="state">Loading your edits…</span>
+    <nav class="toc" id="toc" aria-label="Screens"></nav>
+  </div>
+
+  <div class="intro">
+    <div class="card howto">
+      <h3>How to use this page</h3>
+      <ol>
+        <li>Each change starts as <b>Build</b>: I'll build it as written.</li>
+        <li>Press <b>Change</b> to reword it (tap the words and type) or leave me a note saying what you want instead.</li>
+        <li>Press <b>Drop</b> for anything you don't want.</li>
+        <li>Use <b>Add a change</b> under any screen for something I've missed.</li>
+      </ol>
+      <p class="muted small">Everything saves as you go. When you tell me you're done, I read your edits from this page and build from them.</p>
+    </div>
+    <div class="card">
+      <h3>The order I'll build in</h3>
+      <ol class="muted">
+        <li>The look and the shell (every office page).</li>
+        <li>The dashboard: map, session card, To offer, Updates, Who worked.</li>
+        <li>Events, sessions and who's interested.</li>
+        <li>Casuals (reliability, Remind) and Cancellations.</li>
+        <li>Updates and alerts; Customise and contracts.</li>
+        <li>Offers by app, text or email; the fixes and words.</li>
+      </ol>
+      <p class="muted small">Each step: tests, the full verify with browser tests, and the independent audit before it's ticked. The pre-build audit's 16 changes (last section) go into the step their screen belongs to.</p>
+    </div>
+  </div>
+
+  <div id="screens" style="display:grid;grid-template-columns:minmax(0,1fr);gap:44px"></div>
+
+  <p class="foot read">Before: the live demo (made-up people) on Mon 2 Nov 2026. After: round 8 mock-ups (<code>docs/mockups/round-8/screens.html</code>), drawn from the demo's real figures; reliability figures and "asked" times are examples, as the demo has no 90 days of history. The map's streets are drawn, not a real place.</p>
+</div>
+
+<script>
+(function () {
+  // ---------- the spec as proposed (the page's content; edits are kept separately) ----------
+  var SHOTS = function (before, after) { return { before: before, after: after }; };
+  var SPEC = [
+    { id: 'look', title: 'The look, everywhere in the office', route: 'every office page', purpose: 'The system every screen below is built on. The casual app keeps its look.', shots: null, swatches: true, items: [
+      ['sys-1', 'Dark by default in the office (decision 7). A light version on the same flat rules for anyone who prefers it; the light or dark button stays in the top bar.'],
+      ['sys-2', 'Glass that\'s translucent and sharp (your ask on 2 Nov): panels and the cards inside them are see-through over a faint street map that runs behind every page, with a light blur, one even 1px hairline edge and tighter corners (12px panels, 8px cards). No gloss, sheen or highlight, no pastel wash, no coloured glow (decision 6).'],
+      ['sys-3', 'One accent, hi-vis yellow #e9f86f, on the main button, the switches and whatever is selected (decision 8). At most one hi-vis button per screen. The firm\'s own colour stays on its mark and in the casual app.'],
+      ['sys-4', 'One status code on every page: Urgent red, Open amber, Booked green, Offered blue, Hidden grey. The same pill shape everywhere.'],
+      ['sys-5', 'No shadows on panels or cards at rest; only what floats (the map\'s session card, menus, panels that slide in) has one. With "reduce transparency" switched on, the glass turns solid and the street map goes.'],
+      ['sys-6', 'Geist stays for all words and figures; page titles 30px; figures line up (tabular); references and IDs in Geist Mono.'],
+      ['sys-7', 'The menu rail: dark circles, the page you\'re on a solid white circle, a red dot where something needs you. The firm\'s mark at the top in hi-vis.'],
+      ['sys-8', 'The top bar: the counts as separate chips (To fill, Urgent, Offers out, To check, Pay queries), each opening where it\'s worked; search with Ctrl K; the bell with new updates; you and your role.'],
+      ['sys-9', 'On a phone: a top bar with Menu, the firm and the bell; the counts as a row that scrolls; panels stack; nothing scrolls sideways except tab rows, which fade at the edge.'],
+      ['sys-10', 'Every route, label, link and action that exists today stays reachable. Nothing is removed without its own item on this page.']
+    ] },
+    { id: 'dashboard', title: 'Dashboard', route: '/office', purpose: 'Where are the gaps, and what do I do next?', shots: SHOTS('dashboard', 'dashboard'), items: [
+      ['dash-1', 'A map of your venues replaces the "Places to fill" bar chart: one pin per venue showing its places to fill, red where a session there is urgent, dashed where it\'s hidden from casuals. Drag to move, scroll to zoom, a key at the top right (decision 9: MapLibre with a UK or EU map host).'],
+      ['dash-2', 'Picking a pin or a session opens its card on the map: role, event and venue, time, a booked bar and gauge, who can take it, a warning when only one person can, and "Offer" and "Open the shift".'],
+      ['dash-3', 'Tabs above the map: All, Urgent, This week, Next week, each with its count; a filter button; switches for "My contracts" and "Show full venues".'],
+      ['dash-4', '"To offer" below the map: the next sessions with places, each with its date, venue, time, booked count and an Offer button; four rows then "View all".'],
+      ['dash-5', '"Updates" replaces the "Offered" and "While you were out" columns. Their events move into it: offers with no reply, and places taken overnight by casuals from offers (your round 5 ask), each marked.'],
+      ['dash-6', '"Who worked?" lists each person by name with Worked and Didn\'t attend, grouped by venue and session, and "Everyone else worked" (change D). Same marks and rules as today.'],
+      ['dash-7', 'A "Customise" button and a date choice in the title row (change B).'],
+      ['dash-8', 'The title row keeps the date, the week, the pay day and when the planner last sent changes.'],
+      ['dash-9', 'On a phone: the map 300px tall without labels, the session card under it, then To offer, Updates and Who worked.']
+    ] },
+    { id: 'customise', title: 'Customise and contracts', route: '/office (Customise)', purpose: 'Each resourcer sees their own contracts and the cards they want (change B).', shots: SHOTS('dashboard', 'customise'), items: [
+      ['cus-1', 'Contracts: the admin sets up clients, each owning one or more venues (decision 1). A new table, with its tenancy rules and tests.'],
+      ['cus-2', 'Each resourcer switches on their contracts. The dashboard, Updates and their alerts then show only those; "Show everything" is one tap away, and Events & sessions always shows all.'],
+      ['cus-3', '"What you see": tick the cards you want: Venue map, To offer, Updates, Who worked?, Cancellations by week, Watch list (least reliable who are booked), Fill rate per contract, No-shows by week.'],
+      ['cus-4', 'Saved per person, not per browser (a new per-user setting).'],
+      ['cus-5', 'Opens as a panel from the right on a laptop, a full screen on a phone; "Save my dashboard".']
+    ] },
+    { id: 'updates', title: 'Updates and alerts', route: '/office/updates (new)', purpose: 'Being told when a cancellation comes in or something needs doing (change C). Before: Needs attention, the nearest page today.', shots: SHOTS('updates', 'updates'), items: [
+      ['upd-1', 'A new Updates page, opened from the bell: everything on your contracts, newest first, "Needs action" first, each with its button (Offer the place, Check, Open).'],
+      ['upd-2', 'What it shows: cancellations (with notice and strike), places still open near their start, uploads to check, places taken (overnight ones marked), offers with no reply.'],
+      ['upd-3', 'A pop-up in the office the moment a cancellation lands, with "Offer the place".'],
+      ['upd-4', 'Notifications on your phone or desktop for cancellations under 48 hours and places still open 6 hours before start (decision 5). New: app notifications for office users.'],
+      ['upd-5', '"Tell me about": your own switches for each kind, and an 08:00 summary by email.'],
+      ['upd-6', 'Needs attention stays for what only it holds (uploads, rota-sheet problems, planner problems); "Who worked?" moves to the dashboard.']
+    ] },
+    { id: 'event', title: 'An event\'s page', route: '/office/events/[id]', purpose: 'Haulix\'s cargo page, for an event: every place laid out.', shots: SHOTS('event', 'event'), items: [
+      ['evt-1', 'A breadcrumb; the event as the title with "Showing to casuals"; the date, venue and number of sessions; actions: Hide from casuals, Add shifts, and one main button "Offer N open places".'],
+      ['evt-2', 'Tabs with counts: Overview, Staffing, Interested, Cancellations, History.'],
+      ['evt-3', 'Staffing layout: every place as a tile, grouped by role and time: booked (with who), open (dashed amber) or urgent (red). Booked of needed per role, with a bar.'],
+      ['evt-4', 'Open places beside it, the urgent one opened: what it needs, when it starts, how many were offered, why it\'s open (who cancelled and when), and "Offer to the best 5" or "Pick someone".'],
+      ['evt-5', 'Tapping a booked tile shows who and lets you cancel or move their booking, as the session page does today.'],
+      ['evt-6', 'On a phone: tiles three across, then the open places.']
+    ] },
+    { id: 'session', title: 'A session, and who wants it', route: '/office/shifts/[id]', purpose: 'Who has asked for a session that\'s showing to casuals (change G).', shots: SHOTS('session', 'session'), items: [
+      ['ses-1', 'A new per-event setting "Casuals ask, you choose" (decision 2): casuals tap "I can do this" instead of taking the place; you book from the list. Off (the default for urgent and overnight): the first to tap takes it, as now.'],
+      ['ses-2', '"Casuals for this session": tabs Asked for it, Offered, Said no, Booked, Could take it; filters for reliability, distance and worked here before; most reliable first.'],
+      ['ses-3', 'Each row: name, what they hold, reliability, distance, when they asked; Book, and "Not this time" in its menu.'],
+      ['ses-4', 'Booking from the list runs every rule and licence check first, and a place can only be booked once (first yes wins).'],
+      ['ses-5', 'The session\'s forms (edit, move, shorten, cancel) move into its menu and slide-in panels, and its history into a tab, so the page uses the whole width.'],
+      ['ses-6', 'Casuals see "I can do this" and then "Asked: we\'ll tell you" on that event\'s sessions, and a message when they\'re booked or not.']
+    ] },
+    { id: 'casuals', title: 'Casuals: reliability and chasing', route: '/office/casuals', purpose: 'Who works regularly, who\'s reliable, who cancels often (change A), and a button to chase what\'s out of date (change E).', shots: SHOTS('casuals', 'casuals'), items: [
+      ['cas-1', 'Reliability per casual over the last 90 days: worked ÷ (worked + no-shows + cancellations under 48 hours), worked out by code from what\'s logged, never by AI (decision 3). Shown as a figure and a green, amber or red bar.'],
+      ['cas-2', 'Four counts at the top: Regulars (worked 6 of the last 8 weeks), Reliable (95% or more), Cancel often (3 or more under 48 hours), Not worked lately (nothing in 60 days). Each opens its tab.'],
+      ['cas-3', 'Tabs: All, Regulars, Cancel often, Not worked lately, Need updating, Uploads to check; sort by least reliable, last worked or strikes.'],
+      ['cas-4', 'Need updating: "Remind" on each row and "Remind all", sending the expired-licence message again with its upload link; "Last reminder" says who sent it and when; the "…" menu has Call, Add a note, Mark as sorted.'],
+      ['cas-5', 'A missing or due staff photo counts as needing updating.'],
+      ['cas-6', 'Each casual\'s own page shows their reliability, shifts worked, no-shows and late cancellations; casuals see their own on their Profile in the app.'],
+      ['cas-7', 'Who\'s offered first doesn\'t change yet; decide after a month of pilot data (decision 3).']
+    ] },
+    { id: 'cancellations', title: 'Cancellations', route: '/office/cancellations', purpose: 'Under 48 hours and strikes, clear at a glance (change F).', shots: SHOTS('cancellations', 'cancellations'), items: [
+      ['can-1', 'Rows with under 48 hours\' notice tinted red with a red edge, in every tab, All included.'],
+      ['can-2', 'Notice and Strike in their own columns: "Strike 2 issued" as a red badge with the date it stops counting; "No strike" in grey with why; a withdrawn strike struck through; "Needs review" in amber.'],
+      ['can-3', 'Four counts: This week, Under 48 hours\' notice, Strikes issued, Last 8 weeks (replacing the card that showed strikes under the 48-hour title).'],
+      ['can-4', 'Tabs: All, Under 48 hours, Strikes, By the office.'],
+      ['can-5', 'A cancellation\'s own page puts notice, strike and reason at the top.']
+    ] },
+    { id: 'offer', title: 'Offering a shift', route: '/office/offer/[id]', purpose: 'Offers by app notification, text or email, not WhatsApp (change H).', shots: SHOTS('offer', 'offer'), items: [
+      ['off-1', 'Each person\'s row says how the offer will reach them: app notification, text or email, and why (e.g. "no app notifications on her phone").'],
+      ['off-2', '"Not offered, and why" beside it: already booked, no licence, too far, over the day\'s offers.'],
+      ['off-3', 'Sending order: an app notification first, then a text from your Webex account, then email (decision 4). WhatsApp leaves every screen and setting; a firm\'s own WhatsApp Business number only if added later.'],
+      ['off-4', 'Casuals choose app notifications, text or email on their Profile (the casual app keeps its look).'],
+      ['off-5', 'App notifications need Phase 4\'s web push finished; until then the offer goes by text or email, and the row says so.']
+    ] },
+    { id: 'fixes', title: 'Fixes and words', route: 'several pages', purpose: 'From the review: small things that are wrong or confusing.', shots: null, items: [
+      ['fix-1', 'Pay dashboard: "Next pay day: Fri 6 Nov, for shifts in the week of 26 Oct" and "This week\'s shifts are paid Fri 13 Nov"; the shifts line number removed.'],
+      ['fix-2', 'Casual app: "Shifts you can take" instead of "apply" (or "I can do this" where the event is set to "Casuals ask, you choose").'],
+      ['fix-3', 'Automatic replies in the app lose "Send OFFICE to reach a person".'],
+      ['fix-4', 'Action log: logins hidden unless you pick the Logins type.'],
+      ['fix-5', '"AI sorting isn\'t connected yet" shown to admins only.'],
+      ['fix-6', 'Notice report: "22 hours\' notice", without "(22.89 hours)".'],
+      ['fix-7', 'Role names in their proper case everywhere ("CSAS officer").'],
+      ['fix-8', 'The demo: history rows carry the story\'s own times, and the pilot figures are worked out after each nightly reload.']
+    ] },
+    { id: 'others', title: 'Every other office page', route: 'Enquiries, Strikes, Notice report, Pay, Pay queries, Import, Action log, Pilot metrics, Team, Settings, Integrations, Data requests, Guide', purpose: 'Same content, round 8\'s look.', shots: null, items: [
+      ['oth-1', 'Each of these pages keeps its content and actions and takes round 8\'s panels, lists, tables, buttons, pills and fields. No new features on them beyond the fixes above.'],
+      ['oth-2', 'Lists and tables: names left, figures right and lined up, 12px grey column labels, one status pill per row, no zebra stripes.']
+    ] },
+    { id: 'audit', title: 'From the pre-build audit', route: 'several pages', purpose: 'What the audit of today\'s office, round 8 and Parim found (https://claude.ai/artifact/4DRBzVM5k6BLCmfin7Zgff), ranked by how much each helps for the work. Each goes into the build step its screen belongs to.', shots: null, items: [
+      ['aud-1', 'Badges with white words use a darker red, #d13438 (4.93:1), in place of #e5484d (3.91:1, under the 4.5:1 minimum): the bell\'s count and the strike badges.'],
+      ['aud-2', 'Pages update themselves: every 30 seconds while the tab is showing, and as soon as you come back to it, with "Updated 10:42" in the title row. Today an open page never picks up a casual\'s cancellation by itself.'],
+      ['aud-3', 'One type scale, 12, 13, 14, 16, 20, 24 and 30px, with nothing under 12px. The round 8 dashboard has 14 sizes, down to 9.5px.'],
+      ['aud-4', 'Six text colours: ink, muted, faint, red, amber and green. The round 8 dashboard has 13.'],
+      ['aud-5', 'Each repeated button tells a screen reader which place it\'s for ("Assign someone: Steward, 18:00 to 23:00, place 3"). The Arena\'s page has 23 "Assign someone" buttons today.'],
+      ['aud-6', 'Keep what today\'s office gets right: 44px buttons, a visible focus ring, the skip link, one heading per page. The browser tests check them on every round 8 page.'],
+      ['aud-7', 'On a phone, moving the map takes two fingers, so one finger scrolls the page; on a laptop, Ctrl + scroll zooms. Every pin is also a row in To offer.'],
+      ['aud-8', 'Map tiles from one UK map file on our own server (no charge per view, nobody\'s location sent to a map company), with "© OpenStreetMap contributors" shown. A venue without a postcode is listed under the map, never placed by guesswork.'],
+      ['aud-9', 'Every chart says where its numbers come from and when ("Nightly count, 00:30 today"), with its figures as a table one tap away.'],
+      ['aud-10', 'Every card has an empty state that says what will show and what to do ("No cancellations in the last 8 weeks").'],
+      ['aud-11', 'Reliability needs at least 5 shifts in the 90 days; below that it says "New: 3 shifts so far" instead of a figure. The counts always show beside it.'],
+      ['aud-12', 'A session still not marked 2 days after it ends goes to Updates as "Mark who worked" (reliability counts only marked sessions).'],
+      ['aud-13', 'A new card under Customise, "Next 2 weeks": booked, offered and open places per day, as stacked bars (from Parim; it keeps the look ahead that today\'s bar chart gives).'],
+      ['aud-14', 'The demo gets 12 weeks of made-up history (sessions worked, cancellations, no-shows, at believable venues) so its charts and reliability aren\'t empty; the walkthrough\'s lists stay as they are.'],
+      ['aud-15', '"Show only today\'s" on Cancellations becomes a 44px switch or a tab (it\'s 108×17px today).'],
+      ['aud-16', 'The street map behind every page is drawn once as a still picture; smooth scrolling is checked on a mid-range laptop before it ships.']
+    ] }
+  ];
+
+  // ---------- state: the proposal plus your edits ----------
+  var edits = {};            // id -> { status, text, note, section, added, order }
+  var db = null, canWrite = false, loaded = false;
+  var saving = {}, savedAt = {}, failed = {}, noteOpen = {};
+  var size = window.innerWidth < 760 ? 'phone' : 'laptop';
+
+  function baseItems(sec) { return sec.items.map(function (it, i) { return { id: it[0], text: it[1], order: i, section: sec.id }; }); }
+  function merged(sec) {
+    var list = baseItems(sec).map(function (b) { var e = edits[b.id] || {}; return { id: b.id, original: b.text, text: e.text != null ? e.text : b.text, status: e.status || 'build', note: e.note || '', section: sec.id, order: b.order, edited: !!edits[b.id] }; });
+    Object.keys(edits).forEach(function (id) { var e = edits[id]; if (e.added && e.section === sec.id) list.push({ id: id, original: '', text: e.text || '', status: e.status || 'build', note: e.note || '', section: sec.id, order: e.order != null ? e.order : 999, edited: true, added: true }); });
+    return list.sort(function (a, b) { return a.order - b.order; });
+  }
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  // ---------- render ----------
+  var root = document.getElementById('screens');
+  function shotHtml(sec) {
+    if (!sec.shots) return '';
+    var b = 'before/' + sec.shots.before + '-' + size + '.jpg', a = 'after/' + sec.shots.after + '-' + size + '.jpg';
+    return '<div class="ba ' + size + '"><figure><figcaption><b>Before</b><span>the live demo today</span></figcaption><div class="shot"><img src="' + b + '" alt="' + esc(sec.title) + ' today on the live demo" loading="lazy"></div></figure>' +
+      '<figure><figcaption><b>After</b><span>round 8</span></figcaption><div class="shot"><img src="' + a + '" alt="' + esc(sec.title) + ' after the change" loading="lazy"></div></figure></div>';
+  }
+  function swatchHtml() {
+    var s = [['#141415', 'Page'], ['#1d1d1f', 'Panel (see-through)'], ['#252527', 'Card (see-through)'], ['#e9f86f', 'Hi-vis accent'], ['#ff8a80', 'Urgent'], ['#f2b55a', 'Open'], ['#8fe28c', 'Booked'], ['#8ab4ff', 'Offered'], ['#8f8f94', 'Hidden']];
+    return '<div class="swatches">' + s.map(function (x) { return '<span class="sw"><i style="background:' + x[0] + '"></i>' + x[1] + ' <span style="font-family:var(--mono);font-size:11px">' + x[0] + '</span></span>'; }).join('') + '</div>';
+  }
+  function itemHtml(it) {
+    var ro = canWrite ? '' : ' readonly';
+    var st = ['build', 'change', 'drop'].map(function (k) { var label = { build: 'Build', change: 'Change', drop: 'Drop' }[k]; return '<button type="button" class="' + k + '" data-act="status" data-id="' + it.id + '" data-v="' + k + '" aria-pressed="' + (it.status === k) + '"' + (canWrite ? '' : ' disabled') + '>' + label + '</button>'; }).join('');
+    var showNote = it.status === 'change' || it.note || noteOpen[it.id];
+    var info = [];
+    if (it.added) info.push('<span class="tag mine">Added by you</span>');
+    else if (it.text !== it.original) info.push('<span class="tag mine">Reworded</span>');
+    if (saving[it.id]) info.push('<span>Saving…</span>'); else if (failed[it.id]) info.push('<span class="err">' + esc(failed[it.id]) + '</span>'); else if (savedAt[it.id]) info.push('<span class="saved">Saved</span>');
+    if (canWrite && it.edited && !it.added) info.push('<button type="button" class="lnk" data-act="reset" data-id="' + it.id + '">Back to my original</button>');
+    if (canWrite && it.added) info.push('<button type="button" class="lnk" data-act="remove" data-id="' + it.id + '">Remove</button>');
+    if (canWrite && !showNote) info.push('<button type="button" class="lnk" data-act="note" data-id="' + it.id + '">Add a note</button>');
+    return '<div class="item ' + it.status + '" id="it-' + it.id + '"><div class="st" role="group" aria-label="What to do with this change">' + st + '</div>' +
+      '<div class="body"><label class="sr" for="tx-' + it.id + '" style="position:absolute;left:-9999px">Change ' + it.id + '</label><textarea class="text" id="tx-' + it.id + '" data-id="' + it.id + '" rows="1"' + ro + '>' + esc(it.text) + '</textarea>' +
+      (showNote ? '<textarea class="note" id="nt-' + it.id + '" data-id="' + it.id + '" rows="1" placeholder="What should it be instead?"' + ro + '>' + esc(it.note) + '</textarea>' : '') +
+      '<div class="meta"><span style="font-family:var(--mono)">' + it.id + '</span>' + info.join('') + '</div></div></div>';
+  }
+  function renderSection(sec) {
+    var el = document.getElementById('s-' + sec.id);
+    if (!el) { el = document.createElement('section'); el.className = 'screen'; el.id = 's-' + sec.id; el.setAttribute('aria-labelledby', 'h-' + sec.id); root.appendChild(el); }
+    var focused = document.activeElement && el.contains(document.activeElement) ? document.activeElement.id : null;
+    el.innerHTML = '<div class="shead"><div class="read" style="display:grid;gap:4px"><h2 id="h-' + sec.id + '">' + esc(sec.title) + '</h2><p class="muted">' + esc(sec.purpose) + '</p><span class="route">' + esc(sec.route) + '</span></div>' +
+      (sec.shots ? '<div class="seg" role="group" aria-label="Picture size"><button type="button" data-act="size" data-v="laptop" aria-pressed="' + (size === 'laptop') + '">Laptop 1280</button><button type="button" data-act="size" data-v="phone" aria-pressed="' + (size === 'phone') + '">Phone 390</button></div>' : '') + '</div>' +
+      (sec.swatches ? swatchHtml() : '') + shotHtml(sec) +
+      '<div class="items">' + merged(sec).map(itemHtml).join('') + '</div>' +
+      (canWrite ? '<button type="button" class="add" data-act="add" data-sec="' + sec.id + '">Add a change</button>' : '');
+    el.querySelectorAll('textarea').forEach(grow);
+    if (focused) { var f = document.getElementById(focused); if (f) { f.focus(); var v = f.value; f.setSelectionRange(v.length, v.length); } }
+  }
+  function renderCounts() {
+    var c = { build: 0, change: 0, drop: 0, added: 0 }, total = 0;
+    SPEC.forEach(function (s) { merged(s).forEach(function (it) { total++; c[it.status]++; if (it.added) c.added++; }); });
+    document.getElementById('counts').innerHTML = '<span class="cnt"><b>' + total + '</b> changes</span><span class="cnt"><b>' + c.build + '</b> build</span><span class="cnt change"><b>' + c.change + '</b> change</span><span class="cnt drop"><b>' + c.drop + '</b> drop</span><span class="cnt added"><b>' + c.added + '</b> added by you</span>';
+  }
+  function renderAll() { SPEC.forEach(renderSection); renderCounts(); }
+  function grow(t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }
+  document.getElementById('toc').innerHTML = SPEC.map(function (s) { return '<a href="#s-' + s.id + '">' + esc(s.title.replace(/,.*$/, '').replace(' and alerts', '')) + '</a>'; }).join('');
+
+  // ---------- saving ----------
+  var timers = {};
+  function setState(t) { document.getElementById('state').textContent = t; }
+  function save(id, patch) {
+    var cur = Object.assign({}, edits[id] || {}), sec = findSection(id);
+    Object.assign(cur, patch, { section: sec, updatedAt: new Date().toISOString() });
+    edits[id] = cur;
+    renderCounts();
+    if (!db) return;
+    saving[id] = true; delete failed[id];
+    db.collection('edits').doc(id).set(cur).then(function () { delete saving[id]; savedAt[id] = Date.now(); refreshMeta(id); })
+      .catch(function (e) { delete saving[id]; failed[id] = e && e.code === 'invalid_argument' ? 'You can\'t edit this page' : 'Not saved, try again'; if (e && e.code === 'invalid_argument') { canWrite = false; renderAll(); } else refreshMeta(id); });
+    refreshMeta(id);
+  }
+  function remove(id) {
+    delete edits[id]; delete savedAt[id];
+    renderAll();
+    if (db) db.collection('edits').doc(id).delete().catch(function () { setState('Couldn\'t undo that; reload and try again.'); });
+  }
+  function refreshMeta(id) { var sec = SPEC.filter(function (s) { return s.id === findSection(id); })[0]; if (sec) renderSection(sec); }
+  function findSection(id) { if (edits[id] && edits[id].section) return edits[id].section; for (var i = 0; i < SPEC.length; i++) for (var j = 0; j < SPEC[i].items.length; j++) if (SPEC[i].items[j][0] === id) return SPEC[i].id; return null; }
+  function baseText(id) { for (var i = 0; i < SPEC.length; i++) for (var j = 0; j < SPEC[i].items.length; j++) if (SPEC[i].items[j][0] === id) return SPEC[i].items[j][1]; return null; }
+
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-act]'); if (!b) return;
+    var id = b.dataset.id, act = b.dataset.act;
+    if (act === 'size') { size = b.dataset.v; SPEC.forEach(renderSection); return; }
+    if (!canWrite) return;
+    if (act === 'status') { save(id, { status: b.dataset.v }); refreshMeta(id); if (b.dataset.v === 'change') { var n = document.getElementById('nt-' + id); if (n) n.focus(); } }
+    else if (act === 'reset') remove(id);
+    else if (act === 'remove') remove(id);
+    else if (act === 'note') { noteOpen[id] = true; refreshMeta(id); var nn = document.getElementById('nt-' + id); if (nn) nn.focus(); }
+    else if (act === 'add') {
+      var sec = b.dataset.sec, nid = 'mine-' + Date.now().toString(36);
+      edits[nid] = { added: true, section: sec, text: '', status: 'build', note: '', order: 1000 + Object.keys(edits).length };
+      var s = SPEC.filter(function (x) { return x.id === sec; })[0]; renderSection(s); renderCounts();
+      var t = document.getElementById('tx-' + nid); if (t) t.focus();
+    }
+  });
+  document.addEventListener('input', function (e) {
+    var t = e.target; if (t.tagName !== 'TEXTAREA' || !canWrite) return; grow(t);
+    var id = t.dataset.id, isNote = t.classList.contains('note');
+    clearTimeout(timers[id + isNote]);
+    timers[id + isNote] = setTimeout(function () { commit(t); }, 900);
+  });
+  document.addEventListener('focusout', function (e) { var t = e.target; if (t.tagName === 'TEXTAREA' && canWrite) { clearTimeout(timers[t.dataset.id + t.classList.contains('note')]); commit(t); } });
+  function commit(t) {
+    var id = t.dataset.id, isNote = t.classList.contains('note'), v = t.value.trim(), cur = edits[id] || {};
+    if (isNote) { if ((cur.note || '') === v) return; save(id, { note: v }); return; }
+    var base = baseText(id);
+    if (cur.added) { if ((cur.text || '') === v) return; save(id, { text: v }); return; }
+    var now = cur.text != null ? cur.text : base; if (now === v) return;
+    save(id, { text: v === base ? null : v });
+  }
+
+  // ---------- the page's database: your edits, which I read back ----------
+  renderAll();
+  var loadTimer = setTimeout(function () { if (!loaded) setState(db ? 'Your edits can\'t be reached yet; what you see may be out of date.' : 'Editing isn\'t available here. Open this page in claude.ai to edit it.'); }, 10000);
+  if (window.claude && typeof window.claude.use === 'function') {
+    window.claude.use('db').then(function (d) {
+      if (!d) { clearTimeout(loadTimer); setState('Read-only here: open this page in claude.ai to edit it.'); return; }
+      db = d; canWrite = true;
+      db.collection('edits').onSnapshot(function (snap) {
+        var next = {};
+        snap.docs.forEach(function (doc) { var x = doc.data(); if (x) next[doc.id] = x; });
+        Object.keys(edits).forEach(function (id) { if (edits[id].added && !next[id] && !(edits[id].text)) next[id] = edits[id]; });
+        var active = document.activeElement && document.activeElement.tagName === 'TEXTAREA';
+        edits = next;
+        if (!snap.metadata.fromCache) { loaded = true; clearTimeout(loadTimer); setState('Edits save as you go.'); }
+        if (!active) renderAll(); else renderCounts();
+      }, function () { clearTimeout(loadTimer); setState('Couldn\'t load your edits. Reload the page to try again.'); });
+    }).catch(function () { clearTimeout(loadTimer); setState('Read-only here: open this page in claude.ai to edit it.'); });
+  } else { clearTimeout(loadTimer); setState('Read-only here: open this page in claude.ai to edit it.'); }
+})();
+</script>

@@ -56,6 +56,8 @@ import { payQueryUpdateTask, type PayQueryUpdatePayload } from "../../lib/notice
 import { enquiryReplyTask, type EnquiryReplyPayload } from "../../lib/notices/enquiry-reply";
 import { requestUpdateTask, type RequestUpdatePayload } from "../../lib/notices/request-update";
 import { shiftConfirmedTask, type ShiftConfirmedPayload } from "../../lib/notices/shift-confirmed";
+import { askAnswerTask, type AskAnswerPayload } from "../../lib/notices/ask-answer";
+import { casualReminderTask, type CasualReminderPayload } from "../../lib/credentials/remind";
 import { officeOfferTask, type OfficeOfferPayload } from "../../lib/offers/office-offer";
 import { strikesEmailLinkTask, type StrikesEmailLinkPayload } from "../../lib/office/strikes-email";
 import { strikeEvidenceTask } from "../../lib/strikes/evidence";
@@ -67,6 +69,14 @@ import {
   runPayDigestTick,
   type PayDigestPayload,
 } from "../../lib/pay/digest";
+import {
+  OFFICE_ALERTS_TICK_CRON,
+  OFFICE_ALERTS_TICK_QUEUE,
+  type OfficeCancelAlertPayload,
+  type OfficeOpenAlertPayload,
+  type OfficeSummaryPayload,
+} from "../../lib/office/alert-jobs";
+import { officeAlertTasks, runOfficeAlertsTick } from "../../lib/office/alerts";
 import {
   escalateShiftTask,
   offerWaveTask,
@@ -138,6 +148,8 @@ export interface JobDeps {
   reminders?: FirmTask<ShiftRemindersPayload>;
   firmChangeNotices?: FirmTask<FirmChangeNoticePayload>;
   shiftConfirmed?: FirmTask<ShiftConfirmedPayload>;
+  askAnswers?: FirmTask<AskAnswerPayload>;
+  casualReminders?: FirmTask<CasualReminderPayload>;
   requestUpdates?: FirmTask<RequestUpdatePayload>;
   enquiryReplies?: FirmTask<EnquiryReplyPayload>;
   payDigest?: FirmTask<PayDigestPayload>;
@@ -149,6 +161,11 @@ export interface JobDeps {
   officeAlertsCombined?: FirmTask<OfficeAlertsCombinedPayload>;
   inboundEmails?: FirmTask<InboundEmailPayload>;
   inboxSummary?: FirmTask<InboxSummaryPayload>;
+  officeAlerts?: {
+    cancel: FirmTask<OfficeCancelAlertPayload>;
+    open: FirmTask<OfficeOpenAlertPayload>;
+    summary: FirmTask<OfficeSummaryPayload>;
+  };
   enquiryEmailReplies?: FirmTask<EnquiryEmailReplyPayload>;
   webhooks?: FirmTask<WebhookDeliverPayload>;
   connectorEvents?: FirmTask<ConnectorEventPayload>;
@@ -246,6 +263,10 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   await registerFirmTask(boss, deps.firmChangeNotices ?? firmChangeNoticeTask);
   // Telling a worker the office booked them onto a shift (audit L22).
   await registerFirmTask(boss, deps.shiftConfirmed ?? shiftConfirmedTask);
+  // Telling a casual who asked for a session they weren't booked (Phase 26.6).
+  await registerFirmTask(boss, deps.askAnswers ?? askAnswerTask);
+  // The office's "Remind" on Casuals (Phase 26.7): the licence message again.
+  await registerFirmTask(boss, deps.casualReminders ?? casualReminderTask);
   await registerFirmTask(boss, deps.requestUpdates ?? requestUpdateTask);
   // The office's reply to a message on the shifts line (Enquiries, 12D.1).
   await registerFirmTask(boss, deps.enquiryReplies ?? enquiryReplyTask);
@@ -360,6 +381,21 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
     }),
   );
   await boss.schedule(PAY_DIGEST_TICK_QUEUE, PAY_DIGEST_TICK_CRON);
+
+  // Office alerts (Phase 26.4, Updates' "Tell me about"): a casual's cancellation under 48 hours'
+  // notice (queued by the cancellation); places still open 6 hours before the start and the 08:00
+  // summary (the tick every 5 minutes queues each firm's).
+  const officeAlerts = deps.officeAlerts ?? officeAlertTasks;
+  await registerFirmTask(boss, officeAlerts.cancel);
+  await registerFirmTask(boss, officeAlerts.open);
+  await registerFirmTask(boss, officeAlerts.summary);
+  await boss.work(
+    OFFICE_ALERTS_TICK_QUEUE,
+    logFailures(OFFICE_ALERTS_TICK_QUEUE, async () => {
+      await runOfficeAlertsTick({ listFirmIds, run: withFirm, clock: deps.clock ?? systemClock });
+    }),
+  );
+  await boss.schedule(OFFICE_ALERTS_TICK_QUEUE, OFFICE_ALERTS_TICK_CRON);
 
   // Alerts to the founder (src/lib/ops/): the tick every 5 minutes; each alert a job of its own.
   const alerts = deps.alerts ?? alertTransport(appEnv().ALERTS_TRANSPORT);

@@ -10,7 +10,7 @@ import {
 import { seedFirms } from "../../src/lib/db/admin/seed-data";
 import { acmeSaturday } from "../../src/lib/db/admin/seed-saturday";
 import { setFirmSetting } from "./db";
-import { accountMenu, DASHBOARD_HEADING, menuLink } from "./fixtures";
+import { accountMenu, DASHBOARD_HEADING, menuLink, sessionPanel } from "./fixtures";
 import { emailSentTo, readOutbox, sentTo } from "./outbox";
 
 // docs/walkthrough.md, step by step (Phase 10 task 20): what Dylan does on his own computer, done
@@ -92,7 +92,8 @@ async function workerLogin(page: Page, who: { typed: string; e164: string }) {
   const link = await sent(
     who.e164,
     asked,
-    /^Here's your Acme Events shifts link\. It works for 15 minutes and only for you: (http:\/\/acme\.localhost:\d+\/l#[A-Za-z0-9_-]{43}) /,
+    // By text (Phase 26.9; by WhatsApp until then).
+    /^Acme Events shifts link \(15 min\): (http:\/\/acme\.localhost:\d+\/l#[A-Za-z0-9_-]{43}) - /,
   );
   await page.goto(link);
   await page.getByRole("button", { name: "Log me in" }).click();
@@ -366,8 +367,8 @@ test("Part 3: as the office", async ({ browser }) => {
   });
 
   await test.step("23. The dashboard", async () => {
-    // Round 7 (Phase 24): the track, the places chart (a bar a day, this week and next), the
-    // session picked beside it, and the board's four columns.
+    // Round 8 (Phase 26.2): the track, the venue map with the session's card on it, and the three
+    // columns.
     const track = page.getByRole("navigation", { name: "Show" });
     await expect(track.getByRole("link")).toHaveText([
       /^All \d+$/,
@@ -375,17 +376,17 @@ test("Part 3: as the office", async ({ browser }) => {
       /^This week \d+$/,
       /^Next week \d+$/,
     ]);
-    await expect(page.locator("section#places-chart [data-day]")).toHaveCount(14);
+    await expect(page.locator("[data-venue-map]")).toBeVisible();
     await expect(page.locator("dialog[data-offer-panel][data-ready]")).toHaveCount(1);
-    for (const name of ["To offer", "Offered", "While you were out", "Who worked?"])
+    for (const name of ["To offer", "Updates", "Who worked?"])
       await expect(page.getByRole("heading", { name, exact: true, level: 2 })).toBeVisible();
-    // A card picks itself into the detail card.
+    // A row picks itself into the card.
     const pick = page.locator('section#to-offer a[href^="/office?"]').nth(1);
     const id = /session=([0-9a-f-]{36})$/.exec((await pick.getAttribute("href")) ?? "")?.[1];
     await pick.click();
     await expect(page.locator(`[data-chosen="${id}"]`)).toBeVisible();
     await expect(
-      page.locator(`[data-chosen="${id}"]`).getByRole("link", { name: "Offer to someone" }),
+      page.locator(`[data-chosen="${id}"]`).getByRole("link", { name: /^Offer to / }),
     ).toBeVisible();
     // Who worked?: yesterday's racecourse bookings to mark.
     await expect(
@@ -422,7 +423,8 @@ test("Part 3: as the office", async ({ browser }) => {
         panel.getByRole("status").filter({ hasText: `Offer on its way to ${name}.` }),
       ).toBeVisible();
       await expect(panel.getByText("Offered", { exact: true })).toBeVisible();
-      await anySent(asked, /^(Shift available|URGENT): /);
+      // By text since Phase 26.9 (the doc's short versions; by WhatsApp's words until then).
+      await anySent(asked, /^Acme Events(: shift | URGENT: )/);
       sent = true;
     }
     expect(sent).toBe(true);
@@ -452,34 +454,40 @@ test("Part 3: as the office", async ({ browser }) => {
   });
 
   await test.step("26. Mark who worked", async () => {
-    await page.goto(`${acme}/office/needs-attention`);
-    const card = page
-      .getByRole("region", { name: "Who worked?" })
-      .locator("li", { hasText: "Acme Demo Racecourse" })
+    // The dashboard's Who worked? (Phase 26.4): yesterday's racecourse sessions (three alike ones,
+    // together under one line), each person with Worked and Didn't attend, marked right there.
+    await page.goto(`${acme}/office`);
+    const group = page
+      .locator("section#who-worked div.flex-col")
+      .filter({ hasText: "Acme Demo Racecourse" })
       .first();
-    await card.getByRole("link").first().click();
-    await expect(page.getByText("Mark who worked it and who didn't attend.")).toBeVisible();
-    const mark = page.getByRole("button", { name: /^Mark as worked: / }).first();
-    // The person's name is in the button's label (it shows "Mark as worked").
-    const name = ((await mark.getAttribute("aria-label")) ?? "").replace(/^Mark as worked: /, "");
+    const mark = group
+      .getByRole("button", { name: / worked, \w{3} \d{1,2} \w{3} \d\d:\d\d$/ })
+      .first();
+    // The person's name starts the button's label ("Nathan Reid worked, Sun 1 Nov 10:30").
+    const name = ((await mark.getAttribute("aria-label")) ?? "").replace(/ worked, .*$/, "");
     await mark.click();
     await expect(page.getByText(`Marked ${name} as worked.`)).toBeVisible();
   });
 
   let booked = "";
+  let session = "";
   await test.step("27. Make a shift and book someone", async () => {
     await page.goto(`${acme}/office`);
     await (await menuLink(page, "Events & sessions")).click();
     await page.getByRole("link", { name: "All shifts by day" }).click();
     await page.getByRole("link", { name: "New shift" }).click();
-    await page.getByLabel("Date").fill(daysFromToday(9));
+    await page.getByLabel("Date", { exact: true }).fill(daysFromToday(9));
     await page.getByLabel("Role").fill("steward");
     await page.getByLabel("Start").fill("10:00");
     await page.getByLabel("Finish").fill("18:00");
     await page.getByLabel("Places").fill("2");
     await page.getByRole("button", { name: "Create shift" }).click();
     await expect(page).toHaveURL(/\/office\/shifts\/[0-9a-f-]{36}$/);
-    await expect(page.getByText("0 of 2 booked · Open")).toBeVisible();
+    session = page.url();
+    await expect(page.getByText(/· 0 of 2 booked$/)).toBeVisible();
+    // "Assign someone" is in the session's "…" menu (Phase 26.6).
+    await sessionPanel(page, "Assign someone");
     const options = await page
       .getByLabel("Who?")
       .locator("option:not([disabled])")
@@ -504,6 +512,8 @@ test("Part 3: as the office", async ({ browser }) => {
   });
 
   await test.step("28. Move it, then cancel the booking", async () => {
+    await page.goto(session);
+    await sessionPanel(page, "Move, shorten or cancel");
     await page.getByLabel("New start").fill("11:00");
     await page.getByLabel("New finish").fill("19:00");
     await page
@@ -511,7 +521,8 @@ test("Part 3: as the office", async ({ browser }) => {
       .selectOption({ label: "The event's times or place changed" });
     await page.getByRole("button", { name: "Move for everyone booked" }).click();
     await expect(page.getByText(/^Moved\. 1 person booked will be told\./)).toBeVisible();
-    await page.reload();
+    // The booking is cancelled from the session's Booked list.
+    await page.goto(session);
     await page.getByText(`Cancel ${booked}'s booking`, { exact: true }).click();
     await page
       .locator("details[open]")
@@ -534,7 +545,7 @@ test("Part 3: as the office", async ({ browser }) => {
     await (await menuLink(page, "Events & sessions")).click();
     await page.getByRole("link", { name: "Add shifts" }).click();
     await page.getByLabel("Event name").fill("Cup final");
-    await page.getByLabel("Date").fill(daysFromToday(13));
+    await page.getByLabel("Date", { exact: true }).fill(daysFromToday(13));
     const lines = page.getByRole("group");
     await lines.nth(0).getByLabel("Role").fill("steward");
     await lines.nth(0).getByLabel("Start").fill("08:00");

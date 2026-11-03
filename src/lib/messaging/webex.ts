@@ -28,10 +28,10 @@ import {
 //   sender has to pass it; a send outside a firm job is refused. A firm without its key and sender
 //   has no text sender on any channel (NoTextSenderError, a WhatsApp too): its casuals' messages go
 //   by email, as with MESSAGING_TRANSPORT=none, and nothing counts as a failed text.
-// - Texts only. A WhatsApp is refused as a channel it won't carry (ChannelRefusedError): the shared
-//   sender gives the casual the text instead (src/lib/notify/send.ts), but the login link and the
-//   pay code still go by WhatsApp when a text sender exists (src/lib/auth/login-channel.ts), so the
-//   settings refuse webex in production until 15.1 makes everything texts; email never comes here.
+// - Texts only. A WhatsApp is refused as a channel it won't carry (ChannelRefusedError); since Phase
+//   26.9 nothing sends a casual one but a reply on the Twilio shifts line. The settings still refuse
+//   webex in production: a STOP sent to Webex isn't recorded yet, and the web can't tell which firms
+//   have a key (src/lib/env.ts). Email never comes here.
 // - The id it gives is kept only in a form the action log accepts (a run of digits there would be
 //   refused after the text went: golden rule 5); delivery reports (with the webhooks) will need the
 //   transaction id itself.

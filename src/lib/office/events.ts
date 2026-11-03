@@ -1,4 +1,5 @@
 import { and, eq, sql, type SQL } from "drizzle-orm";
+import { loadEventStaffing, type EventStaffing } from "./event-staffing";
 import { z } from "zod";
 import { authParts, type AuthContext } from "../auth/link-login";
 import { currentOfficeUser } from "../auth/office-login";
@@ -71,6 +72,22 @@ export interface EventPage {
   timeZone: string;
   event: EventCardData;
   booked: Record<string, BookedCasual[]>; // by session (shift id)
+  staffing: EventStaffing; // Phase 26.5: the staffing layout, open places, cancellations, history
+  canAddShifts: boolean; // an event the office named, at a firm whose rota isn't a sheet
+  // Interested (Phase 26.6, evt-2): who has asked for its sessions to come ("Casuals ask, you
+  // choose"), waiting first then "Not this time", soonest session first.
+  interested: InterestedAsk[];
+  casualsAsk: boolean;
+}
+
+export interface InterestedAsk {
+  shiftId: string;
+  role: string;
+  startsAt: Date;
+  endsAt: Date;
+  name: string;
+  askedAt: Date;
+  waiting: boolean; // false: the office said "Not this time"
 }
 
 export interface EventList {
@@ -262,6 +279,14 @@ function cardOf(
   };
 }
 
+async function namedByOffice(tx: FirmTx, eventId: string): Promise<boolean> {
+  const { rows } = await tx.execute(sql`
+    select 1 from shift_events
+     where id = ${eventId}::uuid and source = 'native' and planner_ref is null
+  `);
+  return rows.length > 0;
+}
+
 async function hasPlanner(tx: FirmTx): Promise<boolean> {
   const [source] = await tx
     .select({ id: rosterSources.id })
@@ -407,6 +432,27 @@ export async function officeEventList(
   });
 }
 
+// An event's name and venue, for "Add shifts" from its page (Phase 26.5).
+export async function officeEventBasics(
+  ctx: AuthContext,
+  token: string,
+  eventId: string,
+): Promise<{ id: string; name: string; siteId: string | null } | null> {
+  if (!z.uuid().safeParse(eventId).success) return null;
+  return asOffice(ctx, token, async (tx) => {
+    // Only an event the office named itself ("Add shifts" adds to nothing else; createShifts
+    // checks the same), and not at a firm whose rota is a Google Sheet (the sheet adds shifts).
+    if (await hasPlanner(tx)) return null;
+    const { rows } = await tx.execute<{ id: string; name: string; site_id: string | null }>(sql`
+      select e.id::text as id, e.name, e.site_id::text as site_id
+        from shift_events e
+       where e.id = ${eventId}::uuid and e.source = 'native' and e.planner_ref is null
+    `);
+    const r = rows[0];
+    return r ? { id: r.id, name: r.name, siteId: r.site_id } : null;
+  });
+}
+
 // One event: every session (past and cancelled too), and who is booked on each.
 export async function officeEventPage(
   ctx: AuthContext,
@@ -452,10 +498,56 @@ export async function officeEventPage(
         status: p.status,
       });
     }
+    const event = cardOf(e, rows, requirementsOf, now, Number.MAX_SAFE_INTEGER);
+    const needs = new Map(
+      event.sessions.map((s) => [s.shiftId, s.requirements.map((q) => q.name)]),
+    );
     return {
       timeZone: await timeZoneOf(tx),
-      event: cardOf(e, rows, requirementsOf, now, Number.MAX_SAFE_INTEGER),
+      event,
       booked,
+      staffing: await loadEventStaffing(tx, now, e.id, needs),
+      canAddShifts: !(await hasPlanner(tx)) && (await namedByOffice(tx, e.id)),
+      interested: await loadInterested(tx, e.id, now),
+      casualsAsk:
+        (
+          await tx.execute<{ on: boolean }>(
+            sql`select casuals_ask as on from shift_events where id = ${e.id}`,
+          )
+        ).rows[0]?.on === true,
     };
   });
+}
+
+// Who has asked for the event's sessions still to come (Phase 26.6, evt-2), as the "Interested"
+// tab lists them.
+async function loadInterested(tx: FirmTx, eventId: string, now: Date): Promise<InterestedAsk[]> {
+  const { rows } = await tx.execute<{
+    shift_id: string;
+    role: string;
+    starts_at: Date | string;
+    ends_at: Date | string;
+    first_name: string;
+    last_name: string;
+    asked_at: Date | string;
+    status: string;
+  }>(sql`
+    select sa.shift_id::text, s.role, s.starts_at, s.ends_at, w.first_name, w.last_name,
+           sa.asked_at, sa.status
+      from session_asks sa
+      join shifts s on s.firm_id = sa.firm_id and s.id = sa.shift_id
+      join workers w on w.firm_id = sa.firm_id and w.id = sa.worker_id
+     where s.event_id = ${eventId} and s.status <> 'cancelled' and s.starts_at > ${now}
+       and sa.status in ('asked', 'not_this_time')
+     order by s.starts_at, s.id, (sa.status = 'not_this_time'), sa.asked_at, sa.id
+  `);
+  return rows.map((r) => ({
+    shiftId: r.shift_id,
+    role: r.role,
+    startsAt: new Date(r.starts_at),
+    endsAt: new Date(r.ends_at),
+    name: `${r.first_name} ${r.last_name}`,
+    askedAt: new Date(r.asked_at),
+    waiting: r.status === "asked",
+  }));
 }

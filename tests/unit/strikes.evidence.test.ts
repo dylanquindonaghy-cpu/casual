@@ -316,8 +316,6 @@ describe("the Needs attention item: the top bar's To check and the Needs attenti
     toCheckTotal: 0,
     fromSheet: [],
     fromSheetTotal: 0,
-    toMark: [],
-    toMarkTotal: 0,
     expired: [],
     expiredTotal: 0,
     uploads: 0,

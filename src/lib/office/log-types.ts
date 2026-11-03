@@ -11,6 +11,13 @@ export const LOG_TYPES = {
       "shift.booking_refused",
       "roster.sheet_booking_refused",
       "booking.kept",
+      // "Casuals ask, you choose" (Phase 26.6): a casual's ask, the rules' no to one, the office's
+      // "Not this time", and asks closed when the session filled, was cancelled or moved.
+      "shift.asked",
+      "shift.ask_refused",
+      "shift.ask_declined",
+      "shift.ask_closed",
+      "shift.asks_closed",
     ],
   },
   cancellations: {
@@ -48,11 +55,14 @@ export const LOG_TYPES = {
       "shift.closed",
       "shift.reopened",
       "shift.marked_urgent",
+      "shift.offers_restarted", // Phase 26.5: an urgent session's stopped offers started again
       "shift.urgent_cleared",
       "event.shown",
       "event.hidden",
       "session.shown",
       "session.hidden",
+      "event.asks_on", // Phase 26.6: the event's "Casuals ask, you choose"
+      "event.asks_off",
       "shift.escalated",
       "shift.escalation_emailed",
       "shift.escalation_failed",
@@ -88,6 +98,19 @@ export const LOG_TYPES = {
       "shift.booked_notice_failed",
       "shift.booked_notice_held",
       "shift.booked_notice_skipped",
+      // The office's "Remind" on Casuals (Phase 26.7): the licence message again.
+      "casual.reminded",
+      "casual.reminder_notice",
+      "casual.reminder_sent",
+      "casual.reminder_failed",
+      "casual.reminder_held",
+      "casual.reminder_skipped",
+      // Telling a casual who asked that they weren't booked (Phase 26.6).
+      "shift.ask_answer_notice",
+      "shift.ask_answer_sent",
+      "shift.ask_answer_failed",
+      "shift.ask_answer_held",
+      "shift.ask_answer_skipped",
       "shift.reminder_sent",
       "shift.reminder_failed",
       "shift.reminder_skipped",
@@ -104,6 +127,14 @@ export const LOG_TYPES = {
       "push.subscribed",
       "push.unsubscribed",
       "push.forgotten",
+      // Office alerts (Phase 26.4, "Tell me about"): an office user's browser, a notification
+      // claimed for them, the 08:00 summary (the person's id, the kind, counts only).
+      "office_push.subscribed",
+      "office_push.unsubscribed",
+      "office_push.forgotten",
+      "office.alerted",
+      "office.summary_emailed",
+      "office.summary_failed",
       "message.received",
       "call.received",
       "call.answered",
@@ -164,6 +195,9 @@ export const LOG_TYPES = {
       "worker.site_unblocked",
       "travel.profile_changed",
       "travel.profile_removed",
+      // Phase 26.7: the office's note about a casual (never its words) and "Mark as sorted".
+      "casual.note_added",
+      "casual.needs_sorted",
     ],
   },
   logins: {
@@ -228,6 +262,12 @@ export const LOG_TYPES = {
       "firm.strikes_email_link_sent",
       "firm.strikes_email_link_failed",
       "site.changed",
+      // Contracts (Phase 26.3): a contract's id and how many venues; a person's own dashboard.
+      "client.added",
+      "client.saved",
+      "client.removed",
+      "office_user.dashboard_saved",
+      "office_user.tell_me_saved",
       "firm.branding_changed",
       "firm.domain_changed",
       "firm.shifts_line_changed",
@@ -273,6 +313,7 @@ export const RATE_LIMITED = "auth.rate_limited";
 export const LIMIT_TYPES: Readonly<Record<string, LogType>> = {
   "take:worker": "bookings",
   "push:worker": "workers",
+  "push:office_user": "firm", // an office user's browser for notifications (Phase 26.4)
   "app_message:worker": "messages", // a casual's messages in the app (Phase 25.6)
   "api:key": "firm",
   "strikes_link:firm": "firm",

@@ -608,7 +608,7 @@ webhook to the firm's planner (5.3).
 | Strike: issued, exempt (with the reason) or none; the casual's live strike count | `strikes` (S4), and the decision code in the `shift.cancelled` entry |
 | Evidence email: sent at what time to the strikes team / not set up / failed, with "Resend evidence" | `strikes` (S4) |
 | Your planner: "Sent to your planner at 19:06" / "Sending" / "Couldn't reach your planner (gave up at 19:06 on 7 Oct)" / "No webhook set up" | `webhook.delivered` / `webhook.failed` log entries (5.3, 12J.2) |
-| Then: "Place reopened and marked urgent · offered to 5 casuals · filled again by Ben Fraser at 22:02" | existing log entries say what happened; the times come from the bookings' own times (the cancellation, the replacement's `confirmed_at`), because log entries can't be backdated |
+| Then: "Place reopened and marked urgent · offered to 5 casuals · filled again by Ben Fraser at 22:02" | existing log entries say what happened; the times come from the bookings' own times (the cancellation, the replacement's `confirmed_at`), the record of when each happened (a real firm's log entries are always stamped as they're written) |
 | Warning shown on the cancel screen, and its version | S3 |
 
 **PDF per record.**
@@ -869,7 +869,7 @@ The staff-facing word is "qualifications" or "licences and cards", never "creden
 | Pay queries waiting (oldest) | open + in_digest `pay_queries` |
 | Next digest (last sent and how many; any problem) | new `nextDigestAt()` next to `digestDueOn()` in `src/lib/pay/digest-schedule.ts`; `loadDigestStatus()` |
 | Sorted this week | `pay_queries.resolved_at` |
-| Next pay date | the earliest `pay_records.pay_date` from today on, otherwise the Friday after the current ISO week (D8) |
+| Next pay day (Phase 26.10, fix-1) | the first pay day not yet past: last period's while it's ahead, else this period's, each from `pay_records.pay_date` when imported for that period, else the firm's pay calendar; an earlier imported date first (`src/lib/pay/next-pay.ts`) |
 
 **Sections:**
 1. **Waiting, grouped by likely cause** ("Pay questions never get an AI answer: they come here"): the
@@ -2196,9 +2196,10 @@ of 12C.1; 12D.4 is part of 12D.1; 12E.2 is part of 12E.1; the old 12F.1 and 12F.
   built by the real reply functions and its log entries, all inside the 90-day window. As built
   (12I.1): the seed runs the shifts line's own reply job on them once, with no AI and a sender that
   sends nothing; golden rule 1's boundary test lists the seed's loader for that (Dylan, 2026-10-12).
-- **Times shown come from rows, not the log.** Log entries are stamped when the seed runs and can't
-  be backdated (`src/lib/db/admin/seed-saturday.ts:20-21`, `docs/testing.md:250`), so the loaders
-  take times from row timestamps the seed can set; the log only says what happened.
+- **Times shown come from rows, not the log.** The loaders take times from row timestamps the seed
+  can set; the log says what happened. (Since Phase 26.10, fix-8, the demo's own log entries carry
+  the same times, written in time order by the seed's log, `src/lib/db/admin/seed-log.ts`; a real
+  firm's entries are always stamped as they're written.)
 - **Travel:** fake coordinates for the ZZ postcodes and sites, and a fixed table of times for the
   fake provider (e.g. ZZ1 4 → Acme Demo Arena: 3.1 miles, 12 min by car, 24 min by public
   transport).

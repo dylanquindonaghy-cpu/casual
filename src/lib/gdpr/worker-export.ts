@@ -13,6 +13,8 @@ import {
   magicLinks,
   messages,
   offers,
+  sessionAsks,
+  casualNotes,
   payQueries,
   payRecords,
   pushSubscriptions,
@@ -39,7 +41,8 @@ import { renumberEvents } from "./event-numbers";
 
 // A worker's data, for a subject access request (docs/runbooks.md "GDPR requests"; UK GDPR: send
 // it within a month). Everything this firm holds about one worker: their details, credentials,
-// days off, their travel area (12G.1), bookings, strikes (12C.1), offers, requests, reminders,
+// days off, their travel area (12G.1), bookings, strikes (12C.1), offers, asks for sessions (Phase
+// 26.6), requests, reminders,
 // pay lines, pay queries, shifts-line messages
 // (with messages from or to their number from before it was known), emails to the staffing inbox
 // (with those from their address before it was known), the action log's rows about
@@ -154,6 +157,16 @@ export async function collectWorkerData(
     .from(offers)
     .where(eq(offers.workerId, workerId))
     .orderBy(asc(offers.createdAt), asc(offers.id));
+  const noteRows = await tx
+    .select(columnsOf(casualNotes))
+    .from(casualNotes)
+    .where(eq(casualNotes.workerId, workerId))
+    .orderBy(asc(casualNotes.createdAt), asc(casualNotes.id));
+  const askRows = await tx
+    .select(columnsOf(sessionAsks))
+    .from(sessionAsks)
+    .where(eq(sessionAsks.workerId, workerId))
+    .orderBy(asc(sessionAsks.createdAt), asc(sessionAsks.id));
   const requestRows = await tx
     .select(columnsOf(requests))
     .from(requests)
@@ -253,7 +266,7 @@ export async function collectWorkerData(
   // The shifts all of that was about: when and where, so the rest reads on its own.
   const shiftIds = [
     ...new Set(
-      ([...bookings, ...offerRows, ...requestRows, ...payQuestions] as Row[])
+      ([...bookings, ...offerRows, ...askRows, ...requestRows, ...payQuestions] as Row[])
         .map((r) => r.shiftId)
         .filter((id): id is string => typeof id === "string"),
     ),
@@ -288,6 +301,8 @@ export async function collectWorkerData(
       bookings,
       strikes: strikeRows,
       offers: offerRows,
+      asks: askRows,
+      officeNotes: noteRows,
       requests: requestRows,
       shiftReminders: reminders,
       payRecords: payLines,

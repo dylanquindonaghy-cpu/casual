@@ -74,7 +74,13 @@ export interface OpenShift {
   // qualifications, then its extras), for the chips.
   casualEvent?: string | null;
   requirements?: Requirement[];
+  // "Casuals ask, you choose" (Phase 26.6): null where she takes a place (the event's setting off,
+  // or she holds an offer of it); else whether she can ask ("ask"), has asked ("asked") or the
+  // office said no ("not_this_time"). Never held by fair rotation: the office chooses.
+  ask?: AskState | null;
 }
+
+export type AskState = "ask" | "asked" | "not_this_time";
 
 export interface OpenShiftFilters {
   day?: string; // yyyy-mm-dd, the firm's local date
@@ -302,6 +308,14 @@ export async function openShiftsFor(
         payRatePence: shifts.payRatePence,
         post: shifts.post,
         requiredCredentials: shifts.requiredCredentials,
+        // The office chooses for it (its event's setting), unless she holds an offer of it.
+        officeChooses: sql<boolean>`(coalesce(${shiftEvents.casualsAsk}, false)
+          and not exists (select 1 from offers o
+                           where o.firm_id = ${shifts.firmId} and o.shift_id = ${shifts.id}
+                             and o.worker_id = ${workerId} and o.response is null))`,
+        askStatus: sql<string | null>`(select sa.status from session_asks sa
+          where sa.firm_id = ${shifts.firmId} and sa.shift_id = ${shifts.id}
+            and sa.worker_id = ${workerId})`,
       })
       .from(shifts)
       .leftJoin(sites, and(eq(sites.firmId, shifts.firmId), eq(sites.id, shifts.siteId)))
@@ -357,6 +371,11 @@ export async function openShiftsFor(
     const kept: OpenShift[] = [];
     for (const c of allowed) {
       const gate = gates.get(c.shiftId) ?? ({ ok: true } as const);
+      const ask: AskState | null = !c.officeChooses
+        ? null
+        : c.askStatus === "asked" || c.askStatus === "not_this_time"
+          ? c.askStatus
+          : "ask";
       kept.push({
         shiftId: c.shiftId,
         role: c.role,
@@ -364,8 +383,9 @@ export async function openShiftsFor(
         endsAt: c.endsAt,
         placesLeft: c.headcount - c.held,
         headcount: c.headcount,
-        opensAt: gate.ok ? null : gate.opensAt,
+        opensAt: gate.ok || ask ? null : gate.opensAt,
         isUrgent: c.isUrgent,
+        ask,
         ...(travelOf ? { travel: travelOf.get(c.shiftId) ?? { kind: "unknown" } } : {}),
         eventName: c.eventName,
         casualEvent: c.casualEvent,

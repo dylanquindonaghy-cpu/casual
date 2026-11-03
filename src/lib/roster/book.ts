@@ -8,6 +8,7 @@ import { retryAborted } from "../db/retry";
 import { maskText } from "../log/mask";
 import { queueShiftConfirmed } from "../notices/shift-confirmed";
 import { acceptOwnOffer, closeOffersIfFilled } from "../offers/close";
+import { askWaiting, bookOwnAsk, officeChooses } from "./asks";
 import {
   checkEligibility,
   OVERRIDABLE_CODES,
@@ -81,6 +82,9 @@ export const bookingRequestSchema = z.strictObject({
       id: uuid,
       overrides: z.array(z.enum(OVERRIDABLE_CODES)).max(OVERRIDABLE_CODES.length).default([]),
       reason: z.string().trim().max(500).optional(),
+      // "Book the best N" (Phase 26.6): only while the casual's ask is still waiting, checked under
+      // the shift's lock here (an answer or a booking at the same moment finishes first).
+      fromAsk: z.literal(true).optional(),
     }),
   ]),
 });
@@ -92,6 +96,11 @@ export type BookingResult =
   | { status: "not_eligible"; reasons: string[]; codes: RuleCode[] }
   // Our copy of the firm's sheet is too old to confirm against: try again shortly.
   | { status: "source_stale" }
+  // A casual's own booking where the office chooses (its event's "Casuals ask, you choose", and no
+  // offer of it waiting for them): they ask instead (src/lib/roster/asks.ts).
+  | { status: "ask_first" }
+  // Booking from an ask that isn't waiting any more (answered, or never made): nothing booked.
+  | { status: "not_asking" }
   // Fair rotation: the place is held for workers with fewer hours that week (the shift's own week)
   // until opensAt.
   | { status: "not_yet"; opensAt: Date }
@@ -250,8 +259,15 @@ async function bookInTransaction(
     overrides: by.type === "office" ? by.overrides : [],
   });
   if (check.status === "not_found") return { status: "not_found" };
+  if (by.type === "office" && by.fromAsk && !(await askWaiting(tx, shiftId, workerId))) {
+    return { status: "not_asking" };
+  }
   if (by.type === "worker" && !(await isVisibleToCasuals(tx, shiftId, { lock: true }))) {
     return { status: "not_found" };
+  }
+  // Read under the event's share lock just taken: switching the setting waits for this booking.
+  if (by.type === "worker" && (await officeChooses(tx, shiftId, workerId))) {
+    return { status: "ask_first" };
   }
   // A connector's session: booked in the firm's own system, not here (planner-kind.ts).
   if (check.source === "api" && (await connectorSession(tx, shiftId))) {
@@ -331,6 +347,7 @@ async function bookInTransaction(
   // A worker booked onto a shift they were offered (they took it, or the office placed them) has
   // answered that offer. Full now: every other offer still waiting is closed (src/lib/offers/close.ts).
   await acceptOwnOffer(tx, shiftId, workerId, now);
+  await bookOwnAsk(tx, shiftId, workerId, now);
   await closeOffersIfFilled(tx, shiftId, now);
   // Placed by the office: the worker is told by message (audit L22; src/lib/notices/shift-confirmed.ts).
   // One who took it themselves sees it on screen.

@@ -42,6 +42,15 @@ recipient.
   a locked phone: its words name the shift (the role, the place, the day and time) or say a request
   or pay question was answered, never pay figures, a reason or anyone's details
   (`docs/messaging-templates.md` "Push").
+- **Office notifications (Phase 26.4, Updates' "Tell me about"):** an office user's browser address
+  (`office_push_subscriptions`, the same parts) is kept until they turn notifications off there, log
+  out or in again on it, the push service says it no longer works (`office_push.forgotten`), a sixth
+  browser replaces the oldest, or an admin turns their access off or logs them out on every device
+  (a lost laptop). A notification and the 08:00 summary
+  email name the session (role, venue, day and time) and how much notice, never a casual's name or
+  reason: a lock screen or an inbox is a wider audience than the office's own screens. What each
+  person asked to be told about (`office_users.tell_me`) is their own setting, changed only by them
+  and logged.
 - **Sent:** the session's facts (event, site name and postcode, role, times, pay rate, post,
   meeting point, uniform, requirements), the booking's facts (status, who booked it, times), the
   casual's first and last name and staff ref, and the cancellation and strike result (notice hours,
@@ -144,6 +153,23 @@ Tier 1: £52 a year (£47 by direct debit) for small organisations. Pay before h
   users, or if an AI SDK is imported outside `src/lib/ai/`. It catches the likely mistakes; it
   can't prove every possible path.
 
+- Reliability (Phase 26.7; decision 3) is worked out by code, never AI: over the last 90 days,
+  worked ÷ (worked + no-shows + the casual's own cancellations under 48 hours' notice), from what the
+  office marked and what was logged, a figure only from 5 of those ("New" before), with the labels
+  Regular, Reliable, Cancel often and Not worked lately (`src/lib/rules/reliability.ts`). It's
+  profiling (an evaluation of a person's reliability), so the firm's notice names it, its basis
+  (legitimate interest) and the right to object (`docs/privacy-notice.md`). It isn't a solely
+  automated decision: the offer waves don't read it (cas-7, tested), the casual sees the same figure
+  and counts on their profile, a person chooses who to book from those who asked (the list sorted
+  by it), and the dashboard's Watch list (booked in the next 14 days, under 90%) only shows. A
+  wrongly marked shift is corrected by marking it again (logged with what it was). Not in the
+  action log or the worker's export: it's worked out each time from rows that are.
+- The office's notes about a casual (`casual_notes`, Phase 26.7) are free text typed by the office:
+  up to 500 characters, refused if they hold a phone number or email address, and the form says
+  not to write health or other personal details (Article 9 data has no place there). Kept with the
+  casual, never in the log (`casual.note_added` holds ids only), in the worker's export, deleted
+  on erasure. They're kept until the casual's details are erased, with no purge (decision 12 in
+  `docs/plan/decisions-waiting.md`, decided as built on 2026-11-03).
 - A firm's logo (Phase 8) is an address on the firm's own website: a worker's browser fetches it
   from there, so the firm's site sees the worker's IP address, as it would for any visit. It's
   fetched with no referrer (the firm's site isn't told which page), and only from https://
@@ -170,6 +196,7 @@ floor, and that a hold covers the whole firm (not one worker).
 | Travel estimates (12G.2: minutes and distance from a postcode to a site, keyed by postcode, not by person) | 7 days after the last session they were for, by the nightly purge (even during a hold: not about anyone in particular), and when a site's postcode changes (built). Not in the firm's data export |
 | A casual's travel area (12G.1: their start-from postcode and its central point, how they travel, their limit) | While they keep it: deleted when they remove it, when the office makes them inactive as "They've left", and on erasure (built). Never in the action log, with one exception: a personal shifts-line reply's `enquiry.checks` entry (12D.2) keeps their limit in minutes and the minutes to each session it offered (never the postcode or the point), and stays with the action log. A DPIA and the legitimate-interests balancing test come first: `docs/dpia-travel.md` |
 | Staff photos and certificate images (12F.2) | One the office turned down: 30 days after the check. A staff photo replaced by a newer approved one: 30 days after that one was approved. The current photo and the image behind a current certificate stay while they're current, then follow the firm's retention (a later task); all of them go on erasure (built: the nightly purge, nothing during a hold). In the exports as details only (kind, date, status, fingerprint); each image is its own download |
+| The office's notes about a casual (Phase 26.7) | Until the casual's details are erased, with no purge (decision 12 in `docs/plan/decisions-waiting.md`, decided as built on 2026-11-03). In the worker's export; deleted on erasure (built) |
 | Call audio | We store none: only a voicemail's text. But Twilio records every voicemail (up to 2 minutes) to transcribe it, and keeps the recording until it's deleted there: a deletion job comes with the Twilio sender ("Connect Twilio", "Before going live") |
 | Requests, events, notice report | 12 months (review once 2027 rules are final). **Not purged yet**: the log is append-only by design, so deleting it needs a deliberate change (PLAN.md Parking lot). Nothing can be 12 months old until a year after the pilot starts |
 | Workers and credentials | Until the firm deletes them |
@@ -184,13 +211,13 @@ deletion job before the 90 days is true there ("Connect Twilio", "Before going l
 
 An admin handles them on `/office/data` (docs/runbooks.md "GDPR requests"):
 - **Access:** a worker's data as JSON or CSV: their details, licences and cards, days off,
-  bookings, offers, requests, reminders, pay lines and queries, shifts-line messages (with any from
+  bookings, offers, requests, reminders, pay lines and queries, the office's notes about them, shifts-line messages (with any from
   their number before it was known), the action log's rows about them, the shifts those were
   about, and when they logged in. Login secrets (hashes, a phone's push keys) are left out. Each
   download is logged (`worker.data_exported`), which evidences the one-month deadline.
 - **Erasure:** the worker's personal details are deleted: name, mobile, email, staff id (also
   out of our copy of the rota sheet's names, `shifts.synced_holders`), licences and cards, days
-  off, messages, logins and phones, and the text anyone typed on the worker's own records: their
+  off, messages, logins and phones, the office's notes about them, and the text anyone typed on the worker's own records: their
   requests (their note, a colleague they'd swap with, the office's answer), pay queries (their
   details, payroll's note), cancellations (a typed reason; "Something else: …" becomes "Something
   else") and bookings (the office's reason for placing them despite a rule becomes "Reason deleted

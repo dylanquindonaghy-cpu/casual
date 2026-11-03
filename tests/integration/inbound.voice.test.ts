@@ -624,7 +624,8 @@ describe("a voicemail (the inbound-message job)", () => {
       )
     ).rows;
 
-  it("a worker's voicemail is a request for the office (never a keyword), answered by WhatsApp from the line", async () => {
+  // Phase 26.9: by text (by the channel the casual chose until then: WhatsApp by default).
+  it("a worker's voicemail is a request for the office (never a keyword), answered by text from the line", async () => {
     const t = await lineFirm();
     const { transport, sent } = captureTransport();
     // "cancel" and "shifts" would be keywords in a WhatsApp: a voicemail goes to the office.
@@ -648,7 +649,7 @@ describe("a voicemail (the inbound-message job)", () => {
     const ref = (requests[0]?.id ?? "").slice(0, 8).toUpperCase();
     expect(sent).toEqual([
       {
-        channel: "whatsapp",
+        channel: "sms",
         to: t.mobile,
         from: t.line,
         body: `Thanks for your voicemail. The office will see it and get back to you. Ref ${ref}. Automatic reply. Send OFFICE to reach a person. — ${t.name} Shift Team`,
@@ -658,7 +659,7 @@ describe("a voicemail (the inbound-message job)", () => {
       (await t.messageRows()).map((r) => [r.direction, r.channel, r.handled_as, r.intent]),
     ).toEqual([
       ["in", "voice", "office", "office"],
-      ["out", "whatsapp", null, "office"],
+      ["out", "sms", null, "office"],
     ]);
     const logged = (await t.eventsOf("%")).filter((e) => /^(request|message)\./.test(e.action));
     expect(logged.map((e) => [e.action, e.data])).toEqual([
@@ -669,7 +670,7 @@ describe("a voicemail (the inbound-message job)", () => {
       ],
       [
         "message.replied",
-        { channel: "whatsapp", intent: "office", workerId: t.ann, replyId: expect.any(String) },
+        { channel: "sms", intent: "office", workerId: t.ann, replyId: expect.any(String) },
       ],
     ]);
     expect(JSON.stringify(logged)).not.toMatch(/cancel my|next week/);

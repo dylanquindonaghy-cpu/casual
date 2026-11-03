@@ -25,7 +25,12 @@ import {
   shiftCancelledByFirmMessage,
   shiftChangedByFirmMessage,
   shiftConfirmedMessage,
+  shiftNotBookedMessage,
+  notBookedPush,
   shiftEscalationEmail,
+  officeCancelPush,
+  officeOpenPush,
+  officeSummaryEmail,
   strikeEvidenceEmail,
   strikesEmailConfirmEmail,
   shiftOfferMessage,
@@ -48,7 +53,7 @@ import {
   urgentPush,
   voicemailReceivedMessage,
 } from "@/lib/messaging/templates";
-import { TEXTS_OFF } from "@/app/profile/profile-view";
+import { textsOffText } from "@/app/profile/profile-view";
 import { askedDays, cancelReplyText, shiftsReplyText } from "@/lib/inbound/personal-reply";
 import { fillWhatsAppTemplate, WHATSAPP_TEMPLATES } from "@/lib/messaging/whatsapp-templates";
 
@@ -126,6 +131,7 @@ describe("the doc's templates table", () => {
       "cancellation_ack",
       "shift_changed_by_firm",
       "shift_cancelled_by_firm",
+      "shift_not_booked",
       "request_update",
       "credential_expiring",
       "credential_expired",
@@ -150,6 +156,7 @@ describe("the doc's templates table", () => {
     "shift_changed_by_firm",
     "shift_cancelled_by_firm",
     "shift_confirmed",
+    "shift_not_booked",
     "request_update",
     "pay_query_update",
     "voicemail_received",
@@ -228,6 +235,21 @@ describe("the code says what the doc says", () => {
     );
   });
 
+  it("shift_not_booked, with and without a site", () => {
+    const shift = {
+      role: "{role}",
+      site: "{site}",
+      date: "{date}",
+      start: "{start}",
+      end: "{end}",
+      link: "{link}",
+    };
+    expect(shiftNotBookedMessage(docVoice, shift)).toBe(docBody("shift_not_booked"));
+    expect(shiftNotBookedMessage(docVoice, { ...shift, site: null })).toBe(
+      docBody("shift_not_booked").replace(" at {site}", ""),
+    );
+  });
+
   it("request_update, with and without the office's note", () => {
     const request = { type: "{type}", ref: "{ref}", status: "{status}", note: "{note}" };
     expect(requestUpdateMessage(docVoice, request)).toBe(docBody("request_update"));
@@ -257,7 +279,11 @@ describe("the code says what the doc says", () => {
     const stop = section("STOP and START by text");
     expect(smsStoppedMessage(docVoice)).toBe(quotes(stop, "`sms_stopped`:")[0]);
     expect(smsStartedMessage(docVoice)).toBe(quotes(stop, "`sms_started`:")[0]);
-    expect(stop).toContain(`"${TEXTS_OFF}"`);
+    // Phase 26.9: by email when we hold their address (WhatsApp until then), else notifications.
+    expect(stop).toContain(`"${textsOffText("{address}")}"`);
+    expect(stop).toContain(
+      textsOffText(null).replace(/^.*?one of our texts\. (.*?) To turn.*$/, "$1"),
+    );
   });
 
   it("the call fallback (Twilio's, when our app doesn't answer), as the doc says it", () => {
@@ -631,6 +657,94 @@ describe("the code says what the doc says", () => {
     expect(words(email.body)).toEqual(words(expected));
   });
 
+  // Phase 26.4's office alerts: the doc's examples (braces round what changes) are what they give.
+  const plain = (text: string | undefined) => (text ?? "").replace(/[{}]/g, "");
+  it("office_cancel_push and office_open_push (push): the title and body", () => {
+    const office = section("Office notifications");
+    const [title, body, covered] = quotes(office, "Cancellation alert");
+    const cancel = (reopened: boolean) =>
+      officeCancelPush({
+        notice: "9 hours' notice",
+        role: "door_supervisor",
+        site: "Acme Demo Arena",
+        when: "Mon 2 Nov 18:00",
+        reopened,
+      });
+    expect(cancel(true)).toEqual({ title: plain(title), body: plain(body) });
+    expect(cancel(false).body).toBe(
+      plain(body).replace("The place is open again.", plain(covered)),
+    );
+    const [openTitle, openBody, offered] = quotes(office, "Open places alert");
+    const open = (offers: number) =>
+      officeOpenPush({
+        placesFree: 1,
+        startsIn: "in 5 h",
+        role: "steward",
+        site: "Acme Demo Arena",
+        when: "Mon 2 Nov 14:00",
+        offers,
+      });
+    expect(open(0)).toEqual({ title: plain(openTitle), body: plain(openBody) });
+    expect(open(3).body).toBe(plain(openBody).replace("Offered to nobody yet.", plain(offered)));
+  });
+
+  it("office_summary (email): the subject, and the body's words", () => {
+    const office = section("Office notifications");
+    const q = quotes(office, "Summary");
+    // The subject, its "1 needs action" and "nothing needs action", then the body's lines.
+    const [subject, , , opening, , needs, , line, more, since, link, stop, signOff] = q;
+    const email = officeSummaryEmail(docVoice, {
+      day: "Mon 2 Nov",
+      mine: true,
+      needs: ["1 place still to fill, starts in 5 h: Steward, Acme Demo Arena, Mon 2 Nov 14:00"],
+      moreNeeds: 1,
+      took: 3,
+      cancelled: 2,
+      under48: 1,
+      uploads: 1,
+      link: "{link}",
+    });
+    expect(email.subject).toBe(plain(subject));
+    expect(words(email.body)).toEqual(
+      words(
+        [
+          ...[opening, needs, line, more, since, link, stop].map((t) =>
+            plain(t).replace("link", "{link}"),
+          ),
+          signOff,
+        ].join(" "),
+      ),
+    );
+    // Nothing to act on: said so, in the subject and the body.
+    const none = officeSummaryEmail(docVoice, {
+      day: "Mon 2 Nov",
+      mine: false,
+      needs: [],
+      moreNeeds: 0,
+      took: 1,
+      cancelled: 0,
+      under48: 0,
+      uploads: 0,
+      link: "{link}",
+    });
+    expect(none.subject).toBe("Updates for Mon 2 Nov: nothing needs action");
+    const one = officeSummaryEmail(docVoice, {
+      day: "Mon 2 Nov",
+      mine: true,
+      needs: ["A staff photo to check"],
+      moreNeeds: 0,
+      took: 0,
+      cancelled: 0,
+      under48: 0,
+      uploads: 1,
+      link: "{link}",
+    });
+    expect(one.subject).toBe("Updates for Mon 2 Nov: 1 needs action");
+    expect(none.body).toContain("Here's what's happened at every venue since 08:00 yesterday.");
+    expect(none.body).toContain("Nothing needs action.");
+    expect(none.body).toContain("1 place taken, no cancellations, 0 uploads to check.");
+  });
+
   it("strikes_email_confirm (email): the subject, and the body's words", () => {
     const [subject, ...body] = quotes(section("Office notifications"), "Strikes team confirmation");
     const email = strikesEmailConfirmEmail(docVoice, "{link}");
@@ -716,8 +830,19 @@ describe("the code says what the doc says", () => {
   });
 });
 
+describe("in the app (Phase 26.10, fix-3)", () => {
+  it("the same reply without 'Send OFFICE to reach a person.'; texts keep it", () => {
+    const office = templates.shiftsLineReply(docVoice, { intent: "office", ref: "ABC12345" });
+    expect(office).toContain("Automatic reply. Send OFFICE to reach a person. — ");
+    expect(templates.forTheApp(office)).toBe(
+      `The office will see this and get back to you. Ref ABC12345. Automatic reply. — ${docVoice.signOff}`,
+    );
+    expect(templates.forTheApp("No automatic line here.")).toBe("No automatic line here.");
+  });
+});
+
 describe("the SMS versions", () => {
-  const sms = section("SMS (fallback only, keep under 160 characters)");
+  const sms = section("SMS (keep under 160 characters)");
 
   it("the urgent offer says what the doc says, with and without a site", () => {
     const [text] = quotes(sms, "Urgent:");
@@ -749,6 +874,19 @@ describe("the SMS versions", () => {
     });
     expect(Number.isFinite(gsmLength(real))).toBe(true);
     expect(parts(real)).toBe(2); // with the sign-off: parked for Dylan (the doc says under 160)
+  });
+
+  // Phase 26.9: the login link and the pay code by text, plain characters only.
+  it("the login link and the pay code say what the doc says, each one text", () => {
+    const [login] = quotes(sms, "Login:");
+    expect(templates.loginLinkSms(docVoice, "{link}")).toBe(login);
+    const [code] = quotes(sms, "Pay code:");
+    expect(templates.loginCodeSms(docVoice, "{code}")).toBe(code);
+    const realLink = templates.loginLinkSms(demo, `${link}/l#${"A".repeat(43)}`);
+    expect(Number.isFinite(gsmLength(realLink))).toBe(true);
+    const realCode = templates.loginCodeSms(demo, "123456");
+    expect(Number.isFinite(gsmLength(realCode))).toBe(true);
+    expect(parts(realCode)).toBe(1);
   });
 
   // GSM 03.38: the characters one standard text message can carry (anything else, like a dash,
@@ -818,6 +956,7 @@ describe("every message to a worker ends with the firm's sign-off (golden rule 8
     ],
     ["shift_offer", shiftOfferMessage(voice, { ...shift, date: "Sat 7 Nov", link: "L" })],
     ["shift_confirmed", shiftConfirmedMessage(voice, { ...shift, date: "Sat 7 Nov", link: "L" })],
+    ["shift_not_booked", shiftNotBookedMessage(voice, { ...shift, date: "Sat 7 Nov", link: "L" })],
     ["shift_offer (SMS)", shiftOfferSms(voice, { ...shift, date: "Sat 7 Nov", link: "L" })],
     ["shift_urgent", shiftUrgentMessage(voice, { ...shift, link: "L" })],
     ["shift_urgent (SMS)", shiftUrgentSms(voice, { ...shift, link: "L" })],
@@ -875,6 +1014,18 @@ describe("the pushes", () => {
     });
   });
 
+  it("not booked from an ask (Phase 26.6)", () => {
+    const [title, body, noSiteBody] = quotes(push, "Not booked from an ask:");
+    expect(notBookedPush({ site: "{site}", date: "{date}", start: "{start}" })).toEqual({
+      title,
+      body,
+    });
+    expect(notBookedPush({ site: null, date: "{date}", start: "{start}" })).toEqual({
+      title,
+      body: noSiteBody,
+    });
+  });
+
   it("request update", () => {
     const [title, body] = quotes(push, "Request update:");
     expect(requestUpdatePush({ type: "{type}", status: "{status}" })).toEqual({ title, body });
@@ -925,6 +1076,9 @@ describe("emails to casuals: their subjects", () => {
     );
     expect(templates.shiftConfirmedEmailSubject({ date: "{date}" })).toBe(
       subject("Booking confirmation (`shift_confirmed`)"),
+    );
+    expect(templates.notBookedEmailSubject({ date: "{date}" })).toBe(
+      subject("Not chosen from an ask (`shift_not_booked`)"),
     );
     expect(templates.shiftReminder24hEmailSubject({ day: "{day}" })).toBe(
       subject("Reminder, the day before (`shift_reminder_24h`)"),
@@ -982,10 +1136,15 @@ describe("every template function is checked here", () => {
         "credentialExpiringMessage",
         "credentialWeeklyListEmail",
         "bookedPush",
+        "notBookedPush",
+        "notBookedEmailSubject",
+        "shiftNotBookedMessage",
         "changeWords",
         "firmChangePush",
         "loginCodeMessage",
+        "loginCodeSms",
         "loginLinkMessage",
+        "loginLinkSms",
         "offerPush",
         "officeLoginLinkEmail",
         "officeReplyMessage",
@@ -1000,6 +1159,9 @@ describe("every template function is checked here", () => {
         "shiftChangedByFirmMessage",
         "shiftConfirmedMessage",
         "shiftEscalationEmail",
+        "officeCancelPush",
+        "officeOpenPush",
+        "officeSummaryEmail",
         "strikeEvidenceEmail",
         "strikesEmailConfirmEmail",
         "shiftOfferMessage",
@@ -1016,6 +1178,8 @@ describe("every template function is checked here", () => {
         "inboxOfficeReplyEmail",
         "inboxReplySubject",
         "inboxSummaryEmail",
+        // A reply in the app (Phase 26.10, fix-3), checked above.
+        "forTheApp",
         "unknownNumberMessage",
         "smsStartedMessage",
         "smsStoppedMessage",
@@ -1104,6 +1268,24 @@ describe("the WhatsApp submission pack", () => {
         start: ex("shift_confirmed", "start"),
         end: ex("shift_confirmed", "end"),
         link: ex("shift_confirmed", "link"),
+      }),
+    shift_not_booked: () =>
+      shiftNotBookedMessage(voice("shift_not_booked"), {
+        role: ex("shift_not_booked", "roleName").replace(/ /g, "_"),
+        site: ex("shift_not_booked", "site"),
+        date: ex("shift_not_booked", "date"),
+        start: ex("shift_not_booked", "start"),
+        end: ex("shift_not_booked", "end"),
+        link: ex("shift_not_booked", "link"),
+      }),
+    shift_not_booked_no_site: () =>
+      shiftNotBookedMessage(voice("shift_not_booked_no_site"), {
+        role: ex("shift_not_booked_no_site", "roleName").replace(/ /g, "_"),
+        site: null,
+        date: ex("shift_not_booked_no_site", "date"),
+        start: ex("shift_not_booked_no_site", "start"),
+        end: ex("shift_not_booked_no_site", "end"),
+        link: ex("shift_not_booked_no_site", "link"),
       }),
     shift_confirmed_no_site: () =>
       shiftConfirmedMessage(voice("shift_confirmed_no_site"), {

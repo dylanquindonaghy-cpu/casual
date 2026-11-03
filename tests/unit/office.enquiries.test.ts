@@ -117,7 +117,7 @@ describe("how the office's reply goes", () => {
   const hour = 3_600_000;
   const recent = new Date(now.getTime() - hour);
   const old = new Date(now.getTime() - WHATSAPP_WINDOW_MS);
-  const casual = (notifyChannel: "whatsapp" | "sms", smsAllowed = true) => ({
+  const casual = (notifyChannel: "sms" | "email", smsAllowed = true) => ({
     notifyChannel,
     smsAllowed,
   });
@@ -158,20 +158,22 @@ describe("how the office's reply goes", () => {
     });
   });
 
-  it("a voicemail: the casual's own channel (WhatsApp after STOP); never a caller we don't know", () => {
-    expect(plan({ channel: "voice", casual: casual("sms"), lastWhatsAppAt: null })).toEqual({
-      ok: true,
-      channel: "sms",
-      form: "free_text",
-    });
+  // Phase 26.9: never WhatsApp (until then, the casual's channel, and WhatsApp after STOP).
+  it("a voicemail: a text, whatever they chose; nothing after STOP; never a caller we don't know", () => {
+    for (const chose of ["sms", "email"] as const) {
+      expect(plan({ channel: "voice", casual: casual(chose), lastWhatsAppAt: null })).toEqual({
+        ok: true,
+        channel: "sms",
+        form: "free_text",
+      });
+    }
     expect(plan({ channel: "voice", casual: casual("sms", false), lastWhatsAppAt: null })).toEqual({
-      ok: true,
-      channel: "whatsapp",
-      form: "template",
+      ok: false,
+      why: "texts_off",
     });
-    expect(plan({ channel: "voice", casual: casual("whatsapp") })).toMatchObject({
-      channel: "whatsapp",
-      form: "free_text",
+    expect(plan({ channel: "voice", casual: casual("sms", false) })).toEqual({
+      ok: false,
+      why: "texts_off",
     });
     expect(plan({ channel: "voice", lastWhatsAppAt: null })).toEqual({
       ok: false,
@@ -337,5 +339,20 @@ describe("the travel check on an enquiry's reply", () => {
     expect(travelCheckWords(null, none, true)).toBe(
       "Travel areas are off for this firm: not filtered by distance ✓",
     );
+  });
+});
+
+// "AI sorting isn't connected yet" (Phase 26.10, fix-5): admins only, and only while no AI is
+// connected; never a resourcer or payroll.
+describe("the AI banner on Enquiries", () => {
+  it("shows for an admin while no AI is connected, for nobody else", async () => {
+    const { AI_BANNER, showsAiBanner } = await import("@/lib/office/enquiries-copy");
+    expect(AI_BANNER).toBe(
+      "AI sorting isn't connected yet: messages without a keyword go to a person.",
+    );
+    expect(showsAiBanner("admin", "none")).toBe(true);
+    expect(showsAiBanner("admin", "anthropic")).toBe(false);
+    expect(showsAiBanner("resourcer", "none")).toBe(false);
+    expect(showsAiBanner("payroll", "none")).toBe(false);
   });
 });

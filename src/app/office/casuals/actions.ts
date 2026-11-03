@@ -8,6 +8,16 @@ import { SITE_BLOCK_REASONS } from "@/lib/db/schema";
 import { findWorkers } from "@/lib/gdpr/worker-export";
 import type { OfficeContext } from "@/lib/office/office-context";
 import {
+  addCasualNote,
+  markNeedsSorted,
+  REMIND_ALL_MAX,
+  remindCasuals,
+  type AddNoteResult,
+  type RemindResult,
+  type SortedResult,
+} from "@/lib/office/casual-follow-up";
+import { worstNeed } from "@/lib/office/casuals";
+import {
   blockFromSite,
   changeWorkerStatus,
   signOutWorker,
@@ -155,4 +165,29 @@ export async function recordCsasAction(
   const input = csasSchema.safeParse({ expiresOn, noExpiry, number, ownScheme });
   if (!parsedId.success || !input.success) return { status: "invalid" };
   return asOffice("record CSAS", (ctx) => recordCsas(ctx, parsedId.data, input.data));
+}
+
+// Phase 26.7 (cas-4): Remind (one, or "Remind all": the ids the page listed), a note, and "Mark
+// as sorted". Each checked again inside the firm's transaction.
+export async function remindAction(
+  workerIds: unknown,
+): Promise<RemindResult | Common | { status: "invalid" }> {
+  const ids = z.array(id).min(1).max(REMIND_ALL_MAX).safeParse(workerIds);
+  if (!ids.success) return { status: "invalid" };
+  return asOffice("remind casuals", (ctx) => remindCasuals(ctx, ids.data));
+}
+
+export async function addNoteAction(
+  workerId: string,
+  body: unknown,
+): Promise<AddNoteResult | Common> {
+  const text = z.string().max(2_000).safeParse(body);
+  if (!id.safeParse(workerId).success) return { status: "not_found" };
+  if (!text.success) return { status: "invalid" };
+  return asOffice("add a note", (ctx) => addCasualNote(ctx, workerId, text.data));
+}
+
+export async function markSortedAction(workerId: string): Promise<SortedResult | Common> {
+  if (!id.safeParse(workerId).success) return { status: "not_found" };
+  return asOffice("mark as sorted", (ctx) => markNeedsSorted(ctx, workerId, worstNeed));
 }

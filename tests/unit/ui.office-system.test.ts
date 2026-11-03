@@ -293,15 +293,27 @@ describe("the office's files use only the system (src/app/office, the shared par
     );
   });
 
-  // The one exception: keys and secrets on Integrations keep the system's mono, so O and 0, l and
-  // 1 differ (`codeBox`, and a role's or a scope's name in a sentence there).
-  it("the system's mono only for keys and secrets on Integrations", () => {
+  // Geist Mono (round 8, sys-6) where O and 0, l and 1 must differ: keys and secrets on Integrations
+  // (`codeBox`, and a role's or a scope's name in a sentence there), and every reference and ID,
+  // through <Ref> (src/app/ui/ref.tsx). Nowhere else: words and figures stay in Geist.
+  it("mono only for keys and secrets on Integrations, and references through <Ref>", () => {
     expect(classes.codeBox.split(" ")).toContain("font-mono");
+    expect(read("src/app/ui/ref.tsx")).toContain('<span className="font-mono">');
     const mono = SOURCES.filter(
       ({ shared, text }) => !shared && /(?<![\w-])font-mono(?![\w-])/.test(text),
     ).map(({ file }) => file);
     expect(mono.length).toBeGreaterThan(0);
     for (const file of mono) expect(file).toMatch(/^src\/app\/office\/settings\/integrations\//);
+    // Every reference the office shows ("Reference {ref}", "Cancellation {ref}", "Cancellation
+    // record {ref}", the record's Reference field) is in a <Ref>.
+    const bare = OFFICE.flatMap((file) =>
+      [...code(read(file)).matchAll(/(?:Reference|Cancellation(?: record)?) \{[^}]*\.ref\}/g)].map(
+        (m) => `${file}: ${m[0]}`,
+      ),
+    );
+    expect(bare).toEqual([]);
+    const wrapped = OFFICE.filter((file) => /<Ref>\{[^}]*\.ref\}<\/Ref>/.test(read(file)));
+    expect(wrapped.length).toBeGreaterThanOrEqual(6);
   });
 });
 
@@ -328,7 +340,7 @@ describe("the office's controls: hover, focus and pressed (Dylan's brief)", () =
       /rounded-full .* glass-button text-ink hover:bg-button-hover active:bg-button-press$/,
     );
     expect(btn.danger).toMatch(
-      /rounded-full .* glass-button text-urgent hover:bg-button-hover active:bg-button-press$/,
+      /rounded-full .* glass-button text-urgent-ink hover:bg-button-hover active:bg-button-press$/,
     );
     expect(btn.dangerSolid).toMatch(
       / bg-urgent-fill text-on-urgent hover:bg-urgent-fill-hover active:bg-urgent-fill-hover$/,
@@ -438,7 +450,8 @@ describe("the office's controls: hover, focus and pressed (Dylan's brief)", () =
       / office:max-w-full office:shrink-0 office:whitespace-normal$/,
     );
     // The blue tone (Phase 23): waiting on someone else.
-    expect(classes.chip.wait).toBe("border-wait-line bg-wait-soft text-wait-ink");
+    // Its words in ink in the office (round 8's six text colours, aud-4): the blue is its tint.
+    expect(classes.chip.wait).toBe("border-wait-line bg-wait-soft text-wait-ink office:text-ink");
     // Every count a pill with no edge (Phase 23): the grey one clear glass since Phase 24, the
     // others tinted.
     for (const [name, cls, fill] of [
@@ -473,11 +486,13 @@ describe("the office's tokens (src/app/globals.css)", () => {
   const light = block("body:has([data-office])");
   const value = (name: string) => light.match(new RegExp(`--${name}: ([^;]+);`))?.[1];
 
-  // Phase 24 (round 7): one look for the office and the casual app. The office's block sets its
-  // sizes and its headline's weight and tracking, and nothing else: no colour (Phase 23's white
-  // cards on a cool grey ground and the sky main button are gone), no face, and no dark block of
-  // its own. Its main button is the app's: tinted glass in the firm's colour.
-  it("the office takes the app's colours and glass: its block sets only its sizes", () => {
+  // Phase 24 (round 7) gave the office and the casual app one look. Round 8 (Phase 26) gives the
+  // office its own again, on its wrapper ([data-office]: its colours and glass, dark and light;
+  // tests/unit/ui.contrast.test.ts checks every pair), and its sizes stay in their own block on
+  // <body> with nothing else: no colour there, no face. Its main button is the system's glass-tint,
+  // hi-vis in the office; the firm's colour still reaches the casual app (and the firm's bar above
+  // the office) from <body>.
+  it("the office's sizes in their own block; its colours on its wrapper, not on <body>", () => {
     expect([...light.matchAll(/--([a-z0-9-]+):/g)].map((m) => m[1])).toEqual([
       "text-sm",
       "text-sm--line-height",
@@ -498,14 +513,21 @@ describe("the office's tokens (src/app/globals.css)", () => {
     expect(css).not.toMatch(/:root:not\(\[data-theme="light"\]\) body:has\(\[data-office\]\)/);
     expect(css).not.toMatch(/\[data-office\] \{\s*font-family/);
     expect(read("src/app/ui/classes.ts")).toMatch(/primary: `\$\{office\} glass-tint /);
-    // And the firm's colour reaches the office as everywhere (Phase 23 kept it off its buttons).
+    // The firm's colour reaches <body> as before; inside the office its wrapper's hi-vis wins.
     expect(block("body[data-firm-colour]")).toContain("--color-tint: var(--firm-fill);");
+    for (const selector of [
+      ':root:not([data-theme="light"]) [data-office]',
+      ':root[data-theme="light"] [data-office]',
+    ])
+      expect(block(selector)).toContain("--color-tint: #e9f86f;");
   });
 
-  it("the type scale's office values: 13, 15, 17, 30 and 40px in place of 14, 16, 18, 28 and 44", () => {
+  // Round 8 (Phase 26, the pre-build audit's aud-3): 12, 13, 14, 16, 20 and 30px, nothing under
+  // 12 (round 7's office: 15, 17 and 40px).
+  it("the type scale's office values: 13, 14, 16 and 30px in place of 14, 16, 18 and 28", () => {
     expect(value("text-sm")).toBe("0.8125rem");
-    expect(value("text-base")).toBe("0.9375rem");
-    expect(value("text-lg")).toBe("1.0625rem");
+    expect(value("text-base")).toBe("0.875rem");
+    expect(value("text-lg")).toBe("1rem");
     expect(value("text-3xl")).toBe("1.875rem");
     expect(value("text-4xl")).toBe("2.5rem");
     expect(value("text-2xl")).toBeUndefined();
@@ -528,6 +550,16 @@ describe("the office's tokens (src/app/globals.css)", () => {
     expect(css).toMatch(/--radius-card: 1\.5rem;/);
     expect(css).toMatch(/--radius-inner: 1\.375rem;/);
     expect(css).toMatch(/--radius-row: 0\.875rem;/);
+    // Round 8's office: tighter corners, 12px panels and 8px rows (in both its looks).
+    for (const selector of [
+      ':root:not([data-theme="light"]) [data-office]',
+      ':root[data-theme="light"] [data-office]',
+    ]) {
+      const office = block(selector);
+      expect(office).toContain("--radius-card: 0.75rem;");
+      expect(office).toContain("--radius-inner: 0.75rem;");
+      expect(office).toContain("--radius-row: 0.5rem;");
+    }
     for (const token of ["soft", "raise", "sheet", "tint"])
       expect(css).not.toMatch(new RegExp(`--shadow-${token}:`));
     expect(css).toContain("--shadow-float: var(--float-shadow);");
@@ -574,20 +606,36 @@ describe("the office's tokens (src/app/globals.css)", () => {
       '&[data-more="below"]: mask-image',
       '&[data-more="above"]: mask-image',
       '&[data-more="both"]: mask-image',
+      // A sideways row's fade at the edge with more to scroll to (round 8, sys-9).
+      "@utility fade-x: mask-image",
     ]);
     expect(css).toMatch(/@utility fade-edges \{/);
+    expect(css).toMatch(/@utility fade-x \{[\s\S]*?animation-timeline: scroll\(self inline\);/);
+    expect(classes.tabs.split(" ")).toContain("fade-x");
   });
 
   // No grain, stripes, glows or colour cards (round 2's), and no picture: the only images are the
-  // glass's gradients and the only url() the refraction filter's (ui.glass.test.ts).
-  it("no grain, stripes, glows, tinted cards or pictures", () => {
+  // glass's gradients, the refraction filter's url() (ui.glass.test.ts) and round 8's street map
+  // behind the office (one still picture: Phase 26, the pre-build audit's aud-16).
+  it("no grain, stripes, glows, tinted cards or pictures but the office's street map", () => {
     expect(css).not.toMatch(
       /--(?:grain|stripes|tint-(?:urgent|attention|wait|done)|card-chip|glow-)/,
     );
     expect(css).not.toMatch(/@utility (?:grain|stripes|tint-|card-chip)/);
     expect(css.match(/background-image:/g)).toHaveLength(4);
-    expect(css.match(/url\(/g)).toEqual(["url("]);
-    expect(css).toContain("url(#lg-refract)");
+    expect([...css.matchAll(/url\(([^)]*)\)/g)].map((m) => m[1])).toEqual([
+      '"./office-streets.svg"',
+      '"./office-streets.svg"',
+      "#lg-refract",
+    ]);
+    expect(css).toMatch(
+      /body:has\(\[data-office\]\)::before \{\s*background: var\(--map-road\);\s*-webkit-mask: url\("\.\/office-streets\.svg"\) center \/ cover no-repeat;\s*mask: url\("\.\/office-streets\.svg"\) center \/ cover no-repeat;\s*\}/,
+    );
+    // The picture itself: lines only, no fill, no text, no image inside it.
+    const svg = read("src/app/office-streets.svg");
+    expect(svg).toMatch(/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 1600 1000"/);
+    expect(svg).not.toMatch(/<(?:text|image|use|script|style|foreignObject)\b|href=/);
+    expect(svg.length).toBeLessThan(30_000);
     // Nor round 2's colour cards' own tokens.
     expect(css).not.toMatch(/--color-(?:urgent|attention|wait|done)-card/);
     const texture =
@@ -600,12 +648,31 @@ describe("the office's tokens (src/app/globals.css)", () => {
 
   // The office's table (Phase 23) is history: its values are the app's now, matched against the
   // doc's one token table (tests/unit/ui.design-system.test.ts), and the doc says so.
-  it("docs/ui-design.md: the office's colours are the app's (Phase 24)", () => {
+  // Round 8 (Phase 26): the office's own look again, first in the doc; Phase 24 stays for the
+  // casual app and what round 8 doesn't change, and says round 8 replaced its office colours.
+  it("docs/ui-design.md: round 8's office look first (Phase 26), round 7's after it", () => {
     const doc = read("docs/ui-design.md");
+    const p26 = doc
+      .slice(
+        doc.indexOf("## Phase 26: round 8, the office after Haulix"),
+        doc.indexOf("## Phase 24"),
+      )
+      .replace(/\s+/g, " ");
+    expect(doc.indexOf("## Phase 26")).toBeLessThan(doc.indexOf("## Phase 24"));
+    for (const words of [
+      "Dark by default",
+      "hi-vis yellow `#e9f86f`",
+      "4.93:1 (`#d13438`; aud-1)",
+      "12 · 13 · 14 · 16 · 20 · 30px in the office",
+      "`src/app/office-streets.svg`",
+      "six office looks",
+    ])
+      expect(p26, words).toContain(words);
     const p24 = doc
       .slice(doc.indexOf("## Phase 24: Liquid Glass"), doc.indexOf("## Phase 23"))
       .replace(/\s+/g, " ");
     expect(p24).toContain("The office has no colours of its own any more");
+    expect(p24).toContain("Replaced in the office by Phase 26");
     expect(p24).toContain("the office's 12, 13, 15, 17, 20, 30 and 40px");
     const p23 = doc.slice(doc.indexOf("## Phase 23"), doc.indexOf("## Phase 22"));
     expect(p23).toMatch(/^## Phase 23: the office's look, round 3\n\nReplaced by Phase 24/);
@@ -655,7 +722,7 @@ describe("round 7's parts on the office's other pages", () => {
     expect(section!.split(" ")).toEqual(expect.arrayContaining(["glass", "rounded-inner"]));
     expect(section).not.toMatch(/(?<![\w-])(?:border|bg-[a-z]+-soft|bg-card)(?![\w-])/);
     expect(also).toMatch(
-      /<svg [^>]*class="[^"]*(?<![\w-])text-urgent(?![\w-])[^"]*"[^>]*>[\s\S]*?<\/svg><h2 id="also-needs-you"/,
+      /<svg [^>]*class="[^"]*(?<![\w-])text-urgent-ink(?![\w-])[^"]*"[^>]*>[\s\S]*?<\/svg><h2 id="also-needs-you"/,
     );
     // Each of its parts (Who worked?, Uploads to check and the rest): the same, an amber leaf.
     const { Need } = await import("@/app/office/needs-items");
@@ -667,7 +734,7 @@ describe("round 7's parts on the office's other pages", () => {
     );
     expect(need).not.toMatch(/(?<![\w-])(?:border|bg-[a-z]+-soft)(?![\w-])/);
     expect(need).toMatch(
-      /<svg [^>]*class="[^"]*(?<![\w-])text-attention(?![\w-])[^"]*"[^>]*>[\s\S]*?<\/svg><h3 id="to-mark"/,
+      /<svg [^>]*class="[^"]*(?<![\w-])text-attention-ink(?![\w-])[^"]*"[^>]*>[\s\S]*?<\/svg><h3 id="to-mark"/,
     );
     // No shadow class and no grain, here or anywhere in what it draws.
     expect(also).not.toMatch(/(?<![\w-])(?:[a-z0-9-]+:)*(?:inset-)?shadow-(?!none)/);
@@ -766,13 +833,17 @@ describe("round 7's parts on the office's other pages", () => {
     expect(count(/(?<![\w-])glass-button(?![\w-])/)).toBeGreaterThan(4);
     expect(count(/(?<![\w-])glass-float(?![\w-])/)).toBeGreaterThan(4);
     // 24px corners are what floats beside the page: the rail's (Phase 24: the menu card's, in the
-    // frame, until then) and the dashboard's offer panel's (24.3, the mock-up's sheet), and the
-    // login card's; a section on a page is 22px (rounded-inner), a row 14px.
+    // frame, until then), the dashboard's offer panel's (24.3, the mock-up's sheet) and its
+    // Customise panel's (26.3, beside the page from 1024px), and the login card's; a section on a
+    // page is 22px (rounded-inner), a row 14px.
     const big = /(?<![\w-])(?:[a-z0-9-]+:)*rounded-(?:[trblse]{1,2}-)?card(?![\w-])/;
     const bigFiles = OFFICE.filter((file) => big.test(code(read(file))));
+    // A session's slide-in panel (Phase 26.6) floats beside the page as Customise's does.
     expect(bigFiles).toEqual([
+      "src/app/office/customise-panel.tsx",
       "src/app/office/dashboard/offer-panel.tsx",
       "src/app/office/office-rail.tsx",
+      "src/app/office/shifts/[id]/session-panel.tsx",
     ]);
     expect(
       Object.entries(classes)
@@ -835,19 +906,23 @@ describe("the office's loading skeletons", () => {
     );
   });
 
-  // Phase 24 (24.3): the dashboard's sections are its head and track, the places chart, the detail
-  // card and the board's four columns (Phase 23's counts, urgent places and six charts went).
+  // Round 8 (Phase 26.2): the dashboard's sections are its head and track, the venue map with the
+  // session card, and the three columns (round 7's places chart and four columns went).
   it("the dashboard's has a part for every section", () => {
     const html = renderToStaticMarkup(createElement(DashboardSkeleton));
     expect([...html.matchAll(/data-skeleton-part="([a-z]+)"/g)].map((m) => m[1])).toEqual([
       "header",
-      "places",
+      "map",
       "detail",
       "offer",
-      "offered",
-      "overnight",
+      "updates",
       "mark",
     ]);
+    // The map's own heights, and the card over its top left from 1024px, as the page's.
+    expect(html).toMatch(/data-skeleton-part="map" class="[^"]*h-75 @min-\[64rem\]:h-132/);
+    expect(html).toMatch(
+      /data-skeleton-part="detail" class="[^"]*@min-\[64rem\]:absolute @min-\[64rem\]:top-3 @min-\[64rem\]:left-3[^"]*@min-\[64rem\]:w-101/,
+    );
     // Glass, as the dashboard's (Phase 24): its sections frosted, no white card, no tints, no
     // shadow class, no grain.
     expect(html).toContain("glass rounded-inner");
@@ -878,5 +953,88 @@ describe("the office's loading skeletons", () => {
       expect(html).toContain(`<p class="sr-only">Loading ${what}…</p>`);
       expect(html).toMatch(/<div aria-hidden="true"/);
     }
+  });
+});
+
+describe("every other office page's tables, round 8 (Phase 26.10, oth-2)", () => {
+  it("column labels are 12px grey, the shared report table's and each page's own", () => {
+    expect(classes.table.th.split(" ")).toEqual(
+      expect.arrayContaining(["text-xs", "text-ink-muted"]),
+    );
+    // A page's own header class (Casuals, Cancellations): the same size and colour.
+    const own = OFFICE.flatMap((f) =>
+      [...code(read(f)).matchAll(/const th = "([^"]+)"/g)].map((m) => ({ f, cls: m[1] ?? "" })),
+    );
+    expect(own.length).toBeGreaterThan(0);
+    for (const { f, cls } of own) {
+      expect([f, cls.split(" ")]).toEqual([
+        f,
+        expect.arrayContaining(["text-xs", "text-ink-muted"]),
+      ]);
+      expect([f, cls]).not.toEqual([f, expect.stringMatching(/\btext-(sm|base)\b/)]);
+    }
+  });
+
+  it("figures right and lined up; no zebra stripes", () => {
+    expect(classes.table.num.split(" ")).toEqual(["text-right", "tabular-nums"]);
+    for (const f of OFFICE) {
+      expect([f, code(read(f))]).not.toEqual([f, expect.stringMatching(/\b(odd|even):bg-/)]);
+    }
+  });
+});
+
+// Six text colours (round 8, aud-4): ink, muted, faint, red, amber and green (each status's "ink"
+// shade, the one checked for contrast on its tint and on the glass); the status pills and tiles keep
+// their tints (sys-4: Offered blue, Hidden grey) with words in those six. A filled control's or
+// badge's own words (`on-*`: on ink, on red, on hi-vis, on the firm's bar), a pressed link's darker
+// ink, and the map's marks on the column icons (`mark-*`) aren't page text.
+describe("the office's text colours (round 8, aud-4)", () => {
+  it("six: ink, muted, faint, red, amber, green", () => {
+    const NOT_COLOUR = new Set([
+      "left",
+      "right",
+      "center",
+      "justify",
+      "start",
+      "end",
+      "balance",
+      "pretty",
+      "wrap",
+      "nowrap",
+      "ellipsis",
+      "clip",
+      "xs",
+      "sm",
+      "base",
+      "lg",
+      "xl",
+      "2xl",
+      "3xl",
+      "4xl",
+      "5xl",
+      "title",
+      "inherit",
+      "current",
+      "transparent",
+    ]);
+    const SIX = new Set([
+      "ink",
+      "ink-muted",
+      "ink-faint",
+      "urgent-ink",
+      "attention-ink",
+      "done-ink",
+    ]);
+    const TEXT_COLOUR = new RegExp(`${V}text-([a-z][a-z0-9-]*)${END}`, "g");
+    const off = found(
+      TEXT_COLOUR,
+      (value) =>
+        NOT_COLOUR.has(value) ||
+        SIX.has(value) ||
+        value.startsWith("on-") ||
+        value === "ink-press" ||
+        value.startsWith("mark-"),
+    );
+    expect(off).toEqual([]);
   });
 });

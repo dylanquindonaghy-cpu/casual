@@ -49,7 +49,23 @@ describe("workerLoginWay", () => {
     const none = await withEmail(await on.worker(), null);
     expect(await workerLoginWay(on.firmId, held, withFirm, false)).toBe("email");
     expect(await workerLoginWay(on.firmId, none, withFirm, false)).toBe("off");
-    expect(await workerLoginWay(on.firmId, none, noReads, true)).toBe("message");
+    expect(await workerLoginWay(on.firmId, none, withFirm, true)).toBe("message");
+  });
+
+  // Phase 26.9: no text after STOP, the code and link included, so the pages don't promise one.
+  it("a casual who replied STOP: by email where the firm can, else off, never a text", async () => {
+    const on = await bookingFirm(su, withFirm, { settings: { login_by_email: true } });
+    const held = await withEmail(await on.worker(), "sam.booker@example.com");
+    const none = await withEmail(await on.worker(), null);
+    await su.query("update workers set sms_opted_out_at = now() where id = any($1)", [
+      [held, none],
+    ]);
+    expect(await workerLoginWay(on.firmId, held, withFirm, true)).toBe("email");
+    expect(await workerLoginWay(on.firmId, none, withFirm, true)).toBe("off");
+    const off = await bookingFirm(su, withFirm);
+    const stopped = await withEmail(await off.worker(), "sam.booker@example.com");
+    await su.query("update workers set sms_opted_out_at = now() where id = $1", [stopped]);
+    expect(await workerLoginWay(off.firmId, stopped, withFirm, true)).toBe("off");
   });
 
   it("off when the firm hasn't switched it on, address or not", async () => {

@@ -168,8 +168,11 @@ without them it won't start. `docker compose ps` shows the worker "healthy"; if 
 never be printed instead of sent: `MESSAGING_TRANSPORT=console` is refused in production. Once the
 firm's text system is connected (Phase 15), `MESSAGING_TRANSPORT` names it: `webex` is built and
 not yet tried against the real service (it waits for the firm's account), and the settings refuse
-it in production until 15.1 makes everything texts (until then the login link and the pay code go
-by WhatsApp whenever a text sender exists, which Webex won't carry, so nobody could log in). Then,
+it in production. Since Phase 26.9 every message to a casual is a text or an email (the login link
+and the pay code went by WhatsApp until then, which Webex won't carry), but two things are still
+missing: a STOP sent to Webex isn't recorded (only the Twilio shifts line sets it: Phase 15's
+replies by text), and the web can't tell which firms have a Webex key, so its pages would promise
+texts that can't go (the 26.9 guardrails review, H2). Then,
 each firm's Webex Interact access token and sender (a name or long number set up in Webex
 Interact) go in the secret store (`npm run firm:secret -- --firm <slug> --name webex.api_key`, then
 `--name webex.sender`, each value from standard input), the worker needs `SECRETS_KEY`, and then
@@ -250,7 +253,9 @@ Nothing real happens on it:
   the worker stops if one ever gets in. Names, notes and photos aren't checked, so never type,
   import or upload anything real on it (golden rule 7), and say so to whoever you show it to.
 - **Loaded afresh every night** at 04:00 UK time: the demo's dates move on with the calendar and
-  whatever visitors did is cleared. No backups: there's nothing to keep.
+  whatever visitors did is cleared. Its history's log entries carry the made-up story's own times,
+  and the pilot figures (Pilot metrics) are worked out straight after, over the page's longest
+  period, 92 days (Phase 26.10, fix-8). No backups: there's nothing to keep.
 
 It costs the server (Hetzner CX23: about €5.49 a month, plus €0.50 for its IPv4 address) and your
 domain. Nothing else: no text or email account, no database service.
@@ -335,8 +340,11 @@ The steps are done once, in this order. Where a step says "on the server", you'r
 10. **Try it** on your phone: `https://acme.<your domain>`. The browser asks for a user name and
     password: `demo` and your `DEMO_SITE_PASSWORD`. The yellow bar says it's a demo. (The first
     visit to each address takes a few seconds longer: the server gets its certificate then.)
-    - As a casual: enter `07700 900101` (Zoe) and tap **Send me a link**, then **Demo phone** in
-      the bar: the text with the link shows within a few seconds. Tap the link, then **Log me in**.
+    - As a casual: enter `07700 900400` (Zoe Adeyemi, the story's casual: a shift tomorrow, an
+      urgent CSAS shift she can take and a photo to renew) and tap **Send me a link**, then **Demo
+      phone** in the bar: the text with the link shows within a few seconds. Tap the link, then
+      **Log me in**. (Not `07700 900100` to `900104`: the seed keeps those five casuals free of
+      shifts, so their app is empty.)
     - As the office: `https://acme.<your domain>/office/login` with `acme.admin@example.com`
       (or `acme.resourcer@…`, `acme.payroll@…`); the email shows on the Demo phone.
     - Northline: `https://northline.<your domain>` (asks for the password again, once), with
@@ -873,6 +881,58 @@ when it's saved (12G.1; `docs/office-v2.md` 5.4). Which service does that is the
 3. A site shows "Location not looked up yet": its postcode was saved before look-ups (or while the
    service was off). Save the same postcode again on Settings.
 4. Northern Ireland (BT) postcodes need a separate licence first (`PLAN.md` Checks 16).
+
+## The street map (the dashboard's venue map)
+
+The dashboard's venue map (Phase 26.2) draws real streets only when the server has a UK map file
+and `MAP_TILES_URL` points to it. Without one (the default) every pin is still placed by its
+venue's position on a plain ground, and the map's foot says "Placed by each venue's postcode". The
+file is ours, on our own server (the pre-build audit's aud-8): no map company is paid per view or
+told where anyone is. It's OpenStreetMap's data (from Protomaps' daily builds), so "©
+OpenStreetMap contributors" shows on the map: never hide it.
+
+The browser tests' street-map run (`npm run e2e:streets`, part of `npm run e2e`) runs this whole
+path with a tiny made-up map file: MapLibre reads it by byte range from the server's own path, its
+worker comes from `/office/map-worker`, and the streets draw. Your real file still needs the check
+by eye below once it's up.
+
+**Set it up (once, then once or twice a year to refresh):**
+
+1. On any computer, get the `pmtiles` tool (https://github.com/protomaps/go-pmtiles, its releases).
+2. Find the newest world build's name (the last `key` in
+   https://build-metadata.protomaps.dev/builds.json, such as `20261102.pmtiles`; the whole world is
+   about 140 GB, so never download it). Cut out the UK; the tool reads only the parts it needs:
+
+   ```bash
+   pmtiles extract https://build.protomaps.com/20261102.pmtiles uk.pmtiles --bbox=-8.65,49.86,1.77,60.86
+   ```
+
+   Check its size (`ls -lh uk.pmtiles`) against the server's free disk (`df -h /opt/shiftdesk`).
+   Adding `--maxzoom=13` makes it smaller and still shows the streets around a venue.
+3. Copy it to the server as `/opt/shiftdesk/maps/uk.pmtiles` (Caddy serves that folder at
+   `/maps/`, read only, on every firm's address: `deploy/Caddyfile`).
+4. In `/opt/shiftdesk/.env` set `MAP_TILES_URL=/maps/uk.pmtiles`. The next deploy run applies it
+   (`deploy/deploy.sh` recreates the web app when `.env` changes).
+5. Check: `curl -sI -H "Range: bytes=0-15" https://<a firm's address>/maps/uk.pmtiles` answers
+   `206 Partial Content`; then open the dashboard: the map shows streets, its foot says "Drag to
+   move · Ctrl + scroll to zoom", and "© OpenStreetMap contributors" is at its bottom right.
+
+To refresh it, replace the file (same name) and reload the dashboard; nothing else changes. To turn
+the streets off, empty `MAP_TILES_URL`.
+
+**The map shows no streets** (the foot still says "Placed by each venue's postcode"):
+
+1. `grep '^MAP_TILES_URL=' /opt/shiftdesk/.env`: empty means off. Anything but a path on this
+   server ending `.pmtiles` (such as `/maps/uk.pmtiles`) stops the app starting (its settings
+   check), so look at the web app's logs too. Another host's address is refused on purpose: each
+   office user's address and the area around the firm's venues would reach it.
+2. The file: the `curl` in step 5 above. `404`: it isn't at exactly
+   `/opt/shiftdesk/maps/uk.pmtiles`, or can't be read (`ls -l /opt/shiftdesk/maps/`).
+3. The browser: its console on the dashboard. "Worker failed to load" means `/office/map-worker`
+   didn't answer (MapLibre's worker, served from the app's own `node_modules`).
+
+A venue with no position (its site has no postcode looked up yet) is never placed by guesswork:
+it's listed under the map. See "Postcodes not found" above.
 
 ## Travel provider outage (travel times missing)
 

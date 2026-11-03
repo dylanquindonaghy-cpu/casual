@@ -141,15 +141,15 @@ describe("Home's rows", () => {
   it("the apply row says 'more' only under the urgent one, and with none when she'll hear; offline, the urgent count", () => {
     const three = ["2026-10-25", "2026-10-27", "2026-10-28"].map((d) => shift(`${d}T10:00:00Z`));
     expect(applyRowText(three, true, true, TZ)).toEqual({
-      title: "3 more to apply for",
+      title: "3 more you can take",
       sub: "Sun 25, Tue 27 and Wed 28 Oct · up to £12.60/hour",
     });
     expect(applyRowText(three, false, true, TZ)).toEqual({
-      title: "3 shifts to apply for",
+      title: "3 shifts you can take",
       sub: "Sun 25, Tue 27 and Wed 28 Oct · up to £12.60/hour",
     });
     expect(applyRowText([shift("2026-10-25T10:00:00Z", null)], false, true, TZ)).toEqual({
-      title: "1 shift to apply for",
+      title: "1 shift you can take",
       sub: "Sun 25 Oct",
     });
     expect(applyRowText([], true, true, TZ)).toEqual({

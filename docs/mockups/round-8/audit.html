@@ -1,0 +1,389 @@
+<title>Office pre-build audit</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Round 8's own dark charcoal and hi-vis, as on the changes page, so the audit reads like the office it
+   checks. Layout: one reading column; four parts (real data, measured, Parim, what to change). */
+:root {
+  --g0: #0d0d0e; --g1: #141415; --p1: #1b1b1d; --p2: #232325; --p3: #2c2c2f;
+  --edge: #29292c; --edge2: #38383c;
+  --ink: #f4f4f3; --muted: #a8a8ad; --faint: #8f8f94;
+  --hv: #e9f86f; --on-hv: #171800;
+  --red: #ff8a80; --red-bg: #3a1a19; --red-edge: #6a2a28;
+  --amb: #f2b55a; --amb-bg: #33260f; --amb-edge: #5a4318;
+  --grn: #8fe28c; --grn-bg: #15291a; --grn-edge: #2b5a3e;
+  --blu: #8ab4ff; --blu-bg: #172238; --blu-edge: #2b4170;
+  --sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--g0); color: var(--ink); font: 15px/1.55 var(--sans); }
+.wrap { max-width: 1120px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 96px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 40px; }
+h1, h2, h3 { margin: 0; line-height: 1.2; letter-spacing: -0.015em; text-wrap: balance; }
+h1 { font-size: 32px; font-weight: 600; } h2 { font-size: 24px; font-weight: 600; } h3 { font-size: 16px; font-weight: 600; }
+p { margin: 0; }
+ul, ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+a { color: var(--ink); text-underline-offset: 2px; }
+a:focus-visible { outline: 2px solid var(--hv); outline-offset: 2px; border-radius: 4px; }
+.read { max-width: 760px; }
+.muted { color: var(--muted); } .faint { color: var(--faint); } .small { font-size: 13px; }
+code { font-family: var(--mono); font-size: 0.85em; background: var(--p2); border-radius: 6px; padding: 1px 6px; overflow-wrap: anywhere; }
+.eyebrow { font-size: 13px; color: var(--faint); letter-spacing: 0.04em; }
+.lede { font-size: 17px; color: var(--muted); margin-top: 8px; }
+.toc { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+.toc a { color: var(--muted); text-decoration: none; font-size: 13px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--edge); }
+.toc a:hover { color: var(--ink); border-color: var(--edge2); }
+section { display: grid; gap: 16px; scroll-margin-top: 16px; }
+.shead { display: grid; gap: 6px; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.card { background: var(--p1); border: 1px solid var(--edge); border-radius: 12px; padding: 16px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.card h3 { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; justify-content: space-between; }
+.sum b { color: var(--ink); font-weight: 600; }
+.sum .k { font-size: 12px; color: var(--faint); letter-spacing: 0.04em; }
+.pill { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 500; white-space: nowrap; border: 1px solid; }
+.pill.ready { background: var(--grn-bg); color: var(--grn); border-color: var(--grn-edge); }
+.pill.part { background: var(--amb-bg); color: var(--amb); border-color: var(--amb-edge); }
+.pill.new { background: var(--red-bg); color: var(--red); border-color: var(--red-edge); }
+.pill.info { background: var(--blu-bg); color: var(--blu); border-color: var(--blu-edge); }
+.pill.hv { background: #2e3112; color: var(--hv); border-color: #4d5220; }
+dl.facts { margin: 0; display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 6px 12px; font-size: 14px; }
+dl.facts dt { color: var(--faint); font-size: 12.5px; padding-top: 2px; }
+dl.facts dd { margin: 0; color: var(--muted); }
+dl.facts dd b { color: var(--ink); font-weight: 500; }
+.tablebox { overflow-x: auto; border: 1px solid var(--edge); border-radius: 12px; background: var(--p1); }
+table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 640px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--edge); }
+thead th { font-size: 12px; font-weight: 500; color: var(--faint); background: var(--g1); letter-spacing: 0.02em; }
+tbody tr:last-child td { border-bottom: 0; }
+td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.bad { color: var(--red); } td.ok { color: var(--grn); } td.mid { color: var(--amb); }
+td .faint { display: block; font-size: 12.5px; }
+.finding { display: grid; gap: 6px; padding: 14px 16px; border-radius: 12px; background: var(--p1); border: 1px solid var(--edge); min-width: 0; }
+.finding .top { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 12.5px; color: var(--faint); }
+.finding .claim { font-weight: 600; }
+.finding pre { margin: 0; font: 12.5px/1.5 var(--mono); color: var(--muted); background: var(--g1); border: 1px solid var(--edge); border-radius: 8px; padding: 8px 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.finding .fix { font-size: 14px; color: var(--muted); }
+.finding .fix b { color: var(--hv); font-weight: 500; }
+.list { display: grid; gap: 8px; }
+.shots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+figure { margin: 0; display: grid; gap: 6px; min-width: 0; align-content: start; }
+figcaption { font-size: 12.5px; color: var(--faint); }
+figcaption b { color: var(--muted); font-weight: 500; }
+.shot { border: 1px solid var(--edge); border-radius: 10px; overflow: auto; max-height: 360px; background: var(--g1); }
+.shot img { display: block; width: 100%; height: auto; }
+figure.missing .shot { display: none; }
+figure.missing::before { content: "Shown on the published page only (Parim's help-centre pictures aren't kept in the repo)."; display: block; padding: 32px 14px; border: 1px dashed var(--edge2); border-radius: 10px; color: var(--faint); font-size: 13px; }
+.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.three h3 { font-size: 15px; }
+.recs { display: grid; gap: 8px; counter-reset: rec; }
+.rec { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 4px 12px; align-items: start; padding: 12px 14px; border-radius: 12px; background: var(--p1); border: 1px solid var(--edge); }
+.rec::before { counter-increment: rec; content: counter(rec); font: 500 13px var(--mono); color: var(--faint); padding-top: 2px; }
+.rec .what { display: grid; gap: 4px; min-width: 0; }
+.rec .why { font-size: 13px; color: var(--faint); }
+.rec .tags { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.rec .id { font: 12px var(--mono); color: var(--faint); }
+.callout { border: 1px solid #4d5220; background: #1b1d0d; border-radius: 12px; padding: 14px 16px; display: grid; gap: 6px; }
+.callout b { color: var(--hv); font-weight: 600; }
+.foot { font-size: 13px; color: var(--faint); display: grid; gap: 6px; }
+@media (max-width: 860px) {
+  .grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .shots, .three { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 620px) {
+  .grid2, .grid4 { grid-template-columns: minmax(0, 1fr); }
+  h1 { font-size: 27px; } h2 { font-size: 21px; }
+  .rec { grid-template-columns: 26px minmax(0, 1fr); }
+  .rec .tags { grid-column: 2; justify-content: flex-start; }
+  dl.facts { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  dl.facts dd { margin-bottom: 6px; }
+}
+</style>
+
+<div class="wrap">
+  <header class="read">
+    <p class="eyebrow">THE OFFICE · BEFORE THE BUILD · MON 2 NOV 2026</p>
+    <h1 style="margin-top:6px">Before the build: the office audit</h1>
+    <p class="lede">You asked three things before I build round 8: how the map and charts will use real data, how the proposed screens compare with what's live today, and what Parim does better. Each answer is below, with the measurements, followed by 16 changes I recommend. Those 16 are now on the changes page, where you can mark each Build or Drop.</p>
+    <nav class="toc" aria-label="On this page">
+      <a href="#short">In short</a><a href="#real">Real data</a><a href="#measured">Today vs round 8</a><a href="#parim">Against Parim</a><a href="#recs">What to change</a><a href="#method">How I checked</a>
+    </nav>
+  </header>
+
+  <section id="short" aria-labelledby="h-short">
+    <h2 id="h-short" class="read">In short</h2>
+    <div class="grid4 sum">
+      <div class="card"><span class="k">REAL DATA</span><p><b>The map and every chart use figures the app already records.</b> Before they can be built, five things are needed: map tiles, a clients list for contracts, office notifications, pages that update themselves, and 12 weeks of made-up history for the demo.</p></div>
+      <div class="card"><span class="k">ROUND 8</span><p><b>Round 8 is a big step up in layout.</b> The Arena's page goes from 6.3 screens of scrolling to 1.2. Three things measured on the mock-ups need fixing first: a red that's too light behind white text, text as small as 9.5px, and too many sizes and colours.</p></div>
+      <div class="card"><span class="k">TODAY</span><p><b>Today's office passes on accessibility, and the build must keep that.</b> None of 1,378 text samples failed contrast. Its weak points: 23 buttons on one page share the same name, and an open page never picks up a casual's cancellation by itself.</p></div>
+      <div class="card"><span class="k">PARIM</span><p><b>Parim does more around the shift itself:</b> clock-in, reconfirming before a shift, and a scheduling grid. <b>ShiftDesk does better when a gap needs filling:</b> instant booking, licence checks that block an offer, strikes, a two-way shifts line and no passwords. I'm taking one Parim idea into round 8 and parking six for later.</p></div>
+    </div>
+  </section>
+
+  <section id="real" aria-labelledby="h-real">
+    <div class="shead read">
+      <h2 id="h-real">How the map and charts get real data</h2>
+      <p class="muted">Nothing on the round 8 screens is invented. Each picture is a query on data the app already stores, worked out in code, never by AI (golden rule 1). Below is where each one's numbers come from, whether the data exists today, and what has to be built.</p>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>Venue map <span class="pill part">Data ready · map to add</span></h3>
+        <dl class="facts">
+          <dt>Shows</dt><dd>A pin for each venue with sessions in the next 7 days, showing its places to fill. Red if a session there is urgent, amber if open, green if full.</dd>
+          <dt>From</dt><dd><b>Each venue's latitude and longitude</b> (<code>sites.lat</code>, <code>sites.lng</code>), set from its postcode when the venue is saved in Settings or sent by the planner. Counts come from the sessions and their bookings.</dd>
+          <dt>Needs</dt><dd><b>MapLibre</b> (a free, open-source map library) and map tiles. I recommend one UK map file on our own server: there's no charge per view, and no viewer's location goes to a map company. "© OpenStreetMap contributors" shows on the map.</dd>
+          <dt>Demo</dt><dd>The demo's venues have made-up "ZZ" postcodes, and the fake geocoder places them around a point near Leeds. For the demo they need believable spots: made-up venues in real towns, with no real employer data.</dd>
+        </dl></div>
+      <div class="card"><h3>Session card on the map <span class="pill ready">Ready</span></h3>
+        <dl class="facts">
+          <dt>Shows</dt><dd>The most urgent session with places open: the role, the time, how many are booked, who's been offered it, who's interested, and the best casuals to offer it to next.</dd>
+          <dt>From</dt><dd>The sessions, offers and requests tables. "Best next" comes from the eligibility rules (licences in date, no clash, travel buffer) and the firm's allocation mode, the same code that sends offer waves.</dd>
+          <dt>Needs</dt><dd>Only the new drawing: the session pages read the same tables today.</dd>
+        </dl></div>
+      <div class="card"><h3>Staffing layout on an event's page <span class="pill ready">Ready</span></h3>
+        <dl class="facts">
+          <dt>Shows</dt><dd>Every place that day, grouped by role: booked (and who), open, urgent or cancelled.</dd>
+          <dt>From</dt><dd>That event's sessions, their headcounts and their bookings, including any cancellation and its notice hours.</dd>
+          <dt>Needs</dt><dd>Only the new drawing.</dd>
+        </dl></div>
+      <div class="card"><h3>Cancellations and no-shows charts <span class="pill ready">Ready</span></h3>
+        <dl class="facts">
+          <dt>Shows</dt><dd>Cancellations per week, with the short-notice ones marked, and no-shows per week.</dd>
+          <dt>From</dt><dd><b>The nightly count</b> (<code>metrics_daily</code>, at 00:30, recounting the last 7 days): <code>worker_cancellations</code>, <code>firm_cancellations</code>, <code>short_notice_cancellations</code> (under the firm's own threshold) and <code>no_shows</code>. Today's bar is counted live from the bookings.</dd>
+          <dt>Needs</dt><dd>The chart and the "today" query.</dd>
+        </dl></div>
+      <div class="card"><h3>Fill rate per contract <span class="pill part">Needs contracts</span></h3>
+        <dl class="facts">
+          <dt>Shows</dt><dd>The share of places booked by the time each session started, for each contract.</dd>
+          <dt>From</dt><dd>Sessions' headcounts against the bookings in place at their start time, added up per client.</dd>
+          <dt>Needs</dt><dd>A clients table (decision 1: a client owns one or more venues) and a new figure in the nightly count, so a week's rate doesn't have to be recounted each time a page opens.</dd>
+        </dl></div>
+      <div class="card"><h3>Reliability per casual <span class="pill part">Data ready · rule to write</span></h3>
+        <dl class="facts">
+          <dt>Shows</dt><dd>A figure and labels: Regular, Reliable, Cancels often, Not worked lately.</dd>
+          <dt>From</dt><dd>Each casual's bookings over the last 90 days, as decided: worked ÷ (worked + no-shows + cancellations under 48 hours). These come from the booking statuses (<code>completed</code>, <code>no_show</code>, <code>cancelled_worker</code> with its notice hours), with strikes beside them.</dd>
+          <dt>Needs</dt><dd>A new rule in plain code with its tests. <b>It's only as good as "Who worked?":</b> a session nobody marks never counts as worked or as a no-show.</dd>
+        </dl></div>
+      <div class="card"><h3>Updates feed and the bell's count <span class="pill part">Data ready · "seen" to add</span></h3>
+        <dl class="facts">
+          <dt>Shows</dt><dd>Cancellations, strikes, failed offers, refused bookings, uploads to check and new enquiries, newest first.</dd>
+          <dt>From</dt><dd><b>The action log</b> (<code>events</code>, which is append-only). It already records over a hundred kinds of entry, each written as it happened.</dd>
+          <dt>Needs</dt><dd>A small table recording how far each office user has read, so the bell's count goes down once you've seen them.</dd>
+        </dl></div>
+      <div class="card"><h3>Phone and desktop notifications <span class="pill new">New</span></h3>
+        <dl class="facts">
+          <dt>Shows</dt><dd>Cancellations under 48 hours, and places still open 6 hours before start (decision 5).</dd>
+          <dt>From</dt><dd>The same log entries as Updates. An hourly email that combines the office's alerts already exists.</dd>
+          <dt>Needs</dt><dd>Web push for office users. Today only casuals can subscribe (<code>push_subscriptions.worker_id</code> is required), so this needs a schema change, plus the push keys (VAPID) set on the live server. Web push is off on the demo today.</dd>
+        </dl></div>
+      <div class="card"><h3>My contracts and my dashboard <span class="pill new">New</span></h3>
+        <dl class="facts">
+          <dt>Shows</dt><dd>Only the clients you've picked, and the cards and charts you've ticked.</dd>
+          <dt>From</dt><dd>Clients (new) → venues → sessions, and a saved layout for each office user.</dd>
+          <dt>Needs</dt><dd>Two new tables, each with its tenant rules and isolation tests. Each one goes to you for approval first, because it changes the schema.</dd>
+        </dl></div>
+      <div class="card"><h3>Keeping the page up to date <span class="pill new">Missing today</span></h3>
+        <dl class="facts">
+          <dt>Today</dt><dd>An office page updates only when you do something on it, move to another page, or reload. Nothing checks for changes made by casuals or the planner, so a cancellation at 10:41 isn't on a dashboard you opened at 10:30.</dd>
+          <dt>Needs</dt><dd>A fresh fetch every 30 seconds while the tab is showing, and again as soon as you come back to it, with "Updated 10:42" in the title row. The demo phone already does this (<code>src/app/demo/auto-refresh.tsx</code>), so it's a small change. Instant updates over a live connection can come later.</dd>
+        </dl></div>
+    </div>
+    <div class="callout read">
+      <p><b>The demo needs history.</b> The demo's story has six events and a few past sessions, enough for Kieran's strikes and the cancellations. That isn't 90 days of work, so reliability would show "not enough shifts" for everyone and the charts would be almost empty. I recommend a made-up 12 weeks of worked sessions, cancellations and no-shows, seeded alongside the story so the walkthrough's lists stay exactly as they are.</p>
+    </div>
+  </section>
+
+  <section id="measured" aria-labelledby="h-measured">
+    <div class="shead read">
+      <h2 id="h-measured">Today's office against round 8, measured</h2>
+      <p class="muted">The same seven screens, measured with the audit probes at 1280px and 390px (14 views each): today's live demo, logged in as the admin, and the round 8 mock-ups. Round 8 is still a set of pictures, so anything about buttons can't be measured on it yet.</p>
+    </div>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Measure</th><th>Today (live)</th><th>Round 8 (proposed)</th><th>Aim for the build</th></tr></thead>
+        <tbody>
+          <tr><td>Text that fails contrast (WCAG 1.4.3)</td><td class="n ok">0 of 1,378</td><td class="n bad">17 of 972<span class="faint">all one red, #e5484d, 3.91:1</span></td><td class="n">0</td></tr>
+          <tr><td>Smallest text</td><td class="n ok">12px</td><td class="n bad">9.5px<span class="faint">and 10, 10.5, 11, 11.5px</span></td><td class="n">12px</td></tr>
+          <tr><td>Font sizes on the dashboard</td><td class="n ok">6</td><td class="n bad">14 (15 on a phone)</td><td class="n">7</td></tr>
+          <tr><td>Text colours on the dashboard</td><td class="n ok">6</td><td class="n mid">13</td><td class="n">6</td></tr>
+          <tr><td>The Arena's page, laptop</td><td class="n bad">6.3 screens, 141 controls</td><td class="n ok">1.2 screens</td><td class="n">as round 8</td></tr>
+          <tr><td>The Arena's page, phone</td><td class="n bad">7.0 screens</td><td class="n ok">2.3 screens</td><td class="n">as round 8</td></tr>
+          <tr><td>Dashboard, phone</td><td class="n">2.8 screens</td><td class="n">3.0 screens<span class="faint">the map adds 300px</span></td><td class="n">about 3</td></tr>
+          <tr><td>Buttons sharing one name (the Arena's page)</td><td class="n bad">23 "Assign someone", 23 "Change or cancel", 5 "Offer a place"</td><td class="n faint">not drawn yet</td><td class="n">0</td></tr>
+          <tr><td>Filled buttons competing on the dashboard</td><td class="n mid">3</td><td class="n ok">1 (hi-vis)</td><td class="n">1</td></tr>
+          <tr><td>Controls in the dashboard's first screen (laptop)</td><td class="n mid">32</td><td class="n faint">a picture, can't count</td><td class="n">fewer</td></tr>
+          <tr><td>Updates while the page is open</td><td class="n bad">No: only after your own action or a reload</td><td class="n faint">not shown</td><td class="n">every 30 s</td></tr>
+          <tr><td>Faint text on glass, over the brightest street line</td><td class="n faint">no glass</td><td class="n ok">4.93:1</td><td class="n">4.5:1 or more</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="read" style="margin-top:4px">Round 8: fix in the design before building</h3>
+    <div class="list">
+      <div class="finding"><div class="top"><span class="pill new">Accessibility · WCAG 1.4.3</span><span>bell, Casuals, Cancellations, Updates, Session</span></div>
+        <p class="claim">White text on round 8's red is 3.91:1, under the 4.5:1 minimum.</p>
+        <p class="muted small">Strike badges and the bell's count are what an office person most needs to read at a glance, and they're the ones that fail.</p>
+        <pre>"+3" (bell) ×7 · "Strike 1 issued" ×4 · "Strike 2 issued" ×2 · "2 live strikes" ×2 · "10" ×2
+#ffffff on #e5484d = 3.91:1   →   #ffffff on #d13438 = 4.93:1 (and 3.94:1 against the page, above 3:1)</pre>
+        <p class="fix"><b>Fix:</b> fill badges that carry white text with #d13438. Red text on dark keeps #ff8a80, which is 6.86:1.</p></div>
+      <div class="finding"><div class="top"><span class="pill part">Major</span><span>every round 8 screen</span></div>
+        <p class="claim">Round 8 uses text as small as 9.5px, and 40 bits of text on the dashboard are under 12px.</p>
+        <p class="muted small">Office staff read this all day on laptops set to 150%. The smallest text today is 12px.</p>
+        <pre>dashboard (laptop): 11px ×15 · 11.5px ×14 · 10.5px ×6 · 10px ×5
+the Arena's page:   9.5px ×7 (initials in the 24px avatars) · 11px ×13 · 11.5px ×13</pre>
+        <p class="fix"><b>Fix:</b> use one scale of 12, 13, 14, 16, 20, 24 and 30px, with nothing under 12px. The initials in the staffing tiles go up to 12px; they still fit the 24px circle.</p></div>
+      <div class="finding"><div class="top"><span class="pill part">Major</span><span>dashboard</span></div>
+        <p class="claim">Round 8 has 14 font sizes and 13 text colours on the dashboard; today's office has 6 and 6.</p>
+        <p class="muted small">Half-pixel steps can't be told apart by eye, but each one makes the page look slightly off. A short list of sizes and colours is a big part of what makes Haulix look calm.</p>
+        <pre>sizes:   14 ×103 · 13 ×32 · 12.5 ×29 · 12 ×18 · 11 ×15 · 11.5 ×14 · 16 ×10 · 10.5 ×6 · 10 ×5 · 13.5 ×4 · 30 · 19 …
+colours: #f4f4f3 · #8c8c91 · #a2a2a7 · #ff8a80 · #fff · #d6d6da · #f6dcb0 · #f2b55a · #e9f86f · …</pre>
+        <p class="fix"><b>Fix:</b> use the 7-size scale above, and six text colours: ink, muted, faint, red, amber and green.</p></div>
+      <div class="finding"><div class="top"><span class="pill part">Major</span><span>dashboard map, phone</span></div>
+        <p class="claim">On a phone, a full-width map catches the finger, so swiping up moves the map and not the page.</p>
+        <p class="muted small">This is a well-known trap with map libraries, and on the dashboard the map sits between the counts and To offer.</p>
+        <pre>round 8 phone: map 300px tall, full width, at 0.4 screens down the dashboard</pre>
+        <p class="fix"><b>Fix:</b> on phones, moving the map takes two fingers (MapLibre's <code>cooperativeGestures</code>); on laptops, Ctrl + scroll zooms. Every pin also appears as a row in To offer, so nobody needs the map to get something done.</p></div>
+      <div class="finding"><div class="top"><span class="pill info">Can't measure yet</span><span>all round 8 screens</span></div>
+        <p class="claim">The mock-ups have no real buttons, so tap sizes, focus rings, keyboard order and screen-reader names are unchecked.</p>
+        <p class="muted small">Today's office passes these: 44px buttons, a skip link, one heading per page, the language set to en-GB, and landmarks. A new look is exactly when these get lost.</p>
+        <pre>probe on round 8: 0 interactive elements on 14 of 14 views</pre>
+        <p class="fix"><b>Fix:</b> make these rules for the build, checked by the browser tests on every round 8 page.</p></div>
+    </div>
+
+    <h3 class="read" style="margin-top:4px">Today: carry the fix into the build</h3>
+    <div class="list">
+      <div class="finding"><div class="top"><span class="pill new">Accessibility · WCAG 2.4.6</span><span>/office/events/[id], the Arena</span></div>
+        <p class="claim">23 buttons on the Arena's page all read "Assign someone", and 23 read "Change or cancel".</p>
+        <p class="muted small">A screen reader lists them as 23 identical links, so there's no telling which place each one is for. The same happens on a smaller scale on other pages.</p>
+        <pre>/office/events/…: "Assign someone" ×23 · "Change or cancel" ×23 · "Offer a place" ×5
+/office: "Urgent 2" ×2 · Needs attention: "Session 1" ×2, "Session 2" ×2 · Cancellations: "Kieran Doyle Door supervisor" ×2</pre>
+        <p class="fix"><b>Fix:</b> give each button a hidden full name, for example "Assign someone: Steward, 18:00 to 23:00, place 3".</p></div>
+      <div class="finding"><div class="top"><span class="pill part">Major</span><span>every office page</span></div>
+        <p class="claim">An open office page never shows changes made by casuals or the planner until you act, move page or reload.</p>
+        <p class="muted small">This matters more in round 8: a live map and an Updates feed that don't update look broken.</p>
+        <pre>src/app/office/**: router.refresh() only after your own actions (assign, mark, strike, team) and on arriving at a login page
+no timer or live connection in the office; the demo phone has one: src/app/demo/auto-refresh.tsx (every few seconds, tab in view)</pre>
+        <p class="fix"><b>Fix:</b> refresh every 30 seconds while the page is showing, and again when you come back to the tab, with "Updated 10:42" in the title row.</p></div>
+      <div class="finding"><div class="top"><span class="pill info">Accessibility · WCAG 2.5.8</span><span>/office/cancellations</span></div>
+        <p class="claim">"Show only today's" is 108×17px, under the 24px minimum.</p>
+        <pre>a "Show only today's": 108 × 17 px (minimum 24 × 24; ShiftDesk's own rule is 44)</pre>
+        <p class="fix"><b>Fix:</b> make it a 44px switch, or a tab, since round 8's Cancellations already has tabs.</p></div>
+      <div class="finding"><div class="top"><span class="pill info">Note</span><span>/office/casuals, phone</span></div>
+        <p class="claim">On a phone, a casual's name is a link only 19px tall, though it's the main thing you tap in that row.</p>
+        <pre>a "Daniel Chowdhury": 131 × 19 px (inline, so allowed, but it's the row's main action)</pre>
+        <p class="fix"><b>Fix:</b> make the whole row open the casual's page.</p></div>
+    </div>
+
+    <div class="grid2">
+      <div class="card"><h3>What works today, and stays</h3>
+        <ul class="muted small">
+          <li>Contrast: 0 failures in 1,378 text samples across 14 views.</li>
+          <li>A skip link, one heading per page, the language set to en-GB, and real landmarks on every page.</li>
+          <li>5 or 6 font sizes on each screen.</li>
+          <li>Fast: the dashboard's first byte arrives in 216 ms, with 33 requests and 320 KB.</li>
+          <li>The session page's checkboxes look 20px, but each has a 44px label, so it passes.</li>
+        </ul></div>
+      <div class="card"><h3>What round 8 gets right</h3>
+        <ul class="muted small">
+          <li>The Arena's page drops from 6.3 screens to 1.2 on a laptop, and from 7.0 to 2.3 on a phone.</li>
+          <li>One hi-vis main button per screen, where today's dashboard has three.</li>
+          <li>Text on the glass passes even over the brightest street line: faint text 4.93:1, muted 6.49:1, ink 14.98:1.</li>
+          <li>One status code (red, amber, green, blue, grey) on every page.</li>
+        </ul></div>
+    </div>
+  </section>
+
+  <section id="parim" aria-labelledby="h-parim">
+    <div class="shead read">
+      <h2 id="h-parim">Against Parim</h2>
+      <p class="muted">Parim is the UK staffing and events tool firms are most likely to compare us with. This comes from its own site, its help centre and its screenshots, and its App Store page. Review sites blocked automated visits, so star ratings from Capterra and G2 are from search snippets only. Parim's screenshots come from its help centre and some look several years old.</p>
+    </div>
+    <div class="shots">
+      <figure><div class="shot"><img src="before/dashboard-laptop.jpg" alt="ShiftDesk's office dashboard today, light glass panels with the gaps, counts and Needs attention"></div><figcaption><b>ShiftDesk today</b> · the dashboard, 1280px</figcaption></figure>
+      <figure><div class="shot"><img src="after/dashboard-laptop.jpg" alt="Round 8's dashboard: dark map of venues with a floating session card, To offer and Updates below"></div><figcaption><b>Round 8</b> · the same dashboard</figcaption></figure>
+      <figure><div class="shot"><img src="ref/parim-dashboard.jpg" alt="Parim's manager dashboard: a red Action required list with counts, Today's shifts live with clock-in status, an Upcoming shifts stacked bar chart" onerror="this.closest('figure').classList.add('missing')"></div><figcaption><b>Parim</b> · the manager dashboard (help centre)</figcaption></figure>
+    </div>
+    <div class="grid2">
+      <figure><div class="shot"><img src="ref/parim-schedule.jpg" alt="Parim's Smart Schedule: a grid of people by days with coloured shift blocks and open shifts pinned at the top" onerror="this.closest('figure').classList.add('missing')"></div><figcaption><b>Parim's main screen</b> · people by days, with open shifts at the top to drag onto people</figcaption></figure>
+      <figure><div class="shot"><img src="ref/parim-app.jpg" alt="Parim's staff app: schedule cards, an open shift with Apply and I'm unavailable, and a time clock with Clock out" onerror="this.closest('figure').classList.add('missing')"></div><figcaption><b>Parim's staff app</b> · Apply, availability and the time clock</figcaption></figure>
+    </div>
+
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>What</th><th>ShiftDesk (with round 8)</th><th>Parim</th></tr></thead>
+        <tbody>
+          <tr><td>Look</td><td>Dark charcoal, translucent glass, one hi-vis accent, one status code</td><td>White and blue, a dense grid, small type, lots of colour; the "Action required" list is solid red</td></tr>
+          <tr><td>First screen</td><td>A map of venues with gaps, the most urgent session, To offer, Updates</td><td>Counts of things to do, today's shifts with clock-in status, a chart of upcoming shifts</td></tr>
+          <tr><td>Filling a place</td><td><b>Instant:</b> the first casual to say yes gets it, or a per-event "Casuals ask, you choose"</td><td>Staff apply and a manager approves each one (help centre). The homepage also says "first come", which is unclear.</td></tr>
+          <tr><td>Reaching casuals</td><td>App notification, then a Webex text, then email. Casuals can reply to the shifts line.</td><td>Push, email, and SMS as a paid add-on (about £0.05 each). "Staff can't reply" to a text.</td></tr>
+          <tr><td>Licences</td><td><b>A missing or expired licence blocks the offer</b>; rules per sector</td><td>A daily SIA register check that emails a report (Premium or Enterprise). It isn't documented as blocking anything.</td></tr>
+          <tr><td>Cancellations</td><td>Casuals cancel in the app at any time. Notice hours are logged, with strikes and evidence.</td><td>A reason is required. Under 24 hours: "Call supervisor to cancel". The report needs Premium. No strikes.</td></tr>
+          <tr><td>Reliability</td><td>Per casual over 90 days, with the counts (round 8)</td><td>None documented</td></tr>
+          <tr><td>Attendance</td><td>"Who worked?" is marked by the office</td><td><b>Clock-in by GPS, QR, NFC, kiosk or text</b>; late and left-early flags; a live board of today's shifts</td></tr>
+          <tr><td>Before a shift</td><td>Reminders</td><td><b>Reconfirm:</b> N hours before the start the shift goes back to unconfirmed, and staff confirm by app, email or text</td></tr>
+          <tr><td>Planning ahead</td><td>Sessions are made in the firm's planner; we show the gaps</td><td>A people-by-days grid (1 day to 3 months), drag and drop, hours and £ per day</td></tr>
+          <tr><td>Charts</td><td>Cancellations, no-shows, fill rate per contract, and next 2 weeks (round 8)</td><td>Coverage % and margin, revenue, and "Employee insights" (beta): retention, shift spread, leave, pay spread</td></tr>
+          <tr><td>Pay</td><td>Hours, rates and pay dates from payroll's own data; pay queries to payroll</td><td>Timesheets, a pay run CSV, Xero and QuickBooks. "Doesn't generate payslips".</td></tr>
+          <tr><td>Logging in</td><td>A link by text or email; no password</td><td>A password. Reviews mention trouble resetting it.</td></tr>
+          <tr><td>What users say</td><td>Not live with firms yet</td><td>App Store 4.6 (559 ratings): "easy to use", but also "takes a long time for everything to load" and the map is "very inaccurate"</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="three">
+      <div class="card"><h3><span>Take into round 8</span> <span class="pill hv">1</span></h3>
+        <ul class="muted small">
+          <li><b style="color:var(--ink);font-weight:500">A "Next 2 weeks" chart:</b> booked, offered and open places per day, as stacked bars. It's Parim's "Upcoming shifts", built from data we already have. It's an extra card under Customise, because round 8's map replaces today's bar chart and you lose the look ahead.</li>
+        </ul></div>
+      <div class="card"><h3><span>Park for after round 8</span> <span class="pill info">6</span></h3>
+        <ul class="muted small">
+          <li><b style="color:var(--ink);font-weight:500">Reconfirm before a shift</b> ("Still on for tomorrow?" with Yes or Can't make it). It's the strongest idea against no-shows, but it changes what casuals are sent, so it needs its own phase.</li>
+          <li>Clock-in and a live board for today. Geofencing needs a DPIA first (already parked).</li>
+          <li>A rest-time check between shifts, as an eligibility rule.</li>
+          <li>Preferred casuals per venue. We already have "blocked at this venue".</li>
+          <li>A client portal.</li>
+          <li>Coverage and margin reports, which need charge rates.</li>
+        </ul></div>
+      <div class="card"><h3><span>Don't copy</span> <span class="pill new">3</span></h3>
+        <ul class="muted small">
+          <li>The people-by-days grid. The firm's planner is where sessions are made (we're planner-first), and the event page's staffing layout covers the event view.</li>
+          <li>"Call supervisor to cancel" within 24 hours. We log the notice and use strikes, which leaves evidence and doesn't need a phone call.</li>
+          <li>A manager approving every application. Instant booking is our edge for urgent places, and "Casuals ask, you choose" stays a per-event option.</li>
+        </ul></div>
+    </div>
+  </section>
+
+  <section id="recs" aria-labelledby="h-recs">
+    <div class="shead read">
+      <h2 id="h-recs">What I recommend changing before the build</h2>
+      <p class="muted">Ranked by how much each helps for the work it takes. All 16 are on the changes page as a new section, "From the pre-build audit" (aud-1 to aud-16), marked Build until you say otherwise. The six parked Parim ideas go to the Parking lot.</p>
+    </div>
+    <div class="recs">
+      <div class="rec"><div class="what"><p>Badges with white words use a darker red, #d13438 (4.93:1), in place of #e5484d (3.91:1).</p><p class="why">The strike badges and the bell's count fail WCAG 1.4.3 today. This is a one-line fix.</p></div><div class="tags"><span class="id">aud-1</span><span class="pill new">Fix</span></div></div>
+      <div class="rec"><div class="what"><p>Pages update themselves: every 30 seconds while open, and as soon as you come back to the tab, with "Updated 10:42" in the title row.</p><p class="why">Without this, a live map and an Updates feed show old news.</p></div><div class="tags"><span class="id">aud-2</span><span class="pill hv">Real data</span></div></div>
+      <div class="rec"><div class="what"><p>One type scale, 12, 13, 14, 16, 20, 24 and 30px, with nothing under 12px.</p><p class="why">The dashboard has 14 sizes, down to 9.5px.</p></div><div class="tags"><span class="id">aud-3</span><span class="pill new">Fix</span></div></div>
+      <div class="rec"><div class="what"><p>Six text colours: ink, muted, faint, red, amber and green.</p><p class="why">The dashboard has 13 today.</p></div><div class="tags"><span class="id">aud-4</span><span class="pill new">Fix</span></div></div>
+      <div class="rec"><div class="what"><p>Each repeated button tells a screen reader which place it's for ("Assign someone: Steward, 18:00 to 23:00, place 3").</p><p class="why">23 "Assign someone" buttons on the Arena's page sound the same.</p></div><div class="tags"><span class="id">aud-5</span><span class="pill info">Access</span></div></div>
+      <div class="rec"><div class="what"><p>Keep what today's office gets right: 44px buttons, a visible focus ring, the skip link and one heading per page. The browser tests check them on every round 8 page.</p><p class="why">A new look is when these get lost.</p></div><div class="tags"><span class="id">aud-6</span><span class="pill info">Access</span></div></div>
+      <div class="rec"><div class="what"><p>On a phone, moving the map takes two fingers, so one finger scrolls the page; on a laptop, Ctrl + scroll zooms. Every pin is also a row in To offer.</p><p class="why">Otherwise the map traps the page's scrolling on phones.</p></div><div class="tags"><span class="id">aud-7</span><span class="pill hv">Map</span></div></div>
+      <div class="rec"><div class="what"><p>Map tiles from one UK map file on our own server, with "© OpenStreetMap contributors" shown. A venue without a postcode is listed under the map, never placed by guesswork.</p><p class="why">No charge per view, and nobody's location goes to a map company. This settles decision 9's "UK or EU map host".</p></div><div class="tags"><span class="id">aud-8</span><span class="pill hv">Map</span></div></div>
+      <div class="rec"><div class="what"><p>Every chart says where its numbers come from and when ("Nightly count, 00:30 today"), with its figures as a table one tap away.</p><p class="why">It's easier to trust the numbers when you can see where they came from, and the table also serves screen readers.</p></div><div class="tags"><span class="id">aud-9</span><span class="pill hv">Real data</span></div></div>
+      <div class="rec"><div class="what"><p>Every card has an empty state that says what will show and what to do ("No cancellations in the last 8 weeks").</p><p class="why">A new firm sees these first.</p></div><div class="tags"><span class="id">aud-10</span><span class="pill hv">Real data</span></div></div>
+      <div class="rec"><div class="what"><p>Reliability needs at least 5 shifts in the 90 days. Below that it says "New: 3 shifts so far" instead of a figure, and the counts always show beside it.</p><p class="why">One bad day shouldn't label a new casual "Cancels often".</p></div><div class="tags"><span class="id">aud-11</span><span class="pill hv">Real data</span></div></div>
+      <div class="rec"><div class="what"><p>A session still not marked 2 days after it ends goes to Updates as "Mark who worked".</p><p class="why">Reliability counts only marked sessions, so unmarked no-shows would never count.</p></div><div class="tags"><span class="id">aud-12</span><span class="pill hv">Real data</span></div></div>
+      <div class="rec"><div class="what"><p>A new card under Customise, "Next 2 weeks": booked, offered and open places per day, as stacked bars.</p><p class="why">From Parim. It keeps the look ahead that today's bar chart gives.</p></div><div class="tags"><span class="id">aud-13</span><span class="pill hv">Chart</span></div></div>
+      <div class="rec"><div class="what"><p>The demo gets 12 weeks of made-up history: sessions worked, cancellations and no-shows, at believable venues. The walkthrough's lists stay as they are.</p><p class="why">Without it, the demo's charts and reliability are empty.</p></div><div class="tags"><span class="id">aud-14</span><span class="pill part">Demo</span></div></div>
+      <div class="rec"><div class="what"><p>"Show only today's" on Cancellations becomes a 44px switch or a tab.</p><p class="why">It's 108×17px today, under WCAG 2.5.8's minimum.</p></div><div class="tags"><span class="id">aud-15</span><span class="pill info">Access</span></div></div>
+      <div class="rec"><div class="what"><p>The street map behind every page is drawn once as a still picture. Smooth scrolling is checked on a mid-range laptop before it ships.</p><p class="why">Blur over a full-page picture can make scrolling stutter on older office PCs. That isn't measured yet.</p></div><div class="tags"><span class="id">aud-16</span><span class="pill part">Speed</span></div></div>
+    </div>
+  </section>
+
+  <section id="method" aria-labelledby="h-method" class="foot read">
+    <h2 id="h-method" style="font-size:18px;color:var(--ink)">How I checked</h2>
+    <p>Live: the demo at acme.staffingresourcingtest.uk, already logged in as the admin, on Mon 2 Nov 2026. Round 8: <code>docs/mockups/round-8/screens.html</code>. Seven screens on each, at 1280px and 390px: the dashboard, the Arena's event page, a session, Casuals, Cancellations, Updates (today: Needs attention) and an offer. I used the ux-ui-audit probes for contrast, tap size, names, type and colour counts, and scroll length. I checked two suspected faults on today's site by hand, and both were false alarms: the 20px checkboxes have 44px labels, and the cancel fields sit inside a closed panel.</p>
+    <p>Contrast is judged against WCAG 2.2 (1.4.3: 4.5:1 for text; 1.4.11: 3:1 for parts of the page; 2.5.8: a 24px minimum target) and ShiftDesk's own 44px rule. The type and colour counts are a judgement, not a standard. Glass contrast was worked out for the worst case: a panel at 28% over the street map's brightest line.</p>
+    <p>Real data: read from the code on the branch (<code>src/lib/db/schema/</code>, <code>src/lib/metrics/rollup.ts</code>, <code>src/lib/travel/geocoder.ts</code>, <code>src/app/office/office-frame.tsx</code>). Parim: parim.co, support.parim.co and the UK App Store, 2 Nov 2026. Its screenshots are shown here for comparison only and aren't kept in the repo.</p>
+  </section>
+</div>

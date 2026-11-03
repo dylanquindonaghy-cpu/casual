@@ -65,6 +65,14 @@ interface FakeOptions {
   starttls?: boolean;
   authReply?: string;
   rcptReply?: string;
+  // A server that answers DATA with 354 even when it refused every recipient (RFC 5321 says to
+  // refuse it: 503 or 554). Real ones refuse; nodemailer meets the lenient kind too.
+  dataWithoutRecipients?: boolean;
+  // How it says go ahead to DATA (some answer 250), whether it offers PIPELINING, and whether its
+  // lines end in a bare line feed (nodemailer reads both).
+  dataReply?: string;
+  pipelining?: boolean;
+  bareLf?: boolean;
   bodyReply?: string;
   hangUpAfterBody?: boolean;
 }
@@ -90,18 +98,24 @@ function fakeServer(options: FakeOptions = {}): Promise<Fake> {
     let socket: net.Socket = raw;
     let secure = false;
     let inData = false;
+    let recipients = 0; // RCPT TOs accepted in this message
     let buffer = "";
-    const reply = (...lines: string[]) => socket.write(lines.map((l) => `${l}\r\n`).join(""));
+    const end = options.bareLf ? "\n" : "\r\n";
+    const reply = (...lines: string[]) => socket.write(lines.map((l) => `${l}${end}`).join(""));
     const stalls = (at: Stall) => options.stall === at;
 
     const onBytes = (chunk: Buffer) => {
       buffer += chunk.toString("latin1");
       for (;;) {
         if (inData) {
-          const end = buffer.indexOf("\r\n.\r\n");
+          // The message ends at a line of just "." (RFC 5321 4.1.1.4), the first line included:
+          // the line break before it can be DATA's own.
+          const empty = buffer.startsWith(".\r\n");
+          const end = empty ? 0 : buffer.indexOf("\r\n.\r\n");
           if (end === -1) return;
           fake.message = buffer.slice(0, end);
-          buffer = buffer.slice(end + 5);
+          buffer = buffer.slice(empty ? 3 : end + 5);
+          recipients = 0;
           inData = false;
           if (stalls("body")) return;
           if (options.hangUpAfterBody) return void socket.destroy();
@@ -121,7 +135,7 @@ function fakeServer(options: FakeOptions = {}): Promise<Fake> {
             ...(!secure && options.starttls !== false ? ["STARTTLS"] : []),
             "AUTH PLAIN LOGIN",
             // What real providers offer too, so the DATA watch is tested with them.
-            "PIPELINING",
+            ...(options.pipelining === false ? [] : ["PIPELINING"]),
             "SIZE 36700160",
             "8BITMIME",
           ];
@@ -154,10 +168,16 @@ function fakeServer(options: FakeOptions = {}): Promise<Fake> {
           reply("250 2.1.0 Ok");
         } else if (verb === "RCPT") {
           if (stalls("rcpt")) return;
-          reply(options.rcptReply ?? "250 2.1.5 Ok");
+          const rcptReply = options.rcptReply ?? "250 2.1.5 Ok";
+          if (rcptReply.startsWith("2")) recipients += 1;
+          reply(rcptReply);
         } else if (verb === "DATA") {
           if (stalls("data")) return;
-          reply("354 End data with <CR><LF>.<CR><LF>");
+          if (recipients === 0 && !options.dataWithoutRecipients) {
+            reply("554 5.5.1 Error: no valid recipients");
+            continue;
+          }
+          reply(options.dataReply ?? "354 End data with <CR><LF>.<CR><LF>");
           inData = true;
         } else if (verb === "QUIT") {
           reply("221 2.0.0 Bye");
@@ -284,6 +304,53 @@ describe("the SMTP sender, against a fake server", () => {
     expect(rcpt.err).toBeInstanceOf(EmailNotSentError);
     expect(rcpt.err).toMatchObject({ step: "envelope", responseCode: 550 });
     expect(String((rcpt.err as Error).message)).not.toContain("@");
+  });
+
+  // With PIPELINING (nodemailer 10.1 on), MAIL FROM, RCPT TO and DATA go out together, before any
+  // reply: DATA being written isn't DATA starting. A refused recipient stays not sent whether the
+  // server then refuses DATA (as it should) or takes it anyway (nodemailer ends the empty message:
+  // it has nobody to go to).
+  // nodemailer's other ways (S3 of the 26.3 review): no pipelining, a 250 to DATA, bare line feeds.
+  // A refused recipient is never sent, and once the message has gone out it may have arrived.
+  it.each([
+    ["without PIPELINING", { pipelining: false }],
+    ["with DATA answered 250", { dataReply: "250 2.0.0 Go ahead" }],
+    ["with replies ending in a bare line feed", { bareLf: true }],
+  ] as const)(
+    "a server %s: a refused recipient not sent; dropped after the message, may have arrived",
+    async (_how, o) => {
+      const refused = await failure(
+        await fakeServer({ ...o, rcptReply: "550 5.1.1 <payroll@acme.example>: no such user" }),
+      );
+      expect(refused.err).toBeInstanceOf(EmailNotSentError);
+      expect(refused.err).toMatchObject({ step: "envelope", responseCode: 550 });
+      const dropped = await failure(await fakeServer({ ...o, hangUpAfterBody: true }));
+      expect(dropped.err).toBeInstanceOf(EmailMayHaveArrivedError);
+      // And it sends, as usual.
+      const fake = await fakeServer(o);
+      const transport = new SmtpEmailTransport(configFor(fake), { ...TIMEOUTS, ca: cert });
+      await expect(transport.send(email)).resolves.toMatchObject({
+        providerMessageId: expect.any(String),
+      });
+      expect(fake.message).toContain("Subject:");
+    },
+  );
+
+  it("a refused recipient with the envelope pipelined: not sent, whether DATA is refused or taken", async () => {
+    for (const dataWithoutRecipients of [false, true]) {
+      const fake = await fakeServer({
+        rcptReply: "550 5.1.1 <payroll@acme.example>: no such user",
+        dataWithoutRecipients,
+      });
+      const { err } = await failure(fake);
+      expect(err).toBeInstanceOf(EmailNotSentError);
+      expect(err).toMatchObject({ step: "envelope", smtpCode: "EENVELOPE", responseCode: 550 });
+      // All three were sent (pipelined: before any reply), and nothing of the message itself.
+      expect(fake.commands.map((c) => c.line.split(/[ :]/)[0])).toEqual(
+        expect.arrayContaining(["MAIL", "RCPT", "DATA"]),
+      );
+      expect(fake.message).toBe("");
+    }
   });
 
   it("a server that hangs up before its greeting: not sent (connect)", async () => {

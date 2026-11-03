@@ -135,7 +135,7 @@ describe("the office books a worker: they're told", () => {
     ]);
     const n = capture();
     expect(await n.run(job ?? {})).toMatchObject({
-      output: { status: "sent", channel: "whatsapp" },
+      output: { status: "sent", channel: "sms" },
     });
     expect(n.bodies()).toEqual([
       `Confirmed: Sat 7 Nov 08:00–16:00 at Riverside Arena (door supervisor). Details and instructions: http://${t.slug}.localhost:3000/shifts/${t.shiftId}. — Booking Test ${t.slug} Shift Team`,
@@ -150,13 +150,13 @@ describe("the office books a worker: they're told", () => {
     const logged = await eventsOf(t.f.firmId, "shift.booked_notice%");
     expect(logged.map((e) => [e.action, e.data.status ?? e.data.channel])).toEqual([
       ["shift.booked_notice", "sending"],
-      ["shift.booked_notice_sent", "whatsapp"],
+      ["shift.booked_notice_sent", "sms"],
     ]);
     const bookingId = booked.status === "booked" ? booked.assignmentId : "";
     expect(logged.every((e) => e.entity_id === bookingId && e.data.workerId === t.ann)).toBe(true);
   });
 
-  it("a phone that takes the push: the push instead of the WhatsApp (P2.4; Messages 2)", async () => {
+  it("a phone that takes the push: the push instead of the text (P2.4; Messages 2)", async () => {
     const t = await placingFirm();
     await su.query(
       `insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth)
@@ -315,7 +315,8 @@ describe("the office books a worker: they're told", () => {
     expect(n.sent).toHaveLength(1);
   });
 
-  it("a failed send is logged and never sent again; a refused WhatsApp goes by text", async () => {
+  // Phase 26.9: never WhatsApp (until then, a refused WhatsApp went by text).
+  it("a failed send is logged and never sent again; the next goes by text, never WhatsApp", async () => {
     const t = await placingFirm();
     const ben = await t.f.worker({ first: "Ben" });
     await assignWorker(t.ctx(), t.shiftId, t.ann, null);
@@ -326,7 +327,6 @@ describe("the office books a worker: they're told", () => {
     expect(await n.run(a ?? {})).toMatchObject({ output: { status: "failed" } });
     n.state.fail = false;
     expect(await n.run(a ?? {})).toMatchObject({ output: { status: "already" } });
-    n.state.refuseWhatsApp = true;
     expect(await n.run(b ?? {})).toMatchObject({ output: { status: "sent", channel: "sms" } });
     expect(n.sent.map((m) => m.channel)).toEqual(["sms"]);
     expect(await eventsOf(t.f.firmId, "shift.booked_notice_failed")).toHaveLength(1);

@@ -6,6 +6,8 @@ import { canAccess } from "../auth/roles";
 import { CANCELLED_ASSIGNMENT_STATUSES, firms, offers, shifts, sites, workers } from "../db/schema";
 import { officeOfferCandidates, type OfficeCandidate } from "../offers/office-offer";
 import { isVisibleToCasuals } from "../roster/visibility";
+import { hasTextSender } from "../portal/login-way";
+import { loadNotOffered, type NotOffered } from "./not-offered";
 
 // "Offer to someone" for one shift (the dashboard's quick action): the shift, who could be offered it now
 // (the candidate list: the booking rules, offer messages on, never offered it, the daily cap unless
@@ -28,12 +30,39 @@ export interface OfferPage {
     hidden: boolean; // hidden from casuals: it can't be offered (src/lib/roster/visibility.ts)
   };
   candidates: OfficeCandidate[];
+  // "Not offered, and why" (Phase 26.9, off-2): at most NOT_OFFERED_SHOWN, by name, and how many
+  // more there are.
+  notOffered: NotOffered[];
+  notOfferedMore: number;
   offered: {
     worker: string;
     wave: number | null; // null: sent by the office
     response: "accepted" | "declined" | "expired" | "filled_elsewhere" | "failed" | null;
     sentAt: Date;
   }[];
+}
+
+export const NOT_OFFERED_SHOWN = 20;
+
+// Who can be offered it, and who can't and why. Someone on the candidate list nothing can reach
+// (no app notifications, no texts and no email) is under "Not offered, and why" instead.
+async function whoAndWhyNot(
+  tx: Parameters<typeof officeOfferCandidates>[0],
+  shiftId: string,
+  now: Date,
+) {
+  const all = await officeOfferCandidates(tx, shiftId, now, hasTextSender());
+  const candidates = all.filter((c) => c.reach.how !== "none");
+  const unreachable: NotOffered[] = all
+    .filter((c) => c.reach.how === "none")
+    .map((c) => ({ workerId: c.workerId, name: c.name, why: "unreachable" }));
+  const rest = await loadNotOffered(tx, shiftId, now, new Set(all.map((c) => c.workerId)));
+  const every = [...rest, ...unreachable].sort((a, b) => a.name.localeCompare(b.name));
+  return {
+    candidates,
+    notOffered: every.slice(0, NOT_OFFERED_SHOWN),
+    notOfferedMore: Math.max(0, every.length - NOT_OFFERED_SHOWN),
+  };
 }
 
 export async function officeOfferPage(
@@ -97,7 +126,9 @@ export async function officeOfferPage(
         open,
         hidden,
       },
-      candidates: open && !hidden ? await officeOfferCandidates(tx, shiftId, now) : [],
+      ...(open && !hidden
+        ? await whoAndWhyNot(tx, shiftId, now)
+        : { candidates: [], notOffered: [], notOfferedMore: 0 }),
       offered: offered.map((o) => ({
         worker: `${o.first} ${o.last}`,
         wave: o.wave,

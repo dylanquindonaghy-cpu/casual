@@ -1,10 +1,10 @@
 import { muted, staffBtn } from "@/app/ui/classes";
 import type { PushState } from "@/lib/portal/push-state";
 
-// How else messages reach them, for the lines below (P2.7): by WhatsApp or text when there's a text
-// sender, else by email when the firm holds an address for them, else no other way.
+// How else messages reach them, for the lines below (P2.7; Phase 26.9): by text or by email (their
+// choice, src/app/profile/profile-view.tsx otherWayOf), else no other way.
 export type OtherWay = "text" | "email" | "none";
-const by = (other: OtherWay) => (other === "text" ? "by WhatsApp or text" : "by email");
+const by = (other: OtherWay) => (other === "text" ? "by text" : "by email");
 
 // What "Notifications on this phone" says in each state (push-setting.tsx decides the state).
 // `justTurnedOff` adds the confirmation after "Turn off notifications". A part of "How we reach

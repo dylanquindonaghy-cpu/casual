@@ -207,6 +207,31 @@ export function eventsAboutShift(s: string): SQL {
 }
 
 // `before`: the event id to continue before (the cursor, read), or null for the first page.
+
+// The events of one type (a limit reached goes by the limit's name, not its action: 14.2,
+// log-types.ts).
+function typeCondition(type: keyof typeof LOG_TYPES): SQL {
+  const list = (values: readonly string[]) =>
+    sql.join(
+      values.map((v) => sql`${v}`),
+      sql`, `,
+    );
+  const actions = (LOG_TYPES[type].actions as readonly string[]).filter((a) => a !== RATE_LIMITED);
+  const limits = limitsFiledUnder(type);
+  const parts: SQL[] = [];
+  if (actions.length > 0) parts.push(sql`e.action in (${list(actions)})`);
+  if (limits.names.length > 0) {
+    parts.push(sql`(e.action = ${RATE_LIMITED} and e.data ->> 'limit' in (${list(limits.names)}))`);
+  }
+  if (limits.others) {
+    parts.push(
+      sql`(e.action = ${RATE_LIMITED}
+           and coalesce(e.data ->> 'limit', '') not in (${list(Object.keys(LIMIT_TYPES))}))`,
+    );
+  }
+  return parts.length > 0 ? sql`(${sql.join(parts, sql` or `)})` : sql`false`;
+}
+
 export async function loadActionLog(
   tx: FirmTx,
   query: LogQuery,
@@ -227,32 +252,9 @@ export async function loadActionLog(
     where.push(sql`e.created_at >= ${days.start} and e.created_at < ${days.end}`);
   }
   if (before) where.push(sql`e.id < ${before}`);
-  if (query.type) {
-    // A limit reached goes by the limit's name, not its action (14.2: log-types.ts).
-    const list = (values: readonly string[]) =>
-      sql.join(
-        values.map((v) => sql`${v}`),
-        sql`, `,
-      );
-    const actions = (LOG_TYPES[query.type].actions as readonly string[]).filter(
-      (a) => a !== RATE_LIMITED,
-    );
-    const limits = limitsFiledUnder(query.type);
-    const parts: SQL[] = [];
-    if (actions.length > 0) parts.push(sql`e.action in (${list(actions)})`);
-    if (limits.names.length > 0) {
-      parts.push(
-        sql`(e.action = ${RATE_LIMITED} and e.data ->> 'limit' in (${list(limits.names)}))`,
-      );
-    }
-    if (limits.others) {
-      parts.push(
-        sql`(e.action = ${RATE_LIMITED}
-             and coalesce(e.data ->> 'limit', '') not in (${list(Object.keys(LIMIT_TYPES))}))`,
-      );
-    }
-    where.push(parts.length > 0 ? sql`(${sql.join(parts, sql` or `)})` : sql`false`);
-  }
+  // A type: its actions. None chosen: everything but logins (Phase 26.10, fix-4: links, codes,
+  // sessions and their limits are only listed under Logins).
+  where.push(query.type ? typeCondition(query.type) : sql`not ${typeCondition("logins")}`);
   if (query.worker) where.push(eventsAboutWorker(query.worker));
   if (query.shift) where.push(eventsAboutShift(query.shift));
 

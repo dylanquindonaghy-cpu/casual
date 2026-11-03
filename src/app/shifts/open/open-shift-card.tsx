@@ -6,6 +6,13 @@ import { travelLineText } from "@/lib/travel/line-copy";
 import { Icon } from "../../ui/icons";
 import { DateTile } from "../../ui/sign";
 
+// "Casuals ask, you choose" (Phase 26.6): where the office chooses who works it.
+const ASK_LINE = {
+  ask: "The office chooses: ask for it",
+  asked: "Asked: we'll tell you",
+  not_this_time: "Not this time",
+} as const;
+
 // One shift on Open shifts or the urgent board (docs/office-v2.md 4.3; 12H.2; Phases 18, 20 and
 // 24), a glass card that opens the shift's page (where she reads it in full and takes it): its date
 // tile (pale red when urgent), the time with the pay per hour across from it, the role, the event
@@ -78,6 +85,25 @@ export function OpenShiftCard({
               <Icon name="arrow" size={20} />
             </span>
           </span>
+          {s.ask && (
+            <span className="mt-2 flex items-center gap-2 text-base" data-ask={s.ask}>
+              <span
+                className={`flex size-6 shrink-0 items-center justify-center rounded-full ${
+                  s.ask === "asked"
+                    ? "bg-done-fill text-on-done"
+                    : s.ask === "not_this_time"
+                      ? "bg-urgent-fill text-on-urgent"
+                      : "bg-hivis text-on-hivis"
+                }`}
+              >
+                <Icon
+                  name={s.ask === "asked" ? "check" : s.ask === "not_this_time" ? "close" : "team"}
+                  size={16}
+                />
+              </span>
+              {ASK_LINE[s.ask]}
+            </span>
+          )}
           {s.opensAt && (
             <span className="mt-2 flex items-center gap-2 text-base">
               <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-hivis text-on-hivis">

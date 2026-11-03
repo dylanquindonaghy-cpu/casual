@@ -13,7 +13,8 @@ function expectedPay() {
   return acmeSaturday(acme.workers, acme.sites, now).pay.filter((p) => p.workerId === worker?.id);
 }
 
-// The pay pages' step-up in a real browser: a 6-digit code by WhatsApp (console mode).
+// The pay pages' step-up in a real browser: a 6-digit code by text (console mode; by WhatsApp
+// until Phase 26.9).
 
 const acme = "http://acme.localhost:3100";
 const mobile = "+447700900102"; // a seeded Acme worker
@@ -36,7 +37,7 @@ test("pay needs a code: a wrong one counts down, the right one opens the page", 
   await page.getByRole("button", { name: "Send me a code" }).click();
   const code = await codeSentTo(mobile, codeAsked);
 
-  // A reload (or the phone dropping the tab while they read WhatsApp) keeps the code field.
+  // A reload (or the phone dropping the tab while they read the text) keeps the code field.
   await page.reload();
   await expect(page.getByLabel("Your code")).toBeVisible();
 

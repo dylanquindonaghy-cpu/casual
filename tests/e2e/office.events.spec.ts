@@ -147,10 +147,10 @@ async function switchAndCheck(browser: Browser, shiftId: string) {
   await tab("Hidden", "hidden");
   await card.getByRole("link", { name: `View sessions: ${EVENT}` }).click();
   await expect(office.getByRole("heading", { name: EVENT, level: 1 })).toBeVisible();
-  const again = office.getByRole("switch", { name: `Show ${EVENT} to casuals` });
-  await again.click();
+  // Round 8 (Phase 26.5): a button at the top that says what it does.
+  await office.getByRole("button", { name: "Show to casuals" }).click();
   await expect(office.getByRole("status").filter({ hasText: "Showing to casuals." })).toBeVisible();
-  await expect(again).toHaveAttribute("aria-checked", "true");
+  await expect(office.getByRole("button", { name: "Hide from casuals" })).toBeVisible();
   await casual.goto(`${acme}/shifts/open`);
   await expect(session).toHaveCount(1);
 }

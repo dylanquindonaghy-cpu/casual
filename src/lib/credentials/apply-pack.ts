@@ -1,18 +1,21 @@
 import { sql } from "drizzle-orm";
 import { credentialRules, credentialTypes } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
-import { recordEvent, type ActorType } from "../events/record";
+import { recordEvent, type ActorType, type EventInput } from "../events/record";
 import { ANY_SECTOR_TYPES, CREDENTIAL_PACKS, type Sector } from "../rules/packs";
 
 // Gives the current firm a sector's credential pack: its credential types (plus the any-sector
 // ones) and its default role rules, inside the caller's withFirm transaction. Never overwrites:
 // a type or a role rule the firm already has stays exactly as it is, so re-running the seed or
-// re-applying a pack can't undo the office's edits. Logged only when something was added.
+// re-applying a pack can't undo the office's edits. Logged only when something was added: by
+// recordEvent, or by the demo seed's own log (Phase 26.10, fix-8: src/lib/db/admin/seed-log.ts), so
+// its entry takes its place in the made-up history's time order.
 
 export async function applyCredentialPack(
   tx: FirmTx,
   sector: Sector,
   actor: { type: ActorType; id?: string | null },
+  log: (tx: FirmTx, event: EventInput) => Promise<unknown> = recordEvent,
 ): Promise<{ typesAdded: number; rulesAdded: number }> {
   const pack = CREDENTIAL_PACKS[sector];
   const types = [
@@ -56,7 +59,7 @@ export async function applyCredentialPack(
     });
   const result = { typesAdded: addedTypes.length, rulesAdded: addedRules.length };
   if (result.typesAdded + result.rulesAdded > 0) {
-    await recordEvent(tx, {
+    await log(tx, {
       actorType: actor.type,
       actorId: actor.id ?? null,
       action: "credential_pack.applied",

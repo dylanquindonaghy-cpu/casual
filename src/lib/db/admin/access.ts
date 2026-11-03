@@ -19,7 +19,11 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   // Firms are created by an admin script. No Phase 1 feature edits a firm.
   firms: ["SELECT"],
   sites: CRUD,
+  // Contracts (Phase 26.3): an admin adds, renames and removes them (logged).
+  clients: CRUD,
   office_users: CRUD,
+  // Each office user's contracts (Phase 26.3): replaced whole when they save Customise (logged).
+  office_user_clients: ["SELECT", "INSERT", "DELETE"],
   workers: CRUD,
   credentials: CRUD,
   events: ["SELECT", "INSERT"],
@@ -40,6 +44,9 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   assignments: NO_DELETE,
   requests: NO_DELETE,
   offers: NO_DELETE,
+  // Casuals' asks for a session (Phase 26.6): added and answered, never deleted (the evidence of
+  // who asked and what they were told); only their status and times change (COLUMN_UPDATES).
+  session_asks: ["SELECT", "INSERT"],
   // Each reminder a booking got (or why not): evidence in a no-show dispute.
   shift_reminders: NO_DELETE,
   metrics_daily: NO_DELETE, // pilot figures: corrected, never removed (the week-4 report's evidence)
@@ -64,6 +71,11 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   messages: NO_DELETE,
   // A phone's push address: saved, moved to a new login on the same phone, removed.
   push_subscriptions: CRUD,
+  // An office user's browser for notifications (Phase 26.4): the same, for "Tell me about".
+  office_push_subscriptions: CRUD,
+  // The office's notes about a casual (Phase 26.7): added, and deleted with the casual's details;
+  // never rewritten.
+  casual_notes: ["SELECT", "INSERT", "DELETE"],
   // A site a worker may not work at: added and removed by the office (both logged), never edited.
   worker_site_blocks: ["SELECT", "INSERT", "DELETE"],
   // Strikes (12C.1): issued, then reviewed, withdrawn or emailed (COLUMN_UPDATES), never rewritten
@@ -112,7 +124,8 @@ export const COLUMN_UPDATES: Readonly<Record<string, readonly string[]>> = {
     "sync_started_at",
   ],
   connector_events: ["status", "outcome_code", "processed_at"],
-  shift_events: ["showing_to_casuals", "name"],
+  shift_events: ["showing_to_casuals", "name", "casuals_ask"],
+  session_asks: ["status", "asked_at", "answered_at"],
   // The planner's API keys (S11): read and added, never rewritten or deleted; only the last use
   // and the revocation change.
   api_keys: ["last_used_at", "revoked_at", "revoked_by"],

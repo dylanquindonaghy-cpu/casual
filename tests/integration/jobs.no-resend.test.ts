@@ -276,7 +276,7 @@ describe("a job that fails after its message is sent never sends it again, and l
     );
     expect(sent).toHaveLength(1);
     expect((await eventsOf(t.T.firmId, "auth.link_sent")).map((e) => e.data)).toEqual([
-      { purpose: "worker_login", channel: "whatsapp", unconfirmed: true },
+      { purpose: "worker_login", channel: "sms", unconfirmed: true },
     ]);
     expect(
       (await consumeWorkerLoginLink({ firm: { id: t.T.firmId }, clock }, tokenFrom(sent[0])))
@@ -291,7 +291,7 @@ describe("a job that fails after its message is sent never sends it again, and l
     );
     expect(sent).toHaveLength(1);
     expect((await eventsOf(t.T.firmId, "auth.otp_sent")).map((e) => e.data)).toEqual([
-      { channel: "whatsapp", unconfirmed: true },
+      { channel: "sms", unconfirmed: true },
     ]);
     const verified = await verifyStepUpCode(
       { firm: { id: t.T.firmId }, clock, secret: SECRET },
@@ -431,7 +431,7 @@ describe("a send that fails is logged, and never tried again", () => {
       reason: "failed",
     });
     expect((await eventsOf(t.T.firmId, "auth.link_send_failed")).map((e) => e.data)).toEqual([
-      { purpose: "worker_login", channel: "whatsapp", code: "Error" },
+      { purpose: "worker_login", channel: "sms", code: "Error" },
     ]);
     expect(await sendPortalLink(t.payload, withFirm, t.deps(h.transport))).toEqual({
       sent: false,
@@ -448,7 +448,7 @@ describe("a send that fails is logged, and never tried again", () => {
       reason: "failed",
     });
     expect((await eventsOf(t.T.firmId, "auth.otp_send_failed")).map((e) => e.data)).toEqual([
-      { channel: "whatsapp", code: "Error" },
+      { channel: "sms", code: "Error" },
     ]);
     expect(await sendLoginCode(t.payload, withFirm, t.deps(h.transport))).toEqual({
       sent: false,
@@ -474,7 +474,7 @@ describe("a send that fails is logged, and never tried again", () => {
         failed: 1,
       });
       expect((await eventsOf(t.f.firmId, failedAction)).map((e) => e.data)).toEqual([
-        expect.objectContaining({ type: "SIA_DS", channel: "whatsapp", code: "Error" }),
+        expect.objectContaining({ type: "SIA_DS", channel: "sms", code: "Error" }),
       ]);
       const ok = harness();
       expect(

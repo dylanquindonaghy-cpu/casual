@@ -43,6 +43,9 @@ export const LIMITS = {
   // minutes, counted by the worker's id, only for a save that writes (and so logs). Turning
   // notifications on, or the browser renewing a subscription, takes one. Removing is never limited.
   pushPerWorker: { name: "push:worker", max: 10, windowMs: 15 * MINUTE },
+  // An office user's browser saved for notifications (POST /api/office/push; Phase 26.4): the same,
+  // counted by the office user's id.
+  pushPerOfficeUser: { name: "push:office_user", max: 10, windowMs: 15 * MINUTE },
   // "Take shift" (13.5; Checks 6): 20 taps per worker every 15 minutes, counted by the worker's id,
   // booked or not. Plenty for anyone picking up shifts; it stops one session hammering the rules
   // and the action log (every refused tap logs shift.booking_refused).

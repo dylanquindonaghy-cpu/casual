@@ -564,11 +564,11 @@ test("Part 3: as the office", async ({ browser }) => {
     });
     await page.getByRole("button", { name: "Check the file" }).click();
     await expect(
-      page.getByText("This file would add 2 shifts, change 0, leave 0 as they are and skip 0."),
+      page.getByText("This file would add 2 sessions, change 0, leave 0 as they are and skip 0."),
     ).toBeVisible();
     await page.getByRole("button", { name: "Import these sessions" }).click();
     await expect(
-      page.getByText("Imported: 2 shifts added, 0 changed, 0 left as they were, 0 skipped."),
+      page.getByText("Imported: 2 sessions added, 0 changed, 0 left as they were, 0 skipped."),
     ).toBeVisible();
   });
 

@@ -286,7 +286,7 @@ describe("the head's pay period (Phase 25.2)", () => {
     const weekly = await withFirm(plain.firmId, (tx) => loadBoard(tx, NOW));
     expect(weekly.payCalendar).toEqual(DEFAULT_PAY_CALENDAR);
     expect(headLine(weekly.today, null, NOW, weekly.timeZone, weekly.payCalendar)).toBe(
-      "Monday 2 November · Week 45 · Pay Fri 13 Nov",
+      "Monday 2 November · Week 45 (paid Fri 13 Nov)",
     );
     const f = await bookingFirm(su, withFirm, {
       settings: {
@@ -295,7 +295,7 @@ describe("the head's pay period (Phase 25.2)", () => {
     });
     const board = await withFirm(f.firmId, (tx) => loadBoard(tx, NOW));
     expect(headLine(board.today, null, NOW, board.timeZone, board.payCalendar)).toBe(
-      "Monday 2 November · Cycle 22 · Pay Fri 13 Nov",
+      "Monday 2 November · Cycle 22 (paid Fri 13 Nov)",
     );
   });
 });
@@ -663,7 +663,7 @@ describe("round 8: the venue map", () => {
     ]);
   });
 
-  it("Show full venues: a venue whose sessions are all booked too, with nothing to fill", async () => {
+  it("Show filled venues too: a venue whose sessions are all booked too, with nothing to fill", async () => {
     const b = await boardFirm();
     const hall = await site(b.f, "Acme Hall");
     await set("shifts", b.full, { site_id: hall });

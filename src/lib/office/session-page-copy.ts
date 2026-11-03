@@ -31,7 +31,7 @@ export const CASUALS_TAB_WORDS: Record<CasualsTab, string> = {
   offered: "Offered",
   said_no: "Said no",
   booked: "Booked",
-  could: "Could take it",
+  could: "Can take it",
 };
 
 export const FILTER_WORDS = {
@@ -168,7 +168,8 @@ export function bookBestResultText(result: BookBestResult | Common): string {
 // The "This session" panel.
 export const THIS_SESSION = "This session";
 export const CASUALS_ASK = "Casuals ask, you choose";
-export const CASUALS_ASK_LINE = "Set for this event. Off: the first to tap takes it.";
+export const CASUALS_ASK_LINE =
+  "On: casuals ask, you choose who gets it. Off: the first casual to tap gets it. Applies to every session in this event.";
 export const CHECKS_FIRST =
   "the rules, their licence and their hours. A place can only be booked once.";
 export const CHECKS_FIRST_LEAD = "Booking runs every check first:";

@@ -2,11 +2,11 @@ import { dateParts, timeRange } from "../portal/sign-copy";
 import { roleLabel } from "../portal/format";
 import type { SearchFound } from "./search";
 
-// The office search's words (src/lib/office/search.ts; the top bar's "Find a casual, shift or
-// site"): each thing found as a line to read and the page it opens. Pure, so the tests can read
+// The office search's words (src/lib/office/search.ts; the top bar's "Find a casual, session or
+// venue"): each thing found as a line to read and the page it opens. Pure, so the tests can read
 // every line.
 
-export const SEARCH_LABEL = "Find a casual, shift or site";
+export const SEARCH_LABEL = "Find a casual, session or venue";
 export const SEARCH_EMPTY = (q: string) => `Nothing found for “${q}”.`;
 
 export interface SearchHit {
@@ -55,7 +55,7 @@ export function searchHits(f: SearchFound, timeZone: string): SearchHits {
   if (f.sessions && f.sessions.rows.length > 0) {
     groups.push({
       kind: "sessions",
-      label: "Shifts",
+      label: "Sessions",
       hits: f.sessions.rows.map((s) => {
         const d = dateParts(s.startsAt, timeZone);
         const when = `${d.dow} ${d.day} ${d.month}, ${timeRange(s.startsAt, s.endsAt, timeZone).range}`;
@@ -66,20 +66,20 @@ export function searchHits(f: SearchFound, timeZone: string): SearchHits {
           urgent: s.urgentGap,
         };
       }),
-      more: f.sessions.more ? "More shifts match. Type more to narrow them down." : null,
+      more: f.sessions.more ? "More sessions match. Type more to narrow them down." : null,
     });
   }
   if (f.sites && f.sites.rows.length > 0) {
     groups.push({
       kind: "sites",
-      label: "Sites",
+      label: "Venues",
       hits: f.sites.rows.map((s) => ({
         href: `/office/events?site=${s.id}`,
         title: s.name,
         detail: line([s.town, events(s.events)]),
         urgent: false,
       })),
-      more: f.sites.more ? "More sites match. Type more of the name." : null,
+      more: f.sites.more ? "More venues match. Type more of the name." : null,
     });
   }
   return { groups, count: groups.reduce((n, g) => n + g.hits.length, 0) };

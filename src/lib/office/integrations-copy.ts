@@ -164,7 +164,7 @@ export function revokeKeyResultText(result: RevokeApiKeyResult | Common): string
 // ---- The webhook (12J.2; docs/office-v2.md 5.3.4) ----
 
 export const WEBHOOK_INTRO =
-  "Your planner hears about each booking, cancellation and withdrawn strike the moment it happens, with the full record. Give it an https address your planner gives you.";
+  "Your planner hears about each booking, cancellation and withdrawn strike the moment it happens, with the full record. Paste the https address your planner gave you for webhooks.";
 
 export const NO_WEBHOOK = "No webhook yet.";
 

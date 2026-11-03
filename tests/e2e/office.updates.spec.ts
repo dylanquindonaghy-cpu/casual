@@ -174,7 +174,9 @@ test("Tell me about: a switch saved for the person; this device; the office's pu
   await officeLogin(page, email);
   await page.goto(`${acme}/office/updates`);
   const panel = page.getByRole("region", { name: "Tell me about" });
-  await expect(panel).toContainText("For every venue, as you look after no contracts.");
+  await expect(panel).toContainText(
+    "Only you get these. You don't look after any contracts, so they cover every venue.",
+  );
   // The defaults: all on but uploads.
   for (const [name, on] of [
     ["Every cancellation", true],
@@ -200,7 +202,9 @@ test("Tell me about: a switch saved for the person; this device; the office's pu
   await expect(panel.getByRole("status")).toHaveText("Saved. Uploads to check: off.");
   // This device: no web push on the test server (no VAPID key), and it says so.
   await expect(panel.locator("[data-device-push]")).toHaveAttribute("data-device-push", "no_key");
-  await expect(panel).toContainText("Notifications aren't set up on this server yet.");
+  await expect(panel).toContainText(
+    "Phone and computer notifications aren't turned on for your firm yet, so these two switches do nothing for now.",
+  );
   // The route: only from the site's own page, then saved and removed.
   expect(
     (

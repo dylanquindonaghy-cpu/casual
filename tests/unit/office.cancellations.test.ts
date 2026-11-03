@@ -190,8 +190,8 @@ describe("the list, round 8", () => {
     );
     expect(tiles.map((t) => [t.label, t.value, t.line, t.urgent])).toEqual([
       ["This week", 2, "2 by casuals · 0 by the office", false],
-      ["Under 48 hours' notice", 0, "This week · 5 in all", false],
-      ["Strikes issued", 0, "This week · 3 counting now", false],
+      ["Under 48 hours' notice", 0, "This week · 9 in the last 8 weeks", false],
+      ["Strikes issued", 0, "This week · 3 live strikes now", false],
       ["Last 8 weeks", 17, "Cancellations, 9 under 48 hours", false],
     ]);
     // Under the threshold this week: red. The firm's own threshold names it.
@@ -205,7 +205,7 @@ describe("the list, round 8", () => {
     expect(hot[1]).toEqual({
       label: "Under 24 hours' notice",
       value: 1,
-      line: "This week · 1 in all",
+      line: "This week · 1 in the last 8 weeks",
       urgent: true,
     });
     expect(hot[0]?.line).toBe("1 by a casual · 1 by the office");
@@ -254,7 +254,7 @@ describe("the list, round 8", () => {
     expect(none({ strikeCode: "changed_after_booking" })).toBe(
       "No strike · the office changed it after booking",
     );
-    expect(none({ strikeCode: null })).toBe("No strike · from before strikes");
+    expect(none({ strikeCode: null })).toBe("No strike: cancelled before strikes were turned on");
     // The firm cancelled: who, whatever the code says.
     expect(none({ by: "office", strikeCode: "by_firm" })).toBe("No strike · the office cancelled");
     expect(none({ by: "planner", via: "api", strikeCode: "by_firm" })).toBe(

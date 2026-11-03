@@ -980,7 +980,7 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `Sending ${names.office(d.officeUserId)} a notification: ${what}.`;
     }
     case "office.summary_emailed":
-      return `Sending ${names.office(d.officeUserId)} their 08:00 summary.`;
+      return `Sent ${names.office(d.officeUserId)} the 08:00 summary.`;
     case "office.summary_failed":
       return `The 08:00 summary to ${names.office(d.officeUserId)} couldn't be sent.`;
 

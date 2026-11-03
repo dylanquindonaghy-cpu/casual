@@ -180,13 +180,13 @@ export function countTiles(
     {
       label: `Under ${threshold} hours' notice`,
       value: c.week.under,
-      line: `This week · ${c.overall.under} in all`,
+      line: `This week · ${c.overall.last8Under} in the last 8 weeks`,
       urgent: c.week.under > 0,
     },
     {
       label: "Strikes issued",
       value: c.week.strikes,
-      line: `This week · ${c.overall.liveStrikes} counting now`,
+      line: `This week · ${c.overall.liveStrikes} live strikes now`,
       urgent: false,
     },
     {
@@ -244,7 +244,7 @@ export function strikeBadge(
   }
   if (r.by !== "casual") return { kind: "none", text: `No strike · ${firmWhy(r.by)}` };
   if (!r.strikeCode || r.strikeCode === "issued") {
-    return { kind: "none", text: "No strike · from before strikes" };
+    return { kind: "none", text: "No strike: cancelled before strikes were turned on" };
   }
   const why = r.strikeCode === "by_firm" ? firmWhy(r.by) : NO_STRIKE_WHY[r.strikeCode];
   return { kind: "none", text: `No strike · ${why}` };

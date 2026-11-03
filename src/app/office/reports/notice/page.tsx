@@ -200,7 +200,7 @@ export default async function NoticeReportPage({
                 <th className={th}>When</th>
                 <th className={th}>What</th>
                 <th className={th}>Started by</th>
-                <th className={th}>Asked by</th>
+                <th className={th}>At whose request</th>
                 <th className={th}>Worker</th>
                 <th className={th}>Shift</th>
                 <th className={`${th} ${table.num}`}>Notice</th>

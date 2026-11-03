@@ -34,7 +34,7 @@ export default async function IntegrationsPage() {
   return (
     <main className={page.office}>
       <PageHeader title="Integrations">
-        <p>Connect your planner, so it can send its sessions to ShiftDesk.</p>
+        <p>Connect your planner, so it can send its sessions here.</p>
       </PageHeader>
 
       <section aria-labelledby="planner">

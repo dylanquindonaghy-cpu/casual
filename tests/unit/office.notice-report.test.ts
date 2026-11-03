@@ -50,7 +50,7 @@ describe("the notice report", () => {
     ]);
     expect(INITIATOR_WORDS).toEqual({
       worker: "The worker",
-      office: "The office",
+      office: "The firm",
       rota_sheet: "The rota sheet",
       offer_wave: "An offer wave",
       firm: "The firm",

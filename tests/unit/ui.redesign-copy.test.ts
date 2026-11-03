@@ -367,10 +367,10 @@ describe("the event cards' words", () => {
     expect(EVENT_VIEW_WORDS.need).toBe("Need people");
   });
 
-  it("the line beside them: events with sessions to come and their places free", () => {
-    expect(eventsLine(8, 26)).toBe("8 events with sessions to come · 26 places free");
-    expect(eventsLine(1, 1)).toBe("1 event with sessions to come · 1 place free");
-    expect(eventsLine(0, 0)).toBe("0 events with sessions to come · 0 places free");
+  it("the line beside them: events with sessions to come and their places to fill", () => {
+    expect(eventsLine(8, 26)).toBe("8 events with sessions to come · 26 places to fill");
+    expect(eventsLine(1, 1)).toBe("1 event with sessions to come · 1 place to fill");
+    expect(eventsLine(0, 0)).toBe("0 events with sessions to come · 0 places to fill");
   });
 
   it("a card's heading and line; an automatic event's place over its day, neither said twice", () => {

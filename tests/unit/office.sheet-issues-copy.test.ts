@@ -20,7 +20,7 @@ describe("From your rota sheet", () => {
 
   it("a change to a shift that has started", () => {
     expect(sheetChangeText({ fields: ["endsAt", "status"], reason: "started", people: [] })).toBe(
-      "Your rota sheet changes its finish and status, but the shift has started: not changed here.",
+      "Your rota sheet changes its finish and status, but the session has started: not changed here.",
     );
   });
 

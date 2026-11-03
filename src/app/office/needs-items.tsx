@@ -115,7 +115,7 @@ export function NeedsItems({
       {n.toCheck.length > 0 && (
         <Need id="to-check" n={n.toCheckTotal} shown={n.toCheck.length}>
           <p className={`${headingGap} max-w-prose text-ink-muted`}>
-            These people are booked, but can&apos;t work these shifts as things stand. Cancel the
+            These people are booked, but can&apos;t work these sessions as things stand. Cancel the
             booking (they&apos;re told), or keep it.
           </p>
           <ul role="list" className={items}>
@@ -198,7 +198,7 @@ export function NeedsItems({
                     {e.worker}&apos;s page
                   </Link>
                   <Link href={`/office/shifts/${e.shiftId}`} className={textLink}>
-                    The {roleLabel(e.role).toLowerCase()} shift
+                    The {roleLabel(e.role).toLowerCase()} session
                   </Link>
                 </p>
               </li>

@@ -9,6 +9,7 @@ import {
   REQUEST_UPDATE_QUEUE,
   type RequestUpdateDeps,
 } from "@/lib/notices/request-update";
+import { loadEnquiries } from "@/lib/office/enquiries";
 import { answerRequest } from "@/lib/office/quick-actions";
 import { loadRequestQueue } from "@/lib/office/request-queue";
 import { myRequests } from "@/lib/portal/requests";
@@ -179,10 +180,16 @@ describe("the office's requests page", () => {
     expect(question).toMatchObject({ shift: null, asked: { note: "Can I bring a friend?" } });
     // Answered 8 days ago: not shown.
     expect(queue.answered).toEqual([]);
+    // Enquiries' head and its "Requests from the app" tab count the same ones waiting (the launch
+    // review's O2: "none need a person" no longer hides them).
+    const waiting = async (firmId: string) =>
+      (await withFirm(firmId, (tx) => loadEnquiries(tx, "app", NOW))).appWaiting;
+    expect(await waiting(t.f.firmId)).toBe(4);
 
     await answerRequest(t.ctx(), t.swap, "declined", "Cal isn't free that day.");
     const after = await withFirm(t.f.firmId, (tx) => loadRequestQueue(tx, NOW));
     expect(after.waiting.map((r) => r.requestId)).toEqual([t.timeChange, escalated, general]);
+    expect(await waiting(t.f.firmId)).toBe(3);
     // The linked question can't be answered here: Enquiries answers it, with its message locked.
     expect(await answerRequest(t.ctx(), linked, "approved", "Car park B.")).toEqual({
       status: "on_enquiries",
@@ -204,6 +211,7 @@ describe("the office's requests page", () => {
         (r) => r.requestId,
       ),
     ).toEqual([other.swap, other.timeChange]);
+    expect(await waiting(other.f.firmId)).toBe(2);
   });
 });
 

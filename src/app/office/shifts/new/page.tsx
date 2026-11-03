@@ -10,7 +10,7 @@ import { officeShiftForm } from "@/lib/office/shift-pages";
 import { localDateOf } from "@/lib/time/zoned";
 import { ShiftCreateForm } from "../shift-create-form";
 
-export const metadata: Metadata = { title: "New shift" };
+export const metadata: Metadata = { title: "New session" };
 
 // "New shift" (docs/screens.md `/office/shifts`). Admins and resourcers.
 export default async function Page() {
@@ -19,7 +19,7 @@ export default async function Page() {
   if (!form) notFound();
   return (
     <main className={page.officeForm}>
-      <PageHeader title="New shift" />
+      <PageHeader title="New session" />
       <ShiftCreateForm
         mode="single"
         sites={form.sites}
@@ -29,7 +29,7 @@ export default async function Page() {
       />
       <p className={sectionGap.office}>
         <Link href="/office/shifts" className={btn.link}>
-          Back to shifts
+          Back to sessions
         </Link>
       </p>
     </main>

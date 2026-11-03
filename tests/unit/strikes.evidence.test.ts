@@ -384,10 +384,11 @@ describe("the Needs attention item: the top bar's To check and the Needs attenti
     expect(admin).toContain('<h3 id="evidence"');
     expect(text(admin)).toContain("Strike evidence 2");
     expect(needsCount(needs(evidence))).toBe(2);
-    // From every page, the top bar's "To check" counts both items, to Needs attention (Phase 24;
-    // a row in the dashboard's Needs attention list until then).
+    // From every page, the top bar's "Needs attention" counts both items, to Needs attention
+    // (Phase 24; a row in the dashboard's Needs attention list until then; "To check" until the
+    // launch review).
     expect(toCheck(v)).toMatchObject({
-      label: "To check",
+      label: "Needs attention",
       count: 2,
       href: "/office/needs-attention",
     });

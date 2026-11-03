@@ -19,6 +19,7 @@ import {
   REMIND_GAP_HOURS,
   remindable,
 } from "./casual-follow-up";
+import { photoNeedsUpdate } from "./casuals-copy";
 import { officeUserMay, parts, type OfficeContext } from "./office-context";
 import { loadCasualRecords, type CasualRecord } from "./reliability";
 import { travelSettings } from "../travel/settings";
@@ -87,7 +88,7 @@ export interface CasualsList {
   view: CasualView;
   sort: CasualSort;
   counts: Record<CasualView, number>;
-  withFigure: number; // active casuals with a reliability figure (Reliable's "of N who worked")
+  withFigure: number; // active casuals with a reliability figure
   remindAll: string[]; // Need updating's casuals "Remind all" would remind now
   rows: CasualRow[]; // All and Need updating
   uploads: WaitingUpload[]; // Uploads to check
@@ -215,7 +216,7 @@ export async function casualsList(
       const q = held.get(p.id);
       const needs = q?.needs ?? [];
       const photo = q?.photo ?? { status: "missing" as const, current: null, waiting: null };
-      const photoNeeds = photo.status === "missing" || photo.status === "overdue";
+      const photoNeeds = photoNeedsUpdate(photo);
       const worst = needs[0]
         ? { type: needs[0].qualification.type, status: needs[0].qualification.status }
         : photoNeeds
@@ -364,6 +365,6 @@ export async function worstNeed(
   ).get(workerId);
   const first = held?.needs[0];
   if (first) return { type: first.qualification.type, status: first.qualification.status };
-  const photo = held?.photo.status;
-  return photo === "missing" || photo === "overdue" ? { type: "photo", status: photo } : null;
+  const photo = held?.photo;
+  return photo && photoNeedsUpdate(photo) ? { type: "photo", status: photo.status } : null;
 }

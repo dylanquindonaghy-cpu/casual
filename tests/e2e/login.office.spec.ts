@@ -38,7 +38,7 @@ test("an admin logs in by email link, sees their role and the office team, and l
     page
       .getByRole("main")
       .getByText(
-        /^[A-Z][a-z]+day \d{1,2} [A-Z][a-z]+ · Week \d{1,2} · Pay Fri \d{1,2} [A-Z][a-z]{2}$/,
+        /^[A-Z][a-z]+day \d{1,2} [A-Z][a-z]+ · Week \d{1,2} \(paid Fri \d{1,2} [A-Z][a-z]{2}\)$/,
       ),
   ).toBeVisible();
   const shiftsLine = page.getByText("Your shifts line: +44 7700 900000 (texts and calls).");

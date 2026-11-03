@@ -130,7 +130,7 @@ describe("the dashboard's bookings to check", () => {
       "Ann Booker's booking doesn't need checking any more.",
     );
     expect(keepResultText({ status: "not_found" }, name)).toBe(
-      "Ann Booker's booking isn't there any more (cancelled, or the shift has started).",
+      "Ann Booker's booking isn't there any more (cancelled, or the session has started).",
     );
     expect(keepResultText({ status: "error" }, name)).toBe(
       "Something went wrong. Reload the page to see if it was kept.",

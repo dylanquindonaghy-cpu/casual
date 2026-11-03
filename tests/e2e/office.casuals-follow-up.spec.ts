@@ -43,7 +43,7 @@ test("counts open their tabs; Remind, a note and Mark as sorted on Need updating
   for (const [name, view] of [
     ["Regulars", "regulars"],
     ["Reliable", "reliable"],
-    ["Cancel often", "cancel_often"],
+    ["Cancels often", "cancel_often"],
     ["Not worked lately", "not_worked"],
   ]) {
     await expect(counts.getByRole("link", { name: new RegExp(`^${name} \\d+`) })).toHaveAttribute(
@@ -128,7 +128,9 @@ test("counts open their tabs; Remind, a note and Mark as sorted on Need updating
     held: [{ type: "SIA_DS", daysAhead: -5 }],
   });
   await page.goto(`${acme}/office/casuals?view=needs`);
-  const remindAll = page.getByRole("button", { name: /^Remind all \d+$/ });
+  const remindAll = page.getByRole("button", {
+    name: /^Remind all \d+ with a licence to renew$/,
+  });
   await expect(remindAll).toBeVisible();
   const before = Number(((await remindAll.textContent()) ?? "").replace(/\D+/g, ""));
   expect(before).toBeGreaterThanOrEqual(1);
@@ -144,7 +146,7 @@ test("counts open their tabs; Remind, a note and Mark as sorted on Need updating
   await page.reload();
   const robRow = page.getByRole("row").filter({ hasText: "Rob Reminder" });
   await expect(robRow.getByText(/^Reminded by Follow Up Resourcer · /)).toBeVisible();
-  await expect(page.getByRole("button", { name: /^Remind all \d+$/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Remind all \d+/ })).toHaveCount(0);
 
   // Her page: her reliability and the note.
   await page.goto(`${acme}/office/casuals/${ruth}`);

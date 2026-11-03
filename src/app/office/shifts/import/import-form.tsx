@@ -94,12 +94,12 @@ export function ImportForm() {
           disabled={pending || !hydrated}
           onClick={() => send("import")}
         >
-          Import these shifts
+          Import these sessions
         </button>
       )}
       {imported && (
         <Link href="/office/shifts" className={btn.primary}>
-          See the shifts
+          See the sessions
         </Link>
       )}
     </div>

@@ -12,7 +12,7 @@ export const CASUAL_VIEW_WORDS: Record<CasualView, string> = {
   all: "All",
   regulars: "Regulars",
   reliable: "Reliable",
-  cancel_often: "Cancel often",
+  cancel_often: "Cancels often",
   not_worked: "Not worked lately",
   needs: "Need updating",
   uploads: "Uploads to check",
@@ -28,18 +28,19 @@ export const CASUAL_VIEW_EMPTY: Record<CasualView, string> = {
   uploads: "Nothing to check. New photos and certificates show here.",
 };
 
-// The four counts at the top (cas-2), each opening its tab.
+// The four counts at the top (cas-2), each opening its tab. Reliable's needs 5 shifts in 90 days
+// to count (the launch review's words, in place of "95% or more, of {n} who worked").
 export const COUNT_VIEWS = ["regulars", "reliable", "cancel_often", "not_worked"] as const;
-export function countLine(view: (typeof COUNT_VIEWS)[number], withFigure: number): string {
+export function countLine(view: (typeof COUNT_VIEWS)[number]): string {
   switch (view) {
     case "regulars":
       return "Worked 6 of the last 8 weeks";
     case "reliable":
-      return `95% or more, of ${withFigure} who worked`;
+      return "Turned up 95% or more. Needs 5 shifts in 90 days to count.";
     case "cancel_often":
-      return "3 or more under 48 hours";
+      return "3 or more late cancellations (under 48 hours) in 90 days";
     case "not_worked":
-      return "Nothing in 60 days";
+      return "Nothing worked in 60 days";
   }
 }
 
@@ -66,6 +67,19 @@ export function reminderText(
 }
 export const sortedText = (s: { by: string; at: Date }, when: (d: Date) => string) =>
   `Sorted by ${s.by} · ${when(s.at)}`;
+
+// A missing or overdue staff photo needs updating (cas-5): the Casuals list's Need updating and a
+// casual's own page count it the same way.
+export const photoNeedsUpdate = (photo: Pick<StaffPhoto, "status">): boolean =>
+  photo.status === "missing" || photo.status === "overdue";
+
+// A casual's own page, "Needs updating" (the launch review's O5): after their qualifications, their
+// staff photo when it needs updating, as the Casuals list counts it: "Staff photo is missing." /
+// "Staff photo is overdue."; null when it doesn't.
+export function photoNeedLine(photo: Pick<StaffPhoto, "status">): string | null {
+  if (!photoNeedsUpdate(photo)) return null;
+  return photo.status === "overdue" ? "Staff photo is overdue." : "Staff photo is missing.";
+}
 
 // What's out of date, as short chips: "SIA DS expired 28 Sep", "Staff photo missing".
 export function outOfDate(
@@ -136,7 +150,8 @@ export function needsLine(needs: readonly NeedsItem[], year: number): string {
 }
 
 // The staff photo column: its state ("Up to date", or a chip when it needs someone), and under it
-// the date that goes with it (taken on; sent on, while it waits for a check).
+// the date that goes with it: taken on; "renew by …" when it's due soon or overdue (the launch
+// review: the date taken read as a due date); sent on, while it waits for a check.
 export function photoCell(
   photo: StaffPhoto,
   year: number,
@@ -153,11 +168,16 @@ export function photoCell(
       date: `Sent ${shortDate(photo.waiting.uploadedOn, year)}`,
     };
   }
-  const taken = photo.current ? shortDate(photo.current.uploadedOn, year) : null;
+  const renew = photo.status === "due_soon" || photo.status === "overdue";
+  const date = !photo.current
+    ? null
+    : renew
+      ? `renew by ${shortDate(photo.current.renewBy, year)}`
+      : shortDate(photo.current.uploadedOn, year);
   return {
     words,
     tone: photo.status === "up_to_date" ? null : PHOTO_TONES[photo.status],
-    date: taken,
+    date,
   };
 }
 
@@ -165,17 +185,30 @@ export function photoCell(
 export const strikesText = (n: number): string => (n === 0 ? "None" : String(n));
 
 // A casual's standing as chips on their page (Phase 26.7, cas-2's four): good ones green, the
-// rest amber.
-export function standingWords(s: {
-  regular: boolean;
-  reliable: boolean;
-  cancelOften: boolean;
-  notWorkedLately: boolean;
-}): { words: string; tone: "done" | "attention" }[] {
+// rest amber. Someone who has never worked is new, not lapsed: "New: not worked yet".
+export function standingWords(
+  s: {
+    regular: boolean;
+    reliable: boolean;
+    cancelOften: boolean;
+    notWorkedLately: boolean;
+  },
+  lastWorked: Date | null,
+): { words: string; tone: "done" | "attention" }[] {
   const out: { words: string; tone: "done" | "attention" }[] = [];
   if (s.regular) out.push({ words: "Regular", tone: "done" });
   if (s.reliable) out.push({ words: "Reliable", tone: "done" });
   if (s.cancelOften) out.push({ words: "Cancels often", tone: "attention" });
-  if (s.notWorkedLately) out.push({ words: "Not worked lately", tone: "attention" });
+  if (s.notWorkedLately) {
+    out.push({
+      words: lastWorked ? "Not worked lately" : "New: not worked yet",
+      tone: "attention",
+    });
+  }
   return out;
 }
+
+// Under a casual's reliability, how it's worked out (the launch review's words, in place of the
+// formula "Worked ÷ (worked + no-shows + cancellations under 48 hours)").
+export const RELIABILITY_HOW =
+  "Shifts worked out of shifts booked (no-shows and cancellations under 48 hours count against them), from what the office marked.";

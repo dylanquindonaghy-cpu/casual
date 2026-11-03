@@ -404,7 +404,7 @@ test("Part 3: as the office", async ({ browser }) => {
     // (the first card with someone to send it to), then Offered and the answer at its foot.
     await page.goto(`${acme}/office`);
     await expect(page.locator("dialog[data-offer-panel][data-ready]")).toHaveCount(1);
-    const panel = page.getByRole("dialog", { name: "Offer this shift" });
+    const panel = page.getByRole("dialog", { name: "Offer this session" });
     const planes = page.locator('section#to-offer a[href^="/office/offer/"]');
     let sent = false;
     for (let i = 0; i < (await planes.count()) && !sent; i++) {
@@ -440,7 +440,7 @@ test("Part 3: as the office", async ({ browser }) => {
     for (const name of ["Kieran Doyle", "Ben Fraser", "Zoe Adeyemi"]) {
       await expect(page.getByRole("link", { name, exact: true }).first()).toBeVisible();
     }
-    await expect(page.getByText("Pay (always a person)").first()).toBeVisible();
+    await expect(page.getByText("Pay: sent to payroll").first()).toBeVisible();
     await page.getByRole("link", { name: "Requests from the app" }).click();
     await expect(page).toHaveURL(`${acme}/office/enquiries?view=app`);
     const card = page
@@ -475,14 +475,14 @@ test("Part 3: as the office", async ({ browser }) => {
   await test.step("27. Make a shift and book someone", async () => {
     await page.goto(`${acme}/office`);
     await (await menuLink(page, "Events & sessions")).click();
-    await page.getByRole("link", { name: "All shifts by day" }).click();
-    await page.getByRole("link", { name: "New shift" }).click();
+    await page.getByRole("link", { name: "All sessions by day" }).click();
+    await page.getByRole("link", { name: "New session" }).click();
     await page.getByLabel("Date", { exact: true }).fill(daysFromToday(9));
     await page.getByLabel("Role").fill("steward");
     await page.getByLabel("Start").fill("10:00");
     await page.getByLabel("Finish").fill("18:00");
     await page.getByLabel("Places").fill("2");
-    await page.getByRole("button", { name: "Create shift" }).click();
+    await page.getByRole("button", { name: "Create session" }).click();
     await expect(page).toHaveURL(/\/office\/shifts\/[0-9a-f-]{36}$/);
     session = page.url();
     await expect(page.getByText(/· 0 of 2 booked$/)).toBeVisible();
@@ -495,7 +495,7 @@ test("Part 3: as the office", async ({ browser }) => {
     for (const value of options.slice(0, 8)) {
       await page.getByLabel("Who?").selectOption(value);
       await page.getByRole("button", { name: "Check" }).click();
-      const yes = page.getByText(/^The rules say (.+) can work this shift\.$/);
+      const yes = page.getByText(/^The rules say (.+) can work this session\.$/);
       if (await yes.isVisible()) {
         booked = ((await yes.textContent()) ?? "").replace(/^The rules say (.+) can work.*$/, "$1");
         break;
@@ -505,7 +505,7 @@ test("Part 3: as the office", async ({ browser }) => {
     const asked = justBefore();
     await page.getByRole("button", { name: `Assign ${booked}` }).click();
     await expect(
-      page.getByText(`${booked} is booked on this shift. They'll get a message to say so.`),
+      page.getByText(`${booked} is booked on this session. They'll get a message to say so.`),
     ).toBeVisible();
     await anySent(asked, /^Confirmed: .+ \(steward\)\. Details and instructions: /);
     await page.reload();
@@ -543,7 +543,7 @@ test("Part 3: as the office", async ({ browser }) => {
   await test.step("29. A whole event, and an import", async () => {
     await page.goto(`${acme}/office`);
     await (await menuLink(page, "Events & sessions")).click();
-    await page.getByRole("link", { name: "Add shifts" }).click();
+    await page.getByRole("link", { name: "Add sessions" }).click();
     await page.getByLabel("Event name").fill("Cup final");
     await page.getByLabel("Date", { exact: true }).fill(daysFromToday(13));
     const lines = page.getByRole("group");
@@ -553,10 +553,10 @@ test("Part 3: as the office", async ({ browser }) => {
     await lines.nth(1).getByLabel("Role").fill("door supervisor");
     await lines.nth(1).getByLabel("Start").fill("20:00");
     await lines.nth(1).getByLabel("Finish").fill("04:00");
-    await page.getByRole("button", { name: "Create these shifts" }).click();
-    await expect(page.getByText("2 shifts created.")).toBeVisible();
+    await page.getByRole("button", { name: "Create these sessions" }).click();
+    await expect(page.getByText("2 sessions created.")).toBeVisible();
     await page.goto(`${acme}/office/events`);
-    await page.getByRole("link", { name: "Import shifts" }).click();
+    await page.getByRole("link", { name: "Import sessions" }).click();
     await page.getByLabel("Your file (.csv or .xlsx)").setInputFiles({
       name: "shifts.csv",
       mimeType: "text/csv",
@@ -566,7 +566,7 @@ test("Part 3: as the office", async ({ browser }) => {
     await expect(
       page.getByText("This file would add 2 shifts, change 0, leave 0 as they are and skip 0."),
     ).toBeVisible();
-    await page.getByRole("button", { name: "Import these shifts" }).click();
+    await page.getByRole("button", { name: "Import these sessions" }).click();
     await expect(
       page.getByText("Imported: 2 shifts added, 0 changed, 0 left as they were, 0 skipped."),
     ).toBeVisible();
@@ -589,9 +589,9 @@ test("Part 3: as the office", async ({ browser }) => {
     const casual = (name: string) =>
       page.getByRole("listitem").filter({ has: page.getByRole("heading", { name }) });
     await expect(casual("Kieran Doyle")).toContainText("2 live strikes");
-    await page.getByRole("link", { name: "Needs review", exact: true }).click();
+    await page.getByRole("link", { name: "They gave a reason: check it", exact: true }).click();
     const priya = casual("Priya Shah");
-    await expect(priya).toContainText("Needs review");
+    await expect(priya).toContainText("They gave a reason: check it");
     await priya.locator('a[href^="/office/cancellations/"]').first().click();
     await page.getByRole("button", { name: "Keep strike" }).click();
     await expect(page.getByRole("status")).toHaveText("Kept, and marked as reviewed.");

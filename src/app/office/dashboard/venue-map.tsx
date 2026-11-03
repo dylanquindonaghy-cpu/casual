@@ -9,6 +9,7 @@ import {
   MAP_KEY,
   MAP_TABLE,
   MAP_TABLE_HEADS,
+  mapCountLine,
   mapFoot,
   pinDays,
   pinLabel,
@@ -408,10 +409,7 @@ export function VenueMap({
       </div>
       <p className="flex flex-wrap justify-between gap-x-4 gap-y-1 px-1 text-xs text-ink-faint">
         <span>{mapFoot(onStreets)}</span>
-        <span className="tabular-nums">
-          {venues.length === 1 ? "1 venue" : `${venues.length} venues`} ·{" "}
-          {total === 1 ? "1 place to fill" : `${total} places to fill`}
-        </span>
+        <span className="tabular-nums">{mapCountLine(venues.length, total, view)}</span>
       </p>
       {unplaced.length > 0 && (
         <p className="px-1 text-xs text-ink-muted">{unplacedLine(unplaced)}</p>

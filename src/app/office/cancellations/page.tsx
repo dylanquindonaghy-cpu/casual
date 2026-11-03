@@ -20,6 +20,7 @@ import {
   type CancellationRow,
   type CancellationView,
 } from "@/lib/office/cancellations-copy";
+import { REVIEW_WORDS } from "@/lib/office/strikes-copy";
 
 export const metadata: Metadata = { title: "Cancellations" };
 
@@ -258,7 +259,7 @@ function Notice({ hours, hot }: { hours: number; hot: boolean }) {
   );
 }
 
-// The strike (can-2): "Strike 2 issued" in red with when it stops counting, "Needs review" in
+// The strike (can-2): "Strike 2 issued" in red with when it stops counting, "They gave a reason: check it" in
 // amber, a withdrawn one struck through, or grey "No strike · why".
 function Strike({ row, tz }: { row: CancellationRow; tz: string }) {
   const b = strikeBadge(row, tz);
@@ -270,7 +271,7 @@ function Strike({ row, tz }: { row: CancellationRow; tz: string }) {
           {b.text}
         </span>
         {b.review && (
-          <span className={`${pill} bg-attention-soft text-attention-ink`}>Needs review</span>
+          <span className={`${pill} bg-attention-soft text-attention-ink`}>{REVIEW_WORDS}</span>
         )}
         <span className="basis-full text-sm text-ink-muted">{b.line}</span>
       </span>

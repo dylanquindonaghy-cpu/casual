@@ -33,7 +33,7 @@ describe("the pay cycle in the office", () => {
     expect(payPeriodName(payPeriod("2026-10-30", payCalendar({})))).toBe("Week 44");
     expect(payPeriodName(payPeriod("2026-01-02", fortnight))).toBe("Cycle"); // before the anchor
     expect(payPeriodLabel({ ...cycle, name: payPeriodName(cycle) })).toBe(
-      "Cycle 22 · 26 Oct – 8 Nov · Pay Fri 13 Nov",
+      "Cycle 22 (paid Fri 13 Nov) · 26 Oct – 8 Nov",
     );
     // The next pay day's lines (Phase 26.10, fix-1, in place of "The Friday after this week. …").
     const next = { from: "pay calendar" as const, periodStart: "2026-10-12", thisPeriodPaid: null };
@@ -158,7 +158,7 @@ describe("the shift import's rows the name map skips", () => {
 
   it("left out, after the counts; nothing said when there are none", () => {
     expect(done(true, 1).slice(0, 2)).toEqual([
-      "This file would add 2 shifts, change 0, leave 0 as they are and skip 0.",
+      "This file would add 2 sessions, change 0, leave 0 as they are and skip 0.",
       "It would leave out 1 row your name map skips.",
     ]);
     expect(done(false, 2)[1]).toBe("Left out 2 rows your name map skips.");

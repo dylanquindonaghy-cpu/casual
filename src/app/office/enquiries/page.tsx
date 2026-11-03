@@ -99,7 +99,7 @@ export default async function EnquiriesPage({
   return (
     <main className={page.office}>
       <PageHeader title="Enquiries">
-        <p className={nums}>{countsLine(list.today, list.needPerson, now)}</p>
+        <p className={nums}>{countsLine(list.today, list.needPerson, now, list.appWaiting)}</p>
       </PageHeader>
       {/* Admins only (Phase 26.10, fix-5): it's about the firm's setup, not a resourcer's work. */}
       {showsAiBanner(officeUser.role, appEnv().AI_TRANSPORT) && (
@@ -119,6 +119,12 @@ export default async function EnquiriesPage({
               <>
                 {" "}
                 <span className={tabCount(v === view)}>{list.needPerson.count}</span>
+              </>
+            )}
+            {v === "app" && (
+              <>
+                {" "}
+                <span className={tabCount(v === view)}>{list.appWaiting}</span>
               </>
             )}
           </Link>

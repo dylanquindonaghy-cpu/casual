@@ -58,6 +58,6 @@ test("enter the baseline, update the figures, and see baseline against now", asy
     "Half the baseline",
   ]);
   expect((await cells(/^Time to refill a cancellation/))[1]).toBe("4 hours");
-  expect((await cells(/^Portal actions/))[2]).toMatch(/^[1-9]\d* \([\d.]+ a day\)$/);
+  expect((await cells(/^App actions/))[2]).toMatch(/^[1-9]\d* \([\d.]+ a day\)$/);
   await expect(page.getByText(/^Daily figures last worked out at /)).toBeVisible();
 });

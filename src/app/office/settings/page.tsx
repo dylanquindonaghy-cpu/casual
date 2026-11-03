@@ -65,14 +65,14 @@ export default async function SettingsPage() {
 
       <section className={sectionGap.office} aria-labelledby="sites">
         <h2 id="sites" className={h2}>
-          Sites
+          Venues
         </h2>
         <p className={`${muted} mt-1`}>
-          A site&apos;s postcode can&apos;t change while people are booked on sessions there that
+          A venue&apos;s postcode can&apos;t change while people are booked on sessions there that
           are still to come.
         </p>
         {data.sites.length === 0 ? (
-          <p className={`${card} ${headingGap} text-ink-muted`}>No sites yet.</p>
+          <p className={`${card} ${headingGap} text-ink-muted`}>No venues yet.</p>
         ) : (
           <ul role="list" className={`${rows} ${headingGap}`}>
             {data.sites.map((site) => (

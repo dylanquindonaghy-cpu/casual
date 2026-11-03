@@ -39,12 +39,12 @@ export const NEEDS_HEADINGS = {
 } as const;
 export type NeedsKey = keyof typeof NEEDS_HEADINGS;
 
-// "Ben Example's SIA door supervisor licence expired on Sat 3 Oct, before their steward shift on
+// "Ben Example's SIA door supervisor licence expired on Sat 3 Oct, before their steward session on
 // Sat 10 Oct." / "… runs out on …" (still in date today) / "…, during their …" (it runs out on a
 // day the session covers: a night shift's start) / "… is marked as expired, and they're booked …".
 export function expiredText(e: ExpiredOnBooking, today: string, tz: string): string {
   const shiftDay = localDateOf(e.startsAt, tz);
-  const shift = `${roleLabel(e.role).toLowerCase()} shift on ${dayLabel(shiftDay)}`;
+  const shift = `${roleLabel(e.role).toLowerCase()} session on ${dayLabel(shiftDay)}`;
   if (e.expiresOn === null) {
     return `${e.worker}'s ${e.credential} is marked as expired, and they're booked on a ${shift}.`;
   }

@@ -216,7 +216,7 @@ export default async function OfficeCasualsPage({
               >
                 {list.counts[v]}
               </span>
-              <span className="text-sm text-ink-muted">{countLine(v, list.withFigure)}</span>
+              <span className="text-sm text-ink-muted">{countLine(v)}</span>
             </Link>
           </li>
         ))}

@@ -47,8 +47,8 @@ describe("outcome labels, from logged facts only", () => {
       facts({ handledAs: "ai", intent: "cancel" }),
       "Sorted by AI, answered from your data",
     ],
-    ["pay, by keyword", facts({ intent: "pay" }), "Pay (always a person)"],
-    ["pay, by AI", facts({ handledAs: "ai", intent: "pay" }), "Pay (always a person)"],
+    ["pay, by keyword", facts({ intent: "pay" }), "Pay: sent to payroll"],
+    ["pay, by AI", facts({ handledAs: "ai", intent: "pay" }), "Pay: sent to payroll"],
     [
       "asked for the office, waiting",
       facts({ intent: "office", waiting: true }),
@@ -74,11 +74,15 @@ describe("outcome labels, from logged facts only", () => {
       facts({ handledAs: "ai", intent: "office" }),
       "Passed to a person, answered",
     ],
-    ["a shifts reply, then a booking in the app", facts({ doneInApp: true }), "Done in the app"],
+    [
+      "a shifts reply, then a booking in the app",
+      facts({ doneInApp: true }),
+      "They sorted it in the app",
+    ],
     [
       "an AI cancel reply, then a cancellation in the app",
       facts({ handledAs: "ai", intent: "cancel", doneInApp: true }),
-      "Done in the app",
+      "They sorted it in the app",
     ],
     [
       "not sorted by the shifts line (yet)",
@@ -241,6 +245,17 @@ describe("words", () => {
     );
     expect(countsLine(0, { count: 1, oldestAt: new Date("2026-10-10T11:48:00Z") }, now)).toBe(
       "0 enquiries today · 1 needs a person, the oldest 12 min ago",
+    );
+    // Requests from the app waiting for an answer (the launch review's O2): "none need a person"
+    // no longer hides them.
+    expect(countsLine(3, { count: 0, oldestAt: null }, now, 2)).toBe(
+      "3 enquiries today · none need a person · 2 requests to answer",
+    );
+    expect(countsLine(3, { count: 1, oldestAt: new Date("2026-10-10T11:48:00Z") }, now, 1)).toBe(
+      "3 enquiries today · 1 needs a person, the oldest 12 min ago · 1 request to answer",
+    );
+    expect(countsLine(3, { count: 0, oldestAt: null }, now, 0)).toBe(
+      "3 enquiries today · none need a person",
     );
     expect([ageWords(30_000), ageWords(3_600_000), ageWords(3 * 86_400_000)]).toEqual([
       "under a minute",

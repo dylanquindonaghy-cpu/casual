@@ -74,7 +74,7 @@ async function switchAndCheck(browser: Browser, shiftId: string) {
   // No dates to page through (Phase 18's board's): the shifts list has the days.
   await expect(office.getByRole("navigation", { name: "Dates" })).toHaveCount(0);
   await expect(
-    office.getByRole("main").getByRole("link", { name: "All shifts by day" }),
+    office.getByRole("main").getByRole("link", { name: "All sessions by day" }),
   ).toHaveAttribute("href", "/office/shifts");
   // The filters, each with its count: All, Showing, Hidden, "Urgent, not filled".
   const show = office.getByRole("navigation", { name: "Show" });
@@ -115,10 +115,10 @@ async function switchAndCheck(browser: Browser, shiftId: string) {
   await expect(
     office
       .getByRole("status")
-      .filter({ hasText: "Hidden from casuals. Booked casuals keep their shifts." }),
+      .filter({ hasText: "Hidden: casuals can't see it. Booked casuals keep their places." }),
   ).toBeVisible();
   await expect(toggle).toHaveAttribute("aria-checked", "false");
-  await expect(card).toContainText("Hidden from casuals");
+  await expect(card).toContainText("Hidden: casuals can't see it");
   // The Hidden filter has it; Showing doesn't (each checked once its page has loaded). A
   // filter's link carries its count.
   const tab = async (name: string, view: string) => {

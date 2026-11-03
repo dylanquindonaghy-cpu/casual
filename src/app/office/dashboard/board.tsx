@@ -378,7 +378,7 @@ function DetailCard({
         <div className="flex flex-col items-center gap-1 rounded-row glass-tile px-4 py-3 text-center">
           <b className="mt-2 font-stat text-3xl text-ink">{takers ? takers.count : "–"}</b>
           <span className="text-xs text-ink-faint">
-            {canTakeLine(takers ? takers.count : null)}
+            {canTakeLine(takers ? takers.count : null, s.offers.sent)}
           </span>
           <span className={`${chip.base} ${chip.wait} mt-auto`}>{offeredText(s.offers.sent)}</span>
         </div>

@@ -41,8 +41,9 @@ test("a resourcer creates a shift and assigns someone the rules allow", async ({
   await expect(page.getByRole("navigation", { name: "Office menu" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Menu", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "All sessions by day" }).click();
-  await expect(page.getByRole("heading", { name: "Shifts", exact: true })).toBeVisible();
-  await expect(page).toHaveTitle("Shifts · Acme Events shifts");
+  // (Phase 27.2: the office calls a shift a session, its day-by-day list too.)
+  await expect(page.getByRole("heading", { name: "Sessions", exact: true })).toBeVisible();
+  await expect(page).toHaveTitle("Sessions · Acme Events shifts");
   await page.getByRole("link", { name: "New session" }).click();
   await page.getByLabel("Date", { exact: true }).fill(dayFromNow(12));
   await page.getByLabel("Role").fill("steward");
@@ -131,11 +132,11 @@ test("several shifts for an event, and a file import checked first", async ({ pa
   });
   await page.getByRole("button", { name: "Check the file" }).click();
   await expect(
-    page.getByText("This file would add 1 shift, change 0, leave 0 as they are and skip 0."),
+    page.getByText("This file would add 1 session, change 0, leave 0 as they are and skip 0."),
   ).toBeVisible();
   await page.getByRole("button", { name: "Import these sessions" }).click();
   await expect(
-    page.getByText("Imported: 1 shift added, 0 changed, 0 left as they were, 0 skipped."),
+    page.getByText("Imported: 1 session added, 0 changed, 0 left as they were, 0 skipped."),
   ).toBeVisible();
   await page.goto(`${acme}/office/shifts?from=${dayFromNow(14)}`);
   await expect(page.getByRole("link", { name: /09:00 to 17:00 · Steward/ }).first()).toBeVisible();

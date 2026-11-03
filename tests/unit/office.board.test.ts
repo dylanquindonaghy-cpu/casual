@@ -694,8 +694,9 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
         "Tue 27 Oct, 08:00–16:00 8 h · £15.50/h",
         "Starts in 20 h 1 place to fill",
         "Booked Urgent 3 / 4 booked",
-        // Who can take it: the number, what it means, then the offers sent.
-        "1 has the licence, rest and hours for it 1 offered",
+        // Who can take it: the number, what it means, then the offers sent. Mo has the offer, so
+        // Zoe is one more (the number never counts anyone already offered it).
+        "1 more has the licence, rest and hours for it 1 offered",
         // An offer still waiting: who hasn't replied, before who else could take it.
         "Mo Rahman hasn't replied since 07:19.",
         "Offer to Zoe Open the session",
@@ -726,7 +727,7 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
     // Several can take it: "Offer to someone", and the session's own line.
     const several = render({ ...board, takers: ok({ count: 4, only: null }) });
     expect(words(card(several))).toContain(
-      "4 have the licence, rest and hours for it 1 offered Mo Rahman hasn't replied since 07:19. Offer to someone",
+      "4 more have the licence, rest and hours for it 1 offered Mo Rahman hasn't replied since 07:19. Offer to someone",
     );
     // Nothing offered yet: the chip says so.
     const none = render({

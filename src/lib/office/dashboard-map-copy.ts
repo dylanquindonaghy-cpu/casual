@@ -69,7 +69,12 @@ export function mapCountLine(
     when = `on ${dayShort(view.day)} ${MONTHS[m - 1]}`;
   } else if (view.show === "this-week") when = "this week";
   else if (view.show === "next-week") when = "next week";
-  return `${plural(venues, "venue", "venues")} · ${plural(places, "place to fill", "places to fill")} ${when}`;
+  // Under Urgent, the places counted are the urgent ones (the guardrails review, Phase 27.2).
+  const what =
+    view.show === "urgent"
+      ? plural(places, "urgent place to fill", "urgent places to fill")
+      : plural(places, "place to fill", "places to fill");
+  return `${plural(venues, "venue", "venues")} · ${what} ${when}`;
 }
 
 // The venues with no position: "Not on the map (no postcode yet): Hillside Demo Square, 4 places
@@ -89,8 +94,11 @@ export const FULL_VENUES = "Show filled venues too";
 // The session card's tiles. Who can take it: the number big, then what it means ("2 have the
 // licence, rest and hours for it"), then a chip of the offers sent ("None offered yet", "1 offered").
 export const bookedText = (booked: number, headcount: number) => `${booked} / ${headcount}`;
-export const canTakeLine = (n: number | null) =>
-  n === 1 ? "has the licence, rest and hours for it" : "have the licence, rest and hours for it";
+// The number leaves out anyone already offered it (src/lib/offers/candidates.ts: never offered it
+// before), so with offers out it's "2 more have …", never a total it isn't (the guardrails review,
+// Phase 27.2).
+export const canTakeLine = (n: number | null, offered = 0) =>
+  `${offered > 0 ? "more " : ""}${n === 1 ? "has" : "have"} the licence, rest and hours for it`;
 export const offeredText = (n: number) => (n === 0 ? "None offered yet" : `${n} offered`);
 
 // What the card warns about who can take it, or null: "Only Zoe Adeyemi can take it: 8 hours

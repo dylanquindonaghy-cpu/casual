@@ -360,7 +360,13 @@ describe("the map's count", () => {
       "6 venues · 29 places to fill this week and next",
     );
     expect(mapCountLine(1, 1, { show: "urgent" })).toBe(
-      "1 venue · 1 place to fill this week and next",
+      "1 venue · 1 urgent place to fill this week and next",
+    );
+    expect(mapCountLine(2, 5, { show: "urgent" })).toBe(
+      "2 venues · 5 urgent places to fill this week and next",
+    );
+    expect(mapCountLine(1, 2, { show: "urgent", day: "2026-11-03" })).toBe(
+      "1 venue · 2 urgent places to fill on Tue 3 Nov",
     );
     expect(mapCountLine(3, 11, { show: "this-week" })).toBe(
       "3 venues · 11 places to fill this week",

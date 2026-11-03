@@ -50,10 +50,10 @@ describe("the notice report", () => {
     ]);
     expect(INITIATOR_WORDS).toEqual({
       worker: "The worker",
-      office: "The firm",
+      office: "The firm (office)",
       rota_sheet: "The rota sheet",
       offer_wave: "An offer wave",
-      firm: "The firm",
+      firm: "The firm (planner or system)",
     });
   });
 });

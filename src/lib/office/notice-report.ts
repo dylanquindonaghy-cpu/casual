@@ -320,12 +320,15 @@ export const KIND_WORDS: Record<RowKind, string> = {
   shortened: "Shortened",
   cancelled: "Cancelled",
 };
+// "The firm" is one name with the filter and "At whose request" (the launch review); what's in
+// brackets keeps the evidence of who did it: a person in the office, or the firm's planner or the
+// system on its behalf (the guardrails review, Phase 27.2).
 export const INITIATOR_WORDS: Record<Initiator, string> = {
   worker: "The worker",
-  office: "The firm", // one name with the filter and "Who asked for it?" (the launch review)
+  office: "The firm (office)",
   rota_sheet: "The rota sheet",
   offer_wave: "An offer wave",
-  firm: "The firm",
+  firm: "The firm (planner or system)",
 };
 export const FILTER_KIND_WORDS: Record<ReportKind, string> = {
   offers: "Offers",

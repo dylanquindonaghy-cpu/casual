@@ -89,7 +89,7 @@ async function switchAndCheck(browser: Browser, shiftId: string) {
   await office.setViewportSize({ width: 1280, height: 900 });
   const line = office
     .getByRole("main")
-    .getByText(/^\d+ events? with sessions to come · \d+ places? free$/);
+    .getByText(/^\d+ events? with sessions to come · \d+ places? to fill$/);
   const filters = await show.boundingBox();
   const beside = await line.boundingBox();
   if (!filters || !beside) throw new Error("the filters' row isn't on the page");

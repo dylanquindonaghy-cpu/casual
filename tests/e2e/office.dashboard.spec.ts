@@ -183,7 +183,8 @@ test("the track filters the board, and a card picks itself into the detail card 
     await expect(detail.getByText(`Pick Gala ${n} · Pick Hall ${n}`)).toBeVisible();
     // Nobody holds the role: nobody can take it, and nothing's been offered.
     await expect(detail.getByText("Nobody can be offered it right now.")).toBeVisible();
-    await expect(detail.getByText("0 offered")).toBeVisible();
+    // (Phase 27.2, O1: the chip says "None offered yet", never "0 offered".)
+    await expect(detail.getByText("None offered yet")).toBeVisible();
     // The address keeps it: a reload shows the same session.
     await page.reload();
     await expect(page.locator(`[data-chosen="${shiftId}"]`)).toBeVisible();

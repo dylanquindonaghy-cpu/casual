@@ -285,9 +285,14 @@ describe("the launch review's session words", () => {
     expect(sessionStatusWords({ status: "cancelled", booked: 0, headcount: 4 })).toBe("Cancelled");
   });
 
-  it("the 08:00 summary, in the log, as sent", () => {
-    expect(ev("office.summary_emailed", { officeUserId: "o1" })).toBe(
-      "Sent Sam Rota the 08:00 summary.",
+  // The claim is logged before the email goes (src/lib/office/alerts.ts), so it never says it went:
+  // a send that fails follows it with its own row, and the two read true together.
+  it("the 08:00 summary, in the log: claimed before it goes, and a failure after it", () => {
+    const claimed = ev("office.summary_emailed", { officeUserId: "o1" });
+    expect(claimed).toBe("Sending Sam Rota the 08:00 summary.");
+    expect(claimed).not.toMatch(/\bSent\b/);
+    expect(ev("office.summary_failed", { officeUserId: "o1", code: "smtp" })).toBe(
+      "The 08:00 summary to Sam Rota couldn't be sent.",
     );
   });
 

@@ -34,9 +34,12 @@ import { sentTo } from "./outbox";
 
 const acme = "http://acme.localhost:3100";
 const CANVAS = { dark: "rgb(15, 15, 16)", light: "rgb(242, 242, 240)" }; // #0f0f10, #f2f2f0
-// Round 8's glass (globals.css's office blocks): a section, what floats.
-const SECTION = { dark: "rgba(22, 22, 24, 0.28)", light: "rgba(255, 255, 255, 0.55)" };
-const FLOAT = { dark: "rgba(24, 24, 26, 0.88)", light: "rgba(255, 255, 255, 0.92)" };
+// Round 8's glass (globals.css's office blocks): a section, its frost, what floats. Phase 27.1
+// (Dylan, 2026-11-03, "+20%") made the dark look's more see-through: a section a light 4% tint (was
+// a dark 28%) frosted 3px (was 6px), what floats 70% (was 88%). The light look is as it was.
+const SECTION = { dark: "rgba(255, 255, 255, 0.04)", light: "rgba(255, 255, 255, 0.55)" };
+const SECTION_FROST = { dark: "blur(3px) saturate(1.15)", light: "blur(6px) saturate(1.15)" };
+const FLOAT = { dark: "rgba(24, 24, 26, 0.7)", light: "rgba(255, 255, 255, 0.92)" };
 // The main button in the office: hi-vis, flat (its colour at both ends), dark words, in both looks
 // and whatever the firm's colour (Acme's blue stays on its bar and in the casual app).
 const TINT = "rgb(233, 248, 111)";
@@ -134,13 +137,11 @@ const measure = (page: Page) =>
     const unfrosted = sections
       .filter((el) => {
         const s = getComputedStyle(el);
-        return (
-          !s.backdropFilter.includes("blur(6px)") ||
-          !s.backdropFilter.includes("saturate(1.15)") ||
-          s.boxShadow === "none"
-        );
+        return !/blur\(\d/.test(s.backdropFilter) || s.boxShadow === "none";
       })
       .map(name);
+    // Each look's own frost (expectGlass checks it exactly).
+    const sectionFrosts = [...new Set(sections.map((el) => getComputedStyle(el).backdropFilter))];
     const sectionFills = [...new Set(sections.map((el) => getComputedStyle(el).backgroundColor))];
     // Glass of any kind on the page: a section, or a clear part (Needs attention's rows sit as
     // clear glass on their amber parts), as Phase 23 found a white card on every page.
@@ -316,6 +317,7 @@ const measure = (page: Page) =>
       sections: sections.length,
       glassParts,
       sectionFills,
+      sectionFrosts,
       unfrosted,
       floatLook,
       primaries,
@@ -356,6 +358,7 @@ function expectGlass(
   // Sections frosted, in the section's glass.
   expect(look.unfrosted, where).toEqual([]);
   for (const fill of look.sectionFills) expect(fill, where).toBe(SECTION[device]);
+  for (const frost of look.sectionFrosts) expect(frost, where).toBe(SECTION_FROST[device]);
   // What floats, frosted more, in its glass, never bent.
   for (const f of look.floatLook) {
     expect(f.fill, `${where}: ${f.what}`).toBe(FLOAT[device]);
@@ -620,7 +623,7 @@ for (const device of ["dark", "light"] as const) {
             expect(look.rail, where).not.toBeNull();
             expect(look.rail!.fill, where).toBe(SECTION[device]);
             expect(look.rail!.radius, where).toBe("12px");
-            expect(look.rail!.frost, where).toContain("blur(6px)");
+            expect(look.rail!.frost, where).toBe(SECTION_FROST[device]);
             expect(look.chips.length, where).toBe(6);
             for (const c of look.chips) {
               expect(c.frost, where).toBe("none");
@@ -783,7 +786,7 @@ for (const device of ["dark", "light"] as const) {
           expect(look.loginCard, where).not.toBeNull();
           if (size.width >= 640) {
             expect(look.loginCard!.fill, where).toBe(SECTION[device]);
-            expect(look.loginCard!.frost, where).toContain("blur(6px)");
+            expect(look.loginCard!.frost, where).toBe(SECTION_FROST[device]);
             expect(look.loginCard!.radius, where).toBe("12px");
             expect(look.loginCard!.depth, where).not.toBe("none");
           } else {

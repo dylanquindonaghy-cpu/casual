@@ -47,8 +47,8 @@ describe("outcome labels, from logged facts only", () => {
       facts({ handledAs: "ai", intent: "cancel" }),
       "Sorted by AI, answered from your data",
     ],
-    ["pay, by keyword", facts({ intent: "pay" }), "Pay: sent to payroll"],
-    ["pay, by AI", facts({ handledAs: "ai", intent: "pay" }), "Pay: sent to payroll"],
+    ["pay, by keyword", facts({ intent: "pay" }), "Pay: sent their pay page link"],
+    ["pay, by AI", facts({ handledAs: "ai", intent: "pay" }), "Pay: sent their pay page link"],
     [
       "asked for the office, waiting",
       facts({ intent: "office", waiting: true }),

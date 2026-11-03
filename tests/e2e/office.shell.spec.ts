@@ -28,10 +28,13 @@ const acme = "http://acme.localhost:3100";
 // (the rail, the top bar on a phone and its capsules from 1024px) as floating glass; the page no
 // card of its own. Round 3's white cards with their hairlines on a cool grey ground (Phase 23) and
 // 24.1's menu card went.
-// Round 8's office (Phase 26): its ground, a section's glass and what floats', dark and light.
+// Round 8's office (Phase 26): its ground, a section's glass and frost and what floats', dark and
+// light. Phase 27.1 (Dylan, 2026-11-03, "+20%"): the dark look's section a light 4% tint frosted
+// 3px (was a dark 28%, 6px), what floats 70% (was 88%). The light look is as it was.
 const CANVAS = { dark: "rgb(15, 15, 16)", light: "rgb(242, 242, 240)" }; // #0f0f10, #f2f2f0
-const SECTION = { dark: "rgba(22, 22, 24, 0.28)", light: "rgba(255, 255, 255, 0.55)" };
-const FLOAT = { dark: "rgba(24, 24, 26, 0.88)", light: "rgba(255, 255, 255, 0.92)" };
+const SECTION = { dark: "rgba(255, 255, 255, 0.04)", light: "rgba(255, 255, 255, 0.55)" };
+const SECTION_FROST = { dark: "blur(3px) saturate(1.15)", light: "blur(6px) saturate(1.15)" };
+const FLOAT = { dark: "rgba(24, 24, 26, 0.7)", light: "rgba(255, 255, 255, 0.92)" };
 // The office with no choice made: dark, on either device.
 const START = "dark";
 const NONE = "rgba(0, 0, 0, 0)";
@@ -451,7 +454,7 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
     // inside the window.
     const glass = await surface(rail);
     expect(glass.bg).toBe(SECTION[START]);
-    expect(glass.frost).toContain("blur(6px)");
+    expect(glass.frost).toBe(SECTION_FROST[START]);
     expect(glass.corners).toEqual(Array(4).fill("12px"));
     const box = (await rail.boundingBox())!;
     expect(box).toMatchObject({ x: 12, y: 12, width: 72 });
@@ -695,7 +698,7 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
         .getByRole("main")
         .getByText(
           new RegExp(
-            `^\\d+ events? with sessions to come · ${toFill} ${toFill === 1 ? "place" : "places"} free$`,
+            `^\\d+ events? with sessions to come · ${toFill} ${toFill === 1 ? "place" : "places"} to fill$`,
           ),
         ),
     ).toBeVisible();
@@ -771,9 +774,9 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
     await expect(
       page.getByRole("main").getByRole("link", { name: "Show every venue" }),
     ).toBeVisible();
-    // A shift: its page.
+    // A session (Phase 27.2: the office calls a shift a session): its page.
     await box.fill("door supervisor");
-    await expect(panel.getByText("Shifts", { exact: true })).toBeVisible();
+    await expect(panel.getByText("Sessions", { exact: true })).toBeVisible();
     const shift = panel.getByRole("link", { name: /^Door supervisor · / }).first();
     await shift.click();
     await expect(page).toHaveURL(/\/office\/shifts\/[0-9a-f-]{36}$/);

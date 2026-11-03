@@ -188,7 +188,7 @@ which explains each job step by step, and "Log out".
 25. **Enquiries, and answer a request.** Click "Enquiries": the shifts line's messages, newest
     first, each with how it was answered (on a computer the first one shows beside the list:
     click another to see it there; on a phone a message opens on its own page). Kieran Doyle's "I need to cancel please", Ben Fraser's
-    pay question ("Pay: sent to payroll") and Zoe Adeyemi's "Hi, any shifts for me?" came in just
+    pay question ("Pay: sent their pay page link") and Zoe Adeyemi's "Hi, any shifts for me?" came in just
     before the demo was made. The line under "Enquiries" counts the requests to answer too. Click
     "Requests from the app" (its tab has their number). On Sam Walsh's time
     change, click "Approve and tell Sam". It says "Approved. Sam will be told." The message to Sam

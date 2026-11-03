@@ -240,7 +240,7 @@ export default async function OfficeCasualPage({ params }: { params: Promise<{ i
               )}
               <p className="mt-2 border-t border-line pt-3">
                 <span className="font-semibold">Right to work:</span>{" "}
-                {rightToWorkText(worker.rightToWork, Number(thisYear))}
+                {rightToWorkText(worker.rightToWork, Number(thisYear), "office")}
               </p>
               {worker.qualifications.some((q) => q.type === CSAS) && (
                 <div className="mt-3 border-t border-line pt-3">

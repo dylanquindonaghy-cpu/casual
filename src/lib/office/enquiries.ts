@@ -7,7 +7,7 @@ import { strangerTextsOff } from "../inbound/opt-out";
 import { signOffFor } from "../tenancy/sign-off";
 import { wallTimeOf, zonedToUtc } from "../time/zoned";
 import type { EmailSorted } from "./enquiries-copy";
-import { needsPerson } from "./enquiry-sql";
+import { needsPerson, requestWaiting } from "./enquiry-sql";
 import {
   enquiryOutcome,
   forAPerson,
@@ -230,9 +230,7 @@ export async function loadEnquiries(
            min(m.created_at) filter (where ${needsPerson("m")}) as oldest,
            (select count(*)::int from requests q
              where q.message_id is null and q.created_at >= ${midnight}) as app_today,
-           (select count(*)::int from requests q
-             where q.status in ('open', 'escalated')
-               and (q.type <> 'general' or q.message_id is null)) as app_waiting
+           (select count(*)::int from requests q where ${requestWaiting("q")}) as app_waiting
       from ${enquirySource(since)} m
   `);
   const c = counts[0];

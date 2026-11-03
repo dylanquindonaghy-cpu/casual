@@ -252,7 +252,8 @@ test("Shifts: Zoe sees the Arena shift with its travel line, and its page in ful
   const arena = rows.filter({ hasText: "Gate A" });
   await expect(arena).toContainText(/\d\d:\d\d–\d\d:\d\d/);
   await expect(arena).toContainText("Arena check");
-  await expect(arena).toContainText(`${scene.event}, Gate A`);
+  // The event, the site by name (Phase 27.2: as an urgent text names it), then the post.
+  await expect(arena).toContainText(`${scene.event}, ${scene.arena}, Gate A`);
   await expect(arena).toContainText("£15.50/hour");
   await expect(arena).toContainText("4 places left");
   await expect(arena).toContainText("3.1 miles · 12 min by car · 24 min by public transport");

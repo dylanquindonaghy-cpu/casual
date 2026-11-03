@@ -21,7 +21,7 @@ export const OUTCOMES = [
   "person_waiting", // Passed to a person, waiting
   "person_answered", // Passed to a person, answered
   "not_understood", // Not understood
-  "pay", // Pay: sent to payroll
+  "pay", // Pay: sent their pay page link
   "in_app", // They sorted it in the app
   "inbox", // Left for your inbox (an email not from a casual: Phase 25.5)
 ] as const;

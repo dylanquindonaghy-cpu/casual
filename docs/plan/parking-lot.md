@@ -2212,3 +2212,20 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   Proposed: `deploy.sh` copies the image's `deploy/` files over its own on each new image (each by
   a temporary file and a rename, so the running script isn't cut off; never `.env`), says which
   changed, and the runbook gets a "the server's files" check. A deploy change, so its own go-ahead.
+
+## From Phase 27.2 (the launch review's words; 2026-11-03)
+
+- **One office offer is still two rows in the action log**: "{office} asked to offer it to
+  {casual}." (`offer.office_queued`, `event-words.ts:441`), then the offer that went (`offer.sent`). The launch review asked for one row.
+  Merging them changes which events the log shows (pairing the two), not only its words, so it
+  has its own look.
+- **The 08:00 summary's row says "Sending … the 08:00 summary."** It is written before the email
+  goes (`alerts.ts`), and a failed send adds "The 08:00 summary to … couldn't be sent." after it.
+  The review asked for "Sent …"; the guardrails review kept "Sending", as the row can't know yet.
+  An `office.summary_sent` row after a send that worked would let the log say "Sent": a new event
+  (log types, words, tests), so its own task.
+- **"ShiftDesk" (a working name) still shows in a few office words**: Integrations' revoke and
+  webhook lines (`integrations-copy.ts:126,200-232`), the plain 403 "Open this from ShiftDesk."
+  (`cancellations/export`, `cancellations/[ref]/pdf`, `data/export`, `data/workers/[id]/export`)
+  and a cancellation's "Casual's own reason (see ShiftDesk)" (`cancellations/[ref]/page.tsx:84`).
+  One pass once the product's name is settled.

@@ -10,7 +10,9 @@ export const OUTCOME_WORDS: Record<Outcome, string> = {
   person_waiting: "Passed to a person, waiting",
   person_answered: "Passed to a person, answered",
   not_understood: "Not understood",
-  pay: "Pay: sent to payroll",
+  // The casual gets the link to their Pay page (and "Raise a pay query" there): nothing goes to
+  // payroll by itself, so the chip never says it did (the guardrails review, Phase 27.2).
+  pay: "Pay: sent their pay page link",
   in_app: "They sorted it in the app",
   inbox: "Left for your inbox",
 };

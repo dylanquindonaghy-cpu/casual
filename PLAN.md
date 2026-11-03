@@ -1131,7 +1131,8 @@ https://claude.ai/artifact/9GPXjLG2NXmz4FvbMXBdiu (sections 1, 2 and 6).
       street map is the page's background (`body:has([data-office])::before`, `src/app/globals.css`),
       which reads `--map-road` from the page's root, so the pictures' lines were at 8.5% (review §2's
       note); at 10.2% six colour pairs fall under their minimum. Dylan to confirm:
-      `docs/plan/decisions-waiting.md` 13
+      `docs/plan/decisions-waiting.md` 13. Decided, 2026-11-03 (Dylan: "Yes plain colour"): no street pattern at all,
+      a plain colour behind every page (27.7), so the lines' strength no longer applies
 - [x] The words: every "fix before launch" and "one thing, one name" item (review §5, office and
       casual app), "Who worked?", "Tell me about" and Updates' "Last 7 days · 2 new today" (the
       mock-up's section 2), with `docs/screens.md` and `docs/messaging-templates.md`; and the two
@@ -1152,6 +1153,16 @@ https://claude.ai/artifact/9GPXjLG2NXmz4FvbMXBdiu (sections 1, 2 and 6).
       solid with less transparency; every pair's contrast checked (go-ahead: Dylan, 2026-11-03,
       "casual round 8: yes, firm's colour, follow the phone", on the mock-up
       https://claude.ai/artifact/6Qi4Dt5qW5xnWWSVf9oNVC; UI, M) (27.6)
+- [ ] A plain colour behind every page: the made-up street pattern goes (office and casual app),
+      charcoal in dark and off-white in light; the glass, menus and buttons as they are (Dylan,
+      2026-11-03: "make the background a colour not random lines as the map isn't being used like
+      that", "Yes plain colour"; waits for his yes on the mock-up
+      https://claude.ai/artifact/6z1cJpFyTZ5V7PtDh8HxKH; UI, S) (27.7)
+- [ ] The dashboard map with proper detail: town, area and street names, clearer roads, water and
+      parks, building outlines, + and − buttons, zoom to building level; the zoom-15 UK file
+      (2.99 GB, measured) and its letter shapes served from our own server (Dylan, 2026-11-03: "the
+      extra detail too it needs to be proper"; waits for his yes on the same mock-up; the server
+      step waits for the code; UI, M) (27.8)
 
 Done when: every task is ticked with a stamp that includes the browser tests; each built what the
 review and the approved mock-up say; `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; screenshots at

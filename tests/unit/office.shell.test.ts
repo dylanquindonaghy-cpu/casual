@@ -508,7 +508,7 @@ describe("the shell", () => {
     );
     // From 1024px: the counts as chips (no capsule round them), the search a flat pill, you.
     expect(barOf(html)).toContain(
-      '<div data-bar-counts="" class="scrollbar-none hidden min-w-0 shrink items-center gap-2 overflow-x-auto lg:flex">',
+      '<div data-bar-counts="" class="scrollbar-none fade-x hidden min-w-0 shrink items-center gap-2 overflow-x-auto lg:flex">',
     );
     expect(barOf(html)).toMatch(
       /<div class="relative hidden lg:block"><div class="glass-button flex h-11 w-50 items-center gap-2 rounded-full pr-2 pl-4 @min-\[73.25rem\]:w-62.5">/,
@@ -626,7 +626,10 @@ describe("the shell", () => {
     const row = main.match(
       /<div class="mb-6 lg:hidden"><div data-bar-counts="row" class="([^"]*)">(.*?)<\/div><\/div>/,
     );
-    expect(row?.[1]).toBe("scrollbar-none -mx-2 flex gap-2 overflow-x-auto px-2 pb-1 lg:hidden");
+    // Fading at the edge with more to scroll to (round 8, sys-9: globals.css `fade-x`).
+    expect(row?.[1]).toBe(
+      "scrollbar-none fade-x -mx-2 flex gap-2 overflow-x-auto px-2 pb-1 lg:hidden",
+    );
     expect(main.indexOf('data-bar-counts="row"')).toBeLessThan(main.indexOf("<main>PAGE</main>"));
     const links = [...(row?.[2] ?? "").matchAll(/<a class="([^"]*)" href="([^"]*)">(.*?)<\/a>/g)];
     expect(links.map((m) => [m[2], text(m[3] ?? "")])).toEqual([
@@ -641,14 +644,25 @@ describe("the shell", () => {
       expect(m[3]).toMatch(/^<svg [^>]*class="shrink-0 hidden">/);
     }
     // The bar's own counts are hidden below 1024px.
-    expect(barOf(html)).toContain('<div data-bar-counts="" class="scrollbar-none hidden ');
+    expect(barOf(html)).toContain('<div data-bar-counts="" class="scrollbar-none fade-x hidden ');
     expect(html).not.toContain("Updated ");
     // No counts (a role with none): no row.
     const frame = read("src/app/office/office-frame.tsx");
     expect(frame).toMatch(/counts\.length > 0 \? \(\s*<div className="mb-6 lg:hidden">/);
-    expect(frame).toMatch(
-      /<p className="hidden shrink-0 text-xs text-ink-faint tabular-nums lg:block">/,
-    );
+    // "Updated 10:42" is no longer in the bar or under the counts: it's in each page's title row
+    // (round 8, aud-2), written by the frame into the page's place for it.
+    expect(frame).not.toMatch(/text-xs text-ink-faint tabular-nums lg:block/);
+    expect(frame).toMatch(/<UpdatedStamp at=\{updated\} page=\{pathname\} \/>/);
+    const stamp = read("src/app/office/updated-stamp.tsx");
+    expect(stamp).toContain('document.querySelector("#main [data-updated-slot]")');
+    for (const page of [
+      "src/app/ui/page-header.tsx",
+      "src/app/office/dashboard-view.tsx",
+      "src/app/office/events/page.tsx",
+    ])
+      expect(read(page), page).toContain(
+        '<small data-updated-slot="" className="text-xs text-ink-faint tabular-nums" />',
+      );
   });
 
   it("each role's counts and search: payroll has its pay queries and no search", () => {
@@ -1200,11 +1214,21 @@ describe("shared pieces add no words", () => {
       "office:gap-x-6",
       "office:gap-y-4",
     ]);
+    // The headline's box: in the office a row that wraps, the headline and its "Updated 10:42"
+    // (round 8, aud-2) on the first line, the lines under them (`office:basis-full`).
     expect(classOf(/<header[^>]*><div[^>]*><div class="([^"]*)"><h1/)).toEqual([
+      "office:flex",
       "office:min-w-0",
       "office:flex-1",
       "office:basis-80",
+      "office:flex-wrap",
+      "office:items-baseline",
+      "office:gap-x-3",
     ]);
+    // The place for "Updated 10:42", empty here: the office's frame writes into it.
+    expect(html).toContain(
+      '</h1><small data-updated-slot="" class="text-xs text-ink-faint tabular-nums"></small>',
+    );
     expect(classOf(/<div class="([^"]*)"><a href="\/office\/shifts\/new"/)).toEqual([
       "mt-4",
       "flex",

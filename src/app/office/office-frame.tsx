@@ -25,6 +25,7 @@ import { OfficeSearch } from "./office-search";
 import { CancellationPopup, UpdatesBellLink } from "./updates-bell";
 import { DashboardSkeleton, PageSkeleton } from "./office-skeleton";
 import type { SearchResult } from "./search-actions";
+import { UpdatedStamp } from "./updated-stamp";
 import { useAutoRefresh } from "./auto-refresh";
 import { ThemeButton } from "./theme-button";
 
@@ -106,7 +107,8 @@ function Firm({ firmName, office }: { firmName: string; office: string }) {
 // Urgent's number red while there are any. From 1024px in the top bar (the bar is a container: the
 // chips' icons show only when there's room, 1344px; in a column narrower still, the rail open on a
 // 1024px window, they scroll sideways with no bar); below it, a row of their own at the top of the
-// page that scrolls sideways (`row`), fading at its edges.
+// page that scrolls sideways (`row`), fading at the edge with more to scroll to (`fade-x`, sys-9;
+// the bar's chips too, when a narrow column makes them scroll).
 function BarCounts({ counts, row = false }: { counts: BarCount[]; row?: boolean }) {
   if (counts.length === 0) return null;
   return (
@@ -114,8 +116,8 @@ function BarCounts({ counts, row = false }: { counts: BarCount[]; row?: boolean 
       data-bar-counts={row ? "row" : ""}
       className={
         row
-          ? "scrollbar-none -mx-2 flex gap-2 overflow-x-auto px-2 pb-1 lg:hidden"
-          : "scrollbar-none hidden min-w-0 shrink items-center gap-2 overflow-x-auto lg:flex"
+          ? "scrollbar-none fade-x -mx-2 flex gap-2 overflow-x-auto px-2 pb-1 lg:hidden"
+          : "scrollbar-none fade-x hidden min-w-0 shrink items-center gap-2 overflow-x-auto lg:flex"
       }
     >
       {counts.map((c) => (
@@ -129,7 +131,9 @@ function BarCounts({ counts, row = false }: { counts: BarCount[]; row?: boolean 
           {/* Read as "To fill 26". */}
           {c.count === null ? null : " "}
           {c.count === null ? null : (
-            <b className={`font-semibold tabular-nums ${c.urgent ? "text-urgent-ink" : "text-ink"}`}>
+            <b
+              className={`font-semibold tabular-nums ${c.urgent ? "text-urgent-ink" : "text-ink"}`}
+            >
               {c.count}
               {c.more ? "+" : ""}
             </b>
@@ -140,16 +144,9 @@ function BarCounts({ counts, row = false }: { counts: BarCount[]; row?: boolean 
   );
 }
 
-// When the page last asked the server for its figures (aud-2, Phase 26): "Updated 10:42", London
-// time, shown once the page is in the browser (the server's clock would differ from the reader's).
-const UPDATED_AT = new Intl.DateTimeFormat("en-GB", {
-  hour: "2-digit",
-  minute: "2-digit",
-  timeZone: "Europe/London",
-});
-export function updatedWords(at: Date): string {
-  return `Updated ${UPDATED_AT.format(at)}`;
-}
+// When the page last asked the server for its figures (aud-2): "Updated 10:42" in the page's title
+// row (./updated-stamp.tsx).
+export { updatedWords } from "./updated-stamp";
 
 export function OfficeFrame({
   name,
@@ -208,7 +205,6 @@ export function OfficeFrame({
   const loading = pending !== null && late === pending ? picked : null;
   // The page keeps itself up to date (aud-2): when it last did.
   const updated = useAutoRefresh(pathname);
-  const stamp = updated ? updatedWords(updated) : null;
 
   useEffect(() => {
     if (!pending) return;
@@ -329,11 +325,6 @@ export function OfficeFrame({
                 <Firm firmName={firmName} office="hidden" />
               </div>
               <BarCounts counts={counts} />
-              {stamp ? (
-                <p className="hidden shrink-0 text-xs text-ink-faint tabular-nums lg:block">
-                  {stamp}
-                </p>
-              ) : null}
               <span aria-hidden="true" className="min-w-0 flex-1" />
               {search ? <OfficeSearch search={search} /> : null}
               <div className="flex shrink-0 items-center gap-2 sm:gap-3 lg:gap-2">
@@ -434,18 +425,16 @@ export function OfficeFrame({
                   under the capsules. */}
               <div className="flex-1">
                 <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:max-w-[100rem] lg:px-0 lg:pt-3 lg:pb-8">
-                  {/* Below 1024px the counts are a row of their own over the page (round 8), with
-                      when it was last updated. */}
+                  {/* Below 1024px the counts are a row of their own over the page (round 8). */}
                   {counts.length > 0 ? (
                     <div className="mb-6 lg:hidden">
                       <BarCounts counts={counts} row />
-                      {stamp ? (
-                        <p className="mt-1 text-xs text-ink-faint tabular-nums">{stamp}</p>
-                      ) : null}
                     </div>
                   ) : null}
                   {loading && (loading === "/office" ? <DashboardSkeleton /> : <PageSkeleton />)}
                   <div hidden={loading !== null}>{children}</div>
+                  {/* When the page last had its figures, in its title row (aud-2). */}
+                  <UpdatedStamp at={updated} page={pathname} />
                   {updates ? <CancellationPopup bell={updates} /> : null}
                 </div>
               </div>

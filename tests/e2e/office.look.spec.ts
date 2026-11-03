@@ -284,7 +284,12 @@ const measure = (page: Page) =>
       .filter((el) => {
         const s = getComputedStyle(el);
         const mask = s.maskImage || s.webkitMaskImage || "none";
-        return mask !== "none" && !el.classList.contains("fade-edges");
+        // The menu's fade, and a sideways row's (round 8, sys-9).
+        return (
+          mask !== "none" &&
+          !el.classList.contains("fade-edges") &&
+          !el.classList.contains("fade-x")
+        );
       })
       .map(name);
     return {
@@ -429,6 +434,20 @@ async function keptRight(page: import("@playwright/test").Page) {
     const hivis = [...document.querySelectorAll("main a.glass-tint, main button.glass-tint")]
       .filter(visible)
       .map((el) => (el.textContent ?? "").trim().slice(0, 40));
+    // A row that scrolls sideways (tabs, the counts) fades at its edge (sys-9).
+    const rows = [...document.querySelectorAll('nav[aria-label="Show"], [data-bar-counts]')]
+      .filter(visible)
+      .filter((el) => el.scrollWidth > el.clientWidth + 1);
+    const unfaded = rows
+      .filter((el) => {
+        const st = getComputedStyle(el);
+        return (
+          !st.maskImage.includes("linear-gradient") || !st.animationName.includes("fade-x-scroll")
+        );
+      })
+      .map(
+        (el) => el.getAttribute("aria-label") ?? el.getAttribute("data-bar-counts") ?? el.tagName,
+      );
     const pills = [...document.querySelectorAll("main tbody tr")]
       .filter((tr) => tr.querySelectorAll("[class*='office:min-h-7']").length > 1)
       .map((tr) => (tr.textContent ?? "").trim().slice(0, 60));
@@ -438,6 +457,8 @@ async function keptRight(page: import("@playwright/test").Page) {
       small,
       pills,
       hivis,
+      scrolling: rows.length,
+      unfaded,
     };
   });
   await page.keyboard.press("Escape");
@@ -557,6 +578,7 @@ for (const device of ["dark", "light"] as const) {
       let primaries = 0;
       let sections = 0;
       let checked = 0;
+      let scrolling = 0;
       const problems: string[] = [];
       // The page headers with actions, and the pages with tabs, seen at each width (Phase 24, 24.5).
       const headers = new Map<number, number>();
@@ -634,6 +656,9 @@ for (const device of ["dark", "light"] as const) {
           if (kept.ring !== "2px solid") problems.push(`${where}: focus ring "${kept.ring}"`);
           for (const b of kept.small) problems.push(`${where}: under 44px: ${b}`);
           for (const r of kept.pills) problems.push(`${where}: two status pills: ${r}`);
+          for (const r of kept.unfaded)
+            problems.push(`${where}: a scrolling row with no fade: ${r}`);
+          scrolling += kept.scrolling;
           // At most one hi-vis button on the screen (sys-3): those you can see (a "Yes, …" inside a
           // closed check step shows only once it's opened).
           if (kept.hivis.length > 1)
@@ -645,6 +670,9 @@ for (const device of ["dark", "light"] as const) {
       expect(sections).toBeGreaterThan(50);
       expect(checked).toBeGreaterThan(40);
       expect(problems).toEqual([]);
+      // Rows that scroll sideways were seen (the counts on a phone, at least), so the fade check
+      // never passes over none.
+      expect(scrolling).toBeGreaterThan(0);
       // Headers with actions were seen at both widths (Cancellations, Pay, the shifts list and
       // more), so the check above never passes over none.
       for (const size of WIDTHS)

@@ -32,6 +32,7 @@ import { officeTravelText } from "@/lib/travel/copy";
 import { CSAS } from "@/lib/uploads/check";
 import { SignOutButton, SiteBlocks, StatusForm } from "./access-forms";
 import { RecordCsas, UploadsToCheck } from "./upload-checks";
+import { Ref } from "@/app/ui/ref";
 
 // An upload's image, opening full size in a new tab (access-checked: src/app/files/[id]/route.ts).
 function Evidence({ id, alt, size }: { id: string; alt: string; size: number }) {
@@ -269,7 +270,7 @@ export default async function OfficeCasualPage({ params }: { params: Promise<{ i
                           href={`/office/cancellations/${st.assignmentId}`}
                           className={textLink}
                         >
-                          Cancellation record {st.ref}
+                          Cancellation record <Ref>{st.ref}</Ref>
                         </Link>
                       </p>
                     </li>

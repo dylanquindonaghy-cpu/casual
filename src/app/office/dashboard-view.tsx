@@ -56,7 +56,11 @@ export function DashboardContent({ board, tiles }: { board: BoardData; tiles: st
     <div className="@container flex flex-col gap-6">
       <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
         <div className="min-w-0">
-          <h1 className="text-title text-ink">Dashboard</h1>
+          {/* Its "Updated 10:42" beside it (aud-2: ./updated-stamp.tsx). */}
+          <div className="flex flex-wrap items-baseline gap-x-3">
+            <h1 className="text-title text-ink">Dashboard</h1>
+            <small data-updated-slot="" className="text-xs text-ink-faint tabular-nums" />
+          </div>
           <p className="mt-1 text-sm text-ink-muted tabular-nums">
             {headLine(
               board.today,

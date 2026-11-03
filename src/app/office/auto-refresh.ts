@@ -8,7 +8,8 @@ import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from
 // page asks the server for its figures again (router.refresh: the server parts redraw, what you've
 // typed and opened stays, the scroll stays). Until Phase 26 an open page only changed when you did
 // something on it, moved page or reloaded, so a casual's cancellation never showed by itself. The
-// time of the last answer is the top bar's "Updated 10:42" (office-frame.tsx updatedWords). The
+// time of the last answer is "Updated 10:42" in the page's title row (src/app/ui/updated-stamp.tsx,
+// given by office-frame.tsx). The
 // demo phone does the same every few seconds (src/app/demo/auto-refresh.tsx).
 
 export const REFRESH_SECONDS = 30;

@@ -19,6 +19,7 @@ import { strikeButtons, withdrawText } from "@/lib/office/strike-actions-copy";
 import { roleLabel, timeOnDay } from "@/lib/portal/format";
 import { ResendEvidence } from "./resend-evidence";
 import { StrikeActions } from "./strike-actions";
+import { Ref } from "@/app/ui/ref";
 
 export const metadata: Metadata = { title: "Cancellation record" };
 
@@ -64,7 +65,11 @@ export default async function CancellationRecordPage({
     <main className={page.office}>
       <PageHeader
         back={{ href: "/office/cancellations", label: "Cancellations" }}
-        title={`Cancellation ${record.row.ref}`}
+        title={
+          <>
+            Cancellation <Ref>{record.row.ref}</Ref>
+          </>
+        }
         actions={
           <a
             href={`/office/cancellations/${record.row.assignmentId}/pdf`}
@@ -132,7 +137,7 @@ function Fields({ fields, hot }: { fields: { label: string; value: string }[]; h
           <dd
             className={`mb-2 sm:mb-0 ${hot && f.label === "Notice" ? "font-semibold text-urgent-ink" : "text-ink"}`}
           >
-            {f.value}
+            {f.label === "Reference" ? <Ref>{f.value}</Ref> : f.value}
           </dd>
         </div>
       ))}
@@ -146,7 +151,11 @@ function ChooseOne({ shared }: { shared: SharedReference }) {
     <main className={page.office}>
       <PageHeader
         back={{ href: "/office/cancellations", label: "Cancellations" }}
-        title={`Cancellation ${shared.ref}`}
+        title={
+          <>
+            Cancellation <Ref>{shared.ref}</Ref>
+          </>
+        }
       >
         <p>{shared.choices.length} cancellations have this reference. Choose the one you want.</p>
       </PageHeader>

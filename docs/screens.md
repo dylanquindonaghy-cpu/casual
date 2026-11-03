@@ -87,16 +87,25 @@ every route, label, link and action is as round 7's.
   solid white one; the firm's initial in hi-vis; the red dot as before.
 - **The top bar** (from 1024px): the counts as separate chips ("To fill {26}", "Urgent {2}", "Offers
   out {11}", "To check {7}", "Pay queries {10}": the same words, links and roles as round 7's), then
-  "Updated {10:42}" (when the page last asked for its figures, London time), then "Search", the
-  light or dark button and you (your initials on hi-vis, your name and role, the account menu as
-  before). Before the light or dark button, the bell (Phase 26.4): "Updates" below.
+  "Search", the light or dark button and you (your initials on hi-vis, your name and role, the
+  account menu as before), each 44px. Before the light or dark button, the bell (Phase 26.4):
+  "Updates" below.
 - **Below 1024px:** the top bar as round 7's ("Menu", the firm, the bell, the light or dark button,
   you); the
-  counts are a row of their own at the top of every page, the same chips, scrolling sideways, with
-  "Updated {10:42}" under them.
+  counts are a row of their own at the top of every page, the same chips, scrolling sideways and
+  fading at the edge with more to scroll to (as every tab row does: sys-9).
 - **Every office page keeps itself up to date:** every 30 seconds while it's in view, and as soon as
   you come back to it after 30 seconds or more away, it asks for its figures again (what you've
-  typed or opened stays); "Updated {10:42}" says when it last did.
+  typed or opened stays); "Updated {10:42}" in the page's title row, beside its headline, says when
+  it last did (London time; Phase 26.10 moved it there from the top bar, as aud-2 says).
+- **Round 8's last rules (Phase 26.10, the audit's round 1):** six text colours (ink, muted, faint,
+  red, amber, green: each status's darker "ink" shade; the blue Offered and grey Hidden pills keep
+  their tints with ink and muted words: aud-4); references and IDs in Geist Mono ("Reference
+  {0695DD8C}", "Cancellation {0695DD8C}": sys-6); at most one hi-vis button on the screen (the
+  first "Offer the place" on Updates, the first group's "Mark as sorted and tell them" on Pay
+  queries, "Save and send a link" on Settings, "Create a key" on Integrations; the rest ordinary:
+  sys-3); 44px buttons, the skip link, the focus ring and one heading on every page (aud-6). The
+  look browser test checks each on every office page at both sizes.
 
 ## The dashboard, round 8 (Phase 26.2)
 

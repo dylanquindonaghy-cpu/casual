@@ -205,6 +205,8 @@ describe("the font", () => {
     expect(sources).toEqual([
       "../../node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2",
       "../../node_modules/@fontsource-variable/geist/files/geist-latin-ext-wght-normal.woff2",
+      // Geist Mono's latin face, for references, IDs and keys (round 8, sys-6).
+      "../../node_modules/@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2",
     ]);
     for (const src of sources)
       expect(statSync(join(ROOT, "src/app", src!)).size).toBeGreaterThan(5000);
@@ -224,6 +226,8 @@ describe("the font", () => {
     // 20's Instrument Sans and Serif and Phase 23's Plus Jakarta Sans).
     const pkg = JSON.parse(read("package.json")) as { dependencies: Record<string, string> };
     expect(pkg.dependencies["@fontsource-variable/geist"]).toBe("5.3.0");
+    // And Geist Mono, for references, IDs and keys (round 8, sys-6).
+    expect(pkg.dependencies["@fontsource-variable/geist-mono"]).toBe("5.3.0");
     for (const old of [
       "@fontsource-variable/public-sans",
       "@fontsource/barlow-condensed",
@@ -238,9 +242,13 @@ describe("the font", () => {
     expect(
       SOURCE.filter((f) => /instrument[- ]?(?:sans|serif)|plus[- ]?jakarta/i.test(read(f))),
     ).toEqual([]);
-    // Only the latin face is fetched before it's needed; both on <html>, the error screen's too.
-    expect(fonts.match(/preload: false/g)).toHaveLength(1);
-    expect(fonts).toMatch(/export const fontVariables = \[geist, geistExt\]/);
+    // Only the latin face is fetched before it's needed (latin-ext and the mono wait); all three on
+    // <html>, the error screen's too.
+    expect(fonts.match(/preload: false/g)).toHaveLength(2);
+    expect(fonts).toMatch(/export const fontVariables = \[geist, geistExt, geistMono\]/);
+    expect(read("src/app/globals.css")).toMatch(
+      /--font-mono: var\(--font-geist-mono\), ui-monospace,/,
+    );
     expect(read("src/app/layout.tsx")).toContain("className={fontVariables}");
     expect(read("src/app/global-error.tsx")).toContain("className={fontVariables}");
     // Words in Geist, and every one of its uses: the sign figures in its semibold with fixed-width

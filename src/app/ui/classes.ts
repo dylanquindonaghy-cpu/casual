@@ -41,8 +41,9 @@ export const btn = {
 // The office's tabs: the "Show" navs over a list (Casuals, Cancellations, Enquiries, Strikes) and
 // the filters over the events. A glass track (`tabs`), each tab a pill 44px tall; the current one
 // (`tabCurrent`, with aria-current) under a lens of bright glass, never the main button. On a phone
-// the row scrolls sideways inside its track, never the page.
-export const tabs = "glass flex w-fit max-w-full gap-1 overflow-x-auto rounded-full p-1";
+// the row scrolls sideways inside its track, never the page, fading at the edge with more to scroll
+// to (`fade-x`: round 8, sys-9).
+export const tabs = "glass fade-x flex w-fit max-w-full gap-1 overflow-x-auto rounded-full p-1";
 export const tab =
   "press-glass inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-4 text-base font-medium text-ink-muted hover:text-ink active:bg-button-press";
 export const tabCurrent =

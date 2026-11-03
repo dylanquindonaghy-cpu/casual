@@ -270,7 +270,9 @@ for (const device of ["light", "dark"] as const) {
       const row = page.locator('#main [data-bar-counts="row"]');
       await expect(row.getByRole("link", { name: /^To fill \d+$/ })).toBeVisible();
       await expect(row.getByRole("link", { name: /^To fill \d+$/ })).toHaveCSS("height", "44px");
-      await expect(row.locator("xpath=..").getByText(/^Updated \d\d:\d\d$/)).toBeVisible();
+      // "Updated 10:42" is in the page's title row now (round 8, aud-2), not under the counts.
+      await expect(row.locator("xpath=..").getByText(/^Updated \d\d:\d\d$/)).toHaveCount(0);
+      await expectStampOnTitleRow(page);
       // It scrolls sideways inside itself; the page never does.
       expect(await row.evaluate((el) => getComputedStyle(el).overflowX)).toBe("auto");
       expect(
@@ -339,7 +341,9 @@ for (const device of ["light", "dark"] as const) {
         expect(Number.parseFloat(glass.corners[0] ?? "0")).toBeGreaterThanOrEqual(22);
         expect(await chip.boundingBox()).toMatchObject({ y: 12, height: 44 });
       }
-      await expect(bar.getByText(/^Updated \d\d:\d\d$/)).toBeVisible();
+      // "Updated 10:42": in the page's title row (round 8, aud-2), not in the top bar.
+      await expect(bar.getByText(/^Updated \d\d:\d\d$/)).toHaveCount(0);
+      await expectStampOnTitleRow(page);
       const yours = await surface(account.locator("xpath=.."));
       expect({ bg: yours.bg, frost: yours.frost, shadow: yours.shadow }).toEqual({
         bg: NONE,
@@ -1077,6 +1081,19 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
 // 21; docs/ui-design.md "States"), every page in an admin's menu: each page's answer is held back
 // here so the wait is long enough to see. Then the page, and the skeleton gone. The dashboard has
 // its own.
+// "Updated 10:42" (round 8, aud-2): in the page's title row, beside its headline, on the same line.
+async function expectStampOnTitleRow(page: import("@playwright/test").Page) {
+  const stamp = page.locator("#main [data-updated-slot]");
+  await expect(stamp).toHaveText(/^Updated \d\d:\d\d$/);
+  const h1 = await page.getByRole("heading", { level: 1 }).boundingBox();
+  const at = await stamp.boundingBox();
+  expect(h1 && at).toBeTruthy();
+  // On the headline's line: its middle within the headline's height, to its right.
+  expect(at!.y + at!.height / 2).toBeGreaterThan(h1!.y);
+  expect(at!.y + at!.height / 2).toBeLessThan(h1!.y + h1!.height);
+  expect(at!.x).toBeGreaterThanOrEqual(h1!.x);
+}
+
 test("every page picked in the menu shows its skeleton while it's on its way", async ({ page }) => {
   test.setTimeout(180_000);
   await page.setViewportSize({ width: 1280, height: 900 });

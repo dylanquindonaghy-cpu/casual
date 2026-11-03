@@ -241,6 +241,8 @@
   --font-sans:
     var(--font-geist), var(--font-geist-ext), ui-sans-serif, system-ui, -apple-system, "Segoe UI",
     Roboto, Arial, sans-serif;
+  /* References, IDs and keys (round 8, sys-6): Geist Mono (src/app/fonts.ts), then the system's. */
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   /* The firm's colour as a pale tint over whatever it lies on (the current tab, the gate's plate,
      the "shifts to apply for" tile): ink reads on it in both themes. */
   --color-brand-soft: color-mix(in srgb, var(--color-brand) 12%, transparent);
@@ -1541,6 +1543,46 @@ body:has([data-office]) {
       transparent
     );
   }
+}
+/* A row that scrolls sideways (the office's tab rows and its counts row: round 8, sys-9) fades at
+   the edge that has more to scroll to, by the browser's own scroll timeline: at the start only the
+   end fades, at the end only the start, between them both. A row with nothing to scroll (an
+   inactive timeline) or a browser without scroll timelines shows no fade at all. */
+@property --fade-start {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --fade-end {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@keyframes fade-x-scroll {
+  0% {
+    --fade-start: 0px;
+    --fade-end: 1.5rem;
+  }
+  8%,
+  92% {
+    --fade-start: 1.5rem;
+    --fade-end: 1.5rem;
+  }
+  100% {
+    --fade-start: 1.5rem;
+    --fade-end: 0px;
+  }
+}
+@utility fade-x {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black var(--fade-start),
+    black calc(100% - var(--fade-end)),
+    transparent
+  );
+  animation: fade-x-scroll linear both;
+  animation-timeline: scroll(self inline);
 }
 /* A lens sliding to the option you pick, on the spring a press returns on. */
 @utility slide {

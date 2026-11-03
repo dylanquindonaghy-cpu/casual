@@ -23,6 +23,7 @@ import {
 } from "@/lib/office/requests-copy";
 import { shiftWhen, roleLabel, timeOnDay } from "@/lib/portal/format";
 import { AnswerForm } from "../requests/answer-form";
+import { Ref } from "@/app/ui/ref";
 
 // askedLines() ends with the voicemail warning when the request came from a voicemail: it stands
 // out, as something to check before answering (its words say why): the office's notice.
@@ -123,7 +124,7 @@ export function RequestQueueView({ queue }: { queue: RequestQueue }) {
                     </p>
                   ))}
                   <p className={`${meta} mt-1 tabular-nums`}>
-                    Sent {timeOnDay(r.createdAt, tz)} · Reference {r.ref}
+                    Sent {timeOnDay(r.createdAt, tz)} · Reference <Ref>{r.ref}</Ref>
                     {r.status === "escalated" && (
                       <>
                         {" · "}
@@ -175,7 +176,8 @@ export function RequestQueueView({ queue }: { queue: RequestQueue }) {
                 <div className="flex min-w-0 flex-col gap-1">
                   <p>
                     <Outcome r={r} />
-                    {r.answer?.at ? ` at ${timeOnDay(r.answer.at, tz)}` : ""}. Reference {r.ref}.
+                    {r.answer?.at ? ` at ${timeOnDay(r.answer.at, tz)}` : ""}. Reference{" "}
+                    <Ref>{r.ref}</Ref>.
                   </p>
                   {r.answer?.note && <p>Note: {r.answer.note}</p>}
                   {toldText(r) && (

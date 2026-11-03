@@ -293,15 +293,27 @@ describe("the office's files use only the system (src/app/office, the shared par
     );
   });
 
-  // The one exception: keys and secrets on Integrations keep the system's mono, so O and 0, l and
-  // 1 differ (`codeBox`, and a role's or a scope's name in a sentence there).
-  it("the system's mono only for keys and secrets on Integrations", () => {
+  // Geist Mono (round 8, sys-6) where O and 0, l and 1 must differ: keys and secrets on Integrations
+  // (`codeBox`, and a role's or a scope's name in a sentence there), and every reference and ID,
+  // through <Ref> (src/app/ui/ref.tsx). Nowhere else: words and figures stay in Geist.
+  it("mono only for keys and secrets on Integrations, and references through <Ref>", () => {
     expect(classes.codeBox.split(" ")).toContain("font-mono");
+    expect(read("src/app/ui/ref.tsx")).toContain('<span className="font-mono">');
     const mono = SOURCES.filter(
       ({ shared, text }) => !shared && /(?<![\w-])font-mono(?![\w-])/.test(text),
     ).map(({ file }) => file);
     expect(mono.length).toBeGreaterThan(0);
     for (const file of mono) expect(file).toMatch(/^src\/app\/office\/settings\/integrations\//);
+    // Every reference the office shows ("Reference {ref}", "Cancellation {ref}", "Cancellation
+    // record {ref}", the record's Reference field) is in a <Ref>.
+    const bare = OFFICE.flatMap((file) =>
+      [...code(read(file)).matchAll(/(?:Reference|Cancellation(?: record)?) \{[^}]*\.ref\}/g)].map(
+        (m) => `${file}: ${m[0]}`,
+      ),
+    );
+    expect(bare).toEqual([]);
+    const wrapped = OFFICE.filter((file) => /<Ref>\{[^}]*\.ref\}<\/Ref>/.test(read(file)));
+    expect(wrapped.length).toBeGreaterThanOrEqual(6);
   });
 });
 
@@ -594,8 +606,12 @@ describe("the office's tokens (src/app/globals.css)", () => {
       '&[data-more="below"]: mask-image',
       '&[data-more="above"]: mask-image',
       '&[data-more="both"]: mask-image',
+      // A sideways row's fade at the edge with more to scroll to (round 8, sys-9).
+      "@utility fade-x: mask-image",
     ]);
     expect(css).toMatch(/@utility fade-edges \{/);
+    expect(css).toMatch(/@utility fade-x \{[\s\S]*?animation-timeline: scroll\(self inline\);/);
+    expect(classes.tabs.split(" ")).toContain("fade-x");
   });
 
   // No grain, stripes, glows or colour cards (round 2's), and no picture: the only images are the

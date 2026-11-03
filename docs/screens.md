@@ -14,7 +14,18 @@ its end. The platform's own address has no bar.
 Round 7 of the canvas on the casual app (`docs/mockups/phase-24/README.md` "The casual app
 (390px)"; `home-*.jpg`, `open-*.jpg`, `shift-*.jpg`, `pay-*.jpg`). Every route, action, rule and
 log entry is as the older descriptions below say; these change, and where a word changes the
-mock-up's word is used (its differences: the README's "Where the build differs"):
+mock-up's word is used (its differences: the README's "Where the build differs").
+
+**Its look is round 8's since Phase 27.6** (Dylan, 2026-11-03: "casual round 8: yes, firm's colour,
+follow the phone"; mock-up https://claude.ai/artifact/6Qi4Dt5qW5xnWWSVf9oNVC; `docs/ui-design.md`
+"Phase 27.6"): the office's off-white or charcoal ground with its faint street map behind every
+page in place of the coloured wash, its translucent and sharp glass (nothing bends what's behind
+the tab bar or a sheet), and its colours, but the firm's own colour on the main button, the firm's
+mark and the current tab, as before. It still follows the phone (light, or dark when the phone or
+the light or dark choice says so). Every page, word, size, layout and tap target below is
+unchanged; where this section says "warm", read round 8's plain lighter band.
+
+What changed in round 7:
 
 - **The firm's bar** stays at the top once the page runs and frosts as the page scrolls under it
   (without JavaScript it stays in the page). On Home, "Updated 11:20" sits at its end (online
@@ -80,7 +91,8 @@ every route, label, link and action is as round 7's.
 
 - **The look:** dark until someone picks light (the light or dark button: "Switch to light mode" /
   "Switch to dark mode"; with no choice the office is dark, whatever the device prefers). The casual
-  app keeps round 7's look and still follows the device.
+  app takes round 8's look too since Phase 27.6 (with the firm's colour on its main button, not
+  hi-vis) and still follows the device.
 - **The rail** (from 1024px): as round 7's, each shut icon a dark circle and the page you're on a
   solid white one; the firm's initial in hi-vis; the red dot as before.
 - **The top bar** (from 1024px): the counts as separate chips ("To fill {26}", "Urgent {2}", "Offers

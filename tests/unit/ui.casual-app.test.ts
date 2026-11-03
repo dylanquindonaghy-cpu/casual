@@ -206,7 +206,7 @@ describe("Pay: each week, and its total only when payroll gave every gross", () 
     return at < 0 ? "" : html.slice(at, html.indexOf("</section>", at));
   };
 
-  it("the newest week: its dates, Pay before tax and the total large, a glass row per rate, the pay day on a warm chip", () => {
+  it("the newest week: its dates, Pay before tax and the total large, a glass row per rate, the pay day on the band's chip", () => {
     const html = render(zoe);
     const top = section(html, "latest-pay");
     expect(top).toMatch(

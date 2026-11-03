@@ -405,6 +405,12 @@ const slip = (page: Page) =>
     };
   });
 
+// The spec's "every other office page" (oth-1, oth-2): Enquiries, Strikes, the notice report, Pay,
+// Pay queries, Import, the action log, Pilot metrics, Team, Settings, Integrations, Data requests
+// and the Guide, and their own records.
+const OTHER_PAGES =
+  /^\/office\/(enquiries|strikes|reports\/notice|pay|pay-queries|pay\/import|log|reports\/pilot|team|settings|settings\/integrations|data|guide)(\/|$)/;
+
 // aud-6, oth-2 and sys-3 on one page: the first Tab lands on the skip link with the focus ring (a real key
 // press: a script's focus() doesn't show the ring); every button you can see in the page or its
 // frame is at least 44px tall; and no table row holds two status pills. Each problem is named.
@@ -655,7 +661,10 @@ for (const device of ["dark", "light"] as const) {
           if (kept.skip !== "Skip to content") problems.push(`${where}: first Tab "${kept.skip}"`);
           if (kept.ring !== "2px solid") problems.push(`${where}: focus ring "${kept.ring}"`);
           for (const b of kept.small) problems.push(`${where}: under 44px: ${b}`);
-          for (const r of kept.pills) problems.push(`${where}: two status pills: ${r}`);
+          // One status pill a row on "every other office page" (oth-2: its list), not on the pages
+          // with designs of their own (Casuals lists each qualification to update, as 26.7 has it).
+          if (OTHER_PAGES.test(path))
+            for (const r of kept.pills) problems.push(`${where}: two status pills: ${r}`);
           for (const r of kept.unfaded)
             problems.push(`${where}: a scrolling row with no fade: ${r}`);
           scrolling += kept.scrolling;

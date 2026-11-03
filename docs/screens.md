@@ -202,9 +202,9 @@ audit's aud-9, aud-10 and aud-13. Words: `src/lib/office/customise-copy.ts`,
   tick each; a venue another contract has says whose: "(Northgate Council's)", and ticking it moves
   it here), "Save", and "Remove" ("Its venues stay, without a contract. Anyone looking after it stops
   seeing it." and "Yes, remove it"). Last, a blank one with "Add a contract". Answers under it:
-  "Saved {Northgate Council}.", "Removed.", "There's a contract with that name already.", "Give it a
+  "Saved {Northgate Council}.", "There's a contract with that name already.", "Give it a
   name of up to 120 characters.", "That contract or one of its venues is gone. Reload the page.",
-  "Only an admin can change contracts.". None yet: "No contracts yet.". "Save" changes only the
+  "Only an admin can change contracts."; a removal's, "Removed {Northgate Council}.", above the list (its row goes when the page reloads; Phase 26.10). None yet: "No contracts yet.". "Save" changes only the
   venues ticked or unticked since the page was loaded, so a page left open can't take back a
   venue someone has since moved; a row starts again from its contract when that changes. Names are
   one per firm whatever their case. Each change is logged (`client.added`, `client.saved`,

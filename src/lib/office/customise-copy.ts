@@ -74,7 +74,7 @@ export function contractResultText(s: { status: string }, name?: string): string
     case "saved":
       return name ? `Saved ${name}.` : "Saved.";
     case "removed":
-      return "Removed.";
+      return name ? `Removed ${name}.` : "Removed.";
     case "invalid":
       return "Give it a name of up to 120 characters.";
     case "name_taken":

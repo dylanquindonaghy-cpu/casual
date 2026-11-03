@@ -6,11 +6,11 @@ import { StatusChip } from "@/app/ui/status-chip";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import { readSessionToken } from "@/lib/auth/session-cookie";
 import { officeContracts } from "@/lib/office/contracts";
-import { CONTRACTS_INTRO, CONTRACTS_TITLE, NO_CONTRACTS_YET } from "@/lib/office/customise-copy";
+import { CONTRACTS_INTRO, CONTRACTS_TITLE } from "@/lib/office/customise-copy";
 import { siteLocationText, strikesEmailStatus } from "@/lib/office/settings-copy";
 import { officeSettingsPage } from "@/lib/office/settings-page";
 import { firmShiftsLine, shiftsLineText } from "@/lib/tenancy/shifts-line";
-import { ContractForm } from "./contracts-form";
+import { ContractsList } from "./contracts-list";
 import { SitePostcodeForm } from "./site-postcode-form";
 import { StrikesEmailForm } from "./strikes-email-form";
 
@@ -99,24 +99,12 @@ export default async function SettingsPage() {
           {CONTRACTS_TITLE}
         </h2>
         <p className={`${muted} mt-1`}>{CONTRACTS_INTRO}</p>
-        <ul role="list" className={`${rows} ${headingGap}`}>
-          {contracts.contracts.length === 0 && (
-            <li className={`${row} text-ink-muted`}>{NO_CONTRACTS_YET}</li>
-          )}
-          {contracts.contracts.map((c) => (
-            <li key={c.clientId} className={row}>
-              <ContractForm contract={c} sites={contracts.sites} names={names} />
-            </li>
-          ))}
-          <li className={row}>
-            <ContractForm
-              key={contracts.contracts.length}
-              contract={null}
-              sites={contracts.sites}
-              names={names}
-            />
-          </li>
-        </ul>
+        <ContractsList
+          contracts={contracts.contracts}
+          sites={contracts.sites}
+          names={names}
+          className={headingGap}
+        />
       </section>
     </main>
   );

@@ -90,6 +90,9 @@ describe("the words", () => {
     expect(contractResultText({ status: "saved" }, "Northgate Council")).toBe(
       "Saved Northgate Council.",
     );
+    expect(contractResultText({ status: "removed" }, "Northgate Council")).toBe(
+      "Removed Northgate Council.",
+    );
     expect(contractResultText({ status: "name_taken" })).toBe(
       "There's a contract with that name already.",
     );

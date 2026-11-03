@@ -21,15 +21,18 @@ import { removeContractAction, saveContractAction } from "./actions";
 // One contract on Settings (Phase 26.3; the spec page's cus-1), or a new one: its name and the
 // venues it owns (a venue in another contract says whose; ticking it moves it here), "Save", and
 // for one that exists "Remove" after a check. The answer shows under it; the page reloads its data.
+// A removal's answer goes to the list above (`onRemoved`): the reload takes this row away.
 
 export function ContractForm({
   contract,
   sites,
   names,
+  onRemoved,
 }: {
   contract: ContractRow | null; // null: a new one
   sites: SiteChoice[];
   names: Record<string, string>; // each contract's name, by id
+  onRemoved?: (message: string) => void;
 }) {
   const router = useRouter();
   const ready = useHydrated();
@@ -70,8 +73,13 @@ export function ContractForm({
       const result = await removeContractAction(contract.clientId).catch(() => ({
         status: "error" as const,
       }));
-      setMessage(contractResultText(result));
-      if (result.status === "removed") router.refresh();
+      const words = contractResultText(result, contract.name);
+      if (result.status === "removed") {
+        onRemoved?.(words);
+        router.refresh();
+      } else {
+        setMessage(words);
+      }
     });
   return (
     <form

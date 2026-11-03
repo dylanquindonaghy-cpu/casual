@@ -83,7 +83,14 @@ test("a contract on Settings, looked after under Customise: the dashboard narrow
   });
   await row.getByText("Remove", { exact: true }).click();
   await row.getByRole("button", { name: "Yes, remove it" }).click();
-  await expect(row.getByRole("status")).toHaveText("Removed.");
+  // The answer shows above the list: the reload takes the row away (Phase 26.10).
+  await expect(
+    page
+      .getByRole("region", { name: "Contracts" })
+      .getByRole("status")
+      .filter({ hasText: `Removed ${name}.` }),
+  ).toBeVisible();
+  await expect(row).toHaveCount(0);
   await page.goto(`${acme}/office`);
   await expect(page.getByRole("switch", { name: "My contracts" })).toHaveCount(0);
 });

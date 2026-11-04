@@ -5,6 +5,7 @@ import { appEnvSchema } from "@/lib/env";
 import {
   dayShort,
   lengthAndPay,
+  mapCountLine,
   mapFoot,
   offerButton,
   pinDays,
@@ -317,7 +318,13 @@ describe("the street map's file (MAP_TILES_URL)", () => {
     expect(map).toMatch(/if \(!tiles \|\| !box\.current\) return;/);
     expect(map).toContain('import("maplibre-gl")');
     expect(map).toContain("cooperativeGestures: true");
-    expect(map).toContain('.filter((l) => l.type !== "symbol")');
+    // Its style from the street map's own module (Phase 27.8: names on, letter shapes from our own
+    // server; tests/unit/office.map-style.test.ts), loaded with MapLibre, never on its own.
+    expect(map).toContain('import("@/lib/office/map-style")');
+    expect(map).toContain(
+      'style: mapStyle.mapStyle(tiles, dark ? "dark" : "light", MAP_ATTRIBUTION),',
+    );
+    expect(map).not.toContain('l.type !== "symbol"');
     // Its web worker from our own route (where the bundler leaves it, MapLibre can't find it).
     expect(map).toContain(
       "maplibregl.setWorkerUrl(`/office/map-worker?v=${maplibregl.getVersion()}`)",
@@ -329,8 +336,10 @@ describe("the street map's file (MAP_TILES_URL)", () => {
     expect(map).toMatch(
       /aria-label="Key"\s+className="pointer-events-none absolute top-3 right-3 z-10 /,
     );
-    // No static import of the map libraries anywhere (they'd load on every office page).
+    // No static import of the map libraries anywhere (they'd load on every office page), nor of
+    // the style's module (it brings Protomaps' layers with it).
     expect(map).not.toMatch(/^import [^;]*from "(?:maplibre-gl|pmtiles|@protomaps\/basemaps)";/m);
+    expect(map).not.toMatch(/^import [^;]*from "@\/lib\/office\/map-style";/m);
   });
 });
 
@@ -348,5 +357,34 @@ describe("MapLibre's web worker (/office/map-worker)", () => {
         readFileSync(join(process.cwd(), "node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs")),
       ),
     ).toBe(true);
+  });
+});
+
+// The launch review's O4: the map holds this pay week and next (the top bar counts every place to
+// fill), so its count says which days it covers, under each tab and a chosen day.
+describe("the map's count", () => {
+  it("its venues and places, and the days they cover", () => {
+    expect(mapCountLine(6, 29, { show: "all" })).toBe(
+      "6 venues · 29 places to fill this week and next",
+    );
+    expect(mapCountLine(1, 1, { show: "urgent" })).toBe(
+      "1 venue · 1 urgent place to fill this week and next",
+    );
+    expect(mapCountLine(2, 5, { show: "urgent" })).toBe(
+      "2 venues · 5 urgent places to fill this week and next",
+    );
+    expect(mapCountLine(1, 2, { show: "urgent", day: "2026-11-03" })).toBe(
+      "1 venue · 2 urgent places to fill on Tue 3 Nov",
+    );
+    expect(mapCountLine(3, 11, { show: "this-week" })).toBe(
+      "3 venues · 11 places to fill this week",
+    );
+    expect(mapCountLine(2, 4, { show: "next-week" })).toBe("2 venues · 4 places to fill next week");
+    expect(mapCountLine(2, 4, { show: "all", day: "2026-11-03" })).toBe(
+      "2 venues · 4 places to fill on Tue 3 Nov",
+    );
+    expect(mapCountLine(0, 0, { show: "all", day: null })).toBe(
+      "0 venues · 0 places to fill this week and next",
+    );
   });
 });

@@ -125,21 +125,21 @@ describe("shiftForWorker", () => {
       {
         code: "SIA_DS",
         name: "SIA door supervisor licence",
-        chip: "SIA DS",
+        chip: "SIA door supervisor licence",
         status: { status: "valid", expiresOn: "2029-01-01", renewing: false },
         uploadable: true,
       },
       {
         code: "CSAS",
         name: expect.any(String),
-        chip: "CSAS",
+        chip: "CSAS accreditation",
         status: { status: "missing", expiresOn: null, renewing: false },
         uploadable: false, // the office records CSAS itself
       },
       {
         code: "FIRST_AID",
         name: "first aid at work certificate",
-        chip: "First aid",
+        chip: "First aid at work certificate",
         status: { status: "expiring_soon", expiresOn: "2026-11-03", renewing: false },
         uploadable: false, // neither of her roles needs it: she couldn't send it
       },

@@ -66,10 +66,14 @@ const strike = (o: Partial<CasualStrike> = {}): CasualStrike => ({
 
 describe("the Strikes page's words", () => {
   it("views, empty states, the intro and the live count", () => {
-    expect(STRIKE_VIEW_WORDS).toEqual({ live: "Live", review: "Needs review", all: "All" });
+    expect(STRIKE_VIEW_WORDS).toEqual({
+      live: "Live",
+      review: "They gave a reason: check it",
+      all: "All",
+    });
     expect(STRIKE_VIEW_EMPTY).toEqual({
       live: "No live strikes.",
-      review: "No strikes need a review.",
+      review: "No reasons to check.",
       all: "No strikes yet.",
     });
     expect(strikesIntro(48, 90)).toBe(
@@ -298,7 +302,7 @@ describe("the casual's Strikes on Profile", () => {
     expect(myStrikeCountText(0, 90)).toBe("You have 0 strikes in the last 90 days.");
     expect(myStrikeCountText(1, 90)).toBe("You have 1 strike in the last 90 days.");
     expect(myStrikeRuleText(48)).toBe(
-      "A strike is given when you cancel less than 48 hours before a shift starts.",
+      "A strike is given when you cancel less than 48 hours before a shift starts. A strike is a record, not a fine. It never comes off your pay.",
     );
     expect(myStrikeTitle(mine())).toBe("Steward at Riverside Arena");
     expect(myStrikeSession(mine(), TZ)).toBe("Sat 7 Nov, 14:00 to 22:00");

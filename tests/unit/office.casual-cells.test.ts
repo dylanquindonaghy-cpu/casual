@@ -165,7 +165,10 @@ describe("Casuals list: staff photo", () => {
     const html = photo(status);
     expect(html).toContain(`${CHIP} ${tone}`);
     expect(html).toContain(words);
-    // Under it, the date that goes with it: taken on, or sent on while it waits.
-    expect(html).toContain(status === "waiting" ? ">Sent 1 Oct</span>" : ">3 Feb</span>");
+    // Under it, the date that goes with it: the day to renew it by when it's due soon or overdue
+    // (never the day it was taken: the launch review), or sent on while it waits.
+    expect(html).toContain(
+      status === "waiting" ? ">Sent 1 Oct</span>" : ">renew by 3 Feb 2029</span>",
+    );
   });
 });

@@ -58,14 +58,14 @@ const facts: ShiftFacts = {
     {
       code: "SIA_DS",
       name: "SIA door supervisor licence",
-      chip: "SIA DS",
+      chip: "SIA door supervisor licence",
       status: { status: "valid", expiresOn: "2027-03-03", renewing: false },
       uploadable: true,
     },
     {
       code: "CSAS",
       name: "CSAS accreditation",
-      chip: "CSAS",
+      chip: "CSAS accreditation",
       status: { status: "missing", expiresOn: null, renewing: false },
       uploadable: false,
     },
@@ -84,7 +84,7 @@ describe("ShiftView", () => {
       shift: summary,
       facts,
       reasons: [
-        "Your SIA door supervisor licence expired on 3 Oct. Renew it, then send the new number to the office.",
+        "Your SIA door supervisor licence expired on 3 Oct. Once you've renewed it, tell the office under Messages.",
       ],
       review: null,
     });
@@ -96,7 +96,7 @@ describe("ShiftView", () => {
     expect(words).toContain("Riverside Festival · Demo Arena 1 Test Road, Leeds, LS1 1AA Gate A");
     expect(html).toMatch(/<span class="glass-tile shrink-0 rounded-\[10px\] [^"]*">Gate A<\/span>/);
     expect(words).toContain(
-      "You can't take this shift: Your SIA door supervisor licence expired on 3 Oct. Renew it, then send the new number to the office.",
+      "You can't take this shift: Your SIA door supervisor licence expired on 3 Oct. Once you've renewed it, tell the office under Messages.",
     );
     expect(words).toContain("If you think this is wrong, ask the office to review it.");
     expect(words).toContain("Anything the office should know? (optional)");
@@ -138,7 +138,7 @@ describe("ShiftView", () => {
     expect(bar.slice(0, bar.indexOf(">"))).not.toMatch(/(?<![\w-])(?:shadow-|glass-float)/);
     expect(bar.slice(0, bar.indexOf(">"))).not.toContain("border-t");
     expect(text(bar)).toContain(
-      "Take shift Cancelling less than 48 hours before the start gives you a strike.",
+      "Take shift Cancelling less than 48 hours before the start gives you a strike. A strike is a record, not a fine. It never comes off your pay.",
     );
     expect(bar).toMatch(
       /<\/button><p class="mt-2 text-center text-base text-ink-muted">Cancelling less than 48 hours/,
@@ -153,7 +153,7 @@ describe("ShiftView", () => {
     );
     expect(firmOf24).toContain("Places 1 of 4 places left");
     expect(firmOf24).toContain(
-      "Cancelling less than 24 hours before the start gives you a strike.",
+      "Cancelling less than 24 hours before the start gives you a strike. A strike is a record, not a fine. It never comes off your pay.",
     );
   });
   it("open, in full (§4.4; Phases 18, 20 and 24): its own bar back, the urgent band, the time by its tile, then a card each: getting there, places, what it needs, report to, bring and wear, pay", () => {
@@ -170,7 +170,7 @@ describe("ShiftView", () => {
       /<section aria-labelledby="shift-heading" class="glass animate-open overflow-hidden rounded-3xl"><p class="flex items-center gap-2\.5 bg-urgent-fill px-5 py-3 text-lg font-medium text-on-urgent"><span aria-hidden="true" class="size-2\.5 rounded-full bg-current"><\/span>Urgent, needed now<\/p>/,
     );
     expect(words).toContain(
-      "Urgent, needed now Sat 7 Nov 14:00–22:00 Saturday 7 November · 8 hours Door supervisor Urgent Needs: SIA DS , CSAS",
+      "Urgent, needed now Sat 7 Nov 14:00–22:00 Saturday 7 November · 8 hours Door supervisor Needs: SIA door supervisor licence , CSAS accreditation",
     );
     // The day in words under the time, so the tile is only seen.
     expect(html).toMatch(
@@ -180,8 +180,12 @@ describe("ShiftView", () => {
     expect(html).toMatch(
       /<p class="font-sign text-3xl whitespace-nowrap text-ink">14:00–22:00<\/p>/,
     );
-    expect(html).toMatch(
+    // No "Urgent" chip under the red band (Phase 27.2): the band says it.
+    expect(html).not.toMatch(
       /<span class="glass-tile rounded-\[10px\] px-2\.5 py-1 text-base font-medium text-urgent-ink">Urgent<\/span>/,
+    );
+    expect(html).toMatch(
+      /<span class="glass-tile rounded-\[10px\] px-2\.5 py-1 text-base font-medium text-ink">SIA door supervisor licence/,
     );
     const cards = [
       ...html.matchAll(
@@ -189,7 +193,7 @@ describe("ShiftView", () => {
       ),
     ].map((m) => m[2]);
     expect(cards).toEqual([
-      "Getting there, from your home area",
+      "Getting there, from your travel area",
       "Places",
       "You need",
       "Report to",
@@ -197,10 +201,10 @@ describe("ShiftView", () => {
       "Pay",
     ]);
     expect(words).toContain(
-      "Getting there, from your home area 3.1 miles · 12 min by car · 24 min by public transport 3.1 miles away 12 min by car 24 min by public transport Open in maps",
+      "Getting there, from your travel area 3.1 miles · 12 min by car · 24 min by public transport 3.1 miles away 12 min by car 24 min by public transport Directions",
     );
     expect(html).toMatch(
-      /<svg[^>]*><path d="M9 4\.5 3\.5 6\.5v13l5\.5-2 6 2 5\.5-2v-13l-5\.5 2zM9 4\.5v13M15 6\.5v13"><\/path><\/svg>Open in maps<\/a>/,
+      /<svg[^>]*><path d="M9 4\.5 3\.5 6\.5v13l5\.5-2 6 2 5\.5-2v-13l-5\.5 2zM9 4\.5v13M15 6\.5v13"><\/path><\/svg>Directions<\/a>/,
     );
     expect(words).toContain(
       "You need SIA door supervisor licence You have it, valid until 3 Mar 2027 CSAS accreditation Missing: ask the office.",
@@ -214,7 +218,7 @@ describe("ShiftView", () => {
     );
     expect(words).toContain("Report to Staff entrance on Mill Lane");
     expect(words).toContain("Bring and wear Black trousers and your hi-vis");
-    expect(words).toContain("Pay £15.50 an hour, about £124.00");
+    expect(words).toContain("Pay £15.50 an hour, about £124.00 before tax");
     const order = [
       "Door supervisor",
       "Getting there",
@@ -312,7 +316,7 @@ describe("ShiftView", () => {
     expect(words).toContain("3.1 miles · 12 min by car · 24 min by public transport");
     expect(words).not.toContain("Places");
     expect(words).toContain("Meet at gate C.");
-    expect(words).toContain("Open in maps");
+    expect(words).toContain("Directions");
     expect(words).toContain("Ask for a change");
     // Phase 18: "Can't make it?" opens the sheet that cancels it; the way back is to her shifts.
     expect(words).toContain("Can't make it?");
@@ -374,9 +378,28 @@ describe("ShiftView with travel areas switched off for the firm (13.4)", () => {
     const off: ShiftFacts = { ...facts };
     delete off.travel;
     const words = text(render({ state: "open", shift: summary, facts: off }));
-    expect(words).toContain("Getting there Open in maps");
-    expect(words).not.toMatch(/From your home area|miles|min by car|Distance not known/);
+    expect(words).toContain("Getting there Directions");
+    expect(words).not.toMatch(/from your travel area|miles|min by car|Distance not known/);
     const noSite = text(render({ state: "open", shift: { ...summary, site: null }, facts: off }));
     expect(noSite).not.toContain("Getting there");
+  });
+});
+
+// Phase 27.2 (C2, C3): the pay estimate is before tax, and a session with no rate still has a Pay
+// card, saying to ask the office.
+describe("ShiftView: pay", () => {
+  it("the estimate says before tax", () => {
+    const html = render({ state: "open", shift: summary, facts });
+    expect(text(html)).toContain(
+      "Pay £15.50 an hour, about £124.00 before tax £15.50 an hour About £124.00 before tax for the 8 hours",
+    );
+  });
+
+  it("no rate set: the Pay card says Ask the office", () => {
+    const html = render({ state: "open", shift: summary, facts: { ...facts, payRatePence: null } });
+    expect(html).toMatch(
+      /<h2 id="pay-heading" class="text-lg font-semibold text-ink">Pay<\/h2><p class="text-lg text-ink">Ask the office<\/p><\/section>/,
+    );
+    expect(text(html)).not.toContain("an hour");
   });
 });

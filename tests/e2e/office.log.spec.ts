@@ -80,8 +80,8 @@ test("filter the action log by type and worker, and follow a shift", async ({ pa
     .getByRole("navigation", { name: "Show" })
     .getByRole("link", { name: "History" })
     .click();
-  await page.getByRole("link", { name: "See this shift in the action log" }).click();
+  await page.getByRole("link", { name: "See this session in the action log" }).click();
   await expect(page).toHaveURL(/\/office\/log\?shift=[0-9a-f-]{36}$/);
-  await expect(page.getByText("Everything logged for this shift.")).toBeVisible();
+  await expect(page.getByText("Everything logged for this session.")).toBeVisible();
   await expect(page.getByText(new RegExp(`^${name} cancelled, with `)).first()).toBeVisible();
 });

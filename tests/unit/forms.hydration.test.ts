@@ -296,7 +296,7 @@ describe("in the server's HTML, before the page is ready, the fields are disable
   });
   const forms: [string, ReactElement, number][] = [
     [
-      "Shifts for an event (the name, the date, the site, 4 lines with their details and 2 requirements each, the meeting point, the uniform, the instructions)",
+      "Sessions for an event (the name, the date, the site, 4 lines with their details and 2 requirements each, the meeting point, the uniform, the instructions)",
       eventForm,
       38,
     ],

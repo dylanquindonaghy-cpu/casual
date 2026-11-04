@@ -56,8 +56,9 @@ export function brandColours(raw: unknown): { background: string; text: string; 
 const WHITE: Rgb = [255, 255, 255];
 const BLACK: Rgb = [0, 0, 0];
 const INK: Rgb = [21, 23, 26]; // the app's ink, #15171a (Phase 20)
-// The grounds the firm's colour sits on (Phase 24): every point of the glass and the wash it lies
-// on, in each theme (glass-grounds.ts, the same values src/app/globals.css draws).
+// The grounds the firm's colour sits on (Phase 24; round 8's since Phase 27.6): every point of the
+// glass and the plain ground it lies on (Phase 27.7: no street pattern), in each theme
+// (glass-grounds.ts, the same values src/app/globals.css draws).
 // (Each once: many points of the glass come out the same.)
 const unique = (cs: Rgb[]) => [...new Map(cs.map((c) => [c.join(","), c])).values()];
 const LIGHT_GROUNDS: Rgb[] = unique(glassGrounds("light").all);
@@ -140,13 +141,13 @@ export interface FirmColours {
 // colour darkened until white or ink reads on it at 4.5:1, with whichever reads better, and its
 // quieter words that one moved a fifth of the way to the band, back towards it until they read at
 // 4.5:1; in light, the button and the words are the colour darkened until it reads on every point
-// of the glass and the wash (Phase 24) and on its own tint over them, with white on it (also
-// brightened, as under the pointer: it's the main button in both themes); in dark,
-// lightened until it reads on every dark point of them and its own tint, with ink on it (or
-// white), lightened further if neither reads yet. The button's shade is the colour moved further
-// from its words (darker under white, lighter under ink). The gate's white plate takes the band's
-// colour as its words when that reads on white. Every pair is at least 4.5:1, for any #rrggbb
-// (tests/unit/tenancy.brand.test.ts).
+// of the glass and the ground (Phase 24; round 8's since Phase 27.6) and on its own tint over
+// them, with white on it (also brightened, as under the pointer: it's the main button in both
+// themes); in dark, lightened until it reads on every dark point of them and its own tint, with
+// ink on it (or white), lightened further if neither reads yet. The button's shade is the colour
+// moved further from its words (darker under white, lighter under ink). The gate's white plate
+// takes the band's colour as its words when that reads on white. Every pair is at least 4.5:1, for
+// any #rrggbb (tests/unit/tenancy.brand.test.ts).
 export function firmPalette(hex: string): { light: FirmColours; dark: FirmColours } {
   const b = rgbOf(hex.toLowerCase());
   const bar = towards(b, BLACK, (x) => ratio(WHITE, x) >= MIN || ratio(INK, x) >= MIN);

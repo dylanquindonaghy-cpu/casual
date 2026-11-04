@@ -1,4 +1,6 @@
 .claude/state/
+# Claude Code's own working copies for parallel builders (git worktrees): never part of the repo.
+.claude/worktrees/
 .env*
 !.env.example
 node_modules/

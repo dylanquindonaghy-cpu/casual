@@ -228,7 +228,7 @@ export function CancelShiftForm({ shiftId, booked }: { shiftId: string; booked: 
   return (
     <details className={booked > 0 ? "group mt-6 border-t border-line pt-6" : "group"}>
       <summary className={opener}>
-        Cancel this shift
+        Cancel this session
         <Chevron />
       </summary>
       <div className={`mt-4 flex flex-col gap-4 ${confirmStep}`}>
@@ -245,7 +245,7 @@ export function CancelShiftForm({ shiftId, booked }: { shiftId: string; booked: 
           disabled={pending || !ready}
           onClick={cancel}
         >
-          Yes, cancel this shift
+          Yes, cancel this session
         </button>
         {message && (
           <p role="status" className={resultBox}>

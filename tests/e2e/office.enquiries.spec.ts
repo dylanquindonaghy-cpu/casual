@@ -112,7 +112,7 @@ test("Need a person: reply to one unknown number, close another with a reason", 
     `from ${pat}, a number that isn't one of your casuals'`,
   );
   await expect(how).toContainText("Not one of your casuals' numbers: passed to a person.");
-  await expect(how).toContainText("Checks made by code: No checks recorded.");
+  await expect(how).toContainText("What we checked: No checks recorded.");
   await expect(how).toContainText("The reply asking a number we don't know for their full name.");
   await expect(how).toContainText("Then: Waiting for a person.");
   await expect(page.getByRole("region", { name: "Considered but not offered" })).toContainText(
@@ -240,7 +240,7 @@ test("a casual's personal shift list: each check, the sessions listed and the on
     await expect(page.getByRole("heading", { name: "Message from Zoe Marsh" })).toBeVisible();
     const how = page.getByRole("region", { name: "How it was answered" });
     // Each check made by code, with its figures, for both sessions.
-    const checks = how.getByRole("listitem").filter({ hasText: "Checks made by code:" });
+    const checks = how.getByRole("listitem").filter({ hasText: "What we checked:" });
     await expect(checks).toContainText(`Response team lead · ${eventName}, ${siteName}, `);
     await expect(checks).toContainText("Has the response team lead role ✓");
     await expect(checks).toContainText(
@@ -257,7 +257,7 @@ test("a casual's personal shift list: each check, the sessions listed and the on
       new RegExp(`CSAS accreditation valid to ${DATE} \\(this session needs it\\) ✓`),
     );
     // The sessions the reply listed, each a link to the session.
-    const built = how.getByRole("listitem").filter({ hasText: "Reply built:" });
+    const built = how.getByRole("listitem").filter({ hasText: "Reply sent:" });
     await expect(built).toContainText("The personal shift list, with 2 sessions:");
     // (The scene's names are letters, digits and spaces only: safe in a pattern as they are.)
     const listed = new RegExp(`^Response team lead · ${eventName}, ${siteName}, `);
@@ -288,7 +288,7 @@ test("a casual's personal shift list: each check, the sessions listed and the on
       page
         .getByRole("region", { name: "How it was answered" })
         .getByRole("listitem")
-        .filter({ hasText: "Reply built:" }),
+        .filter({ hasText: "Reply sent:" }),
     ).toContainText("The personal shift list, with 1 session:");
   } finally {
     for (const id of [scene.plain, scene.firstAid, scene.csas, scene.booked]) {

@@ -59,7 +59,10 @@ describe("the urgent board", () => {
     expect(words).toContain("Shifts starting soon that need someone now.");
     // The card (Phases 18, 20 and 24): the date tile, "Urgent." read out, the time, the role, then
     // where; the date tile pale red, the places left in red words on a glass chip.
-    expect(words).toContain("Sat 7 Nov Urgent. 08:00–16:00 Door supervisor Acme Demo Arena");
+    // With no pay rate set, "Pay: ask the office" where the rate would be (Phase 27.2).
+    expect(words).toContain(
+      "Sat 7 Nov Urgent. 08:00–16:00 Pay: ask the office Door supervisor Acme Demo Arena",
+    );
     expect(html).toMatch(/<span aria-hidden="true" class="[^"]*bg-urgent-tile text-urgent-ink">/);
     expect(html).toContain(
       '<span class="glass-tile rounded-[10px] px-2.5 py-1 text-base font-medium text-urgent-ink">1 place left</span>',
@@ -136,8 +139,8 @@ describe("Home", () => {
     const shifts = [shift(), shift({ shiftId: "33333333-3333-4333-8333-333333333333" })];
     const words = home(shifts);
     // A row under "Shifts you can take" (Phase 24), its tile the soonest one's day: near you, as
-    // her home area chose them.
-    expect(words).toContain("Shifts you can take Sat 7 2 urgent near you Sat 7 Nov");
+    // her travel area chose them.
+    expect(words).toContain("Shifts you can take Sat 7 2 urgent shifts near you Sat 7 Nov");
     const html = renderToStaticMarkup(
       createElement(HomeView, {
         firmName: "Acme Events",

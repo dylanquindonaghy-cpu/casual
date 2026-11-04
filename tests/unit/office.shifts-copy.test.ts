@@ -8,8 +8,10 @@ import {
   editResultText,
   importResultLines,
   restWorkedResultText,
+  sessionStatusWords,
   showingResultText,
 } from "@/lib/office/shifts-copy";
+import { uniqueShiftOptions } from "@/lib/office/action-log";
 
 // The office's shift screens in plain words (src/lib/office/shifts-copy.ts) and a shift's history
 // (src/lib/office/event-words.ts).
@@ -154,13 +156,13 @@ describe("the shift screens' words", () => {
       "Ann Booker is already marked that way.",
     );
     expect(attendanceResultText({ status: "not_started" }, "Ann Booker")).toBe(
-      "This shift hasn't started yet.",
+      "This session hasn't started yet.",
     );
     expect(attendanceResultText({ status: "not_booked" }, "Ann Booker")).toBe(
-      "Ann Booker isn't booked on this shift any more.",
+      "Ann Booker isn't booked on this session any more.",
     );
     expect(attendanceResultText({ status: "not_allowed" }, "Ann Booker")).toBe(
-      "You can't change shifts.",
+      "You can't change sessions.",
     );
     expect(restWorkedResultText({ status: "marked", count: 1 })).toBe("Marked 1 person as worked.");
     expect(restWorkedResultText({ status: "marked", count: 3 })).toBe("Marked 3 people as worked.");
@@ -168,14 +170,14 @@ describe("the shift screens' words", () => {
       "Everyone was already marked.",
     );
     expect(restWorkedResultText({ status: "not_ended" })).toBe(
-      "This shift hasn't ended yet. Mark each person instead.",
+      "This session hasn't ended yet. Mark each person instead.",
     );
   });
 
   it("creating", () => {
-    expect(createResultText({ status: "created", shiftIds: ["a"] })).toBe("Shift created.");
+    expect(createResultText({ status: "created", shiftIds: ["a"] })).toBe("Session created.");
     expect(createResultText({ status: "created", shiftIds: ["a", "b", "c"] })).toBe(
-      "3 shifts created.",
+      "3 sessions created.",
     );
     const invalid = {
       status: "invalid" as const,
@@ -193,7 +195,9 @@ describe("the shift screens' words", () => {
 
   it("editing", () => {
     expect(editResultText({ status: "saved", fields: ["headcount"] })).toBe("Saved.");
-    expect(editResultText({ status: "has_bookings" })).toMatch(/^People are booked on this shift/);
+    expect(editResultText({ status: "has_bookings" })).toMatch(
+      /^People are booked on this session/,
+    );
     expect(editResultText({ status: "invalid", problems: ["bad_time", "bad_role"] })).toBe(
       "Enter the start and finish as times, like 08:00. They can't be the same, 24 hours or more apart, or in the hour the clocks skip in March. Enter a role, like steward (letters, numbers and spaces only).",
     );
@@ -212,11 +216,11 @@ describe("the shift screens' words", () => {
       "Nothing was saved: real staff data can be imported once your firm's agreement and data processing agreement with us are signed and recorded. Ask us to record them. You can still check a file.",
     ]);
     expect(importResultLines({ status: "done", result: { ...result, dryRun: true } })).toEqual([
-      "This file would add 2 shifts, change 1, leave 0 as they are and skip 1.",
+      "This file would add 2 sessions, change 1, leave 0 as they are and skip 1.",
       "Row 4: the start or finish isn't a time we can read (use 09:00), or they're the same, 24 hours or more apart, or in the hour the clocks skip in March.",
     ]);
     expect(importResultLines({ status: "done", result: { ...result, dryRun: false } })[0]).toBe(
-      "Imported: 2 shifts added, 1 changed, 0 left as they were, 1 skipped.",
+      "Imported: 2 sessions added, 1 changed, 0 left as they were, 1 skipped.",
     );
     expect(importResultLines({ status: "file_error", code: "missing_column" })).toEqual([
       "A column the import needs is missing. Check the header row.",
@@ -226,14 +230,14 @@ describe("the shift screens' words", () => {
   it("assigning", () => {
     expect(
       assignResultText({ status: "booked", assignmentId: "a", slot: 1, overridden: [] }, "Ann"),
-    ).toBe("Ann is booked on this shift. They'll get a message to say so.");
+    ).toBe("Ann is booked on this session. They'll get a message to say so.");
     expect(
       assignResultText(
         { status: "booked", assignmentId: "a", slot: 1, overridden: ["rest"] },
         "Ann",
       ),
     ).toBe(
-      "Ann is booked on this shift. They'll get a message to say so. The override is in the log, and your reason is kept with the booking.",
+      "Ann is booked on this session. They'll get a message to say so. The override is in the log, and your reason is kept with the booking.",
     );
     expect(assignResultText({ status: "invalid_reason" }, "Ann")).toBe(
       "Give a reason for the override (no phone numbers or email addresses).",
@@ -242,13 +246,13 @@ describe("the shift screens' words", () => {
 
   it("the event and session switches (12B.4)", () => {
     expect(showingResultText({ status: "hidden" }, "event")).toBe(
-      "Hidden from casuals. Booked casuals keep their shifts.",
+      "Hidden: casuals can't see it. Booked casuals keep their places.",
     );
     expect(showingResultText({ status: "shown", offering: 0, eventHidden: false }, "session")).toBe(
       "Showing to casuals.",
     );
     expect(showingResultText({ status: "shown", offering: 2, eventHidden: false }, "event")).toBe(
-      "Showing to casuals. Offers are going out for 2 urgent shifts.",
+      "Showing to casuals. Offers are going out for 2 urgent sessions.",
     );
     expect(showingResultText({ status: "shown", offering: 0, eventHidden: true }, "session")).toBe(
       "Switched on, but its event is hidden from casuals, so they still can't see it.",
@@ -258,9 +262,61 @@ describe("the shift screens' words", () => {
     );
     expect(showingResultText({ status: "unchanged" }, "event")).toBe("Already done.");
     expect(showingResultText({ status: "not_found" }, "event")).toBe("We can't find that event.");
-    expect(showingResultText({ status: "not_found" }, "session")).toBe("We can't find that shift.");
-    expect(showingResultText({ status: "not_allowed" }, "session")).toBe(
-      "You can't change shifts.",
+    expect(showingResultText({ status: "not_found" }, "session")).toBe(
+      "We can't find that session.",
     );
+    expect(showingResultText({ status: "not_allowed" }, "session")).toBe(
+      "You can't change sessions.",
+    );
+  });
+});
+
+// The launch review (3 Nov 2026): an open session's chip says its places, not "Open"; the action
+// log says the 08:00 summary was sent, and its filter tells alike sessions apart.
+describe("the launch review's session words", () => {
+  it("an open session's chip: its places to fill; the other statuses as before", () => {
+    expect(sessionStatusWords({ status: "open", booked: 3, headcount: 4 })).toBe("1 place to fill");
+    expect(sessionStatusWords({ status: "open", booked: 0, headcount: 3 })).toBe(
+      "3 places to fill",
+    );
+    expect(sessionStatusWords({ status: "open", booked: 4, headcount: 4 })).toBe("Full");
+    expect(sessionStatusWords({ status: "filled", booked: 2, headcount: 4 })).toBe("Filled");
+    expect(sessionStatusWords({ status: "draft", booked: 0, headcount: 4 })).toBe("Draft");
+    expect(sessionStatusWords({ status: "cancelled", booked: 0, headcount: 4 })).toBe("Cancelled");
+  });
+
+  // The claim is logged before the email goes (src/lib/office/alerts.ts), so it never says it went:
+  // a send that fails follows it with its own row, and the two read true together.
+  it("the 08:00 summary, in the log: claimed before it goes, and a failure after it", () => {
+    const claimed = ev("office.summary_emailed", { officeUserId: "o1" });
+    expect(claimed).toBe("Sending Sam Rota the 08:00 summary.");
+    expect(claimed).not.toMatch(/\bSent\b/);
+    expect(ev("office.summary_failed", { officeUserId: "o1", code: "smtp" })).toBe(
+      "The 08:00 summary to Sam Rota couldn't be sent.",
+    );
+  });
+
+  it("the log's session filter: alike names get their post, else their finish, else a number", () => {
+    const label = "Steward at Acme Demo Arena, Sat 7 Nov 08:00";
+    expect(
+      uniqueShiftOptions([
+        { id: "a", label, post: "Gate A", until: "16:00" },
+        { id: "b", label, post: null, until: "18:00" },
+        {
+          id: "c",
+          label: "Door supervisor at Acme Demo Arena, Sat 7 Nov 08:00",
+          post: null,
+          until: "16:00",
+        },
+        { id: "d", label, post: "Gate B", until: "16:00" },
+        { id: "e", label, post: null, until: "18:00" },
+      ]),
+    ).toEqual([
+      { id: "a", label: `${label} · Gate A` },
+      { id: "b", label: `${label} · until 18:00` },
+      { id: "c", label: "Door supervisor at Acme Demo Arena, Sat 7 Nov 08:00" },
+      { id: "d", label: `${label} · Gate B` },
+      { id: "e", label: `${label} · until 18:00 (2)` },
+    ]);
   });
 });

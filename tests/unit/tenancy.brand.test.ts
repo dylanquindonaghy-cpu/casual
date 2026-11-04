@@ -70,14 +70,15 @@ describe("the colours", () => {
   });
 
   it("sets the page's --firm-* values only for a firm's own checked colour, a set per theme", () => {
-    // Acme's blue, a little darker for its words and its main button so they read on every point
-    // of the glass (Phase 24), with white on it; the button's shade further from white; its band
-    // as it is.
+    // Acme's blue as it is for its words and its main button: it reads on every point of the glass
+    // and on its own pale tint over it, over the plain ground (Phase 27.7: no step; one 6% step
+    // darker over round 8's street lines, two on round 7's wash), with white on it; the button's
+    // shade further from white; its band as it is.
     expect(brandStyle(brandColours("#1D4ED8"))).toEqual({
-      "--firm-fill": "#1a45bf",
+      "--firm-fill": "#1d4ed8",
       "--firm-on-fill": "#ffffff",
-      "--firm-shade": "#15399d",
-      "--firm-ink": "#1a45bf",
+      "--firm-shade": "#1840b1",
+      "--firm-ink": "#1d4ed8",
       "--firm-bar": "#1d4ed8",
       "--firm-on-bar": "#ffffff",
       // The pass's second line (Phase 20): white a fifth of the way to the blue, still 4.5:1.
@@ -100,9 +101,10 @@ describe("the colours", () => {
   });
 
   // Every ground the firm's colour sits on as words, in the looks of its theme, read from
-  // src/app/globals.css itself (tests/helpers/theme-css.ts): the glass over every point of the
-  // wash, the solid look (less transparency or more contrast) and the one with no blur. Worked out
-  // once as luminances, so the whole cube runs quickly.
+  // src/app/globals.css itself (tests/helpers/theme-css.ts): the glass over the plain ground (round
+  // 8's since Phase 27.6; with no street lines since Phase 27.7), the solid look (less
+  // transparency or more contrast) and the one with no blur. Worked out once as luminances, so the
+  // whole cube runs quickly.
   const LOOKS = looks();
   const PLACES = [
     "canvas",
@@ -139,8 +141,11 @@ describe("the colours", () => {
       .join("")}`;
 
   it("every firm colour gives readable pairs in every look, across the whole colour cube", () => {
-    expect(LIGHT_LUM.length).toBeGreaterThan(100);
-    expect(DARK_LUM.length).toBeGreaterThan(100);
+    // Each a different ground (round 7's wash gave over 100; round 8's flat ground and its two
+    // strengths of line, under each place, 22 and 47; since Phase 27.7 the plain ground alone
+    // gives these).
+    expect(LIGHT_LUM).toHaveLength(12);
+    expect(DARK_LUM).toHaveLength(21);
     const failing: string[] = [];
     for (let r = 0; r <= 255; r += 17) {
       for (let g = 0; g <= 255; g += 17) {
@@ -180,32 +185,43 @@ describe("the colours", () => {
     expect(failing).toEqual([]);
   });
 
-  it("the demo firms' colours: their bands as they are, their words a little darker in light, lighter for dark", () => {
+  it("the demo firms' colours: their bands as they are, their words as near their colour as reads in light, lighter for dark", () => {
     const acme = firmPalette("#1d4ed8");
     expect(acme.light).toEqual({
-      fill: "#1a45bf",
+      fill: "#1d4ed8",
       onFill: "#ffffff",
-      shade: "#15399d",
-      ink: "#1a45bf",
+      shade: "#1840b1",
+      ink: "#1d4ed8",
       bar: "#1d4ed8",
       onBar: "#ffffff",
       onBarSoft: "#d2dcf7",
       onPlate: "#1d4ed8",
     });
-    // The words, as near the colour as reads: one 6% step towards black did it, no more.
-    expect(contrastRatio("#1d4ed8", acme.light.fill)).toBeLessThan(1.3);
+    // The words, as near the colour as reads: over the plain ground (Phase 27.7) Acme's blue itself
+    // reads, with no step towards black (one over round 8's street lines).
+    expect(contrastRatio("#1d4ed8", acme.light.fill)).toBe(1);
+    // In dark, as near the colour as reads too: lighter, the least that does (Phase 27.7: #ccd7f6
+    // over the street lines).
+    expect([acme.dark.fill, acme.dark.ink, acme.dark.shade]).toEqual([
+      "#b0c1f1",
+      "#b0c1f1",
+      "#beccf4",
+    ]);
     // A pale firm colour: ink on its band, and ink on the gate's white plate (white words
     // wouldn't read on it, nor the yellow on white).
     const yellow = firmPalette("#ffff00").light;
     expect([yellow.bar, yellow.onBar, yellow.onPlate]).toEqual(["#ffff00", "#15171a", "#15171a"]);
     expect(onAll(acme.dark.ink, DARK_LUM)).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(acme.dark.fill, "#1d4ed8")).toBeGreaterThan(1); // lighter than the colour
-    // Northline's teal: its band as it is; darker as words and the button, for its own pale tint
-    // over the wash's mint corner.
+    // Northline's teal: its band as it is; darker as words and the button (one 6% step over the
+    // plain ground since Phase 27.7; three over round 8's street lines, four on round 7's wash),
+    // for its own pale tint over round 8's glass.
     const northline = firmPalette("#0f766e");
     expect(northline.light.bar).toBe("#0f766e");
-    expect(northline.light.fill).toBe("#0c5c56");
-    expect(northline.light.shade).toBe("#0a4c46");
+    expect(northline.light.fill).toBe("#0e6f67");
+    expect(northline.light.ink).toBe("#0e6f67");
+    expect(northline.light.shade).toBe("#0c5b55");
+    expect(northline.dark.fill).toBe("#a6ccc9");
   });
 
   it("knows a firm's own colour from the default", () => {

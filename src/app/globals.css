@@ -8,45 +8,52 @@
    `rounded-lg office:rounded-row`. */
 @custom-variant office (&:where(body:has([data-office]) *));
 
-/* Design tokens (docs/ui-design.md "Phase 24: Liquid Glass"). Phase 24 (round 7 of the Design
-   canvas, Dylan: "keep round 7 and build it into the app"): one set for the office and the casual
-   app, glass over a pastel wash. Each colour becomes utilities (bg-card, text-ink-muted,
-   border-line, bg-urgent-soft and so on). The grounds are glass: `card` (a section: a card, a list,
-   a table, a panel), `panel` (what floats over the page), `raised` (a part inside a section),
-   `track` and `pill` (a switch or row of tabs, and its chosen option: the lens), each a
-   translucent fill over the wash (`canvas` is the wash's base; the wash itself is drawn under
-   every page, below). Their numbers are src/lib/tenancy/glass-grounds.ts's, from which every word's
-   contrast is worked out (tests/unit/ui.contrast.test.ts). Status colours always travel with their
-   word. These are the light theme's values; the dark theme redefines every one of them below. */
+/* Design tokens (docs/ui-design.md "Phase 27.7", "Phase 27.6", "Phase 26" and "Phase 24: Liquid
+   Glass"). The casual app's look is round 8's (Phase 27.6; Dylan, 2026-11-03: "casual round 8: yes,
+   firm's colour, follow the phone"): the office's own round 8 values (its blocks below, on
+   [data-office]), but for the firm's own colour (the main button, the firm's mark and its tints),
+   the app's blue and the to-do tint (hi-vis yellow is the office's alone), and still following the
+   phone: light unless the phone or the sd-theme cookie says dark. Translucent, sharp glass over a
+   plain colour (Phase 27.7, Dylan: "Yes plain colour": no pattern behind any page), no wash and no
+   bending. Each colour becomes utilities (bg-card, text-ink-muted, border-line, bg-urgent-soft and
+   so on). The grounds are
+   glass: `card` (a section: a card, a list, a table, a panel), `panel` (what floats over the page),
+   `raised` (a part inside a section), `track` and `pill` (a switch or row of tabs, and its chosen
+   option: the lens), each a translucent fill over the page's plain ground (`canvas`). Their
+   numbers are src/lib/tenancy/glass-grounds.ts's, from which the firm's colour is worked out, and
+   every word's contrast is checked over them (tests/unit/ui.contrast.test.ts, which also holds
+   these blocks to the office's). Status colours always travel with their word. These are the light
+   theme's values; the dark theme redefines every one of them below. */
 @theme {
   --color-ink: #17181a; /* main text, the focus ring, an ink fill (a dark button, today's day) */
-  --color-ink-muted: #55585f; /* secondary text, labels, meta lines: 5:1 on the wash's darkest point */
-  --color-ink-faint: #5a5d64; /* the faintest words: a group's name over the menu, a chart's ticks */
+  --color-ink-muted: #55585f; /* secondary text, labels, meta lines: 4.5:1 on every ground */
+  --color-ink-faint: #5d6067; /* the faintest words: a group's name over the menu, a chart's ticks */
   --color-ink-hover: #2b2e33;
   --color-on-ink: #ffffff; /* text on an ink fill */
   --color-ink-press: #000000;
-  --color-line: rgb(16 24 40 / 0.08); /* dividers (decorative only) */
+  --color-line: rgb(16 24 40 / 0.1); /* dividers (decorative only) */
   --color-line-strong: #6e737b; /* a field's or a switch's edge where one is drawn (3:1 on glass) */
-  --color-canvas: #eef1f8; /* the wash's base, under every page */
-  --color-card: rgb(255 255 255 / 0.46); /* glass: a section (card, list, table, panel) */
-  --color-sheet: rgb(255 255 255 / 0.46); /* the same, for a page-wide sheet */
+  --color-canvas: #f2f2f0; /* the plain ground under every page (<body>'s; <html> has none) */
+  --color-card: rgb(255 255 255 / 0.55); /* glass: a section (card, list, table, panel) */
+  --color-sheet: rgb(255 255 255 / 0.55); /* the same, for a page-wide sheet */
   /* glass: what floats (the bars, menus, panels, the drawer, the sheet) */
-  --color-panel: rgb(255 255 255 / 0.78);
-  --color-raised: rgb(255 255 255 / 0.6); /* glass: a part inside a section (a tile, a field) */
-  --color-track: rgb(118 118 128 / 0.12); /* a switch's or a row of tabs' track */
-  --color-pill: rgb(255 255 255 / 0.92); /* the lens: the chosen tab, page or option */
-  --color-active: rgb(255 255 255 / 0.92);
-  --color-count: rgb(255 255 255 / 0.6); /* a count: a small clear glass pill */
-  --color-button: rgb(255 255 255 / 0.6); /* a clear glass button (its gradient: `glass-button`) */
-  --color-button-line: rgb(255 255 255 / 0.7);
-  --color-button-hover: rgb(255 255 255 / 0.78);
-  --color-button-press: rgb(255 255 255 / 0.9);
+  --color-panel: rgb(255 255 255 / 0.92);
+  --color-raised: rgb(16 24 40 / 0.03); /* glass: a part inside a section (a tile, a field) */
+  --color-track: rgb(16 24 40 / 0.06); /* a switch's or a row of tabs' track */
+  --color-pill: rgb(255 255 255 / 0.96); /* the lens: the chosen tab, page or option */
+  --color-active: rgb(16 24 40 / 0.05);
+  --color-count: rgb(16 24 40 / 0.06); /* a count: a small clear glass pill */
+  --color-button: rgb(255 255 255 / 0.7); /* a clear glass button (its gradient: `glass-button`) */
+  --color-button-line: rgb(16 24 40 / 0.14);
+  --color-button-hover: rgb(16 24 40 / 0.05);
+  --color-button-press: rgb(16 24 40 / 0.09);
   --color-switch-off: #6e737b; /* a switch's track when off */
   --color-knob: #ffffff; /* a switch's knob, solid on its track (on: ink or red; off: grey) */
   --color-scrim: #15171a; /* behind an open drawer or sheet, at half strength (decorative) */
-  /* The firm's own colour: a firm with a colour of its own sets these on <body>
-     (src/app/layout.tsx, data-firm-colour; worked out per theme in src/lib/tenancy/brand-values.ts
-     against every point of the glass, each pair at least 4.5:1); without one, the app's ink.
+  /* The firm's own colour (the casual app's own, not round 8's hi-vis): a firm with a colour of its
+     own sets these on <body> (src/app/layout.tsx, data-firm-colour; worked out per theme in
+     src/lib/tenancy/brand-values.ts against every point of the glass, each pair at least 4.5:1);
+     without one, the app's ink.
      `brand` is the current tab and the firm's fills, `tint` the main button (tinted glass, from `tint`
      to `tint-shade`),
      `brand-ink` the firm's colour as words, `brand-bar` the firm's mark, with `on-brand-bar` on it
@@ -69,28 +76,29 @@
   /* Statuses: words that read on every point of the glass (urgent, attention, done), their pale
      solid tints with their own dark words, a tile, a fill. */
   --color-urgent: #b0201f; /* act now: words, borders */
-  --color-urgent-soft: rgb(255 239 234 / 0.72);
+  --color-urgent-soft: rgb(255 239 234 / 0.85);
   --color-urgent-ink: #7d1a10;
-  --color-urgent-tile: rgb(255 216 207 / 0.8); /* an urgent tile, day or date tile */
+  --color-urgent-tile: rgb(255 216 207 / 0.9); /* an urgent tile, day or date tile */
   --color-urgent-fill: #c4242a; /* urgent pills and counts, the final destructive button */
   --color-urgent-fill-hover: #9b1c21;
   --color-on-urgent: #ffffff;
   --color-attention: #92400e; /* someone needs to act */
-  --color-attention-soft: rgb(255 246 224 / 0.72);
+  --color-attention-soft: rgb(255 246 224 / 0.85);
   --color-attention-ink: #5c3f00;
-  /* to do: tiles, counts, what the firm gives you (hi-vis) */
+  /* to do: tiles, counts, what the firm gives you (hi-vis): a pale amber, the casual app's own (the
+     office's is hi-vis yellow) */
   --color-hivis: rgb(251 229 160 / 0.8);
   --color-on-hivis: #5c3f00;
-  --color-wait-tile: rgb(214 228 250 / 0.8); /* waiting, or more to look at */
+  --color-wait-tile: rgb(214 228 250 / 0.9); /* waiting, or more to look at */
   --color-wait-ink: #163b6e;
-  --color-wait-soft: rgb(238 244 253 / 0.72);
+  --color-wait-soft: rgb(238 244 253 / 0.85);
   --color-done: #166534; /* fine, finished */
-  --color-done-soft: rgb(233 246 238 / 0.72);
+  --color-done-soft: rgb(233 246 238 / 0.85);
   --color-done-ink: #155230;
-  --color-done-tile: rgb(210 239 219 / 0.8);
+  --color-done-tile: rgb(210 239 219 / 0.9);
   --color-done-fill: #1f7a47; /* the booked tick */
   --color-on-done: #ffffff;
-  --color-quiet-soft: rgb(241 242 244 / 0.72); /* information, closed */
+  --color-quiet-soft: rgb(16 24 40 / 0.05); /* information, closed */
   --color-quiet-ink: #464b52;
   /* A status tint's edge (a chip's border, a notice's): a shade darker than its wash. */
   --color-urgent-line: #f5c2bb;
@@ -101,25 +109,27 @@
   /* The demo bar (16.1): the same dark amber strip in both themes. */
   --color-demo: #3d2e0a;
   --color-on-demo: #fde7b0;
-  /* The app's blue (round 7): the current page's icon in the rail, the chosen tab's word, the
-     "offered, no reply" marks, a count on the lens. Never a button: the main button is the firm's. */
+  /* The app's blue (round 7, kept in the casual app with round 8): the current page's icon, the
+     chosen tab's word, the "offered, no reply" marks, a count on the lens. Never a button: the main
+     button is the firm's. */
   --color-accent: #1d4ed8;
   --color-accent-hover: #2563eb;
   --color-accent-press: #1e40af;
   --color-on-accent: #ffffff;
-  /* The dashboard's marks (round 7): not offered yet in ink, offered and waiting in blue, red to do
-     now, green done, grey calm, on a faint grid. */
+  /* The dashboard's marks (round 8's): red to do now, not offered yet in amber, offered and waiting
+     in blue, green done, grey calm, on a faint grid. */
   --color-mark-urgent: #c4242a;
-  --color-mark-open: #17181a;
+  --color-mark-open: #b86e00;
   --color-mark-wait: #1d4ed8;
   --color-mark-done: #1f7a47;
   --color-mark-calm: #98a2b3;
   --color-mark-grid: rgb(16 24 40 / 0.06);
   --color-mark-base: rgb(16 24 40 / 0.15);
 
-  /* Depth (Phase 24): a glass's rim and soft drop, never a hard shadow. Tailwind writes a depth
-     token's value into its class when it builds, so a value the dark blocks redefine would never
-     reach it: each class takes a variable instead (--glass-*, set per theme below). */
+  /* Depth (Phase 24; round 8: an even hairline, no drop at rest, only what floats has one).
+     Tailwind writes a depth token's value into its class when it builds, so a value the dark
+     blocks redefine would never reach it: each class takes a variable instead (--glass-*, set per
+     theme below). */
   --shadow-lift: var(--glass-drop-sm);
   --shadow-panel: var(--glass-drop);
   --shadow-bar: var(--float-shadow);
@@ -249,71 +259,63 @@
 }
 
 /* The glass's own values, per theme (the depth tokens above and the glass utilities below read
-   them): how much it blurs, its rims, its drops, its gradients' ends and the wash's four lights.
-   src/lib/tenancy/glass-grounds.ts holds the same numbers (tests/unit/ui.glass.test.ts). */
+   them): how much it blurs, its rims, its drops and its gradients' ends. Round 8's, as the
+   office's blocks below (Phase 27.6). src/lib/tenancy/glass-grounds.ts holds the same numbers
+   (tests/unit/ui.glass.test.ts). */
 :root {
   color-scheme: light;
-  --glass-filter: blur(24px) saturate(1.8);
-  --float-filter: blur(18px) saturate(1.8);
-  --edge-filter: blur(10px) saturate(1.6);
-  --glass-rim: inset 0 1px 0 rgb(255 255 255 / 0.95), inset 0 0 0 1px rgb(255 255 255 / 0.55);
-  --glass-drop: 0 1px 2px rgb(16 24 40 / 0.04), 0 16px 40px rgb(60 72 120 / 0.12);
-  --glass-drop-sm: 0 1px 2px rgb(16 24 40 / 0.05), 0 6px 16px rgb(16 24 40 / 0.08);
-  --glass-sunk: inset 0 1px 3px rgb(16 24 40 / 0.08);
-  --float-shadow:
-    0 1px 2px rgb(16 24 40 / 0.06), 0 10px 30px rgb(16 24 40 / 0.12),
-    inset 0 0 0 1px rgb(16 24 40 / 0.06), inset 0 1px 0 rgb(255 255 255 / 0.9);
-  --tile-top: rgb(255 255 255 / 0.72);
-  --tile-bottom: rgb(255 255 255 / 0.44);
-  --button-top: rgb(255 255 255 / 0.8);
-  --button-bottom: rgb(255 255 255 / 0.4);
-  --button-rim:
-    inset 0 1.5px 0 rgb(255 255 255 / 1), inset 0 -1px 0 rgb(255 255 255 / 0.55),
-    inset 0 0 0 1px rgb(255 255 255 / 0.6), inset 0 0 14px rgb(255 255 255 / 0.35);
-  --tint-rim:
-    inset 0 1.5px 0 rgb(255 255 255 / 0.55), inset 0 0 0 1px rgb(255 255 255 / 0.2),
-    inset 0 -2px 6px rgb(0 0 0 / 0.18);
-  --lens-shadow:
-    0 1px 2px rgb(16 24 40 / 0.1), 0 4px 14px rgb(16 24 40 / 0.12),
-    inset 0 0 0 1px rgb(16 24 40 / 0.08), inset 0 1px 0 rgb(255 255 255 / 0.8);
-  --edge-fill: rgb(238 241 248 / 0.85);
-  --wash-a: rgb(201 216 255 / 1);
-  --wash-b: rgb(230 214 255 / 1);
-  --wash-c: rgb(255 226 201 / 1);
-  --wash-d: rgb(205 243 232 / 1);
-  /* The pass's top band (Phase 24, 24.6): warm light over its glass. */
-  --band-from: rgb(255 244 214 / 0.62);
-  --band-to: rgb(255 255 255 / 0.18);
+  --glass-filter: blur(6px) saturate(1.15);
+  --float-filter: blur(12px) saturate(1.15);
+  --edge-filter: blur(8px);
+  --glass-rim: inset 0 0 0 1px rgb(16 24 40 / 0.1);
+  --glass-drop: 0 0 #0000;
+  --glass-drop-sm: 0 0 #0000;
+  --glass-sunk: inset 0 0 0 1px rgb(16 24 40 / 0.1);
+  --float-shadow: 0 12px 36px rgb(16 24 40 / 0.14), inset 0 0 0 1px rgb(16 24 40 / 0.1);
+  --tile-top: rgb(16 24 40 / 0.03);
+  --tile-bottom: rgb(16 24 40 / 0.03);
+  --button-top: rgb(255 255 255 / 0.7);
+  --button-bottom: rgb(255 255 255 / 0.7);
+  --button-rim: inset 0 0 0 1px rgb(16 24 40 / 0.14);
+  --tint-rim: inset 0 0 0 1px rgb(23 24 0 / 0.3);
+  --lens-shadow: inset 0 0 0 1px rgb(16 24 40 / 0.12);
+  --edge-fill: rgb(242 242 240 / 0.85);
+  --band-from: rgb(255 255 255 / 0.6);
+  --band-to: rgb(255 255 255 / 0.3);
 }
 
 /* Dark: chosen by the sd-theme cookie (data-theme on <html>, set by the server so nothing
    flashes) or, with no cookie, by the device. The two dark blocks hold the same values
-   (tests/unit/ui.contrast.test.ts checks them, and every word's contrast on the dark glass). */
+   (tests/unit/ui.contrast.test.ts checks them, and every word's contrast on the dark glass): round
+   8's dark look (the office's charcoal, with Phase 27.1's lighter glass: a 4% section blurred 3px,
+   a 12% hairline, what floats 70%), the firm's colour, the app's blue and the to-do tint kept. The
+   blue is a shade lighter than round 7's (5 steps on red and green: it read 4.31:1 on the chosen
+   tab's lens over the lighter glass, 4.52:1 now, the smallest lift that reads everywhere). */
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --color-ink: #f3f4f6;
-  --color-ink-muted: #c4c5ca;
-  --color-ink-faint: #b9babf;
-  --color-ink-hover: #d4d6da;
-  --color-on-ink: #0b0c0e;
+  --color-ink: #f4f4f3;
+  --color-ink-muted: #bfbfc4;
+  --color-ink-faint: #9d9da2;
+  --color-ink-hover: #ffffff;
+  --color-on-ink: #0f0f10;
   --color-ink-press: #ffffff;
-  --color-line: rgb(255 255 255 / 0.08);
-  --color-line-strong: #8a8e96;
-  --color-canvas: #07080c;
-  --color-card: rgb(26 27 34 / 0.46);
-  --color-sheet: rgb(26 27 34 / 0.46);
-  --color-panel: rgb(30 30 34 / 0.8);
-  --color-raised: rgb(255 255 255 / 0.07);
-  --color-track: rgb(118 118 128 / 0.18);
+  --color-line: rgb(255 255 255 / 0.1);
+  --color-line-strong: #7c7c82;
+  --color-canvas: #0f0f10;
+  --color-card: rgb(255 255 255 / 0.04);
+  --color-sheet: rgb(255 255 255 / 0.04);
+  --color-panel: rgb(24 24 26 / 0.7);
+  --color-raised: rgb(255 255 255 / 0.03);
+  --color-track: rgb(255 255 255 / 0.06);
   --color-pill: rgb(255 255 255 / 0.1);
-  --color-active: rgb(255 255 255 / 0.1);
+  --color-active: rgb(255 255 255 / 0.07);
   --color-count: rgb(255 255 255 / 0.08);
-  --color-button: rgb(255 255 255 / 0.08);
-  --color-button-line: rgb(255 255 255 / 0.12);
-  --color-button-hover: rgb(255 255 255 / 0.05);
-  --color-button-press: rgb(255 255 255 / 0.08);
-  --color-switch-off: #8a8e96;
-  --color-knob: #0b0c0e;
+  --color-button: rgb(255 255 255 / 0.05);
+  --color-button-line: rgb(255 255 255 / 0.14);
+  --color-button-hover: rgb(255 255 255 / 0.08);
+  --color-button-press: rgb(255 255 255 / 0.12);
+  --color-switch-off: #818186;
+  --color-knob: #0f0f10;
   --color-scrim: #000000;
   --color-brand: #f3f4f6;
   --color-on-brand: #0b0c0e;
@@ -326,102 +328,93 @@
   --color-on-brand-bar-soft: #d2d4d8;
   --color-pass-plate: #ffffff;
   --color-on-pass-plate: #34373d;
-  --color-urgent: #ffa59c;
-  --color-urgent-soft: rgb(42 22 20 / 0.72);
-  --color-urgent-ink: #ffcabf;
-  --color-urgent-tile: rgb(61 29 25 / 0.8);
-  --color-urgent-fill: #cf3a33;
-  --color-urgent-fill-hover: #b02e28;
+  --color-urgent: #ffa299;
+  --color-urgent-soft: rgb(58 26 25 / 0.8);
+  --color-urgent-ink: #ffc4bc;
+  --color-urgent-tile: rgb(58 26 25 / 0.9);
+  --color-urgent-fill: #d13438;
+  --color-urgent-fill-hover: #b42a2e;
   --color-on-urgent: #ffffff;
-  --color-attention: #f5b35a;
-  --color-attention-soft: rgb(38 31 16 / 0.72);
-  --color-attention-ink: #fbe3a0;
+  --color-attention: #f2b55a;
+  --color-attention-soft: rgb(51 38 15 / 0.8);
+  --color-attention-ink: #f6dcb0;
   --color-hivis: rgb(58 47 16 / 0.8);
   --color-on-hivis: #fbe3a0;
-  --color-wait-tile: rgb(23 42 69 / 0.8);
-  --color-wait-ink: #c8dafa;
-  --color-wait-soft: rgb(17 26 40 / 0.72);
-  --color-done: #6bd896;
-  --color-done-soft: rgb(16 32 26 / 0.72);
-  --color-done-ink: #bfeccd;
-  --color-done-tile: rgb(21 48 31 / 0.8);
+  --color-wait-tile: rgb(23 35 56 / 0.9);
+  --color-wait-ink: #b8d0ff;
+  --color-wait-soft: rgb(23 35 56 / 0.8);
+  --color-done: #8fe28c;
+  --color-done-soft: rgb(21 41 26 / 0.8);
+  --color-done-ink: #c2efc0;
+  --color-done-tile: rgb(21 41 26 / 0.9);
   --color-done-fill: #1f7a47;
   --color-on-done: #ffffff;
-  --color-quiet-soft: rgb(34 36 40 / 0.72);
-  --color-quiet-ink: #d4d6da;
-  --color-urgent-line: #5a2423;
-  --color-attention-line: #5a4314;
-  --color-wait-line: #2c4166;
-  --color-done-line: #1f4d33;
-  --color-quiet-line: #3a404b;
+  --color-quiet-soft: rgb(255 255 255 / 0.06);
+  --color-quiet-ink: #d6d6da;
+  --color-urgent-line: #6a2a28;
+  --color-attention-line: #5a4318;
+  --color-wait-line: #2b4170;
+  --color-done-line: #2b5a3e;
+  --color-quiet-line: #38383c;
   --color-demo: #3d2e0a;
   --color-on-demo: #fde7b0;
-  --color-accent: #9cb8ff;
+  --color-accent: #a1bdff;
   --color-accent-hover: #b5caff;
   --color-accent-press: #7fa2ff;
   --color-on-accent: #0b1530;
-  --color-mark-urgent: #ff8b80;
-  --color-mark-open: #f3f4f6;
-  --color-mark-wait: #6d93ff;
-  --color-mark-done: #5fd08b;
-  --color-mark-calm: #667085;
+  --color-mark-urgent: #e5484d;
+  --color-mark-open: #f2b55a;
+  --color-mark-wait: #8ab4ff;
+  --color-mark-done: #8fe28c;
+  --color-mark-calm: #6d6d72;
   --color-mark-grid: rgb(255 255 255 / 0.06);
   --color-mark-base: rgb(255 255 255 / 0.15);
-  --glass-rim: inset 0 1px 0 rgb(255 255 255 / 0.16), inset 0 0 0 1px rgb(255 255 255 / 0.08);
-  --glass-drop: 0 1px 2px rgb(0 0 0 / 0.4), 0 18px 48px rgb(0 0 0 / 0.45);
-  --glass-drop-sm: 0 1px 2px rgb(0 0 0 / 0.35), 0 6px 16px rgb(0 0 0 / 0.3);
-  --glass-sunk: inset 0 1px 3px rgb(0 0 0 / 0.6);
-  --float-shadow:
-    0 1px 2px rgb(0 0 0 / 0.4), 0 10px 30px rgb(0 0 0 / 0.5),
-    inset 0 0 0 1px rgb(255 255 255 / 0.08), inset 0 1px 0 rgb(255 255 255 / 0.14);
-  --tile-top: rgb(255 255 255 / 0.09);
-  --tile-bottom: rgb(255 255 255 / 0.04);
-  --button-top: rgb(255 255 255 / 0.12);
-  --button-bottom: rgb(255 255 255 / 0.04);
-  --button-rim:
-    inset 0 1px 0 rgb(255 255 255 / 0.3), inset 0 -1px 0 rgb(255 255 255 / 0.06),
-    inset 0 0 0 1px rgb(255 255 255 / 0.12);
-  --tint-rim:
-    inset 0 1px 0 rgb(255 255 255 / 0.35), inset 0 0 0 1px rgb(255 255 255 / 0.12),
-    inset 0 -2px 6px rgb(0 0 0 / 0.25);
-  --lens-shadow:
-    0 4px 14px rgb(0 0 0 / 0.35), inset 0 0 0 1px rgb(255 255 255 / 0.1),
-    inset 0 1px 0 rgb(255 255 255 / 0.18);
-  --edge-fill: rgb(7 8 12 / 0.85);
-  --wash-a: rgb(37 99 235 / 0.42);
-  --wash-b: rgb(124 58 237 / 0.34);
-  --wash-c: rgb(234 88 12 / 0.2);
-  --wash-d: rgb(13 148 136 / 0.26);
-  --band-from: rgb(255 214 140 / 0.1);
-  --band-to: rgb(255 255 255 / 0.03);
+  --glass-filter: blur(3px) saturate(1.15);
+  --float-filter: blur(12px) saturate(1.15);
+  --edge-filter: blur(8px);
+  --glass-rim: inset 0 0 0 1px rgb(255 255 255 / 0.12);
+  --glass-drop: 0 0 #0000;
+  --glass-drop-sm: 0 0 #0000;
+  --glass-sunk: inset 0 0 0 1px rgb(255 255 255 / 0.1);
+  --float-shadow: 0 18px 50px rgb(0 0 0 / 0.5), inset 0 0 0 1px rgb(255 255 255 / 0.12);
+  --tile-top: rgb(255 255 255 / 0.03);
+  --tile-bottom: rgb(255 255 255 / 0.03);
+  --button-top: rgb(255 255 255 / 0.05);
+  --button-bottom: rgb(255 255 255 / 0.05);
+  --button-rim: inset 0 0 0 1px rgb(255 255 255 / 0.14);
+  --tint-rim: inset 0 0 0 1px rgb(0 0 0 / 0.08);
+  --lens-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
+  --edge-fill: rgb(15 15 16 / 0.85);
+  --band-from: rgb(255 255 255 / 0.04);
+  --band-to: rgb(255 255 255 / 0.02);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --color-ink: #f3f4f6;
-    --color-ink-muted: #c4c5ca;
-    --color-ink-faint: #b9babf;
-    --color-ink-hover: #d4d6da;
-    --color-on-ink: #0b0c0e;
+    --color-ink: #f4f4f3;
+    --color-ink-muted: #bfbfc4;
+    --color-ink-faint: #9d9da2;
+    --color-ink-hover: #ffffff;
+    --color-on-ink: #0f0f10;
     --color-ink-press: #ffffff;
-    --color-line: rgb(255 255 255 / 0.08);
-    --color-line-strong: #8a8e96;
-    --color-canvas: #07080c;
-    --color-card: rgb(26 27 34 / 0.46);
-    --color-sheet: rgb(26 27 34 / 0.46);
-    --color-panel: rgb(30 30 34 / 0.8);
-    --color-raised: rgb(255 255 255 / 0.07);
-    --color-track: rgb(118 118 128 / 0.18);
+    --color-line: rgb(255 255 255 / 0.1);
+    --color-line-strong: #7c7c82;
+    --color-canvas: #0f0f10;
+    --color-card: rgb(255 255 255 / 0.04);
+    --color-sheet: rgb(255 255 255 / 0.04);
+    --color-panel: rgb(24 24 26 / 0.7);
+    --color-raised: rgb(255 255 255 / 0.03);
+    --color-track: rgb(255 255 255 / 0.06);
     --color-pill: rgb(255 255 255 / 0.1);
-    --color-active: rgb(255 255 255 / 0.1);
+    --color-active: rgb(255 255 255 / 0.07);
     --color-count: rgb(255 255 255 / 0.08);
-    --color-button: rgb(255 255 255 / 0.08);
-    --color-button-line: rgb(255 255 255 / 0.12);
-    --color-button-hover: rgb(255 255 255 / 0.05);
-    --color-button-press: rgb(255 255 255 / 0.08);
-    --color-switch-off: #8a8e96;
-    --color-knob: #0b0c0e;
+    --color-button: rgb(255 255 255 / 0.05);
+    --color-button-line: rgb(255 255 255 / 0.14);
+    --color-button-hover: rgb(255 255 255 / 0.08);
+    --color-button-press: rgb(255 255 255 / 0.12);
+    --color-switch-off: #818186;
+    --color-knob: #0f0f10;
     --color-scrim: #000000;
     --color-brand: #f3f4f6;
     --color-on-brand: #0b0c0e;
@@ -434,81 +427,74 @@
     --color-on-brand-bar-soft: #d2d4d8;
     --color-pass-plate: #ffffff;
     --color-on-pass-plate: #34373d;
-    --color-urgent: #ffa59c;
-    --color-urgent-soft: rgb(42 22 20 / 0.72);
-    --color-urgent-ink: #ffcabf;
-    --color-urgent-tile: rgb(61 29 25 / 0.8);
-    --color-urgent-fill: #cf3a33;
-    --color-urgent-fill-hover: #b02e28;
+    --color-urgent: #ffa299;
+    --color-urgent-soft: rgb(58 26 25 / 0.8);
+    --color-urgent-ink: #ffc4bc;
+    --color-urgent-tile: rgb(58 26 25 / 0.9);
+    --color-urgent-fill: #d13438;
+    --color-urgent-fill-hover: #b42a2e;
     --color-on-urgent: #ffffff;
-    --color-attention: #f5b35a;
-    --color-attention-soft: rgb(38 31 16 / 0.72);
-    --color-attention-ink: #fbe3a0;
+    --color-attention: #f2b55a;
+    --color-attention-soft: rgb(51 38 15 / 0.8);
+    --color-attention-ink: #f6dcb0;
     --color-hivis: rgb(58 47 16 / 0.8);
     --color-on-hivis: #fbe3a0;
-    --color-wait-tile: rgb(23 42 69 / 0.8);
-    --color-wait-ink: #c8dafa;
-    --color-wait-soft: rgb(17 26 40 / 0.72);
-    --color-done: #6bd896;
-    --color-done-soft: rgb(16 32 26 / 0.72);
-    --color-done-ink: #bfeccd;
-    --color-done-tile: rgb(21 48 31 / 0.8);
+    --color-wait-tile: rgb(23 35 56 / 0.9);
+    --color-wait-ink: #b8d0ff;
+    --color-wait-soft: rgb(23 35 56 / 0.8);
+    --color-done: #8fe28c;
+    --color-done-soft: rgb(21 41 26 / 0.8);
+    --color-done-ink: #c2efc0;
+    --color-done-tile: rgb(21 41 26 / 0.9);
     --color-done-fill: #1f7a47;
     --color-on-done: #ffffff;
-    --color-quiet-soft: rgb(34 36 40 / 0.72);
-    --color-quiet-ink: #d4d6da;
-    --color-urgent-line: #5a2423;
-    --color-attention-line: #5a4314;
-    --color-wait-line: #2c4166;
-    --color-done-line: #1f4d33;
-    --color-quiet-line: #3a404b;
+    --color-quiet-soft: rgb(255 255 255 / 0.06);
+    --color-quiet-ink: #d6d6da;
+    --color-urgent-line: #6a2a28;
+    --color-attention-line: #5a4318;
+    --color-wait-line: #2b4170;
+    --color-done-line: #2b5a3e;
+    --color-quiet-line: #38383c;
     --color-demo: #3d2e0a;
     --color-on-demo: #fde7b0;
-    --color-accent: #9cb8ff;
+    --color-accent: #a1bdff;
     --color-accent-hover: #b5caff;
     --color-accent-press: #7fa2ff;
     --color-on-accent: #0b1530;
-    --color-mark-urgent: #ff8b80;
-    --color-mark-open: #f3f4f6;
-    --color-mark-wait: #6d93ff;
-    --color-mark-done: #5fd08b;
-    --color-mark-calm: #667085;
+    --color-mark-urgent: #e5484d;
+    --color-mark-open: #f2b55a;
+    --color-mark-wait: #8ab4ff;
+    --color-mark-done: #8fe28c;
+    --color-mark-calm: #6d6d72;
     --color-mark-grid: rgb(255 255 255 / 0.06);
     --color-mark-base: rgb(255 255 255 / 0.15);
-    --glass-rim: inset 0 1px 0 rgb(255 255 255 / 0.16), inset 0 0 0 1px rgb(255 255 255 / 0.08);
-    --glass-drop: 0 1px 2px rgb(0 0 0 / 0.4), 0 18px 48px rgb(0 0 0 / 0.45);
-    --glass-drop-sm: 0 1px 2px rgb(0 0 0 / 0.35), 0 6px 16px rgb(0 0 0 / 0.3);
-    --glass-sunk: inset 0 1px 3px rgb(0 0 0 / 0.6);
-    --float-shadow:
-      0 1px 2px rgb(0 0 0 / 0.4), 0 10px 30px rgb(0 0 0 / 0.5),
-      inset 0 0 0 1px rgb(255 255 255 / 0.08), inset 0 1px 0 rgb(255 255 255 / 0.14);
-    --tile-top: rgb(255 255 255 / 0.09);
-    --tile-bottom: rgb(255 255 255 / 0.04);
-    --button-top: rgb(255 255 255 / 0.12);
-    --button-bottom: rgb(255 255 255 / 0.04);
-    --button-rim:
-      inset 0 1px 0 rgb(255 255 255 / 0.3), inset 0 -1px 0 rgb(255 255 255 / 0.06),
-      inset 0 0 0 1px rgb(255 255 255 / 0.12);
-    --tint-rim:
-      inset 0 1px 0 rgb(255 255 255 / 0.35), inset 0 0 0 1px rgb(255 255 255 / 0.12),
-      inset 0 -2px 6px rgb(0 0 0 / 0.25);
-    --lens-shadow:
-      0 4px 14px rgb(0 0 0 / 0.35), inset 0 0 0 1px rgb(255 255 255 / 0.1),
-      inset 0 1px 0 rgb(255 255 255 / 0.18);
-    --edge-fill: rgb(7 8 12 / 0.85);
-    --wash-a: rgb(37 99 235 / 0.42);
-    --wash-b: rgb(124 58 237 / 0.34);
-    --wash-c: rgb(234 88 12 / 0.2);
-    --wash-d: rgb(13 148 136 / 0.26);
-    --band-from: rgb(255 214 140 / 0.1);
-    --band-to: rgb(255 255 255 / 0.03);
+    --glass-filter: blur(3px) saturate(1.15);
+    --float-filter: blur(12px) saturate(1.15);
+    --edge-filter: blur(8px);
+    --glass-rim: inset 0 0 0 1px rgb(255 255 255 / 0.12);
+    --glass-drop: 0 0 #0000;
+    --glass-drop-sm: 0 0 #0000;
+    --glass-sunk: inset 0 0 0 1px rgb(255 255 255 / 0.1);
+    --float-shadow: 0 18px 50px rgb(0 0 0 / 0.5), inset 0 0 0 1px rgb(255 255 255 / 0.12);
+    --tile-top: rgb(255 255 255 / 0.03);
+    --tile-bottom: rgb(255 255 255 / 0.03);
+    --button-top: rgb(255 255 255 / 0.05);
+    --button-bottom: rgb(255 255 255 / 0.05);
+    --button-rim: inset 0 0 0 1px rgb(255 255 255 / 0.14);
+    --tint-rim: inset 0 0 0 1px rgb(0 0 0 / 0.08);
+    --lens-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
+    --edge-fill: rgb(15 15 16 / 0.85);
+    --band-from: rgb(255 255 255 / 0.04);
+    --band-to: rgb(255 255 255 / 0.02);
   }
 }
 
 /* A firm's own colour, worked out for each theme on the server (src/lib/tenancy/brand-values.ts
    firmPalette, checked #rrggbb values only) and set on <body> as --firm-*: these rules pick the
    theme's set. Without a colour of its own, <body> has no data-firm-colour and the defaults above
-   stand. The office takes the firm's colour too (round 7: its main button is tinted glass in it). */
+   stand. The casual app's main button, the firm's mark and its tints take it in both looks (Phase
+   27.6 kept it with round 8's look); inside the office its own hi-vis wins ([data-office], below),
+   and the firm's colour stays on its bar above the office. */
 body[data-firm-colour] {
   --color-brand: var(--firm-fill);
   --color-on-brand: var(--firm-on-fill);
@@ -542,22 +528,34 @@ body[data-firm-colour] {
 }
 
 /* Round 8 (Phase 26; Dylan, 2026-11-02, after Haulix; the spec page's "The look" and the pre-build
-   audit, docs/mockups/round-8/): the office has its own look again, the casual app keeps round 7's.
-   Dark by default (no sd-theme cookie, or a dark one), light when someone picks light: neutral
-   charcoal (or off-white), translucent and sharp glass over a faint street map (body::before
-   below), a light blur, one even 1px hairline, 12px panels and 8px rows, no gloss, no glow and no
-   shadow at rest (only what floats has one). One accent, hi-vis yellow, on the main button, the
-   switches, the firm's mark and whatever is selected (as words in light: a dark olive); one status
+   audit, docs/mockups/round-8/): the office has its own look again (and the casual app took the same
+   look in Phase 27.6, but for the firm's colour and following the phone: its blocks above). Dark by
+   default (no sd-theme cookie, or a dark one), light when someone picks light: neutral
+   charcoal (or off-white), translucent and sharp glass over that plain colour (since Phase 27.7
+   nothing is drawn behind a page), a light blur, one even 1px hairline, 12px panels and 8px
+   rows, no gloss, no glow and no shadow at rest (only what floats has one). One accent, hi-vis
+   yellow, on the main button, the switches, the firm's mark and whatever is selected (as words in
+   light: a dark olive); one status
    code (urgent red, open amber, booked green, offered blue, hidden grey); white words on red at
    4.93:1 (the pre-build audit's aud-1: the mock-up's red was 3.91:1). The tokens are set on the office's
    own wrapper ([data-office], src/app/office/layout.tsx), so they win over <body>'s firm colours
    inside it: the firm's colour stays on its bar above the office. The page's ground and the
    browser's own controls follow from <html> (the second pair). Every pair's contrast is checked in
-   each of these looks, solid and with no blur too (tests/unit/ui.contrast.test.ts). */
+   each of these looks, solid and with no blur too (tests/unit/ui.contrast.test.ts). Phase 27.1
+   (Dylan, 2026-11-03, "+20%"; docs/mockups/round-8/launch-review-2026-11-03.md §2): in the dark
+   look the panels and the side bar are a light 4% tint (were a dark 28%), the blur 3px (was 6px),
+   the edge 12% (was 10%) and what floats 70% (was 88%): more see-through, still sharp. The lighter
+   glass lifts what sits on it, so three colours are a shade lighter to keep their contrast (the
+   contrast test stacks a button on a panel on the ground): the grey words, the urgent words and a
+   switch that's off. The light look is as it was. These blocks hold every value of their own, the same as
+   the casual app's blocks above but for the brand group (hi-vis here, the firm's colour there), the
+   to-do tint and the corners: the office is dark with no cookie even on a light phone, where the
+   page's root is light, so its dark block can't lean on the root's (tests/unit/ui.contrast.test.ts
+   holds the two sets to each other, value by value). */
 :root:not([data-theme="light"]) [data-office] {
   color-scheme: dark;
   --color-ink: #f4f4f3;
-  --color-ink-muted: #b4b4b9;
+  --color-ink-muted: #bfbfc4;
   --color-ink-faint: #9d9da2;
   --color-ink-hover: #ffffff;
   --color-on-ink: #0f0f10;
@@ -565,9 +563,9 @@ body[data-firm-colour] {
   --color-line: rgb(255 255 255 / 0.1);
   --color-line-strong: #7c7c82;
   --color-canvas: #0f0f10;
-  --color-card: rgb(22 22 24 / 0.28);
-  --color-sheet: rgb(22 22 24 / 0.28);
-  --color-panel: rgb(24 24 26 / 0.88);
+  --color-card: rgb(255 255 255 / 0.04);
+  --color-sheet: rgb(255 255 255 / 0.04);
+  --color-panel: rgb(24 24 26 / 0.7);
   --color-raised: rgb(255 255 255 / 0.03);
   --color-track: rgb(255 255 255 / 0.06);
   --color-pill: rgb(255 255 255 / 0.1);
@@ -577,7 +575,7 @@ body[data-firm-colour] {
   --color-button-line: rgb(255 255 255 / 0.14);
   --color-button-hover: rgb(255 255 255 / 0.08);
   --color-button-press: rgb(255 255 255 / 0.12);
-  --color-switch-off: #7a7a80;
+  --color-switch-off: #818186;
   --color-knob: #0f0f10;
   --color-scrim: #000000;
   --color-brand: #f4f4f3;
@@ -591,7 +589,7 @@ body[data-firm-colour] {
   --color-on-brand-bar-soft: #4a4f14;
   --color-pass-plate: #ffffff;
   --color-on-pass-plate: #171800;
-  --color-urgent: #ff9187;
+  --color-urgent: #ffa299;
   --color-urgent-soft: rgb(58 26 25 / 0.8);
   --color-urgent-ink: #ffc4bc;
   --color-urgent-tile: rgb(58 26 25 / 0.9);
@@ -632,10 +630,10 @@ body[data-firm-colour] {
   --color-mark-calm: #6d6d72;
   --color-mark-grid: rgb(255 255 255 / 0.06);
   --color-mark-base: rgb(255 255 255 / 0.15);
-  --glass-filter: blur(6px) saturate(1.15);
+  --glass-filter: blur(3px) saturate(1.15);
   --float-filter: blur(12px) saturate(1.15);
   --edge-filter: blur(8px);
-  --glass-rim: inset 0 0 0 1px rgb(255 255 255 / 0.1);
+  --glass-rim: inset 0 0 0 1px rgb(255 255 255 / 0.12);
   --glass-drop: 0 0 #0000;
   --glass-drop-sm: 0 0 #0000;
   --glass-sunk: inset 0 0 0 1px rgb(255 255 255 / 0.1);
@@ -646,13 +644,10 @@ body[data-firm-colour] {
   --button-bottom: rgb(255 255 255 / 0.05);
   --button-rim: inset 0 0 0 1px rgb(255 255 255 / 0.14);
   --tint-rim: inset 0 0 0 1px rgb(0 0 0 / 0.08);
-  --tint-glow: 0 0 #0000;
   --lens-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
   --edge-fill: rgb(15 15 16 / 0.85);
   --band-from: rgb(255 255 255 / 0.04);
   --band-to: rgb(255 255 255 / 0.02);
-  --map-line: rgb(255 255 255 / 0.06);
-  --map-road: rgb(255 255 255 / 0.085);
   --radius-card: 0.75rem;
   --radius-inner: 0.75rem;
   --radius-row: 0.5rem;
@@ -749,13 +744,10 @@ body[data-firm-colour] {
   --button-bottom: rgb(255 255 255 / 0.7);
   --button-rim: inset 0 0 0 1px rgb(16 24 40 / 0.14);
   --tint-rim: inset 0 0 0 1px rgb(23 24 0 / 0.3);
-  --tint-glow: 0 0 #0000;
   --lens-shadow: inset 0 0 0 1px rgb(16 24 40 / 0.12);
   --edge-fill: rgb(242 242 240 / 0.85);
   --band-from: rgb(255 255 255 / 0.6);
   --band-to: rgb(255 255 255 / 0.3);
-  --map-line: rgb(16 24 40 / 0.05);
-  --map-road: rgb(16 24 40 / 0.07);
   --radius-card: 0.75rem;
   --radius-inner: 0.75rem;
   --radius-row: 0.5rem;
@@ -763,28 +755,10 @@ body[data-firm-colour] {
 :root:not([data-theme="light"]):has([data-office]) {
   color-scheme: dark;
   --color-canvas: #0f0f10;
-  --map-line: rgb(255 255 255 / 0.06);
-  --map-road: rgb(255 255 255 / 0.085);
 }
 :root[data-theme="light"]:has([data-office]) {
   color-scheme: light;
   --color-canvas: #f2f2f0;
-  --map-line: rgb(16 24 40 / 0.05);
-  --map-road: rgb(16 24 40 / 0.07);
-}
-
-/* Round 8's street map behind every office page (body::before, in place of round 7's wash): a still
-   picture drawn once (src/app/office-streets.svg, from the mock-up's pattern; the pre-build audit's
-   aud-16), its lines in --map-road at the picture's own strength, fixed as the page scrolls. Gone
-   with less transparency or more contrast (the fallback above hides body::before). And no bending
-   of the page behind what floats (round 7's refraction, .rf): round 8's glass is sharp. */
-body:has([data-office])::before {
-  background: var(--map-road);
-  -webkit-mask: url("./office-streets.svg") center / cover no-repeat;
-  mask: url("./office-streets.svg") center / cover no-repeat;
-}
-.rf [data-office] .glass-float {
-  backdrop-filter: var(--float-filter);
 }
 
 /* MapLibre's own parts, for the office map once it has its street map (Phase 26.2,
@@ -858,6 +832,88 @@ body:has([data-office])::before {
     display: block;
   }
 }
+/* Its + and − buttons (Phase 27.8: MapLibre's NavigationControl with no compass, named "Zoom in"
+   and "Zoom out"), top right, 12px in from the corner like the key (which moves left of them): in
+   the key's look (the panel's fill, the line's 1px edge, no blur and no drop), 8px corners, each
+   button 44px square with a line between them, the office's own focus ring, and the + and − drawn
+   as two bars in the words' colour (borders, so forced colours draw them too; no picture to load).
+   A button at the end of the zoom is greyed and says so (disabled). */
+.maplibregl-ctrl-top-right {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 10;
+  pointer-events: none;
+}
+.maplibregl-ctrl {
+  pointer-events: auto;
+}
+.maplibregl-ctrl-group {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-row);
+  background-color: var(--color-panel);
+}
+.maplibregl-ctrl-group button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 0;
+  background-color: transparent;
+  color: var(--color-ink);
+  transition: background-color 150ms var(--ease-sd);
+}
+.maplibregl-ctrl-group button:first-child {
+  border-radius: calc(var(--radius-row) - 1px) calc(var(--radius-row) - 1px) 0 0;
+}
+.maplibregl-ctrl-group button:last-child {
+  border-radius: 0 0 calc(var(--radius-row) - 1px) calc(var(--radius-row) - 1px);
+}
+.maplibregl-ctrl-group button + button {
+  border-top: 1px solid var(--color-line);
+}
+.maplibregl-ctrl-group button:not(:disabled):hover {
+  background-color: var(--color-button-hover);
+}
+.maplibregl-ctrl-group button:not(:disabled):active {
+  background-color: var(--color-button-press);
+}
+.maplibregl-ctrl-group button:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+}
+.maplibregl-ctrl-group button:disabled {
+  cursor: not-allowed;
+  color: var(--color-ink-faint);
+}
+.maplibregl-ctrl-zoom-in .maplibregl-ctrl-icon,
+.maplibregl-ctrl-zoom-out .maplibregl-ctrl-icon {
+  position: relative;
+  display: block;
+  width: 0.875rem;
+  height: 0.875rem;
+}
+.maplibregl-ctrl-zoom-in .maplibregl-ctrl-icon::before,
+.maplibregl-ctrl-zoom-in .maplibregl-ctrl-icon::after,
+.maplibregl-ctrl-zoom-out .maplibregl-ctrl-icon::before {
+  content: "";
+  position: absolute;
+  top: calc(50% - 1px);
+  left: 0;
+  width: 100%;
+  height: 0;
+  border-top: 2px solid currentColor;
+  border-radius: 1px;
+}
+.maplibregl-ctrl-zoom-in .maplibregl-ctrl-icon::after {
+  transform: rotate(90deg);
+}
 
 /* The office's sizes (every page under /office carries [data-office]: src/app/office/layout.tsx):
    round 8's one scale, 12 · 13 · 14 · 16 · 20 · 30px (the pre-build audit's aud-3: nothing under
@@ -880,27 +936,29 @@ body:has([data-office]) {
 }
 
 /* When someone asks for less transparency or more contrast, or the browser can't blur: every
-   surface solid, no wash, no blur (Apple's own fallback for Liquid Glass). The words' colours
-   stay: each reads on these solid grounds as on the glass. */
+   surface solid, no blur (Apple's own fallback for Liquid Glass): round 8's solid
+   values, as the office's below (Phase 27.6), with the casual app's own to-do tint. The words'
+   colours stay: each reads on these solid grounds as on the glass. The dark blocks switch the blur
+   off again: their own --glass-filter (3px) would otherwise win over this :root's. */
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   :root {
     --color-card: #ffffff;
     --color-sheet: #ffffff;
     --color-panel: #ffffff;
-    --color-raised: #f3f4f6;
-    --color-track: #e4e5e9;
+    --color-raised: #f4f4f2;
+    --color-track: #ebebe8;
     --color-pill: #ffffff;
-    --color-active: #ffffff;
-    --color-count: #eceef1;
+    --color-active: #efefec;
+    --color-count: #efefec;
     --color-button: #ffffff;
     --color-button-line: #6e737b;
-    --color-button-hover: #f1f2f4;
-    --color-button-press: #e4e5e9;
+    --color-button-hover: #f1f1ee;
+    --color-button-press: #e8e8e5;
     --color-urgent-soft: #ffefea;
     --color-attention-soft: #fff6e0;
     --color-wait-soft: #eef4fd;
     --color-done-soft: #e9f6ee;
-    --color-quiet-soft: #f1f2f4;
+    --color-quiet-soft: #f1f1ee;
     --color-urgent-tile: #ffd8cf;
     --color-hivis: #fbe5a0;
     --color-wait-tile: #d6e4fa;
@@ -908,102 +966,105 @@ body:has([data-office]) {
     --glass-filter: none;
     --float-filter: none;
     --edge-filter: none;
-    --tile-top: #f3f4f6;
-    --tile-bottom: #f3f4f6;
+    --tile-top: #f4f4f2;
+    --tile-bottom: #f4f4f2;
     --button-top: #ffffff;
     --button-bottom: #ffffff;
-    --edge-fill: #eef1f8;
-    --band-from: #fff4d6;
+    --edge-fill: #f2f2f0;
+    --band-from: #ffffff;
     --band-to: #ffffff;
   }
   :root[data-theme="dark"] {
-    --color-card: #18191c;
-    --color-sheet: #18191c;
-    --color-panel: #18191c;
-    --color-raised: #232529;
-    --color-track: #2a2c31;
-    --color-pill: #2c2e33;
-    --color-active: #2c2e33;
-    --color-count: #232529;
-    --color-button: #18191c;
-    --color-button-line: #8a8e96;
-    --color-button-hover: #222428;
-    --color-button-press: #2a2c31;
-    --color-urgent-soft: #2a1614;
-    --color-attention-soft: #261f10;
-    --color-wait-soft: #111a28;
-    --color-done-soft: #10201a;
-    --color-quiet-soft: #222428;
-    --color-urgent-tile: #3d1d19;
+    --color-card: #161618;
+    --color-sheet: #161618;
+    --color-panel: #1b1b1d;
+    --color-raised: #1f1f21;
+    --color-track: #232325;
+    --color-pill: #2c2c2f;
+    --color-active: #262628;
+    --color-count: #262628;
+    --color-button: #1f1f21;
+    --color-button-line: #8a8a90;
+    --color-button-hover: #262628;
+    --color-button-press: #2c2c2f;
+    --color-urgent-soft: #3a1a19;
+    --color-attention-soft: #33260f;
+    --color-wait-soft: #172338;
+    --color-done-soft: #15291a;
+    --color-quiet-soft: #1f1f21;
+    --color-urgent-tile: #3a1a19;
     --color-hivis: #3a2f10;
-    --color-wait-tile: #172a45;
-    --color-done-tile: #15301f;
-    --tile-top: #232529;
-    --tile-bottom: #232529;
-    --button-top: #18191c;
-    --button-bottom: #18191c;
-    --edge-fill: #07080c;
-    --band-from: #1f1c16;
-    --band-to: #18191c;
-  }
-  body::before {
-    display: none;
+    --color-wait-tile: #172338;
+    --color-done-tile: #15291a;
+    --glass-filter: none;
+    --float-filter: none;
+    --edge-filter: none;
+    --tile-top: #1f1f21;
+    --tile-bottom: #1f1f21;
+    --button-top: #1f1f21;
+    --button-bottom: #1f1f21;
+    --edge-fill: #0f0f10;
+    --band-from: #1b1b1d;
+    --band-to: #161618;
   }
 }
 @media (prefers-reduced-transparency: reduce) and (prefers-color-scheme: dark),
   (prefers-contrast: more) and (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --color-card: #18191c;
-    --color-sheet: #18191c;
-    --color-panel: #18191c;
-    --color-raised: #232529;
-    --color-track: #2a2c31;
-    --color-pill: #2c2e33;
-    --color-active: #2c2e33;
-    --color-count: #232529;
-    --color-button: #18191c;
-    --color-button-line: #8a8e96;
-    --color-button-hover: #222428;
-    --color-button-press: #2a2c31;
-    --color-urgent-soft: #2a1614;
-    --color-attention-soft: #261f10;
-    --color-wait-soft: #111a28;
-    --color-done-soft: #10201a;
-    --color-quiet-soft: #222428;
-    --color-urgent-tile: #3d1d19;
+    --color-card: #161618;
+    --color-sheet: #161618;
+    --color-panel: #1b1b1d;
+    --color-raised: #1f1f21;
+    --color-track: #232325;
+    --color-pill: #2c2c2f;
+    --color-active: #262628;
+    --color-count: #262628;
+    --color-button: #1f1f21;
+    --color-button-line: #8a8a90;
+    --color-button-hover: #262628;
+    --color-button-press: #2c2c2f;
+    --color-urgent-soft: #3a1a19;
+    --color-attention-soft: #33260f;
+    --color-wait-soft: #172338;
+    --color-done-soft: #15291a;
+    --color-quiet-soft: #1f1f21;
+    --color-urgent-tile: #3a1a19;
     --color-hivis: #3a2f10;
-    --color-wait-tile: #172a45;
-    --color-done-tile: #15301f;
-    --tile-top: #232529;
-    --tile-bottom: #232529;
-    --button-top: #18191c;
-    --button-bottom: #18191c;
-    --edge-fill: #07080c;
-    --band-from: #1f1c16;
-    --band-to: #18191c;
+    --color-wait-tile: #172338;
+    --color-done-tile: #15291a;
+    --glass-filter: none;
+    --float-filter: none;
+    --edge-filter: none;
+    --tile-top: #1f1f21;
+    --tile-bottom: #1f1f21;
+    --button-top: #1f1f21;
+    --button-bottom: #1f1f21;
+    --edge-fill: #0f0f10;
+    --band-from: #1b1b1d;
+    --band-to: #161618;
   }
 }
-/* A browser that can't blur at all: every surface solid too, as above (the wash still shows
-   round them), so no word sits on see-through glass with nothing frosting what's behind it. */
+/* A browser that can't blur at all: every surface solid too, as above, so no word sits on
+   see-through glass with nothing frosting what's behind it. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   :root {
     --color-card: #ffffff;
     --color-sheet: #ffffff;
     --color-panel: #ffffff;
-    --color-raised: #f3f4f6;
-    --color-track: #e4e5e9;
+    --color-raised: #f4f4f2;
+    --color-track: #ebebe8;
     --color-pill: #ffffff;
-    --color-active: #ffffff;
-    --color-count: #eceef1;
+    --color-active: #efefec;
+    --color-count: #efefec;
     --color-button: #ffffff;
     --color-button-line: #6e737b;
-    --color-button-hover: #f1f2f4;
-    --color-button-press: #e4e5e9;
+    --color-button-hover: #f1f1ee;
+    --color-button-press: #e8e8e5;
     --color-urgent-soft: #ffefea;
     --color-attention-soft: #fff6e0;
     --color-wait-soft: #eef4fd;
     --color-done-soft: #e9f6ee;
-    --color-quiet-soft: #f1f2f4;
+    --color-quiet-soft: #f1f1ee;
     --color-urgent-tile: #ffd8cf;
     --color-hivis: #fbe5a0;
     --color-wait-tile: #d6e4fa;
@@ -1011,81 +1072,86 @@ body:has([data-office]) {
     --glass-filter: none;
     --float-filter: none;
     --edge-filter: none;
-    --tile-top: #f3f4f6;
-    --tile-bottom: #f3f4f6;
+    --tile-top: #f4f4f2;
+    --tile-bottom: #f4f4f2;
     --button-top: #ffffff;
     --button-bottom: #ffffff;
-    --edge-fill: #eef1f8;
-    --band-from: #fff4d6;
+    --edge-fill: #f2f2f0;
+    --band-from: #ffffff;
     --band-to: #ffffff;
   }
   :root[data-theme="dark"] {
-    --color-card: #18191c;
-    --color-sheet: #18191c;
-    --color-panel: #18191c;
-    --color-raised: #232529;
-    --color-track: #2a2c31;
-    --color-pill: #2c2e33;
-    --color-active: #2c2e33;
-    --color-count: #232529;
-    --color-button: #18191c;
-    --color-button-line: #8a8e96;
-    --color-button-hover: #222428;
-    --color-button-press: #2a2c31;
-    --color-urgent-soft: #2a1614;
-    --color-attention-soft: #261f10;
-    --color-wait-soft: #111a28;
-    --color-done-soft: #10201a;
-    --color-quiet-soft: #222428;
-    --color-urgent-tile: #3d1d19;
+    --color-card: #161618;
+    --color-sheet: #161618;
+    --color-panel: #1b1b1d;
+    --color-raised: #1f1f21;
+    --color-track: #232325;
+    --color-pill: #2c2c2f;
+    --color-active: #262628;
+    --color-count: #262628;
+    --color-button: #1f1f21;
+    --color-button-line: #8a8a90;
+    --color-button-hover: #262628;
+    --color-button-press: #2c2c2f;
+    --color-urgent-soft: #3a1a19;
+    --color-attention-soft: #33260f;
+    --color-wait-soft: #172338;
+    --color-done-soft: #15291a;
+    --color-quiet-soft: #1f1f21;
+    --color-urgent-tile: #3a1a19;
     --color-hivis: #3a2f10;
-    --color-wait-tile: #172a45;
-    --color-done-tile: #15301f;
-    --tile-top: #232529;
-    --tile-bottom: #232529;
-    --button-top: #18191c;
-    --button-bottom: #18191c;
-    --edge-fill: #07080c;
-    --band-from: #1f1c16;
-    --band-to: #18191c;
+    --color-wait-tile: #172338;
+    --color-done-tile: #15291a;
+    --glass-filter: none;
+    --float-filter: none;
+    --edge-filter: none;
+    --tile-top: #1f1f21;
+    --tile-bottom: #1f1f21;
+    --button-top: #1f1f21;
+    --button-bottom: #1f1f21;
+    --edge-fill: #0f0f10;
+    --band-from: #1b1b1d;
+    --band-to: #161618;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --color-card: #18191c;
-      --color-sheet: #18191c;
-      --color-panel: #18191c;
-      --color-raised: #232529;
-      --color-track: #2a2c31;
-      --color-pill: #2c2e33;
-      --color-active: #2c2e33;
-      --color-count: #232529;
-      --color-button: #18191c;
-      --color-button-line: #8a8e96;
-      --color-button-hover: #222428;
-      --color-button-press: #2a2c31;
-      --color-urgent-soft: #2a1614;
-      --color-attention-soft: #261f10;
-      --color-wait-soft: #111a28;
-      --color-done-soft: #10201a;
-      --color-quiet-soft: #222428;
-      --color-urgent-tile: #3d1d19;
+      --color-card: #161618;
+      --color-sheet: #161618;
+      --color-panel: #1b1b1d;
+      --color-raised: #1f1f21;
+      --color-track: #232325;
+      --color-pill: #2c2c2f;
+      --color-active: #262628;
+      --color-count: #262628;
+      --color-button: #1f1f21;
+      --color-button-line: #8a8a90;
+      --color-button-hover: #262628;
+      --color-button-press: #2c2c2f;
+      --color-urgent-soft: #3a1a19;
+      --color-attention-soft: #33260f;
+      --color-wait-soft: #172338;
+      --color-done-soft: #15291a;
+      --color-quiet-soft: #1f1f21;
+      --color-urgent-tile: #3a1a19;
       --color-hivis: #3a2f10;
-      --color-wait-tile: #172a45;
-      --color-done-tile: #15301f;
-      --tile-top: #232529;
-      --tile-bottom: #232529;
-      --button-top: #18191c;
-      --button-bottom: #18191c;
-      --edge-fill: #07080c;
-      --band-from: #1f1c16;
-      --band-to: #18191c;
+      --color-wait-tile: #172338;
+      --color-done-tile: #15291a;
+      --glass-filter: none;
+      --float-filter: none;
+      --edge-filter: none;
+      --tile-top: #1f1f21;
+      --tile-bottom: #1f1f21;
+      --button-top: #1f1f21;
+      --button-bottom: #1f1f21;
+      --edge-fill: #0f0f10;
+      --band-from: #1b1b1d;
+      --band-to: #161618;
     }
   }
 }
 
 /* Round 8's office, solid: with less transparency or more contrast, or in a browser that can't
-   blur, every office surface is solid too and the street map goes (it stays round them with no
-   blur), as the app's own looks above. */
+   blur, every office surface is solid too, as the app's own looks above. */
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   :root:not([data-theme="light"]) [data-office] {
     --color-card: #161618;
@@ -1239,20 +1305,10 @@ body:has([data-office]) {
     font-variant-numeric: tabular-nums;
   }
 
-  /* The wash (round 7): four soft lights fixed behind every page, under everything, so the glass
-     has colour to show through it. Off with reduced transparency or more contrast (above). */
-  body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    background:
-      radial-gradient(70rem 48rem at -4% -10%, var(--wash-a), transparent 62%),
-      radial-gradient(62rem 48rem at 104% 4%, var(--wash-b), transparent 58%),
-      radial-gradient(62rem 50rem at 62% 104%, var(--wash-c), transparent 60%),
-      radial-gradient(56rem 44rem at 4% 96%, var(--wash-d), transparent 60%);
-  }
+  /* Behind every page, the casual app's and the office's, a plain colour: <body>'s `bg-canvas`
+     (src/app/layout.tsx), charcoal or off-white. <html> has no background of its own, so <body>'s
+     fills the window. Nothing is drawn over it (Phase 27.7, Dylan: "Yes plain colour": round 8's
+     made-up street pattern is gone, as round 7's wash went before it). */
 
   /* One focus ring everywhere, shown for keyboard use. */
   :focus-visible {
@@ -1298,8 +1354,9 @@ body:has([data-office]) {
 
 /* --- The glass (Phase 24) ------------------------------------------------------------------ */
 
-/* A section: a card, a list, a table, a panel. Frosted: what's behind it blurred and saturated, a
-   lit rim and a soft drop. Only a section blurs; what lies inside it is clear glass. */
+/* A section: a card, a list, a table, a panel. Frosted: what's behind it blurred a little (round
+   8: translucent and sharp), one even hairline and no drop at rest. Only a section blurs; what
+   lies inside it is clear glass. */
 @utility glass {
   background-color: var(--color-card);
   -webkit-backdrop-filter: var(--glass-filter);
@@ -1316,43 +1373,37 @@ body:has([data-office]) {
   }
 }
 
-/* What floats over the page: the rail, the top bar's capsules, the tab bar, panels, menus, the
-   confirmation. The strongest glass; in Chrome the page behind it bends a little too (an SVG
-   displacement in front of the blur, from the root layout's #lg-refract, only where <html> has
-   .rf: other browsers get the frost alone). */
+/* What floats over the page: the office's top bar on a phone, its menus and panels, the casual
+   app's tab bar, the sheet, the confirmation. The strongest glass, frosted and sharp: nothing
+   bends what's behind it (round 7's refraction went with Phase 27.6: round 8's glass is sharp
+   everywhere). */
 @utility glass-float {
   background-color: var(--color-panel);
   -webkit-backdrop-filter: var(--float-filter);
   backdrop-filter: var(--float-filter);
   box-shadow: var(--float-shadow);
-  .rf & {
-    backdrop-filter: url(#lg-refract) var(--float-filter);
-  }
-  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-    .rf & {
-      backdrop-filter: none;
-    }
-  }
   @media (forced-colors: active) {
     border: 1px solid CanvasText;
   }
 }
 
-/* A part inside a section: a tile (a date, a figure), a field, an inner card. A translucent white
-   gradient with the lit rim; it doesn't blur again. */
+/* A part inside a section: a tile (a date, a figure), a field, an inner card. A faint translucent
+   fill (a gradient whose ends round 8 makes the same) with the glass's hairline; it doesn't blur
+   again. */
 @utility glass-tile {
   background-color: transparent;
   background-image: linear-gradient(180deg, var(--tile-top), var(--tile-bottom));
   box-shadow: var(--glass-rim);
 }
 
-/* The pass's top (Phase 24, 24.6): a warm translucent band over its section's glass, solid in the
-   fallbacks. */
+/* The pass's top (Phase 24, 24.6): a lighter translucent band over its section's glass (warm in
+   round 7, neutral in round 8), solid in the fallbacks. */
 @utility glass-band {
   background-image: linear-gradient(135deg, var(--band-from), var(--band-to));
 }
 
-/* A clear glass button or count: a brighter gradient, a bright rim and a soft drop. */
+/* A clear glass button or count: a brighter fill (a gradient, its ends the same in round 8) and
+   its hairline, no drop at rest (round 8). */
 @utility glass-button {
   background-color: transparent;
   background-image: linear-gradient(180deg, var(--button-top), var(--button-bottom));
@@ -1363,23 +1414,21 @@ body:has([data-office]) {
 }
 
 /* The main button: tinted glass in the firm's colour, from the colour at the top to its shade at
-   the foot (always further from the words: brand-values.ts), with a lit top edge and a soft drop
-   in its own colour. */
+   the foot (always further from the words: brand-values.ts; flat hi-vis in the office), with its
+   edge and no glow (round 8: round 7's soft drop in its own colour went from the office in Phase
+   26 and from the casual app in Phase 27.6). */
 @utility glass-tint {
   background-color: var(--color-tint);
   background-image: linear-gradient(180deg, var(--color-tint), var(--color-tint-shade));
   color: var(--color-on-tint);
-  /* Its soft drop in its own colour (round 7); none in the office (round 8: no glow). */
-  box-shadow:
-    var(--tint-rim),
-    var(--tint-glow, 0 8px 22px color-mix(in srgb, var(--color-tint) 32%, transparent));
+  box-shadow: var(--tint-rim);
   @media (forced-colors: active) {
     border: 1px solid ButtonText;
   }
 }
 
 /* A status's tinted glass (a chip, a coloured count): its tint is a translucent status colour
-   (`urgent-soft`, `hivis` and so on, solid in the fallbacks), with the glass's lit rim. */
+   (`urgent-soft`, `hivis` and so on, solid in the fallbacks), with the glass's hairline. */
 @utility glass-rim {
   box-shadow: var(--glass-rim);
   @media (forced-colors: active) {

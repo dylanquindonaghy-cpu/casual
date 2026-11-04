@@ -23,7 +23,7 @@ export function Fact({ label, children }: { label: string; children: ReactNode }
   );
 }
 
-// "Getting there", from her home area, as three figures (the full line for screen readers).
+// "Getting there", from her travel area, as three figures (the full line for screen readers).
 export function TravelFigures({ travel, timeZone }: { travel: TravelFacts; timeZone: string }) {
   const strip = travelStrip(travel);
   return (
@@ -79,7 +79,7 @@ export function BringAndWear({ text }: { text: string }) {
   );
 }
 
-// "£12.60 an hour", large, and "About £100.80 for the 8 hours" under it (the full words for screen
+// "£12.60 an hour", large, and "About £100.80 before tax for the 8 hours" under it (the full words for screen
 // readers): on a shift's page in its own card, under a "Pay" label on the pass's details.
 export function PayFigures({
   ratePence,
@@ -98,7 +98,7 @@ export function PayFigures({
         {pounds(ratePence)} an hour
       </p>
       <p aria-hidden="true" className="text-base text-ink-muted tabular-nums">
-        About {pounds(Math.round(ratePence * hours))} for the {hoursText(hours)}
+        About {pounds(Math.round(ratePence * hours))} before tax for the {hoursText(hours)}
       </p>
     </div>
   );

@@ -26,6 +26,7 @@ import { bookShift } from "../../src/lib/roster/book";
 import { cancelBooking } from "../../src/lib/roster/cancel";
 import { automaticEventId, createNamedEvent } from "../../src/lib/roster/shift-events";
 import { withdrawStrike } from "../../src/lib/strikes/manage";
+import { STRIKE_WARNING_VERSION } from "../../src/lib/strikes/words";
 import { fakePoint } from "../../src/lib/travel/geocoder";
 
 // Rows an e2e test needs that the seed doesn't have yet, written to the e2e database (never the
@@ -176,7 +177,7 @@ export async function addOpenShift(
   }
 }
 
-// An event of a spec's own (named, as "Shifts for an event" makes) holding one open session at a
+// An event of a spec's own (named, as "Sessions for an event" makes) holding one open session at a
 // site of its own (`site`, so a casual's list can find it), starting `daysAhead` days from now:
 // switching it off can't hide another spec's shifts. `urgent`: marked urgent by the office.
 export async function addEventWithSession(
@@ -649,7 +650,7 @@ export async function bookAndCancel(
       shiftId: o.shiftId,
       workerId: o.workerId,
       reason: o.reason,
-      by: { ...by, warning: { kind: o.warning ?? "notice", version: "v1" } },
+      by: { ...by, warning: { kind: o.warning ?? "notice", version: STRIKE_WARNING_VERSION } },
     });
     if (cancelled.status !== "cancelled") throw new Error(`not cancelled: ${cancelled.status}`);
     const { assignmentId } = cancelled;

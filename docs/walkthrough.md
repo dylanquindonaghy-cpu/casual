@@ -156,7 +156,7 @@ the demo.
 
 The office is made for a laptop or desktop: if you switched Chrome to a phone view, press F12
 again to go back. Every office page has the same bar along the top (the counts "To fill",
-"Urgent", "Offers out" and "To check", each opening where it's worked; "Search"; a light or dark
+"Urgent", "Offers out" and "Needs attention", each opening where it's worked; "Search"; a light or dark
 button; and your initials and name) and the same menu down the left as icons, with the page you're
 on marked and a red dot where a page needs you; the button under the firm's mark shows their
 names. (In a narrow window the menu hides behind "Menu" at the top left, and "Close menu" puts it
@@ -166,17 +166,19 @@ which explains each job step by step, and "Log out".
 22. **Log in as the resourcer.** Go to `http://acme.localhost:3000/office/login`, type
     `acme.resourcer@example.com` in "Your work email", and click "Send me a link". In the dev
     window an email ("Your Acme Events office login link") has the link: open it, then click "Log
-    me in". You see the "Dashboard", with today, the pay week and its pay day under it.
+    me in". You see the "Dashboard", with today and the pay week under it ("Week 45 (paid Fri 13
+    Nov)": the day that week's shifts are paid).
 23. **The dashboard.** Under "Dashboard", "All", "Urgent", "This week" and "Next week", each with
     how many sessions have places to fill, then "Filter". Under them a map of the venues: a pin for
     each with its places to fill (red where a session there is urgent). On the map, the session you
-    picked (the soonest urgent one at first): when and where, how many are booked, how many can take
-    it, "Offer to someone" and "Open the shift". Under the map three columns: "To offer" (sessions
-    with places free, soonest first: click one to see it on the map), "Updates" (places taken,
+    picked (the soonest urgent one at first): when and where, how many are booked, how many have the
+    licence, rest and hours for it, "Offer to someone" and "Open the session". Under the map three
+    columns: "To offer" (sessions with places to fill, soonest first: click one to see it on the
+    map), "Updates" (places taken,
     cancellations, uploads to check and offers with no reply; "All updates" opens the Updates page,
     as the bell at the top does) and "Who worked?" (yesterday's racecourse bookings, each person by
-    name with "Worked" and "Didn't attend"). The top bar's "To check" counts what Needs attention
-    holds. Click "Cancellations" in the menu: every cancellation, Zoe's among them, and "nothing
+    name with "Worked", or ✕ if they didn't turn up). The top bar's "Needs attention" counts what
+    Needs attention holds. Click "Cancellations" in the menu: every cancellation, Zoe's among them, and "nothing
     here needs approving".
 24. **Offer a gap.** Back on the "Dashboard", click the paper plane on a row under "To offer". A
     panel lists who can take it: click "Send offer to …" on the first person. It says "Offered",
@@ -186,21 +188,22 @@ which explains each job step by step, and "Log out".
 25. **Enquiries, and answer a request.** Click "Enquiries": the shifts line's messages, newest
     first, each with how it was answered (on a computer the first one shows beside the list:
     click another to see it there; on a phone a message opens on its own page). Kieran Doyle's "I need to cancel please", Ben Fraser's
-    pay question ("Pay (always a person)") and Zoe Adeyemi's "Hi, any shifts for me?" came in just
-    before the demo was made. Click "Requests from the app". On Sam Walsh's time
+    pay question ("Pay: link to their pay page") and Zoe Adeyemi's "Hi, any shifts for me?" came in just
+    before the demo was made. The line under "Enquiries" counts the requests to answer too. Click
+    "Requests from the app" (its tab has their number). On Sam Walsh's time
     change, click "Approve and tell Sam". It says "Approved. Sam will be told." The message to Sam
     appears in the dev window.
 26. **Mark who worked.** Click "Dashboard" in the menu. Under "Who worked?", yesterday's
     racecourse sessions are together under one line ("{Sun 1 Nov} · Steward · Acme Demo Racecourse
-    · 10:30–18:30 · 3 sessions"), each person with "Worked" and a cross for "Didn't attend". Click
+    · 10:30–18:30"), each person with "Worked" and a ✕ for "didn't turn up". Click
     "Worked" beside one: "Marked … as worked." (A line for one session is a link to it, where
     "Mark as not attended" and "Mark the … not marked yet as worked" are too.)
-27. **Make a shift and book someone.** Click "Events & sessions", then "All shifts by day", then
-    "New shift". Pick a date next week,
-    Role "steward", Start 10:00, Finish 18:00, Places 2, and click "Create shift". On the new
+27. **Make a session and book someone.** Click "Events & sessions", then "All sessions by day",
+    then "New session". Pick a date next week,
+    Role "steward", Start 10:00, Finish 18:00, Places 2, and click "Create session". On the new
     session's page, open its "…" menu (top right) and click "Assign someone": a panel opens.
     Choose a person in "Who?" and click "Check" (if it says they can't work it, and why, choose
-    someone else), then "Assign …". It says "… is booked on this shift. They'll get a message to
+    someone else), then "Assign …". It says "… is booked on this session. They'll get a message to
     say so.", and the "Confirmed: …" message appears in the dev window.
 28. **Move it, then cancel the booking.** Close the panel, open the "…" menu again and click "Move,
     shorten or cancel": set "New start" to 11:00 and "New finish" to 19:00, choose the reason "The
@@ -208,23 +211,23 @@ which explains each job step by step, and "Log out".
     booked will be told." Close the panel: under "Casuals for this session", "Booked" lists them.
     Click "Cancel …'s booking", choose "Weather or safety", and click "Yes, cancel …'s booking":
     "Cancelled …'s booking with … notice. They'll be told."
-29. **A whole event, and an import.** Click "Events & sessions", then "Add shifts": give the event a
+29. **A whole event, and an import.** Click "Events & sessions", then "Add sessions": give the event a
     name (for example "Cup final"), pick a date and fill in two lines (for example a steward 08:00 to 16:00 and a door supervisor 20:00 to 04:00),
-    then click "Create these shifts". It says "2 shifts created." Then make the sample files in
+    then click "Create these sessions". It says "2 sessions created." Then make the sample files in
     your second Ubuntu window:
 
     ```
     npm run -s walkthrough:files
     ```
 
-    On "Events & sessions", click "Import shifts", choose `shifts.csv` (see "Opening the sample files"
-    below), click "Check the file", then "Import these shifts".
+    On "Events & sessions", click "Import sessions", choose `shifts.csv` (see "Opening the sample
+    files" below), click "Check the file", then "Import these sessions".
 30. **Cancellations.** Click "Cancellations": every cancellation, newest first, each with the
     notice given and whether it was a strike. They're recorded automatically, never approved or
     declined. Open Zoe Usman's (step 12): the record as it was, with "Download PDF" for the
     evidence.
 31. **Strikes.** Click "Strikes": the casuals with strikes that still count, most first. Kieran
-    Doyle has 2. Click "Needs review": Priya Shah's strike is there, because she cancelled for a
+    Doyle has 2. Click "They gave a reason: check it": Priya Shah's strike is there, because she cancelled for a
     reason a person should look at. Click her latest strike to open its record, then click "Keep
     strike": "Kept, and marked as reviewed." (Or "Withdraw strike…", with a reason: it then stops
     counting.)

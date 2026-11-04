@@ -136,7 +136,7 @@ test("without JavaScript: the bar in the page, the tab bar whole and plain links
   await expect(home.locator("#pass-details")).toBeHidden();
   await tapWhenStill(pass.locator("[data-pass-more] summary"));
   await expect(home.locator("#pass-details")).toBeVisible();
-  await expect(home.locator("#pass-details")).toContainText("Getting there, from your home area");
+  await expect(home.locator("#pass-details")).toContainText("Getting there, from your travel area");
 
   // Every tab a plain link: Open shifts through Shifts, "Site and role" opening the filters.
   await tapWhenStill(
@@ -164,20 +164,20 @@ test("Pay: Zoe's newest week totals £324.00 over a row per rate; Ben's has no t
   await page.goto(`${acme}/`);
   await openPay(page, ZOE);
   const latest = page.getByRole("region", { name: /^Mon \d{1,2} [A-Z][a-z]{2} to Sun / });
-  await expect(latest.getByText("Gross pay", { exact: true })).toBeVisible();
-  await expect(latest.locator("[data-pay-total]")).toHaveText("Gross pay: £324.00");
+  await expect(latest.getByText("Pay before tax", { exact: true })).toBeVisible();
+  await expect(latest.locator("[data-pay-total]")).toHaveText("Pay before tax: £324.00");
   await expect(latest.locator("[data-pay-line]")).toHaveText([
     "16 hours at £12.50 an hour",
     "8 hours at £15.50 an hour",
   ]);
-  await expect(latest.getByText(/^Pay date: Fri \d{1,2} [A-Z][a-z]{2}$/)).toBeVisible();
+  await expect(latest.getByText(/^Pay day: Fri \d{1,2} [A-Z][a-z]{2}$/)).toBeVisible();
   // Earlier weeks, one row a week, each with its total.
   const earlier = page.getByRole("region", { name: "Earlier weeks" });
   await expect(earlier.locator("[data-pay-total]")).toHaveText([
-    "Gross pay: £200.00",
-    "Gross pay: £300.00",
-    "Gross pay: £124.00",
-    "Gross pay: £200.00",
+    "Pay before tax: £200.00",
+    "Pay before tax: £300.00",
+    "Pay before tax: £124.00",
+    "Pay before tax: £200.00",
   ]);
   await expect(earlier.getByRole("listitem")).toHaveCount(4);
   await expect(page.getByText("The last 8 weeks, from Acme Events' payroll.")).toBeVisible();
@@ -190,12 +190,12 @@ test("Pay: Zoe's newest week totals £324.00 over a row per rate; Ben's has no t
   const bens = page.getByRole("region", { name: /^Mon \d{1,2} [A-Z][a-z]{2} to Sun / });
   await expect(bens.locator("[data-pay-total]")).toHaveCount(0);
   await expect(bens.locator("[data-pay-line]")).toHaveText([
-    "12 hours at £12.60 an hour Gross pay: £151.20",
+    "12 hours at £12.60 an hour Pay before tax: £151.20",
     "4 hours at £15.50 an hour",
   ]);
   await expect(
     page.getByRole("region", { name: "Earlier weeks" }).locator("[data-pay-total]"),
-  ).toHaveText(["Gross pay: £75.60"]);
+  ).toHaveText(["Pay before tax: £75.60"]);
 });
 
 // A context like this one (the phone, the session), with JavaScript switched off.

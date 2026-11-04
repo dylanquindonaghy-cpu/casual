@@ -1,7 +1,8 @@
-import { requirementChip, type Requirement } from "@/lib/credentials/requirements";
+import { casualChip, type Requirement } from "@/lib/credentials/requirements";
 
-// What a session needs, as chips ("SIA DS", "CSAS": docs/office-v2.md 4.3, 4.4; 12H.2), in the
-// office's own short names. Read out as "Needs: SIA DS, CSAS" (the comma is hidden on screen).
+// What a session needs, as chips ("SIA door supervisor licence", "CSAS accreditation":
+// docs/office-v2.md 4.3, 4.4; 12H.2), by full name. Read out as "Needs: SIA door supervisor
+// licence, CSAS accreditation" (the comma is hidden on screen).
 // Nothing when it needs nothing. A <span> inside a link (Home's cards), a <p> elsewhere.
 export function RequirementChips({
   requirements,
@@ -21,7 +22,7 @@ export function RequirementChips({
           key={r.code}
           className="rounded-full border border-transparent bg-quiet-soft px-2 py-0.5 text-sm font-semibold text-quiet-ink"
         >
-          {requirementChip(r)}
+          {casualChip(r)}
           {i < requirements.length - 1 && <span className="sr-only">,</span>}
         </span>
       ))}

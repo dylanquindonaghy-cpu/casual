@@ -189,7 +189,7 @@ export function EnquiryBody({
             <span className="font-semibold">Sorted:</span> {sortedStep(t.sorted)}
           </li>
           <li>
-            <span className="font-semibold">Checks made by code:</span>{" "}
+            <span className="font-semibold">What we checked:</span>{" "}
             {!b ? (
               NO_CHECKS
             ) : cancel ? (
@@ -214,7 +214,7 @@ export function EnquiryBody({
             )}
           </li>
           <li>
-            <span className="font-semibold">Reply built:</span>{" "}
+            <span className="font-semibold">Reply sent:</span>{" "}
             {b ? (
               <>
                 {builtWords(b.template, b.offered.length, b.more)}

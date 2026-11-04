@@ -40,16 +40,17 @@ test("a resourcer creates a shift and assigns someone the rules allow", async ({
   await expect(page.getByRole("dialog", { name: "Menu" })).toBeHidden();
   await expect(page.getByRole("navigation", { name: "Office menu" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Menu", exact: true })).toBeVisible();
-  await page.getByRole("link", { name: "All shifts by day" }).click();
-  await expect(page.getByRole("heading", { name: "Shifts", exact: true })).toBeVisible();
-  await expect(page).toHaveTitle("Shifts · Acme Events shifts");
-  await page.getByRole("link", { name: "New shift" }).click();
+  await page.getByRole("link", { name: "All sessions by day" }).click();
+  // (Phase 27.2: the office calls a shift a session, its day-by-day list too.)
+  await expect(page.getByRole("heading", { name: "Sessions", exact: true })).toBeVisible();
+  await expect(page).toHaveTitle("Sessions · Acme Events shifts");
+  await page.getByRole("link", { name: "New session" }).click();
   await page.getByLabel("Date", { exact: true }).fill(dayFromNow(12));
   await page.getByLabel("Role").fill("steward");
   await page.getByLabel("Start").fill("10:00");
   await page.getByLabel("Finish").fill("18:00");
   await page.getByLabel("Places").fill("2");
-  await page.getByRole("button", { name: "Create shift" }).click();
+  await page.getByRole("button", { name: "Create session" }).click();
   await expect(page).toHaveURL(/\/office\/shifts\/[0-9a-f-]{36}$/);
   const session = page.url();
   // Round 8 (Phase 26.6): the role and day, then its times and how full it is.
@@ -88,7 +89,7 @@ test("a resourcer creates a shift and assigns someone the rules allow", async ({
   for (const value of options.slice(0, 8)) {
     await page.getByLabel("Who?").selectOption(value);
     await page.getByRole("button", { name: "Check" }).click();
-    const yes = page.getByText(/^The rules say (.+) can work this shift\.$/);
+    const yes = page.getByText(/^The rules say (.+) can work this session\.$/);
     if (await yes.isVisible()) {
       name = ((await yes.textContent()) ?? "").replace(/^The rules say (.+) can work.*$/, "$1");
       break;
@@ -96,7 +97,7 @@ test("a resourcer creates a shift and assigns someone the rules allow", async ({
   }
   expect(name).not.toBe("");
   await page.getByRole("button", { name: `Assign ${name}` }).click();
-  await expect(page.getByText(`${name} is booked on this shift.`)).toBeVisible();
+  await expect(page.getByText(`${name} is booked on this session.`)).toBeVisible();
   await expect(page.getByText(/· 1 of 2 booked$/)).toBeVisible();
 });
 
@@ -109,15 +110,15 @@ test("several shifts for an event, and a file import checked first", async ({ pa
   await lines.nth(0).getByLabel("Role").fill("steward");
   await lines.nth(0).getByLabel("Start").fill("08:00");
   await lines.nth(0).getByLabel("Finish").fill("16:00");
-  await page.getByRole("button", { name: "Create these shifts" }).click();
+  await page.getByRole("button", { name: "Create these sessions" }).click();
   await expect(page.getByText("Enter the event's name (200 characters at most).")).toBeVisible();
   await page.getByLabel("Event name").fill("Cup final");
   await lines.nth(0).getByLabel("Pay rate, £ an hour (optional)").fill("13");
   await lines.nth(1).getByLabel("Role").fill("door supervisor");
   await lines.nth(1).getByLabel("Start").fill("20:00");
   await lines.nth(1).getByLabel("Finish").fill("04:00");
-  await page.getByRole("button", { name: "Create these shifts" }).click();
-  await expect(page.getByText("2 shifts created.")).toBeVisible();
+  await page.getByRole("button", { name: "Create these sessions" }).click();
+  await expect(page.getByText("2 sessions created.")).toBeVisible();
 
   await page.goto(`${acme}/office/shifts/import`);
   const [y, m, d] = dayFromNow(14).split("-");
@@ -131,11 +132,11 @@ test("several shifts for an event, and a file import checked first", async ({ pa
   });
   await page.getByRole("button", { name: "Check the file" }).click();
   await expect(
-    page.getByText("This file would add 1 shift, change 0, leave 0 as they are and skip 0."),
+    page.getByText("This file would add 1 session, change 0, leave 0 as they are and skip 0."),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Import these shifts" }).click();
+  await page.getByRole("button", { name: "Import these sessions" }).click();
   await expect(
-    page.getByText("Imported: 1 shift added, 0 changed, 0 left as they were, 0 skipped."),
+    page.getByText("Imported: 1 session added, 0 changed, 0 left as they were, 0 skipped."),
   ).toBeVisible();
   await page.goto(`${acme}/office/shifts?from=${dayFromNow(14)}`);
   await expect(page.getByRole("link", { name: /09:00 to 17:00 · Steward/ }).first()).toBeVisible();

@@ -72,6 +72,21 @@ describe("the login page", () => {
     );
     expect(sent("email")).not.toContain("Replied STOP");
   });
+  // Phase 27.2: which number to type, and what to do when no text comes.
+  it("the number to give, and what to do when no text comes", () => {
+    expect(form("message")).toContain(
+      "Your mobile number The number Acme Events has for you, like 07700 900123",
+    );
+    const html = renderToStaticMarkup(
+      createElement(LoginForm, { firmName, signOff, way: "message" }),
+    );
+    expect(html).toContain('aria-describedby="mobile-hint"');
+    expect(html).toContain('<p id="mobile-hint"');
+    expect(sent("message")).toContain(
+      "It works for 15 minutes. No text after 2 minutes? Check the number and try again, or contact the office.",
+    );
+    expect(sent("email")).not.toContain("No text after 2 minutes");
+  });
   it("by email: the button and the answer say email", () => {
     expect(form("email")).toContain("Email me a link");
     expect(form("email")).not.toContain("Send me a link");
@@ -94,7 +109,9 @@ describe("the Pay code step", () => {
     text(createElement(CodeGate, { way, codeWaiting }));
 
   it("by message: today's words", () => {
-    expect(gate("message", false)).toContain("To see your pay, we'll send you a 6-digit code.");
+    expect(gate("message", false)).toContain(
+      "To keep your pay private, we'll text you a 6-digit code.",
+    );
     expect(gate("message", false)).toContain("Send me a code");
     expect(gate("message", true)).toContain(
       "We've sent a 6-digit code by text. It works for 10 minutes.",
@@ -103,7 +120,7 @@ describe("the Pay code step", () => {
   });
   it("by email: the first step, the code step and its button say email", () => {
     expect(gate("email", false)).toBe(
-      "To see your pay, we'll email you a 6-digit code. Email me a code",
+      "To keep your pay private, we'll email you a 6-digit code. Email me a code",
     );
     const waiting = gate("email", true);
     expect(waiting).toContain("We've emailed you a 6-digit code. It works for 10 minutes.");
@@ -188,7 +205,9 @@ describe("Profile's How we reach you", () => {
 
   it("with a text sender, the choice: a text, or an email while we hold their address", () => {
     expect(form("message", null)).toContain('type="radio"');
-    expect(strip(form("message", null))).toContain("If a notification can't reach you, send it by");
+    expect(strip(form("message", null))).toContain(
+      "If we can't reach this phone, send my messages by",
+    );
     expect(form("message", "sam.booker@example.com")).toContain('value="email"');
     expect(form("message", null)).not.toContain('value="email"');
   });
@@ -230,13 +249,13 @@ describe("Notifications on this phone", () => {
   it("by text, as today", () => {
     expect(view("text")).toContain("Get urgent shift alerts on this phone, as well as by message.");
     expect(view("text", { state: "no_key" })).toContain(
-      "Phone notifications aren't switched on for Acme Events yet. You'll get messages by text.",
+      "Acme Events doesn't use phone notifications yet. We'll send your messages by text.",
     );
   });
   it("by email", () => {
     expect(view("email")).toContain("Get urgent shift alerts on this phone, as well as by email.");
     expect(view("email", { state: "no_key" })).toContain(
-      "Phone notifications aren't switched on for Acme Events yet. You'll get messages by email.",
+      "Acme Events doesn't use phone notifications yet. We'll send your messages by email.",
     );
     expect(view("email", { state: "unsupported" })).toContain(
       "This browser can't show notifications. You'll still get messages by email.",
@@ -248,7 +267,7 @@ describe("Notifications on this phone", () => {
   it("no other way: the email part left out", () => {
     expect(view("none")).toContain("Get urgent shift alerts on this phone.");
     expect(view("none", { state: "no_key" })).toContain(
-      "Phone notifications aren't switched on for Acme Events yet.",
+      "Acme Events doesn't use phone notifications yet.",
     );
     for (const o of [
       {},

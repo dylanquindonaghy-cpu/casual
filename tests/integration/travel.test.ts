@@ -550,7 +550,7 @@ describe("site locations on Settings", () => {
     const park = (await read())?.sites.find((s) => s.name === "Northgate Park");
     expect(park).toMatchObject({ postcode: null, located: false });
     expect(park && siteLocationText(park)).toBe(
-      "No postcode yet, so distances to this site can't be worked out.",
+      "No postcode yet, so distances to this venue can't be worked out.",
     );
     expect(
       await editSitePostcode(t.office(t.admin), park?.siteId ?? "", { postcode: "ZZ4 4DD" }),

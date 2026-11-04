@@ -272,8 +272,8 @@ describe("one record", () => {
       // Queued with the strike, not run here (12C.4).
       "Evidence email": "Sending",
       Then: "Place reopened and marked urgent · offered to 1 casual · filled again by Jo Booker at 11:00",
-      "Warning on the cancel screen":
-        "Version v1, on screen when they confirmed at 10:00 on Mon 2 Nov",
+      // The version of the words they saw (v2 since Phase 27.2's words).
+      "Warning on the cancel screen": `Version ${STRIKE_WARNING_VERSION}, on screen when they confirmed at 10:00 on Mon 2 Nov`,
     });
     expect(await t.record("ZZZZZZZZ")).toBeNull();
     expect(await t.record("not a ref")).toBeNull();

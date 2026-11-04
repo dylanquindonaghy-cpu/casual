@@ -84,7 +84,7 @@ describe("bookShift: a worker taking a shift", () => {
     expect(await book(f, asWorker(shiftId, expired))).toEqual({
       status: "not_eligible",
       reasons: [
-        "Your SIA door supervisor licence expired on 31 Oct. Renew it, then send the new number to the office.",
+        "Your SIA door supervisor licence expired on 31 Oct. Once you've renewed it, tell the office under Messages.",
       ],
       codes: ["credential_expired"],
     });

@@ -104,7 +104,7 @@ describe("booking through the rules", () => {
       status: "not_eligible",
       codes: ["credential_missing"],
       reasons: [
-        "This shift needs a valid SIA security guard licence or SIA door supervisor licence. Send one to the office to be checked.",
+        "This shift needs a valid SIA security guard licence or SIA door supervisor licence. Once you have one, tell the office under Messages so they can check it.",
       ],
     });
     expect(await f.book(await shift(), out)).toMatchObject({
@@ -197,11 +197,21 @@ describe("what a session shows, and what a casual may send", () => {
     expect(neither[0]).toMatchObject({
       code: "SIA_SG",
       name: "SIA security guard licence or SIA door supervisor licence",
-      chip: "SIA SG or SIA DS",
+      chip: "SIA security guard licence or SIA door supervisor licence",
       uploadable: true,
       anyOf: [
-        { code: "SIA_SG", name: "SIA security guard licence", chip: "SIA SG", uploadable: true },
-        { code: "SIA_DS", name: "SIA door supervisor licence", chip: "SIA DS", uploadable: true },
+        {
+          code: "SIA_SG",
+          name: "SIA security guard licence",
+          chip: "SIA security guard licence",
+          uploadable: true,
+        },
+        {
+          code: "SIA_DS",
+          name: "SIA door supervisor licence",
+          chip: "SIA door supervisor licence",
+          uploadable: true,
+        },
       ],
     });
     // Holding one, just that one, as before; and a session asking for one outright isn't a choice.

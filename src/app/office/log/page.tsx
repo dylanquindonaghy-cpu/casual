@@ -76,10 +76,10 @@ export default async function ActionLogPage({
             </div>
             <div className="col-span-2 flex min-w-0 flex-col gap-1 md:col-span-3 xl:col-span-1">
               <label htmlFor="log-shift" className={label}>
-                Shift
+                Session
               </label>
               <select id="log-shift" name="shift" defaultValue={f.shift ?? ""} className={select}>
-                <option value="">All shifts</option>
+                <option value="">All sessions</option>
                 {log.shifts.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.label}
@@ -135,8 +135,8 @@ export default async function ActionLogPage({
           </div>
         </form>
         <p className={`${hint} mt-3`}>
-          A shift shows only the chosen dates here. For all of one shift, open it and choose
-          &quot;See this shift in the action log&quot;.
+          A session shows only the chosen dates here. For all of one session, open it and choose
+          &quot;See this session in the action log&quot;.
         </p>
         {/* Phase 26.10 (fix-4): logins only under their own type. */}
         {!query.type && (
@@ -147,7 +147,7 @@ export default async function ActionLogPage({
       <p className="mt-8 font-semibold">
         {f.from && f.to
           ? `${dayWithYear(f.from, log.thisYear)} to ${dayWithYear(f.to, log.thisYear)}.`
-          : "Everything logged for this shift."}
+          : "Everything logged for this session."}
         {log.clamped ? " At most 92 days at a time." : ""}
       </p>
 

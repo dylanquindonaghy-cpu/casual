@@ -42,7 +42,7 @@ export default async function OfficeDataPage() {
 
       <section className={sectionGap.office} aria-labelledby="data-all-heading">
         <h2 id="data-all-heading" className={h2}>
-          All {firm.name}&rsquo;s data
+          All your firm&rsquo;s data
         </h2>
         <div className={`${card} ${headingGap}`}>
           <p>

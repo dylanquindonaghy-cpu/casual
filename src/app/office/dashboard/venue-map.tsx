@@ -9,6 +9,7 @@ import {
   MAP_KEY,
   MAP_TABLE,
   MAP_TABLE_HEADS,
+  mapCountLine,
   mapFoot,
   pinDays,
   pinLabel,
@@ -35,13 +36,16 @@ import { Icon } from "../../ui/icons";
 // venue's soonest session in the card (so it works before the page is ready). Two ways to draw it:
 //
 // - With a street map (`tiles`: the firm's UK map file, MAP_TILES_URL, on our own server): MapLibre
-//   draws the streets from the file (Protomaps' layers, no labels: the pins carry the names), the
-//   pins are its markers, it fits the venues, drag moves it and the wheel or a pinch zooms; on a
-//   phone it takes two fingers to move (one scrolls the page) and on a laptop Ctrl + scroll zooms
-//   (MapLibre's cooperative gestures: aud-7). "© OpenStreetMap contributors" shows on it.
+//   draws the streets from the file (Protomaps' layers with their names: towns, areas, streets,
+//   water; their letter shapes from our own server: src/lib/office/map-style.ts, Phase 27.8), the
+//   pins are its markers (over the names), it fits the venues, drag moves it and the wheel or a
+//   pinch zooms; on a phone it takes two fingers to move (one scrolls the page) and on a laptop
+//   Ctrl + scroll zooms (MapLibre's cooperative gestures: aud-7). + and − buttons top right zoom
+//   it too, down to each building (the key moves left of them). "© OpenStreetMap contributors"
+//   shows on it.
 // - Without one (dev, the tests, before the file is up): the pins placed by their own latitude and
-//   longitude (venue-map-geo.ts, Web Mercator), fitted into the box, on the office's own faint
-//   street pattern, and the foot says so. Nothing is placed by guesswork: a venue with no position
+//   longitude (venue-map-geo.ts, Web Mercator), fitted into the box, on its plain glass (no picture
+//   behind it since Phase 27.7), and the foot says so. Nothing is placed by guesswork: a venue with no position
 //   is listed under the map.
 //
 // Every pin is also a row in To offer (aud-7), so nobody needs the map to act. On a phone the map
@@ -141,12 +145,19 @@ export function VenueMap({
   const keyBox = useRef<HTMLUListElement>(null);
   const [markers, setMarkers] = useState<Map<string, HTMLElement> | null>(null);
   const [measured, setMeasured] = useState<Measured | null>(null);
-  // With a street map: where each venue is on screen now (it moves), for its label's side.
+  // With a street map: where each venue is on screen now (it moves), for its label's side, and
+  // how far it's zoomed in (on the box as data-zoom, for the browser tests).
   const [projected, setProjected] = useState<{ x: number; y: number }[] | null>(null);
+  const [zoom, setZoom] = useState<number | null>(null);
   const widths = useRef(new Map<string, number>());
   const order = labelOrder(placed, chosenSite);
+  const [streets, setStreets] = useState<"none" | "loading" | "shown" | "failed">(
+    tiles ? "loading" : "none",
+  );
+  const onStreets = markers !== null && streets !== "failed";
 
-  // The box, the card's part of it and the labels, measured now and whenever the box changes size.
+  // The box, the card's part of it and the labels, measured now, whenever the box changes size
+  // and once the streets are on (the key moves left of the + and − buttons then).
   const measure = useCallback(() => {
     const el = box.current;
     if (!el) return;
@@ -162,19 +173,38 @@ export function VenueMap({
     }
     const phone = getComputedStyle(keyBox.current ?? el).display === "none";
     const key = keyBox.current;
+    // With the streets, the + and − buttons (MapLibre's, top right): no label goes under them.
+    const zoomButtons = el.querySelector<HTMLElement>(
+      ".maplibregl-ctrl-top-right .maplibregl-ctrl",
+    );
+    const zoomAt = zoomButtons?.getBoundingClientRect();
+    const boxAt = el.getBoundingClientRect();
     setMeasured({
       box: { width: el.clientWidth, height: el.clientHeight, inset },
-      avoid:
-        key && !phone
-          ? [
-              {
-                x0: key.offsetLeft,
-                y0: key.offsetTop,
-                x1: key.offsetLeft + key.offsetWidth,
-                y1: key.offsetTop + key.offsetHeight,
-              },
-            ]
-          : [],
+      avoid: phone
+        ? []
+        : [
+            ...(key
+              ? [
+                  {
+                    x0: key.offsetLeft,
+                    y0: key.offsetTop,
+                    x1: key.offsetLeft + key.offsetWidth,
+                    y1: key.offsetTop + key.offsetHeight,
+                  },
+                ]
+              : []),
+            ...(zoomAt
+              ? [
+                  {
+                    x0: zoomAt.left - boxAt.left,
+                    y0: zoomAt.top - boxAt.top,
+                    x1: zoomAt.right - boxAt.left,
+                    y1: zoomAt.bottom - boxAt.top,
+                  },
+                ]
+              : []),
+          ],
       widths: placed.map((v) => (phone ? null : (widths.current.get(v.siteId) ?? null))),
     });
     // The venues are the page's; a new set comes with a new page (the key on the board).
@@ -188,10 +218,8 @@ export function VenueMap({
     const watch = new ResizeObserver(() => measure());
     watch.observe(el);
     return () => watch.disconnect();
-  }, [measure]);
-  const [streets, setStreets] = useState<"none" | "loading" | "shown" | "failed">(
-    tiles ? "loading" : "none",
-  );
+    // Measured again once the streets are on: the key has moved and the buttons are there.
+  }, [measure, onStreets]);
 
   // The street map, when the firm has one: MapLibre and the file's reader, loaded only then.
   useEffect(() => {
@@ -200,10 +228,10 @@ export function VenueMap({
     let cleanup = () => {};
     void (async () => {
       try {
-        const [maplibregl, { Protocol }, basemaps] = await Promise.all([
+        const [maplibregl, { Protocol }, mapStyle] = await Promise.all([
           import("maplibre-gl"),
           import("pmtiles"),
-          import("@protomaps/basemaps"),
+          import("@/lib/office/map-style"),
         ]);
         if (gone || !box.current) return;
         // Its web worker from our own route (../map-worker/route.ts): where the bundler leaves it,
@@ -214,26 +242,23 @@ export function VenueMap({
         const dark = document.documentElement.dataset.theme !== "light";
         const map = new maplibregl.Map({
           container: box.current,
-          style: {
-            version: 8,
-            sources: {
-              protomaps: {
-                type: "vector",
-                url: `pmtiles://${tiles}`,
-                attribution: MAP_ATTRIBUTION,
-              },
-            },
-            // The streets, water and land, no words: the pins carry the names.
-            layers: basemaps
-              .layers("protomaps", basemaps.namedFlavor(dark ? "dark" : "light"), { lang: "en" })
-              .filter((l) => l.type !== "symbol"),
-          },
+          // The streets, water, land and their names, in the office's look (light with the
+          // sd-theme cookie's light, else dark), the letter shapes from our own server.
+          style: mapStyle.mapStyle(tiles, dark ? "dark" : "light", MAP_ATTRIBUTION),
+          maxZoom: mapStyle.MAP_MAX_ZOOM,
           attributionControl: false,
           cooperativeGestures: true,
           dragRotate: false,
           pitchWithRotate: false,
+          locale: {
+            "NavigationControl.ZoomIn": "Zoom in",
+            "NavigationControl.ZoomOut": "Zoom out",
+          },
         });
         map.touchZoomRotate.disableRotation();
+        // The + and − buttons, top right (no compass: the map never turns). Their look is the
+        // office's (src/app/globals.css, "MapLibre's own parts").
+        map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
         const bounds = venueBounds(placed);
         // Fitted to the part of the map the card leaves.
         const card = cardBox.current;
@@ -244,7 +269,7 @@ export function VenueMap({
         if (bounds)
           map.fitBounds(bounds, {
             padding: { top: 64, right: 64, bottom: 64, left: left + 64 },
-            maxZoom: 13,
+            maxZoom: mapStyle.MAP_FIT_MAX_ZOOM,
             duration: 0,
           });
         const els = new Map<string, HTMLElement>();
@@ -269,6 +294,7 @@ export function VenueMap({
           );
           pins.forEach((m, i) => m.setOffset([spread[i]!.x - at[i]!.x, spread[i]!.y - at[i]!.y]));
           setProjected(spread);
+          setZoom(map.getZoom());
         };
         map.on("moveend", project);
         project();
@@ -291,7 +317,6 @@ export function VenueMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tiles]);
 
-  const onStreets = markers !== null && streets !== "failed";
   // Without the streets: until the page has measured the map, each pin by share of the part the
   // card leaves (its shape near enough a laptop's); then in its real pixels.
   const shares = placePins(placed, { width: 1000 - 432, height: 528 });
@@ -314,6 +339,7 @@ export function VenueMap({
         <div
           ref={box}
           data-venue-map={onStreets ? "streets" : "plain"}
+          data-zoom={onStreets && zoom !== null ? zoom.toFixed(2) : undefined}
           className="glass relative h-75 overflow-hidden rounded-inner [--inset:0px] @min-[64rem]:h-132 @min-[64rem]:[--inset:27rem]"
         >
           {!onStreets &&
@@ -372,12 +398,14 @@ export function VenueMap({
               © OpenStreetMap contributors
             </p>
           )}
-          {/* The key, top right (from 640px: the pins' words say it on a phone). */}
+          {/* The key, top right (from 640px: the pins' words say it on a phone); with the streets,
+              left of their + and − buttons (46px wide with their edge, 12px in from the corner, 8px
+              apart). */}
           <ul
             ref={keyBox}
             role="list"
             aria-label="Key"
-            className="pointer-events-none absolute top-3 right-3 z-10 hidden flex-wrap justify-end gap-2 @min-[40rem]:flex"
+            className="pointer-events-none absolute top-3 right-3 z-10 hidden flex-wrap justify-end gap-2 @min-[40rem]:flex in-data-[venue-map=streets]:right-16.5"
           >
             {(
               [
@@ -408,10 +436,7 @@ export function VenueMap({
       </div>
       <p className="flex flex-wrap justify-between gap-x-4 gap-y-1 px-1 text-xs text-ink-faint">
         <span>{mapFoot(onStreets)}</span>
-        <span className="tabular-nums">
-          {venues.length === 1 ? "1 venue" : `${venues.length} venues`} ·{" "}
-          {total === 1 ? "1 place to fill" : `${total} places to fill`}
-        </span>
+        <span className="tabular-nums">{mapCountLine(venues.length, total, view)}</span>
       </p>
       {unplaced.length > 0 && (
         <p className="px-1 text-xs text-ink-muted">{unplacedLine(unplaced)}</p>

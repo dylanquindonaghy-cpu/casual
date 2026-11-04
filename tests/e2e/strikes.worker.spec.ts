@@ -73,12 +73,12 @@ test("a cancellation under 48 hours shows the warning and records a strike; one 
     const sheet = page.getByRole("dialog", { name: "Can't make it?" });
     // The strike notice in its own box (Phase 20): pale red with a red edge and its mark.
     const notice = sheet.getByRole("note");
-    await expect(notice).toHaveCSS("background-color", "rgba(255, 216, 207, 0.8)"); // urgent-tile, tinted glass
+    await expect(notice).toHaveCSS("background-color", "rgba(255, 216, 207, 0.9)"); // urgent-tile, tinted glass (round 8's, Phase 27.6)
     await expect(notice).toHaveCSS("border-top-style", "solid");
     await expect(notice).toHaveCSS("border-top-color", "rgb(176, 32, 31)"); // urgent (#b0201f)
     await expect(notice.locator("svg")).toHaveCount(1);
     await expect(sheet.getByRole("note")).toHaveText(
-      /^This shift starts in (19|20) hours\. Cancelling with less than 48 hours' notice gives you a strike\. Acme Events' strikes team gets a record of it\. You have \d+ strikes? in the last 90 days\.$/,
+      /^This shift starts in (19|20) hours\. Cancelling now gives you a strike \(less than 48 hours' notice\)\. A strike is a record, not a fine\. It never comes off your pay\. You have \d+ strikes? in the last 90 days\.$/,
     );
     await expect(
       sheet.getByText(
@@ -108,7 +108,7 @@ test("a cancellation under 48 hours shows the warning and records a strike; one 
       /^This shift starts in \d days\. Cancelling now doesn't give you a strike\.$/,
     );
     // No strike: its box is pale green with a green edge and a tick.
-    await expect(notice).toHaveCSS("background-color", "rgba(210, 239, 219, 0.8)"); // done-tile, tinted glass
+    await expect(notice).toHaveCSS("background-color", "rgba(210, 239, 219, 0.9)"); // done-tile, tinted glass (round 8's, Phase 27.6)
     await expect(notice).toHaveCSS("border-top-style", "solid");
     await expect(notice).toHaveCSS("border-top-color", "rgb(22, 101, 52)"); // done (#166534)
     await expect(notice.locator("svg")).toHaveCount(1);

@@ -1,10 +1,11 @@
 # UI design system
 
 How every screen looks and is laid out. Added 2026-10-05 (Phase 11) at Dylan's request: "make it a
-lot easier to see and understand where everything is". The newest look is first: "Phase 26" for
-the office (round 8), "Phase 24" for the casual app (round 7, and the office's parts that round 8
-doesn't change); the sections after them are the earlier phases, kept for their reasons where they
-still stand.
+lot easier to see and understand where everything is". The newest look is first: "Phase 27.7" (a
+plain colour behind every page), "Phase 27.6"
+(the casual app in round 8's look), "Phase 26" (round 8, the office's first), "Phase 24" (the glass's
+parts, which round 8 keeps, and round 7's wash and values, now replaced); the sections after them are
+the earlier phases, kept for their reasons where they still stand.
 Words on screens still come from `docs/screens.md`; this file covers layout, hierarchy, colour
 and components only.
 
@@ -18,16 +19,136 @@ Principles, in order:
    destructive.
 4. **Colour is never the only signal.** Every coloured status carries its word. Contrast meets
    WCAG AA (text 4.5:1, borders and controls 3:1).
-5. **Glass, and nothing else for decoration** (Phase 24, Dylan's round 7; in the office, round 8's
-   translucent and sharp glass over a faint street map: "Phase 26"). Sections, buttons and
-   what floats are translucent glass over one soft pastel wash, in the office and the casual app
-   alike (see "Phase 24"); no grain, glows, coloured shadows or images. Motion only to show what
-   changed, as Phase 18's spec (below), and press feedback. The firm's colour tints the one main
-   button and marks where you are, never a status. One face, Geist, for every word, headline and
+5. **Glass, and nothing else for decoration** (Phase 24's parts, in round 8's look: translucent
+   and sharp glass over a plain colour, the office's since Phase 26 and the casual app's since
+   Phase 27.6; the plain colour since Phase 27.7). Sections, buttons and what floats are
+   translucent glass over one plain ground, in the office and the casual app alike; no pattern
+   behind the page, no grain, glows, coloured shadows or images. Motion only to show what changed, as Phase 18's spec (below), and press
+   feedback. The firm's colour tints the one main button in the casual app and marks where you are,
+   never a status (the office's main button is hi-vis). One face, Geist, for every word, headline and
    number (keys and secrets on Integrations keep the system's mono). Phase 23's flat white cards
    and the office's own colours and face are gone.
 6. **Works without JavaScript** where pages already do (server-action forms, `<details>`
    confirmations, GET filter forms, anchor links).
+
+## Phase 27.8: the dashboard map with proper detail
+
+Dylan, 2026-11-03, on the mock-up (https://claude.ai/artifact/6z1cJpFyTZ5V7PtDh8HxKH: real map data
+drawn by MapLibre, today against proposed at three distances and both sizes): "proper map: yes",
+"the extra detail too it needs to be proper". Only the dashboard's street map changes (the venue
+map with a map file, `src/app/office/dashboard/venue-map.tsx`); the pins, their labels, the card,
+the key's words, the credit and the plain map without a file are as they were.
+
+- **Its style is its own module,** `src/lib/office/map-style.ts` (pure, unit-tested in
+  `tests/unit/office.map-style.test.ts`): Protomaps' layers in the named flavour for the office's
+  look (dark, or light with the `sd-theme` cookie's light), its colours overridden (`MAP_COLOURS`).
+  The map's colours live there, not in `globals.css`: MapLibre paints its canvas from the style, not
+  from CSS (the one file besides the brand colour's and the manifest allowed colour values:
+  `tests/unit/ui.theme.test.ts`).
+- **Names on.** Places (country, region, town, area), roads (major and minor), water, islands and
+  house numbers. Dropped: points of interest, road-number shields and one-way arrows; and the town
+  dot (the last icon), so the style has no sprite. The venue pins (HTML markers) sit over the names.
+- **Letter shapes from our own server:** `/map-glyphs/{fontstack}/{range}.pbf` (`public/map-glyphs/`,
+  Noto Sans Regular, Medium and Italic, ranges 0-255, 256-511, 512-767, 7680-7935 and 8192-8447:
+  Latin, Welsh's letters and punctuation; SIL Open Font License 1.1, its text and a README with the
+  source beside them). The flavour's Devanagari typeface is swapped for the regular one; a name in a
+  script we don't serve is drawn by the browser's own font (MapLibre does that itself), never fetched
+  elsewhere.
+- **Clearer drawing.** Dark (the mock-up's values): ground `#16171a`, land `#1a1b1e`, water `#1f3347`,
+  parks `#1d2b22`/`#203126`, buildings `#2b2c31`, roads a step brighter by importance (minor
+  `#55565d`, major `#6e6f76`, motorway `#8a8b92`), names light on a `#16171a` halo (towns `#e4e4e7`,
+  streets `#a1a2a8`/`#c4c5ca`). Light, the same the other way and calm: land `#f1f0ec` (the office's
+  off-white), water `#a8cbe6`, parks and grass soft greens, buildings `#cbc8c1` (at half strength),
+  roads a step darker by importance (minor `#cfd0d4`, major `#bcbec3`, motorway `#a7aab0`) with a
+  soft edge, names dark on a `#f6f5f2` halo (towns `#1d1e22`, streets `#5d5f66`/`#45474e`). Every
+  name at least 4.5:1 on its halo and on the land, in both looks (the regions', country's and
+  water's names lifted from the flavour's own, which were fainter).
+- **Zoom buttons,** MapLibre's NavigationControl without its compass, top right, 12px in: in the
+  key's look (the panel's fill, the line's 1px edge, 8px corners; no blur and no drop, which round
+  8 keeps for the glass and what floats over the page), two 44px buttons with a line between, the
+  + and − drawn in the words' colour as two bars (borders, so forced colours draw them too; no
+  image), hover and press fills from the button tokens, the office's focus ring, greyed when
+  there's no further to go; rules in `globals.css` "MapLibre's own parts" (the library's
+  stylesheet isn't loaded). The key moves left of them on the streets (`right-16.5`: 12px in, the
+  buttons' 46px with their edge, 8px apart), and no pin's label goes under either. Zoom from the
+  whole UK to each building (`maxZoom: 18`; the fit to the venues still stops at 13). Drag, Ctrl +
+  scroll and two fingers as before; still no turning.
+- **The file:** the detail is in the map file (zoom 15, about 2.99 GB for the UK: `docs/runbooks.md`
+  "The street map"); with today's zoom-13 file the map zooms in all the same, softer past 13.
+
+## Phase 27.7: a plain colour behind every page
+
+Dylan, 2026-11-03: "make the background a colour not random lines as the map isn't being used like
+that", then "Yes plain colour", and "plain background: yes" on the mock-up
+(https://claude.ai/artifact/6z1cJpFyTZ5V7PtDh8HxKH). The made-up street pattern behind every page
+(round 8's, the office's since Phase 26 and the casual app's since Phase 27.6) is gone.
+
+- **Behind every page, office and casual app:** the plain page colour and nothing drawn over it:
+  charcoal `#0f0f10` in dark, off-white `#f2f2f0` in light (`--color-canvas`, `<body>`'s
+  `bg-canvas`; `<html>` has no background of its own, so `<body>`'s fills the window). No pattern,
+  no mask, no picture, no other decoration in its place.
+- **What went:** the `body::before` rule that drew the pattern, its picture
+  (`src/app/office-streets.svg`, deleted), its two strengths of line (`--map-line`, `--map-road`)
+  in every block (the casual app's, the office's and the office page's root), and the rule that
+  hid it with less transparency or more contrast (nothing is left to hide).
+- **What doesn't change:** the glass, menus, buttons, sizes, words and layout, light and dark, and
+  the solid looks. The dashboard's own map (`src/app/office/dashboard/venue-map.tsx`) is separate:
+  with the firm's map file it draws real streets; without one its pins sit on its glass, now over
+  the plain ground.
+- **Contrast:** the grounds are the plain ground alone in all twelve looks
+  (`tests/helpers/theme-css.ts`, `src/lib/tenancy/glass-grounds.ts`), so a section has two points
+  under it (over the ground, and over what floats over it) where it had six. Every pair still meets
+  its minimum (`tests/unit/ui.contrast.test.ts`); no threshold changed and no app colour changed.
+- **The firm's colour moves a little:** `firmPalette` works it out over the plain ground, which
+  needs less darkening (light) or lightening (dark) than the street lines did. Acme's blue as words
+  and on the main button is its own `#1d4ed8` now (was `#1b49cb`), its shade `#1840b1` (was
+  `#163ca6`), in dark `#b0c1f1` (was `#ccd7f6`); Northline's teal `#0e6f67` (was `#0c625b`), its
+  shade `#0c5b55` (was `#0a504b`), in dark `#a6ccc9` (was `#c1dcda`). Their bands are as they are.
+
+## Phase 27.6: the casual app in round 8's look
+
+Dylan, 2026-11-03, on the mock-up (https://claude.ai/artifact/6Qi4Dt5qW5xnWWSVf9oNVC: the casual
+app's real pages with the office's round 8 values put on them by the browser): "casual round 8: yes,
+firm's colour, follow the phone". The casual app (every page outside `[data-office]`: Home, Shifts,
+Open shifts, a shift's page, Messages, Pay, Profile, Requests, Help, the login pages) now has round
+8's look ("Phase 26" below), so the firm's office and its casuals see one product. Round 7's wash
+and bending glass are gone from the whole app.
+
+- **The same values as the office's, in both looks.** The casual blocks in `src/app/globals.css`
+  (`@theme` and `:root` for light, `:root[data-theme="dark"]` and the device's dark block for dark,
+  and the fallbacks) hold the office's round 8 values one for one: off-white `#f2f2f0` or charcoal
+  `#0f0f10`; sections white 55% (light) or 4% (dark, Phase 27.1's) blurred 6px or 3px and saturated
+  1.15 times; what floats 92% white or 70% charcoal, blurred 12px, with the only drop; one even
+  hairline (10% ink, 12% white) and no drop at rest; the statuses' tints, the words, the marks and
+  the solid fallbacks as the office's. `tests/unit/ui.contrast.test.ts` holds the two sets to each
+  other value by value. The office's blocks keep a full copy of their own: the office is dark with
+  no cookie even on a light phone, where the page's root is light, so its dark block can't lean on
+  the root's.
+- **But the firm's colour.** What stays the casual app's own: the firm's colour on the main button
+  (tinted glass, its colour to its shade, in both looks), the firm's mark and its tints (`brand`,
+  `tint`, `brand-bar`, `pass-plate` and their words, set from the firm's settings on `<body>`); the
+  app's blue (`accent`: a shade lighter in dark, `#a1bdff`, to read at 4.5:1 on the chosen tab's
+  lens over the lighter glass); and the to-do tint (`hivis`, the pale amber count on Profile and
+  "We provide it"). Hi-vis yellow is the office's alone. No glow under the main button (round 8's
+  rule, in the office since Phase 26; `--tint-glow` went with it).
+- **Following the phone.** Light unless the phone or the `sd-theme` cookie says dark, as before
+  (the office stays dark by default).
+- **The street map behind every page** (gone since Phase 27.7, above: a plain colour now). It was
+  `body::before`, one rule for the whole app: the office's still picture
+  (`src/app/office-streets.svg`) in `--map-road`, fixed, under everything, in place of the wash,
+  gone with less transparency or more contrast. `<html>` still has no background of its own, so
+  `<body>`'s ground fills the window.
+- **No bending.** Round 7's refraction (`src/app/glass-refraction.tsx`, the `#lg-refract` SVG filter
+  in the root layout and the `.rf` class it put on `<html>` in Chromium) is removed, not just
+  unused: round 8's glass is sharp everywhere.
+- **What doesn't change:** every page, word, layout and tap target; the casual app's own sizes (12 ·
+  14 · 16 · 18 · 20 · 28 · 44px: the office's smaller ones stay in `body:has([data-office])`) and its
+  corners (24px pages, 22px sections, 14px rows: the office's 12px and 8px are its own).
+- **The firm's colour on the new glass.** `firmPalette` works the firm's colour out against round
+  8's grounds now (`src/lib/tenancy/glass-grounds.ts`: then the flat ground and the street map's two
+  lines), so it needs less darkening: Acme's blue as words and on the button is `#1b49cb` (was
+  `#1a45bf` on the wash), Northline's teal `#0c625b` (was `#0c5c56`); their bands are as they are.
+  (Phase 27.7's plain ground moved them again: above.)
 
 ## Phase 26: round 8, the office after Haulix
 
@@ -35,8 +156,9 @@ Dylan, 2026-11-02: "i dont think its screaming high end professional dashboard y
 recording of the Haulix shot; round 8's mock-ups and the exact changes, all approved
 (`docs/mockups/round-8/`, https://claude.ai/artifact/EqgPhrjHXB2XMJGFofH6WU), and the pre-build
 audit (https://claude.ai/artifact/4DRBzVM5k6BLCmfin7Zgff). The office has its own look again; the
-casual app keeps round 7's ("Phase 24"). What round 8 doesn't change (the parts, the spacing, the
-motion) stays as Phase 24's.
+casual app kept round 7's ("Phase 24") until Phase 27.6 gave it this look too, with the firm's
+colour (above). What round 8 doesn't change (the parts, the spacing, the motion) stays as Phase
+24's.
 
 - **Where it lives:** `src/app/globals.css`, the round 8 blocks. The office's colours and glass are
   set on its wrapper (`[data-office]`, `src/app/office/layout.tsx`), so inside the office they win
@@ -50,20 +172,28 @@ motion) stays as Phase 24's.
   main button (flat: no shade, no glow), the switches, the firm's mark, your initials, what's
   selected (as words on the light look, a dark olive `#4a5200`). One status code: urgent red, open
   amber, booked green, offered blue, hidden grey. White words on red at 4.93:1 (`#d13438`; aud-1).
-- **Glass, translucent and sharp:** sections a see-through fill (`rgb(22 22 24 / 0.28)` dark) over a
-  faint street map, blurred 6px; what floats (menus, the drawer, the bar below 1024px) 88% with a
-  12px blur and the only drop; one even 1px hairline (10% white, or 10% ink on light) instead of a
-  lit rim; no gloss, sheen, glow or bending (round 7's refraction is off in the office); 12px
-  panels, 8px rows.
-- **The street map:** one still picture (`src/app/office-streets.svg`, from the mock-up's pattern)
-  behind every office page as `<body>`'s `::before`, its lines in `--map-line` and `--map-road`
-  (6% and 8.5% white; 5% and 7% ink on light); drawn once, fixed as the page scrolls (aud-16).
-- **Less transparency, more contrast, or no blur:** every office surface solid; with the first two
-  the street map goes too.
+- **Glass, translucent and sharp:** sections a see-through fill (`rgb(22 22 24 / 0.28)` dark) over
+  the ground (then a faint street map; a plain colour since Phase 27.7), blurred 6px; what floats
+  (menus, the drawer, the bar below 1024px) 88% with a 12px blur and the only drop; one even 1px hairline (10% white, or 10% ink on light) instead of a
+  lit rim; no gloss, sheen, glow or bending (round 7's refraction was off in the office, and is
+  gone from the whole app since Phase 27.6); 12px panels, 8px rows. **Phase 27.1** (Dylan, 2026-11-03, "+20%"; `docs/mockups/round-8/launch-review-2026-11-03.md`
+  §2, screenshots `docs/mockups/round-8/built/27.1-glass-*`): on the dark look, sections and the
+  side bar a light see-through fill (`rgb(255 255 255 / 0.04)`) blurred 3px, a 12% hairline, and
+  what floats 70%, more see-through; the grey words (`#bfbfc4`), the urgent
+  words (`#ffa299`) and a switch that's off (`#818186`) a shade lighter to keep their contrast on
+  the lighter glass. The light look is unchanged.
+- **Behind every page:** a plain colour, charcoal `#0f0f10` or off-white `#f2f2f0`, with nothing
+  drawn over it since Phase 27.7 (above). Round 8 first had a still picture of made-up streets
+  there (`src/app/office-streets.svg`, from the mock-up's pattern, aud-16: `<body>`'s `::before`,
+  its lines in `--map-line` and `--map-road`, behind the casual pages too from Phase 27.6); the
+  picture, the rule and its lines are deleted.
+- **Less transparency, more contrast, or no blur:** every office surface solid, on the same plain
+  ground.
 - **Type** (aud-3): 12 · 13 · 14 · 16 · 20 · 30px in the office, nothing under 12px; words 14px, a
   section's title 16px, a page's headline 30px semibold.
 - **Contrast:** checked pair by pair in six office looks (dark and light, each also solid and with
-  no blur) over the ground and both strengths of the map's lines (`tests/unit/ui.contrast.test.ts`).
+  no blur) over the plain ground (`tests/unit/ui.contrast.test.ts`; over both strengths of the
+  street map's lines too until Phase 27.7).
 - **The shell:** the rail section glass, shut icons dark circles (`glass-button`), the page you're on
   a solid white circle (`bg-ink`, its icon `text-on-ink`); the top bar's counts separate 44px chips
   (their icons from a 1344px bar), the search a flat 44px pill, you with no capsule; below 1024px
@@ -81,11 +211,13 @@ the build differs. This section is the system (task 24.1); the pages take its pa
 24.6. Phase 21's spacing steps, states and shared parts stand where this doesn't change them.
 
 - **One look for the office and the casual app** (Replaced in the office by Phase 26: round 8 gives
-  it its own again, above). The office has no colours of its own any more
-  (its block in `globals.css` sets only its sizes): both take the same tokens, the same glass and
-  the same face. Phase 23's flat white cards, the office's sky button and Plus Jakarta Sans are
+  it its own again, above; and in the casual app by Phase 27.6: round 8's look, with the firm's
+  colour. The parts below stay; the wash, the bending and round 7's values are gone). The office
+  has no colours of its own any more (its block in `globals.css` sets only its sizes): both take
+  the same tokens, the same glass and the same face. Phase 23's flat white cards, the office's sky button and Plus Jakarta Sans are
   gone.
-- **The wash.** Four soft lights fixed behind every page, under everything (`body::before`): in
+- **The wash** (gone: the street map took its place, in the office in Phase 26 and in the casual
+  app in Phase 27.6). Four soft lights fixed behind every page, under everything (`body::before`): in
   light, pale blue top left, lavender top right, peach low in the middle, mint bottom left, on a
   cool off-white (`canvas`); in dark, blue, purple, orange and teal glows on near-black. No shell
   paints over it: the office's frame and the casual app's bar are see-through, and the office's
@@ -96,8 +228,8 @@ the build differs. This section is the system (task 24.1); the pages take its pa
     `staffCard`, `staffRows`, `tabs` and the login cards (from 640px) are glass.
   - `glass-float`: what floats over the page, the strongest glass: the office's top bar, its
     account menu and drawer, the "…" menus, a chart's panel, the confirmation at the foot; the
-    casual app's tab bar, Take shift's bar and the sheet. In Chrome the page behind it bends a
-    little too: an SVG
+    casual app's tab bar, Take shift's bar and the sheet. (Round 7: removed in Phase 27.6, round
+    8's glass is sharp.) In Chrome the page behind it bent a little too: an SVG
     displacement (`#lg-refract`, `src/app/glass-refraction.tsx`) in front of the blur, switched on
     (`.rf` on `<html>`) only where the browser says it's Chromium, because Safari and Firefox
     would drop the whole backdrop filter, frost included. Its region is fixed and large
@@ -131,8 +263,9 @@ the build differs. This section is the system (task 24.1); the pages take its pa
   each glass part a system-coloured edge; with reduced motion nothing swells, dips or slides.
 - **Contrast over glass.** A word on glass sits on whatever shows through, so a pair is checked
   over every ground the glass can show (`src/lib/tenancy/glass-grounds.ts`,
-  `tests/helpers/theme-css.ts`): a section over each of 15 points of the wash (its base, its four
-  lights, and halfway between each two), the wash saturated as the browser does it (measured in
+  `tests/helpers/theme-css.ts`; since Phase 27.6 over round 8's flat ground and the street map's
+  two lines in place of the wash's points, and since Phase 27.7 over the plain ground alone): a section over each of 15 points of the wash (its
+  base, its four lights, and halfway between each two), the wash saturated as the browser does it (measured in
   Chromium: the Filter Effects matrix on the screen's own values, to the unit), and a section over
   what floats; what floats over the wash; a tile's and a clear button's gradients, both ends, the
   button also under the pointer and pressed (a CSS filter brightens the control's own words and
@@ -142,7 +275,8 @@ the build differs. This section is the system (task 24.1); the pages take its pa
   3:1. Two values changed for it: in dark, a clear button under the pointer and pressed is only
   5% and 8% lighter (14% and 18% left grey and red words at 3.2:1 and 2.9:1 pressed); a switch's
   knob is near-black in dark, where the on track is near-white ink.
-- **The firm's colour on glass.** `firmPalette` works it out against every one of those grounds
+- **The firm's colour on glass** (round 7's figures; round 8's are under "Phase 27.6").
+  `firmPalette` works it out against every one of those grounds
   (and the main button's words on it brightened), so some firms' colours come out a little
   darker as words and on the button than as they are: Acme's blue `#1d4ed8` becomes `#1a45bf`,
   Northline's teal `#0f766e` becomes `#0c5c56` (its own pale tint over the wash's mint corner
@@ -171,8 +305,9 @@ the build differs. This section is the system (task 24.1); the pages take its pa
   firm's colours are a shade darker than on the boards. The mock-up's tab bar's lens that
   shrinks as the page scrolls came with the casual app's pages (24.6, below).
 
-The glass's own values (`:root` and the dark blocks; `glass-grounds.ts` holds the same numbers and
-`tests/unit/ui.glass.test.ts` checks they agree):
+Round 7's glass values, as they were (replaced by round 8's in Phase 27.6: the office's, in the
+"Phase 26" and "Phase 27.6" sections and the token table below; `glass-grounds.ts` holds the
+current numbers and `tests/unit/ui.glass.test.ts` checks they agree):
 
 | Variable | Light | Dark | What |
 |---|---|---|---|
@@ -276,7 +411,9 @@ tables, tabs, fields and buttons glass, so what changed is what each page did on
 
 ### The casual app, round 7 (24.6)
 
-`docs/screens.md` "The casual app, round 7". What the casual app's pages add to the system:
+`docs/screens.md` "The casual app, round 7". What the casual app's pages add to the system (their
+parts and layout stand; their colours, glass and ground are round 8's since Phase 27.6, above: the
+pass's band, for one, is round 8's neutral one, white over the section's glass, no longer warm):
 
 - **The chrome as you scroll** (`src/app/chrome-watch.tsx`, mounted in the firm's bar; the rule in
   `src/lib/portal/chrome.ts`): once the page runs it marks `<html>` with `data-js` (the firm's bar
@@ -676,40 +813,42 @@ real sizes before building:
 Two themes: light, and a dark of true greys (D7 in `docs/office-v2.md`, changed by Dylan in Phase
 20: it was navy). The light values are the `@theme` block; the dark values redefine the same
 tokens. Since Phase 24 the grounds are glass, written `rgb(r g b / a)`: see "Phase 24" for the
-glass and how every pair is checked over it (`tests/unit/ui.contrast.test.ts`). The office takes
-the same tokens.
+glass and how every pair is checked over it (`tests/unit/ui.contrast.test.ts`). Since Phase 27.6
+these are round 8's values (the office's own blocks hold the same, but for its hi-vis brand group,
+its to-do tint and its corners, and it's dark by default: "Phase 26").
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| `ink` / `ink-muted` / `ink-faint` | `#17181a` / `#55585f` / `#5a5d64` | `#f3f4f6` / `#c4c5ca` / `#b9babf` | Words; grey words (labels, meta lines, a table's headings); the faintest (a group's name over the menu, a chart's ticks). Each reads at 4.5:1 on every point of the glass, in every look |
-| `ink-hover` / `on-ink` / `ink-press` | `#2b2e33` / `#ffffff` / `#000000` | `#d4d6da` / `#0b0c0e` / `#ffffff` | An ink fill (a chart's tooltip and its "now" day, the firm bar's count) under the pointer, the words on it, pressed |
-| `line` / `line-strong` | `rgb(16 24 40 / 0.08)` / `#6e737b` | `rgb(255 255 255 / 0.08)` / `#8a8e96` | A faint divider between rows (decorative); a field's or a switch's edge where one is drawn (3:1 on the glass) |
-| `canvas` | `#eef1f8` | `#07080c` | The wash's base, under every page (its four lights over it: `--wash-a` to `--wash-d`, "Phase 24" above); words straight on the wash, such as a page's headline, read on every point of it |
-| `card` / `sheet` | `rgb(255 255 255 / 0.46)` / `rgb(255 255 255 / 0.46)` | `rgb(26 27 34 / 0.46)` / `rgb(26 27 34 / 0.46)` | Glass: a section (a card, a list, a table, a row of tabs), frosted (`glass`) |
-| `panel` | `rgb(255 255 255 / 0.78)` | `rgb(30 30 34 / 0.8)` | Glass: what floats over the page (the office's top bar, its menus, the drawer, a chart's panel; the casual app's tab bar, Take shift's bar, the sheet), the strongest (`glass-float`) |
-| `raised` | `rgb(255 255 255 / 0.6)` | `rgb(255 255 255 / 0.07)` | Clear glass inside a section: a weekend's column, a bar's track, a skeleton's bars, a row under the pointer, the waiting plate |
-| `track` / `pill` / `active` | `rgb(118 118 128 / 0.12)` / `rgb(255 255 255 / 0.92)` / `rgb(255 255 255 / 0.92)` | `rgb(118 118 128 / 0.18)` / `rgb(255 255 255 / 0.1)` / `rgb(255 255 255 / 0.1)` | A switch's track (`glass-track`); the lens on the chosen tab or option (`lens`); a checked choice's ground |
-| `count` / `button` / `button-line` / `button-hover` / `button-press` | `rgb(255 255 255 / 0.6)` / `rgb(255 255 255 / 0.6)` / `rgb(255 255 255 / 0.7)` / `rgb(255 255 255 / 0.78)` / `rgb(255 255 255 / 0.9)` | `rgb(255 255 255 / 0.08)` / `rgb(255 255 255 / 0.08)` / `rgb(255 255 255 / 0.12)` / `rgb(255 255 255 / 0.05)` / `rgb(255 255 255 / 0.08)` | A count's clear glass; the file input's button (the others draw `glass-button`'s gradient instead), a clear button's rim, under the pointer, pressed (in dark only a little lighter, so grey and red words still read on it pressed) |
-| `switch-off` / `knob` / `scrim` | `#6e737b` / `#ffffff` / `#15171a` | `#8a8e96` / `#0b0c0e` / `#000000` | A switch that's off (3.5:1); its knob, solid (white in light, near-black in dark, where the on track is near-white ink: 3:1 on its track either way); behind an open drawer or sheet (decorative) |
+| `ink` / `ink-muted` / `ink-faint` | `#17181a` / `#55585f` / `#5d6067` | `#f4f4f3` / `#bfbfc4` / `#9d9da2` | Words; grey words (labels, meta lines, a table's headings); the faintest (a group's name over the menu, a chart's ticks). Each reads at 4.5:1 on every point of the glass, in every look |
+| `ink-hover` / `on-ink` / `ink-press` | `#2b2e33` / `#ffffff` / `#000000` | `#ffffff` / `#0f0f10` / `#ffffff` | An ink fill (a chart's tooltip and its "now" day, the firm bar's count) under the pointer, the words on it, pressed |
+| `line` / `line-strong` | `rgb(16 24 40 / 0.1)` / `#6e737b` | `rgb(255 255 255 / 0.1)` / `#7c7c82` | A faint divider between rows (decorative); a field's or a switch's edge where one is drawn (3:1 on the glass) |
+| `canvas` | `#f2f2f0` | `#0f0f10` | The plain ground under every page, with nothing drawn over it ("Phase 27.7" above); words straight on it, such as a page's headline, read on it |
+| `card` / `sheet` | `rgb(255 255 255 / 0.55)` / `rgb(255 255 255 / 0.55)` | `rgb(255 255 255 / 0.04)` / `rgb(255 255 255 / 0.04)` | Glass: a section (a card, a list, a table, a row of tabs), frosted (`glass`) |
+| `panel` | `rgb(255 255 255 / 0.92)` | `rgb(24 24 26 / 0.7)` | Glass: what floats over the page (the office's top bar, its menus, the drawer, a chart's panel; the casual app's tab bar, Take shift's bar, the sheet), the strongest (`glass-float`) |
+| `raised` | `rgb(16 24 40 / 0.03)` | `rgb(255 255 255 / 0.03)` | Clear glass inside a section: a weekend's column, a bar's track, a skeleton's bars, a row under the pointer, the waiting plate |
+| `track` / `pill` / `active` | `rgb(16 24 40 / 0.06)` / `rgb(255 255 255 / 0.96)` / `rgb(16 24 40 / 0.05)` | `rgb(255 255 255 / 0.06)` / `rgb(255 255 255 / 0.1)` / `rgb(255 255 255 / 0.07)` | A switch's track (`glass-track`); the lens on the chosen tab or option (`lens`); a checked choice's ground |
+| `count` / `button` / `button-line` / `button-hover` / `button-press` | `rgb(16 24 40 / 0.06)` / `rgb(255 255 255 / 0.7)` / `rgb(16 24 40 / 0.14)` / `rgb(16 24 40 / 0.05)` / `rgb(16 24 40 / 0.09)` | `rgb(255 255 255 / 0.08)` / `rgb(255 255 255 / 0.05)` / `rgb(255 255 255 / 0.14)` / `rgb(255 255 255 / 0.08)` / `rgb(255 255 255 / 0.12)` | A count's clear glass; the file input's button (the others draw `glass-button`'s gradient instead), a clear button's edge, under the pointer, pressed (a faint ink or white wash, so grey and red words still read on it pressed) |
+| `switch-off` / `knob` / `scrim` | `#6e737b` / `#ffffff` / `#15171a` | `#818186` / `#0f0f10` / `#000000` | A switch that's off (3.5:1); its knob, solid (white in light, near-black in dark, where the on track is near-white ink: 3:1 on its track either way); behind an open drawer or sheet (decorative) |
 | `brand` / `on-brand` / `brand-ink` | `#15171a` / `#ffffff` / `#15171a` | `#f3f4f6` / `#0b0c0e` / `#f3f4f6` | The firm's own colour (`src/lib/tenancy/brand-values.ts` `firmPalette`, a set per theme on `<body>`: every pair at least 4.5:1 on every point of the glass), here the defaults: the current tab and the firm's fills, their words, the colour as words. Its pale tint, `brand-soft`, is 12% of it over whatever lies under it |
 | `tint` / `on-tint` / `tint-shade` | `#15171a` / `#ffffff` / `#000000` | `#f3f4f6` / `#0b0c0e` / `#ffffff` | The main button (`glass-tint`): tinted glass in the firm's colour, from `tint` at the top to `tint-shade` at the foot, with its words; the light set in both themes (its words read on itself) |
 | `brand-bar` / `on-brand-bar` / `on-brand-bar-soft` | `#1f2227` / `#ffffff` / `#d2d4d8` | `#34373d` / `#ffffff` / `#d2d4d8` | The pass and the firm's initial; their words; the pass's second line |
 | `pass-plate` / `on-pass-plate` | `#ffffff` / `#1f2227` | `#ffffff` / `#34373d` | The gate's white plate on the pass; its words |
-| `urgent` / `urgent-soft` / `urgent-ink` / `urgent-tile` | `#b0201f` / `rgb(255 239 234 / 0.72)` / `#7d1a10` / `rgb(255 216 207 / 0.8)` | `#ffa59c` / `rgb(42 22 20 / 0.72)` / `#ffcabf` / `rgb(61 29 25 / 0.8)` | Act now: words and borders (on every point of the glass); a chip's or a notice's tinted glass; its words; an urgent tile's tinted glass (the tints and tiles translucent, solid in the fallbacks) |
-| `urgent-fill` / `urgent-fill-hover` / `on-urgent` | `#c4242a` / `#9b1c21` / `#ffffff` | `#cf3a33` / `#b02e28` / `#ffffff` | The final destructive button and urgent counts, under the pointer, their words |
-| `attention` / `attention-soft` / `attention-ink` | `#92400e` / `rgb(255 246 224 / 0.72)` / `#5c3f00` | `#f5b35a` / `rgb(38 31 16 / 0.72)` / `#fbe3a0` | Needs you: words, an icon, an edge; a chip's or a notice's tinted glass; its words |
-| `hivis` / `on-hivis` | `rgb(251 229 160 / 0.8)` / `#5c3f00` | `rgb(58 47 16 / 0.8)` / `#fbe3a0` | To do: a tile's or a count's tinted glass, what the firm gives you ("We provide it") |
-| `wait-tile` / `wait-ink` / `wait-soft` | `rgb(214 228 250 / 0.8)` / `#163b6e` / `rgb(238 244 253 / 0.72)` | `rgb(23 42 69 / 0.8)` / `#c8dafa` / `rgb(17 26 40 / 0.72)` | Waiting on someone else: a tile's or a count's tinted glass; their words; a chip's tinted glass |
-| `done` / `done-soft` / `done-ink` / `done-tile` | `#166534` / `rgb(233 246 238 / 0.72)` / `#155230` / `rgb(210 239 219 / 0.8)` | `#6bd896` / `rgb(16 32 26 / 0.72)` / `#bfeccd` / `rgb(21 48 31 / 0.8)` | Fine, finished: words and borders; a chip's tinted glass; its words; a tile's tinted glass |
+| `urgent` / `urgent-soft` / `urgent-ink` / `urgent-tile` | `#b0201f` / `rgb(255 239 234 / 0.85)` / `#7d1a10` / `rgb(255 216 207 / 0.9)` | `#ffa299` / `rgb(58 26 25 / 0.8)` / `#ffc4bc` / `rgb(58 26 25 / 0.9)` | Act now: words and borders (on every point of the glass); a chip's or a notice's tinted glass; its words; an urgent tile's tinted glass (the tints and tiles translucent, solid in the fallbacks) |
+| `urgent-fill` / `urgent-fill-hover` / `on-urgent` | `#c4242a` / `#9b1c21` / `#ffffff` | `#d13438` / `#b42a2e` / `#ffffff` | The final destructive button and urgent counts, under the pointer, their words |
+| `attention` / `attention-soft` / `attention-ink` | `#92400e` / `rgb(255 246 224 / 0.85)` / `#5c3f00` | `#f2b55a` / `rgb(51 38 15 / 0.8)` / `#f6dcb0` | Needs you: words, an icon, an edge; a chip's or a notice's tinted glass; its words |
+| `hivis` / `on-hivis` | `rgb(251 229 160 / 0.8)` / `#5c3f00` | `rgb(58 47 16 / 0.8)` / `#fbe3a0` | To do: a tile's or a count's tinted glass, what the firm gives you ("We provide it"); a pale amber, the casual app's own (the office's is hi-vis yellow) |
+| `wait-tile` / `wait-ink` / `wait-soft` | `rgb(214 228 250 / 0.9)` / `#163b6e` / `rgb(238 244 253 / 0.85)` | `rgb(23 35 56 / 0.9)` / `#b8d0ff` / `rgb(23 35 56 / 0.8)` | Waiting on someone else: a tile's or a count's tinted glass; their words; a chip's tinted glass |
+| `done` / `done-soft` / `done-ink` / `done-tile` | `#166534` / `rgb(233 246 238 / 0.85)` / `#155230` / `rgb(210 239 219 / 0.9)` | `#8fe28c` / `rgb(21 41 26 / 0.8)` / `#c2efc0` / `rgb(21 41 26 / 0.9)` | Fine, finished: words and borders; a chip's tinted glass; its words; a tile's tinted glass |
 | `done-fill` / `on-done` | `#1f7a47` / `#ffffff` | `#1f7a47` / `#ffffff` | The booked tick, its words |
-| `quiet-soft` / `quiet-ink` | `rgb(241 242 244 / 0.72)` / `#464b52` | `rgb(34 36 40 / 0.72)` / `#d4d6da` | Information, closed: a chip's or an answer slip's tinted glass; its words |
-| `urgent-line` / `attention-line` / `wait-line` / `done-line` / `quiet-line` | `#f5c2bb` / `#f0d39a` / `#b8cff2` / `#b4dfc3` / `#d6d8dc` | `#5a2423` / `#5a4314` / `#2c4166` / `#1f4d33` / `#3a404b` | A status tint's edge (decorative: the words say the status) |
+| `quiet-soft` / `quiet-ink` | `rgb(16 24 40 / 0.05)` / `#464b52` | `rgb(255 255 255 / 0.06)` / `#d6d6da` | Information, closed: a chip's or an answer slip's tinted glass; its words |
+| `urgent-line` / `attention-line` / `wait-line` / `done-line` / `quiet-line` | `#f5c2bb` / `#f0d39a` / `#b8cff2` / `#b4dfc3` / `#d6d8dc` | `#6a2a28` / `#5a4318` / `#2b4170` / `#2b5a3e` / `#38383c` | A status tint's edge (decorative: the words say the status) |
 | `demo` / `on-demo` | `#3d2e0a` / `#fde7b0` | `#3d2e0a` / `#fde7b0` | The demo bar |
-| `accent` / `accent-hover` / `accent-press` / `on-accent` | `#1d4ed8` / `#2563eb` / `#1e40af` / `#ffffff` | `#9cb8ff` / `#b5caff` / `#7fa2ff` / `#0b1530` | The app's blue (round 7): the current page's icon, the chosen tab's word, "offered, no reply"; never a button (the main button is the firm's). A fill only under a count on the lens |
-| `mark-urgent` / `mark-open` / `mark-wait` / `mark-done` / `mark-calm` | `#c4242a` / `#17181a` / `#1d4ed8` / `#1f7a47` / `#98a2b3` | `#ff8b80` / `#f3f4f6` / `#6d93ff` / `#5fd08b` / `#667085` | The dashboard's marks: red to do now, not offered yet (ink), offered and waiting (blue), green done, grey calm (under 3:1 on light glass by design: never alone, each bar with its number, each chart with its legend and Numbers table) |
+| `accent` / `accent-hover` / `accent-press` / `on-accent` | `#1d4ed8` / `#2563eb` / `#1e40af` / `#ffffff` | `#a1bdff` / `#b5caff` / `#7fa2ff` / `#0b1530` | The app's blue (round 7's, kept in the casual app with round 8; a shade lighter in dark since Phase 27.6, to read on the lens over the lighter glass): the current page's icon, the chosen tab's word, "offered, no reply"; never a button (the main button is the firm's). A fill only under a count on the lens |
+| `mark-urgent` / `mark-open` / `mark-wait` / `mark-done` / `mark-calm` | `#c4242a` / `#b86e00` / `#1d4ed8` / `#1f7a47` / `#98a2b3` | `#e5484d` / `#f2b55a` / `#8ab4ff` / `#8fe28c` / `#6d6d72` | The dashboard's marks (round 8's): red to do now, not offered yet (amber), offered and waiting (blue), green done, grey calm (under 3:1 on light glass by design: never alone, each bar with its number, each chart with its legend and Numbers table) |
 | `mark-grid` / `mark-base` | `rgb(16 24 40 / 0.06)` / `rgb(16 24 40 / 0.15)` | `rgb(255 255 255 / 0.06)` / `rgb(255 255 255 / 0.15)` | A chart's grid lines and baseline (hairlines, decorative) |
 
-**Depth (Phase 24).** The glass's rims and drops (see "Phase 24"), through five depth tokens
+**Depth (Phase 24; round 8's since Phase 27.6: one hairline, no drop at rest, only what floats
+has one).** The glass's rims and drops (see "Phase 24"), through five depth tokens
 that take variables (`shadow-lift`, `shadow-panel`, `shadow-bar`, `shadow-float`,
 `inset-shadow-sunk`; the pass's `shadow-pass` went with its solid band in 24.6), and no other
 shadow anywhere in `src/` (`tests/unit/ui.glass.test.ts` holds where each is used).

@@ -1099,6 +1099,81 @@ page said after Dylan's edits; `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; 
 and 1280px sit beside the spec in `docs/mockups/round-8/`; no route, label, link or action is lost
 unless the spec drops it; the `claims-auditor` checks the phase against this line.
 
+## Proposed 2026-11-03: P11 — Launch words, the glass turned up, and a map you can use (go-ahead: Dylan, 2026-11-03, "+20%, yes to the words, yes to the map idea"; built as Phase 27; UI, M)
+
+Dylan, 2026-11-03, after Phase 26 went live: the glass and side bar "turned up by like 15-20%",
+"what does this section mean" ("Who worked?"), the "Tell me about" words, the Haulix video again
+with an idea (the sessions on the map, the map interactive both ways), the map upload steps, and
+"review the website to make sure that all the data and features are easily understood via the
+text and UI so we dont have any other issues on launch". The findings, every quote with its place
+in the code, the map steps and the proposals: `docs/mockups/round-8/launch-review-2026-11-03.md`;
+the pictures (today, +15% and +20%; the words before and after):
+https://claude.ai/artifact/9GPXjLG2NXmz4FvbMXBdiu. Three parts, each its own yes or no:
+
+- **The words** (16 to fix before launch, about 40 for one name per thing and clearer words; a few
+  change layout, so a mock-up first).
+- **The glass** at +15% or +20% (the office's dark theme only; the numbers in the review).
+- **The dashboard map** made the dashboard's top, interactive both ways, "To offer" as a list on it,
+  the page behind plain charcoal: after the street map file is on the server, a mock-up on the real
+  streets first.
+
+## Phase 27 — Launch words, the glass at +20%, and a map you can use (go-ahead: Dylan, 2026-11-03; UI, M)
+
+P11 above; every finding, quote and place in the code: `docs/mockups/round-8/launch-review-2026-11-03.md`
+(its sections named here). The mock-up Dylan approved for 27.1 and 27.2:
+https://claude.ai/artifact/9GPXjLG2NXmz4FvbMXBdiu (sections 1, 2 and 6).
+
+- [x] The glass at +20% in the office's dark theme: panels and the side bar a light 4% tint, a 3px
+      blur, 12% edges, menus and the phone's top bar 70%, the street lines 10.2%; the faintest words
+      still at least 4.5:1 on the lightest spot; the light theme and "reduce transparency" unchanged
+      (review §2; UI) (27.1). Correction, 2026-11-03: the street lines stay 8.5%, as in the approved
+      pictures. The review's mock-up put its values on the office's own box (`[data-office]`), but the
+      street map is the page's background (`body:has([data-office])::before`, `src/app/globals.css`),
+      which reads `--map-road` from the page's root, so the pictures' lines were at 8.5% (review §2's
+      note); at 10.2% six colour pairs fall under their minimum. Dylan to confirm:
+      `docs/plan/decisions-waiting.md` 13. Decided, 2026-11-03 (Dylan: "Yes plain colour"): no street pattern at all,
+      a plain colour behind every page (27.7), so the lines' strength no longer applies
+- [x] The words: every "fix before launch" and "one thing, one name" item (review §5, office and
+      casual app), "Who worked?", "Tell me about" and Updates' "Last 7 days · 2 new today" (the
+      mock-up's section 2), with `docs/screens.md` and `docs/messaging-templates.md`; and the two
+      that change what's listed: a casual's own page lists a missing photo under "Needs updating",
+      and Profile lists a shift's extra certificate (review §5; M, UI) (27.2)
+- [x] The street map on the server: the UK file (zoom 13, about 740 MB) and `MAP_TILES_URL` set
+      (review §4; waits for Dylan: `docs/plan/blocked.md`) (27.3). Dylan ran it on 2026-11-03, so its
+      `blocked.md` row went; what the live site answers: `docs/mockups/round-8/built/27.3-live-evidence.md`
+- [ ] The dashboard map you can use: the map as the dashboard's top with the chosen session's card on
+      it, a pin moves the map and shows its sessions ("1 of 3"), the tabs, Filter and the list move
+      the map back, "To offer" as a list on the map, zoom and reset buttons, the page behind plain
+      charcoal; a mock-up on the real streets first (after 27.3) (review §3; UI) (27.4). The mock-up,
+      second version (2026-11-04, on 27.8's map and 27.7's plain background, the demo's real sessions):
+      https://claude.ai/artifact/4me37c3qAbQQDdwMAviqh9; waits for Dylan's yes
+      (`docs/plan/decisions-waiting.md` 14)
+- [ ] The layout changes: words on the icon-only buttons, the phone map's key, the card's booked bar,
+      the casual's "To do" row; a mock-up first (review §5 "Layout changes"; UI) (27.5). The mock-up
+      (2026-11-04, the real app before and after): https://claude.ai/artifact/SrqZifsSRB2MLsM1fZafLN;
+      waits for Dylan's yes (`docs/plan/decisions-waiting.md` 15)
+- [x] The casual app in round 8's look: the office's ground, faint street map and sharp glass (no
+      wash, no bending) on every casual page, in light and dark as the phone is set, with the firm's
+      own colour on the main button and its mark; the casual's own sizes, words and layout kept;
+      solid with less transparency; every pair's contrast checked (go-ahead: Dylan, 2026-11-03,
+      "casual round 8: yes, firm's colour, follow the phone", on the mock-up
+      https://claude.ai/artifact/6Qi4Dt5qW5xnWWSVf9oNVC; UI, M) (27.6)
+- [x] A plain colour behind every page: the made-up street pattern goes (office and casual app),
+      charcoal in dark and off-white in light; the glass, menus and buttons as they are (Dylan,
+      2026-11-03: "make the background a colour not random lines as the map isn't being used like
+      that", "Yes plain colour"; on the mock-up https://claude.ai/artifact/6z1cJpFyTZ5V7PtDh8HxKH,
+      2026-11-04: "plain background: yes"; UI, S) (27.7)
+- [x] The dashboard map with proper detail: town, area and street names, clearer roads, water and
+      parks, building outlines, + and − buttons, zoom to building level; the zoom-15 UK file
+      (2.99 GB, measured) and its letter shapes served from our own server (Dylan, 2026-11-03: "the
+      extra detail too it needs to be proper"; on the same mock-up, 2026-11-04: "proper map: yes";
+      the server step waits for the code; UI, M) (27.8)
+
+Done when: every task is ticked with a stamp that includes the browser tests; each built what the
+review and the approved mock-up say; `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; screenshots at
+390px and 1280px sit in `docs/mockups/round-8/`; no route, label, link or action is lost; the
+`claims-auditor` checks the phase against this line.
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify

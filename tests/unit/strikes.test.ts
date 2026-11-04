@@ -9,7 +9,9 @@ import {
   cancelledText,
   startsInText,
   STRIKE_WARNING_VERSION,
+  STRIKE_WARNING_WORDS,
   strikeWarningText,
+  warningWordsFor,
   warningKind,
   WHAT_HAPPENED_PROMPT,
 } from "@/lib/strikes/words";
@@ -130,12 +132,12 @@ describe("the warning on the cancel step", () => {
     expect(warningKind(strikeDecision(own({ noticeHours: 120 })))).toBe("notice");
     // Strikes off: the plain notice words, never a strike warning (P3.4).
     expect(warningKind(strikeDecision(own({ strikesOff: true })))).toBe("notice");
-    expect(STRIKE_WARNING_VERSION).toBe("v1");
+    expect(STRIKE_WARNING_VERSION).toBe("v2"); // Phase 27.2's words
   });
 
-  it("a strike: the hours, the threshold, the strikes team, their live strikes", () => {
+  it("a strike: the hours, the threshold, what a strike is, their live strikes", () => {
     expect(strikeWarningText("strike", facts)).toBe(
-      "This shift starts in 26 hours. Cancelling with less than 48 hours' notice gives you a strike. Acme Events' strikes team gets a record of it. You have 0 strikes in the last 90 days.",
+      "This shift starts in 26 hours. Cancelling now gives you a strike (less than 48 hours' notice). A strike is a record, not a fine. It never comes off your pay. You have 0 strikes in the last 90 days.",
     );
     expect(
       strikeWarningText("strike", {
@@ -145,8 +147,28 @@ describe("the warning on the cancel step", () => {
         liveStrikes: 1,
       }),
     ).toBe(
-      "This shift starts in less than an hour. Cancelling with less than 48 hours' notice gives you a strike. Northline Security's strikes team gets a record of it. You have 1 strike in the last 90 days.",
+      "This shift starts in less than an hour. Cancelling now gives you a strike (less than 48 hours' notice). A strike is a record, not a fine. It never comes off your pay. You have 1 strike in the last 90 days.",
     );
+  });
+
+  // The record of what each version said (S3; the guardrails review of 27.2, M1): v1's words are
+  // kept exactly as casuals saw them from 12C.1 until Phase 27.2, and the current version is what
+  // the sheet shows. Changing a version's words fails here: add a version instead.
+  it("every version's words are kept: v1 as casuals saw it, v2 now", () => {
+    expect(Object.keys(STRIKE_WARNING_WORDS)).toEqual(["v1", "v2"]);
+    expect(warningWordsFor("v1", "strike", { ...facts, firmName: "Acme Events" })).toBe(
+      "This shift starts in 26 hours. Cancelling with less than 48 hours' notice gives you a strike. Acme Events' strikes team gets a record of it. You have 0 strikes in the last 90 days.",
+    );
+    expect(warningWordsFor("v1", "strike", { ...facts, firmName: "Northline Security" })).toBe(
+      "This shift starts in 26 hours. Cancelling with less than 48 hours' notice gives you a strike. Northline Security's strikes team gets a record of it. You have 0 strikes in the last 90 days.",
+    );
+    expect(warningWordsFor("v1", "exempt", facts)).toBe(strikeWarningText("exempt", facts));
+    expect(warningWordsFor("v1", "notice", facts)).toBe(strikeWarningText("notice", facts));
+    for (const kind of ["strike", "exempt", "notice"] as const)
+      expect(warningWordsFor(STRIKE_WARNING_VERSION, kind, facts)).toBe(
+        strikeWarningText(kind, facts),
+      );
+    expect(() => warningWordsFor("v0", "strike", facts)).toThrow("No strike warning words for v0");
   });
 
   it("exempt and enough notice", () => {

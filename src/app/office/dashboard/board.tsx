@@ -29,8 +29,7 @@ import { DEFAULT_CARDS, type DashboardCard } from "@/lib/office/dashboard-cards"
 import type { Takers } from "@/lib/office/dashboard-map";
 import {
   bookedText,
-  CAN_TAKE_IT,
-  CAN_TAKE_LINE,
+  canTakeLine,
   lengthAndPay,
   offerButton,
   offeredText,
@@ -56,7 +55,7 @@ import { VenueMap } from "./venue-map";
 // session until the page is ready, so it works without JavaScript), its paper plane opens the offer
 // panel (a link to the offer page until then). The card shows what, where and when, its pay, how
 // many are booked of how many (a gauge), who can take it under the rules right now, what's in the
-// way, and "Offer to someone" ("Offer to Zoe" when she's the only one), "Open the shift" and "…".
+// way, and "Offer to someone" ("Offer to Zoe" when she's the only one), "Open the session" and "…".
 
 export const SHOWN = 4; // To offer's rows before "View all" (round 8)
 
@@ -376,15 +375,12 @@ function DetailCard({
           </span>
           <span className="text-center text-xs text-ink-faint">booked</span>
         </div>
-        <div className="flex flex-col rounded-row glass-tile px-4 py-3">
-          <p className="flex flex-wrap items-center justify-between gap-2 text-sm text-ink-muted">
-            <span className="whitespace-nowrap">{CAN_TAKE_IT}</span>
-            <span className={`${chip.base} ${chip.wait}`}>{offeredText(s.offers.sent)}</span>
-          </p>
-          <b className="mt-2 text-center font-stat text-3xl text-ink">
-            {takers ? takers.count : "–"}
-          </b>
-          <span className="mt-auto text-center text-xs text-ink-faint">{CAN_TAKE_LINE}</span>
+        <div className="flex flex-col items-center gap-1 rounded-row glass-tile px-4 py-3 text-center">
+          <b className="mt-2 font-stat text-3xl text-ink">{takers ? takers.count : "–"}</b>
+          <span className="text-xs text-ink-faint">
+            {canTakeLine(takers ? takers.count : null, s.offers.sent)}
+          </span>
+          <span className={`${chip.base} ${chip.wait} mt-auto`}>{offeredText(s.offers.sent)}</span>
         </div>
       </div>
       <p
@@ -411,7 +407,7 @@ function DetailCard({
           href={`/office/shifts/${s.shiftId}`}
           className={`${btn.secondary} grow whitespace-nowrap`}
         >
-          Open the shift
+          Open the session
         </Link>
       </div>
       {message && message.id === s.shiftId && (
@@ -554,7 +550,11 @@ export function Board({
             <Column
               k="toMark"
               count={marks?.items.length ?? 0}
-              line={toMarkLine(marks?.items ?? [], timeZone)}
+              line={toMarkLine(
+                marks?.items ?? [],
+                (groups ?? []).reduce((n, g) => n + g.people.length, 0),
+                timeZone,
+              )}
               failed={!marks || !groups}
               empty={emptyText("toMark", false, show)}
             >

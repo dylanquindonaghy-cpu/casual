@@ -68,14 +68,14 @@ export function pilotRows(r: PilotReport): PilotRow[] {
       target: "Under 2%",
     },
     {
-      label: "Portal actions (staff doing it themselves)",
-      baseline: "Before the app",
+      label: "App actions (staff doing it themselves)",
+      baseline: "None before the app",
       now: !counted ? NONE_YET : `${d.portal_actions} (${round1(d.portal_actions / r.days)} a day)`,
       target: "",
     },
     {
       label: "Answered straight away",
-      baseline: "Before the app",
+      baseline: "None before the app",
       now: !counted ? NONE_YET : instant === null ? "Nothing asked" : `${instant}%`,
       target: "90% or more",
     },
@@ -95,7 +95,7 @@ export function pilotRows(r: PilotReport): PilotRow[] {
       target: "",
     },
     {
-      label: "Portal adoption (active workers who have logged in)",
+      label: "App adoption (active workers who have logged in)",
       baseline: "",
       now:
         adoption === null

@@ -1,5 +1,5 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { readRequirements, requirementChip, type Requirement } from "../credentials/requirements";
+import { casualChip, readRequirements, type Requirement } from "../credentials/requirements";
 import { bestOfGroup, qualificationStatus, type QualificationState } from "../credentials/status";
 import { credentials, firms, uploads, workers } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
@@ -17,7 +17,7 @@ import { travelSettings } from "../travel/settings";
 // reads only. Whether she may take it stays the rules engine's (previewBooking): this only shows.
 
 export interface ShiftRequirement extends Requirement {
-  chip: string; // "SIA DS", "CSAS"
+  chip: string; // its full name: "SIA door supervisor licence", "CSAS accreditation"
   // Her status, and whether her new one is waiting for the office (a renewal on its way).
   status: Pick<QualificationState, "status" | "expiresOn"> & { renewing: boolean };
   // She may send it herself: one of her roles needs it (the upload page and saveMyUpload() take
@@ -150,12 +150,12 @@ export async function shiftFacts(
       if (noneHeld) {
         const anyOf = group.map((code) => {
           const one = { code, name: reader.nameOf(code) };
-          return { ...one, chip: requirementChip(one), uploadable: uploadable(code) };
+          return { ...one, chip: casualChip(one), uploadable: uploadable(code) };
         });
         return {
           code: r.code,
           name: orList(anyOf.map((a) => a.name)),
-          chip: orList(anyOf.map((a) => a.chip)),
+          chip: casualChip({ code: r.code, name: r.name, group: anyOf }),
           status: { status, expiresOn, renewing: false },
           uploadable: anyOf.some((a) => a.uploadable),
           anyOf,
@@ -163,7 +163,7 @@ export async function shiftFacts(
       }
       return {
         ...r,
-        chip: requirementChip(r),
+        chip: casualChip(r),
         status: { status, expiresOn, renewing: waiting !== null },
         uploadable: uploadable(r.code),
       };

@@ -61,7 +61,7 @@ export const STATUS_WORDS: Record<string, string> = {
   escalated: "Waiting for the office",
   approved: "Approved",
   declined: "Declined",
-  auto_resolved: "Sorted",
+  auto_resolved: "Done",
 };
 
 // One request's status in words: a question (`general`) the office approved reads "Answered"

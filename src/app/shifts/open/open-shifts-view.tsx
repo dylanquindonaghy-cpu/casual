@@ -12,7 +12,7 @@ import { OpenShiftCard } from "./open-shift-card";
 import { AreaPrompt, FurtherNote } from "./travel-notes";
 
 // Open shifts (docs/screens.md, `/shifts/open`; Phases 18, 20 and 24): only shifts this worker can
-// take. As round 7 of the canvas has it (24.6): "Shifts you can take", up to how far she travels;
+// take. As round 7 of the canvas has it (24.6): "Shifts you can take", inside her travel area;
 // the Open | Booked switch; the next 8 days as a strip of glass tiles (her booked days grey with a
 // tick, urgent days with their count in red, days with open shifts with their count, the chosen day
 // in ink), a day with shifts a link to just that day, and its key in words; how many shifts there
@@ -20,13 +20,13 @@ import { AreaPrompt, FurtherNote } from "./travel-notes";
 // plain form: it opens and works without JavaScript); then urgent shifts first, then the rest in
 // date order like the strip, one card each (src/app/shifts/open/open-shift-card.tsx), each opening
 // the shift's page where she takes it. The cards' lists have role="list": Safari stops announcing a list once its bullets are
-// styled away. With no travel area, a prompt to add one; under the list, how many more are further
-// than she travels (12G.3). No "Back" button: the tab bar is always there.
+// styled away. With no travel area, a prompt to add one; under the list, how many more are outside
+// her travel area (12G.3). No "Back" button: the tab bar is always there.
 
 export const limitText = (maxMinutes: number | null) =>
   maxMinutes === null
     ? "Shifts you can take."
-    : `Shifts you can take, up to ${maxMinutes} minutes from home.`;
+    : `Shifts you can take, inside your travel area (up to ${maxMinutes} minutes).`;
 
 const STRIP_BOX: Record<StripDay["kind"], string> = {
   booked: "bg-ink/12 text-ink inset-ring inset-ring-white/30",
@@ -89,8 +89,13 @@ function Strip({ days, current }: { days: StripDay[]; current?: string }) {
           );
         })}
       </ul>
-      {/* Its key in words, so a day's colour never says it alone (the mock-up has none). */}
+      {/* Its key in words, so a day's colour never says it alone (the mock-up has none). Each
+          number is a count of that day's shifts, so the key names the colour, not a sample "1". */}
       <p className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-ink-muted">
+        <span>
+          <span className="font-semibold text-urgent-ink">Red number</span>: urgent shifts that day
+        </span>
+        <span>Grey number: open shifts that day</span>
         <span className="flex items-center gap-1.5">
           <span
             aria-hidden="true"
@@ -99,24 +104,6 @@ function Strip({ days, current }: { days: StripDay[]; current?: string }) {
             <Icon name="check" size={14} />
           </span>
           You&apos;re booked
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span
-            aria-hidden="true"
-            className="glass-tile flex size-5 items-center justify-center rounded-md font-semibold text-urgent-ink"
-          >
-            1
-          </span>
-          Urgent
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span
-            aria-hidden="true"
-            className="glass-tile flex size-5 items-center justify-center rounded-md"
-          >
-            1
-          </span>
-          Open
         </span>
       </p>
     </section>

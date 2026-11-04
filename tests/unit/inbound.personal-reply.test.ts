@@ -423,7 +423,7 @@ describe("the other instant replies", () => {
   it("the pay reply: the link only, never a list, with how to reach a person", () => {
     const pay = shiftsLineReply(firm, { intent: "pay", link: "http://acme.localhost:3000/pay" });
     expect(pay).toBe(
-      `Your hours, rates and pay dates: http://acme.localhost:3000/pay (you'll get a code to log in). ${AUTOMATIC} — Acme Events Shift Team`,
+      `Your hours, rates and pay dates: http://acme.localhost:3000/pay (you'll get a code to log in). If something looks wrong, tap 'Raise a pay query' there, so payroll sees it. ${AUTOMATIC} — Acme Events Shift Team`,
     );
     expect(pay).not.toMatch(/shifts you can take|£|\d\./);
   });

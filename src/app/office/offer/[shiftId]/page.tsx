@@ -7,7 +7,7 @@ import { readSessionToken } from "@/lib/auth/session-cookie";
 import { officeOfferPage } from "@/lib/office/offer-page";
 import { OfferView } from "./offer-view";
 
-export const metadata: Metadata = { title: "Offer this shift" };
+export const metadata: Metadata = { title: "Offer this session" };
 
 // "Offer to someone" for one shift (the dashboard's quick action). Admins and resourcers.
 export default async function OfferPage({ params }: { params: Promise<{ shiftId: string }> }) {

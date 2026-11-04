@@ -396,7 +396,8 @@ async function claimCredential(
       : null;
   const date = shortDate(expiresOn, year);
   // Where she uploads the renewed card (12F.2). One she can't upload (the office records it, or none
-  // of her roles needs it, so her upload page wouldn't take it) says to send it to the office.
+  // of her roles needs it, so her upload page wouldn't take it) says to tell the office under
+  // Messages, with the link to her Messages (Phase 27.2).
   const upload =
     c.needed && !c.officeRecorded && casualMayUpload(c.type)
       ? `${portal}/profile/upload/${c.type}`
@@ -412,7 +413,7 @@ async function claimCredential(
     return {
       kind: "warn",
       message: to(
-        credentialExpiringMessage(voice, name, date, upload),
+        credentialExpiringMessage(voice, name, date, upload, `${portal}/messages`),
         credentialExpiringEmailSubject(name, date),
       ),
       data: { type: c.type, expiresOn, days: action.days, daysLeft: action.daysLeft },
@@ -446,7 +447,7 @@ async function claimCredential(
     return {
       kind: "expire",
       message: to(
-        credentialExpiredMessage(voice, name, date, upload),
+        credentialExpiredMessage(voice, name, date, upload, `${portal}/messages`),
         credentialExpiredEmailSubject(name),
       ),
       data: { type: c.type, expiresOn },

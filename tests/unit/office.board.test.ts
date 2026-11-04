@@ -332,17 +332,17 @@ const links = (html: string) =>
 describe("the dashboard's words", () => {
   it("the head's line: the day, the pay week and its pay day, and when the planner or sheet last sent changes", () => {
     expect(headLine("2026-10-26", { kind: "api", lastChangeAt: NOW }, NOW, TZ)).toBe(
-      "Monday 26 October · Week 44 · Pay Fri 6 Nov · Updated 11:20 from your planner",
+      "Monday 26 October · Week 44 (paid Fri 6 Nov) · Updated 11:20 from your planner",
     );
     expect(
       headLine("2026-10-26", { kind: "sheet", syncedAt: at("2026-10-25T21:05:00Z") }, NOW, TZ),
     ).toBe(
-      "Monday 26 October · Week 44 · Pay Fri 6 Nov · Updated Sun 25 Oct, 21:05 from your rota sheet",
+      "Monday 26 October · Week 44 (paid Fri 6 Nov) · Updated Sun 25 Oct, 21:05 from your rota sheet",
     );
     // Nothing connected, a sheet never synced, or its part unread: nothing to say.
     for (const p of [{ kind: "none" as const }, { kind: "sheet" as const, syncedAt: null }, null])
       expect(headLine("2026-10-26", p, NOW, TZ)).toBe(
-        "Monday 26 October · Week 44 · Pay Fri 6 Nov",
+        "Monday 26 October · Week 44 (paid Fri 6 Nov)",
       );
   });
 
@@ -352,22 +352,22 @@ describe("the dashboard's words", () => {
     });
     // 26 Oct is the first day of cycle 22 (5 Jan + 21 fortnights), paid Fri 13 Nov.
     expect(headLine("2026-10-30", null, NOW, TZ, fortnight)).toBe(
-      "Friday 30 October · Cycle 22 · Pay Fri 13 Nov",
+      "Friday 30 October · Cycle 22 (paid Fri 13 Nov)",
     );
     // Its second week is the same cycle and pay day.
     expect(headLine("2026-11-02", null, NOW, TZ, fortnight)).toBe(
-      "Monday 2 November · Cycle 22 · Pay Fri 13 Nov",
+      "Monday 2 November · Cycle 22 (paid Fri 13 Nov)",
     );
     // A firm that calls its fortnight a week, and paid on the Thursday: its own word and day.
     const weeks = payCalendar({
       pay_calendar: { days: 14, anchor: "2026-01-05", pay_day_after: 4, label: "week" },
     });
     expect(headLine("2026-10-30", null, NOW, TZ, weeks)).toBe(
-      "Friday 30 October · Week 22 · Pay Thu 12 Nov",
+      "Friday 30 October · Week 22 (paid Thu 12 Nov)",
     );
     // A day before the calendar starts has no number.
     expect(headLine("2026-01-02", null, NOW, TZ, fortnight)).toMatch(
-      /^Friday 2 January · Cycle · Pay /,
+      /^Friday 2 January · Cycle \(paid /,
     );
   });
 
@@ -504,13 +504,19 @@ describe("the dashboard's words", () => {
     expect(toOfferLine(1)).toBe("1 place, no offers out");
     expect(offeredLine(13, 11)).toBe("13 places · 11 offers, no reply yet");
     expect(offeredLine(1, 1)).toBe("1 place · 1 offer, no reply yet");
+    // Who worked?'s line: what its buttons do, then the people listed to mark and their days.
     const items = (...days: string[]) => days.map((d) => ({ startsAt: at(`${d}T10:00:00Z`) }));
-    expect(toMarkLine(items("2026-10-25", "2026-10-25"), TZ)).toBe("2 sessions from Sun 25 Oct");
-    expect(toMarkLine(items("2026-10-25", "2026-10-22"), TZ)).toBe(
-      "2 sessions from Thu 22 to Sun 25 Oct",
+    expect(toMarkLine(items("2026-10-25", "2026-10-25"), 3, TZ)).toBe(
+      "Tap Worked, or ✕ if they didn't turn up. 3 people from Sun 25 Oct",
     );
-    expect(toMarkLine(items("2026-11-02", "2026-10-30"), TZ)).toBe(
-      "2 sessions from Fri 30 Oct to Mon 2 Nov",
+    expect(toMarkLine(items("2026-10-25", "2026-10-22"), 4, TZ)).toBe(
+      "Tap Worked, or ✕ if they didn't turn up. 4 people from Thu 22 to Sun 25 Oct",
+    );
+    expect(toMarkLine(items("2026-11-02", "2026-10-30"), 2, TZ)).toBe(
+      "Tap Worked, or ✕ if they didn't turn up. 2 people from Fri 30 Oct to Mon 2 Nov",
+    );
+    expect(toMarkLine(items("2026-11-02"), 1, TZ)).toBe(
+      "Tap Worked, or ✕ if they didn't turn up. 1 person from Mon 2 Nov",
     );
     expect(emptyText("toOffer", false, "all")).toBe("Every place here has been offered.");
     expect(emptyText("toOffer", true, "all")).toBe("No places to fill.");
@@ -558,12 +564,12 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
       html,
     )?.[1] ?? "";
 
-  it("one heading for the page, its line, the track with its counts, and Show full venues", () => {
+  it("one heading for the page, its line, the track with its counts, and Show filled venues too", () => {
     const html = render(board);
     expect(html.match(/<h1[ >]/g)).toHaveLength(1);
     expect(html).toMatch(/<h1 class="text-title text-ink">Dashboard<\/h1>/);
     expect(words(html)).toContain(
-      "Monday 26 October · Week 44 · Pay Fri 6 Nov · Updated 11:20 from your planner",
+      "Monday 26 October · Week 44 (paid Fri 6 Nov) · Updated 11:20 from your planner",
     );
     expect(links(track(html)).map((l) => [l.href, l.name, l.current])).toEqual([
       ["/office", "All 6", "page"],
@@ -571,13 +577,13 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
       ["/office?show=this-week", "This week 6", null],
       ["/office?show=next-week", "Next week 0", null],
     ]);
-    // Show full venues: a switch, off; on, the track keeps it and the switch goes back.
+    // Show filled venues too: a switch, off; on, the track keeps it and the switch goes back.
     expect(html).toMatch(
-      /<a role="switch" aria-checked="false" [^>]*href="\/office\?full=1"[^>]*>Show full venues/,
+      /<a role="switch" aria-checked="false" [^>]*href="\/office\?full=1"[^>]*>Show filled venues too/,
     );
     const full = render({ ...board, full: true, show: "urgent", role: "steward" });
     expect(full).toMatch(
-      /<a role="switch" aria-checked="true" [^>]*href="\/office\?show=urgent&amp;role=steward"[^>]*>Show full venues/,
+      /<a role="switch" aria-checked="true" [^>]*href="\/office\?show=urgent&amp;role=steward"[^>]*>Show filled venues too/,
     );
     expect(links(track(full)).map((l) => l.href)).toEqual([
       "/office?role=steward&full=1",
@@ -650,12 +656,12 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
     expect(words(m)).toContain(
       "Not on the map (no postcode yet): Hillside Demo Square, 4 places to fill.",
     );
-    // The key: what a pin's ring means; "All filled" too while Show full venues is on.
+    // The key: what a pin's ring means; "All filled" too while Show filled venues too is on.
     const key = (html: string) =>
       words(/<ul role="list" aria-label="Key"[^>]*>([\s\S]*?)<\/ul>/.exec(html)?.[1] ?? "");
-    expect(key(m)).toBe("Urgent Places to fill Hidden from casuals");
+    expect(key(m)).toBe("Urgent Places to fill Hidden: casuals can't see it");
     expect(key(map(render({ ...board, full: true })))).toBe(
-      "Urgent Places to fill Hidden from casuals All filled",
+      "Urgent Places to fill Hidden: casuals can't see it All filled",
     );
     // The same figures as a table, one tap away (aud-9): every venue, placed or not, each a link
     // like its pin.
@@ -688,15 +694,17 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
         "Tue 27 Oct, 08:00–16:00 8 h · £15.50/h",
         "Starts in 20 h 1 place to fill",
         "Booked Urgent 3 / 4 booked",
-        "Can take it 1 offered 1 Under the rules, right now",
+        // Who can take it: the number, what it means, then the offers sent. Mo has the offer, so
+        // Zoe is one more (the number never counts anyone already offered it).
+        "1 more has the licence, rest and hours for it 1 offered",
         // An offer still waiting: who hasn't replied, before who else could take it.
         "Mo Rahman hasn't replied since 07:19.",
-        "Offer to Zoe Open the shift",
+        "Offer to Zoe Open the session",
       ].join(" "),
     );
     expect(links(card(html)).map((l) => [l.href, l.name])).toEqual([
       ["/office/offer/nll1", "Offer to Zoe"],
-      ["/office/shifts/nll1", "Open the shift"],
+      ["/office/shifts/nll1", "Open the session"],
     ]);
     // Starting in under 2 days: red.
     expect(card(html)).toMatch(/text-urgent-ink">Starts in 20 h</);
@@ -719,7 +727,19 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
     // Several can take it: "Offer to someone", and the session's own line.
     const several = render({ ...board, takers: ok({ count: 4, only: null }) });
     expect(words(card(several))).toContain(
-      "Can take it 1 offered 4 Under the rules, right now Mo Rahman hasn't replied since 07:19. Offer to someone",
+      "4 more have the licence, rest and hours for it 1 offered Mo Rahman hasn't replied since 07:19. Offer to someone",
+    );
+    // Nothing offered yet: the chip says so.
+    const none = render({
+      ...board,
+      takers: ok({ count: 4, only: null }),
+      gaps: ok({
+        ...(board.gaps.ok ? board.gaps.data : ({} as never)),
+        chosen: { ...nll1, offers: offers() },
+      }),
+    });
+    expect(words(card(none))).toContain(
+      "4 have the licence, rest and hours for it None offered yet",
     );
     // A planner's session: no Mark as filled.
     const planner = render({
@@ -790,11 +810,16 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
     ]);
   });
 
-  it("Who worked?: alike sessions together with their day, each person by name with Worked and Didn't attend; Everyone else worked for several", () => {
+  it("Who worked?: alike sessions together with their day, each person by name with Worked and Didn't attend; All of these worked for several", () => {
     const col = section(render(board), "who-worked");
-    expect(words(col)).toMatch(/^Who worked\? 3 3 sessions to mark 3 sessions from Sun 25 Oct /);
+    // The line under the heading says what Worked and ✕ do, then how many people are listed (the
+    // three below) and from when.
+    expect(words(col)).toMatch(
+      /^Who worked\? 3 3 sessions to mark Tap Worked, or ✕ if they didn't turn up\. 3 people from Sun 25 Oct /,
+    );
+    // Alike sessions under one line, with no " · 2 sessions": the people under it are what count.
     expect(words(col)).toContain(
-      "Sun 25 Oct · Steward · Acme Demo Racecourse · 09:00–17:00 · 2 sessions NR Nathan Reid",
+      "Sun 25 Oct · Steward · Acme Demo Racecourse · 09:00–17:00 NR Nathan Reid",
     );
     expect(words(col)).toContain(
       "Sun 25 Oct · Security officer · Acme Demo Shopping Centre · 10:00–18:00 BP Bea Patel",
@@ -813,12 +838,12 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
       "Bea Patel worked, Sun 25 Oct 10:00",
       "Bea Patel didn't attend, Sun 25 Oct 10:00",
     ]);
-    // Everyone else, after a "Yes": only where there are several.
-    expect(col.match(/>Everyone else worked</g)).toHaveLength(1);
+    // All of these worked, after a "Yes": only where there are several.
+    expect(col.match(/>All of these worked</g)).toHaveLength(1);
     expect(col).toContain(
-      'aria-label="Everyone else worked: Sun 25 Oct · Steward · Acme Demo Racecourse · 09:00–17:00 · 2 sessions"',
+      'aria-label="All of these worked: Sun 25 Oct · Steward · Acme Demo Racecourse · 09:00–17:00"',
     );
-    expect(col).toContain(">Yes, everyone else worked<");
+    expect(col).toContain(">Yes, all of these worked<");
     // Both groups shown: nothing more. More than three: the first three, then "Show all 4"
     // (Phase 26.4: every session to mark is here now, none on Needs attention).
     expect(col).not.toContain("Show all");
@@ -882,7 +907,7 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
     // The track, the map, To offer, Updates and Who worked?.
     expect(html.split(SECTION_ERROR.replace("'", "&#x27;")).length - 1).toBe(5);
     expect(html).toContain(">Dashboard</h1>");
-    expect(words(html)).toContain("Monday 26 October · Week 44 · Pay Fri 6 Nov");
+    expect(words(html)).toContain("Monday 26 October · Week 44 (paid Fri 6 Nov)");
     expect(words(html)).not.toContain("Updated");
     expect(links(track(html)).map((l) => l.name)).toEqual([
       "All",
@@ -979,12 +1004,12 @@ describe("the offer panel lists who can take it as the offer page does", () => {
         "Not offered, and why Ben Fraser Booked on it Mo Rahman No licence in date Zoe Adeyemi Over today's 3 offers And 2 more.",
       );
     }
-    expect(words(panel(page))).toContain("This shift is urgent: they get the urgent message.");
+    expect(words(panel(page))).toContain("This session is urgent: they get the urgent message.");
   });
 
-  it("who has been offered it and how they answered, in the same words (an expired offer closed when the shift changed)", () => {
+  it("who has been offered it and how they answered, in the same words (an expired offer closed when the session changed)", () => {
     expect(answers(panel(page))).toBe(
-      "Mo Rahman: waiting (by the office, 07:19 on Mon 26 Oct) Ben Fraser: said no (wave 1, 10:00 on Sun 25 Oct) Leah Ward: closed when the shift changed (wave 2, 11:00 on Sun 25 Oct)",
+      "Mo Rahman: waiting (by the office, 07:19 on Mon 26 Oct) Ben Fraser: said no (wave 1, 10:00 on Sun 25 Oct) Leah Ward: closed when the session changed (wave 2, 11:00 on Sun 25 Oct)",
     );
     expect(answers(offerPage(page)).startsWith(answers(panel(page)))).toBe(true);
   });
@@ -992,13 +1017,13 @@ describe("the offer panel lists who can take it as the offer page does", () => {
   it("nobody when it's hidden from casuals or not open, as the page says", () => {
     const hidden = { ...page, shift: { ...page.shift, hidden: true }, candidates: [] };
     expect(words(panel(hidden))).toContain(
-      "This shift is hidden from casuals, so it can't be offered.",
+      "This session is hidden from casuals, so it can't be offered.",
     );
     expect(people(panel(hidden))).toEqual([]);
     const closed = { ...page, shift: { ...page.shift, open: false }, candidates: [] };
-    expect(words(panel(closed))).toContain("This shift isn't open any more.");
+    expect(words(panel(closed))).toContain("This session isn't open any more.");
     expect(words(panel({ ...page, candidates: [] }))).toContain(
-      "Nobody else can be offered this shift right now.",
+      "Nobody else can be offered this session right now.",
     );
     expect(words(panel({ ...page, notOffered: [], notOfferedMore: 0 }))).toContain(
       "Everyone with the role can be offered it.",
@@ -1014,10 +1039,10 @@ describe("the dashboard, each person's own (Phase 26.3)", () => {
     // Customise: the page of its own until the page is ready (then the panel).
     expect(links(header).find((l) => l.name === "Customise")?.href).toBe("/office/customise");
     expect(header).toContain('aria-haspopup="dialog"');
-    const choice = /<summary aria-label="(Choose a date|Date: [^"]+)"[\s\S]*?<\/details>/.exec(
-      header,
-    );
-    expect(choice?.[1]).toBe("Choose a date");
+    const choice = /<summary aria-label="(Pick a day|Date: [^"]+)"[\s\S]*?<\/details>/.exec(header);
+    expect(choice?.[1]).toBe("Pick a day");
+    // The button says what it does while no day is chosen; its list's first item is every day.
+    expect(choice?.[0]).toMatch(/<summary[^>]*>Pick a day</);
     expect(links(choice?.[0] ?? "").map((l) => [l.href, l.name, l.current])).toEqual([
       ["/office", "All dates", "true"],
       ["/office?day=2026-10-27", "Tue 27 Oct · 5 places", null],

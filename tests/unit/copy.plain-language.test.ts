@@ -700,6 +700,14 @@ const SCREENS: [string, ReactElement][] = [
           { day: "2026-11-07", booked: false },
         ],
         qualifications: EVERY_STATUS,
+        // Phase 27.2: one a shift of hers needs on top of its role, of each status (one on file:
+        // never missing).
+        others: EVERY_STATUS.filter((q) => q.status !== "missing").map((q, i) => ({
+          ...q,
+          neededFor: [],
+          uploadable: false,
+          shift: { role: "steward", day: "2026-11-07", booked: i % 2 === 0 },
+        })),
         rightToWork: { checked: true, checkedOn: "2026-01-12", expired: false },
         rolesWithoutRule: ["response_team_lead"],
         photo: {
@@ -839,7 +847,7 @@ const SCREENS: [string, ReactElement][] = [
           {
             id: "2",
             mine: false,
-            text: "Your hours, rates and pay dates: https://acme.shiftdesk.test/pay (you'll get a code to log in). Automatic reply. Send OFFICE to reach a person. — Acme Events Shift Team",
+            text: "Your hours, rates and pay dates: https://acme.shiftdesk.test/pay (you'll get a code to log in). If something looks wrong, tap 'Raise a pay query' there, so payroll sees it. Automatic reply. Send OFFICE to reach a person. — Acme Events Shift Team",
             at: NOW,
             from: "automatic",
           },

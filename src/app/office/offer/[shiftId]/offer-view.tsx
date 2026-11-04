@@ -35,7 +35,7 @@ export function OfferView({ page }: { page: OfferPage }) {
   const { shift, timeZone } = page;
   return (
     <>
-      <PageHeader title="Offer this shift">
+      <PageHeader title="Offer this session">
         <p className="text-lg font-semibold">
           <Link
             href={`/office/shifts/${shift.shiftId}`}
@@ -57,8 +57,8 @@ export function OfferView({ page }: { page: OfferPage }) {
       </PageHeader>
       {shift.open && shift.hidden ? (
         <p className={`${card} text-ink-muted`}>
-          This shift is hidden from casuals, so it can&apos;t be offered. Show it to casuals first,
-          or assign someone from the shift&apos;s page.
+          This session is hidden from casuals, so it can&apos;t be offered. Show it to casuals
+          first, or assign someone from the session&apos;s page.
         </p>
       ) : shift.open ? (
         <div className="grid gap-x-8 gap-y-12 lg:grid-cols-2">
@@ -95,7 +95,7 @@ export function OfferView({ page }: { page: OfferPage }) {
           <NotOfferedList page={page} />
         </div>
       ) : (
-        <p className={`${card} text-ink-muted`}>This shift isn&apos;t open any more.</p>
+        <p className={`${card} text-ink-muted`}>This session isn&apos;t open any more.</p>
       )}
       <section className={sectionGap.office} aria-labelledby="already-offered">
         <h2 id="already-offered" className={h2}>

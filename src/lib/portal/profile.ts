@@ -1,11 +1,26 @@
 import { loadCasualRecords } from "../office/reliability";
 import type { Reliability } from "../rules/reliability";
-import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import { systemClock } from "../auth/clock";
 import { qualificationsFor } from "../credentials/qualifications";
 import type { StaffPhoto } from "../uploads/photo";
-import type { Qualification, RightToWork } from "../credentials/status";
-import { workers, workerUnavailableDays } from "../db/schema";
+import {
+  qualificationStatus,
+  RIGHT_TO_WORK,
+  STATUS_ORDER,
+  type Qualification,
+  type RightToWork,
+} from "../credentials/status";
+import {
+  assignments,
+  credentials,
+  credentialTypes,
+  offers,
+  shifts,
+  uploads,
+  workers,
+  workerUnavailableDays,
+} from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { withFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
@@ -24,9 +39,10 @@ import {
 // firm. Server only (it reaches the database); the browser-safe parts are profile-kinds.ts.
 //
 // - myProfile: contact details; her qualifications as they stand today (12F.1: every type one of her
-//   roles needs, with its status, src/lib/credentials/status.ts) and her right-to-work check (a
-//   status only); the days marked unavailable from today on (with whether a booking falls on
-//   each); and the notification settings.
+//   roles needs, with its status, src/lib/credentials/status.ts), then any other she holds that a
+//   shift she's booked on or offered needs on top of its role ("Other qualifications on file",
+//   Phase 27.2), and her right-to-work check (a status only); the days marked unavailable from
+//   today on (with whether a booking falls on each); and the notification settings.
 // - setUnavailable: mark or clear one firm-local day, today to 180 days ahead, at most 60 marked.
 //   Marking never touches a booking already made that day (a cancellation must be deliberate);
 //   the answer says if there is one. The rules engine's check 8 uses these days.
@@ -34,6 +50,15 @@ import {
 // Every change is logged with dates and choices only (golden rule 5).
 
 type Ctx = PortalContext & { firm: { id: string; timezone: string } };
+
+// One she holds that a shift of hers needs on top of its role, though none of her roles does (a
+// session's own extra, `shifts.required_credentials`), read as every qualification is
+// (qualificationStatus()). `neededFor` is empty (no role needs it) and she can't upload it (her
+// upload page takes only what her roles need): she tells the office. `shift`: the soonest one that
+// needs it, booked or offered.
+export interface OtherQualification extends Qualification {
+  shift: { role: string; day: string; booked: boolean };
+}
 
 export interface Profile {
   firstName: string;
@@ -44,6 +69,9 @@ export interface Profile {
   offerAlerts: boolean;
   textsOff: boolean; // they replied STOP to a text: no texts until they reply START
   qualifications: Qualification[];
+  // "Other qualifications on file" (Phase 27.2): always set by myProfile; left out by the pages'
+  // own fixtures.
+  others?: OtherQualification[];
   rightToWork: RightToWork;
   rolesWithoutRule: string[]; // her roles the firm has no rule for (she can't take those shifts)
   photo: StaffPhoto; // her staff photo (12F.2)
@@ -108,11 +136,18 @@ export async function myProfile(ctx: Ctx, workerId: string): Promise<Profile | n
       ctx.firm.timezone,
     );
     const { smsOptedOutAt, ...contact } = me;
+    const qualifications = held?.qualifications ?? [];
     return {
       ...contact,
       mobile: me.mobile,
       textsOff: smsOptedOutAt !== null,
-      qualifications: held?.qualifications ?? [],
+      qualifications,
+      others: await otherQualifications(tx, workerId, {
+        now,
+        timeZone: ctx.firm.timezone,
+        today,
+        listed: new Set(qualifications.map((q) => q.type)),
+      }),
       rightToWork: held?.rightToWork ?? { checked: false, checkedOn: null, expired: false },
       rolesWithoutRule: held?.rolesWithoutRule ?? [],
       photo: held?.photo ?? { status: "missing", current: null, waiting: null },
@@ -125,6 +160,132 @@ export async function myProfile(ctx: Ctx, workerId: string): Promise<Profile | n
       },
     };
   });
+}
+
+// The extras (`shifts.required_credentials`) of the shifts she's booked on (still to finish) or
+// offered (not started, open, her answer still awaited), less right to work and the types her roles
+// already list; of those, the ones she holds a record of, each with the soonest shift that needs it
+// (booked first on a tie). Worst first, then by name, as her main list. Reads only.
+async function otherQualifications(
+  tx: FirmTx,
+  workerId: string,
+  o: { now: Date; timeZone: string; today: string; listed: ReadonlySet<string> },
+): Promise<OtherQualification[]> {
+  const extras = sql`cardinality(${shifts.requiredCredentials}) > 0`;
+  const sessionOf = {
+    extras: shifts.requiredCredentials,
+    role: shifts.role,
+    startsAt: shifts.startsAt,
+  };
+  const booked = await tx
+    .select(sessionOf)
+    .from(assignments)
+    .innerJoin(
+      shifts,
+      and(eq(shifts.firmId, assignments.firmId), eq(shifts.id, assignments.shiftId)),
+    )
+    .where(
+      and(
+        eq(assignments.workerId, workerId),
+        eq(assignments.status, "confirmed"),
+        gt(shifts.endsAt, o.now),
+        inArray(shifts.status, ["open", "filled"]),
+        extras,
+      ),
+    );
+  const offered = await tx
+    .select(sessionOf)
+    .from(offers)
+    .innerJoin(shifts, and(eq(shifts.firmId, offers.firmId), eq(shifts.id, offers.shiftId)))
+    .where(
+      and(
+        eq(offers.workerId, workerId),
+        isNull(offers.response),
+        gt(shifts.startsAt, o.now),
+        eq(shifts.status, "open"),
+        extras,
+      ),
+    );
+  const sessions = [
+    ...booked.map((s) => ({ ...s, booked: true })),
+    ...offered.map((s) => ({ ...s, booked: false })),
+  ].sort(
+    (a, b) => a.startsAt.getTime() - b.startsAt.getTime() || Number(b.booked) - Number(a.booked),
+  );
+  const firstFor = new Map<string, (typeof sessions)[number]>();
+  for (const s of sessions) {
+    for (const code of s.extras) {
+      if (code === RIGHT_TO_WORK || o.listed.has(code) || firstFor.has(code)) continue;
+      firstFor.set(code, s);
+    }
+  }
+  const codes = [...firstFor.keys()];
+  if (codes.length === 0) return [];
+  // Her records of them, each with the upload it came from (as qualificationsFor() reads them).
+  const records = await tx
+    .select({
+      type: credentials.type,
+      status: credentials.status,
+      expiresOn: credentials.expiresOn,
+      checkState: credentials.checkState,
+      uploadId: uploads.id,
+      sentAt: uploads.createdAt,
+      reason: credentials.rejectedReason,
+    })
+    .from(credentials)
+    .leftJoin(
+      uploads,
+      and(eq(uploads.firmId, credentials.firmId), eq(uploads.id, credentials.evidenceUploadId)),
+    )
+    .where(and(eq(credentials.workerId, workerId), inArray(credentials.type, codes)));
+  const names = new Map(
+    (
+      await tx
+        .select({ code: credentialTypes.code, name: credentialTypes.name })
+        .from(credentialTypes)
+        .where(inArray(credentialTypes.code, codes))
+    ).map((t) => [t.code, t.name]),
+  );
+  const rank = (q: Qualification) => STATUS_ORDER.indexOf(q.status);
+  return codes
+    .flatMap((type): OtherQualification[] => {
+      const mine = records
+        .filter((r) => r.type === type)
+        .map((r) => ({
+          status: r.status,
+          expiresOn: r.expiresOn,
+          checkState: r.checkState,
+          upload:
+            r.uploadId && r.sentAt
+              ? { id: r.uploadId, sentOn: localDateOf(r.sentAt, o.timeZone), reason: r.reason }
+              : null,
+        }));
+      const state = qualificationStatus(mine, o.today);
+      // Not on file: nothing to list (the shift's own page says what it needs).
+      if (mine.length === 0 || state.status === "missing") return [];
+      const shift = firstFor.get(type);
+      if (!shift) return [];
+      return [
+        {
+          type,
+          name: names.get(type) ?? type.replace(/_/g, " ").toLowerCase(),
+          neededFor: [],
+          ...state,
+          appliedCounts: false,
+          renewing:
+            (state.status === "valid" || state.status === "expiring_soon") &&
+            (state.waiting !== null ||
+              mine.some((r) => r.checkState === "verified" && r.status === "applied")),
+          uploadable: false,
+          shift: {
+            role: shift.role,
+            day: localDateOf(shift.startsAt, o.timeZone),
+            booked: shift.booked,
+          },
+        },
+      ];
+    })
+    .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
 }
 
 export async function setUnavailable(

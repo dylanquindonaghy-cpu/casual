@@ -37,7 +37,7 @@ import { ThemeButton } from "./theme-button";
 // 1024px, the rail at the left (office-rail.tsx: the firm's mark, the menu as icons or with names)
 // and, over the page, a top bar of three floating glass capsules that stays at the top, a soft
 // frosted edge fading in behind it once the page scrolls under it: the counts (To fill, Urgent,
-// Offers out, To check, Pay queries, each opening where it's worked and only for the roles that can
+// Offers out, Needs attention, Pay queries, each opening where it's worked and only for the roles that can
 // open it: office-menu.ts barCounts), the search (office-search.tsx, for the roles that can open what
 // it finds) and the light or dark button with you (your initials, name and role) opening the
 // account menu (your name and role, the same light or dark switch, the how-to guide and Log out).

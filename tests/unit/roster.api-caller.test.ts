@@ -243,9 +243,9 @@ describe("the office's words for the planner", () => {
     expect(cancelBookingResultText({ status: "keeps_place", why: "planner" }, "Ann Booker")).toBe(
       "This session's places come from your planner, so change them there. Nothing was changed.",
     );
-    // The sheet's own words are unchanged.
+    // The sheet's own words (Phase 27.2: the office calls a shift a session).
     expect(cancelBookingResultText({ status: "keeps_place", why: "sheet" }, "Ann Booker")).toBe(
-      "This shift's places come from your rota sheet, so change them there. Nothing was changed.",
+      "This session's places come from your rota sheet, so change them there. Nothing was changed.",
     );
   });
 

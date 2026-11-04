@@ -156,31 +156,33 @@ export function strikeEvidenceEmail(
 // credential_expiring (WhatsApp or SMS, utility): sent 30, 14 and 7 days before a credential
 // expires, by the worker's channel (13.5; the same words by text). The link is the casual's upload
 // page for it (12F.2; docs/office-v2.md 5.7 item 5). One she can't upload (the office records it,
-// or none of her roles needs it: no link, null) is credential_expiring_to_office, the words before
-// 12F.2.
+// or none of her roles needs it: no link, null) is credential_expiring_to_office: she tells the
+// office under Messages, and `messages` is the link to her Messages (Phase 27.2).
 export function credentialExpiringMessage(
   firm: FirmVoice,
   credential: string,
   date: string,
   link: string | null,
+  messages: string,
 ): string {
   return link
-    ? `Your ${credential} expires on ${date}. Upload your renewed card so you can keep taking shifts that need it: ${link} — ${firm.signOff}`
-    : `Your ${credential} expires on ${date}. Renew it and send the new details to the office so you can keep taking shifts. — ${firm.signOff}`;
+    ? `Your ${credential} expires on ${date}. Upload the new one so you can keep taking shifts that need it: ${link} — ${firm.signOff}`
+    : `Your ${credential} expires on ${date}. Renew it to keep taking shifts that need it. Once you've renewed it, tell the office under Messages: ${messages} — ${firm.signOff}`;
 }
 
 // credential_expired (WhatsApp or SMS, utility): the day after a credential's expiry date, by the
-// worker's channel (13.5), with the same upload link (credential_expired_to_office, no link, for
-// one she can't upload).
+// worker's channel (13.5), with the same upload link (credential_expired_to_office, the link to her
+// Messages instead, for one she can't upload).
 export function credentialExpiredMessage(
   firm: FirmVoice,
   credential: string,
   date: string,
   link: string | null,
+  messages: string,
 ): string {
   return link
-    ? `Your ${credential} expired on ${date}. You can't take shifts that need it until you upload your renewed card and the office checks it: ${link} — ${firm.signOff}`
-    : `Your ${credential} expired on ${date}. You can't take shifts that need it until you renew it and send the new details to the office. — ${firm.signOff}`;
+    ? `Your ${credential} expired on ${date}. You can't take shifts that need it until you upload the new one and the office checks it: ${link} — ${firm.signOff}`
+    : `Your ${credential} expired on ${date}. You can't take shifts that need it until it's renewed. Once you've renewed it, tell the office under Messages: ${messages} — ${firm.signOff}`;
 }
 
 // credential_weekly_list (email to admins and resourcers, Mondays): what expires in the next 30
@@ -277,8 +279,8 @@ export function shiftUrgentSms(
   shift: { role: string; site: string | null; day: string; start: string; link: string },
 ): string {
   const role = roleWords(shift.role);
-  const site = shift.site ? ` ${shift.site}` : "";
-  return `${firm.name} URGENT: ${role} needed${site} ${shift.day} ${shift.start}. ${shift.link} - ${firm.signOff}`;
+  const site = shift.site ? ` at ${shift.site}` : "";
+  return `${firm.name} URGENT: ${role} needed${site} ${shift.day} ${shift.start}. Take it: ${shift.link} - ${firm.signOff}`;
 }
 
 // shift_changed_by_firm (WhatsApp, utility): the office moved or shortened a booked shift. {date}
@@ -467,10 +469,16 @@ export const APP_AUTOMATIC_REPLY = "Automatic reply.";
 export const forTheApp = (text: string): string =>
   text.split(AUTOMATIC_REPLY).join(APP_AUTOMATIC_REPLY);
 
+// Where a pay question that's really a dispute goes: a pay query, which reaches payroll's digest.
+export const PAY_QUERY_HINT =
+  "If something looks wrong, tap 'Raise a pay query' there, so payroll sees it.";
+
 export function shiftsLineReply(firm: FirmVoice, reply: ShiftsLineReply): string {
   const text =
     reply.intent === "pay"
-      ? `Your hours, rates and pay dates: ${reply.link} (you'll get a code to log in).`
+      ? // Golden rule 9: a pay question never gets an AI answer, and a dispute goes to payroll by a
+        // pay query (the guardrails review of 27.2, H1), as the inbox's pay answer says too.
+        `Your hours, rates and pay dates: ${reply.link} (you'll get a code to log in). ${PAY_QUERY_HINT}`
       : `The office will see this and get back to you. Ref ${reply.ref}.`;
   return `${text} ${AUTOMATIC_REPLY} — ${firm.signOff}`;
 }

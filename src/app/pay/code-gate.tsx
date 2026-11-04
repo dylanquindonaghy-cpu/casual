@@ -98,7 +98,9 @@ export function CodeGate({ codeWaiting, way }: { codeWaiting: boolean; way: Logi
             This code has stopped working.
           </p>
         ) : (
-          <p>To see your pay, we&apos;ll {byEmail ? "email" : "send"} you a 6-digit code.</p>
+          <p>
+            To keep your pay private, we&apos;ll {byEmail ? "email" : "text"} you a 6-digit code.
+          </p>
         )}
         {alerts}
         <button

@@ -135,9 +135,10 @@ describe("expiry message copy (docs/messaging-templates.md)", () => {
         "SIA door supervisor licence",
         "3 Oct",
         "https://acme.example.com/profile/upload/SIA_DS",
+        "https://acme.example.com/messages",
       ),
     ).toBe(
-      "Your SIA door supervisor licence expires on 3 Oct. Upload your renewed card so you can keep taking shifts that need it: https://acme.example.com/profile/upload/SIA_DS — Acme Events Shift Team",
+      "Your SIA door supervisor licence expires on 3 Oct. Upload the new one so you can keep taking shifts that need it: https://acme.example.com/profile/upload/SIA_DS — Acme Events Shift Team",
     );
   });
 
@@ -148,9 +149,37 @@ describe("expiry message copy (docs/messaging-templates.md)", () => {
         "PTS card",
         "30 Sep",
         "https://acme.example.com/profile/upload/PTS",
+        "https://acme.example.com/messages",
       ),
     ).toBe(
-      "Your PTS card expired on 30 Sep. You can't take shifts that need it until you upload your renewed card and the office checks it: https://acme.example.com/profile/upload/PTS — Acme Events Shift Team",
+      "Your PTS card expired on 30 Sep. You can't take shifts that need it until you upload the new one and the office checks it: https://acme.example.com/profile/upload/PTS — Acme Events Shift Team",
+    );
+  });
+
+  // Phase 27.2 (C5): one she can't upload (the office records it, or only a shift's own extra
+  // needs it) says how to send it: tell the office under Messages, with the link.
+  it("one she can't upload: tell the office under Messages, with its link", () => {
+    expect(
+      credentialExpiringMessage(
+        voice,
+        "first aid at work certificate",
+        "3 Oct",
+        null,
+        "https://acme.example.com/messages",
+      ),
+    ).toBe(
+      "Your first aid at work certificate expires on 3 Oct. Renew it to keep taking shifts that need it. Once you've renewed it, tell the office under Messages: https://acme.example.com/messages — Acme Events Shift Team",
+    );
+    expect(
+      credentialExpiredMessage(
+        voice,
+        "CSAS accreditation",
+        "30 Sep",
+        null,
+        "https://acme.example.com/messages",
+      ),
+    ).toBe(
+      "Your CSAS accreditation expired on 30 Sep. You can't take shifts that need it until it's renewed. Once you've renewed it, tell the office under Messages: https://acme.example.com/messages — Acme Events Shift Team",
     );
   });
 

@@ -46,11 +46,14 @@ describe("colours: tokens only", () => {
   const ARBITRARY =
     /-\[(?:#|rgb|hsl|oklch|oklab|lab|lch|hwb|color-mix)|\[(?:color|background|background-color|border-color):/g;
   // A colour value in code. Allowed only where it's the firm's brand colour (data, not the
-  // app's look) and the home screen's splash (the web app manifest can't follow a theme).
+  // app's look), the home screen's splash (the web app manifest can't follow a theme) and the
+  // street map's own drawing (Phase 27.8: MapLibre paints its canvas from the style's values, not
+  // from CSS; each name's contrast is checked in tests/unit/office.map-style.test.ts).
   const HEX = /#[0-9a-f]{3,8}\b|\brgba?\(|\bhsla?\(/gi;
   const HEX_ALLOWED = [
     "src/app/manifest.ts",
     "src/lib/db/admin/seed-data.ts",
+    "src/lib/office/map-style.ts",
     "src/lib/tenancy/brand-values.ts",
     "src/lib/tenancy/brand.ts",
   ];
@@ -72,13 +75,14 @@ describe("colours: tokens only", () => {
     expect(found).toEqual([]);
     // In the CSS, a colour value only defines a token (Phase 24): a colour token (#rrggbb, or
     // rgb(r g b / a) for the glass), or one of the glass's own variables (its rims, drops and
-    // gradients' ends, the wash's lights, the bar's edge; round 8's office: the main button's glow
-    // switched off and the street map's two lines), in a theme's block or a fallback's.
+    // gradients' ends and the bar's edge: round 8's, the office's and, since Phase 27.6, the casual
+    // app's; round 7's wash, the main button's glow and, since Phase 27.7, the street map's two
+    // lines are gone), in a theme's block or a fallback's.
     // Read declaration by declaration, since a long one wraps onto several lines.
     const css = read("src/app/globals.css");
     const hasColour = new RegExp(HEX.source, "i");
     const GLASS_VARS =
-      "glass-rim|glass-drop|glass-drop-sm|glass-sunk|float-shadow|tile-top|tile-bottom|button-top|button-bottom|button-rim|tint-rim|tint-glow|lens-shadow|edge-fill|wash-[a-d]|band-from|band-to|map-line|map-road";
+      "glass-rim|glass-drop|glass-drop-sm|glass-sunk|float-shadow|tile-top|tile-bottom|button-top|button-bottom|button-rim|tint-rim|lens-shadow|edge-fill|band-from|band-to";
     const tokens = new RegExp(
       String.raw`^\s*--(?:color-[a-z-]+: (?:#[0-9a-f]{6}|rgb\(\d+ \d+ \d+ \/ [\d.]+\))|(?:${GLASS_VARS}):[^;]+);`,
       "gm",

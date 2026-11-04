@@ -181,6 +181,102 @@ describe("myProfile", () => {
     expect(await myProfile(ctxFor(mine), kit)).toBeNull();
     expect((await myProfile(ctxFor(theirs), kit))?.firstName).toBe("Kit");
   });
+
+  // Phase 27.2 (C5): a certificate she holds that a shift of hers needs on top of its role, though
+  // none of her roles does, is listed under "Other qualifications on file": only for a shift she's
+  // booked on (still to finish) or offered (waiting for her answer), only one she has a record
+  // of, never right to work or one her roles already list; read as every qualification is.
+  it("lists what her booked or offered shifts need on top of her roles, that she holds", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const sam = await f.worker({
+      roles: ["steward"],
+      credentials: [
+        { type: "STEWARD_L2", expiresOn: null }, // her role's: in the main list only
+        { type: "FIRST_AID", expiresOn: "2026-11-20" }, // expiring soon
+        { type: "CSAS", status: "expired", expiresOn: "2026-10-01" },
+        { type: "SIA_DS", expiresOn: "2029-01-01" }, // only an answered offer's shift needs it
+        { type: "MANUAL_HANDLING", expiresOn: "2029-01-01" }, // only a finished shift's
+        { type: "RTW" },
+      ],
+    });
+    const extras = async (shift: string, codes: string) =>
+      su.query("update shifts set required_credentials = $2::text[] where id = $1", [shift, codes]);
+    const offer = (shift: string, response: string | null) =>
+      su.query(
+        `insert into offers (firm_id, shift_id, worker_id, wave, channel, response, responded_at)
+         values ($1, $2, $3, 1, 'sms', $4, $5)`,
+        [f.firmId, shift, sam, response, response ? hoursFromNow(-1) : null],
+      );
+    // Booked on Wednesday: first aid, right to work and her own role's qualification on top.
+    const booked = await f.shift({ role: "steward", startsAt: hoursFromNow(48) });
+    await extras(booked, "{FIRST_AID,RTW,STEWARD_L2}");
+    await f.booking(sam, booked);
+    // Offered Thursday's, still waiting for her answer: CSAS, and a PTS card she doesn't hold.
+    const offered = await f.shift({ role: "steward", startsAt: hoursFromNow(72) });
+    await extras(offered, "{CSAS,PTS}");
+    await offer(offered, null);
+    // Not listed: an offer she declined; a booking that has finished; a later shift needing first
+    // aid again (named by the soonest).
+    const declined = await f.shift({ role: "steward", startsAt: hoursFromNow(96) });
+    await extras(declined, "{SIA_DS}");
+    await offer(declined, "declined");
+    const done = await f.shift({ role: "steward", startsAt: hoursFromNow(-30) });
+    await extras(done, "{MANUAL_HANDLING}");
+    await f.booking(sam, done);
+    const later = await f.shift({ role: "steward", startsAt: hoursFromNow(120) });
+    await extras(later, "{FIRST_AID}");
+    await f.booking(sam, later);
+
+    const profile = await myProfile(ctxFor(f), sam);
+    expect(profile?.qualifications.map((q) => q.type)).toEqual(["STEWARD_L2"]);
+    // Worst first, as her main list; each with the soonest shift that needs it.
+    expect(profile?.others).toEqual([
+      {
+        type: "CSAS",
+        name: "CSAS accreditation",
+        status: "expired",
+        expiresOn: "2026-10-01",
+        neededFor: [],
+        appliedCounts: false,
+        renewing: false,
+        uploadable: false,
+        evidenceUploadId: null,
+        waiting: null,
+        rejected: null,
+        shift: { role: "steward", day: "2026-11-05", booked: false },
+      },
+      {
+        type: "FIRST_AID",
+        name: "first aid at work certificate",
+        status: "expiring_soon",
+        expiresOn: "2026-11-20",
+        neededFor: [],
+        appliedCounts: false,
+        renewing: false,
+        uploadable: false,
+        evidenceUploadId: null,
+        waiting: null,
+        rejected: null,
+        shift: { role: "steward", day: "2026-11-04", booked: true },
+      },
+    ]);
+    // Another worker of the firm, with none of those bookings or offers: nothing.
+    const kit = await f.worker({ first: "Kit", roles: ["steward"] });
+    expect((await myProfile(ctxFor(f), kit))?.others).toEqual([]);
+    // Only her own records (the guardrails review of 27.2, M2): Kit booked on a shift needing first
+    // aid, which only Sam holds, sees none of Sam's; Lee holds CSAS but has no booking or offer of
+    // her own, while Sam is offered a CSAS shift, and sees nothing either.
+    const kits = await f.shift({ role: "steward", startsAt: hoursFromNow(60) });
+    await extras(kits, "{FIRST_AID}");
+    await f.booking(kit, kits);
+    expect((await myProfile(ctxFor(f), kit))?.others).toEqual([]);
+    const lee = await f.worker({
+      first: "Lee",
+      roles: ["steward"],
+      credentials: [{ type: "CSAS", expiresOn: "2029-01-01" }],
+    });
+    expect((await myProfile(ctxFor(f), lee))?.others).toEqual([]);
+  });
 });
 
 describe("their own reliability (Phase 26.7, cas-6)", () => {

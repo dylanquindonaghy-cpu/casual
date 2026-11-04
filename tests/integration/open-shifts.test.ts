@@ -287,7 +287,7 @@ describe("takeShift", () => {
     expect(await takeShift(ctxFor(f), noLicence, await f.shift())).toEqual({
       status: "not_eligible",
       reasons: [
-        "This shift needs a valid SIA door supervisor licence. Send it to the office to be checked.",
+        "This shift needs a valid SIA door supervisor licence. Once you have it, tell the office under Messages so they can check it.",
       ],
     });
     expect(await takeShift(ctxFor(f), jo, await f.shift({ status: "draft" }))).toEqual({

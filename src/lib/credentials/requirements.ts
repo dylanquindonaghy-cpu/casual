@@ -38,6 +38,13 @@ const oneChip = (r: Requirement): string =>
 export const requirementChip = (r: Requirement): string =>
   r.group ? orList(r.group.map(oneChip)) : oneChip(r);
 
+// The casual app's chips: the full name, never a short code a casual may not know ("SIA door
+// supervisor licence", not "SIA DS"); a one-of group "A or B". The office keeps requirementChip.
+export const casualChip = (r: Requirement): string => {
+  const words = r.group ? orList(r.group.map((g) => g.name)) : r.name;
+  return words.charAt(0).toUpperCase() + words.slice(1);
+};
+
 export interface RequirementsReader {
   of: (role: string, extras: readonly string[]) => Requirement[];
   // The office's reading (Phase 25.2): the role's one-of group as one "A or B", unless the session

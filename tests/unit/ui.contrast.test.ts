@@ -11,21 +11,23 @@ import {
   lowest,
   officeLooks,
   parseColour,
+  props,
 } from "../helpers/theme-css";
 
 // Contrast in every look (docs/office-v2.md 3.1 and D7; PLAN.md 12A.1): every pair a page puts
-// together meets WCAG AA, text 4.5:1 and borders and controls 3:1. Phase 24 (Liquid Glass, round 7
-// of the Design canvas): most grounds are glass now, a translucent fill over a pastel wash, so a
-// pair is checked over every ground the glass can show (tests/helpers/theme-css.ts `grounds`): a
-// section over each point of the wash, its backdrop saturated as the browser does it, and over
-// what floats; what floats over the wash; a tile's and a clear button's gradients, both ends, the
-// button also under the pointer, pressed and brightened; the lens on its track; the main button,
-// its colour to its shade. In six looks: light and dark (the cookie's block; the device's must hold
-// the same), each also solid (less transparency or more contrast: no wash, no glass) and with no
-// blur (a browser that can't: every ground solid too, the wash still round them). Phase 21 to
-// 23's office looks are gone. Phase 26 (round 8, after Haulix): the office has its own looks again,
-// dark by default and light when picked, translucent glass over a faint street map (no wash): each
-// also solid and with no blur, so twelve looks in all.
+// together meets WCAG AA, text 4.5:1 and borders and controls 3:1. Since Phase 24 (Liquid Glass)
+// most grounds are glass, a translucent fill over what's behind the page, so a pair is checked over
+// every ground the glass can show (tests/helpers/theme-css.ts `grounds`): a section over each point
+// behind it, and over what floats; what floats over those points; a tile's and a clear button's
+// gradients, both ends, the button also under the pointer, pressed and brightened; the lens on its
+// track; the main button, its colour to its shade. Phase 26 (round 8, after Haulix) gave the office
+// its own looks, dark by default and light when picked, translucent and sharp glass; Phase 27.6
+// gave the casual app the same looks (round 7's pastel wash and its 15 points are gone), but for
+// the firm's own colour, and still following the phone: light and dark (the cookie's block; the
+// device's must hold the same). Behind the glass in every look since Phase 27.7 (Dylan: "Yes plain
+// colour"): the plain ground alone (round 8's made-up street pattern and its two strengths of line
+// are gone). Each look also solid (less transparency or more contrast: no glass) and with no blur
+// (a browser that can't: every ground solid too), so twelve looks in all.
 
 const LOOKS = [...looks(), ...officeLooks()];
 
@@ -180,8 +182,9 @@ describe("the looks (src/app/globals.css)", () => {
   // Round 8 (Phase 26): the office's own looks, every token in each (none left to the casual
   // app's), set on [data-office] so they win over <body>'s firm colours inside it; the page's ground
   // and the browser's colour scheme on <html> for an office page. One hi-vis accent on the main
-  // button (flat: no glow, no shade), the firm's mark and what's selected; white words on red at
-  // 4.93:1 (#d13438; the pre-build audit's aud-1); no drop under anything at rest.
+  // button (flat: no glow, no shade; since Phase 27.6 the main button has no glow anywhere:
+  // tests/unit/ui.glass.test.ts), the firm's mark and what's selected; white words on red at 4.93:1
+  // (#d13438; the pre-build audit's aud-1); no drop under anything at rest.
   it("the office has its own looks (round 8): every token, dark by default, light when picked", () => {
     const app = [...colourTokens(block(BLOCKS.theme)).keys()].sort();
     for (const name of ["officeDark", "officeLight"] as const)
@@ -205,14 +208,56 @@ describe("the looks (src/app/globals.css)", () => {
         "urgent-fill",
       ),
     ).toBeCloseTo(4.93, 2);
-    for (const name of ["officeDark", "officeLight"] as const) {
+    // Phase 27.1 (Dylan, "+20%"): the dark look's glass is see-through and sharper (a 12% edge,
+    // a 3px blur); the light look's is as it was (10%, 6px).
+    for (const [name, rim, blur] of [
+      ["officeDark", "0\\.12", "3px"],
+      ["officeLight", "0\\.1", "6px"],
+    ] as const) {
       const body = block(BLOCKS[name]);
       expect(body, name).toMatch(/--glass-drop: 0 0 #0000;/);
       expect(body, name).toMatch(/--glass-drop-sm: 0 0 #0000;/);
-      expect(body, name).toMatch(/--tint-glow: 0 0 #0000;/);
-      expect(body, name).toMatch(/--glass-rim: inset 0 0 0 1px rgb\(\d+ \d+ \d+ \/ 0\.1\);/);
-      expect(body, name).toMatch(/--glass-filter: blur\(6px\) saturate\(1\.15\);/);
+      // (No glow to switch off: the main button has none at all since Phase 27.6.)
+      expect(body, name).not.toMatch(/--tint-glow/);
+      expect(body, name).toMatch(
+        new RegExp(`--glass-rim: inset 0 0 0 1px rgb\\(\\d+ \\d+ \\d+ \\/ ${rim}\\);`),
+      );
+      expect(body, name).toMatch(
+        new RegExp(`--glass-filter: blur\\(${blur}\\) saturate\\(1\\.15\\);`),
+      );
     }
+    // And its fills: a section (card, sheet) and what floats (panel: the menus and, on a phone, the
+    // top bar, `max-lg:glass-float` in office-frame.tsx, pinned in tests/unit/office.shell.test.ts).
+    // Dark: 4%, 70% (27.1). Light: as it was. Behind them, the page's plain ground, set on the
+    // page's root for an office page and nothing else there: no street lines anywhere (Phase 27.7,
+    // Dylan: "Yes plain colour"; docs/plan/decisions-waiting.md 13).
+    expect(css).toMatch(/@utility glass-float \{\s*background-color: var\(--color-panel\);/);
+    for (const [name, root, card, panel, canvas] of [
+      [
+        "officeDark",
+        /:root:not\(\[data-theme="light"\]\):has\(\[data-office\]\) \{([^}]*)\}/,
+        "rgb\\(255 255 255 \\/ 0\\.04\\)",
+        "rgb\\(24 24 26 \\/ 0\\.7\\)",
+        "#0f0f10",
+      ],
+      [
+        "officeLight",
+        /:root\[data-theme="light"\]:has\(\[data-office\]\) \{([^}]*)\}/,
+        "rgb\\(255 255 255 \\/ 0\\.55\\)",
+        "rgb\\(255 255 255 \\/ 0\\.92\\)",
+        "#f2f2f0",
+      ],
+    ] as const) {
+      const body = block(BLOCKS[name]);
+      expect(body, name).toMatch(new RegExp(`--color-card: ${card};`));
+      expect(body, name).toMatch(new RegExp(`--color-sheet: ${card};`));
+      expect(body, name).toMatch(new RegExp(`--color-panel: ${panel};`));
+      expect(props(body).get("color-canvas"), name).toBe(canvas);
+      expect(Object.fromEntries(props(block(root))), `${name}: the page's root`).toEqual({
+        "color-canvas": canvas,
+      });
+    }
+    expect(css).not.toMatch(/--map-(?:road|line)\b/);
     expect(css).toMatch(
       /:root:not\(\[data-theme="light"\]\):has\(\[data-office\]\) \{\s*color-scheme: dark;/,
     );
@@ -221,6 +266,177 @@ describe("the looks (src/app/globals.css)", () => {
     );
     // The office's sizes stay in their own block, with no colour.
     expect(block(/body:has\(\[data-office\]\) \{([^}]*)\}/)).not.toMatch(/--color-/);
+  });
+
+  // Phase 27.6 (Dylan, 2026-11-03: "casual round 8: yes, firm's colour, follow the phone"): the
+  // casual app's looks are the office's round 8 values, light and dark, value by value: its colours,
+  // its glass (blurs, hairlines, no drop at rest) and its plain ground (Phase 27.7), solid and with
+  // no blur too. But for what stays the casual app's own: the firm's colour (the main button, the
+  // firm's mark, its tints and the gate's plate), the app's blue, and the to-do tint (hi-vis yellow
+  // is the office's alone); and the office's own corners. The office's blocks keep every value of
+  // their own (it's dark with no cookie even where the page's root is light), so this holds the
+  // two copies together.
+  const CASUAL_OWN = [
+    "brand",
+    "on-brand",
+    "brand-ink",
+    "tint",
+    "on-tint",
+    "tint-shade",
+    "brand-bar",
+    "on-brand-bar",
+    "on-brand-bar-soft",
+    "pass-plate",
+    "on-pass-plate",
+    "accent",
+    "accent-hover",
+    "accent-press",
+    "on-accent",
+    "hivis",
+    "on-hivis",
+  ].map((t) => `color-${t}`);
+  const OFFICE_OWN = ["radius-card", "radius-inner", "radius-row"];
+  const except = (m: Map<string, string>, own: string[]) =>
+    Object.fromEntries([...m].filter(([k]) => !own.includes(k)));
+  it("the casual app's looks are round 8's, light and dark, but for the firm's own colour (Phase 27.6)", () => {
+    const themeColours = new Map(
+      [...props(block(BLOCKS.theme))].filter(([k]) => k.startsWith("color-")),
+    );
+    const casualLight = new Map([...themeColours, ...props(block(BLOCKS.root))]);
+    const pairs = [
+      ["light", casualLight, BLOCKS.officeLight],
+      ["dark (the cookie's)", props(block(BLOCKS.dark)), BLOCKS.officeDark],
+      ["dark (the device's)", props(block(BLOCKS.deviceDark)), BLOCKS.officeDark],
+      ["light, solid", props(block(BLOCKS.solid)), BLOCKS.officeSolidLight],
+      ["dark, solid", props(block(BLOCKS.solidDark)), BLOCKS.officeSolidDark],
+      ["dark, solid (the device's)", props(block(BLOCKS.solidDeviceDark)), BLOCKS.officeSolidDark],
+      ["light, no blur", props(block(BLOCKS.clear)), BLOCKS.officeClearLight],
+      ["dark, no blur", props(block(BLOCKS.clearDark)), BLOCKS.officeClearDark],
+      [
+        "dark, no blur (the device's)",
+        props(block(BLOCKS.clearDeviceDark)),
+        BLOCKS.officeClearDark,
+      ],
+    ] as const;
+    for (const [name, casual, office] of pairs) {
+      const own = [...CASUAL_OWN, ...OFFICE_OWN];
+      expect(except(casual, own), name).toEqual(except(props(block(office)), own));
+    }
+    // Each look's ground and glass, as the office's (Phase 27.1's dark glass too); no street lines
+    // (Phase 27.7: a plain colour behind every page).
+    const light = casualLight;
+    const dark = props(block(BLOCKS.dark));
+    expect([light.get("color-canvas"), dark.get("color-canvas")]).toEqual(["#f2f2f0", "#0f0f10"]);
+    expect([light.get("color-card"), dark.get("color-card")]).toEqual([
+      "rgb(255 255 255 / 0.55)",
+      "rgb(255 255 255 / 0.04)",
+    ]);
+    expect([light.get("color-panel"), dark.get("color-panel")]).toEqual([
+      "rgb(255 255 255 / 0.92)",
+      "rgb(24 24 26 / 0.7)",
+    ]);
+    expect([light.get("glass-filter"), dark.get("glass-filter")]).toEqual([
+      "blur(6px) saturate(1.15)",
+      "blur(3px) saturate(1.15)",
+    ]);
+    expect([light.get("glass-rim"), dark.get("glass-rim")]).toEqual([
+      "inset 0 0 0 1px rgb(16 24 40 / 0.1)",
+      "inset 0 0 0 1px rgb(255 255 255 / 0.12)",
+    ]);
+    for (const look of [light, dark, props(block(BLOCKS.deviceDark))])
+      expect([...look.keys()].filter((k) => k.startsWith("map-"))).toEqual([]);
+    expect(css).not.toMatch(/--map-road\b/);
+    for (const look of [light, dark]) {
+      expect(look.get("glass-drop")).toBe("0 0 #0000");
+      expect(look.get("glass-drop-sm")).toBe("0 0 #0000");
+    }
+    // What stays the casual app's own: the firm's colour's defaults (the app's ink, a firm with a
+    // colour of its own sets its own on <body>: below), the app's blue (a shade lighter in dark,
+    // for the lighter glass: #a1bdff, was #9cb8ff) and the to-do tint's pale amber.
+    const lightOwn = Object.fromEntries(CASUAL_OWN.map((k) => [k, light.get(k)]));
+    const darkOwn = Object.fromEntries(CASUAL_OWN.map((k) => [k, dark.get(k)]));
+    expect(lightOwn).toMatchObject({
+      "color-tint": "#15171a",
+      "color-on-tint": "#ffffff",
+      "color-tint-shade": "#000000",
+      "color-brand-bar": "#1f2227",
+      "color-accent": "#1d4ed8",
+      "color-hivis": "rgb(251 229 160 / 0.8)",
+    });
+    expect(darkOwn).toMatchObject({
+      "color-tint": "#f3f4f6",
+      "color-on-tint": "#0b0c0e",
+      "color-tint-shade": "#ffffff",
+      "color-brand-bar": "#34373d",
+      "color-accent": "#a1bdff",
+      "color-hivis": "rgb(58 47 16 / 0.8)",
+    });
+    // Hi-vis yellow is the office's alone: in no block of the casual app's.
+    for (const name of [
+      "theme",
+      "root",
+      "dark",
+      "deviceDark",
+      "solid",
+      "solidDark",
+      "solidDeviceDark",
+      "clear",
+      "clearDark",
+      "clearDeviceDark",
+    ] as const)
+      expect(block(BLOCKS[name]), name).not.toMatch(/#e9f86f|233 248 111|#f4fbb7|#2a2d16/i);
+    // Still following the phone: light by default, dark from the cookie or the device (never the
+    // office's dark-by-default on the casual pages).
+    expect(block(BLOCKS.root)).toMatch(/^\s*color-scheme: light;/);
+    expect(css).toMatch(/^:root \{\s*color-scheme: light;/m);
+    expect(css).toMatch(/^:root\[data-theme="dark"\] \{\s*color-scheme: dark;/m);
+    expect(css).toMatch(
+      /^@media \(prefers-color-scheme: dark\) \{\s*:root:not\(\[data-theme="light"\]\) \{\s*color-scheme: dark;/m,
+    );
+  });
+
+  // The main button stays in the firm's own colour in both looks (Phase 27.6, "firm's colour"): a
+  // firm with a colour of its own sets it on <body>, light and dark alike (dark keeps the light
+  // set's colour and words on the button: they read on themselves), and only the office's own
+  // wrapper ([data-office]) paints it hi-vis.
+  it("the firm's colour is the casual app's main button in both looks; hi-vis only inside the office", () => {
+    const firm = block(/^body\[data-firm-colour\] \{([^}]*)\}/m);
+    for (const [token, value] of [
+      ["tint", "firm-fill"],
+      ["on-tint", "firm-on-fill"],
+      ["tint-shade", "firm-shade"],
+      ["brand", "firm-fill"],
+      ["brand-bar", "firm-bar"],
+    ])
+      expect(firm).toContain(`--color-${token}: var(--${value});`);
+    for (const dark of [
+      /^:root\[data-theme="dark"\] body\[data-firm-colour\] \{([^}]*)\}/m,
+      /^ {2}:root:not\(\[data-theme="light"\]\) body\[data-firm-colour\] \{([^}]*)\}/m,
+    ]) {
+      const body = block(dark);
+      expect(body).toContain("--color-tint: var(--firm-fill);");
+      expect(body).toContain("--color-on-tint: var(--firm-on-fill);");
+      expect(body).toContain("--color-tint-shade: var(--firm-shade);");
+    }
+    expect(css).toMatch(/@utility glass-tint \{\s*background-color: var\(--color-tint\);/);
+    // Hi-vis only in the office's own blocks, on its wrapper.
+    for (const name of ["officeDark", "officeLight"] as const)
+      expect(colourTokens(block(BLOCKS[name])).get("tint"), name).toBe("#e9f86f");
+    const hivis = css
+      .split("\n")
+      .filter((line) => /#e9f86f/i.test(line))
+      .map((line) => line.trim().split(":")[0]);
+    expect(new Set(hivis)).toEqual(
+      new Set([
+        "--color-tint",
+        "--color-tint-shade",
+        "--color-brand-bar",
+        "--color-on-hivis",
+        "--color-accent",
+      ]),
+    );
+    for (const look of looks())
+      expect(lowest(look, "on-tint", "glass-tint"), look.name).toBeGreaterThanOrEqual(4.5);
   });
 
   it("each theme sets the browser's colour scheme; the device's dark gives way to a light cookie", () => {
@@ -251,7 +467,8 @@ describe("the looks (src/app/globals.css)", () => {
       const [r, g, b] = parseColour(dark.get(t))!;
       expect(Math.max(r, g, b) - Math.min(r, g, b), `${t}: ${dark.get(t)}`).toBeLessThanOrEqual(12);
     }
-    expect([dark.get("urgent-fill"), dark.get("on-urgent")]).toEqual(["#cf3a33", "#ffffff"]);
+    // Round 8's red since Phase 27.6, as the office's (white words on it at 4.93:1).
+    expect([dark.get("urgent-fill"), dark.get("on-urgent")]).toEqual(["#d13438", "#ffffff"]);
     // And round 8's office dark (Phase 26): neutral charcoal.
     const office = colourTokens(block(BLOCKS.officeDark));
     for (const t of [
@@ -274,7 +491,7 @@ describe("the looks (src/app/globals.css)", () => {
     }
   });
 
-  it("the grounds: six looks, each with the glass's every point", () => {
+  it("the grounds: twelve looks, each with the glass's every point over the plain ground", () => {
     expect(LOOKS.map((l) => l.name)).toEqual([
       "light",
       "dark",
@@ -290,28 +507,31 @@ describe("the looks (src/app/globals.css)", () => {
       "office light, no blur",
     ]);
     const [light, dark, solid] = LOOKS;
-    // 15 points of the wash (its base, four lights, and halfway between each two of those), a
-    // section over each, saturated, and over what floats.
-    expect(grounds(light!, "canvas")).toHaveLength(15);
-    expect(grounds(light!, "card")).toHaveLength(30);
+    // Behind the glass (round 8's since Phase 27.6, in place of round 7's 15 points of the wash;
+    // since Phase 27.7 the plain ground alone, in place of the street pattern's two strengths of
+    // line over it): a section over it, and over what floats over it. The casual app's are the
+    // office's.
+    expect(grounds(light!, "canvas").map((g) => g.colour)).toEqual([[242, 242, 240]]);
+    expect(grounds(dark!, "canvas").map((g) => g.colour)).toEqual([[15, 15, 16]]);
+    for (const look of LOOKS)
+      expect(look.ground, look.name).toEqual([
+        look.name.includes("light") ? [242, 242, 240] : [15, 15, 16],
+      ]);
+    expect(grounds(light!, "card")).toHaveLength(2);
     expect(grounds(solid!, "card").map((g) => g.colour)).toEqual([
       [255, 255, 255],
       [255, 255, 255],
     ]);
-    // A section over the wash is never white in light, nor black in dark: the test reads real
+    // A section over the ground is never white in light, nor black in dark: the test reads real
     // glass, not a stand-in. A pressed clear button's words are brightened with it.
     const lum = (c: number[]) => c[0]! + c[1]! + c[2]!;
     expect(Math.min(...grounds(light!, "card").map((g) => lum(g.colour)))).toBeLessThan(3 * 250);
     expect(Math.max(...grounds(dark!, "card").map((g) => lum(g.colour)))).toBeGreaterThan(3 * 20);
-    // (Both its ends over each of the 45 grounds under it.)
-    expect(grounds(light!, "glass-button").filter((g) => g.brightened)).toHaveLength(90);
-    // The office's: its flat ground and the street map's two strengths of line; solid, the ground.
+    // (Both its ends over each of the 3 grounds under it: 2 sections, 1 floating.)
+    expect(grounds(light!, "glass-button").filter((g) => g.brightened)).toHaveLength(6);
+    // The office's: its plain ground, as drawn and solid alike.
     const office = LOOKS.find((l) => l.name === "office dark")!;
-    expect(grounds(office, "canvas").map((g) => g.colour)).toEqual([
-      [15, 15, 16],
-      [29, 29, 30],
-      [35, 35, 36],
-    ]);
+    expect(grounds(office, "canvas").map((g) => g.colour)).toEqual([[15, 15, 16]]);
     expect(
       grounds(
         LOOKS.find((l) => l.name === "office dark, solid")!,
@@ -358,7 +578,7 @@ describe("the looks (src/app/globals.css)", () => {
   // draws the button), the scrim, the charts' grid and baseline, and the grey "calm" mark: under 3:1
   // on light glass by design (the set is told apart with colour blindness), so it never stands
   // alone: every bar carries its number, every chart its legend, and its Numbers table has each
-  // mark's row in words (docs/ui-design.md "Phase 23"). The page's own ground is the wash's base.
+  // mark's row in words (docs/ui-design.md "Phase 23"). The page's own ground is the plain colour.
   const RELIEVED = ["mark-calm"];
   it("every token but the decorative ones is in a checked pair", () => {
     const checked = new Set([...TEXT, ...CONTROLS].flatMap(([fg, places]) => [fg, ...places]));

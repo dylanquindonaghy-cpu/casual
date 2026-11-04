@@ -92,7 +92,7 @@ test("a casual uploads a photo and a certificate; the office checks them; her pr
   const quals = page.getByRole("region", { name: "Qualifications", exact: true });
   await expect(quals).toContainText("Level 2 spectator safety qualification");
   await expect(quals).toContainText("Missing · Needed for steward shifts");
-  await quals.getByRole("link", { name: "Upload a certificate" }).click();
+  await quals.getByRole("link", { name: "Upload a new one" }).click();
   await expect(page).toHaveURL(`${acme}/profile/upload/STEWARD_L2`);
   await expect(
     page.getByRole("heading", { name: "Upload your Level 2 spectator safety qualification" }),
@@ -183,7 +183,7 @@ test("a casual uploads a photo and a certificate; the office checks them; her pr
   await expect(photo).toContainText(/Last uploaded \d{1,2} [A-Z][a-z]{2} · renew by/);
   await expect(photo).toContainText("Up to date");
   expect(await loaded(page, `Staff photo of ${una}`)).toBe(true);
-  await expect(quals).toContainText(`Valid · Valid until 30 Jun`);
+  await expect(quals).toContainText(`Valid until 30 Jun`);
 
   // The image itself: hers, never cached; nobody logged out gets it.
   const src = await photo.getByRole("img", { name: `Staff photo of ${una}` }).getAttribute("src");

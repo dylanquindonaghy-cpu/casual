@@ -9,7 +9,7 @@ without breaking a 6am cancellation.
 |---|---|---|---|
 | Unit | Vitest | Rules engine (table-driven), ranking, notice-hours maths, grouping keys, template rendering, zod schemas for AI outputs | every commit |
 | Integration | Vitest + real Postgres (Docker) | RLS isolation per table, scoped client, atomic assign race, idempotent webhook insert, job handlers with a fake clock, Sheets adapter against a mocked Sheets API | every commit |
-| E2E | Playwright (mobile viewport; own web app, worker and seeded `*_e2e` database; login links read from the console transport's outbox file) | login → my shifts → take shift → cancel → request → pay OTP (built: `tests/e2e/flow.worker.spec.ts`, timed); office: create shift → make urgent → wave → assign; firm cancel → notice report. Then a run with no text sender (`playwright.no-texts.config.ts`, P2.7, port 3300; with CI set, on the main run's production build): `no-texts.spec.ts` checks the login page says links can't be sent while email login is off, then switches it on and logs a casual in and opens Pay by email, with no WhatsApp named and none sent. Then the street map's run (`playwright.streets.config.ts`, Phase 26.2, port 3500; the only run with `MAP_TILES_URL` set, to a path on its own server): `streets.spec.ts` answers that path with a tiny PMTiles file made in memory (`tests/e2e/pmtiles-fixture.ts`, as Caddy serves the real one), and checks MapLibre reads it by byte range, loads its worker from `/office/map-worker` (200), draws the streets with OpenStreetMap's credit, and asks no other host. Then the walkthrough's run (`playwright.walkthrough.config.ts`, Phase 10 task 20): `walkthrough.spec.ts` does every step of `docs/walkthrough.md` in order, on its own freshly seeded database and a **production build** (`next build`, `next start`, port 3200), the office at desktop size and the worker at phone size, so a verified run proves the production build too (audit L16, L88, L66). That run is in demo mode (16.1; ADR-025), as a demo server is: the web app and the worker both in production, behind the demo's password (the browser gives it). After the walkthrough, `demo.spec.ts` checks the password is asked everywhere but the health check, logs a casual and the office in from each firm's Demo phone and checks neither firm's Demo phone shows the other's messages (a number in both firms: `tests/integration/demo.phone.test.ts`); the main run's `demo.off.spec.ts` checks there's no Demo phone or demo bar without it | on PR and before deploy |
+| E2E | Playwright (mobile viewport; own web app, worker and seeded `*_e2e` database; login links read from the console transport's outbox file) | login → my shifts → take shift → cancel → request → pay OTP (built: `tests/e2e/flow.worker.spec.ts`, timed); office: create shift → make urgent → wave → assign; firm cancel → notice report. Then a run with no text sender (`playwright.no-texts.config.ts`, P2.7, port 3300; with CI set, on the main run's production build): `no-texts.spec.ts` checks the login page says links can't be sent while email login is off, then switches it on and logs a casual in and opens Pay by email, with no WhatsApp named and none sent. Then the street map's run (`playwright.streets.config.ts`, Phase 26.2, port 3500; the only run with `MAP_TILES_URL` set, to a path on its own server): `streets.spec.ts` answers that path with a tiny PMTiles file made in memory (`tests/e2e/pmtiles-fixture.ts`, as Caddy serves the real one), and checks MapLibre reads it by byte range, loads its worker from `/office/map-worker` (200), draws the streets with OpenStreetMap's credit, and asks no other host; since Phase 27.8 the file's one tile holds two made-up town names, and it checks their letter shapes come from `/map-glyphs` on its own server (200), and that the + and − buttons are named "Zoom in" and "Zoom out", 44px, and each moves the map one zoom step. Then the walkthrough's run (`playwright.walkthrough.config.ts`, Phase 10 task 20): `walkthrough.spec.ts` does every step of `docs/walkthrough.md` in order, on its own freshly seeded database and a **production build** (`next build`, `next start`, port 3200), the office at desktop size and the worker at phone size, so a verified run proves the production build too (audit L16, L88, L66). That run is in demo mode (16.1; ADR-025), as a demo server is: the web app and the worker both in production, behind the demo's password (the browser gives it). After the walkthrough, `demo.spec.ts` checks the password is asked everywhere but the health check, logs a casual and the office in from each firm's Demo phone and checks neither firm's Demo phone shows the other's messages (a number in both firms: `tests/integration/demo.phone.test.ts`); the main run's `demo.off.spec.ts` checks there's no Demo phone or demo bar without it | on PR and before deploy |
 | Contract | Vitest | Twilio signature verification with real sample payloads; TwiML output; template variable coverage | every commit |
 | Security | scripts | `npm audit`, secrets scan, RLS "enabled on every table" check, log masking test | every commit |
 | Manual | checklist | Real phone, real Twilio number, iPhone home-screen push, poor-signal open of My shifts | before pilot |
@@ -522,7 +522,8 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   only the window's height changes); `office.attendance.spec.ts`
   (Mark who worked from the Needs attention card's panel); `walkthrough.spec.ts` (steps 23 and 24
   through the charts and panels).
-- Phase 24 (Liquid Glass, round 7; docs/ui-design.md "Phase 24"), task 24.1 the system:
+- Phase 24 (Liquid Glass, round 7; docs/ui-design.md "Phase 24"), task 24.1 the system (the wash
+  and the refraction pins below were replaced in Phase 27.6: see its entry):
   `ui.glass.test.ts` (in place of `ui.flat.test.ts`) pins the glass: `globals.css` draws
   `src/lib/tenancy/glass-grounds.ts`'s numbers (the wash's base and four lights, a section's, a
   float's, a tile's, a button's, the track's and the lens's fills, in light and both darks; the
@@ -711,6 +712,36 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   open first, office and casual, before any test starts: `next dev` builds a page on its first
   request, and the office's dashboard could take longer than the first office test's 5-second
   wait after logging in.
+- Phase 27.6, the casual app in round 8's look (docs/ui-design.md "Phase 27.6"): `ui.contrast.test.ts`
+  holds the casual app's blocks to the office's, value by value (light, both darks, solid and with
+  no blur in each), but for the firm's colour, the app's blue, the to-do tint and the office's
+  corners; the firm's colour on the main button in both looks (`body[data-firm-colour]`) and hi-vis
+  only in the office's blocks; still following the phone; and every pair over round 8's grounds
+  (the flat ground and the street map's two lines, in place of the wash's 15 points) in twelve
+  looks. `ui.glass.test.ts` `glass-grounds.ts`'s ground and glass drawn in light and both darks
+  (the office's the same numbers), saturate() leaving the grey ground as it is, the street map as
+  every page's `body::before` (no wash, no radial gradient, no office-only map rule), the blurs
+  (6px, 3px in dark, 12px floating), no bending anywhere (no `glass-refraction.tsx`, no `.rf`, no
+  `url(#…)`), no glow on the main button, the dark fallbacks switching the blur off.
+  `tenancy.brand.test.ts` the cube over the new grounds and the demo firms' values on them;
+  `ui.office-system.test.ts` gradients only in the glass and the masks, and the map's one url().
+  Browser: `theme.spec.ts`, `casual.app.spec.ts` (the casual page's ground and tab bar in round 8's
+  values, light and dark), `brand.spec.ts` (the firm's colour on the casual main button in both
+  looks, its new values), `strikes.worker.spec.ts` (round 8's tints), `office.look.spec.ts` (no
+  `.rf` on any page).
+- Phase 27.7, a plain colour behind every page (docs/ui-design.md "Phase 27.7"): the grounds are the
+  plain ground alone in all twelve looks (`tests/helpers/theme-css.ts`, `glass-grounds.ts`'s
+  `GROUND`), and every pair still meets its minimum over them. `ui.contrast.test.ts` the office
+  page's root holding only its ground and no `--map-road` or `--map-line` anywhere;
+  `ui.glass.test.ts` the ground one plain colour (`#f2f2f0`, `#0f0f10`) with no lines in any block,
+  nothing on `<body>`'s `::before` or `::after`, no `url()`, no `mask:`, the picture deleted,
+  `<html>` with no background, and the solid fallbacks keeping the same ground with no rule left
+  hiding anything; `ui.office-system.test.ts` no picture at all (no `url()`) and the doc's 27.7
+  section; `ui.theme.test.ts` the map's two lines no longer among the glass's colour variables;
+  `tenancy.brand.test.ts` the demo firms' new values (Acme `#1d4ed8`, Northline `#0e6f67`).
+  Browser: `office.look.spec.ts` and `casual.app.spec.ts` (nothing drawn behind the page in light
+  and dark: no `::before` content, picture, mask or fill, no street lines on the root or the
+  office's box, `<html>` transparent), `brand.spec.ts` (the firm's new button colours).
 ## Fixtures and the demo seed
 
 `npm run db:seed` creates two fake firms:

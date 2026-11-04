@@ -30,7 +30,7 @@ const shiftsWord = (n: number) => (n === 1 ? "1 shift" : `${n} shifts`);
 
 // One of Home's rows (Phase 24, round 7: "Do this", "Shifts you can take" and "Pay" as cards of
 // rows): the one thing to read, and a line under it. A screen reader hears them in that order:
-// "2 urgent near you, Thu 22 and Fri 23 Oct · up to £15.50/hour".
+// "2 urgent shifts near you, Thu 22 and Fri 23 Oct · up to £15.50/hour".
 export interface RowText {
   title: string;
   sub: string;
@@ -43,15 +43,16 @@ function daysAndPay(shifts: Pick<OpenShift, "startsAt" | "payRatePence">[], time
   return rates.length > 0 ? `${days} · up to ${perHour(Math.max(...rates))}` : days;
 }
 
-// The urgent shifts she can take: "2 urgent near you" when they're the ones within her home area
-// (`near`), with their days and the best pay.
+// The urgent shifts she can take: "2 urgent shifts near you" when they're the ones within her
+// travel area (`near`), with their days and the best pay.
 export function urgentRowText(
   urgent: Pick<OpenShift, "startsAt" | "payRatePence">[],
   near: boolean,
   timeZone: string,
 ): RowText {
+  const n = urgent.length;
   return {
-    title: `${urgent.length} urgent${near ? " near you" : ""}`,
+    title: `${n} urgent ${n === 1 ? "shift" : "shifts"}${near ? " near you" : ""}`,
     sub: daysAndPay(urgent, timeZone),
   };
 }
@@ -80,10 +81,11 @@ export function applyRowText(
 }
 
 // Pay day, on the firm's pay calendar (P3; 25.2): "Pay day: Fri 30 Oct", for the shifts of the
-// week she's in; on a fortnight's cycle, its dates ("For shifts from Mon 26 Oct to Sun 8 Nov").
+// week it pays ("For shifts Mon 19 to Sun 25 Oct"); on a fortnight's cycle, its dates ("For shifts
+// from Mon 26 Oct to Sun 8 Nov"). A week of two months names both ("Mon 26 Oct to Sun 1 Nov").
 export function payDayRowText(
   payDay: string,
-  period: { days: 7 | 14; start: string; end: string } = { days: 7, start: "", end: "" },
+  period: { days: 7 | 14; start: string; end: string },
 ): RowText {
   const p = datePartsOfDay(payDay);
   const day = (d: string) => {
@@ -94,9 +96,17 @@ export function payDayRowText(
     title: `Pay day: ${p.dow} ${p.day} ${p.month}`,
     sub:
       period.days === 7
-        ? "For this week's shifts"
+        ? `For shifts ${weekText(period.start, period.end)}`
         : `For shifts from ${day(period.start)} to ${day(period.end)}`,
   };
+}
+
+// "Mon 2 to Sun 8 Nov"; "Mon 26 Oct to Sun 1 Nov" across two months.
+function weekText(start: string, end: string): string {
+  const a = datePartsOfDay(start);
+  const b = datePartsOfDay(end);
+  const first = a.month === b.month ? `${a.dow} ${a.day}` : `${a.dow} ${a.day} ${a.month}`;
+  return `${first} to ${b.dow} ${b.day} ${b.month}`;
 }
 
 // The offline copy's first row: what the urgent row said when it was kept.

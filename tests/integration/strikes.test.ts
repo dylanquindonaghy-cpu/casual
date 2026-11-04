@@ -122,7 +122,7 @@ describe("a casual's own cancellation", () => {
         kind: "strike",
         version: STRIKE_WARNING_VERSION,
         text: expect.stringMatching(
-          /^This shift starts in 19 hours\. Cancelling with less than 48 hours' notice gives you a strike\. Booking Test .+'s? strikes team gets a record of it\. You have 0 strikes in the last 90 days\.$/,
+          /^This shift starts in 19 hours\. Cancelling now gives you a strike \(less than 48 hours' notice\)\. A strike is a record, not a fine\. It never comes off your pay\. You have 0 strikes in the last 90 days\.$/,
         ),
       },
     });
@@ -246,7 +246,9 @@ describe("a casual's own cancellation", () => {
     expect(await t.cancel(sam, a, NOW, "notice")).toMatchObject({ strike: null });
     expect(await cancelWarning(t.portal(), jo, b)).toMatchObject({
       warning: {
-        text: expect.stringContaining("less than 24 hours' notice gives you a strike."),
+        text: expect.stringContaining(
+          "Cancelling now gives you a strike (less than 24 hours' notice).",
+        ),
       },
     });
     await t.cancel(jo, b, NOW, "strike");

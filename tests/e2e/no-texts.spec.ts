@@ -53,7 +53,9 @@ test("email login on: the link and the pay code come by email, and Profile shows
   await expect(page).toHaveURL(`${acme}/`);
 
   await page.goto(`${acme}/pay`);
-  await expect(page.getByText("To see your pay, we'll email you a 6-digit code.")).toBeVisible();
+  await expect(
+    page.getByText("To keep your pay private, we'll email you a 6-digit code."),
+  ).toBeVisible();
   const codeAsked = new Date(Date.now() - 1000);
   await page.getByRole("button", { name: "Email me a code" }).click();
   await expect(
@@ -70,7 +72,9 @@ test("email login on: the link and the pay code come by email, and Profile shows
   await page.getByLabel("Your code").fill(code);
   await page.getByRole("button", { name: "Check code" }).click();
   await expect(page.getByLabel("Your code")).toHaveCount(0);
-  await expect(page.getByText(/from Acme Events' payroll|No pay data yet/).first()).toBeVisible();
+  await expect(
+    page.getByText(/from Acme Events' payroll|No pay to show yet/).first(),
+  ).toBeVisible();
 
   await page.goto(`${acme}/profile`);
   await expect(

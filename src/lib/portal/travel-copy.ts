@@ -2,10 +2,10 @@ import type { TravelMinutes, TravelMode } from "../travel/modes";
 import { postcodeDistrict } from "../travel/postcode";
 import { travelModesText } from "../travel/copy";
 
-// "Where you work" (docs/office-v2.md 4.6; 12G.1), in the casual's words. Pure, so the browser
-// can use it.
+// "Your travel area" (docs/office-v2.md 4.6; 12G.1), in the casual's words: one name for the
+// setting everywhere. Pure, so the browser can use it.
 
-export const TRAVEL_TITLE = "Where you work";
+export const TRAVEL_TITLE = "Your travel area";
 export const TRAVEL_INTRO =
   "Tell us where you start from and how long you'll travel. We'll use it to show you shifts you can get to. It can be any postcode, not only home.";
 
@@ -101,16 +101,16 @@ export const TRAVEL_PATH = "/profile/travel";
 
 // No travel area: everything is shown, with this prompt and a link to add one.
 export const AREA_PROMPT =
-  "Add your home area to see how far each shift is and only see shifts you can get to.";
-export const AREA_PROMPT_LINK = "Add your home area";
+  "Add your travel area to see how far each shift is and only see shifts you can get to.";
+export const AREA_PROMPT_LINK = "Add your travel area";
 
-// Under the list: the shifts she could take that are further than she travels.
+// Under the list: the shifts she could take that are outside her travel area.
 export function furtherText(further: { count: number; atLeast: boolean }, urgent = false): string {
   const kind = urgent ? "urgent shift" : "shift";
   const n = further.count;
   const many = n === 1 ? `1 more ${kind} is` : `${n} more ${kind}s are`;
-  return `${further.atLeast ? `At least ${many}` : capitalised(many)} further than you travel.`;
+  return `${further.atLeast ? `At least ${many}` : capitalised(many)} outside your travel area.`;
 }
-export const FURTHER_LINK = "Change how far";
+export const FURTHER_LINK = "Change your travel area";
 
 const capitalised = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);

@@ -10,8 +10,11 @@ export const OUTCOME_WORDS: Record<Outcome, string> = {
   person_waiting: "Passed to a person, waiting",
   person_answered: "Passed to a person, answered",
   not_understood: "Not understood",
-  pay: "Pay (always a person)",
-  in_app: "Done in the app",
+  // The shifts line's answer is the link to their Pay page (and "Raise a pay query" there): nothing
+  // goes to payroll by itself. The chip names the answer, not its delivery: a WhatsApp or text that
+  // failed is only on the message's own page (the guardrails reviews, Phase 27.2; the Parking lot).
+  pay: "Pay: link to their pay page",
+  in_app: "They sorted it in the app",
   inbox: "Left for your inbox",
 };
 
@@ -26,7 +29,7 @@ export const OUTCOME_TONES: Record<Outcome, StatusTone> = {
   inbox: "quiet",
 };
 
-export const PAY_LOCK = "Pay: never answered by AI (rule)";
+export const PAY_LOCK = "Pay: never answered by AI";
 
 // A view's empty words, and the link back from today's only: they name how far back the list
 // reads, the firm's message retention (90 days unless the owner changed it: enquiryWindow()).
@@ -105,18 +108,23 @@ export function ageWords(ms: number): string {
   return `${Math.floor(hours / 24)} days`;
 }
 
-// "18 enquiries today · 2 need a person, the oldest 3 h 35 min ago"
+// "18 enquiries today · 2 need a person, the oldest 3 h 35 min ago", then the requests from the app
+// still waiting for an answer, when there are any (O2): "… · none need a person · 2 requests to
+// answer".
 export function countsLine(
   today: number,
   needPerson: { count: number; oldestAt: Date | null },
   now: Date,
+  appWaiting = 0,
 ): string {
   const first = `${today} ${today === 1 ? "enquiry" : "enquiries"} today`;
-  if (needPerson.count === 0) return `${first} · none need a person`;
+  const requests =
+    appWaiting > 0 ? ` · ${appWaiting} ${appWaiting === 1 ? "request" : "requests"} to answer` : "";
+  if (needPerson.count === 0) return `${first} · none need a person${requests}`;
   const oldest = needPerson.oldestAt
     ? `, the oldest ${ageWords(now.getTime() - needPerson.oldestAt.getTime())} ago`
     : "";
-  return `${first} · ${needPerson.count} need${needPerson.count === 1 ? "s" : ""} a person${oldest}`;
+  return `${first} · ${needPerson.count} need${needPerson.count === 1 ? "s" : ""} a person${oldest}${requests}`;
 }
 
 // How the office's reply will go, in one line, before it's sent.
@@ -396,7 +404,7 @@ export function thenStep(
   }
 }
 
-// Step 3, "Checks made by code" (12D.2): one check of one session, from its `enquiry.checks`
+// Step 3, "What we checked" (12D.2): one check of one session, from its `enquiry.checks`
 // entry, with ✓ or ✗. `names` gives qualifications their names; dates and times are the firm's.
 type Shortdate = (isoDate: string) => string; // "9 Jun 2028"
 type Times = (fromIso: string, toIso: string) => string; // "10:00–18:00"

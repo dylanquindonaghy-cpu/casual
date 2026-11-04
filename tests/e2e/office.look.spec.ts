@@ -31,12 +31,18 @@ import { sentTo } from "./outbox";
 // page (one still picture, fixed); sections translucent and sharp (a 6px blur, saturated 1.15
 // times, one hairline, no drop), what floats 88% with a 12px blur and no bending; the rail section
 // glass, the top bar's counts flat chips; every main button hi-vis (flat, dark words).
+// Phase 27.7 (Dylan, 2026-11-03: "Yes plain colour"; docs/ui-design.md "Phase 27.7"): the street
+// map is gone too: behind every page the plain ground, charcoal or off-white, and nothing drawn
+// over it (no ::before on <body>, no mask, no street lines on the page's root or the office's box).
 
 const acme = "http://acme.localhost:3100";
 const CANVAS = { dark: "rgb(15, 15, 16)", light: "rgb(242, 242, 240)" }; // #0f0f10, #f2f2f0
-// Round 8's glass (globals.css's office blocks): a section, what floats.
-const SECTION = { dark: "rgba(22, 22, 24, 0.28)", light: "rgba(255, 255, 255, 0.55)" };
-const FLOAT = { dark: "rgba(24, 24, 26, 0.88)", light: "rgba(255, 255, 255, 0.92)" };
+// Round 8's glass (globals.css's office blocks): a section, its frost, what floats. Phase 27.1
+// (Dylan, 2026-11-03, "+20%") made the dark look's more see-through: a section a light 4% tint (was
+// a dark 28%) frosted 3px (was 6px), what floats 70% (was 88%). The light look is as it was.
+const SECTION = { dark: "rgba(255, 255, 255, 0.04)", light: "rgba(255, 255, 255, 0.55)" };
+const SECTION_FROST = { dark: "blur(3px) saturate(1.15)", light: "blur(6px) saturate(1.15)" };
+const FLOAT = { dark: "rgba(24, 24, 26, 0.7)", light: "rgba(255, 255, 255, 0.92)" };
 // The main button in the office: hi-vis, flat (its colour at both ends), dark words, in both looks
 // and whatever the firm's colour (Acme's blue stays on its bar and in the casual app).
 const TINT = "rgb(233, 248, 111)";
@@ -62,7 +68,7 @@ async function adminLogin(page: Page, who: string) {
   await expect(page).toHaveURL(`${acme}/office`);
 }
 
-// What a page looks like, measured in the browser: the wash and the ground, the page, the bar,
+// What a page looks like, measured in the browser: the ground and what's behind it, the page, the bar,
 // faces, sections, what floats, main buttons, clear buttons, what reacts when pressed, depth, white
 // boxes, background images and masks, and whether it scrolls sideways. Every hidden step and menu
 // is shown first, so its parts are measured too. The pointer is moved off the page first (`calm`),
@@ -120,27 +126,34 @@ const measure = (page: Page) =>
       document.body,
       ...document.querySelectorAll("body *"),
     ];
-    // The street map: fixed behind everything, one still picture (a mask over its line colour),
-    // none of round 7's lights.
+    // Behind the page (Phase 27.7): the plain ground and nothing drawn over it. No ::before on
+    // <body> (round 8's street map was one, round 7's lights before it): no content, no picture,
+    // no mask, no fill; no street lines set on the page's root or the office's box; and <html> no
+    // background of its own (so <body>'s ground fills the window).
     const before = getComputedStyle(document.body, "::before");
-    const wash = {
-      position: before.position,
-      z: before.zIndex,
-      lights: before.backgroundImage.match(/radial-gradient\(/g)?.length ?? 0,
-      map: /office-streets/.test(before.maskImage || before.webkitMaskImage || ""),
+    const wrapper = document.querySelector("[data-office]");
+    const behind = {
+      drawn: !["none", "normal"].includes(before.content),
+      image: before.backgroundImage,
+      mask: before.maskImage || before.webkitMaskImage || "none",
+      fill: before.backgroundColor,
+      lines: [document.documentElement, ...(wrapper ? [wrapper] : [])].flatMap((el) =>
+        ["--map-line", "--map-road"]
+          .map((v) => getComputedStyle(el).getPropertyValue(v).trim())
+          .filter((v) => v !== ""),
+      ),
+      root: getComputedStyle(document.documentElement).backgroundColor,
     };
     // The sections on the page, frosted, in the section's fill; what floats (shown), frosted more.
     const sections = [...(main?.querySelectorAll(".glass") ?? [])].filter(shown);
     const unfrosted = sections
       .filter((el) => {
         const s = getComputedStyle(el);
-        return (
-          !s.backdropFilter.includes("blur(6px)") ||
-          !s.backdropFilter.includes("saturate(1.15)") ||
-          s.boxShadow === "none"
-        );
+        return !/blur\(\d/.test(s.backdropFilter) || s.boxShadow === "none";
       })
       .map(name);
+    // Each look's own frost (expectGlass checks it exactly).
+    const sectionFrosts = [...new Set(sections.map((el) => getComputedStyle(el).backdropFilter))];
     const sectionFills = [...new Set(sections.map((el) => getComputedStyle(el).backgroundColor))];
     // Glass of any kind on the page: a section, or a clear part (Needs attention's rows sit as
     // clear glass on their amber parts), as Phase 23 found a white card on every page.
@@ -294,7 +307,7 @@ const measure = (page: Page) =>
       .map(name);
     return {
       ground: getComputedStyle(document.body).backgroundColor,
-      wash,
+      behind,
       // The page in the shell (no card of its own); the login card outside it; the bar; from
       // 1024px the rail and the bar's three capsules (Phase 24).
       page: box(document.querySelector("#main > div")),
@@ -316,6 +329,7 @@ const measure = (page: Page) =>
       sections: sections.length,
       glassParts,
       sectionFills,
+      sectionFrosts,
       unfrosted,
       floatLook,
       primaries,
@@ -340,14 +354,22 @@ const calm = (page: Page) => page.mouse.move(0, 0);
 // A box's four sides.
 const four = (value: string) => [value, value, value, value];
 
-// What every page shares: the wash and the ground, the face, the glass's parts, nothing sideways.
+// What every page shares: the plain ground with nothing drawn over it, the face, the glass's
+// parts, nothing sideways.
 function expectGlass(
   look: Awaited<ReturnType<typeof measure>>,
   where: string,
   device: "light" | "dark",
 ) {
   expect(look.ground, where).toBe(CANVAS[device]);
-  expect(look.wash, where).toEqual({ position: "fixed", z: "-1", lights: 0, map: true });
+  expect(look.behind, where).toEqual({
+    drawn: false,
+    image: "none",
+    mask: "none",
+    fill: "rgba(0, 0, 0, 0)",
+    lines: [],
+    root: "rgba(0, 0, 0, 0)",
+  });
   // One face, really loaded.
   expect(look.face, where).toMatch(FACE);
   expect(look.faceLoaded, where).toBe(true);
@@ -356,6 +378,7 @@ function expectGlass(
   // Sections frosted, in the section's glass.
   expect(look.unfrosted, where).toEqual([]);
   for (const fill of look.sectionFills) expect(fill, where).toBe(SECTION[device]);
+  for (const frost of look.sectionFrosts) expect(frost, where).toBe(SECTION_FROST[device]);
   // What floats, frosted more, in its glass, never bent.
   for (const f of look.floatLook) {
     expect(f.fill, `${where}: ${f.what}`).toBe(FLOAT[device]);
@@ -482,7 +505,7 @@ for (const device of ["dark", "light"] as const) {
         await context.addCookies([{ name: "sd-theme", value: "light", url: acme }]);
       });
 
-    test("every office page: the street map, no page card, Geist, round 8's glass, nothing sideways, at 390px and 1280px", async ({
+    test("every office page: a plain ground, no page card, Geist, round 8's glass, nothing sideways, at 390px and 1280px", async ({
       page,
     }) => {
       test.setTimeout(240_000);
@@ -597,10 +620,10 @@ for (const device of ["dark", "light"] as const) {
           const h1 = page.getByRole("heading", { level: 1 });
           await expect(h1, where).toBeVisible();
           await page.evaluate(() => document.fonts.ready);
-          // The browser tests run Chromium: once the page is running, glass-refraction.tsx puts .rf
-          // on <html> (the casual app's floating glass bends what's behind it; the office's doesn't:
-          // expectGlass checks).
-          await expect(page.locator("html"), where).toHaveClass(/(?:^|\s)rf(?:\s|$)/);
+          // Nothing bends anywhere (Phase 27.6): round 7's refraction, which put .rf on <html> in
+          // Chromium for the casual app's floating glass, is gone (expectGlass checks no float is
+          // bent, too).
+          await expect(page.locator("html"), where).not.toHaveClass(/(?:^|\s)rf(?:\s|$)/);
           await calm(page);
           // As a person first sees it (before measure() opens every hidden step).
           const kept = await keptRight(page);
@@ -620,7 +643,7 @@ for (const device of ["dark", "light"] as const) {
             expect(look.rail, where).not.toBeNull();
             expect(look.rail!.fill, where).toBe(SECTION[device]);
             expect(look.rail!.radius, where).toBe("12px");
-            expect(look.rail!.frost, where).toContain("blur(6px)");
+            expect(look.rail!.frost, where).toBe(SECTION_FROST[device]);
             expect(look.chips.length, where).toBe(6);
             for (const c of look.chips) {
               expect(c.frost, where).toBe("none");
@@ -694,7 +717,7 @@ for (const device of ["dark", "light"] as const) {
 
     // Logged out: the office's login, "You're logged out.", "Check your email." and the link
     // page, on round 7's parts too, at both sizes. No page card: the login is a section of glass on
-    // the wash from 640px (frameless on a phone: the page is the card).
+    // the plain ground from 640px (frameless on a phone: the page is the card).
     test("the office's login pages: round 8's glass, nothing sideways, at 390px and 1280px", async ({
       page,
     }) => {
@@ -778,12 +801,12 @@ for (const device of ["dark", "light"] as const) {
           await calm(page);
           const look = await measure(page);
           expectGlass(look, where, device);
-          // The login card: from 640px a section of glass over the street map, 12px round; on a
+          // The login card: from 640px a section of glass over the plain ground, 12px round; on a
           // phone no frame at all.
           expect(look.loginCard, where).not.toBeNull();
           if (size.width >= 640) {
             expect(look.loginCard!.fill, where).toBe(SECTION[device]);
-            expect(look.loginCard!.frost, where).toContain("blur(6px)");
+            expect(look.loginCard!.frost, where).toBe(SECTION_FROST[device]);
             expect(look.loginCard!.radius, where).toBe("12px");
             expect(look.loginCard!.depth, where).not.toBe("none");
           } else {

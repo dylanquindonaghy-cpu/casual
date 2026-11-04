@@ -17,7 +17,8 @@ const TONES: Record<string, StatusTone> = {
 };
 
 // My requests (docs/screens.md, `/requests`): each request's status first, then its kind and
-// shift, the office's note, when it was sent and its reference; "New request" at the top.
+// shift, the office's note, when it was sent and its reference; "Ask for a change to a shift" at
+// the top. With none, what a request is for and where the answer shows.
 export function RequestsList({ requests, timeZone }: { requests: MyRequest[]; timeZone: string }) {
   return (
     <>
@@ -25,12 +26,15 @@ export function RequestsList({ requests, timeZone }: { requests: MyRequest[]; ti
         title="My requests"
         actions={
           <Link href="/requests/new" className={staffBtn.primary}>
-            New request
+            Ask for a change to a shift
           </Link>
         }
       />
       {requests.length === 0 ? (
-        <p>No requests yet.</p>
+        <p>
+          No requests yet. To change a shift&apos;s times or swap it, tap Ask for a change to a
+          shift. The office&apos;s answer shows here.
+        </p>
       ) : (
         <ul role="list" className={staffRows}>
           {requests.map((r) => (

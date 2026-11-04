@@ -7,7 +7,7 @@ import { strangerTextsOff } from "../inbound/opt-out";
 import { signOffFor } from "../tenancy/sign-off";
 import { wallTimeOf, zonedToUtc } from "../time/zoned";
 import type { EmailSorted } from "./enquiries-copy";
-import { needsPerson } from "./enquiry-sql";
+import { needsPerson, requestWaiting } from "./enquiry-sql";
 import {
   enquiryOutcome,
   forAPerson,
@@ -125,6 +125,9 @@ export interface EnquiriesPage {
   // and START): the outcomes that aren't pay, a person's, or not understood.
   automaticToday: number;
   appToday: number; // requests made in the app since midnight (Requests from the app)
+  // Requests from the app waiting for an answer (open or escalated, whatever the day): the request
+  // queue's own "waiting" (request-queue.ts), for the head's line and its tab's count (O2).
+  appWaiting: number;
   needPerson: { count: number; oldestAt: Date | null };
   rows: EnquiryRow[]; // the view's (empty for "app": that view is the request queue)
   more: boolean;
@@ -218,6 +221,7 @@ export async function loadEnquiries(
     waiting: number;
     oldest: string | Date | null;
     app_today: number;
+    app_waiting: number;
   }>(sql`
     select count(*) filter (where m.created_at >= ${midnight})::int as today,
            count(*) filter (where m.created_at >= ${midnight} and ${automatic("m")})::int
@@ -225,7 +229,8 @@ export async function loadEnquiries(
            count(*) filter (where ${needsPerson("m")})::int as waiting,
            min(m.created_at) filter (where ${needsPerson("m")}) as oldest,
            (select count(*)::int from requests q
-             where q.message_id is null and q.created_at >= ${midnight}) as app_today
+             where q.message_id is null and q.created_at >= ${midnight}) as app_today,
+           (select count(*)::int from requests q where ${requestWaiting("q")}) as app_waiting
       from ${enquirySource(since)} m
   `);
   const c = counts[0];
@@ -262,6 +267,7 @@ export async function loadEnquiries(
     today: c?.today ?? 0,
     automaticToday: c?.automatic ?? 0,
     appToday: c?.app_today ?? 0,
+    appWaiting: c?.app_waiting ?? 0,
     needPerson: { count: c?.waiting ?? 0, oldestAt: c?.oldest ? new Date(c.oldest) : null },
     rows: rows.slice(0, limit).map((r) => ({
       messageId: r.id,

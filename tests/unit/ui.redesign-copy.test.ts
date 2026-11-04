@@ -121,7 +121,7 @@ describe("Home's rows", () => {
     ).toBe("Sun 25, Tue 27, Wed 28 Oct and more");
   });
 
-  it("the urgent row (Phase 24, round 7's words): how many, near you when her home area chose them, the days and the best pay", () => {
+  it("the urgent row (Phase 24, round 7's words): how many urgent shifts, near you when her travel area chose them, the days and the best pay", () => {
     expect(
       urgentRowText(
         [shift("2026-10-22T07:00:00Z", 1550), shift("2026-10-23T18:00:00Z", 1500)],
@@ -129,11 +129,11 @@ describe("Home's rows", () => {
         TZ,
       ),
     ).toEqual({
-      title: "2 urgent near you",
+      title: "2 urgent shifts near you",
       sub: "Thu 22 and Fri 23 Oct · up to £15.50/hour",
     });
     expect(urgentRowText([shift("2026-10-22T07:00:00Z", null)], false, TZ)).toEqual({
-      title: "1 urgent",
+      title: "1 urgent shift",
       sub: "Thu 22 Oct",
     });
   });
@@ -160,11 +160,10 @@ describe("Home's rows", () => {
       title: "No shifts right now",
       sub: "Check back later.",
     });
-    // Pay day: the pay week's Friday (D8), for the week she's in.
-    expect(payDayRowText("2026-10-30")).toEqual({
-      title: "Pay day: Fri 30 Oct",
-      sub: "For this week's shifts",
-    });
+    // Pay day: the pay week's Friday (D8), for the week she's in, by its dates (Phase 27.2).
+    expect(
+      payDayRowText("2026-10-30", { days: 7, start: "2026-10-26", end: "2026-11-01" }),
+    ).toEqual({ title: "Pay day: Fri 30 Oct", sub: "For shifts Mon 26 Oct to Sun 1 Nov" });
     expect(offlineUrgentText(2, "14:49")).toBe(
       "2 were urgent at 14:49. We'll check again when you're online.",
     );
@@ -367,10 +366,10 @@ describe("the event cards' words", () => {
     expect(EVENT_VIEW_WORDS.need).toBe("Need people");
   });
 
-  it("the line beside them: events with sessions to come and their places free", () => {
-    expect(eventsLine(8, 26)).toBe("8 events with sessions to come · 26 places free");
-    expect(eventsLine(1, 1)).toBe("1 event with sessions to come · 1 place free");
-    expect(eventsLine(0, 0)).toBe("0 events with sessions to come · 0 places free");
+  it("the line beside them: events with sessions to come and their places to fill", () => {
+    expect(eventsLine(8, 26)).toBe("8 events with sessions to come · 26 places to fill");
+    expect(eventsLine(1, 1)).toBe("1 event with sessions to come · 1 place to fill");
+    expect(eventsLine(0, 0)).toBe("0 events with sessions to come · 0 places to fill");
   });
 
   it("a card's heading and line; an automatic event's place over its day, neither said twice", () => {

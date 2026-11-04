@@ -1,5 +1,6 @@
 import type { QualificationState } from "../credentials/status";
 import { shortDate } from "../rules/reasons";
+import { STRIKE_IS_A_RECORD } from "../strikes/words";
 import {
   DISTANCE_NOT_KNOWN,
   straightMiles,
@@ -42,9 +43,10 @@ const straightAway = (metres: number) =>
 // "1 of 4 left".
 export const placesText = (left: number, headcount: number) => `${left} of ${headcount} left`;
 
-// Under "Take shift": the firm's own notice (strikes.notice_hours, 48 by default).
+// Under "Take shift": the firm's own notice (strikes.notice_hours, 48 by default), and what a
+// strike is.
 export const strikeNoteText = (noticeHours: number) =>
-  `Cancelling less than ${noticeHours} hours before the start gives you a strike.`;
+  `Cancelling less than ${noticeHours} hours before the start gives you a strike. ${STRIKE_IS_A_RECORD}`;
 
 export type RequirementTone = "done" | "attention" | "urgent";
 

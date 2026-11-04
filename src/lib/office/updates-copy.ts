@@ -12,9 +12,10 @@ export const updatesLine = (mine: boolean) =>
   mine
     ? "What's happened on your contracts in the last 7 days, newest first."
     : "What's happened in the last 7 days, newest first.";
-// The list's heading: how many came in today (the firm's day).
-export const TODAY = "Today";
-export const todayWords = (n: number) => `${n} ${n === 1 ? "update" : "updates"} today`;
+// The list's heading: what it holds (the last 7 days), then how many of them came in today (the
+// firm's day), when any did: "Last 7 days · 2 new today" (round 8's "Clearer words", 3 Nov 2026).
+export const LAST_7_DAYS = "Last 7 days";
+export const newTodayWords = (n: number) => `${n} new today`;
 // Its two views (`?view=everything`).
 export const UPDATE_VIEWS = ["action", "everything"] as const;
 export type UpdateView = (typeof UPDATE_VIEWS)[number];

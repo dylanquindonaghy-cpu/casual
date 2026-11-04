@@ -41,6 +41,9 @@ export function LoginForm({
       <label htmlFor="mobile" className={label}>
         Your mobile number
       </label>
+      <p id="mobile-hint" className={`mt-1 ${muted}`}>
+        The number {firmName} has for you, like 07700 900123
+      </p>
       <input
         id="mobile"
         name="mobile"
@@ -49,7 +52,9 @@ export function LoginForm({
         autoComplete="tel"
         required
         aria-invalid={state.status === "invalid_number"}
-        aria-describedby={state.status === "invalid_number" ? "mobile-error" : undefined}
+        aria-describedby={
+          state.status === "invalid_number" ? "mobile-hint mobile-error" : "mobile-hint"
+        }
         className={`${staffField} mt-2 tabular-nums aria-invalid:border-urgent`}
       />
       {state.status === "rate_limited" && <TooManyTries minutes={state.retryAfterMinutes} />}
@@ -97,6 +102,9 @@ export function LinkSent({
           <p className="text-2xl font-bold">Check your phone.</p>
           <p className="mt-2">
             If {firmName} has this number, we&apos;ve sent a link by text. It works for 15 minutes.
+          </p>
+          <p className="mt-2">
+            No text after 2 minutes? Check the number and try again, or contact the office.
           </p>
           {/* Phase 26.9: no text goes after STOP, and this page can't say whose number it is. */}
           <p className="mt-2">

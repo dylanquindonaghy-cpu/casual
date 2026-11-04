@@ -13,20 +13,20 @@ export type OfferResponse = NonNullable<OfferPage["offered"][number]["response"]
 export const RESPONSE_WORDS: Record<OfferResponse, string> = {
   accepted: "took it",
   declined: "said no",
-  expired: "closed when the shift changed",
+  expired: "closed when the session changed",
   filled_elsewhere: "filled by someone else",
   failed: "couldn't be sent",
 };
 
 export const WHO_CAN_TAKE_IT = "Who can take it";
 export const ALREADY_OFFERED = "Already offered";
-export const NOBODY_ELSE = "Nobody else can be offered this shift right now.";
+export const NOBODY_ELSE = "Nobody else can be offered this session right now.";
 export const NOBODY_YET = "Nobody yet.";
-export const URGENT_NOTE = "This shift is urgent: they get the urgent message.";
+export const URGENT_NOTE = "This session is urgent: they get the urgent message.";
 
 // The rule under "Who can take it", with the daily cap.
 export const whoRule = (cap: number) =>
-  `Only people the rules allow, who want offers, and who haven't been offered it. Unless it's urgent, not anyone offered ${cap} shifts today.`;
+  `Only people the rules allow, who want offers, and who haven't been offered it. Unless it's urgent, not anyone offered ${cap} sessions today.`;
 
 // "8 hours booked that week".
 export function candidateLine(c: Pick<OfficeCandidate, "hoursThisWeek">): string {
@@ -74,7 +74,7 @@ export function notOfferedWhy(why: NotOfferedWhy, cap: number): string {
     case "elsewhere":
       return "Booked elsewhere then";
     case "rest":
-      return "Too soon after another shift";
+      return "Too soon after another session";
     case "hours":
       return "Over their weekly hours";
     case "unavailable":
@@ -91,7 +91,7 @@ export function notOfferedWhy(why: NotOfferedWhy, cap: number): string {
 }
 
 // "1 place free", "3 places free".
-export const placesFreeText = (n: number) => (n === 1 ? "1 place free" : `${n} places free`);
+export const placesFreeText = (n: number) => (n === 1 ? "1 place to fill" : `${n} places to fill`);
 
 // Who sent it: "by the office" or "wave 2".
 export const sentBy = (wave: number | null) => (wave === null ? "by the office" : `wave ${wave}`);

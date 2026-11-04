@@ -41,7 +41,7 @@ import type { MyShift, PortalContext } from "./my-shifts";
 // query, before the cap, so shifts nearby are never cut off; the choices leave them out too.
 // Urgent first, then the nearest (the quickest of her chosen ways), then the date. Each shift
 // carries its travel facts (src/lib/travel/lines.ts), and `further` counts the shifts she could
-// otherwise take that are further than she travels (the same filters and rules). With no area,
+// otherwise take that are outside her travel area (the same filters and rules). With no area,
 // nothing is left out and `area` is null (the pages ask her to add one). Only where the firm has
 // travel areas switched on (`travelOn`, 13.4): off, nothing is left out or ordered by distance,
 // `area` is null, no shift carries travel facts, and the pages ask for no area.
@@ -331,7 +331,7 @@ export async function openShiftsFor(
         asc(shifts.id),
       )
       .limit(MAX_CANDIDATES + 1);
-    // Those her area rules out, for the "further than you travel" count (none without an area).
+    // Those her area rules out, for the "outside your travel area" count (none without an area).
     // Joined to sites like the list's query: in a query with no join, Drizzle writes the selected
     // columns without their table, and `held`'s "id" would then mean the assignment's own.
     const beyond = area

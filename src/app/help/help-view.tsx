@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import { h2, staffBtn, staffRows } from "../ui/classes";
 import { PageHeader } from "../ui/page-header";
 import { possessive } from "@/lib/portal/copy";
+import { renewalText } from "@/lib/portal/upload-copy";
+import { STRIKE_IS_A_RECORD } from "@/lib/strikes/words";
 import type { HelpFacts } from "@/lib/portal/help-facts";
 import { postcodeAttribution } from "@/lib/travel/attribution";
 import { Name, Points, Step, Steps } from "./guide-parts";
@@ -119,15 +121,16 @@ export function HelpView({
       <Section id="your-shifts">
         <p className="mt-3">
           <Name>Home</Name> is the first page you see. The tabs at the bottom take you to{" "}
-          <Name>Home</Name>, <Name>Shifts</Name>, <Name>Pay</Name> and <Name>Profile</Name>.
+          <Name>Home</Name>, <Name>Shifts</Name>, <Name>Messages</Name>, <Name>Pay</Name> and{" "}
+          <Name>Profile</Name>.
         </p>
         <Points>
           <li>
-            Home shows your next shift as a pass: the day and times, the site and your gate. Tap it
-            to see the rest: getting there, your pay and any instructions.
+            Home shows your next shift as a pass: the day and times, the site and your gate. Tap{" "}
+            <Name>Details</Name> to see the rest: getting there, your pay and any instructions.
           </li>
           <li>
-            Tap <Name>Open in maps</Name> for directions to the site.
+            Tap <Name>Directions</Name> to find your way to the site.
           </li>
           <li>
             Tap <Name>Shifts</Name>, then <Name>Booked</Name>, to see all your shifts. Tap one to
@@ -167,7 +170,7 @@ export function HelpView({
         </Points>
         <p className="mt-4">
           Some shifts go first to people with fewer hours that week. You&apos;ll see when you can
-          take it. Tap <Name>Check again</Name> then.
+          take it. At that time, tap <Name>Check again</Name>.
         </p>
         <p className="mt-3">
           If it says you can&apos;t take a shift, it tells you why. Think that&apos;s wrong? Tap{" "}
@@ -219,9 +222,9 @@ export function HelpView({
             strike.
           </p>
           <Points>
-            <li>A strike is a record, not a fine. It never comes off your pay.</li>
+            <li>{STRIKE_IS_A_RECORD}</li>
             <li>
-              {firmName}&apos;s strikes team gets a record of it. It counts for {facts.liveDays}{" "}
+              {possessive(firmName)} office keeps a record of it. It counts for {facts.liveDays}{" "}
               days.
             </li>
             <li>
@@ -243,7 +246,8 @@ export function HelpView({
       <Section id="changes">
         <Steps>
           <Step>
-            Find the shift on Home or under <Name>Shifts</Name>. Tap <Name>Ask for a change</Name>.
+            Find the shift on Home or under <Name>Shifts</Name>. Tap <Name>Details</Name>, then{" "}
+            <Name>Ask for a change</Name>.
           </Step>
           <Step>
             Choose <Name>Change the times</Name> or <Name>Swap with someone</Name>.
@@ -332,8 +336,7 @@ export function HelpView({
           </p>
           <Steps>
             <Step>
-              Tap the <Name>Profile</Name> tab, then <Name>Set your travel area</Name> under{" "}
-              <Name>Where you work</Name>.
+              Tap the <Name>Profile</Name> tab, then <Name>Set your travel area</Name>.
             </Step>
             <Step>Enter the postcode you start from. It can be different from your home.</Step>
             <Step>
@@ -354,15 +357,19 @@ export function HelpView({
 
       <Section id="qualifications-and-photos">
         <p className="mt-3">
-          Your profile lists each licence or card your roles need, with its status and date.
+          Your profile lists each licence or card your roles need, with its status and date. One
+          only a shift of yours needs is under <Name>Other qualifications on file</Name>.
         </p>
         <Points>
           <li>
-            New card? Tap <Name>Upload a certificate</Name> under it and take a clear photo of it.
+            Got a new one? Tap <Name>Upload a new one</Name> under it and take a clear photo of it.
           </li>
-          <li>Some, like CSAS, the office records itself. Send those to the office, not here.</li>
           <li>
-            Your staff photo needs renewing every {facts.photoRenewalMonths} months. Tap{" "}
+            Some, like CSAS, the office records itself. Once you&apos;ve renewed one of those, tell
+            the office under <Name>Messages</Name>.
+          </li>
+          <li>
+            Your staff photo needs renewing every {renewalText(facts.photoRenewalMonths)}. Tap{" "}
             <Name>Upload a new photo</Name> and face the camera.
           </li>
           <li>

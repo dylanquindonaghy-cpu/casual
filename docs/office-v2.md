@@ -1800,9 +1800,13 @@ is added before the sign-off, which meets WhatsApp's escalation rule
 AI answer.
 
 **4. Cancel screen (on-screen text only).** One warning, chosen by `strikeDecision()`:
-- **A strike:** "This shift starts in {26} hours. Cancelling with less than {48} hours' notice gives
-  you a strike. {Acme Events}' strikes team gets a record of it. You have {0} strikes in the last
-  {90} days."
+- **A strike** (warning version v1, 12C.1 until 2026-11-03): "This shift starts in {26} hours.
+  Cancelling with less than {48} hours' notice gives you a strike. {Acme Events}' strikes team gets
+  a record of it. You have {0} strikes in the last {90} days." Since Phase 27.2 (v2): "This shift
+  starts in {26} hours. Cancelling now gives you a strike (less than {48} hours' notice). A strike
+  is a record, not a fine. It never comes off your pay. You have {0} strikes in the last {90}
+  days." Every version's exact words are kept in `src/lib/strikes/words.ts`
+  (`STRIKE_WARNING_WORDS`); a booking records the version it was confirmed under.
 - **Exempt:** "The office booked or changed this shift, so cancelling doesn't give you a strike."
 - **Enough notice:** "This shift starts in {5} days. Cancelling now doesn't give you a strike."
 - **Footer:** "Your cancellation is recorded the moment you confirm. Nobody needs to approve it."

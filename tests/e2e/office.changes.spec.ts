@@ -39,7 +39,7 @@ test("move a booked shift with a reason, see the notice logged, then cancel the 
   await page.getByLabel("Role").fill("steward");
   await page.getByLabel("Start").fill("09:00");
   await page.getByLabel("Finish").fill("17:00");
-  await page.getByRole("button", { name: "Create shift" }).click();
+  await page.getByRole("button", { name: "Create session" }).click();
   await expect(page).toHaveURL(/\/office\/shifts\/[0-9a-f-]{36}$/);
   const session = page.url();
 
@@ -53,7 +53,7 @@ test("move a booked shift with a reason, see the notice logged, then cancel the 
   for (const value of options.slice(0, 8)) {
     await page.getByLabel("Who?").selectOption(value);
     await page.getByRole("button", { name: "Check" }).click();
-    const yes = page.getByText(/^The rules say (.+) can work this shift\.$/);
+    const yes = page.getByText(/^The rules say (.+) can work this session\.$/);
     if (await yes.isVisible()) {
       name = ((await yes.textContent()) ?? "").replace(/^The rules say (.+) can work.*$/, "$1");
       break;
@@ -61,7 +61,7 @@ test("move a booked shift with a reason, see the notice logged, then cancel the 
   }
   expect(name).not.toBe("");
   await page.getByRole("button", { name: `Assign ${name}` }).click();
-  await expect(page.getByText(`${name} is booked on this shift.`)).toBeVisible();
+  await expect(page.getByText(`${name} is booked on this session.`)).toBeVisible();
   // The e2e worker process tells them they're booked (Phase 10 task 19), or holds it for quiet
   // hours if this runs at night.
   const booked = new RegExp(
@@ -123,7 +123,7 @@ test("move a booked shift with a reason, see the notice logged, then cancel the 
   await page.getByRole("button", { name: `Yes, cancel ${name}'s booking` }).click();
   await expect(
     page.getByText(
-      "This is the shift's only place, so it can't go. To drop it, cancel the whole shift. Nothing was changed.",
+      "This is the session's only place, so it can't go. To drop it, cancel the whole session. Nothing was changed.",
     ),
   ).toBeVisible();
   await page
@@ -141,12 +141,13 @@ test("move a booked shift with a reason, see the notice logged, then cancel the 
   await expect(page.getByRole("heading", { name: "Cancelled", level: 4 })).toBeVisible();
   await expect(confirmation).toBeVisible();
 
-  // The notice report says who asked (Phase 25.2), newest first.
+  // The notice report says who asked (Phase 25.2), newest first, and who started it: an office
+  // person (Phase 27.2's guardrails review: "The firm (office)").
   await page.goto(`${acme}/office/reports/notice?kind=cancellations`);
   const row = page
     .getByRole("region", { name: "Notice and cancellation report" })
     .locator("tr", { hasText: name })
-    .filter({ hasText: "The office" })
+    .filter({ hasText: "The firm (office)" })
     .first();
   await expect(row).toContainText("The client");
 });

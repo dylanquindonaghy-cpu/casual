@@ -43,14 +43,19 @@ const SECTIONS: Section[] = [
     areas: ["today"],
     body: (role) => <FillAGap role={role} />,
   },
-  { id: "add-shifts", title: "Add shifts", areas: ["shifts"], body: () => <AddShifts /> },
+  { id: "add-shifts", title: "Add sessions", areas: ["shifts"], body: () => <AddShifts /> },
   {
     id: "change-a-shift",
-    title: "Change or cancel a shift",
+    title: "Change or cancel a session",
     areas: ["shifts"],
     body: () => <ChangeAShift />,
   },
-  { id: "after-a-shift", title: "After a shift", areas: ["shifts"], body: () => <AfterAShift /> },
+  {
+    id: "after-a-shift",
+    title: "After a session",
+    areas: ["shifts"],
+    body: () => <AfterAShift />,
+  },
   { id: "enquiries", title: "Enquiries", areas: ["enquiries"], body: () => <Enquiries /> },
   { id: "casuals", title: "Casuals", areas: ["casuals"], body: () => <Workers /> },
   {
@@ -169,14 +174,17 @@ function Links({ children }: { children: ReactNode }) {
 const MENU_WORDS: Record<string, string> = {
   Dashboard:
     "The places to fill this week and next, the offers waiting for a reply, what casuals took while you were out, and who worked.",
+  Updates:
+    "What happened in the last 7 days: places taken, cancellations, uploads to check and offers with no reply. Tell me about chooses what you hear about.",
   "Needs attention":
-    "Everything someone has to sort out, in full: who worked, uploads to check, bookings to check and more.",
+    "Everything someone has to sort out, in full: uploads to check, bookings to check and more.",
 
   "Events & sessions":
     "Every event with a session to come, as a card with its sessions. Choose what casuals see and what's urgent.",
   Cancellations:
     "Every cancellation, by casuals and by the office, with its record and a PDF. Nothing to approve.",
-  Requests: "Time changes, swaps and reviews workers have asked for.",
+  Enquiries:
+    "Messages to the shifts line and what came of them, and the requests casuals made in the app.",
   Strikes:
     "Who has strikes for cancelling late, and which need a review. Withdraw or keep one from its record.",
   Casuals:
@@ -188,7 +196,7 @@ const MENU_WORDS: Record<string, string> = {
   "Pay queries": "Workers' pay queries, grouped by likely cause.",
   "Import pay records": "Load payroll's spreadsheet, so workers see their pay.",
   "Office team": "Who can log in to the office, and their roles.",
-  Settings: "The strikes team's email, your shifts line's number, and your sites' postcodes.",
+  Settings: "The strikes team's email, your shifts line's number, and your venues' postcodes.",
   Integrations: "Connect your planner: its API keys, and the codes it can send.",
   "Data requests": "Download or delete a worker's data when they ask.",
 };
@@ -256,8 +264,8 @@ function GettingAround({ role, menu }: { role: OfficeRole; menu: MenuGroup[] }) 
         {search ? (
           <>
             {" "}
-            Use <Name>Search</Name> beside them to find a casual, a shift or a site. Press ⌘K on a
-            Mac, or Ctrl K, to go straight to it.
+            Use <Name>Search</Name> beside them to find a casual, a session or a venue. Press ⌘K on
+            a Mac, or Ctrl K, to go straight to it.
           </>
         ) : null}
       </Para>
@@ -296,7 +304,7 @@ const DASHBOARD_SECTIONS: [string, ReactNode][] = [
   ],
   [
     "The chosen session",
-    "On the map (under it on a phone): its day and time, where, its pay, how many are booked, how soon it starts, who can take it and who hasn't replied. Offer to someone and Open the shift are under it; … has Mark as filled and Not urgent.",
+    "On the map (under it on a phone): its day and time, where, its pay, how many are booked, how soon it starts, who can take it and who hasn't replied. Offer to someone and Open the session are under it; … has Mark as filled and Not urgent.",
   ],
   ["To offer", "Every session with places to fill, soonest first: the first four, then View all."],
   [
@@ -305,7 +313,7 @@ const DASHBOARD_SECTIONS: [string, ReactNode][] = [
   ],
   [
     "Who worked?",
-    "Sessions from the last 7 days with people not marked yet, each person by name: Worked or Didn't attend, or Everyone else worked.",
+    "Sessions from the last 7 days with people not marked yet, each person by name: Worked, or ✕ if they didn't turn up, or All of these worked.",
   ],
 ];
 
@@ -338,23 +346,23 @@ function DashboardPart() {
       </Para>
       <Steps>
         <Step>
-          The line under <Name>Dashboard</Name> says the date, the pay week and its pay day, and
-          when your planner or rota sheet last sent changes.
+          The line under <Name>Dashboard</Name> says the date, the pay week and the day it&apos;s
+          paid, and when your planner or rota sheet last sent changes.
         </Step>
         <Step>
           <Name>All</Name>, <Name>Urgent</Name>, <Name>This week</Name> and <Name>Next week</Name>{" "}
           choose the sessions with places to fill that the board shows. Each says how many there
-          are. <Name>Filter</Name> shows one role only; <Name>Show full venues</Name> puts the
+          are. <Name>Filter</Name> shows one role only; <Name>Show filled venues too</Name> puts the
           venues with nothing to fill on the map too.
         </Step>
         <Step>
           Select a pin on the map, or a session under <Name>To offer</Name>, to see it in full on
-          the map. <Name>Open the shift</Name> goes to its page, where you can change everything
+          the map. <Name>Open the session</Name> goes to its page, where you can change everything
           about it.
         </Step>
         <Step>
           <Name>Needs attention</Name> lists everything someone has to sort out, in full. The bar at
-          the top counts it as <Name>To check</Name>, and takes you there.
+          the top counts it too, and takes you there.
         </Step>
       </Steps>
       <Task title="What each part shows">
@@ -412,17 +420,17 @@ function FillAGap({ role }: { role: OfficeRole }) {
   return (
     <>
       <Para>
-        A gap is a shift with a place free. Every one is on the dashboard, under{" "}
+        A gap is a session with a place free. Every one is on the dashboard, under{" "}
         <Name>To offer</Name> and on its map (<Name>Urgent</Name> shows only the urgent ones).
         Select one to see it in full: <Name>Mark as filled</Name> and <Name>Not urgent</Name> are
-        under its <Name>…</Name>. Every session and its places free is on{" "}
+        under its <Name>…</Name>. Every session and its places to fill is on{" "}
         <Name>Events &amp; sessions</Name>, where its <Name>…</Name> menu has them too.
       </Para>
       <Task title="To offer it to someone">
         <Steps>
           <Step>
             Select <Name>Offer to someone</Name> (on the dashboard, or a card&apos;s paper plane
-            there, or on the shift&apos;s page).
+            there, or on the session&apos;s page).
           </Step>
           <Step>
             <Name>Who can take it</Name> lists only people the rules allow, who want offers and
@@ -433,7 +441,7 @@ function FillAGap({ role }: { role: OfficeRole }) {
             place.
           </Step>
         </Steps>
-        <Note>Unless the shift is urgent, nobody is offered more than 3 shifts a day.</Note>
+        <Note>Unless the session is urgent, nobody is offered more than 3 sessions a day.</Note>
       </Task>
       <Task title="To send offers out for you">
         <Steps>
@@ -456,13 +464,13 @@ function FillAGap({ role }: { role: OfficeRole }) {
             until you leave or reload the page.
           </Step>
         </Steps>
-        <Note>A shift from your Google Sheet is changed in the sheet, not here.</Note>
+        <Note>A session from your Google Sheet is changed in the sheet, not here.</Note>
       </Task>
       {canAccess(role, "shifts") ? (
         <Task title="To book someone yourself">
           <Steps>
             <Step>
-              Open the shift&apos;s page and go to <Name>Assign someone</Name>.
+              Open the session&apos;s page and go to <Name>Assign someone</Name>.
             </Step>
             <Step>
               Choose the person in <Name>Who?</Name> and select <Name>Check</Name>.
@@ -482,8 +490,8 @@ function FillAGap({ role }: { role: OfficeRole }) {
           <Note>
             You can go ahead only for too little rest, the weekly hours, or a day they can&apos;t
             work. Anything else can&apos;t be overridden, like a missing or out-of-date licence.
-            Once a shift has started, nobody can be assigned to it here. Every override goes in the
-            action log.
+            Once a session has started, nobody can be assigned to it here. Every override goes in
+            the action log.
           </Note>
         </Task>
       ) : null}
@@ -500,26 +508,26 @@ function AddShifts() {
   return (
     <>
       <Para>
-        Add shifts from <Name>Events &amp; sessions</Name>. There are three ways.
+        Add sessions from <Name>Events &amp; sessions</Name>. There are three ways.
       </Para>
-      <Task title="One shift">
+      <Task title="One session">
         <Steps>
           <Step>
-            Select <Name>All shifts by day</Name>, then <Name>New shift</Name>.
+            Select <Name>All sessions by day</Name>, then <Name>New session</Name>.
           </Step>
           <Step>
             Fill in the date, site, role, start, finish and places. Add instructions if needed.
           </Step>
           <Step>
-            Select <Name>Create shift</Name>.
+            Select <Name>Create session</Name>.
           </Step>
         </Steps>
         <Note>A finish before the start is the next morning.</Note>
       </Task>
-      <Task title="Several shifts for one event">
+      <Task title="Several sessions for one event">
         <Steps>
           <Step>
-            Select <Name>Add shifts</Name>.
+            Select <Name>Add sessions</Name>.
           </Step>
           <Step>Give the event a name, and choose the date and site once.</Step>
           <Step>
@@ -529,14 +537,14 @@ function AddShifts() {
           </Step>
           <Step>Add the meeting point and uniform for everyone, if you have them.</Step>
           <Step>
-            Select <Name>Create these shifts</Name>.
+            Select <Name>Create these sessions</Name>.
           </Step>
         </Steps>
       </Task>
       <Task title="From a spreadsheet">
         <Steps>
           <Step>
-            Select <Name>Import shifts</Name>.
+            Select <Name>Import sessions</Name>.
           </Step>
           <Step>
             Choose a .csv or .xlsx file with Date, Start, End and Role columns. Site, Needed,
@@ -547,11 +555,11 @@ function AddShifts() {
             change or skip.
           </Step>
           <Step>
-            Select <Name>Import these shifts</Name>.
+            Select <Name>Import these sessions</Name>.
           </Step>
         </Steps>
         <Note>
-          Importing the same file again updates those shifts instead of adding them twice.
+          Importing the same file again updates those sessions instead of adding them twice.
         </Note>
       </Task>
       <Links>
@@ -567,17 +575,17 @@ function ChangeAShift() {
   return (
     <>
       <Para>
-        Open the shift from the dashboard, or from its event on <Name>Events &amp; sessions</Name>{" "}
+        Open the session from the dashboard, or from its event on <Name>Events &amp; sessions</Name>{" "}
         (its <Name>…</Name> menu, then <Name>Change or cancel</Name>). Everything about it is on its
         page.
       </Para>
       <Note>
-        A shift from your planner says &ldquo;{FROM_PLANNER_WORDS}&rdquo; Its details, its move and
-        cancelling it all happen in your planner, so those parts aren&apos;t on its page. Here you
-        can still hide it, mark it urgent, offer it, assign someone and cancel one person&apos;s
+        A session from your planner says &ldquo;{FROM_PLANNER_WORDS}&rdquo; Its details, its move
+        and cancelling it all happen in your planner, so those parts aren&apos;t on its page. Here
+        you can still hide it, mark it urgent, offer it, assign someone and cancel one person&apos;s
         booking.
       </Note>
-      <Task title="To hide shifts from casuals">
+      <Task title="To hide sessions from casuals">
         <Steps>
           <Step>
             On <Name>Events &amp; sessions</Name>, switch the event off to hide all its sessions.
@@ -587,14 +595,14 @@ function ChangeAShift() {
           </Step>
         </Steps>
         <Note>
-          People already booked keep their shifts. Casuals can&apos;t see, take or be offered a
-          hidden shift; you can still assign someone.
+          People already booked keep their places. Casuals can&apos;t see, take or be offered a
+          hidden session; you can still assign someone.
         </Note>
       </Task>
       <Task title="To change its details">
         <Steps>
           <Step>
-            Under <Name>Edit this shift</Name>, change what you need.
+            Under <Name>Edit this session</Name>, change what you need.
           </Step>
           <Step>
             Select <Name>Save changes</Name>.
@@ -604,8 +612,8 @@ function ChangeAShift() {
       </Task>
       <Task title="To move or shorten it">
         <Para>
-          This is for a shift with people booked. With nobody booked, change the date, times or site
-          under <Name>Edit this shift</Name> instead.
+          This is for a session with people booked. With nobody booked, change the date, times or
+          site under <Name>Edit this session</Name> instead.
         </Para>
         <Steps>
           <Step>
@@ -623,21 +631,21 @@ function ChangeAShift() {
           someone can&apos;t work the new time, cancel their booking first, then move it.
         </Note>
       </Task>
-      <Task title="To cancel the whole shift">
+      <Task title="To cancel the whole session">
         <Steps>
           <Step>
-            Select <Name>Cancel this shift</Name> and choose why.
+            Select <Name>Cancel this session</Name> and choose why.
           </Step>
           <Step>
-            Select <Name>Yes, cancel this shift</Name>. Everyone booked is told, and their notice is
-            logged.
+            Select <Name>Yes, cancel this session</Name>. Everyone booked is told, and their notice
+            is logged.
           </Step>
         </Steps>
       </Task>
       <Task title="To cancel one person's booking">
         <Steps>
           <Step>
-            Under <Name>Places</Name>, select{" "}
+            Under <Name>Booked places</Name>, select{" "}
             <Name>
               Cancel <Their />
               &apos;s booking
@@ -668,17 +676,18 @@ function AfterAShift() {
   return (
     <>
       <Para>
-        Mark who worked each shift. <Name>Who worked?</Name>, in <Name>Needs attention</Name> (in
-        the menu), lists shifts from the last 7 days with people not marked yet.
+        Mark who worked each session. <Name>Who worked?</Name>, on the dashboard, lists sessions
+        from the last 7 days with people not marked yet: <Name>Worked</Name>, or <Name>✕</Name> if
+        they didn&apos;t turn up.
       </Para>
       <Steps>
-        <Step>Open the shift&apos;s page.</Step>
+        <Step>Or open the session&apos;s page.</Step>
         <Step>
-          Once it has started, go to <Name>Places</Name>. Select <Name>Mark as worked</Name> or{" "}
-          <Name>Mark as not attended</Name> for each person.
+          Once it has started, go to <Name>Booked places</Name>. Select <Name>Mark as worked</Name>{" "}
+          or <Name>Mark as not attended</Name> for each person.
         </Step>
         <Step>
-          After the shift ends, if everyone left worked it, select{" "}
+          After the session ends, if everyone left worked it, select{" "}
           <Name>
             Mark the <Their>2 people</Their> not marked yet as worked
           </Name>
@@ -732,7 +741,7 @@ function Enquiries() {
         <Steps>
           <Step>
             Select <Name>Requests from the app</Name>: time changes, swaps, and asks to review a
-            shift the rules refused.
+            session the rules refused.
           </Step>
           <Step>
             To say yes, select{" "}
@@ -755,7 +764,7 @@ function Enquiries() {
         </Steps>
       </Task>
       <Note>
-        Approving doesn&apos;t change the shift, or book them on it: do that on the shift&apos;s
+        Approving doesn&apos;t change the session, or book them on it: do that on the session&apos;s
         page. A voicemail may not be from the worker, so check anything unusual with them. Pay
         messages always go to a person: the shifts line only sends the pay page&apos;s link.
       </Note>
@@ -843,11 +852,12 @@ function Records({ role }: { role: OfficeRole }) {
         <Task title="Action log">
           <Para>
             Everything that happened, newest first. Narrow it with <Name>Worker</Name>,{" "}
-            <Name>Shift</Name>, <Name>Type</Name>, <Name>From</Name> and <Name>To</Name>, then
+            <Name>Session</Name>, <Name>Type</Name>, <Name>From</Name> and <Name>To</Name>, then
             select <Name>Show</Name>. <Name>Clear</Name> starts again.
           </Para>
           <Note>
-            For everything about one shift, open it and select “See this shift in the action log”.
+            For everything about one session, open it and select “See this session in the action
+            log”.
           </Note>
           <div className="mt-2">
             <GoTo href="/office/log" icon="log">
@@ -967,7 +977,7 @@ function Admin({ role }: { role: OfficeRole }) {
               <Name>Admin</Name>: everything, including the office team and data requests.
             </li>
             <li>
-              <Name>Resourcer</Name>: the dashboard, shifts, enquiries, casuals and records.
+              <Name>Resourcer</Name>: the dashboard, sessions, enquiries, casuals and records.
             </li>
             <li>
               <Name>Payroll</Name>: pay queries and pay records.
@@ -1018,7 +1028,7 @@ function Admin({ role }: { role: OfficeRole }) {
             </Step>
           </Steps>
           <Note>
-            If they&apos;re booked on a shift that hasn&apos;t ended, you can&apos;t delete them
+            If they&apos;re booked on a session that hasn&apos;t ended, you can&apos;t delete them
             yet. Cancel those bookings first (with a reason), then come back to delete.
           </Note>
           <Note>
@@ -1042,8 +1052,8 @@ function ConnectPlanner() {
   return (
     <>
       <Para>
-        Your planner can send its sessions to ShiftDesk, and read their bookings and cancellations.
-        It needs an API key: a long password for a machine.
+        Your planner can send its sessions here, and read their bookings and cancellations. It needs
+        an API key: a long password for a machine.
       </Para>
       <Steps>
         <Step>

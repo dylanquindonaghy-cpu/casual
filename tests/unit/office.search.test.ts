@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { SEARCH_MAX, searchQuery } from "@/lib/office/search";
 import { SEARCH_EMPTY, SEARCH_LABEL, searchHits } from "@/lib/office/search-copy";
 
-// The office search's words (Phase 24: the top bar's "Find a casual, shift or site";
+// The office search's words (Phase 24: the top bar's "Find a casual, session or venue";
 // src/lib/office/search-copy.ts): what's typed as it's searched, and each thing found as a line to
 // read and the page it opens. tests/integration/office.shell.test.ts finds them on the database.
 
@@ -16,7 +16,7 @@ describe("what's typed", () => {
     expect(searchQuery("ab")).toBe("ab");
     expect(searchQuery("x".repeat(150))).toHaveLength(100);
     expect(SEARCH_MAX).toBe(5);
-    expect(SEARCH_LABEL).toBe("Find a casual, shift or site");
+    expect(SEARCH_LABEL).toBe("Find a casual, session or venue");
   });
 });
 
@@ -108,7 +108,7 @@ describe("what's found, as lines", () => {
     const { groups } = searchHits(found, "Europe/London");
     expect(groups[1]).toEqual({
       kind: "sessions",
-      label: "Shifts",
+      label: "Sessions",
       hits: [
         {
           href: "/office/shifts/s1",
@@ -131,7 +131,7 @@ describe("what's found, as lines", () => {
     const { groups, count } = searchHits(found, "Europe/London");
     expect(groups[2]).toEqual({
       kind: "sites",
-      label: "Sites",
+      label: "Venues",
       hits: [
         {
           href: "/office/events?site=t1",

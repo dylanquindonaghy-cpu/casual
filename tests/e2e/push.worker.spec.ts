@@ -118,7 +118,5 @@ test("the profile says phone notifications aren't switched on yet", async ({ pag
     .getByRole("link", { name: "Profile" })
     .click();
   await expect(page.getByRole("heading", { name: "Notifications on this phone" })).toBeVisible();
-  await expect(
-    page.getByText("Phone notifications aren't switched on for Acme Events yet."),
-  ).toBeVisible();
+  await expect(page.getByText("Acme Events doesn't use phone notifications yet.")).toBeVisible();
 });

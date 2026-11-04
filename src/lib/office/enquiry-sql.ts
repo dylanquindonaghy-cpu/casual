@@ -25,3 +25,13 @@ export const needsPerson = (m: string): SQL =>
                      where q.firm_id = ${m}.firm_id and q.message_id = ${m}.id
                        and q.status not in ('open', 'escalated'))
   )`);
+
+// A request from the app waiting for an answer, as SQL over a `requests` row: open or escalated,
+// and not a shifts-line question still with its message (Enquiries answers that one, with the
+// message it came from). One rule for the request queue's list (request-queue.ts) and Enquiries'
+// "{n} requests to answer" count (enquiries.ts), so the two never disagree (the guardrails review,
+// Phase 27.2).
+export const requestWaiting = (q: string): SQL =>
+  sql.raw(
+    `(${q}.status in ('open', 'escalated') and (${q}.type <> 'general' or ${q}.message_id is null))`,
+  );

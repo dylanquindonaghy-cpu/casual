@@ -105,7 +105,9 @@ export function SessionDetailsForm({
         onChange={(requirements) => set({ requirements })}
         disabled={!ready}
         locked={
-          requirementsLocked ? "People are booked on this shift, so these can't change." : undefined
+          requirementsLocked
+            ? "People are booked on this session, so these can't change."
+            : undefined
         }
       />
       <button type="submit" className={`${btn.primary} self-start`} disabled={pending || !ready}>

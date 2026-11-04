@@ -2199,3 +2199,70 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
 - **A browser click on a single "Book":** the session list's per-row Book is tested through the
   same booking path (`assignWorker`) in the integration tests and by "Book the best 1" in the
   browser, but not clicked on its own (the claims-auditor's note, round 3).
+
+## From Phase 27 (the street map on the live server; 2026-11-03)
+
+- **The server's own files never update themselves.** `deploy.sh` pulls each new image, but the
+  files beside it in `/opt/shiftdesk` (`docker-compose.yml`, `docker-compose.demo.yml`,
+  `Caddyfile`, `deploy.sh` itself) are copies made once at setup (`docs/runbooks.md`, "A demo
+  server" step 6). So Phase 26.2's map setting, map folder and `/maps/` route never reached the live
+  demo: with the map file made and `MAP_TILES_URL` set, `/maps/uk.pmtiles` still went to the web
+  app (its 404, behind the demo's password) and the dashboard stayed plain. For now, Dylan's
+  one-line refresh (the review page's Part D2, the setup step's `docker cp` then `deploy.sh --now`).
+  Proposed: `deploy.sh` copies the image's `deploy/` files over its own on each new image (each by
+  a temporary file and a rename, so the running script isn't cut off; never `.env`), says which
+  changed, and the runbook gets a "the server's files" check. A deploy change, so its own go-ahead.
+
+## From Phase 27.2 (the launch review's words; 2026-11-03)
+
+- **One office offer is still two rows in the action log**: "{office} asked to offer it to
+  {casual}." (`offer.office_queued`, `event-words.ts:441`), then the offer that went (`offer.sent`). The launch review asked for one row.
+  Merging them changes which events the log shows (pairing the two), not only its words, so it
+  has its own look.
+- **The 08:00 summary's row says "Sending … the 08:00 summary."** It is written before the email
+  goes (`alerts.ts`), and a failed send adds "The 08:00 summary to … couldn't be sent." after it.
+  The review asked for "Sent …"; the guardrails review kept "Sending", as the row can't know yet.
+  An `office.summary_sent` row after a send that worked would let the log say "Sent": a new event
+  (log types, words, tests), so its own task.
+- **"ShiftDesk" (a working name) still shows in a few office words**: Integrations' revoke and
+  webhook lines (`integrations-copy.ts:126,200-232`), the plain 403 "Open this from ShiftDesk."
+  (`cancellations/export`, `cancellations/[ref]/pdf`, `data/export`, `data/workers/[id]/export`)
+  and a cancellation's "Casual's own reason (see ShiftDesk)" (`cancellations/[ref]/page.tsx:84`).
+  One pass once the product's name is settled.
+- **A failed reply doesn't show on Enquiries' list.** The shifts line writes a message's outcome
+  (`handled_at`, `intent`) when it claims the message, before the WhatsApp or text goes
+  (`src/lib/inbound/reply.ts`); a send that fails only adds `message.reply_failed`, which the
+  message's own page shows but the list's chip doesn't read (`enquiries.ts` `outcomeOf`,
+  `enquiry-rules.ts`). So "Answered by keyword", "Sorted by AI, answered from your data" and the pay
+  chip can sit on a message whose reply never arrived, and Need a person doesn't list it. Proposed:
+  a `replyFailed` fact in the list's query, a "Reply didn't go" outcome (amber), and those messages
+  under Need a person (an email already moves there: `src/lib/email/sort.ts`). A messaging change,
+  so its own plan. Until then the pay chip names the answer, not its delivery ("Pay: link to their
+  pay page"; the second guardrails review, Phase 27.2).
+- **A failed office offer drops someone from the session card's count.** The office can't send a
+  second offer after one that failed (it may have arrived: `office-offer.ts`), so that casual leaves
+  "{n} have the licence, rest and hours for it" while the chip still says "None offered yet" (it
+  counts offers that went). Small; the offer panel says who and why.
+
+## From Phase 27 (dependency alerts, 2026-11-04)
+
+- **GitHub's Dependabot reports 9 alerts on `main`** (1 high, 7 moderate, 1 low; `npm audit` here: 27
+  packages, 1 high, 26 moderate). Read on 2026-11-04: the high one is Vite (`launch-editor`'s
+  Windows command escaping), pulled in by Vitest, a development tool only; most moderates are ESLint's
+  and typescript-eslint's `minimatch` (a slow pattern match) and Vitest's mocker, development tools
+  too. The one in the running app is exceljs (the pay and shift imports' .xlsx reader) through
+  `archiver` → `readdir-glob`/`glob` → `minimatch`, a zip-writing path the imports don't use;
+  `npm audit`'s "fix" for it is a downgrade to exceljs 4.1.1. Proposed: a dependency pass on its own
+  task (Vitest and ESLint upgrades within their majors, exceljs when a release drops `archiver`'s old
+  `glob`), run through verify like any change.
+
+## From Phase 27.4 and 27.5's mock-ups (2026-11-04)
+
+- **A session card can name its venue twice**: "Acme Demo Arena · Sat 7 Nov · Acme Demo Arena"
+  (`whereText`, `src/lib/office/board-copy.ts`: the event's name, then the post and the site). The
+  event here is named after its venue and day, as a sheet import names one, so the site repeats.
+  Proposed: leave the site off when the event's name already starts with it. A words change, for
+  27.2's kind of pass (screens and messages docs first).
+- **The named menu is taller than a laptop's screen** (27.5's mock-up: about 830px at 1280 x 800).
+  Today the closed menu only scrolls on its own below 640px high; the build sets it to scroll on any
+  screen it doesn't fit (as the open menu already does).

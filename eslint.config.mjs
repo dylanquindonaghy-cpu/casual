@@ -103,5 +103,8 @@ export default defineConfig([
     "next-env.d.ts",
     // The UI skills: third-party files, copied as published (.claude/skills/README.md).
     ".claude/skills/**",
+    // Claude Code's working copies for parallel builders (git worktrees, .gitignore): each is a
+    // whole other checkout, linted in its own right, never as part of this one.
+    ".claude/worktrees/**",
   ]),
 ]);

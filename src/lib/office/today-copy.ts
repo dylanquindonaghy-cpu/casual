@@ -10,8 +10,8 @@ import type { TodayBookingToCheck, TodaySheetIssue, UrgentOffers } from "./today
 
 // "1 place free" / "2 of 3 places free".
 export function placesText(placesLeft: number, headcount: number): string {
-  if (headcount === 1) return "1 place free";
-  return `${placesLeft} of ${headcount} places free`;
+  if (headcount === 1) return "1 place to fill";
+  return `${placesLeft} of ${headcount} places to fill`;
 }
 
 const STOPPED: Record<NonNullable<UrgentOffers["stopped"]>, string> = {
@@ -35,7 +35,7 @@ type Common = { status: "logged_out" } | { status: "not_allowed" } | { status: "
 
 const COMMON: Record<Common["status"], string> = {
   logged_out: "Your session has ended. Log in again.",
-  not_allowed: "You can't change shifts.",
+  not_allowed: "You can't change sessions.",
   error: "Something went wrong. Try again.",
 };
 
@@ -50,9 +50,9 @@ export function urgentResultText(result: SetUrgentResult | Common): string {
     case "unchanged":
       return "Already done.";
     case "not_found":
-      return "We can't find that shift.";
+      return "We can't find that session.";
     case "not_open":
-      return "This shift can't be marked urgent now. It has started or isn't open.";
+      return "This session can't be marked urgent now. It has started or isn't open.";
     default:
       return COMMON[result.status];
   }
@@ -67,11 +67,11 @@ export function closeResultText(result: CloseShiftResult | Common): string {
     case "unchanged":
       return "Already done.";
     case "not_found":
-      return "We can't find that shift.";
+      return "We can't find that session.";
     case "not_open":
-      return "This shift isn't open any more.";
+      return "This session isn't open any more.";
     case "sheet":
-      return "This shift comes from your Google Sheet. Change it there.";
+      return "This session comes from your Google Sheet. Change it there.";
     case "planner":
       return "This session comes from your planner. Change it there.";
     default:
@@ -84,17 +84,17 @@ export function offerResultText(result: QueueOfficeOfferResult | Common, name: s
     case "queued":
       return `Offer on its way to ${name}.`;
     case "already_offered":
-      return `${name} has already been offered this shift.`;
+      return `${name} has already been offered this session.`;
     case "failed_before":
       return `The last offer to ${name} couldn't be sent, so it isn't sent again. Contact them another way.`;
     case "not_candidate":
-      return `${name} can't be offered this shift now.`;
+      return `${name} can't be offered this session now.`;
     case "not_open":
-      return "This shift isn't open any more.";
+      return "This session isn't open any more.";
     case "hidden":
-      return "This shift is hidden from casuals, so it can't be offered. Show it to casuals first.";
+      return "This session is hidden from casuals, so it can't be offered. Show it to casuals first.";
     case "not_found":
-      return "We can't find that shift or person.";
+      return "We can't find that session or person.";
     default:
       return COMMON[result.status];
   }
@@ -124,7 +124,7 @@ export function keepResultText(result: KeepResult | KeepCommon, name: string): s
     case "not_flagged":
       return `${result.name}'s booking doesn't need checking any more.`;
     case "not_found":
-      return `${name}'s booking isn't there any more (cancelled, or the shift has started).`;
+      return `${name}'s booking isn't there any more (cancelled, or the session has started).`;
     case "not_allowed":
       return "You can't change bookings.";
     case "logged_out":
@@ -150,7 +150,7 @@ export function sheetChangeText(change: NonNullable<TodaySheetIssue["change"]>):
   const asked = `Your rota sheet changes its ${fields}`;
   switch (change.reason) {
     case "started":
-      return `${asked}, but the shift has started: not changed here.`;
+      return `${asked}, but the session has started: not changed here.`;
     case "in_past":
       return `${asked} to a time that has already passed: not changed here. Check the date in the sheet.`;
     case "settings":

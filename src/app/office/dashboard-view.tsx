@@ -13,6 +13,7 @@ import { roleLabel } from "@/lib/portal/format";
 import { FULL_VENUES } from "@/lib/office/dashboard-map-copy";
 import {
   ALL_DATES,
+  PICK_A_DAY,
   dateChoiceLabel,
   dayChoice,
   MY_CONTRACTS,
@@ -80,7 +81,7 @@ export function DashboardContent({ board, tiles }: { board: BoardData; tiles: st
                 aria-label={dateChoiceLabel(board.day)}
                 className={`press-glass glass-button inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-full px-4 text-sm font-medium hover:bg-button-hover active:bg-button-press [&::-webkit-details-marker]:hidden ${board.day ? "text-ink" : "text-ink-muted"}`}
               >
-                {board.day ? dayMonthLabel(board.day) : ALL_DATES}
+                {board.day ? dayMonthLabel(board.day) : PICK_A_DAY}
                 <Icon
                   name="chevron"
                   size={16}
@@ -108,7 +109,7 @@ export function DashboardContent({ board, tiles }: { board: BoardData; tiles: st
           )}
         </div>
       </header>
-      {/* Under the headline (round 8): the track, Filter and Show full venues. */}
+      {/* Under the headline (round 8): the track, Filter and Show filled venues too. */}
       <div className="-mt-2 flex flex-wrap items-center gap-x-6 gap-y-3">
         {/* The sessions with places to fill: one row that scrolls sideways inside its track on a
               phone, never the page. */}

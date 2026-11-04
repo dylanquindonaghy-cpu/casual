@@ -1,19 +1,13 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import {
-  SATURATE,
-  over,
-  saturate,
-  washPoints,
-  type Rgb,
-  type Rgba,
-} from "@/lib/tenancy/glass-grounds";
+import { SATURATE, over, saturate, type Rgb, type Rgba } from "@/lib/tenancy/glass-grounds";
 
-// The looks src/app/globals.css draws (Phase 24, docs/ui-design.md "Phase 24: Liquid Glass"), read
-// back as numbers for the look tests (tests/unit/ui.glass.test.ts, ui.contrast.test.ts): each
-// block's colour tokens and glass variables, the fallbacks laid over them (less transparency or
-// more contrast, and a browser that can't blur: solid), and every ground a word can sit on in each
-// look.
+// The looks src/app/globals.css draws (round 8: Phase 26 in the office, Phase 27.6 in the casual
+// app, its plain ground since Phase 27.7; docs/ui-design.md "Phase 27.7" and "Phase 27.6"), read
+// back as numbers for the look tests
+// (tests/unit/ui.glass.test.ts, ui.contrast.test.ts): each block's colour tokens and glass
+// variables, the fallbacks laid over them (less transparency or more contrast, and a browser that
+// can't blur: solid), and every ground a word can sit on in each look.
 
 export const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
 
@@ -106,12 +100,13 @@ const brighten = (c: Rgb): Rgb => c.map((v) => Math.min(255, Math.round(v * BRIG
 const rgbOnly = (c: Rgba): Rgb => [c[0], c[1], c[2]];
 
 // One look: its colour tokens and glass variables (the theme's, with any fallback laid over them),
-// the points of the page behind the glass, and whether the glass's backdrop saturates them.
+// the points of the page behind the glass (since Phase 27.7 one: the plain ground), and whether
+// the glass's backdrop saturates them.
 export interface Look {
   name: string;
   colours: Map<string, Rgba>;
   vars: Map<string, string>;
-  wash: Rgb[];
+  ground: Rgb[];
   saturates: boolean;
 }
 
@@ -124,135 +119,102 @@ function parsed(tokens: Map<string, string>): Map<string, Rgba> {
   return out;
 }
 const merge = <V>(...maps: Map<string, V>[]) => new Map(maps.flatMap((m) => [...m]));
+const colourOnly = (m: Map<string, string>) =>
+  new Map([...m].filter(([k]) => k.startsWith("color-")).map(([k, v]) => [k.slice(6), v]));
+const solidOnly = (m: Map<string, string>) =>
+  new Map([...m].filter(([k]) => !k.startsWith("color-")));
 
-export function looks(): Look[] {
-  const theme = colourTokens(block(BLOCKS.theme));
-  const dark = colourTokens(block(BLOCKS.dark));
-  const root = props(block(BLOCKS.root));
-  const darkVars = props(block(BLOCKS.dark));
-  const solid = props(block(BLOCKS.solid));
-  const solidDark = props(block(BLOCKS.solidDark));
-  const clear = props(block(BLOCKS.clear));
-  const clearDark = props(block(BLOCKS.clearDark));
-  const tokens = (m: Map<string, string>) =>
-    new Map([...m].filter(([k]) => k.startsWith("color-")).map(([k, v]) => [k.slice(6), v]));
-  const lightColours = parsed(theme);
-  const darkColours = parsed(merge(theme, dark));
-  const solidOnly = (m: Map<string, string>) =>
-    new Map([...m].filter(([k]) => !k.startsWith("color-")));
-  const canvas = (c: Map<string, Rgba>) => rgbOnly(c.get("canvas")!);
-  const solidLight = parsed(merge(theme, tokens(solid)));
-  const solidDarkColours = parsed(merge(theme, dark, tokens(solid), tokens(solidDark)));
+// Behind round 8's glass there is no wash (round 7's four coloured lights, gone in Phase 27.6) and,
+// since Phase 27.7 (Dylan: "Yes plain colour"), no street pattern (its two strengths of line,
+// --map-line and --map-road, are gone): the page's plain ground alone, in every look. It must be
+// opaque (nothing is under it). Its grey doesn't change under the glass's saturate(1.15)
+// (tests/unit/ui.glass.test.ts checks it), so nothing is saturated.
+function plainGround(canvas: Rgba | undefined, look: string): Rgb[] {
+  if (!canvas) throw new Error(`${look}: no colour token canvas`);
+  if (canvas[3] !== 1) throw new Error(`${look}: the canvas isn't opaque`);
+  return [rgbOnly(canvas)];
+}
+
+// A theme's three looks: as drawn; solid (less transparency or more contrast: every ground solid,
+// no blur); and with no blur (a browser that can't: every ground solid too). Each over the plain
+// ground. `tokens` and `vars` are the theme's own; the fallbacks' lie over them.
+function threeLooks(
+  name: string,
+  tokens: Map<string, string>,
+  vars: Map<string, string>,
+  solid: Map<string, string>,
+  clear: Map<string, string>,
+): [Look, Look, Look] {
+  const colours = parsed(tokens);
+  const solidColours = parsed(merge(tokens, colourOnly(solid)));
+  const clearColours = parsed(merge(tokens, colourOnly(clear)));
   return [
     {
-      name: "light",
-      colours: lightColours,
-      vars: root,
-      wash: washPoints("light"),
-      saturates: true,
-    },
-    {
-      name: "dark",
-      colours: darkColours,
-      vars: merge(root, darkVars),
-      wash: washPoints("dark"),
-      saturates: true,
-    },
-    // Less transparency or more contrast: every ground solid, no wash behind them, no blur.
-    {
-      name: "light, solid",
-      colours: solidLight,
-      vars: merge(root, solidOnly(solid)),
-      wash: [canvas(solidLight)],
+      name,
+      colours,
+      vars,
+      ground: plainGround(colours.get("canvas"), name),
       saturates: false,
     },
     {
-      name: "dark, solid",
-      colours: solidDarkColours,
-      vars: merge(root, darkVars, solidOnly(solid), solidOnly(solidDark)),
-      wash: [canvas(solidDarkColours)],
-      saturates: false,
-    },
-    // A browser that can't blur: every ground solid too, with the wash still round them.
-    {
-      name: "light, no blur",
-      colours: parsed(merge(theme, tokens(clear))),
-      vars: merge(root, solidOnly(clear)),
-      wash: washPoints("light"),
+      name: `${name}, solid`,
+      colours: solidColours,
+      vars: merge(vars, solidOnly(solid)),
+      ground: plainGround(solidColours.get("canvas"), `${name}, solid`),
       saturates: false,
     },
     {
-      name: "dark, no blur",
-      colours: parsed(merge(theme, dark, tokens(clear), tokens(clearDark))),
-      vars: merge(root, darkVars, solidOnly(clear), solidOnly(clearDark)),
-      wash: washPoints("dark"),
+      name: `${name}, no blur`,
+      colours: clearColours,
+      vars: merge(vars, solidOnly(clear)),
+      ground: plainGround(clearColours.get("canvas"), `${name}, no blur`),
       saturates: false,
     },
   ];
 }
 
-// Round 8's office looks (Phase 26): the app's tokens with the office's own laid over them. Behind
-// the glass there is no wash but a faint street map on a flat ground: the ground itself, and its
-// lines at both strengths (--map-line, --map-road); solid, the ground alone (the map goes). Its
-// greys don't change under the glass's saturate(), so nothing is saturated.
+// The casual app's looks (round 8's since Phase 27.6): light (the @theme block and :root) and dark
+// (the cookie's block; the device's holds the same: tests/unit/ui.contrast.test.ts), each also
+// solid and with no blur; in that order: light, dark, each solid, each with no blur. In dark the
+// light fallback and the dark one both apply, the dark one over it.
+export function looks(): Look[] {
+  const theme = colourTokens(block(BLOCKS.theme));
+  const root = props(block(BLOCKS.root));
+  const dark = props(block(BLOCKS.dark));
+  const solid = props(block(BLOCKS.solid));
+  const clear = props(block(BLOCKS.clear));
+  const [light, lightSolid, lightClear] = threeLooks("light", theme, root, solid, clear);
+  const [darkLook, darkSolid, darkClear] = threeLooks(
+    "dark",
+    merge(theme, colourOnly(dark)),
+    merge(root, solidOnly(dark)),
+    merge(solid, props(block(BLOCKS.solidDark))),
+    merge(clear, props(block(BLOCKS.clearDark))),
+  );
+  return [light, darkLook, lightSolid, darkSolid, lightClear, darkClear];
+}
+
+// Round 8's office looks (Phase 26): the app's tokens with the office's own laid over them (every
+// one of them: its blocks are whole), dark and light, each also solid and with no blur.
 export function officeLooks(): Look[] {
   const theme = colourTokens(block(BLOCKS.theme));
   const root = props(block(BLOCKS.root));
-  const tokens = (m: Map<string, string>) =>
-    new Map([...m].filter(([k]) => k.startsWith("color-")).map(([k, v]) => [k.slice(6), v]));
-  const solidOnly = (m: Map<string, string>) =>
-    new Map([...m].filter(([k]) => !k.startsWith("color-")));
-  const map = (vars: Map<string, string>, ground: Rgba): Rgb[] => {
-    const g = rgbOnly(ground);
-    const line = (name: string) => {
-      const c = parseColour(vars.get(name));
-      if (!c) throw new Error(`office: no colour in --${name}`);
-      return over(c, g);
-    };
-    return [g, line("map-line"), line("map-road")];
-  };
   return (["dark", "light"] as const).flatMap((theme8) => {
     const base = props(block(theme8 === "dark" ? BLOCKS.officeDark : BLOCKS.officeLight));
-    const solid = props(
-      block(theme8 === "dark" ? BLOCKS.officeSolidDark : BLOCKS.officeSolidLight),
+    return threeLooks(
+      `office ${theme8}`,
+      merge(theme, colourOnly(base)),
+      merge(root, solidOnly(base)),
+      props(block(theme8 === "dark" ? BLOCKS.officeSolidDark : BLOCKS.officeSolidLight)),
+      props(block(theme8 === "dark" ? BLOCKS.officeClearDark : BLOCKS.officeClearLight)),
     );
-    const clear = props(
-      block(theme8 === "dark" ? BLOCKS.officeClearDark : BLOCKS.officeClearLight),
-    );
-    const colours = parsed(merge(theme, tokens(base)));
-    const solidColours = parsed(merge(theme, tokens(base), tokens(solid)));
-    const clearColours = parsed(merge(theme, tokens(base), tokens(clear)));
-    const vars = merge(root, solidOnly(base));
-    return [
-      {
-        name: `office ${theme8}`,
-        colours,
-        vars,
-        wash: map(vars, colours.get("canvas")!),
-        saturates: false,
-      },
-      {
-        name: `office ${theme8}, solid`,
-        colours: solidColours,
-        vars: merge(vars, solidOnly(solid)),
-        wash: [rgbOnly(solidColours.get("canvas")!)],
-        saturates: false,
-      },
-      {
-        name: `office ${theme8}, no blur`,
-        colours: clearColours,
-        vars: merge(vars, solidOnly(clear)),
-        wash: map(vars, clearColours.get("canvas")!),
-        saturates: false,
-      },
-    ];
   });
 }
 
 // The places a word or a control can sit that aren't one token: a tile's and a clear button's
 // gradients (`glass-tile`, `glass-button`: the button also under the pointer and pressed), the lens
 // (`lens`: the chosen tab or option, on its track), the main button (`glass-tint`, its colour to its
-// shade), the firm's pale tint (`brand-soft`), the pass's warm band (`glass-band`, both ends,
+// shade), the firm's pale tint (`brand-soft`), the pass's band (`glass-band`, both ends,
 // over the section it tops: Phase 24, 24.6), and a booked day on Open shifts' strip (`booked-day`:
 // ink at 12%).
 export const PLACES = [
@@ -275,7 +237,7 @@ export interface Ground {
   brightened: boolean;
 }
 
-// A look's sections and what floats over each point of its wash (worked out once per look).
+// A look's sections and what floats over each point of its ground (worked out once per look).
 const BASES = new WeakMap<Look, { section: Rgb[]; float: Rgb[] }>();
 function base(look: Look): { section: Rgb[]; float: Rgb[] } {
   const known = BASES.get(look);
@@ -286,9 +248,9 @@ function base(look: Look): { section: Rgb[]; float: Rgb[] } {
     return c;
   };
   const sat = (c: Rgb) => (look.saturates ? saturate(c, SATURATE) : c);
-  const float = look.wash.map((w) => over(fill("panel"), sat(w)));
+  const float = look.ground.map((w) => over(fill("panel"), sat(w)));
   const section = [
-    ...look.wash.map((w) => over(fill("card"), sat(w))),
+    ...look.ground.map((w) => over(fill("card"), sat(w))),
     ...float.map((f) => over(fill("card"), sat(f))),
   ];
   const found = { section, float };
@@ -297,9 +259,9 @@ function base(look: Look): { section: Rgb[]; float: Rgb[] } {
 }
 
 // Every ground at `where` (a token, or one of PLACES) in a look: a section (`card`, `sheet`) over
-// each point of the wash, saturated by its filter, and over what floats; what floats (`panel`)
-// over the wash; the page itself (`canvas`) is the wash; a translucent part inside either takes each
-// of those under it; a solid token is itself.
+// each point of the ground (saturated by its filter where the look says so), and over what floats;
+// what floats (`panel`) over the ground; the page itself (`canvas`) is the plain ground; a
+// translucent part inside either takes each of those under it; a solid token is itself.
 export function grounds(look: Look, where: string, brand?: Rgb): Ground[] {
   const colour = (name: string) => {
     const c = look.colours.get(name);
@@ -320,7 +282,7 @@ export function grounds(look: Look, where: string, brand?: Rgb): Ground[] {
     [glassVar("button-top"), glassVar("button-bottom")].flatMap((t) => on(t, below));
   switch (where) {
     case "canvas":
-      return at(look.wash);
+      return at(look.ground);
     case "card":
     case "sheet":
       return at(section);

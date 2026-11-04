@@ -380,8 +380,8 @@ describe("the notice and cancellation report", () => {
         "2026-11-02 08:00",
         "2026-11-02T08:00:00.000Z",
         "Cancelled",
-        "The office",
-        "Not known", // asked by: the fixture's log line doesn't say (Phase 25.2's column)
+        "The firm (office)", // started by a resourcer
+        "Not known", // at whose request: the fixture's log line doesn't say (Phase 25.2's column)
         `"'=HYPERLINK(""x"") Booker"`,
         "Door supervisor at Riverside Arena",
         "2026-11-07 08:00",

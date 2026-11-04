@@ -1,4 +1,5 @@
 import { DEFAULT_PAY_CALENDAR, payPeriod, payPeriodName, type PayCalendar } from "../pay/calendar";
+import { payPeriodPaid } from "../pay/pay-week";
 import { roleLabel, soonLabel } from "../portal/format";
 import { datePartsOfDay, timeRange } from "../portal/sign-copy";
 import { dayLabel } from "../rules/reasons";
@@ -27,8 +28,9 @@ const inSentence = (role: string) => {
 
 // --- The head --------------------------------------------------------------------------------
 
-// "Monday 26 October · Week 44 · Pay Fri 6 Nov · Updated 11:20 from your planner": the day, the
-// pay week and its pay day (from the top bar since 24.2), and when the planner or the rota sheet
+// "Monday 26 October · Week 44 (paid Fri 6 Nov) · Updated 11:20 from your planner": the day, the
+// pay week and the day it's paid (from the top bar since 24.2; "(paid …)" since the launch review's
+// O3, so it can't be read as the next pay day), and when the planner or the rota sheet
 // last sent changes, or the firm's portal was last read (none when neither has: nothing to say).
 export function headLine(
   today: string,
@@ -37,13 +39,10 @@ export function headLine(
   timeZone: string,
   calendar: PayCalendar = DEFAULT_PAY_CALENDAR,
 ): string {
-  // The firm's pay week or cycle (Phase 25.2): "Week 44 · Pay Fri 6 Nov", "Cycle 22 · Pay Fri 13 Nov".
+  // The firm's pay week or cycle (Phase 25.2): "Week 44 (paid Fri 6 Nov)", "Cycle 22 (paid Fri 13
+  // Nov)".
   const period = payPeriod(today, calendar);
-  const parts = [
-    datePartsOfDay(today).long,
-    payPeriodName(period),
-    `Pay ${dayLabel(period.payDay)}`,
-  ];
+  const parts = [datePartsOfDay(today).long, payPeriodPaid(payPeriodName(period), period.payDay)];
   if (planner?.kind === "api")
     parts.push(`Updated ${soonLabel(planner.lastChangeAt, now, timeZone)} from your planner`);
   if (planner?.kind === "sheet" && planner.syncedAt)
@@ -264,17 +263,24 @@ export const offeredLine = (places: number, waiting: number) =>
 
 export const OVERNIGHT_LINE = "Taken by casuals from offers, 18:00 to 08:00";
 
-// "5 sessions from Sun 25 Oct", or from the first day to the last: "Thu 22 to Sun 25 Oct".
-export function toMarkLine(items: Pick<TodayToMark, "startsAt">[], timeZone: string): string {
+// Who worked?'s line (round 8's "Clearer words", 3 Nov 2026): what its two buttons do, then the
+// people listed to mark and when: "Tap Worked, or ✕ if they didn't turn up. 5 people from Sun 25
+// Oct", or from the first day to the last: "… from Thu 22 to Sun 25 Oct".
+export const TO_MARK_HOW = "Tap Worked, or ✕ if they didn't turn up.";
+export function toMarkLine(
+  items: Pick<TodayToMark, "startsAt">[],
+  listed: number,
+  timeZone: string,
+): string {
   if (items.length === 0) return "From the last 7 days";
   const days = items.map((i) => localDateOf(i.startsAt, timeZone)).sort();
   const first = days[0]!;
   const last = days.at(-1)!;
-  const sessions = plural(items.length, "session", "sessions");
-  if (first === last) return `${sessions} from ${dayLabel(first)}`;
+  const people = plural(listed, "person", "people");
+  if (first === last) return `${TO_MARK_HOW} ${people} from ${dayLabel(first)}`;
   const a = datePartsOfDay(first);
   const from = first.slice(0, 7) === last.slice(0, 7) ? `${a.dow} ${a.day}` : dayLabel(first);
-  return `${sessions} from ${from} to ${dayLabel(last)}`;
+  return `${TO_MARK_HOW} ${people} from ${from} to ${dayLabel(last)}`;
 }
 
 // The count beside a column's title, for a screen reader.

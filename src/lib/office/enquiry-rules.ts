@@ -21,8 +21,8 @@ export const OUTCOMES = [
   "person_waiting", // Passed to a person, waiting
   "person_answered", // Passed to a person, answered
   "not_understood", // Not understood
-  "pay", // Pay (always a person)
-  "in_app", // Done in the app
+  "pay", // Pay: link to their pay page
+  "in_app", // They sorted it in the app
   "inbox", // Left for your inbox (an email not from a casual: Phase 25.5)
 ] as const;
 export type Outcome = (typeof OUTCOMES)[number];

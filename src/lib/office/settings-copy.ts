@@ -52,7 +52,7 @@ export function strikesEmailResultText(result: SaveStrikesEmailResult | Common):
 
 // Whether a site's location is known (12G.1): travel times need it.
 export function siteLocationText(site: { postcode: string | null; located: boolean }): string {
-  if (!site.postcode) return "No postcode yet, so distances to this site can't be worked out.";
+  if (!site.postcode) return "No postcode yet, so distances to this venue can't be worked out.";
   return site.located
     ? "Location found."
     : "Location not looked up yet: save the postcode again to look it up.";
@@ -78,12 +78,12 @@ export function sitePostcodeResultText(
       return "We couldn't look that postcode up just now, so nothing changed. Try again in a few minutes.";
     case "in_use":
       return result.sessions === 1
-        ? "1 booked session uses this site: move it first."
-        : `${plural(result.sessions, "booked session", "booked sessions")} use this site: move them first.`;
+        ? "1 booked session uses this venue: move it first."
+        : `${plural(result.sessions, "booked session", "booked sessions")} use this venue: move them first.`;
     case "invalid":
       return "Enter a UK postcode, like LS1 4AP, or leave it empty.";
     case "not_found":
-      return "We can't find that site.";
+      return "We can't find that venue.";
     case "not_allowed":
       return "Only admins can change settings.";
     default:

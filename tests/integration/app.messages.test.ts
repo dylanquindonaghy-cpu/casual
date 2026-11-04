@@ -199,7 +199,7 @@ describe("a casual's message in the app", () => {
       to_e164: null,
       intent: "pay",
       reply_to: id,
-      body: `Your hours, rates and pay dates: https://${t.slug}.shiftdesk.test/pay (you'll get a code to log in). ${APP_AUTOMATIC} — ${signOff(t.name)}`,
+      body: `Your hours, rates and pay dates: https://${t.slug}.shiftdesk.test/pay (you'll get a code to log in). If something looks wrong, tap 'Raise a pay query' there, so payroll sees it. ${APP_AUTOMATIC} — ${signOff(t.name)}`,
     });
     expect(answer?.provider_message_id).toMatch(/^app:[0-9a-f-]{36}$/);
     expect(t.line.sent).toEqual([]);
@@ -215,6 +215,22 @@ describe("a casual's message in the app", () => {
         data: { channel: "app", intent: "pay", workerId: t.kay, replyId: answer?.id },
       },
     ]);
+  });
+
+  // Golden rule 9 (the guardrails review of 27.2, H1): a pay dispute in the app gets no AI answer
+  // and no office request; its automatic answer is the pay link and how to reach payroll, a pay
+  // query, as Messages' own words say.
+  it("a pay dispute: the pay link and a pay query for payroll, never an AI answer or a request", async () => {
+    const t = await appFirm();
+    const { id, result } = await t.ask("my pay is wrong for last week");
+    expect(result).toEqual({ status: "replied", intent: "pay", handledAs: "keyword" });
+    const answer = (await t.rowsOf()).find((r) => r.direction === "out");
+    expect(answer?.body).toBe(
+      `Your hours, rates and pay dates: https://${t.slug}.shiftdesk.test/pay (you'll get a code to log in). If something looks wrong, tap 'Raise a pay query' there, so payroll sees it. ${APP_AUTOMATIC} — ${signOff(t.name)}`,
+    );
+    const { rows } = await su.query("select id from requests where message_id = $1", [id]);
+    expect(rows).toEqual([]);
+    expect(t.line.sent).toEqual([]);
   });
 
   it("shifts: the personal list, as on WhatsApp, with what it was built from logged for the app", async () => {

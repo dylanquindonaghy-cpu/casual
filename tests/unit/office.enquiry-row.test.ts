@@ -61,9 +61,7 @@ describe("a row of Enquiries' list", () => {
   });
 
   it("a pay message says pay never gets an AI answer; one with no words says why", () => {
-    expect(text(render(row({ outcome: "pay" }), false))).toContain(
-      "Pay: never answered by AI (rule)",
-    );
+    expect(text(render(row({ outcome: "pay" }), false))).toContain("Pay: never answered by AI");
     expect(text(render(row({ text: null, channel: "voice" }), false))).toContain(
       "(A voicemail we couldn't turn into text.)",
     );

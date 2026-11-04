@@ -28,10 +28,13 @@ const acme = "http://acme.localhost:3100";
 // (the rail, the top bar on a phone and its capsules from 1024px) as floating glass; the page no
 // card of its own. Round 3's white cards with their hairlines on a cool grey ground (Phase 23) and
 // 24.1's menu card went.
-// Round 8's office (Phase 26): its ground, a section's glass and what floats', dark and light.
+// Round 8's office (Phase 26): its ground, a section's glass and frost and what floats', dark and
+// light. Phase 27.1 (Dylan, 2026-11-03, "+20%"): the dark look's section a light 4% tint frosted
+// 3px (was a dark 28%, 6px), what floats 70% (was 88%). The light look is as it was.
 const CANVAS = { dark: "rgb(15, 15, 16)", light: "rgb(242, 242, 240)" }; // #0f0f10, #f2f2f0
-const SECTION = { dark: "rgba(22, 22, 24, 0.28)", light: "rgba(255, 255, 255, 0.55)" };
-const FLOAT = { dark: "rgba(24, 24, 26, 0.88)", light: "rgba(255, 255, 255, 0.92)" };
+const SECTION = { dark: "rgba(255, 255, 255, 0.04)", light: "rgba(255, 255, 255, 0.55)" };
+const SECTION_FROST = { dark: "blur(3px) saturate(1.15)", light: "blur(6px) saturate(1.15)" };
+const FLOAT = { dark: "rgba(24, 24, 26, 0.7)", light: "rgba(255, 255, 255, 0.92)" };
 // The office with no choice made: dark, on either device.
 const START = "dark";
 const NONE = "rgba(0, 0, 0, 0)";
@@ -258,8 +261,9 @@ for (const device of ["light", "dark"] as const) {
       const bar = page.getByRole("banner");
       const card = page.locator("#main > div");
       const width = () => page.evaluate(() => document.documentElement.clientWidth);
-      // On a phone: the page no card of its own, its sections glass over the street map (round 8;
-      // a white card with its hairline in 23, a sheet with rounded top corners in 22).
+      // On a phone: the page no card of its own, its sections glass over the plain ground (round 8,
+      // plain since 27.7; a white card with its hairline in 23, a sheet with rounded top corners in
+      // 22).
       expect(await surface(card)).toEqual(bare);
       // The firm's own bar gives way to the top bar on logged-in office pages.
       await expect(page.getByTestId("brand-bar")).toBeHidden();
@@ -364,11 +368,16 @@ for (const device of ["light", "dark"] as const) {
       await expect(bar.getByText("Acme Events", { exact: true })).toBeHidden();
       await expect(rail.getByText("A", { exact: true })).toBeVisible();
       // A resourcer's counts (Pay queries are payroll's and admins'), and the search.
-      for (const name of [/^To fill \d+$/, /^Urgent \d+$/, /^Offers out \d+$/, /^To check \d+\+?$/])
+      for (const name of [
+        /^To fill \d+$/,
+        /^Urgent \d+$/,
+        /^Offers out \d+$/,
+        /^Needs attention \d+\+?$/,
+      ])
         await expect(bar.getByRole("link", { name })).toBeVisible();
       await expect(bar.getByRole("link", { name: /^Pay queries/ })).toHaveCount(0);
       await expect(
-        bar.getByRole("searchbox", { name: "Find a casual, shift or site" }),
+        bar.getByRole("searchbox", { name: "Find a casual, session or venue" }),
       ).toBeVisible();
       // No pay week and no shifts line (the dashboards and Settings have them).
       await expect(bar.getByText(/^Week \d/)).toHaveCount(0);
@@ -392,7 +401,7 @@ for (const device of ["light", "dark"] as const) {
       await page.keyboard.press("Escape");
       await expect(opened).toBeHidden();
 
-      // The page beside the rail, under the capsules, no card of its own; the wash shows round
+      // The page beside the rail, under the capsules, no card of its own; the plain ground shows round
       // them: the shell paints no ground.
       expect(await surface(card)).toEqual(bare);
       // (Its box starts under the bar; its words 12px further down.)
@@ -446,7 +455,7 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
     // inside the window.
     const glass = await surface(rail);
     expect(glass.bg).toBe(SECTION[START]);
-    expect(glass.frost).toContain("blur(6px)");
+    expect(glass.frost).toBe(SECTION_FROST[START]);
     expect(glass.corners).toEqual(Array(4).fill("12px"));
     const box = (await rail.boundingBox())!;
     expect(box).toMatchObject({ x: 12, y: 12, width: 72 });
@@ -647,8 +656,8 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
       await expect(link).toBeVisible();
       return Number(/(\d+)\+?$/.exec((await link.innerText()).trim())?.[1]);
     };
-    // To check: Needs attention's own count, as the rail says it.
-    const toCheck = await count("To check");
+    // Needs attention: its own count, as the rail says it.
+    const toCheck = await count("Needs attention");
     const needs = menu.getByRole("link", { name: "Needs attention", exact: true });
     await needs.hover();
     await expect(needs.locator("xpath=..").locator("[data-rail-tip]")).toHaveText(
@@ -681,7 +690,7 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
         : new RegExp(` · ${out} ${out === 1 ? "offer" : "offers"}, no reply yet$`),
     );
     // To fill: Events & sessions' places to fill, with sessions that need people (its line, round
-    // 7: "{10} events with sessions to come · {33} places free").
+    // 7: "{10} events with sessions to come · {33} places to fill").
     const toFill = await count("To fill");
     await bar.getByRole("link", { name: /^To fill \d+$/ }).click();
     await expect(page).toHaveURL(`${acme}/office/events?view=need`);
@@ -690,13 +699,13 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
         .getByRole("main")
         .getByText(
           new RegExp(
-            `^\\d+ events? with sessions to come · ${toFill} ${toFill === 1 ? "place" : "places"} free$`,
+            `^\\d+ events? with sessions to come · ${toFill} ${toFill === 1 ? "place" : "places"} to fill$`,
           ),
         ),
     ).toBeVisible();
     await bar.getByRole("link", { name: /^Urgent \d+$/ }).click();
     await expect(page).toHaveURL(`${acme}/office/events?view=urgent`);
-    await bar.getByRole("link", { name: /^To check \d+\+?$/ }).click();
+    await bar.getByRole("link", { name: /^Needs attention \d+\+?$/ }).click();
     await expect(page).toHaveURL(`${acme}/office/needs-attention`);
     await bar.getByRole("link", { name: /^Pay queries \d+$/ }).click();
     await expect(page).toHaveURL(`${acme}/office/pay-queries`);
@@ -721,7 +730,7 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
     });
     await officeLogin(page, "search");
     const bar = page.getByRole("banner");
-    const box = bar.getByRole("searchbox", { name: "Find a casual, shift or site" });
+    const box = bar.getByRole("searchbox", { name: "Find a casual, session or venue" });
     const panel = bar.locator("[data-search-panel]");
     const live = bar.locator('[aria-live="polite"]');
     await expect(box).toBeEnabled();
@@ -755,20 +764,20 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(`${acme}/office/casuals/${ours}`);
     await expect(box).toHaveValue("");
-    // A site: Events & sessions at that site, with a way back to every site.
+    // A venue: Events & sessions at that venue, with a way back to every venue.
     await box.fill("demo arena");
     const site = panel.getByRole("link", { name: /^Acme Demo Arena\b/ });
     await expect(site).toBeVisible();
-    await expect(panel.getByText("Sites", { exact: true })).toBeVisible();
+    await expect(panel.getByText("Venues", { exact: true })).toBeVisible();
     await site.click();
     await expect(page).toHaveURL(/\/office\/events\?site=[0-9a-f-]{36}$/);
     await expect(page.getByRole("main")).toContainText("At Acme Demo Arena.");
     await expect(
-      page.getByRole("main").getByRole("link", { name: "Show every site" }),
+      page.getByRole("main").getByRole("link", { name: "Show every venue" }),
     ).toBeVisible();
-    // A shift: its page.
+    // A session (Phase 27.2: the office calls a shift a session): its page.
     await box.fill("door supervisor");
-    await expect(panel.getByText("Shifts", { exact: true })).toBeVisible();
+    await expect(panel.getByText("Sessions", { exact: true })).toBeVisible();
     const shift = panel.getByRole("link", { name: /^Door supervisor · / }).first();
     await shift.click();
     await expect(page).toHaveURL(/\/office\/shifts\/[0-9a-f-]{36}$/);
@@ -913,8 +922,8 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
   }) => {
     await officeLogin(page, "under");
     const bar = page.getByRole("banner");
-    // Round 8: Show full venues, and what the keyboard reaches next: the map's first pin.
-    const numbers = page.getByRole("main").getByRole("switch", { name: "Show full venues" });
+    // Round 8: Show filled venues too, and what the keyboard reaches next: the map's first pin.
+    const numbers = page.getByRole("main").getByRole("switch", { name: "Show filled venues too" });
     const first = page.locator("[data-venue-map] a").first();
     await expect(first).toBeVisible();
     const under = await bar.evaluate((el) => el.getBoundingClientRect().bottom);

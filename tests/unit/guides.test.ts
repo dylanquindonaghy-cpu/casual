@@ -90,9 +90,9 @@ describe("the office how-to guide", () => {
       "Getting around",
       "Start your day on the dashboard",
       "Fill a gap",
-      "Add shifts",
-      "Change or cancel a shift",
-      "After a shift",
+      "Add sessions",
+      "Change or cancel a session",
+      "After a session",
       "Enquiries",
       "Casuals",
       "Records",
@@ -108,9 +108,9 @@ describe("the office how-to guide", () => {
       "Getting around",
       "Start your day on the dashboard",
       "Fill a gap",
-      "Add shifts",
-      "Change or cancel a shift",
-      "After a shift",
+      "Add sessions",
+      "Change or cancel a session",
+      "After a session",
       "Enquiries",
       "Casuals",
       "Records",
@@ -152,14 +152,14 @@ describe("the office how-to guide", () => {
 
   it("says only what the screens allow", () => {
     const text = words(guide("admin"));
-    // "Open it again" only shows right after marking a shift as filled.
+    // "Open it again" only shows right after marking a session as filled.
     expect(text).toContain("Select Open it again straight away.");
-    // A started shift's page has no "Assign someone", so the override note doesn't offer it.
-    expect(text).not.toContain("only when the shift has started");
-    expect(text).toContain("Once a shift has started, nobody can be assigned to it here.");
-    // Moving is for a shift with people booked. With nobody booked, it's "Edit this shift".
+    // A started session's page has no "Assign someone", so the override note doesn't offer it.
+    expect(text).not.toContain("only when the session has started");
+    expect(text).toContain("Once a session has started, nobody can be assigned to it here.");
+    // Moving is for a session with people booked. With nobody booked, it's "Edit this session".
     expect(text).toContain(
-      "With nobody booked, change the date, times or site under Edit this shift instead.",
+      "With nobody booked, change the date, times or site under Edit this session instead.",
     );
     // The worker search matches part of a name, or a whole mobile number.
     expect(text).toContain("Type part of their name, or their whole mobile number, in");
@@ -174,7 +174,7 @@ describe("the office how-to guide", () => {
     expect(text).toContain("you can't delete them yet.");
     // A planner's session: the page's own words, and what's left to do here (Assign and cancelling
     // one booking stay on its page; hiding, urgent and offers are on Events & sessions).
-    expect(text).toContain(`A shift from your planner says \u201c${FROM_PLANNER_WORDS}\u201d`);
+    expect(text).toContain(`A session from your planner says \u201c${FROM_PLANNER_WORDS}\u201d`);
     expect(text).toContain(
       "Here you can still hide it, mark it urgent, offer it, assign someone and cancel one person's booking.",
     );
@@ -256,21 +256,21 @@ describe("the office how-to guide", () => {
     expect(text("resourcer")).toContain("People opens to show its pages.");
     expect(text("payroll")).not.toMatch(/open(?:s)? to show (?:its|their) pages/);
     expect(text("admin")).toContain(
-      "On a wide screen, the bar at the top shows To fill, Urgent, Offers out, To check and Pay queries. Each opens the page where you deal with it.",
+      "On a wide screen, the bar at the top shows To fill, Urgent, Offers out, Needs attention and Pay queries. Each opens the page where you deal with it.",
     );
     expect(text("resourcer")).toContain(
-      "On a wide screen, the bar at the top shows To fill, Urgent, Offers out and To check.",
+      "On a wide screen, the bar at the top shows To fill, Urgent, Offers out and Needs attention.",
     );
     expect(text("payroll")).toContain("On a wide screen, the bar at the top shows Pay queries.");
     const search =
-      "Use Search beside them to find a casual, a shift or a site. Press ⌘K on a Mac, or Ctrl K, to go straight to it.";
+      "Use Search beside them to find a casual, a session or a venue. Press ⌘K on a Mac, or Ctrl K, to go straight to it.";
     expect(text("admin")).toContain(search);
     expect(text("resourcer")).toContain(search);
     expect(text("payroll")).not.toContain("Search");
     expect(text("payroll")).not.toContain("Admin and records");
     // Settings now holds the shifts line's number (it left the bar).
     expect(text("admin")).toContain(
-      "Settings. The strikes team's email, your shifts line's number, and your sites' postcodes.",
+      "Settings. The strikes team's email, your shifts line's number, and your venues' postcodes.",
     );
     // Needs attention is in the menu only for the roles with it, "today" (office-menu.ts); Phase
     // 20 took the bell out, so the guide never mentions one.
@@ -310,21 +310,21 @@ describe("the office how-to guide", () => {
         "It shows where the places still to fill are, the offers waiting for a reply, and what has happened lately.",
       );
       expect(text).toContain(
-        "The line under Dashboard says the date, the pay week and its pay day, and when your planner or rota sheet last sent changes.",
+        "The line under Dashboard says the date, the pay week and the day it's paid, and when your planner or rota sheet last sent changes.",
       );
       expect(text).toContain(
         "All , Urgent , This week and Next week choose the sessions with places to fill that the board shows.",
       );
-      // The map, Filter and Show full venues, as the dashboard names them.
+      // The map, Filter and Show filled venues too, as the dashboard names them.
       expect(text).toContain(
         "A pin for each venue with places to fill: its number is its places, red when one is urgent, a dashed ring when it's hidden from casuals.",
       );
       expect(text).toContain(
-        "Filter shows one role only; Show full venues puts the venues with nothing to fill on the map too.",
+        "Filter shows one role only; Show filled venues too puts the venues with nothing to fill on the map too.",
       );
       // The detail card keeps the urgent places' actions under its "…".
       expect(text).toContain(
-        "Offer to someone and Open the shift are under it; … has Mark as filled and Not urgent.",
+        "Offer to someone and Open the session are under it; … has Mark as filled and Not urgent.",
       );
       // Updates: what casuals took and cancelled, never "filled by the shifts line"; Who worked? by
       // name.
@@ -332,7 +332,7 @@ describe("the office how-to guide", () => {
         "The last two days: places casuals took, cancellations with their notice and strike, photos and certificates to check, and offers with no reply.",
       );
       expect(text).toContain(
-        "each person by name: Worked or Didn't attend, or Everyone else worked.",
+        "each person by name: Worked, or ✕ if they didn't turn up, or All of these worked.",
       );
       expect(text).not.toContain("Filled by the shifts line");
       // The offer panel, step by step.
@@ -343,8 +343,8 @@ describe("the office how-to guide", () => {
         "Select Send offer next to a name. It says Offered , and the foot of the panel says the offer is on its way.",
       );
       expect(text).toContain("Select Back to the dashboard , or press Escape, to close it.");
-      // Needs attention from the top bar's To check now (the dashboard's count went).
-      expect(text).toContain("The bar at the top counts it as To check , and takes you there.");
+      // Needs attention from the top bar's own Needs attention now (the dashboard's count went).
+      expect(text).toContain("The bar at the top counts it too, and takes you there.");
       // Phase 23's and round 2's sections are gone from it.
       for (const old of [
         "The four counts",
@@ -469,7 +469,12 @@ describe("the workers' help page", () => {
       "If you cancel less than 48 hours before a shift starts, you get a strike.",
     );
     expect(text).toContain("It counts for 90 days.");
-    expect(text).toContain("Your staff photo needs renewing every 36 months.");
+    // Phase 27.2: what a strike is, the firm's name as a possessive, and no "strikes team".
+    expect(text).toContain("A strike is a record, not a fine. It never comes off your pay.");
+    expect(text).toContain("Acme Events' office keeps a record of it. It counts for 90 days.");
+    expect(text).not.toContain("strikes team");
+    expect(text).not.toContain("Events's");
+    expect(text).toContain("Your staff photo needs renewing every 3 years.");
     const firm24 = words(
       renderToStaticMarkup(
         createElement(HelpView, {
@@ -490,12 +495,45 @@ describe("the workers' help page", () => {
       "If you cancel less than 24 hours before a shift starts, you get a strike.",
     );
     expect(firm24).toContain("It counts for 30 days.");
-    expect(firm24).toContain("Your staff photo needs renewing every 24 months.");
+    expect(firm24).toContain("Your staff photo needs renewing every 2 years.");
     expect(text).toContain("The office only sees the first part of your postcode, like ZZ1.");
     // The postcode data's licence line, last.
     expect(html).toMatch(
       /<p data-attribution=""[^>]*>Postcode locations: Contains OS data © Crown copyright/,
     );
+  });
+
+  // Phase 27.2 (the launch review's words): every button named as it reads on screen.
+  it("names the tabs, Directions, Details and the other qualifications as they read now", () => {
+    // Its words as read, the buttons' names inline.
+    const text = help()
+      .replace(/<\/(p|li)>/g, " ")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&#x27;|&#39;/g, "'")
+      .replace(/\s+/g, " ");
+    expect(text).toContain(
+      "The tabs at the bottom take you to Home, Shifts, Messages, Pay and Profile.",
+    );
+    expect(text).toContain(
+      "Tap Details to see the rest: getting there, your pay and any instructions.",
+    );
+    expect(text).toContain("Tap Directions to find your way to the site.");
+    expect(text).not.toContain("Open in maps");
+    expect(text).toContain("You'll see when you can take it. At that time, tap Check again.");
+    expect(text).toContain(
+      "Find the shift on Home or under Shifts. Tap Details, then Ask for a change.",
+    );
+    expect(text).toContain(
+      "One only a shift of yours needs is under Other qualifications on file.",
+    );
+    expect(text).toContain(
+      "Got a new one? Tap Upload a new one under it and take a clear photo of it.",
+    );
+    expect(text).toContain(
+      "Some, like CSAS, the office records itself. Once you've renewed one of those, tell the office under Messages.",
+    );
+    expect(text).toContain("Tap the Profile tab, then Set your travel area.");
+    expect(text).not.toContain("Where you work");
   });
 
   it("ends with the usual way back to My shifts", () => {

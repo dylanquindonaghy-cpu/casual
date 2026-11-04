@@ -75,13 +75,13 @@ describe("Open shifts page body (Phase 18)", () => {
   it("says so plainly when nothing is open, and what limits the list", () => {
     const words = text(render(list()));
     expect(words).toContain("Open shifts");
-    // Round 7's words (Phase 24): what she sees, and how far from home.
-    expect(words).toContain("Shifts you can take, up to 45 minutes from home.");
+    // What she sees, and her travel area (Phase 27.2: one name for it).
+    expect(words).toContain("Shifts you can take, inside your travel area (up to 45 minutes).");
     expect(words).toContain("Nothing open right now. We'll message you when something matches.");
     // No "Back" button: the tab bar under every casual page goes there (Phase 17).
     expect(words).not.toContain("Back to my shifts");
     expect(text(render(list({ area: null })))).toContain("Shifts you can take.");
-    expect(text(render(list({ area: null })))).not.toContain("minutes from home");
+    expect(text(render(list({ area: null })))).not.toContain("travel area (up to");
     // How many there are, over the list.
     expect(render(list())).toContain('<p class="text-lg text-ink-muted">0 shifts</p>');
   });
@@ -127,8 +127,14 @@ describe("Open shifts page body (Phase 18)", () => {
     // An open day: its count, in grey.
     expect(days[3]).toMatch(/href="\/shifts\/open\?day=2026-11-10"/);
     expect(days[3]).toMatch(/tabular-nums text-ink-muted">1<\/span><\/a>$/);
-    // Its key in words, so a day's colour never says it alone.
-    expect(text(section)).toContain("You're booked 1 Urgent 1 Open");
+    // Its key in words, so a day's colour never says it alone; each number is a count of that
+    // day's shifts, so the key names the colour, never a sample "1" (Phase 27.2).
+    const key = text(section.slice(section.indexOf("</ul>")));
+    expect(key).toContain(
+      "Red number : urgent shifts that day Grey number: open shifts that day You're booked",
+    );
+    expect(key).not.toMatch(/\b1 (Urgent|Open)\b/);
+    expect(section).toContain('<span class="font-semibold text-urgent-ink">Red number</span>');
     // The day chosen is in ink.
     const chosen = render(list(), { day: "2026-11-08" }, strip);
     expect(chosen).toMatch(
@@ -225,7 +231,7 @@ describe("Open shifts page body (Phase 18)", () => {
     );
     const card = cardsIn(html, "more-heading")[0] ?? "";
     expect(text(card)).toContain(
-      "Sat 7 Nov 14:00–22:00 £15.50/hour Door supervisor Riverside Festival, Gate A 3.1 miles · 12 min by car · 24 min by public transport 1 place left",
+      "Sat 7 Nov 14:00–22:00 £15.50/hour Door supervisor Riverside Festival, Demo Arena, Gate A 3.1 miles · 12 min by car · 24 min by public transport 1 place left",
     );
     // Not urgent: "1 place left" in ink on a little glass chip (red words only on urgent shifts).
     expect(card).toContain(
@@ -264,6 +270,27 @@ describe("Open shifts page body (Phase 18)", () => {
     expect(text(night)).toContain(
       "19:00–01:00 £12.60/hour Steward Demo Arena · finishes Sunday morning",
     );
+    // A site named like its event is named once.
+    const same = render(list({ shifts: [shift({ shiftId: "e", casualEvent: "Demo Arena" })] }));
+    expect(text(same)).toContain("Steward Demo Arena 2 places left");
+    expect(text(same)).not.toContain("Demo Arena, Demo Arena");
+  });
+
+  // Phase 27.2 (C3): a session with no pay rate says to ask, where the rate would be.
+  it("a session with no pay rate: 'Pay: ask the office' across from the time", () => {
+    const card =
+      cardsIn(
+        render(list({ shifts: [shift({ shiftId: "p0", payRatePence: null })] })),
+        "more-heading",
+      )[0] ?? "";
+    expect(text(card)).toContain("14:00–22:00 Pay: ask the office Steward");
+    expect(card).toContain(
+      '<span class="text-right text-base text-ink-muted">Pay: ask the office</span>',
+    );
+    expect(text(card)).not.toContain("/hour");
+    const paid = cardsIn(render(list({ shifts: [shift({ shiftId: "p1" })] })), "more-heading")[0];
+    expect(text(paid ?? "")).toContain("£12.60/hour");
+    expect(paid).not.toContain("ask the office");
   });
 
   it("under fair rotation, a held shift says when she can take it", () => {

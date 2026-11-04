@@ -15,9 +15,9 @@ import {
   NEW_WORD,
   NOTHING_AT_ALL,
   NOTHING_TO_ACT_ON,
+  LAST_7_DAYS,
+  newTodayWords,
   showingNewest,
-  TODAY,
-  todayWords,
   UPDATE_VIEWS,
   UPDATES_TITLE,
   updateRow,
@@ -35,7 +35,7 @@ import { TellMePanel } from "./tell-me-panel";
 export const metadata: Metadata = { title: "Updates" };
 
 // Updates (Phase 26.4; docs/screens.md "Updates"; the mock-up's Updates): what happened on the
-// person's contracts over the last week. The list's heading says how many came in today; its two
+// person's contracts over the last week. The list's heading says so, and how many came in today; its two
 // views are "Needs action" (the default: each with its button) and "Everything". Updates new since
 // the person last marked them seen are marked "New", and "Mark all as seen" clears them and the
 // bell. Opened from the bell in the top bar, the menu, the dashboard's Updates column and the pop-up.
@@ -153,16 +153,12 @@ export default async function UpdatesPage({
               className="flex items-center gap-2 px-1 text-lg font-semibold text-ink"
             >
               <Icon name="bell" size={16} className="text-ink-muted" />
-              {TODAY}
+              {LAST_7_DAYS}
               {data.today > 0 && (
-                <span
-                  aria-hidden="true"
-                  className="flex h-5 min-w-5 items-center justify-center rounded-full bg-urgent-fill px-1 text-xs font-semibold text-on-urgent tabular-nums"
-                >
-                  {data.today}
+                <span className="text-sm font-normal text-ink-muted tabular-nums">
+                  · {newTodayWords(data.today)}
                 </span>
               )}
-              <span className="sr-only">: {todayWords(data.today)}</span>
             </h2>
             <nav aria-label="Show" className={tabs}>
               {UPDATE_VIEWS.map((v) => (

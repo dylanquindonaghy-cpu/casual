@@ -587,7 +587,7 @@ describe("the shell", () => {
   // where it's worked, 44px tall, swelling under a press; its icon only when the bar has room for
   // it (1344px); Urgent's number red while there are any. Below 1024px the same chips are a row of
   // their own over the page (the next test).
-  it("the counts: To fill, Urgent, Offers out, To check and Pay queries, each opening where it's worked", () => {
+  it("the counts: To fill, Urgent, Offers out, Needs attention and Pay queries, each opening where it's worked", () => {
     const html = shell();
     const counts = countsOf(html);
     const links = [...counts.matchAll(/<a class="([^"]*)" href="([^"]*)">(.*?)<\/a>/g)];
@@ -595,7 +595,7 @@ describe("the shell", () => {
       ["/office/events?view=need", "To fill 26"],
       ["/office/events?view=urgent", "Urgent 2"],
       ["/office#updates", "Offers out 11"],
-      ["/office/needs-attention", "To check 7"],
+      ["/office/needs-attention", "Needs attention 7"],
       ["/office/pay-queries", "Pay queries 10"],
     ]);
     for (const m of links) {
@@ -613,7 +613,7 @@ describe("the shell", () => {
     );
     // Counts that couldn't be read: the words alone.
     const unread = countsOf(shell(undefined, "admin", { shell: null }));
-    expect(text(unread)).toBe("To fill Urgent Offers out To check 7 Pay queries 10");
+    expect(text(unread)).toBe("To fill Urgent Offers out Needs attention 7 Pay queries 10");
   });
 
   // Round 8 (Phase 26, sys-9): below 1024px the counts are a row of their own over the page, the
@@ -636,7 +636,7 @@ describe("the shell", () => {
       ["/office/events?view=need", "To fill 26"],
       ["/office/events?view=urgent", "Urgent 2"],
       ["/office#updates", "Offers out 11"],
-      ["/office/needs-attention", "To check 7"],
+      ["/office/needs-attention", "Needs attention 7"],
       ["/office/pay-queries", "Pay queries 10"],
     ]);
     for (const m of links) {
@@ -667,7 +667,7 @@ describe("the shell", () => {
 
   it("each role's counts and search: payroll has its pay queries and no search", () => {
     expect(text(countsOf(shell(undefined, "resourcer")))).toBe(
-      "To fill 26 Urgent 2 Offers out 11 To check 7",
+      "To fill 26 Urgent 2 Offers out 11 Needs attention 7",
     );
     const payroll = shell(undefined, "payroll");
     expect(text(countsOf(payroll))).toBe("Pay queries 10");
@@ -681,7 +681,7 @@ describe("the shell", () => {
   it("the search: a labelled box that waits for the page, its panel shut", () => {
     const bar = barOf(shell());
     expect(bar).toMatch(
-      /<label for="([^"]+)" class="sr-only">Find a casual, shift or site<\/label><input id="\1" type="search" autoComplete="off" spellCheck="false" placeholder="Search" disabled="" aria-describedby="([^"]+)" class="[^"]*"/,
+      /<label for="([^"]+)" class="sr-only">Find a casual, session or venue<\/label><input id="\1" type="search" autoComplete="off" spellCheck="false" placeholder="Search" disabled="" aria-describedby="([^"]+)" class="[^"]*"/,
     );
     expect(bar).toMatch(/<p id="[^"]+" aria-live="polite" class="sr-only"><\/p>/);
     expect(bar).not.toContain("data-search-panel");
@@ -715,7 +715,7 @@ describe("the shell", () => {
     // Everything in the bar, read in order (the switch's words under it are hidden from screen
     // readers, and said once here by its name).
     expect(text(barOnly(shell()))).toBe(
-      "Menu A Acme Events Office To fill 26 Urgent 2 Offers out 11 To check 7 Pay queries 10 Find a casual, shift or site Switch to light mode SA Sam Admin Admin",
+      "Menu A Acme Events Office To fill 26 Urgent 2 Offers out 11 Needs attention 7 Pay queries 10 Find a casual, session or venue Switch to light mode SA Sam Admin Admin",
     );
   });
 
@@ -1129,7 +1129,7 @@ describe("the top bar's counts", () => {
       },
       {
         key: "toCheck",
-        label: "To check",
+        label: "Needs attention",
         href: "/office/needs-attention",
         icon: "checkbox",
         count: 4,

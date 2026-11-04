@@ -481,7 +481,8 @@ describe("a wave", () => {
 
   it("by text, the offer is the doc's short SMS version", async () => {
     const t = await waveFirm();
-    const sms = `Booking Test ${t.slug} URGENT: door supervisor needed today 19:00. http://${t.slug}.localhost:3000/shifts/${t.shiftId} - Booking Test ${t.slug} Shift Team`;
+    // Phase 27.2: the link says what it does ("Take it:").
+    const sms = `Booking Test ${t.slug} URGENT: door supervisor needed today 19:00. Take it: http://${t.slug}.localhost:3000/shifts/${t.shiftId} - Booking Test ${t.slug} Shift Team`;
     await t.wave(1); // Ann and Ben, each by text
     const bodyTo = (mobile: string) => {
       const m = t.sent.find((s) => s.channel !== "email" && s.to === mobile);

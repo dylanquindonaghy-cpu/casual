@@ -4,6 +4,7 @@ import { currentOfficeUser } from "../auth/office-login";
 import { canAccess } from "../auth/roles";
 import { firms } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
+import { requestWaiting } from "./enquiry-sql";
 
 // Enquiries' "Requests from the app" (docs/screens.md `/office/enquiries`; `/office/requests` until
 // 12D.1): what casuals asked in the app (time changes, swaps, reviews), for an admin or resourcer to
@@ -165,7 +166,7 @@ export async function loadRequestQueue(tx: FirmTx, now: Date): Promise<RequestQu
     .where(eq(firms.id, sql`app_current_firm_id()`));
   const { rows: waiting } = await tx.execute<Row>(sql`
     ${SELECT}
-     where r.status in ('open', 'escalated') and (r.type <> 'general' or r.message_id is null)
+     where ${requestWaiting("r")}
      order by r.created_at, r.id
      limit ${WAITING_MAX + 1}
   `);

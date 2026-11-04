@@ -13,7 +13,7 @@ import { sentTo } from "./outbox";
 // The office dashboard in a real browser, on the demo seed (Phase 24, 24.3; round 8 since Phase
 // 26.2: the spec page's "Dashboard"; docs/screens.md `/office`): "Dashboard" with the day, the pay
 // week and its pay day; the track (All, Urgent, This week, Next week, each with its count, To offer
-// adding up to it), Filter and Show full venues; the venue map (no street map in the tests: each
+// adding up to it), Filter and Show filled venues too; the venue map (no street map in the tests: each
 // venue placed by its own position), a pin opening its venue's soonest session in the card; the
 // card on the map (under it on a phone), with who can take it; To offer's first four rows and View
 // all; the offer panel (from the foot on a phone, the side on a laptop) listing who can take a
@@ -63,7 +63,7 @@ test("a resourcer's dashboard: its head, the track adding up, the map, the card,
     page
       .getByRole("main")
       .getByText(
-        /^[A-Z][a-z]+day \d{1,2} [A-Z][a-z]+ · Week \d{1,2} · Pay Fri \d{1,2} [A-Z][a-z]{2}$/,
+        /^[A-Z][a-z]+day \d{1,2} [A-Z][a-z]+ · Week \d{1,2} \(paid Fri \d{1,2} [A-Z][a-z]{2}\)$/,
       ),
   ).toBeVisible();
   // Every part loaded.
@@ -99,17 +99,19 @@ test("a resourcer's dashboard: its head, the track adding up, the map, the card,
   await expect(
     page.getByText("Placed by each venue's postcode · a pin's number is its places to fill"),
   ).toBeVisible();
-  await expect(page.getByText(/^\d+ venues · \d+ places to fill$/)).toBeVisible();
+  await expect(
+    page.getByText(/^\d+ venues? · \d+ places? to fill this week and next$/),
+  ).toBeVisible();
   // The card: a session with places to fill, who can take it, its two buttons and its "…".
   const detail = page.locator("[data-chosen]");
   await expect(detail.getByRole("link", { name: /^Offer to / })).toBeVisible();
-  await expect(detail.getByRole("link", { name: "Open the shift" })).toHaveAttribute(
+  await expect(detail.getByRole("link", { name: "Open the session" })).toHaveAttribute(
     "href",
     /^\/office\/shifts\/[0-9a-f-]{36}$/,
   );
   await expect(detail.getByText(/^Starts in .+$/)).toBeVisible();
-  await expect(detail.getByText("Can take it", { exact: true })).toBeVisible();
-  await expect(detail.getByText("Under the rules, right now")).toBeVisible();
+  await expect(detail.getByText(/^(has|have) the licence, rest and hours for it$/)).toBeVisible();
+  await expect(detail.getByText(/^(None offered yet|\d+ offered)$/)).toBeVisible();
   // Three columns: To offer's first four rows, then View all.
   await expect(column(page, "to-offer").locator("[data-session]")).toHaveCount(Math.min(4, all));
   if (all > 4)
@@ -181,7 +183,8 @@ test("the track filters the board, and a card picks itself into the detail card 
     await expect(detail.getByText(`Pick Gala ${n} · Pick Hall ${n}`)).toBeVisible();
     // Nobody holds the role: nobody can take it, and nothing's been offered.
     await expect(detail.getByText("Nobody can be offered it right now.")).toBeVisible();
-    await expect(detail.getByText("0 offered")).toBeVisible();
+    // (Phase 27.2, O1: the chip says "None offered yet", never "0 offered".)
+    await expect(detail.getByText("None offered yet")).toBeVisible();
     // The address keeps it: a reload shows the same session.
     await page.reload();
     await expect(page.locator(`[data-chosen="${shiftId}"]`)).toBeVisible();
@@ -238,10 +241,10 @@ test("the offer panel lists who can take it as the offer page does; Send offer, 
     const detail = page.locator(`[data-chosen="${shiftId}"]`);
     const offer = detail.getByRole("link", { name: /^Offer to / });
     await offer.click();
-    const panel = page.getByRole("dialog", { name: "Offer this shift" });
+    const panel = page.getByRole("dialog", { name: "Offer this session" });
     await expect(panel).toBeVisible();
     // Focus starts on its heading.
-    await expect(panel.getByRole("heading", { name: "Offer this shift" })).toBeFocused();
+    await expect(panel.getByRole("heading", { name: "Offer this session" })).toBeFocused();
     await expect(panel.getByRole("heading", { name: "Who can take it" })).toBeVisible();
     await expect(panel.getByRole("link", { name: `Steward at Panel Hall ${n}` })).toBeVisible();
     // The same people, in the same order.
@@ -337,7 +340,14 @@ test("To offer: the first four, soonest first, then View all on Events & session
   const email = `dashboard.viewall${testInfo.retry || ""}@example.com`;
   await addOfficeUser("acme", { email, name: "Show Resourcer", role: "resourcer" });
   const n = Date.now() % 100_000;
-  // Four never offered, so To offer has more than four.
+  // Four never offered, so To offer has more than four: next pay week's Monday to Thursday, so all
+  // four are on the map, whatever day this runs (the map holds this pay week and next, Monday to
+  // Sunday; 9 to 12 days ahead put the last one out of it from a Wednesday).
+  const today = new Intl.DateTimeFormat("en-GB", {
+    weekday: "short",
+    timeZone: "Europe/London",
+  }).format(new Date());
+  const toNextMonday = 7 - ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(today);
   const made = [];
   for (let i = 0; i < 4; i++)
     made.push(
@@ -345,7 +355,7 @@ test("To offer: the first four, soonest first, then View all on Events & session
         name: `Show Fete ${n}-${i}`,
         site: `Show Hall ${n}-${i}`,
         role: "show_check",
-        daysAhead: 9 + i,
+        daysAhead: toNextMonday + i,
         point: { lat: 53.85 + i * 0.03, lng: -1.5 + i * 0.02 },
       }),
     );
@@ -485,7 +495,7 @@ test.describe("on a laptop with a mouse", () => {
     ).toBeLessThanOrEqual(0);
     // The panel from the right, the page's height less its margins.
     await detail.getByRole("link", { name: /^Offer to / }).click();
-    const panel = page.getByRole("dialog", { name: "Offer this shift" });
+    const panel = page.getByRole("dialog", { name: "Offer this session" });
     await expect(panel).toBeVisible();
     await expect(panel.getByText(/Loading who can take it/)).toHaveCount(0);
     // Once it has slid in (200ms).
@@ -531,16 +541,16 @@ test.describe("on a laptop with a mouse", () => {
       new RegExp(`^/office/offer/${id}$`),
     );
     await go(
-      detail.getByRole("link", { name: "Open the shift" }),
+      detail.getByRole("link", { name: "Open the session" }),
       new RegExp(`/office/shifts/${id}$`),
     );
-    await go(main.getByRole("link", { name: "Back to shifts" }), "/office/shifts");
+    await go(main.getByRole("link", { name: "Back to sessions" }), "/office/shifts");
     await go(main.getByRole("link", { name: "Later" }), /\/office\/shifts\?from=\d{4}-\d\d-\d\d$/);
     // The top bar's counts: "Urgent shifts not filled", the places charts' "Need people", Needs
     // attention's chart and the pay queries chart.
     await go(bar.getByRole("link", { name: /^To fill \d+$/ }), "/office/events?view=need");
     await go(bar.getByRole("link", { name: /^Urgent \d+$/ }), "/office/events?view=urgent");
-    await go(bar.getByRole("link", { name: /^To check \d+$/ }), "/office/needs-attention");
+    await go(bar.getByRole("link", { name: /^Needs attention \d+$/ }), "/office/needs-attention");
     await go(bar.getByRole("link", { name: /^Pay queries \d+$/ }), "/office/pay-queries");
     // "Events showing to casuals": a filter on Events & sessions again; an event's own page from
     // its card (Phase 24, 24.4).

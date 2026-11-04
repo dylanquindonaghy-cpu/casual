@@ -42,7 +42,11 @@ test("a worker checks their licences, marks a day off and changes how we reach t
   ).toBeVisible();
   await expect(rows.nth(1)).toContainText("Level 2 spectator safety qualification");
   await expect(rows.nth(1).getByText("Valid · No expiry date")).toBeVisible();
-  await expect(quals.getByText("Not checked yet: ask the office")).toBeVisible();
+  await expect(
+    quals.getByText(
+      "Not recorded yet. The office will ask you for your documents if they need them.",
+    ),
+  ).toBeVisible();
   await expect(page.getByText("No days marked.")).toBeVisible();
 
   // Three days from now, London time.

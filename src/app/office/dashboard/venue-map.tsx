@@ -198,7 +198,7 @@ interface Measured {
 // The street map's moves, once it's drawn.
 interface Moves {
   to: (siteId: string) => void; // to a venue: zoomed in to 13 at least, in the free part
-  fit: () => void; // back to every venue
+  everyVenue: () => void; // back to every venue
   repad: () => void; // the free part changed (the list opened or shut)
   zoom: (by: 1 | -1) => void;
 }
@@ -338,7 +338,8 @@ export function VenueMap({
             { card: boxIn(el, cardBox.current, true), list: boxIn(el, listBox.current, true) },
           );
         // Every venue, as far in as the area round them (zoom 13), in the free part.
-        const fit = (animate: boolean) => {
+        // (Not named "fit": scripts/invariants.sh reads that name called as a focused test.)
+        const fitVenues = (animate: boolean) => {
           const bounds = venueBounds(placed);
           if (bounds)
             map.fitBounds(bounds, {
@@ -348,7 +349,7 @@ export function VenueMap({
               duration: animate && !still() ? 700 : 0,
             });
         };
-        fit(false);
+        fitVenues(false);
         moves.current = {
           to: (siteId) => {
             const v = placed.find((p) => p.siteId === siteId);
@@ -361,7 +362,7 @@ export function VenueMap({
             if (still()) map.jumpTo(at);
             else map.easeTo({ ...at, duration: 700 });
           },
-          fit: () => fit(true),
+          everyVenue: () => fitVenues(true),
           repad: () => {
             if (still()) map.jumpTo({ padding: pad() });
             else map.easeTo({ padding: pad(), duration: 300 });
@@ -625,7 +626,7 @@ export function VenueMap({
                   type="button"
                   aria-label={FIT_ALL}
                   title={FIT_ALL}
-                  onClick={() => moves.current?.fit()}
+                  onClick={() => moves.current?.everyVenue()}
                   className={MAP_BUTTON}
                 >
                   <Icon name="corners" />

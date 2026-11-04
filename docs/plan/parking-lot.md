@@ -2265,3 +2265,12 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   27.2's kind of pass (screens and messages docs first).
 - ~~**The named menu is taller than a laptop's screen**~~ Moot: Dylan said no to 27.5's layout
   changes on 2026-11-04 ("layout changes no leave it"), so the menu stays icons only.
+
+## From Phase 27.4 (the dashboard map you can use; 2026-11-04)
+
+- **A tab or Filter change on the dashboard with the street map took 3 to 6 seconds** in the
+  browser tests (headless Chromium, which draws the map in software: 18 changes measured; the page's
+  data came back in about 11 ms, so the time is the browser drawing the map while it swaps the
+  board). Not measured on a real phone or laptop, which draw with the graphics card. Proposed: time
+  a tab change on the live demo on Dylan's phone and laptop; if it's slow there too, keep the map
+  between views (fit it to the new venues) instead of building a new one.

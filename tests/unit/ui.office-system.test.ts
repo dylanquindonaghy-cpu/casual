@@ -574,8 +574,8 @@ describe("the office's tokens (src/app/globals.css)", () => {
   // Phase 24 (round 7): gradients are the glass's: a tile's, the pass's band, a clear button's and
   // the main button's fills and the bars' edges (the top bar's, and the foot's under a shift's Take
   // shift), and the masks that fade an edge (the menu's, the bars'). Round 7's wash of four radial
-  // lights is gone (the office's since Phase 26, the casual app's since Phase 27.6: a street map in
-  // its place). None anywhere in the office's own files.
+  // lights is gone (the office's since Phase 26, the casual app's since Phase 27.6), and since Phase
+  // 27.7 a plain colour is behind every page. None anywhere in the office's own files.
   it("gradients only in the glass and the masks; no wash", () => {
     const gradient =
       /(?:repeating-)?(?:linear|radial|conic)-gradient\(|(?<![\w-])bg-(?:linear|radial|conic|gradient)-/;
@@ -612,27 +612,28 @@ describe("the office's tokens (src/app/globals.css)", () => {
   });
 
   // No grain, stripes, glows or colour cards (round 2's), and no picture: the only images are the
-  // glass's gradients and round 8's street map behind every page (one still picture: Phase 26, the
+  // glass's gradients. Round 8's street map behind every page (one still picture, Phase 26, the
   // pre-build audit's aud-16; the casual app's too since Phase 27.6, when round 7's refraction
-  // filter and its url() went: ui.glass.test.ts).
-  it("no grain, stripes, glows, tinted cards or pictures but the street map", () => {
+  // filter and its url() went: ui.glass.test.ts) is gone too since Phase 27.7 (Dylan: "Yes plain
+  // colour"): a plain colour behind every page, the picture deleted.
+  it("no grain, stripes, glows, tinted cards or pictures: a plain colour behind every page", () => {
     expect(css).not.toMatch(
       /--(?:grain|stripes|tint-(?:urgent|attention|wait|done)|card-chip|glow-)/,
     );
     expect(css).not.toMatch(/@utility (?:grain|stripes|tint-|card-chip)/);
     expect(css.match(/background-image:/g)).toHaveLength(4);
-    expect([...css.matchAll(/url\(([^)]*)\)/g)].map((m) => m[1])).toEqual([
-      '"./office-streets.svg"',
-      '"./office-streets.svg"',
-    ]);
+    expect([...css.matchAll(/url\(([^)]*)\)/g)].map((m) => m[1])).toEqual([]);
+    // Nothing drawn behind the page: no ::before on <body>, no street lines, no picture of them.
+    expect(css).not.toMatch(/body[^{\n]*::before/);
+    expect(css).not.toMatch(/--map-(?:line|road)\b|office-streets/);
+    expect(existsSync(join(ROOT, "src/app/office-streets.svg"))).toBe(false);
+    // The page's ground is a plain colour in both looks: charcoal and off-white.
     expect(css).toMatch(
-      /\n {2}body::before \{\s*content: "";\s*position: fixed;\s*inset: 0;\s*z-index: -1;\s*pointer-events: none;\s*background: var\(--map-road\);\s*-webkit-mask: url\("\.\/office-streets\.svg"\) center \/ cover no-repeat;\s*mask: url\("\.\/office-streets\.svg"\) center \/ cover no-repeat;\s*\}/,
+      /:root:not\(\[data-theme="light"\]\):has\(\[data-office\]\) \{\s*color-scheme: dark;\s*--color-canvas: #0f0f10;\s*\}/,
     );
-    // The picture itself: lines only, no fill, no text, no image inside it.
-    const svg = read("src/app/office-streets.svg");
-    expect(svg).toMatch(/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 1600 1000"/);
-    expect(svg).not.toMatch(/<(?:text|image|use|script|style|foreignObject)\b|href=/);
-    expect(svg.length).toBeLessThan(30_000);
+    expect(css).toMatch(
+      /:root\[data-theme="light"\]:has\(\[data-office\]\) \{\s*color-scheme: light;\s*--color-canvas: #f2f2f0;\s*\}/,
+    );
     // Nor round 2's colour cards' own tokens.
     expect(css).not.toMatch(/--color-(?:urgent|attention|wait|done)-card/);
     const texture =
@@ -647,8 +648,24 @@ describe("the office's tokens (src/app/globals.css)", () => {
   // doc's one token table (tests/unit/ui.design-system.test.ts), and the doc says so.
   // Round 8 (Phase 26): the office's own look again, first in the doc; Phase 24 stays for the
   // casual app and what round 8 doesn't change, and says round 8 replaced its office colours.
+  // Phase 27.7 (a plain colour behind every page) first of all, and round 8's own section says its
+  // street map is gone.
   it("docs/ui-design.md: round 8's office look first (Phase 26), round 7's after it", () => {
     const doc = read("docs/ui-design.md");
+    const p277 = doc
+      .slice(
+        doc.indexOf("## Phase 27.7: a plain colour behind every page"),
+        doc.indexOf("## Phase 27.6"),
+      )
+      .replace(/\s+/g, " ");
+    expect(doc.indexOf("## Phase 27.7: a plain colour behind every page")).toBeGreaterThan(-1);
+    expect(doc.indexOf("## Phase 27.7")).toBeLessThan(doc.indexOf("## Phase 27.6"));
+    for (const words of [
+      "charcoal `#0f0f10` in dark, off-white `#f2f2f0` in light",
+      "No pattern, no mask, no picture, no other decoration in its place.",
+      "(`src/app/office-streets.svg`, deleted)",
+    ])
+      expect(p277, words).toContain(words);
     const p26 = doc
       .slice(
         doc.indexOf("## Phase 26: round 8, the office after Haulix"),
@@ -661,7 +678,7 @@ describe("the office's tokens (src/app/globals.css)", () => {
       "hi-vis yellow `#e9f86f`",
       "4.93:1 (`#d13438`; aud-1)",
       "12 · 13 · 14 · 16 · 20 · 30px in the office",
-      "`src/app/office-streets.svg`",
+      "a plain colour, charcoal `#0f0f10` or off-white `#f2f2f0`, with nothing drawn over it since Phase 27.7",
       "six office looks",
     ])
       expect(p26, words).toContain(words);

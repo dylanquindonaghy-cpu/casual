@@ -1,33 +1,21 @@
 // The glass the words sit on (round 8: Phase 26 in the office, Phase 27.6 in the casual app;
-// docs/ui-design.md "Phase 27.6"): the ground behind every page with its faint street map, and the
+// docs/ui-design.md "Phase 27.7" and "Phase 27.6"): the plain ground behind every page and the
 // glass laid over it, as numbers, so contrast can be worked out over the glass itself rather than
 // over one flat colour. src/app/globals.css draws the same values (tests/unit/ui.glass.test.ts
 // reads them back from it and checks they agree); the firm's colours (brand-values.ts) and the
 // contrast test (tests/unit/ui.contrast.test.ts) both read the grounds from here. Pure, with no
 // imports, so the owner's script can use it too. (Round 7's pastel wash of four coloured lights is
-// gone: Phase 27.6.)
+// gone: Phase 27.6; round 8's made-up street pattern and its two strengths of line: Phase 27.7.)
 
 export type Rgb = [number, number, number];
 export type Rgba = [number, number, number, number];
 export type Theme = "light" | "dark";
 
-// The ground: a flat colour (off-white in light, charcoal in dark) under a faint street map, its
-// lines at two strengths (--map-line and --map-road), each a translucent ink (or white) over it.
-export const GROUND: Record<Theme, { base: Rgb; lines: [Rgba, Rgba] }> = {
-  light: {
-    base: [242, 242, 240],
-    lines: [
-      [16, 24, 40, 0.05],
-      [16, 24, 40, 0.07],
-    ],
-  },
-  dark: {
-    base: [15, 15, 16],
-    lines: [
-      [255, 255, 255, 0.06],
-      [255, 255, 255, 0.085],
-    ],
-  },
+// The ground: one plain colour (off-white in light, charcoal in dark), with nothing drawn over it
+// (Phase 27.7, Dylan: "Yes plain colour"). globals.css's `--color-canvas`.
+export const GROUND: Record<Theme, Rgb> = {
+  light: [242, 242, 240],
+  dark: [15, 15, 16],
 };
 
 // The glass, each a translucent fill (a gradient's two ends where it has one):
@@ -107,11 +95,10 @@ export function over(top: Rgba, under: Rgb): Rgb {
   return [0, 1, 2].map((i) => Math.round(top[i]! * a + under[i]! * (1 - a))) as Rgb;
 }
 
-// The ground's points worth checking: the flat ground itself, and each strength of the street
-// map's lines over it (a word or a piece of glass can lie over either).
+// The ground's points worth checking: the plain ground itself, its only one since Phase 27.7 (the
+// street pattern's two strengths of line went with it).
 export function groundPoints(theme: Theme): Rgb[] {
-  const { base, lines } = GROUND[theme];
-  return [base, ...lines.map((l) => over(l, base))];
+  return [GROUND[theme]];
 }
 
 // Every ground a word can sit on, by where it is: on the ground itself (a page's headline and its

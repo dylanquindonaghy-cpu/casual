@@ -21,13 +21,13 @@ import {
 // behind it, and over what floats; what floats over those points; a tile's and a clear button's
 // gradients, both ends, the button also under the pointer, pressed and brightened; the lens on its
 // track; the main button, its colour to its shade. Phase 26 (round 8, after Haulix) gave the office
-// its own looks, dark by default and light when picked, translucent and sharp glass over a faint
-// street map; Phase 27.6 gave the casual app the same looks (round 7's pastel wash and its 15
-// points are gone), but for the firm's own colour, and still following the phone: light and dark
-// (the cookie's block; the device's must hold the same). Behind the glass in every look: the flat
-// ground and the street map's two strengths of line. Each look also solid (less transparency or
-// more contrast: no map, no glass) and with no blur (a browser that can't: every ground solid too,
-// the map still round them), so twelve looks in all.
+// its own looks, dark by default and light when picked, translucent and sharp glass; Phase 27.6
+// gave the casual app the same looks (round 7's pastel wash and its 15 points are gone), but for
+// the firm's own colour, and still following the phone: light and dark (the cookie's block; the
+// device's must hold the same). Behind the glass in every look since Phase 27.7 (Dylan: "Yes plain
+// colour"): the plain ground alone (round 8's made-up street pattern and its two strengths of line
+// are gone). Each look also solid (less transparency or more contrast: no glass) and with no blur
+// (a browser that can't: every ground solid too), so twelve looks in all.
 
 const LOOKS = [...looks(), ...officeLooks()];
 
@@ -227,34 +227,37 @@ describe("the looks (src/app/globals.css)", () => {
       );
     }
     // And its fills: a section (card, sheet) and what floats (panel: the menus and, on a phone, the
-    // top bar, `max-lg:glass-float` in office-frame.tsx, pinned in tests/unit/office.shell.test.ts),
-    // and the street lines, in the office's block and on the page's root, which draws them
-    // (body::before reads --map-road from there). Dark: 4%, 70%, 8.5% (27.1; the lines as in the
-    // approved pictures: docs/plan/decisions-waiting.md 13). Light: as it was.
+    // top bar, `max-lg:glass-float` in office-frame.tsx, pinned in tests/unit/office.shell.test.ts).
+    // Dark: 4%, 70% (27.1). Light: as it was. Behind them, the page's plain ground, set on the
+    // page's root for an office page and nothing else there: no street lines anywhere (Phase 27.7,
+    // Dylan: "Yes plain colour"; docs/plan/decisions-waiting.md 13).
     expect(css).toMatch(/@utility glass-float \{\s*background-color: var\(--color-panel\);/);
-    for (const [name, root, card, panel, road] of [
+    for (const [name, root, card, panel, canvas] of [
       [
         "officeDark",
         /:root:not\(\[data-theme="light"\]\):has\(\[data-office\]\) \{([^}]*)\}/,
         "rgb\\(255 255 255 \\/ 0\\.04\\)",
         "rgb\\(24 24 26 \\/ 0\\.7\\)",
-        "rgb\\(255 255 255 \\/ 0\\.085\\)",
+        "#0f0f10",
       ],
       [
         "officeLight",
         /:root\[data-theme="light"\]:has\(\[data-office\]\) \{([^}]*)\}/,
         "rgb\\(255 255 255 \\/ 0\\.55\\)",
         "rgb\\(255 255 255 \\/ 0\\.92\\)",
-        "rgb\\(16 24 40 \\/ 0\\.07\\)",
+        "#f2f2f0",
       ],
     ] as const) {
       const body = block(BLOCKS[name]);
       expect(body, name).toMatch(new RegExp(`--color-card: ${card};`));
       expect(body, name).toMatch(new RegExp(`--color-sheet: ${card};`));
       expect(body, name).toMatch(new RegExp(`--color-panel: ${panel};`));
-      expect(body, name).toMatch(new RegExp(`--map-road: ${road};`));
-      expect(block(root), `${name}: the page's root`).toMatch(new RegExp(`--map-road: ${road};`));
+      expect(props(body).get("color-canvas"), name).toBe(canvas);
+      expect(Object.fromEntries(props(block(root))), `${name}: the page's root`).toEqual({
+        "color-canvas": canvas,
+      });
     }
+    expect(css).not.toMatch(/--map-(?:road|line)\b/);
     expect(css).toMatch(
       /:root:not\(\[data-theme="light"\]\):has\(\[data-office\]\) \{\s*color-scheme: dark;/,
     );
@@ -267,7 +270,7 @@ describe("the looks (src/app/globals.css)", () => {
 
   // Phase 27.6 (Dylan, 2026-11-03: "casual round 8: yes, firm's colour, follow the phone"): the
   // casual app's looks are the office's round 8 values, light and dark, value by value: its colours,
-  // its glass (blurs, hairlines, no drop at rest), its ground and its street lines, solid and with
+  // its glass (blurs, hairlines, no drop at rest) and its plain ground (Phase 27.7), solid and with
   // no blur too. But for what stays the casual app's own: the firm's colour (the main button, the
   // firm's mark, its tints and the gate's plate), the app's blue, and the to-do tint (hi-vis yellow
   // is the office's alone); and the office's own corners. The office's blocks keep every value of
@@ -319,7 +322,8 @@ describe("the looks (src/app/globals.css)", () => {
       const own = [...CASUAL_OWN, ...OFFICE_OWN];
       expect(except(casual, own), name).toEqual(except(props(block(office)), own));
     }
-    // Each look's ground, glass and street lines, as the office's (Phase 27.1's dark glass too).
+    // Each look's ground and glass, as the office's (Phase 27.1's dark glass too); no street lines
+    // (Phase 27.7: a plain colour behind every page).
     const light = casualLight;
     const dark = props(block(BLOCKS.dark));
     expect([light.get("color-canvas"), dark.get("color-canvas")]).toEqual(["#f2f2f0", "#0f0f10"]);
@@ -339,10 +343,9 @@ describe("the looks (src/app/globals.css)", () => {
       "inset 0 0 0 1px rgb(16 24 40 / 0.1)",
       "inset 0 0 0 1px rgb(255 255 255 / 0.12)",
     ]);
-    expect([light.get("map-road"), dark.get("map-road")]).toEqual([
-      "rgb(16 24 40 / 0.07)",
-      "rgb(255 255 255 / 0.085)",
-    ]);
+    for (const look of [light, dark, props(block(BLOCKS.deviceDark))])
+      expect([...look.keys()].filter((k) => k.startsWith("map-"))).toEqual([]);
+    expect(css).not.toMatch(/--map-road\b/);
     for (const look of [light, dark]) {
       expect(look.get("glass-drop")).toBe("0 0 #0000");
       expect(look.get("glass-drop-sm")).toBe("0 0 #0000");
@@ -488,7 +491,7 @@ describe("the looks (src/app/globals.css)", () => {
     }
   });
 
-  it("the grounds: twelve looks, each with the glass's every point over the street map", () => {
+  it("the grounds: twelve looks, each with the glass's every point over the plain ground", () => {
     expect(LOOKS.map((l) => l.name)).toEqual([
       "light",
       "dark",
@@ -504,20 +507,17 @@ describe("the looks (src/app/globals.css)", () => {
       "office light, no blur",
     ]);
     const [light, dark, solid] = LOOKS;
-    // Behind the glass (round 8's since Phase 27.6, in place of round 7's 15 points of the wash):
-    // the flat ground and the street map's two strengths of line over it; a section over each,
-    // and over what floats over each. The casual app's are the office's.
-    expect(grounds(light!, "canvas").map((g) => g.colour)).toEqual([
-      [242, 242, 240],
-      [231, 231, 230],
-      [226, 227, 226],
-    ]);
-    expect(grounds(dark!, "canvas").map((g) => g.colour)).toEqual([
-      [15, 15, 16],
-      [29, 29, 30],
-      [35, 35, 36],
-    ]);
-    expect(grounds(light!, "card")).toHaveLength(6);
+    // Behind the glass (round 8's since Phase 27.6, in place of round 7's 15 points of the wash;
+    // since Phase 27.7 the plain ground alone, in place of the street pattern's two strengths of
+    // line over it): a section over it, and over what floats over it. The casual app's are the
+    // office's.
+    expect(grounds(light!, "canvas").map((g) => g.colour)).toEqual([[242, 242, 240]]);
+    expect(grounds(dark!, "canvas").map((g) => g.colour)).toEqual([[15, 15, 16]]);
+    for (const look of LOOKS)
+      expect(look.ground, look.name).toEqual([
+        look.name.includes("light") ? [242, 242, 240] : [15, 15, 16],
+      ]);
+    expect(grounds(light!, "card")).toHaveLength(2);
     expect(grounds(solid!, "card").map((g) => g.colour)).toEqual([
       [255, 255, 255],
       [255, 255, 255],
@@ -527,15 +527,11 @@ describe("the looks (src/app/globals.css)", () => {
     const lum = (c: number[]) => c[0]! + c[1]! + c[2]!;
     expect(Math.min(...grounds(light!, "card").map((g) => lum(g.colour)))).toBeLessThan(3 * 250);
     expect(Math.max(...grounds(dark!, "card").map((g) => lum(g.colour)))).toBeGreaterThan(3 * 20);
-    // (Both its ends over each of the 9 grounds under it: 6 sections, 3 floating.)
-    expect(grounds(light!, "glass-button").filter((g) => g.brightened)).toHaveLength(18);
-    // The office's: its flat ground and the street map's two strengths of line; solid, the ground.
+    // (Both its ends over each of the 3 grounds under it: 2 sections, 1 floating.)
+    expect(grounds(light!, "glass-button").filter((g) => g.brightened)).toHaveLength(6);
+    // The office's: its plain ground, as drawn and solid alike.
     const office = LOOKS.find((l) => l.name === "office dark")!;
-    expect(grounds(office, "canvas").map((g) => g.colour)).toEqual([
-      [15, 15, 16],
-      [29, 29, 30],
-      [35, 35, 36],
-    ]);
+    expect(grounds(office, "canvas").map((g) => g.colour)).toEqual([[15, 15, 16]]);
     expect(
       grounds(
         LOOKS.find((l) => l.name === "office dark, solid")!,
@@ -582,7 +578,7 @@ describe("the looks (src/app/globals.css)", () => {
   // draws the button), the scrim, the charts' grid and baseline, and the grey "calm" mark: under 3:1
   // on light glass by design (the set is told apart with colour blindness), so it never stands
   // alone: every bar carries its number, every chart its legend, and its Numbers table has each
-  // mark's row in words (docs/ui-design.md "Phase 23"). The page's own ground is the street map's.
+  // mark's row in words (docs/ui-design.md "Phase 23"). The page's own ground is the plain colour.
   const RELIEVED = ["mark-calm"];
   it("every token but the decorative ones is in a checked pair", () => {
     const checked = new Set([...TEXT, ...CONTROLS].flatMap(([fg, places]) => [fg, ...places]));

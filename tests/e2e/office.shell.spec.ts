@@ -261,8 +261,9 @@ for (const device of ["light", "dark"] as const) {
       const bar = page.getByRole("banner");
       const card = page.locator("#main > div");
       const width = () => page.evaluate(() => document.documentElement.clientWidth);
-      // On a phone: the page no card of its own, its sections glass over the street map (round 8;
-      // a white card with its hairline in 23, a sheet with rounded top corners in 22).
+      // On a phone: the page no card of its own, its sections glass over the plain ground (round 8,
+      // plain since 27.7; a white card with its hairline in 23, a sheet with rounded top corners in
+      // 22).
       expect(await surface(card)).toEqual(bare);
       // The firm's own bar gives way to the top bar on logged-in office pages.
       await expect(page.getByTestId("brand-bar")).toBeHidden();
@@ -400,7 +401,7 @@ for (const device of ["light", "dark"] as const) {
       await page.keyboard.press("Escape");
       await expect(opened).toBeHidden();
 
-      // The page beside the rail, under the capsules, no card of its own; the wash shows round
+      // The page beside the rail, under the capsules, no card of its own; the plain ground shows round
       // them: the shell paints no ground.
       expect(await surface(card)).toEqual(bare);
       // (Its box starts under the bar; its words 12px further down.)

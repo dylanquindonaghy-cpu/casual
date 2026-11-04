@@ -8,17 +8,18 @@
    `rounded-lg office:rounded-row`. */
 @custom-variant office (&:where(body:has([data-office]) *));
 
-/* Design tokens (docs/ui-design.md "Phase 27.6", "Phase 26" and "Phase 24: Liquid Glass"). The
-   casual app's look is round 8's (Phase 27.6; Dylan, 2026-11-03: "casual round 8: yes, firm's
-   colour, follow the phone"): the office's own round 8 values (its blocks below, on [data-office]),
-   but for the firm's own colour (the main button, the firm's mark and its tints), the app's blue
-   and the to-do tint (hi-vis yellow is the office's alone), and still following the phone: light
-   unless the phone or the sd-theme cookie says dark. Translucent, sharp glass over a faint street
-   map on a flat ground (body::before, below), no wash and no bending. Each colour becomes
-   utilities (bg-card, text-ink-muted, border-line, bg-urgent-soft and so on). The grounds are
+/* Design tokens (docs/ui-design.md "Phase 27.7", "Phase 27.6", "Phase 26" and "Phase 24: Liquid
+   Glass"). The casual app's look is round 8's (Phase 27.6; Dylan, 2026-11-03: "casual round 8: yes,
+   firm's colour, follow the phone"): the office's own round 8 values (its blocks below, on
+   [data-office]), but for the firm's own colour (the main button, the firm's mark and its tints),
+   the app's blue and the to-do tint (hi-vis yellow is the office's alone), and still following the
+   phone: light unless the phone or the sd-theme cookie says dark. Translucent, sharp glass over a
+   plain colour (Phase 27.7, Dylan: "Yes plain colour": no pattern behind any page), no wash and no
+   bending. Each colour becomes utilities (bg-card, text-ink-muted, border-line, bg-urgent-soft and
+   so on). The grounds are
    glass: `card` (a section: a card, a list, a table, a panel), `panel` (what floats over the page),
    `raised` (a part inside a section), `track` and `pill` (a switch or row of tabs, and its chosen
-   option: the lens), each a translucent fill over the street map (`canvas` is its ground). Their
+   option: the lens), each a translucent fill over the page's plain ground (`canvas`). Their
    numbers are src/lib/tenancy/glass-grounds.ts's, from which the firm's colour is worked out, and
    every word's contrast is checked over them (tests/unit/ui.contrast.test.ts, which also holds
    these blocks to the office's). Status colours always travel with their word. These are the light
@@ -32,7 +33,7 @@
   --color-ink-press: #000000;
   --color-line: rgb(16 24 40 / 0.1); /* dividers (decorative only) */
   --color-line-strong: #6e737b; /* a field's or a switch's edge where one is drawn (3:1 on glass) */
-  --color-canvas: #f2f2f0; /* the street map's ground, under every page */
+  --color-canvas: #f2f2f0; /* the plain ground under every page (<body>'s; <html> has none) */
   --color-card: rgb(255 255 255 / 0.55); /* glass: a section (card, list, table, panel) */
   --color-sheet: rgb(255 255 255 / 0.55); /* the same, for a page-wide sheet */
   /* glass: what floats (the bars, menus, panels, the drawer, the sheet) */
@@ -258,10 +259,9 @@
 }
 
 /* The glass's own values, per theme (the depth tokens above and the glass utilities below read
-   them): how much it blurs, its rims, its drops, its gradients' ends and the street map's two
-   strengths of line (--map-line, --map-road: body::before reads --map-road from here, the page's
-   root). Round 8's, as the office's blocks below (Phase 27.6). src/lib/tenancy/glass-grounds.ts
-   holds the same numbers (tests/unit/ui.glass.test.ts). */
+   them): how much it blurs, its rims, its drops and its gradients' ends. Round 8's, as the
+   office's blocks below (Phase 27.6). src/lib/tenancy/glass-grounds.ts holds the same numbers
+   (tests/unit/ui.glass.test.ts). */
 :root {
   color-scheme: light;
   --glass-filter: blur(6px) saturate(1.15);
@@ -282,8 +282,6 @@
   --edge-fill: rgb(242 242 240 / 0.85);
   --band-from: rgb(255 255 255 / 0.6);
   --band-to: rgb(255 255 255 / 0.3);
-  --map-line: rgb(16 24 40 / 0.05);
-  --map-road: rgb(16 24 40 / 0.07);
 }
 
 /* Dark: chosen by the sd-theme cookie (data-theme on <html>, set by the server so nothing
@@ -389,8 +387,6 @@
   --edge-fill: rgb(15 15 16 / 0.85);
   --band-from: rgb(255 255 255 / 0.04);
   --band-to: rgb(255 255 255 / 0.02);
-  --map-line: rgb(255 255 255 / 0.06);
-  --map-road: rgb(255 255 255 / 0.085);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -490,8 +486,6 @@
     --edge-fill: rgb(15 15 16 / 0.85);
     --band-from: rgb(255 255 255 / 0.04);
     --band-to: rgb(255 255 255 / 0.02);
-    --map-line: rgb(255 255 255 / 0.06);
-    --map-road: rgb(255 255 255 / 0.085);
   }
 }
 
@@ -537,10 +531,11 @@ body[data-firm-colour] {
    audit, docs/mockups/round-8/): the office has its own look again (and the casual app took the same
    look in Phase 27.6, but for the firm's colour and following the phone: its blocks above). Dark by
    default (no sd-theme cookie, or a dark one), light when someone picks light: neutral
-   charcoal (or off-white), translucent and sharp glass over a faint street map (body::before
-   below), a light blur, one even 1px hairline, 12px panels and 8px rows, no gloss, no glow and no
-   shadow at rest (only what floats has one). One accent, hi-vis yellow, on the main button, the
-   switches, the firm's mark and whatever is selected (as words in light: a dark olive); one status
+   charcoal (or off-white), translucent and sharp glass over that plain colour (since Phase 27.7
+   nothing is drawn behind a page), a light blur, one even 1px hairline, 12px panels and 8px
+   rows, no gloss, no glow and no shadow at rest (only what floats has one). One accent, hi-vis
+   yellow, on the main button, the switches, the firm's mark and whatever is selected (as words in
+   light: a dark olive); one status
    code (urgent red, open amber, booked green, offered blue, hidden grey); white words on red at
    4.93:1 (the pre-build audit's aud-1: the mock-up's red was 3.91:1). The tokens are set on the office's
    own wrapper ([data-office], src/app/office/layout.tsx), so they win over <body>'s firm colours
@@ -549,11 +544,10 @@ body[data-firm-colour] {
    each of these looks, solid and with no blur too (tests/unit/ui.contrast.test.ts). Phase 27.1
    (Dylan, 2026-11-03, "+20%"; docs/mockups/round-8/launch-review-2026-11-03.md §2): in the dark
    look the panels and the side bar are a light 4% tint (were a dark 28%), the blur 3px (was 6px),
-   the edge 12% (was 10%) and what floats 70% (was 88%), so the street lines (still 8.5%, as in
-   the approved pictures) show through: more see-through, still sharp. The lighter glass lifts
-   what sits on it, so three colours are a shade lighter to keep their contrast (the contrast test
-   stacks a button on a panel on a street line): the grey words, the urgent words and a switch
-   that's off. The light look is as it was. These blocks hold every value of their own, the same as
+   the edge 12% (was 10%) and what floats 70% (was 88%): more see-through, still sharp. The lighter
+   glass lifts what sits on it, so three colours are a shade lighter to keep their contrast (the
+   contrast test stacks a button on a panel on the ground): the grey words, the urgent words and a
+   switch that's off. The light look is as it was. These blocks hold every value of their own, the same as
    the casual app's blocks above but for the brand group (hi-vis here, the firm's colour there), the
    to-do tint and the corners: the office is dark with no cookie even on a light phone, where the
    page's root is light, so its dark block can't lean on the root's (tests/unit/ui.contrast.test.ts
@@ -654,8 +648,6 @@ body[data-firm-colour] {
   --edge-fill: rgb(15 15 16 / 0.85);
   --band-from: rgb(255 255 255 / 0.04);
   --band-to: rgb(255 255 255 / 0.02);
-  --map-line: rgb(255 255 255 / 0.06);
-  --map-road: rgb(255 255 255 / 0.085);
   --radius-card: 0.75rem;
   --radius-inner: 0.75rem;
   --radius-row: 0.5rem;
@@ -756,8 +748,6 @@ body[data-firm-colour] {
   --edge-fill: rgb(242 242 240 / 0.85);
   --band-from: rgb(255 255 255 / 0.6);
   --band-to: rgb(255 255 255 / 0.3);
-  --map-line: rgb(16 24 40 / 0.05);
-  --map-road: rgb(16 24 40 / 0.07);
   --radius-card: 0.75rem;
   --radius-inner: 0.75rem;
   --radius-row: 0.5rem;
@@ -765,19 +755,11 @@ body[data-firm-colour] {
 :root:not([data-theme="light"]):has([data-office]) {
   color-scheme: dark;
   --color-canvas: #0f0f10;
-  --map-line: rgb(255 255 255 / 0.06);
-  --map-road: rgb(255 255 255 / 0.085);
 }
 :root[data-theme="light"]:has([data-office]) {
   color-scheme: light;
   --color-canvas: #f2f2f0;
-  --map-line: rgb(16 24 40 / 0.05);
-  --map-road: rgb(16 24 40 / 0.07);
 }
-
-/* (The street map behind every page, the office's and the casual app's, is body::before, below:
-   it reads --map-road from the page's root, which is why an office page's root takes the office's
-   ground and lines above.) */
 
 /* MapLibre's own parts, for the office map once it has its street map (Phase 26.2,
    src/app/office/dashboard/venue-map.tsx; the library's stylesheet isn't loaded): its canvas laid
@@ -872,7 +854,7 @@ body:has([data-office]) {
 }
 
 /* When someone asks for less transparency or more contrast, or the browser can't blur: every
-   surface solid, no street map, no blur (Apple's own fallback for Liquid Glass): round 8's solid
+   surface solid, no blur (Apple's own fallback for Liquid Glass): round 8's solid
    values, as the office's below (Phase 27.6), with the casual app's own to-do tint. The words'
    colours stay: each reads on these solid grounds as on the glass. The dark blocks switch the blur
    off again: their own --glass-filter (3px) would otherwise win over this :root's. */
@@ -943,9 +925,6 @@ body:has([data-office]) {
     --band-from: #1b1b1d;
     --band-to: #161618;
   }
-  body::before {
-    display: none;
-  }
 }
 @media (prefers-reduced-transparency: reduce) and (prefers-color-scheme: dark),
   (prefers-contrast: more) and (prefers-color-scheme: dark) {
@@ -983,8 +962,8 @@ body:has([data-office]) {
     --band-to: #161618;
   }
 }
-/* A browser that can't blur at all: every surface solid too, as above (the street map still shows
-   round them), so no word sits on see-through glass with nothing frosting what's behind it. */
+/* A browser that can't blur at all: every surface solid too, as above, so no word sits on
+   see-through glass with nothing frosting what's behind it. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   :root {
     --color-card: #ffffff;
@@ -1090,8 +1069,7 @@ body:has([data-office]) {
 }
 
 /* Round 8's office, solid: with less transparency or more contrast, or in a browser that can't
-   blur, every office surface is solid too and the street map goes (it stays round them with no
-   blur), as the app's own looks above. */
+   blur, every office surface is solid too, as the app's own looks above. */
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   :root:not([data-theme="light"]) [data-office] {
     --color-card: #161618;
@@ -1245,24 +1223,10 @@ body:has([data-office]) {
     font-variant-numeric: tabular-nums;
   }
 
-  /* Round 8's street map behind every page, the casual app's and the office's (Phase 26; the casual
-     app's since Phase 27.6, in place of round 7's wash of four coloured lights): a still picture
-     drawn once (src/app/office-streets.svg, from the mock-up's pattern; the pre-build audit's
-     aud-16), its lines in --map-road at the picture's own strength, fixed as the page scrolls,
-     under everything. It reads --map-road from <body>, so from the page's root: an office page's
-     root takes the office's lines (above). <html> has no background of its own, so <body>'s
-     ground goes to the canvas and this sits over it. Gone with less transparency or more contrast
-     (the fallback above hides it). */
-  body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    background: var(--map-road);
-    -webkit-mask: url("./office-streets.svg") center / cover no-repeat;
-    mask: url("./office-streets.svg") center / cover no-repeat;
-  }
+  /* Behind every page, the casual app's and the office's, a plain colour: <body>'s `bg-canvas`
+     (src/app/layout.tsx), charcoal or off-white. <html> has no background of its own, so <body>'s
+     fills the window. Nothing is drawn over it (Phase 27.7, Dylan: "Yes plain colour": round 8's
+     made-up street pattern is gone, as round 7's wash went before it). */
 
   /* One focus ring everywhere, shown for keyboard use. */
   :focus-visible {
@@ -1309,8 +1273,8 @@ body:has([data-office]) {
 /* --- The glass (Phase 24) ------------------------------------------------------------------ */
 
 /* A section: a card, a list, a table, a panel. Frosted: what's behind it blurred a little (round
-   8: translucent and sharp, the street map showing through), one even hairline and no drop at
-   rest. Only a section blurs; what lies inside it is clear glass. */
+   8: translucent and sharp), one even hairline and no drop at rest. Only a section blurs; what
+   lies inside it is clear glass. */
 @utility glass {
   background-color: var(--color-card);
   -webkit-backdrop-filter: var(--glass-filter);

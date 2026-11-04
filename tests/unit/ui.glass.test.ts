@@ -34,8 +34,8 @@ import { BLOCKS, block, colourTokens, css, parseColour, props } from "../helpers
 // The glass (Phase 24's parts, docs/ui-design.md "Phase 24: Liquid Glass"), in round 8's look:
 // the office's since Phase 26, the casual app's since Phase 27.6 (Dylan, 2026-11-03: "casual round
 // 8: yes, firm's colour, follow the phone"; docs/ui-design.md "Phase 27.6"). Behind every page a
-// faint street map on a flat ground (round 7's pastel wash of four lights is gone), and on it glass,
-// translucent and sharp. A section (a card, a list, a table, a row of tabs) is frosted (`glass`: it
+// plain colour (Phase 27.7: round 8's street pattern is gone, as round 7's pastel wash of four
+// lights went before it), and on it glass, translucent and sharp. A section (a card, a list, a table, a row of tabs) is frosted (`glass`: it
 // blurs what's behind it a little, with one even hairline and no drop at rest); what floats over
 // the page is the strongest glass (`glass-float`: the office's top bar on a phone, menus, the
 // drawer, the casual app's tab bar, the sheet), and nothing bends what's behind it (round 7's
@@ -44,8 +44,8 @@ import { BLOCKS, block, colourTokens, css, parseColour, props } from "../helpers
 // (`glass-tint`; hi-vis in the office), with no glow; the chosen tab or option is a lens
 // (`lens`) on a glass track. Each value is pinned here, and src/lib/tenancy/glass-grounds.ts holds
 // the same numbers (the contrast test, tests/unit/ui.contrast.test.ts, works every word out over
-// them). Where someone asks for less transparency or more contrast, every ground is solid and the
-// street map goes; where a browser can't blur, every ground is solid too. Depth is the glass's
+// them). Where someone asks for less transparency or more contrast, every ground is solid with no
+// blur; where a browser can't blur, every ground is solid too. Depth is the glass's
 // hairline (and only what floats has a drop), through variables, so the dark theme's reach the
 // classes; no other shadow anywhere.
 
@@ -93,37 +93,45 @@ const DARKS = [
 ] as const;
 
 describe("the glass's numbers: globals.css draws glass-grounds.ts's", () => {
-  // Phase 27.6: the casual app's ground is round 8's, as the office's: a flat colour and the
-  // street map's two strengths of line over it (round 7's wash and its four lights are gone).
-  it("the ground: its colour and the street map's two lines, in light and both darks", () => {
+  // Phase 27.6: the casual app's ground is round 8's, as the office's (round 7's wash and its four
+  // lights are gone). Phase 27.7 (Dylan, 2026-11-03: "Yes plain colour"): a plain colour, with no
+  // street pattern over it (its two strengths of line, --map-line and --map-road, are gone).
+  it("the ground: one plain colour, in light and both darks, with no lines over it", () => {
     const lines = ["map-line", "map-road"];
-    expect(theme().get("canvas")).toBe(written(GROUND.light.base));
+    expect(GROUND).toEqual({ light: [242, 242, 240], dark: [15, 15, 16] });
+    expect(theme().get("canvas")).toBe(written(GROUND.light));
+    expect(written(GROUND.light)).toBe("#f2f2f0");
+    expect(written(GROUND.dark)).toBe("#0f0f10");
     const root = props(block(BLOCKS.root));
-    expect(lines.map((l) => root.get(l))).toEqual(GROUND.light.lines.map(written));
+    expect(lines.filter((l) => root.has(l))).toEqual([]);
     for (const [name, pattern] of DARKS) {
       const dark = props(block(pattern));
-      expect(dark.get("color-canvas"), name).toBe(written(GROUND.dark.base));
+      expect(dark.get("color-canvas"), name).toBe(written(GROUND.dark));
       expect(
-        lines.map((l) => dark.get(l)),
+        lines.filter((l) => dark.has(l)),
         name,
-      ).toEqual(GROUND.dark.lines.map(written));
+      ).toEqual([]);
     }
-    // And the office's are the same numbers.
+    // And the office's are the same colours, with no lines either.
     for (const [theme8, pattern] of [
       ["light", BLOCKS.officeLight],
       ["dark", BLOCKS.officeDark],
     ] as const) {
       const office = props(block(pattern));
-      expect(office.get("color-canvas"), theme8).toBe(written(GROUND[theme8].base));
+      expect(office.get("color-canvas"), theme8).toBe(written(GROUND[theme8]));
       expect(
-        lines.map((l) => office.get(l)),
+        lines.filter((l) => office.has(l)),
         theme8,
-      ).toEqual(GROUND[theme8].lines.map(written));
+      ).toEqual([]);
     }
+    // No street lines anywhere in the stylesheet, set or read.
+    expect(css).not.toMatch(/--map-(?:line|road)\b/);
+    // The ground's one point is the colour itself.
+    for (const t of ["light", "dark"] as const) expect(groundPoints(t)).toEqual([GROUND[t]]);
     // No wash anywhere: none of its lights, none of its gradients.
     expect(css).not.toMatch(/--wash-|radial-gradient/);
-    // The glass's saturate() leaves round 8's grey ground as it is, point by point (so the contrast
-    // test needn't saturate it).
+    // The glass's saturate() leaves round 8's grey ground as it is (so the contrast test needn't
+    // saturate it).
     for (const t of ["light", "dark"] as const)
       for (const point of groundPoints(t)) expect(saturate(point), `${t}: ${point}`).toEqual(point);
   });
@@ -166,29 +174,24 @@ describe("the glass's numbers: globals.css draws glass-grounds.ts's", () => {
     expect(css).not.toMatch(/blur\(24px\)|blur\(18px\)|saturate\(1\.[68]\)/);
   });
 
-  // Phase 27.6: round 8's street map behind every page, the casual app's as the office's, in place
-  // of round 7's wash (one rule for both now: body::before, reading --map-road from the root).
-  it("the street map: one still picture fixed behind every page, under everything", () => {
-    const map = body("  body::before", "@layer base");
-    for (const line of [
-      'content: "";',
-      "position: fixed;",
-      "inset: 0;",
-      "z-index: -1;",
-      "pointer-events: none;",
-      "background: var(--map-road);",
-      '-webkit-mask: url("./office-streets.svg") center / cover no-repeat;',
-      'mask: url("./office-streets.svg") center / cover no-repeat;',
-    ])
-      expect(map).toContain(line);
-    // Every page's: no rule of the office's own any more, and nothing else draws behind the page.
-    expect(css).not.toMatch(/body:has\(\[data-office\]\)::before/);
-    expect(css.match(/body::before \{/g)).toHaveLength(2); // the map, and the fallback hiding it
-    // <html> has no background of its own: <body>'s ground goes to the canvas, and the map (z -1)
-    // sits over it, under everything else.
+  // Phase 27.7 (Dylan, 2026-11-03: "make the background a colour not random lines as the map isn't
+  // being used like that", "Yes plain colour"): behind every page, office and casual, the plain
+  // ground and nothing drawn over it. Round 8's street map (Phase 26; the casual app's since Phase
+  // 27.6: body::before, its lines in --map-road through a mask of src/app/office-streets.svg) is
+  // gone, picture and all, as round 7's wash went before it.
+  it("behind every page a plain colour: nothing drawn over the ground, no pattern, no mask", () => {
+    // No ::before (or ::after) on <body>, the office's or anyone's: nothing drawn behind the page.
+    expect(css).not.toMatch(/body(?:\[[^\]]*\]|:[a-z-]+\([^)]*\))*::?(?:before|after)/);
+    // No picture of streets left, nor any url() for the page to draw.
+    expect(existsSync(join(ROOT, "src/app/office-streets.svg"))).toBe(false);
+    expect(css).not.toMatch(/office-streets|url\(/);
+    // No mask over a page's ground: the only masks are the fades at a scrolling edge (ui.office-
+    // system.test.ts pins each one).
+    expect(css).not.toMatch(/(?:^|\s)(?:-webkit-)?mask:/);
+    // <html> has no background of its own: <body>'s ground goes to the canvas and fills the window.
     expect(css).not.toMatch(/(?:^|\n)\s*html[^{]*\{[^}]*background/);
-    // The page's own ground is the street map's (the root layout's <body>), and no shell paints
-    // over the map (the office's frame and the casual app's bar did, until Phase 24).
+    // The page's own ground is the plain colour (the root layout's <body>), and no shell paints
+    // over it (the office's frame and the casual app's bar did, until Phase 24).
     expect(read("src/app/layout.tsx")).toMatch(/<body[\s\S]*?className="bg-canvas /);
     expect(Object.keys(uses(/(?<![\w-])(?:[a-z0-9-]+:)*bg-canvas(?![\w-])/g))).toEqual([
       "src/app/global-error.tsx",
@@ -344,7 +347,7 @@ describe("the fallbacks", () => {
     expect(seeThrough).toEqual(TRANSLUCENT);
   });
 
-  it("less transparency or more contrast: every one solid, in light and both darks; no blur, no map", () => {
+  it("less transparency or more contrast: every one solid, in light and both darks; no blur, the same plain ground", () => {
     for (const [name, pattern] of [
       ["light", BLOCKS.solid],
       ["the cookie's dark", BLOCKS.solidDark],
@@ -363,9 +366,17 @@ describe("the fallbacks", () => {
       for (const f of ["glass-filter", "float-filter", "edge-filter"])
         expect(solid.get(f), `${pattern}: ${f}`).toBe("none");
     }
-    expect(css).toMatch(
-      /@media \(prefers-reduced-transparency: reduce\), \(prefers-contrast: more\) \{[\s\S]*?body::before \{\s*display: none;\s*\}\s*\}/,
-    );
+    // The ground stays the plain colour (no fallback changes it), and there's nothing behind the
+    // page for a fallback to hide (Phase 27.7: the street pattern and the rule hiding it are gone).
+    for (const pattern of [
+      BLOCKS.solid,
+      BLOCKS.solidDark,
+      BLOCKS.solidDeviceDark,
+      BLOCKS.officeSolidDark,
+      BLOCKS.officeSolidLight,
+    ])
+      expect(props(block(pattern)).has("color-canvas"), String(pattern)).toBe(false);
+    expect(css).not.toMatch(/::before \{\s*display: none;/);
     // The device's dark blocks agree with the cookie's.
     expect(Object.fromEntries(props(block(BLOCKS.solidDeviceDark)))).toEqual(
       Object.fromEntries(props(block(BLOCKS.solidDark))),
@@ -624,7 +635,7 @@ describe("where the glass goes", () => {
     expect(uses(/(?<![\w-])(?:[a-z0-9-]+:)*bg-(?:card|sheet)(?![\w-])/g)).toEqual({});
   });
 
-  it("the office's page has no card of its own: its sections are glass on the street map", () => {
+  it("the office's page has no card of its own: its sections are glass on the plain ground", () => {
     const frame = read("src/app/office/office-frame.tsx").replace(/^\s*\{?\/[/*].*$/gm, "");
     const page = /id="main"[\s\S]*?<div className="([^"]+)">/.exec(frame)?.[1];
     expect(page).toBe("flex-1");

@@ -3,7 +3,8 @@ import { join } from "node:path";
 import { SATURATE, over, saturate, type Rgb, type Rgba } from "@/lib/tenancy/glass-grounds";
 
 // The looks src/app/globals.css draws (round 8: Phase 26 in the office, Phase 27.6 in the casual
-// app; docs/ui-design.md "Phase 27.6"), read back as numbers for the look tests
+// app, its plain ground since Phase 27.7; docs/ui-design.md "Phase 27.7" and "Phase 27.6"), read
+// back as numbers for the look tests
 // (tests/unit/ui.glass.test.ts, ui.contrast.test.ts): each block's colour tokens and glass
 // variables, the fallbacks laid over them (less transparency or more contrast, and a browser that
 // can't blur: solid), and every ground a word can sit on in each look.
@@ -99,8 +100,8 @@ const brighten = (c: Rgb): Rgb => c.map((v) => Math.min(255, Math.round(v * BRIG
 const rgbOnly = (c: Rgba): Rgb => [c[0], c[1], c[2]];
 
 // One look: its colour tokens and glass variables (the theme's, with any fallback laid over them),
-// the points of the page behind the glass (the ground, and the street map's lines over it), and
-// whether the glass's backdrop saturates them.
+// the points of the page behind the glass (since Phase 27.7 one: the plain ground), and whether
+// the glass's backdrop saturates them.
 export interface Look {
   name: string;
   colours: Map<string, Rgba>;
@@ -123,24 +124,20 @@ const colourOnly = (m: Map<string, string>) =>
 const solidOnly = (m: Map<string, string>) =>
   new Map([...m].filter(([k]) => !k.startsWith("color-")));
 
-// Behind round 8's glass there is no wash (round 7's four coloured lights, gone in Phase 27.6) but
-// a faint street map on a flat ground: the ground itself, and its lines at both strengths
-// (--map-line, --map-road); solid, the ground alone (the map goes). Its greys don't change under
-// the glass's saturate(1.15) (tests/unit/ui.glass.test.ts checks each point), so nothing is
-// saturated.
-function streetMap(vars: Map<string, string>, ground: Rgba, look: string): Rgb[] {
-  const g = rgbOnly(ground);
-  const line = (name: string) => {
-    const c = parseColour(vars.get(name));
-    if (!c) throw new Error(`${look}: no colour in --${name}`);
-    return over(c, g);
-  };
-  return [g, line("map-line"), line("map-road")];
+// Behind round 8's glass there is no wash (round 7's four coloured lights, gone in Phase 27.6) and,
+// since Phase 27.7 (Dylan: "Yes plain colour"), no street pattern (its two strengths of line,
+// --map-line and --map-road, are gone): the page's plain ground alone, in every look. It must be
+// opaque (nothing is under it). Its grey doesn't change under the glass's saturate(1.15)
+// (tests/unit/ui.glass.test.ts checks it), so nothing is saturated.
+function plainGround(canvas: Rgba | undefined, look: string): Rgb[] {
+  if (!canvas) throw new Error(`${look}: no colour token canvas`);
+  if (canvas[3] !== 1) throw new Error(`${look}: the canvas isn't opaque`);
+  return [rgbOnly(canvas)];
 }
 
 // A theme's three looks: as drawn; solid (less transparency or more contrast: every ground solid,
-// the map gone, no blur); and with no blur (a browser that can't: every ground solid too, the map
-// still round them). `tokens` and `vars` are the theme's own; the fallbacks' lie over them.
+// no blur); and with no blur (a browser that can't: every ground solid too). Each over the plain
+// ground. `tokens` and `vars` are the theme's own; the fallbacks' lie over them.
 function threeLooks(
   name: string,
   tokens: Map<string, string>,
@@ -156,21 +153,21 @@ function threeLooks(
       name,
       colours,
       vars,
-      ground: streetMap(vars, colours.get("canvas")!, name),
+      ground: plainGround(colours.get("canvas"), name),
       saturates: false,
     },
     {
       name: `${name}, solid`,
       colours: solidColours,
       vars: merge(vars, solidOnly(solid)),
-      ground: [rgbOnly(solidColours.get("canvas")!)],
+      ground: plainGround(solidColours.get("canvas"), `${name}, solid`),
       saturates: false,
     },
     {
       name: `${name}, no blur`,
       colours: clearColours,
       vars: merge(vars, solidOnly(clear)),
-      ground: streetMap(vars, clearColours.get("canvas")!, `${name}, no blur`),
+      ground: plainGround(clearColours.get("canvas"), `${name}, no blur`),
       saturates: false,
     },
   ];
@@ -263,9 +260,8 @@ function base(look: Look): { section: Rgb[]; float: Rgb[] } {
 
 // Every ground at `where` (a token, or one of PLACES) in a look: a section (`card`, `sheet`) over
 // each point of the ground (saturated by its filter where the look says so), and over what floats;
-// what floats (`panel`) over the ground; the page itself (`canvas`) is the ground and the street
-// map's lines over it; a translucent part inside either takes each of those under it; a solid token
-// is itself.
+// what floats (`panel`) over the ground; the page itself (`canvas`) is the plain ground; a
+// translucent part inside either takes each of those under it; a solid token is itself.
 export function grounds(look: Look, where: string, brand?: Rgb): Ground[] {
   const colour = (name: string) => {
     const c = look.colours.get(name);

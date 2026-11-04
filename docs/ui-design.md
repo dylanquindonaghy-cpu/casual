@@ -1,7 +1,8 @@
 # UI design system
 
 How every screen looks and is laid out. Added 2026-10-05 (Phase 11) at Dylan's request: "make it a
-lot easier to see and understand where everything is". The newest look is first: "Phase 27.6"
+lot easier to see and understand where everything is". The newest look is first: "Phase 27.7" (a
+plain colour behind every page), "Phase 27.6"
 (the casual app in round 8's look), "Phase 26" (round 8, the office's first), "Phase 24" (the glass's
 parts, which round 8 keeps, and round 7's wash and values, now replaced); the sections after them are
 the earlier phases, kept for their reasons where they still stand.
@@ -19,16 +20,45 @@ Principles, in order:
 4. **Colour is never the only signal.** Every coloured status carries its word. Contrast meets
    WCAG AA (text 4.5:1, borders and controls 3:1).
 5. **Glass, and nothing else for decoration** (Phase 24's parts, in round 8's look: translucent
-   and sharp glass over a faint street map, the office's since Phase 26 and the casual app's since
-   Phase 27.6). Sections, buttons and what floats are translucent glass over one flat ground with
-   the street map, in the office and the casual app alike; no grain, glows, coloured shadows or
-   images but the map. Motion only to show what changed, as Phase 18's spec (below), and press
+   and sharp glass over a plain colour, the office's since Phase 26 and the casual app's since
+   Phase 27.6; the plain colour since Phase 27.7). Sections, buttons and what floats are
+   translucent glass over one plain ground, in the office and the casual app alike; no pattern
+   behind the page, no grain, glows, coloured shadows or images. Motion only to show what changed, as Phase 18's spec (below), and press
    feedback. The firm's colour tints the one main button in the casual app and marks where you are,
    never a status (the office's main button is hi-vis). One face, Geist, for every word, headline and
    number (keys and secrets on Integrations keep the system's mono). Phase 23's flat white cards
    and the office's own colours and face are gone.
 6. **Works without JavaScript** where pages already do (server-action forms, `<details>`
    confirmations, GET filter forms, anchor links).
+
+## Phase 27.7: a plain colour behind every page
+
+Dylan, 2026-11-03: "make the background a colour not random lines as the map isn't being used like
+that", then "Yes plain colour", and "plain background: yes" on the mock-up
+(https://claude.ai/artifact/6z1cJpFyTZ5V7PtDh8HxKH). The made-up street pattern behind every page
+(round 8's, the office's since Phase 26 and the casual app's since Phase 27.6) is gone.
+
+- **Behind every page, office and casual app:** the plain page colour and nothing drawn over it:
+  charcoal `#0f0f10` in dark, off-white `#f2f2f0` in light (`--color-canvas`, `<body>`'s
+  `bg-canvas`; `<html>` has no background of its own, so `<body>`'s fills the window). No pattern,
+  no mask, no picture, no other decoration in its place.
+- **What went:** the `body::before` rule that drew the pattern, its picture
+  (`src/app/office-streets.svg`, deleted), its two strengths of line (`--map-line`, `--map-road`)
+  in every block (the casual app's, the office's and the office page's root), and the rule that
+  hid it with less transparency or more contrast (nothing is left to hide).
+- **What doesn't change:** the glass, menus, buttons, sizes, words and layout, light and dark, and
+  the solid looks. The dashboard's own map (`src/app/office/dashboard/venue-map.tsx`) is separate:
+  with the firm's map file it draws real streets; without one its pins sit on its glass, now over
+  the plain ground.
+- **Contrast:** the grounds are the plain ground alone in all twelve looks
+  (`tests/helpers/theme-css.ts`, `src/lib/tenancy/glass-grounds.ts`), so a section has two points
+  under it (over the ground, and over what floats over it) where it had six. Every pair still meets
+  its minimum (`tests/unit/ui.contrast.test.ts`); no threshold changed and no app colour changed.
+- **The firm's colour moves a little:** `firmPalette` works it out over the plain ground, which
+  needs less darkening (light) or lightening (dark) than the street lines did. Acme's blue as words
+  and on the main button is its own `#1d4ed8` now (was `#1b49cb`), its shade `#1840b1` (was
+  `#163ca6`), in dark `#b0c1f1` (was `#ccd7f6`); Northline's teal `#0e6f67` (was `#0c625b`), its
+  shade `#0c5b55` (was `#0a504b`), in dark `#a6ccc9` (was `#c1dcda`). Their bands are as they are.
 
 ## Phase 27.6: the casual app in round 8's look
 
@@ -58,12 +88,11 @@ and bending glass are gone from the whole app.
   rule, in the office since Phase 26; `--tint-glow` went with it).
 - **Following the phone.** Light unless the phone or the `sd-theme` cookie says dark, as before
   (the office stays dark by default).
-- **The street map behind every page** (`body::before`, one rule for the whole app now): the
-  office's still picture (`src/app/office-streets.svg`) in `--map-road`, fixed, under everything,
-  in place of the wash; it reads `--map-road` from the page's root (light or dark), and `<html>` has
-  no background of its own so `<body>`'s ground reaches the canvas under it. Gone with less
-  transparency or more contrast (every surface solid, round 8's solid values), still there with no
-  blur.
+- **The street map behind every page** (gone since Phase 27.7, above: a plain colour now). It was
+  `body::before`, one rule for the whole app: the office's still picture
+  (`src/app/office-streets.svg`) in `--map-road`, fixed, under everything, in place of the wash,
+  gone with less transparency or more contrast. `<html>` still has no background of its own, so
+  `<body>`'s ground fills the window.
 - **No bending.** Round 7's refraction (`src/app/glass-refraction.tsx`, the `#lg-refract` SVG filter
   in the root layout and the `.rf` class it put on `<html>` in Chromium) is removed, not just
   unused: round 8's glass is sharp everywhere.
@@ -71,9 +100,10 @@ and bending glass are gone from the whole app.
   14 · 16 · 18 · 20 · 28 · 44px: the office's smaller ones stay in `body:has([data-office])`) and its
   corners (24px pages, 22px sections, 14px rows: the office's 12px and 8px are its own).
 - **The firm's colour on the new glass.** `firmPalette` works the firm's colour out against round
-  8's grounds now (`src/lib/tenancy/glass-grounds.ts`: the flat ground and the street map's two
+  8's grounds now (`src/lib/tenancy/glass-grounds.ts`: then the flat ground and the street map's two
   lines), so it needs less darkening: Acme's blue as words and on the button is `#1b49cb` (was
   `#1a45bf` on the wash), Northline's teal `#0c625b` (was `#0c5c56`); their bands are as they are.
+  (Phase 27.7's plain ground moved them again: above.)
 
 ## Phase 26: round 8, the office after Haulix
 
@@ -97,26 +127,28 @@ colour (above). What round 8 doesn't change (the parts, the spacing, the motion)
   main button (flat: no shade, no glow), the switches, the firm's mark, your initials, what's
   selected (as words on the light look, a dark olive `#4a5200`). One status code: urgent red, open
   amber, booked green, offered blue, hidden grey. White words on red at 4.93:1 (`#d13438`; aud-1).
-- **Glass, translucent and sharp:** sections a see-through fill (`rgb(22 22 24 / 0.28)` dark) over a
-  faint street map, blurred 6px; what floats (menus, the drawer, the bar below 1024px) 88% with a
-  12px blur and the only drop; one even 1px hairline (10% white, or 10% ink on light) instead of a
+- **Glass, translucent and sharp:** sections a see-through fill (`rgb(22 22 24 / 0.28)` dark) over
+  the ground (then a faint street map; a plain colour since Phase 27.7), blurred 6px; what floats
+  (menus, the drawer, the bar below 1024px) 88% with a 12px blur and the only drop; one even 1px hairline (10% white, or 10% ink on light) instead of a
   lit rim; no gloss, sheen, glow or bending (round 7's refraction was off in the office, and is
   gone from the whole app since Phase 27.6); 12px panels, 8px rows. **Phase 27.1** (Dylan, 2026-11-03, "+20%"; `docs/mockups/round-8/launch-review-2026-11-03.md`
   §2, screenshots `docs/mockups/round-8/built/27.1-glass-*`): on the dark look, sections and the
   side bar a light see-through fill (`rgb(255 255 255 / 0.04)`) blurred 3px, a 12% hairline, and
-  what floats 70%, so the street map's lines show through; the grey words (`#bfbfc4`), the urgent
+  what floats 70%, more see-through; the grey words (`#bfbfc4`), the urgent
   words (`#ffa299`) and a switch that's off (`#818186`) a shade lighter to keep their contrast on
   the lighter glass. The light look is unchanged.
-- **The street map:** one still picture (`src/app/office-streets.svg`, from the mock-up's pattern)
-  behind every office page as `<body>`'s `::before`, its lines in `--map-line` and `--map-road`
-  (6% and 8.5% white; 5% and 7% ink on light); drawn once, fixed as the page scrolls (aud-16).
-  Since Phase 27.6 the same rule draws it behind every casual page too.
-- **Less transparency, more contrast, or no blur:** every office surface solid; with the first two
-  the street map goes too.
+- **Behind every page:** a plain colour, charcoal `#0f0f10` or off-white `#f2f2f0`, with nothing
+  drawn over it since Phase 27.7 (above). Round 8 first had a still picture of made-up streets
+  there (`src/app/office-streets.svg`, from the mock-up's pattern, aud-16: `<body>`'s `::before`,
+  its lines in `--map-line` and `--map-road`, behind the casual pages too from Phase 27.6); the
+  picture, the rule and its lines are deleted.
+- **Less transparency, more contrast, or no blur:** every office surface solid, on the same plain
+  ground.
 - **Type** (aud-3): 12 · 13 · 14 · 16 · 20 · 30px in the office, nothing under 12px; words 14px, a
   section's title 16px, a page's headline 30px semibold.
 - **Contrast:** checked pair by pair in six office looks (dark and light, each also solid and with
-  no blur) over the ground and both strengths of the map's lines (`tests/unit/ui.contrast.test.ts`).
+  no blur) over the plain ground (`tests/unit/ui.contrast.test.ts`; over both strengths of the
+  street map's lines too until Phase 27.7).
 - **The shell:** the rail section glass, shut icons dark circles (`glass-button`), the page you're on
   a solid white circle (`bg-ink`, its icon `text-on-ink`); the top bar's counts separate 44px chips
   (their icons from a 1344px bar), the search a flat 44px pill, you with no capsule; below 1024px
@@ -187,7 +219,7 @@ the build differs. This section is the system (task 24.1); the pages take its pa
 - **Contrast over glass.** A word on glass sits on whatever shows through, so a pair is checked
   over every ground the glass can show (`src/lib/tenancy/glass-grounds.ts`,
   `tests/helpers/theme-css.ts`; since Phase 27.6 over round 8's flat ground and the street map's
-  two lines in place of the wash's points): a section over each of 15 points of the wash (its
+  two lines in place of the wash's points, and since Phase 27.7 over the plain ground alone): a section over each of 15 points of the wash (its
   base, its four lights, and halfway between each two), the wash saturated as the browser does it (measured in
   Chromium: the Filter Effects matrix on the screen's own values, to the unit), and a section over
   what floats; what floats over the wash; a tile's and a clear button's gradients, both ends, the
@@ -745,7 +777,7 @@ its to-do tint and its corners, and it's dark by default: "Phase 26").
 | `ink` / `ink-muted` / `ink-faint` | `#17181a` / `#55585f` / `#5d6067` | `#f4f4f3` / `#bfbfc4` / `#9d9da2` | Words; grey words (labels, meta lines, a table's headings); the faintest (a group's name over the menu, a chart's ticks). Each reads at 4.5:1 on every point of the glass, in every look |
 | `ink-hover` / `on-ink` / `ink-press` | `#2b2e33` / `#ffffff` / `#000000` | `#ffffff` / `#0f0f10` / `#ffffff` | An ink fill (a chart's tooltip and its "now" day, the firm bar's count) under the pointer, the words on it, pressed |
 | `line` / `line-strong` | `rgb(16 24 40 / 0.1)` / `#6e737b` | `rgb(255 255 255 / 0.1)` / `#7c7c82` | A faint divider between rows (decorative); a field's or a switch's edge where one is drawn (3:1 on the glass) |
-| `canvas` | `#f2f2f0` | `#0f0f10` | The ground under every page, with the street map's lines over it (`--map-line`, `--map-road`: "Phase 27.6" above); words straight on it, such as a page's headline, read on the ground and on both lines |
+| `canvas` | `#f2f2f0` | `#0f0f10` | The plain ground under every page, with nothing drawn over it ("Phase 27.7" above); words straight on it, such as a page's headline, read on it |
 | `card` / `sheet` | `rgb(255 255 255 / 0.55)` / `rgb(255 255 255 / 0.55)` | `rgb(255 255 255 / 0.04)` / `rgb(255 255 255 / 0.04)` | Glass: a section (a card, a list, a table, a row of tabs), frosted (`glass`) |
 | `panel` | `rgb(255 255 255 / 0.92)` | `rgb(24 24 26 / 0.7)` | Glass: what floats over the page (the office's top bar, its menus, the drawer, a chart's panel; the casual app's tab bar, Take shift's bar, the sheet), the strongest (`glass-float`) |
 | `raised` | `rgb(16 24 40 / 0.03)` | `rgb(255 255 255 / 0.03)` | Clear glass inside a section: a weekend's column, a bar's track, a skeleton's bars, a row under the pointer, the waiting plate |

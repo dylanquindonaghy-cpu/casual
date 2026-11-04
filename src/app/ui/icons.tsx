@@ -268,6 +268,11 @@ const PATHS = {
     <path d="M5 3.5h4l2 5-2.5 1.5a11 11 0 0 0 5.5 5.5L15.5 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 5.5a2 2 0 0 1 2-2z" />
   ),
   plus: <path d="M12 5v14M5 12h14" />,
+  minus: <path d="M5 12h14" />,
+  // The dashboard map's buttons (Phase 27.4): its list of sessions to offer, and back to every
+  // venue (four corners).
+  list: <path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01" />,
+  corners: <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />,
   eye: (
     <>
       <path d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7z" />

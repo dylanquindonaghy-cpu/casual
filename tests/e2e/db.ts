@@ -192,15 +192,21 @@ export async function addEventWithSession(
     // Where its venue is (round 8's map, Phase 26.2): none by default, as a venue with no postcode.
     point?: { lat: number; lng: number };
     headcount?: number; // its places (1 by default)
+    // More sessions of the same event at the same venue (Phase 27.4's "1 of 2"), each this many days
+    // from now; every session's id in `shiftIds`, the first (`daysAhead`'s) first.
+    also?: number[];
   },
-): Promise<{ eventId: string; shiftId: string }> {
+): Promise<{ eventId: string; shiftId: string; shiftIds: string[] }> {
   const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
   try {
     const { rows } = await pool.query<{ db: string }>("select current_database() as db");
     if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
     const firmId = seedId(`firm/${slug}`);
-    const startsAt = new Date(Date.now() + o.daysAhead * 86_400_000);
-    startsAt.setUTCMinutes(0, 0, 0);
+    const startOf = (days: number) => {
+      const at = new Date(Date.now() + days * 86_400_000);
+      at.setUTCMinutes(0, 0, 0);
+      return at;
+    };
     return await createWithFirm(pool)(firmId, async (tx) => {
       const [site] = await tx
         .insert(sites)
@@ -212,23 +218,28 @@ export async function addEventWithSession(
         .returning({ id: sites.id });
       if (!site) throw new Error("site insert returned nothing");
       const eventId = await createNamedEvent(tx, { name: o.name, siteId: site.id });
-      const [row] = await tx
-        .insert(shifts)
-        .values({
-          firmId,
-          siteId: site.id,
-          shiftEventId: eventId,
-          role: o.role,
-          startsAt,
-          endsAt: new Date(startsAt.getTime() + (o.hours ?? 8) * 3_600_000),
-          headcount: o.headcount ?? 1,
-          status: "open",
-          isUrgent: o.urgent ?? false,
-          source: "native",
-        })
-        .returning({ id: shifts.id });
-      if (!row) throw new Error("shift insert returned nothing");
-      return { eventId, shiftId: row.id };
+      const shiftIds: string[] = [];
+      for (const days of [o.daysAhead, ...(o.also ?? [])]) {
+        const startsAt = startOf(days);
+        const [row] = await tx
+          .insert(shifts)
+          .values({
+            firmId,
+            siteId: site.id,
+            shiftEventId: eventId,
+            role: o.role,
+            startsAt,
+            endsAt: new Date(startsAt.getTime() + (o.hours ?? 8) * 3_600_000),
+            headcount: o.headcount ?? 1,
+            status: "open",
+            isUrgent: o.urgent ?? false,
+            source: "native",
+          })
+          .returning({ id: shifts.id });
+        if (!row) throw new Error("shift insert returned nothing");
+        shiftIds.push(row.id);
+      }
+      return { eventId, shiftId: shiftIds[0]!, shiftIds };
     });
   } finally {
     await pool.end();

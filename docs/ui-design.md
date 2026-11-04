@@ -63,16 +63,39 @@ the key's words, the credit and the plain map without a file are as they were.
   soft edge, names dark on a `#f6f5f2` halo (towns `#1d1e22`, streets `#5d5f66`/`#45474e`). Every
   name at least 4.5:1 on its halo and on the land, in both looks (the regions', country's and
   water's names lifted from the flavour's own, which were fainter).
-- **Zoom buttons,** MapLibre's NavigationControl without its compass, top right, 12px in: in the
-  key's look (the panel's fill, the line's 1px edge, 8px corners; no blur and no drop, which round
-  8 keeps for the glass and what floats over the page), two 44px buttons with a line between, the
-  + and − drawn in the words' colour as two bars (borders, so forced colours draw them too; no
-  image), hover and press fills from the button tokens, the office's focus ring, greyed when
-  there's no further to go; rules in `globals.css` "MapLibre's own parts" (the library's
-  stylesheet isn't loaded). The key moves left of them on the streets (`right-16.5`: 12px in, the
-  buttons' 46px with their edge, 8px apart), and no pin's label goes under either. Zoom from the
-  whole UK to each building (`maxZoom: 18`; the fit to the venues still stops at 13). Drag, Ctrl +
-  scroll and two fingers as before; still no turning.
+- **Zoom buttons,** top right, 12px in: two 44px buttons with a line between, greyed when there's no
+  further to go, each one zoom step. Zoom from the whole UK to each building (`maxZoom: 18`; the fit
+  to the venues still stops at 13). Drag, Ctrl + scroll and two fingers as before; still no
+  turning. (27.8 built them as MapLibre's NavigationControl in the key's look; since Phase 27.4
+  they're the office's own, among the map's buttons below.)
+
+## Phase 27.4: the map you can use
+
+Dylan, 2026-11-04, "map you can use: yes", on `docs/mockups/round-8/27.4-map/index.html`
+(`src/app/office/dashboard/venue-map.tsx`, `board.tsx`; the free part, the labels and the stepper's
+rules in `src/lib/office/venue-map-geo.ts`; the words in `dashboard-map-copy.ts`).
+
+- **The map's buttons:** one column top right, 12px in, 8px apart, each 44px of floating glass
+  (`glass-float`: what floats over the map, as the card), 12px corners, an icon in the words'
+  colour (the office's `Icon`: list, + and −, four corners), the office's focus ring: the list
+  (pressed: the accent's fill), the zoom's two joined in one piece, "Back to every venue". MapLibre's
+  own control and its rules in `globals.css` are gone. The key sits left of them from 640px
+  (`right-16`: 12px in, 44px, 8px apart) and top left on a phone, clear of them.
+- **Sizes:** the map 600px tall where the card floats (from 1024px of page), 380px below. The card
+  as tall as the map less 12px each end, scrolling inside only if it must. To offer's list 352px
+  wide, 56px from the top (under the key) and 64px from the right (left of the buttons), clear of
+  the credit at the foot, scrolling inside.
+- **Moving:** a pick eases the street map to the venue in 700ms (at once with reduced motion), to
+  zoom 13 at least, into the free part (MapLibre's own padding: 40px right of the card, 30px left
+  of the open list or 90px in from the right, 70px from the top, 50px from the foot; on a phone
+  56, 70, 36 and 36), never more than four fifths of the map.
+- **Names on pins:** the chosen pin's always shows (beside it, else under or over it, moved sideways
+  to stay inside and clear of the key and the buttons) and sits over its neighbours; on a phone it's
+  the only one. A name that isn't shown keeps its size (hidden, not removed), so the page can
+  measure where each would go.
+- **The card's stepper:** a row at the card's top, a line under it: two round 44px arrows of clear
+  glass (off at the ends: faded, still focusable) either side of "{venue} · 1 of 2", the venue in
+  the words' colour and weight, the rest muted.
 - **The file:** the detail is in the map file (zoom 15, about 2.99 GB for the UK: `docs/runbooks.md`
   "The street map"); with today's zoom-13 file the map zooms in all the same, softer past 13.
 

@@ -543,9 +543,17 @@ describe("where the glass goes", () => {
       // (Phase 26): the rail is section glass, the counts chips, the search a flat pill and you no
       // capsule: nothing floats there at rest.
       // The dashboard's Filter menu and its date choice (Phase 26.3), and its session card over the
-      // map (its error, its "nothing to fill" and itself: round 8, Phase 26.2).
+      // map (its error, its "nothing to fill" and itself: round 8, Phase 26.2), and To offer as
+      // the list on the map (Phase 27.4).
       "src/app/office/dashboard-view.tsx": ["glass-float", "glass-float"],
-      "src/app/office/dashboard/board.tsx": ["glass-float", "glass-float", "glass-float"],
+      "src/app/office/dashboard/board.tsx": [
+        "glass-float",
+        "glass-float",
+        "glass-float",
+        "glass-float",
+      ],
+      // The map's own buttons over the streets (Phase 27.4): each one, and the zoom's pair joined.
+      "src/app/office/dashboard/venue-map.tsx": ["glass-float", "glass-float"],
       "src/app/office/office-frame.tsx": ["glass-float", "glass-float", "max-lg:glass-float"],
       "src/app/office/office-search.tsx": ["glass-float"],
       "src/app/office/events/session-menu.tsx": ["glass-float"], // a session's menu

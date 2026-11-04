@@ -1144,9 +1144,14 @@ https://claude.ai/artifact/9GPXjLG2NXmz4FvbMXBdiu (sections 1, 2 and 6).
 - [ ] The dashboard map you can use: the map as the dashboard's top with the chosen session's card on
       it, a pin moves the map and shows its sessions ("1 of 3"), the tabs, Filter and the list move
       the map back, "To offer" as a list on the map, zoom and reset buttons, the page behind plain
-      charcoal; a mock-up on the real streets first (after 27.3) (review §3; UI) (27.4)
+      charcoal; a mock-up on the real streets first (after 27.3) (review §3; UI) (27.4). The mock-up,
+      second version (2026-11-04, on 27.8's map and 27.7's plain background, the demo's real sessions):
+      https://claude.ai/artifact/4me37c3qAbQQDdwMAviqh9; waits for Dylan's yes
+      (`docs/plan/decisions-waiting.md` 14)
 - [ ] The layout changes: words on the icon-only buttons, the phone map's key, the card's booked bar,
-      the casual's "To do" row; a mock-up first (review §5 "Layout changes"; UI) (27.5)
+      the casual's "To do" row; a mock-up first (review §5 "Layout changes"; UI) (27.5). The mock-up
+      (2026-11-04, the real app before and after): https://claude.ai/artifact/SrqZifsSRB2MLsM1fZafLN;
+      waits for Dylan's yes (`docs/plan/decisions-waiting.md` 15)
 - [x] The casual app in round 8's look: the office's ground, faint street map and sharp glass (no
       wash, no bending) on every casual page, in light and dark as the phone is set, with the firm's
       own colour on the main button and its mark; the casual's own sizes, words and layout kept;

@@ -1,0 +1,179 @@
+<title>Layout Changes Mock-up</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500&display=swap">
+<style>
+/* Layout: the office's own ground and glass (round 8), dark first; one section per change, each a
+   before and after pair at the real sizes (a laptop at 1280 and 150%, a phone at 390). */
+:root {
+  color-scheme: dark;
+  --ground: #0f0f10;
+  --ink: #f4f4f3;
+  --muted: #bfbfc4;
+  --faint: #9d9da2;
+  --rim: rgb(255 255 255 / 0.12);
+  --card: rgb(255 255 255 / 0.04);
+  --tint: #e9f86f;
+  --on-tint: #171800;
+  --was: #ffa299;
+  --now: #8fe28c;
+  --font: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --ground: #f2f2f0; --ink: #17181a; --muted: #55585f; --faint: #5d6067;
+    --rim: rgb(16 24 40 / 0.1); --card: rgb(255 255 255 / 0.55); --was: #b0201f; --now: #166534;
+  }
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --ground: #f2f2f0; --ink: #17181a; --muted: #55585f; --faint: #5d6067;
+  --rim: rgb(16 24 40 / 0.1); --card: rgb(255 255 255 / 0.55); --was: #b0201f; --now: #166534;
+}
+:root[data-theme="dark"] { color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--ground); color: var(--ink); font: 400 15px/1.55 var(--font); }
+.wrap {
+  max-width: 82rem; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 2rem 4rem;
+  display: flex; flex-direction: column; gap: 2rem;
+}
+header { display: flex; flex-direction: column; gap: 0.6rem; max-width: 54rem; }
+.eyebrow { font: 500 0.75rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); }
+h1 { font: 700 clamp(1.8rem, 4.5vw, 2.6rem)/1.1 var(--font); letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+h2 { font: 600 1.35rem/1.25 var(--font); margin: 0; text-wrap: balance; }
+h3 { font: 600 1.02rem/1.3 var(--font); margin: 0; }
+p { margin: 0; max-width: 70ch; }
+.muted { color: var(--muted); }
+.change { background: var(--card); box-shadow: inset 0 0 0 1px var(--rim); border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+.change > header { gap: 0.4rem; max-width: none; }
+.tag { align-self: flex-start; font: 500 0.72rem/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); }
+.why { display: grid; grid-template-columns: auto 1fr; gap: 0.35rem 0.75rem; font-size: 0.95rem; }
+.why b { font-weight: 600; }
+.why .was { color: var(--was); }
+.why .now { color: var(--now); }
+.pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.9rem; }
+.pair.phones { grid-template-columns: repeat(2, minmax(0, 270px)); }
+.pair.real { grid-template-columns: repeat(2, minmax(0, 400px)); }
+.quad { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.9rem; align-items: start; }
+figure { margin: 0; display: flex; flex-direction: column; gap: 0.45rem; min-width: 0; }
+figure img { width: 100%; height: auto; border-radius: 10px; box-shadow: 0 0 0 1px var(--rim); display: block; }
+figcaption { font-size: 0.85rem; color: var(--faint); display: flex; gap: 0.5rem; align-items: baseline; flex-wrap: wrap; }
+figcaption b { font: 600 0.72rem/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; padding: 4px 7px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--rim); color: var(--muted); }
+figcaption b.after { background: var(--tint); color: var(--on-tint); box-shadow: none; }
+.note { border-left: 3px solid var(--rim); padding: 0.1rem 0 0.1rem 0.9rem; color: var(--muted); font-size: 0.93rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.note figure { max-width: 520px; }
+.next { border-left: 3px solid var(--tint); padding: 0.2rem 0 0.2rem 1rem; }
+ul.summary { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: 0.35rem; color: var(--muted); }
+ul.summary b { color: var(--ink); font-weight: 600; }
+@media (max-width: 900px) { .quad { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .pair { grid-template-columns: 1fr; } .pair.phones { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">ShiftDesk · Phase 27.5 mock-up · 4 Nov 2026</span>
+    <h1>The layout changes</h1>
+    <p class="muted">The four "Layout changes" from the launch review. Each picture is the real app with the demo's data, at your real sizes (a laptop at 1280 wide and 150%, a phone at 390). "After" is the same page with only that change made, so everything else is exactly as built. Nothing here is built yet.</p>
+    <ul class="summary">
+      <li><b>Names on the icon-only buttons</b>: the menu, "Offer", "More" and the bell.</li>
+      <li><b>The session card</b>: the bar that looked like a countdown goes, and "Urgent" is said once.</li>
+      <li><b>The phone map</b>: the key and the chosen venue's name (comes with 27.4).</li>
+      <li><b>The casual app's to-do</b>: a camera, not initials, and "To do" on Profile.</li>
+    </ul>
+  </header>
+
+  <section class="change" aria-labelledby="c1">
+    <header>
+      <span class="tag">Office · laptop</span>
+      <h2 id="c1">The menu: each page's name under its icon</h2>
+      <p class="muted">Today the menu at laptop size is icons only, and you have to hover to find out what each one is.</p>
+    </header>
+    <div class="why"><b class="was">Before</b><span>Icons only. Names show only when you hover, or after you open the menu with its own button.</span><b class="now">After</b><span>The same menu with each page's name under its icon, in the same words as the open menu. It is 16px wider, so the dashboard keeps its layout. On a short screen the menu scrolls on its own. The open menu with full names stays one press away.</span></div>
+    <div class="pair">
+      <figure><img src="img/office-top-laptop-before.jpg" alt="Today: the office dashboard on a laptop, with an icon-only menu down the left" width="1920" height="1200"><figcaption><b>Before</b> Laptop, today</figcaption></figure>
+      <figure><img src="img/office-top-laptop-after.jpg" alt="After: the same dashboard, each menu icon with its name under it: Dashboard, Updates, Needs attention, Events &amp; sessions, Enquiries, Cancellations, Pay, People" width="1920" height="1200"><figcaption><b class="after">After</b> Laptop, names under the icons</figcaption></figure>
+    </div>
+    <div class="note">
+      <p>Why not open the full menu by default (the review's first idea)? At 1280 wide it takes 164px more, the dashboard gets too narrow for the card to sit on the map, and the card drops under it:</p>
+      <figure><img src="img/office-top-laptop-railopen.jpg" alt="The full menu open at laptop size: the card no longer floats on the map but sits under it" width="1920" height="1200" loading="lazy"><figcaption>The full menu open by default, for comparison (not proposed)</figcaption></figure>
+      <p>On a phone nothing changes: the Menu button already lists every page by name.</p>
+    </div>
+  </section>
+
+  <section class="change" aria-labelledby="c2">
+    <header>
+      <span class="tag">Office · laptop and phone</span>
+      <h2 id="c2">"Offer", "More" and "1 new" in words</h2>
+      <p class="muted">Three buttons that are only an icon today: the paper plane on each "To offer" row, the "…" on a session, and the bell's red number.</p>
+    </header>
+    <div class="why"><b class="was">Before</b><span>A paper plane, three dots, and a bare "1" on the bell.</span><b class="now">After</b><span>"Offer" beside the plane, "More" beside the dots, and "1 new" beside the bell (just the bell when nothing is new). Each button keeps its place and its 44px size or more.</span></div>
+    <h3>The "To offer" list</h3>
+    <div class="pair real">
+      <figure><img src="img/list-laptop-before.jpg" alt="Today: To offer rows, each with a round paper-plane button" loading="lazy"><figcaption><b>Before</b> Laptop</figcaption></figure>
+      <figure><img src="img/list-laptop-after.jpg" alt="After: the same rows, each button reads Offer with the plane" loading="lazy"><figcaption><b class="after">After</b> Laptop</figcaption></figure>
+    </div>
+    <div class="pair phones">
+      <figure><img src="img/list-phone-before.jpg" alt="Today on a phone: To offer rows with round plane buttons" loading="lazy"><figcaption><b>Before</b> Phone</figcaption></figure>
+      <figure><img src="img/list-phone-after.jpg" alt="After on a phone: each row's button reads Offer" loading="lazy"><figcaption><b class="after">After</b> Phone</figcaption></figure>
+    </div>
+    <h3>The bell, on a phone</h3>
+    <p class="muted">On a laptop it's in the "Menu" pictures above (top right). On a phone, the firm's name in the top bar makes room for it; the firm's mark stays.</p>
+    <div class="pair phones">
+      <figure><img src="img/office-top-phone-before.jpg" alt="Today on a phone: the top bar with Menu, the firm mark, Acme…, a bell with a red 1, the theme button and AD" loading="lazy"><figcaption><b>Before</b> Phone</figcaption></figure>
+      <figure><img src="img/office-top-phone-after.jpg" alt="After on a phone: the bell reads 1 new" loading="lazy"><figcaption><b class="after">After</b> Phone</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="change" aria-labelledby="c3">
+    <header>
+      <span class="tag">Office · laptop and phone</span>
+      <h2 id="c3">The session card: no countdown look, "Urgent" said once</h2>
+      <p class="muted">The red bar under the time looks like time running out, but it shows how much is booked. The "Booked" tile's gauge already shows that. And the "Urgent" chip in that tile repeats the one by the title.</p>
+    </header>
+    <div class="why"><b class="was">Before</b><span>A red bar under the time, and "Urgent" (or "Open") again in the Booked tile.</span><b class="now">After</b><span>The time, its length and pay, "Starts in 32 h" and "1 place to fill", with no bar. The Booked tile is the gauge and "3 / 4 booked". "Urgent" stays by the title. "More" replaces "…" (as above).</span></div>
+    <div class="quad">
+      <figure><img src="img/card-laptop-before.jpg" alt="Today's card: a red bar under the time; an Urgent chip in the Booked tile" loading="lazy"><figcaption><b>Before</b> Laptop</figcaption></figure>
+      <figure><img src="img/card-laptop-after.jpg" alt="After: no bar under the time; the Booked tile shows only the gauge" loading="lazy"><figcaption><b class="after">After</b> Laptop</figcaption></figure>
+      <figure><img src="img/card-phone-before.jpg" alt="Today's card on a phone" loading="lazy"><figcaption><b>Before</b> Phone</figcaption></figure>
+      <figure><img src="img/card-phone-after.jpg" alt="After, on a phone" loading="lazy"><figcaption><b class="after">After</b> Phone</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="change" aria-labelledby="c4">
+    <header>
+      <span class="tag">Office · phone</span>
+      <h2 id="c4">The phone map: the key and the chosen venue's name</h2>
+      <p class="muted">Today the phone map shows bare numbers: no key and no names. This comes with 27.4 (the map you can use), so saying yes there covers it. The picture is from the 27.4 mock-up.</p>
+    </header>
+    <div class="why"><b class="was">Before</b><span>Numbers on circles, nothing to say what red and amber mean or which venue is which.</span><b class="now">After</b><span>The key ("Urgent", "Places to fill") on the map, the chosen venue's name under its pin, and the list button for every session by name.</span></div>
+    <div class="pair phones">
+      <figure><img src="img/office-top-phone-before.jpg" alt="Today's phone dashboard: the map with numbered pins and no key" loading="lazy"><figcaption><b>Before</b> Phone</figcaption></figure>
+      <figure><img src="img/phone-map-after.jpg" alt="27.4's phone map: the key at the top, the chosen pin named, list and zoom buttons on the right" loading="lazy"><figcaption><b class="after">After</b> Phone (27.4)</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="change" aria-labelledby="c5">
+    <header>
+      <span class="tag">Casual app · phone and laptop</span>
+      <h2 id="c5">The casual's to-do: a camera, and "To do" on Profile</h2>
+      <p class="muted">Zoe's staff photo is due for renewal. Today the row shows her initials, "ZA", which reads like her photo is fine. The Profile tab shows a bare "1".</p>
+    </header>
+    <div class="why"><b class="was">Before</b><span>"ZA" beside "Renew your staff photo", and "1" on Profile.</span><b class="now">After</b><span>A camera beside "Renew your staff photo", and "To do" on Profile. A screen reader still hears "Profile, 1 thing needs doing".</span></div>
+    <div class="pair phones">
+      <figure><img src="img/casual-home-phone-before.jpg" alt="Today: Hi Zoe, Do this: ZA, Renew your staff photo; the Profile tab with a 1" loading="lazy"><figcaption><b>Before</b> Phone</figcaption></figure>
+      <figure><img src="img/casual-home-phone-after.jpg" alt="After: a camera beside Renew your staff photo; the Profile tab reads To do" loading="lazy"><figcaption><b class="after">After</b> Phone</figcaption></figure>
+    </div>
+    <div class="pair">
+      <figure><img src="img/casual-home-laptop-before.jpg" alt="Today, on a laptop" loading="lazy"><figcaption><b>Before</b> Laptop</figcaption></figure>
+      <figure><img src="img/casual-home-laptop-after.jpg" alt="After, on a laptop" loading="lazy"><figcaption><b class="after">After</b> Laptop</figcaption></figure>
+    </div>
+  </section>
+
+  <p class="next">Say yes to all of them, or name the ones to change. Then I build them with their tests and screenshots, and run the full check. The light look follows from the same changes.</p>
+</div>

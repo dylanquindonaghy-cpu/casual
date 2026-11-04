@@ -2255,3 +2255,14 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   `npm audit`'s "fix" for it is a downgrade to exceljs 4.1.1. Proposed: a dependency pass on its own
   task (Vitest and ESLint upgrades within their majors, exceljs when a release drops `archiver`'s old
   `glob`), run through verify like any change.
+
+## From Phase 27.4 and 27.5's mock-ups (2026-11-04)
+
+- **A session card can name its venue twice**: "Acme Demo Arena · Sat 7 Nov · Acme Demo Arena"
+  (`whereText`, `src/lib/office/board-copy.ts`: the event's name, then the post and the site). The
+  event here is named after its venue and day, as a sheet import names one, so the site repeats.
+  Proposed: leave the site off when the event's name already starts with it. A words change, for
+  27.2's kind of pass (screens and messages docs first).
+- **The named menu is taller than a laptop's screen** (27.5's mock-up: about 830px at 1280 x 800).
+  Today the closed menu only scrolls on its own below 640px high; the build sets it to scroll on any
+  screen it doesn't fit (as the open menu already does).

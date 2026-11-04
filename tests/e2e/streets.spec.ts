@@ -140,7 +140,13 @@ test("the street map: the firm's file by range from our own path, MapLibre's wor
   expect(fitted.every(Number.isFinite)).toBe(true);
   // A pin moves the map to its venue, zoomed in to the area round it at least (13), and picks its
   // venue's first session into the card; the page then has who can take it.
-  const pin = map.locator('a[data-venue]:not([aria-current="true"])').first();
+  // A pin not yet chosen, held by its venue (a ":not(chosen)" locator would move to another pin
+  // once this one is chosen).
+  const venue = await map
+    .locator('a[data-venue]:not([aria-current="true"])')
+    .first()
+    .getAttribute("data-venue");
+  const pin = map.locator(`a[data-venue="${venue}"]`);
   const id = /session=([0-9a-f-]{36})/.exec((await pin.getAttribute("href")) ?? "")?.[1];
   expect(id).toBeDefined();
   await pin.click();

@@ -505,7 +505,8 @@ test("To offer on the map: every session, soonest first, then View all on Events
     );
     // Filter by the role: only ours, all four, and the map has only their venues.
     await page.locator("summary", { hasText: "Filter" }).click();
-    await page.getByRole("link", { name: "Show check" }).click();
+    // Exactly the role's link: the open list's rows are named "Show check, …" too.
+    await page.getByRole("link", { name: "Show check", exact: true }).click();
     await expect(page).toHaveURL(`${acme}/office?role=show_check`);
     // The menu closes once a role is chosen (it's keyed by the choice), off the map.
     await expect(page.getByRole("link", { name: "Show check", exact: true })).toBeHidden();

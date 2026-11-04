@@ -832,6 +832,88 @@ body[data-firm-colour] {
     display: block;
   }
 }
+/* Its + and − buttons (Phase 27.8: MapLibre's NavigationControl with no compass, named "Zoom in"
+   and "Zoom out"), top right, 12px in from the corner like the key (which moves left of them): in
+   the key's look (the panel's fill, the line's 1px edge, no blur and no drop), 8px corners, each
+   button 44px square with a line between them, the office's own focus ring, and the + and − drawn
+   as two bars in the words' colour (borders, so forced colours draw them too; no picture to load).
+   A button at the end of the zoom is greyed and says so (disabled). */
+.maplibregl-ctrl-top-right {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 10;
+  pointer-events: none;
+}
+.maplibregl-ctrl {
+  pointer-events: auto;
+}
+.maplibregl-ctrl-group {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-row);
+  background-color: var(--color-panel);
+}
+.maplibregl-ctrl-group button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 0;
+  background-color: transparent;
+  color: var(--color-ink);
+  transition: background-color 150ms var(--ease-sd);
+}
+.maplibregl-ctrl-group button:first-child {
+  border-radius: calc(var(--radius-row) - 1px) calc(var(--radius-row) - 1px) 0 0;
+}
+.maplibregl-ctrl-group button:last-child {
+  border-radius: 0 0 calc(var(--radius-row) - 1px) calc(var(--radius-row) - 1px);
+}
+.maplibregl-ctrl-group button + button {
+  border-top: 1px solid var(--color-line);
+}
+.maplibregl-ctrl-group button:not(:disabled):hover {
+  background-color: var(--color-button-hover);
+}
+.maplibregl-ctrl-group button:not(:disabled):active {
+  background-color: var(--color-button-press);
+}
+.maplibregl-ctrl-group button:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+}
+.maplibregl-ctrl-group button:disabled {
+  cursor: not-allowed;
+  color: var(--color-ink-faint);
+}
+.maplibregl-ctrl-zoom-in .maplibregl-ctrl-icon,
+.maplibregl-ctrl-zoom-out .maplibregl-ctrl-icon {
+  position: relative;
+  display: block;
+  width: 0.875rem;
+  height: 0.875rem;
+}
+.maplibregl-ctrl-zoom-in .maplibregl-ctrl-icon::before,
+.maplibregl-ctrl-zoom-in .maplibregl-ctrl-icon::after,
+.maplibregl-ctrl-zoom-out .maplibregl-ctrl-icon::before {
+  content: "";
+  position: absolute;
+  top: calc(50% - 1px);
+  left: 0;
+  width: 100%;
+  height: 0;
+  border-top: 2px solid currentColor;
+  border-radius: 1px;
+}
+.maplibregl-ctrl-zoom-in .maplibregl-ctrl-icon::after {
+  transform: rotate(90deg);
+}
 
 /* The office's sizes (every page under /office carries [data-office]: src/app/office/layout.tsx):
    round 8's one scale, 12 · 13 · 14 · 16 · 20 · 30px (the pre-build audit's aud-3: nothing under

@@ -891,24 +891,41 @@ file is ours, on our own server (the pre-build audit's aud-8): no map company is
 told where anyone is. It's OpenStreetMap's data (from Protomaps' daily builds), so "©
 OpenStreetMap contributors" shows on the map: never hide it.
 
+Since Phase 27.8 the map shows its names (towns, areas, streets, water) and zooms to building level
+with + and − buttons. The names' letter shapes come from our own server too: they're in the app
+itself (`public/map-glyphs/`, served at `/map-glyphs/...` by the web app, so Caddy needs nothing
+new), not in the map file. The detail is in the map file: zoom 15 has every building, road and path,
+so the file is bigger (below).
+
 The browser tests' street-map run (`npm run e2e:streets`, part of `npm run e2e`) runs this whole
 path with a tiny made-up map file: MapLibre reads it by byte range from the server's own path, its
-worker comes from `/office/map-worker`, and the streets draw. Your real file still needs the check
-by eye below once it's up.
+worker comes from `/office/map-worker`, the streets draw, its two made-up town names' letter shapes
+come from `/map-glyphs`, and the + and − buttons zoom. Your real file still needs the check by eye
+below once it's up.
 
 **Set it up (once, then once or twice a year to refresh)**, on the server itself, so nothing big
 crosses your own connection. This is how the live demo got its map (2026-11-03, from a phone with
 Termius; `docs/mockups/round-8/launch-review-2026-11-03.md` §4):
 
 1. Log in to the server as root (any SSH app; Termius works from a phone).
-2. Paste this one command. It finds the newest world build, cuts out the UK at zoom 13 (about
-   740 MB; zoom 14 is about 1.5 GB) into `/opt/shiftdesk/maps/uk.pmtiles` with the `pmtiles` tool's
-   Docker image, sets `MAP_TILES_URL=/maps/uk.pmtiles` in `/opt/shiftdesk/.env` (adding the line if
-   it's missing) and applies it (`deploy.sh --now`). It ends "ALL DONE: the street map is on.":
+2. Paste this one command. It checks there's room first (at least 4 GB free in `/opt/shiftdesk`:
+   the new file is written next to the old one before it replaces it; `df -h /opt/shiftdesk` shows
+   the same by eye), finds the newest world build, cuts out the UK at zoom 15 with the `pmtiles`
+   tool's Docker image (2,990,940,360 bytes, about 2.99 GB, measured on 2026-11-03 from the
+   Protomaps build for this box, `-8.65,49.86,1.77,60.86`; zoom 13 was about 740 MB, but it has no
+   building outlines and its streets blur close in) into a temporary name, `uk-new.pmtiles`, then
+   moves it over `/opt/shiftdesk/maps/uk.pmtiles` in one step (so the live map never reads a
+   half-written file), sets `MAP_TILES_URL=/maps/uk.pmtiles` in `/opt/shiftdesk/.env` (adding the
+   line if it's missing) and applies it (`deploy.sh --now`). It ends "ALL DONE: the street map is
+   on." (or "STOP: ..." with the space it found, having changed nothing):
 
    ```
-   B=$(curl -s https://build-metadata.protomaps.dev/builds.json | grep -o '[0-9]\{8\}\.pmtiles' | tail -1) && echo "Map build: $B" && mkdir -p /opt/shiftdesk/maps && docker run --rm -v /opt/shiftdesk/maps:/maps protomaps/go-pmtiles extract "https://build.protomaps.com/$B" /maps/uk.pmtiles --bbox=-8.65,49.86,1.77,60.86 --maxzoom=13 && ls -lh /opt/shiftdesk/maps && { grep -q '^MAP_TILES_URL=' /opt/shiftdesk/.env && sed -i 's|^MAP_TILES_URL=.*|MAP_TILES_URL=/maps/uk.pmtiles|' /opt/shiftdesk/.env || echo 'MAP_TILES_URL=/maps/uk.pmtiles' >> /opt/shiftdesk/.env; } && /opt/shiftdesk/deploy.sh --now && echo "ALL DONE: the street map is on."
+   FREE=$(df -BG --output=avail /opt/shiftdesk | tail -1 | tr -dc 0-9) && echo "Free: ${FREE} GB" && [ "$FREE" -ge 4 ] || { echo "STOP: ${FREE} GB free in /opt/shiftdesk; the map needs 4 GB"; false; } && B=$(curl -s https://build-metadata.protomaps.dev/builds.json | grep -o '[0-9]\{8\}\.pmtiles' | tail -1) && echo "Map build: $B" && mkdir -p /opt/shiftdesk/maps && docker run --rm -v /opt/shiftdesk/maps:/maps protomaps/go-pmtiles extract "https://build.protomaps.com/$B" /maps/uk-new.pmtiles --bbox=-8.65,49.86,1.77,60.86 --maxzoom=15 && mv /opt/shiftdesk/maps/uk-new.pmtiles /opt/shiftdesk/maps/uk.pmtiles && ls -lh /opt/shiftdesk/maps && { grep -q '^MAP_TILES_URL=' /opt/shiftdesk/.env && sed -i 's|^MAP_TILES_URL=.*|MAP_TILES_URL=/maps/uk.pmtiles|' /opt/shiftdesk/.env || echo 'MAP_TILES_URL=/maps/uk.pmtiles' >> /opt/shiftdesk/.env; } && /opt/shiftdesk/deploy.sh --now && echo "ALL DONE: the street map is on."
    ```
+
+   It takes a while (the extract reads about 3 GB from Protomaps' build): leave the window open
+   until it ends. If it stops part way, `uk-new.pmtiles` may be left half-written; the live
+   `uk.pmtiles` is untouched, and running the command again writes the new one afresh.
 
 3. **If the server was set up before 2 Nov 2026** (Phase 26.2), its own copies of
    `docker-compose.yml` and the `Caddyfile` predate the map: `/maps/uk.pmtiles` goes to the web app
@@ -923,7 +940,9 @@ Termius; `docs/mockups/round-8/launch-review-2026-11-03.md` §4):
 4. Check: `curl -sI -H "Range: bytes=0-15" https://<a firm's address>/maps/uk.pmtiles | head -1`
    says `HTTP/2 206` (Caddy serves `/maps/*` itself, so a demo server's password doesn't apply),
    and the dashboard, reloaded, shows streets under the pins, "© OpenStreetMap contributors" in its
-   corner, and no longer "Placed by each venue's postcode".
+   corner, and no longer "Placed by each venue's postcode". Since Phase 27.8 it also shows town and
+   street names, and + and − top right; zoomed right in (a few presses of +), building outlines and
+   every street's name, still sharp (with the zoom-13 file they blur past zoom 13).
 
 To refresh the map later, step 2 again: the new file replaces the old one.
 
@@ -937,6 +956,13 @@ To refresh the map later, step 2 again: the new file replaces the old one.
    `/opt/shiftdesk/maps/uk.pmtiles`, or can't be read (`ls -l /opt/shiftdesk/maps/`).
 3. The browser: its console on the dashboard. "Worker failed to load" means `/office/map-worker`
    didn't answer (MapLibre's worker, served from the app's own `node_modules`).
+
+**The streets show but no names** (Phase 27.8): the names' letter shapes come from the app itself.
+`curl -sI "https://<a firm's address>/map-glyphs/Noto%20Sans%20Regular/0-255.pbf" | head -1` should
+say `HTTP/2 200` (a demo server asks for its password first: add `-u demo:<password>`). A 404 means
+the running image predates Phase 27.8 (`deploy.sh --now` pulls the newest). The browser's console
+saying "Unable to load glyph range" for a range we don't serve is expected for a name in another
+script: MapLibre draws those letters itself.
 
 A venue with no position (its site has no postcode looked up yet) is never placed by guesswork:
 it's listed under the map. See "Postcodes not found" above.

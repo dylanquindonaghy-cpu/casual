@@ -46,11 +46,14 @@ describe("colours: tokens only", () => {
   const ARBITRARY =
     /-\[(?:#|rgb|hsl|oklch|oklab|lab|lch|hwb|color-mix)|\[(?:color|background|background-color|border-color):/g;
   // A colour value in code. Allowed only where it's the firm's brand colour (data, not the
-  // app's look) and the home screen's splash (the web app manifest can't follow a theme).
+  // app's look), the home screen's splash (the web app manifest can't follow a theme) and the
+  // street map's own drawing (Phase 27.8: MapLibre paints its canvas from the style's values, not
+  // from CSS; each name's contrast is checked in tests/unit/office.map-style.test.ts).
   const HEX = /#[0-9a-f]{3,8}\b|\brgba?\(|\bhsla?\(/gi;
   const HEX_ALLOWED = [
     "src/app/manifest.ts",
     "src/lib/db/admin/seed-data.ts",
+    "src/lib/office/map-style.ts",
     "src/lib/tenancy/brand-values.ts",
     "src/lib/tenancy/brand.ts",
   ];

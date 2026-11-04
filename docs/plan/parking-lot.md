@@ -2263,6 +2263,5 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   event here is named after its venue and day, as a sheet import names one, so the site repeats.
   Proposed: leave the site off when the event's name already starts with it. A words change, for
   27.2's kind of pass (screens and messages docs first).
-- **The named menu is taller than a laptop's screen** (27.5's mock-up: about 830px at 1280 x 800).
-  Today the closed menu only scrolls on its own below 640px high; the build sets it to scroll on any
-  screen it doesn't fit (as the open menu already does).
+- ~~**The named menu is taller than a laptop's screen**~~ Moot: Dylan said no to 27.5's layout
+  changes on 2026-11-04 ("layout changes no leave it"), so the menu stays icons only.

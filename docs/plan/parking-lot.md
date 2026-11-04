@@ -2243,3 +2243,15 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   second offer after one that failed (it may have arrived: `office-offer.ts`), so that casual leaves
   "{n} have the licence, rest and hours for it" while the chip still says "None offered yet" (it
   counts offers that went). Small; the offer panel says who and why.
+
+## From Phase 27 (dependency alerts, 2026-11-04)
+
+- **GitHub's Dependabot reports 9 alerts on `main`** (1 high, 7 moderate, 1 low; `npm audit` here: 27
+  packages, 1 high, 26 moderate). Read on 2026-11-04: the high one is Vite (`launch-editor`'s
+  Windows command escaping), pulled in by Vitest, a development tool only; most moderates are ESLint's
+  and typescript-eslint's `minimatch` (a slow pattern match) and Vitest's mocker, development tools
+  too. The one in the running app is exceljs (the pay and shift imports' .xlsx reader) through
+  `archiver` → `readdir-glob`/`glob` → `minimatch`, a zip-writing path the imports don't use;
+  `npm audit`'s "fix" for it is a downgrade to exceljs 4.1.1. Proposed: a dependency pass on its own
+  task (Vitest and ESLint upgrades within their majors, exceljs when a release drops `archiver`'s old
+  `glob`), run through verify like any change.

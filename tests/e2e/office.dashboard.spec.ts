@@ -340,7 +340,14 @@ test("To offer: the first four, soonest first, then View all on Events & session
   const email = `dashboard.viewall${testInfo.retry || ""}@example.com`;
   await addOfficeUser("acme", { email, name: "Show Resourcer", role: "resourcer" });
   const n = Date.now() % 100_000;
-  // Four never offered, so To offer has more than four.
+  // Four never offered, so To offer has more than four: next pay week's Monday to Thursday, so all
+  // four are on the map, whatever day this runs (the map holds this pay week and next, Monday to
+  // Sunday; 9 to 12 days ahead put the last one out of it from a Wednesday).
+  const today = new Intl.DateTimeFormat("en-GB", {
+    weekday: "short",
+    timeZone: "Europe/London",
+  }).format(new Date());
+  const toNextMonday = 7 - ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(today);
   const made = [];
   for (let i = 0; i < 4; i++)
     made.push(
@@ -348,7 +355,7 @@ test("To offer: the first four, soonest first, then View all on Events & session
         name: `Show Fete ${n}-${i}`,
         site: `Show Hall ${n}-${i}`,
         role: "show_check",
-        daysAhead: 9 + i,
+        daysAhead: toNextMonday + i,
         point: { lat: 53.85 + i * 0.03, lng: -1.5 + i * 0.02 },
       }),
     );

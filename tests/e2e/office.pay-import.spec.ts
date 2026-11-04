@@ -31,12 +31,15 @@ test("payroll checks and imports a pay file; the worker sees the line", async ({
   await expect(page).toHaveURL(`${acme}/office/pay/import`);
   await expect(page.getByRole("heading", { name: "Import pay records" })).toBeVisible();
 
-  // A week ending 3 days ago, at a rate no seeded line has; and a row for nobody here.
+  // A period ending 4 days ago, at a rate no seeded line has; and a row for nobody here. Six days
+  // long, so it's never one of the seed's Monday-to-Sunday weeks: the pay page totals each period
+  // (payWeeks), and 9 to 3 days ago is exactly last week from a Wednesday, which put this line in
+  // the seed's week and its total (£735.88) where £248.38 was looked for.
   // Matched by mobile, so each row names the worker too (a mistyped number never pays someone else).
   const name = await workerName("acme", mobile);
   const file = [
     "Mobile,Name,Period start,Period end,Hours,Rate,Gross pay,Pay date",
-    `07700 900111,${name},${ukDate(-9)},${ukDate(-3)},12.5,19.87,248.38,${ukDate(-1)}`,
+    `07700 900111,${name},${ukDate(-9)},${ukDate(-4)},12.5,19.87,248.38,${ukDate(-1)}`,
     `07700 900999,Nobody Here,${ukDate(-9)},${ukDate(-3)},8,13.00,,`,
   ].join("\n");
   // The file field waits for the page (docs/ui-design.md "Forms wait for the page"): a file chosen

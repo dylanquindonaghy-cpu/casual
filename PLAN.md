@@ -1123,7 +1123,7 @@ P11 above; every finding, quote and place in the code: `docs/mockups/round-8/lau
 (its sections named here). The mock-up Dylan approved for 27.1 and 27.2:
 https://claude.ai/artifact/9GPXjLG2NXmz4FvbMXBdiu (sections 1, 2 and 6).
 
-- [ ] The glass at +20% in the office's dark theme: panels and the side bar a light 4% tint, a 3px
+- [x] The glass at +20% in the office's dark theme: panels and the side bar a light 4% tint, a 3px
       blur, 12% edges, menus and the phone's top bar 70%, the street lines 10.2%; the faintest words
       still at least 4.5:1 on the lightest spot; the light theme and "reduce transparency" unchanged
       (review §2; UI) (27.1). Correction, 2026-11-03: the street lines stay 8.5%, as in the approved
@@ -1153,12 +1153,12 @@ https://claude.ai/artifact/9GPXjLG2NXmz4FvbMXBdiu (sections 1, 2 and 6).
       solid with less transparency; every pair's contrast checked (go-ahead: Dylan, 2026-11-03,
       "casual round 8: yes, firm's colour, follow the phone", on the mock-up
       https://claude.ai/artifact/6Qi4Dt5qW5xnWWSVf9oNVC; UI, M) (27.6)
-- [ ] A plain colour behind every page: the made-up street pattern goes (office and casual app),
+- [x] A plain colour behind every page: the made-up street pattern goes (office and casual app),
       charcoal in dark and off-white in light; the glass, menus and buttons as they are (Dylan,
       2026-11-03: "make the background a colour not random lines as the map isn't being used like
       that", "Yes plain colour"; on the mock-up https://claude.ai/artifact/6z1cJpFyTZ5V7PtDh8HxKH,
       2026-11-04: "plain background: yes"; UI, S) (27.7)
-- [ ] The dashboard map with proper detail: town, area and street names, clearer roads, water and
+- [x] The dashboard map with proper detail: town, area and street names, clearer roads, water and
       parks, building outlines, + and − buttons, zoom to building level; the zoom-15 UK file
       (2.99 GB, measured) and its letter shapes served from our own server (Dylan, 2026-11-03: "the
       extra detail too it needs to be proper"; on the same mock-up, 2026-11-04: "proper map: yes";

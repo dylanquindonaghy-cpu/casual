@@ -138,7 +138,8 @@ part that couldn't load and the empty card are round 7's. Words: `src/lib/office
   green when it's full (only with Show filled venues too), and the venue the card shows ringed in the
   accent. From 640px a pin carries the venue's name and its days ("Tue 3, Sat 7, Sun 8 and 2 more",
   "… · hidden", "All places filled"), and the key sits top right ("Urgent", "Places to fill",
-  "Hidden: casuals can't see it", and "All filled" with Show filled venues too). A pin is a link to the dashboard
+  "Hidden: casuals can't see it", and "All filled" with Show filled venues too; on the street map,
+  just left of its + and − buttons). A pin is a link to the dashboard
   with that venue's soonest session in the card, read as "{Acme Demo Arena}: {10} places to fill,
   urgent, {Tue 3, Sat 7, Sun 8 and 2 more}" (", hidden from casuals"; "{name}: all places filled").
   Under the map, on the left, "Placed by each venue's postcode · a pin's number is its places to
@@ -155,9 +156,21 @@ part that couldn't load and the empty card are round 7's. Words: `src/lib/office
   figures, every venue on or off the map: "Venue" (its name, a link like its pin, and its town),
   "Places to fill" ("{5} · urgent" in red) and "Days".
   - **With a street map** (the firm's server has a UK map file: `MAP_TILES_URL`, `docs/runbooks.md`
-    "The street map"): the streets, water and land under the pins (no place names: the pins carry
-    them), fitted to the venues; it moves with a drag and zooms with Ctrl + scroll on a laptop, two
-    fingers on a phone (one finger scrolls the page); "© OpenStreetMap contributors" bottom right.
+    "The street map"): the streets, water, parks and land under the pins, fitted to the venues; it
+    moves with a drag and zooms with Ctrl + scroll on a laptop, two fingers on a phone (one finger
+    scrolls the page); "© OpenStreetMap contributors" bottom right. Phase 27.8 (the map with proper
+    detail; Dylan, 2026-11-03, on the mock-up https://claude.ai/artifact/6z1cJpFyTZ5V7PtDh8HxKH):
+    - **Names:** the country, regions, towns and areas when zoomed out; street names (main roads
+      first), water and island names closer in; house numbers right in. No shops or other places,
+      no road-number shields, no one-way arrows, no town dots. The venue pins and their own labels
+      stay on top of the names. The letter shapes come from our own server, never another site.
+    - **Zoom buttons:** + and − top right ("Zoom in", "Zoom out" to a screen reader; 44px each,
+      one above the other), each one step; greyed at the end of the zoom. The key moves left of
+      them. From the whole UK (the map file's area) in to each building (zoom 18; the view fitted
+      to the venues still stops at the area round them, zoom 13).
+    - **Detail:** roads drawn by importance (main roads strongest), blue water, green parks, and
+      building outlines from street level, in the office's dark or light look. Every name reads at
+      4.5:1 on its halo and on the land.
   - **Without one** (development, the tests, before the file is up): the pins placed by their own
     latitude and longitude on the office's faint street pattern, north up and to scale.
 - **The chosen session** (a floating glass card over the map's top left from 1024px of page, 404px

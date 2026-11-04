@@ -318,7 +318,13 @@ describe("the street map's file (MAP_TILES_URL)", () => {
     expect(map).toMatch(/if \(!tiles \|\| !box\.current\) return;/);
     expect(map).toContain('import("maplibre-gl")');
     expect(map).toContain("cooperativeGestures: true");
-    expect(map).toContain('.filter((l) => l.type !== "symbol")');
+    // Its style from the street map's own module (Phase 27.8: names on, letter shapes from our own
+    // server; tests/unit/office.map-style.test.ts), loaded with MapLibre, never on its own.
+    expect(map).toContain('import("@/lib/office/map-style")');
+    expect(map).toContain(
+      'style: mapStyle.mapStyle(tiles, dark ? "dark" : "light", MAP_ATTRIBUTION),',
+    );
+    expect(map).not.toContain('l.type !== "symbol"');
     // Its web worker from our own route (where the bundler leaves it, MapLibre can't find it).
     expect(map).toContain(
       "maplibregl.setWorkerUrl(`/office/map-worker?v=${maplibregl.getVersion()}`)",
@@ -330,8 +336,10 @@ describe("the street map's file (MAP_TILES_URL)", () => {
     expect(map).toMatch(
       /aria-label="Key"\s+className="pointer-events-none absolute top-3 right-3 z-10 /,
     );
-    // No static import of the map libraries anywhere (they'd load on every office page).
+    // No static import of the map libraries anywhere (they'd load on every office page), nor of
+    // the style's module (it brings Protomaps' layers with it).
     expect(map).not.toMatch(/^import [^;]*from "(?:maplibre-gl|pmtiles|@protomaps\/basemaps)";/m);
+    expect(map).not.toMatch(/^import [^;]*from "@\/lib\/office\/map-style";/m);
   });
 });
 

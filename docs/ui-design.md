@@ -30,6 +30,51 @@ Principles, in order:
 6. **Works without JavaScript** where pages already do (server-action forms, `<details>`
    confirmations, GET filter forms, anchor links).
 
+## Phase 27.8: the dashboard map with proper detail
+
+Dylan, 2026-11-03, on the mock-up (https://claude.ai/artifact/6z1cJpFyTZ5V7PtDh8HxKH: real map data
+drawn by MapLibre, today against proposed at three distances and both sizes): "proper map: yes",
+"the extra detail too it needs to be proper". Only the dashboard's street map changes (the venue
+map with a map file, `src/app/office/dashboard/venue-map.tsx`); the pins, their labels, the card,
+the key's words, the credit and the plain map without a file are as they were.
+
+- **Its style is its own module,** `src/lib/office/map-style.ts` (pure, unit-tested in
+  `tests/unit/office.map-style.test.ts`): Protomaps' layers in the named flavour for the office's
+  look (dark, or light with the `sd-theme` cookie's light), its colours overridden (`MAP_COLOURS`).
+  The map's colours live there, not in `globals.css`: MapLibre paints its canvas from the style, not
+  from CSS (the one file besides the brand colour's and the manifest allowed colour values:
+  `tests/unit/ui.theme.test.ts`).
+- **Names on.** Places (country, region, town, area), roads (major and minor), water, islands and
+  house numbers. Dropped: points of interest, road-number shields and one-way arrows; and the town
+  dot (the last icon), so the style has no sprite. The venue pins (HTML markers) sit over the names.
+- **Letter shapes from our own server:** `/map-glyphs/{fontstack}/{range}.pbf` (`public/map-glyphs/`,
+  Noto Sans Regular, Medium and Italic, ranges 0-255, 256-511, 512-767, 7680-7935 and 8192-8447:
+  Latin, Welsh's letters and punctuation; SIL Open Font License 1.1, its text and a README with the
+  source beside them). The flavour's Devanagari typeface is swapped for the regular one; a name in a
+  script we don't serve is drawn by the browser's own font (MapLibre does that itself), never fetched
+  elsewhere.
+- **Clearer drawing.** Dark (the mock-up's values): ground `#16171a`, land `#1a1b1e`, water `#1f3347`,
+  parks `#1d2b22`/`#203126`, buildings `#2b2c31`, roads a step brighter by importance (minor
+  `#55565d`, major `#6e6f76`, motorway `#8a8b92`), names light on a `#16171a` halo (towns `#e4e4e7`,
+  streets `#a1a2a8`/`#c4c5ca`). Light, the same the other way and calm: land `#f1f0ec` (the office's
+  off-white), water `#a8cbe6`, parks and grass soft greens, buildings `#cbc8c1` (at half strength),
+  roads a step darker by importance (minor `#cfd0d4`, major `#bcbec3`, motorway `#a7aab0`) with a
+  soft edge, names dark on a `#f6f5f2` halo (towns `#1d1e22`, streets `#5d5f66`/`#45474e`). Every
+  name at least 4.5:1 on its halo and on the land, in both looks (the regions', country's and
+  water's names lifted from the flavour's own, which were fainter).
+- **Zoom buttons,** MapLibre's NavigationControl without its compass, top right, 12px in: in the
+  key's look (the panel's fill, the line's 1px edge, 8px corners; no blur and no drop, which round
+  8 keeps for the glass and what floats over the page), two 44px buttons with a line between, the
+  + and − drawn in the words' colour as two bars (borders, so forced colours draw them too; no
+  image), hover and press fills from the button tokens, the office's focus ring, greyed when
+  there's no further to go; rules in `globals.css` "MapLibre's own parts" (the library's
+  stylesheet isn't loaded). The key moves left of them on the streets (`right-16.5`: 12px in, the
+  buttons' 46px with their edge, 8px apart), and no pin's label goes under either. Zoom from the
+  whole UK to each building (`maxZoom: 18`; the fit to the venues still stops at 13). Drag, Ctrl +
+  scroll and two fingers as before; still no turning.
+- **The file:** the detail is in the map file (zoom 15, about 2.99 GB for the UK: `docs/runbooks.md`
+  "The street map"); with today's zoom-13 file the map zooms in all the same, softer past 13.
+
 ## Phase 27.6: the casual app in round 8's look
 
 Dylan, 2026-11-03, on the mock-up (https://claude.ai/artifact/6Qi4Dt5qW5xnWWSVf9oNVC: the casual

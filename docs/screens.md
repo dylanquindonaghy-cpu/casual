@@ -175,7 +175,8 @@ part that couldn't load and the empty card are round 7's. Words: `src/lib/office
       building outlines from street level, in the office's dark or light look. Every name reads at
       4.5:1 on its halo and on the land.
   - **Without one** (development, the tests, before the file is up): the pins placed by their own
-    latitude and longitude on the office's faint street pattern, north up and to scale.
+    latitude and longitude on the map box's plain glass (no picture behind it since Phase 27.7), north
+    up and to scale.
 - **The chosen session** (a floating glass card over the map's top left from 1024px of page, 404px
   wide; under the map before): round 7's choice (the address's `?session=`, else the soonest
   urgent, else the soonest). Its date tile, the role (and "Urgent"), "{Northern Lights Live} ·

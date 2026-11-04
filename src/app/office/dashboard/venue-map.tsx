@@ -44,8 +44,8 @@ import { Icon } from "../../ui/icons";
 //   it too, down to each building (the key moves left of them). "© OpenStreetMap contributors"
 //   shows on it.
 // - Without one (dev, the tests, before the file is up): the pins placed by their own latitude and
-//   longitude (venue-map-geo.ts, Web Mercator), fitted into the box, on the office's own faint
-//   street pattern, and the foot says so. Nothing is placed by guesswork: a venue with no position
+//   longitude (venue-map-geo.ts, Web Mercator), fitted into the box, on its plain glass (no picture
+//   behind it since Phase 27.7), and the foot says so. Nothing is placed by guesswork: a venue with no position
 //   is listed under the map.
 //
 // Every pin is also a row in To offer (aud-7), so nobody needs the map to act. On a phone the map

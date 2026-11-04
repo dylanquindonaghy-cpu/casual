@@ -187,6 +187,33 @@ test("the street map: the firm's file by range from our own path, MapLibre's wor
   await expect(show).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator('[data-venue-map="plain"]')).toHaveCount(0);
 
+  // The tabs move the map back (Filter too: a new view is a new board, fitted to its venues). On
+  // another tab a pin zooms the map in to its venue; the All tab then shows every venue just as the
+  // page arrived with them.
+  const track = page.getByRole("navigation", { name: "Show" });
+  let other: RegExp | null = null;
+  for (const name of [/^This week/, /^Next week/, /^Urgent/]) {
+    const count = /\d+/.exec(await track.getByRole("link", { name }).innerText())?.[0];
+    if (Number(count ?? 0) > 0) {
+      other = name;
+      break;
+    }
+  }
+  expect(other, "a tab other than All with sessions on it").not.toBeNull();
+  // A new view is a new board and a new street map: in this browser, which draws the map in
+  // software, a tab took 3 to 6 seconds to land (18 measured, 2026-11-04), so 30 seconds as for
+  // the map's other waits here.
+  await track.getByRole("link", { name: other! }).click();
+  await expect(page).toHaveURL(/\/office\?show=/, { timeout: 30_000 });
+  const tabPin = map.locator("a[data-venue]").first();
+  await expect(tabPin).toBeVisible({ timeout: 30_000 });
+  await tabPin.click();
+  await expect.poll(zoom).toBeGreaterThanOrEqual(12.99);
+  await track.getByRole("link", { name: /^All/ }).click();
+  await expect(page).toHaveURL(/\/office$/, { timeout: 30_000 });
+  await expect.poll(zoom, { timeout: 30_000 }).toBeCloseTo(start, 1);
+  await expect.poll(async () => near(await centre(), fitted), { timeout: 30_000 }).toBe(true);
+
   // The file was read by range, from our own path; no other host was asked.
   expect(asked.length).toBeGreaterThan(0);
   expect(asked.every((r) => r.startsWith("bytes="))).toBe(true);

@@ -1146,12 +1146,13 @@ https://claude.ai/artifact/9GPXjLG2NXmz4FvbMXBdiu (sections 1, 2 and 6).
       the map back, "To offer" as a list on the map, zoom and reset buttons, the page behind plain
       charcoal; a mock-up on the real streets first (after 27.3) (review §3; UI) (27.4). The mock-up,
       second version (2026-11-04, on 27.8's map and 27.7's plain background, the demo's real sessions):
-      https://claude.ai/artifact/4me37c3qAbQQDdwMAviqh9; waits for Dylan's yes
-      (`docs/plan/decisions-waiting.md` 14)
-- [ ] The layout changes: words on the icon-only buttons, the phone map's key, the card's booked bar,
-      the casual's "To do" row; a mock-up first (review §5 "Layout changes"; UI) (27.5). The mock-up
-      (2026-11-04, the real app before and after): https://claude.ai/artifact/SrqZifsSRB2MLsM1fZafLN;
-      waits for Dylan's yes (`docs/plan/decisions-waiting.md` 15)
+      https://claude.ai/artifact/4me37c3qAbQQDdwMAviqh9 (a copy: `docs/mockups/round-8/27.4-map/`).
+      Go-ahead: Dylan, 2026-11-04, "map you can use: yes" (`docs/plan/decisions-waiting.md` 14):
+      built as that mock-up shows, the card's words and parts as they are today
+- Not doing (27.5), Dylan, 2026-11-04, on its mock-up (https://claude.ai/artifact/SrqZifsSRB2MLsM1fZafLN):
+  "layout changes no leave it". The layout changes (words on the icon-only buttons, the card's
+  booked bar, the casual's "To do" row) stay as they are; the phone map's key comes with 27.4
+  (`docs/plan/decisions-waiting.md` 15)
 - [x] The casual app in round 8's look: the office's ground, faint street map and sharp glass (no
       wash, no bending) on every casual page, in light and dark as the phone is set, with the firm's
       own colour on the main button and its mark; the casual's own sizes, words and layout kept;

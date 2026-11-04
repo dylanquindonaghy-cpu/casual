@@ -172,15 +172,18 @@ which explains each job step by step, and "Log out".
     how many sessions have places to fill, then "Filter". Under them a map of the venues: a pin for
     each with its places to fill (red where a session there is urgent). On the map, the session you
     picked (the soonest urgent one at first): when and where, how many are booked, how many have the
-    licence, rest and hours for it, "Offer to someone" and "Open the session". Under the map three
-    columns: "To offer" (sessions with places to fill, soonest first: click one to see it on the
-    map), "Updates" (places taken,
+    licence, rest and hours for it, "Offer to someone" and "Open the session". The list button at
+    the map's top right shows "To offer" on the map (sessions with places to fill, soonest first:
+    click one to see it in the card; with the street map, the map moves to its venue). Under the
+    map two columns:
+    "Updates" (places taken,
     cancellations, uploads to check and offers with no reply; "All updates" opens the Updates page,
     as the bell at the top does) and "Who worked?" (yesterday's racecourse bookings, each person by
     name with "Worked", or ✕ if they didn't turn up). The top bar's "Needs attention" counts what
     Needs attention holds. Click "Cancellations" in the menu: every cancellation, Zoe's among them, and "nothing
     here needs approving".
-24. **Offer a gap.** Back on the "Dashboard", click the paper plane on a row under "To offer". A
+24. **Offer a gap.** Back on the "Dashboard", open "To offer" with the list button at the map's top
+    right, and click the paper plane on one of its rows. A
     panel lists who can take it: click "Send offer to …" on the first person. It says "Offered",
     the foot of the panel says "Offer on its way to …", and the offer appears in the dev window.
     Press Escape. (Events & sessions has every session too: "Need people", then a session's "…"

@@ -5,7 +5,7 @@ import { layers, namedFlavor } from "@protomaps/basemaps";
 import { PbfReader } from "pbf";
 import { PMTiles } from "pmtiles";
 import { describe, expect, it } from "vitest";
-import { MAP_ATTRIBUTION } from "@/lib/office/dashboard-map-copy";
+import { MAP_ATTRIBUTION, ZOOM_IN, ZOOM_OUT } from "@/lib/office/dashboard-map-copy";
 import {
   layerFonts,
   MAP_DROPPED_LAYERS,
@@ -328,12 +328,20 @@ describe("the street map's zoom: + and − buttons, to building level", () => {
     const map = read("src/app/office/dashboard/venue-map.tsx");
     expect(map).toContain("maxZoom: mapStyle.MAP_MAX_ZOOM,");
     expect(map).toContain("maxZoom: mapStyle.MAP_FIT_MAX_ZOOM,");
-    expect(map).toContain(
-      'map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");',
-    );
-    // The buttons' names, pinned (MapLibre's own words today, kept if its defaults change).
+    // Phase 27.4: the map's buttons are the office's own (the list, the zoom and back to every
+    // venue in one column), so MapLibre's NavigationControl is gone; each zoom button is one step
+    // of MapLibre's own zoom.
+    expect(map).not.toContain("NavigationControl");
+    expect(map).not.toContain("addControl(");
+    expect(map).toContain("if (by > 0) map.zoomIn({ duration });");
+    expect(map).toContain("else map.zoomOut({ duration });");
+    // Their names, pinned (the words MapLibre's own buttons had).
+    expect([ZOOM_IN, ZOOM_OUT]).toEqual(["Zoom in", "Zoom out"]);
     expect(map).toMatch(
-      /locale: \{\s*"NavigationControl\.ZoomIn": "Zoom in",\s*"NavigationControl\.ZoomOut": "Zoom out",\s*\},/,
+      /aria-label=\{ZOOM_IN\}[\s\S]*?onClick=\{\(\) => !atMax && moves\.current\?\.zoom\(1\)\}/,
+    );
+    expect(map).toMatch(
+      /aria-label=\{ZOOM_OUT\}[\s\S]*?onClick=\{\(\) => !atMin && moves\.current\?\.zoom\(-1\)\}/,
     );
     // Still no turning, still two fingers (or Ctrl + scroll) to move it.
     expect(map).toContain("cooperativeGestures: true");
@@ -341,37 +349,41 @@ describe("the street map's zoom: + and − buttons, to building level", () => {
     expect(map).toContain("map.touchZoomRotate.disableRotation();");
   });
 
-  it("its buttons in the office's look: 44px each, a focus ring, words' colour, no colour of their own", () => {
-    const css = read("src/app/globals.css");
-    const rule = (selector: string) => {
-      const at = css.indexOf(`\n${selector} {`);
-      expect(at, selector).toBeGreaterThan(-1);
-      return css.slice(at, css.indexOf("\n}", at));
-    };
-    expect(rule(".maplibregl-ctrl-top-right")).toMatch(/top: 0\.75rem;\s+right: 0\.75rem;/);
-    const button = rule(".maplibregl-ctrl-group button");
-    expect(button).toContain("width: 2.75rem;");
-    expect(button).toContain("height: 2.75rem;");
-    expect(button).toContain("color: var(--color-ink);");
-    expect(rule(".maplibregl-ctrl-group button:focus-visible")).toMatch(
-      /outline: 2px solid var\(--color-ink\);\s+outline-offset: 2px;/,
+  it("its buttons in the office's look: 44px each, floating glass, the words' colour, drawn icons", () => {
+    const map = read("src/app/office/dashboard/venue-map.tsx");
+    const constant = (name: string) => new RegExp(`const ${name} =\\s*"([^"]*)";`).exec(map)?.[1];
+    // Each 44px, in the words' colour, on what floats (blurred, the office's own drop: no colour
+    // of its own; ui.glass.test.ts), 12px corners.
+    const button = constant("MAP_BUTTON")?.split(" ") ?? [];
+    expect(button).toEqual(
+      expect.arrayContaining(["glass-float", "size-11", "text-ink", "rounded-inner"]),
     );
-    // The key's look: the panel's fill and the line's edge (no blur, no drop: ui.glass.test.ts).
-    const group = rule(".maplibregl-ctrl-group");
-    expect(group).toContain("border: 1px solid var(--color-line);");
-    expect(group).toContain("background-color: var(--color-panel);");
-    expect(group).toContain("border-radius: var(--radius-row);");
-    // The + and − as borders in the words' colour, so forced colours draw them too.
-    expect(css).toMatch(
-      /\.maplibregl-ctrl-zoom-out \.maplibregl-ctrl-icon::before \{[^}]*border-top: 2px solid currentColor;/,
+    expect(constant("ZOOM_GROUP")?.split(" ")).toEqual(
+      expect.arrayContaining(["glass-float", "flex-col", "rounded-inner"]),
     );
-    // The + and − are drawn, not pictures from anywhere.
-    expect(css).not.toMatch(/maplibregl-ctrl[^{]*\{[^}]*url\(/);
-    // The key moves left of them on the streets: 12px in, the buttons' 46px with
-    // their edge, 8px apart = 66px.
-    expect(read("src/app/office/dashboard/venue-map.tsx")).toContain(
-      "in-data-[venue-map=streets]:right-16.5",
-    );
+    const zoom = constant("ZOOM_BUTTON")?.split(" ") ?? [];
+    expect(zoom).toEqual(expect.arrayContaining(["size-11", "text-ink"]));
+    // The line between the two, and a greyed button at the end of the zoom (it says so).
+    expect(map).toContain("className={`${ZOOM_BUTTON} rounded-b-inner border-t border-line`}");
+    expect(zoom).toEqual(expect.arrayContaining(["aria-disabled:text-ink-faint"]));
+    expect(map).toContain("aria-disabled={atMax || undefined}");
+    expect(map).toContain("aria-disabled={atMin || undefined}");
+    // The office's one focus ring (globals.css :focus-visible), never taken away, and a focused one
+    // over its neighbour.
+    expect(`${button.join(" ")} ${zoom.join(" ")}`).not.toMatch(/outline-none|outline-0/);
+    expect(zoom).toContain("focus-visible:z-1");
+    // The + and − (and the list's lines, the corners) drawn as the office's icons, not pictures.
+    expect(map).toContain('<Icon name="plus" />');
+    expect(map).toContain('<Icon name="minus" />');
+    expect(map).toContain('<Icon name="list" />');
+    expect(map).toContain('<Icon name="corners" />');
+    expect(map).not.toMatch(/url\(/);
+    // MapLibre's own buttons' rules went with them.
+    expect(read("src/app/globals.css")).not.toContain("maplibregl-ctrl");
+    // Top right, 12px in from the corner, one column 8px apart; the key left of them from 640px:
+    // 12px in, the buttons' 44px, 8px apart = 64px.
+    expect(map).toContain('className="absolute top-3 right-3 z-10 flex flex-col gap-2"');
+    expect(map).toContain('${buttons ? "@min-[40rem]:right-16" : "@min-[40rem]:right-3"}');
   });
 });
 

@@ -295,18 +295,21 @@ function listWords(items: string[]): string {
     : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
 
-// The dashboard's parts (round 8, Phase 26.2): the venue map, the chosen session on it, and the
-// three columns under it.
+// The dashboard's parts (round 8, Phase 26.2): the venue map, the chosen session on it, To offer
+// (a list on the map since Phase 27.4), and the columns under it.
 const DASHBOARD_SECTIONS: [string, ReactNode][] = [
   [
     "The venue map",
-    "A pin for each venue with places to fill: its number is its places, red when one is urgent, a dashed ring when it's hidden from casuals. Select a pin to see its soonest session. Each venue is placed by its postcode.",
+    "A pin for each venue with places to fill: its number is its places, red when one is urgent, a dashed ring when it's hidden from casuals. Select a pin to see its soonest session; the map moves there. Each venue is placed by its postcode.",
   ],
   [
     "The chosen session",
-    "On the map (under it on a phone): its day and time, where, its pay, how many are booked, how soon it starts, who can take it and who hasn't replied. Offer to someone and Open the session are under it; … has Mark as filled and Not urgent.",
+    "On the map (under it on a phone): its day and time, where, its pay, how many are booked, how soon it starts, who can take it and who hasn't replied. Offer to someone and Open the session are under it; … has Mark as filled and Not urgent. A venue with more than one session has arrows at its top to step through them.",
   ],
-  ["To offer", "Every session with places to fill, soonest first: the first four, then View all."],
+  [
+    "To offer",
+    "Every session with places to fill, soonest first, then View all. On the map, its button at the top right shows the list.",
+  ],
   [
     "Updates",
     "The last two days: places casuals took, cancellations with their notice and strike, photos and certificates to check, and offers with no reply.",
@@ -356,9 +359,9 @@ function DashboardPart() {
           venues with nothing to fill on the map too.
         </Step>
         <Step>
-          Select a pin on the map, or a session under <Name>To offer</Name>, to see it in full on
-          the map. <Name>Open the session</Name> goes to its page, where you can change everything
-          about it.
+          Select a pin on the map, or a session in <Name>To offer</Name>, to see it in full on the
+          map. <Name>Open the session</Name> goes to its page, where you can change everything about
+          it.
         </Step>
         <Step>
           <Name>Needs attention</Name> lists everything someone has to sort out, in full. The bar at

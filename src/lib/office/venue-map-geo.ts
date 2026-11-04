@@ -54,23 +54,31 @@ export function venueBounds(
 
 // --- Laying the pins out in the map's real box (once the page has measured it) ---------------------
 //
-// A pin is a 44px tap target with a 36px disc at its centre; its label (the venue's name and days,
-// from 640px) sits 4px off its right or left edge, 40px tall. Measured in pixels from the box's
-// top left. The session card covers the box's left from 1024px: `inset` is the width it takes, so no
-// pin or label goes under it.
+// A pin is a 44px tap target with a 36px disc at its centre; its label (the venue's name and days)
+// sits 4px off its right or left edge, 40px tall (the chosen pin's can also sit 4px under or over
+// it, moved sideways to stay inside the map: Phase 27.4). Measured in pixels from the box's top
+// left. The session card covers the box's left from 1024px: `inset` is the width it takes, so no
+// pin or label goes under it; the list of sessions to offer, open, covers its right (`right`).
 
 export const PIN = { disc: 36, target: 44, gap: 6, labelGap: 4, labelHeight: 40, edge: 4 } as const;
 
-export type LabelSide = "right" | "left" | "none";
+// Below 640px of page the map is a phone's (Phase 27.4: only the chosen pin's name shows there).
+// The map's box is the page's width, so its own width says which.
+export const PHONE_MAX = 640;
+export const isPhoneBox = (width: number) => width < PHONE_MAX;
+
+export type LabelSide = "right" | "left" | "below" | "above" | "none";
 export interface PinSpot {
   x: number; // the pin's centre, px from the box's left
   y: number; // px from its top
   label: LabelSide;
+  shift: number; // px a label under or over its pin is moved sideways (0 beside it)
 }
 export interface PinBox {
   width: number;
   height: number;
   inset: number; // px on the left the card covers (0 below 1024px)
+  right?: number; // px on the right the open list covers (0 when shut, and below 1024px)
 }
 export interface Rect {
   x0: number;
@@ -95,9 +103,10 @@ export function spreadPins(
   const out = spots.map((s) => ({ ...s }));
   const min = PIN.disc + PIN.gap;
   const r = PIN.disc / 2 + PIN.edge;
+  const right = box.right ?? 0;
   const keep = (p: { x: number; y: number }) => {
     if (!clamp) return;
-    p.x = Math.min(Math.max(p.x, box.inset + r), Math.max(box.inset + r, box.width - r));
+    p.x = Math.min(Math.max(p.x, box.inset + r), Math.max(box.inset + r, box.width - right - r));
     p.y = Math.min(Math.max(p.y, r), Math.max(r, box.height - r));
   };
   out.forEach(keep);
@@ -127,21 +136,33 @@ export function spreadPins(
   return out;
 }
 
-// Which side each pin's label goes, or none: the most important first (`order`: indexes, first
-// first), each on its side with more room first, then the other, only where it fits inside the box,
-// clear of the card, of every disc, of the labels already placed and of anything else on the map
-// (`avoid`: the key). A label that fits nowhere is left off; its venue's name is still in the pin's
-// link words and in the table under the map. `widths`: each label's width in px (0 or null: none,
-// as on a phone).
-export function labelSides(
+export interface LabelSpot {
+  side: LabelSide;
+  shift: number; // px moved sideways, under or over the pin (0 beside it)
+}
+
+// Where each pin's label goes, or none: the most important first (`order`: indexes, first first),
+// each on its side with more room first, then the other, only where it fits inside the box, clear
+// of the card (and the open list), of every disc, of the labels already placed and of anything else
+// on the map (`avoid`: the key and the map's buttons). A label that fits nowhere is left off; its
+// venue's name is still in the pin's link words and in the table under the map. `widths`: each
+// label's width in px (0 or null: none, as for every pin but the chosen one on a phone).
+//
+// The chosen pin's (`chosen`: its index; Phase 27.4) always shows: beside it if it fits, else under
+// or over it, moved sideways to stay inside the map and clear of its buttons and key; failing all
+// of that, wherever it's inside the map and clear of the key and buttons, else just inside the map.
+export function placeLabels(
   spots: { x: number; y: number }[],
   widths: (number | null)[],
   order: number[],
   box: PinBox,
   avoid: Rect[] = [],
-): LabelSide[] {
-  const sides: LabelSide[] = spots.map(() => "none");
+  chosen: number | null = null,
+): LabelSpot[] {
+  const out: LabelSpot[] = spots.map(() => ({ side: "none", shift: 0 }));
   const half = PIN.target / 2 + PIN.labelGap;
+  const lo = box.inset + PIN.edge;
+  const hi = box.width - (box.right ?? 0) - PIN.edge;
   const discs: Rect[] = spots.map((s) => ({
     x0: s.x - PIN.disc / 2,
     y0: s.y - PIN.disc / 2,
@@ -149,51 +170,200 @@ export function labelSides(
     y1: s.y + PIN.disc / 2,
   }));
   const taken: Rect[] = [...avoid];
+  const inside = (r: Rect) =>
+    r.x0 >= lo && r.x1 <= hi && r.y0 >= PIN.edge && r.y1 <= box.height - PIN.edge;
+  const clear = (r: Rect, of: Rect[]) => of.every((t) => !overlaps(r, t, 4));
   for (const i of order) {
     const s = spots[i];
     const w = widths[i];
     if (!s || !w) continue;
     const y0 = s.y - PIN.labelHeight / 2;
-    const rect = (side: "right" | "left"): Rect =>
+    const beside = (side: "right" | "left"): Rect =>
       side === "right"
         ? { x0: s.x + half, y0, x1: s.x + half + w, y1: y0 + PIN.labelHeight }
         : { x0: s.x - half - w, y0, x1: s.x - half, y1: y0 + PIN.labelHeight };
     const fits = (r: Rect) =>
-      r.x0 >= box.inset + PIN.edge &&
-      r.x1 <= box.width - PIN.edge &&
-      r.y0 >= PIN.edge &&
-      r.y1 <= box.height - PIN.edge &&
-      discs.every((d, k) => k === i || !overlaps(r, d, 2)) &&
-      taken.every((t) => !overlaps(r, t, 4));
-    const roomRight = box.width - s.x;
+      inside(r) && discs.every((d, k) => k === i || !overlaps(r, d, 2)) && clear(r, taken);
+    const roomRight = box.width - (box.right ?? 0) - s.x;
     const roomLeft = s.x - box.inset;
-    const tries: ("right" | "left")[] =
+    const sides: ("right" | "left")[] =
       roomRight >= roomLeft ? ["right", "left"] : ["left", "right"];
-    const side = tries.find((t) => fits(rect(t)));
+    const put = (side: LabelSide, r: Rect, shift = 0) => {
+      out[i] = { side, shift };
+      taken.push(r);
+    };
+    const side = sides.find((t) => fits(beside(t)));
     if (side) {
-      sides[i] = side;
-      taken.push(rect(side));
+      put(side, beside(side));
+      continue;
     }
+    if (i !== chosen) continue;
+    // Under or over it: centred on the pin, moved sideways to stay inside the map, or to clear
+    // something on the map (the buttons, the key) by sitting just left or right of it.
+    const left = s.x - w / 2; // the label's left edge, centred
+    const within = Math.max(lo - left, Math.min(0, hi - (left + w)));
+    const shifts = [
+      within,
+      ...avoid.flatMap((a) => [a.x0 - PIN.edge - (left + w), a.x1 + PIN.edge - left]),
+    ];
+    const around = (where: "below" | "above", shift: number): Rect => {
+      const top = where === "below" ? s.y + half : s.y - half - PIN.labelHeight;
+      return { x0: left + shift, y0: top, x1: left + shift + w, y1: top + PIN.labelHeight };
+    };
+    const tries: [LabelSide, Rect, number][] = (["below", "above"] as const).flatMap((where) =>
+      shifts.map((sh) => [where, around(where, sh), sh] as [LabelSide, Rect, number]),
+    );
+    const all: [LabelSide, Rect, number][] = [
+      ...sides.map((t) => [t, beside(t), 0] as [LabelSide, Rect, number]),
+      ...tries,
+    ];
+    const best =
+      tries.find(([, r]) => fits(r)) ??
+      all.find(([, r]) => inside(r) && clear(r, avoid)) ??
+      all.find(([, r]) => inside(r)) ??
+      tries[0]!;
+    put(...best);
   }
-  return sides;
+  return out;
 }
 
-// The whole layout without a street map: the venues placed in the part of the box the card leaves
-// (placePins: their real positions, the shape kept), spread so no disc covers another, then labels.
+// Each pin's label side alone (as placeLabels).
+export function labelSides(
+  spots: { x: number; y: number }[],
+  widths: (number | null)[],
+  order: number[],
+  box: PinBox,
+  avoid: Rect[] = [],
+  chosen: number | null = null,
+): LabelSide[] {
+  return placeLabels(spots, widths, order, box, avoid, chosen).map((l) => l.side);
+}
+
+// Pins out from under what's on the map (`avoid`: the key, the map's buttons; Phase 27.4, when the
+// key came onto a phone's map and the list's button onto every one): each pin's whole 44px target
+// moved the shortest way clear of it (left, right or under it), inside the box. A pin clear already
+// stays where it is.
+export function keepClear(
+  spots: { x: number; y: number }[],
+  avoid: Rect[],
+  box: PinBox,
+): { x: number; y: number }[] {
+  const r = PIN.target / 2;
+  const hi = box.width - (box.right ?? 0);
+  return spots.map((p) => {
+    let { x, y } = p;
+    for (const a of avoid) {
+      if (x + r <= a.x0 || x - r >= a.x1 || y + r <= a.y0 || y - r >= a.y1) continue;
+      const best = [
+        { x: a.x0 - r, y, d: x - (a.x0 - r) },
+        { x: a.x1 + r, y, d: a.x1 + r - x },
+        { x, y: a.y1 + r, d: a.y1 + r - y },
+      ]
+        .filter((m) => m.x - r >= box.inset && m.x + r <= hi && m.y + r <= box.height)
+        .sort((m, n) => m.d - n.d)[0];
+      if (best) ({ x, y } = best);
+    }
+    return { x, y };
+  });
+}
+
+// The whole layout without a street map: the venues placed in the part of the box the card (and
+// the open list) leave (placePins: their real positions, the shape kept), spread so no disc covers
+// another and moved out from under what's on the map, then labels.
 export function layoutPins(
   points: { lat: number; lng: number }[],
   box: PinBox,
   widths: (number | null)[],
   order: number[],
   avoid: Rect[] = [],
+  chosen: number | null = null,
 ): PinSpot[] {
-  const free = { width: Math.max(1, box.width - box.inset), height: box.height };
-  const spots = spreadPins(
-    placePins(points, free).map((p) => ({ x: box.inset + p.x * free.width, y: p.y * free.height })),
+  const free = {
+    width: Math.max(1, box.width - box.inset - (box.right ?? 0)),
+    height: box.height,
+  };
+  const placed = placePins(points, free).map((p) => ({
+    x: box.inset + p.x * free.width,
+    y: p.y * free.height,
+  }));
+  const spots = keepClear(
+    spreadPins(keepClear(spreadPins(placed, box), avoid, box), box),
+    avoid,
     box,
   );
-  const sides = labelSides(spots, widths, order, box, avoid);
-  return spots.map((s, i) => ({ ...s, label: sides[i]! }));
+  const labels = placeLabels(spots, widths, order, box, avoid, chosen);
+  return spots.map((s, i) => ({ ...s, label: labels[i]!.side, shift: labels[i]!.shift }));
+}
+
+// --- Moving the street map (Phase 27.4) -------------------------------------------------------------
+
+export interface Padding {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+// The part of the street map the floating card (and the open list) leave free, as MapLibre's own
+// padding: a move to a venue centres it there and a fit keeps every venue inside it. `card` and
+// `list` are their boxes in the map's pixels while they float on it (from 1024px of page; null
+// below, where they sit under the map). On a laptop: 40px right of the card, 30px left of the
+// list (or 90px in from the right, clear of the map's buttons), 70px from the top (under the key)
+// and 50px from the foot (over the credit). On a phone: clear of the key (top) and the buttons
+// (right). Never more than the map: at least a fifth of it (and 80px) is left free each way.
+export function cameraPadding(
+  box: { width: number; height: number },
+  cover: { card: Rect | null; list: Rect | null },
+): Padding {
+  const wanted: Padding = cover.card
+    ? {
+        top: 70,
+        bottom: 50,
+        left: cover.card.x1 + 40,
+        right: cover.list ? box.width - cover.list.x0 + 30 : 90,
+      }
+    : { top: 56, bottom: 36, left: 36, right: 70 };
+  const keep = (a: number, b: number, size: number): [number, number] => {
+    const most = Math.max(0, size - Math.max(80, size / 5));
+    const k = a + b > most && a + b > 0 ? most / (a + b) : 1;
+    return [Math.round(a * k), Math.round(b * k)];
+  };
+  const [left, right] = keep(wanted.left, wanted.right, box.width);
+  const [top, bottom] = keep(wanted.top, wanted.bottom, box.height);
+  return { top, right, bottom, left };
+}
+
+// --- A venue's sessions, and the card's "1 of 2" (Phase 27.4) ---------------------------------------
+
+type Located = { shiftId: string; siteId: string | null };
+
+// A venue's sessions in the view's order (the board's list, soonest first). None for no venue.
+export function venueSessions<T extends Located>(all: readonly T[], siteId: string | null): T[] {
+  return siteId === null ? [] : all.filter((s) => s.siteId === siteId);
+}
+
+// Where the chosen session is among its venue's (0 first) and how many there are: the card's
+// stepper, or null for none (its venue has one session in the view, or it isn't in the view's list).
+export function stepperAt(
+  all: readonly Located[],
+  chosen: Located | null,
+): { index: number; count: number } | null {
+  if (!chosen) return null;
+  const list = venueSessions(all, chosen.siteId);
+  const index = list.findIndex((s) => s.shiftId === chosen.shiftId);
+  return list.length > 1 && index >= 0 ? { index, count: list.length } : null;
+}
+
+// The session one step before (-1) or after (1) the chosen one at its venue, or null at either end:
+// it never wraps round (its button is off there).
+export function stepTo<T extends Located>(
+  all: readonly T[],
+  chosen: Located,
+  step: -1 | 1,
+): T | null {
+  const list = venueSessions(all, chosen.siteId);
+  const index = list.findIndex((s) => s.shiftId === chosen.shiftId);
+  return index < 0 ? null : (list[index + step] ?? null);
 }
 
 // Which labels matter most: the venue the card shows, then urgent ones, then the most places to

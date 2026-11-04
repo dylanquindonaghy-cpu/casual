@@ -10,7 +10,7 @@ import {
 import { seedFirms } from "../../src/lib/db/admin/seed-data";
 import { acmeSaturday } from "../../src/lib/db/admin/seed-saturday";
 import { setFirmSetting } from "./db";
-import { accountMenu, DASHBOARD_HEADING, menuLink, sessionPanel } from "./fixtures";
+import { accountMenu, DASHBOARD_HEADING, menuLink, openToOffer, sessionPanel } from "./fixtures";
 import { emailSentTo, readOutbox, sentTo } from "./outbox";
 
 // docs/walkthrough.md, step by step (Phase 10 task 20): what Dylan does on his own computer, done
@@ -367,8 +367,8 @@ test("Part 3: as the office", async ({ browser }) => {
   });
 
   await test.step("23. The dashboard", async () => {
-    // Round 8 (Phase 26.2): the track, the venue map with the session's card on it, and the three
-    // columns.
+    // Round 8 (Phase 26.2): the track, the venue map with the session's card on it, To offer as a
+    // list on the map (Phase 27.4: its button opens it), and the two columns under it.
     const track = page.getByRole("navigation", { name: "Show" });
     await expect(track.getByRole("link")).toHaveText([
       /^All \d+$/,
@@ -378,13 +378,15 @@ test("Part 3: as the office", async ({ browser }) => {
     ]);
     await expect(page.locator("[data-venue-map]")).toBeVisible();
     await expect(page.locator("dialog[data-offer-panel][data-ready]")).toHaveCount(1);
+    await openToOffer(page);
     for (const name of ["To offer", "Updates", "Who worked?"])
       await expect(page.getByRole("heading", { name, exact: true, level: 2 })).toBeVisible();
-    // A row picks itself into the card.
+    // A row picks itself into the card; the page then has who can take it.
     const pick = page.locator('section#to-offer a[href^="/office?"]').nth(1);
     const id = /session=([0-9a-f-]{36})$/.exec((await pick.getAttribute("href")) ?? "")?.[1];
     await pick.click();
     await expect(page.locator(`[data-chosen="${id}"]`)).toBeVisible();
+    await expect(page.locator(`[data-chosen="${id}"] [data-takers]`)).toHaveText(/^\d+$/);
     await expect(
       page.locator(`[data-chosen="${id}"]`).getByRole("link", { name: /^Offer to / }),
     ).toBeVisible();
@@ -401,9 +403,11 @@ test("Part 3: as the office", async ({ browser }) => {
 
   await test.step("24. Offer a gap", async () => {
     // On the dashboard, a To offer card's paper plane opens the panel: who can take it, Send offer
-    // (the first card with someone to send it to), then Offered and the answer at its foot.
+    // (the first card with someone to send it to), then Offered and the answer at its foot. (To
+    // offer is the list on the map: Phase 27.4.)
     await page.goto(`${acme}/office`);
     await expect(page.locator("dialog[data-offer-panel][data-ready]")).toHaveCount(1);
+    await openToOffer(page);
     const panel = page.getByRole("dialog", { name: "Offer this session" });
     const planes = page.locator('section#to-offer a[href^="/office/offer/"]');
     let sent = false;

@@ -1,6 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 import { addOfficeUser, addWorker } from "./db";
-import { accountMenu, expect, menuLink, test } from "./fixtures";
+import { accountMenu, expect, menuLink, openToOffer, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
 // The office shell in a real browser (docs/office-v2.md 3.1; PLAN.md 12A.2, 23.2 and 24.2), at
@@ -666,11 +666,12 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
         : "Needs attention",
     );
     // Urgent: the places of the dashboard's urgent sessions (its Urgent filter's To offer: round 8
-    // holds every session with places in one column).
+    // holds every session with places in one list, on the map since Phase 27.4).
     const urgent = await count("Urgent");
     const places = async (id: string) =>
       Number(/^(\d+) places?/.exec(await page.locator(`section#${id} p`).first().innerText())?.[1]);
     await page.goto(`${acme}/office?show=urgent`);
+    await openToOffer(page);
     expect(await places("to-offer")).toBe(urgent);
     // Pay queries: those waiting, as Pay's fold says them.
     const pay = await count("Pay queries");
@@ -679,11 +680,13 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
     await expect(fold.locator("xpath=..").locator("[data-rail-tip]")).toHaveText(
       pay > 0 ? `Pay, ${pay} waiting` : "Pay",
     );
-    // Offers out: the dashboard's Updates (round 8), and To offer's line says the same offers.
+    // Offers out: the dashboard's Updates (round 8), and To offer's line says the same offers (its
+    // list on the map, opened: Phase 27.4).
     const out = await count("Offers out");
     await bar.getByRole("link", { name: /^Offers out \d+$/ }).click();
     await expect(page).toHaveURL(`${acme}/office#updates`);
     await expect(page.locator("section#updates")).toBeInViewport();
+    await openToOffer(page);
     await expect(page.locator("section#to-offer p").first()).toHaveText(
       out === 0
         ? /, none offered$/
@@ -795,9 +798,11 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
     page,
   }) => {
     await officeLogin(page, "press", "admin");
+    // To offer's rows: in its list on the map, under the card on a phone (Phase 27.4).
+    await openToOffer(page);
     const card = page.locator("section#to-offer [data-session]").first();
     await expect(card).toHaveCount(1);
-    // The board sits under the map: below a 640px window until scrolled to.
+    // The list sits under the map and the card: below a 640px window until scrolled to.
     await card.scrollIntoViewIfNeeded();
     const box = (await card.boundingBox())!;
     await page.mouse.move(box.x + 40, box.y + 40);
@@ -807,7 +812,7 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
     expect(await card.evaluate((el) => getComputedStyle(el).translate)).toBe("none");
     await page.mouse.down();
     await expect.poll(() => card.evaluate((el) => getComputedStyle(el).scale)).toBe("0.97");
-    // Let go on the column's heading (on screen, and not a link).
+    // Let go on the list's heading (on screen, and not a link).
     const heading = (await page.locator("section#to-offer h2").boundingBox())!;
     await page.mouse.move(heading.x + 8, heading.y + heading.height / 2);
     await page.mouse.up();
@@ -1066,8 +1071,10 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
 
     test("nothing dips or lifts", async ({ page }) => {
       await officeLogin(page, "still", "admin");
+      await openToOffer(page);
       const card = page.locator("section#to-offer [data-session]").first();
       await expect(card).toHaveCount(1);
+      await card.scrollIntoViewIfNeeded();
       const box = (await card.boundingBox())!;
       await page.mouse.move(box.x + 40, box.y + 40);
       await page.mouse.down();

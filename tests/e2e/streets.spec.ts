@@ -116,6 +116,77 @@ test("the street map: the firm's file by range from our own path, MapLibre's wor
   await expect.poll(zoom).toBeCloseTo(start, 1);
   await expect(page.locator('[data-venue-map="plain"]')).toHaveCount(0);
 
+  // Phase 27.4 (the map you can use): its buttons in one column, top right, each 44px: the list,
+  // the zoom's two, back to every venue.
+  const buttons = map.getByRole("group", { name: "Map buttons" });
+  expect(
+    await buttons
+      .getByRole("button")
+      .evaluateAll((els) => els.map((e) => e.getAttribute("aria-label"))),
+  ).toEqual(["Show the sessions to offer", "Zoom in", "Zoom out", "Back to every venue"]);
+  const xs = new Set<number>();
+  for (const button of await buttons.getByRole("button").all()) {
+    const box = await button.boundingBox();
+    expect([Math.round(box?.width ?? 0), Math.round(box?.height ?? 0)]).toEqual([44, 44]);
+    xs.add(Math.round(box?.x ?? 0));
+  }
+  expect(xs.size).toBe(1);
+  // Where the map is (its centre, on its box), fitted to every venue as the page arrived.
+  const centre = async () =>
+    ((await map.getAttribute("data-center")) ?? "").split(",").map(Number) as [number, number];
+  const near = (a: [number, number], b: [number, number]) =>
+    Math.abs(a[0] - b[0]) < 1e-4 && Math.abs(a[1] - b[1]) < 1e-4;
+  const fitted = await centre();
+  expect(fitted.every(Number.isFinite)).toBe(true);
+  // A pin moves the map to its venue, zoomed in to the area round it at least (13), and picks its
+  // venue's first session into the card; the page then has who can take it.
+  // A pin not yet chosen, held by its venue (a ":not(chosen)" locator would move to another pin
+  // once this one is chosen).
+  const venue = await map
+    .locator('a[data-venue]:not([aria-current="true"])')
+    .first()
+    .getAttribute("data-venue");
+  const pin = map.locator(`a[data-venue="${venue}"]`);
+  const id = /session=([0-9a-f-]{36})/.exec((await pin.getAttribute("href")) ?? "")?.[1];
+  expect(id).toBeDefined();
+  await pin.click();
+  await expect(page.locator(`[data-chosen="${id}"]`)).toBeVisible();
+  await expect(page).toHaveURL(`${acme}/office?session=${id}`);
+  await expect(page.locator(`[data-chosen="${id}"] [data-takers]`)).toHaveText(/^\d+$/);
+  await expect.poll(zoom).toBeGreaterThanOrEqual(12.99);
+  await expect.poll(async () => near(await centre(), fitted)).toBe(false);
+  await expect(pin).toHaveAttribute("aria-current", "true");
+  // Back to every venue: the view the page arrived with.
+  await buttons.getByRole("button", { name: "Back to every venue" }).click();
+  await expect.poll(zoom).toBeCloseTo(start, 1);
+  await expect.poll(async () => near(await centre(), fitted)).toBe(true);
+  // The list button opens To offer over the map's right (pressed, named for shutting it), and
+  // shuts it again.
+  const show = buttons.getByRole("button", { name: "Show the sessions to offer" });
+  await expect(show).toHaveAttribute("aria-pressed", "false");
+  await show.click();
+  const hide = buttons.getByRole("button", { name: "Hide the sessions to offer" });
+  await expect(hide).toHaveAttribute("aria-pressed", "true");
+  const list = page.locator("section#to-offer");
+  await expect(list).toBeVisible();
+  const [m, l] = [await map.boundingBox(), await list.boundingBox()];
+  expect(Math.round((m?.x ?? 0) + (m?.width ?? 0) - ((l?.x ?? 0) + (l?.width ?? 0)))).toBe(64);
+  // A row of it moves the map too, to its session's venue.
+  const before = await centre();
+  const row = list
+    .locator("[data-session]")
+    .filter({ hasNot: page.locator('a[aria-current="true"]') })
+    .first();
+  const rowId = await row.getAttribute("data-session");
+  await row.locator('a[href^="/office?"]').click();
+  await expect(page.locator(`[data-chosen="${rowId}"]`)).toBeVisible();
+  await expect.poll(zoom).toBeGreaterThanOrEqual(12.99);
+  await expect.poll(async () => near(await centre(), before)).toBe(false);
+  await hide.click();
+  await expect(list).toBeHidden();
+  await expect(show).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator('[data-venue-map="plain"]')).toHaveCount(0);
+
   // The file was read by range, from our own path; no other host was asked.
   expect(asked.length).toBeGreaterThan(0);
   expect(asked.every((r) => r.startsWith("bytes="))).toBe(true);

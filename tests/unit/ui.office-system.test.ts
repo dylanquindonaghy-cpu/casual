@@ -921,19 +921,22 @@ describe("the office's loading skeletons", () => {
   });
 
   // Round 8 (Phase 26.2): the dashboard's sections are its head and track, the venue map with the
-  // session card, and the three columns (round 7's places chart and four columns went).
+  // session card, and the columns (round 7's places chart and four columns went). Phase 27.4: To
+  // offer is a list on the map (shut until asked for), so the columns under it are Updates and Who
+  // worked?, two across.
   it("the dashboard's has a part for every section", () => {
     const html = renderToStaticMarkup(createElement(DashboardSkeleton));
     expect([...html.matchAll(/data-skeleton-part="([a-z]+)"/g)].map((m) => m[1])).toEqual([
       "header",
       "map",
       "detail",
-      "offer",
       "updates",
       "mark",
     ]);
-    // The map's own heights, and the card over its top left from 1024px, as the page's.
-    expect(html).toMatch(/data-skeleton-part="map" class="[^"]*h-75 @min-\[64rem\]:h-132/);
+    expect(html).toMatch(/<span class="grid items-start gap-3 @min-\[48rem\]:grid-cols-2">/);
+    // The map's own heights (Phase 27.4: 380px on a phone, 600px from 1024px), and the card over
+    // its top left from 1024px, as the page's.
+    expect(html).toMatch(/data-skeleton-part="map" class="[^"]*h-95 @min-\[64rem\]:h-150/);
     expect(html).toMatch(
       /data-skeleton-part="detail" class="[^"]*@min-\[64rem\]:absolute @min-\[64rem\]:top-3 @min-\[64rem\]:left-3[^"]*@min-\[64rem\]:w-101/,
     );

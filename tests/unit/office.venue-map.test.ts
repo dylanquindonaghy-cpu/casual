@@ -4,25 +4,42 @@ import { describe, expect, it } from "vitest";
 import { appEnvSchema } from "@/lib/env";
 import {
   dayShort,
+  FIT_ALL,
   lengthAndPay,
+  listButton,
+  MAP_BUTTONS,
   mapCountLine,
   mapFoot,
   offerButton,
   pinDays,
   pinLabel,
+  STEP_BEFORE,
+  STEP_NEXT,
+  stepPosition,
+  stepperText,
   takersWarning,
   unplacedLine,
   updateWhen,
+  ZOOM_IN,
+  ZOOM_OUT,
 } from "@/lib/office/dashboard-map-copy";
 import {
+  cameraPadding,
+  isPhoneBox,
+  keepClear,
   labelOrder,
   labelSides,
   layoutPins,
   mercatorY,
   PIN,
+  placeLabels,
   placePins,
   spreadPins,
+  stepperAt,
+  stepTo,
   venueBounds,
+  venueSessions,
+  type Rect,
 } from "@/lib/office/venue-map-geo";
 
 // Round 8's venue map (Phase 26.2; the spec's dash-1, the pre-build audit's aud-7 and aud-8): where
@@ -212,6 +229,273 @@ describe("laying the pins out in the map's real box", () => {
   });
 });
 
+// Phase 27.4, "the map you can use" (Dylan, 2026-11-04, on docs/mockups/round-8/27.4-map/).
+describe("the chosen pin's name, on a phone and a laptop (Phase 27.4)", () => {
+  // A phone's map (390px page): 358 by 380. Its key top left, its list button top right.
+  const phone = { width: 358, height: 380, inset: 0 };
+  const key: Rect = { x0: 12, y0: 12, x1: 200, y1: 40 };
+  const buttons: Rect = { x0: 302, y0: 12, x1: 346, y1: 56 };
+  const over = (a: Rect, b: Rect) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+  // Where a label sits, from its side and its shift (the page's own geometry: 4px off the 44px pin,
+  // 40px tall).
+  const half = PIN.target / 2 + PIN.labelGap;
+  const rectOf = (
+    s: { x: number; y: number },
+    w: number,
+    l: { side: string; shift: number },
+  ): Rect => {
+    const h = PIN.labelHeight;
+    if (l.side === "right")
+      return { x0: s.x + half, y0: s.y - h / 2, x1: s.x + half + w, y1: s.y + h / 2 };
+    if (l.side === "left")
+      return { x0: s.x - half - w, y0: s.y - h / 2, x1: s.x - half, y1: s.y + h / 2 };
+    const x0 = s.x - w / 2 + l.shift;
+    const y0 = l.side === "below" ? s.y + half : s.y - half - h;
+    return { x0, y0, x1: x0 + w, y1: y0 + h };
+  };
+  const inside = (r: Rect, box: { width: number; height: number; inset: number }) =>
+    r.x0 >= box.inset + PIN.edge &&
+    r.x1 <= box.width - PIN.edge &&
+    r.y0 >= PIN.edge &&
+    r.y1 <= box.height - PIN.edge;
+
+  it("a phone's map is under 640px of page", () => {
+    expect(isPhoneBox(358)).toBe(true);
+    expect(isPhoneBox(639)).toBe(true);
+    expect(isPhoneBox(640)).toBe(false);
+    expect(isPhoneBox(1172)).toBe(false);
+  });
+
+  it("only the chosen pin's name, beside it where it fits", () => {
+    const spots = [
+      { x: 120, y: 200 },
+      { x: 250, y: 260 },
+    ];
+    // The other pins have no width on a phone: no name.
+    const out = placeLabels(spots, [150, null], [0, 1], phone, [key, buttons], 0);
+    expect(out).toEqual([
+      { side: "right", shift: 0 },
+      { side: "none", shift: 0 },
+    ]);
+  });
+
+  it("too long for either side: under it, centred; near the edge, moved in; at the foot, over it", () => {
+    const under = placeLabels([{ x: 180, y: 200 }], [220], [0], phone, [key, buttons], 0)[0]!;
+    expect(under).toEqual({ side: "below", shift: 0 });
+    // Near the right edge, with a pin on its left: under it, moved left to stay inside.
+    const spots = [
+      { x: 340, y: 200 },
+      { x: 290, y: 200 },
+    ];
+    const moved = placeLabels(spots, [120, null], [0, 1], phone, [key, buttons], 0)[0]!;
+    expect(moved.side).toBe("below");
+    expect(moved.shift).toBe(-46);
+    expect(inside(rectOf(spots[0]!, 120, moved), phone)).toBe(true);
+    // At the map's foot, too long for either side: over it.
+    const foot = { x: 180, y: 360 };
+    const up = placeLabels([foot], [300], [0], phone, [key, buttons], 0)[0]!;
+    expect(up.side).toBe("above");
+    expect(inside(rectOf(foot, 300, up), phone)).toBe(true);
+  });
+
+  it("kept clear of the map's buttons and key", () => {
+    // A pin right under the buttons: beside it would cover them (or leave the map), over it would
+    // leave it, so under it, moved left of them.
+    const s = { x: 330, y: 30 };
+    const l = placeLabels([s], [160], [0], phone, [key, buttons], 0)[0]!;
+    expect(l.side).toBe("below");
+    const r = rectOf(s, 160, l);
+    expect(over(r, buttons)).toBe(false);
+    expect(over(r, key)).toBe(false);
+    expect(inside(r, phone)).toBe(true);
+    // A pin under the key: its name clear of it too.
+    const k = { x: 60, y: 30 };
+    const kl = placeLabels([k], [180], [0], phone, [key, buttons], 0)[0]!;
+    expect(over(rectOf(k, 180, kl), key)).toBe(false);
+    expect(inside(rectOf(k, 180, kl), phone)).toBe(true);
+  });
+
+  it("always shows, even where every side covers another pin (and never takes its taps: board.tsx)", () => {
+    const s = { x: 180, y: 190 };
+    const around = [
+      { x: 180, y: 140 },
+      { x: 180, y: 240 },
+      { x: 120, y: 190 },
+      { x: 240, y: 190 },
+      { x: 130, y: 240 },
+      { x: 230, y: 240 },
+      { x: 130, y: 140 },
+      { x: 230, y: 140 },
+    ];
+    const out = placeLabels(
+      [s, ...around],
+      [200, ...around.map(() => null)],
+      [0],
+      phone,
+      [key, buttons],
+      0,
+    );
+    expect(out[0]!.side).not.toBe("none");
+    expect(inside(rectOf(s, 200, out[0]!), phone)).toBe(true);
+    // Not the chosen one: left off, as before.
+    const other = placeLabels([s, ...around], [200, ...around.map(() => null)], [0], phone, [
+      key,
+      buttons,
+    ]);
+    expect(other[0]!.side).toBe("none");
+  });
+
+  it("no pin under the key or the map's buttons: each moved the shortest way clear", () => {
+    const target = (p: { x: number; y: number }): Rect => ({
+      x0: p.x - PIN.target / 2,
+      y0: p.y - PIN.target / 2,
+      x1: p.x + PIN.target / 2,
+      y1: p.y + PIN.target / 2,
+    });
+    // Two under the buttons: one moved left of them (30px, shorter than 38px down), one under them
+    // (48px, shorter than 50px left; right of them is off the map); one under the key (moved under
+    // it); one clear (where it was).
+    const out = keepClear(
+      [
+        { x: 310, y: 40 },
+        { x: 330, y: 30 },
+        { x: 100, y: 30 },
+        { x: 180, y: 200 },
+      ],
+      [key, buttons],
+      phone,
+    );
+    expect(out).toEqual([
+      { x: buttons.x0 - PIN.target / 2, y: 40 },
+      { x: 330, y: buttons.y1 + PIN.target / 2 },
+      { x: 100, y: key.y1 + PIN.target / 2 },
+      { x: 180, y: 200 },
+    ]);
+    // The whole layout keeps every pin clear of them, whatever the venues.
+    const corners = [
+      { lat: 54.1, lng: -1.2 }, // north east: the buttons' corner
+      { lat: 54.1, lng: -1.9 }, // north west: the key's
+      { lat: 53.7, lng: -1.5 },
+    ];
+    for (const p of layoutPins(corners, phone, [null, null, null], [0, 1, 2], [key, buttons])) {
+      expect(over(target(p), key)).toBe(false);
+      expect(over(target(p), buttons)).toBe(false);
+    }
+  });
+
+  it("on a laptop the others are as before (beside their pin, or none) and the chosen one's always shows", () => {
+    const laptop = { width: 1170, height: 600, inset: 428 };
+    // Squeezed between the card and the edge, too long for either side: none, unless it's chosen.
+    expect(labelSides([{ x: 460, y: 200 }], [700], [0], laptop)).toEqual(["none"]);
+    const chosen = placeLabels([{ x: 460, y: 200 }], [700], [0], laptop, [], 0)[0]!;
+    expect(chosen.side).toBe("below");
+    // Moved right of the card (it covers the left 428px), inside the map.
+    expect(inside(rectOf({ x: 460, y: 200 }, 700, chosen), laptop)).toBe(true);
+    // The open list covers the right (`right`): no name under it, no pin either.
+    const open = { ...laptop, right: 420 };
+    expect(labelSides([{ x: 700, y: 200 }], [180], [0], open)).toEqual(["left"]);
+    for (const p of spreadPins([{ x: 1000, y: 300 }], open))
+      expect(p.x).toBeLessThanOrEqual(open.width - open.right - PIN.disc / 2);
+    const leeds = { lat: 53.8, lng: -1.55 };
+    const york = { lat: 53.96, lng: -1.08 };
+    for (const p of layoutPins([leeds, york], open, [150, 150], [0, 1])) {
+      expect(p.x).toBeGreaterThanOrEqual(open.inset + PIN.disc / 2);
+      expect(p.x).toBeLessThanOrEqual(open.width - open.right - PIN.disc / 2);
+    }
+  });
+});
+
+describe("moving the street map: the free part the card and the list leave (Phase 27.4)", () => {
+  it("on a laptop: right of the card, left of the buttons or the open list, under the key, over the credit", () => {
+    const box = { width: 1172, height: 600 };
+    const card: Rect = { x0: 12, y0: 12, x1: 416, y1: 540 };
+    expect(cameraPadding(box, { card, list: null })).toEqual({
+      top: 70,
+      bottom: 50,
+      left: 456,
+      right: 90,
+    });
+    // The list open (352px wide, 64px in from the right): 30px left of it.
+    const list: Rect = { x0: 756, y0: 56, x1: 1108, y1: 560 };
+    expect(cameraPadding(box, { card, list })).toEqual({
+      top: 70,
+      bottom: 50,
+      left: 456,
+      right: 446,
+    });
+  });
+
+  it("a narrower map keeps a fifth of itself free, the two sides in proportion", () => {
+    const box = { width: 1024, height: 600 };
+    const card: Rect = { x0: 12, y0: 12, x1: 416, y1: 540 };
+    const list: Rect = { x0: 608, y0: 56, x1: 960, y1: 560 };
+    const p = cameraPadding(box, { card, list });
+    expect(box.width - p.left - p.right).toBeGreaterThanOrEqual(box.width / 5 - 1);
+    expect(p.left / p.right).toBeCloseTo(456 / 446, 1);
+    // A tiny one: at least 80px free each way.
+    const tiny = cameraPadding({ width: 120, height: 100 }, { card: null, list: null });
+    expect(120 - tiny.left - tiny.right).toBeGreaterThanOrEqual(79);
+    expect(100 - tiny.top - tiny.bottom).toBeGreaterThanOrEqual(79);
+  });
+
+  it("on a phone (the card under the map): clear of the key at the top and the buttons on the right", () => {
+    expect(cameraPadding({ width: 358, height: 380 }, { card: null, list: null })).toEqual({
+      top: 56,
+      bottom: 36,
+      left: 36,
+      right: 70,
+    });
+  });
+});
+
+describe("a venue's sessions, and the card's \"1 of 2\" (Phase 27.4)", () => {
+  // In the view's order, soonest first: two venues and a session with none.
+  const a1 = { shiftId: "a1", siteId: "A" };
+  const b1 = { shiftId: "b1", siteId: "B" };
+  const a2 = { shiftId: "a2", siteId: "A" };
+  const a3 = { shiftId: "a3", siteId: "A" };
+  const n1 = { shiftId: "n1", siteId: null };
+  const all = [a1, b1, a2, a3, n1];
+
+  it("a venue's sessions in the view's order; none for no venue", () => {
+    expect(venueSessions(all, "A")).toEqual([a1, a2, a3]);
+    expect(venueSessions(all, "B")).toEqual([b1]);
+    expect(venueSessions(all, null)).toEqual([]);
+    // A pin picks its venue's first: the soonest.
+    expect(venueSessions(all, "A")[0]).toBe(a1);
+  });
+
+  it("where the chosen one is among them; no row for one alone, no venue, or one the view doesn't hold", () => {
+    expect(stepperAt(all, a1)).toEqual({ index: 0, count: 3 });
+    expect(stepperAt(all, a2)).toEqual({ index: 1, count: 3 });
+    expect(stepperAt(all, a3)).toEqual({ index: 2, count: 3 });
+    expect(stepperAt(all, b1)).toBeNull();
+    expect(stepperAt(all, n1)).toBeNull();
+    expect(stepperAt(all, { shiftId: "elsewhere", siteId: "A" })).toBeNull();
+    expect(stepperAt(all, null)).toBeNull();
+  });
+
+  it("one step before or after; never round from an end to the other", () => {
+    expect(stepTo(all, a1, 1)).toBe(a2);
+    expect(stepTo(all, a2, 1)).toBe(a3);
+    expect(stepTo(all, a2, -1)).toBe(a1);
+    expect(stepTo(all, a1, -1)).toBeNull();
+    expect(stepTo(all, a3, 1)).toBeNull();
+    expect(stepTo(all, b1, 1)).toBeNull();
+    expect(stepTo(all, { shiftId: "elsewhere", siteId: "A" }, 1)).toBeNull();
+  });
+
+  it("its words, and the map's buttons'", () => {
+    expect(stepperText("Acme Demo Arena", 0, 2)).toBe("Acme Demo Arena · 1 of 2");
+    expect(stepPosition(1, 2)).toBe("2 of 2");
+    expect([STEP_BEFORE, STEP_NEXT]).toEqual(["The session before", "The next session"]);
+    expect(listButton(false)).toBe("Show the sessions to offer");
+    expect(listButton(true)).toBe("Hide the sessions to offer");
+    expect([ZOOM_IN, ZOOM_OUT, FIT_ALL]).toEqual(["Zoom in", "Zoom out", "Back to every venue"]);
+    expect(MAP_BUTTONS).toBe("Map buttons");
+  });
+});
+
 describe("the map's words", () => {
   const arena = {
     name: "Acme Demo Arena",
@@ -329,12 +613,16 @@ describe("the street map's file (MAP_TILES_URL)", () => {
     expect(map).toContain(
       "maplibregl.setWorkerUrl(`/office/map-worker?v=${maplibregl.getVersion()}`)",
     );
-    // The street map's key and credit over MapLibre's canvas (it's added after them).
+    // The street map's key, credit and buttons over MapLibre's canvas (it's added after them). The
+    // key top left on a phone (Phase 27.4: it was hidden there), top right from 640px.
     expect(map).toMatch(
       /className="absolute right-2 bottom-2 z-10 [^"]*">\s*© OpenStreetMap contributors/,
     );
     expect(map).toMatch(
-      /aria-label="Key"\s+className="pointer-events-none absolute top-3 right-3 z-10 /,
+      /aria-label="Key"\s+className=\{`pointer-events-none absolute top-3 left-3 z-10 flex [^`]*@min-\[40rem\]:left-auto /,
+    );
+    expect(map).toMatch(
+      /aria-label=\{MAP_BUTTONS\}\s+className="absolute top-3 right-3 z-10 flex flex-col gap-2"/,
     );
     // No static import of the map libraries anywhere (they'd load on every office page), nor of
     // the style's module (it brings Protomaps' layers with it).

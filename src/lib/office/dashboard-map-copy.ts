@@ -84,6 +84,23 @@ export function unplacedLine(list: Pick<MapVenue, "name" | "places">[]): string 
   return `Not on the map (no postcode yet): ${each.join("; ")}.`;
 }
 
+// The map's buttons, top right (Phase 27.4; Dylan, 2026-11-04, "map you can use: yes"): To offer as
+// a list on the map, the zoom, and back to the view of every venue. Each is an icon, named by these.
+export const MAP_BUTTONS = "Map buttons";
+export const listButton = (open: boolean) =>
+  open ? "Hide the sessions to offer" : "Show the sessions to offer";
+export const ZOOM_IN = "Zoom in";
+export const ZOOM_OUT = "Zoom out";
+export const FIT_ALL = "Back to every venue";
+
+// The card's row for a venue with more than one session in the view: "‹ Acme Demo Arena · 1 of 2 ›",
+// its arrows named for where they go.
+export const stepPosition = (index: number, count: number) => `${index + 1} of ${count}`;
+export const stepperText = (venue: string, index: number, count: number) =>
+  `${venue} · ${stepPosition(index, count)}`;
+export const STEP_BEFORE = "The session before";
+export const STEP_NEXT = "The next session";
+
 // The map's figures as a table, one tap away (the pre-build audit's aud-9).
 export const MAP_TABLE = "Show as a table";
 export const MAP_TABLE_HEADS = ["Venue", "Places to fill", "Days"] as const;

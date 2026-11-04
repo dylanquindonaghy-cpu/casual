@@ -3,8 +3,9 @@
 // wait (Phase 22, `animate-wait`; still in Phase 21; no shimmer, and with reduced motion one fade).
 // Phase 24 (round 7): glass, as the pages are: frosted sections, no tints. The dashboard's own
 // follows its layout, a part for every section (round 8, Phase 26.2: its head and track, the venue
-// map with the session card on it, and the three columns); every other page shares one (a
-// headline, a line, then a card of rows). Hidden from screen readers but for one line that says
+// map with the session card on it, and the columns under it: Updates and Who worked? since Phase
+// 27.4, when To offer became a list on the map); every other page shares one (a headline, a line,
+// then a card of rows). Hidden from screen readers but for one line that says
 // it's loading.
 // Hook-free.
 
@@ -45,8 +46,8 @@ function ColumnSkeleton({ part }: { part: string }) {
 }
 
 // The dashboard's own (round 8, Phase 26.2): "Dashboard" and its line, the track with Filter and
-// Show full venues, the venue map (300px on a phone, 528px from 1024px) with the session card over
-// its top left from 1024px (under it before), then the three columns.
+// Show full venues, the venue map (380px on a phone, 600px from 1024px: Phase 27.4) with the session
+// card over its top left from 1024px (under it before), then the two columns under it.
 export function DashboardSkeleton() {
   return (
     <div aria-busy="true" data-skeleton="">
@@ -63,7 +64,7 @@ export function DashboardSkeleton() {
           </span>
         </div>
         <span className="relative block">
-          <span data-skeleton-part="map" className={`block h-75 @min-[64rem]:h-132 ${CARD}`} />
+          <span data-skeleton-part="map" className={`block h-95 @min-[64rem]:h-150 ${CARD}`} />
           <span
             data-skeleton-part="detail"
             className={`mt-3 flex flex-col gap-4 p-6 @min-[64rem]:absolute @min-[64rem]:top-3 @min-[64rem]:left-3 @min-[64rem]:mt-0 @min-[64rem]:w-101 ${CARD}`}
@@ -83,8 +84,7 @@ export function DashboardSkeleton() {
             <span className={`${BAR} h-11 w-full`} />
           </span>
         </span>
-        <span className="grid items-start gap-3 @min-[48rem]:grid-cols-2 @min-[72rem]:grid-cols-3">
-          <ColumnSkeleton part="offer" />
+        <span className="grid items-start gap-3 @min-[48rem]:grid-cols-2">
           <ColumnSkeleton part="updates" />
           <ColumnSkeleton part="mark" />
         </span>

@@ -129,22 +129,38 @@ part that couldn't load and the empty card are round 7's. Words: `src/lib/office
 `src/lib/office/dashboard-map-copy.ts`; data: `src/lib/office/dashboard-board.ts` and
 `src/lib/office/dashboard-map.ts`.
 
+**Phase 27.4, "the map you can use"** (Dylan, 2026-11-04, "map you can use: yes", on the mock-up
+`docs/mockups/round-8/27.4-map/index.html`): the map is the dashboard's top and you work on it. A pin
+or a session picked shows it in the card and moves the street map to its venue; the card steps
+through a venue's sessions ("1 of 2"); "To offer" is a list on the map (its column under the map
+goes while the map shows); the map has its own buttons (the list, zoom, back to every venue); and it
+is taller (600px where the card floats on it, 380px below), with its key on it on a phone too. The
+bullets below say where each is.
+
 - **Under the head:** the track (round 7's: All, Urgent, This week, Next week, with their counts),
   then **Filter** (a button with a funnel, read as "Filter by role"; it opens a list of the roles
   with places to fill and "Every role"; picked, the button says the role and is read as "Filter:
   {Steward}"; `?role=steward`), then **Show filled venues too** on the right from 768px of page (a switch:
   on, the map shows the venues with nothing left to fill too; `?full=1`). Every link on the page
   keeps all three.
-- **The venue map** (a glass panel, 300px tall on a phone and 528px from 1024px of page): a pin for
+- **The venue map** (a glass panel, 380px tall on a phone and 600px from 1024px of page, where the
+  card floats on it; 300px and 528px until Phase 27.4): a pin for
   each venue with places to fill under the track and the filter, its number the places to fill
   there, red when a session there is urgent, a dashed ring when every one is hidden from casuals,
   green when it's full (only with Show filled venues too), and the venue the card shows ringed in the
-  accent. From 640px a pin carries the venue's name and its days ("Tue 3, Sat 7, Sun 8 and 2 more",
-  "… · hidden", "All places filled"), and the key sits top right ("Urgent", "Places to fill",
-  "Hidden: casuals can't see it", and "All filled" with Show filled venues too; on the street map,
-  just left of its + and − buttons). A pin is a link to the dashboard
+  accent. A pin carries the venue's name and its days ("Tue 3, Sat 7, Sun 8 and 2 more",
+  "… · hidden", "All places filled"): from 640px each where it fits and the chosen venue's always
+  (beside its pin, else under or over it, kept inside the map and clear of the key and the
+  buttons); on a phone only the chosen venue's, the others bare numbers. The key ("Urgent", "Places
+  to fill", "Hidden: casuals can't see it", and "All filled" with Show filled venues too) sits top
+  right from 640px, just left of the map's buttons, and top left on a phone, clear of them (hidden
+  there until Phase 27.4). A pin is a link to the dashboard
   with that venue's soonest session in the card, read as "{Acme Demo Arena}: {10} places to fill,
   urgent, {Tue 3, Sat 7, Sun 8 and 2 more}" (", hidden from casuals"; "{name}: all places filled").
+  Once the page is ready a pin picks that session (the venue's first in the view, soonest first)
+  into the card in place, and with the street map the map moves to the venue (eased; at once with
+  reduced motion): zoomed in to the area round it at least (zoom 13), into the part of the map the
+  card and the open list leave free. Without the street map nothing moves; only the card changes.
   Under the map, on the left, "Placed by each venue's postcode · a pin's number is its places to
   fill", or, with a street map, "Drag to move · Ctrl + scroll to zoom (two fingers on a phone) · a
   pin's number is its places to fill"; on the right "{3} venues · {11} places to fill this week
@@ -153,8 +169,25 @@ part that couldn't load and the empty card are round 7's. Words: `src/lib/office
   with no position is never placed by guesswork: "Not on the map (no postcode yet): {Hillside Demo
   Square}, {4} places to fill." Nothing to place: "No places to fill here." / "None of these
   venues has a postcode yet, so none is on the map." From 1024px no pin or label sits under the
-  card. Pins that would cover each other are nudged apart, and a label goes on whichever side of
-  its pin it fits, or is left off where it fits on neither (its name is still the pin's link words).
+  card or the open list, and (without the street map) no pin under the key or the map's buttons.
+  Pins that would cover each other are nudged apart, and a label goes on whichever side of its pin
+  it fits, or is left off where it fits on neither (its name is still the pin's link words; the
+  chosen venue's never is).
+- **The map's buttons** (Phase 27.4): top right, one column, each 44px of floating glass with an
+  icon: the list ("Show the sessions to offer"; pressed, tinted and read as "Hide the sessions to
+  offer"), then, with the street map, "Zoom in" and "Zoom out" joined (one step each, greyed at the
+  end of the zoom), then "Back to every venue" (four corners: the map fitted to the venues shown
+  again, as the page arrived). Without the street map, only the list button; with To offer off
+  under Customise, no list button.
+- **To offer, on the map** (Phase 27.4; while the map shows and To offer is on): the list button
+  opens To offer's own parts as a floating glass list: "To offer", its count, "{11} places · {3}
+  offers, no reply yet" (or "…, none offered"), every session (not just the first four: round 7's
+  rows, each picking its session into the card, its paper plane opening the offer panel), and
+  "View all {17}". On a laptop it floats on the map's right, under the key and left of the
+  buttons, scrolling inside itself; on a phone it sits under the card. Shut as the page arrives;
+  opened, the chosen session's row is brought into view. A row picked shows its session in the card
+  and moves the street map to its venue; the list stays open. It's the keyboard's and a screen
+  reader's path to every session.
 - **Show as a table** (under the map, the pre-build audit's aud-9): opens a table of the same
   figures, every venue on or off the map: "Venue" (its name, a link like its pin, and its town),
   "Places to fill" ("{5} · urgent" in red) and "Days".
@@ -167,10 +200,11 @@ part that couldn't load and the empty card are round 7's. Words: `src/lib/office
       first), water and island names closer in; house numbers right in. No shops or other places,
       no road-number shields, no one-way arrows, no town dots. The venue pins and their own labels
       stay on top of the names. The letter shapes come from our own server, never another site.
-    - **Zoom buttons:** + and − top right ("Zoom in", "Zoom out" to a screen reader; 44px each,
-      one above the other), each one step; greyed at the end of the zoom. The key moves left of
-      them. From the whole UK (the map file's area) in to each building (zoom 18; the view fitted
-      to the venues still stops at the area round them, zoom 13).
+    - **Zoom buttons:** + and − top right, among the map's buttons since Phase 27.4 (the office's
+      own, no longer MapLibre's; "Zoom in", "Zoom out" to a screen reader; 44px each, one above
+      the other), each one step; greyed at the end of the zoom. From the whole UK (the map file's
+      area) in to each building (zoom 18; the view fitted to the venues still stops at the area
+      round them, zoom 13).
     - **Detail:** roads drawn by importance (main roads strongest), blue water, green parks, and
       building outlines from street level, in the office's dark or light look. Every name reads at
       4.5:1 on its halo and on the land.
@@ -178,8 +212,14 @@ part that couldn't load and the empty card are round 7's. Words: `src/lib/office
     latitude and longitude on the map box's plain glass (no picture behind it since Phase 27.7), north
     up and to scale.
 - **The chosen session** (a floating glass card over the map's top left from 1024px of page, 404px
-  wide; under the map before): round 7's choice (the address's `?session=`, else the soonest
-  urgent, else the soonest). Its date tile, the role (and "Urgent"), "{Northern Lights Live} ·
+  wide, as tall as the map less 12px each end and scrolling inside only if it must; under the map
+  before): round 7's choice (the address's `?session=`, else the soonest urgent, else the soonest).
+  Picking one (a pin, a row, the card's arrows) shows it at once and puts it in the address (no new
+  history entry); the page then loads who can take it ("–" until then). A venue with more than
+  one session in the view (Phase 27.4): a row at the card's top, "‹ {Acme Demo Arena} · {1} of {2}
+  ›", its round 44px arrows read as "The session before" and "The next session", each off at its
+  end (it never wraps round); a screen reader hears the new position. One session alone: no row.
+  Its date tile, the role (and "Urgent"), "{Northern Lights Live} ·
   {Gate A}, {Acme Demo Arena}" and "…" (round 7's menu); a tile with "{Tue 27 Oct, 08:00–16:00}" and
   "{8 h} · {£15.50/h}" (no rate: the length alone), a bar of how many are booked, "Starts in {20 h}"
   (red under 2 days) and "{1 place to fill}"; two tiles: "Booked" with "Urgent" or "Open", a
@@ -190,13 +230,16 @@ part that couldn't load and the empty card are round 7's. Words: `src/lib/office
   waiting, "Only {Zoe Adeyemi} can take it: {1 hour} booked that week." or "Nobody can be offered
   it right now.", else round 7's. Then "Offer to someone" ("Offer to {Zoe}" when she's the only one
   who can take it) and "Open the session".
-- **The board**, three glass columns under the map (three across from 1152px of page, two from
-  768px, one on a phone):
+- **The board**, glass columns under the map: with the map shown (Phase 27.4), Updates and Who
+  worked?, two across from 768px of page and one on a phone, To offer being the list on the map;
+  with the map off under Customise, To offer, Updates and Who worked? (three across from 1152px of
+  page, two from 768px, one on a phone):
   - **To offer** (`#to-offer`): every session with places to fill under the track and the filter,
     soonest first, "{11} places · {3} offers, no reply yet" (or "…, none offered"). A row: its date
     tile (red when urgent), the role (and "Urgent"), "{venue} · {08:00}", "{3/4} booked" and its
-    paper plane (the offer panel, as round 7's). The row picks itself into the card. The first 4,
-    then "View all {17}" (Events & sessions' "Need people", or "Urgent").
+    paper plane (the offer panel, as round 7's). The row picks itself into the card. As a column
+    (the map off), the first 4, then "View all {17}" (Events & sessions' "Need people", or
+    "Urgent"); on the map, every one, then "View all {17}".
   - **Updates** (`#updates`, where the top bar's "Offers out" lands): the last two days, newest
     first, 6 at most, each a link to where it's dealt with: "{Ben Fraser} took a place" ("{Steward},
     {Acme Demo Arena}, {Tue 3 Nov 08:00} · {2 places to fill}" or "now full"); "{Mo Rahman}
@@ -226,9 +269,10 @@ part that couldn't load and the empty card are round 7's. Words: `src/lib/office
     cancellations, and photos or certificates to check show here."; Who worked? "Sessions show
     here when they end, so you can mark who worked."
 - **On a phone:** the counts row (the shell's), the head, the track, Filter and the switch, the map
-  (300px, pins without names), the card, then the three columns one under another.
+  (380px, its key top left and its button top right, only the chosen pin with its name), the card,
+  To offer's list when it's open, then Updates and Who worked? one under the other.
 - **Loading:** the skeleton follows this layout (the head and track, the map with the card on it,
-  the three columns).
+  the two columns under it).
 
 ## Contracts and each person's own dashboard (Phase 26.3)
 

@@ -61,6 +61,22 @@ export async function accountMenu(page: Page): Promise<Locator> {
   return menu;
 }
 
+// The dashboard's To offer (Phase 27.4, "the map you can use"): a list on the map, shut until its
+// button (top right of the map, "Show the sessions to offer") opens it, once the page is ready (the
+// offer panel's dialog says so). Returns the list (`section#to-offer`), open: on a laptop over the
+// map's right, on a phone under the card.
+export async function openToOffer(page: Page): Promise<Locator> {
+  await expect(page.locator("dialog[data-offer-panel][data-ready]")).toHaveCount(1);
+  const button = page.getByRole("button", { name: "Show the sessions to offer" });
+  await button.click();
+  await expect(
+    page.getByRole("button", { name: "Hide the sessions to offer", pressed: true }),
+  ).toBeVisible();
+  const list = page.locator("section#to-offer");
+  await expect(list).toBeVisible();
+  return list;
+}
+
 // One of a session's forms (Phase 26.6, ses-5): its "…" menu ("More for this session"), then the
 // link, then the slide-in panel it opens (a region named for the form). Returns the panel.
 export async function sessionPanel(page: Page, name: string): Promise<Locator> {

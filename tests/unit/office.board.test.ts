@@ -555,10 +555,13 @@ describe("the dashboard's words", () => {
 describe("the dashboard page (round 8: Phase 26.2)", () => {
   const track = (html: string) =>
     /<nav aria-label="Show"[^>]*>([\s\S]*?)<\/nav>/.exec(html)?.[1] ?? "";
+  // The map's section up to the columns under it, less To offer's list on it (Phase 27.4).
   const map = (html: string) =>
-    /<section aria-labelledby="venue-map-title"[^>]*>([\s\S]*)/
-      .exec(html)?.[1]
-      ?.split('<section id="to-offer"')[0] ?? "";
+    (
+      /<section aria-labelledby="venue-map-title"[^>]*>([\s\S]*)/
+        .exec(html)?.[1]
+        ?.split('<section id="updates"')[0] ?? ""
+    ).replace(/<div id="to-offer-list"[^>]*><section[\s\S]*?<\/section><\/div>/, "");
   const card = (html: string) =>
     /<section aria-labelledby="chosen-title" data-chosen="nll1"[^>]*>([\s\S]*?)<\/section>/.exec(
       html,
@@ -686,6 +689,8 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
     const html = render(board);
     expect(words(card(html))).toBe(
       [
+        // Its venue has five sessions in the view, this the first (Phase 27.4).
+        "Acme Demo Arena · 1 of 5",
         "Tue 27 Door supervisor Urgent",
         "Northern Lights Live · Gate A, Acme Demo Arena",
         // The "…" menu's own words (shut until its button is pressed).
@@ -753,30 +758,90 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
     expect(planner).toContain("Not urgent");
   });
 
-  it("three columns under the map: To offer, Updates and Who worked?", () => {
+  it("the card's row for a venue with more than one session: where it is among them, arrows off at the ends (Phase 27.4)", () => {
+    const chosen = (s: BoardSession) =>
+      render({
+        ...board,
+        gaps: ok({ ...(board.gaps.ok ? board.gaps.data : ({} as never)), chosen: s }),
+      });
+    const cardOf = (html: string, id: string) =>
+      new RegExp(
+        `<section aria-labelledby="chosen-title" data-chosen="${id}"[^>]*>([\\s\\S]*?)</section>`,
+      ).exec(html)?.[1] ?? "";
+    const arrows = (html: string) =>
+      [
+        ...html.matchAll(/<button type="button" aria-label="(The [^"]+)"( aria-disabled="true")?/g),
+      ].map((m) => [m[1], Boolean(m[2])]);
+    // The first of the arena's five (nll1, np1, nll2, rc, sc: soonest first): "1 of 5", only the
+    // next one on; the screen reader hears the position when it changes.
+    const first = cardOf(render(board), "nll1");
+    expect(arrows(first)).toEqual([
+      ["The session before", true],
+      ["The next session", false],
+    ]);
+    expect(first).toMatch(
+      /<p aria-live="polite" aria-atomic="true" class="[^"]*"><b class="font-semibold text-ink">Acme Demo Arena<\/b>/,
+    );
+    // The middle one, then the last: both on, then only the one before.
+    const middle = cardOf(chosen(toOffer[1]!), "nll2");
+    expect(words(middle)).toMatch(/^Acme Demo Arena · 3 of 5 /);
+    expect(arrows(middle)).toEqual([
+      ["The session before", false],
+      ["The next session", false],
+    ]);
+    const last = cardOf(chosen(toOffer[3]!), "sc");
+    expect(words(last)).toMatch(/^Acme Demo Arena · 5 of 5 /);
+    expect(arrows(last)).toEqual([
+      ["The session before", false],
+      ["The next session", true],
+    ]);
+    // Alone at its venue: no row.
+    const alone = cardOf(chosen(rff), "rff");
+    expect(alone).not.toContain("aria-live");
+    expect(arrows(alone)).toEqual([]);
+    expect(words(alone)).toMatch(/^Fri 30 Steward /);
+  });
+
+  it("To offer as a list on the map (shut until asked for); Updates and Who worked? under it, two across (Phase 27.4)", () => {
     const html = render(board);
     const ids = [...html.matchAll(/<section id="([a-z-]+)" aria-labelledby="\1-title"/g)].map(
       (m) => m[1],
     );
     expect(ids).toEqual(["to-offer", "updates", "who-worked"]);
-    expect(html.indexOf('aria-labelledby="venue-map-title"')).toBeLessThan(
-      html.indexOf('<section id="to-offer"'),
+    // To offer in the map's own section, after the card: floating glass in the list its button
+    // opens, shut as the page arrives.
+    const inMap =
+      /<section aria-labelledby="venue-map-title"[\s\S]*?(?=<section id="updates")/.exec(
+        html,
+      )?.[0] ?? "";
+    expect(inMap.indexOf("data-chosen")).toBeLessThan(inMap.indexOf('id="to-offer-list"'));
+    expect(inMap).toMatch(
+      /<div id="to-offer-list" hidden="" class="[^"]*"><section id="to-offer" aria-labelledby="to-offer-title" class="glass-float /,
     );
+    // Its button, top right of the map: named for what it does, not pressed yet, and what it opens.
+    // No street map in the tests: no zoom and no Back to every venue.
+    const buttons =
+      /<div role="group" aria-label="Map buttons"[^>]*>([\s\S]*?)<\/div>/.exec(inMap)?.[1] ?? "";
+    expect([...buttons.matchAll(/<button ([^>]*)>/g)].map((m) => m[1])).toEqual([
+      expect.stringMatching(
+        /^type="button" aria-pressed="false" aria-controls="to-offer-list" aria-label="Show the sessions to offer" title="Show the sessions to offer" class="glass-float [^"]* aria-pressed:bg-accent aria-pressed:text-on-accent"$/,
+      ),
+    ]);
+    // The two columns under the map, side by side from 768px (never three across).
+    const grid = /<div class="(grid items-start gap-3 [^"]*)"><section id="updates"/.exec(html);
+    expect(grid?.[1]?.trim()).toBe("grid items-start gap-3 @min-[48rem]:grid-cols-2");
     expect(html).not.toContain('id="offered"');
     expect(html).not.toContain('id="while-you-were-out"');
     expect(html).not.toContain('id="places-chart"');
   });
 
-  it("To offer: every session with places, soonest first, four rows then View all", () => {
+  it("To offer: every session with places, soonest first, then View all (on the map: every one)", () => {
+    const rows = (col: string) => [...col.matchAll(/data-session="([^"]+)"/g)].map((m) => m[1]);
     const col = section(render(board), "to-offer");
     expect(words(col)).toMatch(/^To offer 6 6 sessions 7 places · 3 offers, no reply yet /);
-    expect([...col.matchAll(/data-session="([^"]+)"/g)].map((m) => m[1])).toEqual([
-      "nll1",
-      "np1",
-      "nll2",
-      // Fri 30 at 14:00, before the racecourse's at 19:00 that day.
-      "rff",
-    ]);
+    // On the map, the list holds every one, soonest first (Fri 30 at 14:00 before the
+    // racecourse's at 19:00 that day).
+    expect(rows(col)).toEqual(["nll1", "np1", "nll2", "rff", "rc", "sc"]);
     const l = links(col);
     expect(l.slice(0, 2).map((x) => [x.href, x.label, x.current])).toEqual([
       ["/office?session=nll1", cardLabel(nll1, TZ), "true"],
@@ -786,6 +851,27 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
     // A row: its role, "Urgent", venue and start, booked of how many.
     const row = col.split('data-session="').find((c) => c.startsWith('nll1"')) ?? "";
     expect(words(row)).toContain("Door supervisor Urgent Acme Demo Arena · 08:00 3/4 booked");
+    // With the map off under Customise, the column it was, under the card: the first four, then
+    // View all.
+    const off = render({
+      ...board,
+      me: ok({
+        cards: ["toOffer", "updates", "whoWorked"],
+        clientIds: [],
+        sites: null,
+        choices: [],
+      }),
+    });
+    expect(off).not.toContain("to-offer-list");
+    expect(off).not.toContain('aria-label="Map buttons"');
+    const column = section(off, "to-offer");
+    expect(off).toMatch(/<section id="to-offer" aria-labelledby="to-offer-title" class="glass /);
+    expect(rows(column)).toEqual(["nll1", "np1", "nll2", "rff"]);
+    expect(links(column).at(-1)).toMatchObject({ name: "View all 6" });
+    // Three columns then, three across from 1152px.
+    expect(off).toMatch(
+      /<div class="grid items-start gap-3 @min-\[48rem\]:grid-cols-2 @min-\[72rem\]:grid-cols-3"><section id="to-offer"/,
+    );
   });
 
   it("Updates: each one a link to where it's dealt with, then All updates (Phase 26.4)", () => {

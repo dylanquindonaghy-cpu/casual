@@ -57,8 +57,8 @@ const WHITE: Rgb = [255, 255, 255];
 const BLACK: Rgb = [0, 0, 0];
 const INK: Rgb = [21, 23, 26]; // the app's ink, #15171a (Phase 20)
 // The grounds the firm's colour sits on (Phase 24; round 8's since Phase 27.6): every point of the
-// glass and the street-map ground it lies on, in each theme (glass-grounds.ts, the same values
-// src/app/globals.css draws).
+// glass and the plain ground it lies on (Phase 27.7: no street pattern), in each theme
+// (glass-grounds.ts, the same values src/app/globals.css draws).
 // (Each once: many points of the glass come out the same.)
 const unique = (cs: Rgb[]) => [...new Map(cs.map((c) => [c.join(","), c])).values()];
 const LIGHT_GROUNDS: Rgb[] = unique(glassGrounds("light").all);

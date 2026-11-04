@@ -6,7 +6,8 @@ import { expect, test } from "./fixtures";
 
 const acme = "http://acme.localhost:3100";
 // The page behind the glass (Phase 18: the canvas, in both themes; Phase 20: dark greys, D7;
-// Phase 24: the wash's base; Phase 27.6: round 8's ground, off-white or charcoal, as the office's).
+// Phase 24: the wash's base; Phase 27.6: round 8's ground, off-white or charcoal, as the office's;
+// Phase 27.7: the plain colour behind every page, nothing drawn over it).
 const LIGHT_CANVAS = "rgb(242, 242, 240)"; // #f2f2f0
 const DARK_CANVAS = "rgb(15, 15, 16)"; // #0f0f10
 const BRAND = "rgb(29, 78, 216)"; // the demo seed's Acme colour

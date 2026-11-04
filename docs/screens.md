@@ -18,12 +18,15 @@ mock-up's word is used (its differences: the README's "Where the build differs")
 
 **Its look is round 8's since Phase 27.6** (Dylan, 2026-11-03: "casual round 8: yes, firm's colour,
 follow the phone"; mock-up https://claude.ai/artifact/6Qi4Dt5qW5xnWWSVf9oNVC; `docs/ui-design.md`
-"Phase 27.6"): the office's off-white or charcoal ground with its faint street map behind every
-page in place of the coloured wash, its translucent and sharp glass (nothing bends what's behind
-the tab bar or a sheet), and its colours, but the firm's own colour on the main button, the firm's
-mark and the current tab, as before. It still follows the phone (light, or dark when the phone or
-the light or dark choice says so). Every page, word, size, layout and tap target below is
-unchanged; where this section says "warm", read round 8's plain lighter band.
+"Phase 27.6"): the office's off-white or charcoal ground behind every page in place of the
+coloured wash, its translucent and sharp glass (nothing bends what's behind the tab bar or a
+sheet), and its colours, but the firm's own colour on the main button, the firm's mark and the
+current tab, as before. Since Phase 27.7 (Dylan, 2026-11-03: "Yes plain colour";
+`docs/ui-design.md` "Phase 27.7") that ground is a plain colour, office and casual app alike: the
+faint made-up street pattern that was drawn over it is gone, and nothing is drawn in its place. It
+still follows the phone (light, or dark when the phone or the light or dark choice says so). Every
+page, word, size, layout and tap target below is unchanged; where this section says "warm", read
+round 8's plain lighter band.
 
 What changed in round 7:
 

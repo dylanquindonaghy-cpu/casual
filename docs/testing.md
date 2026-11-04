@@ -729,6 +729,19 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   values, light and dark), `brand.spec.ts` (the firm's colour on the casual main button in both
   looks, its new values), `strikes.worker.spec.ts` (round 8's tints), `office.look.spec.ts` (no
   `.rf` on any page).
+- Phase 27.7, a plain colour behind every page (docs/ui-design.md "Phase 27.7"): the grounds are the
+  plain ground alone in all twelve looks (`tests/helpers/theme-css.ts`, `glass-grounds.ts`'s
+  `GROUND`), and every pair still meets its minimum over them. `ui.contrast.test.ts` the office
+  page's root holding only its ground and no `--map-road` or `--map-line` anywhere;
+  `ui.glass.test.ts` the ground one plain colour (`#f2f2f0`, `#0f0f10`) with no lines in any block,
+  nothing on `<body>`'s `::before` or `::after`, no `url()`, no `mask:`, the picture deleted,
+  `<html>` with no background, and the solid fallbacks keeping the same ground with no rule left
+  hiding anything; `ui.office-system.test.ts` no picture at all (no `url()`) and the doc's 27.7
+  section; `ui.theme.test.ts` the map's two lines no longer among the glass's colour variables;
+  `tenancy.brand.test.ts` the demo firms' new values (Acme `#1d4ed8`, Northline `#0e6f67`).
+  Browser: `office.look.spec.ts` and `casual.app.spec.ts` (nothing drawn behind the page in light
+  and dark: no `::before` content, picture, mask or fill, no street lines on the root or the
+  office's box, `<html>` transparent), `brand.spec.ts` (the firm's new button colours).
 ## Fixtures and the demo seed
 
 `npm run db:seed` creates two fake firms:

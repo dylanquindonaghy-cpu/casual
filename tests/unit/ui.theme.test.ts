@@ -72,14 +72,14 @@ describe("colours: tokens only", () => {
     expect(found).toEqual([]);
     // In the CSS, a colour value only defines a token (Phase 24): a colour token (#rrggbb, or
     // rgb(r g b / a) for the glass), or one of the glass's own variables (its rims, drops and
-    // gradients' ends, the bar's edge, the street map's two lines: round 8's, the office's and,
-    // since Phase 27.6, the casual app's; round 7's wash and the main button's glow are gone), in a
-    // theme's block or a fallback's.
+    // gradients' ends and the bar's edge: round 8's, the office's and, since Phase 27.6, the casual
+    // app's; round 7's wash, the main button's glow and, since Phase 27.7, the street map's two
+    // lines are gone), in a theme's block or a fallback's.
     // Read declaration by declaration, since a long one wraps onto several lines.
     const css = read("src/app/globals.css");
     const hasColour = new RegExp(HEX.source, "i");
     const GLASS_VARS =
-      "glass-rim|glass-drop|glass-drop-sm|glass-sunk|float-shadow|tile-top|tile-bottom|button-top|button-bottom|button-rim|tint-rim|lens-shadow|edge-fill|band-from|band-to|map-line|map-road";
+      "glass-rim|glass-drop|glass-drop-sm|glass-sunk|float-shadow|tile-top|tile-bottom|button-top|button-bottom|button-rim|tint-rim|lens-shadow|edge-fill|band-from|band-to";
     const tokens = new RegExp(
       String.raw`^\s*--(?:color-[a-z-]+: (?:#[0-9a-f]{6}|rgb\(\d+ \d+ \d+ \/ [\d.]+\))|(?:${GLASS_VARS}):[^;]+);`,
       "gm",

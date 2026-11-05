@@ -9,7 +9,10 @@ import {
 } from "./coming-up-copy";
 import { sitesSql } from "./contract-scope";
 import { loadExpiredOnBookings } from "./dashboard";
+import { onWatchList } from "./dashboard-cards-data";
 import { requestWaiting } from "./enquiry-sql";
+import { bookedJoin, placeFree } from "./events";
+import { loadCasualRecords } from "./reliability";
 
 // The dashboard's Coming up (Phase 27.9; Dylan, 2026-11-05: "simplify the what needs updating to
 // staff working on any of your contracts coming up"; docs/screens.md "/office, round 8"): who's
@@ -19,6 +22,15 @@ import { requestWaiting } from "./enquiry-sql";
 // credential rule's own (dashboard.ts loadExpiredOnBookings, Needs attention's), and their asked
 // flag is a request still waiting for an answer as Enquiries counts it (enquiry-sql.ts
 // requestWaiting). Names and ids only, as the office already sees.
+//
+// Phase 27.10 (Dylan, 2026-11-05: "more ctas and data here on the dash but keep it simple"): two
+// more flags, each from the firm's own rows by plain code, and a session's places to offer:
+// - First shift: no booking of theirs with the firm marked as worked (`completed`) on a session
+//   that started before this one (a no-show or a cancellation isn't worked).
+// - On the watch list: the Watch list card's own rule (dashboard-cards-data.ts onWatchList) over
+//   their record as reliability.ts loadCasualRecords counts it, the casual pages' and the card's.
+// - Places to offer: To offer's and the offer page's own count (events.ts placeFree over its
+//   bookings): open (not marked filled), not started, a place free; 0 otherwise.
 //
 // - The sessions: open or filled (as the credential rule and Needs attention read them: a draft
 //   is never shown with no licence check), at the person's contracts' venues (a session's own venue, else
@@ -37,6 +49,10 @@ export interface ComingUpPerson {
   licence: ComingUpLicence | null;
   // A time change or swap they asked for on this session, still waiting for an answer.
   asked: { requestId: string; type: AskedType } | null;
+  // No booking of theirs with the firm marked as worked on a session before this one.
+  firstShift: boolean;
+  // On the watch list (the Watch list card's rule: a reliability figure under 90%).
+  watch: boolean;
 }
 
 export interface ComingUpSession {
@@ -48,6 +64,8 @@ export interface ComingUpSession {
   endsAt: Date;
   headcount: number;
   booked: number;
+  // Places the office can offer now (To offer's count: open, not started, a place free); 0: none.
+  placesToOffer: number;
   people: ComingUpPerson[];
 }
 
@@ -77,25 +95,28 @@ export async function loadComingUp(
     ends_at: string | Date;
     headcount: number;
     booked: number;
+    to_offer: number;
     total: number;
     people: number;
   }>(sql`
     with coming as (
       select s.firm_id, s.id, s.role, coalesce(si.name, esi.name) as site, e.name as event_name,
-             s.starts_at, s.ends_at, s.headcount, b.booked
+             s.starts_at, s.ends_at, s.headcount, k.booked,
+             (case when ${placeFree(now)} then s.headcount - b.booked else 0 end)::int as to_offer
         from shifts s
         join shift_events e on e.firm_id = s.firm_id and e.id = s.event_id
         cross join lateral (
           select count(*)::int as booked from assignments a
            where a.firm_id = s.firm_id and a.shift_id = s.id
-             and a.status = 'confirmed' and a.worker_id is not null) b
+             and a.status = 'confirmed' and a.worker_id is not null) k
+        ${bookedJoin}
         left join sites si on si.firm_id = s.firm_id and si.id = s.site_id
         left join sites esi on esi.firm_id = e.firm_id and esi.id = e.site_id
        where s.status in ('open', 'filled') and s.ends_at > ${now} and s.starts_at < ${end}
-         and ${sitesSql(mine)} and b.booked > 0
+         and ${sitesSql(mine)} and k.booked > 0
     )
     select c.id::text as shift_id, c.role, c.site, c.event_name, c.starts_at, c.ends_at,
-           c.headcount, c.booked, (count(*) over ())::int as total,
+           c.headcount, c.booked, c.to_offer, (count(*) over ())::int as total,
            (select count(distinct a.worker_id)::int
               from assignments a
               join coming x on x.firm_id = a.firm_id and x.id = a.shift_id
@@ -108,21 +129,32 @@ export async function loadComingUp(
   const ids = shown.map((r) => r.shift_id);
   if (ids.length === 0) return { sessions: [], total: 0, people: 0, more: false };
 
-  // Who's booked on them, A to Z.
+  // Who's booked on them, A to Z, and whether it's their first shift: no booking of theirs with
+  // the firm marked as worked on a session that started before this one.
   const { rows: booked } = await tx.execute<{
     assignment_id: string;
     shift_id: string;
     worker_id: string;
     first_name: string;
     last_name: string;
+    first_shift: boolean;
   }>(sql`
     select a.id::text as assignment_id, a.shift_id::text as shift_id, w.id::text as worker_id,
-           w.first_name, w.last_name
+           w.first_name, w.last_name,
+           not exists (
+             select 1 from assignments p
+               join shifts ps on ps.firm_id = p.firm_id and ps.id = p.shift_id
+              where p.firm_id = a.firm_id and p.worker_id = a.worker_id
+                and p.status = 'completed' and ps.starts_at < s.starts_at) as first_shift
       from assignments a
+      join shifts s on s.firm_id = a.firm_id and s.id = a.shift_id
       join workers w on w.firm_id = a.firm_id and w.id = a.worker_id
      where a.status = 'confirmed' and a.shift_id = any(${uuidArray(ids)})
      order by w.first_name, w.last_name, w.id
   `);
+
+  // Who's on the watch list: the card's own rule over each one's record.
+  const records = await loadCasualRecords(tx, now, [...new Set(booked.map((p) => p.worker_id))]);
 
   // Their licences, as Needs attention reads them: for each booking, the first to run out (one
   // marked expired with no date counts as out already).
@@ -169,6 +201,7 @@ export async function loadComingUp(
       endsAt: date(r.ends_at),
       headcount: r.headcount,
       booked: r.booked,
+      placesToOffer: Math.max(0, r.to_offer),
       people: booked
         .filter((p) => p.shift_id === r.shift_id)
         .map((p) => ({
@@ -176,6 +209,8 @@ export async function loadComingUp(
           name: `${p.first_name} ${p.last_name}`,
           licence: licence.get(p.assignment_id) ?? null,
           asked: asked.get(`${p.shift_id}/${p.worker_id}`) ?? null,
+          firstShift: p.first_shift,
+          watch: onWatchList(records.get(p.worker_id)?.reliability),
         })),
     })),
   };

@@ -338,6 +338,14 @@ describe("the office how-to guide", () => {
       expect(text).toContain(
         "Who's working on your contracts today and tomorrow, by session, each person by name. A red label shows a licence that runs out before or during their session; Asked to change times opens their request.",
       );
+      // Phase 27.10: each update's one button, Coming up's two more labels and its offer button,
+      // as the dashboard names them.
+      expect(text).toContain(
+        "Each has one button under it. Offer the place opens the offer panel when a cancelled place is still to fill. Otherwise it's See the record, Open the session or See the offers.",
+      );
+      expect(text).toContain(
+        "On the watch list means under 90% reliable; First shift means nothing of theirs is marked as worked before. Offer 1 place offers a place still free.",
+      );
       expect(text).toContain("Off until you tick it under Customise.");
       expect(text).toContain(
         "each person by name: Worked, or ✕ if they didn't turn up, or All of these worked.",

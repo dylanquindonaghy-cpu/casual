@@ -264,7 +264,8 @@ const board: Board = {
   // Phase 27.9: who's working today and tomorrow. Tonight's CSAS officers at Northgate (3 of 4
   // booked: a place free on one that starts today), Ann's licence running out today, during it, and
   // Ben's time change waiting; tomorrow's door supervisors at an event with no venue (both places
-  // booked), Dev's licence out of date and Eve's swap waiting.
+  // booked), Dev's licence out of date and Eve's swap waiting. Phase 27.10: tonight's free place is
+  // one to offer ("Offer 1 place"); Dev is on the watch list, and it's Eve's first shift.
   comingUp: ok({
     total: 2,
     people: 5,
@@ -279,20 +280,32 @@ const board: Board = {
         endsAt: at("2026-10-27T01:00:00Z"),
         headcount: 4,
         booked: 3,
+        placesToOffer: 1,
         people: [
           {
             workerId: "w-ann",
             name: "Ann Example",
             licence: { credential: "SIA CCTV licence", expiresOn: "2026-10-26" },
             asked: null,
+            firstShift: false,
+            watch: false,
           },
           {
             workerId: "w-ben",
             name: "Ben Fraser",
             licence: null,
             asked: { requestId: "rq-ben", type: "time_change" },
+            firstShift: false,
+            watch: false,
           },
-          { workerId: "w-cara", name: "Cara Doyle", licence: null, asked: null },
+          {
+            workerId: "w-cara",
+            name: "Cara Doyle",
+            licence: null,
+            asked: null,
+            firstShift: false,
+            watch: false,
+          },
         ],
       },
       {
@@ -304,18 +317,23 @@ const board: Board = {
         endsAt: at("2026-10-27T16:00:00Z"),
         headcount: 2,
         booked: 2,
+        placesToOffer: 0,
         people: [
           {
             workerId: "w-dev",
             name: "Dev Shah",
             licence: { credential: "SIA door supervisor licence", expiresOn: "2026-10-20" },
             asked: null,
+            firstShift: false,
+            watch: true,
           },
           {
             workerId: "w-eve",
             name: "Eve Long",
             licence: null,
             asked: { requestId: "rq-eve", type: "swap" },
+            firstShift: true,
+            watch: false,
           },
         ],
       },
@@ -972,12 +990,60 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
     // Uploads to check aren't the dashboard's since Phase 27.9 (the loader leaves them out:
     // tests/integration/office.board.test.ts), so nothing here opens a casual's page.
     expect(words(col)).not.toContain("sent a staff photo");
+    // Each row a link, then (Phase 27.10) its one action under it.
     expect(links(col).map((l) => l.href)).toEqual([
       "/office/shifts/nll3",
+      "/office/shifts/nll3",
       "/office/cancellations/a-chloe",
+      "/office/offer/nll1",
+      "/office/events?view=need",
       "/office/events?view=need",
       "/office/updates",
     ]);
+    // The actions, each named for its row (the rows themselves are read by their words): the place
+    // taken "Open the session"; Chloe's place is still to fill, so "Offer the place" (the offer page
+    // until the page is ready, the offer panel then); the offers with no reply "See the offers".
+    expect(
+      links(col)
+        .filter((l) => l.label !== null)
+        .map((l) => [l.href, l.name, l.label]),
+    ).toEqual([
+      ["/office/shifts/nll3", "Open the session", "Open the session: steward, Sun 1 Nov 17:00"],
+      [
+        "/office/offer/nll1",
+        "Offer the place",
+        "Offer the place: door supervisor, Tue 27 Oct 08:00",
+      ],
+      ["/office/events?view=need", "See the offers", "See the offers: 3 offers with no reply yet"],
+    ]);
+    // Small and secondary (never the screen's main button), 44px tall, under the row's words.
+    const actions = [...col.matchAll(/<a [^>]*aria-label="[^"]*"[^>]*class="([^"]*)"/g)];
+    expect(actions).toHaveLength(3);
+    for (const [, cls] of actions) {
+      expect(cls?.split(" ")).toEqual(expect.arrayContaining(["glass-button", "min-h-11"]));
+      expect(cls?.split(" ")).not.toContain("glass-tint");
+    }
+    expect(col.match(/<div class="pb-2 pl-12">/g)).toHaveLength(3);
+    // A cancellation whose place isn't open again: "See the record", its record.
+    const filled = section(
+      render({
+        ...board,
+        updates: ok({
+          more: false,
+          items: (board.updates.ok ? board.updates.data.items : []).map((u) =>
+            u.kind === "cancelled" ? { ...u, reopened: false } : u,
+          ),
+        }),
+      }),
+      "updates",
+    );
+    expect(links(filled).find((l) => l.name === "See the record")).toEqual({
+      href: "/office/cancellations/a-chloe",
+      label: "See the record of Chloe Quigley's cancellation: door supervisor, Tue 27 Oct 08:00",
+      current: null,
+      name: "See the record",
+    });
+    expect(links(filled).some((l) => l.href.startsWith("/office/offer/"))).toBe(false);
     // Narrowed to the person's contracts: "On your contracts" under the title.
     const mine = section(render({ ...board, mine: true }), "updates");
     expect(words(mine)).toMatch(/^Updates 3 3 updates On your contracts Ben Fraser took a place /);
@@ -1055,6 +1121,36 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
     expect(person("Ben Fraser")).toMatch(
       /border-attention-line bg-attention-soft text-attention-ink/,
     );
+    // Phase 27.10: Dev on the watch list (amber) and Eve's first shift (grey), short, in full for a
+    // screen reader and as the chip's tip.
+    expect(words(person("Dev Shah"))).toContain(
+      "On the watch list Dev Shah is on the watch list: under 90% reliable.",
+    );
+    expect(person("Dev Shah")).toContain(
+      'title="Dev Shah is on the watch list: under 90% reliable."',
+    );
+    expect(person("Dev Shah")).toMatch(
+      /border-attention-line bg-attention-soft text-attention-ink/,
+    );
+    expect(words(person("Eve Long"))).toContain(
+      "First shift Eve Long has no shift marked as worked before this one.",
+    );
+    expect(person("Eve Long")).toMatch(/border-quiet-line bg-quiet-soft text-quiet-ink/);
+    expect(words(person("Ann Example"))).not.toContain("First shift");
+    expect(words(person("Ann Example"))).not.toContain("watch list");
+    // Tonight's free place is one to offer: "Offer 1 place" under "3 of 4 booked", named for its
+    // session (the offer page until the page is ready, the offer panel then); none on tomorrow's,
+    // which is full.
+    expect(l.filter((x) => x.href.startsWith("/office/offer/"))).toEqual([
+      {
+        href: "/office/offer/cu1",
+        label: "Offer 1 place: Today 19:00–01:00 · CSAS officer · Northgate Demo Town Centre",
+        current: null,
+        name: "Offer 1 place",
+      },
+    ]);
+    const tonight = col.split('data-coming-up="').find((c) => c.startsWith('cu1"')) ?? "";
+    expect(words(tonight)).toMatch(/3 of 4 booked Offer 1 place AE Ann Example/);
     // Nobody else flagged.
     expect(words(person("Cara Doyle"))).toBe("CD Cara Doyle");
     // The foot: every session by day.

@@ -13,10 +13,16 @@ import {
   comingUpHeading,
   comingUpLine,
   dayWord,
+  FIRST_SHIFT,
+  firstShiftWords,
   licenceChip,
   licenceWords,
+  offerPlaces,
+  offerPlacesLabel,
+  ON_WATCH_LIST,
   placesShort,
   sessionLabel,
+  watchWords,
 } from "@/lib/office/coming-up-copy";
 import {
   COLUMN_IDS,
@@ -29,7 +35,8 @@ import { expiredText } from "@/lib/office/dashboard-copy";
 
 // The dashboard's Coming up in words (Phase 27.9; src/lib/office/coming-up-copy.ts): today and
 // tomorrow in the firm's time zone (across midnight and both clock changes), each session's line,
-// how many are booked, the column's line and empty words, and a person's two flags.
+// how many are booked, the column's line and empty words, and a person's two flags; since Phase
+// 27.10 a session's places to offer and a person's two more flags (first shift, the watch list).
 // tests/unit/office.board.test.ts renders the column; tests/integration/office.coming-up.test.ts
 // reads its rows from the database.
 
@@ -132,6 +139,17 @@ describe("a session", () => {
     expect(placesShort(s, NOW, TZ)).toBe(true);
     expect(placesShort({ ...s, booked: 4 }, NOW, TZ)).toBe(false);
     expect(placesShort({ ...s, startsAt: at("2026-10-27T08:00:00Z") }, NOW, TZ)).toBe(false);
+  });
+
+  it("its places to offer (Phase 27.10): Offer 1 place, Offer 2 places, named for the session", () => {
+    expect(offerPlaces(1)).toBe("Offer 1 place");
+    expect(offerPlaces(2)).toBe("Offer 2 places");
+    expect(offerPlaces(12)).toBe("Offer 12 places");
+    expect(offerPlacesLabel(1, comingUpHeading(tonight, NOW, TZ))).toBe(
+      "Offer 1 place: Today 19:00–01:00 · CSAS officer · Northgate Demo Town Centre",
+    );
+    // Its name starts with its words (WCAG 2.5.3).
+    expect(offerPlacesLabel(2, "x").startsWith(offerPlaces(2))).toBe(true);
   });
 });
 
@@ -238,5 +256,15 @@ describe("a person's flags", () => {
       "/office/enquiries?view=app#request-0b6b7f5e-1111-4222-8333-944445555666",
     );
     expect(casualHref("w1")).toBe("/office/casuals/w1");
+  });
+
+  it("first shift and the watch list (Phase 27.10): short chips, then their full words", () => {
+    expect(FIRST_SHIFT).toBe("First shift");
+    expect(firstShiftWords("Zoe Adeyemi")).toBe(
+      "Zoe Adeyemi has no shift marked as worked before this one.",
+    );
+    expect(ON_WATCH_LIST).toBe("On the watch list");
+    // The Watch list card's own words ("under 90% reliable").
+    expect(watchWords("Dev Shah")).toBe("Dev Shah is on the watch list: under 90% reliable.");
   });
 });

@@ -254,9 +254,20 @@ bullets below say where each is.
     ("09:06" today, "Sun 08:00" before). Under the title, "On your contracts" while the dashboard is
     narrowed to them (My contracts on; nothing there otherwise). Since Phase 27.9 no staff photos
     or certificates waiting for a check: they're a casual's, not a contract's, and stay on Needs
-    attention ("Uploads to check") and the Updates page. Then "All updates" (the Updates page,
-    Phase 26.4; "Everything in the action log" until then). Empty: "Nothing new in the last two
-    days."
+    attention ("Uploads to check") and the Updates page. Under each one's words, its one small
+    action (Phase 27.10; Dylan, 2026-11-05: "there still needs to be more ctas and data here on the
+    dash but keep it simple"; a small clear glass pill, `btn.small`, never the main button; the row
+    stays its link): a cancellation whose place is still to fill (the session reopened, hasn't
+    started and has a place free) **Offer the place** (with the paper plane: the offer panel, as To
+    offer's; the offer page without JavaScript), read as "Offer the place: {door supervisor}, {Sat 7
+    Nov 08:00}"; any other cancellation **See the record** (`/office/cancellations/{id}`), read as
+    "See the record of {Mo Rahman}'s cancellation: {door supervisor}, {Sat 7 Nov 08:00}"; a place
+    taken **Open the session** (`/office/shifts/{id}`), read as "Open the session: {steward}, {Tue 3
+    Nov 08:00}"; the offers with no reply **See the offers**, read as "See the offers: {3 offers}
+    with no reply yet", on Events & sessions' "Need people" (`/office/events?view=need`: every
+    session with a place free, so every one with an offer waiting; there's no list of those alone).
+    Then "All updates" (the Updates page, Phase 26.4; "Everything in the action log" until then).
+    Empty: "Nothing new in the last two days."
   - **Coming up** (`#coming-up`, Phase 27.9; a green leaf): who's working on the person's
     contracts today and tomorrow (the firm's calendar days), by session. Its count is the sessions;
     the line "Today and tomorrow · {5 people} on {3 sessions}" (each person counted once; "… on your
@@ -267,7 +278,11 @@ bullets below say where each is.
     "{Today} {19:00–01:00} · {CSAS officer} · {Northgate Demo Town Centre}" ("Tomorrow", or
     "Yesterday" for a night shift still under way; the event's name when it has no venue) and "{3}
     of {4} booked" on the right (red while a place is free on one that starts today), read as
-    "Open the session: {its line}, {3 of 4 booked}". Under it the people with a confirmed booking,
+    "Open the session: {its line}, {3 of 4 booked}". Under "{3} of {4} booked", on a session with
+    places the office can offer now (Phase 27.10; To offer's and the offer page's own count: open,
+    not marked filled, not started, a place free under its bookings), a small **Offer {1 place}**
+    ("Offer {2 places}") with the paper plane: the offer panel, as To offer's (the offer page
+    without JavaScript), read as "Offer {1 place}: {its line}". Under it the people with a confirmed booking,
     A to Z, each their initials and their name (a link to their casual page), with, under the
     name: a red chip by the qualification's own name, "{SIA door supervisor licence} out of date" (it
     has run out, or the office marked it expired) or "{SIA door supervisor licence} runs out {Sat 7
@@ -278,7 +293,14 @@ bullets below say where each is.
     session under way counts too); and an amber chip "Asked to change times" (or "Asked to swap")
     where they've a time change or swap on it waiting for an answer, a link to it on Enquiries'
     Requests from the app (`/office/enquiries?view=app#request-{id}`: each waiting request has its
-    own anchor), read as "{Ben Fraser} asked to change times. Open their request.". Names and ids
+    own anchor), read as "{Ben Fraser} asked to change times. Open their request."; since Phase
+    27.10, in the same chip styles, an amber "On the watch list" where the Watch list card's own
+    rule puts them on it (a reliability figure under 90%; a new casual has none), read and tipped
+    as "{Dev Shah} is on the watch list: under 90% reliable." (the card itself lists the 6 least
+    reliable booked in the next 14 days), and a grey "First shift" where nothing of theirs with the
+    firm is marked as worked on a session before this one (a no-show or a cancellation isn't
+    worked; another firm's never counts), read and tipped as "{Zoe Adeyemi} has no shift marked as
+    worked before this one.". Both from the firm's own rows by code, never AI. Names and ids
     only. Then "All sessions" (`/office/shifts`, every session by day). Empty: "Nobody's booked
     today or tomorrow." ("Nobody's booked on your contracts today or tomorrow." while narrowed),
     and still "All sessions".

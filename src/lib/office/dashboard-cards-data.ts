@@ -1,5 +1,6 @@
 import { sql, type SQL } from "drizzle-orm";
 import type { FirmTx } from "../db/scoped";
+import type { Reliability } from "../rules/reliability";
 import { addDays, localDateOf, startOfDay } from "../time/zoned";
 import { sitesSql } from "./contract-scope";
 import { bookedJoin, placeFree } from "./events";
@@ -197,6 +198,14 @@ export async function loadFillRates(
 export const WATCH_MAX = 6;
 export const WATCH_BELOW = 90;
 
+// Who the watch list holds: its rule, here once (this card's, and since Phase 27.10 Coming up's "On
+// the watch list" chip): a reliability figure under WATCH_BELOW. A new casual has no figure yet, so
+// is never on it.
+export function onWatchList(r: Reliability | undefined): r is FigureReliability {
+  return r?.kind === "figure" && r.percent < WATCH_BELOW;
+}
+type FigureReliability = Extract<Reliability, { kind: "figure" }>;
+
 export interface WatchCasual {
   workerId: string;
   name: string;
@@ -242,7 +251,7 @@ export async function loadWatchList(
   const out: WatchCasual[] = [];
   for (const r of rows) {
     const rel = records.get(r.worker_id)?.reliability;
-    if (!rel || rel.kind !== "figure" || rel.percent >= WATCH_BELOW) continue;
+    if (!onWatchList(rel)) continue;
     out.push({
       workerId: r.worker_id,
       name: `${r.first_name} ${r.last_name}`,

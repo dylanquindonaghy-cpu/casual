@@ -373,11 +373,13 @@ export async function setDashboardCards(
 // venue is a contract of its own that the office user `email` (the spec's own) looks after, so
 // their dashboard shows only it, whatever else the other specs and the seed have booked. Names end
 // with `tag`, so a retry makes new ones. Fake details only: drama-range numbers the seed doesn't
-// use.
+// use. Neither has worked for the firm before (Phase 27.10's "First shift"), unless `workedBefore`:
+// then the first has a session 10 days ago marked as worked (at no venue, so it's no contract's).
 export async function comingUpScene(
   slug: string,
   tag: string,
   email: string,
+  o: { workedBefore?: boolean } = {},
 ): Promise<{
   shiftId: string;
   site: string;
@@ -455,6 +457,32 @@ export async function comingUpScene(
         })
         .returning({ id: requests.id });
       if (!asked) throw new Error("request insert returned nothing");
+      if (o.workedBefore) {
+        const startsAt = new Date(Date.now() - 10 * 86_400_000);
+        startsAt.setUTCMinutes(0, 0, 0);
+        const [past] = await tx
+          .insert(shifts)
+          .values({
+            firmId,
+            shiftEventId: await eventFor(tx, null, startsAt),
+            role: "steward",
+            startsAt,
+            endsAt: new Date(startsAt.getTime() + 8 * 3_600_000),
+            headcount: 1,
+            status: "filled",
+            source: "native",
+          })
+          .returning({ id: shifts.id });
+        if (!past) throw new Error("shift insert returned nothing");
+        await tx.insert(assignments).values({
+          firmId,
+          shiftId: past.id,
+          slot: 1,
+          workerId: expired.id,
+          status: "completed",
+          confirmedAt: new Date(startsAt.getTime() - 3 * 86_400_000),
+        });
+      }
       return { requestId: asked.id, clientId: client.id };
     });
     return { shiftId, site: `Coming Hall ${tag}`, expired, asker, ...made };

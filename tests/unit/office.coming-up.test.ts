@@ -172,10 +172,20 @@ describe("a person's flags", () => {
       credential: "SIA door supervisor licence",
       expiresOn,
     });
-    expect(licenceChip(licence(null), today)).toBe("Licence out of date");
-    expect(licenceChip(licence("2026-10-20"), today)).toBe("Licence out of date");
-    expect(licenceChip(licence("2026-10-26"), today)).toBe("Licence runs out Mon 26 Oct");
-    expect(licenceChip(licence("2026-11-07"), today)).toBe("Licence runs out Sat 7 Nov");
+    expect(licenceChip(licence(null), today)).toBe("SIA door supervisor licence out of date");
+    expect(licenceChip(licence("2026-10-20"), today)).toBe(
+      "SIA door supervisor licence out of date",
+    );
+    expect(licenceChip(licence("2026-10-26"), today)).toBe(
+      "SIA door supervisor licence runs out Mon 26 Oct",
+    );
+    expect(licenceChip(licence("2026-11-07"), today)).toBe(
+      "SIA door supervisor licence runs out Sat 7 Nov",
+    );
+    // Another sector's qualification by its own name, never "licence" for all.
+    expect(licenceChip({ credential: "CSCS card", expiresOn: null }, today)).toBe(
+      "CSCS card out of date",
+    );
     // In full, Needs attention's own sentence, with its name.
     expect(licenceWords("Zoe Adeyemi", licence("2026-11-07"), session, today, TZ)).toBe(
       "Zoe Adeyemi's SIA door supervisor licence runs out on Sat 7 Nov, during their door supervisor session on Sat 7 Nov.",

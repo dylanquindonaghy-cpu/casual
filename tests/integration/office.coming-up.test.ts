@@ -2,6 +2,7 @@ import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { loadComingUp } from "@/lib/office/coming-up";
+import { loadExpiredOnBookings } from "@/lib/office/dashboard";
 import { loadBoard } from "@/lib/office/dashboard-board";
 import { saveContract, saveMyDashboard } from "@/lib/office/contracts";
 import { bookingFirm, hoursFromNow, NOW, type BookingFirm } from "../helpers/booking-fixture";
@@ -86,7 +87,9 @@ const load = (f: BookingFirm, mine: string[] | null = null, now = NOW) =>
 //   cancelled), one under way since 07:00 (Cal), and one tomorrow at 23:00 (Eve and Ben again).
 // - At the depot (its own venue): a door supervisor tomorrow at 05:00 (Gus).
 // - Not in Coming up: one that ended at 07:00 today (Dee), one at 00:00 on Wednesday (Fay), one
-//   tonight with nobody confirmed (Hal only offered), and a cancelled one with Ivy still on it.
+//   tonight with nobody confirmed (Hal only offered), a cancelled one with Ivy still on it, and a
+//   draft tonight with Jo confirmed (a sheet can draft a booked session: the credential rule and
+//   Needs attention read only open and filled ones, so it isn't listed unchecked).
 async function scene() {
   const f = await bookingFirm(su, withFirm);
   const arena = await site(f, "Acme Arena");
@@ -109,6 +112,8 @@ async function scene() {
   const offeredOnly = await at(11);
   const cancelled = await at(12);
   await set("shifts", cancelled, { status: "cancelled" });
+  const draft = await at(13);
+  await set("shifts", draft, { status: "draft" });
 
   const ann = await f.worker({ first: "Ann" });
   const ben = await f.worker({ first: "Ben" });
@@ -119,6 +124,7 @@ async function scene() {
   const gus = await f.worker({ first: "Gus" });
   const hal = await f.worker({ first: "Hal" });
   const ivy = await f.worker({ first: "Ivy" });
+  const jo = await f.worker({ first: "Jo" });
   const yan = await f.worker({ first: "Yan" });
   const zed = await f.worker({ first: "Zed" });
   // Ben books before Ann (A to Z is by name, not by when).
@@ -134,6 +140,7 @@ async function scene() {
   await f.booking(fay, wednesday);
   await f.booking(hal, offeredOnly, "offered");
   await f.booking(ivy, cancelled);
+  await f.booking(jo, draft);
   return {
     f,
     arena,
@@ -146,6 +153,7 @@ async function scene() {
     wednesday,
     offeredOnly,
     cancelled,
+    draft,
     ann,
     ben,
     cal,
@@ -157,10 +165,11 @@ async function scene() {
 }
 
 describe("Coming up: which sessions", () => {
-  it("not ended, starting before the end of tomorrow, not cancelled, with a confirmed booking; soonest first", async () => {
+  it("not ended, starting before the end of tomorrow, open or filled (not cancelled, not a draft), with a confirmed booking; soonest first", async () => {
     const t = await scene();
     const c = await load(t.f);
     expect(c.sessions.map((s) => s.shiftId)).toEqual([t.underway, t.tonight, t.depotEarly, t.late]);
+    expect(c.sessions.map((s) => s.shiftId)).not.toContain(t.draft);
     expect(c.total).toBe(4);
     // Ann, Ben (on two), Cal, Eve and Gus: each counted once.
     expect(c.people).toBe(5);
@@ -394,5 +403,22 @@ describe("Coming up: isolation", () => {
       people: 0,
       more: false,
     });
+    // The credential rule asked about their sessions by id, with one of their booked casuals'
+    // licences out of date: nothing from my firm's side (and theirs finds it, so this isn't empty
+    // by accident).
+    await su.query(
+      `update credentials set status = 'expired', expires_on = $3
+        where firm_id = $1 and worker_id = $2 and type = 'SIA_DS'`,
+      [theirs.f.firmId, theirs.ann, "2026-10-20"],
+    );
+    const theirShifts = [theirs.tonight, theirs.underway, theirs.late, theirs.depotEarly];
+    const fromMine = await withFirm(mine.f.firmId, (tx) =>
+      loadExpiredOnBookings(tx, NOW, TZ, theirShifts),
+    );
+    expect(fromMine).toEqual({ items: [], total: 0 });
+    const fromTheirs = await withFirm(theirs.f.firmId, (tx) =>
+      loadExpiredOnBookings(tx, NOW, TZ, theirShifts),
+    );
+    expect(fromTheirs.items.map((e) => e.workerId)).toContain(theirs.ann);
   });
 });

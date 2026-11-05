@@ -269,8 +269,9 @@ bullets below say where each is.
     of {4} booked" on the right (red while a place is free on one that starts today), read as
     "Open the session: {its line}, {3 of 4 booked}". Under it the people with a confirmed booking,
     A to Z, each their initials and their name (a link to their casual page), with, under the
-    name: a red chip "Licence out of date" (it has run out, or the office marked it expired) or
-    "Licence runs out {Sat 7 Nov}" (in date today, but not for the whole session) where a
+    name: a red chip by the qualification's own name, "{SIA door supervisor licence} out of date" (it
+    has run out, or the office marked it expired) or "{SIA door supervisor licence} runs out {Sat 7
+    Nov}" (in date today, but not for the whole session) where a
     qualification the session needs won't be in date for it (Needs attention's own rule and its
     sentence, "{Zoe Adeyemi}'s {SIA door supervisor licence} runs out on {Sat 7 Nov}, during their
     {door supervisor} session on {Sat 7 Nov}.", for a screen reader and as the chip's tip; a

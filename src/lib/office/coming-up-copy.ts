@@ -96,11 +96,13 @@ export interface ComingUpLicence {
   expiresOn: string | null; // yyyy-mm-dd
 }
 
-// The chip, short: "Licence out of date" (it has run out, or is marked expired), or "Licence runs
-// out Sat 7 Nov" (still in date today, but not for the whole session), as expiredText reads it.
+// The chip, short, by the qualification's own name (credentials are each sector's data, never
+// "licence" for all): "SIA door supervisor licence out of date" (it has run out, or is marked
+// expired), or "SIA door supervisor licence runs out Sat 7 Nov" (still in date today, but not for
+// the whole session), as expiredText reads it.
 export function licenceChip(l: ComingUpLicence, today: string): string {
-  if (l.expiresOn === null || l.expiresOn < today) return "Licence out of date";
-  return `Licence runs out ${dayLabel(l.expiresOn)}`;
+  if (l.expiresOn === null || l.expiresOn < today) return `${l.credential} out of date`;
+  return `${l.credential} runs out ${dayLabel(l.expiresOn)}`;
 }
 
 // The chip's full words (a screen reader's, and its tip): Needs attention's own sentence, "Zoe

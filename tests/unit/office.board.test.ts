@@ -1031,11 +1031,11 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
       'title="Ann Example&#x27;s SIA CCTV licence runs out on Mon 26 Oct, during their CSAS officer session on Mon 26 Oct."',
     );
     expect(words(person("Ann Example"))).toContain(
-      "Licence runs out Mon 26 Oct Ann Example's SIA CCTV licence runs out on Mon 26 Oct, during their CSAS officer session on Mon 26 Oct.",
+      "SIA CCTV licence runs out Mon 26 Oct Ann Example's SIA CCTV licence runs out on Mon 26 Oct, during their CSAS officer session on Mon 26 Oct.",
     );
     expect(person("Ann Example")).toMatch(/border-urgent-line bg-urgent-soft text-urgent-ink/);
     expect(words(person("Dev Shah"))).toContain(
-      "Licence out of date Dev Shah's SIA door supervisor licence expired on Tue 20 Oct, before their door supervisor session on Tue 27 Oct.",
+      "SIA door supervisor licence out of date Dev Shah's SIA door supervisor licence expired on Tue 20 Oct, before their door supervisor session on Tue 27 Oct.",
     );
     // The asked flags: amber chips, each a link to the request on Enquiries' Requests from the app.
     expect(l.filter((x) => x.href.startsWith("/office/enquiries"))).toEqual([

@@ -20,7 +20,8 @@ import { requestWaiting } from "./enquiry-sql";
 // flag is a request still waiting for an answer as Enquiries counts it (enquiry-sql.ts
 // requestWaiting). Names and ids only, as the office already sees.
 //
-// - The sessions: not cancelled, at the person's contracts' venues (a session's own venue, else
+// - The sessions: open or filled (as the credential rule and Needs attention read them: a draft
+//   is never shown with no licence check), at the person's contracts' venues (a session's own venue, else
 //   its event's; every venue when they have none or asked for everything), not ended yet, starting
 //   before the end of tomorrow (the firm's calendar), with at least one confirmed booking; soonest
 //   first, the first COMING_UP_SHOWN, and how many there are in all and how many people on them.
@@ -30,7 +31,9 @@ import { requestWaiting } from "./enquiry-sql";
 export interface ComingUpPerson {
   workerId: string;
   name: string;
-  // A qualification the session needs won't be in date for it (the first to run out); null: fine.
+  // A qualification the session needs won't be in date for it (the first to run out); null: no
+  // such flag (not a clearance to work: Needs attention's other checks, such as a blocked casual,
+  // aren't shown here).
   licence: ComingUpLicence | null;
   // A time change or swap they asked for on this session, still waiting for an answer.
   asked: { requestId: string; type: AskedType } | null;
@@ -88,7 +91,7 @@ export async function loadComingUp(
              and a.status = 'confirmed' and a.worker_id is not null) b
         left join sites si on si.firm_id = s.firm_id and si.id = s.site_id
         left join sites esi on esi.firm_id = e.firm_id and esi.id = e.site_id
-       where s.status <> 'cancelled' and s.ends_at > ${now} and s.starts_at < ${end}
+       where s.status in ('open', 'filled') and s.ends_at > ${now} and s.starts_at < ${end}
          and ${sitesSql(mine)} and b.booked > 0
     )
     select c.id::text as shift_id, c.role, c.site, c.event_name, c.starts_at, c.ends_at,

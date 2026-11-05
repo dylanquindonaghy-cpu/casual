@@ -653,7 +653,8 @@ test("Coming up: who's booked on their contract tomorrow, by name with links, wi
     // Cora's licence: a red chip, out of date (it ran out yesterday), in full for a screen reader.
     const cora = row(scene.expired.name);
     await expect(cora).toHaveCount(1);
-    await expect(cora.getByText("Licence out of date", { exact: true })).toBeVisible();
+    // By the qualification's own name (credentials are each sector's data).
+    await expect(cora.getByText(/^\S.* out of date$/)).toBeVisible();
     await expect(
       cora.getByText(
         new RegExp(
@@ -673,7 +674,7 @@ test("Coming up: who's booked on their contract tomorrow, by name with links, wi
       "href",
       `/office/enquiries?view=app#request-${scene.requestId}`,
     );
-    await expect(abel.getByText("Licence out of date")).toHaveCount(0);
+    await expect(abel.getByText(/out of date$/)).toHaveCount(0);
     // The foot: every session by day.
     await expect(col.getByRole("link", { name: "All sessions" })).toHaveAttribute(
       "href",

@@ -33,7 +33,9 @@ import { toMarkGroups } from "./to-mark";
 // - Who can take the chosen session: the rules' candidates now, and the one name when there's one.
 // - Updates (dash-5): in the last two days, places casuals took, casuals' cancellations (their
 //   notice, the strike, whether the place is open again) and photos and certificates waiting for a
-//   check; and, as one line, every offer still waiting for a reply; newest first.
+//   check; and, as one line, every offer still waiting for a reply; newest first. Since Phase 27.9
+//   the dashboard asks without the photos and certificates (`uploads: false`: they're a casual's,
+//   not a contract's, and stay on Needs attention and the Updates page, which asks for every kind).
 // - Who worked? by name (dash-6): the sessions to mark (today.ts loadToMark), alike ones together,
 //   each with the people still booked (not marked); the column shows WHO_WORKED_GROUPS of them.
 
@@ -175,11 +177,13 @@ export async function loadUpdates(
   // A person's contracts' venues (Phase 26.3; null: every venue). Uploads to check are a casual's,
   // not a venue's: they show whatever the contracts.
   mine: string[] | null = null,
-  // The dashboard's column: the last two days, six shown. The Updates page (Phase 26.4): a week.
-  opts: { hours?: number; shown?: number } = {},
+  // The dashboard's column: the last two days, six shown, no uploads (Phase 27.9). The Updates page
+  // (Phase 26.4): a week, every kind.
+  opts: { hours?: number; shown?: number; uploads?: boolean } = {},
 ): Promise<{ items: Update[]; more: boolean }> {
   const hours = opts.hours ?? UPDATES_HOURS;
   const shown = opts.shown ?? UPDATES_SHOWN;
+  const withUploads = opts.uploads ?? true;
   const since = new Date(now.getTime() - hours * 3_600_000);
   const limit = shown + 1;
   const site = sql`coalesce(si.name, esi.name)`;
@@ -239,20 +243,23 @@ export async function loadUpdates(
      order by a.cancelled_at desc, a.id
      limit ${limit}
   `);
-  const { rows: uploads } = await tx.execute<{
+  type UploadRow = {
     at: string | Date;
     worker_id: string;
     first_name: string;
     last_name: string;
     kind: "photo" | "certificate";
-  }>(sql`
-    select u.created_at as at, w.id::text as worker_id, w.first_name, w.last_name, u.kind
-      from uploads u
-      join workers w on w.firm_id = u.firm_id and w.id = u.worker_id
-     where u.status = 'waiting' and u.created_at >= ${since} and u.created_at <= ${now}
-     order by u.created_at desc, u.id
-     limit ${limit}
-  `);
+  };
+  const { rows: uploads } = withUploads
+    ? await tx.execute<UploadRow>(sql`
+        select u.created_at as at, w.id::text as worker_id, w.first_name, w.last_name, u.kind
+          from uploads u
+          join workers w on w.firm_id = u.firm_id and w.id = u.worker_id
+         where u.status = 'waiting' and u.created_at >= ${since} and u.created_at <= ${now}
+         order by u.created_at desc, u.id
+         limit ${limit}
+      `)
+    : { rows: [] as UploadRow[] };
   const { rows: noReply } = await tx.execute<{
     newest: string | Date | null;
     oldest: string | Date | null;

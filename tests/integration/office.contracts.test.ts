@@ -246,7 +246,8 @@ describe("each person's own dashboard", () => {
     });
     // The admin's own: the defaults, every venue.
     const admins = await withFirm(t.f.firmId, (tx) => loadMyDashboard(tx, t.admin, NOW));
-    expect(admins.cards).toEqual(["map", "toOffer", "updates", "whoWorked"]);
+    // Coming up in Who worked?'s place since Phase 27.9 (Who worked? under Customise, off).
+    expect(admins.cards).toEqual(["map", "toOffer", "updates", "comingUp"]);
     expect(admins.sites).toBeNull();
     // Unknown cards, another firm's contract, or payroll: nothing saved.
     expect(

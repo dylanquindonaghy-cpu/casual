@@ -7,6 +7,7 @@ import { payCalendar, type PayCalendar } from "../pay/calendar";
 import { payWeekNow } from "../pay/pay-week";
 import { addDays, localDateOf, startOfDay } from "../time/zoned";
 import { sitesSql } from "./contract-scope";
+import { loadComingUp, type ComingUp } from "./coming-up";
 import { readCards, type DashboardCard } from "./dashboard-cards";
 import { loadMyDashboard, type MyDashboard } from "./contracts";
 import { part, type Part } from "./dashboard";
@@ -58,6 +59,8 @@ import { loadToMark, type TodayToMark } from "./today";
 //   (the last such night to have begun), still booked, with how the offer reached them and when
 //   they said yes.
 // - Who worked?: Needs attention's sessions to mark (today.ts loadToMark), so the two agree.
+// - Coming up (Phase 27.9, a card on by default): who's working on the person's contracts today
+//   and tomorrow, by session (coming-up.ts loadComingUp), when the card is on.
 // - When the planner or rota sheet last sent changes (integrations.ts plannerLink).
 
 export const BOARD_SHOWS = ["all", "urgent", "this-week", "next-week"] as const;
@@ -139,8 +142,10 @@ export interface Board {
   roles: Part<string[]>; // the roles with places to fill (Filter's choices)
   venues: Part<MapVenue[]>;
   takers: Part<Takers> | null; // null: no session chosen
-  updates: Part<{ items: Update[]; more: boolean }>;
+  updates: Part<{ items: Update[]; more: boolean }>; // without uploads (Phase 27.9)
   whoWorked: Part<WhoWorkedGroup[]>;
+  // Phase 27.9: who's working on the person's contracts today and tomorrow (null: card not chosen).
+  comingUp: Part<ComingUp> | null;
   // Phase 26.3: the person's own dashboard (their cards and contracts, saved to them), whether it's
   // narrowed to their contracts (they chose some and haven't asked for everything), the date
   // choice's day and its choices, and the extra cards they chose (null: not chosen).
@@ -467,10 +472,13 @@ export async function loadBoard(tx: FirmTx, now: Date, opts: BoardOptions = {}):
     takers: chosen
       ? await part(tx, "who can take it", (sp) => loadTakers(sp, chosen.shiftId, now))
       : null,
-    updates: await part(tx, "updates", (sp) => loadUpdates(sp, now, sites)),
+    // The contracts' changes only: the photos and certificates to check are a casual's, so they
+    // stay on Needs attention and the Updates page (Phase 27.9).
+    updates: await part(tx, "updates", (sp) => loadUpdates(sp, now, sites, { uploads: false })),
     whoWorked: toMark.ok
       ? await part(tx, "who worked by name", (sp) => loadWhoWorked(sp, toMark.data.items))
       : { ok: false },
+    comingUp: await card("comingUp", "coming up", (sp) => loadComingUp(sp, now, timeZone, sites)),
     me,
     mine: sites !== null,
     day,

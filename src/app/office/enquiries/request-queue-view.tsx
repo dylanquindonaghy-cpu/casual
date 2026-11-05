@@ -89,7 +89,8 @@ function Outcome({ r }: { r: QueueRequest }) {
 // 12D.1): what casuals asked in the app, waiting ones to approve or decline with a note (the casual
 // is told), and those answered in the last 7 days. Waiting ones are cards: what was asked on the
 // left, the answer on the right (below on a phone). Answered ones are compact rows with the
-// answer's word in a chip.
+// answer's word in a chip. Each waiting one has its own anchor (`#request-{id}`): the dashboard's
+// Coming up opens a casual's time change or swap there (Phase 27.9).
 export function RequestQueueView({ queue }: { queue: RequestQueue }) {
   const tz = queue.timeZone;
   return (
@@ -103,6 +104,7 @@ export function RequestQueueView({ queue }: { queue: RequestQueue }) {
             {queue.waiting.map((r) => (
               <li
                 key={r.requestId}
+                id={`request-${r.requestId}`}
                 className={`${card} lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-8`}
               >
                 <div className="flex min-w-0 flex-col gap-1">

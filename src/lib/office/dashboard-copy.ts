@@ -1,4 +1,4 @@
-import { roleLabel, timeOnDay } from "../portal/format";
+import { roleLabel, roleWords, timeOnDay } from "../portal/format";
 import { dayLabel } from "../rules/reasons";
 import { localDateOf } from "../time/zoned";
 import type { ExpiredOnBooking, PlannerRefusal } from "./dashboard";
@@ -42,9 +42,15 @@ export type NeedsKey = keyof typeof NEEDS_HEADINGS;
 // "Ben Example's SIA door supervisor licence expired on Sat 3 Oct, before their steward session on
 // Sat 10 Oct." / "… runs out on …" (still in date today) / "…, during their …" (it runs out on a
 // day the session covers: a night shift's start) / "… is marked as expired, and they're booked …".
-export function expiredText(e: ExpiredOnBooking, today: string, tz: string): string {
+// Needs attention's, and the dashboard's Coming up's chip in full (Phase 27.9). The role mid-sentence
+// keeps an acronym in capitals ("CSAS officer session": Phase 26.10, fix-7).
+export function expiredText(
+  e: Pick<ExpiredOnBooking, "worker" | "credential" | "expiresOn" | "role" | "startsAt">,
+  today: string,
+  tz: string,
+): string {
   const shiftDay = localDateOf(e.startsAt, tz);
-  const shift = `${roleLabel(e.role).toLowerCase()} session on ${dayLabel(shiftDay)}`;
+  const shift = `${roleWords(e.role)} session on ${dayLabel(shiftDay)}`;
   if (e.expiresOn === null) {
     return `${e.worker}'s ${e.credential} is marked as expired, and they're booked on a ${shift}.`;
   }

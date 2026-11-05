@@ -177,9 +177,11 @@ which explains each job step by step, and "Log out".
     click one to see it in the card; with the street map, the map moves to its venue). Under the
     map two columns:
     "Updates" (places taken,
-    cancellations, uploads to check and offers with no reply; "All updates" opens the Updates page,
-    as the bell at the top does) and "Who worked?" (yesterday's racecourse bookings, each person by
-    name with "Worked", or ✕ if they didn't turn up). The top bar's "Needs attention" counts what
+    cancellations and offers with no reply; "All updates" opens the Updates page,
+    as the bell at the top does, where uploads to check are too) and "Coming up" (who's working
+    today and tomorrow, by session: Northern Lights Live at the arena tomorrow among them, each
+    person by name, a red label where a licence runs out before or during their session and "Asked
+    to change times" where someone has). The top bar's "Needs attention" counts what
     Needs attention holds. Click "Cancellations" in the menu: every cancellation, Zoe's among them, and "nothing
     here needs approving".
 24. **Offer a gap.** Back on the "Dashboard", open "To offer" with the list button at the map's top
@@ -196,7 +198,8 @@ which explains each job step by step, and "Log out".
     "Requests from the app" (its tab has their number). On Sam Walsh's time
     change, click "Approve and tell Sam". It says "Approved. Sam will be told." The message to Sam
     appears in the dev window.
-26. **Mark who worked.** Click "Dashboard" in the menu. Under "Who worked?", yesterday's
+26. **Mark who worked.** Click "Dashboard" in the menu, then "Customise": tick "Who worked?" (it's
+    off until you do) and click "Save my dashboard". Under "Who worked?", yesterday's
     racecourse sessions are together under one line ("{Sun 1 Nov} · Steward · Acme Demo Racecourse
     · 10:30–18:30"), each person with "Worked" and a ✕ for "didn't turn up". Click
     "Worked" beside one: "Marked … as worked." (A line for one session is a link to it, where

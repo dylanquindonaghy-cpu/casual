@@ -3,8 +3,8 @@
 // wait (Phase 22, `animate-wait`; still in Phase 21; no shimmer, and with reduced motion one fade).
 // Phase 24 (round 7): glass, as the pages are: frosted sections, no tints. The dashboard's own
 // follows its layout, a part for every section (round 8, Phase 26.2: its head and track, the venue
-// map with the session card on it, and the columns under it: Updates and Who worked? since Phase
-// 27.4, when To offer became a list on the map); every other page shares one (a headline, a line,
+// map with the session card on it, and the columns under it: Updates and Coming up since Phase
+// 27.9, To offer being a list on the map since 27.4); every other page shares one (a headline, a line,
 // then a card of rows). Hidden from screen readers but for one line that says
 // it's loading.
 // Hook-free.
@@ -86,7 +86,7 @@ export function DashboardSkeleton() {
         </span>
         <span className="grid items-start gap-3 @min-[48rem]:grid-cols-2">
           <ColumnSkeleton part="updates" />
-          <ColumnSkeleton part="mark" />
+          <ColumnSkeleton part="coming-up" />
         </span>
       </div>
     </div>

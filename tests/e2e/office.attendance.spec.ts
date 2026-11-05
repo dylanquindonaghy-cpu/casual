@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { addOfficeUser, addPastBookedShift } from "./db";
+import { addOfficeUser, addPastBookedShift, setDashboardCards } from "./db";
 import { expect, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
@@ -7,7 +7,8 @@ import { sentTo } from "./outbox";
 // booked shows under the dashboard's "Who worked?" (round 8: Phase 26.2, and only there since
 // Phase 26.4); its line opens the shift, where the resourcer marks one as not attended, the rest as
 // worked in one go, then puts a mistake right; it's gone from the dashboard once all are marked. The resourcer is this spec's own (the seeded ones'
-// login links are used up by the other office specs: 3 per email every 15 minutes).
+// login links are used up by the other office specs: 3 per email every 15 minutes), with Who
+// worked? ticked under Customise (off by default since Phase 27.9).
 
 const acme = "http://acme.localhost:3100";
 
@@ -28,6 +29,7 @@ test("mark who worked a shift that ended: one not attended, the rest worked, a m
 }) => {
   const email = "attendance.resourcer@example.com";
   await addOfficeUser("acme", { email, name: "Attendance Resourcer", role: "resourcer" });
+  await setDashboardCards("acme", email, ["map", "toOffer", "updates", "comingUp", "whoWorked"]);
   // Ended a few hours ago (half a day's start, 8 hours long), so it's among the dashboard's first
   // sessions to mark (newest ended first) whatever the other specs left.
   const { shiftId, names } = await addPastBookedShift("acme", {

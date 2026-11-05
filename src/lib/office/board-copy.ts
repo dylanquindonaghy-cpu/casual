@@ -4,6 +4,7 @@ import { roleLabel, soonLabel } from "../portal/format";
 import { datePartsOfDay, timeRange } from "../portal/sign-copy";
 import { dayLabel } from "../rules/reasons";
 import { addDays, localDateOf, wallTimeOf } from "../time/zoned";
+import { comingUpEmpty } from "./coming-up-copy";
 import type { BoardShow, BoardSession, ChartDay } from "./dashboard-board";
 import { offerLimitText } from "./event-words";
 import type { PlannerLink } from "./integrations";
@@ -233,9 +234,11 @@ export function moreLabel(s: Pick<BoardSession, "role" | "startsAt">, timeZone: 
 // --- The board's columns ---------------------------------------------------------------------
 
 // Round 8 (Phase 26.2): Updates took round 7's Offered and While you were out's events (dash-5).
+// Phase 27.9: Coming up took Who worked?'s place among the defaults (Who worked? is under Customise).
 export const COLUMN_TITLES = {
   toOffer: "To offer",
   updates: "Updates",
+  comingUp: "Coming up",
   toMark: "Who worked?",
 } as const;
 export type ColumnKey = keyof typeof COLUMN_TITLES;
@@ -244,8 +247,12 @@ export type ColumnKey = keyof typeof COLUMN_TITLES;
 export const COLUMN_IDS: Record<ColumnKey, string> = {
   toOffer: "to-offer",
   updates: "updates",
+  comingUp: "coming-up",
   toMark: "who-worked",
 };
+
+// Updates' line when the dashboard is narrowed to the person's contracts (Phase 27.9).
+export const ON_YOUR_CONTRACTS = "On your contracts";
 
 export const toOfferLine = (places: number) =>
   `${plural(places, "place", "places")}, no offers out`;
@@ -288,6 +295,7 @@ export const countWords = {
   toOffer: (n: number) => plural(n, "session", "sessions"),
   toMark: (n: number) => plural(n, "session to mark", "sessions to mark"),
   updates: (n: number) => plural(n, "update", "updates"),
+  comingUp: (n: number) => plural(n, "session coming up", "sessions coming up"),
 };
 
 // What an empty column says. With nothing at all to fill, To offer says so (under a filter, for
@@ -305,13 +313,19 @@ export function emptyText(key: ColumnKey, nothingToFill: boolean, show: BoardSho
       return "Nothing to mark.";
     case "updates":
       return "Nothing new in the last two days.";
+    case "comingUp":
+      // Narrowed to the person's contracts, the board asks comingUpEmpty(true) itself.
+      return comingUpEmpty(false);
   }
 }
 
-// Under an empty column (round 8, the pre-build audit's aud-10): what will show there.
+// Under an empty column (round 8, the pre-build audit's aud-10): what will show there. Updates'
+// since Phase 27.9: the dashboard's has no uploads to check (Needs attention and the Updates page
+// have them).
 export const EMPTY_HINTS: Partial<Record<ColumnKey, string>> = {
   toOffer: "Sessions with a place free show here, soonest first.",
-  updates: "Places taken, cancellations, and photos or certificates to check show here.",
+  updates: "Places taken, cancellations and offers with no reply show here.",
+  comingUp: "Sessions today and tomorrow with someone booked show here, soonest first.",
   toMark: "Sessions show here when they end, so you can mark who worked.",
 };
 

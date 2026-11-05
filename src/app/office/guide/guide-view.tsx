@@ -173,7 +173,7 @@ function Links({ children }: { children: ReactNode }) {
 // What each menu link opens, by the link's words.
 const MENU_WORDS: Record<string, string> = {
   Dashboard:
-    "The places to fill this week and next, the offers waiting for a reply, what casuals took while you were out, and who worked.",
+    "The places to fill this week and next, the offers waiting for a reply, what changed on your contracts, and who's working today and tomorrow.",
   Updates:
     "What happened in the last 7 days: places taken, cancellations, uploads to check and offers with no reply. Tell me about chooses what you hear about.",
   "Needs attention":
@@ -296,7 +296,8 @@ function listWords(items: string[]): string {
 }
 
 // The dashboard's parts (round 8, Phase 26.2): the venue map, the chosen session on it, To offer
-// (a list on the map since Phase 27.4), and the columns under it.
+// (a list on the map since Phase 27.4), and the columns under it (Updates and Coming up since Phase
+// 27.9; Who worked? under Customise).
 const DASHBOARD_SECTIONS: [string, ReactNode][] = [
   [
     "The venue map",
@@ -312,11 +313,15 @@ const DASHBOARD_SECTIONS: [string, ReactNode][] = [
   ],
   [
     "Updates",
-    "The last two days: places casuals took, cancellations with their notice and strike, photos and certificates to check, and offers with no reply.",
+    "The last two days on your contracts: places casuals took, cancellations with their notice and strike, and offers with no reply. Photos and certificates to check are on Needs attention and the Updates page.",
+  ],
+  [
+    "Coming up",
+    "Who's working on your contracts today and tomorrow, by session, each person by name. A red label shows a licence that runs out before or during their session; Asked to change times opens their request.",
   ],
   [
     "Who worked?",
-    "Sessions from the last 7 days with people not marked yet, each person by name: Worked, or ✕ if they didn't turn up, or All of these worked.",
+    "Off until you tick it under Customise. Sessions from the last 7 days with people not marked yet, each person by name: Worked, or ✕ if they didn't turn up, or All of these worked.",
   ],
 ];
 
@@ -679,12 +684,13 @@ function AfterAShift() {
   return (
     <>
       <Para>
-        Mark who worked each session. <Name>Who worked?</Name>, on the dashboard, lists sessions
-        from the last 7 days with people not marked yet: <Name>Worked</Name>, or <Name>✕</Name> if
-        they didn&apos;t turn up.
+        Mark who worked each session on its page. To do it from the dashboard, tick{" "}
+        <Name>Who worked?</Name> under <Name>Customise</Name>: it lists sessions from the last 7
+        days with people not marked yet, with <Name>Worked</Name>, or <Name>✕</Name> if they
+        didn&apos;t turn up. Updates lists any still not marked 2 days after.
       </Para>
       <Steps>
-        <Step>Or open the session&apos;s page.</Step>
+        <Step>Open the session&apos;s page.</Step>
         <Step>
           Once it has started, go to <Name>Booked places</Name>. Select <Name>Mark as worked</Name>{" "}
           or <Name>Mark as not attended</Name> for each person.
@@ -702,8 +708,8 @@ function AfterAShift() {
         attended”.
       </Note>
       <Links>
-        <GoTo href="/office#who-worked" icon="home">
-          See who to mark
+        <GoTo href="/office/customise" icon="dashboard">
+          Choose what your dashboard shows
         </GoTo>
       </Links>
     </>

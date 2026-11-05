@@ -634,7 +634,7 @@ describe("Acme's Saturday event day", () => {
     expect(jobs).toEqual([]);
   });
 
-  it("the demo's dashboard reads every part of its board: the offers waiting, venues on the map, Updates and Who worked?, pay queries with payroll", async () => {
+  it("the demo's dashboard reads every part of its board: the offers waiting, venues on the map, Updates, Coming up and Who worked?, pay queries with payroll", async () => {
     const { loadBoard } = await import("@/lib/office/dashboard-board");
     const d = await withFirm(ACME, (tx) => loadBoard(tx, new Date()));
     const parts = [
@@ -649,6 +649,9 @@ describe("Acme's Saturday event day", () => {
     ];
     expect(parts.map((c) => c.ok)).toEqual(Array(8).fill(true));
     if (!d.gaps.ok || !d.venues.ok) throw new Error("a part failed");
+    // Coming up (Phase 27.9, on by default): the story's Northern Lights Live tomorrow has people
+    // booked, so there's someone to show.
+    expect(d.comingUp?.ok && d.comingUp.data.total > 0).toBe(true);
     // Offers waiting, unless the seed ran on Monday before quiet hours ended (it plans none then).
     const { waiting } = await plannedFromStore();
     expect(d.gaps.data.offered.waiting > 0).toBe(waiting > 0);

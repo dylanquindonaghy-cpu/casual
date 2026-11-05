@@ -368,7 +368,8 @@ test("Part 3: as the office", async ({ browser }) => {
 
   await test.step("23. The dashboard", async () => {
     // Round 8 (Phase 26.2): the track, the venue map with the session's card on it, To offer as a
-    // list on the map (Phase 27.4: its button opens it), and the two columns under it.
+    // list on the map (Phase 27.4: its button opens it), and the two columns under it (Phase 27.9:
+    // Updates and Coming up; Who worked? is off until step 26 ticks it under Customise).
     const track = page.getByRole("navigation", { name: "Show" });
     await expect(track.getByRole("link")).toHaveText([
       /^All \d+$/,
@@ -379,8 +380,9 @@ test("Part 3: as the office", async ({ browser }) => {
     await expect(page.locator("[data-venue-map]")).toBeVisible();
     await expect(page.locator("dialog[data-offer-panel][data-ready]")).toHaveCount(1);
     await openToOffer(page);
-    for (const name of ["To offer", "Updates", "Who worked?"])
+    for (const name of ["To offer", "Updates", "Coming up"])
       await expect(page.getByRole("heading", { name, exact: true, level: 2 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Who worked?", level: 2 })).toHaveCount(0);
     // A row picks itself into the card; the page then has who can take it.
     const pick = page.locator('section#to-offer a[href^="/office?"]').nth(1);
     const id = /session=([0-9a-f-]{36})$/.exec((await pick.getAttribute("href")) ?? "")?.[1];
@@ -390,10 +392,14 @@ test("Part 3: as the office", async ({ browser }) => {
     await expect(
       page.locator(`[data-chosen="${id}"]`).getByRole("link", { name: /^Offer to / }),
     ).toBeVisible();
-    // Who worked?: yesterday's racecourse bookings to mark.
+    // Coming up: who's working today and tomorrow (the story's Northern Lights Live tomorrow among
+    // them), by session, each person by name, a link to their casual page.
+    const coming = page.locator("section#coming-up");
     await expect(
-      page.locator("section#who-worked").getByText("Acme Demo Racecourse").first(),
+      coming.getByText(/^Today and tomorrow · \d+ (person|people) on \d+ sessions?$/),
     ).toBeVisible();
+    await expect(coming.locator('a[href^="/office/shifts/"]').first()).toBeVisible();
+    await expect(coming.locator('a[href^="/office/casuals/"]').first()).toBeVisible();
     // Today's cancellations (Zoe's, step 12, among them): nothing to approve or decline.
     await (await menuLink(page, "Cancellations")).click();
     await expect(page).toHaveURL(`${acme}/office/cancellations`);
@@ -458,9 +464,18 @@ test("Part 3: as the office", async ({ browser }) => {
   });
 
   await test.step("26. Mark who worked", async () => {
-    // The dashboard's Who worked? (Phase 26.4): yesterday's racecourse sessions (three alike ones,
-    // together under one line), each person with Worked and Didn't attend, marked right there.
+    // The dashboard's Who worked? (Phase 26.4), off until ticked under Customise (Phase 27.9):
+    // ticked and saved, yesterday's racecourse sessions (three alike ones, together under one
+    // line), each person with Worked and Didn't attend, marked right there.
     await page.goto(`${acme}/office`);
+    await expect(page.locator("dialog[data-offer-panel][data-ready]")).toHaveCount(1);
+    await page.getByRole("link", { name: "Customise" }).click();
+    const panel = page.getByRole("dialog", { name: "Customise your dashboard" });
+    await expect(panel).toBeVisible();
+    await panel.getByRole("checkbox", { name: /^Who worked\?/ }).check();
+    await panel.getByRole("button", { name: "Save my dashboard" }).click();
+    await expect(panel).toBeHidden();
+    await expect(page.getByRole("heading", { name: "Who worked?", level: 2 })).toBeVisible();
     const group = page
       .locator("section#who-worked div.flex-col")
       .filter({ hasText: "Acme Demo Racecourse" })

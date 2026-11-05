@@ -4,8 +4,13 @@ import {
   addOfficeUser,
   addSteward,
   addTakenOffer,
+  addWaitingPhoto,
   cancelOwnShift,
+  comingUpScene,
+  endComingUpScene,
+  setDashboardCards,
   setFirmSetting,
+  unusedMobile,
 } from "./db";
 import { DASHBOARD_HEADING, expect, menuLink, openToOffer, test } from "./fixtures";
 import { sentTo } from "./outbox";
@@ -20,8 +25,11 @@ import { sentTo } from "./outbox";
 // every session and View all; the card's "1 of 2" for a venue with two sessions; the offer panel
 // (from the foot on a phone, the side on a laptop) listing who can take a session as the offer page
 // does, Send offer, then offered; the card's "…" with Not urgent and Mark as filled; Updates with a
-// place a casual took an hour ago; Who worked? by name; nothing to approve, decline or deny; the
-// offer page leads back here; `/office/today` redirects here; payroll is sent to the pay dashboard.
+// place a casual took an hour ago and no uploads to check (Phase 27.9: they're on the Updates page);
+// Coming up (Phase 27.9) with who's booked tomorrow by name and their flags; Who worked? by name,
+// once switched on under Customise (off by default since Phase 27.9); nothing to approve, decline
+// or deny; the offer page leads back here; `/office/today` redirects here; payroll is sent to the
+// pay dashboard.
 // (Other specs change the seed's numbers, so this one checks the words, the links, and that the
 // counts add up on one page.)
 
@@ -97,11 +105,14 @@ test("a resourcer's dashboard: its head, the track adding up, the map, the card,
   // It holds every session the track counts (round 8: one list of them).
   expect(await countOf(page, "to-offer")).toBe(all);
 
-  // The headings, in order: the map, the chosen session, To offer (on the map), the two columns.
+  // The headings, in order: the map, the chosen session, To offer (on the map), the two columns
+  // (Phase 27.9: Updates and Coming up; Who worked? is off until ticked under Customise).
   await expect(headings.first()).toHaveText("Venues with places to fill");
   await expect(
-    headings.filter({ hasText: /^(To offer|Updates|Who worked\?|Offered|While you were out)$/ }),
-  ).toHaveText(["To offer", "Updates", "Who worked?"]);
+    headings.filter({
+      hasText: /^(To offer|Updates|Coming up|Who worked\?|Offered|While you were out)$/,
+    }),
+  ).toHaveText(["To offer", "Updates", "Coming up"]);
   // The map: the seed's venues placed by their positions (no street map in the tests), each pin a
   // link to its venue's soonest session; under it, how they're placed and the totals.
   await expect(map).toHaveAttribute("data-venue-map", "plain");
@@ -160,9 +171,16 @@ test("a resourcer's dashboard: its head, the track adding up, the map, the card,
     );
   const [d0, l0] = [await detail.boundingBox(), await list.boundingBox()];
   expect(l0?.y ?? 0).toBeGreaterThanOrEqual((d0?.y ?? 0) + (d0?.height ?? 0));
-  // The columns under the map: Updates and Who worked?, one under the other on a phone.
+  // The columns under the map: Updates and Coming up, one under the other on a phone; no Who
+  // worked? (off by default since Phase 27.9).
   await expect(column(page, "updates")).toBeVisible();
-  await expect(column(page, "who-worked")).toBeVisible();
+  await expect(column(page, "coming-up")).toBeVisible();
+  const [u0, c0] = [
+    await column(page, "updates").boundingBox(),
+    await column(page, "coming-up").boundingBox(),
+  ];
+  expect(c0?.y ?? 0).toBeGreaterThanOrEqual((u0?.y ?? 0) + (u0?.height ?? 0));
+  await expect(column(page, "who-worked")).toHaveCount(0);
   await buttons.getByRole("button", { name: "Hide the sessions to offer", pressed: true }).click();
   await expect(list).toBeHidden();
   await expect(buttons.getByRole("button", { name: "Show the sessions to offer" })).toBeVisible();
@@ -523,11 +541,14 @@ test("To offer on the map: every session, soonest first, then View all on Events
   }
 });
 
-test("Updates: a place a casual took from an offer; Who worked? by name", async ({
+test("Updates: a place a casual took from an offer; Who worked? by name, switched on under Customise", async ({
   page,
 }, testInfo) => {
   const email = `dashboard.night${testInfo.retry || ""}@example.com`;
   await addOfficeUser("acme", { email, name: "Night Resourcer", role: "resourcer" });
+  // Who worked? is off by default since Phase 27.9: this resourcer has ticked it (with the
+  // defaults), so marking from the dashboard is still checked here.
+  await setDashboardCards("acme", email, ["map", "toOffer", "updates", "comingUp", "whoWorked"]);
   const n = Date.now() % 100_000;
   const { shiftId } = await addEventWithSession("acme", {
     name: `Night Ball ${n}`,
@@ -578,6 +599,155 @@ test("Updates: a place a casual took from an offer; Who worked? by name", async 
   }
 });
 
+test("Coming up: who's booked on their contract tomorrow, by name with links, with the licence and asked flags (Phase 27.9)", async ({
+  page,
+}, testInfo) => {
+  const email = `dashboard.coming${testInfo.retry || ""}@example.com`;
+  await addOfficeUser("acme", { email, name: "Coming Resourcer", role: "resourcer" });
+  const tag = `${Date.now() % 100_000}${testInfo.retry}`;
+  // A session about a day away at a venue of this spec's own, the one contract this resourcer
+  // looks after: Cora (her Level 2 out of date) and Abel (asked to change its times) booked.
+  const scene = await comingUpScene("acme", tag, email);
+  try {
+    await officeLogin(page, email);
+    await ready(page);
+    // Narrowed to their contract ("My contracts" on): Coming up says so, and holds only theirs.
+    await expect(page.getByRole("switch", { name: "My contracts" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    const col = column(page, "coming-up");
+    await expect(col.getByRole("heading", { name: "Coming up", level: 2 })).toBeVisible();
+    await expect(
+      col.getByText("Today and tomorrow · 2 people on 1 session on your contracts", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    expect(await countOf(page, "coming-up")).toBe(1);
+    // Updates says it's about their contracts too.
+    await expect(
+      column(page, "updates").getByText("On your contracts", { exact: true }),
+    ).toBeVisible();
+    // The session's line: a link to its page, its day and times, role and venue, and how many are
+    // booked of how many.
+    const line = col.locator(`a[href="/office/shifts/${scene.shiftId}"]`);
+    await expect(line).toHaveText(
+      new RegExp(
+        `^(Today|Tomorrow) \\d\\d:\\d\\d–\\d\\d:\\d\\d · Steward · ${scene.site} 2 of 3 booked$`,
+      ),
+    );
+    await expect(line).toHaveAttribute("aria-label", /^Open the session: (Today|Tomorrow) /);
+    // Each person by name, A to Z (their initials beside it, hidden from a screen reader), a link
+    // to their casual page.
+    const session = col.locator(`[data-coming-up="${scene.shiftId}"]`);
+    const people = session.locator('a[href^="/office/casuals/"]');
+    await expect(people).toHaveCount(2);
+    await expect(people.nth(0)).toHaveAccessibleName(scene.asker.name);
+    await expect(people.nth(0)).toHaveAttribute("href", `/office/casuals/${scene.asker.id}`);
+    await expect(people.nth(0)).toContainText("AC");
+    await expect(people.nth(1)).toHaveAccessibleName(scene.expired.name);
+    await expect(people.nth(1)).toHaveAttribute("href", `/office/casuals/${scene.expired.id}`);
+    // A person's own row (inside the session's).
+    const row = (name: string) =>
+      session.locator("li", { has: page.getByRole("link", { name, exact: true }) });
+    // Cora's licence: a red chip, out of date (it ran out yesterday), in full for a screen reader.
+    const cora = row(scene.expired.name);
+    await expect(cora).toHaveCount(1);
+    // By the qualification's own name (credentials are each sector's data).
+    await expect(cora.getByText(/^\S.* out of date$/)).toBeVisible();
+    await expect(
+      cora.getByText(
+        new RegExp(
+          `^${scene.expired.name}'s .+ expired on \\w{3} \\d{1,2} \\w{3}, before their steward session on \\w{3} \\d{1,2} \\w{3}\\.$`,
+        ),
+      ),
+    ).toHaveCount(1);
+    await expect(cora.getByRole("link", { name: /asked to/ })).toHaveCount(0);
+    // Abel's time change: an amber chip that opens his request on Enquiries.
+    const abel = row(scene.asker.name);
+    await expect(abel).toHaveCount(1);
+    const asked = abel.getByRole("link", {
+      name: `${scene.asker.name} asked to change times. Open their request.`,
+    });
+    await expect(asked).toHaveText("Asked to change times");
+    await expect(asked).toHaveAttribute(
+      "href",
+      `/office/enquiries?view=app#request-${scene.requestId}`,
+    );
+    await expect(abel.getByText(/out of date$/)).toHaveCount(0);
+    // The foot: every session by day.
+    await expect(col.getByRole("link", { name: "All sessions" })).toHaveAttribute(
+      "href",
+      "/office/shifts",
+    );
+    // The request opens where it's answered, its card in view.
+    await asked.click();
+    await expect(page).toHaveURL(`${acme}/office/enquiries?view=app#request-${scene.requestId}`);
+    const card = page.locator(`li#request-${scene.requestId}`);
+    await expect(card).toBeInViewport();
+    await expect(card.getByText(`Time change: ${scene.asker.name}`)).toBeVisible();
+    // No sideways scrolling at phone width.
+    await page.goto(`${acme}/office`);
+    await expect(column(page, "coming-up")).toBeVisible();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
+    ).toBeLessThanOrEqual(0);
+  } finally {
+    await endComingUpScene("acme", scene);
+  }
+});
+
+test("the dashboard's Updates leaves out a staff photo waiting; the Updates page still lists it (Phase 27.9)", async ({
+  page,
+}, testInfo) => {
+  const email = `dashboard.photo${testInfo.retry || ""}@example.com`;
+  await addOfficeUser("acme", { email, name: "Photo Resourcer", role: "resourcer" });
+  const n = Date.now() % 100_000;
+  const { shiftId } = await addEventWithSession("acme", {
+    name: `Photo Ball ${n}`,
+    site: `Photo Hall ${n}`,
+    role: "steward",
+    daysAhead: 4,
+  });
+  const worker = await addSteward("acme", {
+    firstName: "Pia",
+    lastName: `Photo${n}`,
+    mobileE164: await unusedMobile("acme", 870, 899),
+  });
+  // Just now: Pia took a place, then sent a staff photo (the newest of all, so before Phase 27.9
+  // it was the dashboard's first update).
+  await addTakenOffer("acme", {
+    workerId: worker,
+    shiftId,
+    at: new Date(Date.now() - 2000),
+    channel: "whatsapp",
+  });
+  await addWaitingPhoto("acme", worker, new Date(Date.now() - 1000));
+  try {
+    await officeLogin(page, email);
+    // The dashboard: her place taken, never her photo.
+    const col = column(page, "updates");
+    await expect(
+      col.getByRole("link", { name: new RegExp(`^Pia Photo${n} took a place `) }),
+    ).toBeVisible();
+    await expect(col.getByText(`Pia Photo${n} sent a staff photo`)).toHaveCount(0);
+    await expect(col.locator(`a[href="/office/casuals/${worker}"]`)).toHaveCount(0);
+    // The Updates page: the photo, under Needs action, with Check (her casual page).
+    await col.getByRole("link", { name: "All updates" }).click();
+    await expect(page).toHaveURL(`${acme}/office/updates`);
+    const photo = page
+      .locator("section#updates-list li")
+      .filter({ hasText: `Pia Photo${n} sent a staff photo` });
+    await expect(photo).toHaveCount(1);
+    await expect(photo.getByRole("link", { name: "Check" })).toHaveAttribute(
+      "href",
+      `/office/casuals/${worker}`,
+    );
+  } finally {
+    await cancelOwnShift("acme", shiftId);
+  }
+});
+
 test.describe("on a laptop with a mouse", () => {
   test.use({ viewport: { width: 1280, height: 800 }, hasTouch: false, isMobile: false });
 
@@ -598,13 +768,15 @@ test.describe("on a laptop with a mouse", () => {
     expect(Math.round((d?.y ?? 0) - (m?.y ?? 0))).toBe(12);
     expect((d?.y ?? 0) + (d?.height ?? 0)).toBeLessThanOrEqual((m?.y ?? 0) + (m?.height ?? 0));
     expect(await detail.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(1);
-    // Under the map, two columns in one row: Updates and Who worked? (To offer is on the map).
+    // Under the map, two columns in one row: Updates and Coming up (To offer is on the map; Phase
+    // 27.9: Coming up in Who worked?'s place).
     const tops = await Promise.all(
-      ["updates", "who-worked"].map(async (id) =>
+      ["updates", "coming-up"].map(async (id) =>
         Math.round((await column(page, id).boundingBox())?.y ?? -1),
       ),
     );
     expect(new Set(tops).size).toBe(1);
+    await expect(column(page, "who-worked")).toHaveCount(0);
     await expect(column(page, "to-offer")).toBeHidden();
     // The pins carry their venue's name from a laptop's width where it fits (other specs' venues
     // can crowd the map), and no name covers another, a pin, the card or the open list; the key

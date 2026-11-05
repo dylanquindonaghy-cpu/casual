@@ -14,6 +14,7 @@ import {
   emptyText,
   moreLabel,
   offerLabel,
+  ON_YOUR_CONTRACTS,
   placesText,
   startsIn,
   toFillLine,
@@ -24,6 +25,12 @@ import {
   type BoardView,
   type ColumnKey,
 } from "@/lib/office/board-copy";
+import {
+  COMING_UP_ALL,
+  COMING_UP_ALL_HREF,
+  comingUpEmpty,
+  comingUpLine,
+} from "@/lib/office/coming-up-copy";
 import type { Board as BoardData, BoardSession, BoardShow } from "@/lib/office/dashboard-board";
 import { SECTION_ERROR } from "@/lib/office/dashboard-copy";
 import { DEFAULT_CARDS, type DashboardCard } from "@/lib/office/dashboard-cards";
@@ -46,6 +53,7 @@ import { localDateOf } from "@/lib/time/zoned";
 import { btn, chip, countPill, notice } from "../../ui/classes";
 import { Icon } from "../../ui/icons";
 import { ShiftActions } from "../shift-actions";
+import { ComingUpList } from "./coming-up";
 import { useOfferPanel, type OpenOffer } from "./offer-panel";
 import { UpdatesList, WhoWorkedList } from "./updates-worked";
 import { VenueMap } from "./venue-map";
@@ -54,13 +62,21 @@ import { VenueMap } from "./venue-map";
 // docs/mockups/round-8/): the venue map (./venue-map.tsx) with the chosen session's card on it
 // (under it on a phone), then the columns of glass: To offer (every session with places to fill
 // under the track's filter, soonest first), Updates (the last two days: places taken, casuals'
-// cancellations, uploads to check and offers with no reply: in place of round 7's Offered and While
-// you were out) and Who worked? (each person by name, with Worked and Didn't attend).
+// cancellations and offers with no reply: in place of round 7's Offered and While you were out),
+// Coming up (Phase 27.9) and Who worked? (each person by name, with Worked and Didn't attend: under
+// Customise since Phase 27.9).
 //
 // Phase 27.4 ("the map you can use"; Dylan, 2026-11-04, on docs/mockups/round-8/27.4-map/): with
 // the map shown, To offer is a list on it (its button top right; every session, then "View all"),
-// so Updates and Who worked? are the columns under it; with the map off, To offer is the column it
-// was (the first four, then "View all"). Picking a session (a row, a pin, the card's arrows) shows
+// so the other columns chosen are the ones under it; with the map off, To offer is the column it
+// was (the first four, then "View all").
+//
+// Phase 27.9 (Dylan, 2026-11-05): the columns under the map are about the person's contracts.
+// Updates holds their changes (places taken, cancellations, offers with no reply: no more uploads
+// to check, which stay on Needs attention and the Updates page), "On your contracts" under it when
+// the board is narrowed to them; Coming up (./coming-up.tsx) took Who worked?'s place: who's
+// working on them today and tomorrow, by session. Who worked? is still here for anyone who ticks it
+// under Customise (off until then), after Coming up. Picking a session (a row, a pin, the card's arrows) shows
 // it in the card at once, then the page loads who can take it (the address's `?session=`: the board
 // and its map stay as they are, as their key has no session); a pin or a row moves the street map
 // to the venue. A venue with more than one session in the view gets a row at the card's top:
@@ -79,6 +95,7 @@ const plain = (e: MouseEvent) =>
 const LEAF: Record<ColumnKey, string> = {
   toOffer: "text-mark-open",
   updates: "text-mark-wait",
+  comingUp: "text-mark-done",
   toMark: "text-attention-ink",
 };
 
@@ -492,13 +509,24 @@ export function Board({
 }: {
   board: Pick<
     BoardData,
-    "show" | "now" | "timeZone" | "gaps" | "toMark" | "venues" | "takers" | "updates" | "whoWorked"
+    | "show"
+    | "now"
+    | "timeZone"
+    | "gaps"
+    | "toMark"
+    | "venues"
+    | "takers"
+    | "updates"
+    | "whoWorked"
+    | "comingUp"
+    | "mine"
   >;
   view: BoardView; // what the board shows: every link keeps it
   tiles: string | null; // the street map's file (MAP_TILES_URL), or none
   cards?: readonly DashboardCard[]; // what the person chose under Customise (Phase 26.3)
 }) {
   const { show, now, timeZone, gaps, toMark, venues, takers, updates, whoWorked } = board;
+  const { comingUp, mine } = board;
   const { open, panel } = useOfferPanel();
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -575,6 +603,7 @@ export function Board({
   const ups = updates.ok ? updates.data : null;
   const marks = toMark.ok ? toMark.data : null;
   const groups = whoWorked.ok ? whoWorked.data : null;
+  const soon = comingUp?.ok ? comingUp.data : null;
   const on = new Set(cards);
   const detail = (
     <DetailCard
@@ -617,7 +646,7 @@ export function Board({
       </ul>
     </Column>
   );
-  const columns = (["toOffer", "updates", "whoWorked"] as const).filter(
+  const columns = (["toOffer", "updates", "comingUp", "whoWorked"] as const).filter(
     (k) => on.has(k) && !(k === "toOffer" && onMap),
   );
 
@@ -644,7 +673,8 @@ export function Board({
       )}
       {columns.length > 0 && (
         // One card a row on a phone; two across from 768px of page; three from 1152px when there
-        // are three (with the map shown, To offer is on it: Updates and Who worked? side by side).
+        // are three (with the map shown, To offer is on it: Updates and Coming up side by side);
+        // four, two by two.
         <div
           className={`grid items-start gap-3 @min-[48rem]:grid-cols-2 ${columns.length === 3 ? "@min-[72rem]:grid-cols-3" : ""}`}
         >
@@ -653,11 +683,23 @@ export function Board({
             <Column
               k="updates"
               count={ups?.items.length ?? 0}
-              line={null}
+              line={mine ? ON_YOUR_CONTRACTS : null}
               failed={!ups}
               empty={emptyText("updates", false, show)}
             >
               <UpdatesList items={ups?.items ?? []} now={now} timeZone={timeZone} />
+            </Column>
+          )}
+          {on.has("comingUp") && (
+            <Column
+              k="comingUp"
+              count={soon?.total ?? 0}
+              line={soon && soon.total > 0 ? comingUpLine(soon.people, soon.total, mine) : null}
+              failed={!soon}
+              empty={comingUpEmpty(mine)}
+              foot={{ text: COMING_UP_ALL, href: COMING_UP_ALL_HREF }}
+            >
+              <ComingUpList sessions={soon?.sessions ?? []} now={now} timeZone={timeZone} />
             </Column>
           )}
           {on.has("whoWorked") && (

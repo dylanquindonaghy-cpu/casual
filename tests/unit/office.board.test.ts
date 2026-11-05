@@ -258,12 +258,66 @@ const board: Board = {
         offers: 3,
         sessions: 2,
       },
+      // No uploads to check: the dashboard's Updates asks without them (Phase 27.9).
+    ],
+  }),
+  // Phase 27.9: who's working today and tomorrow. Tonight's CSAS officers at Northgate (3 of 4
+  // booked: a place free on one that starts today), Ann's licence running out today, during it, and
+  // Ben's time change waiting; tomorrow's door supervisors at an event with no venue (both places
+  // booked), Dev's licence out of date and Eve's swap waiting.
+  comingUp: ok({
+    total: 2,
+    people: 5,
+    more: false,
+    sessions: [
       {
-        kind: "upload",
-        at: at("2026-10-25T15:44:00Z"),
-        workerId: "w-ben",
-        worker: "Ben Fraser",
-        what: "photo",
+        shiftId: "cu1",
+        role: "csas_officer",
+        site: "Northgate Demo Town Centre",
+        eventName: "Night patrols",
+        startsAt: at("2026-10-26T19:00:00Z"),
+        endsAt: at("2026-10-27T01:00:00Z"),
+        headcount: 4,
+        booked: 3,
+        people: [
+          {
+            workerId: "w-ann",
+            name: "Ann Example",
+            licence: { credential: "SIA CCTV licence", expiresOn: "2026-10-26" },
+            asked: null,
+          },
+          {
+            workerId: "w-ben",
+            name: "Ben Fraser",
+            licence: null,
+            asked: { requestId: "rq-ben", type: "time_change" },
+          },
+          { workerId: "w-cara", name: "Cara Doyle", licence: null, asked: null },
+        ],
+      },
+      {
+        shiftId: "cu2",
+        role: "door_supervisor",
+        site: null,
+        eventName: "Northern Lights Live",
+        startsAt: at("2026-10-27T08:00:00Z"),
+        endsAt: at("2026-10-27T16:00:00Z"),
+        headcount: 2,
+        booked: 2,
+        people: [
+          {
+            workerId: "w-dev",
+            name: "Dev Shah",
+            licence: { credential: "SIA door supervisor licence", expiresOn: "2026-10-20" },
+            asked: null,
+          },
+          {
+            workerId: "w-eve",
+            name: "Eve Long",
+            licence: null,
+            asked: { requestId: "rq-eve", type: "swap" },
+          },
+        ],
       },
     ],
   }),
@@ -306,6 +360,16 @@ const board: Board = {
 
 const render = (b: Board) =>
   renderToStaticMarkup(createElement(DashboardContent, { board: b, tiles: null }));
+// Who worked? ticked under Customise (off by default since Phase 27.9), with the defaults.
+const withWorked = (b: Board = board): Board => ({
+  ...b,
+  me: ok({
+    cards: [...DEFAULT_CARDS, "whoWorked" as const],
+    clientIds: [],
+    sites: null,
+    choices: [],
+  }),
+});
 const words = (html: string) =>
   html
     .replace(/<[^>]+>/g, " ")
@@ -802,12 +866,14 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
     expect(words(alone)).toMatch(/^Fri 30 Steward /);
   });
 
-  it("To offer as a list on the map (shut until asked for); Updates and Who worked? under it, two across (Phase 27.4)", () => {
+  it("To offer as a list on the map (shut until asked for); Updates and Coming up under it, two across (Phase 27.4; 27.9)", () => {
     const html = render(board);
     const ids = [...html.matchAll(/<section id="([a-z-]+)" aria-labelledby="\1-title"/g)].map(
       (m) => m[1],
     );
-    expect(ids).toEqual(["to-offer", "updates", "who-worked"]);
+    // Phase 27.9: Coming up in Who worked?'s place (Who worked? is under Customise, off).
+    expect(ids).toEqual(["to-offer", "updates", "coming-up"]);
+    expect(html).not.toContain('id="who-worked"');
     // To offer in the map's own section, after the card: floating glass in the list its button
     // opens, shut as the page arrives.
     const inMap =
@@ -856,7 +922,7 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
     const off = render({
       ...board,
       me: ok({
-        cards: ["toOffer", "updates", "whoWorked"],
+        cards: ["toOffer", "updates", "comingUp"],
         clientIds: [],
         sites: null,
         choices: [],
@@ -872,11 +938,28 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
     expect(off).toMatch(
       /<div class="grid items-start gap-3 @min-\[48rem\]:grid-cols-2 @min-\[72rem\]:grid-cols-3"><section id="to-offer"/,
     );
+    // Four (Who worked? ticked too, Phase 27.9): two by two, never three across.
+    const four = render({
+      ...board,
+      me: ok({
+        cards: ["toOffer", "updates", "comingUp", "whoWorked"],
+        clientIds: [],
+        sites: null,
+        choices: [],
+      }),
+    });
+    expect(
+      [...four.matchAll(/<section id="([a-z-]+)" aria-labelledby="\1-title"/g)].map((m) => m[1]),
+    ).toEqual(["to-offer", "updates", "coming-up", "who-worked"]);
+    expect(four).toMatch(
+      /<div class="grid items-start gap-3 @min-\[48rem\]:grid-cols-2 "><section id="to-offer"/,
+    );
   });
 
   it("Updates: each one a link to where it's dealt with, then All updates (Phase 26.4)", () => {
     const col = section(render(board), "updates");
-    expect(words(col)).toMatch(/^Updates 4 4 updates /);
+    // No line under the title on a dashboard showing everything (Phase 27.9).
+    expect(words(col)).toMatch(/^Updates 3 3 updates Ben Fraser took a place /);
     expect(words(col)).toContain(
       "Ben Fraser took a place Steward, Acme Demo Arena, Sun 1 Nov 17:00 · now full 09:06",
     );
@@ -886,18 +969,120 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
     expect(words(col)).toContain(
       "No reply yet · 3 offers On 2 sessions · the oldest sent Mon 07:19 08:02",
     );
-    expect(words(col)).toContain("Ben Fraser sent a staff photo Waiting for a check Sun 15:44");
+    // Uploads to check aren't the dashboard's since Phase 27.9 (the loader leaves them out:
+    // tests/integration/office.board.test.ts), so nothing here opens a casual's page.
+    expect(words(col)).not.toContain("sent a staff photo");
     expect(links(col).map((l) => l.href)).toEqual([
       "/office/shifts/nll3",
       "/office/cancellations/a-chloe",
       "/office/events?view=need",
-      "/office/casuals/w-ben",
       "/office/updates",
     ]);
+    // Narrowed to the person's contracts: "On your contracts" under the title.
+    const mine = section(render({ ...board, mine: true }), "updates");
+    expect(words(mine)).toMatch(/^Updates 3 3 updates On your contracts Ben Fraser took a place /);
+  });
+
+  it("Coming up: who's working today and tomorrow by session, each by name, with their flags (Phase 27.9)", () => {
+    const col = section(render(board), "coming-up");
+    // Its title, the count of sessions (a screen reader's words too), and its line.
+    expect(words(col)).toMatch(
+      /^Coming up 2 2 sessions coming up Today and tomorrow · 5 people on 2 sessions /,
+    );
+    // Each session's line, a link to its page: today's (its times past midnight) and tomorrow's
+    // (an event with no venue: its name), and how many are booked of how many.
+    const l = links(col);
+    expect(l.filter((x) => x.href.startsWith("/office/shifts/"))).toEqual([
+      {
+        href: "/office/shifts/cu1",
+        label:
+          "Open the session: Today 19:00–01:00 · CSAS officer · Northgate Demo Town Centre, 3 of 4 booked",
+        current: null,
+        name: "Today 19:00–01:00 · CSAS officer · Northgate Demo Town Centre 3 of 4 booked",
+      },
+      {
+        href: "/office/shifts/cu2",
+        label:
+          "Open the session: Tomorrow 08:00–16:00 · Door supervisor · Northern Lights Live, 2 of 2 booked",
+        current: null,
+        name: "Tomorrow 08:00–16:00 · Door supervisor · Northern Lights Live 2 of 2 booked",
+      },
+    ]);
+    // A place still free on one that starts today: red; full tomorrow: not.
+    expect(col).toMatch(
+      /<span class="whitespace-nowrap tabular-nums font-semibold text-urgent-ink">3 of 4 booked</,
+    );
+    expect(col).toMatch(/<span class="whitespace-nowrap tabular-nums ">2 of 2 booked</);
+    // The people, A to Z as the loader gives them, each their initials and name, a link to their
+    // casual page.
+    expect(l.filter((x) => x.href.startsWith("/office/casuals/"))).toEqual(
+      [
+        ["w-ann", "AE Ann Example"],
+        ["w-ben", "BF Ben Fraser"],
+        ["w-cara", "CD Cara Doyle"],
+        ["w-dev", "DS Dev Shah"],
+        ["w-eve", "EL Eve Long"],
+      ].map(([id, name]) => ({ href: `/office/casuals/${id}`, label: null, current: null, name })),
+    );
+    // The licence flags: red chips, short, the whole sentence for a screen reader (and as its tip).
+    const person = (name: string) =>
+      `<li ${col.split("<li ").find((c) => c.includes(`>${name}</span>`)) ?? ""}`;
+    expect(person("Ann Example")).toContain(
+      'title="Ann Example&#x27;s SIA CCTV licence runs out on Mon 26 Oct, during their CSAS officer session on Mon 26 Oct."',
+    );
+    expect(words(person("Ann Example"))).toContain(
+      "SIA CCTV licence runs out Mon 26 Oct Ann Example's SIA CCTV licence runs out on Mon 26 Oct, during their CSAS officer session on Mon 26 Oct.",
+    );
+    expect(person("Ann Example")).toMatch(/border-urgent-line bg-urgent-soft text-urgent-ink/);
+    expect(words(person("Dev Shah"))).toContain(
+      "SIA door supervisor licence out of date Dev Shah's SIA door supervisor licence expired on Tue 20 Oct, before their door supervisor session on Tue 27 Oct.",
+    );
+    // The asked flags: amber chips, each a link to the request on Enquiries' Requests from the app.
+    expect(l.filter((x) => x.href.startsWith("/office/enquiries"))).toEqual([
+      {
+        href: "/office/enquiries?view=app#request-rq-ben",
+        label: "Ben Fraser asked to change times. Open their request.",
+        current: null,
+        name: "Asked to change times",
+      },
+      {
+        href: "/office/enquiries?view=app#request-rq-eve",
+        label: "Eve Long asked to swap. Open their request.",
+        current: null,
+        name: "Asked to swap",
+      },
+    ]);
+    expect(person("Ben Fraser")).toMatch(
+      /border-attention-line bg-attention-soft text-attention-ink/,
+    );
+    // Nobody else flagged.
+    expect(words(person("Cara Doyle"))).toBe("CD Cara Doyle");
+    // The foot: every session by day.
+    expect(l.at(-1)).toEqual({
+      href: "/office/shifts",
+      label: null,
+      current: null,
+      name: "All sessions",
+    });
+    // Narrowed to the person's contracts, the line says so.
+    expect(words(section(render({ ...board, mine: true }), "coming-up"))).toContain(
+      "Today and tomorrow · 5 people on 2 sessions on your contracts",
+    );
+    // Only Coming up's words: no Worked or Didn't attend buttons here.
+    expect(col).not.toContain("<button");
   });
 
   it("Who worked?: alike sessions together with their day, each person by name with Worked and Didn't attend; All of these worked for several", () => {
-    const col = section(render(board), "who-worked");
+    // Off until ticked under Customise (Phase 27.9); ticked, after Coming up, three across.
+    expect(render(board)).not.toContain('id="who-worked"');
+    const html = render(withWorked());
+    expect(
+      [...html.matchAll(/<section id="([a-z-]+)" aria-labelledby="\1-title"/g)].map((m) => m[1]),
+    ).toEqual(["to-offer", "updates", "coming-up", "who-worked"]);
+    expect(html).toMatch(
+      /<div class="grid items-start gap-3 @min-\[48rem\]:grid-cols-2 @min-\[72rem\]:grid-cols-3"><section id="updates"/,
+    );
+    const col = section(html, "who-worked");
     // The line under the heading says what Worked and ✕ do, then how many people are listed (the
     // three below) and from when.
     expect(words(col)).toMatch(
@@ -939,7 +1124,7 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
       people: [{ shiftId: `g${n}`, workerId: `w${n}`, name: `Person ${n}` }],
     });
     const many = section(
-      render({ ...board, whoWorked: ok([1, 2, 3, 4].map(group)) }),
+      render(withWorked({ ...board, whoWorked: ok([1, 2, 3, 4].map(group)) })),
       "who-worked",
     );
     expect(many.match(/ worked, /g)).toHaveLength(3);
@@ -961,17 +1146,26 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
       updates: ok({ items: [], more: false }),
       toMark: ok({ items: [], total: 0 }),
       whoWorked: ok([]),
+      comingUp: ok({ sessions: [], total: 0, people: 0, more: false }),
     };
-    const html = render(none);
+    const html = render(withWorked(none));
     // Each says what will show there (the pre-build audit's aud-10).
     expect(words(section(html, "to-offer"))).toContain(
       "No places to fill. Sessions with a place free show here, soonest first.",
     );
+    // Updates' hint without the uploads (Phase 27.9: they're Needs attention's and Updates').
     expect(words(section(html, "updates"))).toContain(
-      "Nothing new in the last two days. Places taken, cancellations, and photos or certificates to check show here.",
+      "Nothing new in the last two days. Places taken, cancellations and offers with no reply show here.",
     );
     expect(words(section(html, "who-worked"))).toContain(
       "Nothing to mark. Sessions show here when they end, so you can mark who worked.",
+    );
+    // Coming up: nobody booked, no line of noughts, and still its foot.
+    expect(words(section(html, "coming-up"))).toBe(
+      "Coming up 0 0 sessions coming up Nobody's booked today or tomorrow. Sessions today and tomorrow with someone booked show here, soonest first. All sessions",
+    );
+    expect(words(section(render({ ...none, mine: true }), "coming-up"))).toContain(
+      "Nobody's booked on your contracts today or tomorrow.",
     );
     // Nothing on the map, so no table of it.
     expect(html).not.toContain("Show as a table");
@@ -980,18 +1174,21 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
   });
 
   it("a part that couldn't load says so where it shows; the rest still shows", () => {
-    const html = render({
-      ...board,
-      counts: failed,
-      gaps: failed,
-      toMark: failed,
-      venues: failed,
-      updates: failed,
-      whoWorked: failed,
-      planner: failed,
-    });
-    // The track, the map, To offer, Updates and Who worked?.
-    expect(html.split(SECTION_ERROR.replace("'", "&#x27;")).length - 1).toBe(5);
+    const html = render(
+      withWorked({
+        ...board,
+        counts: failed,
+        gaps: failed,
+        toMark: failed,
+        venues: failed,
+        updates: failed,
+        whoWorked: failed,
+        comingUp: failed,
+        planner: failed,
+      }),
+    );
+    // The track, the map, To offer, Updates, Coming up and Who worked? (ticked).
+    expect(html.split(SECTION_ERROR.replace("'", "&#x27;")).length - 1).toBe(6);
     expect(html).toContain(">Dashboard</h1>");
     expect(words(html)).toContain("Monday 26 October · Week 44 (paid Fri 6 Nov)");
     expect(words(html)).not.toContain("Updated");
@@ -1191,16 +1388,19 @@ describe("the dashboard, each person's own (Phase 26.3)", () => {
     expect(html).toContain("data-chosen");
     expect(html).toContain('id="to-offer"');
     expect(html).not.toContain('id="updates"');
+    expect(html).not.toContain('id="coming-up"');
     expect(html).not.toContain('id="who-worked"');
     expect(
       words(/<section id="no-shows-by-week"[\s\S]*?<\/section>/.exec(html)?.[0] ?? ""),
     ).toMatch(
       /^No-shows People marked as not attending, by the week of the session 2 no-shows in the last 8 weeks\./,
     );
-    // The defaults: the map and the three columns, no extra card.
+    // The defaults: the map and the three columns (To offer on the map, Updates and Coming up under
+    // it), no Who worked? and no extra card.
     const all = render(board);
     expect(all).toContain("data-venue-map");
-    for (const id of ["to-offer", "updates", "who-worked"]) expect(all).toContain(`id="${id}"`);
+    for (const id of ["to-offer", "updates", "coming-up"]) expect(all).toContain(`id="${id}"`);
+    expect(all).not.toContain('id="who-worked"');
     expect(all).not.toContain("no-shows-by-week");
   });
 });

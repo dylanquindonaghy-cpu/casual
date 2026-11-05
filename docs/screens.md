@@ -230,26 +230,61 @@ bullets below say where each is.
   waiting, "Only {Zoe Adeyemi} can take it: {1 hour} booked that week." or "Nobody can be offered
   it right now.", else round 7's. Then "Offer to someone" ("Offer to {Zoe}" when she's the only one
   who can take it) and "Open the session".
-- **The board**, glass columns under the map: with the map shown (Phase 27.4), Updates and Who
-  worked?, two across from 768px of page and one on a phone, To offer being the list on the map;
-  with the map off under Customise, To offer, Updates and Who worked? (three across from 1152px of
-  page, two from 768px, one on a phone):
+- **The board**, glass columns under the map, about the person's contracts (Phase 27.9; Dylan,
+  2026-11-05: "We dont need the who worked section but i still want important data in the section
+  can we simplify the what needs updating to staff working on any of your contracts coming up and
+  for example cancellations on your contracts"): with the map shown (Phase 27.4), Updates and
+  Coming up, two across from 768px of page and one on a phone, To offer being the list on the map.
+  Who worked? is off unless ticked under Customise (it was on by default until Phase 27.9; a choice
+  saved before then keeps it), and comes after Coming up: three columns go three across from
+  1152px of page, two from 768px, one on a phone; four (the map off and every column ticked) two
+  by two. With the map off under Customise, To offer is the first column:
   - **To offer** (`#to-offer`): every session with places to fill under the track and the filter,
     soonest first, "{11} places · {3} offers, no reply yet" (or "…, none offered"). A row: its date
     tile (red when urgent), the role (and "Urgent"), "{venue} · {08:00}", "{3/4} booked" and its
     paper plane (the offer panel, as round 7's). The row picks itself into the card. As a column
     (the map off), the first 4, then "View all {17}" (Events & sessions' "Need people", or
     "Urgent"); on the map, every one, then "View all {17}".
-  - **Updates** (`#updates`, where the top bar's "Offers out" lands): the last two days, newest
-    first, 6 at most, each a link to where it's dealt with: "{Ben Fraser} took a place" ("{Steward},
-    {Acme Demo Arena}, {Tue 3 Nov 08:00} · {2 places to fill}" or "now full"); "{Mo Rahman}
-    cancelled · {6 hours' notice}" ("… · strike issued" / "strike withdrawn" / "no strike", and "·
-    reopened"; red under 48 hours' notice), to the cancellation; "{Zoe Adeyemi} sent a staff photo"
-    / "a certificate", "Waiting for a check", to the casual; "No reply yet · {3} offers" for a
-    session's offers with no reply. The time on the right ("09:06" today, "Sun 08:00" before). Then
-    "All updates" (the Updates page, Phase 26.4; "Everything in the action log" until then). Empty:
-    "Nothing new in the last two days."
-  - **Who worked?** (`#who-worked`): "Tap Worked, or ✕ if they didn't turn up. {5} people from
+  - **Updates** (`#updates`, where the top bar's "Offers out" lands): the last two days on the
+    person's contracts, newest first, 6 at most, each a link to where it's dealt with: "{Ben
+    Fraser} took a place" ("{Steward}, {Acme Demo Arena}, {Tue 3 Nov 08:00} · {2 places to fill}"
+    or "now full"); "{Mo Rahman} cancelled · {6 hours' notice}" ("… · strike issued" / "strike
+    withdrawn" / "no strike", and "· reopened"; red under 48 hours' notice), to the cancellation;
+    "No reply yet · {3} offers" for a session's offers with no reply. The time on the right
+    ("09:06" today, "Sun 08:00" before). Under the title, "On your contracts" while the dashboard is
+    narrowed to them (My contracts on; nothing there otherwise). Since Phase 27.9 no staff photos
+    or certificates waiting for a check: they're a casual's, not a contract's, and stay on Needs
+    attention ("Uploads to check") and the Updates page. Then "All updates" (the Updates page,
+    Phase 26.4; "Everything in the action log" until then). Empty: "Nothing new in the last two
+    days."
+  - **Coming up** (`#coming-up`, Phase 27.9; a green leaf): who's working on the person's
+    contracts today and tomorrow (the firm's calendar days), by session. Its count is the sessions;
+    the line "Today and tomorrow · {5 people} on {3 sessions}" (each person counted once; "… on your
+    contracts" while narrowed to them). The sessions: not cancelled, at the contracts' venues (a
+    session's own venue, else its event's; every venue with My contracts off or none chosen), not
+    ended yet (one under way shows), starting before the end of tomorrow, with at least one
+    confirmed booking; soonest first, the first 6. Each a line linking to the session's page:
+    "{Today} {19:00–01:00} · {CSAS officer} · {Northgate Demo Town Centre}" ("Tomorrow", or
+    "Yesterday" for a night shift still under way; the event's name when it has no venue) and "{3}
+    of {4} booked" on the right (red while a place is free on one that starts today), read as
+    "Open the session: {its line}, {3 of 4 booked}". Under it the people with a confirmed booking,
+    A to Z, each their initials and their name (a link to their casual page), with, under the
+    name: a red chip by the qualification's own name, "{SIA door supervisor licence} out of date" (it
+    has run out, or the office marked it expired) or "{SIA door supervisor licence} runs out {Sat 7
+    Nov}" (in date today, but not for the whole session) where a
+    qualification the session needs won't be in date for it (Needs attention's own rule and its
+    sentence, "{Zoe Adeyemi}'s {SIA door supervisor licence} runs out on {Sat 7 Nov}, during their
+    {door supervisor} session on {Sat 7 Nov}.", for a screen reader and as the chip's tip; a
+    session under way counts too); and an amber chip "Asked to change times" (or "Asked to swap")
+    where they've a time change or swap on it waiting for an answer, a link to it on Enquiries'
+    Requests from the app (`/office/enquiries?view=app#request-{id}`: each waiting request has its
+    own anchor), read as "{Ben Fraser} asked to change times. Open their request.". Names and ids
+    only. Then "All sessions" (`/office/shifts`, every session by day). Empty: "Nobody's booked
+    today or tomorrow." ("Nobody's booked on your contracts today or tomorrow." while narrowed),
+    and still "All sessions".
+  - **Who worked?** (`#who-worked`; under Customise, off by default since Phase 27.9: a session's
+    own page still marks who worked, and Updates lists one not marked 2 days after it ended): "Tap
+    Worked, or ✕ if they didn't turn up. {5} people from
     {Sun 25 Oct}" (or "… from {Thu 22} to {Sun 25 Oct}"; the launch review), then the
     sessions to mark (ended in the last 7 days, someone booked not marked yet, newest ended first;
     only here since Phase 26.4, when it left Needs attention: the spec's upd-6), alike ones together
@@ -266,13 +301,14 @@ bullets below say where each is.
     "Show all {7}" shows the rest in place. Empty: "Nothing to mark."
   - **An empty column** says what will show there (the pre-build audit's aud-10), under its own
     words: To offer "Sessions with a place free show here, soonest first."; Updates "Places taken,
-    cancellations, and photos or certificates to check show here."; Who worked? "Sessions show
-    here when they end, so you can mark who worked."
+    cancellations and offers with no reply show here." (Phase 27.9); Coming up "Sessions today and
+    tomorrow with someone booked show here, soonest first."; Who worked? "Sessions show here when
+    they end, so you can mark who worked."
 - **On a phone:** the counts row (the shell's), the head, the track, Filter and the switch, the map
   (380px, its key top left and its button top right, only the chosen pin with its name), the card,
-  To offer's list when it's open, then Updates and Who worked? one under the other.
+  To offer's list when it's open, then Updates and Coming up one under the other.
 - **Loading:** the skeleton follows this layout (the head and track, the map with the card on it,
-  the two columns under it).
+  the two columns under it: Updates and Coming up).
 
 ## Contracts and each person's own dashboard (Phase 26.3)
 
@@ -304,8 +340,8 @@ audit's aud-9, aud-10 and aud-13. Words: `src/lib/office/customise-copy.ts`,
 - **My contracts** (beside the track, before Show filled venues too; only for someone looking after a
   contract): a switch, on while the dashboard shows only their contracts' venues (a session's own
   venue, or else its event's): the track's counts, the map, To offer, the card, Updates' places
-  taken, cancellations and offers with no reply (not uploads: they're a casual's), Who worked? and
-  the extra cards. Off: everything (`?all=1`). Events & sessions always shows everything. On, with
+  taken, cancellations and offers with no reply (with "On your contracts" under its title), Coming
+  up (Phase 27.9), Who worked? and the extra cards. Off: everything (`?all=1`). Events & sessions always shows everything. On, with
   none of their contracts having a venue yet: "Your contracts have no venues yet, so nothing shows
   here. An admin adds venues to contracts on Settings." and "Show everything".
 - **Customise** (the panel: from the right on a laptop, 480px wide; the whole screen on a phone;
@@ -315,10 +351,13 @@ audit's aud-9, aud-10 and aud-13. Words: `src/lib/office/customise-copy.ts`,
   come}");
   none yet: "No contracts yet. An admin adds them on Settings, under Contracts."; "What you see",
   a tick per card with its line: "Venue map" (Places to fill at each venue), "To offer" (Sessions
-  with places), "Updates" (Cancellations and to-dos), "Who worked?" (To confirm after a session),
-  "Next 2 weeks" (Booked, offered and open places each day), "Cancellations" (By week, under 48
-  hours in red), "Fill rate" (Places booked out of places needed, per contract), "No-shows" (By week); the first
-  four ticked until someone saves. "Save my dashboard" ("Saving…"), then "Saved. Your dashboard
+  with places), "Updates" (Cancellations, places taken and offers with no reply), "Coming up"
+  (Who's working on your contracts today and tomorrow), "Who worked?" (To confirm after a
+  session), "Next 2 weeks" (Booked, offered and open places each day), "Cancellations" (By week,
+  under 48 hours in red), "Fill rate" (Places booked out of places needed, per contract),
+  "No-shows" (By week); the first four ticked until someone saves (Phase 27.9: Venue map, To offer,
+  Updates and Coming up; Who worked? off until ticked; a choice saved before then is kept as it
+  was). "Save my dashboard" ("Saving…"), then "Saved. Your dashboard
   shows what you chose." and the panel closes with the dashboard updated; "Back to the dashboard".
   Saved to the person, not the browser (logged `office_user.dashboard_saved`). The Watch list
   card (Booked casuals with the lowest reliability) comes with reliability (26.7).
@@ -426,7 +465,9 @@ Page title "Updates".
   only"); and "Notifications on this device" is added (a browser must be asked once).
 - **Needs attention** (upd-6): "Who worked?" has left it (the dashboard's column has every session
   to mark, with "Show all"); everything else stays, and its count no longer counts sessions to mark.
-  The guide's "See who to mark" goes to `/office#who-worked`.
+  The guide's "See who to mark" went to `/office#who-worked`; since Phase 27.9 (the column off by
+  default) its link is "Choose what your dashboard shows" (`/office/customise`), and it says each
+  session's page marks who worked and Updates lists one still not marked 2 days after.
 
 ## An event's page, round 8 (Phase 26.5)
 

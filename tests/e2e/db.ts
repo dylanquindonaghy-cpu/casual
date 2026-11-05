@@ -5,9 +5,11 @@ import { seedId } from "../../src/lib/db/admin/seed-data";
 import { databaseName, isLocalHost, withDatabase } from "../../src/lib/db/admin/urls";
 import {
   assignments,
+  clients,
   credentials,
   firms,
   offers,
+  officeUserClients,
   officeUsers,
   pushSubscriptions,
   requests,
@@ -333,6 +335,180 @@ export async function updatesSeenAt(slug: string, email: string): Promise<Date |
         .where(eq(officeUsers.email, email)),
     );
     return me?.at ?? null;
+  } finally {
+    await pool.end();
+  }
+}
+
+// The dashboard cards an office user of a spec's own has chosen, as "Save my dashboard" under
+// Customise saves them (Phase 26.3): for a spec that needs a card that's off by default, such as
+// Who worked? (Phase 27.9). Their own user, so nobody else's dashboard changes.
+export async function setDashboardCards(
+  slug: string,
+  email: string,
+  cards: string[],
+): Promise<void> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const firmId = seedId(`firm/${slug}`);
+    const saved = await createWithFirm(pool)(firmId, (tx) =>
+      tx
+        .update(officeUsers)
+        .set({ dashboardCards: cards })
+        .where(eq(officeUsers.email, email))
+        .returning({ id: officeUsers.id }),
+    );
+    if (saved.length !== 1) throw new Error(`no office user ${email} to save cards for`);
+  } finally {
+    await pool.end();
+  }
+}
+
+// The dashboard's Coming up (Phase 27.9), a scene of a spec's own: a steward session about a day
+// from now (tomorrow, in the firm's calendar) at a venue of its own, 3 places, two stewards of its
+// own booked on it. The first's Level 2 qualification ran out yesterday (so it's out of date for the
+// session); the second has asked to change its times (a time change waiting for an answer). The
+// venue is a contract of its own that the office user `email` (the spec's own) looks after, so
+// their dashboard shows only it, whatever else the other specs and the seed have booked. Names end
+// with `tag`, so a retry makes new ones. Fake details only: drama-range numbers the seed doesn't
+// use.
+export async function comingUpScene(
+  slug: string,
+  tag: string,
+  email: string,
+): Promise<{
+  shiftId: string;
+  site: string;
+  clientId: string;
+  expired: { id: string; name: string };
+  asker: { id: string; name: string };
+  requestId: string;
+}> {
+  const { shiftId } = await addEventWithSession(slug, {
+    name: `Coming Gala ${tag}`,
+    site: `Coming Hall ${tag}`,
+    role: "steward",
+    daysAhead: 1,
+    headcount: 3,
+  });
+  const steward = async (firstName: string) => {
+    const lastName = `Coming${tag}`;
+    const id = await addSteward(slug, {
+      firstName,
+      lastName,
+      mobileE164: await unusedMobile(slug, 800, 869),
+    });
+    return { id, name: `${firstName} ${lastName}` };
+  };
+  const expired = await steward("Cora");
+  const asker = await steward("Abel");
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const firmId = seedId(`firm/${slug}`);
+    const made = await createWithFirm(pool)(firmId, async (tx) => {
+      // The venue's own contract, looked after by the spec's office user.
+      const [client] = await tx
+        .insert(clients)
+        .values({ firmId, name: `Coming Council ${tag}` })
+        .returning({ id: clients.id });
+      const [me] = await tx
+        .select({ id: officeUsers.id })
+        .from(officeUsers)
+        .where(eq(officeUsers.email, email));
+      if (!client || !me) throw new Error("no contract, or no office user to look after it");
+      const [shift] = await tx
+        .select({ siteId: shifts.siteId })
+        .from(shifts)
+        .where(eq(shifts.id, shiftId));
+      if (!shift?.siteId) throw new Error("the session has no venue");
+      await tx.update(sites).set({ clientId: client.id }).where(eq(sites.id, shift.siteId));
+      await tx
+        .insert(officeUserClients)
+        .values({ firmId, officeUserId: me.id, clientId: client.id });
+      await tx.insert(assignments).values(
+        [expired, asker].map((w, i) => ({
+          firmId,
+          shiftId,
+          slot: i + 1,
+          workerId: w.id,
+          status: "confirmed" as const,
+          confirmedAt: new Date(),
+        })),
+      );
+      const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+      await tx
+        .update(credentials)
+        .set({ status: "expired", expiresOn: yesterday })
+        .where(and(eq(credentials.workerId, expired.id), eq(credentials.type, "STEWARD_L2")));
+      const [asked] = await tx
+        .insert(requests)
+        .values({
+          firmId,
+          workerId: asker.id,
+          shiftId,
+          type: "time_change",
+          payload: { start: "10:00", end: "16:00", note: "" },
+        })
+        .returning({ id: requests.id });
+      if (!asked) throw new Error("request insert returned nothing");
+      return { requestId: asked.id, clientId: client.id };
+    });
+    return { shiftId, site: `Coming Hall ${tag}`, expired, asker, ...made };
+  } finally {
+    await pool.end();
+  }
+}
+
+// Ends a Coming up scene: its session cancelled (so no later spec sees its open place), the time
+// change answered as sorted (so no later spec finds it waiting), and its contract removed (its
+// venue stays, as Settings' "Remove" leaves it).
+export async function endComingUpScene(
+  slug: string,
+  scene: { shiftId: string; requestId: string; clientId: string },
+): Promise<void> {
+  await cancelOwnShift(slug, scene.shiftId);
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    await createWithFirm(pool)(seedId(`firm/${slug}`), async (tx) => {
+      await tx
+        .update(requests)
+        .set({ status: "auto_resolved", resolvedAt: new Date() })
+        .where(eq(requests.id, scene.requestId));
+      await tx.update(sites).set({ clientId: null }).where(eq(sites.clientId, scene.clientId));
+      await tx.delete(clients).where(eq(clients.id, scene.clientId));
+    });
+  } finally {
+    await pool.end();
+  }
+}
+
+// A staff photo of a casual's, waiting for the office to check it, sent at `at` (Updates' "sent a
+// staff photo"; Needs attention's "Uploads to check").
+export async function addWaitingPhoto(slug: string, workerId: string, at: Date): Promise<void> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const firmId = seedId(`firm/${slug}`);
+    const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0xff, 0xd9]);
+    await createWithFirm(pool)(firmId, (tx) =>
+      tx.insert(uploads).values({
+        firmId,
+        workerId,
+        kind: "photo",
+        contentType: "image/jpeg",
+        size: jpeg.length,
+        sha256: createHash("sha256").update(jpeg).digest("hex"),
+        data: jpeg,
+        createdAt: at,
+      }),
+    );
   } finally {
     await pool.end();
   }

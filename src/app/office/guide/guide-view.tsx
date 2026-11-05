@@ -317,7 +317,7 @@ const DASHBOARD_SECTIONS: [string, ReactNode][] = [
   ],
   [
     "Coming up",
-    "Who's working on your contracts today and tomorrow, by session, each person by name. A red label shows a licence that runs out before or during their session; Asked to change times opens their request. On the watch list means under 90% reliable; First shift means nothing of theirs is marked as worked before. Offer 1 place offers a place still free.",
+    "Who's working on your contracts today and tomorrow, by session, each person by name. A red label shows a licence that runs out before or during their session; Asked to change times opens their request. On the watch list means under 90% reliable; First shift means nothing of theirs is marked as worked before. Offer 1 place opens the offer panel for a place still free.",
   ],
   [
     "Who worked?",

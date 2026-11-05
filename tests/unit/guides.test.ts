@@ -344,7 +344,7 @@ describe("the office how-to guide", () => {
         "Each has one button under it. Offer the place opens the offer panel when a cancelled place is still to fill. Otherwise it's See the record, Open the session or See the offers.",
       );
       expect(text).toContain(
-        "On the watch list means under 90% reliable; First shift means nothing of theirs is marked as worked before. Offer 1 place offers a place still free.",
+        "On the watch list means under 90% reliable; First shift means nothing of theirs is marked as worked before. Offer 1 place opens the offer panel for a place still free.",
       );
       expect(text).toContain("Off until you tick it under Customise.");
       expect(text).toContain(

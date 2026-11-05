@@ -2285,3 +2285,122 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
 - **A list of only the sessions with offers waiting** (27.10): "See the offers" goes to Events &
   sessions' Need people, which holds every session with a place free, not only those waiting for a
   reply. Proposed if the office asks for it: a "Waiting for a reply" view there.
+
+## Phase 28 (the staff app), left out on purpose, 2026-11-05
+
+From `docs/mockups/phase-28/review.md` (its section 5 has the evidence for each).
+
+- **A deadline on offers ('Answer by 21:50')**: Offers have no time-based expiry. They close only
+  when the shift fills (src/lib/offers/close.ts:1-8), or is moved or cancelled (firm-change.ts:283,
+  cancel.ts:451). wave_minutes means a wave gap or a head start, never an expiry. A deadline would
+  be a rules change for Dylan, and the offer text says 'First to accept gets it'. 28.15 shows
+  'Offered {time}' instead.
+- **Send the next wave at once when everyone in a wave says 'No thanks'; 'No thanks' on the shift
+  page**: Speeding up waves changes the offer timing in waves.ts, a rules change with its own tests.
+  The shift page belongs to 28.14 in wave 3, and Home's row covers declining. Add both if the pilot
+  asks.
+- **A database rule for 'one open attendance question per booking'**: Decision 8 (a database rule
+  for one waiting request) is still Dylan's. 28.2 holds it with a row lock on the booking, as
+  createRequest locks the shift, and tests two submissions at once.
+- **Parking and venue notes for casuals (the unused sites.notes column, or event-wide notes)**:
+  Dylan cut event-wide notes for casuals (public_notes) on 2026-10-06; they come back only with his
+  decision. Today's meeting point and instructions cover most of it.
+- **Showing casuals reliability standing labels, levels, badges, or earlier access and perks for
+  reliable casuals; or showing a cancellation's effect on reliability before she confirms
+  (Coople)**: These are profiling. Showing them means updating the privacy notice and compliance.md,
+  and using them to open up work would make reliability an automated decision (Employment Rights Act
+  2025 Part 5, DPIA). That is Dylan's legal call. The strike warning already says what a
+  cancellation costs, and 28.13 shows the shifts behind the figure.
+- **Regular weekly availability (for example never Sundays), a weekly hours cap set by the casual,
+  and preferred sites or roles**: Each changes the eligibility input and the offer waves (a rules
+  change), or adds ranking by preference. Whether the office can book over them is Dylan's call.
+  Single days off already work.
+- **Swap or hand a shift to a named colleague; see who's on your shift; an event group chat**: Each
+  shows other casuals' names or availability, which a casual must never see. Swaps also need
+  eligibility checks for both people and office approval rules. Today's free-text 'Who could take
+  it?' request stays.
+- **Give a shift back to the pool while it stays yours until someone takes it (When I Work, Sling,
+  Quinyx)**: It is a new booking state between booked and cancelled. That changes first-yes-wins,
+  the notice log and strikes (a rules and schema change). Cancelling with the strike warning covers
+  it.
+- **A calendar feed you subscribe to (a live link)**: It needs an unguessable link that opens
+  without logging in, which is an auth change. 28.5's per-shift file covers it.
+- **Tap-to-call or WhatsApp the office from the app, and a named contact for the day**: The shifts
+  line's number is held back until incoming messages are answered, and WhatsApp is off (Dylan,
+  2026-10-19). A named person's number for casuals needs a field, a decision and privacy wording.
+  28.6 covers it in the app.
+- **Confirm 'Still coming' or take a shift by replying YES to a text or WhatsApp**: Acting on a text
+  reply is an auth change (D6, deferred) and needs new Meta templates.
+- **An unanswered 'Still coming?' that reoffers the place, warns, or counts against the casual**: No
+  automatic consequence is the design. Anything automatic would affect a casual without a person
+  deciding, which is an automated-decision safeguard and Dylan's call.
+- **Tell a casual by message when they're marked as not attended**: This is already 'Dylan to
+  confirm' in the parking lot's 'Marking who worked follow-ups'. 28.13 shows the mark and lets them
+  question it.
+- **Agree to, or say you can't do, an office change to a booked shift (Deputy's Accept or Decline
+  Changes; Humanforce's consent)**: It adds a casual answer state to firm-initiated changes. That is
+  notice-log evidence that the Employment Rights Act's 2027 zero-hours rules may define, and it
+  touches strikes (a strike-free cancellation with a logged reason). Dylan's call, after those rules
+  are known. Today an office change carries no strike, and the casual can message the office (28.6).
+- **Clock in and out, GPS or QR check-in, breaks and timesheets**: This is Stage 3: a native app
+  with geofencing, with the DPIA first, and heavy for the pilot.
+- **Shift tasks, checklists and patrol forms (Parim, Timegate, SmartTask, Sling, Deputy, Connecteam,
+  Quinyx, Workforce.com)**: They need new tables, form building in the office, and storage for
+  answers and photos (a schema and retention change). Security patrol forms are a product of their
+  own. Not asked for (debloat).
+- **A firm news feed or announcements (Planday, StaffConnect, Sona, Connecteam, Sling, Quinyx,
+  Humanforce, Deputy, When I Work)**: It needs a new table, office posting rules and moderation.
+  Messages and notices already reach casuals about their own shifts. Not asked for.
+- **Expense claims (Parim, Liveforce, StaffConnect)**: These are money and receipts, which payroll
+  owns. The app doesn't hold or move money, and receipts would add storage and retention.
+- **Face or fingerprint sign-in, or passkeys (RotaCloud, Parim, Fourth, Homebase)**: This is an auth
+  change (WebAuthn credentials stored per worker). Magic links and the session keeper cover it
+  today.
+- **A short undo window after booking (Instawork)**: Undoing a booking is a cancellation, with its
+  notice hours and strike rules; a window without them changes the strikes DPIA. First yes wins, so
+  others may already have been told the place filled.
+- **Payslips, take-home pay, holiday pay and year-to-date totals; pay status per shift ('Approved',
+  'Paid')**: The app doesn't hold these figures. They come with payroll imports and pay_cycles (P6
+  and Stage 2: a schema change and payroll's cut-off), and rule 9 allows only imported pay facts.
+  'Worked' marks do exist, and 28.13 shows them.
+- **Shifts worked this pay period, shown as facts on the Pay tab; her hours over a reference
+  period**: The worked marks and the pay calendar exist. But a period total on Pay would sit beside
+  payroll's imported figures and could be read as what will be paid (rule 9's line between facts and
+  figures). The reference period is defined by the Employment Rights Act's 2027 rules (Stage 2 in
+  PLAN.md). 28.13 shows each worked shift's hours.
+- **Early pay, an in-app wallet or pay card, referral bonuses**: The app doesn't hold or move money,
+  and these need new paid providers.
+- **Expected earnings for the week's bookings on the Pay tab**: The Pay page shows only imported
+  figures (P1-1, rule 9). An estimate there would blur facts and guesses.
+- **Take back a pay query; 'I can't do it any more' for an ask on a 'Casuals ask, you choose'
+  session; edit a request**: Pay queries are payroll's, with their own statuses (a schema change for
+  little volume). Taking back an ask was parked in Phase 26.6 until the pilot asks. Editing a
+  request would change what the office already read, so taking it back and asking again (28.9) keeps
+  the log honest.
+- **A history of the messages she was sent (reminders, briefing-change notices)**: The shift record
+  (28.4) is the Employment Rights Act evidence: offers, bookings, changes, cancellations and notice.
+  Reminders aren't notice. Briefing notices are logged for the office (28.3) and reach her as
+  pushes, texts or emails. Add them to the record if the pilot asks.
+- **A first-shift welcome (what to bring, when to arrive)**: It needs new firm-facing words and a
+  checklist Dylan should approve. The meeting point, uniform and instructions already cover it.
+- **Photos in Messages (a fit note, a train-delay screenshot)**: Fit notes are health data (Article
+  9), and casuals never upload health documents under the uploads policy.
+- **Report an incident, safety check-ins and SOS for lone work**: They need a safeguarding process,
+  Article 9 handling and liability terms (Dylan's call). An SOS needs a native app and location
+  (Stage 3).
+- **Digital staff ID card**: It is an impersonation risk at venue gates, overlaps the SIA badge, and
+  needs the firm's sign-off.
+- **Contracts and e-signatures, training courses and quizzes, BS7858 vetting in the app**: A
+  document store, e-signature and course content are heavy and would likely need a provider. Not
+  asked for.
+- **Rate the shift, thank colleagues, surveys**: It needs a new table and moderation. Not asked for.
+- **Sort open shifts by pay or distance; a map of open shifts**: The travel DPIA says travel never
+  ranks anyone. A sort by pay is low value while most demo shifts have no rate.
+- **Hide shifts you're not interested in; standby lists**: Each needs a new table, and standby is a
+  new offer mode (a rules change).
+- **One login for several firms; changing your own phone, email or name**: Several firms is a
+  tenancy and auth change. Changing your own details was decided against (decision Office 11).
+- **Pay shown on every open shift**: This is data, not code: the planner or editor has to send each
+  session's rate. 28.8 says 'Pay not given yet', and 28.5's button asks.
+- **A two-column casual layout on laptops; the shift record as a PDF**: Casuals use phones, and the
+  448px column is a deliberate keep. The office's notice report already has a PDF.

@@ -282,8 +282,10 @@ describe("the office how-to guide", () => {
       expect(words(guide(role)).toLowerCase()).not.toMatch(/\bbell\b/);
     // The menu's line for the dashboard: round 7's board (Phase 24), not Phase 23's charts or
     // round 2's week and sorted list.
+    // Phase 27.9: about the person's contracts, and who's working on them (Who worked? is under
+    // Customise now).
     const dashboardLine =
-      "The places to fill this week and next, the offers waiting for a reply, what casuals took while you were out, and who worked.";
+      "The places to fill this week and next, the offers waiting for a reply, what changed on your contracts, and who's working today and tomorrow.";
     expect(words(guide("admin"))).toContain(dashboardLine);
     expect(words(guide("admin"))).not.toContain("this week's days");
     expect(words(guide("admin"))).not.toContain("charts of what needs work");
@@ -303,6 +305,7 @@ describe("the office how-to guide", () => {
         "The chosen session",
         "To offer",
         "Updates",
+        "Coming up",
         "Who worked?",
       ]);
       const text = words(html);
@@ -326,11 +329,16 @@ describe("the office how-to guide", () => {
       expect(text).toContain(
         "Offer to someone and Open the session are under it; … has Mark as filled and Not urgent.",
       );
-      // Updates: what casuals took and cancelled, never "filled by the shifts line"; Who worked? by
-      // name.
+      // Updates: what casuals took and cancelled, never "filled by the shifts line", and no uploads
+      // (Phase 27.9: where they are instead); Coming up by session and name, with its flags; Who
+      // worked? by name, off until ticked under Customise.
       expect(text).toContain(
-        "The last two days: places casuals took, cancellations with their notice and strike, photos and certificates to check, and offers with no reply.",
+        "The last two days on your contracts: places casuals took, cancellations with their notice and strike, and offers with no reply. Photos and certificates to check are on Needs attention and the Updates page.",
       );
+      expect(text).toContain(
+        "Who's working on your contracts today and tomorrow, by session, each person by name. A red label shows a licence that runs out before or during their session; Asked to change times opens their request.",
+      );
+      expect(text).toContain("Off until you tick it under Customise.");
       expect(text).toContain(
         "each person by name: Worked, or ✕ if they didn't turn up, or All of these worked.",
       );
@@ -367,11 +375,16 @@ describe("the office how-to guide", () => {
       expect(html).toContain("bg-wait-soft text-wait-ink");
     }
     // Its links land on what's there now: the dashboard's urgent sessions (its Urgent filter), and
-    // Who worked? on the dashboard (Phase 26.4: it left Needs attention; the urgent places' section
-    // went in Phase 24; there was never an "#urgent").
+    // Customise, where Who worked? is ticked on (Phase 27.9: off by default, so the dashboard's
+    // #who-worked isn't always there; Phase 26.4: it left Needs attention; the urgent places'
+    // section went in Phase 24; there was never an "#urgent").
     const admin = guide("admin");
     expect(admin).toContain('href="/office?show=urgent"');
-    expect(admin).toContain('href="/office#who-worked"');
+    expect(admin).toContain('href="/office/customise"');
+    expect(admin).not.toContain('href="/office#who-worked"');
+    expect(words(admin)).toContain(
+      "Mark who worked each session on its page. To do it from the dashboard, tick Who worked? under Customise :",
+    );
     expect(admin).not.toContain("needs-attention#to-mark");
     expect(admin).not.toMatch(/href="\/office#(?:urgent|urgent-places|needs-attention)"/);
     expect(words(section(admin, "fill-a-gap"))).toContain(

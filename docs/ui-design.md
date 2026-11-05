@@ -99,6 +99,25 @@ rules in `src/lib/office/venue-map-geo.ts`; the words in `dashboard-map-copy.ts`
 - **The file:** the detail is in the map file (zoom 15, about 2.99 GB for the UK: `docs/runbooks.md`
   "The street map"); with today's zoom-13 file the map zooms in all the same, softer past 13.
 
+## Phase 27.9: Coming up under the map
+
+Dylan, 2026-11-05, "no mock up": the columns under the map are Updates and Coming up
+(`src/app/office/dashboard/coming-up.tsx`, in `board.tsx`'s `Column`; words in
+`src/lib/office/coming-up-copy.ts`), Who worked? only when ticked under Customise. Nothing new to
+the look: Coming up is built from Updates' and Who worked?'s own parts.
+
+- **The column:** the board's glass section, 16px inside, its leaf the done green (`mark-done`), the
+  title, the clear glass count and the 14px muted line, as the others; "All sessions" its foot, as
+  To offer's "View all".
+- **A session:** Who worked?'s group line (12px faint, 44px tall, a link that darkens on hover) with
+  "{3} of {4} booked" at its right in the same size, semibold urgent red while a place is free on
+  one that starts today; the people under it as Who worked?'s rows (hairlines between, the 32px
+  initials disc in the raised grey, the name 16px medium), each row a 44px link.
+- **The flags:** the shared chips under the name, in line with it (48px in): urgent red for a
+  licence, amber (attention) for a request, which sits in a 44px tap target. No new colours.
+- **Phone and laptop:** as the grid already does: one column on a phone, Updates and Coming up side
+  by side from 768px of page; with Who worked? too, three across from 1152px.
+
 ## Phase 27.7: a plain colour behind every page
 
 Dylan, 2026-11-03: "make the background a colour not random lines as the map isn't being used like

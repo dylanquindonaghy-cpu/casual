@@ -44,7 +44,10 @@ const words = (html: string) =>
 
 describe("the cards a person sees", () => {
   it("the default four; saved ones read back in the dashboard's order, unknown ones dropped", () => {
-    expect(DEFAULT_CARDS).toEqual(["map", "toOffer", "updates", "whoWorked"]);
+    // Phase 27.9: Coming up in Who worked?'s place; Who worked? still a card, off until ticked.
+    expect(DEFAULT_CARDS).toEqual(["map", "toOffer", "updates", "comingUp"]);
+    expect(DEFAULT_CARDS).not.toContain("whoWorked");
+    expect(DASHBOARD_CARDS).toContain("whoWorked");
     expect(readCards(undefined)).toEqual(DEFAULT_CARDS);
     expect(readCards(null)).toEqual(DEFAULT_CARDS);
     expect(readCards("map")).toEqual(DEFAULT_CARDS);
@@ -56,6 +59,16 @@ describe("the cards a person sees", () => {
       "watchList",
     ]);
     expect(readCards([])).toEqual([]);
+    // A choice saved before Phase 27.9 is kept as it was: Who worked? stays on, and Coming up isn't
+    // added to it.
+    expect(readCards(["map", "toOffer", "updates", "whoWorked"])).toEqual([
+      "map",
+      "toOffer",
+      "updates",
+      "whoWorked",
+    ]);
+    // Both chosen: Coming up before Who worked?, as the dashboard shows them.
+    expect(readCards(["whoWorked", "comingUp"])).toEqual(["comingUp", "whoWorked"]);
   });
 
   it("every card has its name and line in What you see", () => {
@@ -63,6 +76,7 @@ describe("the cards a person sees", () => {
       "Venue map",
       "To offer",
       "Updates",
+      "Coming up",
       "Who worked?",
       "Next 2 weeks",
       "Cancellations",
@@ -71,6 +85,13 @@ describe("the cards a person sees", () => {
       "Watch list",
     ]);
     expect(CARD_WORDS.cancellations.line).toBe("By week, under 48 hours in red");
+    // Phase 27.9: what Updates holds now, and Coming up's line.
+    expect(CARD_WORDS.updates.line).toBe("Cancellations, places taken and offers with no reply");
+    expect(CARD_WORDS.comingUp).toEqual({
+      name: "Coming up",
+      line: "Who's working on your contracts today and tomorrow",
+    });
+    expect(CARD_WORDS.whoWorked.line).toBe("To confirm after a session");
   });
 });
 
@@ -170,6 +191,7 @@ describe("Customise's form", () => {
       ["map", true],
       ["toOffer", true],
       ["updates", false],
+      ["comingUp", false],
       ["whoWorked", false],
       ["nextTwoWeeks", false],
       ["cancellations", false],

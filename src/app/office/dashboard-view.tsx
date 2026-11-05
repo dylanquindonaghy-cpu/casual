@@ -35,7 +35,8 @@ import { CustomiseButton } from "./customise-panel";
 // when the planner or rota sheet last sent changes; under it the track (All, Urgent, This week, Next
 // week: the sessions with places to fill, each a link that keeps the page and changes the board)
 // and "Show full venues" (the map's venues with nothing to fill too). Then the venue map with the
-// chosen session's card on it, and the board's three columns (./dashboard/board.tsx). Pure: the page
+// chosen session's card on it, and the board's columns (./dashboard/board.tsx: Updates and Coming up
+// by default since Phase 27.9, Who worked? under Customise). Pure: the page
 // loads the data (src/lib/office/dashboard-board.ts) and src/lib/office/board-copy.ts and
 // dashboard-map-copy.ts say it in words.
 
@@ -231,6 +232,8 @@ export function DashboardContent({ board, tiles }: { board: BoardData; tiles: st
           takers: board.takers,
           updates: board.updates,
           whoWorked: board.whoWorked,
+          comingUp: board.comingUp,
+          mine: board.mine,
         }}
         view={view}
         tiles={tiles}

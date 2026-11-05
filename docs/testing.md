@@ -742,6 +742,28 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   Browser: `office.look.spec.ts` and `casual.app.spec.ts` (nothing drawn behind the page in light
   and dark: no `::before` content, picture, mask or fill, no street lines on the root or the
   office's box, `<html>` transparent), `brand.spec.ts` (the firm's new button colours).
+- Phase 27.9, the dashboard's Coming up, and Updates about your contracts (docs/screens.md "/office,
+  round 8"): `office.coming-up.test.ts` (unit) today and tomorrow in the firm's time zone across
+  midnight and both clock changes, a session's line, "3 of 4 booked" and when it's red, the
+  column's line and empty words, the licence chip (and Needs attention's sentence in full, an
+  acronym role kept in capitals) and the asked chip and its link; `office.customise.test.ts` the
+  defaults (Coming up in Who worked?'s place, a choice saved before kept as it was), the cards'
+  order and words; `office.board.test.ts` (unit) Coming up's column from made-up data (its count,
+  line, session links, people links, both flags, the foot, narrowed and empty), Updates with no
+  uploads and "On your contracts", Who worked? only when ticked (then three across; four columns
+  two by two); `ui.office-system.test.ts` the skeleton's Coming up; `guides.test.ts` the guide's
+  parts. `office.coming-up.test.ts` (integration) only confirmed bookings, only the person's
+  contracts' venues, nothing after tomorrow or ended (a session under way in), the licence flag
+  from the credential rule (under way too, a date or marked expired) and the asked flag (open or
+  escalated time change or swap, the first asked; not answered, not another kind), the cap of 6,
+  the board loading it only with the card on, and another firm's rows never in it;
+  `office.board.test.ts` (integration) the dashboard's Updates without uploads while the Updates
+  page keeps them, and Coming up in the isolation test. Browser: `office.dashboard.spec.ts`
+  (Updates and Coming up under the map, no Who worked? by default; Coming up on a contract of the
+  spec's own with a casual booked tomorrow by name, the licence and asked chips, the request it
+  opens; a staff photo not on the dashboard's Updates but on the Updates page; Who worked? ticked
+  for its own test), `office.attendance.spec.ts` (Who worked? ticked first), the walkthrough
+  (step 23's Coming up, step 26 ticking Who worked? under Customise).
 ## Fixtures and the demo seed
 
 `npm run db:seed` creates two fake firms:
@@ -809,7 +831,8 @@ before a call so it's the coming one):
 **The walkthrough's other states (Phase 10 task 20, `seed-extras.ts`).** Each on workers no browser
 test uses, and the pay queries of kinds no browser test raises (a test's own "paid late" group is
 never split or joined), so they can't change what those tests check:
-- Acme's last event: yesterday (always among the dashboard's "Who worked?", which looks back 7 days), 3
+- Acme's last event: yesterday (always among the dashboard's "Who worked?", which looks back 7 days,
+  once ticked under Customise: off by default since Phase 27.9), 3
   stewards at the racecourse (07700 900110, 900117, 900118) and 2 security officers at the
   shopping centre (900150, 900151), all booked and none marked yet ("Past 30 days" on their My
   shifts too).

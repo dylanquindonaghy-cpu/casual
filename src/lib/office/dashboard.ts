@@ -2,6 +2,7 @@ import { eq, sql, type SQL } from "drizzle-orm";
 import { systemClock } from "../auth/clock";
 import { firms } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
+import { uuidArray } from "../db/arrays";
 import { errorCode } from "../jobs/firm-job";
 import { log } from "../log";
 import { rulesSettingsSchema } from "../roster/eligibility-input";
@@ -193,7 +194,16 @@ async function urgentCount(tx: FirmTx, now: Date) {
 // row, never capped: Needs attention lists the first 50 (loadExpiredOnBookings; Phase 23's licences
 // chart read the same rows until Phase 24). Reads the firm's rules settings
 // in `tx`; the rows stay the firm's (RLS).
-export async function outOfDateBookings(tx: FirmTx, now: Date, timeZone: string): Promise<SQL> {
+//
+// `shiftIds` (Phase 27.9, the dashboard's Coming up): only those sessions' bookings, while the
+// session hasn't ended (one under way counts too: someone working it now with a licence out of
+// date matters most). The rule itself is the same one; only the bookings it reads are fewer.
+export async function outOfDateBookings(
+  tx: FirmTx,
+  now: Date,
+  timeZone: string,
+  shiftIds: string[] | null = null,
+): Promise<SQL> {
   // An application in progress counts as the rules engine counts it (src/lib/rules/eligibility.ts,
   // check 4; as src/lib/credentials/qualifications.ts reads it): a type that allows it, at a firm
   // with an allowance above 0. The booking was checked against the day's share when it was made.
@@ -204,6 +214,10 @@ export async function outOfDateBookings(tx: FirmTx, now: Date, timeZone: string)
   const rulesSettings = rulesSettingsSchema.safeParse(firm?.settings ?? {});
   const appliedCounts =
     rulesSettings.success && rulesSettings.data.credential_applied_allowance_pct > 0;
+  const sessions =
+    shiftIds === null
+      ? sql`s.starts_at > ${now}`
+      : sql`s.ends_at > ${now} and s.id = any(${uuidArray(shiftIds)})`;
   return sql`
     with booked as (
       select a.firm_id, a.id as assignment_id, a.worker_id, s.id as shift_id, s.role, s.starts_at,
@@ -213,7 +227,7 @@ export async function outOfDateBookings(tx: FirmTx, now: Date, timeZone: string)
                as last_day
         from assignments a
         join shifts s on s.firm_id = a.firm_id and s.id = a.shift_id
-       where a.status = 'confirmed' and s.status in ('open', 'filled') and s.starts_at > ${now}
+       where a.status = 'confirmed' and s.status in ('open', 'filled') and ${sessions}
     ),
     needed as (
       select b.*, t.type
@@ -259,12 +273,15 @@ export async function outOfDateBookings(tx: FirmTx, now: Date, timeZone: string)
 }
 
 // Booked sessions to come whose required qualification won't be in date by their last day
-// (outOfDateBookings), soonest first: the first NEEDS_MAX.
+// (outOfDateBookings), soonest first: the first NEEDS_MAX. With `shiftIds` (the dashboard's Coming
+// up, Phase 27.9): every one on those sessions while they haven't ended, none left out.
 export async function loadExpiredOnBookings(
   tx: FirmTx,
   now: Date,
   timeZone: string,
+  shiftIds: string[] | null = null,
 ): Promise<{ items: ExpiredOnBooking[]; total: number }> {
+  if (shiftIds !== null && shiftIds.length === 0) return { items: [], total: 0 };
   const { rows } = await tx.execute<{
     assignment_id: string;
     worker_id: string;
@@ -278,7 +295,7 @@ export async function loadExpiredOnBookings(
     expires_on: string | null;
     total: number;
   }>(sql`
-    with out_of_date as (${await outOfDateBookings(tx, now, timeZone)})
+    with out_of_date as (${await outOfDateBookings(tx, now, timeZone, shiftIds)})
     select o.assignment_id::text, o.worker_id::text, w.first_name, w.last_name,
            o.shift_id::text, o.role, o.starts_at, o.type, ct.name as type_name,
            (count(*) over ())::int as total,
@@ -293,7 +310,7 @@ export async function loadExpiredOnBookings(
       join workers w on w.firm_id = o.firm_id and w.id = o.worker_id
       left join credential_types ct on ct.firm_id = o.firm_id and ct.code = o.type
      order by o.starts_at, w.last_name, w.first_name, o.type
-     limit ${NEEDS_MAX}
+     ${shiftIds === null ? sql`limit ${NEEDS_MAX}` : sql``}
   `);
   return {
     total: rows[0]?.total ?? 0,

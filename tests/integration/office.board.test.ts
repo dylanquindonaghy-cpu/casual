@@ -11,6 +11,7 @@ import {
   type BoardShow,
 } from "@/lib/office/dashboard-board";
 import { headLine } from "@/lib/office/board-copy";
+import { loadUpdates, type Update } from "@/lib/office/dashboard-map";
 import { toMarkGroups } from "@/lib/office/to-mark";
 import {
   offerState,
@@ -571,6 +572,10 @@ describe("isolation", () => {
     expect(ok(their.toMark).items.map((x) => x.shiftId)).toEqual([done]);
     expect(ok(their.whoWorked).map((g) => g.shiftIds)).toEqual([[done]]);
     expect(ok(their.whoWorked)[0]?.people.map((p) => p.workerId)).toEqual([w]);
+    // Coming up (Phase 27.9, on by default): their CSAS officers tomorrow at 05:00 (theirs booked)
+    // and their door supervisors at 09:00 (Ben booked).
+    expect(ok(their.comingUp!).sessions.map((x) => x.shiftId)).toEqual([s, theirs.door]);
+    expect(ok(their.comingUp!).sessions[0]?.people.map((p) => p.workerId)).toEqual([w]);
     expect(ok(their.roles)).toContain("csas_officer");
     expect(
       ok(their.venues)
@@ -589,6 +594,7 @@ describe("isolation", () => {
       b.venues,
       b.updates,
       b.whoWorked,
+      b.comingUp!,
     ]) {
       expect(p.ok).toBe(true);
     }
@@ -622,6 +628,14 @@ describe("isolation", () => {
     }
     expect(ok(b.updates).items.some((u) => u.kind === "took")).toBe(false);
     expect(ok(b.whoWorked)).toEqual([]);
+    // Coming up: only my door supervisors (Ben booked), none of their sessions or people.
+    const coming = ok(b.comingUp!);
+    expect(coming.sessions.map((x) => x.shiftId)).toEqual([mine.door]);
+    for (const x of coming.sessions) {
+      expect(theirIds.has(x.shiftId)).toBe(false);
+      for (const p of x.people) expect(p.workerId).not.toBe(w);
+    }
+    expect([coming.total, coming.people]).toEqual([1, 1]);
     expect(g.chosen?.shiftId).toBe(mine.door);
     const takers = b.takers;
     if (!takers) throw new Error("no session chosen");
@@ -714,7 +728,7 @@ describe("round 8: the venue map", () => {
 });
 
 describe("round 8: Updates", () => {
-  it("the last two days: places taken, casuals' cancellations, uploads to check, and offers with no reply as one line", async () => {
+  it("the last two days: places taken, casuals' cancellations and offers with no reply as one line; uploads to check on the Updates page, not the dashboard (Phase 27.9)", async () => {
     const b = await boardFirm();
     const eve = await b.f.worker({ first: "Eve" });
     // Eve took the steward's place an hour ago (her offer said yes, and she's booked).
@@ -737,10 +751,8 @@ describe("round 8: Updates", () => {
        values ($1, $2, 'photo', 'image/jpeg', 3, $3, '\\xffd8ff'::bytea, $4)`,
       [b.f.firmId, b.ann, randomBytes(32).toString("hex"), hoursFromNow(-3)],
     );
-    const u = ok((await b.load()).updates);
-    expect(u.more).toBe(false);
-    expect(
-      u.items.map((i) =>
+    const shape = (items: Update[]) =>
+      items.map((i) =>
         i.kind === "took"
           ? [i.kind, i.worker, i.shiftId, i.placesFree]
           : i.kind === "cancelled"
@@ -748,14 +760,26 @@ describe("round 8: Updates", () => {
             : i.kind === "upload"
               ? [i.kind, i.worker, i.what]
               : [i.kind, i.offers, i.sessions],
-      ),
-    ).toEqual([
-      // Newest first: Eve's take (1 h ago, the steward session now 1 to fill), Ann's photo (3 h),
-      // the offers waiting (Ann's on the door supervisor and the later one: the newest 2 h ago),
-      // Cal's cancellation (5 h, no strike in this fixture, its place open again).
+      );
+    // Every kind, as the Updates page asks (loadUpdates' default): newest first, Eve's take (1 h
+    // ago, the steward session now 1 to fill), the offers waiting (Ann's on the door supervisor
+    // and the later one: the newest 2 h ago), Ann's photo (3 h), Cal's cancellation (5 h, no strike
+    // in this fixture, its place open again).
+    const every = await withFirm(b.f.firmId, (tx) => loadUpdates(tx, NOW));
+    expect(every.more).toBe(false);
+    expect(shape(every.items)).toEqual([
       ["took", "Eve Booker", b.steward, 1],
       ["no-reply", 2, 2],
       ["upload", "Ann Booker", "photo"],
+      ["cancelled", "Cal2 Booker", b.fair, 20, null, true],
+    ]);
+    // The dashboard's (Phase 27.9): the same without Ann's photo, which waits on Needs attention
+    // and the Updates page instead.
+    const u = ok((await b.load()).updates);
+    expect(u.more).toBe(false);
+    expect(shape(u.items)).toEqual([
+      ["took", "Eve Booker", b.steward, 1],
+      ["no-reply", 2, 2],
       ["cancelled", "Cal2 Booker", b.fair, 20, null, true],
     ]);
   });

@@ -14,6 +14,7 @@ import {
   UPDATES_ALL,
   workedHeading,
   showAllWorked,
+  updateAction,
   WHO_WORKED_GROUPS,
   workedHref,
   workedLabel,
@@ -22,9 +23,10 @@ import {
 import type { Update, WhoWorkedGroup } from "@/lib/office/dashboard-map";
 import { initials } from "@/lib/office/board-copy";
 import { attendanceResultText, restWorkedResultText } from "@/lib/office/shifts-copy";
-import { checkStep } from "../../ui/classes";
+import { btn, checkStep } from "../../ui/classes";
 import { Icon, type IconName } from "../../ui/icons";
 import { markAttendanceAction, markRestWorkedAction } from "../shifts/actions";
+import { OfferLink, type OpenOffer } from "./offer-panel";
 
 // Round 8's Updates and Who worked? (Phase 26.2; the spec's dash-5 and dash-6). Updates: the last
 // two days' places taken, casuals' cancellations (their notice, the strike, whether the place is
@@ -34,6 +36,12 @@ import { markAttendanceAction, markRestWorkedAction } from "../shifts/actions";
 // (with the day), each person still booked by name with "Worked" and "Didn't attend" on their own session (the
 // shift page's own actions: the server checks everything again and logs it), and "All of these
 // worked" for the rest after a "Yes" (the shift page's own action, for each session in turn).
+//
+// Phase 27.10 (Dylan, 2026-11-05: "more ctas and data here on the dash but keep it simple"): under
+// each update's lines, its one small action (dashboard-map-copy.ts updateAction): "Offer the place"
+// on a cancellation whose place is still to fill (the dashboard's offer panel, a link to the offer
+// page until the page is ready), else "See the record"; "Open the session" on a place taken; "See
+// the offers" on the offers with no reply. The row stays the link it was.
 
 const TONE: Record<ReturnType<typeof updateLines>["tone"], { bg: string; icon: IconName }> = {
   done: { bg: "bg-done-tile text-done-ink", icon: "check" },
@@ -46,10 +54,12 @@ export function UpdatesList({
   items,
   now,
   timeZone,
+  onOffer,
 }: {
   items: Update[];
   now: Date;
   timeZone: string;
+  onOffer: OpenOffer; // the dashboard's offer panel
 }) {
   return (
     <>
@@ -57,6 +67,7 @@ export function UpdatesList({
         {items.map((u, i) => {
           const l = updateLines(u, timeZone);
           const tone = TONE[l.tone];
+          const act = updateAction(u, timeZone);
           return (
             <li key={`${u.kind}-${u.at.getTime()}-${i}`} className="py-1 first:pt-0 last:pb-0">
               <Link
@@ -77,6 +88,26 @@ export function UpdatesList({
                   {updateWhen(u.at, now, timeZone)}
                 </span>
               </Link>
+              {act && (
+                // Under the row's words (its icon's width in), one small action.
+                <div className="pb-2 pl-12">
+                  {act.offer ? (
+                    <OfferLink
+                      shiftId={act.offer}
+                      onOffer={onOffer}
+                      label={act.name}
+                      className={btn.small}
+                    >
+                      <Icon name="send" size={15} />
+                      {act.label}
+                    </OfferLink>
+                  ) : (
+                    <Link href={act.href} aria-label={act.name} className={btn.small}>
+                      {act.label}
+                    </Link>
+                  )}
+                </div>
+              )}
             </li>
           );
         })}
@@ -130,7 +161,7 @@ function Person({
           disabled={pending || !ready}
           aria-label={workedLabel(name, when)}
           onClick={() => mark("completed")}
-          className="press-glass glass-button inline-flex min-h-11 items-center gap-1 rounded-full px-3 text-sm font-medium text-ink hover:bg-button-hover active:bg-button-press disabled:cursor-not-allowed disabled:opacity-60"
+          className={`${btn.small} disabled:cursor-not-allowed disabled:opacity-60`}
         >
           <Icon name="check" size={15} />
           Worked

@@ -8,13 +8,21 @@ import {
   bookedOf,
   casualHref,
   comingUpHeading,
+  FIRST_SHIFT,
+  firstShiftWords,
   licenceChip,
   licenceWords,
+  offerPlaces,
+  offerPlacesLabel,
+  ON_WATCH_LIST,
   placesShort,
   sessionLabel,
+  watchWords,
 } from "@/lib/office/coming-up-copy";
 import { localDateOf } from "@/lib/time/zoned";
-import { chip } from "../../ui/classes";
+import { btn, chip } from "../../ui/classes";
+import { Icon } from "../../ui/icons";
+import { OfferLink, type OpenOffer } from "./offer-panel";
 
 // The dashboard's Coming up (Phase 27.9; docs/screens.md "/office, round 8"): who's working on the
 // person's contracts today and tomorrow, by session, in Who worked?'s and Updates' parts so it
@@ -23,8 +31,14 @@ import { chip } from "../../ui/classes";
 // that starts today); under it the people booked, A to Z, each their initials and their name (a
 // link to their casual page), with a red chip where a licence the session needs won't be in date
 // for it, and an amber one, a link to the request, where they've asked to change times or swap.
-// What's flagged is the loader's (src/lib/office/coming-up.ts); this only shows it. No hooks: the
-// server can draw it.
+// What's flagged is the loader's (src/lib/office/coming-up.ts); this only shows it.
+//
+// Phase 27.10 (Dylan, 2026-11-05: "more ctas and data here on the dash but keep it simple"): a
+// session with places the office can offer now has "Offer 1 place" ("Offer 2 places") under "3 of
+// 4 booked", opening the board's offer panel (a link to the offer page until the page is ready);
+// and two more chips beside a person's others, in the same styles: an amber "On the watch list"
+// (the Watch list card's own rule) and a grey "First shift" (nothing of theirs marked as worked
+// before this session). No hooks of its own: it's drawn inside the board, whose panel it opens.
 
 function Person({
   p,
@@ -51,8 +65,8 @@ function Person({
         </span>
         <span className="min-w-0 flex-1 truncate font-medium text-ink">{p.name}</span>
       </Link>
-      {(p.licence || p.asked) && (
-        <div className="flex flex-wrap items-center gap-x-2 pb-1 pl-12">
+      {(p.licence || p.asked || p.watch || p.firstShift) && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pb-1 pl-12">
           {p.licence && (
             <span
               className={`${chip.base} ${chip.urgent}`}
@@ -72,6 +86,18 @@ function Person({
               <span className={`${chip.base} ${chip.attention}`}>{askedChip(p.asked.type)}</span>
             </Link>
           )}
+          {p.watch && (
+            <span className={`${chip.base} ${chip.attention}`} title={watchWords(p.name)}>
+              <span aria-hidden="true">{ON_WATCH_LIST}</span>
+              <span className="sr-only">{watchWords(p.name)}</span>
+            </span>
+          )}
+          {p.firstShift && (
+            <span className={`${chip.base} ${chip.quiet}`} title={firstShiftWords(p.name)}>
+              <span aria-hidden="true">{FIRST_SHIFT}</span>
+              <span className="sr-only">{firstShiftWords(p.name)}</span>
+            </span>
+          )}
         </div>
       )}
     </li>
@@ -82,10 +108,12 @@ export function ComingUpList({
   sessions,
   now,
   timeZone,
+  onOffer,
 }: {
   sessions: ComingUpSession[];
   now: Date;
   timeZone: string;
+  onOffer: OpenOffer; // the board's offer panel
 }) {
   const today = localDateOf(now, timeZone);
   return (
@@ -107,6 +135,20 @@ export function ComingUpList({
                 {booked}
               </span>
             </Link>
+            {s.placesToOffer > 0 && (
+              // Under "3 of 4 booked": what's still to offer, in the offer panel.
+              <div className="flex justify-end pb-1">
+                <OfferLink
+                  shiftId={s.shiftId}
+                  onOffer={onOffer}
+                  label={offerPlacesLabel(s.placesToOffer, heading)}
+                  className={btn.small}
+                >
+                  <Icon name="send" size={15} />
+                  {offerPlaces(s.placesToOffer)}
+                </OfferLink>
+              </div>
+            )}
             <ul role="list" className="flex flex-col divide-y divide-line">
               {s.people.map((p) => (
                 <Person key={p.workerId} p={p} s={s} today={today} timeZone={timeZone} />

@@ -1,6 +1,6 @@
 import { noticeText } from "../portal/cancel-reasons";
 import { localDateOf } from "../time/zoned";
-import { roleLabel } from "../portal/format";
+import { roleLabel, roleWords } from "../portal/format";
 import type { MapVenue, Takers, Update, WhoWorkedGroup } from "./dashboard-map";
 
 // Round 8's dashboard in words (Phase 26.2; docs/screens.md "/office, round 8"): the venue map's
@@ -217,8 +217,74 @@ export function updateLines(
         title: `No reply yet · ${plural(u.offers, "offer", "offers")}`,
         line: `On ${plural(u.sessions, "session", "sessions")} · the oldest sent ${updateWhenLong(u.oldest, timeZone)}`,
         tone: "attention",
-        href: "/office/events?view=need",
+        href: NO_REPLY_HREF,
       };
+  }
+}
+
+// --- Updates' one action each (Phase 27.10) ---
+
+// Dylan, 2026-11-05, on the dashboard after 27.9: "there still needs to be more ctas and data here
+// on the dash but keep it simple". Under each update's lines, one small button, for that row:
+// - a casual's cancellation whose place is still to fill (the session reopened, hasn't started and
+//   has a place free: the loader's `reopened`): "Offer the place", the dashboard's offer panel as
+//   To offer's paper plane opens it (the offer page without JavaScript);
+// - any other cancellation: "See the record" (the cancellation's own page);
+// - a place taken: "Open the session";
+// - the offers with no reply: "See the offers", on Events & sessions' "Need people" (every session
+//   with a place free, so every one with an offer waiting: there's no list of those alone).
+// Photos and certificates to check (the Updates page's, never the dashboard's since Phase 27.9)
+// have none: the row is the link. `name` is what a screen reader hears, saying which row it's for;
+// `offer` is the session the offer panel opens for (null: a plain link).
+export interface UpdateAction {
+  label: string;
+  href: string;
+  name: string;
+  offer: string | null;
+}
+
+export const OFFER_THE_PLACE = "Offer the place";
+export const SEE_THE_RECORD = "See the record";
+export const OPEN_THE_SESSION = "Open the session";
+export const SEE_THE_OFFERS = "See the offers";
+export const NO_REPLY_HREF = "/office/events?view=need";
+
+// "door supervisor, Sat 7 Nov 08:00".
+const sessionWords = (x: { role: string; startsAt: Date }, timeZone: string) =>
+  `${roleWords(x.role)}, ${sessionWhen(x.startsAt, timeZone)}`;
+
+export function updateAction(u: Update, timeZone: string): UpdateAction | null {
+  switch (u.kind) {
+    case "cancelled":
+      return u.reopened
+        ? {
+            label: OFFER_THE_PLACE,
+            href: `/office/offer/${u.shiftId}`,
+            name: `${OFFER_THE_PLACE}: ${sessionWords(u, timeZone)}`,
+            offer: u.shiftId,
+          }
+        : {
+            label: SEE_THE_RECORD,
+            href: `/office/cancellations/${u.ref}`,
+            name: `${SEE_THE_RECORD} of ${u.worker}'s cancellation: ${sessionWords(u, timeZone)}`,
+            offer: null,
+          };
+    case "took":
+      return {
+        label: OPEN_THE_SESSION,
+        href: `/office/shifts/${u.shiftId}`,
+        name: `${OPEN_THE_SESSION}: ${sessionWords(u, timeZone)}`,
+        offer: null,
+      };
+    case "no-reply":
+      return {
+        label: SEE_THE_OFFERS,
+        href: NO_REPLY_HREF,
+        name: `${SEE_THE_OFFERS}: ${plural(u.offers, "offer", "offers")} with no reply yet`,
+        offer: null,
+      };
+    case "upload":
+      return null;
   }
 }
 

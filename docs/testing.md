@@ -764,6 +764,23 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   opens; a staff photo not on the dashboard's Updates but on the Updates page; Who worked? ticked
   for its own test), `office.attendance.spec.ts` (Who worked? ticked first), the walkthrough
   (step 23's Coming up, step 26 ticking Who worked? under Customise).
+- Phase 27.10, the dashboard's actions and two more flags (docs/screens.md "/office, round 8"):
+  `office.dashboard-actions.test.ts` (unit) which one action each update gets, every case (a
+  cancellation with its place to fill, any other, a place taken, the offers with no reply, an
+  upload: none), its words, link and name, and the watch list's one rule (`onWatchList`: under
+  90%, 90 itself not, a new casual never); `office.coming-up.test.ts` (unit) "Offer {1 place}"
+  and its name, the two chips' words; `office.board.test.ts` (unit) the actions under Updates'
+  rows (small, never the main button; "See the record" once the place isn't open), "Offer 1 place"
+  under "3 of 4 booked", the watch-list and first-shift chips; `guides.test.ts` the guide's words.
+  `office.coming-up.test.ts` (integration) places to offer as To offer counts them (an offer
+  holding a place, marked filled, started: none), first shift (one worked before: not; a no-show,
+  a cancellation, or one worked after it started: still first; the same person's work for another
+  firm never counts), the watch list as the card's own rule (the card holds the same people; the
+  record is the casual pages'; another firm's record never counts). Browser:
+  `office.dashboard.spec.ts` (Coming up's "Offer 1 place" opens the offer panel for its session,
+  "First shift" for a casual with nothing worked and not for one who has; Updates' "Offer the
+  place" opens the panel, then "See the record" once the session is off, to its record; a place
+  taken's "Open the session").
 ## Fixtures and the demo seed
 
 `npm run db:seed` creates two fake firms:

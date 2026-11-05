@@ -99,6 +99,21 @@ rules in `src/lib/office/venue-map-geo.ts`; the words in `dashboard-map-copy.ts`
 - **The file:** the detail is in the map file (zoom 15, about 2.99 GB for the UK: `docs/runbooks.md`
   "The street map"); with today's zoom-13 file the map zooms in all the same, softer past 13.
 
+## Phase 27.10: one action a row, two more flags
+
+Dylan, 2026-11-05: "there still needs to be more ctas and data here on the dash but keep it
+simple" (no mock-up, as 27.9). Nothing new to the look: no new colours, no new sections.
+
+- **The small button** (`btn.small` in `src/app/ui/classes.ts`): Who worked?'s "Worked" pill, now
+  named: clear glass, 44px tall, 14px medium words, 12px in at the sides. Never the screen's main
+  button (no tint).
+- **Updates:** at most one under each row's words, 48px in (in line with them, past the icon), 8px
+  above the next hairline; "Offer the place" carries the paper plane (15px), the others are words
+  alone. The row stays its link.
+- **Coming up:** "Offer {1 place}" with the paper plane under "{3} of {4} booked", at the right;
+  "On the watch list" (the amber chip) and "First shift" (the grey chip) after a person's licence
+  and asked chips, in the same row, wrapping with 4px between lines.
+
 ## Phase 27.9: Coming up under the map
 
 Dylan, 2026-11-05, "no mock up": the columns under the map are Updates and Coming up

@@ -5,6 +5,7 @@ import {
   addSteward,
   addTakenOffer,
   addWaitingPhoto,
+  bookAndCancel,
   cancelOwnShift,
   comingUpScene,
   endComingUpScene,
@@ -26,7 +27,9 @@ import { sentTo } from "./outbox";
 // (from the foot on a phone, the side on a laptop) listing who can take a session as the offer page
 // does, Send offer, then offered; the card's "…" with Not urgent and Mark as filled; Updates with a
 // place a casual took an hour ago and no uploads to check (Phase 27.9: they're on the Updates page);
-// Coming up (Phase 27.9) with who's booked tomorrow by name and their flags; Who worked? by name,
+// Coming up (Phase 27.9) with who's booked tomorrow by name and their flags; Phase 27.10's actions
+// (Coming up's "Offer 1 place" and Updates' "Offer the place" opening the offer panel, "See the
+// record", "Open the session") and Coming up's "First shift"; Who worked? by name,
 // once switched on under Customise (off by default since Phase 27.9); nothing to approve, decline
 // or deny; the offer page leads back here; `/office/today` redirects here; payroll is sent to the
 // pay dashboard.
@@ -572,6 +575,14 @@ test("Updates: a place a casual took from an offer; Who worked? by name, switche
     const take = col.getByRole("link", { name: new RegExp(`^Nadia Night${n} took a place `) });
     await expect(take).toHaveAttribute("href", `/office/shifts/${shiftId}`);
     await expect(take).toContainText(`Steward, Night Hall ${n}, `);
+    // Its one action (Phase 27.10): Open the session, named for its session.
+    await expect(
+      col
+        .locator("li", {
+          has: page.getByRole("link", { name: new RegExp(`^Nadia Night${n} took a place `) }),
+        })
+        .getByRole("link", { name: /^Open the session: steward, \w{3} \d{1,2} \w{3} \d\d:\d\d$/ }),
+    ).toHaveAttribute("href", `/office/shifts/${shiftId}`);
     await expect(col.getByRole("link", { name: "All updates" })).toHaveAttribute(
       "href",
       "/office/updates",
@@ -694,6 +705,132 @@ test("Coming up: who's booked on their contract tomorrow, by name with links, wi
     ).toBeLessThanOrEqual(0);
   } finally {
     await endComingUpScene("acme", scene);
+  }
+});
+
+test("Coming up (Phase 27.10): Offer 1 place opens the offer panel for its session; First shift for a casual with nothing marked as worked", async ({
+  page,
+}, testInfo) => {
+  const email = `dashboard.comingoffer${testInfo.retry || ""}@example.com`;
+  await addOfficeUser("acme", { email, name: "Coming Offer Resourcer", role: "resourcer" });
+  const tag = `${Date.now() % 100_000}${testInfo.retry}`;
+  // The same scene (2 of 3 booked about a day away, on their one contract), but Cora has worked a
+  // session for the firm before; Abel never has.
+  const scene = await comingUpScene("acme", tag, email, { workedBefore: true });
+  try {
+    await officeLogin(page, email);
+    await ready(page);
+    const session = column(page, "coming-up").locator(`[data-coming-up="${scene.shiftId}"]`);
+    const row = (name: string) =>
+      session.locator("li", { has: page.getByRole("link", { name, exact: true }) });
+    // Abel's first shift: a grey chip, in full for a screen reader. Not Cora's.
+    const abel = row(scene.asker.name);
+    await expect(abel).toHaveCount(1);
+    await expect(abel.getByText("First shift", { exact: true })).toBeVisible();
+    await expect(
+      abel.getByText(`${scene.asker.name} has no shift marked as worked before this one.`),
+    ).toHaveCount(1);
+    const cora = row(scene.expired.name);
+    await expect(cora).toHaveCount(1);
+    await expect(cora.getByText("First shift", { exact: true })).toHaveCount(0);
+    // Neither is on the watch list (new casuals have no reliability figure yet).
+    await expect(session.getByText("On the watch list", { exact: true })).toHaveCount(0);
+    // A place still free: "Offer 1 place" under "2 of 3 booked", named for its session, a link to
+    // the offer page until the page is ready; then it opens the offer panel for that session.
+    const offer = session.getByRole("link", { name: /^Offer 1 place: / });
+    await expect(offer).toHaveText("Offer 1 place");
+    await expect(offer).toHaveAttribute("href", `/office/offer/${scene.shiftId}`);
+    await expect(offer).toHaveAccessibleName(
+      new RegExp(
+        `^Offer 1 place: (Today|Tomorrow) \\d\\d:\\d\\d–\\d\\d:\\d\\d · Steward · ${scene.site}$`,
+      ),
+    );
+    await offer.click();
+    const panel = page.getByRole("dialog", { name: "Offer this session" });
+    await expect(panel).toBeVisible();
+    await expect(panel.getByRole("link", { name: `Steward at ${scene.site}` })).toBeVisible();
+    // Over the dashboard: the page didn't change.
+    await expect(page).toHaveURL(`${acme}/office`);
+    // Escape closes it, and focus goes back to the button.
+    await page.keyboard.press("Escape");
+    await expect(panel).toBeHidden();
+    await expect(offer).toBeFocused();
+    // Still no sideways scrolling at phone width.
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
+    ).toBeLessThanOrEqual(0);
+  } finally {
+    await endComingUpScene("acme", scene);
+  }
+});
+
+test("Updates (Phase 27.10): a cancellation with its place to fill has Offer the place (the offer panel); once the place isn't open, See the record", async ({
+  page,
+}, testInfo) => {
+  const email = `dashboard.cancel${testInfo.retry || ""}@example.com`;
+  await addOfficeUser("acme", { email, name: "Cancel Resourcer", role: "resourcer" });
+  const n = Date.now() % 100_000;
+  const { shiftId } = await addEventWithSession("acme", {
+    name: `Cancel Gala ${n}`,
+    site: `Cancel Hall ${n}`,
+    role: "steward",
+    daysAhead: 5,
+  });
+  const worker = await addSteward("acme", {
+    firstName: "Cleo",
+    lastName: `Cancel${n}`,
+    mobileE164: await unusedMobile("acme", 800, 869),
+  });
+  // Just now, through the real code, with 5 days' notice (no strike): among the newest of Updates'
+  // six whatever the other specs did, and its place open again.
+  const { ref, assignmentId } = await bookAndCancel("acme", {
+    shiftId,
+    workerId: worker,
+    reason: "I'm unwell",
+  });
+  try {
+    await officeLogin(page, email);
+    await ready(page);
+    const title = new RegExp(`^Cleo Cancel${n} cancelled · `);
+    const row = column(page, "updates").locator("li", {
+      has: page.getByRole("link", { name: title }),
+    });
+    await expect(row).toHaveCount(1);
+    // The row is still the link to its record.
+    await expect(row.getByRole("link", { name: title })).toHaveAttribute(
+      "href",
+      `/office/cancellations/${assignmentId}`,
+    );
+    // Its one action: the place is still to fill, so "Offer the place", named for its session.
+    const offer = row.getByRole("link", {
+      name: /^Offer the place: steward, \w{3} \d{1,2} \w{3} \d\d:\d\d$/,
+    });
+    await expect(offer).toHaveText("Offer the place");
+    await expect(offer).toHaveAttribute("href", `/office/offer/${shiftId}`);
+    await expect(row.getByRole("link", { name: /^See the record/ })).toHaveCount(0);
+    // It opens the offer panel for that session, over the dashboard.
+    await offer.click();
+    const panel = page.getByRole("dialog", { name: "Offer this session" });
+    await expect(panel).toBeVisible();
+    await expect(panel.getByRole("link", { name: `Steward at Cancel Hall ${n}` })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(panel).toBeHidden();
+    await expect(offer).toBeFocused();
+
+    // The office cancels the session: its place isn't open any more, so "See the record".
+    await cancelOwnShift("acme", shiftId);
+    await page.goto(`${acme}/office`);
+    const record = row.getByRole("link", {
+      name: new RegExp(`^See the record of Cleo Cancel${n}'s cancellation: steward, `),
+    });
+    await expect(record).toHaveText("See the record");
+    await expect(record).toHaveAttribute("href", `/office/cancellations/${assignmentId}`);
+    await expect(row.getByRole("link", { name: /^Offer the place/ })).toHaveCount(0);
+    await record.click();
+    await expect(page).toHaveURL(`${acme}/office/cancellations/${assignmentId}`);
+    await expect(page.getByRole("heading", { name: `Cancellation ${ref}` })).toBeVisible();
+  } finally {
+    await cancelOwnShift("acme", shiftId);
   }
 });
 

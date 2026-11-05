@@ -6,7 +6,9 @@ import { expiredText } from "./dashboard-copy";
 
 // The dashboard's Coming up in words (Phase 27.9; docs/screens.md "/office, round 8"): who's
 // working on the person's contracts today and tomorrow, by session, each person by name, flagged
-// where their licence won't be in date for it or they've asked to change times. Pure: the loader
+// where their licence won't be in date for it or they've asked to change times; since Phase 27.10
+// also where it's their first shift or they're on the watch list, and a session with places to
+// offer has "Offer 1 place". Pure: the loader
 // (coming-up.ts) reads the rows and decides the flags (the credential rule is
 // dashboard.ts outOfDateBookings), the page and the tests call these with what it read. The days
 // are the firm's calendar days, so "today" and "tomorrow" hold across midnight and the clock change.
@@ -86,6 +88,13 @@ export const COMING_UP_ALL_HREF = "/office/shifts";
 export const sessionLabel = (heading: string, booked: string) =>
   `Open the session: ${heading}, ${booked}`;
 
+// Under "3 of 4 booked", on a session with places the office can offer now (Phase 27.10; the
+// loader's `placesToOffer`, To offer's and the offer page's own count: open, not started, a place
+// free): "Offer 1 place" / "Offer 2 places", opening the offer panel. Its name says which session:
+// "Offer 1 place: Today 19:00–01:00 · CSAS officer · Northgate Demo Town Centre".
+export const offerPlaces = (n: number) => `Offer ${plural(n, "place", "places")}`;
+export const offerPlacesLabel = (n: number, heading: string) => `${offerPlaces(n)}: ${heading}`;
+
 // --- A person's flags ---
 
 // A licence (a qualification the session needs) that won't be in date for it: the rule's own
@@ -139,3 +148,14 @@ export const askedHref = (requestId: string) => `/office/enquiries?view=app#requ
 
 // A person's name: their casual page.
 export const casualHref = (workerId: string) => `/office/casuals/${workerId}`;
+
+// Their first shift with the firm (Phase 27.10; a grey chip): no booking of theirs marked as worked
+// on a session before this one. The chip, then its full words (a screen reader's, and its tip).
+export const FIRST_SHIFT = "First shift";
+export const firstShiftWords = (name: string) =>
+  `${name} has no shift marked as worked before this one.`;
+
+// On the watch list (Phase 27.10; an amber chip): the Watch list card's own rule (a reliability
+// figure under 90%: dashboard-cards-data.ts onWatchList), in the card's own words.
+export const ON_WATCH_LIST = "On the watch list";
+export const watchWords = (name: string) => `${name} is on the watch list: under 90% reliable.`;

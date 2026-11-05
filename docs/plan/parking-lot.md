@@ -2278,3 +2278,10 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   tab bringing the map back to its fitted view; Filter changes the view the same way (a new address,
   a new board) but has no street-map assertion of its own. Proposed: the same check after a Filter
   role, next time the street-map spec is touched.
+- **Browser checks for two of 27.10's parts** (27.10's audit, a note, not a failure): "See the
+  offers" on Updates' no-reply row and Coming up's "On the watch list" chip are checked by unit and
+  integration tests; the browser test only shows the chip absent. Proposed: a scene with a casual
+  under 90% booked tomorrow, and the no-reply row's link, next time the dashboard spec is touched.
+- **A list of only the sessions with offers waiting** (27.10): "See the offers" goes to Events &
+  sessions' Need people, which holds every session with a place free, not only those waiting for a
+  reply. Proposed if the office asks for it: a "Waiting for a reply" view there.

@@ -313,11 +313,11 @@ const DASHBOARD_SECTIONS: [string, ReactNode][] = [
   ],
   [
     "Updates",
-    "The last two days on your contracts: places casuals took, cancellations with their notice and strike, and offers with no reply. Photos and certificates to check are on Needs attention and the Updates page.",
+    "The last two days on your contracts: places casuals took, cancellations with their notice and strike, and offers with no reply. Photos and certificates to check are on Needs attention and the Updates page. Each has one button under it. Offer the place opens the offer panel when a cancelled place is still to fill. Otherwise it's See the record, Open the session or See the offers.",
   ],
   [
     "Coming up",
-    "Who's working on your contracts today and tomorrow, by session, each person by name. A red label shows a licence that runs out before or during their session; Asked to change times opens their request.",
+    "Who's working on your contracts today and tomorrow, by session, each person by name. A red label shows a licence that runs out before or during their session; Asked to change times opens their request. On the watch list means under 90% reliable; First shift means nothing of theirs is marked as worked before. Offer 1 place opens the offer panel for a place still free.",
   ],
   [
     "Who worked?",

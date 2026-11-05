@@ -1169,7 +1169,7 @@ https://claude.ai/artifact/9GPXjLG2NXmz4FvbMXBdiu (sections 1, 2 and 6).
       (2.99 GB, measured) and its letter shapes served from our own server (Dylan, 2026-11-03: "the
       extra detail too it needs to be proper"; on the same mock-up, 2026-11-04: "proper map: yes";
       the server step waits for the code; UI, M) (27.8)
-- [ ] The two sections under the dashboard's map, simpler and on your contracts: "Coming up" (who's
+- [x] The two sections under the dashboard's map, simpler and on your contracts: "Coming up" (who's
       working on your contracts today and tomorrow, by session, each person by name with a flag
       where their licence runs out before or during it or they've asked to change times) in place
       of "Who worked?" (off by default, still under Customise; who worked is still marked on each
@@ -1179,6 +1179,14 @@ https://claude.ai/artifact/9GPXjLG2NXmz4FvbMXBdiu (sections 1, 2 and 6).
       important data in the section can we simplify the what needs updating to staff working on any
       of your contracts coming up and for example cancellations on your contracts or some other
       ideas you can think of"; then "no mock up"; UI, M) (27.9)
+- [x] More to do and to see in the two sections under the map, kept simple: one action on each Updates
+      row (a cancellation whose place is still free: "Offer the place", the offer panel as To offer
+      opens it; any other cancellation: "See the record"; a place taken: "Open the session"; offers
+      with no reply: "See the offers"); "Offer 1 place" on a Coming up session with places free; and
+      two more flags on a person in Coming up, from firm data by plain code: "First shift" (no worked
+      booking with the firm before) and "On the watch list" (the existing reliability rule) (Dylan,
+      2026-11-05, on the live dashboard after 27.9: "there still needs to be more ctas and data here
+      on the dash but keep it simple"; built without a mock-up, as 27.9 was; UI, M) (27.10)
 
 Done when: every task is ticked with a stamp that includes the browser tests; each built what the
 review and the approved mock-up say; `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; screenshots at

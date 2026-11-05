@@ -161,7 +161,10 @@ Tier 1: £52 a year (£47 by direct debit) for small organisations. Pay before h
   (legitimate interest) and the right to object (`docs/privacy-notice.md`). It isn't a solely
   automated decision: the offer waves don't read it (cas-7, tested), the casual sees the same figure
   and counts on their profile, a person chooses who to book from those who asked (the list sorted
-  by it), and the dashboard's Watch list (booked in the next 14 days, under 90%) only shows. A
+  by it), and the dashboard's Watch list (booked in the next 14 days, under 90%) only shows, as
+  does Coming up's "On the watch list" chip (Phase 27.10: the same rule, one function, on a person
+  booked today or tomorrow; Coming up is on by default for admins and resourcers, the people who
+  can open Casuals, never payroll). A
   wrongly marked shift is corrected by marking it again (logged with what it was). Not in the
   action log or the worker's export: it's worked out each time from rows that are.
 - The office's notes about a casual (`casual_notes`, Phase 26.7) are free text typed by the office:

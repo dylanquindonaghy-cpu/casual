@@ -142,7 +142,8 @@ describe("the offer boundary", () => {
 
   // Reliability doesn't change who's offered first (Phase 26.7, cas-7; decision 3: "offer order
   // unchanged until a month of pilot data"). It's read only where people see it: the office's
-  // Casuals pages, a session's list of who asked, the dashboard's Watch list and the casual's own
+  // Casuals pages, a session's list of who asked, the dashboard's Watch list (and, since Phase
+  // 27.10, Coming up's "On the watch list" chip, by the card's own rule) and the casual's own
   // Profile. A new reader goes on this list on purpose, and never in the offer code.
   it("reliability is read only by the pages that show it, never by the offer code", () => {
     const READS = /from\s+"[^"]*\/reliability"/;
@@ -154,6 +155,7 @@ describe("the offer boundary", () => {
         "src/app/profile/profile-view.tsx",
         "src/lib/office/casual-follow-up.ts",
         "src/lib/office/casuals.ts",
+        "src/lib/office/coming-up.ts",
         "src/lib/office/dashboard-cards-data.ts",
         "src/lib/office/reliability.ts",
         "src/lib/office/session-casuals.ts",

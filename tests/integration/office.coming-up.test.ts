@@ -4,7 +4,9 @@ import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { loadComingUp } from "@/lib/office/coming-up";
 import { loadExpiredOnBookings } from "@/lib/office/dashboard";
 import { loadBoard } from "@/lib/office/dashboard-board";
+import { loadWatchList } from "@/lib/office/dashboard-cards-data";
 import { saveContract, saveMyDashboard } from "@/lib/office/contracts";
+import { loadCasualRecords } from "@/lib/office/reliability";
 import { bookingFirm, hoursFromNow, NOW, type BookingFirm } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
 
@@ -13,8 +15,11 @@ import { appRolePool, superuserPool } from "../helpers/db";
 // name, with their licence flag (the credential rule's own: dashboard.ts outOfDateBookings) and
 // their asked flag (a time change or swap waiting for an answer). Only confirmed bookings, only the
 // person's contracts' venues, nothing after tomorrow or already ended, the first 6 sessions, and
-// another firm's rows never in it. NOW is Monday 2 November 2026, 09:00 London (GMT): today is Mon
-// 2 Nov, tomorrow Tue 3 Nov, and tomorrow ends at 00:00 on Wed 4 Nov (39 hours from now).
+// another firm's rows never in it. Since Phase 27.10: each session's places to offer (To offer's
+// own count), and each person's first shift (nothing marked as worked with the firm before it) and
+// watch list (the Watch list card's own rule) flags, another firm's record never counting. NOW is
+// Monday 2 November 2026, 09:00 London (GMT): today is Mon 2 Nov, tomorrow Tue 3 Nov, and tomorrow
+// ends at 00:00 on Wed 4 Nov (39 hours from now).
 
 const TZ = "Europe/London";
 let su: Pool;
@@ -185,6 +190,8 @@ describe("Coming up: which sessions", () => {
       endsAt: hoursFromNow(18),
       headcount: 3,
       booked: 2,
+      // Zed's offer holds its third place (as the offer page counts it): nothing to offer.
+      placesToOffer: 0,
       people: undefined,
     });
     expect(c.sessions[2]?.site).toBe("Acme Depot");
@@ -350,6 +357,151 @@ describe("Coming up: each person's flags", () => {
       [t.late, "Ben Booker", { requestId: swap, type: "swap" }],
       [t.late, "Eve Booker", null],
     ]);
+  });
+});
+
+// Phase 27.10 (Dylan, 2026-11-05: "more ctas and data here on the dash but keep it simple").
+describe("Coming up: places to offer (Phase 27.10)", () => {
+  it("open, not started, a place free under its bookings: To offer's own count, else none", async () => {
+    const t = await scene();
+    // Tomorrow night's: 4 places, Eve and Ben booked: 2 to offer.
+    await set("shifts", t.late, { headcount: 4 });
+    // The depot's: 2 places, Gus booked, but marked as filled by the office: none.
+    await set("shifts", t.depotEarly, { headcount: 2, status: "filled" });
+    // The one under way: 3 places, Cal booked, but it has started: none.
+    await set("shifts", t.underway, { headcount: 3 });
+    const c = await load(t.f);
+    expect(c.sessions.map((s) => [s.shiftId, s.booked, s.headcount, s.placesToOffer])).toEqual([
+      [t.underway, 1, 3, 0],
+      // 2 of 3 confirmed, but Zed's offer holds the third (as the offer page counts it).
+      [t.tonight, 2, 3, 0],
+      [t.depotEarly, 1, 2, 0],
+      [t.late, 2, 4, 2],
+    ]);
+    // To offer counts the same: tomorrow night's 2 places, and none of the others is listed.
+    const board = await withFirm(t.f.firmId, (tx) => loadBoard(tx, NOW));
+    const listed = board.gaps.ok
+      ? [...board.gaps.data.toOffer.sessions, ...board.gaps.data.offered.sessions]
+      : [];
+    expect(board.gaps.ok).toBe(true);
+    expect(listed.find((s) => s.shiftId === t.late)?.placesFree).toBe(2);
+    const ids = listed.map((s) => s.shiftId);
+    for (const id of [t.underway, t.tonight, t.depotEarly]) expect(ids).not.toContain(id);
+  });
+});
+
+describe("Coming up: first shift and the watch list (Phase 27.10)", () => {
+  // A record: `noShows` sessions marked as not attended (the newest), then `worked` marked as
+  // worked, each a week before the last (the newest a day ago), as the Watch list's own tests make
+  // one (tests/integration/casuals.follow-up.test.ts).
+  async function record(f: BookingFirm, workerId: string, worked: number, noShows = 0) {
+    for (let i = 0; i < worked + noShows; i++) {
+      const s = await f.shift({ role: "steward", startsAt: hoursFromNow(-(i * 7 + 1) * 24) });
+      await f.booking(workerId, s, i < noShows ? "no_show" : "completed");
+    }
+  }
+  const flags = (c: Awaited<ReturnType<typeof load>>) =>
+    c.sessions.flatMap((s) =>
+      s.people.map((p) => [s.shiftId, p.name, p.firstShift, p.watch] as const),
+    );
+
+  it("first shift: nothing of theirs marked as worked with the firm before this session", async () => {
+    const t = await scene();
+    // Ann worked one last week: not her first. Ben didn't turn up to one and cancelled another:
+    // neither is worked, so still his first (on both his sessions). Gus worked one that started
+    // an hour ago, before his tomorrow morning: not his first. Cal and Eve: nothing at all.
+    await record(t.f, t.ann, 1);
+    await record(t.f, t.ben, 0, 1);
+    await t.f.booking(t.ben, await t.f.shift({ startsAt: hoursFromNow(-200) }), "cancelled_worker");
+    await t.f.booking(t.gus, await t.f.shift({ startsAt: hoursFromNow(-1) }), "completed");
+    const c = await load(t.f);
+    expect(flags(c).map(([id, name, first]) => [id, name, first])).toEqual([
+      [t.underway, "Cal Booker", true],
+      [t.tonight, "Ann Booker", false],
+      [t.tonight, "Ben Booker", true],
+      [t.depotEarly, "Gus Booker", false],
+      [t.late, "Ben Booker", true],
+      [t.late, "Eve Booker", true],
+    ]);
+  });
+
+  it("first shift: one worked only after this session started doesn't count for it", async () => {
+    const t = await scene();
+    // Cal's session under way started 2 hours ago; another of his, marked as worked, started an
+    // hour ago (the office marked it early). It isn't before the one under way, so that's still
+    // his first; and it's before nothing else he's booked on.
+    await t.f.booking(t.cal, await t.f.shift({ startsAt: hoursFromNow(-1) }), "completed");
+    // Eve's, marked as worked, started 3 hours ago: before her tomorrow night, so not her first.
+    await t.f.booking(t.eve, await t.f.shift({ startsAt: hoursFromNow(-3) }), "completed");
+    const c = await load(t.f);
+    const first = new Map(flags(c).map(([id, name, f]) => [`${id} ${name}`, f]));
+    expect(first.get(`${t.underway} Cal Booker`)).toBe(true);
+    expect(first.get(`${t.late} Eve Booker`)).toBe(false);
+  });
+
+  it("first shift: the same person's work for another firm never counts", async () => {
+    const mine = await scene();
+    const theirs = await scene();
+    // Ann on both firms' books (one phone number: one person), with three shifts worked for theirs.
+    const { rows } = await su.query<{ mobile: string }>(
+      "select mobile_e164 as mobile from workers where id = $1",
+      [mine.ann],
+    );
+    await set("workers", theirs.ann, { mobile_e164: rows[0]?.mobile });
+    await record(theirs.f, theirs.ann, 3);
+    const ann = (c: Awaited<ReturnType<typeof load>>) =>
+      flags(c).find(([, name]) => name === "Ann Booker")?.[2];
+    // With us it's still her first; with them it isn't (so this isn't true by accident).
+    expect(ann(await load(mine.f))).toBe(true);
+    expect(ann(await load(theirs.f))).toBe(false);
+  });
+
+  it("the watch list: the Watch list card's own rule (a figure under 90%); new casuals never", async () => {
+    const t = await scene();
+    // Ann: 4 worked, 2 not attended: 66%, on it. Gus: 9 worked, 1 not: 90%, not on it (the card's
+    // line is under 90%). Ben: 5 worked: 100%. Eve: 2 not attended, but under 5 counted: new, no
+    // figure, never on it. Cal: nothing.
+    await record(t.f, t.ann, 4, 2);
+    await record(t.f, t.gus, 9, 1);
+    await record(t.f, t.ben, 5);
+    await record(t.f, t.eve, 0, 2);
+    const c = await load(t.f);
+    expect(flags(c).map(([id, name, , watch]) => [id, name, watch])).toEqual([
+      [t.underway, "Cal Booker", false],
+      [t.tonight, "Ann Booker", true],
+      [t.tonight, "Ben Booker", false],
+      [t.depotEarly, "Gus Booker", false],
+      [t.late, "Ben Booker", false],
+      [t.late, "Eve Booker", false],
+    ]);
+    // The Watch list card holds the same people (everyone here is booked in its 14 days).
+    const card = await withFirm(t.f.firmId, (tx) => loadWatchList(tx, NOW, TZ, null));
+    expect(card.map((w) => w.workerId)).toEqual([t.ann]);
+    // And the record behind it is the casual pages' own.
+    const records = await withFirm(t.f.firmId, (tx) =>
+      loadCasualRecords(tx, NOW, [t.ann, t.gus, t.eve]),
+    );
+    expect(records.get(t.ann)?.reliability).toMatchObject({ kind: "figure", percent: 66 });
+    expect(records.get(t.gus)?.reliability).toMatchObject({ kind: "figure", percent: 90 });
+    expect(records.get(t.eve)?.reliability).toMatchObject({ kind: "new" });
+  });
+
+  it("the watch list: another firm's record for the same person never counts", async () => {
+    const mine = await scene();
+    const theirs = await scene();
+    const { rows } = await su.query<{ mobile: string }>(
+      "select mobile_e164 as mobile from workers where id = $1",
+      [mine.ben],
+    );
+    await set("workers", theirs.ben, { mobile_e164: rows[0]?.mobile });
+    // Ben didn't turn up to 5 of theirs; with us he's worked 5.
+    await record(theirs.f, theirs.ben, 0, 5);
+    await record(mine.f, mine.ben, 5);
+    const ben = (c: Awaited<ReturnType<typeof load>>) =>
+      flags(c).filter(([, name]) => name === "Ben Booker");
+    // With us he's 100%; with them he's on it (so this isn't false by accident).
+    expect(ben(await load(mine.f)).map(([, , , w]) => w)).toEqual([false, false]);
+    expect(ben(await load(theirs.f)).map(([, , , w]) => w)).toEqual([true, true]);
   });
 });
 

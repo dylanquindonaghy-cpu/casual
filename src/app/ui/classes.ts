@@ -25,6 +25,11 @@ export const btn = {
   primary: `${office} glass-tint hover:brightness-105`,
   // Any other action: a clear glass pill, brighter under the pointer and pressed.
   secondary: `${office} glass-button text-ink hover:bg-button-hover active:bg-button-press`,
+  // A small action in a row of a list (the dashboard's "Worked"; since Phase 27.10 each update's
+  // one action and Coming up's "Offer 1 place"): the same clear glass pill, 44px tall, in smaller
+  // words, so it never competes with the screen's main button.
+  small:
+    "press-glass glass-button inline-flex min-h-11 items-center gap-1 rounded-full px-3 text-sm font-medium text-ink hover:bg-button-hover active:bg-button-press",
   // Opens a destructive step ("Cancel this shift", "Turn off access"): red words on clear glass.
   danger: `${office} glass-button text-urgent-ink hover:bg-button-hover active:bg-button-press`,
   // The final click of a destructive change: a step's "Yes, …", or a destructive action that

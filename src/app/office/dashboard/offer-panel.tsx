@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { initials } from "@/lib/office/board-copy";
 import type { OfferPage } from "@/lib/office/offer-page";
 import {
@@ -58,6 +66,43 @@ type Shown =
 
 // Opens the panel for a session: the opener gets focus back when it closes.
 export type OpenOffer = (shiftId: string, opener: HTMLElement) => void;
+
+// A plain click (not one opening a new tab or window): the page handles it once it's ready.
+export const plainClick = (e: MouseEvent) =>
+  e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
+
+// A link to a session's offer page that opens this panel in its place on a plain click once the
+// page is ready, as To offer's paper plane does (Phase 27.10: Updates' "Offer the place" and Coming
+// up's "Offer 1 place"). Without JavaScript, or with a modifier key, it's the link.
+export function OfferLink({
+  shiftId,
+  onOffer,
+  label,
+  className,
+  children,
+}: {
+  shiftId: string;
+  onOffer: OpenOffer;
+  label: string; // its name for a screen reader: which row it's for
+  className: string;
+  children: ReactNode;
+}) {
+  return (
+    <Link
+      href={`/office/offer/${shiftId}`}
+      prefetch={false}
+      aria-label={label}
+      onClick={(e) => {
+        if (!plainClick(e)) return;
+        e.preventDefault();
+        onOffer(shiftId, e.currentTarget);
+      }}
+      className={className}
+    >
+      {children}
+    </Link>
+  );
+}
 
 export function useOfferPanel(): { open: OpenOffer; panel: ReactNode } {
   const router = useRouter();

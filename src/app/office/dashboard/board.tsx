@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type MouseEvent, type ReactNode } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import {
   bannerText,
   boardHref,
@@ -54,7 +54,7 @@ import { btn, chip, countPill, notice } from "../../ui/classes";
 import { Icon } from "../../ui/icons";
 import { ShiftActions } from "../shift-actions";
 import { ComingUpList } from "./coming-up";
-import { useOfferPanel, type OpenOffer } from "./offer-panel";
+import { plainClick as plain, useOfferPanel, type OpenOffer } from "./offer-panel";
 import { UpdatesList, WhoWorkedList } from "./updates-worked";
 import { VenueMap } from "./venue-map";
 
@@ -85,12 +85,14 @@ import { VenueMap } from "./venue-map";
 // link to the offer page until then). The card shows what, where and when, its pay, how many are
 // booked of how many (a gauge), who can take it under the rules right now, what's in the way, and
 // "Offer to someone" ("Offer to Zoe" when she's the only one), "Open the session" and "…".
+//
+// Phase 27.10 (Dylan, 2026-11-05: "more ctas and data here on the dash but keep it simple"): the
+// columns under the map act too, one small action a row at most. Each update has its own ("Offer
+// the place", "See the record", "Open the session", "See the offers"), and a Coming up session with
+// places to offer has "Offer 1 place"; an offer opens this board's offer panel, as To offer's paper
+// plane does (offer-panel.tsx OfferLink).
 
 export const SHOWN = 4; // To offer's rows before "View all" (round 8), as a column under the map
-
-// A plain click (not one opening a new tab or window): the page handles it once it's ready.
-const plain = (e: MouseEvent) =>
-  e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
 
 const LEAF: Record<ColumnKey, string> = {
   toOffer: "text-mark-open",
@@ -687,7 +689,7 @@ export function Board({
               failed={!ups}
               empty={emptyText("updates", false, show)}
             >
-              <UpdatesList items={ups?.items ?? []} now={now} timeZone={timeZone} />
+              <UpdatesList items={ups?.items ?? []} now={now} timeZone={timeZone} onOffer={open} />
             </Column>
           )}
           {on.has("comingUp") && (
@@ -699,7 +701,12 @@ export function Board({
               empty={comingUpEmpty(mine)}
               foot={{ text: COMING_UP_ALL, href: COMING_UP_ALL_HREF }}
             >
-              <ComingUpList sessions={soon?.sessions ?? []} now={now} timeZone={timeZone} />
+              <ComingUpList
+                sessions={soon?.sessions ?? []}
+                now={now}
+                timeZone={timeZone}
+                onOffer={open}
+              />
             </Column>
           )}
           {on.has("whoWorked") && (

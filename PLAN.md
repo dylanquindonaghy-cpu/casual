@@ -1179,7 +1179,7 @@ https://claude.ai/artifact/9GPXjLG2NXmz4FvbMXBdiu (sections 1, 2 and 6).
       important data in the section can we simplify the what needs updating to staff working on any
       of your contracts coming up and for example cancellations on your contracts or some other
       ideas you can think of"; then "no mock up"; UI, M) (27.9)
-- [ ] More to do and to see in the two sections under the map, kept simple: one action on each Updates
+- [x] More to do and to see in the two sections under the map, kept simple: one action on each Updates
       row (a cancellation whose place is still free: "Offer the place", the offer panel as To offer
       opens it; any other cancellation: "See the record"; a place taken: "Open the session"; offers
       with no reply: "See the offers"); "Offer 1 place" on a Coming up session with places free; and

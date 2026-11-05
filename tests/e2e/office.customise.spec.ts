@@ -40,7 +40,11 @@ test("a contract on Settings, looked after under Customise: the dashboard narrow
   await add.getByLabel("Name").fill(name);
   await add.getByRole("checkbox", { name: /^Acme Demo Arena/ }).check();
   await add.getByRole("button", { name: "Add a contract" }).click();
+  // The page reloads its data and the new contract is in the list (its own form, with Remove):
+  // the blank form's answer is still there after that, not only for the moment before it.
+  await expect(contracts.getByLabel(`Remove ${name}`)).toHaveCount(1);
   await expect(add.getByRole("status")).toHaveText(`Saved ${name}.`);
+  await expect(add.getByLabel("Name")).toHaveValue("");
 
   // Customise: the panel, the contract switched on, Fill rate ticked, saved.
   await page.goto(`${acme}/office`);

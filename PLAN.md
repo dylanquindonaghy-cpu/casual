@@ -1169,7 +1169,7 @@ https://claude.ai/artifact/9GPXjLG2NXmz4FvbMXBdiu (sections 1, 2 and 6).
       (2.99 GB, measured) and its letter shapes served from our own server (Dylan, 2026-11-03: "the
       extra detail too it needs to be proper"; on the same mock-up, 2026-11-04: "proper map: yes";
       the server step waits for the code; UI, M) (27.8)
-- [ ] The two sections under the dashboard's map, simpler and on your contracts: "Coming up" (who's
+- [x] The two sections under the dashboard's map, simpler and on your contracts: "Coming up" (who's
       working on your contracts today and tomorrow, by session, each person by name with a flag
       where their licence runs out before or during it or they've asked to change times) in place
       of "Who worked?" (off by default, still under Customise; who worked is still marked on each

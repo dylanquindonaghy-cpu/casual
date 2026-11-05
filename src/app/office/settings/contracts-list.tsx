@@ -38,7 +38,10 @@ export function ContractsList({
           </li>
         ))}
         <li className={row}>
-          <ContractForm key={contracts.length} contract={null} sites={sites} names={names} />
+          {/* Not keyed by the list's length: a new key after an add rebuilt the form, and its
+              answer ("Saved {Northgate Council}.") went before it could be read (the browser
+              tests caught it, Phase 27.9's verify). The form clears its own fields on a save. */}
+          <ContractForm contract={null} sites={sites} names={names} />
         </li>
       </ul>
     </>

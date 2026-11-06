@@ -987,7 +987,7 @@ describe("Booked, after taking a shift (Phase 18)", () => {
     expect([marked(later), news(later)]).toEqual([1, 1]);
     const rows = later.slice(later.indexOf('id="later-heading"'));
     // (8px round since Phase 28.13: the token corner.)
-    expect(rows).toMatch(/<li class="px-3\.5 animate-move rounded-row border-2 border-brand-ink">/);
+    expect(rows).toMatch(/<li class="px-3\.5 animate-move rounded-row border border-brand-ink">/);
     // Not one of hers (or none given): nothing marked.
     for (const html of [
       render({ shifts: [first, second] }),

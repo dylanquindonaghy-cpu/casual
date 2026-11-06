@@ -54,7 +54,7 @@ const KEY: Record<StripMark, ReactNode> = {
     <span className="flex items-center gap-1.5">
       <span
         aria-hidden="true"
-        className="flex size-5 items-center justify-center rounded-md bg-ink/12 text-ink"
+        className="flex size-5 items-center justify-center rounded-mark bg-ink/12 text-ink"
       >
         <Icon name="check" size={14} />
       </span>

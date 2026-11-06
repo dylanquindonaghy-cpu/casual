@@ -267,10 +267,14 @@ describe("ShiftView", () => {
       `<span data-places-left="" class="${chip.base} ${chip.urgent}">2 of 4 places left</span>`,
     );
     expect(
-      html.match(/data-seat="free" class="size-7\.5 rounded-full border-2 border-urgent"/g),
+      html.match(
+        /data-seat="free" class="size-7\.5 rounded-full border-\[1\.5px\] border-urgent"/g,
+      ),
     ).toHaveLength(2);
     expect(
-      calm.match(/data-seat="free" class="size-7\.5 rounded-full border-2 border-ink-muted"/g),
+      calm.match(
+        /data-seat="free" class="size-7\.5 rounded-full border-\[1\.5px\] border-ink-muted"/g,
+      ),
     ).toHaveLength(2);
   });
   it("What it needs: an upload link where she can send it herself", () => {

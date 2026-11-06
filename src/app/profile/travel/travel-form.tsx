@@ -12,6 +12,7 @@ import {
   staffField,
 } from "@/app/ui/classes";
 import { Slip } from "@/app/ui/slip";
+import { OfficeLinked } from "../office-link";
 import { useHydrated } from "@/app/use-hydrated";
 import {
   TRAVEL_MINUTES,
@@ -160,7 +161,9 @@ export function TravelForm({
           role={message.alert ? "alert" : "status"}
           className="mt-3"
         >
-          <p>{message.text}</p>
+          <p>
+            <OfficeLinked text={message.text} />
+          </p>
           {!message.alert && <p className={muted}>— {signOff}</p>}
         </Slip>
       )}

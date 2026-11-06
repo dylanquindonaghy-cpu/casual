@@ -11,7 +11,12 @@ import {
   unseenAnswers,
   unseenPayAnswers,
 } from "@/lib/portal/request-answers";
-import { askAboutMark, myRequests, withdrawRequest } from "@/lib/portal/requests";
+import {
+  askAboutMark,
+  canWithdrawRequest,
+  myRequests,
+  withdrawRequest,
+} from "@/lib/portal/requests";
 import { confirmStillComing } from "@/lib/portal/still-coming";
 import { tabCounts } from "@/lib/portal/tab-counts";
 import { bookingFirm, hoursFromNow, NOW } from "../helpers/booking-fixture";
@@ -256,6 +261,77 @@ describe("withdrawRequest", () => {
       const withdrawn = (await t.eventsOf("request.withdrawn")).length;
       const approvedEvents = (await t.eventsOf("request.approved")).length;
       expect(withdrawn + approvedEvents).toBe(1);
+    }
+  });
+
+  // One she can take back (canWithdrawRequest): an attendance question, racing the office's
+  // decline. The office's reply to her (the request-update job) goes only if the office won.
+  it("racing the office's reply on one she can take back: one outcome, a reply only if the office won", async () => {
+    for (let round = 0; round < 3; round += 1) {
+      const t = await setup();
+      const shift = await t.f.shift({ startsAt: hoursFromNow(-30) });
+      const booking = await t.f.booking(t.sam, shift, "no_show");
+      const id = await t.request(t.sam, {
+        type: "attendance",
+        shiftId: shift,
+        payload: { said: "worked", note: "" },
+      });
+      const [mine] = await myRequests(t.ctx(), t.sam);
+      expect(mine && canWithdrawRequest(mine)).toBe(true);
+      const [taken, answered] = await Promise.all([
+        withdrawRequest(t.ctx(), t.sam, id),
+        resolveRequest(
+          withFirm,
+          t.f.firmId,
+          {
+            requestId: id,
+            decision: "declined",
+            note: "The gate log shows no sign-in.",
+            by: { type: "office", id: t.resourcer },
+          },
+          { clock: { now: () => NOW } },
+        ),
+      ]);
+      const row = await t.requestRow(id);
+      const { rows: replies } = await su.query<{ n: number }>(
+        "select count(*)::int as n from pgboss.job where name = 'request-update' and data ->> 'idempotencyKey' = $1",
+        [`request-update:${id}`],
+      );
+      if (taken.status === "withdrawn") {
+        expect(row?.status).toBe("withdrawn");
+        expect(answered).toEqual({ status: "already", current: "withdrawn" });
+        expect(replies[0]?.n).toBe(0);
+      } else {
+        expect(taken).toEqual({ status: "answered_first", ref: refOf(id) });
+        expect(row?.status).toBe("declined");
+        expect(answered).toEqual({ status: "resolved", decision: "declined" });
+        expect(replies[0]?.n).toBe(1);
+      }
+      const withdrawn = (await t.eventsOf("request.withdrawn")).length;
+      const declined = (await t.eventsOf("request.declined")).length;
+      expect(withdrawn + declined).toBe(1);
+      // Neither changes her mark.
+      const { rows: mark } = await su.query<{ status: string }>(
+        "select status from assignments where id = $1",
+        [booking],
+      );
+      expect(mark[0]?.status).toBe("no_show");
+    }
+  });
+
+  it("canWithdrawRequest: only one still waiting, and never a question she sent as a message", () => {
+    const message = "00000000-0000-4000-8000-000000000001";
+    expect(canWithdrawRequest({ type: "time_change", status: "open" })).toBe(true);
+    expect(canWithdrawRequest({ type: "attendance", status: "escalated", messageId: null })).toBe(
+      true,
+    );
+    expect(canWithdrawRequest({ type: "general", status: "open", messageId: null })).toBe(true);
+    expect(canWithdrawRequest({ type: "general", status: "open", messageId: message })).toBe(false);
+    expect(canWithdrawRequest({ type: "general", status: "escalated", messageId: message })).toBe(
+      false,
+    );
+    for (const status of ["approved", "declined", "auto_resolved", "withdrawn"]) {
+      expect(canWithdrawRequest({ type: "time_change", status })).toBe(false);
     }
   });
 });

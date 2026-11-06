@@ -178,6 +178,9 @@ export type WithdrawOutcome =
   | { status: "withdrawn"; ref: string }
   | { status: "answered_first"; ref: string } // the office answered (or sorted it) first
   | { status: "already"; ref: string } // taken back before (a second tap)
+  // A question she sent as a message (the shifts line or the app's messages): the office answers it
+  // on Enquiries, with the message, so it can't be taken back here.
+  | { status: "office_has_it"; ref: string }
   | { status: "not_yours" }
   | { status: "logged_out" }
   | { status: "error" };

@@ -33,7 +33,8 @@ import {
 // - requestableShifts: the worker's upcoming bookings, for the form's shift picker.
 // - withdrawRequest (Phase 28.2; 28.9): she takes back one still waiting for the office (open or
 //   escalated: both read "Waiting for the office"). One conditional UPDATE: if the office answered
-//   first, nothing changes and she's told so.
+//   first, nothing changes and she's told so. Never a question she sent as a message: Enquiries
+//   has it (canWithdrawRequest says where "Take back" shows).
 // - askAboutMark (Phase 28.2; 28.13): "Think this mark is wrong?" on one of her sessions marked
 //   worked or not attended in the last 90 days, an attendance question for a person. It never
 //   changes the mark (golden rule 12): the office looks again on who-worked.
@@ -136,6 +137,9 @@ export interface MyRequest {
   // Phase 28.2 (myRequests always fills these; optional so a list built by hand needn't):
   id?: string; // for "Take back this request" (withdrawRequest)
   shiftId?: string | null;
+  // The message a question came in as (the shifts line or the app's messages), or null: with
+  // type and status, whether "Take back" shows (canWithdrawRequest).
+  messageId?: string | null;
   // An attendance question's session as it's marked now ("Your shift now shows: …"): her
   // booking's mark, or null when it isn't marked (or isn't an attendance question).
   mark?: "completed" | "no_show" | null;
@@ -153,6 +157,7 @@ export async function myRequests(ctx: Ctx, workerId: string): Promise<MyRequest[
         note: requests.resolutionNote,
         createdAt: requests.createdAt,
         shiftId: requests.shiftId,
+        messageId: requests.messageId,
         startsAt: shifts.startsAt,
         endsAt: shifts.endsAt,
         role: shifts.role,
@@ -185,6 +190,7 @@ export async function myRequests(ctx: Ctx, workerId: string): Promise<MyRequest[
     note: r.note,
     createdAt: r.createdAt,
     shiftId: r.shiftId,
+    messageId: r.messageId,
     mark: r.mark === "completed" || r.mark === "no_show" ? r.mark : null,
     shift:
       r.startsAt && r.endsAt && r.role
@@ -238,11 +244,25 @@ export async function requestableShifts(ctx: Ctx, workerId: string): Promise<Req
   }));
 }
 
+// Whether "Take back this request" can work on it, for the pages to hide it where it can't: still
+// waiting (open or escalated), and not a question she sent as a message, which Enquiries answers
+// with its message locked (requestWaiting's rule, src/lib/office/enquiry-sql.ts). Pure.
+export function canWithdrawRequest(r: {
+  type: string;
+  status: string;
+  messageId?: string | null;
+}): boolean {
+  const waiting = r.status === "open" || r.status === "escalated";
+  return waiting && !(r.type === "general" && r.messageId != null);
+}
+
 // "Take back this request" (Phase 28.2): one conditional UPDATE on her own request while it's
 // still waiting (open or escalated). Zero rows: it isn't hers, or it was answered (or taken back)
 // first, and nothing changes. The office's answer (src/lib/requests/resolve.ts) locks the row and
-// checks it's still waiting, so whichever commits first wins and the other changes nothing. The
-// event holds ids and the kind only.
+// checks it's still waiting, so whichever commits first wins and the other changes nothing. A
+// question she sent as a message (general, with its message_id) is never taken back: Enquiries
+// answers it with the message locked, and taking it back would drop it from Need a person while a
+// reply may already be on its way (canWithdrawRequest). The event holds ids and the kind only.
 export async function withdrawRequest(
   ctx: Ctx,
   workerId: string,
@@ -262,6 +282,7 @@ export async function withdrawRequest(
           eq(requests.id, requestId),
           eq(requests.workerId, workerId),
           inArray(requests.status, ["open", "escalated"]),
+          sql`not (${requests.type} = 'general' and ${requests.messageId} is not null)`,
         ),
       )
       .returning({ id: requests.id, type: requests.type, shiftId: requests.shiftId });
@@ -277,11 +298,20 @@ export async function withdrawRequest(
       return { status: "withdrawn", ref: refOf(taken.id) };
     }
     const [current] = await tx
-      .select({ id: requests.id, status: requests.status })
+      .select({
+        id: requests.id,
+        status: requests.status,
+        type: requests.type,
+        messageId: requests.messageId,
+      })
       .from(requests)
       .where(and(eq(requests.id, requestId), eq(requests.workerId, workerId)));
     if (!current) return { status: "not_yours" };
     if (current.status === "withdrawn") return { status: "already", ref: refOf(current.id) };
+    const waiting = current.status === "open" || current.status === "escalated";
+    if (waiting && !canWithdrawRequest(current)) {
+      return { status: "office_has_it", ref: refOf(current.id) };
+    }
     return { status: "answered_first", ref: refOf(current.id) };
   });
 }

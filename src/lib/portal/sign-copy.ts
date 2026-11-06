@@ -118,8 +118,10 @@ export function inDays(startsAt: Date, endsAt: Date, now: Date, timeZone: string
 }
 
 // "1 place left", "3 places left"; with the total, "1 of 4 places left"; none: "No places left".
+// One place of one is "The last place" (Phase 28.5: the review's "1 of 1 places left").
 export function placesLeftText(left: number, total?: number): string {
   if (left <= 0) return "No places left";
+  if (left === 1 && total === 1) return "The last place";
   const of = total !== undefined ? ` of ${total}` : "";
   return `${left}${of} ${left === 1 && total === undefined ? "place" : "places"} left`;
 }

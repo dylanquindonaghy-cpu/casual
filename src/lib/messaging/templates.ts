@@ -341,6 +341,28 @@ export function shiftConfirmedMessage(
   return `Confirmed: ${shift.date} ${shift.start}–${shift.end}${at} (${roleWords(shift.role)}). Details and instructions: ${shift.link}. — ${firm.signOff}`;
 }
 
+// shift_details_changed (Phase 28.3; by push, text or email, never WhatsApp): the briefing of a
+// shift they're booked on changed (src/lib/notices/details-changed.ts). {changes} names the parts
+// in the casual's words ("meeting point and uniform": briefingWords()), never a value: no pay
+// figure, no instructions' text. The link last, with no full stop after it.
+export function detailsChangedMessage(
+  firm: FirmVoice,
+  shift: { site: string | null; date: string; start: string; changes: string; link: string },
+): string {
+  const at = shift.site ? ` at ${shift.site}` : "";
+  return `Your shift's details changed: ${shift.changes}. ${shift.date} ${shift.start}${at}. See what changed: ${shift.link} — ${firm.signOff}`;
+}
+
+// The same as a text message (docs/messaging-templates.md, "SMS"): standard text characters only,
+// the sign-off after a plain hyphen.
+export function detailsChangedSms(
+  firm: FirmVoice,
+  shift: { site: string | null; date: string; start: string; changes: string; link: string },
+): string {
+  const at = shift.site ? ` at ${shift.site}` : "";
+  return `${firm.name}: your shift's details changed (${shift.changes}). ${shift.date} ${shift.start}${at}. See what changed: ${shift.link} - ${firm.signOff}`;
+}
+
 // shift_not_booked (WhatsApp or SMS, utility; Phase 26.6, ses-6): a casual asked for a session the
 // office chooses for ("I can do this"), and wasn't booked: the office said "Not this time", or it
 // filled with others while they waited (src/lib/notices/ask-answer.ts). "at {site}" left out when
@@ -432,6 +454,11 @@ export function shiftChangedByFirmEmailSubject(shift: { date: string }): string 
 
 export function shiftCancelledByFirmEmailSubject(shift: { date: string }): string {
   return `Your shift on ${shift.date} is cancelled`;
+}
+
+// Phase 28.3: a booked shift's briefing changed (shift_details_changed).
+export function detailsChangedEmailSubject(shift: { date: string }): string {
+  return `Details changed: your shift on ${shift.date}`;
 }
 
 export function requestUpdateEmailSubject(request: { ref: string; status: string }): string {
@@ -841,6 +868,19 @@ export function firmChangePush(
         title: "Shift cancelled",
         body: `${change.date} ${change.start} was cancelled by the office.`,
       };
+}
+
+// Push (title / body), docs/messaging-templates.md "Push": a booked shift's briefing changed (Phase
+// 28.3). Never what changed, nor any value: a lock screen shows it. Tapping opens the shift.
+export function detailsChangedPush(shift: { site: string | null; date: string; start: string }): {
+  title: string;
+  body: string;
+} {
+  const at = shift.site ? ` at ${shift.site}` : "";
+  return {
+    title: "Your shift's details changed",
+    body: `${shift.date} ${shift.start}${at}. Tap to see what changed.`,
+  };
 }
 
 // Push (title / body), docs/messaging-templates.md "Push": the office booked the worker onto a shift.

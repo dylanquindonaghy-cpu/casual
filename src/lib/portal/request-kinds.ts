@@ -184,3 +184,52 @@ export type WithdrawOutcome =
   | { status: "not_yours" }
   | { status: "logged_out" }
   | { status: "error" };
+
+// What she sees after "Yes, take it back" (Phase 28.9; docs/screens.md "### 28.9"): a slip on the
+// request, its tone, its first line and any line under it. Logged out isn't here: the page goes to
+// the login page instead. `tryAgain`: the page's own words for a failure (src/lib/portal/copy.ts
+// tryAgainText says when it's the signal).
+export function withdrawOutcomeText(
+  outcome: Exclude<WithdrawOutcome, { status: "logged_out" }>,
+  tryAgain = "Something went wrong. Try again.",
+): { tone: "done" | "quiet" | "urgent"; title: string; line: string | null } {
+  switch (outcome.status) {
+    case "withdrawn":
+      return {
+        tone: "done",
+        title: `Taken back. Reference ${outcome.ref}.`,
+        line: "The office won't answer it.",
+      };
+    case "answered_first":
+      return {
+        tone: "quiet",
+        title: "The office answered first.",
+        line: `Reference ${outcome.ref}.`,
+      };
+    case "already":
+      return {
+        tone: "quiet",
+        title: `You've already taken this back. Reference ${outcome.ref}.`,
+        line: null,
+      };
+    case "office_has_it":
+      return {
+        tone: "quiet",
+        title: "The office has this one. They'll answer you in Messages.",
+        line: null,
+      };
+    case "not_yours":
+      return { tone: "urgent", title: "We can't find that request.", line: null };
+    case "error":
+      return { tone: "urgent", title: tryAgain, line: null };
+  }
+}
+
+// An attendance question's session as it's marked now, beside its "Answered" (Phase 28.9): "Your
+// shift now shows: Worked". The words Booked uses for the mark ("Worked", "Marked as not attended"),
+// shortened to fit after "shows". Null when it isn't marked.
+const MARK_NOW: Record<string, string> = { completed: "Worked", no_show: "Not attended" };
+export function markNowText(mark: string | null | undefined): string | null {
+  const word = mark ? MARK_NOW[mark] : undefined;
+  return word ? `Your shift now shows: ${word}` : null;
+}

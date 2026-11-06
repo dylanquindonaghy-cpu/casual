@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { z } from "zod";
-import { page, staffBtn } from "@/app/ui/classes";
+import { emptyBox, page, staffBtn } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { requireWorker } from "@/lib/auth/current-worker";
 import { requestableShifts } from "@/lib/portal/requests";
@@ -12,8 +12,8 @@ import { CasualTabBar } from "../../casual-tab-bar";
 
 export const metadata: Metadata = { title: "New request" };
 
-// New request (docs/screens.md, `/requests/new`): for one of the worker's upcoming shifts
-// (?shift=<id> preselects it, when it's theirs).
+// New request (docs/screens.md, `/requests/new`, "### 28.9"): for one of the worker's upcoming
+// shifts, each a two-line choice card (?shift=<id> preselects it, when it's theirs).
 export default async function NewRequestPage({
   searchParams,
 }: {
@@ -29,7 +29,7 @@ export default async function NewRequestPage({
       <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
       <PageHeader title="New request" />
       {shifts.length === 0 ? (
-        <p>You have no upcoming shifts to ask about.</p>
+        <p className={emptyBox}>You have no upcoming shifts to ask about.</p>
       ) : (
         <RequestForm shifts={shifts} preselected={preselected} />
       )}

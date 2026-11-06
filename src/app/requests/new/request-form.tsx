@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
-import { label, labelStack, staffBtn, staffField } from "@/app/ui/classes";
+import { label, labelStack, nums, staffBtn, staffChoice, staffField } from "@/app/ui/classes";
 import { useHydrated } from "@/app/use-hydrated";
 import {
   KIND_LABELS,
@@ -18,18 +18,30 @@ import { RequestResult } from "../request-result";
 
 type Shown = Exclude<CreateRequestOutcome, { status: "logged_out" }>;
 
-// One answer to pick from, as a big bordered row; the picked one is outlined in ink.
-const choice =
-  "flex min-h-14 items-center gap-3 glass-tile rounded-2xl border-2 border-line-strong px-4 py-3 font-normal has-checked:border-ink has-checked:bg-active";
+// A shift to ask about (src/lib/portal/requests.ts RequestableShift): its two lines, "Sat 7 Nov,
+// 14:00 to 22:00" then "Door supervisor at Demo Arena" in full; without them, its label on one.
+type PickShift = { shiftId: string; label: string; when?: string; what?: string };
 
-// New request: which shift, what kind (change the times, or swap), a short form, "Send request".
-// The answer replaces the form. The fields and the button wait for the page (docs/ui-design.md
-// "Forms wait for the page").
+// A shift's words on its card (Phase 28.9: two lines, so the site's name is never cut off, as it was
+// in a select).
+function ShiftLines({ s }: { s: PickShift }) {
+  if (!s.when || !s.what) return <span className={nums}>{s.label}</span>;
+  return (
+    <span className="flex min-w-0 flex-col">
+      <span className={`font-semibold ${nums}`}>{s.when}</span>
+      <span className="font-normal">{s.what}</span>
+    </span>
+  );
+}
+
+// New request: which shift (a choice card each, Phase 28.9), what kind (change the times, or swap),
+// a short form, "Send request". The answer replaces the form. The fields and the button wait for
+// the page (docs/ui-design.md "Forms wait for the page").
 export function RequestForm({
   shifts,
   preselected,
 }: {
-  shifts: { shiftId: string; label: string }[];
+  shifts: PickShift[];
   preselected: string | null;
 }) {
   const router = useRouter();
@@ -67,37 +79,42 @@ export function RequestForm({
     });
   };
 
+  const chosen = shifts.find((s) => s.shiftId === shiftId);
   if (outcome && outcome.status !== "invalid" && outcome.status !== "error") {
     return <RequestResult outcome={outcome} />;
   }
   return (
     <div className="space-y-6">
       {shifts.length > 1 || !preselected ? (
-        <label className={labelStack}>
-          <span>Which shift?</span>
-          <select
-            value={shiftId}
-            onChange={(e) => setShiftId(e.target.value)}
-            disabled={!ready}
-            className={staffField}
-          >
+        <fieldset>
+          <legend className={label}>Which shift?</legend>
+          <div className="mt-2 space-y-2">
             {shifts.map((s) => (
-              <option key={s.shiftId} value={s.shiftId}>
-                {s.label}
-              </option>
+              <label key={s.shiftId} className={staffChoice}>
+                <input
+                  type="radio"
+                  name="shift"
+                  value={s.shiftId}
+                  checked={shiftId === s.shiftId}
+                  onChange={() => setShiftId(s.shiftId)}
+                  disabled={!ready}
+                  className="h-6 w-6 shrink-0 accent-ink"
+                />
+                <ShiftLines s={s} />
+              </label>
             ))}
-          </select>
-        </label>
+          </div>
+        </fieldset>
       ) : (
-        <p className="rounded-xl border border-line bg-quiet-soft p-4 font-semibold tabular-nums">
-          {shifts.find((s) => s.shiftId === shiftId)?.label}
-        </p>
+        <div className="flex min-h-14 items-center rounded-row glass-tile px-4 py-3 text-base text-ink">
+          {chosen && <ShiftLines s={chosen} />}
+        </div>
       )}
       <fieldset>
         <legend className={label}>What would you like?</legend>
         <div className="mt-2 space-y-2">
           {WORKER_REQUEST_KINDS.map((k) => (
-            <label key={k} className={choice}>
+            <label key={k} className={staffChoice}>
               <input
                 type="radio"
                 name="kind"

@@ -25,6 +25,7 @@ import type { FirmTx } from "../db/scoped";
 import { withFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { addDays, localDateOf } from "../time/zoned";
+import { inHand, type SortedMark } from "./in-hand";
 import type { PortalContext } from "./my-shifts";
 import {
   CHANNELS,
@@ -39,7 +40,9 @@ import {
 // firm. Server only (it reaches the database); the browser-safe parts are profile-kinds.ts.
 //
 // - myProfile: contact details; her qualifications as they stand today (12F.1: every type one of her
-//   roles needs, with its status, src/lib/credentials/status.ts), then any other she holds that a
+//   roles needs, with its status, src/lib/credentials/status.ts; 28.11: the number on her record of
+//   each she may upload herself, never one the office records itself, and whether the office has it
+//   in hand, src/lib/portal/in-hand.ts), then any other she holds that a
 //   shift she's booked on or offered needs on top of its role ("Other qualifications on file",
 //   Phase 27.2), and her right-to-work check (a status only); the days marked unavailable from
 //   today on (with whether a booking falls on each); and the notification settings.
@@ -60,6 +63,11 @@ export interface OtherQualification extends Qualification {
   shift: { role: string; day: string; booked: boolean };
 }
 
+// One of her own on Profile (28.11): `number` only on one she may upload herself (one the office
+// records itself, CSAS, right to work, health or criminal record details, never carries it), and
+// `inHand` when the office marked it sorted and it still stands as it did then. Display only.
+export type MyQualification = Qualification & { inHand?: boolean };
+
 export interface Profile {
   firstName: string;
   lastName: string;
@@ -68,7 +76,7 @@ export interface Profile {
   notifyChannel: Channel;
   offerAlerts: boolean;
   textsOff: boolean; // they replied STOP to a text: no texts until they reply START
-  qualifications: Qualification[];
+  qualifications: MyQualification[];
   // "Other qualifications on file" (Phase 27.2): always set by myProfile; left out by the pages'
   // own fixtures.
   others?: OtherQualification[];
@@ -120,8 +128,9 @@ export async function myProfile(ctx: Ctx, workerId: string): Promise<Profile | n
       .where(eq(workers.id, workerId));
     if (!me || me.mobile === null) return null; // erased (their sessions went with them)
     const held = (
-      await qualificationsFor(tx, [workerId], { now, timeZone: ctx.firm.timezone })
+      await qualificationsFor(tx, [workerId], { now, timeZone: ctx.firm.timezone, numbers: true })
     ).get(workerId);
+    const mark = await latestSortedMark(tx, workerId, ctx.firm.timezone);
     const days = await tx
       .select({ day: workerUnavailableDays.day })
       .from(workerUnavailableDays)
@@ -136,7 +145,11 @@ export async function myProfile(ctx: Ctx, workerId: string): Promise<Profile | n
       ctx.firm.timezone,
     );
     const { smsOptedOutAt, ...contact } = me;
-    const qualifications = held?.qualifications ?? [];
+    const qualifications: MyQualification[] = (held?.qualifications ?? []).map((q) => ({
+      ...q,
+      number: q.uploadable ? (q.number ?? null) : null,
+      inHand: inHand(q, mark),
+    }));
     return {
       ...contact,
       mobile: me.mobile,
@@ -160,6 +173,55 @@ export async function myProfile(ctx: Ctx, workerId: string): Promise<Profile | n
       },
     };
   });
+}
+
+// The office's latest "Mark as sorted" for her (src/lib/office/casual-follow-up.ts: what it was
+// about, and the day, in the firm's calendar); null when it never marked one. Her own only.
+// `changedAfter` (src/lib/portal/in-hand.ts): an entry logged after the mark that changed her
+// records of that type: one of them added or updated (credential.added, credential.updated: the
+// office's file, a CSAS record), or an upload of it sent, approved or turned down (upload.*, which
+// name her). Not the daily scan's credential.expired: it only makes a stored status match a date
+// that had already passed, which her status read from the start.
+async function latestSortedMark(
+  tx: FirmTx,
+  workerId: string,
+  timeZone: string,
+): Promise<SortedMark | null> {
+  const { rows } = await tx.execute<{
+    type: string | null;
+    status: string | null;
+    at: Date | string;
+    changed: boolean;
+  }>(
+    sql`
+      select m.data ->> 'type' as type, m.data ->> 'status' as status, m.created_at as at,
+             (exists (select 1 from events e
+                       where e.action in ('credential.added', 'credential.updated')
+                         and e.id > m.id
+                         and e.entity_id in (select c.id from credentials c
+                                              where c.firm_id = m.firm_id
+                                                and c.worker_id = ${workerId}
+                                                and c.type = m.data ->> 'type'))
+              or exists (select 1 from events e
+                          where e.worker_ref = ${workerId}
+                            and e.action in ('upload.received', 'upload.approved', 'upload.rejected')
+                            and e.id > m.id
+                            and e.data ->> 'qualificationType' = m.data ->> 'type')) as changed
+        from events m
+       where m.action = 'casual.needs_sorted' and m.entity_type = 'worker'
+         and m.entity_id = ${workerId}
+       order by m.id desc
+       limit 1
+    `,
+  );
+  const row = rows[0];
+  if (!row?.type || !row.status) return null;
+  return {
+    type: row.type,
+    status: row.status,
+    day: localDateOf(new Date(row.at), timeZone),
+    changedAfter: row.changed === true,
+  };
 }
 
 // The extras (`shifts.required_credentials`) of the shifts she's booked on (still to finish) or

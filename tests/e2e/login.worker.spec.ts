@@ -38,7 +38,7 @@ test("a worker logs in with a link, the link works once, and they can log out", 
   const tabs = page.getByRole("navigation", { name: "Main" });
   await expect(tabs.getByRole("link")).toHaveText(["Home", "Shifts", "Messages", "Pay", "Profile"]);
   await expect(tabs.getByRole("link", { name: "Home" })).toHaveAttribute("aria-current", "page");
-  await page.getByRole("link", { name: "Find a shift" }).click();
+  await page.getByRole("link", { name: "See open shifts" }).click();
   await expect(page).toHaveURL(`${acme}/shifts/open`);
   await expect(page.getByRole("heading", { name: "Open shifts" })).toBeVisible();
   // The demo seed's Saturday: this steward is free, and the four open steward places are theirs

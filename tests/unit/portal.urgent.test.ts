@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { OpenShift, OpenShiftsList } from "@/lib/portal/open-shifts";
+import { chip, countPill, emptyBox, staffBtn } from "@/app/ui/classes";
 
 // The urgent board (docs/screens.md, `/urgent`), the "Urgent" label on Open shifts and Home's
 // urgent shifts (12H.1; Phase 18: For you's row), rendered to HTML. Each card opens the shift's
@@ -58,27 +59,51 @@ describe("the urgent board", () => {
     expect(words).toContain("Urgent shifts");
     expect(words).toContain("Shifts starting soon that need someone now.");
     // The card (Phases 18, 20 and 24): the date tile, "Urgent." read out, the time, the role, then
-    // where; the date tile pale red, the places left in red words on a glass chip.
-    // With no pay rate set, "Pay: ask the office" where the rate would be (Phase 27.2).
+    // where; the date tile pale red. With no pay rate set, "Pay not given yet" where the rate would
+    // be (Phase 27.2; 28.8's words: her page has "Ask the office about the pay").
     expect(words).toContain(
-      "Sat 7 Nov Urgent. 08:00–16:00 Pay: ask the office Door supervisor Acme Demo Arena",
+      "Sat 7 Nov Urgent. 08:00–16:00 Pay not given yet Door supervisor Acme Demo Arena",
     );
+    expect(words).not.toContain("ask the office");
     expect(html).toMatch(/<span aria-hidden="true" class="[^"]*bg-urgent-tile text-urgent-ink">/);
-    expect(html).toContain(
-      '<span class="glass-tile rounded-[10px] px-2.5 py-1 text-base font-medium text-urgent-ink">1 place left</span>',
-    );
+    // Phase 28 (28.8): the places left on the urgent chip (an urgent shift's fact).
+    expect(html).toContain(`<span class="${chip.base} ${chip.urgent}">1 place left</span>`);
     expect(html).toContain('<span class="sr-only">Urgent. </span>');
     expect(words).toContain("1 place left");
     expect(html).toMatch(/<a class="[^"]*" href="\/shifts\/11111111-1111-4111-8111-111111111111">/);
-    expect(words).toContain("Back to my shifts");
+    // Grouped as the office's event card (28.8): one glass section, 12px round, its heading led by
+    // the office's 18px red leaf with the count inside; each shift a clear glass tile 8px round.
+    expect(html).toMatch(
+      /<section aria-labelledby="urgent-heading" class="glass flex flex-col gap-2 rounded-inner p-3"><div class="flex items-center gap-3 px-1 pt-1"><svg aria-hidden="true"[^>]*width="18" height="18"[^>]*class="shrink-0 text-mark-urgent"><path d="M5 19C5 10 10 4 20 4c0 10-6 15-15 15z"/,
+    );
+    expect(html).toContain(
+      `<h2 id="urgent-heading" class="text-lg font-semibold tracking-heading text-ink">Urgent, needed now</h2><span aria-hidden="true" class="${countPill}">1</span><span class="sr-only">1 shift</span>`,
+    );
+    expect(html).toMatch(
+      /<li class="animate-in"><a class="group press glass-tile flex items-start gap-4 rounded-row p-4 /,
+    );
+    // The only list items on the page are the shifts (the browser tests count them).
+    expect(html.match(/<li/g)).toHaveLength(1);
+    // Back to her shifts: the Shifts tab (/shifts), not Home (28.8; the review's major 3).
+    expect(html).toContain(
+      `<a class="${staffBtn.secondary} mt-8" href="/shifts">Back to my shifts</a>`,
+    );
   });
 
-  it("says so plainly when there are none, with a way to all open shifts", () => {
+  it("says so plainly when there are none, with a way to open shifts", () => {
     const html = urgent(list([]));
-    expect(text(html)).toContain("No urgent gaps right now.");
-    expect(text(html)).toContain("See all open shifts");
-    expect(html).toContain('href="/shifts/open"');
+    // 28.8: the casual's words ("urgent shifts", never the office's "gaps") in the one empty state,
+    // with one name for the way to Open shifts.
+    expect(text(html)).toContain("No urgent shifts right now.");
+    expect(text(html)).not.toContain("gaps");
+    expect(html).toContain(
+      `<div class="${emptyBox}"><p>No urgent shifts right now.</p><a class="${staffBtn.primary}" href="/shifts/open">See open shifts</a></div>`,
+    );
+    expect(text(html)).not.toContain("See all open shifts");
+    expect(html).not.toContain("border-dashed");
+    expect(html).not.toContain("<section");
     expect(text(html)).not.toContain("Take shift");
+    expect(html).toContain('href="/shifts">Back to my shifts</a>');
   });
 
   it("a held urgent shift says when it opens; its page has 'Check again'", () => {

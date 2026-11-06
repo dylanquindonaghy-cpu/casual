@@ -40,11 +40,17 @@ export interface CasualQualifications {
 }
 
 // `people`: the casuals' roles when the caller has them already (the office's list), so they
-// aren't read twice.
+// aren't read twice. `numbers`: also read each record's number (28.11: only her own Profile shows
+// them), so nothing else carries it.
 export async function qualificationsFor(
   tx: FirmTx,
   workerIds: readonly string[],
-  o: { now: Date; timeZone: string; people?: readonly { id: string; roles: readonly string[] }[] },
+  o: {
+    now: Date;
+    timeZone: string;
+    people?: readonly { id: string; roles: readonly string[] }[];
+    numbers?: boolean;
+  },
 ): Promise<Map<string, CasualQualifications>> {
   const result = new Map<string, CasualQualifications>();
   const ids = [...new Set(workerIds)];
@@ -98,6 +104,7 @@ export async function qualificationsFor(
       uploadId: uploads.id,
       sentAt: uploads.createdAt,
       reason: credentials.rejectedReason,
+      number: credentials.number,
     })
     .from(credentials)
     .leftJoin(
@@ -158,6 +165,7 @@ export async function qualificationsFor(
         r.uploadId && r.sentAt
           ? { id: r.uploadId, sentOn: localDateOf(r.sentAt, o.timeZone), reason: r.reason }
           : null,
+      ...(o.numbers ? { number: r.number } : {}),
     }));
     const qualifications = listQualifications({
       roles: person.roles,

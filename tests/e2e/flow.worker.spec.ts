@@ -39,7 +39,7 @@ test("a worker logs in, takes a shift, cancels it, asks for a change and sees th
   await expect(page.getByRole("heading", { name: "No shifts booked" })).toBeVisible();
 
   await timed("take a shift", async () => {
-    await page.getByRole("link", { name: "Find a shift" }).click();
+    await page.getByRole("link", { name: "See open shifts" }).click();
     await expect(page.getByRole("heading", { name: "Open shifts" })).toBeVisible();
     // Each card opens the shift's page, where "Take shift" is.
     const racecourse = page.getByRole("listitem").filter({ hasText: "Acme Demo Racecourse" });
@@ -185,6 +185,8 @@ test("a worker logs in, takes a shift, cancels it, asks for a change and sees th
     await page.getByRole("button", { name: "Take shift" }).click();
     await expect(page.getByText("You're booked.")).toBeVisible();
     await page.getByRole("link", { name: "See my shifts" }).click();
+    // Phase 28.5: "See my shifts" goes to her shifts (Booked), the new one marked.
+    await expect(page).toHaveURL(new RegExp(`^${acme}/shifts\\?new=[0-9a-f-]{36}$`));
     // On the pass, "Ask for a change" is in its Details (Phase 20).
     await page.locator("[data-pass-more] summary").click();
     await page.getByRole("link", { name: "Ask for a change" }).click();
@@ -200,12 +202,12 @@ test("a worker logs in, takes a shift, cancels it, asks for a change and sees th
   await expect(page).toHaveURL(`${acme}/requests`);
   await expect(page.getByText(/^Time change: Sat \d+ \w+, 15:00 to 23:00$/)).toBeVisible();
   await expect(page.getByText("Waiting for the office")).toBeVisible();
-  await page.getByRole("link", { name: "Back to my shifts" }).click();
+  await page.getByRole("link", { name: "Back to my profile" }).click();
 
   await timed("see pay with a code", async () => {
     await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Pay" }).click();
     await expect(
-      page.getByText("To keep your pay private, we'll text you a 6-digit code."),
+      page.getByText("To keep your pay private, we'll text you a 6‑digit code."),
     ).toBeVisible();
     const asked = new Date(Date.now() - 1000);
     await page.getByRole("button", { name: "Send me a code" }).click();

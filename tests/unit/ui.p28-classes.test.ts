@@ -69,6 +69,10 @@ describe("the new shared classes (src/app/ui/classes.ts)", () => {
     expect(classes.staffChoice.split(" ")).toContain("rounded-row");
   });
 
+  it("a row lead: a 52px slot, so a disc lines up with a date tile (28.7)", () => {
+    expect(classes.rowLead.split(" ")).toEqual(["flex", "w-13", "shrink-0", "justify-center"]);
+  });
+
   it("a tag: a glass pill of facts, ink words, 28px; never a status's colour", () => {
     expect(classes.tag.split(" ")).toEqual(
       expect.arrayContaining(["glass-button", "min-h-7", "px-3", "py-1", "text-sm", "text-ink"]),

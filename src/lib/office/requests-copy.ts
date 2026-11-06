@@ -32,6 +32,12 @@ export function askedLines(r: QueueRequest): string[] {
     lines.push("Asks the office to look again at a shift the rules refused. The rules said:");
     lines.push(...r.asked.reasons.map((reason) => `• ${reason}`));
   }
+  // "Think this mark is wrong?" (Phase 28.9): the mark she disputes, then what she says.
+  if (r.type === "attendance" && r.asked.said === "worked") {
+    lines.push("Says the mark is wrong: marked not attended (they say they worked).");
+  } else if (r.type === "attendance" && r.asked.said === "not_worked") {
+    lines.push("Says the mark is wrong: marked worked (they say they didn't work).");
+  }
   if (r.asked.note) lines.push(`Their note: ${r.asked.note}`);
   // A caller's number can be faked (a WhatsApp's can't, easily): the office should know.
   if (r.asked.voicemail) {
@@ -49,11 +55,36 @@ export function approveHint(type: string, cancellation: string | null = null): s
   }
   if (type === "review" && cancellation) return "Answering doesn't change a strike.";
   if (type === "review") return "Approving doesn't book them. Assign them on the shift's page.";
+  if (type === "attendance")
+    return "Answering doesn't change the mark. If it's wrong, mark again first.";
   return null;
 }
 
-// A question's "approve" is answering it (PLAN.md Messages 13); every other kind's is approving.
-export const approveWord = (type: string) => (type === "general" ? "Answer" : "Approve");
+// A question's "approve" is answering it (PLAN.md Messages 13), and so is an attendance question's
+// (Phase 28.9: "Answered", never "Approved" beside a mark); every other kind's is approving.
+export const approveWord = (type: string) =>
+  type === "general" || type === "attendance" ? "Answer" : "Approve";
+
+// Whether the office's page offers "Decline" (Phase 28.9): an attendance question is only answered,
+// with an optional note, so she never sees "Declined" beside a mark.
+export const canDecline = (type: string) => type !== "attendance";
+
+// An attendance question's session as it's marked now (Phase 28.9): "Marked now: Worked." It may
+// have been marked again since she asked. Null for any other kind.
+export function markedNowText(r: QueueRequest): string | null {
+  if (r.type !== "attendance") return null;
+  if (r.mark === "completed") return "Marked now: Worked.";
+  if (r.mark === "no_show") return "Marked now: Didn't attend.";
+  return "Not marked now.";
+}
+
+// "Mark again" (Phase 28.9): the session's Booked tab, where who worked is marked (as the event
+// page's sessions and Updates' "Mark who worked" link there). Null without a session.
+export function markAgainHref(r: QueueRequest): string | null {
+  return r.type === "attendance" && r.shift
+    ? `/office/shifts/${r.shift.shiftId}?show=booked#places`
+    : null;
+}
 
 export function answerResultText(
   result: ResolveRequestResult | Common,
@@ -68,9 +99,13 @@ export function answerResultText(
     case "already":
       return result.current === "auto_resolved"
         ? "This request was already sorted."
-        : "This request was already answered.";
+        : result.current === "withdrawn"
+          ? "They took this request back."
+          : "This request was already answered.";
     case "note_needed":
       return "Add a note saying why.";
+    case "answer_only":
+      return "This question can only be answered, not declined.";
     case "note_too_long":
       return "The note is too long (500 characters at most).";
     case "not_found":
@@ -82,16 +117,24 @@ export function answerResultText(
   }
 }
 
-// "Approved by Sam Rota" / "Answered by Sam Rota" (a question) / "Declined by Sam Rota" / "Sorted".
-export function answeredBy(r: QueueRequest): string {
-  if (r.status === "auto_resolved") return "Sorted";
-  const verb = statusWord(r.type, r.status);
-  return r.answer?.by ? `${verb} by ${r.answer.by}` : verb;
+// The answer's word, for its chip: "Approved", "Answered" (a question or an attendance question),
+// "Declined", "Sorted", or "Taken back" (Phase 28.9: she took it back).
+export function outcomeWord(r: QueueRequest): string {
+  return r.status === "auto_resolved" ? "Sorted" : statusWord(r.type, r.status);
 }
 
-// Whether the worker has been told of the answer.
+// "Approved by Sam Rota" / "Answered by Sam Rota" (a question) / "Declined by Sam Rota" / "Sorted" /
+// "Taken back by Ann" (Phase 28.9: the casual herself). Starts with outcomeWord().
+export function answeredBy(r: QueueRequest): string {
+  const word = outcomeWord(r);
+  if (r.status === "auto_resolved") return word;
+  if (r.status === "withdrawn") return `${word} by ${r.worker.firstName}`;
+  return r.answer?.by ? `${word} by ${r.answer.by}` : word;
+}
+
+// Whether the worker has been told of the answer (nothing to tell for one she took back).
 export function toldText(r: QueueRequest): string | null {
-  if (r.status === "auto_resolved" || !r.answer) return null;
+  if (r.status === "auto_resolved" || r.status === "withdrawn" || !r.answer) return null;
   const name = r.worker.firstName;
   switch (r.answer.told) {
     case "sent":

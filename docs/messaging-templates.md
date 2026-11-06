@@ -247,6 +247,10 @@ offer's and the office offer's SMS versions are built so far; the others come wi
   whenever an urgent offer goes by text, the worker's choice or the fallback; {day} as in
   `shift_urgent`; "at {site}" left out when there's none)
 - Confirmed: "{firm}: confirmed {date} {start} at {site}. {link}"
+- Details changed (Phase 28.3): "{firm}: your shift's details changed ({changes}). {date} {start} at
+  {site}. See what changed: {link} - {firm} Shift Team" (built: `detailsChangedSms()`, the text of
+  `shift_details_changed`; standard text characters only; "at {site}" left out when there's none;
+  {changes} as in its email, below. Two texts with a real link and sign-off, like the office's offer)
 
 ## Email to casuals (approved: Dylan, 2026-10-28; built in P2.4 and P2.6)
 
@@ -264,6 +268,21 @@ never a person's name), not one per firm (PLAN.md Parking lot, P2.4).
 - Reminder, 2 hours before (`shift_reminder_2h`): subject "Your shift starts at {start}"
 - The office's change (`shift_changed_by_firm`): subject "Change to your shift on {date}"
 - The office's cancellation (`shift_cancelled_by_firm`): subject "Your shift on {date} is cancelled"
+- A booked shift's details changed (`shift_details_changed`, Phase 28.3; not a WhatsApp template:
+  it goes by push, text or email only): subject "Details changed: your shift on {date}"; body "Your
+  shift's details changed: {changes}. {date} {start} at {site}. See what changed: {link} — {firm}
+  Shift Team" (built: `detailsChangedEmailSubject()` and `detailsChangedMessage()`; "at {site}" left
+  out when there's none; {link} is the shift's own page, `/shifts/{id}`, with the link last and no
+  full stop after it. {changes} names the parts that changed in the casual's words, in this order:
+  "instructions", "meeting point", "uniform", "post", "pay", "what you need" ("meeting point and
+  uniform", "meeting point, uniform and pay"; `briefingWords()`, `src/lib/notices/briefing-fields.ts`).
+  Never a value: no pay figure, no instructions' text, no meeting point. Sent to each casual booked
+  on a session whose briefing the office's editor, the firm's planner, the rota sheet or a file
+  import changed, by `src/lib/notices/details-changed.ts`: one message for a burst of changes, held
+  by quiet hours unless the session starts within the urgent window. Not sent, and logged, when the
+  session has started, when the firm's own system tells its casuals (`firm_system_sends`, for a
+  booking and a change that both came from that system), when the same change moved or shortened
+  their shift and sent `shift_changed_by_firm`, or when nothing can reach them)
 - Not chosen from an ask (`shift_not_booked`): subject "Not this time: {date}"
 - A request's answer (`request_update`): subject "Your request (ref {ref}) is {status}"
 - A pay query's answer (`pay_query_update`): subject "Payroll has answered your pay query"
@@ -356,6 +375,31 @@ app has its own way to the office: `forTheApp()`). Nothing goes by WhatsApp, tex
 - The office's reply on Enquiries shows in the app in their words, signed as on WhatsApp ("{words}
   — {firm} Shift Team"), with a push (below). An automatic answer comes with none: they're in the
   app when it comes.
+- **About a shift (Phase 28.6).** A message sent from Messages opened about a shift
+  (`/messages?shift={id}&about=…`; docs/screens.md "### 28.6") keeps that shift on the message
+  (`messages.shift_id`) only when it's one she's booked on or can see in Open shifts, not a draft or
+  cancelled, and not yet ended (`src/lib/inbound/app.ts`). Such a message is never sorted: no
+  keyword, no AI (the AI never sees its words), and no automatic answer, not even "The office will
+  see this…". It goes straight to a person on Enquiries as the office's question (Need a person),
+  with "About: {Steward}, {Sat 7 Nov 10:30}" on that message on its page (each message names
+  its own session, or none). The casual's page says "Sent. The office
+  will answer here." (only when the send kept the shift, as stored; else "Sent. The answer comes
+  here."). So a question about the pay for a shift that hasn't ended (an open or booked
+  shift's rate) reaches a person, never the pay page's link. A message about a shift that has
+  ended keeps no shift and is sorted as any other: a pay question about a worked shift gets the pay
+  page's link and its "Raise a pay query", for payroll (golden rule 9). Its `message.received` log
+  entry names the session (`shiftId`) and holds ids only, never her words.
+- **About her pay (the guardrails review of 28.10).** A message sent from Messages opened about
+  her pay with no shift (`/messages?about=pay`: Pay's and the pay query's "Message the office",
+  shown when her pay can't open because no code can be sent, or when a pay question is older than
+  the pay query's 90 days; docs/screens.md "### 28.10") is stored for the office (`intent` 'office'
+  before the job claims it) and never sorted: no keyword, no AI, and never the pay page's link,
+  which would only send her back to the page that sent her. It goes to a person on Enquiries as the
+  office's question, as one about a shift does. Its `message.received` says so (`aboutPay`), with
+  ids only.
+- Her ready sentences (`src/lib/portal/messages-copy.ts`, the words of docs/screens.md "### 28.6")
+  are only put in her box: she can change them before she sends, and nothing is sent until she
+  taps Send.
 
 ## Push (title / body)
 
@@ -371,6 +415,10 @@ app has its own way to the office: `forTheApp()`). Nothing goes by WhatsApp, tex
 - Shift changed: "Shift changed" / "{date}: {change}. Tap to see it." Shift cancelled: "Shift
   cancelled" / "{date} {start} was cancelled by the office." (built: `firmChangePush()`, with the
   office's change notices)
+- Details changed (Phase 28.3): "Your shift's details changed" / "{date} {start} at {site}. Tap to
+  see what changed." (no site: "{date} {start}. Tap to see what changed."). Built:
+  `detailsChangedPush()`, with `shift_details_changed` (above, "Email to casuals"); tapping opens
+  the shift. It never says what changed, nor any value: a lock screen shows it
 - Booked: "Shift booked" / "{date} {start} at {site}. Tap for details." (built: `bookedPush()`, with
   `shift_confirmed` when the office books a worker; tapping opens the shift)
 - Not booked from an ask: "Not this time" / "{date} {start} at {site}. See other open shifts."

@@ -47,6 +47,8 @@ test("a worker checks their licences, marks a day off and changes how we reach t
       "Not recorded yet. The office will ask you for your documents if they need them.",
     ),
   ).toBeVisible();
+  // Days you can't work is folded (28.11): a tap opens it.
+  await days.locator("summary").click();
   await expect(page.getByText("No days marked.")).toBeVisible();
 
   // Three days from now, London time.
@@ -57,11 +59,14 @@ test("a worker checks their licences, marks a day off and changes how we reach t
   await page.getByRole("button", { name: "Mark as unavailable" }).click();
   await expect(days.getByRole("status")).toContainText(/^Marked .+ as unavailable\./);
   await page.reload();
+  await days.locator("summary").click();
   await expect(page.getByRole("button", { name: "Remove" })).toHaveCount(1);
   await page.getByRole("button", { name: "Remove" }).click();
   await expect(days.getByRole("status")).toContainText(/ is available again\./);
   await expect(page.getByText("No days marked.")).toBeVisible();
 
+  // How we reach you is folded too (28.11).
+  await reach.locator("summary").click();
   await page.getByLabel("Text message").check();
   await page.getByLabel("Tell me about open shifts").uncheck();
   await page.getByRole("button", { name: "Save settings" }).click();
@@ -70,6 +75,7 @@ test("a worker checks their licences, marks a day off and changes how we reach t
   );
   await expect(reach.getByRole("status")).toContainText("Acme Events Shift Team");
   await page.reload();
+  await reach.locator("summary").click();
   await expect(page.getByLabel("Text message")).toBeChecked();
   await expect(page.getByLabel("Tell me about open shifts")).not.toBeChecked();
 });

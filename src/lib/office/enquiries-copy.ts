@@ -244,9 +244,17 @@ export function sortedStep(
     | { how: "unknown"; repeat: boolean }
     | { how: "opt_out" }
     | { how: "not_yet" }
-    | { how: "held"; by: "keyword" | "ai"; intent: Intent },
+    | { how: "held"; by: "keyword" | "ai"; intent: Intent }
+    // A casual's message in the app about a session (Phase 28.6).
+    | { how: "about_shift" }
+    // Sent about her pay from Pay's "Message the office" (the guardrails review of 28.10).
+    | { how: "about_pay" },
 ): string {
   switch (s.how) {
+    case "about_shift":
+      return "About a session: passed to a person, never sorted.";
+    case "about_pay":
+      return "About their pay, sent from the Pay page: passed to a person, never sorted.";
     // Sorted, then passed to a person: automatic replies are off (Phase 25.3).
     case "held":
       return s.by === "keyword"

@@ -42,10 +42,11 @@ export function payWords(ratePence: number, startsAt: Date, endsAt: Date): strin
 // "£12.60/hour", for a line of facts.
 export const perHour = (ratePence: number): string => `${pounds(ratePence)}/hour`;
 
-// A session with no pay rate set: where its pay would be, so the casual knows to ask, never a blank.
-// On its own ("Pay: ask the office", an open shift's card), or under a "Pay" label ("Ask the
-// office", a shift's page and the pass's details).
-export const NO_RATE_TEXT = "Pay: ask the office";
+// A session with no pay rate set: where its pay would be, never a blank. On its own ("Pay not
+// given yet", an open shift's card, which opens the shift's page where she can ask the office about
+// it: Phase 28, 28.8), or under a "Pay" label ("Ask the office", a shift's page and the pass's
+// details).
+export const NO_RATE_TEXT = "Pay not given yet";
 export const NO_RATE_UNDER_LABEL = "Ask the office";
 
 // A role mid-sentence: "CSAS officer" (src/lib/text/role.ts).

@@ -1,0 +1,559 @@
+<title>Pay Tab Before and After</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500&display=swap">
+<style>
+/* Layout: a review sheet. Each row pairs "Before" and "After (28.10)" phones at their real 390px,
+   light beside dark; a laptop row (1,280px at 150%, an 853px window) closes it. The sheet's own
+   chrome follows the viewer's theme; each phone carries its own fixed theme, as the app does. */
+:root {
+  --sheet-bg: #ecebe7;
+  --sheet-fg: #1b1c1e;
+  --sheet-muted: #5a5d63;
+  --sheet-rule: rgb(27 28 30 / 0.12);
+  --sheet-mark: #1d4ed8;
+  --sheet-mark-soft: rgb(29 78 216 / 0.1);
+  --font-ui: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-data: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --sheet-bg: #161618;
+    --sheet-fg: #ededec;
+    --sheet-muted: #a9a9ae;
+    --sheet-rule: rgb(255 255 255 / 0.12);
+    --sheet-mark: #a1bdff;
+    --sheet-mark-soft: rgb(161 189 255 / 0.12);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --sheet-bg: #161618;
+  --sheet-fg: #ededec;
+  --sheet-muted: #a9a9ae;
+  --sheet-rule: rgb(255 255 255 / 0.12);
+  --sheet-mark: #a1bdff;
+  --sheet-mark-soft: rgb(161 189 255 / 0.12);
+  color-scheme: dark;
+}
+
+/* The casual app's own tokens (src/app/globals.css), per phone. */
+.app {
+  --canvas: #f2f2f0;
+  --ink: #17181a;
+  --muted: #55585f;
+  --line: rgb(16 24 40 / 0.1);
+  --card: rgb(255 255 255 / 0.55);
+  --rim: rgb(16 24 40 / 0.1);
+  --tile: rgb(16 24 40 / 0.03);
+  --button: rgb(255 255 255 / 0.7);
+  --tint: #15171a;
+  --on-tint: #ffffff;
+  --band: rgb(255 255 255 / 0.6);
+  --done-soft: rgb(233 246 238 / 0.85);
+  --done-tile: rgb(210 239 219 / 0.9);
+  --done-ink: #155230;
+  --done-line: #b4dfc3;
+  --att-soft: rgb(255 246 224 / 0.85);
+  --att-line: #f0d39a;
+  --hivis: rgb(251 229 160 / 0.8);
+  --on-hivis: #3d2c00;
+  --urgent: #b0201f;
+  --active: rgb(16 24 40 / 0.05);
+  --tab-ink: #17181a;
+  --on-tab-ink: #ffffff;
+  color-scheme: light;
+}
+.app.dark {
+  --canvas: #0f0f10;
+  --ink: #f4f4f3;
+  --muted: #bfbfc4;
+  --line: rgb(255 255 255 / 0.1);
+  --card: rgb(255 255 255 / 0.04);
+  --rim: rgb(255 255 255 / 0.12);
+  --tile: rgb(255 255 255 / 0.03);
+  --button: rgb(255 255 255 / 0.05);
+  --tint: #f3f4f6;
+  --on-tint: #0b0c0e;
+  --band: rgb(255 255 255 / 0.08);
+  --done-soft: rgb(21 41 26 / 0.8);
+  --done-tile: rgb(21 41 26 / 0.9);
+  --done-ink: #c2efc0;
+  --done-line: #2b5a3e;
+  --att-soft: rgb(51 38 15 / 0.8);
+  --att-line: #5a4318;
+  --hivis: rgb(58 47 16 / 0.8);
+  --on-hivis: #ffe08a;
+  --urgent: #ffb4ab;
+  --active: rgb(255 255 255 / 0.07);
+  --tab-ink: #f4f4f3;
+  --on-tab-ink: #0f0f10;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--sheet-bg);
+  color: var(--sheet-fg);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.sheet {
+  max-width: 1760px;
+  margin: 0 auto;
+  padding-block: 32px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid;
+  gap: 48px;
+}
+header.top { display: grid; gap: 12px; max-width: 72ch; }
+header.top h1 { font-size: 30px; font-weight: 600; letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+header.top p { margin: 0; color: var(--sheet-muted); }
+.tagline { font-family: var(--font-data); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--sheet-mark); }
+section.row { display: grid; gap: 16px; }
+section.row > h2 { font-size: 20px; font-weight: 600; margin: 0; text-wrap: balance; }
+section.row > p { margin: 0; color: var(--sheet-muted); max-width: 80ch; }
+.changes { margin: 0; padding-left: 20px; display: grid; gap: 4px; max-width: 90ch; }
+.changes li::marker { color: var(--sheet-mark); }
+.scroller { overflow-x: auto; padding-bottom: 8px; }
+.frames { display: flex; gap: 20px; align-items: flex-start; width: max-content; }
+.frame { display: grid; gap: 8px; }
+.frame figcaption { font-family: var(--font-data); font-size: 12px; color: var(--sheet-muted); display: flex; gap: 8px; align-items: center; }
+.pill { display: inline-flex; align-items: center; border-radius: 999px; padding: 2px 8px; font-weight: 500; border: 1px solid var(--sheet-rule); }
+.pill.after { color: var(--sheet-mark); background: var(--sheet-mark-soft); border-color: transparent; }
+.divider { width: 1px; align-self: stretch; background: var(--sheet-rule); }
+
+/* A phone at its real 390px (844px tall shown up to its content). */
+.app {
+  width: 390px;
+  background: var(--canvas);
+  color: var(--ink);
+  border-radius: 28px;
+  box-shadow: 0 0 0 1px var(--sheet-rule), 0 12px 32px rgb(0 0 0 / 0.12);
+  overflow: hidden;
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.5;
+  position: relative;
+  padding-bottom: 96px;
+}
+.app.laptop { width: 853px; border-radius: 12px; padding-bottom: 96px; }
+.app .bar { display: flex; align-items: center; gap: 10px; padding: 14px 16px 0; font-weight: 600; font-size: 16px; }
+.app .mark { width: 36px; height: 36px; border-radius: 8px; background: #b5172a; color: #fff; display: grid; place-items: center; font-weight: 700; }
+.app .col { max-width: 448px; margin: 0 auto; padding: 24px 16px 0; }
+.app h1 { font-size: 28px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.15; margin: 0 0 24px; }
+.app h1 + .lead { margin: -16px 0 24px; }
+.app .h2 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: -0.005em; }
+.app p { margin: 0; }
+.app .muted { color: var(--muted); }
+.app .card { background: var(--card); box-shadow: inset 0 0 0 1px var(--rim); border-radius: 12px; padding: 16px; }
+.app .card.old { border-radius: 20px; }
+.app .card.old-big { border-radius: 24px; padding: 20px; }
+.app .tile { background: var(--tile); box-shadow: inset 0 0 0 1px var(--rim); border-radius: 8px; }
+.app .tile.old { border-radius: 16px; }
+.app .btn { display: flex; width: 100%; min-height: 52px; align-items: center; justify-content: center; border-radius: 999px; font-weight: 600; font-size: 16px; padding: 12px 20px; }
+.app .btn.primary { background: var(--tint); color: var(--on-tint); }
+.app .btn.secondary { background: var(--button); color: var(--ink); box-shadow: inset 0 0 0 1px var(--rim); }
+.app .link { display: flex; min-height: 44px; align-items: center; justify-content: center; font-weight: 600; text-decoration: underline; text-underline-offset: 4px; }
+.app .inline-link { font-weight: 600; text-decoration: underline; text-underline-offset: 4px; }
+.app .stack { display: grid; gap: 12px; }
+.app .mt8 { margin-top: 32px; }
+.app .mt5 { margin-top: 20px; }
+.app .mt4 { margin-top: 16px; }
+.app .mt3 { margin-top: 12px; }
+.app .mt2 { margin-top: 8px; }
+.app .date { width: 52px; flex: none; text-align: center; padding: 6px 0 8px; border-radius: 8px; background: var(--button); box-shadow: inset 0 0 0 1px var(--rim); }
+.app .date b { display: block; font-size: 14px; font-weight: 500; }
+.app .date span { display: block; font-size: 24px; line-height: 1.2; font-weight: 600; }
+.app .payday { display: flex; gap: 14px; align-items: center; }
+.app .new { outline: 2px dashed var(--sheet-mark); outline-offset: 3px; }
+.app .slip { display: flex; gap: 12px; align-items: flex-start; border-radius: 8px; border: 1px solid; padding: 12px 16px; }
+.app .slip.att { background: var(--att-soft); border-color: var(--att-line); }
+.app .slip.done { background: var(--done-soft); border-color: var(--done-line); }
+.app .disc { width: 32px; height: 32px; flex: none; border-radius: 999px; display: grid; place-items: center; font-weight: 700; font-size: 15px; }
+.app .disc.att { background: var(--hivis); color: var(--on-hivis); }
+.app .disc.done { background: var(--done-tile); color: var(--done-ink); }
+.app .field { min-height: 56px; border-radius: 8px; background: var(--tile); box-shadow: inset 0 0 0 1px var(--rim); padding: 14px 16px; font-size: 18px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.app .field.old { border-radius: 16px; }
+.app .field .chev { color: var(--muted); font-size: 14px; }
+.app .label { font-weight: 600; }
+.app .choice { min-height: 56px; display: flex; gap: 12px; align-items: center; padding: 12px 16px; border-radius: 8px; background: var(--tile); border: 2px solid transparent; box-shadow: inset 0 0 0 1px var(--rim); font-weight: 500; }
+.app .choice.on { border-color: var(--ink); background: var(--active); }
+.app .choice.old { border-radius: 16px; border-color: #6e737b; font-weight: 400; }
+.app .choice.old.on { border-color: var(--ink); }
+.app .radio { width: 22px; height: 22px; border-radius: 999px; border: 2px solid var(--muted); flex: none; }
+.app .choice.on .radio { border: 7px solid var(--ink); }
+.app .chip { display: inline-flex; align-items: center; min-height: 28px; padding: 4px 12px; border-radius: 999px; font-size: 14px; font-weight: 600; background: var(--done-soft); color: var(--done-ink); }
+.app .rows { background: var(--card); box-shadow: inset 0 0 0 1px var(--rim); border-radius: 12px; }
+.app .rows > div { padding: 12px 16px; }
+.app .rows > div + div { border-top: 1px solid var(--line); }
+.app .big { font-size: 36px; line-height: 1.1; font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.app .num { font-variant-numeric: tabular-nums; }
+.app .band { background: var(--band); box-shadow: inset 0 0 0 1px var(--rim); border-radius: 10px; padding: 6px 12px; width: fit-content; font-size: 18px; }
+.app .paytile { background: var(--tile); box-shadow: inset 0 0 0 1px var(--rim); border-radius: 8px; padding: 6px 12px; width: fit-content; font-size: 18px; }
+.app .between { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.app .tabs { position: absolute; left: 12px; right: 12px; bottom: 12px; height: 68px; border-radius: 12px; background: var(--card); box-shadow: inset 0 0 0 1px var(--rim), 0 8px 24px rgb(0 0 0 / 0.08); display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; padding: 6px; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.app.laptop .tabs { left: 50%; right: auto; width: 448px; transform: translateX(-50%); }
+.app .tabs span { display: grid; place-items: center; border-radius: 8px; font-size: 12px; color: var(--muted); position: relative; }
+.app .tabs span.on { background: var(--tab-ink); color: var(--on-tab-ink); font-weight: 700; }
+.app .tabs i { position: absolute; top: 4px; right: 14px; min-width: 18px; height: 18px; border-radius: 999px; background: var(--tint); color: var(--on-tint); font-size: 11px; font-style: normal; display: grid; place-items: center; font-weight: 600; padding: 0 5px; }
+.app .tabs span.on i { background: var(--on-tab-ink); color: var(--tab-ink); }
+.app .code { font-size: 24px; letter-spacing: 0.3em; }
+.app .old-red { color: var(--urgent); font-weight: 600; }
+.nb { white-space: nowrap; }
+
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+@media (max-width: 520px) { header.top h1 { font-size: 24px; } }
+</style>
+
+<main class="sheet">
+  <header class="top">
+    <span class="tagline">ShiftDesk · Phase 28 · task 28.10</span>
+    <h1>Pay and the pay query, before and after</h1>
+    <p>What a casual sees on the Pay tab and on "Raise a pay query", now and after 28.10. Phones at their real 390px, light and dark; the laptop row is 1,280px wide at 150% scaling (an 853px window). Made-up firm and casual: Acme Events, Nell Hadley. A dashed blue outline marks what 28.10 adds.</p>
+    <ul class="changes">
+      <li>The pay day shows first, before the code, as Home already shows it. Hours, rates and totals stay behind the code.</li>
+      <li>"6‑digit" uses a non-breaking hyphen, so it never splits across two lines.</li>
+      <li>The pay query asks for the code on its own page and comes straight back, with the shift she came for still chosen.</li>
+      <li>Payroll's answers count on the Pay tab until the answer has been on her screen.</li>
+      <li>No "contact the office" dead end: "Message the office" goes to Messages.</li>
+      <li>Look: the pay card is 12px round with 16px inside, no lighter band; 32px between sections; notices are slips; choices are choice cards.</li>
+    </ul>
+  </header>
+
+  <!-- 1. Pay, before the code -->
+  <section class="row" aria-labelledby="r1">
+    <h2 id="r1">Pay, before the code</h2>
+    <p>Before, the Pay tab hid the pay day Home shows, and "6-digit" broke across two lines on a 390px phone. After, the pay day card comes first.</p>
+    <div class="scroller">
+      <div class="frames">
+        <figure class="frame">
+          <figcaption><span class="pill">Before</span> 390px · light</figcaption>
+          <div class="app">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Pay</h1>
+              <div class="card old">
+                <p>To keep your pay private, we'll text you a 6-<br>digit code.</p>
+                <span class="btn primary mt4">Send me a code</span>
+              </div>
+            </div>
+            <div class="tabs"><span>Home</span><span>Shifts</span><span>Messages</span><span class="on">Pay</span><span>Profile</span></div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.10</span> 390px · light</figcaption>
+          <div class="app">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Pay</h1>
+              <section class="card payday new">
+                <span class="date"><b>Fri</b><span>13</span></span>
+                <div><p class="h2">Pay day: Fri 13 Nov</p><p class="muted">For shifts Mon 2 to Sun 8 Nov</p></div>
+              </section>
+              <div class="card mt8">
+                <p>To keep your pay private, we'll text you a <span class="nb">6‑digit</span> code.</p>
+                <span class="btn primary mt4">Send me a code</span>
+              </div>
+            </div>
+            <div class="tabs"><span>Home</span><span>Shifts</span><span>Messages</span><span class="on">Pay<i>1</i></span><span>Profile</span></div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.10</span> 390px · dark</figcaption>
+          <div class="app dark">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Pay</h1>
+              <section class="card payday new">
+                <span class="date"><b>Fri</b><span>13</span></span>
+                <div><p class="h2">Pay day: Fri 13 Nov</p><p class="muted">For shifts Mon 2 to Sun 8 Nov</p></div>
+              </section>
+              <div class="card mt8">
+                <p>To keep your pay private, we'll text you a <span class="nb">6‑digit</span> code.</p>
+                <span class="btn primary mt4">Send me a code</span>
+              </div>
+            </div>
+            <div class="tabs"><span>Home</span><span>Shifts</span><span>Messages</span><span class="on">Pay<i>1</i></span><span>Profile</span></div>
+          </div>
+        </figure>
+        <span class="divider" aria-hidden="true"></span>
+        <figure class="frame">
+          <figcaption><span class="pill">Before</span> no code sender · light</figcaption>
+          <div class="app">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Pay</h1>
+              <div class="card old">
+                <p style="font-weight:600">We can't send you a code yet, so your pay can't open.</p>
+                <p class="mt2">Please contact the office the way you usually do.</p>
+              </div>
+            </div>
+            <div class="tabs"><span>Home</span><span>Shifts</span><span>Messages</span><span class="on">Pay</span><span>Profile</span></div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.10</span> no code sender · dark</figcaption>
+          <div class="app dark">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Pay</h1>
+              <section class="card payday">
+                <span class="date"><b>Fri</b><span>13</span></span>
+                <div><p class="h2">Pay day: Fri 13 Nov</p><p class="muted">For shifts Mon 2 to Sun 8 Nov</p></div>
+              </section>
+              <div class="mt8 new">
+                <div class="slip att"><span class="disc att">!</span><div class="stack" style="gap:4px"><p style="font-weight:600">We can't send you a code yet, so your pay can't open.</p><p>Your pay day is above. For anything else about your pay, message the office.</p></div></div>
+                <span class="btn secondary mt4">Message the office</span>
+              </div>
+            </div>
+            <div class="tabs"><span>Home</span><span>Shifts</span><span>Messages</span><span class="on">Pay</span><span>Profile</span></div>
+          </div>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. Raise a pay query, without the code -->
+  <section class="row" aria-labelledby="r2">
+    <h2 id="r2">Raise a pay query, without the code</h2>
+    <p>Before, the query sent her away to the pay page and she had to find her way back. After, the code step is on the query itself. Once the code is right she lands back on <span style="font-family:var(--font-data)">/pay/query?shift=…</span> with her shift chosen; anything else in the address is dropped.</p>
+    <div class="scroller">
+      <div class="frames">
+        <figure class="frame">
+          <figcaption><span class="pill">Before</span> 390px · light</figcaption>
+          <div class="app">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Raise a pay query</h1>
+              <p>To keep your pay private, enter your pay code first.</p>
+              <span class="btn primary mt8">Go to your pay</span>
+            </div>
+            <div class="tabs"><span>Home</span><span>Shifts</span><span>Messages</span><span class="on">Pay</span><span>Profile</span></div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.10</span> 390px · light</figcaption>
+          <div class="app">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Raise a pay query</h1>
+              <p class="lead new">Enter your <span class="nb">6‑digit</span> code first. Then you'll come straight back here.</p>
+              <div class="card">
+                <p>To keep your pay private, we'll text you a <span class="nb">6‑digit</span> code.</p>
+                <span class="btn primary mt4">Send me a code</span>
+              </div>
+            </div>
+            <div class="tabs"><span>Home</span><span>Shifts</span><span>Messages</span><span class="on">Pay</span><span>Profile</span></div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.10</span> the code sent · dark</figcaption>
+          <div class="app dark">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Raise a pay query</h1>
+              <p class="lead">Enter your <span class="nb">6‑digit</span> code first. Then you'll come straight back here.</p>
+              <div class="card">
+                <p>We've sent a <span class="nb">6‑digit</span> code by text. It works for 10 minutes.</p>
+                <p class="label mt4">Your code</p>
+                <div class="field mt2 code num">281 028</div>
+                <span class="btn primary mt4">Check code</span>
+                <span class="link mt2">Send me a new code</span>
+              </div>
+            </div>
+            <div class="tabs"><span>Home</span><span>Shifts</span><span>Messages</span><span class="on">Pay</span><span>Profile</span></div>
+          </div>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. After the code -->
+  <section class="row" aria-labelledby="r3">
+    <h2 id="r3">After the code</h2>
+    <p>The pay page keeps the pay day card at the top. The newest week loses its lighter band and its 24px corners. On the query, the shift from the link is chosen and the choices are the app's choice cards.</p>
+    <div class="scroller">
+      <div class="frames">
+        <figure class="frame">
+          <figcaption><span class="pill">Before</span> pay · light</figcaption>
+          <div class="app">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Pay</h1>
+              <p class="muted" style="margin-top:-16px">The last 8 weeks, from Acme Events' payroll.</p>
+              <section class="card old-big mt5 stack num">
+                <p style="font-size:18px;font-weight:500">Mon 26 Oct to Sun 1 Nov</p>
+                <div><p class="muted">Pay before tax</p><p class="big">£312.00</p></div>
+                <div class="tile old between" style="padding:12px 16px;font-size:18px"><span>24 hours</span><span>at £13.00 an hour</span></div>
+                <p class="band">Pay day: Fri 6 Nov</p>
+              </section>
+              <p class="mt8">If something looks wrong, raise a pay query.</p>
+            </div>
+            <div class="tabs"><span>Home</span><span>Shifts</span><span>Messages</span><span class="on">Pay</span><span>Profile</span></div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.10</span> pay · light</figcaption>
+          <div class="app">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Pay</h1>
+              <p class="muted" style="margin-top:-16px">The last 8 weeks, from Acme Events' payroll.</p>
+              <section class="card payday mt4 new">
+                <span class="date"><b>Fri</b><span>13</span></span>
+                <div><p class="h2">Pay day: Fri 13 Nov</p><p class="muted">For shifts Mon 2 to Sun 8 Nov</p></div>
+              </section>
+              <section class="card mt8 stack num">
+                <p class="h2">Mon 26 Oct to Sun 1 Nov</p>
+                <div><p class="muted">Pay before tax</p><p class="big">£312.00</p></div>
+                <div class="tile between" style="padding:12px 16px;font-size:18px"><span>24 hours</span><span>at £13.00 an hour</span></div>
+                <p class="paytile">Pay day: Fri 6 Nov</p>
+              </section>
+              <p class="mt8">If something looks wrong, raise a pay query.</p>
+              <span class="btn primary mt3">Raise a pay query</span>
+              <p class="h2 mt8">Your pay queries</p>
+              <div class="rows mt3 new">
+                <div><span class="chip">Answered by payroll on Thu 5 Nov</span><p class="mt2" style="font-weight:600">Wrong rate: Mon 2 Nov</p><p class="mt2">Payroll says: “Paid with Friday's run, at the new rate.”</p><p class="mt2 muted num">Reference 3F2A9C1B</p></div>
+              </div>
+            </div>
+            <div class="tabs"><span>Home</span><span>Shifts</span><span>Messages</span><span class="on">Pay<i>1</i></span><span>Profile</span></div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.10</span> answer seen · dark</figcaption>
+          <div class="app dark">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Pay</h1>
+              <p class="muted" style="margin-top:-16px">The last 8 weeks, from Acme Events' payroll.</p>
+              <section class="card payday mt4">
+                <span class="date"><b>Fri</b><span>13</span></span>
+                <div><p class="h2">Pay day: Fri 13 Nov</p><p class="muted">For shifts Mon 2 to Sun 8 Nov</p></div>
+              </section>
+              <section class="card mt8 stack num">
+                <p class="h2">Mon 26 Oct to Sun 1 Nov</p>
+                <div><p class="muted">Pay before tax</p><p class="big">£312.00</p></div>
+                <div class="tile between" style="padding:12px 16px;font-size:18px"><span>24 hours</span><span>at £13.00 an hour</span></div>
+                <p class="paytile">Pay day: Fri 6 Nov</p>
+              </section>
+              <p class="mt8">If something looks wrong, raise a pay query.</p>
+              <span class="btn primary mt3">Raise a pay query</span>
+              <p class="h2 mt8">Your pay queries</p>
+              <div class="rows mt3">
+                <div><span class="chip">Answered by payroll on Thu 5 Nov</span><p class="mt2" style="font-weight:600">Wrong rate: Mon 2 Nov</p><p class="mt2">Payroll says: “Paid with Friday's run, at the new rate.”</p><p class="mt2 muted num">Reference 3F2A9C1B</p></div>
+              </div>
+            </div>
+            <div class="tabs"><span>Home</span><span>Shifts</span><span>Messages</span><span class="on">Pay</span><span>Profile</span></div>
+          </div>
+        </figure>
+        <span class="divider" aria-hidden="true"></span>
+        <figure class="frame">
+          <figcaption><span class="pill">Before</span> query · light</figcaption>
+          <div class="app">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Raise a pay query</h1>
+              <p class="lead">Payroll will look at it. You'll see its status on your pay page.</p>
+              <p class="label">Which shift?</p>
+              <div class="field old mt2"><span class="muted">Choose a shift</span><span class="chev">▾</span></div>
+              <p class="label mt8" style="margin-top:24px">What's wrong?</p>
+              <div class="stack mt2" style="gap:8px">
+                <div class="choice old"><span class="radio"></span>Hours missing</div>
+                <div class="choice old on"><span class="radio"></span>Wrong rate</div>
+                <div class="choice old"><span class="radio"></span>Paid late or not paid</div>
+                <div class="choice old"><span class="radio"></span>Something else</div>
+              </div>
+              <p class="old-red mt4">Pay queries can go back 90 days. For anything older, contact the office.</p>
+            </div>
+            <div class="tabs"><span>Home</span><span>Shifts</span><span>Messages</span><span class="on">Pay</span><span>Profile</span></div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.10</span> query, ?shift= · light</figcaption>
+          <div class="app">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Raise a pay query</h1>
+              <p class="lead">Payroll will look at it. You'll see its status on your pay page.</p>
+              <p class="label">Which shift?</p>
+              <div class="field mt2 new"><span style="font-size:16px">Mon 2 Nov, 09:00 to 17:00 · Steward at Quayside Hall</span><span class="chev">▾</span></div>
+              <p class="label" style="margin-top:24px">What's wrong?</p>
+              <div class="stack mt2" style="gap:8px">
+                <div class="choice"><span class="radio"></span>Hours missing</div>
+                <div class="choice on"><span class="radio"></span>Wrong rate</div>
+                <div class="choice"><span class="radio"></span>Paid late or not paid</div>
+                <div class="choice"><span class="radio"></span>Something else</div>
+              </div>
+              <div class="slip mt4 new" style="background:rgb(255 239 234 / 0.85);border-color:#f5c2bb"><span class="disc" style="background:rgb(255 214 206 / 0.9);color:#7d1a10">!</span><p style="font-weight:600">Pay queries can go back 90 days. For anything older, <span class="inline-link">message the office</span>.</p></div>
+            </div>
+            <div class="tabs"><span>Home</span><span>Shifts</span><span>Messages</span><span class="on">Pay</span><span>Profile</span></div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.10</span> query sent · dark</figcaption>
+          <div class="app dark">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Raise a pay query</h1>
+              <p class="lead">Payroll will look at it. You'll see its status on your pay page.</p>
+              <div class="slip done new"><span class="disc done">✓</span><div class="stack" style="gap:4px"><p style="font-weight:600">Pay query sent.</p><p style="font-weight:600">Wrong rate: Mon 2 Nov, 09:00 to 17:00</p><p class="num">Sent at 09:14 on Fri 6 Nov.</p><p class="num">Reference: 3F2A9C1B</p><p>Payroll will look at it. You'll see the answer on your pay page.</p><p class="muted">Acme Events Shift Team</p></div></div>
+              <span class="btn primary mt4">Back to your pay</span>
+            </div>
+            <div class="tabs"><span>Home</span><span>Shifts</span><span>Messages</span><span class="on">Pay</span><span>Profile</span></div>
+          </div>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. Laptop -->
+  <section class="row" aria-labelledby="r4">
+    <h2 id="r4">On Dylan's laptop (1,280px at 150%)</h2>
+    <p>The casual app keeps its 448px column on a laptop; the tab bar floats under it. Pay before the code, light and dark.</p>
+    <div class="scroller">
+      <div class="frames">
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.10</span> 853px window · light</figcaption>
+          <div class="app laptop">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Pay</h1>
+              <section class="card payday new">
+                <span class="date"><b>Fri</b><span>13</span></span>
+                <div><p class="h2">Pay day: Fri 13 Nov</p><p class="muted">For shifts Mon 2 to Sun 8 Nov</p></div>
+              </section>
+              <div class="card mt8">
+                <p>To keep your pay private, we'll text you a <span class="nb">6‑digit</span> code.</p>
+                <span class="btn primary mt4">Send me a code</span>
+              </div>
+            </div>
+            <div class="tabs"><span>Home</span><span>Shifts</span><span>Messages</span><span class="on">Pay<i>1</i></span><span>Profile</span></div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.10</span> 853px window · dark</figcaption>
+          <div class="app laptop dark">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Pay</h1>
+              <section class="card payday new">
+                <span class="date"><b>Fri</b><span>13</span></span>
+                <div><p class="h2">Pay day: Fri 13 Nov</p><p class="muted">For shifts Mon 2 to Sun 8 Nov</p></div>
+              </section>
+              <div class="card mt8">
+                <p>To keep your pay private, we'll text you a <span class="nb">6‑digit</span> code.</p>
+                <span class="btn primary mt4">Send me a code</span>
+              </div>
+            </div>
+            <div class="tabs"><span>Home</span><span>Shifts</span><span>Messages</span><span class="on">Pay<i>1</i></span><span>Profile</span></div>
+          </div>
+        </figure>
+      </div>
+    </div>
+    <p>The browser test <span style="font-family:var(--font-data)">tests/e2e/casual.p28-pay.spec.ts</span> takes the real screenshots of both pages before and after the code, at 390px and 1,280px, light and dark.</p>
+  </section>
+</main>

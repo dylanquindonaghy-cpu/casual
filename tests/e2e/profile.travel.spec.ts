@@ -38,6 +38,8 @@ test("a casual sets their travel area, the office sees only the district, and th
   await page.goto(`${acme}/profile`);
   const where = page.getByRole("region", { name: "Your travel area" });
   await expect(where).toContainText("Not set yet.");
+  // (Folded on Profile since 28.11: a tap opens it.)
+  await where.locator("summary").click();
   await where.getByRole("link", { name: "Set your travel area" }).click();
   await expect(page).toHaveURL(`${acme}/profile/travel`);
   await expect(page.getByRole("heading", { name: "Your travel area", level: 1 })).toBeVisible();
@@ -93,6 +95,7 @@ test("a casual sets their travel area, the office sees only the district, and th
   expect(await office.content()).not.toContain("ZZ1 1AA");
 
   // Removed by the casual, after asking.
+  await where.locator("summary").click();
   await where.getByRole("link", { name: "Change your travel area" }).click();
   await page.getByRole("button", { name: "Remove my travel area" }).click();
   await page.getByRole("button", { name: "Yes, remove it" }).click();

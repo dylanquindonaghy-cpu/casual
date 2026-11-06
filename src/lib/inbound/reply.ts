@@ -125,6 +125,12 @@ type Read =
       body: string | null;
       keyword: Intent | null;
       echo: boolean; // it quotes our automatic line: never answered automatically
+      // The session it's about (Phase 28.6; kept by src/lib/inbound/app.ts only for one that
+      // hadn't ended): a person's, never sorted or answered automatically.
+      shiftId: string | null;
+      // Sent about her pay from Pay's "Message the office" (the guardrails review of 28.10): stored
+      // for the office (intent 'office' before it was claimed), a person's, never sorted.
+      aboutPay: boolean;
       repliedThisHour: number; // automatic answers in the app to them in the last hour
       firm: { name: string; slug: string; signOff: string };
     }
@@ -154,6 +160,8 @@ async function read(tx: FirmTx, messageId: string): Promise<Read> {
       body: messages.body,
       twilioOptOut: messages.twilioOptOut,
       workerId: messages.workerId,
+      shiftId: messages.shiftId, // a message in the app about a session (Phase 28.6)
+      intent: messages.intent, // set before the claim only on one in the app about her pay (28.10)
     })
     .from(messages)
     .where(eq(messages.id, messageId));
@@ -256,7 +264,12 @@ async function appRepliesThisHour(tx: FirmTx, workerId: string): Promise<number>
 
 async function readApp(
   tx: FirmTx,
-  m: { workerId: string | null; body: string | null },
+  m: {
+    workerId: string | null;
+    body: string | null;
+    shiftId: string | null;
+    intent: Intent | null;
+  },
   firm: { name: string; slug: string; settings: Record<string, unknown> },
 ): Promise<Read> {
   if (!m.workerId) return { kind: "done", result: { status: "gone" } };
@@ -272,6 +285,8 @@ async function readApp(
     body: m.body,
     keyword: m.body ? keywordIntent(m.body) : null,
     echo: m.body !== null && m.body.toLowerCase().includes(AUTOMATIC_LINE),
+    shiftId: m.shiftId,
+    aboutPay: m.intent === "office",
     repliedThisHour,
     firm: {
       name: firm.name,
@@ -570,6 +585,17 @@ async function answerMessage(
 // The hour's count is read first (so past it the AI isn't asked: nothing would go) and again in the
 // claim, under a lock on the casual, so two workers answering two of their messages at once can't
 // both take the fifth answer.
+// About a session (Phase 28.6; docs/messaging-templates.md "Messages in the app"): a message that
+// kept its session (src/lib/inbound/app.ts keeps one only before it ends) is never sorted: no
+// keyword, no AI (sortMessage isn't called, so the AI never sees its words) and no automatic answer.
+// It is the office's question, waiting for a person on Enquiries, and its `message.received` names
+// the session (`shiftId`). So a question about the pay for an open or booked shift reaches a
+// person, never the pay link; a worked shift's pay question keeps no session and is sorted as any
+// other, towards the pay query (golden rule 9).
+// About her pay, with no session (the guardrails review of 28.10; sent from Messages opened by
+// Pay's "Message the office" when Pay can't take the question): the same, never sorted, never the
+// automatic pay link (which would send her back to Pay), and a request for the office; its
+// `message.received` says so (`aboutPay`).
 async function answerApp(
   payload: InboundMessagePayload,
   run: WithFirm,
@@ -579,7 +605,10 @@ async function answerApp(
   let intent: Intent;
   let handledAs: "keyword" | "ai" | "office";
   let aiFallback: AiFallback | "no_text" | null = null;
-  if (c.echo || !c.active) {
+  const aboutShift = c.active && c.shiftId !== null;
+  const aboutPay = c.active && !aboutShift && c.aboutPay;
+  const forPerson = aboutShift || aboutPay; // never sorted: a person answers
+  if (c.echo || !c.active || forPerson) {
     intent = "office";
     handledAs = "office";
   } else if (c.keyword) {
@@ -598,7 +627,7 @@ async function answerApp(
   }
   const sortedAs = intent;
   let limited = c.repliedThisHour >= APP_REPLIES_PER_HOUR;
-  let answers = c.active && !c.echo && !limited;
+  let answers = c.active && !c.echo && !forPerson && !limited;
   if (!answers) intent = "office";
 
   // The personal reply to "shifts" or "cancel", read before the claim, as the shifts line's.
@@ -679,8 +708,16 @@ async function answerApp(
         handledAs,
         intent,
         ...(aiFallback ? { aiFallback } : {}),
-        ...(!c.active ? { formerWorker: true } : c.echo ? { echo: true } : {}),
-        ...(c.active && !c.echo && limited ? { replyLimit: true, sortedAs } : {}),
+        ...(!c.active
+          ? { formerWorker: true }
+          : aboutShift
+            ? { shiftId: c.shiftId }
+            : aboutPay
+              ? { aboutPay: true }
+              : c.echo
+                ? { echo: true }
+                : {}),
+        ...(c.active && !c.echo && !forPerson && limited ? { replyLimit: true, sortedAs } : {}),
         workerId: c.workerId,
       },
     });

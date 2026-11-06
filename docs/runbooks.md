@@ -971,8 +971,10 @@ it's listed under the map. See "Postcodes not found" above.
 
 Each shift's travel line ("7.2 miles · 18 min by car · 41 min by public transport") comes from
 travel estimates the worker works out (12G.2; `docs/office-v2.md` 5.4), never from a page. When
-they're missing, a casual sees "about 7 miles (straight line) · Travel time not known yet": shifts
-are never hidden because of it, and an unknown distance is still offered.
+they're missing, a casual sees "About 7 miles away. Travel time isn't worked out yet." in the app
+(Phase 28, 28.8) and "about 7 miles (straight line) · Travel time not known yet" in a WhatsApp
+reply from the shifts line (with commas in a text): shifts are never hidden because of it, and an
+unknown distance is still offered.
 
 1. Which service: `grep '^TRAVEL_PROVIDER=' .env`. `fake` works the times out on the server and
    can't be down. `traveltime` asks TravelTime.

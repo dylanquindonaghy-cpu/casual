@@ -110,10 +110,18 @@ export function createResultText(result: CreateShiftsResult | Common): string {
   }
 }
 
+// Phase 28.3: "Saved. 3 booked casuals will be told." when a briefing change reaches people booked
+// (src/lib/notices/details-changed.ts); "Saved." when nobody will be told.
+export function savedText(told: number | undefined): string {
+  return told && told > 0
+    ? `Saved. ${plural(told, "booked casual", "booked casuals")} will be told.`
+    : "Saved.";
+}
+
 export function editResultText(result: EditShiftResult | Common): string {
   switch (result.status) {
     case "saved":
-      return "Saved.";
+      return savedText(result.told);
     case "unchanged":
       return "Nothing changed.";
     case "invalid":
@@ -138,7 +146,7 @@ export function editResultText(result: EditShiftResult | Common): string {
 export function detailsResultText(result: EditDetailsResult | Common): string {
   switch (result.status) {
     case "saved":
-      return "Saved.";
+      return savedText(result.told);
     case "unchanged":
       return "Nothing changed.";
     case "invalid":

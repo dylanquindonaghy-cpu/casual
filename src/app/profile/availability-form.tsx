@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { labelStack, muted, staffBtn, staffBtnInline, staffField } from "@/app/ui/classes";
+import { Slip } from "@/app/ui/slip";
 import { useHydrated } from "@/app/use-hydrated";
 import type { AvailabilityOutcome } from "@/lib/portal/profile-kinds";
 import { dayLabel } from "@/lib/rules/reasons";
@@ -10,7 +11,7 @@ import { setUnavailableAction } from "./actions";
 import { tryAgainText } from "@/lib/portal/copy";
 
 // Days I can't work: pick a day → "Mark as unavailable"; each marked day has "Remove". The list
-// reloads after each change; the answer shows above it.
+// reloads after each change; the answer shows above it, as a slip (28.11).
 export function AvailabilityForm({
   days,
   min,
@@ -71,13 +72,14 @@ export function AvailabilityForm({
         Mark as unavailable
       </button>
       {message && (
-        <div
+        <Slip
+          tone={message.alert ? "urgent" : "done"}
           role={message.alert ? "alert" : "status"}
-          className={`mt-3 rounded-xl border-2 p-3 ${message.alert ? "border-urgent bg-urgent-soft font-semibold text-urgent-ink" : "border-done bg-done-soft"}`}
+          className="mt-3"
         >
           <p>{message.text}</p>
-          {!message.alert && <p className={`mt-1 ${muted}`}>— {signOff}</p>}
-        </div>
+          {!message.alert && <p className={muted}>— {signOff}</p>}
+        </Slip>
       )}
       {days.length === 0 ? (
         <p className={`mt-4 ${muted}`}>No days marked.</p>

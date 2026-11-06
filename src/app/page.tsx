@@ -2,16 +2,17 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireWorker } from "@/lib/auth/current-worker";
 import { appEnv, offlineCopyOn } from "@/lib/env";
-import { unreadReplies } from "@/lib/portal/messages";
-import { myNeedsAndPhoto, myShifts, needsDoingCount } from "@/lib/portal/my-shifts";
+import { myNeedsAndPhoto, myShifts } from "@/lib/portal/my-shifts";
 import { openShiftsFor } from "@/lib/portal/open-shifts";
 import { myPayDay } from "@/lib/portal/pay-day";
+import { myReachPrompts } from "@/lib/portal/reach-me";
+import { tabCounts } from "@/lib/portal/tab-counts";
 import { parseHost } from "@/lib/tenancy/host";
+import { CountedTabBar } from "./casual-tab-bar";
 import { HomeView } from "./home-view";
 import { OfflineCopy } from "./offline-copy";
 import { refreshSessionAction } from "./session-actions";
 import { SessionKeeper } from "./session-keeper";
-import { TabBar, TabBarSpace } from "./tab-bar";
 import { page } from "./ui/classes";
 
 // The root URL serves two sites: the ShiftDesk home page on the base domain, and each firm's
@@ -19,7 +20,9 @@ import { page } from "./ui/classes";
 // (docs/office-v2.md 4.2; docs/screens.md, `/`; 12H.1). Any host that isn't the base domain is a
 // firm's page: requireWorker() finds the firm (a name that isn't a firm's, or a custom domain not
 // verified, is the 404 page). Her bookings are on the Shifts tab (`/shifts`): the old address of
-// the last 30 days, `/?view=past`, goes there. Kept for when there's no signal (public/sw.js).
+// the last 30 days, `/?view=past`, goes there. Kept for when there's no signal (public/sw.js). Phase
+// 28.7: the tab bar's counts from tabCounts(), as on every casual page, and the two "can we reach
+// you" rows (src/lib/portal/reach-me.ts), online only.
 export default async function Home({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const match = parseHost((await headers()).get("host"), appEnv().APP_BASE_DOMAIN);
   if (match && match.kind !== "apex") {
@@ -27,11 +30,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
     const { firm, worker, session } = await requireWorker();
     const now = new Date();
     const clock = { now: () => now };
-    const [upcoming, needs, open, replies] = await Promise.all([
+    const [upcoming, needs, open, counts, reach] = await Promise.all([
       myShifts({ firm, clock }, worker.id, "upcoming"),
       myNeedsAndPhoto({ firm, clock }, worker.id),
       openShiftsFor({ firm, clock }, worker.id),
-      unreadReplies({ firm }, worker.id),
+      tabCounts({ firm, clock }, worker.id),
+      myReachPrompts({ firm }, worker.id),
     ]);
     const pay = await myPayDay({ firm, clock }, worker.id);
     return (
@@ -49,9 +53,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
           photo={needs.photo}
           open={open}
           pay={pay}
+          reach={reach}
         />
-        <TabBarSpace />
-        <TabBar current="home" profileCount={needsDoingCount(needs)} messagesCount={replies} />
+        <CountedTabBar current="home" counts={counts} />
       </main>
     );
   }

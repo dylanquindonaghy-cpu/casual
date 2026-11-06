@@ -36,6 +36,22 @@ export function readMessageOffice(params: {
   return parsed.success ? parsed.data : null;
 }
 
+// "Message the office" about her pay, with no session (the guardrails review of 28.10): the way on
+// from Pay and the pay query when the pay can't open (no way to send her a code) or a question is
+// older than 90 days (src/lib/portal/pay-copy.ts MESSAGE_OFFICE). What she sends from Messages
+// opened so is never sorted (src/lib/inbound/app.ts, reply.ts): it waits for a person, so it never
+// gets the automatic pay link that would only send her back to Pay.
+export const MESSAGES_ABOUT_PAY = "/messages?about=pay";
+
+// Messages opened about her pay: ?about=pay and no ?shift= at all (one with a shift is
+// readMessageOffice's). Anything else is false.
+export function readMessageAboutPay(params: {
+  shift?: string | string[];
+  about?: string | string[];
+}): boolean {
+  return params.shift === undefined && single(params.about) === "pay";
+}
+
 // The Messages link for a session and topic. Throws on an id or topic that isn't allowed: links are
 // built from the casual's own rows, never typed in.
 export function messagesHref(shiftId: string, about: MessageAbout): string {

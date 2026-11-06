@@ -1,16 +1,48 @@
+import { dayLabel } from "../rules/reasons";
+import { localDateOf, wallTimeOf } from "../time/zoned";
 import { tryAgainText } from "./copy";
+import { roleLabel } from "./format";
+import type { MessageAbout } from "./message-office";
 
-// The words of a casual's Messages (P8; Phase 25.6; docs/screens.md "Messages: the in-app chat").
-// Browser-safe: no server imports.
+// The words of a casual's Messages (P8; Phase 25.6; docs/screens.md "Messages: the in-app chat";
+// Phase 28.6, docs/screens.md "### 28.6"). Browser-safe: no server imports.
 
-// What happens to a message, as it does (src/lib/inbound/reply.ts): shifts, cancelling and pay get
-// an automatic answer straight away; a pay answer is a link to Pay, where a pay query reaches
-// payroll (golden rule 9: never an AI answer to a pay dispute); anything else goes to the office.
+// What happens to a message, as it does (src/lib/inbound/reply.ts), in two sentences (Phase 28.6):
+// shifts, cancelling and pay get an automatic answer straight away; a pay answer is a link to Pay,
+// where a pay query reaches payroll (golden rule 9: never an AI answer to a pay dispute); anything
+// else goes to the office.
 export const MESSAGES_INTRO =
-  "Ask about your shifts, cancelling or pay and get an answer straight away. If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll. Anything else goes to the office, and their reply comes here.";
+  "Ask about shifts, cancelling or pay for an answer straight away, or ask the office anything else. If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll.";
+// Opened from Pay about a question Pay can't take (28.10): it goes to a person, never sorted.
+export const MESSAGES_INTRO_PAY =
+  "This goes to a person at the office, not the automatic answers. They'll answer you here.";
 export const MESSAGES_EMPTY = "No messages yet.";
-export const COMPOSER_LABEL = "Write to the office";
+// Not "Write to the office" (Phase 28.6): the first answer is often automatic.
+export const COMPOSER_LABEL = "Your message";
 export const SENT_WAITING = "Sent. The answer comes here.";
+
+// Message the office about a shift (Phase 28.6; 28.2's link, src/lib/portal/message-office.ts):
+// the sentence put in her box for each topic, hers to change before she sends; "other" puts none.
+export const READY_SENTENCES: Record<MessageAbout, string> = {
+  pay: "What's the pay for this shift?",
+  late: "I'm running late. I'll be there about …",
+  started: "This shift has started and I need to talk to someone.",
+  other: "",
+};
+// Opened about her pay with no shift (the guardrails review of 28.10; Pay's "Message the office"):
+// the About line, and an empty box. Sent, a person answers it, never an automatic answer.
+export const ABOUT_PAY_LINE = "About: your pay";
+// Sent about a shift: a person answers it, never an automatic answer (src/lib/inbound/reply.ts).
+export const SENT_TO_OFFICE = "Sent. The office will answer here.";
+
+const pad = (n: number) => String(n).padStart(2, "0");
+
+// "About: Steward · Sat 7 Nov, 10:30": the shift's role, its day and its start, in the firm's time.
+export function aboutLine(shift: { role: string; startsAt: Date }, timeZone: string): string {
+  const w = wallTimeOf(shift.startsAt, timeZone);
+  const day = dayLabel(localDateOf(shift.startsAt, timeZone));
+  return `About: ${roleLabel(shift.role)} · ${day}, ${pad(w.hour)}:${pad(w.minute)}`;
+}
 // Who an answer is from, under it.
 export const FROM_WORDS = { automatic: "Automatic reply", office: "From the office" } as const;
 

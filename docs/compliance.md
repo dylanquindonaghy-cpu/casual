@@ -93,6 +93,11 @@ legal advice; `docs/dpia-strikes.md` comes first for a real firm.
 - **Told up front, and heard:** the cancel screen shows the warning before they confirm, and the
   version they saw is stored with the cancellation (S3); the help page explains the rule; a casual
   can tap "Tell us what happened"; the office can withdraw a strike.
+- **Seen afterwards, as it stands** (Phase 28.4): the casual's shift record (`/shifts/record`)
+  shows each of their own cancellations in the last 90 days with "Strike", "Strike (withdrawn by
+  the office)" or "No strike", read from the live strike row, and no strike words at all while the
+  firm has strikes off. Never the withdrawal's reason, the review flag or the evidence
+  (`docs/dpia-strikes.md` "Who can see it").
 - **No strike** when the office, the planner or the sheet cancelled, on a booking the office made,
   or after the office or the planner changed the session (the future protection against detriment);
   and none at all at a firm that switches strikes off (`strikes.enabled`, P3.4).
@@ -353,6 +358,16 @@ What the product does about it:
   `short_notice_threshold_hours`, default 48).
 - Exports a notice and cancellation report (CSV). Built (Phase 5): `/office/reports/notice`, from
   the append-only action log; each row's notice hours were recorded when it happened.
+- Shows each casual the same evidence about themselves (Phase 28.4): their shift record
+  (`/shifts/record`), built by the report's own row builder (`src/lib/notices/record-rows.ts`),
+  lists every offer, booking, office move, shortening and cancellation for them in the last 90
+  days, with who did it ("you" or "the office", never a name) and the notice as logged. A figure
+  the report worked out afterwards (an older offer, counted from the session's current start) reads
+  "Notice not recorded". Only fixed reasons show, each in words written for the casual
+  (`docs/screens.md` "### 28.4"): never the office's typed reasons, its
+  reason for placing someone despite a rule, rule codes or office users. Older records: the casual
+  asks the office for a copy. It says nothing about money owed or short notice until the 2027
+  rules are final.
 - Stage 2: a compensation calculator once the rules are final.
 
 ## WhatsApp rules

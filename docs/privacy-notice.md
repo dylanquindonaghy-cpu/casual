@@ -110,8 +110,14 @@ Replace the parts in [brackets]. Send both parts.
 > your reliability, which shifts you're offered or anything else, and nothing happens if you
 > don't answer.
 >
-> **Taking back a request:** you can take back a request while it's still waiting for our office.
-> We keep a record that you sent it and took it back.
+> **Taking back a request:** you can take back a request while it's still waiting for our office
+> (not a question you sent us as a message: our office answers that one). We keep a record that you
+> sent it and took it back.
+>
+> **Your shift record:** in the app you can see every offer, booking, change and cancellation for
+> you in the last 90 days, with the notice you had and, for one you cancelled, your reason and
+> whether it's a strike. No other casual can see it (our office sees the same entries in its own
+> log), and it's never kept on your phone (ask us for older ones).
 >
 > **"Add to my calendar":** if you tap it on a shift you're booked on, your phone saves a calendar
 > entry with the role, the times, the site's name and address and a link back to the shift. It
@@ -170,10 +176,12 @@ Replace the parts in [brackets]. Send both parts.
 > **Your rights:** you can ask us for a copy of your information (we'll send it within a month),
 > ask us to correct it, or ask us to delete it. If you ask us to delete it, your name, number,
 > email, staff number, licences, photos and card pictures, travel area, days off, messages and
-> logins are deleted, and so are the notes on your own
-> requests, pay questions and cancellations, when you said you were still coming as your booking shows it (our log keeps its entry that you said so, and when, like its other entries), the reasons our office typed when it placed you on a
-> shift, its reasons for withdrawing a strike, and its notes about you. The record of the shifts you were offered, worked or cancelled, and your pay records,
-> stay without your name, because we must be able to show the notice we gave and what we paid.
+> logins are deleted. So are the notes on your own requests, pay questions and cancellations, the
+> reasons our office typed when it placed you on a shift, its reasons for withdrawing a strike, its
+> notes about you, and the time on your booking that says you were still coming (our log still keeps
+> a line saying you did, and when, as it does for everything else). The record of the shifts you
+> were offered, worked or cancelled, and your pay records, stay without your name, because we must
+> be able to show the notice we gave and what we paid.
 > What other people wrote that mentions you (a colleague's swap request or pay question naming you,
 > say, or a message someone else sent us) isn't changed by your request: some of it is deleted on
 > the schedule above, and the rest is kept as our records.

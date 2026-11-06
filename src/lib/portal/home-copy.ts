@@ -1,14 +1,16 @@
 import type { NeedsItem } from "../credentials/status";
 import { localDateOf } from "../time/zoned";
-import type { TravelFacts } from "../travel/line-copy";
+import { DISTANCE_NOT_KNOWN, notWorkedOutText, type TravelFacts } from "../travel/line-copy";
 import type { StaffPhoto } from "../uploads/photo";
 import type { OpenShift } from "./open-shifts";
+import type { ReachPrompt } from "./reach-me";
 import { perHour } from "./format";
 import { needsText, needsUpload } from "./qualification-copy";
 import { datePartsOfDay } from "./sign-copy";
 
 // The words of Home's redesign (Phases 18, 20 and 24; docs/screens.md `/`): its rows ("Do this",
-// "Shifts you can take", "Pay"), the pass's travel figures and its "Bring and wear" items. Pure.
+// with its two "can we reach you" rows since Phase 28.7, "Shifts you can take", "Pay"), the pass's
+// travel figures and its "Bring and wear" items. Pure.
 
 const METRES_PER_MILE = 1609.344;
 
@@ -58,7 +60,8 @@ export function urgentRowText(
 }
 
 // The other shifts she can take ("3 more you can take" under the urgent row), their days and
-// the best pay; with none, when she'll hear of the next.
+// the best pay; with none, when she'll hear of the next. `offerAlerts`: we'll tell her, so her
+// alerts are on and something reaches her (Home passes false beside "We can't reach you").
 export function applyRowText(
   shifts: Pick<OpenShift, "startsAt" | "payRatePence">[],
   afterUrgent: boolean,
@@ -108,6 +111,21 @@ function weekText(start: string, end: string): string {
   const first = a.month === b.month ? `${a.dow} ${a.day}` : `${a.dow} ${a.day} ${a.month}`;
   return `${first} to ${b.dow} ${b.day} ${b.month}`;
 }
+
+// Home's two "can we reach you" rows in "Do this" (Phase 28.7; docs/screens.md "The casual app,
+// Phase 28", 28.7; when each shows: src/lib/portal/reach-me.ts), online only, both to Profile's
+// "How we reach you".
+export const REACH_PATH = "/profile#notify-heading";
+export const REACH_ROWS: Record<ReachPrompt, RowText> = {
+  unreachable: {
+    title: "We can't reach you about shifts",
+    sub: "You'll miss offers and changes to your shifts. Choose how we reach you.",
+  },
+  alerts_off: {
+    title: "Open-shift alerts are off",
+    sub: "We won't tell you about open shifts. Turn them on.",
+  },
+};
 
 // The offline copy's first row: what the urgent row said when it was kept.
 export const offlineUrgentText = (n: number, at: string) =>
@@ -189,8 +207,10 @@ function needsTitle(n: NeedsItem): string {
 }
 
 // Getting there as three figures with their words (Phase 24, round 7: how far first, "3.1" miles
-// away, then "15 min" by car and "31 min" by public transport), or one sentence when they aren't
-// known. On the pass's details and a shift's page.
+// away, then "15 min" by car and "31 min" by public transport), or, until the times are worked out,
+// the travel line's one sentence (src/lib/travel/line-copy.ts; Phase 28, 28.8: "About 2 miles away.
+// Travel time isn't worked out yet." in place of "2 miles in a straight line" and "Not known travel
+// time yet", which read as values). On the pass's details and a shift's page.
 export type TravelStrip =
   { kind: "cells"; cells: { figure: string; words: string }[] } | { kind: "words"; words: string };
 
@@ -200,13 +220,8 @@ function straightCell(metres: number) {
 }
 
 export function travelStrip(f: TravelFacts): TravelStrip {
-  if (f.kind === "unknown") return { kind: "words", words: "Distance not known yet" };
-  if (f.kind === "straight") {
-    return {
-      kind: "cells",
-      cells: [straightCell(f.straightMetres), { figure: "Not known", words: "travel time yet" }],
-    };
-  }
+  if (f.kind === "unknown") return { kind: "words", words: DISTANCE_NOT_KNOWN };
+  if (f.kind === "straight") return { kind: "words", words: notWorkedOutText(f.straightMetres) };
   const miles =
     f.car?.metres != null
       ? { figure: (f.car.metres / METRES_PER_MILE).toFixed(1), words: "miles away" }

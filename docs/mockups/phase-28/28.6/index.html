@@ -1,0 +1,694 @@
+<title>Message the Office</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500&display=swap">
+<style>
+/* Layout: a review sheet for task 28.6. Each row pairs "Before" (the build at the wave's base,
+   after 28.1's look) with "After 28.6" at their real sizes: phones at 390px, and Dylan's laptop at
+   1,280px and 150% (an 853px window). The sheet's own chrome follows the viewer's theme; each
+   frame carries its own fixed theme, as the app does. Values are the app's own tokens
+   (src/app/globals.css) and shared classes (src/app/ui/classes.ts); words are the build's. */
+:root {
+  --sheet-bg: #ecebe7;
+  --sheet-fg: #1b1c1e;
+  --sheet-muted: #5a5d63;
+  --sheet-rule: rgb(27 28 30 / 0.12);
+  --sheet-mark: #1d4ed8;
+  --sheet-mark-soft: rgb(29 78 216 / 0.1);
+  --font-ui: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-data: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --sheet-bg: #161618;
+    --sheet-fg: #ededec;
+    --sheet-muted: #a9a9ae;
+    --sheet-rule: rgb(255 255 255 / 0.12);
+    --sheet-mark: #a1bdff;
+    --sheet-mark-soft: rgb(161 189 255 / 0.12);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --sheet-bg: #161618;
+  --sheet-fg: #ededec;
+  --sheet-muted: #a9a9ae;
+  --sheet-rule: rgb(255 255 255 / 0.12);
+  --sheet-mark: #a1bdff;
+  --sheet-mark-soft: rgb(161 189 255 / 0.12);
+  color-scheme: dark;
+}
+
+/* The casual app's tokens, per frame (light, then .dark). Acme Events' colour is #1d4ed8: its main
+   button and her bubbles keep the light set's colour and white words in both looks. */
+.app {
+  --canvas: #f2f2f0;
+  --ink: #17181a;
+  --muted: #55585f;
+  --line: rgb(16 24 40 / 0.1);
+  --line-strong: #6e737b;
+  --card: rgb(255 255 255 / 0.55);
+  --rim: rgb(16 24 40 / 0.1);
+  --tile: rgb(16 24 40 / 0.03);
+  --button: rgb(255 255 255 / 0.7);
+  --button-rim: rgb(16 24 40 / 0.14);
+  --firm: #1d4ed8;
+  --on-firm: #ffffff;
+  --firm-mark: #1d4ed8;
+  --tab-ink: #17181a;
+  --on-tab-ink: #ffffff;
+  --done-soft: rgb(233 246 238 / 0.85);
+  --done-line: #b4dfc3;
+  --done-tile: rgb(210 239 219 / 0.9);
+  --done-ink: #155230;
+  color-scheme: light;
+}
+.app.dark {
+  --canvas: #0f0f10;
+  --ink: #f4f4f3;
+  --muted: #bfbfc4;
+  --line: rgb(255 255 255 / 0.1);
+  --line-strong: #7c7c82;
+  --card: rgb(255 255 255 / 0.04);
+  --rim: rgb(255 255 255 / 0.12);
+  --tile: rgb(255 255 255 / 0.03);
+  --button: rgb(255 255 255 / 0.05);
+  --button-rim: rgb(255 255 255 / 0.14);
+  --firm-mark: #3b6cf0;
+  --tab-ink: #f4f4f3;
+  --on-tab-ink: #0f0f10;
+  --done-soft: rgb(21 41 26 / 0.8);
+  --done-line: #2b5a3e;
+  --done-tile: rgb(21 41 26 / 0.9);
+  --done-ink: #c2efc0;
+  color-scheme: dark;
+}
+
+/* The office's tokens ([data-office]): dark by default, light when picked. Hi-vis on its main
+   button; its own bubbles in solid ink. */
+.office {
+  --canvas: #0f0f10;
+  --ink: #f4f4f3;
+  --muted: #bfbfc4;
+  --line: rgb(255 255 255 / 0.1);
+  --line-strong: #7c7c82;
+  --card: rgb(255 255 255 / 0.04);
+  --rim: rgb(255 255 255 / 0.12);
+  --tile: rgb(255 255 255 / 0.03);
+  --button: rgb(255 255 255 / 0.05);
+  --button-rim: rgb(255 255 255 / 0.14);
+  --on-ink: #0f0f10;
+  --tint: #e9f86f;
+  --on-tint: #171800;
+  --hivis: rgb(233 248 111 / 0.12);
+  --on-hivis: #e9f86f;
+  --att-soft: rgb(51 38 15 / 0.8);
+  --att-ink: #f6dcb0;
+  --quiet-soft: rgb(255 255 255 / 0.06);
+  --float: rgb(24 24 26 / 0.7);
+  color-scheme: dark;
+}
+.office.light {
+  --canvas: #f2f2f0;
+  --ink: #17181a;
+  --muted: #55585f;
+  --line: rgb(16 24 40 / 0.1);
+  --line-strong: #6e737b;
+  --card: rgb(255 255 255 / 0.55);
+  --rim: rgb(16 24 40 / 0.1);
+  --tile: rgb(16 24 40 / 0.03);
+  --button: rgb(255 255 255 / 0.7);
+  --button-rim: rgb(16 24 40 / 0.14);
+  --on-ink: #ffffff;
+  --hivis: rgb(233 248 111 / 0.5);
+  --on-hivis: #3a3f00;
+  --att-soft: rgb(255 246 224 / 0.85);
+  --att-ink: #5c3f00;
+  --quiet-soft: rgb(16 24 40 / 0.05);
+  --float: rgb(255 255 255 / 0.92);
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--sheet-bg);
+  color: var(--sheet-fg);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.sheet {
+  max-width: 1760px;
+  margin: 0 auto;
+  padding-block: 32px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid;
+  gap: 48px;
+}
+header.top { display: grid; gap: 12px; max-width: 76ch; }
+header.top h1 { font-size: 30px; font-weight: 600; letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+header.top p { margin: 0; color: var(--sheet-muted); }
+.tagline { font-family: var(--font-data); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--sheet-mark); }
+section.row { display: grid; gap: 16px; }
+section.row > h2 { font-size: 20px; font-weight: 600; margin: 0; text-wrap: balance; }
+section.row > p { margin: 0; color: var(--sheet-muted); max-width: 84ch; }
+.changes { margin: 0; padding-left: 20px; display: grid; gap: 4px; max-width: 92ch; }
+.changes li::marker { color: var(--sheet-mark); }
+.scroller { overflow-x: auto; padding-bottom: 8px; }
+.frames { display: flex; gap: 20px; align-items: flex-start; width: max-content; }
+.frame { display: grid; gap: 8px; margin: 0; }
+.frame figcaption { font-family: var(--font-data); font-size: 12px; color: var(--sheet-muted); display: flex; gap: 8px; align-items: center; }
+.pill { display: inline-flex; align-items: center; border-radius: 999px; padding: 2px 8px; font-weight: 500; border: 1px solid var(--sheet-rule); }
+.pill.after { color: var(--sheet-mark); background: var(--sheet-mark-soft); border-color: transparent; }
+.divider { width: 1px; align-self: stretch; background: var(--sheet-rule); }
+.mono { font-family: var(--font-data); font-size: 13px; }
+.note { font-size: 13px; color: var(--sheet-muted); max-width: 84ch; margin: 0; }
+
+/* A casual's phone, at its real 390px; the laptop frame is the 853px window. */
+.app, .office {
+  background: var(--canvas);
+  color: var(--ink);
+  box-shadow: 0 0 0 1px var(--sheet-rule), 0 12px 32px rgb(0 0 0 / 0.12);
+  overflow: hidden;
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.5;
+  position: relative;
+}
+.app { width: 390px; border-radius: 28px; padding-bottom: 100px; }
+.app.laptop, .office.laptop { width: 853px; border-radius: 12px; }
+.office { width: 390px; border-radius: 28px; padding-bottom: 32px; }
+.app p, .office p { margin: 0; }
+.app .bar { display: flex; align-items: center; gap: 10px; padding: 14px 16px 0; font-weight: 600; }
+.app.laptop .bar { max-width: 448px; margin: 0 auto; padding-inline: 24px; }
+.app .mark { width: 36px; height: 36px; border-radius: 8px; background: var(--firm-mark); color: #fff; display: grid; place-items: center; font-weight: 700; }
+.app .col { max-width: 448px; margin: 0 auto; padding: 24px 16px 0; }
+.app.laptop .col { padding-inline: 24px; }
+.app h1 { font-size: 28px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.15; margin: 0; }
+.app .intro { margin-top: 8px; }
+.app .thread { list-style: none; margin: 24px 0 0; padding: 0; display: grid; gap: 12px; }
+.app .thread li { display: flex; }
+.app .thread li.mine { justify-content: flex-end; }
+.app .bubble { max-width: 85%; border-radius: 12px; padding: 12px 16px; }
+.app .bubble.old { border-radius: 20px; }
+.app .bubble.mine { background: var(--firm); color: var(--on-firm); }
+.app .bubble.theirs { background: var(--button); box-shadow: inset 0 0 0 1px var(--button-rim); color: var(--ink); }
+.app .bubble .when { margin-top: 4px; font-size: 14px; font-variant-numeric: tabular-nums; }
+.app .bubble.mine .when { opacity: 0.85; }
+.app .bubble.theirs .when { color: var(--muted); }
+.app .bubble a, .app .bubble .lnk { text-decoration: underline; text-underline-offset: 4px; overflow-wrap: anywhere; }
+.app .empty { margin-top: 24px; border-radius: 8px; background: var(--tile); box-shadow: inset 0 0 0 1px var(--rim); padding: 16px; color: var(--muted); }
+.app .meta { margin-top: 24px; font-size: 14px; color: var(--muted); }
+.app .form { margin-top: 24px; display: grid; gap: 12px; }
+.app .about { display: inline-flex; align-items: center; justify-self: start; max-width: 100%; min-height: 28px; padding: 4px 12px; border-radius: 999px; background: var(--button); box-shadow: inset 0 0 0 1px var(--button-rim); font-size: 14px; font-weight: 500; line-height: 20px; }
+.app .label { display: grid; gap: 4px; font-weight: 600; }
+.app .box { min-height: 104px; border-radius: 8px; background: var(--tile); box-shadow: inset 0 0 0 1px var(--rim); padding: 12px 16px; font-size: 18px; font-weight: 400; }
+.app .box.old { border-radius: 16px; }
+.app .box .caret { display: inline-block; width: 2px; height: 1.1em; vertical-align: text-bottom; background: var(--ink); margin-left: 1px; }
+.app .status { font-weight: 600; }
+.app .send { display: flex; min-height: 52px; align-items: center; justify-content: center; border-radius: 999px; background: var(--firm); color: var(--on-firm); font-weight: 600; }
+.app .tabs { position: absolute; left: 12px; right: 12px; bottom: 12px; height: 68px; border-radius: 12px; background: var(--card); box-shadow: inset 0 0 0 1px var(--rim), 0 8px 24px rgb(0 0 0 / 0.08); display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; padding: 6px; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.app.laptop .tabs { left: 50%; right: auto; width: 424px; transform: translateX(-50%); }
+.app .tabs span { display: grid; place-items: center; border-radius: 8px; font-size: 12px; color: var(--muted); }
+.app .tabs span.on { background: var(--tab-ink); color: var(--on-tab-ink); font-weight: 700; }
+
+/* What 28.6 adds or changes: a dashed outline in the sheet's own blue. */
+.new { outline: 2px dashed var(--sheet-mark); outline-offset: 3px; }
+
+/* The office: its top bar under 1,024px (Menu, the firm, the theme, who's logged in). */
+.office .top { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 0 12px; background: var(--float); box-shadow: 0 1px 0 var(--line); }
+.office .menu { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 999px; background: var(--button); box-shadow: inset 0 0 0 1px var(--button-rim); font-weight: 600; }
+.office .fmark { width: 36px; height: 36px; border-radius: 8px; background: #1d4ed8; color: #fff; display: grid; place-items: center; font-weight: 700; flex: none; }
+.office .fname { font-weight: 600; }
+.office .who { margin-left: auto; width: 36px; height: 36px; border-radius: 999px; background: var(--hivis); color: var(--on-hivis); display: grid; place-items: center; font-weight: 700; font-size: 14px; flex: none; }
+.office .main { padding: 20px 16px 0; display: grid; gap: 32px; }
+.office.laptop .main { padding: 24px 32px 0; }
+.office .back { font-size: 14px; color: var(--muted); text-decoration: underline; text-underline-offset: 4px; }
+.office .head { display: grid; gap: 12px; }
+.office .head-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+.office h1 { font-size: 28px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.15; margin: 0; text-wrap: balance; }
+.office .facts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.office .chip { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding: 4px 12px; border-radius: 999px; font-size: 13px; line-height: 16px; font-weight: 600; box-shadow: inset 0 0 0 1px var(--rim); }
+.office .chip.att { background: var(--att-soft); color: var(--att-ink); }
+.office .chip.quiet { background: var(--quiet-soft); color: var(--muted); }
+.office .ref { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.office .ref b { font-family: var(--font-data); font-weight: 500; color: var(--ink); }
+.office .btn2 { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 999px; background: var(--button); box-shadow: inset 0 0 0 1px var(--button-rim); font-weight: 600; }
+.office .btn1 { display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border-radius: 999px; background: var(--tint); color: var(--on-tint); font-weight: 600; }
+.office .sec { display: grid; gap: 12px; }
+.office h2 { font-size: 18px; font-weight: 600; margin: 0; }
+.office .about-line b { font-weight: 600; }
+.office .ob .about-line { margin: 0 0 4px; font-size: 14px; }
+.office .lnk { text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; }
+.office .conv { list-style: none; margin: 0; padding: 16px; border-radius: 12px; background: var(--tile); box-shadow: inset 0 0 0 1px var(--rim); display: grid; gap: 12px; }
+.office .conv li { display: flex; }
+.office .conv li.ours { justify-content: flex-end; }
+.office .ob { max-width: 85%; border-radius: 12px; padding: 12px 16px; }
+.office .ob.theirs { background: var(--button); box-shadow: inset 0 0 0 1px var(--button-rim); }
+.office .ob.ours { background: var(--ink); color: var(--on-ink); }
+.office .ob .when { margin-top: 4px; font-size: 14px; font-variant-numeric: tabular-nums; }
+.office .ob.theirs .when { color: var(--muted); }
+.office .ob.ours .when { opacity: 0.8; }
+.office ol.steps { margin: 0; padding-left: 24px; display: grid; gap: 8px; }
+.office ol.steps li::marker { color: var(--muted); }
+.office ol.steps b { font-weight: 600; }
+.office .muted { color: var(--muted); }
+.office .answer { display: grid; gap: 12px; }
+.office .obox { min-height: 96px; border-radius: 8px; background: var(--tile); box-shadow: inset 0 0 0 1px var(--rim); padding: 8px 12px; color: var(--muted); }
+.office .how { font-size: 14px; color: var(--muted); }
+.office .btns { display: flex; flex-wrap: wrap; gap: 12px; }
+
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+@media (max-width: 520px) { header.top h1 { font-size: 24px; } }
+</style>
+
+<main class="sheet">
+  <header class="top">
+    <span class="tagline">ShiftDesk · Phase 28 · task 28.6</span>
+    <h1>Message the office about a shift, before and after</h1>
+    <p>What a casual sees on Messages when she comes from a shift (28.2's link, <span class="mono">/messages?shift={id}&amp;about={pay|late|started|other}</span>), and what a resourcer sees on that message's page in Enquiries. Phones at their real 390px, light and dark; the laptop frames are 1,280px wide at 150% scaling (an 853px window). Made-up firm and people: Acme Events, Kay Morgan, a Steward shift on Sat 7 Nov at 10:30. A dashed blue outline marks what 28.6 adds or changes.</p>
+    <ul class="changes">
+      <li>Opened from a shift she's booked on or can see, that hasn't ended: "About: Steward · Sat 7 Nov, 10:30" sits above the box, and the box holds a ready sentence she can change.</li>
+      <li>Sent: "Sent. The office will answer here." A message about a shift is never sorted by keyword or AI and gets no automatic answer: a person reads it.</li>
+      <li>If the shift ended before she tapped Send, nothing is kept: the message is sorted as any other and the page says "Sent. The answer comes here." A worked shift's pay question still gets the pay page's link (golden rule 9).</li>
+      <li>Messages' own words and look: a two-sentence intro, the box is "Your message", "No messages yet." sits in the empty box, the bubbles are 12px round.</li>
+      <li>In Enquiries the message waits in Need a person, and its page says "About: Steward, Sat 7 Nov 10:30" on her message's own bubble, linked to the session (a later message names its own session, or none).</li>
+      <li>Unchanged: 20 messages an hour at most, 5 automatic answers an hour at most, and the page looking again every few seconds for a minute after a send.</li>
+    </ul>
+  </header>
+
+  <!-- 1. Messages, opened from a shift -->
+  <section class="row" aria-labelledby="r1">
+    <h2 id="r1">Messages, opened from a shift</h2>
+    <p>Before, the link's shift was ignored: the page opened as always, with a 51-word intro and an empty box labelled "Write to the office". After, the shift is named and the box is ready to send. The three ready sentences are "What's the pay for this shift?", "I'm running late. I'll be there about …" and "This shift has started and I need to talk to someone."; <span class="mono">about=other</span> leaves the box empty under the About line.</p>
+    <div class="scroller">
+      <div class="frames">
+        <figure class="frame">
+          <figcaption><span class="pill">Before</span> 390px · light · about=late</figcaption>
+          <div class="app">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Messages</h1>
+              <p class="intro">Ask about your shifts, cancelling or pay and get an answer straight away. If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll. Anything else goes to the office, and their reply comes here.</p>
+              <p class="meta">No messages yet.</p>
+              <div class="form">
+                <div class="label">Write to the office<div class="box old"></div></div>
+                <span class="send">Send</span>
+              </div>
+            </div>
+            <div class="tabs"><span>Home</span><span>Shifts</span><span class="on">Messages</span><span>Pay</span><span>Profile</span></div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.6</span> 390px · light · about=late</figcaption>
+          <div class="app">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Messages</h1>
+              <p class="intro new">Ask about shifts, cancelling or pay for an answer straight away, or ask the office anything else. If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll.</p>
+              <p class="empty new">No messages yet.</p>
+              <div class="form">
+                <span class="about new">About: Steward · Sat 7 Nov, 10:30</span>
+                <div class="label"><span class="new" style="justify-self:start">Your message</span><div class="box new">I'm running late. I'll be there about …<span class="caret"></span></div></div>
+                <span class="send">Send</span>
+              </div>
+            </div>
+            <div class="tabs"><span>Home</span><span>Shifts</span><span class="on">Messages</span><span>Pay</span><span>Profile</span></div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.6</span> 390px · dark · about=pay</figcaption>
+          <div class="app dark">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Messages</h1>
+              <p class="intro">Ask about shifts, cancelling or pay for an answer straight away, or ask the office anything else. If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll.</p>
+              <ol class="thread" aria-label="Your messages">
+                <li class="mine"><div class="bubble mine new"><p>Is there parking at Quayside Hall?</p><p class="when">09:12 on Thu 5 Nov</p></div></li>
+                <li><div class="bubble theirs new"><p>Yes, in the north car park. Show your pass at the barrier. — Acme Events Shift Team</p><p class="when">From the office · 09:20 on Thu 5 Nov</p></div></li>
+              </ol>
+              <div class="form">
+                <span class="about new">About: Steward · Sat 7 Nov, 10:30</span>
+                <div class="label">Your message<div class="box new">What's the pay for this shift?<span class="caret"></span></div></div>
+                <span class="send">Send</span>
+              </div>
+            </div>
+            <div class="tabs"><span>Home</span><span>Shifts</span><span class="on">Messages</span><span>Pay</span><span>Profile</span></div>
+          </div>
+        </figure>
+        <span class="divider" aria-hidden="true"></span>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.6</span> no About line · dark</figcaption>
+          <div class="app dark">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Messages</h1>
+              <p class="intro">Ask about shifts, cancelling or pay for an answer straight away, or ask the office anything else. If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll.</p>
+              <p class="empty">No messages yet.</p>
+              <div class="form">
+                <div class="label">Your message<div class="box"></div></div>
+                <span class="send">Send</span>
+              </div>
+            </div>
+            <div class="tabs"><span>Home</span><span>Shifts</span><span class="on">Messages</span><span>Pay</span><span>Profile</span></div>
+          </div>
+        </figure>
+      </div>
+    </div>
+    <p class="note">The last frame is the page with no shift named: a shift that has ended, a draft or cancelled one, one she isn't booked on and can't see, another firm's, or a link the app doesn't make. It works as before, with the new words and look.</p>
+  </section>
+
+  <!-- 2. Sent -->
+  <section class="row" aria-labelledby="r2">
+    <h2 id="r2">Sent</h2>
+    <p>Her message shows in the thread at once. After 28.6, a message that kept its shift says "Sent. The office will answer here." and no automatic answer comes. The About line goes once it's sent, so her next message is about nothing in particular. The words after "Sent." come from what the send stored, so a shift that ended between opening the page and tapping Send gets today's words and today's answer.</p>
+    <div class="scroller">
+      <div class="frames">
+        <figure class="frame">
+          <figcaption><span class="pill">Before</span> sent · light</figcaption>
+          <div class="app">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Messages</h1>
+              <p class="intro">Ask about your shifts, cancelling or pay and get an answer straight away. If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll. Anything else goes to the office, and their reply comes here.</p>
+              <ol class="thread" aria-label="Your messages">
+                <li class="mine"><div class="bubble old mine"><p>I'm running late. I'll be there about 10:45</p><p class="when">10:05</p></div></li>
+              </ol>
+              <div class="form">
+                <div class="label">Write to the office<div class="box old"></div></div>
+                <p class="status">Sent. The answer comes here.</p>
+                <span class="send">Send</span>
+              </div>
+            </div>
+            <div class="tabs"><span>Home</span><span>Shifts</span><span class="on">Messages</span><span>Pay</span><span>Profile</span></div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.6</span> sent about a shift · light</figcaption>
+          <div class="app">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Messages</h1>
+              <p class="intro">Ask about shifts, cancelling or pay for an answer straight away, or ask the office anything else. If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll.</p>
+              <ol class="thread" aria-label="Your messages">
+                <li class="mine"><div class="bubble mine new"><p>I'm running late. I'll be there about 10:45</p><p class="when">10:05</p></div></li>
+              </ol>
+              <div class="form">
+                <div class="label">Your message<div class="box"></div></div>
+                <p class="status new">Sent. The office will answer here.</p>
+                <span class="send">Send</span>
+              </div>
+            </div>
+            <div class="tabs"><span>Home</span><span>Shifts</span><span class="on">Messages</span><span>Pay</span><span>Profile</span></div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.6</span> the office answered · dark</figcaption>
+          <div class="app dark">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Messages</h1>
+              <p class="intro">Ask about shifts, cancelling or pay for an answer straight away, or ask the office anything else. If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll.</p>
+              <ol class="thread" aria-label="Your messages">
+                <li class="mine"><div class="bubble mine"><p>I'm running late. I'll be there about 10:45</p><p class="when">10:05</p></div></li>
+                <li><div class="bubble theirs"><p>Thanks Kay, no problem. Come to the north gate and ask for Sam. — Acme Events Shift Team</p><p class="when">From the office · 10:08</p></div></li>
+              </ol>
+              <div class="form">
+                <div class="label">Your message<div class="box"></div></div>
+                <span class="send">Send</span>
+              </div>
+            </div>
+            <div class="tabs"><span>Home</span><span>Shifts</span><span class="on">Messages</span><span>Pay</span><span>Profile</span></div>
+          </div>
+        </figure>
+        <span class="divider" aria-hidden="true"></span>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.6</span> the shift ended before Send · light</figcaption>
+          <div class="app">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Messages</h1>
+              <p class="intro">Ask about shifts, cancelling or pay for an answer straight away, or ask the office anything else. If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll.</p>
+              <ol class="thread" aria-label="Your messages">
+                <li class="mine"><div class="bubble mine"><p>What's the pay for this shift?</p><p class="when">18:41</p></div></li>
+              </ol>
+              <div class="form">
+                <div class="label">Your message<div class="box"></div></div>
+                <p class="status new">Sent. The answer comes here.</p>
+                <span class="send">Send</span>
+              </div>
+            </div>
+            <div class="tabs"><span>Home</span><span>Shifts</span><span class="on">Messages</span><span>Pay</span><span>Profile</span></div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.6</span> then the pay link · dark</figcaption>
+          <div class="app dark">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Messages</h1>
+              <p class="intro">Ask about shifts, cancelling or pay for an answer straight away, or ask the office anything else. If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll.</p>
+              <ol class="thread" aria-label="Your messages">
+                <li class="mine"><div class="bubble mine"><p>What's the pay for this shift?</p><p class="when">18:41</p></div></li>
+                <li><div class="bubble theirs"><p>Your hours, rates and pay dates: <span class="lnk">https://acme.shiftdesk.co.uk/pay</span> (you'll get a code to log in). If something looks wrong, tap 'Raise a pay query' there, so payroll sees it. Automatic reply. — Acme Events Shift Team</p><p class="when">Automatic reply · 18:41</p></div></li>
+              </ol>
+              <div class="form">
+                <div class="label">Your message<div class="box"></div></div>
+                <span class="send">Send</span>
+              </div>
+            </div>
+            <div class="tabs"><span>Home</span><span>Shifts</span><span class="on">Messages</span><span>Pay</span><span>Profile</span></div>
+          </div>
+        </figure>
+      </div>
+    </div>
+    <p class="note">The last two frames: the Steward shift ran 10:30 to 18:30. Kay opened Messages about its pay at 18:25 and tapped Send at 18:41, after it ended. The send keeps no shift, the message is sorted as any other, and a worked shift's pay question gets the pay page's link, towards a pay query for payroll.</p>
+  </section>
+
+  <!-- 3. The office's message page -->
+  <section class="row" aria-labelledby="r3">
+    <h2 id="r3">The message in Enquiries</h2>
+    <p>Before, "What's the pay for this shift?" matched the pay keyword and was answered with the pay page's link, and nobody in the office had to look. After, a message about a shift that hasn't ended waits in Need a person. Its page names the session at the top of "The conversation", linked to the session's page, and says why it went to a person. The same shows in the pane beside the list from 1,024px.</p>
+    <div class="scroller">
+      <div class="frames">
+        <figure class="frame">
+          <figcaption><span class="pill">Before</span> 853px window · dark</figcaption>
+          <div class="office laptop">
+            <div class="top"><span class="menu">Menu</span><span class="fmark">A</span><span class="fname">Acme Events</span><span class="who">RB</span></div>
+            <div class="main">
+              <div class="head">
+                <span class="back">Enquiries</span>
+                <div class="head-row"><h1>Message from Kay Morgan</h1><span class="btn2">Kay Morgan's page</span></div>
+                <p class="facts"><span class="chip quiet">Pay: link to their pay page</span><span class="chip quiet">Pay: never answered by AI</span><span class="ref">Reference <b>7C41E09A</b></span></p>
+              </div>
+              <section class="sec" aria-label="The conversation">
+                <h2>The conversation</h2>
+                <ul class="conv">
+                  <li><div class="ob theirs"><p>What's the pay for this shift?</p><p class="when">In the app · 10:05 on Sat 7 Nov</p></div></li>
+                  <li class="ours"><div class="ob ours"><p>Your hours, rates and pay dates: https://acme.shiftdesk.co.uk/pay (you'll get a code to log in). If something looks wrong, tap 'Raise a pay query' there, so payroll sees it. Automatic reply. — Acme Events Shift Team</p><p class="when">In the app · 10:05 on Sat 7 Nov</p></div></li>
+                </ul>
+              </section>
+              <section class="sec" aria-label="How it was answered">
+                <h2>How it was answered</h2>
+                <ol class="steps">
+                  <li><b>Received:</b> In the app at 10:05 on Sat 7 Nov, from Kay Morgan.</li>
+                  <li><b>Sorted:</b> A keyword matched: "pay".</li>
+                  <li><b>What we checked:</b> No checks recorded.</li>
+                  <li><b>Reply sent:</b> The pay reply: the link to their pay page, never an answer about pay.</li>
+                  <li><b>Sent:</b> Shown in the app at 10:05 on Sat 7 Nov.</li>
+                  <li><b>Then:</b> Nothing more.</li>
+                </ol>
+              </section>
+            </div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.6</span> 853px window · dark</figcaption>
+          <div class="office laptop">
+            <div class="top"><span class="menu">Menu</span><span class="fmark">A</span><span class="fname">Acme Events</span><span class="who">RB</span></div>
+            <div class="main">
+              <div class="head">
+                <span class="back">Enquiries</span>
+                <div class="head-row"><h1>Message from Kay Morgan</h1><span class="btn2">Kay Morgan's page</span></div>
+                <p class="facts"><span class="chip att new">Passed to a person, waiting</span><span class="ref">Reference <b>7C41E09A</b></span></p>
+              </div>
+              <section class="sec" aria-label="The conversation">
+                <h2>The conversation</h2>
+                <ul class="conv">
+                  <li><div class="ob theirs"><p class="about-line new"><b>About:</b> <span class="lnk">Steward, Sat 7 Nov 10:30</span></p><p>What's the pay for this shift?</p><p class="when">In the app · 10:05 on Sat 7 Nov</p></div></li>
+                </ul>
+              </section>
+              <section class="sec" aria-label="How it was answered">
+                <h2>How it was answered</h2>
+                <ol class="steps">
+                  <li><b>Received:</b> In the app at 10:05 on Sat 7 Nov, from Kay Morgan.</li>
+                  <li class="new"><b>Sorted:</b> About a session: passed to a person, never sorted.</li>
+                  <li><b>What we checked:</b> No checks recorded.</li>
+                  <li class="new"><b>Reply sent:</b> No automatic reply.</li>
+                  <li class="new"><b>Sent:</b> Nothing sent.</li>
+                  <li><b>Then:</b> Waiting for a person.</li>
+                </ol>
+              </section>
+              <section class="sec answer" aria-label="Answer it">
+                <h2>Answer it</h2>
+                <div class="obox">Your reply</div>
+                <p class="how">In the app: your words go as they are, and they get a notification.</p>
+                <div class="btns"><span class="btn1">Send reply</span><span class="btn2">Close, no reply needed</span></div>
+              </section>
+            </div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.6</span> 853px window · light</figcaption>
+          <div class="office laptop light">
+            <div class="top"><span class="menu">Menu</span><span class="fmark">A</span><span class="fname">Acme Events</span><span class="who">RB</span></div>
+            <div class="main">
+              <div class="head">
+                <span class="back">Enquiries</span>
+                <div class="head-row"><h1>Message from Kay Morgan</h1><span class="btn2">Kay Morgan's page</span></div>
+                <p class="facts"><span class="chip att">Passed to a person, waiting</span><span class="ref">Reference <b>3A90D2F1</b></span></p>
+              </div>
+              <section class="sec" aria-label="The conversation">
+                <h2>The conversation</h2>
+                <ul class="conv">
+                  <li><div class="ob theirs"><p class="about-line new"><b>About:</b> <span class="lnk">Steward, Sat 7 Nov 10:30</span></p><p>I'm running late. I'll be there about 10:45</p><p class="when">In the app · 10:05 on Sat 7 Nov</p></div></li>
+                  <li class="ours"><div class="ob ours"><p>Thanks Kay, no problem. Come to the north gate and ask for Sam.</p><p class="when">In the app · 10:08 on Sat 7 Nov · Rosa Bell</p></div></li>
+                </ul>
+              </section>
+              <section class="sec" aria-label="How it was answered">
+                <h2>How it was answered</h2>
+                <ol class="steps">
+                  <li><b>Received:</b> In the app at 10:05 on Sat 7 Nov, from Kay Morgan.</li>
+                  <li><b>Sorted:</b> About a session: passed to a person, never sorted.</li>
+                  <li><b>What we checked:</b> No checks recorded.</li>
+                  <li><b>Reply sent:</b> No automatic reply.</li>
+                  <li><b>Sent:</b> Nothing sent.</li>
+                  <li><b>Then:</b> Rosa Bell replied at 10:08 on Sat 7 Nov (in the app, in their own words): sent.</li>
+                </ol>
+              </section>
+            </div>
+          </div>
+        </figure>
+        <span class="divider" aria-hidden="true"></span>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.6</span> 390px · dark</figcaption>
+          <div class="office">
+            <div class="top"><span class="menu">Menu</span><span class="fmark">A</span><span class="fname">Acme Events</span><span class="who">RB</span></div>
+            <div class="main">
+              <div class="head">
+                <span class="back">Enquiries</span>
+                <h1>Message from Kay Morgan</h1>
+                <p class="facts"><span class="chip att">Passed to a person, waiting</span><span class="ref">Reference <b>3A90D2F1</b></span></p>
+                <span class="btn2" style="justify-self:start">Kay Morgan's page</span>
+              </div>
+              <section class="sec" aria-label="The conversation">
+                <h2>The conversation</h2>
+                <ul class="conv">
+                  <li><div class="ob theirs"><p class="about-line new"><b>About:</b> <span class="lnk">Steward, Sat 7 Nov 10:30</span></p><p>I'm running late. I'll be there about 10:45</p><p class="when">In the app · 10:05 on Sat 7 Nov</p></div></li>
+                </ul>
+              </section>
+              <section class="sec" aria-label="How it was answered">
+                <h2>How it was answered</h2>
+                <ol class="steps">
+                  <li><b>Received:</b> In the app at 10:05 on Sat 7 Nov, from Kay Morgan.</li>
+                  <li><b>Sorted:</b> About a session: passed to a person, never sorted.</li>
+                  <li><b>Reply sent:</b> No automatic reply.</li>
+                </ol>
+              </section>
+            </div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.6</span> 390px · light</figcaption>
+          <div class="office light">
+            <div class="top"><span class="menu">Menu</span><span class="fmark">A</span><span class="fname">Acme Events</span><span class="who">RB</span></div>
+            <div class="main">
+              <div class="head">
+                <span class="back">Enquiries</span>
+                <h1>Message from Kay Morgan</h1>
+                <p class="facts"><span class="chip att">Passed to a person, waiting</span><span class="ref">Reference <b>3A90D2F1</b></span></p>
+                <span class="btn2" style="justify-self:start">Kay Morgan's page</span>
+              </div>
+              <section class="sec" aria-label="The conversation">
+                <h2>The conversation</h2>
+                <ul class="conv">
+                  <li><div class="ob theirs"><p class="about-line new"><b>About:</b> <span class="lnk">Steward, Sat 7 Nov 10:30</span></p><p>I'm running late. I'll be there about 10:45</p><p class="when">In the app · 10:05 on Sat 7 Nov</p></div></li>
+                </ul>
+              </section>
+              <section class="sec answer" aria-label="Answer it">
+                <h2>Answer it</h2>
+                <div class="obox">Your reply</div>
+                <p class="how">In the app: your words go as they are, and they get a notification.</p>
+                <div class="btns"><span class="btn1">Send reply</span><span class="btn2">Close, no reply needed</span></div>
+              </section>
+            </div>
+          </div>
+        </figure>
+      </div>
+    </div>
+    <p class="note">The phone frames are cut short after the parts 28.6 changes; the rest of the page ("Considered but not offered", the reply form, "Back to Enquiries") is as before. The action log's entry for the message names the session, so it also shows in that session's history.</p>
+  </section>
+
+  <!-- 4. Laptop -->
+  <section class="row" aria-labelledby="r4">
+    <h2 id="r4">Messages on Dylan's laptop (1,280px at 150%)</h2>
+    <p>The casual app keeps its 448px column on a laptop, with the tab bar floating under it. Opened about a shift that has started, light and dark.</p>
+    <div class="scroller">
+      <div class="frames">
+        <figure class="frame">
+          <figcaption><span class="pill">Before</span> 853px window · dark · about=started</figcaption>
+          <div class="app laptop dark">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Messages</h1>
+              <p class="intro">Ask about your shifts, cancelling or pay and get an answer straight away. If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll. Anything else goes to the office, and their reply comes here.</p>
+              <p class="meta">No messages yet.</p>
+              <div class="form">
+                <div class="label">Write to the office<div class="box old"></div></div>
+                <span class="send">Send</span>
+              </div>
+            </div>
+            <div class="tabs"><span>Home</span><span>Shifts</span><span class="on">Messages</span><span>Pay</span><span>Profile</span></div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.6</span> 853px window · light · about=started</figcaption>
+          <div class="app laptop">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Messages</h1>
+              <p class="intro">Ask about shifts, cancelling or pay for an answer straight away, or ask the office anything else. If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll.</p>
+              <p class="empty">No messages yet.</p>
+              <div class="form">
+                <span class="about new">About: Steward · Sat 7 Nov, 10:30</span>
+                <div class="label">Your message<div class="box new">This shift has started and I need to talk to someone.<span class="caret"></span></div></div>
+                <span class="send">Send</span>
+              </div>
+            </div>
+            <div class="tabs"><span>Home</span><span>Shifts</span><span class="on">Messages</span><span>Pay</span><span>Profile</span></div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.6</span> 853px window · dark · about=started</figcaption>
+          <div class="app laptop dark">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Messages</h1>
+              <p class="intro">Ask about shifts, cancelling or pay for an answer straight away, or ask the office anything else. If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll.</p>
+              <p class="empty">No messages yet.</p>
+              <div class="form">
+                <span class="about new">About: Steward · Sat 7 Nov, 10:30</span>
+                <div class="label">Your message<div class="box new">This shift has started and I need to talk to someone.<span class="caret"></span></div></div>
+                <span class="send">Send</span>
+              </div>
+            </div>
+            <div class="tabs"><span>Home</span><span>Shifts</span><span class="on">Messages</span><span>Pay</span><span>Profile</span></div>
+          </div>
+        </figure>
+      </div>
+    </div>
+    <p class="note">Mock-up only: the browser test <span class="mono">tests/e2e/casual.p28-message-office.spec.ts</span> takes the real screenshots of both pages at 390px and 1,280px, light and dark, in its run's report.</p>
+  </section>
+</main>

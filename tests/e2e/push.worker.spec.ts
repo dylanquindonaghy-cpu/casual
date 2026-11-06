@@ -3,7 +3,7 @@ import { expect, test } from "./fixtures";
 import { loginLinkSentTo } from "./outbox";
 
 // Web push in a real browser, short of a real push service (not connected: PLAN.md Parking lot).
-// The profile says phone notifications aren't switched on (no VAPID key), and the subscribe route
+// The profile leaves phone notifications out (no VAPID key; 28.11), and the subscribe route
 // only takes a logged-in worker's request from the portal's own page. The subscription posted here
 // is made up: no browser subscribes, so nothing reaches Google or Apple.
 
@@ -106,7 +106,11 @@ test("the subscribe route: logged in, from our own page, a proper subscription",
   expect(await off.json()).toEqual({ status: "removed" });
 });
 
-test("the profile says phone notifications aren't switched on yet", async ({ page }) => {
+// 28.11: where the firm has phone notifications off, Profile says nothing about them at all (the
+// review: a whole subsection about a feature that's off, its "yet" reading as unfinished).
+test("the profile leaves phone notifications out where they aren't switched on", async ({
+  page,
+}) => {
   const asked = new Date(Date.now() - 1000);
   await page.goto(`${acme}/login`);
   await page.getByLabel("Your mobile number").fill("07700 900109");
@@ -117,6 +121,9 @@ test("the profile says phone notifications aren't switched on yet", async ({ pag
     .getByRole("navigation", { name: "Main" })
     .getByRole("link", { name: "Profile" })
     .click();
-  await expect(page.getByRole("heading", { name: "Notifications on this phone" })).toBeVisible();
-  await expect(page.getByText("Acme Events doesn't use phone notifications yet.")).toBeVisible();
+  const reach = page.getByRole("region", { name: "How we reach you" });
+  await reach.locator("summary").click();
+  await expect(reach.getByRole("button", { name: "Save settings" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Notifications on this phone" })).toHaveCount(0);
+  await expect(page.getByText("Acme Events doesn't use phone notifications yet.")).toHaveCount(0);
 });

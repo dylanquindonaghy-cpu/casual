@@ -265,9 +265,20 @@ describe("myRequests and requestableShifts", () => {
     await f.booking(sam, await f.shift({ startsAt: hoursFromNow(40) }), "cancelled_worker");
     await f.booking(sam, await f.shift({ startsAt: hoursFromNow(42), status: "cancelled" }));
     await f.shift({ startsAt: hoursFromNow(45) }); // not booked
+    // Phase 28.9: each also on two lines, for the form's choice cards.
     expect(await requestableShifts(ctxFor(f), sam)).toEqual([
-      { shiftId: sooner, label: "Tue 3 Nov, 14:00 to 22:00, Door supervisor" },
-      { shiftId: later, label: "Wed 4 Nov, 14:00 to 22:00, Door supervisor" },
+      {
+        shiftId: sooner,
+        label: "Tue 3 Nov, 14:00 to 22:00, Door supervisor",
+        when: "Tue 3 Nov, 14:00 to 22:00",
+        what: "Door supervisor",
+      },
+      {
+        shiftId: later,
+        label: "Wed 4 Nov, 14:00 to 22:00, Door supervisor",
+        when: "Wed 4 Nov, 14:00 to 22:00",
+        what: "Door supervisor",
+      },
     ]);
   });
 });

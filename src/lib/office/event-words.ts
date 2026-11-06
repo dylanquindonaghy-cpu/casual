@@ -6,6 +6,7 @@ import { REJECT_CHOICES } from "../portal/qualification-copy";
 import { KIND_NAMES } from "../portal/request-kinds";
 import { roleLabel } from "../portal/format";
 import { pounds } from "../portal/pay-format";
+import { briefingFieldsOf, briefingWords } from "../notices/briefing-fields";
 import { dayLabel } from "../rules/reasons";
 import { syncErrorWords } from "../roster/sheets/error-words";
 import { CLOSE_REASON_WORDS } from "./enquiries-copy";
@@ -65,6 +66,22 @@ const FIELD_WORDS: Record<string, string> = {
   // Only the planner moves a session to another event or renames one (12J.1).
   event: "event",
   eventName: "event name",
+};
+
+// Why a booked casual wasn't told their shift's briefing changed (Phase 28.3,
+// src/lib/notices/details-changed.ts).
+const DETAILS_SKIP_WORDS: Record<string, string> = {
+  started: "the shift had started",
+  firm_sends: "your own system tells them (its booking, and its change)",
+  move_notice: "the same change moved their shift, and they're told about that",
+  no_way: "nothing can reach them (no phone notifications, text or email)",
+};
+
+// " (meeting point and uniform)": the parts that changed, in the casual's words; nothing for an
+// entry that names none.
+const detailsChanged = (fields: unknown): string => {
+  const words = briefingWords(briefingFieldsOf(fields));
+  return words ? ` (${words})` : "";
 };
 
 const CODE_WORDS: Record<string, string> = {
@@ -330,6 +347,20 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return d.reason === "cancelled"
         ? `${worker} wasn't told they're booked: the booking was cancelled first.`
         : `${worker} wasn't told they're booked: it was already marked as worked or not attended.`;
+    // A booked shift's briefing changed (Phase 28.3): what changed in the casual's words, never a
+    // value.
+    case "shift.details_notice":
+      return `Telling ${worker} their shift's details changed${detailsChanged(d.fields)}.`;
+    case "shift.details_notice_sent":
+      return `${worker} was told their shift's details changed.`;
+    case "shift.details_notice_failed":
+      return `Telling ${worker} their shift's details changed failed.`;
+    case "shift.details_notice_held":
+      return d.afterStart
+        ? `Telling ${worker} their shift's details changed waits for quiet hours to end, after the start: phone them.`
+        : `Telling ${worker} their shift's details changed waits for quiet hours to end.`;
+    case "shift.details_notice_skipped":
+      return `${worker} wasn't told their shift's details changed: ${DETAILS_SKIP_WORDS[String(d.reason)] ?? "nothing to tell"}.`;
     case "shift.change_notice_skipped":
       if (d.reason === "erased") return "A deleted worker wasn't told about a change (no number).";
       if (d.reason === "not_told") {

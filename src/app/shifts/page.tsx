@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { requireWorker } from "@/lib/auth/current-worker";
 import { appEnv, offlineCopyOn } from "@/lib/env";
-import { unreadReplies } from "@/lib/portal/messages";
-import { myShifts, profileNeedsCount } from "@/lib/portal/my-shifts";
+import { myShifts } from "@/lib/portal/my-shifts";
+import { tabCounts } from "@/lib/portal/tab-counts";
 import { BookedView } from "./booked-view";
+import { CountedTabBar } from "../casual-tab-bar";
 import { OfflineCopy } from "../offline-copy";
 import { refreshSessionAction } from "../session-actions";
 import { SessionKeeper } from "../session-keeper";
-import { TabBar, TabBarSpace } from "../tab-bar";
 import { page } from "../ui/classes";
 
 export const metadata: Metadata = { title: "Booked shifts" };
@@ -27,10 +27,10 @@ export default async function BookedPage({
   const newShiftId = typeof params.new === "string" ? params.new : undefined;
   const now = new Date();
   const clock = { now: () => now };
-  const [shifts, needsCount, replies] = await Promise.all([
+  // The tab bar's counts from tabCounts(), as on every casual page (Phase 28.7).
+  const [shifts, counts] = await Promise.all([
     myShifts({ firm, clock }, worker.id, view),
-    profileNeedsCount({ firm, clock }, worker.id),
-    unreadReplies({ firm }, worker.id),
+    tabCounts({ firm, clock }, worker.id),
   ]);
   return (
     <main className={page.staff}>
@@ -44,8 +44,7 @@ export default async function BookedPage({
         shifts={shifts}
         newShiftId={newShiftId}
       />
-      <TabBarSpace />
-      <TabBar current="shifts" profileCount={needsCount} messagesCount={replies} />
+      <CountedTabBar current="shifts" counts={counts} />
     </main>
   );
 }

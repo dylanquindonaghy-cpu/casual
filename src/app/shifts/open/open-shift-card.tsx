@@ -3,6 +3,7 @@ import { NO_RATE_TEXT, perHour, roleLabel, soonLabel } from "@/lib/portal/format
 import type { OpenShift } from "@/lib/portal/open-shifts";
 import { dateParts, placesLeftText, timeRange } from "@/lib/portal/sign-copy";
 import { travelLineText } from "@/lib/travel/line-copy";
+import { chip, tag } from "../../ui/classes";
 import { Icon } from "../../ui/icons";
 import { DateTile } from "../../ui/sign";
 
@@ -13,12 +14,16 @@ const ASK_LINE = {
   not_this_time: "Not this time",
 } as const;
 
-// One shift on Open shifts or the urgent board (docs/office-v2.md 4.3; 12H.2; Phases 18, 20 and
-// 24), a glass card that opens the shift's page (where she reads it in full and takes it): its date
-// tile (pale red when urgent), the time with the pay per hour across from it ("Pay: ask the office"
-// with no rate), the role, the event, site and post, the travel line after a car (both times, whichever ways she chose, so no one is shown
-// only a drive; "Distance not known yet" when it isn't: 12G.3), then the places left on a little
-// glass chip (red words when urgent) and a round arrow; under fair rotation, when she can take it.
+// One shift on Open shifts or the urgent board (docs/office-v2.md 4.3; 12H.2; Phases 18, 20, 24 and
+// 28), a clear glass tile 8px round in its group's glass section (src/app/shifts/open/
+// shift-group.tsx; 28.8: grouped as the office's event card is), the whole tile a link to the
+// shift's page (where she reads it in full and takes it): its date tile (pale red when urgent), the
+// time with the pay per hour across from it ("Pay not given yet" with no rate: her page has "Ask the
+// office about the pay"), the role, the event, site and post, the travel line after a car (both
+// times, whichever ways she chose, so no one is shown only a drive; one sentence while the time
+// isn't worked out, and "Distance not known yet" with no distance: 12G.3, src/lib/travel/
+// line-copy.ts), then the places left as a tag (the urgent chip when urgent) and a round arrow;
+// under fair rotation, when she can take it.
 export function OpenShiftCard({
   shift: s,
   timeZone,
@@ -41,7 +46,7 @@ export function OpenShiftCard({
     <li className="animate-in">
       <Link
         href={`/shifts/${s.shiftId}`}
-        className="group press glass flex items-start gap-4 rounded-[22px] p-4 hover:bg-button-hover focus-visible:outline-offset-2"
+        className="group press glass-tile flex items-start gap-4 rounded-row p-4 hover:bg-active focus-visible:outline-offset-2"
       >
         <DateTile dow={day.dow} day={day.day} month={day.month} urgent={s.isUrgent} />
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -76,16 +81,12 @@ export function OpenShiftCard({
             </span>
           )}
           <span className="mt-3 flex items-center justify-between gap-3">
-            <span
-              className={`glass-tile rounded-[10px] px-2.5 py-1 text-base font-medium ${
-                s.isUrgent ? "text-urgent-ink" : "text-ink"
-              }`}
-            >
+            <span className={s.isUrgent ? `${chip.base} ${chip.urgent}` : tag}>
               {placesLeftText(s.placesLeft)}
             </span>
             <span
               aria-hidden="true"
-              className="glass-tile flex size-10 shrink-0 items-center justify-center rounded-full text-ink group-hover:bg-ink group-hover:bg-none group-hover:text-on-ink"
+              className="glass-button flex size-10 shrink-0 items-center justify-center rounded-full text-ink group-hover:bg-ink group-hover:bg-none group-hover:text-on-ink"
             >
               <Icon name="arrow" size={20} />
             </span>

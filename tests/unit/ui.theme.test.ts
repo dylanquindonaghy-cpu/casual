@@ -172,12 +172,12 @@ describe("one type scale", () => {
       'src/app/pay/pay-view.tsx: "font-stat text-4xl text-ink"',
     ]);
     expect(read("src/app/ui/sign.tsx")).toMatch(/className=\{`block font-sign [^`]*\$\{t\.day\}/);
-    // The greetings: Home's at a page headline's size (`font-greet`: Geist medium, 28px, as round
-    // 7's "Hi Zoe"); the dashboard's inside its one <h1>, at a page headline's size (no display
-    // serif).
-    expect(read("src/app/home-view.tsx")).toMatch(
-      /className="font-greet text-3xl[^"]*">Hi \{firstName\}/,
-    );
+    // The greetings: Home's is its PageHeader's headline since Phase 28.7 (`text-title`, as every
+    // page's: no face of its own); the dashboard's inside its one <h1>, at a page headline's size
+    // (no display serif).
+    const home = read("src/app/home-view.tsx");
+    expect(home).toMatch(/<PageHeader title=\{`Hi \$\{firstName\}`\}/);
+    expect(home).not.toMatch(/(?<![\w-])font-greet(?![\w-])/);
     // The date tile's sizes live in a table beside its font-sign day. In the office, its big
     // counts in their own figures (`font-stat`); no display serif (gone in Phase 23).
     const notSign = uses.filter(
@@ -256,10 +256,10 @@ describe("the font", () => {
     expect(read("src/app/layout.tsx")).toContain("className={fontVariables}");
     expect(read("src/app/global-error.tsx")).toContain("className={fontVariables}");
     // Words in Geist, and every one of its uses: the sign figures in its semibold with fixed-width
-    // digits, a page's headline, the big numbers, the greetings (its medium).
+    // digits, a page's headline (the greetings too, since 28.7), the big numbers.
     const css = read("src/app/globals.css");
     expect(css).toMatch(/--font-sans:\s*var\(--font-geist\), var\(--font-geist-ext\),/);
-    for (const utility of ["font-sign", "text-title", "font-stat", "font-greet"])
+    for (const utility of ["font-sign", "text-title", "font-stat"])
       expect(css, utility).toMatch(
         new RegExp(
           String.raw`@utility ${utility} \{\s*font-family: var\(--font-geist\), var\(--font-geist-ext\), ui-sans-serif, system-ui, sans-serif;`,
@@ -268,7 +268,8 @@ describe("the font", () => {
     expect(css).toMatch(
       /@utility font-sign \{[^}]*font-weight: 600;\s*font-variant-numeric: tabular-nums;/,
     );
-    expect(css).toMatch(/@utility font-greet \{[^}]*font-weight: 500;/);
+    // The greeting goes through PageHeader's text-title since Phase 28.7: no utility of its own.
+    expect(css).not.toContain("font-greet");
     // The office's own face file is gone (Phase 23's office-fonts.ts).
     expect(SOURCE).not.toContain("src/app/office/office-fonts.ts");
   });

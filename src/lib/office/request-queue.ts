@@ -16,9 +16,12 @@ import { requestWaiting } from "./enquiry-sql";
 //
 // - waiting: open and escalated requests, oldest first (first asked, first answered), at most 100;
 // - answered: requests answered (or sorted) in the last 7 days, newest first, at most 50, with who
-//   answered, their note and whether the worker has been told yet.
+//   answered, their note and whether the worker has been told yet; since Phase 28.9 also those the
+//   casual took back in that time ("Taken back", src/lib/portal/requests.ts withdrawRequest).
 // Each with the worker, the shift (if any) and what they asked, from the request's payload: the
-// times for a time change, who they'd swap with, the rules' reasons for a review, their note.
+// times for a time change, who they'd swap with, the rules' reasons for a review, their note; an
+// attendance question (Phase 28.9) with what she says (worked or didn't) and her booking's mark as
+// it is now (it may have been marked again since she asked).
 
 export const WAITING_MAX = 100;
 export const ANSWERED_MAX = 50;
@@ -45,7 +48,13 @@ export interface QueueRequest {
     cancellation: string | null; // a review after cancelling: the booking's reference
     note: string | null; // the worker's own note
     voicemail: boolean; // from a voicemail on the shifts line (the caller's number, unchecked)
+    // An attendance question (Phase 28.9): what she says, that she worked the session or didn't.
+    // Optional so a request built by hand needn't; loadRequestQueue always fills it.
+    said?: "worked" | "not_worked" | null;
   };
+  // An attendance question's session as it's marked now: her booking's mark, or null when it isn't
+  // marked (or it isn't an attendance question). Phase 28.9; loadRequestQueue always fills it.
+  mark?: "completed" | "no_show" | null;
   createdAt: Date;
   answer: {
     by: string | null;
@@ -81,6 +90,7 @@ type Row = {
   starts_at: string | Date | null;
   ends_at: string | Date | null;
   site_name: string | null;
+  mark: string | null;
 };
 
 const text = (v: unknown, max = 500): string | null =>
@@ -121,7 +131,10 @@ function toRequest(r: Row): QueueRequest {
           ? p.cancellation
           : null,
       voicemail: p.via === "voicemail",
+      said:
+        r.type === "attendance" && (p.said === "worked" || p.said === "not_worked") ? p.said : null,
     },
+    mark: r.mark === "completed" || r.mark === "no_show" ? r.mark : null,
     createdAt: new Date(r.created_at),
     answer:
       r.status === "open" || r.status === "escalated"
@@ -151,7 +164,12 @@ const SELECT = sql`
                               'request.update_held', 'request.update_failed')
            order by e.id desc limit 1) as told,
          w.id as worker_id, w.first_name, w.last_name,
-         s.id as shift_id, s.role, s.starts_at, s.ends_at, si.name as site_name
+         s.id as shift_id, s.role, s.starts_at, s.ends_at, si.name as site_name,
+         -- An attendance question's session as it's marked now (her one live booking on it).
+         (select a.status from assignments a
+           where a.firm_id = r.firm_id and a.shift_id = r.shift_id and a.worker_id = r.worker_id
+             and a.status in ('completed', 'no_show') and r.type = 'attendance'
+           limit 1) as mark
     from requests r
     join workers w on w.firm_id = r.firm_id and w.id = r.worker_id
     left join shifts s on s.firm_id = r.firm_id and s.id = r.shift_id
@@ -172,7 +190,7 @@ export async function loadRequestQueue(tx: FirmTx, now: Date): Promise<RequestQu
   `);
   const { rows: answered } = await tx.execute<Row>(sql`
     ${SELECT}
-     where r.status in ('approved', 'declined', 'auto_resolved')
+     where r.status in ('approved', 'declined', 'auto_resolved', 'withdrawn')
        and (r.type <> 'general' or r.message_id is null)
        and r.resolved_at > ${new Date(now.getTime() - ANSWERED_DAYS * 24 * 3_600_000)}
      order by r.resolved_at desc, r.id

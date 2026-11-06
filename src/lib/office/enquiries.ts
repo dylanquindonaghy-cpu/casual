@@ -303,6 +303,10 @@ export interface ConversationItem {
   // An office reply's state (an automatic reply is stored only once sent): sending until the
   // worker has sent it, then sent or failed.
   officeReply: { by: string | null; state: "sending" | "sent" | "failed" | "unconfirmed" } | null;
+  // The session this message itself is about (Phase 28.6: her message in the app's
+  // `messages.shift_id`), shown on its own bubble; null for an answer or a message about nothing.
+  // The conversation can go on to her later messages, each about its own session or none.
+  about: { shiftId: string; role: string; startsAt: Date } | null;
 }
 
 // "How it was answered", step by step, from logged facts only (docs/office-v2.md 3.6).
@@ -323,7 +327,11 @@ export interface EnquiryTimeline {
     | { how: "opt_out" }
     | { how: "not_yet" }
     // Sorted, but automatic replies are off, so it waits for a person (Phase 25.3).
-    | { how: "held"; by: "keyword" | "ai"; intent: Exclude<Intent, "office"> };
+    | { how: "held"; by: "keyword" | "ai"; intent: Exclude<Intent, "office"> }
+    // A message in the app about a session (Phase 28.6): never sorted, passed to a person.
+    | { how: "about_shift" }
+    // Sent about her pay from Pay's "Message the office" (the guardrails review of 28.10).
+    | { how: "about_pay" };
   reply:
     | { how: "automatic"; intent: Intent | "unknown_number" | "voicemail" }
     | { how: "none" }
@@ -378,6 +386,11 @@ export interface EnquiryDetail {
   pay: boolean;
   voicemail: boolean;
   question: { requestId: string; ref: string; status: string } | null;
+  // The session this message (the chosen one) is about (Phase 28.6: `messages.shift_id`, kept only
+  // for one that hadn't ended when she sent it); null for any other message. The page shows it on
+  // the message's own bubble ("About: Steward, Sat 7 Nov 10:30": ConversationItem.about), never
+  // over the whole conversation, whose later messages name their own.
+  about: { shiftId: string; role: string; startsAt: Date } | null;
   conversation: ConversationItem[];
   timeline: EnquiryTimeline;
   plan: ReplyPlan; // how a reply from the office would go now
@@ -478,6 +491,9 @@ export async function loadEnquiry(
     body: string | null;
     created_at: string | Date;
     provider_message_id: string;
+    about_id: string | null;
+    about_role: string | null;
+    about_starts_at: string | Date | null;
   }>(sql`
     with later as (
       select l.id from messages l
@@ -494,8 +510,13 @@ export async function loadEnquiry(
     ), shown as (
       select ${m.id}::uuid as id union all select id from later
     )
-    select x.id, x.direction, x.channel, x.body, x.created_at, x.provider_message_id
+    select x.id, x.direction, x.channel, x.body, x.created_at, x.provider_message_id,
+           s.id::text as about_id, s.role as about_role, s.starts_at as about_starts_at
       from messages x
+      -- Each of her messages' own session (Phase 28.6), as it is now: RLS keeps it the firm's own,
+      -- the composite key keeps it in the message's firm. Never an answer's.
+      left join shifts s
+        on x.direction = 'in' and s.firm_id = x.firm_id and s.id = x.shift_id
      where x.id in (select id from shown) or x.reply_to in (select id from shown)
      order by x.created_at, x.id
   `);
@@ -523,6 +544,12 @@ export async function loadEnquiry(
      where q.message_id = ${m.id}
   `);
   const question = questions[0] ?? null;
+  // Each of her messages' own session (Phase 28.6), read with the conversation above.
+  const aboutOf = (x: (typeof talk)[number]) =>
+    x.about_id && x.about_role && x.about_starts_at
+      ? { shiftId: x.about_id, role: x.about_role, startsAt: new Date(x.about_starts_at) }
+      : null;
+  const aboutChosen = talk.find((x) => x.id === m.id);
 
   // The office's replies: the row is stored when the office sends it; its outcome is logged
   // against it (by its id). One still "sending" 15 minutes on is unconfirmed: the job stopped
@@ -648,40 +675,47 @@ export async function loadEnquiry(
   // Automatic replies off (P4.7): nothing went, and what it was sorted as is in the log.
   const held = received?.data.replyHeld === true;
   const sortedAs = heldIntent(received?.data.sortedAs);
-  const sorted: EnquiryTimeline["sorted"] =
+  const sortedAsLogged: EnquiryTimeline["sorted"] =
     m.handled_at === null
       ? { how: "not_yet" }
-      : received?.data.replyLimit === true
-        ? { how: "person", why: "reply_limit" }
-        : received?.data.echo === true
-          ? { how: "person", why: "echo" }
-          : held && sortedAs && (handledAs === "keyword" || handledAs === "ai")
-            ? { how: "held", by: handledAs, intent: sortedAs }
-            : answerFailed !== null && handledAs === "office"
-              ? { how: "person", why: "answer_failed", code: answerFailed }
-              : handledAs === "keyword" && intent
-                ? intent === "office"
-                  ? { how: "person", why: "asked" }
-                  : { how: "keyword", intent }
-                : handledAs === "ai" && intent
+      : typeof received?.data.shiftId === "string" && handledAs === "office"
+        ? { how: "about_shift" }
+        : received?.data.replyLimit === true
+          ? { how: "person", why: "reply_limit" }
+          : received?.data.echo === true
+            ? { how: "person", why: "echo" }
+            : held && sortedAs && (handledAs === "keyword" || handledAs === "ai")
+              ? { how: "held", by: handledAs, intent: sortedAs }
+              : answerFailed !== null && handledAs === "office"
+                ? { how: "person", why: "answer_failed", code: answerFailed }
+                : handledAs === "keyword" && intent
                   ? intent === "office"
-                    ? { how: "person", why: "ai_asked" }
-                    : { how: "ai", intent }
-                  : handledAs === "unknown"
-                    ? { how: "unknown", repeat: received?.data.repeat === true }
-                    : handledAs === "opt_out"
-                      ? { how: "opt_out" }
-                      : m.channel === "voice"
-                        ? { how: "person", why: "voicemail" }
-                        : m.body === null
-                          ? { how: "person", why: "no_text" }
-                          : {
-                              how: "person",
-                              why: "not_sorted",
-                              ...(aiReason(received?.data.aiFallback)
-                                ? { ai: aiReason(received?.data.aiFallback) }
-                                : {}),
-                            };
+                    ? { how: "person", why: "asked" }
+                    : { how: "keyword", intent }
+                  : handledAs === "ai" && intent
+                    ? intent === "office"
+                      ? { how: "person", why: "ai_asked" }
+                      : { how: "ai", intent }
+                    : handledAs === "unknown"
+                      ? { how: "unknown", repeat: received?.data.repeat === true }
+                      : handledAs === "opt_out"
+                        ? { how: "opt_out" }
+                        : m.channel === "voice"
+                          ? { how: "person", why: "voicemail" }
+                          : m.body === null
+                            ? { how: "person", why: "no_text" }
+                            : {
+                                how: "person",
+                                why: "not_sorted",
+                                ...(aiReason(received?.data.aiFallback)
+                                  ? { ai: aiReason(received?.data.aiFallback) }
+                                  : {}),
+                              };
+  // Sent about her pay from Pay's "Message the office" (the guardrails review of 28.10).
+  const sorted: EnquiryTimeline["sorted"] =
+    m.handled_at !== null && received?.data.aboutPay === true && handledAs === "office"
+      ? { how: "about_pay" }
+      : sortedAsLogged;
 
   // The automatic reply: the first one logged against the message.
   const replied = events.find(
@@ -739,6 +773,7 @@ export async function loadEnquiry(
           status: question.status,
         }
       : null,
+    about: aboutChosen ? aboutOf(aboutChosen) : null,
     conversation: talk.map((x) => {
       const office = x.direction === "out" ? replies.get(x.id) : undefined;
       return {
@@ -748,6 +783,7 @@ export async function loadEnquiry(
         text: x.body,
         at: new Date(x.created_at),
         officeReply: office ? { by: office.by, state: office.state } : null,
+        about: aboutOf(x),
       };
     }),
     timeline: {

@@ -220,7 +220,7 @@ describe("Booked (My shifts' upcoming)", () => {
       "Getting there, from your travel area 7.2 miles · 18 min by car · 41 min by public transport 7.2 miles away 18 min by car 41 min by public transport",
     );
     expect(words).toContain(
-      "Door supervisor Demo Arena about 7 miles (straight line) · Travel time not known yet",
+      "Door supervisor Demo Arena About 7 miles away. Travel time isn't worked out yet.",
     );
   });
 });

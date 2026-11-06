@@ -1,77 +1,116 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { roleLabel } from "@/lib/portal/format";
 import type { OpenShiftFilters, OpenShiftsList } from "@/lib/portal/open-shifts";
-import type { StripDay } from "@/lib/portal/shifts-strip";
+import { stripKey, stripTiles, type StripDay, type StripMark } from "@/lib/portal/shifts-strip";
 import { dayLabel } from "@/lib/rules/reasons";
-import { btn, muted, staffBtnInline, staffH2 } from "../../ui/classes";
+import { btn, emptyBox, muted, staffBtnInline } from "../../ui/classes";
 import { Icon } from "../../ui/icons";
 import { PageHeader } from "../../ui/page-header";
 import { ShiftsSwitch } from "../../my-shifts-view";
-import { OpenShiftCard } from "./open-shift-card";
+import { ShiftGroup } from "./shift-group";
 import { AreaPrompt, FurtherNote } from "./travel-notes";
 
-// Open shifts (docs/screens.md, `/shifts/open`; Phases 18, 20 and 24): only shifts this worker can
-// take. As round 7 of the canvas has it (24.6): "Shifts you can take", inside her travel area;
+// Open shifts (docs/screens.md, `/shifts/open`; Phases 18, 20, 24 and 28): only shifts this worker
+// can take. As round 7 of the canvas has it (24.6): "Shifts you can take", inside her travel area;
 // the Open | Booked switch; the next 8 days as a strip of glass tiles (her booked days grey with a
 // tick, urgent days with their count in red, days with open shifts with their count, the chosen day
 // in ink), a day with shifts a link to just that day, and its key in words; how many shifts there
 // are and "Site and role", which opens the day, site and role to choose (a <details> holding a
 // plain form: it opens and works without JavaScript); then urgent shifts first, then the rest in
-// date order like the strip, one card each (src/app/shifts/open/open-shift-card.tsx), each opening
-// the shift's page where she takes it. The cards' lists have role="list": Safari stops announcing a list once its bullets are
-// styled away. With no travel area, a prompt to add one; under the list, how many more are outside
-// her travel area (12G.3). No "Back" button: the tab bar is always there.
+// date order like the strip, each opening the shift's page where she takes it. With no travel area,
+// a prompt to add one; under the list, how many more are outside her travel area (12G.3). No "Back"
+// button: the tab bar is always there.
+//
+// Phase 28 (28.8; docs/screens.md "The casual app, Phase 28"): the two lists are grouped as the
+// office's event card is, each one glass section with its heading and count inside and its shifts
+// as tiles (src/app/shifts/open/shift-group.tsx); the urgent heading is led by the office's red
+// leaf. The strip's tiles are 48px wide, 8px apart, in a row that scrolls sideways inside itself
+// (never the page) when they don't fit; a day with nothing has no tile, and the key names only the
+// marks on screen. An empty list is the one empty state (`emptyBox`) in its section.
 
 export const limitText = (maxMinutes: number | null) =>
   maxMinutes === null
     ? "Shifts you can take."
     : `Shifts you can take, inside your travel area (up to ${maxMinutes} minutes).`;
 
-const STRIP_BOX: Record<StripDay["kind"], string> = {
+const STRIP_BOX: Record<StripMark, string> = {
   booked: "bg-ink/12 text-ink inset-ring inset-ring-white/30",
   urgent: "glass-tile text-ink",
   open: "glass-tile text-ink",
-  none: "glass-tile text-ink-muted",
+};
+
+// The strip's key in words, so a day's colour never says it alone (the mock-up has none). Each
+// number is a count of that day's shifts, so the key names the colour, not a sample "1". It names
+// only the marks on screen (28.8).
+const KEY: Record<StripMark, ReactNode> = {
+  urgent: (
+    <span>
+      <span className="font-semibold text-urgent-ink">Red number</span>: urgent shifts that day
+    </span>
+  ),
+  open: <span>Grey number: open shifts that day</span>,
+  booked: (
+    <span className="flex items-center gap-1.5">
+      <span
+        aria-hidden="true"
+        className="flex size-5 items-center justify-center rounded-md bg-ink/12 text-ink"
+      >
+        <Icon name="check" size={14} />
+      </span>
+      You&apos;re booked
+    </span>
+  ),
 };
 
 function Strip({ days, current }: { days: StripDay[]; current?: string }) {
+  // Only the days with something on them (28.8); with none at all, no strip.
+  const tiles = stripTiles(days);
+  if (tiles.length === 0) return null;
   return (
     <section aria-label="Your next 8 days">
-      <ul role="list" className="grid grid-cols-8 gap-1.5">
-        {days.map((d, i) => {
+      {/* 48px tiles 8px apart (rule 11's 44px targets, with their gaps). The row scrolls sideways
+          inside itself when they don't fit, fading at the edge with more to see (`fade-x`, as the
+          office's tabs); its 4px padding keeps a tile's focus ring inside what it shows. */}
+      <ul role="list" className="scrollbar-none fade-x -mx-1 flex gap-2 overflow-x-auto p-1">
+        {tiles.map((d) => {
+          const kind = d.kind as StripMark;
           const chosen = current === d.date;
           const body = (
             <>
-              <span className={`text-sm leading-tight ${i === 0 ? "tracking-tight" : ""}`}>
+              <span
+                className={`text-sm leading-tight ${d.dow === "Today" ? "tracking-tight" : ""}`}
+              >
                 {d.dow}
               </span>
               <span className="font-sign text-lg leading-none">{d.day}</span>
-              {d.kind === "booked" ? (
+              {kind === "booked" ? (
                 <Icon name="check" size={16} />
-              ) : d.kind === "urgent" || d.kind === "open" ? (
+              ) : (
                 <span
                   className={`text-sm leading-none tabular-nums ${
                     chosen
                       ? "font-semibold"
-                      : d.kind === "urgent"
+                      : kind === "urgent"
                         ? "font-semibold text-urgent-ink"
                         : "text-ink-muted"
                   }`}
                 >
                   {d.count}
                 </span>
-              ) : (
-                <span className="h-4" />
               )}
             </>
           );
-          const box = `flex h-17 flex-col items-center justify-between rounded-[14px] pt-1.5 pb-2 ${
-            chosen ? "bg-ink text-on-ink" : STRIP_BOX[d.kind]
+          const box = `flex h-17 w-12 flex-col items-center justify-between rounded-row pt-1.5 pb-2 ${
+            chosen ? "bg-ink text-on-ink" : STRIP_BOX[kind]
           }`;
           return (
-            <li key={d.date} className="min-w-0">
-              {d.kind === "urgent" || d.kind === "open" ? (
+            <li key={d.date} className="shrink-0">
+              {kind === "booked" ? (
+                <span role="img" aria-label={d.label} className={box}>
+                  {body}
+                </span>
+              ) : (
                 <Link
                   href={`/shifts/open?day=${d.date}`}
                   aria-label={d.label}
@@ -80,31 +119,15 @@ function Strip({ days, current }: { days: StripDay[]; current?: string }) {
                 >
                   {body}
                 </Link>
-              ) : (
-                <span role="img" aria-label={d.label} className={box}>
-                  {body}
-                </span>
               )}
             </li>
           );
         })}
       </ul>
-      {/* Its key in words, so a day's colour never says it alone (the mock-up has none). Each
-          number is a count of that day's shifts, so the key names the colour, not a sample "1". */}
-      <p className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-ink-muted">
-        <span>
-          <span className="font-semibold text-urgent-ink">Red number</span>: urgent shifts that day
-        </span>
-        <span>Grey number: open shifts that day</span>
-        <span className="flex items-center gap-1.5">
-          <span
-            aria-hidden="true"
-            className="flex size-5 items-center justify-center rounded-md bg-ink/12 text-ink"
-          >
-            <Icon name="check" size={14} />
-          </span>
-          You&apos;re booked
-        </span>
+      <p className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-ink-muted">
+        {stripKey(tiles).map((k) => (
+          <Fragment key={k}>{KEY[k]}</Fragment>
+        ))}
       </p>
     </section>
   );
@@ -128,9 +151,22 @@ function Chip({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-const heading = `${staffH2} mt-2`;
-
 const shiftsWord = (n: number) => (n === 1 ? "1 shift" : `${n} shifts`);
+
+// The one empty state of the list (`emptyBox`): nothing open at all, nothing the filters match, or
+// only urgent shifts (above it) open. "We'll message you" only when her alerts are on and something
+// reaches her (`canReach`, as Home: never to a casual Home tells "We can't reach you about shifts").
+function emptyText(list: OpenShiftsList, filtered: boolean, canReach: boolean): string {
+  const willMessage = list.offerAlerts && canReach;
+  if (list.shifts.length > 0)
+    return willMessage
+      ? "Nothing else open right now. We'll message you when a shift comes up."
+      : "Nothing else open right now. Check back later.";
+  if (filtered) return "No open shifts match.";
+  return willMessage
+    ? "Nothing open right now. We'll message you when something matches."
+    : "Nothing open right now. Check back later.";
+}
 
 export function OpenShiftsView({
   list,
@@ -138,12 +174,15 @@ export function OpenShiftsView({
   strip,
   timeZone,
   now,
+  canReach = true,
 }: {
   list: OpenShiftsList;
   filters: OpenShiftFilters;
   strip: StripDay[];
   timeZone: string;
   now: Date;
+  // Something can reach her about shifts (src/lib/portal/reach-me.ts: no "unreachable").
+  canReach?: boolean;
 }) {
   const filtered = !!(filters.day || filters.siteId || filters.role);
   const { choices } = list;
@@ -156,13 +195,6 @@ export function OpenShiftsView({
     .sort(
       (a, b) => a.startsAt.getTime() - b.startsAt.getTime() || (a.shiftId < b.shiftId ? -1 : 1),
     );
-  const cards = (shifts: typeof list.shifts) => (
-    <ul role="list" className="flex flex-col gap-2.5">
-      {shifts.map((s) => (
-        <OpenShiftCard key={s.shiftId} shift={s} timeZone={timeZone} now={now} />
-      ))}
-    </ul>
-  );
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -239,46 +271,30 @@ export function OpenShiftsView({
             {filters.day ? dayLabel(filters.day) : "Some shifts"}
             {filters.siteId || filters.role ? ", chosen site or role" : ""}
           </span>
+          {/* Clearing a filter: the one place "Show all open shifts" stays (28.8). */}
           <Link href="/shifts/open" className={btn.link}>
             Show all open shifts
           </Link>
         </p>
       )}
-      {list.shifts.length === 0 ? (
-        <p className="rounded-3xl border-2 border-dashed border-line-strong p-5 text-center text-base text-ink-muted">
-          {filtered
-            ? "No open shifts match."
-            : list.offerAlerts
-              ? "Nothing open right now. We'll message you when something matches."
-              : "Nothing open right now. Check back later."}
-        </p>
-      ) : (
-        <>
-          {urgent.length > 0 && (
-            <section aria-labelledby="urgent-heading" className="flex flex-col gap-2.5">
-              <h2 id="urgent-heading" className={`${heading} flex items-center gap-2.5`}>
-                <span aria-hidden="true" className="size-2.5 rounded-full bg-urgent" />
-                Urgent, needed now
-              </h2>
-              {cards(urgent)}
-            </section>
-          )}
-          <section aria-labelledby="more-heading" className="flex flex-col gap-2.5">
-            <h2 id="more-heading" className={heading}>
-              {urgent.length > 0 ? "More shifts you can take" : "Shifts you can take"}
-            </h2>
-            {rest.length > 0 ? (
-              cards(rest)
-            ) : (
-              <p className="rounded-3xl border-2 border-dashed border-line-strong p-5 text-center text-base text-ink-muted">
-                {list.offerAlerts
-                  ? "Nothing else open right now. We'll message you when a shift comes up."
-                  : "Nothing else open right now. Check back later."}
-              </p>
-            )}
-          </section>
-        </>
+      {urgent.length > 0 && (
+        <ShiftGroup
+          id="urgent-heading"
+          title="Urgent, needed now"
+          urgent
+          shifts={urgent}
+          timeZone={timeZone}
+          now={now}
+        />
       )}
+      <ShiftGroup
+        id="more-heading"
+        title={urgent.length > 0 ? "More shifts you can take" : "Shifts you can take"}
+        shifts={rest}
+        timeZone={timeZone}
+        now={now}
+        empty={<p className={emptyBox}>{emptyText(list, filtered, canReach)}</p>}
+      />
       {list.truncated && (
         <p className={muted}>
           These are the first open shifts. Tap Site and role to choose a day, site or role and see

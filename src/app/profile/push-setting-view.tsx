@@ -9,6 +9,8 @@ const by = (other: OtherWay) => (other === "text" ? "by text" : "by email");
 // What "Notifications on this phone" says in each state (push-setting.tsx decides the state).
 // `justTurnedOff` adds the confirmation after "Turn off notifications". A part of "How we reach
 // you" under its own line; its buttons are secondary there ("Save settings" is the card's main one).
+// Profile shows it only where the firm has phone notifications (28.11), so its "no_key" words are
+// for any other caller.
 export function PushSettingView({
   state,
   firmName,
@@ -31,7 +33,7 @@ export function PushSettingView({
   const note = `mt-1 ${muted}`;
   return (
     <div className="mt-6 border-t border-line pt-5">
-      <h3 className="text-lg font-bold text-ink">Notifications on this phone</h3>
+      <h3 className="text-lg font-semibold text-ink">Notifications on this phone</h3>
       {state === "no_key" && (
         <p className={note}>
           {firmName} doesn&apos;t use phone notifications yet.
@@ -95,7 +97,7 @@ export function PushSettingView({
         </>
       )}
       {problem && (
-        <p role="alert" className="mt-2 font-semibold text-urgent">
+        <p role="alert" className="mt-2 font-semibold text-urgent-ink">
           {problem}
         </p>
       )}

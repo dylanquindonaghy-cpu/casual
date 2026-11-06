@@ -18,8 +18,17 @@ import { officeCanPlace, rosterId } from "../roster/book";
 //   so the event says only whether there was one;
 // - request.approved / request.declined {type, shiftId, withNote}, and a request-update job to
 //   tell the worker.
-// Any kind (time change, swap, availability, question, review). Deciding doesn't change the shift:
-// the office makes the change on the shift's page.
+// Any kind (time change, swap, availability, question, review, attendance question). Deciding
+// doesn't change the shift: the office makes the change on the shift's page.
+// Phase 28.9:
+// - an attendance question ("Think this mark is wrong?") has one action on the office's page,
+//   "Answer and tell {name}": stored approved, and she's told it's answered. A decline is refused
+//   here as well as hidden on the page ("answer_only", nothing changed, checked before the note), so
+//   the log never says "declined" while she's told "answered". Answering never changes the mark
+//   (golden rule 12): the office marks again on the session's who-worked, logged as that always is;
+// - one she took back (status `withdrawn`, src/lib/portal/requests.ts withdrawRequest) is no longer
+//   waiting, so answering it changes nothing ("already", current `withdrawn`): her take-back and the
+//   office's answer each lock the row, and whichever is saved first wins.
 
 export const MAX_RESOLUTION_NOTE = 500;
 export const REQUEST_DECISIONS = ["approved", "declined"] as const;
@@ -40,6 +49,7 @@ export type ResolveRequestResult =
   // with the message locked (src/lib/office/enquiry-actions.ts), so it's never answered twice.
   | { status: "on_enquiries" }
   | { status: "note_needed" } // a decline with no note
+  | { status: "answer_only" } // a decline of an attendance question: it's only answered
   | { status: "note_too_long" }
   | { status: "not_found" }
   | { status: "not_allowed" };
@@ -54,7 +64,6 @@ export async function resolveRequest(
   const now = (deps.clock ?? systemClock).now();
   const note = input.note.trim();
   if (note.length > MAX_RESOLUTION_NOTE) return { status: "note_too_long" };
-  if (input.decision === "declined" && !note) return { status: "note_needed" };
   return retryAborted(() =>
     run(firmId, async (tx): Promise<ResolveRequestResult> => {
       if (!(await officeCanPlace(tx, input.by.id))) return { status: "not_allowed" };
@@ -75,6 +84,10 @@ export async function resolveRequest(
       if (request.status !== "open" && request.status !== "escalated") {
         return { status: "already", current: request.status };
       }
+      if (input.decision === "declined" && request.type === "attendance") {
+        return { status: "answer_only" };
+      }
+      if (input.decision === "declined" && !note) return { status: "note_needed" };
       await tx
         .update(requests)
         .set({

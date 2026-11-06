@@ -168,7 +168,8 @@ describe("My requests and New request", () => {
     );
     const words = text(html);
     expect(words).toContain("Which shift?");
-    expect(html).toMatch(/<option value="s2" selected="">/);
+    // Phase 28.9: a choice card per shift instead of a select; the preselected one is chosen.
+    expect(html).toMatch(/<input type="radio"[^>]* name="shift" checked="" value="s2"\/>/);
     expect(words).toContain("Change the times");
     expect(words).toContain("Swap with someone");
     expect(words).toContain("Send request");

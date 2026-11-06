@@ -79,7 +79,7 @@ test("Profile shows Zoe's qualifications: one Valid, one Expiring soon, one Miss
     "You're new, so there's no score yet. You'll get one after 5 shifts.",
   );
   await expect(reliability).toContainText("0 shifts worked · 0 no-shows · 0 late cancellations");
-  await expect(reliability).toContainText("Our office sees the same figure.");
+  await expect(reliability).toContainText("The office sees the same figure.");
   const qualifications = page.getByRole("region", { name: "Qualifications" });
   const items = qualifications.getByRole("listitem");
   await expect(items).toHaveCount(3);
@@ -132,10 +132,10 @@ test("Home shows Holly's photo row, the urgent row and her next shift in full", 
   const months = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(" ");
   const uploaded = `${d} ${months[(m ?? 1) - 1]} ${y}`;
   // Do this: her photo, overdue (it stops her working, so "Needs doing now"), to Profile's photo,
-  // her initials beside it.
+  // a camera beside it (Phase 28.7: never her initials).
   const needs = page.getByRole("region", { name: "Do this" }).locator('[data-for-you="needs"]');
   await expect(needs).toContainText("Needs doing now");
-  await expect(needs).toContainText("HG");
+  await expect(needs).not.toContainText("HG");
   await expect(needs.getByRole("link")).toHaveAccessibleName(
     /^Needs doing now Renew your staff photo It was due by \d{1,2} [A-Z][a-z]{2}\.$/,
   );
@@ -296,7 +296,8 @@ test("Shifts: Zoe sees the Arena shift with its travel line, and its page in ful
 
   // How many, and "Site and role" (round 7), which opens the filters under it; the site narrows
   // the list: the other hall, then the Arena.
-  await expect(page.getByText("2 shifts", { exact: true })).toBeVisible();
+  // The page's count (28.8's section pill says it again for screen readers only).
+  await expect(page.getByRole("paragraph").filter({ hasText: /^2 shifts$/ })).toBeVisible();
   const filter = page.getByRole("form", { name: "Choose a day, site or role" });
   await expect(filter).toBeHidden();
   await page.locator("[data-filters] summary").click();
@@ -360,9 +361,9 @@ test("Shifts: Zoe sees the Arena shift with its travel line, and its page in ful
   const blockedNeeds = page.getByRole("region", { name: "You need" }).getByRole("listitem");
   await expect(blockedNeeds).toHaveText([
     new RegExp(`^SIA door supervisor licence\\s*You have it, valid until ${DAY}$`),
-    // Not one her roles need, so she can't send it herself: the office.
-    /^Level 2 spectator safety qualification\s*Expires before this shift: ask the office\.$/,
-    /^CSAS accreditation\s*Missing: ask the office\.$/,
+    // Not one her roles need, so she can't send it herself: "Message the office" (28.5).
+    /^Level 2 spectator safety qualification\s*Expires before this shift\. Message the office$/,
+    /^CSAS accreditation\s*Missing\. Message the office$/,
     /^Manual handling certificate\s*Missing: upload it$/,
   ]);
   // "upload it" opens a page that takes it (her second role needs it).

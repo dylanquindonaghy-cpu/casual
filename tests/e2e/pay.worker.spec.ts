@@ -13,7 +13,7 @@ function expectedPay() {
   return acmeSaturday(acme.workers, acme.sites, now).pay.filter((p) => p.workerId === worker?.id);
 }
 
-// The pay pages' step-up in a real browser: a 6-digit code by text (console mode; by WhatsApp
+// The pay pages' step-up in a real browser: a 6‑digit code by text (console mode; by WhatsApp
 // until Phase 26.9).
 
 const acme = "http://acme.localhost:3100";
@@ -32,8 +32,10 @@ test("pay needs a code: a wrong one counts down, the right one opens the page", 
 
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Pay" }).click();
   await expect(page).toHaveURL(`${acme}/pay`);
+  // The pay day first, before the code (Phase 28.10): a day, never a figure.
+  await expect(page.getByRole("heading", { level: 2, name: /^Pay day: / })).toBeVisible();
   await expect(
-    page.getByText("To keep your pay private, we'll text you a 6-digit code."),
+    page.getByText("To keep your pay private, we'll text you a 6‑digit code."),
   ).toBeVisible();
   const codeAsked = new Date(Date.now() - 1000);
   await page.getByRole("button", { name: "Send me a code" }).click();
@@ -54,7 +56,8 @@ test("pay needs a code: a wrong one counts down, the right one opens the page", 
   await expect(page.getByText("The last 8 weeks, from Acme Events' payroll.")).toBeVisible();
   // Exactly this steward's seeded lines (their hours come from a fixed random seed).
   const mine = expectedPay();
-  await expect(page.getByText(/^Pay day: /)).toHaveCount(mine.length);
+  // One pay date a week (each week is marked data-pay-week; the pay day card above isn't a week).
+  await expect(page.locator("[data-pay-week]").getByText(/^Pay day: /)).toHaveCount(mine.length);
   await expect(page.getByText(/ at £13\.00 an hour$/)).toHaveCount(mine.length);
   for (const line of mine) {
     await expect(

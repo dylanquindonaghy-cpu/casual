@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MESSAGE_OFFICE } from "./pay-copy";
 
 // The browser-safe half of pay queries (docs/screens.md `/pay`, `/pay/query`): the issues, the
 // status words, the form's check and the outcome shape. No database code may be imported here: the
@@ -84,11 +85,50 @@ export const PROBLEM_WORDS: Record<PayQueryProblem, string> = {
   no_shift_or_day: "Choose a shift, or a day.",
   bad_day: "Enter the day, like 26/10/2026.",
   future_day: "That day hasn't happened yet.",
-  too_old: "Pay queries can go back 90 days. For anything older, contact the office.",
+  too_old: "Pay queries can go back 90 days. For anything older, message the office.",
   no_issue: "Choose what's wrong.",
   no_details: "Tell payroll what's wrong.",
   too_long: "That's too long (1,000 characters at most).",
 };
+
+// The words of a problem that are a link (Phase 28.10): "message the office" in too_old goes to
+// Messages, so an old question never ends at "contact the office" with nothing to tap.
+export const PROBLEM_LINKS: Partial<Record<PayQueryProblem, { text: string; href: string }>> = {
+  too_old: { text: "message the office", href: MESSAGE_OFFICE.href },
+};
+
+// ?shift= on /pay/query (Phase 28.10): a shift's id (a uuid, in lower case), or nothing. Anything
+// else, a list of them included, is ignored.
+export function shiftParam(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const parsed = uuid.safeParse(raw.trim());
+  return parsed.success ? parsed.data.toLowerCase() : null;
+}
+
+// Where the pay query's code step goes once the code is right: always the pay query itself, with
+// ?shift= kept only when it's a shift's id. Nothing else in the address is read (a next= or any
+// other return address is ignored), so the step can't send her anywhere else.
+export const PAY_QUERY_PATH = "/pay/query";
+export function payQueryPath(rawShift: unknown): string {
+  const shift = shiftParam(rawShift);
+  return shift ? `${PAY_QUERY_PATH}?shift=${shift}` : PAY_QUERY_PATH;
+}
+
+// Whether a path is one payQueryPath gives (the code card checks again before it goes there).
+export const isPayQueryPath = (path: string): boolean =>
+  /^\/pay\/query(\?shift=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?$/.test(
+    path,
+  );
+
+// The shift the form starts on: ?shift= when it is one of the shifts in her list (payQueryShifts:
+// her own, inside her firm, from the last 8 weeks), else none, and "Choose a shift" shows.
+export function preselectedShift(
+  shifts: readonly { shiftId: string }[],
+  rawShift: unknown,
+): string | null {
+  const shift = shiftParam(rawShift);
+  return shift !== null && shifts.some((s) => s.shiftId === shift) ? shift : null;
+}
 
 export type RaisePayQueryOutcome =
   | {

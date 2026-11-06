@@ -25,11 +25,13 @@ test("raise a pay query about a day, then see it on the pay page", async ({ page
   await page.getByRole("button", { name: "Log me in" }).click();
   await expect(page).toHaveURL(`${acme}/`);
 
-  // Without the pay code, the form points back to the pay page.
+  // Without the pay code, the code step is on the pay query itself (Phase 28.10; its return to the
+  // query is tests/e2e/casual.p28-pay.spec.ts's). This spec takes its code on the pay page.
   await page.goto(`${acme}/pay/query`);
   await expect(
-    page.getByText("To keep your pay private, enter your pay code first."),
+    page.getByText("Enter your 6‑digit code first. Then you'll come straight back here."),
   ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Send me a code" })).toBeVisible();
 
   await page.goto(`${acme}/pay`);
   const codeAsked = new Date(Date.now() - 1000);

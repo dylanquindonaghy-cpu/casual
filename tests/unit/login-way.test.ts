@@ -110,30 +110,33 @@ describe("the Pay code step", () => {
 
   it("by message: today's words", () => {
     expect(gate("message", false)).toContain(
-      "To keep your pay private, we'll text you a 6-digit code.",
+      "To keep your pay private, we'll text you a 6‑digit code.",
     );
     expect(gate("message", false)).toContain("Send me a code");
     expect(gate("message", true)).toContain(
-      "We've sent a 6-digit code by text. It works for 10 minutes.",
+      "We've sent a 6‑digit code by text. It works for 10 minutes.",
     );
     expect(gate("message", true)).toContain("Send me a new code");
   });
   it("by email: the first step, the code step and its button say email", () => {
     expect(gate("email", false)).toBe(
-      "To keep your pay private, we'll email you a 6-digit code. Email me a code",
+      "To keep your pay private, we'll email you a 6‑digit code. Email me a code",
     );
     const waiting = gate("email", true);
-    expect(waiting).toContain("We've emailed you a 6-digit code. It works for 10 minutes.");
+    expect(waiting).toContain("We've emailed you a 6‑digit code. It works for 10 minutes.");
     expect(waiting).toContain("Email me a new code");
     expect(waiting).not.toContain("Send me");
   });
+  // Phase 28.10: no dead end. "Message the office" (→ Messages) in place of "Please contact the
+  // office the way you usually do."
   it("can't send: no button, and no code step even for a code sent earlier", () => {
     for (const codeWaiting of [false, true]) {
       const html = renderToStaticMarkup(createElement(CodeGate, { way: "off", codeWaiting }));
       expect(html).not.toContain("<button");
       expect(html).not.toContain("<input");
+      expect(html).toContain('href="/messages"');
       expect(gate("off", codeWaiting)).toBe(
-        "We can't send you a code yet, so your pay can't open. Please contact the office the way you usually do.",
+        "We can't send you a code yet, so your pay can't open. Your pay day is above. For anything else about your pay, message the office. Message the office",
       );
     }
   });

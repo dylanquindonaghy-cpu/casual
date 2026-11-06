@@ -11,6 +11,7 @@ import { addDays, localDateOf, wallTimeOf } from "../time/zoned";
 import { roleLabel, shiftWhen } from "./format";
 import type { PortalContext } from "./my-shifts";
 import { StepUpRequiredError } from "./pay";
+import { markPayAnswersSeen } from "./request-answers";
 import {
   PAY_QUERY_DAYS_BACK,
   PAY_QUERY_SHIFT_WEEKS,
@@ -25,7 +26,8 @@ import {
 // last 30 minutes, and checks that itself (the rule on steppedUpWorker()).
 // - payQueryShifts: the worker's shifts that started in the last 8 weeks (booked, worked or marked
 //   not attended), newest first, for the form's picker;
-// - myPayQueries: their queries from the last 90 days, newest first, with their status;
+// - myPayQueries: their queries from the last 90 days, newest first, with their status (reading
+//   them marks nothing seen: seePayAnswers does that, Phase 28.10);
 // - raisePayQuery: a shift of theirs from that list, or a day in the last 90 days (not ahead); an
 //   issue; details (required for "Something else"). One open query per worker, day, shift and
 //   issue: asking again returns its reference. The row and a pay_query.created event {issueType,
@@ -139,6 +141,20 @@ export async function myPayQueries(ctx: Ctx, stepped: Stepped): Promise<MyPayQue
       r.status === "resolved" && r.resolvedAt ? localDateOf(r.resolvedAt, ctx.firm.timezone) : null,
     note: r.status === "resolved" ? r.note : null,
   }));
+}
+
+// Payroll's answers she has now seen (Phase 28.10): the Pay page calls this through an action once
+// an answer is on her screen, behind her code (an answer is shown nowhere else), never while a
+// page renders. It moves her pay_answers_read_at to the newest answer sorted by `shownAt` (when
+// the page was drawn; never later than now, never back: src/lib/portal/request-answers.ts), so an
+// answer sorted after she looked still counts on the Pay tab. Returns whether it moved.
+export async function seePayAnswers(
+  ctx: PortalContext,
+  stepped: Stepped,
+  shownAt: Date,
+): Promise<boolean> {
+  checkStepped(stepped, (ctx.clock ?? systemClock).now());
+  return markPayAnswersSeen(ctx, stepped.worker.id, shownAt);
 }
 
 export async function raisePayQuery(

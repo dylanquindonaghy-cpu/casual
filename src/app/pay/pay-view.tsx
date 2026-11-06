@@ -1,41 +1,90 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import {
   headingGap,
   muted,
   nums,
   sectionGap,
   staffBtn,
+  staffCard,
   staffRow,
   staffH2,
   staffRows,
 } from "@/app/ui/classes";
+import { DateTile } from "@/app/ui/sign";
 import { StatusChip, type StatusTone } from "@/app/ui/status-chip";
 import { possessive } from "@/lib/portal/copy";
+import { payDayRowText } from "@/lib/portal/home-copy";
+import type { MyPayDay } from "@/lib/portal/pay-day";
 import { hoursText, payWeeks, pounds, type PayLine, type PayWeek } from "@/lib/portal/pay-format";
 import { ISSUE_LABELS, PAY_QUERY_STATUS_WORDS, type PayIssue } from "@/lib/portal/pay-query-kinds";
+import { datePartsOfDay } from "@/lib/portal/sign-copy";
 import { dayLabel } from "@/lib/rules/reasons";
+import { PayAnswersSeen } from "./pay-answers-seen";
 
-// The pay page once the code has been checked (docs/screens.md, `/pay`; Phases 17 and 24): the last
-// 8 weeks of pay lines as payroll sent them, a week at a time (newest first: src/lib/portal/pay.ts).
-// As round 7 of the canvas has it (24.6): the newest week as a glass card (its dates, "Pay before tax"
-// and its total, a glass row per rate, the pay date on a warm chip), then "Earlier weeks", one row
-// a week (its dates and lines, its total and pay date on the right). A week's total shows only when
-// payroll gave a gross for every line of it (payWeeks: src/lib/portal/pay-format.ts); otherwise each
-// line shows payroll's own gross, and a line it gave none for shows none. Nothing else is worked out.
-export function PayView({ lines, firmName }: { lines: PayLine[]; firmName: string }) {
+// The pay day, first on Pay, before the code (Phase 28.10; docs/screens.md "### 28.10"): the same
+// day and words as Home's pay row (src/lib/portal/pay-day.ts, home-copy.ts payDayRowText): the
+// firm's pay calendar, or payroll's own date for exactly this period. A day and dates only: no
+// hours, rate or amount, which stay behind the code (golden rule 9).
+export function PayDayCard({ pay }: { pay: MyPayDay }) {
+  const text = payDayRowText(pay.payDay, pay);
+  const day = datePartsOfDay(pay.payDay);
+  return (
+    <section
+      aria-labelledby="pay-day"
+      data-pay-day={pay.payDay}
+      className={`${staffCard} flex items-center gap-3.5`}
+    >
+      <DateTile dow={day.dow} day={day.day} />
+      <div className="min-w-0 flex-1">
+        <h2 id="pay-day" className={staffH2}>
+          {text.title}
+        </h2>
+        <p className={muted}>{text.sub}</p>
+      </div>
+    </section>
+  );
+}
+
+// The pay page once the code has been checked (docs/screens.md, `/pay`; Phases 17, 24 and 28): the
+// last 8 weeks of pay lines as payroll sent them, a week at a time (newest first: src/lib/portal/pay.ts).
+// Under the line saying so, the pay day card (`payDay`, Phase 28.10), then the newest week as a
+// card 32px below (12px round, 16px inside, no lighter band: Phase 28): its dates as a heading,
+// "Pay before tax" and its total, a tile per rate, the pay date on a clear glass tile. Then "Earlier
+// weeks", one row a week (its dates and lines, its total and pay date on the right). A week's total
+// shows only when payroll gave a gross for every line of it (payWeeks: src/lib/portal/pay-format.ts);
+// otherwise each line shows payroll's own gross, and a line it gave none for shows none. Nothing
+// else is worked out.
+export function PayView({
+  lines,
+  firmName,
+  payDay,
+}: {
+  lines: PayLine[];
+  firmName: string;
+  payDay?: ReactNode;
+}) {
   const [latest, ...earlier] = payWeeks(lines);
   if (!latest) {
-    return <p>No pay to show yet. It appears here once payroll sends it.</p>;
+    return (
+      <>
+        {payDay}
+        <p className={payDay ? sectionGap.staff : undefined}>
+          No pay to show yet. It appears here once payroll sends it.
+        </p>
+      </>
+    );
   }
   return (
     <>
       <p className={`-mt-4 ${muted}`}>The last 8 weeks, from {possessive(firmName)} payroll.</p>
+      {payDay && <div className="mt-4">{payDay}</div>}
       <section
         aria-labelledby="latest-pay"
         data-pay-week={latest.periodStart}
-        className={`mt-5 glass flex flex-col gap-3 rounded-3xl p-5 ${nums}`}
+        className={`${sectionGap.staff} glass flex flex-col gap-3 rounded-inner p-4 ${nums}`}
       >
-        <h2 id="latest-pay" className="text-lg font-medium text-ink">
+        <h2 id="latest-pay" className={staffH2}>
           {weekDates(latest)}
         </h2>
         {latest.totalPence !== null && (
@@ -55,7 +104,7 @@ export function PayView({ lines, firmName }: { lines: PayLine[]; firmName: strin
             <li
               key={line.ratePence}
               data-pay-line=""
-              className="glass-tile flex flex-col gap-0.5 rounded-2xl px-4 py-3 text-lg"
+              className="glass-tile flex flex-col gap-0.5 rounded-row px-4 py-3 text-lg"
             >
               <span className="flex flex-wrap items-baseline justify-between gap-x-3">
                 <span className="text-ink">{hoursText(line.hours)}</span>{" "}
@@ -70,13 +119,16 @@ export function PayView({ lines, firmName }: { lines: PayLine[]; firmName: strin
           ))}
         </ul>
         {latest.payDates.length > 0 && (
-          <p className="glass-band glass-rim w-fit rounded-[10px] px-3 py-1.5 text-lg text-ink">
+          <p className="glass-tile w-fit rounded-row px-3 py-1.5 text-lg text-ink">
             {payDateText(latest.payDates)}
           </p>
         )}
       </section>
       {earlier.length > 0 && (
-        <section aria-labelledby="earlier-pay" className="mt-8 flex flex-col gap-3">
+        <section
+          aria-labelledby="earlier-pay"
+          className={`${sectionGap.staff} flex flex-col gap-3`}
+        >
           <h2 id="earlier-pay" className={staffH2}>
             Earlier weeks
           </h2>
@@ -128,7 +180,9 @@ export function PayView({ lines, firmName }: { lines: PayLine[]; firmName: strin
           </ul>
         </section>
       )}
-      <p className="mt-8 text-base">If something looks wrong, raise a pay query.</p>
+      <p className={`${sectionGap.staff} text-base`}>
+        If something looks wrong, raise a pay query.
+      </p>
     </>
   );
 }
@@ -149,20 +203,30 @@ const TONES: Record<string, StatusTone> = {
   resolved: "done",
 };
 
+type ShownQuery = {
+  ref: string;
+  issue: PayIssue;
+  day: string;
+  status: string;
+  sortedOn?: string | null; // absent for one sorted without a date (none are, since Phase 6)
+  note?: string | null;
+};
+
 // "Raise a pay query", and the worker's own pay queries from the last 90 days with their status:
 // once payroll has sorted one, the day and payroll's note (a person's words).
+// Phase 28.10: with answers she hasn't seen (`newAnswers`), the first sorted one is wrapped in
+// PayAnswersSeen, which marks them seen once it is on her screen (`shownAt`: when the page was
+// drawn), so the Pay tab's count goes.
 export function PayQueries({
   queries,
+  newAnswers = false,
+  shownAt,
 }: {
-  queries: {
-    ref: string;
-    issue: PayIssue;
-    day: string;
-    status: string;
-    sortedOn?: string | null; // absent for one sorted without a date (none are, since Phase 6)
-    note?: string | null;
-  }[];
+  queries: ShownQuery[];
+  newAnswers?: boolean;
+  shownAt?: string;
 }) {
+  const firstAnswered = queries.findIndex((q) => q.status === "resolved");
   return (
     <section className="mt-3" aria-labelledby="pay-queries">
       <Link href="/pay/query" className={staffBtn.primary}>
@@ -175,22 +239,37 @@ export function PayQueries({
         <p className={headingGap}>None in the last 90 days.</p>
       ) : (
         <ul role="list" className={`${staffRows} ${headingGap}`}>
-          {queries.map((q) => (
-            <li key={q.ref} className={staffRow}>
-              <StatusChip tone={q.sortedOn ? "done" : (TONES[q.status] ?? "quiet")}>
-                {q.sortedOn
-                  ? `Answered by payroll on ${dayLabel(q.sortedOn)}`
-                  : (PAY_QUERY_STATUS_WORDS[q.status] ?? q.status)}
-              </StatusChip>
-              <p className="mt-2 font-semibold">
-                {ISSUE_LABELS[q.issue]}: {dayLabel(q.day)}
-              </p>
-              {q.note && <p className="mt-2">Payroll says: &ldquo;{q.note}&rdquo;</p>}
-              <p className={`mt-2 ${muted} ${nums}`}>Reference {q.ref}</p>
-            </li>
-          ))}
+          {queries.map((q, i) => {
+            const row = <QueryRow q={q} />;
+            return (
+              <li key={q.ref} className={staffRow}>
+                {newAnswers && shownAt && i === firstAnswered ? (
+                  <PayAnswersSeen shownAt={shownAt}>{row}</PayAnswersSeen>
+                ) : (
+                  row
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>
+  );
+}
+
+function QueryRow({ q }: { q: ShownQuery }) {
+  return (
+    <>
+      <StatusChip tone={q.sortedOn ? "done" : (TONES[q.status] ?? "quiet")}>
+        {q.sortedOn
+          ? `Answered by payroll on ${dayLabel(q.sortedOn)}`
+          : (PAY_QUERY_STATUS_WORDS[q.status] ?? q.status)}
+      </StatusChip>
+      <p className="mt-2 font-semibold">
+        {ISSUE_LABELS[q.issue]}: {dayLabel(q.day)}
+      </p>
+      {q.note && <p className="mt-2">Payroll says: &ldquo;{q.note}&rdquo;</p>}
+      <p className={`mt-2 ${muted} ${nums}`}>Reference {q.ref}</p>
+    </>
   );
 }

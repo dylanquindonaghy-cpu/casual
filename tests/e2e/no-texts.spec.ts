@@ -54,12 +54,12 @@ test("email login on: the link and the pay code come by email, and Profile shows
 
   await page.goto(`${acme}/pay`);
   await expect(
-    page.getByText("To keep your pay private, we'll email you a 6-digit code."),
+    page.getByText("To keep your pay private, we'll email you a 6‑digit code."),
   ).toBeVisible();
   const codeAsked = new Date(Date.now() - 1000);
   await page.getByRole("button", { name: "Email me a code" }).click();
   await expect(
-    page.getByText("We've emailed you a 6-digit code. It works for 10 minutes."),
+    page.getByText("We've emailed you a 6‑digit code. It works for 10 minutes."),
   ).toBeVisible();
   const codeEmail = await emailSentTo(
     zoe.email,

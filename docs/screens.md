@@ -378,6 +378,9 @@ you" (`/profile#notify-heading`).
 | She turned "Tell me about open shifts" off | Open-shift alerts are off | We won't tell you about open shifts. Turn them on. |
 
 - Both can show at once (nothing reaches her, and her alerts are off).
+- While "We can't reach you about shifts" shows, "Shifts you can take" never says "We'll message
+  you when something matches." With nothing to take it says "No shifts right now" (or "No other
+  shifts now") and "Check back later.", as it does with her alerts off.
 - "Nothing can reach her" is the office's own rule: the one that puts a casual under "Not offered,
   and why" as "No way to reach them" (`reachOf()`, `src/lib/offers/reach.ts`), which agrees with
   the one the offer waves use to leave her out (tests prove it for every case). "Alerts are off" is

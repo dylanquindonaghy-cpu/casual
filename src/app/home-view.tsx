@@ -247,11 +247,18 @@ const soonest = (shifts: OpenShift[], timeZone: string) => {
 };
 
 // "Shifts you can take": the urgent ones (to the urgent board), the other ones she can take (to
-// Open shifts), her travel area to add while she has none; offline, that they need signal.
-function ShiftsYouCanTake({ timeZone, open, savedAt }: HomeViewProps & { savedAt: string }) {
+// Open shifts), her travel area to add while she has none; offline, that they need signal. With
+// none, "We'll message you" only when we can: never beside "We can't reach you about shifts".
+function ShiftsYouCanTake({
+  timeZone,
+  open,
+  savedAt,
+  reach = [],
+}: HomeViewProps & { savedAt: string }) {
   const urgent = open.shifts.filter((s) => s.isUrgent);
   const rest = open.shifts.filter((s) => !s.isUrgent);
   const areaPrompt = open.travelOn && !open.area;
+  const willMessage = open.offerAlerts && !reach.includes("unreachable");
   const urgentDay = soonest(urgent, timeZone);
   const restDay = soonest(rest, timeZone);
   return (
@@ -285,7 +292,7 @@ function ShiftsYouCanTake({ timeZone, open, savedAt }: HomeViewProps & { savedAt
         href="/shifts/open"
         extra={{ "data-online-only": "" }}
         lead={restDay ? <DayTile day={restDay} /> : <DiscLead name="shifts" tone="quiet" />}
-        text={applyRowText(rest, urgent.length > 0, open.offerAlerts, timeZone)}
+        text={applyRowText(rest, urgent.length > 0, willMessage, timeZone)}
       />
     </Section>
   );

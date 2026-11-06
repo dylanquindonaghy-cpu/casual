@@ -16,6 +16,7 @@ import { closeAsksOnChange } from "../roster/asks";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { AgreementNotRecorded, requireAgreementForImport } from "../imports/gate-b";
+import { queueDetailsNotice } from "../notices/details-changed";
 import { cancelShiftInTx } from "../roster/cancel";
 import {
   callerActor,
@@ -818,6 +819,8 @@ async function update(p: Put, held: Held): Promise<ApiResult> {
           }
         : {}),
     });
+    // A new briefing for the casuals booked: each is told (Phase 28.3).
+    await queueDetailsNotice(p.tx, shiftId, rest);
   }
 
   // The status follows the places, as in the file import, never for a session the office marked

@@ -14,6 +14,7 @@ import {
 } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
+import { queueDetailsNotice } from "../notices/details-changed";
 import { refreshShiftStatus } from "../roster/native";
 import { automaticEventId } from "../roster/shift-events";
 import {
@@ -687,6 +688,8 @@ function rowImporter(
     }
     await tx.update(shifts).set(fields).where(eq(shifts.id, existing.id));
     await event(tx, "shift.changed", "shift", existing.id, { fields: changed });
+    // New instructions for people booked: each is told (Phase 28.3).
+    await queueDetailsNotice(tx, existing.id, changed);
     if (retimed) travel.add(existing.id);
     // The status follows the places, as in the office's shift editor: never for a shift the office
     // marked as filled with places still free (src/lib/roster/close.ts), which stays closed until

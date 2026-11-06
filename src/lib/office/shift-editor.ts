@@ -16,6 +16,8 @@ import type { FirmTx } from "../db/scoped";
 import { withFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { importPence } from "../imports/import";
+import { casualsToTell, queueDetailsNotice } from "../notices/details-changed";
+import { hasTextSender } from "../portal/login-way";
 import { officeCanPlace } from "../roster/book";
 import { refreshShiftStatus } from "../roster/native";
 import { normaliseRole } from "../roster/sheets/parse";
@@ -339,8 +341,10 @@ export const editShiftSchema = z.strictObject({
 });
 export type EditShiftInput = z.input<typeof editShiftSchema>;
 
+// `told` (Phase 28.3): how many casuals booked on it will be told their shift's details changed
+// (src/lib/notices/details-changed.ts); left out when nobody will be.
 export type EditShiftResult =
-  | { status: "saved"; fields: string[] }
+  | { status: "saved"; fields: string[]; told?: number }
   | { status: "unchanged" }
   | { status: "invalid"; problems: ShiftProblem[] }
   | { status: "has_bookings" } // times, role or site with people booked: move it instead
@@ -459,8 +463,21 @@ export async function editShift(
           : {}),
       },
     });
-    return { status: "saved", fields };
+    // New instructions for people booked: each is told (Phase 28.3).
+    return { status: "saved", fields, ...(await tellBooked(tx, shiftId, fields)) };
   });
+}
+
+// Queues the booked casuals' notice when a briefing field changed (src/lib/notices/
+// details-changed.ts), and counts who it will reach for the office's confirmation.
+async function tellBooked(
+  tx: FirmTx,
+  shiftId: string,
+  fields: readonly string[],
+): Promise<{ told?: number }> {
+  if (!(await queueDetailsNotice(tx, shiftId, fields))) return {};
+  const told = await casualsToTell(tx, shiftId, hasTextSender());
+  return told > 0 ? { told } : {};
 }
 
 export const editDetailsSchema = z.strictObject({
@@ -483,7 +500,7 @@ export const DETAIL_FIELDS = {
 export type DetailField = (typeof DETAIL_FIELDS)[keyof typeof DETAIL_FIELDS];
 
 export type EditDetailsResult =
-  | { status: "saved"; fields: DetailField[] }
+  | { status: "saved"; fields: DetailField[]; told?: number } // told: as editShift's
   | { status: "unchanged" }
   | { status: "invalid"; problems: ShiftProblem[] }
   | { status: "has_bookings" } // requirements with people booked
@@ -578,6 +595,6 @@ export async function editShiftDetails(
       entityId: shiftId,
       data: { by: "firm", fields },
     });
-    return { status: "saved", fields };
+    return { status: "saved", fields, ...(await tellBooked(tx, shiftId, fields)) };
   });
 }

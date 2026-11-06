@@ -56,6 +56,7 @@ import {
 import { textsOffText } from "@/app/profile/profile-view";
 import { askedDays, cancelReplyText, shiftsReplyText } from "@/lib/inbound/personal-reply";
 import { fillWhatsAppTemplate, WHATSAPP_TEMPLATES } from "@/lib/messaging/whatsapp-templates";
+import { BRIEFING_FIELDS, BRIEFING_WORDS, briefingWords } from "@/lib/notices/briefing-fields";
 
 // All copy from docs/messaging-templates.md (Phase 4). Every message the code builds is checked
 // against the doc's wording: the WhatsApp templates, the SMS versions, the pushes and the office
@@ -950,6 +951,32 @@ describe("the SMS versions", () => {
     expect(reminders.map(parts)).toEqual([4, 4, 3, 4]);
   });
 
+  // Phase 28.3: a booked shift's briefing changed, by text.
+  it("a booked shift's details changed says what the doc says, with and without a site", () => {
+    const [text] = quotes(sms, "Details changed");
+    const shift = {
+      site: "{site}",
+      date: "{date}",
+      start: "{start}",
+      changes: "{changes}",
+      link: "{link}",
+    };
+    expect(templates.detailsChangedSms(docVoice, shift)).toBe(text);
+    expect(templates.detailsChangedSms(docVoice, { ...shift, site: null })).toBe(
+      (text ?? "").replace(" at {site}", ""),
+    );
+    // Standard text characters only, and two texts with a real link and sign-off (the doc says so).
+    const real = templates.detailsChangedSms(demo, {
+      site: "Acme Demo Arena",
+      date: "Sat 7 Nov",
+      start: "08:00",
+      changes: "meeting point and uniform",
+      link,
+    });
+    expect(Number.isFinite(gsmLength(real))).toBe(true);
+    expect(parts(real)).toBe(2);
+  });
+
   it("a firm's own sign-off, after a plain hyphen", () => {
     const text = shiftUrgentSms(
       { name: "Acme Events", signOff: "Acme Rota Desk" },
@@ -985,6 +1012,24 @@ describe("every message to a worker ends with the firm's sign-off (golden rule 8
     ["shift_offer", shiftOfferMessage(voice, { ...shift, date: "Sat 7 Nov", link: "L" })],
     ["shift_confirmed", shiftConfirmedMessage(voice, { ...shift, date: "Sat 7 Nov", link: "L" })],
     ["shift_not_booked", shiftNotBookedMessage(voice, { ...shift, date: "Sat 7 Nov", link: "L" })],
+    [
+      "shift_details_changed (Phase 28.3)",
+      templates.detailsChangedMessage(voice, {
+        ...shift,
+        date: "Sat 7 Nov",
+        changes: "pay",
+        link: "L",
+      }),
+    ],
+    [
+      "shift_details_changed (SMS)",
+      templates.detailsChangedSms(voice, {
+        ...shift,
+        date: "Sat 7 Nov",
+        changes: "pay",
+        link: "L",
+      }),
+    ],
     ["shift_offer (SMS)", shiftOfferSms(voice, { ...shift, date: "Sat 7 Nov", link: "L" })],
     ["shift_urgent", shiftUrgentMessage(voice, { ...shift, link: "L" })],
     ["shift_urgent (SMS)", shiftUrgentSms(voice, { ...shift, link: "L" })],
@@ -1039,6 +1084,17 @@ describe("the pushes", () => {
     expect(firmChangePush({ kind: "cancelled", date: "{date}", start: "{start}" })).toEqual({
       title: t2,
       body: b2,
+    });
+  });
+
+  it("a booked shift's details changed (Phase 28.3), with and without a site", () => {
+    const [title, body, noSiteBody] = quotes(push, "Details changed");
+    expect(
+      templates.detailsChangedPush({ site: "{site}", date: "{date}", start: "{start}" }),
+    ).toEqual({ title, body });
+    expect(templates.detailsChangedPush({ site: null, date: "{date}", start: "{start}" })).toEqual({
+      title,
+      body: noSiteBody,
     });
   });
 
@@ -1125,6 +1181,9 @@ describe("emails to casuals: their subjects", () => {
     expect(templates.shiftChangedByFirmEmailSubject({ date: "{date}" })).toBe(
       subject("The office's change (`shift_changed_by_firm`)"),
     );
+    expect(templates.detailsChangedEmailSubject({ date: "{date}" })).toBe(
+      subject("A booked shift's details changed (`shift_details_changed`"),
+    );
     expect(templates.shiftCancelledByFirmEmailSubject({ date: "{date}" })).toBe(
       subject("The office's cancellation (`shift_cancelled_by_firm`)"),
     );
@@ -1155,6 +1214,71 @@ describe("emails to casuals: their subjects", () => {
       subject: code[0],
       body: code[1],
     });
+  });
+});
+
+// Phase 28.3: a booked shift's briefing changed (shift_details_changed). Its body is in the email
+// section (no WhatsApp template: it goes by push, text or email only), and it never carries a
+// value: the parts that changed in the casual's words, nothing else.
+describe("a booked shift's details changed (Phase 28.3)", () => {
+  const emails = section("Email to casuals");
+  const lead = "A booked shift's details changed (`shift_details_changed`";
+  const shift = {
+    site: "{site}",
+    date: "{date}",
+    start: "{start}",
+    changes: "{changes}",
+    link: "{link}",
+  };
+
+  it("the message's words are the doc's body, with and without a site", () => {
+    const [, body] = quotes(emails, lead);
+    expect(templates.detailsChangedMessage(docVoice, shift)).toBe(body);
+    expect(templates.detailsChangedMessage(docVoice, { ...shift, site: null })).toBe(
+      (body ?? "").replace(" at {site}", ""),
+    );
+  });
+
+  it("{changes} lists the parts in the doc's order and words", () => {
+    const quoted = quotes(emails, lead);
+    const first = quoted.indexOf("instructions");
+    expect(first).toBeGreaterThan(1); // after the subject and the body
+    const named = quoted.slice(first, first + BRIEFING_FIELDS.length);
+    expect(named).toEqual(BRIEFING_FIELDS.map((f) => BRIEFING_WORDS[f]));
+    expect(briefingWords(["meetingPoint", "uniform"])).toBe("meeting point and uniform");
+    expect(briefingWords(["payRatePence", "uniform", "meetingPoint"])).toBe(
+      "meeting point, uniform and pay",
+    );
+  });
+
+  it("never a pay figure, a pound sign or the instructions' text, on a lock screen or anywhere", () => {
+    // A shift paying £15.75 an hour with long instructions: none of it can reach the words, which
+    // take only the date, the start, the site and the parts' names.
+    const voice = { name: "Acme Events", signOff: "Acme Events Shift Team" };
+    const real = {
+      site: "Riverside Arena",
+      date: "Sat 7 Nov",
+      start: "08:00",
+      changes: briefingWords([...BRIEFING_FIELDS]),
+      link: "https://acme.shiftdesk.example/shifts/3f2a9c1e-5b7d-4e8a-9f0b-1c2d3e4f5a6b",
+    };
+    const pushed = templates.detailsChangedPush(real);
+    const texts = [
+      `${pushed.title} ${pushed.body}`,
+      templates.detailsChangedMessage(voice, real),
+      templates.detailsChangedSms(voice, real),
+      templates.detailsChangedEmailSubject(real),
+    ];
+    for (const words of texts) {
+      expect(words).not.toContain("£");
+      expect(words).not.toMatch(/15\.75|1575/);
+      expect(words).not.toMatch(/Gate|Bring|hi-vis/i);
+    }
+    // The push doesn't even name the parts (a lock screen shows it); pay is only ever "pay".
+    expect(`${pushed.title} ${pushed.body}`).not.toMatch(/pay|uniform|meeting/i);
+    expect(templates.detailsChangedMessage(voice, real)).toContain(
+      "instructions, meeting point, uniform, post, pay and what you need",
+    );
   });
 });
 
@@ -1236,6 +1360,11 @@ describe("every template function is checked here", () => {
         "shiftReminder24hEmailSubject",
         "shiftReminder2hEmailSubject",
         "shiftUrgentEmailSubject",
+        // A booked shift's briefing changed (Phase 28.3), checked above.
+        "detailsChangedEmailSubject",
+        "detailsChangedMessage",
+        "detailsChangedPush",
+        "detailsChangedSms",
       ].sort(),
     );
   });

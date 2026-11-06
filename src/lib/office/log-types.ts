@@ -99,6 +99,12 @@ export const LOG_TYPES = {
       "shift.booked_notice_failed",
       "shift.booked_notice_held",
       "shift.booked_notice_skipped",
+      // Telling booked casuals their shift's briefing changed (Phase 28.3).
+      "shift.details_notice",
+      "shift.details_notice_sent",
+      "shift.details_notice_failed",
+      "shift.details_notice_held",
+      "shift.details_notice_skipped",
       // The office's "Remind" on Casuals (Phase 26.7): the licence message again.
       "casual.reminded",
       "casual.reminder_notice",

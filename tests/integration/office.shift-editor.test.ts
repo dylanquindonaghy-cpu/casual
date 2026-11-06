@@ -291,6 +291,8 @@ describe("editing a shift", () => {
     ).toEqual({
       status: "saved",
       fields: ["headcount", "instructions"],
+      // Phase 28.3: Ann is told her shift's details changed.
+      told: 1,
     });
   });
 
@@ -665,6 +667,8 @@ describe("events and a session's own details (12B.1)", () => {
     expect(await editShiftDetails(t.ctx(), id, { ...NO_DETAILS, payRate: "15.75" })).toEqual({
       status: "saved",
       fields: ["payRatePence"],
+      // Phase 28.3: the casual booked is told their shift's details changed.
+      told: 1,
     });
     expect(await detailsOf(id)).toMatchObject({ pay_rate_pence: 1575, required_credentials: [] });
   });

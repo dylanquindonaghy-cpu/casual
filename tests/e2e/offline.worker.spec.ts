@@ -108,6 +108,8 @@ test("Home (her next shift) and Booked open with no signal, marked as copies; lo
   await expect(tabs.getByRole("link", { name: "Home" })).toHaveAttribute("aria-current", "page");
   await expect(tabs.getByRole("button")).toHaveCount(0);
   await context.setOffline(false);
+  // Signal again: the copy opens the fresh page by itself (Phase 29.6), before going on.
+  await expect(page.getByText("No signal.")).toBeHidden({ timeout: 10_000 });
 
   // Booked, on the Shifts tab, is kept too.
   await page.goto(`${acme}/shifts`);
@@ -138,6 +140,9 @@ test("Home (her next shift) and Booked open with no signal, marked as copies; lo
   await expect(page.getByText("No signal.")).toBeVisible();
   await expect(page.getByText(site).first()).toBeVisible();
   await context.setOffline(false);
+  // Booked's copy opens the fresh page by itself too (Phase 29.6).
+  await expect(page.getByText("No signal.")).toBeHidden({ timeout: 10_000 });
+  await expect(page).toHaveURL(`${acme}/shifts`);
 
   await page.reload();
   await expect(page.getByText("No signal.")).toBeHidden();

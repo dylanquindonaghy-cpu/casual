@@ -219,11 +219,17 @@ describe("which requests the service worker answers", () => {
     const answers = (r: Req) => dispatch(w, r).handled !== null;
     expect(answers(navigate("/"))).toBe(true);
     expect(answers(req("/_next/static/chunks/main.js"))).toBe(true);
+    // Opening any other page (Phase 29.6): the network's own answer, untouched and never kept (the
+    // in-app No signal page only when there's no network: "with no signal, any other page").
+    for (const path of ["/?view=past", "/profile", "/pay", "/office"]) {
+      const network = answer(`page ${path}`);
+      const own = loadWorker(async () => network);
+      const { handled, settled } = dispatch(own, navigate(path));
+      expect(await handled, path).toBe(network);
+      await settled();
+      expect(await own.caches.keys(), path).toEqual([]);
+    }
     // Everything else goes straight to the network.
-    expect(answers(navigate("/?view=past"))).toBe(false);
-    expect(answers(navigate("/profile"))).toBe(false);
-    expect(answers(navigate("/pay"))).toBe(false);
-    expect(answers(navigate("/office"))).toBe(false);
     expect(answers(req("/", { mode: "cors" }))).toBe(false); // not opening the page
     expect(answers(req("/?_rsc=abc", { mode: "cors" }))).toBe(false); // a page's data
     expect(answers(req("/", { method: "POST", mode: "navigate" }))).toBe(false); // an action
@@ -231,7 +237,13 @@ describe("which requests the service worker answers", () => {
     // Photos and certificate images (12F.2) are never kept: always the network, with the server's
     // access check and "private, no-store".
     expect(answers(req("/files/7c1d2e3f-0000-4000-8000-000000000001"))).toBe(false);
-    expect(answers(navigate("/files/7c1d2e3f-0000-4000-8000-000000000001"))).toBe(false);
+    // (Opened as a page, the network's answer as it comes, never kept: Phase 29.6.)
+    const photo = answer("photo", 200, false, { "cache-control": "private, no-store" });
+    const viewer = loadWorker(async () => photo);
+    const opened = dispatch(viewer, navigate("/files/7c1d2e3f-0000-4000-8000-000000000001"));
+    expect(await opened.handled).toBe(photo);
+    await opened.settled();
+    expect(await viewer.caches.keys()).toEqual([]);
     expect(answers(req("/_next/static/../../files/7c1d2e3f-0000-4000-8000-000000000001"))).toBe(
       false,
     );
@@ -246,6 +258,107 @@ describe("which requests the service worker answers", () => {
       const value = new RegExp(`const ${constant} = ("[^"]+");`);
       expect(SOURCE.match(value)?.[1], constant).toBe(page.match(value)?.[1]);
     }
+  });
+});
+
+describe("with no signal, any other page (Phase 29.6)", () => {
+  const offline = () => Promise.reject(new TypeError("Failed to fetch"));
+  const opened = async (path: string) => {
+    const w = loadWorker(offline);
+    const { handled, settled } = dispatch(w, navigate(path));
+    const page = await handled;
+    await settled();
+    return { w, page, html: (await page?.text()) ?? "" };
+  };
+
+  it("opens an in-app No signal page, with Try again and a way back to the saved shifts", async () => {
+    const { w, page, html } = await opened("/pay");
+    expect(page?.status).toBe(503); // as the plain No signal page
+    expect(page?.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    expect(page?.headers.get("cache-control")).toBe("no-store");
+    expect(html).toContain('<html lang="en-GB">');
+    expect(html).toContain("<title>No signal</title>");
+    expect(html).toContain("<h1>No signal</h1>");
+    expect(html).toContain("<p>This page needs signal. Try again when you have signal.</p>");
+    expect(html).toContain('<a class="go" href="/pay">Try again</a>');
+    expect(html).toContain('<a class="go main" href="/">Open my saved shifts</a>');
+    // Light or dark as the phone is, links at least 44px tall, and it reloads itself when the
+    // signal comes back.
+    expect(html).toContain("prefers-color-scheme:dark");
+    expect(html).toContain("min-height:48px");
+    expect(html).toContain('addEventListener("online",function(){location.reload()})');
+    // Made each time: nothing is kept.
+    expect(await w.caches.keys()).toEqual([]);
+    for (const path of [
+      "/messages",
+      "/profile",
+      "/shifts/open",
+      "/shifts?view=past",
+      "/?view=past",
+    ]) {
+      const other = await opened(path);
+      expect(other.html, path).toContain("<h1>No signal</h1>");
+      expect(other.html, path).toContain("Open my saved shifts");
+    }
+  });
+
+  it("'Try again' is the same address, written safely", async () => {
+    expect((await opened("/shifts?view=past")).html).toContain(
+      '<a class="go" href="/shifts?view=past">Try again</a>',
+    );
+    const odd = await opened("/requests/new?about=it's&x=\"<b>&y=1");
+    expect(odd.html).not.toContain("<b>");
+    expect(odd.html).toMatch(
+      /<a class="go" href="\/requests\/new\?about=it(&#39;|%27)s&amp;x=%22%3Cb%3E&amp;y=1">Try again<\/a>/,
+    );
+  });
+
+  it("the office's pages get no 'Open my saved shifts'", async () => {
+    for (const path of ["/office", "/office/x", "/office/events?tab=open"]) {
+      const { html } = await opened(path);
+      expect(html, path).toContain("<h1>No signal</h1>");
+      expect(html, path).toContain(`href="${path.replace("&", "&amp;")}">Try again</a>`);
+      expect(html, path).not.toContain("Open my saved shifts");
+    }
+    expect((await opened("/officers")).html).toContain("Open my saved shifts"); // not the office
+  });
+
+  it("any answer from the network passes through untouched (a redirect, 401, 404 or 500)", async () => {
+    const answers = [
+      opaqueRedirect(),
+      answer("log in", 401),
+      answer("not found", 404),
+      answer("broken", 500),
+      answer("moved", 302),
+    ];
+    for (const network of answers) {
+      const w = loadWorker(async () => network);
+      const { handled, settled } = dispatch(w, navigate("/pay"));
+      expect(await handled, String(network.status)).toBe(network);
+      await settled();
+      expect(await w.caches.keys()).toEqual([]);
+    }
+  });
+
+  it("never answers what isn't opening a page (a page's data, an image), even with no signal", () => {
+    const w = loadWorker(offline);
+    expect(dispatch(w, req("/pay?_rsc=abc", { mode: "cors" })).handled).toBeNull();
+    expect(dispatch(w, req("/pay", { mode: "cors" })).handled).toBeNull();
+    expect(dispatch(w, req("/icon-192.png"))).toMatchObject({ handled: null });
+    expect(dispatch(w, req("/pay", { method: "POST", mode: "navigate" })).handled).toBeNull();
+    expect(dispatch(w, navigate("https://example.com/pay")).handled).toBeNull();
+    expect(w.fetched).toEqual([]);
+  });
+
+  it("My shifts with no signal is as before: its kept copy, or the plain No signal page", async () => {
+    const { page, html } = await opened("/");
+    expect(page?.status).toBe(503);
+    expect(html).toContain(
+      "Your shifts will open here without signal once you've opened them with signal.",
+    );
+    expect(html).not.toContain("This page needs signal.");
+    const booked = await opened("/shifts");
+    expect(booked.html).toContain("Your shifts will open here without signal");
   });
 });
 
@@ -726,13 +839,20 @@ describe("Booked (`/shifts`) is kept too, on its own (12H.1)", () => {
       { now: 1000 },
     );
 
-  it("answers opening `/shifts` with no query, nothing else under it", () => {
+  it("answers opening `/shifts` with no query, nothing else under it", async () => {
     const w = online();
     const answers = (r: Req) => dispatch(w, r).handled !== null;
     expect(answers(navigate("/shifts"))).toBe(true);
-    expect(answers(navigate("/shifts?view=past"))).toBe(false);
-    expect(answers(navigate("/shifts/open"))).toBe(false);
-    expect(answers(navigate("/shifts?fresh"))).toBe(false); // the fresh copy is Home's alone
+    // Anything else under it is any other page (Phase 29.6): the network's own answer, untouched,
+    // and never kept (`/shifts?fresh` too: the fresh copy is Home's alone).
+    for (const path of ["/shifts?view=past", "/shifts/open", "/shifts?fresh"]) {
+      const network = answer(`page ${path}`);
+      const own = loadWorker(async () => network);
+      const { handled, settled } = dispatch(own, navigate(path));
+      expect(await handled, path).toBe(network);
+      await settled();
+      expect(await own.caches.keys(), path).toEqual([]);
+    }
   });
 
   it("keeps each page under its own address, with the files both name", async () => {

@@ -5,13 +5,19 @@
 //
 // It also shows web push notifications (an urgent offer) and opens their page when tapped.
 //
-// It handles only two kinds of request; everything else goes to the network untouched:
+// It handles three kinds of request; everything else (another site, a POST, a page's data or
+// images) goes to the network untouched:
 // - Opening My shifts (`/` or `/shifts`, no query): the network first. With no signal, or no answer within
 //   NETWORK_TIMEOUT_MS, the copy kept from the last good load, with its "No signal" notice
 //   unhidden. With no copy (or one older than MAX_AGE_MS), a plain "No signal" page. If anything
 //   in here goes wrong, the page is fetched as if this worker weren't there.
 // - The kept page's own styles and scripts (`/_next/static/`, whose names change whenever their
 //   contents do): from the copy when kept, else the network.
+// - Opening any other page of this site (Pay, Messages, Profile, Booked's other views, the office:
+//   Phase 29.6): the network's answer as it comes, whatever it is (a redirect, a 401, a 404 too).
+//   Only when there's no network at all, an in-app "No signal" page instead of the browser's own
+//   (noSignalElsewhere: "Try again", and outside the office "Open my saved shifts", to `/`). It
+//   is made here each time: never kept, and no page but My shifts is ever kept.
 // A good load of My shifts replaces the copy, and so does a "keep" message from the page (sent
 // when My shifts is shown without a full load: after logging in, or going back to it). A redirect
 // (logged out) or a 401, 403 or 404 deletes it. The page deletes it on logout and login
@@ -89,6 +95,10 @@ self.addEventListener("fetch", (event) => {
     );
   } else if (url.pathname.startsWith(STATIC)) {
     event.respondWith(staticFile(request).catch(() => fetch(request)));
+  } else if (request.mode === "navigate") {
+    // Any other page: the network's answer untouched; with no network, the in-app No signal page
+    // (Phase 29.6: not the browser's own, which leaves the app with no way back).
+    event.respondWith(fetch(request).catch(() => noSignalElsewhere(url)));
   }
 });
 
@@ -344,6 +354,43 @@ function noSignalPage() {
       "<h1>No signal</h1><p>Your shifts will open here without signal once you've opened them with signal.</p>" +
       "<p>Try again when you have signal.</p></body></html>",
     { status: 503, headers: { "content-type": "text/html; charset=utf-8" } },
+  );
+}
+
+// Any other page opened with no network (Phase 29.6): says so inside the app, with "Try again" (the
+// same address) and, outside the office, "Open my saved shifts" (`/`: the kept copy, or the plain
+// No signal page). Light or dark as the phone is; links at least 44px tall. Reloads by itself when
+// the signal comes back. Made fresh each time, never kept.
+function noSignalElsewhere(url) {
+  const here = escapeHtml(url.pathname + url.search);
+  const office = url.pathname === "/office" || url.pathname.startsWith("/office/");
+  const saved = office ? "" : '<a class="go main" href="/">Open my saved shifts</a>';
+  return new Response(
+    '<!doctype html><html lang="en-GB"><head><meta charset="utf-8">' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+      '<meta name="color-scheme" content="light dark"><title>No signal</title><style>' +
+      ":root{color-scheme:light dark;--bg:#fff;--ink:#14171c;--muted:#4b5563;--line:#c7ccd4;--btn:#14171c;--btn-ink:#fff}" +
+      "@media (prefers-color-scheme:dark){:root{--bg:#0f1216;--ink:#f2f4f7;--muted:#c3c9d2;--line:#4a525e;--btn:#f2f4f7;--btn-ink:#0f1216}}" +
+      "body{background:var(--bg);color:var(--ink);font-family:system-ui,sans-serif;font-size:1.125rem;line-height:1.5;max-width:28rem;margin:0 auto;padding:1.5rem}" +
+      "p{color:var(--muted)}.go{display:flex;align-items:center;justify-content:center;min-height:48px;margin-top:.75rem;padding:0 1rem;border:1px solid var(--line);border-radius:.75rem;color:var(--ink);font-weight:600;text-decoration:none}" +
+      ".go.main{background:var(--btn);border-color:var(--btn);color:var(--btn-ink)}.go:focus-visible{outline:3px solid var(--ink);outline-offset:2px}" +
+      "</style></head><body>" +
+      "<h1>No signal</h1><p>This page needs signal. Try again when you have signal.</p>" +
+      `<a class="go" href="${here}">Try again</a>` +
+      saved +
+      '<script>addEventListener("online",function(){location.reload()})</script>' +
+      "</body></html>",
+    {
+      status: 503,
+      headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
+    },
+  );
+}
+
+function escapeHtml(text) {
+  return String(text).replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
   );
 }
 

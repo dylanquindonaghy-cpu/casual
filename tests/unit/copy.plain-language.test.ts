@@ -973,6 +973,13 @@ describe("every staff screen and state is in plain words", () => {
     vm.runInContext(readFileSync("public/sw.js", "utf8"), sandbox);
     const page = (sandbox.noSignalPage as () => { body: string })();
     expect(problems(text(page.body))).toEqual([]);
+    // Any other page with no signal (Phase 29.6), a casual's and the office's.
+    const elsewhere = sandbox.noSignalElsewhere as (url: URL) => { body: string };
+    for (const path of ["/pay", "/office/x"]) {
+      const words = text(elsewhere(new URL(path, "http://acme.localhost:3100")).body);
+      expect(words, path).toContain("No signal");
+      expect(problems(words), path).toEqual([]);
+    }
   });
 
   it("the check itself catches what it's meant to", () => {

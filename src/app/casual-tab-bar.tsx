@@ -1,4 +1,5 @@
 import { tabCounts, type TabCounts } from "@/lib/portal/tab-counts";
+import { getCurrentBrand } from "@/lib/tenancy/current-brand";
 import { TabBar, TabBarSpace, type CasualTab } from "./tab-bar";
 
 // The casual tab bar with its counts, and the room it needs at the end of the page (12H.1; Phase
@@ -9,6 +10,16 @@ import { TabBar, TabBarSpace, type CasualTab } from "./tab-bar";
 // Home and Booked load the counts with the rest of their data and pass them to <CountedTabBar>;
 // every other page uses <CasualTabBar>, which loads them itself. Server components: put either
 // last inside the page's <main>.
+//
+// Phase 30 (30.2): from 1024px the bar is the office's rail at the window's left (tab-bar.tsx), with
+// the firm's mark at its top: the firm's brand as the firm's bar shows it (the layout has already
+// read it: cache()). A shift's own page has no bar on a phone but the rail on a laptop:
+// <CasualRail>, with the same counts.
+
+async function railFirm(): Promise<{ name: string } | null> {
+  const brand = await getCurrentBrand();
+  return brand ? { name: brand.name } : null;
+}
 
 export async function CasualTabBar({
   firm,
@@ -22,7 +33,13 @@ export async function CasualTabBar({
   return <CountedTabBar current={current} counts={await tabCounts({ firm }, workerId)} />;
 }
 
-export function CountedTabBar({ current, counts }: { current: CasualTab; counts: TabCounts }) {
+export async function CountedTabBar({
+  current,
+  counts,
+}: {
+  current: CasualTab;
+  counts: TabCounts;
+}) {
   return (
     <>
       <TabBarSpace />
@@ -32,7 +49,32 @@ export function CountedTabBar({ current, counts }: { current: CasualTab; counts:
         answersCount={counts.answers}
         messagesCount={counts.replies}
         payCount={counts.payAnswers}
+        firm={await railFirm()}
       />
     </>
+  );
+}
+
+// The rail alone, from 1024px (nothing below it, and no room kept at the page's end).
+export async function CasualRail({
+  firm,
+  workerId,
+  current,
+}: {
+  firm: { id: string };
+  workerId: string;
+  current: CasualTab;
+}) {
+  const counts = await tabCounts({ firm }, workerId);
+  return (
+    <TabBar
+      current={current}
+      profileCount={counts.needs}
+      answersCount={counts.answers}
+      messagesCount={counts.replies}
+      payCount={counts.payAnswers}
+      firm={await railFirm()}
+      railOnly
+    />
   );
 }

@@ -9,6 +9,7 @@ import { getCurrentBrand } from "@/lib/tenancy/current-brand";
 import { findCurrentFirm } from "@/lib/tenancy/current-firm";
 import { BrandBar } from "./brand-bar";
 import { DemoBar } from "./demo-bar";
+import { SkipToMenu } from "./skip-to-menu";
 import { fontVariables } from "./fonts";
 import { THEME_COOKIE, themeFromCookie } from "./theme";
 import "./globals.css";
@@ -40,6 +41,7 @@ export const viewport: Viewport = {
 // The theme comes from the sd-theme cookie (src/app/theme.ts), written onto <html> here so the
 // page arrives in its colours; with no cookie, the device decides.
 // On a demo server (DEMO_MODE=on) every page of a demo firm starts with the demo bar (16.1).
+// Phase 30.2: after them, "Skip to the menu", seen only when focused on a casual page from 1024px.
 // Round 8's look (Phase 26; the casual app's since Phase 27.6): <body>'s plain ground (bg-canvas)
 // is under every page with nothing drawn over it (Phase 27.7: the street pattern is gone), and
 // nothing bends what's behind the glass (round 7's refraction filter and its Chromium-only switch
@@ -65,6 +67,10 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       >
         {demo && <DemoBar />}
         {brand && <BrandBar brand={brand} />}
+        {/* The first link on a firm's page (the firm's bar has none; only a demo server's bar
+            comes before it): from 1024px, the keyboard's way to the casual app's rail, shown
+            only where there is one (src/app/skip-to-menu.tsx). */}
+        {brand && <SkipToMenu />}
         {children}
       </body>
     </html>

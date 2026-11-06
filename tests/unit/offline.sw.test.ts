@@ -1011,7 +1011,8 @@ describe("My shifts and the kept copy together", () => {
       );
       // Each heading says the time (Phase 18; beside its headline since 28.7, Booked's since
       // 28.13). The notice says the time and day.
-      expect(html).toContain("Updated 09:05</small>");
+      // (Home's since Phase 30.1 at the end of its date line, under the headline.)
+      expect(html).toMatch(/Updated 09:05<\/(?:small|span)>/);
       expect(html).toContain("This is your saved copy from 09:05 on Mon 2 Nov.");
       const notice = html.match(/<div[^>]*data-offline-notice[^>]*>/)?.[0] ?? "";
       expect(notice).toContain('hidden=""');

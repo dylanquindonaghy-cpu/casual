@@ -160,6 +160,9 @@ describe("the offer boundary", () => {
         "src/lib/office/reliability.ts",
         "src/lib/office/session-casuals.ts",
         "src/lib/office/session-page-copy.ts",
+        // Phase 30.1: Home's "Your record" card shows Profile's own figure (RELIABILITY_MIN, the
+        // Reliability type), never anything that picks who's offered.
+        "src/lib/portal/home-board.ts",
         // Phase 28.13: only RELIABILITY_DAYS, Booked's Past window and the attendance form's gate
         // (the same days the figure counts), never the figure itself.
         "src/lib/portal/my-shifts.ts",

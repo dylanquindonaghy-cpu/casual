@@ -169,6 +169,19 @@ export const count = `ml-2 align-middle ${countPill}`;
 // own, 14px).
 export const staffCount = count;
 
+// The office's top-bar count chips (src/app/office/office-frame.tsx BarCounts), shared since Phase
+// 30.1 for the casual's counts on Home: a link 44px tall on clear glass, its words grey, its number
+// in ink. A row of them scrolls sideways inside itself on a narrow phone, never the page
+// (`countChips`). The number's own colour: red for urgent, the amber to-do pill for "To do".
+export const countChips = "scrollbar-none fade-x -mx-2 flex gap-2 overflow-x-auto px-2 pb-1";
+export const countChip =
+  "press-glass glass-button flex h-11 shrink-0 items-center gap-2 rounded-full px-3 text-sm whitespace-nowrap text-ink-muted hover:bg-button-hover hover:text-ink active:bg-button-press";
+export const countChipNumber = {
+  plain: "font-semibold tabular-nums text-ink",
+  urgent: `${countShape} bg-urgent-fill text-on-urgent`,
+  todo: `${countShape} glass-rim bg-hivis text-on-hivis`,
+};
+
 // Secondary text: meta lines (times, references), and longer muted sentences.
 export const meta = "text-sm text-ink-muted";
 export const muted = "text-base text-ink-muted";
@@ -183,6 +196,9 @@ export const page = {
   office: "min-w-0",
   officeForm: "min-w-0 max-w-2xl",
   staff: "mx-auto max-w-md px-4 py-6 sm:px-6",
+  // Home, the casual's dashboard (Phase 30.1): the phone's column, and from 1024px a wide page (up
+  // to 1180px) for its 12-column grid, as the office's dashboard.
+  staffWide: "mx-auto max-w-md px-4 py-6 sm:px-6 lg:max-w-[73.75rem] lg:px-8",
   login: "mx-auto w-full max-w-md px-6 py-8 sm:px-0 sm:py-16",
   // The office's login pages, on its spacing (Phase 21).
   officeLogin: "mx-auto w-full max-w-md px-6 py-8 sm:px-0 sm:py-12",

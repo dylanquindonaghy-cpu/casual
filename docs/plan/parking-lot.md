@@ -2507,3 +2507,11 @@ Each task adds what it left out here as its wave is merged.
   "changed after the mark" SQL is written twice (Profile and the office); 29.4's details notice can
   be told twice when a change lands before the booking message is claimed; the saved copy reloads
   itself once only, so a weak signal can leave it waiting.
+
+## Phase 30, deferred while building (2026-11-06)
+
+- **30.1/30.2 (guardrails review, left as they are):** a shift's own page draws `<CasualRail>`,
+  which reads the tab bar's counts (`tabCounts`) on a phone too, where the rail is hidden: one
+  small read wasted per page on a phone. The rail could be drawn by the client only from 1024px,
+  or the counts passed in where the page already has them. And Home's "Your qualifications" puts
+  one the office has in hand after hers to do whatever its status (as the review asked, unchanged).

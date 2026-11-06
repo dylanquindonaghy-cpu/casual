@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { isOnNow, mapLink, NO_RATE_UNDER_LABEL, roleLabel, siteAddress } from "@/lib/portal/format";
 import type { MyShift } from "@/lib/portal/my-shifts";
 import { dateParts, inDays, shiftLine, timeRange } from "@/lib/portal/sign-copy";
@@ -35,6 +36,7 @@ export function NextPass({
   now,
   heading = "hidden",
   fresh = false,
+  extra,
 }: {
   shift: MyShift;
   timeZone: string;
@@ -43,6 +45,9 @@ export function NextPass({
   heading?: "hidden" | "shown";
   // Just taken (`?new=` on Booked): it moves into its place, marked "New".
   fresh?: boolean;
+  // Home (Phase 30.1): a line under the role and the event (how soon, how long, the pay), with
+  // its bar. Booked passes none.
+  extra?: ReactNode;
 }) {
   const day = dateParts(shift.startsAt, timeZone);
   const t = timeRange(shift.startsAt, shift.endsAt, timeZone);
@@ -102,6 +107,7 @@ export function NextPass({
           <p className="mt-3 font-sign text-4xl leading-tight text-ink">{t.range}</p>
           <p className="mt-1 text-lg font-medium text-ink">{what}</p>
           {t.endsNote && <p className="text-base text-ink-muted">{t.endsNote}</p>}
+          {extra}
         </div>
         {/* When above the line, where (and what she can do) under it: the band's work since 28.7. */}
         <div className="mt-4 flex flex-col gap-4 border-t border-line pt-4">

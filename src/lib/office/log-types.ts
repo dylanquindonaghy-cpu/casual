@@ -70,7 +70,8 @@ export const LOG_TYPES = {
   },
   attendance: {
     label: "Who worked",
-    actions: ["shift.completed", "shift.no_show"],
+    // shift.still_coming (Phase 28.2): a casual's "Yes, I'm coming" in the day before.
+    actions: ["shift.completed", "shift.no_show", "shift.still_coming"],
   },
   offers: {
     label: "Offers",
@@ -161,7 +162,8 @@ export const LOG_TYPES = {
   },
   requests: {
     label: "Requests",
-    actions: ["request.created", "request.approved", "request.declined"],
+    // request.withdrawn (Phase 28.2): the casual took back a request that was still waiting.
+    actions: ["request.created", "request.approved", "request.declined", "request.withdrawn"],
   },
   credentials: {
     label: "Credentials",

@@ -42,7 +42,7 @@ architecture.md, Tenancy).
 | shifts | Sessions: site, role, start/end, headcount, urgent flag, source; their event, pay rate, post, meeting point, uniform, extra requirements and "show to casuals" switch (12B.1) | 2 |
 | assignments | Worker on a shift slot: open → (offered) → confirmed → cancelled/no-show/completed; how a cancellation was made and the strike warning the casual confirmed against (12C.1) | 2 |
 | strikes | A strike issued for a casual's own late cancellation (one per booking), its review flag, withdrawal and evidence email (12C.1) | 12 |
-| requests | Time changes, swaps, general asks, reviews of refused shifts, and their status | 2 |
+| requests | Time changes, swaps, general asks, reviews of refused shifts, attendance questions (Phase 28.2), and their status | 2 |
 | offers | Each offer sent (in a wave, or by the office to one worker) and the response (table Phase 2; waves Phase 4; office offers Phase 5) | 2 |
 | casual_notes | The office's notes about a casual: who wrote it, when, 1 to 500 characters (26.7). Deleted with the casual's details | 26 |
 | session_asks | A casual's "I can do this" for a session where the office chooses, and how it ended: booked, "Not this time", or closed (26.6) | 26 |
@@ -260,6 +260,15 @@ create table workers (
                                          -- Messages (Phase 25.6, migration 0064): the office's
                                          -- replies after it are the tab's count
                                          -- (src/lib/portal/messages.ts); null: none seen yet
+  requests_read_at timestamptz default now(),    -- Phase 28.2 (migration 0071): the newest office
+  pay_answers_read_at timestamptz default now(), --   answer to their requests (approved or
+                                         --   declined) and payroll answer to their pay queries
+                                         --   (resolved) they've seen; answers after each are the
+                                         --   Profile and Pay tabs' counts
+                                         --   (src/lib/portal/request-answers.ts). Set when the row
+                                         --   is made (0071 gave the casuals already there its own
+                                         --   time), so older answers never count; moved only
+                                         --   forward; cleared on erasure (null counts every answer)
   office_deactivated_at timestamptz,     -- the office made them inactive (Phase 10): no sheet or
                                          -- file makes them active again, only the office (clears it)
   erased_at timestamptz,                 -- GDPR deletion (Phase 8, src/lib/gdpr/worker-erase.ts)
@@ -613,6 +622,16 @@ create table assignments (
   strike_warning_version text,           -- 12C.1: on a casual's own cancellation in the app, the strike
   strike_warning_shown_at timestamptz,   --   warning on screen when they confirmed (its version) and
                                          --   then; both or neither, only on cancelled_worker
+  still_coming_at timestamptz,           -- Phase 28.2 (migration 0071): when the casual tapped "Yes,
+                                         --   I'm coming" in the day before (confirmStillComing,
+                                         --   src/lib/portal/still-coming.ts: one conditional update
+                                         --   on her own confirmed booking of a session that isn't
+                                         --   cancelled, starts within 24 hours and hasn't started,
+                                         --   once; logged shift.still_coming {assignmentId, shiftId,
+                                         --   workerId}). Shown to the office to plan cover only: no
+                                         --   reliability figure, offer wave, strike or Watch list
+                                         --   reads it (tests/unit/rules.p28-boundary.test.ts);
+                                         --   cleared on erasure
   created_at timestamptz not null default now(),
   unique (firm_id, id),
   check ((status = 'open') = (worker_id is null))
@@ -663,8 +682,16 @@ create table requests (
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),
   worker_id uuid not null,               -- (firm_id, worker_id) -> workers
-  shift_id uuid,                         -- (firm_id, shift_id) -> shifts; required for time_change, swap and review
-  type text not null,                    -- time_change | swap | availability | general | review
+  shift_id uuid,                         -- (firm_id, shift_id) -> shifts; required for time_change, swap,
+                                         -- review and attendance
+  type text not null,                    -- time_change | swap | availability | general | review | attendance
+                                         -- attendance (Phase 28.2): "Think this mark is wrong?" on one of
+                                         -- her own sessions marked completed or no_show that started in the
+                                         -- last 90 days (askAboutMark, src/lib/portal/requests.ts: her
+                                         -- booking row locked, one waiting per session); payload {said:
+                                         -- worked | not_worked, note}: the note at most 500 characters, no
+                                         -- phone number or email. A person answers it; it never changes the
+                                         -- mark (golden rule 12)
                                          -- review (Phase 3): "Ask the office to review" a shift the rules
                                          -- refused; payload {codes, reasons, note}: the rules' codes and the
                                          -- words the worker saw, and their optional note; or, from "Tell us
@@ -672,14 +699,19 @@ create table requests (
                                          -- reasons: [], note, cancellation}: the cancelled booking's
                                          -- reference (not a rules review: waitingReview() skips it)
   payload jsonb not null default '{}',   -- a JSON object; shape validated in code per type
-  status text not null default 'open',   -- open | approved | declined | auto_resolved | escalated
+  status text not null default 'open',   -- open | approved | declined | auto_resolved | escalated | withdrawn
+                                         -- withdrawn (Phase 28.2): she took it back while it was open or
+                                         -- escalated (withdrawRequest: one conditional update; the office
+                                         -- answering first wins instead); logged request.withdrawn
   resolved_by uuid,                      -- (firm_id, resolved_by) -> office_users
   resolved_at timestamptz,
   resolution_note text,                  -- the office's note to the worker with its answer (Phase 5):
                                          -- approved/declined only, 1-500 characters; free text, so
                                          -- never copied into events
-  -- open/escalated: neither set. approved/declined: both set. auto_resolved: resolved_at only.
-  -- A question (general) answered is stored approved and shown "Answered" (12D.1).
+  -- open/escalated: neither set. approved/declined: both set. auto_resolved and withdrawn:
+  -- resolved_at only (withdrawn: resolved_by always null).
+  -- A question (general) answered is stored approved and shown "Answered" (12D.1); an attendance
+  -- question is shown "Answered" whether approved or declined (Phase 28.2).
   message_id uuid,                       -- 12D.1 (S5): the shifts-line message a question came from,
                                          -- (firm_id, message_id) -> messages ON DELETE SET NULL
                                          -- (message_id): the 90-day purge or an erasure clears the link,
@@ -888,6 +920,14 @@ create table messages (                 -- built in Phase 7 (migrations 0022-002
                                          -- automatic answer; with none, the office's
   twilio_opt_out text,                   -- stop | start: Twilio's own opt-out handling acted on this
                                          -- incoming text (and confirmed it); null otherwise
+  shift_id uuid,                         -- Phase 28.2 (migration 0071): the session a casual's message
+                                         -- in the app is about ("Message the office", 28.6):
+                                         -- (firm_id, shift_id) -> shifts (messages_shift_fk). Kept
+                                         -- only for a session she's booked on or can see that isn't a
+                                         -- draft or cancelled and hasn't ended, checked in the insert's
+                                         -- own transaction (src/lib/inbound/app.ts); otherwise null.
+                                         -- messages_shift_app_only: null unless channel = 'app' and
+                                         -- direction = 'in'
   created_at timestamptz not null default now(),
   unique (firm_id, id), unique (firm_id, provider_message_id)
 );
@@ -980,7 +1020,11 @@ create table events (
 -- code made: P2.6), auth.otp_failed ({attemptsLeft}), auth.otp_locked, auth.otp_verified (otp_code).
 -- Worker requests (src/lib/portal/requests.ts): request.created (request; actor worker; {type,
 -- shiftId}): the typed note and any colleague's name stay on the row (requests.payload:
--- time_change {start, end, note} local "HH:MM" times; swap {swapWith, note}).
+-- time_change {start, end, note} local "HH:MM" times; swap {swapWith, note}). Phase 28.2: an
+-- attendance question's request.created is {type: attendance, shiftId, assignmentId, said} (said:
+-- worked | not_worked, a code; the note stays on the row); request.withdrawn (request; actor
+-- worker; {type, workerId, shiftId?}) when she takes one back; shift.still_coming (assignment;
+-- actor worker; {assignmentId, shiftId, workerId}) for "Yes, I'm coming".
 -- Cancelling (src/lib/roster/cancel.ts): shift.cancelled (assignment; actor worker or office; {by:
 -- worker|firm, shiftId, workerId, noticeHours, strike, place, reopenedId?}); the reason a person
 -- typed is only on the row (assignments.cancel_reason). `place` (12C.3) is what became of the
@@ -1241,7 +1285,7 @@ owner's; `src/lib/gdpr/retention-settings.ts`): `message_days` (default 90), `re
 | Data | Keep | Built (Phase 8) |
 |---|---|---|
 | Raw messages and transcripts | `retention.message_days` (90) | Yes: `messages` older than that, by `app_purge_old_messages()`, which reads the firm's settings itself; a newer reply stays (its `reply_to` cleared) |
-| The words typed into a request (`requests.payload.note`, `.swapWith`) | `retention.request_note_days` (365) after it closed | Yes: removed from closed requests (approved, declined, auto-resolved), the request stays; open and escalated ones keep them |
+| The words typed into a request (`requests.payload.note`, `.swapWith`) | `retention.request_note_days` (365) after it closed (`resolved_at`) | Yes: removed from closed requests (approved, declined, auto-resolved, and taken back by the worker: withdrawn, Phase 28.2), the request stays; open and escalated ones keep them |
 | The office's override reason (`assignments.override_reason`) | The same, after the booking | Yes: cleared |
 | Photos and certificate images (`uploads`, 12F.2) | One turned down: 30 days after the check (with its "Not accepted" record). A staff photo replaced by a newer approved one: 30 days after that one was approved. The current photo and a certificate's image stay with what they prove | Yes: `retention-purge` (none during a hold); erasure deletes them all |
 | Strikes (`strikes`) | `strikes.keep_months` (12) after it was issued, which always covers the 90 days it counts plus 6 months | Yes: deleted by `app_purge_old_strikes()` (12C.1, migrations 0038 and 0039), which reads the firm's settings itself; their `strike.issued` log entries (ids and hours) stay with the action log |

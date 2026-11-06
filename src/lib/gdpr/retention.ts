@@ -21,8 +21,14 @@ import { addDays, localDateOf } from "../time/zoned";
 import { REQUEST_FREE_TEXT_KEYS } from "./free-text";
 import { onHold, retentionSettings } from "./retention-settings";
 
-// A request whose words may go once it's been closed long enough.
-const CLOSED_REQUEST_STATUSES = ["approved", "declined", "auto_resolved"] as const;
+// A request whose words may go once it's been closed long enough: answered, sorted, or taken back
+// by the worker (Phase 28.2: withdrawn, closed at resolved_at like the rest).
+export const CLOSED_REQUEST_STATUSES = [
+  "approved",
+  "declined",
+  "auto_resolved",
+  "withdrawn",
+] as const;
 
 // The retention purge (docs/compliance.md "Retention defaults"; docs/api-and-jobs.md
 // `retention-purge`). A tick at 03:30 London queues one retention-purge job per firm per local
@@ -45,8 +51,9 @@ const CLOSED_REQUEST_STATUSES = ["approved", "declined", "auto_resolved"] as con
 //   accepted"); and a staff photo replaced by a newer approved one, UPLOAD_KEEP_DAYS after that one
 //   was approved. A certificate's image stays with its record (the evidence the office checked);
 // - the words typed into a request (payload.note, and payload.swapWith: a colleague's name), only
-//   once it's closed (approved, declined, auto-resolved) and retention.request_note_days (365) after
-//   it closed: an open or escalated request keeps them (the request itself stays: it's evidence);
+//   once it's closed (approved, declined, auto-resolved, or taken back by the worker) and
+//   retention.request_note_days (365) after it closed (resolved_at): an open or escalated request
+//   keeps them (the request itself stays: it's evidence);
 // - the office's typed reason for placing someone despite a rule (assignments.override_reason),
 //   the same number of days after the person was booked (confirmed_at);
 // - rate-limit counters (login, and since P4.7 the unknown-number alerts) a day after their window

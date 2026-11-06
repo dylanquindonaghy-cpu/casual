@@ -556,7 +556,8 @@ describe("requests", () => {
         "select pg_get_constraintdef(oid) as def from pg_constraint where conname = 'requests_status_check'",
       );
       expect(def.rows[0]?.def).toContain(
-        "ARRAY['open'::text, 'approved'::text, 'declined'::text, 'auto_resolved'::text, 'escalated'::text]",
+        // Phase 28.2 added withdrawn (the worker took it back).
+        "ARRAY['open'::text, 'approved'::text, 'declined'::text, 'auto_resolved'::text, 'escalated'::text, 'withdrawn'::text]",
       );
     });
   });

@@ -458,6 +458,9 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `Offers still waiting were closed: ${String(d.filledElsewhere ?? 0)} filled by someone else${
         Number(d.accepted ?? 0) > 0 ? `, ${String(d.accepted)} taken by the people placed` : ""
       }.`;
+    // Phase 28.2: shown to the office to plan cover, with no effect on anything.
+    case "shift.still_coming":
+      return `${worker} said they're still coming.`;
     case "shift.reminder_sent":
       return `Reminder sent to ${worker}.`;
     case "shift.reminder_failed":
@@ -666,6 +669,8 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     }
     case "request.created":
       return `${worker} sent a request (${kind(d.type)}).`;
+    case "request.withdrawn":
+      return `${worker} took back a request.`;
     case "request.approved":
     case "request.declined": {
       const what = e.action === "request.approved" ? "approved" : "declined";

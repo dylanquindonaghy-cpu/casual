@@ -70,13 +70,25 @@ export const CANCEL_ASKERS = ["casual", "firm", "client", "unknown"] as const;
 export type CancelAsker = (typeof CANCEL_ASKERS)[number];
 
 // review: the worker asks the office to look again at a shift the rules won't let them take.
-export const REQUEST_TYPES = ["time_change", "swap", "availability", "general", "review"] as const;
+// attendance (Phase 28.2): she thinks the office marked one of her own sessions wrong (worked, or
+// not attended); a person looks again and answers. It never changes the mark itself.
+export const REQUEST_TYPES = [
+  "time_change",
+  "swap",
+  "availability",
+  "general",
+  "review",
+  "attendance",
+] as const;
+// withdrawn (Phase 28.2): she took it back while it was still waiting for the office (open or
+// escalated). Closed then, with when (resolved_at) and nobody in the office (resolved_by null).
 export const REQUEST_STATUSES = [
   "open",
   "approved",
   "declined",
   "auto_resolved",
   "escalated",
+  "withdrawn",
 ] as const;
 
 // How an offer went (P2.4: a push to their phones first, else a WhatsApp or text, else email).
@@ -390,6 +402,11 @@ export const assignments = pgTable(
     bookedVia: text("booked_via", { enum: BOOK_VIAS }),
     strikeWarningVersion: text("strike_warning_version"),
     strikeWarningShownAt: timestamptz("strike_warning_shown_at"),
+    // When she said "Yes, I'm coming" in the day before the session (Phase 28.2; 28.14): set once,
+    // by her own tap (src/lib/portal/still-coming.ts). Shown to the office to plan cover, nothing
+    // more: no reliability figure, offer wave, strike or Watch list reads it
+    // (tests/unit/rules.p28-boundary.test.ts). Cleared when she's erased.
+    stillComingAt: timestamptz("still_coming_at"),
     createdAt: createdAt(),
   },
   (t) => [
@@ -523,23 +540,25 @@ export const requests = pgTable(
     index("requests_firm_id_status_idx").on(t.firmId, t.status),
     check(
       "requests_type_check",
-      sql`${t.type} in ('time_change', 'swap', 'availability', 'general', 'review')`,
+      sql`${t.type} in ('time_change', 'swap', 'availability', 'general', 'review', 'attendance')`,
     ),
     check(
       "requests_status_check",
-      sql`${t.status} in ('open', 'approved', 'declined', 'auto_resolved', 'escalated')`,
+      sql`${t.status} in ('open', 'approved', 'declined', 'auto_resolved', 'escalated', 'withdrawn')`,
     ),
     check(
       "requests_shift_required",
-      sql`${t.type} not in ('time_change', 'swap', 'review') or ${t.shiftId} is not null`,
+      sql`${t.type} not in ('time_change', 'swap', 'review', 'attendance') or ${t.shiftId} is not null`,
     ),
     check("requests_payload_object", sql`jsonb_typeof(${t.payload}) = 'object'`),
-    // Unresolved requests carry no resolution; an office decision always names who and when.
+    // Unresolved requests carry no resolution; an office decision always names who and when; one
+    // the worker took back (withdrawn) says when, and names nobody in the office.
     check(
       "requests_resolution",
       sql`(${t.status} in ('open', 'escalated') and ${t.resolvedAt} is null and ${t.resolvedBy} is null)
         or (${t.status} = 'auto_resolved' and ${t.resolvedAt} is not null)
-        or (${t.status} in ('approved', 'declined') and ${t.resolvedAt} is not null and ${t.resolvedBy} is not null)`,
+        or (${t.status} in ('approved', 'declined') and ${t.resolvedAt} is not null and ${t.resolvedBy} is not null)
+        or (${t.status} = 'withdrawn' and ${t.resolvedAt} is not null and ${t.resolvedBy} is null)`,
     ),
     // Only an office answer carries a note, and a short one.
     check(

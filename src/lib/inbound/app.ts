@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
+import { z } from "zod";
 import { systemClock, type Clock } from "../auth/clock";
 import { LIMITS, throttle } from "../auth/throttle";
 import { messages } from "../db/schema";
-import { withFirm, type WithFirm } from "../db/scoped";
+import { withFirm, type FirmTx, type WithFirm } from "../db/scoped";
+import { isVisibleToCasuals } from "../roster/visibility";
 import { appEnv } from "../env";
 import { APP_MESSAGE_MAX, appMessageText, charCount } from "./app-limits";
 import { queueInboundMessage } from "./job";
@@ -19,6 +21,13 @@ export { APP_MESSAGE_MAX };
 // each message an id of its own (`clientId`, kept when she taps Send again after a send that seemed
 // to fail), stored as `app:{clientId}`: a repeat of one already stored stores nothing and queues
 // nothing (golden rule 3's shape), and answers as the first did. One that isn't hers is refused.
+//
+// About a session (Phase 28.2; 28.6's "Message the office", src/lib/portal/message-office.ts): the
+// session's id is kept on the row (messages.shift_id) only for one she's booked on or can see
+// (shown to casuals: src/lib/roster/visibility.ts), that isn't a draft or cancelled and hasn't
+// ended, checked in the same transaction as the insert. Anything else (another firm's session, a
+// hidden one, one that has ended, not an id) is stored with no session, and the message is sorted
+// as any other: a pay question about a worked shift goes towards the pay query (golden rule 9).
 
 export type SendAppMessageOutcome =
   | { status: "sent"; messageId: string }
@@ -33,6 +42,7 @@ export async function receiveAppMessage(
   workerId: string,
   raw: string,
   clientId?: string, // a UUID (checked by the action)
+  shiftId?: string | null, // the session it's about, if any (kept only when allowed: above)
 ): Promise<SendAppMessageOutcome> {
   const text = appMessageText(raw);
   if (text === "") return { status: "empty" };
@@ -51,7 +61,9 @@ export async function receiveAppMessage(
   );
   if (limited) return { status: "rate_limited", retryAfterMinutes: limited.retryAfterMinutes };
   const providerMessageId = `app:${clientId ?? randomUUID()}`;
+  const now = (ctx.clock ?? systemClock).now();
   return run(ctx.firmId, async (tx): Promise<SendAppMessageOutcome> => {
+    const about = await sessionToTag(tx, workerId, shiftId, now);
     const [row] = await tx
       .insert(messages)
       .values({
@@ -61,6 +73,7 @@ export async function receiveAppMessage(
         providerMessageId,
         workerId,
         body: text,
+        shiftId: about,
       })
       .onConflictDoNothing({ target: [messages.firmId, messages.providerMessageId] })
       .returning({ id: messages.id });
@@ -81,4 +94,28 @@ export async function receiveAppMessage(
     await queueInboundMessage(tx, row.id);
     return { status: "sent", messageId: row.id };
   });
+}
+
+const uuid = z.uuid();
+
+// The session a message may name: hers (a booking that isn't cancelled) or one shown to casuals,
+// not a draft or cancelled, and not ended. Null otherwise (RLS hides another firm's session).
+async function sessionToTag(
+  tx: FirmTx,
+  workerId: string,
+  shiftId: string | null | undefined,
+  now: Date,
+): Promise<string | null> {
+  if (!shiftId || !uuid.safeParse(shiftId).success) return null;
+  const { rows } = await tx.execute<{ booked: boolean }>(sql`
+    select exists (select 1 from assignments a
+                    where a.firm_id = s.firm_id and a.shift_id = s.id and a.worker_id = ${workerId}
+                      and a.status in ('confirmed', 'completed', 'no_show')) as booked
+      from shifts s
+     where s.id = ${shiftId} and s.status not in ('draft', 'cancelled') and s.ends_at > ${now}
+  `);
+  const session = rows[0];
+  if (!session) return null;
+  if (session.booked) return shiftId;
+  return (await isVisibleToCasuals(tx, shiftId)) ? shiftId : null;
 }

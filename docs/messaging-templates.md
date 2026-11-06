@@ -392,7 +392,7 @@ app has its own way to the office: `forTheApp()`). Nothing goes by WhatsApp, tex
   office's change notices)
 - Details changed (Phase 28.3): "Your shift's details changed" / "{date} {start} at {site}. Tap to
   see what changed." (no site: "{date} {start}. Tap to see what changed."). Built:
-  `detailsChangedPush()`, with `shift_details_changed` (below, "Email to casuals"); tapping opens
+  `detailsChangedPush()`, with `shift_details_changed` (above, "Email to casuals"); tapping opens
   the shift. It never says what changed, nor any value: a lock screen shows it
 - Booked: "Shift booked" / "{date} {start} at {site}. Tap for details." (built: `bookedPush()`, with
   `shift_confirmed` when the office books a worker; tapping opens the shift)

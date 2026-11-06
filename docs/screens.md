@@ -142,7 +142,8 @@ What the casual sees on Messages, opened from a shift:
   link isn't one the app makes (a missing or unknown `about`, not a shift's id). A message sent then
   is sorted as any other: a pay question about a worked shift gets the pay page's link, towards a
   pay query for payroll (golden rule 9). A shift that ends between opening the page and tapping
-  Send is treated the same way.
+  Send is treated the same way: the send keeps no shift, so the page says "Sent. The answer comes
+  here." (what the send stored decides the words, not the link she came from).
 
 Messages' own words and look change too (the review's note on 51 words):
 
@@ -170,11 +171,15 @@ What the office sees, on Enquiries:
   notification."
 - The action log's entry for the message names the session, so it shows in that session's history.
 
-**Mock-up:** none for this task, as for 28.1 (Dylan, 2026-11-05: "Full build"; "Do not prompt me
-until the full plan is being pull requested"). The browser test
-`tests/e2e/casual.p28-message-office.spec.ts` takes the screenshots instead: Messages opened about a
-shift, and the office's message page with its About line, on a phone (390px) and a laptop (1,280px
-at 150%), light and dark, attached to its run's report.
+**Mock-up:** none to approve first (Dylan, 2026-11-05: "Full build"; "Do not prompt me until the
+full plan is being pull requested"). The before-and-after mock-up is in
+`docs/mockups/phase-28/28.6/index.html`, published at
+https://claude.ai/artifact/RNAjvcnPgtyTJ3DAQUJvc4 (Messages opened about a shift, sent, answered,
+and with the shift ended before Send; the office's message page with its About line; a phone at
+390px and a laptop at 1,280px at 150%, light and dark; private until Dylan shares it). The browser
+test `tests/e2e/casual.p28-message-office.spec.ts` takes the real screenshots: Messages opened about
+a shift, and the office's message page with its About line, at 390px and 1,280px, light and dark,
+attached to its run's report.
 
 ### 28.7
 
@@ -2080,8 +2085,9 @@ text; an office reply comes with a notification on her phone.
   "The casual app, Phase 28" above, "### 28.6"): "About: {Steward} · {Sat 7 Nov, 10:30}" above the
   box and a ready sentence in it ("What's the pay for this shift?" / "I'm running late. I'll be there
   about …" / "This shift has started and I need to talk to someone." / none); sent, "Sent. The office
-  will answer here.", and a person answers it, never an automatic answer. A shift she isn't booked
-  on and can't see, or one that has ended: no About line, as before. Errors: "Write a message first.", "That's too long (1,600 characters at most).",
+  will answer here." when the send kept the shift (a person answers it, never an automatic answer);
+  one that ended before she tapped Send isn't kept, and the words are "Sent. The answer comes
+  here." A shift she isn't booked on and can't see, or one that has ended: no About line, as before. Errors: "Write a message first.", "That's too long (1,600 characters at most).",
   "You've sent a lot of messages. Wait a few minutes, then try again." (more than 20 in an hour),
   "Something went wrong. Try again." (with no network: "No signal. Try again when you have
   signal."); logged out, it goes to the login page. Opening Messages marks the office's replies it shows as

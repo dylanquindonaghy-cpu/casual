@@ -363,7 +363,8 @@ app has its own way to the office: `forTheApp()`). Nothing goes by WhatsApp, tex
   keyword, no AI (the AI never sees its words), and no automatic answer, not even "The office will
   see this…". It goes straight to a person on Enquiries as the office's question (Need a person),
   with "About: {Steward}, {Sat 7 Nov 10:30}" on its page. The casual's page says "Sent. The office
-  will answer here." So a question about the pay for a shift that hasn't ended (an open or booked
+  will answer here." (only when the send kept the shift, as stored; else "Sent. The answer comes
+  here."). So a question about the pay for a shift that hasn't ended (an open or booked
   shift's rate) reaches a person, never the pay page's link. A message about a shift that has
   ended keeps no shift and is sorted as any other: a pay question about a worked shift gets the pay
   page's link and its "Raise a pay query", for payroll (golden rule 9). Its `message.received` log

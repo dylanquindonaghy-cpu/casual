@@ -7,7 +7,7 @@ import { receiveAppMessage } from "@/lib/inbound/app";
 import { APP_REPLIES_PER_HOUR, runInboundMessage } from "@/lib/inbound/reply";
 import { loadEnquiries, loadEnquiry } from "@/lib/office/enquiries";
 import { sortedStep } from "@/lib/office/enquiries-copy";
-import { messageAboutShift } from "@/lib/portal/messages";
+import { messageAboutShift, messageKeptShift } from "@/lib/portal/messages";
 import { captureTransport } from "../helpers/auth";
 import { bookingFirm, hoursFromNow, NOW } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
@@ -324,6 +324,41 @@ describe("without a session it may name", () => {
     });
     expect(await messageAboutShift(t.portal, t.kay, cancelled)).toBeNull();
     expect(await messageAboutShift(t.portal, t.kay, draft)).toBeNull();
+  });
+});
+
+describe('"Sent" says what the send kept', () => {
+  it("kept: the office will answer; a shift that ended before she tapped Send, or none: the usual words; not hers or another firm's: not kept", async () => {
+    const t = await setup();
+    const booked = await t.f.shift({ role: "steward", startsAt: hoursFromNow(20) });
+    await t.f.booking(t.kay, booked);
+    // Booked, 8 hours from 8h15 ago: it ends 15 minutes before she taps Send.
+    const ending = await t.f.shift({ startsAt: hoursFromNow(-8.25) });
+    await t.f.booking(t.kay, ending);
+    // Half an hour earlier, Messages opened about it with its About line.
+    const opened = { ...t.portal, clock: { now: () => hoursFromNow(-0.5) } };
+    expect(await messageAboutShift(opened, t.kay, ending)).toMatchObject({ shiftId: ending });
+
+    const sentId = async (text: string, shiftId?: string) => {
+      const sent = await t.send(text, shiftId);
+      if (sent.status !== "sent") throw new Error(`not sent: ${sent.status}`);
+      return sent.messageId;
+    };
+    const kept = await sentId("I'm running late. I'll be there about 10:45", booked);
+    const ended = await sentId("This shift has started and I need to talk to someone.", ending);
+    const plain = await sentId("Is there parking?");
+
+    expect(await messageKeptShift(t.portal, t.kay, kept)).toBe(true);
+    // The shift ended in between: the send kept nothing, so the message is sorted as any other and
+    // the page says "Sent. The answer comes here.", not "The office will answer here."
+    expect(await t.tagOf(ended)).toBeNull();
+    expect(await messageKeptShift(t.portal, t.kay, ended)).toBe(false);
+    expect(await messageKeptShift(t.portal, t.kay, plain)).toBe(false);
+    // Another casual's message, or another firm's (RLS), reads as not kept.
+    const lee = await t.f.worker({ first: "Lee" });
+    expect(await messageKeptShift(t.portal, lee, kept)).toBe(false);
+    const other = await setup();
+    expect(await messageKeptShift(other.portal, t.kay, kept)).toBe(false);
   });
 });
 

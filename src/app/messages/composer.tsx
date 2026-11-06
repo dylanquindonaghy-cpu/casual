@@ -34,7 +34,9 @@ export interface ComposerAbout {
 // with the box), the box starts with the ready sentence, hers to change, and the page scrolls to
 // it (the focus stays put). Sent, the address loses the shift, so the About line goes and her next
 // message is about nothing in particular, and "Sent. The office will answer here." stays until an
-// answer comes: a person answers it, never an automatic answer (src/lib/inbound/reply.ts).
+// answer comes: a person answers it, never an automatic answer (src/lib/inbound/reply.ts). Which
+// "Sent" words show comes from what the send kept: a shift that ended before she tapped Send isn't
+// kept, the message is sorted as any other, and the words are "Sent. The answer comes here."
 export function Composer({
   answered,
   about = null,
@@ -50,7 +52,8 @@ export function Composer({
   const [text, setText] = useState(about?.sentence ?? "");
   const [problem, setProblem] = useState<SendProblem | null>(null);
   const [waiting, setWaiting] = useState(false);
-  // The last message sent was about a shift: a person answers it.
+  // The last message sent kept its shift (the server says, src/app/messages/actions.ts): a person
+  // answers it.
   const [toOffice, setToOffice] = useState(false);
   const [pending, startTransition] = useTransition();
   const sending = useRef(false);
@@ -94,7 +97,7 @@ export function Composer({
       if (result.status !== "sent") return setProblem(result.status);
       clientId.current = undefined;
       setText("");
-      setToOffice(shiftId !== undefined);
+      setToOffice(result.toOffice);
       setWaiting(true);
       // About a shift: the address drops it (the page is read again either way).
       if (shiftId) router.replace("/messages", { scroll: false });

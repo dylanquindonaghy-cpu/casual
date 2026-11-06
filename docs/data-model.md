@@ -631,7 +631,11 @@ create table assignments (
                                          --   workerId}). Shown to the office to plan cover only: no
                                          --   reliability figure, offer wave, strike or Watch list
                                          --   reads it (tests/unit/rules.p28-boundary.test.ts);
-                                         --   cleared on erasure
+                                         --   cleared on erasure, and when the session's times or
+                                         --   site change (the office, the planner, a connector or
+                                         --   the rota sheet: clearStillComing(),
+                                         --   src/lib/roster/still-coming-reset.ts; the move's
+                                         --   event carries stillComingCleared)
   created_at timestamptz not null default now(),
   unique (firm_id, id),
   check ((status = 'open') = (worker_id is null))

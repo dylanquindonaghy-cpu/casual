@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { loadComingUp, type ComingUp } from "@/lib/office/coming-up";
+import { moveShift } from "@/lib/office/quick-actions";
 import { loadCasualRecords } from "@/lib/office/reliability";
 import { myShifts } from "@/lib/portal/my-shifts";
 import { shiftForWorker } from "@/lib/portal/shift-detail";
@@ -329,5 +330,106 @@ describe("Coming up: 'Coming' or 'Not answered yet' (Phase 28.14)", () => {
       ]),
     );
     expect(Object.entries(delta).filter(([, n]) => n !== 0)).toEqual([["shift.still_coming", 4]]);
+  });
+});
+
+describe("a move clears the answer: she's asked again for the new time or place (28.14)", () => {
+  it("new times, then a new site: Coming up shows 'Not answered yet' and her card offers 'Yes, I'm coming' again", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const resourcer = await f.office("resourcer");
+    const { rows: sites } = await su.query<{ id: string }>(
+      "insert into sites (firm_id, name) values ($1, 'Riverside Arena'), ($1, 'Other Stadium') returning id::text as id",
+      [f.firmId],
+    );
+    const [arena = "", stadium = ""] = sites.map((r) => r.id);
+    const ann = await f.worker({ first: "Ann" });
+    const ben = await f.worker({ first: "Ben" });
+    const eve = await f.worker({ first: "Eve" });
+    // Tonight 19:00 to 03:00 at the arena (Ann and Ben); this afternoon at 14:00 (Eve).
+    const tonight = await f.shift({ startsAt: hoursFromNow(10), headcount: 2 });
+    await set("shifts", tonight, { site_id: arena });
+    const afternoon = await f.shift({ startsAt: hoursFromNow(5) });
+    const annBooking = await f.booking(ann, tonight, "confirmed", 1);
+    const benBooking = await f.booking(ben, tonight, "confirmed", 2);
+    await f.booking(eve, afternoon);
+    for (const [w, s] of [
+      [ann, tonight],
+      [ben, tonight],
+      [eve, afternoon],
+    ] as const) {
+      expect(await confirmStillComing(ctx(f), w, s)).toMatchObject({ status: "confirmed" });
+    }
+    const office = (when: Date) => ({
+      firm: { id: f.firmId },
+      officeUserId: resourcer,
+      run: withFirm,
+      clock: { now: () => when },
+    });
+    const later = new Date(NOW.getTime() + 30 * 60_000);
+    const page = async (when: Date) =>
+      text(
+        renderToStaticMarkup(
+          createElement(ShiftView, {
+            page: await shiftForWorker(ctx(f, when), ann, tonight),
+            timeZone: TZ,
+            now: when,
+          }),
+        ),
+      );
+    const movedEvents = async () =>
+      (
+        await su.query<{ entity_id: string; data: Record<string, unknown> }>(
+          `select entity_id::text, data from events where firm_id = $1 and action = 'shift.moved'
+            order by id`,
+          [f.firmId],
+        )
+      ).rows;
+
+    // New times: tonight now 17:00 to 23:00 (a move: it starts earlier).
+    expect(
+      await moveShift(office(later), tonight, {
+        date: "2026-11-02",
+        start: "17:00",
+        end: "23:00",
+        siteId: arena,
+        reason: "event_changed",
+      }),
+    ).toMatchObject({ status: "moved" });
+    expect(marks(await load(f, later))).toEqual({
+      "Eve Booker": `coming ${NOW.toISOString()}`, // another session: her answer stands
+      "Ann Booker": "waiting",
+      "Ben Booker": "waiting",
+    });
+    expect(await page(later)).toContain("Still coming? Yes, I'm coming Can't make it?");
+    // The move's own log says the answers were cleared; no event of its own.
+    const first = await movedEvents();
+    expect(first.map((e) => [e.entity_id, e.data.stillComingCleared])).toEqual([
+      [annBooking, true],
+      [benBooking, true],
+    ]);
+    // She can answer again, for the new time.
+    expect(await confirmStillComing(ctx(f, later), ann, tonight)).toEqual({
+      status: "confirmed",
+      at: later,
+    });
+    expect(marks(await load(f, later))["Ann Booker"]).toBe(`coming ${later.toISOString()}`);
+
+    // A new site, same times: cleared again. Ben hadn't answered since: his move says nothing.
+    const later2 = new Date(later.getTime() + 30 * 60_000);
+    expect(
+      await moveShift(office(later2), tonight, {
+        date: "2026-11-02",
+        start: "17:00",
+        end: "23:00",
+        siteId: stadium,
+        reason: "event_changed",
+      }),
+    ).toMatchObject({ status: "moved" });
+    expect(marks(await load(f, later2))["Ann Booker"]).toBe("waiting");
+    const second = (await movedEvents()).slice(2);
+    expect(second.map((e) => [e.entity_id, e.data.stillComingCleared ?? null])).toEqual([
+      [annBooking, true],
+      [benBooking, null],
+    ]);
   });
 });

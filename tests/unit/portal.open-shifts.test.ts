@@ -103,6 +103,41 @@ describe("Open shifts page body (Phase 18)", () => {
     expect(words).not.toContain("We'll message you");
   });
 
+  it("never promises a message to a casual nothing can reach, even with her alerts on (as Home, 28.7)", () => {
+    // Her alerts are on, but no phone, text or email reaches her (reach-me's "unreachable"): Home
+    // tells her "We can't reach you about shifts", so this page mustn't say we'll message her.
+    const view = (l: OpenShiftsList, canReach: boolean, filters = {}) =>
+      text(
+        renderToStaticMarkup(
+          createElement(OpenShiftsView, {
+            list: l,
+            filters,
+            strip: STRIP,
+            timeZone: TZ,
+            now: NOW,
+            canReach,
+          }),
+        ),
+      );
+    const nothing = view(list(), false);
+    expect(nothing).toContain("Nothing open right now. Check back later.");
+    expect(nothing).not.toContain("We'll message you");
+    // Only urgent shifts open: the line under them too.
+    const urgentOnly = list({ shifts: [shift({ shiftId: "u1", isUrgent: true })] });
+    const cut = view(urgentOnly, false);
+    expect(cut).toContain("Nothing else open right now. Check back later.");
+    expect(cut).not.toContain("We'll message you");
+    // A filter matching nothing makes no promise either way.
+    expect(view(list(), false, { role: "steward" })).toContain("No open shifts match.");
+    // Something reaches her: the promise stays.
+    expect(view(list(), true)).toContain(
+      "Nothing open right now. We'll message you when something matches.",
+    );
+    expect(view(urgentOnly, true)).toContain(
+      "Nothing else open right now. We'll message you when a shift comes up.",
+    );
+  });
+
   it("the next 8 days as a strip: booked filled in, urgent and open days counted and linked", () => {
     const strip = shiftsStrip(
       NOW,

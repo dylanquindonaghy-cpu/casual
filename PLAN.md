@@ -1207,6 +1207,10 @@ phase is built without stopping for a mock-up or for the schema and auth changes
 The review, the competitors (with sources), what the office wants casuals to see, the look compared,
 and the reasons for every task and for what was left out: `docs/mockups/phase-28/review.md`. The
 staff pages before the phase: `docs/mockups/phase-28/before/`.
+No mock-up was approved first (Dylan: "Full build"); some tasks published one anyway (28.5, 28.6,
+28.10, 28.12, 28.14, 28.15, under `docs/mockups/phase-28/`), and the browser specs take the real
+screenshots. The staff pages after the phase, 390px and 1,280px, dark and light:
+`docs/mockups/phase-28/after/`.
 
 - [ ] One look with the office: the casual app takes the office's corners, padding, flat colours,
       chips, tags, slips, headings and current-tab rule through the shared parts (Dylan: "try to

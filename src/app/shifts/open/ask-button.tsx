@@ -47,7 +47,7 @@ export function AskButton({ shiftId }: { shiftId: string }) {
         )}
         {(outcome.status === "filled" || outcome.status === "gone") && (
           <Link href="/shifts/open" className={`${staffBtn.primary} mt-3`}>
-            See other shifts
+            See open shifts
           </Link>
         )}
       </div>

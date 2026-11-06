@@ -185,6 +185,8 @@ test("a worker logs in, takes a shift, cancels it, asks for a change and sees th
     await page.getByRole("button", { name: "Take shift" }).click();
     await expect(page.getByText("You're booked.")).toBeVisible();
     await page.getByRole("link", { name: "See my shifts" }).click();
+    // Phase 28.5: "See my shifts" goes to her shifts (Booked), the new one marked.
+    await expect(page).toHaveURL(new RegExp(`^${acme}/shifts\\?new=[0-9a-f-]{36}$`));
     // On the pass, "Ask for a change" is in its Details (Phase 20).
     await page.locator("[data-pass-more] summary").click();
     await page.getByRole("link", { name: "Ask for a change" }).click();

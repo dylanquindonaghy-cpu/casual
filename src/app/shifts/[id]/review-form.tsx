@@ -72,7 +72,7 @@ export function ReviewForm({ shiftId }: { shiftId: string }) {
         {pending ? "Sending…" : "Ask the office to review"}
       </button>
       {outcome && (
-        <p role="alert" className="mt-3 font-semibold text-urgent">
+        <p role="alert" className="mt-3 font-semibold text-urgent-ink">
           {outcome.status === "invalid"
             ? `Keep your note to ${MAX_REQUEST_NOTE} characters or fewer.`
             : tryAgainText()}
@@ -81,6 +81,10 @@ export function ReviewForm({ shiftId }: { shiftId: string }) {
     </div>
   );
 }
+
+// "We've sent this to the office." in a done slip's tint and 1px edge, 8px round (Phase 28, 28.5:
+// 28.1's parts in place of its own 2px green frame).
+const doneBox = "rounded-row border border-done-line bg-done-soft p-4 text-ink";
 
 // The answer (exported for the tests).
 export function ReviewResult({
@@ -96,7 +100,7 @@ export function ReviewResult({
   switch (outcome.status) {
     case "created":
       return (
-        <div role="status" className="rounded-xl border-2 border-done bg-done-soft p-4">
+        <div role="status" className={doneBox}>
           <p className="text-2xl font-bold text-done-ink">We&apos;ve sent this to the office.</p>
           <p className="mt-1">They&apos;ll look at why you can&apos;t take this shift.</p>
           <p className="mt-2">Sent at {outcome.sentAt}.</p>

@@ -85,6 +85,8 @@ describe("the sign parts' words", () => {
     expect(placesLeftText(1)).toBe("1 place left");
     expect(placesLeftText(3)).toBe("3 places left");
     expect(placesLeftText(1, 4)).toBe("1 of 4 places left");
+    // Phase 28.5 (the review's note 11): one place of one, never "1 of 1 places left".
+    expect(placesLeftText(1, 1)).toBe("The last place");
     expect(placesLeftText(0, 4)).toBe("No places left");
     expect(
       shiftLine("csas_officer", at("2026-10-24T13:00:00Z"), at("2026-10-24T21:00:00Z"), TZ),

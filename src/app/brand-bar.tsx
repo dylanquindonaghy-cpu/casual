@@ -12,7 +12,8 @@ import { ChromeWatch } from "./chrome-watch";
 // the office's login pages, its corners and spacing are the office's (`office:`, Phase 21). Phase
 // 24 (24.6, round 7): it stays at the top once the page runs (ChromeWatch) with a soft frosted edge
 // when the page is under it; a page with a bar of its own (a shift's "‹ Open shifts",
-// `data-own-bar`) hides it.
+// `data-own-bar`) hides it. Phase 28 (28.1): the firm's initial is a 36px square, 8px round, in
+// bold, as the office rail's mark (above the office's login pages it keeps its 32px and semibold).
 export function BrandBar({ brand }: { brand: Brand }) {
   const initial = brand.name.match(/\p{L}|\p{N}/u)?.[0]?.toUpperCase() ?? "";
   return (
@@ -34,7 +35,7 @@ export function BrandBar({ brand }: { brand: Brand }) {
           <span
             aria-hidden="true"
             data-testid="brand-mark"
-            className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand-bar text-base font-semibold text-on-brand-bar office:rounded-row"
+            className="flex size-9 shrink-0 items-center justify-center rounded-row bg-brand-bar text-base font-bold text-on-brand-bar office:size-8 office:font-semibold"
           >
             {initial}
           </span>

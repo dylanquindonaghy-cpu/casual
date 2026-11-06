@@ -1099,7 +1099,8 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
     expect(words(person("Ann Example"))).toContain(
       "SIA CCTV licence runs out Mon 26 Oct Ann Example's SIA CCTV licence runs out on Mon 26 Oct, during their CSAS officer session on Mon 26 Oct.",
     );
-    expect(person("Ann Example")).toMatch(/border-urgent-line bg-urgent-soft text-urgent-ink/);
+    // (Borderless in both apps since Phase 28.)
+    expect(person("Ann Example")).toMatch(/bg-urgent-soft text-urgent-ink/);
     expect(words(person("Dev Shah"))).toContain(
       "SIA door supervisor licence out of date Dev Shah's SIA door supervisor licence expired on Tue 20 Oct, before their door supervisor session on Tue 27 Oct.",
     );
@@ -1118,9 +1119,7 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
         name: "Asked to swap",
       },
     ]);
-    expect(person("Ben Fraser")).toMatch(
-      /border-attention-line bg-attention-soft text-attention-ink/,
-    );
+    expect(person("Ben Fraser")).toMatch(/bg-attention-soft text-attention-ink/);
     // Phase 27.10: Dev on the watch list (amber) and Eve's first shift (grey), short, in full for a
     // screen reader and as the chip's tip.
     expect(words(person("Dev Shah"))).toContain(
@@ -1129,13 +1128,12 @@ describe("the dashboard page (round 8: Phase 26.2)", () => {
     expect(person("Dev Shah")).toContain(
       'title="Dev Shah is on the watch list: under 90% reliable."',
     );
-    expect(person("Dev Shah")).toMatch(
-      /border-attention-line bg-attention-soft text-attention-ink/,
-    );
+    expect(person("Dev Shah")).toMatch(/bg-attention-soft text-attention-ink/);
     expect(words(person("Eve Long"))).toContain(
       "First shift Eve Long has no shift marked as worked before this one.",
     );
-    expect(person("Eve Long")).toMatch(/border-quiet-line bg-quiet-soft text-quiet-ink/);
+    // (Quiet's words grey, as they always were in the office: the shared chip since Phase 28.)
+    expect(person("Eve Long")).toMatch(/bg-quiet-soft text-ink-muted/);
     expect(words(person("Ann Example"))).not.toContain("First shift");
     expect(words(person("Ann Example"))).not.toContain("watch list");
     // Tonight's free place is one to offer: "Offer 1 place" under "3 of 4 booked", named for its

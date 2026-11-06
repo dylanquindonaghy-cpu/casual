@@ -121,7 +121,7 @@ describe("Home's open shifts, in Shifts you can take", () => {
     expect(row("apply")).toContain('href="/shifts/open"');
     expect(spoken(row("apply"))).toBe("1 more you can take Sat 7 Nov");
     expect(tileOf(row("apply"))?.slice(1)).toEqual([
-      expect.stringContaining("glass-tile text-ink"),
+      expect.stringContaining("glass-button text-ink"),
       "Sat",
       "7",
     ]);

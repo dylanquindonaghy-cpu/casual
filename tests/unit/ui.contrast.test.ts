@@ -1,6 +1,11 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { chip, disc, slip } from "@/app/ui/classes";
+import { over, type Rgb, type Rgba } from "@/lib/tenancy/glass-grounds";
 import {
   BLOCKS,
+  BRIGHT,
   block,
   colourTokens,
   contrast,
@@ -12,6 +17,7 @@ import {
   officeLooks,
   parseColour,
   props,
+  type Look,
 } from "../helpers/theme-css";
 
 // Contrast in every look (docs/office-v2.md 3.1 and D7; PLAN.md 12A.1): every pair a page puts
@@ -100,8 +106,22 @@ const TEXT: [string, string[]][] = [
   // button (btn.danger).
   ["urgent", ["canvas", "card", "panel", "glass-tile", "glass-button", "urgent-soft"]],
   // (And "Can't make it?" on a later booking's clear button; Phase 24: the places left, "Urgent"
-  // and a strip day's urgent count on a little glass chip.)
-  ["urgent-ink", ["card", "glass-button", "glass-tile", "urgent-soft", "urgent-tile"]],
+  // and a strip day's urgent count on a little glass chip. Phase 28: the casual app's opener of a
+  // destructive step, `staffBtn.danger`, red words on no fill of its own, on the page, a card or a
+  // sheet, and on the grey wash under the pointer.)
+  [
+    "urgent-ink",
+    [
+      "canvas",
+      "card",
+      "panel",
+      "button-hover",
+      "glass-button",
+      "glass-tile",
+      "urgent-soft",
+      "urgent-tile",
+    ],
+  ],
   ["attention", ["canvas", "card", "panel", "glass-tile"]],
   ["attention-ink", ["card", "attention-soft"]],
   ["done", ["canvas", "card", "panel", "glass-tile"]],
@@ -273,9 +293,9 @@ describe("the looks (src/app/globals.css)", () => {
   // its glass (blurs, hairlines, no drop at rest) and its plain ground (Phase 27.7), solid and with
   // no blur too. But for what stays the casual app's own: the firm's colour (the main button, the
   // firm's mark, its tints and the gate's plate), the app's blue, and the to-do tint (hi-vis yellow
-  // is the office's alone); and the office's own corners. The office's blocks keep every value of
-  // their own (it's dark with no cookie even where the page's root is light), so this holds the
-  // two copies together.
+  // is the office's alone). The office's blocks keep every value of their own (it's dark with no
+  // cookie even where the page's root is light), so this holds the two copies together; but not
+  // the corners, one set for both apps in @theme since Phase 28 (28.1), so neither copies them.
   const CASUAL_OWN = [
     "brand",
     "on-brand",
@@ -295,10 +315,16 @@ describe("the looks (src/app/globals.css)", () => {
     "hivis",
     "on-hivis",
   ].map((t) => `color-${t}`);
-  const OFFICE_OWN = ["radius-card", "radius-inner", "radius-row"];
   const except = (m: Map<string, string>, own: string[]) =>
     Object.fromEntries([...m].filter(([k]) => !own.includes(k)));
   it("the casual app's looks are round 8's, light and dark, but for the firm's own colour (Phase 27.6)", () => {
+    // The corners in no theme block at all (Phase 28): @theme's set is everyone's.
+    for (const name of Object.keys(BLOCKS) as (keyof typeof BLOCKS)[])
+      if (name !== "theme")
+        expect(
+          [...props(block(BLOCKS[name])).keys()].filter((k) => k.startsWith("radius-")),
+          name,
+        ).toEqual([]);
     const themeColours = new Map(
       [...props(block(BLOCKS.theme))].filter(([k]) => k.startsWith("color-")),
     );
@@ -318,10 +344,8 @@ describe("the looks (src/app/globals.css)", () => {
         BLOCKS.officeClearDark,
       ],
     ] as const;
-    for (const [name, casual, office] of pairs) {
-      const own = [...CASUAL_OWN, ...OFFICE_OWN];
-      expect(except(casual, own), name).toEqual(except(props(block(office)), own));
-    }
+    for (const [name, casual, office] of pairs)
+      expect(except(casual, CASUAL_OWN), name).toEqual(except(props(block(office)), CASUAL_OWN));
     // Each look's ground and glass, as the office's (Phase 27.1's dark glass too); no street lines
     // (Phase 27.7: a plain colour behind every page).
     const light = casualLight;
@@ -352,13 +376,14 @@ describe("the looks (src/app/globals.css)", () => {
     }
     // What stays the casual app's own: the firm's colour's defaults (the app's ink, a firm with a
     // colour of its own sets its own on <body>: below), the app's blue (a shade lighter in dark,
-    // for the lighter glass: #a1bdff, was #9cb8ff) and the to-do tint's pale amber.
+    // for the lighter glass: #a1bdff, was #9cb8ff) and the to-do tint's pale amber. The main
+    // button one flat colour since Phase 28 (28.1), as the office's: its shade is itself.
     const lightOwn = Object.fromEntries(CASUAL_OWN.map((k) => [k, light.get(k)]));
     const darkOwn = Object.fromEntries(CASUAL_OWN.map((k) => [k, dark.get(k)]));
     expect(lightOwn).toMatchObject({
       "color-tint": "#15171a",
       "color-on-tint": "#ffffff",
-      "color-tint-shade": "#000000",
+      "color-tint-shade": "#15171a",
       "color-brand-bar": "#1f2227",
       "color-accent": "#1d4ed8",
       "color-hivis": "rgb(251 229 160 / 0.8)",
@@ -366,7 +391,7 @@ describe("the looks (src/app/globals.css)", () => {
     expect(darkOwn).toMatchObject({
       "color-tint": "#f3f4f6",
       "color-on-tint": "#0b0c0e",
-      "color-tint-shade": "#ffffff",
+      "color-tint-shade": "#f3f4f6",
       "color-brand-bar": "#34373d",
       "color-accent": "#a1bdff",
       "color-hivis": "rgb(58 47 16 / 0.8)",
@@ -404,7 +429,8 @@ describe("the looks (src/app/globals.css)", () => {
     for (const [token, value] of [
       ["tint", "firm-fill"],
       ["on-tint", "firm-on-fill"],
-      ["tint-shade", "firm-shade"],
+      // One flat colour (Phase 28): the button's foot is its fill, as the office's hi-vis is.
+      ["tint-shade", "firm-fill"],
       ["brand", "firm-fill"],
       ["brand-bar", "firm-bar"],
     ])
@@ -416,8 +442,10 @@ describe("the looks (src/app/globals.css)", () => {
       const body = block(dark);
       expect(body).toContain("--color-tint: var(--firm-fill);");
       expect(body).toContain("--color-on-tint: var(--firm-on-fill);");
-      expect(body).toContain("--color-tint-shade: var(--firm-shade);");
+      expect(body).toContain("--color-tint-shade: var(--firm-fill);");
     }
+    // No --firm-shade is set or read any more (src/lib/tenancy/brand-values.ts sets none).
+    expect(css).not.toMatch(/--firm-shade/);
     expect(css).toMatch(/@utility glass-tint \{\s*background-color: var\(--color-tint\);/);
     // Hi-vis only in the office's own blocks, on its wrapper.
     for (const name of ["officeDark", "officeLight"] as const)
@@ -612,5 +640,164 @@ describe("the looks (src/app/globals.css)", () => {
     expect(contrast([0, 0, 0], [255, 255, 255])).toBeCloseTo(21, 5);
     expect(contrast([27, 38, 66], [27, 38, 66])).toBe(1);
     expect(contrast([71, 85, 105], [255, 255, 255])).toBeCloseTo(7.58, 2);
+  });
+});
+
+// Phase 28 (28.1; docs/ui-design.md "Phase 28"): the casual app's new shared parts, in both its
+// themes (light and dark, each as drawn, solid and with no blur: looks()). A chip's words on its
+// tint, a slip's words on each status's tint (both over the page itself, a section and what
+// floats), the current tab's words on its solid ink and the counts on it (the to-do amber over the
+// ink, and their edge of the page's ground against the ink), each slip's round icon disc (its icon
+// on its fill, over the slip's tint) and the main button, one flat colour now.
+describe("Phase 28's parts in the casual app's looks", () => {
+  const CASUAL = looks();
+  type Tone = "urgent" | "attention" | "wait" | "done" | "quiet";
+  const TONES: Tone[] = ["urgent", "attention", "wait", "done", "quiet"];
+  const solid = (look: Look, token: string): Rgb => {
+    const c = look.colours.get(token);
+    if (!c || c[3] !== 1) throw new Error(`${look.name}: ${token} isn't a solid colour`);
+    return [c[0], c[1], c[2]];
+  };
+  // A translucent tint over every ground a part sits on: the page's plain ground as well as the
+  // sections and what floats (theme-css.ts grounds).
+  const tintGrounds = (look: Look, tint: string): Rgb[] => {
+    const c = look.colours.get(tint);
+    if (!c) throw new Error(`${look.name}: no ${tint}`);
+    if (c[3] === 1) return [[c[0], c[1], c[2]]];
+    const under = [
+      ...look.ground,
+      ...grounds(look, "card").map((g) => g.colour),
+      ...grounds(look, "panel").map((g) => g.colour),
+    ];
+    return under.map((u) => over(c, u));
+  };
+  const worst = (look: Look, words: string, on: Rgb[]) =>
+    Math.min(...on.map((g) => contrast(solid(look, words), g)));
+
+  it("the looks it checks: the casual app's six (light and dark, as drawn, solid, no blur)", () => {
+    expect(CASUAL.map((l) => l.name)).toEqual([
+      "light",
+      "dark",
+      "light, solid",
+      "dark, solid",
+      "light, no blur",
+      "dark, no blur",
+    ]);
+  });
+
+  it("a chip's words on its tint, 4.5:1 or more (wait's words in ink, quiet's in grey)", () => {
+    const CHIPS: Record<Tone, [string, string]> = {
+      urgent: ["urgent-ink", "urgent-soft"],
+      attention: ["attention-ink", "attention-soft"],
+      wait: ["ink", "wait-soft"],
+      done: ["done-ink", "done-soft"],
+      quiet: ["ink-muted", "quiet-soft"],
+    };
+    // The pairs are the ones classes.ts's chips use.
+    for (const t of TONES) expect(chip[t]).toBe(`bg-${CHIPS[t][1]} text-${CHIPS[t][0]}`);
+    const failing = CASUAL.flatMap((look) =>
+      TONES.map((t) => [t, worst(look, CHIPS[t][0], tintGrounds(look, CHIPS[t][1]))] as const)
+        .filter(([, r]) => !(r >= 4.5))
+        .map(([t, r]) => `${look.name}: ${t} chip: ${r.toFixed(2)}`),
+    );
+    expect(failing).toEqual([]);
+  });
+
+  it("a slip's ink words on each status's tint, 4.5:1 or more; its icon disc's icon on its fill, 3:1 or more", () => {
+    for (const t of TONES) expect(slip[t]).toBe(`border-${t}-line bg-${t}-soft`);
+    expect(slip.base.split(" ")).toEqual(
+      expect.arrayContaining(["rounded-row", "border", "text-ink"]),
+    );
+    // Each disc: its fill and its icon's colour, as classes.ts's `disc` has them.
+    const DISCS: Record<Tone, [string, string]> = {
+      urgent: ["urgent-tile", "urgent-ink"],
+      attention: ["hivis", "on-hivis"],
+      wait: ["wait-tile", "ink"],
+      done: ["done-tile", "done-ink"],
+      quiet: ["glass-button", "ink-muted"],
+    };
+    for (const t of TONES) {
+      const [fill, icon] = DISCS[t];
+      expect(disc[t]).toBe(
+        fill === "glass-button" ? `glass-button text-${icon}` : `bg-${fill} text-${icon}`,
+      );
+    }
+    expect(disc.base.split(" ")).toEqual(expect.arrayContaining(["size-8", "rounded-full"]));
+    const failing: string[] = [];
+    for (const look of CASUAL)
+      for (const t of TONES) {
+        const soft = tintGrounds(look, `${t}-soft`);
+        const words = worst(look, "ink", soft);
+        if (!(words >= 4.5)) failing.push(`${look.name}: ink on ${t}-soft: ${words.toFixed(2)}`);
+        const [fill, icon] = DISCS[t];
+        const layer = (c: Rgba) => soft.map((s) => (c[3] === 1 ? solid(look, fill) : over(c, s)));
+        const discs =
+          fill === "glass-button"
+            ? (["button-top", "button-bottom"] as const).flatMap((v) => {
+                const c = parseColour(look.vars.get(v));
+                if (!c) throw new Error(`${look.name}: no --${v}`);
+                return soft.map((s) => over(c, s));
+              })
+            : layer(look.colours.get(fill)!);
+        const mark = worst(look, icon, discs);
+        if (!(mark >= 3)) failing.push(`${look.name}: ${icon} on ${t}'s disc: ${mark.toFixed(2)}`);
+      }
+    expect(failing).toEqual([]);
+  });
+
+  it("the current tab: its words on its solid ink 4.5:1 or more; the ink tab 3:1 on the tab bar; its counts on the ink", () => {
+    // A count is drawn on the tab it belongs to (src/app/tab-bar.tsx): the to-do amber with its
+    // words, or the firm's colour, each set off by a 2px edge of the page's ground. The pairs below
+    // are those classes.
+    const tabBar = readFileSync(join(process.cwd(), "src/app/tab-bar.tsx"), "utf8");
+    expect(tabBar).toContain("outline-2 outline-canvas");
+    expect(tabBar).toContain('"bg-hivis text-on-hivis"');
+    expect(tabBar).toMatch(/"bg-ink font-semibold text-on-ink /);
+    // Pressed, `press-glass`'s brightness(1.06) brightens the whole tab: the ink, the count and its
+    // words together.
+    const bright = (c: Rgb): Rgb => c.map((v) => Math.min(255, Math.round(v * BRIGHT))) as Rgb;
+    const failing: string[] = [];
+    const check = (what: string, a: Rgb, b: Rgb, min: number) => {
+      for (const [x, y] of [
+        [a, b],
+        [bright(a), bright(b)],
+      ] as const) {
+        const r = contrast(x, y);
+        if (!(r >= min)) failing.push(`${what}: ${r.toFixed(2)}`);
+      }
+    };
+    for (const look of CASUAL) {
+      expect(lowest(look, "on-ink", "ink"), look.name).toBeGreaterThanOrEqual(4.5);
+      expect(lowest(look, "ink", "panel"), look.name).toBeGreaterThanOrEqual(3);
+      // Its counts: the to-do amber and the firm's colour, each with its words.
+      expect(lowest(look, "on-hivis", "hivis"), look.name).toBeGreaterThanOrEqual(4.5);
+      expect(lowest(look, "on-tint", "glass-tint"), look.name).toBeGreaterThanOrEqual(4.5);
+      // On the current tab a count lies on the solid ink, not on the tab bar: the amber, translucent
+      // where the look has glass, over the ink, its words 4.5:1 or more.
+      const ink = solid(look, "ink");
+      const hivis = look.colours.get("hivis");
+      if (!hivis) throw new Error(`${look.name}: no hivis`);
+      check(
+        `${look.name}: on-hivis on hivis over ink`,
+        solid(look, "on-hivis"),
+        over(hivis, ink),
+        4.5,
+      );
+      // The count's edge, the page's ground, against the ink, 3:1 or more: it keeps a count in the
+      // firm's colour apart from the ink tab whatever that colour is (the default, #15171a, is all
+      // but ink in light), and the firm's colour's own words are checked on it above.
+      check(`${look.name}: canvas edge on ink`, solid(look, "canvas"), ink, 3);
+    }
+    expect(failing).toEqual([]);
+  });
+
+  it("the main button: one flat colour (one stop), its words 4.5:1 or more on it, brightened too", () => {
+    for (const look of CASUAL) {
+      expect(look.colours.get("tint-shade"), look.name).toEqual(look.colours.get("tint"));
+      const fills = grounds(look, "glass-tint");
+      const stops = new Set(fills.filter((g) => !g.brightened).map((g) => g.colour.join(",")));
+      expect(stops.size, look.name).toBe(1);
+      expect(lowest(look, "on-tint", "glass-tint"), look.name).toBeGreaterThanOrEqual(4.5);
+    }
   });
 });

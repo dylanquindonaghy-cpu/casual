@@ -37,8 +37,11 @@ describe("the date tile", () => {
       }),
     );
     expect(named).toMatch(/^<span role="img" aria-label="Saturday 24 October" class="/);
-    // Phase 24: clear glass (Phase 20: the raised grey; never an ink band).
-    expect(named).toMatch(/^<span[^>]*class="[^"]*(?<![\w-])glass-tile text-ink\b/);
+    // Phase 24: clear glass (Phase 20: the raised grey; never an ink band); since Phase 28 the
+    // office's date tile, `glass-button`, 8px round.
+    expect(named).toMatch(
+      /^<span[^>]*class="[^"]*(?<![\w-])rounded-row [^"]*glass-button text-ink\b/,
+    );
     expect(named).toContain('<span class="block font-medium text-sm">Sat</span>');
     // The large tile's day is a page headline's size (28px), in the sign font.
     expect(named).toMatch(/<span class="block font-sign leading-tight text-3xl">24<\/span>/);
@@ -48,13 +51,13 @@ describe("the date tile", () => {
     expect(plain).toMatch(/^<span aria-hidden="true" class="/);
     expect(plain).toContain("text-2xl");
     expect(plain).not.toContain("Oct");
-    // Urgent: the whole tile pale red, with the urgent words.
+    // Urgent: the whole tile pale red, with the urgent words (and the glass's hairline: Phase 28).
     const urgent = html(
       createElement(DateTile, { dow: "Thu", day: "22", month: "Oct", urgent: true }),
     );
-    expect(urgent).toContain("bg-urgent-tile text-urgent-ink");
+    expect(urgent).toContain("glass-rim bg-urgent-tile text-urgent-ink");
     expect(urgent).toContain('<span class="block text-xs text-urgent-ink">Oct</span>');
-    expect(urgent).not.toMatch(/(?<![\w-])(?:glass-tile|bg-raised)(?![\w-])/);
+    expect(urgent).not.toMatch(/(?<![\w-])(?:glass-tile|glass-button|bg-raised)(?![\w-])/);
   });
 });
 
@@ -93,18 +96,15 @@ describe("the seats", () => {
     expect(h).toMatch(/^<span aria-hidden="true" data-seats=""/);
     expect([count(h, "taken"), count(h, "free")]).toEqual([3, 1]);
     // Taken in ink; free ones outlined in the muted grey, or the urgent red (Phase 20).
-    // In the office (the events board), round and 4px apart (Phase 21).
-    expect(h).toMatch(
-      /^<span aria-hidden="true" data-seats="" class="flex flex-wrap gap-\[3px\] office:gap-1 /,
-    );
+    // Round and 4px apart: the office's (the events board, Phase 21), and the casual app's since
+    // Phase 28 (no corner of their own).
+    expect(h).toMatch(/^<span aria-hidden="true" data-seats="" class="flex flex-wrap gap-1 /);
+    expect(h).toContain('data-seat="taken" class="size-3 rounded-full bg-ink"');
     expect(h).toContain(
-      'data-seat="taken" class="size-3 rounded-[3px] office:rounded-full bg-ink"',
-    );
-    expect(h).toContain(
-      'data-seat="free" class="size-3 rounded-[3px] office:rounded-full border-[1.5px] border-ink-muted"',
+      'data-seat="free" class="size-3 rounded-full border-[1.5px] border-ink-muted"',
     );
     expect(seats({ taken: 1, total: 2, urgent: true, size: "md" })).toContain(
-      'data-seat="free" class="size-5 rounded-[5px] office:rounded-full border-[1.5px] border-urgent"',
+      'data-seat="free" class="size-5 rounded-full border-[1.5px] border-urgent"',
     );
   });
 

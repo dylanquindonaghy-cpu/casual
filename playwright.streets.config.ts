@@ -39,7 +39,8 @@ export default defineConfig({
   globalTeardown: "./tests/e2e/streets-teardown.ts",
   // `next dev` builds each page the first time it's opened.
   timeout: 120_000,
-  use: { baseURL: `http://localhost:${STREETS_PORT}`, trace: "retain-on-failure" },
+  // en-GB (Phase 28): dates read dd/mm/yyyy, as in the other runs.
+  use: { baseURL: `http://localhost:${STREETS_PORT}`, trace: "retain-on-failure", locale: "en-GB" },
   projects: [
     {
       name: "laptop-chrome",

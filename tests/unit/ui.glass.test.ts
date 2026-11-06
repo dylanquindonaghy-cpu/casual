@@ -244,6 +244,15 @@ describe("the glass's parts (globals.css utilities)", () => {
     expect(tint).toContain(
       "background-image: linear-gradient(180deg, var(--color-tint), var(--color-tint-shade));",
     );
+    // One flat colour since Phase 28 (28.1): the shade is the tint itself in every block that
+    // sets it (the casual app's light and darks, the firm's own colour, the office's hi-vis).
+    for (const block of css.matchAll(
+      /--color-tint: ([^;]+);\s*--color-on-tint: [^;]+;\s*--color-tint-shade: ([^;]+);/g,
+    ))
+      expect(block[2], block[0]).toBe(block[1]);
+    expect(css.match(/--color-tint-shade:/g)?.length).toBe(
+      css.match(/--color-tint: [^;]+;\s*--color-on-tint: [^;]+;\s*--color-tint-shade:/g)?.length,
+    );
     expect(tint).toContain("color: var(--color-on-tint);");
     // Its edge and no glow (round 8: the office's since Phase 26, the casual app's since 27.6;
     // round 7's soft drop in its own colour is gone).
@@ -505,6 +514,13 @@ describe("depth: a glass's rim and drop, through variables, and no other shadow"
     expect(css).toMatch(
       /@utility glass-band \{\s*background-image: linear-gradient\(135deg, var\(--band-from\), var\(--band-to\)\);\s*\}/,
     );
+    // Flat since Phase 28 (28.1): the band's two ends are one value in every block that sets them
+    // (light, both darks, the office's two, and every solid and no-blur fallback), as the tiles'
+    // and the buttons' are, so no gradient shows.
+    const bands = [...css.matchAll(/--band-from: ([^;]+);\s*--band-to: ([^;]+);/g)];
+    expect(bands.length).toBe(css.match(/--band-from:/g)?.length);
+    expect(bands.length).toBeGreaterThanOrEqual(15);
+    for (const [, from, to] of bands) expect(to).toBe(from);
     expect(read("src/app/shifts/open/open-shifts-view.tsx")).toMatch(
       /booked: "bg-ink\/12 text-ink inset-ring inset-ring-white\/30"/,
     );
@@ -584,10 +600,15 @@ describe("where the glass goes", () => {
     expect(read("src/app/office/office-frame.tsx")).toMatch(
       /popover="auto"\s+className="[^"]*glass-float/,
     );
-    // The tab bar (Phase 24): a floating capsule 14px above the foot, inside a bar that lets the
-    // page take taps around it.
+    // The tab bar (Phase 24; Phase 28 as the office rail on its side): a floating capsule 12px
+    // round, 12px from the screen's edges and over the foot (and the phone's safe area), inside a
+    // bar that lets the page take taps around it.
     expect(read("src/app/tab-bar.tsx")).toMatch(
-      /className="pointer-events-none fixed inset-x-0 bottom-0 z-20 px-4 pb-\[calc\(0\.875rem\+env\(safe-area-inset-bottom\)\)\]"\s*>\s*<div className="glass-float pointer-events-auto mx-auto grid h-17 max-w-md grid-cols-5 gap-1 rounded-full /,
+      /className="pointer-events-none fixed inset-x-0 bottom-0 z-20 px-3 pb-\[calc\(0\.75rem\+env\(safe-area-inset-bottom\)\)\]"\s*>\s*<div className="glass-float pointer-events-auto mx-auto grid h-17 max-w-md grid-cols-5 gap-1 rounded-card /,
+    );
+    // Its current tab is solid ink with its words on it (the rail's lit item), never a lens.
+    expect(read("src/app/tab-bar.tsx")).toMatch(
+      /\? "bg-ink font-semibold text-on-ink focus-visible:outline-on-ink"/,
     );
   });
 

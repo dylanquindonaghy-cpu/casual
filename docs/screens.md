@@ -3270,7 +3270,18 @@ What the office sees:
 
 ### 29.2
 
-(Written by task 29.2.)
+**The shifts line's "nothing you can take" reply: a promise only she can be held to.** When a
+casual messages the shifts line for shifts and there's nothing she can take, the WhatsApp reply
+says "We'll message you if something comes up." only when two things are true: she gets shift
+alerts ("Tell me about open shifts" is on), and something can actually reach her (a phone with
+app notifications on, texts she hasn't stopped while there's a text sender, or an email address
+the firm holds). It's the same rule Home and Open shifts use (`reachOf()`,
+src/lib/offers/reach.ts), read from her own facts inside her firm. A casual nothing can reach
+gets the same reply without that sentence: "Hi Zoe, there's nothing you can take within 45
+minutes of your home area right now. All open shifts: {link}", then "Automatic reply. Send
+OFFICE to reach a person." and the "{Firm name} Shift Team" sign-off. Home already tells her "We
+can't reach you about shifts" with a link to Profile's "How we reach you". The text version
+never had the promise and is unchanged; a reply that lists shifts never carries it either.
 
 ### 29.3
 

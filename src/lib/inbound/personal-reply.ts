@@ -3,6 +3,9 @@ import { assignments, firms, shiftEvents, shifts, sites, workers } from "../db/s
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { AUTOMATIC_REPLY, type FirmVoice } from "../messaging/templates";
 import { openShiftsFor, type NotOfferedReason, type OpenShift } from "../portal/open-shifts";
+import { reachOf } from "../offers/reach";
+import { hasTextSender } from "../portal/login-way";
+import { reachFactsIn } from "../portal/reach-me";
 import type { RuleCheck } from "../rules/eligibility";
 import { dayLabel } from "../rules/reasons";
 import { noticeHours } from "../roster/notice";
@@ -198,7 +201,11 @@ export interface ShiftsReplyInput {
   shifts: ListedShift[]; // all she could take, in order
   travelOn: boolean; // the firm has travel areas on (13.4): only then is she asked to add one
   area: { maxMinutes: number } | null; // her travel area (null: none set, or travel areas off)
-  offerAlerts: boolean; // she gets told of new shifts ("We'll message you…")
+  offerAlerts: boolean; // she gets told of new shifts
+  // Something can reach her about shifts (reachOf(), src/lib/offers/reach.ts: a phone with
+  // notifications on, texts she hasn't stopped while there's a text sender, or an email address).
+  // "We'll message you…" only when both are true (29.2: never a promise nothing can keep).
+  canReach: boolean;
   links: { take: string; profile: string };
 }
 
@@ -271,7 +278,8 @@ export function shiftsReplyText(
   if (input.shifts.length === 0) {
     const day = asked ? ` ${asked.onWords}` : "";
     const within = area ? ` within ${area.maxMinutes} minutes of your home area` : "";
-    const alerts = input.offerAlerts ? " We'll message you if something comes up." : "";
+    const alerts =
+      input.offerAlerts && input.canReach ? " We'll message you if something comes up." : "";
     for (const max of CUTS) {
       const b = booked(max);
       const body = fits(
@@ -435,9 +443,11 @@ export async function shiftsReply(
     now: Date;
     firm: FirmVoice;
     portal: string; // the firm's portal address
+    textSender?: boolean; // whether texts can go at all (default: hasTextSender(), as Home's)
   },
 ): Promise<PersonalReply> {
   const { firmId, workerId, now } = input;
+  const textSender = input.textSender ?? hasTextSender();
   const facts = await run(firmId, async (tx) => {
     const [firm] = await tx
       .select({ timezone: firms.timezone })
@@ -447,7 +457,14 @@ export async function shiftsReply(
       .select({ firstName: workers.firstName })
       .from(workers)
       .where(eq(workers.id, workerId));
-    return { timeZone: firm?.timezone ?? "Europe/London", firstName: me?.firstName ?? "" };
+    // Her own reach facts (29.2), by the rule Home and Open shifts use (reachOf): no promise of a
+    // message to a casual nothing can reach.
+    const reach = await reachFactsIn(tx, workerId);
+    return {
+      timeZone: firm?.timezone ?? "Europe/London",
+      firstName: me?.firstName ?? "",
+      canReach: reach !== null && reachOf(reach, textSender).how !== "none",
+    };
   });
   const asked = input.text ? askedDays(input.text, now, facts.timeZone) : null;
   const list = await openShiftsFor(
@@ -495,6 +512,7 @@ export async function shiftsReply(
     travelOn: list.travelOn,
     area: list.area,
     offerAlerts: list.offerAlerts,
+    canReach: facts.canReach,
     links: { take: `${input.portal}/shifts/open`, profile: `${input.portal}/profile/travel` },
   };
   const whatsapp = shiftsReplyText(replyInput, "whatsapp");

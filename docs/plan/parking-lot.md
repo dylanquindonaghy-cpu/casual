@@ -2435,13 +2435,19 @@ Each task adds what it left out here as its wave is merged.
 - **28.5 (a shift's page):** `shift-parts.tsx` (the figure tiles and `factCard`) still has its own
   `rounded-2xl` and `rounded-3xl`, left to 28.13 and 28.16. The strike note rounds the hours down
   ("starts in 36 hours" at 36h55m). `requirement-chips.tsx` has no page using it any more.
-- **28.6:** (filled when wave 2 is merged)
+- **28.6 (message the office about a shift):** the Enquiries list row, and the casual's own
+  bubble, could show the "About" line too (only the message page and its pane show it now). The
+  "Sent" words check what the send kept with one extra read per shift-tagged send; returning the
+  kept shift from `receiveAppMessage` would save it. Its mock-up (private until shared):
+  https://claude.ai/artifact/RNAjvcnPgtyTJ3DAQUJvc4
 - **28.7 (Home and the pass):** Home reads the casual's qualifications twice (the "Do this" row and
   the tab counts); one query could serve both. The office's look classes asked for between waves:
   a row-lead slot that lines a disc up with a date tile, and removing the unused `font-greet`.
   `login.worker.spec.ts`'s exact tab names would fail if its seeded casual ever had an unseen
   payroll answer (none does today).
-- **28.8:** (filled when wave 2 is merged)
+- **28.8 (Open shifts and Urgent):** on Home's pass the travel sentence uses the figure tiles'
+  small grey words, while the shift page shows it larger in ink; matching them needs
+  `shift-parts.tsx` (28.13) or 28.16's leftover pass.
 - **28.9 (requests, both sides):** the server still accepts "declined" for an attendance question
   (only the office page limits it to one answer; a stored decline still reads "Answered" to her).
   Refusing it on the server breaks a 28.2 race test, so it waits for a decision on that test's
@@ -2450,7 +2456,10 @@ Each task adds what it left out here as its wave is merged.
   dropping (the test checks the database count); add one now 28.7's count is on the tab. Words typed
   into the pay query are lost if the code runs out mid-form. Its mock-up (private until shared):
   https://claude.ai/artifact/CeCCbGUgfefLo4CSU4jFDB
-- **28.11:** (filled when wave 2 is merged)
+- **28.11 (Profile):** the qualification number shows only on types she may upload herself, never
+  on her other qualifications on file (first aid, say), and never on office-only ones (a choice for
+  Dylan: Decisions waiting). Help's step-by-step words, Home's in-hand and suspended rows, and
+  `/profile/travel`'s two "Contact the office" lines are handed to 28.12, 28.15 and 28.16.
 - **28.12:** (filled when wave 3 is merged)
 - **28.13:** (filled when wave 3 is merged)
 - **28.14:** (filled when wave 3 is merged)

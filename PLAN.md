@@ -1212,53 +1212,53 @@ No mock-up was approved first (Dylan: "Full build"); some tasks published one an
 screenshots. The staff pages after the phase, 390px and 1,280px, dark and light:
 `docs/mockups/phase-28/after/`.
 
-- [ ] One look with the office: the casual app takes the office's corners, padding, flat colours,
+- [x] One look with the office: the casual app takes the office's corners, padding, flat colours,
       chips, tags, slips, headings and current-tab rule through the shared parts (Dylan: "try to
       better match the UI to that of the resourcing teams UI"; UI; M) (28.1)
-- [ ] The data layer for Phase 28's casual actions: one small migration, the request, message and
+- [x] The data layer for Phase 28's casual actions: one small migration, the request, message and
       answer libraries, the "Message the office" link contract, the briefing-field list and one
       loader for the tab counts (schema, tenancy; S, T, R; M) (28.2)
-- [ ] Booked casuals told when a shift's briefing changes, from the editor, the planner, the rota
+- [x] Booked casuals told when a shift's briefing changes, from the editor, the planner, the rota
       sheet or a file import: one notice naming what changed, never the values, with every skip
       logged (parked as "Booked workers aren't told when the instructions change"; M, jobs; M)
       (28.3)
-- [ ] Your shift record: every offer, booking, office change and cancellation for you in the last 90
+- [x] Your shift record: every offer, booking, office change and cancellation for you in the last 90
       days, with the notice as it was logged, the live strike outcome, and none of the office's own
       words (golden rule 12 evidence a casual can see; UI, R; M) (28.4)
-- [ ] The shift page: the office's look, the review's fixes, working "Ask the office about the pay",
+- [x] The shift page: the office's look, the review's fixes, working "Ask the office about the pay",
       "Message the office" and "Running late?" links, "Changed since you booked" from the briefing-
       field list, and "Add to my calendar" (review majors 1 and 2; UI, A; M) (28.5)
-- [ ] Message the office about a shift: Messages opens with the shift named and a ready sentence,
+- [x] Message the office about a shift: Messages opens with the shift named and a ready sentence,
       and a message about a shift that hasn't ended goes to a person, never to the automatic sorter
       (review majors 1 and 2; M, UI; M) (28.6)
-- [ ] Home and the pass in the office's look, the two "can we reach you" prompts, and one count for
+- [x] Home and the pass in the office's look, the two "can we reach you" prompts, and one count for
       every tab bar (review notes; resourcer need "Be reachable"; UI, R; M) (28.7)
-- [ ] Open shifts and Urgent grouped like the office's event card, with day tiles big enough for a
+- [x] Open shifts and Urgent grouped like the office's event card, with day tiles big enough for a
       thumb, plain travel and pay words, tags and empty boxes (review accessibility finding, major 2
       on the cards, and notes; UI; M) (28.8)
-- [ ] Requests, both sides: take back a waiting request, see when the office has answered, a picker
+- [x] Requests, both sides: take back a waiting request, see when the office has answered, a picker
       that shows the site, and the office's Enquiries with attendance questions ("Mark again",
       "Answered") and taken-back requests in history (review major on answers; UI, T; M) (28.9)
-- [ ] Pay and the pay query: the pay day before the code, a code step on the pay query that brings
+- [x] Pay and the pay query: the pay day before the code, a code step on the pay query that brings
       them back, a preselected shift, payroll's answers counted until seen, and no "Contact the
       office" dead end (review major on Pay; UI, A; M) (28.10)
-- [ ] Profile, shorter and clearer: My requests and Help at the top, settings folded, a photo
+- [x] Profile, shorter and clearer: My requests and Help at the top, settings folded, a photo
       preview before it's sent, their qualification number with "The office has this in hand" once
       sorted, and every "Contact the office" a link (review majors on Profile and uploads; UI; M)
       (28.11)
-- [ ] Help states the firm's own booking rules, worded per allocation mode from the rules' own
+- [x] Help states the firm's own booking rules, worded per allocation mode from the rules' own
       parsers, and why a shift may not show; the cancel sheet's words and look are tidied, with
       every "Contact the office" a link (review majors and notes; UI, R; M) (28.12)
-- [ ] Booked: past shifts for the 90 days reliability counts, each with its hours and mark, "Think
+- [x] Booked: past shifts for the 90 days reliability counts, each with its hours and mark, "Think
       this mark is wrong?", "Ask about the pay for this shift", the way to your shift record, and
       Booked's own look (resourcer need on marks; UI, R; M) (28.13)
-- [ ] "Still coming?" in the day before a shift: one online-only tap on the shift page or the pass,
+- [x] "Still coming?" in the day before a shift: one online-only tap on the shift page or the pass,
       and the office's Coming up shows "Coming" or "Not answered yet", with no automatic consequence
       (PLAN P6, moved here; Parim's reconfirm; M, UI; M) (28.14)
-- [ ] Offers waiting for you on Home, with "No thanks": each offer still open to them, when it was
+- [x] Offers waiting for you on Home, with "No thanks": each offer still open to them, when it was
       offered and "First to take it gets it", so a missed notification doesn't lose the shift
       (resourcer need "Offers waiting"; parked since Phase 4; UI, R; M) (28.15)
-- [ ] Phase close: guard tests that the casual app reached the office's look and has no "Contact the
+- [x] Phase close: guard tests that the casual app reached the office's look and has no "Contact the
       office" dead end, and screenshots of the pages nobody re-shot (UI; S) (28.16)
 
 Built in waves (tasks in a wave touch different files): [28.1, 28.2] · [28.3, 28.4, 28.5, 28.6,

@@ -819,7 +819,8 @@ shift again anyway. She can still take it from Open shifts while it's open; then
 as taken.
 
 **Also on Home (28.11's hand-off).** "Do this" leaves out a qualification the office marked as
-sorted while that mark still stands, as Profile does ("The office has this in hand."). A suspended
+sorted while that mark still stands, as Profile does ("The office has this in hand."), and the
+Profile number on the tab bar doesn't count it either, on every casual page. A suspended
 qualification's row goes to Messages (`/messages`), not Profile: an upload can't lift it.
 
 **Mock-up:** none to approve first (Dylan, 2026-11-05: "Full build"; "Do not prompt me until the

@@ -15,6 +15,7 @@ import {
   assignments,
   credentials,
   credentialTypes,
+  firms,
   offers,
   shifts,
   uploads,
@@ -175,14 +176,23 @@ export async function myProfile(ctx: Ctx, workerId: string): Promise<Profile | n
   });
 }
 
-// The same mark for Home's "Do this" (Phase 28.15, 28.11's hand-off), so Home and Profile agree on
-// what the office has in hand.
+// The same mark for Home's "Do this" and the tab bar's Profile count (Phase 28.15, 28.11's
+// hand-off), so Home, the tab bar and Profile agree on what the office has in hand. Her own only,
+// inside her firm; the firm's calendar from the firm's row when the caller doesn't carry it.
 export async function mySortedMark(
-  ctx: { firm: { id: string; timezone: string }; run?: PortalContext["run"] },
+  ctx: { firm: { id: string; timezone?: string }; run?: PortalContext["run"] },
   workerId: string,
 ): Promise<SortedMark | null> {
   const run = ctx.run ?? withFirm;
-  return run(ctx.firm.id, (tx) => latestSortedMark(tx, workerId, ctx.firm.timezone));
+  return run(ctx.firm.id, async (tx) => {
+    const timeZone =
+      ctx.firm.timezone ??
+      (
+        await tx.select({ timezone: firms.timezone }).from(firms).where(eq(firms.id, ctx.firm.id))
+      )[0]?.timezone ??
+      "Europe/London";
+    return latestSortedMark(tx, workerId, timeZone);
+  });
 }
 
 // The office's latest "Mark as sorted" for her (src/lib/office/casual-follow-up.ts: what it was

@@ -134,7 +134,7 @@ describe("the Pay code step", () => {
       const html = renderToStaticMarkup(createElement(CodeGate, { way: "off", codeWaiting }));
       expect(html).not.toContain("<button");
       expect(html).not.toContain("<input");
-      expect(html).toContain('href="/messages"');
+      expect(html).toContain('href="/messages?about=pay"');
       expect(gate("off", codeWaiting)).toBe(
         "We can't send you a code yet, so your pay can't open. Your pay day is above. For anything else about your pay, message the office. Message the office",
       );

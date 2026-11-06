@@ -105,6 +105,11 @@ export interface MyPayQuery {
   createdAt: Date;
   sortedOn: string | null; // the firm-local day payroll sorted it (yyyy-mm-dd)
   note: string | null; // payroll's note to them, once sorted (typed by a person, never an AI)
+  // Phase 28.10: when payroll sorted it, and whether she hasn't seen that answer yet (sorted after
+  // her pay_answers_read_at, as the Pay tab counts it: src/lib/portal/request-answers.ts), so the
+  // Pay page watches exactly the answers still counting (src/app/pay/pay-answers-seen.tsx).
+  resolvedAt: Date | null;
+  unseen: boolean;
 }
 
 export async function myPayQueries(ctx: Ctx, stepped: Stepped): Promise<MyPayQuery[]> {
@@ -121,6 +126,9 @@ export async function myPayQueries(ctx: Ctx, stepped: Stepped): Promise<MyPayQue
         createdAt: payQueries.createdAt,
         resolvedAt: payQueries.resolvedAt,
         note: payQueries.resolutionNote,
+        unseen: sql<boolean>`(${payQueries.status} = 'resolved' and ${payQueries.resolvedAt} >
+          coalesce((select w.pay_answers_read_at from workers w where w.id = ${payQueries.workerId}),
+                   '-infinity'::timestamptz))`,
       })
       .from(payQueries)
       .where(
@@ -140,6 +148,8 @@ export async function myPayQueries(ctx: Ctx, stepped: Stepped): Promise<MyPayQue
     sortedOn:
       r.status === "resolved" && r.resolvedAt ? localDateOf(r.resolvedAt, ctx.firm.timezone) : null,
     note: r.status === "resolved" ? r.note : null,
+    resolvedAt: r.status === "resolved" ? r.resolvedAt : null,
+    unseen: r.unseen === true,
   }));
 }
 

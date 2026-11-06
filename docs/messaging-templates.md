@@ -388,6 +388,14 @@ app has its own way to the office: `forTheApp()`). Nothing goes by WhatsApp, tex
   ended keeps no shift and is sorted as any other: a pay question about a worked shift gets the pay
   page's link and its "Raise a pay query", for payroll (golden rule 9). Its `message.received` log
   entry names the session (`shiftId`) and holds ids only, never her words.
+- **About her pay (the guardrails review of 28.10).** A message sent from Messages opened about
+  her pay with no shift (`/messages?about=pay`: Pay's and the pay query's "Message the office",
+  shown when her pay can't open because no code can be sent, or when a pay question is older than
+  the pay query's 90 days; docs/screens.md "### 28.10") is stored for the office (`intent` 'office'
+  before the job claims it) and never sorted: no keyword, no AI, and never the pay page's link,
+  which would only send her back to the page that sent her. It goes to a person on Enquiries as the
+  office's question, as one about a shift does. Its `message.received` says so (`aboutPay`), with
+  ids only.
 - Her ready sentences (`src/lib/portal/messages-copy.ts`, the words of docs/screens.md "### 28.6")
   are only put in her box: she can change them before she sends, and nothing is sent until she
   taps Send.

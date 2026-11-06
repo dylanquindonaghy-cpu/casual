@@ -9,8 +9,11 @@ export const SIX_DIGIT = "6‑digit";
 export type CodeWay = "message" | "email";
 
 // The pay pages' one way on to a person: Messages (her thread with the office), never "contact
-// the office" with nothing to tap.
-export const MESSAGE_OFFICE = { href: "/messages", label: "Message the office" } as const;
+// the office" with nothing to tap. About her pay (`?about=pay`, src/lib/portal/message-office.ts
+// MESSAGES_ABOUT_PAY): what she sends from there goes to a person, never sorted, so a pay question
+// that can't go on Pay (no code sender, or older than 90 days) never gets the automatic pay link
+// back, which would only bring her here again (the guardrails review of 28.10).
+export const MESSAGE_OFFICE = { href: "/messages?about=pay", label: "Message the office" } as const;
 
 export const PAY_CODE = {
   ask: (way: CodeWay) =>

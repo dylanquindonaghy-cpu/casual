@@ -90,7 +90,8 @@ describe("the pay query form", () => {
 describe("the pay query's ways in and out (28.10)", () => {
   it("too old links 'message the office' to Messages", () => {
     const link = PROBLEM_LINKS.too_old;
-    expect(link).toEqual({ text: "message the office", href: "/messages" });
+    // About her pay (the guardrails review of 28.10): a person answers, never the pay link back.
+    expect(link).toEqual({ text: "message the office", href: "/messages?about=pay" });
     expect(PROBLEM_WORDS.too_old).toContain(link?.text);
     // No problem says 'contact the office'.
     for (const words of Object.values(PROBLEM_WORDS))

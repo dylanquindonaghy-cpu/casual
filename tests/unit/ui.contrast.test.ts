@@ -1,8 +1,11 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { chip, disc, slip } from "@/app/ui/classes";
 import { over, type Rgb, type Rgba } from "@/lib/tenancy/glass-grounds";
 import {
   BLOCKS,
+  BRIGHT,
   block,
   colourTokens,
   contrast,
@@ -643,8 +646,9 @@ describe("the looks (src/app/globals.css)", () => {
 // Phase 28 (28.1; docs/ui-design.md "Phase 28"): the casual app's new shared parts, in both its
 // themes (light and dark, each as drawn, solid and with no blur: looks()). A chip's words on its
 // tint, a slip's words on each status's tint (both over the page itself, a section and what
-// floats), the current tab's words on its solid ink, each slip's round icon disc (its icon on its
-// fill, over the slip's tint) and the main button, one flat colour now.
+// floats), the current tab's words on its solid ink and the counts on it (the to-do amber over the
+// ink, and their edge of the page's ground against the ink), each slip's round icon disc (its icon
+// on its fill, over the slip's tint) and the main button, one flat colour now.
 describe("Phase 28's parts in the casual app's looks", () => {
   const CASUAL = looks();
   type Tone = "urgent" | "attention" | "wait" | "done" | "quiet";
@@ -741,14 +745,50 @@ describe("Phase 28's parts in the casual app's looks", () => {
     expect(failing).toEqual([]);
   });
 
-  it("the current tab: its words on its solid ink 4.5:1 or more; the ink tab 3:1 on the tab bar", () => {
+  it("the current tab: its words on its solid ink 4.5:1 or more; the ink tab 3:1 on the tab bar; its counts on the ink", () => {
+    // A count is drawn on the tab it belongs to (src/app/tab-bar.tsx): the to-do amber with its
+    // words, or the firm's colour, each set off by a 2px edge of the page's ground. The pairs below
+    // are those classes.
+    const tabBar = readFileSync(join(process.cwd(), "src/app/tab-bar.tsx"), "utf8");
+    expect(tabBar).toContain("outline-2 outline-canvas");
+    expect(tabBar).toContain('"bg-hivis text-on-hivis"');
+    expect(tabBar).toMatch(/"bg-ink font-semibold text-on-ink /);
+    // Pressed, `press-glass`'s brightness(1.06) brightens the whole tab: the ink, the count and its
+    // words together.
+    const bright = (c: Rgb): Rgb => c.map((v) => Math.min(255, Math.round(v * BRIGHT))) as Rgb;
+    const failing: string[] = [];
+    const check = (what: string, a: Rgb, b: Rgb, min: number) => {
+      for (const [x, y] of [
+        [a, b],
+        [bright(a), bright(b)],
+      ] as const) {
+        const r = contrast(x, y);
+        if (!(r >= min)) failing.push(`${what}: ${r.toFixed(2)}`);
+      }
+    };
     for (const look of CASUAL) {
       expect(lowest(look, "on-ink", "ink"), look.name).toBeGreaterThanOrEqual(4.5);
       expect(lowest(look, "ink", "panel"), look.name).toBeGreaterThanOrEqual(3);
       // Its counts: the to-do amber and the firm's colour, each with its words.
       expect(lowest(look, "on-hivis", "hivis"), look.name).toBeGreaterThanOrEqual(4.5);
       expect(lowest(look, "on-tint", "glass-tint"), look.name).toBeGreaterThanOrEqual(4.5);
+      // On the current tab a count lies on the solid ink, not on the tab bar: the amber, translucent
+      // where the look has glass, over the ink, its words 4.5:1 or more.
+      const ink = solid(look, "ink");
+      const hivis = look.colours.get("hivis");
+      if (!hivis) throw new Error(`${look.name}: no hivis`);
+      check(
+        `${look.name}: on-hivis on hivis over ink`,
+        solid(look, "on-hivis"),
+        over(hivis, ink),
+        4.5,
+      );
+      // The count's edge, the page's ground, against the ink, 3:1 or more: it keeps a count in the
+      // firm's colour apart from the ink tab whatever that colour is (the default, #15171a, is all
+      // but ink in light), and the firm's colour's own words are checked on it above.
+      check(`${look.name}: canvas edge on ink`, solid(look, "canvas"), ink, 3);
     }
+    expect(failing).toEqual([]);
   });
 
   it("the main button: one flat colour (one stop), its words 4.5:1 or more on it, brightened too", () => {

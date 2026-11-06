@@ -12,7 +12,8 @@ import { automaticEventId } from "../../../src/lib/roster/shift-events";
 //
 // - one upcoming booking (3 days ahead), so Upcoming has its pass;
 // - a session 5 days ago marked not attended (the one she questions), one 40 days ago marked worked
-//   (outside the old 30 days, inside reliability's 90), and one 2 days ago not marked yet;
+//   (outside the old 30 days, inside reliability's 90), one 2 days ago not marked yet, and one 80
+//   days ago marked worked (its pay link still chooses it: the pay query lists 90 days too);
 // - each run's sessions at sites named for the run, so a rerun's rows are told apart from the last
 //   run's (bookings and requests are never deleted; the last run's upcoming sessions are cancelled
 //   and its waiting requests taken back).
@@ -146,10 +147,11 @@ const dayAt = (days: number, hour = 10) => {
 export interface BookedScene {
   workerId: string;
   run: string;
-  sites: { upcoming: string; missed: string; worked: string; unmarked: string };
+  sites: { upcoming: string; missed: string; worked: string; unmarked: string; oldest: string };
   missedId: string; // marked not attended 5 days ago: the one she questions
   workedId: string; // marked worked 40 days ago
   unmarkedId: string; // 2 days ago, not marked yet
+  oldestId: string; // marked worked 80 days ago: past the pay list's old 8 weeks, inside Past's 90
 }
 
 export function bookedScene(slug = "acme"): Promise<BookedScene> {
@@ -159,6 +161,7 @@ export function bookedScene(slug = "acme"): Promise<BookedScene> {
     missed: `Booked Check North Gate ${run}`,
     worked: `Booked Check Riverside ${run}`,
     unmarked: `Booked Check Exchange ${run}`,
+    oldest: `Booked Check Old Mill ${run}`,
   };
   return inFirm(slug, async (tx, firmId) => {
     const workerId = await casual(tx, firmId, P28_13_CASUAL, P28_13_ROLE);
@@ -192,7 +195,14 @@ export function bookedScene(slug = "acme"): Promise<BookedScene> {
       workerId,
       mark: "confirmed",
     });
-    return { workerId, run, sites, missedId, workedId, unmarkedId };
+    const oldestId = await bookedSession(tx, firmId, {
+      site: sites.oldest,
+      role,
+      at: dayAt(-80),
+      workerId,
+      mark: "completed",
+    });
+    return { workerId, run, sites, missedId, workedId, unmarkedId, oldestId };
   });
 }
 

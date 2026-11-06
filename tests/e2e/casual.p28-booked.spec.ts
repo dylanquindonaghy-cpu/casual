@@ -218,6 +218,17 @@ test("Booked: Updated beside the headline, tabs with counts, Past 90 days with h
     await expect(page).toHaveURL(`${acme}/pay/query?shift=${scene.missedId}`);
     await expect(page.getByLabel("Which shift?")).toHaveValue(scene.missedId);
 
+    // A row 80 days back (past the old 8 weeks, inside Past's 90 days): its pay link chooses it too.
+    await page.goto(`${acme}/shifts?view=past`);
+    const oldest = page
+      .getByRole("region", { name: "The last 90 days" })
+      .getByRole("listitem")
+      .filter({ hasText: scene.sites.oldest });
+    await oldest.locator("summary").click();
+    await oldest.getByRole("link", { name: "Ask about the pay for this shift" }).click();
+    await expect(page).toHaveURL(`${acme}/pay/query?shift=${scene.oldestId}`);
+    await expect(page.getByLabel("Which shift?")).toHaveValue(scene.oldestId);
+
     // "Your shift record", from Past and from Profile.
     await page.goto(`${acme}/shifts?view=past`);
     await page.getByRole("link", { name: /^Your shift record/ }).click();

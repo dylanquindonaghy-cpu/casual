@@ -3,7 +3,9 @@ import {
   isPayQueryPath,
   ISSUE_LABELS,
   OTHER_DAY,
+  PAY_QUERY_DAYS_BACK,
   PAY_QUERY_PATH,
+  PAY_QUERY_SHIFT_DAYS,
   PAY_QUERY_STATUS_WORDS,
   payQueryInput,
   payQueryPath,
@@ -12,6 +14,7 @@ import {
   PROBLEM_WORDS,
   shiftParam,
 } from "@/lib/portal/pay-query-kinds";
+import { RELIABILITY_DAYS } from "@/lib/rules/reliability";
 
 // The pay query form's check and words (src/lib/portal/pay-query-kinds.ts). The server checks the
 // shift is the worker's and the day is in range (tests/integration/pay.queries.test.ts).
@@ -145,5 +148,15 @@ describe("the pay query's ways in and out (28.10)", () => {
     expect(preselectedShift(mine, "not-a-shift")).toBeNull();
     expect(preselectedShift(mine, undefined)).toBeNull();
     expect(preselectedShift([], SHIFT)).toBeNull();
+  });
+});
+
+describe("the shifts the pay query offers (28.13)", () => {
+  // "Ask about the pay for this shift" is on every row of Booked's Past (PAST_DAYS =
+  // RELIABILITY_DAYS) and opens /pay/query?shift=, which chooses only a shift in the form's list.
+  // So the list reaches back at least as far as Past, or an older row opens with nothing chosen.
+  it("reaches back as far as Booked's Past, and no further than a day can be typed", () => {
+    expect(PAY_QUERY_SHIFT_DAYS).toBeGreaterThanOrEqual(RELIABILITY_DAYS);
+    expect(PAY_QUERY_SHIFT_DAYS).toBeLessThanOrEqual(PAY_QUERY_DAYS_BACK);
   });
 });

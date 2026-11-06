@@ -136,7 +136,7 @@ const KIND_OF: Record<string, RowKind> = {
   "shift.cancelled": "cancelled",
 };
 
-type Row = {
+export type NoticeQueryRow = {
   id: string | number;
   action: string;
   actor_type: string;
@@ -240,7 +240,7 @@ export async function loadNoticeReport(
      group by 1`);
   const askedBy: Record<CancelAsker, number> = { casual: 0, firm: 0, client: 0, unknown: 0 };
   for (const a of asked) askedBy[a.asked_by] += a.n;
-  const { rows } = await tx.execute<Row>(sql`
+  const { rows } = await tx.execute<NoticeQueryRow>(sql`
     select e.id, e.action, e.actor_type, e.data, e.created_at,
            ${notice} as notice,
            (${recorded}) is null and e.action = 'offer.sent' and s.starts_at is not null
@@ -260,55 +260,56 @@ export async function loadNoticeReport(
     clamped,
     total: counted[0]?.n ?? 0,
     askedBy,
-    rows: rows.map((r) => {
-      const hours = r.notice === null ? null : Number(r.notice);
-      const kind = KIND_OF[r.action] ?? "booked";
-      const firmStarted = initiatorOf(r.action, r.actor_type, r.data) !== "worker";
-      const oldStart = isoOf(r.data.oldStartsAt);
-      const newStart = isoOf(r.data.newStartsAt);
-      const oldEnd = isoOf(r.data.oldEndsAt);
-      const newEnd = isoOf(r.data.newEndsAt);
-      return {
-        eventId: Number(r.id),
-        at: new Date(r.created_at),
-        kind,
-        initiator: initiatorOf(r.action, r.actor_type, r.data),
-        worker: r.first_name ? `${r.first_name} ${r.last_name ?? ""}`.trim() : "Someone",
-        shift:
-          r.shift_id && r.role && r.starts_at
-            ? {
-                id: r.shift_id,
-                role: r.role,
-                site: r.site_name,
-                startsAt: new Date(r.starts_at),
-              }
-            : null,
-        moved:
-          (kind === "moved" || kind === "shortened") && oldStart && newStart && oldEnd && newEnd
-            ? {
-                fromStart: oldStart,
-                fromEnd: oldEnd,
-                toStart: newStart,
-                toEnd: newEnd,
-                siteChanged:
-                  "oldSiteId" in r.data &&
-                  "newSiteId" in r.data &&
-                  r.data.oldSiteId !== r.data.newSiteId,
-              }
-            : null,
-        noticeHours: hours !== null && Number.isFinite(hours) ? hours : null,
-        noticeFromCurrentStart: Boolean(r.from_current),
-        shortNotice: hours !== null && Number.isFinite(hours) && hours < threshold.hours,
-        reason: !firmStarted
-          ? null
-          : typeof r.data.reason === "string"
-            ? r.data.reason
-            : r.action === "shift.assigned" && r.override_reason
-              ? r.override_reason
-              : null,
-        askedBy: r.asked_by,
-      };
-    }),
+    rows: rows.map((r) => noticeRowOf(r, threshold.hours)),
+  };
+}
+
+// One row of the report from its query's row (pure).
+export function noticeRowOf(r: NoticeQueryRow, thresholdHours: number): NoticeRow {
+  const hours = r.notice === null ? null : Number(r.notice);
+  const kind = KIND_OF[r.action] ?? "booked";
+  const firmStarted = initiatorOf(r.action, r.actor_type, r.data) !== "worker";
+  const oldStart = isoOf(r.data.oldStartsAt);
+  const newStart = isoOf(r.data.newStartsAt);
+  const oldEnd = isoOf(r.data.oldEndsAt);
+  const newEnd = isoOf(r.data.newEndsAt);
+  return {
+    eventId: Number(r.id),
+    at: new Date(r.created_at),
+    kind,
+    initiator: initiatorOf(r.action, r.actor_type, r.data),
+    worker: r.first_name ? `${r.first_name} ${r.last_name ?? ""}`.trim() : "Someone",
+    shift:
+      r.shift_id && r.role && r.starts_at
+        ? {
+            id: r.shift_id,
+            role: r.role,
+            site: r.site_name,
+            startsAt: new Date(r.starts_at),
+          }
+        : null,
+    moved:
+      (kind === "moved" || kind === "shortened") && oldStart && newStart && oldEnd && newEnd
+        ? {
+            fromStart: oldStart,
+            fromEnd: oldEnd,
+            toStart: newStart,
+            toEnd: newEnd,
+            siteChanged:
+              "oldSiteId" in r.data && "newSiteId" in r.data && r.data.oldSiteId !== r.data.newSiteId,
+          }
+        : null,
+    noticeHours: hours !== null && Number.isFinite(hours) ? hours : null,
+    noticeFromCurrentStart: Boolean(r.from_current),
+    shortNotice: hours !== null && Number.isFinite(hours) && hours < thresholdHours,
+    reason: !firmStarted
+      ? null
+      : typeof r.data.reason === "string"
+        ? r.data.reason
+        : r.action === "shift.assigned" && r.override_reason
+          ? r.override_reason
+          : null,
+    askedBy: r.asked_by,
   };
 }
 

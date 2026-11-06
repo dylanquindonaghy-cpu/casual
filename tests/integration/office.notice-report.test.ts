@@ -447,4 +447,234 @@ describe("the notice and cancellation report", () => {
     ).toBeNull();
     expect(await officeNoticeReport(ctx, "", q)).toBeNull();
   });
+
+  // Phase 28.4: the casual's shift record shares this report's row builder
+  // (src/lib/notices/record-rows.ts). The office's rows stay exactly as they were: every key of
+  // every row, in order, for each kind of row and each way a reason, a notice or a name comes in.
+  // Written against the builder before it was shared.
+  it("the office's rows, whole, are as before the casual's record shared the builder", async () => {
+    const t = await reportFirm();
+    const s = t.shiftId;
+    const { rows: siteRows } = await su.query<{ id: string }>(
+      "select site_id::text as id from shifts where id = $1",
+      [s],
+    );
+    const siteId = siteRows[0]?.id;
+    const benBooking = await t.f.booking(t.ben, s, "confirmed", 2);
+    await su.query("update assignments set override_reason = $2 where id = $1", [
+      benBooking,
+      "Placed by the duty manager",
+    ]);
+    const e1 = await t.event({
+      action: "offer.sent",
+      at: hoursFromNow(-8),
+      data: { shiftId: s, workerId: t.ann, wave: 1, noticeHours: 125 },
+    });
+    // Logged before offers recorded their notice: worked out from the shift's current start.
+    const e2 = await t.event({
+      action: "offer.sent",
+      at: hoursFromNow(-7),
+      data: { shiftId: s, workerId: t.ben, offeredBy: t.resourcer },
+    });
+    const e3 = await t.event({
+      action: "shift.assigned",
+      at: hoursFromNow(-6),
+      actorType: "office",
+      actorId: t.resourcer,
+      entityId: benBooking,
+      data: {
+        by: "firm",
+        shiftId: s,
+        workerId: t.ben,
+        noticeHours: 123,
+        overridden: ["rest_too_short"],
+        reasonGiven: true,
+      },
+    });
+    const e4 = await t.event({
+      action: "shift.moved",
+      at: hoursFromNow(-5),
+      actorType: "office",
+      actorId: t.resourcer,
+      data: {
+        by: "firm",
+        shiftId: s,
+        workerId: t.ann,
+        reason: "Weather or safety",
+        oldStartsAt: "2026-11-07T06:00:00.000Z",
+        oldEndsAt: "2026-11-07T14:00:00.000Z",
+        newStartsAt: "2026-11-07T08:00:00.000Z",
+        newEndsAt: "2026-11-07T16:00:00.000Z",
+        oldSiteId: null,
+        newSiteId: siteId,
+        noticeHours: 118,
+        rulesOk: false,
+        codes: ["rest_too_short"],
+      },
+    });
+    const e5 = await t.event({
+      action: "shift.curtailed",
+      at: hoursFromNow(-4),
+      entityId: benBooking,
+      data: {
+        source: "sheets",
+        by: "firm",
+        reason: "Times changed on the rota sheet",
+        oldStartsAt: "2026-11-07T08:00:00.000Z",
+        oldEndsAt: "2026-11-07T16:00:00.000Z",
+        newStartsAt: "2026-11-07T08:00:00.000Z",
+        newEndsAt: "2026-11-07T12:00:00.000Z",
+        noticeHours: 32.5,
+      },
+    });
+    const e6 = await t.event({
+      action: "shift.cancelled",
+      at: hoursFromNow(-3),
+      actorType: "worker",
+      actorId: t.ben,
+      entityId: benBooking,
+      data: { by: "worker", shiftId: s, workerId: t.ben, noticeHours: 20, strike: "strike" },
+    });
+    const e7 = await t.event({
+      action: "shift.cancelled",
+      at: hoursFromNow(-2),
+      actorType: "office",
+      actorId: t.resourcer,
+      data: {
+        by: "firm",
+        askedBy: "client",
+        shiftId: s,
+        workerId: t.ann,
+        reason: "The event was cancelled",
+        noticeHours: 60,
+      },
+    });
+
+    const r = await t.report();
+    const shift = {
+      id: s,
+      role: "door_supervisor",
+      site: "Riverside Arena",
+      startsAt: new Date("2026-11-07T08:00:00Z"),
+    };
+    const row = (o: Record<string, unknown>) => ({
+      moved: null,
+      noticeFromCurrentStart: false,
+      shortNotice: false,
+      reason: null,
+      askedBy: null,
+      shift,
+      ...o,
+    });
+    expect(r.total).toBe(7);
+    expect(r.askedBy).toEqual({ casual: 0, firm: 0, client: 1, unknown: 1 });
+    expect(r.rows).toEqual([
+      row({
+        eventId: e7,
+        at: hoursFromNow(-2),
+        kind: "cancelled",
+        initiator: "office",
+        worker: "Ann Booker",
+        noticeHours: 60,
+        reason: "The event was cancelled",
+        askedBy: "client",
+      }),
+      row({
+        eventId: e6,
+        at: hoursFromNow(-3),
+        kind: "cancelled",
+        initiator: "worker",
+        worker: "Ben Booker",
+        noticeHours: 20,
+        shortNotice: true,
+        askedBy: "unknown",
+      }),
+      row({
+        eventId: e5,
+        at: hoursFromNow(-4),
+        kind: "shortened",
+        initiator: "rota_sheet",
+        worker: "Ben Booker",
+        moved: {
+          fromStart: new Date("2026-11-07T08:00:00Z"),
+          fromEnd: new Date("2026-11-07T16:00:00Z"),
+          toStart: new Date("2026-11-07T08:00:00Z"),
+          toEnd: new Date("2026-11-07T12:00:00Z"),
+          siteChanged: false,
+        },
+        noticeHours: 32.5,
+        shortNotice: true,
+        reason: "Times changed on the rota sheet",
+      }),
+      row({
+        eventId: e4,
+        at: hoursFromNow(-5),
+        kind: "moved",
+        initiator: "office",
+        worker: "Ann Booker",
+        moved: {
+          fromStart: new Date("2026-11-07T06:00:00Z"),
+          fromEnd: new Date("2026-11-07T14:00:00Z"),
+          toStart: new Date("2026-11-07T08:00:00Z"),
+          toEnd: new Date("2026-11-07T16:00:00Z"),
+          siteChanged: true,
+        },
+        noticeHours: 118,
+        reason: "Weather or safety",
+      }),
+      row({
+        eventId: e3,
+        at: hoursFromNow(-6),
+        kind: "booked",
+        initiator: "office",
+        worker: "Ben Booker",
+        noticeHours: 123,
+        reason: "Placed by the duty manager",
+      }),
+      row({
+        eventId: e2,
+        at: hoursFromNow(-7),
+        kind: "offered",
+        initiator: "office",
+        worker: "Ben Booker",
+        noticeHours: 126,
+        noticeFromCurrentStart: true,
+      }),
+      row({
+        eventId: e1,
+        at: hoursFromNow(-8),
+        kind: "offered",
+        initiator: "offer_wave",
+        worker: "Ann Booker",
+        noticeHours: 125,
+      }),
+    ]);
+    // Key for key, in the order the page and the file have always had them.
+    for (const x of r.rows) {
+      expect(Object.keys(x)).toEqual([
+        "eventId",
+        "at",
+        "kind",
+        "initiator",
+        "worker",
+        "shift",
+        "moved",
+        "noticeHours",
+        "noticeFromCurrentStart",
+        "shortNotice",
+        "reason",
+        "askedBy",
+      ]);
+    }
+    // And the file from them, line for line.
+    expect(noticeReportCsv(r).slice(1).trimEnd().split("\r\n").slice(1)).toEqual([
+      "2026-11-02 07:00,2026-11-02T07:00:00.000Z,Cancelled,The firm (office),The client,Ann Booker,Door supervisor at Riverside Arena,2026-11-07 08:00,,,60.00,No,The event was cancelled,",
+      "2026-11-02 06:00,2026-11-02T06:00:00.000Z,Cancelled,The worker,Not known,Ben Booker,Door supervisor at Riverside Arena,2026-11-07 08:00,,,20.00,Yes,,",
+      "2026-11-02 05:00,2026-11-02T05:00:00.000Z,Shortened,The rota sheet,,Ben Booker,Door supervisor at Riverside Arena,2026-11-07 08:00,2026-11-07 08:00 to 2026-11-07 16:00,2026-11-07 08:00 to 2026-11-07 12:00,32.50,Yes,Times changed on the rota sheet,",
+      "2026-11-02 04:00,2026-11-02T04:00:00.000Z,Moved,The firm (office),,Ann Booker,Door supervisor at Riverside Arena,2026-11-07 08:00,2026-11-07 06:00 to 2026-11-07 14:00,2026-11-07 08:00 to 2026-11-07 16:00,118.00,No,Weather or safety,The site changed",
+      "2026-11-02 03:00,2026-11-02T03:00:00.000Z,Booked,The firm (office),,Ben Booker,Door supervisor at Riverside Arena,2026-11-07 08:00,,,123.00,No,Placed by the duty manager,",
+      "2026-11-02 02:00,2026-11-02T02:00:00.000Z,Offered,The firm (office),,Ben Booker,Door supervisor at Riverside Arena,2026-11-07 08:00,,,126.00,No,,Notice counted from the shift's current start",
+      "2026-11-02 01:00,2026-11-02T01:00:00.000Z,Offered,An offer wave,,Ann Booker,Door supervisor at Riverside Arena,2026-11-07 08:00,,,125.00,No,,",
+    ]);
+  });
 });

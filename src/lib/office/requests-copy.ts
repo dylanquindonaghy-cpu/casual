@@ -104,6 +104,8 @@ export function answerResultText(
           : "This request was already answered.";
     case "note_needed":
       return "Add a note saying why.";
+    case "answer_only":
+      return "This question can only be answered, not declined.";
     case "note_too_long":
       return "The note is too long (500 characters at most).";
     case "not_found":

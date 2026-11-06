@@ -261,6 +261,32 @@ describe("an attendance question in Enquiries", () => {
       mark: "completed",
     });
   });
+
+  it("declining it is refused by the server too: still waiting, no decline logged, no notice", async () => {
+    const t = await queueFirm();
+    // The page offers no "Decline"; a crafted call (with or without a note) changes nothing.
+    for (const note of ["Your mark stands.", ""]) {
+      const result = await answerRequest(t.ctx, t.attendance, "declined", note);
+      expect(result).toEqual({ status: "answer_only" });
+      expect(answerResultText(result, "Ann", "attendance")).toBe(
+        "This question can only be answered, not declined.",
+      );
+    }
+    expect(await t.rowOf(t.attendance)).toMatchObject({
+      status: "open",
+      resolved_by: null,
+      resolution_note: null,
+    });
+    expect(await t.eventsOf("request.declined")).toEqual([]);
+    expect(await t.eventsOf("request.approved")).toEqual([]);
+    expect(await t.jobs()).toEqual([]);
+    expect(find((await t.queue()).waiting, t.attendance)).toBeDefined();
+    // Answering it still works afterwards.
+    expect(await answerRequest(t.ctx, t.attendance, "approved", "")).toEqual({
+      status: "resolved",
+      decision: "approved",
+    });
+  });
 });
 
 describe("a request she took back", () => {

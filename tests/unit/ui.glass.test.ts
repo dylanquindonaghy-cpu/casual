@@ -505,10 +505,10 @@ describe("depth: a glass's rim and drop, through variables, and no other shadow"
       for (const use of list) expect(DEPTH.test(use), `${file}: ${use}`).toBe(true);
   });
 
-  it("the pass is one glass card with its band (Phase 24; round 8's plain one since 27.6); her booked day on the strip a sunk grey", () => {
+  it("the pass is one glass section, its band gone (Phase 24; plain since 27.6; gone since 28.7); her booked day on the strip a sunk grey", () => {
     const pass = read("src/app/next-pass.tsx");
-    expect(pass).toMatch(/className=\{`glass overflow-hidden rounded-3xl \$\{/);
-    expect(pass).toMatch(/<div className="glass-band px-5 /);
+    expect(pass).toMatch(/className=\{`glass rounded-inner px-4 py-4 \$\{/);
+    expect(pass).not.toMatch(/(?<![\w-])glass-band(?![\w-])/);
     expect(pass).not.toMatch(/(?<![\w-])bg-brand-bar(?![\w-])/);
     expect(css).not.toMatch(/--shadow-pass/);
     expect(css).toMatch(

@@ -4,16 +4,16 @@ import type { MyShift } from "@/lib/portal/my-shifts";
 import { dateParts, inDays, shiftLine, timeRange } from "@/lib/portal/sign-copy";
 import { CancelShift } from "./shifts/cancel-shift";
 import { BringAndWear, Fact, factCard, PayLine, TravelFigures } from "./shifts/shift-parts";
-import { staffBtn, staffH2 } from "./ui/classes";
+import { staffBtn, staffH2, tag } from "./ui/classes";
 import { Icon } from "./ui/icons";
 import { Plate } from "./ui/plate";
 
-// Her next shift as a pass (Phase 20; docs/screens.md `/` and `/shifts`), on Home and on Booked.
-// Phase 24 (24.6, round 7 of the canvas): one glass card whose top is a warm translucent band with
-// how soon ("In 3 days") and the date in words, the time large, the role and the event; under the
-// band the place, its town and postcode and the gate on a glass plate, then Directions (the maps
-// link, tinted glass) and Details (clear glass) side by side, and "Can't make it?" in red words
-// under them. Details opens a card under the pass (the pass keeps its size and place) with the rest
+// Her next shift as a pass (Phase 20; docs/screens.md `/`, `/shifts` and "The casual app, Phase
+// 28", 28.7), on Home and on Booked. Phase 28 (28.7): one glass section 12px round, 16px inside its
+// edges, with no band: how soon ("In 3 days", a tag) and the date in words, the time large, the
+// role and the event; a faint line; then the place, its town and postcode and the gate on a clear
+// glass plate (8px round), then Directions (the maps link, the main button) and Details (clear
+// glass) side by side, and "Can't make it?" in red words under them. Details opens a card under the pass (the pass keeps its size and place) with the rest
 // in label and value rows: getting there, where to report, what to bring and wear, the pay ("Ask the
 // office" when the session has no rate), the instructions, then "Directions" and "Ask for a
 // change". Details is a <details> whose summary is the button: it opens without JavaScript and in
@@ -55,25 +55,31 @@ export function NextPass({
     : "";
   return (
     <section aria-labelledby="next-heading" data-pass="" className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <h2 id="next-heading" className={heading === "hidden" ? "sr-only" : staffH2}>
+      {/* On Home the heading is for screen readers only, and nothing stands above the pass. */}
+      {heading === "hidden" && !fresh ? (
+        <h2 id="next-heading" className="sr-only">
           {onNow ? "On now" : "Your next shift"}
         </h2>
-        {fresh && <Plate tone="brand">New</Plate>}
-      </div>
-      <div className={`glass overflow-hidden rounded-3xl ${fresh ? "animate-move" : "animate-in"}`}>
-        <div className="glass-band px-5 pt-4.5 pb-5">
+      ) : (
+        <div className="flex items-center justify-between gap-3">
+          <h2 id="next-heading" className={heading === "hidden" ? "sr-only" : staffH2}>
+            {onNow ? "On now" : "Your next shift"}
+          </h2>
+          {fresh && <Plate tone="brand">New</Plate>}
+        </div>
+      )}
+      <div className={`glass rounded-inner px-4 py-4 ${fresh ? "animate-move" : "animate-in"}`}>
+        <div>
           <p className="flex items-center justify-between gap-3">
-            <span className="glass-tile rounded-[10px] px-2.5 py-1 text-base font-medium text-ink">
-              {inDays(shift.startsAt, shift.endsAt, now, timeZone)}
-            </span>{" "}
+            <span className={tag}>{inDays(shift.startsAt, shift.endsAt, now, timeZone)}</span>{" "}
             <span className="min-w-0 truncate text-base text-ink-muted">{day.long}</span>
           </p>
           <p className="mt-3 font-sign text-4xl leading-tight text-ink">{t.range}</p>
           <p className="mt-1 text-lg font-medium text-ink">{what}</p>
           {t.endsNote && <p className="text-base text-ink-muted">{t.endsNote}</p>}
         </div>
-        <div className="flex flex-col gap-4 px-5 pt-4 pb-4">
+        {/* When above the line, where (and what she can do) under it: the band's work since 28.7. */}
+        <div className="mt-4 flex flex-col gap-4 border-t border-line pt-4">
           {(place || shift.post) && (
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -81,7 +87,8 @@ export function NextPass({
                 {town && <p className="text-base text-ink-muted">{town}</p>}
               </div>
               {shift.post && (
-                <span className="glass-tile shrink-0 rounded-[10px] px-3 py-1.5 text-base font-medium text-ink">
+                // The gate: the pass's one larger plate, 16px so it can be read at a gate.
+                <span className="glass-button shrink-0 rounded-row px-3 py-1.5 text-base font-medium text-ink">
                   {shift.post}
                 </span>
               )}
@@ -178,25 +185,27 @@ export function NextPass({
   );
 }
 
-// Nothing booked: the pass's outline, and the way to find a shift.
+// Nothing booked: the pass's own glass section (its 2px dashed edge gone since Phase 28.7), a small
+// dashed placeholder where the pass goes, and the way to the open shifts: "See open shifts", the one
+// name for /shifts/open (the review's six labels).
 export function EmptyPass() {
   return (
     <section
       aria-labelledby="next-heading"
-      className="flex animate-in flex-col items-center gap-2.5 glass rounded-3xl border-2 border-dashed border-line-strong px-5 py-7 text-center"
+      className="flex animate-in flex-col items-center gap-2.5 glass rounded-inner px-4 py-7 text-center"
     >
       <span
         aria-hidden="true"
-        className="block h-12 w-18 rounded-xl border-[1.5px] border-dashed border-line-strong bg-raised"
+        className="block h-12 w-18 rounded-row border border-dashed border-line-strong bg-raised"
       />
-      <h2 id="next-heading" className="mt-1 text-2xl font-semibold">
+      <h2 id="next-heading" className={`mt-1 ${staffH2}`}>
         No shifts booked
       </h2>
       <p className="max-w-72 text-base text-ink-muted">
         Take a shift and it shows up here as your pass, with the time and the gate.
       </p>
       <Link href="/shifts/open" className={`${staffBtn.primary} mt-1.5`}>
-        Find a shift
+        See open shifts
       </Link>
     </section>
   );

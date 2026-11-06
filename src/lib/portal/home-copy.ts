@@ -3,12 +3,14 @@ import { localDateOf } from "../time/zoned";
 import type { TravelFacts } from "../travel/line-copy";
 import type { StaffPhoto } from "../uploads/photo";
 import type { OpenShift } from "./open-shifts";
+import type { ReachPrompt } from "./reach-me";
 import { perHour } from "./format";
 import { needsText, needsUpload } from "./qualification-copy";
 import { datePartsOfDay } from "./sign-copy";
 
 // The words of Home's redesign (Phases 18, 20 and 24; docs/screens.md `/`): its rows ("Do this",
-// "Shifts you can take", "Pay"), the pass's travel figures and its "Bring and wear" items. Pure.
+// with its two "can we reach you" rows since Phase 28.7, "Shifts you can take", "Pay"), the pass's
+// travel figures and its "Bring and wear" items. Pure.
 
 const METRES_PER_MILE = 1609.344;
 
@@ -108,6 +110,21 @@ function weekText(start: string, end: string): string {
   const first = a.month === b.month ? `${a.dow} ${a.day}` : `${a.dow} ${a.day} ${a.month}`;
   return `${first} to ${b.dow} ${b.day} ${b.month}`;
 }
+
+// Home's two "can we reach you" rows in "Do this" (Phase 28.7; docs/screens.md "The casual app,
+// Phase 28", 28.7; when each shows: src/lib/portal/reach-me.ts), online only, both to Profile's
+// "How we reach you".
+export const REACH_PATH = "/profile#notify-heading";
+export const REACH_ROWS: Record<ReachPrompt, RowText> = {
+  unreachable: {
+    title: "We can't reach you about shifts",
+    sub: "You'll miss offers and changes to your shifts. Choose how we reach you.",
+  },
+  alerts_off: {
+    title: "Open-shift alerts are off",
+    sub: "We won't tell you about open shifts. Turn them on.",
+  },
+};
 
 // The offline copy's first row: what the urgent row said when it was kept.
 export const offlineUrgentText = (n: number, at: string) =>

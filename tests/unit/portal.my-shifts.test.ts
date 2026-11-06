@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { HomeView, type HomeViewProps } from "@/app/home-view";
 import { BookedView, type BookedViewProps } from "@/app/shifts/booked-view";
 import { TabBar } from "@/app/tab-bar";
-import { staffBtn, switchTrack } from "@/app/ui/classes";
+import { disc, staffBtn, staffH2, switchTrack, tag } from "@/app/ui/classes";
 import { payWords, roleAndEvent } from "@/lib/portal/format";
 import type { OpenShift, OpenShiftsList } from "@/lib/portal/open-shifts";
 import { isOnNow, mapLink, roleLabel, shiftWhen, siteAddress } from "@/lib/portal/format";
@@ -139,21 +139,35 @@ const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 describe("Home and Booked: the empty pages", () => {
   it("Home greets her, and says so plainly when nothing is booked, with a way to open shifts", () => {
     const html = home({});
-    // Phase 20: "Hi Sam", in the greeting's face (Geist medium, 28px: round 7's "Hi Zoe").
+    // "Hi Sam" (Phase 20), since Phase 28.7 the page's headline through PageHeader, as every page's
+    // (text-title), with when it was updated beside it, online only (the kept copy's notice says
+    // when it was saved); no longer at the end of the firm's bar, and no face of its own.
     expect(text(html)).toContain("Hi Sam");
-    expect(html).toMatch(/<h1 class="font-greet text-3xl text-ink">Hi Sam<\/h1>/);
-    // When it was updated, at the end of the firm's bar above (Phase 24), online only: the kept
-    // copy's notice says when it was saved.
     expect(html).toMatch(
-      /<\/h1><p data-online-only="" class="absolute right-0 -top-13 -translate-y-1\/2 [^"]*">Updated 09:00<\/p><\/header>/,
+      /<h1 class="text-title [^"]*">Hi Sam<\/h1><small data-updated-slot="" data-online-only="" class="[^"]*">Updated 09:00<\/small>/,
     );
-    // Phase 18: an empty pass, and the way to find a shift.
+    expect(html).not.toContain("font-greet");
+    expect(html).not.toContain("-top-13");
+    // Phase 18: an empty pass, and the way to the open shifts: "See open shifts" (28.7: one name).
     expect(text(html)).toContain(
-      "No shifts booked Take a shift and it shows up here as your pass, with the time and the gate. Find a shift",
+      "No shifts booked Take a shift and it shows up here as your pass, with the time and the gate. See open shifts",
     );
-    // The main button: tinted glass in the firm's colour (Phase 24).
+    expect(text(html)).not.toContain("Find a shift");
+    // The main button: the firm's colour (Phase 24; one flat colour since Phase 28).
     expect(html).toMatch(
-      /<a class="[^"]*(?<![\w-])glass-tint(?![\w-])[^"]*" href="\/shifts\/open">Find a shift<\/a>/,
+      /<a class="[^"]*(?<![\w-])glass-tint(?![\w-])[^"]*" href="\/shifts\/open">See open shifts<\/a>/,
+    );
+    // The empty pass: its own glass section, 12px round, with no dashed edge; its placeholder 1px
+    // dashed and 8px round; its heading a section heading (Phase 28.7).
+    const empty =
+      /<section aria-labelledby="next-heading" class="([^"]*)">([\s\S]*?)<\/section>/.exec(html);
+    expect(empty?.[1]).toContain("glass rounded-inner");
+    expect(empty?.[1]).not.toMatch(/border-dashed|border-2|rounded-3xl/);
+    expect(empty?.[2]).toMatch(
+      /^<span aria-hidden="true" class="block h-12 w-18 rounded-row border border-dashed border-line-strong bg-raised"><\/span>/,
+    );
+    expect(empty?.[2]).toContain(
+      `<h2 id="next-heading" class="mt-1 ${staffH2}">No shifts booked</h2>`,
     );
     expect(text(html)).toContain("No shifts right now We'll message you when something matches.");
     expect(text(home({ open: { ...noOpen, offerAlerts: false } }))).toContain(
@@ -430,17 +444,21 @@ describe("Booked: the bookings themselves", () => {
       "Needs doing now 5 things need doing SIA door supervisor licence expires on 5 Nov, and your door supervisor shift on Fri 6 Nov needs it. Upload the new one, or contact the office. And 4 more.",
     );
     expect(many).toMatch(/href="\/profile"/);
-    // Under "Do this" (Phase 24). Something that stops her working: its tile pale red and a red
-    // "Needs doing now" plate over the words; otherwise a glass tile on the card's warm band.
-    expect(manyHtml).toMatch(/<h2 id="do-this-heading"[^>]*>Do this<\/h2>/);
-    expect(many).toMatch(
-      /<span aria-hidden="true" class="flex size-13 shrink-0 items-center justify-center rounded-\[14px\] bg-urgent-tile text-urgent-ink">/,
+    // Under "Do this" (Phase 24), since Phase 28.7 one glass section with an amber leaf before its
+    // heading inside it, and its rows as clear glass tiles 8px apart, 12px under it; no band.
+    // Something that stops her working: the office's pale red disc as its lead and a red "Needs
+    // doing now" plate over the words; otherwise the pale amber disc (something to do).
+    expect(manyHtml).toMatch(
+      /<section aria-labelledby="do-this-heading" class="glass animate-in rounded-inner p-4"><div class="flex items-center gap-3 px-1"><svg[^>]*class="shrink-0 text-attention-ink"><path d="M5 19C5 10[^"]*"[^>]*><\/path><\/svg><h2 id="do-this-heading" class="[^"]*">Do this<\/h2><\/div><ul role="list" class="mt-3 flex flex-col gap-2"><li data-for-you="needs">/,
     );
+    const lead = (tone: "urgent" | "attention") =>
+      `<span aria-hidden="true" class="flex w-13 shrink-0 justify-center"><span class="${disc.base} ${disc[tone]}"><svg`;
+    expect(many).toContain(lead("urgent"));
     expect(many).toMatch(
       /<span class="[^"]*bg-urgent-fill text-on-urgent mb-1">Needs doing now<\/span>/,
     );
-    expect(manyHtml).toMatch(
-      /<ul role="list" class="glass divide-y divide-line rounded-inner overflow-hidden"><li data-for-you="needs">/,
+    expect(many).toMatch(
+      /<a class="[^"]*(?<![\w-])glass-tile rounded-row min-h-20(?![\w-])[^"]*" href="\/profile">/,
     );
     // One she can sort herself: straight to its upload.
     const oneHtml = home({ needs: EVERY_LEVEL.slice(3, 4) });
@@ -449,11 +467,14 @@ describe("Booked: the bookings themselves", () => {
       "Renew your SIA security guard licence SIA security guard licence expires on 25 Nov. Renew it to keep getting security officer shifts.",
     );
     expect(one).toContain('href="/profile/upload/SIA_SG"');
-    expect(one).toMatch(/rounded-\[14px\] glass-tile text-ink">/);
+    expect(one).toContain(lead("attention"));
     expect(one).not.toContain("Needs doing now");
-    expect(oneHtml).toMatch(
-      /<ul role="list" class="glass divide-y divide-line rounded-inner overflow-hidden glass-band"><li data-for-you="needs">/,
-    );
+    for (const html of [manyHtml, oneHtml]) {
+      const doThis = html.slice(html.indexOf('aria-labelledby="do-this-heading"'));
+      expect(doThis.slice(0, doThis.indexOf("</section>"))).not.toMatch(
+        /glass-band|rounded-\[|rounded-[23]xl/,
+      );
+    }
     // One the office records (CSAS): to Profile.
     expect(row(home({ needs: EVERY_LEVEL.slice(4) })) ?? "").toContain('href="/profile"');
     // Nothing to do: no row.
@@ -472,11 +493,21 @@ describe("Booked: the bookings themselves", () => {
         : spoken(html.slice(html.lastIndexOf("<li", at), html.indexOf("</li>", at)));
     };
     const due = home({ photo: photo("due_soon") });
-    // Round 7's words: what to do, and by when; her initials beside it.
+    // Round 7's words: what to do, and by when; since Phase 28.7 a camera on the pale amber disc
+    // beside it, never her initials.
     expect(row(due)).toBe("Renew your staff photo Due by 20 Nov.");
     expect(due).toContain('href="/profile#photo-heading"');
     expect(due).toMatch(
-      /href="\/profile#photo-heading"><span aria-hidden="true" class="glass-tile flex size-13 shrink-0 items-center justify-center rounded-full [^"]*">SU<\/span>/,
+      new RegExp(
+        `href="/profile#photo-heading"><span aria-hidden="true" class="flex w-13 shrink-0 justify-center"><span class="${esc(`${disc.base} ${disc.attention}`)}"><svg[^>]*><path d="M4 7\\.5h3\\.5L9 5h6`,
+      ),
+    );
+    expect(due).not.toContain(">SU<");
+    // Overdue: the camera on the pale red disc.
+    expect(home({ photo: photo("overdue") })).toMatch(
+      new RegExp(
+        `href="/profile#photo-heading"><span aria-hidden="true" class="flex w-13 shrink-0 justify-center"><span class="${esc(`${disc.base} ${disc.urgent}`)}"><svg[^>]*><path d="M4 7\\.5h3\\.5L9 5h6`,
+      ),
     );
     // Due soon (level 3) comes after a level-3 qualification, before a missing one.
     expect(row(home({ needs: EVERY_LEVEL.slice(3), photo: photo("due_soon") }))).toContain(
@@ -555,18 +586,28 @@ describe("Home: what she can take, and her next shift in full", () => {
     expect(section).toMatch(
       /<li data-online-only="" data-for-you="apply"><a class="[^"]*" href="\/shifts\/open"/,
     );
-    // Each section one glass card of rows (round 7); each row a tile, its words and a chevron:
-    // the soonest shift's day (pale red when urgent), an icon offline, pay day's date.
-    expect(section).toContain(
-      '<ul role="list" class="glass divide-y divide-line rounded-inner overflow-hidden"><li data-online-only="" data-for-you="urgent">',
+    // Each section one glass section with its heading inside (Phase 28.7), its rows 12px under it,
+    // each row a clear glass tile 8px from the next (at least 80px tall): its lead, its words and a
+    // chevron. The lead: the soonest shift's day (pale red when urgent), the office's clear disc
+    // with an icon offline, pay day's date.
+    expect(section).toMatch(
+      /^aria-labelledby="can-take-heading" class="glass animate-in rounded-inner p-4"><div class="flex items-center gap-3 px-1"><h2 id="can-take-heading" class="[^"]*">Shifts you can take<\/h2><\/div><ul role="list" class="mt-3 flex flex-col gap-2"><li data-online-only="" data-for-you="urgent">/,
     );
+    for (const kind of ["urgent", "offline", "apply", "pay"]) {
+      expect(section).toMatch(
+        new RegExp(
+          `data-for-you="${kind}"><(?:a|div) class="[^"]*(?<![\\w-])glass-tile rounded-row min-h-20(?![\\w-])[^"]*"`,
+        ),
+      );
+    }
     const tile = (kind: string) =>
       new RegExp(
         `data-for-you="${kind}"><(?:a|div) class="[^"]*"(?: href="[^"]*")?><span aria-hidden="true" class="([^"]*)">(.*?)</span>(?:</span>)?<span class="min-w-0 flex-1">`,
       ).exec(section);
     expect(tile("urgent")?.[1]).toContain("bg-urgent-tile text-urgent-ink");
     expect(text(tile("urgent")?.[2] ?? "").trim()).toBe("Sat 7");
-    expect(tile("offline")?.[1]).toContain("rounded-[14px] glass-tile text-ink");
+    expect(tile("offline")?.[1]).toBe("flex w-13 shrink-0 justify-center");
+    expect(tile("offline")?.[2]).toContain(`<span class="${disc.base} ${disc.quiet}"><svg`);
     expect(tile("apply")?.[1]).toContain("glass-button text-ink");
     expect(text(tile("apply")?.[2] ?? "").trim()).toBe("Sat 7");
     expect(text(tile("pay")?.[2] ?? "").trim()).toBe("Fri 13");
@@ -581,14 +622,16 @@ describe("Home: what she can take, and her next shift in full", () => {
     // No shift's own travel line on Home: that's on each shift.
     expect(html).not.toContain("data-travel-line");
   });
-  it("with no travel area: a row to add one, its pin on a glass tile", () => {
+  it("with no travel area: a row to add one, its pin on the office's clear disc", () => {
     const html = home({ open: { ...noOpen, area: null, shifts: [open({ shiftId: "a1" })] } });
     const at = html.indexOf('data-for-you="area"');
     expect(spoken(html.slice(html.lastIndexOf("<li", at), html.indexOf("</li>", at)))).toBe(
       "Add your travel area Add your travel area to see how far each shift is and only see shifts you can get to.",
     );
     expect(html.slice(at, html.indexOf("</li>", at))).toMatch(
-      /^data-for-you="area"><a class="[^"]*min-h-20 px-4" href="\/profile\/travel"><span aria-hidden="true" class="[^"]*glass-tile text-ink"><svg[^>]*><path d="M12 21s7-6\.2/,
+      new RegExp(
+        `^data-for-you="area"><a class="[^"]*min-h-20 press" href="/profile/travel"><span aria-hidden="true" class="flex w-13 shrink-0 justify-center"><span class="${esc(`${disc.base} ${disc.quiet}`)}"><svg[^>]*><path d="M12 21s7-6\\.2`,
+      ),
     );
     expect(html.slice(at)).toContain('href="/profile/travel"');
     expect(text(home({ open: { ...noOpen, shifts: [open({ shiftId: "a1" })] } }))).not.toContain(
@@ -630,24 +673,33 @@ describe("Home: what she can take, and her next shift in full", () => {
       /^aria-labelledby="next-heading" data-pass="" class="flex flex-col gap-3">/,
     );
     expect(pass).toContain('<h2 id="next-heading" class="sr-only">Your next shift</h2>');
+    // Phase 28.7: one glass section 12px round, 16px inside its edges, with no band; when above a
+    // faint line, where under it.
     const [, band = "", foot = ""] =
-      /<div class="glass overflow-hidden rounded-3xl animate-in"><div class="glass-band px-5 pt-4\.5 pb-5">([\s\S]*?)<\/div><div class="flex flex-col gap-4 px-5 pt-4 pb-4">([\s\S]*?)<\/div><\/div><div id="pass-details"/.exec(
+      /^aria-labelledby="next-heading" data-pass="" class="flex flex-col gap-3"><h2 id="next-heading" class="sr-only">Your next shift<\/h2><div class="glass rounded-inner px-4 py-4 animate-in"><div>([\s\S]*?)<\/div><div class="mt-4 flex flex-col gap-4 border-t border-line pt-4">([\s\S]*?)<\/div><\/div><div id="pass-details"/.exec(
         pass,
       ) ?? [];
-    // Its top a warm band: how soon on a glass chip, the date in words, the time large, the role
-    // and event.
+    expect(pass).not.toContain("glass-band");
+    // (The card under it, Details, is the shift parts'; the pass itself keeps to the token corners.)
+    expect(pass.slice(0, pass.indexOf('id="pass-details"'))).not.toMatch(
+      /rounded-\[|rounded-[23]xl/,
+    );
+    // Its top: how soon as a tag (a clear glass pill), the date in words, the time large, the
+    // role and event.
     expect(text(band).trim()).toBe("In 5 days Saturday 7 November 14:00–22:00 Steward · Raceday");
-    expect(band).toMatch(/<span class="glass-tile rounded-\[10px\] [^"]*">In 5 days<\/span>/);
+    expect(band).toContain(`<span class="${tag}">In 5 days</span>`);
     expect(band).toMatch(
       /<p class="mt-3 font-sign text-4xl leading-tight text-ink">14:00–22:00<\/p>/,
     );
-    // Under it the place, its town and postcode, and the gate on a glass plate; then Directions
-    // (the maps link, tinted glass) and Details (clear glass) side by side, "Can't make it?" in red
-    // words under them.
+    // Under it the place, its town and postcode, and the gate on a clear glass plate 8px round
+    // (its words 16px, to read at a gate); then Directions (the maps link, the main button) and
+    // Details (clear glass) side by side, "Can't make it?" in red words under them.
     expect(text(foot).trim().replace(/\s+/g, " ")).toBe(
       "Demo Arena Leeds, LS1 1AA Gate B Directions Details Hide details Can't make it?",
     );
-    expect(foot).toMatch(/<span class="glass-tile shrink-0 rounded-\[10px\] [^"]*">Gate B<\/span>/);
+    expect(foot).toMatch(
+      /<span class="glass-button shrink-0 rounded-row px-3 py-1\.5 text-base font-medium text-ink">Gate B<\/span>/,
+    );
     // No travel time on the pass itself: a drive alone would mislead someone without a car (12G.3).
     expect(text(band + foot)).not.toContain("by car");
     const buttons =
@@ -801,10 +853,10 @@ describe("Booked, after taking a shift (Phase 18)", () => {
       next.lastIndexOf("<section", next.indexOf("Your next shift")),
       next.indexOf('id="later-heading"'),
     );
-    // The pass moves into its place (Phase 20: the pass itself), "New" beside its heading.
-    expect(card).toMatch(
-      /<div class="glass overflow-hidden rounded-3xl animate-move"><div class="glass-band /,
-    );
+    // The pass moves into its place (Phase 20: the pass itself; one glass section with no band
+    // since 28.7), "New" beside its heading.
+    expect(card).toMatch(/<div class="glass rounded-inner px-4 py-4 animate-move"><div>/);
+    expect(card).not.toContain("glass-band");
     expect(card).toMatch(/Your next shift<\/h2><span class="[^"]*">New<\/span>/);
     // It's later: its row under Later.
     const later = render({ shifts: [first, second], newShiftId: second.shiftId });

@@ -132,10 +132,10 @@ test("Home shows Holly's photo row, the urgent row and her next shift in full", 
   const months = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(" ");
   const uploaded = `${d} ${months[(m ?? 1) - 1]} ${y}`;
   // Do this: her photo, overdue (it stops her working, so "Needs doing now"), to Profile's photo,
-  // her initials beside it.
+  // a camera beside it (Phase 28.7: never her initials).
   const needs = page.getByRole("region", { name: "Do this" }).locator('[data-for-you="needs"]');
   await expect(needs).toContainText("Needs doing now");
-  await expect(needs).toContainText("HG");
+  await expect(needs).not.toContainText("HG");
   await expect(needs.getByRole("link")).toHaveAccessibleName(
     /^Needs doing now Renew your staff photo It was due by \d{1,2} [A-Z][a-z]{2}\.$/,
   );

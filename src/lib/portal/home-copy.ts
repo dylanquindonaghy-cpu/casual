@@ -229,13 +229,14 @@ export const offlineUrgentText = (n: number, at: string) =>
 // stands (inHand, src/lib/portal/in-hand.ts, as Profile reads it), isn't hers to do, so it isn't
 // here: Profile says "The office has this in hand." A suspended one goes to Messages, where she
 // tells the office (an upload can't lift it).
-export function needsRowText(
+type NeedsRowItem = { title: string; sub: string; href: string; level: number; photo: boolean };
+function needsItems(
   needs: NeedsItem[],
   photo: StaffPhoto,
   year: number,
-  mark: SortedMark | null = null,
-): { title: string; sub: string; href: string; urgent: boolean; photo: boolean } | null {
-  const items: { title: string; sub: string; href: string; level: number; photo: boolean }[] = needs
+  mark: SortedMark | null,
+): NeedsRowItem[] {
+  const items: NeedsRowItem[] = needs
     .filter((n) => !inHand(n.qualification, mark))
     .map((n) => ({
       title: needsTitle(n),
@@ -257,8 +258,26 @@ export function needsRowText(
       photo: true,
     });
   }
+  return items.sort((a, b) => a.level - b.level);
+}
+
+// How many things "Do this" stands for (Phase 30.1: Home's "To do" count, the page adding the two
+// "can we reach you" rows): the same items needsRowText() counts.
+export const needsCount = (
+  needs: NeedsItem[],
+  photo: StaffPhoto,
+  year: number,
+  mark: SortedMark | null = null,
+): number => needsItems(needs, photo, year, mark).length;
+
+export function needsRowText(
+  needs: NeedsItem[],
+  photo: StaffPhoto,
+  year: number,
+  mark: SortedMark | null = null,
+): { title: string; sub: string; href: string; urgent: boolean; photo: boolean } | null {
+  const items = needsItems(needs, photo, year, mark);
   if (items.length === 0) return null;
-  items.sort((a, b) => a.level - b.level);
   const first = items[0]!;
   const urgent = first.level <= 2;
   if (items.length === 1) {
@@ -386,3 +405,133 @@ export function uniformItems(text: string | null | undefined): UniformItem[] | n
   if (items.some((i) => i.words.length > 60 || /[.!?]\s/.test(i.words))) return null;
   return [...items.filter((i) => i.kind === "hivis"), ...items.filter((i) => i.kind !== "hivis")];
 }
+
+// --- Phase 30.1: Home as her dashboard (docs/screens.md "### 30.1") --------------------------
+// The words of the new parts: the counts under "Hi Zoe", the next shift's countdown line, "Your
+// qualifications", "Your week", "Updates" and "Your record". Pure; the figures come from
+// src/lib/portal/home-board.ts and home-week.ts.
+
+const two = (n: number) => String(n).padStart(2, "0");
+const clockOf = (at: Date, timeZone: string) => {
+  const w = wallTimeOf(at, timeZone);
+  return `${two(w.hour)}:${two(w.minute)}`;
+};
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+// The date line under "Hi Zoe": "Friday 6 November", then (online only) "Updated 15:38".
+export const dateLineText = (now: Date, timeZone: string) =>
+  datePartsOfDay(localDateOf(now, timeZone)).long;
+export const updatedText = (now: Date, timeZone: string) => `Updated ${clockOf(now, timeZone)}`;
+
+// The counts, in the office's top-bar chips: each opens the page it counts.
+export const COUNTS_LABEL = "Your numbers";
+export const COUNT_WORDS = {
+  booked: "Booked",
+  open: "Open to you",
+  urgent: "Urgent",
+  todo: "To do",
+  messages: "Messages",
+} as const;
+
+// The next shift's line under the pass's role: "Starts in 70 hours · 8 hours · about £108.00 before
+// tax". Under 72 hours in whole hours, then in whole days; under an hour, "less than an hour".
+export function startsInText(startsAt: Date, now: Date): string | null {
+  const ms = startsAt.getTime() - now.getTime();
+  if (ms <= 0) return null;
+  const hours = Math.floor(ms / 3_600_000);
+  if (hours < 1) return "Starts in less than an hour";
+  if (hours < 72) return `Starts in ${plural(hours, "hour", "hours")}`;
+  return `Starts in ${plural(Math.floor(hours / 24), "day", "days")}`;
+}
+export const aboutPayText = (money: string) => `about ${money} before tax`;
+
+// "Your qualifications".
+export const QUALS_TITLE = "Your qualifications";
+export const QUALS_ALL = "All on Profile";
+export const QUALS_PATH = "/profile#qualifications-heading";
+export const OTHER_QUALS_PATH = "/profile#other-qualifications-heading";
+export const PHOTO_TITLE = "Staff photo";
+export const PHOTO_PATH = "/profile#photo-heading";
+export const PHOTO_NEW = "Take a new photo";
+export const PHOTO_NONE = "No photo yet.";
+export const PHOTO_CHECKING = "The office will check your new one.";
+export const RTW_TITLE = "Right to work";
+export const RTW_WORDS = {
+  checked: "Checked",
+  ranOut: "Check has run out",
+  none: "Not recorded",
+} as const;
+export const RTW_NONE_LINE = "The office will ask if they need it.";
+export const RTW_RAN_OUT_LINE = "Ask the office.";
+// A status pill's words with days: "Valid · 420 days", "Expires in 20 days", "20 days left".
+export const validForText = (days: number) => `Valid · ${plural(days, "day", "days")}`;
+export const expiresInText = (days: number) =>
+  days <= 0 ? "Expires today" : `Expires in ${plural(days, "day", "days")}`;
+export const daysLeftText = (days: number) =>
+  days <= 0 ? "Due today" : `${plural(days, "day", "days")} left`;
+export const NO_EXPIRY = "No expiry";
+export const renewByText = (day: string) => {
+  const p = datePartsOfDay(day);
+  return `Renew by ${p.day} ${p.month}`;
+};
+
+// "Your week": this week and next, Monday to Sunday.
+export const WEEK_TITLE = "Your week";
+export const WEEK_ROWS = ["This week", "Next week"] as const;
+export const WEEK_LEGEND = "Filled: booked · outlined: shifts you can take";
+// "2 to 8 Nov"; "26 Oct to 1 Nov" across two months.
+export function weekRangeText(monday: string, sunday: string): string {
+  const a = datePartsOfDay(monday);
+  const b = datePartsOfDay(sunday);
+  return a.month === b.month
+    ? `${a.day} to ${b.day} ${b.month}`
+    : `${a.day} ${a.month} to ${b.day} ${b.month}`;
+}
+// A day tile's name for a screen reader: "Monday 9 November: booked, Steward 14:00 to 22:00",
+// "Saturday 7 November: 2 shifts you can take", "Friday 6 November, today: nothing booked".
+export function dayTileName(o: {
+  long: string;
+  today: boolean;
+  booked: string[]; // "Steward 14:00 to 22:00", one for each booking that day
+  open: number;
+}): string {
+  const head = o.today ? `${o.long}, today` : o.long;
+  const can = o.open > 0 ? `${plural(o.open, "shift", "shifts")} you can take` : "";
+  if (o.booked.length > 0) {
+    const booked = `booked, ${o.booked.join(" and ")}`;
+    return can ? `${head}: ${booked}. Also ${can}` : `${head}: ${booked}`;
+  }
+  return can ? `${head}: ${can}` : `${head}: nothing booked`;
+}
+
+// "Updates": her latest entries from her shift record.
+export const UPDATES_TITLE = "Updates";
+export const UPDATES_EMPTY = "Nothing new yet.";
+export const SEE_THE_SHIFT = "See the shift";
+export const UPDATES_MAX = 5;
+// When it happened: "Today 15:02", "Yesterday 09:14", "Wed 15:02" in the last week, else "Wed 28
+// Oct, 15:02".
+export function updateWhenText(at: Date, now: Date, timeZone: string): string {
+  const day = localDateOf(at, timeZone);
+  const today = localDateOf(now, timeZone);
+  const clock = clockOf(at, timeZone);
+  if (day === today) return `Today ${clock}`;
+  const p = datePartsOfDay(day);
+  const dayNo = (iso: string) => {
+    const [y, m, d] = iso.split("-").map(Number);
+    return Math.round(Date.UTC(y ?? 0, (m ?? 1) - 1, d ?? 1) / 86_400_000);
+  };
+  const ago = dayNo(today) - dayNo(day);
+  if (ago === 1) return `Yesterday ${clock}`;
+  if (ago > 1 && ago < 7) return `${p.dow} ${clock}`;
+  return `${p.dow} ${p.day} ${p.month}, ${clock}`;
+}
+
+// "Your record": three figures, as Profile's.
+export const RECORD_CARD_TITLE = "Your record";
+export const NEW_FIGURE = "New";
+export const workedLabel = (n: number) => (n === 1 ? "shift worked" : "shifts worked");
+export const RELIABILITY_LABEL = "reliability";
+export const scoreAfterText = (min: number) => `score after ${min} shifts`;
+export const strikesLabel = (n: number, days: number) =>
+  `${n === 1 ? "strike" : "strikes"} in ${days} days`;

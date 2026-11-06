@@ -103,14 +103,13 @@ test("Home in the office's look, with both 'can we reach you' rows: phone and la
           const hi = page.getByRole("heading", { level: 1, name: `Hi ${P28_7_RHEA.firstName}` });
           await expect(hi).toBeVisible();
 
-          // "Updated 21:34" beside the headline, on its line; not at the end of the firm's bar.
+          // "Updated 21:34"; not at the end of the firm's bar. Phase 30.1 (on purpose): under the
+          // headline, at the end of its date line ("Friday 6 November · Updated 21:34"), where it
+          // was beside the headline since 28.7.
           const stamp = page.getByText(/^Updated \d\d:\d\d$/);
           await expect(stamp).toBeVisible();
           const [h, s] = [await box(hi), await box(stamp)];
-          expect(s.x, where("Updated after the headline")).toBeGreaterThanOrEqual(h.right);
-          expect(s.y >= h.y - 1 && s.bottom <= h.bottom + 1, where("Updated on its line")).toBe(
-            true,
-          );
+          expect(s.y, where("Updated under the headline")).toBeGreaterThanOrEqual(h.bottom - 1);
           await expect(page.getByTestId("brand-bar").getByText(/^Updated/)).toHaveCount(0);
 
           // Each section one glass section 12px round, its heading inside it.
@@ -127,14 +126,20 @@ test("Home in the office's look, with both 'can we reach you' rows: phone and la
             expect(await radius(region), where(name)).toBe("12px");
             regions[name] = region;
           }
-          // 32px apart.
-          const [doThis, canTake, pay] = [
-            await box(regions["Do this"]!),
-            await box(regions["Shifts you can take"]!),
-            await box(regions["Pay"]!),
-          ];
-          expect(Math.round(canTake.y - doThis.bottom), where("sections apart")).toBe(32);
-          expect(Math.round(pay.y - canTake.bottom), where("sections apart")).toBe(32);
+          // 32px apart on a phone. Phase 30.1 (on purpose): Home's new sections sit between these
+          // three ("Your qualifications" and "Your week" before "Shifts you can take", "Updates"
+          // before "Pay"), so each is held 32px under the section before it; from 1024px they sit
+          // in a 12-column grid (tests/e2e/casual.p30-home.spec.ts).
+          if (size.mobile)
+            for (const name of ["Do this", "Shifts you can take", "Pay"]) {
+              const gap = await regions[name]!.evaluate((el) => {
+                const before = el.previousElementSibling;
+                return before
+                  ? el.getBoundingClientRect().top - before.getBoundingClientRect().bottom
+                  : null;
+              });
+              expect(Math.round(gap ?? -1), where(`${name} apart`)).toBe(32);
+            }
 
           // "Do this": her photo (a camera, never her initials), then both rows, 12px under the
           // heading and 8px apart, each a tile at least 44px tall going to How we reach you.

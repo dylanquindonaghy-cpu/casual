@@ -32,11 +32,19 @@ export function roleAndEvent(role: string, eventName: string | null | undefined)
   return eventName ? `${roleLabel(role)} · ${eventName}` : roleLabel(role);
 }
 
-// "£12.60 an hour, about £100.80 before tax": the rate, and the rate times the session's length (a
-// guide: breaks and the firm's own rounding can change it).
+// A session's length in hours (never below 0).
+export const sessionHours = (startsAt: Date, endsAt: Date): number =>
+  Math.max(0, endsAt.getTime() - startsAt.getTime()) / 3_600_000;
+
+// The pay estimate, in pence: the rate times the session's length (a guide: breaks and the firm's
+// own rounding can change it). The one sum: the booked shift's page, the pass's details and Home's
+// next-shift line (Phase 30.1) all use it.
+export const payEstimatePence = (ratePence: number, startsAt: Date, endsAt: Date): number =>
+  Math.round(ratePence * sessionHours(startsAt, endsAt));
+
+// "£12.60 an hour, about £100.80 before tax": the rate, and the estimate.
 export function payWords(ratePence: number, startsAt: Date, endsAt: Date): string {
-  const hours = Math.max(0, endsAt.getTime() - startsAt.getTime()) / 3_600_000;
-  return `${pounds(ratePence)} an hour, about ${pounds(Math.round(ratePence * hours))} before tax`;
+  return `${pounds(ratePence)} an hour, about ${pounds(payEstimatePence(ratePence, startsAt, endsAt))} before tax`;
 }
 
 // "£12.60/hour", for a line of facts.

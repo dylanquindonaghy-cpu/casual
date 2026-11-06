@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { firms, payQueries } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
@@ -22,6 +22,13 @@ import { groupFactsFor, payGroupKey } from "./grouping";
 // are, `pay_query.created`, with `via: "messages"`, the message's id and, when the app knows it,
 // why Pay couldn't take it (`why: "no_code"`: no way to send her a code). Ids only: her words are
 // never in the log. No pay figure is shown, so no pay code is needed to raise it.
+//
+// One open query per worker, day, shift and issue, as the pay page's (src/lib/portal/pay-queries.ts
+// raisePayQuery): under the same per-worker lock, a query already waiting for her today ("other",
+// no shift, open or in the digest, raised from either place) is returned instead of a new one
+// (`alreadyOpen`), and nothing more is logged for it here. Her later message is still stored and
+// stays on her thread; app.ts logs it naming that query. So a casual sending again and again from
+// Messages about her pay adds one query a day to payroll's digest, not one a message.
 
 export const PAY_FROM_MESSAGES_WHY = ["no_code"] as const;
 export type PayFromMessagesWhy = (typeof PAY_FROM_MESSAGES_WHY)[number];
@@ -37,8 +44,9 @@ export async function payQueryFromMessage(
     now: Date;
     why: PayFromMessagesWhy | null;
   },
-): Promise<{ id: string; ref: string }> {
-  // One pay query at a time per worker, as the pay page's (src/lib/portal/pay-queries.ts).
+): Promise<{ id: string; ref: string; alreadyOpen: boolean }> {
+  // One at a time per worker, as the pay page's, so two sends can't both find no open query and
+  // both add one.
   await tx.execute(
     sql`select pg_advisory_xact_lock(hashtextextended('pay-query:' || app_current_firm_id()::text || ':' || ${input.workerId}, 0))`,
   );
@@ -47,6 +55,20 @@ export async function payQueryFromMessage(
     .from(firms)
     .where(eq(firms.id, sql`app_current_firm_id()`));
   const workDate = localDateOf(input.now, firm?.timezone ?? "Europe/London");
+  const [waiting] = await tx
+    .select({ id: payQueries.id })
+    .from(payQueries)
+    .where(
+      and(
+        eq(payQueries.workerId, input.workerId),
+        eq(payQueries.workDate, workDate),
+        eq(payQueries.issueType, "other"),
+        sql`${payQueries.shiftId} is null`,
+        inArray(payQueries.status, ["open", "in_digest"]),
+      ),
+    )
+    .limit(1);
+  if (waiting) return { id: waiting.id, ref: refOf(waiting.id), alreadyOpen: true };
   const groupKey = payGroupKey(
     await groupFactsFor(tx, {
       workerId: input.workerId,
@@ -84,5 +106,5 @@ export async function payQueryFromMessage(
       ...(input.why ? { why: input.why } : {}),
     },
   });
-  return { id: created.id, ref: refOf(created.id) };
+  return { id: created.id, ref: refOf(created.id), alreadyOpen: false };
 }

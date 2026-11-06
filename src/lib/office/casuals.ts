@@ -19,6 +19,7 @@ import {
   REMIND_ALL_MAX,
   REMIND_GAP_HOURS,
   remindable,
+  sortedAbout,
 } from "./casual-follow-up";
 import { photoNeedsUpdate } from "./casuals-copy";
 import { officeUserMay, parts, type OfficeContext } from "./office-context";
@@ -218,11 +219,7 @@ export async function casualsList(
       const needs = q?.needs ?? [];
       const photo = q?.photo ?? { status: "missing" as const, current: null, waiting: null };
       const photoNeeds = photoNeedsUpdate(photo);
-      const worst = needs[0]
-        ? needs[0].qualification
-        : photoNeeds
-          ? { type: "photo", status: photo.status, expiresOn: null }
-          : null;
+      const worst = sortedAbout(needs, photo);
       const sortedAt = follow.sorted.get(p.id);
       return {
         id: p.id,

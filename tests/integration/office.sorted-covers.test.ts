@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { remindCasuals } from "@/lib/office/casual-follow-up";
 import { casualsList } from "@/lib/office/casuals";
-import { bookingFirm, NOW } from "../helpers/booking-fixture";
+import { bookingFirm, NOW, type CredentialCells } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
 
 // Phase 29.3: the office's "Sorted by" and "Remind all" count a "Mark as sorted" only while it
@@ -118,6 +118,35 @@ describe("Sorted by and Remind all: only while the mark covers the problem as it
     expect([...((await casualsList(ctx, "needs"))?.remindAll ?? [])].sort()).toEqual(
       [ana, ben].sort(),
     );
+  });
+
+  it("the worst need and the one to remind about differ: the list and Remind agree on sorted", async () => {
+    const { f, resourcer, ctx } = await firm();
+    // Worst: a suspended steward qualification (no date, so nothing to remind about). The one to
+    // remind about: the SIA licence that expired on 28 Oct.
+    const split: CredentialCells[] = [
+      { type: "STEWARD_L2", status: "suspended", expiresOn: null },
+      { type: "SIA_DS", expiresOn: "2026-10-28" },
+    ];
+    const ana = await f.worker({ first: "Ana", credentials: split });
+    const ben = await f.worker({ first: "Ben", credentials: split });
+    // Ana's mark is about the SIA licence: not her worst need, so not sorted.
+    await markSorted(f.firmId, resourcer, ana, "2026-10-30T10:00:00Z");
+    // Ben's mark is about his worst need, the suspension: sorted.
+    await markSorted(f.firmId, resourcer, ben, "2026-10-30T10:00:00Z", {
+      type: "STEWARD_L2",
+      status: "suspended",
+    });
+    const list = await casualsList(ctx, "needs");
+    const anaRow = list?.rows.find((r) => r.id === ana);
+    expect(anaRow?.needs[0]?.qualification).toMatchObject({ type: "STEWARD_L2" });
+    expect(anaRow?.remindAbout).toBe("SIA_DS");
+    expect(anaRow?.sorted).toBeNull();
+    expect(list?.rows.find((r) => r.id === ben)?.sorted).not.toBeNull();
+    expect(list?.remindAll).toEqual([ana]);
+    // Remind does what the list says: Ana reminded, Ben left alone as sorted.
+    expect(await remindCasuals(ctx, [ana])).toMatchObject({ reminded: 1, sorted: 0 });
+    expect(await remindCasuals(ctx, [ben])).toMatchObject({ reminded: 0, sorted: 1 });
   });
 
   it("another firm's marks never count", async () => {

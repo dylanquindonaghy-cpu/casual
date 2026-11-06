@@ -64,7 +64,7 @@ describe("markCovers", () => {
   });
 
   it("the casual's in hand is the same rule, less what isn't hers to do", () => {
-    const q = { ...expired, renewing: false, rejected: null };
+    const q = { ...expired, status: "expired" as const, renewing: false, rejected: null };
     expect(inHand(q, mark)).toBe(markCovers(q, mark));
     expect(inHand({ ...q, expiresOn: "2026-10-25" }, mark)).toBe(false);
     // Being checked is the office's own to-do: covered for the office, never "in hand" for her.

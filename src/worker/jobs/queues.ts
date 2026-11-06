@@ -17,6 +17,7 @@ import { PAY_QUERY_UPDATE_QUEUE } from "../../lib/notices/pay-query-update";
 import { ENQUIRY_REPLY_QUEUE } from "../../lib/notices/enquiry-reply";
 import { REQUEST_UPDATE_QUEUE } from "../../lib/notices/request-update";
 import { SHIFT_CONFIRMED_QUEUE } from "../../lib/notices/shift-confirmed";
+import { DETAILS_NOTICE_QUEUE } from "../../lib/notices/details-changed";
 import { ASK_ANSWER_QUEUE } from "../../lib/notices/ask-answer";
 import { CASUAL_REMINDER_QUEUE } from "../../lib/credentials/remind";
 import { PAY_DIGEST_QUEUE, PAY_DIGEST_TICK_QUEUE } from "../../lib/pay/digest";
@@ -96,6 +97,8 @@ const FIRM_QUEUE_NAMES: readonly string[] = [
   OFFICE_OFFER_QUEUE,
   FIRM_CHANGE_NOTICE_QUEUE,
   SHIFT_CONFIRMED_QUEUE,
+  // A booked shift's briefing changed (Phase 28.3).
+  DETAILS_NOTICE_QUEUE,
   ASK_ANSWER_QUEUE,
   CASUAL_REMINDER_QUEUE,
   REQUEST_UPDATE_QUEUE,

@@ -5,9 +5,11 @@ import {
   attendanceResultText,
   createProblems,
   createResultText,
+  detailsResultText,
   editResultText,
   importResultLines,
   restWorkedResultText,
+  savedText,
   sessionStatusWords,
   showingResultText,
 } from "@/lib/office/shifts-copy";
@@ -201,6 +203,23 @@ describe("the shift screens' words", () => {
     expect(editResultText({ status: "invalid", problems: ["bad_time", "bad_role"] })).toBe(
       "Enter the start and finish as times, like 08:00. They can't be the same, 24 hours or more apart, or in the hour the clocks skip in March. Enter a role, like steward (letters, numbers and spaces only).",
     );
+  });
+
+  // Phase 28.3 (docs/screens.md "28.3" and `/office/shifts/[id]`): a briefing change with people
+  // booked says how many will be told; "Saved." when nobody will be.
+  it("saving a briefing change says how many booked casuals will be told", () => {
+    expect(
+      editResultText({ status: "saved", fields: ["headcount", "instructions"], told: 2 }),
+    ).toBe("Saved. 2 booked casuals will be told.");
+    expect(editResultText({ status: "saved", fields: ["instructions"], told: 1 })).toBe(
+      "Saved. 1 booked casual will be told.",
+    );
+    expect(editResultText({ status: "saved", fields: ["instructions"] })).toBe("Saved.");
+    expect(detailsResultText({ status: "saved", fields: ["meetingPoint"], told: 3 })).toBe(
+      "Saved. 3 booked casuals will be told.",
+    );
+    expect(detailsResultText({ status: "saved", fields: ["meetingPoint"] })).toBe("Saved.");
+    expect(savedText(0)).toBe("Saved.");
   });
 
   it("importing", () => {

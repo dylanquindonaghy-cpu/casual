@@ -25,6 +25,7 @@ import {
 } from "../../db/schema";
 import type { FirmTx, WithFirm } from "../../db/scoped";
 import { recordEvent } from "../../events/record";
+import { queueDetailsNotice } from "../../notices/details-changed";
 import { strikeDecision } from "../../strikes/decide";
 import { acceptOwnOffer } from "../../offers/close";
 import { retryAborted } from "../../db/retry";
@@ -605,6 +606,9 @@ async function mirror(
             ...(overridden.length > 0 ? { overridden } : {}),
           }),
         );
+        // New instructions for the casuals booked: each is told (Phase 28.3), unless the firm's
+        // own system tells them (src/lib/notices/details-changed.ts).
+        await queueDetailsNotice(tx, shiftId, applied);
         // More places (or fewer): open / filled follow before any new name is booked.
         if (applied.includes("headcount")) await refreshShiftStatus(tx, shiftId, now);
       }

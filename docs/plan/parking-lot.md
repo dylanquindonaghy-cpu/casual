@@ -2498,3 +2498,12 @@ Each task adds what it left out here as its wave is merged.
   on #42 because two browser specs could pick the same made-up number (fixed: the spare number
   blocks, `tests/e2e/spare-mobiles.ts`). Nothing else from the check is left open.
 
+- **29.1's guardrails re-review (nit):** since a second pay message from Messages on the same day
+  joins her open query, a CI retry of `casual.p28-message-office`'s "From Pay" test joins the first
+  attempt's query, which carries the old run's tag. `messagesScene` (tests/e2e/db.ts) clears Nell's
+  app messages but not her pay queries. A normal run is fine (the e2e database is made fresh).
+- **Phase 29's guardrails nits (not fixed):** `reachFactsIn` has no `firm_id` filter of its own (RLS
+  scopes it); the worst-need rule is computed in both `casual-follow-up.ts` and `casuals.ts`; the
+  "changed after the mark" SQL is written twice (Profile and the office); 29.4's details notice can
+  be told twice when a change lands before the booking message is claimed; the saved copy reloads
+  itself once only, so a weak signal can leave it waiting.

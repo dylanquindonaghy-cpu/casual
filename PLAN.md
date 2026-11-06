@@ -1304,12 +1304,12 @@ qualifications etc and sitll ui isnt up to par with the staffing dashboard". The
 (private until shared): https://claude.ai/artifact/8Rpigo6L2EfoBvSb5Bqdsn. Approved, word for
 word: "complete the new build do not prompt me till done i like the new proposal".
 
-- [ ] Home as her dashboard: count pills (Booked, Open to you, Urgent, To do, Messages), the date
+- [x] Home as her dashboard: count pills (Booked, Open to you, Urgent, To do, Messages), the date
       line, her next shift with hours, pay estimate and a countdown, "Your qualifications" always
       shown with a status and countdown each (staff photo and right to work too), "Your week",
       "Updates" from her shift record, "Your record", counts beside headings; from 1024px a
       12-column grid; nothing in the saved copy that goes stale (UI; M) (30.1)
-- [ ] From 1024px up every casual page has the office's left rail with the tab bar's links and
+- [x] From 1024px up every casual page has the office's left rail with the tab bar's links and
       counts in place of the floating phone bar, one nav landmark, a skip link to it; phones keep
       the bar exactly as before (UI; S) (30.2)
 

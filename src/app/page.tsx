@@ -2,9 +2,11 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireWorker } from "@/lib/auth/current-worker";
 import { appEnv, offlineCopyOn } from "@/lib/env";
+import { myOffers } from "@/lib/portal/my-offers";
 import { myNeedsAndPhoto, myShifts } from "@/lib/portal/my-shifts";
 import { openShiftsFor } from "@/lib/portal/open-shifts";
 import { myPayDay } from "@/lib/portal/pay-day";
+import { mySortedMark } from "@/lib/portal/profile";
 import { myReachPrompts } from "@/lib/portal/reach-me";
 import { tabCounts } from "@/lib/portal/tab-counts";
 import { parseHost } from "@/lib/tenancy/host";
@@ -22,7 +24,9 @@ import { page } from "./ui/classes";
 // verified, is the 404 page). Her bookings are on the Shifts tab (`/shifts`): the old address of
 // the last 30 days, `/?view=past`, goes there. Kept for when there's no signal (public/sw.js). Phase
 // 28.7: the tab bar's counts from tabCounts(), as on every casual page, and the two "can we reach
-// you" rows (src/lib/portal/reach-me.ts), online only.
+// you" rows (src/lib/portal/reach-me.ts), online only. Phase 28.15: her offers still open to her
+// ("Offered to you", src/lib/portal/my-offers.ts), and the office's latest "Mark as sorted", so a
+// need it has in hand leaves "Do this" as it does on Profile.
 export default async function Home({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const match = parseHost((await headers()).get("host"), appEnv().APP_BASE_DOMAIN);
   if (match && match.kind !== "apex") {
@@ -30,12 +34,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
     const { firm, worker, session } = await requireWorker();
     const now = new Date();
     const clock = { now: () => now };
-    const [upcoming, needs, open, counts, reach] = await Promise.all([
+    const [upcoming, needs, open, counts, reach, offers, sortedMark] = await Promise.all([
       myShifts({ firm, clock }, worker.id, "upcoming"),
       myNeedsAndPhoto({ firm, clock }, worker.id),
       openShiftsFor({ firm, clock }, worker.id),
       tabCounts({ firm, clock }, worker.id),
       myReachPrompts({ firm }, worker.id),
+      myOffers({ firm, clock }, worker.id),
+      mySortedMark({ firm }, worker.id),
     ]);
     const pay = await myPayDay({ firm, clock }, worker.id);
     return (
@@ -54,6 +60,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
           open={open}
           pay={pay}
           reach={reach}
+          offers={offers}
+          sortedMark={sortedMark}
         />
         <CountedTabBar current="home" counts={counts} />
       </main>

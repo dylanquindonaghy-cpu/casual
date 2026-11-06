@@ -175,6 +175,16 @@ export async function myProfile(ctx: Ctx, workerId: string): Promise<Profile | n
   });
 }
 
+// The same mark for Home's "Do this" (Phase 28.15, 28.11's hand-off), so Home and Profile agree on
+// what the office has in hand.
+export async function mySortedMark(
+  ctx: { firm: { id: string; timezone: string }; run?: PortalContext["run"] },
+  workerId: string,
+): Promise<SortedMark | null> {
+  const run = ctx.run ?? withFirm;
+  return run(ctx.firm.id, (tx) => latestSortedMark(tx, workerId, ctx.firm.timezone));
+}
+
 // The office's latest "Mark as sorted" for her (src/lib/office/casual-follow-up.ts: what it was
 // about, and the day, in the firm's calendar); null when it never marked one. Her own only.
 // `changedAfter` (src/lib/portal/in-hand.ts): an entry logged after the mark that changed her

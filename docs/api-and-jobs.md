@@ -510,7 +510,9 @@ Built in Phase 5, on the office's shift page ("Move, shorten or cancel"; each bo
   oldStartsAt, oldEndsAt, newStartsAt, newEndsAt, oldSiteId, newSiteId, noticeHours (from the
   earlier of the old and new start, Phase 10: a move earlier records the warning the worker had of
   the new time, so the notice report flags it; the Sheets sync counts the same way), rulesOk,
-  codes?}. Each booked worker's row is held (after the shift's, in id order) before the rules run
+  codes?, stillComingCleared?}. A "Still coming?" answer (`assignments.still_coming_at`, 28.14)
+  was for the old time or place, so the move clears it in the same transaction and her event
+  carries `stillComingCleared: true` (no event of its own); the Sheets sync's moves do the same. Each booked worker's row is held (after the shift's, in id order) before the rules run
   for them, so a booking of theirs at that moment finishes first and is seen. Plus
   `shift.changed` for the shift (from/to times and site), and offers
   still out expire. Workers with only overridable problems (rest, hours, a day off) stay booked and

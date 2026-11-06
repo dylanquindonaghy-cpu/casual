@@ -30,6 +30,7 @@ import { strikeDecision } from "../../strikes/decide";
 import { acceptOwnOffer } from "../../offers/close";
 import { retryAborted } from "../../db/retry";
 import { checkBooking } from "../book";
+import { clearStillComing } from "../still-coming-reset";
 import { RulesSettingsError } from "../eligibility-input";
 import {
   placeAfterCancel,
@@ -1060,6 +1061,8 @@ async function logTimeChange(
     after.startsAt.getTime() >= before.startsAt.getTime() &&
     after.endsAt.getTime() <= before.endsAt.getTime();
   const verdictOf = new Map(verdicts.map((v) => [v.workerId, v]));
+  // "Still coming?" answers were for the old time or place: cleared, so she's asked again (28.14).
+  const stillComingCleared = await clearStillComing(tx, shiftId);
   for (const holder of await liveHolders(tx, shiftId)) {
     if (holder.status !== "confirmed" || !holder.workerId) continue;
     const v = verdictOf.get(holder.workerId);
@@ -1078,6 +1081,7 @@ async function logTimeChange(
         newSiteId: after.siteId,
         noticeHours: changeNoticeHours(before.startsAt, after.startsAt, now),
         ...(v ? { rulesOk: v.ok, ...(!v.ok ? { codes: v.codes } : {}) } : {}),
+        ...(stillComingCleared.has(holder.assignmentId) ? { stillComingCleared: true } : {}),
       }),
     );
   }

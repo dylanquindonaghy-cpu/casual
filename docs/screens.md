@@ -965,6 +965,9 @@ on a cancelled shift. It shows in two places, the same card in each:
   logged twice.
 - Too early or started by the time it arrives: "You can say this in the 24 hours before the shift."
   Signed out: the login page. Anything else: "That didn't work. Try again."
+- The session moved (new times or a new site, by the office, the planner, a connector or the rota
+  sheet): her answer was for the old one, so it's cleared. The card offers "Yes, I'm coming" again,
+  and Coming up shows "Not answered yet" until she answers for the new time.
 
 **Online only.** The card, its thanks and its "You said you're coming" line carry
 `data-online-only` on the pass and on the shift's page, so the copy of Home and Booked kept for no

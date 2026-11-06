@@ -44,6 +44,27 @@ describe("offerRowText", () => {
     expect(t.offered).toBe("Offered 09:05 on Sun 1 Nov. First to take it gets it.");
   });
 
+  it("says what the shift's page would let her do: take it, ask for it, or take it later", () => {
+    expect(offerRowText({ ...offer, take: { kind: "now" } }, NOW, TZ).offered).toBe(
+      "Offered 21:20. First to take it gets it.",
+    );
+    expect(offerRowText({ ...offer, take: { kind: "ask" } }, NOW, TZ).offered).toBe(
+      "Offered 21:20. The office chooses who works this one. You can ask for it.",
+    );
+    const held = { kind: "held" as const, opensAt: new Date("2026-11-02T21:45:00Z") };
+    expect(offerRowText({ ...offer, take: held }, NOW, TZ).offered).toBe(
+      "Offered 21:20. You can take it from 21:45.",
+    );
+  });
+
+  it("names the shift's page, never Open shifts (it may not list the shift), and the ask where the office chooses", () => {
+    expect([DECLINE_STEP.line, DECLINE_STEP.lineAsk].join(" ")).not.toMatch(/Open shifts/);
+    expect(declineOutcomeText("declined", "x").line).not.toMatch(/Open shifts/);
+    expect(DECLINE_STEP.lineAsk).toBe(
+      "We won't offer it to you again. The office chooses who works this one: you can still ask for it on the shift's page.",
+    );
+  });
+
   it("never names a deadline", () => {
     const words = [FIRST_TO_TAKE, ...Object.values(DECLINE_STEP)].join(" ");
     expect(words).not.toMatch(/answer by|expires|deadline|until \d/i);
@@ -55,8 +76,12 @@ describe("declineOutcomeText", () => {
     expect(declineOutcomeText("declined", "x")).toEqual({
       tone: "done",
       title: "Done. You won't be offered this shift again.",
-      line: "You can still take it from Open shifts while it's open.",
+      line: "You can still take it from the shift's page while it's open.",
     });
+    // Where the office chooses for the event, saying no leaves her only the ask.
+    expect(declineOutcomeText("declined", "x", "ask").line).toBe(
+      "The office chooses who works this one. You can still ask for it on the shift's page.",
+    );
     expect(declineOutcomeText("already", "x").title).toBe("You've already said no to this shift.");
     expect(declineOutcomeText("taken", "x").title).toBe("You've already taken this shift.");
     expect(declineOutcomeText("closed", "x").title).toBe("This offer has closed.");

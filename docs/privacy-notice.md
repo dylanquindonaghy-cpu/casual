@@ -113,6 +113,10 @@ Replace the parts in [brackets]. Send both parts.
 > **Taking back a request:** you can take back a request while it's still waiting for our office.
 > We keep a record that you sent it and took it back.
 >
+> **Your shift record:** in the app you can see every offer, booking, change and cancellation for
+> you in the last 90 days, with the notice you had and, for one you cancelled, your reason and
+> whether it's a strike; only you see it, and it's never kept on your phone (ask us for older ones).
+>
 > **"Add to my calendar":** if you tap it on a shift you're booked on, your phone saves a calendar
 > entry with the role, the times, the site's name and address and a link back to the shift. It
 > never holds your pay, the instructions or anyone else's details. Once it's in your calendar,

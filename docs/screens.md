@@ -105,7 +105,64 @@ No screen of its own: the data, links and words later tasks use.
 
 ### 28.4
 
-(Written by task 28.4.)
+**Your shift record** (`/shifts/record`, logged in; the Shifts tab is lit). Her own evidence of
+every offer, booking, office change and cancellation in the last 90 days, with the notice as it was
+logged (golden rule 12; `docs/compliance.md` "Employment Rights Act"). Read only. Reached by its
+address here; 28.13 links it from Booked's Past view and from Profile.
+
+- **Headline:** "Your shift record", with "Updated 21:35" beside it (online only).
+- **Intro:** "Every offer, booking, change and cancellation for you in the last 90 days, with the
+  notice you had."
+- **Days:** newest first, each under its own heading: "Today", "Yesterday", then "Mon 2 Nov". A day
+  is one glass card of rows; the time each thing happened sits at the row's right ("09:14").
+- **Each row** opens with a small round disc (decoration only: the words say what it is), then its
+  title, then its lines:
+
+| What happened | Title | Its lines |
+|---|---|---|
+| An offer (an offer wave, or the office) | Offered to you | The shift; the notice |
+| A booking she made | Booked by you | The shift; the notice |
+| A booking by the office, its rota sheet or its planner | Booked by the office | The shift; the reason (a rota sheet's: "Put on the rota sheet by the office."); the notice |
+| A move | Moved by the office | The shift; "From Sat 7 Nov, 06:00 to 14:00" and "To Sat 7 Nov, 08:00 to 16:00"; "The site changed too." when it did; the reason; the notice |
+| A shortening | Shortened by the office | The same as a move |
+| The office cancelling her booking or the whole shift (or its rota sheet or planner) | Cancelled by the office | The shift; the reason; "The client asked." or "You asked." where that was recorded; the notice |
+| Her own cancellation | You cancelled | The shift; "Reference 0695DD8C"; "Your reason: I'm unwell"; "You gave 20 hours' notice."; the strike chip |
+
+- **The shift** is its role and site ("Steward at Riverside Arena") with its start under it ("Sat 7
+  Nov, 08:00"). It links to the shift's page, 44px tall, only while she can open it: a session she
+  is booked on, or one casuals can see. A cancelled session (or a draft, or one hidden from casuals
+  that she isn't booked on) has no link. A shift no longer there reads "A shift no longer listed".
+- **The notice** is only the figure logged when it happened: "You had 21 hours' notice.", "You had
+  2 days' notice." (whole hours or days, rounded down), or "After the shift started." Where nothing
+  was logged (an older offer, counted on the office's report from the shift's start as it is now)
+  it reads "Notice not recorded".
+- **Reasons** are only the fixed words: the office's list ("The event's times or place changed",
+  "The event was cancelled", "The client needs fewer staff", "Weather or safety", "They've left, or
+  can't work here", "Another reason"), the rota sheet's own fixed words ("Times changed on the rota
+  sheet", "Removed on the rota sheet" and the like), and for her own cancellation the cancel sheet's
+  list ("I'm unwell", "Travel problem", "Family or caring", "Something else"; a note she typed
+  under "Something else" shows as "Something else" only). Anything typed by the office never shows.
+- **The strike chip** on her own cancellation, read from the strike as it is now (the same record
+  as Profile's Strikes): "Strike" (red), "Strike (withdrawn by the office)" (green) or "No strike"
+  (grey). With the firm's strikes switched off, no strike words at all.
+- **Empty:** "Nothing in the last 90 days." in the empty box.
+- **More than 300 in 90 days:** "Showing the newest 300." under the last day.
+- **Foot:** "Older records: ask the office for a copy.", its last words a link to Messages ("ask
+  the office for a copy", 44px tall).
+
+**It never shows:** the name of anyone in the office (always "the office"); another casual, or who
+took a place she left; the office's own words (a reason it typed, why it placed her despite a rule,
+its notes, why it withdrew a strike); rule codes, "overridden" or who sent an offer; a strike's
+review flag or evidence; pay; and nothing about money owed or short notice (no entitlement wording
+until the 2027 rules are final).
+
+**Kept off the phone:** the page is never in the copy kept for no signal (only Home and Booked
+are), because her own reason can be health information.
+
+**Mock-up:** none for this task, as for 28.1 (Dylan, 2026-11-05: "Full build"; "Do not prompt me
+until the full plan is being pull requested"). The browser test `tests/e2e/casual.p28-record.spec.ts`
+takes the screenshots instead: the record on a phone (390px) and a laptop (1,280px at 150%), light
+and dark, attached to its run's report.
 
 ### 28.5
 

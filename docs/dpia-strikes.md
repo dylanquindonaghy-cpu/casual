@@ -49,7 +49,11 @@ privacy notice updated (`docs/office-v2.md` 6.3), and the solicitor's questions 
 - **What the casual is told:** before confirming, the cancel screen says whether cancelling now
   gives them a strike, and how many they have in the last 90 days. The wording's version and the
   time they confirmed are stored on the booking (S3). The done screen says whether a strike was
-  recorded and until when, and offers "Tell us what happened", which goes to the office.
+  recorded and until when, and offers "Tell us what happened", which goes to the office. Their
+  shift record (`/shifts/record`, Phase 28.4) shows each of their own cancellations in the last 90
+  days with the strike as it stands now, read from the live strike row: "Strike", "Strike
+  (withdrawn by the office)" or "No strike"; with the firm's strikes switched off, no strike words
+  at all. Never the office's reason for withdrawing it, the review flag or the evidence.
 - **Purpose:** a fair, recorded way for the firm to see who cancels at short notice, so a person
   can talk to them. Nothing happens automatically: no fine, no pay deduction, no block on taking
   shifts. Pausing someone's work goes through the existing "make inactive" control, which needs a
@@ -71,7 +75,12 @@ privacy notice updated (`docs/office-v2.md` 6.3), and the solicitor's questions 
 
 ### Who can see it
 
-- The casual: on the cancel screen now, and on Profile (12C.5).
+- The casual: on the cancel screen now, on Profile (12C.5), and in their own shift record
+  (`/shifts/record`, Phase 28.4: "Strike", "Strike (withdrawn by the office)" or "No strike" beside
+  each cancellation of their own in the last 90 days, from the live strike row, and nothing when
+  the firm has strikes off). Only their own, read with the worker id from their session; the page
+  is never kept on the phone for no signal, because their own cancel reason can be health
+  information.
 - The firm's admins and resourcers, in the office.
 - The firm's strikes team by email, only once a confirmed address is set (12C.4).
 - The firm's own planner by webhook, if the firm connects one (S11).

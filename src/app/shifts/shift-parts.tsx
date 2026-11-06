@@ -35,10 +35,7 @@ export function TravelFigures({ travel, timeZone }: { travel: TravelFacts; timeZ
           {strip.words}
         </p>
       ) : (
-        <div
-          aria-hidden="true"
-          className={`mt-1 grid gap-2 ${strip.cells.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}
-        >
+        <div aria-hidden="true" className="mt-1 grid grid-cols-3 gap-2">
           {strip.cells.map((c) => (
             <div key={c.words} className="glass-tile flex flex-col gap-0.5 rounded-row px-3 py-3">
               <p className="font-sign text-2xl leading-tight">{c.figure}</p>

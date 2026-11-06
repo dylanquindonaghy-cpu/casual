@@ -34,7 +34,10 @@ export function HomeScreenHint() {
 
   if (!show) return null;
   return (
-    <section aria-labelledby="home-screen-heading" className="mt-8 rounded-xl bg-quiet-soft p-4">
+    <section
+      aria-labelledby="home-screen-heading"
+      className="mt-8 rounded-row border border-quiet-line bg-quiet-soft p-4"
+    >
       <h2 id="home-screen-heading" className="text-lg font-bold">
         Put your shifts on your home screen
       </h2>

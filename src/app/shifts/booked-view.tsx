@@ -225,7 +225,7 @@ function UpcomingRow({ shift, timeZone, now, newShiftId }: BookedViewProps & { s
   const t = timeRange(shift.startsAt, shift.endsAt, timeZone);
   const fresh = shift.shiftId === newShiftId;
   return (
-    <li className={`px-3.5 ${fresh ? "animate-move rounded-row border-2 border-brand-ink" : ""}`}>
+    <li className={`px-3.5 ${fresh ? "animate-move rounded-row border border-brand-ink" : ""}`}>
       <details>
         <summary className={summaryRow}>
           <DateTile dow={day.dow} day={day.day} />

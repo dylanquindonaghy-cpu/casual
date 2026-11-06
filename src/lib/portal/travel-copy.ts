@@ -69,7 +69,7 @@ export function saveTravelText(r: SaveTravelOutcome): string {
     case "off":
       return "Travel areas aren't used here, so nothing was saved.";
     case "not_active":
-      return "Your account isn't active, so nothing was saved. Contact the office.";
+      return "Your account isn't active, so nothing was saved. Message the office.";
     case "logged_out":
       return "Log in again, then try once more.";
     case "error":
@@ -87,7 +87,7 @@ export function removeTravelText(r: RemoveTravelOutcome): string {
     case "not_set":
       return "You haven't set a travel area.";
     case "not_active":
-      return "Your account isn't active. Contact the office.";
+      return "Your account isn't active. Message the office.";
     case "logged_out":
       return "Log in again, then try once more.";
     case "error":

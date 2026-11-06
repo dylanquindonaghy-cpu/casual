@@ -24,17 +24,18 @@ export function Fold({
   return (
     <section aria-labelledby={headingId} className={`${staffCard} ${sectionGap.staff}`}>
       <details open={open} data-fold={headingId} className="group">
-        <summary className="press -m-2 flex min-h-13 cursor-pointer list-none items-center gap-3 rounded-row p-2 hover:bg-active [&::-webkit-details-marker]:hidden">
-          <span className="min-w-0 flex-1">
-            <h2 id={headingId} className={h2}>
-              {title}
-            </h2>
-            <span className={`mt-0.5 block ${muted} ${nums}`}>{state}</span>
-          </span>
+        {/* The heading sits straight in the summary (a summary holds phrasing content and one
+            heading, never a heading inside a span: 28.16), in a two-column grid: the heading and
+            its state on the left, the chevron across both rows on the right. */}
+        <summary className="press -m-2 grid min-h-13 cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 rounded-row p-2 hover:bg-active [&::-webkit-details-marker]:hidden">
+          <h2 id={headingId} className={`col-start-1 row-start-1 ${h2}`}>
+            {title}
+          </h2>
+          <span className={`col-start-1 row-start-2 mt-0.5 block ${muted} ${nums}`}>{state}</span>
           <Icon
             name="chevron"
             size={22}
-            className="shrink-0 rotate-90 text-ink-muted transition-transform group-open:-rotate-90 motion-reduce:transition-none"
+            className="col-start-2 row-span-2 row-start-1 rotate-90 text-ink-muted transition-transform group-open:-rotate-90 motion-reduce:transition-none"
           />
         </summary>
         <div className="mt-2">{children}</div>

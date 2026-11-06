@@ -44,8 +44,9 @@ export const perHour = (ratePence: number): string => `${pounds(ratePence)}/hour
 
 // A session with no pay rate set: where its pay would be, never a blank. On its own ("Pay not
 // given yet", an open shift's card, which opens the shift's page where she can ask the office about
-// it: Phase 28, 28.8), or under a "Pay" label ("Ask the office", a shift's page and the pass's
-// details).
+// it: Phase 28, 28.8), or under a "Pay" label ("Ask the office", the pass's details). A shift's own
+// page has its own words since 28.5: "Not given yet." and an "Ask the office about the pay" link
+// (src/lib/portal/shift-page-copy.ts).
 export const NO_RATE_TEXT = "Pay not given yet";
 export const NO_RATE_UNDER_LABEL = "Ask the office";
 

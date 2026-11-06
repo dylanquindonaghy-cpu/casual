@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { NO_RATE_TEXT } from "@/lib/portal/format";
+import { travelStrip } from "@/lib/portal/home-copy";
 import {
   milesAway,
+  notWorkedOutText,
   travelLineCompact,
   travelLineText,
   type TravelFacts,
@@ -57,6 +59,18 @@ describe("the casual app's travel line", () => {
 
   it("no distance (no travel area, or a site with no location): unchanged", () => {
     expect(travelLineText({ kind: "unknown" }, TZ)).toBe("Distance not known yet");
+  });
+
+  it("is the one sentence on Home's pass too: its strip shows the same words, not figure tiles", () => {
+    expect(notWorkedOutText(3200)).toBe("About 2 miles away. Travel time isn't worked out yet.");
+    for (const f of [
+      { kind: "straight", straightMetres: 300 },
+      { kind: "straight", straightMetres: 11300 },
+      { kind: "unknown" },
+    ] satisfies TravelFacts[])
+      expect(travelStrip(f)).toEqual({ kind: "words", words: travelLineText(f, TZ) });
+    // Worked out, the pass keeps its three figures.
+    expect(travelStrip(estimated()).kind).toBe("cells");
   });
 });
 

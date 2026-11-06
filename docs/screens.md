@@ -151,9 +151,11 @@ What the casual sees on Open shifts (`/shifts/open`):
   Travel time isn't worked out yet." (was "about 2 miles (straight line) · Travel time not known
   yet"). Worked out, the words are as before: "3.1 miles · 12 min by car · 24 min by public
   transport". With no distance: "Distance not known yet". `src/lib/travel/line-copy.ts` is the one
-  source of these words for Open shifts, the urgent board, Booked, the shift page and the hidden
-  line on Home's pass. The shifts line's WhatsApp and text replies keep their own short form
-  (`docs/messaging-templates.md`), unchanged.
+  source of these words for Open shifts, the urgent board, Booked, the shift page and Home's pass.
+  The pass's details ("Getting there, from your travel area", on Home and Booked) show the same
+  sentence in place of the two figure tiles "1 mile in a straight line" and "Not known travel time
+  yet"; worked out, the pass keeps its three figures. The shifts line's WhatsApp and text replies
+  keep their own short form (`docs/messaging-templates.md`), unchanged.
 - **Empty states** are the one empty box: one grey sentence on clear glass, 8px round, no dashed
   frame. It sits in the list's section, which keeps its heading:
   - nothing open: "Nothing open right now. We'll message you when something matches." (or "…

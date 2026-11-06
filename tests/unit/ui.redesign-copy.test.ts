@@ -250,12 +250,15 @@ describe("the pass's travel figures and uniform tiles", () => {
       kind: "words",
       words: "Distance not known yet",
     });
+    // Phase 28.8: until the times are worked out, the travel line's one sentence (line-copy.ts),
+    // not "1 mile in a straight line" and "Not known travel time yet" as figures.
     expect(travelStrip({ kind: "straight", straightMetres: 1000 })).toEqual({
-      kind: "cells",
-      cells: [
-        { figure: "1", words: "mile in a straight line" },
-        { figure: "Not known", words: "travel time yet" },
-      ],
+      kind: "words",
+      words: "About 1 mile away. Travel time isn't worked out yet.",
+    });
+    expect(travelStrip({ kind: "straight", straightMetres: 11_500 })).toEqual({
+      kind: "words",
+      words: "About 7 miles away. Travel time isn't worked out yet.",
     });
   });
 

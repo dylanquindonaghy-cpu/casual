@@ -22,7 +22,8 @@ import { fakePoint } from "../../../src/lib/travel/geocoder";
 // - Ola, with a travel area (car, 45 minutes) and, in her role: an urgent shift tomorrow with no
 //   pay rate at a site the travel job hasn't worked out yet ("About … miles away. Travel time isn't
 //   worked out yet."), two open shifts the day after (one with a pay rate and 3 places, one with
-//   none), another four days ahead, and a booking of hers three days ahead. So the strip has an
+//   none), another four days ahead, and a booking of hers three days ahead, at a site the travel job
+//   hasn't worked out either (Home's pass: the same sentence, not figure tiles). So the strip has an
 //   urgent, an open and a booked tile and four days with nothing (no tile), both lists show, and
 //   choosing tomorrow leaves only the urgent shift (the other list's empty state).
 // - Noor, in a role with no shifts at all: Open shifts' and the urgent board's empty states.
@@ -59,6 +60,7 @@ export interface OpenScene {
   urgentSite: string;
   paidSite: string;
   unpaidSite: string;
+  bookedSite: string; // her booking: Home's pass
 }
 
 export async function openScene(slug = "acme"): Promise<OpenScene> {
@@ -188,8 +190,9 @@ export async function openScene(slug = "acme"): Promise<OpenScene> {
         { site: `Open Later Hall ${stamp}`, at: dayAt(4), car: { minutes: 25, metres: 12070 } },
         { payRatePence: 1250 },
       );
+      const bookedSite = `Open Booked Hall ${stamp}`;
       const bookedId = await session(
-        { site: `Open Booked Hall ${stamp}`, at: dayAt(3), car: { minutes: 15, metres: 8047 } },
+        { site: bookedSite, at: dayAt(3) },
         { status: "filled", payRatePence: 1260 },
       );
       await tx.insert(assignments).values({
@@ -205,6 +208,7 @@ export async function openScene(slug = "acme"): Promise<OpenScene> {
         urgentSite,
         paidSite,
         unpaidSite,
+        bookedSite,
       };
     });
   } finally {

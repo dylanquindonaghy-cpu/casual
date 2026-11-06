@@ -4,7 +4,7 @@ import { wallTimeOf } from "../time/zoned";
 // 12G.3). Pure.
 //
 // In the casual app (`travelLineText`: Open shifts, the urgent board, Booked, Home's pass and the
-// shift page, the one source of these words; Phase 28, 28.8):
+// shift page, the one source of these words, the pass's figure tiles included; Phase 28, 28.8):
 // - Worked out: "7.2 miles · 18 min by car · 41 min by public transport"; with no public transport
 //   in time, "… · no public transport by 09:30" (the arrive-by time, the firm's clock); beyond the
 //   90-minute ceiling by car, "over 90 min by car".
@@ -48,6 +48,11 @@ export const DISTANCE_NOT_KNOWN = "Distance not known yet";
 export const TIME_NOT_KNOWN = "Travel time not known yet";
 // The casual app's words while only the straight line is known (28.8).
 export const TIME_NOT_WORKED_OUT = "Travel time isn't worked out yet.";
+// "About 2 miles away. Travel time isn't worked out yet.": the casual app's one sentence while only
+// the straight line is known, in the travel line and in place of the figure tiles on Home's pass
+// (src/lib/portal/home-copy.ts `travelStrip`; 28.8).
+export const notWorkedOutText = (straightMetres: number) =>
+  `${milesAway(straightMetres)}. ${TIME_NOT_WORKED_OUT}`;
 
 // Worked out: the distance, by car and by public transport (the same in the app and on the line).
 function estimatedText(f: Extract<TravelFacts, { kind: "estimated" }>, tz: string): string {
@@ -63,7 +68,7 @@ function estimatedText(f: Extract<TravelFacts, { kind: "estimated" }>, tz: strin
 // The casual app's travel line.
 export function travelLineText(f: TravelFacts, tz: string): string {
   if (f.kind === "unknown") return DISTANCE_NOT_KNOWN;
-  if (f.kind === "straight") return `${milesAway(f.straightMetres)}. ${TIME_NOT_WORKED_OUT}`;
+  if (f.kind === "straight") return notWorkedOutText(f.straightMetres);
   return estimatedText(f, tz);
 }
 

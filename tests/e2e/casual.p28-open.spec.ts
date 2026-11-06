@@ -16,8 +16,10 @@ import {
 // 8px apart) and every shift's link at 44px tall or more; one glass section holds a day's shifts,
 // the places left are a tag (the urgent chip when urgent), the card's pay and travel words are
 // 28.8's, both Open shifts empty states and the urgent board's are the one empty box (no dashed
-// frame), and the board's "Back to my shifts" goes to /shifts. Then screenshots of both pages on a
-// phone (390px) and a laptop (1,280px at 150%), light and dark, attached to the run's report.
+// frame), and the board's "Back to my shifts" goes to /shifts. Home's pass says the same travel
+// sentence (line-copy.ts) in its details while the time isn't worked out, not figure tiles. Then
+// screenshots of both pages on a phone (390px) and a laptop (1,280px at 150%), light and dark,
+// attached to the run's report.
 
 const acme = "http://acme.localhost:3100";
 
@@ -220,6 +222,19 @@ test("Open shifts and the urgent board: grouped lists, 48px day tiles, tags, 28.
       "href",
       "/shifts",
     );
+    await noSidewaysScroll(page);
+
+    // Home's pass (her booking, its time not worked out yet): the travel line's one sentence in
+    // its details, not "1 mile in a straight line" and "Not known travel time yet" as figures.
+    await page.goto(`${acme}/`);
+    const pass = page.locator("[data-pass]");
+    await expect(pass).toContainText(scene.bookedSite);
+    await pass.locator("[data-pass-more] summary").click();
+    const there = page.locator("#pass-details [data-travel-line]");
+    await expect(there).toBeVisible();
+    await expect(there).toContainText(/About \d+ miles? away\. Travel time isn't worked out yet\./);
+    await expect(there).not.toContainText("straight line");
+    await expect(there).not.toContainText("Not known");
     await noSidewaysScroll(page);
   } finally {
     await context.close();

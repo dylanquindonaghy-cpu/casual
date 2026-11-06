@@ -1650,6 +1650,9 @@ silently stops a casual being offered work.
 
 **If the provider is down:** straight-line miles worked out from coordinates, labelled "about 7
 miles (straight line)", with "Travel time not known yet". Shifts are never hidden silently.
+(Phase 28, 28.8: the casual app now says one sentence instead, "About 7 miles away. Travel time
+isn't worked out yet." (`src/lib/travel/line-copy.ts`; `docs/screens.md` "The casual app, Phase
+28"). The shifts line's WhatsApp and text replies keep the words above.)
 
 **Postcode to coordinates:** postcodes.io, free and keyless (https://postcodes.io/docs/overview/).
 Only the postcode is sent, never who it belongs to.

@@ -145,3 +145,59 @@ export function watchForFreshCopy(opts: {
   timer = setTimeout(() => void look(), every);
   return stop;
 }
+
+// Phase 29.6: the kept copy says "It updates when you're back online", so it does. While the kept
+// copy is on screen (its notice showing), the first "online" heard opens the page fresh (`path`:
+// `/` or `/shifts`, the kept copy's own address, with no query). Only once; never after `stop()`,
+// nor once a logout or login starts (FORGET_EVENT). Returns a function that stops it (the page
+// calls it when it goes away).
+export function reloadWhenOnline(opts: {
+  path: OfflinePage;
+  target?: EventTarget; // where "online" and FORGET_EVENT are heard (the window)
+  go?: (path: string) => void;
+}): () => void {
+  const target = opts.target ?? (typeof window !== "undefined" ? window : undefined);
+  const go = opts.go ?? ((path: string) => window.location.replace(path));
+  let stopped = false;
+  const stop = () => {
+    stopped = true;
+    target?.removeEventListener("online", online);
+    target?.removeEventListener(FORGET_EVENT, stop);
+  };
+  function online() {
+    if (stopped) return;
+    stop();
+    go(opts.path);
+  }
+  target?.addEventListener("online", online);
+  target?.addEventListener(FORGET_EVENT, stop);
+  return stop;
+}
+
+// The same, as a few lines the page carries in its own HTML (OfflineCopy), for the moment before
+// the page's scripts have started, or when they never can (a kept copy that can't fetch a script it
+// doesn't hold, as under `next dev`). It reloads only while its page is the kept copy on screen
+// (the notice showing, checked when "online" comes), stops on FORGET_EVENT, and leaves its stop
+// function on the window (ONLINE_RELOAD_STOP) so the page's own code takes over once it runs.
+// Nothing the worker typed or the firm wrote goes in it: `path` is one of the two kept pages.
+export const ONLINE_RELOAD_STOP = "__shiftdeskStopOnlineReload";
+export function onlineReloadScript(path: OfflinePage): string {
+  const p = JSON.stringify(OFFLINE_PAGES.includes(path) ? path : "/");
+  return (
+    `(function(){var w=window,p=${p};` +
+    `function off(){w.removeEventListener("online",go);w.removeEventListener("${FORGET_EVENT}",off)}` +
+    `function go(){var n=document.querySelector("[data-offline-notice]");` +
+    `if(location.pathname!==p||!n||n.hidden)return;off();location.replace(p)}` +
+    `w.addEventListener("online",go);w.addEventListener("${FORGET_EVENT}",off);` +
+    `w.${ONLINE_RELOAD_STOP}=off})()`
+  );
+}
+
+// Stops the in-page lines above, if they ran (the page's own code has started).
+export function stopOnlineReloadScript(): void {
+  if (typeof window === "undefined") return;
+  const holder = window as unknown as Record<string, unknown>;
+  const stop = holder[ONLINE_RELOAD_STOP];
+  if (typeof stop === "function") (stop as () => void)();
+  delete holder[ONLINE_RELOAD_STOP];
+}

@@ -460,8 +460,9 @@ describe("Home's kept copy (no signal)", () => {
     );
     // "Updated 09:00" online only; offline, the notice says when the copy was saved.
     // (Beside the headline since Phase 28.7.)
+    // (Phase 30.1, on purpose: at the end of the date line under the headline, still online only.)
     expect(html).toMatch(
-      /<small data-updated-slot="" data-online-only="" [^>]*>Updated 09:00<\/small>/,
+      /<span data-online-only=""> · <span class="tabular-nums">Updated 09:00<\/span><\/span>/,
     );
     expect(html).toMatch(/<div data-offline-notice="" hidden="" role="status"/);
     expect(text(html)).toContain("This is your saved copy from 09:00 on Mon 2 Nov.");

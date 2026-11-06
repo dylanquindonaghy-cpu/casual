@@ -4,13 +4,23 @@ import type { ReactNode } from "react";
 import type { NeedsItem } from "@/lib/credentials/status";
 import { timeOnDay } from "@/lib/portal/format";
 import {
+  nextShiftLine,
+  type CountPill,
+  type QualRow,
+  type RecordFigure,
+  type UpdateRow,
+} from "@/lib/portal/home-board";
+import type { WeekRow } from "@/lib/portal/home-week";
+import {
   applyRowText,
+  dateLineText,
   needsRowText,
   offerRowText,
   offlineUrgentText,
   payDayRowText,
   REACH_PATH,
   REACH_ROWS,
+  updatedText,
   urgentRowText,
   type RowText,
 } from "@/lib/portal/home-copy";
@@ -23,11 +33,17 @@ import { dateParts, datePartsOfDay } from "@/lib/portal/sign-copy";
 import { AREA_PROMPT, AREA_PROMPT_LINK, TRAVEL_PATH } from "@/lib/portal/travel-copy";
 import { wallTimeOf } from "@/lib/time/zoned";
 import type { StaffPhoto } from "@/lib/uploads/photo";
+import { Bar } from "./home/home-card";
+import { HomeCounts } from "./home/home-counts";
+import { HomeQualifications } from "./home/home-qualifications";
+import { HomeRecord } from "./home/home-record";
+import { HomeUpdates } from "./home/home-updates";
+import { HomeWeek } from "./home/home-week";
 import { HomeScreenHint } from "./home-screen-hint";
 import { OfflineNotice } from "./my-shifts-view";
 import { OfferedToYou } from "./offered-to-you";
 import { EmptyPass, NextPass } from "./next-pass";
-import { disc, headingGap, rowLead, staffH2, tapRow } from "./ui/classes";
+import { countPill, disc, headingGap, rowLead, staffH2, tapRow } from "./ui/classes";
 import { Icon, type IconName } from "./ui/icons";
 import { PageHeader } from "./ui/page-header";
 import { Plate } from "./ui/plate";
@@ -48,6 +64,18 @@ import { DateTile } from "./ui/sign";
 // signal; her travel area to add while she has none; the other shifts she can take) and "Pay" (pay
 // day). Her other booked shifts are on the Shifts tab (`/shifts`). Server-rendered; only "Can't
 // make it?", "Offered to you" and the home screen hint are client components.
+//
+// Phase 30.1 (docs/screens.md "### 30.1"): Home is her dashboard. Under "Hi Zoe" the date line
+// ("Friday 6 November · Updated 15:38", the time online only) and her counts in the office's chips
+// (src/app/home/home-counts.tsx); the pass gets a line ("Starts in 70 hours · 8 hours · about
+// £108.00 before tax") and a bar filling over the last 7 days; then, in this order on a phone:
+// "Do this", "Offered to you" (still above "Shifts you can take", as 28.15 has it), "Your
+// qualifications", "Your week", "Shifts you can take" (its count beside its heading), "Updates",
+// "Pay" and "Your record" (src/app/home/*). From 1024px a
+// 12-column grid (page.staffWide): the pass 7 columns beside the qualifications' 5; the week,
+// shifts you can take and updates 4 each; pay and the record 6 each; "Do this" and "Offered to you"
+// the whole width. The grid packs densely, so a full-width section never leaves a hole beside the
+// one before it. Every figure is worked out by code (src/lib/portal/home-board.ts, home-week.ts).
 
 export interface HomeViewProps {
   firstName: string;
@@ -68,40 +96,100 @@ export interface HomeViewProps {
   // The office's latest "Mark as sorted" for her: a need it has in hand isn't in "Do this"
   // (src/lib/portal/in-hand.ts, as on Profile).
   sortedMark?: SortedMark | null;
+  // Phase 30.1: the dashboard's parts, each worked out by the page from her own rows. Left out by
+  // the older pages' own fixtures (only the sections they test are shown).
+  board?: HomeBoard;
 }
 
-const time = (d: Date, tz: string) => {
-  const w = wallTimeOf(d, tz);
-  return `${String(w.hour).padStart(2, "0")}:${String(w.minute).padStart(2, "0")}`;
-};
+export interface HomeBoard {
+  pills: CountPill[];
+  quals: QualRow[];
+  weeks: WeekRow[];
+  updates: UpdateRow[];
+  record: RecordFigure[];
+}
 
 export function HomeView(props: HomeViewProps) {
-  const { firstName, timeZone, now } = props;
+  const { firstName, timeZone, now, board, next } = props;
   // The kept copy can be opened days later, so what it says about itself carries the day too.
   const savedAt = timeOnDay(now, timeZone);
   return (
     <>
-      <PageHeader title={`Hi ${firstName}`} updated={`Updated ${time(now, timeZone)}`} />
+      <PageHeader title={`Hi ${firstName}`}>
+        <p data-date-line="" className="text-base text-ink-muted">
+          {dateLineText(now, timeZone)}
+          <span data-online-only="">
+            {" · "}
+            <span className="tabular-nums">{updatedText(now, timeZone)}</span>
+          </span>
+        </p>
+      </PageHeader>
+      {/* The counts in a block of their own (the page's width, never their own), 12px under the
+          date line, so their row scrolls inside itself and never widens the page. */}
+      {board && (
+        <div className="-mt-3 mb-6">
+          <HomeCounts pills={board.pills} />
+        </div>
+      )}
       <div className="flex flex-col gap-8">
         <OfflineNotice updated={savedAt} />
-        {props.next ? <NextPass shift={props.next} timeZone={timeZone} now={now} /> : <EmptyPass />}
-        <DoThis {...props} />
-        {props.offers && props.offers.length > 0 && (
-          <OfferedToYou
-            offers={props.offers.map((o) => ({
-              offerId: o.offerId,
-              shiftId: o.shiftId,
-              afterNo: o.afterNo,
-              day: dateParts(o.startsAt, timeZone),
-              text: offerRowText(o, now, timeZone), // with what she can do now (o.take)
-            }))}
-          />
-        )}
-        <ShiftsYouCanTake {...props} savedAt={savedAt} />
-        <PaySection pay={props.pay} />
+        <div className="flex flex-col gap-8 lg:grid lg:grid-flow-row-dense lg:grid-cols-12 lg:items-start lg:gap-6">
+          <div className="lg:col-span-7">
+            {next ? (
+              <NextPass
+                shift={next}
+                timeZone={timeZone}
+                now={now}
+                extra={board ? <NextLine shift={next} now={now} /> : undefined}
+              />
+            ) : (
+              <EmptyPass />
+            )}
+          </div>
+          <DoThis {...props} />
+          {/* Her offers stay above "Shifts you can take" (28.15), on a phone and in the grid. */}
+          {props.offers && props.offers.length > 0 && (
+            <div className="lg:col-span-12">
+              <OfferedToYou
+                offers={props.offers.map((o) => ({
+                  offerId: o.offerId,
+                  shiftId: o.shiftId,
+                  afterNo: o.afterNo,
+                  day: dateParts(o.startsAt, timeZone),
+                  text: offerRowText(o, now, timeZone), // with what she can do now (o.take)
+                }))}
+              />
+            </div>
+          )}
+          {board && <HomeQualifications rows={board.quals} className="lg:col-span-5" />}
+          {board && <HomeWeek weeks={board.weeks} className="lg:col-span-4" />}
+          <ShiftsYouCanTake {...props} savedAt={savedAt} />
+          {board && <HomeUpdates rows={board.updates} className="lg:col-span-4" />}
+          <PaySection pay={props.pay} />
+          {board && <HomeRecord figures={board.record} className="lg:col-span-6" />}
+        </div>
       </div>
       <HomeScreenHint />
     </>
+  );
+}
+
+// The pass's line under the role (Phase 30.1): how soon (online only: it goes stale) with its bar
+// filling over the last 7 days, how long, and the pay estimate (the booked shift page's own sum).
+function NextLine({ shift, now }: { shift: MyShift; now: Date }) {
+  const line = nextShiftLine(shift, now);
+  return (
+    <div data-next-line="" className="mt-3 flex flex-col gap-2">
+      {line.startsIn && (
+        <span data-online-only="" className="block">
+          <Bar fill={line.fill} tone="brand" />
+        </span>
+      )}
+      <p className="text-base text-ink-muted tabular-nums">
+        {line.startsIn && <span data-online-only="">{`${line.startsIn} · `}</span>}
+        {line.facts}
+      </p>
+    </div>
   );
 }
 
@@ -116,25 +204,35 @@ function Section({
   title,
   leaf,
   extra,
+  count,
+  className = "",
   children,
 }: {
   id: string;
   title: string;
   leaf?: string; // the leaf's colour class
   extra?: Record<string, string>;
+  // Phase 30.1: the office's count pill beside the heading (outside the <h2>), online only.
+  count?: number;
+  className?: string; // its place in Home's grid from 1024px
   children: ReactNode;
 }) {
   return (
     <section
       {...extra}
       aria-labelledby={`${id}-heading`}
-      className="glass animate-in rounded-inner p-4"
+      className={`glass animate-in rounded-inner p-4 ${className}`}
     >
       <div className="flex items-center gap-3 px-1">
         {leaf && <Icon name="leaf" size={18} className={leaf} />}
         <h2 id={`${id}-heading`} className={staffH2}>
           {title}
         </h2>
+        {count !== undefined && (
+          <span data-online-only="" className={countPill}>
+            {count}
+          </span>
+        )}
       </div>
       <ul role="list" className={`${headingGap} flex flex-col gap-2`}>
         {children}
@@ -223,6 +321,7 @@ function DoThis({ timeZone, now, needs, photo, reach = [], sortedMark = null }: 
       id="do-this"
       title="Do this"
       leaf="text-attention-ink"
+      className="lg:col-span-12"
       extra={need ? undefined : { "data-online-only": "" }}
     >
       {need && (
@@ -275,6 +374,7 @@ function ShiftsYouCanTake({
   open,
   savedAt,
   reach = [],
+  board,
 }: HomeViewProps & { savedAt: string }) {
   const urgent = open.shifts.filter((s) => s.isUrgent);
   const rest = open.shifts.filter((s) => !s.isUrgent);
@@ -283,7 +383,12 @@ function ShiftsYouCanTake({
   const urgentDay = soonest(urgent, timeZone);
   const restDay = soonest(rest, timeZone);
   return (
-    <Section id="can-take" title="Shifts you can take">
+    <Section
+      id="can-take"
+      title="Shifts you can take"
+      count={board ? open.shifts.length : undefined}
+      className="lg:col-span-4"
+    >
       {urgent.length > 0 && urgentDay && (
         <Row
           kind="urgent"
@@ -322,7 +427,7 @@ function ShiftsYouCanTake({
 // "Pay": the Friday this week's shifts are paid (D8), to Pay.
 function PaySection({ pay }: { pay: MyPayDay }) {
   return (
-    <Section id="pay" title="Pay">
+    <Section id="pay" title="Pay" className="lg:col-span-6">
       <Row
         kind="pay"
         href="/pay"

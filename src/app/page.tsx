@@ -2,6 +2,10 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireWorker } from "@/lib/auth/current-worker";
 import { appEnv, offlineCopyOn } from "@/lib/env";
+import { countPills, qualificationRows, recordFigures, updateRows } from "@/lib/portal/home-board";
+import { needsCount } from "@/lib/portal/home-copy";
+import { homeWeek } from "@/lib/portal/home-week";
+import { myHome, urgentCount } from "@/lib/portal/my-home";
 import { myOffers } from "@/lib/portal/my-offers";
 import { myNeedsAndPhoto, myShifts } from "@/lib/portal/my-shifts";
 import { openShiftsFor } from "@/lib/portal/open-shifts";
@@ -10,6 +14,7 @@ import { mySortedMark } from "@/lib/portal/profile";
 import { myReachPrompts } from "@/lib/portal/reach-me";
 import { tabCounts } from "@/lib/portal/tab-counts";
 import { parseHost } from "@/lib/tenancy/host";
+import { localDateOf } from "@/lib/time/zoned";
 import { CountedTabBar } from "./casual-tab-bar";
 import { HomeView } from "./home-view";
 import { OfflineCopy } from "./offline-copy";
@@ -27,6 +32,13 @@ import { page } from "./ui/classes";
 // you" rows (src/lib/portal/reach-me.ts), online only. Phase 28.15: her offers still open to her
 // ("Offered to you", src/lib/portal/my-offers.ts), and the office's latest "Mark as sorted", so a
 // need it has in hand leaves "Do this" as it does on Profile.
+//
+// Phase 30.1 (docs/screens.md "### 30.1"): Home is her dashboard, on page.staffWide. Its counts are
+// the pages' own: Booked her upcoming bookings (as /shifts), Open to you the shifts she can take (as
+// /shifts/open), Urgent the urgent ones (as /urgent: src/lib/portal/my-home.ts urgentCount), To do
+// what "Do this" stands for, Messages the office's replies she hasn't read (the tab bar's). Her
+// qualifications, record, latest updates and week come from Profile's, her shift record's and
+// Booked's own loaders (myHome). Her own rows only, inside her firm.
 export default async function Home({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const match = parseHost((await headers()).get("host"), appEnv().APP_BASE_DOMAIN);
   if (match && match.kind !== "apex") {
@@ -43,9 +55,45 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
       myOffers({ firm, clock }, worker.id),
       mySortedMark({ firm }, worker.id),
     ]);
-    const pay = await myPayDay({ firm, clock }, worker.id);
+    const [pay, home, urgent] = await Promise.all([
+      myPayDay({ firm, clock }, worker.id),
+      myHome({ firm, clock }, worker.id, upcoming),
+      urgentCount({ firm, clock }, worker.id, open),
+    ]);
+    const today = localDateOf(now, firm.timezone);
+    const year = Number(today.slice(0, 4));
+    const board = {
+      pills: countPills({
+        booked: upcoming.length,
+        open: open.shifts.length,
+        urgent,
+        todo: needsCount(needs.needs, needs.photo, year, sortedMark) + reach.length,
+        messages: counts.replies,
+      }),
+      quals: qualificationRows({
+        qualifications: home.profile?.qualifications ?? [],
+        others: home.profile?.others ?? [],
+        photo: home.profile?.photo ?? needs.photo,
+        rightToWork: home.profile?.rightToWork ?? {
+          checked: false,
+          checkedOn: null,
+          expired: false,
+        },
+        today,
+      }),
+      weeks: homeWeek(now, firm.timezone, home.week, open.shifts),
+      updates: updateRows(home.updates, now, firm.timezone),
+      record: recordFigures(
+        home.profile?.reliability ?? {
+          kind: "new",
+          counted: 0,
+          counts: { worked: 0, noShows: 0, lateCancels: 0 },
+        },
+        home.strikes,
+      ),
+    };
     return (
-      <main className={page.staff}>
+      <main className={page.staffWide}>
         <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
         <OfflineCopy enabled={offlineCopyOn(appEnv())} renderedAt={now.getTime()} />
         <HomeView
@@ -62,6 +110,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
           reach={reach}
           offers={offers}
           sortedMark={sortedMark}
+          board={board}
         />
         <CountedTabBar current="home" counts={counts} />
       </main>

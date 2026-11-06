@@ -148,7 +148,7 @@ export function HelpView({
             see its details.
           </li>
           <li>
-            Tap <Name>Past 30 days</Name> to see shifts you&apos;ve worked. Tap{" "}
+            Tap <Name>Past 90 days</Name> to see shifts you&apos;ve worked. Tap{" "}
             <Name>Upcoming</Name> to go back.
           </li>
         </Points>

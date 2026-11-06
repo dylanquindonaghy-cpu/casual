@@ -22,7 +22,7 @@ import { page } from "./ui/classes";
 // (docs/office-v2.md 4.2; docs/screens.md, `/`; 12H.1). Any host that isn't the base domain is a
 // firm's page: requireWorker() finds the firm (a name that isn't a firm's, or a custom domain not
 // verified, is the 404 page). Her bookings are on the Shifts tab (`/shifts`): the old address of
-// the last 30 days, `/?view=past`, goes there. Kept for when there's no signal (public/sw.js). Phase
+// the last 90 days, `/?view=past`, goes there. Kept for when there's no signal (public/sw.js). Phase
 // 28.7: the tab bar's counts from tabCounts(), as on every casual page, and the two "can we reach
 // you" rows (src/lib/portal/reach-me.ts), online only. Phase 28.15: her offers still open to her
 // ("Offered to you", src/lib/portal/my-offers.ts), and the office's latest "Mark as sorted", so a

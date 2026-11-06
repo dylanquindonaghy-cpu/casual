@@ -199,7 +199,7 @@ office has checked it."
    26 hours. Cancelling with less than 48 hours' notice gives you a strike. Acme Events' strikes
    team gets a record of it. You have 0 strikes."; "Why can't you make it?" (I'm unwell, Travel
    problem, Family or caring, Something else); a solid red "Confirm cancellation"; "Keep this
-   shift"; "Your cancellation is recorded the moment you confirm. Nobody needs to approve it."
+   shift"; "Your cancellation is recorded the moment you tap Cancel this shift. Nobody needs to approve it."
 4. **Profile:** "My profile" ("To change your name or number, ask the office."); Staff photo
    ("Last uploaded 3 Aug 2024", due for renewal, "The office checks it before it shows on your
    pass.", "Upload a new photo"); Qualifications (SIA door supervisor "checked on the SIA register 1
@@ -1057,7 +1057,7 @@ the menu.
    (with a note of up to 200 characters), as today (`src/lib/portal/cancel-reasons.ts`).
 4. **Buttons:** "Confirm cancellation" (solid, using the new `--urgent-fill` colour) and "Keep this
    shift".
-5. **Footer:** "Your cancellation is recorded the moment you confirm. Nobody needs to approve it."
+5. **Footer:** "Your cancellation is recorded the moment you tap Cancel this shift. Nobody needs to approve it."
 6. **After confirming:** the reference, whether a strike was recorded and until when, and "Tell us
    what happened" (a `review` request about that booking, its reference filled in: 3.5).
 
@@ -1812,7 +1812,7 @@ AI answer.
   (`STRIKE_WARNING_WORDS`); a booking records the version it was confirmed under.
 - **Exempt:** "The office booked or changed this shift, so cancelling doesn't give you a strike."
 - **Enough notice:** "This shift starts in {5} days. Cancelling now doesn't give you a strike."
-- **Footer:** "Your cancellation is recorded the moment you confirm. Nobody needs to approve it."
+- **Footer:** "Your cancellation is recorded the moment you tap Cancel this shift. Nobody needs to approve it."
 - **Done:** "Cancelled. Reference {ref}. A strike has been recorded. It counts until {date}." or
   "Cancelled. Reference {ref}. No strike." Then: "If something stopped you, tell us what happened."
 

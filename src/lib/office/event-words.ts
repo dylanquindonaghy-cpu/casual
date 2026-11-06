@@ -489,6 +489,9 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `Offers still waiting were closed: ${String(d.filledElsewhere ?? 0)} filled by someone else${
         Number(d.accepted ?? 0) > 0 ? `, ${String(d.accepted)} taken by the people placed` : ""
       }.`;
+    // Phase 28.15: her "No thanks" on Home. The offer shows "Said no" (offer-state.ts).
+    case "offer.declined":
+      return `${worker} said no to the offer.`;
     // Phase 28.2: shown to the office to plan cover, with no effect on anything.
     case "shift.still_coming":
       return `${worker} said they're still coming.`;

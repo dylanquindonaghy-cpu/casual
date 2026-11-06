@@ -94,7 +94,7 @@ export const staffBtnInline =
 export const staffBtnSmall =
   "press-glass glass-button flex min-h-13 items-center justify-center rounded-full px-3 py-2 text-center text-base font-semibold text-ink hover:bg-button-hover";
 
-// A two-way switch's track (Open | Booked, Upcoming | Past 30 days on the Shifts tab): two halves
+// A two-way switch's track (Open | Booked, Upcoming | Past 90 days on the Shifts tab): two halves
 // on a glass track with the glass's hairline (Phase 28, as the office's tabs), the current one
 // under a lens (src/app/my-shifts-view.tsx Toggle).
 export const switchTrack = "glass-track glass-rim grid grid-cols-2 gap-1 rounded-full p-1";
@@ -261,7 +261,7 @@ export const disc = {
 // in the rows above or below it.
 export const rowLead = "flex w-13 shrink-0 justify-center";
 
-// The one empty state ("No shifts in the last 30 days.", "No messages yet."): clear glass, 8px
+// The one empty state ("No shifts in the last 90 days.", "No messages yet."): clear glass, 8px
 // round, its sentence in grey (and any way on under it, a link or a button), as the office's empty
 // cards (Phase 17's dashed frames are gone).
 export const emptyBox =

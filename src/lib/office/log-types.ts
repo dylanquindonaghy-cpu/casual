@@ -84,6 +84,8 @@ export const LOG_TYPES = {
       "offer.wave_held",
       "offer.waves_stopped",
       "offer.closed",
+      // Phase 28.15: a casual's "No thanks" to an offer on Home ({offerId, shiftId, workerId}).
+      "offer.declined",
     ],
   },
   messages: {

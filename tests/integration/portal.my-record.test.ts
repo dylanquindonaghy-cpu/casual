@@ -247,7 +247,7 @@ describe("Your shift record", () => {
       ],
     });
     // Nothing of the place she left (who took it, its new booking).
-    expect(JSON.stringify(r)).not.toContain("4444");
+    expect(JSON.stringify(r)).not.toContain("44444444-4444-4444-8444-444444444444");
     // Ben sees his two; the other firm's casual only their own; Ann, asked for through the other
     // firm, nothing at all (RLS: the other firm's entry naming her id is the other firm's).
     expect((await t.record(t.ben)).rows.map((x) => [x.kind, x.by, x.noticeHours])).toEqual([

@@ -29,6 +29,14 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/",
 }));
 
+// The firm's rules for taking shifts on Help (28.12): the defaults, first come, first served.
+const HELP_RULES = {
+  allocation: { mode: "first_come_first_served", waveMinutes: 15 },
+  rest: { minRestHours: 11, weeklyHoursCap: 48 },
+  urgentWindowHours: 24,
+  quiet: { start: "22:00", end: "07:00", urgentOverride: true },
+} as const;
+
 // No WhatsApp and no texts, in any case.
 const NAMES_A_TEXT = /whatsapp|\btext(s| message)\b/i;
 
@@ -143,7 +151,7 @@ describe("the Pay code step", () => {
 });
 
 describe("Help", () => {
-  const help = (loginWay: LoginWay) =>
+  const help = (loginWay: LoginWay, pushOn = true) =>
     text(
       createElement(HelpView, {
         firmName,
@@ -154,6 +162,8 @@ describe("Help", () => {
           strikesOn: true,
           travelOn: true,
           loginWay,
+          pushOn,
+          rules: HELP_RULES,
         },
         year: 2026,
       }),
@@ -185,10 +195,17 @@ describe("Help", () => {
     );
   });
   it("with no text sender, the profile line has no channel to choose", () => {
+    // 28.12: "How we reach you" is a fold on Profile now, so Help says to open it first.
     for (const way of ["email", "off"] as const) {
       expect(help(way)).toContain(
-        "How we reach you : choose whether to hear about open shifts, and turn on notifications on this phone. Then tap Save settings .",
+        "Tap How we reach you to open it. Then choose whether to hear about open shifts, and turn on notifications on this phone. Tap Save settings .",
       );
+      // 28.12: with no phone notifications (no key), Profile hides that setting, so Help doesn't
+      // name it.
+      expect(help(way, false)).toContain(
+        "Tap How we reach you to open it. Then choose whether to hear about open shifts. Tap Save settings .",
+      );
+      expect(help(way, false)).not.toContain("notifications on this phone");
     }
   });
 });
@@ -320,6 +337,8 @@ describe("with no text sender, no casual screen names WhatsApp or texts", () => 
           strikesOn: true,
           travelOn: true,
           loginWay: way,
+          pushOn: true,
+          rules: HELP_RULES,
         },
         year: 2026,
       }),

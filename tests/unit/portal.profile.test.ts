@@ -582,8 +582,10 @@ describe("Profile, shorter and clearer (28.11)", () => {
     expect(page.indexOf("My requests")).toBeLessThan(page.indexOf("Your details"));
     expect(page.indexOf("Help")).toBeLessThan(page.indexOf("Your details"));
     expect(page).toContain(
-      "My requests What you've asked the office, and their answers Help How booking, cancelling and pay work Your details",
+      "My requests What you've asked the office, and their answers Your shift record Every offer, booking, change and cancellation, with the notice you had Help How booking, cancelling and pay work Your details",
     );
+    // Her shift record (28.4), a row here since 28.13.
+    expect(html).toMatch(/<a [^>]*href="\/shifts\/record"/);
     expect(html).toMatch(/<a [^>]*href="\/requests"/);
     expect(html).toMatch(/<a [^>]*href="\/help"/);
     expect(page.trim().endsWith("Log out")).toBe(true);
@@ -614,10 +616,11 @@ describe("Profile, shorter and clearer (28.11)", () => {
     expect(page).toContain("Your travel area From ZZ1 1AA · up to 45 minutes by car");
     expect(page).toContain("Days you can't work 1 day marked");
     expect(page).toContain("How we reach you Open-shift alerts off");
-    // Each heading sits in its fold's summary: the section keeps its name from it.
+    // Each heading sits straight in its fold's summary (never inside a span: 28.16): the section
+    // keeps its name from it.
     for (const id of ["travel-heading", "days-heading", "notify-heading"]) {
       expect(html).toContain(`aria-labelledby="${id}"`);
-      expect(html).toMatch(new RegExp(`<summary[^>]*><span[^>]*><h2 id="${id}"`));
+      expect(html).toMatch(new RegExp(`<summary[^>]*><h2 id="${id}"`));
     }
     expect(text(renderWith(profile()))).toContain("Days you can't work No days marked");
     const two = profile({

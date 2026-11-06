@@ -193,7 +193,8 @@ describe("the warning on the cancel step", () => {
 
   it("the footer and the done screen", () => {
     expect(CANCEL_FOOTER).toBe(
-      "Your cancellation is recorded the moment you confirm. Nobody needs to approve it.",
+      // 28.12: the footer names the button, word for word.
+      "Your cancellation is recorded the moment you tap Cancel this shift. Nobody needs to approve it.",
     );
     expect(cancelledText("3F2A9C1B", { until: "Sun 31 Jan" })).toBe(
       "Cancelled. Reference 3F2A9C1B. A strike has been recorded. It counts until Sun 31 Jan.",

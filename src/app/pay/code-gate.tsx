@@ -24,7 +24,7 @@ type Notice =
 // The code field: the staff field made bigger, with spaced-out digits that line up, 8px round as
 // every field (Phase 28). Red edge while the code isn't right.
 const codeField =
-  "mt-2 min-h-14 w-full glass-tile rounded-row border-2 border-transparent px-4 py-3 text-2xl font-normal tracking-widest text-ink tabular-nums hover:border-line-strong aria-invalid:border-urgent";
+  "mt-2 min-h-14 w-full glass-tile rounded-row border border-transparent px-4 py-3 text-2xl font-normal tracking-widest text-ink tabular-nums hover:border-line-strong aria-invalid:border-urgent";
 
 // "To keep your pay private, we'll text you a 6‑digit code." Plain words throughout (no "OTP"), with
 // "6‑digit" never split across two lines (src/lib/portal/pay-copy.ts). The words follow how the

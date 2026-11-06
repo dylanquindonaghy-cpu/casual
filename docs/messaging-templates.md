@@ -256,7 +256,8 @@ offer's and the office offer's SMS versions are built so far; the others come wi
 
 When a casual's phones take no push and no text can go (decision 15), a message goes by email to the
 address the firm holds for them. Each email's body is the message's own words, as in the WhatsApp
-templates above, the same in an email; only the subject is new. Signed like every message. As built
+templates above, the same in an email; only the subject is new (the reminders' bodies add one
+line since Phase 28.14, below). Signed like every message. As built
 it comes from the app's one sending address (`SMTP_FROM`: a bare address with no display name, so
 never a person's name), not one per firm (PLAN.md Parking lot, P2.4).
 
@@ -264,8 +265,15 @@ never a person's name), not one per firm (PLAN.md Parking lot, P2.4).
 - Urgent offer (`shift_urgent`): subject "URGENT: a {role} needed {day}" ({role} with its "a" or
   "an" in the message, plain here: "URGENT: a door supervisor needed today")
 - Booking confirmation (`shift_confirmed`): subject "Confirmed: your shift on {date}"
-- Reminder, the day before (`shift_reminder_24h`): subject "Reminder: your shift {day}"
-- Reminder, 2 hours before (`shift_reminder_2h`): subject "Your shift starts at {start}"
+- Reminder, the day before (`shift_reminder_24h`): subject "Reminder: your shift {day}"; body
+  "Reminder: {day} {start}–{end} at {site}. Details: {link}. Tap to say you're coming. Can't make
+  it? Cancel with the link as early as you can. — {firm} Shift Team" (Phase 28.14: the WhatsApp
+  template's words with the push's line "Tap to say you're coming." after the link, which opens
+  the shift's page and its "Still coming?"; built: `shiftReminder24hEmail()`; "at {site}" left out
+  when there's none. The WhatsApp and text reminders keep their approved words)
+- Reminder, 2 hours before (`shift_reminder_2h`): subject "Your shift starts at {start}"; body "Your
+  shift at {site} starts at {start}. Meeting point and instructions: {link}. Tap to say you're
+  coming. — {firm} Shift Team" (Phase 28.14, the same; built: `shiftReminder2hEmail()`)
 - The office's change (`shift_changed_by_firm`): subject "Change to your shift on {date}"
 - The office's cancellation (`shift_cancelled_by_firm`): subject "Your shift on {date} is cancelled"
 - A booked shift's details changed (`shift_details_changed`, Phase 28.3; not a WhatsApp template:
@@ -409,9 +417,11 @@ app has its own way to the office: `forTheApp()`). Nothing goes by WhatsApp, tex
   offer to the worker's subscribed phones, `urgentPush()`; tapping opens the shift. Console
   transport until real web push is connected)
 - Filled: "Shift filled" / "That one's gone. See other open shifts."
-- Reminder: "Tomorrow: {site}" / "{start}–{end}. Tap for instructions." (24 h); "Today: {site}" /
-  "Starts at {start}. Tap for instructions." (2 h). {Day} is "Tomorrow" or "Today"; no site:
-  "your shift". Built: sent with each reminder, `reminderPush()`; tapping opens the shift.
+- Reminder: "Tomorrow: {site}" / "{start}–{end}. Tap to say you're coming." (24 h); "Today: {site}" /
+  "Starts at {start}. Tap to say you're coming." (2 h). {Day} is "Tomorrow" or "Today"; no site:
+  "your shift". Built: sent with each reminder, `reminderPush()`; tapping opens the shift, where
+  "Still coming?" waits (Phase 28.14: it ended "Tap for instructions." before; the shift's page
+  still has them). Saying so is one tap on the page, never a reply to the push
 - Shift changed: "Shift changed" / "{date}: {change}. Tap to see it." Shift cancelled: "Shift
   cancelled" / "{date} {start} was cancelled by the office." (built: `firmChangePush()`, with the
   office's change notices)

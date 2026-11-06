@@ -626,6 +626,27 @@ export function shiftReminder2hMessage(
   return `Your shift${at} starts at ${shift.start}. Meeting point and instructions: ${shift.link}. — ${firm.signOff}`;
 }
 
+// The reminders by email (docs/messaging-templates.md "Email to casuals"; Phase 28.14): the
+// WhatsApp template's words with the push's line after the link, which opens the shift's page and
+// its "Still coming?". The WhatsApp and text reminders above keep their approved words.
+export const STILL_COMING_LINE = "Tap to say you're coming.";
+
+export function shiftReminder24hEmail(
+  firm: FirmVoice,
+  shift: { site: string | null; day: string; start: string; end: string; link: string },
+): string {
+  const at = shift.site ? ` at ${shift.site}` : "";
+  return `Reminder: ${shift.day} ${shift.start}–${shift.end}${at}. Details: ${shift.link}. ${STILL_COMING_LINE} Can't make it? Cancel with the link as early as you can. — ${firm.signOff}`;
+}
+
+export function shiftReminder2hEmail(
+  firm: FirmVoice,
+  shift: { site: string | null; start: string; link: string },
+): string {
+  const at = shift.site ? ` at ${shift.site}` : "";
+  return `Your shift${at} starts at ${shift.start}. Meeting point and instructions: ${shift.link}. ${STILL_COMING_LINE} — ${firm.signOff}`;
+}
+
 // shift_escalation (email to the office's admins and resourcers): an urgent shift still unfilled
 // at the firm's escalation time.
 export function shiftEscalationEmail(
@@ -828,7 +849,8 @@ export function urgentPush(shift: {
 }
 
 // Push (title / body), docs/messaging-templates.md "Push": a shift reminder. {day} is "tomorrow"
-// or "today".
+// or "today". Since Phase 28.14 it ends "Tap to say you're coming.": tapping opens the shift's page,
+// where "Still coming?" waits (one tap there, never a reply).
 export function reminderPush(shift: {
   kind: "24h" | "2h";
   site: string | null;
@@ -841,8 +863,8 @@ export function reminderPush(shift: {
     title: `${Day}: ${shift.site ?? "your shift"}`,
     body:
       shift.kind === "24h"
-        ? `${shift.start}–${shift.end}. Tap for instructions.`
-        : `Starts at ${shift.start}. Tap for instructions.`,
+        ? `${shift.start}–${shift.end}. ${STILL_COMING_LINE}`
+        : `Starts at ${shift.start}. ${STILL_COMING_LINE}`,
   };
 }
 

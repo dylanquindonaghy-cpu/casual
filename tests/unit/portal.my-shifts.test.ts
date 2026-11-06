@@ -4,11 +4,29 @@ import { describe, expect, it, vi } from "vitest";
 import { HomeView, type HomeViewProps } from "@/app/home-view";
 import { BookedView, type BookedViewProps } from "@/app/shifts/booked-view";
 import { TabBar } from "@/app/tab-bar";
-import { disc, staffBtn, staffH2, switchTrack, tag } from "@/app/ui/classes";
+import {
+  disc,
+  emptyBox,
+  slip,
+  staffBtn,
+  staffH2,
+  switchTrack,
+  tab,
+  tabCount,
+  tabCurrent,
+  tabs,
+  tag,
+} from "@/app/ui/classes";
+import { factCard } from "@/app/shifts/shift-parts";
 import { payWords, roleAndEvent } from "@/lib/portal/format";
 import type { OpenShift, OpenShiftsList } from "@/lib/portal/open-shifts";
 import { isOnNow, mapLink, roleLabel, shiftWhen, siteAddress } from "@/lib/portal/format";
 import type { MyShift } from "@/lib/portal/my-shifts";
+import {
+  ATTENDANCE_SAID_LABELS,
+  attendanceOutcomeText,
+  MARK_WORDS,
+} from "@/lib/portal/request-kinds";
 import { EVERY_LEVEL } from "../helpers/qualifications";
 
 // Home (`/`), Booked (`/shifts`) and the tab bar (docs/screens.md; docs/office-v2.md 4.1-4.2; 12H.1):
@@ -174,19 +192,31 @@ describe("Home and Booked: the empty pages", () => {
       "No shifts right now Check back later.",
     );
   });
-  it("Booked is on the Shifts tab: Open | Booked, then Upcoming | Past 30 days at /shifts", () => {
-    const html = render({});
+  it("Booked is on the Shifts tab: Open | Booked, then Upcoming | Past 90 days as tabs with counts at /shifts", () => {
+    const html = render({ counts: { upcoming: 0, past: 3 } });
     expect(text(html)).toContain("Booked shifts");
+    // Phase 28.13: the headline through PageHeader, "Updated 09:00" beside it (online only); no
+    // stamp line of its own under it.
+    expect(html).toMatch(
+      /<h1 class="text-title [^"]*">Booked shifts<\/h1><small data-updated-slot="" data-online-only="" class="[^"]*">Updated 09:00<\/small>/,
+    );
+    expect(html).not.toMatch(/<p class="[^"]*">Updated /);
     expect(html).toMatch(/<a[^>]*href="\/shifts\/open"[^>]*>Open<\/a>/);
     expect(html).toMatch(/<a[^>]*aria-current="page"[^>]*>Booked<\/a>/);
-    expect(html).toMatch(/<a[^>]*aria-current="page"[^>]*>Upcoming<\/a>/);
-    expect(html).toContain('href="/shifts?view=past"');
-    expect(text(html)).toContain("No shifts booked yet.");
-    expect(text(html)).toContain("See all open shifts");
-    // Both switches in the one shared pale track (Phase 17), the Open | Booked one first.
+    // Open | Booked stays the full-width switch; Upcoming | Past 90 days are the office's tabs,
+    // each with its count, Past's online only (the kept copy is Upcoming's).
     expect(html).toContain(`<nav aria-label="Open or booked" class="mb-4 ${switchTrack}">`);
-    expect(html).toContain(`<nav aria-label="Which shifts" class="${switchTrack}">`);
-    expect(html.split(switchTrack)).toHaveLength(3);
+    expect(html.split(switchTrack)).toHaveLength(2);
+    expect(html).toContain(
+      `<nav aria-label="Which shifts" class="${tabs}"><a aria-current="page" class="${tabCurrent}" href="/shifts">Upcoming<span class="${tabCount(true)}">0</span></a><a class="${tab}" href="/shifts?view=past">Past 90 days<span data-online-only="" class="${tabCount(false)}">3</span></a></nav>`,
+    );
+    // Nothing booked: the shared empty box, then "See open shifts" (one name since 28.7).
+    expect(html).toContain(`<p class="${emptyBox} mt-6">No shifts booked yet.</p>`);
+    expect(html).toMatch(
+      /<a class="[^"]*(?<![\w-])glass-tint(?![\w-])[^"]*" href="\/shifts\/open">See open shifts<\/a>/,
+    );
+    expect(text(html)).not.toContain("See all open shifts");
+    expect(html).not.toMatch(/rounded-\[|rounded-[23]xl/);
   });
 });
 
@@ -277,29 +307,85 @@ describe("Booked: the bookings themselves", () => {
       1,
     );
   });
-  it("shows the last 30 days with what happened, or says there's nothing", () => {
+  it("shows the last 90 days with each shift's hours and mark, opening to what she can do, or says there's nothing", () => {
     const worked = shift({
+      shiftId: "11111111-1111-4111-8111-111111111111",
       startsAt: at("2026-10-31T14:00:00Z"),
       endsAt: at("2026-10-31T22:00:00Z"),
       status: "completed",
+      site: {
+        name: "Demo Arena",
+        addressLine1: null,
+        addressLine2: null,
+        town: null,
+        postcode: null,
+      },
     });
     const missed = shift({
-      startsAt: at("2026-10-20T14:00:00Z"),
-      endsAt: at("2026-10-20T22:00:00Z"),
+      shiftId: "22222222-2222-4222-8222-222222222222",
+      startsAt: at("2026-09-20T14:00:00Z"),
+      endsAt: at("2026-09-20T20:30:00Z"),
       status: "no_show",
     });
     const unmarked = shift({
-      startsAt: at("2026-10-10T14:00:00Z"),
-      endsAt: at("2026-10-10T22:00:00Z"),
+      shiftId: "33333333-3333-4333-8333-333333333333",
+      startsAt: at("2026-08-10T14:00:00Z"),
+      endsAt: at("2026-08-10T22:00:00Z"),
     });
-    const html = render({ view: "past", shifts: [worked, missed, unmarked] });
+    const html = render({
+      view: "past",
+      shifts: [worked, missed, unmarked],
+      counts: { upcoming: 2, past: 3 },
+    });
     const words = text(html);
-    expect(words).toContain("The last 30 days");
-    expect(words).toContain("Worked");
-    expect(words).toContain("Marked as not attended");
-    expect(words).toContain("Booked");
-    expect(html).toMatch(/<a[^>]*aria-current="page"[^>]*>Past 30 days<\/a>/);
-    expect(text(render({ view: "past" }))).toContain("No shifts in the last 30 days.");
+    expect(words).toContain("The last 90 days");
+    // The current tab is Past 90 days, its count online only.
+    expect(html).toContain(
+      `<a aria-current="page" class="${tabCurrent}" href="/shifts?view=past">Past 90 days<span data-online-only="" class="${tabCount(true)}">3</span></a>`,
+    );
+    // Her shift record at the top (28.4), before the list.
+    expect(html.indexOf('href="/shifts/record"')).toBeLessThan(html.indexOf("The last 90 days"));
+    expect(words).toContain(
+      "Your shift record Every offer, booking, change and cancellation, with the notice you had",
+    );
+    // Each row: when, role at site, hours booked and the mark (unmarked in grey).
+    const rows = html.split("<details>").slice(1);
+    expect(rows).toHaveLength(3);
+    expect(text(rows[0] ?? "")).toContain(
+      "Sat 31 Oct, 14:00 to 22:00 Door supervisor at Demo Arena 8 hours Worked",
+    );
+    expect(text(rows[1] ?? "")).toContain("6.5 hours Marked as not attended");
+    expect(text(rows[2] ?? "")).toContain("8 hours Not marked yet");
+    expect(rows[0]).toMatch(/bg-done-soft text-done-ink"><svg[\s\S]*?<\/svg>Worked</);
+    expect(rows[1]).toMatch(
+      /bg-urgent-soft text-urgent-ink"><svg[\s\S]*?<\/svg>Marked as not attended</,
+    );
+    expect(rows[2]).toMatch(/bg-quiet-soft text-ink-muted"><svg[\s\S]*?<\/svg>Not marked yet</);
+    // An unmarked one no longer reads "Booked" (it read as still to come).
+    expect(rows.join("")).not.toMatch(/>Booked</);
+    // Opened: the actions, online only. A marked row can be questioned; the pay question goes to
+    // payroll's pay query with the shift chosen (golden rule 9); every row links to the record.
+    for (const row of rows) {
+      expect(row).toMatch(/<div data-online-only="" data-past-actions="" class="[^"]*">/);
+    }
+    expect(text(rows[0] ?? "")).toContain(
+      "Think this mark is wrong? Tell the office Ask about the pay for this shift See it in your shift record",
+    );
+    expect(rows[0]).toContain(
+      `href="/requests/new?shift=${worked.shiftId}&amp;kind=attendance">Tell the office</a>`,
+    );
+    expect(rows[1]).toContain(`href="/requests/new?shift=${missed.shiftId}&amp;kind=attendance"`);
+    expect(rows[2]).not.toContain("Think this mark is wrong?");
+    expect(rows[2]).not.toContain("kind=attendance");
+    expect(rows[2]).toContain(`href="/pay/query?shift=${unmarked.shiftId}">Ask about the pay`);
+    expect(rows[2]).toContain('href="/shifts/record">See it in your shift record</a>');
+    expect(html).not.toContain("/messages?");
+    // Every way on is a big enough target: the buttons 52px, the text link 44px.
+    expect(rows[0]).toContain(`class="${staffBtn.secondary}"`);
+    expect(rows[0]).toMatch(/<a class="[^"]*min-h-11[^"]*" href="\/shifts\/record">/);
+    const empty = render({ view: "past", counts: { upcoming: 0, past: 0 } });
+    expect(empty).toContain(`<p class="${emptyBox} mt-8">No shifts in the last 90 days.</p>`);
+    expect(empty).toContain('href="/shifts/record"');
   });
 
   it("the tab bar: Home, Shifts, Messages, Pay, Profile, the current one marked, a count on Profile and Messages when needed", () => {
@@ -390,7 +476,7 @@ describe("Booked: the bookings themselves", () => {
       renderToStaticMarkup(createElement(TabBar, { current: "home", messagesCount: 1 })),
     ).toContain('aria-label="Messages, 1 new reply"');
   });
-  it("names the later list 'Later', with its count beside the heading, not in it; kept, with Find open shifts, when nothing else is booked", () => {
+  it("names the later list 'Later', with its count beside the heading, not in it; kept, with See open shifts, when nothing else is booked", () => {
     const html = render({
       shifts: [
         shift({ startsAt: at("2026-11-07T14:00:00Z"), endsAt: at("2026-11-07T22:00:00Z") }),
@@ -406,8 +492,13 @@ describe("Booked: the bookings themselves", () => {
       shifts: [shift({ startsAt: at("2026-11-07T14:00:00Z"), endsAt: at("2026-11-07T22:00:00Z") })],
     });
     expect(one).toMatch(/<h2 id="later-heading"[^>]*>Later<\/h2><\/div>/);
-    expect(text(one)).toContain("Later Nothing else booked yet. Find open shifts");
-    expect(one).toMatch(/<a class="[^"]*" href="\/shifts\/open">Find open shifts<svg/);
+    // (Phase 28.13: the shared empty box, its heading `staffH2`, and "See open shifts", 28.7's one
+    // name for the way to open shifts.)
+    expect(text(one)).toContain("Later Nothing else booked yet. See open shifts");
+    expect(one).toMatch(/<a class="[^"]*" href="\/shifts\/open">See open shifts<svg/);
+    expect(one).toContain(`<h2 id="later-heading" class="${staffH2}">Later</h2>`);
+    expect(one).toContain(`<div class="${emptyBox} mt-3"><p>Nothing else booked yet.</p>`);
+    expect(text(one)).not.toContain("Find open shifts");
   });
 
   it("gives every bullet-free list role=list, so Safari still announces it as a list", () => {
@@ -417,6 +508,8 @@ describe("Booked: the bookings themselves", () => {
     });
     const now = shift({ startsAt: at("2026-11-07T14:00:00Z"), endsAt: at("2026-11-07T22:00:00Z") });
     const worked = shift({
+      // (A past row's links are built from her own rows' ids: real UUIDs.)
+      shiftId: "44444444-4444-4444-8444-444444444444",
       startsAt: at("2026-10-31T14:00:00Z"),
       endsAt: at("2026-10-31T22:00:00Z"),
       status: "completed",
@@ -709,10 +802,12 @@ describe("Home: what she can take, and her next shift in full", () => {
         pass,
       ) ?? [];
     expect(pass).not.toContain("glass-band");
-    // (The card under it, Details, is the shift parts'; the pass itself keeps to the token corners.)
-    expect(pass.slice(0, pass.indexOf('id="pass-details"'))).not.toMatch(
-      /rounded-\[|rounded-[23]xl/,
-    );
+    // The pass and the card under it, Details (the shift parts': token corners since 28.13), keep
+    // to the token corners: the card 12px round with 16px sides, its figure tiles 8px.
+    expect(pass).not.toMatch(/rounded-\[|rounded-[23]xl|rounded-2xl|rounded-xl|px-4\.5/);
+    expect(factCard).toBe("glass flex flex-col divide-y divide-line rounded-inner px-4");
+    expect(pass).toContain(`class="${factCard}`);
+    expect(pass).toMatch(/<div class="glass-tile flex flex-col gap-0\.5 rounded-row px-3 py-3">/);
     // Its top: how soon as a tag (a clear glass pill), the date in words, the time large, the
     // role and event.
     expect(text(band).trim()).toBe("In 5 days Saturday 7 November 14:00–22:00 Steward · Raceday");
@@ -891,13 +986,91 @@ describe("Booked, after taking a shift (Phase 18)", () => {
     const later = render({ shifts: [first, second], newShiftId: second.shiftId });
     expect([marked(later), news(later)]).toEqual([1, 1]);
     const rows = later.slice(later.indexOf('id="later-heading"'));
-    expect(rows).toMatch(/<li class="px-3\.5 animate-move rounded-xl border-2 border-brand-ink">/);
+    // (8px round since Phase 28.13: the token corner.)
+    expect(rows).toMatch(/<li class="px-3\.5 animate-move rounded-row border border-brand-ink">/);
     // Not one of hers (or none given): nothing marked.
     for (const html of [
       render({ shifts: [first, second] }),
       render({ shifts: [first, second], newShiftId: "s-not-hers" }),
     ]) {
       expect([marked(html), news(html)]).toEqual([0, 0]);
+    }
+  });
+});
+
+describe("Booked's notices and the attendance form's words (Phase 28.13)", () => {
+  it("'No signal' and a shift's instructions are slips: the token corner, a tint with its edge", () => {
+    const html = render({
+      shifts: [
+        shift({ startsAt: at("2026-11-07T14:00:00Z"), endsAt: at("2026-11-07T22:00:00Z") }),
+        shift({
+          startsAt: at("2026-11-08T14:00:00Z"),
+          endsAt: at("2026-11-08T22:00:00Z"),
+          instructions: "Report to Gate C.",
+        }),
+      ],
+    });
+    // "No signal": hidden until the kept copy shows it (public/sw.js unhides it), an amber slip led
+    // by its disc.
+    expect(html).toContain(
+      `<div data-offline-notice="" hidden="" role="status" class="${slip.base} ${slip.attention}"><span aria-hidden="true" class="${disc.base} ${disc.attention}"><svg`,
+    );
+    expect(text(html)).toContain(
+      "No signal. This is your saved copy from 09:00 on Mon 2 Nov. It updates when you're back online. Taking or cancelling a shift needs signal.",
+    );
+    // A later shift's instructions: a grey slip, 8px round.
+    expect(html).toMatch(
+      /<div class="mt-3 flex flex-col gap-1 rounded-row border px-4 py-3 text-base text-ink border-quiet-line bg-quiet-soft"><h3 class="font-semibold">Instructions<\/h3><p class="whitespace-pre-line">Report to Gate C\.<\/p><\/div>/,
+    );
+    expect(html).not.toMatch(/rounded-\[|rounded-[23]xl|rounded-2xl|rounded-xl/);
+  });
+
+  it("words every answer to 'Send to the office', and never promises a changed mark", () => {
+    expect(ATTENDANCE_SAID_LABELS).toEqual({
+      worked: "I worked this shift",
+      not_worked: "I didn't work this shift",
+    });
+    expect(MARK_WORDS).toEqual({ completed: "Worked", no_show: "Marked as not attended" });
+    expect(
+      attendanceOutcomeText({
+        status: "created",
+        ref: "AB12CD34",
+        sentAt: "09:14 on Mon 2 Nov",
+        signOff: "Acme Events Shift Team",
+      }),
+    ).toEqual({
+      tone: "done",
+      title: "Sent. The office will check it. Reference AB12CD34.",
+      lines: [
+        "Sent at 09:14 on Mon 2 Nov.",
+        "You'll see their answer in My requests.",
+        "— Acme Events Shift Team",
+      ],
+    });
+    expect(attendanceOutcomeText({ status: "already_open", ref: "AB12CD34" }).title).toBe(
+      "You've already asked about this shift. Reference AB12CD34.",
+    );
+    expect(attendanceOutcomeText({ status: "matches_mark" }).title).toBe(
+      "Your shift already shows that.",
+    );
+    expect(attendanceOutcomeText({ status: "not_yours" })).toEqual({
+      tone: "urgent",
+      title: "We can't find a marked shift of yours from the last 90 days.",
+      lines: [],
+    });
+    expect(attendanceOutcomeText({ status: "invalid" }).title).toBe(
+      "Check the form and try again.",
+    );
+    expect(attendanceOutcomeText({ status: "error" }, "No signal. Try again.").title).toBe(
+      "No signal. Try again.",
+    );
+    const said = [
+      attendanceOutcomeText({ status: "created", ref: "X", sentAt: "", signOff: "" }),
+      attendanceOutcomeText({ status: "already_open", ref: "X" }),
+      attendanceOutcomeText({ status: "matches_mark" }),
+    ];
+    for (const words of said) {
+      expect([words.title, ...words.lines].join(" ")).not.toMatch(/changed|corrected|updated/i);
     }
   });
 });

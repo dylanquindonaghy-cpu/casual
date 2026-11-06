@@ -71,18 +71,20 @@ test("a cancellation under 48 hours shows the warning and records a strike; one 
     await expect(page.getByText(SOON).first()).toBeVisible();
     await page.getByRole("button", { name: "Can't make it?" }).first().click();
     const sheet = page.getByRole("dialog", { name: "Can't make it?" });
-    // The strike notice in its own box (Phase 20): pale red with a red edge and its mark.
+    // The strike notice in its own box (Phase 20), a slip since 28.12: pale red with its red
+    // line and the warning mark on its disc.
     const notice = sheet.getByRole("note");
-    await expect(notice).toHaveCSS("background-color", "rgba(255, 216, 207, 0.9)"); // urgent-tile, tinted glass (round 8's, Phase 27.6)
+    await expect(notice).toHaveAttribute("data-slip", "urgent");
+    await expect(notice).toHaveCSS("background-color", "rgba(255, 239, 234, 0.85)"); // urgent-soft
     await expect(notice).toHaveCSS("border-top-style", "solid");
-    await expect(notice).toHaveCSS("border-top-color", "rgb(176, 32, 31)"); // urgent (#b0201f)
+    await expect(notice).toHaveCSS("border-top-color", "rgb(245, 194, 187)"); // urgent-line (#f5c2bb)
     await expect(notice.locator("svg")).toHaveCount(1);
     await expect(sheet.getByRole("note")).toHaveText(
       /^This shift starts in (19|20) hours\. Cancelling now gives you a strike \(less than 48 hours' notice\)\. A strike is a record, not a fine\. It never comes off your pay\. You have \d+ strikes? in the last 90 days\.$/,
     );
     await expect(
       sheet.getByText(
-        "Your cancellation is recorded the moment you confirm. Nobody needs to approve it.",
+        "Your cancellation is recorded the moment you tap Cancel this shift. Nobody needs to approve it.",
       ),
     ).toBeVisible();
     await sheet.getByLabel("Travel problem").check();
@@ -107,16 +109,21 @@ test("a cancellation under 48 hours shows the warning and records a strike; one 
     await expect(sheet.getByRole("note")).toHaveText(
       /^This shift starts in \d days\. Cancelling now doesn't give you a strike\.$/,
     );
-    // No strike: its box is pale green with a green edge and a tick.
-    await expect(notice).toHaveCSS("background-color", "rgba(210, 239, 219, 0.9)"); // done-tile, tinted glass (round 8's, Phase 27.6)
+    // No strike: its slip is pale green with its green line and a tick (28.12).
+    await expect(notice).toHaveAttribute("data-slip", "done");
+    await expect(notice).toHaveCSS("background-color", "rgba(233, 246, 238, 0.85)"); // done-soft
     await expect(notice).toHaveCSS("border-top-style", "solid");
-    await expect(notice).toHaveCSS("border-top-color", "rgb(22, 101, 52)"); // done (#166534)
+    await expect(notice).toHaveCSS("border-top-color", "rgb(180, 223, 195)"); // done-line (#b4dfc3)
     await expect(notice.locator("svg")).toHaveCount(1);
     await sheet.getByLabel("Travel problem").check();
     await sheet.getByRole("button", { name: "Cancel this shift" }).click();
     await expect(
       sheet.getByText(/^Cancelled\. Reference [0-9A-F]{8}\. No strike\.$/),
     ).toBeVisible();
+    // 28.12: nothing to explain after "No strike.".
+    await expect(sheet.getByLabel("If something stopped you, tell us what happened.")).toHaveCount(
+      0,
+    );
 
     expect(await strikesOn("acme", [soon.shiftId, later.shiftId])).toEqual([soon.shiftId]);
   } finally {

@@ -42,11 +42,7 @@ export function Seats({
         i < filled ? (
           <span key={i} data-seat="taken" className={`${SEAT[size]} bg-ink`} />
         ) : (
-          <span
-            key={i}
-            data-seat="free"
-            className={`${SEAT[size]} ${size === "xl" ? "border-2" : "border-[1.5px]"} ${free}`}
-          />
+          <span key={i} data-seat="free" className={`${SEAT[size]} border-[1.5px] ${free}`} />
         ),
       )}
     </span>

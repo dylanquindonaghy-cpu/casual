@@ -9,7 +9,8 @@ export const metadata: Metadata = { title: "Help" };
 // The workers' help page (docs/screens.md `/help`). Open to anyone on the firm's address, logged
 // in or not: a worker who can't log in needs it most. It only needs the firm's name (from the
 // address; another host gets the not-found page) and its strike and photo numbers (12H.3). The words
-// are in help-view.tsx.
+// are in help-view.tsx; the firm's rules for taking shifts come from its settings through the rules' own
+// parsers (28.12, src/lib/portal/help-facts.ts).
 export default async function HelpPage() {
   const firm = await getCurrentFirm();
   return (

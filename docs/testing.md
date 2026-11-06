@@ -851,7 +851,7 @@ never split or joined), so they can't change what those tests check:
 - Acme's last event: yesterday (always among the dashboard's "Who worked?", which looks back 7 days,
   once ticked under Customise: off by default since Phase 27.9), 3
   stewards at the racecourse (07700 900110, 900117, 900118) and 2 security officers at the
-  shopping centre (900150, 900151), all booked and none marked yet ("Past 30 days" on their My
+  shopping centre (900150, 900151), all booked and none marked yet ("Past 90 days" on their Booked
   shifts too).
 - Acme's 10 open pay queries: 7 stewards (900110, 900117 to 900121, 900124) about the last
   complete week's rate (paid £13.00), 2 hours missing at the shopping centre on the last event

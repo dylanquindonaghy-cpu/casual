@@ -7,6 +7,7 @@ import { createSession, findSession, type ActiveSession } from "@/lib/auth/sessi
 import { isSteppedUp, verifyStepUpCode } from "@/lib/auth/step-up";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { resolvePayQueries } from "@/lib/pay/resolve";
+import { myShifts } from "@/lib/portal/my-shifts";
 import { StepUpRequiredError } from "@/lib/portal/pay";
 import {
   myPayQueries,
@@ -122,6 +123,34 @@ describe("/pay/query?shift= (28.10)", () => {
     expect(await raise(t.benShift)).toEqual({ status: "not_yours" });
     expect(await raise(t.calShift)).toEqual({ status: "not_yours" });
     expect((await raise(t.annShift)).status).toBe("created");
+  });
+
+  it("every Past row's pay link (28.13) chooses its shift: a session 80 days ago too", async () => {
+    const t = await scene();
+    // Ann also worked 80 days ago (past the old 8 weeks, inside Past's 90 days) and 91 days ago
+    // (outside both).
+    const eighty = await t.a.shift({ startsAt: hoursFromNow(-24 * 80) });
+    const ninetyOne = await t.a.shift({ startsAt: hoursFromNow(-24 * 91) });
+    await t.a.booking(t.ann, eighty, "completed");
+    await t.a.booking(t.ann, ninetyOne, "completed");
+    const past = (await myShifts(t.ctx(t.a.firmId), t.ann, "past")).map((s) => s.shiftId);
+    expect(past).toContain(eighty);
+    expect(past).not.toContain(ninetyOne);
+
+    const mine = await payQueryShifts(t.ctx(t.a.firmId), stepped(t.ann));
+    // Each row Past shows is one ?shift= chooses ("Ask about the pay for this shift").
+    for (const shiftId of past) expect(preselectedShift(mine, shiftId)).toBe(shiftId);
+    expect(preselectedShift(mine, ninetyOne)).toBeNull();
+
+    const raise = (shiftId: string) =>
+      raisePayQuery(t.ctx(t.a.firmId), stepped(t.ann), {
+        shiftId,
+        day: null,
+        issue: "missing_hours",
+        details: null,
+      });
+    expect(await raise(eighty)).toMatchObject({ status: "created", issue: "missing_hours" });
+    expect(await raise(ninetyOne)).toEqual({ status: "not_yours" });
   });
 
   it("the code step: a real code opens the query, and it comes back only to /pay/query", async () => {

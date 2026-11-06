@@ -124,7 +124,7 @@ the demo.
     out", the last thing on the page.
 16. **Log in as Sam Walsh** (`07700 900110`), a steward booked on Saturday. Home's "Your next
     shift" shows it in full, with the day's "Instructions" under it. Click "Shifts" in the tab bar
-    (his bookings), then "Past 30 days": yesterday's race day at "Acme Demo Racecourse" is listed.
+    (his bookings), then "Past 90 days": yesterday's race day at "Acme Demo Racecourse" is listed.
     Click "Upcoming" to go back.
 17. **Ask for a change.** On Home, click "Ask for a change", choose "Change the times", set
     "New start" to 13:00 and "New finish" to 18:30, and click "Send request". It says "Request

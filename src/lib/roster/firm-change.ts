@@ -26,6 +26,7 @@ import { changeNoticeHours } from "./notice";
 import { recheckHolders } from "./recheck";
 import { sameAsLastRefusal } from "./refusal-repeat";
 import { isoDate, timesOn } from "./shift-times";
+import { clearStillComing } from "./still-coming-reset";
 import { queueTravelEstimates } from "../travel/estimate-queue";
 
 // The firm moving or shortening a shift people are booked on (docs/api-and-jobs.md,
@@ -284,6 +285,8 @@ async function moveInTx(
     .where(and(eq(offers.shiftId, shiftId), isNull(offers.response)));
   // Asks for the old time close too, untold: they may ask again for the new one (Phase 26.6).
   await closeAsksOnChange(tx, shiftId, now, "moved");
+  // "Still coming?" answers were for the old time or place: cleared, so she's asked again (28.14).
+  const stillComingCleared = await clearStillComing(tx, shiftId);
 
   const actor = callerActor(by);
   const marks = callerMarks(by);
@@ -312,6 +315,7 @@ async function moveInTx(
         // The rules' answer at the new time (codes only): what the office was shown.
         rulesOk: h.ok,
         ...(!h.ok ? { codes: h.codes } : {}),
+        ...(stillComingCleared.has(h.assignmentId) ? { stillComingCleared: true } : {}),
       },
     });
     await queueFirmChangeNotice(tx, { eventId, assignmentId: h.assignmentId });

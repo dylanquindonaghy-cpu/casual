@@ -2466,8 +2466,18 @@ Each task adds what it left out here as its wave is merged.
   for the casual's "in hand". Home's offline copy now also keeps the Pay and answers counts (counts
   only, stale offline). `gettingThereLines` (old travel words) is unused code. The open shifts strip's
   key can name a mark that isn't on screen when the only urgent day is the chosen one.
-- **28.12:** (filled when wave 3 is merged)
-- **28.13:** (filled when wave 3 is merged)
-- **28.14:** (filled when wave 3 is merged)
-- **28.15:** (filled when wave 3 is merged)
+- **28.12 (Help and the cancel sheet):** the older Phase 25.6 paragraph of `docs/screens.md` still
+  says "write to the office under Messages" (the 28.12 subsection wins). Its guardrails nits: the
+  strike line could add "unless the office booked or changed it", and the fair-rotation "You can
+  take it from …" line could sit after the "won't show" list. Its mock-up (private until shared):
+  https://claude.ai/artifact/QokWS3Swxhz4MLpsKVE9Uw
+- **28.13 (Booked):** nothing parked. (Its guardrails review widened the pay query's shift list
+  to Past's 90 days, Decisions waiting 21.)
+- **28.14 (Still coming?):** the 2-hour reminder's push always ends "Tap to say you're coming.",
+  even after she has answered. The offline copy of Home shows no "Can't make it?" in the day before
+  a shift (the card is online only). (Its guardrails review clears the answer when the office moves
+  the shift.)
+- **28.15 (Offers on Home):** speeding up the next offer wave after a "No thanks", and an "Answer
+  by" time (needs a rule change, no data for it today). Home still reads her qualifications twice
+  (the "Do this" row and the tab counts).
 - **28.16:** (filled when wave 4 is merged)

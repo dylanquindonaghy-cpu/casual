@@ -528,6 +528,28 @@ describe("sheets.sync: from the sheet into our tables", () => {
     expect(moved[0]?.data).toMatchObject({ noticeHours: 36 });
   });
 
+  it("new times on a booked shift clear the casual's 'Still coming?' answer, and the move says so (28.14)", async () => {
+    const f = await northline();
+    await sync(f);
+    // Ada said she's coming at the old time (set directly: the sheet's shift is days away).
+    const { rows: said } = await su.query<{ id: string }>(
+      `update assignments set still_coming_at = now()
+        where firm_id = $1 and status = 'confirmed' returning id::text as id`,
+      [f.firmId],
+    );
+    expect(said.length).toBeGreaterThan(0);
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Start", "21:00"); // starts earlier: a move
+    await sync(f);
+    const { rows: after } = await su.query<{ id: string; at: Date | null }>(
+      "select id::text as id, still_coming_at as at from assignments where id = any($1::uuid[])",
+      [said.map((r) => r.id)],
+    );
+    const moved = await eventsOf(f.firmId, "shift.moved");
+    expect(moved).toHaveLength(1);
+    expect(after.find((r) => r.id === moved[0]?.entity_id)?.at).toBeNull();
+    expect(moved[0]?.data).toMatchObject({ stillComingCleared: true });
+  });
+
   it("a shift the office marks cancelled cancels each booking as the firm's, and can't be taken", async () => {
     const f = await northline();
     await sync(f);

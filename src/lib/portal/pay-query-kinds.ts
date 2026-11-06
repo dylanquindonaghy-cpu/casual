@@ -24,7 +24,12 @@ export const PAY_QUERY_STATUS_WORDS: Record<string, string> = {
 
 export const MAX_PAY_QUERY_DETAILS = 1000;
 export const PAY_QUERY_DAYS_BACK = 90; // a day typed in: at most this many days ago
-export const PAY_QUERY_SHIFT_WEEKS = 8; // the shifts offered: those that started in the last 8 weeks
+// The shifts offered (and the only ones ?shift= can choose or the server takes): those that started
+// in the last 90 days, the same window as Booked's Past (PAST_DAYS = RELIABILITY_DAYS, Phase 28.13),
+// so "Ask about the pay for this shift" on any past row opens with that shift chosen.
+export const PAY_QUERY_SHIFT_DAYS = PAY_QUERY_DAYS_BACK;
+// Before 28.13's fix the list was 8 weeks; kept for anything still importing it. Not used.
+export const PAY_QUERY_SHIFT_WEEKS = 8;
 export const OTHER_DAY = "day"; // the "A day not in the list" choice
 
 export type PayQueryProblem =
@@ -121,7 +126,7 @@ export const isPayQueryPath = (path: string): boolean =>
   );
 
 // The shift the form starts on: ?shift= when it is one of the shifts in her list (payQueryShifts:
-// her own, inside her firm, from the last 8 weeks), else none, and "Choose a shift" shows.
+// her own, inside her firm, from the last 90 days), else none, and "Choose a shift" shows.
 export function preselectedShift(
   shifts: readonly { shiftId: string }[],
   rawShift: unknown,
@@ -141,7 +146,7 @@ export type RaisePayQueryOutcome =
     }
   | { status: "already_open"; ref: string } // the same question is already with payroll
   | { status: "invalid"; problems: PayQueryProblem[] }
-  | { status: "not_yours" } // not a shift of theirs from the last 8 weeks
+  | { status: "not_yours" } // not a shift of theirs from the last 90 days
   | { status: "needs_code" } // the pay code's 30 minutes ran out
   | { status: "logged_out" }
   | { status: "error" };

@@ -11,8 +11,9 @@ import { Icon, type IconName } from "../ui/icons";
 // (what the firm gives marked in hi-vis yellow), and the pay large. Each keeps its full words for
 // screen readers. Hook-free.
 
-// The card the rows sit in: lifted off the page, one hairline.
-export const factCard = "glass flex flex-col divide-y divide-line rounded-3xl px-4.5";
+// The card the rows sit in: lifted off the page, one hairline; a section's 12px corner and 16px
+// sides (Phase 28.13: the token corners).
+export const factCard = "glass flex flex-col divide-y divide-line rounded-inner px-4";
 
 export function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -34,12 +35,9 @@ export function TravelFigures({ travel, timeZone }: { travel: TravelFacts; timeZ
           {strip.words}
         </p>
       ) : (
-        <div
-          aria-hidden="true"
-          className={`mt-1 grid gap-2 ${strip.cells.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}
-        >
+        <div aria-hidden="true" className="mt-1 grid grid-cols-3 gap-2">
           {strip.cells.map((c) => (
-            <div key={c.words} className="glass-tile flex flex-col gap-0.5 rounded-2xl px-3 py-3">
+            <div key={c.words} className="glass-tile flex flex-col gap-0.5 rounded-row px-3 py-3">
               <p className="font-sign text-2xl leading-tight">{c.figure}</p>
               <p className="text-base leading-snug text-ink-muted">{c.words}</p>
             </div>

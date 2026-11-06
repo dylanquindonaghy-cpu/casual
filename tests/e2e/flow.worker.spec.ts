@@ -178,7 +178,7 @@ test("a worker logs in, takes a shift, cancels it, asks for a change and sees th
   await expect(page.getByText("No shifts booked yet.")).toBeVisible();
 
   await timed("ask for a change", async () => {
-    await page.getByRole("link", { name: "See all open shifts" }).click();
+    await page.getByRole("link", { name: "See open shifts" }).click();
     const centre = page.getByRole("listitem").filter({ hasText: "Acme Demo Shopping Centre" });
     await expect(centre).toHaveCount(1);
     await centre.getByRole("link").click();

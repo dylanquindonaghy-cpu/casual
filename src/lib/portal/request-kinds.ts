@@ -233,3 +233,55 @@ export function markNowText(mark: string | null | undefined): string | null {
   const word = mark ? MARK_NOW[mark] : undefined;
   return word ? `Your shift now shows: ${word}` : null;
 }
+
+// "Tell the office what happened" (Phase 28.13; docs/screens.md "### 28.13"): the form for an
+// attendance question, reached from a marked row on Booked's Past 90 days.
+export const ATTENDANCE_TITLE = "Tell the office what happened";
+export const ATTENDANCE_SAID_LABELS: Record<AttendanceSaid, string> = {
+  worked: "I worked this shift",
+  not_worked: "I didn't work this shift",
+};
+// A booking's mark as Booked shows it, and the form beside "Marked as:".
+export const MARK_WORDS: Record<"completed" | "no_show", string> = {
+  completed: "Worked",
+  no_show: "Marked as not attended",
+};
+export const NOT_MARKED_YET = "Not marked yet";
+export const CANT_ASK_ABOUT_MARK = "We can't find a marked shift of yours from the last 90 days.";
+export const CHOOSE_WHAT_HAPPENED = "Choose what happened.";
+export const NO_CONTACT_DETAILS = "Leave out phone numbers and email addresses.";
+
+// What she sees after "Send to the office": a slip's tone, its first line and the lines under it.
+// Logged out isn't here: the page goes to the login page instead. `tryAgain`: the page's own words
+// for a failure (src/lib/portal/copy.ts tryAgainText says when it's the signal).
+export function attendanceOutcomeText(
+  outcome: Exclude<AttendanceOutcome, { status: "logged_out" }>,
+  tryAgain = "Something went wrong. Try again.",
+): { tone: "done" | "quiet" | "urgent"; title: string; lines: string[] } {
+  switch (outcome.status) {
+    case "created":
+      return {
+        tone: "done",
+        title: `Sent. The office will check it. Reference ${outcome.ref}.`,
+        lines: [
+          `Sent at ${outcome.sentAt}.`,
+          "You'll see their answer in My requests.",
+          `— ${outcome.signOff}`,
+        ],
+      };
+    case "already_open":
+      return {
+        tone: "quiet",
+        title: `You've already asked about this shift. Reference ${outcome.ref}.`,
+        lines: ["The office will check it. You'll see their answer in My requests."],
+      };
+    case "matches_mark":
+      return { tone: "quiet", title: "Your shift already shows that.", lines: [] };
+    case "not_yours":
+      return { tone: "urgent", title: CANT_ASK_ABOUT_MARK, lines: [] };
+    case "invalid":
+      return { tone: "urgent", title: "Check the form and try again.", lines: [] };
+    case "error":
+      return { tone: "urgent", title: tryAgain, lines: [] };
+  }
+}

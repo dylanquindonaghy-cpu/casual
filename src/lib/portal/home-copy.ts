@@ -1,16 +1,18 @@
 import type { NeedsItem } from "../credentials/status";
-import { localDateOf } from "../time/zoned";
+import { localDateOf, wallTimeOf } from "../time/zoned";
 import { DISTANCE_NOT_KNOWN, notWorkedOutText, type TravelFacts } from "../travel/line-copy";
 import type { StaffPhoto } from "../uploads/photo";
+import { inHand, type SortedMark } from "./in-hand";
+import type { MyOffer, OfferTake } from "./my-offers";
 import type { OpenShift } from "./open-shifts";
 import type { ReachPrompt } from "./reach-me";
-import { perHour } from "./format";
+import { perHour, roleAndEvent, shiftWhen, soonLabel, timeOnDay } from "./format";
 import { needsText, needsUpload } from "./qualification-copy";
 import { datePartsOfDay } from "./sign-copy";
 
 // The words of Home's redesign (Phases 18, 20 and 24; docs/screens.md `/`): its rows ("Do this",
-// with its two "can we reach you" rows since Phase 28.7, "Shifts you can take", "Pay"), the pass's
-// travel figures and its "Bring and wear" items. Pure.
+// with its two "can we reach you" rows since Phase 28.7, "Offered to you" since 28.15, "Shifts you
+// can take", "Pay"), the pass's travel figures and its "Bring and wear" items. Pure.
 
 const METRES_PER_MILE = 1609.344;
 
@@ -127,6 +129,93 @@ export const REACH_ROWS: Record<ReachPrompt, RowText> = {
   },
 };
 
+// "Offered to you" (Phase 28.15; docs/screens.md "### 28.15"): an offer still open to her, as a
+// row: "Steward · Raceday", "Sat 7 Nov, 14:00 to 22:00 · Riverside Arena", then when it was offered
+// ("Offered 21:20" today; "Offered 21:20 on Sun 1 Nov" before) and "First to take it gets it."
+// No deadline: an offer stays open until the shift fills, moves or is cancelled.
+// The second sentence says what the shift's page would let her do now (`take`, from myOffers, by
+// that page's own checks): take it ("First to take it gets it."), only ask for it (the office
+// chooses for its event), or take it once fair rotation's hold ends.
+export const FIRST_TO_TAKE = "First to take it gets it.";
+export const OFFICE_CHOOSES = "The office chooses who works this one. You can ask for it.";
+export const heldUntilText = (opensAt: Date, now: Date, timeZone: string) =>
+  `You can take it from ${soonLabel(opensAt, now, timeZone)}.`;
+export function offerRowText(
+  o: Pick<MyOffer, "role" | "eventName" | "siteName" | "startsAt" | "endsAt" | "sentAt"> & {
+    take?: OfferTake;
+  },
+  now: Date,
+  timeZone: string,
+): RowText & { offered: string } {
+  const when = shiftWhen(o.startsAt, o.endsAt, timeZone);
+  const sameDay = localDateOf(o.sentAt, timeZone) === localDateOf(now, timeZone);
+  const w = wallTimeOf(o.sentAt, timeZone);
+  const clock = `${String(w.hour).padStart(2, "0")}:${String(w.minute).padStart(2, "0")}`;
+  const take = o.take ?? { kind: "now" };
+  const next =
+    take.kind === "ask"
+      ? OFFICE_CHOOSES
+      : take.kind === "held"
+        ? heldUntilText(take.opensAt, now, timeZone)
+        : FIRST_TO_TAKE;
+  return {
+    title: roleAndEvent(o.role, o.eventName),
+    sub: o.siteName ? `${when} · ${o.siteName}` : when,
+    offered: `Offered ${sameDay ? clock : timeOnDay(o.sentAt, timeZone)}. ${next}`,
+  };
+}
+
+// Its "No thanks" step, and what she's told after (every answer ends with words). After saying no
+// she holds no waiting offer, so where the office chooses for the event she can only ask for it
+// (`lineAsk`; MyOffer.afterNo). Both name the shift's page, not Open shifts: that list shows only
+// her travel area and the next 28 days, and an offer can fall outside both.
+export const DECLINE_STEP = {
+  button: "No thanks",
+  title: "Say no to this shift?",
+  line: "We won't offer it to you again. You can still take it from the shift's page while it's open.",
+  lineAsk:
+    "We won't offer it to you again. The office chooses who works this one: you can still ask for it on the shift's page.",
+  yes: "Yes, say no",
+  sending: "Saying no…",
+  keep: "Keep the offer",
+};
+export const OPEN_THE_SHIFT = "Open the shift";
+
+export type DeclineShown = { tone: "done" | "quiet" | "urgent"; title: string; line?: string };
+export function declineOutcomeText(
+  status: "declined" | "already" | "taken" | "closed" | "error",
+  tryAgain: string,
+  afterNo: "take" | "ask" = "take",
+): DeclineShown {
+  switch (status) {
+    case "declined":
+      return {
+        tone: "done",
+        title: "Done. You won't be offered this shift again.",
+        line:
+          afterNo === "ask"
+            ? "The office chooses who works this one. You can still ask for it on the shift's page."
+            : "You can still take it from the shift's page while it's open.",
+      };
+    case "already":
+      return { tone: "quiet", title: "You've already said no to this shift." };
+    case "taken":
+      return {
+        tone: "done",
+        title: "You've already taken this shift.",
+        line: "It's under Shifts.",
+      };
+    case "closed":
+      return {
+        tone: "quiet",
+        title: "This offer has closed.",
+        line: "The shift was filled, moved or cancelled.",
+      };
+    case "error":
+      return { tone: "urgent", title: tryAgain };
+  }
+}
+
 // The offline copy's first row: what the urgent row said when it was kept.
 export const offlineUrgentText = (n: number, at: string) =>
   n === 0
@@ -136,16 +225,26 @@ export const offlineUrgentText = (n: number, at: string) =>
 // What needs doing, as one row: the one thing (its title, the sentence Needs updating would
 // say, and where she sorts it), or how many things, with the worst one's sentence (→ Profile). `urgent`: something
 // stops her working (a qualification at level 1 or 2, or her photo overdue).
+// Phase 28.15 (28.11's hand-off): a qualification the office marked sorted, while that mark still
+// stands (inHand, src/lib/portal/in-hand.ts, as Profile reads it), isn't hers to do, so it isn't
+// here: Profile says "The office has this in hand." A suspended one goes to Messages, where she
+// tells the office (an upload can't lift it).
 export function needsRowText(
   needs: NeedsItem[],
   photo: StaffPhoto,
   year: number,
+  mark: SortedMark | null = null,
 ): { title: string; sub: string; href: string; urgent: boolean; photo: boolean } | null {
-  const items: { title: string; sub: string; href: string; level: number; photo: boolean }[] =
-    needs.map((n) => ({
+  const items: { title: string; sub: string; href: string; level: number; photo: boolean }[] = needs
+    .filter((n) => !inHand(n.qualification, mark))
+    .map((n) => ({
       title: needsTitle(n),
       sub: needsText(n, year),
-      href: needsUpload(n.qualification) ? `/profile/upload/${n.qualification.type}` : "/profile",
+      href: needsUpload(n.qualification)
+        ? `/profile/upload/${n.qualification.type}`
+        : n.qualification.status === "suspended"
+          ? "/messages"
+          : "/profile",
       level: n.level,
       photo: false,
     }));

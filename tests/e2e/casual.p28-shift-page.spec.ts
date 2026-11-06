@@ -81,7 +81,10 @@ test("the shift page: the urgent slip, the firm's name, working links to the off
     await page.goto(`${acme}/shifts/${scene.urgent}`);
     const bar = page.locator("[data-own-bar]");
     await expect(bar.getByRole("link", { name: "Open shifts" })).toBeVisible();
-    await expect(bar.locator("[data-firm]")).toHaveText("Acme Events");
+    // The firm's name, beside its initial tile (aria-hidden).
+    await expect(
+      bar.locator("[data-firm]").getByText("Acme Events", { exact: true }),
+    ).toBeVisible();
     const slip = page.locator('[data-slip="urgent"]').first();
     await expect(slip).toHaveText("Urgent, needed now");
     await expect(page.locator(".bg-urgent-fill")).toHaveCount(0);
@@ -171,7 +174,9 @@ test("the shift page: the urgent slip, the firm's name, working links to the off
           ["moved", scene.moved],
         ] as const) {
           await page.goto(`${acme}/shifts/${id}`);
-          await expect(page.locator("[data-own-bar] [data-firm]")).toHaveText("Acme Events");
+          await expect(
+            page.locator("[data-own-bar] [data-firm]").getByText("Acme Events", { exact: true }),
+          ).toBeVisible();
           expect(await sideways(page), `${name} at ${size.name}, ${theme}`).toBe(0);
           await shoot(page, testInfo, `28.5 ${name} ${size.name} ${theme}`);
         }

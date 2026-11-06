@@ -296,7 +296,8 @@ test("Shifts: Zoe sees the Arena shift with its travel line, and its page in ful
 
   // How many, and "Site and role" (round 7), which opens the filters under it; the site narrows
   // the list: the other hall, then the Arena.
-  await expect(page.getByText("2 shifts", { exact: true })).toBeVisible();
+  // The page's count (28.8's section pill says it again for screen readers only).
+  await expect(page.getByRole("paragraph").filter({ hasText: /^2 shifts$/ })).toBeVisible();
   const filter = page.getByRole("form", { name: "Choose a day, site or role" });
   await expect(filter).toBeHidden();
   await page.locator("[data-filters] summary").click();
@@ -360,9 +361,9 @@ test("Shifts: Zoe sees the Arena shift with its travel line, and its page in ful
   const blockedNeeds = page.getByRole("region", { name: "You need" }).getByRole("listitem");
   await expect(blockedNeeds).toHaveText([
     new RegExp(`^SIA door supervisor licence\\s*You have it, valid until ${DAY}$`),
-    // Not one her roles need, so she can't send it herself: the office.
-    /^Level 2 spectator safety qualification\s*Expires before this shift: ask the office\.$/,
-    /^CSAS accreditation\s*Missing: ask the office\.$/,
+    // Not one her roles need, so she can't send it herself: "Message the office" (28.5).
+    /^Level 2 spectator safety qualification\s*Expires before this shift\. Message the office$/,
+    /^CSAS accreditation\s*Missing\. Message the office$/,
     /^Manual handling certificate\s*Missing: upload it$/,
   ]);
   // "upload it" opens a page that takes it (her second role needs it).

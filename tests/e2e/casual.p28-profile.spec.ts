@@ -277,6 +277,9 @@ test("Profile, shorter and clearer: requests and Help first, folds, her number, 
     await days.locator("summary").click();
     await expect(page.getByLabel("A day you can't work")).toBeVisible();
     const reach = page.getByRole("region", { name: "How we reach you" });
+    // Scrolled to the end, as she would: the last fold sits above Log out and the room left for
+    // the tab bar, so the bar never covers it (Playwright alone counts it "in view" behind it).
+    await page.mouse.wheel(0, 5_000);
     await reach.locator("summary").click();
     await expect(reach.getByText("Tell me about open shifts")).toBeVisible();
   } finally {

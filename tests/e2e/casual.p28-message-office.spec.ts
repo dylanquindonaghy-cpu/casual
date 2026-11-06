@@ -86,7 +86,7 @@ test("Message the office about a shift: the About line and a ready sentence, sen
   await page.goto(`${acme}/messages?shift=${scene.shiftId}&about=dispute`);
   await expect(page.getByRole("heading", { level: 1, name: "Messages" })).toBeVisible();
   await expect(page.locator("[data-about-shift]")).toHaveCount(0);
-  await expect(page.getByLabel("Your message", { exact: true })).toHaveValue("");
+  await expect(page.getByRole("textbox", { name: "Your message", exact: true })).toHaveValue("");
 
   // 28.2's link for running late.
   const link = `${acme}/messages?shift=${scene.shiftId}&about=late`;
@@ -100,7 +100,9 @@ test("Message the office about a shift: the About line and a ready sentence, sen
   const aboutLine = page.locator("[data-about-shift]");
   await expect(aboutLine).toBeVisible();
   await expect(aboutLine).toHaveText(/^About: Steward · \w{3} \d{1,2} \w{3}, \d\d:\d\d$/);
-  const box = page.getByLabel("Your message", { exact: true });
+  // By role and name: the ready sentence is inside the box's <label>, so a label-text match
+  // would read "Your message I'm running late…"; the accessible name is "Your message".
+  const box = page.getByRole("textbox", { name: "Your message", exact: true });
   await expect(box).toHaveValue("I'm running late. I'll be there about …");
   // Screen readers hear the About line with the box.
   await expect(box).toHaveAccessibleDescription(/^About: Steward · /);
@@ -183,7 +185,7 @@ test("Message the office about a shift: the About line and a ready sentence, sen
         await p.goto(link);
         await expect(p.locator("[data-about-shift]"), where("About line")).toBeVisible();
         await expect(
-          p.getByLabel("Your message", { exact: true }),
+          p.getByRole("textbox", { name: "Your message", exact: true }),
           where("ready sentence"),
         ).toHaveValue("I'm running late. I'll be there about …");
         await noSidewaysScroll(p);

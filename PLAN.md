@@ -1270,6 +1270,32 @@ page at 390px and 1280px, dark and light, sit in `docs/mockups/phase-28/after/` 
 route, label, link or action is lost; the `claims-auditor` checks each task against its line and
 this one.
 
+## Phase 29 — After Phase 28: payroll gets the pay questions Pay can't take, three fixes, and a phone check (go-ahead: Dylan, 2026-11-06; R, M, UI)
+
+Go-ahead, 2026-11-06 (Dylan, in chat, word for word): "complete all of the recommendations". The
+recommendations: Phase 28's decisions 16 to 19 and 21 stay as built and 20 changes
+(`docs/plan/decisions-waiting.md`); three bugs its guardrails reviews parked; two test gaps; and a
+check of the live demo on a phone as a casual.
+
+- [ ] Pay questions Pay can't take (no way to get a code, or older than 90 days) go into payroll's
+      digest as a pay query, never to the office's general requests and never an AI answer
+      (decision 20 changed; golden rule 9; R, M; M) (29.1)
+- [ ] The shifts line's own reply never promises "We'll message you" to a casual nothing can reach,
+      the same rule Home and Open shifts follow (28.7's parked follow-up; M; S) (29.2)
+- [ ] The office's "Sorted by" and "Remind all" count a "sorted" mark only while it covers the
+      casual's current problem, the same rule as the casual's "in hand" (28.11's parked follow-up;
+      R; S) (29.3)
+- [ ] "Your shift's details changed" waits until the casual has been told about the booking itself,
+      as the office's change notices already do (28.3's parked follow-up; M, jobs; S) (29.4)
+- [ ] A browser test that the Pay tab's count drops once payroll's answer is seen, and a booked
+      shift's page in `docs/mockups/phase-28/after/` (Phase 28 test gaps; S) (29.5)
+- [ ] The live demo checked on a phone as a casual, signal on and off, with every finding fixed or
+      parked (UI; S) (29.6)
+
+Done when: every task is ticked with a stamp that includes the browser tests; each built what its
+line says; `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; the `guardrails-reviewer` has no open
+findings on 29.1 to 29.4; the `claims-auditor` checks each task against its line and this one.
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify

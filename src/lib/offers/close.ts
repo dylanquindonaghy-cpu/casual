@@ -22,10 +22,15 @@ export interface ClosedOffers {
 
 // Whether an offer counts as unanswered for a worker who now holds a place: waiting, or closed
 // earlier only because the shift filled then (a dropout has since reopened it, and they took it).
-const unansweredFor = () => or(isNull(offers.response), eq(offers.response, "filled_elsewhere"));
+// Phase 28.15: the same predicate says which offers are still open to her on Home ("Offered to
+// you", src/lib/portal/my-offers.ts) and which her "No thanks" may close.
+export const unansweredFor = () =>
+  or(isNull(offers.response), eq(offers.response, "filled_elsewhere"));
 
 // The booked worker's own offer of this shift is answered: they took it (they tapped Take shift,
-// the office placed them, or the sheet named them).
+// the office placed them, or the sheet named them). Phase 28.15: an offer she said no to counts
+// here too (she may still take the shift from Open shifts, and then she took it); only here, never
+// in closeOpenOffers.
 export async function acceptOwnOffer(
   tx: FirmTx,
   shiftId: string,
@@ -35,7 +40,13 @@ export async function acceptOwnOffer(
   await tx
     .update(offers)
     .set({ response: "accepted", respondedAt: now })
-    .where(and(eq(offers.shiftId, shiftId), eq(offers.workerId, workerId), unansweredFor()));
+    .where(
+      and(
+        eq(offers.shiftId, shiftId),
+        eq(offers.workerId, workerId),
+        or(unansweredFor(), eq(offers.response, "declined")),
+      ),
+    );
 }
 
 // Closes every offer of the shift still waiting: holders' as accepted, the rest filled elsewhere.

@@ -1,16 +1,18 @@
 import type { NeedsItem } from "../credentials/status";
-import { localDateOf } from "../time/zoned";
+import { localDateOf, wallTimeOf } from "../time/zoned";
 import { DISTANCE_NOT_KNOWN, notWorkedOutText, type TravelFacts } from "../travel/line-copy";
 import type { StaffPhoto } from "../uploads/photo";
+import { inHand, type SortedMark } from "./in-hand";
+import type { MyOffer } from "./my-offers";
 import type { OpenShift } from "./open-shifts";
 import type { ReachPrompt } from "./reach-me";
-import { perHour } from "./format";
+import { perHour, roleAndEvent, shiftWhen, timeOnDay } from "./format";
 import { needsText, needsUpload } from "./qualification-copy";
 import { datePartsOfDay } from "./sign-copy";
 
 // The words of Home's redesign (Phases 18, 20 and 24; docs/screens.md `/`): its rows ("Do this",
-// with its two "can we reach you" rows since Phase 28.7, "Shifts you can take", "Pay"), the pass's
-// travel figures and its "Bring and wear" items. Pure.
+// with its two "can we reach you" rows since Phase 28.7, "Offered to you" since 28.15, "Shifts you
+// can take", "Pay"), the pass's travel figures and its "Bring and wear" items. Pure.
 
 const METRES_PER_MILE = 1609.344;
 
@@ -127,6 +129,68 @@ export const REACH_ROWS: Record<ReachPrompt, RowText> = {
   },
 };
 
+// "Offered to you" (Phase 28.15; docs/screens.md "### 28.15"): an offer still open to her, as a
+// row: "Steward · Raceday", "Sat 7 Nov, 14:00 to 22:00 · Riverside Arena", then when it was offered
+// ("Offered 21:20" today; "Offered 21:20 on Sun 1 Nov" before) and "First to take it gets it."
+// No deadline: an offer stays open until the shift fills, moves or is cancelled.
+export const FIRST_TO_TAKE = "First to take it gets it.";
+export function offerRowText(
+  o: Pick<MyOffer, "role" | "eventName" | "siteName" | "startsAt" | "endsAt" | "sentAt">,
+  now: Date,
+  timeZone: string,
+): RowText & { offered: string } {
+  const when = shiftWhen(o.startsAt, o.endsAt, timeZone);
+  const sameDay = localDateOf(o.sentAt, timeZone) === localDateOf(now, timeZone);
+  const w = wallTimeOf(o.sentAt, timeZone);
+  const clock = `${String(w.hour).padStart(2, "0")}:${String(w.minute).padStart(2, "0")}`;
+  return {
+    title: roleAndEvent(o.role, o.eventName),
+    sub: o.siteName ? `${when} · ${o.siteName}` : when,
+    offered: `Offered ${sameDay ? clock : timeOnDay(o.sentAt, timeZone)}. ${FIRST_TO_TAKE}`,
+  };
+}
+
+// Its "No thanks" step, and what she's told after (every answer ends with words).
+export const DECLINE_STEP = {
+  button: "No thanks",
+  title: "Say no to this shift?",
+  line: "We won't offer it to you again. You can still take it from Open shifts while it's open.",
+  yes: "Yes, say no",
+  sending: "Saying no…",
+  keep: "Keep the offer",
+};
+
+export type DeclineShown = { tone: "done" | "quiet" | "urgent"; title: string; line?: string };
+export function declineOutcomeText(
+  status: "declined" | "already" | "taken" | "closed" | "error",
+  tryAgain: string,
+): DeclineShown {
+  switch (status) {
+    case "declined":
+      return {
+        tone: "done",
+        title: "Done. You won't be offered this shift again.",
+        line: "You can still take it from Open shifts while it's open.",
+      };
+    case "already":
+      return { tone: "quiet", title: "You've already said no to this shift." };
+    case "taken":
+      return {
+        tone: "done",
+        title: "You've already taken this shift.",
+        line: "It's under Shifts.",
+      };
+    case "closed":
+      return {
+        tone: "quiet",
+        title: "This offer has closed.",
+        line: "The shift was filled, moved or cancelled.",
+      };
+    case "error":
+      return { tone: "urgent", title: tryAgain };
+  }
+}
+
 // The offline copy's first row: what the urgent row said when it was kept.
 export const offlineUrgentText = (n: number, at: string) =>
   n === 0
@@ -136,16 +200,26 @@ export const offlineUrgentText = (n: number, at: string) =>
 // What needs doing, as one row: the one thing (its title, the sentence Needs updating would
 // say, and where she sorts it), or how many things, with the worst one's sentence (→ Profile). `urgent`: something
 // stops her working (a qualification at level 1 or 2, or her photo overdue).
+// Phase 28.15 (28.11's hand-off): a qualification the office marked sorted, while that mark still
+// stands (inHand, src/lib/portal/in-hand.ts, as Profile reads it), isn't hers to do, so it isn't
+// here: Profile says "The office has this in hand." A suspended one goes to Messages, where she
+// tells the office (an upload can't lift it).
 export function needsRowText(
   needs: NeedsItem[],
   photo: StaffPhoto,
   year: number,
+  mark: SortedMark | null = null,
 ): { title: string; sub: string; href: string; urgent: boolean; photo: boolean } | null {
-  const items: { title: string; sub: string; href: string; level: number; photo: boolean }[] =
-    needs.map((n) => ({
+  const items: { title: string; sub: string; href: string; level: number; photo: boolean }[] = needs
+    .filter((n) => !inHand(n.qualification, mark))
+    .map((n) => ({
       title: needsTitle(n),
       sub: needsText(n, year),
-      href: needsUpload(n.qualification) ? `/profile/upload/${n.qualification.type}` : "/profile",
+      href: needsUpload(n.qualification)
+        ? `/profile/upload/${n.qualification.type}`
+        : n.qualification.status === "suspended"
+          ? "/messages"
+          : "/profile",
       level: n.level,
       photo: false,
     }));

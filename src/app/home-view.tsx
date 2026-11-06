@@ -6,6 +6,7 @@ import { timeOnDay } from "@/lib/portal/format";
 import {
   applyRowText,
   needsRowText,
+  offerRowText,
   offlineUrgentText,
   payDayRowText,
   REACH_PATH,
@@ -13,6 +14,8 @@ import {
   urgentRowText,
   type RowText,
 } from "@/lib/portal/home-copy";
+import type { SortedMark } from "@/lib/portal/in-hand";
+import type { MyOffer } from "@/lib/portal/my-offers";
 import type { MyShift } from "@/lib/portal/my-shifts";
 import type { OpenShift, OpenShiftsList } from "@/lib/portal/open-shifts";
 import type { ReachPrompt } from "@/lib/portal/reach-me";
@@ -22,6 +25,7 @@ import { wallTimeOf } from "@/lib/time/zoned";
 import type { StaffPhoto } from "@/lib/uploads/photo";
 import { HomeScreenHint } from "./home-screen-hint";
 import { OfflineNotice } from "./my-shifts-view";
+import { OfferedToYou } from "./offered-to-you";
 import { EmptyPass, NextPass } from "./next-pass";
 import { disc, headingGap, rowLead, staffH2, tapRow } from "./ui/classes";
 import { Icon, type IconName } from "./ui/icons";
@@ -39,10 +43,11 @@ import { DateTile } from "./ui/sign";
 // clear glass tile 8px from the next with its lead (a date tile, or the office's round tinted disc
 // with an icon), two lines and a chevron: "Do this" (an amber leaf before its heading; what needs
 // doing on Profile, then, online only, "We can't reach you about shifts" and "Open-shift alerts
-// are off"), "Shifts you can take" (the urgent shifts she can take, or offline that they need
+// are off"), "Offered to you" (Phase 28.15, online only, while she has offers still open to her:
+// src/app/offered-to-you.tsx), "Shifts you can take" (the urgent shifts she can take, or offline that they need
 // signal; her travel area to add while she has none; the other shifts she can take) and "Pay" (pay
 // day). Her other booked shifts are on the Shifts tab (`/shifts`). Server-rendered; only "Can't
-// make it?" and the home screen hint are client components.
+// make it?", "Offered to you" and the home screen hint are client components.
 
 export interface HomeViewProps {
   firstName: string;
@@ -58,6 +63,11 @@ export interface HomeViewProps {
   // Phase 28.7: nothing can reach her, or her open-shift alerts are off
   // (src/lib/portal/reach-me.ts). Online only.
   reach?: ReachPrompt[];
+  // Phase 28.15: her offers still open to her (src/lib/portal/my-offers.ts). Online only.
+  offers?: MyOffer[];
+  // The office's latest "Mark as sorted" for her: a need it has in hand isn't in "Do this"
+  // (src/lib/portal/in-hand.ts, as on Profile).
+  sortedMark?: SortedMark | null;
 }
 
 const time = (d: Date, tz: string) => {
@@ -76,6 +86,16 @@ export function HomeView(props: HomeViewProps) {
         <OfflineNotice updated={savedAt} />
         {props.next ? <NextPass shift={props.next} timeZone={timeZone} now={now} /> : <EmptyPass />}
         <DoThis {...props} />
+        {props.offers && props.offers.length > 0 && (
+          <OfferedToYou
+            offers={props.offers.map((o) => ({
+              offerId: o.offerId,
+              shiftId: o.shiftId,
+              day: dateParts(o.startsAt, timeZone),
+              text: offerRowText(o, now, timeZone),
+            }))}
+          />
+        )}
         <ShiftsYouCanTake {...props} savedAt={savedAt} />
         <PaySection pay={props.pay} />
       </div>
@@ -194,8 +214,8 @@ function Row({
 // "Needs doing now" over it. Then, online only (Phase 28.7), "We can't reach you about shifts" and
 // "Open-shift alerts are off", both to Profile's "How we reach you". Only when something needs
 // doing; online only when only those two do.
-function DoThis({ timeZone, now, needs, photo, reach = [] }: HomeViewProps) {
-  const need = needsRowText(needs, photo, wallTimeOf(now, timeZone).year);
+function DoThis({ timeZone, now, needs, photo, reach = [], sortedMark = null }: HomeViewProps) {
+  const need = needsRowText(needs, photo, wallTimeOf(now, timeZone).year, sortedMark);
   if (!need && reach.length === 0) return null;
   return (
     <Section

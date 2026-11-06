@@ -1058,7 +1058,10 @@ test.describe("on a laptop with a mouse", () => {
       new RegExp(`/office/shifts/${id}$`),
     );
     await go(main.getByRole("link", { name: "Back to sessions" }), "/office/shifts");
-    await go(main.getByRole("link", { name: "Later" }), /\/office\/shifts\?from=\d{4}-\d\d-\d\d$/);
+    await go(
+      main.getByRole("link", { name: "Later", exact: true }),
+      /\/office\/shifts\?from=\d{4}-\d\d-\d\d$/,
+    );
     // The top bar's counts: "Urgent shifts not filled", the places charts' "Need people", Needs
     // attention's chart and the pay queries chart.
     await go(bar.getByRole("link", { name: /^To fill \d+$/ }), "/office/events?view=need");

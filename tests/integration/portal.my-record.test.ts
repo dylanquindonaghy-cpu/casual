@@ -10,6 +10,7 @@ import { myRecord, type MyRecord } from "@/lib/portal/my-record";
 import { NOTICE_NOT_RECORDED, recordNoticeText } from "@/lib/portal/record-copy";
 import { takeShift } from "@/lib/portal/take-shift";
 import { cancelBooking, cancelShiftByFirm } from "@/lib/roster/cancel";
+import { FIRM_CHANGE_REASONS } from "@/lib/roster/firm-reasons";
 import { withdrawStrike } from "@/lib/strikes/manage";
 import { STRIKE_WARNING_VERSION } from "@/lib/strikes/words";
 import { bookingFirm, hoursFromNow, NOW } from "../helpers/booking-fixture";
@@ -232,7 +233,7 @@ describe("Your shift record", () => {
           kind: "moved",
           by: "office",
           noticeHours: 21,
-          reason: "Weather or safety",
+          reason: "Because of weather or safety.",
           moved: {
             fromStart: new Date(times.oldStartsAt),
             fromEnd: new Date(times.oldEndsAt),
@@ -258,6 +259,7 @@ describe("Your shift record", () => {
     const page = await html(r);
     expect(page).not.toContain("Ben");
     expect(page).toContain("You had 21 hours&#x27; notice.");
+    expect(page).toContain("Because of weather or safety.");
     expect(page).toContain("You gave 20 hours&#x27; notice.");
     expect(page).toContain(`Reference <span class="font-mono">${refOf(annBooking)}</span>`);
     expect(page).toContain("Your reason: I&#x27;m unwell");
@@ -353,7 +355,7 @@ describe("Your shift record", () => {
     expect(r.rows.map((x) => [x.kind, x.by, x.reason])).toEqual([
       ["cancelled", "office", null], // the real path's (stamped after NOW)
       ["cancelled", "office", null],
-      ["moved", "office", "Weather or safety"],
+      ["moved", "office", "Because of weather or safety."],
       ["booked", "office", null],
       ["offered", "office", null],
     ]);
@@ -374,6 +376,41 @@ describe("Your shift record", () => {
     ]) {
       expect(text, never).not.toContain(never);
     }
+  });
+
+  it("the office cancels her booking as 'They've left, or can't work here': she reads it in her own words", async () => {
+    const t = await recordFirm();
+    const s = await t.shift(later(30));
+    await t.f.booking(t.ann, s, "confirmed");
+    // The real path (the dashboard's "Bookings to check": cancelBookingByOffice): the fixed reason's
+    // words go in the log as the office's list has them.
+    expect(
+      await cancelBooking(
+        withFirm,
+        t.f.firmId,
+        {
+          shiftId: s,
+          workerId: t.ann,
+          reason: FIRM_CHANGE_REASONS.not_available,
+          by: { type: "office", id: t.resourcer },
+        },
+        { clock: at(NOW) },
+      ),
+    ).toMatchObject({ status: "cancelled" });
+    const { rows: logged } = await su.query<{ reason: string | null }>(
+      "select data ->> 'reason' as reason from events where firm_id = $1 and action = 'shift.cancelled'",
+      [t.f.firmId],
+    );
+    expect(logged.map((x) => x.reason)).toEqual([FIRM_CHANGE_REASONS.not_available]);
+
+    const r = await t.record(t.ann);
+    expect(r.rows.map((x) => [x.kind, x.by, x.reason])).toEqual([
+      ["cancelled", "office", "You could no longer work this shift."],
+    ]);
+    const page = await html(r);
+    expect(page).toContain("You could no longer work this shift.");
+    expect(page).not.toContain("They&#x27;ve left");
+    expect(page).not.toMatch(/\bthey\b/i);
   });
 
   it("an offer whose session moved after it was sent: Notice not recorded; an older rota-sheet move naming no worker shows through her booking", async () => {
@@ -431,7 +468,7 @@ describe("Your shift record", () => {
     expect(moved).toMatchObject({
       kind: "shortened",
       by: "office",
-      reason: "Times changed on the rota sheet",
+      reason: "The times were changed on the rota sheet.",
       noticeHours: 32.5,
       shift: { id: s, startsAt: new Date("2026-11-08T08:00:00Z") },
       moved: { toEnd: new Date("2026-11-08T12:00:00Z") },
@@ -543,7 +580,7 @@ describe("Your shift record", () => {
       ["booked", "you", false],
     ]);
     expect(ofGone[0]).toMatchObject({
-      reason: "The event was cancelled",
+      reason: "The event was cancelled.",
       askedBy: "client",
       noticeHours: 70,
       strike: null,

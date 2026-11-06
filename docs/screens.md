@@ -147,7 +147,7 @@ address here; 28.13 links it from Booked's Past view and from Profile.
 |---|---|---|
 | An offer (an offer wave, or the office) | Offered to you | The shift; the notice |
 | A booking she made | Booked by you | The shift; the notice |
-| A booking by the office, its rota sheet or its planner | Booked by the office | The shift; the reason (a rota sheet's: "Put on the rota sheet by the office."); the notice |
+| A booking by the office, its rota sheet or its planner | Booked by the office | The shift; the reason (a rota sheet's: "The office put you on the rota sheet."); the notice |
 | A move | Moved by the office | The shift; "From Sat 7 Nov, 06:00 to 14:00" and "To Sat 7 Nov, 08:00 to 16:00"; "The site changed too." when it did; the reason; the notice |
 | A shortening | Shortened by the office | The same as a move |
 | The office cancelling her booking or the whole shift (or its rota sheet or planner) | Cancelled by the office | The shift; the reason; "The client asked." or "You asked." where that was recorded; the notice |
@@ -161,10 +161,24 @@ address here; 28.13 links it from Booked's Past view and from Profile.
   2 days' notice." (whole hours or days, rounded down), or "After the shift started." Where nothing
   was logged (an older offer, counted on the office's report from the shift's start as it is now)
   it reads "Notice not recorded".
-- **Reasons** are only the fixed words: the office's list ("The event's times or place changed",
-  "The event was cancelled", "The client needs fewer staff", "Weather or safety", "They've left, or
-  can't work here", "Another reason"), the rota sheet's own fixed words ("Times changed on the rota
-  sheet", "Removed on the rota sheet" and the like), and for her own cancellation the cancel sheet's
+- **Reasons** are only the fixed ones. The office's list and its rota sheet's own fixed words are
+  told in her words, not the office's (she is reading about her own booking, so never "they"):
+
+  | The office logged | She reads |
+  |---|---|
+  | The event's times or place changed | The event's times or place changed. |
+  | The event was cancelled | The event was cancelled. |
+  | The client needs fewer staff | The client needed fewer staff. |
+  | Weather or safety | Because of weather or safety. |
+  | They've left, or can't work here | You could no longer work this shift. |
+  | Another reason | For another reason. |
+  | Put on the rota sheet by the office | The office put you on the rota sheet. |
+  | Shift cancelled on the rota sheet | The shift was cancelled on the rota sheet. |
+  | Removed on the rota sheet | The office took you off the rota sheet. |
+  | Times changed on the rota sheet | The times were changed on the rota sheet. |
+  | Site changed on the rota sheet | The site was changed on the rota sheet. |
+
+  A logged reason not in this table shows nothing. For her own cancellation, the cancel sheet's
   list ("I'm unwell", "Travel problem", "Family or caring", "Something else"; a note she typed
   under "Something else" shows as "Something else" only). Anything typed by the office never shows.
 - **The strike chip** on her own cancellation, read from the strike as it is now (the same record

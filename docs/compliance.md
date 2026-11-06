@@ -363,7 +363,8 @@ What the product does about it:
   lists every offer, booking, office move, shortening and cancellation for them in the last 90
   days, with who did it ("you" or "the office", never a name) and the notice as logged. A figure
   the report worked out afterwards (an older offer, counted from the session's current start) reads
-  "Notice not recorded". Only fixed reason words show: never the office's typed reasons, its
+  "Notice not recorded". Only fixed reasons show, each in words written for the casual
+  (`docs/screens.md` "### 28.4"): never the office's typed reasons, its
   reason for placing someone despite a rule, rule codes or office users. Older records: the casual
   asks the office for a copy. It says nothing about money owed or short notice until the 2027
   rules are final.

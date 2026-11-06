@@ -105,7 +105,7 @@ test("Your shift record: her offers, bookings, the office's changes and her canc
         // ("… to 22:00", "… to 04:00 Tue" or "… to midnight", by the hour the run starts.)
         await expect(moved).toContainText(/From \w{3} \d+ \w{3}, \d\d:\d\d to /);
         await expect(moved).toContainText(/To \w{3} \d+ \w{3}, \d\d:\d\d to /);
-        await expect(moved).toContainText("Weather or safety");
+        await expect(moved).toContainText("Because of weather or safety.");
         await expect(moved).toContainText(/You had \d+ days' notice\./);
         await expect(moved.getByRole("link")).toHaveAttribute(
           "href",
@@ -123,7 +123,7 @@ test("Your shift record: her offers, bookings, the office's changes and her canc
 
         // The session the office cancelled at the client's request: no link, no strike words.
         const gone = rowOf(page, "Cancelled by the office", scene.sites.gone);
-        await expect(gone).toContainText("The event was cancelled");
+        await expect(gone).toContainText("The event was cancelled.");
         await expect(gone).toContainText("The client asked.");
         await expect(gone.getByRole("link")).toHaveCount(0);
         await expect(gone).not.toContainText("strike");

@@ -2,10 +2,13 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { h2, staffBtn, staffRows } from "../ui/classes";
 import { PageHeader } from "../ui/page-header";
+import { Slip } from "../ui/slip";
+import { officeLinkClass } from "../profile/office-link";
 import { possessive } from "@/lib/portal/copy";
+import { MESSAGES_ABOUT_PAY } from "@/lib/portal/message-office";
 import { renewalText } from "@/lib/portal/upload-copy";
 import { STRIKE_IS_A_RECORD } from "@/lib/strikes/words";
-import type { HelpFacts } from "@/lib/portal/help-facts";
+import { bookingRuleLines, whyNotLines, type HelpFacts } from "@/lib/portal/help-facts";
 import { postcodeAttribution } from "@/lib/travel/attribution";
 import { Name, Points, Step, Steps } from "./guide-parts";
 
@@ -23,11 +26,19 @@ import { Name, Points, Step, Steps } from "./guide-parts";
 // There's no general "Ask the office" form either: a worker asks about a shift with "Ask for a
 // change" (or "Ask the office to review" on a shift they can't take), so the page says that.
 // "6‑digit" has a non-breaking hyphen, so it never splits across two lines on a phone.
+//
+// Phase 28.12 (docs/screens.md "### 28.12"): "The firm's rules for taking shifts", each line from
+// the rules' own parsers (src/lib/portal/help-facts.ts: a line whose setting doesn't parse is left
+// out), and "Why can't I see a shift?". No "Contact the office" dead end: each is a "Message the
+// office" link (to Messages; about her pay, to Messages about pay). Logged out, Messages sends her
+// to log in first. Every button is named as it reads now (the Profile folds, "Send this photo").
 
 const SECTIONS = [
   { id: "how-it-works", title: "How it works" },
   { id: "your-shifts", title: "Your shifts" },
   { id: "taking-a-shift", title: "Taking a shift" },
+  { id: "firm-rules", title: "The firm's rules for taking shifts" },
+  { id: "why-not", title: "Why can't I see a shift?" },
   { id: "urgent-shifts", title: "Urgent shifts" },
   { id: "cant-make-it", title: "If you can't make a shift" },
   { id: "cancelling-and-strikes", title: "Cancelling and strikes" },
@@ -49,8 +60,8 @@ export function HelpView({
   year,
 }: {
   firmName: string;
-  // The firm's own strike and photo numbers, and whether it has travel areas on
-  // (src/lib/portal/help-facts.ts).
+  // The firm's own strike and photo numbers, whether it has travel areas and phone notifications
+  // on, and its rules for taking shifts (src/lib/portal/help-facts.ts).
   facts: HelpFacts;
   year: number; // for the postcode data's attribution
 }) {
@@ -160,22 +171,37 @@ export function HelpView({
             shifts.
           </Step>
         </Steps>
-        <p className="mt-4">You only see shifts you can take. A shift won&apos;t show if:</p>
-        <Points>
-          <li>a licence or card it needs is missing or out of date</li>
-          <li>you&apos;re already booked at that time</li>
-          <li>you need more rest between shifts</li>
-          <li>it would take you over your weekly hours</li>
-          <li>you&apos;ve marked that day as one you can&apos;t work</li>
-        </Points>
         <p className="mt-4">
-          Some shifts go first to people with fewer hours that week. You&apos;ll see when you can
-          take it. At that time, tap <Name>Check again</Name>.
+          You only see shifts you can take.{" "}
+          <a href="#why-not" className={officeLinkClass}>
+            Why can&apos;t I see a shift?
+          </a>
         </p>
         <p className="mt-3">
           If it says you can&apos;t take a shift, it tells you why. Think that&apos;s wrong? Tap{" "}
           <Name>Ask the office to review</Name>.
         </p>
+      </Section>
+
+      <Section id="firm-rules">
+        <p className="mt-3">These are {possessive(firmName)} own settings.</p>
+        <Points>
+          {bookingRuleLines(facts.rules, {
+            on: facts.strikesOn,
+            noticeHours: facts.noticeHours,
+          }).map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </Points>
+      </Section>
+
+      <Section id="why-not">
+        <p className="mt-3">A shift won&apos;t show if:</p>
+        <Points>
+          {whyNotLines(facts).map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </Points>
       </Section>
 
       <Section id="urgent-shifts">
@@ -211,7 +237,11 @@ export function HelpView({
           Changed your mind? Tap <Name>Keep my shift</Name> instead.
         </p>
         <p className="mt-3">
-          A shift that has started can&apos;t be cancelled here. Contact the office.
+          A shift that has started can&apos;t be cancelled here.{" "}
+          <Link href="/messages" className={officeLinkClass}>
+            Message the office
+          </Link>
+          .
         </p>
       </Section>
 
@@ -233,7 +263,7 @@ export function HelpView({
             <li>You&apos;ll see if it&apos;s a strike before you confirm.</li>
             <li>
               Something stopped you? Tap <Name>Tell us what happened</Name>. It&apos;s on the cancel
-              screen and under the strike on your profile.
+              screen when you get a strike, and under the strike on your profile.
             </li>
             <li>
               The office can withdraw a strike. Your profile then says{" "}
@@ -246,8 +276,8 @@ export function HelpView({
       <Section id="changes">
         <Steps>
           <Step>
-            Find the shift on Home or under <Name>Shifts</Name>. Tap <Name>Details</Name>, then{" "}
-            <Name>Ask for a change</Name>.
+            Your next shift: tap <Name>Details</Name>, then <Name>Ask for a change</Name>. A later
+            one under <Name>Shifts</Name>: tap the shift, then <Name>Ask for a change</Name>.
           </Step>
           <Step>
             Choose <Name>Change the times</Name> or <Name>Swap with someone</Name>.
@@ -260,7 +290,13 @@ export function HelpView({
           Your shift doesn&apos;t change until the office changes it. You&apos;ll see their answer
           in <Name>My requests</Name>.
         </p>
-        <p className="mt-3">For anything else, write to the office under Messages.</p>
+        <p className="mt-3">
+          For anything else,{" "}
+          <Link href="/messages" className={officeLinkClass}>
+            message the office
+          </Link>
+          .
+        </p>
       </Section>
 
       <Section id="your-pay">
@@ -298,31 +334,37 @@ export function HelpView({
           Something wrong? Tap <Name>Raise a pay query</Name>. Choose the shift and what&apos;s
           wrong, then tap <Name>Send pay query</Name>. Payroll will look at it.
         </p>
-        <p className="mt-3 rounded-xl border-2 border-attention bg-attention-soft p-4 font-semibold text-attention-ink">
-          Never put bank details in a pay query.
-        </p>
+        <Slip tone="attention" role="note" className="mt-3">
+          <p className="font-semibold">Never put bank details in a pay query.</p>
+        </Slip>
         <p className="mt-3">
-          Pay queries can go back 90 days. For anything older, contact the office.
+          Pay queries can go back 90 days. For anything older, or if you can&apos;t get a code,{" "}
+          <Link href={MESSAGES_ABOUT_PAY} className={officeLinkClass}>
+            message the office
+          </Link>
+          .
         </p>
       </Section>
 
       <Section id="your-profile">
         <p className="mt-3">
-          Tap the <Name>Profile</Name> tab. <Name>My requests</Name> and <Name>Log out</Name> are
-          there too.
+          Tap the <Name>Profile</Name> tab. <Name>My requests</Name> and <Name>Help</Name> are at
+          the top, and <Name>Log out</Name> is at the end.
         </p>
         <Points>
           <li>
-            <Name>Days you can&apos;t work</Name>: choose a day and tap{" "}
+            Tap <Name>Days you can&apos;t work</Name> to open it. Choose a day and tap{" "}
             <Name>Mark as unavailable</Name>. You won&apos;t be offered shifts that day. It
             doesn&apos;t cancel a shift you&apos;re booked on.
           </li>
           <li>
-            <Name>How we reach you</Name>:{" "}
+            Tap <Name>How we reach you</Name> to open it. Then{" "}
             {facts.loginWay === "message"
               ? "choose text message or email, and whether to hear about open shifts."
-              : "choose whether to hear about open shifts, and turn on notifications on this phone."}{" "}
-            Then tap <Name>Save settings</Name>.
+              : facts.pushOn
+                ? "choose whether to hear about open shifts, and turn on notifications on this phone."
+                : "choose whether to hear about open shifts."}{" "}
+            Tap <Name>Save settings</Name>.
           </li>
           <li>Your details are there too. To change your name or number, ask the office.</li>
         </Points>
@@ -336,7 +378,10 @@ export function HelpView({
           </p>
           <Steps>
             <Step>
-              Tap the <Name>Profile</Name> tab, then <Name>Set your travel area</Name>.
+              Tap the <Name>Profile</Name> tab, then <Name>Your travel area</Name>.
+            </Step>
+            <Step>
+              Tap <Name>Set your travel area</Name> (or <Name>Change your travel area</Name>).
             </Step>
             <Step>Enter the postcode you start from. It can be different from your home.</Step>
             <Step>
@@ -363,6 +408,7 @@ export function HelpView({
         <Points>
           <li>
             Got a new one? Tap <Name>Upload a new one</Name> under it and take a clear photo of it.
+            Check it, then tap <Name>Send this photo</Name>.
           </li>
           <li>
             Some, like CSAS, the office records itself. Once you&apos;ve renewed one of those, tell
@@ -370,7 +416,8 @@ export function HelpView({
           </li>
           <li>
             Your staff photo needs renewing every {renewalText(facts.photoRenewalMonths)}. Tap{" "}
-            <Name>Upload a new photo</Name> and face the camera.
+            <Name>Upload a new photo</Name> and face the camera. Then tap{" "}
+            <Name>Send this photo</Name>.
           </li>
           <li>
             The office checks everything you send. Until it does, the new one doesn&apos;t count.
@@ -405,7 +452,7 @@ export function HelpView({
         </p>
       </Section>
 
-      <Link href="/" className={`${staffBtn.secondary} mt-10`}>
+      <Link href="/shifts" className={`${staffBtn.secondary} mt-10`}>
         Back to my shifts
       </Link>
 

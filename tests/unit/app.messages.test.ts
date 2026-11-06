@@ -167,13 +167,22 @@ describe("Help", () => {
             strikesOn: true,
             travelOn: true,
             loginWay: "message",
+            pushOn: true,
+            rules: {
+              allocation: { mode: "first_come_first_served", waveMinutes: 15 },
+              rest: { minRestHours: 11, weeklyHoursCap: 48 },
+              urgentWindowHours: 24,
+              quiet: { start: "22:00", end: "07:00", urgentOverride: true },
+            },
           },
           year: 2026,
         }),
       ),
     );
-    const line = "For anything else, write to the office under Messages.";
-    expect(words).toContain(line);
+    // 28.12: "message the office" is a link to Messages now.
+    const line = "For anything else, message the office.";
+    // (A link's closing tag leaves a space before the full stop.)
+    expect(words.replace(/ \./g, ".")).toContain(line);
     expect(words).not.toContain("the way you usually do");
     expect(screens).toContain(`"${line}"`);
   });

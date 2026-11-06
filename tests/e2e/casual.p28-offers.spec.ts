@@ -131,7 +131,7 @@ test("Offered to you: shown above Shifts you can take, hidden offline, and 'No t
       await row.getByRole("button", { name: "No thanks" }).click();
       const step = row.getByRole("group", { name: "Say no to this shift?" });
       await expect(step).toContainText(
-        "We won't offer it to you again. You can still take it from Open shifts while it's open.",
+        "We won't offer it to you again. You can still take it from the shift's page while it's open.",
       );
       // "Keep the offer" closes the step and changes nothing.
       await step.getByRole("button", { name: "Keep the offer" }).click();
@@ -143,7 +143,11 @@ test("Offered to you: shown above Shifts you can take, hidden offline, and 'No t
         "Done. You won't be offered this shift again.",
       );
       await expect(offered.getByRole("status")).toContainText(
-        "You can still take it from Open shifts while it's open.",
+        "You can still take it from the shift's page while it's open.",
+      );
+      await expect(offered.getByRole("link", { name: "Open the shift" })).toHaveAttribute(
+        "href",
+        `/shifts/${scene.shiftId}`,
       );
       await expect(row).toHaveCount(0);
       expect(await offerAnswer(scene.offerId)).toEqual({ response: "declined", declinedLogged: 1 });

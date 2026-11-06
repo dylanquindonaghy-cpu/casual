@@ -7,6 +7,7 @@ import { tryAgainText } from "@/lib/portal/copy";
 import {
   DECLINE_STEP,
   declineOutcomeText,
+  OPEN_THE_SHIFT,
   type DeclineShown,
   type RowText,
 } from "@/lib/portal/home-copy";
@@ -38,15 +39,21 @@ import { useHydrated } from "./use-hydrated";
 export interface OfferRow {
   offerId: string;
   shiftId: string;
+  // After "No thanks": take it, or only ask for it (the office chooses: MyOffer.afterNo).
+  afterNo?: "take" | "ask";
   day: { dow: string; day: string };
   text: RowText & { offered: string };
 }
 
+// What the slip shows, and the shift's page to link to once her "no" is recorded (the tile has
+// gone, and Open shifts may not list it: only her travel area and the next 28 days).
+type Shown = DeclineShown & { shiftId?: string };
+
 export function OfferedToYou({ offers }: { offers: OfferRow[] }) {
   const [gone, setGone] = useState<ReadonlySet<string>>(new Set());
-  const [shown, setShown] = useState<DeclineShown | null>(null);
+  const [shown, setShown] = useState<Shown | null>(null);
   const left = offers.filter((o) => !gone.has(o.offerId));
-  const done = (offerId: string, result: DeclineShown, remove: boolean) => {
+  const done = (offerId: string, result: Shown, remove: boolean) => {
     setShown(result);
     if (remove) setGone((g) => new Set(g).add(offerId));
   };
@@ -69,6 +76,13 @@ export function OfferedToYou({ offers }: { offers: OfferRow[] }) {
           className={`${headingGap} ${nums}`}
         >
           {shown.line && <p>{shown.line}</p>}
+          {shown.shiftId && (
+            <p className="mt-1">
+              <Link href={`/shifts/${shown.shiftId}`} className="font-semibold underline">
+                {OPEN_THE_SHIFT}
+              </Link>
+            </p>
+          )}
         </Slip>
       )}
       {left.length > 0 && (
@@ -87,7 +101,7 @@ function Offer({
   done,
 }: {
   offer: OfferRow;
-  done: (offerId: string, result: DeclineShown, remove: boolean) => void;
+  done: (offerId: string, result: Shown, remove: boolean) => void;
 }) {
   const router = useRouter();
   const ready = useHydrated();
@@ -108,9 +122,14 @@ function Offer({
         router.replace("/login");
         return;
       }
-      const words = declineOutcomeText(result.status, tryAgainText());
-      // A failed tap keeps the offer and its step to try again; any other answer closes it.
-      done(offer.offerId, words, result.status !== "error");
+      const words = declineOutcomeText(result.status, tryAgainText(), offer.afterNo ?? "take");
+      // A failed tap keeps the offer and its step to try again; any other answer closes it. Once
+      // her "no" is recorded the slip links the shift's page, where she can still take or ask.
+      done(
+        offer.offerId,
+        result.status === "declined" ? { ...words, shiftId: offer.shiftId } : words,
+        result.status !== "error",
+      );
     });
   };
 
@@ -144,7 +163,9 @@ function Offer({
           <p id={stepId} className="font-semibold">
             {DECLINE_STEP.title}
           </p>
-          <p className="mt-1">{DECLINE_STEP.line}</p>
+          <p className="mt-1">
+            {offer.afterNo === "ask" ? DECLINE_STEP.lineAsk : DECLINE_STEP.line}
+          </p>
           <div className="mt-3 flex flex-col gap-2.5">
             <button
               type="button"

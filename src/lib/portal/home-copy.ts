@@ -3,10 +3,10 @@ import { localDateOf, wallTimeOf } from "../time/zoned";
 import { DISTANCE_NOT_KNOWN, notWorkedOutText, type TravelFacts } from "../travel/line-copy";
 import type { StaffPhoto } from "../uploads/photo";
 import { inHand, type SortedMark } from "./in-hand";
-import type { MyOffer } from "./my-offers";
+import type { MyOffer, OfferTake } from "./my-offers";
 import type { OpenShift } from "./open-shifts";
 import type { ReachPrompt } from "./reach-me";
-import { perHour, roleAndEvent, shiftWhen, timeOnDay } from "./format";
+import { perHour, roleAndEvent, shiftWhen, soonLabel, timeOnDay } from "./format";
 import { needsText, needsUpload } from "./qualification-copy";
 import { datePartsOfDay } from "./sign-copy";
 
@@ -133,9 +133,17 @@ export const REACH_ROWS: Record<ReachPrompt, RowText> = {
 // row: "Steward · Raceday", "Sat 7 Nov, 14:00 to 22:00 · Riverside Arena", then when it was offered
 // ("Offered 21:20" today; "Offered 21:20 on Sun 1 Nov" before) and "First to take it gets it."
 // No deadline: an offer stays open until the shift fills, moves or is cancelled.
+// The second sentence says what the shift's page would let her do now (`take`, from myOffers, by
+// that page's own checks): take it ("First to take it gets it."), only ask for it (the office
+// chooses for its event), or take it once fair rotation's hold ends.
 export const FIRST_TO_TAKE = "First to take it gets it.";
+export const OFFICE_CHOOSES = "The office chooses who works this one. You can ask for it.";
+export const heldUntilText = (opensAt: Date, now: Date, timeZone: string) =>
+  `You can take it from ${soonLabel(opensAt, now, timeZone)}.`;
 export function offerRowText(
-  o: Pick<MyOffer, "role" | "eventName" | "siteName" | "startsAt" | "endsAt" | "sentAt">,
+  o: Pick<MyOffer, "role" | "eventName" | "siteName" | "startsAt" | "endsAt" | "sentAt"> & {
+    take?: OfferTake;
+  },
   now: Date,
   timeZone: string,
 ): RowText & { offered: string } {
@@ -143,34 +151,51 @@ export function offerRowText(
   const sameDay = localDateOf(o.sentAt, timeZone) === localDateOf(now, timeZone);
   const w = wallTimeOf(o.sentAt, timeZone);
   const clock = `${String(w.hour).padStart(2, "0")}:${String(w.minute).padStart(2, "0")}`;
+  const take = o.take ?? { kind: "now" };
+  const next =
+    take.kind === "ask"
+      ? OFFICE_CHOOSES
+      : take.kind === "held"
+        ? heldUntilText(take.opensAt, now, timeZone)
+        : FIRST_TO_TAKE;
   return {
     title: roleAndEvent(o.role, o.eventName),
     sub: o.siteName ? `${when} · ${o.siteName}` : when,
-    offered: `Offered ${sameDay ? clock : timeOnDay(o.sentAt, timeZone)}. ${FIRST_TO_TAKE}`,
+    offered: `Offered ${sameDay ? clock : timeOnDay(o.sentAt, timeZone)}. ${next}`,
   };
 }
 
-// Its "No thanks" step, and what she's told after (every answer ends with words).
+// Its "No thanks" step, and what she's told after (every answer ends with words). After saying no
+// she holds no waiting offer, so where the office chooses for the event she can only ask for it
+// (`lineAsk`; MyOffer.afterNo). Both name the shift's page, not Open shifts: that list shows only
+// her travel area and the next 28 days, and an offer can fall outside both.
 export const DECLINE_STEP = {
   button: "No thanks",
   title: "Say no to this shift?",
-  line: "We won't offer it to you again. You can still take it from Open shifts while it's open.",
+  line: "We won't offer it to you again. You can still take it from the shift's page while it's open.",
+  lineAsk:
+    "We won't offer it to you again. The office chooses who works this one: you can still ask for it on the shift's page.",
   yes: "Yes, say no",
   sending: "Saying no…",
   keep: "Keep the offer",
 };
+export const OPEN_THE_SHIFT = "Open the shift";
 
 export type DeclineShown = { tone: "done" | "quiet" | "urgent"; title: string; line?: string };
 export function declineOutcomeText(
   status: "declined" | "already" | "taken" | "closed" | "error",
   tryAgain: string,
+  afterNo: "take" | "ask" = "take",
 ): DeclineShown {
   switch (status) {
     case "declined":
       return {
         tone: "done",
         title: "Done. You won't be offered this shift again.",
-        line: "You can still take it from Open shifts while it's open.",
+        line:
+          afterNo === "ask"
+            ? "The office chooses who works this one. You can still ask for it on the shift's page."
+            : "You can still take it from the shift's page while it's open.",
       };
     case "already":
       return { tone: "quiet", title: "You've already said no to this shift." };

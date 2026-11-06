@@ -91,8 +91,9 @@ export function HomeView(props: HomeViewProps) {
             offers={props.offers.map((o) => ({
               offerId: o.offerId,
               shiftId: o.shiftId,
+              afterNo: o.afterNo,
               day: dateParts(o.startsAt, timeZone),
-              text: offerRowText(o, now, timeZone),
+              text: offerRowText(o, now, timeZone), // with what she can do now (o.take)
             }))}
           />
         )}

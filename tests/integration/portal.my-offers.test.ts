@@ -4,6 +4,7 @@ import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { waveCandidates } from "@/lib/offers/candidates";
 import { offerState } from "@/lib/office/offer-state";
 import { declineOffer, myOffers } from "@/lib/portal/my-offers";
+import { shiftForWorker } from "@/lib/portal/shift-detail";
 import { takeShift } from "@/lib/portal/take-shift";
 import { bookingFirm, hoursFromNow, NOW, type BookingFirm } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
@@ -51,8 +52,8 @@ async function offer(
   return rows[0]?.id ?? "";
 }
 
-async function setup() {
-  const f = await bookingFirm(su, withFirm);
+async function setup(settings?: Record<string, unknown>) {
+  const f = await bookingFirm(su, withFirm, settings ? { settings } : {});
   const sam = await f.worker();
   const ctx = { firm: { id: f.firmId }, run: withFirm, clock: { now: () => NOW } };
   const portal = {
@@ -249,5 +250,86 @@ describe("declineOffer", () => {
     expect((await takeShift(t.portal, jo, shift)).status).toBe("booked");
     expect((await t.response(mine))?.response).toBe("declined");
     expect((await t.response(jos))?.response).toBe("accepted");
+  });
+});
+
+// Guardrails review of 28.15: each row says what the shift's page would let her do now, by that
+// page's own checks (the rules, then officeChooses, then fair rotation's hold), so "First to take it
+// gets it." is never shown where she can only ask, can't take it, or must wait.
+describe("what each offer row says she can do", () => {
+  async function askEvent(t: Awaited<ReturnType<typeof setup>>) {
+    const ev = await t.f.event({ name: "Office chooses" });
+    await su.query("update shift_events set casuals_ask = true where id = $1", [ev]);
+    return ev;
+  }
+
+  it("a waiting offer on an event where the office chooses: take it now, and after 'No thanks' only ask", async () => {
+    const t = await setup();
+    const ev = await askEvent(t);
+    const shift = await t.f.shift({ startsAt: hoursFromNow(30), eventId: ev });
+    const id = await offer(t.f, t.sam, shift);
+    const [row] = await myOffers(t.ctx, t.sam);
+    expect(row).toMatchObject({ offerId: id, take: { kind: "now" }, afterNo: "ask" });
+    expect((await shiftForWorker(t.ctx, t.sam, shift)).state).toBe("open");
+
+    expect(await declineOffer(t.ctx, t.sam, id)).toEqual({ status: "declined" });
+    // What the step and the slip promise: she can ask, not take.
+    expect((await shiftForWorker(t.ctx, t.sam, shift)).state).toBe("ask");
+    expect((await takeShift(t.portal, t.sam, shift)).status).toBe("ask_first");
+  });
+
+  it("a filled_elsewhere offer on an event where the office chooses reads 'ask', as its page does", async () => {
+    const t = await setup();
+    const ev = await askEvent(t);
+    const shift = await t.f.shift({ startsAt: hoursFromNow(30), eventId: ev });
+    const id = await offer(t.f, t.sam, shift, { response: "filled_elsewhere" });
+    const [row] = await myOffers(t.ctx, t.sam);
+    expect(row).toMatchObject({ offerId: id, take: { kind: "ask" }, afterNo: "ask" });
+    expect((await shiftForWorker(t.ctx, t.sam, shift)).state).toBe("ask");
+    expect((await takeShift(t.portal, t.sam, shift)).status).toBe("ask_first");
+  });
+
+  it("an offer on an ordinary event: take it now, and still take it after 'No thanks'", async () => {
+    const t = await setup();
+    const shift = await t.f.shift({ startsAt: hoursFromNow(30) });
+    await offer(t.f, t.sam, shift);
+    expect(await myOffers(t.ctx, t.sam)).toMatchObject([
+      { take: { kind: "now" }, afterNo: "take" },
+    ]);
+  });
+
+  it("leaves out an offer the rules now refuse her (her licence lapsed since it was sent)", async () => {
+    const t = await setup();
+    const lapsed = await t.f.worker({
+      first: "Lea",
+      credentials: [
+        { type: "STEWARD_L2", expiresOn: null },
+        { type: "SIA_DS", expiresOn: "2026-10-01" },
+      ],
+    });
+    const shift = await t.f.shift({ startsAt: hoursFromNow(30) });
+    await offer(t.f, lapsed, shift);
+    expect((await shiftForWorker(t.ctx, lapsed, shift)).state).toBe("blocked");
+    expect(await myOffers(t.ctx, lapsed)).toEqual([]);
+  });
+
+  it("says when she can take it while fair rotation holds it, as its page does", async () => {
+    const t = await setup({
+      allocation_mode: "fair_rotation",
+      wave_size: 1,
+      wave_minutes: 120,
+      urgent_window_hours: 0,
+    });
+    await t.f.worker({ first: "Nil" }); // 0 hours that week: the group of one
+    // Two hours booked later this week, so Sam isn't in the group of one.
+    await t.f.booking(t.sam, await t.f.shift({ startsAt: hoursFromNow(96), hours: 2 }));
+    const shift = await t.f.shift({ startsAt: hoursFromNow(30), headcount: 2 });
+    await su.query("update shifts set created_at = $1 where id = $2", [hoursFromNow(-0.5), shift]);
+    await offer(t.f, t.sam, shift);
+    const page = await shiftForWorker(t.ctx, t.sam, shift);
+    expect(page.state).toBe("held");
+    const opensAt = page.state === "held" ? page.opensAt : null;
+    expect(opensAt).toEqual(hoursFromNow(1.5));
+    expect(await myOffers(t.ctx, t.sam)).toMatchObject([{ take: { kind: "held", opensAt } }]);
   });
 });

@@ -84,6 +84,9 @@ test("a casual uploads a photo and a certificate; the office checks them; her pr
     mimeType: "image/jpeg",
     buffer: await cameraPhoto(),
   });
+  // The picture shows first; it goes on "Send this photo" (28.11).
+  await expect(photo.getByRole("img", { name: "The photo you chose" })).toBeVisible();
+  await photo.getByRole("button", { name: "Send this photo" }).click();
   await expect(photo.getByRole("status")).toHaveText("Sent. The office will check your photo.");
   await expect(photo).toContainText("Waiting for the office to check");
   await noSidewaysScroll(page);
@@ -105,6 +108,8 @@ test("a casual uploads a photo and a certificate; the office checks them; her pr
     mimeType: "image/jpeg",
     buffer: await cameraPhoto(),
   });
+  await expect(page.getByRole("img", { name: "The photo you chose" })).toBeVisible();
+  await page.getByRole("button", { name: "Send this photo" }).click();
   await expect(page.getByRole("status")).toHaveText("Sent. The office will check it.");
   await expect(page.getByText(/^Being checked · Sent \d{1,2} [A-Z][a-z]{2}/)).toBeVisible();
   await noSidewaysScroll(page);

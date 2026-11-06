@@ -194,6 +194,8 @@ test("the casual app in the office's look: Home, Booked, Open shifts, a shift an
 
         // The browser's own date field reads dd/mm/yyyy: the page's language is en-GB.
         await page.goto(`${acme}/profile`);
+        // (Days you can't work is folded since 28.11: a tap opens it.)
+        await page.getByRole("region", { name: "Days you can't work" }).locator("summary").click();
         await expect(page.getByLabel("A day you can't work")).toBeVisible();
         expect(
           await page.evaluate(() => ({

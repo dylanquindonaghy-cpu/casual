@@ -25,6 +25,7 @@ import type { FirmTx } from "../db/scoped";
 import { withFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { addDays, localDateOf } from "../time/zoned";
+import { inHand, type SortedMark } from "./in-hand";
 import type { PortalContext } from "./my-shifts";
 import {
   CHANNELS,
@@ -39,7 +40,9 @@ import {
 // firm. Server only (it reaches the database); the browser-safe parts are profile-kinds.ts.
 //
 // - myProfile: contact details; her qualifications as they stand today (12F.1: every type one of her
-//   roles needs, with its status, src/lib/credentials/status.ts), then any other she holds that a
+//   roles needs, with its status, src/lib/credentials/status.ts; 28.11: the number on her record of
+//   each she may upload herself, never one the office records itself, and whether the office has it
+//   in hand, src/lib/portal/in-hand.ts), then any other she holds that a
 //   shift she's booked on or offered needs on top of its role ("Other qualifications on file",
 //   Phase 27.2), and her right-to-work check (a status only); the days marked unavailable from
 //   today on (with whether a booking falls on each); and the notification settings.
@@ -60,6 +63,11 @@ export interface OtherQualification extends Qualification {
   shift: { role: string; day: string; booked: boolean };
 }
 
+// One of her own on Profile (28.11): `number` only on one she may upload herself (one the office
+// records itself, CSAS, right to work, health or criminal record details, never carries it), and
+// `inHand` when the office marked it sorted and it still stands as it did then. Display only.
+export type MyQualification = Qualification & { inHand?: boolean };
+
 export interface Profile {
   firstName: string;
   lastName: string;
@@ -68,7 +76,7 @@ export interface Profile {
   notifyChannel: Channel;
   offerAlerts: boolean;
   textsOff: boolean; // they replied STOP to a text: no texts until they reply START
-  qualifications: Qualification[];
+  qualifications: MyQualification[];
   // "Other qualifications on file" (Phase 27.2): always set by myProfile; left out by the pages'
   // own fixtures.
   others?: OtherQualification[];
@@ -120,8 +128,9 @@ export async function myProfile(ctx: Ctx, workerId: string): Promise<Profile | n
       .where(eq(workers.id, workerId));
     if (!me || me.mobile === null) return null; // erased (their sessions went with them)
     const held = (
-      await qualificationsFor(tx, [workerId], { now, timeZone: ctx.firm.timezone })
+      await qualificationsFor(tx, [workerId], { now, timeZone: ctx.firm.timezone, numbers: true })
     ).get(workerId);
+    const mark = await latestSortedMark(tx, workerId, ctx.firm.timezone);
     const days = await tx
       .select({ day: workerUnavailableDays.day })
       .from(workerUnavailableDays)
@@ -136,7 +145,11 @@ export async function myProfile(ctx: Ctx, workerId: string): Promise<Profile | n
       ctx.firm.timezone,
     );
     const { smsOptedOutAt, ...contact } = me;
-    const qualifications = held?.qualifications ?? [];
+    const qualifications: MyQualification[] = (held?.qualifications ?? []).map((q) => ({
+      ...q,
+      number: q.uploadable ? (q.number ?? null) : null,
+      inHand: inHand(q, mark),
+    }));
     return {
       ...contact,
       mobile: me.mobile,
@@ -160,6 +173,30 @@ export async function myProfile(ctx: Ctx, workerId: string): Promise<Profile | n
       },
     };
   });
+}
+
+// The office's latest "Mark as sorted" for her (src/lib/office/casual-follow-up.ts: what it was
+// about, and the day, in the firm's calendar); null when it never marked one. Her own only.
+async function latestSortedMark(
+  tx: FirmTx,
+  workerId: string,
+  timeZone: string,
+): Promise<SortedMark | null> {
+  const { rows } = await tx.execute<{
+    type: string | null;
+    status: string | null;
+    at: Date | string;
+  }>(
+    sql`
+      select data ->> 'type' as type, data ->> 'status' as status, created_at as at from events
+       where action = 'casual.needs_sorted' and entity_type = 'worker' and entity_id = ${workerId}
+       order by id desc
+       limit 1
+    `,
+  );
+  const row = rows[0];
+  if (!row?.type || !row.status) return null;
+  return { type: row.type, status: row.status, day: localDateOf(new Date(row.at), timeZone) };
 }
 
 // The extras (`shifts.required_credentials`) of the shifts she's booked on (still to finish) or

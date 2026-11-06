@@ -77,11 +77,10 @@ test("email login on: the link and the pay code come by email, and Profile shows
   ).toBeVisible();
 
   await page.goto(`${acme}/profile`);
-  await expect(
-    page.getByText(
-      "Shift messages come as notifications on this phone, if you turn them on below. If not, we email",
-    ),
-  ).toBeVisible();
+  // How we reach you is folded (28.11), and with no phone notifications here (no key) nothing says
+  // they'd come: the email, on its own line.
+  await page.getByRole("region", { name: "How we reach you" }).locator("summary").click();
+  await expect(page.getByText("We email shift messages to:")).toBeVisible();
   await expect(page.getByText(zoe.email, { exact: true }).last()).toBeVisible();
   await expect(page.getByRole("radio")).toHaveCount(0);
   await expect(page.getByText(/WhatsApp/)).toHaveCount(0);

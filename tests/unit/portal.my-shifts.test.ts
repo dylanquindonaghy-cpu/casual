@@ -427,7 +427,7 @@ describe("Booked: the bookings themselves", () => {
     const manyHtml = home({ needs: EVERY_LEVEL });
     const many = row(manyHtml) ?? "";
     expect(spoken(many)).toContain(
-      "Needs doing now 5 things need doing SIA door supervisor licence expires on 5 Nov, and your door supervisor shift on Fri 6 Nov needs it. Upload the new one, or contact the office. And 4 more.",
+      "Needs doing now 5 things need doing SIA door supervisor licence expires on 5 Nov, and your door supervisor shift on Fri 6 Nov needs it. Upload the new one, or message the office. And 4 more.",
     );
     expect(many).toMatch(/href="\/profile"/);
     // Under "Do this" (Phase 24). Something that stops her working: its tile pale red and a red

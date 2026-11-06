@@ -79,7 +79,7 @@ test("Profile shows Zoe's qualifications: one Valid, one Expiring soon, one Miss
     "You're new, so there's no score yet. You'll get one after 5 shifts.",
   );
   await expect(reliability).toContainText("0 shifts worked · 0 no-shows · 0 late cancellations");
-  await expect(reliability).toContainText("Our office sees the same figure.");
+  await expect(reliability).toContainText("The office sees the same figure.");
   const qualifications = page.getByRole("region", { name: "Qualifications" });
   const items = qualifications.getByRole("listitem");
   await expect(items).toHaveCount(3);

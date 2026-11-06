@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { muted, page, sectionGap, staffCard, textLink } from "@/app/ui/classes";
+import { muted, page, sectionGap, staffBtn, staffCard } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { requireWorker } from "@/lib/auth/current-worker";
 import { myTravel } from "@/lib/portal/travel";
@@ -30,11 +30,10 @@ export default async function TravelPage() {
         <p className={muted}>{travelPrivacyText(travel.postcode)}</p>
         <TravelForm travel={travel} signOff={firm.signOff} />
       </section>
-      <p className={sectionGap.staff}>
-        <Link href="/profile" className={textLink}>
-          Back to my profile
-        </Link>
-      </p>
+      {/* A 52px button, as "Back to my requests" (28.11: it was a 24px text link). */}
+      <Link href="/profile" className={`${staffBtn.secondary} ${sectionGap.staff}`}>
+        Back to my profile
+      </Link>
       <CasualTabBar firm={firm} workerId={worker.id} current="profile" />
     </main>
   );

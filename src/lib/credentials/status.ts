@@ -50,6 +50,9 @@ export interface CredentialRecord {
   expiresOn: string | null; // yyyy-mm-dd
   checkState?: CheckState; // default verified (the office's own)
   upload?: RecordUpload | null;
+  // The number on the card, as the office recorded it (28.11). Read only where a page shows it
+  // (her own Profile: qualificationsFor's `numbers`); left out everywhere else.
+  number?: string | null;
 }
 
 export interface QualificationState {
@@ -62,6 +65,9 @@ export interface QualificationState {
   waiting: { uploadId: string; sentOn: string } | null;
   // Not accepted: her latest upload, and why (only with that status).
   rejected: { uploadId: string; sentOn: string; reason: RejectReason } | null;
+  // The number on the record that decides it (28.11), when the records carry one (undefined when
+  // they weren't read with numbers; null when the office recorded none).
+  number?: string | null;
 }
 
 const checked = (r: CredentialRecord) => (r.checkState ?? "verified") === "verified";
@@ -93,6 +99,7 @@ export function qualificationStatus(
     evidenceUploadId: upload(from)?.id ?? null,
     waiting,
     rejected: null,
+    number: from?.number,
   });
   const suspended = office.find((r) => r.status === "suspended");
   if (suspended) return state("suspended", suspended.expiresOn, suspended);

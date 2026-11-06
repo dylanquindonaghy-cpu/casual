@@ -97,6 +97,9 @@ describe("myProfile", () => {
         evidenceUploadId: null,
         waiting: null,
         rejected: null,
+        // 28.11: no number recorded; the office hasn't marked anything sorted.
+        number: null,
+        inHand: false,
       },
       // No security guard licence: a security officer needs one of it or a door supervisor
       // licence (P3.3), and her door supervisor licence is valid, so her application for the
@@ -113,6 +116,9 @@ describe("myProfile", () => {
         evidenceUploadId: null,
         waiting: null,
         rejected: null,
+        // 28.11: no number recorded; the office hasn't marked anything sorted.
+        number: null,
+        inHand: false,
       },
       {
         type: "SIA_DS",
@@ -126,6 +132,9 @@ describe("myProfile", () => {
         evidenceUploadId: null,
         waiting: null,
         rejected: null,
+        // 28.11: no number recorded; the office hasn't marked anything sorted.
+        number: null,
+        inHand: false,
       },
     ]);
   });

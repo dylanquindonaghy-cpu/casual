@@ -1,28 +1,43 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { say } from "@/app/profile/availability-form";
-import { savedText } from "@/app/profile/notification-form";
-import { ProfileView, ukMobile } from "@/app/profile/profile-view";
+import { EmailText } from "@/app/profile/email-text";
+import { NO_WAY_TEXT, NotificationForm, savedText } from "@/app/profile/notification-form";
+import { officeLinkClass } from "@/app/profile/office-link";
+import { ProfileView, textsOffText, ukMobile } from "@/app/profile/profile-view";
+import { UploadForm } from "@/app/profile/upload-form";
+import { OfficeRecordedNote } from "@/app/profile/upload/[type]/office-recorded";
 import { NOTIFY_CHANNELS } from "@/lib/db/schema/people";
+import { inHand } from "@/lib/portal/in-hand";
 import type { Profile } from "@/lib/portal/profile";
 import { CHANNEL_LABELS, CHANNELS } from "@/lib/portal/profile-kinds";
 import {
   chipTail,
+  IN_HAND,
   meaning,
+  MESSAGES_PATH,
+  needsText,
   otherMeaning,
   otherShiftText,
   rightToWorkText,
 } from "@/lib/portal/qualification-copy";
-import { EVERY_STATUS, qual } from "../helpers/qualifications";
+import { EVERY_STATUS, need, qual } from "../helpers/qualifications";
 
 // The profile page (docs/screens.md, `/profile`): what the worker sees about themselves, and the
 // answer to each change in plain words.
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace() {}, refresh() {} }) }));
 
+// (28.11: an email address in pieces that break only after its @ or a dot, and a link inside a
+// sentence, read as the words they are.)
 const text = (html: string) =>
   html
+    .replace(/<wbr\/>/g, "")
+    .replace(/<span class="whitespace-nowrap">([^<]*)<\/span>/g, "$1")
+    .replace(/<a [^>]*>([^<]*)<\/a>/g, "$1")
     .replace(/<[^>]+>/g, " ")
     .replace(/&#x27;|&#39;/g, "'")
     .replace(/&amp;/g, "&")
@@ -75,7 +90,7 @@ describe("ProfileView", () => {
     const page = text(html);
     expect(page).toContain("Qualifications");
     expect(page).toContain(
-      "SIA close protection licence Suspended You can't take close protection officer shifts. Contact the office.",
+      "SIA close protection licence Suspended You can't take close protection officer shifts. Message the office.",
     );
     expect(page).toContain(
       "First aid at work certificate Expired · Expired 1 Oct Until it's renewed you won't see response team lead shifts. Upload the new one. Upload a new one",
@@ -221,7 +236,16 @@ describe("ProfileView", () => {
 
   it("says when texts are off (they replied STOP), and how to turn them back on", () => {
     expect(text(render(profile()))).not.toContain("Texts are off");
-    expect(text(render(profile({ notifyChannel: "sms", textsOff: true })))).toContain(
+    // Where the firm has phone notifications (its key; 28.11: else nothing says they'd come).
+    const withPush = (p: Profile) =>
+      renderToStaticMarkup(
+        createElement(ProfileView, {
+          profile: p,
+          signOff: "Acme Events Shift Team",
+          push: { publicKey: "k".repeat(87), firmName: "Acme Events" },
+        }),
+      );
+    expect(text(withPush(profile({ notifyChannel: "sms", textsOff: true })))).toContain(
       "Texts are off: you replied STOP to one of our texts. We can only reach you by notifications on your phone. To turn texts back on, text START to our number.",
     );
     // With an address held: by email (Phase 26.9; WhatsApp until then).
@@ -253,7 +277,7 @@ describe("ProfileView", () => {
     const html = render(profile({ notifyChannel: "email", offerAlerts: false, email }));
     const page = text(html);
     expect(page).toContain(
-      "If we can't reach this phone, send my messages by Text message Email (sam@example.test)",
+      "If we can't reach this phone, send my messages by Text message Email sam@example.test",
     );
     expect(page).not.toContain("WhatsApp");
     expect(page).toContain("Tell me about open shifts");
@@ -384,7 +408,7 @@ describe("ProfileView: Your reliability", () => {
     expect(page).toContain("83% over the last 90 days");
     expect(page).toContain("5 shifts worked · 1 no-show · 0 late cancellations");
     expect(page).toContain(
-      "Shifts you worked, out of those plus no-shows and cancellations with under 48 hours' notice. Our office sees the same figure. It doesn't change which shifts you're offered.",
+      "Shifts you worked, out of those plus no-shows and cancellations with under 48 hours' notice. The office sees the same figure. It doesn't change which shifts you're offered.",
     );
   });
 
@@ -479,7 +503,7 @@ describe("qualification words (Phase 27.2)", () => {
       "When it arrives, tell the office under Messages.",
     );
     expect(otherMeaning(qual({ ...aid, status: "suspended", expiresOn: null }))).toBe(
-      "You can't take shifts that need it. Contact the office.",
+      "You can't take shifts that need it. Message the office.",
     );
   });
 
@@ -537,5 +561,324 @@ describe("qualification words (Phase 27.2)", () => {
     expect(text(render(profile()))).toContain(
       "We won't offer you shifts on these days. You can mark up to 60 days, up to 6 months ahead.",
     );
+  });
+});
+
+// Phase 28, 28.11 (docs/screens.md "### 28.11"): Profile shorter and clearer, her own numbers, "The
+// office has this in hand.", the photo seen before it's sent, and no "contact the office" dead end.
+describe("Profile, shorter and clearer (28.11)", () => {
+  const renderWith = (p: Profile, o: Partial<Parameters<typeof ProfileView>[0]> = {}) =>
+    renderToStaticMarkup(
+      createElement(ProfileView, { profile: p, signOff: "Acme Events Shift Team", ...o }),
+    );
+  const links = (html: string, words: string) =>
+    [...html.matchAll(/<a [^>]*href="([^"]+)"[^>]*>([^<]*)<\/a>/g)]
+      .filter((m) => m[2]?.toLowerCase() === words.toLowerCase())
+      .map((m) => m[1]);
+
+  it("My requests and Help are the first things under her name, Log out still last", () => {
+    const html = renderWith(profile({ email: "sam@example.test" }));
+    const page = text(html);
+    expect(page.indexOf("My requests")).toBeLessThan(page.indexOf("Your details"));
+    expect(page.indexOf("Help")).toBeLessThan(page.indexOf("Your details"));
+    expect(page).toContain(
+      "My requests What you've asked the office, and their answers Help How booking, cancelling and pay work Your details",
+    );
+    expect(html).toMatch(/<a [^>]*href="\/requests"/);
+    expect(html).toMatch(/<a [^>]*href="\/help"/);
+    expect(page.trim().endsWith("Log out")).toBe(true);
+    // New answers from the office: the count beside it, and in words under it.
+    expect(text(renderWith(profile(), { answersCount: 2 }))).toContain(
+      "My requests 2 2 new answers from the office",
+    );
+    expect(text(renderWith(profile(), { answersCount: 1 }))).toContain(
+      "1 new answer from the office",
+    );
+  });
+
+  it("travel, days off and how we reach her fold (no JavaScript needed), each saying how it stands", () => {
+    const html = renderWith(
+      profile({ unavailable: [{ day: "2026-11-04", booked: false }], offerAlerts: false }),
+      { travel: { set: true, postcode: "ZZ1 1AA", modes: "car", maxMinutes: 45 } },
+    );
+    const folds = [...html.matchAll(/<details([^>]*)data-fold="([a-z-]+)"/g)].map((m) => ({
+      id: m[2],
+      open: (m[1] ?? "").includes("open"),
+    }));
+    expect(folds).toEqual([
+      { id: "travel-heading", open: false },
+      { id: "days-heading", open: false },
+      { id: "notify-heading", open: false },
+    ]);
+    const page = text(html);
+    expect(page).toContain("Your travel area From ZZ1 1AA · up to 45 minutes by car");
+    expect(page).toContain("Days you can't work 1 day marked");
+    expect(page).toContain("How we reach you Open-shift alerts off");
+    // Each heading sits in its fold's summary: the section keeps its name from it.
+    for (const id of ["travel-heading", "days-heading", "notify-heading"]) {
+      expect(html).toContain(`aria-labelledby="${id}"`);
+      expect(html).toMatch(new RegExp(`<summary[^>]*><span[^>]*><h2 id="${id}"`));
+    }
+    expect(text(renderWith(profile()))).toContain("Days you can't work No days marked");
+    const two = profile({
+      unavailable: [
+        { day: "2026-11-04", booked: false },
+        { day: "2026-11-05", booked: false },
+      ],
+    });
+    expect(text(renderWith(two))).toContain("2 days marked");
+    // The qualifications and the photo stay open: never inside a fold.
+    const before = html.slice(0, html.indexOf("<details"));
+    expect(before).toContain('id="photo-heading"');
+    expect(before).toContain('id="qualifications-heading"');
+  });
+
+  it("How we reach you opens by itself when texts are off, so the STOP note shows", () => {
+    const html = renderWith(profile({ textsOff: true }));
+    expect(html).toMatch(/<details open="" data-fold="notify-heading"/);
+    expect(text(html)).toContain("Texts are off: you replied STOP to one of our texts.");
+  });
+
+  it("with the firm's phone notifications off, there's no 'Notifications on this phone' at all", () => {
+    const off = text(renderWith(profile(), { push: { publicKey: null, firmName: "Acme Events" } }));
+    expect(off).not.toContain("Notifications on this phone");
+    expect(off).not.toContain("doesn't use phone notifications");
+    // ...and nothing says notifications would come instead.
+    expect(textsOffText(null, false)).toBe(
+      "Texts are off: you replied STOP to one of our texts. We have no other way to send you shift messages. To turn texts back on, text START to our number.",
+    );
+    expect(savedText("sms", true, true, true, null, false)).toBe(
+      "Saved. Texts are off, so we can't send you shift messages until you text START. We'll tell you about open shifts.",
+    );
+    const form = (email: string | null) =>
+      text(
+        renderToStaticMarkup(
+          createElement(NotificationForm, {
+            channel: "sms",
+            offerAlerts: true,
+            textsOff: false,
+            loginWay: "email",
+            textSender: false,
+            push: false,
+            email,
+            signOff: "Acme Events Shift Team",
+          }),
+        ),
+      );
+    expect(form("sam@example.test")).toContain("We email shift messages to: sam@example.test");
+    expect(form("sam@example.test")).not.toContain("notifications on this phone");
+    expect(form(null)).toContain(NO_WAY_TEXT);
+    expect(NO_WAY_TEXT).toBe(
+      "We have no email address for you, so we can't send you shift messages. To add one, message the office.",
+    );
+  });
+
+  it("her email address sits on its own line and breaks only after its @ or a dot", () => {
+    const html = renderToStaticMarkup(
+      createElement(EmailText, { email: "sam.long-name@acme-staffing.co.test" }),
+    );
+    expect(html).toBe(
+      '<span data-email=""><span class="whitespace-nowrap">sam.</span><wbr/><span class="whitespace-nowrap">long-name@</span><wbr/><span class="whitespace-nowrap">acme-staffing.</span><wbr/><span class="whitespace-nowrap">co.</span><wbr/><span class="whitespace-nowrap">test</span></span>',
+    );
+    // In How we reach you: "Email", then the address on a line of its own (no brackets, no
+    // break-all).
+    const form = renderWith(profile({ email: "sam@example.test" }));
+    expect(form).toMatch(/Email<span data-email="" class="block[^"]*">/);
+    expect(form).not.toContain("break-all");
+  });
+
+  it("the reliability line says 'the office', like every other line", () => {
+    const page = text(renderWith(profile()));
+    expect(page).toContain("The office sees the same figure.");
+    expect(page).not.toContain("Our office");
+  });
+
+  it("each she may upload shows her own record's number, with how to fix a typo; never one the office records", () => {
+    const html = renderWith(
+      profile({
+        qualifications: [
+          qual({ type: "SIA_DS", number: "1012 3456 7890 1234" }),
+          qual({
+            type: "CSAS",
+            name: "CSAS accreditation",
+            neededFor: ["csas_officer"],
+            uploadable: false,
+            number: "CSAS-77",
+          }),
+          qual({
+            type: "STEWARD_L2",
+            name: "Level 2 spectator safety qualification",
+            number: null,
+          }),
+        ],
+      }),
+    );
+    const page = text(html);
+    expect(page).toContain(
+      "SIA door supervisor licence Valid until 1 Jan 2029 Number: 1012 3456 7890 1234 If it's wrong, message the office. Upload a new one",
+    );
+    expect(page).not.toContain("CSAS-77");
+    expect(page.match(/Number: /g)).toHaveLength(1);
+    expect(links(html, "message the office")).toEqual([MESSAGES_PATH]);
+  });
+
+  it("one the office has in hand says so in place of what to upload, and still says what it stops", () => {
+    const expired = text(
+      renderWith(
+        profile({
+          qualifications: [
+            { ...qual({ status: "expired", expiresOn: "2026-10-01" }), inHand: true },
+          ],
+        }),
+      ),
+    );
+    expect(expired).toContain(
+      "Expired · Expired 1 Oct Until it's renewed you won't see door supervisor shifts. The office has this in hand.",
+    );
+    expect(expired).not.toContain("Upload a new one");
+    expect(expired).not.toContain("Upload the new one");
+    const shown = (q: Parameters<typeof qual>[0]) => meaning({ ...qual(q), inHand: true });
+    expect(shown({ status: "expiring_soon", expiresOn: "2026-11-20" })).toBe(IN_HAND);
+    expect(shown({ status: "missing", expiresOn: null })).toBe(
+      "You won't see door supervisor shifts until it's on your record. The office has this in hand.",
+    );
+    expect(shown({ status: "suspended", expiresOn: null })).toBe(
+      "You can't take door supervisor shifts. The office has this in hand.",
+    );
+    expect(shown({ status: "applied", expiresOn: null })).toBe(
+      "You won't see door supervisor shifts until it's issued. The office has this in hand.",
+    );
+    // Not in hand: as before.
+    expect(meaning(qual({ status: "expired", expiresOn: "2026-10-01" }))).toBe(
+      "Until it's renewed you won't see door supervisor shifts. Upload the new one.",
+    );
+  });
+
+  it("in hand: only the office's latest mark, about this very need, still standing", () => {
+    const expired = qual({ type: "SIA_DS", status: "expired", expiresOn: "2026-10-01" });
+    const mark = { type: "SIA_DS", status: "expired", day: "2026-10-20" };
+    expect(inHand(expired, mark)).toBe(true);
+    expect(inHand(expired, null)).toBe(false);
+    expect(inHand(expired, { ...mark, type: "STEWARD_L2" })).toBe(false);
+    expect(inHand(expired, { ...mark, status: "expiring_soon" })).toBe(false);
+    // Marked before this lapse began: about an earlier one, so not this.
+    expect(inHand(expired, { ...mark, day: "2026-10-01" })).toBe(false);
+    expect(inHand(expired, { ...mark, day: "2026-10-02" })).toBe(true);
+    // Expiring soon: from 30 days before; not once a renewal is on its way.
+    const soon = qual({ status: "expiring_soon", expiresOn: "2026-11-20" });
+    const soonMark = { type: "SIA_DS", status: "expiring_soon", day: "2026-10-21" };
+    expect(inHand(soon, soonMark)).toBe(true);
+    expect(inHand(soon, { ...soonMark, day: "2026-10-20" })).toBe(false);
+    expect(inHand({ ...soon, renewing: true }, soonMark)).toBe(false);
+    // Not accepted: marked after the upload it turned down was sent.
+    const turned = qual({
+      status: "rejected",
+      expiresOn: null,
+      rejected: { uploadId: "u", sentOn: "2026-10-30", reason: "blurry" },
+    });
+    expect(inHand(turned, { type: "SIA_DS", status: "rejected", day: "2026-10-31" })).toBe(true);
+    expect(inHand(turned, { type: "SIA_DS", status: "rejected", day: "2026-10-29" })).toBe(false);
+    // Nothing to do for her: never "in hand".
+    expect(inHand(qual({}), { type: "SIA_DS", status: "valid", day: "2026-10-20" })).toBe(false);
+    expect(
+      inHand(qual({ status: "being_checked", expiresOn: null }), {
+        type: "SIA_DS",
+        status: "being_checked",
+        day: "2026-10-20",
+      }),
+    ).toBe(false);
+  });
+
+  it("no 'contact the office' left in the qualification words and the upload page; every 'message the office' links to Messages", () => {
+    for (const file of [
+      "src/lib/portal/qualification-copy.ts",
+      "src/app/profile/upload/[type]/page.tsx",
+      "src/app/profile/upload/[type]/office-recorded.tsx",
+      "src/app/profile/profile-view.tsx",
+    ]) {
+      expect(readFileSync(join(process.cwd(), file), "utf8"), file).not.toMatch(
+        /contact (the office|them)/i,
+      );
+    }
+    // Every line a casual reads from the qualification words.
+    const blocks = { role: "steward", day: "2026-11-07" };
+    const everyLine = [
+      ...EVERY_STATUS.map((q) => meaning(q) ?? ""),
+      ...EVERY_STATUS.map((q) => otherMeaning({ ...q, neededFor: [] }) ?? ""),
+      ...EVERY_STATUS.flatMap((q) =>
+        ([1, 2, 3, 4] as const).map((level) =>
+          needsText(need(level, q, level === 1 ? blocks : null), 2026),
+        ),
+      ),
+    ];
+    for (const line of everyLine) expect(line).not.toMatch(/contact the office/i);
+    expect(needsText(need(2, { status: "suspended", expiresOn: null }), 2026)).toBe(
+      "SIA door supervisor licence is suspended. Message the office.",
+    );
+    expect(
+      needsText(
+        need(
+          1,
+          { status: "expired", expiresOn: "2026-10-01" },
+          { role: "door_supervisor", day: "2026-11-06" },
+        ),
+        2026,
+      ),
+    ).toBe(
+      "SIA door supervisor licence expired on 1 Oct, and your door supervisor shift on Fri 6 Nov needs it. Upload the new one, or message the office.",
+    );
+    // On Profile, the words are a link to Messages, 44px tall to tap.
+    const html = renderWith(profile({ qualifications: EVERY_STATUS }));
+    expect(links(html, "message the office")).toEqual([MESSAGES_PATH]);
+    expect(html).toContain(`class="${officeLinkClass}"`);
+    // 44px to tap, its margins giving the room back so the lines around it don't move.
+    expect(officeLinkClass).toMatch(/(?<![\w-])min-h-11(?![\w-])/);
+    expect(officeLinkClass).toMatch(/(?<![\w-])-my-2\.5(?![\w-])/);
+    expect(MESSAGES_PATH).toBe("/messages");
+    // The upload page, for one the office records itself: what to do, and the way there.
+    const note = renderToStaticMarkup(
+      createElement(OfficeRecordedNote, { name: "CSAS accreditation" }),
+    );
+    expect(text(note)).toContain(
+      "The office records your CSAS accreditation itself. When you have a new one, message the office. Message the office",
+    );
+    expect(links(note, "Message the office")).toEqual(["/messages"]);
+  });
+
+  it("the photo and its box: 8px round, no dashed edge", () => {
+    const none = renderWith(profile());
+    expect(none).not.toContain("border-dashed");
+    expect(none).toMatch(/class="glass-tile [^"]*rounded-row[^"]*">No photo</);
+    const mine = renderWith(
+      profile({
+        photo: {
+          status: "up_to_date",
+          current: {
+            id: "7c1d2e3f-0000-4000-8000-0000000000aa",
+            uploadedOn: "2024-08-03",
+            renewBy: "2027-08-03",
+          },
+          waiting: null,
+        },
+      }),
+    );
+    expect(mine).toMatch(/<img src="\/files\/[^"]+"[^>]*class="[^"]*rounded-row[^"]*"/);
+  });
+
+  it("the upload form starts with the guidance and the camera; nothing to send until a picture is chosen", () => {
+    const html = renderToStaticMarkup(
+      createElement(UploadForm, {
+        kind: "certificate",
+        type: "SIA_DS",
+        camera: "environment",
+        button: "Take or choose a photo",
+        guidance: "Take a clear photo of the front.",
+      }),
+    );
+    expect(text(html)).toContain("Take a clear photo of the front. Take or choose a photo");
+    expect(text(html)).not.toContain("Send this photo");
+    expect(html).toMatch(/<input type="file" accept="image\/\*" capture="environment"/);
+    // The answer's live region is there from the start (empty), so it's read out when it comes.
+    expect(html).toContain('<div role="status" class="mt-3"></div>');
   });
 });

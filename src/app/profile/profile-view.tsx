@@ -1,18 +1,23 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { LogoutButton } from "../logout-button";
-import { Icon } from "../ui/icons";
+import { Icon, type IconName } from "../ui/icons";
 import {
-  btn,
+  disc,
   h2,
   headingGap,
   muted,
   nums,
   sectionGap,
   staffBtn,
+  staffBtnInline,
   staffCard,
+  staffCount,
+  staffRows,
+  tapRow,
 } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
+import { Slip } from "@/app/ui/slip";
 import { StatusChip, type StatusTone } from "@/app/ui/status-chip";
 import type { Qualification } from "@/lib/credentials/status";
 import type { MyStrikes } from "@/lib/portal/my-strikes";
@@ -40,6 +45,7 @@ import {
   rightToWorkText,
   statusLabel,
   STATUS_TONES as QUALIFICATION_TONES,
+  WRONG_NUMBER,
 } from "@/lib/portal/qualification-copy";
 import { PHOTO_GUIDANCE, PHOTO_TONES, PHOTO_WORDS, photoDates } from "@/lib/portal/upload-copy";
 import { shortDate } from "@/lib/rules/reasons";
@@ -54,23 +60,33 @@ import {
 import { addDays } from "@/lib/time/zoned";
 import { WhatHappened } from "../shifts/cancel-shift-result";
 import { AvailabilityForm } from "./availability-form";
+import { EmailText } from "./email-text";
+import { Fold } from "./fold";
 import { NotificationForm } from "./notification-form";
+import { OfficeLinked } from "./office-link";
+import { OpenFoldFromLink } from "./open-fold";
 import type { LoginWay } from "@/lib/portal/login-way";
 import { PushSetting } from "./push-setting";
 import { UploadForm } from "./upload-form";
 
-// Me (docs/screens.md, `/profile`): contact details (read-only), my staff photo (12F.2: the current
-// one, when it's due again, its status and "Upload a new photo"), my qualifications as they stand
-// today (12F.1: each status, its date line and what it means; 12F.2: "Upload a new one" for the
-// ones I may upload; then "Other qualifications on file", Phase 27.2, and right to work), my travel
-// area (12G.1), my strikes (12C.5), days I can't work, and how we reach me. One card per section.
+// Me (docs/screens.md, `/profile` and "### 28.11"): My requests and Help as rows under my name
+// (28.11), contact details (read-only), my staff photo (12F.2: the current one, when it's due again,
+// its status and "Upload a new photo", the picture shown before it's sent, 28.11), my
+// qualifications as they stand today (12F.1: each status, its date line and what it means; 12F.2:
+// "Upload a new one" for the ones I may upload; 28.11: my record's number, and "The office has this
+// in hand."; then "Other qualifications on file", Phase 27.2, and right to work), my reliability and
+// strikes (12C.5), then folded (28.11): my travel area (12G.1), days I can't work, and how we reach
+// me. One card per section; "message the office" is always a link to Messages, never a dead end.
 
 // A worker who replied STOP to a text (docs/screens.md `/profile`): texts are off until START, so
-// shift messages go by email if we hold their address, else only as notifications (Phase 26.9).
-export function textsOffText(email: string | null): string {
+// shift messages go by email if we hold their address, else only as notifications (Phase 26.9),
+// and where the firm has phone notifications off, not at all (28.11).
+export function textsOffText(email: string | null, push = true): string {
   const how = email
     ? `We'll email shift messages to ${email}.`
-    : "We can only reach you by notifications on your phone.";
+    : push
+      ? "We can only reach you by notifications on your phone."
+      : "We have no other way to send you shift messages.";
   return `Texts are off: you replied STOP to one of our texts. ${how} To turn texts back on, text START to our number.`;
 }
 
@@ -97,6 +113,7 @@ export function ProfileView({
   travel = null,
   loginWay = "message",
   textSender: textSenderProp,
+  answersCount = 0,
 }: {
   profile: Profile;
   signOff: string;
@@ -108,22 +125,40 @@ export function ProfileView({
   // replied STOP has no text login way, but texts exist and the note must show. Defaults to the
   // login way, for callers that don't say.
   textSender?: boolean;
+  // The firm's phone notifications (its VAPID key): with none, "Notifications on this phone" isn't
+  // shown at all, and nothing says notifications would come (28.11).
   push?: { publicKey: string | null; firmName: string } | null;
   strikes?: MyStrikes | null;
   travel?: MyTravel | null;
+  // The office's answers to her requests she hasn't seen (28.2's count, the tab bar's too).
+  answersCount?: number;
 }) {
   const year = Number(profile.today.slice(0, 4));
   const textSender = textSenderProp ?? loginWay === "message";
+  const pushKey = push?.publicKey ?? null;
   return (
     <>
+      <OpenFoldFromLink />
       <PageHeader title={`${profile.firstName} ${profile.lastName}`} />
 
-      <section aria-labelledby="contact-heading" className={staffCard}>
+      {/* Her requests and Help first (28.11: they sat at the very bottom, 4 screens down). */}
+      <ul role="list" className={`${staffRows} overflow-hidden`}>
+        <TopRow
+          href="/requests"
+          icon="requests"
+          title="My requests"
+          sub={answersCount > 0 ? answersText(answersCount) : REQUESTS_LINE}
+          count={answersCount}
+        />
+        <TopRow href="/help" icon="guide" title="Help" sub={HELP_LINE} />
+      </ul>
+
+      <section aria-labelledby="contact-heading" className={`${staffCard} ${sectionGap.staff}`}>
         <h2 id="contact-heading" className={h2}>
           Your details
         </h2>
         <p className={`${headingGap} ${nums}`}>Mobile: {ukMobile(profile.mobile)}</p>
-        <p className="break-words">Email: {profile.email ?? "none"}</p>
+        <p>Email: {profile.email ? <EmailText email={profile.email} /> : "none"}</p>
         <p className={`mt-2 ${muted}`}>To change your name or number, ask the office.</p>
       </section>
 
@@ -140,12 +175,12 @@ export function ProfileView({
               alt={`Staff photo of ${profile.firstName} ${profile.lastName}`}
               width={72}
               height={72}
-              className="h-18 w-18 shrink-0 rounded-lg border border-line object-cover"
+              className="h-18 w-18 shrink-0 rounded-row object-cover"
             />
           ) : (
             <div
               aria-hidden="true"
-              className="flex h-18 w-18 shrink-0 items-center justify-center rounded-lg border border-dashed border-line-strong text-sm text-ink-muted"
+              className="glass-tile flex h-18 w-18 shrink-0 items-center justify-center rounded-row text-sm text-ink-muted"
             >
               No photo
             </div>
@@ -196,11 +231,27 @@ export function ProfileView({
               const means = meaning(q);
               return (
                 <QualificationRow key={q.type} q={q} year={year}>
-                  {means && <p className="mt-2 text-base">{means}</p>}
-                  {/* An upload can't lift a suspension; one waiting may be replaced. */}
-                  {q.uploadable && q.status !== "suspended" && (
-                    <p className="mt-2">
-                      <Link href={`/profile/upload/${q.type}`} className={btn.link}>
+                  {/* Her own record's number (28.11), only on one she may upload herself. */}
+                  {q.uploadable && q.number && (
+                    <>
+                      <p className={`mt-2 text-base ${nums}`}>
+                        Number: <span className="font-semibold">{q.number}</span>
+                      </p>
+                      <p className="text-base">
+                        <OfficeLinked text={WRONG_NUMBER} />
+                      </p>
+                    </>
+                  )}
+                  {means && (
+                    <p className="mt-2 text-base">
+                      <OfficeLinked text={means} />
+                    </p>
+                  )}
+                  {/* An upload can't lift a suspension; one waiting may be replaced; one the office
+                      has in hand needs nothing from her (28.11). */}
+                  {q.uploadable && q.status !== "suspended" && !q.inHand && (
+                    <p className="mt-3">
+                      <Link href={`/profile/upload/${q.type}`} className={staffBtnInline}>
                         Upload a new one
                       </Link>
                     </p>
@@ -214,7 +265,10 @@ export function ProfileView({
             page takes only what her roles need), so what to tell the office instead. */}
         {profile.others && profile.others.length > 0 && (
           <div className="-mx-4 border-t border-line">
-            <h3 id="other-qualifications-heading" className="px-4 pt-3 text-lg font-bold text-ink">
+            <h3
+              id="other-qualifications-heading"
+              className="px-4 pt-3 text-lg font-semibold text-ink"
+            >
               Other qualifications on file
             </h3>
             <ul
@@ -227,7 +281,11 @@ export function ProfileView({
                 return (
                   <QualificationRow key={q.type} q={q} year={year}>
                     <p className="mt-2 text-base">{otherShiftText(q.shift)}</p>
-                    {means && <p className="mt-1 text-base">{means}</p>}
+                    {means && (
+                      <p className="mt-1 text-base">
+                        <OfficeLinked text={means} />
+                      </p>
+                    )}
                   </QualificationRow>
                 );
               })}
@@ -240,18 +298,6 @@ export function ProfileView({
         </div>
       </section>
 
-      {travel && (
-        <section aria-labelledby="travel-heading" className={`${staffCard} ${sectionGap.staff}`}>
-          <h2 id="travel-heading" className={h2}>
-            {TRAVEL_TITLE}
-          </h2>
-          <p className={`${headingGap} ${nums}`}>{travelSummaryText(travel)}</p>
-          <Link href={TRAVEL_PATH} className={`${staffBtn.secondary} mt-4`}>
-            {travel.set ? "Change your travel area" : "Set your travel area"}
-          </Link>
-        </section>
-      )}
-
       {profile.reliability && <ReliabilitySection reliability={profile.reliability} />}
 
       {/* With strikes off and none given before, there's nothing to say (P3.4). */}
@@ -259,11 +305,21 @@ export function ProfileView({
         <StrikesSection strikes={strikes} />
       )}
 
-      <section aria-labelledby="days-heading" className={`${staffCard} ${sectionGap.staff}`}>
-        <h2 id="days-heading" className={h2}>
-          Days you can&apos;t work
-        </h2>
-        <p className={`mt-1 ${muted}`}>
+      {/* The settings, folded (28.11): each its heading and how it stands; a tap opens it. */}
+      {travel && (
+        <Fold headingId="travel-heading" title={TRAVEL_TITLE} state={travelSummaryText(travel)}>
+          <Link href={TRAVEL_PATH} className={staffBtn.secondary}>
+            {travel.set ? "Change your travel area" : "Set your travel area"}
+          </Link>
+        </Fold>
+      )}
+
+      <Fold
+        headingId="days-heading"
+        title="Days you can't work"
+        state={daysMarkedText(profile.unavailable.length)}
+      >
+        <p className={muted}>
           We won&apos;t offer you shifts on these days. You can mark up to {MAX_UNAVAILABLE_DAYS}{" "}
           days, up to 6 months ahead.
         </p>
@@ -273,19 +329,19 @@ export function ProfileView({
           min={profile.today}
           max={addDays(profile.today, UNAVAILABLE_AHEAD_DAYS)}
         />
-      </section>
+      </Fold>
 
-      <section aria-labelledby="notify-heading" className={`${staffCard} ${sectionGap.staff}`}>
-        <h2 id="notify-heading" className={h2}>
-          How we reach you
-        </h2>
+      {/* Open from the start when texts are off, so the STOP note shows straight away. */}
+      <Fold
+        headingId="notify-heading"
+        title="How we reach you"
+        state={alertsText(profile.offerAlerts)}
+        open={textSender && profile.textsOff}
+      >
         {textSender && profile.textsOff && (
-          <p
-            role="note"
-            className={`${headingGap} rounded-lg border border-attention bg-attention-soft p-3`}
-          >
-            {textsOffText(profile.email)}
-          </p>
+          <Slip tone="attention" role="note">
+            <p>{textsOffText(profile.email, pushKey !== null)}</p>
+          </Slip>
         )}
         <NotificationForm
           channel={profile.notifyChannel}
@@ -293,40 +349,78 @@ export function ProfileView({
           textsOff={profile.textsOff}
           loginWay={loginWay}
           textSender={textSender}
+          push={pushKey !== null}
           email={profile.email}
           signOff={signOff}
         />
-        {push && (
+        {/* Only where the firm has phone notifications (28.11: nothing about a feature that's off). */}
+        {push && pushKey && (
           <PushSetting
-            publicKey={push.publicKey}
+            publicKey={pushKey}
             firmName={push.firmName}
             otherWay={otherWayOf(textSender, profile)}
           />
         )}
-      </section>
+      </Fold>
 
-      {/* Her requests, help, and last, Log out (docs/office-v2.md 4.1; 12H.1). */}
-      <ul role="list" className="mt-8 flex flex-col gap-3 border-t border-line pt-8">
-        <li>
-          <Link href="/requests" className={staffBtn.secondary}>
-            My requests
-          </Link>
-        </li>
-        <li>
-          <Link href="/help" className={staffBtn.secondary}>
-            Help
-          </Link>
-        </li>
-        <li>
-          <LogoutButton
-            kind="worker"
-            after="/login?out=1"
-            className={`${staffBtn.secondary} w-full`}
-            icon={<Icon name="logout" />}
-          />
-        </li>
-      </ul>
+      {/* Last, Log out (docs/office-v2.md 4.1; 12H.1). */}
+      <div className="mt-8 border-t border-line pt-8">
+        <LogoutButton
+          kind="worker"
+          after="/login?out=1"
+          className={`${staffBtn.secondary} w-full`}
+          icon={<Icon name="logout" />}
+        />
+      </div>
     </>
+  );
+}
+
+// The top rows' second lines (28.11).
+export const REQUESTS_LINE = "What you've asked the office, and their answers";
+export const HELP_LINE = "How booking, cancelling and pay work";
+export const answersText = (n: number) =>
+  n === 1 ? "1 new answer from the office" : `${n} new answers from the office`;
+// What a shut fold says of how it stands (28.11).
+export const daysMarkedText = (n: number) =>
+  n === 0 ? "No days marked" : n === 1 ? "1 day marked" : `${n} days marked`;
+export const alertsText = (on: boolean) => (on ? "Open-shift alerts on" : "Open-shift alerts off");
+
+// One of the top rows: a round disc, the words, a chevron; the whole row is the link (80px, as
+// Home's rows). A count of new answers beside its title, said in words on the line under it.
+function TopRow({
+  href,
+  icon,
+  title,
+  sub,
+  count = 0,
+}: {
+  href: string;
+  icon: IconName;
+  title: string;
+  sub: string;
+  count?: number;
+}) {
+  return (
+    <li>
+      <Link href={href} className={`${tapRow} press min-h-20 px-4`}>
+        <span aria-hidden="true" className={`${disc.base} ${disc.quiet}`}>
+          <Icon name={icon} size={18} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-lg leading-snug font-medium text-ink">
+            {title}
+            {count > 0 && (
+              <span aria-hidden="true" className={staffCount}>
+                {count}
+              </span>
+            )}
+          </span>{" "}
+          <span className="block text-base text-ink-muted">{sub}</span>
+        </span>
+        <Icon name="chevron" size={22} className="text-ink-muted" />
+      </Link>
+    </li>
   );
 }
 
@@ -449,7 +543,7 @@ function ReliabilitySection({ reliability }: { reliability: Reliability }) {
       </p>
       <p className="mt-2 text-base">
         Shifts you worked, out of those plus no-shows and cancellations with under{" "}
-        {LATE_NOTICE_HOURS} hours&apos; notice. Our office sees the same figure. It doesn&apos;t
+        {LATE_NOTICE_HOURS} hours&apos; notice. The office sees the same figure. It doesn&apos;t
         change which shifts you&apos;re offered.
       </p>
     </section>

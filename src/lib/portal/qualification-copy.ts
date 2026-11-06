@@ -111,10 +111,26 @@ export function chipTail(q: Qualification, year: number): string {
 export const TELL_OFFICE_RENEWED = "Once you've renewed it, tell the office under Messages.";
 const TELL_OFFICE_ARRIVES = "When it arrives, tell the office under Messages.";
 
+// Where "message the office" leads (28.11: a link, never a dead end): her Messages,
+// where the office answers. Profile and the upload page make the words a link to it
+// (src/app/profile/office-link.tsx).
+export const MESSAGES_PATH = "/messages";
+export const MESSAGE_OFFICE = "Message the office.";
+// Under her record's number (28.11): a typo is caught before a check.
+export const WRONG_NUMBER = "If it's wrong, message the office.";
+// The office marked her need sorted and it still stands (28.11; src/lib/portal/in-hand.ts): in
+// place of what to upload or send. Words only: the rules still need a checked record in date.
+export const IN_HAND = "The office has this in hand.";
+
 // What it means for her (null: nothing to say). Where she may upload it (12F.2), that's what she's
-// asked to do; one the office records itself, she tells them about under Messages.
-export function meaning(q: Qualification): string | null {
+// asked to do; one the office records itself, she tells them about under Messages. One the office
+// has in hand (28.11) says what it still stops, then IN_HAND in place of what to do.
+export function meaning(q: Qualification & { inHand?: boolean }): string | null {
   const roles = rolesText(q.neededFor);
+  if (q.inHand) {
+    const stops = inHandStops(q, roles);
+    return stops ? `${stops} ${IN_HAND}` : IN_HAND;
+  }
   const send = q.uploadable ? "Upload the new one." : TELL_OFFICE_RENEWED;
   switch (q.status) {
     case "valid":
@@ -138,11 +154,32 @@ export function meaning(q: Qualification): string | null {
           : `You won't see ${roles} shifts until it's issued.`
       } ${q.uploadable ? "Upload it when it arrives." : TELL_OFFICE_ARRIVES}`;
     case "suspended":
-      return `You can't take ${roles} shifts. Contact the office.`;
+      return `You can't take ${roles} shifts. ${MESSAGE_OFFICE}`;
     case "being_checked":
       return `The office will check it soon. Until then you won't see ${roles} shifts.`;
     case "rejected":
       return `Upload a new one so you can take ${roles} shifts.`;
+  }
+}
+
+// What one the office has in hand still stops (null: nothing yet, as one expiring soon).
+function inHandStops(q: Qualification, roles: string): string | null {
+  switch (q.status) {
+    case "expired":
+      return `Until it's renewed you won't see ${roles} shifts.`;
+    case "missing":
+    case "rejected":
+      return `You won't see ${roles} shifts until it's on your record.`;
+    case "applied":
+      return q.appliedCounts
+        ? `You may be offered some ${roles} shifts while you wait.`
+        : `You won't see ${roles} shifts until it's issued.`;
+    case "suspended":
+      return `You can't take ${roles} shifts.`;
+    case "valid":
+    case "expiring_soon":
+    case "being_checked":
+      return null;
   }
 }
 
@@ -173,7 +210,7 @@ export function otherMeaning(q: Qualification): string | null {
     case "applied":
       return TELL_OFFICE_ARRIVES;
     case "suspended":
-      return "You can't take shifts that need it. Contact the office.";
+      return `You can't take shifts that need it. ${MESSAGE_OFFICE}`;
     case "being_checked":
       return "The office will check it soon.";
     case "rejected":
@@ -230,7 +267,7 @@ export function needsText(
     if (q.status === "being_checked") return `${name} ${state}, and ${shift} needs it.`;
     return `${name} ${state}, and ${shift} needs it. ${
       q.uploadable && q.status !== "suspended"
-        ? "Upload the new one, or contact the office."
+        ? "Upload the new one, or message the office."
         : "Tell the office under Messages."
     }`;
   }
@@ -238,7 +275,7 @@ export function needsText(
   switch (item.level) {
     case 2:
       if (q.status === "suspended") {
-        return office ? `${name} is suspended.` : `${name} is suspended. Contact the office.`;
+        return office ? `${name} is suspended.` : `${name} is suspended. ${MESSAGE_OFFICE}`;
       }
       if (q.status === "rejected") {
         return office ? `${name} ${state}.` : `${name} ${state}. Upload a new one.`;

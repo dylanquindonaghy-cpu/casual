@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { maskText } from "../log/mask";
+import { holdsPhoneOrEmail } from "../log/mask";
 
 // The browser-safe half of worker requests (docs/screens.md, `/requests`, `/requests/new`): the
 // kinds a worker can ask for, their fields, the payload check, the outcome shape and the status
@@ -128,10 +128,10 @@ export type ReviewOutcome =
   | { status: "logged_out" }
   | { status: "error" };
 
-// Text a casual typed that holds a phone number or an email address (the log masker would change
-// it: src/lib/log/mask.ts, the same test the office's override reasons pass). Kept off requests
-// that stay with her bookings' evidence.
-export const holdsContactDetails = (text: string): boolean => maskText(text) !== text;
+// Text a casual typed that holds a phone number or an email address, found as the log masker finds
+// them (src/lib/log/mask.ts holdsPhoneOrEmail: only those two, never a date, a "2/11?" or a quoted
+// word the masker would also withhold). Kept off requests that stay with her bookings' evidence.
+export const holdsContactDetails = (text: string): boolean => holdsPhoneOrEmail(text);
 
 // "Think this mark is wrong?" (Phase 28.2; 28.13's form): she says she worked a session marked not
 // attended, or didn't work one marked worked. A person looks again; the request never changes the
@@ -178,6 +178,9 @@ export type WithdrawOutcome =
   | { status: "withdrawn"; ref: string }
   | { status: "answered_first"; ref: string } // the office answered (or sorted it) first
   | { status: "already"; ref: string } // taken back before (a second tap)
+  // A question she sent as a message (the shifts line or the app's messages): the office answers it
+  // on Enquiries, with the message, so it can't be taken back here.
+  | { status: "office_has_it"; ref: string }
   | { status: "not_yours" }
   | { status: "logged_out" }
   | { status: "error" };

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { DatabaseError } from "pg";
 import { describe, expect, it } from "vitest";
 import { createLogger, type Level } from "@/lib/log";
-import { maskPhone, maskText, maskWithoutLimit, redact } from "@/lib/log/mask";
+import { holdsPhoneOrEmail, maskPhone, maskText, maskWithoutLimit, redact } from "@/lib/log/mask";
 import { createPgBossErrorLogger, pgBossErrorFields } from "@/worker/boss";
 
 // No personal data in logs (docs/compliance.md): phone numbers in any shape, emails, names,
@@ -353,5 +353,49 @@ describe("pg-boss errors", () => {
     expect(lines).toHaveLength(2);
     expect(lines[1]?.json.suppressedRepeats).toBe(2);
     expect(lines.map((l) => l.raw).join()).not.toContain("7700900");
+  });
+});
+
+// Checking what a person typed (a casual's note, src/lib/portal/request-kinds.ts): a phone number
+// or an email address, found as the masker finds them, and nothing else the masker withholds.
+describe("holdsPhoneOrEmail", () => {
+  it("finds every phone number and email the masker masks, in any shape", () => {
+    for (const phone of PHONES) {
+      expect(holdsPhoneOrEmail(`call me on ${phone}`), phone).toBe(true);
+    }
+    for (const text of [
+      "sam@example.com",
+      "mail sam.booker+shifts@mail.example.test please",
+      "Mob07700900123",
+      "07700%20900123", // a percent-encoded space
+      "%2B447700900123", // a percent-encoded +
+      "2026-11-02 07700 900123", // a date right before the number doesn't shield it
+      "2026-11-02T09:00:00+447700900123", // +44 isn't a time-zone offset
+      "ref 7700900123", // a UK mobile without its 0
+    ]) {
+      expect(holdsPhoneOrEmail(text), text).toBe(true);
+    }
+  });
+
+  it("isn't fooled by what else the masker withholds: a path's tail, a quoted value, a %xx", () => {
+    for (const text of [
+      "Was I marked absent on 2/11?",
+      'He said: "fine"',
+      'Signed in: "gate 3" at 09:58',
+      "I'm 100%25 sure I was there",
+      "See /shifts/abc?x=1",
+      "I was there all day",
+      "Signed in at 09:58 at gate 12.",
+      "On 2026-11-02 10:00 to 18:00", // a date and times aren't a phone number
+      "firm 0b1c2d3e-4f50-4617-8293-a4b5c6d7e8f9", // nor a UUID's digits
+      "SM1234567890cdef0123456789abcdef01", // nor a Twilio id's
+      "ref 770090012", // 9 digits: too short to be one
+      "@example.com", // nothing before the @
+    ]) {
+      expect(holdsPhoneOrEmail(text), text).toBe(false);
+    }
+    // The masker does change the first two: why comparing its output was the wrong test.
+    expect(maskText("Was I marked absent on 2/11?")).not.toBe("Was I marked absent on 2/11?");
+    expect(maskText('He said: "fine"')).not.toBe('He said: "fine"');
   });
 });

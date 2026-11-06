@@ -95,7 +95,8 @@ No screen of its own: the data, links and words later tasks use.
   A pay question about a shift that has ended opens the pay query instead (`/pay/query?shift={id}`).
 - The outcomes the pages put into words:
   - Still coming: confirmed, already, not now.
-  - Take back: taken back, the office answered first, already taken back.
+  - Take back: taken back, the office answered first, already taken back, the office has it (a
+    question she sent as a message: answered on Enquiries, so "Take back" isn't shown on it).
   - Attendance question: sent (with a reference), one already waiting, the shift already shows
     that, not one of your marked shifts in the last 90 days, a note the form can't take.
 

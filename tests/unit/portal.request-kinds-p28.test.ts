@@ -109,6 +109,20 @@ describe("the attendance question's payload", () => {
     expect(holdsContactDetails("sam@example.com")).toBe(true);
     expect(holdsContactDetails("I was there all day")).toBe(false);
   });
+
+  // The guardrails review of 28.2: comparing the masker's output refused harmless notes, as it
+  // also withholds a path's tail, a quoted value and a %xx.
+  it("refuses only a phone number or an email address, never a harmless note", () => {
+    for (const note of [
+      "Was I marked absent on 2/11?",
+      'He said: "fine"',
+      "I'm 100%25 sure I was there",
+    ]) {
+      expect(holdsContactDetails(note), note).toBe(false);
+      expect(attendancePayload({ said: "worked", note })).toEqual({ said: "worked", note });
+    }
+    expect(holdsContactDetails("Was I marked absent on 2/11? Call 07700 900123")).toBe(true);
+  });
 });
 
 describe("the briefing fields", () => {

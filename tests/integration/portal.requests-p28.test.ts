@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DAY } from "@/lib/auth/clock";
@@ -11,7 +12,12 @@ import {
   unseenAnswers,
   unseenPayAnswers,
 } from "@/lib/portal/request-answers";
-import { askAboutMark, myRequests, withdrawRequest } from "@/lib/portal/requests";
+import {
+  askAboutMark,
+  canWithdrawRequest,
+  myRequests,
+  withdrawRequest,
+} from "@/lib/portal/requests";
 import { confirmStillComing } from "@/lib/portal/still-coming";
 import { tabCounts } from "@/lib/portal/tab-counts";
 import { bookingFirm, hoursFromNow, NOW } from "../helpers/booking-fixture";
@@ -258,6 +264,77 @@ describe("withdrawRequest", () => {
       expect(withdrawn + approvedEvents).toBe(1);
     }
   });
+
+  // One she can take back (canWithdrawRequest): an attendance question, racing the office's
+  // decline. The office's reply to her (the request-update job) goes only if the office won.
+  it("racing the office's reply on one she can take back: one outcome, a reply only if the office won", async () => {
+    for (let round = 0; round < 3; round += 1) {
+      const t = await setup();
+      const shift = await t.f.shift({ startsAt: hoursFromNow(-30) });
+      const booking = await t.f.booking(t.sam, shift, "no_show");
+      const id = await t.request(t.sam, {
+        type: "attendance",
+        shiftId: shift,
+        payload: { said: "worked", note: "" },
+      });
+      const [mine] = await myRequests(t.ctx(), t.sam);
+      expect(mine && canWithdrawRequest(mine)).toBe(true);
+      const [taken, answered] = await Promise.all([
+        withdrawRequest(t.ctx(), t.sam, id),
+        resolveRequest(
+          withFirm,
+          t.f.firmId,
+          {
+            requestId: id,
+            decision: "declined",
+            note: "The gate log shows no sign-in.",
+            by: { type: "office", id: t.resourcer },
+          },
+          { clock: { now: () => NOW } },
+        ),
+      ]);
+      const row = await t.requestRow(id);
+      const { rows: replies } = await su.query<{ n: number }>(
+        "select count(*)::int as n from pgboss.job where name = 'request-update' and data ->> 'idempotencyKey' = $1",
+        [`request-update:${id}`],
+      );
+      if (taken.status === "withdrawn") {
+        expect(row?.status).toBe("withdrawn");
+        expect(answered).toEqual({ status: "already", current: "withdrawn" });
+        expect(replies[0]?.n).toBe(0);
+      } else {
+        expect(taken).toEqual({ status: "answered_first", ref: refOf(id) });
+        expect(row?.status).toBe("declined");
+        expect(answered).toEqual({ status: "resolved", decision: "declined" });
+        expect(replies[0]?.n).toBe(1);
+      }
+      const withdrawn = (await t.eventsOf("request.withdrawn")).length;
+      const declined = (await t.eventsOf("request.declined")).length;
+      expect(withdrawn + declined).toBe(1);
+      // Neither changes her mark.
+      const { rows: mark } = await su.query<{ status: string }>(
+        "select status from assignments where id = $1",
+        [booking],
+      );
+      expect(mark[0]?.status).toBe("no_show");
+    }
+  });
+
+  it("canWithdrawRequest: only one still waiting, and never a question she sent as a message", () => {
+    const message = "00000000-0000-4000-8000-000000000001";
+    expect(canWithdrawRequest({ type: "time_change", status: "open" })).toBe(true);
+    expect(canWithdrawRequest({ type: "attendance", status: "escalated", messageId: null })).toBe(
+      true,
+    );
+    expect(canWithdrawRequest({ type: "general", status: "open", messageId: null })).toBe(true);
+    expect(canWithdrawRequest({ type: "general", status: "open", messageId: message })).toBe(false);
+    expect(canWithdrawRequest({ type: "general", status: "escalated", messageId: message })).toBe(
+      false,
+    );
+    for (const status of ["approved", "declined", "auto_resolved", "withdrawn"]) {
+      expect(canWithdrawRequest({ type: "time_change", status })).toBe(false);
+    }
+  });
 });
 
 describe("askAboutMark", () => {
@@ -386,6 +463,53 @@ describe("askAboutMark", () => {
     );
     expect(rows[0]?.n).toBe(1);
     expect(await t.eventsOf("request.created")).toHaveLength(1);
+  });
+});
+
+// The office's answer to "Think this mark is wrong?" (resolveRequest) never changes the mark: only
+// marking the session again on who-worked does (golden rule 12; the guardrails review of 28.2).
+describe("the office answering an attendance question", () => {
+  it("approved or declined, the session's mark stays as it was", async () => {
+    const t = await setup();
+    const cases = [
+      { mark: "no_show", said: "worked", decision: "approved", note: "" },
+      { mark: "completed", said: "not_worked", decision: "approved", note: "Thanks." },
+      { mark: "no_show", said: "worked", decision: "declined", note: "No sign-in at the gate." },
+      { mark: "completed", said: "not_worked", decision: "declined", note: "You signed in." },
+    ] as const;
+    for (const [i, c] of cases.entries()) {
+      const shift = await t.f.shift({ startsAt: hoursFromNow(-30 - i) });
+      const booking = await t.f.booking(t.sam, shift, c.mark);
+      const asked = await askAboutMark(t.ctx(), t.sam, {
+        shiftId: shift,
+        payload: { said: c.said, note: "" },
+      });
+      if (asked.status !== "created") throw new Error(`not created: ${asked.status}`);
+      const { rows } = await su.query<{ id: string }>(
+        "select id::text as id from requests where shift_id = $1 and type = 'attendance'",
+        [shift],
+      );
+      const requestId = rows[0]?.id ?? "";
+      expect(
+        await resolveRequest(
+          withFirm,
+          t.f.firmId,
+          {
+            requestId,
+            decision: c.decision,
+            note: c.note,
+            by: { type: "office", id: t.resourcer },
+          },
+          { clock: { now: () => NOW } },
+        ),
+      ).toEqual({ status: "resolved", decision: c.decision });
+      expect((await t.requestRow(requestId))?.status).toBe(c.decision);
+      const { rows: mark } = await su.query<{ status: string; worker_id: string }>(
+        "select status, worker_id::text as worker_id from assignments where id = $1",
+        [booking],
+      );
+      expect(mark[0]).toEqual({ status: c.mark, worker_id: t.sam });
+    }
   });
 });
 
@@ -585,6 +709,30 @@ describe("export and erasure of Phase 28.2's columns and values", () => {
     expect(requests).toEqual([
       { type: "attendance", payload: { said: "worked" } },
       { type: "general", payload: {} },
+    ]);
+  });
+
+  // A message in the app about a session she can see but isn't booked on (messages.shift_id): the
+  // export says when and where that session is, never a bare id (the guardrails review of 28.2).
+  it("a message about a session she isn't booked on: the export's shifts name it", async () => {
+    const t = await setup();
+    const open = await t.f.shift({ startsAt: hoursFromNow(30) });
+    await su.query(
+      `insert into messages (firm_id, direction, channel, provider_message_id, worker_id, body,
+                             shift_id, created_at)
+       values ($1, 'in', 'app', $2, $3, 'Is there parking?', $4, $5)`,
+      [t.f.firmId, `app:${randomUUID()}`, t.sam, open, hoursFromNow(-1)],
+    );
+    const data = await withFirm(t.f.firmId, (tx) => collectWorkerData(tx, t.sam, NOW));
+    expect(data?.sections.messages).toEqual([expect.objectContaining({ shiftId: open })]);
+    expect(data?.sections.bookings).toEqual([]);
+    expect(data?.sections.shifts).toEqual([
+      expect.objectContaining({
+        id: open,
+        startsAt: hoursFromNow(30),
+        endsAt: expect.any(Date),
+        role: expect.any(String),
+      }),
     ]);
   });
 });

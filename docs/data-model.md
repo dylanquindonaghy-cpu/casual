@@ -702,7 +702,8 @@ create table requests (
   status text not null default 'open',   -- open | approved | declined | auto_resolved | escalated | withdrawn
                                          -- withdrawn (Phase 28.2): she took it back while it was open or
                                          -- escalated (withdrawRequest: one conditional update; the office
-                                         -- answering first wins instead); logged request.withdrawn
+                                         -- answering first wins instead); logged request.withdrawn. Never
+                                         -- a general one with its message_id: Enquiries answers that one
   resolved_by uuid,                      -- (firm_id, resolved_by) -> office_users
   resolved_at timestamptz,
   resolution_note text,                  -- the office's note to the worker with its answer (Phase 5):

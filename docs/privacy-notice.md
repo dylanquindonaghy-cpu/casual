@@ -171,7 +171,7 @@ Replace the parts in [brackets]. Send both parts.
 > ask us to correct it, or ask us to delete it. If you ask us to delete it, your name, number,
 > email, staff number, licences, photos and card pictures, travel area, days off, messages and
 > logins are deleted, and so are the notes on your own
-> requests, pay questions and cancellations, when you said you were still coming, the reasons our office typed when it placed you on a
+> requests, pay questions and cancellations, when you said you were still coming as your booking shows it (our log keeps its entry that you said so, and when, like its other entries), the reasons our office typed when it placed you on a
 > shift, its reasons for withdrawing a strike, and its notes about you. The record of the shifts you were offered, worked or cancelled, and your pay records,
 > stay without your name, because we must be able to show the notice we gave and what we paid.
 > What other people wrote that mentions you (a colleague's swap request or pay question naming you,

@@ -172,8 +172,9 @@ Tier 1: £52 a year (£47 by direct debit) for small organisations. Pay before h
   only). It's shown to the office only to plan cover ("Coming" or "Not answered yet"). It has no
   automatic effect at all: no reliability figure, offer wave, strike or Watch list reads it, and
   not answering changes nothing (`tests/unit/rules.p28-boundary.test.ts` fails if the rules,
-  reliability, offers, strikes or Watch list code mention it). In the worker's export; cleared on
-  erasure.
+  reliability, offers, strikes or Watch list code mention it). In the worker's export; cleared from
+  the booking on erasure, while its `shift.still_coming` log entry (ids and its time only) stays,
+  like other log entries.
 - "Think this mark is wrong?" (Phase 28.2; shown from 28.13): a casual may question how one of
   their own sessions from the last 90 days was marked (worked, or not attended), the mark the
   reliability figure counts. It's an attendance question (`requests`, type `attendance`) that a

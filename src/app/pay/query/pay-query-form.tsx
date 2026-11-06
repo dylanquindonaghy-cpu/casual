@@ -4,34 +4,49 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { useHydrated } from "@/app/use-hydrated";
-import { label, muted, staffBtn, staffField } from "@/app/ui/classes";
+import { btn, label, muted, staffBtn, staffChoice, staffField } from "@/app/ui/classes";
+import { Slip } from "@/app/ui/slip";
+import { CODE_RAN_OUT } from "@/lib/portal/pay-copy";
 import {
   ISSUE_LABELS,
   MAX_PAY_QUERY_DETAILS,
   OTHER_DAY,
   PAY_ISSUES,
+  PAY_QUERY_PATH,
+  PROBLEM_LINKS,
   PROBLEM_WORDS,
+  type PayQueryProblem,
   type RaisePayQueryOutcome,
 } from "@/lib/portal/pay-query-kinds";
 import { raisePayQueryAction } from "./actions";
 
-// One answer to pick from, as a big bordered row; the picked one is outlined in ink.
-const choice =
-  "flex min-h-14 items-center gap-3 glass-tile rounded-2xl border-2 border-line-strong px-4 py-3 has-checked:border-ink has-checked:bg-active";
-
-// "Raise a pay query" (docs/screens.md `/pay/query`): which shift (or a day), what's wrong, and
-// anything payroll should know. Large tap targets; the server checks everything again.
+// "Raise a pay query" (docs/screens.md `/pay/query`, "### 28.10"): which shift (or a day), what's
+// wrong, and anything payroll should know. Large tap targets; the server checks everything again.
+// Phase 28.10: `preselected`, one of her own shifts the page found from ?shift= (else null); the
+// choices are the app's choice cards (`staffChoice`); notices are slips; "message the office" and
+// "Get a new code" are links, never a dead end. `codeStep`: this page's own address (its code step,
+// then back here), worked out by the page.
 export function PayQueryForm({
   shifts,
+  preselected = null,
   today,
   earliest,
+  codeStep = PAY_QUERY_PATH,
 }: {
   shifts: { shiftId: string; label: string }[];
+  preselected?: string | null;
   today: string; // yyyy-mm-dd, the firm's date: the latest day that can be chosen
   earliest: string; // yyyy-mm-dd: the earliest (90 days back)
+  codeStep?: string;
 }) {
   const router = useRouter();
-  const [shift, setShift] = useState(shifts.length === 0 ? OTHER_DAY : "");
+  const [shift, setShift] = useState(
+    preselected && shifts.some((s) => s.shiftId === preselected)
+      ? preselected
+      : shifts.length === 0
+        ? OTHER_DAY
+        : "",
+  );
   const [day, setDay] = useState("");
   const [issue, setIssue] = useState("");
   const [details, setDetails] = useState("");
@@ -53,17 +68,16 @@ export function PayQueryForm({
 
   if (outcome?.status === "created") {
     return (
-      <div className="rounded-xl border-2 border-done bg-done-soft p-4" role="status">
-        <p className="text-2xl font-bold">Pay query sent.</p>
-        <p className="mt-2 text-lg font-semibold">
-          {ISSUE_LABELS[outcome.issue]}: {outcome.when}
-        </p>
-        <p className="mt-1 tabular-nums">Sent at {outcome.sentAt}.</p>
-        <p className="mt-1 tabular-nums">Reference: {outcome.ref}</p>
-        <p className="mt-2">
-          Payroll will look at it. You&apos;ll see the answer on your pay page.
-        </p>
-        <p className={`mt-2 ${muted}`}>{outcome.signOff}</p>
+      <div>
+        <Slip tone="done" role="status" title="Pay query sent.">
+          <p className="font-semibold">
+            {ISSUE_LABELS[outcome.issue]}: {outcome.when}
+          </p>
+          <p className="tabular-nums">Sent at {outcome.sentAt}.</p>
+          <p className="tabular-nums">Reference: {outcome.ref}</p>
+          <p>Payroll will look at it. You&apos;ll see the answer on your pay page.</p>
+          <p className="text-ink-muted">{outcome.signOff}</p>
+        </Slip>
         <Link href="/pay" className={`${staffBtn.primary} mt-4`}>
           Back to your pay
         </Link>
@@ -121,7 +135,7 @@ export function PayQueryForm({
         <legend className={label}>What&apos;s wrong?</legend>
         <div className="mt-2 space-y-2">
           {PAY_ISSUES.map((key) => (
-            <label key={key} className={choice}>
+            <label key={key} className={staffChoice}>
               <input
                 type="radio"
                 name="issue"
@@ -152,39 +166,46 @@ export function PayQueryForm({
       />
 
       {problems.length > 0 && (
-        // The alert is the box around the list, so the list keeps its own role.
-        <div role="alert">
-          <ul role="list" className="mt-4 space-y-1 font-semibold text-urgent">
+        // The alert is the slip around the list, so the list keeps its own role.
+        <Slip tone="urgent" role="alert" className="mt-4">
+          <ul role="list" className="space-y-1 font-semibold">
             {problems.map((p) => (
-              <li key={p}>{PROBLEM_WORDS[p]}</li>
+              <li key={p}>
+                <ProblemWords problem={p} />
+              </li>
             ))}
           </ul>
-        </div>
+        </Slip>
       )}
       {outcome?.status === "already_open" && (
-        <p className="mt-4 font-semibold" role="alert">
-          You&apos;ve already asked about this, and payroll has your first message. Reference:{" "}
-          {outcome.ref}.
-        </p>
+        <Slip tone="wait" role="alert" className="mt-4">
+          <p className="font-semibold">
+            You&apos;ve already asked about this, and payroll has your first message. Reference:{" "}
+            {outcome.ref}.
+          </p>
+        </Slip>
       )}
       {outcome?.status === "not_yours" && (
-        <p className="mt-4 font-semibold text-urgent" role="alert">
-          Choose one of your own shifts from the list.
-        </p>
+        <Slip tone="urgent" role="alert" className="mt-4">
+          <p className="font-semibold">Choose one of your own shifts from the list.</p>
+        </Slip>
       )}
       {outcome?.status === "needs_code" && (
-        <p className="mt-4 font-semibold" role="alert">
-          Your pay code has run out.{" "}
-          <Link href="/pay" className="underline underline-offset-4">
-            Get a new code
-          </Link>
-          , then try again.
-        </p>
+        <Slip tone="attention" role="alert" className="mt-4">
+          <p className="font-semibold">
+            {CODE_RAN_OUT.before}
+            {/* A full page load: the page draws its code step, then comes back here. */}
+            <a href={codeStep} className={btn.link}>
+              {CODE_RAN_OUT.link}
+            </a>
+            {CODE_RAN_OUT.after}
+          </p>
+        </Slip>
       )}
       {outcome?.status === "error" && (
-        <p className="mt-4 font-semibold text-urgent" role="alert">
-          Something went wrong. Try again.
-        </p>
+        <Slip tone="urgent" role="alert" className="mt-4">
+          <p className="font-semibold">Something went wrong. Try again.</p>
+        </Slip>
       )}
       <button type="submit" className={`${staffBtn.primary} mt-6`} disabled={pending || !ready}>
         Send pay query
@@ -193,5 +214,22 @@ export function PayQueryForm({
         Back to your pay
       </Link>
     </form>
+  );
+}
+
+// A problem's words, with its link where it has one ("message the office" → Messages).
+function ProblemWords({ problem }: { problem: PayQueryProblem }) {
+  const words = PROBLEM_WORDS[problem];
+  const link = PROBLEM_LINKS[problem];
+  const at = link ? words.indexOf(link.text) : -1;
+  if (!link || at < 0) return <>{words}</>;
+  return (
+    <>
+      {words.slice(0, at)}
+      <Link href={link.href} className={btn.link}>
+        {link.text}
+      </Link>
+      {words.slice(at + link.text.length)}
+    </>
   );
 }

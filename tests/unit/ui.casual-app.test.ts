@@ -240,11 +240,12 @@ describe("Pay: each week, and its total only when payroll gave every gross", () 
     return at < 0 ? "" : html.slice(at, html.indexOf("</section>", at));
   };
 
-  it("the newest week: its dates, Pay before tax and the total large, a glass row per rate, the pay day on the band's chip", () => {
+  it("the newest week: its dates, Pay before tax and the total large, a glass row per rate, the pay day on a clear glass tile", () => {
     const html = render(zoe);
     const top = section(html, "latest-pay");
+    // Phase 28.10: 32px under what's above it (the section gap), 16px inside, no lighter band.
     expect(top).toMatch(
-      /^aria-labelledby="latest-pay" data-pay-week="2026-10-19" class="mt-5 glass /,
+      /^aria-labelledby="latest-pay" data-pay-week="2026-10-19" class="mt-8 glass [^"]*\bp-4\b/,
     );
     expect(text(top.slice(top.indexOf(">") + 1))).toBe(
       "Mon 19 Oct to Sun 25 Oct Pay before tax Pay before tax: £324.00 16 hours at £12.50 an hour 8 hours at £15.50 an hour Pay day: Fri 30 Oct",
@@ -255,7 +256,9 @@ describe("Pay: each week, and its total only when payroll gave every gross", () 
     expect(top.match(/data-pay-line="" class="glass-tile /g)).toHaveLength(2);
     // With a total, no line repeats a gross.
     expect(top.match(/Pay before tax: /g)).toHaveLength(1);
-    expect(top).toMatch(/<p class="glass-band glass-rim w-fit [^"]*">Pay day: Fri 30 Oct<\/p>/);
+    // Phase 28.10: the pay date on a clear glass tile, with no band.
+    expect(top).toMatch(/<p class="glass-tile w-fit [^"]*">Pay day: Fri 30 Oct<\/p>/);
+    expect(top).not.toContain("glass-band");
     expect(text(html)).toContain("The last 8 weeks, from Acme Events' payroll.");
   });
 

@@ -177,6 +177,11 @@ export async function myProfile(ctx: Ctx, workerId: string): Promise<Profile | n
 
 // The office's latest "Mark as sorted" for her (src/lib/office/casual-follow-up.ts: what it was
 // about, and the day, in the firm's calendar); null when it never marked one. Her own only.
+// `changedAfter` (src/lib/portal/in-hand.ts): an entry logged after the mark that changed her
+// records of that type: one of them added or updated (credential.added, credential.updated: the
+// office's file, a CSAS record), or an upload of it sent, approved or turned down (upload.*, which
+// name her). Not the daily scan's credential.expired: it only makes a stored status match a date
+// that had already passed, which her status read from the start.
 async function latestSortedMark(
   tx: FirmTx,
   workerId: string,
@@ -186,17 +191,37 @@ async function latestSortedMark(
     type: string | null;
     status: string | null;
     at: Date | string;
+    changed: boolean;
   }>(
     sql`
-      select data ->> 'type' as type, data ->> 'status' as status, created_at as at from events
-       where action = 'casual.needs_sorted' and entity_type = 'worker' and entity_id = ${workerId}
-       order by id desc
+      select m.data ->> 'type' as type, m.data ->> 'status' as status, m.created_at as at,
+             (exists (select 1 from events e
+                       where e.action in ('credential.added', 'credential.updated')
+                         and e.id > m.id
+                         and e.entity_id in (select c.id from credentials c
+                                              where c.firm_id = m.firm_id
+                                                and c.worker_id = ${workerId}
+                                                and c.type = m.data ->> 'type'))
+              or exists (select 1 from events e
+                          where e.worker_ref = ${workerId}
+                            and e.action in ('upload.received', 'upload.approved', 'upload.rejected')
+                            and e.id > m.id
+                            and e.data ->> 'qualificationType' = m.data ->> 'type')) as changed
+        from events m
+       where m.action = 'casual.needs_sorted' and m.entity_type = 'worker'
+         and m.entity_id = ${workerId}
+       order by m.id desc
        limit 1
     `,
   );
   const row = rows[0];
   if (!row?.type || !row.status) return null;
-  return { type: row.type, status: row.status, day: localDateOf(new Date(row.at), timeZone) };
+  return {
+    type: row.type,
+    status: row.status,
+    day: localDateOf(new Date(row.at), timeZone),
+    changedAfter: row.changed === true,
+  };
 }
 
 // The extras (`shifts.required_credentials`) of the shifts she's booked on (still to finish) or

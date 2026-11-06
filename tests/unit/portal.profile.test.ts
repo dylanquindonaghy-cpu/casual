@@ -789,6 +789,39 @@ describe("Profile, shorter and clearer (28.11)", () => {
     ).toBe(false);
   });
 
+  it("in hand: never once anything about it changed after the mark, and with no date, only a mark known to stand unchanged", () => {
+    // Suspended, marked sorted, the suspension lifted, then imposed again months later with no
+    // mark in between: the same type and status, but a newer suspension, so not in hand.
+    const suspended = qual({ type: "SIA_DS", status: "suspended", expiresOn: null });
+    const mark = { type: "SIA_DS", status: "suspended", day: "2026-03-02" };
+    expect(inHand(suspended, { ...mark, changedAfter: true })).toBe(false);
+    expect(inHand(suspended, { ...mark, changedAfter: false })).toBe(true);
+    // Not known whether it changed: nothing dates a suspension, so never in hand.
+    expect(inHand(suspended, mark)).toBe(false);
+    // The same for every status no date starts: missing, applied, expired with no date.
+    for (const status of ["missing", "applied", "expired"] as const) {
+      const q = qual({ type: "SIA_DS", status, expiresOn: null });
+      const m = { type: "SIA_DS", status, day: "2026-10-20" };
+      expect(inHand(q, { ...m, changedAfter: false }), status).toBe(true);
+      expect(inHand(q, { ...m, changedAfter: true }), status).toBe(false);
+      expect(inHand(q, m), status).toBe(false);
+    }
+    // Dated ones too: a newer upload turned down the same day as the mark, or a record changed
+    // after it, is not what the office marked.
+    const turned = qual({
+      status: "rejected",
+      expiresOn: null,
+      rejected: { uploadId: "u", sentOn: "2026-10-30", reason: "blurry" },
+    });
+    const turnedMark = { type: "SIA_DS", status: "rejected", day: "2026-10-30" };
+    expect(inHand(turned, { ...turnedMark, changedAfter: false })).toBe(true);
+    expect(inHand(turned, { ...turnedMark, changedAfter: true })).toBe(false);
+    const expired = qual({ type: "SIA_DS", status: "expired", expiresOn: "2026-10-01" });
+    const expiredMark = { type: "SIA_DS", status: "expired", day: "2026-10-20" };
+    expect(inHand(expired, { ...expiredMark, changedAfter: true })).toBe(false);
+    expect(inHand(expired, { ...expiredMark, changedAfter: false })).toBe(true);
+  });
+
   it("no 'contact the office' left in the qualification words and the upload page; every 'message the office' links to Messages", () => {
     for (const file of [
       "src/lib/portal/qualification-copy.ts",

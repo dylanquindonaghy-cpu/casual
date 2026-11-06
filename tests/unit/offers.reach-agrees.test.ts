@@ -93,9 +93,14 @@ describe("Home's 'can't reach you' agrees with the offer waves", () => {
       sub: "We won't tell you about open shifts. Turn them on.",
     });
     expect(REACH_PATH).toBe("/profile#notify-heading");
-    // Profile's section keeps that id (folded or not), so the link lands on it.
+    // Profile's section keeps that id (folded or not), so the link lands on it: since 28.11 the
+    // section is a fold, which puts its headingId on the heading (portal.profile.test.ts renders
+    // it and finds <h2 id="notify-heading">).
     expect(readFileSync(join(process.cwd(), "src/app/profile/profile-view.tsx"), "utf8")).toMatch(
-      /id="notify-heading"/,
+      /headingId="notify-heading"/,
+    );
+    expect(readFileSync(join(process.cwd(), "src/app/profile/fold.tsx"), "utf8")).toMatch(
+      /<h2 id=\{headingId\}/,
     );
   });
 });

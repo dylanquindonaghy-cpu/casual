@@ -1437,13 +1437,6 @@ body:has([data-office]) {
   letter-spacing: -0.03em;
 }
 
-/* The greetings ("Hi Zoe"): Geist medium, tighter (round 7; a serif until Phase 24). */
-@utility font-greet {
-  font-family: var(--font-geist), var(--font-geist-ext), ui-sans-serif, system-ui, sans-serif;
-  font-weight: 500;
-  letter-spacing: -0.02em;
-}
-
 /* --- Motion -------------------------------------------------------------------------------- */
 
 /* Press feedback (Phase 22, Dylan: "subtle reactive on click responses"): a card or a row you can

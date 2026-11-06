@@ -257,6 +257,9 @@ export const disc = {
   done: "bg-done-tile text-done-ink",
   quiet: "glass-button text-ink-muted",
 };
+// A row's lead slot (Phase 28.7): 52px wide, so a disc (`disc`, 32px) lines up with a date tile
+// in the rows above or below it.
+export const rowLead = "flex w-13 shrink-0 justify-center";
 
 // The one empty state ("No shifts in the last 30 days.", "No messages yet."): clear glass, 8px
 // round, its sentence in grey (and any way on under it, a link or a button), as the office's empty

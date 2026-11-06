@@ -76,6 +76,10 @@ words are `docs/screens.md` "The casual app, Phase 28", 28.1.
     go as the pages take it).
   - `staffChoice`: a choice card, clear glass, 8px round, 56px; a transparent 2px edge that turns
     ink only on the chosen one (`has-checked`), with the grey wash, so nothing moves.
+  - `rowLead` (added between waves 2 and 3, for 28.7): a row's 52px lead slot, so a `disc` lines up
+    with the date tiles in the rows around it (Home's "Do this" and "can we reach you" rows).
+  - The greeting has no face of its own any more: Home's goes through `PageHeader` (`text-title`)
+    since 28.7, and the `font-greet` utility is gone.
 - **Other shared parts.** `staffBtn.danger` has dark red words (`urgent-ink`) and the office's grey
   wash under the pointer; `tapRow` the rail's `bg-active` wash; `switchTrack` a hairline glass track
   (`glass-track glass-rim`); `DateTile` 8px, clear glass (`glass-button`), or the urgent tint with

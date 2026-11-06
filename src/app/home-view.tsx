@@ -23,7 +23,7 @@ import type { StaffPhoto } from "@/lib/uploads/photo";
 import { HomeScreenHint } from "./home-screen-hint";
 import { OfflineNotice } from "./my-shifts-view";
 import { EmptyPass, NextPass } from "./next-pass";
-import { disc, headingGap, staffH2, tapRow } from "./ui/classes";
+import { disc, headingGap, rowLead, staffH2, tapRow } from "./ui/classes";
 import { Icon, type IconName } from "./ui/icons";
 import { PageHeader } from "./ui/page-header";
 import { Plate } from "./ui/plate";
@@ -128,7 +128,7 @@ function Section({
 type DiscTone = "urgent" | "attention" | "quiet";
 function DiscLead({ name, tone }: { name: IconName; tone: DiscTone }) {
   return (
-    <span aria-hidden="true" className="flex w-13 shrink-0 justify-center">
+    <span aria-hidden="true" className={rowLead}>
       <span className={`${disc.base} ${disc[tone]}`}>
         <Icon name={name} size={18} />
       </span>

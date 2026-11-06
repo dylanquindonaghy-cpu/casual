@@ -256,10 +256,10 @@ describe("the font", () => {
     expect(read("src/app/layout.tsx")).toContain("className={fontVariables}");
     expect(read("src/app/global-error.tsx")).toContain("className={fontVariables}");
     // Words in Geist, and every one of its uses: the sign figures in its semibold with fixed-width
-    // digits, a page's headline, the big numbers, the greetings (its medium).
+    // digits, a page's headline (the greetings too, since 28.7), the big numbers.
     const css = read("src/app/globals.css");
     expect(css).toMatch(/--font-sans:\s*var\(--font-geist\), var\(--font-geist-ext\),/);
-    for (const utility of ["font-sign", "text-title", "font-stat", "font-greet"])
+    for (const utility of ["font-sign", "text-title", "font-stat"])
       expect(css, utility).toMatch(
         new RegExp(
           String.raw`@utility ${utility} \{\s*font-family: var\(--font-geist\), var\(--font-geist-ext\), ui-sans-serif, system-ui, sans-serif;`,
@@ -268,7 +268,8 @@ describe("the font", () => {
     expect(css).toMatch(
       /@utility font-sign \{[^}]*font-weight: 600;\s*font-variant-numeric: tabular-nums;/,
     );
-    expect(css).toMatch(/@utility font-greet \{[^}]*font-weight: 500;/);
+    // The greeting goes through PageHeader's text-title since Phase 28.7: no utility of its own.
+    expect(css).not.toContain("font-greet");
     // The office's own face file is gone (Phase 23's office-fonts.ts).
     expect(SOURCE).not.toContain("src/app/office/office-fonts.ts");
   });

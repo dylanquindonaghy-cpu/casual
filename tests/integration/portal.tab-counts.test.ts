@@ -172,9 +172,10 @@ describe("one count for every tab bar", () => {
       const { profile, pay, profileName, payName } = tabs;
       expect({ profile, pay, profileName, payName }, page).toEqual(expected);
     }
-    // Home and Booked show the office's reply on Messages' tab too (Messages itself marks its
-    // replies as read when it opens: its own business, not this test's).
-    expect([home.messages, booked.messages]).toEqual(["1", "1"]);
+    // Home and Booked show the office's reply on Messages' tab too. Messages marks it read as it
+    // opens, so its own bar shows no count (the reply's stored time has microseconds: the mark is
+    // that time, not a millisecond copy).
+    expect([home.messages, booked.messages, messages.messages]).toEqual(["1", "1", null]);
     // Every other page's bar (CasualTabBar) says the same.
     const other = tabsOf(
       await render(

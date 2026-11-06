@@ -10,7 +10,7 @@ import type { PortalContext } from "./my-shifts";
 // purge takes older ones anyway: src/lib/gdpr/retention.ts). An answer with an intent is the
 // shifts line's automatic one (src/lib/inbound/reply.ts); one without is the office's
 // (src/lib/office/enquiry-actions.ts). Opening the page marks the office's replies it shows as read
-// (`workers.messages_read_at`: the newest one's time), which clears the tab's count; a reply stored
+// (`workers.messages_read_at`: the newest one's stored time), which clears the tab's count; a reply stored
 // while the page was reading, with an earlier time but not yet visible, still counts.
 
 export const THREAD_DAYS = 90;
@@ -73,9 +73,18 @@ export async function openMessages(ctx: PortalContext, workerId: string): Promis
     const thread = await readThread(tx, workerId, now);
     const newest = thread.items.findLast((i) => i.from === "office")?.at;
     if (newest) {
+      // The mark is the stored time of that reply, read in SQL: `newest` came back through a JS
+      // Date, which keeps milliseconds only, while Postgres keeps microseconds. Marking the JS copy
+      // left the newest reply a fraction of a millisecond "after" the mark, counted for ever.
       await tx
         .update(workers)
-        .set({ messagesReadAt: sql`greatest(${workers.messagesReadAt}, ${newest})` })
+        .set({
+          messagesReadAt: sql`greatest(${workers.messagesReadAt}, (
+            select max(m.created_at) from ${messages} m
+             where m.firm_id = ${workers.firmId} and m.worker_id = ${workers.id}
+               and m.channel = 'app' and m.direction = 'out' and m.intent is null
+               and m.created_at < ${newest}::timestamptz + interval '1 millisecond'))`,
+        })
         .where(eq(workers.id, workerId));
     }
     return thread;

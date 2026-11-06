@@ -589,6 +589,30 @@ describe("the office's reply in the app", () => {
     expect(await unreadReplies(ctx, t.kay)).toBe(0);
   });
 
+  it("opening Messages clears the count for a reply whose time has microseconds (the database's own time, not a copy in milliseconds)", async () => {
+    const t = await appFirm();
+    const ctx = { firm: { id: t.f.firmId }, run: withFirm };
+    // An office reply stored with a time finer than a millisecond, as Postgres keeps it.
+    await su.query(
+      `insert into messages (firm_id, direction, channel, provider_message_id, worker_id, body,
+                             created_at)
+       values ($1, 'out', 'app', $2, $3, 'Yes, see you then.',
+               date_trunc('milliseconds', now() - interval '1 minute') + interval '437 microseconds')`,
+      [t.f.firmId, `app:us-${t.kay}`, t.kay],
+    );
+    expect(await unreadReplies(ctx, t.kay)).toBe(1);
+    const opened = await openMessages(ctx, t.kay);
+    expect(opened.items.at(-1)).toMatchObject({ from: "office", text: "Yes, see you then." });
+    expect(await unreadReplies(ctx, t.kay)).toBe(0);
+    // A reply after the one she saw still counts.
+    await su.query(
+      `insert into messages (firm_id, direction, channel, provider_message_id, worker_id, body)
+       values ($1, 'out', 'app', $2, $3, 'One more thing.')`,
+      [t.f.firmId, `app:us2-${t.kay}`, t.kay],
+    );
+    expect(await unreadReplies(ctx, t.kay)).toBe(1);
+  });
+
   it("the push job does nothing for an automatic answer (only the office's reply gets a push)", async () => {
     const t = await appFirm();
     await t.ask("pay");

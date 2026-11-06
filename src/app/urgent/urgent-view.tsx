@@ -1,15 +1,18 @@
 import Link from "next/link";
 import type { OpenShiftsList } from "@/lib/portal/open-shifts";
-import { OpenShiftCard } from "../shifts/open/open-shift-card";
+import { ShiftGroup } from "../shifts/open/shift-group";
 import { AreaPrompt, FurtherNote } from "../shifts/open/travel-notes";
-import { staffBtn } from "../ui/classes";
+import { emptyBox, staffBtn } from "../ui/classes";
 import { PageHeader } from "../ui/page-header";
 
 // The urgent board (docs/screens.md, `/urgent`): shifts marked urgent that this worker could take
-// now, in her travel area, the nearest first, then the soonest (12G.3), each a card that opens the
-// shift's page, where she takes it (Phase 18). The cards are the only list items on the page
-// (the e2e test counts them). Their list has role="list" (Safari stops announcing a list once its
-// bullets are styled away); that adds no list item.
+// now, in her travel area, the nearest first, then the soonest (12G.3), each opening the shift's
+// page, where she takes it (Phase 18). Since Phase 28 (28.8) they are grouped as Open shifts' urgent
+// list is: one glass section, "Urgent, needed now" with the office's red leaf and the count inside,
+// each shift a tile (src/app/shifts/open/shift-group.tsx). With none, the one empty state
+// (`emptyBox`): "No urgent shifts right now." and "See open shifts". "Back to my shifts" goes to the
+// Shifts tab (/shifts), where her shifts are. The tiles are the only list items on the page (the
+// e2e test counts them).
 export function UrgentView({
   list,
   timeZone,
@@ -26,21 +29,24 @@ export function UrgentView({
       </PageHeader>
       <AreaPrompt list={list} />
       {list.shifts.length === 0 ? (
-        <div className="rounded-xl bg-quiet-soft p-4">
-          <p>No urgent gaps right now.</p>
-          <Link href="/shifts/open" className={`${staffBtn.primary} mt-3`}>
-            See all open shifts
+        <div className={emptyBox}>
+          <p>No urgent shifts right now.</p>
+          <Link href="/shifts/open" className={staffBtn.primary}>
+            See open shifts
           </Link>
         </div>
       ) : (
-        <ul role="list" className="flex flex-col gap-4">
-          {list.shifts.map((s) => (
-            <OpenShiftCard key={s.shiftId} shift={s} timeZone={timeZone} now={now} />
-          ))}
-        </ul>
+        <ShiftGroup
+          id="urgent-heading"
+          title="Urgent, needed now"
+          urgent
+          shifts={list.shifts}
+          timeZone={timeZone}
+          now={now}
+        />
       )}
       <FurtherNote list={list} urgent />
-      <Link href="/" className={`${staffBtn.secondary} mt-8`}>
+      <Link href="/shifts" className={`${staffBtn.secondary} mt-8`}>
         Back to my shifts
       </Link>
     </>

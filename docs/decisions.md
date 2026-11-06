@@ -569,7 +569,8 @@ times by car and by public transport from many casuals to each site.
   is kept until 7 days after the last session it's for ends. Pages and shifts-line replies read rows and
   never wait on the service.
 - **When it's down,** the casual sees the straight-line distance, labelled "(straight line)", or
-  "Travel time not known yet", and the shift is still offered: never hidden silently.
+  "Travel time not known yet", and the shift is still offered: never hidden silently. (The app's
+  words since Phase 28, 28.8: `docs/screens.md` "The casual app, Phase 28".)
 - `TRAVEL_PROVIDER=fake` (the default) works out times from the straight line and places only the
   made-up `ZZ` postcodes; the settings refuse `traveltime` under `NODE_ENV=test`.
 **Options:**

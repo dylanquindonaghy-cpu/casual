@@ -1,6 +1,6 @@
 import type { NeedsItem } from "../credentials/status";
 import { localDateOf } from "../time/zoned";
-import type { TravelFacts } from "../travel/line-copy";
+import { DISTANCE_NOT_KNOWN, notWorkedOutText, type TravelFacts } from "../travel/line-copy";
 import type { StaffPhoto } from "../uploads/photo";
 import type { OpenShift } from "./open-shifts";
 import type { ReachPrompt } from "./reach-me";
@@ -206,8 +206,10 @@ function needsTitle(n: NeedsItem): string {
 }
 
 // Getting there as three figures with their words (Phase 24, round 7: how far first, "3.1" miles
-// away, then "15 min" by car and "31 min" by public transport), or one sentence when they aren't
-// known. On the pass's details and a shift's page.
+// away, then "15 min" by car and "31 min" by public transport), or, until the times are worked out,
+// the travel line's one sentence (src/lib/travel/line-copy.ts; Phase 28, 28.8: "About 2 miles away.
+// Travel time isn't worked out yet." in place of "2 miles in a straight line" and "Not known travel
+// time yet", which read as values). On the pass's details and a shift's page.
 export type TravelStrip =
   { kind: "cells"; cells: { figure: string; words: string }[] } | { kind: "words"; words: string };
 
@@ -217,13 +219,8 @@ function straightCell(metres: number) {
 }
 
 export function travelStrip(f: TravelFacts): TravelStrip {
-  if (f.kind === "unknown") return { kind: "words", words: "Distance not known yet" };
-  if (f.kind === "straight") {
-    return {
-      kind: "cells",
-      cells: [straightCell(f.straightMetres), { figure: "Not known", words: "travel time yet" }],
-    };
-  }
+  if (f.kind === "unknown") return { kind: "words", words: DISTANCE_NOT_KNOWN };
+  if (f.kind === "straight") return { kind: "words", words: notWorkedOutText(f.straightMetres) };
   const miles =
     f.car?.metres != null
       ? { figure: (f.car.metres / METRES_PER_MILE).toFixed(1), words: "miles away" }

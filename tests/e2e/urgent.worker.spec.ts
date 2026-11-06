@@ -55,6 +55,6 @@ test("a steward sees no urgent gaps: the urgent shift needs a door supervisor", 
   await expect(page.getByRole("region", { name: "Shifts you can take" })).toBeVisible();
   await expect(page.locator('[data-for-you="urgent"]')).toHaveCount(0);
   await page.goto(`${acme}/urgent`);
-  await expect(page.getByText("No urgent gaps right now.")).toBeVisible();
-  await expect(page.getByRole("link", { name: "See all open shifts" })).toBeVisible();
+  await expect(page.getByText("No urgent shifts right now.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "See open shifts" })).toBeVisible();
 });

@@ -214,7 +214,7 @@ describe("in her travel area", () => {
     const words = list.shifts.map((s) => travelLineText(s.travel!, "Europe/London"));
     expect(words[0]).toBe("Distance not known yet");
     expect(words[1]).toBe("Distance not known yet");
-    expect(words[2]).toMatch(/^about \d+ miles? \(straight line\) · Travel time not known yet$/);
+    expect(words[2]).toMatch(/^About \d+ miles? away\. Travel time isn't worked out yet\.$/);
     for (const shiftId of [noLocation, noSite, notYet]) {
       expect(await t.candidates(shiftId)).toContain(cass);
     }

@@ -489,7 +489,7 @@ describe("working estimates out", () => {
     const facts = await withFirm(t.f.firmId, (tx) => travelFor(tx, ann, [shiftId]));
     expect(facts.get(shiftId)).toMatchObject({ kind: "straight" });
     expect(travelLineText(facts.get(shiftId) ?? { kind: "unknown" }, "Europe/London")).toBe(
-      "about 2 miles (straight line) · Travel time not known yet",
+      "About 2 miles away. Travel time isn't worked out yet.",
     );
   });
 });

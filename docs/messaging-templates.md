@@ -293,7 +293,9 @@ never a person's name), not one per firm (PLAN.md Parking lot, P2.4).
   by quiet hours unless the session starts within the urgent window. Not sent, and logged, when the
   session has started, when the firm's own system tells its casuals (`firm_system_sends`, for a
   booking and a change that both came from that system), when the same change moved or shortened
-  their shift and sent `shift_changed_by_firm`, or when nothing can reach them)
+  their shift and sent `shift_changed_by_firm`, when nothing can reach them, or (Phase 29.4) when
+  the office placed them and their booking message (`shift_confirmed`) hasn't gone yet: it links to
+  the shift as it is when it goes, so they never hear of a change to a shift they haven't heard of)
 - Not chosen from an ask (`shift_not_booked`): subject "Not this time: {date}"
 - A request's answer (`request_update`): subject "Your request (ref {ref}) is {status}"
 - A pay query's answer (`pay_query_update`): subject "Payroll has answered your pay query"

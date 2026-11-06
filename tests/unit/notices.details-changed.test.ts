@@ -24,6 +24,7 @@ const booking = (o: Partial<Parameters<typeof detailsNoticeDecision>[0]> = {}) =
   firmSystemSends: false,
   bookedByFirmSystem: false,
   reach: "sms" as const,
+  bookingMessageDue: false,
   ...o,
 });
 
@@ -121,6 +122,44 @@ describe("detailsNoticeDecision", () => {
   });
 });
 
+describe("not before the booking message (Phase 29.4)", () => {
+  it("the booking message is due but hasn't gone: skipped, not_told", () => {
+    expect(detailsNoticeDecision(booking({ bookingMessageDue: true }))).toEqual({
+      action: "skip",
+      reason: "not_told",
+    });
+  });
+
+  it("it has gone, or none was due: told", () => {
+    expect(detailsNoticeDecision(booking({ bookingMessageDue: false }))).toEqual({
+      action: "send",
+      fields: ["meetingPoint"],
+    });
+  });
+
+  it("nothing untold stays nothing; a move's own notice and a started shift keep their reasons", () => {
+    expect(detailsNoticeDecision(booking({ untold: [], bookingMessageDue: true }))).toEqual({
+      action: "none",
+    });
+    expect(
+      detailsNoticeDecision(
+        booking({ bookingMessageDue: true, untold: [change({ withMoveNotice: true })] }),
+      ),
+    ).toEqual({ action: "skip", reason: "move_notice" });
+    expect(detailsNoticeDecision(booking({ bookingMessageDue: true, started: true }))).toEqual({
+      action: "skip",
+      reason: "started",
+    });
+  });
+
+  it("checked before how they're reached", () => {
+    expect(detailsNoticeDecision(booking({ bookingMessageDue: true, reach: "none" }))).toEqual({
+      action: "skip",
+      reason: "not_told",
+    });
+  });
+});
+
 describe("the job's timing", () => {
   it("a burst of saves is one job: queued a while ahead, one per session a slot", () => {
     expect(DETAILS_NOTICE_DELAY_SECONDS).toBe(120);
@@ -172,6 +211,10 @@ describe("the office's log words (Phase 28.3)", () => {
     ["firm_sends", "your own system tells them (its booking, and its change)"],
     ["move_notice", "the same change moved their shift, and they're told about that"],
     ["no_way", "nothing can reach them (no phone notifications, text or email)"],
+    [
+      "not_told",
+      "they haven't been told about the booking yet (that message shows the shift as it is)",
+    ],
   ])("skipped: %s", (reason, why) => {
     expect(say("shift.details_notice_skipped", { workerId: "w", reason })).toBe(
       `Ann Booker wasn't told their shift's details changed: ${why}.`,

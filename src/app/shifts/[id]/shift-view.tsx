@@ -19,7 +19,8 @@ import {
   strikeNote,
   travelSentence,
 } from "@/lib/portal/shift-page-copy";
-import { dateParts, placesLeftText, timeRange } from "@/lib/portal/sign-copy";
+import { dateParts, placesLeftText, shiftLine, timeRange } from "@/lib/portal/sign-copy";
+import { stillComingOpen } from "@/lib/portal/still-coming-copy";
 import { hoursText } from "@/lib/portal/pay-format";
 import { wallTimeOf } from "@/lib/time/zoned";
 import type { ShiftPage, ShiftSummary } from "@/lib/portal/shift-detail";
@@ -31,10 +32,12 @@ import { Seats } from "../../ui/seats";
 import { DateTile } from "../../ui/sign";
 import { Slip } from "../../ui/slip";
 import { StatusChip } from "../../ui/status-chip";
+import { CancelShift } from "../cancel-shift";
 import { AskButton } from "../open/ask-button";
 import { AskedNote, NotThisTimeNote } from "../open/ask-result";
 import { TakeShiftButton } from "../open/take-shift-button";
 import { BringAndWear, PayFigures, TravelFigures } from "../shift-parts";
+import { StillComingCard } from "../still-coming-card";
 import { ReviewForm } from "./review-form";
 
 // One shift's page (docs/office-v2.md 4.4; docs/screens.md `/shifts/[id]` and "The casual app,
@@ -55,6 +58,11 @@ import { ReviewForm } from "./review-form";
 // late?", "Message the office" once it has started, "Add to my calendar", her instructions and
 // actions. Filled, started and cancelled say so. Every way to the office is a link built from
 // 28.2's contract (src/lib/portal/message-office.ts); nothing here changes anything by itself.
+//
+// Phase 28.14: on her booking, from 24 hours before the start until the start, "Still coming?"
+// right under the shift's card (src/app/shifts/still-coming-card.tsx): "Yes, I'm coming" (the
+// page's main button) or "You said you're coming (Fri 13:02)", then "Can't make it?" inside it, so
+// at the foot "Ask for a change" stands alone. Online only (data-online-only).
 
 const capitalise = (words: string) => words.charAt(0).toUpperCase() + words.slice(1);
 
@@ -346,6 +354,32 @@ function BookingLinks({ links, timesChanged }: { links: BookedLinks; timesChange
   );
 }
 
+// "Still coming?" on her booking in the day before it (28.14): "Yes, I'm coming" as the page's main
+// button, and the cancel sheet's "Can't make it?" inside the card.
+function AskComing({ shift, timeZone }: { shift: MyShift; timeZone: string }) {
+  const day = dateParts(shift.startsAt, timeZone);
+  return (
+    <StillComingCard
+      shiftId={shift.shiftId}
+      saidAt={shift.stillComingAt ?? null}
+      timeZone={timeZone}
+      main
+      cancel={
+        <CancelShift
+          key={shift.assignmentId}
+          shiftId={shift.shiftId}
+          opener="full"
+          summary={{
+            dow: day.dow,
+            day: day.day,
+            line: shiftLine(shift.role, shift.startsAt, shift.endsAt, timeZone),
+          }}
+        />
+      }
+    />
+  );
+}
+
 // What she can do, floating at the foot of the screen over a soft frosted strip (no tab bar on a
 // shift's page). At the end of the page it rests in its place.
 function ActionBar({ children }: { children: ReactNode }) {
@@ -481,6 +515,8 @@ export function ShiftView({
         now,
       );
       const changed = page.changes ? changedSinceText(page.changes, timeZone) : null;
+      // In the day before it: "Still coming?" holds "Can't make it?" (28.14).
+      const askComing = stillComingOpen(page.shift, now);
       return (
         <>
           <BackBar to={{ href: "/shifts", label: "Your shifts" }} firm={firm} />
@@ -502,7 +538,12 @@ export function ShiftView({
                 )}
               </>
             }
-            after={<BookingLinks links={links} timesChanged={page.timesChanged === true} />}
+            after={
+              <>
+                {askComing && <AskComing shift={page.shift} timeZone={timeZone} />}
+                <BookingLinks links={links} timesChanged={page.timesChanged === true} />
+              </>
+            }
           />
           {page.shift.instructions && (
             <div className="mt-4">
@@ -511,7 +552,17 @@ export function ShiftView({
               </Card>
             </div>
           )}
-          <ShiftActions shift={page.shift} now={now} timeZone={timeZone} />
+          {askComing ? (
+            // "Can't make it?" is in "Still coming?" above: "Ask for a change" alone.
+            <Link
+              href={`/requests/new?shift=${page.shift.shiftId}`}
+              className={`${staffBtn.secondary} mt-3`}
+            >
+              Ask for a change
+            </Link>
+          ) : (
+            <ShiftActions shift={page.shift} now={now} timeZone={timeZone} />
+          )}
         </>
       );
     }

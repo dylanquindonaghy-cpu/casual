@@ -1217,6 +1217,71 @@ describe("emails to casuals: their subjects", () => {
   });
 });
 
+// Phase 28.14: "Still coming?". The reminder pushes end with the line, and the reminder emails
+// carry it after the link; the WhatsApp and text reminders keep the approved template's words,
+// byte for byte (their output is pinned here as it was before 28.14).
+describe("the reminders say 'Tap to say you're coming.' (Phase 28.14)", () => {
+  const emails = section("Email to casuals");
+  const shift = { site: "{site}", day: "{day}", start: "{start}", end: "{end}", link: "{link}" };
+
+  it("the pushes end with the line, as the doc says", () => {
+    expect(templates.STILL_COMING_LINE).toBe("Tap to say you're coming.");
+    for (const kind of ["24h", "2h"] as const) {
+      const push = reminderPush({
+        kind,
+        site: "Arena",
+        day: "today",
+        start: "08:00",
+        end: "16:00",
+      });
+      expect(push.body.endsWith(" Tap to say you're coming.")).toBe(true);
+    }
+    expect(section("Push (title / body)")).toContain(`"{start}–{end}. Tap to say you're coming."`);
+  });
+
+  it("the emails' bodies are the doc's, with and without a site", () => {
+    const day = quotes(emails, "Reminder, the day before (`shift_reminder_24h`)");
+    expect(templates.shiftReminder24hEmail(docVoice, shift)).toBe(day[1]);
+    expect(templates.shiftReminder24hEmail(docVoice, { ...shift, site: null })).toBe(
+      (day[1] ?? "").replace(" at {site}", ""),
+    );
+    const soon = quotes(emails, "Reminder, 2 hours before (`shift_reminder_2h`)");
+    expect(templates.shiftReminder2hEmail(docVoice, shift)).toBe(soon[1]);
+    expect(templates.shiftReminder2hEmail(docVoice, { ...shift, site: null })).toBe(
+      (soon[1] ?? "").replace(" at {site}", ""),
+    );
+    // Each is the WhatsApp words with the one line after the link, nothing else changed.
+    expect(templates.shiftReminder24hEmail(docVoice, shift)).toBe(
+      shiftReminder24hMessage(docVoice, shift).replace(
+        "{link}. ",
+        "{link}. Tap to say you're coming. ",
+      ),
+    );
+    expect(templates.shiftReminder2hEmail(docVoice, shift)).toBe(
+      shiftReminder2hMessage(docVoice, shift).replace(" — ", " Tap to say you're coming. — "),
+    );
+  });
+
+  it("the WhatsApp and text reminders are byte-identical to before", () => {
+    const voice = { name: "Acme Events", signOff: "Acme Events Shift Team" };
+    const real = { site: "Demo Arena", day: "tomorrow", start: "08:00", end: "16:00", link: "L" };
+    expect(shiftReminder24hMessage(voice, real)).toBe(
+      "Reminder: tomorrow 08:00–16:00 at Demo Arena. Details: L. Can't make it? Cancel with the link as early as you can. — Acme Events Shift Team",
+    );
+    expect(shiftReminder24hMessage(voice, { ...real, site: null })).toBe(
+      "Reminder: tomorrow 08:00–16:00. Details: L. Can't make it? Cancel with the link as early as you can. — Acme Events Shift Team",
+    );
+    expect(shiftReminder2hMessage(voice, real)).toBe(
+      "Your shift at Demo Arena starts at 08:00. Meeting point and instructions: L. — Acme Events Shift Team",
+    );
+    expect(shiftReminder2hMessage(voice, { ...real, site: null })).toBe(
+      "Your shift starts at 08:00. Meeting point and instructions: L. — Acme Events Shift Team",
+    );
+    expect(shiftReminder24hMessage(voice, real)).not.toContain("coming");
+    expect(shiftReminder2hMessage(voice, real)).not.toContain("coming");
+  });
+});
+
 // Phase 28.3: a booked shift's briefing changed (shift_details_changed). Its body is in the email
 // section (no WhatsApp template: it goes by push, text or email only), and it never carries a
 // value: the parts that changed in the casual's words, nothing else.
@@ -1360,6 +1425,9 @@ describe("every template function is checked here", () => {
         "shiftReminder24hEmailSubject",
         "shiftReminder2hEmailSubject",
         "shiftUrgentEmailSubject",
+        // The reminders' email bodies (Phase 28.14), checked below.
+        "shiftReminder24hEmail",
+        "shiftReminder2hEmail",
         // A booked shift's briefing changed (Phase 28.3), checked above.
         "detailsChangedEmailSubject",
         "detailsChangedMessage",

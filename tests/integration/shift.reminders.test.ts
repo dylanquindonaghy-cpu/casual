@@ -412,7 +412,7 @@ describe("how a reminder goes", () => {
     expect(t.pushed).toEqual([
       {
         title: "Tomorrow: your shift",
-        body: "05:00–13:00. Tap for instructions.",
+        body: "05:00–13:00. Tap to say you're coming.",
         url: `/shifts/${shiftId}`,
         until: startsAt, // for the push service only (13.3): not delivered once it has started
       },
@@ -472,6 +472,11 @@ describe("how a reminder goes", () => {
     );
     expect(await t.run(NOW)).toEqual({ sent: 1, failed: 0, skipped: 0 });
     expect(t.sent.map((m) => [m.channel, m.to])).toEqual([["email", "rem@example.test"]]);
+    // Phase 28.14: the email adds "Tap to say you're coming." after the link (the text keeps the
+    // template's words: the test at the top of this file).
+    expect(bodies(t.sent)[0]).toMatch(
+      /^Reminder: tomorrow 05:00–13:00\. Details: http:\/\/[^ ]+\/shifts\/[0-9a-f-]+\. Tap to say you're coming\. Can't make it\? Cancel with the link as early as you can\. — .+ Shift Team$/,
+    );
     expect((await reminderRows(bookingId))[0]).toMatchObject({ status: "sent", channel: "email" });
     expect((await eventsOf(t.f.firmId))[0]?.data).toMatchObject({ channel: "email" });
   });

@@ -1,0 +1,448 @@
+<title>Still Coming Before and After</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500&display=swap">
+<style>
+/* Layout: a review sheet. Each row pairs "Before" and "After (28.10)" phones at their real 390px,
+   light beside dark; a laptop row (1,280px at 150%, an 853px window) closes it. The sheet's own
+   chrome follows the viewer's theme; each phone carries its own fixed theme, as the app does. */
+:root {
+  --sheet-bg: #ecebe7;
+  --sheet-fg: #1b1c1e;
+  --sheet-muted: #5a5d63;
+  --sheet-rule: rgb(27 28 30 / 0.12);
+  --sheet-mark: #1d4ed8;
+  --sheet-mark-soft: rgb(29 78 216 / 0.1);
+  --font-ui: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-data: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --sheet-bg: #161618;
+    --sheet-fg: #ededec;
+    --sheet-muted: #a9a9ae;
+    --sheet-rule: rgb(255 255 255 / 0.12);
+    --sheet-mark: #a1bdff;
+    --sheet-mark-soft: rgb(161 189 255 / 0.12);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --sheet-bg: #161618;
+  --sheet-fg: #ededec;
+  --sheet-muted: #a9a9ae;
+  --sheet-rule: rgb(255 255 255 / 0.12);
+  --sheet-mark: #a1bdff;
+  --sheet-mark-soft: rgb(161 189 255 / 0.12);
+  color-scheme: dark;
+}
+
+/* The casual app's own tokens (src/app/globals.css), per phone. */
+.app {
+  --canvas: #f2f2f0;
+  --ink: #17181a;
+  --muted: #55585f;
+  --line: rgb(16 24 40 / 0.1);
+  --card: rgb(255 255 255 / 0.55);
+  --rim: rgb(16 24 40 / 0.1);
+  --tile: rgb(16 24 40 / 0.03);
+  --button: rgb(255 255 255 / 0.7);
+  --tint: #15171a;
+  --on-tint: #ffffff;
+  --band: rgb(255 255 255 / 0.6);
+  --done-soft: rgb(233 246 238 / 0.85);
+  --done-tile: rgb(210 239 219 / 0.9);
+  --done-ink: #155230;
+  --done-line: #b4dfc3;
+  --att-soft: rgb(255 246 224 / 0.85);
+  --att-line: #f0d39a;
+  --hivis: rgb(251 229 160 / 0.8);
+  --on-hivis: #3d2c00;
+  --urgent: #b0201f;
+  --active: rgb(16 24 40 / 0.05);
+  --tab-ink: #17181a;
+  --on-tab-ink: #ffffff;
+  color-scheme: light;
+}
+.app.dark {
+  --canvas: #0f0f10;
+  --ink: #f4f4f3;
+  --muted: #bfbfc4;
+  --line: rgb(255 255 255 / 0.1);
+  --card: rgb(255 255 255 / 0.04);
+  --rim: rgb(255 255 255 / 0.12);
+  --tile: rgb(255 255 255 / 0.03);
+  --button: rgb(255 255 255 / 0.05);
+  --tint: #f3f4f6;
+  --on-tint: #0b0c0e;
+  --band: rgb(255 255 255 / 0.08);
+  --done-soft: rgb(21 41 26 / 0.8);
+  --done-tile: rgb(21 41 26 / 0.9);
+  --done-ink: #c2efc0;
+  --done-line: #2b5a3e;
+  --att-soft: rgb(51 38 15 / 0.8);
+  --att-line: #5a4318;
+  --hivis: rgb(58 47 16 / 0.8);
+  --on-hivis: #ffe08a;
+  --urgent: #ffb4ab;
+  --active: rgb(255 255 255 / 0.07);
+  --tab-ink: #f4f4f3;
+  --on-tab-ink: #0f0f10;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--sheet-bg);
+  color: var(--sheet-fg);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.sheet {
+  max-width: 1760px;
+  margin: 0 auto;
+  padding-block: 32px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid;
+  gap: 48px;
+}
+header.top { display: grid; gap: 12px; max-width: 72ch; }
+header.top h1 { font-size: 30px; font-weight: 600; letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+header.top p { margin: 0; color: var(--sheet-muted); }
+.tagline { font-family: var(--font-data); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--sheet-mark); }
+section.row { display: grid; gap: 16px; }
+section.row > h2 { font-size: 20px; font-weight: 600; margin: 0; text-wrap: balance; }
+section.row > p { margin: 0; color: var(--sheet-muted); max-width: 80ch; }
+.changes { margin: 0; padding-left: 20px; display: grid; gap: 4px; max-width: 90ch; }
+.changes li::marker { color: var(--sheet-mark); }
+.scroller { overflow-x: auto; padding-bottom: 8px; }
+.frames { display: flex; gap: 20px; align-items: flex-start; width: max-content; }
+.frame { display: grid; gap: 8px; }
+.frame figcaption { font-family: var(--font-data); font-size: 12px; color: var(--sheet-muted); display: flex; gap: 8px; align-items: center; }
+.pill { display: inline-flex; align-items: center; border-radius: 999px; padding: 2px 8px; font-weight: 500; border: 1px solid var(--sheet-rule); }
+.pill.after { color: var(--sheet-mark); background: var(--sheet-mark-soft); border-color: transparent; }
+.divider { width: 1px; align-self: stretch; background: var(--sheet-rule); }
+
+/* A phone at its real 390px (844px tall shown up to its content). */
+.app {
+  width: 390px;
+  background: var(--canvas);
+  color: var(--ink);
+  border-radius: 28px;
+  box-shadow: 0 0 0 1px var(--sheet-rule), 0 12px 32px rgb(0 0 0 / 0.12);
+  overflow: hidden;
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.5;
+  position: relative;
+  padding-bottom: 96px;
+}
+.app.laptop { width: 853px; border-radius: 12px; padding-bottom: 96px; }
+.app .bar { display: flex; align-items: center; gap: 10px; padding: 14px 16px 0; font-weight: 600; font-size: 16px; }
+.app .mark { width: 36px; height: 36px; border-radius: 8px; background: #b5172a; color: #fff; display: grid; place-items: center; font-weight: 700; }
+.app .col { max-width: 448px; margin: 0 auto; padding: 24px 16px 0; }
+.app h1 { font-size: 28px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.15; margin: 0 0 24px; }
+.app h1 + .lead { margin: -16px 0 24px; }
+.app .h2 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: -0.005em; }
+.app p { margin: 0; }
+.app .muted { color: var(--muted); }
+.app .card { background: var(--card); box-shadow: inset 0 0 0 1px var(--rim); border-radius: 12px; padding: 16px; }
+.app .card.old { border-radius: 20px; }
+.app .card.old-big { border-radius: 24px; padding: 20px; }
+.app .tile { background: var(--tile); box-shadow: inset 0 0 0 1px var(--rim); border-radius: 8px; }
+.app .tile.old { border-radius: 16px; }
+.app .btn { display: flex; width: 100%; min-height: 52px; align-items: center; justify-content: center; border-radius: 999px; font-weight: 600; font-size: 16px; padding: 12px 20px; }
+.app .btn.primary { background: var(--tint); color: var(--on-tint); }
+.app .btn.secondary { background: var(--button); color: var(--ink); box-shadow: inset 0 0 0 1px var(--rim); }
+.app .link { display: flex; min-height: 44px; align-items: center; justify-content: center; font-weight: 600; text-decoration: underline; text-underline-offset: 4px; }
+.app .inline-link { font-weight: 600; text-decoration: underline; text-underline-offset: 4px; }
+.app .stack { display: grid; gap: 12px; }
+.app .mt8 { margin-top: 32px; }
+.app .mt5 { margin-top: 20px; }
+.app .mt4 { margin-top: 16px; }
+.app .mt3 { margin-top: 12px; }
+.app .mt2 { margin-top: 8px; }
+.app .date { width: 52px; flex: none; text-align: center; padding: 6px 0 8px; border-radius: 8px; background: var(--button); box-shadow: inset 0 0 0 1px var(--rim); }
+.app .date b { display: block; font-size: 14px; font-weight: 500; }
+.app .date span { display: block; font-size: 24px; line-height: 1.2; font-weight: 600; }
+.app .payday { display: flex; gap: 14px; align-items: center; }
+.app .new { outline: 2px dashed var(--sheet-mark); outline-offset: 3px; }
+.app .slip { display: flex; gap: 12px; align-items: flex-start; border-radius: 8px; border: 1px solid; padding: 12px 16px; }
+.app .slip.att { background: var(--att-soft); border-color: var(--att-line); }
+.app .slip.done { background: var(--done-soft); border-color: var(--done-line); }
+.app .disc { width: 32px; height: 32px; flex: none; border-radius: 999px; display: grid; place-items: center; font-weight: 700; font-size: 15px; }
+.app .disc.att { background: var(--hivis); color: var(--on-hivis); }
+.app .disc.done { background: var(--done-tile); color: var(--done-ink); }
+.app .field { min-height: 56px; border-radius: 8px; background: var(--tile); box-shadow: inset 0 0 0 1px var(--rim); padding: 14px 16px; font-size: 18px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.app .field.old { border-radius: 16px; }
+.app .field .chev { color: var(--muted); font-size: 14px; }
+.app .label { font-weight: 600; }
+.app .choice { min-height: 56px; display: flex; gap: 12px; align-items: center; padding: 12px 16px; border-radius: 8px; background: var(--tile); border: 2px solid transparent; box-shadow: inset 0 0 0 1px var(--rim); font-weight: 500; }
+.app .choice.on { border-color: var(--ink); background: var(--active); }
+.app .choice.old { border-radius: 16px; border-color: #6e737b; font-weight: 400; }
+.app .choice.old.on { border-color: var(--ink); }
+.app .radio { width: 22px; height: 22px; border-radius: 999px; border: 2px solid var(--muted); flex: none; }
+.app .choice.on .radio { border: 7px solid var(--ink); }
+.app .chip { display: inline-flex; align-items: center; min-height: 28px; padding: 4px 12px; border-radius: 999px; font-size: 14px; font-weight: 600; background: var(--done-soft); color: var(--done-ink); }
+.app .rows { background: var(--card); box-shadow: inset 0 0 0 1px var(--rim); border-radius: 12px; }
+.app .rows > div { padding: 12px 16px; }
+.app .rows > div + div { border-top: 1px solid var(--line); }
+.app .big { font-size: 36px; line-height: 1.1; font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.app .num { font-variant-numeric: tabular-nums; }
+.app .band { background: var(--band); box-shadow: inset 0 0 0 1px var(--rim); border-radius: 10px; padding: 6px 12px; width: fit-content; font-size: 18px; }
+.app .paytile { background: var(--tile); box-shadow: inset 0 0 0 1px var(--rim); border-radius: 8px; padding: 6px 12px; width: fit-content; font-size: 18px; }
+.app .between { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.app .tabs { position: absolute; left: 12px; right: 12px; bottom: 12px; height: 68px; border-radius: 12px; background: var(--card); box-shadow: inset 0 0 0 1px var(--rim), 0 8px 24px rgb(0 0 0 / 0.08); display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; padding: 6px; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.app.laptop .tabs { left: 50%; right: auto; width: 448px; transform: translateX(-50%); }
+.app .tabs span { display: grid; place-items: center; border-radius: 8px; font-size: 12px; color: var(--muted); position: relative; }
+.app .tabs span.on { background: var(--tab-ink); color: var(--on-tab-ink); font-weight: 700; }
+.app .tabs i { position: absolute; top: 4px; right: 14px; min-width: 18px; height: 18px; border-radius: 999px; background: var(--tint); color: var(--on-tint); font-size: 11px; font-style: normal; display: grid; place-items: center; font-weight: 600; padding: 0 5px; }
+.app .tabs span.on i { background: var(--on-tab-ink); color: var(--tab-ink); }
+.app .code { font-size: 24px; letter-spacing: 0.3em; }
+.app .old-red { color: var(--urgent); font-weight: 600; }
+.nb { white-space: nowrap; }
+
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+@media (max-width: 520px) { header.top h1 { font-size: 24px; } }
+</style>
+<style>
+/* 28.14's own parts on top of the shared sheet (copied from 28.10's): the pass, the card, chips. */
+.app .tag { display: inline-flex; align-items: center; min-height: 28px; padding: 4px 12px; border-radius: 999px; font-size: 14px; font-weight: 500; background: var(--button); box-shadow: inset 0 0 0 1px var(--rim); }
+.app .sign { font-size: 36px; line-height: 1.15; font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.app .rule { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 16px; display: grid; gap: 16px; }
+.app .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.app .btn.danger { color: var(--urgent); background: transparent; }
+.app .btn .ic { margin-right: 8px; font-weight: 700; }
+.app .gate { background: var(--button); box-shadow: inset 0 0 0 1px var(--rim); border-radius: 8px; padding: 6px 12px; font-weight: 500; }
+.app .still { background: var(--tile); box-shadow: inset 0 0 0 1px var(--rim); border-radius: 8px; padding: 16px; display: grid; gap: 12px; }
+.app .said { display: flex; gap: 12px; align-items: center; font-size: 18px; }
+.app .chipq { display: inline-flex; align-items: center; min-height: 26px; padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--active); color: var(--muted); }
+.app .chipd { display: inline-flex; align-items: center; min-height: 26px; padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--done-soft); color: var(--done-ink); }
+.app .chipa { display: inline-flex; align-items: center; min-height: 26px; padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--att-soft); color: var(--on-hivis); }
+.app .person { display: flex; gap: 12px; align-items: center; min-height: 44px; }
+.app .ini { width: 32px; height: 32px; border-radius: 999px; background: var(--button); box-shadow: inset 0 0 0 1px var(--rim); display: grid; place-items: center; font-size: 12px; font-weight: 600; color: var(--muted); }
+.app .flags { display: flex; flex-wrap: wrap; gap: 6px 8px; padding: 0 0 6px 44px; }
+.app .office { padding: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.app .office .card { padding: 16px; }
+.app .tiny { font-size: 12px; color: var(--muted); }
+.app .li + .li { border-top: 1px solid var(--line); }
+</style>
+
+<main class="sheet">
+  <header class="top">
+    <span class="tagline">ShiftDesk · Phase 28 · task 28.14</span>
+    <h1>"Still coming?" in the day before a shift, before and after</h1>
+    <p>What a casual sees on her pass and on her shift's page from 24 hours before a booked shift, and what the office sees on the dashboard's Coming up. Phones at their real 390px, light and dark; the laptop row is 1,280px wide at 150% scaling (an 853px window). Made-up firm and casual: Acme Events, Tess Comer. A dashed blue outline marks what 28.14 adds.</p>
+    <ul class="changes">
+      <li>From 24 hours before the start until the start, the pass and the shift's page show "Still coming?" with "Yes, I'm coming" and "Can't make it?" (the cancel sheet, unchanged).</li>
+      <li>After the tap: "Thanks. The office can see you're coming.", then the card reads "You said you're coming (Fri 13:02)".</li>
+      <li>Online only: the copy kept for no signal shows no card at all.</li>
+      <li>The reminder pushes end "Tap to say you're coming."; the emails carry the same line; WhatsApp and texts are unchanged.</li>
+      <li>The office's Coming up: a green "Coming 13:02" or a grey "Not answered yet". Neither does anything by itself.</li>
+    </ul>
+  </header>
+
+  <section class="row" aria-labelledby="r1">
+    <h2 id="r1">The pass on Home, the day before</h2>
+    <p>Before, the pass had "Can't make it?" under Directions and Details. After, in the day before the shift, the card holds both answers. Directions stays the main button, so "Yes, I'm coming" is clear glass here.</p>
+    <div class="scroller">
+      <div class="frames">
+        <figure class="frame">
+          <figcaption><span class="pill">Before</span> 390px · light</figcaption>
+          <div class="app">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Hi Tess</h1>
+              <div class="card">
+                <div class="between"><span class="tag">Tomorrow</span><span class="muted">Saturday 7 November</span></div>
+                <p class="sign mt3">08:00–16:00</p>
+                <p style="font-size:18px;font-weight:500">Steward · Raceday</p>
+                <div class="rule">
+                  <div class="between"><div><p style="font-size:18px;font-weight:500">Still Hall</p><p class="muted">Leeds, LS1 1AA</p></div><span class="gate">Gate B</span></div>
+                  <div class="two"><span class="btn primary">Directions</span><span class="btn secondary">Details</span></div>
+                  <span class="btn danger">Can't make it?</span>
+                </div>
+              </div>
+            </div>
+            <div class="tabs"><span class="on">Home</span><span>Shifts</span><span>Messages</span><span>Pay</span><span>Profile</span></div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.14</span> 390px · light</figcaption>
+          <div class="app">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Hi Tess</h1>
+              <div class="card">
+                <div class="between"><span class="tag">Tomorrow</span><span class="muted">Saturday 7 November</span></div>
+                <p class="sign mt3">08:00–16:00</p>
+                <p style="font-size:18px;font-weight:500">Steward · Raceday</p>
+                <div class="rule">
+                  <div class="between"><div><p style="font-size:18px;font-weight:500">Still Hall</p><p class="muted">Leeds, LS1 1AA</p></div><span class="gate">Gate B</span></div>
+                  <div class="two"><span class="btn primary">Directions</span><span class="btn secondary">Details</span></div>
+                  <div class="still new">
+                    <p class="h2">Still coming?</p>
+                    <span class="btn secondary"><span class="ic">✓</span>Yes, I'm coming</span>
+                    <span class="btn danger">Can't make it?</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="tabs"><span class="on">Home</span><span>Shifts</span><span>Messages</span><span>Pay</span><span>Profile</span></div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.14</span> answered · 390px · dark</figcaption>
+          <div class="app dark">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Hi Tess</h1>
+              <div class="card">
+                <div class="between"><span class="tag">Tomorrow</span><span class="muted">Saturday 7 November</span></div>
+                <p class="sign mt3">08:00–16:00</p>
+                <p style="font-size:18px;font-weight:500">Steward · Raceday</p>
+                <div class="rule">
+                  <div class="two"><span class="btn primary">Directions</span><span class="btn secondary">Details</span></div>
+                  <div class="still new">
+                    <p class="h2">Still coming?</p>
+                    <div class="slip done"><span class="disc done">✓</span><p style="font-weight:600;align-self:center">Thanks. The office can see you're coming.</p></div>
+                    <p class="said"><span class="disc done">✓</span>You said you're coming (Fri 13:02)</p>
+                    <span class="btn danger">Can't make it?</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="tabs"><span class="on">Home</span><span>Shifts</span><span>Messages</span><span>Pay</span><span>Profile</span></div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.14</span> no signal · 390px · dark</figcaption>
+          <div class="app dark">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <h1>Hi Tess</h1>
+              <div class="slip att"><span class="disc att">!</span><div class="stack" style="gap:4px"><p style="font-weight:600">No signal.</p><p>This is your saved copy from 12:40 on Fri 6 Nov.</p></div></div>
+              <div class="card mt4">
+                <div class="between"><span class="tag">Tomorrow</span><span class="muted">Saturday 7 November</span></div>
+                <p class="sign mt3">08:00–16:00</p>
+                <p style="font-size:18px;font-weight:500">Steward · Raceday</p>
+                <div class="rule">
+                  <div class="two"><span class="btn primary">Directions</span><span class="btn secondary">Details</span></div>
+                  <p class="muted new" style="padding:4px">No card: it needs signal.</p>
+                </div>
+              </div>
+            </div>
+            <div class="tabs"><span class="on">Home</span><span>Shifts</span><span>Messages</span><span>Pay</span><span>Profile</span></div>
+          </div>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="row" aria-labelledby="r2">
+    <h2 id="r2">The shift's page, opened from the reminder</h2>
+    <p>After, the card sits right under the shift's card, with "Yes, I'm coming" as the page's main button. At the foot "Ask for a change" then stands alone, since "Can't make it?" is in the card.</p>
+    <div class="scroller">
+      <div class="frames">
+        <figure class="frame">
+          <figcaption><span class="pill">Before</span> 390px · light</figcaption>
+          <div class="app">
+            <div class="bar">‹ Your shifts</div>
+            <div class="col">
+              <div class="card">
+                <p class="sign">08:00–16:00</p>
+                <p class="muted">Saturday 7 November · 8 hours</p>
+                <p style="font-size:28px;font-weight:600" class="mt3">Steward</p>
+                <p class="mt3"><span class="chip">You're booked on this shift</span></p>
+              </div>
+              <div class="stack mt4"><span class="btn secondary">Add to my calendar</span></div>
+              <div class="two mt4"><span class="btn secondary">Ask for a change</span><span class="btn secondary" style="color:var(--urgent)">Can't make it?</span></div>
+            </div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.14</span> 390px · light</figcaption>
+          <div class="app">
+            <div class="bar">‹ Your shifts</div>
+            <div class="col">
+              <div class="card">
+                <p class="sign">08:00–16:00</p>
+                <p class="muted">Saturday 7 November · 8 hours</p>
+                <p style="font-size:28px;font-weight:600" class="mt3">Steward</p>
+                <p class="mt3"><span class="chip">You're booked on this shift</span></p>
+              </div>
+              <div class="still mt4 new">
+                <p class="h2">Still coming?</p>
+                <span class="btn primary"><span class="ic">✓</span>Yes, I'm coming</span>
+                <span class="btn danger">Can't make it?</span>
+              </div>
+              <div class="stack mt4"><span class="btn secondary">Add to my calendar</span></div>
+              <span class="btn secondary mt4">Ask for a change</span>
+            </div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.14</span> answered · 390px · dark</figcaption>
+          <div class="app dark">
+            <div class="bar">‹ Your shifts</div>
+            <div class="col">
+              <div class="card">
+                <p class="sign">08:00–16:00</p>
+                <p class="muted">Saturday 7 November · 8 hours</p>
+                <p style="font-size:28px;font-weight:600" class="mt3">Steward</p>
+                <p class="mt3"><span class="chip">You're booked on this shift</span></p>
+              </div>
+              <div class="still mt4 new">
+                <p class="h2">Still coming?</p>
+                <div class="slip done"><span class="disc done">✓</span><p style="font-weight:600;align-self:center">Thanks. The office can see you're coming.</p></div>
+                <p class="said"><span class="disc done">✓</span>You said you're coming (Fri 13:02)</p>
+                <span class="btn danger">Can't make it?</span>
+              </div>
+              <span class="btn secondary mt4">Ask for a change</span>
+            </div>
+          </div>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="row" aria-labelledby="r3">
+    <h2 id="r3">The office: Coming up, on a laptop</h2>
+    <p>Each person on a session starting within 24 hours: a green "Coming 13:02" (read as "Ann Udo said they're coming, at 13:02 on Fri 6 Nov.") or a grey "Not answered yet". Where the firm's own system sends the reminders, nothing shows unless she answered.</p>
+    <div class="scroller">
+      <div class="frames">
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.14</span> 1,280px at 150% · light and dark</figcaption>
+          <div class="app laptop" style="padding-bottom:24px">
+            <div class="office">
+              <div class="card">
+                <p class="h2">Coming up</p>
+                <p class="tiny">Today and tomorrow · 3 people on 1 session on your contracts</p>
+                <p class="tiny mt3">Tomorrow 08:00–16:00 · Steward · Still Hall <span style="float:right">3 of 3 booked</span></p>
+                <div class="li"><div class="person"><span class="ini">AU</span>Ann Udo</div><div class="flags new"><span class="chipd">Coming 13:02</span></div></div>
+                <div class="li"><div class="person"><span class="ini">BO</span>Ben Ode</div><div class="flags new"><span class="chipq">Not answered yet</span><span class="chipa">Asked to change times</span></div></div>
+                <div class="li"><div class="person"><span class="ini">TC</span>Tess Comer</div><div class="flags new"><span class="chipd">Coming Thu 21:40</span><span class="chipq">First shift</span></div></div>
+              </div>
+              <div class="app dark" style="width:auto;border-radius:12px;padding:16px;padding-bottom:16px">
+                <p class="h2">Coming up</p>
+                <p class="tiny">Today and tomorrow · 3 people on 1 session on your contracts</p>
+                <p class="tiny mt3">Tomorrow 08:00–16:00 · Steward · Still Hall <span style="float:right">3 of 3 booked</span></p>
+                <div class="li"><div class="person"><span class="ini">AU</span>Ann Udo</div><div class="flags new"><span class="chipd">Coming 13:02</span></div></div>
+                <div class="li"><div class="person"><span class="ini">BO</span>Ben Ode</div><div class="flags new"><span class="chipq">Not answered yet</span><span class="chipa">Asked to change times</span></div></div>
+                <div class="li"><div class="person"><span class="ini">TC</span>Tess Comer</div><div class="flags new"><span class="chipd">Coming Thu 21:40</span><span class="chipq">First shift</span></div></div>
+              </div>
+            </div>
+          </div>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="row" aria-labelledby="r4">
+    <h2 id="r4">The reminder push</h2>
+    <p>Before: "Tomorrow: Still Hall" / "08:00–16:00. Tap for instructions." After: "Tomorrow: Still Hall" / "08:00–16:00. Tap to say you're coming." (2 hours before: "Starts at 08:00. Tap to say you're coming."). Tapping opens the shift's page, where the card waits. The WhatsApp and text reminders keep their approved words.</p>
+  </section>
+</main>

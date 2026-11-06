@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createFakeAi, type AiClient, type AiRequest } from "@/lib/ai/client";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { receiveAppMessage } from "@/lib/inbound/app";
@@ -21,6 +23,10 @@ import { appRolePool, superuserPool } from "../helpers/db";
 // (golden rule 9). Another firm's session, a hidden one and another casual's hidden booking are
 // ignored, as on Messages' About line (messageAboutShift). The limits are unchanged. Nothing goes
 // by WhatsApp, text or email: the capturing transport stays empty.
+
+// The message's page body (its reply box is a client component that asks for the router).
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace() {}, refresh() {} }) }));
+const { EnquiryBody, aboutSessionWords } = await import("@/app/office/enquiries/enquiry-detail");
 
 let su: Pool;
 let app: Pool;
@@ -229,6 +235,74 @@ describe("a message in the app about a session that hasn't ended", () => {
     }
     expect(t.asked).toHaveLength(0);
     expect(t.line.sent).toEqual([]);
+  });
+
+  it("each message names its own session on Enquiries: a later message about nothing, or about another session, is never under the first one's About", async () => {
+    const t = await setup();
+    const saturday = await t.f.shift({ role: "steward", startsAt: hoursFromNow(20) });
+    const sunday = await t.f.shift({ role: "door_supervisor", startsAt: hoursFromNow(44) });
+    await t.f.booking(t.kay, saturday);
+    await t.f.booking(t.kay, sunday);
+
+    const late = await t.ask("I'm running late. I'll be there about 10:45", saturday);
+    // About nothing: sorted as today ("pay" is a keyword), and the pay link answers it.
+    const pay = await t.ask("What's the pay for Sunday?");
+    expect(await t.tagOf(pay.id)).toBeNull();
+    expect(pay.result).toMatchObject({ status: "replied", intent: "pay" });
+    const parking = await t.ask("Is there parking on Sunday?", sunday);
+    expect(await t.tagOf(parking.id)).toBe(sunday);
+
+    // The first message's page: the conversation goes on to her later messages in the app, each
+    // with its own session or none; an answer never has one.
+    const e = await withFirm(t.f.firmId, (tx) => loadEnquiry(tx, late.id, new Date()));
+    if (!e) throw new Error("the message's page didn't load");
+    expect(e.about?.shiftId).toBe(saturday);
+    expect(
+      e.conversation.map((c) => [
+        c.direction,
+        c.direction === "in" ? c.text : "(an answer)",
+        c.about?.shiftId ?? null,
+      ]),
+    ).toEqual([
+      ["in", "I'm running late. I'll be there about 10:45", saturday],
+      ["in", "What's the pay for Sunday?", null],
+      ["out", "(an answer)", null],
+      ["in", "Is there parking on Sunday?", sunday],
+    ]);
+
+    // As the page (and the pane beside the list) shows it: nothing over the whole conversation;
+    // "About: …" on the bubble of the message it names, and on no other.
+    const html = renderToStaticMarkup(createElement(EnquiryBody, { e, level: 2 }));
+    const heading = html.indexOf('id="conversation"');
+    const panel = html.indexOf("glass-tile", heading);
+    expect(heading).toBeGreaterThan(-1);
+    expect(panel).toBeGreaterThan(heading);
+    expect(html.slice(heading, panel)).not.toContain("About");
+    const bubbles = html.slice(panel, html.indexOf("</ul>", panel)).split("<li ").slice(1);
+    const plain = (s: string) =>
+      s
+        .replace(/^[^>]*>/, "") // the rest of the bubble's own <li ...> tag
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&#x27;/g, "'")
+        .replace(/\s+/g, " ")
+        .trim();
+    const named = (b: string) =>
+      /data-about-session[^>]*>[\s\S]*?href="\/office\/shifts\/([0-9a-f-]{36})"/.exec(b)?.[1] ??
+      null;
+    expect(bubbles.map(named)).toEqual([saturday, null, null, sunday]);
+    expect(plain(bubbles[0] ?? "")).toMatch(
+      new RegExp(
+        `^About: ${aboutSessionWords({ role: "steward", startsAt: hoursFromNow(20) }, e.timeZone)} They wrote: I'm running late\\. I'll be there about 10:45 `,
+      ),
+    );
+    expect(plain(bubbles[1] ?? "")).toMatch(/^They wrote: What's the pay for Sunday\? /);
+    expect(plain(bubbles[3] ?? "")).toMatch(
+      new RegExp(
+        `^About: ${aboutSessionWords({ role: "door_supervisor", startsAt: hoursFromNow(44) }, e.timeZone)} They wrote: Is there parking on Sunday\\? `,
+      ),
+    );
+    expect(html.split("data-about-session").length - 1).toBe(2);
+    expect(t.asked).toHaveLength(0);
   });
 });
 

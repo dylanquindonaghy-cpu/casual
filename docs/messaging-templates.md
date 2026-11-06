@@ -381,7 +381,8 @@ app has its own way to the office: `forTheApp()`). Nothing goes by WhatsApp, tex
   cancelled, and not yet ended (`src/lib/inbound/app.ts`). Such a message is never sorted: no
   keyword, no AI (the AI never sees its words), and no automatic answer, not even "The office will
   see this…". It goes straight to a person on Enquiries as the office's question (Need a person),
-  with "About: {Steward}, {Sat 7 Nov 10:30}" on its page. The casual's page says "Sent. The office
+  with "About: {Steward}, {Sat 7 Nov 10:30}" on that message on its page (each message names
+  its own session, or none). The casual's page says "Sent. The office
   will answer here." (only when the send kept the shift, as stored; else "Sent. The answer comes
   here."). So a question about the pay for a shift that hasn't ended (an open or booked
   shift's rate) reaches a person, never the pay page's link. A message about a shift that has

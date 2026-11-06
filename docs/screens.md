@@ -315,7 +315,9 @@ What the office sees, on Enquiries:
 - The message is in **Need a person** ("Passed to a person, waiting"), never sorted by keyword or
   AI: the AI never sees it.
 - Its page, and the pane beside the list, shows **"About: Steward, Sat 7 Nov 10:30"** at the top
-  of "The conversation", the session's words a link to its page (`/office/shifts/[id]`).
+  of her message's own bubble in "The conversation", the session's words a link to its page
+  (`/office/shifts/[id]`). Each message carries its own: the conversation can go on to her later
+  messages in the app, and one about another session names that one, one about nothing names none.
 - "How it was answered": "Sorted: About a session: passed to a person, never sorted.", "Reply sent:
   No automatic reply.", "Sent: Nothing sent."
 - The reply goes as any reply in the app: "In the app: your words go as they are, and they get a
@@ -1706,8 +1708,9 @@ the same where it's silent: the words in each message, record and list item, and
   message page's parts. "Requests from the app" stays the request queue, the page's width.
 - **One message** (`/office/enquiries/[id]`, and the pane): the conversation in a clear-glass
   panel, theirs in clear glass at the left, ours in ink at the right (a casual's message in the app
-  about a session, Phase 28.6: "About: {Steward}, {Sat 7 Nov 10:30}" above the panel, the session's
-  words a link to its page); "How it was answered" as a
+  about a session, Phase 28.6: "About: {Steward}, {Sat 7 Nov 10:30}" at the top of that message's
+  own bubble, the session's words a link to its page; each of her messages names its own session,
+  or none); "How it was answered" as a
   numbered list; "Considered but not offered"; and, while it needs a person, the reply box ("Reply"
   to screen readers, described by how it will go), under it how the reply goes ("Inside WhatsApp's
   24-hour window: your words go as they are.", …), "Close, no reply needed" and "Send reply" (the
@@ -2611,7 +2614,8 @@ text; an office reply comes with a notification on her phone.
   {time}.", and, when no automatic answer went: "5 automatic replies already went to them this
   hour: passed to a person." / "It quoted our automatic reply: passed to a person." A message
   about a session (Phase 28.6): always in Need a person, "About: {Steward}, {Sat 7 Nov 10:30}" at
-  the top of "The conversation" (the session's words → `/office/shifts/[id]`), and "Sorted: About a
+  the top of that message's bubble in "The conversation" (the session's words →
+  `/office/shifts/[id]`; a later message names its own session, or none), and "Sorted: About a
   session: passed to a person, never sorted." The reply
   line: "In the app: your words go as they are, and they get a notification." → "Send reply" →
   "Your reply is on its way: it shows in their app in a moment." Then: "{Sam Rota} replied at

@@ -141,6 +141,9 @@ test("Still coming?: Not answered yet, then online only on Home, Can't make it? 
       await expect(page.getByText("Still coming?")).toBeHidden();
       await expect(page.getByRole("button", { name: "Yes, I'm coming" })).toBeHidden();
       await context.setOffline(false);
+      // Since 29.6 the kept copy reloads itself when signal returns: let that land first, so it
+      // can't replace the page opened next.
+      await expect(page.getByText("No signal.")).toBeHidden({ timeout: 10_000 });
 
       // From the reminder's link: the shift's own page.
       await page.goto(`${acme}/shifts/${scene.shiftId}`);

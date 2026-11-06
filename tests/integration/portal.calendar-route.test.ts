@@ -161,7 +161,9 @@ describe("GET /shifts/{id}/calendar", () => {
     const b = await bookingFirm(su, withFirm);
     const ctx = { run: withFirm, baseDomain: BASE, address: "portal" as const };
     // Her own firm: the file, so the null below is the firm's scope and not the arguments.
-    expect(await calendarForWorker({ ...ctx, firm: { id: f.firmId } }, ann, shiftId)).not.toBeNull();
+    expect(
+      await calendarForWorker({ ...ctx, firm: { id: f.firmId } }, ann, shiftId),
+    ).not.toBeNull();
     expect(await calendarForWorker({ ...ctx, firm: { id: b.firmId } }, ann, shiftId)).toBeNull();
   });
 

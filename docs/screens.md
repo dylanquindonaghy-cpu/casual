@@ -3220,3 +3220,22 @@ shows the way: each page still checks who can open it.
 - Client/venue view: licensed, notified, on-time staff for an event (Stage 2).
 - Check-in/out on tap with location (Stage 3).
 - Translations for common staff languages (P2).
+
+## Phase 29
+
+### 29.5
+
+No new words and no new screens: two of Phase 28's checks, now made in a real browser
+(`tests/e2e/casual.p29-pay-count.spec.ts`).
+
+- **The Pay tab's count.** With one answer from payroll she hasn't seen, the Pay tab shows "1" on
+  every page with the tab bar (Home, Shifts and Pay itself, before the code). A screen reader reads
+  the tab as "Pay, 1 new answer from payroll". Opening Pay without the code shows no answer, so the
+  count stays. Once she has entered her 6‑digit code and payroll's answer is on her screen ("Payroll
+  says: “…”"), the count goes. Reloading any of her pages (Pay, Home, Shifts, Messages, Profile) then
+  shows the Pay tab with no number, read as plain "Pay".
+- **Her booked shift's page** (`/shifts/[id]`, "You're booked on this shift", with "‹ Your shifts"
+  at the top and "Report to") is now among the phase's "after" pages:
+  `staff-my-shift-{dark,light}-{phone,laptop}.jpg` in the phase's `docs/mockups/phase-28/after/`, at
+  390px (phone, 2x) and 1,280px (laptop at 150%). The browser test writes them only when run with
+  `SAVE_AFTER_SHOTS=1`; a normal run attaches them to its report and writes nothing into `docs/`.

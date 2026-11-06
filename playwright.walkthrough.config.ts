@@ -64,6 +64,8 @@ export default defineConfig({
     // A step that can't happen fails in seconds, not at the end of the whole run's time.
     actionTimeout: 20_000,
     navigationTimeout: 30_000,
+    // en-GB (Phase 28): dates in the browser's own fields read dd/mm/yyyy, as in the other runs.
+    locale: "en-GB",
   },
   // The walkthrough first, then the Demo phone's own test: Playwright would otherwise run the files
   // in name order, demo.spec.ts first, and the walkthrough would no longer start where Dylan does.

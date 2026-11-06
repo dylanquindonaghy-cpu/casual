@@ -232,27 +232,25 @@ describe("ShiftView", () => {
     const at = order.map((w) => words.indexOf(w));
     expect(at.every((i) => i >= 0)).toBe(true);
     expect([...at].sort((a, b) => a - b)).toEqual(at);
-    // Not urgent: no band, a clear glass tile (Phase 24; grey before), the places left plain.
+    // Not urgent: no band, a clear glass tile (Phase 24; grey before; the office's `glass-button`
+    // since Phase 28), the places left plain.
     const calm = render({ state: "open", shift: summary, facts: { ...facts, isUrgent: false } });
     expect(text(calm)).not.toContain("Urgent, needed now");
     expect(calm).toMatch(
-      /<span aria-hidden="true" class="[^"]*glass-tile text-ink"><span class="block font-medium text-sm">Sat<\/span>/,
+      /<span aria-hidden="true" class="[^"]*glass-button text-ink"><span class="block font-medium text-sm">Sat<\/span>/,
     );
     expect(calm).not.toContain(">Urgent</span>");
-    // The places as big seats (round 7, 30px), the free ones red when urgent; the words in ink.
+    // The places as big seats (round 7, 30px; round since Phase 28, as the office's), the free ones
+    // red when urgent; the words in ink.
     for (const page of [calm, html])
       expect(page).toContain(
         '<span class="text-lg font-medium text-ink">2 of 4 places left</span>',
       );
     expect(
-      html.match(
-        /data-seat="free" class="size-7\.5 rounded-\[9px\] office:rounded-full border-2 border-urgent"/g,
-      ),
+      html.match(/data-seat="free" class="size-7\.5 rounded-full border-2 border-urgent"/g),
     ).toHaveLength(2);
     expect(
-      calm.match(
-        /data-seat="free" class="size-7\.5 rounded-\[9px\] office:rounded-full border-2 border-ink-muted"/g,
-      ),
+      calm.match(/data-seat="free" class="size-7\.5 rounded-full border-2 border-ink-muted"/g),
     ).toHaveLength(2);
   });
   it("What it needs: an upload link where she can send it herself", () => {

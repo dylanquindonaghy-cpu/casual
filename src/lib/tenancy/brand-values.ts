@@ -66,9 +66,8 @@ const DARK_GROUNDS: Rgb[] = unique(glassGrounds("dark").all);
 const MIN = 4.5;
 // brand-soft in globals.css: the firm's colour at this strength over whatever it lies on.
 const TINT = 0.12;
-// The main button's shade (Phase 24): its tinted glass runs from the colour at the top to this much
-// further from its words' colour at the foot, so the words read at least as well everywhere on it.
-const SHADE = 0.18;
+// (Phase 24's shade, the main button's colour moved 18% further from its words at its foot, went in
+// Phase 28: the main button is one flat colour, as the office's, so its fill is all there is.)
 // A glass control brightens a little under the pointer and while pressed (globals.css
 // `press-glass`: brightness(1.06); btn.primary's hover: 1.05): the main button's words read on
 // its colour brightened by this too.
@@ -129,7 +128,6 @@ function towards(c: Rgb, target: Rgb, done: (x: Rgb) => boolean): Rgb {
 export interface FirmColours {
   fill: string;
   onFill: string;
-  shade: string;
   ink: string;
   bar: string;
   onBar: string;
@@ -144,9 +142,9 @@ export interface FirmColours {
 // of the glass and the ground (Phase 24; round 8's since Phase 27.6) and on its own tint over
 // them, with white on it (also brightened, as under the pointer: it's the main button in both
 // themes); in dark, lightened until it reads on every dark point of them and its own tint, with
-// ink on it (or white), lightened further if neither reads yet. The button's shade is the colour
-// moved further from its words (darker under white, lighter under ink). The gate's white plate
-// takes the band's colour as its words when that reads on white. Every pair is at least 4.5:1, for
+// ink on it (or white), lightened further if neither reads yet. The main button is that one flat
+// colour (Phase 28: no shade at its foot). The gate's white plate takes the band's colour as its
+// words when that reads on white. Every pair is at least 4.5:1, for
 // any #rrggbb (tests/unit/tenancy.brand.test.ts).
 export function firmPalette(hex: string): { light: FirmColours; dark: FirmColours } {
   const b = rgbOf(hex.toLowerCase());
@@ -182,20 +180,16 @@ export function firmPalette(hex: string): { light: FirmColours; dark: FirmColour
     onPlate: hexOf(onPlate),
   };
   const darkOnFill = ratio(INK, darkInk) >= MIN ? INK : WHITE;
-  // Away from the words: darker under white words, lighter under ink.
-  const shade = (fill: Rgb, words: Rgb) => hexOf(mix(fill, words === WHITE ? BLACK : WHITE, SHADE));
   return {
     light: {
       fill: hexOf(lightInk),
       onFill: "#ffffff",
-      shade: shade(lightInk, WHITE),
       ink: hexOf(lightInk),
       ...band,
     },
     dark: {
       fill: hexOf(darkInk),
       onFill: hexOf(darkOnFill),
-      shade: shade(darkInk, darkOnFill),
       ink: hexOf(darkInk),
       ...band,
     },
@@ -215,7 +209,6 @@ export function brandStyle(brand: {
   const style = {
     "--firm-fill": light.fill,
     "--firm-on-fill": light.onFill,
-    "--firm-shade": light.shade,
     "--firm-ink": light.ink,
     "--firm-bar": light.bar,
     "--firm-on-bar": light.onBar,

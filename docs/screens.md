@@ -9,6 +9,141 @@ of the firm's colour (darkened until white or near-black ink reads on it at 4.5:
 on the page's own grey with no line under it; in the copy kept for no signal, an "Offline" plate at
 its end. The platform's own address has no bar.
 
+## The casual app, Phase 28
+
+Phase 28 (Dylan, 2026-11-05: a review of the casual app against its competitors, and "try to better
+match the UI to that of the resourcing teams UI"). Each task writes what the casual sees in its own
+subsection below, before it builds. Where a subsection changes a page, it wins over the older
+sections of this file; everything it doesn't mention stays as they say.
+
+### 28.1
+
+**One look with the office.** Every casual page takes the office's look at once, through the shared
+parts (`src/app/ui/`, `src/app/globals.css`); no page's words, layout or routes change. The design
+side is `docs/ui-design.md` "Phase 28".
+
+What the casual sees:
+
+- **Corners.** Sections (cards, lists, the login card from 640px) are 12px round; tiles, fields,
+  notices, date tiles and the firm's mark 8px. Pills (buttons, chips, tags, counts) stay round. The
+  firm's initial in its bar is a 36px square, in bold.
+- **The main button** is one flat colour, the firm's, with its words in white (or ink on a pale
+  colour in dark). No gradient. The pass's top and "Do this" lose their lighter band's gradient
+  (the band itself goes in 28.7).
+- **Headlines** are semibold and a little tighter, still 28px. A page can show "Updated 21:35"
+  beside its headline, on the same line, as the office's pages do (online only: the copy kept for
+  no signal says when it was saved instead). Section headings ("Later", "Earlier weeks", "Your next
+  shift") are 18px semibold; a count beside one is the office's small grey pill.
+- **Chips** have no edge: a pale tint with its icon and word, 28px tall, 14px semibold. Waiting
+  chips' words are in ink, quiet ones in grey; urgent, needs-you and done keep their own dark words.
+- **Seats** (one mark a place) and the status plates ("New", "Needs doing now") are round. Date
+  tiles are clear glass, pale red with a hairline when urgent.
+- **"Can't make it?"** and the other openers of a destructive step have dark red words, with a grey
+  wash under the pointer.
+- **New shared parts** for the later tasks to use (no page uses them yet):
+  - a **tag**: a glass pill of plain facts ("1 place left", "SIA door supervisor licence",
+    "Tomorrow");
+  - a **slip**: a notice ("No signal", a result, a warning) in its status's pale tint with a 1px
+    edge, 8px round, its words in ink, led by a round icon disc (the office's, from its Updates);
+  - the **empty box**: one sentence in grey on clear glass, 8px round (no more dashed frames);
+  - a **choice card**: a radio or tick box with its words on clear glass, 8px round, at least 56px
+    tall; only the chosen one has a 2px ink edge.
+- **What stays the casual app's own:** 52px buttons, 56px fields with 18px words, 80px rows, the
+  68px tab bar, the type scale (12 to 44px), the firm's colour on the main button and its mark,
+  following the phone's light or dark, the 448px column, the pass and the bottom tab bar.
+
+**The tab bar** is the office's menu rail on its side:
+
+- a floating capsule, 12px round, 12px from the screen's sides and from its foot (above the phone's
+  own home bar);
+- each tab 8px round; **the current tab is solid ink with its icon and word on it, in bold** (white
+  on near-black in light, near-black on near-white in dark), as the rail marks the office page
+  you're on. It no longer uses the firm's colour or the white lens. The others are grey, with a grey
+  wash under the pointer.
+- Scrolling down still shrinks it to its icons; it still works with no JavaScript and in the copy
+  kept for no signal.
+
+**Its counts** (a number on the tab's icon; screen readers hear the tab's word, then the words):
+
+| Tab | When | Number | Its colour | What a screen reader says |
+|---|---|---|---|---|
+| Profile | Something there needs doing | How many | Pale amber | "Profile, 1 thing needs doing" / "Profile, 2 things need doing" |
+| Profile | New answers to her requests | Needs and answers added | Pale amber (the firm's colour when only answers) | "Profile, 1 thing needs doing and 1 new answer" / "Profile, 2 new answers" |
+| Messages | Office replies she hasn't opened | How many | The firm's colour | "Messages, 1 new reply" / "Messages, 2 new replies" |
+| Pay | Payroll's answers to her pay queries she hasn't seen | How many | The firm's colour | "Pay, 1 new answer from payroll" / "Pay, 2 new answers from payroll" |
+
+A count of 0 shows nothing. 28.1 makes the tab bar take the Profile answers and Pay counts; the
+pages pass them from 28.7, so until then only "needs doing" and Messages' counts show.
+
+**Dates** in the browser's own date fields ("A day you can't work", a pay query's date) read
+dd/mm/yyyy on a UK phone; the browser tests now run in en-GB too, so their screenshots show the same.
+
+**Mock-up:** none for this task. Dylan asked for the full build without stopping for mock-ups
+(2026-11-05: "Full build"; "Do not prompt me until the full plan is being pull requested"). The
+browser test `tests/e2e/casual.p28-look.spec.ts` takes the screenshots instead: Home, Booked, Open
+shifts, a shift and Profile, on a phone (390px) and a laptop (1,280px at 150%), light and dark,
+attached to its run's report.
+
+### 28.2
+
+(Written by task 28.2.)
+
+### 28.3
+
+(Written by task 28.3.)
+
+### 28.4
+
+(Written by task 28.4.)
+
+### 28.5
+
+(Written by task 28.5.)
+
+### 28.6
+
+(Written by task 28.6.)
+
+### 28.7
+
+(Written by task 28.7.)
+
+### 28.8
+
+(Written by task 28.8.)
+
+### 28.9
+
+(Written by task 28.9.)
+
+### 28.10
+
+(Written by task 28.10.)
+
+### 28.11
+
+(Written by task 28.11.)
+
+### 28.12
+
+(Written by task 28.12.)
+
+### 28.13
+
+(Written by task 28.13.)
+
+### 28.14
+
+(Written by task 28.14.)
+
+### 28.15
+
+(Written by task 28.15.)
+
+### 28.16
+
+(Written by task 28.16.)
+
 ## The casual app, round 7 (Phase 24, 24.6)
 
 Round 7 of the canvas on the casual app (`docs/mockups/phase-24/README.md` "The casual app
@@ -26,7 +161,10 @@ current tab, as before. Since Phase 27.7 (Dylan, 2026-11-03: "Yes plain colour";
 faint made-up street pattern that was drawn over it is gone, and nothing is drawn in its place. It
 still follows the phone (light, or dark when the phone or the light or dark choice says so). Every
 page, word, size, layout and tap target below is unchanged; where this section says "warm", read
-round 8's plain lighter band.
+round 8's plain lighter band. **Since Phase 28** ("The casual app, Phase 28", 28.1, above) the
+corners, the main button, the chips, the headings and the tab bar are the office's: where this
+section says the current tab sits under a lens in the firm's colour, read solid ink; where it says
+tinted glass for the main button, read one flat colour.
 
 What changed in round 7:
 

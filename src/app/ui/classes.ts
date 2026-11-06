@@ -11,7 +11,10 @@
 // (`glass-tile`, `glass-button`: fields, counts, buttons), the one main button tinted glass in the
 // firm's own colour (`glass-tint`), a row of tabs a glass track with a lens on the chosen one;
 // buttons swell a little under a press and spring back (`press-glass`), cards and rows dip
-// (`press`). No hairlines round the glass: its lit rim is its edge.
+// (`press`). No hairlines round the glass: its lit rim is its edge. Phase 28 (28.1, Dylan: "try to
+// better match the UI to that of the resourcing teams UI"): the casual app takes the office's
+// corners (12px sections, 8px tiles, fields and notices), its flat main button, borderless chips
+// and its headings through these strings; its own sizes (52px buttons, 56px fields) stay.
 const office =
   "press-glass inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-4 py-2 text-center text-base font-semibold disabled:cursor-not-allowed disabled:opacity-60";
 // In the office (the logged-out office's "Log in" link page), on its spacing: `office:`.
@@ -69,13 +72,14 @@ export const textLink = "underline decoration-line-strong underline-offset-4 hov
 export const textLinkInGroup =
   "underline decoration-line-strong underline-offset-4 group-hover:decoration-ink";
 
-// Staff buttons: full width, at least 52px tall, for thumbs. The main one tinted glass in the
-// firm's colour, the others clear glass.
+// Staff buttons: full width, at least 52px tall, for thumbs. The main one in the firm's colour
+// (one flat colour since Phase 28: globals.css `glass-tint`), the others clear glass.
 export const staffBtn = {
   primary: `${staff} glass-tint hover:brightness-105`,
   secondary: `${staff} glass-button text-ink hover:bg-button-hover`,
-  // Opens a destructive step: quiet red words, so it doesn't compete with the main action.
-  danger: `${staff} bg-transparent text-urgent hover:bg-urgent-soft`,
+  // Opens a destructive step: quiet red words, so it doesn't compete with the main action (Phase
+  // 28: the office's dark red words and its grey wash under the pointer).
+  danger: `${staff} bg-transparent text-urgent-ink hover:bg-button-hover`,
   dangerSolid: `${staff} bg-urgent-fill text-on-urgent hover:bg-urgent-fill-hover`,
   // A way out in words, in the firm's colour ("Keep my shift").
   text: `${staff} bg-transparent text-brand-ink hover:bg-button-hover`,
@@ -91,8 +95,9 @@ export const staffBtnSmall =
   "press-glass glass-button flex min-h-13 items-center justify-center rounded-full px-3 py-2 text-center text-base font-semibold text-ink hover:bg-button-hover";
 
 // A two-way switch's track (Open | Booked, Upcoming | Past 30 days on the Shifts tab): two halves
-// on a glass track, the current one under a lens (src/app/my-shifts-view.tsx Toggle).
-export const switchTrack = "glass-track grid grid-cols-2 gap-1 rounded-full p-1";
+// on a glass track with the glass's hairline (Phase 28, as the office's tabs), the current one
+// under a lens (src/app/my-shifts-view.tsx Toggle).
+export const switchTrack = "glass-track glass-rim grid grid-cols-2 gap-1 rounded-full p-1";
 
 // Inputs, selects and textareas: clear glass with its lit rim, a strong edge (3:1) on focus and
 // under the pointer. Add w-full or a width where you use it.
@@ -112,37 +117,40 @@ export const notice =
 // l and 1 differ (the one face that isn't Geist), easy to select whole.
 export const codeBox =
   "glass-tile block rounded-row px-3 py-2 font-mono text-base break-all text-ink select-all";
-// Staff inputs: full width and bigger, clear glass with a strong edge under the pointer.
+// Staff inputs: full width and bigger (56px, 18px words), clear glass with a strong edge under the
+// pointer; 8px round as the office's fields (Phase 28).
 export const staffField =
-  "glass-tile min-h-14 w-full rounded-2xl border border-transparent px-4 py-3 text-lg font-normal text-ink hover:border-line-strong";
+  "glass-tile min-h-14 w-full rounded-row border border-transparent px-4 py-3 text-lg font-normal text-ink hover:border-line-strong";
 // A label above its field (htmlFor), or wrapping it: `labelStack` puts the field under the words.
 export const label = "block font-semibold text-ink";
 export const labelStack = "flex flex-col gap-1 font-semibold text-ink";
 // A hint under a field or a form ("Leave it empty to …").
 export const hint = "text-sm text-ink-muted";
 
-// A glass card, for an item with buttons: the office's (22px round) and the casual app's
-// (`staffCard`, 20px).
+// A glass card, for an item with buttons: the office's and the casual app's (`staffCard`), both
+// a section's 12px round since Phase 28 (the casual app's was 20px).
 export const card = "glass rounded-inner p-4 sm:p-6";
-export const staffCard = "glass rounded-[1.25rem] p-4";
+export const staffCard = "glass rounded-inner p-4";
 // The casual app's tappable row in a card of rows ("Do this", the open shifts' cards): a tile on
-// the left, the words, a chevron. Its focus ring sits inside the card.
+// the left, the words, a chevron. Its focus ring sits inside the card. Under the pointer the
+// office rail's grey wash (`bg-active`, Phase 28).
 export const tapRow =
-  "flex items-center gap-3.5 p-3.5 text-left hover:bg-button-hover focus-visible:-outline-offset-2";
+  "flex items-center gap-3.5 p-3.5 text-left hover:bg-active focus-visible:-outline-offset-2";
 // One glass card holding compact rows (read-only or repeated items): <ul className={rows}><li
 // className={row}>, a faint line between rows. The casual app's: `staffRows`, `staffRow`.
 export const rows = "glass divide-y divide-line rounded-inner";
 export const row = "px-4 py-3";
-export const staffRows = "glass divide-y divide-line rounded-[1.25rem]";
+export const staffRows = "glass divide-y divide-line rounded-inner";
 export const staffRow = "px-4 py-3";
 
 // Section heading (h2), and the space between sections and under a heading.
 // In the office (Phase 23) a section heading is bold, as the approved mock-up's.
 export const h2 = "text-lg font-semibold tracking-heading text-ink office:font-bold";
 export const sectionGap = { office: "mt-8 lg:mt-12", staff: "mt-8" };
-// The casual app's section heading between cards (Phase 24, round 7: "Do this", "Urgent, needed
-// now", "Earlier weeks", "Later"): 20px medium. A card's own title stays `h2`.
-export const staffH2 = "text-2xl font-medium tracking-heading text-ink";
+// The casual app's section heading ("Do this", "Urgent, needed now", "Earlier weeks", "Later"):
+// 18px semibold since Phase 28, as the office's section heading (`h2`, bold there); round 7's was
+// 20px medium.
+export const staffH2 = "text-lg font-semibold tracking-heading text-ink";
 export const headingGap = "mt-3";
 // A number beside a heading ("Requests 2"): the number only, never a word. The office's count
 // (Phase 21; Dylan's brief: "one badge style (grey, red only for urgent)"): a small grey pill, the
@@ -150,15 +158,16 @@ export const headingGap = "mt-3";
 // `countUrgent`, went with them in Phase 24). Phase 22 (round 2, the approved mock-up): in the menu a count takes its
 // dashboard card's colour, amber when it needs you (`countNeeds`, Needs attention's) and blue when
 // it's waiting with someone else (`countWaiting`, pay queries with payroll). Phase 23: every count
-// a flat tinted pill, with no edge. The casual app's own: `staffCount` (Phase 20's).
+// a flat tinted pill, with no edge. The casual app's `staffCount` is the same pill (Phase 28).
 const countShape =
   "inline-flex h-6 min-w-6 items-center justify-center rounded-full px-2 text-xs font-semibold tabular-nums";
 export const countPill = `${countShape} glass-button text-ink-muted`;
 export const countNeeds = `${countShape} glass-rim bg-hivis text-on-hivis`;
 export const countWaiting = `${countShape} glass-rim bg-wait-tile text-ink`;
 export const count = `ml-2 align-middle ${countPill}`;
-export const staffCount =
-  "glass-button ml-2 inline-flex min-w-7 items-center justify-center rounded-full px-2 align-middle text-sm font-semibold tabular-nums text-ink-muted";
+// The casual app's, since Phase 28: the office's count pill beside a heading (Phase 20's was its
+// own, 14px).
+export const staffCount = count;
 
 // Secondary text: meta lines (times, references), and longer muted sentences.
 export const meta = "text-sm text-ink-muted";
@@ -199,20 +208,66 @@ export const table = {
 };
 
 // Status chips (used by <StatusChip>, src/app/ui/status-chip.tsx). Colour always has its word.
-// Pale tints with dark words of the same hue, so a list of urgent rows doesn't shout; square-ish
-// like a sign (Phase 18). The solid plates are <Plate> (src/app/ui/plate.tsx). Its edge is the
-// status's own line token: the status colour in the casual app. In the office (Phase 23) a chip
-// is a borderless tinted pill at least 28px tall (`office:` values), and it stays on one line
-// while it fits and wraps rather than run off a phone ("Level 2 spectator safety qualification:
-// Expiring soon" on a 390px screen; the browser tests' office.look.spec.ts caught it). `wait`
-// (Phase 23): blue, waiting on someone else (a casual's answer, payroll), never on you.
+// Pale tints with dark words of the same hue, so a list of urgent rows doesn't shout. The solid
+// plates are <Plate> (src/app/ui/plate.tsx). A borderless tinted pill at least 28px tall, 14px
+// semibold in the casual app (Phase 28, 28.1: the office's values since Phase 23, its edge gone);
+// in the office its words are 13px on a 16px line, and it wraps rather than run off a phone
+// ("Level 2 spectator safety qualification: Expiring soon" on a 390px screen; the browser tests'
+// office.look.spec.ts caught it), where the casual app's stays on one line. Round 8's six text
+// colours (aud-4), in both apps: `wait` (Phase 23: blue, waiting on someone else, a casual's
+// answer or payroll, never on you) has its words in ink, `quiet` in grey; the tint is the colour.
 export const chip = {
-  base: "glass-rim inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-0.5 align-middle text-sm font-semibold leading-5 office:min-h-7 office:border-0 office:px-3 office:py-1 office:leading-4 office:max-w-full office:shrink-0 office:whitespace-normal",
-  urgent: "border-urgent-line bg-urgent-soft text-urgent-ink",
-  attention: "border-attention-line bg-attention-soft text-attention-ink",
-  // In the office, its words in ink (round 8's six text colours: aud-4); the blue is its tint.
-  wait: "border-wait-line bg-wait-soft text-wait-ink office:text-ink",
-  done: "border-done-line bg-done-soft text-done-ink",
-  // In the office, its words muted (aud-4); the grey is its tint.
-  quiet: "border-quiet-line bg-quiet-soft text-quiet-ink office:text-ink-muted",
+  base: "glass-rim inline-flex min-h-7 items-center gap-1 whitespace-nowrap rounded-full px-3 py-1 align-middle text-sm font-semibold leading-5 office:leading-4 office:max-w-full office:shrink-0 office:whitespace-normal",
+  urgent: "bg-urgent-soft text-urgent-ink",
+  attention: "bg-attention-soft text-attention-ink",
+  wait: "bg-wait-soft text-ink",
+  done: "bg-done-soft text-done-ink",
+  quiet: "bg-quiet-soft text-ink-muted",
 };
+
+// --- Phase 28 (28.1): the casual app's own parts on the office's system ----------------------
+// Corners from the tokens only (rounded-row, rounded-inner, rounded-full), no gradient, no band.
+
+// A tag: a glass pill of plain facts beside a shift ("1 place left", "SIA door supervisor
+// licence", "Tomorrow"), not a status: ink words on clear glass, 28px tall.
+export const tag =
+  "glass-button inline-flex min-h-7 max-w-full items-center gap-1 rounded-full px-3 py-1 align-middle text-sm font-medium leading-5 text-ink";
+
+// A slip: a notice in a page ("No signal", a result, a warning, "Sent", "Cancelled"): its status's
+// pale tint with a 1px edge in that status's line colour, 8px round, ink words, led by the office's
+// round icon disc (`disc`, below; <Slip> in src/app/ui/slip.tsx puts the two together). By hand:
+// a <div> with slip.base and slip.done, its first child a <span> with disc.base and disc.done.
+export const slip = {
+  base: "flex items-start gap-3 rounded-row border px-4 py-3 text-base text-ink",
+  urgent: "border-urgent-line bg-urgent-soft",
+  attention: "border-attention-line bg-attention-soft",
+  wait: "border-wait-line bg-wait-soft",
+  done: "border-done-line bg-done-soft",
+  quiet: "border-quiet-line bg-quiet-soft",
+};
+// The office's round icon disc (its Updates and the cancellation pop-up: 32px, a tinted fill, the
+// icon in the status's words): at the head of a slip, or a row's lead. Decorative (aria-hidden):
+// the words beside it say the status. In the casual app `attention` takes the pale amber to-do tint
+// so it shows on an amber slip; `quiet` is clear glass with grey.
+export const disc = {
+  base: "flex size-8 shrink-0 items-center justify-center rounded-full",
+  urgent: "bg-urgent-tile text-urgent-ink",
+  attention: "bg-hivis text-on-hivis",
+  wait: "bg-wait-tile text-ink",
+  done: "bg-done-tile text-done-ink",
+  quiet: "glass-button text-ink-muted",
+};
+
+// The one empty state ("No shifts in the last 30 days.", "No messages yet."): clear glass, 8px
+// round, its sentence in grey (and any way on under it, a link or a button), as the office's empty
+// cards (Phase 17's dashed frames are gone).
+export const emptyBox =
+  "flex flex-col items-start gap-3 rounded-row glass-tile p-4 text-base text-ink-muted";
+
+// A choice card (a radio or a checkbox with its words: a reason to cancel, how to be told, a
+// shift to ask about): clear glass, 8px round, at least 56px tall; only the chosen one has the 2px
+// ink edge and the grey wash (`has-checked`). The 2px edge is there, transparent, on every card,
+// so nothing moves when one is chosen. A card that hides its input adds the focus ring itself
+// (has-focus-visible:outline-2, has-focus-visible:outline-offset-2, has-focus-visible:outline-ink).
+export const staffChoice =
+  "flex min-h-14 items-center gap-3 rounded-row glass-tile border-2 border-transparent px-4 py-3 text-base font-medium text-ink has-checked:border-ink has-checked:bg-active";

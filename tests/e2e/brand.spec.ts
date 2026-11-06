@@ -40,13 +40,14 @@ test("each firm's pages open with its own bar: name, colour and readable text", 
   // The casual app's main button is in the firm's own colour too (Phase 17): tinted glass since
   // Phase 24, the blue as it reads on every point of the glass and its own tint (over the plain
   // ground since Phase 27.7: Acme's own #1d4ed8; #1b49cb over round 8's street lines, #1a45bf on
-  // round 7's wash) to its shade (#1840b1, was #163ca6).
+  // round 7's wash), one flat colour since Phase 28 (28.1, as the office's: the gradient's two ends
+  // are the same; its shade, #1840b1, is gone).
   await page.goto(`${acme}/login`);
   const send = page.getByRole("button", { name: "Send me a link" });
   await expect(send).toHaveCSS("background-color", "rgb(29, 78, 216)");
   await expect(send).toHaveCSS(
     "background-image",
-    /^linear-gradient\((?:180deg, )?rgb\(29, 78, 216\), rgb\(24, 64, 177\)\)$/,
+    /^linear-gradient\((?:180deg, )?rgb\(29, 78, 216\), rgb\(29, 78, 216\)\)$/,
   );
   await expect(send).toHaveCSS("color", "rgb(255, 255, 255)");
   // And in the dark look (Phase 27.6, Dylan: "firm's colour"): round 8's charcoal, the firm's colour

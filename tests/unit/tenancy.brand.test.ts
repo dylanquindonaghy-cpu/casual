@@ -72,12 +72,11 @@ describe("the colours", () => {
   it("sets the page's --firm-* values only for a firm's own checked colour, a set per theme", () => {
     // Acme's blue as it is for its words and its main button: it reads on every point of the glass
     // and on its own pale tint over it, over the plain ground (Phase 27.7: no step; one 6% step
-    // darker over round 8's street lines, two on round 7's wash), with white on it; the button's
-    // shade further from white; its band as it is.
+    // darker over round 8's street lines, two on round 7's wash), with white on it; the button one
+    // flat colour (Phase 28: no shade at its foot, so no --firm-shade); its band as it is.
     expect(brandStyle(brandColours("#1D4ED8"))).toEqual({
       "--firm-fill": "#1d4ed8",
       "--firm-on-fill": "#ffffff",
-      "--firm-shade": "#1840b1",
       "--firm-ink": "#1d4ed8",
       "--firm-bar": "#1d4ed8",
       "--firm-on-bar": "#ffffff",
@@ -153,11 +152,12 @@ describe("the colours", () => {
           const hex = `#${[r, g, b].map((c) => c.toString(16).padStart(2, "0")).join("")}`;
           const { light, dark } = firmPalette(hex);
           const pairs: [string, number][] = [
-            // The main button, in both themes: white (or ink) words on its colour, its shade, and
-            // both brightened under the pointer.
-            ...[light.fill, light.shade, bright(light.fill), bright(light.shade)].map(
-              (c): [string, number] => ["main button", contrastRatio(light.onFill, c)],
-            ),
+            // The main button, in both themes: white (or ink) words on its one flat colour (Phase
+            // 28), and on it brightened under the pointer.
+            ...[light.fill, bright(light.fill)].map((c): [string, number] => [
+              "main button",
+              contrastRatio(light.onFill, c),
+            ]),
             ["band", contrastRatio(light.onBar, light.bar)],
             ["band's second line", contrastRatio(light.onBarSoft, light.bar)],
             // The gate on the pass: a white plate, its words readable on it (Phase 20).
@@ -187,10 +187,10 @@ describe("the colours", () => {
 
   it("the demo firms' colours: their bands as they are, their words as near their colour as reads in light, lighter for dark", () => {
     const acme = firmPalette("#1d4ed8");
+    // (No shade since Phase 28: the main button is one flat colour.)
     expect(acme.light).toEqual({
       fill: "#1d4ed8",
       onFill: "#ffffff",
-      shade: "#1840b1",
       ink: "#1d4ed8",
       bar: "#1d4ed8",
       onBar: "#ffffff",
@@ -202,11 +202,8 @@ describe("the colours", () => {
     expect(contrastRatio("#1d4ed8", acme.light.fill)).toBe(1);
     // In dark, as near the colour as reads too: lighter, the least that does (Phase 27.7: #ccd7f6
     // over the street lines).
-    expect([acme.dark.fill, acme.dark.ink, acme.dark.shade]).toEqual([
-      "#b0c1f1",
-      "#b0c1f1",
-      "#beccf4",
-    ]);
+    expect([acme.dark.fill, acme.dark.ink]).toEqual(["#b0c1f1", "#b0c1f1"]);
+    expect(acme.dark).not.toHaveProperty("shade");
     // A pale firm colour: ink on its band, and ink on the gate's white plate (white words
     // wouldn't read on it, nor the yellow on white).
     const yellow = firmPalette("#ffff00").light;
@@ -220,7 +217,7 @@ describe("the colours", () => {
     expect(northline.light.bar).toBe("#0f766e");
     expect(northline.light.fill).toBe("#0e6f67");
     expect(northline.light.ink).toBe("#0e6f67");
-    expect(northline.light.shade).toBe("#0c5b55");
+    expect(northline.light).not.toHaveProperty("shade");
     expect(northline.dark.fill).toBe("#a6ccc9");
   });
 

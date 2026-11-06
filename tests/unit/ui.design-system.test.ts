@@ -148,8 +148,14 @@ describe("the shared pieces (src/app/ui/)", () => {
       const className = html.match(/^<span class="([^"]+)">/)?.[1] ?? "";
       expect(className).toBe(`${chip.base} ${chip[tone]}`);
       // Every tone, urgent too (Phase 17), is a pale tint with dark words: never a solid fill.
+      // Round 8's six text colours (aud-4; the casual app's too since Phase 28): waiting's words
+      // in ink and quiet's in grey, the tint carrying the colour; the others in their own ink.
       expect(className.split(" ")).toContain(`bg-${tone}-soft`);
-      expect(className.split(" ")).toContain(`text-${tone}-ink`);
+      expect(className.split(" ")).toContain(
+        { wait: "text-ink", quiet: "text-ink-muted" }[tone as string] ?? `text-${tone}-ink`,
+      );
+      // Borderless (Phase 28): no edge in any tone.
+      expect(className).not.toMatch(/(?<![\w-])border(?:-[a-z]+)*(?![\w-])/);
       expect(className).not.toMatch(/(?<![\w-])bg-\w+-fill(?![\w-])/);
       expect(html.match(/<svg\b/g)).toHaveLength(1);
       return { className, icon: html.match(/<svg[^>]*>(.*)<\/svg>/)?.[1] ?? "" };

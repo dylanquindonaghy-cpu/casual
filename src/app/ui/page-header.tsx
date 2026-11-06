@@ -3,25 +3,30 @@ import { Icon } from "./icons";
 
 // The top of every page (docs/ui-design.md "Page header"): the way back to the list it belongs to
 // (`back`, on a record's own page), the page's one <h1>, meta and intro lines (children), then the
-// actions, main one first. The headline is `text-title`: 24px semibold in the casual app, the
-// office's display serif at 28px (Phase 21). No label above the heading and no divider under it
-// (Phase 17): the firm's bar or the office's top bar already names the firm, and space does the
-// separating. In the office (Phase 24, round 7, as the mock-up's Events & sessions) the actions sit
-// beside the headline and its lines, level with their foot, and go under them when there's no room
-// (a phone); the casual app keeps them under. Beside the headline, the place for the office's
-// "Updated 10:42" (round 8, aud-2: an empty <small> its frame writes into,
-// src/app/office/updated-stamp.tsx; nothing in the casual app). Adds no words and no other heading.
-// Hook-free, imports nothing from src/lib: safe for every page.
+// actions, main one first. The headline is `text-title`: semibold and a little tight in both apps
+// (Phase 28), 28px in the casual app and 30px in the office. No label above the heading and no
+// divider under it (Phase 17): the firm's bar or the office's top bar already names the firm, and
+// space does the separating. In the office (Phase 24, round 7, as the mock-up's Events & sessions)
+// the actions sit beside the headline and its lines, level with their foot, and go under them when
+// there's no room (a phone); the casual app keeps them under. Beside the headline, on its baseline,
+// the place for "Updated 10:42" (round 8, aud-2): in the office an empty <small> its frame writes
+// into (src/app/office/updated-stamp.tsx); in the casual app, since Phase 28, the words a page
+// passes as `updated` ("Updated 21:35"), on the same baseline as the office's, shown only online
+// (the copy kept for no signal says when it was saved instead: globals.css [data-online-only]).
+// Adds no other words and no other heading. Hook-free, imports nothing from src/lib: safe for
+// every page.
 export function PageHeader({
   back,
   title,
   titleId,
+  updated,
   children,
   actions,
 }: {
   back?: { href: string; label: string };
   title: ReactNode;
   titleId?: string;
+  updated?: string;
   children?: ReactNode;
   actions?: ReactNode;
 }) {
@@ -39,15 +44,34 @@ export function PageHeader({
         </a>
       ) : null}
       <div className="office:flex office:flex-wrap office:items-end office:gap-x-6 office:gap-y-4">
-        <div className="office:flex office:min-w-0 office:flex-1 office:basis-80 office:flex-wrap office:items-baseline office:gap-x-3">
+        {/* With "Updated …" the casual app's headline row is the office's: the headline and the
+            stamp on one baseline, the lines under them. Without it, the casual app's row is a plain
+            block and only the office's values make it a row. */}
+        <div
+          className={
+            updated
+              ? "flex min-w-0 flex-wrap items-baseline gap-x-3 office:flex-1 office:basis-80"
+              : "office:flex office:min-w-0 office:flex-1 office:basis-80 office:flex-wrap office:items-baseline office:gap-x-3"
+          }
+        >
           <h1 id={titleId} className="text-title text-balance text-ink">
             {title}
           </h1>
-          <small data-updated-slot="" className="text-xs text-ink-faint tabular-nums" />
+          {updated ? (
+            <small
+              data-updated-slot=""
+              data-online-only=""
+              className="text-xs text-ink-faint tabular-nums"
+            >
+              {updated}
+            </small>
+          ) : (
+            <small data-updated-slot="" className="text-xs text-ink-faint tabular-nums" />
+          )}
           {/* The lines on a line of their own under the headline in the office (the whole row's
               width, so they never sit beside a short headline), at a reading width inside it. */}
           {children ? (
-            <div className="mt-2 office:basis-full">
+            <div className={updated ? "mt-2 basis-full" : "mt-2 office:basis-full"}>
               <div className="flex max-w-prose flex-col gap-2">{children}</div>
             </div>
           ) : null}

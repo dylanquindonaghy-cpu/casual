@@ -39,8 +39,8 @@ export function readMessageOffice(params: {
 // "Message the office" about her pay, with no session (the guardrails review of 28.10): the way on
 // from Pay and the pay query when the pay can't open (no way to send her a code) or a question is
 // older than 90 days (src/lib/portal/pay-copy.ts MESSAGE_OFFICE). What she sends from Messages
-// opened so is never sorted (src/lib/inbound/app.ts, reply.ts): it waits for a person, so it never
-// gets the automatic pay link that would only send her back to Pay.
+// opened so is never sorted (src/lib/inbound/app.ts): since Phase 29.1 it goes to payroll's digest
+// as a pay query, so it never gets the automatic pay link that would only send her back to Pay.
 export const MESSAGES_ABOUT_PAY = "/messages?about=pay";
 
 // Messages opened about her pay: ?about=pay and no ?shift= at all (one with a shift is

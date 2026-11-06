@@ -128,8 +128,11 @@ type Read =
       // The session it's about (Phase 28.6; kept by src/lib/inbound/app.ts only for one that
       // hadn't ended): a person's, never sorted or answered automatically.
       shiftId: string | null;
-      // Sent about her pay from Pay's "Message the office" (the guardrails review of 28.10): stored
-      // for the office (intent 'office' before it was claimed), a person's, never sorted.
+      // Sent about her pay from Pay's "Message the office" (the guardrails review of 28.10) and
+      // stored for the office (intent 'office' before it was claimed): a person's, never sorted.
+      // Since Phase 29.1 one from an active casual is payroll's, stored handled with its pay query
+      // (src/lib/inbound/app.ts), and never reaches this job; only one from someone no longer
+      // active (or stored before 29.1) is read here.
       aboutPay: boolean;
       repliedThisHour: number; // automatic answers in the app to them in the last hour
       firm: { name: string; slug: string; signOff: string };
@@ -595,7 +598,10 @@ async function answerMessage(
 // About her pay, with no session (the guardrails review of 28.10; sent from Messages opened by
 // Pay's "Message the office" when Pay can't take the question): the same, never sorted, never the
 // automatic pay link (which would send her back to Pay), and a request for the office; its
-// `message.received` says so (`aboutPay`).
+// `message.received` says so (`aboutPay`). Since Phase 29.1 (Dylan's decision 20) an active
+// casual's goes to payroll's digest as a pay query as it's stored (src/lib/inbound/app.ts,
+// src/lib/pay/from-messages.ts) and no job is queued for it, so it never comes here; this path is
+// left for one stored before then and one from someone no longer active (held for a person anyway).
 async function answerApp(
   payload: InboundMessagePayload,
   run: WithFirm,

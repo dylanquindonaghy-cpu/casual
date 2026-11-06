@@ -639,10 +639,13 @@ What the casual sees on **Raise a pay query** (`/pay/query`):
 and the pay query's "Message the office" go. "About: your pay" above the box, which starts empty.
 What she sends is never sorted: no keyword (her words may well say "pay"), no AI, and never the
 automatic pay link, which would only send her back to the Pay page that can't take the question.
-The intro above says "This goes to a person at the office, not the automatic answers.
-They'll answer you here." in place of the usual one. It goes to a person on Enquiries ("About
-their pay, sent from the Pay page: passed to a person, never sorted."), and her page says "Sent. The office will answer here." Sent, the address loses
-`?about=pay`: her next message is sorted as any other.
+**Since Phase 29.1** (Dylan's decision 20; "### 29.1" at the end of this file) it goes to
+payroll's digest as a pay query, not to a person on Enquiries: the intro above says "This goes to
+payroll, not the automatic answers. You'll see their answer on your Pay page." in place of the
+usual one, and her page says "Sent. Payroll will look at it. You'll see the answer on your Pay
+page." (Until then it was the office's request: "This goes to a person at the office, not the
+automatic answers. They'll answer you here." and "Sent. The office will answer here.") Sent, the
+address loses `?about=pay`: her next message is sorted as any other.
 
 **Mock-up:** none to approve first (Dylan, 2026-11-05: "Full build"; "Do not prompt me until the
 full plan is being pull requested"). The before-and-after mock-up is in
@@ -3011,7 +3014,7 @@ text; an office reply comes with a notification on her phone.
   about …" / "This shift has started and I need to talk to someone." / none); sent, "Sent. The office
   will answer here." when the send kept the shift (a person answers it, never an automatic answer);
   one that ended before she tapped Send isn't kept, and the words are "Sent. The answer comes
-  here." A shift she isn't booked on and can't see, or one that has ended: no About line, as before. Opened about her pay with no shift (`/messages?about=pay`, Pay's "Message the office": "### 28.10"): "About: your pay" above an empty box; sent, "Sent. The office will answer here." (a person answers it, never an automatic answer). Errors: "Write a message first.", "That's too long (1,600 characters at most).",
+  here." A shift she isn't booked on and can't see, or one that has ended: no About line, as before. Opened about her pay with no shift (`/messages?about=pay`, Pay's "Message the office": "### 28.10"): "About: your pay" above an empty box; sent, "Sent. Payroll will look at it. You'll see the answer on your Pay page." (since Phase 29.1 a pay query for payroll's digest, never an automatic answer: "### 29.1"). Errors: "Write a message first.", "That's too long (1,600 characters at most).",
   "You've sent a lot of messages. Wait a few minutes, then try again." (more than 20 in an hour),
   "Something went wrong. Try again." (with no network: "No signal. Try again when you have
   signal."); logged out, it goes to the login page. Opening Messages marks the office's replies it shows as
@@ -3222,6 +3225,64 @@ shows the way: each page still checks who can open it.
 - Translations for common staff languages (P2).
 
 ## Phase 29
+
+### 29.1
+
+**A pay question from Messages goes to payroll** (Dylan's decision 20, 2026-11-06; golden rule 9).
+Pay's and the pay query's "Message the office" open Messages about her pay (`/messages?about=pay`)
+when Pay can't take the question: there's no way to send her a code, or it's older than 90 days.
+What she sends there is now a pay query for payroll's digest, not a request for the office.
+
+What the casual sees:
+
+- **Before she sends:** "About: your pay" above the box, which starts empty. The intro says "This
+  goes to payroll, not the automatic answers. You'll see their answer on your Pay page."
+- **Sent:** her message shows in her thread, and under the box "Sent. Payroll will look at it.
+  You'll see the answer on your Pay page." The page doesn't wait for an answer here: none comes
+  here. The address loses `?about=pay`, so her next message is sorted as any other.
+- **In her thread, later:** under that message, "Sent to payroll." and a link, "See it on your Pay
+  page" (44px tall, → `/pay`).
+- **On Pay** (behind her code, as before): "Your pay queries" lists it like any other, "Something
+  else: {the day she sent it}", "With payroll", "Reference {8 characters}". Payroll's answer shows
+  there once sorted: "Answered by payroll on {day}" and "Payroll says: “{note}”" (written by a
+  person, never by AI).
+- **Never:** an automatic reply, the pay link, or an AI answer. No code is needed to send it: it
+  shows no pay figure.
+
+How it's raised: in the same step that stores her message. Issue "Something else", no shift, the
+day she sent it (the firm's time) as the day, her words as what she wrote (up to 1,000 characters;
+the whole message stays in her thread), status open. A second tap on Send for the same message
+raises nothing new. Each new message she sends this way is its own query. Logged as the Pay page's
+are (`pay_query.created`, with `via: "messages"`, the message's id, and `why: "no_code"` when the app
+knows she can't get a code); her words are never in the log. Someone no longer active (an old
+session) raises no query: the message waits for a person, as before.
+
+What the office sees:
+
+- **Pay queries** (`/office/pay-queries`): in its group like any other open query, with "Sent from
+  Messages." under it, or "Sent from Messages: we couldn't send them a pay code, so the Pay page
+  couldn't take it." The digest's attached list has a last column, "Sent from": "Pay page",
+  "Messages", or "Messages (we couldn't send them a pay code)". We can't tell when it was older
+  than 90 days, so that one says just "Messages".
+- **Enquiries:** not in Need a person, and no request to answer. It's under "Pay" with the chip
+  "Pay: sent to payroll". Its page says "About their pay, from Messages: it went to payroll as pay
+  query {REF}, for the pay digest. Never sorted or answered automatically."
+
+### 29.2
+
+(Written by task 29.2.)
+
+### 29.3
+
+(Written by task 29.3.)
+
+### 29.4
+
+(Written by task 29.4.)
+
+### 29.5
+
+(Written by task 29.5.)
 
 ### 29.6
 

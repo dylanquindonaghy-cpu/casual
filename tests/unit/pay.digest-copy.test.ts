@@ -163,10 +163,10 @@ describe("the attached list", () => {
     expect(csv.startsWith("﻿")).toBe(true);
     expect(csv.slice(1).split("\r\n")).toEqual([
       DIGEST_CSV_HEADER.join(","),
-      '0F3C2A1B,Ann Booker,2026-09-12,"Sat 12 Sep, 08:00 to 16:00",Wrong rate,"Paid £12.50, should be £13",2026-09-14 09:14,"2 queries: wrong rate, the week of Mon 7 Sep, paid at £12.50."',
+      '0F3C2A1B,Ann Booker,2026-09-12,"Sat 12 Sep, 08:00 to 16:00",Wrong rate,"Paid £12.50, should be £13",2026-09-14 09:14,"2 queries: wrong rate, the week of Mon 7 Sep, paid at £12.50.",Pay page',
       // A formula is made plain text; quotes and line breaks stay inside the cell.
-      '0F3C2A1C,Zoë Łukasz,2026-09-12,"Sat 12 Sep, 08:00 to 16:00",Wrong rate,"\'=HYPERLINK(""x""), ""quoted""\nsecond line",2026-09-14 10:30,"2 queries: wrong rate, the week of Mon 7 Sep, paid at £12.50."',
-      '0F3C2A1D,Ben Booker,2026-09-12,,Paid late or not paid,,2026-09-14 09:14,"1 query: paid late or not paid, the week of Mon 7 Sep."',
+      '0F3C2A1C,Zoë Łukasz,2026-09-12,"Sat 12 Sep, 08:00 to 16:00",Wrong rate,"\'=HYPERLINK(""x""), ""quoted""\nsecond line",2026-09-14 10:30,"2 queries: wrong rate, the week of Mon 7 Sep, paid at £12.50.",Pay page',
+      '0F3C2A1D,Ben Booker,2026-09-12,,Paid late or not paid,,2026-09-14 09:14,"1 query: paid late or not paid, the week of Mon 7 Sep.",Pay page',
       "",
     ]);
     // At its biggest (1,000 queries, each with 1,000 four-byte characters and long names), the list

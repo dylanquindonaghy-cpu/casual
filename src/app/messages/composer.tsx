@@ -9,6 +9,7 @@ import { APP_MESSAGE_MAX, appMessageText, charCount } from "@/lib/inbound/app-li
 import {
   COMPOSER_LABEL,
   SENT_TO_OFFICE,
+  SENT_TO_PAYROLL,
   SENT_WAITING,
   sendProblemText,
   type SendProblem,
@@ -21,8 +22,8 @@ const LOOKS = 20;
 
 // The shift Messages was opened about (Phase 28.6; the page checks it: src/app/messages/page.tsx):
 // its id, sent with the message, the About line, and the ready sentence the box starts with.
-// Opened about her pay with no shift (the guardrails review of 28.10): no id (`shiftId` null), and
-// the message is sent as one for the office (`aboutPay`), never sorted.
+// Opened about her pay with no shift (the guardrails review of 28.10; Phase 29.1): no id (`shiftId`
+// null), and the message is sent about her pay (`aboutPay`): a pay query for payroll, never sorted.
 export interface ComposerAbout {
   shiftId: string | null;
   line: string; // "About: Steward · Sat 7 Nov, 10:30"
@@ -39,6 +40,9 @@ export interface ComposerAbout {
 // answer comes: a person answers it, never an automatic answer (src/lib/inbound/reply.ts). Which
 // "Sent" words show comes from what the send kept: a shift that ended before she tapped Send isn't
 // kept, the message is sorted as any other, and the words are "Sent. The answer comes here."
+// About her pay (Phase 29.1): it went to payroll as a pay query, so "Sent. Payroll will look at
+// it. You'll see the answer on your Pay page." stays, and the page doesn't look again for an answer
+// here (none comes here: payroll answers on her Pay page).
 export function Composer({
   answered,
   about = null,
@@ -57,6 +61,8 @@ export function Composer({
   // The last message sent kept its shift (the server says, src/app/messages/actions.ts): a person
   // answers it.
   const [toOffice, setToOffice] = useState(false);
+  // The last message sent went to payroll as a pay query (Phase 29.1).
+  const [toPayroll, setToPayroll] = useState(false);
   const [pending, startTransition] = useTransition();
   const sending = useRef(false);
   // This message's own id, kept until it's sent, so a second tap after a send that seemed to fail
@@ -72,7 +78,7 @@ export function Composer({
 
   // Look again until the answer is there, at most LOOKS times.
   useEffect(() => {
-    if (!waiting || answered) return;
+    if (!waiting || answered || toPayroll) return;
     let looks = 0;
     const timer = setInterval(() => {
       looks += 1;
@@ -80,7 +86,7 @@ export function Composer({
       router.refresh();
     }, LOOK_EVERY_MS);
     return () => clearInterval(timer);
-  }, [waiting, answered, router]);
+  }, [waiting, answered, toPayroll, router]);
 
   const send = () => {
     if (sending.current) return;
@@ -106,6 +112,7 @@ export function Composer({
       clientId.current = undefined;
       setText("");
       setToOffice(result.toOffice);
+      setToPayroll(result.toPayroll);
       setWaiting(true);
       // About a shift or her pay: the address drops it (the page is read again either way).
       if (shiftId || aboutPay) router.replace("/messages", { scroll: false });
@@ -147,9 +154,9 @@ export function Composer({
           {sendProblemText(problem, online)}
         </p>
       )}
-      {waiting && !answered && !problem && (
+      {waiting && (toPayroll || !answered) && !problem && (
         <p role="status" className="font-semibold">
-          {toOffice ? SENT_TO_OFFICE : SENT_WAITING}
+          {toPayroll ? SENT_TO_PAYROLL : toOffice ? SENT_TO_OFFICE : SENT_WAITING}
         </p>
       )}
       <button type="submit" disabled={pending || !ready} className={staffBtn.primary}>

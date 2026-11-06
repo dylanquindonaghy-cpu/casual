@@ -29,6 +29,14 @@ const HELP_FACTS = {
   strikesOn: true,
   travelOn: true,
   loginWay: "message",
+  pushOn: true,
+  // Phase 28.12: the firm's rules for taking shifts (fair rotation shows every rule line).
+  rules: {
+    allocation: { mode: "fair_rotation", priorityMinutes: 15, urgentWindowHours: 24 },
+    rest: { minRestHours: 11, weeklyHoursCap: 48 },
+    urgentWindowHours: 24,
+    quiet: { start: "22:00", end: "07:00", urgentOverride: true },
+  },
 } as const;
 
 type Role = "admin" | "resourcer" | "payroll";
@@ -461,7 +469,8 @@ describe("the workers' help page", () => {
     expect(html.match(/<h1[\s>]/g)).toHaveLength(1);
     expect(html).toContain(">Help</h1>");
     anchorsLand(html);
-    expect(contents(html)).toHaveLength(14);
+    // 28.12: "The firm's rules for taking shifts" and "Why can't I see a shift?" make 16.
+    expect(contents(html)).toHaveLength(16);
     bareListsKeepTheirRole(html);
     expect(longSentences(html)).toEqual([]);
   });
@@ -502,6 +511,7 @@ describe("the workers' help page", () => {
         createElement(HelpView, {
           firmName: "Acme Events",
           facts: {
+            ...HELP_FACTS,
             noticeHours: 24,
             liveDays: 30,
             photoRenewalMonths: 24,
@@ -541,9 +551,13 @@ describe("the workers' help page", () => {
     );
     expect(text).toContain("Tap Directions to find your way to the site.");
     expect(text).not.toContain("Open in maps");
-    expect(text).toContain("You'll see when you can take it. At that time, tap Check again.");
+    // 28.12: fair rotation's hold is under "Why can't I see a shift?" now.
     expect(text).toContain(
-      "Find the shift on Home or under Shifts. Tap Details, then Ask for a change.",
+      "You can see it, but it says “You can take it from …”? A small group gets first go. At that time, tap Check again.",
+    );
+    // 28.12: a later booking has no Details button; its row opens.
+    expect(text).toContain(
+      "Your next shift: tap Details, then Ask for a change. A later one under Shifts: tap the shift, then Ask for a change.",
     );
     expect(text).toContain(
       "One only a shift of yours needs is under Other qualifications on file.",
@@ -554,12 +568,15 @@ describe("the workers' help page", () => {
     expect(text).toContain(
       "Some, like CSAS, the office records itself. Once you've renewed one of those, tell the office under Messages.",
     );
-    expect(text).toContain("Tap the Profile tab, then Set your travel area.");
+    // 28.12 (28.11's folds): the travel area opens first, and its button reads either way.
+    expect(text).toContain("Tap the Profile tab, then Your travel area.");
+    expect(text).toContain("Tap Set your travel area (or Change your travel area).");
     expect(text).not.toContain("Where you work");
   });
 
+  // 28.12: "my shifts" goes to the Shifts tab, where her shifts are.
   it("ends with the usual way back to My shifts", () => {
-    expect(help()).toMatch(/<a [^>]*href="\/"[^>]*>Back to my shifts<\/a>/);
+    expect(help()).toMatch(/<a [^>]*href="\/shifts"[^>]*>Back to my shifts<\/a>/);
   });
 
   it("keeps back the shifts line number and invents no buttons", () => {

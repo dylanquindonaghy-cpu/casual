@@ -189,6 +189,13 @@ describe("Help", () => {
             strikesOn,
             travelOn: false,
             loginWay: "message",
+            pushOn: true,
+            rules: {
+              allocation: { mode: "first_come_first_served", waveMinutes: 15 },
+              rest: { minRestHours: 11, weeklyHoursCap: 48 },
+              urgentWindowHours: 24,
+              quiet: { start: "22:00", end: "07:00", urgentOverride: true },
+            },
           } satisfies HelpFacts,
           year: 2026,
         }),

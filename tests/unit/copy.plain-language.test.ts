@@ -70,6 +70,14 @@ const HELP_FACTS = {
   strikesOn: true,
   travelOn: true,
   loginWay: "message",
+  pushOn: true,
+  // Phase 28.12: the firm's rules for taking shifts (fair rotation shows every rule line).
+  rules: {
+    allocation: { mode: "fair_rotation", priorityMinutes: 15, urgentWindowHours: 24 },
+    rest: { minRestHours: 11, weeklyHoursCap: 48 },
+    urgentWindowHours: 24,
+    quiet: { start: "22:00", end: "07:00", urgentOverride: true },
+  },
 } as const;
 
 // Words a worker shouldn't have to know. Whole words, any case.

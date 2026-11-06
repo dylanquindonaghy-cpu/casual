@@ -8,7 +8,8 @@ import type { PortalContext } from "./my-shifts";
 import { reviewPayloadSchema } from "./request-kinds";
 import { refOf } from "./shift-detail";
 
-// "If something stopped you, tell us what happened." on the cancel step's done screen
+// "If something stopped you, tell us what happened." on the cancel step's done screen when a strike
+// was recorded (28.12: never after "No strike."), and under a strike that still counts on Profile
 // (docs/office-v2.md 3.5, 4.5; 12C.1): the casual's own account of a cancellation they made, sent
 // to the office as a `review` request (an existing request type, no new columns) about that
 // shift, its payload naming the cancelled booking's reference. One waiting at a time per

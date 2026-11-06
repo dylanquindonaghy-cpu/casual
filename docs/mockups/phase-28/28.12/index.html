@@ -1,0 +1,560 @@
+<title>Help and Cancel Sheet</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500&display=swap">
+<style>
+/* Layout: a review sheet. Each row pairs "Before" and "After (28.12)" phones at their real 390px,
+   light beside dark; a laptop row (1,280px at 150%, an 853px window) closes it. The sheet's own
+   chrome follows the viewer's theme; each phone carries its own fixed theme, as the app does. */
+:root {
+  --sheet-bg: #ecebe7;
+  --sheet-fg: #1b1c1e;
+  --sheet-muted: #5a5d63;
+  --sheet-rule: rgb(27 28 30 / 0.12);
+  --sheet-mark: #1d4ed8;
+  --sheet-mark-soft: rgb(29 78 216 / 0.1);
+  --font-ui: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-data: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --sheet-bg: #161618;
+    --sheet-fg: #ededec;
+    --sheet-muted: #a9a9ae;
+    --sheet-rule: rgb(255 255 255 / 0.12);
+    --sheet-mark: #a1bdff;
+    --sheet-mark-soft: rgb(161 189 255 / 0.12);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --sheet-bg: #161618;
+  --sheet-fg: #ededec;
+  --sheet-muted: #a9a9ae;
+  --sheet-rule: rgb(255 255 255 / 0.12);
+  --sheet-mark: #a1bdff;
+  --sheet-mark-soft: rgb(161 189 255 / 0.12);
+  color-scheme: dark;
+}
+
+/* The casual app's own tokens (src/app/globals.css), per phone. */
+.app {
+  --canvas: #f2f2f0;
+  --ink: #17181a;
+  --muted: #55585f;
+  --line: rgb(16 24 40 / 0.1);
+  --card: rgb(255 255 255 / 0.55);
+  --rim: rgb(16 24 40 / 0.1);
+  --tile: rgb(16 24 40 / 0.03);
+  --button: rgb(255 255 255 / 0.7);
+  --tint: #15171a;
+  --on-tint: #ffffff;
+  --band: rgb(255 255 255 / 0.6);
+  --done-soft: rgb(233 246 238 / 0.85);
+  --done-tile: rgb(210 239 219 / 0.9);
+  --done-ink: #155230;
+  --done-line: #b4dfc3;
+  --att-soft: rgb(255 246 224 / 0.85);
+  --att-line: #f0d39a;
+  --hivis: rgb(251 229 160 / 0.8);
+  --on-hivis: #3d2c00;
+  --urgent: #b0201f;
+  --active: rgb(16 24 40 / 0.05);
+  --tab-ink: #17181a;
+  --on-tab-ink: #ffffff;
+  color-scheme: light;
+}
+.app.dark {
+  --canvas: #0f0f10;
+  --ink: #f4f4f3;
+  --muted: #bfbfc4;
+  --line: rgb(255 255 255 / 0.1);
+  --card: rgb(255 255 255 / 0.04);
+  --rim: rgb(255 255 255 / 0.12);
+  --tile: rgb(255 255 255 / 0.03);
+  --button: rgb(255 255 255 / 0.05);
+  --tint: #f3f4f6;
+  --on-tint: #0b0c0e;
+  --band: rgb(255 255 255 / 0.08);
+  --done-soft: rgb(21 41 26 / 0.8);
+  --done-tile: rgb(21 41 26 / 0.9);
+  --done-ink: #c2efc0;
+  --done-line: #2b5a3e;
+  --att-soft: rgb(51 38 15 / 0.8);
+  --att-line: #5a4318;
+  --hivis: rgb(58 47 16 / 0.8);
+  --on-hivis: #ffe08a;
+  --urgent: #ffb4ab;
+  --active: rgb(255 255 255 / 0.07);
+  --tab-ink: #f4f4f3;
+  --on-tab-ink: #0f0f10;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--sheet-bg);
+  color: var(--sheet-fg);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.sheet {
+  max-width: 1760px;
+  margin: 0 auto;
+  padding-block: 32px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid;
+  gap: 48px;
+}
+header.top { display: grid; gap: 12px; max-width: 72ch; }
+header.top h1 { font-size: 30px; font-weight: 600; letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+header.top p { margin: 0; color: var(--sheet-muted); }
+.tagline { font-family: var(--font-data); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--sheet-mark); }
+section.row { display: grid; gap: 16px; }
+section.row > h2 { font-size: 20px; font-weight: 600; margin: 0; text-wrap: balance; }
+section.row > p { margin: 0; color: var(--sheet-muted); max-width: 80ch; }
+.changes { margin: 0; padding-left: 20px; display: grid; gap: 4px; max-width: 90ch; }
+.changes li::marker { color: var(--sheet-mark); }
+.scroller { overflow-x: auto; padding-bottom: 8px; }
+.frames { display: flex; gap: 20px; align-items: flex-start; width: max-content; }
+.frame { display: grid; gap: 8px; }
+.frame figcaption { font-family: var(--font-data); font-size: 12px; color: var(--sheet-muted); display: flex; gap: 8px; align-items: center; }
+.pill { display: inline-flex; align-items: center; border-radius: 999px; padding: 2px 8px; font-weight: 500; border: 1px solid var(--sheet-rule); }
+.pill.after { color: var(--sheet-mark); background: var(--sheet-mark-soft); border-color: transparent; }
+.divider { width: 1px; align-self: stretch; background: var(--sheet-rule); }
+
+/* A phone at its real 390px (844px tall shown up to its content). */
+.app {
+  width: 390px;
+  background: var(--canvas);
+  color: var(--ink);
+  border-radius: 28px;
+  box-shadow: 0 0 0 1px var(--sheet-rule), 0 12px 32px rgb(0 0 0 / 0.12);
+  overflow: hidden;
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.5;
+  position: relative;
+  padding-bottom: 96px;
+}
+.app.laptop { width: 853px; border-radius: 12px; padding-bottom: 96px; }
+.app .bar { display: flex; align-items: center; gap: 10px; padding: 14px 16px 0; font-weight: 600; font-size: 16px; }
+.app .mark { width: 36px; height: 36px; border-radius: 8px; background: #b5172a; color: #fff; display: grid; place-items: center; font-weight: 700; }
+.app .col { max-width: 448px; margin: 0 auto; padding: 24px 16px 0; }
+.app h1 { font-size: 28px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.15; margin: 0 0 24px; }
+.app h1 + .lead { margin: -16px 0 24px; }
+.app .h2 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: -0.005em; }
+.app p { margin: 0; }
+.app .muted { color: var(--muted); }
+.app .card { background: var(--card); box-shadow: inset 0 0 0 1px var(--rim); border-radius: 12px; padding: 16px; }
+.app .card.old { border-radius: 20px; }
+.app .card.old-big { border-radius: 24px; padding: 20px; }
+.app .tile { background: var(--tile); box-shadow: inset 0 0 0 1px var(--rim); border-radius: 8px; }
+.app .tile.old { border-radius: 16px; }
+.app .btn { display: flex; width: 100%; min-height: 52px; align-items: center; justify-content: center; border-radius: 999px; font-weight: 600; font-size: 16px; padding: 12px 20px; }
+.app .btn.primary { background: var(--tint); color: var(--on-tint); }
+.app .btn.secondary { background: var(--button); color: var(--ink); box-shadow: inset 0 0 0 1px var(--rim); }
+.app .link { display: flex; min-height: 44px; align-items: center; justify-content: center; font-weight: 600; text-decoration: underline; text-underline-offset: 4px; }
+.app .inline-link { font-weight: 600; text-decoration: underline; text-underline-offset: 4px; }
+.app .stack { display: grid; gap: 12px; }
+.app .mt8 { margin-top: 32px; }
+.app .mt5 { margin-top: 20px; }
+.app .mt4 { margin-top: 16px; }
+.app .mt3 { margin-top: 12px; }
+.app .mt2 { margin-top: 8px; }
+.app .date { width: 52px; flex: none; text-align: center; padding: 6px 0 8px; border-radius: 8px; background: var(--button); box-shadow: inset 0 0 0 1px var(--rim); }
+.app .date b { display: block; font-size: 14px; font-weight: 500; }
+.app .date span { display: block; font-size: 24px; line-height: 1.2; font-weight: 600; }
+.app .payday { display: flex; gap: 14px; align-items: center; }
+.app .new { outline: 2px dashed var(--sheet-mark); outline-offset: 3px; }
+.app .slip { display: flex; gap: 12px; align-items: flex-start; border-radius: 8px; border: 1px solid; padding: 12px 16px; }
+.app .slip.att { background: var(--att-soft); border-color: var(--att-line); }
+.app .slip.done { background: var(--done-soft); border-color: var(--done-line); }
+.app .disc { width: 32px; height: 32px; flex: none; border-radius: 999px; display: grid; place-items: center; font-weight: 700; font-size: 15px; }
+.app .disc.att { background: var(--hivis); color: var(--on-hivis); }
+.app .disc.done { background: var(--done-tile); color: var(--done-ink); }
+.app .field { min-height: 56px; border-radius: 8px; background: var(--tile); box-shadow: inset 0 0 0 1px var(--rim); padding: 14px 16px; font-size: 18px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.app .field.old { border-radius: 16px; }
+.app .field .chev { color: var(--muted); font-size: 14px; }
+.app .label { font-weight: 600; }
+.app .choice { min-height: 56px; display: flex; gap: 12px; align-items: center; padding: 12px 16px; border-radius: 8px; background: var(--tile); border: 2px solid transparent; box-shadow: inset 0 0 0 1px var(--rim); font-weight: 500; }
+.app .choice.on { border-color: var(--ink); background: var(--active); }
+.app .choice.old { border-radius: 16px; border-color: #6e737b; font-weight: 400; }
+.app .choice.old.on { border-color: var(--ink); }
+.app .radio { width: 22px; height: 22px; border-radius: 999px; border: 2px solid var(--muted); flex: none; }
+.app .choice.on .radio { border: 7px solid var(--ink); }
+.app .chip { display: inline-flex; align-items: center; min-height: 28px; padding: 4px 12px; border-radius: 999px; font-size: 14px; font-weight: 600; background: var(--done-soft); color: var(--done-ink); }
+.app .rows { background: var(--card); box-shadow: inset 0 0 0 1px var(--rim); border-radius: 12px; }
+.app .rows > div { padding: 12px 16px; }
+.app .rows > div + div { border-top: 1px solid var(--line); }
+.app .big { font-size: 36px; line-height: 1.1; font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.app .num { font-variant-numeric: tabular-nums; }
+.app .band { background: var(--band); box-shadow: inset 0 0 0 1px var(--rim); border-radius: 10px; padding: 6px 12px; width: fit-content; font-size: 18px; }
+.app .paytile { background: var(--tile); box-shadow: inset 0 0 0 1px var(--rim); border-radius: 8px; padding: 6px 12px; width: fit-content; font-size: 18px; }
+.app .between { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.app .tabs { position: absolute; left: 12px; right: 12px; bottom: 12px; height: 68px; border-radius: 12px; background: var(--card); box-shadow: inset 0 0 0 1px var(--rim), 0 8px 24px rgb(0 0 0 / 0.08); display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; padding: 6px; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.app.laptop .tabs { left: 50%; right: auto; width: 448px; transform: translateX(-50%); }
+.app .tabs span { display: grid; place-items: center; border-radius: 8px; font-size: 12px; color: var(--muted); position: relative; }
+.app .tabs span.on { background: var(--tab-ink); color: var(--on-tab-ink); font-weight: 700; }
+.app .tabs i { position: absolute; top: 4px; right: 14px; min-width: 18px; height: 18px; border-radius: 999px; background: var(--tint); color: var(--on-tint); font-size: 11px; font-style: normal; display: grid; place-items: center; font-weight: 600; padding: 0 5px; }
+.app .tabs span.on i { background: var(--on-tab-ink); color: var(--tab-ink); }
+.app .code { font-size: 24px; letter-spacing: 0.3em; }
+.app .old-red { color: var(--urgent); font-weight: 600; }
+.nb { white-space: nowrap; }
+
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+@media (max-width: 520px) { header.top h1 { font-size: 24px; } }
+/* 28.12's own parts: the urgent slip, the sheet, Help's topics. */
+.app { --urgent-soft: rgb(255 239 234 / 0.85); --urgent-line: #f5c2bb; --urgent-tile: rgb(255 216 207 / 0.9); --urgent-ink: #7d1a10; --urgent-fill: #c4242a; --old-urgent-edge: #b0201f; --old-done-edge: #166534; --quiet-soft: rgb(16 24 40 / 0.05); --quiet-line: #d6d8dc; --scrim: rgb(21 23 26 / 0.5); --panel: rgb(255 255 255 / 0.96); }
+.app.dark { --urgent-soft: rgb(58 26 25 / 0.8); --urgent-line: #6a2a28; --urgent-tile: rgb(58 26 25 / 0.9); --urgent-ink: #ffc4bc; --urgent-fill: #d13438; --old-urgent-edge: #ffb4ab; --old-done-edge: #8fd19e; --quiet-soft: rgb(255 255 255 / 0.06); --quiet-line: #38383c; --scrim: rgb(0 0 0 / 0.5); --panel: rgb(24 24 26 / 0.96); }
+.app .slip.urgent { background: var(--urgent-soft); border-color: var(--urgent-line); }
+.app .slip.quiet { background: var(--quiet-soft); border-color: var(--quiet-line); }
+.app .disc.urgent { background: var(--urgent-tile); color: var(--urgent-ink); }
+.app .old-box { display: flex; gap: 10px; align-items: flex-start; border-radius: 16px; border: 1px solid; padding: 14px; }
+.app .old-box.strike { background: var(--urgent-tile); border-color: var(--old-urgent-edge); color: var(--urgent-ink); font-weight: 600; }
+.app .old-box.ok { background: var(--done-tile); border-color: var(--old-done-edge); color: var(--done-ink); }
+.app .old-result { border-radius: 12px; background: var(--quiet-soft); padding: 16px; }
+.app .dim { position: relative; min-height: 760px; background: var(--canvas); }
+.app .dim::before { content: ""; position: absolute; inset: 0; background: var(--scrim); }
+.app .sheetbox { position: absolute; left: 0; right: 0; bottom: 0; background: var(--panel); border-radius: 12px 12px 0 0; padding: 10px 20px 28px; display: grid; gap: 16px; box-shadow: 0 -8px 32px rgb(0 0 0 / 0.18); }
+.app .sheetbox.old { border-radius: 28px 28px 0 0; }
+.app.laptop .sheetbox { left: 50%; right: auto; width: 448px; transform: translateX(-50%); }
+.app .handle { width: 40px; height: 5px; border-radius: 999px; background: var(--muted); opacity: 0.5; margin: 0 auto; }
+.app .head { display: flex; gap: 14px; align-items: center; }
+.app .head h2 { margin: 0; font-size: 24px; font-weight: 600; }
+.app .reasons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.app .btn.danger { background: var(--urgent-fill); color: #fff; }
+.app .btn.text { background: transparent; color: var(--ink); }
+.app .points { margin: 12px 0 0; padding-left: 24px; display: grid; gap: 8px; list-style: square; }
+.app .points li::marker { color: var(--muted); }
+.app .topic { border-top: 1px solid var(--line); padding-top: 32px; margin-top: 32px; }
+.app .contents { margin-top: 8px; }
+.app .contents > div { min-height: 48px; display: flex; align-items: center; justify-content: space-between; font-weight: 600; padding: 8px 16px; }
+.app .office-link { font-weight: 600; text-decoration: underline; text-underline-offset: 4px; display: inline-flex; min-height: 44px; align-items: center; margin: -10px 0; }
+.app .gone { text-decoration: line-through; text-decoration-color: var(--urgent-fill); color: var(--muted); }
+</style>
+
+<main class="sheet">
+  <header class="top">
+    <span class="tagline">ShiftDesk · Phase 28 · task 28.12</span>
+    <h1>Help and the cancel sheet, before and after</h1>
+    <p>What a casual sees on Help and in "Can't make it?", now and after 28.12. Phones at their real 390px, light and dark; the laptop row is 1,280px wide at 150% scaling (an 853px window). Made-up firm and casual: Acme Events (fair rotation, its seed settings), Robin Ashdown. A dashed blue outline marks what 28.12 adds or changes.</p>
+    <ul class="changes">
+      <li>Help gets "The firm's rules for taking shifts": each line from the very parser the rules use, worded per allocation mode. A setting that doesn't parse leaves its line out. No line says an offer runs out: offers close only when the shift fills, moves or is cancelled.</li>
+      <li>Help gets "Why can't I see a shift?": role, qualifications, travel area (only with travel areas on), days off, rest gap, weekly cap, sessions not opened to casuals, and fair rotation's "You can take it from …".</li>
+      <li>Help names the buttons she really sees ("Your travel area", then "Set your travel area (or Change your travel area)"; "tap the shift, then Ask for a change"; "Send this photo"), and every "Contact the office" is a "Message the office" link.</li>
+      <li>The cancel sheet: the warning and the result are slips, the reasons choice cards, 12px top corners. The footer names the button. "Tell us what happened" only after a recorded strike. A started shift links "Message the office" about it.</li>
+    </ul>
+  </header>
+
+  <!-- 1. Help: the firm's rules -->
+  <section class="row" aria-labelledby="r1">
+    <h2 id="r1">Help: the firm's rules, and why a shift may not show</h2>
+    <p>Before, "Taking a shift" listed reasons in lower case and said "Some shifts go first to people with fewer hours that week" to every firm, first come or not. After, two topics with the firm's own numbers.</p>
+    <div class="scroller">
+      <div class="frames">
+        <figure class="frame">
+          <figcaption><span class="pill">Before</span> 390px · light</figcaption>
+          <div class="app">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <p class="h2">Taking a shift</p>
+              <p class="mt4">You only see shifts you can take. A shift won't show if:</p>
+              <ul class="points">
+                <li>a licence or card it needs is missing or out of date</li>
+                <li>you're already booked at that time</li>
+                <li>you need more rest between shifts</li>
+                <li>it would take you over your weekly hours</li>
+                <li>you've marked that day as one you can't work</li>
+              </ul>
+              <p class="mt4">Some shifts go first to people with fewer hours that week. You'll see when you can take it. At that time, tap <b>Check again</b>.</p>
+            </div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.12</span> 390px · light</figcaption>
+          <div class="app">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <p class="h2">Taking a shift</p>
+              <p class="mt4">You only see shifts you can take. <span class="office-link">Why can't I see a shift?</span></p>
+              <div class="topic new">
+                <p class="h2">The firm's rules for taking shifts</p>
+                <p class="mt3">These are Acme Events' own settings.</p>
+                <ul class="points">
+                  <li>A small group gets first go for 15 minutes, then everyone can take it. The group is the people with the fewest hours that week.</li>
+                  <li>Urgent shifts, and shifts starting in the next 24 hours, are open to everyone straight away.</li>
+                  <li>For an urgent shift, we message a small group first. If nobody takes it, more people are offered it after 15 minutes.</li>
+                  <li>Some shifts say “The office chooses”. Tap I can do this, and the office decides who works it.</li>
+                  <li>You need at least 11 hours' rest between shifts.</li>
+                  <li>You can work up to 48 hours a week, Monday to Sunday.</li>
+                  <li>A shift becomes urgent when someone drops out less than 24 hours before it starts. The office can mark a shift urgent too.</li>
+                  <li>Between 22:00 and 07:00 we hold shift messages until 07:00. Urgent ones still come.</li>
+                  <li>If you cancel less than 48 hours before a shift starts, you get a strike.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.12</span> 390px · dark</figcaption>
+          <div class="app dark">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <div class="new">
+                <p class="h2">Why can't I see a shift?</p>
+                <p class="mt3">A shift won't show if:</p>
+                <ul class="points">
+                  <li>It's for a role you don't do.</li>
+                  <li>A licence or card it needs is missing, or out of date.</li>
+                  <li>You can't get there in time from your travel area.</li>
+                  <li>You've marked that day as one you can't work.</li>
+                  <li>You're already booked at that time.</li>
+                  <li>You'd have less than 11 hours' rest before or after another shift.</li>
+                  <li>It would take you over 48 hours that week.</li>
+                  <li>The office hasn't opened it to casuals yet.</li>
+                  <li>You can see it, but it says “You can take it from …”? A small group gets first go. At that time, tap Check again.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </figure>
+        <span class="divider" aria-hidden="true"></span>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.12</span> first come, first served · light</figcaption>
+          <div class="app">
+            <div class="bar"><span class="mark">N</span>Northline</div>
+            <div class="col">
+              <p class="h2">The firm's rules for taking shifts</p>
+              <p class="mt3">These are Northline's own settings.</p>
+              <ul class="points new">
+                <li>The first person to tap Take shift gets the place.</li>
+                <li>For an urgent shift, we message a few people first. If nobody takes it, more people are offered it after 15 minutes.</li>
+                <li>Some shifts say “The office chooses”. Tap I can do this, and the office decides who works it.</li>
+                <li>You need at least 11 hours' rest between shifts.</li>
+                <li>You can work up to 48 hours a week, Monday to Sunday.</li>
+                <li>A shift becomes urgent when someone drops out less than 24 hours before it starts. The office can mark a shift urgent too.</li>
+                <li>Between 23:00 and 06:00 we hold shift messages until 06:00. Urgent ones still come.</li>
+              </ul>
+              <p class="muted mt4" style="font-size:14px">(Strikes off here: no strike line. Figures as the parsers return them for this firm.)</p>
+            </div>
+          </div>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. Help: no dead ends, buttons as they read -->
+  <section class="row" aria-labelledby="r2">
+    <h2 id="r2">Help: no dead ends, and buttons as they read</h2>
+    <p>Struck-through words go; the new ones carry the dashed outline. Each "Message the office" is a link to Messages, 44px to tap; about pay it opens Messages about pay (a person, 28.10).</p>
+    <div class="scroller">
+      <div class="frames">
+        <figure class="frame">
+          <figcaption><span class="pill after">Before → after</span> 390px · light</figcaption>
+          <div class="app">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col stack">
+              <p>A shift that has started can't be cancelled here. <span class="gone">Contact the office.</span> <span class="office-link new">Message the office</span>.</p>
+              <p>Pay queries can go back 90 days. For anything older<span class="new">, or if you can't get a code,</span> <span class="gone">contact the office</span> <span class="office-link new">message the office</span>.</p>
+              <p><span class="gone">Find the shift on Home or under Shifts. Tap Details, then Ask for a change.</span></p>
+              <p class="new">Your next shift: tap <b>Details</b>, then <b>Ask for a change</b>. A later one under <b>Shifts</b>: tap the shift, then <b>Ask for a change</b>.</p>
+              <p><span class="gone">Tap the Profile tab, then Set your travel area.</span></p>
+              <p class="new">Tap the <b>Profile</b> tab, then <b>Your travel area</b>. Tap <b>Set your travel area</b> (or <b>Change your travel area</b>).</p>
+            </div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.12</span> 390px · dark</figcaption>
+          <div class="app dark">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col stack">
+              <p class="h2">Your profile</p>
+              <p>Tap the <b>Profile</b> tab. <b>My requests</b> and <b>Help</b> are at the top, and <b>Log out</b> is at the end.</p>
+              <ul class="points">
+                <li>Tap <b>Days you can't work</b> to open it. Choose a day and tap <b>Mark as unavailable</b>.</li>
+                <li>Tap <b>How we reach you</b> to open it. Then choose text message or email, and whether to hear about open shifts. Tap <b>Save settings</b>.</li>
+              </ul>
+              <div class="slip att"><span class="disc att">!</span><p style="font-weight:600;align-self:center">Never put bank details in a pay query.</p></div>
+              <span class="btn secondary">Back to my shifts</span>
+              <p class="muted" style="font-size:14px">"Back to my shifts" now goes to the Shifts tab (/shifts).</p>
+            </div>
+          </div>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. The cancel sheet -->
+  <section class="row" aria-labelledby="r3">
+    <h2 id="r3">"Can't make it?": the warning, the reasons and the footer</h2>
+    <p>The warning's words and their stored version (v2) are unchanged; only its box becomes a slip. The reasons become choice cards (only the chosen one has the ink edge).</p>
+    <div class="scroller">
+      <div class="frames">
+        <figure class="frame">
+          <figcaption><span class="pill">Before</span> 390px · light</figcaption>
+          <div class="app">
+            <div class="dim">
+              <div class="sheetbox old">
+                <span class="handle"></span>
+                <div class="head"><span class="date"><b>Thu</b><span>12</span></span><div><h2>Can't make it?</h2><p class="muted">Steward, Thu 12 Nov, 14:00–22:00</p></div></div>
+                <div class="old-box ok"><span>✓</span><span>This shift starts in 5 days. Cancelling now doesn't give you a strike.</span></div>
+                <p class="label" style="font-size:18px">Why can't you make it?</p>
+                <div class="reasons"><span class="choice old">I'm unwell</span><span class="choice old on">Travel problem</span><span class="choice old">Family or caring</span><span class="choice old">Something else</span></div>
+                <span class="btn danger">Cancel this shift</span>
+                <span class="btn secondary">Ask for a change instead</span>
+                <span class="btn text">Keep my shift</span>
+                <p class="muted">Your cancellation is recorded the moment you confirm. Nobody needs to approve it.</p>
+              </div>
+            </div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.12</span> 390px · light</figcaption>
+          <div class="app">
+            <div class="dim">
+              <div class="sheetbox">
+                <span class="handle"></span>
+                <div class="head"><span class="date"><b>Thu</b><span>12</span></span><div><h2>Can't make it?</h2><p class="muted">Steward, Thu 12 Nov, 14:00–22:00</p></div></div>
+                <div class="slip done new"><span class="disc done">✓</span><p style="align-self:center">This shift starts in 5 days. Cancelling now doesn't give you a strike.</p></div>
+                <p class="label" style="font-size:18px">Why can't you make it?</p>
+                <div class="reasons new"><span class="choice">I'm unwell</span><span class="choice on" style="font-weight:600">Travel problem</span><span class="choice">Family or caring</span><span class="choice">Something else</span></div>
+                <span class="btn danger">Cancel this shift</span>
+                <span class="btn secondary">Ask for a change instead</span>
+                <span class="btn text">Keep my shift</span>
+                <p class="muted new">Your cancellation is recorded the moment you tap Cancel this shift. Nobody needs to approve it.</p>
+              </div>
+            </div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.12</span> a strike · dark</figcaption>
+          <div class="app dark">
+            <div class="dim">
+              <div class="sheetbox">
+                <span class="handle"></span>
+                <div class="head"><span class="date"><b>Fri</b><span>7</span></span><div><h2>Can't make it?</h2><p class="muted">Steward, Fri 7 Nov, 06:00–14:00</p></div></div>
+                <div class="slip urgent new"><span class="disc urgent">!</span><p style="font-weight:600;align-self:center">This shift starts in 20 hours. Cancelling now gives you a strike (less than 48 hours' notice). A strike is a record, not a fine. It never comes off your pay. You have 0 strikes in the last 90 days.</p></div>
+                <p class="label" style="font-size:18px">Why can't you make it?</p>
+                <div class="reasons"><span class="choice on" style="font-weight:600">I'm unwell</span><span class="choice">Travel problem</span><span class="choice">Family or caring</span><span class="choice">Something else</span></div>
+                <span class="btn danger">Cancel this shift</span>
+                <span class="btn secondary">Ask for a change instead</span>
+                <span class="btn text">Keep my shift</span>
+                <p class="muted">Your cancellation is recorded the moment you tap Cancel this shift. Nobody needs to approve it.</p>
+              </div>
+            </div>
+          </div>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. Done, and a started shift -->
+  <section class="row" aria-labelledby="r4">
+    <h2 id="r4">Done, and a shift that has already started</h2>
+    <p>Before, "If something stopped you, tell us what happened." followed "No strike.", and a started shift said "Contact the office." with no way to do it. After, the prompt follows a recorded strike only, and a started shift has "Message the office" (→ /messages?shift={id}&amp;about=started, 28.2's link).</p>
+    <div class="scroller">
+      <div class="frames">
+        <figure class="frame">
+          <figcaption><span class="pill">Before</span> no strike · light</figcaption>
+          <div class="app">
+            <div class="col stack">
+              <div class="old-result"><p style="font-weight:700;font-size:18px">Cancelled. Reference 3F2A9C1B. No strike.</p><p class="mt2" style="font-weight:600">Thu 12 Nov, 14:00 to 22:00</p><p>Steward at Demo Arena</p><p class="mt2">You gave 5 days' notice.</p><p>Recorded at 10:12 on Fri 6 Nov.</p><p class="muted mt2">— Acme Events Shift Team</p></div>
+              <p class="label">If something stopped you, tell us what happened.</p>
+              <div class="field old" style="min-height:96px"></div>
+              <span class="btn secondary">Send to the office</span>
+              <span class="btn primary">Done</span>
+            </div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.12</span> no strike · light</figcaption>
+          <div class="app">
+            <div class="col stack">
+              <div class="slip done new"><span class="disc done">✓</span><div class="stack" style="gap:4px"><p style="font-weight:600">Cancelled. Reference 3F2A9C1B. No strike.</p><p style="font-weight:600">Thu 12 Nov, 14:00 to 22:00</p><p>Steward at Demo Arena</p><p>You gave 5 days' notice.</p><p>Recorded at 10:12 on Fri 6 Nov.</p><p class="muted">— Acme Events Shift Team</p></div></div>
+              <span class="btn primary">Done</span>
+            </div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.12</span> a strike · dark</figcaption>
+          <div class="app dark">
+            <div class="col stack">
+              <div class="slip att new"><span class="disc att">!</span><div class="stack" style="gap:4px"><p style="font-weight:600">Cancelled. Reference 7C01D4E2. A strike has been recorded. It counts until Thu 4 Feb.</p><p>You gave 20 hours' notice.</p><p>Recorded at 10:12 on Fri 6 Nov.</p><p class="muted">— Acme Events Shift Team</p></div></div>
+              <p class="label">If something stopped you, tell us what happened.</p>
+              <div class="field" style="min-height:96px"></div>
+              <span class="btn secondary">Send to the office</span>
+              <span class="btn primary">Done</span>
+            </div>
+          </div>
+        </figure>
+        <span class="divider" aria-hidden="true"></span>
+        <figure class="frame">
+          <figcaption><span class="pill">Before</span> started · light</figcaption>
+          <div class="app">
+            <div class="col stack">
+              <p style="font-weight:600">This shift has already started. Contact the office.</p>
+              <span class="btn primary">Done</span>
+            </div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.12</span> started · dark</figcaption>
+          <div class="app dark">
+            <div class="col stack">
+              <div class="slip att new"><span class="disc att">!</span><p style="font-weight:600;align-self:center">This shift has already started.</p></div>
+              <span class="btn secondary new">Message the office</span>
+              <span class="btn primary">Done</span>
+            </div>
+          </div>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. Laptop -->
+  <section class="row" aria-labelledby="r5">
+    <h2 id="r5">On a laptop (1,280px at 150%)</h2>
+    <p>The same 448px column and sheet, centred.</p>
+    <div class="scroller">
+      <div class="frames">
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.12</span> 853px window · light</figcaption>
+          <div class="app laptop">
+            <div class="bar"><span class="mark">A</span>Acme Events</div>
+            <div class="col">
+              <p class="h2">The firm's rules for taking shifts</p>
+              <p class="mt3">These are Acme Events' own settings.</p>
+              <ul class="points new">
+                <li>A small group gets first go for 15 minutes, then everyone can take it. The group is the people with the fewest hours that week.</li>
+                <li>You need at least 11 hours' rest between shifts.</li>
+                <li>You can work up to 48 hours a week, Monday to Sunday.</li>
+                <li>Between 22:00 and 07:00 we hold shift messages until 07:00. Urgent ones still come.</li>
+              </ul>
+            </div>
+          </div>
+        </figure>
+        <figure class="frame">
+          <figcaption><span class="pill after">After 28.12</span> 853px window · dark</figcaption>
+          <div class="app laptop dark">
+            <div class="dim" style="min-height:640px">
+              <div class="sheetbox">
+                <span class="handle"></span>
+                <div class="head"><span class="date"><b>Thu</b><span>12</span></span><div><h2>Can't make it?</h2><p class="muted">Steward, Thu 12 Nov, 14:00–22:00</p></div></div>
+                <div class="slip done"><span class="disc done">✓</span><p style="align-self:center">This shift starts in 5 days. Cancelling now doesn't give you a strike.</p></div>
+                <div class="reasons"><span class="choice">I'm unwell</span><span class="choice on" style="font-weight:600">Travel problem</span><span class="choice">Family or caring</span><span class="choice">Something else</span></div>
+                <span class="btn danger">Cancel this shift</span>
+                <span class="btn text">Keep my shift</span>
+                <p class="muted">Your cancellation is recorded the moment you tap Cancel this shift. Nobody needs to approve it.</p>
+              </div>
+            </div>
+          </div>
+        </figure>
+      </div>
+    </div>
+    <p>The browser test <span style="font-family:var(--font-data)">tests/e2e/casual.p28-help-cancel.spec.ts</span> takes the real screenshots: Help and the cancel sheet at 390px and 1,280px, light and dark.</p>
+  </section>
+</main>

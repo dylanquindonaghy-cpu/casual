@@ -83,8 +83,9 @@ describe("the confirmation", () => {
     expect(words).toContain("You gave 2 days' notice.");
     expect(words).toContain("Recorded at 09:14 on Thu 5 Nov.");
     expect(words).toContain("— Acme Events Shift Team");
-    expect(words).toContain("If something stopped you, tell us what happened.");
-    expect(words).toContain("Send to the office");
+    // 28.12: after "No strike." there's nothing to explain (the review's note 21).
+    expect(words).not.toContain("tell us what happened");
+    expect(words).not.toContain("Send to the office");
   });
 
   it("says when a strike was recorded and until when", () => {
@@ -103,6 +104,9 @@ describe("the confirmation", () => {
       "Cancelled. Reference 3F2A9C1B. A strike has been recorded. It counts until Wed 3 Feb.",
     );
     expect(words).toContain("You gave 20 hours' notice.");
+    // A recorded strike: their own account can go to the office (28.12: only then).
+    expect(words).toContain("If something stopped you, tell us what happened.");
+    expect(words).toContain("Send to the office");
   });
 
   it("still confirms, with the reference, if the shift's details couldn't be read", () => {
@@ -123,8 +127,9 @@ describe("the confirmation", () => {
   });
 
   it("answers the other outcomes in plain words", () => {
+    // 28.12: no dead end: "Message the office" about this shift (28.2's link, about=started).
     expect(show({ status: "started" })).toContain(
-      "This shift has already started. Contact the office.",
+      "This shift has already started. Message the office",
     );
     expect(show({ status: "not_booked" })).toContain(
       "You're not booked on this shift any more. If you've just cancelled it, it's recorded.",

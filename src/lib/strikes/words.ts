@@ -88,10 +88,22 @@ export function strikeWarningText(kind: WarningKind, f: WarningFacts): string {
   return warningWordsFor(STRIKE_WARNING_VERSION, kind, f);
 }
 
+// The cancel sheet's footer (28.12: it names the button, word for word).
 export const CANCEL_FOOTER =
-  "Your cancellation is recorded the moment you confirm. Nobody needs to approve it.";
+  "Your cancellation is recorded the moment you tap Cancel this shift. Nobody needs to approve it.";
 
 export const WHAT_HAPPENED_PROMPT = "If something stopped you, tell us what happened.";
+
+// Whether the done screen offers "Tell us what happened" (28.12): only when a strike was recorded.
+// After "No strike." there's nothing to explain (the review's note 21); a strike that still counts
+// keeps it on Profile too.
+export function offersWhatHappened(strike: { until: string } | null): boolean {
+  return strike !== null;
+}
+
+// The answer when the shift has already started (28.12): no cancelling here, and "Message the
+// office" (a link to Messages about this shift, 28.2's contract: about=started) under it.
+export const ALREADY_STARTED = "This shift has already started.";
 
 // The done screen's first line. `until` is the strike's last day, in the firm's words ("Sat 30 Jan").
 export function cancelledText(ref: string, strike: { until: string } | null): string {

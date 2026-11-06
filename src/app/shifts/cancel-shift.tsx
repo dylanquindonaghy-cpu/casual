@@ -11,8 +11,9 @@ import {
   type CancelWarning,
 } from "@/lib/portal/cancel-reasons";
 import { CANCEL_FOOTER } from "@/lib/strikes/words";
-import { labelStack, staffBtn, staffBtnSmall, staffField } from "../ui/classes";
+import { labelStack, staffBtn, staffBtnSmall, staffChoice, staffField } from "../ui/classes";
 import { Icon } from "../ui/icons";
+import { Slip } from "../ui/slip";
 import { Sheet } from "./sheet";
 import { DateTile } from "../ui/sign";
 import { useHydrated } from "@/app/use-hydrated";
@@ -44,7 +45,7 @@ export interface CancelSummary {
 // would happen changed while they read it, nothing is cancelled and the new warning is shown.
 // The opener waits for the page (docs/ui-design.md "Forms wait for the page"). `opener`: the small
 // one two to a row (a later booking's), or a full-width one in red words (the pass, Phase 24; the
-// shift's page). The reasons are four large buttons, two to a row (Phase 20):
+// shift's page). The reasons are four choice cards, two to a row (Phase 20; 28.12):
 // confirming without one says so right under them and puts the focus on the first, to choose.
 export function CancelShift({
   shiftId,
@@ -189,28 +190,23 @@ export function CancelShift({
         ) : (
           <>
             {/* The warning first (docs/office-v2.md 4.5), then why. */}
-            <p
-              role="note"
-              className={`flex items-start gap-2.5 rounded-2xl border p-3.5 text-base ${
-                strike
-                  ? "border-urgent bg-urgent-tile font-semibold text-urgent-ink"
-                  : "border-done bg-done-tile text-done-ink"
-              }`}
-            >
-              <Icon name={strike ? "urgent" : "check"} size={22} className="mt-px" />
-              <span>{warning.text}</span>
-            </p>
+            {/* A slip (28.1's part; 28.12): red with the warning mark when it's a strike, green
+                with a tick when not. Its words are the stored version's, unchanged. */}
+            <Slip tone={strike ? "urgent" : "done"} role="note">
+              <p className={strike ? "font-semibold" : undefined}>{warning.text}</p>
+            </Slip>
             <fieldset
               aria-describedby={problem && problem !== CHANGED ? `${titleId}-problem` : undefined}
               className="grid grid-cols-2 gap-2"
             >
               <legend className="mb-2 text-lg font-semibold">Why can&apos;t you make it?</legend>
               {[...CANCEL_REASONS, OTHER_REASON].map((reason, i) => (
-                // A large button for each (the radio is the whole of it, drawn over it unseen):
-                // chosen, it has an ink edge, a sunk ground and bold words.
+                // A choice card for each (`staffChoice`, 28.12; the radio is the whole of it,
+                // drawn over it unseen, so the card draws the focus ring): chosen, it has the ink
+                // edge, the grey wash and bold words.
                 <label
                   key={reason}
-                  className="relative flex min-h-14 items-center rounded-2xl glass-tile border-[1.5px] border-line-strong px-3.5 text-base font-medium has-checked:border-ink has-checked:bg-active has-checked:font-semibold has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ink"
+                  className={`${staffChoice} relative has-checked:font-semibold has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ink`}
                 >
                   <input
                     ref={i === 0 ? firstReason : undefined}
@@ -223,7 +219,7 @@ export function CancelShift({
                       if (problem !== CHANGED) setProblem(null);
                     }}
                     disabled={!ready}
-                    className="absolute inset-0 m-0 cursor-pointer appearance-none rounded-2xl focus-visible:outline-none"
+                    className="absolute inset-0 m-0 cursor-pointer appearance-none rounded-row focus-visible:outline-none"
                   />
                   <span>{reason}</span>
                 </label>

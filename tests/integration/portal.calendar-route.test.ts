@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createSession } from "@/lib/auth/sessions";
 import { WORKER_SESSION_COOKIE } from "@/lib/auth/session-cookie";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
+import { calendarForWorker } from "@/lib/portal/calendar";
 import { bookingFirm, hoursFromNow, type BookingFirm } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
 
@@ -139,6 +140,29 @@ describe("GET /shifts/{id}/calendar", () => {
     expect((await get(shiftId)).status).toBe(404);
     on(`${bSlug}.${BASE}`, token); // her own firm: A's shift is invisible
     expect((await get(shiftId)).status).toBe(404);
+  });
+
+  // Zoe has no booking at firm A, so the cases above would pass on the worker filter alone. These
+  // two are about the firm: the booked casual herself, seen from firm B.
+  it("Ann's own session on firm B's address: not found (her session is looked up inside the host's firm)", async () => {
+    const { f, slug, ann, shiftId } = await scene();
+    const b = await bookingFirm(su, withFirm);
+    const token = await sessionFor(f, ann);
+    on(`${await slugOf(b.firmId)}.${BASE}`, token);
+    const res = await get(shiftId);
+    expect(res.status).toBe(404);
+    expect(await res.text()).toBe("Not found.");
+    on(`${slug}.${BASE}`, token); // the same session on her own firm's address: her file
+    expect((await get(shiftId)).status).toBe(200);
+  });
+
+  it("the loader reads inside the firm it's given: in firm B's scope, Ann's booking at firm A is invisible", async () => {
+    const { f, ann, shiftId } = await scene();
+    const b = await bookingFirm(su, withFirm);
+    const ctx = { run: withFirm, baseDomain: BASE, address: "portal" as const };
+    // Her own firm: the file, so the null below is the firm's scope and not the arguments.
+    expect(await calendarForWorker({ ...ctx, firm: { id: f.firmId } }, ann, shiftId)).not.toBeNull();
+    expect(await calendarForWorker({ ...ctx, firm: { id: b.firmId } }, ann, shiftId)).toBeNull();
   });
 
   it("a cancelled booking, or a cancelled session: not found", async () => {

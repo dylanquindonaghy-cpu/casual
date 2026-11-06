@@ -36,6 +36,9 @@ export function sendUploadText(o: SendUploadOutcome): string {
   }
 }
 
+// Over the picture she chose, before she sends it (28.11: "Send this photo" / "Take another").
+export const CHECK_PREVIEW = "Check it's clear and nothing is cut off.";
+
 // One line of the SIA's photo guidance, under "Upload a new photo".
 export const PHOTO_GUIDANCE =
   "Face the camera against a plain, light background, with nothing covering your face.";

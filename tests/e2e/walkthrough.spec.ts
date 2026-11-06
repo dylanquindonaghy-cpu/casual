@@ -227,6 +227,8 @@ test("Part 2: as a worker", async ({ browser }) => {
     await expect(page.getByText("Level 2 spectator safety qualification")).toBeVisible();
     await expect(page.getByText(/^Valid/).first()).toBeVisible();
     const days = page.getByRole("region", { name: "Days you can't work" });
+    // (Folded since 28.11: a tap opens it.)
+    await days.locator("summary").click();
     await page.getByLabel("A day you can't work").fill(daysFromToday(10));
     await page.getByRole("button", { name: "Mark as unavailable" }).click();
     await expect(days.getByRole("status")).toContainText(/^Marked .+ as unavailable\./);
@@ -321,6 +323,8 @@ test("Part 2: as a worker", async ({ browser }) => {
       "Due soon",
     );
     const where = page.getByRole("region", { name: "Your travel area" });
+    // (Folded since 28.11: a tap opens it.)
+    await where.locator("summary").click();
     await where.getByRole("link", { name: "Change your travel area" }).click();
     await expect(page).toHaveURL(`${acme}/profile/travel`);
     await page.getByLabel("60 minutes").check();

@@ -217,8 +217,12 @@ describe("Profile's How we reach you", () => {
   it("with no text sender, no choice: a push, else an email to the address shown", () => {
     const html = form("email", "sam.booker@example.com");
     expect(html).not.toContain('type="radio"');
-    expect(strip(html)).toContain(
-      "Shift messages come as notifications on this phone, if you turn them on below. If not, we email sam.booker@example.com .",
+    // 28.11: the address on its own line, in pieces that break only after its @ or a dot.
+    const joined = html
+      .replace(/<wbr\/>/g, "")
+      .replace(/<span class="whitespace-nowrap">([^<]*)<\/span>/g, "$1");
+    expect(strip(joined)).toContain(
+      "Shift messages come as notifications on this phone, if you turn them on below. If not, we email: sam.booker@example.com",
     );
   });
   it("with no address held, says to ask the office", () => {

@@ -2,7 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { label, labelStack, muted, staffBtn, staffField } from "@/app/ui/classes";
+import {
+  confirmStep,
+  label,
+  labelStack,
+  muted,
+  staffBtn,
+  staffChoice,
+  staffField,
+} from "@/app/ui/classes";
+import { Slip } from "@/app/ui/slip";
 import { useHydrated } from "@/app/use-hydrated";
 import {
   TRAVEL_MINUTES,
@@ -22,17 +31,13 @@ import { TRAVEL_MODE_WORDS } from "@/lib/travel/copy";
 import { POSTCODE_INPUT_MAX } from "@/lib/travel/postcode";
 import { removeTravelAction, saveTravelAction } from "./actions";
 
-// One answer to pick from, as a big bordered row; the picked one is outlined in ink (as the
-// notification settings).
-const choice =
-  "flex min-h-14 items-center gap-3 glass-tile rounded-2xl border-2 border-line-strong px-4 py-3 has-checked:border-ink has-checked:bg-active";
-
 const failed = { status: "error" as const };
 const NO_SIGNAL = "No signal. Try again when you have signal.";
 
 // The start-from postcode, how they travel and how long for: "Save travel area" (the postcode is
-// looked up first; one it can't find saves nothing). "Remove my travel area" asks first. Waits for
-// the page (docs/ui-design.md "Forms wait for the page").
+// looked up first; one it can't find saves nothing). "Remove my travel area" asks first, on the red
+// step of a destructive change. The choices are choice cards and the answer a slip (28.11). Waits
+// for the page (docs/ui-design.md "Forms wait for the page").
 export function TravelForm({
   travel,
   signOff,
@@ -105,7 +110,7 @@ export function TravelForm({
         <legend className={label}>How do you travel?</legend>
         <div className="mt-2 space-y-2">
           {TRAVEL_MODES.map((m) => (
-            <label key={m} className={choice}>
+            <label key={m} className={staffChoice}>
               <input
                 type="radio"
                 name="modes"
@@ -125,7 +130,7 @@ export function TravelForm({
         <legend className={label}>How long will you travel, at most?</legend>
         <div className="mt-2 grid grid-cols-2 gap-2">
           {TRAVEL_MINUTES.map((m) => (
-            <label key={m} className={choice}>
+            <label key={m} className={staffChoice}>
               <input
                 type="radio"
                 name="maxMinutes"
@@ -150,13 +155,14 @@ export function TravelForm({
       </button>
 
       {message && (
-        <div
+        <Slip
+          tone={message.alert ? "urgent" : "done"}
           role={message.alert ? "alert" : "status"}
-          className={`mt-3 rounded-xl border-2 p-3 ${message.alert ? "border-urgent bg-urgent-soft font-semibold text-urgent-ink" : "border-done bg-done-soft"}`}
+          className="mt-3"
         >
           <p>{message.text}</p>
-          {!message.alert && <p className={`mt-1 ${muted}`}>— {signOff}</p>}
-        </div>
+          {!message.alert && <p className={muted}>— {signOff}</p>}
+        </Slip>
       )}
 
       {travel.set && !asking && (
@@ -173,7 +179,7 @@ export function TravelForm({
         </button>
       )}
       {travel.set && asking && (
-        <div className="mt-6 rounded-xl border-2 border-line-strong p-3">
+        <div className={`${confirmStep} mt-6`}>
           <p>Remove it? You&apos;ll see shifts wherever they are.</p>
           <div className="mt-3 flex flex-wrap gap-3">
             <button type="button" disabled={busy} onClick={remove} className={staffBtn.dangerSolid}>

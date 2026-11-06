@@ -2,27 +2,30 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { label, muted, staffBtn } from "@/app/ui/classes";
+import { label, muted, staffBtn, staffChoice } from "@/app/ui/classes";
+import { Slip } from "@/app/ui/slip";
 import { useHydrated } from "@/app/use-hydrated";
 import { CHANNEL_LABELS, CHANNELS, type Channel } from "@/lib/portal/profile-kinds";
 import { saveNotificationSettingsAction } from "./actions";
 import { tryAgainText } from "@/lib/portal/copy";
 import type { LoginWay } from "@/lib/portal/login-way";
-
-// One answer to pick from, as a big bordered row; the picked one is outlined in ink.
-const choice =
-  "flex min-h-14 items-center gap-3 glass-tile rounded-2xl border-2 border-line-strong px-4 py-3 has-checked:border-ink has-checked:bg-active";
+import { EmailText } from "./email-text";
+import { OfficeLinked } from "./office-link";
 
 // How we reach you when a notification on their phone can't (Phase 26.9; decision 4): a text, or an
 // email (offered only while the firm holds their address), and whether to hear about open shifts.
 // With no text sender (P2.7) there's no channel to choose: it says how messages come instead (a
-// push, else an email: src/lib/notify/send.ts deliverToWorker).
+// push, else an email: src/lib/notify/send.ts deliverToWorker). Where the firm has phone
+// notifications off (`push` false, 28.11), nothing says they'd come. The choices are choice cards
+// and the answer a slip (28.11); the email address sits on its own line, breaking only after its @
+// or a dot.
 export function NotificationForm({
   channel: initialChannel,
   offerAlerts: initialAlerts,
   textsOff,
   loginWay,
   textSender: textSenderProp,
+  push = true,
   email,
   signOff,
 }: {
@@ -35,6 +38,8 @@ export function NotificationForm({
   // Whether texts exist at all (Profile passes it; else the login way says): the choice shows even
   // for a casual who replied STOP (Phase 26.9).
   textSender?: boolean;
+  // Whether the firm has phone notifications (its VAPID key; Profile passes it).
+  push?: boolean;
   email: string | null;
   signOff: string;
 }) {
@@ -59,9 +64,14 @@ export function NotificationForm({
       if (result.status === "logged_out") return router.replace("/login");
       setMessage(
         result.status === "saved"
-          ? { text: savedText(channel, offerAlerts, textsOff, textSender, email), alert: false }
+          ? {
+              text: savedText(channel, offerAlerts, textsOff, textSender, email, push),
+              alert: false,
+            }
           : { text: tryAgainText(), alert: true },
       );
+      // The fold's own line ("Open-shift alerts on") follows what was saved.
+      if (result.status === "saved") router.refresh();
     });
 
   return (
@@ -71,7 +81,7 @@ export function NotificationForm({
           <legend className={label}>If we can&apos;t reach this phone, send my messages by</legend>
           <div className="mt-2 space-y-2">
             {CHANNELS.filter((c) => c !== "email" || email).map((c) => (
-              <label key={c} className={choice}>
+              <label key={c} className={staffChoice}>
                 <input
                   type="radio"
                   name="channel"
@@ -81,8 +91,11 @@ export function NotificationForm({
                   disabled={!ready}
                   className="h-6 w-6 shrink-0 accent-ink"
                 />
-                <span className="min-w-0 break-all">
-                  {c === "email" && email ? `${CHANNEL_LABELS[c]} (${email})` : CHANNEL_LABELS[c]}
+                <span className="min-w-0">
+                  {CHANNEL_LABELS[c]}
+                  {c === "email" && email && (
+                    <EmailText email={email} className="block font-normal text-ink-muted" />
+                  )}
                 </span>
               </label>
             ))}
@@ -93,19 +106,29 @@ export function NotificationForm({
             </p>
           )}
         </fieldset>
-      ) : (
+      ) : push ? (
         <p>
           Shift messages come as notifications on this phone, if you turn them on below.{" "}
           {email ? (
             <>
-              If not, we email <span className="font-semibold break-all">{email}</span>.
+              If not, we email:
+              <EmailText email={email} className="block font-semibold" />
             </>
           ) : (
             "We have no email address for you. To add one, ask the office."
           )}
         </p>
+      ) : email ? (
+        <p>
+          We email shift messages to:
+          <EmailText email={email} className="block font-semibold" />
+        </p>
+      ) : (
+        <p>
+          <OfficeLinked text={NO_WAY_TEXT} />
+        </p>
       )}
-      <label className={`${choice} mt-4`}>
+      <label className={`${staffChoice} mt-4`}>
         <input
           type="checkbox"
           checked={offerAlerts}
@@ -130,27 +153,35 @@ export function NotificationForm({
         Save settings
       </button>
       {message && (
-        <div
+        <Slip
+          tone={message.alert ? "urgent" : "done"}
           role={message.alert ? "alert" : "status"}
-          className={`mt-3 rounded-xl border-2 p-3 ${message.alert ? "border-urgent bg-urgent-soft font-semibold text-urgent-ink" : "border-done bg-done-soft"}`}
+          className="mt-3"
         >
           <p>{message.text}</p>
-          {!message.alert && <p className={`mt-1 ${muted}`}>— {signOff}</p>}
-        </div>
+          {!message.alert && <p className={muted}>— {signOff}</p>}
+        </Slip>
       )}
     </div>
   );
 }
 
+// No text sender, no phone notifications and no address: nothing can carry a shift message
+// (28.11).
+export const NO_WAY_TEXT =
+  "We have no email address for you, so we can't send you shift messages. To add one, message the office.";
+
 // The confirmation says what was saved, and what will really happen: texts chosen while they're
-// off (they replied STOP) go by email, if we hold their address, until START (exported for the
-// tests).
+// off (they replied STOP) go by email, if we hold their address, until START; with no address, by
+// notifications on their phone, or not at all where the firm has those off (`push` false, 28.11)
+// (exported for the tests).
 export function savedText(
   channel: Channel,
   offerAlerts: boolean,
   textsOff = false,
   textSender = true,
   email: string | null = null,
+  push = true,
 ): string {
   const alerts = offerAlerts
     ? "We'll tell you about open shifts."
@@ -162,7 +193,9 @@ export function savedText(
       : textsOff
         ? email
           ? "Texts are off, so we'll email shift messages until you text START."
-          : "Texts are off, so we can only reach you by notifications on your phone until you text START."
+          : push
+            ? "Texts are off, so we can only reach you by notifications on your phone until you text START."
+            : "Texts are off, so we can't send you shift messages until you text START."
         : "We'll send shift messages by text.";
   return `Saved. ${how} ${alerts}`;
 }

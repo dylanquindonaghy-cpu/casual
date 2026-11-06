@@ -7,6 +7,7 @@ import { myStrikes } from "@/lib/portal/my-strikes";
 import { hasTextSender, workerLoginWay } from "@/lib/portal/login-way";
 import { myProfile } from "@/lib/portal/profile";
 import { myTravel } from "@/lib/portal/travel";
+import { unseenAnswers } from "@/lib/portal/request-answers";
 import { refreshSessionAction } from "../session-actions";
 import { HomeScreenHint } from "../home-screen-hint";
 import { SessionKeeper } from "../session-keeper";
@@ -21,6 +22,9 @@ export default async function ProfilePage() {
   if (!profile) notFound();
   const strikes = await myStrikes({ firm }, worker.id);
   const travel = await myTravel({ firm }, worker.id);
+  // The office's answers to her requests she hasn't seen: My requests' count (28.11; 28.2's count,
+  // the tab bar's too).
+  const answers = await unseenAnswers({ firm }, worker.id);
   return (
     <main className={page.staff}>
       <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
@@ -32,6 +36,7 @@ export default async function ProfilePage() {
         travel={travel}
         loginWay={await workerLoginWay(firm.id, worker.id)}
         textSender={hasTextSender()}
+        answersCount={answers}
       />
       <HomeScreenHint />
       <CasualTabBar firm={firm} workerId={worker.id} current="profile" />

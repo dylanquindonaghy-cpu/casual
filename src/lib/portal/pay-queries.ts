@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, inArray, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, inArray, lte, sql } from "drizzle-orm";
 import { DAY, systemClock } from "../auth/clock";
 import type { ActiveSession } from "../auth/sessions";
 import { isSteppedUp } from "../auth/step-up";
@@ -14,7 +14,7 @@ import { StepUpRequiredError } from "./pay";
 import { markPayAnswersSeen } from "./request-answers";
 import {
   PAY_QUERY_DAYS_BACK,
-  PAY_QUERY_SHIFT_WEEKS,
+  PAY_QUERY_SHIFT_DAYS,
   type PayIssue,
   type PayQueryInput,
   type RaisePayQueryOutcome,
@@ -24,8 +24,8 @@ import {
 // structured question about their pay, for payroll. Server only; the browser-safe half is
 // pay-query-kinds.ts. Every function here is for a session that passed the pay-page code in the
 // last 30 minutes, and checks that itself (the rule on steppedUpWorker()).
-// - payQueryShifts: the worker's shifts that started in the last 8 weeks (booked, worked or marked
-//   not attended), newest first, for the form's picker;
+// - payQueryShifts: the worker's shifts that started in the last 90 days (booked, worked or marked
+//   not attended), newest first, for the form's picker: Booked's Past window (PAY_QUERY_SHIFT_DAYS);
 // - myPayQueries: their queries from the last 90 days, newest first, with their status (reading
 //   them marks nothing seen: seePayAnswers does that, Phase 28.10);
 // - raisePayQuery: a shift of theirs from that list, or a day in the last 90 days (not ahead); an
@@ -74,7 +74,7 @@ async function shiftsOf(tx: FirmTx, workerId: string, now: Date, timeZone: strin
         eq(assignments.workerId, workerId),
         inArray(assignments.status, [...LIVE]),
         lte(shifts.startsAt, now),
-        gt(shifts.startsAt, new Date(now.getTime() - PAY_QUERY_SHIFT_WEEKS * 7 * DAY)),
+        gte(shifts.startsAt, new Date(now.getTime() - PAY_QUERY_SHIFT_DAYS * DAY)),
       ),
     )
     .orderBy(desc(shifts.startsAt))

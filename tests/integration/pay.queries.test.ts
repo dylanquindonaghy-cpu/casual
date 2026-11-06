@@ -49,16 +49,19 @@ async function payFirm() {
     [f.firmId],
   );
   // Ann: Saturday 31 October 08:00 (worked), Wednesday 28 October (booked), next Saturday (ahead),
-  // 10 weeks ago (too old for the list), and one she cancelled.
+  // 80 days ago (worked: past 8 weeks, inside Past's 90 days, so in the list), 91 days ago (too
+  // old for the list), and one she cancelled.
   const saturday = await f.shift({ startsAt: new Date("2026-10-31T08:00:00Z"), role: "steward" });
   await su.query("update shifts set site_id = $2 where id = $1", [saturday, rows[0]?.id]);
   const wednesday = await f.shift({ startsAt: new Date("2026-10-28T18:00:00Z") });
   const ahead = await f.shift({ startsAt: hoursFromNow(120) });
-  const old = await f.shift({ startsAt: hoursFromNow(-24 * 70) });
+  const eighty = await f.shift({ startsAt: hoursFromNow(-24 * 80) });
+  const old = await f.shift({ startsAt: hoursFromNow(-24 * 91) });
   const cancelled = await f.shift({ startsAt: new Date("2026-10-30T08:00:00Z") });
   await f.booking(ann, saturday, "completed");
   await f.booking(ann, wednesday, "confirmed");
   await f.booking(ann, ahead, "confirmed");
+  await f.booking(ann, eighty, "completed");
   await f.booking(ann, old, "completed");
   await f.booking(ann, cancelled, "cancelled_worker");
   const ctx = (when = NOW) => ({
@@ -74,7 +77,7 @@ async function payFirm() {
       details: null,
       ...input,
     });
-  return { f, ann, ben, saturday, wednesday, ahead, old, cancelled, ctx, raise };
+  return { f, ann, ben, saturday, wednesday, ahead, eighty, old, cancelled, ctx, raise };
 }
 
 const queriesOf = async (firmId: string) =>
@@ -88,7 +91,7 @@ const queriesOf = async (firmId: string) =>
   ).rows;
 
 describe("raising a pay query", () => {
-  it("lists the worker's own shifts from the last 8 weeks that have started, newest first", async () => {
+  it("lists the worker's own shifts from the last 90 days that have started, newest first", async () => {
     const t = await payFirm();
     const shifts = await payQueryShifts(t.ctx(), stepped(t.ann));
     expect(shifts).toEqual([
@@ -101,6 +104,12 @@ describe("raising a pay query", () => {
         shiftId: t.wednesday,
         label: "Wed 28 Oct, 18:00 to 02:00 Thu · Door supervisor",
         day: "2026-10-28",
+      },
+      // 80 days ago: Booked's Past still shows it (90 days), so the pay query lists it too.
+      {
+        shiftId: t.eighty,
+        label: "Fri 14 Aug, 10:00 to 18:00 · Door supervisor",
+        day: "2026-08-14",
       },
     ]);
     expect(await payQueryShifts(t.ctx(), stepped(t.ben))).toEqual([]);

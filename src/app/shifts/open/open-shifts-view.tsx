@@ -154,14 +154,16 @@ function Chip({ label, children }: { label: string; children: ReactNode }) {
 const shiftsWord = (n: number) => (n === 1 ? "1 shift" : `${n} shifts`);
 
 // The one empty state of the list (`emptyBox`): nothing open at all, nothing the filters match, or
-// only urgent shifts (above it) open.
-function emptyText(list: OpenShiftsList, filtered: boolean): string {
+// only urgent shifts (above it) open. "We'll message you" only when her alerts are on and something
+// reaches her (`canReach`, as Home: never to a casual Home tells "We can't reach you about shifts").
+function emptyText(list: OpenShiftsList, filtered: boolean, canReach: boolean): string {
+  const willMessage = list.offerAlerts && canReach;
   if (list.shifts.length > 0)
-    return list.offerAlerts
+    return willMessage
       ? "Nothing else open right now. We'll message you when a shift comes up."
       : "Nothing else open right now. Check back later.";
   if (filtered) return "No open shifts match.";
-  return list.offerAlerts
+  return willMessage
     ? "Nothing open right now. We'll message you when something matches."
     : "Nothing open right now. Check back later.";
 }
@@ -172,12 +174,15 @@ export function OpenShiftsView({
   strip,
   timeZone,
   now,
+  canReach = true,
 }: {
   list: OpenShiftsList;
   filters: OpenShiftFilters;
   strip: StripDay[];
   timeZone: string;
   now: Date;
+  // Something can reach her about shifts (src/lib/portal/reach-me.ts: no "unreachable").
+  canReach?: boolean;
 }) {
   const filtered = !!(filters.day || filters.siteId || filters.role);
   const { choices } = list;
@@ -288,7 +293,7 @@ export function OpenShiftsView({
         shifts={rest}
         timeZone={timeZone}
         now={now}
-        empty={<p className={emptyBox}>{emptyText(list, filtered)}</p>}
+        empty={<p className={emptyBox}>{emptyText(list, filtered, canReach)}</p>}
       />
       {list.truncated && (
         <p className={muted}>

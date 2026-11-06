@@ -6,6 +6,7 @@ import { SessionKeeper } from "../../session-keeper";
 import { page } from "../../ui/classes";
 import { myShifts } from "@/lib/portal/my-shifts";
 import { openShiftsFor, type OpenShiftFilters } from "@/lib/portal/open-shifts";
+import { myReachPrompts } from "@/lib/portal/reach-me";
 import { shiftsStrip } from "@/lib/portal/shifts-strip";
 import { localDateOf } from "@/lib/time/zoned";
 import { OpenShiftsView } from "./open-shifts-view";
@@ -48,10 +49,12 @@ export default async function OpenShiftsPage({
   const filtered = !!(filters.day || filters.siteId || filters.role);
   // The strip counts every open shift in the next 8 days, whatever the list is filtered to, and
   // marks the days she's booked.
-  const [list, all, booked] = await Promise.all([
+  // Whether anything reaches her (Home's rule), so the empty list never promises her a message.
+  const [list, all, booked, reach] = await Promise.all([
     openShiftsFor({ firm, clock }, worker.id, filters),
     filtered ? openShiftsFor({ firm, clock }, worker.id, {}) : null,
     myShifts({ firm, clock }, worker.id, "upcoming"),
+    myReachPrompts({ firm }, worker.id),
   ]);
   const strip = shiftsStrip(
     now,
@@ -68,6 +71,7 @@ export default async function OpenShiftsPage({
         strip={strip}
         timeZone={firm.timezone}
         now={now}
+        canReach={!reach.includes("unreachable")}
       />
       <CasualTabBar firm={firm} workerId={worker.id} current="shifts" />
     </main>

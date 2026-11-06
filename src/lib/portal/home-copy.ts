@@ -60,7 +60,8 @@ export function urgentRowText(
 }
 
 // The other shifts she can take ("3 more you can take" under the urgent row), their days and
-// the best pay; with none, when she'll hear of the next.
+// the best pay; with none, when she'll hear of the next. `offerAlerts`: we'll tell her, so her
+// alerts are on and something reaches her (Home passes false beside "We can't reach you").
 export function applyRowText(
   shifts: Pick<OpenShift, "startsAt" | "payRatePence">[],
   afterUrgent: boolean,

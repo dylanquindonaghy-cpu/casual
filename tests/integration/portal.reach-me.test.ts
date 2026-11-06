@@ -146,13 +146,17 @@ describe("Home's 'can we reach you' rows", () => {
     expect(html).toMatch(/<section data-online-only="" aria-labelledby="do-this-heading"/);
     expect(words(offlineCopy(html))).not.toContain(CANT_REACH);
     expect(words(offlineCopy(html))).not.toContain("Do this");
+    // Her alerts are on, but nothing reaches her: "Shifts you can take" mustn't promise a message.
+    expect(words(html)).toContain("No shifts right now Check back later.");
+    expect(words(html)).not.toContain("We'll message you");
 
-    // The firm adds her email: an offer can reach her by email, so the row goes.
+    // The firm adds her email: an offer can reach her by email, so the row goes, and the promise
+    // is true again.
     await set(dan, "email = $2", ["dan@example.test"]);
     expect(await myReachPrompts(ctx(f.firmId), dan, true)).toEqual([]);
-    expect(words(homeHtml(await myReachPrompts(ctx(f.firmId), dan, true)))).not.toContain(
-      "Do this",
-    );
+    const reached = words(homeHtml(await myReachPrompts(ctx(f.firmId), dan, true)));
+    expect(reached).not.toContain("Do this");
+    expect(reached).toContain("No shifts right now We'll message you when something matches.");
 
     // No email, but texts back on (START) while there's a text sender: reached by text.
     await set(dan, "email = null, sms_opted_out_at = null");

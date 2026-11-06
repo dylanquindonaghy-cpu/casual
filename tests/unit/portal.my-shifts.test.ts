@@ -638,6 +638,35 @@ describe("Home: what she can take, and her next shift in full", () => {
       "Add your travel area",
     );
   });
+  it("never promises a message to a casual nothing can reach: 'Check back later.' beside 'We can't reach you about shifts' (28.7)", () => {
+    // Her open-shift alerts are on, but no phone, text or email can reach her: "Do this" says we
+    // can't reach her, so the empty row under "Shifts you can take" mustn't say we'll message her.
+    const apply = (html: string) => {
+      const at = html.indexOf('data-for-you="apply"');
+      return spoken(html.slice(html.lastIndexOf("<li", at), html.indexOf("</li>", at)));
+    };
+    const cut = home({ reach: ["unreachable"] });
+    expect(text(cut)).toContain("We can't reach you about shifts");
+    expect(text(cut)).not.toContain("We'll message you");
+    expect(apply(cut)).toBe("No shifts right now Check back later.");
+    // After urgent ones too, and with her alerts off as well.
+    const urgentOnly = { ...noOpen, shifts: [open({ shiftId: "u1", isUrgent: true })] };
+    expect(apply(home({ reach: ["unreachable"], open: urgentOnly }))).toBe(
+      "No other shifts now Check back later.",
+    );
+    expect(
+      apply(
+        home({ reach: ["unreachable", "alerts_off"], open: { ...noOpen, offerAlerts: false } }),
+      ),
+    ).toBe("No shifts right now Check back later.");
+    // Reachable, with her alerts on: the promise stays.
+    expect(apply(home({ reach: [] }))).toBe(
+      "No shifts right now We'll message you when something matches.",
+    );
+    expect(apply(home({ reach: [], open: urgentOnly }))).toBe(
+      "No other shifts now We'll message you when something matches.",
+    );
+  });
   it("her next shift as a pass that opens into its details: getting there, report to, bring and wear, pay, actions", () => {
     const next = shift({
       startsAt: at("2026-11-07T14:00:00Z"),

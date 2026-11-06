@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
-import { setFirmSetting } from "./db";
+import { randomBytes } from "node:crypto";
+import { addOfficeUser, setFirmSetting } from "./db";
 import { expect, sessionPanel, test } from "./fixtures";
 import { sentTo } from "./outbox";
 import { detailsNoticeChannels, detailsScene, startDetailsNoticeNow } from "./p28/28-3-data";
@@ -28,7 +29,15 @@ test("a new meeting point on a booked session: the office sees who'll be told, a
   page,
 }) => {
   const scene = await detailsScene("acme");
-  await officeLogin(page, "acme.resourcer@example.com");
+  // A resourcer of this test's own: the seeded acme.resourcer is shared by other specs, and the
+  // office login allows 3 links per address in 15 minutes.
+  const resourcer = `p28-3.resourcer.${randomBytes(3).toString("hex")}@example.com`;
+  await addOfficeUser("acme", {
+    email: resourcer,
+    name: "Details Notice Resourcer",
+    role: "resourcer",
+  });
+  await officeLogin(page, resourcer);
   await page.goto(`${acme}/office/shifts/${scene.shiftId}`);
 
   const panel = await sessionPanel(page, "Session details");

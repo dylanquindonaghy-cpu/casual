@@ -202,7 +202,7 @@ test("a worker logs in, takes a shift, cancels it, asks for a change and sees th
   await expect(page).toHaveURL(`${acme}/requests`);
   await expect(page.getByText(/^Time change: Sat \d+ \w+, 15:00 to 23:00$/)).toBeVisible();
   await expect(page.getByText("Waiting for the office")).toBeVisible();
-  await page.getByRole("link", { name: "Back to my shifts" }).click();
+  await page.getByRole("link", { name: "Back to my profile" }).click();
 
   await timed("see pay with a code", async () => {
     await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Pay" }).click();

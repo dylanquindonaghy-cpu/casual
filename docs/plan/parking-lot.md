@@ -2423,14 +2423,33 @@ Each task adds what it left out here as its wave is merged.
   can take back a request while it's still waiting" needs "(not a question you sent us as a
   message: the office answers that one)", and the erasure sentence about "still coming" wants
   plainer words.
-- **28.3:** (filled when wave 2 is merged)
-- **28.4:** (filled when wave 2 is merged)
-- **28.5:** (filled when wave 2 is merged)
+- **28.3 (told when the briefing changes):** a burst of saves during quiet hours can write one
+  held entry per queued job (duplicates in the log, one message each still at most once). If the
+  office's booking message is held by quiet hours, the details notice could reach the casual
+  before it. A claim cut short by a crash is never resent (at most once, like the other notices).
+  `tests/integration/notify.policy.test.ts` doesn't list the new sender yet, and no test covers the
+  email-chosen path (push, text, `no_way` and no text sender are covered).
+- **28.4 (your shift record):** a download of the casual's own record as a PDF or CSV. The action
+  log's purge (Data 2) will shorten how far back older records go. Links from Booked's Past view and
+  from Profile are 28.13's. The list shows the newest 300 entries in 90 days.
+- **28.5 (a shift's page):** `shift-parts.tsx` (the figure tiles and `factCard`) still has its own
+  `rounded-2xl` and `rounded-3xl`, left to 28.13 and 28.16. The strike note rounds the hours down
+  ("starts in 36 hours" at 36h55m). `requirement-chips.tsx` has no page using it any more.
 - **28.6:** (filled when wave 2 is merged)
-- **28.7:** (filled when wave 2 is merged)
+- **28.7 (Home and the pass):** Home reads the casual's qualifications twice (the "Do this" row and
+  the tab counts); one query could serve both. The office's look classes asked for between waves:
+  a row-lead slot that lines a disc up with a date tile, and removing the unused `font-greet`.
+  `login.worker.spec.ts`'s exact tab names would fail if its seeded casual ever had an unseen
+  payroll answer (none does today).
 - **28.8:** (filled when wave 2 is merged)
-- **28.9:** (filled when wave 2 is merged)
-- **28.10:** (filled when wave 2 is merged)
+- **28.9 (requests, both sides):** the server still accepts "declined" for an attendance question
+  (only the office page limits it to one answer; a stored decline still reads "Answered" to her).
+  Refusing it on the server breaks a 28.2 race test, so it waits for a decision on that test's
+  intent.
+- **28.10 (Pay and the pay query):** no browser test yet checks the Pay tab's visible count
+  dropping (the test checks the database count); add one now 28.7's count is on the tab. Words typed
+  into the pay query are lost if the code runs out mid-form. Its mock-up (private until shared):
+  https://claude.ai/artifact/CeCCbGUgfefLo4CSU4jFDB
 - **28.11:** (filled when wave 2 is merged)
 - **28.12:** (filled when wave 3 is merged)
 - **28.13:** (filled when wave 3 is merged)

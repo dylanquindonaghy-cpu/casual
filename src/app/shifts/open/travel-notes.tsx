@@ -12,11 +12,12 @@ import { btn, muted } from "../../ui/classes";
 // The travel area's notes on Open shifts and the urgent board (docs/office-v2.md 4.3; 12G.3): with
 // no area, a prompt to add one (the list is unfiltered); with one, how many more shifts are further
 // than she travels, and a link to change how far. Neither where the firm has travel areas off (13.4).
+// The prompt is a glass section on the token corner (12px: Phase 28, 28.8).
 
 export function AreaPrompt({ list }: { list: OpenShiftsList }) {
   if (!list.travelOn || list.area) return null;
   return (
-    <div className="glass mb-4 rounded-2xl px-4 py-3 text-base">
+    <div className="glass mb-4 rounded-inner px-4 py-3 text-base">
       <p>{AREA_PROMPT}</p>
       <Link href={TRAVEL_PATH} className={btn.link}>
         {AREA_PROMPT_LINK}

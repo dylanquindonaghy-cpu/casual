@@ -9,7 +9,7 @@ import { noticeHours } from "../roster/notice";
 import { casualEventName } from "../roster/shift-events";
 import { decideForWorker, firmStrikeSettings } from "../strikes/issue";
 import { addDays, localDateOf, wallTimeOf, zonedToUtc } from "../time/zoned";
-import { travelLineText, type TravelFacts } from "../travel/line-copy";
+import { travelLineCompact, type TravelFacts } from "../travel/line-copy";
 import { cutChars, cutUnits } from "../text/cut";
 import { roleWords } from "../text/role";
 
@@ -213,13 +213,14 @@ function whatsappLine(s: ListedShift, i: number, tz: string, max: number, area: 
     ...(s.holdsCsas ? ["you hold CSAS"] : []),
   ];
   const line = parts.join(" · ");
-  return area && s.travel ? `${line}\n   ${travelLineText(s.travel, tz)}` : line;
+  return area && s.travel ? `${line}\n   ${travelLineCompact(s.travel, tz)}` : line;
 }
 
-// A text's travel: the app's travel line (the distance and the time by car and by public
-// transport, or why they aren't known), with commas: "·" isn't in the plain text alphabet.
+// A text's travel: the shifts line's travel words (the distance and the time by car and by public
+// transport, or why they aren't known; src/lib/travel/line-copy.ts `travelLineCompact`), with
+// commas: "·" isn't in the plain text alphabet.
 function smsTravel(f: TravelFacts, tz: string): string {
-  return travelLineText(f, tz)
+  return travelLineCompact(f, tz)
     .split(" · ")
     .map((part) => part.charAt(0).toLowerCase() + part.slice(1))
     .join(", ");

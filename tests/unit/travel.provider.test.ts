@@ -269,11 +269,12 @@ describe("the travel line's words", () => {
   });
 
   it("the provider down, or not worked out yet: the straight line, labelled", () => {
+    // Phase 28 (28.8): one sentence in the casual app (tests/unit/travel.line-copy.test.ts).
     expect(travelLineText({ kind: "straight", straightMetres: 11300 }, TZ)).toBe(
-      "about 7 miles (straight line) · Travel time not known yet",
+      "About 7 miles away. Travel time isn't worked out yet.",
     );
     expect(travelLineText({ kind: "straight", straightMetres: 300 }, TZ)).toBe(
-      "about 1 mile (straight line) · Travel time not known yet",
+      "About 1 mile away. Travel time isn't worked out yet.",
     );
     expect(travelLineText({ kind: "unknown" }, TZ)).toBe("Distance not known yet");
   });

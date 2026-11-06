@@ -271,10 +271,14 @@ Every link and button on the page is at least 44px tall (the full-width buttons 
 it changes anything by being opened or tapped, except "Take shift", "I can do this" and the review
 form, as before; downloading the calendar file changes nothing, so it isn't logged.
 
-**Mock-up:** none for this task (Dylan, 2026-11-05: "Full build"; "Do not prompt me until the full
-plan is being pull requested"). The browser test `tests/e2e/casual.p28-shift-page.spec.ts` takes the
-screenshots instead: an urgent open shift, a booking starting within 3 hours and a moved booking,
-at 390px and 1,280px, light and dark.
+**Mock-up:** none to approve first (Dylan, 2026-11-05: "Full build"; "Do not prompt me until the
+full plan is being pull requested"). The before-and-after mock-up is in
+`docs/mockups/phase-28/28.5/index.html`, published at
+https://claude.ai/artifact/Xa8BKjUViTtRZFqwkmQbNb (an open shift, an urgent one, one she can't
+take and her booking; a phone at 390px and a laptop at 1,280px at 150%, light and dark; drawn from
+the build after the merge; private until Dylan shares it). The browser test
+`tests/e2e/casual.p28-shift-page.spec.ts` takes the real screenshots: an urgent open shift, a
+booking starting within 3 hours and a moved booking, at 390px and 1,280px, light and dark.
 
 ### 28.6
 

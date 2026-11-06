@@ -5,6 +5,17 @@ import { currentOfficeUser } from "../auth/office-login";
 import { canAccess } from "../auth/roles";
 import { firms, type CancelAsker } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
+import {
+  askedBySql,
+  entryShiftIdSql,
+  fromCurrentStartSql,
+  noticeSql,
+  recordRow,
+  UUID_TEXT,
+  type Initiator,
+  type RecordQueryRow,
+  type RowKind,
+} from "../notices/record-rows";
 import { noticeText } from "../portal/cancel-reasons";
 import { roleLabel } from "../portal/format";
 import { addDays, localDateOf, wallTimeOf, zonedToUtc } from "../time/zoned";
@@ -20,7 +31,10 @@ import { dayWithYear } from "./action-log";
 //   Shortened shift.curtailed   (the office, or the rota sheet)
 //   Cancelled shift.cancelled   (the worker, the office, or the rota sheet)
 // Notice hours come from the event itself (recorded when it happened). Offers logged before they
-// recorded it are counted from the shift's current start, and say so.
+// recorded it are counted from the shift's current start, and say so. Each row comes from the
+// notice record's row builder (src/lib/notices/record-rows.ts, shared since Phase 28.4 with the
+// casual's own shift record); this adds the worker's name, the short-notice flag, who asked, and
+// the office's typed reason for a booking it made despite a rule.
 //
 // Short notice: under the firm's `short_notice_threshold_hours` (1 to 720; missing or not valid:
 // 48, the placeholder until the 2027 rules are final, and the page says which). Every row is
@@ -44,8 +58,7 @@ export const REPORT_KINDS = {
 export type ReportKind = keyof typeof REPORT_KINDS;
 const ALL_ACTIONS = Object.values(REPORT_KINDS).flat();
 
-export type RowKind = "offered" | "booked" | "moved" | "shortened" | "cancelled";
-export type Initiator = "worker" | "office" | "rota_sheet" | "offer_wave" | "firm";
+export type { Initiator, RowKind };
 
 export interface NoticeRow {
   eventId: number;
@@ -128,43 +141,13 @@ export function shortNoticeThreshold(settings: Record<string, unknown>): NoticeR
     : { hours: DEFAULT_SHORT_NOTICE_HOURS, source: "invalid" };
 }
 
-const KIND_OF: Record<string, RowKind> = {
-  "offer.sent": "offered",
-  "shift.assigned": "booked",
-  "shift.moved": "moved",
-  "shift.curtailed": "shortened",
-  "shift.cancelled": "cancelled",
-};
-
-type Row = {
-  id: string | number;
-  action: string;
-  actor_type: string;
-  data: Record<string, unknown>;
-  created_at: string | Date;
-  notice: string | number | null;
-  from_current: boolean;
-  shift_id: string | null;
-  role: string | null;
-  starts_at: string | Date | null;
-  site_name: string | null;
+// The report's query row: the record's own (src/lib/notices/record-rows.ts) and the office's extras.
+export type NoticeQueryRow = RecordQueryRow & {
   first_name: string | null;
   last_name: string | null;
   override_reason: string | null;
   asked_by: CancelAsker | null;
 };
-
-// Who started it, from the event: the worker, the office, the rota sheet (the Google Sheets sync,
-// the system on the firm's behalf), or an offer wave.
-function initiatorOf(action: string, actorType: string, data: Record<string, unknown>): Initiator {
-  if (action === "offer.sent") return data.offeredBy ? "office" : "offer_wave";
-  if (data.by === "worker") return "worker";
-  if (data.source === "sheets") return "rota_sheet";
-  return actorType === "office" ? "office" : "firm";
-}
-
-const isoOf = (v: unknown): Date | null =>
-  typeof v === "string" && !Number.isNaN(Date.parse(v)) ? new Date(v) : null;
 
 export async function loadNoticeReport(
   tx: FirmTx,
@@ -197,10 +180,7 @@ export async function loadNoticeReport(
   const workerStarted = sql`coalesce(e.action in ('shift.assigned', 'shift.cancelled')
     and e.data ->> 'by' = 'worker', false)`;
   // The notice in hours: the event's own figure, or for an older offer, from the current start.
-  const recorded = sql`case when e.data ->> 'noticeHours' ~ '^-?[0-9]+(\\.[0-9]+)?$'
-                            then (e.data ->> 'noticeHours')::numeric end`;
-  const notice = sql`coalesce(${recorded}, case when e.action = 'offer.sent' and s.starts_at is not null
-      then round((extract(epoch from s.starts_at - e.created_at) / 3600)::numeric, 2) end)`;
+  const notice = noticeSql();
   const where: SQL[] = [
     sql`e.created_at >= ${midnight(from)} and e.created_at < ${midnight(addDays(to, 1))}`,
     sql`e.action in (${sql.join(
@@ -212,41 +192,33 @@ export async function loadNoticeReport(
   if (query.by === "firm") where.push(sql`not ${workerStarted}`);
   if (query.shortOnly) where.push(sql`${notice} < ${threshold.hours}`);
 
-  const uuidText = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
   // The shift and worker the event names, or (an older rota-sheet move that named neither) those
   // of the booking it's about.
   const joins = sql`
     left join assignments a on e.entity_type = 'assignment'
       and a.firm_id = e.firm_id and a.id = e.entity_id
-    left join shifts s on s.firm_id = e.firm_id and s.id = coalesce(
-      case when e.data ->> 'shiftId' ~ ${uuidText} then (e.data ->> 'shiftId')::uuid end, a.shift_id)
+    left join shifts s on s.firm_id = e.firm_id and s.id = ${entryShiftIdSql()}
     left join sites si on si.firm_id = s.firm_id and si.id = s.site_id
     left join workers w on w.firm_id = e.firm_id and w.id = coalesce(
-      case when e.data ->> 'workerId' ~ ${uuidText} then (e.data ->> 'workerId')::uuid end, a.worker_id)`;
+      case when e.data ->> 'workerId' ~ ${UUID_TEXT} then (e.data ->> 'workerId')::uuid end, a.worker_id)`;
   const whereSql = sql.join(where, sql` and `);
 
   const { rows: counted } = await tx.execute<{ n: number }>(sql`
     select count(*)::int as n from events e ${joins} where ${whereSql}`);
   // Who asked: the cancellation's own log entry (since P3.4), else its booking's record (every one
   // since migration 0053); one with neither (none should be) counts as not known.
-  const askedBySql = sql`case when e.action = 'shift.cancelled'
-                              then coalesce(case when e.data ->> 'askedBy' in ('casual', 'firm', 'client', 'unknown')
-                                                 then e.data ->> 'askedBy' end,
-                                            a.cancel_asked_by, 'unknown') end`;
   const { rows: asked } = await tx.execute<{ asked_by: CancelAsker; n: number }>(sql`
-    select ${askedBySql} as asked_by, count(*)::int as n
+    select ${askedBySql()} as asked_by, count(*)::int as n
       from events e ${joins}
      where ${whereSql} and e.action = 'shift.cancelled'
      group by 1`);
   const askedBy: Record<CancelAsker, number> = { casual: 0, firm: 0, client: 0, unknown: 0 };
   for (const a of asked) askedBy[a.asked_by] += a.n;
-  const { rows } = await tx.execute<Row>(sql`
+  const { rows } = await tx.execute<NoticeQueryRow>(sql`
     select e.id, e.action, e.actor_type, e.data, e.created_at,
-           ${notice} as notice,
-           (${recorded}) is null and e.action = 'offer.sent' and s.starts_at is not null
-             as from_current,
+           ${notice} as notice, ${fromCurrentStartSql()} as from_current,
            s.id::text as shift_id, s.role, s.starts_at, si.name as site_name,
-           w.first_name, w.last_name, a.override_reason, ${askedBySql} as asked_by
+           w.first_name, w.last_name, a.override_reason, ${askedBySql()} as asked_by
       from events e ${joins}
      where ${whereSql}
      order by e.id desc
@@ -260,55 +232,33 @@ export async function loadNoticeReport(
     clamped,
     total: counted[0]?.n ?? 0,
     askedBy,
-    rows: rows.map((r) => {
-      const hours = r.notice === null ? null : Number(r.notice);
-      const kind = KIND_OF[r.action] ?? "booked";
-      const firmStarted = initiatorOf(r.action, r.actor_type, r.data) !== "worker";
-      const oldStart = isoOf(r.data.oldStartsAt);
-      const newStart = isoOf(r.data.newStartsAt);
-      const oldEnd = isoOf(r.data.oldEndsAt);
-      const newEnd = isoOf(r.data.newEndsAt);
-      return {
-        eventId: Number(r.id),
-        at: new Date(r.created_at),
-        kind,
-        initiator: initiatorOf(r.action, r.actor_type, r.data),
-        worker: r.first_name ? `${r.first_name} ${r.last_name ?? ""}`.trim() : "Someone",
-        shift:
-          r.shift_id && r.role && r.starts_at
-            ? {
-                id: r.shift_id,
-                role: r.role,
-                site: r.site_name,
-                startsAt: new Date(r.starts_at),
-              }
-            : null,
-        moved:
-          (kind === "moved" || kind === "shortened") && oldStart && newStart && oldEnd && newEnd
-            ? {
-                fromStart: oldStart,
-                fromEnd: oldEnd,
-                toStart: newStart,
-                toEnd: newEnd,
-                siteChanged:
-                  "oldSiteId" in r.data &&
-                  "newSiteId" in r.data &&
-                  r.data.oldSiteId !== r.data.newSiteId,
-              }
-            : null,
-        noticeHours: hours !== null && Number.isFinite(hours) ? hours : null,
-        noticeFromCurrentStart: Boolean(r.from_current),
-        shortNotice: hours !== null && Number.isFinite(hours) && hours < threshold.hours,
-        reason: !firmStarted
-          ? null
-          : typeof r.data.reason === "string"
-            ? r.data.reason
-            : r.action === "shift.assigned" && r.override_reason
-              ? r.override_reason
-              : null,
-        askedBy: r.asked_by,
-      };
-    }),
+    rows: rows.map((r) => noticeRowOf(r, threshold.hours)),
+  };
+}
+
+// One row of the report from its query's row (pure): the record's row (src/lib/notices/record-rows.ts)
+// with the office's extras, in the keys and order the page and the file have always had.
+export function noticeRowOf(r: NoticeQueryRow, thresholdHours: number): NoticeRow {
+  const row = recordRow(r);
+  return {
+    eventId: row.eventId,
+    at: row.at,
+    kind: row.kind,
+    initiator: row.initiator,
+    worker: r.first_name ? `${r.first_name} ${r.last_name ?? ""}`.trim() : "Someone",
+    shift: row.shift,
+    moved: row.moved,
+    noticeHours: row.noticeHours,
+    noticeFromCurrentStart: row.noticeFromCurrentStart,
+    shortNotice: row.noticeHours !== null && row.noticeHours < thresholdHours,
+    // The firm's logged words, or for a booking it made despite a rule, its typed reason (office
+    // only: the casual's record never reads it).
+    reason:
+      row.initiator === "worker"
+        ? null
+        : (row.loggedReason ??
+          (r.action === "shift.assigned" && r.override_reason ? r.override_reason : null)),
+    askedBy: r.asked_by,
   };
 }
 

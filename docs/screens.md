@@ -264,7 +264,73 @@ at 390px and 1,280px, light and dark.
 
 ### 28.6
 
-(Written by task 28.6.)
+**Message the office about a shift.** Messages is the app's one way to the office. A "Message the
+office" button about a shift (the shift's page, the pass, Help: 28.5, 28.12, 28.13) opens Messages
+with that shift named, so nobody in the office has to ask "which shift?". The link is 28.2's:
+`/messages?shift={id}&about={pay|late|started|other}`.
+
+What the casual sees on Messages, opened from a shift:
+
+- **The About line**, a glass pill just above the box: "About: Steward · Sat 7 Nov, 10:30" (the
+  role, the day and the start time, in the firm's time). Screen readers hear it with the box.
+- **A ready sentence in the box**, hers to change or send as it is:
+
+  | She came about | The box holds |
+  |---|---|
+  | The pay for a shift that hasn't ended (`about=pay`) | "What's the pay for this shift?" |
+  | Running late (`about=late`) | "I'm running late. I'll be there about …" |
+  | A shift that has started (`about=started`) | "This shift has started and I need to talk to someone." |
+  | Anything else (`about=other`) | Nothing: an empty box, with the About line |
+
+- The page scrolls to the box, so a long thread never hides it (the focus stays at the page's
+  start, so a screen reader still reads the page from its heading).
+- **Send** → her message shows in the thread at once, then **"Sent. The office will answer here."**
+  A message about a shift never gets an automatic answer: a person in the office reads it and
+  answers in Messages. The About line and the shift's link go once it's sent: her next message is
+  about nothing in particular, as today.
+- **No About line** (the page works as today, with an empty box) when the shift isn't one she's
+  booked on or can see in Open shifts, is a draft or cancelled, has ended, is another firm's, or the
+  link isn't one the app makes (a missing or unknown `about`, not a shift's id). A message sent then
+  is sorted as any other: a pay question about a worked shift gets the pay page's link, towards a
+  pay query for payroll (golden rule 9). A shift that ends between opening the page and tapping
+  Send is treated the same way: the send keeps no shift, so the page says "Sent. The answer comes
+  here." (what the send stored decides the words, not the link she came from).
+
+Messages' own words and look change too (the review's note on 51 words):
+
+- The intro is two sentences: "Ask about shifts, cancelling or pay for an answer straight away, or
+  ask the office anything else. If your pay looks wrong, raise a pay query on the Pay page: it goes
+  to payroll."
+- The box's label is "Your message" (was "Write to the office": the first answer is often
+  automatic).
+- "No messages yet." sits in the empty box (clear glass, 8px round, grey words).
+- The bubbles are 12px round (the office's section corner), hers still in the firm's colour, the
+  answers still in glass.
+
+Unchanged: 20 messages an hour at most, 5 automatic answers an hour at most, and the page looking
+again every few seconds for a minute after a send.
+
+What the office sees, on Enquiries:
+
+- The message is in **Need a person** ("Passed to a person, waiting"), never sorted by keyword or
+  AI: the AI never sees it.
+- Its page, and the pane beside the list, shows **"About: Steward, Sat 7 Nov 10:30"** at the top
+  of "The conversation", the session's words a link to its page (`/office/shifts/[id]`).
+- "How it was answered": "Sorted: About a session: passed to a person, never sorted.", "Reply sent:
+  No automatic reply.", "Sent: Nothing sent."
+- The reply goes as any reply in the app: "In the app: your words go as they are, and they get a
+  notification."
+- The action log's entry for the message names the session, so it shows in that session's history.
+
+**Mock-up:** none to approve first (Dylan, 2026-11-05: "Full build"; "Do not prompt me until the
+full plan is being pull requested"). The before-and-after mock-up is in
+`docs/mockups/phase-28/28.6/index.html`, published at
+https://claude.ai/artifact/RNAjvcnPgtyTJ3DAQUJvc4 (Messages opened about a shift, sent, answered,
+and with the shift ended before Send; the office's message page with its About line; a phone at
+390px and a laptop at 1,280px at 150%, light and dark; private until Dylan shares it). The browser
+test `tests/e2e/casual.p28-message-office.spec.ts` takes the real screenshots: Messages opened about
+a shift, and the office's message page with its About line, at 390px and 1,280px, light and dark,
+attached to its run's report.
 
 ### 28.7
 
@@ -1578,7 +1644,9 @@ the same where it's silent: the words in each message, record and list item, and
   its outcome chip and "Reference {ref}", "{Kieran Doyle}'s page" at the top right, then the
   message page's parts. "Requests from the app" stays the request queue, the page's width.
 - **One message** (`/office/enquiries/[id]`, and the pane): the conversation in a clear-glass
-  panel, theirs in clear glass at the left, ours in ink at the right; "How it was answered" as a
+  panel, theirs in clear glass at the left, ours in ink at the right (a casual's message in the app
+  about a session, Phase 28.6: "About: {Steward}, {Sat 7 Nov 10:30}" above the panel, the session's
+  words a link to its page); "How it was answered" as a
   numbered list; "Considered but not offered"; and, while it needs a person, the reply box ("Reply"
   to screen readers, described by how it will go), under it how the reply goes ("Inside WhatsApp's
   24-hour window: your words go as they are.", …), "Close, no reply needed" and "Send reply" (the
@@ -2451,14 +2519,20 @@ text; an office reply comes with a notification on her phone.
 - **The tab bar**: Home, Shifts, Messages, Pay, Profile. Messages carries a count (the firm's
   colour) of office replies she hasn't seen on Messages yet; for screen readers "Messages, 1 new
   reply" / "Messages, 2 new replies".
-- **Messages** (`/messages`; `src/app/messages/`): "Messages", then "Ask about your shifts, cancelling or pay and get an answer straight away. If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll. Anything else goes to the office, and their reply comes here." Her messages and their
-  answers, oldest first, the last 90 days: hers on the right in the firm's colour, the answers on
+- **Messages** (`/messages`; `src/app/messages/`): "Messages", then (Phase 28.6: two sentences) "Ask about shifts, cancelling or pay for an answer straight away, or ask the office anything else. If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll." Her messages and their
+  answers, oldest first, the last 90 days, in 12px round bubbles (Phase 28.6): hers on the right in the firm's colour, the answers on
   the left in glass, each with its time ("09:14" today, else "09:14 on Mon 2 Nov"), an answer
   marked "Automatic reply" or "From the office"; a link in an answer is a link. Empty: "No
-  messages yet. Ask about your shifts, cancelling or pay, or write to the office." At the foot:
-  "Write to the office" (a box, 1,600 characters at most) → "Send" → her message shows at once,
+  messages yet." in the empty box (Phase 28.6). At the foot:
+  "Your message" (Phase 28.6, was "Write to the office"; a box, 1,600 characters at most) → "Send" → her message shows at once,
   then "Sent. The answer comes here." until it does (the page looks again every few seconds for a
-  minute). Errors: "Write a message first.", "That's too long (1,600 characters at most).",
+  minute). Opened from a shift (`/messages?shift={id}&about={pay|late|started|other}`, Phase 28.6:
+  "The casual app, Phase 28" above, "### 28.6"): "About: {Steward} · {Sat 7 Nov, 10:30}" above the
+  box and a ready sentence in it ("What's the pay for this shift?" / "I'm running late. I'll be there
+  about …" / "This shift has started and I need to talk to someone." / none); sent, "Sent. The office
+  will answer here." when the send kept the shift (a person answers it, never an automatic answer);
+  one that ended before she tapped Send isn't kept, and the words are "Sent. The answer comes
+  here." A shift she isn't booked on and can't see, or one that has ended: no About line, as before. Errors: "Write a message first.", "That's too long (1,600 characters at most).",
   "You've sent a lot of messages. Wait a few minutes, then try again." (more than 20 in an hour),
   "Something went wrong. Try again." (with no network: "No signal. Try again when you have
   signal."); logged out, it goes to the login page. Opening Messages marks the office's replies it shows as
@@ -2474,7 +2548,10 @@ text; an office reply comes with a notification on her phone.
   readers) and the casual's name; its page shows the conversation in the app, and "How it was
   answered": "Received: In the app at {time}, from {Kieran Doyle}.", "Sent: Shown in the app at
   {time}.", and, when no automatic answer went: "5 automatic replies already went to them this
-  hour: passed to a person." / "It quoted our automatic reply: passed to a person." The reply
+  hour: passed to a person." / "It quoted our automatic reply: passed to a person." A message
+  about a session (Phase 28.6): always in Need a person, "About: {Steward}, {Sat 7 Nov 10:30}" at
+  the top of "The conversation" (the session's words → `/office/shifts/[id]`), and "Sorted: About a
+  session: passed to a person, never sorted." The reply
   line: "In the app: your words go as they are, and they get a notification." → "Send reply" →
   "Your reply is on its way: it shows in their app in a moment." Then: "{Sam Rota} replied at
   {time} (in the app, in their own words): sent."

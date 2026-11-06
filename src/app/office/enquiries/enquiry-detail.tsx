@@ -41,6 +41,17 @@ import { Ref } from "@/app/ui/ref";
 const VOICEMAIL_WARNING =
   "From a voicemail on the shifts line. A caller's number can be faked: check anything unusual with them.";
 
+// A casual's message in the app about a session (Phase 28.6; docs/screens.md "### 28.6"): "About:"
+// and the session it names ("Steward, Sat 7 Nov 10:30"), linked to its page.
+export const aboutSessionWords = (
+  a: { role: string; startsAt: Date },
+  timeZone: string,
+): string => {
+  const w = wallTimeOf(a.startsAt, timeZone);
+  const hhmm = `${String(w.hour).padStart(2, "0")}:${String(w.minute).padStart(2, "0")}`;
+  return `${roleLabel(a.role)}, ${dayLabel(localDateOf(a.startsAt, timeZone))} ${hhmm}`;
+};
+
 // "Message from Kieran Doyle", or from "an unknown number" / "a withheld number".
 export function enquiryTitle(e: EnquiryDetail): string {
   const name = whoName(e.who);
@@ -170,6 +181,14 @@ export function EnquiryBody({
         <H id="conversation" className={h2}>
           The conversation
         </H>
+        {e.about && (
+          <p data-about-session>
+            <span className="font-semibold">About:</span>{" "}
+            <Link href={`/office/shifts/${e.about.shiftId}`} className={textLink}>
+              {aboutSessionWords(e.about, e.timeZone)}
+            </Link>
+          </p>
+        )}
         <ul role="list" className="glass-tile flex flex-col gap-3 rounded-inner p-4">
           {e.conversation.map((item) => (
             <Bubble key={item.id} item={item} timeZone={e.timeZone} />

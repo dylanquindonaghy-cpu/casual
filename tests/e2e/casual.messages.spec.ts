@@ -48,7 +48,7 @@ test("Messages: answered at once in the app, then the office's reply, counted on
   await expect(page.getByRole("heading", { level: 1, name: "Messages" })).toBeVisible();
   await expect(
     page.getByText(
-      "Ask about your shifts, cancelling or pay and get an answer straight away. If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll. Anything else goes to the office, and their reply comes here.",
+      "Ask about shifts, cancelling or pay for an answer straight away, or ask the office anything else. If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll.",
     ),
   ).toBeVisible();
   await expect(page.getByText("No messages yet.")).toBeVisible();
@@ -58,7 +58,7 @@ test("Messages: answered at once in the app, then the office's reply, counted on
   );
   await noSidewaysScroll(page);
 
-  const box = page.getByLabel("Write to the office");
+  const box = page.getByLabel("Your message", { exact: true });
   const send = page.getByRole("button", { name: "Send", exact: true });
   await send.click();
   await expect(page.getByRole("alert").filter({ hasText: "Write a message first." })).toBeVisible();

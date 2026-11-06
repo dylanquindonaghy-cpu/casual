@@ -323,7 +323,9 @@ export interface EnquiryTimeline {
     | { how: "opt_out" }
     | { how: "not_yet" }
     // Sorted, but automatic replies are off, so it waits for a person (Phase 25.3).
-    | { how: "held"; by: "keyword" | "ai"; intent: Exclude<Intent, "office"> };
+    | { how: "held"; by: "keyword" | "ai"; intent: Exclude<Intent, "office"> }
+    // A message in the app about a session (Phase 28.6): never sorted, passed to a person.
+    | { how: "about_shift" };
   reply:
     | { how: "automatic"; intent: Intent | "unknown_number" | "voicemail" }
     | { how: "none" }
@@ -378,6 +380,10 @@ export interface EnquiryDetail {
   pay: boolean;
   voicemail: boolean;
   question: { requestId: string; ref: string; status: string } | null;
+  // The session a casual's message in the app is about (Phase 28.6: `messages.shift_id`, kept only
+  // for one that hadn't ended when she sent it), for "About: Steward, Sat 7 Nov 10:30" and its
+  // link; null for any other message.
+  about: { shiftId: string; role: string; startsAt: Date } | null;
   conversation: ConversationItem[];
   timeline: EnquiryTimeline;
   plan: ReplyPlan; // how a reply from the office would go now
@@ -523,6 +529,19 @@ export async function loadEnquiry(
      where q.message_id = ${m.id}
   `);
   const question = questions[0] ?? null;
+  // The session her message in the app is about (Phase 28.6), as it is now (RLS keeps it the
+  // firm's own; the composite key keeps the message's session in its firm).
+  const { rows: abouts } = await tx.execute<{
+    id: string;
+    role: string;
+    starts_at: string | Date;
+  }>(sql`
+    select s.id::text as id, s.role, s.starts_at
+      from messages x
+      join shifts s on s.firm_id = x.firm_id and s.id = x.shift_id
+     where x.id = ${m.id}
+  `);
+  const aboutRow = abouts[0];
 
   // The office's replies: the row is stored when the office sends it; its outcome is logged
   // against it (by its id). One still "sending" 15 minutes on is unconfirmed: the job stopped
@@ -651,37 +670,39 @@ export async function loadEnquiry(
   const sorted: EnquiryTimeline["sorted"] =
     m.handled_at === null
       ? { how: "not_yet" }
-      : received?.data.replyLimit === true
-        ? { how: "person", why: "reply_limit" }
-        : received?.data.echo === true
-          ? { how: "person", why: "echo" }
-          : held && sortedAs && (handledAs === "keyword" || handledAs === "ai")
-            ? { how: "held", by: handledAs, intent: sortedAs }
-            : answerFailed !== null && handledAs === "office"
-              ? { how: "person", why: "answer_failed", code: answerFailed }
-              : handledAs === "keyword" && intent
-                ? intent === "office"
-                  ? { how: "person", why: "asked" }
-                  : { how: "keyword", intent }
-                : handledAs === "ai" && intent
+      : typeof received?.data.shiftId === "string" && handledAs === "office"
+        ? { how: "about_shift" }
+        : received?.data.replyLimit === true
+          ? { how: "person", why: "reply_limit" }
+          : received?.data.echo === true
+            ? { how: "person", why: "echo" }
+            : held && sortedAs && (handledAs === "keyword" || handledAs === "ai")
+              ? { how: "held", by: handledAs, intent: sortedAs }
+              : answerFailed !== null && handledAs === "office"
+                ? { how: "person", why: "answer_failed", code: answerFailed }
+                : handledAs === "keyword" && intent
                   ? intent === "office"
-                    ? { how: "person", why: "ai_asked" }
-                    : { how: "ai", intent }
-                  : handledAs === "unknown"
-                    ? { how: "unknown", repeat: received?.data.repeat === true }
-                    : handledAs === "opt_out"
-                      ? { how: "opt_out" }
-                      : m.channel === "voice"
-                        ? { how: "person", why: "voicemail" }
-                        : m.body === null
-                          ? { how: "person", why: "no_text" }
-                          : {
-                              how: "person",
-                              why: "not_sorted",
-                              ...(aiReason(received?.data.aiFallback)
-                                ? { ai: aiReason(received?.data.aiFallback) }
-                                : {}),
-                            };
+                    ? { how: "person", why: "asked" }
+                    : { how: "keyword", intent }
+                  : handledAs === "ai" && intent
+                    ? intent === "office"
+                      ? { how: "person", why: "ai_asked" }
+                      : { how: "ai", intent }
+                    : handledAs === "unknown"
+                      ? { how: "unknown", repeat: received?.data.repeat === true }
+                      : handledAs === "opt_out"
+                        ? { how: "opt_out" }
+                        : m.channel === "voice"
+                          ? { how: "person", why: "voicemail" }
+                          : m.body === null
+                            ? { how: "person", why: "no_text" }
+                            : {
+                                how: "person",
+                                why: "not_sorted",
+                                ...(aiReason(received?.data.aiFallback)
+                                  ? { ai: aiReason(received?.data.aiFallback) }
+                                  : {}),
+                              };
 
   // The automatic reply: the first one logged against the message.
   const replied = events.find(
@@ -738,6 +759,9 @@ export async function loadEnquiry(
           ref: question.id.slice(0, 8).toUpperCase(),
           status: question.status,
         }
+      : null,
+    about: aboutRow
+      ? { shiftId: aboutRow.id, role: aboutRow.role, startsAt: new Date(aboutRow.starts_at) }
       : null,
     conversation: talk.map((x) => {
       const office = x.direction === "out" ? replies.get(x.id) : undefined;

@@ -6,6 +6,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { MyRecord, MyRecordRow } from "@/lib/portal/my-record";
 import { OFFLINE_PAGES } from "@/lib/portal/offline";
 import {
+  casualFirmReason,
+  FIRM_REASON_FOR_CASUAL,
   NOTICE_NOT_RECORDED,
   RECORD_EMPTY,
   RECORD_FOOT,
@@ -21,7 +23,14 @@ import {
   recordTitle,
   STRIKE_WORDS,
 } from "@/lib/portal/record-copy";
-import { FIRM_CHANGE_REASONS } from "@/lib/roster/firm-reasons";
+import { FIRM_CHANGE_REASON_CODES, FIRM_CHANGE_REASONS } from "@/lib/roster/firm-reasons";
+import {
+  ADDED_ON_SHEET,
+  CANCELLED_ON_SHEET,
+  CHANGED_ON_SHEET,
+  REMOVED_ON_SHEET,
+  SITE_CHANGED_ON_SHEET,
+} from "@/lib/roster/sheets/sync";
 
 // Your shift record in words (docs/screens.md "The casual app, Phase 28", 28.4): every kind of row
 // in plain words, "the office" for everyone in it, the notice only as logged, and nothing about
@@ -68,18 +77,30 @@ const EVERY_ROW: MyRecordRow[] = [
   row({ kind: "offered" }),
   row({ kind: "offered", noticeHours: null, shift: { ...shift, canOpen: false } }),
   row({ kind: "booked", by: "you", noticeHours: 129 }),
-  row({ kind: "booked", by: "office", reason: "Put on the rota sheet by the office" }),
-  row({ kind: "moved", moved, reason: FIRM_CHANGE_REASONS.weather, noticeHours: 21 }),
+  // A firm's reason as the loader gives it: in her words (firmReasonForCasual).
+  row({ kind: "booked", by: "office", reason: firmReasonForCasual(ADDED_ON_SHEET) }),
+  row({
+    kind: "moved",
+    moved,
+    reason: firmReasonForCasual(FIRM_CHANGE_REASONS.weather),
+    noticeHours: 21,
+  }),
   row({ kind: "shortened", moved: { ...moved, siteChanged: false }, noticeHours: 32.5 }),
   row({
     kind: "cancelled",
     by: "office",
-    reason: FIRM_CHANGE_REASONS.event_cancelled,
+    reason: firmReasonForCasual(FIRM_CHANGE_REASONS.event_cancelled),
     askedBy: "client",
     noticeHours: -2,
     shift: { ...shift, canOpen: false },
   }),
   row({ kind: "cancelled", by: "office", askedBy: "casual", noticeHours: 60 }),
+  row({
+    kind: "cancelled",
+    by: "office",
+    reason: firmReasonForCasual(FIRM_CHANGE_REASONS.not_available),
+    noticeHours: 30,
+  }),
   row({
     kind: "cancelled",
     by: "you",
@@ -179,14 +200,66 @@ describe("Your shift record: the words", () => {
     ]);
   });
 
-  it("reasons: only the fixed words; her own note under 'Something else' stays off the page", () => {
-    for (const words of Object.values(FIRM_CHANGE_REASONS)) {
-      expect(firmReasonForCasual(words)).toBe(words);
-    }
-    expect(firmReasonForCasual("Times changed on the rota sheet")).toBe(
-      "Times changed on the rota sheet",
+  it("reasons: only the fixed words, the office's told in her words; her own note under 'Something else' stays off the page", () => {
+    // Every one of the office's fixed reasons has words for her, as docs/screens.md 28.4 has them.
+    expect(
+      Object.fromEntries(
+        FIRM_CHANGE_REASON_CODES.map((code) => [
+          code,
+          firmReasonForCasual(FIRM_CHANGE_REASONS[code]),
+        ]),
+      ),
+    ).toEqual({
+      event_changed: "The event's times or place changed.",
+      event_cancelled: "The event was cancelled.",
+      fewer_staff: "The client needed fewer staff.",
+      weather: "Because of weather or safety.",
+      not_available: "You could no longer work this shift.",
+      other: "For another reason.",
+    });
+    // And every one of the rota sheet's, as the sync logs them.
+    expect(
+      [
+        ADDED_ON_SHEET,
+        CANCELLED_ON_SHEET,
+        REMOVED_ON_SHEET,
+        CHANGED_ON_SHEET,
+        SITE_CHANGED_ON_SHEET,
+      ].map((logged) => firmReasonForCasual(logged)),
+    ).toEqual([
+      "The office put you on the rota sheet.",
+      "The shift was cancelled on the rota sheet.",
+      "The office took you off the rota sheet.",
+      "The times were changed on the rota sheet.",
+      "The site was changed on the rota sheet.",
+    ]);
+    // The words for her cover exactly those fixed words, no others.
+    expect(Object.keys(FIRM_REASON_FOR_CASUAL).sort()).toEqual(
+      [
+        ...Object.values(FIRM_CHANGE_REASONS),
+        ADDED_ON_SHEET,
+        CANCELLED_ON_SHEET,
+        CHANGED_ON_SHEET,
+        REMOVED_ON_SHEET,
+        SITE_CHANGED_ON_SHEET,
+      ].sort(),
     );
-    expect(firmReasonForCasual("Their manager said it's fine")).toBeNull();
+    // She is reading about her own booking: each is one short sentence, and never "they".
+    for (const words of Object.values(FIRM_REASON_FOR_CASUAL)) {
+      expect(words, words).toMatch(/^[A-Z][^.]*\.$/);
+      expect(words, words).not.toMatch(/\b(they|they've|they're|them|their|she|her|he|his)\b/i);
+    }
+    // Anything else still shows nothing: typed words, or a name every object has.
+    for (const never of [
+      "Their manager said it's fine",
+      "constructor",
+      "toString",
+      "__proto__",
+      "hasOwnProperty",
+    ]) {
+      expect(firmReasonForCasual(never), never).toBeNull();
+      expect(casualFirmReason(never), never).toBeNull();
+    }
     expect(firmReasonForCasual(null)).toBeNull();
     for (const quick of ["I'm unwell", "Travel problem", "Family or caring"]) {
       expect(ownReasonForCasual(quick)).toBe(quick);
@@ -249,15 +322,16 @@ describe("Your shift record: the page", () => {
       "Offered to you",
       "Booked by you",
       "Booked by the office",
-      "Put on the rota sheet by the office",
+      "The office put you on the rota sheet.",
       "Moved by the office",
       "From Sat 7 Nov, 06:00 to 14:00",
       "To Sat 7 Nov, 08:00 to 16:00",
       "The site changed too.",
-      "Weather or safety",
+      "Because of weather or safety.",
       "Shortened by the office",
       "Cancelled by the office",
-      "The event was cancelled",
+      "The event was cancelled.",
+      "You could no longer work this shift.",
       "The client asked.",
       "You asked.",
       "After the shift started.",
@@ -272,7 +346,7 @@ describe("Your shift record: the page", () => {
       "A shift no longer listed",
       "Door supervisor at Riverside Arena",
       "Sat 7 Nov, 08:00",
-      "Showing the newest 12.",
+      "Showing the newest 13.",
       "Older records: ask the office for a copy.",
     ]) {
       expect(words, want).toContain(want);
@@ -284,6 +358,9 @@ describe("Your shift record: the page", () => {
   it("never an office user's name, pay, 'owed' or short-notice wording; only the office", () => {
     const words = text(render(record(EVERY_ROW)));
     expect(words).not.toContain("£");
+    // Never the office's own words about her ("They've left, or can't work here").
+    expect(words).not.toMatch(/\bthey('ve|'re)?\b/i);
+    expect(words).not.toContain(FIRM_CHANGE_REASONS.not_available);
     for (const never of [
       "owed",
       "owe ",

@@ -23,6 +23,7 @@ import {
 import { strikeSettings } from "../strikes/settings";
 import { CANCEL_REASONS, OTHER_REASON } from "./cancel-reasons";
 import type { PortalContext } from "./my-shifts";
+import { casualFirmReason } from "./record-copy";
 
 // The casual's own shift record (docs/screens.md "The casual app, Phase 28", 28.4; golden rule 12):
 // every offer, booking, office move and shortening and cancellation for her in the last 90 days,
@@ -35,7 +36,8 @@ import type { PortalContext } from "./my-shifts";
 // - The notice: only the figure the entry logged when it happened. One the builder worked out from
 //   the session's current start (an older offer) is null here: "Notice not recorded".
 // - Reasons: only fixed words. The office's list (FIRM_CHANGE_REASONS) and the rota sheet's own
-//   words on a row the firm started; on her own cancellation, the cancel sheet's list (her own note
+//   words on a row the firm started, told in her words (record-copy.ts FIRM_REASON_FOR_CASUAL: never
+//   the office's "They've left"); on her own cancellation, the cancel sheet's list (her own note
 //   under "Something else" shows as "Something else"). Never the office's typed reason for placing
 //   her (assignments.override_reason), never a firm cancellation's typed cancel_reason, never codes,
 //   "overridden", who sent an offer, or any office user.
@@ -69,7 +71,7 @@ export interface MyRecordRow {
   } | null;
   moved: RecordMove | null;
   noticeHours: number | null; // as logged; null: "Notice not recorded"
-  reason: string | null; // fixed words only
+  reason: string | null; // fixed reasons only, in her words
   askedBy: RecordAskedBy | null; // the office's cancellation: who asked for it, when recorded
   ref: string | null; // her own cancellation: the booking's reference
   strike: RecordStrike | null; // her own cancellation, with the firm's strikes on
@@ -92,8 +94,10 @@ const FIRM_WORDS: ReadonlySet<string> = new Set<string>([
   SITE_CHANGED_ON_SHEET,
 ]);
 
+// A firm-started row's reason: one of those fixed words, told in her words (record-copy.ts
+// FIRM_REASON_FOR_CASUAL); anything else, or fixed words with no words for her, shows nothing.
 export const firmReasonForCasual = (reason: string | null): string | null =>
-  reason !== null && FIRM_WORDS.has(reason) ? reason : null;
+  reason !== null && FIRM_WORDS.has(reason) ? casualFirmReason(reason) : null;
 
 // Her own cancellation's reason as the cancel sheet's list says it: a quick reason, or "Something
 // else" (her note stays off the page); anything else (none should be) shows nothing.

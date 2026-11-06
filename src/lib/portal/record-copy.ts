@@ -1,3 +1,4 @@
+import { FIRM_CHANGE_REASONS } from "../roster/firm-reasons";
 import { dayLabel } from "../rules/reasons";
 import { addDays, localDateOf, wallTimeOf } from "../time/zoned";
 import { noticeText } from "./cancel-reasons";
@@ -81,6 +82,29 @@ export function recordAskedText(askedBy: MyRecordRow["askedBy"]): string | null 
   if (askedBy === "casual") return "You asked.";
   return null;
 }
+
+// The office's fixed reasons as she reads them on her own record, keyed by the words in the log:
+// her words, not the office's (its "They've left, or can't work here" is about her, so here it says
+// "you"). The office's list (src/lib/roster/firm-reasons.ts), then its rota sheet's own fixed words
+// (src/lib/roster/sheets/sync.ts ADDED_ON_SHEET and the rest: written out, so this file stays free
+// of the server's code; the unit test holds them to the sync's). A reason not here shows nothing.
+export const FIRM_REASON_FOR_CASUAL: Readonly<Record<string, string>> = {
+  [FIRM_CHANGE_REASONS.event_changed]: "The event's times or place changed.",
+  [FIRM_CHANGE_REASONS.event_cancelled]: "The event was cancelled.",
+  [FIRM_CHANGE_REASONS.fewer_staff]: "The client needed fewer staff.",
+  [FIRM_CHANGE_REASONS.weather]: "Because of weather or safety.",
+  [FIRM_CHANGE_REASONS.not_available]: "You could no longer work this shift.",
+  [FIRM_CHANGE_REASONS.other]: "For another reason.",
+  "Put on the rota sheet by the office": "The office put you on the rota sheet.",
+  "Shift cancelled on the rota sheet": "The shift was cancelled on the rota sheet.",
+  "Removed on the rota sheet": "The office took you off the rota sheet.",
+  "Times changed on the rota sheet": "The times were changed on the rota sheet.",
+  "Site changed on the rota sheet": "The site was changed on the rota sheet.",
+};
+
+// A logged firm reason in her words, or null if it isn't one of the fixed ones.
+export const casualFirmReason = (logged: string): string | null =>
+  Object.hasOwn(FIRM_REASON_FOR_CASUAL, logged) ? (FIRM_REASON_FOR_CASUAL[logged] ?? null) : null;
 
 // "Reference 0695DD8C" (the reference itself in the mono face, beside these words).
 export const RECORD_REF_LEAD = "Reference";

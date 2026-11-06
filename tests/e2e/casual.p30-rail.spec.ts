@@ -281,6 +281,77 @@ test("at 1,280px the keyboard reaches the rail's links with the focus ring, and 
   }
 });
 
+// "Skip to the menu" (src/app/skip-to-menu.tsx): at 1,280px the first Tab lands on it, it shows
+// with the focus ring, and Enter takes the keyboard to the rail, whose first link is the next Tab.
+// On a phone it's never reached: the first Tab goes into the page.
+test("at 1,280px the first Tab is 'Skip to the menu', shown on focus, and it takes the keyboard to the rail; never on a phone", async ({
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  for (const theme of THEMES) {
+    const context = await open(browser, session, LAPTOP, theme);
+    try {
+      const page = await context.newPage();
+      await page.goto(`${acme}/pay`);
+      await expect(main(page)).toBeVisible();
+      const skip = page.locator("a[data-skip-menu]");
+      // Hidden until it has focus: screen-reader only (sr-only), 1px and clipped.
+      const before = await skip.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        return { w: r.width, h: r.height, clip: getComputedStyle(el).clipPath };
+      });
+      expect(before.w <= 1 && before.h <= 1, `${theme} ${JSON.stringify(before)}`).toBe(true);
+      await page.keyboard.press("Tab");
+      const first = await page.evaluate(() => {
+        const el = document.activeElement as HTMLElement;
+        const r = el.getBoundingClientRect();
+        const s = getComputedStyle(el);
+        return {
+          skip: el.matches("a[data-skip-menu]"),
+          text: el.textContent?.trim(),
+          shown: r.width > 40 && r.height > 20,
+          ring: el.matches(":focus-visible") && s.outlineStyle === "solid",
+        };
+      });
+      expect(first, theme).toEqual({
+        skip: true,
+        text: "Skip to the menu",
+        shown: true,
+        ring: true,
+      });
+      await expect(skip).toBeVisible();
+      await page.keyboard.press("Enter");
+      await expect(page).toHaveURL(`${acme}/pay#casual-menu`);
+      await page.keyboard.press("Tab");
+      const next = await page.evaluate(() => {
+        const el = document.activeElement as HTMLElement;
+        const nav = el.closest("nav[data-tab-bar]");
+        return {
+          inRail: !!nav,
+          firstLink: nav ? nav.querySelector("a") === el : false,
+          name: el.textContent?.replace(/\s+/g, " ").trim(),
+        };
+      });
+      expect(next, theme).toEqual({ inRail: true, firstLink: true, name: "Home" });
+    } finally {
+      await context.close();
+    }
+  }
+  const phone = await open(browser, session, PHONE, "dark");
+  try {
+    const page = await phone.newPage();
+    await page.goto(`${acme}/pay`);
+    await expect(main(page)).toBeVisible();
+    await expect(page.locator("a[data-skip-menu]")).toBeHidden();
+    await page.keyboard.press("Tab");
+    expect(
+      await page.evaluate(() => document.activeElement?.matches("a[data-skip-menu]") ?? false),
+    ).toBe(false);
+  } finally {
+    await phone.close();
+  }
+});
+
 test("with no JavaScript the rail is the same at 1,280px", async ({ browser }) => {
   const context = await browser.newContext({
     storageState: session,

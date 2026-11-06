@@ -58,6 +58,10 @@ import { ReviewForm } from "./review-form";
 
 const capitalise = (words: string) => words.charAt(0).toUpperCase() + words.slice(1);
 
+// "upload it" and each name of a group in "You need": a link in the sentence, its target 44px tall
+// (golden rule 11; 28.5).
+const inlineLink = "inline-flex min-h-11 items-center font-semibold underline underline-offset-4";
+
 // A requirement's status: a circle with its mark, and its words.
 const TONE_MARK = {
   done: "bg-done-tile text-done-ink",
@@ -238,7 +242,7 @@ function ShiftCard({
                       <Link
                         href={`/profile/upload/${r.code}`}
                         aria-label={`Upload your ${r.name}`}
-                        className="font-semibold underline underline-offset-4"
+                        className={inlineLink}
                       >
                         upload it
                       </Link>
@@ -257,7 +261,7 @@ function ShiftCard({
                             <Link
                               href={`/profile/upload/${a.code}`}
                               aria-label={`Upload your ${a.name}`}
-                              className="font-semibold underline underline-offset-4"
+                              className={inlineLink}
                             >
                               {a.name}
                             </Link>

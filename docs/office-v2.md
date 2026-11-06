@@ -1782,6 +1782,8 @@ Rules for building it:
   see how far each one is: {profile link}" goes before "Take one here".
 - **Nothing they can take:** "Hi Zoe, there's nothing you can take on Saturday within 45 minutes of
   your home area right now. We'll message you if something comes up. All open shifts: {link}"
+  ("We'll message you if something comes up." only when she gets shift alerts and something can
+  reach her, by `reachOf()`; Phase 29.2, docs/messaging-templates.md.)
 - **Text message version** (2 shifts): "Acme Events: shifts for you: 1) Sat 10 Oct 08:00-16:00 Door
   supervisor, Acme Demo Arena, £15.50/h, 12 min by car. 2) Sat 10 Oct 17:00-23:00 CSAS officer,
   Northgate, £15.00/h, 21 min by car. Take one: {link} - Acme Events Shift Team"

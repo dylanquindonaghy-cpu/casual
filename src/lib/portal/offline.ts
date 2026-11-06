@@ -146,30 +146,77 @@ export function watchForFreshCopy(opts: {
   return stop;
 }
 
-// Phase 29.6: the kept copy says "It updates when you're back online", so it does. While the kept
-// copy is on screen (its notice showing), the first "online" heard opens the page fresh (`path`:
-// `/` or `/shifts`, the kept copy's own address, with no query). Only once; never after `stop()`,
-// nor once a logout or login starts (FORGET_EVENT). Returns a function that stops it (the page
-// calls it when it goes away).
+// The signal is back only when the network answers, not when the browser says "online": a phone
+// often fires "online" before data flows, and opening the page then gets the kept copy again from
+// the service worker (its fetch failed), after which nothing would open it fresh (Phase 30's run
+// found it: the copy stayed). So on "online" it first asks the page's address with a HEAD request,
+// which the service worker never answers (it handles GETs only: public/sw.js), and opens the page
+// only once that comes back with any answer at all (a redirect to log in is an answer too). If it
+// fails it asks again every RELOAD_RETRY_MS, up to RELOAD_TRIES times, while the browser stays
+// online; "offline" pauses it until the next "online". Once only, never after it's stopped or a
+// logout or login starts (FORGET_EVENT).
+export const RELOAD_RETRY_MS = 2000;
+export const RELOAD_TRIES = 30;
+export const answersNow = (path: string): Promise<boolean> =>
+  fetch(path, { method: "HEAD", cache: "no-store", credentials: "same-origin", redirect: "manual" })
+    .then(() => true)
+    .catch(() => false);
 export function reloadWhenOnline(opts: {
   path: OfflinePage;
-  target?: EventTarget; // where "online" and FORGET_EVENT are heard (the window)
+  target?: EventTarget; // where "online", "offline" and FORGET_EVENT are heard (the window)
   go?: (path: string) => void;
+  probe?: (path: string) => Promise<boolean>; // does the network answer now (answersNow)
+  wait?: (ms: number, then: () => void) => () => void; // a timer; returns its cancel
 }): () => void {
   const target = opts.target ?? (typeof window !== "undefined" ? window : undefined);
   const go = opts.go ?? ((path: string) => window.location.replace(path));
+  const probe = opts.probe ?? answersNow;
+  const wait =
+    opts.wait ??
+    ((ms: number, then: () => void) => {
+      const t = setTimeout(then, ms);
+      return () => clearTimeout(t);
+    });
   let stopped = false;
+  let trying = false; // a check is on its way, or one is waiting to run
+  let tries = 0;
+  let cancel: (() => void) | undefined;
   const stop = () => {
     stopped = true;
+    cancel?.();
     target?.removeEventListener("online", online);
+    target?.removeEventListener("offline", offline);
     target?.removeEventListener(FORGET_EVENT, stop);
   };
-  function online() {
+  function attempt() {
+    cancel = undefined;
     if (stopped) return;
-    stop();
-    go(opts.path);
+    tries += 1;
+    void probe(opts.path).then((answered) => {
+      if (stopped || !trying) return;
+      if (answered) {
+        stop();
+        go(opts.path);
+      } else if (tries < RELOAD_TRIES) {
+        cancel = wait(RELOAD_RETRY_MS, attempt);
+      } else {
+        trying = false;
+      }
+    });
+  }
+  function online() {
+    if (stopped || trying) return;
+    trying = true;
+    tries = 0;
+    attempt();
+  }
+  function offline() {
+    trying = false;
+    cancel?.();
+    cancel = undefined;
   }
   target?.addEventListener("online", online);
+  target?.addEventListener("offline", offline);
   target?.addEventListener(FORGET_EVENT, stop);
   return stop;
 }
@@ -177,18 +224,21 @@ export function reloadWhenOnline(opts: {
 // The same, as a few lines the page carries in its own HTML (OfflineCopy), for the moment before
 // the page's scripts have started, or when they never can (a kept copy that can't fetch a script it
 // doesn't hold, as under `next dev`). It reloads only while its page is the kept copy on screen
-// (the notice showing, checked when "online" comes), stops on FORGET_EVENT, and leaves its stop
-// function on the window (ONLINE_RELOAD_STOP) so the page's own code takes over once it runs.
-// Nothing the worker typed or the firm wrote goes in it: `path` is one of the two kept pages.
+// (the notice showing, checked when "online" comes and again before it opens the page), and only
+// once the network answers, as above; stops on FORGET_EVENT, and leaves its stop function on the
+// window (ONLINE_RELOAD_STOP) so the page's own code takes over once it runs. Nothing the worker
+// typed or the firm wrote goes in it: `path` is one of the two kept pages.
 export const ONLINE_RELOAD_STOP = "__shiftdeskStopOnlineReload";
 export function onlineReloadScript(path: OfflinePage): string {
   const p = JSON.stringify(OFFLINE_PAGES.includes(path) ? path : "/");
   return (
-    `(function(){var w=window,p=${p};` +
-    `function off(){w.removeEventListener("online",go);w.removeEventListener("${FORGET_EVENT}",off)}` +
-    `function go(){var n=document.querySelector("[data-offline-notice]");` +
-    `if(location.pathname!==p||!n||n.hidden)return;off();location.replace(p)}` +
-    `w.addEventListener("online",go);w.addEventListener("${FORGET_EVENT}",off);` +
+    `(function(){var w=window,p=${p},t=0,on=0,h=0,done=0;` +
+    `function kept(){var n=document.querySelector("[data-offline-notice]");return location.pathname===p&&n&&!n.hidden}` +
+    `function off(){done=1;clearTimeout(h);w.removeEventListener("online",go);w.removeEventListener("offline",pause);w.removeEventListener("${FORGET_EVENT}",off)}` +
+    `function pause(){on=0;clearTimeout(h)}` +
+    `function check(){if(done||!on)return;t++;fetch(p,{method:"HEAD",cache:"no-store",credentials:"same-origin",redirect:"manual"}).then(function(){return 1},function(){return 0}).then(function(ok){if(done||!on)return;if(ok){if(!kept())return pause();off();location.replace(p)}else if(t<${RELOAD_TRIES})h=setTimeout(check,${RELOAD_RETRY_MS});else on=0})}` +
+    `function go(){if(done||on||!kept())return;on=1;t=0;check()}` +
+    `w.addEventListener("online",go);w.addEventListener("offline",pause);w.addEventListener("${FORGET_EVENT}",off);` +
     `w.${ONLINE_RELOAD_STOP}=off})()`
   );
 }

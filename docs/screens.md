@@ -3363,6 +3363,9 @@ Fixes from the live phone check (an iPhone 13, signal off). What the casual sees
   {14:05 on Mon 2 Nov}. It updates when you're back online." Now it does: when the signal comes back
   it opens the fresh page by itself, with no tap (the "No signal." notice and the "Offline" plate
   go). Only the saved copy does this, once; never after she has logged out or moved to another page.
+  It waits until the signal really works (Phase 30's run found that a phone can say it's back
+  before data flows, and the page then came back as the copy): it checks the page's address every
+  2 seconds, up to 30 times, and opens it only once it answers.
 
 ## Phase 30
 

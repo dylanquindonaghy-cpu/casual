@@ -789,7 +789,7 @@ shift", and "tell us what happened" offered after "No strike.". Words in
   licence or card it needs is missing, or out of date.", "You can't get there in time from your
   travel area." (only with travel areas on), "You've marked that day as one you can't work.",
   "You're already booked at that time.", "You'd have less than {11 hours' rest} before or after
-  another shift.", "It would take you over {48 hours} that week.", "The office hasn't opened it to
+  another shift." (left out at 0, as the rest check can't fail then), "It would take you over {48 hours} that week.", "The office hasn't opened it to
   casuals yet.", and, under fair rotation only, "You can see it, but it says “You can take it from
   …”? A small group gets first go. At that time, tap Check again." (When the rules' settings don't
   parse: "You'd have too little rest before or after another shift." / "It would take you over your

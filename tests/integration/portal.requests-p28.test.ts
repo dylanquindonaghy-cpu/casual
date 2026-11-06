@@ -285,8 +285,9 @@ describe("withdrawRequest", () => {
           withFirm,
           t.f.firmId,
           {
+            // The office's one action on an attendance question is to answer it (28.9).
             requestId: id,
-            decision: "declined",
+            decision: "approved",
             note: "The gate log shows no sign-in.",
             by: { type: "office", id: t.resourcer },
           },
@@ -304,13 +305,13 @@ describe("withdrawRequest", () => {
         expect(replies[0]?.n).toBe(0);
       } else {
         expect(taken).toEqual({ status: "answered_first", ref: refOf(id) });
-        expect(row?.status).toBe("declined");
-        expect(answered).toEqual({ status: "resolved", decision: "declined" });
+        expect(row?.status).toBe("approved");
+        expect(answered).toEqual({ status: "resolved", decision: "approved" });
         expect(replies[0]?.n).toBe(1);
       }
       const withdrawn = (await t.eventsOf("request.withdrawn")).length;
-      const declined = (await t.eventsOf("request.declined")).length;
-      expect(withdrawn + declined).toBe(1);
+      const approved = (await t.eventsOf("request.approved")).length;
+      expect(withdrawn + approved).toBe(1);
       // Neither changes her mark.
       const { rows: mark } = await su.query<{ status: string }>(
         "select status from assignments where id = $1",

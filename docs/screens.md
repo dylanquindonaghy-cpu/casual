@@ -648,7 +648,11 @@ leading nowhere. Words in `src/app/profile/`, `src/lib/portal/qualification-copy
     shifts. The office has this in hand." / "You won't see CSAS officer shifts until it's on your
     record. The office has this in hand." / "You can't take door supervisor shifts. The office has
     this in hand." It's only words: she still can't be offered or booked those shifts until a
-    checked record is in date (golden rule 6).
+    checked record is in date (golden rule 6). "As it did then": the same qualification and status,
+    nothing about her records of it changed since (a record added or updated, or an upload of it
+    sent or checked, after the mark), and, where a date says when the status began (expired,
+    expiring soon, not accepted), marked on or after it. So a suspension lifted and imposed again
+    later is a new one: "Message the office." until the office marks that one sorted.
   - **No dead ends.** Suspended: "You can't take door supervisor shifts. Message the office." Under
     Other qualifications on file: "You can't take shifts that need it. Message the office." In each,
     "message the office" is a link to Messages (`/messages`), at least 44px tall to tap.

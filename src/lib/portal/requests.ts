@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, gt, gte, inArray, lte, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { DAY, systemClock } from "../auth/clock";
+import { retryAborted } from "../db/retry";
 import { assignments, requests, shifts, sites } from "../db/schema";
 import { withFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
@@ -323,7 +324,9 @@ export async function withdrawRequest(
 // shift the same way). One waiting question per session; saying what the mark already says is
 // refused. The row and request.created ({type, shiftId, assignmentId, said}: ids and codes, never
 // her note) go in together. A person answers it (28.9); the mark changes only if the office marks
-// the session again on who-worked.
+// the session again on who-worked. Run again if Postgres aborts it to break a deadlock: it locks
+// her booking, then the request's insert share-locks her worker row, while an erasure locks the
+// worker, then updates her bookings. It holds everything it does, so a second run repeats nothing.
 export async function askAboutMark(
   ctx: Ctx,
   workerId: string,
@@ -337,72 +340,74 @@ export async function askAboutMark(
     return { status: "not_yours" };
   }
   const from = new Date(now.getTime() - RELIABILITY_DAYS * DAY);
-  return run(ctx.firm.id, async (tx): Promise<AttendanceOutcome> => {
-    const [booking] = await tx
-      .select({ id: assignments.id, status: assignments.status })
-      .from(assignments)
-      .innerJoin(
-        shifts,
-        and(eq(shifts.firmId, assignments.firmId), eq(shifts.id, assignments.shiftId)),
-      )
-      .where(
-        and(
-          eq(assignments.shiftId, input.shiftId),
-          eq(assignments.workerId, workerId),
-          inArray(assignments.status, ["completed", "no_show"]),
-          gte(shifts.startsAt, from),
-          lte(shifts.startsAt, now),
-        ),
-      )
-      .for("no key update", { of: assignments });
-    if (!booking) return { status: "not_yours" };
-    const marked = booking.status === "completed" ? "worked" : "not_worked";
-    if (payload.data.said === marked) return { status: "matches_mark" };
+  return retryAborted(() =>
+    run(ctx.firm.id, async (tx): Promise<AttendanceOutcome> => {
+      const [booking] = await tx
+        .select({ id: assignments.id, status: assignments.status })
+        .from(assignments)
+        .innerJoin(
+          shifts,
+          and(eq(shifts.firmId, assignments.firmId), eq(shifts.id, assignments.shiftId)),
+        )
+        .where(
+          and(
+            eq(assignments.shiftId, input.shiftId),
+            eq(assignments.workerId, workerId),
+            inArray(assignments.status, ["completed", "no_show"]),
+            gte(shifts.startsAt, from),
+            lte(shifts.startsAt, now),
+          ),
+        )
+        .for("no key update", { of: assignments });
+      if (!booking) return { status: "not_yours" };
+      const marked = booking.status === "completed" ? "worked" : "not_worked";
+      if (payload.data.said === marked) return { status: "matches_mark" };
 
-    const [waiting] = await tx
-      .select({ id: requests.id })
-      .from(requests)
-      .where(
-        and(
-          eq(requests.workerId, workerId),
-          eq(requests.shiftId, input.shiftId),
-          eq(requests.type, "attendance"),
-          inArray(requests.status, ["open", "escalated"]),
-        ),
-      );
-    if (waiting) return { status: "already_open", ref: refOf(waiting.id) };
+      const [waiting] = await tx
+        .select({ id: requests.id })
+        .from(requests)
+        .where(
+          and(
+            eq(requests.workerId, workerId),
+            eq(requests.shiftId, input.shiftId),
+            eq(requests.type, "attendance"),
+            inArray(requests.status, ["open", "escalated"]),
+          ),
+        );
+      if (waiting) return { status: "already_open", ref: refOf(waiting.id) };
 
-    const [created] = await tx
-      .insert(requests)
-      .values({
-        firmId: ctx.firm.id,
-        workerId,
-        shiftId: input.shiftId,
-        type: "attendance",
-        payload: payload.data,
-      })
-      .returning({ id: requests.id });
-    if (!created) throw new Error("request insert returned nothing");
-    await recordEvent(tx, {
-      actorType: "worker",
-      actorId: workerId,
-      action: "request.created",
-      entityType: "request",
-      entityId: created.id,
-      data: {
-        type: "attendance",
-        shiftId: input.shiftId,
-        assignmentId: booking.id,
-        said: payload.data.said,
-      },
-    });
-    const w = wallTimeOf(now, ctx.firm.timezone);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return {
-      status: "created",
-      ref: refOf(created.id),
-      sentAt: `${pad(w.hour)}:${pad(w.minute)} on ${dayLabel(localDateOf(now, ctx.firm.timezone))}`,
-      signOff: ctx.firm.signOff,
-    };
-  });
+      const [created] = await tx
+        .insert(requests)
+        .values({
+          firmId: ctx.firm.id,
+          workerId,
+          shiftId: input.shiftId,
+          type: "attendance",
+          payload: payload.data,
+        })
+        .returning({ id: requests.id });
+      if (!created) throw new Error("request insert returned nothing");
+      await recordEvent(tx, {
+        actorType: "worker",
+        actorId: workerId,
+        action: "request.created",
+        entityType: "request",
+        entityId: created.id,
+        data: {
+          type: "attendance",
+          shiftId: input.shiftId,
+          assignmentId: booking.id,
+          said: payload.data.said,
+        },
+      });
+      const w = wallTimeOf(now, ctx.firm.timezone);
+      const pad = (n: number) => String(n).padStart(2, "0");
+      return {
+        status: "created",
+        ref: refOf(created.id),
+        sentAt: `${pad(w.hour)}:${pad(w.minute)} on ${dayLabel(localDateOf(now, ctx.firm.timezone))}`,
+        signOff: ctx.firm.signOff,
+      };
+    }),
+  );
 }

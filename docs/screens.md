@@ -3428,4 +3428,29 @@ each.
 
 ### 30.2
 
-(Written by task 30.2.)
+The casual app on a laptop (1,024px and wider) gets the office's left rail instead of the phone's
+floating tab bar. What the casual sees:
+
+- **The rail.** A glass column at the window's left edge, 12px from its top and left, that stays put
+  as the page scrolls. At its top, the firm's mark (its initial on the firm's colour, as on the
+  office's rail). Under it, the same five links as the tab bar, one under the other: Home, Shifts,
+  Messages, Pay, Profile. Each is a tile at least 64px tall and 80px wide with its icon and its word
+  under it (always shown: the rail never shrinks to icons). The page she's on is solid ink with its
+  icon and word on it in bold, as the office rail's lit item.
+- **The same counts.** The numbers on Profile, Messages and Pay are the tab bar's, from the same
+  place, read the same way ("Profile, 1 thing needs doing", "Messages, 2 new replies", "Pay, 1 new
+  answer from payroll").
+- **Where it shows.** Every casual page that has the tab bar (Home, Shifts, Open shifts, the shift
+  record, Messages, Pay and a pay query, Profile and its pages, Requests), and a shift's own page
+  (`/shifts/[id]`), where Shifts is lit. A shift's own page still has no tab bar on a phone. Help and
+  the login pages have neither.
+- **The page beside it.** The page, with the demo bar and the firm's bar, moves right of the rail.
+  Each page keeps its reading column, centred in the space right of the rail, as the office centres
+  its pages right of its own rail (forms are not stretched; Home uses its wide layout, 30.1). The
+  room the phone keeps at the page's end for the floating bar goes. No sideways scroll.
+- **Below 1,024px** nothing changes: the floating bar at the foot, shrinking to its icons while she
+  scrolls down, as before. The rail is not there.
+- **One menu.** It's one navigation named "Main" at every size (the bar on a phone, the rail on a
+  laptop), never two read out. Plain links: it works with no JavaScript and in the copy saved for no
+  signal. The keyboard reaches the rail after the page's own links (it comes last on the page, as the
+  bar does), each link with the app's focus ring.

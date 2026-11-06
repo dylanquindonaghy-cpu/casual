@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { messagesCountWords } from "@/lib/portal/messages-copy";
+import { CASUAL_MENU_ID } from "./skip-to-menu";
 import { Icon, type IconName } from "./ui/icons";
 
 // The casual app's bottom tab bar (docs/office-v2.md 4.1; docs/screens.md "Casual app"; 12H.1;
@@ -31,6 +32,8 @@ import { Icon, type IconName } from "./ui/icons";
 // the "Phase 30 (30.2)" block, which also moves the page right of the rail), so it works with no
 // JavaScript and in the offline copy. `railOnly` draws the rail alone, with nothing below 1024px
 // (data-rail-only): a shift's own page, with its own bar at the top and Take shift at the foot.
+// From 1024px "Skip to the menu" (src/app/skip-to-menu.tsx, first on the page) takes the keyboard
+// to it (an empty mark just before the links).
 
 export type CasualTab = "home" | "shifts" | "messages" | "pay" | "profile";
 
@@ -120,6 +123,9 @@ export function TabBar({
       className="pointer-events-none fixed inset-x-0 bottom-0 z-20 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]"
     >
       <div className="glass-float pointer-events-auto mx-auto grid h-17 max-w-md grid-cols-5 gap-1 rounded-card p-1.5 motion-safe:transition-[height,max-width] motion-safe:duration-300 motion-safe:ease-sd [html[data-tabs-mini]_&]:h-13.5 [html[data-tabs-mini]_&]:max-w-72.5 [html[data-tabs-mini]_&]:p-1.25">
+        {/* Where "Skip to the menu" lands (src/app/skip-to-menu.tsx): the links come next. Out of
+            the flow (sr-only), so it takes no place in the bar or the rail. */}
+        <span id={CASUAL_MENU_ID} className="sr-only" />
         {firm && (
           // The firm's mark at the rail's top (from 1024px only: the firm's bar names the firm).
           <span

@@ -1572,6 +1572,21 @@ html:has([data-shell="office"]) {
   scroll-padding-top: 4.75rem;
 }
 
+/* --- Skip to the menu (30.2) ------------------------------------------------------------------ */
+/* src/app/skip-to-menu.tsx, docs/screens.md "### 30.2": from 1024px the casual app's rail is drawn
+   at the window's left but comes last in the page, so the first thing the keyboard reaches is a
+   link to it (hidden until it has focus). Only from 1024px and only on a page with the casual nav:
+   not on a phone (the bar's at the screen's foot, the page reads first), nor on the office's pages
+   (no nav[data-tab-bar]; they have their own "Skip to content"). */
+a[data-skip-menu] {
+  display: none;
+}
+@media (width >= 64rem) {
+  body:has(nav[data-tab-bar]) a[data-skip-menu] {
+    display: block;
+  }
+}
+
 /* --- Phase 30 (30.2): the casual app's rail from 1024px ------------------------------------- */
 /* docs/screens.md "### 30.2"; src/app/tab-bar.tsx. From 1024px the casual app's tab bar (its one
    <nav aria-label="Main" data-tab-bar>) is the office's rail at the window's left edge, as the

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { CASUAL_MENU_ID, SKIP_TO_MENU, SkipToMenu } from "@/app/skip-to-menu";
 import { railInitial, TabBar } from "@/app/tab-bar";
 
 // Phase 30 (30.2; docs/screens.md "### 30.2"): from 1024px the casual app's tab bar is the office's
@@ -178,5 +179,48 @@ describe("every casual page with the bar has the rail; a shift's own page the ra
     expect(shift).toContain('<CasualRail firm={firm} workerId={worker.id} current="shifts" />');
     // Not the bar: a shift's own page keeps no tab bar on a phone.
     expect(shift).not.toMatch(/TabBar/);
+  });
+});
+
+// The rail is last in the page (it's the bar on a phone), so from 1024px the keyboard would reach
+// it only after everything else: "Skip to the menu" comes first (the 30.2 review, accessibility).
+describe("Skip to the menu (30.2)", () => {
+  it("a link to the nav's links, hidden until it has focus, as the office's Skip to content", () => {
+    const link = renderToStaticMarkup(createElement(SkipToMenu));
+    expect(SKIP_TO_MENU).toBe("Skip to the menu");
+    expect(link).toBe(
+      `<a href="#${CASUAL_MENU_ID}" data-skip-menu="" class="sr-only focus:not-sr-only focus:bg-ink focus:px-4 focus:py-3 focus:text-base focus:font-semibold focus:text-on-ink">Skip to the menu</a>`,
+    );
+    // Its target: an empty mark inside the nav, out of the flow, just before the five links, on
+    // the bar and the rail alike.
+    for (const railOnly of [false, true]) {
+      const html = render({ current: "pay", firm: { name: "Acme Events" }, railOnly });
+      expect(html.match(new RegExp(`id="${CASUAL_MENU_ID}"`, "g"))).toHaveLength(1);
+      const at = html.indexOf(`<span id="${CASUAL_MENU_ID}" class="sr-only"></span>`);
+      expect(at).toBeGreaterThan(html.indexOf("<nav "));
+      expect(at).toBeLessThan(html.indexOf("<a "));
+    }
+  });
+
+  it("first on a firm's page: after the firm's bar (no links in it), before the page", () => {
+    const layout = read("src/app/layout.tsx");
+    const body = layout.slice(layout.indexOf("<body"));
+    const skip = body.indexOf("{brand && <SkipToMenu />}");
+    expect(skip).toBeGreaterThan(body.indexOf("{brand && <BrandBar brand={brand} />}"));
+    expect(skip).toBeLessThan(body.indexOf("{children}"));
+    expect(read("src/app/brand-bar.tsx")).not.toMatch(/<a\b|<Link\b|<button\b/);
+  });
+
+  it("shown only from 1024px, and only on a page with the casual nav (not on a phone, not the office)", () => {
+    const css = read("src/app/globals.css");
+    const start = css.indexOf("/* --- Skip to the menu (30.2)");
+    expect(start).toBeGreaterThan(-1);
+    const block = css.slice(start, css.indexOf("/* --- Phase 30 (30.2)"));
+    expect(block.length).toBeGreaterThan(0);
+    const media = block.slice(block.indexOf("@media (width >= 64rem) {"));
+    const outside = block.slice(0, block.indexOf("@media"));
+    expect(rule(outside, "a[data-skip-menu]").display).toBe("none");
+    expect(rule(media, "body:has(nav[data-tab-bar]) a[data-skip-menu]").display).toBe("block");
+    expect(block.replace(/\/\*[\s\S]*?\*\//g, "").match(/\{/g)).toHaveLength(3);
   });
 });

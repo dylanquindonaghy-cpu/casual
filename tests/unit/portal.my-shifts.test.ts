@@ -159,10 +159,14 @@ describe("Home and Booked: the empty pages", () => {
     const html = home({});
     // "Hi Sam" (Phase 20), since Phase 28.7 the page's headline through PageHeader, as every page's
     // (text-title), with when it was updated beside it, online only (the kept copy's notice says
-    // when it was saved); no longer at the end of the firm's bar, and no face of its own.
+    // when it was saved); no longer at the end of the firm's bar, and no face of its own. Phase
+    // 30.1 (on purpose): "Updated 09:00" moved under the headline, at the end of the date line
+    // ("Monday 2 November · Updated 09:00"), still online only. Since the 30.1 review (golden rule
+    // 6's kept copy), the whole date line is online only: the kept copy would call the day it was
+    // saved today.
     expect(text(html)).toContain("Hi Sam");
     expect(html).toMatch(
-      /<h1 class="text-title [^"]*">Hi Sam<\/h1><small data-updated-slot="" data-online-only="" class="[^"]*">Updated 09:00<\/small>/,
+      /<h1 class="text-title [^"]*">Hi Sam<\/h1>.*<p data-date-line="" data-online-only="" class="[^"]*">Monday 2 November · <span class="tabular-nums">Updated 09:00<\/span><\/p>/,
     );
     expect(html).not.toContain("font-greet");
     expect(html).not.toContain("-top-13");
@@ -542,7 +546,7 @@ describe("Booked: the bookings themselves", () => {
     // Something that stops her working: the office's pale red disc as its lead and a red "Needs
     // doing now" plate over the words; otherwise the pale amber disc (something to do).
     expect(manyHtml).toMatch(
-      /<section aria-labelledby="do-this-heading" class="glass animate-in rounded-inner p-4"><div class="flex items-center gap-3 px-1"><svg[^>]*class="shrink-0 text-attention-ink"><path d="M5 19C5 10[^"]*"[^>]*><\/path><\/svg><h2 id="do-this-heading" class="[^"]*">Do this<\/h2><\/div><ul role="list" class="mt-3 flex flex-col gap-2"><li data-for-you="needs">/,
+      /<section aria-labelledby="do-this-heading" class="glass animate-in rounded-inner p-4 lg:col-span-12"><div class="flex items-center gap-3 px-1"><svg[^>]*class="shrink-0 text-attention-ink"><path d="M5 19C5 10[^"]*"[^>]*><\/path><\/svg><h2 id="do-this-heading" class="[^"]*">Do this<\/h2><\/div><ul role="list" class="mt-3 flex flex-col gap-2"><li data-for-you="needs">/,
     );
     const lead = (tone: "urgent" | "attention") =>
       `<span aria-hidden="true" class="flex w-13 shrink-0 justify-center"><span class="${disc.base} ${disc[tone]}"><svg`;
@@ -684,7 +688,8 @@ describe("Home: what she can take, and her next shift in full", () => {
     // chevron. The lead: the soonest shift's day (pale red when urgent), the office's clear disc
     // with an icon offline, pay day's date.
     expect(section).toMatch(
-      /^aria-labelledby="can-take-heading" class="glass animate-in rounded-inner p-4"><div class="flex items-center gap-3 px-1"><h2 id="can-take-heading" class="[^"]*">Shifts you can take<\/h2><\/div><ul role="list" class="mt-3 flex flex-col gap-2"><li data-online-only="" data-for-you="urgent">/,
+      // (Phase 30.1: its place in Home's grid from 1024px, 4 of 12 columns.)
+      /^aria-labelledby="can-take-heading" class="glass animate-in rounded-inner p-4 lg:col-span-4"><div class="flex items-center gap-3 px-1"><h2 id="can-take-heading" class="[^"]*">Shifts you can take<\/h2><\/div><ul role="list" class="mt-3 flex flex-col gap-2"><li data-online-only="" data-for-you="urgent">/,
     );
     for (const kind of ["urgent", "offline", "apply", "pay"]) {
       expect(section).toMatch(

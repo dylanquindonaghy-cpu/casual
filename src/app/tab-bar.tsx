@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { messagesCountWords } from "@/lib/portal/messages-copy";
+import { CASUAL_MENU_ID } from "./skip-to-menu";
 import { Icon, type IconName } from "./ui/icons";
 
 // The casual app's bottom tab bar (docs/office-v2.md 4.1; docs/screens.md "Casual app"; 12H.1;
@@ -20,6 +21,19 @@ import { Icon, type IconName } from "./ui/icons";
 // Pay's (payroll's answers to her pay queries she hasn't seen), both in the firm's colour. A count
 // of 0 shows nothing. <TabBarSpace /> at the end of the page keeps the last of it clear. Plain links:
 // it works with no JavaScript (always open), and in the offline copy.
+//
+// Phase 30 (30.2; docs/screens.md "### 30.2"): from 1024px the same nav is the office's rail at the
+// window's left edge instead (one nav, one set of links: never two menus read twice). A glass
+// column 96px wide, 12px from the window's top and left, that stays put as the page scrolls: the
+// firm's mark at its top (its initial on its own colour, as the office rail's), then the five
+// links one under the other, each a tile at least 64px tall with its icon and its word under it,
+// the current one solid ink as here, the counts on the icons as here. It never shrinks (the words
+// always show), and the room for the bar at the page's end goes. All of it is CSS (globals.css,
+// the "Phase 30 (30.2)" block, which also moves the page right of the rail), so it works with no
+// JavaScript and in the offline copy. `railOnly` draws the rail alone, with nothing below 1024px
+// (data-rail-only): a shift's own page, with its own bar at the top and Take shift at the foot.
+// From 1024px "Skip to the menu" (src/app/skip-to-menu.tsx, first on the page) takes the keyboard
+// to it (an empty mark just before the links).
 
 export type CasualTab = "home" | "shifts" | "messages" | "pay" | "profile";
 
@@ -75,18 +89,25 @@ function countFor(
   return null;
 }
 
+// The firm's initial on the rail's mark: its first letter or digit (as the firm's bar's).
+export const railInitial = (name: string) => name.match(/\p{L}|\p{N}/u)?.[0]?.toUpperCase() ?? "";
+
 export function TabBar({
   current,
   profileCount = 0,
   answersCount = 0,
   messagesCount = 0,
   payCount = 0,
+  firm = null,
+  railOnly = false,
 }: {
   current: CasualTab;
   profileCount?: number; // what needs doing on Profile
   answersCount?: number; // answers to her requests she hasn't seen (added to Profile's count)
   messagesCount?: number;
   payCount?: number; // payroll's answers to her pay queries she hasn't seen
+  firm?: { name: string } | null; // the rail's mark (from 1024px); none, no mark
+  railOnly?: boolean; // the rail from 1024px and nothing below it (a shift's own page)
 }) {
   const counts = {
     needs: profileCount,
@@ -98,9 +119,23 @@ export function TabBar({
     <nav
       aria-label="Main"
       data-tab-bar=""
+      data-rail-only={railOnly ? "" : undefined}
       className="pointer-events-none fixed inset-x-0 bottom-0 z-20 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]"
     >
       <div className="glass-float pointer-events-auto mx-auto grid h-17 max-w-md grid-cols-5 gap-1 rounded-card p-1.5 motion-safe:transition-[height,max-width] motion-safe:duration-300 motion-safe:ease-sd [html[data-tabs-mini]_&]:h-13.5 [html[data-tabs-mini]_&]:max-w-72.5 [html[data-tabs-mini]_&]:p-1.25">
+        {/* Where "Skip to the menu" lands (src/app/skip-to-menu.tsx): the links come next. Out of
+            the flow (sr-only), so it takes no place in the bar or the rail. */}
+        <span id={CASUAL_MENU_ID} className="sr-only" />
+        {firm && (
+          // The firm's mark at the rail's top (from 1024px only: the firm's bar names the firm).
+          <span
+            aria-hidden="true"
+            data-rail-mark=""
+            className="mx-auto mb-2 hidden size-10 shrink-0 items-center justify-center rounded-row bg-brand-bar text-lg font-bold text-on-brand-bar lg:flex"
+          >
+            {railInitial(firm.name)}
+          </span>
+        )}
         {TABS.map(({ tab, href, words, icon }) => {
           const here = tab === current;
           const count = countFor(tab, counts);

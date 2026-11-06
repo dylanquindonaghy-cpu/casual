@@ -1571,3 +1571,80 @@ body:not(:has([data-offline-notice]:not([hidden]))) [data-offline-only] {
 html:has([data-shell="office"]) {
   scroll-padding-top: 4.75rem;
 }
+
+/* --- Skip to the menu (30.2) ------------------------------------------------------------------ */
+/* src/app/skip-to-menu.tsx, docs/screens.md "### 30.2": from 1024px the casual app's rail is drawn
+   at the window's left but comes last in the page, so the first thing the keyboard reaches is a
+   link to it (hidden until it has focus). Only from 1024px and only on a page with the casual nav:
+   not on a phone (the bar's at the screen's foot, the page reads first), nor on the office's pages
+   (no nav[data-tab-bar]; they have their own "Skip to content"). */
+a[data-skip-menu] {
+  display: none;
+}
+@media (width >= 64rem) {
+  body:has(nav[data-tab-bar]) a[data-skip-menu] {
+    display: block;
+  }
+}
+
+/* --- Phase 30 (30.2): the casual app's rail from 1024px ------------------------------------- */
+/* docs/screens.md "### 30.2"; src/app/tab-bar.tsx. From 1024px the casual app's tab bar (its one
+   <nav aria-label="Main" data-tab-bar>) is the office's rail at the window's left edge, as the
+   office's (src/app/office/office-rail.tsx: a glass column 12px from the window's top and left,
+   staying put as the page scrolls): 96px wide, the firm's mark at its top (tab-bar.tsx shows it
+   from 1024px), then the five links one under the other, each a tile at least 64px tall with its
+   icon and its word under it; the current one keeps its solid ink, the counts their place on the
+   icons. It never shrinks while scrolling (ChromeWatch's data-tabs-mini changes nothing here) and
+   it always shows its words. The page (with the demo bar and the firm's bar) moves right of it, by
+   the rail and a 12px gap on each side (7.5rem): each page keeps its own reading column, centred
+   in what's left, as the office centres its pages right of its rail; and the room kept for the
+   bar at the page's end (<TabBarSpace />, the empty div just before the nav) goes. Below 1024px
+   none of this applies: the floating bar is as it was. Plain CSS (no JavaScript), outside the
+   utilities' layer so it wins over the bar's own classes from 1024px. A shift's own page draws
+   the rail alone (data-rail-only): nothing below 1024px. */
+@media (width < 64rem) {
+  nav[data-tab-bar][data-rail-only] {
+    display: none;
+  }
+}
+@media (width >= 64rem) {
+  body:has(nav[data-tab-bar]) {
+    padding-left: 7.5rem;
+  }
+  div[aria-hidden="true"]:empty:has(+ nav[data-tab-bar]) {
+    display: none;
+  }
+  nav[data-tab-bar] {
+    inset: 0.75rem auto auto 0.75rem;
+    padding: 0;
+  }
+  nav[data-tab-bar] > div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    width: 6rem;
+    max-width: none;
+    height: auto;
+    max-height: calc(100dvh - 1.5rem);
+    margin: 0;
+    padding: 1rem 0.5rem;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  nav[data-tab-bar] a {
+    flex: none;
+    min-height: 4rem;
+    gap: 0.25rem;
+    padding: 0.5rem 0.125rem;
+  }
+  /* The word under each icon, shown even while the phone's bar would have shrunk to its icons. */
+  nav[data-tab-bar] a > span:last-child {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip-path: none;
+    white-space: nowrap;
+  }
+}

@@ -1277,24 +1277,46 @@ recommendations: Phase 28's decisions 16 to 19 and 21 stay as built and 20 chang
 (`docs/plan/decisions-waiting.md`); three bugs its guardrails reviews parked; two test gaps; and a
 check of the live demo on a phone as a casual.
 
-- [ ] Pay questions Pay can't take (no way to get a code, or older than 90 days) go into payroll's
+- [x] Pay questions Pay can't take (no way to get a code, or older than 90 days) go into payroll's
       digest as a pay query, never to the office's general requests and never an AI answer
       (decision 20 changed; golden rule 9; R, M; M) (29.1)
-- [ ] The shifts line's own reply never promises "We'll message you" to a casual nothing can reach,
+- [x] The shifts line's own reply never promises "We'll message you" to a casual nothing can reach,
       the same rule Home and Open shifts follow (28.7's parked follow-up; M; S) (29.2)
-- [ ] The office's "Sorted by" and "Remind all" count a "sorted" mark only while it covers the
+- [x] The office's "Sorted by" and "Remind all" count a "sorted" mark only while it covers the
       casual's current problem, the same rule as the casual's "in hand" (28.11's parked follow-up;
       R; S) (29.3)
-- [ ] "Your shift's details changed" waits until the casual has been told about the booking itself,
+- [x] "Your shift's details changed" waits until the casual has been told about the booking itself,
       as the office's change notices already do (28.3's parked follow-up; M, jobs; S) (29.4)
-- [ ] A browser test that the Pay tab's count drops once payroll's answer is seen, and a booked
+- [x] A browser test that the Pay tab's count drops once payroll's answer is seen, and a booked
       shift's page in `docs/mockups/phase-28/after/` (Phase 28 test gaps; S) (29.5)
-- [ ] The live demo checked on a phone as a casual, signal on and off, with every finding fixed or
+- [x] The live demo checked on a phone as a casual, signal on and off, with every finding fixed or
       parked (UI; S) (29.6)
 
 Done when: every task is ticked with a stamp that includes the browser tests; each built what its
 line says; `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; the `guardrails-reviewer` has no open
 findings on 29.1 to 29.4; the `claims-auditor` checks each task against its line and this one.
+
+## Phase 30 — The casual's Home as her dashboard, and the office's frame on a laptop (go-ahead: Dylan, 2026-11-06; UI)
+
+Asked, 2026-11-06 (Dylan, in chat, word for word): "theres still not enough on their main dashboard
+this is what they will mainly use they should see it needs to be populated with reminders of
+qualifications etc and sitll ui isnt up to par with the staffing dashboard". The audit and mock-up
+(private until shared): https://claude.ai/artifact/8Rpigo6L2EfoBvSb5Bqdsn. Approved, word for
+word: "complete the new build do not prompt me till done i like the new proposal".
+
+- [x] Home as her dashboard: count pills (Booked, Open to you, Urgent, To do, Messages), the date
+      line, her next shift with hours, pay estimate and a countdown, "Your qualifications" always
+      shown with a status and countdown each (staff photo and right to work too), "Your week",
+      "Updates" from her shift record, "Your record", counts beside headings; from 1024px a
+      12-column grid; nothing in the saved copy that goes stale (UI; M) (30.1)
+- [x] From 1024px up every casual page has the office's left rail with the tab bar's links and
+      counts in place of the floating phone bar, one nav landmark, a skip link to it; phones keep
+      the bar exactly as before (UI; S) (30.2)
+
+Done when: both tasks are ticked with a stamp that includes the browser tests; each built what its
+line says, as the approved mock-up shows; `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; the
+`guardrails-reviewer` has no open findings; the `claims-auditor` checks each task against its line
+and this one.
 
 ## Stage 2 (after 3 paying firms) — not now
 

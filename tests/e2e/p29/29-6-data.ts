@@ -4,17 +4,19 @@ import { addBookedShift, addWorker } from "../db";
 // booking 3 days ahead, so Home has her next shift and a copy is kept for no signal. A retry gets
 // another casual (another number), so a half-finished first try never changes what it sees.
 //
-// Made-up people only: drama-range numbers no other spec uses.
+// Made-up people only: Ofcom's drama range (07700 900000 to 900999), 07700 900350 and on (one a
+// retry), which no other spec, seeded casual or shifts line uses and which sit outside
+// tests/e2e/spare-mobiles.ts's blocks.
 
 export const P29_6_SITE_PREFIX = "No Signal Test Hall";
 
 export function p29_6Casual(retry: number) {
-  const last = 10 + retry;
+  const n = 350 + retry; // 900350 to 900359
   return {
     firstName: "Zoe",
     lastName: `Nosignal${retry || ""}`,
-    mobileE164: `+4477009296${last}`,
-    typed: `07700 9296${last}`,
+    mobileE164: `+447700900${n}`,
+    typed: `07700 900${n}`,
   };
 }
 

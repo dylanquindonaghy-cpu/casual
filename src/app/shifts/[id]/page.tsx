@@ -2,6 +2,7 @@ import { systemClock } from "@/lib/auth/clock";
 import { requireWorker } from "@/lib/auth/current-worker";
 import { shiftForWorker } from "@/lib/portal/shift-detail";
 import { getCurrentBrand } from "@/lib/tenancy/current-brand";
+import { CasualRail } from "../../casual-tab-bar";
 import { refreshSessionAction } from "../../session-actions";
 import { SessionKeeper } from "../../session-keeper";
 import { page as pageWidth } from "../../ui/classes";
@@ -24,6 +25,8 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
         now={now}
         firm={{ name: brand?.name ?? firm.name, logoUrl: brand?.logoUrl ?? null }}
       />
+      {/* No tab bar on a phone (its own bar and Take shift); the rail from 1024px (30.2). */}
+      <CasualRail firm={firm} workerId={worker.id} current="shifts" />
     </main>
   );
 }

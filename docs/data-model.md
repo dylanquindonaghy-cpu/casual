@@ -914,7 +914,13 @@ create table messages (                 -- built in Phase 7 (migrations 0022-002
   body text,                             -- at most 1600; the worker's words: never copied into events
   handled_as text,                       -- keyword | ai | office | unknown | opt_out (inbound only)
   intent text,                           -- shifts | cancel | pay | office
-  handled_at timestamptz,                -- the reply job claimed it (at most one reply)
+  handled_at timestamptz,                -- the reply job claimed it (at most one reply). One kind is
+                                         -- stored already handled, with no job: an active casual's
+                                         -- message in the app sent about her pay (/messages?about=pay,
+                                         -- Phase 29.1): intent pay, handled_as office, handled_at the
+                                         -- send, and a pay query for payroll in the same transaction
+                                         -- (src/lib/pay/from-messages.ts; one open a day: a later one
+                                         -- names the query already waiting)
   reply_to uuid,                         -- outbound: (firm_id, reply_to) -> the message it answers;
                                          -- indexed (firm_id, reply_to) for Enquiries (12D.1, S5). The
                                          -- office's reply on Enquiries is stored when sent from the page,
@@ -960,7 +966,10 @@ create table pay_records (
 
 -- A worker's structured pay question (Phase 6, src/lib/portal/pay-queries.ts), raised behind the
 -- pay-page code. The day worked is always set: the shift's day, or the day they typed. Details are
--- free text: kept here, never copied into events. No DELETE for the app role.
+-- free text: kept here, never copied into events. No DELETE for the app role. Since Phase 29.1
+-- also raised from Messages opened about her pay (src/lib/pay/from-messages.ts: issue other, no
+-- shift, the day she sent it). Either way one open query (open or in_digest) per worker, day, shift
+-- and issue, checked under a per-worker advisory lock: asking again returns the one waiting.
 create table pay_queries (
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),

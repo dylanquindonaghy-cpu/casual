@@ -20,7 +20,10 @@ import { firms } from "./tenancy";
 // (golden rule 3). The worker is set when the sender's number is a worker of this firm. The text is
 // the worker's own words: kept here (and in the reply's text), never copied into events. How it was
 // handled and what they asked are set by the inbound-message job (src/lib/inbound/reply.ts), which
-// claims a message (handled_at) before replying, so a reply goes at most once.
+// claims a message (handled_at) before replying, so a reply goes at most once. The one exception
+// (Phase 29.1): an active casual's message in the app sent about her pay (/messages?about=pay) is
+// stored already handled (intent pay, handled_as office, handled_at set) with a pay query for
+// payroll (src/lib/pay/from-messages.ts), and no job is queued (src/lib/inbound/app.ts).
 
 export const MESSAGE_DIRECTIONS = ["in", "out"] as const;
 // voice: a call (body null) or a voicemail's text (Phase 7, call-to-text). app: a casual's message

@@ -39,7 +39,8 @@ export { APP_MESSAGE_MAX };
 // `aboutPay` and the query's id. No inbound-message job is queued, so nothing sorts it, no AI sees
 // it and no automatic answer comes (the pay link would only send her back to Pay, which can't take
 // the question: no way to send her a code, or older than 90 days). A repeat with the same id stores
-// nothing, so it raises no second query. Someone no longer active (a session that outlived it) is
+// nothing, so it raises no second query; nor does a new message while a query of hers from today
+// still waits (it names that one: one a day, src/lib/pay/from-messages.ts). Someone no longer active (a session that outlived it) is
 // stored for the office as before (intent 'office'; src/lib/inbound/reply.ts holds it for a person).
 
 export type AboutPay = { why: PayFromMessagesWhy | null };
@@ -138,6 +139,8 @@ export async function receiveAppMessage(
           intent: "pay",
           aboutPay: true,
           payQueryId: query.id,
+          // A query already waiting for her today (one a day: src/lib/pay/from-messages.ts).
+          ...(query.alreadyOpen ? { payQueryAlreadyOpen: true } : {}),
           workerId,
         },
       });

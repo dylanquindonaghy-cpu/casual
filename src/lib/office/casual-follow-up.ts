@@ -10,6 +10,8 @@ import type { FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { markCovers, type CoveredNeed, type SortedMark } from "../portal/in-hand";
 import { localDateOf } from "../time/zoned";
+import type { StaffPhoto } from "../uploads/photo";
+import { photoNeedsUpdate } from "./casuals-copy";
 import { officeUserMay, parts, type OfficeContext } from "./office-context";
 import { loadCasualRecords, type CasualRecord } from "./reliability";
 
@@ -45,6 +47,20 @@ export function remindable(needs: readonly NeedsItem[]): NeedsItem | null {
         !n.qualification.renewing,
     ) ?? null
   );
+}
+
+// What a "Mark as sorted" is tested against: their worst need as it stands (the first need, else a
+// missing or overdue staff photo), the one the mark was made about (worstNeed). The Casuals list's
+// "Sorted by" and "Remind all" and the server's Remind use this one need, so they agree even when
+// the one to remind about (remindable) is a different qualification.
+export function sortedAbout(
+  needs: readonly NeedsItem[],
+  photo: Pick<StaffPhoto, "status"> | null | undefined,
+): CoveredNeed | null {
+  if (needs[0]) return needs[0].qualification;
+  return photo && photoNeedsUpdate(photo)
+    ? { type: "photo", status: photo.status, expiresOn: null }
+    : null;
 }
 
 export type RemindResult =
@@ -87,7 +103,8 @@ export async function remindCasuals(
       await tx.execute(
         sql`select pg_advisory_xact_lock(hashtextextended('casual-remind:' || app_current_firm_id()::text || ':' || ${p.id}, 0))`,
       );
-      const item = p.status === "active" ? remindable(held.get(p.id)?.needs ?? []) : null;
+      const q = held.get(p.id);
+      const item = p.status === "active" ? remindable(q?.needs ?? []) : null;
       if (!item) {
         nothing += 1;
         continue;
@@ -96,8 +113,10 @@ export async function remindCasuals(
         recent += 1;
         continue;
       }
-      // Marked as sorted by the office, while the mark still covers it as it stands: left alone.
-      if (await sortedFor(tx, p.id, item.qualification, timeZone)) {
+      // Marked as sorted by the office, while the mark still covers their worst need as it stands
+      // (the one the list's "Sorted by" tests, not always the one reminded about): left alone.
+      const worst = sortedAbout(q?.needs ?? [], q?.photo);
+      if (worst && (await sortedFor(tx, p.id, worst, timeZone))) {
         sorted += 1;
         continue;
       }

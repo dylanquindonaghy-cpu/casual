@@ -100,7 +100,9 @@ const uuid = z.uuid();
 
 // The session a message may name: hers (a booking that isn't cancelled) or one shown to casuals,
 // not a draft or cancelled, and not ended. Null otherwise (RLS hides another firm's session).
-async function sessionToTag(
+// Messages' About line asks the same (Phase 28.6, src/lib/portal/messages.ts), so the line shows
+// exactly when a send would keep the session.
+export async function sessionToTag(
   tx: FirmTx,
   workerId: string,
   shiftId: string | null | undefined,

@@ -1,13 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
-import { labelStack, staffBtn, staffField } from "@/app/ui/classes";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
+import { labelStack, staffBtn, staffField, tag } from "@/app/ui/classes";
 import { useHydrated } from "@/app/use-hydrated";
 import { useOnline } from "@/app/use-online";
 import { APP_MESSAGE_MAX, appMessageText, charCount } from "@/lib/inbound/app-limits";
 import {
   COMPOSER_LABEL,
+  SENT_TO_OFFICE,
   SENT_WAITING,
   sendProblemText,
   type SendProblem,
@@ -18,21 +19,50 @@ import { sendAppMessageAction } from "./actions";
 const LOOK_EVERY_MS = 3_000;
 const LOOKS = 20;
 
-// "Write to the office" → "Send". Her message shows in the thread at once (the page is read again);
+// The shift Messages was opened about (Phase 28.6; the page checks it: src/app/messages/page.tsx):
+// its id, sent with the message, the About line, and the ready sentence the box starts with.
+export interface ComposerAbout {
+  shiftId: string;
+  line: string; // "About: Steward · Sat 7 Nov, 10:30"
+  sentence: string; // "" for "other"
+}
+
+// "Your message" → "Send". Her message shows in the thread at once (the page is read again);
 // then "Sent. The answer comes here." until an answer comes after it (`answered`, from the page).
 // The box and the button wait for the page (docs/ui-design.md "Forms wait for the page").
-export function Composer({ answered }: { answered: boolean }) {
+// Opened about a shift (Phase 28.6): the About line sits above the box (screen readers hear it
+// with the box), the box starts with the ready sentence, hers to change, and the page scrolls to
+// it (the focus stays put). Sent, the address loses the shift, so the About line goes and her next
+// message is about nothing in particular, and "Sent. The office will answer here." stays until an
+// answer comes: a person answers it, never an automatic answer (src/lib/inbound/reply.ts).
+export function Composer({
+  answered,
+  about = null,
+}: {
+  answered: boolean;
+  about?: ComposerAbout | null;
+}) {
   const router = useRouter();
   const ready = useHydrated();
   const online = useOnline();
-  const [text, setText] = useState("");
+  const aboutId = useId();
+  const form = useRef<HTMLFormElement>(null);
+  const [text, setText] = useState(about?.sentence ?? "");
   const [problem, setProblem] = useState<SendProblem | null>(null);
   const [waiting, setWaiting] = useState(false);
+  // The last message sent was about a shift: a person answers it.
+  const [toOffice, setToOffice] = useState(false);
   const [pending, startTransition] = useTransition();
   const sending = useRef(false);
   // This message's own id, kept until it's sent, so a second tap after a send that seemed to fail
   // (weak signal) can't store it twice (src/lib/inbound/app.ts).
   const clientId = useRef<string | undefined>(undefined);
+  const aboutShift = about?.shiftId;
+
+  // Opened about a shift: bring the box into view, past a long thread.
+  useEffect(() => {
+    if (aboutShift) form.current?.scrollIntoView({ block: "center" });
+  }, [aboutShift]);
 
   // Look again until the answer is there, at most LOOKS times.
   useEffect(() => {
@@ -54,8 +84,9 @@ export function Composer({ answered }: { answered: boolean }) {
     setProblem(null);
     sending.current = true;
     clientId.current ??= typeof crypto.randomUUID === "function" ? crypto.randomUUID() : undefined;
+    const shiftId = aboutShift;
     startTransition(async () => {
-      const result = await sendAppMessageAction(words, clientId.current).catch(() => ({
+      const result = await sendAppMessageAction(words, clientId.current, shiftId).catch(() => ({
         status: "error" as const,
       }));
       sending.current = false;
@@ -63,19 +94,28 @@ export function Composer({ answered }: { answered: boolean }) {
       if (result.status !== "sent") return setProblem(result.status);
       clientId.current = undefined;
       setText("");
+      setToOffice(shiftId !== undefined);
       setWaiting(true);
-      router.refresh();
+      // About a shift: the address drops it (the page is read again either way).
+      if (shiftId) router.replace("/messages", { scroll: false });
+      else router.refresh();
     });
   };
 
   return (
     <form
+      ref={form}
       className="space-y-3"
       onSubmit={(e) => {
         e.preventDefault();
         send();
       }}
     >
+      {about && (
+        <p id={aboutId} className={tag} data-about-shift>
+          {about.line}
+        </p>
+      )}
       <label className={labelStack}>
         <span>{COMPOSER_LABEL}</span>
         <textarea
@@ -87,6 +127,7 @@ export function Composer({ answered }: { answered: boolean }) {
           }}
           disabled={!ready}
           rows={3}
+          aria-describedby={about ? aboutId : undefined}
           className={staffField}
         />
       </label>
@@ -97,7 +138,7 @@ export function Composer({ answered }: { answered: boolean }) {
       )}
       {waiting && !answered && !problem && (
         <p role="status" className="font-semibold">
-          {SENT_WAITING}
+          {toOffice ? SENT_TO_OFFICE : SENT_WAITING}
         </p>
       )}
       <button type="submit" disabled={pending || !ready} className={staffBtn.primary}>

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { meta, nums } from "@/app/ui/classes";
+import { emptyBox, nums } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { withLinks } from "@/app/ui/with-links";
 import { FROM_WORDS, MESSAGES_EMPTY, MESSAGES_INTRO } from "@/lib/portal/messages-copy";
@@ -11,7 +11,8 @@ import { localDateOf } from "@/lib/time/zoned";
 // office and their answers, oldest first: hers on the right in the firm's colour, the answers on
 // the left in glass, each with its time and (an answer) who it's from; a link back to the firm's
 // own address in an answer is a link. The form to write sits at the foot (`composer`). Pure and
-// hook-free (page.tsx reads the thread), so the plain-language test renders every state.
+// hook-free (page.tsx reads the thread), so the plain-language test renders every state. Phase
+// 28.6: the bubbles take the office's 12px section corner, and "No messages yet." the empty box.
 
 // "09:14" today, "09:14 on Mon 2 Nov" before.
 export const messageTime = (at: Date, now: Date, timeZone: string) =>
@@ -34,7 +35,7 @@ function Bubble({
   return (
     <li className={`flex ${item.mine ? "justify-end" : "justify-start"}`} data-mine={item.mine}>
       <div
-        className={`max-w-[85%] rounded-[1.25rem] px-4 py-3 ${
+        className={`max-w-[85%] rounded-inner px-4 py-3 ${
           item.mine ? "glass-tint" : "glass-button text-ink"
         }`}
       >
@@ -72,7 +73,7 @@ export function MessagesView({
         <p className="mt-2">{MESSAGES_INTRO}</p>
       </PageHeader>
       {thread.items.length === 0 ? (
-        <p className={meta}>{MESSAGES_EMPTY}</p>
+        <p className={emptyBox}>{MESSAGES_EMPTY}</p>
       ) : (
         <ol role="list" aria-label="Your messages" className="space-y-3">
           {thread.items.map((item) => (

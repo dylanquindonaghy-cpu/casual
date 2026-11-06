@@ -1,7 +1,8 @@
 import { eq, sql } from "drizzle-orm";
 import { systemClock } from "../auth/clock";
-import { workers } from "../db/schema";
+import { shifts, workers } from "../db/schema";
 import { withFirm, type FirmTx } from "../db/scoped";
+import { sessionToTag } from "../inbound/app";
 import type { PortalContext } from "./my-shifts";
 
 // A casual's Messages (P8; Phase 25.6; docs/screens.md "Messages: the in-app chat"): their messages
@@ -86,6 +87,34 @@ export async function messagesThread(ctx: PortalContext, workerId: string): Prom
   const run = ctx.run ?? withFirm;
   const now = (ctx.clock ?? systemClock).now();
   return run(ctx.firm.id, (tx) => readThread(tx, workerId, now));
+}
+
+// The shift Messages was opened about (Phase 28.6; 28.2's link, src/lib/portal/message-office.ts):
+// its role and start, for the About line, only when a message sent now would keep it
+// (sessionToTag, the send's own check in src/lib/inbound/app.ts: hers, or shown to casuals; not a
+// draft or cancelled; not ended). Null otherwise, and the page works as it did.
+export interface MessageAboutShift {
+  shiftId: string;
+  role: string;
+  startsAt: Date;
+}
+
+export async function messageAboutShift(
+  ctx: PortalContext,
+  workerId: string,
+  shiftId: string,
+): Promise<MessageAboutShift | null> {
+  const run = ctx.run ?? withFirm;
+  const now = (ctx.clock ?? systemClock).now();
+  return run(ctx.firm.id, async (tx) => {
+    const kept = await sessionToTag(tx, workerId, shiftId, now);
+    if (!kept) return null;
+    const [row] = await tx
+      .select({ role: shifts.role, startsAt: shifts.startsAt })
+      .from(shifts)
+      .where(eq(shifts.id, kept));
+    return row ? { shiftId: kept, role: row.role, startsAt: row.startsAt } : null;
+  });
 }
 
 // The tab's count: the office's replies in the app since they last opened Messages.

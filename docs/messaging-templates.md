@@ -356,6 +356,21 @@ app has its own way to the office: `forTheApp()`). Nothing goes by WhatsApp, tex
 - The office's reply on Enquiries shows in the app in their words, signed as on WhatsApp ("{words}
   — {firm} Shift Team"), with a push (below). An automatic answer comes with none: they're in the
   app when it comes.
+- **About a shift (Phase 28.6).** A message sent from Messages opened about a shift
+  (`/messages?shift={id}&about=…`; docs/screens.md "### 28.6") keeps that shift on the message
+  (`messages.shift_id`) only when it's one she's booked on or can see in Open shifts, not a draft or
+  cancelled, and not yet ended (`src/lib/inbound/app.ts`). Such a message is never sorted: no
+  keyword, no AI (the AI never sees its words), and no automatic answer, not even "The office will
+  see this…". It goes straight to a person on Enquiries as the office's question (Need a person),
+  with "About: {Steward}, {Sat 7 Nov 10:30}" on its page. The casual's page says "Sent. The office
+  will answer here." So a question about the pay for a shift that hasn't ended (an open or booked
+  shift's rate) reaches a person, never the pay page's link. A message about a shift that has
+  ended keeps no shift and is sorted as any other: a pay question about a worked shift gets the pay
+  page's link and its "Raise a pay query", for payroll (golden rule 9). Its `message.received` log
+  entry names the session (`shiftId`) and holds ids only, never her words.
+- Her ready sentences (`src/lib/portal/messages-copy.ts`, the words of docs/screens.md "### 28.6")
+  are only put in her box: she can change them before she sends, and nothing is sent until she
+  taps Send.
 
 ## Push (title / body)
 

@@ -194,7 +194,10 @@ Automatic reply. Send OFFICE to reach a person.
   WhatsApp and by text).
 - Nothing they can take: "Hi Zoe, there's nothing you can take on Saturday within 45 minutes of
   your home area right now. We'll message you if something comes up. All open shifts: {link}"
-  (the day and the area only when known; "We'll message you…" only when they get shift alerts).
+  (the day and the area only when known; "We'll message you…" only when they get shift alerts
+  and something can reach them: a phone with notifications on, texts they haven't stopped while
+  there's a text sender, or an email address the firm holds; the rule Home and Open shifts use,
+  `reachOf()`, 29.2. A casual nothing can reach gets the same words without it.)
 - By text: "Acme Events: shifts for you: 1) Sat 10 Oct 08:00-16:00 Door supervisor, Acme Demo Arena, £15.50/h, 3.1 miles, 12 min by car, 24 min by public transport. 2) Sat 10 Oct 17:00-23:00 CSAS officer, Northgate Town Centre, £15.00/h, 8.4 miles, 21 min by car, 38 min by public transport. Take one: {link} Automatic reply. Send OFFICE to reach a person. - Acme Events Shift Team" (the same travel facts as the app's line, with commas instead of "·",
   which isn't in the plain text alphabet: "distance not known yet", "about 7 miles (straight
   line), travel time not known yet", "over 90 min by car")

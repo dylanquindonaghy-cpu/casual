@@ -70,6 +70,7 @@ const base = (o: Partial<ShiftsReplyInput> = {}): ShiftsReplyInput => ({
   travelOn: true,
   area: { maxMinutes: 45 },
   offerAlerts: true,
+  canReach: true,
   links: { take: LINK, profile: PROFILE },
   ...o,
 });
@@ -214,6 +215,37 @@ describe("the shifts reply on WhatsApp", () => {
     ).toBe(
       `Hi Zoe, there's nothing you can take right now. All open shifts: ${LINK}\n${AUTOMATIC}\n— Acme Events Shift Team`,
     );
+  });
+
+  it('29.2: "We\'ll message you" only when she gets shift alerts and something can reach her', () => {
+    const promise = "We'll message you if something comes up.";
+    const reachable = shiftsReplyText(base({ shifts: [] }), "whatsapp").text;
+    expect(reachable).toContain(promise);
+    // Alerts on, nothing can reach her: the same words, without the promise.
+    const unreachable = shiftsReplyText(base({ shifts: [], canReach: false }), "whatsapp").text;
+    expect(unreachable).not.toContain("We'll message you");
+    expect(unreachable).toBe(
+      `Hi Zoe, there's nothing you can take on Saturday within 45 minutes of your home area right now. All open shifts: ${LINK}\n${AUTOMATIC}\n— Acme Events Shift Team`,
+    );
+    expect(unreachable).toBe(reachable.replace(` ${promise}`, ""));
+    // Alerts off: no promise, whether or not she can be reached.
+    for (const canReach of [true, false]) {
+      expect(
+        shiftsReplyText(base({ shifts: [], offerAlerts: false, canReach }), "whatsapp").text,
+      ).toBe(unreachable);
+    }
+    // A text never had the promise: unchanged either way.
+    const sms = (canReach: boolean) => shiftsReplyText(base({ shifts: [], canReach }), "sms").text;
+    expect(sms(true)).toBe(sms(false));
+    expect(sms(true)).toBe(
+      `Acme Events: nothing you can take on Saturday right now. All open shifts: ${LINK} ${AUTOMATIC} - Acme Events Shift Team`,
+    );
+    // A list never carries it: the same words whether or not she can be reached.
+    for (const channel of ["whatsapp", "sms"] as const) {
+      expect(shiftsReplyText(base({ canReach: false }), channel)).toEqual(
+        shiftsReplyText(base(), channel),
+      );
+    }
   });
 });
 

@@ -524,6 +524,7 @@ describe("the code says what the doc says", () => {
       travelOn: true,
       area: { maxMinutes: 45 },
       offerAlerts: true,
+      canReach: true,
       links: { take: "{link}", profile: "{profile link}" },
     };
     const block = /```\n([\s\S]*?)\n```/.exec(personal)?.[1];

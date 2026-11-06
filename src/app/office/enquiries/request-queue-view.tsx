@@ -1,5 +1,6 @@
 import Link from "next/link";
 import {
+  btn,
   card,
   count,
   h2,
@@ -19,6 +20,9 @@ import {
   approveHint,
   askedLines,
   kindName,
+  markAgainHref,
+  markedNowText,
+  outcomeWord,
   toldText,
 } from "@/lib/office/requests-copy";
 import { shiftWhen, roleLabel, timeOnDay } from "@/lib/portal/format";
@@ -63,20 +67,21 @@ function SectionHeading({ id, title, n }: { id: string; title: string; n: number
   );
 }
 
-// The answer's first word as a status chip, the rest of the sentence after it: "[Declined] by Sam
-// Rota". The words are answeredBy()'s; only the first one is coloured.
+// The answer's word as a status chip, the rest of the sentence after it: "[Declined] by Sam Rota",
+// "[Taken back] by Ann" (Phase 28.9). The words are answeredBy()'s, which start with outcomeWord();
+// only that word is coloured. Any "Answered" is done (green), whatever's stored.
 const OUTCOME_TONES: Record<string, StatusTone> = {
   approved: "done",
   auto_resolved: "done",
   declined: "quiet",
+  withdrawn: "quiet",
 };
 
 function Outcome({ r }: { r: QueueRequest }) {
   const said = answeredBy(r);
-  const tone = OUTCOME_TONES[r.status];
-  if (!tone) return <>{said}</>;
-  const space = said.indexOf(" ");
-  const word = space < 0 ? said : said.slice(0, space);
+  const word = outcomeWord(r);
+  const tone = word === "Answered" ? "done" : OUTCOME_TONES[r.status];
+  if (!tone || !said.startsWith(word)) return <>{said}</>;
   return (
     <>
       <StatusChip tone={tone}>{word}</StatusChip>
@@ -125,6 +130,7 @@ export function RequestQueueView({ queue }: { queue: RequestQueue }) {
                       {line}
                     </p>
                   ))}
+                  {markedNowText(r) && <p className={meta}>{markedNowText(r)}</p>}
                   <p className={`${meta} mt-1 tabular-nums`}>
                     Sent {timeOnDay(r.createdAt, tz)} · Reference <Ref>{r.ref}</Ref>
                     {r.status === "escalated" && (
@@ -138,6 +144,13 @@ export function RequestQueueView({ queue }: { queue: RequestQueue }) {
                 <div className="mt-4 flex min-w-0 flex-col gap-3 border-t border-line pt-4 lg:mt-0 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-8">
                   {approveHint(r.type, r.asked.cancellation) && (
                     <p className={muted}>{approveHint(r.type, r.asked.cancellation)}</p>
+                  )}
+                  {/* An attendance question (Phase 28.9): the session's who-worked, to mark it
+                      again there (logged as marking always is); answering never changes it. */}
+                  {markAgainHref(r) && (
+                    <Link href={markAgainHref(r) ?? ""} className={`${btn.secondary} self-start`}>
+                      Mark again
+                    </Link>
                   )}
                   <AnswerForm
                     requestId={r.requestId}
@@ -182,6 +195,7 @@ export function RequestQueueView({ queue }: { queue: RequestQueue }) {
                     <Ref>{r.ref}</Ref>.
                   </p>
                   {r.answer?.note && <p>Note: {r.answer.note}</p>}
+                  {markedNowText(r) && <p className={meta}>{markedNowText(r)}</p>}
                   {toldText(r) && (
                     <p
                       className={

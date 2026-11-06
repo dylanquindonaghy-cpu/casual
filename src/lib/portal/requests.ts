@@ -207,6 +207,10 @@ export async function myRequests(ctx: Ctx, workerId: string): Promise<MyRequest[
 export interface RequestableShift {
   shiftId: string;
   label: string; // "Sat 7 Nov, 14:00 to 22:00, Door supervisor at Demo Arena"
+  // The same on two lines, for the form's choice cards (Phase 28.9): "Sat 7 Nov, 14:00 to 22:00",
+  // then "Door supervisor at Demo Arena" in full.
+  when: string;
+  what: string;
 }
 
 export async function requestableShifts(ctx: Ctx, workerId: string): Promise<RequestableShift[]> {
@@ -237,12 +241,11 @@ export async function requestableShifts(ctx: Ctx, workerId: string): Promise<Req
       )
       .orderBy(asc(shifts.startsAt)),
   );
-  return rows.map((r) => ({
-    shiftId: r.shiftId,
-    label: `${shiftWhen(r.startsAt, r.endsAt, ctx.firm.timezone)}, ${roleLabel(r.role)}${
-      r.siteName ? ` at ${r.siteName}` : ""
-    }`,
-  }));
+  return rows.map((r) => {
+    const when = shiftWhen(r.startsAt, r.endsAt, ctx.firm.timezone);
+    const what = `${roleLabel(r.role)}${r.siteName ? ` at ${r.siteName}` : ""}`;
+    return { shiftId: r.shiftId, label: `${when}, ${what}`, when, what };
+  });
 }
 
 // Whether "Take back this request" can work on it, for the pages to hide it where it can't: still

@@ -2,12 +2,14 @@
 
 import { z } from "zod";
 import { getWorkerSession } from "@/lib/auth/current-worker";
+import { markAnswersSeen } from "@/lib/portal/request-answers";
 import {
   requestPayload,
   WORKER_REQUEST_KINDS,
   type CreateRequestOutcome,
+  type WithdrawOutcome,
 } from "@/lib/portal/request-kinds";
-import { createRequest } from "@/lib/portal/requests";
+import { createRequest, withdrawRequest } from "@/lib/portal/requests";
 import { requestLog } from "@/lib/request";
 import { getCurrentFirm } from "@/lib/tenancy/current-firm";
 
@@ -50,6 +52,46 @@ export async function createRequestAction(
     });
   } catch (error) {
     (await requestLog()).error("create request failed", { firmId: firm.id, error });
+    return { status: "error" };
+  }
+}
+
+// "Yes, take it back" (Phase 28.9): her own request, while it's still waiting for the office. The
+// firm comes from the host and the worker from her session; the browser sends only the request's
+// id, checked here. withdrawRequest (src/lib/portal/requests.ts) is one conditional UPDATE: if the
+// office answered first, nothing changes and she's told so.
+export async function withdrawRequestAction(requestId: string): Promise<WithdrawOutcome> {
+  const firm = await getCurrentFirm();
+  const session = await getWorkerSession();
+  if (!session) return { status: "logged_out" };
+  const id = z.uuid().safeParse(requestId);
+  if (!id.success) return { status: "not_yours" };
+  try {
+    return await withdrawRequest({ firm }, session.worker.id, id.data);
+  } catch (error) {
+    (await requestLog()).error("withdraw request failed", { firmId: firm.id, error });
+    return { status: "error" };
+  }
+}
+
+export type AnswersSeenOutcome =
+  { status: "seen"; moved: boolean } | { status: "logged_out" } | { status: "error" };
+
+// Her requests' answers are on her screen (Phase 28.9; src/app/requests/answers-seen.tsx calls it
+// once the list shows, never while the page is made, so a prefetch can't clear the count). Marks
+// seen only the answers given by `shownAt`, when the page was made (never later than now:
+// markAnswersSeen caps it), so one that arrives after still counts. Her own row only.
+export async function markAnswersSeenAction(shownAt: string): Promise<AnswersSeenOutcome> {
+  const firm = await getCurrentFirm();
+  const session = await getWorkerSession();
+  if (!session) return { status: "logged_out" };
+  const at = z.iso.datetime().safeParse(shownAt);
+  if (!at.success) return { status: "error" };
+  try {
+    const moved = await markAnswersSeen({ firm }, session.worker.id, new Date(at.data));
+    return { status: "seen", moved };
+  } catch (error) {
+    (await requestLog()).error("mark answers seen failed", { firmId: firm.id, error });
     return { status: "error" };
   }
 }

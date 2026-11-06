@@ -400,11 +400,21 @@ app has its own way to the office: `forTheApp()`). Nothing goes by WhatsApp, tex
 - **About her pay (the guardrails review of 28.10).** A message sent from Messages opened about
   her pay with no shift (`/messages?about=pay`: Pay's and the pay query's "Message the office",
   shown when her pay can't open because no code can be sent, or when a pay question is older than
-  the pay query's 90 days; docs/screens.md "### 28.10") is stored for the office (`intent` 'office'
-  before the job claims it) and never sorted: no keyword, no AI, and never the pay page's link,
-  which would only send her back to the page that sent her. It goes to a person on Enquiries as the
-  office's question, as one about a shift does. Its `message.received` says so (`aboutPay`), with
-  ids only.
+  the pay query's 90 days; docs/screens.md "### 28.10") is never sorted: no keyword, no AI, and
+  never the pay page's link, which would only send her back to the page that sent her. **Since
+  Phase 29.1** (Dylan's decision 20; golden rule 9; docs/screens.md "### 29.1") it is a pay query
+  for payroll's digest, raised in the same transaction that stores it
+  (`src/lib/inbound/app.ts`, `src/lib/pay/from-messages.ts`): issue "other", no shift, open, the
+  day she sent it as the day, her words as its details. The message is stored already handled
+  (`handled_as` 'office', `intent` 'pay') and no inbound job is queued, so no automatic answer of
+  any kind goes, and no office request is made. The casual's page says "Sent. Payroll will look at
+  it. You'll see the answer on your Pay page."; under that message in her thread, "Sent to
+  payroll." and "See it on your Pay page". Payroll's answer reaches her as any pay query's does
+  (`pay_query_update`, and on her Pay page). Its `message.received` says so (`aboutPay`, and the
+  query's id `payQueryId`), and `pay_query.created` carries `via: "messages"`, the message's id and,
+  when known, `why: "no_code"`: ids only, never her words. (From the guardrails review of 28.10
+  until 29.1 it was the office's question on Enquiries instead; one from someone no longer active
+  still is.)
 - Her ready sentences (`src/lib/portal/messages-copy.ts`, the words of docs/screens.md "### 28.6")
   are only put in her box: she can change them before she sends, and nothing is sent until she
   taps Send.
@@ -568,4 +578,6 @@ reach the same app, which isn't answering.
   week of Mon 7 Sep, paid at £12.50"; on a fortnightly pay calendar, in the firm's word for its
   period: "wrong rate, the cycle of Mon 12 Oct, paid at £13.00", Phase 25.2). The body holds counts and facts only; names and what
   workers wrote are only in the attached list (columns Reference, Worker, Day worked, Shift, Issue,
-  What they wrote, Sent (firm time), Group; spreadsheet-safe cells).
+  What they wrote, Sent (firm time), Group, Sent from; spreadsheet-safe cells. Sent from, Phase
+  29.1: "Pay page", "Messages", or "Messages (we couldn't send them a pay code)" for a pay question
+  sent from Messages about her pay).

@@ -13,9 +13,10 @@ import type { MessageAbout } from "./message-office";
 // else goes to the office.
 export const MESSAGES_INTRO =
   "Ask about shifts, cancelling or pay for an answer straight away, or ask the office anything else. If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll.";
-// Opened from Pay about a question Pay can't take (28.10): it goes to a person, never sorted.
+// Opened from Pay about a question Pay can't take (28.10; Phase 29.1, Dylan's decision 20): it goes
+// to payroll as a pay query, never sorted and never an automatic or AI answer (golden rule 9).
 export const MESSAGES_INTRO_PAY =
-  "This goes to a person at the office, not the automatic answers. They'll answer you here.";
+  "This goes to payroll, not the automatic answers. You'll see their answer on your Pay page.";
 export const MESSAGES_EMPTY = "No messages yet.";
 // Not "Write to the office" (Phase 28.6): the first answer is often automatic.
 export const COMPOSER_LABEL = "Your message";
@@ -30,10 +31,20 @@ export const READY_SENTENCES: Record<MessageAbout, string> = {
   other: "",
 };
 // Opened about her pay with no shift (the guardrails review of 28.10; Pay's "Message the office"):
-// the About line, and an empty box. Sent, a person answers it, never an automatic answer.
+// the About line, and an empty box. Sent, payroll answers it on her Pay page (Phase 29.1), never an
+// automatic answer.
 export const ABOUT_PAY_LINE = "About: your pay";
 // Sent about a shift: a person answers it, never an automatic answer (src/lib/inbound/reply.ts).
 export const SENT_TO_OFFICE = "Sent. The office will answer here.";
+// Sent about her pay (Phase 29.1): a pay query for payroll's digest, answered on her Pay page under
+// "Your pay queries", never here. Under that message in her thread afterwards, PAY_QUERY_NOTE, with
+// the Pay page's link.
+export const SENT_TO_PAYROLL =
+  "Sent. Payroll will look at it. You'll see the answer on your Pay page.";
+export const PAY_QUERY_NOTE = {
+  before: "Sent to payroll. ",
+  link: "See it on your Pay page",
+} as const;
 
 const pad = (n: number) => String(n).padStart(2, "0");
 

@@ -331,7 +331,10 @@ export interface EnquiryTimeline {
     // A message in the app about a session (Phase 28.6): never sorted, passed to a person.
     | { how: "about_shift" }
     // Sent about her pay from Pay's "Message the office" (the guardrails review of 28.10).
-    | { how: "about_pay" };
+    | { how: "about_pay" }
+    // The same since Phase 29.1: a pay query in payroll's digest (`payQueryId` on its
+    // `message.received`), by its reference.
+    | { how: "to_payroll"; ref: string };
   reply:
     | { how: "automatic"; intent: Intent | "unknown_number" | "voicemail" }
     | { how: "none" }
@@ -711,10 +714,14 @@ export async function loadEnquiry(
                                   ? { ai: aiReason(received?.data.aiFallback) }
                                   : {}),
                               };
-  // Sent about her pay from Pay's "Message the office" (the guardrails review of 28.10).
+  // Sent about her pay from Pay's "Message the office" (the guardrails review of 28.10); since
+  // Phase 29.1 a pay query for payroll, named on its `message.received` (`payQueryId`).
+  const payQueryId = str(received?.data.payQueryId);
   const sorted: EnquiryTimeline["sorted"] =
     m.handled_at !== null && received?.data.aboutPay === true && handledAs === "office"
-      ? { how: "about_pay" }
+      ? payQueryId
+        ? { how: "to_payroll", ref: payQueryId.slice(0, 8).toUpperCase() }
+        : { how: "about_pay" }
       : sortedAsLogged;
 
   // The automatic reply: the first one logged against the message.

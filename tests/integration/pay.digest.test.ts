@@ -224,10 +224,10 @@ describe("the payroll digest", () => {
       .split("\r\n");
     expect(rows).toHaveLength(4);
     expect(rows[0]).toBe(
-      "Reference,Worker,Day worked,Shift,Issue,What they wrote,Sent (firm time),Group",
+      "Reference,Worker,Day worked,Shift,Issue,What they wrote,Sent (firm time),Group,Sent from",
     );
     expect(rows[1]).toMatch(
-      /^[0-9A-F]{8},Ann Booker,2026-10-29,"Thu 29 Oct, 08:00 to 16:00",Wrong rate,"Paid £12\.50, should be £13",\d{4}-\d{2}-\d{2} \d{2}:\d{2},"2 queries: wrong rate, the week of Mon 26 Oct, paid at £12\.50\."$/,
+      /^[0-9A-F]{8},Ann Booker,2026-10-29,"Thu 29 Oct, 08:00 to 16:00",Wrong rate,"Paid £12\.50, should be £13",\d{4}-\d{2}-\d{2} \d{2}:\d{2},"2 queries: wrong rate, the week of Mon 26 Oct, paid at £12\.50\.",Pay page$/,
     );
     expect(rows[2]).toMatch(/^[0-9A-F]{8},Ben Booker,2026-10-29,/);
     expect(rows[3]).toMatch(

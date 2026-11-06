@@ -16,7 +16,9 @@ import type { PayIssue } from "../portal/pay-query-kinds";
 // admins: the session and role are checked here as well as on the page. Reads only, inside the firm.
 // Open and in-digest queries by their grouping key (worked out by code: src/lib/pay/grouping.ts),
 // biggest group first, each with its facts, a one-line summary and its queries (the worker, the
-// day, the shift, their details: payroll's to answer; never logged). The heading is the code's line
+// day, the shift, their details: payroll's to answer; never logged; and, for one sent from Messages
+// about her pay (Phase 29.1), that it came from there and why, from its creation's log entry, on the
+// events index by entity). The heading is the code's line
 // from the facts; summariseGroups() adds an AI line beneath it, outside any transaction (the digest
 // job, once the Anthropic API is connected). At most 2,000 queries (the newest), and it says when
 // there are more.
@@ -31,6 +33,10 @@ export interface PayQueryItem {
   details: string | null;
   status: string;
   createdAt: Date;
+  // Sent from Messages about her pay (Phase 29.1; src/lib/pay/from-messages.ts), read from its
+  // `pay_query.created` (`via: "messages"`), with why Pay couldn't take it when the app knew
+  // (`no_code`: no way to send her a pay code). Null: raised on the Pay page.
+  fromMessages?: { why: "no_code" | null } | null;
 }
 
 export interface PayQueryGroup {
@@ -53,6 +59,8 @@ type Row = {
   last_name: string;
   starts_at: string | Date | null;
   ends_at: string | Date | null;
+  via: string | null;
+  why: string | null;
 };
 
 export const PAY_QUERY_ROWS = 2000;
@@ -74,10 +82,15 @@ export async function loadPayQueryGroups(
     : sql`q.status in ('open', 'in_digest')`;
   const { rows } = await tx.execute<Row>(sql`
     select q.id, q.group_key, q.issue_type, q.work_date::text as work_date, q.details, q.status,
-           q.created_at, w.first_name, w.last_name, s.starts_at, s.ends_at
+           q.created_at, w.first_name, w.last_name, s.starts_at, s.ends_at,
+           c.data ->> 'via' as via, c.data ->> 'why' as why
       from pay_queries q
       join workers w on w.firm_id = q.firm_id and w.id = q.worker_id
       left join shifts s on s.firm_id = q.firm_id and s.id = q.shift_id
+      left join lateral (select e.data from events e
+                          where e.firm_id = q.firm_id and e.entity_id = q.id
+                            and e.action = 'pay_query.created'
+                          order by e.id limit 1) c on true
      where ${which}
      order by q.created_at desc, q.id
      limit ${PAY_QUERY_ROWS + 1}`);
@@ -135,6 +148,7 @@ export async function loadPayQueryGroups(
         details: m.details,
         status: m.status,
         createdAt: new Date(m.created_at),
+        fromMessages: m.via === "messages" ? { why: m.why === "no_code" ? "no_code" : null } : null,
       })),
     });
   }

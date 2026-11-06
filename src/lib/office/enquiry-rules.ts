@@ -22,6 +22,7 @@ export const OUTCOMES = [
   "person_answered", // Passed to a person, answered
   "not_understood", // Not understood
   "pay", // Pay: link to their pay page
+  "payroll", // Pay: sent to payroll (a pay question from Messages about her pay: Phase 29.1)
   "in_app", // They sorted it in the app
   "inbox", // Left for your inbox (an email not from a casual: Phase 25.5)
 ] as const;
@@ -47,7 +48,9 @@ export function enquiryOutcome(f: OutcomeFacts): Outcome {
   if (!f.handled) return "not_understood";
   if (f.email && f.handledAs === "unknown") return "inbox";
   // Pay is never answered by AI or by the shifts line's words: the casual gets the pay page's link.
-  if (f.intent === "pay") return "pay";
+  // One sent from Messages about her pay went to payroll's digest as a pay query instead (Phase
+  // 29.1; src/lib/inbound/app.ts stores only those as handled by "office" with intent "pay").
+  if (f.intent === "pay") return f.handledAs === "office" ? "payroll" : "pay";
   if (forAPerson(f)) return f.waiting ? "person_waiting" : "person_answered";
   if (f.doneInApp) return "in_app";
   if (f.handledAs === "ai") return "ai";

@@ -14,6 +14,8 @@ export const OUTCOME_WORDS: Record<Outcome, string> = {
   // goes to payroll by itself. The chip names the answer, not its delivery: a WhatsApp or text that
   // failed is only on the message's own page (the guardrails reviews, Phase 27.2; the Parking lot).
   pay: "Pay: link to their pay page",
+  // Sent from Messages about their pay (Phase 29.1): a pay query in payroll's digest.
+  payroll: "Pay: sent to payroll",
   in_app: "They sorted it in the app",
   inbox: "Left for your inbox",
 };
@@ -25,6 +27,7 @@ export const OUTCOME_TONES: Record<Outcome, StatusTone> = {
   person_answered: "done",
   not_understood: "attention",
   pay: "quiet",
+  payroll: "quiet",
   in_app: "done",
   inbox: "quiet",
 };
@@ -247,14 +250,19 @@ export function sortedStep(
     | { how: "held"; by: "keyword" | "ai"; intent: Intent }
     // A casual's message in the app about a session (Phase 28.6).
     | { how: "about_shift" }
-    // Sent about her pay from Pay's "Message the office" (the guardrails review of 28.10).
-    | { how: "about_pay" },
+    // Sent about her pay from Pay's "Message the office" (the guardrails review of 28.10), before
+    // Phase 29.1.
+    | { how: "about_pay" }
+    // The same since Phase 29.1: a pay query in payroll's digest, its reference.
+    | { how: "to_payroll"; ref: string },
 ): string {
   switch (s.how) {
     case "about_shift":
       return "About a session: passed to a person, never sorted.";
     case "about_pay":
       return "About their pay, sent from the Pay page: passed to a person, never sorted.";
+    case "to_payroll":
+      return `About their pay, from Messages: it went to payroll as pay query ${s.ref}, for the pay digest. Never sorted or answered automatically.`;
     // Sorted, then passed to a person: automatic replies are off (Phase 25.3).
     case "held":
       return s.by === "keyword"

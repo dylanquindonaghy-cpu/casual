@@ -94,6 +94,16 @@ function Bubble({ item, timeZone }: { item: ConversationItem; timeZone: string }
           theirs ? "glass-button text-ink" : "bg-ink text-on-ink"
         }`}
       >
+        {/* The session this message itself is about (Phase 28.6), on its own bubble: the
+            conversation's later messages may be about another session, or none. */}
+        {item.about && (
+          <p data-about-session className="mb-1 text-sm">
+            <span className="font-semibold">About:</span>{" "}
+            <Link href={`/office/shifts/${item.about.shiftId}`} className={textLink}>
+              {aboutSessionWords(item.about, timeZone)}
+            </Link>
+          </p>
+        )}
         <p className="sr-only">{theirs ? "They wrote:" : "Reply:"}</p>
         <p className="break-words whitespace-pre-wrap">
           {item.text ??
@@ -181,14 +191,6 @@ export function EnquiryBody({
         <H id="conversation" className={h2}>
           The conversation
         </H>
-        {e.about && (
-          <p data-about-session>
-            <span className="font-semibold">About:</span>{" "}
-            <Link href={`/office/shifts/${e.about.shiftId}`} className={textLink}>
-              {aboutSessionWords(e.about, e.timeZone)}
-            </Link>
-          </p>
-        )}
         <ul role="list" className="glass-tile flex flex-col gap-3 rounded-inner p-4">
           {e.conversation.map((item) => (
             <Bubble key={item.id} item={item} timeZone={e.timeZone} />

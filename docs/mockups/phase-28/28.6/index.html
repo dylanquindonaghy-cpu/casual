@@ -240,6 +240,7 @@ section.row > p { margin: 0; color: var(--sheet-muted); max-width: 84ch; }
 .office .sec { display: grid; gap: 12px; }
 .office h2 { font-size: 18px; font-weight: 600; margin: 0; }
 .office .about-line b { font-weight: 600; }
+.office .ob .about-line { margin: 0 0 4px; font-size: 14px; }
 .office .lnk { text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; }
 .office .conv { list-style: none; margin: 0; padding: 16px; border-radius: 12px; background: var(--tile); box-shadow: inset 0 0 0 1px var(--rim); display: grid; gap: 12px; }
 .office .conv li { display: flex; }
@@ -273,7 +274,7 @@ section.row > p { margin: 0; color: var(--sheet-muted); max-width: 84ch; }
       <li>Sent: "Sent. The office will answer here." A message about a shift is never sorted by keyword or AI and gets no automatic answer: a person reads it.</li>
       <li>If the shift ended before she tapped Send, nothing is kept: the message is sorted as any other and the page says "Sent. The answer comes here." A worked shift's pay question still gets the pay page's link (golden rule 9).</li>
       <li>Messages' own words and look: a two-sentence intro, the box is "Your message", "No messages yet." sits in the empty box, the bubbles are 12px round.</li>
-      <li>In Enquiries the message waits in Need a person, and its page says "About: Steward, Sat 7 Nov 10:30", linked to the session.</li>
+      <li>In Enquiries the message waits in Need a person, and its page says "About: Steward, Sat 7 Nov 10:30" on her message's own bubble, linked to the session (a later message names its own session, or none).</li>
       <li>Unchanged: 20 messages an hour at most, 5 automatic answers an hour at most, and the page looking again every few seconds for a minute after a send.</li>
     </ul>
   </header>
@@ -515,9 +516,8 @@ section.row > p { margin: 0; color: var(--sheet-muted); max-width: 84ch; }
               </div>
               <section class="sec" aria-label="The conversation">
                 <h2>The conversation</h2>
-                <p class="about-line new"><b>About:</b> <span class="lnk">Steward, Sat 7 Nov 10:30</span></p>
                 <ul class="conv">
-                  <li><div class="ob theirs"><p>What's the pay for this shift?</p><p class="when">In the app · 10:05 on Sat 7 Nov</p></div></li>
+                  <li><div class="ob theirs"><p class="about-line new"><b>About:</b> <span class="lnk">Steward, Sat 7 Nov 10:30</span></p><p>What's the pay for this shift?</p><p class="when">In the app · 10:05 on Sat 7 Nov</p></div></li>
                 </ul>
               </section>
               <section class="sec" aria-label="How it was answered">
@@ -552,9 +552,8 @@ section.row > p { margin: 0; color: var(--sheet-muted); max-width: 84ch; }
               </div>
               <section class="sec" aria-label="The conversation">
                 <h2>The conversation</h2>
-                <p class="about-line new"><b>About:</b> <span class="lnk">Steward, Sat 7 Nov 10:30</span></p>
                 <ul class="conv">
-                  <li><div class="ob theirs"><p>I'm running late. I'll be there about 10:45</p><p class="when">In the app · 10:05 on Sat 7 Nov</p></div></li>
+                  <li><div class="ob theirs"><p class="about-line new"><b>About:</b> <span class="lnk">Steward, Sat 7 Nov 10:30</span></p><p>I'm running late. I'll be there about 10:45</p><p class="when">In the app · 10:05 on Sat 7 Nov</p></div></li>
                   <li class="ours"><div class="ob ours"><p>Thanks Kay, no problem. Come to the north gate and ask for Sam.</p><p class="when">In the app · 10:08 on Sat 7 Nov · Rosa Bell</p></div></li>
                 </ul>
               </section>
@@ -586,9 +585,8 @@ section.row > p { margin: 0; color: var(--sheet-muted); max-width: 84ch; }
               </div>
               <section class="sec" aria-label="The conversation">
                 <h2>The conversation</h2>
-                <p class="about-line new"><b>About:</b> <span class="lnk">Steward, Sat 7 Nov 10:30</span></p>
                 <ul class="conv">
-                  <li><div class="ob theirs"><p>I'm running late. I'll be there about 10:45</p><p class="when">In the app · 10:05 on Sat 7 Nov</p></div></li>
+                  <li><div class="ob theirs"><p class="about-line new"><b>About:</b> <span class="lnk">Steward, Sat 7 Nov 10:30</span></p><p>I'm running late. I'll be there about 10:45</p><p class="when">In the app · 10:05 on Sat 7 Nov</p></div></li>
                 </ul>
               </section>
               <section class="sec" aria-label="How it was answered">
@@ -615,9 +613,8 @@ section.row > p { margin: 0; color: var(--sheet-muted); max-width: 84ch; }
               </div>
               <section class="sec" aria-label="The conversation">
                 <h2>The conversation</h2>
-                <p class="about-line new"><b>About:</b> <span class="lnk">Steward, Sat 7 Nov 10:30</span></p>
                 <ul class="conv">
-                  <li><div class="ob theirs"><p>I'm running late. I'll be there about 10:45</p><p class="when">In the app · 10:05 on Sat 7 Nov</p></div></li>
+                  <li><div class="ob theirs"><p class="about-line new"><b>About:</b> <span class="lnk">Steward, Sat 7 Nov 10:30</span></p><p>I'm running late. I'll be there about 10:45</p><p class="when">In the app · 10:05 on Sat 7 Nov</p></div></li>
                 </ul>
               </section>
               <section class="sec answer" aria-label="Answer it">

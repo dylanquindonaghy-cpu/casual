@@ -2460,6 +2460,14 @@ Each task adds what it left out here as its wave is merged.
   on her other qualifications on file (first aid, say), and never on office-only ones (a choice for
   Dylan: Decisions waiting). Help's step-by-step words, Home's in-hand and suspended rows, and
   `/profile/travel`'s two "Contact the office" lines are handed to 28.12, 28.15 and 28.16.
+- **From wave 2's guardrails reviews (nits, not fixed):** the shifts line's personal reply
+  (`src/lib/inbound/personal-reply.ts:274`) still adds "We'll message you if something comes up."
+  from the open-shift alerts alone, so it promises a message to a casual nothing can reach (Home and
+  Open shifts no longer do). The office's "Sorted by" and "Remind all" (`casual-follow-up.ts`
+  `sortedFor`) match the latest "sorted" mark on type and status only, the flaw 28.11's fix closed
+  for the casual's "in hand". Home's offline copy now also keeps the Pay and answers counts (counts
+  only, stale offline). `gettingThereLines` (old travel words) is unused code. The open shifts strip's
+  key can name a mark that isn't on screen when the only urgent day is the chosen one.
 - **28.12:** (filled when wave 3 is merged)
 - **28.13:** (filled when wave 3 is merged)
 - **28.14:** (filled when wave 3 is merged)

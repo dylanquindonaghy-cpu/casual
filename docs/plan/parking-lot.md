@@ -2498,3 +2498,8 @@ Each task adds what it left out here as its wave is merged.
   on #42 because two browser specs could pick the same made-up number (fixed: the spare number
   blocks, `tests/e2e/spare-mobiles.ts`). Nothing else from the check is left open.
 
+- **30.1/30.2 (guardrails review, left as they are):** a shift's own page draws `<CasualRail>`,
+  which reads the tab bar's counts (`tabCounts`) on a phone too, where the rail is hidden: one
+  small read wasted per page on a phone. The rail could be drawn by the client only from 1024px,
+  or the counts passed in where the page already has them. And Home's "Your qualifications" puts
+  one the office has in hand after hers to do whatever its status (as the review asked, unchanged).

@@ -453,6 +453,8 @@ export const OTHER_QUALS_PATH = "/profile#other-qualifications-heading";
 export const PHOTO_TITLE = "Staff photo";
 export const PHOTO_PATH = "/profile#photo-heading";
 export const PHOTO_NEW = "Take a new photo";
+// With no photo on file there's nothing to replace.
+export const PHOTO_FIRST = "Take a photo";
 export const PHOTO_NONE = "No photo yet.";
 export const PHOTO_CHECKING = "The office will check your new one.";
 export const RTW_TITLE = "Right to work";
@@ -474,11 +476,19 @@ export const renewByText = (day: string) => {
   const p = datePartsOfDay(day);
   return `Renew by ${p.day} ${p.month}`;
 };
+// The kept copy's pill (no signal: it may be opened days later, so never a day count and never the
+// bare word "Valid"): the date alone. "Until 22 Nov 2028" (a valid one), "Expires 26 Nov" (one
+// expiring soon), and her photo's "Renew by 26 Nov". The date as Profile writes it (the year only
+// when it isn't this one).
+export const untilText = (date: string) => `Until ${date}`;
+export const expiresOnText = (date: string) => `Expires ${date}`;
 
 // "Your week": this week and next, Monday to Sunday.
 export const WEEK_TITLE = "Your week";
 export const WEEK_ROWS = ["This week", "Next week"] as const;
 export const WEEK_LEGEND = "Filled: booked · outlined: shifts you can take";
+// The kept copy's (no outlines there: the shifts she could take need signal).
+export const WEEK_LEGEND_OFFLINE = "Filled: booked";
 // "2 to 8 Nov"; "26 Oct to 1 Nov" across two months.
 export function weekRangeText(monday: string, sunday: string): string {
   const a = datePartsOfDay(monday);
@@ -488,18 +498,27 @@ export function weekRangeText(monday: string, sunday: string): string {
     : `${a.day} ${a.month} to ${b.day} ${b.month}`;
 }
 // A day tile's name for a screen reader: "Monday 9 November: booked, Steward 14:00 to 22:00",
-// "Saturday 7 November: 2 shifts you can take", "Friday 6 November, today: nothing booked".
+// "Saturday 7 November: 2 shifts you can take", "Friday 6 November, today: nothing booked", and a
+// past day she was marked as not attending, "Monday 2 November: not attended, Steward 14:00 to
+// 22:00" (never "booked"). The kept copy's name leaves out "today" and the shifts she can take
+// (they go stale): homeWeek passes `today: false, open: 0` for it.
 export function dayTileName(o: {
   long: string;
   today: boolean;
   booked: string[]; // "Steward 14:00 to 22:00", one for each booking that day
+  missed?: string[]; // the same, for each booking that day marked not attended
   open: number;
 }): string {
   const head = o.today ? `${o.long}, today` : o.long;
   const can = o.open > 0 ? `${plural(o.open, "shift", "shifts")} you can take` : "";
-  if (o.booked.length > 0) {
-    const booked = `booked, ${o.booked.join(" and ")}`;
-    return can ? `${head}: ${booked}. Also ${can}` : `${head}: ${booked}`;
+  const missed = o.missed ?? [];
+  const parts = [
+    o.booked.length > 0 ? `booked, ${o.booked.join(" and ")}` : "",
+    missed.length > 0 ? `not attended, ${missed.join(" and ")}` : "",
+  ].filter(Boolean);
+  if (parts.length > 0) {
+    const what = parts.join("; ");
+    return can ? `${head}: ${what}. Also ${can}` : `${head}: ${what}`;
   }
   return can ? `${head}: ${can}` : `${head}: nothing booked`;
 }
@@ -524,7 +543,13 @@ export function updateWhenText(at: Date, now: Date, timeZone: string): string {
   const ago = dayNo(today) - dayNo(day);
   if (ago === 1) return `Yesterday ${clock}`;
   if (ago > 1 && ago < 7) return `${p.dow} ${clock}`;
-  return `${p.dow} ${p.day} ${p.month}, ${clock}`;
+  return updateAtText(at, timeZone);
+}
+// The kept copy's (its "Today" and "Yesterday" go stale): always the day and date, "Mon 2 Nov,
+// 15:02".
+export function updateAtText(at: Date, timeZone: string): string {
+  const p = datePartsOfDay(localDateOf(at, timeZone));
+  return `${p.dow} ${p.day} ${p.month}, ${clockOf(at, timeZone)}`;
 }
 
 // "Your record": three figures, as Profile's.

@@ -9,6 +9,7 @@ import {
   qualificationRows,
   QUAL_BAR_FULL_DAYS,
   recordFigures,
+  toDoCount,
   updateRows,
 } from "@/lib/portal/home-board";
 import * as copy from "@/lib/portal/home-copy";
@@ -17,6 +18,9 @@ import type { MyRecordRow } from "@/lib/portal/my-record";
 import type { MyShift } from "@/lib/portal/my-shifts";
 import type { OpenShiftsList } from "@/lib/portal/open-shifts";
 import { page } from "@/app/ui/classes";
+import { HomeQualifications } from "@/app/home/home-qualifications";
+import { HomeUpdates } from "@/app/home/home-updates";
+import { elementsWhere, keptCopy, onlineCopy, wordsOf } from "../helpers/kept-copy";
 import { qual } from "../helpers/qualifications";
 
 // Home as the casual's dashboard (Phase 30.1; docs/screens.md "### 30.1"): every figure its new
@@ -225,8 +229,9 @@ describe("Your qualifications", () => {
       rightToWork: unchecked,
       today: TODAY,
     });
+    // With none on file there's nothing to replace: "Take a photo" (the review's nit).
     expect(rows.map((r) => [r.title, r.pill.words, r.line, r.action, r.href])).toEqual([
-      ["Staff photo", "Missing", "No photo yet.", "Take a new photo", "/profile#photo-heading"],
+      ["Staff photo", "Missing", "No photo yet.", "Take a photo", "/profile#photo-heading"],
       [
         "Right to work",
         "Not recorded",
@@ -450,12 +455,16 @@ const text = (html: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
+const weekCard = (html: string) => elementsWhere(html, /aria-labelledby="week-heading"/)[0] ?? "";
+
 describe("Home with its board", () => {
   const html = render();
 
   it("the date line, then the counts, each a link to its page; stale counts online only", () => {
+    // All of it online only: the kept copy would call the day it was saved today (its notice
+    // gives that day).
     expect(html).toContain(
-      '<p data-date-line="" class="text-base text-ink-muted">Friday 6 November<span data-online-only=""> · <span class="tabular-nums">Updated 15:38</span></span></p>',
+      '<p data-date-line="" data-online-only="" class="text-base text-ink-muted">Friday 6 November · <span class="tabular-nums">Updated 15:38</span></p>',
     );
     const counts = html.match(/<ul role="list" aria-label="Your numbers"[\s\S]*?<\/ul>/)?.[0] ?? "";
     expect(text(counts)).toBe("Booked 1 Open to you 1 Urgent 1 Messages 2");
@@ -498,10 +507,17 @@ describe("Home with its board", () => {
   });
 
   it("the week's tiles say what each day holds, in words", () => {
-    expect(html).toContain('aria-label="Monday 9 November: booked, Steward 14:00 to 22:00"');
-    expect(html).toContain('href="/shifts/s1"');
-    expect(html).toContain('href="/shifts/open?day=2026-11-07"');
-    expect(html).toContain('role="img" aria-label="Friday 6 November, today: nothing booked"');
+    // Each tile's name is its own hidden words (the kept copy's differ: below).
+    const week = onlineCopy(weekCard(html));
+    const tile = (day: string) => elementsWhere(week, new RegExp(`data-day="${day}"`))[0] ?? "";
+    expect(wordsOf(tile("2026-11-09"))).toBe(
+      "Mon 9 Monday 9 November: booked, Steward 14:00 to 22:00",
+    );
+    expect(tile("2026-11-09")).toContain('href="/shifts/s1"');
+    expect(tile("2026-11-07")).toContain('href="/shifts/open?day=2026-11-07"');
+    expect(wordsOf(tile("2026-11-06"))).toBe("Fri 6 Friday 6 November, today: nothing booked");
+    // The day and date are seen, not read: the name says it all.
+    expect(tile("2026-11-09")).toMatch(/<span aria-hidden="true" class="[^"]*">Mon<\/span>/);
   });
 
   it("the laptop grid: the pass beside the qualifications, the rest in their columns", () => {
@@ -525,5 +541,189 @@ describe("Home with its board", () => {
     expect(plain).not.toContain("Your numbers");
     expect(plain).not.toContain("data-next-line");
     expect(plain).not.toContain("Your qualifications");
+  });
+});
+
+// --- The copy kept for no signal (the 30.1 review) ------------------------------------------------
+// public/sw.js keeps '/' for up to 14 days; offline, globals.css hides every [data-online-only] and
+// shows every [data-offline-only]. What can go stale in that time is online only, with the kept
+// copy's own words where she still needs them.
+
+describe("the kept copy never says what may have changed since", () => {
+  const html = render();
+  const kept = keptCopy(html);
+
+  it("Your qualifications: never a day count or 'Valid' offline, only the date (golden rule 6)", () => {
+    const rows = qualificationRows({
+      qualifications: [
+        qual({ type: "SIA_DS", name: "SIA door supervisor licence", expiresOn: "2027-12-31" }),
+        qual({ type: "C", name: "c licence", status: "expiring_soon", expiresOn: "2026-11-26" }),
+        qual({ type: "A", name: "a licence", status: "valid", expiresOn: "2028-11-22" }),
+        qual({ type: "STEWARD_L2", name: "Level 2 qualification", expiresOn: null }),
+        qual({ type: "B", name: "b licence", status: "expired", expiresOn: "2026-10-01" }),
+      ],
+      photo: {
+        status: "due_soon",
+        current: { id: "p1", uploadedOn: "2023-11-26", renewBy: "2026-11-26" },
+        waiting: null,
+      },
+      rightToWork: { checked: false, checkedOn: null, expired: false },
+      today: TODAY,
+    });
+    expect(rows.map((r) => [r.title, r.pill.words, r.offline, r.lineOnlineOnly])).toEqual([
+      ["B licence", "Expired", null, false],
+      ["C licence", "Expires in 20 days", "Expires 26 Nov", true],
+      ["Staff photo", "20 days left", "Renew by 26 Nov", true],
+      ["Right to work", "Not recorded", null, false],
+      ["SIA door supervisor licence", "Valid · 420 days", "Until 31 Dec 2027", true],
+      ["A licence", "Valid · 747 days", "Until 22 Nov 2028", true],
+      ["Level 2 qualification", "No expiry", null, false],
+    ]);
+    const card = renderToStaticMarkup(createElement(HomeQualifications, { rows }));
+    const offline = wordsOf(keptCopy(card));
+    expect(offline).not.toMatch(/\bValid\b/);
+    expect(offline).not.toMatch(/\d+ days?\b|\bleft\b|Expires in|Expires today/);
+    for (const words of [
+      "Expired Expired 1 Oct",
+      "Staff photo Renew by 26 Nov Take a new photo",
+      "C licence Expires 26 Nov",
+      "SIA door supervisor licence Until 31 Dec 2027",
+      "A licence Until 22 Nov 2028",
+      "Level 2 qualification No expiry",
+    ])
+      expect(offline).toContain(words);
+    // No bar offline: it measures the days left from the day it was drawn.
+    expect(keptCopy(card)).not.toContain('style="width:');
+    // Online, as before: the day counts, the bars and the date lines.
+    const online = wordsOf(onlineCopy(card));
+    expect(online).toContain("Staff photo 20 days left Renew by 26 Nov · Take a new photo");
+    expect(online).toContain(
+      "SIA door supervisor licence Valid · 420 days Valid until 31 Dec 2027",
+    );
+    expect(online).toContain("C licence Expires in 20 days Expires 26 Nov");
+    expect(online).not.toContain("Until 31 Dec 2027 ");
+    expect(onlineCopy(card).match(/style="width:/g)).toHaveLength(4);
+  });
+
+  it("the staff photo up to date: 'Renew by' offline, never 'Valid'", () => {
+    const [photoRow] = qualificationRows({
+      qualifications: [],
+      photo: {
+        status: "up_to_date",
+        current: { id: "p1", uploadedOn: "2026-01-02", renewBy: "2029-01-02" },
+        waiting: null,
+      },
+      rightToWork: { checked: true, checkedOn: "2026-03-03", expired: false },
+      today: TODAY,
+    });
+    expect(photoRow).toMatchObject({
+      title: "Staff photo",
+      pill: { words: "Valid · 788 days" },
+      offline: "Renew by 2 Jan",
+    });
+    const card = renderToStaticMarkup(createElement(HomeQualifications, { rows: [photoRow!] }));
+    expect(wordsOf(keptCopy(card))).toBe(
+      "Your qualifications 1 All on Profile Staff photo Renew by 2 Jan",
+    );
+  });
+
+  it("Updates: 'Today' and 'Yesterday' online only; the kept copy gives the day and date", () => {
+    const at = (iso: string): MyRecordRow => ({
+      at: new Date(iso),
+      kind: "booked",
+      by: "you",
+      shift: null,
+      moved: null,
+      noticeHours: null,
+      reason: null,
+      askedBy: null,
+      ref: null,
+      strike: null,
+    });
+    const rows = updateRows(
+      [at("2026-11-06T08:00:00Z"), at("2026-11-05T09:14:00Z"), at("2026-10-20T10:00:00Z")],
+      NOW,
+      TZ,
+    );
+    expect(rows.map((r) => [r.when, r.whenOffline])).toEqual([
+      ["Today 08:00", "Fri 6 Nov, 08:00"],
+      ["Yesterday 09:14", "Thu 5 Nov, 09:14"],
+      ["Tue 20 Oct, 11:00", "Tue 20 Oct, 11:00"],
+    ]);
+    const card = renderToStaticMarkup(createElement(HomeUpdates, { rows }));
+    const offline = wordsOf(keptCopy(card));
+    expect(offline).not.toMatch(/Today|Yesterday/);
+    expect(offline).toContain("Fri 6 Nov, 08:00");
+    expect(offline).toContain("Thu 5 Nov, 09:14");
+    expect(offline.match(/Tue 20 Oct, 11:00/g)).toHaveLength(1);
+    const online = wordsOf(onlineCopy(card));
+    expect(online).toContain("Today 08:00");
+    expect(online).not.toContain("Fri 6 Nov, 08:00");
+    expect(online.match(/Tue 20 Oct, 11:00/g)).toHaveLength(1);
+  });
+
+  it("Your week: her booked days stay; today's ring, the amber outlines and their words don't", () => {
+    const online = onlineCopy(weekCard(html));
+    expect(online.match(/data-ring=""/g)).toHaveLength(1);
+    expect(online.match(/data-outline=""/g)).toHaveLength(1);
+    expect(online).toContain('href="/shifts/open?day=2026-11-07"');
+    expect(wordsOf(online)).toContain("Filled: booked · outlined: shifts you can take");
+
+    const offline = keptCopy(weekCard(html));
+    expect(offline).not.toContain("data-ring");
+    expect(offline).not.toContain("data-outline");
+    expect(offline).not.toContain("/shifts/open");
+    expect(offline).toContain('href="/shifts/s1"');
+    const words = wordsOf(offline);
+    expect(words).not.toMatch(/today|you can take|outlined/);
+    expect(words).toContain("Monday 9 November: booked, Steward 14:00 to 22:00");
+    expect(words).toContain("Saturday 7 November: nothing booked");
+    expect(words).toContain("Friday 6 November: nothing booked");
+    expect(words).toContain("Filled: booked");
+    // Fourteen tiles either way: the open day is a plain tile offline, not gone.
+    expect(elementsWhere(offline, /data-day="/)).toHaveLength(14);
+    expect(elementsWhere(online, /data-day="/)).toHaveLength(14);
+  });
+
+  it("Home: no date line (the notice gives the saved day), and each stale part online only", () => {
+    expect(html).toContain("data-date-line");
+    expect(kept).not.toContain("data-date-line");
+    expect(kept).not.toContain("Updated 15:38");
+    expect(wordsOf(kept)).toContain("This is your saved copy from 15:38 on Fri 6 Nov.");
+    // What stays: the qualifications (by date), the week (her bookings), the record and pay.
+    for (const heading of ["Your qualifications", "Your week", "Updates", "Pay", "Your record"])
+      expect(kept).toContain(`>${heading}</h2>`);
+    expect(wordsOf(kept)).not.toMatch(/\bValid\b|\d+ days? left|Starts in/);
+  });
+});
+
+describe("To do counts what 'Do this' shows", () => {
+  it("each need on Profile and each 'can we reach you' row", () => {
+    const photo = {
+      status: "due_soon" as const,
+      current: { id: "p1", uploadedOn: "2023-11-26", renewBy: "2026-11-26" },
+      waiting: null,
+    };
+    const base = { needs: [], photo, year: 2026, sortedMark: null };
+    expect(toDoCount({ ...base, reach: [] })).toBe(1);
+    expect(toDoCount({ ...base, reach: ["alerts_off"] })).toBe(2);
+    expect(toDoCount({ ...base, reach: ["unreachable", "alerts_off"] })).toBe(3);
+    const html = render({
+      photo,
+      reach: ["unreachable", "alerts_off"],
+      board: {
+        ...board,
+        pills: countPills({
+          booked: 1,
+          open: 1,
+          urgent: 1,
+          todo: toDoCount({ ...base, reach: ["unreachable", "alerts_off"] }),
+          messages: 0,
+        }),
+      },
+    });
+    const doThis = elementsWhere(html, /aria-labelledby="do-this-heading"/)[0] ?? "";
+    expect(doThis.match(/<li [^>]*data-for-you=/g)).toHaveLength(3);
+    expect(html).toMatch(/data-count="todo"[^>]*>To do <b[^>]*>3<\/b>/);
   });
 });

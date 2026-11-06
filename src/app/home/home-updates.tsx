@@ -8,7 +8,8 @@ import { HomeCard } from "./home-card";
 // "Updates" on Home (Phase 30.1; docs/screens.md "### 30.1"): her latest 5 entries from her shift
 // record, newest first (src/lib/portal/home-board.ts updateRows): what happened, the shift, when,
 // and one link, "See the shift", while she can open its page; "Your shift record" for the rest.
-// Empty: "Nothing new yet." Hook-free.
+// Empty: "Nothing new yet." Its "Today 15:02" and "Yesterday 09:14" go stale, so they're online
+// only: the kept copy has the day and date ("Mon 2 Nov, 15:02"). Hook-free.
 export function HomeUpdates({ rows, className }: { rows: UpdateRow[]; className?: string }) {
   return (
     <HomeCard
@@ -27,7 +28,16 @@ export function HomeUpdates({ rows, className }: { rows: UpdateRow[]; className?
               <p className="text-base font-medium text-ink">{r.title}</p>
               <p className="text-sm text-ink-muted">{r.sub}</p>
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm text-ink-muted tabular-nums">{r.when}</p>
+                <p className="text-sm text-ink-muted tabular-nums">
+                  {r.when === r.whenOffline ? (
+                    r.when
+                  ) : (
+                    <>
+                      <span data-online-only="">{r.when}</span>
+                      <span data-offline-only="">{r.whenOffline}</span>
+                    </>
+                  )}
+                </p>
                 {r.href && (
                   <Link href={r.href} className={btn.small}>
                     {r.link}

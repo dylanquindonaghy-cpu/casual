@@ -11,12 +11,17 @@ import { datePartsOfDay } from "./sign-copy";
 //   when two start that day); otherwise it's open when a shift she can take starts on it (its tile
 //   links to Open shifts for that day, `/shifts/open?day=`); otherwise it has no link.
 // - Today is marked; each tile carries its name in words (colour is never the only signal).
+// - A past booking she was marked as not attending (no_show) never reads "booked": its day isn't
+//   filled, and its name says "not attended" (it still links to that shift).
+// - The kept copy (no signal, maybe days later) shows neither today's ring nor the open days'
+//   outlines, so each tile carries a second name without them (`nameOffline`); her bookings stay.
 
 export interface WeekBooking {
   shiftId: string;
   role: string;
   startsAt: Date;
   endsAt: Date;
+  noShow?: boolean; // marked not attended (a past booking)
 }
 
 export interface WeekTile {
@@ -26,9 +31,11 @@ export interface WeekTile {
   today: boolean;
   past: boolean;
   booked: boolean;
+  missed: boolean; // only bookings marked not attended start that day
   open: number; // shifts she can take that start that day
   href: string | null;
   name: string; // for a screen reader
+  nameOffline: string; // the kept copy's: without "today" or the shifts she can take
 }
 
 export interface WeekRow {
@@ -68,26 +75,25 @@ export function homeWeek(
       const day = addDays(start, i);
       const parts = datePartsOfDay(day);
       const mine = bookedOn.get(day) ?? [];
+      const kept = mine.filter((b) => !b.noShow);
+      const missed = mine.filter((b) => b.noShow);
       const openCount = openOn.get(day) ?? 0;
-      const first = mine[0];
+      const first = kept[0] ?? missed[0];
+      const words = (b: WeekBooking) =>
+        `${roleLabel(b.role)} ${clock(b.startsAt, timeZone)} to ${clock(b.endsAt, timeZone)}`;
+      const named = { long: parts.long, booked: kept.map(words), missed: missed.map(words) };
       return {
         day,
         dow: parts.dow,
         date: parts.day,
         today: day === today,
         past: day < today,
-        booked: mine.length > 0,
+        booked: kept.length > 0,
+        missed: kept.length === 0 && missed.length > 0,
         open: openCount,
         href: first ? `/shifts/${first.shiftId}` : openCount > 0 ? `/shifts/open?day=${day}` : null,
-        name: dayTileName({
-          long: parts.long,
-          today: day === today,
-          booked: mine.map(
-            (b) =>
-              `${roleLabel(b.role)} ${clock(b.startsAt, timeZone)} to ${clock(b.endsAt, timeZone)}`,
-          ),
-          open: openCount,
-        }),
+        name: dayTileName({ ...named, today: day === today, open: openCount }),
+        nameOffline: dayTileName({ ...named, today: false, open: 0 }),
       };
     });
     return { name, range: weekRangeText(start, addDays(start, 6)), tiles };

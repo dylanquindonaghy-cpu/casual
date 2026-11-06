@@ -2,11 +2,19 @@ import { randomBytes, randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
-import { countPills, qualificationRows, recordFigures, updateRows } from "@/lib/portal/home-board";
-import { needsCount } from "@/lib/portal/home-copy";
+import {
+  countPills,
+  qualificationRows,
+  recordFigures,
+  toDoCount,
+  updateRows,
+} from "@/lib/portal/home-board";
+import { needsCount, UPDATES_MAX } from "@/lib/portal/home-copy";
 import { homeWeek } from "@/lib/portal/home-week";
 import { unreadReplies } from "@/lib/portal/messages";
 import { myHome, urgentCount } from "@/lib/portal/my-home";
+import { myRecord } from "@/lib/portal/my-record";
+import { myReachPrompts } from "@/lib/portal/reach-me";
 import { myNeedsAndPhoto, myShifts } from "@/lib/portal/my-shifts";
 import { openShiftsFor } from "@/lib/portal/open-shifts";
 import { mySortedMark } from "@/lib/portal/profile";
@@ -209,5 +217,77 @@ describe("Home's board (30.1)", () => {
     expect(home.week).toEqual([]);
     expect(home.strikes.counting).toBe(0);
     expect(await unreadReplies(ctx, s.sam)).toBe(0);
+  });
+
+  it("To do counts the 'can we reach you' rows too, as 'Do this' shows them", async () => {
+    const s = await scene();
+    const ctx = ctxOf(s.f);
+    // Sam turns "Tell me about open shifts" off: "Open-shift alerts are off" joins his photo.
+    await su.query("update workers set offer_alerts = false where id = $1", [s.sam]);
+    const upcoming = await myShifts(ctx, s.sam, "upcoming");
+    const [home, reach, needs, mark] = await Promise.all([
+      myHome(ctx, s.sam, upcoming),
+      myReachPrompts(ctx, s.sam, true),
+      myNeedsAndPhoto(ctx, s.sam),
+      mySortedMark(ctx, s.sam),
+    ]);
+    expect(reach).toEqual(["alerts_off"]);
+    // The page's own figure, from Profile's read (myHome): what needs doing and the office's mark
+    // are myNeedsAndPhoto's and mySortedMark's, read once.
+    expect(home.profile!.needs).toEqual(needs.needs);
+    expect(home.profile!.photo).toEqual(needs.photo);
+    expect(home.profile!.sortedMark).toEqual(mark);
+    const todo = toDoCount({
+      needs: home.profile!.needs!,
+      photo: home.profile!.photo,
+      year: 2026,
+      sortedMark: home.profile!.sortedMark ?? null,
+      reach,
+    });
+    expect(needsCount(needs.needs, needs.photo, 2026, mark)).toBe(1); // his photo, due soon
+    expect(todo).toBe(2);
+    const pills = countPills({ booked: upcoming.length, open: 0, urgent: 0, todo, messages: 0 });
+    expect(pills.find((p) => p.key === "todo")).toMatchObject({ count: 2, onlineOnly: true });
+    // And nothing can reach him (no phone, no email, and no text sender): both rows.
+    expect(await myReachPrompts(ctx, s.sam, false)).toEqual(["unreachable", "alerts_off"]);
+  });
+
+  it("Updates reads only the rows it shows; a past day not attended is never booked", async () => {
+    const s = await scene();
+    const ctx = ctxOf(s.f);
+    // Seven more entries of Sam's: offers of shifts this week.
+    for (let i = 0; i < 7; i++) {
+      const shift = await s.f.shift({ role: "steward", startsAt: hoursFromNow(100 + i * 24) });
+      await su.query(
+        `insert into events (firm_id, actor_type, action, entity_type, entity_id, data, created_at)
+         values ($1, 'system', 'offer.sent', 'offer', $2, $3, $4)`,
+        [
+          s.f.firmId,
+          randomUUID(),
+          JSON.stringify({ shiftId: shift, workerId: s.sam, wave: 1, noticeHours: 100 }),
+          hoursFromNow(-1 - i / 10),
+        ],
+      );
+    }
+    const all = await myRecord(ctx, s.sam);
+    expect(all.rows.length).toBeGreaterThan(UPDATES_MAX);
+    // The limit reads that many, newest first, and says there were more.
+    const two = await myRecord(ctx, s.sam, { limit: 2 });
+    expect(two.rows).toEqual(all.rows.slice(0, 2));
+    expect(two.more).toBe(true);
+    expect(all.more).toBe(false);
+    // Home reads its five.
+    const upcoming = await myShifts(ctx, s.sam, "upcoming");
+    const home = await myHome(ctx, s.sam, upcoming);
+    expect(home.updates).toEqual(all.rows.slice(0, UPDATES_MAX));
+
+    // Earlier today (Monday 2 November, 01:00 to 05:00) Sam was marked as not attending.
+    const early = await s.f.shift({ role: "steward", startsAt: hoursFromNow(-8), hours: 4 });
+    await s.f.booking(s.sam, early, "no_show");
+    const again = await myHome(ctx, s.sam, upcoming);
+    expect(again.week.find((b) => b.shiftId === early)).toMatchObject({ noShow: true });
+    const monday = homeWeek(NOW, TZ, again.week, [])[0]!.tiles[0]!;
+    expect(monday).toMatchObject({ day: "2026-11-02", booked: false, missed: true });
+    expect(monday.name).toBe("Monday 2 November, today: not attended, Steward 01:00 to 05:00");
   });
 });

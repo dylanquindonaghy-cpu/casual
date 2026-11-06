@@ -9,7 +9,10 @@ import { Bar, HomeCard } from "./home-card";
 // pill, a bar for one with an expiry date (time left, full at 2 years), and a line under it; her
 // staff photo and her right to work as rows too. Each row is a link, at least 44px tall, to its
 // place on Profile, or its upload page where there's something for her to upload. Shown in the
-// kept copy too (its notice says when it was saved). Hook-free.
+// kept copy too (its notice says when it was saved), but never with a day count or "Valid" there
+// (golden rule 6: the copy can be days old and a licence lapsed since): a row whose pill counts
+// from today has its pill, bar and date line online only, and the kept copy's pill in their place,
+// the date alone ("Until 22 Nov 2028", "Expires 26 Nov", "Renew by 26 Nov"). Hook-free.
 export function HomeQualifications({ rows, className }: { rows: QualRow[]; className?: string }) {
   return (
     <HomeCard
@@ -28,20 +31,33 @@ export function HomeQualifications({ rows, className }: { rows: QualRow[]; class
             >
               <span className="flex items-center justify-between gap-3">
                 <span className="min-w-0 text-base font-medium text-ink">{r.title}</span>
-                <StatusChip tone={r.pill.tone}>{r.pill.words}</StatusChip>
+                {r.offline === null ? (
+                  <StatusChip tone={r.pill.tone}>{r.pill.words}</StatusChip>
+                ) : (
+                  <>
+                    <span data-online-only="" className="flex">
+                      <StatusChip tone={r.pill.tone}>{r.pill.words}</StatusChip>
+                    </span>
+                    <span data-offline-only="" className="flex">
+                      <StatusChip tone="quiet">{r.offline}</StatusChip>
+                    </span>
+                  </>
+                )}
               </span>
               {r.bar !== null && (
-                <Bar
-                  fill={r.bar}
-                  tone={
-                    r.pill.tone === "urgent" || r.pill.tone === "attention" ? r.pill.tone : "done"
-                  }
-                />
+                <span {...online(r.offline !== null)} className="block">
+                  <Bar
+                    fill={r.bar}
+                    tone={
+                      r.pill.tone === "urgent" || r.pill.tone === "attention" ? r.pill.tone : "done"
+                    }
+                  />
+                </span>
               )}
               {(r.line || r.action) && (
                 <span className="text-sm text-ink-muted">
-                  {r.line}
-                  {r.line && r.action ? " · " : ""}
+                  {r.line && <span {...online(r.lineOnlineOnly)}>{r.line}</span>}
+                  {r.line && r.action && <span {...online(r.lineOnlineOnly)}>{" · "}</span>}
                   {r.action && (
                     <span className="font-semibold text-brand-ink underline underline-offset-4">
                       {r.action}
@@ -56,3 +72,6 @@ export function HomeQualifications({ rows, className }: { rows: QualRow[]; class
     </HomeCard>
   );
 }
+
+// The kept copy leaves it out.
+const online = (only: boolean) => (only ? { "data-online-only": "" } : {});

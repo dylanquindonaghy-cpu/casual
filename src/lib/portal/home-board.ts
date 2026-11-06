@@ -13,10 +13,13 @@ import {
   COUNT_WORDS,
   daysLeftText,
   expiresInText,
+  expiresOnText,
+  needsCount,
   NEW_FIGURE,
   NO_EXPIRY,
   OTHER_QUALS_PATH,
   PHOTO_CHECKING,
+  PHOTO_FIRST,
   PHOTO_NEW,
   PHOTO_NONE,
   PHOTO_PATH,
@@ -32,12 +35,17 @@ import {
   SEE_THE_SHIFT,
   startsInText,
   strikesLabel,
+  untilText,
+  updateAtText,
   updateWhenText,
   UPDATES_MAX,
   validForText,
   workedLabel,
 } from "./home-copy";
+import type { NeedsItem } from "../credentials/status";
+import type { SortedMark } from "./in-hand";
 import type { MyRecordRow } from "./my-record";
+import type { ReachPrompt } from "./reach-me";
 import { hoursText, pounds } from "./pay-format";
 import {
   dateLine,
@@ -48,6 +56,7 @@ import {
   STATUS_TONES,
   STATUS_WORDS,
 } from "./qualification-copy";
+import { shortDate } from "../rules/reasons";
 import { NO_LONGER_LISTED, recordShiftName, recordShiftStart, recordTitle } from "./record-copy";
 
 // Home as the casual's dashboard (Phase 30.1; docs/screens.md "### 30.1"): every figure its new
@@ -96,6 +105,17 @@ const pill = (
   onlineOnly: boolean,
 ): CountPill => ({ key, label: COUNT_WORDS[key], count, href, tone, onlineOnly });
 
+// "To do": what "Do this" stands for. Each thing on Profile that needs her (as Profile counts them,
+// the office's "in hand" left out), and each "can we reach you" row (28.7: "We can't reach you
+// about shifts", "Open-shift alerts are off").
+export const toDoCount = (o: {
+  needs: NeedsItem[];
+  photo: StaffPhoto;
+  year: number;
+  sortedMark: SortedMark | null;
+  reach: readonly ReachPrompt[];
+}): number => needsCount(o.needs, o.photo, o.year, o.sortedMark) + o.reach.length;
+
 // --- The next shift's line -----------------------------------------------------------------------
 
 // How long the bar under the next shift takes to fill: it fills over the last 7 days before the
@@ -143,6 +163,13 @@ export interface QualRow {
   line: string | null; // the line under it
   action: string | null; // words styled as a link at the end of the line ("Take a new photo")
   href: string;
+  // The kept copy's pill (golden rule 6: it can be opened days later, when a licence called valid
+  // may have lapsed), for a row whose pill counts days from today or says it's in date: only the
+  // date ("Until 22 Nov 2028", "Expires 26 Nov", "Renew by 26 Nov"), never a day count, never
+  // "Valid". When set, the pill above, the bar and a line that only repeats the date are online
+  // only (src/app/home/home-qualifications.tsx). null: the pill holds offline as it is.
+  offline: string | null;
+  lineOnlineOnly: boolean; // the line repeats the kept copy's pill: shown online only
 }
 
 type MyQual = Qualification & { inHand?: boolean };
@@ -170,6 +197,15 @@ function qualRow(q: MyQual, today: string, year: number, other: boolean): Ranked
         ? expiresInText(days)
         : STATUS_WORDS[q.status];
   const inDate = q.status === "valid" || q.status === "expiring_soon";
+  const date = q.expiresOn ? shortDate(q.expiresOn, year) : null;
+  const offline =
+    date === null
+      ? null
+      : q.status === "valid"
+        ? untilText(date)
+        : q.status === "expiring_soon"
+          ? expiresOnText(date)
+          : null;
   const upload =
     !other && !q.inHand && q.status !== "valid" && needsUpload(q)
       ? `/profile/upload/${q.type}`
@@ -184,6 +220,8 @@ function qualRow(q: MyQual, today: string, year: number, other: boolean): Ranked
       line: q.inHand ? IN_HAND : q.status === "valid" && days === null ? null : dateLine(q, year),
       action: null,
       href: upload ?? (other ? OTHER_QUALS_PATH : QUALS_PATH),
+      offline,
+      lineOnlineOnly: offline !== null && !q.inHand,
     },
     rank: q.inHand ? AFTER_TO_DO : rankOf(q.status),
     expiresOn: q.expiresOn,
@@ -225,6 +263,10 @@ function photoRow(photo: StaffPhoto, today: string): Ranked {
     photo.status === "waiting" ? PHOTO_CHECKING : renewBy ? renewByText(renewBy) : PHOTO_NONE;
   const toDo =
     photo.status === "due_soon" || photo.status === "overdue" || photo.status === "missing";
+  const offline =
+    renewBy && (photo.status === "due_soon" || photo.status === "up_to_date")
+      ? renewByText(renewBy)
+      : null;
   return {
     row: {
       key: "photo",
@@ -236,8 +278,11 @@ function photoRow(photo: StaffPhoto, today: string): Ranked {
           ? barFill(days)
           : null,
       line,
-      action: toDo ? PHOTO_NEW : null,
+      // With none on file there's nothing to replace: "Take a photo".
+      action: toDo ? (photo.current ? PHOTO_NEW : PHOTO_FIRST) : null,
       href: PHOTO_PATH,
+      offline,
+      lineOnlineOnly: offline !== null,
     },
     rank: rankOf(PHOTO_AS[photo.status]),
     expiresOn: renewBy,
@@ -257,6 +302,8 @@ function rightToWorkRow(r: RightToWork, year: number): Ranked {
       line: r.checked ? rightToWorkText(r, year) : r.expired ? RTW_RAN_OUT_LINE : RTW_NONE_LINE,
       action: null,
       href: QUALS_PATH,
+      offline: null,
+      lineOnlineOnly: false,
     },
     rank: r.checked ? rankOf("valid") : AFTER_TO_DO,
     expiresOn: null,
@@ -297,7 +344,8 @@ export interface UpdateRow {
   key: string;
   title: string; // "Booked by you"
   sub: string; // "Steward at Riverside Arena · Mon 9 Nov, 14:00"
-  when: string; // "Wed 15:02"
+  when: string; // "Wed 15:02" (online only: "Today" and "Yesterday" go stale)
+  whenOffline: string; // the kept copy's: "Wed 4 Nov, 15:02"
   href: string | null; // the shift's page, while she can open it
   link: string;
 }
@@ -311,6 +359,7 @@ export function updateRows(rows: readonly MyRecordRow[], now: Date, timeZone: st
       ? `${recordShiftName(r.shift)} · ${recordShiftStart(r.shift, timeZone)}`
       : NO_LONGER_LISTED,
     when: updateWhenText(r.at, now, timeZone),
+    whenOffline: updateAtText(r.at, timeZone),
     href: r.shift?.canOpen ? `/shifts/${r.shift.id}` : null,
     link: SEE_THE_SHIFT,
   }));

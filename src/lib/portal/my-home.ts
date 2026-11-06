@@ -15,7 +15,9 @@ import { UPDATES_MAX } from "./home-copy";
 //   Profile's own loader (myProfile), so Home and Profile never disagree (the office's "in hand"
 //   included);
 // - her strikes that still count: Profile's (myStrikes);
-// - her latest UPDATES_MAX entries: her shift record's (myRecord);
+// - what needs doing and the office's latest "Mark as sorted": the same read of Profile's (its
+//   `needs` and `sortedMark`), so the page reads neither again;
+// - her latest UPDATES_MAX entries: her shift record's (myRecord), only those rows read;
 // - her bookings this week and next: Booked's own lists (myShifts upcoming, which the page already
 //   has, and past, for the days of this week already worked).
 // Server only.
@@ -34,7 +36,7 @@ export async function myHome(ctx: Ctx, workerId: string, upcoming: MyShift[]): P
   const [profile, strikes, record, past] = await Promise.all([
     myProfile(ctx, workerId),
     myStrikes(ctx, workerId),
-    myRecord(ctx, workerId),
+    myRecord(ctx, workerId, { limit: UPDATES_MAX }),
     myShifts(ctx, workerId, "past"),
   ]);
   return {
@@ -45,7 +47,7 @@ export async function myHome(ctx: Ctx, workerId: string, upcoming: MyShift[]): P
       // As Profile: with strikes off and none given before, there's nothing to say (P3.4).
       shown: strikes.enabled || strikes.strikes.length > 0,
     },
-    updates: record.rows.slice(0, UPDATES_MAX),
+    updates: record.rows,
     week: weekBookings([...past, ...upcoming], now, ctx.firm.timezone),
   };
 }
@@ -62,7 +64,13 @@ export function weekBookings(shifts: readonly MyShift[], now: Date, timeZone: st
       seen.add(s.assignmentId);
       return true;
     })
-    .map((s) => ({ shiftId: s.shiftId, role: s.role, startsAt: s.startsAt, endsAt: s.endsAt }));
+    .map((s) => ({
+      shiftId: s.shiftId,
+      role: s.role,
+      startsAt: s.startsAt,
+      endsAt: s.endsAt,
+      noShow: s.status === "no_show",
+    }));
 }
 
 // Urgent's count, as /urgent counts it: the urgent ones in her list of shifts she can take, unless

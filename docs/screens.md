@@ -3377,8 +3377,8 @@ words are in `src/lib/portal/home-copy.ts`.
 
 On a phone, one column, in this order:
 
-1. **"Hi {Zoe}"**, and under it "{Friday 6 November} · Updated {15:38}". "Updated …" is online
-   only; the saved copy says when it was saved instead.
+1. **"Hi {Zoe}"**, and under it "{Friday 6 November} · Updated {15:38}", online only: the saved copy
+   would call the day it was saved today, and its notice says when it was saved instead.
 2. **Her counts**, in the office's top-bar chips, each a link 44px tall: "Booked {1}" (→
    `/shifts`), "Open to you {10}" (→ `/shifts/open`), "Urgent {3}" (its number red; → `/urgent`;
    only when there are any), "To do {1}" (its number on the amber to-do pill; → "Do this"; only when
@@ -3399,23 +3399,33 @@ On a phone, one column, in this order:
    and still in date has a bar: the time left, full at 2 years or more. Under it, its date line
    ("Valid until 31 Dec 2027"), or "The office has this in hand." The staff photo: "{20} days
    left" (or "Valid · {400} days", "Overdue", "Missing", "Being checked"), "Renew by {26 Nov} ·
-   Take a new photo" (→ `/profile#photo-heading`; "No photo yet." without one; "The office will
-   check your new one." while one waits). Right to work, a status only: "Not recorded" ("The office
+   Take a new photo" (→ `/profile#photo-heading`; "No photo yet. · Take a photo" without one; "The
+   office will check your new one." while one waits). Right to work, a status only: "Not recorded" ("The office
    will ask if they need it."), "Checked" ("Checked by the office on {3 Mar}") or "Check has run
    out" ("Ask the office."). Each row is a link to its place on Profile, or to its upload page when
-   there's something for her to upload. Shown in the saved copy too.
+   there's something for her to upload. Shown in the saved copy too, but never with a day count or
+   the word "Valid" there (golden rule 6: the copy can be opened days later, when a licence has
+   lapsed): a pill that counts days or says it's in date, its bar and a date line that only repeats
+   it are online only, and the saved copy's pill gives the date alone, in grey: "Until {22 Nov
+   2028}" (a valid one), "Expires {26 Nov}" (one expiring soon), "Renew by {26 Nov}" (her photo).
+   The other pills ("No expiry", "Expired", "Missing", "Overdue" …) stay as they are.
 7. **"Your week"**: "This week · {2 to 8 Nov}" and "Next week · {9 to 15 Nov}", seven day tiles
    each, Monday first. Today is ringed. A booked day is filled (→ that shift). A day with shifts she
    can take is outlined amber (→ `/shifts/open?day={day}`). Under them: "Filled: booked · outlined:
    shifts you can take". Each tile has its name for a screen reader: "Monday 9 November: booked,
    Steward 14:00 to 22:00", "Saturday 7 November: 2 shifts you can take", "Friday 6 November,
-   today: nothing booked". Shown in the saved copy too.
+   today: nothing booked". A past day she was marked as not attending isn't filled and never reads
+   "booked": "Monday 2 November: not attended, Steward 14:00 to 22:00" (→ that shift). Shown in the
+   saved copy too, with her booked days only: today's ring, the amber outlines (and their links to
+   Open shifts) and their words go stale, so they're online only; the saved copy's legend is
+   "Filled: booked", and its tiles' names leave out "today" and the shifts she can take.
 8. **"Shifts you can take" {10}**, as before, with its count beside the heading (online only).
 9. **"Updates" {3}**, with "Your shift record" (→ `/shifts/record`): her latest 5 entries from
    her shift record, newest first, in its words ("Booked by you", "Cancelled by the office"), the
    shift ("Steward at Riverside Arena · Mon 9 Nov, 14:00", or "A shift no longer listed"), when
-   ("Today 08:00", "Yesterday 09:14", "Wed 15:02", or "Tue 20 Oct, 11:00" when older), and "See
-   the shift" (→ its page, while she can open it). None: "Nothing new yet."
+   ("Today 08:00", "Yesterday 09:14", "Wed 15:02", or "Tue 20 Oct, 11:00" when older; online only:
+   the saved copy always gives the day and date, "Mon 2 Nov, 08:00"), and "See the shift" (→ its
+   page, while she can open it). None: "Nothing new yet."
 10. **"Pay"**, as before.
 11. **"Your record"**, with "Your shift record": "{0} shifts worked", "{New}" with "score after 5
     shifts" (or "{96%}" with "reliability"), and "{0} strikes in {90} days" (left out where
@@ -3452,5 +3462,8 @@ floating tab bar. What the casual sees:
   scrolls down, as before. The rail is not there.
 - **One menu.** It's one navigation named "Main" at every size (the bar on a phone, the rail on a
   laptop), never two read out. Plain links: it works with no JavaScript and in the copy saved for no
-  signal. The keyboard reaches the rail after the page's own links (it comes last on the page, as the
-  bar does), each link with the app's focus ring.
+  signal. The rail comes last on the page, as the bar does, so from 1,024px the first thing the
+  keyboard reaches on a casual page is **"Skip to the menu"**, hidden until it has focus (as the
+  office's "Skip to content"), which jumps to the rail; Tab then goes through its links, each with
+  the app's focus ring. Without it, the keyboard reaches the rail after the page's own links. Not on
+  a phone (the bar's at the screen's foot and the page reads first), nor on the office's pages.

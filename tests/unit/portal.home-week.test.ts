@@ -119,4 +119,52 @@ describe("homeWeek", () => {
       href: "/shifts/mon",
     });
   });
+
+  it("a past day she was marked as not attending is never 'booked' (filled or named)", () => {
+    const NOW = new Date("2026-11-06T15:38:00Z");
+    const weeks = homeWeek(
+      NOW,
+      TZ,
+      [
+        { ...booking("missed", "2026-11-02T14:00:00Z"), noShow: true },
+        booking("worked", "2026-11-03T09:00:00Z"),
+        { ...booking("both-missed", "2026-11-04T08:00:00Z", 4), noShow: true },
+        booking("both-worked", "2026-11-04T14:00:00Z", 4),
+      ],
+      [],
+    );
+    const [mon, tue, wed] = weeks[0]!.tiles;
+    expect(mon).toMatchObject({ booked: false, missed: true, href: "/shifts/missed" });
+    expect(mon!.name).toBe("Monday 2 November: not attended, Steward 14:00 to 22:00");
+    expect(mon!.name).not.toContain("booked");
+    expect(tue).toMatchObject({ booked: true, missed: false, href: "/shifts/worked" });
+    // A day with both: filled for the one she worked, the other named as not attended.
+    expect(wed).toMatchObject({ booked: true, missed: false, href: "/shifts/both-worked" });
+    expect(wed!.name).toBe(
+      "Wednesday 4 November: booked, Steward 14:00 to 18:00; not attended, Steward 08:00 to 12:00",
+    );
+  });
+
+  it("the kept copy's names: no 'today', no shifts she can take; her bookings stay", () => {
+    const NOW = new Date("2026-11-06T15:38:00Z");
+    const weeks = homeWeek(
+      NOW,
+      TZ,
+      [booking("fri", "2026-11-06T18:00:00Z", 4)],
+      [
+        { startsAt: new Date("2026-11-07T10:00:00Z") },
+        { startsAt: new Date("2026-11-06T19:00:00Z") },
+      ],
+    );
+    const fri = weeks[0]!.tiles[4]!;
+    expect(fri.name).toBe(
+      "Friday 6 November, today: booked, Steward 18:00 to 22:00. Also 1 shift you can take",
+    );
+    expect(fri.nameOffline).toBe("Friday 6 November: booked, Steward 18:00 to 22:00");
+    const sat = weeks[0]!.tiles[5]!;
+    expect(sat.name).toBe("Saturday 7 November: 1 shift you can take");
+    expect(sat.nameOffline).toBe("Saturday 7 November: nothing booked");
+    const sun = weeks[0]!.tiles[6]!;
+    expect(sun.nameOffline).toBe(sun.name);
+  });
 });

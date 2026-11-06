@@ -161,10 +161,12 @@ describe("Home and Booked: the empty pages", () => {
     // (text-title), with when it was updated beside it, online only (the kept copy's notice says
     // when it was saved); no longer at the end of the firm's bar, and no face of its own. Phase
     // 30.1 (on purpose): "Updated 09:00" moved under the headline, at the end of the date line
-    // ("Monday 2 November · Updated 09:00"), still online only.
+    // ("Monday 2 November · Updated 09:00"), still online only. Since the 30.1 review (golden rule
+    // 6's kept copy), the whole date line is online only: the kept copy would call the day it was
+    // saved today.
     expect(text(html)).toContain("Hi Sam");
     expect(html).toMatch(
-      /<h1 class="text-title [^"]*">Hi Sam<\/h1>.*<p data-date-line="" class="[^"]*">Monday 2 November<span data-online-only=""> · <span class="tabular-nums">Updated 09:00<\/span><\/span><\/p>/,
+      /<h1 class="text-title [^"]*">Hi Sam<\/h1>.*<p data-date-line="" data-online-only="" class="[^"]*">Monday 2 November · <span class="tabular-nums">Updated 09:00<\/span><\/p>/,
     );
     expect(html).not.toContain("font-greet");
     expect(html).not.toContain("-top-13");

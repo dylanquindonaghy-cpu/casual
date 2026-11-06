@@ -66,7 +66,8 @@ import { DateTile } from "./ui/sign";
 // make it?", "Offered to you" and the home screen hint are client components.
 //
 // Phase 30.1 (docs/screens.md "### 30.1"): Home is her dashboard. Under "Hi Zoe" the date line
-// ("Friday 6 November · Updated 15:38", the time online only) and her counts in the office's chips
+// ("Friday 6 November · Updated 15:38", online only: the kept copy's notice gives the day it was
+// saved) and her counts in the office's chips
 // (src/app/home/home-counts.tsx); the pass gets a line ("Starts in 70 hours · 8 hours · about
 // £108.00 before tax") and a bar filling over the last 7 days; then, in this order on a phone:
 // "Do this", "Offered to you" (still above "Shifts you can take", as 28.15 has it), "Your
@@ -116,12 +117,12 @@ export function HomeView(props: HomeViewProps) {
   return (
     <>
       <PageHeader title={`Hi ${firstName}`}>
-        <p data-date-line="" className="text-base text-ink-muted">
+        {/* Online only, all of it: the kept copy would call the day it was saved today (its
+            notice gives that day). */}
+        <p data-date-line="" data-online-only="" className="text-base text-ink-muted">
           {dateLineText(now, timeZone)}
-          <span data-online-only="">
-            {" · "}
-            <span className="tabular-nums">{updatedText(now, timeZone)}</span>
-          </span>
+          {" · "}
+          <span className="tabular-nums">{updatedText(now, timeZone)}</span>
         </p>
       </PageHeader>
       {/* The counts in a block of their own (the page's width, never their own), 12px under the

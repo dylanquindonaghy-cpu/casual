@@ -60,17 +60,20 @@ export function MessagesView({
   timeZone,
   linkOrigin,
   composer,
+  intro = MESSAGES_INTRO,
 }: {
   thread: Thread;
   now: Date;
   timeZone: string;
   linkOrigin: string;
   composer: ReactNode;
+  // Opened from Pay (28.10's about=pay): MESSAGES_INTRO_PAY, as the message goes to a person.
+  intro?: string;
 }) {
   return (
     <>
       <PageHeader title="Messages">
-        <p className="mt-2">{MESSAGES_INTRO}</p>
+        <p className="mt-2">{intro}</p>
       </PageHeader>
       {thread.items.length === 0 ? (
         <p className={emptyBox}>{MESSAGES_EMPTY}</p>

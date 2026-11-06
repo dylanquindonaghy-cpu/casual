@@ -4,7 +4,13 @@ import { requireWorker } from "@/lib/auth/current-worker";
 import { appEnv } from "@/lib/env";
 import { readMessageAboutPay, readMessageOffice } from "@/lib/portal/message-office";
 import { messageAboutShift, openMessages } from "@/lib/portal/messages";
-import { ABOUT_PAY_LINE, aboutLine, READY_SENTENCES } from "@/lib/portal/messages-copy";
+import {
+  ABOUT_PAY_LINE,
+  aboutLine,
+  MESSAGES_INTRO,
+  MESSAGES_INTRO_PAY,
+  READY_SENTENCES,
+} from "@/lib/portal/messages-copy";
 import { portalUrl } from "@/lib/tenancy/portal-url";
 import { CasualTabBar } from "../casual-tab-bar";
 import { refreshSessionAction } from "../session-actions";
@@ -52,6 +58,7 @@ export default async function MessagesPage({
         timeZone={firm.timezone}
         linkOrigin={new URL(portalUrl(firm.slug, appEnv().APP_BASE_DOMAIN)).origin}
         composer={<Composer answered={thread.answered} about={about} />}
+        intro={about && about.shiftId === null ? MESSAGES_INTRO_PAY : MESSAGES_INTRO}
       />
       <CasualTabBar firm={firm} workerId={worker.id} current="messages" />
     </main>

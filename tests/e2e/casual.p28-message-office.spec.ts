@@ -205,3 +205,52 @@ test("Message the office about a shift: the About line and a ready sentence, sen
       }
     }
 });
+
+// 28.10's guardrails review: Pay's and the pay query's "Message the office" open
+// /messages?about=pay. What she sends there goes to a person, never the automatic pay link (which
+// would send her back to the Pay page that can't take the question): the whole path, from the
+// page through the composer and its action to the worker.
+test("From Pay: Messages about her pay goes to a person, never the automatic pay answer", async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(240_000);
+  const tag = randomBytes(3).toString("hex");
+  await messageOfficeScene(tag);
+  await logInCasual(page);
+
+  await page.goto(`${acme}/messages?about=pay`);
+  await expect(page.locator("[data-about-shift]")).toHaveText("About: your pay");
+  await expect(
+    page.getByText(
+      "This goes to a person at the office, not the automatic answers. They'll answer you here.",
+    ),
+  ).toBeVisible();
+  const box = page.getByRole("textbox", { name: "Your message", exact: true });
+  await expect(box).toHaveValue("");
+  // Words the sorter would take as a pay question anywhere else.
+  const words = `When do I get paid for my October shifts? My pay looks short (e2e ${tag})`;
+  await box.fill(words);
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Sent. The office will answer here." }),
+  ).toBeVisible();
+  await expect(page).toHaveURL(`${acme}/messages`);
+
+  // The office finds it in Need a person, passed to a person and never sorted.
+  const office = await logInOffice(browser, tag);
+  const desk = await office.newPage();
+  const row = desk.getByRole("listitem").filter({ hasText: words });
+  await expect(async () => {
+    await desk.goto(`${acme}/office/enquiries?view=person`);
+    await expect(row).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+  await expect(row).toContainText("Passed to a person, waiting");
+  await office.close();
+
+  // And on her phone: no automatic answer with the pay link came.
+  await page.goto(`${acme}/messages`);
+  const thread = page.getByRole("list", { name: "Your messages" });
+  await expect(thread.getByRole("listitem").filter({ hasText: words })).toBeVisible();
+  await expect(thread.getByRole("listitem").filter({ hasText: "Automatic reply" })).toHaveCount(0);
+});

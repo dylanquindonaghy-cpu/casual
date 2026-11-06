@@ -13,6 +13,9 @@ import type { MessageAbout } from "./message-office";
 // else goes to the office.
 export const MESSAGES_INTRO =
   "Ask about shifts, cancelling or pay for an answer straight away, or ask the office anything else. If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll.";
+// Opened from Pay about a question Pay can't take (28.10): it goes to a person, never sorted.
+export const MESSAGES_INTRO_PAY =
+  "This goes to a person at the office, not the automatic answers. They'll answer you here.";
 export const MESSAGES_EMPTY = "No messages yet.";
 // Not "Write to the office" (Phase 28.6): the first answer is often automatic.
 export const COMPOSER_LABEL = "Your message";

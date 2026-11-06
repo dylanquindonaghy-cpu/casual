@@ -127,7 +127,7 @@ export async function myPayQueries(ctx: Ctx, stepped: Stepped): Promise<MyPayQue
         resolvedAt: payQueries.resolvedAt,
         note: payQueries.resolutionNote,
         unseen: sql<boolean>`(${payQueries.status} = 'resolved' and ${payQueries.resolvedAt} >
-          coalesce((select w.pay_answers_read_at from workers w where w.id = ${payQueries.workerId}),
+          coalesce((select w.pay_answers_read_at from workers w where w.firm_id = ${payQueries.firmId} and w.id = ${payQueries.workerId}),
                    '-infinity'::timestamptz))`,
       })
       .from(payQueries)

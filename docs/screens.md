@@ -630,17 +630,18 @@ What the casual sees on **Raise a pay query** (`/pay/query`):
   from the list." and "Something went wrong. Try again." (pale red).
 - **Too old:** "Pay queries can go back 90 days. For anything older, message the office.", with
   "message the office" a link (→ `/messages?about=pay`: below).
+- **The code ran out while she was writing:** "Your pay locks again after 30 minutes. Get a new
+  code, then try again.", with "Get a new code" a link to this page (the code step, then back
+  here with the same shift).
 
 **Messages about her pay** (`/messages?about=pay`, the guardrails review of 28.10): where Pay's
 and the pay query's "Message the office" go. "About: your pay" above the box, which starts empty.
 What she sends is never sorted: no keyword (her words may well say "pay"), no AI, and never the
 automatic pay link, which would only send her back to the Pay page that can't take the question.
-It goes to a person on Enquiries ("About their pay, sent from the Pay page: passed to a person,
-never sorted."), and her page says "Sent. The office will answer here." Sent, the address loses
+The intro above says "This goes to a person at the office, not the automatic answers.
+They'll answer you here." in place of the usual one. It goes to a person on Enquiries ("About
+their pay, sent from the Pay page: passed to a person, never sorted."), and her page says "Sent. The office will answer here." Sent, the address loses
 `?about=pay`: her next message is sorted as any other.
-- **The code ran out while she was writing:** "Your pay locks again after 30 minutes. Get a new
-  code, then try again.", with "Get a new code" a link to this page (the code step, then back
-  here with the same shift).
 
 **Mock-up:** none to approve first (Dylan, 2026-11-05: "Full build"; "Do not prompt me until the
 full plan is being pull requested"). The before-and-after mock-up is in

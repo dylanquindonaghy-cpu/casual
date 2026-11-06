@@ -14,6 +14,8 @@ import {
   DETAILS_NOTICE_QUEUE,
   type DetailsNoticeDeps,
 } from "@/lib/notices/details-changed";
+import { createShiftConfirmedTask, SHIFT_CONFIRMED_QUEUE } from "@/lib/notices/shift-confirmed";
+import { assignWorker } from "@/lib/office/quick-actions";
 import { editShift, editShiftDetails } from "@/lib/office/shift-editor";
 import type { PushPayload } from "@/lib/push/transport";
 import { DEFAULT_SHEET_MAPPING } from "@/lib/roster/sheets/mapping";
@@ -673,6 +675,128 @@ describe("not told, and logged why", () => {
     const c = capture();
     expect(await runJobs(t.f.firmId, c)).toEqual([{ status: "nothing" }]);
     expect(await eventsOf(t.f.firmId, "shift.details_notice%")).toEqual([]);
+  });
+});
+
+// Phase 29.4: a casual the office placed hears of the booking first. Her booking message (held for
+// quiet hours) links to the shift as it is when it goes, so a change made before it went is skipped
+// (`not_told`), as the office's change notice already does (src/lib/notices/firm-change.ts).
+describe("not before the booking message (Phase 29.4)", () => {
+  it("placed at night, the meeting point changed: skipped not_told until her booking message has gone", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const resourcer = await f.office("resourcer");
+    const shiftId = await f.shift({ startsAt: SATURDAY, headcount: 2, role: "steward" });
+    const ann = await f.worker({ first: "Ann" });
+    const ben = await f.worker({ first: "Ben" });
+    // Ben was booked earlier and told (no booking message is due).
+    const benBooking = await f.booking(ben, shiftId, "confirmed", 2);
+    const night = new Date("2026-11-02T22:30:00Z"); // Monday 22:30, inside quiet hours
+    const morning = new Date("2026-11-03T07:00:00Z");
+    const ctx = (when: Date) => ({
+      firm: { id: f.firmId },
+      officeUserId: resourcer,
+      run: withFirm,
+      clock: { now: () => when },
+    });
+
+    // The office books Ann at 22:30; her booking message is held for quiet hours.
+    expect(await assignWorker(ctx(night), shiftId, ann, null)).toMatchObject({
+      status: "booked",
+    });
+    const confirmedJobs = async () =>
+      (
+        await su.query<{ id: string; data: Record<string, unknown> }>(
+          `select id::text, data from pgboss.job where name = $1 and data ->> 'firmId' = $2
+            order by created_on, id`,
+          [SHIFT_CONFIRMED_QUEUE, f.firmId],
+        )
+      ).rows;
+    const confirmedSent: OutboundMessage[] = [];
+    const runConfirmed = (job: { id: string; data: Record<string, unknown> }, when: Date) =>
+      runFirmTask(
+        createShiftConfirmedTask(() => ({
+          transport: {
+            name: "capture",
+            async send(m) {
+              confirmedSent.push(m);
+              return { providerMessageId: `booked-${confirmedSent.length}` };
+            },
+          },
+          push: { name: "capture", send: async () => ({ status: "sent" as const }) },
+          baseDomain: "localhost:3000",
+          clock: { now: () => when },
+        })),
+        job,
+        withFirm,
+      );
+    const [booked] = await confirmedJobs();
+    expect(booked).toBeDefined();
+    if (!booked) return;
+    expect(await runConfirmed(booked, night)).toMatchObject({ output: { status: "held" } });
+    const annBooking = String(booked.data.assignmentId);
+
+    // 22:45: the meeting point changes. The notice's job runs at 07:00, before her booking message.
+    await editShiftDetails(ctx(night), shiftId, { ...NO_DETAILS, meetingPoint: "Gate C" });
+    const c = capture();
+    expect(await runJobs(f.firmId, c, morning)).toEqual([
+      { status: "done", sent: 1, failed: 0, skipped: 1 },
+    ]);
+    // Ben is told; Ann isn't, and the log says why (ids only).
+    expect(c.sent.map((m) => m.to)).toEqual([await mobileOf(ben)]);
+    const changeEventId = await changeId(f.firmId);
+    expect(
+      (await eventsOf(f.firmId, "shift.details_notice_skipped")).map((e) => [e.entity_id, e.data]),
+    ).toEqual([
+      [
+        annBooking,
+        { shiftId, workerId: ann, assignmentId: annBooking, reason: "not_told", changeEventId },
+      ],
+    ]);
+    expect((await eventsOf(f.firmId, "shift.details_notice")).map((e) => e.entity_id)).toEqual([
+      benBooking,
+    ]);
+
+    // 07:00: her booking message goes (it links to the shift as it is now). Run again: the change
+    // isn't told twice.
+    const held = (await confirmedJobs()).find((j) =>
+      String(j.data.idempotencyKey).endsWith(":after-quiet"),
+    );
+    expect(held).toBeDefined();
+    if (!held) return;
+    expect(await runConfirmed(held, morning)).toMatchObject({ output: { status: "sent" } });
+    expect(confirmedSent.map((m) => m.to)).toEqual([await mobileOf(ann)]);
+    expect(await runJobs(f.firmId, c, morning)).toEqual([{ status: "nothing" }]);
+
+    // A later change, after her booking message went: she's told.
+    await editShiftDetails(ctx(morning), shiftId, {
+      ...NO_DETAILS,
+      meetingPoint: "Gate C",
+      uniform: "Black",
+    });
+    // (Both saves fall in one minute's singleton slot here, so this one joins the job already
+    // queued, which runs again and reads every change not yet told; later, it queues its own.)
+    const after = new Date(morning.getTime() + (DETAILS_NOTICE_DELAY_SECONDS + 60) * 1000);
+    expect(await runJobs(f.firmId, c, after)).toEqual([
+      { status: "done", sent: 2, failed: 0, skipped: 0 },
+    ]);
+    expect(
+      c.sent
+        .slice(1)
+        .map((m) => m.to)
+        .sort(),
+    ).toEqual([await mobileOf(ann), await mobileOf(ben)].sort());
+    expect(bodies(c.sent).slice(1)).toEqual([
+      expect.stringContaining("(uniform)"),
+      expect.stringContaining("(uniform)"),
+    ]);
+    expect(
+      (await eventsOf(f.firmId, "shift.details_notice")).map((e) => [e.entity_id, e.data.fields]),
+    ).toEqual(
+      expect.arrayContaining([
+        [annBooking, ["uniform"]],
+        [benBooking, ["uniform"]],
+      ]),
+    );
   });
 });
 

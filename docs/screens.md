@@ -3220,3 +3220,20 @@ shows the way: each page still checks who can open it.
 - Client/venue view: licensed, notified, on-time staff for an event (Stage 2).
 - Check-in/out on tap with location (Stage 3).
 - Translations for common staff languages (P2).
+
+## Phase 29
+
+### 29.4
+
+No page of its own: when "Your shift's details changed" (28.3) waits. A casual the office books
+hears about the booking first. If her booking message hasn't gone yet (it's still to go, or quiet
+hours are holding it), a change to the shift's briefing doesn't send her "Your shift's details
+changed": she'd get a message about a shift she hasn't heard of. Her booking message links to the
+shift as it is when it goes, so she sees the new meeting point there. A change after her booking
+message has gone is told as usual.
+
+- **Example.** The office books her at 22:30; the booking message waits for 07:00. The meeting point
+  changes at 22:45. At 07:00 she gets one message, "Confirmed: …", and the shift's page shows the new
+  meeting point. No "details changed" message.
+- **The office's log** (`/office/shifts/[id]`): "Ann Booker wasn't told their shift's details
+  changed: they haven't been told about the booking yet (that message shows the shift as it is)."

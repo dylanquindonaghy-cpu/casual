@@ -75,6 +75,8 @@ const DETAILS_SKIP_WORDS: Record<string, string> = {
   firm_sends: "your own system tells them (its booking, and its change)",
   move_notice: "the same change moved their shift, and they're told about that",
   no_way: "nothing can reach them (no phone notifications, text or email)",
+  // Phase 29.4: their booking message hasn't gone yet (held for quiet hours, or still to go).
+  not_told: "they haven't been told about the booking yet (that message shows the shift as it is)",
 };
 
 // " (meeting point and uniform)": the parts that changed, in the casual's words; nothing for an

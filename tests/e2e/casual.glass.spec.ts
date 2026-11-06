@@ -220,12 +220,17 @@ async function noScript(browser: Browser, page: Page) {
 // target to hold still across two frames; with JavaScript off, a click that starts while an
 // entrance animation is moving the target never completes (CI's trace: the button moved, then the
 // page drew no more frames for the click to wait on; the same locally, 3 tries of 3). A person taps
-// a still button; so does this.
+// a still button; so does this. Only animations that run in time count: a scroll-linked one (the
+// day strip's edge fade, `fade-x`, since 28.8) follows the scroll, never finishes, and moves nothing.
 async function tapWhenStill(target: Locator) {
   const page = target.page();
   await expect
     .poll(() =>
-      page.evaluate(() => document.getAnimations().every((a) => a.playState === "finished")),
+      page.evaluate(() =>
+        document
+          .getAnimations()
+          .every((a) => a.playState === "finished" || !(a.timeline instanceof DocumentTimeline)),
+      ),
     )
     .toBe(true);
   await target.click();

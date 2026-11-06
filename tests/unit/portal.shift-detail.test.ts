@@ -18,6 +18,14 @@ const { ReviewResult } = await import("@/app/shifts/[id]/review-form");
 
 const TZ = "Europe/London";
 const NOW = new Date("2026-11-02T09:00:00Z");
+// Words as React writes them into HTML (an apostrophe is &#x27;), for matching an exact element.
+const asHtml = (words: string) =>
+  words
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
 const text = (html: string) =>
   html
     .replace(/<[^>]+>/g, " ")
@@ -457,7 +465,7 @@ describe("ShiftView, Phase 28.5", () => {
     const straight = { kind: "straight", straightMetres: 3200 } as const;
     const html = at({ state: "open", shift: summary, facts: { ...facts, travel: straight } }, NOW);
     expect(html).toContain(
-      `<p data-travel-line="" class="text-lg text-ink">${travelLineText(straight, TZ)}</p>`,
+      `<p data-travel-line="" class="text-lg text-ink">${asHtml(travelLineText(straight, TZ))}</p>`,
     );
     const gettingThere = html.slice(
       html.indexOf('id="getting-there-heading"'),

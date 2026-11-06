@@ -169,9 +169,12 @@ export function whyNotLines(facts: Pick<HelpFacts, "travelOn" | "rules">): strin
     ...(facts.travelOn ? ["You can't get there in time from your travel area."] : []),
     "You've marked that day as one you can't work.",
     "You're already booked at that time.",
-    rest && rest.minRestHours > 0
-      ? `You'd have less than ${restText(rest.minRestHours)} before or after another shift.`
-      : "You'd have too little rest before or after another shift.",
+    // No rest line at 0: the rest check can never fail then (eligibility.ts compares each gap with 0).
+    ...(rest === null
+      ? ["You'd have too little rest before or after another shift."]
+      : rest.minRestHours > 0
+        ? [`You'd have less than ${restText(rest.minRestHours)} before or after another shift.`]
+        : []),
     rest
       ? `It would take you over ${hoursText(rest.weeklyHoursCap)} that week.`
       : "It would take you over your weekly hours.",

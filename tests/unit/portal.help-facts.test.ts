@@ -183,6 +183,10 @@ describe("the rest gap, the cap, the urgent window and quiet hours, from their p
       "You need at least 1 hour's rest between shifts.",
     );
     expect(lines({ min_rest_hours: 0 }).join(" ")).not.toContain("rest between shifts");
+    expect(whyNotLines(facts({ min_rest_hours: 0 })).join(" ")).not.toContain("rest");
+    expect(whyNotLines(facts({ min_rest_hours: 1 }))).toContain(
+      "You'd have less than 1 hour's rest before or after another shift.",
+    );
     expect(lines({ urgent_window_hours: 0 })).toContain(
       "A shift becomes urgent when the office marks it urgent.",
     );

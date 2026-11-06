@@ -64,6 +64,7 @@ async function tabBar(page: Page) {
       corner: getComputedStyle(capsule).borderTopLeftRadius,
       tabCorner: getComputedStyle(current).borderTopLeftRadius,
       left: Math.round(box.left),
+      top: Math.round(box.top),
       right: Math.round(innerWidth - box.right),
       foot: Math.round(innerHeight - box.bottom),
       width: Math.round(box.width),
@@ -157,12 +158,14 @@ test("the casual app in the office's look: Home, Booked, Open shifts, a shift an
           expect(look!.words, where(p.name)).toBe(look!.onInk);
           expect(look!.image, where(p.name)).toBe("none");
           expect(look!.tabCorner, where(p.name)).toBe("8px");
-          // The capsule: 12px round, 12px from the sides on a phone (centred in its 448px column on
-          // a laptop) and 12px over the foot.
+          // The capsule: 12px round, 12px from the sides on a phone and 12px over the foot. On a
+          // laptop (30.2: from 1024px) it's the office's rail instead: 12px from the window's top
+          // and left, 96px wide.
           expect(look!.corner, where(p.name)).toBe("12px");
-          expect(look!.foot, where(p.name)).toBe(12);
-          if (size.mobile) expect([look!.left, look!.right], where(p.name)).toEqual([12, 12]);
-          else expect(look!.width, where(p.name)).toBe(448);
+          if (size.mobile) {
+            expect(look!.foot, where(p.name)).toBe(12);
+            expect([look!.left, look!.right], where(p.name)).toEqual([12, 12]);
+          } else expect([look!.left, look!.top, look!.width], where(p.name)).toEqual([12, 12, 96]);
           expect(look!.sideways, where(p.name)).toBe(0);
           await expect(
             page.getByRole("navigation", { name: "Main" }).locator('a[aria-current="page"]'),

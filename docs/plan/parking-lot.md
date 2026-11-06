@@ -2404,3 +2404,29 @@ From `docs/mockups/phase-28/review.md` (its section 5 has the evidence for each)
   session's rate. 28.8 says 'Pay not given yet', and 28.5's button asks.
 - **A two-column casual layout on laptops; the shift record as a PDF**: Casuals use phones, and the
   448px column is a deliberate keep. The office's notice report already has a PDF.
+
+### Phase 28, deferred while building (one list per task)
+
+Each task adds what it left out here as its wave is merged.
+
+- **28.1 (one look with the office):** nothing parked. Handed on: the gate plate moves onto
+  `glass-button` in 28.5; the pass and "Do this" lose `glass-band`, and the casual pages' own
+  `rounded-2xl`, `rounded-3xl` and `rounded-[…]` corners go in 28.5 to 28.15 (28.16's guard test
+  keeps them gone). The main button's `glass-tint` keeps its gradient rule with both ends one
+  colour, because the office's hi-vis button still uses it.
+- **28.2 (the data layer):** nothing parked. Choices for Dylan: Decisions waiting 17 and 18.
+  Erasure clears the new columns without adding to the erasure counts the office sees.
+- **28.3:** (filled when wave 2 is merged)
+- **28.4:** (filled when wave 2 is merged)
+- **28.5:** (filled when wave 2 is merged)
+- **28.6:** (filled when wave 2 is merged)
+- **28.7:** (filled when wave 2 is merged)
+- **28.8:** (filled when wave 2 is merged)
+- **28.9:** (filled when wave 2 is merged)
+- **28.10:** (filled when wave 2 is merged)
+- **28.11:** (filled when wave 2 is merged)
+- **28.12:** (filled when wave 3 is merged)
+- **28.13:** (filled when wave 3 is merged)
+- **28.14:** (filled when wave 3 is merged)
+- **28.15:** (filled when wave 3 is merged)
+- **28.16:** (filled when wave 4 is merged)

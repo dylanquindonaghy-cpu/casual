@@ -86,7 +86,18 @@ attached to its run's report.
 
 ### 28.2
 
-(Written by task 28.2.)
+No screen of its own: the data, links and words later tasks use.
+
+- A request kind "Attendance question". A status "Taken back" for a request she took back. An
+  attendance question the office answered reads "Answered", never "Approved" or "Declined": a
+  request never changes a mark.
+- "Message the office" about a shift links to `/messages?shift={id}&about={pay|late|started|other}`.
+  A pay question about a shift that has ended opens the pay query instead (`/pay/query?shift={id}`).
+- The outcomes the pages put into words:
+  - Still coming: confirmed, already, not now.
+  - Take back: taken back, the office answered first, already taken back.
+  - Attendance question: sent (with a reference), one already waiting, the shift already shows
+    that, not one of your marked shifts in the last 90 days, a note the form can't take.
 
 ### 28.3
 

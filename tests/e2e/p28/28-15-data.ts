@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { Pool } from "pg";
 import { seedId } from "../../../src/lib/db/admin/seed-data";
@@ -70,7 +71,9 @@ export async function offerScene(casual: {
   for (const id of earlier) await cancelOwnShift("acme", id);
   const { shiftId } = await addEventWithSession("acme", {
     name: P28_15_EVENT,
-    site: P28_15_SITE,
+    // A site of this scene's own (site names are unique in a firm, and the spec's two tests and
+    // any retry each make one): "Quayside Hall Marlow 3f9a".
+    site: `${P28_15_SITE} ${casual.lastName} ${randomBytes(2).toString("hex")}`,
     role: "steward",
     daysAhead: 5,
   });

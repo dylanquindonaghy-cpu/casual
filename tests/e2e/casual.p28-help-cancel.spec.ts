@@ -170,6 +170,8 @@ test("Help states the firm's rules and why a shift may not show; the cancel shee
     await sheet.getByRole("button", { name: "Done" }).click();
     await expect(sheet).toBeHidden();
     expect(far.shiftId).toMatch(/^[0-9a-f-]{36}$/);
+    // Her cancel reopened its place: end the session, so no later spec sees an open shift there.
+    await endSession("acme", far.shiftId);
 
     // A booking that starts while her page is open: "Can't make it?" can no longer cancel it.
     const soon = await bookStartingIn("acme", workerId, `P28.12 Soon Hall ${stamp}`, 75);

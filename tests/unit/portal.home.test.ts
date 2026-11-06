@@ -100,9 +100,10 @@ describe("Home's open shifts, in Shifts you can take", () => {
     ]);
     const row = (key: string) =>
       html.match(new RegExp(`<li[^>]*data-for-you="${key}"[^>]*>.*?</li>`))?.[0] ?? "";
-    // Round 7's sections (Phase 24), each a heading over one glass card of rows; "For you" went.
+    // Round 7's sections (Phase 24; "For you" went), since Phase 28.7 each one glass section with
+    // its heading inside, over its rows.
     expect(html).toMatch(
-      /<section aria-labelledby="can-take-heading"[^>]*><h2 id="can-take-heading" class="[^"]*">Shifts you can take<\/h2><ul role="list" class="glass [^"]*">/,
+      /<section aria-labelledby="can-take-heading" class="glass [^"]*"><div class="[^"]*"><h2 id="can-take-heading" class="[^"]*">Shifts you can take<\/h2><\/div><ul role="list" class="[^"]*">/,
     );
     expect(html).toMatch(/<h2 id="pay-heading" class="[^"]*">Pay<\/h2>/);
     expect(text(html)).not.toContain("For you");

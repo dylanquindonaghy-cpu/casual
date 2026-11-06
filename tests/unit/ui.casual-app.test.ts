@@ -456,10 +456,14 @@ describe("Home's kept copy (no signal)", () => {
       }),
     );
     // "Updated 09:00" online only; offline, the notice says when the copy was saved.
-    expect(html).toMatch(/<p data-online-only="" [^>]*>Updated 09:00<\/p>/);
+    // (Beside the headline since Phase 28.7.)
+    expect(html).toMatch(
+      /<small data-updated-slot="" data-online-only="" [^>]*>Updated 09:00<\/small>/,
+    );
     expect(html).toMatch(/<div data-offline-notice="" hidden="" role="status"/);
     expect(text(html)).toContain("This is your saved copy from 09:00 on Mon 2 Nov.");
-    // Shown in both: Do this (her initials), Pay; offline only: that open shifts need signal.
+    // Shown in both: Do this (her photo, a camera since Phase 28.7), Pay; offline only: that open
+    // shifts need signal.
     const rows = [...html.matchAll(/<li ([^>]*)data-for-you="([a-z]+)"/g)].map((m) => [
       m[2],
       /data-online-only/.test(m[1] ?? "")
@@ -474,7 +478,10 @@ describe("Home's kept copy (no signal)", () => {
       ["apply", "online"],
       ["pay", "both"],
     ]);
-    expect(html).toMatch(/rounded-full text-lg font-medium text-ink">ZA<\/span>/);
+    expect(html).toMatch(
+      /data-for-you="needs"><a [^>]*><span aria-hidden="true"[^>]*><span [^>]*><svg[^>]*><path d="M4 7\.5h3\.5L9 5h6/,
+    );
+    expect(html).not.toContain(">ZA<");
     // The kept copy shows [data-offline-only] and hides [data-online-only] (globals.css).
     const css = read("src/app/globals.css");
     expect(css).toMatch(/\[data-offline-only\]/);

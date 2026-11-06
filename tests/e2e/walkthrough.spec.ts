@@ -166,7 +166,7 @@ test("Part 2: as a worker", async ({ browser }) => {
   });
 
   await test.step("11. Take a shift", async () => {
-    await page.getByRole("link", { name: "Find a shift" }).click();
+    await page.getByRole("link", { name: "See open shifts" }).click();
     await expect(page.getByRole("heading", { name: "Open shifts" })).toBeVisible();
     // A card for one at the Arena; it opens the shift's page, where "Take shift" is.
     const arena = page.getByRole("listitem").filter({ hasText: "Acme Demo Arena" }).first();

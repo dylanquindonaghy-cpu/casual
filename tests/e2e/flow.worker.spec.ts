@@ -39,7 +39,7 @@ test("a worker logs in, takes a shift, cancels it, asks for a change and sees th
   await expect(page.getByRole("heading", { name: "No shifts booked" })).toBeVisible();
 
   await timed("take a shift", async () => {
-    await page.getByRole("link", { name: "Find a shift" }).click();
+    await page.getByRole("link", { name: "See open shifts" }).click();
     await expect(page.getByRole("heading", { name: "Open shifts" })).toBeVisible();
     // Each card opens the shift's page, where "Take shift" is.
     const racecourse = page.getByRole("listitem").filter({ hasText: "Acme Demo Racecourse" });

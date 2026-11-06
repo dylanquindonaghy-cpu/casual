@@ -172,12 +172,12 @@ describe("one type scale", () => {
       'src/app/pay/pay-view.tsx: "font-stat text-4xl text-ink"',
     ]);
     expect(read("src/app/ui/sign.tsx")).toMatch(/className=\{`block font-sign [^`]*\$\{t\.day\}/);
-    // The greetings: Home's at a page headline's size (`font-greet`: Geist medium, 28px, as round
-    // 7's "Hi Zoe"); the dashboard's inside its one <h1>, at a page headline's size (no display
-    // serif).
-    expect(read("src/app/home-view.tsx")).toMatch(
-      /className="font-greet text-3xl[^"]*">Hi \{firstName\}/,
-    );
+    // The greetings: Home's is its PageHeader's headline since Phase 28.7 (`text-title`, as every
+    // page's: no face of its own); the dashboard's inside its one <h1>, at a page headline's size
+    // (no display serif).
+    const home = read("src/app/home-view.tsx");
+    expect(home).toMatch(/<PageHeader title=\{`Hi \$\{firstName\}`\}/);
+    expect(home).not.toMatch(/(?<![\w-])font-greet(?![\w-])/);
     // The date tile's sizes live in a table beside its font-sign day. In the office, its big
     // counts in their own figures (`font-stat`); no display serif (gone in Phase 23).
     const notSign = uses.filter(

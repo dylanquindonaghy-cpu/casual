@@ -109,6 +109,9 @@ describe("the requests page's words", () => {
       "This request was already sorted.",
     );
     expect(answerResultText({ status: "note_needed" }, "Ann")).toBe("Add a note saying why.");
+    expect(answerResultText({ status: "answer_only" }, "Ann", "attendance")).toBe(
+      "This question can only be answered, not declined.",
+    );
     expect(answerResultText({ status: "note_too_long" }, "Ann")).toBe(
       "The note is too long (500 characters at most).",
     );

@@ -257,7 +257,7 @@ describe("Her own record's number (28.11)", () => {
     expect(mine?.qualifications.find((q) => q.type === "SIA_DS")?.number).toBe(
       "1012 3456 7890 1111",
     );
-    expect(JSON.stringify(mine)).not.toContain("2222");
+    expect(JSON.stringify(mine)).not.toContain(" 2222"); // even masked ("•••• 2222"); an id has no space
     // Firm B's casual can't be read from inside firm A at all.
     expect(await myProfile(casualCtx(a), bea)).toBeNull();
     // Inside her own firm, she sees her own.
@@ -265,7 +265,7 @@ describe("Her own record's number (28.11)", () => {
     expect(hers?.qualifications.find((q) => q.type === "SIA_DS")?.number).toBe(
       "2024 6810 1214 2222",
     );
-    expect(JSON.stringify(hers)).not.toContain("1111");
+    expect(JSON.stringify(hers)).not.toContain(" 1111"); // even masked; an id has no space
   });
 
   it("never for one the office records itself, nor one on file only for a shift's extra", async () => {

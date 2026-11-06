@@ -466,6 +466,53 @@ describe("askAboutMark", () => {
   });
 });
 
+// The office's answer to "Think this mark is wrong?" (resolveRequest) never changes the mark: only
+// marking the session again on who-worked does (golden rule 12; the guardrails review of 28.2).
+describe("the office answering an attendance question", () => {
+  it("approved or declined, the session's mark stays as it was", async () => {
+    const t = await setup();
+    const cases = [
+      { mark: "no_show", said: "worked", decision: "approved", note: "" },
+      { mark: "completed", said: "not_worked", decision: "approved", note: "Thanks." },
+      { mark: "no_show", said: "worked", decision: "declined", note: "No sign-in at the gate." },
+      { mark: "completed", said: "not_worked", decision: "declined", note: "You signed in." },
+    ] as const;
+    for (const [i, c] of cases.entries()) {
+      const shift = await t.f.shift({ startsAt: hoursFromNow(-30 - i) });
+      const booking = await t.f.booking(t.sam, shift, c.mark);
+      const asked = await askAboutMark(t.ctx(), t.sam, {
+        shiftId: shift,
+        payload: { said: c.said, note: "" },
+      });
+      if (asked.status !== "created") throw new Error(`not created: ${asked.status}`);
+      const { rows } = await su.query<{ id: string }>(
+        "select id::text as id from requests where shift_id = $1 and type = 'attendance'",
+        [shift],
+      );
+      const requestId = rows[0]?.id ?? "";
+      expect(
+        await resolveRequest(
+          withFirm,
+          t.f.firmId,
+          {
+            requestId,
+            decision: c.decision,
+            note: c.note,
+            by: { type: "office", id: t.resourcer },
+          },
+          { clock: { now: () => NOW } },
+        ),
+      ).toEqual({ status: "resolved", decision: c.decision });
+      expect((await t.requestRow(requestId))?.status).toBe(c.decision);
+      const { rows: mark } = await su.query<{ status: string; worker_id: string }>(
+        "select status, worker_id::text as worker_id from assignments where id = $1",
+        [booking],
+      );
+      expect(mark[0]).toEqual({ status: c.mark, worker_id: t.sam });
+    }
+  });
+});
+
 describe("answers she hasn't seen, and the tab counts", () => {
   it("count only answers after their read markers; marking clears them; never another casual's", async () => {
     const t = await setup();

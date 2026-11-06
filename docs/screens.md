@@ -3253,7 +3253,10 @@ What the casual sees:
 How it's raised: in the same step that stores her message. Issue "Something else", no shift, the
 day she sent it (the firm's time) as the day, her words as what she wrote (up to 1,000 characters;
 the whole message stays in her thread), status open. A second tap on Send for the same message
-raises nothing new. Each new message she sends this way is its own query. Logged as the Pay page's
+raises nothing new, and nor does a new message while her query from today still waits (open or in
+a digest): one open query a day, as the Pay page's rule (one per day, shift and issue). That message
+still shows in her thread with "Sent to payroll.", and Enquiries names the query already waiting;
+payroll's query keeps her first words. Logged as the Pay page's
 are (`pay_query.created`, with `via: "messages"`, the message's id, and `why: "no_code"` when the app
 knows she can't get a code); her words are never in the log. Someone no longer active (an old
 session) raises no query: the message waits for a person, as before.

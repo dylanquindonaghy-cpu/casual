@@ -286,10 +286,76 @@ describe("a message sent about her pay", () => {
     expect(t.asked).toHaveLength(0);
   });
 
+  it("a second, different message the same day raises no second query: it names the one waiting", async () => {
+    const t = await setup();
+    const first = await t.ask("Was I paid for Saturday?", true);
+    const second = await t.ask("Also my holiday pay looks wrong", { why: "no_code" });
+    expect(second.id).not.toBe(first.id);
+    expect(second.sent).toEqual({ status: "sent", messageId: second.id, toPayroll: true });
+    expect(await t.jobsFor(second.id)).toBe(0);
+    expect(t.asked).toHaveLength(0);
+    expect(await t.repliesTo(second.id)).toEqual([]);
+    // One query, with her first words; both messages stay on her thread.
+    const queries = await t.queriesOf(t.kay);
+    expect(queries.map((q) => [q.status, q.details])).toEqual([
+      ["open", "Was I paid for Saturday?"],
+    ]);
+    const q = queries[0];
+    expect((await t.eventsAbout(q?.id ?? "")).map((e) => e.action)).toEqual(["pay_query.created"]);
+    expect(await t.eventsAbout(second.id)).toEqual([
+      {
+        action: "message.received",
+        data: {
+          channel: "app",
+          handledAs: "office",
+          intent: "pay",
+          aboutPay: true,
+          payQueryId: q?.id,
+          payQueryAlreadyOpen: true,
+          workerId: t.kay,
+        },
+      },
+    ]);
+    const thread = await messagesThread(t.ctx, t.kay);
+    expect(thread.items.map((i) => [i.mine, i.toPayroll])).toEqual([
+      [true, true],
+      [true, true],
+    ]);
+    // Enquiries names that query for the second message too.
+    const e = await withFirm(t.f.firmId, (tx) => loadEnquiry(tx, second.id, new Date()));
+    expect(e?.timeline.sorted).toEqual({
+      how: "to_payroll",
+      ref: (q?.id ?? "").slice(0, 8).toUpperCase(),
+    });
+    expect(e?.waiting).toBe(false);
+
+    // Once payroll has answered it, a new message raises a new one.
+    await su.query("update pay_queries set status = 'resolved' where id = $1", [q?.id]);
+    await t.ask("Still not paid for Saturday", true);
+    expect((await t.queriesOf(t.kay)).map((r) => [r.status, r.details])).toEqual([
+      ["resolved", "Was I paid for Saturday?"],
+      ["open", "Still not paid for Saturday"],
+    ]);
+  });
+
+  it("many sends with different ids at once raise one query (the per-worker lock)", async () => {
+    const t = await setup();
+    const at = { firmId: t.f.firmId, run: withFirm, secret: SECRET, clock: { now: () => NOW } };
+    const sent = await Promise.all(
+      ["one", "two", "three", "four"].map((w) =>
+        receiveAppMessage(at, t.kay, `Pay question ${w}`, randomUUID(), null, true),
+      ),
+    );
+    expect(sent.every((s) => s.status === "sent" && s.toPayroll === true)).toBe(true);
+    expect(await t.queriesOf(t.kay)).toHaveLength(1);
+  });
+
   it("payroll's list and digest show it with where it came from (and why, when the app knew)", async () => {
     const t = await setup();
+    // Two casuals (one of hers is waiting a day: below), each from Messages.
+    const ola = await t.f.worker({ first: "Ola" });
     await t.ask("Was I paid for Saturday?", { why: "no_code" });
-    await t.ask("My June pay was short", true);
+    await t.ask("My June pay was short", true, randomUUID(), ola);
     const { groups } = await withFirm(t.f.firmId, (tx) => loadPayQueryGroups(tx));
     const items = groups.flatMap((g) => g.queries);
     expect(items.map((i) => [i.details, i.status, i.fromMessages])).toEqual([

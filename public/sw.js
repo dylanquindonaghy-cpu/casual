@@ -362,7 +362,9 @@ function noSignalPage() {
 // No signal page). Light or dark as the phone is; links at least 44px tall. Reloads by itself when
 // the signal comes back. Made fresh each time, never kept.
 function noSignalElsewhere(url) {
-  const here = escapeHtml(url.pathname + url.search);
+  // One leading slash only: a path such as `//evil.example/x` (or `/\evil.example/x`, which the URL
+  // parser turns into it) would otherwise be a link to another site.
+  const here = escapeHtml("/" + url.pathname.replace(/^\/+/, "") + url.search);
   const office = url.pathname === "/office" || url.pathname.startsWith("/office/");
   const saved = office ? "" : '<a class="go main" href="/">Open my saved shifts</a>';
   return new Response(

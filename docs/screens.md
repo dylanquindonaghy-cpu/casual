@@ -1840,7 +1840,8 @@ below where they differ.
   licence message again with its upload link: by text, or by email if they chose it or texts can't reach
   them (Phase 26.9: offers and reminders no longer go by WhatsApp). Each one is logged. They can't take shifts that need it until the new one is checked. Staff photos are asked for in the app." "Mark as sorted"
   ("Marked as sorted. They move to the end of the list until something else changes.") holds while
-  the worst thing it was about stands; a new problem shows them again.
+  the worst thing it was about stands; a new problem shows them again (Phase 29.3, "### 29.3": the
+  same problem again with a newer date, or a change to that record after the mark, is a new problem).
 - **A casual's page** (cas-6): **Reliability** (the figure and bar, "{19} shifts worked · {1} no-show · {0}
   late cancellations · last 90 days", chips "Regular", "Reliable", "Cancels often", "Not worked
   lately" ("New: not worked yet" for someone who never has), "Last worked {28 Oct}." or "Not worked
@@ -3220,3 +3221,27 @@ shows the way: each page still checks who can open it.
 - Client/venue view: licensed, notified, on-time staff for an event (Stage 2).
 - Check-in/out on tap with location (Stage 3).
 - Translations for common staff languages (P2).
+
+## Phase 29
+
+### 29.3
+
+**The office's "Sorted by" and "Remind all" follow the casual's "in hand"** (Casuals, Need
+updating; `src/lib/office/casual-follow-up.ts`, `src/lib/office/casuals.ts`). No words change. A
+"Mark as sorted" counts only while it covers the casual's problem as it stands, by the one rule the
+casual's own "The office has this in hand." uses (`markCovers`, `src/lib/portal/in-hand.ts`; 28.11):
+
+- the same qualification (or the staff photo) and the same status as the office marked;
+- nothing about their records of that type changed after the mark (one added or updated, or an
+  upload of it sent, approved or turned down; for the photo, a photo upload);
+- where a date says when the status began, marked on or after that day: the day after it expired,
+  30 days before it expires, or the day the upload that was turned down was sent. Where no date
+  says (missing, suspended, applied, the photo), only a mark nothing has changed since.
+
+So a casual marked as sorted whose licence was renewed and then expired again (a newer date), or
+whose problem was replaced by a newer one of the same kind, shows again: no "Sorted by {name} ·
+{date}" (their Last reminder shows instead), back in their place in Need updating, counted in
+"Remind all", and Remind sends to them. One still covered by the mark stays sorted: last in the
+list, "Sorted by {name} · {date}", left out of "Remind all", and Remind says "One is marked as sorted, so
+left alone." Only the firm's own marks count. Display and follow-up only: what the rules engine
+lets them take never changes (golden rule 6).

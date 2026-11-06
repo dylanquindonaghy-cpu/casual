@@ -266,10 +266,20 @@ export async function collectWorkerData(
     .where(eq(pushSubscriptions.workerId, workerId))
     .orderBy(asc(pushSubscriptions.createdAt));
 
-  // The shifts all of that was about: when and where, so the rest reads on its own.
+  // The shifts all of that was about: when and where, so the rest reads on its own (a message's
+  // too, Phase 28.2: it may be about a session she isn't booked on).
   const shiftIds = [
     ...new Set(
-      ([...bookings, ...offerRows, ...askRows, ...requestRows, ...payQuestions] as Row[])
+      (
+        [
+          ...bookings,
+          ...offerRows,
+          ...askRows,
+          ...requestRows,
+          ...payQuestions,
+          ...messageRows,
+        ] as Row[]
+      )
         .map((r) => r.shiftId)
         .filter((id): id is string => typeof id === "string"),
     ),

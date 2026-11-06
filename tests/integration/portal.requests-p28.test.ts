@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DAY } from "@/lib/auth/clock";
@@ -661,6 +662,30 @@ describe("export and erasure of Phase 28.2's columns and values", () => {
     expect(requests).toEqual([
       { type: "attendance", payload: { said: "worked" } },
       { type: "general", payload: {} },
+    ]);
+  });
+
+  // A message in the app about a session she can see but isn't booked on (messages.shift_id): the
+  // export says when and where that session is, never a bare id (the guardrails review of 28.2).
+  it("a message about a session she isn't booked on: the export's shifts name it", async () => {
+    const t = await setup();
+    const open = await t.f.shift({ startsAt: hoursFromNow(30) });
+    await su.query(
+      `insert into messages (firm_id, direction, channel, provider_message_id, worker_id, body,
+                             shift_id, created_at)
+       values ($1, 'in', 'app', $2, $3, 'Is there parking?', $4, $5)`,
+      [t.f.firmId, `app:${randomUUID()}`, t.sam, open, hoursFromNow(-1)],
+    );
+    const data = await withFirm(t.f.firmId, (tx) => collectWorkerData(tx, t.sam, NOW));
+    expect(data?.sections.messages).toEqual([expect.objectContaining({ shiftId: open })]);
+    expect(data?.sections.bookings).toEqual([]);
+    expect(data?.sections.shifts).toEqual([
+      expect.objectContaining({
+        id: open,
+        startsAt: hoursFromNow(30),
+        endsAt: expect.any(Date),
+        role: expect.any(String),
+      }),
     ]);
   });
 });

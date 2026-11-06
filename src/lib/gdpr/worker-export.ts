@@ -46,7 +46,10 @@ import { renumberEvents } from "./event-numbers";
 // pay lines, pay queries, shifts-line messages
 // (with messages from or to their number from before it was known), emails to the staffing inbox
 // (with those from their address before it was known), the action log's rows about
-// them, the shifts those were about, and when they logged in. Every column as stored, except the
+// them, the shifts those were about, and when they logged in. Phase 28.2's columns come with their
+// rows: when they said "Yes, I'm coming" (bookings), the answers they'd seen (the worker row), the
+// session a message in the app was about, and their attendance questions and taken-back requests
+// (requests). Every column as stored, except the
 // firm and worker ids on each row and the login secrets (link, session and code hashes, and a
 // phone's push keys: those say only when a phone turned notifications on).
 //

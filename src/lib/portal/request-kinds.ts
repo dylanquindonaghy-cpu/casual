@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { maskText } from "../log/mask";
 
 // The browser-safe half of worker requests (docs/screens.md, `/requests`, `/requests/new`): the
 // kinds a worker can ask for, their fields, the payload check, the outcome shape and the status
@@ -20,6 +21,9 @@ export const KIND_NAMES: Record<string, string> = {
   availability: "Availability",
   general: "Question",
   review: "Review",
+  // "Think this mark is wrong?" (Phase 28.2; 28.13): she asks the office to look again at how one
+  // of her sessions was marked.
+  attendance: "Attendance question",
 };
 
 export const MAX_REQUEST_NOTE = 500;
@@ -62,12 +66,17 @@ export const STATUS_WORDS: Record<string, string> = {
   approved: "Approved",
   declined: "Declined",
   auto_resolved: "Done",
+  withdrawn: "Taken back", // she took it back while it was waiting (Phase 28.2)
 };
 
 // One request's status in words: a question (`general`) the office approved reads "Answered"
-// ("approved" can read as "booked": PLAN.md Messages 13). Stored `approved` all the same.
+// ("approved" can read as "booked": PLAN.md Messages 13). Stored `approved` all the same. An
+// attendance question the office answered reads "Answered" either way (Phase 28.2): a request
+// never changes a mark, so "Approved" or "Declined" would mislead (golden rule 12). Every status in
+// the table has words (tests/unit/portal.request-kinds-p28.test.ts).
 export function statusWord(type: string, status: string): string {
   if (type === "general" && status === "approved") return "Answered";
+  if (type === "attendance" && (status === "approved" || status === "declined")) return "Answered";
   return STATUS_WORDS[status] ?? status;
 }
 
@@ -116,5 +125,59 @@ export type ReviewOutcome =
   | { status: "already_booked" }
   | { status: "not_open" } // filled, started, cancelled or not there
   | { status: "invalid" } // the note is too long
+  | { status: "logged_out" }
+  | { status: "error" };
+
+// Text a casual typed that holds a phone number or an email address (the log masker would change
+// it: src/lib/log/mask.ts, the same test the office's override reasons pass). Kept off requests
+// that stay with her bookings' evidence.
+export const holdsContactDetails = (text: string): boolean => maskText(text) !== text;
+
+// "Think this mark is wrong?" (Phase 28.2; 28.13's form): she says she worked a session marked not
+// attended, or didn't work one marked worked. A person looks again; the request never changes the
+// mark (src/lib/portal/requests.ts askAboutMark).
+export const ATTENDANCE_SAID = ["worked", "not_worked"] as const;
+export type AttendanceSaid = (typeof ATTENDANCE_SAID)[number];
+
+// Her optional note: at most MAX_REQUEST_NOTE characters, and no phone number or email address.
+export const attendancePayloadSchema = z.strictObject({
+  said: z.enum(ATTENDANCE_SAID),
+  note: note.refine((n) => !holdsContactDetails(n), {
+    message: "no phone numbers or email addresses",
+  }),
+});
+export type AttendancePayload = z.infer<typeof attendancePayloadSchema>;
+
+// The form's fields as typed, checked. Null means not acceptable.
+export function attendancePayload(fields: Record<string, string>): AttendancePayload | null {
+  const parsed = attendancePayloadSchema.safeParse({
+    said: fields.said ?? "",
+    note: fields.note ?? "",
+  });
+  return parsed.success ? parsed.data : null;
+}
+
+export type AttendanceOutcome =
+  | {
+      status: "created";
+      ref: string; // the first 8 characters of the request's id, upper case
+      sentAt: string; // "09:14 on Mon 2 Nov", the firm's local time
+      signOff: string;
+    }
+  | { status: "already_open"; ref: string } // one already waiting for this session
+  | { status: "matches_mark" } // the session already shows what she says
+  // Not her session marked worked or not attended in the last 90 days (RELIABILITY_DAYS, by when
+  // it started), or not there.
+  | { status: "not_yours" }
+  | { status: "invalid" } // the note is too long, or holds a phone number or email address
+  | { status: "logged_out" }
+  | { status: "error" };
+
+// "Take back this request" (Phase 28.2; 28.9): only while it's waiting for the office.
+export type WithdrawOutcome =
+  | { status: "withdrawn"; ref: string }
+  | { status: "answered_first"; ref: string } // the office answered (or sorted it) first
+  | { status: "already"; ref: string } // taken back before (a second tap)
+  | { status: "not_yours" }
   | { status: "logged_out" }
   | { status: "error" };

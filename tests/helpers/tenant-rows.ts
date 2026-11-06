@@ -202,10 +202,11 @@ export async function createTenant(su: Pool): Promise<Tenant> {
     "insert into shifts (firm_id, event_id, site_id, role, starts_at, ends_at, headcount) values ($1, $2, $3, 'steward', $4, $5, 2)",
     [firmId, shiftEventId, rosterSiteId, startsAt, endsAt],
   );
+  // Her "Yes, I'm coming" (Phase 28.2) on the booking too.
   const assignmentId = await one(
     su,
-    `insert into assignments (firm_id, shift_id, slot, worker_id, status, confirmed_at)
-     values ($1, $2, 1, $3, 'confirmed', now())`,
+    `insert into assignments (firm_id, shift_id, slot, worker_id, status, confirmed_at, still_coming_at)
+     values ($1, $2, 1, $3, 'confirmed', now(), now())`,
     [firmId, shiftId, rosterWorkerId],
   );
   // A strike on a booking the rota worker cancelled (its own row: rows.assignments stays strike-free
@@ -469,8 +470,11 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
     text: "insert into firms (name, slug, sector) values ($1, $2, 'security')",
     values: ["Probe Firm", uniqueSlug("p")],
   }),
+  // With the answers she's seen (Phase 28.2).
   workers: (firmId) => ({
-    text: "insert into workers (firm_id, first_name, last_name, mobile_e164) values ($1, 'Probe', 'Worker', $2)",
+    text: `insert into workers (firm_id, first_name, last_name, mobile_e164, requests_read_at,
+                                pay_answers_read_at)
+           values ($1, 'Probe', 'Worker', $2, now(), now())`,
     values: [firmId, fakeMobile()],
   }),
   office_users: (firmId) => ({
@@ -538,13 +542,20 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
     text: "insert into shifts (firm_id, event_id, site_id, role, starts_at, ends_at) values ($1, $2, $3, 'steward', $4, $5)",
     values: [firmId, p.rows.shift_events, p.rosterSiteId, ...shiftTimes()],
   }),
+  // A new casual's booking, with her "Yes, I'm coming" (Phase 28.2).
   assignments: (firmId, p) => ({
-    text: "insert into assignments (firm_id, shift_id, slot) values ($1, $2, $3)",
-    values: [firmId, p.rows.shifts, 1 + next()],
+    text: `with w as (insert into workers (firm_id, first_name, last_name, mobile_e164)
+                      values ($1, 'Probe', 'Booked', $4) returning id)
+           insert into assignments (firm_id, shift_id, slot, worker_id, status, confirmed_at,
+                                    still_coming_at)
+           select $1, $2, $3, w.id, 'confirmed', now(), now() from w`,
+    values: [firmId, p.rows.shifts, 1 + next(), fakeMobile()],
   }),
+  // An attendance question she took back (Phase 28.2: the new type and status).
   requests: (firmId, p) => ({
-    text: "insert into requests (firm_id, worker_id, type) values ($1, $2, 'general')",
-    values: [firmId, p.rosterWorkerId],
+    text: `insert into requests (firm_id, worker_id, shift_id, type, status, resolved_at, payload)
+           values ($1, $2, $3, 'attendance', 'withdrawn', now(), '{"said": "worked"}')`,
+    values: [firmId, p.rosterWorkerId, p.rows.shifts],
   }),
   // A disabled one: each firm may have only one enabled source (the fixture's).
   roster_sources: (firmId) => ({
@@ -652,10 +663,11 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
            values ($1, $2, '2026-11-02', 'late_pay')`,
     values: [firmId, p.rosterWorkerId],
   }),
+  // A casual's message in the app about a session (Phase 28.2: messages.shift_id).
   messages: (firmId, p) => ({
-    text: `insert into messages (firm_id, direction, channel, provider_message_id, worker_id, from_e164, to_e164, body)
-           values ($1, 'in', 'sms', $2, $3, '+447700900112', '+447700900000', 'pay')`,
-    values: [firmId, `SM${randomBytes(16).toString("hex")}`, p.rosterWorkerId],
+    text: `insert into messages (firm_id, direction, channel, provider_message_id, worker_id, body, shift_id)
+           values ($1, 'in', 'app', $2, $3, 'What is the pay?', $4)`,
+    values: [firmId, `app:${randomUUID()}`, p.rosterWorkerId, p.rows.shifts],
   }),
   inbound_emails: (firmId, p) => ({
     text: `insert into inbound_emails (firm_id, provider_message_id, worker_id, from_address, to_address, body)
@@ -934,6 +946,11 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
     text: `insert into email_replies (firm_id, inbound_email_id, worker_id, kind, sent_by, to_address, subject, body)
            values ($1, $2, $3, 'office', $4, 'someone@example.com', 'Re: work', 'Yes.')`,
     values: [firmId, own.rows.inbound_emails, own.rosterWorkerId, other.officeUserId],
+  }),
+  messages_shift_fk: (firmId, own, other) => ({
+    text: `insert into messages (firm_id, direction, channel, provider_message_id, worker_id, body, shift_id)
+           values ($1, 'in', 'app', $2, $3, 'Running late', $4)`,
+    values: [firmId, `app:${randomUUID()}`, own.rosterWorkerId, other.rows.shifts],
   }),
   messages_reply_to_fk: (firmId, _own, other) => ({
     text: `insert into messages (firm_id, direction, channel, provider_message_id, from_e164, to_e164, reply_to)

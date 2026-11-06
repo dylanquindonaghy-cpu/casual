@@ -142,6 +142,13 @@ export const workers = pgTable(
     // The newest office reply in the app they've seen on Messages (P8; Phase 25.6): the office's
     // replies after it are new to them (the tab's count). Null: none seen yet.
     messagesReadAt: timestamptz("messages_read_at"),
+    // The office's answers to her requests (approved or declined) and payroll's to her pay queries
+    // (resolved) she's seen (Phase 28.2): answers after each are new to her (the Profile and Pay
+    // tabs' counts, src/lib/portal/request-answers.ts). Set when her row is made (and, for the
+    // casuals already here, when the columns were added), so only answers from then on count;
+    // cleared when she's erased.
+    requestsReadAt: timestamptz("requests_read_at").defaultNow(),
+    payAnswersReadAt: timestamptz("pay_answers_read_at").defaultNow(),
     // When the office made them inactive (Phase 10, src/lib/office/worker-access.ts). While set,
     // no rota sheet or file makes them active again (a blank sheet status reads as "active"):
     // only the office does, which clears it. Null: their status came from elsewhere.

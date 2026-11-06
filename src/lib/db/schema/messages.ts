@@ -11,6 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { createdAt, firmIsolation, timestamptz } from "./helpers";
 import { workers } from "./people";
+import { shifts } from "./roster";
 import { firms } from "./tenancy";
 
 // Messages on the shifts line (Phase 7, docs/data-model.md `messages`): each WhatsApp a firm's
@@ -52,6 +53,10 @@ export const messages = pgTable(
     handledAt: timestamptz("handled_at"), // an inbound message claimed by the job
     replyTo: uuid("reply_to"), // an outbound reply: the message it answers
     twilioOptOut: text("twilio_opt_out", { enum: TWILIO_OPT_OUTS }),
+    // The session a casual's message in the app is about (Phase 28.2; 28.6's "Message the office"):
+    // kept only for one she's booked on or can see that hasn't ended (src/lib/inbound/app.ts),
+    // otherwise null and the message is sorted as any other. Never on a text, call or answer.
+    shiftId: uuid("shift_id"),
     createdAt: createdAt(),
   },
   (t) => [
@@ -63,6 +68,11 @@ export const messages = pgTable(
       name: "messages_worker_fk",
       columns: [t.firmId, t.workerId],
       foreignColumns: [workers.firmId, workers.id],
+    }),
+    foreignKey({
+      name: "messages_shift_fk",
+      columns: [t.firmId, t.shiftId],
+      foreignColumns: [shifts.firmId, shifts.id],
     }),
     foreignKey({
       name: "messages_reply_to_fk",
@@ -104,6 +114,11 @@ export const messages = pgTable(
         or (${t.twilioOptOut} in ('stop', 'start') and ${t.channel} = 'sms' and ${t.direction} = 'in')`,
     ),
     check("messages_body_length", sql`${t.body} is null or char_length(${t.body}) <= 1600`),
+    // Only a casual's own message in the app names a session (Phase 28.2).
+    check(
+      "messages_shift_app_only",
+      sql`${t.shiftId} is null or (${t.channel} = 'app' and ${t.direction} = 'in')`,
+    ),
     // Only a reply answers a message; only an inbound message is handled.
     check(
       "messages_direction_fields",

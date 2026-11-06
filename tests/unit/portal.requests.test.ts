@@ -62,6 +62,7 @@ describe("the request payload check", () => {
       approved: "Approved",
       declined: "Declined",
       auto_resolved: "Done",
+      withdrawn: "Taken back", // Phase 28.2: she took it back while it was waiting
     });
   });
 });

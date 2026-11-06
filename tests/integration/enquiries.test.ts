@@ -11,6 +11,7 @@ import { ENQUIRY_REPLY_QUEUE, runEnquiryReply } from "@/lib/notices/enquiry-repl
 import { loadEnquiries, loadEnquiry, needPersonCount, officeEnquiry } from "@/lib/office/enquiries";
 import { closeEnquiry, replyToEnquiry } from "@/lib/office/enquiry-actions";
 import { WHATSAPP_WINDOW_MS } from "@/lib/office/enquiry-rules";
+import { canWithdrawRequest, myRequests, withdrawRequest } from "@/lib/portal/requests";
 import { captureTransport } from "../helpers/auth";
 import { bookingFirm } from "../helpers/booking-fixture";
 import { appRolePool, NO_FIRM_LINE, superuserPool } from "../helpers/db";
@@ -899,5 +900,50 @@ describe("the 90-day purge and a question's link (S5)", () => {
     expect(rows).toEqual([
       { message_id: null, payload: { note: "office: is there parking?", via: "whatsapp" } },
     ]);
+  });
+});
+
+// A question she sent to the shifts line is the office's to answer here, with its message locked:
+// "Take back" (src/lib/portal/requests.ts) never drops it from Need a person (the guardrails
+// review of 28.2).
+describe("a casual's question from the shifts line stays with Enquiries", () => {
+  it("she can't take it back: it stays in Need a person, and the office's reply still answers it", async () => {
+    const t = await enquiryFirm();
+    const asked = await t.incoming("office: is there parking?");
+    const { rows: q } = await su.query<{ id: string }>(
+      "select id::text as id from requests where message_id = $1",
+      [asked],
+    );
+    const requestId = q[0]?.id ?? "";
+    const portal = {
+      firm: { id: t.f.firmId, timezone: "Europe/London", signOff: `${t.firmName} Shift Team` },
+      run: withFirm,
+    };
+    // My requests lists it without "Take back"; taking it back anyway changes nothing.
+    const [mine] = await myRequests(portal, t.zoe);
+    expect(mine).toMatchObject({
+      id: requestId,
+      type: "general",
+      status: "open",
+      messageId: asked,
+    });
+    expect(mine && canWithdrawRequest(mine)).toBe(false);
+    expect(await withdrawRequest(portal, t.zoe, requestId)).toEqual({
+      status: "office_has_it",
+      ref: requestId.slice(0, 8).toUpperCase(),
+    });
+    const status = async () =>
+      (await su.query<{ status: string }>("select status from requests where id = $1", [requestId]))
+        .rows[0]?.status;
+    expect(await status()).toBe("open");
+    expect(await t.eventsOf("request.withdrawn")).toEqual([]);
+    expect((await t.load("person")).rows.map((r) => r.messageId)).toEqual([asked]);
+    expect(await withFirm(t.f.firmId, (tx) => needPersonCount(tx, new Date()))).toBe(1);
+    // The office's reply answers it, as for any question from the shifts line.
+    expect(await replyToEnquiry(t.ctx(), asked, "Yes, at the north gate.")).toMatchObject({
+      status: "queued",
+    });
+    expect(await status()).toBe("approved");
+    expect(await withFirm(t.f.firmId, (tx) => needPersonCount(tx, new Date()))).toBe(0);
   });
 });

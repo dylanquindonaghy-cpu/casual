@@ -100,6 +100,24 @@ Replace the parts in [brackets]. Send both parts.
 > follows. We use it because it's in our interest to staff shifts reliably (our legitimate
 > interest; you can object, and you can ask us to correct a shift we marked wrongly).
 >
+> **If you think we marked a shift wrongly:** for a shift in the last 90 days, you can tell us in
+> the app that you worked it, or that you didn't, with a short note if you like (no phone numbers
+> or email addresses). A person in our office looks again and answers you. Sending it doesn't
+> change the mark: only our office marking the shift again does.
+>
+> **"Still coming?":** in the day before a shift you're booked on, you can tap "Yes, I'm coming".
+> Our office sees that you said so, to plan cover. That's all it's used for: it doesn't change
+> your reliability, which shifts you're offered or anything else, and nothing happens if you
+> don't answer.
+>
+> **Taking back a request:** you can take back a request while it's still waiting for our office.
+> We keep a record that you sent it and took it back.
+>
+> **"Add to my calendar":** if you tap it on a shift you're booked on, your phone saves a calendar
+> entry with the role, the times, the site's name and address and a link back to the shift. It
+> never holds your pay, the instructions or anyone else's details. Once it's in your calendar,
+> it's yours: we can't see it or delete it.
+>
 > **Notes about you:** someone in our office can write a short note about you (up to 500
 > characters, never a phone number or email address, and never your health or other personal
 > details). It's kept with your details, not sent to you or anyone else.
@@ -136,7 +154,8 @@ Replace the parts in [brackets]. Send both parts.
 >
 > **How long:** messages to the shifts line, [90] days. The words typed into a request (a note, a
 > colleague's name) and the reason our office gave for placing you on a shift a rule would have
-> stopped, [12 months] after the request closed or the booking was made. Login links and codes, 7
+> stopped, [12 months] after the request closed (answered, or taken back by you) or the booking was
+> made. Login links and codes, 7
 > days after they run out; login sessions, 30 days after they end. A photo or card picture we
 > turned down, or an old photo you've replaced, 30 days later. A strike, [12 months] after it was
 > given. A note our office wrote about you, [until you leave us / for [period]]. Your travel area, until you remove it or we record that you've left [if the firm stops
@@ -152,7 +171,7 @@ Replace the parts in [brackets]. Send both parts.
 > ask us to correct it, or ask us to delete it. If you ask us to delete it, your name, number,
 > email, staff number, licences, photos and card pictures, travel area, days off, messages and
 > logins are deleted, and so are the notes on your own
-> requests, pay questions and cancellations, the reasons our office typed when it placed you on a
+> requests, pay questions and cancellations, when you said you were still coming as your booking shows it (our log keeps its entry that you said so, and when, like its other entries), the reasons our office typed when it placed you on a
 > shift, its reasons for withdrawing a strike, and its notes about you. The record of the shifts you were offered, worked or cancelled, and your pay records,
 > stay without your name, because we must be able to show the notice we gave and what we paid.
 > What other people wrote that mentions you (a colleague's swap request or pay question naming you,

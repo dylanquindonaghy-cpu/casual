@@ -120,7 +120,9 @@ export default defineConfig({
   // Builds the pages the tests open first before any test starts (tests/e2e/warmup.ts).
   globalSetup: "./tests/e2e/warmup.ts",
   globalTeardown: "./tests/e2e/teardown.ts",
-  use: { baseURL: `http://localhost:${PORT}`, trace: "retain-on-failure" },
+  // en-GB (Phase 28): dates in the browser's own fields read dd/mm/yyyy, as a UK casual's phone shows
+  // them, in every run's screenshots.
+  use: { baseURL: `http://localhost:${PORT}`, trace: "retain-on-failure", locale: "en-GB" },
   // Mobile first: workers use the portal from a phone. The browser (only) maps a made-up domain
   // (.test is reserved: it never resolves on the internet) to this machine's https front for it, so
   // a firm's own domain can be tried, logins included (tests/e2e/custom-domain.spec.ts, which alone

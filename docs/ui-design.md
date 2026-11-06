@@ -1,8 +1,9 @@
 # UI design system
 
 How every screen looks and is laid out. Added 2026-10-05 (Phase 11) at Dylan's request: "make it a
-lot easier to see and understand where everything is". The newest look is first: "Phase 27.7" (a
-plain colour behind every page), "Phase 27.6"
+lot easier to see and understand where everything is". The newest look is first: "Phase 28" (the
+casual app on the office's corners, flat colours, chips, headings and current-tab rule), "Phase
+27.7" (a plain colour behind every page), "Phase 27.6"
 (the casual app in round 8's look), "Phase 26" (round 8, the office's first), "Phase 24" (the glass's
 parts, which round 8 keeps, and round 7's wash and values, now replaced); the sections after them are
 the earlier phases, kept for their reasons where they still stand.
@@ -24,12 +25,83 @@ Principles, in order:
    Phase 27.6; the plain colour since Phase 27.7). Sections, buttons and what floats are
    translucent glass over one plain ground, in the office and the casual app alike; no pattern
    behind the page, no grain, glows, coloured shadows or images. Motion only to show what changed, as Phase 18's spec (below), and press
-   feedback. The firm's colour tints the one main button in the casual app and marks where you are,
-   never a status (the office's main button is hi-vis). One face, Geist, for every word, headline and
-   number (keys and secrets on Integrations keep the system's mono). Phase 23's flat white cards
-   and the office's own colours and face are gone.
+   feedback. The firm's colour is the one main button in the casual app, one flat colour (Phase 28),
+   and the firm's mark, never a status (the office's main button is hi-vis). **Ink marks where you
+   are in both apps** (Phase 28, 28.1: the office rail's lit item and the casual app's current tab,
+   solid ink with its words on it; until then the casual app's current tab was a lens with its icon
+   and word in the firm's colour). *Pending Dylan (docs/plan/decisions-waiting.md, the tab bar's
+   row): this rule is built but settles only when he answers; its fallback keeps the lens, with the
+   current tab's words and icon in ink.* One face, Geist, for every word, headline and number (keys
+   and secrets on Integrations keep the system's mono). Phase 23's flat white cards and the
+   office's own colours and face are gone.
 6. **Works without JavaScript** where pages already do (server-action forms, `<details>`
    confirmations, GET filter forms, anchor links).
+
+## Phase 28: the casual app on the office's system (28.1)
+
+Dylan, 2026-11-05: "try to better match the UI to that of the resourcing teams UI". The look
+comparison behind Phase 28 measured the gap: about 70 one-off corners in the casual pages against
+none in the office, 24px and 22px "bubbly" cards, two gradients (the main button's and the pass's
+band), four heading styles, six empty states, chips with an edge, and a blue current tab where the
+office uses ink. 28.1 closes what the shared parts can close, on every casual page at once (the
+pages' own one-off values go in their own tasks, 28.5 to 28.15, and 28.16 guards the result). The
+words are `docs/screens.md` "The casual app, Phase 28", 28.1.
+
+- **Corners: one set for both apps.** `--radius-card` and `--radius-inner` are 12px and
+  `--radius-row` 8px in `@theme` (round 8's values, which only the office's blocks held until now:
+  their copies are gone). So `rounded-inner` sections (`staffCard`, `staffRows`, the login card) are
+  12px and `rounded-row` tiles, fields (`staffField`), notices and date tiles 8px. No shared part
+  in `src/app/ui/` has a corner of its own (`rounded-[…]`, `rounded-2xl`): the seats and the status
+  plate are round, the sign plate and the date tile `rounded-row`.
+- **One flat main button.** `--color-tint-shade` is the tint itself in every block (the app's ink,
+  its dark set, and a firm's own colour through `--firm-fill`; `brand-values.ts` no longer works out
+  a shade). `glass-tint` keeps its gradient rule, so the office's hi-vis button is unchanged, but
+  its two ends are one colour everywhere. The pass's band (`glass-band`) is flat the same way: its
+  two ends one value in every block (28.7 takes it off the pages).
+- **Headlines.** `text-title` is semibold at -0.025em in both apps (the office's; the casual app's
+  was medium at -0.02em), each at its own size (28px, 30px). `PageHeader` takes `updated` ("Updated
+  21:35"): beside the headline on its baseline, as the office's stamp, and online only.
+  `staffH2` is 18px semibold (round 7's was 20px medium) and `staffCount` the office's count pill.
+- **Chips** are borderless on the office's values (28px tall, 12px across, 4px down; 14px
+  semibold in the casual app, 13px on a 16px line in the office). Round 8's six text colours in
+  both apps: `wait` words in ink, `quiet` in grey.
+- **New shared classes** (`src/app/ui/classes.ts`), token corners only:
+  - `tag`: a glass pill (`glass-button`, ink words) for plain facts beside a shift.
+  - `slip` (`base` and a tone each): a notice in its status's soft tint with a 1px `*-line` edge, 8px
+    round, ink words, led by `disc`, the office's 32px round icon disc (its Updates and the
+    cancellation pop-up): urgent on `urgent-tile`, attention on the casual app's pale amber
+    (`hivis`), wait on `wait-tile`, done on `done-tile`, quiet on clear glass. `<Slip tone title
+    role>` (`src/app/ui/slip.tsx`) puts the two together with the tone's own icon.
+  - `emptyBox`: the one empty state, grey words on clear glass, 8px round (Phase 17's dashed frames
+    go as the pages take it).
+  - `staffChoice`: a choice card, clear glass, 8px round, 56px; a transparent 2px edge that turns
+    ink only on the chosen one (`has-checked`), with the grey wash, so nothing moves.
+- **Other shared parts.** `staffBtn.danger` has dark red words (`urgent-ink`) and the office's grey
+  wash under the pointer; `tapRow` the rail's `bg-active` wash; `switchTrack` a hairline glass track
+  (`glass-track glass-rim`); `DateTile` 8px, clear glass (`glass-button`), or the urgent tint with
+  the glass's hairline; `Plate` round; the firm's mark in its bar 36px, 8px round and bold (above
+  the office's login pages it keeps its 32px and semibold).
+- **The tab bar: the office rail on its side.** A 12px capsule (`rounded-card`) 12px from the
+  screen's sides and its foot (`px-3`, `pb-[calc(0.75rem+env(safe-area-inset-bottom))]`), tabs
+  `rounded-row`, the current tab `bg-ink text-on-ink` in semibold (the rail's lit item), its focus
+  ring in `on-ink` so it shows on the ink. No lens. Two more optional counts, so the later tasks only
+  pass numbers: `answersCount` (added to Profile's) and `payCount`; each count is set off from the
+  tab under it by a 2px edge of the page's ground (`outline-canvas`), as the rail's dot is. Mini
+  mode and no-JavaScript are as they were. *Pending Dylan* (principle 5).
+- **Contrast.** Every new pair is checked in both casual themes, solid and with no blur too
+  (`tests/unit/ui.contrast.test.ts` "Phase 28's parts"): chip words on their tints and slip words
+  on each soft tint at 4.5:1 or more over the page, a section and what floats; each disc's icon on
+  its fill at 3:1 or more; the current tab's words on its ink; the flat button at its one stop.
+- **What stays the casual app's own:** 52px buttons, 56px fields with 18px words, 80px rows, the
+  68px tab bar, the type scale, the firm's colour, following the phone, the bottom bar, the 448px
+  column and the pass. The office looks exactly as it did (`tests/e2e/office.look.spec.ts`), but for
+  the firm's initial over its login pages, 8px round now (it took the app's 14px row corner, being
+  outside the office's wrapper).
+- **Dates.** Every browser run (the four Playwright configs) is en-GB, so the browser's own date
+  fields read dd/mm/yyyy in its screenshots, as on a UK casual's phone.
+
+`tests/unit/ui.p28-classes.test.ts` holds the new classes, the corners and the counts;
+`tests/e2e/casual.p28-look.spec.ts` the look in a real browser at 390px and 1,280px, light and dark.
 
 ## Phase 27.8: the dashboard map with proper detail
 
@@ -872,7 +944,8 @@ Two themes: light, and a dark of true greys (D7 in `docs/office-v2.md`, changed 
 tokens. Since Phase 24 the grounds are glass, written `rgb(r g b / a)`: see "Phase 24" for the
 glass and how every pair is checked over it (`tests/unit/ui.contrast.test.ts`). Since Phase 27.6
 these are round 8's values (the office's own blocks hold the same, but for its hi-vis brand group,
-its to-do tint and its corners, and it's dark by default: "Phase 26").
+its to-do tint, and it's dark by default: "Phase 26"; the corners are one set for both since Phase
+28).
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
@@ -886,8 +959,8 @@ its to-do tint and its corners, and it's dark by default: "Phase 26").
 | `track` / `pill` / `active` | `rgb(16 24 40 / 0.06)` / `rgb(255 255 255 / 0.96)` / `rgb(16 24 40 / 0.05)` | `rgb(255 255 255 / 0.06)` / `rgb(255 255 255 / 0.1)` / `rgb(255 255 255 / 0.07)` | A switch's track (`glass-track`); the lens on the chosen tab or option (`lens`); a checked choice's ground |
 | `count` / `button` / `button-line` / `button-hover` / `button-press` | `rgb(16 24 40 / 0.06)` / `rgb(255 255 255 / 0.7)` / `rgb(16 24 40 / 0.14)` / `rgb(16 24 40 / 0.05)` / `rgb(16 24 40 / 0.09)` | `rgb(255 255 255 / 0.08)` / `rgb(255 255 255 / 0.05)` / `rgb(255 255 255 / 0.14)` / `rgb(255 255 255 / 0.08)` / `rgb(255 255 255 / 0.12)` | A count's clear glass; the file input's button (the others draw `glass-button`'s gradient instead), a clear button's edge, under the pointer, pressed (a faint ink or white wash, so grey and red words still read on it pressed) |
 | `switch-off` / `knob` / `scrim` | `#6e737b` / `#ffffff` / `#15171a` | `#818186` / `#0f0f10` / `#000000` | A switch that's off (3.5:1); its knob, solid (white in light, near-black in dark, where the on track is near-white ink: 3:1 on its track either way); behind an open drawer or sheet (decorative) |
-| `brand` / `on-brand` / `brand-ink` | `#15171a` / `#ffffff` / `#15171a` | `#f3f4f6` / `#0b0c0e` / `#f3f4f6` | The firm's own colour (`src/lib/tenancy/brand-values.ts` `firmPalette`, a set per theme on `<body>`: every pair at least 4.5:1 on every point of the glass), here the defaults: the current tab and the firm's fills, their words, the colour as words. Its pale tint, `brand-soft`, is 12% of it over whatever lies under it |
-| `tint` / `on-tint` / `tint-shade` | `#15171a` / `#ffffff` / `#000000` | `#f3f4f6` / `#0b0c0e` / `#ffffff` | The main button (`glass-tint`): tinted glass in the firm's colour, from `tint` at the top to `tint-shade` at the foot, with its words; the light set in both themes (its words read on itself) |
+| `brand` / `on-brand` / `brand-ink` | `#15171a` / `#ffffff` / `#15171a` | `#f3f4f6` / `#0b0c0e` / `#f3f4f6` | The firm's own colour (`src/lib/tenancy/brand-values.ts` `firmPalette`, a set per theme on `<body>`: every pair at least 4.5:1 on every point of the glass), here the defaults: the firm's fills (the current tab is solid ink since Phase 28), their words, the colour as words. Its pale tint, `brand-soft`, is 12% of it over whatever lies under it |
+| `tint` / `on-tint` / `tint-shade` | `#15171a` / `#ffffff` / `#15171a` | `#f3f4f6` / `#0b0c0e` / `#f3f4f6` | The main button (`glass-tint`): one flat colour, the firm's (since Phase 28 `tint-shade` is `tint` itself, as the office's hi-vis is), with its words; the light set in both themes (its words read on itself) |
 | `brand-bar` / `on-brand-bar` / `on-brand-bar-soft` | `#1f2227` / `#ffffff` / `#d2d4d8` | `#34373d` / `#ffffff` / `#d2d4d8` | The pass and the firm's initial; their words; the pass's second line |
 | `pass-plate` / `on-pass-plate` | `#ffffff` / `#1f2227` | `#ffffff` / `#34373d` | The gate's white plate on the pass; its words |
 | `urgent` / `urgent-soft` / `urgent-ink` / `urgent-tile` | `#b0201f` / `rgb(255 239 234 / 0.85)` / `#7d1a10` / `rgb(255 216 207 / 0.9)` | `#ffa299` / `rgb(58 26 25 / 0.8)` / `#ffc4bc` / `rgb(58 26 25 / 0.9)` | Act now: words and borders (on every point of the glass); a chip's or a notice's tinted glass; its words; an urgent tile's tinted glass (the tints and tiles translucent, solid in the fallbacks) |
@@ -976,7 +1049,10 @@ AI-boundary and client-boundary tests (they import nothing from `src/lib/`).
   module. `wait` (Phase 23, the office's blue, an hourglass): waiting on someone else.
 - `page-header.tsx`: `<PageHeader back title meta actions>`. Restyles the page's one `<h1>`;
   never adds a second heading. `back` (`{ href, label }`) is the way back to the list a record's
-  page belongs to ("‹ Cancellations"), above the heading; nothing else goes there.
+  page belongs to ("‹ Cancellations"), above the heading; nothing else goes there. `updated`
+  (Phase 28, the casual app's): "Updated 21:35" beside the headline on its baseline, online only.
+- `slip.tsx` (Phase 28): `<Slip tone title role>`, a notice: `slip`'s tinted box led by `disc`,
+  the round icon disc with the tone's own icon (`ToneIcon`, from `status-chip.tsx`).
 - `icons.tsx`: the few inline SVG icons the office's top bar and menu, the office guide and the
   staff home's "Log out" use, and the arrow (`chevron`) on each link of the office guide's
   contents below 1280px and on the account button (no icon library; inline SVG also works offline in

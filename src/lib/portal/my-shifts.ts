@@ -48,6 +48,9 @@ export interface MyShift {
   payRatePence?: number | null;
   meetingPoint?: string | null;
   uniform?: string | null;
+  // When she said "Yes, I'm coming" in the day before (Phase 28.2; 28.14's pass card): null when
+  // she hasn't. Upcoming and past bookings from myShifts() carry it.
+  stillComingAt?: Date | null;
   site: {
     name: string;
     addressLine1: string | null;
@@ -94,6 +97,7 @@ export async function myShifts(
         payRatePence: shifts.payRatePence,
         meetingPoint: shifts.meetingPoint,
         uniform: shifts.uniform,
+        stillComingAt: assignments.stillComingAt,
         siteName: sites.name,
         addressLine1: sites.addressLine1,
         addressLine2: sites.addressLine2,

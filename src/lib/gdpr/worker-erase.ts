@@ -48,6 +48,11 @@ import { ERASED_REASON, erasedCancelReason, REQUEST_FREE_TEXT_KEYS } from "./fre
 // - replaced: the office's typed reasons for placing them despite a rule (on their bookings: from
 //   Phase 10 never in the log), with the fixed wording; and their staff id taken out of our copy of
 //   the rota sheet's names (shifts.synced_holders).
+// - cleared, not counted (Phase 28.2): when they said "Yes, I'm coming" on their bookings
+//   (assignments.still_coming_at), and when they last saw the office's and payroll's answers
+//   (workers.requests_read_at, pay_answers_read_at). Their attendance questions lose their note
+//   with the other requests' typed words; what they said (worked or not) is a code, and stays with
+//   the request as the rest of the evidence does.
 // What can't be reached: the office's typed reason in an older log entry (written before Phase 10,
 // checked for phones and emails only), words other people typed that name them (a colleague's swap
 // request, someone else's message or pay query: those go on the firm's retention schedule), the
@@ -106,6 +111,17 @@ async function eraseLocked(tx: FirmTx, id: string, now: Date): Promise<ErasedCou
     await tx.update(assignments).set({ cancelReason: kept }).where(eq(assignments.id, row.id));
     cancelReasons += 1;
   }
+
+  // When they said they were still coming (Phase 28.2), and the answers they'd seen: theirs alone,
+  // and no part of the evidence (no rule reads them).
+  await tx
+    .update(assignments)
+    .set({ stillComingAt: null })
+    .where(and(eq(assignments.workerId, id), isNotNull(assignments.stillComingAt)));
+  await tx
+    .update(workers)
+    .set({ requestsReadAt: null, payAnswersReadAt: null })
+    .where(eq(workers.id, id));
 
   // The office's reason for placing them despite a rule: the booking still says there was one.
   const overrideReasons = await deleted(

@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 // must catch the eye: a day's "1 urgent" on the week strip, a count that needs someone, "New".
 // Its words always say the status (the colour never does alone). Urgent is red, needs doing sign
 // yellow, done green, waiting a sunk grey, `brand` the firm's colour. Elsewhere statuses are the
-// pale <StatusChip>. Hook-free.
+// pale <StatusChip>. Round, as the office's counts (Phase 28; a 4px corner until then). Hook-free.
 
 export type PlateTone = "urgent" | "hivis" | "done" | "waiting" | "brand";
 
@@ -27,7 +27,7 @@ export function Plate({
 }) {
   return (
     <span
-      className={`inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded px-1.5 text-sm font-semibold whitespace-nowrap ${TONE[tone]} ${className}`}
+      className={`inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full px-2 text-sm font-semibold whitespace-nowrap ${TONE[tone]} ${className}`}
     >
       {children}
     </span>

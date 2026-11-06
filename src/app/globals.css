@@ -54,19 +54,20 @@
      own sets these on <body> (src/app/layout.tsx, data-firm-colour; worked out per theme in
      src/lib/tenancy/brand-values.ts against every point of the glass, each pair at least 4.5:1);
      without one, the app's ink.
-     `brand` is the current tab and the firm's fills, `tint` the main button (tinted glass, from `tint`
-     to `tint-shade`),
+     `brand` is the firm's fills, `tint` the main button (one flat colour since Phase 28: `tint-shade`
+     is the same colour, as the office's hi-vis button is),
      `brand-ink` the firm's colour as words, `brand-bar` the firm's mark, with `on-brand-bar` on it
      and `on-brand-bar-soft` for quieter words, and the gate's white plate (`pass-plate`, with
-     `on-pass-plate`). Its pale tint is brand-soft (below). */
+     `on-pass-plate`). Its pale tint is brand-soft (below). Since Phase 28 (28.1) the current tab is
+     solid ink, as the office rail's lit item, not the firm's colour. */
   --color-brand: #15171a;
   --color-on-brand: #ffffff;
   --color-brand-ink: #15171a;
   /* The main button (`glass-tint`): the firm's colour with white (or ink) words in both themes,
-     as its words are on itself, from the colour at the top to its shade at the foot. */
+     as its words are on itself; flat (Phase 28: its two ends one colour, as the office's). */
   --color-tint: #15171a;
   --color-on-tint: #ffffff;
-  --color-tint-shade: #000000;
+  --color-tint-shade: #15171a;
   --color-brand-bar: #1f2227;
   --color-on-brand-bar: #ffffff;
   --color-on-brand-bar-soft: #d2d4d8;
@@ -136,11 +137,12 @@
   --shadow-float: var(--float-shadow);
   --inset-shadow-sunk: var(--glass-sunk);
 
-  /* Corners: a page-wide card and the rail 24px, sections 22px (`inner`), rows, fields and small
-     boxes 14px, pills round (rounded-full). */
-  --radius-card: 1.5rem;
-  --radius-inner: 1.375rem;
-  --radius-row: 0.875rem;
+  /* Corners, the office's and the casual app's alike (Phase 28, 28.1: round 8's, which only the
+     office's blocks held until then): a page-wide card, the rail and the tab bar 12px, sections 12px
+     (`inner`), rows, tiles, fields and notices 8px, pills round (rounded-full). */
+  --radius-card: 0.75rem;
+  --radius-inner: 0.75rem;
+  --radius-row: 0.5rem;
   --radius-mark: 0.25rem;
   --tracking-heading: -0.02em;
 
@@ -281,7 +283,7 @@
   --lens-shadow: inset 0 0 0 1px rgb(16 24 40 / 0.12);
   --edge-fill: rgb(242 242 240 / 0.85);
   --band-from: rgb(255 255 255 / 0.6);
-  --band-to: rgb(255 255 255 / 0.3);
+  --band-to: rgb(255 255 255 / 0.6);
 }
 
 /* Dark: chosen by the sd-theme cookie (data-theme on <html>, set by the server so nothing
@@ -322,7 +324,7 @@
   --color-brand-ink: #f3f4f6;
   --color-tint: #f3f4f6;
   --color-on-tint: #0b0c0e;
-  --color-tint-shade: #ffffff;
+  --color-tint-shade: #f3f4f6;
   --color-brand-bar: #34373d;
   --color-on-brand-bar: #ffffff;
   --color-on-brand-bar-soft: #d2d4d8;
@@ -386,7 +388,7 @@
   --lens-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
   --edge-fill: rgb(15 15 16 / 0.85);
   --band-from: rgb(255 255 255 / 0.04);
-  --band-to: rgb(255 255 255 / 0.02);
+  --band-to: rgb(255 255 255 / 0.04);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -421,7 +423,7 @@
     --color-brand-ink: #f3f4f6;
     --color-tint: #f3f4f6;
     --color-on-tint: #0b0c0e;
-    --color-tint-shade: #ffffff;
+    --color-tint-shade: #f3f4f6;
     --color-brand-bar: #34373d;
     --color-on-brand-bar: #ffffff;
     --color-on-brand-bar-soft: #d2d4d8;
@@ -485,7 +487,7 @@
     --lens-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
     --edge-fill: rgb(15 15 16 / 0.85);
     --band-from: rgb(255 255 255 / 0.04);
-    --band-to: rgb(255 255 255 / 0.02);
+    --band-to: rgb(255 255 255 / 0.04);
   }
 }
 
@@ -500,7 +502,7 @@ body[data-firm-colour] {
   --color-on-brand: var(--firm-on-fill);
   --color-tint: var(--firm-fill);
   --color-on-tint: var(--firm-on-fill);
-  --color-tint-shade: var(--firm-shade);
+  --color-tint-shade: var(--firm-fill);
   --color-brand-ink: var(--firm-ink);
   --color-brand-bar: var(--firm-bar);
   --color-on-brand-bar: var(--firm-on-bar);
@@ -514,7 +516,7 @@ body[data-firm-colour] {
   /* The main button keeps the light set's colour and words: they read on themselves. */
   --color-tint: var(--firm-fill);
   --color-on-tint: var(--firm-on-fill);
-  --color-tint-shade: var(--firm-shade);
+  --color-tint-shade: var(--firm-fill);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) body[data-firm-colour] {
@@ -523,7 +525,7 @@ body[data-firm-colour] {
     --color-brand-ink: var(--firm-dark-ink);
     --color-tint: var(--firm-fill);
     --color-on-tint: var(--firm-on-fill);
-    --color-tint-shade: var(--firm-shade);
+    --color-tint-shade: var(--firm-fill);
   }
 }
 
@@ -548,8 +550,9 @@ body[data-firm-colour] {
    glass lifts what sits on it, so three colours are a shade lighter to keep their contrast (the
    contrast test stacks a button on a panel on the ground): the grey words, the urgent words and a
    switch that's off. The light look is as it was. These blocks hold every value of their own, the same as
-   the casual app's blocks above but for the brand group (hi-vis here, the firm's colour there), the
-   to-do tint and the corners: the office is dark with no cookie even on a light phone, where the
+   the casual app's blocks above but for the brand group (hi-vis here, the firm's colour there) and
+   the to-do tint (the corners are one set for both since Phase 28, in @theme above, so these
+   blocks no longer copy them): the office is dark with no cookie even on a light phone, where the
    page's root is light, so its dark block can't lean on the root's (tests/unit/ui.contrast.test.ts
    holds the two sets to each other, value by value). */
 :root:not([data-theme="light"]) [data-office] {
@@ -647,10 +650,7 @@ body[data-firm-colour] {
   --lens-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
   --edge-fill: rgb(15 15 16 / 0.85);
   --band-from: rgb(255 255 255 / 0.04);
-  --band-to: rgb(255 255 255 / 0.02);
-  --radius-card: 0.75rem;
-  --radius-inner: 0.75rem;
-  --radius-row: 0.5rem;
+  --band-to: rgb(255 255 255 / 0.04);
 }
 :root[data-theme="light"] [data-office] {
   color-scheme: light;
@@ -747,10 +747,7 @@ body[data-firm-colour] {
   --lens-shadow: inset 0 0 0 1px rgb(16 24 40 / 0.12);
   --edge-fill: rgb(242 242 240 / 0.85);
   --band-from: rgb(255 255 255 / 0.6);
-  --band-to: rgb(255 255 255 / 0.3);
-  --radius-card: 0.75rem;
-  --radius-inner: 0.75rem;
-  --radius-row: 0.5rem;
+  --band-to: rgb(255 255 255 / 0.6);
 }
 :root:not([data-theme="light"]):has([data-office]) {
   color-scheme: dark;
@@ -842,7 +839,8 @@ body[data-firm-colour] {
 /* The office's sizes (every page under /office carries [data-office]: src/app/office/layout.tsx):
    round 8's one scale, 12 · 13 · 14 · 16 · 20 · 30px (the pre-build audit's aud-3: nothing under
    12px; a page's headline 30px, a section's 16px, words 14px; round 7's were 15, 17 and 40px),
-   headings a little tighter, a page's headline semibold. Its colours and glass are above. */
+   headings a little tighter. A page's headline is semibold in both apps (`text-title`, since Phase
+   28). Its colours and glass are above. */
 body:has([data-office]) {
   --text-sm: 0.8125rem;
   --text-sm--line-height: 1.25rem;
@@ -855,8 +853,6 @@ body:has([data-office]) {
   --text-4xl: 2.5rem;
   --text-4xl--line-height: 2.5rem;
   --tracking-heading: -0.015em;
-  --title-weight: 600;
-  --title-tracking: -0.025em;
 }
 
 /* When someone asks for less transparency or more contrast, or the browser can't blur: every
@@ -929,7 +925,7 @@ body:has([data-office]) {
     --button-bottom: #1f1f21;
     --edge-fill: #0f0f10;
     --band-from: #1b1b1d;
-    --band-to: #161618;
+    --band-to: #1b1b1d;
   }
 }
 @media (prefers-reduced-transparency: reduce) and (prefers-color-scheme: dark),
@@ -965,7 +961,7 @@ body:has([data-office]) {
     --button-bottom: #1f1f21;
     --edge-fill: #0f0f10;
     --band-from: #1b1b1d;
-    --band-to: #161618;
+    --band-to: #1b1b1d;
   }
 }
 /* A browser that can't blur at all: every surface solid too, as above, so no word sits on
@@ -1035,7 +1031,7 @@ body:has([data-office]) {
     --button-bottom: #1f1f21;
     --edge-fill: #0f0f10;
     --band-from: #1b1b1d;
-    --band-to: #161618;
+    --band-to: #1b1b1d;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -1069,7 +1065,7 @@ body:has([data-office]) {
       --button-bottom: #1f1f21;
       --edge-fill: #0f0f10;
       --band-from: #1b1b1d;
-      --band-to: #161618;
+      --band-to: #1b1b1d;
     }
   }
 }
@@ -1108,7 +1104,7 @@ body:has([data-office]) {
     --button-bottom: #1f1f21;
     --edge-fill: #0f0f10;
     --band-from: #1b1b1d;
-    --band-to: #161618;
+    --band-to: #1b1b1d;
   }
   :root[data-theme="light"] [data-office] {
     --color-card: #ffffff;
@@ -1176,7 +1172,7 @@ body:has([data-office]) {
     --button-bottom: #1f1f21;
     --edge-fill: #0f0f10;
     --band-from: #1b1b1d;
-    --band-to: #161618;
+    --band-to: #1b1b1d;
   }
   :root[data-theme="light"] [data-office] {
     --color-card: #ffffff;
@@ -1321,7 +1317,8 @@ body:has([data-office]) {
 }
 
 /* The pass's top (Phase 24, 24.6): a lighter translucent band over its section's glass (warm in
-   round 7, neutral in round 8), solid in the fallbacks. */
+   round 7, neutral in round 8), solid in the fallbacks. Flat since Phase 28 (28.1): its two ends
+   are one value in every look, as the tiles' and buttons' are (the pages drop it in 28.7). */
 @utility glass-band {
   background-image: linear-gradient(135deg, var(--band-from), var(--band-to));
 }
@@ -1337,8 +1334,8 @@ body:has([data-office]) {
   }
 }
 
-/* The main button: tinted glass in the firm's colour, from the colour at the top to its shade at
-   the foot (always further from the words: brand-values.ts; flat hi-vis in the office), with its
+/* The main button: one flat colour, the firm's in the casual app (since Phase 28: `tint-shade` is
+   the same colour, as hi-vis is in the office; the gradient's two ends are one value), with its
    edge and no glow (round 8: round 7's soft drop in its own colour went from the office in Phase
    26 and from the casual app in Phase 27.6). */
 @utility glass-tint {
@@ -1422,14 +1419,14 @@ body:has([data-office]) {
   letter-spacing: -0.02em;
 }
 
-/* A page's headline (PageHeader's <h1>): 28px medium in the casual app; 30px semibold in the
-   office (its --title-* values above). */
+/* A page's headline (PageHeader's <h1>): semibold and a little tight in both apps (Phase 28, 28.1:
+   the office's), at each app's own size: 28px in the casual app, 30px in the office. */
 @utility text-title {
   font-family: var(--font-geist), var(--font-geist-ext), ui-sans-serif, system-ui, sans-serif;
   font-size: var(--text-3xl);
   line-height: var(--text-3xl--line-height);
-  font-weight: var(--title-weight, 500);
-  letter-spacing: var(--title-tracking, -0.02em);
+  font-weight: 600;
+  letter-spacing: -0.025em;
 }
 
 /* The big numbers (a figure in a card: "21 h", a count): Geist semibold, a little tighter. */

@@ -65,6 +65,8 @@ export interface Tenant {
   // foreign keys have no ON DELETE action, and the isolation tests delete those two (rolled back).
   rosterWorkerId: string;
   rosterSiteId: string;
+  // The planner key's maker (access off): an office user with no contract yet.
+  keyMakerId: string;
 }
 
 let seq = 0;
@@ -202,10 +204,11 @@ export async function createTenant(su: Pool): Promise<Tenant> {
     "insert into shifts (firm_id, event_id, site_id, role, starts_at, ends_at, headcount) values ($1, $2, $3, 'steward', $4, $5, 2)",
     [firmId, shiftEventId, rosterSiteId, startsAt, endsAt],
   );
+  // Her "Yes, I'm coming" (Phase 28.2) on the booking too.
   const assignmentId = await one(
     su,
-    `insert into assignments (firm_id, shift_id, slot, worker_id, status, confirmed_at)
-     values ($1, $2, 1, $3, 'confirmed', now())`,
+    `insert into assignments (firm_id, shift_id, slot, worker_id, status, confirmed_at, still_coming_at)
+     values ($1, $2, 1, $3, 'confirmed', now(), now())`,
     [firmId, shiftId, rosterWorkerId],
   );
   // A strike on a booking the rota worker cancelled (its own row: rows.assignments stays strike-free
@@ -372,6 +375,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       apiKeyId,
     ])
   ).rows[0]?.id;
+  if (!noteAuthorId) throw new Error("fixture: the planner key has no maker");
   const casualNoteId = await one(
     su,
     `insert into casual_notes (firm_id, worker_id, office_user_id, body)
@@ -410,6 +414,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
     spareSessionId,
     rosterWorkerId,
     rosterSiteId,
+    keyMakerId: noteAuthorId,
     rows: {
       api_keys: apiKeyId,
       firms: firmId,
@@ -469,8 +474,11 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
     text: "insert into firms (name, slug, sector) values ($1, $2, 'security')",
     values: ["Probe Firm", uniqueSlug("p")],
   }),
+  // With the answers she's seen (Phase 28.2).
   workers: (firmId) => ({
-    text: "insert into workers (firm_id, first_name, last_name, mobile_e164) values ($1, 'Probe', 'Worker', $2)",
+    text: `insert into workers (firm_id, first_name, last_name, mobile_e164, requests_read_at,
+                                pay_answers_read_at)
+           values ($1, 'Probe', 'Worker', $2, now(), now())`,
     values: [firmId, fakeMobile()],
   }),
   office_users: (firmId) => ({
@@ -485,12 +493,11 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
     text: "insert into clients (firm_id, name) values ($1, $2)",
     values: [firmId, `Probe client ${next()}`],
   }),
-  // One per office user and contract: a new contract for the firm's office user.
+  // One per office user and contract: the firm's contract for the key maker, who has none. (No
+  // parent row inserted first: firm A's attempt would fail on that table's policy, not this one's.)
   office_user_clients: (firmId, p) => ({
-    text: `with c as (insert into clients (firm_id, name) values ($1, $3) returning id)
-           insert into office_user_clients (firm_id, office_user_id, client_id)
-           select $1, $2, c.id from c`,
-    values: [firmId, p.officeUserId, `Probe contract ${next()}`],
+    text: "insert into office_user_clients (firm_id, office_user_id, client_id) values ($1, $2, $3)",
+    values: [firmId, p.keyMakerId, p.rows.clients],
   }),
   office_push_subscriptions: (firmId, p) => ({
     text: "insert into office_push_subscriptions (firm_id, office_user_id, endpoint, p256dh, auth) values ($1, $2, $3, 'k', 'a')",
@@ -538,13 +545,17 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
     text: "insert into shifts (firm_id, event_id, site_id, role, starts_at, ends_at) values ($1, $2, $3, 'steward', $4, $5)",
     values: [firmId, p.rows.shift_events, p.rosterSiteId, ...shiftTimes()],
   }),
+  // An open place. (The tenant's own booking carries "Yes, I'm coming" for the read and update
+  // probes; a new casual inserted first would fail on workers' policy, not this one's.)
   assignments: (firmId, p) => ({
     text: "insert into assignments (firm_id, shift_id, slot) values ($1, $2, $3)",
     values: [firmId, p.rows.shifts, 1 + next()],
   }),
+  // An attendance question she took back (Phase 28.2: the new type and status).
   requests: (firmId, p) => ({
-    text: "insert into requests (firm_id, worker_id, type) values ($1, $2, 'general')",
-    values: [firmId, p.rosterWorkerId],
+    text: `insert into requests (firm_id, worker_id, shift_id, type, status, resolved_at, payload)
+           values ($1, $2, $3, 'attendance', 'withdrawn', now(), '{"said": "worked"}')`,
+    values: [firmId, p.rosterWorkerId, p.rows.shifts],
   }),
   // A disabled one: each firm may have only one enabled source (the fixture's).
   roster_sources: (firmId) => ({
@@ -585,14 +596,10 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
     text: "insert into casual_notes (firm_id, worker_id, office_user_id, body) values ($1, $2, $3, 'Probe note')",
     values: [firmId, p.workerId, p.officeUserId],
   }),
-  // On a session of its own: one ask per casual and session.
+  // One ask per casual and session: the tenant's casual, who hasn't asked for its session.
   session_asks: (firmId, p) => ({
-    text: `with s as (
-             insert into shifts (firm_id, event_id, site_id, role, starts_at, ends_at)
-             values ($1, $2, $3, 'steward', $4, $5) returning id)
-           insert into session_asks (firm_id, shift_id, worker_id, asked_at)
-           select $1, s.id, $6, now() from s`,
-    values: [firmId, p.rows.shift_events, p.rosterSiteId, ...shiftTimes(), p.rosterWorkerId],
+    text: "insert into session_asks (firm_id, shift_id, worker_id, asked_at) values ($1, $2, $3, now())",
+    values: [firmId, p.rows.shifts, p.workerId],
   }),
   worker_unavailable_days: (firmId, p) => ({
     text: "insert into worker_unavailable_days (firm_id, worker_id, day) values ($1, $2, $3)",
@@ -618,17 +625,20 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
            values ($1, 'Probe planner', $2, 'ab_-', $3)`,
     values: [firmId, hash(), p.officeUserId],
   }),
-  // One per casual: a new casual, then their travel area.
-  worker_travel: (firmId) => ({
-    text: `with w as (insert into workers (firm_id, first_name, last_name, mobile_e164)
-                      values ($1, 'Probe', 'Traveller', $2) returning id)
-           insert into worker_travel (firm_id, worker_id, start_postcode, lat, lng, modes,
+  // One per casual: the rota worker, who has no travel area yet.
+  worker_travel: (firmId, p) => ({
+    text: `insert into worker_travel (firm_id, worker_id, start_postcode, lat, lng, modes,
                                       max_minutes, privacy_notice_version, updated_at)
-           select $1, w.id, 'ZZ2 2BB', 53.86, -1.51, 'car', 30, 'travel-v1', now() from w`,
-    values: [firmId, fakeMobile()],
+           values ($1, $2, 'ZZ2 2BB', 53.86, -1.51, 'car', 30, 'travel-v1', now())`,
+    values: [firmId, p.rosterWorkerId],
   }),
-  // One strike per booking, so each gets its own cancelled booking.
-  strikes: (firmId, p) => strikeOnNewBooking(firmId, p),
+  // One strike per booking: the tenant's booking that has none (no new booking inserted first).
+  strikes: (firmId, p) => ({
+    text: `insert into strikes (firm_id, worker_id, assignment_id, shift_id, notice_hours,
+                                threshold_hours, issued_at, expires_at)
+           values ($1, $2, $3, $4, 10, 48, now(), now() + interval '90 days')`,
+    values: [firmId, p.rosterWorkerId, p.rows.assignments, p.rows.shifts],
+  }),
   // Approved, so any number may be added (one waiting at a time per casual).
   uploads: (firmId, p) => ({
     text: `insert into uploads (firm_id, worker_id, kind, content_type, size, sha256, data, status,
@@ -652,10 +662,11 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
            values ($1, $2, '2026-11-02', 'late_pay')`,
     values: [firmId, p.rosterWorkerId],
   }),
+  // A casual's message in the app about a session (Phase 28.2: messages.shift_id).
   messages: (firmId, p) => ({
-    text: `insert into messages (firm_id, direction, channel, provider_message_id, worker_id, from_e164, to_e164, body)
-           values ($1, 'in', 'sms', $2, $3, '+447700900112', '+447700900000', 'pay')`,
-    values: [firmId, `SM${randomBytes(16).toString("hex")}`, p.rosterWorkerId],
+    text: `insert into messages (firm_id, direction, channel, provider_message_id, worker_id, body, shift_id)
+           values ($1, 'in', 'app', $2, $3, 'What is the pay?', $4)`,
+    values: [firmId, `app:${randomUUID()}`, p.rosterWorkerId, p.rows.shifts],
   }),
   inbound_emails: (firmId, p) => ({
     text: `insert into inbound_emails (firm_id, provider_message_id, worker_id, from_address, to_address, body)
@@ -934,6 +945,11 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
     text: `insert into email_replies (firm_id, inbound_email_id, worker_id, kind, sent_by, to_address, subject, body)
            values ($1, $2, $3, 'office', $4, 'someone@example.com', 'Re: work', 'Yes.')`,
     values: [firmId, own.rows.inbound_emails, own.rosterWorkerId, other.officeUserId],
+  }),
+  messages_shift_fk: (firmId, own, other) => ({
+    text: `insert into messages (firm_id, direction, channel, provider_message_id, worker_id, body, shift_id)
+           values ($1, 'in', 'app', $2, $3, 'Running late', $4)`,
+    values: [firmId, `app:${randomUUID()}`, own.rosterWorkerId, other.rows.shifts],
   }),
   messages_reply_to_fk: (firmId, _own, other) => ({
     text: `insert into messages (firm_id, direction, channel, provider_message_id, from_e164, to_e164, reply_to)

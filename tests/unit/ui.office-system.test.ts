@@ -237,7 +237,9 @@ describe("the office's files use only the system (src/app/office, the shared par
   // page card that's gone), the sections on a page 22px (`inner`), rows 14px, pills round (Phase
   // 21: 20px cards, 14px rows); a chart's bar 4px round at its data end, and its key's swatches
   // (`mark`), in the dashboard's places chart only (24.3; Phase 23's six charts until then).
-  it("corners: a 24px rail, 22px sections, 14px rows, round pills (or none)", () => {
+  // (Round 8's values since Phase 26, one set with the casual app's since Phase 28: the rail and
+  // sections 12px, rows 8px.)
+  it("corners: the rail and sections (12px), rows (8px), round pills (or none)", () => {
     const CHARTS = "src/app/office/dashboard/places-chart.tsx";
     expect(
       found(RADIUS, (v) => ["card", "inner", "row", "full", "none", "mark"].includes(v)),
@@ -440,18 +442,22 @@ describe("the office's controls: hover, focus and pressed (Dylan's brief)", () =
   });
 
   it("the chips on the office's spacing; the `office:` variant scoped to its pages", () => {
-    // Phase 23: a borderless tinted pill at least 28px tall in the office (the casual app's keep
-    // their edge: `border` before the `office:` values).
-    expect(classes.chip.base).toMatch(
-      / border .* office:min-h-7 office:border-0 office:px-3 office:py-1 office:leading-4 /,
-    );
-    // One line while it fits; wrapped rather than wider than a phone (never shrunk in a row).
+    // Phase 23: a borderless tinted pill at least 28px tall in the office; the casual app's too
+    // since Phase 28 (28.1), on the same values (28px, 12px across, 4px down), 14px there.
+    const base = classes.chip.base.split(" ");
+    expect(base).toEqual(expect.arrayContaining(["min-h-7", "px-3", "py-1", "office:leading-4"]));
+    expect(classes.chip.base).not.toMatch(/(?<![\w:-])(?:office:)?border(?:-[a-z0-9]+)*(?![\w-])/);
+    for (const [tone, cls] of Object.entries(classes.chip))
+      expect(cls, tone).not.toMatch(/(?<![\w-])border-[a-z]+-line(?![\w-])/);
+    // One line while it fits; in the office wrapped rather than wider than a phone (never shrunk
+    // in a row).
     expect(classes.chip.base).toMatch(
       / office:max-w-full office:shrink-0 office:whitespace-normal$/,
     );
-    // The blue tone (Phase 23): waiting on someone else.
-    // Its words in ink in the office (round 8's six text colours, aud-4): the blue is its tint.
-    expect(classes.chip.wait).toBe("border-wait-line bg-wait-soft text-wait-ink office:text-ink");
+    // The blue tone (Phase 23): waiting on someone else. Its words in ink (round 8's six text
+    // colours, aud-4; the casual app's too since Phase 28): the blue is its tint. Quiet's grey.
+    expect(classes.chip.wait).toBe("bg-wait-soft text-ink");
+    expect(classes.chip.quiet).toBe("bg-quiet-soft text-ink-muted");
     // Every count a pill with no edge (Phase 23): the grey one clear glass since Phase 24, the
     // others tinted.
     for (const [name, cls, fill] of [
@@ -505,8 +511,6 @@ describe("the office's tokens (src/app/globals.css)", () => {
       "text-4xl",
       "text-4xl--line-height",
       "tracking-heading",
-      "title-weight",
-      "title-tracking",
     ]);
     expect(css.match(/body:has\(\[data-office\]\)\s*\{/g)).toHaveLength(1);
     expect(css).not.toMatch(/\[data-theme="dark"\] body:has\(\[data-office\]\)/);
@@ -532,14 +536,16 @@ describe("the office's tokens (src/app/globals.css)", () => {
     expect(value("text-4xl")).toBe("2.5rem");
     expect(value("text-2xl")).toBeUndefined();
     // A headline in Geist semibold, a little tight (round 7; Plus Jakarta Sans extrabold in 23,
-    // Newsreader semibold in 22, Instrument Serif in 21); the casual app's medium.
-    expect(value("title-weight")).toBe("600");
-    expect(value("title-tracking")).toBe("-0.025em");
+    // Newsreader semibold in 22, Instrument Serif in 21); the casual app's too since Phase 28
+    // (28.1; medium until then), each at its own size, so the utility holds both and the office's
+    // block no longer sets them.
+    expect(value("title-weight")).toBeUndefined();
+    expect(value("title-tracking")).toBeUndefined();
     expect(value("tracking-heading")).toBe("-0.015em");
     expect(css).toMatch(
-      /@utility text-title \{[^}]*font-size: var\(--text-3xl\);[^}]*font-weight: var\(--title-weight, 500\);\s*letter-spacing: var\(--title-tracking, -0\.02em\);/,
+      /@utility text-title \{[^}]*font-size: var\(--text-3xl\);[^}]*font-weight: 600;\s*letter-spacing: -0\.025em;\s*\}/,
     );
-    expect(css).not.toMatch(/--title-(?:font|size):/);
+    expect(css).not.toMatch(/--title-(?:font|size|weight|tracking)\b/);
     // Section headings bold (the shared `h2`, by its `office:` value).
     expect(classes.h2.split(" ")).toContain("office:font-bold");
   });
@@ -547,19 +553,20 @@ describe("the office's tokens (src/app/globals.css)", () => {
   // Phase 24: Geist for every word, headline and number (Plus Jakarta Sans in 23; DM Sans, DM Mono
   // and Newsreader in 22; Geist, Geist Mono and Instrument Serif in 21).
   it("corners, the depth tokens, the face", () => {
-    expect(css).toMatch(/--radius-card: 1\.5rem;/);
-    expect(css).toMatch(/--radius-inner: 1\.375rem;/);
-    expect(css).toMatch(/--radius-row: 0\.875rem;/);
-    // Round 8's office: tighter corners, 12px panels and 8px rows (in both its looks).
+    // Round 8's corners, 12px panels and 8px rows: the office's since Phase 26 (on its own blocks
+    // until Phase 28), the casual app's too since Phase 28 (28.1): one set, in @theme, which the
+    // office's blocks no longer copy (round 7's casual 24px, 22px and 14px are gone).
+    const theme = css.slice(css.indexOf("@theme {"), css.indexOf("@keyframes"));
+    expect(theme).toMatch(/--radius-card: 0\.75rem;/);
+    expect(theme).toMatch(/--radius-inner: 0\.75rem;/);
+    expect(theme).toMatch(/--radius-row: 0\.5rem;/);
+    expect(css.match(/--radius-(?:card|inner|row):/g)).toHaveLength(3);
+    expect(css).not.toMatch(/--radius-(?:card|inner|row): (?:1\.5rem|1\.375rem|0\.875rem)/);
     for (const selector of [
       ':root:not([data-theme="light"]) [data-office]',
       ':root[data-theme="light"] [data-office]',
-    ]) {
-      const office = block(selector);
-      expect(office).toContain("--radius-card: 0.75rem;");
-      expect(office).toContain("--radius-inner: 0.75rem;");
-      expect(office).toContain("--radius-row: 0.5rem;");
-    }
+    ])
+      expect(block(selector)).not.toMatch(/--radius-/);
     for (const token of ["soft", "raise", "sheet", "tint"])
       expect(css).not.toMatch(new RegExp(`--shadow-${token}:`));
     expect(css).toContain("--shadow-float: var(--float-shadow);");

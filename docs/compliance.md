@@ -167,6 +167,32 @@ Tier 1: £52 a year (£47 by direct debit) for small organisations. Pay before h
   can open Casuals, never payroll). A
   wrongly marked shift is corrected by marking it again (logged with what it was). Not in the
   action log or the worker's export: it's worked out each time from rows that are.
+- "Still coming?" (Phase 28.2; shown from 28.14): in the day before a booked session the casual
+  may tap "Yes, I'm coming" (`assignments.still_coming_at`, logged `shift.still_coming` with ids
+  only). It's shown to the office only to plan cover ("Coming" or "Not answered yet"). It has no
+  automatic effect at all: no reliability figure, offer wave, strike or Watch list reads it, and
+  not answering changes nothing (`tests/unit/rules.p28-boundary.test.ts` fails if the rules,
+  reliability, offers, strikes or Watch list code mention it). In the worker's export; cleared from
+  the booking on erasure, while its `shift.still_coming` log entry (ids and its time only) stays,
+  like other log entries.
+- "Think this mark is wrong?" (Phase 28.2; shown from 28.13): a casual may question how one of
+  their own sessions from the last 90 days was marked (worked, or not attended), the mark the
+  reliability figure counts. It's an attendance question (`requests`, type `attendance`) that a
+  person in the office answers; no AI reads or answers it, and the request never changes the mark:
+  only the office marking the session again does (logged as any marking is). Their optional note is
+  up to 500 characters and refused if it holds a phone number or email address.
+- Taking back a request (Phase 28.2): a casual may take back a request still waiting for the
+  office (`withdrawn`, logged `request.withdrawn`). It stays as a record, and its typed words go
+  on the same schedule as any closed request's (below).
+- A message about a session (Phase 28.2; 28.6): a casual's message in the app may name the session
+  it's about (`messages.shift_id`), only one they're booked on or can see that hasn't ended. A
+  message about a worked shift is never tagged, so a pay question about it still goes towards
+  payroll's pay query (golden rule 9).
+- "Add to my calendar" (28.5): the calendar file is made only when the casual taps it, on their own
+  booking, and saved by them to their own phone or calendar. It holds the role, the times, the
+  site's name and address and a link back to the shift's page: no pay, no instructions and nobody
+  else. Once saved, it's in the casual's own calendar, outside the firm's systems (and outside
+  erasure).
 - The office's notes about a casual (`casual_notes`, Phase 26.7) are free text typed by the office:
   up to 500 characters, refused if they hold a phone number or email address, and the form says
   not to write health or other personal details (Article 9 data has no place there). Kept with the
@@ -193,7 +219,7 @@ floor, and that a hold covers the whole firm (not one worker).
 |---|---|
 | Raw messages and transcripts | 90 days by default (built: the nightly purge). A reply newer than that stays, even when the message it answered goes |
 | Emails to the staffing inbox (P7.1, not live yet) | The same age as messages (built: the nightly purge). Only a known casual's subject and words are kept, quoted history and signature taken off, and only when the provider says the sender's address passed its checks (anyone can put another's address in an email); anyone else's (a client's, a venue's, an applicant's) only their address and when. Attachments are never kept. In the casual's export and taken on their erasure (theirs, and from their address before it was known); not yet counted in the purge's or the erasure's log entry (PLAN.md Parking lot) |
-| The words typed into a request (a note, a colleague's name) | 12 months by default, counted from when the request closed (built: removed, the request stays). An open or escalated request keeps them. (Phase 8 built 90 days from creation, with no "Dylan to confirm"; Phase 10 put back the spec's 12 months) |
+| The words typed into a request (a note, a colleague's name) | 12 months by default, counted from when the request closed: answered, sorted, or taken back by the casual (Phase 28.2), each at its `resolved_at` (built: removed, the request stays). An open or escalated request keeps them. (Phase 8 built 90 days from creation, with no "Dylan to confirm"; Phase 10 put back the spec's 12 months) |
 | The office's typed reason for placing someone despite a rule | On the booking, not in the log; the same 12 months from the booking (built) |
 | Strikes (a casual's own late cancellations, 12C.1) | The strike counts 90 days (`strikes.live_days`); its row is deleted 12 months after it was issued (`strikes.keep_months`, which must cover the time a strike counts plus 6 months, the tribunal limit; the purge never deletes a strike that stopped counting less than 6 months ago), nothing during a hold (built: the nightly purge). The office's reason for withdrawing one (12C.5) goes with its row, or when the casual is erased. Its `strike.issued`, `strike.withdrawn` and `strike.reviewed` log entries (ids and hours, never a reason or the review flag) stay with the action log. A DPIA comes first: `docs/dpia-strikes.md` |
 | Travel estimates (12G.2: minutes and distance from a postcode to a site, keyed by postcode, not by person) | 7 days after the last session they were for, by the nightly purge (even during a hold: not about anyone in particular), and when a site's postcode changes (built). Not in the firm's data export |

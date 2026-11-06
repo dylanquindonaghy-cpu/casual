@@ -36,7 +36,12 @@ export default defineConfig({
   globalTeardown: "./tests/e2e/no-texts-teardown.ts",
   // `next dev` builds each page the first time it's opened.
   timeout: 120_000,
-  use: { baseURL: `http://localhost:${NO_TEXTS_PORT}`, trace: "retain-on-failure" },
+  // en-GB (Phase 28): dates read dd/mm/yyyy, as in the other runs.
+  use: {
+    baseURL: `http://localhost:${NO_TEXTS_PORT}`,
+    trace: "retain-on-failure",
+    locale: "en-GB",
+  },
   projects: [{ name: "mobile-chrome", use: { ...devices["Pixel 7"] } }],
   webServer: [
     {

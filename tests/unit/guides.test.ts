@@ -380,7 +380,8 @@ describe("the office how-to guide", () => {
         ),
       ].map((m) => m[2]);
       expect(tones).toEqual(["Urgent", "Open", "Waiting", "Filled", "Cancelled"]);
-      expect(html).toContain("bg-wait-soft text-wait-ink");
+      // Its words in ink in both apps since Phase 28 (round 8's six text colours, aud-4).
+      expect(html).toContain("bg-wait-soft text-ink");
     }
     // Its links land on what's there now: the dashboard's urgent sessions (its Urgent filter), and
     // Customise, where Who worked? is ticked on (Phase 27.9: off by default, so the dashboard's

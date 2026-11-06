@@ -140,6 +140,40 @@ describe("the firm's bar and the tab bar, with JavaScript and without", () => {
     expect(html).toMatch(/class="glass-float pointer-events-auto mx-auto grid h-17 max-w-md /);
   });
 
+  // Phase 28 (28.1; docs/screens.md "The casual app, Phase 28"): the office rail on its side.
+  it("the tab bar is the office rail on its side: a 12px capsule 12px from the edges and the foot, the current tab solid ink, no lens", () => {
+    for (const current of ["home", "shifts", "messages", "pay", "profile"] as const) {
+      const html = renderToStaticMarkup(createElement(TabBar, { current }));
+      // 12px from the screen's sides, and 12px over the foot plus the phone's own safe area.
+      const bar = /^<nav [^>]*class="([^"]*)"/.exec(html)?.[1]?.split(" ") ?? [];
+      expect(bar).toEqual(
+        expect.arrayContaining(["px-3", "pb-[calc(0.75rem+env(safe-area-inset-bottom))]"]),
+      );
+      expect(bar).not.toContain("px-4");
+      // The capsule: what floats, 12px round (rounded-card, the office rail's corner).
+      const capsule = /<nav [^>]*><div class="([^"]*)"/.exec(html)?.[1]?.split(" ") ?? [];
+      expect(capsule).toEqual(expect.arrayContaining(["glass-float", "rounded-card", "h-17"]));
+      expect(capsule).not.toContain("rounded-full");
+      // Each tab 8px round; the current one solid ink with its words on it, as the rail's lit item.
+      const tabs = [...html.matchAll(/<a ([^>]*)>/g)].map((m) => m[1] ?? "");
+      expect(tabs).toHaveLength(5);
+      for (const t of tabs) {
+        const cls = /class="([^"]*)"/.exec(t)?.[1]?.split(" ") ?? [];
+        expect(cls).toContain("rounded-row");
+        expect(cls).not.toContain("rounded-full");
+        expect(cls).not.toContain("lens");
+        const lit = t.includes('aria-current="page"');
+        expect(cls.includes("bg-ink"), t).toBe(lit);
+        expect(cls.includes("text-on-ink"), t).toBe(lit);
+      }
+      expect(html).not.toMatch(/(?<![\w-])lens(?![\w-])/);
+    }
+    // The tab bar draws no lens anywhere in its code either (its comments left out).
+    const code = read("src/app/tab-bar.tsx").replace(/^\s*\/\/.*$/gm, "");
+    expect(code).not.toMatch(/(?<![\w-])lens(?![\w-])/);
+    expect(code).not.toMatch(/(?<![\w-])text-brand-ink(?![\w-])/);
+  });
+
   it("the page leaves room for the floating tab bar, and a shift's own page has none", () => {
     expect(read("src/app/tab-bar.tsx")).toMatch(
       /export function TabBarSpace\(\) \{\s*return <div aria-hidden="true" className="h-28" \/>;/,
@@ -271,8 +305,9 @@ describe("Pay: each week, and its total only when payroll gave every gross", () 
         "Mon 5 Oct to Sun 11 Oct 24 hours at £12.50 an hour Pay before tax: £300.00 2 hours at £15.50 an hour Pay day: Fri 16 Oct",
       ],
     ]);
+    // (18px semibold since Phase 28: `staffH2`, as the office's section heading.)
     expect(earlier).toMatch(
-      /<h2 id="earlier-pay" class="text-2xl font-medium [^"]*">Earlier weeks<\/h2>/,
+      /<h2 id="earlier-pay" class="text-lg font-semibold [^"]*">Earlier weeks<\/h2>/,
     );
     expect(earlier).toMatch(
       /<span data-pay-total="" class="shrink-0 text-lg font-semibold text-ink"><span class="sr-only">Pay before tax: <\/span>£200\.00<\/span>/,

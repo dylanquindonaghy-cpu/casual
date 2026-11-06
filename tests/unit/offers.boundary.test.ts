@@ -161,6 +161,9 @@ describe("the offer boundary", () => {
         "src/lib/office/session-casuals.ts",
         "src/lib/office/session-page-copy.ts",
         "src/lib/portal/profile.ts",
+        // Phase 28.2: only RELIABILITY_DAYS, the window in which a casual may question a mark
+        // ("Think this mark is wrong?": askAboutMark), the same days the figure counts.
+        "src/lib/portal/requests.ts",
       ].sort(),
     );
     // Nothing that picks or ranks who's offered reads it, or the loader that counts it.

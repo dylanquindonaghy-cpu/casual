@@ -3,7 +3,8 @@ import { chip } from "./classes";
 
 // A status word in a coloured pill with a small icon (docs/ui-design.md "Status tones"). The word
 // is the existing word from the copy module; the icon is decorative, so the chip's text is
-// exactly its children. Hook-free: safe in server and client components.
+// exactly its children. Hook-free: safe in server and client components. Since Phase 28 a
+// borderless pill on the office's values in both apps (classes.ts `chip`).
 
 // `wait` (Phase 23, the office's): blue, waiting on someone else (a casual's answer to an offer,
 // a pay query with payroll), never on you.
@@ -40,6 +41,28 @@ const ICON_PATHS: Record<StatusTone, ReactNode> = {
   quiet: <path d="M6 12h12" />,
 };
 
+// A tone's own icon, decorative (the chip's and the slip's words say the status): 14px in a chip,
+// larger in a slip's disc (src/app/ui/slip.tsx).
+export function ToneIcon({ tone, size = 14 }: { tone: StatusTone; size?: number }) {
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="shrink-0"
+    >
+      {ICON_PATHS[tone]}
+    </svg>
+  );
+}
+
 export function StatusChip({
   tone,
   children,
@@ -51,21 +74,7 @@ export function StatusChip({
 }) {
   return (
     <span className={`${chip.base} ${chip[tone]}${className ? ` ${className}` : ""}`}>
-      <svg
-        aria-hidden="true"
-        focusable="false"
-        viewBox="0 0 24 24"
-        width="14"
-        height="14"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="shrink-0"
-      >
-        {ICON_PATHS[tone]}
-      </svg>
+      <ToneIcon tone={tone} />
       {children}
     </span>
   );

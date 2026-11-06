@@ -163,7 +163,7 @@ describe("Open shifts page body (Phase 18)", () => {
     expect(urgent[0]).toContain("bg-urgent-tile text-urgent-ink");
     expect(text(urgent[0] ?? "")).toMatch(/^ ?Sat 7 Nov Urgent\./);
     expect(more[0]).not.toContain("urgent-tile");
-    expect(more[0]).toContain("glass-tile text-ink");
+    expect(more[0]).toContain("glass-button text-ink");
     // A card of glass (Phase 24; a hairline card lifted off the page in Phases 17 and 20), no red
     // frame; taking it is on its page.
     expect(more[0]).toMatch(

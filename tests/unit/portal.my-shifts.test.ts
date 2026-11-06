@@ -208,7 +208,10 @@ describe("Booked: the bookings themselves", () => {
     expect(html).toMatch(
       /<section aria-labelledby="next-heading" data-pass="" class="flex flex-col gap-3">/,
     );
-    expect(html).toMatch(/<h2 id="next-heading" class="text-2xl[^"]*">Your next shift<\/h2>/);
+    // (18px semibold since Phase 28: `staffH2`, the office's section heading.)
+    expect(html).toMatch(
+      /<h2 id="next-heading" class="text-lg font-semibold[^"]*">Your next shift<\/h2>/,
+    );
     expect(words).toContain("In 5 days Saturday 7 November 14:00–22:00 Door supervisor Demo Arena");
     expect(words).toContain("Demo Arena Leeds, LS1 1AA Directions");
     expect(words).toContain("Demo Arena, 1 Test Road, Leeds, LS1 1AA");
@@ -306,16 +309,25 @@ describe("Booked: the bookings themselves", () => {
           profile: "/profile",
         }[current],
       ]);
-      // Round 7 (Phase 24): the current tab under a white glass lens, its icon and word in the
-      // firm's colour, the word bold: not colour alone. The others grey, their words medium.
+      // Phase 28 (28.1, as the office rail's lit item): the current tab solid ink, its icon and
+      // word on it in the ink's own words colour, the word bold, its focus ring in that colour too:
+      // not colour alone. No lens and no firm's colour. The others grey, their words medium, the
+      // rail's grey wash under the pointer.
       const here = links.find((m) => m[0].includes('aria-current="page"'))?.[0] ?? "";
-      expect(here).toMatch(/class="[^"]*(?<![\w-])lens font-semibold text-brand-ink"/);
-      expect(html.match(/(?<![\w-])lens(?![\w-])/g)).toHaveLength(1);
-      expect(html.match(/font-medium text-ink-muted hover:text-ink/g)).toHaveLength(4);
-      // A floating glass capsule 14px above the foot, inside a bar that lets the page take taps
-      // around it; no line.
+      expect(here).toMatch(
+        /class="[^"]*(?<![\w-])bg-ink font-semibold text-on-ink focus-visible:outline-on-ink"/,
+      );
+      expect(html.match(/(?<![\w-])bg-ink(?![\w-])/g)).toHaveLength(1);
+      expect(html).not.toMatch(/(?<![\w-])(?:lens|text-brand-ink)(?![\w-])/);
+      expect(
+        html.match(
+          /font-medium text-ink-muted hover:bg-active hover:text-ink active:bg-button-press/g,
+        ),
+      ).toHaveLength(4);
+      // A floating glass capsule 12px round, 12px from the screen's edges and its foot (over the
+      // phone's safe area), inside a bar that lets the page take taps around it; no line.
       expect(html).toMatch(
-        /^<nav aria-label="Main" data-tab-bar="" class="pointer-events-none fixed inset-x-0 bottom-0 z-20 px-4 pb-\[calc\(0\.875rem\+env\(safe-area-inset-bottom\)\)\]"><div class="glass-float pointer-events-auto mx-auto grid h-17 max-w-md grid-cols-5 gap-1 rounded-full p-1\.5 /,
+        /^<nav aria-label="Main" data-tab-bar="" class="pointer-events-none fixed inset-x-0 bottom-0 z-20 px-3 pb-\[calc\(0\.75rem\+env\(safe-area-inset-bottom\)\)\]"><div class="glass-float pointer-events-auto mx-auto grid h-17 max-w-md grid-cols-5 gap-1 rounded-card p-1\.5 /,
       );
       expect(html).not.toMatch(/(?<![\w-])shadow-bar(?![\w-])/);
       expect(html).not.toContain("border-t");
@@ -329,11 +341,12 @@ describe("Booked: the bookings themselves", () => {
       expect(
         html.match(/<span class="leading-tight \[html\[data-tabs-mini\]_&amp;\]:sr-only">/g),
       ).toHaveLength(5);
-      // The words at 14px, under their icons.
-      expect(html.match(/rounded-full px-1 text-sm /g)).toHaveLength(5);
+      // The words at 14px, under their icons; each tab 8px round.
+      expect(html.match(/rounded-row px-1 text-sm /g)).toHaveLength(5);
       expect(html).toContain('aria-label="Main"');
       expect(html).not.toContain("data-profile-count");
       expect(html).not.toContain("data-messages-count");
+      expect(html).not.toContain("data-pay-count");
     }
     const counted = renderToStaticMarkup(
       createElement(TabBar, { current: "home", profileCount: 2 }),
@@ -427,7 +440,7 @@ describe("Booked: the bookings themselves", () => {
       /<span class="[^"]*bg-urgent-fill text-on-urgent mb-1">Needs doing now<\/span>/,
     );
     expect(manyHtml).toMatch(
-      /<ul role="list" class="glass divide-y divide-line rounded-\[1\.25rem\] overflow-hidden"><li data-for-you="needs">/,
+      /<ul role="list" class="glass divide-y divide-line rounded-inner overflow-hidden"><li data-for-you="needs">/,
     );
     // One she can sort herself: straight to its upload.
     const oneHtml = home({ needs: EVERY_LEVEL.slice(3, 4) });
@@ -439,7 +452,7 @@ describe("Booked: the bookings themselves", () => {
     expect(one).toMatch(/rounded-\[14px\] glass-tile text-ink">/);
     expect(one).not.toContain("Needs doing now");
     expect(oneHtml).toMatch(
-      /<ul role="list" class="glass divide-y divide-line rounded-\[1\.25rem\] overflow-hidden glass-band"><li data-for-you="needs">/,
+      /<ul role="list" class="glass divide-y divide-line rounded-inner overflow-hidden glass-band"><li data-for-you="needs">/,
     );
     // One the office records (CSAS): to Profile.
     expect(row(home({ needs: EVERY_LEVEL.slice(4) })) ?? "").toContain('href="/profile"');
@@ -545,7 +558,7 @@ describe("Home: what she can take, and her next shift in full", () => {
     // Each section one glass card of rows (round 7); each row a tile, its words and a chevron:
     // the soonest shift's day (pale red when urgent), an icon offline, pay day's date.
     expect(section).toContain(
-      '<ul role="list" class="glass divide-y divide-line rounded-[1.25rem] overflow-hidden"><li data-online-only="" data-for-you="urgent">',
+      '<ul role="list" class="glass divide-y divide-line rounded-inner overflow-hidden"><li data-online-only="" data-for-you="urgent">',
     );
     const tile = (kind: string) =>
       new RegExp(
@@ -554,7 +567,7 @@ describe("Home: what she can take, and her next shift in full", () => {
     expect(tile("urgent")?.[1]).toContain("bg-urgent-tile text-urgent-ink");
     expect(text(tile("urgent")?.[2] ?? "").trim()).toBe("Sat 7");
     expect(tile("offline")?.[1]).toContain("rounded-[14px] glass-tile text-ink");
-    expect(tile("apply")?.[1]).toContain("glass-tile text-ink");
+    expect(tile("apply")?.[1]).toContain("glass-button text-ink");
     expect(text(tile("apply")?.[2] ?? "").trim()).toBe("Sat 7");
     expect(text(tile("pay")?.[2] ?? "").trim()).toBe("Fri 13");
     expect(

@@ -11,6 +11,7 @@ import {
   type UploadKind,
 } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
+import { markCovers } from "../portal/in-hand";
 import type { StaffPhoto } from "../uploads/photo";
 import {
   followUps,
@@ -208,7 +209,7 @@ export async function casualsList(
     `);
     const liveOf = new Map(strikes.map((s) => [s.worker_id, Number(s.live)]));
     const records = await loadCasualRecords(tx, now, null);
-    const follow = await followUps(tx, ids);
+    const follow = await followUps(tx, ids, firm?.timezone ?? "Europe/London");
     const notes = await latestNotes(tx, ids);
     const since = now.getTime() - REMIND_GAP_HOURS * 3_600_000;
     const all: CasualRow[] = people.map((p) => {
@@ -218,9 +219,9 @@ export async function casualsList(
       const photo = q?.photo ?? { status: "missing" as const, current: null, waiting: null };
       const photoNeeds = photoNeedsUpdate(photo);
       const worst = needs[0]
-        ? { type: needs[0].qualification.type, status: needs[0].qualification.status }
+        ? needs[0].qualification
         : photoNeeds
-          ? { type: "photo", status: photo.status }
+          ? { type: "photo", status: photo.status, expiresOn: null }
           : null;
       const sortedAt = follow.sorted.get(p.id);
       return {
@@ -241,9 +242,10 @@ export async function casualsList(
         photoNeeds,
         remindAbout: remindable(needs)?.qualification.type ?? null,
         lastReminder: follow.reminders.get(p.id) ?? null,
-        // Sorted while the worst thing it was about still stands (a new problem shows again).
+        // Sorted while the mark still covers the worst need as it stands (markCovers, Phase 29.3:
+        // a new problem, or the same one again with a newer date, shows again).
         sorted:
-          sortedAt && worst && sortedAt.type === worst.type && sortedAt.status === worst.status
+          sortedAt && worst && markCovers(worst, sortedAt)
             ? { by: sortedAt.by, at: sortedAt.at }
             : null,
         note: notes.get(p.id) ?? null,

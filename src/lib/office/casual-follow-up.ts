@@ -8,6 +8,8 @@ import { uuidArray } from "../db/arrays";
 import { casualNotes, firms, workers } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
+import { markCovers, type CoveredNeed, type SortedMark } from "../portal/in-hand";
+import { localDateOf } from "../time/zoned";
 import { officeUserMay, parts, type OfficeContext } from "./office-context";
 import { loadCasualRecords, type CasualRecord } from "./reliability";
 
@@ -20,9 +22,12 @@ import { loadCasualRecords, type CasualRecord } from "./reliability";
 //   address (they'd sit outside the masking); kept in casual_notes, logged `casual.note_added`
 //   {workerId} without the words.
 // - Mark as sorted: the office is dealing with what's out of date (they have the renewed card in
-//   hand, say). Logged `casual.needs_sorted` {workerId, type, status}; while that worst item stands
-//   unchanged the casual sinks to the end of Need updating, "Sorted by {name} · {date}", and
-//   "Remind all" leaves them out.
+//   hand, say). Logged `casual.needs_sorted` {workerId, type, status}; while that mark still covers
+//   the worst item as it stands (Phase 29.3: markCovers, the same rule as the casual's own "in
+//   hand", src/lib/portal/in-hand.ts: the same type and status, nothing about it changed after the
+//   mark, and marked on or after the day that status began, so a newer expiry needs action again)
+//   the casual sinks to the end of Need updating, "Sorted by {name} · {date}", and "Remind all"
+//   leaves them out.
 // Active admins and resourcers (the Casuals area), checked inside the firm's transaction.
 
 export const REMIND_GAP_HOURS = 24;
@@ -62,6 +67,7 @@ export async function remindCasuals(
       return { status: "not_allowed" as const };
     }
     const [firm] = await tx.select({ timezone: firms.timezone }).from(firms);
+    const timeZone = firm?.timezone ?? "Europe/London";
     const people = await tx
       .select({ id: workers.id, roles: workers.roles, status: workers.status })
       .from(workers)
@@ -69,7 +75,7 @@ export async function remindCasuals(
     const held = await qualificationsFor(
       tx,
       people.map((p) => p.id),
-      { now, timeZone: firm?.timezone ?? "Europe/London", people },
+      { now, timeZone, people },
     );
     const since = new Date(now.getTime() - REMIND_GAP_HOURS * 3_600_000);
     let reminded = 0;
@@ -90,8 +96,8 @@ export async function remindCasuals(
         recent += 1;
         continue;
       }
-      // Marked as sorted by the office, while what it was about stands: left alone.
-      if (await sortedFor(tx, p.id, item.qualification.type, item.qualification.status)) {
+      // Marked as sorted by the office, while the mark still covers it as it stands: left alone.
+      if (await sortedFor(tx, p.id, item.qualification, timeZone)) {
         sorted += 1;
         continue;
       }
@@ -125,20 +131,83 @@ async function remindedSince(tx: FirmTx, workerId: string, since: Date): Promise
   return rows.length > 0;
 }
 
-// The office's latest "Mark as sorted" for them was about this very need.
+// The office's latest "Mark as sorted" for them still covers this need as it stands now (Phase
+// 29.3: markCovers, the casual's own "in hand" rule, src/lib/portal/in-hand.ts).
 async function sortedFor(
   tx: FirmTx,
   workerId: string,
-  type: string,
-  status: string,
+  need: CoveredNeed,
+  timeZone: string,
 ): Promise<boolean> {
-  const { rows } = await tx.execute<{ type: string | null; status: string | null }>(sql`
-    select data ->> 'type' as type, data ->> 'status' as status from events
-     where action = 'casual.needs_sorted' and entity_id = ${workerId}
-     order by id desc
-     limit 1
+  const marks = await sortedMarks(tx, [workerId], timeZone);
+  return markCovers(need, marks.get(workerId));
+}
+
+export interface OfficeSortedMark extends SortedMark {
+  by: string; // who marked it ("The office" for someone no longer there)
+  at: Date;
+}
+
+// Each casual's latest "Mark as sorted" (Phase 29.3): what it was about, who and when, the day in
+// the firm's calendar, and `changedAfter` as the casual's own Profile reads it
+// (src/lib/portal/profile.ts): one of their records of that type added or updated
+// (credential.added, credential.updated), or an upload of it sent, approved or turned down
+// (upload.*; for the staff photo, an upload of a photo), logged after the mark. Not the daily
+// scan's credential.expired: it only makes a stored status match a date that had already passed.
+// Inside the firm's transaction, so another firm's marks never count.
+export async function sortedMarks(
+  tx: FirmTx,
+  workerIds: readonly string[],
+  timeZone: string,
+): Promise<Map<string, OfficeSortedMark>> {
+  const out = new Map<string, OfficeSortedMark>();
+  if (workerIds.length === 0) return out;
+  const { rows } = await tx.execute<{
+    worker_id: string;
+    type: string | null;
+    status: string | null;
+    by: string | null;
+    at: Date | string;
+    changed: boolean;
+  }>(sql`
+    with latest as (
+      select distinct on (m.entity_id) m.id, m.firm_id, m.entity_id, m.actor_id, m.created_at,
+             m.data ->> 'type' as type, m.data ->> 'status' as status
+        from events m
+       where m.action = 'casual.needs_sorted' and m.entity_type = 'worker'
+         and m.entity_id = any(${uuidArray([...workerIds])})
+       order by m.entity_id, m.id desc
+    )
+    select l.entity_id::text as worker_id, l.type, l.status, ou.name as by, l.created_at as at,
+           (exists (select 1 from events e
+                     where e.action in ('credential.added', 'credential.updated')
+                       and e.id > l.id
+                       and e.entity_id in (select c.id from credentials c
+                                            where c.firm_id = l.firm_id
+                                              and c.worker_id = l.entity_id
+                                              and c.type = l.type))
+            or exists (select 1 from events e
+                        where e.worker_ref = l.entity_id::text
+                          and e.action in ('upload.received', 'upload.approved', 'upload.rejected')
+                          and e.id > l.id
+                          and (e.data ->> 'qualificationType' = l.type
+                               or (l.type = 'photo' and e.data ->> 'kind' = 'photo')))) as changed
+      from latest l
+      left join office_users ou on ou.firm_id = l.firm_id and ou.id = l.actor_id
   `);
-  return rows[0]?.type === type && rows[0]?.status === status;
+  for (const r of rows) {
+    if (!r.type || !r.status) continue;
+    const at = new Date(r.at);
+    out.set(r.worker_id, {
+      type: r.type,
+      status: r.status,
+      day: localDateOf(at, timeZone),
+      changedAfter: r.changed === true,
+      by: r.by ?? "The office",
+      at,
+    });
+  }
+  return out;
 }
 
 // A phone number (10 or more digits, however they're split: spaces, dashes, dots, slashes or
@@ -258,17 +327,19 @@ export async function latestNotes(
 }
 
 // Each casual's last reminder: the office's ("Reminded by {name}") or the daily scan's ("Sent
-// automatically"), and each one's "Mark as sorted" (who and when, and what it was about).
+// automatically"), and each one's latest "Mark as sorted" (sortedMarks: who and when, what it was
+// about, and whether it still covers the need as it stands: markCovers, src/lib/portal/in-hand.ts).
 export async function followUps(
   tx: FirmTx,
   workerIds: readonly string[],
+  timeZone = "Europe/London",
 ): Promise<{
   reminders: Map<string, { by: string | null; at: Date }>; // by null: sent automatically
-  sorted: Map<string, { by: string; at: Date; type: string; status: string }>;
+  sorted: Map<string, OfficeSortedMark>;
 }> {
   const reminders = new Map<string, { by: string | null; at: Date }>();
-  const sorted = new Map<string, { by: string; at: Date; type: string; status: string }>();
-  if (workerIds.length === 0) return { reminders, sorted };
+  if (workerIds.length === 0) return { reminders, sorted: new Map() };
+  const sorted = await sortedMarks(tx, workerIds, timeZone);
   const ids = uuidArray([...workerIds]);
   const { rows } = await tx.execute<{
     worker_id: string;
@@ -276,40 +347,28 @@ export async function followUps(
     by: string | null;
     actor_type: string;
     at: Date | string;
-    data: Record<string, unknown>;
   }>(sql`
-    select distinct on (worker_id, kind) worker_id, action, by, actor_type, at, data from (
+    select distinct on (worker_id) worker_id, action, by, actor_type, at from (
       select e.entity_id::text as worker_id, e.action, ou.name as by, e.actor_type,
-             e.created_at as at, e.data,
-             case when e.action = 'casual.needs_sorted' then 'sorted' else 'reminder' end as kind,
-             e.id
+             e.created_at as at, e.id
         from events e
         left join office_users ou on ou.firm_id = e.firm_id and ou.id = e.actor_id
-       where e.action in ('casual.reminded', 'casual.needs_sorted')
+       where e.action = 'casual.reminded'
          and e.entity_id = any(${ids})
       union all
-      select c.worker_id::text, e.action, null, e.actor_type, e.created_at, e.data, 'reminder', e.id
+      select c.worker_id::text, e.action, null, e.actor_type, e.created_at, e.id
         from events e
         join credentials c on c.firm_id = e.firm_id and c.id = e.entity_id
        where e.action in ('credential.expiry_notice_sent', 'credential.expiry_warning')
          and c.worker_id = any(${ids})
     ) x
-    order by worker_id, kind, at desc, id desc
+    order by worker_id, at desc, id desc
   `);
   for (const r of rows) {
-    if (r.action === "casual.needs_sorted") {
-      sorted.set(r.worker_id, {
-        by: r.by ?? "The office",
-        at: new Date(r.at),
-        type: String(r.data.type ?? ""),
-        status: String(r.data.status ?? ""),
-      });
-    } else {
-      reminders.set(r.worker_id, {
-        by: r.action === "casual.reminded" ? (r.by ?? "The office") : null,
-        at: new Date(r.at),
-      });
-    }
+    reminders.set(r.worker_id, {
+      by: r.action === "casual.reminded" ? (r.by ?? "The office") : null,
+      at: new Date(r.at),
+    });
   }
   return { reminders, sorted };
 }

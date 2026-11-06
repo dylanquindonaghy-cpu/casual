@@ -779,7 +779,7 @@ test("Updates (Phase 27.10): a cancellation with its place to fill has Offer the
   const worker = await addSteward("acme", {
     firstName: "Cleo",
     lastName: `Cancel${n}`,
-    mobileE164: await unusedMobile("acme", 800, 869),
+    mobileE164: await unusedMobile("acme", "stewards"),
   });
   // Just now, through the real code, with 5 days' notice (no strike): among the newest of Updates'
   // six whatever the other specs did, and its place open again.
@@ -849,7 +849,7 @@ test("the dashboard's Updates leaves out a staff photo waiting; the Updates page
   const worker = await addSteward("acme", {
     firstName: "Pia",
     lastName: `Photo${n}`,
-    mobileE164: await unusedMobile("acme", 870, 899),
+    mobileE164: await unusedMobile("acme", "photo"),
   });
   // Just now: Pia took a place, then sent a staff photo (the newest of all, so before Phase 27.9
   // it was the dashboard's first update).

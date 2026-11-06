@@ -11,7 +11,7 @@ import { addBookedShift, addWorker, unusedMobile } from "../db";
 // spec's own, 15 days ahead at a made-up venue, with two casuals of its own booked on it (made with
 // tests/e2e/db.ts's helpers, imported, never edited): Eli, whose phone has notifications on (a
 // made-up push address), and Dora, who has none (so a text, in the console outbox). Each run makes
-// new ones, on numbers no casual of the firm has (07700 900330 to 900349). Fake details only.
+// new ones, on numbers no casual of the firm has (the briefing block, tests/e2e/spare-mobiles.ts). Fake details only.
 
 // The e2e database (never the dev one), as the app role or as the jobs role (pg-boss's tables).
 function e2eUrl(name: "DATABASE_URL" | "DATABASE_JOBS_URL"): string {
@@ -44,13 +44,13 @@ export interface DetailsScene {
 
 export async function detailsScene(slug: string): Promise<DetailsScene> {
   const run = randomBytes(3).toString("hex");
-  const pushMobile = await unusedMobile(slug, 330, 349);
+  const pushMobile = await unusedMobile(slug, "briefing");
   const pushWorker = await addWorker(slug, {
     firstName: "Eli",
     lastName: `Briefing ${run}`,
     mobileE164: pushMobile,
   });
-  const textMobile = await unusedMobile(slug, 330, 349);
+  const textMobile = await unusedMobile(slug, "briefing");
   const textWorker = await addWorker(slug, {
     firstName: "Dora",
     lastName: `Briefing ${run}`,

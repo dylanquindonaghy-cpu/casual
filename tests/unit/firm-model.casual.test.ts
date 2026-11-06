@@ -123,7 +123,8 @@ describe("the shift page", () => {
       review: null,
     });
     const words = text(html);
-    expect(words).toContain("Needs: SIA security guard licence or SIA door supervisor licence");
+    // Phase 28.5: no chips under the role; "You need" names the group with her status.
+    expect(words).not.toContain("Needs:");
     expect(words).toContain(
       "SIA security guard licence or SIA door supervisor licence Missing: upload SIA security guard licence or SIA door supervisor licence",
     );

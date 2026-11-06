@@ -74,7 +74,7 @@ export function TakeShiftButton({
             onClick={retry ? take : () => router.push("/shifts/open")}
             className={`${retry ? staffBtn.secondary : staffBtn.primary} mt-3`}
           >
-            {retry ? "Try again" : "See other shifts"}
+            {retry ? "Try again" : "See open shifts"}
           </button>
         )}
       </div>

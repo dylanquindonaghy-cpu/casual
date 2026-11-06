@@ -17,6 +17,8 @@ import { loadAllocationGate } from "../roster/allocation-input";
 import { previewBooking } from "../roster/book";
 import { casualEventName } from "../roster/shift-events";
 import { isVisibleToCasuals } from "../roster/visibility";
+import type { RuleCode } from "../rules/eligibility";
+import { sinceBooked, type ChangedSince } from "./changed-since";
 import type { MyShift, PortalContext } from "./my-shifts";
 import { shiftFacts, type ShiftFacts } from "./shift-facts";
 
@@ -32,10 +34,16 @@ import { shiftFacts, type ShiftFacts } from "./shift-facts";
 // - open: the rules say yes (previewBooking: no locks, no pass; taking it re-checks everything).
 // - held: fair rotation holds it for workers with fewer hours that week (the shift's own week) until opensAt.
 // - blocked: the rules say no, with their reasons in plain English, and the worker's review
-//   request for it if one is waiting (askForReview in review.ts).
+//   request for it if one is waiting (askForReview in review.ts). Each reason's rule code beside it
+//   (`codes`, the same order), so the page can put "Message the office" with the ones that send her
+//   to the office (Phase 28.5).
 // - missing: not in this firm, a draft, not a shift id, or hidden from casuals (the session's or its
 //   event's switch is off: src/lib/roster/visibility.ts). A booked worker still sees it as booked,
 //   and one whose place was cancelled still sees cancelled, started or filled.
+// - booked also carries what changed since she booked (Phase 28.5, src/lib/portal/changed-since.ts):
+//   the briefing's parts by name only ("Changed since you booked"), and whether the office has moved
+//   or shortened it since ("Add it to your calendar again"); and her "Still coming?" answer
+//   (stillComingAt, 28.2's column, for 28.14).
 // Code decides every state (golden rule 1); this only reads.
 
 export interface ShiftSummary {
@@ -49,7 +57,15 @@ export interface ShiftSummary {
 
 export type ShiftPage =
   | { state: "missing" }
-  | { state: "booked"; shift: MyShift; facts: ShiftFacts }
+  | {
+      state: "booked";
+      shift: MyShift;
+      facts: ShiftFacts;
+      // Since she booked (Phase 28.5): the briefing's changed parts (null: none), and whether the
+      // office moved or shortened it. Optional so a page built without them shows neither.
+      changes?: ChangedSince | null;
+      timesChanged?: boolean;
+    }
   | { state: "open"; shift: ShiftSummary; facts: ShiftFacts }
   | { state: "held"; shift: ShiftSummary; facts: ShiftFacts; opensAt: Date }
   // "Casuals ask, you choose" (Phase 26.6): the office chooses who works it (its event's setting,
@@ -66,6 +82,8 @@ export type ShiftPage =
       shift: ShiftSummary;
       facts: ShiftFacts;
       reasons: string[];
+      // Each reason's rule code, in the same order (Phase 28.5): which send her to the office.
+      codes?: RuleCode[];
       review: { ref: string; askedAt: Date } | null;
     }
   | { state: "filled" | "started" | "cancelled"; shift: ShiftSummary };
@@ -155,7 +173,12 @@ export async function shiftForWorker(
         }
       : null;
     const [mine] = await tx
-      .select({ id: assignments.id, status: assignments.status })
+      .select({
+        id: assignments.id,
+        status: assignments.status,
+        confirmedAt: assignments.confirmedAt,
+        stillComingAt: assignments.stillComingAt,
+      })
       .from(assignments)
       .where(
         and(
@@ -170,6 +193,11 @@ export async function shiftForWorker(
       return Math.max(0, row.headcount - (counted[0]?.taken ?? 0));
     };
     if (mine && row.status !== "cancelled") {
+      const since = await sinceBooked(tx, {
+        shiftId,
+        assignmentId: mine.id,
+        confirmedAt: mine.confirmedAt,
+      });
       return {
         state: "booked",
         shift: {
@@ -185,9 +213,12 @@ export async function shiftForWorker(
           payRatePence: row.payRatePence,
           meetingPoint: row.meetingPoint,
           uniform: row.uniform,
+          stillComingAt: mine.stillComingAt,
           site,
         },
         facts: await facts(),
+        changes: since.changes,
+        timesChanged: since.moves > 0,
       };
     }
 
@@ -227,6 +258,7 @@ export async function shiftForWorker(
         shift,
         facts: full,
         reasons: verdict.reasons,
+        codes: verdict.codes,
         review: waiting ? { ref: refOf(waiting.id), askedAt: waiting.createdAt } : null,
       };
     }

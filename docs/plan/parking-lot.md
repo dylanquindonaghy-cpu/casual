@@ -2448,10 +2448,8 @@ Each task adds what it left out here as its wave is merged.
 - **28.8 (Open shifts and Urgent):** on Home's pass the travel sentence uses the figure tiles'
   small grey words, while the shift page shows it larger in ink; matching them needs
   `shift-parts.tsx` (28.13) or 28.16's leftover pass.
-- **28.9 (requests, both sides):** the server still accepts "declined" for an attendance question
-  (only the office page limits it to one answer; a stored decline still reads "Answered" to her).
-  Refusing it on the server breaks a 28.2 race test, so it waits for a decision on that test's
-  intent.
+- **28.9 (requests, both sides):** nothing parked. (Its guardrails review made the server refuse a
+  decline of an attendance question too, so 28.2's race test now expects that refusal.)
 - **28.10 (Pay and the pay query):** no browser test yet checks the Pay tab's visible count
   dropping (the test checks the database count); add one now 28.7's count is on the tab. Words typed
   into the pay query are lost if the code runs out mid-form. Its mock-up (private until shared):

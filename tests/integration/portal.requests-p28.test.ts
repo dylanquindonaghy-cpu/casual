@@ -469,7 +469,7 @@ describe("askAboutMark", () => {
 // The office's answer to "Think this mark is wrong?" (resolveRequest) never changes the mark: only
 // marking the session again on who-worked does (golden rule 12; the guardrails review of 28.2).
 describe("the office answering an attendance question", () => {
-  it("approved or declined, the session's mark stays as it was", async () => {
+  it("answered (or a decline refused), the session's mark stays as it was", async () => {
     const t = await setup();
     const cases = [
       { mark: "no_show", said: "worked", decision: "approved", note: "" },
@@ -490,20 +490,26 @@ describe("the office answering an attendance question", () => {
         [shift],
       );
       const requestId = rows[0]?.id ?? "";
-      expect(
-        await resolveRequest(
-          withFirm,
-          t.f.firmId,
-          {
-            requestId,
-            decision: c.decision,
-            note: c.note,
-            by: { type: "office", id: t.resourcer },
-          },
-          { clock: { now: () => NOW } },
-        ),
-      ).toEqual({ status: "resolved", decision: c.decision });
-      expect((await t.requestRow(requestId))?.status).toBe(c.decision);
+      const result = await resolveRequest(
+        withFirm,
+        t.f.firmId,
+        {
+          requestId,
+          decision: c.decision,
+          note: c.note,
+          by: { type: "office", id: t.resourcer },
+        },
+        { clock: { now: () => NOW } },
+      );
+      // An attendance question is only ever answered (28.9): the server refuses a decline and
+      // leaves it waiting, as the office page offers only "Answer and tell".
+      if (c.decision === "approved") {
+        expect(result).toEqual({ status: "resolved", decision: "approved" });
+        expect((await t.requestRow(requestId))?.status).toBe("approved");
+      } else {
+        expect(result).toEqual({ status: "answer_only" });
+        expect((await t.requestRow(requestId))?.status).toBe("open");
+      }
       const { rows: mark } = await su.query<{ status: string; worker_id: string }>(
         "select status, worker_id::text as worker_id from assignments where id = $1",
         [booking],

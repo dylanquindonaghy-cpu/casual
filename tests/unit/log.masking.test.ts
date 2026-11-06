@@ -365,7 +365,7 @@ describe("holdsPhoneOrEmail", () => {
     }
     for (const text of [
       "sam@example.com",
-      "mail sam.booker+shifts@mail.example.co.uk please",
+      "mail sam.booker+shifts@mail.example.test please",
       "Mob07700900123",
       "07700%20900123", // a percent-encoded space
       "%2B447700900123", // a percent-encoded +

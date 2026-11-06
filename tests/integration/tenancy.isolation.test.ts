@@ -162,9 +162,11 @@ describe.each(EXPECTED_TABLES)("%s", (table) => {
     if (can(table, "INSERT")) {
       expect(await inFirm(app, B.firmId, (c) => run(c, INSERTS[table](B.firmId, B)))).toBe(1);
       const err = await pgError(inFirm(app, A.firmId, (c) => run(c, INSERTS[table](B.firmId, B))));
+      // Names the table: a probe that inserts a parent row first would otherwise fail on the
+      // parent's policy and never reach this table's own.
       expect(err).toMatchObject({
         code: "42501",
-        message: expect.stringMatching(/row-level security/),
+        message: expect.stringContaining(`row-level security policy for table "${table}"`),
       });
     } else {
       // firms, roster_sources and name_map: created only by an owner script, never by the app.
@@ -172,7 +174,7 @@ describe.each(EXPECTED_TABLES)("%s", (table) => {
         const err = await pgError(inFirm(app, firmId, (c) => run(c, INSERTS[table](firmId, B))));
         expect(err).toMatchObject({
           code: "42501",
-          message: expect.stringMatching(/permission denied/),
+          message: expect.stringContaining(`permission denied for table ${table}`),
         });
       }
     }

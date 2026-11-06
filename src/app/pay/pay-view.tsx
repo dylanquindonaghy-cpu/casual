@@ -210,13 +210,24 @@ type ShownQuery = {
   status: string;
   sortedOn?: string | null; // absent for one sorted without a date (none are, since Phase 6)
   note?: string | null;
+  // Phase 28.10: an answer she hasn't seen yet (myPayQueries), and when payroll sorted it.
+  unseen?: boolean;
+  resolvedAt?: Date | string | null;
+};
+
+const isoOf = (at: Date | string | null | undefined): string | null => {
+  if (at === null || at === undefined) return null;
+  const ms = at instanceof Date ? at.getTime() : Date.parse(at);
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
 };
 
 // "Raise a pay query", and the worker's own pay queries from the last 90 days with their status:
 // once payroll has sorted one, the day and payroll's note (a person's words).
-// Phase 28.10: with answers she hasn't seen (`newAnswers`), the first sorted one is wrapped in
-// PayAnswersSeen, which marks them seen once it is on her screen (`shownAt`: when the page was
-// drawn), so the Pay tab's count goes.
+// Phase 28.10: with answers she hasn't seen (`newAnswers`), every one of them (`unseen`, with when
+// it was sorted) is marked for PayAnswersSeen, which wraps the list and marks them seen as far as
+// every unseen answer up to then has been on her screen (`shownAt`: when the page was drawn), so
+// the Pay tab's count goes. An answer she has already seen is never watched in its place: the list
+// is newest query first, not in the order payroll answered.
 export function PayQueries({
   queries,
   newAnswers = false,
@@ -226,7 +237,30 @@ export function PayQueries({
   newAnswers?: boolean;
   shownAt?: string;
 }) {
-  const firstAnswered = queries.findIndex((q) => q.status === "resolved");
+  const watched = (q: ShownQuery): string | null =>
+    newAnswers && shownAt && q.status === "resolved" && q.unseen === true
+      ? isoOf(q.resolvedAt)
+      : null;
+  const watching = queries.some((q) => watched(q) !== null);
+  const list = (
+    <ul role="list" className={`${staffRows} ${headingGap}`}>
+      {queries.map((q) => {
+        const row = <QueryRow q={q} />;
+        const sortedAt = watched(q);
+        return (
+          <li key={q.ref} className={staffRow}>
+            {sortedAt ? (
+              <div data-pay-answer="" data-resolved-at={sortedAt}>
+                {row}
+              </div>
+            ) : (
+              row
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
   return (
     <section className="mt-3" aria-labelledby="pay-queries">
       <Link href="/pay/query" className={staffBtn.primary}>
@@ -237,21 +271,10 @@ export function PayQueries({
       </h2>
       {queries.length === 0 ? (
         <p className={headingGap}>None in the last 90 days.</p>
+      ) : watching && shownAt ? (
+        <PayAnswersSeen shownAt={shownAt}>{list}</PayAnswersSeen>
       ) : (
-        <ul role="list" className={`${staffRows} ${headingGap}`}>
-          {queries.map((q, i) => {
-            const row = <QueryRow q={q} />;
-            return (
-              <li key={q.ref} className={staffRow}>
-                {newAnswers && shownAt && i === firstAnswered ? (
-                  <PayAnswersSeen shownAt={shownAt}>{row}</PayAnswersSeen>
-                ) : (
-                  row
-                )}
-              </li>
-            );
-          })}
-        </ul>
+        list
       )}
     </section>
   );

@@ -26,6 +26,9 @@ export const READY_SENTENCES: Record<MessageAbout, string> = {
   started: "This shift has started and I need to talk to someone.",
   other: "",
 };
+// Opened about her pay with no shift (the guardrails review of 28.10; Pay's "Message the office"):
+// the About line, and an empty box. Sent, a person answers it, never an automatic answer.
+export const ABOUT_PAY_LINE = "About: your pay";
 // Sent about a shift: a person answers it, never an automatic answer (src/lib/inbound/reply.ts).
 export const SENT_TO_OFFICE = "Sent. The office will answer here.";
 

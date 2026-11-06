@@ -28,6 +28,13 @@ export { APP_MESSAGE_MAX };
 // ended, checked in the same transaction as the insert. Anything else (another firm's session, a
 // hidden one, one that has ended, not an id) is stored with no session, and the message is sorted
 // as any other: a pay question about a worked shift goes towards the pay query (golden rule 9).
+//
+// About her pay, with no session (the guardrails review of 28.10; Messages opened from Pay's
+// "Message the office", src/lib/portal/message-office.ts MESSAGES_ABOUT_PAY): stored already
+// marked for the office (intent 'office' before the job claims it), and the job never sorts it
+// (src/lib/inbound/reply.ts): a person answers. Pay sends her there only when Pay can't take the
+// question (no way to send her a code, or older than 90 days), so the automatic pay link, which
+// points back to Pay, would loop. Asking for a person is always the safe side: it widens nothing.
 
 export type SendAppMessageOutcome =
   | { status: "sent"; messageId: string }
@@ -43,6 +50,7 @@ export async function receiveAppMessage(
   raw: string,
   clientId?: string, // a UUID (checked by the action)
   shiftId?: string | null, // the session it's about, if any (kept only when allowed: above)
+  aboutPay?: boolean, // sent from Messages opened about her pay: for the office (above)
 ): Promise<SendAppMessageOutcome> {
   const text = appMessageText(raw);
   if (text === "") return { status: "empty" };
@@ -74,6 +82,7 @@ export async function receiveAppMessage(
         workerId,
         body: text,
         shiftId: about,
+        intent: aboutPay === true ? "office" : null, // about her pay: for the office (above)
       })
       .onConflictDoNothing({ target: [messages.firmId, messages.providerMessageId] })
       .returning({ id: messages.id });

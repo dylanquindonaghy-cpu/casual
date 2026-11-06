@@ -17,9 +17,13 @@ import { getCurrentFirm } from "@/lib/tenancy/current-firm";
 // other. A kept one goes to a person, never the automatic sorter (src/lib/inbound/reply.ts).
 // "Sent" says which (`toOffice`), from what the send stored, not from the shift the page was opened
 // with: one that ended in between is sorted as any other, and may get an automatic answer.
+// Sent from Messages opened about her pay with no shift (`aboutPay`; the guardrails review of
+// 28.10), it is stored as one for the office (src/lib/inbound/app.ts) and a person answers it,
+// so "Sent. The office will answer here." Only true or nothing gets through.
 const inputSchema = z.string().max(20_000);
 const clientIdSchema = z.uuid().optional();
 const shiftIdSchema = z.uuid().optional();
+const aboutPaySchema = z.literal(true).optional();
 
 export type SendMessageOutcome =
   | Exclude<SendAppMessageOutcome, { status: "sent" }>
@@ -29,6 +33,7 @@ export async function sendAppMessageAction(
   text: string,
   clientId?: string,
   shiftId?: string,
+  aboutPay?: boolean,
 ): Promise<SendMessageOutcome> {
   const firm = await getCurrentFirm();
   const session = await getWorkerSession();
@@ -40,6 +45,8 @@ export async function sendAppMessageAction(
   // Not a shift's id: sent with none, as today.
   const about = shiftIdSchema.safeParse(shiftId);
   const askedShift = about.success ? (about.data ?? null) : null;
+  // Not exactly true: sent as any other.
+  const forOffice = aboutPaySchema.safeParse(aboutPay).data === true;
   let sent: SendAppMessageOutcome;
   try {
     sent = await receiveAppMessage(
@@ -48,6 +55,7 @@ export async function sendAppMessageAction(
       input.data,
       id.data,
       askedShift,
+      forOffice,
     );
   } catch (error) {
     (await requestLog()).error("app message failed", { firmId: firm.id, error });
@@ -56,11 +64,13 @@ export async function sendAppMessageAction(
   if (sent.status !== "sent") return sent;
   // Stored: only the words after "Sent." are still to choose. Sent about no shift, or the check
   // failing, it's "Sent. The answer comes here.", true whoever answers.
-  const toOffice = askedShift
-    ? await messageKeptShift({ firm }, session.worker.id, sent.messageId).catch(async (error) => {
-        (await requestLog()).error("app message about check failed", { firmId: firm.id, error });
-        return false;
-      })
-    : false;
+  const toOffice = forOffice
+    ? true
+    : askedShift
+      ? await messageKeptShift({ firm }, session.worker.id, sent.messageId).catch(async (error) => {
+          (await requestLog()).error("app message about check failed", { firmId: firm.id, error });
+          return false;
+        })
+      : false;
   return { ...sent, toOffice };
 }

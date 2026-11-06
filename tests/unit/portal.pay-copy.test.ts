@@ -3,6 +3,12 @@ import { join } from "node:path";
 import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import {
+  MESSAGES_ABOUT_PAY,
+  readMessageAboutPay,
+  readMessageOffice,
+} from "@/lib/portal/message-office";
+import { markUntil, seenUpTo } from "@/lib/portal/pay-answers-seen";
 import { MESSAGE_OFFICE, NO_CODE_SENDER, PAY_CODE, SIX_DIGIT } from "@/lib/portal/pay-copy";
 import { PROBLEM_LINKS, PROBLEM_WORDS } from "@/lib/portal/pay-query-kinds";
 
@@ -105,11 +111,14 @@ describe("the pay day card, before the code", () => {
 
 describe("no dead end on Pay", () => {
   it("no code sender: 'Message the office', on Pay and on the pay query", () => {
-    expect(MESSAGE_OFFICE).toEqual({ href: "/messages", label: "Message the office" });
+    // About her pay (the guardrails review of 28.10): what she sends from there goes to a person,
+    // never the automatic pay link back to this page.
+    expect(MESSAGE_OFFICE).toEqual({ href: "/messages?about=pay", label: "Message the office" });
+    expect(MESSAGE_OFFICE.href).toBe(MESSAGES_ABOUT_PAY);
     for (const purpose of ["pay", "query"] as const)
       for (const codeWaiting of [false, true]) {
         const page = html(createElement(CodeGate, { way: "off", codeWaiting, purpose }));
-        expect(page).toContain('href="/messages"');
+        expect(page).toContain('href="/messages?about=pay"');
         expect(page).not.toContain("<button");
         expect(page).not.toContain("<input");
         expect(strip(page)).toBe(
@@ -123,7 +132,24 @@ describe("no dead end on Pay", () => {
     expect(PROBLEM_WORDS.too_old).toBe(
       "Pay queries can go back 90 days. For anything older, message the office.",
     );
-    expect(PROBLEM_LINKS.too_old?.href).toBe("/messages");
+    expect(PROBLEM_LINKS.too_old?.href).toBe("/messages?about=pay");
+  });
+
+  // Messages reads the link back (src/app/messages/page.tsx): about her pay with no shift, so the
+  // message goes to a person. One with a shift is readMessageOffice's; a list or another topic is
+  // nothing.
+  it("Messages reads ?about=pay with no shift as about her pay", () => {
+    expect(readMessageAboutPay({ about: "pay" })).toBe(true);
+    expect(readMessageOffice({ about: "pay" })).toBeNull();
+    for (const params of [
+      {},
+      { about: "late" },
+      { about: ["pay", "pay"] },
+      { about: "pay", shift: "e3b0c442-98fc-4c14-9afb-f4c8996fb924" },
+      { about: "pay", shift: "" },
+      { about: "pay", shift: "not-an-id" },
+    ])
+      expect(readMessageAboutPay(params), JSON.stringify(params)).toBe(false);
   });
 
   it("no 'contact the office' in any of the pay pages' files", () => {
@@ -153,6 +179,8 @@ describe("payroll's answers on Pay", () => {
     status: "resolved",
     sortedOn: "2026-11-03",
     note: "Paid on Friday.",
+    unseen: true,
+    resolvedAt: "2026-11-03T10:00:00.000Z",
   };
   const waiting = {
     ref: "3F2A9C1B",
@@ -176,13 +204,118 @@ describe("payroll's answers on Pay", () => {
     expect(page.slice(at, page.indexOf("</li>", at))).not.toContain("With payroll");
   });
 
+  // The guardrails review of 28.10: the list is newest query first, so an older query answered
+  // lately (unseen) can sit below a newer one answered earlier (seen). The unseen one is watched,
+  // never the seen one above it, and the marker can't move past it until it has been on screen.
+  it("an answer she has seen above one she hasn't: only the unseen one is watched", () => {
+    const seen = {
+      ref: "A1A1A1A1",
+      issue: "missing_hours" as const,
+      day: "2026-11-01",
+      status: "resolved",
+      sortedOn: "2026-11-02",
+      note: "Added to this week.",
+      unseen: false,
+      resolvedAt: "2026-11-02T09:00:00.000Z",
+    };
+    const page = html(
+      createElement(PayQueries, {
+        queries: [seen, waiting, sorted],
+        newAnswers: true,
+        shownAt: "2026-11-04T09:00:00.000Z",
+      }),
+    );
+    expect(page.match(/data-pay-answer=""/g)).toHaveLength(1);
+    const at = page.indexOf('data-pay-answer=""');
+    // Watched: the older query, answered on Tue 3 Nov; the seen answer above it isn't.
+    expect(page.slice(0, at)).toContain("Added to this week.");
+    expect(page.slice(at, page.indexOf("</li>", at))).toContain("Paid on Friday.");
+    expect(page.slice(at, page.indexOf("</li>", at))).toContain(
+      'data-resolved-at="2026-11-03T10:00:00.000Z"',
+    );
+  });
+
+  it("several unseen answers: each is watched, with when payroll sorted it", () => {
+    const also = { ...sorted, ref: "B2B2B2B2", resolvedAt: new Date("2026-11-03T12:30:00Z") };
+    const page = html(
+      createElement(PayQueries, {
+        queries: [also, waiting, sorted],
+        newAnswers: true,
+        shownAt: "2026-11-04T09:00:00.000Z",
+      }),
+    );
+    expect([...page.matchAll(/data-resolved-at="([^"]+)"/g)].map((m) => m[1])).toEqual([
+      "2026-11-03T12:30:00.000Z",
+      "2026-11-03T10:00:00.000Z",
+    ]);
+  });
+
   it("nothing new, or nothing sorted: nothing is watched", () => {
     for (const props of [
       { queries: [waiting, sorted], newAnswers: false, shownAt: "2026-11-04T09:00:00.000Z" },
       { queries: [waiting], newAnswers: true, shownAt: "2026-11-04T09:00:00.000Z" },
       { queries: [waiting, sorted] },
+      // Sorted, but already seen.
+      {
+        queries: [waiting, { ...sorted, unseen: false }],
+        newAnswers: true,
+        shownAt: "2026-11-04T09:00:00.000Z",
+      },
     ]) {
       expect(html(createElement(PayQueries, props))).not.toContain("data-pay-answer");
     }
+  });
+});
+
+// The watcher's rule (src/lib/portal/pay-answers-seen.ts): her marker is one time, so it moves past
+// an answer only once that answer and every unseen one sorted before it have been on her screen.
+describe("how far payroll's answers count as seen", () => {
+  const at = (iso: string) => Date.parse(iso);
+  const t1 = at("2026-11-02T09:00:00.000Z");
+  const t2 = at("2026-11-03T10:00:00.000Z");
+  const t3 = at("2026-11-03T12:30:00.000Z");
+
+  it("nothing in view: nothing", () => {
+    expect(seenUpTo([{ resolvedAt: t2, inView: false }])).toBeNull();
+    expect(seenUpTo([])).toBeNull();
+  });
+
+  it("a later answer in view, an earlier one below the fold: nothing yet", () => {
+    expect(
+      seenUpTo([
+        { resolvedAt: t3, inView: true },
+        { resolvedAt: t2, inView: false },
+      ]),
+    ).toBeNull();
+  });
+
+  it("up to the last answer with every earlier one in view", () => {
+    expect(
+      seenUpTo([
+        { resolvedAt: t3, inView: false },
+        { resolvedAt: t1, inView: true },
+        { resolvedAt: t2, inView: true },
+      ]),
+    ).toBe(t2);
+    expect(
+      seenUpTo([
+        { resolvedAt: t3, inView: true },
+        { resolvedAt: t1, inView: true },
+      ]),
+    ).toBe(t3);
+  });
+
+  it("two answers sorted in the same millisecond count together", () => {
+    expect(
+      seenUpTo([
+        { resolvedAt: t2, inView: true },
+        { resolvedAt: t2, inView: false },
+      ]),
+    ).toBeNull();
+  });
+
+  it("marks one millisecond past the answer, never past when the page was drawn", () => {
+    expect(markUntil(t2, at("2026-11-04T09:00:00.000Z"))).toBe(t2 + 1);
+    expect(markUntil(t2, t2)).toBe(t2);
   });
 });

@@ -231,6 +231,9 @@ describe("payroll's answers on the Pay tab (28.10)", () => {
     // What the Pay page reads to draw itself marks nothing: the answer, then the count.
     const shown = await myPayQueries(A(2), annAt(2));
     expect(shown[0]).toMatchObject({ status: "resolved", note: "Paid on Friday with the rest." });
+    // The page knows which answer still counts, and when payroll sorted it (the watcher's rows).
+    expect(shown[0]?.unseen).toBe(true);
+    expect(shown[0]?.resolvedAt?.toISOString()).toBe(hoursFromNow(1).toISOString());
     expect(await unseenPayAnswers(A(2), t.ann)).toBe(1);
     expect(await unseenPayAnswers(A(2), t.ann)).toBe(1);
 
@@ -258,8 +261,25 @@ describe("payroll's answers on the Pay tab (28.10)", () => {
     // A drawing time in the future is held to now.
     expect(await seePayAnswers(A(2.5), annAt(2.5), hoursFromNow(99))).toBe(false);
     expect(await unseenPayAnswers(A(4), t.ann)).toBe(1);
-    expect(await seePayAnswers(A(4), annAt(4), hoursFromNow(4))).toBe(true);
+    // The guardrails review of 28.10: the list is newest query first, and each row says whether its
+    // answer still counts. The wrong-rate query (newest, sorted at hour 3) counts; the late-pay
+    // one under it, seen at hour 2, doesn't, so the page watches only the first.
+    expect(
+      (await myPayQueries(A(4), annAt(4))).map((q) => [q.issue, q.unseen, q.resolvedAt?.getTime()]),
+    ).toEqual([
+      ["wrong_rate", true, hoursFromNow(3).getTime()],
+      ["late_pay", false, hoursFromNow(1).getTime()],
+    ]);
+    // Marked only up to just before the wrong-rate answer (one still below the fold): it counts.
+    expect(await seePayAnswers(A(4), annAt(4), new Date(hoursFromNow(3).getTime() - 1))).toBe(
+      false,
+    );
+    expect(await unseenPayAnswers(A(4), t.ann)).toBe(1);
+    // Marked just past it (the watcher sends one millisecond past the answer): it goes.
+    expect(await seePayAnswers(A(4), annAt(4), new Date(hoursFromNow(3).getTime() + 1))).toBe(true);
     expect(await unseenPayAnswers(A(4), t.ann)).toBe(0);
+    expect((await myPayQueries(A(4), annAt(4))).map((q) => q.unseen)).toEqual([false, false]);
+    expect(await seePayAnswers(A(4), annAt(4), hoursFromNow(4))).toBe(false);
 
     // The marking changes no pay query.
     const { rows } = await su.query<{ status: string }>(

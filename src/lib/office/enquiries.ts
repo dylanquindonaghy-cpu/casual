@@ -329,7 +329,9 @@ export interface EnquiryTimeline {
     // Sorted, but automatic replies are off, so it waits for a person (Phase 25.3).
     | { how: "held"; by: "keyword" | "ai"; intent: Exclude<Intent, "office"> }
     // A message in the app about a session (Phase 28.6): never sorted, passed to a person.
-    | { how: "about_shift" };
+    | { how: "about_shift" }
+    // Sent about her pay from Pay's "Message the office" (the guardrails review of 28.10).
+    | { how: "about_pay" };
   reply:
     | { how: "automatic"; intent: Intent | "unknown_number" | "voicemail" }
     | { how: "none" }
@@ -673,7 +675,7 @@ export async function loadEnquiry(
   // Automatic replies off (P4.7): nothing went, and what it was sorted as is in the log.
   const held = received?.data.replyHeld === true;
   const sortedAs = heldIntent(received?.data.sortedAs);
-  const sorted: EnquiryTimeline["sorted"] =
+  const sortedAsLogged: EnquiryTimeline["sorted"] =
     m.handled_at === null
       ? { how: "not_yet" }
       : typeof received?.data.shiftId === "string" && handledAs === "office"
@@ -709,6 +711,11 @@ export async function loadEnquiry(
                                   ? { ai: aiReason(received?.data.aiFallback) }
                                   : {}),
                               };
+  // Sent about her pay from Pay's "Message the office" (the guardrails review of 28.10).
+  const sorted: EnquiryTimeline["sorted"] =
+    m.handled_at !== null && received?.data.aboutPay === true && handledAs === "office"
+      ? { how: "about_pay" }
+      : sortedAsLogged;
 
   // The automatic reply: the first one logged against the message.
   const replied = events.find(

@@ -21,8 +21,10 @@ const LOOKS = 20;
 
 // The shift Messages was opened about (Phase 28.6; the page checks it: src/app/messages/page.tsx):
 // its id, sent with the message, the About line, and the ready sentence the box starts with.
+// Opened about her pay with no shift (the guardrails review of 28.10): no id (`shiftId` null), and
+// the message is sent as one for the office (`aboutPay`), never sorted.
 export interface ComposerAbout {
-  shiftId: string;
+  shiftId: string | null;
   line: string; // "About: Steward · Sat 7 Nov, 10:30"
   sentence: string; // "" for "other"
 }
@@ -60,12 +62,13 @@ export function Composer({
   // This message's own id, kept until it's sent, so a second tap after a send that seemed to fail
   // (weak signal) can't store it twice (src/lib/inbound/app.ts).
   const clientId = useRef<string | undefined>(undefined);
-  const aboutShift = about?.shiftId;
+  const aboutShift = about?.shiftId ?? undefined;
+  const aboutPay = about !== null && about.shiftId === null;
 
-  // Opened about a shift: bring the box into view, past a long thread.
+  // Opened about a shift or her pay: bring the box into view, past a long thread.
   useEffect(() => {
-    if (aboutShift) form.current?.scrollIntoView({ block: "center" });
-  }, [aboutShift]);
+    if (aboutShift || aboutPay) form.current?.scrollIntoView({ block: "center" });
+  }, [aboutShift, aboutPay]);
 
   // Look again until the answer is there, at most LOOKS times.
   useEffect(() => {
@@ -89,7 +92,12 @@ export function Composer({
     clientId.current ??= typeof crypto.randomUUID === "function" ? crypto.randomUUID() : undefined;
     const shiftId = aboutShift;
     startTransition(async () => {
-      const result = await sendAppMessageAction(words, clientId.current, shiftId).catch(() => ({
+      const result = await sendAppMessageAction(
+        words,
+        clientId.current,
+        shiftId,
+        aboutPay || undefined,
+      ).catch(() => ({
         status: "error" as const,
       }));
       sending.current = false;
@@ -99,8 +107,8 @@ export function Composer({
       setText("");
       setToOffice(result.toOffice);
       setWaiting(true);
-      // About a shift: the address drops it (the page is read again either way).
-      if (shiftId) router.replace("/messages", { scroll: false });
+      // About a shift or her pay: the address drops it (the page is read again either way).
+      if (shiftId || aboutPay) router.replace("/messages", { scroll: false });
       else router.refresh();
     });
   };

@@ -1,17 +1,20 @@
 import { sql } from "drizzle-orm";
 import { uuidArray } from "../db/arrays";
+import type { BookVia } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import {
   COMING_UP_SHOWN,
   comingUpDays,
   type AskedType,
   type ComingUpLicence,
+  type StillComingMark,
 } from "./coming-up-copy";
 import { sitesSql } from "./contract-scope";
 import { loadExpiredOnBookings } from "./dashboard";
 import { onWatchList } from "./dashboard-cards-data";
 import { requestWaiting } from "./enquiry-sql";
 import { bookedJoin, placeFree } from "./events";
+import { FIRM_SYSTEM_BOOKINGS, firmSystemSends } from "../notices/who-sends";
 import { loadCasualRecords } from "./reliability";
 
 // The dashboard's Coming up (Phase 27.9; Dylan, 2026-11-05: "simplify the what needs updating to
@@ -39,6 +42,12 @@ import { loadCasualRecords } from "./reliability";
 //   first, the first COMING_UP_SHOWN, and how many there are in all and how many people on them.
 // - Each: its role, venue (or event), times, places, how many are booked (its confirmed bookings,
 //   so the number and the names listed always agree), and those people, A to Z.
+//
+// Phase 28.14 ("Still coming?"): each person's answer, for the office to plan cover and nothing
+// more (stillComingMark below): "Coming" with the time where they tapped "Yes, I'm coming"
+// (assignments.still_coming_at, 28.2), else "Not answered yet" on a session starting within 24
+// hours, except a booking the firm's own system reminds (who-sends.ts: it got no ShiftDesk
+// reminder), which shows nothing unless they answered. No other flag, figure or job reads it.
 
 export interface ComingUpPerson {
   workerId: string;
@@ -53,6 +62,8 @@ export interface ComingUpPerson {
   firstShift: boolean;
   // On the watch list (the Watch list card's rule: a reliability figure under 90%).
   watch: boolean;
+  // "Still coming?" (Phase 28.14): coming (when they said so), not answered yet, or nothing.
+  stillComing?: StillComingMark; // always set by the loader
 }
 
 export interface ComingUpSession {
@@ -77,6 +88,28 @@ export interface ComingUp {
 }
 
 const date = (v: string | Date) => new Date(v);
+
+const STILL_COMING_MS = 24 * 3_600_000; // confirmStillComing's window (still-coming.ts)
+
+// A person's "Still coming?" mark on Coming up (Phase 28.14). Pure: from their booking, the
+// session's start and the firm's who-sends setting. Said so: "coming", with the time (it stays once
+// the session has started). Not said, on a session starting within 24 hours that hasn't started:
+// "waiting", unless the firm's own system reminds this booking (firm_system_sends on, booked by its
+// sheet or API: P2.3), when they got no ShiftDesk reminder and nothing shows. Otherwise nothing.
+export function stillComingMark(
+  booking: { saidAt: Date | null; startsAt: Date; bookedVia: BookVia | null },
+  now: Date,
+  firmSends: boolean,
+): StillComingMark {
+  if (booking.saidAt) return { kind: "coming", at: booking.saidAt };
+  const left = booking.startsAt.getTime() - now.getTime();
+  if (left <= 0 || left > STILL_COMING_MS) return null;
+  const firmReminds =
+    firmSends &&
+    booking.bookedVia !== null &&
+    (FIRM_SYSTEM_BOOKINGS as readonly string[]).includes(booking.bookedVia);
+  return firmReminds ? null : { kind: "waiting" };
+}
 
 export async function loadComingUp(
   tx: FirmTx,
@@ -138,9 +171,12 @@ export async function loadComingUp(
     first_name: string;
     last_name: string;
     first_shift: boolean;
+    still_coming_at: string | Date | null;
+    booked_via: BookVia | null;
+    starts_at: string | Date;
   }>(sql`
     select a.id::text as assignment_id, a.shift_id::text as shift_id, w.id::text as worker_id,
-           w.first_name, w.last_name,
+           w.first_name, w.last_name, a.still_coming_at, a.booked_via, s.starts_at,
            not exists (
              select 1 from assignments p
                join shifts ps on ps.firm_id = p.firm_id and ps.id = p.shift_id
@@ -152,6 +188,13 @@ export async function loadComingUp(
      where a.status = 'confirmed' and a.shift_id = any(${uuidArray(ids)})
      order by w.first_name, w.last_name, w.id
   `);
+
+  // The firm's who-sends setting (P2.3), for "Not answered yet" (28.14): its own row, in its own
+  // transaction.
+  const { rows: firmRows } = await tx.execute<{ settings: Record<string, unknown> | null }>(
+    sql`select settings from firms where id = app_current_firm_id()`,
+  );
+  const firmSends = firmSystemSends(firmRows[0]?.settings ?? {});
 
   // Who's on the watch list: the card's own rule over each one's record.
   const records = await loadCasualRecords(tx, now, [...new Set(booked.map((p) => p.worker_id))]);
@@ -211,6 +254,15 @@ export async function loadComingUp(
           asked: asked.get(`${p.shift_id}/${p.worker_id}`) ?? null,
           firstShift: p.first_shift,
           watch: onWatchList(records.get(p.worker_id)?.reliability),
+          stillComing: stillComingMark(
+            {
+              saidAt: p.still_coming_at ? date(p.still_coming_at) : null,
+              startsAt: date(p.starts_at),
+              bookedVia: p.booked_via,
+            },
+            now,
+            firmSends,
+          ),
         })),
     })),
   };

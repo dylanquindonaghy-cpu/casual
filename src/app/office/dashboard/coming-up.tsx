@@ -7,11 +7,15 @@ import {
   askedLabel,
   bookedOf,
   casualHref,
+  comingChip,
   comingUpHeading,
+  comingWords,
   FIRST_SHIFT,
   firstShiftWords,
   licenceChip,
   licenceWords,
+  NOT_ANSWERED,
+  notAnsweredWords,
   offerPlaces,
   offerPlacesLabel,
   ON_WATCH_LIST,
@@ -39,18 +43,25 @@ import { OfferLink, type OpenOffer } from "./offer-panel";
 // and two more chips beside a person's others, in the same styles: an amber "On the watch list"
 // (the Watch list card's own rule) and a grey "First shift" (nothing of theirs marked as worked
 // before this session). No hooks of its own: it's drawn inside the board, whose panel it opens.
+//
+// Phase 28.14 ("Still coming?"): first in a person's chips, a green "Coming 13:02" where they said
+// so in the day before, or a grey "Not answered yet" on a session starting within 24 hours (none
+// for a booking the firm's own system reminds). The loader decides which; neither does anything.
 
 function Person({
   p,
   s,
   today,
+  now,
   timeZone,
 }: {
   p: ComingUpPerson;
   s: ComingUpSession;
   today: string;
+  now: Date;
   timeZone: string;
 }) {
+  const coming = p.stillComing;
   return (
     <li className="flex flex-col gap-1 py-1">
       <Link
@@ -65,8 +76,28 @@ function Person({
         </span>
         <span className="min-w-0 flex-1 truncate font-medium text-ink">{p.name}</span>
       </Link>
-      {(p.licence || p.asked || p.watch || p.firstShift) && (
+      {(coming || p.licence || p.asked || p.watch || p.firstShift) && (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pb-1 pl-12">
+          {coming?.kind === "coming" && (
+            <span
+              data-still-coming="coming"
+              className={`${chip.base} ${chip.done}`}
+              title={comingWords(p.name, coming.at, timeZone)}
+            >
+              <span aria-hidden="true">{comingChip(coming.at, now, timeZone)}</span>
+              <span className="sr-only">{comingWords(p.name, coming.at, timeZone)}</span>
+            </span>
+          )}
+          {coming?.kind === "waiting" && (
+            <span
+              data-still-coming="waiting"
+              className={`${chip.base} ${chip.quiet}`}
+              title={notAnsweredWords(p.name)}
+            >
+              <span aria-hidden="true">{NOT_ANSWERED}</span>
+              <span className="sr-only">{notAnsweredWords(p.name)}</span>
+            </span>
+          )}
           {p.licence && (
             <span
               className={`${chip.base} ${chip.urgent}`}
@@ -151,7 +182,7 @@ export function ComingUpList({
             )}
             <ul role="list" className="flex flex-col divide-y divide-line">
               {s.people.map((p) => (
-                <Person key={p.workerId} p={p} s={s} today={today} timeZone={timeZone} />
+                <Person key={p.workerId} p={p} s={s} today={today} now={now} timeZone={timeZone} />
               ))}
             </ul>
           </li>

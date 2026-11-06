@@ -12,8 +12,10 @@ import { FIRM_SYSTEM_BOOKINGS, firmSystemSends } from "../notices/who-sends";
 import { eachAtMost } from "../notify/parallel";
 import {
   reminderPush,
+  shiftReminder24hEmail,
   shiftReminder24hEmailSubject,
   shiftReminder24hMessage,
+  shiftReminder2hEmail,
   shiftReminder2hEmailSubject,
   shiftReminder2hMessage,
 } from "../messaging/templates";
@@ -302,6 +304,12 @@ export async function runShiftReminders(
       kind === "24h"
         ? shiftReminder24hMessage(voice, { site: b.siteName, day, start, end, link })
         : shiftReminder2hMessage(voice, { site: b.siteName, start, link });
+    // The email adds the push's "Tap to say you're coming." after the link (Phase 28.14); the
+    // WhatsApp and text keep the approved template's words.
+    const emailBody =
+      kind === "24h"
+        ? shiftReminder24hEmail(voice, { site: b.siteName, day, start, end, link })
+        : shiftReminder2hEmail(voice, { site: b.siteName, start, link });
     // A push to their phones first, else their chosen text or email, else email when no text can
     // go (P2.4; Phase 26.9), with no transaction open. The doc has no separate SMS version of the reminders: the same text either
     // way. A push isn't delivered once the shift has started.
@@ -326,7 +334,7 @@ export async function runShiftReminders(
               kind === "24h"
                 ? shiftReminder24hEmailSubject({ day })
                 : shiftReminder2hEmailSubject({ start }),
-            body,
+            body: emailBody,
           }
         : null,
     });

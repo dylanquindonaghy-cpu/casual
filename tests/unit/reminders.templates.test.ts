@@ -51,7 +51,7 @@ describe("shift_reminder_2h", () => {
 });
 
 describe("the reminder push", () => {
-  it("24h: 'Tomorrow: {site}' / '{start}–{end}. Tap for instructions.'", () => {
+  it("24h: 'Tomorrow: {site}' / '{start}–{end}. Tap to say you're coming.'", () => {
     expect(
       reminderPush({
         kind: "24h",
@@ -60,12 +60,15 @@ describe("the reminder push", () => {
         start: "08:00",
         end: "16:00",
       }),
-    ).toEqual({ title: "Tomorrow: Acme Demo Arena", body: "08:00–16:00. Tap for instructions." });
+    ).toEqual({
+      title: "Tomorrow: Acme Demo Arena",
+      body: "08:00–16:00. Tap to say you're coming.",
+    });
   });
 
-  it("2h: 'Today: {site}' / 'Starts at {start}. Tap for instructions.'; no site: 'your shift'", () => {
+  it("2h: 'Today: {site}' / 'Starts at {start}. Tap to say you're coming.'; no site: 'your shift'", () => {
     expect(
       reminderPush({ kind: "2h", site: null, day: "today", start: "08:00", end: "16:00" }),
-    ).toEqual({ title: "Today: your shift", body: "Starts at 08:00. Tap for instructions." });
+    ).toEqual({ title: "Today: your shift", body: "Starts at 08:00. Tap to say you're coming." });
   });
 });

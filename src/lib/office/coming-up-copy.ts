@@ -1,7 +1,7 @@
-import { roleLabel } from "../portal/format";
+import { roleLabel, timeOnDay } from "../portal/format";
 import { timeRange } from "../portal/sign-copy";
 import { dayLabel } from "../rules/reasons";
-import { addDays, localDateOf, startOfDay } from "../time/zoned";
+import { addDays, localDateOf, startOfDay, wallTimeOf } from "../time/zoned";
 import { expiredText } from "./dashboard-copy";
 
 // The dashboard's Coming up in words (Phase 27.9; docs/screens.md "/office, round 8"): who's
@@ -159,3 +159,29 @@ export const firstShiftWords = (name: string) =>
 // figure under 90%: dashboard-cards-data.ts onWatchList), in the card's own words.
 export const ON_WATCH_LIST = "On the watch list";
 export const watchWords = (name: string) => `${name} is on the watch list: under 90% reliable.`;
+
+// "Still coming?" (Phase 28.14; docs/screens.md "The casual app, Phase 28" 28.14): the casual's own
+// answer in the day before, for the office to plan cover. Neither mark does anything by itself: no
+// strike, no reliability effect, no new offer, no Updates row. The loader decides which (coming-up.ts
+// stillComingMark): "coming" with when they said so, "waiting" (not answered yet), or none.
+export type StillComingMark = { kind: "coming"; at: Date } | { kind: "waiting" } | null;
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+// The green chip: "Coming 13:02" (said today), "Coming Thu 21:40" (another day).
+export function comingChip(at: Date, now: Date, timeZone: string): string {
+  const w = wallTimeOf(at, timeZone);
+  const time = `${pad2(w.hour)}:${pad2(w.minute)}`;
+  const day = localDateOf(at, timeZone);
+  if (day === localDateOf(now, timeZone)) return `Coming ${time}`;
+  return `Coming ${dayLabel(day).split(" ")[0]} ${time}`;
+}
+
+// Its full words (a screen reader's, and its tip): "Zoe Adeyemi said they're coming, at 13:02 on
+// Fri 6 Nov."
+export const comingWords = (name: string, at: Date, timeZone: string) =>
+  `${name} said they're coming, at ${timeOnDay(at, timeZone)}.`;
+
+// The grey chip, and its full words.
+export const NOT_ANSWERED = "Not answered yet";
+export const notAnsweredWords = (name: string) => `${name} hasn't said yet if they're coming.`;

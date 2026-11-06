@@ -2,8 +2,10 @@ import Link from "next/link";
 import { isOnNow, mapLink, NO_RATE_UNDER_LABEL, roleLabel, siteAddress } from "@/lib/portal/format";
 import type { MyShift } from "@/lib/portal/my-shifts";
 import { dateParts, inDays, shiftLine, timeRange } from "@/lib/portal/sign-copy";
+import { stillComingOpen } from "@/lib/portal/still-coming-copy";
 import { CancelShift } from "./shifts/cancel-shift";
 import { BringAndWear, Fact, factCard, PayLine, TravelFigures } from "./shifts/shift-parts";
+import { StillComingCard } from "./shifts/still-coming-card";
 import { staffBtn, staffH2, tag } from "./ui/classes";
 import { Icon } from "./ui/icons";
 import { Plate } from "./ui/plate";
@@ -20,6 +22,12 @@ import { Plate } from "./ui/plate";
 // the offline copy, and the card under the pass
 // shows while it's open (a `:has()` rule on the pass). "Can't make it?" and "Ask for a change" only
 // before it starts. Server-rendered; only "Can't make it?" is a client component.
+//
+// Phase 28.14: from 24 hours before the start until the start, "Still coming?" (a client card,
+// src/app/shifts/still-coming-card.tsx) takes the place of the lone "Can't make it?": its heading,
+// "Yes, I'm coming" (clear glass: Directions stays the main button) or "You said you're coming
+// (Fri 13:02)" (MyShift.stillComingAt, 28.2), then "Can't make it?" inside it. The card is online
+// only (data-online-only), so the copy kept for no signal shows neither.
 
 export function NextPass({
   shift,
@@ -43,6 +51,23 @@ export function NextPass({
   const map = shift.site ? mapLink(shift.site) : null;
   // What she can still do before it starts.
   const canAct = shift.status === "confirmed" && shift.startsAt.getTime() > now.getTime();
+  // In the day before it: "Still coming?" (28.14).
+  const askComing = canAct && stillComingOpen(shift, now);
+  // "Can't make it?": under Directions and Details, or inside "Still coming?". Keyed by the
+  // booking: after a cancellation the next shift moves into the pass with its own, empty cancel
+  // state.
+  const cancel = (
+    <CancelShift
+      key={shift.assignmentId}
+      shiftId={shift.shiftId}
+      opener="full"
+      summary={{
+        dow: day.dow,
+        day: day.day,
+        line: shiftLine(shift.role, shift.startsAt, shift.endsAt, timeZone),
+      }}
+    />
+  );
   const event = shift.eventName ?? null;
   const place = shift.site?.name ?? null;
   const what = [roleLabel(shift.role), event].filter(Boolean).join(" · ");
@@ -113,20 +138,19 @@ export function NextPass({
               </summary>
             </details>
           </div>
-          {canAct && (
-            // Keyed by the booking: after a cancellation the next shift moves into the pass with
-            // its own, empty cancel state.
-            <CancelShift
-              key={shift.assignmentId}
-              shiftId={shift.shiftId}
-              opener="full"
-              summary={{
-                dow: day.dow,
-                day: day.day,
-                line: shiftLine(shift.role, shift.startsAt, shift.endsAt, timeZone),
-              }}
-            />
-          )}
+          {canAct &&
+            (askComing ? (
+              <StillComingCard
+                key={`coming-${shift.assignmentId}`}
+                shiftId={shift.shiftId}
+                saidAt={shift.stillComingAt ?? null}
+                timeZone={timeZone}
+                main={false}
+                cancel={cancel}
+              />
+            ) : (
+              cancel
+            ))}
         </div>
       </div>
       <div

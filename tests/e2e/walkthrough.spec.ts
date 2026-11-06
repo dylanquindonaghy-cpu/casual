@@ -250,7 +250,7 @@ test("Part 2: as a worker", async ({ browser }) => {
       .getByRole("navigation", { name: "Main" })
       .getByRole("link", { name: "Shifts" })
       .click();
-    await page.getByRole("link", { name: "Past 30 days" }).click();
+    await page.getByRole("link", { name: /^Past 90 days/ }).click();
     await expect(page).toHaveURL(`${acme}/shifts?view=past`);
     await expect(
       page.getByRole("listitem").filter({ hasText: "Acme Demo Racecourse" }).first(),

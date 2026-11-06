@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { LogoutButton } from "../logout-button";
+import { RECORD_ROW_LINE } from "../my-shifts-view";
 import { Icon, type IconName } from "../ui/icons";
 import {
   disc,
@@ -32,6 +33,7 @@ import {
   myStrikeTitle,
 } from "@/lib/portal/my-strikes-copy";
 import type { Profile } from "@/lib/portal/profile";
+import { RECORD_PATH, RECORD_TITLE } from "@/lib/portal/record-copy";
 import type { MyTravel } from "@/lib/portal/travel";
 import { TRAVEL_PATH, TRAVEL_TITLE, travelSummaryText } from "@/lib/portal/travel-copy";
 import { MAX_UNAVAILABLE_DAYS, UNAVAILABLE_AHEAD_DAYS } from "@/lib/portal/profile-kinds";
@@ -69,8 +71,8 @@ import type { LoginWay } from "@/lib/portal/login-way";
 import { PushSetting } from "./push-setting";
 import { UploadForm } from "./upload-form";
 
-// Me (docs/screens.md, `/profile` and "### 28.11"): My requests and Help as rows under my name
-// (28.11), contact details (read-only), my staff photo (12F.2: the current one, when it's due again,
+// Me (docs/screens.md, `/profile` and "### 28.11"): My requests, Your shift record (28.13) and Help
+// as rows under my name (28.11), contact details (read-only), my staff photo (12F.2: the current one, when it's due again,
 // its status and "Upload a new photo", the picture shown before it's sent, 28.11), my
 // qualifications as they stand today (12F.1: each status, its date line and what it means; 12F.2:
 // "Upload a new one" for the ones I may upload; 28.11: my record's number, and "The office has this
@@ -150,6 +152,8 @@ export function ProfileView({
           sub={answersCount > 0 ? answersText(answersCount) : REQUESTS_LINE}
           count={answersCount}
         />
+        {/* Her shift record (28.4), linked from Profile and Booked's Past 90 days (28.13). */}
+        <TopRow href={RECORD_PATH} icon="log" title={RECORD_TITLE} sub={RECORD_ROW_LINE} />
         <TopRow href="/help" icon="guide" title="Help" sub={HELP_LINE} />
       </ul>
 

@@ -6,7 +6,7 @@ import { bookingFirm, hoursFromNow, NOW, type BookingFirm } from "../helpers/boo
 import { appRolePool, superuserPool } from "../helpers/db";
 
 // What My shifts shows, from the real database as the app role: the worker's own bookings only,
-// upcoming or the last 30 days, with the site and instructions; and the credential banner.
+// upcoming or the last 90 days (Phase 28.13), with the site and instructions; and the credential banner.
 
 let su: Pool;
 let app: Pool;
@@ -84,13 +84,13 @@ describe("myShifts", () => {
     expect((await myShifts(ctxFor(f), sam, "upcoming")).map((s) => s.shiftId)).toEqual([mine]);
   });
 
-  it("shows the last 30 days, newest first: worked, not attended, or still marked booked", async () => {
+  it("shows the last 90 days (Phase 28.13), newest first: worked, not attended, or still marked booked", async () => {
     const f = await bookingFirm(su, withFirm);
     const sam = await f.worker();
     const worked = await f.shift({ startsAt: hoursFromNow(-48) });
     const missed = await f.shift({ startsAt: hoursFromNow(-24 * 10) });
     const unmarked = await f.shift({ startsAt: hoursFromNow(-24 * 20) });
-    const tooOld = await f.shift({ startsAt: hoursFromNow(-24 * 31) });
+    const tooOld = await f.shift({ startsAt: hoursFromNow(-24 * 91) });
     const cancelled = await f.shift({ startsAt: hoursFromNow(-24 * 5) });
     const upcoming = await f.shift({ startsAt: hoursFromNow(24) });
     await f.booking(sam, worked, "completed");

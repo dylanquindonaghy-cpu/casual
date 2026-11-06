@@ -582,8 +582,10 @@ describe("Profile, shorter and clearer (28.11)", () => {
     expect(page.indexOf("My requests")).toBeLessThan(page.indexOf("Your details"));
     expect(page.indexOf("Help")).toBeLessThan(page.indexOf("Your details"));
     expect(page).toContain(
-      "My requests What you've asked the office, and their answers Help How booking, cancelling and pay work Your details",
+      "My requests What you've asked the office, and their answers Your shift record Every offer, booking, change and cancellation, with the notice you had Help How booking, cancelling and pay work Your details",
     );
+    // Her shift record (28.4), a row here since 28.13.
+    expect(html).toMatch(/<a [^>]*href="\/shifts\/record"/);
     expect(html).toMatch(/<a [^>]*href="\/requests"/);
     expect(html).toMatch(/<a [^>]*href="\/help"/);
     expect(page.trim().endsWith("Log out")).toBe(true);

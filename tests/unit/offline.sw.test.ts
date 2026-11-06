@@ -879,11 +879,10 @@ describe("My shifts and the kept copy together", () => {
               shifts: [],
             }),
       );
-      // Home's heading says the time (Phase 18; beside its headline since 28.7); Booked's the time
-      // and day. The notice says both.
-      expect(html).toContain(
-        which === "Home" ? "Updated 09:05</small>" : "Updated 09:05 on Mon 2 Nov",
-      );
+      // Each heading says the time (Phase 18; beside its headline since 28.7, Booked's since
+      // 28.13). The notice says the time and day.
+      expect(html).toContain("Updated 09:05</small>");
+      expect(html).toContain("This is your saved copy from 09:05 on Mon 2 Nov.");
       const notice = html.match(/<div[^>]*data-offline-notice[^>]*>/)?.[0] ?? "";
       expect(notice).toContain('hidden=""');
       const { sandbox } = loadWorker(async () => answer("x"));

@@ -137,6 +137,24 @@ export function maskWithoutLimit(input: string): string {
   return out + maskPhones(text.slice(last));
 }
 
+// Whether text holds a phone number or an email address, found as maskWithoutLimit finds them (the
+// same patterns, %xx undone first, UUIDs, dates and Twilio ids left out) and nothing else: the
+// masker also withholds a link's or path's tail and a quoted value after a colon, so "marked absent
+// on 2/11?" or 'He said: "fine"' come back changed but hold no contact details. For checking what
+// a person typed (src/lib/portal/request-kinds.ts).
+export function holdsPhoneOrEmail(input: string): boolean {
+  const text = percentDecode(input);
+  if (maskEmails(text) !== text) return true;
+  let last = 0;
+  for (const m of text.matchAll(PROTECTED)) {
+    const segment = text.slice(last, m.index);
+    if (maskPhones(segment) !== segment) return true;
+    last = m.index + m[0].length;
+  }
+  const rest = text.slice(last);
+  return maskPhones(rest) !== rest;
+}
+
 // Field names (matched loosely: case, "_" and "-" ignored, anywhere in the name) whose values
 // are never logged.
 const SECRET_KEY =

@@ -309,6 +309,55 @@ describe("the office's editor", () => {
     ).toEqual(["uniform", "uniform"]);
   });
 
+  it("two jobs for one session run out of order: the later names every change, the earlier finds none left", async () => {
+    // A new meeting point, then, in the next minute's slot, a new uniform: a job each. The later
+    // job runs first (after quiet hours both wake together; or the earlier one's claim failed and
+    // is retried after it).
+    const t = await detailsFirm();
+    await editShiftDetails(t.ctx, t.shiftId, { ...NO_DETAILS, meetingPoint: "Gate C" });
+    // The first save's slot has ended: the next save queues a job of its own.
+    await su.query(
+      `update pgboss.job set singleton_on = singleton_on - interval '1 minute'
+        where name = $1 and data ->> 'firmId' = $2`,
+      [DETAILS_NOTICE_QUEUE, t.f.firmId],
+    );
+    await editShiftDetails(t.ctx, t.shiftId, {
+      ...NO_DETAILS,
+      meetingPoint: "Gate C",
+      uniform: "Black",
+    });
+    expect((await eventsOf(t.f.firmId, "shift.changed")).map((e) => e.data.fields)).toEqual([
+      ["meetingPoint"],
+      ["uniform"],
+    ]);
+    const [first, second] = await jobsOf(t.f.firmId);
+    expect(second).toBeDefined();
+    expect(Number(second?.data.changeEventId)).toBeGreaterThan(Number(first?.data.changeEventId));
+
+    const c = capture();
+    const ran = new Set([first?.id ?? ""]);
+    // The later job: both casuals told of both changes, not just the uniform.
+    expect(await runJobs(t.f.firmId, c, AFTER_DELAY, { ran })).toEqual([
+      { status: "done", sent: 2, failed: 0, skipped: 0 },
+    ]);
+    expect(bodies(c.sent).map((b) => /\((.*?)\)/.exec(b)?.[1])).toEqual([
+      "meeting point and uniform",
+      "meeting point and uniform",
+    ]);
+    // Then the earlier one: nothing left to tell, nothing more sent or logged.
+    ran.delete(first?.id ?? "");
+    expect(await runJobs(t.f.firmId, c, AFTER_DELAY, { ran })).toEqual([{ status: "nothing" }]);
+    expect(c.sent).toHaveLength(2);
+    expect(
+      (await eventsOf(t.f.firmId, "shift.details_notice%")).map((e) => [e.action, e.data.fields]),
+    ).toEqual([
+      ["shift.details_notice", ["meetingPoint", "uniform"]],
+      ["shift.details_notice", ["meetingPoint", "uniform"]],
+      ["shift.details_notice_sent", undefined],
+      ["shift.details_notice_sent", undefined],
+    ]);
+  });
+
   it("places only: nothing queued, nobody told, nothing logged", async () => {
     const t = await detailsFirm();
     const siteId =

@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, sql } from "drizzle-orm";
+import { and, asc, eq, gt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { systemClock, type Clock } from "../auth/clock";
 import { events, firms, shifts, sites } from "../db/schema";
@@ -318,8 +318,15 @@ async function claimNotices(
     .innerJoin(firms, eq(firms.id, shifts.firmId))
     .where(eq(shifts.id, payload.shiftId));
   if (!shift) return { status: "gone" };
+  const bookings = await bookingFacts(tx, payload.shiftId);
+  if (bookings.length === 0) return { status: "nothing" };
 
-  // The session's briefing changes from the one that queued this job on, oldest first.
+  // The session's briefing changes after the oldest one a booking's notice or skip covered, oldest
+  // first; not only from the one that queued this job (payload.changeEventId: its trigger and key).
+  // Jobs can run out of order (two held by quiet hours wake together; a claim that failed is retried
+  // after a later job's), and a notice's changeEventId says every change up to it was told: a later
+  // job reading only its own changes would set that past an earlier change it never named.
+  const floor = Math.min(...bookings.map((b) => b.toldThrough));
   const changes = (
     await tx
       .select({ id: events.id, at: events.createdAt, data: events.data })
@@ -329,7 +336,7 @@ async function claimNotices(
           eq(events.entityType, "shift"),
           eq(events.entityId, payload.shiftId),
           eq(events.action, "shift.changed"),
-          gte(events.id, payload.changeEventId),
+          gt(events.id, floor),
         ),
       )
       .orderBy(asc(events.id))
@@ -347,14 +354,13 @@ async function claimNotices(
       from events c
       join events m on m.firm_id = c.firm_id and m.created_at = c.created_at
      where c.entity_type = 'shift' and c.entity_id = ${payload.shiftId}
-       and c.action = 'shift.changed' and c.id >= ${payload.changeEventId}
+       and c.action = 'shift.changed' and c.id > ${floor}
        and m.entity_type = 'assignment'
        and m.action in ('shift.moved', 'shift.curtailed')
        and (m.data ->> 'source') is distinct from 'sheets'
        and m.entity_id in (select a.id from assignments a where a.shift_id = ${payload.shiftId})
   `);
   const withMove = new Set(moves.map((m) => `${m.assignment_id}|${m.change_id}`));
-  const bookings = await bookingFacts(tx, payload.shiftId);
 
   const started = shift.startsAt.getTime() <= now.getTime();
   const firmSends = firmSystemSends(shift.settings);

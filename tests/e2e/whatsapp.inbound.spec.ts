@@ -50,10 +50,10 @@ test("a WhatsApp from a number we don't know gets the polite reply, and the offi
   page,
   request,
 }) => {
-  // A different drama-range number each attempt (07700 900940-900979), one no casual has (other
-  // specs add casuals in that range), so a retry within 24 hours isn't a repeat. The message
+  // A different drama-range number each attempt (the stranger block, tests/e2e/spare-mobiles.ts),
+  // one no casual has, so a retry within 24 hours isn't a repeat. The message
   // carries the attempt's own tag, so its row on Enquiries is this attempt's and no other's.
-  const stranger = await unusedMobile("acme", 940, 979);
+  const stranger = await unusedMobile("acme", "stranger");
   const tag = randomBytes(3).toString("hex");
   const email = "unknown.admin@example.com";
   await addOfficeUser("acme", { email, name: "Unknown Admin", role: "admin" });

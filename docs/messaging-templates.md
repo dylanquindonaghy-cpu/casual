@@ -194,7 +194,10 @@ Automatic reply. Send OFFICE to reach a person.
   WhatsApp and by text).
 - Nothing they can take: "Hi Zoe, there's nothing you can take on Saturday within 45 minutes of
   your home area right now. We'll message you if something comes up. All open shifts: {link}"
-  (the day and the area only when known; "We'll message you…" only when they get shift alerts).
+  (the day and the area only when known; "We'll message you…" only when they get shift alerts
+  and something can reach them: a phone with notifications on, texts they haven't stopped while
+  there's a text sender, or an email address the firm holds; the rule Home and Open shifts use,
+  `reachOf()`, 29.2. A casual nothing can reach gets the same words without it.)
 - By text: "Acme Events: shifts for you: 1) Sat 10 Oct 08:00-16:00 Door supervisor, Acme Demo Arena, £15.50/h, 3.1 miles, 12 min by car, 24 min by public transport. 2) Sat 10 Oct 17:00-23:00 CSAS officer, Northgate Town Centre, £15.00/h, 8.4 miles, 21 min by car, 38 min by public transport. Take one: {link} Automatic reply. Send OFFICE to reach a person. - Acme Events Shift Team" (the same travel facts as the app's line, with commas instead of "·",
   which isn't in the plain text alphabet: "distance not known yet", "about 7 miles (straight
   line), travel time not known yet", "over 90 min by car")
@@ -290,7 +293,9 @@ never a person's name), not one per firm (PLAN.md Parking lot, P2.4).
   by quiet hours unless the session starts within the urgent window. Not sent, and logged, when the
   session has started, when the firm's own system tells its casuals (`firm_system_sends`, for a
   booking and a change that both came from that system), when the same change moved or shortened
-  their shift and sent `shift_changed_by_firm`, or when nothing can reach them)
+  their shift and sent `shift_changed_by_firm`, when nothing can reach them, or (Phase 29.4) when
+  the office placed them and their booking message (`shift_confirmed`) hasn't gone yet: it links to
+  the shift as it is when it goes, so they never hear of a change to a shift they haven't heard of)
 - Not chosen from an ask (`shift_not_booked`): subject "Not this time: {date}"
 - A request's answer (`request_update`): subject "Your request (ref {ref}) is {status}"
 - A pay query's answer (`pay_query_update`): subject "Payroll has answered your pay query"
@@ -400,11 +405,21 @@ app has its own way to the office: `forTheApp()`). Nothing goes by WhatsApp, tex
 - **About her pay (the guardrails review of 28.10).** A message sent from Messages opened about
   her pay with no shift (`/messages?about=pay`: Pay's and the pay query's "Message the office",
   shown when her pay can't open because no code can be sent, or when a pay question is older than
-  the pay query's 90 days; docs/screens.md "### 28.10") is stored for the office (`intent` 'office'
-  before the job claims it) and never sorted: no keyword, no AI, and never the pay page's link,
-  which would only send her back to the page that sent her. It goes to a person on Enquiries as the
-  office's question, as one about a shift does. Its `message.received` says so (`aboutPay`), with
-  ids only.
+  the pay query's 90 days; docs/screens.md "### 28.10") is never sorted: no keyword, no AI, and
+  never the pay page's link, which would only send her back to the page that sent her. **Since
+  Phase 29.1** (Dylan's decision 20; golden rule 9; docs/screens.md "### 29.1") it is a pay query
+  for payroll's digest, raised in the same transaction that stores it
+  (`src/lib/inbound/app.ts`, `src/lib/pay/from-messages.ts`): issue "other", no shift, open, the
+  day she sent it as the day, her words as its details. The message is stored already handled
+  (`handled_as` 'office', `intent` 'pay') and no inbound job is queued, so no automatic answer of
+  any kind goes, and no office request is made. The casual's page says "Sent. Payroll will look at
+  it. You'll see the answer on your Pay page."; under that message in her thread, "Sent to
+  payroll." and "See it on your Pay page". Payroll's answer reaches her as any pay query's does
+  (`pay_query_update`, and on her Pay page). Its `message.received` says so (`aboutPay`, and the
+  query's id `payQueryId`), and `pay_query.created` carries `via: "messages"`, the message's id and,
+  when known, `why: "no_code"`: ids only, never her words. (From the guardrails review of 28.10
+  until 29.1 it was the office's question on Enquiries instead; one from someone no longer active
+  still is.)
 - Her ready sentences (`src/lib/portal/messages-copy.ts`, the words of docs/screens.md "### 28.6")
   are only put in her box: she can change them before she sends, and nothing is sent until she
   taps Send.
@@ -568,4 +583,6 @@ reach the same app, which isn't answering.
   week of Mon 7 Sep, paid at £12.50"; on a fortnightly pay calendar, in the firm's word for its
   period: "wrong rate, the cycle of Mon 12 Oct, paid at £13.00", Phase 25.2). The body holds counts and facts only; names and what
   workers wrote are only in the attached list (columns Reference, Worker, Day worked, Shift, Issue,
-  What they wrote, Sent (firm time), Group; spreadsheet-safe cells).
+  What they wrote, Sent (firm time), Group, Sent from; spreadsheet-safe cells. Sent from, Phase
+  29.1: "Pay page", "Messages", or "Messages (we couldn't send them a pay code)" for a pay question
+  sent from Messages about her pay).

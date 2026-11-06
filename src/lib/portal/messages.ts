@@ -22,13 +22,16 @@ export interface ThreadItem {
   text: string | null;
   at: Date;
   from: "automatic" | "office" | null; // null: theirs
+  // Hers, sent about her pay: it went to payroll as a pay query (Phase 29.1; src/lib/inbound/app.ts
+  // stores only those as handled_as 'office' with intent 'pay'). Its answer is on her Pay page.
+  toPayroll?: boolean;
 }
 
 export interface Thread {
   items: ThreadItem[];
   more: boolean; // older ones within the days weren't shown
   latestMineAt: Date | null; // their newest message
-  answered: boolean; // an answer came after their newest message
+  answered: boolean; // an answer came after their newest message (one to payroll waits for none)
 }
 
 async function readThread(tx: FirmTx, workerId: string, now: Date): Promise<Thread> {
@@ -38,9 +41,10 @@ async function readThread(tx: FirmTx, workerId: string, now: Date): Promise<Thre
     direction: "in" | "out";
     body: string | null;
     intent: string | null;
+    handled_as: string | null;
     created_at: string | Date;
   }>(sql`
-    select m.id, m.direction, m.body, m.intent, m.created_at
+    select m.id, m.direction, m.body, m.intent, m.handled_as, m.created_at
       from messages m
      where m.channel = 'app' and m.worker_id = ${workerId} and m.created_at > ${since}
      order by m.created_at desc, m.id desc
@@ -55,13 +59,16 @@ async function readThread(tx: FirmTx, workerId: string, now: Date): Promise<Thre
       text: r.body,
       at: new Date(r.created_at),
       from: r.direction === "in" ? null : r.intent ? "automatic" : "office",
+      toPayroll: r.direction === "in" && r.intent === "pay" && r.handled_as === "office",
     }));
   const lastMine = items.findLastIndex((i) => i.mine);
+  // One to payroll is answered on her Pay page, never here: it waits for no answer in the thread.
+  const lastAsked = items.findLastIndex((i) => i.mine && !i.toPayroll);
   return {
     items,
     more: rows.length > THREAD_MAX,
     latestMineAt: lastMine >= 0 ? (items[lastMine]?.at ?? null) : null,
-    answered: lastMine < 0 || items.slice(lastMine + 1).some((i) => !i.mine),
+    answered: lastAsked < 0 || items.slice(lastAsked + 1).some((i) => !i.mine),
   };
 }
 

@@ -2,8 +2,9 @@ import { randomBytes } from "node:crypto";
 import type { Browser, BrowserContext, Page, TestInfo } from "@playwright/test";
 import { addOfficeUser } from "./db";
 import { expect, test } from "./fixtures";
-import { loginLinkSentTo, sentTo } from "./outbox";
+import { codeSentTo, loginLinkSentTo, sentTo } from "./outbox";
 import { messageOfficeScene, P28_6_CASUAL, P28_6_TYPED } from "./p28/28-6-data";
+import { payFromMessages } from "./p29/29-1-data";
 
 // Phase 28, 28.6 (docs/screens.md "### 28.6"; docs/messaging-templates.md "Messages in the app"):
 // Message the office about a shift, in a real browser. A made-up casual of this spec's own
@@ -206,24 +207,27 @@ test("Message the office about a shift: the About line and a ready sentence, sen
     }
 });
 
-// 28.10's guardrails review: Pay's and the pay query's "Message the office" open
-// /messages?about=pay. What she sends there goes to a person, never the automatic pay link (which
-// would send her back to the Pay page that can't take the question): the whole path, from the
-// page through the composer and its action to the worker.
-test("From Pay: Messages about her pay goes to a person, never the automatic pay answer", async ({
+// 28.10's guardrails review, and Phase 29.1 (Dylan's decision 20; docs/screens.md "### 29.1"):
+// Pay's and the pay query's "Message the office" open /messages?about=pay. What she sends there is
+// a pay query for payroll's digest (golden rule 9), never the automatic pay link (which would send
+// her back to the Pay page that can't take the question) and never an office request: the whole
+// path, from the page through the composer and its action to the database, Enquiries and her Pay
+// page. (Until 29.1 this test expected it in Enquiries' Need a person: the behaviour changed on
+// purpose.)
+test("From Pay: Messages about her pay goes to payroll as a pay query, never the automatic pay answer", async ({
   page,
   browser,
 }) => {
   test.setTimeout(240_000);
   const tag = randomBytes(3).toString("hex");
-  await messageOfficeScene(tag);
+  const scene = await messageOfficeScene(tag);
   await logInCasual(page);
 
   await page.goto(`${acme}/messages?about=pay`);
   await expect(page.locator("[data-about-shift]")).toHaveText("About: your pay");
   await expect(
     page.getByText(
-      "This goes to a person at the office, not the automatic answers. They'll answer you here.",
+      "This goes to payroll, not the automatic answers. You'll see their answer on your Pay page.",
     ),
   ).toBeVisible();
   const box = page.getByRole("textbox", { name: "Your message", exact: true });
@@ -233,24 +237,51 @@ test("From Pay: Messages about her pay goes to a person, never the automatic pay
   await box.fill(words);
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(
-    page.getByRole("status").filter({ hasText: "Sent. The office will answer here." }),
+    page.getByRole("status").filter({
+      hasText: "Sent. Payroll will look at it. You'll see the answer on your Pay page.",
+    }),
   ).toBeVisible();
   await expect(page).toHaveURL(`${acme}/messages`);
 
-  // The office finds it in Need a person, passed to a person and never sorted.
+  // One pay query for payroll (Something else, no shift, open) and no office request.
+  const stored = await payFromMessages(scene.workerId, tag);
+  expect(stored.requests).toBe(0);
+  expect(stored.queries).toHaveLength(1);
+  const query = stored.queries[0];
+  expect(query).toMatchObject({ issue: "other", status: "open", shiftId: null });
+  const ref = query?.ref ?? "";
+
+  // The office: not in Need a person; under Pay, "Pay: sent to payroll".
   const office = await logInOffice(browser, tag);
   const desk = await office.newPage();
   const row = desk.getByRole("listitem").filter({ hasText: words });
   await expect(async () => {
-    await desk.goto(`${acme}/office/enquiries?view=person`);
+    await desk.goto(`${acme}/office/enquiries?view=pay`);
     await expect(row).toBeVisible({ timeout: 2_000 });
   }).toPass({ timeout: 30_000 });
-  await expect(row).toContainText("Passed to a person, waiting");
+  await expect(row).toContainText("Pay: sent to payroll");
+  await desk.goto(`${acme}/office/enquiries?view=person`);
+  await expect(desk.getByRole("listitem").filter({ hasText: words })).toHaveCount(0);
   await office.close();
 
-  // And on her phone: no automatic answer with the pay link came.
+  // On her phone: no automatic answer came, and her message says it went to payroll.
   await page.goto(`${acme}/messages`);
   const thread = page.getByRole("list", { name: "Your messages" });
-  await expect(thread.getByRole("listitem").filter({ hasText: words })).toBeVisible();
+  const mine = thread.getByRole("listitem").filter({ hasText: words });
+  await expect(mine).toBeVisible();
+  await expect(mine).toContainText("Sent to payroll.");
   await expect(thread.getByRole("listitem").filter({ hasText: "Automatic reply" })).toHaveCount(0);
+
+  // "See it on your Pay page": after the code, "Your pay queries" lists it with its reference.
+  await mine.getByRole("link", { name: "See it on your Pay page" }).click();
+  await expect(page).toHaveURL(`${acme}/pay`);
+  const asked = new Date(Date.now() - 1000);
+  await page.getByRole("button", { name: "Send me a code" }).click();
+  await page.getByLabel("Your code").fill(await codeSentTo(P28_6_CASUAL.mobileE164, asked));
+  await page.getByRole("button", { name: "Check code" }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "Your pay queries" })).toBeVisible();
+  const listed = page.getByRole("listitem").filter({ hasText: `Reference ${ref}` });
+  await expect(listed).toBeVisible();
+  await expect(listed).toContainText("Something else");
+  await expect(listed).toContainText("With payroll");
 });

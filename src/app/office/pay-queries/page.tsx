@@ -9,6 +9,7 @@ import { readSessionToken } from "@/lib/auth/session-cookie";
 import { digestLines } from "@/lib/office/pay-digest-copy";
 import { officePayDigestView } from "@/lib/office/pay-digest-view";
 import { officePayQueryGroups } from "@/lib/office/pay-query-groups";
+import { sentFromWords } from "@/lib/pay/digest-list";
 import { timeOnDay } from "@/lib/portal/format";
 import { ISSUE_LABELS } from "@/lib/portal/pay-query-kinds";
 import { dayLabel } from "@/lib/rules/reasons";
@@ -84,6 +85,11 @@ export default async function PayQueriesPage() {
                     {q.worker}: {q.shift ?? dayLabel(q.day)} · {ISSUE_LABELS[g.facts.issue]}
                   </p>
                   {q.details && <p className="mt-1">&ldquo;{q.details}&rdquo;</p>}
+                  {sentFromWords(q).note && (
+                    <p className={`mt-1 ${meta}`} data-sent-from="messages">
+                      {sentFromWords(q).note}
+                    </p>
+                  )}
                   <p className={`mt-1 ${meta} tabular-nums`}>
                     Sent {timeOnDay(q.createdAt, tz)} · Reference <Ref>{q.ref}</Ref>
                     {q.status === "in_digest" ? (

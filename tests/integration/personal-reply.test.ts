@@ -682,7 +682,83 @@ describe("through the shifts line's job", () => {
     const [received] = await t.eventsOf(unsorted.messageId, "message.received");
     expect(received).toMatchObject({ handledAs: "office", aiFallback: "not_connected" });
   });
+
+  // 29.2: "We'll message you if something comes up." only to a casual something can reach (the
+  // rule Home and Open shifts use, reachOf()). Nothing she can take in each case, alerts on.
+  const PROMISE = "We'll message you if something comes up.";
+  const NOTHING =
+    "Hi Zoe, there's nothing you can take within 45 minutes of your home area right now.";
+
+  it("29.2: no way to reach her (no phone with notifications, STOP, no email): no promise", async () => {
+    const t = await lined();
+    await su.query(
+      "update workers set sms_opted_out_at = now(), email = null, offer_alerts = true where id = $1",
+      [t.zoe],
+    );
+    const { result } = await t.send("any shifts?");
+    expect(result).toMatchObject({ status: "replied", intent: "shifts" });
+    const body = t.capture.sent.at(-1)?.body ?? "";
+    expect(body).not.toContain("We'll message you");
+    expect(body).toBe(
+      `${NOTHING} All open shifts: https://${await slugOf(t.f.firmId)}.shiftdesk.test/shifts/open\n${AUTOMATIC}\n— ${t.firmName} Shift Team`,
+    );
+  });
+
+  it("29.2: a phone with notifications on: the promise, in the same words otherwise", async () => {
+    const t = await lined();
+    await su.query(
+      "update workers set sms_opted_out_at = now(), email = null, offer_alerts = true where id = $1",
+      [t.zoe],
+    );
+    await su.query(
+      `insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth)
+       values ($1, $2, $3, 'k', 'a')`,
+      [t.f.firmId, t.zoe, `https://push.example.test/${randomBytes(6).toString("hex")}`],
+    );
+    await t.send("any shifts?");
+    const body = t.capture.sent.at(-1)?.body ?? "";
+    expect(body).toBe(
+      `${NOTHING} ${PROMISE} All open shifts: https://${await slugOf(t.f.firmId)}.shiftdesk.test/shifts/open\n${AUTOMATIC}\n— ${t.firmName} Shift Team`,
+    );
+  });
+
+  it("29.2: an email address or texts she hasn't stopped reach her; no text sender and no email doesn't", async () => {
+    const t = await lined();
+    const words = async (textSender: boolean) =>
+      (
+        await shiftsReply(withFirm, {
+          firmId: t.f.firmId,
+          workerId: t.zoe,
+          text: "any shifts?",
+          now: NOW,
+          firm: voice(t.firmName),
+          portal: PORTAL,
+          textSender,
+        })
+      ).whatsapp;
+    // Texts allowed, a text sender: reached by text.
+    await su.query("update workers set email = null where id = $1", [t.zoe]);
+    expect(await words(true)).toContain(PROMISE);
+    // No text sender, no email: nothing reaches her.
+    expect(await words(false)).not.toContain("We'll message you");
+    // An email address held: reached by email, text sender or not.
+    await su.query(
+      "update workers set sms_opted_out_at = now(), email = 'zoe@example.test' where id = $1",
+      [t.zoe],
+    );
+    expect(await words(false)).toContain(PROMISE);
+    // Alerts off: never the promise, reachable or not.
+    await su.query("update workers set offer_alerts = false where id = $1", [t.zoe]);
+    expect(await words(true)).not.toContain("We'll message you");
+  });
 });
+
+async function slugOf(firmId: string): Promise<string> {
+  const { rows } = await su.query<{ slug: string }>("select slug from firms where id = $1", [
+    firmId,
+  ]);
+  return rows[0]?.slug ?? "";
+}
 
 describe("travel areas switched off for the firm (13.4)", () => {
   it("lists what she could take wherever it is: no travel lines, no ask for a home area, nothing ruled out by distance; logged as off", async () => {

@@ -121,7 +121,13 @@ export async function queueDetailsNotice(
 
 // --- Who is told: code decides (golden rule 1) ------------------------------------------------
 
-export const DETAILS_SKIP_REASONS = ["started", "firm_sends", "move_notice", "no_way"] as const;
+export const DETAILS_SKIP_REASONS = [
+  "started",
+  "firm_sends",
+  "move_notice",
+  "no_way",
+  "not_told",
+] as const;
 export type DetailsSkipReason = (typeof DETAILS_SKIP_REASONS)[number];
 
 export interface UntoldChange {
@@ -147,6 +153,12 @@ export function detailsNoticeDecision(b: {
   firmSystemSends: boolean; // the firm's `firm_system_sends` (who-sends.ts)
   bookedByFirmSystem: boolean; // assignments.booked_via sheet or api
   reach: "push" | "sms" | "email" | "none"; // reachOf() (src/lib/offers/reach.ts)
+  // Placed by the office with a booking message (`shift.assigned` {bookingMessage: true}) that
+  // hasn't been claimed yet (no `shift.booked_notice`: still to go, or held for quiet hours), as
+  // src/lib/notices/firm-change.ts reads it (Phase 29.4). She hasn't heard of the shift: a "details
+  // changed" message would come first, or alone. The booking message links to the shift as it is
+  // when it goes, so nothing is lost.
+  bookingMessageDue: boolean;
 }): DetailsDecision {
   if (b.untold.length === 0) return { action: "none" };
   // The parts the move's own notice didn't cover (it says what moved, and links to the shift).
@@ -155,6 +167,7 @@ export function detailsNoticeDecision(b: {
   const fields = BRIEFING_FIELDS.filter((f) => named.has(f));
   if (fields.length === 0) return { action: "skip", reason: "move_notice" };
   if (b.started) return { action: "skip", reason: "started" };
+  if (b.bookingMessageDue) return { action: "skip", reason: "not_told" };
   if (b.firmSystemSends && b.bookedByFirmSystem && rest.every((c) => c.firmSystem)) {
     return { action: "skip", reason: "firm_sends" };
   }
@@ -195,6 +208,7 @@ interface BookingFacts {
   email: string | null;
   phones: number;
   toldThrough: number; // the newest change its last notice or skip covered (0: none)
+  bookingMessageDue: boolean; // placed with a booking message not yet claimed (see the decision)
 }
 
 const reachInput = (b: BookingFacts) => ({
@@ -219,6 +233,7 @@ async function bookingFacts(tx: FirmTx, shiftId: string): Promise<BookingFacts[]
     email: string | null;
     phones: number;
     told_through: string;
+    booking_message_due: boolean;
   }>(sql`
     select a.id::text as id, a.confirmed_at, a.booked_via,
            w.id::text as worker_id, w.mobile_e164 as mobile, w.notify_channel as channel,
@@ -228,7 +243,13 @@ async function bookingFacts(tx: FirmTx, shiftId: string): Promise<BookingFacts[]
            coalesce((select max((e.data ->> 'changeEventId')::bigint) from events e
                       where e.entity_id = a.id
                         and e.action in ('shift.details_notice', 'shift.details_notice_skipped')),
-                    0)::text as told_through
+                    0)::text as told_through,
+           (exists (select 1 from events e
+                     where e.entity_id = a.id and e.action = 'shift.assigned'
+                       and e.data ->> 'bookingMessage' = 'true')
+            and not exists (select 1 from events e
+                             where e.entity_id = a.id and e.action = 'shift.booked_notice'))
+             as booking_message_due
       from assignments a
       join workers w on w.firm_id = a.firm_id and w.id = a.worker_id
      where a.shift_id = ${shiftId} and a.worker_id is not null and a.status = 'confirmed'
@@ -246,6 +267,7 @@ async function bookingFacts(tx: FirmTx, shiftId: string): Promise<BookingFacts[]
     email: r.email,
     phones: Number(r.phones),
     toldThrough: Number(r.told_through),
+    bookingMessageDue: r.booking_message_due === true,
   }));
 }
 
@@ -382,6 +404,7 @@ async function claimNotices(
       firmSystemSends: firmSends,
       bookedByFirmSystem: (FIRM_SYSTEM_BOOKINGS as readonly string[]).includes(b.bookedVia ?? ""),
       reach: reachOf(reachInput(b), deps.textSender).how,
+      bookingMessageDue: b.bookingMessageDue,
     });
     const changeEventId = Math.max(0, ...untold.map((c) => c.id));
     if (decision.action === "skip") {

@@ -1,4 +1,5 @@
 import { and, arrayContains, desc, eq, gt, inArray, like, sql } from "drizzle-orm";
+import { dramaMobile, SPARE_MOBILES, type SpareBlock } from "./spare-mobiles";
 import { createHash } from "node:crypto";
 import { Pool } from "pg";
 import { seedId } from "../../src/lib/db/admin/seed-data";
@@ -400,7 +401,7 @@ export async function comingUpScene(
     const id = await addSteward(slug, {
       firstName,
       lastName,
-      mobileE164: await unusedMobile(slug, 800, 869),
+      mobileE164: await unusedMobile(slug, "stewards"),
     });
     return { id, name: `${firstName} ${lastName}` };
   };
@@ -693,10 +694,11 @@ export async function workerName(slug: string, mobileE164: string): Promise<stri
   }
 }
 
-// A drama-range number from 07700 900`from` to 900`to` that no casual of the firm has, in the e2e
-// database: a stranger for the shifts line. Other specs add casuals in that range (casual.messages'
-// Kay on 900972, office.inbox's Ira on 900971), so the range alone doesn't make a number unknown.
-export async function unusedMobile(slug: string, from: number, to: number): Promise<string> {
+// A drama-range number from one of SPARE_MOBILES' blocks (tests/e2e/spare-mobiles.ts) that no
+// casual of the firm has, in the e2e database. The block keeps it clear of every spec's own fixed
+// casuals; the check against the database keeps two picks (and retries) apart.
+export async function unusedMobile(slug: string, block: SpareBlock): Promise<string> {
+  const [from, to] = SPARE_MOBILES[block];
   const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
   try {
     const firmId = seedId(`firm/${slug}`);
@@ -707,11 +709,11 @@ export async function unusedMobile(slug: string, from: number, to: number): Prom
         .where(like(workers.mobileE164, "+447700900%"));
       return new Set(rows.map((r) => r.mobile));
     });
-    const free = Array.from({ length: to - from + 1 }, (_, i) => `+447700900${from + i}`).filter(
+    const free = Array.from({ length: to - from + 1 }, (_, i) => dramaMobile(from + i)).filter(
       (m) => !held.has(m),
     );
     const pick = free[Math.floor(Math.random() * free.length)];
-    if (!pick) throw new Error(`every number 900${from}-900${to} is a casual's`);
+    if (!pick) throw new Error(`every number in the ${block} block is a casual's`);
     return pick;
   } finally {
     await pool.end();

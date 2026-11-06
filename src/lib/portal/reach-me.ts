@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { withFirm } from "../db/scoped";
+import { withFirm, type FirmTx } from "../db/scoped";
 import { reachOf } from "../offers/reach";
 import { hasTextSender } from "./login-way";
 import type { PortalContext } from "./my-shifts";
@@ -42,31 +42,35 @@ export async function myReachFacts(
   workerId: string,
 ): Promise<ReachFacts | null> {
   const run = ctx.run ?? withFirm;
-  return run(ctx.firm.id, async (tx) => {
-    const { rows } = await tx.execute<{
-      phones: number;
-      channel: "sms" | "email";
-      sms_allowed: boolean;
-      has_email: boolean;
-      offer_alerts: boolean;
-    }>(sql`
-      select (select count(*)::int from push_subscriptions p
-               where p.firm_id = w.firm_id and p.worker_id = w.id) as phones,
-             w.notify_channel as channel, w.sms_opted_out_at is null as sms_allowed,
-             w.email is not null as has_email, w.offer_alerts
-        from workers w
-       where w.id = ${workerId}
-    `);
-    const row = rows[0];
-    if (!row) return null;
-    return {
-      phones: Number(row.phones),
-      channel: row.channel,
-      smsAllowed: row.sms_allowed,
-      hasEmail: row.has_email,
-      offerAlerts: row.offer_alerts,
-    };
-  });
+  return run(ctx.firm.id, (tx) => reachFactsIn(tx, workerId));
+}
+
+// The same facts inside a transaction already scoped to her firm (the shifts line's personal
+// reply reads them with her other facts, 29.2). RLS keeps it to the firm's own rows.
+export async function reachFactsIn(tx: FirmTx, workerId: string): Promise<ReachFacts | null> {
+  const { rows } = await tx.execute<{
+    phones: number;
+    channel: "sms" | "email";
+    sms_allowed: boolean;
+    has_email: boolean;
+    offer_alerts: boolean;
+  }>(sql`
+    select (select count(*)::int from push_subscriptions p
+             where p.firm_id = w.firm_id and p.worker_id = w.id) as phones,
+           w.notify_channel as channel, w.sms_opted_out_at is null as sms_allowed,
+           w.email is not null as has_email, w.offer_alerts
+      from workers w
+     where w.id = ${workerId}
+  `);
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    phones: Number(row.phones),
+    channel: row.channel,
+    smsAllowed: row.sms_allowed,
+    hasEmail: row.has_email,
+    offerAlerts: row.offer_alerts,
+  };
 }
 
 // Home's loader: the rows for her, with the web app's own text sender (hasTextSender, as the

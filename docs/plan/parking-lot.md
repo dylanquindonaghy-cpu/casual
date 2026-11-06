@@ -2461,9 +2461,9 @@ Each task adds what it left out here as its wave is merged.
 - **From wave 2's guardrails reviews (nits, not fixed):** the shifts line's personal reply
   (`src/lib/inbound/personal-reply.ts:274`) still adds "We'll message you if something comes up."
   from the open-shift alerts alone, so it promises a message to a casual nothing can reach (Home and
-  Open shifts no longer do). The office's "Sorted by" and "Remind all" (`casual-follow-up.ts`
-  `sortedFor`) match the latest "sorted" mark on type and status only, the flaw 28.11's fix closed
-  for the casual's "in hand". Home's offline copy now also keeps the Pay and answers counts (counts
+  Open shifts no longer do) (done in Phase 29.2). The office's "Sorted by" and "Remind all"
+  (`casual-follow-up.ts` `sortedFor`) match the latest "sorted" mark on type and status only, the
+  flaw 28.11's fix closed for the casual's "in hand" (done in Phase 29.3). Home's offline copy now also keeps the Pay and answers counts (counts
   only, stale offline). `gettingThereLines` (old travel words) is unused code. The open shifts strip's
   key can name a mark that isn't on screen when the only urgent day is the chosen one.
 - **28.12 (Help and the cancel sheet):** the older Phase 25.6 paragraph of `docs/screens.md` still
@@ -2481,3 +2481,20 @@ Each task adds what it left out here as its wave is merged.
   by" time (needs a rule change, no data for it today). Home still reads her qualifications twice
   (the "Do this" row and the tab counts).
 - **28.16:** (filled when wave 4 is merged)
+
+## Phase 29, deferred while building (2026-11-06)
+
+- **29.1 (pay questions from Messages):** a question older than 90 days is recorded only as "Sent
+  from Messages": Pay's "Message the office" links carry no reason, so payroll can't see that one
+  was too old for the Pay page (the no-code reason is recorded). To show it, the links would carry
+  `?about=pay&why=too_old`, with the link checks in several unit and browser specs updated.
+- **29.4 (details notice waits for the booking message):** a change made before the booking message
+  went is still told if the details job runs only after that message has gone (both held to 07:00,
+  the booking message first): not confusing, since she has heard of the shift, only repetitive. Like
+  `firm-change.ts`, the job could count only changes made after `shift.booked_notice`. The office
+  editor's "Saved. N booked casuals will be told." still counts a booking whose booking message
+  hasn't gone (she's told through that message's link, so the count isn't wrong).
+- **29.6 (the live phone check):** found that the live demo was a release behind: main's CI failed
+  on #42 because two browser specs could pick the same made-up number (fixed: the spare number
+  blocks, `tests/e2e/spare-mobiles.ts`). Nothing else from the check is left open.
+

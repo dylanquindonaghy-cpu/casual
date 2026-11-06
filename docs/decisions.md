@@ -273,7 +273,9 @@ without a full load (after logging in, or going back to it): the page sends the 
 resolving the path and fetched without cookies (the page's text includes what the firm typed).
 The copy lives only on the worker's phone. It is deleted on logout, on login, when the server
 answers "not logged in", and is never shown after 14 days. Every other page (pay, requests, the
-office) is never cached. `OFFLINE_COPY` switches it: on in production, off in development (a slow
+office) is never cached. (Phase 29.6: the service worker also answers opening any other page of the
+site, passing the network's answer through untouched, and only with no network at all shows a
+"No signal" page it makes each time, never kept, with a way back to the saved shifts.) `OFFLINE_COPY` switches it: on in production, off in development (a slow
 first compile would show an old copy); off also removes the service worker from phones that
 open My shifts.
 **Options:** a PWA library such as Workbox (caches far more than one page, another dependency);

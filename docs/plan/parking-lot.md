@@ -2415,7 +2415,14 @@ Each task adds what it left out here as its wave is merged.
   keeps them gone). The main button's `glass-tint` keeps its gradient rule with both ends one
   colour, because the office's hi-vis button still uses it.
 - **28.2 (the data layer):** nothing parked. Choices for Dylan: Decisions waiting 17 and 18.
-  Erasure clears the new columns without adding to the erasure counts the office sees.
+  Erasure clears the new columns without adding to the erasure counts the office sees. From its
+  guardrails review: the office's override reason (`src/lib/roster/book.ts:238`) still refuses a
+  reason when `maskText` changes it, so a harmless reason such as `per client: "ok"` or "2/11?" is
+  refused as holding contact details; switch it to `holdsPhoneOrEmail` (`src/lib/log/mask.ts`) with
+  tests. Two wording fixes wait for 28.4's merge (it owns `docs/privacy-notice.md` this wave): "you
+  can take back a request while it's still waiting" needs "(not a question you sent us as a
+  message: the office answers that one)", and the erasure sentence about "still coming" wants
+  plainer words.
 - **28.3:** (filled when wave 2 is merged)
 - **28.4:** (filled when wave 2 is merged)
 - **28.5:** (filled when wave 2 is merged)

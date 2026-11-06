@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { requireWorker } from "@/lib/auth/current-worker";
 import { appEnv, offlineCopyOn } from "@/lib/env";
-import { myShifts } from "@/lib/portal/my-shifts";
+import { myShiftCounts, myShifts } from "@/lib/portal/my-shifts";
 import { tabCounts } from "@/lib/portal/tab-counts";
 import { BookedView } from "./booked-view";
 import { CountedTabBar } from "../casual-tab-bar";
@@ -12,9 +12,10 @@ import { page } from "../ui/classes";
 
 export const metadata: Metadata = { title: "Booked shifts" };
 
-// Booked (docs/office-v2.md 4.1, 4.3; docs/screens.md `/shifts`; 12H.1): her bookings, Upcoming or
-// the last 30 days (`?view=past`), on the Shifts tab next to Open (`/shifts/open`). Kept for when
-// there's no signal, as Home is (public/sw.js keeps both; OfflineCopy asks it to keep this one).
+// Booked (docs/office-v2.md 4.1, 4.3; docs/screens.md `/shifts`, "### 28.13"; 12H.1): her bookings,
+// Upcoming or the last 90 days reliability counts (`?view=past`), each tab with its count, on the
+// Shifts tab next to Open (`/shifts/open`). Kept for when there's no signal, as Home is (public/sw.js
+// keeps both, and /shifts only with no query: Upcoming; OfflineCopy asks it to keep this one).
 export default async function BookedPage({
   searchParams,
 }: {
@@ -28,8 +29,9 @@ export default async function BookedPage({
   const now = new Date();
   const clock = { now: () => now };
   // The tab bar's counts from tabCounts(), as on every casual page (Phase 28.7).
-  const [shifts, counts] = await Promise.all([
+  const [shifts, viewCounts, counts] = await Promise.all([
     myShifts({ firm, clock }, worker.id, view),
+    myShiftCounts({ firm, clock }, worker.id),
     tabCounts({ firm, clock }, worker.id),
   ]);
   return (
@@ -42,6 +44,7 @@ export default async function BookedPage({
         now={now}
         view={view}
         shifts={shifts}
+        counts={viewCounts}
         newShiftId={newShiftId}
       />
       <CountedTabBar current="shifts" counts={counts} />

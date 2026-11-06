@@ -3,7 +3,7 @@ import { mapLink, siteAddress } from "@/lib/portal/format";
 import type { MyShift } from "@/lib/portal/my-shifts";
 import { CancelShift } from "./shifts/cancel-shift";
 import { dateParts, shiftLine } from "@/lib/portal/sign-copy";
-import { muted, staffBtn, staffBtnSmall, switchTrack } from "./ui/classes";
+import { disc, muted, slip, staffBtn, staffBtnSmall, switchTrack } from "./ui/classes";
 import { Icon } from "./ui/icons";
 
 // Pieces Home and Booked share (12H.1): the no-signal notice, the Shifts tab's Open | Booked switch,
@@ -13,7 +13,7 @@ import { Icon } from "./ui/icons";
 
 // "No signal" (Home and Booked): shown only in the copy kept for when there's no signal:
 // public/sw.js removes `hidden` when it serves that copy (so `hidden` stays before the classes). It
-// carries the time the copy was made.
+// carries the time the copy was made. A slip (Phase 28.13: 28.1's notice, amber, led by its disc).
 export function OfflineNotice({ updated }: { updated: string }) {
   return (
     <div
@@ -21,11 +21,13 @@ export function OfflineNotice({ updated }: { updated: string }) {
       hidden
       suppressHydrationWarning
       role="status"
-      className="glass flex items-start gap-3 rounded-2xl p-3.5 text-base"
+      className={`${slip.base} ${slip.attention}`}
     >
-      <Icon name="offline" size={24} className="mt-px" />
-      <div>
-        <p className="text-lg font-semibold">No signal.</p>
+      <span aria-hidden="true" className={`${disc.base} ${disc.attention}`}>
+        <Icon name="offline" size={18} />
+      </span>
+      <div className="flex min-w-0 flex-1 flex-col gap-1 self-center">
+        <p className="font-semibold">No signal.</p>
         <p className="text-ink-muted">
           This is your saved copy from {updated}. It updates when you&apos;re back online.
         </p>
@@ -36,6 +38,11 @@ export function OfflineNotice({ updated }: { updated: string }) {
 }
 
 export const BOOKED_PATH = "/shifts";
+
+// The second line of the way to her shift record (28.4), at the top of Booked's Past 90 days and on
+// Profile (Phase 28.13).
+export const RECORD_ROW_LINE =
+  "Every offer, booking, change and cancellation, with the notice you had";
 
 // The Shifts tab's two lists: Open (`/shifts/open`) and Booked (`/shifts`), as a segmented switch.
 export function ShiftsSwitch({ current }: { current: "open" | "booked" }) {
@@ -51,9 +58,10 @@ export function ShiftsSwitch({ current }: { current: "open" | "booked" }) {
   );
 }
 
-// The Upcoming / Past 30 days switch: a segmented control, not a button. The current half is a
+// One half of the Open | Booked switch: a segmented control, not a button. The current half is a
 // white pill lifted out of the sunk track (Phase 20), with bold words (and aria-current); the
-// words sit directly in the link. The focus ring is drawn inside the pill.
+// words sit directly in the link. The focus ring is drawn inside the pill. (Upcoming | Past 90 days
+// are the office's tabs since Phase 28.13: src/app/shifts/booked-view.tsx.)
 export function Toggle({
   href,
   current,
@@ -99,9 +107,11 @@ export function ShiftDetails({ shift }: { shift: MyShift }) {
         </div>
       )}
       {shift.instructions && (
-        <div className="mt-3 rounded-2xl bg-quiet-soft p-3 text-base">
+        <div
+          className={`mt-3 flex flex-col gap-1 rounded-row border px-4 py-3 text-base text-ink ${slip.quiet}`}
+        >
           <h3 className="font-semibold">Instructions</h3>
-          <p className="mt-1 whitespace-pre-line">{shift.instructions}</p>
+          <p className="whitespace-pre-line">{shift.instructions}</p>
         </div>
       )}
     </>

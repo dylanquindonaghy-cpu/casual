@@ -973,7 +973,7 @@ the menu.
 - It is still a link, with no app to download.
 - **Where today's parts of `/` go** (`src/app/page.tsx` today holds My shifts with Upcoming / Past
   30 days, the offline copy and Log out):
-  - Booked lives at `/shifts` (Upcoming / Past 30 days, `?view=past` as today), next to Open under
+  - Booked lives at `/shifts` (Upcoming / Past 90 days since Phase 28.13, `?view=past` as today), next to Open under
     the Shifts tab; `/?view=past` redirects there.
   - The offline copy covers Home's next shift and Booked.
   - "My requests" (`/requests`: their own asks and the office's answers) is linked from Profile
@@ -1011,7 +1011,7 @@ the menu.
 
 ### 4.3 Shifts tab (`/shifts/open`, plus Booked)
 
-- **Two lists.** Open and Booked (Upcoming / Past 30 days, as today).
+- **Two lists.** Open and Booked (Upcoming / Past 90 days since Phase 28.13, the window reliability counts).
 - **Order:** urgent first, then the nearest (the quickest of her chosen ways to travel), then by
   date.
 - **Each Open row:** role · event, site, date and time · £/hour · post, requirement chips (CSAS),

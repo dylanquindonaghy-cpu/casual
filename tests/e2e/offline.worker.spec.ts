@@ -4,6 +4,7 @@ import { OFFLINE_CACHE } from "../../src/lib/portal/offline";
 import { addBookedShift, addWorker } from "./db";
 import { expect, test } from "./fixtures";
 import { loginLinkSentTo } from "./outbox";
+import { addPastWorkedShift } from "./p28/28-13-data";
 
 // Home and Booked with no signal, in a real browser: the service worker (public/sw.js) keeps the
 // last copy of each (Home with her next shift, Booked at /shifts: 12H.1), shows it offline with
@@ -25,11 +26,14 @@ async function logIn(page: Page, typed: string, e164: string) {
 }
 
 // The kept page's HTML, without the markers React puts between pieces of text ("Hi <!-- -->Sam").
-const keptText = (page: Page) =>
-  page.evaluate(async (name) => {
-    const kept = await (await caches.open(name)).match("/");
-    return kept ? (await kept.text()).replaceAll("<!-- -->", "") : "";
-  }, OFFLINE_CACHE);
+const keptText = (page: Page, path = "/") =>
+  page.evaluate(
+    async ([name, at]) => {
+      const kept = await (await caches.open(name)).match(at);
+      return kept ? (await kept.text()).replaceAll("<!-- -->", "") : "";
+    },
+    [OFFLINE_CACHE, path] as const,
+  );
 
 const hasCopy = (page: Page, path = "/") =>
   page.evaluate(async ([name, at]) => !!(await (await caches.open(name)).match(at)), [
@@ -45,15 +49,16 @@ test("Home (her next shift) and Booked open with no signal, marked as copies; lo
   const n = testInfo.retry;
   const mobile = `+4477009006${22 + n}`;
   const site = `Offline Test Hall ${RUN}`;
-  await addBookedShift("acme", {
-    workerId: await addWorker("acme", {
-      firstName: "Olive",
-      lastName: `Offline${n || ""}`,
-      mobileE164: mobile,
-    }),
-    daysAhead: 3,
-    site,
+  const workerId = await addWorker("acme", {
+    firstName: "Olive",
+    lastName: `Offline${n || ""}`,
+    mobileE164: mobile,
   });
+  await addBookedShift("acme", { workerId, daysAhead: 3, site });
+  // And one she worked 4 days ago (Phase 28.13: Past 90 days), at a site and a pay rate of its
+  // own, so the kept copy of /shifts can be checked for any trace of it.
+  const pastSite = `Offline Past Hall ${RUN}`;
+  const pastShiftId = await addPastWorkedShift(workerId, { site: pastSite, daysAgo: 4 });
   await logIn(page, `07700 9006${22 + n}`, mobile);
   // Arriving on Home after logging in (no full page load) is enough to keep a copy.
   await expect.poll(() => hasCopy(page), { timeout: 15_000 }).toBe(true);
@@ -108,6 +113,25 @@ test("Home (her next shift) and Booked open with no signal, marked as copies; lo
   await page.goto(`${acme}/shifts`);
   await expect(page.getByRole("heading", { name: "Booked shifts" })).toBeVisible();
   await expect.poll(() => hasCopy(page, "/shifts"), { timeout: 15_000 }).toBe(true);
+  // Phase 28.13: the kept copy is Upcoming only, even after Past 90 days has been opened (its
+  // address has a query, which public/sw.js never keeps): no past row, no pay figure from one,
+  // and nothing about requests or the pay query.
+  await page.goto(`${acme}/shifts?view=past`);
+  await expect(page.getByRole("region", { name: "The last 90 days" })).toContainText(pastSite);
+  await page.goto(`${acme}/shifts`);
+  await expect(page.getByRole("heading", { name: "Booked shifts" })).toBeVisible();
+  await expect.poll(() => keptText(page, "/shifts"), { timeout: 15_000 }).toContain(site);
+  const keptBooked = await keptText(page, "/shifts");
+  expect(keptBooked).not.toContain(pastSite);
+  expect(keptBooked).not.toContain(pastShiftId);
+  expect(keptBooked).not.toContain("£17.43");
+  expect(keptBooked).not.toContain("The last 90 days");
+  expect(keptBooked).not.toContain("Think this mark is wrong?");
+  expect(keptBooked).not.toContain("kind=attendance");
+  expect(keptBooked).not.toContain("/pay/query");
+  expect(keptBooked).not.toContain("Ask about the pay for this shift");
+  expect(keptBooked).not.toMatch(/Reference [0-9A-F]{8}/);
+  expect(await hasCopy(page, "/shifts?view=past")).toBe(false);
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Booked shifts" })).toBeVisible();

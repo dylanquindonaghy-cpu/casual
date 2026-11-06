@@ -4,12 +4,14 @@ import { z } from "zod";
 import { getWorkerSession } from "@/lib/auth/current-worker";
 import { markAnswersSeen } from "@/lib/portal/request-answers";
 import {
+  attendancePayload,
   requestPayload,
   WORKER_REQUEST_KINDS,
+  type AttendanceOutcome,
   type CreateRequestOutcome,
   type WithdrawOutcome,
 } from "@/lib/portal/request-kinds";
-import { createRequest, withdrawRequest } from "@/lib/portal/requests";
+import { askAboutMark, createRequest, withdrawRequest } from "@/lib/portal/requests";
 import { requestLog } from "@/lib/request";
 import { getCurrentFirm } from "@/lib/tenancy/current-firm";
 
@@ -52,6 +54,45 @@ export async function createRequestAction(
     });
   } catch (error) {
     (await requestLog()).error("create request failed", { firmId: firm.id, error });
+    return { status: "error" };
+  }
+}
+
+// "Send to the office" on "Tell the office what happened" (Phase 28.13): an attendance question
+// about one of her own sessions marked in the last 90 days. The firm comes from the host and the
+// worker from her session; the browser sends only which shift, what she says happened and her
+// note, all checked here (attendancePayload: no phone number or email address in the note).
+// askAboutMark (src/lib/portal/requests.ts) checks the booking again, keeps one waiting question
+// per session, logs request.created and never changes the mark.
+const attendanceSchema = z.object({
+  shiftId: z.uuid(),
+  fields: z.strictObject({
+    said: z.string().max(20),
+    note: z.string().max(1000).optional(),
+  }),
+});
+
+export async function askAboutMarkAction(
+  shiftId: string,
+  fields: Record<string, string>,
+): Promise<AttendanceOutcome> {
+  const firm = await getCurrentFirm();
+  const session = await getWorkerSession();
+  if (!session) return { status: "logged_out" };
+  const input = attendanceSchema.safeParse({ shiftId, fields });
+  if (!input.success) return { status: "invalid" };
+  const payload = attendancePayload({
+    said: input.data.fields.said,
+    note: input.data.fields.note ?? "",
+  });
+  if (!payload) return { status: "invalid" };
+  try {
+    return await askAboutMark({ firm }, session.worker.id, {
+      shiftId: input.data.shiftId,
+      payload,
+    });
+  } catch (error) {
+    (await requestLog()).error("ask about mark failed", { firmId: firm.id, error });
     return { status: "error" };
   }
 }

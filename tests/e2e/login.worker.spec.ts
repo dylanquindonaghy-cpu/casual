@@ -63,13 +63,13 @@ test("a worker logs in with a link, the link works once, and they can log out", 
       "No requests yet. To change a shift's times or swap it, tap Ask for a change to a shift. The office's answer shows here.",
     ),
   ).toBeVisible();
-  // Booked is on the Shifts tab, with the last 30 days a toggle away; the old address goes there.
+  // Booked is on the Shifts tab, the last 90 days a tab away (28.13); the old address goes there.
   await tabs.getByRole("link", { name: "Shifts" }).click();
   await expect(page).toHaveURL(`${acme}/shifts`);
   await expect(page.getByRole("heading", { name: "Booked shifts" })).toBeVisible();
-  await page.getByRole("link", { name: "Past 30 days" }).click();
+  await page.getByRole("link", { name: /^Past 90 days/ }).click();
   await expect(page).toHaveURL(`${acme}/shifts?view=past`);
-  await expect(page.getByText("No shifts in the last 30 days.")).toBeVisible();
+  await expect(page.getByText("No shifts in the last 90 days.")).toBeVisible();
   await page.goto(`${acme}/?view=past`);
   await expect(page).toHaveURL(`${acme}/shifts?view=past`);
 

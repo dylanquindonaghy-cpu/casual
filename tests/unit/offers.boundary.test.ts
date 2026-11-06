@@ -160,6 +160,9 @@ describe("the offer boundary", () => {
         "src/lib/office/reliability.ts",
         "src/lib/office/session-casuals.ts",
         "src/lib/office/session-page-copy.ts",
+        // Phase 28.13: only RELIABILITY_DAYS, Booked's Past window and the attendance form's gate
+        // (the same days the figure counts), never the figure itself.
+        "src/lib/portal/my-shifts.ts",
         "src/lib/portal/profile.ts",
         // Phase 28.2: only RELIABILITY_DAYS, the window in which a casual may question a mark
         // ("Think this mark is wrong?": askAboutMark), the same days the figure counts.

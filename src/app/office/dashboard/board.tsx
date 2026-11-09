@@ -367,6 +367,7 @@ function DetailCard({
       aria-labelledby="chosen-title"
       data-chosen={s.shiftId}
       className="glass-float relative flex min-w-0 flex-col gap-3 rounded-inner p-4 @min-[64rem]:in-data-map-card:min-h-0 @min-[64rem]:in-data-map-card:overflow-y-auto has-[details[open]]:z-10"
+      data-tour="session-card"
     >
       {steps && (
         <div className="flex items-center gap-2 border-b border-line pb-3">
@@ -477,6 +478,7 @@ function DetailCard({
         <Link
           href={`/office/offer/${s.shiftId}`}
           prefetch={false}
+          data-tour="offer"
           onClick={(e) => {
             if (!plain(e)) return;
             e.preventDefault();

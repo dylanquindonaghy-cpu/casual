@@ -91,6 +91,9 @@ export async function consumeOfficeLoginLink(
 export interface OfficeSession {
   session: ActiveSession;
   officeUser: { id: string; name: string; role: OfficeRole };
+  // Whether they've finished or skipped their first-login tour (Phase 33.1): read with the session,
+  // so the tour needs no read of its own.
+  tourSeen: boolean;
 }
 
 export async function currentOfficeUser(
@@ -103,10 +106,17 @@ export async function currentOfficeUser(
     const session = await findSession(tx, { kind: "office", token, now });
     if (!session) return null;
     const [user] = await tx
-      .select({ id: officeUsers.id, name: officeUsers.name, role: officeUsers.role })
+      .select({
+        id: officeUsers.id,
+        name: officeUsers.name,
+        role: officeUsers.role,
+        tourSeenAt: officeUsers.tourSeenAt,
+      })
       .from(officeUsers)
       .where(eq(officeUsers.id, session.subjectId));
-    return user ? { session, officeUser: user } : null;
+    if (!user) return null;
+    const { tourSeenAt, ...officeUser } = user;
+    return { session, officeUser, tourSeen: tourSeenAt !== null };
   });
 }
 

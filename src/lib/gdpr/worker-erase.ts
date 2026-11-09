@@ -50,7 +50,8 @@ import { ERASED_REASON, erasedCancelReason, REQUEST_FREE_TEXT_KEYS } from "./fre
 //   the rota sheet's names (shifts.synced_holders).
 // - cleared, not counted (Phase 28.2): when they said "Yes, I'm coming" on their bookings
 //   (assignments.still_coming_at), and when they last saw the office's and payroll's answers
-//   (workers.requests_read_at, pay_answers_read_at). Their attendance questions lose their note
+//   (workers.requests_read_at, pay_answers_read_at), and when she finished or skipped her
+//   first-login tour (workers.tour_seen_at, Phase 33.1). Their attendance questions lose their note
 //   with the other requests' typed words; what they said (worked or not) is a code, and stays with
 //   the request as the rest of the evidence does.
 // What can't be reached: the office's typed reason in an older log entry (written before Phase 10,
@@ -120,7 +121,7 @@ async function eraseLocked(tx: FirmTx, id: string, now: Date): Promise<ErasedCou
     .where(and(eq(assignments.workerId, id), isNotNull(assignments.stillComingAt)));
   await tx
     .update(workers)
-    .set({ requestsReadAt: null, payAnswersReadAt: null })
+    .set({ requestsReadAt: null, payAnswersReadAt: null, tourSeenAt: null })
     .where(eq(workers.id, id));
 
   // The office's reason for placing them despite a rule: the booking still says there was one.

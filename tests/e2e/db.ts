@@ -301,9 +301,16 @@ export async function cancelOwnShift(slug: string, shiftId: string): Promise<voi
 
 // An office user of its own for a spec, so specs don't share the seeded users' login limit (3 links
 // per email every 15 minutes). Fake details only; the e2e database is rebuilt on every run.
+// Their first-login tour (Phase 33.1) is marked seen unless `tourSeen: false` (the tour's own spec),
+// so it doesn't open over the page a spec is using.
 export async function addOfficeUser(
   slug: string,
-  o: { email: string; name: string; role: "admin" | "resourcer" | "payroll" },
+  o: {
+    email: string;
+    name: string;
+    role: "admin" | "resourcer" | "payroll";
+    tourSeen?: boolean;
+  },
 ): Promise<void> {
   const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
   try {
@@ -313,7 +320,13 @@ export async function addOfficeUser(
     await createWithFirm(pool)(firmId, (tx) =>
       tx
         .insert(officeUsers)
-        .values({ firmId, email: o.email, name: o.name, role: o.role })
+        .values({
+          firmId,
+          email: o.email,
+          name: o.name,
+          role: o.role,
+          tourSeenAt: o.tourSeen === false ? null : new Date(),
+        })
         .onConflictDoNothing(),
     );
   } finally {
@@ -1750,6 +1763,33 @@ export async function messagesScene(
     throw err;
   } finally {
     client.release();
+    await pool.end();
+  }
+}
+
+// The office user's first-login tour (Phase 33.1): when they finished or skipped it (null: not
+// yet), and the tour entries in the log for them (action and data: ids only).
+export async function officeTour(
+  slug: string,
+  email: string,
+): Promise<{ seenAt: Date | null; events: { action: string; data: unknown }[] }> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    return await createWithFirm(pool)(seedId(`firm/${slug}`), async (tx) => {
+      const [me] = await tx
+        .select({ id: officeUsers.id, at: officeUsers.tourSeenAt })
+        .from(officeUsers)
+        .where(eq(officeUsers.email, email));
+      if (!me) throw new Error(`no office user ${email}`);
+      const found = await tx.execute<{ action: string; data: unknown }>(sql`
+        select action, data from events
+         where action like 'tour.%' and actor_type = 'office' and actor_id = ${me.id}::uuid
+         order by id`);
+      return { seenAt: me.at, events: found.rows };
+    });
+  } finally {
     await pool.end();
   }
 }

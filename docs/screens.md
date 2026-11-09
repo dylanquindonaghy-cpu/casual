@@ -3681,3 +3681,67 @@ The main button is the office's lime with dark words. Badges are soft tints with
 never solid: urgent (soft red), soon (soft blue), valid (soft green), due (soft amber). Counts in the
 top bar and on Home: Urgent's number in red words. What floats (the card, the pins' names, the key,
 the tab bar, the rail) is raised glass.
+
+## Phase 33
+
+Dylan, 2026-11-09 (the approved mock-up, "Two first-login tours"): a short video, then a
+walkthrough on the real pages, once per person, on any device. The words live in
+`src/lib/tour/office-copy.ts` (checked against this section by `tests/unit/tour.copy.test.ts`, and
+for plain words by `tests/unit/copy.plain-language.test.ts`). The engine is shared
+(`src/app/tour/`): the casuals' tour (33.3) brings only its steps, anchors and entry points.
+
+### 33.1
+
+**Seen once, on any device.** When each office user and each casual finished or skipped their tour
+is kept on their own row (`office_users.tour_seen_at`, `workers.tour_seen_at`; migration 0072),
+written only for the person themselves (their own session's id, inside `withFirm`), the first time
+only, with an action log entry with ids only: "{Sam Rota} finished the welcome tour." or "{Sam Rota}
+skipped the welcome tour." (Logins). Until it's set the tour opens by itself once, at their first
+login after this ships (the office's on the dashboard). "Not now" doesn't set it: it opens again at
+their next login. A casual's is cleared when she's erased.
+
+### 33.2
+
+**The office's tour**, for admins and resourcers (payroll has no dashboard, so no tour yet).
+
+**The welcome window**: first thing on the dashboard at the first login, and whenever "Take the tour
+again" is chosen. A window over the page (the whole screen on a phone), raised glass:
+
+- The office video, "The office in 25 seconds" (`/tour/office.mp4`, made with the brag skill from
+  the real dashboard), its captions on (`/tour/office.en.vtt`). Muted: it plays by itself only muted (not at
+  all when less motion is asked for), with the player's controls and one more button, "Turn the
+  sound on". It never plays with sound until the person asks. Until it can play, its space shows its
+  first words: "60 emails a day?" "Here's your one screen."
+- "Welcome to {Acme Events'} office" ("Northline Staffing's office"), then "A 25-second look round,
+  then we'll point at each part of your dashboard. You can take it again any time from your name
+  menu."
+- "Start the walkthrough" (the main button), "Skip the video" (straight to the walkthrough), and
+  "Not now" (closes; it opens again at the next login). Esc is "Not now".
+
+**The walkthrough**: eight steps on the dashboard. Each one dims the page and outlines one part of
+it in the office's lime, with a raised-glass tip beside it (above or below it on a phone): "Step 1
+of 8" and a dot for each step, the step's title and words, then "Skip", "Back" (not on the first)
+and "Next" ("Done" on the last). Esc skips, ← and → go back and on; the buttons are 44px; focus
+moves into the tip and stays there until it ends, then goes back where it was. A part that isn't on
+the page (the map turned off, the search on a phone) is passed over. Finishing or skipping it means
+it won't open by itself again.
+
+1. The counts: "Your day in numbers". "Places to fill, urgent ones, offers out, what needs attention
+   and pay queries. Tap any count to see the list behind it."
+2. The tabs: "Pick what you see". "All sessions, just the urgent ones, this week or next. The map and
+   the card follow."
+3. The map: "Every venue with places to fill". "Red means urgent. Tap a pin to open its session in
+   the card."
+4. The session card: "The session you picked". "Who's booked, how many casuals have the licence,
+   rest and hours for it, and what's still open."
+5. "Offer to someone": "Offer to someone". "Sends it to the best casuals who qualify, in waves. The
+   first yes gets it; everyone else is told it's gone."
+6. The menu: "Everything else lives here". "Updates, Enquiries, Events, Cancellations, Pay, Casuals.
+   Messages from casuals land in Enquiries, all in one place and logged."
+7. Search: "Find anyone or anything". "Search casuals, sessions and venues. Ctrl K opens it from any
+   page."
+8. Your name: "Take it again any time". "Your name menu has "Take the tour again" and the quick
+   guide: where everything lives and how the API works."
+
+**Your name menu** (the account menu): "Take the tour again" (opens the welcome window, seen or
+not) and "Quick guide" (→ `/start/guide`, Phase 31.3), after "How-to guide".

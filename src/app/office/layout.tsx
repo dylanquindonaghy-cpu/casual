@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { cookies } from "next/headers";
 import type { ReactNode } from "react";
 import { canAccess, ROLE_LABELS } from "@/lib/auth/roles";
@@ -21,6 +22,11 @@ function OfficeLook({ children }: { children: ReactNode }) {
     </div>
   );
 }
+
+// The first-login tour's "Not now" lasts for this login (Phase 33.2): the browser keeps it against a
+// short digest of the login's own id, never the id itself.
+const laterKey = (sessionId: string) =>
+  createHash("sha256").update(`tour-later:${sessionId}`).digest("hex").slice(0, 16);
 
 export default async function OfficeLayout({ children }: { children: ReactNode }) {
   const read = await officeFrame();
@@ -64,6 +70,11 @@ export default async function OfficeLayout({ children }: { children: ReactNode }
         theme={themeFromCookie(jar.get(THEME_COOKIE)?.value)}
         rotationDue={s.session.rotationDue}
         updates={frame.updates?.ok ? frame.updates.data : null}
+        tour={
+          canAccess(s.officeUser.role, "today")
+            ? { seen: s.tourSeen, laterKey: laterKey(s.session.id) }
+            : null
+        }
       >
         {children}
       </OfficeShell>

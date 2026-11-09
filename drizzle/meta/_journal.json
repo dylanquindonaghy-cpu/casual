@@ -505,6 +505,13 @@
       "when": 1793921753171,
       "tag": "0071_phase28_casual_actions",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1794238522499,
+      "tag": "0072_phase33_tour_seen",
+      "breakpoints": true
     }
   ]
 }

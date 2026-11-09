@@ -594,6 +594,9 @@ describe("where the glass goes", () => {
       // nothing booked), raised glass as the office's session card.
       "src/app/home/home-map.tsx": ["glass-float", "glass-float"],
       "src/app/next-pass.tsx": ["glass-float", "glass-float", "glass-float"],
+      // The first-login tours (Phase 33): the walkthrough's tip, and the welcome window.
+      "src/app/tour/tour.tsx": ["glass-float"],
+      "src/app/tour/welcome.tsx": ["glass-float"],
     });
     expect(read("src/app/office/office-frame.tsx")).toMatch(
       /<header\s+ref=\{bar\}\s+className="@container max-lg:glass-float lg:scroll-edge sticky top-0 /,

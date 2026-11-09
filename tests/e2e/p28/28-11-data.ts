@@ -69,7 +69,13 @@ export async function profileScene(): Promise<{ workerId: string }> {
       await tx.delete(workerUnavailableDays).where(eq(workerUnavailableDays.workerId, workerId));
       await tx
         .insert(officeUsers)
-        .values({ firmId, email: RESOURCER, name: "Pip Resourcer", role: "resourcer" })
+        .values({
+          firmId,
+          email: RESOURCER,
+          name: "Pip Resourcer",
+          role: "resourcer",
+          tourSeenAt: new Date(), // the first-login tour seen (Phase 33.1): not over this spec's pages
+        })
         .onConflictDoNothing();
       const [me] = await tx
         .select({ id: officeUsers.id })

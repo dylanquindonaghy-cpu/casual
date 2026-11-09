@@ -1077,6 +1077,11 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return d.workerId
         ? `${who} opened the casual view as ${worker}.`
         : `${who} opened the casual view.`;
+    // Phase 33.1: the first-login tour, the office's or a casual's.
+    case "tour.finished":
+      return `${who} finished the welcome tour.`;
+    case "tour.skipped":
+      return `${who} skipped the welcome tour.`;
     case "auth.rate_limited":
       if (d.limit === "api:key") {
         return "Too many calls from your planner: its API key was paused for the rest of the minute.";

@@ -18,6 +18,8 @@ import type { ShiftPage, ShiftSummary } from "@/lib/portal/shift-detail";
 import type { ShiftFacts } from "@/lib/portal/shift-facts";
 import { REASONS } from "@/lib/rules/reasons";
 import { shiftsStrip } from "@/lib/portal/shifts-strip";
+import { countPills, qualificationRows, recordFigures, updateRows } from "@/lib/portal/home-board";
+import { homeWeek } from "@/lib/portal/home-week";
 import { EVERY_LEVEL, EVERY_STATUS } from "../helpers/qualifications";
 
 // Copy is product (golden rule 11; docs/screens.md copy rules): every staff screen, in every
@@ -407,6 +409,80 @@ const SCREENS: [string, ReactElement][] = [
         status: "due_soon",
         current: { id: "p1", uploadedOn: "2023-11-20", renewBy: "2026-11-20" },
         waiting: null,
+      },
+    }),
+  ],
+  [
+    "Home as her dashboard: counts, qualifications of every status, her week, updates, her record (30.1)",
+    homeScreen({
+      next: { ...booked, eventName: "Raceday", post: "Gate B", payRatePence: 1260 },
+      open: urgentOpen(4),
+      board: {
+        pills: countPills({ booked: 1, open: 4, urgent: 1, todo: 2, messages: 1 }),
+        quals: qualificationRows({
+          qualifications: EVERY_STATUS,
+          photo: {
+            status: "due_soon",
+            current: { id: "p1", uploadedOn: "2023-11-20", renewBy: "2026-11-20" },
+            waiting: null,
+          },
+          rightToWork: { checked: false, checkedOn: null, expired: true },
+          today: "2026-11-02",
+        }),
+        weeks: homeWeek(NOW, TZ, [booked], urgentOpen(4).shifts),
+        updates: updateRows(
+          [
+            {
+              at: NOW,
+              kind: "cancelled",
+              by: "office",
+              shift: {
+                id: booked.shiftId,
+                role: "door_supervisor",
+                site: "Demo Arena",
+                startsAt: booked.startsAt,
+                canOpen: true,
+              },
+              moved: null,
+              noticeHours: 30,
+              reason: null,
+              askedBy: null,
+              ref: null,
+              strike: null,
+            },
+          ],
+          NOW,
+          TZ,
+        ),
+        record: recordFigures(
+          { kind: "new", counted: 1, counts: { worked: 1, noShows: 0, lateCancels: 0 } },
+          { counting: 0, liveDays: 90, shown: true },
+        ),
+      },
+    }),
+  ],
+  [
+    "Home as her dashboard, nothing new yet (30.1)",
+    homeScreen({
+      board: {
+        pills: countPills({ booked: 0, open: 0, urgent: 0, todo: 0, messages: 0 }),
+        quals: qualificationRows({
+          qualifications: [],
+          photo: { status: "missing", current: null, waiting: null },
+          rightToWork: { checked: false, checkedOn: null, expired: false },
+          today: "2026-11-02",
+        }),
+        weeks: homeWeek(NOW, TZ, [], []),
+        updates: [],
+        record: recordFigures(
+          {
+            kind: "figure",
+            percent: 96,
+            band: "green",
+            counts: { worked: 9, noShows: 0, lateCancels: 0 },
+          },
+          null,
+        ),
       },
     }),
   ],

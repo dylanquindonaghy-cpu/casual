@@ -60,6 +60,20 @@ describe("the browser specs' spare numbers", () => {
     expect(clashes).toEqual([]);
   });
 
+  it("every UK mobile in a browser spec is in Ofcom's drama range, 07700 900000 to 900999 (golden rule 7)", () => {
+    // A number outside it (07700 930210, say) could be a real person's.
+    const outside: string[] = [];
+    for (const path of files(join(root, "tests/e2e"))) {
+      readFileSync(path, "utf8")
+        .split("\n")
+        .forEach((line, i) => {
+          for (const m of line.matchAll(/\+447(?!700900)|\b07(?!700 ?900)\d{3} ?\d/g))
+            outside.push(`${path.slice(root.length + 1)}:${i + 1} ${m[0]}`);
+        });
+    }
+    expect(outside).toEqual([]);
+  });
+
   it("the blocks don't overlap and stay inside 000 to 999", () => {
     const sorted = blocks.map(([, r]) => r).sort((a, b) => a[0] - b[0]);
     sorted.forEach(([from, to], i) => {

@@ -313,6 +313,16 @@ describe("with no signal, any other page (Phase 29.6)", () => {
     );
   });
 
+  it("'Try again' never leaves the site, even for a path that starts with // or /\\", async () => {
+    // Same origin, but the path reads as another site's address if written as a link as it is.
+    for (const address of [`${ORIGIN}//evil.example/x?y=1`, `${ORIGIN}/\\evil.example/x?y=1`]) {
+      const { html } = await opened(address);
+      expect(html, address).toContain("<h1>No signal</h1>");
+      expect(html, address).not.toMatch(/href="\/\//);
+      expect(html, address).toContain('<a class="go" href="/evil.example/x?y=1">Try again</a>');
+    }
+  });
+
   it("the office's pages get no 'Open my saved shifts'", async () => {
     for (const path of ["/office", "/office/x", "/office/events?tab=open"]) {
       const { html } = await opened(path);
@@ -1001,7 +1011,8 @@ describe("My shifts and the kept copy together", () => {
       );
       // Each heading says the time (Phase 18; beside its headline since 28.7, Booked's since
       // 28.13). The notice says the time and day.
-      expect(html).toContain("Updated 09:05</small>");
+      // (Home's since Phase 30.1 at the end of its date line, under the headline.)
+      expect(html).toMatch(/Updated 09:05<\/(?:small|span)>/);
       expect(html).toContain("This is your saved copy from 09:05 on Mon 2 Nov.");
       const notice = html.match(/<div[^>]*data-offline-notice[^>]*>/)?.[0] ?? "";
       expect(notice).toContain('hidden=""');

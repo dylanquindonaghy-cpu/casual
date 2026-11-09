@@ -8,6 +8,7 @@ import {
   qualificationStatus,
   RIGHT_TO_WORK,
   STATUS_ORDER,
+  type NeedsItem,
   type Qualification,
   type RightToWork,
 } from "../credentials/status";
@@ -88,6 +89,11 @@ export interface Profile {
   today: string;
   // Phase 26.7 (cas-6): their own reliability over the last 90 days, as the office sees it.
   reliability?: Reliability; // always set by myProfile; left out by the pages' own fixtures
+  // Phase 30.1: what needs doing (myNeedsAndPhoto's, from the same read: never a record's number)
+  // and the office's latest "Mark as sorted" (mySortedMark's), so Home reads neither twice. Always
+  // set by myProfile; left out by the pages' own fixtures.
+  needs?: NeedsItem[];
+  sortedMark?: SortedMark | null;
 }
 
 // Which of the firm-local days have a confirmed booking of the worker's on a shift touching them
@@ -172,8 +178,20 @@ export async function myProfile(ctx: Ctx, workerId: string): Promise<Profile | n
         counted: 0,
         counts: { worked: 0, noShows: 0, lateCancels: 0 },
       },
+      needs: (held?.needs ?? []).map((n) => ({
+        ...n,
+        qualification: withoutNumber(n.qualification),
+      })),
+      sortedMark: mark,
     };
   });
+}
+
+// A qualification without its record's number (only Profile's own rows show it).
+function withoutNumber(q: Qualification): Qualification {
+  const rest: Qualification = { ...q };
+  delete rest.number;
+  return rest;
 }
 
 // The same mark for Home's "Do this" and the tab bar's Profile count (Phase 28.15, 28.11's

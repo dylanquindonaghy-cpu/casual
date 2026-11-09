@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { travelStrip, uniformItems, type UniformKind } from "@/lib/portal/home-copy";
-import { payWords } from "@/lib/portal/format";
+import { payEstimatePence, payWords, sessionHours } from "@/lib/portal/format";
 import { hoursText, pounds } from "@/lib/portal/pay-format";
 import { travelLineText, type TravelFacts } from "@/lib/travel/line-copy";
 import { Icon, type IconName } from "../ui/icons";
@@ -88,7 +88,7 @@ export function PayFigures({
   startsAt: Date;
   endsAt: Date;
 }) {
-  const hours = Math.max(0, endsAt.getTime() - startsAt.getTime()) / 3_600_000;
+  const hours = sessionHours(startsAt, endsAt);
   return (
     <div>
       <span className="sr-only">{payWords(ratePence, startsAt, endsAt)}</span>
@@ -96,7 +96,8 @@ export function PayFigures({
         {pounds(ratePence)} an hour
       </p>
       <p aria-hidden="true" className="text-base text-ink-muted tabular-nums">
-        About {pounds(Math.round(ratePence * hours))} before tax for the {hoursText(hours)}
+        About {pounds(payEstimatePence(ratePence, startsAt, endsAt))} before tax for the{" "}
+        {hoursText(hours)}
       </p>
     </div>
   );

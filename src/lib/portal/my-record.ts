@@ -81,7 +81,7 @@ export interface MyRecord {
   timeZone: string;
   days: number;
   rows: MyRecordRow[];
-  more: boolean; // more than RECORD_MAX_ROWS in the days
+  more: boolean; // more than RECORD_MAX_ROWS (or the limit asked for) in the days
 }
 
 // The fixed words a row the firm started may show: the office's list and the rota sheet's own.
@@ -118,7 +118,14 @@ type Row = RecordQueryRow & {
 
 type Ctx = PortalContext & { firm: { id: string } };
 
-export async function myRecord(ctx: Ctx, workerId: string): Promise<MyRecord> {
+// `limit`: read at most that many rows (Home's Updates shows UPDATES_MAX); `more` then says there
+// were more. Left out, the record page's RECORD_MAX_ROWS.
+export async function myRecord(
+  ctx: Ctx,
+  workerId: string,
+  opts: { limit?: number } = {},
+): Promise<MyRecord> {
+  const max = Math.max(1, Math.min(opts.limit ?? RECORD_MAX_ROWS, RECORD_MAX_ROWS));
   const now = (ctx.clock ?? systemClock).now();
   const run = ctx.run ?? withFirm;
   const since = new Date(now.getTime() - RECORD_DAYS * DAY);
@@ -176,13 +183,13 @@ export async function myRecord(ctx: Ctx, workerId: string): Promise<MyRecord> {
          and e.action in (${actions})
          and e.created_at >= ${since}
        order by e.created_at desc, e.id desc
-       limit ${RECORD_MAX_ROWS + 1}
+       limit ${max + 1}
     `);
     return {
       timeZone,
       days: RECORD_DAYS,
-      more: rows.length > RECORD_MAX_ROWS,
-      rows: rows.slice(0, RECORD_MAX_ROWS).map((r) => casualRow(r, strikesOn)),
+      more: rows.length > max,
+      rows: rows.slice(0, max).map((r) => casualRow(r, strikesOn)),
     };
   });
 }

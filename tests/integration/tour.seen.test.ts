@@ -91,6 +91,21 @@ describe("an office user's tour", () => {
   });
 });
 
+describe("only for the roles the tour is offered to (a dashboard)", () => {
+  it("payroll, and a switched-off account: refused, nothing written, nothing logged", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const payroll = await f.office("payroll");
+    const off = await f.office("resourcer", "disabled");
+    for (const id of [payroll, off]) {
+      expect(
+        await markOfficeTourSeen({ firm: { id: f.firmId }, run: withFirm }, id, "finished"),
+      ).toBe("not_allowed");
+      expect(await seenAt("office_users", id)).toBeNull();
+    }
+    expect(await tourEvents(f.firmId)).toEqual([]);
+  });
+});
+
 describe("a casual's tour", () => {
   it("marks her own row, logged with ids only, once; another firm can't reach her", async () => {
     const f = await bookingFirm(su, withFirm);

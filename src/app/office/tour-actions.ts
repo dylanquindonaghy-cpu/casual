@@ -1,6 +1,7 @@
 "use server";
 
 import { getOfficeSession } from "@/lib/auth/current-office";
+import { canAccess } from "@/lib/auth/roles";
 import { requestLog } from "@/lib/request";
 import { markOfficeTourSeen, TourOutcomeSchema } from "@/lib/tour/seen";
 
@@ -10,12 +11,13 @@ export async function markOfficeTourSeenAction(outcome: string): Promise<{
   status: "seen" | "not_allowed" | "error";
 }> {
   const session = await getOfficeSession();
-  if (!session) return { status: "not_allowed" };
+  // Only where the tour is offered (the roles with a dashboard); checked again in the transaction.
+  if (!session || !canAccess(session.officeUser.role, "today")) return { status: "not_allowed" };
   const parsed = TourOutcomeSchema.safeParse(outcome);
   if (!parsed.success) return { status: "error" };
   try {
     const r = await markOfficeTourSeen({ firm: session.firm }, session.officeUser.id, parsed.data);
-    return { status: r === "not_found" ? "not_allowed" : "seen" };
+    return { status: r === "marked" || r === "already" ? "seen" : "not_allowed" };
   } catch (error) {
     (await requestLog()).error("mark office tour seen failed", { firmId: session.firm.id, error });
     return { status: "error" };

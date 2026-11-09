@@ -84,6 +84,25 @@ export function nextShown(
 // While a tour is open its place is kept in the tab's session storage under this key, so a step on
 // another page carries on there (and a reload carries on where it was). Cleared when it ends.
 export const TOUR_STORE = "sd-tour";
+// "Not now" for a tour (its id after the prefix), kept against this login's key in local storage.
+export const TOUR_LATER_PREFIX = "sd-tour-later:";
+
+// Logging out on this device (src/lib/portal/logout-client.ts): every tour's "Not now" and a
+// walkthrough under way are forgotten, so the next person here starts afresh. Storage switched
+// off: nothing to forget.
+export function forgetTourLater(local: Storage, session: Storage): void {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < local.length; i += 1) {
+      const k = local.key(i);
+      if (k?.startsWith(TOUR_LATER_PREFIX)) keys.push(k);
+    }
+    for (const k of keys) local.removeItem(k);
+    session.removeItem(TOUR_STORE);
+  } catch {
+    // storage off
+  }
+}
 export interface TourPlace {
   id: string; // the tour's ("office", "casual")
   step: number;

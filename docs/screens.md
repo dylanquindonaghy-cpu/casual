@@ -3732,8 +3732,8 @@ it won't open by itself again.
    the card follow."
 3. The map: "Every venue with places to fill". "Red means urgent. Tap a pin to open its session in
    the card."
-4. The session card: "The session you picked". "Who's booked, how many casuals have the licence,
-   rest and hours for it, and what's still open."
+4. The session card: "The session you picked". "Who's booked, how many casuals have the
+   qualifications, rest and hours for it, and what's still open."
 5. "Offer to someone": "Offer to someone". "Sends it to the best casuals who qualify, in waves. The
    first yes gets it; everyone else is told it's gone."
 6. The menu: "Everything else lives here". "Updates, Enquiries, Events, Cancellations, Pay, Casuals.

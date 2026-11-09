@@ -3,6 +3,7 @@ import { z } from "zod";
 import { officeUsers, workers } from "../db/schema";
 import { withFirm, type WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
+import { officeUserMay } from "../office/office-context";
 
 // The first-login tours (Phase 33.1; docs/screens.md "## Phase 33"): when each office user and each
 // casual has finished or skipped theirs is kept on their own row (`tour_seen_at`), so it opens by
@@ -26,8 +27,9 @@ export interface TourContext {
 }
 
 // "marked": the row changed and was logged; "already": it was already set (nothing written);
-// "not_found": no such person in this firm (another firm's, or gone).
-export type MarkTourResult = "marked" | "already" | "not_found";
+// "not_found": no such person in this firm (another firm's, or gone); "not_allowed": an office user
+// the tour isn't offered to (no dashboard: payroll; or switched off), so nothing written.
+export type MarkTourResult = "marked" | "already" | "not_found" | "not_allowed";
 
 export async function markOfficeTourSeen(
   ctx: TourContext,
@@ -36,6 +38,14 @@ export async function markOfficeTourSeen(
 ): Promise<MarkTourResult> {
   const run = ctx.run ?? withFirm;
   return run(ctx.firm.id, async (tx): Promise<MarkTourResult> => {
+    // Only where the tour is offered: the roles with a dashboard (src/app/office/layout.tsx).
+    if (!(await officeUserMay(tx, officeUserId, "today"))) {
+      const [there] = await tx
+        .select({ id: officeUsers.id })
+        .from(officeUsers)
+        .where(eq(officeUsers.id, officeUserId));
+      return there ? "not_allowed" : "not_found";
+    }
     const changed = await tx
       .update(officeUsers)
       .set({ tourSeenAt: new Date() })

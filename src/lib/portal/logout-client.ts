@@ -37,9 +37,12 @@ export async function logOutOfThisPhone(
   steps: {
     clearCopy: () => Promise<boolean>;
     forgetPush: () => Promise<void>;
+    // The first-login tours' "Not now" kept on this device (Phase 33.2): forgotten first too.
+    forgetTour?: () => void;
     logOut: (kind: "worker" | "office") => Promise<LogoutOutcome>;
   },
 ): Promise<{ outcome: LogoutOutcome; copyCleared: boolean }> {
+  steps.forgetTour?.();
   const copyCleared = await steps.clearCopy();
   await steps.forgetPush();
   const outcome = await steps.logOut(kind);

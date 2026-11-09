@@ -17,6 +17,7 @@ import {
   placeTip,
   readTourPlace,
   SPOT_PAD,
+  TOUR_LATER_PREFIX,
   TOUR_STORE,
   type Placed,
   type Rect,
@@ -129,7 +130,7 @@ export function TourHost({
     if (!autoOpen || asked.current) return;
     let later = false;
     try {
-      later = localStorage.getItem(`sd-tour-later:${id}`) === laterKey;
+      later = localStorage.getItem(`${TOUR_LATER_PREFIX}${id}`) === laterKey;
     } catch {
       later = false;
     }
@@ -156,7 +157,7 @@ export function TourHost({
 
   const notNow = () => {
     try {
-      localStorage.setItem(`sd-tour-later:${id}`, laterKey);
+      localStorage.setItem(`${TOUR_LATER_PREFIX}${id}`, laterKey);
     } catch {
       // storage off: it asks again on the next page load
     }

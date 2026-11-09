@@ -45,6 +45,9 @@ async function markToursSeen(superuserUrl: string): Promise<void> {
   const client = new Client({ connectionString: superuserUrl });
   await client.connect();
   try {
+    // The superuser can reach any database: this one must be an e2e one, checked again here.
+    const { rows } = await client.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
     await client.query("update office_users set tour_seen_at = now() where tour_seen_at is null");
     await client.query("update workers set tour_seen_at = now() where tour_seen_at is null");
   } finally {

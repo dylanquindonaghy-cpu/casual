@@ -15,7 +15,7 @@ export async function markCasualTourSeenAction(outcome: string): Promise<{
   if (!parsed.success) return { status: "error" };
   try {
     const r = await markCasualTourSeen({ firm: session.firm }, session.worker.id, parsed.data);
-    return { status: r === "not_found" ? "not_allowed" : "seen" };
+    return { status: r === "marked" || r === "already" ? "seen" : "not_allowed" };
   } catch (error) {
     (await requestLog()).error("mark casual tour seen failed", { firmId: session.firm.id, error });
     return { status: "error" };

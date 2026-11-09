@@ -62,7 +62,7 @@ export const OFFICE_TOUR_STEPS: readonly TourStep[] = [
     anchor: "session-card",
     path: "/office",
     title: "The session you picked",
-    body: "Who's booked, how many casuals have the licence, rest and hours for it, and what's still open.",
+    body: "Who's booked, how many casuals have the qualifications, rest and hours for it, and what's still open.",
   },
   {
     anchor: "offer",

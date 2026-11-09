@@ -202,9 +202,23 @@ export function placeLabels(
     // something on the map (the buttons, the key) by sitting just left or right of it.
     const left = s.x - w / 2; // the label's left edge, centred
     const within = Math.max(lo - left, Math.min(0, hi - (left + w)));
+    // Besides the buttons and the key, it can slide clear of the pins next to it: just left or
+    // right of each other disc, or along in steps. Without those, a chosen pin with neighbours on
+    // every side (CI's run on Mon 9 Nov: Acme Demo Arena low on the map among four others) found
+    // no clear spot and its name fell over the other pins.
+    const step = PIN.disc / 2;
+    const sweep = Array.from({ length: Math.ceil(w / step) * 2 + 1 }, (_, n) =>
+      Math.round((n - Math.ceil(w / step)) * step),
+    );
     const shifts = [
-      within,
-      ...avoid.flatMap((a) => [a.x0 - PIN.edge - (left + w), a.x1 + PIN.edge - left]),
+      ...new Set([
+        within,
+        ...avoid.flatMap((a) => [a.x0 - PIN.edge - (left + w), a.x1 + PIN.edge - left]),
+        ...discs.flatMap((d, k) =>
+          k === i ? [] : [d.x0 - PIN.edge - (left + w), d.x1 + PIN.edge - left],
+        ),
+        ...sweep.map((sh) => within + sh),
+      ]),
     ];
     const around = (where: "below" | "above", shift: number): Rect => {
       const top = where === "below" ? s.y + half : s.y - half - PIN.labelHeight;

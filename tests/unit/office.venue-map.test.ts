@@ -403,6 +403,34 @@ describe("the chosen pin's name, on a phone and a laptop (Phase 27.4)", () => {
       expect(p.x).toBeLessThanOrEqual(open.width - open.right - PIN.disc / 2);
     }
   });
+
+  it("a chosen pin among others slides its name clear of them, not over them (CI, Mon 9 Nov)", () => {
+    // At the map's foot (no room under it), a pin on each side and one right over it: beside it
+    // and centred over it each cover a pin. Sliding over-and-right is clear.
+    const laptop = { width: 1170, height: 528, inset: 428 };
+    const s = { x: 700, y: 500 };
+    const others = [
+      { x: 640, y: 500 },
+      { x: 760, y: 500 },
+      { x: 700, y: 450 },
+    ];
+    const spots = [s, ...others];
+    const w = 120;
+    const out = placeLabels(spots, [w, null, null, null], [0], laptop, [], 0)[0]!;
+    const r = rectOf(s, w, out);
+    expect(out.side).toBe("above");
+    expect(inside(r, laptop)).toBe(true);
+    for (const o of others) {
+      const disc: Rect = {
+        x0: o.x - PIN.disc / 2,
+        y0: o.y - PIN.disc / 2,
+        x1: o.x + PIN.disc / 2,
+        y1: o.y + PIN.disc / 2,
+      };
+      const over = r.x0 < disc.x1 && disc.x0 < r.x1 && r.y0 < disc.y1 && disc.y0 < r.y1;
+      expect(over, JSON.stringify({ o, r })).toBe(false);
+    }
+  });
 });
 
 describe("moving the street map: the free part the card and the list leave (Phase 27.4)", () => {

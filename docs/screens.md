@@ -3813,3 +3813,8 @@ Checked against the app (the mock-up's words, changed where they weren't true):
 - Step 7: reminders before a licence runs out are a qualification's (the daily check's message); her
   photo has its "Do this" row but no reminder message, so "We remind you before a qualification runs
   out".
+
+**The videos' captions** (`/tour/office.en.vtt`, `/tour/casual.en.vtt`; the words burned into each video say the same; `tests/unit/tour.copy.test.ts` checks every caption line is here):
+
+- The office video: "60 emails a day?" "Here's your one screen." "The dashboard: every gap on one map." "The session: who can take it, and one tap to offer." "Enquiries: every message in one place, and logged." "Casuals and pay: licences checked, pay questions grouped." "Your planner stays in charge: API in, signed webhooks out." "Let's show you round."
+- The casual video: "Your shifts. One link." "No app to download." "Your next shift: where, when, and what you'll earn." "Take or ask for open shifts." "We remind you before a qualification runs out." "Your pay day, always in view." "Let's show you round."

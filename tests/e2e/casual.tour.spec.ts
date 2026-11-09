@@ -141,7 +141,7 @@ test("on a phone: the welcome window fills the screen, the walkthrough, Skip, an
     }
     await noSidewaysScroll(page);
     await page.waitForTimeout(500);
-    await shot(page, "welcome-390");
+    await shot(page, "casual-welcome-390");
 
     // Every step's part is on her Home.
     for (const s of CASUAL_TOUR_STEPS)
@@ -156,13 +156,13 @@ test("on a phone: the welcome window fills the screen, the walkthrough, Skip, an
     expect(spot.y).toBeLessThanOrEqual(counts.y);
     await noSidewaysScroll(page);
     await page.waitForTimeout(400);
-    await shot(page, "step1-counts-390");
+    await shot(page, "casual-step1-counts-390");
 
     // Next, Back and the arrow keys.
     await next(page);
     await atStep(page, 2);
     await page.waitForTimeout(400);
-    await shot(page, "step2-next-shift-390");
+    await shot(page, "casual-step2-next-shift-390");
     await page.keyboard.press("ArrowRight");
     await atStep(page, 3);
     await tip(page).getByRole("button", { name: "Back" }).click();
@@ -179,7 +179,7 @@ test("on a phone: the welcome window fills the screen, the walkthrough, Skip, an
     expect(shifts.y).toBeGreaterThan(PHONE.height - 140);
     await noSidewaysScroll(page);
     await page.waitForTimeout(400);
-    await shot(page, "step5-shifts-390");
+    await shot(page, "casual-step5-shifts-390");
     await next(page);
     await atStep(page, 6);
     await outlines(page, "pay");
@@ -277,7 +277,7 @@ test("on a laptop: the window beside its words, steps 5 to 7 on the rail, Done",
     expect(title.x).toBeGreaterThan(box.right);
     await noSidewaysScroll(page);
     await page.waitForTimeout(500);
-    await shot(page, "welcome-1280");
+    await shot(page, "casual-welcome-1280");
 
     await welcome(page).getByRole("button", { name: CASUAL_WELCOME.start }).click();
     // Step 1: her counts in the top bar.
@@ -286,7 +286,7 @@ test("on a laptop: the window beside its words, steps 5 to 7 on the rail, Done",
     const spot = await rect(page, '[data-tour-spot="counts"]');
     expect(spot.y).toBeLessThan(top.bottom);
     await page.waitForTimeout(400);
-    await shot(page, "step1-counts-1280");
+    await shot(page, "casual-step1-counts-1280");
     for (let n = 2; n <= 4; n += 1) {
       await next(page);
       await atStep(page, n);
@@ -297,7 +297,7 @@ test("on a laptop: the window beside its words, steps 5 to 7 on the rail, Done",
     expect((await outlines(page, "shifts")).right).toBeLessThan(130);
     await noSidewaysScroll(page);
     await page.waitForTimeout(400);
-    await shot(page, "step5-shifts-1280");
+    await shot(page, "casual-step5-shifts-1280");
     await next(page);
     await atStep(page, 6);
     expect((await outlines(page, "pay")).right).toBeLessThan(130);

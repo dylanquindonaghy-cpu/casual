@@ -380,3 +380,29 @@ describe("the casuals' welcome window", () => {
     expect(size).toEqual({ w: 720, h: 1280 });
   });
 });
+
+describe("the videos' captions are the screens doc's", () => {
+  // Each video's captions (and the words burned into it, which say the same) are listed in
+  // docs/screens.md "## Phase 33", so a video's words can't drift from what the app says (the
+  // guardrails review of 33.3 found the casual video still saying "the gate" and "first").
+  const cueLines = (file: string) =>
+    readFileSync(file, "utf8")
+      .split(/\r?\n\r?\n/)
+      .slice(1)
+      .flatMap((block) => block.split(/\r?\n/).filter((l) => l.trim() && !l.includes("-->")));
+
+  for (const file of ["public/tour/office.en.vtt", "public/tour/casual.en.vtt"]) {
+    it(`every caption line of ${file} is in docs/screens.md`, () => {
+      const lines = cueLines(file);
+      expect(lines.length).toBeGreaterThan(4);
+      for (const line of lines) expect(screens, line).toContain(`"${line}"`);
+    });
+  }
+
+  it("the casual video promises nothing the app's words were corrected away from", () => {
+    const casual = cueLines("public/tour/casual.en.vtt").join(" ").toLowerCase();
+    for (const phrase of ["the gate", "first", "licence", "two taps"]) {
+      expect(casual, phrase).not.toContain(phrase);
+    }
+  });
+});

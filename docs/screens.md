@@ -3388,7 +3388,7 @@ On a phone, one column, in this order:
    there's something), "Messages {0}" (the office's replies she hasn't read; → `/messages`). Each
    number is the one its page counts. The row scrolls sideways inside itself on a narrow phone,
    never the page. Only "Booked" shows in the saved copy: the others change without her.
-3. **Her next shift** (the pass), with a line under its role: "Starts in {70 hours}" (in hours
+3. **Her next shift** (the pass), with a line under its role: "Starts in {70 hours}" (since Phase 32 as the badge counts it: "Starts today", "Starts tomorrow", "Starts in {3} days"; until then in hours
    under 72, then "{3} days"; online only) · "{8} hours" · "about {£108.00} before tax" (the
    booked shift page's own sum; left out when the session has no rate), and a thin bar that fills
    over the last 7 days before it starts (online only).
@@ -3660,7 +3660,9 @@ Her text stays 16px and every target at least 44px.
   phone), as the office's session card: its heading (from 1,024px; "On now" while it's on; "· 1 of
   {3}" with more bookings), the date box, the role with how soon ("In 3 days", the soft blue badge),
   the event, the gate and the place; the time tile ("{Thu 12 Nov}, {14:00–22:00}", "{8 hours} ·
-  about {£100.80} before tax", the bar and "Starts in {3 days}", online only); from 1,024px "Your
+  about {£100.80} before tax", the bar and "Starts in {3 days}", online only, counted as the badge
+  counts it: "In 3 days" with "Starts in 3 days", "Tomorrow" with "Starts tomorrow", "Today" with
+  "Starts today", never in hours); from 1,024px "Your
   qualifications" "{4} of {5}" with the worst one as a badge ("{Staff photo}: {20 days left}") and
   "Shifts you can take" "{11}" with "{3} urgent" (online only); then "Directions" (lime) and
   "Details", and "Can't make it?" (or "Still coming?") under them. Details opens the rest inside the

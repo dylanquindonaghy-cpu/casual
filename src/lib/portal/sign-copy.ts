@@ -104,17 +104,31 @@ export function timeRange(
   };
 }
 
-// How far off a shift is, on the pass's band: "On now", "Today", "Tomorrow", "In 3 days".
-export function inDays(startsAt: Date, endsAt: Date, now: Date, timeZone: string): string {
-  if (startsAt.getTime() <= now.getTime() && now.getTime() < endsAt.getTime()) return "On now";
+// How far off a shift is, counted once for every place that says it (the pass's badge, "In 3
+// days", and the line under it, "Starts in 3 days": Phase 32, one wording): on now, today,
+// tomorrow, or how many calendar days away on the firm's calendar.
+export type HowSoon =
+  { kind: "on_now" } | { kind: "today" } | { kind: "tomorrow" } | { kind: "days"; days: number };
+export function howSoon(startsAt: Date, endsAt: Date, now: Date, timeZone: string): HowSoon {
+  if (startsAt.getTime() <= now.getTime() && now.getTime() < endsAt.getTime())
+    return { kind: "on_now" };
   const today = localDateOf(now, timeZone);
   const day = localDateOf(startsAt, timeZone);
-  if (day === today) return "Today";
-  if (day === addDays(today, 1)) return "Tomorrow";
+  if (day === today) return { kind: "today" };
+  if (day === addDays(today, 1)) return { kind: "tomorrow" };
   const days = Math.round(
     (Date.parse(`${day}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000,
   );
-  return `In ${days} days`;
+  return { kind: "days", days };
+}
+
+// How far off a shift is, on the pass's band: "On now", "Today", "Tomorrow", "In 3 days".
+export function inDays(startsAt: Date, endsAt: Date, now: Date, timeZone: string): string {
+  const soon = howSoon(startsAt, endsAt, now, timeZone);
+  if (soon.kind === "on_now") return "On now";
+  if (soon.kind === "today") return "Today";
+  if (soon.kind === "tomorrow") return "Tomorrow";
+  return `In ${soon.days} days`;
 }
 
 // "1 place left", "3 places left"; with the total, "1 of 4 places left"; none: "No places left".

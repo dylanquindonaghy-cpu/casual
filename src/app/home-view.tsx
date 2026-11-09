@@ -77,7 +77,7 @@ import { DateTile } from "./ui/sign";
 // Phase 30.1 (docs/screens.md "### 30.1"): Home is her dashboard. Under "Hi Zoe" the date line
 // ("Friday 6 November · Updated 15:38", online only: the kept copy's notice gives the day it was
 // saved) and her counts in the office's chips
-// (src/app/home/home-counts.tsx); the pass gets a line ("Starts in 70 hours · 8 hours · about
+// (src/app/home/home-counts.tsx); the pass gets a line ("Starts in 3 days · 8 hours · about
 // £108.00 before tax") and a bar filling over the last 7 days; then, in this order on a phone:
 // "Do this", "Offered to you" (still above "Shifts you can take", as 28.15 has it), "Your
 // qualifications", "Your week", "Shifts you can take" (its count beside its heading), "Updates",

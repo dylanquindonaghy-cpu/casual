@@ -127,12 +127,13 @@ export function countdownFill(startsAt: Date, now: Date): number {
   return clamp(1 - left / (COUNTDOWN_DAYS * 86_400_000));
 }
 
-// "Starts in 70 hours" (online only: it goes stale), then "8 hours · about £108.00 before tax"
+// "Starts in 3 days" (online only: it goes stale; as the badge counts it), then "8 hours · about £108.00 before tax"
 // (the pay left out when the session has no rate). The estimate is the booked shift page's own sum
 // (format.ts payEstimatePence).
 export function nextShiftLine(
   shift: { startsAt: Date; endsAt: Date; payRatePence?: number | null },
   now: Date,
+  timeZone: string,
 ): { startsIn: string | null; facts: string; fill: number } {
   const hours = hoursText(sessionHours(shift.startsAt, shift.endsAt));
   const pay =
@@ -140,7 +141,7 @@ export function nextShiftLine(
       ? aboutPayText(pounds(payEstimatePence(shift.payRatePence, shift.startsAt, shift.endsAt)))
       : null;
   return {
-    startsIn: startsInText(shift.startsAt, now),
+    startsIn: startsInText(shift, now, timeZone),
     facts: pay ? `${hours} · ${pay}` : hours,
     fill: countdownFill(shift.startsAt, now),
   };

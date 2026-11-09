@@ -326,7 +326,7 @@ export function MapPass({
   const where = [shift.eventName, [shift.post, place].filter(Boolean).join(", ")]
     .filter(Boolean)
     .join(" · ");
-  const line = nextShiftLine(shift, now);
+  const line = nextShiftLine(shift, now, timeZone);
   return (
     <section
       aria-labelledby="next-heading"

@@ -46,6 +46,12 @@ const ALLOWED = [
     domain,
     why: "look-alikes demo mode's made-up check must refuse (16.1); nothing is sent to them",
   })),
+  ...["src/lib/demo/staff-login.ts", "docs/screens.md"].map((file) => ({
+    file,
+    local: "Staffing",
+    domain: "test.com",
+    why: "the staffing demo login's name (Phase 31.1, Dylan's words): only what a demo server's login form accepts, never stored as anyone's email or sent to",
+  })),
   {
     file: "tests/integration/push.test.ts",
     local: "user",

@@ -1,7 +1,10 @@
 import { redirect } from "next/navigation";
 import { loginTitle, officeLoginCard, page } from "@/app/ui/classes";
 import { getOfficeSession } from "@/lib/auth/current-office";
+import { staffDemoOn } from "@/lib/demo/staff-login";
+import { appEnv } from "@/lib/env";
 import { getCurrentFirm } from "@/lib/tenancy/current-firm";
+import { StaffDemoLink } from "../../start/staff-demo-link";
 import { OfficeLoginForm } from "./office-login-form";
 
 // The office login (docs/screens.md `/office/login`). Outside the office shell (nobody is logged
@@ -30,6 +33,8 @@ export default async function OfficeLoginPage({
           </p>
         )}
         <OfficeLoginForm firmName={firm.name} signOff={firm.signOff} />
+        {/* On a demo server, the staffing demo's own login (Phase 31.1). */}
+        {staffDemoOn(appEnv().DEMO_MODE, firm.id) && <StaffDemoLink className="mt-4" />}
       </div>
     </main>
   );

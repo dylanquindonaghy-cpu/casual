@@ -3470,3 +3470,134 @@ floating tab bar. What the casual sees:
   office's "Skip to content"), which jumps to the rail; Tab then goes through its links, each with
   the app's focus ring. Without it, the keyboard reaches the rail after the page's own links. Not on
   a phone (the bar's at the screen's foot and the page reads first), nor on the office's pages.
+
+## Phase 31
+
+Dylan, 2026-11-09: a staffing demo login, a page to choose the staffing view or the casual's phone
+view, and a quick guide to where everything lives. The words live in `src/lib/demo/start-copy.ts`
+(checked against this section by `tests/unit/demo.start-copy.test.ts`, and for plain words by
+`tests/unit/copy.plain-language.test.ts`). The pages are under `src/app/start/`, in the office's
+look (outside the office shell, as the office login is).
+
+### 31.1
+
+**The staffing demo login** (`/start/login`; `src/lib/demo/staff-login.ts`,
+`src/lib/demo/staff-session.ts`). **Demo servers only:** it exists only with `DEMO_MODE=on`, and only
+on Acme Events (the demo firm it opens). Anywhere else the page is the not-found page, and its
+action refuses on the server too. There's never a password login on a real server.
+
+- "Staffing demo login", then "Log in to the demo with the staffing account." Fields "Email" and
+  "Password" (a password manager and pasting both work), and one button, "Log in" ("Logging in…"
+  while it works).
+- The login name is Staffing@test.com, in any case, with spaces around it ignored. It's only what
+  the form accepts: nobody has it as an email address, and nothing is ever sent to it. The account
+  it opens is a made-up admin of Acme Events, "Staffing (demo)" (staffing.demo@example.com), added by
+  the demo seed (and so by the demo's nightly reset).
+- The password is never written in the repo: only its salted scrypt hash is (N=2^15), compared in
+  constant time. `DEMO_STAFF_LOGIN_HASH` can replace the hash (the browser tests make a password of
+  their own and pass its hash); it's never a password itself.
+- A wrong pair: "That email and password don't match." (the same words whichever part is wrong; the
+  fields keep what was typed). After 5 wrong pairs in 15 minutes, from one address or for one login
+  name: "Too many tries. Wait 15 minutes, then try again." Only wrong pairs count. Anything else:
+  "Something went wrong. Try again."
+- Logged in: an office session for "Staffing (demo)", the same cookie as the office's email login,
+  an action log entry ("Staffing (demo) logged in with the demo's staffing login.", ids only), and
+  the browser opens "Choose a view".
+- On a demo server, on Acme, the Demo phone (`/demo`) and the office login (`/office/login`) each
+  get one more line: "Demo: log in with the staffing account" (→ `/start/login`).
+
+### 31.2
+
+**"Choose a view"** (`/start`). Demo servers only, on Acme, for anyone logged in to its office (the
+staffing login or any other office login there); not logged in, the staffing login.
+
+- "Choose a view", then "See the demo as the office or as a casual. You can come back here at any
+  time." and "Logged in as {Staffing (demo)}."
+- Two big glass cards, each one tap target (the whole card), one column on a phone and side by side
+  from 768px:
+  - **"Staffing and resourcing view"**: "The office: urgent gaps, who to offer, cancellations,
+    enquiries and the log." → `/office`.
+  - **"Casual mobile view"**: "What a casual sees on their phone: their shifts, open shifts, pay day
+    and qualifications." It logs this browser in as the demo story's casual, Zoe Adeyemi (07700
+    900400), with a casual's session and cookie as her own login link would, logs it ("{Staffing
+    (demo)} opened the casual view as Zoe Adeyemi.", ids only), then opens her app: in the phone
+    frame from 640px, the app itself on a phone. "Opening…" while it works. Only from an office
+    session, only on a demo server. If it can't: "You're logged out. Log in again to open the casual
+    view.", "The demo casual isn't there. Reset the demo, then try again." or "Something went wrong.
+    Try again."
+- Under them, a smaller link: "Quick guide: where everything lives" (→ `/start/guide`).
+
+**The phone frame** (`/start/phone`): the same access. "Casual mobile view", "This is the casual app
+as {Zoe} sees it on a phone.", "Back to choose a view" and "Open full screen" (→ `/`), then the
+casual app (`/`) in a phone-sized frame, 390 by 844, centred, its corners rounded. On a phone (below
+640px) the browser goes straight to the app instead, and the frame isn't loaded. The frame is the
+same address, so it shares this browser's login. The app sends no header that stops framing, so
+nothing was changed to allow it, and nothing lets another site frame it.
+
+The office and the casual app work exactly as before for everyone else.
+
+### 31.3
+
+**The quick guide** (`/start/guide`): for anyone logged in to the office, on any server (it lists the
+office's pages from that person's own menu, so only pages their role can open). On a demo server it
+leads back to "Choose a view" ("Back to choose a view"); elsewhere "Back to the office". "Quick
+guide", "Where everything lives, what it does and how it works." Then five glass sections:
+
+1. **"What ShiftDesk is"**: "ShiftDesk is a staff portal and shifts line for casual workers. It's
+   for staffing firms." "It sits alongside the firm's own planner. Nobody has to stop using what
+   they have." "Casuals get a link, with no app to download. They see their shifts, take open
+   shifts, cancel, ask for changes and see their pay days." "The office gets one dashboard instead
+   of calls and emails all day."
+2. **"It isn't a CRM"**: "The firm's planner or CRM stays where clients, sites and sessions are
+   made. The firm's records live there." "ShiftDesk doesn't replace it. It doesn't hold the firm's
+   sales or client records." "It keeps what the planner doesn't do: offers to casuals, who said yes,
+   cancellations with notice, enquiries, qualification checks and a log of every change."
+3. **"How it works with the API"** (ADR-022; `docs/office-v2.md` 5.3.2): "The planner sends sessions
+   in through ShiftDesk's API, at /api/v1. It uses a key that the firm's admin makes in Settings,
+   under Integrations." "Each change is answered at once. Sending the same one again is safe,
+   because it carries the planner's own reference." "When something changes, ShiftDesk sends a
+   signed webhook back to the planner. For example, a place is filled or someone cancels. So the
+   planner stays up to date." "A firm without a planner that can call the API can use a Google
+   Sheet, a file it uploads, or a connector we set up." Then a diagram in boxes and arrows (a column
+   on a phone, a row from 768px), "How the planner, ShiftDesk and casuals connect": "The firm's
+   planner" → "Sessions in, through the API" → "ShiftDesk" → "Casual app, WhatsApp and texts" →
+   "Casuals"; and back: "Signed webhooks back to the planner: places filled and cancellations".
+4. **"Where everything lives"**: "The office", one link a page with one line each, in the menu's
+   order, only the pages the person's role can open:
+   - Dashboard: "Urgent gaps, what casuals can see, cancellations and what needs you today."
+   - Updates: "What happened on your sessions, newest first."
+   - Needs attention: "Things that need a person to look at them."
+   - Events & sessions: "Every event and its sessions. Show or hide them from casuals."
+   - Enquiries: "Messages from the shifts line and requests from the casual app."
+   - Cancellations: "Every cancellation, with its notice and reason."
+   - Pay dashboard: "Pay at a glance for payroll."
+   - Pay queries: "Casuals' pay questions, grouped for payroll."
+   - Import pay records: "Add pay lines from payroll's file."
+   - Casuals: "Every casual, their qualifications and photos to check."
+   - Strikes: "Late cancellations and no-shows, and their strikes."
+   - Notice report: "Notice given for every change, for your records."
+   - Action log: "Every change, who made it and when."
+   - Pilot metrics: "How the pilot is going, week by week."
+   - Office team: "Who can log in to the office, and their roles."
+   - Settings: "The firm's settings, sites and strikes team."
+   - Integrations: "API keys and webhooks for your planner."
+   - Data requests: "Send someone their data, or delete it when they ask."
+   - How-to guide: "Step-by-step help for every job in the office."
+
+   Then "The casual app", "These are the casual's pages. They open as the casual this browser is
+   logged in as.":
+   - Home: "Her next shift, her counts, things to do and offers."
+   - Shifts: "The shifts she's booked on, and past ones."
+   - Open shifts: "Shifts she can take now."
+   - Urgent: "Shifts starting soon that need someone."
+   - Messages: "Her messages to the office, and its replies."
+   - Pay: "Her pay day and hours, after a code."
+   - Profile: "Her details, qualifications and availability."
+   - Requests: "Time changes and other asks, and the answers."
+   - Help: "How the app works, in plain words."
+5. **"Golden rules, in short"**: "AI reads, code decides. AI only sorts messages, drafts replies and
+   sums things up. It never picks who gets a shift or what anyone is paid." "Every firm's data is
+   kept apart." "Every change is logged: offers, bookings, cancellations and messages."
+   "Qualifications are checked before any offer." "Pay disputes go to payroll, never to AI."
+
+Last: "For step-by-step help, open the How-to guide." (→ `/office/guide`).

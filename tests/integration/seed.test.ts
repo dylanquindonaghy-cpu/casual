@@ -86,7 +86,7 @@ describe("the demo seed", () => {
     expect(otherAfter.rows).toEqual(otherBefore.rows);
   });
 
-  it("Acme Events: 60 workers (5 with an expired SIA licence, 3 applied) and the story's 8, 3 sites and the story's 4, 3 office roles", async () => {
+  it("Acme Events: 60 workers (5 with an expired SIA licence, 3 applied) and the story's 8, 3 sites and the story's 4, 3 office roles and the staffing demo login's admin", async () => {
     const { rows } = await su.query(
       `select
          (select count(*)::int from workers where firm_id = $1) as workers,
@@ -101,7 +101,8 @@ describe("the demo seed", () => {
     expect(rows[0]).toEqual({
       workers: 68,
       sites: 7,
-      roles: ["admin", "payroll", "resourcer"],
+      // Phase 31.1: the staffing demo login's account is a second admin ("Staffing (demo)").
+      roles: ["admin", "admin", "payroll", "resourcer"],
       expired_sia: 5,
       applied_sia: 3,
     });

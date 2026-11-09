@@ -54,6 +54,11 @@ export const LIMITS = {
   // worker's id. Each is sorted (perhaps by the AI) and may wait in Need a person, so one session
   // can't flood either.
   appMessagePerWorker: { name: "app_message:worker", max: 20, windowMs: 60 * MINUTE },
+  // The demo's staffing login (Phase 31.1; demo servers only): 5 wrong passwords every 15 minutes,
+  // per IP and per login name typed. Only wrong ones count, so a room of people trying the demo on
+  // one Wi-Fi isn't locked out by logging in.
+  demoLoginPerIp: { name: "login:demo_ip", max: 5, windowMs: 15 * MINUTE },
+  demoLoginPerName: { name: "login:demo_name", max: 5, windowMs: 15 * MINUTE },
 } as const satisfies Record<string, Limit>;
 
 export function bucketFor(limit: Limit, value: string, secret: string): string {

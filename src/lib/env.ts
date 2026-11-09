@@ -185,6 +185,18 @@ const appFields = {
   DEMO_SITE_PASSWORD: unsetIfEmpty(
     z.string().min(12, { message: "must be at least 12 characters" }).max(200).optional(),
   ),
+  // The demo's staffing login (Phase 31.1; src/lib/demo/staff-login.ts), web app only: a salted
+  // scrypt hash ("scrypt$N$r$p$salt$key", base64url) in place of the committed one, so the browser
+  // tests can log in with a password of their own, made at run time. Never a password itself. Read
+  // only in demo mode: off a demo server there's no password login at all.
+  DEMO_STAFF_LOGIN_HASH: unsetIfEmpty(
+    z
+      .string()
+      .regex(/^scrypt\$\d{1,7}\$\d{1,2}\$\d{1,2}\$[A-Za-z0-9_-]{16,64}\$[A-Za-z0-9_-]{43,128}$/, {
+        message: "must be a scrypt hash: scrypt$N$r$p$salt$key (base64url)",
+      })
+      .optional(),
+  ),
 };
 
 // Demo mode shows messages from the outbox file: it needs one.

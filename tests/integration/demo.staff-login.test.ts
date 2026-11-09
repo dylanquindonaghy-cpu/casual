@@ -122,9 +122,10 @@ describe("the staffing demo login", () => {
     ]);
   });
 
-  it("a wrong pair makes no session and logs no login, whichever part is wrong", async () => {
+  it("a wrong pair makes no session and no login, whichever part is wrong; each is logged with no ids", async () => {
     const before = await staffSessions();
     const logins = (await eventsFor("auth.demo_login")).length;
+    const failedBefore = (await eventsFor("auth.demo_login_failed")).length;
     const wrongs = [
       { email: STAFF_LOGIN_NAME, password: `${password}x` },
       { email: STAFF_DEMO_USER.email, password },
@@ -135,6 +136,52 @@ describe("the staffing demo login", () => {
     }
     expect(await staffSessions()).toBe(before);
     expect(await eventsFor("auth.demo_login")).toHaveLength(logins);
+    // One entry per wrong pair, as a refused login link is logged: never the name typed or the IP.
+    const failed = (await eventsFor("auth.demo_login_failed")).slice(failedBefore);
+    expect(failed).toEqual(
+      wrongs.map(() => ({
+        firm_id: ACME,
+        actor_type: "system",
+        actor_id: null,
+        entity_type: "login_request",
+        entity_id: null,
+        data: {},
+      })),
+    );
+  });
+
+  it("wrong pairs sent all at once: at most 5 are checked, the rest wait (the count comes first)", async () => {
+    const tries = 8;
+    const results = await Promise.all(
+      Array.from({ length: tries }, (_, i) =>
+        loginWithStaffAccount(ctx(), { email: STAFF_LOGIN_NAME, password: `wrong-at-once-${i}` }),
+      ),
+    );
+    const statuses = results.map((r) => r.status);
+    expect(statuses.filter((s) => s === "wrong").length).toBeLessThanOrEqual(
+      LIMITS.demoLoginPerName.max,
+    );
+    expect(statuses.filter((s) => s === "rate_limited").length).toBeGreaterThanOrEqual(
+      tries - LIMITS.demoLoginPerName.max,
+    );
+    expect(statuses.every((s) => s === "wrong" || s === "rate_limited")).toBe(true);
+  });
+
+  it("a right pair takes back its count: 5 right pairs then 4 wrong ones from one address still let the right pair in", async () => {
+    const ip = newIp();
+    for (let i = 0; i < LIMITS.demoLoginPerIp.max; i += 1) {
+      const r = await loginWithStaffAccount(ctx({ ip }), { email: STAFF_LOGIN_NAME, password });
+      expect(r.status).toBe("ok");
+    }
+    for (let i = 0; i < LIMITS.demoLoginPerIp.max - 1; i += 1) {
+      const r = await loginWithStaffAccount(ctx({ ip }), {
+        email: `other${i}@example.com`,
+        password: "wrong",
+      });
+      expect(r.status).toBe("wrong");
+    }
+    const r = await loginWithStaffAccount(ctx({ ip }), { email: STAFF_LOGIN_NAME, password });
+    expect(r.status).toBe("ok");
   });
 
   it("after 5 wrong pairs from one address, even the right pair waits; another address doesn't", async () => {
@@ -160,6 +207,11 @@ describe("the staffing demo login", () => {
   });
 
   it("after 5 wrong passwords for the login name, from any addresses, it waits there too", async () => {
+    const reached = async () =>
+      (await eventsFor("auth.rate_limited")).filter(
+        (e) => e.firm_id === ACME && e.data.limit === LIMITS.demoLoginPerName.name,
+      ).length;
+    const reachedBefore = await reached();
     for (let i = 0; i < LIMITS.demoLoginPerName.max; i += 1) {
       const r = await loginWithStaffAccount(ctx(), {
         email: i % 2 ? STAFF_LOGIN_NAME : ` ${STAFF_LOGIN_NAME.toLowerCase()}`,
@@ -167,12 +219,12 @@ describe("the staffing demo login", () => {
       });
       expect(r.status).toBe("wrong");
     }
-    const limitedEvents = (await eventsFor("auth.rate_limited")).filter(
-      (e) => e.firm_id === ACME && e.data.limit === LIMITS.demoLoginPerName.name,
-    );
-    expect(limitedEvents.length).toBeGreaterThanOrEqual(1);
     const r = await loginWithStaffAccount(ctx(), { email: STAFF_LOGIN_NAME, password });
     expect(r.status).toBe("rate_limited");
+    // The limit is logged once, at the first try it turns away (as every login limit is).
+    expect(await reached()).toBe(reachedBefore + 1);
+    await loginWithStaffAccount(ctx(), { email: STAFF_LOGIN_NAME, password });
+    expect(await reached()).toBe(reachedBefore + 1);
   });
 
   it("refuses off a demo server, and on any firm but Acme", async () => {
@@ -259,6 +311,44 @@ describe("Casual mobile view", () => {
     });
     expect(await openCasualView(ctx(), zoeToken)).toEqual({ status: "logged_out" });
     expect(await zoeSessions()).toBe(before);
+  });
+
+  it("another firm's office session opens nothing on Acme (golden rule 2)", async () => {
+    const northlineOffice = seedId("northline/office/resourcer");
+    const theirs = await withFirm(NORTHLINE, (tx) =>
+      createSession(tx, { kind: "office", subjectId: northlineOffice, now: new Date() }),
+    );
+    const before = await zoeSessions();
+    // Northline's token, in Acme's context: not found there, so no casual view.
+    expect(await openCasualView(ctx(), theirs.token)).toEqual({ status: "logged_out" });
+    // And Acme's own staffing token in Northline's context: no staffing demo there at all.
+    const ours = await staffToken();
+    expect(await openCasualView(ctx({ firmId: NORTHLINE }), ours)).toEqual({ status: "off" });
+    expect(await zoeSessions()).toBe(before);
+    // The login itself, in Northline's context, makes no session in either firm.
+    const staffBefore = await staffSessions();
+    const { rows } = await su.query<{ n: number }>(
+      "select count(*)::int as n from sessions where firm_id = $1 and kind = 'office'",
+      [NORTHLINE],
+    );
+    expect(
+      await loginWithStaffAccount(ctx({ firmId: NORTHLINE }), {
+        email: STAFF_LOGIN_NAME,
+        password,
+      }),
+    ).toEqual({ status: "off" });
+    expect(await staffSessions()).toBe(staffBefore);
+    const after = await su.query<{ n: number }>(
+      "select count(*)::int as n from sessions where firm_id = $1 and kind = 'office'",
+      [NORTHLINE],
+    );
+    expect(after.rows[0]?.n).toBe(rows[0]?.n);
+    // No casual's session anywhere came from these.
+    const { rows: theirsWorker } = await su.query<{ n: number }>(
+      "select count(*)::int as n from sessions where firm_id = $1 and kind = 'worker' and created_at > now() - interval '1 minute'",
+      [NORTHLINE],
+    );
+    expect(theirsWorker[0]?.n).toBe(0);
   });
 
   it("only in demo mode, and only on Acme", async () => {

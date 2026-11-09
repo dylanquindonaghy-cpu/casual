@@ -121,6 +121,21 @@ export async function peekLimit(
   };
 }
 
+// Takes back one attempt counted in the same window (never below zero): for a limit that counts
+// only failures but must count each attempt before it's checked, so parallel requests can't all
+// slip under it (the staffing demo login, Phase 31.1, refunds a right pair). One statement.
+export async function refundLimit(
+  tx: FirmTx,
+  opts: { limit: Limit; value: string; now: Date; secret: string },
+): Promise<void> {
+  const { limit, now } = opts;
+  await tx.execute(sql`
+    update auth_throttle set hits = greatest(hits - 1, 0)
+     where bucket = ${bucketFor(limit, opts.value, opts.secret)}
+       and window_start = ${windowOf(limit, now)}
+  `);
+}
+
 export type Throttled = { retryAfterMinutes: number; retryAfterSeconds: number; limit: string };
 
 export const toMinutes = (ms: number) => Math.max(1, Math.ceil(ms / MINUTE));

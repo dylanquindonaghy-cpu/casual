@@ -1,6 +1,9 @@
 import { scrypt, timingSafeEqual, type ScryptOptions } from "node:crypto";
 import { isDemoFirm } from "./firms";
+import { parseScryptHash } from "./scrypt-hash";
 import { seedId } from "./seed-id";
+
+export { parseScryptHash };
 
 // The demo's staffing login (Phase 31.1; docs/screens.md "Phase 31"): on a demo server only, one
 // login name and password open the office as a made-up admin of Acme Events, so Dylan can show the
@@ -8,9 +11,10 @@ import { seedId } from "./seed-id";
 // staffDemoOn() on the server first. The login name is only what the form accepts; it's no one's
 // email address (golden rule 7): the account it opens has a made-up one (STAFF_DEMO_USER).
 //
-// The password is never in the repo: only its salted scrypt hash (below). A demo server can't
-// change it, but the browser tests replace the hash with one of their own (DEMO_STAFF_LOGIN_HASH),
-// made at run time from a password of their own.
+// The password is never in the repo: only its salted scrypt hash (below). Any demo server can
+// replace that hash, and so the password, with its own (DEMO_STAFF_LOGIN_HASH, which the login
+// action reads wherever demo mode is on); the browser tests do, with the hash of a password they
+// make at run time.
 
 // The login name, compared after trimming and in any case.
 export const STAFF_LOGIN_NAME = "Staffing@test.com";
@@ -43,31 +47,6 @@ export const MAX_PASSWORD_LENGTH = 200;
 
 export function loginNameMatches(raw: string): boolean {
   return raw.trim().toLowerCase() === STAFF_LOGIN_NAME.toLowerCase();
-}
-
-interface ParsedHash {
-  N: number;
-  r: number;
-  p: number;
-  salt: Buffer;
-  key: Buffer;
-}
-
-// "scrypt$N$r$p$salt$key". Refuses a cost that isn't a power of two from 2^14 to 2^17, so a bad
-// setting can't make each try slow down the server or check nothing.
-export function parseScryptHash(stored: string): ParsedHash | null {
-  const parts = stored.split("$");
-  if (parts.length !== 6 || parts[0] !== "scrypt") return null;
-  const [N, r, p] = parts.slice(1, 4).map((x) => Number(x)) as [number, number, number];
-  const okN = Number.isInteger(N) && N >= 2 ** 14 && N <= 2 ** 17 && (N & (N - 1)) === 0;
-  if (!okN || !Number.isInteger(r) || r < 1 || r > 16 || !Number.isInteger(p) || p < 1 || p > 4)
-    return null;
-  const b64 = /^[A-Za-z0-9_-]+$/;
-  if (!b64.test(parts[4] ?? "") || !b64.test(parts[5] ?? "")) return null;
-  const salt = Buffer.from(parts[4] ?? "", "base64url");
-  const key = Buffer.from(parts[5] ?? "", "base64url");
-  if (salt.length < 16 || key.length < 32) return null;
-  return { N, r, p, salt, key };
 }
 
 const scryptKey = (password: string, salt: Buffer, length: number, options: ScryptOptions) =>

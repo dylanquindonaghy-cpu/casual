@@ -1071,6 +1071,8 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     // Phase 31 (demo servers only).
     case "auth.demo_login":
       return `${who} logged in with the demo's staffing login.`;
+    case "auth.demo_login_failed":
+      return "Someone tried the demo's staffing login with a wrong email or password.";
     case "auth.demo_casual_view":
       return d.workerId
         ? `${who} opened the casual view as ${worker}.`

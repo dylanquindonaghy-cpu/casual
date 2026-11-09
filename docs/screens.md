@@ -3494,11 +3494,15 @@ action refuses on the server too. There's never a password login on a real serve
   it opens is a made-up admin of Acme Events, "Staffing (demo)" (staffing.demo@example.com), added by
   the demo seed (and so by the demo's nightly reset).
 - The password is never written in the repo: only its salted scrypt hash is (N=2^15), compared in
-  constant time. `DEMO_STAFF_LOGIN_HASH` can replace the hash (the browser tests make a password of
-  their own and pass its hash); it's never a password itself.
+  constant time. On any demo server `DEMO_STAFF_LOGIN_HASH` can replace the hash, and so the
+  password (the browser tests make a password of their own and pass its hash); it's never a password
+  itself, and a hash the login would refuse (its cost out of bounds) stops the server at startup.
 - A wrong pair: "That email and password don't match." (the same words whichever part is wrong; the
-  fields keep what was typed). After 5 wrong pairs in 15 minutes, from one address or for one login
-  name: "Too many tries. Wait 15 minutes, then try again." Only wrong pairs count. Anything else:
+  fields keep what was typed), and an action log entry with no name or address in it: "Someone
+  tried the demo's staffing login with a wrong email or password." After 5 wrong pairs in 15
+  minutes, from one address or for one login name: "Too many tries. Wait 15 minutes, then try
+  again." Each try is counted before the password is checked, so tries sent all at once can't get
+  past the limit; a right pair takes its count back, so only wrong pairs count. Anything else:
   "Something went wrong. Try again."
 - Logged in: an office session for "Staffing (demo)", the same cookie as the office's email login,
   an action log entry ("Staffing (demo) logged in with the demo's staffing login.", ids only), and
@@ -3531,8 +3535,9 @@ staffing login or any other office login there); not logged in, the staffing log
 as {Zoe} sees it on a phone.", "Back to choose a view" and "Open full screen" (→ `/`), then the
 casual app (`/`) in a phone-sized frame, 390 by 844, centred, its corners rounded. On a phone (below
 640px) the browser goes straight to the app instead, and the frame isn't loaded. The frame is the
-same address, so it shares this browser's login. The app sends no header that stops framing, so
-nothing was changed to allow it, and nothing lets another site frame it.
+same address, so it shares this browser's login. The app sends no header about framing at all, so
+nothing had to change to allow it; that also means any site can frame the app, as before this
+phase (the Parking lot has `frame-ancestors 'self'`, which this page needs instead of DENY).
 
 The office and the casual app work exactly as before for everyone else.
 

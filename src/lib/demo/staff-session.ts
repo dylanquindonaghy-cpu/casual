@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { authParts, type AuthContext } from "../auth/link-login";
 import { createSession, findSession } from "../auth/sessions";
-import { hitLimit, LIMITS, logLimitReached, peekLimit, toMinutes } from "../auth/throttle";
+import { LIMITS, refundLimit, throttle } from "../auth/throttle";
 import { looksLikeToken } from "../auth/tokens";
 import { officeUsers, workers } from "../db/schema";
 import { recordEvent } from "../events/record";
@@ -43,26 +43,31 @@ export async function loginWithStaffAccount(
     { limit: LIMITS.demoLoginPerIp, value: ip },
     { limit: LIMITS.demoLoginPerName, value: nameKey(input.email) },
   ];
-  // Already over a limit: refused before the password is looked at.
-  const waitMs = await run(ctx.firm.id, async (tx) => {
-    for (const check of checks) {
-      const seen = await peekLimit(tx, { ...check, now, secret });
-      if (!seen.allowed) return seen.retryAfterMs;
-    }
-    return null;
+  // Every try is counted first, each limit in one statement, committed before the password is
+  // looked at: so tries sent all at once can't all get under a limit before any is counted. Over a
+  // limit: refused, the password never checked (the entry once, when it's first reached).
+  const limited = await throttle(run, ctx.firm.id, checks, {
+    now,
+    secret,
+    entityType: "login_request",
   });
-  if (waitMs !== null) return { status: "rate_limited", retryAfterMinutes: toMinutes(waitMs) };
+  if (limited) return { status: "rate_limited", retryAfterMinutes: limited.retryAfterMinutes };
 
   const matches = await staffLoginMatches(input, ctx.hash ?? STAFF_LOGIN_HASH);
   return run(ctx.firm.id, async (tx) => {
     if (!matches) {
-      // Only a wrong pair counts (each limit; the entry once, when it's first reached).
-      for (const check of checks) {
-        const hit = await hitLimit(tx, { ...check, now, secret });
-        if (hit.hits === hit.limit.max) await logLimitReached(tx, hit.limit, "login_request");
-      }
+      // Logged as a refused login link is: that it happened, never the name typed or the IP.
+      await recordEvent(tx, {
+        actorType: "system",
+        action: "auth.demo_login_failed",
+        entityType: "login_request",
+        entityId: null,
+        data: {},
+      });
       return { status: "wrong" } as const;
     }
+    // A right pair takes its count back: only wrong pairs count against the limits.
+    for (const check of checks) await refundLimit(tx, { ...check, now, secret });
     const [user] = await tx
       .select({ id: officeUsers.id })
       .from(officeUsers)

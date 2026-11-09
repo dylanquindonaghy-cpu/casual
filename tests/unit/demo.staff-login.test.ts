@@ -150,4 +150,21 @@ describe("the hash setting (DEMO_STAFF_LOGIN_HASH)", () => {
       /DEMO_STAFF_LOGIN_HASH/,
     );
   });
+
+  it("refuses at startup a hash whose numbers the login would refuse (else every login is wrong)", async () => {
+    const good = await hashStaffPassword(testPassword(), randomBytes(16));
+    const [, , , , salt, key] = good.split("$");
+    for (const [N, r, p] of [
+      [3, 8, 1],
+      [32768, 99, 1],
+      [32768, 8, 0],
+      [1024, 8, 1],
+      [30000, 8, 1],
+    ]) {
+      const bad = ["scrypt", N, r, p, salt, key].join("$");
+      expect(() => parseAppEnv({ ...base, DEMO_STAFF_LOGIN_HASH: bad }), bad).toThrow(
+        /DEMO_STAFF_LOGIN_HASH/,
+      );
+    }
+  });
 });

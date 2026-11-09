@@ -1376,6 +1376,38 @@ its line says, as the approved mock-up shows; `RUN_E2E=1 ./scripts/verify.sh` pr
 `guardrails-reviewer` has no open findings; the `claims-auditor` checks each task against its line
 and this one.
 
+## Phase 33 — First-login tours: a brag video, then a walkthrough on the real pages, one for the office and one for casuals (go-ahead: Dylan, 2026-11-09; UI, S)
+
+Asked, 2026-11-09 (Dylan, in chat, word for word): "you didnt use the brag as i told you to it was
+meant to give you a show around the pages features and a quick tutorial but yet you just gave me an
+faq and a brag which isnt being used anywhere keep the faq but thats not what should be shown when
+someone logs in it should show once the tut you need to make when first logging in and somewhere on
+the website where if they are stuck and want to be refreshed they can go through it again". Asked
+which: "two seperate ones for casuals and staff"; "a new video intro tailored to my last prompt then
+a step by step". The mock-up (private until shared):
+https://claude.ai/artifact/82tc19tXMG6EGVZ2f3UM8H. Approved, word for word: "approved, use the
+database field".
+
+- [ ] When each office user and each casual has finished or skipped their tour is kept on their
+      own row (a schema change: `tour_seen_at` on office users and on workers), written only for
+      themselves through `withFirm`, logged as an event with ids only; the tour opens by itself once,
+      at their first login after this ships, on any device (S, UI; S) (33.1)
+- [ ] The office's tour: the welcome window with the office video (made with the brag skill from the
+      real dashboard, about 25 seconds, muted with captions until tapped, "Skip the video"), then the
+      eight-step walkthrough on the real pages (counts, tabs, map, the session card, "Offer to
+      someone", the menu, search, where to take it again) in raised glass with Back, Next and Skip,
+      the keyboard and 44px buttons; "Take the tour again" in the name menu beside the quick guide
+      (UI; M) (33.2)
+- [ ] The casuals' tour, on the Phase 32 look: the welcome window with the casual video (brag, about
+      20 seconds, phone-shaped, captions), then the seven-step walkthrough (counts, next shift,
+      Directions, "Can't make it?", Shifts, Pay, Profile); "Take the tour again" on Profile and Help
+      (UI; M) (33.3)
+
+Done when: all three tasks are ticked with a stamp that includes the browser tests; each built what
+its line says, as the approved mock-up shows; `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; the
+`guardrails-reviewer` has no open findings; the `claims-auditor` checks each task against its line
+and this one.
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify

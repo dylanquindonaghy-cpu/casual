@@ -271,6 +271,72 @@ describe("with no signal, any other page (Phase 29.6)", () => {
     return { w, page, html: (await page?.text()) ?? "" };
   };
 
+  // Its own few lines that reload it when the signal is back (the run of Mon 9 Nov found them):
+  // Chromium fires "online" at this page when another page starts loading (once with
+  // navigator.onLine still false), and reloading then threw away her tap on "Open my saved shifts".
+  // A phone whose signal flickers does the same. So it reloads only once the network answers a
+  // HEAD request for the page (the worker never answers one: it handles GETs only), never while
+  // the browser says offline, and never once she has tapped away from it.
+  async function noSignalScript(answers: () => Promise<unknown>) {
+    const { html } = await opened("/pay");
+    const code = /<script>([\s\S]*?)<\/script>/.exec(html)?.[1] ?? "";
+    const heard = new Map<string, Array<() => void>>();
+    const asked: Array<{ url: string; init: Record<string, unknown> }> = [];
+    const page = {
+      reloads: 0,
+      navigator: { onLine: true },
+      location: { href: `${ORIGIN}/pay`, reload: () => void (page.reloads += 1) },
+      addEventListener: (type: string, fn: () => void) =>
+        heard.set(type, [...(heard.get(type) ?? []), fn]),
+      fetch: (url: string, init: Record<string, unknown>) => {
+        asked.push({ url, init });
+        return answers();
+      },
+      setTimeout: (fn: () => void, ms: number) => setTimeout(fn, ms),
+      clearTimeout: (t: ReturnType<typeof setTimeout>) => clearTimeout(t),
+    };
+    const sandbox = vm.createContext(page);
+    vm.runInContext(code, sandbox);
+    const fire = (type: string) => {
+      for (const fn of heard.get(type) ?? []) fn();
+    };
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+    return { page, asked, fire, settle };
+  }
+
+  it('reloads itself only once the network answers, not on every "online"', async () => {
+    // "online" while the network still fails: no reload (and it tries again later).
+    const failing = await noSignalScript(() => Promise.reject(new TypeError("Failed to fetch")));
+    failing.fire("online");
+    await failing.settle();
+    expect(failing.page.reloads).toBe(0);
+    expect(failing.asked[0]?.url).toBe(`${ORIGIN}/pay`);
+    expect(failing.asked[0]?.init).toMatchObject({ method: "HEAD", cache: "no-store" });
+
+    // "online" while the browser still says offline (as Chromium fired it): not even a check.
+    const flicker = await noSignalScript(() => Promise.resolve({ status: 200 }));
+    flicker.page.navigator.onLine = false;
+    flicker.fire("online");
+    await flicker.settle();
+    expect(flicker.asked).toHaveLength(0);
+    expect(flicker.page.reloads).toBe(0);
+
+    // She has tapped away (Open my saved shifts): never reloaded under her, signal or not.
+    const leaving = await noSignalScript(() => Promise.resolve({ status: 200 }));
+    leaving.fire("beforeunload");
+    leaving.fire("online");
+    await leaving.settle();
+    expect(leaving.page.reloads).toBe(0);
+
+    // The signal really is back: the page opens again, once.
+    const back = await noSignalScript(() => Promise.resolve({ status: 200 }));
+    back.fire("online");
+    back.fire("online");
+    await back.settle();
+    await back.settle();
+    expect(back.page.reloads).toBe(1);
+  });
+
   it("opens an in-app No signal page, with Try again and a way back to the saved shifts", async () => {
     const { w, page, html } = await opened("/pay");
     expect(page?.status).toBe(503); // as the plain No signal page
@@ -286,7 +352,7 @@ describe("with no signal, any other page (Phase 29.6)", () => {
     // signal comes back.
     expect(html).toContain("prefers-color-scheme:dark");
     expect(html).toContain("min-height:48px");
-    expect(html).toContain('addEventListener("online",function(){location.reload()})');
+    expect(html).toContain('addEventListener("online"');
     // Made each time: nothing is kept.
     expect(await w.caches.keys()).toEqual([]);
     for (const path of [

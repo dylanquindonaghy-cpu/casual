@@ -380,7 +380,7 @@ function noSignalElsewhere(url) {
       "<h1>No signal</h1><p>This page needs signal. Try again when you have signal.</p>" +
       `<a class="go" href="${here}">Try again</a>` +
       saved +
-      '<script>addEventListener("online",function(){location.reload()})</script>' +
+      `<script>${NO_SIGNAL_RELOAD}</script>` +
       "</body></html>",
     {
       status: 503,
@@ -388,6 +388,24 @@ function noSignalElsewhere(url) {
     },
   );
 }
+
+// The No signal page's own lines: it opens the page again once the signal is back. Not on every
+// "online": Chromium fires one at this page when another page starts loading (once with
+// navigator.onLine still false: the run of Mon 9 Nov), and a phone whose signal flickers fires
+// them too; reloading then threw away her tap on "Open my saved shifts". So it reloads only
+// once the network answers a HEAD request for this page (this worker handles GETs only, so it
+// never answers one; any answer counts, a redirect to log in too), asks again every 2 s up to 30
+// times while the browser says online, never while it says offline, and never once she has
+// tapped away (beforeunload; reset if the page comes back from the back button). The same
+// approach as the kept copy's (src/lib/portal/offline.ts, reloadWhenOnline).
+const NO_SIGNAL_RELOAD =
+  "(function(){var t=0,h=0,on=0,gone=0;" +
+  "function stop(){on=0;clearTimeout(h)}" +
+  'function check(){if(gone||!on)return;t++;fetch(location.href,{method:"HEAD",cache:"no-store",credentials:"same-origin",redirect:"manual"}).then(function(){return 1},function(){return 0}).then(function(ok){if(gone||!on)return;if(ok){gone=1;location.reload()}else if(t<30)h=setTimeout(check,2000);else on=0})}' +
+  'addEventListener("online",function(){if(gone||on||!navigator.onLine)return;on=1;t=0;check()});' +
+  'addEventListener("offline",stop);' +
+  'addEventListener("beforeunload",function(){gone=1;stop()});' +
+  'addEventListener("pageshow",function(e){if(e&&e.persisted)gone=0})})()';
 
 function escapeHtml(text) {
   return String(text).replace(

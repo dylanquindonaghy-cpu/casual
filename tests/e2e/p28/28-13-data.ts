@@ -64,7 +64,7 @@ async function casual(
     on conflict (firm_id, role) do nothing`);
   await tx
     .insert(workers)
-    .values({ firmId, ...who, roles: [role] })
+    .values({ firmId, tourSeenAt: new Date(), ...who, roles: [role] })
     .onConflictDoNothing();
   const [row] = await tx
     .select({ id: workers.id })

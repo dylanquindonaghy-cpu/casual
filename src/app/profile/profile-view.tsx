@@ -116,6 +116,7 @@ export function ProfileView({
   loginWay = "message",
   textSender: textSenderProp,
   answersCount = 0,
+  tourAgain = null,
 }: {
   profile: Profile;
   signOff: string;
@@ -134,6 +135,9 @@ export function ProfileView({
   travel?: MyTravel | null;
   // The office's answers to her requests she hasn't seen (28.2's count, the tab bar's too).
   answersCount?: number;
+  // "Take the tour again" (Phase 33.3, src/app/casual-tour.tsx): a row of the list at the top, after
+  // Help. Left out by the older fixtures.
+  tourAgain?: ReactNode;
 }) {
   const year = Number(profile.today.slice(0, 4));
   const textSender = textSenderProp ?? loginWay === "message";
@@ -155,6 +159,7 @@ export function ProfileView({
         {/* Her shift record (28.4), linked from Profile and Booked's Past 90 days (28.13). */}
         <TopRow href={RECORD_PATH} icon="log" title={RECORD_TITLE} sub={RECORD_ROW_LINE} />
         <TopRow href="/help" icon="guide" title="Help" sub={HELP_LINE} />
+        {tourAgain}
       </ul>
 
       <section aria-labelledby="contact-heading" className={`${staffCard} ${sectionGap.staff}`}>

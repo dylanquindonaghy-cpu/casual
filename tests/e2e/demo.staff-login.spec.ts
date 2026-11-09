@@ -4,7 +4,9 @@ import {
   WALKTHROUGH_PORT,
   WALKTHROUGH_SITE_PASSWORD,
 } from "../../playwright.walkthrough.config";
-import { STAFF_LOGIN_NAME } from "../../src/lib/demo/staff-login";
+import { DEMO_CASUAL_ID, STAFF_LOGIN_NAME } from "../../src/lib/demo/staff-login";
+import { CASUAL_WELCOME } from "../../src/lib/tour/casual-copy";
+import { casualTour, setCasualTourSeen } from "./db";
 
 // The staffing demo (Phase 31), on the walkthrough's production build in demo mode
 // (playwright.walkthrough.config.ts), after the Demo phone's own test: the staffing login (with this
@@ -146,6 +148,44 @@ test("on a phone: Casual mobile view opens the casual app itself", async ({ brow
   // The frame's page sends a phone on to the app too.
   await page.goto(`${acme}/start/phone`);
   await expect(page).toHaveURL(`${acme}/`);
+});
+
+// Phase 33.3: the casuals' first-login tour shows in the Casual mobile view as it would for Zoe
+// (staff want to see it), but finishing or skipping it there is the office's look, not Zoe's: her
+// tour isn't marked seen and nothing is logged as her. Zoe starts unseen here, and is put back as
+// the run left her (seen: tests/e2e/prepare-db.ts) after.
+test("on a phone: the casual's tour shows in the Casual mobile view, and skipping it there doesn't mark Zoe's", async ({
+  browser,
+}) => {
+  const since = new Date(Date.now() - 1000);
+  await setCasualTourSeen("acme", DEMO_CASUAL_ID, null);
+  try {
+    const page = await windowOf(browser, "phone");
+    await logIn(page);
+    await page.getByRole("button", { name: /Casual mobile view/ }).click();
+    await expect(page).toHaveURL(`${acme}/`);
+    const welcome = page.locator("dialog[data-tour-welcome]");
+    await expect(welcome).toBeVisible();
+    await expect(
+      welcome.getByRole("heading", { name: "Welcome to Acme Events' shifts" }),
+    ).toBeVisible();
+    await welcome.getByRole("button", { name: CASUAL_WELCOME.skipVideo }).click();
+    const tip = page.locator("[data-tour-tip]");
+    await expect(tip).toContainText("Step 1 of 7");
+    await tip.getByRole("button", { name: "Skip" }).click();
+    await expect(page.locator("dialog[data-tour-walk]")).toHaveCount(0);
+    // Give the browser's call time to land, then: Zoe's row and the log untouched.
+    await page.waitForTimeout(1500);
+    expect(await casualTour("acme", DEMO_CASUAL_ID, since)).toEqual({ seenAt: null, events: [] });
+    // Not again in this view's login either.
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Home", level: 1 })).toBeVisible();
+    await page.waitForTimeout(1000);
+    await expect(welcome).toHaveCount(0);
+    expect((await casualTour("acme", DEMO_CASUAL_ID, since)).seenAt).toBeNull();
+  } finally {
+    await setCasualTourSeen("acme", DEMO_CASUAL_ID, new Date());
+  }
 });
 
 for (const colorScheme of ["light", "dark"] as const) {

@@ -789,9 +789,10 @@ describe("Home: what she can take, and her next shift in full", () => {
     const pass = card.slice(0, card.indexOf("</section>"));
     // Phase 32 (32.2; Dylan's approved mock-up): on Home the pass is the card over the street map,
     // as the office's session card: raised glass (what floats), 12px round, 16px inside its edges,
-    // no band; its heading shown from 1024px (a phone's for screen readers).
+    // no band; its heading shown from 1024px (a phone's for screen readers). Phase 33.3: it's the
+    // casuals' tour's "Your next shift" step (data-tour).
     expect(pass).toMatch(
-      /^aria-labelledby="next-heading" data-pass="" data-map-card="" class="glass-float flex animate-in flex-col gap-3 rounded-inner p-4">/,
+      /^aria-labelledby="next-heading" data-pass="" data-map-card="" data-tour="next-shift" class="glass-float flex animate-in flex-col gap-3 rounded-inner p-4">/,
     );
     expect(pass).toContain(
       '<h2 id="next-heading" class="text-base font-semibold text-ink">Your next shift</h2>',
@@ -813,9 +814,10 @@ describe("Home: what she can take, and her next shift in full", () => {
     // No travel time on the card itself: a drive alone would mislead someone without a car (12G.3).
     expect(text(body)).not.toContain("by car");
     // Then Directions (the maps link, the main button: lime) and Details (clear glass) side by
-    // side, "Can't make it?" in red words under them.
+    // side, "Can't make it?" in red words under them. The pair is the casuals' tour's "Getting
+    // there" step (Phase 33.3: data-tour, with Directions there).
     const buttons =
-      /<div class="grid auto-cols-fr grid-flow-col gap-2">([\s\S]*?)<\/details><\/div>/.exec(
+      /<div data-tour="directions" class="grid auto-cols-fr grid-flow-col gap-2">([\s\S]*?)<\/details><\/div>/.exec(
         body,
       )?.[1] ?? "";
     expect(buttons).toMatch(
@@ -830,9 +832,10 @@ describe("Home: what she can take, and her next shift in full", () => {
         `<details data-pass-more="" class="group"><summary aria-controls="pass-details" class="${esc(staffBtn.secondary)} list-none [^"]*"><svg[\\s\\S]*?</summary>$`,
       ),
     );
+    // "Can't make it?" is the casuals' tour's step 4 (Phase 33.3: data-tour).
     expect(body).toMatch(
       new RegExp(
-        `</details></div><button type="button" disabled="" class="${esc(staffBtn.danger)}">Can&#x27;t make it\\?</button>`,
+        `</details></div><button type="button" disabled="" data-tour="cant-make-it" class="${esc(staffBtn.danger)}">Can&#x27;t make it\\?</button>`,
       ),
     );
     expect(pass).toMatch(

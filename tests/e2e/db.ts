@@ -251,11 +251,14 @@ export async function addEventWithSession(
 
 // A steward of a spec's own who may take steward shifts (the Level 2 qualification, valid, no
 // expiry). Fake details only: a drama-range number the seed doesn't use. Returns their id; safe to
-// call again (a retried test), when it finds them by their number.
+// call again (a retried test), when it finds them by their number. Their first-login tour (Phase
+// 33.3) is marked seen, so it doesn't open over Home in a spec, unless `tourSeen: false` (the tour's
+// own spec, tests/e2e/casual.tour.spec.ts).
 export async function addSteward(
   slug: string,
-  o: { firstName: string; lastName: string; mobileE164: string },
+  who: { firstName: string; lastName: string; mobileE164: string; tourSeen?: boolean },
 ): Promise<string> {
+  const { tourSeen, ...o } = who;
   const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
   try {
     const { rows } = await pool.query<{ db: string }>("select current_database() as db");
@@ -264,7 +267,12 @@ export async function addSteward(
     return await createWithFirm(pool)(firmId, async (tx) => {
       const [added] = await tx
         .insert(workers)
-        .values({ firmId, ...o, roles: ["steward"] })
+        .values({
+          firmId,
+          tourSeenAt: tourSeen === false ? null : new Date(),
+          ...o,
+          roles: ["steward"],
+        })
         .onConflictDoNothing()
         .returning({ id: workers.id });
       if (added) {
@@ -678,7 +686,7 @@ export async function addWorker(
     return await createWithFirm(pool)(firmId, async (tx) => {
       const [row] = await tx
         .insert(workers)
-        .values({ firmId, ...o, roles: ["steward"] })
+        .values({ firmId, tourSeenAt: new Date(), ...o, roles: ["steward"] })
         .returning({ id: workers.id });
       if (!row) throw new Error("worker insert returned nothing");
       return row.id;
@@ -1097,7 +1105,7 @@ export async function travelScene(
         on conflict (firm_id, role) do nothing`);
       await tx
         .insert(workers)
-        .values({ firmId, ...casual, roles: [TRAVEL_SCENE_ROLE] })
+        .values({ firmId, tourSeenAt: new Date(), ...casual, roles: [TRAVEL_SCENE_ROLE] })
         .onConflictDoNothing();
       const [worker] = await tx
         .select({ id: workers.id })
@@ -1208,7 +1216,7 @@ export async function homeScene(
         on conflict (firm_id, role) do nothing`);
       await tx
         .insert(workers)
-        .values({ firmId, ...casual, roles: [HOME_SCENE_ROLE] })
+        .values({ firmId, tourSeenAt: new Date(), ...casual, roles: [HOME_SCENE_ROLE] })
         .onConflictDoNothing();
       const [worker] = await tx
         .select({ id: workers.id })
@@ -1363,7 +1371,7 @@ export async function shiftsScene(
       const roles = [SHIFTS_SCENE_ROLE, SHIFTS_SCENE_SECOND_ROLE];
       await tx
         .insert(workers)
-        .values({ firmId, ...casual, roles })
+        .values({ firmId, tourSeenAt: new Date(), ...casual, roles })
         .onConflictDoNothing();
       const [worker] = await tx
         .select({ id: workers.id })
@@ -1498,7 +1506,7 @@ export async function addQualifiedCasual(
     return await createWithFirm(pool)(firmId, async (tx) => {
       await tx
         .insert(workers)
-        .values({ firmId, ...casual, roles: o.roles })
+        .values({ firmId, tourSeenAt: new Date(), ...casual, roles: o.roles })
         .onConflictDoNothing();
       const [worker] = await tx
         .select({ id: workers.id })
@@ -1564,7 +1572,7 @@ export async function personalReplyScene(
       ) => {
         await tx
           .insert(workers)
-          .values({ firmId, ...who, roles: [REPLY_SCENE_ROLE] })
+          .values({ firmId, tourSeenAt: new Date(), ...who, roles: [REPLY_SCENE_ROLE] })
           .onConflictDoNothing();
         const [worker] = await tx
           .select({ id: workers.id })
@@ -1698,8 +1706,8 @@ export async function inboxScene(
       found.rows[0]?.id ??
       (
         await client.query<{ id: string }>(
-          `insert into workers (firm_id, first_name, last_name, mobile_e164, email, roles)
-           values ($1, $2, $3, $4, $5, '{steward}') returning id::text as id`,
+          `insert into workers (firm_id, first_name, last_name, mobile_e164, email, roles, tour_seen_at)
+           values ($1, $2, $3, $4, $5, '{steward}', now()) returning id::text as id`,
           [firmId, o.firstName, o.lastName, o.mobileE164, o.email],
         )
       ).rows[0]?.id;
@@ -1789,6 +1797,54 @@ export async function officeTour(
          order by id`);
       return { seenAt: me.at, events: found.rows };
     });
+  } finally {
+    await pool.end();
+  }
+}
+
+// A casual's first-login tour (Phase 33.3), by her id: when she finished or skipped it (null: not
+// yet), and the tour entries in the log as her since `since` (action and data: ids only).
+export async function casualTour(
+  slug: string,
+  workerId: string,
+  since: Date,
+): Promise<{ seenAt: Date | null; events: { action: string; data: unknown }[] }> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    return await createWithFirm(pool)(seedId(`firm/${slug}`), async (tx) => {
+      const [me] = await tx
+        .select({ at: workers.tourSeenAt })
+        .from(workers)
+        .where(eq(workers.id, workerId));
+      if (!me) throw new Error(`no casual ${workerId}`);
+      const found = await tx.execute<{ action: string; data: unknown }>(sql`
+        select action, data from events
+         where action like 'tour.%' and actor_type = 'worker' and actor_id = ${workerId}::uuid
+           and created_at >= ${since.toISOString()}::timestamptz
+         order by id`);
+      return { seenAt: me.at, events: found.rows };
+    });
+  } finally {
+    await pool.end();
+  }
+}
+
+// Sets (a date) or clears (null) a casual's tour_seen_at: the tour's own specs start a casual on
+// "not seen yet" (a retried test too), and put a seeded casual back as they found her.
+export async function setCasualTourSeen(
+  slug: string,
+  workerId: string,
+  at: Date | null,
+): Promise<void> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    await createWithFirm(pool)(seedId(`firm/${slug}`), (tx) =>
+      tx.update(workers).set({ tourSeenAt: at }).where(eq(workers.id, workerId)),
+    );
   } finally {
     await pool.end();
   }

@@ -10,7 +10,13 @@ import { countChip, countChipNumber, countChips } from "../ui/classes";
 // is online only (the kept copy leaves it out). Hook-free.
 export function HomeCounts({ pills }: { pills: CountPill[] }) {
   return (
-    <ul role="list" aria-label={COUNTS_LABEL} data-home-counts="" className={countChips}>
+    <ul
+      role="list"
+      aria-label={COUNTS_LABEL}
+      data-home-counts=""
+      data-tour="counts"
+      className={countChips}
+    >
       {pills.map((p) => (
         <li key={p.key} {...(p.onlineOnly ? { "data-online-only": "" } : {})} className="flex">
           <Link href={p.href} data-count={p.key} className={countChip}>

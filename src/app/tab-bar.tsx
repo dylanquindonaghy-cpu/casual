@@ -149,6 +149,8 @@ export function TabBar({
               // ("Profile , 1 thing…"), as the browser puts space around them.
               aria-label={count ? `${words}, ${count.words}` : undefined}
               data-tab={tab}
+              // The casuals' tour points at Shifts, Pay and Profile (Phase 33.3).
+              data-tour={`tab-${tab}`}
               // The focus ring sits inside the tab.
               className={`group/tab flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-row px-1 text-sm focus-visible:-outline-offset-2 ${
                 here ? "font-semibold text-ink" : "font-medium text-ink-muted hover:text-ink"

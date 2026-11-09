@@ -316,6 +316,7 @@ export function MapPass({
       key={shift.assignmentId}
       shiftId={shift.shiftId}
       opener="full"
+      tour="cant-make-it"
       summary={{
         dow: day.dow,
         day: day.day,
@@ -333,6 +334,7 @@ export function MapPass({
       aria-labelledby="next-heading"
       data-pass=""
       data-map-card=""
+      data-tour="next-shift"
       className="glass-float flex animate-in flex-col gap-3 rounded-inner p-4"
     >
       <div className="flex items-center justify-between gap-3 max-lg:sr-only lg:border-b lg:border-line lg:pb-3">
@@ -397,7 +399,11 @@ export function MapPass({
           </Link>
         </div>
       )}
-      <div className="grid auto-cols-fr grid-flow-col gap-2">
+      {/* The tour's "Getting there" step (Phase 33.3) is Directions with Details. */}
+      <div
+        data-tour={map ? "directions" : undefined}
+        className="grid auto-cols-fr grid-flow-col gap-2"
+      >
         {map && (
           <a href={map} target="_blank" rel="noopener noreferrer" className={staffBtn.primary}>
             <Icon name="pin" size={22} />

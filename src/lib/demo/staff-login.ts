@@ -38,6 +38,12 @@ export const STAFF_DEMO_USER = {
 // src/lib/db/admin/seed-story.ts, the same fixed id).
 export const DEMO_CASUAL_ID = seedId("acme/story/worker/zoe");
 
+// The log entry openCasualView writes, in the same transaction as the casual's session it starts,
+// naming that session (entity_type "session", entity_id its id). It is what marks a session as the
+// office's look at Zoe's app rather than Zoe's own (Phase 33.3: her first-login tour isn't marked
+// seen from it): the log is append-only, and nothing else writes this action.
+export const DEMO_CASUAL_VIEW_ACTION = "auth.demo_casual_view";
+
 // Whether the staffing demo pages and actions exist here: a demo server (DEMO_MODE=on), on Acme
 // Events, the demo firm the login opens. Anywhere else they're not found.
 export const staffDemoOn = (demoMode: string | undefined, firmId: string | null): boolean =>

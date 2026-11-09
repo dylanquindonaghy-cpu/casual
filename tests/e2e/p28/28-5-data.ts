@@ -61,7 +61,7 @@ export async function shiftPageScene(slug = "acme"): Promise<ShiftPageScene> {
         on conflict (firm_id, role) do nothing`);
       await tx
         .insert(workers)
-        .values({ firmId, ...P28_5_CASUAL, roles: [P28_5_ROLE] })
+        .values({ firmId, tourSeenAt: new Date(), ...P28_5_CASUAL, roles: [P28_5_ROLE] })
         .onConflictDoNothing();
       const [me] = await tx
         .select({ id: workers.id })

@@ -51,10 +51,12 @@ export function CancelShift({
   shiftId,
   summary,
   opener = "full",
+  tour,
 }: {
   shiftId: string;
   summary: CancelSummary;
   opener?: "small" | "full";
+  tour?: string; // the opener's anchor for the casuals' tour (Phase 33.3: Home's next shift)
 }) {
   const router = useRouter();
   const ready = useHydrated();
@@ -146,6 +148,7 @@ export function CancelShift({
         type="button"
         disabled={!ready}
         onClick={open}
+        data-tour={tour}
         className={opener === "small" ? `${staffBtnSmall} text-urgent-ink` : staffBtn.danger}
       >
         Can&apos;t make it?

@@ -76,7 +76,7 @@ async function casual(
 ): Promise<string> {
   await tx
     .insert(workers)
-    .values({ firmId, ...who, roles: [P30_ROLE] })
+    .values({ firmId, tourSeenAt: new Date(), ...who, roles: [P30_ROLE] })
     .onConflictDoNothing();
   const [row] = await tx
     .select({ id: workers.id })

@@ -32,7 +32,7 @@ export function TourWelcome({
 }: {
   copy: WelcomeCopy;
   video: { src: string; poster: string; captions: string };
-  shape?: "wide" | "tall";
+  shape?: "wide" | "tall"; // the casuals' video is portrait (9:16)
   onStart: () => void; // the walkthrough (after the video, or skipping it)
   onNotNow: () => void;
 }) {
@@ -40,6 +40,7 @@ export function TourWelcome({
   const player = useRef<HTMLVideoElement>(null);
   const [plays, setPlays] = useState(false); // the file loaded and can be shown
   const [muted, setMuted] = useState(true);
+  const tall = shape === "tall";
 
   useEffect(() => {
     const d = dialog.current;
@@ -79,11 +80,15 @@ export function TourWelcome({
         e.preventDefault();
         leave(onNotNow);
       }}
-      className="glass-float m-0 h-dvh max-h-none w-screen max-w-none overflow-y-auto p-4 text-base text-ink backdrop:bg-scrim/60 sm:m-auto sm:h-fit sm:max-h-[calc(100dvh-2rem)] sm:w-160 sm:max-w-[calc(100vw-2rem)] sm:rounded-card sm:p-6"
+      data-shape={shape}
+      className={`glass-float m-0 h-dvh max-h-none w-screen max-w-none overflow-y-auto p-4 text-base text-ink backdrop:bg-scrim/60 sm:m-auto sm:h-fit sm:max-h-[calc(100dvh-2rem)] sm:max-w-[calc(100vw-2rem)] sm:rounded-card sm:p-6 ${tall ? "sm:w-184" : "sm:w-160"}`}
     >
-      <div className="flex flex-col gap-4">
+      <div className={`flex flex-col gap-4 ${tall ? "sm:flex-row sm:items-center sm:gap-6" : ""}`}>
+        {/* A portrait video (the casuals') is drawn 9:16 at a height that leaves room for the
+            words and buttons: above them on a phone, beside them from 640px. */}
         <div
-          className={`glass-tile relative grid place-items-center overflow-hidden rounded-card ${shape === "tall" ? "mx-auto aspect-[9/16] max-h-[60dvh]" : "aspect-video w-full"}`}
+          data-tour-video=""
+          className={`glass-tile relative grid shrink-0 place-items-center overflow-hidden rounded-card ${tall ? "aspect-[9/16] h-[min(54dvh,34rem)] max-w-full self-center sm:h-[min(70dvh,35rem)]" : "aspect-video w-full"}`}
         >
           {/* The video's first words: what shows until it plays. */}
           <p
@@ -122,21 +127,23 @@ export function TourWelcome({
             </button>
           )}
         </div>
-        <h2 id="tour-welcome-title" className="text-2xl font-semibold text-ink">
-          {copy.title}
-        </h2>
-        <p className="text-ink-muted">{copy.intro}</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => leave(onStart)} className={btn.primary}>
-            {copy.start}
-          </button>
-          <button type="button" onClick={() => leave(onStart)} className={btn.secondary}>
-            {copy.skipVideo}
-          </button>
-          <span aria-hidden="true" className="flex-1" />
-          <button type="button" onClick={() => leave(onNotNow)} className={btn.text}>
-            {copy.notNow}
-          </button>
+        <div className="flex min-w-0 flex-1 flex-col gap-4">
+          <h2 id="tour-welcome-title" className="text-2xl font-semibold text-ink">
+            {copy.title}
+          </h2>
+          <p className="text-ink-muted">{copy.intro}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => leave(onStart)} className={btn.primary}>
+              {copy.start}
+            </button>
+            <button type="button" onClick={() => leave(onStart)} className={btn.secondary}>
+              {copy.skipVideo}
+            </button>
+            <span aria-hidden="true" className="flex-1" />
+            <button type="button" onClick={() => leave(onNotNow)} className={btn.text}>
+              {copy.notNow}
+            </button>
+          </div>
         </div>
       </div>
     </dialog>

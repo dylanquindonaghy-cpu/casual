@@ -8,6 +8,8 @@ import { hasTextSender, workerLoginWay } from "@/lib/portal/login-way";
 import { myProfile } from "@/lib/portal/profile";
 import { myTravel } from "@/lib/portal/travel";
 import { unseenAnswers } from "@/lib/portal/request-answers";
+import { tourLaterKey } from "@/lib/tour/later-key";
+import { CasualTourAgain } from "../casual-tour";
 import { refreshSessionAction } from "../session-actions";
 import { HomeScreenHint } from "../home-screen-hint";
 import { SessionKeeper } from "../session-keeper";
@@ -18,7 +20,7 @@ import { CasualTop } from "../casual-top-bar";
 export const metadata: Metadata = { title: "My profile" };
 
 export default async function ProfilePage() {
-  const { firm, worker, session } = await requireWorker();
+  const { firm, worker, session, tourSeen } = await requireWorker();
   const profile = await myProfile({ firm }, worker.id);
   if (!profile) notFound();
   const strikes = await myStrikes({ firm }, worker.id);
@@ -40,6 +42,14 @@ export default async function ProfilePage() {
           loginWay={await workerLoginWay(firm.id, worker.id)}
           textSender={hasTextSender()}
           answersCount={answers}
+          tourAgain={
+            <CasualTourAgain
+              look="row"
+              firmName={firm.name}
+              seen={tourSeen}
+              laterKey={tourLaterKey(session.id)}
+            />
+          }
         />
         <HomeScreenHint />
         <CasualTabBar firm={firm} workerId={worker.id} current="profile" />

@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createSession } from "@/lib/auth/sessions";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { eraseWorker } from "@/lib/gdpr/worker-erase";
 import { markCasualTourSeen, markOfficeTourSeen, TOUR_ACTIONS } from "@/lib/tour/seen";
@@ -21,6 +22,14 @@ beforeAll(() => {
 afterAll(async () => {
   await Promise.all([su.end(), app.end()]);
 });
+
+// A casual's own session (as her login makes), whose id the action passes on (Phase 33.3).
+const sessionOf = async (firmId: string, workerId: string) =>
+  (
+    await withFirm(firmId, (tx) =>
+      createSession(tx, { kind: "worker", subjectId: workerId, now: new Date() }),
+    )
+  ).id;
 
 const seenAt = async (table: "office_users" | "workers", id: string) =>
   (
@@ -112,16 +121,22 @@ describe("a casual's tour", () => {
     const other = await bookingFirm(su, withFirm);
     const zoe = await f.worker();
     const ann = await f.worker();
+    const hers = await sessionOf(f.firmId, zoe);
     expect(
-      await markCasualTourSeen({ firm: { id: other.firmId }, run: withFirm }, zoe, "finished"),
+      await markCasualTourSeen(
+        { firm: { id: other.firmId }, run: withFirm },
+        zoe,
+        "finished",
+        hers,
+      ),
     ).toBe("not_found");
     expect(await seenAt("workers", zoe)).toBeNull();
 
     expect(
-      await markCasualTourSeen({ firm: { id: f.firmId }, run: withFirm }, zoe, "finished"),
+      await markCasualTourSeen({ firm: { id: f.firmId }, run: withFirm }, zoe, "finished", hers),
     ).toBe("marked");
     expect(
-      await markCasualTourSeen({ firm: { id: f.firmId }, run: withFirm }, zoe, "skipped"),
+      await markCasualTourSeen({ firm: { id: f.firmId }, run: withFirm }, zoe, "skipped", hers),
     ).toBe("already");
     expect(await seenAt("workers", zoe)).not.toBeNull();
     expect(await seenAt("workers", ann)).toBeNull();
@@ -142,7 +157,8 @@ describe("a casual's tour", () => {
     const f = await bookingFirm(su, withFirm);
     const admin = await f.office("admin");
     const zoe = await f.worker();
-    await markCasualTourSeen({ firm: { id: f.firmId }, run: withFirm }, zoe, "finished");
+    const hers = await sessionOf(f.firmId, zoe);
+    await markCasualTourSeen({ firm: { id: f.firmId }, run: withFirm }, zoe, "finished", hers);
     expect(await seenAt("workers", zoe)).not.toBeNull();
     const erased = await eraseWorker(
       { firm: { id: f.firmId }, officeUserId: admin, run: withFirm },
@@ -151,7 +167,7 @@ describe("a casual's tour", () => {
     expect(erased).toMatchObject({ status: "erased" });
     expect(await seenAt("workers", zoe)).toBeNull();
     expect(
-      await markCasualTourSeen({ firm: { id: f.firmId }, run: withFirm }, zoe, "skipped"),
+      await markCasualTourSeen({ firm: { id: f.firmId }, run: withFirm }, zoe, "skipped", hers),
     ).toBe("not_found");
     expect(await seenAt("workers", zoe)).toBeNull();
   });

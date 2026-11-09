@@ -83,6 +83,7 @@ export function CasualTopBar({
           role="list"
           aria-label={COUNTS_LABEL}
           data-bar-counts=""
+          data-tour="counts"
           className="scrollbar-none fade-x hidden min-w-0 shrink items-center gap-2 overflow-x-auto lg:flex"
         >
           {pills.map((p) => (

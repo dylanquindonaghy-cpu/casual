@@ -1,6 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
-import { officeUsers, workers } from "../db/schema";
+import { DEMO_CASUAL_VIEW_ACTION } from "../demo/staff-login";
+import { events, officeUsers, workers } from "../db/schema";
 import { withFirm, type WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { officeUserMay } from "../office/office-context";
@@ -28,8 +29,10 @@ export interface TourContext {
 
 // "marked": the row changed and was logged; "already": it was already set (nothing written);
 // "not_found": no such person in this firm (another firm's, or gone); "not_allowed": an office user
-// the tour isn't offered to (no dashboard: payroll; or switched off), so nothing written.
-export type MarkTourResult = "marked" | "already" | "not_found" | "not_allowed";
+// the tour isn't offered to (no dashboard: payroll; or switched off), so nothing written;
+// "demo_view": the demo's "Casual mobile view" (an office user looking at Zoe's app), so nothing
+// written and nothing logged as her.
+export type MarkTourResult = "marked" | "already" | "not_found" | "not_allowed" | "demo_view";
 
 export async function markOfficeTourSeen(
   ctx: TourContext,
@@ -70,13 +73,31 @@ export async function markOfficeTourSeen(
   });
 }
 
+// `sessionId`: the casual's session the request came with (Phase 33.3). The demo's "Casual mobile
+// view" (src/lib/demo/staff-session.ts openCasualView, Phase 31.2) gives an office user a session as
+// the demo casual, Zoe; the tour shows there (staff want to see it), but finishing or skipping it
+// must not mark Zoe's row or log an entry as her. Such a session is the one named by the
+// auth.demo_casual_view entry written with it (DEMO_CASUAL_VIEW_ACTION): no new column.
 export async function markCasualTourSeen(
   ctx: TourContext,
   workerId: string,
   outcome: TourOutcome,
+  sessionId: string,
 ): Promise<MarkTourResult> {
   const run = ctx.run ?? withFirm;
   return run(ctx.firm.id, async (tx): Promise<MarkTourResult> => {
+    const [view] = await tx
+      .select({ id: events.id })
+      .from(events)
+      .where(
+        and(
+          eq(events.entityId, sessionId),
+          eq(events.entityType, "session"),
+          eq(events.action, DEMO_CASUAL_VIEW_ACTION),
+        ),
+      )
+      .limit(1);
+    if (view) return "demo_view";
     const changed = await tx
       .update(workers)
       .set({ tourSeenAt: new Date() })

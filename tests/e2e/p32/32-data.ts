@@ -65,6 +65,7 @@ async function casual(
     .insert(workers)
     .values({
       firmId,
+      tourSeenAt: new Date(),
       firstName: who.firstName,
       lastName: who.lastName,
       mobileE164: who.mobileE164,

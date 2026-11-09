@@ -12,6 +12,7 @@ import {
   TOUR_CONTROLS,
   TOUR_MENU,
 } from "@/lib/tour/office-copy";
+import { CASUAL_TOUR_AGAIN, CASUAL_TOUR_STEPS, CASUAL_WELCOME } from "@/lib/tour/casual-copy";
 import { EDGE, nextShown, placeTip, readTourPlace, TIP_WIDTH, type Rect } from "@/lib/tour/steps";
 import { TOUR_ACTIONS } from "@/lib/tour/seen";
 
@@ -24,6 +25,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/office",
 }));
 const { TourWelcome } = await import("@/app/tour/welcome");
+const { CASUAL_TOUR_VIDEO } = await import("@/app/casual-tour");
 
 const squash = (text: string) => text.replace(/\s+/g, " ").trim();
 const screens = readFileSync("docs/screens.md", "utf8");
@@ -43,9 +45,9 @@ const files = (dir: string): string[] =>
   });
 
 describe("the words are the screens doc's", () => {
-  it("docs/screens.md has a Phase 33 section with 33.1 and 33.2", () => {
+  it("docs/screens.md has a Phase 33 section with 33.1, 33.2 and 33.3", () => {
     expect(screens).toContain("\n## Phase 33\n");
-    for (const h of ["### 33.1", "### 33.2"]) expect(phase33).toContain(h);
+    for (const h of ["### 33.1", "### 33.2", "### 33.3"]) expect(phase33).toContain(h);
   });
 
   it("every sentence of the welcome window, the controls, the menu and the steps is in the doc", () => {
@@ -235,5 +237,146 @@ describe("the welcome window", () => {
     expect(secs(cues[cues.length - 1]?.[2] ?? "")).toBeLessThanOrEqual(26);
     for (const line of ["60 emails a day?", "Here's your one screen.", "Let's show you round."])
       expect(vtt).toContain(line);
+  });
+});
+
+// --- The casuals' tour (Phase 33.3) ------------------------------------------------------------
+
+describe("the casuals' tour: its words are the screens doc's", () => {
+  const casual = squash(screens.slice(screens.indexOf("\n### 33.3\n")));
+
+  it("docs/screens.md has 33.3 under Phase 33", () => {
+    expect(phase33).toContain("### 33.3");
+  });
+
+  it("every sentence of the welcome window, the steps and Take the tour again is in 33.3", () => {
+    const steps = CASUAL_TOUR_STEPS.flatMap((s) => [s.title, s.body]);
+    const all = [
+      ...steps,
+      ...strings({ ...CASUAL_WELCOME, title: undefined }),
+      ...strings(CASUAL_TOUR_AGAIN),
+    ];
+    expect(all.length).toBeGreaterThan(20);
+    expect(all.filter((s) => !casual.includes(squash(s)))).toEqual([]);
+    expect(casual).toContain(
+      CASUAL_WELCOME.title("Acme Events").replace("Acme Events'", "{Acme Events'}"),
+    );
+    expect(CASUAL_WELCOME.title("Acme Events")).toBe("Welcome to Acme Events' shifts");
+    expect(CASUAL_WELCOME.title("Northline Staffing")).toBe(
+      "Welcome to Northline Staffing's shifts",
+    );
+    // The window's buttons and the walkthrough's controls are the office's own words.
+    for (const k of ["start", "skipVideo", "notNow", "soundOn"] as const)
+      expect(CASUAL_WELCOME[k]).toBe(OFFICE_WELCOME[k]);
+  });
+});
+
+describe("every casual step points at a part Home really has", () => {
+  const app = [
+    "src/app/home/home-counts.tsx",
+    "src/app/casual-top-bar.tsx",
+    "src/app/next-pass.tsx",
+    "src/app/shifts/cancel-shift.tsx",
+    "src/app/tab-bar.tsx",
+  ]
+    .map((f) => readFileSync(f, "utf8"))
+    .join("\n");
+
+  it("seven steps on Home, in the mock-up's order", () => {
+    expect(CASUAL_TOUR_STEPS.map((s) => s.anchor)).toEqual([
+      "counts",
+      "next-shift",
+      "directions",
+      "cant-make-it",
+      "tab-shifts",
+      "tab-pay",
+      "tab-profile",
+    ]);
+    for (const s of CASUAL_TOUR_STEPS) expect(s.path).toBe("/");
+  });
+
+  it("each anchor is on the element it names", () => {
+    // The counts: Home's row (a phone) and the top bar's (from 1024px).
+    expect(app.match(/data-tour="counts"/g)).toHaveLength(2);
+    expect(app).toContain('data-tour="next-shift"');
+    expect(app).toContain('data-tour={map ? "directions" : undefined}');
+    expect(readFileSync("src/app/next-pass.tsx", "utf8")).toContain('tour="cant-make-it"');
+    expect(app).toContain("data-tour={tour}");
+    // The tab bar's links (the rail from 1024px): one anchor per tab.
+    expect(app).toContain("data-tour={`tab-${tab}`}");
+  });
+
+  it("the tab bar's links carry them, at a phone's width and a laptop's alike (one nav)", async () => {
+    const { TabBar } = await import("@/app/tab-bar");
+    const html = renderToStaticMarkup(createElement(TabBar, { current: "home" }));
+    for (const tab of ["shifts", "pay", "profile"])
+      expect(html).toMatch(new RegExp(`<a [^>]*data-tour="tab-${tab}"`));
+  });
+});
+
+describe("the casuals' welcome window", () => {
+  const html = renderToStaticMarkup(
+    createElement(TourWelcome, {
+      copy: { ...CASUAL_WELCOME, title: CASUAL_WELCOME.title("Acme Events") },
+      video: CASUAL_TOUR_VIDEO,
+      shape: "tall",
+      onStart: () => undefined,
+      onNotNow: () => undefined,
+    }),
+  ).replace(/&#x27;/g, "'");
+
+  it("a portrait (9:16) video, muted, captions on, never playing with sound by itself", () => {
+    expect(html).toContain('data-shape="tall"');
+    expect(html).toMatch(/data-tour-video="" class="[^"]*aspect-\[9\/16\]/);
+    expect(html).not.toMatch(/data-tour-video="" class="[^"]*aspect-video/);
+    expect(html).toMatch(/<video [^>]*muted=""/);
+    expect(html).not.toMatch(/autoplay/i);
+    expect(html).toContain(
+      '<track default="" kind="captions" srcLang="en" label="English" src="/tour/casual.en.vtt"/>',
+    );
+    expect(html).toContain('poster="/tour/casual.jpg"');
+    expect(html).toContain(CASUAL_WELCOME.posterTop);
+    expect(html).toContain(CASUAL_WELCOME.posterBottom);
+    expect(html).toContain("Welcome to Acme Events' shifts");
+  });
+
+  it("the office's stays wide (16:9)", () => {
+    const office = renderToStaticMarkup(
+      createElement(TourWelcome, {
+        copy: { ...OFFICE_WELCOME, title: OFFICE_WELCOME.title("Acme Events") },
+        video: { src: "/tour/office.mp4", poster: "/tour/office.jpg", captions: "/x.vtt" },
+        onStart: () => undefined,
+        onNotNow: () => undefined,
+      }),
+    );
+    expect(office).toMatch(/data-tour-video="" class="[^"]*aspect-video/);
+  });
+
+  it("the video's files are there: portrait, about 20 seconds, the storyboard's captions", () => {
+    for (const f of ["casual.mp4", "casual.jpg", "casual.en.vtt"])
+      expect(existsSync(join("public/tour", f)), f).toBe(true);
+    const vtt = readFileSync("public/tour/casual.en.vtt", "utf8");
+    expect(vtt.startsWith("WEBVTT")).toBe(true);
+    const cues = [...vtt.matchAll(/(\d\d:\d\d:\d\d\.\d{3}) --> (\d\d:\d\d:\d\d\.\d{3})/g)];
+    expect(cues.length).toBeGreaterThanOrEqual(6);
+    const secs = (t: string) => {
+      const [h, m, s] = t.split(":").map(Number);
+      return (h ?? 0) * 3600 + (m ?? 0) * 60 + (s ?? 0);
+    };
+    expect(secs(cues[cues.length - 1]?.[2] ?? "")).toBeLessThanOrEqual(21);
+    for (const line of ["Your shifts. One link.", "Let's show you round."])
+      expect(vtt).toContain(line);
+    // The poster is portrait: a JPEG's size from its start-of-frame marker.
+    const jpg = readFileSync("public/tour/casual.jpg");
+    let at = 2;
+    let size: { w: number; h: number } | null = null;
+    while (at < jpg.length && !size) {
+      const marker = jpg[at + 1] ?? 0;
+      const len = jpg.readUInt16BE(at + 2);
+      if (marker >= 0xc0 && marker <= 0xc2)
+        size = { h: jpg.readUInt16BE(at + 5), w: jpg.readUInt16BE(at + 7) };
+      at += 2 + len;
+    }
+    expect(size).toEqual({ w: 720, h: 1280 });
   });
 });

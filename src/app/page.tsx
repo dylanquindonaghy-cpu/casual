@@ -19,11 +19,13 @@ import { myReachPrompts } from "@/lib/portal/reach-me";
 import { tabCounts } from "@/lib/portal/tab-counts";
 import { parseHost } from "@/lib/tenancy/host";
 import { localDateOf } from "@/lib/time/zoned";
+import { tourLaterKey } from "@/lib/tour/later-key";
 import { barPills } from "@/lib/portal/casual-bar";
 import { cardTiles } from "@/lib/portal/home-board";
 import { homeMap } from "@/lib/portal/home-map";
 import { loadMapPlaces } from "@/lib/portal/home-map-places";
 import { CountedTabBar } from "./casual-tab-bar";
+import { CasualTour } from "./casual-tour";
 import { CasualTop } from "./casual-top-bar";
 import { HomeView } from "./home-view";
 import { OfflineCopy } from "./offline-copy";
@@ -55,7 +57,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
   const match = parseHost((await headers()).get("host"), appEnv().APP_BASE_DOMAIN);
   if (match && match.kind !== "apex") {
     if ((await searchParams).view === "past") redirect("/shifts?view=past");
-    const { firm, worker, session } = await requireWorker();
+    const { firm, worker, session, tourSeen } = await requireWorker();
     const now = new Date();
     const clock = { now: () => now };
     const [upcoming, open, counts, reach, offers] = await Promise.all([
@@ -149,6 +151,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
             cardTiles={cardTiles(board.quals, open.shifts.length, urgent)}
           />
           <CountedTabBar current="home" counts={counts} />
+          {/* Phase 33.3: her first-login tour, by itself until she's finished or skipped it
+              (never in the copy kept for no signal: src/app/casual-tour.tsx). */}
+          <CasualTour
+            firmName={firm.name}
+            seen={tourSeen}
+            laterKey={tourLaterKey(session.id)}
+            autoOpen
+          />
         </main>
       </>
     );

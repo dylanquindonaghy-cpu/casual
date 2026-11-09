@@ -3688,7 +3688,8 @@ Dylan, 2026-11-09 (the approved mock-up, "Two first-login tours"): a short video
 walkthrough on the real pages, once per person, on any device. The words live in
 `src/lib/tour/office-copy.ts` (checked against this section by `tests/unit/tour.copy.test.ts`, and
 for plain words by `tests/unit/copy.plain-language.test.ts`). The engine is shared
-(`src/app/tour/`): the casuals' tour (33.3) brings only its steps, anchors and entry points.
+(`src/app/tour/`): the casuals' tour (33.3) brings only its steps, anchors and entry points (its
+words in `src/lib/tour/casual-copy.ts`).
 
 ### 33.1
 
@@ -3745,3 +3746,70 @@ it won't open by itself again.
 
 **Your name menu** (the account menu): "Take the tour again" (opens the welcome window, seen or
 not) and "Quick guide" (→ `/start/guide`, Phase 31.3), after "How-to guide".
+
+### 33.3
+
+**The casuals' tour**, on the Phase 32 look. The words live in `src/lib/tour/casual-copy.ts`
+(checked against this section by `tests/unit/tour.copy.test.ts`), the parts in
+`src/app/casual-tour.tsx`.
+
+**When it opens**: by itself once, on Home (`/`), at a casual's first login after this ships, until
+she finishes or skips it (`workers.tour_seen_at`, 33.1). "Not now" holds for this login only. It never
+opens in the copy of Home kept for no signal: the window is drawn only in the browser, never in the
+page the server sends (so never in the kept copy), and not while the kept copy's "No signal" notice
+is showing. In the demo's "Casual mobile view" (Phase 31.2: an office user looking at Zoe's app) it
+shows as it would for Zoe, but finishing or skipping it there doesn't mark Zoe's tour seen or log
+anything as her (that view's session is the one named by its "auth.demo_casual_view" log entry).
+
+**The welcome window**, as the office's, sized for a phone: on a phone it fills the screen, the
+video on top, then the words and buttons; from 640px a window with the video beside the words.
+
+- The casual video, "Your shifts in 20 seconds" (`/tour/casual.mp4`, made with the brag skill:
+  portrait, 9:16, drawn at its own shape, never in a wide box), its captions on
+  (`/tour/casual.en.vtt`). Muted, as the office's: it plays by itself only muted (not at all when less
+  motion is asked for), with the player's controls and "Turn the sound on". Until it can play, its
+  space shows its first words: "Your shifts." "One link."
+- "Welcome to {Acme Events'} shifts" ("Northline Staffing's shifts"), then "A 20-second look round,
+  then we'll point at each part of your Home. You can take it again any time from Profile."
+- "Start the walkthrough", "Skip the video" and "Not now", as the office's. Esc is "Not now".
+
+**The walkthrough**: seven steps on Home, with the office's tip, outline and controls ("Step 1 of
+7"). Steps 5 to 7 point at the tab bar on a phone and at the rail from 1024px. A part that isn't on
+Home is passed over: with nothing booked, steps 2 to 4; with no address for the venue, step 3; when
+the shift can't be cancelled from here (it has started), step 4.
+
+1. Her counts (the row under the title on a phone, the top bar from 1024px): "Your shifts at a
+   glance". "Booked, open to you, urgent, things to do and messages. Tap one to see it."
+2. Her next shift (the card over the map): "Your next shift". "When and where, and about what you'll
+   earn before tax. It's saved on this phone, so it shows with no signal too."
+3. Directions and Details: "Getting there". "Directions opens the place in Google Maps. Details shows
+   the rest: where to go, what to bring, pay and instructions."
+4. "Can't make it?": "Can't make it?". "Tell the office in a few taps. It's logged with how much
+   notice you gave."
+5. The Shifts tab: "Shifts". "Your bookings, and the open shifts you can take or ask for."
+6. The Pay tab: "Pay". "Your pay day, then your hours and rates once you've entered a code. Pay
+   questions go to payroll."
+7. The Profile tab: "Profile". "Your qualifications and staff photo. We remind you before a
+   qualification runs out. "Take the tour again" is here too."
+
+**Take it again**: "Take the tour again" ("Video and walkthrough, 1 minute") on Profile (a row of
+the list at the top, after Help) and on Help (under the intro, for a logged-in casual only: Help is
+open to anyone). It opens the welcome window, seen or not; the walkthrough then goes to Home.
+
+Checked against the app (the mock-up's words, changed where they weren't true):
+
+- Step 2: the mock-up said "the gate"; the card shows her post and the venue, and a post isn't
+  always a gate (sector-neutral, as the office's step 4), so "When and where". "Pay before tax" is
+  the card's "about £108.00 before tax"; the card is in the copy kept for no signal once she's
+  opened Home here, so "saved on this phone".
+- Step 3: "opens your maps app" became "opens the place in Google Maps" (the link is Google Maps';
+  a phone opens it in its app when it has one); "your full pass" became what Details shows.
+- Step 4: "in two taps" became "in a few taps": "Can't make it?", a reason, then "Cancel this shift"
+  is three.
+- Step 5: "The first yes gets the shift" is left out: some shifts the office picks for ("I can do
+  this" asks for one), so "take or ask for".
+- Step 6: hours and rates show only after the code (golden rule 9's step-up), so "once you've entered
+  a code"; a pay question goes to payroll (Pay queries).
+- Step 7: reminders before a licence runs out are a qualification's (the daily check's message); her
+  photo has its "Do this" row but no reminder message, so "We remind you before a qualification runs
+  out".

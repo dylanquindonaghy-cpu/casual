@@ -1068,6 +1068,15 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `${who} typed a wrong code${typeof d.attemptsLeft === "number" ? ` (${d.attemptsLeft} tries left)` : ""}.`;
     case "auth.otp_locked":
       return `${who}'s code stopped working after too many wrong tries.`;
+    // Phase 31 (demo servers only).
+    case "auth.demo_login":
+      return `${who} logged in with the demo's staffing login.`;
+    case "auth.demo_login_failed":
+      return "Someone tried the demo's staffing login with a wrong email or password.";
+    case "auth.demo_casual_view":
+      return d.workerId
+        ? `${who} opened the casual view as ${worker}.`
+        : `${who} opened the casual view.`;
     case "auth.rate_limited":
       if (d.limit === "api:key") {
         return "Too many calls from your planner: its API key was paused for the rest of the minute.";

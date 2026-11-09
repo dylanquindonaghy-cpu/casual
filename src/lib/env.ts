@@ -3,6 +3,7 @@ import { z } from "zod";
 import { CONNECTOR_TRANSPORTS } from "./connector/transport-names";
 import { secretsKey } from "./secret-store/crypto";
 import { databaseTlsOn } from "./db/tls";
+import { parseScryptHash } from "./demo/scrypt-hash";
 
 // Environment, split by who may read it (docs/decisions.md ADR-011):
 // - app: web and worker. Data access only through the restricted app role.
@@ -184,6 +185,23 @@ const appFields = {
   // only in the server's .env, never in the repo.
   DEMO_SITE_PASSWORD: unsetIfEmpty(
     z.string().min(12, { message: "must be at least 12 characters" }).max(200).optional(),
+  ),
+  // The demo's staffing login (Phase 31.1; src/lib/demo/staff-login.ts), web app only: a salted
+  // scrypt hash ("scrypt$N$r$p$salt$key", base64url) in place of the committed one, so the browser
+  // tests can log in with a password of their own, made at run time. Never a password itself. Read
+  // only in demo mode: off a demo server there's no password login at all.
+  DEMO_STAFF_LOGIN_HASH: unsetIfEmpty(
+    z
+      .string()
+      .regex(/^scrypt\$\d{1,7}\$\d{1,2}\$\d{1,2}\$[A-Za-z0-9_-]{16,64}\$[A-Za-z0-9_-]{43,128}$/, {
+        message: "must be a scrypt hash: scrypt$N$r$p$salt$key (base64url)",
+      })
+      // The same bounds the login checks (src/lib/demo/scrypt-hash.ts), so a hash it would refuse
+      // stops the server at startup instead of making every login wrong.
+      .refine((hash) => parseScryptHash(hash) !== null, {
+        message: "needs N a power of two from 2^14 to 2^17, r 1 to 16, p 1 to 4",
+      })
+      .optional(),
   ),
 };
 

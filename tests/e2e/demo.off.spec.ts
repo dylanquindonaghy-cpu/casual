@@ -13,3 +13,15 @@ test("there's no Demo phone and no demo bar without demo mode", async ({ page })
   await expect(page.getByLabel("Your mobile number")).toBeVisible();
   await expect(page.getByRole("complementary", { name: "Demo" })).toHaveCount(0);
 });
+
+test("there's no staffing demo login and no 'Choose a view' without demo mode (Phase 31)", async ({
+  page,
+}) => {
+  for (const path of ["/start/login", "/start", "/start/phone"]) {
+    const answer = await page.goto(`${acme}${path}`);
+    expect(answer?.status(), path).toBe(404);
+  }
+  await page.goto(`${acme}/office/login`);
+  await expect(page.getByLabel("Your work email")).toBeVisible();
+  await expect(page.getByRole("link", { name: /staffing account/ })).toHaveCount(0);
+});

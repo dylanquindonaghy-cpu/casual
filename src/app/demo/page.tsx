@@ -5,6 +5,8 @@ import { demoPhoneMessages } from "@/lib/demo/phone";
 import { appEnv } from "@/lib/env";
 import { getCurrentFirm, withCurrentFirm } from "@/lib/tenancy/current-firm";
 import { portalUrl } from "@/lib/tenancy/portal-url";
+import { staffDemoOn } from "@/lib/demo/staff-login";
+import { StaffDemoLink } from "../start/staff-demo-link";
 import { page } from "../ui/classes";
 import { AutoRefresh } from "./auto-refresh";
 import { DemoPhoneView } from "./demo-phone-view";
@@ -25,6 +27,8 @@ export default async function DemoPhonePage() {
   const messages = await withCurrentFirm((tx) => demoPhoneMessages(tx, outbox));
   return (
     <main className={page.staff}>
+      {/* The staffing demo's login (Phase 31.1): on the firm it opens. */}
+      {staffDemoOn(env.DEMO_MODE, firm.id) && <StaffDemoLink className="mb-4" />}
       <DemoPhoneView
         firmName={firm.name}
         messages={messages}

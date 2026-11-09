@@ -1,3 +1,4 @@
+import { randomBytes, scryptSync } from "node:crypto";
 import { defineConfig, devices } from "@playwright/test";
 import { serverEnv } from "./playwright.config";
 
@@ -19,6 +20,23 @@ export const WALKTHROUGH_PORT = 3200;
 // Made up, for this run only (a demo server's is in its own .env: docs/runbooks.md "A demo server").
 export const WALKTHROUGH_SITE_PASSWORD = "walkthrough-e2e-only-demo-password";
 export const WALKTHROUGH_OUTBOX = ".dev/walkthrough-outbox.jsonl";
+// The staffing demo login's password for this run (Phase 31.1; tests/e2e/demo.staff-login.spec.ts):
+// never the real one (only its hash is in the repo). Made once when the run starts and handed to the
+// test workers through the environment (they inherit it); the web app gets only its salted scrypt
+// hash (DEMO_STAFF_LOGIN_HASH), made the way src/lib/demo/staff-login.ts makes one.
+export const STAFF_LOGIN_PASSWORD =
+  (process.env.E2E_STAFF_LOGIN_PASSWORD ??= `e2e-${randomBytes(18).toString("base64url")}`);
+const staffLoginHash = (() => {
+  const [N, r, p] = [2 ** 15, 8, 1];
+  const salt = randomBytes(16);
+  const key = scryptSync(STAFF_LOGIN_PASSWORD.normalize("NFC"), salt, 32, {
+    N,
+    r,
+    p,
+    maxmem: 256 * N * r,
+  });
+  return ["scrypt", N, r, p, salt.toString("base64url"), key.toString("base64url")].join("$");
+})();
 export const WALKTHROUGH_LOGS = [
   ".dev/walkthrough-worker.log",
   ".dev/walkthrough-web.log",
@@ -81,6 +99,14 @@ export default defineConfig({
       dependencies: ["desktop-chrome"],
       use: { ...devices["Desktop Chrome"] },
     },
+    // Then the staffing demo login, "Choose a view" and the quick guide (Phase 31): the spec makes
+    // its own laptop and phone windows.
+    {
+      name: "staff-login",
+      testMatch: "**/demo.staff-login.spec.ts",
+      dependencies: ["demo"],
+      use: { ...devices["Desktop Chrome"] },
+    },
   ],
   webServer: [
     {
@@ -94,7 +120,11 @@ export default defineConfig({
       url: `http://localhost:${WALKTHROUGH_PORT}`,
       // .env's NODE_ENV=development (loaded by playwright.config.ts) would reach the build, which
       // then can't prerender its pages ("non-standard NODE_ENV"): `env` says production.
-      env: { ...env, DEMO_SITE_PASSWORD: WALKTHROUGH_SITE_PASSWORD },
+      env: {
+        ...env,
+        DEMO_SITE_PASSWORD: WALKTHROUGH_SITE_PASSWORD,
+        DEMO_STAFF_LOGIN_HASH: staffLoginHash,
+      },
       reuseExistingServer: false,
       timeout: 600_000,
     },

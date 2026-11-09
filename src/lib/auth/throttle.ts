@@ -54,6 +54,11 @@ export const LIMITS = {
   // worker's id. Each is sorted (perhaps by the AI) and may wait in Need a person, so one session
   // can't flood either.
   appMessagePerWorker: { name: "app_message:worker", max: 20, windowMs: 60 * MINUTE },
+  // The demo's staffing login (Phase 31.1; demo servers only): 5 wrong passwords every 15 minutes,
+  // per IP and per login name typed. Only wrong ones count, so a room of people trying the demo on
+  // one Wi-Fi isn't locked out by logging in.
+  demoLoginPerIp: { name: "login:demo_ip", max: 5, windowMs: 15 * MINUTE },
+  demoLoginPerName: { name: "login:demo_name", max: 5, windowMs: 15 * MINUTE },
 } as const satisfies Record<string, Limit>;
 
 export function bucketFor(limit: Limit, value: string, secret: string): string {
@@ -114,6 +119,21 @@ export async function peekLimit(
     allowed: hits < limit.max,
     retryAfterMs: windowStart.getTime() + limit.windowMs - now.getTime(),
   };
+}
+
+// Takes back one attempt counted in the same window (never below zero): for a limit that counts
+// only failures but must count each attempt before it's checked, so parallel requests can't all
+// slip under it (the staffing demo login, Phase 31.1, refunds a right pair). One statement.
+export async function refundLimit(
+  tx: FirmTx,
+  opts: { limit: Limit; value: string; now: Date; secret: string },
+): Promise<void> {
+  const { limit, now } = opts;
+  await tx.execute(sql`
+    update auth_throttle set hits = greatest(hits - 1, 0)
+     where bucket = ${bucketFor(limit, opts.value, opts.secret)}
+       and window_start = ${windowOf(limit, now)}
+  `);
 }
 
 export type Throttled = { retryAfterMinutes: number; retryAfterSeconds: number; limit: string };

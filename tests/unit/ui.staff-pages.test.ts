@@ -46,6 +46,8 @@ describe("staff pages", () => {
       "src/app/confirm-email/page.tsx",
       "src/app/l/page.tsx",
       "src/app/login/page.tsx",
+      // The staffing demo login (Phase 31.1): the office login's layout.
+      "src/app/start/login/page.tsx",
     ]);
     // Phase 28.7: Home's greeting is its PageHeader's headline, "Updated …" beside it, its one
     // <h1> (home-view.tsx has none of its own).
@@ -59,6 +61,7 @@ describe("staff pages", () => {
       "src/app/l/page.tsx",
       "src/app/login/page.tsx",
       "src/app/confirm-email/page.tsx",
+      "src/app/start/login/page.tsx",
     ]) {
       expect(read(join(ROOT, page)).match(/<h1 className=\{loginTitle\}>/g), page).toHaveLength(1);
     }

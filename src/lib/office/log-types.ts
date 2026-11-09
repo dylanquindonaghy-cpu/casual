@@ -227,6 +227,10 @@ export const LOG_TYPES = {
       "auth.otp_failed",
       "auth.otp_locked",
       "auth.rate_limited",
+      // Phase 31 (demo servers only): the staffing demo login, and the casual view it opens.
+      "auth.demo_login",
+      "auth.demo_login_failed",
+      "auth.demo_casual_view",
     ],
   },
   pay: {

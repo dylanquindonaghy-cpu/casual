@@ -1,4 +1,5 @@
 import { seedId } from "../../demo/seed-id";
+import { STAFF_DEMO_USER } from "../../demo/staff-login";
 import { mayMessageNow, type QuietHours } from "../../rules/quiet-hours";
 import { localDateOf, mondayOf, startOfDay, zonedToUtc } from "../../time/zoned";
 
@@ -278,7 +279,9 @@ function acme(today: Date): SeedFirm {
         postcode: "ZZ3 3CC",
       },
     ],
-    officeUsers: office(slug),
+    // The three roles, and the staffing demo login's admin (Phase 31.1: only a demo server's login
+    // page opens it; its email is made up, like the others).
+    officeUsers: [...office(slug), { ...STAFF_DEMO_USER }],
     workers,
     credentials,
   };

@@ -63,6 +63,14 @@ const { MessagesView } = await import("@/app/messages/messages-view");
 const { Composer } = await import("@/app/messages/composer");
 const { sendProblemText, messagesCountWords, SENT_WAITING } =
   await import("@/lib/portal/messages-copy");
+// The staffing demo's pages (Phase 31): the login, "Choose a view", the phone frame, the guide.
+const { StaffLoginForm, loginProblem } = await import("@/app/start/login/staff-login-form");
+const { ChooserView } = await import("@/app/start/chooser-view");
+const { casualViewProblem } = await import("@/app/start/casual-view-button");
+const { StaffDemoLink } = await import("@/app/start/staff-demo-link");
+const { GuideView } = await import("@/app/start/guide/guide-view");
+const { officeMenu } = await import("@/app/office/office-menu");
+const { LOGIN_COPY, PHONE_COPY } = await import("@/lib/demo/start-copy");
 // The firm's own strike and photo numbers the help page states (12H.3).
 // A firm with travel areas on: every help section shows.
 const HELP_FACTS = {
@@ -1003,6 +1011,34 @@ const SCREENS: [string, ReactElement][] = [
       ),
     ),
   ],
+  // The staffing demo (Phase 31): its login with every answer, "Choose a view" with every answer
+  // from "Casual mobile view", the phone frame's words and the demo link.
+  [
+    "The staffing demo login, Choose a view and the phone frame, in every state",
+    createElement(
+      "div",
+      null,
+      createElement(StaffLoginForm),
+      createElement("h1", null, LOGIN_COPY.title),
+      createElement("p", null, LOGIN_COPY.intro),
+      ...(
+        [
+          { status: "wrong" },
+          { status: "rate_limited", retryAfterMinutes: 15 },
+          { status: "error" },
+        ] as const
+      ).map((st) => createElement("p", { key: st.status }, loginProblem(st))),
+      createElement(ChooserView, { name: "Staffing (demo)" }),
+      ...(["logged_out", "no_casual", "error"] as const).map((status) =>
+        createElement("p", { key: status }, casualViewProblem({ status })),
+      ),
+      createElement("h1", null, PHONE_COPY.title),
+      createElement("p", null, PHONE_COPY.intro("Zoe")),
+      createElement("p", null, PHONE_COPY.fullScreen),
+      createElement("p", null, PHONE_COPY.back),
+      createElement(StaffDemoLink),
+    ),
+  ],
 ];
 
 // The postcode data's licence requires its attribution word for word (src/lib/travel/attribution.ts;
@@ -1115,6 +1151,24 @@ function everyFile(dir: string): string[] {
     return entry.isDirectory() ? everyFile(path) : [path];
   });
 }
+
+// The quick guide (Phase 31.3) is the office's, for every role: the same checks, but "session" is
+// the office's own word for a booking slot ("Events & sessions"), so it alone is allowed there.
+describe("the staffing demo's quick guide is in plain words", () => {
+  it.each(["admin", "resourcer", "payroll"] as const)("as a %s sees it", (role) => {
+    const words = text(
+      renderToStaticMarkup(
+        createElement(GuideView, {
+          menu: officeMenu(role),
+          back: { href: "/start", label: "Back to choose a view" },
+        }),
+      ),
+    );
+    expect(words).toContain("It isn't a CRM");
+    const found = problems(words).filter((p) => p !== "jargon: session");
+    expect(found).toEqual([]);
+  });
+});
 
 describe("wording Dylan turned down", () => {
   it("'urgently looking for' is nowhere in src/ or docs/screens.md", () => {

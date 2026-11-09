@@ -2515,3 +2515,15 @@ Each task adds what it left out here as its wave is merged.
   small read wasted per page on a phone. The rail could be drawn by the client only from 1024px,
   or the counts passed in where the page already has them. And Home's "Your qualifications" puts
   one the office has in hand after hers to do whatever its status (as the review asked, unchanged).
+
+## Phase 31, deferred while building (2026-11-09)
+
+- **Framing (guardrails review):** the app sends no `X-Frame-Options` and no CSP `frame-ancestors`
+  anywhere (`next.config.ts`, `src/lib/http/proxy.ts`, `deploy/Caddyfile`), so any site can frame
+  any page, as before Phase 31. Add an app-wide `Content-Security-Policy: frame-ancestors 'self'`.
+  It must be `'self'`, not `DENY` (or `X-Frame-Options: DENY`): the demo's phone frame
+  (`/start/phone`) shows the casual app in a same-address iframe and would break.
+- **The casual view on a demo server (guardrails review, left as it is):** any Acme office user
+  logged in on a demo server, not only the staffing demo account, can use "Casual mobile view" to
+  start a session as the demo casual Zoe Adeyemi. Fine while the demo holds made-up people only
+  (ADR-025); revisit if demo mode ever holds anything else.

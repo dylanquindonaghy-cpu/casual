@@ -344,7 +344,9 @@ test("no signal: the saved copy shows the card without the map", async ({ browse
     await expect(page.locator("[data-home-map]")).toBeHidden();
     await expect(page.getByRole("group", { name: "Show on the map" })).toBeHidden();
     await expect(page.locator("[data-map-pin]")).toHaveCount(0);
-    await expect(page.locator("[data-casual-top]").getByText("Offline", { exact: true })).toBeVisible();
+    await expect(
+      page.locator("[data-casual-top]").getByText("Offline", { exact: true }),
+    ).toBeVisible();
     expect(await sideways(page)).toBe(0);
     await context.setOffline(false);
   } finally {

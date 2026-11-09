@@ -71,6 +71,9 @@ export function homeMap(o: {
   places: ReadonlyMap<string, MapPlace>;
   now: Date;
   timeZone: string;
+  // The page's own urgent count (my-home.ts urgentCount: the Urgent pill's and the card's), so the
+  // Urgent tab never says another number; left out (the older fixtures), the list's own.
+  urgent?: number;
 }): HomeMap {
   const today = localDateOf(o.now, o.timeZone);
   const tag = (startsAt: Date, urgent: boolean): MapShift => {
@@ -127,22 +130,31 @@ export function homeMap(o: {
   const counts = Object.fromEntries(
     MAP_TABS.map((t) => [t, all.filter((s) => inTab(s, t)).length]),
   ) as Record<MapTab, number>;
+  if (o.urgent !== undefined) counts.urgent = o.urgent;
   return { pins, counts };
 }
 
-// With nothing booked, the card's suggestion: the nearest shift she can take where her travel area
-// gives a distance (`by: "distance"`), else the soonest (`by: "time"`); null with none.
+// A shift she can take this minute: not held by fair rotation (opensAt still to come) and not one
+// she can only ask for (`ask`: the office chooses). The rules' own fields; nothing decided here.
+export const takeableNow = (s: OpenShift, now: Date): boolean =>
+  (s.opensAt === null || s.opensAt.getTime() <= now.getTime()) && (s.ask ?? null) === null;
+
+// With nothing booked, the card's suggestion: of the shifts she can take now (takeableNow), the
+// nearest where her travel area gives a distance (`by: "distance"`), else the soonest (`by:
+// "time"`); null with none she can take now.
 export function nearestOpen(
   open: readonly OpenShift[],
+  now: Date,
 ): { shift: OpenShift; by: "distance" | "time" } | null {
+  const takeable = open.filter((s) => takeableNow(s, now));
   const metres = (s: OpenShift) =>
     s.travel && s.travel.kind !== "unknown" ? s.travel.straightMetres : null;
-  const measured = open.filter((s) => metres(s) !== null);
+  const measured = takeable.filter((s) => metres(s) !== null);
   if (measured.length > 0) {
     const shift = measured.reduce((a, s) => (metres(s)! < metres(a)! ? s : a));
     return { shift, by: "distance" };
   }
-  const shift = open.reduce<OpenShift | null>(
+  const shift = takeable.reduce<OpenShift | null>(
     (a, s) => (a === null || s.startsAt.getTime() < a.startsAt.getTime() ? s : a),
     null,
   );

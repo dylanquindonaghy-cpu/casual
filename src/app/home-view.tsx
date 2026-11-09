@@ -191,7 +191,7 @@ export function HomeView(props: HomeViewProps) {
                   />
                 ) : (
                   <MapEmptyPass
-                    nearest={nearestOpen(props.open.shifts)}
+                    nearest={nearestOpen(props.open.shifts, now)}
                     openCount={props.open.shifts.length}
                     timeZone={timeZone}
                   />

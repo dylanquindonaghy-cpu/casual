@@ -3669,9 +3669,10 @@ Her text stays 16px and every target at least 44px.
   card, as before.
 - **Nothing booked**: "No shifts booked", "{4} shifts you can take are on the map." ("1 shift you
   can take is on the map."; in the saved copy, and with none to take, "Take a shift and it shows up
-  here, with the time and the gate."), the nearest one she can take ("Nearest: {Tue 17 Nov}" by her
-  travel area, else "Soonest: {Tue 17 Nov}", its times, its role and venue; → its page; online
-  only), and "See shifts you can take" (lime, → `/shifts/open`).
+  here, with the time and the gate."), the nearest one she can take now ("Nearest: {Tue 17 Nov}" by
+  her travel area, else "Soonest: {Tue 17 Nov}", its times, its role and venue; → its page; online
+  only; never one still held for others or one she can only ask for: with only those, "None you
+  can take straight away yet."), and "See shifts you can take" (lime, → `/shifts/open`).
 - Under the map, the rest of Home as before, in flat glass.
 
 ### 32.3 Buttons and badges

@@ -832,3 +832,28 @@ an office edit queued behind a big sheet sync's row locks fails after 15 s inste
 `docs/runbooks.md` says what the codes mean.
 **Revisit when:** a second web process or a connection pooler is added (the budget: about 30
 connections today), or a job needs more than 10 minutes for one statement.
+
+## ADR-028: The casual app's main button and the firm's mark are the office's lime
+
+**Status:** Accepted, 2026-11-09 (Dylan approved the mock-up "The casual app, office look",
+https://claude.ai/artifact/JstGKepTsH4HR3DFA5EJuD; `PLAN.md` Phase 32, tasks 32.1 and 32.3).
+Built in Phase 32.
+**Context:** Since Phase 17 (kept in Phase 27.6, "firm's colour") a firm's own colour was the
+casual app's main button and the firm's mark. Phase 32 gives the casual app the office's frame and
+look, where the main button and the mark are the office's lime.
+**Decision:** From Phase 32 the casual app's main button (`tint`, `glass-tint`) and the firm's
+mark (`brand-bar`: the rail's mark, the top bar's, the firm's bar over the login pages) are the
+office's lime #e9f86f with dark olive words #171800, in the light look and the dark, for every
+firm. A firm's own colour stays on its other tints (`brand`, `brand-ink`, `brand-soft`, the gate's
+plate words), set on `<body>` as before (`src/lib/tenancy/brand-values.ts`); its name and its logo
+(where it has one) stay in the top bar and the firm's bar.
+**Options:**
+| Option | Verdict |
+|---|---|
+| The office's lime for the button and the mark | What the approved mock-up shows; one look across both apps |
+| Keep the firm's colour on the button and the mark | What Phases 17 to 31 did; not the approved mock-up |
+**Consequences:** two firms' casual apps now differ only by their name, logo and tints, not by
+their main button. The contrast tests hold lime with its words in both looks
+(`tests/unit/ui.contrast.test.ts`), and the browser tests check the lime on the login page, the
+rail's mark and the main buttons (`tests/e2e/brand.spec.ts`, `tests/e2e/casual.p32-look.spec.ts`).
+**Revisit when:** a firm asks for its own colour on its buttons again.

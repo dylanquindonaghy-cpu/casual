@@ -13,6 +13,7 @@ import {
 } from "@/lib/portal/home-map";
 import {
   emptyOnMap,
+  NEAREST_NONE,
   mapDaysText,
   nearestText,
   payDayText,
@@ -103,6 +104,37 @@ describe("Home's map: pins from her next shift and the shifts open to her", () =
     expect(inTab({ urgent: false, week: "later", day: "2026-11-30" }, "all")).toBe(true);
   });
 
+  it("one urgent count: the tab's is the page's own (the Urgent pill's and the card's), not its own", () => {
+    // The page's urgentCount() reads the urgent board's own list when hers was cut at the rules'
+    // limit; the tab, the pill and the card's "N urgent" must never disagree.
+    const urgentOnPage = 5;
+    const counted = homeMap({
+      next: null,
+      nextPlace: null,
+      open: shifts,
+      places,
+      now: NOW,
+      timeZone: TZ,
+      urgent: urgentOnPage,
+    });
+    const pills = countPills({
+      booked: 0,
+      open: shifts.length,
+      urgent: urgentOnPage,
+      todo: 0,
+      messages: 0,
+    });
+    const card = cardTiles([], shifts.length, urgentOnPage);
+    expect(counted.counts.urgent).toBe(urgentOnPage);
+    expect(pills.find((p) => p.key === "urgent")?.count).toBe(counted.counts.urgent);
+    expect(card.canTake.urgent).toBe(counted.counts.urgent);
+    // And the page passes that one number to all three.
+    const page = readFileSync(join(process.cwd(), "src/app/page.tsx"), "utf8");
+    expect(page).toMatch(/homeMap\(\{[^}]*\burgent,/);
+    expect(page).toMatch(/countPills\(\{[^}]*\burgent,/);
+    expect(page).toMatch(/cardTiles\(board\.quals, open\.shifts\.length, urgent\)/);
+  });
+
   it("weeks run Monday to Sunday on the firm's calendar", () => {
     expect(weekOf("2026-11-15", "2026-11-09")).toBe("this");
     expect(weekOf("2026-11-16", "2026-11-09")).toBe("next");
@@ -153,6 +185,40 @@ describe("Home's map: pins from her next shift and the shifts open to her", () =
 });
 
 describe("nothing booked: the nearest shift she can take", () => {
+  it("never one she can't take now: held by fair rotation, or one she can only ask for", () => {
+    // The nearest and the soonest are both held for others until tomorrow, or ask only.
+    const held = open({
+      shiftId: "held",
+      siteId: "a",
+      startsAt: at("2026-11-10T09:00:00Z"),
+      opensAt: at("2026-11-10T00:00:00Z"),
+      travel: { kind: "straight", straightMetres: 500 },
+    });
+    const asks = open({
+      shiftId: "asks",
+      siteId: "a",
+      startsAt: at("2026-11-10T10:00:00Z"),
+      ask: "ask",
+      travel: { kind: "straight", straightMetres: 800 },
+    });
+    const takeable = open({
+      shiftId: "takeable",
+      siteId: "b",
+      startsAt: at("2026-11-20T09:00:00Z"),
+      travel: { kind: "straight", straightMetres: 9000 },
+    });
+    expect(nearestOpen([held, asks, takeable], NOW)).toEqual({
+      shift: takeable,
+      by: "distance",
+    });
+    // Held until a time already past: takeable now.
+    const opened = { ...held, opensAt: at("2026-11-09T11:00:00Z") };
+    expect(nearestOpen([opened, takeable], NOW)?.shift.shiftId).toBe("held");
+    // Only ones she can't take now: none, and the card says so plainly.
+    expect(nearestOpen([held, asks], NOW)).toBeNull();
+    expect(NEAREST_NONE).toBe("None you can take straight away yet.");
+  });
+
   it("by her travel area's distance where there is one, else the soonest", () => {
     const far = open({
       shiftId: "far",
@@ -166,11 +232,11 @@ describe("nothing booked: the nearest shift she can take", () => {
       startsAt: at("2026-11-20T09:00:00Z"),
       travel: { kind: "straight", straightMetres: 2000 },
     });
-    expect(nearestOpen([far, near])).toEqual({ shift: near, by: "distance" });
+    expect(nearestOpen([far, near], NOW)).toEqual({ shift: near, by: "distance" });
     const soon = open({ shiftId: "soon", siteId: "a", startsAt: at("2026-11-10T09:00:00Z") });
     const later = open({ shiftId: "later", siteId: "a", startsAt: at("2026-11-20T09:00:00Z") });
-    expect(nearestOpen([later, soon])).toEqual({ shift: soon, by: "time" });
-    expect(nearestOpen([])).toBeNull();
+    expect(nearestOpen([later, soon], NOW)).toEqual({ shift: soon, by: "time" });
+    expect(nearestOpen([], NOW)).toBeNull();
     expect(nearestText("distance", { dow: "Tue", day: "17", month: "Nov" })).toBe(
       "Nearest: Tue 17 Nov",
     );
@@ -253,5 +319,24 @@ describe("where the map's points come from", () => {
     const page = read("src/app/page.tsx");
     expect(page).toMatch(/loadMapPlaces\(\{ firm \}, upcoming\[0\] \?\? null, open\.shifts\)/);
     expect(page).toMatch(/open: open\.shifts,/);
+  });
+});
+
+describe("the top bar reads what the page reads, once per request", () => {
+  const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
+  it("its counts and Open to you through React's cache, keyed by plain ids", () => {
+    const cached = read("src/lib/portal/request-cached.ts");
+    expect(cached).toMatch(/^import \{ cache \} from "react";/m);
+    expect(cached).toMatch(/export const openShiftsNow = cache\(/);
+    expect(cached).toMatch(/export const tabCountsNow = cache\(/);
+    expect(read("src/lib/portal/casual-bar.ts")).toContain("openShiftsNow(ctx.firm.id, workerId)");
+    expect(read("src/lib/portal/casual-bar.ts")).not.toMatch(/openShiftsFor\(/);
+    expect(read("src/app/casual-top-bar.tsx")).toContain("tabCountsNow(firm.id, worker.id)");
+    const tabBar = read("src/app/casual-tab-bar.tsx");
+    expect(tabBar.match(/tabCountsNow\(firm\.id, workerId\)/g)).toHaveLength(2);
+    // (Its comments name tabCounts(); its code reads only the cached one.)
+    expect(tabBar.replace(/^\s*\/\/.*$/gm, "")).not.toMatch(/\btabCounts\(/);
+    // Open shifts' unfiltered list is the same cached read.
+    expect(read("src/app/shifts/open/page.tsx")).toMatch(/openShiftsNow\(firm\.id, worker\.id\)/);
   });
 });

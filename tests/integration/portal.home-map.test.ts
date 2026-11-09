@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
@@ -92,15 +93,29 @@ describe("Home's map: her shift's venue and the venues open to her, inside her f
     ]);
     expect(map.counts).toEqual({ all: 4, urgent: 1, this: 3, next: 1 });
 
-    // Asked for another firm's venue by id (as a forged list would), nothing comes back: the
-    // query names her firm, and Row Level Security holds it to her firm too.
+    // The loader, asked for another firm's venue by id (as a forged list would): nothing comes
+    // back. This proves the loader as a whole (its firm_id predicate and RLS together), not which
+    // of the two stopped it.
     const forged = await loadMapPlaces(ctx, null, [
       { ...open.shifts[0]!, site: { ...open.shifts[0]!.site!, id: theirs } },
     ]);
     expect(forged.places.size).toBe(0);
-    // And the other firm's own read never sees hers.
+    // The loader run as the other firm, asked for her booking and her venues: nothing of hers.
     const theirsRead = await loadMapPlaces(ctxOf(other), { shiftId: thursday }, open.shifts);
     expect(theirsRead.nextPlace).toBeNull();
     expect(theirsRead.places.size).toBe(0);
+
+    // Row Level Security alone: the same raw select of sites by id with no firm_id predicate, as
+    // the app role inside the wrong firm's withFirm. The other firm's venue isn't there, while the
+    // same select inside its own firm finds it (so the id is real and only RLS hides it).
+    const bare = (firmId: string) =>
+      withFirm(firmId, async (tx) => {
+        const { rows } = await tx.execute<{ id: string }>(
+          sql`select v.id::text as id from sites v where v.id = ${theirs}::uuid`,
+        );
+        return rows.length;
+      });
+    expect(await bare(f.firmId)).toBe(0);
+    expect(await bare(other.firmId)).toBe(1);
   });
 });

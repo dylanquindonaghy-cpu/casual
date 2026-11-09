@@ -7,7 +7,7 @@ import { roleLabel } from "./format";
 import { countPills, toDoCount, type CountPill } from "./home-board";
 import { urgentCount } from "./my-home";
 import { myNeedsAndPhoto, myShiftCounts, type PortalContext } from "./my-shifts";
-import { openShiftsFor } from "./open-shifts";
+import { openShiftsNow } from "./request-cached";
 import { mySortedMark } from "./profile";
 import { myReachPrompts } from "./reach-me";
 import type { TabCounts } from "./tab-counts";
@@ -52,7 +52,8 @@ export async function barPillsFor(
   const c = { ...ctx, clock };
   const [booked, open, held, mark, reach] = await Promise.all([
     myShiftCounts(c, workerId),
-    openShiftsFor(c, workerId),
+    // The page's own unfiltered list, once per request (Open shifts reads the same one).
+    openShiftsNow(ctx.firm.id, workerId),
     myNeedsAndPhoto(c, workerId),
     mySortedMark(c, workerId),
     myReachPrompts(c, workerId),

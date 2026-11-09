@@ -119,6 +119,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
       places: places.places,
       now,
       timeZone: firm.timezone,
+      // One urgent count on Home: the pill's, the card's and the map's Urgent tab.
+      urgent,
     });
     return (
       <>

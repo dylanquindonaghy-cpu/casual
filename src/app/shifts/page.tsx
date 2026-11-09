@@ -37,7 +37,7 @@ export default async function BookedPage({
   ]);
   return (
     <>
-      <CasualTop firm={firm} worker={worker} />
+      <CasualTop firm={firm} worker={worker} counts={counts} />
       <main className={page.staff}>
         <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
         <OfflineCopy enabled={offlineCopyOn(appEnv())} renderedAt={now.getTime()} page="/shifts" />

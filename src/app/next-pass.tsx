@@ -7,6 +7,7 @@ import {
   EMPTY_NONE,
   EMPTY_TITLE,
   emptyOnMap,
+  NEAREST_NONE,
   NEXT_TITLE,
   nearestText,
   nextOfText,
@@ -493,6 +494,15 @@ export function MapEmptyPass({
             {[roleLabel(s.role), s.site?.name].filter(Boolean).join(" · ")}
           </span>
         </Link>
+      )}
+      {!nearest && openCount > 0 && (
+        <p
+          data-online-only=""
+          data-nearest-none=""
+          className={`${cardTile} text-base text-ink-muted`}
+        >
+          {NEAREST_NONE}
+        </p>
       )}
       <Link href="/shifts/open" className={staffBtn.primary}>
         {SEE_SHIFTS}

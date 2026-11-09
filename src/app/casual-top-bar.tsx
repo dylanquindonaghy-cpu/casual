@@ -3,7 +3,8 @@ import { cookies } from "next/headers";
 import { barPillsFor, myBarRole } from "@/lib/portal/casual-bar";
 import type { CountPill } from "@/lib/portal/home-board";
 import { COUNTS_LABEL } from "@/lib/portal/home-copy";
-import { tabCounts, type TabCounts } from "@/lib/portal/tab-counts";
+import { tabCountsNow } from "@/lib/portal/request-cached";
+import type { TabCounts } from "@/lib/portal/tab-counts";
 import { BELL_HREF, barInitials, bellNumber, bellWords } from "@/lib/portal/top-bar-copy";
 import { getCurrentBrand } from "@/lib/tenancy/current-brand";
 import { ThemeButton } from "./office/theme-button";
@@ -166,7 +167,8 @@ export async function CasualTop({
     getCurrentBrand(),
     cookies(),
     myBarRole(ctx, worker.id),
-    counts ? Promise.resolve(counts) : tabCounts(ctx, worker.id),
+    // The tab bar's own counts, read once per request (src/lib/portal/request-cached.ts).
+    counts ? Promise.resolve(counts) : tabCountsNow(firm.id, worker.id),
   ]);
   const shown = pills ?? (await barPillsFor(ctx, worker.id, tabs));
   return (

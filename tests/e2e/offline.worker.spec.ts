@@ -86,7 +86,9 @@ test("Home (her next shift) and Booked open with no signal, marked as copies; lo
   await expect(offline).toContainText("Open shifts need signal");
   await expect(page.locator('[data-for-you="apply"]')).toBeHidden();
   await expect(page.getByText(/^Updated \d\d:\d\d$/)).toBeHidden();
-  await expect(page.locator("[data-casual-top]").getByText("Offline", { exact: true })).toBeVisible();
+  await expect(
+    page.locator("[data-casual-top]").getByText("Offline", { exact: true }),
+  ).toBeVisible();
   await expect(page.getByText("Taking or cancelling a shift needs signal.")).toBeVisible();
   // The copy still has her next shift in full.
   await expect(page.getByRole("region", { name: "Your next shift" })).toContainText(site);

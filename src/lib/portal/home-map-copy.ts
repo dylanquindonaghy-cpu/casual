@@ -81,3 +81,5 @@ export const nearestText = (
   day: { dow: string; day: string; month: string },
 ) => `${by === "distance" ? "Nearest" : "Soonest"}: ${day.dow} ${day.day} ${day.month}`;
 export const SEE_SHIFTS = "See shifts you can take";
+// Shifts to see, but none she can take this minute (held by fair rotation, or ask only).
+export const NEAREST_NONE = "None you can take straight away yet.";

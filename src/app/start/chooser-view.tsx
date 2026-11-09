@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CHOOSER_COPY } from "@/lib/demo/start-copy";
 import { quietLink } from "../ui/classes";
 import { Icon } from "../ui/icons";
+import { PageHeader } from "../ui/page-header";
 import { CasualViewButton } from "./casual-view-button";
 
 // The two big cards and the guide's link (Phase 31.2). Each card is one tap target (the whole card),
@@ -13,10 +14,11 @@ export const choiceCard =
 export function ChooserView({ name }: { name: string }) {
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
-      <h1 className="text-title text-balance text-ink">{CHOOSER_COPY.title}</h1>
-      <p className="mt-2 max-w-prose text-ink-muted">{CHOOSER_COPY.intro}</p>
-      <p className="mt-1 text-sm text-ink-muted">{CHOOSER_COPY.loggedInAs(name)}</p>
-      <ul className="mt-6 grid gap-4 md:grid-cols-2">
+      <PageHeader title={CHOOSER_COPY.title}>
+        <p className="text-ink-muted">{CHOOSER_COPY.intro}</p>
+        <p className="text-sm text-ink-muted">{CHOOSER_COPY.loggedInAs(name)}</p>
+      </PageHeader>
+      <ul role="list" className="grid gap-4 md:grid-cols-2">
         <li>
           <Link href={CHOOSER_COPY.office.href} className={choiceCard}>
             <CardHead icon="dashboard" title={CHOOSER_COPY.office.title} />

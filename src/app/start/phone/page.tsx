@@ -4,6 +4,7 @@ import { getWorkerSession } from "@/lib/auth/current-worker";
 import { PHONE_COPY } from "@/lib/demo/start-copy";
 import { btn } from "../../ui/classes";
 import { Icon } from "../../ui/icons";
+import { PageHeader } from "../../ui/page-header";
 import { staffDemoOffice } from "../gate";
 import { PhoneOnly } from "./phone-only";
 
@@ -21,30 +22,31 @@ export default async function PhoneFramePage() {
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
       <PhoneOnly />
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-title text-balance text-ink">{PHONE_COPY.title}</h1>
-          <p className="mt-2 text-ink-muted">{PHONE_COPY.intro(name)}</p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <Link href="/start" className={btn.secondary}>
-            <Icon name="chevron" className="rotate-180" />
-            {PHONE_COPY.back}
-          </Link>
-          <Link href="/" className={btn.primary}>
-            {PHONE_COPY.fullScreen}
-          </Link>
-        </div>
-      </div>
-      <div className="mt-6 hidden justify-center sm:flex">
-        <div className="glass rounded-[3rem] p-3">
+      <PageHeader
+        title={PHONE_COPY.title}
+        actions={
+          <>
+            <Link href="/start" className={btn.secondary}>
+              <Icon name="chevron" className="rotate-180" />
+              {PHONE_COPY.back}
+            </Link>
+            <Link href="/" className={btn.primary}>
+              {PHONE_COPY.fullScreen}
+            </Link>
+          </>
+        }
+      >
+        <p className="text-ink-muted">{PHONE_COPY.intro(name)}</p>
+      </PageHeader>
+      <div className="hidden justify-center sm:flex">
+        <div className="glass rounded-card p-3">
           <iframe
             src="/"
             title={PHONE_COPY.frameTitle}
             loading="lazy"
             width={390}
             height={844}
-            className="block h-[844px] w-[390px] max-w-full rounded-[2.25rem] bg-canvas"
+            className="block h-[844px] w-[390px] max-w-full rounded-inner"
           />
         </div>
       </div>

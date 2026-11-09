@@ -97,7 +97,7 @@ function Paragraphs({ items }: { items: readonly string[] }) {
 
 function PageList({ pages }: { pages: readonly { href: string; label: string; line: string }[] }) {
   return (
-    <ul className={`${rows} mt-2`}>
+    <ul role="list" className={`${rows} mt-2`}>
       {pages.map((p) => (
         <li key={p.href}>
           <Link
@@ -127,7 +127,10 @@ function Diagram() {
   const d = S.api.diagram;
   return (
     <figure aria-label={d.label} className="mt-2">
-      <ol className="grid grid-cols-1 items-center gap-2 md:grid-cols-[1fr_auto_1fr_auto_1fr]">
+      <ol
+        role="list"
+        className="grid grid-cols-1 items-center gap-2 md:grid-cols-[1fr_auto_1fr_auto_1fr]"
+      >
         <li className={box}>{d.planner}</li>
         <li className={step}>
           <Arrow />

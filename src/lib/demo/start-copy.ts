@@ -97,7 +97,8 @@ export const GUIDE_COPY = {
       heading: "Where everything lives",
       officeHeading: "The office",
       casualHeading: "The casual app",
-      casualNote: "These are the casual's pages. They open as the casual this browser is logged in as.",
+      casualNote:
+        "These are the casual's pages. They open as the casual this browser is logged in as.",
     },
     rules: {
       id: "golden-rules",

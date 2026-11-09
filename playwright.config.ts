@@ -103,6 +103,8 @@ export default defineConfig({
   testIgnore: [
     "**/walkthrough.spec.ts",
     "**/demo.spec.ts",
+    // The staffing demo (Phase 31) runs only in demo mode, on the walkthrough's build.
+    "**/demo.staff-login.spec.ts",
     "**/no-texts.spec.ts",
     "**/streets.spec.ts",
   ],

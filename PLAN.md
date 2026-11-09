@@ -1318,6 +1318,35 @@ line says, as the approved mock-up shows; `RUN_E2E=1 ./scripts/verify.sh` prints
 `guardrails-reviewer` has no open findings; the `claims-auditor` checks each task against its line
 and this one.
 
+## Phase 31 — A staffing demo login, "Choose a view" and a quick guide (go-ahead: Dylan, 2026-11-09; A, UI)
+
+Asked, 2026-11-09 (Dylan, in chat, word for word): "i want you to create a new login
+Staffing@test.com password [the password, left out of the repository] and i want it to have a page to choose either
+staffing/resourcing view or casual mobile view then i want you to also add a page that gives you
+quick guide on where everything lives and a brief explanation of what it does and how it works
+using api and how its not its own CRM etc". Built straight from the request, with no mock-up
+first: new pages, not a change to an existing screen's look. The password itself is never
+committed, only its scrypt hash; words in `docs/screens.md` ("## Phase 31").
+
+- [x] The staffing demo login at `/start/login`: "Staffing@test.com" and its password, checked
+      against a committed scrypt hash (replaceable by `DEMO_STAFF_LOGIN_HASH`, checked at startup),
+      only on a demo server and only on Acme, enforced on the server; wrong tries throttled per
+      address and per name, counted before the check, each logged with no name or address; a right
+      pair opens an office session for the seeded "Staffing (demo)" admin; the Demo phone and the
+      office login link to it on a demo server (A; M) (31.1)
+- [x] "Choose a view" at `/start`: "Staffing and resourcing view" opens the office; "Casual mobile
+      view" opens a worker session for the demo casual Zoe and shows the casual app in a phone frame
+      at `/start/phone` on a laptop, or the app itself on a phone; never across firms (A, UI; S) (31.2)
+- [x] The quick guide at `/start/guide`: what ShiftDesk is, that it is not its own CRM, how the
+      planner API works (sessions in by `/api/v1`, signed webhooks out), where everything lives (the
+      office pages from the person's own menu, the casual app's pages) and the golden rules, in plain
+      words; no sideways scroll on a phone or a laptop (UI; S) (31.3)
+
+Done when: all three tasks are ticked with a stamp that includes the browser tests; each built what
+its line says; no plaintext password anywhere in the repository; `RUN_E2E=1 ./scripts/verify.sh`
+prints VERIFIED; the `guardrails-reviewer` has no open findings; the `claims-auditor` checks each
+task against its line and this one.
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify

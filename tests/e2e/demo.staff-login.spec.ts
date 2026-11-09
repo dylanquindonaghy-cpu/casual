@@ -63,7 +63,10 @@ test("the Demo phone and the office login link to the staffing login; a wrong pa
   ).toHaveAttribute("href", "/start/login");
 
   await logIn(page, `${STAFF_LOGIN_PASSWORD}-not`);
-  await expect(page.getByRole("alert")).toHaveText("That email and password don't match.");
+  // Filtered by its words: a production build also has Next's empty route announcer (role "alert").
+  await expect(
+    page.getByRole("alert").filter({ hasText: "That email and password don't match." }),
+  ).toHaveText("That email and password don't match.");
   await expect(page).toHaveURL(`${acme}/start/login`);
   // Only on Acme: Northline has no staffing login, nor a link to one.
   const other = await page.goto(`${northline}/start/login`);

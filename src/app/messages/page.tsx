@@ -13,6 +13,7 @@ import {
 } from "@/lib/portal/messages-copy";
 import { portalUrl } from "@/lib/tenancy/portal-url";
 import { CasualTabBar } from "../casual-tab-bar";
+import { CasualTop } from "../casual-top-bar";
 import { refreshSessionAction } from "../session-actions";
 import { SessionKeeper } from "../session-keeper";
 import { Composer } from "./composer";
@@ -50,17 +51,20 @@ export default async function MessagesPage({
         ? { shiftId: null, line: ABOUT_PAY_LINE, sentence: "" }
         : null;
   return (
-    <main className={page.staff}>
-      <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-      <MessagesView
-        thread={thread}
-        now={new Date()}
-        timeZone={firm.timezone}
-        linkOrigin={new URL(portalUrl(firm.slug, appEnv().APP_BASE_DOMAIN)).origin}
-        composer={<Composer answered={thread.answered} about={about} />}
-        intro={about && about.shiftId === null ? MESSAGES_INTRO_PAY : MESSAGES_INTRO}
-      />
-      <CasualTabBar firm={firm} workerId={worker.id} current="messages" />
-    </main>
+    <>
+      <CasualTop firm={firm} worker={worker} />
+      <main className={page.staff}>
+        <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
+        <MessagesView
+          thread={thread}
+          now={new Date()}
+          timeZone={firm.timezone}
+          linkOrigin={new URL(portalUrl(firm.slug, appEnv().APP_BASE_DOMAIN)).origin}
+          composer={<Composer answered={thread.answered} about={about} />}
+          intro={about && about.shiftId === null ? MESSAGES_INTRO_PAY : MESSAGES_INTRO}
+        />
+        <CasualTabBar firm={firm} workerId={worker.id} current="messages" />
+      </main>
+    </>
   );
 }

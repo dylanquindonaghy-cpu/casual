@@ -517,8 +517,10 @@ describe("the office's tokens (src/app/globals.css)", () => {
     expect(css).not.toMatch(/:root:not\(\[data-theme="light"\]\) body:has\(\[data-office\]\)/);
     expect(css).not.toMatch(/\[data-office\] \{\s*font-family/);
     expect(read("src/app/ui/classes.ts")).toMatch(/primary: `\$\{office\} glass-tint /);
-    // The firm's colour reaches <body> as before; inside the office its wrapper's hi-vis wins.
-    expect(block("body[data-firm-colour]")).toContain("--color-tint: var(--firm-fill);");
+    // The firm's colour reaches <body> as before (its tints; since Phase 32 the main button is lime
+    // in both apps); inside the office its wrapper's hi-vis wins.
+    expect(block("body[data-firm-colour]")).toContain("--color-brand: var(--firm-fill);");
+    expect(block("body[data-firm-colour]")).not.toContain("--color-tint:");
     for (const selector of [
       ':root:not([data-theme="light"]) [data-office]',
       ':root[data-theme="light"] [data-office]',

@@ -44,7 +44,7 @@ async function logIn(
     await page.getByRole("button", { name: "Send me a link" }).click();
     await page.goto(await loginLinkSentTo(casual.mobileE164, asked));
     await page.getByRole("button", { name: "Log me in" }).click();
-    await expect(page.getByRole("heading", { name: `Hi ${casual.firstName}` })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible();
     return await context.storageState();
   } finally {
     await context.close();
@@ -153,9 +153,7 @@ test("Offered to you: shown above Shifts you can take, hidden offline, and 'No t
       expect(await offerAnswer(scene.offerId)).toEqual({ response: "declined", declinedLogged: 1 });
       // Home made again: the section is gone.
       await page.reload();
-      await expect(
-        page.getByRole("heading", { name: `Hi ${P28_15_INES.firstName}` }),
-      ).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible();
       await expect(page.getByRole("region", { name: "Offered to you" })).toHaveCount(0);
     } finally {
       await context.close();
@@ -189,9 +187,7 @@ test("Offered to you: another casual opens his offer and takes it", async ({ bro
       await expect(page.getByText("You're booked.")).toBeVisible();
       expect((await offerAnswer(scene.offerId)).response).toBe("accepted");
       await page.goto(`${acme}/`);
-      await expect(
-        page.getByRole("heading", { name: `Hi ${P28_15_OWEN.firstName}` }),
-      ).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible();
       await expect(page.getByRole("region", { name: "Offered to you" })).toHaveCount(0);
     } finally {
       await context.close();

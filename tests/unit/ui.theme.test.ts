@@ -176,7 +176,8 @@ describe("one type scale", () => {
     // page's: no face of its own); the dashboard's inside its one <h1>, at a page headline's size
     // (no display serif).
     const home = read("src/app/home-view.tsx");
-    expect(home).toMatch(/<PageHeader title=\{`Hi \$\{firstName\}`\}/);
+    // Phase 32 (32.2, the approved mock-up): the page is named "Home", as the office names its own.
+    expect(home).toMatch(/<PageHeader\s+title=\{HOME_TITLE\}/);
     expect(home).not.toMatch(/(?<![\w-])font-greet(?![\w-])/);
     // The date tile's sizes live in a table beside its font-sign day. In the office, its big
     // counts in their own figures (`font-stat`); no display serif (gone in Phase 23).

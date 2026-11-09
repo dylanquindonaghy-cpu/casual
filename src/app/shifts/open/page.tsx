@@ -11,6 +11,7 @@ import { shiftsStrip } from "@/lib/portal/shifts-strip";
 import { localDateOf } from "@/lib/time/zoned";
 import { OpenShiftsView } from "./open-shifts-view";
 import { CasualTabBar } from "../../casual-tab-bar";
+import { CasualTop } from "../../casual-top-bar";
 
 export const metadata: Metadata = { title: "Open shifts" };
 
@@ -63,17 +64,20 @@ export default async function OpenShiftsPage({
     booked.map((b) => localDateOf(b.startsAt, firm.timezone)),
   );
   return (
-    <main className={page.staff}>
-      <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-      <OpenShiftsView
-        list={list}
-        filters={filters}
-        strip={strip}
-        timeZone={firm.timezone}
-        now={now}
-        canReach={!reach.includes("unreachable")}
-      />
-      <CasualTabBar firm={firm} workerId={worker.id} current="shifts" />
-    </main>
+    <>
+      <CasualTop firm={firm} worker={worker} />
+      <main className={page.staff}>
+        <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
+        <OpenShiftsView
+          list={list}
+          filters={filters}
+          strip={strip}
+          timeZone={firm.timezone}
+          now={now}
+          canReach={!reach.includes("unreachable")}
+        />
+        <CasualTabBar firm={firm} workerId={worker.id} current="shifts" />
+      </main>
+    </>
   );
 }

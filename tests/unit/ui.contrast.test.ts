@@ -380,28 +380,42 @@ describe("the looks (src/app/globals.css)", () => {
     // button one flat colour since Phase 28 (28.1), as the office's: its shade is itself.
     const lightOwn = Object.fromEntries(CASUAL_OWN.map((k) => [k, light.get(k)]));
     const darkOwn = Object.fromEntries(CASUAL_OWN.map((k) => [k, dark.get(k)]));
+    // Phase 32 (32.1, 32.3; Dylan's approved mock-up, "the casual app in the office's look"): the
+    // main button and the firm's mark are the office's lime with its dark olive words, in both
+    // looks, as the office's own blocks have them.
+    const lime = {
+      "color-tint": "#e9f86f",
+      "color-on-tint": "#171800",
+      "color-tint-shade": "#e9f86f",
+      "color-brand-bar": "#e9f86f",
+      "color-on-brand-bar": "#171800",
+      "color-on-brand-bar-soft": "#4a4f14",
+    };
     expect(lightOwn).toMatchObject({
-      "color-tint": "#15171a",
-      "color-on-tint": "#ffffff",
-      "color-tint-shade": "#15171a",
-      "color-brand-bar": "#1f2227",
+      ...lime,
       "color-accent": "#1d4ed8",
       "color-hivis": "rgb(251 229 160 / 0.8)",
     });
     expect(darkOwn).toMatchObject({
-      "color-tint": "#f3f4f6",
-      "color-on-tint": "#0b0c0e",
-      "color-tint-shade": "#f3f4f6",
-      "color-brand-bar": "#34373d",
+      ...lime,
       "color-accent": "#a1bdff",
       "color-hivis": "rgb(58 47 16 / 0.8)",
     });
-    // Hi-vis yellow is the office's alone: in no block of the casual app's.
+    for (const [k, v] of Object.entries(lime))
+      expect(colourTokens(block(BLOCKS.officeDark)).get(k.replace("color-", "")), k).toBe(v);
+    // The lime is in the casual app's blocks only as the main button and the mark: never its
+    // to-do tint (pale amber there), and not in the solid or clear fallbacks' own values.
+    for (const name of ["theme", "root", "dark", "deviceDark"] as const) {
+      const lines = block(BLOCKS[name])
+        .split("\n")
+        .filter((l) => /#e9f86f|233 248 111/i.test(l))
+        .map((l) => l.trim().split(":")[0]);
+      expect(
+        lines.every((l) => /^--color-(?:tint|tint-shade|brand-bar)$/.test(l ?? "")),
+        name,
+      ).toBe(true);
+    }
     for (const name of [
-      "theme",
-      "root",
-      "dark",
-      "deviceDark",
       "solid",
       "solidDark",
       "solidDeviceDark",
@@ -420,30 +434,23 @@ describe("the looks (src/app/globals.css)", () => {
     );
   });
 
-  // The main button stays in the firm's own colour in both looks (Phase 27.6, "firm's colour"): a
-  // firm with a colour of its own sets it on <body>, light and dark alike (dark keeps the light
-  // set's colour and words on the button: they read on themselves), and only the office's own
-  // wrapper ([data-office]) paints it hi-vis.
-  it("the firm's colour is the casual app's main button in both looks; hi-vis only inside the office", () => {
+  // Phase 32 (32.1, 32.3; the approved mock-up): the main button and the firm's mark are the
+  // office's lime in the casual app too, in both looks, so a firm's own colour (set on <body>)
+  // no longer sets them; it keeps its other tints (`brand`, `brand-ink`, the gate's plate). Until
+  // Phase 32 the firm's colour was the main button (Phase 27.6).
+  it("the main button and the mark are the office's lime in both apps; a firm's colour keeps its tints", () => {
     const firm = block(/^body\[data-firm-colour\] \{([^}]*)\}/m);
     for (const [token, value] of [
-      ["tint", "firm-fill"],
-      ["on-tint", "firm-on-fill"],
-      // One flat colour (Phase 28): the button's foot is its fill, as the office's hi-vis is.
-      ["tint-shade", "firm-fill"],
       ["brand", "firm-fill"],
-      ["brand-bar", "firm-bar"],
+      ["brand-ink", "firm-ink"],
     ])
       expect(firm).toContain(`--color-${token}: var(--${value});`);
-    for (const dark of [
-      /^:root\[data-theme="dark"\] body\[data-firm-colour\] \{([^}]*)\}/m,
-      /^ {2}:root:not\(\[data-theme="light"\]\) body\[data-firm-colour\] \{([^}]*)\}/m,
-    ]) {
-      const body = block(dark);
-      expect(body).toContain("--color-tint: var(--firm-fill);");
-      expect(body).toContain("--color-on-tint: var(--firm-on-fill);");
-      expect(body).toContain("--color-tint-shade: var(--firm-fill);");
-    }
+    for (const body of [
+      firm,
+      block(/^:root\[data-theme="dark"\] body\[data-firm-colour\] \{([^}]*)\}/m),
+      block(/^ {2}:root:not\(\[data-theme="light"\]\) body\[data-firm-colour\] \{([^}]*)\}/m),
+    ])
+      expect(body).not.toMatch(/--color-(?:tint|tint-shade|on-tint|brand-bar|on-brand-bar)\b/);
     // No --firm-shade is set or read any more (src/lib/tenancy/brand-values.ts sets none).
     expect(css).not.toMatch(/--firm-shade/);
     expect(css).toMatch(/@utility glass-tint \{\s*background-color: var\(--color-tint\);/);
@@ -752,7 +759,8 @@ describe("Phase 28's parts in the casual app's looks", () => {
     const tabBar = readFileSync(join(process.cwd(), "src/app/tab-bar.tsx"), "utf8");
     expect(tabBar).toContain("outline-2 outline-canvas");
     expect(tabBar).toContain('"bg-hivis text-on-hivis"');
-    expect(tabBar).toMatch(/"bg-ink font-semibold text-on-ink /);
+    // (Phase 32, 32.1: the ink is the current tab's round button, its icon on it.)
+    expect(tabBar).toMatch(/"bg-ink text-on-ink"/);
     // Pressed, `press-glass`'s brightness(1.06) brightens the whole tab: the ink, the count and its
     // words together.
     const bright = (c: Rgb): Rgb => c.map((v) => Math.min(255, Math.round(v * BRIGHT))) as Rgb;

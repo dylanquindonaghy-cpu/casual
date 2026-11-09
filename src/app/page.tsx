@@ -19,7 +19,12 @@ import { myReachPrompts } from "@/lib/portal/reach-me";
 import { tabCounts } from "@/lib/portal/tab-counts";
 import { parseHost } from "@/lib/tenancy/host";
 import { localDateOf } from "@/lib/time/zoned";
+import { barPills } from "@/lib/portal/casual-bar";
+import { cardTiles } from "@/lib/portal/home-board";
+import { homeMap } from "@/lib/portal/home-map";
+import { loadMapPlaces } from "@/lib/portal/home-map-places";
 import { CountedTabBar } from "./casual-tab-bar";
+import { CasualTop } from "./casual-top-bar";
 import { HomeView } from "./home-view";
 import { OfflineCopy } from "./offline-copy";
 import { refreshSessionAction } from "./session-actions";
@@ -104,28 +109,46 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
         home.strikes,
       ),
     };
+    // Phase 32 (32.2): the street map's pins, from her next shift and the very list "Open to you"
+    // counts (`open`, the rules' own), each venue's point read inside her firm.
+    const places = await loadMapPlaces({ firm }, upcoming[0] ?? null, open.shifts);
+    const map = homeMap({
+      next: upcoming[0] ?? null,
+      nextPlace: places.nextPlace,
+      open: open.shifts,
+      places: places.places,
+      now,
+      timeZone: firm.timezone,
+    });
     return (
-      <main className={page.staffWide}>
-        <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-        <OfflineCopy enabled={offlineCopyOn(appEnv())} renderedAt={now.getTime()} />
-        <HomeView
-          firstName={worker.firstName}
-          lastName={worker.lastName}
-          firmName={firm.name}
-          timeZone={firm.timezone}
-          now={now}
-          next={upcoming[0] ?? null}
-          needs={needs.needs}
-          photo={needs.photo}
-          open={open}
-          pay={pay}
-          reach={reach}
-          offers={offers}
-          sortedMark={sortedMark}
-          board={board}
-        />
-        <CountedTabBar current="home" counts={counts} />
-      </main>
+      <>
+        <CasualTop firm={firm} worker={worker} counts={counts} pills={barPills(board.pills)} />
+        <main className={page.staffWide}>
+          <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
+          <OfflineCopy enabled={offlineCopyOn(appEnv())} renderedAt={now.getTime()} />
+          <HomeView
+            firstName={worker.firstName}
+            lastName={worker.lastName}
+            firmName={firm.name}
+            timeZone={firm.timezone}
+            now={now}
+            next={upcoming[0] ?? null}
+            needs={needs.needs}
+            photo={needs.photo}
+            open={open}
+            pay={pay}
+            reach={reach}
+            offers={offers}
+            sortedMark={sortedMark}
+            board={board}
+            map={map}
+            tiles={appEnv().MAP_TILES_URL ?? null}
+            bookedCount={upcoming.length}
+            cardTiles={cardTiles(board.quals, open.shifts.length, urgent)}
+          />
+          <CountedTabBar current="home" counts={counts} />
+        </main>
+      </>
     );
   }
   return (

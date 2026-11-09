@@ -63,14 +63,16 @@
   --color-brand: #15171a;
   --color-on-brand: #ffffff;
   --color-brand-ink: #15171a;
-  /* The main button (`glass-tint`): the firm's colour with white (or ink) words in both themes,
-     as its words are on itself; flat (Phase 28: its two ends one colour, as the office's). */
-  --color-tint: #15171a;
-  --color-on-tint: #ffffff;
-  --color-tint-shade: #15171a;
-  --color-brand-bar: #1f2227;
-  --color-on-brand-bar: #ffffff;
-  --color-on-brand-bar-soft: #d2d4d8;
+  /* The main button (`glass-tint`) and the firm's mark (`brand-bar`): since Phase 32 (32.1, 32.3;
+     Dylan's approved mock-up, "the casual app in the office's look") the office's lime with its
+     dark olive words, in both themes, as the office's (its [data-office] blocks below); flat. A
+     firm's own colour stays on its other tints (`brand`, `brand-ink`, the gate's plate). */
+  --color-tint: #e9f86f;
+  --color-on-tint: #171800;
+  --color-tint-shade: #e9f86f;
+  --color-brand-bar: #e9f86f;
+  --color-on-brand-bar: #171800;
+  --color-on-brand-bar-soft: #4a4f14;
   --color-pass-plate: #ffffff;
   --color-on-pass-plate: #1f2227;
 
@@ -322,12 +324,12 @@
   --color-brand: #f3f4f6;
   --color-on-brand: #0b0c0e;
   --color-brand-ink: #f3f4f6;
-  --color-tint: #f3f4f6;
-  --color-on-tint: #0b0c0e;
-  --color-tint-shade: #f3f4f6;
-  --color-brand-bar: #34373d;
-  --color-on-brand-bar: #ffffff;
-  --color-on-brand-bar-soft: #d2d4d8;
+  --color-tint: #e9f86f;
+  --color-on-tint: #171800;
+  --color-tint-shade: #e9f86f;
+  --color-brand-bar: #e9f86f;
+  --color-on-brand-bar: #171800;
+  --color-on-brand-bar-soft: #4a4f14;
   --color-pass-plate: #ffffff;
   --color-on-pass-plate: #34373d;
   --color-urgent: #ffa299;
@@ -421,12 +423,12 @@
     --color-brand: #f3f4f6;
     --color-on-brand: #0b0c0e;
     --color-brand-ink: #f3f4f6;
-    --color-tint: #f3f4f6;
-    --color-on-tint: #0b0c0e;
-    --color-tint-shade: #f3f4f6;
-    --color-brand-bar: #34373d;
-    --color-on-brand-bar: #ffffff;
-    --color-on-brand-bar-soft: #d2d4d8;
+    --color-tint: #e9f86f;
+    --color-on-tint: #171800;
+    --color-tint-shade: #e9f86f;
+    --color-brand-bar: #e9f86f;
+    --color-on-brand-bar: #171800;
+    --color-on-brand-bar-soft: #4a4f14;
     --color-pass-plate: #ffffff;
     --color-on-pass-plate: #34373d;
     --color-urgent: #ffa299;
@@ -494,38 +496,25 @@
 /* A firm's own colour, worked out for each theme on the server (src/lib/tenancy/brand-values.ts
    firmPalette, checked #rrggbb values only) and set on <body> as --firm-*: these rules pick the
    theme's set. Without a colour of its own, <body> has no data-firm-colour and the defaults above
-   stand. The casual app's main button, the firm's mark and its tints take it in both looks (Phase
-   27.6 kept it with round 8's look); inside the office its own hi-vis wins ([data-office], below),
-   and the firm's colour stays on its bar above the office. */
+   stand. The casual app's tints take it in both looks (Phase 27.6 kept it with round 8's look); since
+   Phase 32 (32.1, 32.3) its main button and the firm's mark are the office's lime instead, so they
+   are not set here; inside the office its own hi-vis wins ([data-office], below). */
 body[data-firm-colour] {
   --color-brand: var(--firm-fill);
   --color-on-brand: var(--firm-on-fill);
-  --color-tint: var(--firm-fill);
-  --color-on-tint: var(--firm-on-fill);
-  --color-tint-shade: var(--firm-fill);
   --color-brand-ink: var(--firm-ink);
-  --color-brand-bar: var(--firm-bar);
-  --color-on-brand-bar: var(--firm-on-bar);
-  --color-on-brand-bar-soft: var(--firm-on-bar-soft);
   --color-on-pass-plate: var(--firm-on-plate);
 }
 :root[data-theme="dark"] body[data-firm-colour] {
   --color-brand: var(--firm-dark-fill);
   --color-on-brand: var(--firm-dark-on-fill);
   --color-brand-ink: var(--firm-dark-ink);
-  /* The main button keeps the light set's colour and words: they read on themselves. */
-  --color-tint: var(--firm-fill);
-  --color-on-tint: var(--firm-on-fill);
-  --color-tint-shade: var(--firm-fill);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) body[data-firm-colour] {
     --color-brand: var(--firm-dark-fill);
     --color-on-brand: var(--firm-dark-on-fill);
     --color-brand-ink: var(--firm-dark-ink);
-    --color-tint: var(--firm-fill);
-    --color-on-tint: var(--firm-on-fill);
-    --color-tint-shade: var(--firm-fill);
   }
 }
 
@@ -1614,28 +1603,39 @@ a[data-skip-menu] {
   div[aria-hidden="true"]:empty:has(+ nav[data-tab-bar]) {
     display: none;
   }
+  /* Phase 32 (32.1; the approved mock-up): the office rail's shape. A 96px column 16px from the
+     window's top and 12px from its left: the firm's lime mark (48px) at its top, then the links in
+     a capsule of raised glass 76px wide, 16px round; each link a 44px round button (solid ink when
+     current, clear glass otherwise: tab-bar.tsx) with its word under it. */
   nav[data-tab-bar] {
-    inset: 0.75rem auto auto 0.75rem;
+    inset: 1rem auto auto 0.75rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 6rem;
     padding: 0;
   }
   nav[data-tab-bar] > div {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
-    width: 6rem;
+    align-items: center;
+    gap: 0.625rem;
+    width: 4.75rem;
     max-width: none;
     height: auto;
-    max-height: calc(100dvh - 1.5rem);
+    max-height: calc(100dvh - 6.5rem);
     margin: 0;
-    padding: 1rem 0.5rem;
+    padding: 1rem 0;
+    border-radius: 1rem;
     overflow-y: auto;
     scrollbar-width: none;
   }
   nav[data-tab-bar] a {
     flex: none;
-    min-height: 4rem;
+    width: 100%;
+    min-height: 0;
     gap: 0.25rem;
-    padding: 0.5rem 0.125rem;
+    padding: 0.125rem 0;
   }
   /* The word under each icon, shown even while the phone's bar would have shrunk to its icons. */
   nav[data-tab-bar] a > span:last-child {

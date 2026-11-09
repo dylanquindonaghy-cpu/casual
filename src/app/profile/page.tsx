@@ -13,6 +13,7 @@ import { HomeScreenHint } from "../home-screen-hint";
 import { SessionKeeper } from "../session-keeper";
 import { ProfileView } from "./profile-view";
 import { CasualTabBar } from "../casual-tab-bar";
+import { CasualTop } from "../casual-top-bar";
 
 export const metadata: Metadata = { title: "My profile" };
 
@@ -26,20 +27,23 @@ export default async function ProfilePage() {
   // the tab bar's too).
   const answers = await unseenAnswers({ firm }, worker.id);
   return (
-    <main className={page.staff}>
-      <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-      <ProfileView
-        profile={profile}
-        signOff={firm.signOff}
-        push={{ publicKey: appEnv().VAPID_PUBLIC_KEY ?? null, firmName: firm.name }}
-        strikes={strikes}
-        travel={travel}
-        loginWay={await workerLoginWay(firm.id, worker.id)}
-        textSender={hasTextSender()}
-        answersCount={answers}
-      />
-      <HomeScreenHint />
-      <CasualTabBar firm={firm} workerId={worker.id} current="profile" />
-    </main>
+    <>
+      <CasualTop firm={firm} worker={worker} />
+      <main className={page.staff}>
+        <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
+        <ProfileView
+          profile={profile}
+          signOff={firm.signOff}
+          push={{ publicKey: appEnv().VAPID_PUBLIC_KEY ?? null, firmName: firm.name }}
+          strikes={strikes}
+          travel={travel}
+          loginWay={await workerLoginWay(firm.id, worker.id)}
+          textSender={hasTextSender()}
+          answersCount={answers}
+        />
+        <HomeScreenHint />
+        <CasualTabBar firm={firm} workerId={worker.id} current="profile" />
+      </main>
+    </>
   );
 }

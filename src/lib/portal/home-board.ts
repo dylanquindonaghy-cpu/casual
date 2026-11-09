@@ -338,6 +338,28 @@ export function qualificationRows(o: {
     .map((r) => r.row);
 }
 
+// The two tiles in the card over Home's map (Phase 32, 32.2): how many of her qualification rows
+// are in date ("4 of 5"), with the worst of the others as a soft badge ("Staff photo: 20 days
+// left"); and how many shifts she can take, with how many are urgent.
+export function cardTiles(
+  rows: readonly QualRow[],
+  canTake: number,
+  urgent: number,
+): {
+  quals: { valid: number; all: number; badge: { words: string; tone: Tone } | null };
+  canTake: { count: number; urgent: number };
+} {
+  const worst = rows.find((r) => r.pill.tone === "urgent" || r.pill.tone === "attention");
+  return {
+    quals: {
+      valid: rows.filter((r) => r.pill.tone === "done").length,
+      all: rows.length,
+      badge: worst ? { words: `${worst.title}: ${worst.pill.words}`, tone: worst.pill.tone } : null,
+    },
+    canTake: { count: canTake, urgent },
+  };
+}
+
 // --- "Updates" -----------------------------------------------------------------------------------
 
 export interface UpdateRow {

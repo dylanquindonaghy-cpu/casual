@@ -13,62 +13,55 @@ import { expect, test } from "./fixtures";
 const acme = "http://acme.localhost:3100";
 const northline = "http://northline.localhost:3100";
 
-test("each firm's pages open with its own bar: name, colour and readable text", async ({
-  page,
-}) => {
+test("each firm's pages open with its own bar: name, mark and readable text", async ({ page }) => {
   await page.goto(`${acme}/login`);
   const bar = page.getByTestId("brand-bar");
   await expect(bar).toHaveCSS("background-color", "rgba(0, 0, 0, 0)"); // the plain ground shows
   await expect(page.getByTestId("brand-name")).toHaveText("Acme Events");
   const mark = page.getByTestId("brand-mark");
   await expect(mark).toHaveText("A");
-  await expect(mark).toHaveCSS("background-color", "rgb(29, 78, 216)");
-  await expect(mark).toHaveCSS("color", "rgb(255, 255, 255)");
+  // Phase 32 (32.1, the approved mock-up): the firm's mark is the office's lime, its initial in dark
+  // olive (Acme's own blue until then).
+  await expect(mark).toHaveCSS("background-color", "rgb(233, 248, 111)");
+  await expect(mark).toHaveCSS("color", "rgb(23, 24, 0)");
   // "Offline" shows only in the copy kept for no signal.
   await expect(bar.getByText("Offline")).toBeHidden();
   await expect(page).toHaveTitle("Acme Events shifts");
   await page.goto(`${acme}/office/login`);
   await expect(page.getByTestId("brand-name")).toHaveText("Acme Events");
-  // Round 8 (Phase 26): the office is hi-vis inside, but the firm's bar over its login keeps the
-  // firm's own colour.
-  await expect(page.getByTestId("brand-mark")).toHaveCSS("background-color", "rgb(29, 78, 216)");
+  // Round 8 (Phase 26): the office is hi-vis inside; since Phase 32 the firm's mark over its login
+  // is the same lime.
+  await expect(page.getByTestId("brand-mark")).toHaveCSS("background-color", "rgb(233, 248, 111)");
   await expect(page.getByRole("button", { name: "Send me a link" })).toHaveCSS(
     "background-color",
     "rgb(233, 248, 111)",
   );
 
-  // The casual app's main button is in the firm's own colour too (Phase 17): tinted glass since
-  // Phase 24, the blue as it reads on every point of the glass and its own tint (over the plain
-  // ground since Phase 27.7: Acme's own #1d4ed8; #1b49cb over round 8's street lines, #1a45bf on
-  // round 7's wash), one flat colour since Phase 28 (28.1, as the office's: the gradient's two ends
-  // are the same; its shade, #1840b1, is gone).
+  // The casual app's main button: the firm's own colour from Phase 17 to Phase 31; since Phase 32
+  // (32.3, the approved mock-up) the office's lime with dark olive words, one flat colour (the
+  // gradient's two ends the same), in the light look and the dark.
   await page.goto(`${acme}/login`);
   const send = page.getByRole("button", { name: "Send me a link" });
-  await expect(send).toHaveCSS("background-color", "rgb(29, 78, 216)");
+  await expect(send).toHaveCSS("background-color", "rgb(233, 248, 111)");
   await expect(send).toHaveCSS(
     "background-image",
-    /^linear-gradient\((?:180deg, )?rgb\(29, 78, 216\), rgb\(29, 78, 216\)\)$/,
+    /^linear-gradient\((?:180deg, )?rgb\(233, 248, 111\), rgb\(233, 248, 111\)\)$/,
   );
-  await expect(send).toHaveCSS("color", "rgb(255, 255, 255)");
-  // And in the dark look (Phase 27.6, Dylan: "firm's colour"): round 8's charcoal, the firm's colour
-  // still on the main button with its white words (the light set's: they read on themselves),
-  // never the office's hi-vis.
+  await expect(send).toHaveCSS("color", "rgb(23, 24, 0)");
   await page.emulateMedia({ colorScheme: "dark" });
   await expect(page.locator("body")).toHaveCSS("background-color", "rgb(15, 15, 16)");
-  await expect(send).toHaveCSS("background-color", "rgb(29, 78, 216)");
-  await expect(send).toHaveCSS("color", "rgb(255, 255, 255)");
-  await expect(page.getByTestId("brand-mark")).toHaveCSS("background-color", "rgb(29, 78, 216)");
+  await expect(send).toHaveCSS("background-color", "rgb(233, 248, 111)");
+  await expect(send).toHaveCSS("color", "rgb(23, 24, 0)");
+  await expect(page.getByTestId("brand-mark")).toHaveCSS("background-color", "rgb(233, 248, 111)");
   await page.emulateMedia({ colorScheme: "light" });
 
   await page.goto(`${northline}/login`);
   await expect(page.getByTestId("brand-name")).toContainText("Northline");
-  await expect(page.getByTestId("brand-mark")).toHaveCSS("background-color", "rgb(15, 118, 110)");
-  // Northline's teal on its band as it is; its button darker (#0e6f67 over the plain ground since
-  // Phase 27.7; #0c625b over round 8's street lines, #0c5c56 on round 7's wash), so its words read
-  // on its own pale tint over round 8's glass too.
+  // Every firm's mark and main button the same lime since Phase 32 (Northline's teal until then).
+  await expect(page.getByTestId("brand-mark")).toHaveCSS("background-color", "rgb(233, 248, 111)");
   await expect(page.getByRole("button", { name: "Send me a link" })).toHaveCSS(
     "background-color",
-    "rgb(14, 111, 103)",
+    "rgb(233, 248, 111)",
   );
 });
 

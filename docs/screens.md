@@ -3606,3 +3606,75 @@ guide", "Where everything lives, what it does and how it works." Then five glass
    "Qualifications are checked before any offer." "Pay disputes go to payroll, never to AI."
 
 Last: "For step-by-step help, open the How-to guide." (→ `/office/guide`).
+
+## Phase 32
+
+**The casual app in the office's look** (Dylan approved the mock-up on 2026-11-09). The casual app
+takes the office's frame, its glass and its buttons. Nothing she can see or do changes, but for the
+map on Home, which shows the venues of her own next shift and of the shifts already open to her.
+Her text stays 16px and every target at least 44px.
+
+### 32.1 The frame
+
+- **The top bar**, on every page a logged-in casual uses (`src/app/casual-top-bar.tsx`), in place of
+  the firm's bar. On a phone: the firm's lime mark (its initial; its logo if it has one) and its
+  name, the bell and her initials in a round badge. From 1,024px, right of the rail: her counts (the
+  office's chips, as Home's: "Booked {1}", "Open to you {11}", "Urgent {3}", "To do {1}",
+  "Messages {0}", each a link 44px tall to the page it counts; "To do" opens Home's "Do this"), the
+  bell, the light or dark switch ("Switch to light mode", "Switch to dark mode", the office's own:
+  the casual app has a light look) and her initials, name and role ("Zoe Adeyemi", "Steward"). Each
+  number is the one Home already showed her, from the same loaders. In the copy saved for no signal
+  the numbers that go stale are left out and "Offline" shows, as on the firm's bar.
+- **The bell** opens My requests (`/requests`), where the office's answers to her requests are. Its
+  number is the answers she hasn't seen (the same count Profile's tab adds; opening My requests
+  marks them seen). Its name: "Answers from the office", "Answers from the office, 1 new",
+  "Answers from the office, 2 new".
+- **The rail** (from 1,024px): the firm's lime mark (48px) at its top, then the five links in a
+  capsule of raised glass, each a 44px round button with its icon (solid ink when it's the page
+  she's on, clear glass otherwise) and its word under it, always shown.
+- **The tab bar** (below 1,024px) is kept, in raised glass, with its words under the icons; the page
+  she's on has its icon in a solid ink circle and its word in bold.
+
+### 32.2 Home
+
+- **"Home"**, with "Updated {12:29}" beside it, and under it "{Monday 9 November} · Pay day {Fri 20
+  Nov}" (all online only). From 1,024px, at its right: "Shifts you can take" (→ `/shifts/open`) and
+  "My week" (→ `/shifts`). Her counts stay under it on a phone (they're in the top bar from 1,024px).
+- **The tabs**: "All", "Urgent" (only while there are urgent shifts she can take), "This week" and
+  "Next week", each with its count (lime on the chosen one). They only filter the map's pins. Online
+  only.
+- **The map**, the office's own: the firm's street map where it has one (the same file and style as
+  the office's), else the plain map. A pin for her next shift's venue ("Your shift", solid ink) and
+  one for each venue with shifts she can take, from the same list as "Open to you" (its number how
+  many; red where one is urgent, else the amber ring). Each pin is a link: hers to Booked
+  (`/shifts`), a venue's to Open shifts at that venue. Its name, read out: "Your shift: {Riverside
+  Demo Park}, {Thu 12}", "{Northgate Demo Common}: {2} shifts you can take, {1} urgent, {Tue 17}".
+  Its label: the venue's name and its days ("{Wed 11, Mon 16}", "{Wed 11, Mon 16} and {2} more");
+  hers "Your shift" with its venue and day ("{Riverside Demo Park} · {Thu 12}"; on a phone "Your
+  shift" and "{Thu 12}" only, and only her pin is labelled there).
+  The key: "Your shift", "Shifts you can take", "Urgent" (each only when the map has one). No venue
+  with a point yet: "No places to show on the map yet." With the street map, "© OpenStreetMap
+  contributors". The map is named "Map of your shift and open shifts"; the tabs "Show
+  on the map". Online only: the copy saved for no signal shows the card alone.
+- **"Your next shift"**, in raised glass over the map (over its left from 1,024px, its foot on a
+  phone), as the office's session card: its heading (from 1,024px; "On now" while it's on; "· 1 of
+  {3}" with more bookings), the date box, the role with how soon ("In 3 days", the soft blue badge),
+  the event, the gate and the place; the time tile ("{Thu 12 Nov}, {14:00–22:00}", "{8 hours} ·
+  about {£100.80} before tax", the bar and "Starts in {3 days}", online only); from 1,024px "Your
+  qualifications" "{4} of {5}" with the worst one as a badge ("{Staff photo}: {20 days left}") and
+  "Shifts you can take" "{11}" with "{3} urgent" (online only); then "Directions" (lime) and
+  "Details", and "Can't make it?" (or "Still coming?") under them. Details opens the rest inside the
+  card, as before.
+- **Nothing booked**: "No shifts booked", "{4} shifts you can take are on the map." ("1 shift you
+  can take is on the map."; in the saved copy, and with none to take, "Take a shift and it shows up
+  here, with the time and the gate."), the nearest one she can take ("Nearest: {Tue 17 Nov}" by her
+  travel area, else "Soonest: {Tue 17 Nov}", its times, its role and venue; → its page; online
+  only), and "See shifts you can take" (lime, → `/shifts/open`).
+- Under the map, the rest of Home as before, in flat glass.
+
+### 32.3 Buttons and badges
+
+The main button is the office's lime with dark words. Badges are soft tints with their own words,
+never solid: urgent (soft red), soon (soft blue), valid (soft green), due (soft amber). Counts in the
+top bar and on Home: Urgent's number in red words. What floats (the card, the pins' names, the key,
+the tab bar, the rail) is raised glass.

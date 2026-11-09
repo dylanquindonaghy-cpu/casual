@@ -13,6 +13,7 @@ import { SessionKeeper } from "../../session-keeper";
 import { AttendanceForm } from "./attendance-form";
 import { RequestForm } from "./request-form";
 import { CasualTabBar } from "../../casual-tab-bar";
+import { CasualTop } from "../../casual-top-bar";
 
 type Params = Promise<Record<string, string | string[] | undefined>>;
 
@@ -45,26 +46,29 @@ export default async function NewRequestPage({ searchParams }: { searchParams: P
   if (isAttendance(params)) {
     const marked = asked.success ? await myMarkedShift({ firm }, worker.id, asked.data) : null;
     return (
-      <main className={page.staff}>
-        <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-        <PageHeader title={ATTENDANCE_TITLE} />
-        {marked ? (
-          <AttendanceForm
-            shift={{
-              shiftId: marked.shiftId,
-              when: shiftWhen(marked.startsAt, marked.endsAt, firm.timezone),
-              what: `${roleLabel(marked.role)}${marked.siteName ? ` at ${marked.siteName}` : ""}`,
-              mark: marked.mark,
-            }}
-          />
-        ) : (
-          <p className={emptyBox}>{CANT_ASK_ABOUT_MARK}</p>
-        )}
-        <Link href={PAST_PATH} className={`${staffBtn.secondary} mt-8`}>
-          Back to my shifts
-        </Link>
-        <CasualTabBar firm={firm} workerId={worker.id} current="shifts" />
-      </main>
+      <>
+        <CasualTop firm={firm} worker={worker} />
+        <main className={page.staff}>
+          <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
+          <PageHeader title={ATTENDANCE_TITLE} />
+          {marked ? (
+            <AttendanceForm
+              shift={{
+                shiftId: marked.shiftId,
+                when: shiftWhen(marked.startsAt, marked.endsAt, firm.timezone),
+                what: `${roleLabel(marked.role)}${marked.siteName ? ` at ${marked.siteName}` : ""}`,
+                mark: marked.mark,
+              }}
+            />
+          ) : (
+            <p className={emptyBox}>{CANT_ASK_ABOUT_MARK}</p>
+          )}
+          <Link href={PAST_PATH} className={`${staffBtn.secondary} mt-8`}>
+            Back to my shifts
+          </Link>
+          <CasualTabBar firm={firm} workerId={worker.id} current="shifts" />
+        </main>
+      </>
     );
   }
 
@@ -72,18 +76,21 @@ export default async function NewRequestPage({ searchParams }: { searchParams: P
   const preselected =
     asked.success && shifts.some((s) => s.shiftId === asked.data) ? asked.data : null;
   return (
-    <main className={page.staff}>
-      <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-      <PageHeader title="New request" />
-      {shifts.length === 0 ? (
-        <p className={emptyBox}>You have no upcoming shifts to ask about.</p>
-      ) : (
-        <RequestForm shifts={shifts} preselected={preselected} />
-      )}
-      <Link href="/requests" className={`${staffBtn.secondary} mt-8`}>
-        Back to my requests
-      </Link>
-      <CasualTabBar firm={firm} workerId={worker.id} current="profile" />
-    </main>
+    <>
+      <CasualTop firm={firm} worker={worker} />
+      <main className={page.staff}>
+        <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
+        <PageHeader title="New request" />
+        {shifts.length === 0 ? (
+          <p className={emptyBox}>You have no upcoming shifts to ask about.</p>
+        ) : (
+          <RequestForm shifts={shifts} preselected={preselected} />
+        )}
+        <Link href="/requests" className={`${staffBtn.secondary} mt-8`}>
+          Back to my requests
+        </Link>
+        <CasualTabBar firm={firm} workerId={worker.id} current="profile" />
+      </main>
+    </>
   );
 }

@@ -32,7 +32,7 @@ async function logIn(
     await page.getByRole("button", { name: "Send me a link" }).click();
     await page.goto(await loginLinkSentTo(P28_1_CASUAL.mobileE164, asked));
     await page.getByRole("button", { name: "Log me in" }).click();
-    await expect(page.getByRole("heading", { name: `Hi ${P28_1_CASUAL.firstName}` })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible();
     return await context.storageState();
   } finally {
     await context.close();
@@ -45,7 +45,8 @@ async function tabBar(page: Page) {
   return page.evaluate(() => {
     const nav = document.querySelector('nav[aria-label="Main"]');
     const capsule = nav?.querySelector(":scope > div");
-    const current = nav?.querySelector('a[aria-current="page"]');
+    // Phase 32 (32.1): the current tab's round button carries the ink (the link itself is clear).
+    const current = nav?.querySelector('a[aria-current="page"] [data-tab-circle]');
     if (!nav || !capsule || !current) return null;
     const probe = document.createElement("i");
     probe.style.backgroundColor = "var(--color-ink)";
@@ -62,7 +63,8 @@ async function tabBar(page: Page) {
       ink,
       onInk,
       corner: getComputedStyle(capsule).borderTopLeftRadius,
-      tabCorner: getComputedStyle(current).borderTopLeftRadius,
+      tabRound: current.getBoundingClientRect().width,
+      tabCorner: parseFloat(getComputedStyle(current).borderTopLeftRadius),
       left: Math.round(box.left),
       top: Math.round(box.top),
       right: Math.round(innerWidth - box.right),
@@ -108,9 +110,7 @@ test("the casual app in the office's look: Home, Booked, Open shifts, a shift an
             tab: "Home",
             open: async () => {
               await page.goto(`${acme}/`);
-              await expect(
-                page.getByRole("heading", { name: `Hi ${P28_1_CASUAL.firstName}` }),
-              ).toBeVisible();
+              await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible();
             },
           },
           {
@@ -152,20 +152,21 @@ test("the casual app in the office's look: Home, Booked, Open shifts, a shift an
           await p.open();
           const look = await tabBar(page);
           expect(look, where(p.name)).not.toBeNull();
-          // The current tab is solid ink with its words on it (the office rail's lit item): no
-          // lens, no firm's colour, no gradient.
+          // The current tab's round button is solid ink with its icon on it (the office rail's lit
+          // item, Phase 32): no lens, no firm's colour, no gradient; a circle.
           expect(look!.fill, where(p.name)).toBe(look!.ink);
           expect(look!.words, where(p.name)).toBe(look!.onInk);
           expect(look!.image, where(p.name)).toBe("none");
-          expect(look!.tabCorner, where(p.name)).toBe("8px");
+          expect(look!.tabCorner, where(p.name)).toBeGreaterThanOrEqual(look!.tabRound / 2);
           // The capsule: 12px round, 12px from the sides on a phone and 12px over the foot. On a
           // laptop (30.2: from 1024px) it's the office's rail instead: 12px from the window's top
           // and left, 96px wide.
-          expect(look!.corner, where(p.name)).toBe("12px");
+          // (Phase 32, 32.1: on a laptop the rail's capsule is 16px round, as the office rail's.)
+          expect(look!.corner, where(p.name)).toBe(size.mobile ? "12px" : "16px");
           if (size.mobile) {
             expect(look!.foot, where(p.name)).toBe(12);
             expect([look!.left, look!.right], where(p.name)).toEqual([12, 12]);
-          } else expect([look!.left, look!.top, look!.width], where(p.name)).toEqual([12, 12, 96]);
+          } else expect([look!.top, look!.width], where(p.name)).toEqual([80, 76]); // Phase 32: under the mark
           expect(look!.sideways, where(p.name)).toBe(0);
           await expect(
             page.getByRole("navigation", { name: "Main" }).locator('a[aria-current="page"]'),

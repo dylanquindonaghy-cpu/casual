@@ -64,6 +64,8 @@ async function looks(page: Page) {
     // The current tab: its fill and words against --color-ink and --color-on-ink.
     const nav = document.querySelector('nav[aria-label="Main"]');
     const current = nav && visible(nav) ? nav.querySelector('a[aria-current="page"]') : null;
+    // Phase 32 (32.1): the ink is on the current tab's round button.
+    const circle = current?.querySelector("[data-tab-circle]") ?? null;
     const probe = document.createElement("i");
     probe.style.backgroundColor = "var(--color-ink)";
     probe.style.color = "var(--color-on-ink)";
@@ -74,9 +76,9 @@ async function looks(page: Page) {
     const tab = current
       ? {
           name: (current.textContent ?? "").trim(),
-          fill: getComputedStyle(current).backgroundColor,
-          words: getComputedStyle(current).color,
-          image: getComputedStyle(current).backgroundImage,
+          fill: circle ? getComputedStyle(circle).backgroundColor : "",
+          words: circle ? getComputedStyle(circle).color : "",
+          image: circle ? getComputedStyle(circle).backgroundImage : "",
         }
       : null;
 
@@ -289,7 +291,7 @@ async function logIn(browser: Browser, link: string): Promise<Session> {
     const page = await context.newPage();
     await page.goto(link);
     await page.getByRole("button", { name: "Log me in" }).click();
-    await expect(page.getByRole("heading", { name: `Hi ${P28_16_RHEA.firstName}` })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible();
     return await context.storageState();
   } finally {
     await context.close();

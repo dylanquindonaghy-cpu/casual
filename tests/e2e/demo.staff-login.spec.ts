@@ -92,9 +92,11 @@ test("on a laptop: log in, choose the office, then the casual's phone view", asy
   await expect(page).toHaveURL(`${acme}/start/phone`);
   await expect(page.getByRole("heading", { name: "Casual mobile view", level: 1 })).toBeVisible();
   const frame = page.frameLocator('iframe[title="The casual app"]');
-  await expect(frame.getByRole("heading", { name: "Hi Zoe", level: 1 })).toBeVisible({
+  // Phase 32 (32.2): the page is "Home"; her name is in the top bar.
+  await expect(frame.getByRole("heading", { name: "Home", level: 1 })).toBeVisible({
     timeout: 20_000,
   });
+  await expect(frame.locator("[data-you]")).toContainText("Zoe");
   const box = await page.locator('iframe[title="The casual app"]').boundingBox();
   expect(box?.width).toBe(390);
   expect(box?.height).toBe(844);
@@ -138,7 +140,9 @@ test("on a phone: Casual mobile view opens the casual app itself", async ({ brow
   await expect(page.getByRole("heading", { name: "Choose a view", level: 1 })).toBeVisible();
   await page.getByRole("button", { name: /Casual mobile view/ }).click();
   await expect(page).toHaveURL(`${acme}/`);
-  await expect(page.getByRole("heading", { name: "Hi Zoe", level: 1 })).toBeVisible();
+  // Phase 32 (32.2): the page is "Home"; her name is in the top bar.
+  await expect(page.getByRole("heading", { name: "Home", level: 1 })).toBeVisible();
+  await expect(page.locator("[data-you]")).toContainText("Zoe");
   // The frame's page sends a phone on to the app too.
   await page.goto(`${acme}/start/phone`);
   await expect(page).toHaveURL(`${acme}/`);

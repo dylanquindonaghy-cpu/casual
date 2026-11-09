@@ -463,8 +463,13 @@ describe("Home with its board", () => {
   it("the date line, then the counts, each a link to its page; stale counts online only", () => {
     // All of it online only: the kept copy would call the day it was saved today (its notice
     // gives that day).
+    // Phase 32 (32.2, the approved mock-up): "Home" with "Updated 15:38" on its baseline, and the
+    // day with pay day under it.
     expect(html).toContain(
-      '<p data-date-line="" data-online-only="" class="text-base text-ink-muted">Friday 6 November · <span class="tabular-nums">Updated 15:38</span></p>',
+      '<h1 class="text-title text-balance text-ink">Home</h1><small data-updated-slot="" data-online-only="" class="text-xs text-ink-faint tabular-nums">Updated 15:38</small>',
+    );
+    expect(html).toContain(
+      '<p data-date-line="" data-online-only="" class="text-base text-ink-muted">Friday 6 November · Pay day Fri 13 Nov</p>',
     );
     const counts = html.match(/<ul role="list" aria-label="Your numbers"[\s\S]*?<\/ul>/)?.[0] ?? "";
     expect(text(counts)).toBe("Booked 1 Open to you 1 Urgent 1 Messages 2");
@@ -480,8 +485,12 @@ describe("Home with its board", () => {
   });
 
   it("the pass's line: how soon (online only), how long, the estimate; its bar", () => {
-    expect(html).toMatch(
-      /<div data-next-line=""[^>]*>.*<span data-online-only="">Starts in 70 hours · <\/span>8 hours · about £108\.00 before tax<\/p><\/div>/,
+    // Phase 32 (32.2): the card's time tile, as the office's session card: the times with how long
+    // and the estimate, then (online only) the bar and how soon.
+    const line = html.match(/<div data-next-line=""[\s\S]*?<\/div>/)?.[0] ?? "";
+    expect(line).toMatch(/>8 hours · about £108\.00 before tax<\/span><\/p>/);
+    expect(line).toMatch(
+      /<span data-online-only=""[^>]*><span aria-hidden="true"[^>]*>.*<\/span><span [^>]*>Starts in 70 hours<\/span><\/span>/,
     );
   });
 
@@ -520,15 +529,16 @@ describe("Home with its board", () => {
     expect(tile("2026-11-09")).toMatch(/<span aria-hidden="true" class="[^"]*">Mon<\/span>/);
   });
 
-  it("the laptop grid: the pass beside the qualifications, the rest in their columns", () => {
+  it("the laptop grid: the map the whole width, the rest in their columns", () => {
     expect(page.staffWide).toContain("lg:max-w-[73.75rem]");
     expect(html).toContain("lg:grid lg:grid-flow-row-dense lg:grid-cols-12");
     const span = (id: string) =>
       html.match(
         new RegExp(`aria-labelledby="${id}-heading"[^>]*class="[^"]*(lg:col-span-\\d+)`),
       )?.[1];
-    expect(html).toMatch(/<div class="lg:col-span-7"><section aria-labelledby="next-heading"/);
-    expect(span("quals")).toBe("lg:col-span-5");
+    // Phase 32 (32.2): the map (with the card over it) the whole width; the qualifications 4.
+    expect(html).toMatch(/<div class="lg:col-span-12"><div data-home-map-zone=""/);
+    expect(span("quals")).toBe("lg:col-span-4");
     expect(span("week")).toBe("lg:col-span-4");
     expect(span("can-take")).toBe("lg:col-span-4");
     expect(span("updates")).toBe("lg:col-span-4");
@@ -539,7 +549,9 @@ describe("Home with its board", () => {
   it("without a board (the older fixtures), none of the new parts", () => {
     const plain = render({ board: undefined });
     expect(plain).not.toContain("Your numbers");
-    expect(plain).not.toContain("data-next-line");
+    // The card's time tile (data-next-line) is the card's own since Phase 32, with a board or not;
+    // its two tiles need the page's figures.
+    expect(plain).not.toContain("data-card-tiles");
     expect(plain).not.toContain("Your qualifications");
   });
 });

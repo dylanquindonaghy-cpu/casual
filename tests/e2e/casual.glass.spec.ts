@@ -50,7 +50,7 @@ const capsuleOf = (page: Page) =>
 const heightOf = async (box: Locator) => Math.round((await box.boundingBox())?.height ?? 0);
 const scrollTo = (page: Page, y: number) => page.evaluate((to) => window.scrollTo(0, to), y);
 const edgeOpacity = (page: Page) =>
-  page.getByTestId("brand-bar").evaluate((bar) => getComputedStyle(bar, "::before").opacity);
+  page.locator("[data-casual-top]").evaluate((bar) => getComputedStyle(bar, "::before").opacity);
 // A tab's word: shown (in the flow) or kept for screen readers only (sr-only: position absolute).
 const wordShown = (page: Page, word: string) =>
   page
@@ -62,7 +62,9 @@ test("with JavaScript: the bar stays at the top and frosts; the tab bar shrinks 
   page,
 }) => {
   await page.goto(`${acme}/`);
-  await expect(page.getByRole("heading", { name: "Hi Zoe" })).toBeVisible();
+  // Phase 32 (32.2): the page is "Home"; her name is in the top bar.
+  await expect(page.getByRole("heading", { name: "Home", level: 1 })).toBeVisible();
+  await expect(page.locator("[data-you]")).toContainText("Zoe");
   // Open shifts: long enough to scroll (a card a shift).
   await page.goto(`${acme}/shifts/open`);
   await expect(page.getByRole("heading", { level: 1, name: "Open shifts" })).toBeVisible();
@@ -75,7 +77,7 @@ test("with JavaScript: the bar stays at the top and frosts; the tab bar shrinks 
   // At the top: the capsule whole (68px), every word shown; the bar's frost hidden.
   await expect.poll(() => heightOf(capsule)).toBe(68);
   expect(await wordShown(page, "Home")).toBe(true);
-  await expect(page.getByTestId("brand-bar")).toHaveCSS("position", "sticky");
+  await expect(page.locator("[data-casual-top]")).toHaveCSS("position", "sticky");
   await expect.poll(() => edgeOpacity(page)).toBe("0");
 
   // Scrolling down: the page under the bar (its frost in), the tab bar its icons (54px).
@@ -85,7 +87,7 @@ test("with JavaScript: the bar stays at the top and frosts; the tab bar shrinks 
   await expect.poll(() => heightOf(capsule)).toBe(54);
   expect(await wordShown(page, "Home")).toBe(false);
   await expect.poll(() => edgeOpacity(page)).toBe("1");
-  expect(Math.round((await page.getByTestId("brand-bar").boundingBox())?.y ?? -1)).toBe(0);
+  expect(Math.round((await page.locator("[data-casual-top]").boundingBox())?.y ?? -1)).toBe(0);
   // Still a link with its name.
   await expect(
     page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Pay" }),
@@ -120,11 +122,14 @@ test("without JavaScript: the bar in the page, the tab bar whole and plain links
   const plain = await noScript(browser, page);
   const home = await plain.newPage();
   await home.goto(`${acme}/`);
-  await expect(home.getByRole("heading", { name: "Hi Zoe" })).toBeVisible();
+  // Phase 32 (32.2): the page is "Home"; her name is in the top bar.
+  await expect(home.getByRole("heading", { name: "Home", level: 1 })).toBeVisible();
+  await expect(home.locator("[data-you]")).toContainText("Zoe");
   const html = home.locator("html");
   await expect(html).not.toHaveAttribute("data-js");
-  // The firm's bar stays in the page (nothing scrolls under words with no frost behind them).
-  await expect(home.getByTestId("brand-bar")).toHaveCSS("position", "relative");
+  // The top bar (since Phase 32; the firm's bar before) stays in the page (nothing scrolls under
+  // words with no frost behind them).
+  await expect(home.locator("[data-casual-top]")).toHaveCSS("position", "relative");
   // Scrolling changes nothing: the capsule whole, its words shown.
   await scrollTo(home, 500);
   await expect(html).not.toHaveAttribute("data-tabs-mini");

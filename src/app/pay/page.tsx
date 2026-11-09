@@ -13,6 +13,7 @@ import { workerLoginWay } from "@/lib/portal/login-way";
 import { CodeGate } from "./code-gate";
 import { PayDayCard, PayQueries, PayView } from "./pay-view";
 import { CasualTabBar } from "../casual-tab-bar";
+import { CasualTop } from "../casual-top-bar";
 
 export const metadata: Metadata = { title: "Your pay" };
 
@@ -44,27 +45,30 @@ export default async function PayPage() {
   // Only whether there are any (a number, never what payroll said), so the page knows to watch.
   const newAnswers = queries ? (await unseenPayAnswers({ firm, clock }, worker.id)) > 0 : false;
   return (
-    <main className={page.staff}>
-      <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-      <PageHeader title="Pay" />
-      {lines ? (
-        <>
-          <PayView lines={lines} firmName={firm.name} payDay={payDay} />
-          {queries && (
-            <PayQueries queries={queries} newAnswers={newAnswers} shownAt={now.toISOString()} />
-          )}
-        </>
-      ) : (
-        <>
-          {payDay}
-          <CodeGate
-            codeWaiting={await hasLiveCode({ firm }, session)}
-            way={await workerLoginWay(firm.id, worker.id)}
-            className={sectionGap.staff}
-          />
-        </>
-      )}
-      <CasualTabBar firm={firm} workerId={worker.id} current="pay" />
-    </main>
+    <>
+      <CasualTop firm={firm} worker={worker} />
+      <main className={page.staff}>
+        <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
+        <PageHeader title="Pay" />
+        {lines ? (
+          <>
+            <PayView lines={lines} firmName={firm.name} payDay={payDay} />
+            {queries && (
+              <PayQueries queries={queries} newAnswers={newAnswers} shownAt={now.toISOString()} />
+            )}
+          </>
+        ) : (
+          <>
+            {payDay}
+            <CodeGate
+              codeWaiting={await hasLiveCode({ firm }, session)}
+              way={await workerLoginWay(firm.id, worker.id)}
+              className={sectionGap.staff}
+            />
+          </>
+        )}
+        <CasualTabBar firm={firm} workerId={worker.id} current="pay" />
+      </main>
+    </>
   );
 }

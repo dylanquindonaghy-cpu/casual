@@ -22,6 +22,7 @@ export function PageHeader({
   updated,
   children,
   actions,
+  beside = false,
 }: {
   back?: { href: string; label: string };
   title: ReactNode;
@@ -29,6 +30,9 @@ export function PageHeader({
   updated?: string;
   children?: ReactNode;
   actions?: ReactNode;
+  // Phase 32 (32.2): the casual app's Home puts its actions beside the headline from 1024px, as
+  // the office's dashboard does, and only there (on a phone they're the tab bar's own pages).
+  beside?: boolean;
 }) {
   return (
     <header className="mb-6">
@@ -43,7 +47,13 @@ export function PageHeader({
           {back.label}
         </a>
       ) : null}
-      <div className="office:flex office:flex-wrap office:items-end office:gap-x-6 office:gap-y-4">
+      <div
+        className={
+          beside
+            ? "office:flex office:flex-wrap office:items-end office:gap-x-6 office:gap-y-4 lg:flex lg:flex-wrap lg:items-end lg:justify-between lg:gap-x-6"
+            : "office:flex office:flex-wrap office:items-end office:gap-x-6 office:gap-y-4"
+        }
+      >
         {/* With "Updated …" the casual app's headline row is the office's: the headline and the
             stamp on one baseline, the lines under them. Without it, the casual app's row is a plain
             block and only the office's values make it a row. */}
@@ -76,7 +86,17 @@ export function PageHeader({
             </div>
           ) : null}
         </div>
-        {actions ? <div className="mt-4 flex flex-wrap gap-3 office:mt-0">{actions}</div> : null}
+        {actions ? (
+          <div
+            className={
+              beside
+                ? "mt-4 flex flex-wrap gap-3 office:mt-0 max-lg:hidden lg:mt-0"
+                : "mt-4 flex flex-wrap gap-3 office:mt-0"
+            }
+          >
+            {actions}
+          </div>
+        ) : null}
       </div>
     </header>
   );

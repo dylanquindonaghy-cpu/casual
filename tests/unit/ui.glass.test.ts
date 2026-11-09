@@ -589,6 +589,11 @@ describe("where the glass goes", () => {
       "src/app/shifts/open/take-shift-result.tsx": ["glass-float", "glass-float"],
       "src/app/shifts/sheet.tsx": ["glass-float"], // the sheet from the foot
       "src/app/tab-bar.tsx": ["glass-float"], // the casual app's tab bar
+      // Phase 32 (32.2, the approved mock-up): Home's map, as the office's: the pins' names and
+      // the key over it; and the card over it (the comment that names it, her next shift, and
+      // nothing booked), raised glass as the office's session card.
+      "src/app/home/home-map.tsx": ["glass-float", "glass-float"],
+      "src/app/next-pass.tsx": ["glass-float", "glass-float", "glass-float"],
     });
     expect(read("src/app/office/office-frame.tsx")).toMatch(
       /<header\s+ref=\{bar\}\s+className="@container max-lg:glass-float lg:scroll-edge sticky top-0 /,
@@ -603,13 +608,14 @@ describe("where the glass goes", () => {
     // The tab bar (Phase 24; Phase 28 as the office rail on its side): a floating capsule 12px
     // round, 12px from the screen's edges and over the foot (and the phone's safe area), inside a
     // bar that lets the page take taps around it.
+    // (Phase 32, 32.1: the firm's mark, shown from 1024px, comes before the capsule, over the
+    // rail's.)
     expect(read("src/app/tab-bar.tsx")).toMatch(
-      /className="pointer-events-none fixed inset-x-0 bottom-0 z-20 px-3 pb-\[calc\(0\.75rem\+env\(safe-area-inset-bottom\)\)\]"\s*>\s*<div className="glass-float pointer-events-auto mx-auto grid h-17 max-w-md grid-cols-5 gap-1 rounded-card /,
+      /className="pointer-events-none fixed inset-x-0 bottom-0 z-20 px-3 pb-\[calc\(0\.75rem\+env\(safe-area-inset-bottom\)\)\]"\s*>\s*\{firm && \([\s\S]*?data-rail-mark=""[\s\S]*?\)\}\s*<div className="glass-float pointer-events-auto mx-auto grid h-17 max-w-md grid-cols-5 gap-1 rounded-card /,
     );
-    // Its current tab is solid ink with its words on it (the rail's lit item), never a lens.
-    expect(read("src/app/tab-bar.tsx")).toMatch(
-      /\? "bg-ink font-semibold text-on-ink focus-visible:outline-on-ink"/,
-    );
+    // Its current tab's icon in a round button of solid ink (the rail's lit item, Phase 32), never
+    // a lens.
+    expect(read("src/app/tab-bar.tsx")).toMatch(/\? "bg-ink text-on-ink"/);
   });
 
   it("the buttons: the main one tinted glass in the firm's colour, the others clear; each swells under a press", () => {

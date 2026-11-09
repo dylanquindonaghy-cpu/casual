@@ -3,6 +3,7 @@ import { requireWorker } from "@/lib/auth/current-worker";
 import { myRecord } from "@/lib/portal/my-record";
 import { RECORD_TITLE } from "@/lib/portal/record-copy";
 import { CasualTabBar } from "../../casual-tab-bar";
+import { CasualTop } from "../../casual-top-bar";
 import { refreshSessionAction } from "../../session-actions";
 import { SessionKeeper } from "../../session-keeper";
 import { page } from "../../ui/classes";
@@ -20,10 +21,13 @@ export default async function RecordPage() {
   const now = new Date();
   const record = await myRecord({ firm, clock: { now: () => now } }, worker.id);
   return (
-    <main className={page.staff}>
-      <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-      <RecordView record={record} now={now} />
-      <CasualTabBar firm={firm} workerId={worker.id} current="shifts" />
-    </main>
+    <>
+      <CasualTop firm={firm} worker={worker} />
+      <main className={page.staff}>
+        <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
+        <RecordView record={record} now={now} />
+        <CasualTabBar firm={firm} workerId={worker.id} current="shifts" />
+      </main>
+    </>
   );
 }

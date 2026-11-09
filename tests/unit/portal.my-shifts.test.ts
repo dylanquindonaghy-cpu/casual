@@ -5,6 +5,7 @@ import { HomeView, type HomeViewProps } from "@/app/home-view";
 import { BookedView, type BookedViewProps } from "@/app/shifts/booked-view";
 import { TabBar } from "@/app/tab-bar";
 import {
+  chip,
   disc,
   emptyBox,
   slip,
@@ -15,7 +16,6 @@ import {
   tabCount,
   tabCurrent,
   tabs,
-  tag,
 } from "@/app/ui/classes";
 import { factCard } from "@/app/shifts/shift-parts";
 import { payWords, roleAndEvent } from "@/lib/portal/format";
@@ -157,40 +157,36 @@ const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 describe("Home and Booked: the empty pages", () => {
   it("Home greets her, and says so plainly when nothing is booked, with a way to open shifts", () => {
     const html = home({});
-    // "Hi Sam" (Phase 20), since Phase 28.7 the page's headline through PageHeader, as every page's
-    // (text-title), with when it was updated beside it, online only (the kept copy's notice says
-    // when it was saved); no longer at the end of the firm's bar, and no face of its own. Phase
-    // 30.1 (on purpose): "Updated 09:00" moved under the headline, at the end of the date line
-    // ("Monday 2 November · Updated 09:00"), still online only. Since the 30.1 review (golden rule
-    // 6's kept copy), the whole date line is online only: the kept copy would call the day it was
-    // saved today.
-    expect(text(html)).toContain("Hi Sam");
+    // "Hi Sam" (Phase 20) was the page's headline until Phase 32, whose approved mock-up names the
+    // page "Home" as the office names its own (her name is in the top bar). Since the 30.1 review
+    // (golden rule 6's kept copy), the whole date line is online only: the kept copy would call
+    // the day it was saved today.
+    // Phase 32 (32.2; Dylan's approved mock-up): the office's title row, "Home" with "Updated
+    // 09:00" on its baseline (online only), the day and pay day under it (online only too).
     expect(html).toMatch(
-      /<h1 class="text-title [^"]*">Hi Sam<\/h1>.*<p data-date-line="" data-online-only="" class="[^"]*">Monday 2 November · <span class="tabular-nums">Updated 09:00<\/span><\/p>/,
+      /<h1 class="text-title [^"]*">Home<\/h1><small data-updated-slot="" data-online-only="" class="[^"]*">Updated 09:00<\/small>.*<p data-date-line="" data-online-only="" class="[^"]*">Monday 2 November · Pay day Fri [0-9]+ [A-Z][a-z]{2}<\/p>/,
     );
     expect(html).not.toContain("font-greet");
     expect(html).not.toContain("-top-13");
-    // Phase 18: an empty pass, and the way to the open shifts: "See open shifts" (28.7: one name).
+    // Nothing booked: the card over the map says so, and the way to the open shifts: "See shifts
+    // you can take" (the mock-up's words), the main button in lime (glass-tint).
     expect(text(html)).toContain(
-      "No shifts booked Take a shift and it shows up here as your pass, with the time and the gate. See open shifts",
+      "No shifts booked Take a shift and it shows up here, with the time and the gate. See shifts you can take",
     );
     expect(text(html)).not.toContain("Find a shift");
-    // The main button: the firm's colour (Phase 24; one flat colour since Phase 28).
     expect(html).toMatch(
-      /<a class="[^"]*(?<![\w-])glass-tint(?![\w-])[^"]*" href="\/shifts\/open">See open shifts<\/a>/,
+      /<a class="[^"]*(?<![\w-])glass-tint(?![\w-])[^"]*" href="\/shifts\/open">See shifts you can take<\/a>/,
     );
-    // The empty pass: its own glass section, 12px round, with no dashed edge; its placeholder 1px
-    // dashed and 8px round; its heading a section heading (Phase 28.7).
+    // The empty card: raised glass (what floats over the map), 12px round, no dashed edge; its
+    // heading a section heading.
     const empty =
-      /<section aria-labelledby="next-heading" class="([^"]*)">([\s\S]*?)<\/section>/.exec(html);
-    expect(empty?.[1]).toContain("glass rounded-inner");
+      /<section aria-labelledby="next-heading" data-map-card="" data-empty-pass="" class="([^"]*)">([\s\S]*?)<\/section>/.exec(
+        html,
+      );
+    expect(empty?.[1]).toContain("glass-float");
+    expect(empty?.[1]).toContain("rounded-inner");
     expect(empty?.[1]).not.toMatch(/border-dashed|border-2|rounded-3xl/);
-    expect(empty?.[2]).toMatch(
-      /^<span aria-hidden="true" class="block h-12 w-18 rounded-row border border-dashed border-line-strong bg-raised"><\/span>/,
-    );
-    expect(empty?.[2]).toContain(
-      `<h2 id="next-heading" class="mt-1 ${staffH2}">No shifts booked</h2>`,
-    );
+    expect(empty?.[2]).toContain(`<h2 id="next-heading" class="${staffH2}">No shifts booked</h2>`);
     expect(text(html)).toContain("No shifts right now We'll message you when something matches.");
     expect(text(home({ open: { ...noOpen, offerAlerts: false } }))).toContain(
       "No shifts right now Check back later.",
@@ -413,21 +409,17 @@ describe("Booked: the bookings themselves", () => {
           profile: "/profile",
         }[current],
       ]);
-      // Phase 28 (28.1, as the office rail's lit item): the current tab solid ink, its icon and
-      // word on it in the ink's own words colour, the word bold, its focus ring in that colour too:
-      // not colour alone. No lens and no firm's colour. The others grey, their words medium, the
-      // rail's grey wash under the pointer.
+      // Phase 32 (32.1, the approved mock-up; Phase 28 had the whole tab solid ink): as the office
+      // rail's, the current tab's icon in a round button of solid ink with the icon in the page's
+      // ground, its word in ink and bold under it: not colour alone. No lens and no firm's colour.
+      // The others grey, their words medium, ink under the pointer, their buttons washed grey.
       const here = links.find((m) => m[0].includes('aria-current="page"'))?.[0] ?? "";
-      expect(here).toMatch(
-        /class="[^"]*(?<![\w-])bg-ink font-semibold text-on-ink focus-visible:outline-on-ink"/,
-      );
+      expect(here).toMatch(/class="[^"]*(?<![\w-])font-semibold text-ink"/);
+      expect(here).toMatch(/<span data-tab-circle="" class="[^"]*(?<![\w-])bg-ink text-on-ink"/);
       expect(html.match(/(?<![\w-])bg-ink(?![\w-])/g)).toHaveLength(1);
       expect(html).not.toMatch(/(?<![\w-])(?:lens|text-brand-ink)(?![\w-])/);
-      expect(
-        html.match(
-          /font-medium text-ink-muted hover:bg-active hover:text-ink active:bg-button-press/g,
-        ),
-      ).toHaveLength(4);
+      expect(html.match(/font-medium text-ink-muted hover:text-ink"/g)).toHaveLength(4);
+      expect(html.match(/group-hover\/tab:bg-button-hover/g)).toHaveLength(4);
       // A floating glass capsule 12px round, 12px from the screen's edges and its foot (over the
       // phone's safe area), inside a bar that lets the page take taps around it; no line.
       expect(html).toMatch(
@@ -551,8 +543,9 @@ describe("Booked: the bookings themselves", () => {
     const lead = (tone: "urgent" | "attention") =>
       `<span aria-hidden="true" class="flex w-13 shrink-0 justify-center"><span class="${disc.base} ${disc[tone]}"><svg`;
     expect(many).toContain(lead("urgent"));
+    // Phase 32 (32.3): the office's soft red badge, no longer a solid plate.
     expect(many).toMatch(
-      /<span class="[^"]*bg-urgent-fill text-on-urgent mb-1">Needs doing now<\/span>/,
+      /<span class="[^"]*glass-rim bg-urgent-soft text-urgent-ink mb-1">Needs doing now<\/span>/,
     );
     expect(many).toMatch(
       /<a class="[^"]*(?<![\w-])glass-tile rounded-row min-h-20(?![\w-])[^"]*" href="\/profile">/,
@@ -794,46 +787,36 @@ describe("Home: what she can take, and her next shift in full", () => {
     const html = home({ next });
     const card = html.slice(html.indexOf('aria-labelledby="next-heading"'));
     const pass = card.slice(0, card.indexOf("</section>"));
-    // Phase 24 (round 7): the pass is one glass card; its heading is for screen readers (the pass
-    // speaks for itself).
+    // Phase 32 (32.2; Dylan's approved mock-up): on Home the pass is the card over the street map,
+    // as the office's session card: raised glass (what floats), 12px round, 16px inside its edges,
+    // no band; its heading shown from 1024px (a phone's for screen readers).
     expect(pass).toMatch(
-      /^aria-labelledby="next-heading" data-pass="" class="flex flex-col gap-3">/,
+      /^aria-labelledby="next-heading" data-pass="" data-map-card="" class="glass-float flex animate-in flex-col gap-3 rounded-inner p-4">/,
     );
-    expect(pass).toContain('<h2 id="next-heading" class="sr-only">Your next shift</h2>');
-    // Phase 28.7: one glass section 12px round, 16px inside its edges, with no band; when above a
-    // faint line, where under it.
-    const [, band = "", foot = ""] =
-      /^aria-labelledby="next-heading" data-pass="" class="flex flex-col gap-3"><h2 id="next-heading" class="sr-only">Your next shift<\/h2><div class="glass rounded-inner px-4 py-4 animate-in"><div>([\s\S]*?)<\/div><div class="mt-4 flex flex-col gap-4 border-t border-line pt-4">([\s\S]*?)<\/div><\/div><div id="pass-details"/.exec(
-        pass,
-      ) ?? [];
+    expect(pass).toContain(
+      '<h2 id="next-heading" class="text-base font-semibold text-ink">Your next shift</h2>',
+    );
     expect(pass).not.toContain("glass-band");
-    // The pass and the card under it, Details (the shift parts': token corners since 28.13), keep
-    // to the token corners: the card 12px round with 16px sides, its figure tiles 8px.
+    // The card and the card under Details (the shift parts': token corners since 28.13) keep to
+    // the token corners: the card 12px round with 16px sides, its figure tiles 8px.
     expect(pass).not.toMatch(/rounded-\[|rounded-[23]xl|rounded-2xl|rounded-xl|px-4\.5/);
     expect(factCard).toBe("glass flex flex-col divide-y divide-line rounded-inner px-4");
     expect(pass).toContain(`class="${factCard}`);
     expect(pass).toMatch(/<div class="glass-tile flex flex-col gap-0\.5 rounded-row px-3 py-3">/);
-    // Its top: how soon as a tag (a clear glass pill), the date in words, the time large, the
-    // role and event.
-    expect(text(band).trim()).toBe("In 5 days Saturday 7 November 14:00–22:00 Steward · Raceday");
-    expect(band).toContain(`<span class="${tag}">In 5 days</span>`);
-    expect(band).toMatch(
-      /<p class="mt-3 font-sign text-4xl leading-tight text-ink">14:00–22:00<\/p>/,
+    // The date box, the role with how soon as the office's soft "soon" badge (32.3), the event,
+    // the gate and the place; then the time tile: the day and the times, how long and the pay.
+    const body = pass.slice(0, pass.indexOf('id="pass-details"'));
+    expect(body).toContain(`<span class="${chip.base} ${chip.soon}">In 5 days</span>`);
+    expect(text(body).replace(/\s+/g, " ")).toContain(
+      "Steward In 5 days Raceday · Gate B, Demo Arena Sat 7 Nov, 14:00–22:00 8 hours · about £100.80 before tax",
     );
-    // Under it the place, its town and postcode, and the gate on a clear glass plate 8px round
-    // (its words 16px, to read at a gate); then Directions (the maps link, the main button) and
-    // Details (clear glass) side by side, "Can't make it?" in red words under them.
-    expect(text(foot).trim().replace(/\s+/g, " ")).toBe(
-      "Demo Arena Leeds, LS1 1AA Gate B Directions Details Hide details Can't make it?",
-    );
-    expect(foot).toMatch(
-      /<span class="glass-button shrink-0 rounded-row px-3 py-1\.5 text-base font-medium text-ink">Gate B<\/span>/,
-    );
-    // No travel time on the pass itself: a drive alone would mislead someone without a car (12G.3).
-    expect(text(band + foot)).not.toContain("by car");
+    // No travel time on the card itself: a drive alone would mislead someone without a car (12G.3).
+    expect(text(body)).not.toContain("by car");
+    // Then Directions (the maps link, the main button: lime) and Details (clear glass) side by
+    // side, "Can't make it?" in red words under them.
     const buttons =
       /<div class="grid auto-cols-fr grid-flow-col gap-2">([\s\S]*?)<\/details><\/div>/.exec(
-        foot,
+        body,
       )?.[1] ?? "";
     expect(buttons).toMatch(
       new RegExp(
@@ -841,13 +824,13 @@ describe("Home: what she can take, and her next shift in full", () => {
       ),
     );
     // Details is a <details> whose summary is the button: it opens without JavaScript, and the
-    // card under the pass shows while it's open (a :has() rule on the pass).
+    // rest shows inside the card while it's open (a :has() rule on the card).
     expect(buttons).toMatch(
       new RegExp(
         `<details data-pass-more="" class="group"><summary aria-controls="pass-details" class="${esc(staffBtn.secondary)} list-none [^"]*"><svg[\\s\\S]*?</summary>$`,
       ),
     );
-    expect(foot).toMatch(
+    expect(body).toMatch(
       new RegExp(
         `</details></div><button type="button" disabled="" class="${esc(staffBtn.danger)}">Can&#x27;t make it\\?</button>`,
       ),
@@ -884,8 +867,10 @@ describe("Home: what she can take, and her next shift in full", () => {
     expect(text(html)).not.toContain("No shifts booked");
     // On now: the pass and its heading say so, and there's nothing to cancel or change.
     const onNow = home({ next, now: at("2026-11-07T15:00:00Z") });
-    expect(onNow).toContain('<h2 id="next-heading" class="sr-only">On now</h2>');
-    expect(text(onNow)).toContain("On now Saturday 7 November 14:00–22:00");
+    expect(onNow).toContain(
+      '<h2 id="next-heading" class="text-base font-semibold text-ink">On now</h2>',
+    );
+    expect(text(onNow)).toContain("Steward On now Raceday");
     expect(onNow).not.toContain("Can&#x27;t make it?");
     expect(onNow).not.toContain("Ask for a change");
     // No pay rate set: the pay row says to ask, never left out (Phase 27.2, C3).

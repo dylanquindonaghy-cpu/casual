@@ -10,7 +10,8 @@ const acme = "http://acme.localhost:3100";
 // Phase 27.7: the plain colour behind every page, nothing drawn over it).
 const LIGHT_CANVAS = "rgb(242, 242, 240)"; // #f2f2f0
 const DARK_CANVAS = "rgb(15, 15, 16)"; // #0f0f10
-const BRAND = "rgb(29, 78, 216)"; // the demo seed's Acme colour
+// The firm's mark: the office's lime since Phase 32 (32.1; the demo seed's Acme blue until then).
+const BRAND = "rgb(233, 248, 111)";
 
 test("the sd-theme cookie's theme arrives with the page: no flash", async ({ page, context }) => {
   const sent = await page.request.get(`${acme}/login`, { headers: { cookie: "sd-theme=dark" } });

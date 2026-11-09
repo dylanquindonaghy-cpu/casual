@@ -60,7 +60,9 @@ test("Profile shows Zoe's qualifications: one Valid, one Expiring soon, one Miss
   await page.getByRole("button", { name: "Send me a link" }).click();
   await page.goto(await loginLinkSentTo(ZOE.mobileE164, asked));
   await page.getByRole("button", { name: "Log me in" }).click();
-  await expect(page.getByRole("heading", { name: "Hi Zoe" })).toBeVisible();
+  // Phase 32 (32.2): the page is "Home"; her name is in the top bar.
+  await expect(page.getByRole("heading", { name: "Home", level: 1 })).toBeVisible();
+  await expect(page.locator("[data-you]")).toContainText("Zoe");
 
   // Home's "Do this" (Phases 18 and 24): what needs doing as one row, the expiring one (level 3)
   // first, then how many more (the missing one, level 4), to Profile, where each is listed.
@@ -121,7 +123,9 @@ test("Home shows Holly's photo row, the urgent row and her next shift in full", 
   await page.getByRole("button", { name: "Send me a link" }).click();
   await page.goto(await loginLinkSentTo(HOLLY.mobileE164, asked));
   await page.getByRole("button", { name: "Log me in" }).click();
-  await expect(page.getByRole("heading", { name: "Hi Holly" })).toBeVisible();
+  // Phase 32 (32.2): the page is "Home"; her name is in the top bar.
+  await expect(page.getByRole("heading", { name: "Home", level: 1 })).toBeVisible();
+  await expect(page.locator("[data-you]")).toContainText("Holly");
 
   // The date her photo was uploaded (the firm's calendar), as Profile's photo card says it.
   // ("3 Sep 2023": the app's own short months, not the browser's "Sept".)
@@ -274,7 +278,9 @@ test("Shifts: Zoe sees the Arena shift with its travel line, and its page in ful
   await page.getByRole("button", { name: "Send me a link" }).click();
   await page.goto(await loginLinkSentTo(ZOE_PARK.mobileE164, asked));
   await page.getByRole("button", { name: "Log me in" }).click();
-  await expect(page.getByRole("heading", { name: "Hi Zoe" })).toBeVisible();
+  // Phase 32 (32.2): the page is "Home"; her name is in the top bar.
+  await expect(page.getByRole("heading", { name: "Home", level: 1 })).toBeVisible();
+  await expect(page.locator("[data-you]")).toContainText("Zoe");
 
   // Open: two of her three sessions (the third needs what she hasn't got).
   await page.goto(`${acme}/shifts/open`);

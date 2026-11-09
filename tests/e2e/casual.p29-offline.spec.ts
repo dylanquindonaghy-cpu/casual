@@ -72,13 +72,13 @@ test("with no signal a tab stays in the app with a way back, and the saved copy 
   await page.getByRole("link", { name: "Open my saved shifts" }).click();
   await expect(page).toHaveURL(`${acme}/`);
   await expect(page.getByText("No signal.")).toBeVisible();
-  await expect(page.getByTestId("brand-bar").getByText("Offline")).toBeVisible();
+  await expect(page.locator("[data-casual-top]").getByText("Offline", { exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "Your next shift" })).toContainText(zoe.site);
 
   // Signal again, and nothing tapped: the fresh page replaces the copy within a few seconds.
   await signalOn(context);
   await expect(page.getByText("No signal.")).toBeHidden({ timeout: 10_000 });
-  await expect(page.getByTestId("brand-bar").getByText("Offline")).toBeHidden();
+  await expect(page.locator("[data-casual-top]").getByText("Offline", { exact: true })).toBeHidden();
   await expect(page.getByText(/^Updated \d\d:\d\d$/)).toBeVisible();
   await expect(page.getByRole("region", { name: "Your next shift" })).toContainText(zoe.site);
   await expect(page).toHaveURL(`${acme}/`);

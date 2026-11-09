@@ -167,8 +167,10 @@ test("at 1,280px the office's rail at the left: five links, the current one lit,
         const nav = main(page);
         await expect(nav, where).toBeVisible();
         const rail = await nav.evaluate((el) => {
+          const column = el.getBoundingClientRect();
           const box = el.querySelector(":scope > div")!.getBoundingClientRect();
-          const current = el.querySelector('a[aria-current="page"]')!;
+          // Phase 32 (32.1): the current link's round button is the solid ink.
+          const current = el.querySelector('a[aria-current="page"] [data-tab-circle]')!;
           const probe = document.createElement("i");
           probe.style.backgroundColor = "var(--color-ink)";
           document.body.append(probe);
@@ -180,21 +182,25 @@ test("at 1,280px the office's rail at the left: five links, the current one lit,
             return { x: r.x, y: r.y, w: r.width, h: r.height, wordW: word.width };
           });
           return {
-            left: Math.round(box.left),
-            top: Math.round(box.top),
-            right: box.right,
-            width: Math.round(box.width),
+            left: Math.round(column.left),
+            top: Math.round(column.top),
+            right: column.right,
+            width: Math.round(column.width),
+            capsule: Math.round(box.width),
+            capsuleLeft: Math.round(box.left),
             fill: getComputedStyle(current).backgroundColor,
             ink,
             links,
           };
         });
-        // At the window's left edge, 12px in, 96px wide, as the office's.
-        expect([rail.left, rail.top, rail.width], where).toEqual([12, 12, 96]);
-        // The five links one under the other, each at least 44px (64px) tall with its word shown.
+        // At the window's left edge, 12px in and 16px down, 96px wide, as the office's; since
+        // Phase 32 (32.1) the links in a 76px capsule in its middle, under the firm's mark.
+        expect([rail.left, rail.top, rail.width], where).toEqual([12, 16, 96]);
+        expect([rail.capsule, rail.capsuleLeft], where).toEqual([76, 22]);
+        // The five links one under the other, each at least 44px each way with its word shown.
         expect(rail.links, where).toHaveLength(5);
         for (const [i, l] of rail.links.entries()) {
-          expect(l.h, `${where}: link ${i}`).toBeGreaterThanOrEqual(64);
+          expect(l.h, `${where}: link ${i}`).toBeGreaterThanOrEqual(44);
           expect(l.w, `${where}: link ${i}`).toBeGreaterThanOrEqual(44);
           expect(l.wordW, `${where}: link ${i}'s word`).toBeGreaterThan(1);
           if (i > 0) expect(l.y, `${where}: link ${i}`).toBeGreaterThan(rail.links[i - 1]!.y);
@@ -210,7 +216,11 @@ test("at 1,280px the office's rail at the left: five links, the current one lit,
         await expect(nav.locator("[data-rail-mark]"), where).toHaveText(FIRM_INITIAL);
         // The page starts right of the rail, never under it; and nothing to scroll sideways.
         const content = await page.evaluate(() => {
-          const xs = [...document.querySelectorAll("main, [data-testid=brand-bar] > div")]
+          const xs = [
+            ...document.querySelectorAll(
+              "main, [data-testid=brand-bar] > div, [data-casual-top] > div",
+            ),
+          ]
             .map((el) => el.getBoundingClientRect())
             .filter((r) => r.width > 0 && r.height > 0)
             .map((r) => r.left);
@@ -228,7 +238,7 @@ test("at 1,280px the office's rail at the left: five links, the current one lit,
             Math.round(el.querySelector(":scope > div")!.getBoundingClientRect().width),
           ),
           where,
-        ).toBe(96);
+        ).toBe(76);
         for (const word of WORDS)
           await expect(
             nav.getByText(word, { exact: true }),
@@ -365,7 +375,8 @@ test("with no JavaScript the rail is the same at 1,280px", async ({ browser }) =
     await page.goto(`${acme}/profile`);
     await expect(page.getByRole("navigation", { name: "Main" })).toHaveCount(1);
     const box = await main(page).locator(":scope > div").boundingBox();
-    expect([Math.round(box!.x), Math.round(box!.y), Math.round(box!.width)]).toEqual([12, 12, 96]);
+    // (Phase 32, 32.1: the links' capsule, 76px wide under the firm's mark in the 96px column.)
+    expect([Math.round(box!.x), Math.round(box!.y), Math.round(box!.width)]).toEqual([22, 80, 76]);
     await expect(main(page).locator('a[aria-current="page"]')).toContainText("Profile");
     for (const word of WORDS)
       await expect(main(page).getByText(word, { exact: true })).toBeVisible();

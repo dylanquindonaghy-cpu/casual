@@ -15,7 +15,7 @@ async function logIn(page: Page, typed: string, e164: string) {
   await page.getByRole("button", { name: "Send me a link" }).click();
   await page.goto(await loginLinkSentTo(e164, asked));
   await page.getByRole("button", { name: "Log me in" }).click();
-  await expect(page.getByRole("heading", { name: /^Hi / })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Home", level: 1 })).toBeVisible();
 }
 
 test("a free door supervisor sees the urgent dropout and takes it", async ({ page }) => {

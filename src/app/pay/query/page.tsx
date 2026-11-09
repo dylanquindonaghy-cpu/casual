@@ -14,6 +14,7 @@ import { SessionKeeper } from "../../session-keeper";
 import { CodeGate } from "../code-gate";
 import { PayQueryForm } from "./pay-query-form";
 import { CasualTabBar } from "../../casual-tab-bar";
+import { CasualTop } from "../../casual-top-bar";
 
 export const metadata: Metadata = { title: "Raise a pay query" };
 
@@ -47,32 +48,35 @@ export default async function PayQueryPage({
         codeWaiting: await hasLiveCode({ firm }, session),
       };
   return (
-    <main className={page.staff}>
-      <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-      <PageHeader title="Raise a pay query">
-        {!gate ? (
-          <p>Payroll will look at it. You&apos;ll see its status on your pay page.</p>
-        ) : gate.way !== "off" ? (
-          <p>{PAY_CODE.queryIntro}</p>
-        ) : null}
-      </PageHeader>
-      {gate ? (
-        <CodeGate
-          codeWaiting={gate.codeWaiting}
-          way={gate.way}
-          purpose="query"
-          returnTo={returnTo}
-        />
-      ) : (
-        <PayQueryForm
-          shifts={(shifts ?? []).map((s) => ({ shiftId: s.shiftId, label: s.label }))}
-          preselected={preselectedShift(shifts ?? [], rawShift)}
-          today={today}
-          earliest={addDays(today, -PAY_QUERY_DAYS_BACK)}
-          codeStep={returnTo}
-        />
-      )}
-      <CasualTabBar firm={firm} workerId={worker.id} current="pay" />
-    </main>
+    <>
+      <CasualTop firm={firm} worker={worker} />
+      <main className={page.staff}>
+        <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
+        <PageHeader title="Raise a pay query">
+          {!gate ? (
+            <p>Payroll will look at it. You&apos;ll see its status on your pay page.</p>
+          ) : gate.way !== "off" ? (
+            <p>{PAY_CODE.queryIntro}</p>
+          ) : null}
+        </PageHeader>
+        {gate ? (
+          <CodeGate
+            codeWaiting={gate.codeWaiting}
+            way={gate.way}
+            purpose="query"
+            returnTo={returnTo}
+          />
+        ) : (
+          <PayQueryForm
+            shifts={(shifts ?? []).map((s) => ({ shiftId: s.shiftId, label: s.label }))}
+            preselected={preselectedShift(shifts ?? [], rawShift)}
+            today={today}
+            earliest={addDays(today, -PAY_QUERY_DAYS_BACK)}
+            codeStep={returnTo}
+          />
+        )}
+        <CasualTabBar firm={firm} workerId={worker.id} current="pay" />
+      </main>
+    </>
   );
 }

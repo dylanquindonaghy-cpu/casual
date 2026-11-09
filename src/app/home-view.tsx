@@ -4,13 +4,14 @@ import type { ReactNode } from "react";
 import type { NeedsItem } from "@/lib/credentials/status";
 import { timeOnDay } from "@/lib/portal/format";
 import {
-  nextShiftLine,
   type CountPill,
   type QualRow,
   type RecordFigure,
   type UpdateRow,
 } from "@/lib/portal/home-board";
 import type { WeekRow } from "@/lib/portal/home-week";
+import { homeMap, nearestOpen, type HomeMap } from "@/lib/portal/home-map";
+import { HOME_TITLE, payDayText, TITLE_LINKS } from "@/lib/portal/home-map-copy";
 import {
   applyRowText,
   dateLineText,
@@ -33,7 +34,6 @@ import { dateParts, datePartsOfDay } from "@/lib/portal/sign-copy";
 import { AREA_PROMPT, AREA_PROMPT_LINK, TRAVEL_PATH } from "@/lib/portal/travel-copy";
 import { wallTimeOf } from "@/lib/time/zoned";
 import type { StaffPhoto } from "@/lib/uploads/photo";
-import { Bar } from "./home/home-card";
 import { HomeCounts } from "./home/home-counts";
 import { HomeQualifications } from "./home/home-qualifications";
 import { HomeRecord } from "./home/home-record";
@@ -42,8 +42,17 @@ import { HomeWeek } from "./home/home-week";
 import { HomeScreenHint } from "./home-screen-hint";
 import { OfflineNotice } from "./my-shifts-view";
 import { OfferedToYou } from "./offered-to-you";
-import { EmptyPass, NextPass } from "./next-pass";
-import { countPill, disc, headingGap, rowLead, staffH2, tapRow } from "./ui/classes";
+import { MapEmptyPass, MapPass, type CardTiles } from "./next-pass";
+import { HomeMapView } from "./home/home-map";
+import {
+  countPill,
+  disc,
+  headingGap,
+  rowLead,
+  staffBtnInline,
+  staffH2,
+  tapRow,
+} from "./ui/classes";
 import { Icon, type IconName } from "./ui/icons";
 import { PageHeader } from "./ui/page-header";
 import { Plate } from "./ui/plate";
@@ -100,6 +109,13 @@ export interface HomeViewProps {
   // Phase 30.1: the dashboard's parts, each worked out by the page from her own rows. Left out by
   // the older pages' own fixtures (only the sections they test are shown).
   board?: HomeBoard;
+  // Phase 32 (32.2): the street map's pins and tab counts (src/lib/portal/home-map.ts), the firm's
+  // street map file (none: the plain map), her upcoming bookings' count ("1 of 3") and the card's
+  // two tiles. Without `map` (the older pages' own fixtures) the map has its counts and no pins.
+  map?: HomeMap;
+  tiles?: string | null;
+  bookedCount?: number;
+  cardTiles?: CardTiles | null;
 }
 
 export interface HomeBoard {
@@ -111,41 +127,77 @@ export interface HomeBoard {
 }
 
 export function HomeView(props: HomeViewProps) {
-  const { firstName, timeZone, now, board, next } = props;
+  const { timeZone, now, board, next, map } = props;
   // The kept copy can be opened days later, so what it says about itself carries the day too.
   const savedAt = timeOnDay(now, timeZone);
+  // Without the page's map (the older pages' own fixtures): the same tabs' counts, no pins.
+  const shown =
+    map ??
+    homeMap({
+      next,
+      nextPlace: null,
+      open: props.open.shifts,
+      places: new Map(),
+      now,
+      timeZone,
+    });
   return (
     <>
-      <PageHeader title={`Hi ${firstName}`}>
-        {/* Online only, all of it: the kept copy would call the day it was saved today (its
-            notice gives that day). */}
+      {/* Phase 32 (32.2): the office's title row. "Home" with "Updated 12:29" on its baseline
+          (PageHeader's, online only), the date and pay day under it (online only, all of it: the
+          kept copy would call the day it was saved today; its notice gives that day), and from
+          1024px the two ways on at its right, as the office's dashboard has its own. */}
+      <PageHeader
+        title={HOME_TITLE}
+        updated={updatedText(now, timeZone)}
+        beside
+        actions={TITLE_LINKS.map((l) => (
+          <Link key={l.href} href={l.href} className={staffBtnInline}>
+            <Icon name={l.icon} size={20} />
+            {l.words}
+          </Link>
+        ))}
+      >
         <p data-date-line="" data-online-only="" className="text-base text-ink-muted">
           {dateLineText(now, timeZone)}
           {" · "}
-          <span className="tabular-nums">{updatedText(now, timeZone)}</span>
+          {payDayText(props.pay.payDay)}
         </p>
       </PageHeader>
       {/* The counts in a block of their own (the page's width, never their own), 12px under the
-          date line, so their row scrolls inside itself and never widens the page. */}
+          date line, so their row scrolls inside itself and never widens the page. From 1024px
+          they're in the top bar (src/app/casual-top-bar.tsx), so not here. */}
       {board && (
-        <div className="-mt-3 mb-6">
+        <div className="-mt-3 mb-6 lg:hidden">
           <HomeCounts pills={board.pills} />
         </div>
       )}
       <div className="flex flex-col gap-8">
         <OfflineNotice updated={savedAt} />
         <div className="flex flex-col gap-8 lg:grid lg:grid-flow-row-dense lg:grid-cols-12 lg:items-start lg:gap-6">
-          <div className="lg:col-span-7">
-            {next ? (
-              <NextPass
-                shift={next}
-                timeZone={timeZone}
-                now={now}
-                extra={board ? <NextLine shift={next} now={now} /> : undefined}
-              />
-            ) : (
-              <EmptyPass />
-            )}
+          <div className="lg:col-span-12">
+            <HomeMapView
+              pins={shown.pins}
+              counts={shown.counts}
+              tiles={props.tiles ?? null}
+              card={
+                next ? (
+                  <MapPass
+                    shift={next}
+                    timeZone={timeZone}
+                    now={now}
+                    count={props.bookedCount ?? 1}
+                    tiles={props.cardTiles ?? null}
+                  />
+                ) : (
+                  <MapEmptyPass
+                    nearest={nearestOpen(props.open.shifts)}
+                    openCount={props.open.shifts.length}
+                    timeZone={timeZone}
+                  />
+                )
+              }
+            />
           </div>
           <DoThis {...props} />
           {/* Her offers stay above "Shifts you can take" (28.15), on a phone and in the grid. */}
@@ -162,7 +214,7 @@ export function HomeView(props: HomeViewProps) {
               />
             </div>
           )}
-          {board && <HomeQualifications rows={board.quals} className="lg:col-span-5" />}
+          {board && <HomeQualifications rows={board.quals} className="lg:col-span-4" />}
           {board && <HomeWeek weeks={board.weeks} className="lg:col-span-4" />}
           <ShiftsYouCanTake {...props} savedAt={savedAt} />
           {board && <HomeUpdates rows={board.updates} className="lg:col-span-4" />}
@@ -172,25 +224,6 @@ export function HomeView(props: HomeViewProps) {
       </div>
       <HomeScreenHint />
     </>
-  );
-}
-
-// The pass's line under the role (Phase 30.1): how soon (online only: it goes stale) with its bar
-// filling over the last 7 days, how long, and the pay estimate (the booked shift page's own sum).
-function NextLine({ shift, now }: { shift: MyShift; now: Date }) {
-  const line = nextShiftLine(shift, now);
-  return (
-    <div data-next-line="" className="mt-3 flex flex-col gap-2">
-      {line.startsIn && (
-        <span data-online-only="" className="block">
-          <Bar fill={line.fill} tone="brand" />
-        </span>
-      )}
-      <p className="text-base text-ink-muted tabular-nums">
-        {line.startsIn && <span data-online-only="">{`${line.startsIn} · `}</span>}
-        {line.facts}
-      </p>
-    </div>
   );
 }
 

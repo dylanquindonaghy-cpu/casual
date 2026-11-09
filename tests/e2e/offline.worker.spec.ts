@@ -70,7 +70,7 @@ test("Home (her next shift) and Booked open with no signal, marked as copies; lo
   // request then, and the server answered it.)
   await context.setOffline(true);
   await page.reload();
-  await expect(page.getByRole("heading", { name: /^Hi / })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Home", level: 1 })).toBeVisible();
   await expect(page.getByText("No signal.")).toBeVisible();
   await expect(
     page.getByText(
@@ -86,7 +86,7 @@ test("Home (her next shift) and Booked open with no signal, marked as copies; lo
   await expect(offline).toContainText("Open shifts need signal");
   await expect(page.locator('[data-for-you="apply"]')).toBeHidden();
   await expect(page.getByText(/^Updated \d\d:\d\d$/)).toBeHidden();
-  await expect(page.getByTestId("brand-bar").getByText("Offline")).toBeVisible();
+  await expect(page.locator("[data-casual-top]").getByText("Offline", { exact: true })).toBeVisible();
   await expect(page.getByText("Taking or cancelling a shift needs signal.")).toBeVisible();
   // The copy still has her next shift in full.
   await expect(page.getByRole("region", { name: "Your next shift" })).toContainText(site);
@@ -159,7 +159,8 @@ test("a new login on the same phone never shows the last worker's copy", async (
   browser,
 }, testInfo) => {
   await logIn(page, "07700 900106", "+447700900106");
-  const first = (await page.getByRole("heading", { name: /^Hi / }).textContent()) ?? "";
+  // Who is logged in: her name in the top bar (Phase 32; the "Hi {name}" headline before).
+  const first = (await page.locator("[data-you] .truncate").textContent()) ?? "";
   await expect.poll(() => keptText(page), { timeout: 15_000 }).toContain(first);
 
   // Someone else asks for a link from their own phone and opens it on this one, without the
@@ -183,7 +184,7 @@ test("a new login on the same phone never shows the last worker's copy", async (
   await page.goto(link);
   await page.getByRole("button", { name: "Log me in" }).click();
   await expect(page).toHaveURL(`${acme}/`);
-  const second = (await page.getByRole("heading", { name: /^Hi / }).textContent()) ?? "";
+  const second = (await page.locator("[data-you] .truncate").textContent()) ?? "";
   expect(second).not.toBe(first);
   await expect.poll(() => keptText(page), { timeout: 15_000 }).toContain(second);
   expect(await keptText(page)).not.toContain(first);
@@ -283,7 +284,7 @@ test("on an iPhone, My shifts suggests the home screen until 'Don't show again'"
     await page.getByRole("button", { name: "Don't show again" }).click();
     await expect(hint).toBeHidden();
     await page.reload();
-    await expect(page.getByRole("heading", { name: /^Hi / })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Home", level: 1 })).toBeVisible();
     await expect(hint).toBeHidden();
   } finally {
     await iphone.close();
@@ -292,7 +293,7 @@ test("on an iPhone, My shifts suggests the home screen until 'Don't show again'"
 
 test("on Android, no home screen hint", async ({ page }) => {
   await logIn(page, "07700 900105", "+447700900105");
-  await expect(page.getByRole("heading", { name: /^Hi / })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Home", level: 1 })).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Put your shifts on your home screen" }),
   ).toHaveCount(0);

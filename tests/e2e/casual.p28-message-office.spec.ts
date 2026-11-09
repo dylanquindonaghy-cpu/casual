@@ -47,7 +47,7 @@ async function logInCasual(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Send me a link" }).click();
   await page.goto(await loginLinkSentTo(P28_6_CASUAL.mobileE164, asked));
   await page.getByRole("button", { name: "Log me in" }).click();
-  await expect(page.getByRole("heading", { name: `Hi ${P28_6_CASUAL.firstName}` })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible();
 }
 
 async function logInOffice(browser: Browser, tag: string): Promise<BrowserContext> {

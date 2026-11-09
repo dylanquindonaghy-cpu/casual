@@ -32,7 +32,9 @@ test("Messages: answered at once in the app, then the office's reply, counted on
   await page.getByRole("button", { name: "Send me a link" }).click();
   await page.goto(await loginLinkSentTo(KAY.mobileE164, asked));
   await page.getByRole("button", { name: "Log me in" }).click();
-  await expect(page.getByRole("heading", { name: "Hi Kay" })).toBeVisible();
+  // Phase 32 (32.2): the page is "Home"; her name is in the top bar.
+  await expect(page.getByRole("heading", { name: "Home", level: 1 })).toBeVisible();
+  await expect(page.locator("[data-you]")).toContainText("Kay");
 
   // The fifth tab.
   const tabs = page.getByRole("navigation", { name: "Main" });

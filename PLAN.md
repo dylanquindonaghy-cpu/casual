@@ -1347,6 +1347,35 @@ its line says; no plaintext password anywhere in the repository; `RUN_E2E=1 ./sc
 prints VERIFIED; the `guardrails-reviewer` has no open findings; the `claims-auditor` checks each
 task against its line and this one.
 
+## Phase 32 — The casual app in the office's look: its frame, its glass and a map on Home (go-ahead: Dylan, 2026-11-09; UI)
+
+Asked, 2026-11-09 (Dylan, in chat, word for word): "the mobile dashboard still isnt the same as the
+staff dashboard", then, on the comparison, "youve missed out on a few things like section glass
+style etc". The mock-up, measured from the live office (private until shared):
+https://claude.ai/artifact/JstGKepTsH4HR3DFA5EJuD. Approved, word for word: "approved, build it".
+
+- [ ] The office's frame on every casual page: a top bar with her count pills, the bell, the
+      light/dark switch where the casual app has a light look, and her name and role; the firm's
+      lime mark; on a laptop the rail's links as 44px round buttons (white when current) with their
+      words kept under them; on a phone the bottom tab bar kept, in raised glass, words kept; nothing
+      she can see or do changes (UI; M) (32.1)
+- [ ] Home's next shift on a street map, as the office's dashboard: the office's own map (the same
+      tiles, or the plain map without them), a pin for her next shift's venue and one for each venue
+      with shifts open to her (from the same list as "Open to you", never across firms); "Your next
+      shift" in raised glass over it (date box, role and badge, the time tile, her qualifications
+      and shifts-you-can-take tiles, lime "Directions", "Details", "Can't make it?"); tabs All,
+      Urgent, This week and Next week with lime counts filtering the pins; with nothing booked, the
+      nearest shift she can take and "See shifts you can take" in place of the empty box; the saved
+      copy for no signal shows the card without the map (UI; L) (32.2)
+- [ ] The office's buttons and badges across the casual app: lime main buttons, soft tinted
+      badges (urgent, soon, valid, due), raised glass for anything floating; body text stays 16px,
+      targets at least 44px (UI; S) (32.3)
+
+Done when: all three tasks are ticked with a stamp that includes the browser tests; each built what
+its line says, as the approved mock-up shows; `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; the
+`guardrails-reviewer` has no open findings; the `claims-auditor` checks each task against its line
+and this one.
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify

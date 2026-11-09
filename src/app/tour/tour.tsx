@@ -116,9 +116,11 @@ export function TourHost({
       place = null;
     }
     if (!place || place.id !== id || place.step >= steps.length) return;
-    asked.current = true;
     const step = place.step;
-    const frame = requestAnimationFrame(() => setPhase({ at: "walk", step }));
+    const frame = requestAnimationFrame(() => {
+      asked.current = true;
+      setPhase({ at: "walk", step });
+    });
     return () => cancelAnimationFrame(frame);
   }, [id, steps.length]);
 
@@ -131,9 +133,11 @@ export function TourHost({
     } catch {
       later = false;
     }
-    asked.current = true;
     if (later) return;
+    // Marked asked when it opens (an effect run twice in development cancels the first frame).
     const frame = requestAnimationFrame(() => {
+      if (asked.current) return;
+      asked.current = true;
       remember();
       setPhase({ at: "welcome" });
     });
@@ -268,7 +272,10 @@ function Walkthrough({
         frame = requestAnimationFrame(measure);
         return;
       }
-      if (Date.now() - started < ANCHOR_WAIT_MS) {
+      // Still arriving: wait a little. Drawn but hidden at this width (the search on a phone):
+      // passed over at once.
+      const drawn = document.querySelector(`[data-tour="${CSS.escape(s.anchor)}"]`) !== null;
+      if (!drawn && Date.now() - started < ANCHOR_WAIT_MS) {
         frame = requestAnimationFrame(look);
         return;
       }

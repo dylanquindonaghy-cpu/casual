@@ -79,7 +79,7 @@ export function TourWelcome({
         e.preventDefault();
         leave(onNotNow);
       }}
-      className="glass-float m-0 h-dvh max-h-none w-screen max-w-none overflow-y-auto p-4 text-base text-ink backdrop:bg-scrim/60 sm:m-auto sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:w-160 sm:max-w-[calc(100vw-2rem)] sm:rounded-card sm:p-6"
+      className="glass-float m-0 h-dvh max-h-none w-screen max-w-none overflow-y-auto p-4 text-base text-ink backdrop:bg-scrim/60 sm:m-auto sm:h-fit sm:max-h-[calc(100dvh-2rem)] sm:w-160 sm:max-w-[calc(100vw-2rem)] sm:rounded-card sm:p-6"
     >
       <div className="flex flex-col gap-4">
         <div

@@ -1448,7 +1448,7 @@ master switch for texts and emails (nothing goes by text or email while it's off
 with the page's three switches deciding where the library answers. Words in `docs/screens.md`
 ("## Phase 35") and `docs/messaging-templates.md`.
 
-- [ ] The answers and their switches (S, T, M): a firm table `answers` (name, example phrases, the
+- [x] The answers and their switches (S, T, M): a firm table `answers` (name, example phrases, the
       words with named fill-ins from a fixed list, on or off, who last changed it and when; never
       deleted, only switched off) with RLS, `TABLE_ACCESS`, isolation fixtures and composite FKs;
       `messages.answer_id` and `inbound_emails.answer_id` (which answer went), a new intent
@@ -1458,7 +1458,7 @@ with the page's three switches deciding where the library answers. Words in `doc
       licence, parking, office hours) for every firm, switched off, and on the demo; every change
       logged (`answer.created`, `answer.changed`, `answer.switched`, `firm.settings_changed`), ids
       only (S, T; M) (35.1)
-- [ ] The match and the reply (M, R): after STOP/START, never a library answer for a message that
+- [x] The match and the reply (M, R): after STOP/START, never a library answer for a message that
       asks to cancel, asks for the office or says they can't make it (the built-in keywords' cancel
       and office words, and their dropout words; added from the guardrails review, 2026-11-10), and
       those words can't be an example; otherwise an answer whose example phrase appears in
@@ -1471,14 +1471,14 @@ with the page's three switches deciding where the library answers. Words in `doc
       the channel it came in on (texts: only while `auto_replies` is on; email: within its daily
       limit); `message.received`/`email.received` and the replies name the answer by id (M, R)
       (35.2)
-- [ ] The office (UI): Settings → Automatic answers (admins only; its own area and menu item): the
+- [x] The office (UI): Settings → Automatic answers (admins only; its own area and menu item): the
       three switches, the built-in answers, the firm's answers with their switches and uses in the
       last 7 days, Add and Edit (the fill-in picker, an example of what a casual would get, "Save
       and switch on" and "Save, keep off"), and the latest questions with no answer, each with
       "Make this an answer"; Enquiries: "Answered automatically" tab, "Answered automatically ·
       {answer}" on the row, the answer and the exact words in "How it was answered", and "Make this
       an answer" on a message that went to a person (admins) (UI; S) (35.3)
-- [ ] The casual (UI): a library answer on Messages marked as automatic, with "Not what you needed?
+- [x] The casual (UI): a library answer on Messages marked as automatic, with "Not what you needed?
       Ask the office" (which sends their question to the office); the same words by text with the
       usual "Send OFFICE to reach a person"; Messages' intro in the mock-up's words; the demo's
       story has one question answered from the library and one flagged (UI; M) (35.4)

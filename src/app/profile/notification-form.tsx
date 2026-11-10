@@ -6,6 +6,7 @@ import { label, muted, staffBtn, staffChoice } from "@/app/ui/classes";
 import { Slip } from "@/app/ui/slip";
 import { useHydrated } from "@/app/use-hydrated";
 import { CHANNEL_LABELS, CHANNELS, type Channel } from "@/lib/portal/profile-kinds";
+import { LOGIN_AGAIN } from "@/lib/auth/login-again";
 import { saveNotificationSettingsAction } from "./actions";
 import { tryAgainText } from "@/lib/portal/copy";
 import type { LoginWay } from "@/lib/portal/login-way";
@@ -61,7 +62,7 @@ export function NotificationForm({
       const result = await saveNotificationSettingsAction(channel, offerAlerts).catch(() => ({
         status: "error" as const,
       }));
-      if (result.status === "logged_out") return router.replace("/login");
+      if (result.status === "logged_out") return router.replace(LOGIN_AGAIN);
       setMessage(
         result.status === "saved"
           ? {

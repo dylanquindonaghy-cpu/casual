@@ -6,6 +6,8 @@
 export const LOGIN_COPY = {
   title: "Staffing demo login",
   intro: "Log in to the demo with the staffing account.",
+  // After Log out, on the staffing demo (Phase 34): the other login pages' words.
+  loggedOut: "You're logged out.",
   email: "Email",
   password: "Password",
   button: "Log in",

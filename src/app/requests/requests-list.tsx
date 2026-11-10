@@ -27,6 +27,7 @@ import {
 import type { MyRequest } from "@/lib/portal/requests";
 import { dayLabel } from "@/lib/rules/reasons";
 import { localDateOf } from "@/lib/time/zoned";
+import { LOGIN_AGAIN } from "@/lib/auth/login-again";
 import { withdrawRequestAction } from "./actions";
 
 // Each status word's colour (docs/ui-design.md "Status tones"): still waiting, done, or closed. A
@@ -107,7 +108,7 @@ function RequestItem({ r, timeZone }: { r: RequestRow; timeZone: string }) {
       const result = await withdrawRequestAction(id).catch(() => ({ status: "error" as const }));
       sending.current = false;
       if (result.status === "logged_out") {
-        router.replace("/login");
+        router.replace(LOGIN_AGAIN);
         return;
       }
       if (result.status !== "error") setAsking(false);

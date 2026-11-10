@@ -12,6 +12,7 @@ import {
   staffField,
 } from "@/app/ui/classes";
 import { Slip } from "@/app/ui/slip";
+import { LOGIN_AGAIN } from "@/lib/auth/login-again";
 import { OfficeLinked } from "../office-link";
 import { useHydrated } from "@/app/use-hydrated";
 import {
@@ -67,7 +68,7 @@ export function TravelForm({
       const result: SaveTravelOutcome = await saveTravelAction(postcode, modes, maxMinutes).catch(
         () => failed,
       );
-      if (result.status === "logged_out") return router.replace("/login");
+      if (result.status === "logged_out") return router.replace(LOGIN_AGAIN);
       answer(
         saveTravelText(result),
         result.status === "saved" || result.status === "unchanged",
@@ -79,7 +80,7 @@ export function TravelForm({
     startTransition(async () => {
       if (!isOnline()) return answer(NO_SIGNAL, false, false);
       const result: RemoveTravelOutcome = await removeTravelAction().catch(() => failed);
-      if (result.status === "logged_out") return router.replace("/login");
+      if (result.status === "logged_out") return router.replace(LOGIN_AGAIN);
       setAsking(false);
       if (result.status === "removed") setPostcode("");
       answer(removeTravelText(result), result.status === "removed", result.status === "removed");

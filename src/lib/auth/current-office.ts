@@ -3,6 +3,7 @@ import { cache } from "react";
 import type { FirmDirectoryEntry } from "../db/directory";
 import { getCurrentFirm } from "../tenancy/current-firm";
 import { currentOfficeUser, type OfficeSession } from "./office-login";
+import { loginPageFor } from "./login-page";
 import { canAccess, type OfficeArea } from "./roles";
 import { readSessionToken } from "./session-cookie";
 
@@ -22,7 +23,8 @@ export async function requireOfficeArea(
   area: OfficeArea,
 ): Promise<OfficeSession & { firm: FirmDirectoryEntry }> {
   const session = await getOfficeSession();
-  if (!session) redirect("/office/login");
+  // To the office login, or the staffing demo login where that is on (Phase 34).
+  if (!session) redirect(await loginPageFor("office"));
   // A role without access sees "not found", not a hint that the page exists.
   if (!canAccess(session.officeUser.role, area)) notFound();
   return session;

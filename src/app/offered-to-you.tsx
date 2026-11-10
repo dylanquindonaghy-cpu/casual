@@ -11,6 +11,7 @@ import {
   type DeclineShown,
   type RowText,
 } from "@/lib/portal/home-copy";
+import { LOGIN_AGAIN } from "@/lib/auth/login-again";
 import { declineOfferAction } from "./offer-actions";
 import {
   confirmStep,
@@ -119,7 +120,7 @@ function Offer({
       }));
       sending.current = false;
       if (result.status === "logged_out") {
-        router.replace("/login");
+        router.replace(LOGIN_AGAIN);
         return;
       }
       const words = declineOutcomeText(result.status, tryAgainText(), offer.afterNo ?? "take");

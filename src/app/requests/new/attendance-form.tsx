@@ -19,6 +19,7 @@ import {
   type AttendanceOutcome,
   type AttendanceSaid,
 } from "@/lib/portal/request-kinds";
+import { LOGIN_AGAIN } from "@/lib/auth/login-again";
 import { askAboutMarkAction } from "../actions";
 
 type Shown = Exclude<AttendanceOutcome, { status: "logged_out" }>;
@@ -54,7 +55,7 @@ export function AttendanceForm({
         status: "error" as const,
       }));
       sending.current = false;
-      if (result.status === "logged_out") router.replace("/login");
+      if (result.status === "logged_out") router.replace(LOGIN_AGAIN);
       else setOutcome(result);
     });
   };

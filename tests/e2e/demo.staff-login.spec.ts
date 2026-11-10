@@ -214,3 +214,65 @@ for (const colorScheme of ["light", "dark"] as const) {
     });
   }
 }
+
+// Phase 34 (34.1): on the staffing demo, every way back to a login lands on the staffing login (a
+// page opened with no session, office or casual; Log out in the office and on the casual's Profile;
+// an action that found the session gone). /login and /office/login opened by address still show,
+// and on any other firm nothing changes.
+test("every redirect to a login lands on the staffing login, on Acme only", async ({ browser }) => {
+  const page = await windowOf(browser, "laptop");
+  const staffing = page.getByRole("heading", { name: "Staffing demo login", level: 1 });
+  const loggedOut = page.getByRole("status").filter({ hasText: "You're logged out." });
+
+  // With no session: the office, the casual app and the quick guide.
+  for (const path of ["/office", "/office/casuals", "/", "/profile", "/start/guide"]) {
+    await page.goto(`${acme}${path}`);
+    await expect(page, path).toHaveURL(`${acme}/start/login`);
+    await expect(staffing).toBeVisible();
+    await expect(loggedOut).toHaveCount(0);
+  }
+  // An action that found the session gone sends the browser to /login?again=1: on to the staffing login.
+  await page.goto(`${acme}/login?again=1`);
+  await expect(page).toHaveURL(`${acme}/start/login`);
+  // Opened by address, both login pages still show.
+  await page.goto(`${acme}/login`);
+  await expect(
+    page.getByRole("heading", { name: "Log in to Acme Events", level: 1 }),
+  ).toBeVisible();
+  await page.goto(`${acme}/office/login`);
+  await expect(
+    page.getByRole("heading", { name: "Office login for Acme Events", level: 1 }),
+  ).toBeVisible();
+
+  // Log out in the office's account menu.
+  await logIn(page);
+  await page.getByRole("link", { name: /Staffing and resourcing view/ }).click();
+  await expect(page).toHaveURL(`${acme}/office`);
+  await page.getByRole("button", { name: "Staffing (demo) Admin" }).click();
+  await page.getByRole("button", { name: "Log out" }).click();
+  await expect(page).toHaveURL(`${acme}/start/login?out=1`);
+  await expect(staffing).toBeVisible();
+  await expect(loggedOut).toBeVisible();
+
+  // Log out on the casual's Profile, in the Casual mobile view.
+  const phone = await windowOf(browser, "phone");
+  await logIn(phone);
+  await phone.getByRole("button", { name: /Casual mobile view/ }).click();
+  await expect(phone).toHaveURL(`${acme}/`);
+  await phone.goto(`${acme}/profile`);
+  await phone.getByRole("button", { name: "Log out" }).click();
+  await expect(phone).toHaveURL(`${acme}/start/login?out=1`);
+  await expect(phone.getByRole("heading", { name: "Staffing demo login", level: 1 })).toBeVisible();
+  await expect(phone.getByRole("status").filter({ hasText: "You're logged out." })).toBeVisible();
+
+  // Northline (no staffing login): its own login pages, as before.
+  await page.goto(`${northline}/office`);
+  await expect(page).toHaveURL(`${northline}/office/login`);
+  await page.goto(`${northline}/profile`);
+  await expect(page).toHaveURL(`${northline}/login`);
+  await page.goto(`${northline}/office/login?out=1`);
+  await expect(page).toHaveURL(`${northline}/office/login?out=1`);
+  await expect(page.getByRole("status").filter({ hasText: "You're logged out." })).toBeVisible();
+  await page.goto(`${northline}/login?again=1`);
+  await expect(page).toHaveURL(`${northline}/login?again=1`);
+});

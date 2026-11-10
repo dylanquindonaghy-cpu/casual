@@ -1408,6 +1408,57 @@ its line says, as the approved mock-up shows; `RUN_E2E=1 ./scripts/verify.sh` pr
 `guardrails-reviewer` has no open findings; the `claims-auditor` checks each task against its line
 and this one.
 
+## Phase 34 — On the staffing demo, every way back to a login lands on the staffing login (go-ahead: Dylan, 2026-11-10; A)
+
+Asked, 2026-11-10 (Dylan, in chat, with screenshots of `/office/login?out=1` and `/login?out=1` on
+the live demo, word for word): "theres also an issue with redirects going to the old log in pages
+just for now only make it so the redirects go to the staffing@test.com log in page with the password
+no demo phone is needed atm". Only where the staffing login exists (a demo server, on Acme); every
+other firm and server keeps its own login pages. The login pages themselves stay reachable by
+address (the walkthrough and the magic links use them); only the redirects change. No new screen:
+the staffing login gains the logged-out line the other login pages already show.
+
+- [x] Where the staffing login is on (`staffDemoOn`), the redirects to a login go to `/start/login`:
+      a page opened with no session (office or casual, `requireOfficeArea`, `requireWorker`, the
+      quick guide), "Log out" in the office's account menu and on the casual's Profile (it lands on
+      `/start/login?out=1`, which says "You're logged out."), and the casual app's actions that find
+      the session gone; `/login` and `/office/login` opened by address still show; everywhere else
+      nothing changes (A; S) (34.1)
+
+Done when: the task is ticked with a stamp that includes the browser tests; it built what its line
+says; `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; the `guardrails-reviewer` has no open
+findings; the `claims-auditor` checks the task against its line and this one.
+
+## Phase 35 — The answer library: automatic answers the office approves, everything else flagged (proposed 2026-11-10; S, M, UI; waiting for the mock-up's approval)
+
+Asked, 2026-11-10 (Dylan, in chat, word for word): "it should be able to send off messages but only
+from a restricted amount of pre made answers from common questions then if anything falls outside
+of those answers it gets flagged", then "yes plan it as the next phase, mock-up first". Today the
+shifts line has three fixed answers (shifts, cancel, pay) and sends everything else to Need a
+person; this phase lets the office keep its own list of approved answers. Golden rules 1 and 9
+hold: the AI only picks one switched-on answer or "none", never writes a word a casual sees; facts
+in an answer are filled in by code from the firm's data; a pay dispute is never an answer. The
+mock-up (before and after, phone and laptop): https://claude.ai/artifact/LKSpXGPp5XEUHnodmJEcC6.
+Boxes, numbers and a "Done when" line are added when Dylan approves it and answers the four
+calls it asks (who edits answers; which channels; the new table; the starter answers).
+
+- The answers (S, T): a firm table of answers (a name, example questions, the words with named
+  fill-ins from a fixed list, on or off, who changed it and when), with RLS, `TABLE_ACCESS` and
+  isolation fixtures; changes logged.
+- The match (M): keywords first, as today; then the AI is shown only the switched-on answers and
+  picks one or "none", under the existing 5-second limit and fallback; "none", unsure or down: the
+  usual office reply and Need a person. Fill-ins come from code; an answer whose fill-in has no
+  value for this casual is not sent (flagged instead).
+- Where it answers (M): app messages, texts to the shifts line and the staffing inbox's emails,
+  each with its own switch for the firm (the server's `auto_replies` command becomes the page's
+  switches).
+- The office (UI): Settings → Automatic answers (the list, add and edit with the fill-in picker and
+  "what Zoe would get", the switches, "Asked a lot, no answer yet" from flagged messages);
+  Enquiries' "Answered automatically" tab, which answer went and the exact words, and "Make this an
+  answer" on a flagged message.
+- The casual (UI): the answer on Messages and by text, marked as automatic, with "Not what you
+  needed? Ask the office".
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify

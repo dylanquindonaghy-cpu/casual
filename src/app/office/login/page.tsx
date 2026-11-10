@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { loginTitle, officeLoginCard, page } from "@/app/ui/classes";
 import { getOfficeSession } from "@/lib/auth/current-office";
+import { staffLoginAfterRedirect } from "@/lib/auth/login-page";
 import { staffDemoOn } from "@/lib/demo/staff-login";
 import { appEnv } from "@/lib/env";
 import { getCurrentFirm } from "@/lib/tenancy/current-firm";
@@ -20,6 +21,10 @@ export default async function OfficeLoginPage({
   const firm = await getCurrentFirm();
   if (await getOfficeSession()) redirect("/office");
   const { out } = await searchParams;
+  // Sent here by "Log out" on the staffing demo: on to its login (Phase 34). Opened by address,
+  // this page shows.
+  const staff = staffLoginAfterRedirect("office", firm.id, { out });
+  if (staff) redirect(staff);
   return (
     <main className={page.officeLogin}>
       <div className={officeLoginCard}>

@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import { btn, label, staffBtn, staffCard } from "@/app/ui/classes";
 import { Slip } from "@/app/ui/slip";
 import { useHydrated } from "@/app/use-hydrated";
+import { LOGIN_AGAIN } from "@/lib/auth/login-again";
 import { waitText } from "../too-many-tries";
 import { requestCodeAction, verifyCodeAction } from "./actions";
 import { tryAgainText } from "@/lib/portal/copy";
@@ -76,7 +77,7 @@ export function CodeGate({
         setHasCode(true);
       } else if (result.status === "rate_limited") {
         setNotice({ kind: "wait", minutes: result.retryAfterMinutes });
-      } else if (result.status === "logged_out") router.replace("/login");
+      } else if (result.status === "logged_out") router.replace(LOGIN_AGAIN);
       else setNotice({ kind: "error" });
     });
 
@@ -91,7 +92,7 @@ export function CodeGate({
       else if (result.status === "expired") {
         setHasCode(false);
         setNotice({ kind: "stopped" });
-      } else if (result.status === "logged_out") router.replace("/login");
+      } else if (result.status === "logged_out") router.replace(LOGIN_AGAIN);
       else setNotice({ kind: "error" });
     });
 

@@ -1458,7 +1458,10 @@ with the page's three switches deciding where the library answers. Words in `doc
       licence, parking, office hours) for every firm, switched off, and on the demo; every change
       logged (`answer.created`, `answer.changed`, `answer.switched`, `firm.settings_changed`), ids
       only (S, T; M) (35.1)
-- [ ] The match and the reply (M, R): after STOP/START, an answer whose example phrase appears in
+- [ ] The match and the reply (M, R): after STOP/START, never a library answer for a message that
+      asks to cancel, asks for the office or says they can't make it (the built-in keywords' cancel
+      and office words, and their dropout words; added from the guardrails review, 2026-11-10), and
+      those words can't be an example; otherwise an answer whose example phrase appears in
       the message, in code; then the built-in keywords; then the AI, shown only the built-in labels
       and the switched-on answers' names and examples, picks one or none; none, unsure, slow, down,
       or a message about pay going wrong: the office, as today; an answer whose fill-in has no

@@ -555,6 +555,15 @@ describe("the second review's findings", () => {
       "I missed the bus, is anyone in",
       "can I swap my shift, is anyone in",
       "I want to drop Saturday, is anyone in",
+      "is anyone in? my train got cancelled",
+      "shift cancelled, what do i wear",
+      "the event was canceled, is anyone in",
+      "running behind, is anyone in",
+      "is anyone in, flat tyre",
+      "got a puncture, where do i park",
+      "I've got flu, is anyone in",
+      "at the doctors, is anyone in",
+      "no childcare today, is anyone in",
     ]) {
       expect(libraryAllowed(text), text).toBe(false);
     }
@@ -612,6 +621,13 @@ describe("the second review's findings", () => {
     expect(answerText(body, {}, { name: "Fridays", examples: ["when do we get paid"] })).toEqual({
       text: `${body} ${ANSWER_PAY_HINT}`,
     });
+    expect(
+      answerText(body, {}, { name: "Fridays", examples: ["when does the money go in"] }),
+    ).toEqual({ text: `${body} ${ANSWER_PAY_HINT}` });
+    // Not by its words: Office hours mentions pay without being about it.
+    const hours = STARTERS.find((s) => s.key === "office_hours");
+    expect(hours).toBeDefined();
+    expect(answerText(hours?.body ?? "", {}, hours)).toEqual({ text: hours?.body });
     expect(answerText("Bring a torch.", {}, { name: "Kit", examples: ["what to bring"] })).toEqual({
       text: "Bring a torch.",
     });

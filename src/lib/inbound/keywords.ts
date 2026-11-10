@@ -98,6 +98,20 @@ export const LIBRARY_STOP_WORDS = [
   "dropout",
   "swap",
   "quit",
+  // The third review: a shift or a train "cancelled", and more ways of saying they can't make it.
+  "cancelled",
+  "canceled",
+  "behind",
+  "hurt",
+  "flu",
+  "doctor",
+  "doctors",
+  "dentist",
+  "puncture",
+  "tyre",
+  "tire",
+  "childcare",
+  "vomiting",
 ] as const;
 const NO_LIBRARY = new Set<string>([
   ...PERSON_WORDS,

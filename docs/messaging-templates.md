@@ -452,7 +452,9 @@ someone has read them; on for the demo firms, but Parking):
 | Parking | where do i park · is there parking | "Each shift says where to park in its instructions. If it doesn't, staff parking isn't provided: please use public transport or a nearby car park." |
 | Office hours | is anyone in · what time do you open | "The office is open Monday to Friday, 9:00 to 17:00. Out of hours, questions about your shifts, cancelling and pay are answered here straight away." |
 
-An answer whose words use a pay fill-in ({next_pay_day}, {pay_cycle} or {pay_link}) gets, added by
+An answer whose words use a pay fill-in ({next_pay_day}, {pay_cycle} or {pay_link}), or whose name
+or examples are about pay (pay, paid, wages, payslip, payday, money, payroll, salary, rate,
+earnings), gets, added by
 code after its words on every channel (and in the office's preview), "If your pay looks wrong, tap
 'Raise a pay query' on your pay page, so payroll sees it." (`ANSWER_PAY_HINT`, beside the pay
 reply's `PAY_QUERY_HINT` in `src/lib/messaging/pay-hint.ts`; golden rule 9: the way to payroll is

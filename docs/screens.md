@@ -3943,7 +3943,9 @@ were missing.
 - From the second guardrails review (2026-11-10):
   - Words that say a shift has gone wrong without the dropout words (unwell, poorly, emergency,
     hospital, ambulance, injured, injury, accident, funeral, bereavement, delayed, delay, traffic,
-    stuck, breakdown, broken, broke, missed, covid, drop, dropout, swap, quit:
+    stuck, breakdown, broken, broke, missed, covid, drop, dropout, swap, quit, and from the third
+    review cancelled, canceled, behind, hurt, flu, doctor, doctors, dentist, puncture, tyre, tire,
+    childcare, vomiting:
     `LIBRARY_STOP_WORDS`) keep a message from the library too, and can't be in an example. So "I'm
     poorly, is anyone in?" and "stuck in traffic, where do I park" reach a person.
   - An example matches only when it is at least a third of the message's words (`EXAMPLE_COVER`):
@@ -3952,7 +3954,9 @@ were missing.
   - More pay-trouble words: wasn't paid, weren't paid, haven't paid, hasn't paid, didn't pay, didn't
     get paid, only paid, problem, issue, query, low, less.
   - The pay hint also goes after an answer whose name or examples are about pay (pay, paid, wages,
-    payslip, payday), even when its words use no pay fill-in ("We pay every Friday.").
+    payslip, payday, money, payroll, salary, rate, rates, earnings), even when its words use no pay
+    fill-in ("We pay every Friday."). Not by its words: Office hours mentions pay without being
+    about it.
   - "Make this an answer" from an email checks its subject and body (as "No answer yet" lists it),
     and starts the example from the body.
 
@@ -4040,7 +4044,8 @@ answer", Edit's the answer's name with "On"/"Off", its uses and its last edit.
   parts." (L1); words that look signed by a person (a line "Thanks, Sam", "Cheers Sam", "Kind
   regards", or a last line "— Sam"; `looksSignedByPerson()`): "Replies are signed by the firm's
   Shift Team: don't add a person's name." (golden rule 8; L3).
-- "A casual would get (example):" shows the pay query hint too, for words with a pay fill-in.
+- "A casual would get (example):" shows the pay query hint too, for words with a pay fill-in or an
+  answer whose name or examples are about pay.
 - Buttons: Add, **Save and switch on** / **Save, keep off**; Edit of one that's on, **Save, keep
   on** / **Save and switch off**; of one that's off, **Save and switch on** / **Save, keep off**.
   Saved, back to the list, which says so.

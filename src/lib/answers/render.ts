@@ -43,7 +43,22 @@ export const usesPayFillIn = (body: string): boolean =>
 // every channel; the office's preview shows it too.
 // An answer about pay by its topic, not its words (the second guardrails review, L): its name or an
 // example holds a pay keyword ("We pay every Friday", asked as "when do we get paid").
-const PAY_TOPIC = new Set(["pay", "paid", "wages", "payslip", "payslips", "payday"]);
+// Its name and examples only, not its words: Office hours' words mention pay ("…cancelling and pay
+// are answered here") without being about it.
+const PAY_TOPIC = new Set([
+  "pay",
+  "paid",
+  "wages",
+  "payslip",
+  "payslips",
+  "payday",
+  "money",
+  "payroll",
+  "salary",
+  "rate",
+  "rates",
+  "earnings",
+]);
 export interface AnswerTopic {
   name: string;
   examples: readonly string[];

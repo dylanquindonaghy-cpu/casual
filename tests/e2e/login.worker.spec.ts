@@ -32,13 +32,13 @@ test("a worker logs in with a link, the link works once, and they can log out", 
   await expect(page).toHaveURL(`${acme}/l`); // the token is cleared from the address bar
   await page.getByRole("button", { name: "Log me in" }).click();
   await expect(page).toHaveURL(`${acme}/`);
-  await expect(page.getByRole("heading", { name: /^Hi / })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Home", level: 1 })).toBeVisible();
   // Home (12H.1): this seeded worker has no bookings yet. The tab bar is at the bottom.
   await expect(page.getByRole("heading", { name: "No shifts booked" })).toBeVisible();
   const tabs = page.getByRole("navigation", { name: "Main" });
   await expect(tabs.getByRole("link")).toHaveText(["Home", "Shifts", "Messages", "Pay", "Profile"]);
   await expect(tabs.getByRole("link", { name: "Home" })).toHaveAttribute("aria-current", "page");
-  await page.getByRole("link", { name: "See open shifts" }).click();
+  await page.getByRole("link", { name: "See shifts you can take" }).click();
   await expect(page).toHaveURL(`${acme}/shifts/open`);
   await expect(page.getByRole("heading", { name: "Open shifts" })).toBeVisible();
   // The demo seed's Saturday: this steward is free, and the four open steward places are theirs

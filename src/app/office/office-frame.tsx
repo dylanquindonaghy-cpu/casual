@@ -28,6 +28,9 @@ import type { SearchResult } from "./search-actions";
 import { UpdatedStamp } from "./updated-stamp";
 import { useAutoRefresh } from "./auto-refresh";
 import { ThemeButton } from "./theme-button";
+import { TOUR_MENU } from "@/lib/tour/office-copy";
+import type { TourApi } from "../tour/tour";
+import { OfficeTour, type OfficeTourProps } from "./office-tour";
 
 // The frame around every office page once someone is logged in (docs/office-v2.md 3.1;
 // docs/ui-design.md "Office shell"), drawn by office-shell.tsx. Display only: every page and
@@ -114,6 +117,7 @@ function BarCounts({ counts, row = false }: { counts: BarCount[]; row?: boolean 
   return (
     <div
       data-bar-counts={row ? "row" : ""}
+      data-tour="counts"
       className={
         row
           ? "scrollbar-none fade-x -mx-2 flex gap-2 overflow-x-auto px-2 pb-1 lg:hidden"
@@ -160,6 +164,7 @@ export function OfficeFrame({
   rotationDue,
   updates = null,
   refresh,
+  tour = null,
   children,
 }: {
   name: string;
@@ -173,8 +178,11 @@ export function OfficeFrame({
   rotationDue: boolean;
   updates?: UpdatesBell | null; // the bell and the pop-up (admins and resourcers; Phase 26.4)
   refresh: () => Promise<void>;
+  // The first-login tour (Phase 33.2): for the roles with a dashboard; none for payroll.
+  tour?: OfficeTourProps | null;
   children: ReactNode;
 }) {
+  const tourApi = useRef<TourApi>(null);
   const hydrated = useHydrated();
   const pathname = usePathname();
   const router = useRouter();
@@ -315,6 +323,7 @@ export function OfficeFrame({
                 aria-expanded={open}
                 aria-haspopup="dialog"
                 disabled={!hydrated}
+                data-tour="menu"
                 onClick={() => setOpen(true)}
                 className="press-glass glass-button inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-4 font-semibold text-ink hover:bg-button-hover active:bg-button-press disabled:cursor-not-allowed disabled:opacity-60 lg:hidden"
               >
@@ -334,6 +343,7 @@ export function OfficeFrame({
                   ref={you}
                   type="button"
                   popoverTarget={ACCOUNT_MENU_ID}
+                  data-tour="you"
                   className="press inline-flex min-h-11 items-center gap-2 rounded-full p-1 text-left hover:bg-raised active:bg-button-press sm:pr-3 lg:py-0 lg:pr-2 lg:pl-1"
                 >
                   <span
@@ -374,6 +384,27 @@ export function OfficeFrame({
                 >
                   <Icon name="guide" className="text-ink-muted" />
                   How-to guide
+                </Link>
+                {tour ? (
+                  <button
+                    type="button"
+                    disabled={!hydrated}
+                    onClick={() => {
+                      account.current?.hidePopover();
+                      tourApi.current?.open();
+                    }}
+                    className="press flex min-h-11 w-full items-center gap-3 rounded-row px-3 text-left font-medium hover:bg-raised active:bg-button-press disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Icon name="eye" className="text-ink-muted" />
+                    {TOUR_MENU.again}
+                  </button>
+                ) : null}
+                <Link
+                  href="/start/guide"
+                  className="press flex min-h-11 items-center gap-3 rounded-row px-3 font-medium hover:bg-raised active:bg-button-press"
+                >
+                  <Icon name="info" className="text-ink-muted" />
+                  {TOUR_MENU.quickGuide}
                 </Link>
                 <LogoutButton
                   kind="office"
@@ -441,6 +472,7 @@ export function OfficeFrame({
             </div>
           </div>
           <SessionKeeper rotationDue={rotationDue} refresh={refresh} />
+          {tour ? <OfficeTour firmName={firmName} tour={tour} apiRef={tourApi} /> : null}
         </div>
       </MenuPending.Provider>
     </>

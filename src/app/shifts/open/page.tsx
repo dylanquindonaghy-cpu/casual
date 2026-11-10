@@ -11,6 +11,8 @@ import { shiftsStrip } from "@/lib/portal/shifts-strip";
 import { localDateOf } from "@/lib/time/zoned";
 import { OpenShiftsView } from "./open-shifts-view";
 import { CasualTabBar } from "../../casual-tab-bar";
+import { openShiftsNow } from "@/lib/portal/request-cached";
+import { CasualTop } from "../../casual-top-bar";
 
 export const metadata: Metadata = { title: "Open shifts" };
 
@@ -51,8 +53,11 @@ export default async function OpenShiftsPage({
   // marks the days she's booked.
   // Whether anything reaches her (Home's rule), so the empty list never promises her a message.
   const [list, all, booked, reach] = await Promise.all([
-    openShiftsFor({ firm, clock }, worker.id, filters),
-    filtered ? openShiftsFor({ firm, clock }, worker.id, {}) : null,
+    // Unfiltered, the same list the top bar counts, read once per request (Phase 32).
+    filtered
+      ? openShiftsFor({ firm, clock }, worker.id, filters)
+      : openShiftsNow(firm.id, worker.id),
+    filtered ? openShiftsNow(firm.id, worker.id) : null,
     myShifts({ firm, clock }, worker.id, "upcoming"),
     myReachPrompts({ firm }, worker.id),
   ]);
@@ -63,17 +68,20 @@ export default async function OpenShiftsPage({
     booked.map((b) => localDateOf(b.startsAt, firm.timezone)),
   );
   return (
-    <main className={page.staff}>
-      <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-      <OpenShiftsView
-        list={list}
-        filters={filters}
-        strip={strip}
-        timeZone={firm.timezone}
-        now={now}
-        canReach={!reach.includes("unreachable")}
-      />
-      <CasualTabBar firm={firm} workerId={worker.id} current="shifts" />
-    </main>
+    <>
+      <CasualTop firm={firm} worker={worker} />
+      <main className={page.staff}>
+        <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
+        <OpenShiftsView
+          list={list}
+          filters={filters}
+          strip={strip}
+          timeZone={firm.timezone}
+          now={now}
+          canReach={!reach.includes("unreachable")}
+        />
+        <CasualTabBar firm={firm} workerId={worker.id} current="shifts" />
+      </main>
+    </>
   );
 }

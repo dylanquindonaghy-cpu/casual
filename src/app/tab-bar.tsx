@@ -122,20 +122,21 @@ export function TabBar({
       data-rail-only={railOnly ? "" : undefined}
       className="pointer-events-none fixed inset-x-0 bottom-0 z-20 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]"
     >
+      {firm && (
+        // The firm's lime mark above the rail (from 1024px only: the top bar names the firm on a
+        // phone), as the office rail's: 48px, 12px round, its initial in bold.
+        <span
+          aria-hidden="true"
+          data-rail-mark=""
+          className="pointer-events-auto mx-auto mb-4 hidden size-12 shrink-0 items-center justify-center rounded-inner bg-brand-bar text-2xl font-bold text-on-brand-bar lg:flex"
+        >
+          {railInitial(firm.name)}
+        </span>
+      )}
       <div className="glass-float pointer-events-auto mx-auto grid h-17 max-w-md grid-cols-5 gap-1 rounded-card p-1.5 motion-safe:transition-[height,max-width] motion-safe:duration-300 motion-safe:ease-sd [html[data-tabs-mini]_&]:h-13.5 [html[data-tabs-mini]_&]:max-w-72.5 [html[data-tabs-mini]_&]:p-1.25">
         {/* Where "Skip to the menu" lands (src/app/skip-to-menu.tsx): the links come next. Out of
             the flow (sr-only), so it takes no place in the bar or the rail. */}
         <span id={CASUAL_MENU_ID} className="sr-only" />
-        {firm && (
-          // The firm's mark at the rail's top (from 1024px only: the firm's bar names the firm).
-          <span
-            aria-hidden="true"
-            data-rail-mark=""
-            className="mx-auto mb-2 hidden size-10 shrink-0 items-center justify-center rounded-row bg-brand-bar text-lg font-bold text-on-brand-bar lg:flex"
-          >
-            {railInitial(firm.name)}
-          </span>
-        )}
         {TABS.map(({ tab, href, words, icon }) => {
           const here = tab === current;
           const count = countFor(tab, counts);
@@ -147,22 +148,33 @@ export function TabBar({
               // One name, read as written: hidden words inside the link would be read after a gap
               // ("Profile , 1 thing…"), as the browser puts space around them.
               aria-label={count ? `${words}, ${count.words}` : undefined}
-              // The focus ring sits inside the tab; on the ink tab it's in the words' colour.
-              className={`press-glass flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-row px-1 text-sm focus-visible:-outline-offset-2 ${
-                here
-                  ? "bg-ink font-semibold text-on-ink focus-visible:outline-on-ink"
-                  : "font-medium text-ink-muted hover:bg-active hover:text-ink active:bg-button-press"
+              data-tab={tab}
+              // The casuals' tour points at Shifts, Pay and Profile (Phase 33.3).
+              data-tour={`tab-${tab}`}
+              // The focus ring sits inside the tab.
+              className={`group/tab flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-row px-1 text-sm focus-visible:-outline-offset-2 ${
+                here ? "font-semibold text-ink" : "font-medium text-ink-muted hover:text-ink"
               }`}
             >
-              <span className="relative flex items-center justify-center">
+              {/* Phase 32 (32.1): the icon in a round button, as the office rail's (36px here, 44px
+                  on the rail from 1024px): the current one solid ink with its icon in the page's
+                  ground, the others clear (glass with its hairline on the rail). */}
+              <span
+                data-tab-circle=""
+                className={`press-glass relative flex size-9 shrink-0 items-center justify-center rounded-full lg:size-11 ${
+                  here
+                    ? "bg-ink text-on-ink"
+                    : "group-hover/tab:bg-button-hover group-active/tab:bg-button-press lg:glass-button"
+                }`}
+              >
                 <Icon name={icon} size={22} />
                 {count && (
-                  // Set off from the tab under it by a 2px edge of the page's own ground, so it
-                  // shows on the ink tab too (the office rail's dot does the same).
+                  // Set off from the button under it by a 2px edge of the page's own ground, so it
+                  // shows on the ink button too (the office rail's dot does the same).
                   <span
                     aria-hidden="true"
                     {...{ [count.mark]: "" }}
-                    className={`absolute -top-2 -right-3 min-w-5 rounded-full px-1.5 text-center text-xs leading-5 font-semibold outline-2 outline-canvas ${
+                    className={`absolute -top-1.5 -right-2 min-w-5 rounded-full px-1.5 text-center text-xs leading-5 font-semibold outline-2 outline-canvas ${
                       count.tone === "todo" ? "bg-hivis text-on-hivis" : "glass-tint"
                     }`}
                   >

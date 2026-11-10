@@ -39,7 +39,7 @@ async function logIn(
     await page.getByRole("button", { name: "Send me a link" }).click();
     await page.goto(await loginLinkSentTo(P30_1_ZARA.mobileE164, asked));
     await page.getByRole("button", { name: "Log me in" }).click();
-    await expect(page.getByRole("heading", { name: `Hi ${P30_1_ZARA.firstName}` })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible();
     return await context.storageState();
   } finally {
     await context.close();
@@ -145,13 +145,14 @@ test("Home as her dashboard: counts, qualifications, week, updates, record; phon
         const where = (what: string) =>
           `${what} at ${size.name} (${size.viewport.width}px), ${theme}`;
         await page.goto(`${acme}/`);
-        const hi = page.getByRole("heading", { level: 1, name: `Hi ${P30_1_ZARA.firstName}` });
+        const hi = page.getByRole("heading", { level: 1, name: "Home" });
         await expect(hi).toBeVisible();
 
-        // The date line under the headline: "Friday 6 November · Updated 15:38".
+        // The date line under the headline: since Phase 32 (32.2, the approved mock-up) the day
+        // and pay day, "Friday 6 November · Pay day Fri 13 Nov" ("Updated 15:38" is beside "Home").
         const dateLine = page.locator("[data-date-line]");
         await expect(dateLine).toHaveText(
-          new RegExp(`^${longDay(new Date())} · Updated \\d\\d:\\d\\d$`),
+          new RegExp(`^${longDay(new Date())} · Pay day [A-Z][a-z]{2} \\d+ [A-Z][a-z]{2}$`),
         );
         expect(
           (await box(dateLine)).y,
@@ -168,7 +169,8 @@ test("Home as her dashboard: counts, qualifications, week, updates, record; phon
         await expect(chip(/^Urgent/)).toHaveText(`Urgent ${counted.urgent}`);
         await expect(chip(/^Urgent/)).toHaveAttribute("href", "/urgent");
         await expect(chip(/^To do/)).toHaveText("To do 1"); // her photo, due soon
-        await expect(chip(/^To do/)).toHaveAttribute("href", "#do-this-heading");
+        // (From 1024px the counts are the top bar's, where "To do" opens Home's "Do this".)
+        await expect(chip(/^To do/)).toHaveAttribute("href", /^\/?#do-this-heading$/);
         await expect(chip(/^Messages/)).toHaveText("Messages 1");
         await expect(chip(/^Messages/)).toHaveAttribute("href", "/messages");
         // The row scrolls inside itself, never the page.
@@ -179,9 +181,10 @@ test("Home as her dashboard: counts, qualifications, week, updates, record; phon
 
         // Her next shift's line: how soon, how long, the pay estimate.
         const pass = page.getByRole("region", { name: "Your next shift" });
-        await expect(pass.locator("[data-next-line]")).toHaveText(
-          /^Starts in (?:\d+ hours|3 days) · 8 hours · about £108\.00 before tax$/,
-        );
+        // (Since Phase 32 the card's time tile: the times with how long and the pay, then how soon.)
+        const line = pass.locator("[data-next-line]");
+        await expect(line).toContainText("8 hours · about £108.00 before tax");
+        await expect(line).toContainText(/Starts in (?:\d+ hours|3 days)/);
 
         // Your qualifications: worst first, each with its pill; the photo's row to Profile.
         const quals = page.getByRole("region", { name: "Your qualifications" });
@@ -264,11 +267,15 @@ test("Home as her dashboard: counts, qualifications, week, updates, record; phon
           expect(Math.min(b.width, b.height), where("a day tile")).toBeGreaterThanOrEqual(44);
         }
 
-        // On the laptop: the next shift and the qualifications side by side.
+        // On the laptop: since Phase 32 (32.2) the next shift is the card over the map, the
+        // whole width; the qualifications under it, beside "Your week".
         if (!size.mobile) {
-          const [p, q] = [await box(pass), await box(quals)];
-          expect(q.x, where("qualifications beside the pass")).toBeGreaterThanOrEqual(p.right);
-          expect(Math.abs(q.y - p.y), where("on one row")).toBeLessThan(40);
+          const [p, q, w] = [await box(pass), await box(quals), await box(week)];
+          expect(q.y, where("qualifications under the map's card")).toBeGreaterThanOrEqual(
+            p.bottom,
+          );
+          expect(w.x, where("your week beside the qualifications")).toBeGreaterThanOrEqual(q.right);
+          expect(Math.abs(w.y - q.y), where("on one row")).toBeLessThan(40);
         }
         await shoot(page, testInfo, `30.1 home ${size.name} ${theme}`);
       } finally {

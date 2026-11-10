@@ -76,6 +76,9 @@ vi.mock("@/app/casual-tab-bar", () => ({
     return null;
   },
 }));
+// The top bar (Phase 32) loads her counts as the tab bar does: an async server component, which
+// static rendering can't draw, so it stands in here as the tab bar does.
+vi.mock("@/app/casual-top-bar", () => ({ CasualTop: () => null }));
 
 const { markAnswersSeenAction, withdrawRequestAction } = await import("@/app/requests/actions");
 const { default: RequestsPage } = await import("@/app/requests/page");

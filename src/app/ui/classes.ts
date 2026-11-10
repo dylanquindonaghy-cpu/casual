@@ -176,10 +176,12 @@ export const staffCount = count;
 export const countChips = "scrollbar-none fade-x -mx-2 flex gap-2 overflow-x-auto px-2 pb-1";
 export const countChip =
   "press-glass glass-button flex h-11 shrink-0 items-center gap-2 rounded-full px-3 text-sm whitespace-nowrap text-ink-muted hover:bg-button-hover hover:text-ink active:bg-button-press";
+// Phase 32 (32.3): as the office's top bar has them (office-frame.tsx BarCounts), every number in
+// ink but Urgent's, in the urgent words' colour (no solid red pill: the office's soft look).
 export const countChipNumber = {
   plain: "font-semibold tabular-nums text-ink",
-  urgent: `${countShape} bg-urgent-fill text-on-urgent`,
-  todo: `${countShape} glass-rim bg-hivis text-on-hivis`,
+  urgent: "font-semibold tabular-nums text-urgent-ink",
+  todo: "font-semibold tabular-nums text-ink",
 };
 
 // Secondary text: meta lines (times, references), and longer muted sentences.
@@ -239,6 +241,8 @@ export const chip = {
   wait: "bg-wait-soft text-ink",
   done: "bg-done-soft text-done-ink",
   quiet: "bg-quiet-soft text-ink-muted",
+  // Phase 32 (32.3): "soon", her booked shift's how-soon ("In 3 days"): the office's soft blue.
+  soon: "bg-wait-soft text-ink",
 };
 
 // --- Phase 28 (28.1): the casual app's own parts on the office's system ----------------------

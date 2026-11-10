@@ -1,4 +1,5 @@
-import { tabCounts, type TabCounts } from "@/lib/portal/tab-counts";
+import { tabCountsNow } from "@/lib/portal/request-cached";
+import type { TabCounts } from "@/lib/portal/tab-counts";
 import { getCurrentBrand } from "@/lib/tenancy/current-brand";
 import { TabBar, TabBarSpace, type CasualTab } from "./tab-bar";
 
@@ -30,7 +31,7 @@ export async function CasualTabBar({
   workerId: string;
   current: CasualTab;
 }) {
-  return <CountedTabBar current={current} counts={await tabCounts({ firm }, workerId)} />;
+  return <CountedTabBar current={current} counts={await tabCountsNow(firm.id, workerId)} />;
 }
 
 export async function CountedTabBar({
@@ -65,7 +66,8 @@ export async function CasualRail({
   workerId: string;
   current: CasualTab;
 }) {
-  const counts = await tabCounts({ firm }, workerId);
+  // Read once per request with the top bar's (Phase 32: src/lib/portal/request-cached.ts).
+  const counts = await tabCountsNow(firm.id, workerId);
   return (
     <TabBar
       current={current}

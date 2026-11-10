@@ -7,6 +7,7 @@ import { officeUsers, workers } from "../db/schema";
 import { recordEvent } from "../events/record";
 import {
   DEMO_CASUAL_ID,
+  DEMO_CASUAL_VIEW_ACTION,
   STAFF_DEMO_USER,
   STAFF_LOGIN_HASH,
   staffDemoOn,
@@ -118,7 +119,7 @@ export async function openCasualView(
     await recordEvent(tx, {
       actorType: "office",
       actorId: office.subjectId,
-      action: "auth.demo_casual_view",
+      action: DEMO_CASUAL_VIEW_ACTION,
       entityType: "session",
       entityId: session.id,
       data: { kind: "worker", workerId: casual.id },

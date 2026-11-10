@@ -1,6 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { inDays } from "@/lib/portal/sign-copy";
 import {
   barFill,
   countdownFill,
@@ -55,14 +56,36 @@ describe("the counts under 'Hi Zoe'", () => {
 
 describe("the next shift's line", () => {
   const at = (h: number) => new Date(NOW.getTime() + h * HOUR);
-  it("says how soon in hours under 72, then in whole days", () => {
-    expect(copy.startsInText(at(70), NOW)).toBe("Starts in 70 hours");
-    expect(copy.startsInText(at(70.9), NOW)).toBe("Starts in 70 hours");
-    expect(copy.startsInText(at(1), NOW)).toBe("Starts in 1 hour");
-    expect(copy.startsInText(at(0.5), NOW)).toBe("Starts in less than an hour");
-    expect(copy.startsInText(at(72), NOW)).toBe("Starts in 3 days");
-    expect(copy.startsInText(at(24 * 9 + 5), NOW)).toBe("Starts in 9 days");
-    expect(copy.startsInText(at(-1), NOW)).toBeNull();
+  // Phase 32 (Dylan, on the live demo: one wording): counted exactly as the badge beside it
+  // (inDays: "Today", "Tomorrow", "In 3 days"), never in hours (it said "Starts in 71 hours" beside
+  // "In 3 days" until then).
+  const said = (h: number) => {
+    const shift = { startsAt: at(h), endsAt: at(h + 8) };
+    return [inDays(shift.startsAt, shift.endsAt, NOW, TZ), copy.startsInText(shift, NOW, TZ)];
+  };
+  it("says how soon as the badge does: today, tomorrow, in so many days", () => {
+    // Friday 15:38: 71 hours on is Monday 14:38, three days on the calendar.
+    expect(said(71)).toEqual(["In 3 days", "Starts in 3 days"]);
+    expect(said(70.9)).toEqual(["In 3 days", "Starts in 3 days"]);
+    expect(said(72)).toEqual(["In 3 days", "Starts in 3 days"]);
+    expect(said(1)).toEqual(["Today", "Starts today"]);
+    expect(said(0.5)).toEqual(["Today", "Starts today"]);
+    expect(said(20)).toEqual(["Tomorrow", "Starts tomorrow"]);
+    expect(said(24 * 9 + 5)).toEqual(["In 9 days", "Starts in 9 days"]);
+    expect(said(-1)).toEqual(["On now", null]);
+    expect(copy.startsInText({ startsAt: at(-10), endsAt: at(-2) }, NOW, TZ)).toBeNull();
+  });
+  it("the badge and the line agree for every hour of the next two weeks", () => {
+    for (let h = 0.25; h < 24 * 14; h += 0.25) {
+      const [badge, line] = said(h);
+      const expected =
+        badge === "Today"
+          ? "Starts today"
+          : badge === "Tomorrow"
+            ? "Starts tomorrow"
+            : `Starts ${badge!.charAt(0).toLowerCase()}${badge!.slice(1)}`;
+      expect(line, `${h} hours on`).toBe(expected);
+    }
   });
 
   it("the bar fills over the last 7 days", () => {
@@ -75,16 +98,16 @@ describe("the next shift's line", () => {
 
   it("how long, and the booked shift page's own estimate (left out with no rate)", () => {
     const shift = { startsAt: at(70), endsAt: at(78), payRatePence: 1350 };
-    expect(nextShiftLine(shift, NOW)).toEqual({
-      startsIn: "Starts in 70 hours",
+    expect(nextShiftLine(shift, NOW, TZ)).toEqual({
+      startsIn: "Starts in 3 days",
       facts: "8 hours · about £108.00 before tax",
       fill: expect.closeTo(1 - 70 / 168, 5),
     });
-    expect(nextShiftLine({ ...shift, payRatePence: null }, NOW).facts).toBe("8 hours");
+    expect(nextShiftLine({ ...shift, payRatePence: null }, NOW, TZ).facts).toBe("8 hours");
     // 7.5 hours at £12.60: £94.50, as the shift's own page says.
-    expect(nextShiftLine({ startsAt: at(1), endsAt: at(8.5), payRatePence: 1260 }, NOW).facts).toBe(
-      "7.5 hours · about £94.50 before tax",
-    );
+    expect(
+      nextShiftLine({ startsAt: at(1), endsAt: at(8.5), payRatePence: 1260 }, NOW, TZ).facts,
+    ).toBe("7.5 hours · about £94.50 before tax");
   });
 });
 
@@ -463,8 +486,13 @@ describe("Home with its board", () => {
   it("the date line, then the counts, each a link to its page; stale counts online only", () => {
     // All of it online only: the kept copy would call the day it was saved today (its notice
     // gives that day).
+    // Phase 32 (32.2, the approved mock-up): "Home" with "Updated 15:38" on its baseline, and the
+    // day with pay day under it.
     expect(html).toContain(
-      '<p data-date-line="" data-online-only="" class="text-base text-ink-muted">Friday 6 November · <span class="tabular-nums">Updated 15:38</span></p>',
+      '<h1 class="text-title text-balance text-ink">Home</h1><small data-updated-slot="" data-online-only="" class="text-xs text-ink-faint tabular-nums">Updated 15:38</small>',
+    );
+    expect(html).toContain(
+      '<p data-date-line="" data-online-only="" class="text-base text-ink-muted">Friday 6 November · Pay day Fri 13 Nov</p>',
     );
     const counts = html.match(/<ul role="list" aria-label="Your numbers"[\s\S]*?<\/ul>/)?.[0] ?? "";
     expect(text(counts)).toBe("Booked 1 Open to you 1 Urgent 1 Messages 2");
@@ -480,8 +508,12 @@ describe("Home with its board", () => {
   });
 
   it("the pass's line: how soon (online only), how long, the estimate; its bar", () => {
-    expect(html).toMatch(
-      /<div data-next-line=""[^>]*>.*<span data-online-only="">Starts in 70 hours · <\/span>8 hours · about £108\.00 before tax<\/p><\/div>/,
+    // Phase 32 (32.2): the card's time tile, as the office's session card: the times with how long
+    // and the estimate, then (online only) the bar and how soon.
+    const line = html.match(/<div data-next-line=""[\s\S]*?<\/div>/)?.[0] ?? "";
+    expect(line).toMatch(/>8 hours · about £108\.00 before tax<\/span><\/p>/);
+    expect(line).toMatch(
+      /<span data-online-only=""[^>]*><span aria-hidden="true"[^>]*>.*<\/span><span [^>]*>Starts in 3 days<\/span><\/span>/,
     );
   });
 
@@ -520,15 +552,16 @@ describe("Home with its board", () => {
     expect(tile("2026-11-09")).toMatch(/<span aria-hidden="true" class="[^"]*">Mon<\/span>/);
   });
 
-  it("the laptop grid: the pass beside the qualifications, the rest in their columns", () => {
+  it("the laptop grid: the map the whole width, the rest in their columns", () => {
     expect(page.staffWide).toContain("lg:max-w-[73.75rem]");
     expect(html).toContain("lg:grid lg:grid-flow-row-dense lg:grid-cols-12");
     const span = (id: string) =>
       html.match(
         new RegExp(`aria-labelledby="${id}-heading"[^>]*class="[^"]*(lg:col-span-\\d+)`),
       )?.[1];
-    expect(html).toMatch(/<div class="lg:col-span-7"><section aria-labelledby="next-heading"/);
-    expect(span("quals")).toBe("lg:col-span-5");
+    // Phase 32 (32.2): the map (with the card over it) the whole width; the qualifications 4.
+    expect(html).toMatch(/<div class="lg:col-span-12"><div data-home-map-zone=""/);
+    expect(span("quals")).toBe("lg:col-span-4");
     expect(span("week")).toBe("lg:col-span-4");
     expect(span("can-take")).toBe("lg:col-span-4");
     expect(span("updates")).toBe("lg:col-span-4");
@@ -539,7 +572,9 @@ describe("Home with its board", () => {
   it("without a board (the older fixtures), none of the new parts", () => {
     const plain = render({ board: undefined });
     expect(plain).not.toContain("Your numbers");
-    expect(plain).not.toContain("data-next-line");
+    // The card's time tile (data-next-line) is the card's own since Phase 32, with a board or not;
+    // its two tiles need the page's figures.
+    expect(plain).not.toContain("data-card-tiles");
     expect(plain).not.toContain("Your qualifications");
   });
 });

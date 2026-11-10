@@ -103,7 +103,8 @@ describe("the firm's bar and the tab bar, with JavaScript and without", () => {
       }),
     );
     expect(html).toMatch(
-      /^<header data-testid="brand-bar" class="scroll-edge relative z-20 text-ink \[body:has\(\[data-own-bar\]\)_&amp;\]:hidden \[body:has\(\[data-shell=office\]\)_&amp;\]:hidden \[html\[data-js\]_&amp;\]:sticky \[html\[data-js\]_&amp;\]:top-0">/,
+      // Phase 32 (32.1): it also hides where a logged-in casual's top bar is on the page.
+      /^<header data-testid="brand-bar" class="scroll-edge relative z-20 text-ink \[body:has\(\[data-own-bar\]\)_&amp;\]:hidden \[body:has\(\[data-casual-top\]\)_&amp;\]:hidden \[body:has\(\[data-shell=office\]\)_&amp;\]:hidden \[html\[data-js\]_&amp;\]:sticky \[html\[data-js\]_&amp;\]:top-0">/,
     );
     // No sticky of its own: only under html[data-js].
     const classes = /class="([^"]*)"/.exec(html.slice(0, html.indexOf(">")))?.[1]?.split(" ") ?? [];
@@ -162,10 +163,20 @@ describe("the firm's bar and the tab bar, with JavaScript and without", () => {
         expect(cls).toContain("rounded-row");
         expect(cls).not.toContain("rounded-full");
         expect(cls).not.toContain("lens");
+        // Phase 32 (32.1, the approved mock-up): the current one's icon in a round button of
+        // solid ink (the office rail's lit item), its word in ink and bold under it.
         const lit = t.includes('aria-current="page"');
-        expect(cls.includes("bg-ink"), t).toBe(lit);
-        expect(cls.includes("text-on-ink"), t).toBe(lit);
+        expect(cls.includes("font-semibold"), t).toBe(lit);
       }
+      const circles = [...html.matchAll(/<span data-tab-circle="" class="([^"]*)"/g)].map((m) =>
+        (m[1] ?? "").split(" "),
+      );
+      expect(circles).toHaveLength(5);
+      expect(circles.filter((c) => c.includes("bg-ink") && c.includes("text-on-ink"))).toHaveLength(
+        1,
+      );
+      for (const c of circles)
+        expect(c).toEqual(expect.arrayContaining(["rounded-full", "size-9"]));
       expect(html).not.toMatch(/(?<![\w-])lens(?![\w-])/);
     }
     // The tab bar draws no lens anywhere in its code either (its comments left out).
@@ -462,8 +473,18 @@ describe("Home's kept copy (no signal)", () => {
     // (Beside the headline since Phase 28.7.)
     // (Phase 30.1, on purpose: at the end of the date line under the headline, still online only;
     // since its review the whole date line, which would call the saved day today.)
+    // (Phase 32, the approved mock-up: "Updated 09:00" beside "Home" again, the date line with pay
+    // day under it, both still online only.)
     expect(html).toMatch(
-      /<p data-date-line="" data-online-only="" [^>]*>Monday 2 November · <span class="tabular-nums">Updated 09:00<\/span><\/p>/,
+      /<small data-updated-slot="" data-online-only="" [^>]*>Updated 09:00<\/small>/,
+    );
+    expect(html).toMatch(
+      /<p data-date-line="" data-online-only="" [^>]*>Monday 2 November · Pay day Fri 13 Nov<\/p>/,
+    );
+    // Phase 32 (32.2): the map and its tabs are online only (the card shows alone offline).
+    expect(html).toMatch(/<div role="group" aria-label="Show on the map" data-online-only=""/);
+    expect(html).toMatch(
+      /<div role="region" aria-label="[^"]*" data-online-only="" data-home-map=/,
     );
     expect(html).toMatch(/<div data-offline-notice="" hidden="" role="status"/);
     expect(text(html)).toContain("This is your saved copy from 09:00 on Mon 2 Nov.");

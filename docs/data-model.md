@@ -225,6 +225,9 @@ create table office_users (
   updates_seen_at timestamptz,          -- Phase 26.4: "Mark all as seen" on Updates, as of the page
   tell_me text[],                       -- Phase 26.4: "Tell me about" (null: all but uploads); only
                                         -- popup, cancel_push, open_push, uploads, summary
+  tour_seen_at timestamptz,             -- Phase 33.1 (migration 0072): when they finished or skipped
+                                        -- their first-login tour; null: it opens by itself on the
+                                        -- dashboard. Only they write it (src/lib/tour/seen.ts)
   created_at timestamptz not null default now(),
   unique (firm_id, id),
   unique (firm_id, email)
@@ -272,6 +275,9 @@ create table workers (
   office_deactivated_at timestamptz,     -- the office made them inactive (Phase 10): no sheet or
                                          -- file makes them active again, only the office (clears it)
   erased_at timestamptz,                 -- GDPR deletion (Phase 8, src/lib/gdpr/worker-erase.ts)
+  tour_seen_at timestamptz,              -- Phase 33.1 (migration 0072): when she finished or skipped
+                                         -- her first-login tour; only her own session writes it
+                                         -- (src/lib/tour/seen.ts); cleared on erasure
   created_at timestamptz not null default now(),
   unique (firm_id, id),
   unique (firm_id, mobile_e164),

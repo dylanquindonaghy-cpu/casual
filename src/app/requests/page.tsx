@@ -7,6 +7,7 @@ import { SessionKeeper } from "../session-keeper";
 import { AnswersSeen } from "./answers-seen";
 import { RequestsList } from "./requests-list";
 import { CasualTabBar } from "../casual-tab-bar";
+import { CasualTop } from "../casual-top-bar";
 
 export const metadata: Metadata = { title: "My requests" };
 
@@ -21,11 +22,14 @@ export default async function RequestsPage() {
   const rows = requests.map((r) => ({ ...r, canTakeBack: canWithdrawRequest(r) }));
   const answered = requests.some((r) => r.status === "approved" || r.status === "declined");
   return (
-    <main className={page.staff}>
-      <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-      <RequestsList requests={rows} timeZone={firm.timezone} />
-      {answered && <AnswersSeen shownAt={shownAt} />}
-      <CasualTabBar firm={firm} workerId={worker.id} current="profile" />
-    </main>
+    <>
+      <CasualTop firm={firm} worker={worker} />
+      <main className={page.staff}>
+        <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
+        <RequestsList requests={rows} timeZone={firm.timezone} />
+        {answered && <AnswersSeen shownAt={shownAt} />}
+        <CasualTabBar firm={firm} workerId={worker.id} current="profile" />
+      </main>
+    </>
   );
 }

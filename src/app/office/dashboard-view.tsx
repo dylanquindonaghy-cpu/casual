@@ -114,7 +114,7 @@ export function DashboardContent({ board, tiles }: { board: BoardData; tiles: st
       <div className="-mt-2 flex flex-wrap items-center gap-x-6 gap-y-3">
         {/* The sessions with places to fill: one row that scrolls sideways inside its track on a
               phone, never the page. */}
-        <nav aria-label="Show" className={tabs}>
+        <nav aria-label="Show" data-tour="tabs" className={tabs}>
           {BOARD_SHOWS.map((v) => {
             const on = v === board.show;
             return (

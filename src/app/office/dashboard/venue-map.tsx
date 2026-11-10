@@ -478,6 +478,7 @@ export function VenueMap({
       <div className="relative">
         <div
           ref={box}
+          data-tour="map"
           data-venue-map={onStreets ? "streets" : "plain"}
           data-zoom={onStreets && camera ? camera.zoom.toFixed(2) : undefined}
           data-center={

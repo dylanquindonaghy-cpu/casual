@@ -5,6 +5,7 @@ import { myShiftCounts, myShifts } from "@/lib/portal/my-shifts";
 import { tabCounts } from "@/lib/portal/tab-counts";
 import { BookedView } from "./booked-view";
 import { CountedTabBar } from "../casual-tab-bar";
+import { CasualTop } from "../casual-top-bar";
 import { OfflineCopy } from "../offline-copy";
 import { refreshSessionAction } from "../session-actions";
 import { SessionKeeper } from "../session-keeper";
@@ -35,19 +36,22 @@ export default async function BookedPage({
     tabCounts({ firm, clock }, worker.id),
   ]);
   return (
-    <main className={page.staff}>
-      <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-      <OfflineCopy enabled={offlineCopyOn(appEnv())} renderedAt={now.getTime()} page="/shifts" />
-      <BookedView
-        firmName={firm.name}
-        timeZone={firm.timezone}
-        now={now}
-        view={view}
-        shifts={shifts}
-        counts={viewCounts}
-        newShiftId={newShiftId}
-      />
-      <CountedTabBar current="shifts" counts={counts} />
-    </main>
+    <>
+      <CasualTop firm={firm} worker={worker} counts={counts} />
+      <main className={page.staff}>
+        <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
+        <OfflineCopy enabled={offlineCopyOn(appEnv())} renderedAt={now.getTime()} page="/shifts" />
+        <BookedView
+          firmName={firm.name}
+          timeZone={firm.timezone}
+          now={now}
+          view={view}
+          shifts={shifts}
+          counts={viewCounts}
+          newShiftId={newShiftId}
+        />
+        <CountedTabBar current="shifts" counts={counts} />
+      </main>
+    </>
   );
 }

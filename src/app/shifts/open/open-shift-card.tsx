@@ -96,9 +96,9 @@ export function OpenShiftCard({
               <span
                 className={`flex size-6 shrink-0 items-center justify-center rounded-full ${
                   s.ask === "asked"
-                    ? "bg-done-fill text-on-done"
+                    ? "bg-done-tile text-done-ink"
                     : s.ask === "not_this_time"
-                      ? "bg-urgent-fill text-on-urgent"
+                      ? "bg-urgent-tile text-urgent-ink"
                       : "bg-hivis text-on-hivis"
                 }`}
               >

@@ -429,7 +429,12 @@ describe("the shell", () => {
   const shell = (
     theme?: "light" | "dark",
     role: "admin" | "resourcer" | "payroll" = "admin",
-    opts: { railOpen?: boolean; pathname?: string; shell?: typeof COUNTS | null } = {},
+    opts: {
+      railOpen?: boolean;
+      pathname?: string;
+      shell?: typeof COUNTS | null;
+      tour?: { seen: boolean; laterKey: string } | null;
+    } = {},
   ) => {
     nav.pathname = opts.pathname ?? "/office";
     // Hook-free, so it can be called directly.
@@ -448,6 +453,7 @@ describe("the shell", () => {
         railOpen: opts.railOpen ?? false,
         theme,
         rotationDue: false,
+        tour: opts.tour ?? null,
         children: createElement("main", null, "PAGE"),
       }),
     );
@@ -499,7 +505,7 @@ describe("the shell", () => {
       '<div data-shell="office" class="flex flex-1 flex-col text-base text-ink lg:grid lg:grid-cols-[auto_minmax(0,1fr)] lg:items-start lg:gap-x-3 lg:px-3">',
     );
     expect(html).toMatch(
-      /<div id="office-rail" data-rail="shut" class="glass sticky top-3 z-30 mt-3 hidden flex-col self-start rounded-card [^"]*lg:flex scrollbar-none w-18 items-center [^"]*">/,
+      /<div id="office-rail" data-rail="shut" data-tour="menu" class="glass sticky top-3 z-30 mt-3 hidden flex-col self-start rounded-card [^"]*lg:flex scrollbar-none w-18 items-center [^"]*">/,
     );
     // The bar: a container (its capsules fit the column), floating glass below 1024px, the frosted
     // edge from there, sticking to the top.
@@ -508,10 +514,10 @@ describe("the shell", () => {
     );
     // From 1024px: the counts as chips (no capsule round them), the search a flat pill, you.
     expect(barOf(html)).toContain(
-      '<div data-bar-counts="" class="scrollbar-none fade-x hidden min-w-0 shrink items-center gap-2 overflow-x-auto lg:flex">',
+      '<div data-bar-counts="" data-tour="counts" class="scrollbar-none fade-x hidden min-w-0 shrink items-center gap-2 overflow-x-auto lg:flex">',
     );
     expect(barOf(html)).toMatch(
-      /<div class="relative hidden lg:block"><div class="glass-button flex h-11 w-50 items-center gap-2 rounded-full pr-2 pl-4 @min-\[73.25rem\]:w-62.5">/,
+      /<div data-tour="search" class="relative hidden lg:block"><div class="glass-button flex h-11 w-50 items-center gap-2 rounded-full pr-2 pl-4 @min-\[73.25rem\]:w-62.5">/,
     );
     expect(barOf(html)).toContain(
       '<div class="flex shrink-0 items-center gap-2 sm:gap-3 lg:gap-2">',
@@ -546,7 +552,7 @@ describe("the shell", () => {
     );
     // Menu: a clear glass pill that swells under a press, below 1024px only.
     expect(bar).toMatch(
-      /aria-haspopup="dialog" disabled="" class="press-glass glass-button [^"]*rounded-full [^"]*lg:hidden">/,
+      /aria-haspopup="dialog" disabled="" data-tour="menu" class="press-glass glass-button [^"]*rounded-full [^"]*lg:hidden">/,
     );
     // The firm below 1024px (the rail has its mark from there): its initial on its own colour and
     // its name.
@@ -624,7 +630,7 @@ describe("the shell", () => {
     const html = shell();
     const main = html.slice(html.indexOf('id="main"'));
     const row = main.match(
-      /<div class="mb-6 lg:hidden"><div data-bar-counts="row" class="([^"]*)">(.*?)<\/div><\/div>/,
+      /<div class="mb-6 lg:hidden"><div data-bar-counts="row" data-tour="counts" class="([^"]*)">(.*?)<\/div><\/div>/,
     );
     // Fading at the edge with more to scroll to (round 8, sys-9: globals.css `fade-x`).
     expect(row?.[1]).toBe(
@@ -644,7 +650,9 @@ describe("the shell", () => {
       expect(m[3]).toMatch(/^<svg [^>]*class="shrink-0 hidden">/);
     }
     // The bar's own counts are hidden below 1024px.
-    expect(barOf(html)).toContain('<div data-bar-counts="" class="scrollbar-none fade-x hidden ');
+    expect(barOf(html)).toContain(
+      '<div data-bar-counts="" data-tour="counts" class="scrollbar-none fade-x hidden ',
+    );
     expect(html).not.toContain("Updated ");
     // No counts (a role with none): no row.
     const frame = read("src/app/office/office-frame.tsx");
@@ -719,12 +727,17 @@ describe("the shell", () => {
     );
   });
 
-  it("the account menu: the name and role, the theme switch, How-to guide and the one Log out", () => {
+  it("the account menu: the name and role, the theme switch, How-to guide, the quick guide and the one Log out", () => {
     const html = shell();
     const at = html.indexOf(`<div id="${ACCOUNT_MENU_ID}" popover="auto"`);
     expect(at).toBeGreaterThan(-1);
     const menu = html.slice(at, html.indexOf("</header>"));
-    expect(text(menu)).toBe("Sam Admin Admin Switch to light mode How-to guide Log out");
+    // Phase 33.2: the quick guide (Phase 31.3) beside the how-to guide; "Take the tour again" too
+    // when the person has a tour (below).
+    expect(text(menu)).toBe(
+      "Sam Admin Admin Switch to light mode How-to guide Quick guide Log out",
+    );
+    expect(menu).toContain('href="/start/guide"');
     // Under you, growing from its corner (the page puts its corner under yours as it opens:
     // office-frame.tsx); floating glass with its 22px corners.
     expect(menu).toMatch(
@@ -739,6 +752,28 @@ describe("the shell", () => {
     );
     // No ARIA menu roles: a native popover of plain buttons and a link.
     expect(menu).not.toMatch(/role="/);
+  });
+
+  // Phase 33.2: "Take the tour again" beside the guides, for a person with a tour (admins and
+  // resourcers: the layout gives payroll none), waiting for the page like the theme switch.
+  it("the account menu has Take the tour again when the person has a tour", () => {
+    const html = shell(undefined, "admin", { tour: { seen: true, laterKey: "k" } });
+    const menu = html.slice(
+      html.indexOf(`<div id="${ACCOUNT_MENU_ID}"`),
+      html.indexOf("</header>"),
+    );
+    expect(text(menu)).toBe(
+      "Sam Admin Admin Switch to light mode How-to guide Take the tour again Quick guide Log out",
+    );
+    expect(menu).toMatch(
+      /<button type="button" disabled="" class="press flex min-h-11 [^"]*">.*?Take the tour again<\/button>/,
+    );
+    // Seen, it doesn't open by itself: nothing of it on the page until it's asked for.
+    expect(html).not.toContain("data-tour-welcome");
+    expect(html).not.toContain("data-tour-walk");
+    // Each part the walkthrough points at carries its anchor.
+    for (const anchor of ["counts", "menu", "search", "you"])
+      expect(html, anchor).toContain(`data-tour="${anchor}"`);
   });
 
   // Both switches, the bar's and the account menu's, read the page's theme: they always say the
@@ -890,7 +925,7 @@ describe("the rail", () => {
   it("shut: the firm's mark, its own button, and icons named by their words alone", () => {
     const html = render("/office");
     expect(html).toMatch(
-      /^<div id="office-rail" data-rail="shut" class="glass sticky top-3 z-30 mt-3 hidden flex-col self-start rounded-card px-2 py-4 transition-\[width\] duration-200 ease-sd lg:flex scrollbar-none w-18 items-center \[@media\(height&lt;40rem\)\]:max-h-\[calc\(100dvh-1.5rem\)\] \[@media\(height&lt;40rem\)\]:overflow-y-auto">/,
+      /^<div id="office-rail" data-rail="shut" data-tour="menu" class="glass sticky top-3 z-30 mt-3 hidden flex-col self-start rounded-card px-2 py-4 transition-\[width\] duration-200 ease-sd lg:flex scrollbar-none w-18 items-center \[@media\(height&lt;40rem\)\]:max-h-\[calc\(100dvh-1.5rem\)\] \[@media\(height&lt;40rem\)\]:overflow-y-auto">/,
     );
     // The mark (the firm's initial in hi-vis: round 8's brand-bar in the office); its name for
     // screen readers.
@@ -1022,7 +1057,7 @@ describe("the rail", () => {
   it("open: names and counts, its button says so, the fold you're in open", () => {
     const html = render("/office/casuals", true);
     expect(html).toMatch(
-      /^<div id="office-rail" data-rail="open" class="glass [^"]* lg:flex max-h-\[calc\(100dvh-1.5rem\)\] w-59">/,
+      /^<div id="office-rail" data-rail="open" data-tour="menu" class="glass [^"]* lg:flex max-h-\[calc\(100dvh-1.5rem\)\] w-59">/,
     );
     expect(html).toContain(
       '<span class="min-w-0 flex-1 truncate font-semibold text-ink">Acme Events</span>',

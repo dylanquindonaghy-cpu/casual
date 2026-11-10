@@ -16,12 +16,13 @@ import {
 // office's look, "Do this" with its two "can we reach you" rows, and one count on every tab bar. In
 // a real browser, as made-up casuals of this spec's own (tests/e2e/p28/28-7-data.ts), on a phone
 // (390px) and on Dylan's laptop (1,280px at 150%), light and dark, each with a screenshot kept with
-// the run: "Hi Rhea" with "Updated 21:34" beside it (not in the firm's bar); "Do this", "Shifts you
+// the run: "Hi Rhea" (since Phase 32 "Home") with "Updated 21:34" beside it (not in the top bar); "Do this", "Shifts you
 // can take" and "Pay" each a glass section 12px round with its heading inside, 32px apart, rows 12px
 // under the heading and 8px apart; no initials anywhere, her photo's row a camera; both rows for a
 // casual nothing can reach whose alerts are off, each to Profile's How we reach you; the pass with
 // no band, its "In 9 days" a pill and its gate an 8px plate; the same Profile count on Home, Booked
-// and Messages. And with nothing booked, the empty pass with no dashed edge and "See open shifts".
+// and Messages. And with nothing booked, the empty pass with no dashed edge and "See open shifts"
+// (since Phase 32 "See shifts you can take", on the card over the map).
 
 const acme = "http://acme.localhost:3100";
 
@@ -45,7 +46,7 @@ async function logIn(
     await page.getByRole("button", { name: "Send me a link" }).click();
     await page.goto(await loginLinkSentTo(casual.mobileE164, asked));
     await page.getByRole("button", { name: "Log me in" }).click();
-    await expect(page.getByRole("heading", { name: `Hi ${casual.firstName}` })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible();
     return await context.storageState();
   } finally {
     await context.close();
@@ -100,17 +101,17 @@ test("Home in the office's look, with both 'can we reach you' rows: phone and la
           const where = (what: string) =>
             `${what} at ${size.name} (${size.viewport.width}px), ${theme}`;
           await page.goto(`${acme}/`);
-          const hi = page.getByRole("heading", { level: 1, name: `Hi ${P28_7_RHEA.firstName}` });
+          const hi = page.getByRole("heading", { level: 1, name: "Home" });
           await expect(hi).toBeVisible();
 
-          // "Updated 21:34"; not at the end of the firm's bar. Phase 30.1 (on purpose): under the
-          // headline, at the end of its date line ("Friday 6 November · Updated 21:34"), where it
-          // was beside the headline since 28.7.
+          // "Updated 21:34"; not in the top bar. Phase 32 (32.2, the approved mock-up): beside
+          // the headline ("Home") again, on its line, as the office's.
           const stamp = page.getByText(/^Updated \d\d:\d\d$/);
           await expect(stamp).toBeVisible();
           const [h, s] = [await box(hi), await box(stamp)];
-          expect(s.y, where("Updated under the headline")).toBeGreaterThanOrEqual(h.bottom - 1);
-          await expect(page.getByTestId("brand-bar").getByText(/^Updated/)).toHaveCount(0);
+          expect(s.x, where("Updated beside the headline")).toBeGreaterThanOrEqual(h.right - 1);
+          expect(s.y, where("Updated on the headline's line")).toBeLessThan(h.bottom);
+          await expect(page.locator("[data-casual-top]").getByText(/^Updated/)).toHaveCount(0);
 
           // Each section one glass section 12px round, its heading inside it.
           const regions: Record<string, Locator> = {};
@@ -176,27 +177,22 @@ test("Home in the office's look, with both 'can we reach you' rows: phone and la
           const [t0, t1] = [await box(take.nth(0)), await box(take.nth(1))];
           expect(Math.round(t1.y - t0.bottom), where("rows apart")).toBe(8);
 
-          // The pass: no band, 12px round; how soon a pill, the gate an 8px plate.
+          // The pass: since Phase 32 (32.2) the card over the map, raised glass with no band,
+          // 12px round; how soon a pill; the gate in its line.
           const pass = page.getByRole("region", { name: "Your next shift" });
-          const card = pass.locator(":scope > div.glass:not(#pass-details)");
-          expect(await radius(card), where("the pass")).toBe("12px");
+          expect(await radius(pass), where("the pass")).toBe("12px");
+          await expect(pass.locator(".glass-band")).toHaveCount(0);
           expect(
-            await card.evaluate((el) =>
-              [el, ...el.querySelectorAll(":scope > div")].map(
-                (d) => getComputedStyle(d).backgroundImage,
-              ),
-            ),
+            await pass.evaluate((el) => getComputedStyle(el).backgroundImage),
             where("no band"),
-          ).toEqual(["none", "none", "none"]);
+          ).toBe("none");
           const soon = pass.getByText(/^In \d+ days$/);
           const pill = await soon.evaluate((el) => ({
             r: parseFloat(getComputedStyle(el).borderTopLeftRadius),
             h: el.getBoundingClientRect().height,
           }));
           expect(pill.r, where("how soon, a pill")).toBeGreaterThanOrEqual(pill.h / 2);
-          expect(await radius(pass.getByText("Gate 3", { exact: true })), where("gate")).toBe(
-            "8px",
-          );
+          await expect(pass, where("the gate")).toContainText("Gate 3");
           // No page scrolls sideways.
           expect(
             await page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
@@ -224,7 +220,7 @@ test("Home in the office's look, with both 'can we reach you' rows: phone and la
   }
 });
 
-test("nothing booked: the empty pass, with no dashed edge, and 'See open shifts' to Open shifts", async ({
+test("nothing booked: the empty card, with no dashed edge, and 'See shifts you can take' to Open shifts", async ({
   browser,
 }, testInfo) => {
   test.setTimeout(180_000);
@@ -257,7 +253,9 @@ test("nothing booked: the empty pass, with no dashed edge, and 'See open shifts'
         expect(edge.style === "none" || edge.width === "0px", where("no dashed edge")).toBe(true);
         expect(edge.radius, where("the empty pass")).toBe("12px");
         await expect(page.getByRole("link", { name: "Find a shift" })).toHaveCount(0);
-        const see = empty.getByRole("link", { name: "See open shifts", exact: true });
+        // Phase 32 (32.2, the approved mock-up): "See shifts you can take", lime.
+        const see = empty.getByRole("link", { name: "See shifts you can take", exact: true });
+        await expect(see).toHaveCSS("background-color", "rgb(233, 248, 111)");
         await expect(see).toHaveAttribute("href", "/shifts/open");
         expect((await box(see)).height, where("the button")).toBeGreaterThanOrEqual(44);
         await shoot(page, testInfo, `28.7 home empty ${size.name} ${theme}`);

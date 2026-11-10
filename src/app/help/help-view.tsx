@@ -58,18 +58,24 @@ export function HelpView({
   firmName,
   facts,
   year,
+  tourAgain = null,
 }: {
   firmName: string;
   // The firm's own strike and photo numbers, whether it has travel areas and phone notifications
   // on, and its rules for taking shifts (src/lib/portal/help-facts.ts).
   facts: HelpFacts;
   year: number; // for the postcode data's attribution
+  // "Take the tour again" (Phase 33.3, src/app/casual-tour.tsx HelpTourAgain: for a logged-in
+  // casual only, as the page is open to anyone): under the intro.
+  tourAgain?: ReactNode;
 }) {
   return (
     <>
       <PageHeader title="Help">
         <p>How your shifts pages work, step by step.</p>
       </PageHeader>
+
+      {tourAgain}
 
       <nav aria-labelledby="help-contents">
         <h2 id="help-contents" className="text-base font-semibold text-ink-muted">

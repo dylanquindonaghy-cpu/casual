@@ -8,7 +8,7 @@ import type { OpenShift } from "./open-shifts";
 import type { ReachPrompt } from "./reach-me";
 import { perHour, roleAndEvent, shiftWhen, soonLabel, timeOnDay } from "./format";
 import { needsText, needsUpload } from "./qualification-copy";
-import { datePartsOfDay } from "./sign-copy";
+import { datePartsOfDay, howSoon } from "./sign-copy";
 
 // The words of Home's redesign (Phases 18, 20 and 24; docs/screens.md `/`): its rows ("Do this",
 // with its two "can we reach you" rows since Phase 28.7, "Offered to you" since 28.15, "Shifts you
@@ -433,15 +433,22 @@ export const COUNT_WORDS = {
   messages: "Messages",
 } as const;
 
-// The next shift's line under the pass's role: "Starts in 70 hours · 8 hours · about £108.00 before
-// tax". Under 72 hours in whole hours, then in whole days; under an hour, "less than an hour".
-export function startsInText(startsAt: Date, now: Date): string | null {
-  const ms = startsAt.getTime() - now.getTime();
-  if (ms <= 0) return null;
-  const hours = Math.floor(ms / 3_600_000);
-  if (hours < 1) return "Starts in less than an hour";
-  if (hours < 72) return `Starts in ${plural(hours, "hour", "hours")}`;
-  return `Starts in ${plural(Math.floor(hours / 24), "day", "days")}`;
+// The next shift's line under the pass's role: "Starts in 3 days · 8 hours · about £108.00 before
+// tax".
+// Phase 32 (Dylan, on the live demo: one wording): counted as the badge beside it counts it
+// (sign-copy.ts howSoon, the same function): "Starts today", "Starts tomorrow", "Starts in 3
+// days" beside "Today", "Tomorrow", "In 3 days". None once it has started.
+export function startsInText(
+  shift: { startsAt: Date; endsAt: Date },
+  now: Date,
+  timeZone: string,
+): string | null {
+  if (shift.startsAt.getTime() <= now.getTime()) return null;
+  const soon = howSoon(shift.startsAt, shift.endsAt, now, timeZone);
+  if (soon.kind === "on_now") return null;
+  if (soon.kind === "today") return "Starts today";
+  if (soon.kind === "tomorrow") return "Starts tomorrow";
+  return `Starts in ${plural(soon.days, "day", "days")}`;
 }
 export const aboutPayText = (money: string) => `about ${money} before tax`;
 

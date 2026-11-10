@@ -69,7 +69,7 @@ export async function stillComingScene(
     createWithFirm(pool)(firmId, async (tx) => {
       await tx
         .insert(workers)
-        .values({ firmId, ...P28_14_CASUAL, roles: ["steward"] })
+        .values({ firmId, tourSeenAt: new Date(), ...P28_14_CASUAL, roles: ["steward"] })
         .onConflictDoNothing();
       const [me] = await tx
         .select({ id: workers.id })

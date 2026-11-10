@@ -47,9 +47,7 @@ async function logIn(
     await page.getByRole("button", { name: "Send me a link" }).click();
     await page.goto(await loginLinkSentTo(P28_12_CASUAL.mobileE164, asked));
     await page.getByRole("button", { name: "Log me in" }).click();
-    await expect(
-      page.getByRole("heading", { name: `Hi ${P28_12_CASUAL.firstName}` }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible();
     return await context.storageState();
   } finally {
     await context.close();

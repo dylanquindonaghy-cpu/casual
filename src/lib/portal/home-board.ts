@@ -127,12 +127,13 @@ export function countdownFill(startsAt: Date, now: Date): number {
   return clamp(1 - left / (COUNTDOWN_DAYS * 86_400_000));
 }
 
-// "Starts in 70 hours" (online only: it goes stale), then "8 hours · about £108.00 before tax"
+// "Starts in 3 days" (online only: it goes stale; as the badge counts it), then "8 hours · about £108.00 before tax"
 // (the pay left out when the session has no rate). The estimate is the booked shift page's own sum
 // (format.ts payEstimatePence).
 export function nextShiftLine(
   shift: { startsAt: Date; endsAt: Date; payRatePence?: number | null },
   now: Date,
+  timeZone: string,
 ): { startsIn: string | null; facts: string; fill: number } {
   const hours = hoursText(sessionHours(shift.startsAt, shift.endsAt));
   const pay =
@@ -140,7 +141,7 @@ export function nextShiftLine(
       ? aboutPayText(pounds(payEstimatePence(shift.payRatePence, shift.startsAt, shift.endsAt)))
       : null;
   return {
-    startsIn: startsInText(shift.startsAt, now),
+    startsIn: startsInText(shift, now, timeZone),
     facts: pay ? `${hours} · ${pay}` : hours,
     fill: countdownFill(shift.startsAt, now),
   };
@@ -336,6 +337,28 @@ export function qualificationRows(o: {
         a.row.title.localeCompare(b.row.title),
     )
     .map((r) => r.row);
+}
+
+// The two tiles in the card over Home's map (Phase 32, 32.2): how many of her qualification rows
+// are in date ("4 of 5"), with the worst of the others as a soft badge ("Staff photo: 20 days
+// left"); and how many shifts she can take, with how many are urgent.
+export function cardTiles(
+  rows: readonly QualRow[],
+  canTake: number,
+  urgent: number,
+): {
+  quals: { valid: number; all: number; badge: { words: string; tone: Tone } | null };
+  canTake: { count: number; urgent: number };
+} {
+  const worst = rows.find((r) => r.pill.tone === "urgent" || r.pill.tone === "attention");
+  return {
+    quals: {
+      valid: rows.filter((r) => r.pill.tone === "done").length,
+      all: rows.length,
+      badge: worst ? { words: `${worst.title}: ${worst.pill.words}`, tone: worst.pill.tone } : null,
+    },
+    canTake: { count: canTake, urgent },
+  };
 }
 
 // --- "Updates" -----------------------------------------------------------------------------------

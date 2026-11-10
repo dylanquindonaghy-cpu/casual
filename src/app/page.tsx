@@ -19,7 +19,14 @@ import { myReachPrompts } from "@/lib/portal/reach-me";
 import { tabCounts } from "@/lib/portal/tab-counts";
 import { parseHost } from "@/lib/tenancy/host";
 import { localDateOf } from "@/lib/time/zoned";
+import { tourLaterKey } from "@/lib/tour/later-key";
+import { barPills } from "@/lib/portal/casual-bar";
+import { cardTiles } from "@/lib/portal/home-board";
+import { homeMap } from "@/lib/portal/home-map";
+import { loadMapPlaces } from "@/lib/portal/home-map-places";
 import { CountedTabBar } from "./casual-tab-bar";
+import { CasualTour } from "./casual-tour";
+import { CasualTop } from "./casual-top-bar";
 import { HomeView } from "./home-view";
 import { OfflineCopy } from "./offline-copy";
 import { refreshSessionAction } from "./session-actions";
@@ -50,7 +57,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
   const match = parseHost((await headers()).get("host"), appEnv().APP_BASE_DOMAIN);
   if (match && match.kind !== "apex") {
     if ((await searchParams).view === "past") redirect("/shifts?view=past");
-    const { firm, worker, session } = await requireWorker();
+    const { firm, worker, session, tourSeen } = await requireWorker();
     const now = new Date();
     const clock = { now: () => now };
     const [upcoming, open, counts, reach, offers] = await Promise.all([
@@ -104,28 +111,56 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
         home.strikes,
       ),
     };
+    // Phase 32 (32.2): the street map's pins, from her next shift and the very list "Open to you"
+    // counts (`open`, the rules' own), each venue's point read inside her firm.
+    const places = await loadMapPlaces({ firm }, upcoming[0] ?? null, open.shifts);
+    const map = homeMap({
+      next: upcoming[0] ?? null,
+      nextPlace: places.nextPlace,
+      open: open.shifts,
+      places: places.places,
+      now,
+      timeZone: firm.timezone,
+      // One urgent count on Home: the pill's, the card's and the map's Urgent tab.
+      urgent,
+    });
     return (
-      <main className={page.staffWide}>
-        <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-        <OfflineCopy enabled={offlineCopyOn(appEnv())} renderedAt={now.getTime()} />
-        <HomeView
-          firstName={worker.firstName}
-          lastName={worker.lastName}
-          firmName={firm.name}
-          timeZone={firm.timezone}
-          now={now}
-          next={upcoming[0] ?? null}
-          needs={needs.needs}
-          photo={needs.photo}
-          open={open}
-          pay={pay}
-          reach={reach}
-          offers={offers}
-          sortedMark={sortedMark}
-          board={board}
-        />
-        <CountedTabBar current="home" counts={counts} />
-      </main>
+      <>
+        <CasualTop firm={firm} worker={worker} counts={counts} pills={barPills(board.pills)} />
+        <main className={page.staffWide}>
+          <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
+          <OfflineCopy enabled={offlineCopyOn(appEnv())} renderedAt={now.getTime()} />
+          <HomeView
+            firstName={worker.firstName}
+            lastName={worker.lastName}
+            firmName={firm.name}
+            timeZone={firm.timezone}
+            now={now}
+            next={upcoming[0] ?? null}
+            needs={needs.needs}
+            photo={needs.photo}
+            open={open}
+            pay={pay}
+            reach={reach}
+            offers={offers}
+            sortedMark={sortedMark}
+            board={board}
+            map={map}
+            tiles={appEnv().MAP_TILES_URL ?? null}
+            bookedCount={upcoming.length}
+            cardTiles={cardTiles(board.quals, open.shifts.length, urgent)}
+          />
+          <CountedTabBar current="home" counts={counts} />
+          {/* Phase 33.3: her first-login tour, by itself until she's finished or skipped it
+              (never in the copy kept for no signal: src/app/casual-tour.tsx). */}
+          <CasualTour
+            firmName={firm.name}
+            seen={tourSeen}
+            laterKey={tourLaterKey(session.id)}
+            autoOpen
+          />
+        </main>
+      </>
     );
   }
   return (

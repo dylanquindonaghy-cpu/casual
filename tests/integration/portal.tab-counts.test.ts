@@ -205,7 +205,13 @@ describe("one count for every tab bar", () => {
         .map((f) => f.path),
     ).toEqual(["src/app/casual-tab-bar.tsx"]);
     const bar = src.find((f) => f.path === "src/app/casual-tab-bar.tsx")!.text;
-    expect(bar).toContain("await tabCounts({ firm }, workerId)");
+    // Read once per request (Phase 32: src/lib/portal/request-cached.ts), and that one read is
+    // tabCounts itself, with the same firm and casual: the chain is pinned at both ends.
+    expect(bar).toContain("await tabCountsNow(firm.id, workerId)");
+    const cached = readFileSync(join(ROOT, "src/lib/portal/request-cached.ts"), "utf8");
+    expect(cached).toMatch(
+      /export const tabCountsNow = cache\(\(firmId: string, workerId: string\): Promise<TabCounts> =>\s*tabCounts\(\{ firm: \{ id: firmId \} \}, workerId\),?\s*\);/,
+    );
     expect(bar).toMatch(
       /profileCount=\{counts\.needs\}\s*answersCount=\{counts\.answers\}\s*messagesCount=\{counts\.replies\}\s*payCount=\{counts\.payAnswers\}/,
     );

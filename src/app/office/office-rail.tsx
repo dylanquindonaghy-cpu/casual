@@ -242,6 +242,7 @@ export function OfficeRail({
       ref={rail}
       id={RAIL_ID}
       data-rail={open ? "open" : "shut"}
+      data-tour="menu"
       className={`glass sticky top-3 z-30 mt-3 hidden flex-col self-start rounded-card px-2 py-4 transition-[width] duration-200 ease-sd lg:flex ${open ? "max-h-[calc(100dvh-1.5rem)] w-59" : "scrollbar-none w-18 items-center [@media(height<40rem)]:max-h-[calc(100dvh-1.5rem)] [@media(height<40rem)]:overflow-y-auto"}`}
     >
       {/* The firm (its name only while the rail is open), then the rail's own button. */}

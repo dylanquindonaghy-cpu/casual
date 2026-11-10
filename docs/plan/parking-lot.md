@@ -2527,3 +2527,9 @@ Each task adds what it left out here as its wave is merged.
   logged in on a demo server, not only the staffing demo account, can use "Casual mobile view" to
   start a session as the demo casual Zoe Adeyemi. Fine while the demo holds made-up people only
   (ADR-025); revisit if demo mode ever holds anything else.
+
+## Phase 33, deferred while building
+
+- A tour for payroll users. The office tour walks the dashboard, which payroll can't open, so payroll
+  gets neither the welcome window nor "Take the tour again" (and the mark-seen action refuses them).
+  A payroll tour would walk Pay queries and the payroll digest instead.

@@ -62,6 +62,9 @@ export const officeUsers = pgTable(
     // What they asked to be told about (TELL_ME_KINDS). Null: the defaults, all but uploads
     // (src/lib/office/tell-me.ts).
     tellMe: text("tell_me").array(),
+    // When they finished or skipped their first-login tour (Phase 33.1): null, it opens by itself
+    // on the dashboard. Written only by the person themselves (src/lib/tour/seen.ts).
+    tourSeenAt: timestamptz("tour_seen_at"),
     createdAt: createdAt(),
   },
   (t) => [
@@ -157,6 +160,9 @@ export const workers = pgTable(
     // src/lib/gdpr/worker-erase.ts). The row stays, anonymous, because offers, bookings,
     // cancellations and pay lines point at it (the notice report's evidence).
     erasedAt: timestamptz("erased_at"),
+    // When she finished or skipped her first-login tour (Phase 33.1): null, it opens by itself.
+    // Written only by her own session (src/lib/tour/seen.ts); cleared when she's erased.
+    tourSeenAt: timestamptz("tour_seen_at"),
     createdAt: createdAt(),
   },
   (t) => [

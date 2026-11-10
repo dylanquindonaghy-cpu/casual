@@ -39,7 +39,7 @@ test("a worker rings the shifts line: they hear the message, get their login lin
   await page.goto(link);
   await page.getByRole("button", { name: "Log me in" }).click();
   await expect(page).toHaveURL(`${acme}/`);
-  await expect(page.getByRole("heading", { name: /^Hi / })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Home", level: 1 })).toBeVisible();
 
   // Their voicemail, turned into text by Twilio: the office's request, and its reference to them.
   const voicemail = {

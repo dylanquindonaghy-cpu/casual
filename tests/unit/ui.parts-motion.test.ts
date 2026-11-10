@@ -71,12 +71,13 @@ describe("the sign plate and the status plate", () => {
   });
 
   it("a status plate's colours by its role, its words always there", () => {
+    // Phase 32 (32.3, the approved mock-up): the office's soft tinted badges, never a solid fill.
     const tones = {
-      urgent: "bg-urgent-fill text-on-urgent",
-      hivis: "bg-hivis text-on-hivis",
-      done: "bg-done-fill text-on-done",
+      urgent: "glass-rim bg-urgent-soft text-urgent-ink",
+      hivis: "glass-rim bg-attention-soft text-attention-ink",
+      done: "glass-rim bg-done-soft text-done-ink",
       waiting: "bg-raised text-ink-muted",
-      brand: "bg-brand text-on-brand",
+      brand: "glass-rim bg-brand-soft text-brand-ink",
     } as const;
     for (const [tone, classes] of Object.entries(tones)) {
       const plate = html(Plate({ tone: tone as keyof typeof tones, children: "2 urgent" }));

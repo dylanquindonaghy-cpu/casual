@@ -6,6 +6,7 @@ import type { BarCount } from "./office-menu";
 import type { MenuGroup } from "./office-nav";
 import { searchOfficeAction } from "./search-actions";
 import { refreshOfficeSessionAction } from "./session-actions";
+import { markOfficeTourSeenAction } from "./tour-actions";
 
 export { barCounts, MENU_AREAS, menuBadges, officeMenu } from "./office-menu";
 
@@ -26,6 +27,7 @@ export function OfficeShell({
   theme,
   rotationDue,
   updates = null,
+  tour = null,
   children,
 }: {
   name: string;
@@ -38,6 +40,8 @@ export function OfficeShell({
   theme: Theme | undefined;
   rotationDue: boolean;
   updates?: UpdatesBell | null; // the bell and the pop-up (admins and resourcers; Phase 26.4)
+  // The first-login tour (Phase 33.2; admins and resourcers): seen yet, and this login's own key.
+  tour?: { seen: boolean; laterKey: string } | null;
   children: ReactNode;
 }) {
   return (
@@ -53,6 +57,7 @@ export function OfficeShell({
       rotationDue={rotationDue}
       updates={updates}
       refresh={refreshOfficeSessionAction}
+      tour={tour ? { ...tour, markSeen: markOfficeTourSeenAction } : null}
     >
       {children}
     </OfficeFrame>

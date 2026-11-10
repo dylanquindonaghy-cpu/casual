@@ -1,3 +1,4 @@
+import { Client } from "pg";
 import { ensureOwnerRole, recreateDatabase } from "../../src/lib/db/admin/bootstrap";
 import { runMigrations } from "../../src/lib/db/admin/migrate";
 import { seed } from "../../src/lib/db/admin/seed";
@@ -31,5 +32,25 @@ export async function prepareE2eDatabase(): Promise<void> {
   await recreateDatabase(bootstrapUrl(adminUrl), name, owner);
   await runMigrations({ adminUrl, appUrl, jobsUrl });
   await seed({ adminUrl, appUrl, nodeEnv: "test" });
+  await markToursSeen(bootstrapUrl(adminUrl));
   console.log(`[e2e] ${name} ready`);
+}
+
+// (As the superuser: row security is forced on the owner too.)
+// The first-login tours (Phase 33.1) open by themselves for anyone who hasn't seen theirs, over the
+// page a spec is about to use. The seed leaves everyone's unseen (as the demo wants), so here every
+// seeded office user and casual has seen theirs; a spec's own office users too (tests/e2e/db.ts
+// addOfficeUser). The tour's own spec (tests/e2e/office.tour.spec.ts) adds a person who hasn't.
+async function markToursSeen(superuserUrl: string): Promise<void> {
+  const client = new Client({ connectionString: superuserUrl });
+  await client.connect();
+  try {
+    // The superuser can reach any database: this one must be an e2e one, checked again here.
+    const { rows } = await client.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    await client.query("update office_users set tour_seen_at = now() where tour_seen_at is null");
+    await client.query("update workers set tour_seen_at = now() where tour_seen_at is null");
+  } finally {
+    await client.end();
+  }
 }

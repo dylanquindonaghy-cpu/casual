@@ -105,6 +105,8 @@ export interface WorkerSession {
   session: ActiveSession;
   // Her last name for her initials beside "Renew your staff photo" on Home (Phase 24).
   worker: { id: string; firstName: string; lastName: string };
+  // Whether she's finished or skipped her first-login tour (Phase 33.1).
+  tourSeen: boolean;
 }
 
 export async function currentWorker(
@@ -116,11 +118,18 @@ export async function currentWorker(
   return run(ctx.firm.id, async (tx) => {
     const session = await findSession(tx, { kind: "worker", token, now });
     if (!session) return null;
-    const [worker] = await tx
-      .select({ id: workers.id, firstName: workers.firstName, lastName: workers.lastName })
+    const [row] = await tx
+      .select({
+        id: workers.id,
+        firstName: workers.firstName,
+        lastName: workers.lastName,
+        tourSeenAt: workers.tourSeenAt,
+      })
       .from(workers)
       .where(eq(workers.id, session.subjectId));
-    return worker ? { session, worker } : null;
+    if (!row) return null;
+    const { tourSeenAt, ...worker } = row;
+    return { session, worker, tourSeen: tourSeenAt !== null };
   });
 }
 

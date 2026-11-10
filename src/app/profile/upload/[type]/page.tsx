@@ -18,6 +18,7 @@ import { SessionKeeper } from "../../../session-keeper";
 import { UploadForm } from "../../upload-form";
 import { OfficeRecordedNote } from "./office-recorded";
 import { CasualTabBar } from "../../../casual-tab-bar";
+import { CasualTop } from "../../../casual-top-bar";
 
 export const metadata: Metadata = { title: "Upload a certificate" };
 
@@ -38,30 +39,33 @@ export default async function UploadPage({ params }: { params: Promise<{ type: s
   const year = Number(profile.today.slice(0, 4));
   const name = qualificationTitle(q.name);
   return (
-    <main className={page.staff}>
-      <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-      <PageHeader title={`Upload your ${q.name}`} />
-      <section className={staffCard} aria-label={name}>
-        <p className={`text-base ${nums}`}>
-          <StatusChip tone={STATUS_TONES[q.status]}>{statusLabel(q)}</StatusChip>
-          {chipTail(q, year)}
-        </p>
-        {q.uploadable ? (
-          <UploadForm
-            kind="certificate"
-            type={q.type}
-            camera="environment"
-            button="Take or choose a photo"
-            guidance={CARD_GUIDANCE}
-          />
-        ) : (
-          <OfficeRecordedNote name={q.name} />
-        )}
-      </section>
-      <Link href="/profile" className={`${staffBtn.secondary} ${sectionGap.staff}`}>
-        Back to my profile
-      </Link>
-      <CasualTabBar firm={firm} workerId={worker.id} current="profile" />
-    </main>
+    <>
+      <CasualTop firm={firm} worker={worker} />
+      <main className={page.staff}>
+        <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
+        <PageHeader title={`Upload your ${q.name}`} />
+        <section className={staffCard} aria-label={name}>
+          <p className={`text-base ${nums}`}>
+            <StatusChip tone={STATUS_TONES[q.status]}>{statusLabel(q)}</StatusChip>
+            {chipTail(q, year)}
+          </p>
+          {q.uploadable ? (
+            <UploadForm
+              kind="certificate"
+              type={q.type}
+              camera="environment"
+              button="Take or choose a photo"
+              guidance={CARD_GUIDANCE}
+            />
+          ) : (
+            <OfficeRecordedNote name={q.name} />
+          )}
+        </section>
+        <Link href="/profile" className={`${staffBtn.secondary} ${sectionGap.staff}`}>
+          Back to my profile
+        </Link>
+        <CasualTabBar firm={firm} workerId={worker.id} current="profile" />
+      </main>
+    </>
   );
 }

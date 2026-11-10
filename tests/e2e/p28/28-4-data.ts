@@ -68,7 +68,7 @@ export async function recordScene(run: string): Promise<RecordScene> {
         on conflict (firm_id, role) do nothing`);
       await tx
         .insert(workers)
-        .values({ firmId, ...P28_4_CASUAL, roles: [RECORD_ROLE] })
+        .values({ firmId, tourSeenAt: new Date(), ...P28_4_CASUAL, roles: [RECORD_ROLE] })
         .onConflictDoNothing();
       await tx.update(shifts).set({ status: "cancelled" }).where(eq(shifts.role, RECORD_ROLE));
       const [found] = await tx

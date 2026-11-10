@@ -33,13 +33,13 @@ test("a worker logs in, takes a shift, cancels it, asks for a change and sees th
     await expect(page.getByText("Check your phone.")).toBeVisible();
     await page.goto(await loginLinkSentTo(mobile, asked));
     await page.getByRole("button", { name: "Log me in" }).click();
-    await expect(page.getByRole("heading", { name: /^Hi / })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Home", level: 1 })).toBeVisible();
   });
   // Home with nothing booked (Phase 18): the empty pass, and the way to the open shifts.
   await expect(page.getByRole("heading", { name: "No shifts booked" })).toBeVisible();
 
   await timed("take a shift", async () => {
-    await page.getByRole("link", { name: "See open shifts" }).click();
+    await page.getByRole("link", { name: "See shifts you can take" }).click();
     await expect(page.getByRole("heading", { name: "Open shifts" })).toBeVisible();
     // Each card opens the shift's page, where "Take shift" is.
     const racecourse = page.getByRole("listitem").filter({ hasText: "Acme Demo Racecourse" });

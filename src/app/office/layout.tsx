@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import type { ReactNode } from "react";
 import { canAccess, ROLE_LABELS } from "@/lib/auth/roles";
 import { attentionOf } from "@/lib/office/dashboard";
+import { tourLaterKey } from "@/lib/tour/later-key";
 import { THEME_COOKIE, themeFromCookie } from "../theme";
 import { officeFrame } from "./frame";
 import { barCounts, menuBadges, OfficeShell, officeMenu } from "./office-shell";
@@ -64,6 +65,11 @@ export default async function OfficeLayout({ children }: { children: ReactNode }
         theme={themeFromCookie(jar.get(THEME_COOKIE)?.value)}
         rotationDue={s.session.rotationDue}
         updates={frame.updates?.ok ? frame.updates.data : null}
+        tour={
+          canAccess(s.officeUser.role, "today")
+            ? { seen: s.tourSeen, laterKey: tourLaterKey(s.session.id) }
+            : null
+        }
       >
         {children}
       </OfficeShell>

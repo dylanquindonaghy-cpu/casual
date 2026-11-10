@@ -14,12 +14,14 @@ import { ChromeWatch } from "./chrome-watch";
 // when the page is under it; a page with a bar of its own (a shift's "‹ Open shifts",
 // `data-own-bar`) hides it. Phase 28 (28.1): the firm's initial is a 36px square, 8px round, in
 // bold, as the office rail's mark (above the office's login pages it keeps its 32px and semibold).
+// Phase 32 (32.1): a logged-in casual's pages have the office's frame instead (the casual top bar,
+// src/app/casual-top-bar.tsx), so this hides itself wherever that is on the page.
 export function BrandBar({ brand }: { brand: Brand }) {
   const initial = brand.name.match(/\p{L}|\p{N}/u)?.[0]?.toUpperCase() ?? "";
   return (
     <header
       data-testid="brand-bar"
-      className="scroll-edge relative z-20 text-ink [body:has([data-own-bar])_&]:hidden [body:has([data-shell=office])_&]:hidden [html[data-js]_&]:sticky [html[data-js]_&]:top-0"
+      className="scroll-edge relative z-20 text-ink [body:has([data-own-bar])_&]:hidden [body:has([data-casual-top])_&]:hidden [body:has([data-shell=office])_&]:hidden [html[data-js]_&]:sticky [html[data-js]_&]:top-0"
     >
       <ChromeWatch />
       <div className="mx-auto flex min-h-14 max-w-md items-center gap-3 px-4 py-2 sm:px-6">

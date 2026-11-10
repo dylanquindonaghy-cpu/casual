@@ -1170,6 +1170,85 @@ describe("the staffing demo's quick guide is in plain words", () => {
   });
 });
 
+// The office's first-login tour (Phase 33.2): its welcome window and every step, in the same plain
+// words; "session" is the office's own word here too, so it alone is allowed.
+describe("the office's first-login tour is in plain words", () => {
+  it("the welcome window and all eight steps", async () => {
+    const { TourWelcome } = await import("@/app/tour/welcome");
+    const { OFFICE_TOUR_STEPS, OFFICE_WELCOME, TOUR_CONTROLS, TOUR_MENU } =
+      await import("@/lib/tour/office-copy");
+    const words = text(
+      renderToStaticMarkup(
+        createElement(
+          "div",
+          null,
+          createElement(TourWelcome, {
+            copy: { ...OFFICE_WELCOME, title: OFFICE_WELCOME.title("Acme Events") },
+            video: { src: "/v.mp4", poster: "/v.jpg", captions: "/v.vtt" },
+            onStart: () => undefined,
+            onNotNow: () => undefined,
+          }),
+          ...OFFICE_TOUR_STEPS.map((s, i) =>
+            createElement(
+              "div",
+              { key: s.anchor },
+              createElement("p", null, TOUR_CONTROLS.stepOf(i + 1, OFFICE_TOUR_STEPS.length)),
+              createElement("h2", null, s.title),
+              createElement("p", null, s.body),
+            ),
+          ),
+          ...[TOUR_CONTROLS.skip, TOUR_CONTROLS.back, TOUR_CONTROLS.next, TOUR_CONTROLS.done].map(
+            (w) => createElement("button", { key: w }, w),
+          ),
+          createElement("p", null, TOUR_MENU.again),
+          createElement("p", null, TOUR_MENU.quickGuide),
+        ),
+      ),
+    );
+    expect(words).toContain("Your day in numbers");
+    expect(problems(words).filter((p) => p !== "jargon: session")).toEqual([]);
+  });
+});
+
+// The casuals' first-login tour (Phase 33.3): its welcome window, every step and "Take the tour
+// again", in the same plain words as the rest of the casual app (nothing allowed through).
+describe("the casuals' first-login tour is in plain words", () => {
+  it("the welcome window, all seven steps and Take the tour again", async () => {
+    const { TourWelcome } = await import("@/app/tour/welcome");
+    const { CASUAL_TOUR_AGAIN, CASUAL_TOUR_STEPS, CASUAL_WELCOME } =
+      await import("@/lib/tour/casual-copy");
+    const { TOUR_CONTROLS } = await import("@/lib/tour/office-copy");
+    const words = text(
+      renderToStaticMarkup(
+        createElement(
+          "div",
+          null,
+          createElement(TourWelcome, {
+            copy: { ...CASUAL_WELCOME, title: CASUAL_WELCOME.title("Acme Events") },
+            video: { src: "/v.mp4", poster: "/v.jpg", captions: "/v.vtt" },
+            shape: "tall",
+            onStart: () => undefined,
+            onNotNow: () => undefined,
+          }),
+          ...CASUAL_TOUR_STEPS.map((s, i) =>
+            createElement(
+              "div",
+              { key: s.anchor },
+              createElement("p", null, TOUR_CONTROLS.stepOf(i + 1, CASUAL_TOUR_STEPS.length)),
+              createElement("h2", null, s.title),
+              createElement("p", null, s.body),
+            ),
+          ),
+          createElement("p", null, CASUAL_TOUR_AGAIN.title),
+          createElement("p", null, CASUAL_TOUR_AGAIN.sub),
+        ),
+      ),
+    );
+    expect(words).toContain("Your shifts at a glance");
+    expect(problems(words)).toEqual([]);
+  });
+});
+
 describe("wording Dylan turned down", () => {
   it("'urgently looking for' is nowhere in src/ or docs/screens.md", () => {
     const files = [

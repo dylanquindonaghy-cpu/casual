@@ -76,13 +76,13 @@ describe("the rail and the bar: one component, one nav (30.2)", () => {
     );
     expect(mark?.[2]).toBe("A");
     const cls = mark?.[1]?.split(" ") ?? [];
-    // Hidden on a phone (the bar has no mark), shown from 1024px; 40px, 8px round, as the
-    // office rail's mark.
+    // Hidden on a phone (the bar has no mark), shown from 1024px; Phase 32 (32.1, the approved
+    // mock-up): 48px, 12px round, above the rail's capsule, as the office rail's lime mark.
     expect(cls).toEqual(
-      expect.arrayContaining(["hidden", "lg:flex", "size-10", "rounded-row", "bg-brand-bar"]),
+      expect.arrayContaining(["hidden", "lg:flex", "size-12", "rounded-inner", "bg-brand-bar"]),
     );
     expect(cls).toContain("text-on-brand-bar");
-    // It's the capsule's first child, before the links.
+    // It's before the links.
     expect(html.indexOf("data-rail-mark")).toBeLessThan(html.indexOf("<a "));
     // No firm, no mark.
     expect(render({ current: "home" })).not.toContain("data-rail-mark");
@@ -118,33 +118,46 @@ describe("the rail and the bar: one component, one nav (30.2)", () => {
 });
 
 describe("the rail's CSS (globals.css, Phase 30 (30.2))", () => {
-  it("from 1024px: a 96px column 12px from the window's top and left; the page right of it", () => {
+  it("from 1024px: a 96px column 16px from the window's top, 12px from its left; the page right of it", () => {
     const { wide } = railCss();
+    // Phase 32 (32.1, the approved mock-up): the office rail's shape: a 96px column with the mark
+    // at its top and the links in a 76px capsule of raised glass, 16px round.
     const nav = rule(wide, "nav[data-tab-bar]");
-    expect(nav.inset).toBe("0.75rem auto auto 0.75rem");
-    expect(nav.padding).toBe("0");
+    expect(nav).toMatchObject({
+      inset: "1rem auto auto 0.75rem",
+      padding: "0",
+      width: "6rem",
+      display: "flex",
+      "flex-direction": "column",
+    });
     const capsule = rule(wide, "nav[data-tab-bar] > div");
     expect(capsule).toMatchObject({
       display: "flex",
       "flex-direction": "column",
-      width: "6rem",
+      width: "4.75rem",
       "max-width": "none",
       height: "auto",
-      "max-height": "calc(100dvh - 1.5rem)",
+      "max-height": "calc(100dvh - 6.5rem)",
+      "border-radius": "1rem",
       "overflow-y": "auto",
     });
     // The page moves right by the rail and a 12px gap either side, so nothing goes under it.
     const body = rule(wide, "body:has(nav[data-tab-bar])");
-    expect(rem(body["padding-left"])).toBe(0.75 + rem(capsule.width) + 0.75);
+    expect(rem(body["padding-left"])).toBe(0.75 + rem(nav.width) + 0.75);
     // The room kept for the floating bar at the page's end goes.
     expect(rule(wide, 'div[aria-hidden="true"]:empty:has(+ nav[data-tab-bar])').display).toBe(
       "none",
     );
   });
 
-  it("each link a tile at least 64px tall (44px and up) with its word always shown", () => {
+  it("each link a 44px round button with its word always shown under it", () => {
     const { wide } = railCss();
-    expect(rem(rule(wide, "nav[data-tab-bar] a")["min-height"])).toBeGreaterThanOrEqual(2.75);
+    // Phase 32 (32.1): the link is its round button (44px from 1024px: tab-bar.tsx lg:size-11)
+    // and its word, so the target is at least 44px each way.
+    expect(rule(wide, "nav[data-tab-bar] a").width).toBe("100%");
+    expect(read("src/app/tab-bar.tsx")).toMatch(
+      /data-tab-circle=""\s+className=\{`press-glass relative flex size-9 shrink-0 items-center justify-center rounded-full lg:size-11 /,
+    );
     // The phone's shrunk bar hides the words (sr-only); from 1024px they're always shown.
     expect(rule(wide, "nav[data-tab-bar] a > span:last-child")).toMatchObject({
       position: "static",

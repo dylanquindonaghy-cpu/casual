@@ -3388,7 +3388,7 @@ On a phone, one column, in this order:
    there's something), "Messages {0}" (the office's replies she hasn't read; → `/messages`). Each
    number is the one its page counts. The row scrolls sideways inside itself on a narrow phone,
    never the page. Only "Booked" shows in the saved copy: the others change without her.
-3. **Her next shift** (the pass), with a line under its role: "Starts in {70 hours}" (in hours
+3. **Her next shift** (the pass), with a line under its role: "Starts in {70 hours}" (since Phase 32 as the badge counts it: "Starts today", "Starts tomorrow", "Starts in {3} days"; until then in hours
    under 72, then "{3} days"; online only) · "{8} hours" · "about {£108.00} before tax" (the
    booked shift page's own sum; left out when the session has no rate), and a thin bar that fills
    over the last 7 days before it starts (online only).
@@ -3606,3 +3606,215 @@ guide", "Where everything lives, what it does and how it works." Then five glass
    "Qualifications are checked before any offer." "Pay disputes go to payroll, never to AI."
 
 Last: "For step-by-step help, open the How-to guide." (→ `/office/guide`).
+
+## Phase 32
+
+**The casual app in the office's look** (Dylan approved the mock-up on 2026-11-09). The casual app
+takes the office's frame, its glass and its buttons. Nothing she can see or do changes, but for the
+map on Home, which shows the venues of her own next shift and of the shifts already open to her.
+Her text stays 16px and every target at least 44px.
+
+### 32.1 The frame
+
+- **The top bar**, on every page a logged-in casual uses (`src/app/casual-top-bar.tsx`), in place of
+  the firm's bar. On a phone: the firm's lime mark (its initial; its logo if it has one) and its
+  name, the bell and her initials in a round badge. From 1,024px, right of the rail: her counts (the
+  office's chips, as Home's: "Booked {1}", "Open to you {11}", "Urgent {3}", "To do {1}",
+  "Messages {0}", each a link 44px tall to the page it counts; "To do" opens Home's "Do this"), the
+  bell, the light or dark switch ("Switch to light mode", "Switch to dark mode", the office's own:
+  the casual app has a light look) and her initials, name and role ("Zoe Adeyemi", "Steward"). Each
+  number is the one Home already showed her, from the same loaders. In the copy saved for no signal
+  the numbers that go stale are left out and "Offline" shows, as on the firm's bar.
+- **The bell** opens My requests (`/requests`), where the office's answers to her requests are. Its
+  number is the answers she hasn't seen (the same count Profile's tab adds; opening My requests
+  marks them seen). Its name: "Answers from the office", "Answers from the office, 1 new",
+  "Answers from the office, 2 new".
+- **The rail** (from 1,024px): the firm's lime mark (48px) at its top, then the five links in a
+  capsule of raised glass, each a 44px round button with its icon (solid ink when it's the page
+  she's on, clear glass otherwise) and its word under it, always shown.
+- **The tab bar** (below 1,024px) is kept, in raised glass, with its words under the icons; the page
+  she's on has its icon in a solid ink circle and its word in bold.
+
+### 32.2 Home
+
+- **"Home"**, with "Updated {12:29}" beside it, and under it "{Monday 9 November} · Pay day {Fri 20
+  Nov}" (all online only). From 1,024px, at its right: "Shifts you can take" (→ `/shifts/open`) and
+  "My week" (→ `/shifts`). Her counts stay under it on a phone (they're in the top bar from 1,024px).
+- **The tabs**: "All", "Urgent" (only while there are urgent shifts she can take), "This week" and
+  "Next week", each with its count (lime on the chosen one). They only filter the map's pins. Online
+  only.
+- **The map**, the office's own: the firm's street map where it has one (the same file and style as
+  the office's), else the plain map. A pin for her next shift's venue ("Your shift", solid ink) and
+  one for each venue with shifts she can take, from the same list as "Open to you" (its number how
+  many; red where one is urgent, else the amber ring). Each pin is a link: hers to Booked
+  (`/shifts`), a venue's to Open shifts at that venue. Its name, read out: "Your shift: {Riverside
+  Demo Park}, {Thu 12}", "{Northgate Demo Common}: {2} shifts you can take, {1} urgent, {Tue 17}".
+  Its label: the venue's name and its days ("{Wed 11, Mon 16}", "{Wed 11, Mon 16} and {2} more");
+  hers "Your shift" with its venue and day ("{Riverside Demo Park} · {Thu 12}"; on a phone "Your
+  shift" and "{Thu 12}" only, and only her pin is labelled there).
+  The key: "Your shift", "Shifts you can take", "Urgent" (each only when the map has one). No venue
+  with a point yet: "No places to show on the map yet." With the street map, "© OpenStreetMap
+  contributors". The map is named "Map of your shift and open shifts"; the tabs "Show
+  on the map". Online only: the copy saved for no signal shows the card alone.
+- **"Your next shift"**, in raised glass over the map (over its left from 1,024px, its foot on a
+  phone), as the office's session card: its heading (from 1,024px; "On now" while it's on; "· 1 of
+  {3}" with more bookings), the date box, the role with how soon ("In 3 days", the soft blue badge),
+  the event, the gate and the place; the time tile ("{Thu 12 Nov}, {14:00–22:00}", "{8 hours} ·
+  about {£100.80} before tax", the bar and "Starts in {3 days}", online only, counted as the badge
+  counts it: "In 3 days" with "Starts in 3 days", "Tomorrow" with "Starts tomorrow", "Today" with
+  "Starts today", never in hours); from 1,024px "Your
+  qualifications" "{4} of {5}" with the worst one as a badge ("{Staff photo}: {20 days left}") and
+  "Shifts you can take" "{11}" with "{3} urgent" (online only); then "Directions" (lime) and
+  "Details", and "Can't make it?" (or "Still coming?") under them. Details opens the rest inside the
+  card, as before.
+- **Nothing booked**: "No shifts booked", "{4} shifts you can take are on the map." ("1 shift you
+  can take is on the map."; in the saved copy, and with none to take, "Take a shift and it shows up
+  here, with the time and the gate."), the nearest one she can take now ("Nearest: {Tue 17 Nov}" by
+  her travel area, else "Soonest: {Tue 17 Nov}", its times, its role and venue; → its page; online
+  only; never one still held for others or one she can only ask for: with only those, "None you
+  can take straight away yet."), and "See shifts you can take" (lime, → `/shifts/open`).
+- Under the map, the rest of Home as before, in flat glass.
+
+### 32.3 Buttons and badges
+
+The main button is the office's lime with dark words. Badges are soft tints with their own words,
+never solid: urgent (soft red), soon (soft blue), valid (soft green), due (soft amber). Counts in the
+top bar and on Home: Urgent's number in red words. What floats (the card, the pins' names, the key,
+the tab bar, the rail) is raised glass.
+
+## Phase 33
+
+Dylan, 2026-11-09 (the approved mock-up, "Two first-login tours"): a short video, then a
+walkthrough on the real pages, once per person, on any device. The words live in
+`src/lib/tour/office-copy.ts` (checked against this section by `tests/unit/tour.copy.test.ts`, and
+for plain words by `tests/unit/copy.plain-language.test.ts`). The engine is shared
+(`src/app/tour/`): the casuals' tour (33.3) brings only its steps, anchors and entry points (its
+words in `src/lib/tour/casual-copy.ts`).
+
+### 33.1
+
+**Seen once, on any device.** When each office user and each casual finished or skipped their tour
+is kept on their own row (`office_users.tour_seen_at`, `workers.tour_seen_at`; migration 0072),
+written only for the person themselves (their own session's id, inside `withFirm`), the first time
+only, with an action log entry with ids only: "{Sam Rota} finished the welcome tour." or "{Sam Rota}
+skipped the welcome tour." (Logins). Until it's set the tour opens by itself once, at their first
+login after this ships (the office's on the dashboard). "Not now" doesn't set it: it opens again at
+their next login. A casual's is cleared when she's erased.
+
+### 33.2
+
+**The office's tour**, for admins and resourcers (payroll has no dashboard, so no tour yet).
+
+**The welcome window**: first thing on the dashboard at the first login, and whenever "Take the tour
+again" is chosen. A window over the page (the whole screen on a phone), raised glass:
+
+- The office video, "The office in 25 seconds" (`/tour/office.mp4`, made with the brag skill from
+  the real dashboard), its captions on (`/tour/office.en.vtt`). Muted: it plays by itself only muted (not at
+  all when less motion is asked for), with the player's controls and one more button, "Turn the
+  sound on". It never plays with sound until the person asks. Until it can play, its space shows its
+  first words: "60 emails a day?" "Here's your one screen."
+- "Welcome to {Acme Events'} office" ("Northline Staffing's office"), then "A 25-second look round,
+  then we'll point at each part of your dashboard. You can take it again any time from your name
+  menu."
+- "Start the walkthrough" (the main button), "Skip the video" (straight to the walkthrough), and
+  "Not now" (closes; it opens again at the next login). Esc is "Not now".
+
+**The walkthrough**: eight steps on the dashboard. Each one dims the page and outlines one part of
+it in the office's lime, with a raised-glass tip beside it (above or below it on a phone): "Step 1
+of 8" and a dot for each step, the step's title and words, then "Skip", "Back" (not on the first)
+and "Next" ("Done" on the last). Esc skips, ← and → go back and on; the buttons are 44px; focus
+moves into the tip and stays there until it ends, then goes back where it was. A part that isn't on
+the page (the map turned off, the search on a phone) is passed over. Finishing or skipping it means
+it won't open by itself again.
+
+1. The counts: "Your day in numbers". "Places to fill, urgent ones, offers out, what needs attention
+   and pay queries. Tap any count to see the list behind it."
+2. The tabs: "Pick what you see". "All sessions, just the urgent ones, this week or next. The map and
+   the card follow."
+3. The map: "Every venue with places to fill". "Red means urgent. Tap a pin to open its session in
+   the card."
+4. The session card: "The session you picked". "Who's booked, how many casuals have the
+   qualifications, rest and hours for it, and what's still open."
+5. "Offer to someone": "Offer to someone". "Sends it to the best casuals who qualify, in waves. The
+   first yes gets it; everyone else is told it's gone."
+6. The menu: "Everything else lives here". "Updates, Enquiries, Events, Cancellations, Pay, Casuals.
+   Messages from casuals land in Enquiries, all in one place and logged."
+7. Search: "Find anyone or anything". "Search casuals, sessions and venues. Ctrl K opens it from any
+   page."
+8. Your name: "Take it again any time". "Your name menu has "Take the tour again" and the quick
+   guide: where everything lives and how the API works."
+
+**Your name menu** (the account menu): "Take the tour again" (opens the welcome window, seen or
+not) and "Quick guide" (→ `/start/guide`, Phase 31.3), after "How-to guide".
+
+### 33.3
+
+**The casuals' tour**, on the Phase 32 look. The words live in `src/lib/tour/casual-copy.ts`
+(checked against this section by `tests/unit/tour.copy.test.ts`), the parts in
+`src/app/casual-tour.tsx`.
+
+**When it opens**: by itself once, on Home (`/`), at a casual's first login after this ships, until
+she finishes or skips it (`workers.tour_seen_at`, 33.1). "Not now" holds for this login only. It never
+opens in the copy of Home kept for no signal: the window is drawn only in the browser, never in the
+page the server sends (so never in the kept copy), and not while the kept copy's "No signal" notice
+is showing. In the demo's "Casual mobile view" (Phase 31.2: an office user looking at Zoe's app) it
+shows as it would for Zoe, but finishing or skipping it there doesn't mark Zoe's tour seen or log
+anything as her (that view's session is the one named by its "auth.demo_casual_view" log entry).
+
+**The welcome window**, as the office's, sized for a phone: on a phone it fills the screen, the
+video on top, then the words and buttons; from 640px a window with the video beside the words.
+
+- The casual video, "Your shifts in 20 seconds" (`/tour/casual.mp4`, made with the brag skill:
+  portrait, 9:16, drawn at its own shape, never in a wide box), its captions on
+  (`/tour/casual.en.vtt`). Muted, as the office's: it plays by itself only muted (not at all when less
+  motion is asked for), with the player's controls and "Turn the sound on". Until it can play, its
+  space shows its first words: "Your shifts." "One link."
+- "Welcome to {Acme Events'} shifts" ("Northline Staffing's shifts"), then "A 20-second look round,
+  then we'll point at each part of your Home. You can take it again any time from Profile."
+- "Start the walkthrough", "Skip the video" and "Not now", as the office's. Esc is "Not now".
+
+**The walkthrough**: seven steps on Home, with the office's tip, outline and controls ("Step 1 of
+7"). Steps 5 to 7 point at the tab bar on a phone and at the rail from 1024px. A part that isn't on
+Home is passed over: with nothing booked, steps 2 to 4; with no address for the venue, step 3; when
+the shift can't be cancelled from here (it has started), step 4.
+
+1. Her counts (the row under the title on a phone, the top bar from 1024px): "Your shifts at a
+   glance". "Booked, open to you, urgent, things to do and messages. Tap one to see it."
+2. Her next shift (the card over the map): "Your next shift". "When and where, and about what you'll
+   earn before tax. It's saved on this phone, so it shows with no signal too."
+3. Directions and Details: "Getting there". "Directions opens the place in Google Maps. Details shows
+   the rest: where to go, what to bring, pay and instructions."
+4. "Can't make it?": "Can't make it?". "Tell the office in a few taps. It's logged with how much
+   notice you gave."
+5. The Shifts tab: "Shifts". "Your bookings, and the open shifts you can take or ask for."
+6. The Pay tab: "Pay". "Your pay day, then your hours and rates once you've entered a code. Pay
+   questions go to payroll."
+7. The Profile tab: "Profile". "Your qualifications and staff photo. We remind you before a
+   qualification runs out. "Take the tour again" is here too."
+
+**Take it again**: "Take the tour again" ("Video and walkthrough, 1 minute") on Profile (a row of
+the list at the top, after Help) and on Help (under the intro, for a logged-in casual only: Help is
+open to anyone). It opens the welcome window, seen or not; the walkthrough then goes to Home.
+
+Checked against the app (the mock-up's words, changed where they weren't true):
+
+- Step 2: the mock-up said "the gate"; the card shows her post and the venue, and a post isn't
+  always a gate (sector-neutral, as the office's step 4), so "When and where". "Pay before tax" is
+  the card's "about £108.00 before tax"; the card is in the copy kept for no signal once she's
+  opened Home here, so "saved on this phone".
+- Step 3: "opens your maps app" became "opens the place in Google Maps" (the link is Google Maps';
+  a phone opens it in its app when it has one); "your full pass" became what Details shows.
+- Step 4: "in two taps" became "in a few taps": "Can't make it?", a reason, then "Cancel this shift"
+  is three.
+- Step 5: "The first yes gets the shift" is left out: some shifts the office picks for ("I can do
+  this" asks for one), so "take or ask for".
+- Step 6: hours and rates show only after the code (golden rule 9's step-up), so "once you've entered
+  a code"; a pay question goes to payroll (Pay queries).
+- Step 7: reminders before a licence runs out are a qualification's (the daily check's message); her
+  photo has its "Do this" row but no reminder message, so "We remind you before a qualification runs
+  out".
+
+**The videos' captions** (`/tour/office.en.vtt`, `/tour/casual.en.vtt`; the words burned into each video say the same; `tests/unit/tour.copy.test.ts` checks every caption line is here):
+
+- The office video: "60 emails a day?" "Here's your one screen." "The dashboard: every gap on one map." "The session: who can take it, and one tap to offer." "Enquiries: every message in one place, and logged." "Casuals and pay: licences checked, pay questions grouped." "Your planner stays in charge: API in, signed webhooks out." "Let's show you round."
+- The casual video: "Your shifts. One link." "No app to download." "Your next shift: where, when, and what you'll earn." "Take or ask for open shifts." "We remind you before a qualification runs out." "Your pay day, always in view." "Let's show you round."

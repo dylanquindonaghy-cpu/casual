@@ -54,7 +54,7 @@ export async function helpCancelCasual(slug = "acme"): Promise<string> {
   return inFirm(slug, async (tx, firmId) => {
     await tx
       .insert(workers)
-      .values({ firmId, ...P28_12_CASUAL, roles: ["steward"] })
+      .values({ firmId, tourSeenAt: new Date(), ...P28_12_CASUAL, roles: ["steward"] })
       .onConflictDoNothing();
     const [me] = await tx
       .select({ id: workers.id })

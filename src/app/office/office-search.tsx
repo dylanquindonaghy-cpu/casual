@@ -157,6 +157,7 @@ export function OfficeSearch({ search }: { search: (q: string) => Promise<Search
   return (
     <div
       ref={box}
+      data-tour="search"
       className="relative hidden lg:block"
       onBlur={(e) => {
         if (!box.current?.contains(e.relatedTarget as Node | null)) close();

@@ -97,7 +97,7 @@ async function workerLogin(page: Page, who: { typed: string; e164: string }) {
   );
   await page.goto(link);
   await page.getByRole("button", { name: "Log me in" }).click();
-  await expect(page.getByRole("heading", { name: /^Hi / })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Home", level: 1 })).toBeVisible();
 }
 
 // Steps 22, 36, 39, 42: an office login, with the link from the emailed message.
@@ -161,12 +161,14 @@ test("Part 2: as a worker", async ({ browser }) => {
 
   await test.step("10. Log in as Zoe Usman", async () => {
     await workerLogin(page, ZOE);
-    await expect(page.getByRole("heading", { name: "Hi Zoe" })).toBeVisible();
+    // Phase 32 (32.2): the page is "Home"; her name is in the top bar.
+    await expect(page.getByRole("heading", { name: "Home", level: 1 })).toBeVisible();
+    await expect(page.locator("[data-you]")).toContainText("Zoe");
     await expect(page.getByRole("heading", { name: "No shifts booked" })).toBeVisible();
   });
 
   await test.step("11. Take a shift", async () => {
-    await page.getByRole("link", { name: "See open shifts" }).click();
+    await page.getByRole("link", { name: "See shifts you can take" }).click();
     await expect(page.getByRole("heading", { name: "Open shifts" })).toBeVisible();
     // A card for one at the Arena; it opens the shift's page, where "Take shift" is.
     const arena = page.getByRole("listitem").filter({ hasText: "Acme Demo Arena" }).first();

@@ -70,7 +70,7 @@ export async function payCountScene(): Promise<PayCountScene> {
   const workerId = await inAcme(async (tx, firmId) => {
     await tx
       .insert(workers)
-      .values({ firmId, ...P29_5_CASUAL, roles: ["steward"] })
+      .values({ firmId, tourSeenAt: new Date(), ...P29_5_CASUAL, roles: ["steward"] })
       .onConflictDoNothing();
     const [worker] = await tx
       .select({ id: workers.id })

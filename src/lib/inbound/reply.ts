@@ -473,7 +473,7 @@ async function settleAnswer(
 ): Promise<Settled> {
   const now = await recheckAnswer(tx, picked.answer.id, channel);
   if (!now.on) return { words: null, missing: null, switchedOff: true };
-  const words = wordsFor(now.body, facts);
+  const words = wordsFor(now.body, facts, now.topic);
   return words.ok
     ? { words: words.text, missing: null, switchedOff: false }
     : { words: null, missing: words.missing, switchedOff: false };

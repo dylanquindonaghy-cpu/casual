@@ -1,4 +1,5 @@
 import { ANSWER_PAY_HINT } from "../messaging/pay-hint";
+import { keywordWords } from "../inbound/keywords";
 import { FILL_INS, isFillInKey, tokensIn, type FillInKey } from "./fill-ins";
 
 // An answer's words with its fill-ins done (Phase 35): each {key} replaced by the casual's own fact
@@ -37,18 +38,33 @@ export const usesPayFillIn = (body: string): boolean =>
   tokensIn(body).some((t) => (PAY_FILL_INS as readonly string[]).includes(t));
 
 // The words as they go (golden rule 9; the guardrails review, M1): filled in, then, for an answer
-// whose words use a pay fill-in, "If your pay looks wrong, tap 'Raise a pay query'…" after them, so
+// whose words use a pay fill-in, or whose name or examples are about pay, "If your pay looks wrong, tap 'Raise a pay query'…" after them, so
 // a casual whose pay day answer isn't what she expected knows the way to payroll. Added by code, on
 // every channel; the office's preview shows it too.
-export function answerText(body: string, facts: Facts): Rendered {
+// An answer about pay by its topic, not its words (the second guardrails review, L): its name or an
+// example holds a pay keyword ("We pay every Friday", asked as "when do we get paid").
+const PAY_TOPIC = new Set(["pay", "paid", "wages", "payslip", "payslips", "payday"]);
+export interface AnswerTopic {
+  name: string;
+  examples: readonly string[];
+}
+export const aboutPayTopic = (topic: AnswerTopic | undefined): boolean =>
+  !!topic &&
+  [topic.name, ...topic.examples].some((t) => [...keywordWords(t)].some((w) => PAY_TOPIC.has(w)));
+
+export function answerText(body: string, facts: Facts, topic?: AnswerTopic): Rendered {
   const rendered = renderAnswer(body, facts);
-  if (!("text" in rendered) || !usesPayFillIn(body)) return rendered;
+  if (!("text" in rendered) || !(usesPayFillIn(body) || aboutPayTopic(topic))) return rendered;
   return { text: `${rendered.text} ${ANSWER_PAY_HINT}` };
 }
 
 // What a casual would get, for the office's preview (35.3): the words filled in with each fill-in's
 // made-up example (src/lib/answers/fill-ins.ts), never anyone's real facts, with the pay query hint
 // where it goes.
-export function previewAnswer(body: string): Rendered {
-  return answerText(body, Object.fromEntries(FILL_INS.map((f) => [f.key, f.example])) as Facts);
+export function previewAnswer(body: string, topic?: AnswerTopic): Rendered {
+  return answerText(
+    body,
+    Object.fromEntries(FILL_INS.map((f) => [f.key, f.example])) as Facts,
+    topic,
+  );
 }

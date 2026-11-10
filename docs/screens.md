@@ -3940,6 +3940,21 @@ were missing.
   switched off before it went: passed to a person." and, for Filled in from your data, "Not sent: it
   was switched off before it went, so it was passed to a person."
 - The library code never reaches the AI code (`tests/unit/ai.boundary.test.ts`).
+- From the second guardrails review (2026-11-10):
+  - Words that say a shift has gone wrong without the dropout words (unwell, poorly, emergency,
+    hospital, ambulance, injured, injury, accident, funeral, bereavement, delayed, delay, traffic,
+    stuck, breakdown, broken, broke, missed, covid, drop, dropout, swap, quit:
+    `LIBRARY_STOP_WORDS`) keep a message from the library too, and can't be in an example. So "I'm
+    poorly, is anyone in?" and "stuck in traffic, where do I park" reach a person.
+  - An example matches only when it is at least a third of the message's words (`EXAMPLE_COVER`):
+    "What kit do I need?" matches "what kit", but a long message that only contains "is anyone in"
+    goes on to the keywords, the AI or the office.
+  - More pay-trouble words: wasn't paid, weren't paid, haven't paid, hasn't paid, didn't pay, didn't
+    get paid, only paid, problem, issue, query, low, less.
+  - The pay hint also goes after an answer whose name or examples are about pay (pay, paid, wages,
+    payslip, payday), even when its words use no pay fill-in ("We pay every Friday.").
+  - "Make this an answer" from an email checks its subject and body (as "No answer yet" lists it),
+    and starts the example from the body.
 
 ### The switches
 

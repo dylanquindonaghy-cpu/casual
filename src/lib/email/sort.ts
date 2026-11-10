@@ -378,7 +378,7 @@ export async function runInboundEmail(
       const now = await recheckAnswer(tx, picked.answer.id, "email");
       if (!now.on) switchedOff = true;
       else {
-        const filled = wordsFor(now.body, facts ?? {});
+        const filled = wordsFor(now.body, facts ?? {}, now.topic);
         if (filled.ok) words = filled.text;
         else answerMissing = filled.missing;
       }

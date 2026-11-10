@@ -81,7 +81,7 @@ export function AnswerForm({
       if (result.status === "logged_out") router.refresh();
     });
 
-  const shown = body.trim() ? previewAnswer(body) : null;
+  const shown = body.trim() ? previewAnswer(body, { name, examples: examples.split("\n") }) : null;
   // As a casual would get them (fill-ins with their examples, the pay hint), else as written.
   const length = shown && "text" in shown ? shown.text.length : body.trim().length;
   const notes = [

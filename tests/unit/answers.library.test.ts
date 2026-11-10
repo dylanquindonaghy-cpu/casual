@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { FILL_IN_KEYS, FILL_INS, fillInsNeeded, tokensIn } from "@/lib/answers/fill-ins";
-import { aboutPayTrouble, matchByExample, normalise } from "@/lib/answers/match";
+import { EXAMPLE_COVER, aboutPayTrouble, matchByExample, normalise } from "@/lib/answers/match";
 import { answerText, previewAnswer, renderAnswer, usesPayFillIn } from "@/lib/answers/render";
 import { ANSWER_PAY_HINT } from "@/lib/messaging/templates";
 import { DEMO_STARTERS_ON, STARTERS } from "@/lib/answers/starters";
@@ -13,7 +13,7 @@ import {
   checkAnswer,
   looksSignedByPerson,
 } from "@/lib/answers/validate";
-import { reservedWordIn } from "@/lib/inbound/keywords";
+import { LIBRARY_STOP_WORDS, libraryAllowed, reservedWordIn } from "@/lib/inbound/keywords";
 import { applySetting } from "@/lib/onboarding/settings";
 import { eventWords } from "@/lib/office/event-words";
 import { enquiryOutcome } from "@/lib/office/enquiry-rules";
@@ -537,5 +537,86 @@ describe("the office's words for it", () => {
         doneInApp: false,
       }),
     ).toBe("answer");
+  });
+});
+
+// The second guardrails review (2026-11-10): dropouts worded without the dropout words, short
+// examples inside long messages, more ways of saying pay went wrong, and the pay hint by topic.
+describe("the second review's findings", () => {
+  it("a message that says a shift went wrong never gets a library answer (M1)", () => {
+    for (const text of [
+      "I'm poorly, is anyone in?",
+      "family emergency tonight, what time do you open",
+      "stuck in traffic, where do I park",
+      "I'm in hospital, is anyone in",
+      "had an accident, where do i park",
+      "train delayed, is anyone in",
+      "car breakdown, what time do you open",
+      "I missed the bus, is anyone in",
+      "can I swap my shift, is anyone in",
+      "I want to drop Saturday, is anyone in",
+    ]) {
+      expect(libraryAllowed(text), text).toBe(false);
+    }
+    expect(libraryAllowed("is anyone in")).toBe(true);
+    expect(libraryAllowed("where do i park at the arena")).toBe(true);
+    for (const w of LIBRARY_STOP_WORDS) expect(reservedWordIn(`what about ${w}`), w).toBe(w);
+  });
+
+  it("an example must be at least a third of the message's words (M1)", () => {
+    const office = a("office", "is anyone in");
+    const wear = a("wear", "what do i wear");
+    expect(matchByExample("is anyone in?", [office])?.id).toBe("office");
+    expect(matchByExample("hi, is anyone in today", [office])?.id).toBe("office");
+    expect(
+      matchByExample("the stewards at gate 4 are short tonight and nobody knows, is anyone in", [
+        office,
+      ]),
+    ).toBeNull();
+    expect(matchByExample("What do I wear for the food festival?", [wear])?.id).toBe("wear");
+    expect(EXAMPLE_COVER).toBe(1 / 3);
+    expect(matchByExample("What kit do I need?", [a("kit", "what kit")])?.id).toBe("kit");
+    expect(
+      matchByExample("so what kit do i need for the big arena gig", [a("kit", "what kit")]),
+    ).toBeNull();
+  });
+
+  it("more ways of saying pay went wrong (L)", () => {
+    for (const text of [
+      "I wasn't paid for Saturday, when do we get paid?",
+      "we werent paid last week",
+      "you haven't paid me",
+      "it hasn't paid in",
+      "you didn't pay me for friday",
+      "I didnt get paid",
+      "you only paid me 4 hours",
+      "problem with my pay",
+      "issue with my wages",
+      "I have a query about pay",
+      "my pay is low",
+      "I got less this week",
+    ]) {
+      expect(aboutPayTrouble(text), text).toBe(true);
+    }
+    for (const s of STARTERS) {
+      for (const ex of s.examples) expect(aboutPayTrouble(ex), ex).toBe(false);
+    }
+  });
+
+  it("an answer about pay by its name or examples gets the pay query hint too (L)", () => {
+    const body = "We pay every Friday.";
+    expect(answerText(body, {})).toEqual({ text: body });
+    expect(answerText(body, {}, { name: "Pay day", examples: ["when is it"] })).toEqual({
+      text: `${body} ${ANSWER_PAY_HINT}`,
+    });
+    expect(answerText(body, {}, { name: "Fridays", examples: ["when do we get paid"] })).toEqual({
+      text: `${body} ${ANSWER_PAY_HINT}`,
+    });
+    expect(answerText("Bring a torch.", {}, { name: "Kit", examples: ["what to bring"] })).toEqual({
+      text: "Bring a torch.",
+    });
+    expect(previewAnswer(body, { name: "Pay day", examples: [] })).toEqual({
+      text: `${body} ${ANSWER_PAY_HINT}`,
+    });
   });
 });

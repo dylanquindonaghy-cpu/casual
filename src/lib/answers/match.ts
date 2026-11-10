@@ -5,7 +5,10 @@
 // every other character that isn't a letter or a digit a space, spaces collapsed. An example matches
 // when it appears in the message as a whole-word run ("when do we get paid" in "hi when do we get
 // paid this week?", never "paid" inside "unpaid"). The longest matching example wins (by words,
-// then characters); two answers tied for longest: none (the next step decides, or the office).
+// then characters); two answers tied for longest: none (the next step decides, or the office). And
+// the example must be at least a third of the message's words (EXAMPLE_COVER), so a short example such as
+// "is anyone in" can't answer a long message that says something else as well (the second
+// guardrails review, M1): that one goes on to the keywords, the AI or the office.
 
 export function normalise(text: string): string {
   return text
@@ -40,6 +43,20 @@ export const PAY_TROUBLE = new RegExp(
     "owes",
     "owing",
     "not paid",
+    "wasnt paid",
+    "werent paid",
+    "havent paid",
+    "hasnt paid",
+    "didnt pay",
+    "didnt get paid",
+    "only paid",
+    "problem",
+    "problems",
+    "issue",
+    "issues",
+    "query",
+    "low",
+    "less",
     "not been paid",
     "never paid",
     "havent been paid",
@@ -84,6 +101,8 @@ export const PAY_TROUBLE = new RegExp(
 );
 export const aboutPayTrouble = (text: string): boolean => PAY_TROUBLE.test(normalise(text));
 
+export const EXAMPLE_COVER = 1 / 3;
+
 export interface MatchableAnswer {
   id: string;
   examples: readonly string[];
@@ -95,6 +114,7 @@ export function matchByExample<A extends MatchableAnswer>(
 ): A | null {
   const message = ` ${normalise(text)} `;
   if (message.trim() === "") return null;
+  const messageWords = message.trim().split(" ").length;
   let best: { answer: A; words: number; chars: number } | null = null;
   let tied = false;
   for (const answer of answers) {
@@ -102,6 +122,7 @@ export function matchByExample<A extends MatchableAnswer>(
       const example = normalise(raw);
       if (example === "" || !message.includes(` ${example} `)) continue;
       const words = example.split(" ").length;
+      if (words < messageWords * EXAMPLE_COVER) continue;
       const chars = example.length;
       if (!best || words > best.words || (words === best.words && chars > best.chars)) {
         best = { answer, words, chars };

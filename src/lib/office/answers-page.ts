@@ -122,30 +122,36 @@ export async function officeNewAnswer(
   const { run } = parts(ctx);
   return run(ctx.firm.id, async (tx) => {
     if (!(await officeUserMay(tx, ctx.officeUserId, "answers"))) return null;
-    const text = from && UUID.test(from) ? await questionText(tx, from) : null;
+    const q = from && UUID.test(from) ? await questionText(tx, from) : null;
     return {
       ...(await firmFacts(tx)),
       answer: null,
       example:
-        text && !aboutPayTrouble(text) && libraryAllowed(text)
-          ? exampleFromQuestion(text) || null
+        q && !aboutPayTrouble(q.checked) && libraryAllowed(q.checked)
+          ? exampleFromQuestion(q.text) || null
           : null,
     };
   });
 }
 
-async function questionText(tx: FirmTx, id: string): Promise<string | null> {
-  const { rows } = await tx.execute<{ text: string }>(sql`
-    select m.body as text from messages m
+// The casual's question for "Make this an answer": `text` is what the example starts from (a
+// message's words, an email's body), `checked` what the pay-trouble and library checks read (an
+// email's subject and body, as "No answer yet" lists it: the second guardrails review, L).
+async function questionText(
+  tx: FirmTx,
+  id: string,
+): Promise<{ text: string; checked: string } | null> {
+  const { rows } = await tx.execute<{ text: string; checked: string }>(sql`
+    select m.body as text, m.body as checked from messages m
      where m.id = ${id} and m.direction = 'in' and m.intent = 'office' and m.worker_id is not null
        and m.body is not null and m.shift_id is null and m.channel in ('app', 'whatsapp', 'sms')
        and m.handled_as in ('keyword', 'ai', 'office')
     union all
-    select e.body from inbound_emails e
+    select e.body, concat_ws(E'\n', e.subject, e.body) from inbound_emails e
      where e.id = ${id} and e.intent = 'office' and e.worker_id is not null and e.body is not null
        and e.handled_as in ('keyword', 'ai', 'office')
   `);
-  return rows[0]?.text ?? null;
+  return rows[0] ?? null;
 }
 
 async function firmFacts(tx: FirmTx) {

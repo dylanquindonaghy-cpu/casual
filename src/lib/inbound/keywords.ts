@@ -70,7 +70,42 @@ export function keywordIntent(text: string): Intent | null {
 // by an example question or by the AI: it goes on to the built-in keywords, the AI's four labels or
 // the office, as before Phase 35. So "sick, can't make tonight, is anyone in?" reaches a person, not
 // Office hours. STOP and START are handled before any of this.
-const NO_LIBRARY = new Set<string>([...PERSON_WORDS, ...CANCEL_WORDS, ...HELP_WORDS, ...DROPOUT]);
+// Words that say something has gone wrong with a shift without the dropout words ("I'm poorly",
+// "family emergency", "stuck in traffic"): they keep a message from the library too (the second
+// guardrails review, M1), though not from the shifts keyword. Wide on purpose: a word too many only
+// means the office answers.
+export const LIBRARY_STOP_WORDS = [
+  "unwell",
+  "poorly",
+  "emergency",
+  "hospital",
+  "ambulance",
+  "injured",
+  "injury",
+  "accident",
+  "funeral",
+  "bereavement",
+  "delayed",
+  "delay",
+  "traffic",
+  "stuck",
+  "breakdown",
+  "broken",
+  "broke",
+  "missed",
+  "covid",
+  "drop",
+  "dropout",
+  "swap",
+  "quit",
+] as const;
+const NO_LIBRARY = new Set<string>([
+  ...PERSON_WORDS,
+  ...CANCEL_WORDS,
+  ...HELP_WORDS,
+  ...DROPOUT,
+  ...LIBRARY_STOP_WORDS,
+]);
 
 export function libraryAllowed(text: string): boolean {
   for (const w of keywordWords(text)) if (NO_LIBRARY.has(w)) return false;

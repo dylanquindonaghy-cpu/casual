@@ -130,6 +130,29 @@ describe("Settings → Automatic answers: what the page and its forms read", () 
     expect(await officeAnswer(s.ctx(s.resourcer), s.ids.Lockers ?? "")).toBeNull();
     expect(await officeAnswer(other.ctx(other.admin), s.ids.Lockers ?? "")).toBeNull();
   });
+  it("Make this an answer from an email checks its subject too (the second guardrails review, L)", async () => {
+    const s = await scene();
+    const email = async (subject: string, body: string) => {
+      const { rows } = await su.query<{ id: string }>(
+        `insert into inbound_emails (firm_id, provider_message_id, worker_id, from_address, to_address,
+                                     subject, body, handled_at, handled_as, intent)
+         values ($1, $2, $3, 'ann.p35@example.com', 'staffing@inbound.example.test', $4, $5, now(),
+                 'office', 'office')
+         returning id::text as id`,
+        [s.f.firmId, `<${randomBytes(8).toString("hex")}@mail.example.test>`, s.ann, subject, body],
+      );
+      return rows[0]?.id ?? "";
+    };
+    const plain = await email("A question", "Is there food at the festival?");
+    const cancel = await email("Cancel Saturday", "Is there food at the festival?");
+    const pay = await email("My pay is wrong", "Is there food at the festival?");
+    // The example is the body; the checks read the subject too.
+    expect((await officeNewAnswer(s.ctx(s.admin), plain))?.example).toBe(
+      "Is there food at the festival?",
+    );
+    expect((await officeNewAnswer(s.ctx(s.admin), cancel))?.example).toBeNull();
+    expect((await officeNewAnswer(s.ctx(s.admin), pay))?.example).toBeNull();
+  });
 });
 
 describe("Enquiries: answered automatically, and how", () => {

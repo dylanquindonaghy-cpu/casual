@@ -6,7 +6,7 @@ import { libraryAllowed } from "../inbound/keywords";
 import { factsFor, type FactsContext } from "./facts";
 import { fillInsNeeded, isFillInKey } from "./fill-ins";
 import { aboutPayTrouble, matchByExample } from "./match";
-import { answerText, type Facts } from "./render";
+import { answerText, type AnswerTopic, type Facts } from "./render";
 import { answersOn, type AnswerChannel } from "./switches";
 import { examplesFromText } from "./validate";
 
@@ -58,7 +58,7 @@ export { matchByExample };
 // texts and email, the owner's `auto_replies`) off since the job first read them. On: the words to
 // fill in, as they are now. Off: nothing goes, and the message is the office's
 // (`answerSwitchedOff` in its log).
-export type Rechecked = { on: true; body: string } | { on: false };
+export type Rechecked = { on: true; body: string; topic: AnswerTopic } | { on: false };
 
 export async function recheckAnswer(
   tx: FirmTx,
@@ -66,7 +66,12 @@ export async function recheckAnswer(
   channel: AnswerChannel,
 ): Promise<Rechecked> {
   const [row] = await tx
-    .select({ isOn: answers.isOn, body: answers.body })
+    .select({
+      isOn: answers.isOn,
+      body: answers.body,
+      name: answers.name,
+      examples: answers.examples,
+    })
     .from(answers)
     .where(eq(answers.id, answerId));
   const [firm] = await tx
@@ -75,7 +80,13 @@ export async function recheckAnswer(
     .where(eq(firms.id, sql`app_current_firm_id()`));
   const settings = firm?.settings ?? {};
   const channelOn = answersOn(settings, channel) && (channel === "app" || autoRepliesOn(settings));
-  return row?.isOn && channelOn ? { on: true, body: row.body } : { on: false };
+  return row?.isOn && channelOn
+    ? {
+        on: true,
+        body: row.body,
+        topic: { name: row.name, examples: examplesFromText(row.examples) },
+      }
+    : { on: false };
 }
 
 // The casual's facts an answer's words need (src/lib/answers/facts.ts), read before the claim.
@@ -93,8 +104,8 @@ export type Prepared = { ok: true; text: string } | { ok: false; missing: string
 // The answer's words filled in for this casual (with the pay query hint where it goes:
 // answerText()), or the fill-ins she has no value for (for the log: a key from the fixed list, or
 // "unknown"). Words re-read in the claim that need a fill-in not read before: missing too.
-export function wordsFor(body: string, facts: Facts): Prepared {
-  const rendered = answerText(body, facts);
+export function wordsFor(body: string, facts: Facts, topic?: AnswerTopic): Prepared {
+  const rendered = answerText(body, facts, topic);
   if ("text" in rendered) return { ok: true, text: rendered.text };
   return {
     ok: false,
